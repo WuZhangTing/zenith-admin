@@ -25,8 +25,7 @@ import {
   CmsThemeSettingFieldDTO,
   CmsThemeTemplatesDTO,
 } from '../../lib/openapi-dtos';
-import { getThemeSettingsSchema, isThemeRegistered } from '../../cms/themes/registry';
-import { listCmsAvailableThemes, listCmsThemeTemplateOptions } from '../../services/cms/cms-templates.service';
+import { getThemeSettingsSchema, isThemeRegistered, listThemes, listThemeTemplates } from '../../cms/themes/registry';
 import {
   listCmsSites, listAllCmsSites, getCmsSite, createCmsSite, updateCmsSite, deleteCmsSite,
   ensureCmsSiteExists, mapCmsSite, getCmsSiteUsers, setCmsSiteUsers, enableSiteAnalytics, assertSiteAccess,
@@ -94,7 +93,7 @@ const themesRoute = defineOpenAPIRoute({
     request: { query: z.object({ siteId: z.coerce.number().int().positive().optional() }) },
     responses: { ...commonErrorResponses, ...ok(z.array(CmsThemeDTO), '主题列表') },
   }),
-  handler: async (c) => c.json(okBody(await listCmsAvailableThemes(c.req.valid('query').siteId)), 200),
+  handler: async (c) => c.json(okBody(listThemes()), 200),
 });
 
 const themeTemplatesRoute = defineOpenAPIRoute({
@@ -109,10 +108,11 @@ const themeTemplatesRoute = defineOpenAPIRoute({
     },
     responses: { ...commonErrorResponses, ...ok(CmsThemeTemplatesDTO, '模板清单') },
   }),
-  handler: async (c) => c.json(okBody(await listCmsThemeTemplateOptions(
-    c.req.valid('param').code,
-    c.req.valid('query').siteId,
-  )), 200),
+  handler: async (c) => {
+    const code = c.req.valid('param').code;
+    const options = isThemeRegistered(code) ? listThemeTemplates(code) : { list: [], detail: [] };
+    return c.json(okBody({ list: options.list, detail: options.detail }), 200);
+  },
 });
 
 const themeSettingsSchemaRoute = defineOpenAPIRoute({

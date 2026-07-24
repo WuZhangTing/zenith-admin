@@ -8,7 +8,6 @@ import { readFileContent } from '../files/files.service';
 import { isCmsPlatformAdmin } from './cms-access';
 import { assertAllCmsSiteChannelsAccess } from './cms-channels.service';
 import { registerCmsResourceTaskHandler } from './cms-resource-tasks';
-import { registerCmsThemeTaskHandler } from './cms-themes.service';
 import { registerCmsPublishingTaskHandler } from './cms-publishing.service';
 import { registerCmsStage4TaskHandlers } from './cms-stage4-tasks';
 import { registerCmsDistributionTaskHandler } from './cms-distributions.service';
@@ -19,7 +18,6 @@ export function registerCmsTaskHandlers(): void {
   registerCmsCollectTaskHandler();
   registerCmsContentImportTaskHandler();
   registerCmsResourceTaskHandler();
-  registerCmsThemeTaskHandler();
   registerCmsPublishingTaskHandler();
   registerCmsStage4TaskHandlers();
   registerCmsDistributionTaskHandler();

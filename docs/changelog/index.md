@@ -4,6 +4,26 @@
 
 ---
 
+## v1.13.0 - 2026-07-24
+
+CMS 渲染架构简化：**移除在线模板子系统（声明式 DSL 模板 + 签名主题包 + 部署生命周期），前台渲染统一为仓库内置 React TSX 主题（React SSR）**。模板由开发者随代码维护，运营侧保留内置主题选择与变体模板下拉。**升级需执行 `npm run db:migrate`（删除 4 张模板/主题包表）与 `npm run db:seed`。**
+
+### Changed
+
+- **前台渲染统一 React SSR**：站点/栏目/内容/搜索/标签/404 等页面全部由内置主题（`default` / `docs`）TSX 组件渲染，移除「DB 模板优先、内置回退」的解析链；栏目/内容引用的失效模板名静默回退主题默认模板
+- **站点主题切换回归站点编辑**：站点管理编辑弹窗直接选择内置主题，服务端校验注册表并原子递增 `themeRevision`（发布过期栅栏保留 themeRevision / templateRefsRevision 两级）
+- **发布中心目标类型收敛**：移除「模板影响重建」目标（`template`），保留内容/批量内容/栏目/整站/主题影响重建/搭建页面
+- 模板健康检查与站点/栏目/内容的模板名校验改为仅对照内置主题注册表
+
+### Removed
+
+- **声明式模板 DSL**：`renderCmsTemplateDsl` 解释器、模板管理页（`/cms/themes`）、模板版本链/回滚/diff/预览/激活 API（`/api/cms/templates/*`）
+- **签名主题包**：Ed25519 验签导入、ZIP 安全边界、CSS AST 校验、主题包资源服务（`/api/public/cms/theme-assets/*`）、部署生命周期 API（`/api/cms/themes/*`）
+- **数据库表**：`cms_templates`、`cms_template_versions`、`cms_theme_packages`、`cms_theme_deployments`；`cms_publish_artifacts` 移除 `theme_package_id` / `template_id` / `template_version` 列
+- 菜单「模板与主题」（14230 段）及 `cms:template:*` / `cms:theme:*` 权限码；相关 shared 类型/校验 schema/常量与 MSW mock
+
+---
+
 ## v1.12.0 - 2026-07-24
 
 菜单权限模型重构：**显示与操作解耦**。目录/菜单节点成为纯显示资源，全部权限码（含查询）由按钮型权限点承载；配套完成菜单 ID 分段重编与种子清空重建。**升级需重跑 `npm run db:seed`（菜单及角色/用户/套餐绑定清空重建，用户收藏菜单重置）。**

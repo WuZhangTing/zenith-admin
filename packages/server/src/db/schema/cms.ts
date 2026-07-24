@@ -19,14 +19,7 @@ import {
   CMS_INTERACTION_RESULT_VISIBILITIES,
   CMS_INTERACTION_STATUSES,
   CMS_SUBSCRIPTION_SUBJECT_TYPES,
-  CMS_TEMPLATE_SOURCES,
-  CMS_TEMPLATE_TYPES,
-  CMS_THEME_DEPLOYMENT_STATUSES,
-  CMS_THEME_PACKAGE_STATUSES,
-  type CmsTemplateDslDocument,
   type CmsDistributionFilters,
-  type CmsThemePackageManifest,
-  type CmsThemePackageValidationReport,
 } from '@zenith/shared';
 
 // ─── 枚举（pgEnum / TS union / Zod enum 三处同步，见 @zenith/shared）────────────
@@ -39,10 +32,6 @@ export const cmsFieldTypeEnum = pgEnum('cms_field_type', ['text', 'textarea', 'r
 export const cmsFragmentTypeEnum = pgEnum('cms_fragment_type', ['html', 'text', 'image', 'json']);
 export const cmsSearchWordTypeEnum = pgEnum('cms_search_word_type', ['extension', 'stop']);
 export const cmsFormCaptchaProviderEnum = pgEnum('cms_form_captcha_provider', ['inherit', 'none', 'math', 'turnstile']);
-export const cmsTemplateTypeEnum = pgEnum('cms_template_type', CMS_TEMPLATE_TYPES);
-export const cmsTemplateSourceEnum = pgEnum('cms_template_source', CMS_TEMPLATE_SOURCES);
-export const cmsThemePackageStatusEnum = pgEnum('cms_theme_package_status', CMS_THEME_PACKAGE_STATUSES);
-export const cmsThemeDeploymentStatusEnum = pgEnum('cms_theme_deployment_status', CMS_THEME_DEPLOYMENT_STATUSES);
 export const cmsPublishTargetTypeEnum = pgEnum('cms_publish_target_type', CMS_PUBLISH_TARGET_TYPES);
 export const cmsPublishArtifactStatusEnum = pgEnum('cms_publish_artifact_status', CMS_PUBLISH_ARTIFACT_STATUSES);
 export const cmsAdEventTypeEnum = pgEnum('cms_ad_event_type', CMS_AD_EVENT_TYPES);
@@ -163,101 +152,6 @@ export const cmsPublishChannels = pgTable('cms_publish_channels', {
 
 export type CmsPublishChannelRow = typeof cmsPublishChannels.$inferSelect;
 export type NewCmsPublishChannel = typeof cmsPublishChannels.$inferInsert;
-
-// ─── CMS 签名主题包版本（仅声明式模板与静态资源，不存私钥）──────────────────────
-export const cmsThemePackages = pgTable('cms_theme_packages', {
-  id: serial('id').primaryKey(),
-  code: varchar('code', { length: 50 }).notNull(),
-  name: varchar('name', { length: 100 }).notNull(),
-  version: varchar('version', { length: 64 }).notNull(),
-  engineMin: integer('engine_min').notNull(),
-  engineMax: integer('engine_max').notNull(),
-  signingKeyId: varchar('signing_key_id', { length: 64 }).notNull(),
-  archiveChecksum: varchar('archive_checksum', { length: 64 }).notNull(),
-  manifest: jsonb('manifest').$type<CmsThemePackageManifest>().notNull(),
-  validationReport: jsonb('validation_report').$type<CmsThemePackageValidationReport>().notNull(),
-  /** CMS_THEME_STORAGE_ROOT 下的相对目录；API 永不暴露物理绝对路径。 */
-  storageKey: varchar('storage_key', { length: 255 }).notNull(),
-  status: cmsThemePackageStatusEnum('status').notNull().default('validated'),
-  ...auditColumns(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
-  uniqueIndex('cms_theme_packages_code_version_uq').on(t.code, t.version),
-  uniqueIndex('cms_theme_packages_archive_checksum_uq').on(t.archiveChecksum),
-  index('cms_theme_packages_code_status_idx').on(t.code, t.status),
-]);
-
-export type CmsThemePackageRow = typeof cmsThemePackages.$inferSelect;
-export type NewCmsThemePackage = typeof cmsThemePackages.$inferInsert;
-
-// ─── CMS 模板逻辑实体（版本只追加；site_id=null 表示主题级全局模板）──────────────
-export const cmsTemplates = pgTable('cms_templates', {
-  id: serial('id').primaryKey(),
-  siteId: integer('site_id').references(() => cmsSites.id, { onDelete: 'cascade' }),
-  themeCode: varchar('theme_code', { length: 50 }).notNull(),
-  type: cmsTemplateTypeEnum('type').notNull(),
-  code: varchar('code', { length: 64 }).notNull(),
-  name: varchar('name', { length: 100 }).notNull(),
-  source: cmsTemplateSourceEnum('source').notNull().default('manual'),
-  status: statusEnum('status').notNull().default('enabled'),
-  currentVersion: integer('current_version').notNull().default(1),
-  activeVersion: integer('active_version'),
-  /** 模板生命周期事件修订号；每次激活/停用/回滚原子 +1。 */
-  lifecycleRevision: integer('lifecycle_revision').notNull().default(0),
-  description: varchar('description', { length: 500 }),
-  ...auditColumns(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
-  uniqueIndex('cms_templates_global_code_uq').on(t.themeCode, t.type, t.code)
-    .where(sql`${t.siteId} is null`),
-  uniqueIndex('cms_templates_site_code_uq').on(t.siteId, t.themeCode, t.type, t.code)
-    .where(sql`${t.siteId} is not null`),
-  index('cms_templates_site_theme_idx').on(t.siteId, t.themeCode, t.status),
-]);
-
-export type CmsTemplateRow = typeof cmsTemplates.$inferSelect;
-export type NewCmsTemplate = typeof cmsTemplates.$inferInsert;
-
-export const cmsTemplateVersions = pgTable('cms_template_versions', {
-  id: serial('id').primaryKey(),
-  templateId: integer('template_id').notNull().references(() => cmsTemplates.id, { onDelete: 'cascade' }),
-  version: integer('version').notNull(),
-  dsl: jsonb('dsl').$type<CmsTemplateDslDocument>().notNull(),
-  checksum: varchar('checksum', { length: 64 }).notNull(),
-  changeNote: varchar('change_note', { length: 500 }),
-  themePackageId: integer('theme_package_id').references(() => cmsThemePackages.id, { onDelete: 'set null' }),
-  ...auditColumns(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [
-  uniqueIndex('cms_template_versions_template_version_uq').on(t.templateId, t.version),
-  index('cms_template_versions_package_idx').on(t.themePackageId),
-]);
-
-export type CmsTemplateVersionRow = typeof cmsTemplateVersions.$inferSelect;
-export type NewCmsTemplateVersion = typeof cmsTemplateVersions.$inferInsert;
-
-// ─── 主题包站点部署历史；部分唯一索引保证每个站点仅一个 active ─────────────────
-export const cmsThemeDeployments = pgTable('cms_theme_deployments', {
-  id: serial('id').primaryKey(),
-  siteId: integer('site_id').notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
-  themeCode: varchar('theme_code', { length: 50 }).notNull(),
-  themePackageId: integer('theme_package_id').notNull().references(() => cmsThemePackages.id, { onDelete: 'restrict' }),
-  status: cmsThemeDeploymentStatusEnum('status').notNull().default('active'),
-  activatedAt: timestamp('activated_at').defaultNow().notNull(),
-  deactivatedAt: timestamp('deactivated_at'),
-  ...auditColumns(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
-  uniqueIndex('cms_theme_deployments_site_package_uq').on(t.siteId, t.themePackageId),
-  uniqueIndex('cms_theme_deployments_site_active_uq').on(t.siteId)
-    .where(sql`${t.status} = 'active'`),
-  index('cms_theme_deployments_site_history_idx').on(t.siteId, t.themeCode, t.activatedAt),
-]);
-
-export type CmsThemeDeploymentRow = typeof cmsThemeDeployments.$inferSelect;
 
 // ─── CMS 内容模型（元数据驱动的自定义字段体系）─────────────────────────────────
 export const cmsModels = pgTable('cms_models', {
@@ -1255,9 +1149,6 @@ export const cmsPublishArtifacts = pgTable('cms_publish_artifacts', {
   channelId: integer('channel_id').references(() => cmsChannels.id, { onDelete: 'set null' }),
   pageId: integer('page_id').references(() => cmsPages.id, { onDelete: 'set null' }),
   themeCode: varchar('theme_code', { length: 50 }),
-  themePackageId: integer('theme_package_id').references(() => cmsThemePackages.id, { onDelete: 'set null' }),
-  templateId: integer('template_id').references(() => cmsTemplates.id, { onDelete: 'set null' }),
-  templateVersion: integer('template_version'),
   path: varchar('path', { length: 1000 }).notNull(),
   url: varchar('url', { length: 1000 }),
   checksum: varchar('checksum', { length: 64 }),

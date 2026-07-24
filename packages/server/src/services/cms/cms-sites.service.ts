@@ -682,6 +682,14 @@ export async function updateCmsSite(id: number, data: UpdateCmsSiteInput) {
         sort: data.sort,
         remark: data.remark,
       };
+      // 主题切换：仅内置主题；变更时 bump themeRevision 供发布 fence 判定
+      if (data.theme !== undefined && data.theme !== locked.theme) {
+        if (!isThemeRegistered(data.theme)) {
+          throw new HTTPException(400, { message: `主题「${data.theme}」不存在` });
+        }
+        patch.theme = data.theme;
+        patch.themeRevision = sql`${cmsSites.themeRevision} + 1`;
+      }
       if (data.settings !== undefined) {
         patch.settings = lockedSettings;
       }

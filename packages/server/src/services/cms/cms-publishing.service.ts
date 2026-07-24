@@ -29,7 +29,6 @@ import {
   cmsPages,
   cmsPublishArtifacts,
   cmsSites,
-  cmsTemplates,
   type AsyncTaskRow,
   type CmsPublishArtifactRow,
 } from '../../db/schema';
@@ -274,9 +273,6 @@ function mapArtifact(row: CmsPublishArtifactRow) {
     channelId: row.channelId ?? null,
     pageId: row.pageId ?? null,
     themeCode: row.themeCode ?? null,
-    themePackageId: row.themePackageId ?? null,
-    templateId: row.templateId ?? null,
-    templateVersion: row.templateVersion ?? null,
     path: row.path,
     url: row.url ?? null,
     checksum: row.checksum ?? null,
@@ -364,7 +360,7 @@ export async function listCmsPublishArtifacts(query: ListCmsPublishArtifactsQuer
 async function validatePublishInput(input: CmsPublishSubmitInput, skipAccessCheck = false): Promise<void> {
   const site = await ensureCmsSiteExists(input.siteId);
   if (!skipAccessCheck) await assertSiteAccess(input.siteId);
-  if (['site', 'theme', 'template'].includes(input.targetType) && !skipAccessCheck) {
+  if (['site', 'theme'].includes(input.targetType) && !skipAccessCheck) {
     await assertAllCmsSiteChannelsAccess(input.siteId);
   }
   if (input.targetType === 'content' || input.targetType === 'contents') {
@@ -398,13 +394,6 @@ async function validatePublishInput(input: CmsPublishSubmitInput, skipAccessChec
     if (input.pageId) {
       const [page] = await db.select().from(cmsPages).where(and(eq(cmsPages.id, input.pageId), eq(cmsPages.siteId, site.id))).limit(1);
       if (!page) throw new HTTPException(404, { message: '搭建页面不存在或不属于所选站点' });
-    }
-  }
-  if (input.targetType === 'template') {
-    if (!input.templateId) throw new HTTPException(400, { message: '缺少 templateId' });
-    const [template] = await db.select().from(cmsTemplates).where(eq(cmsTemplates.id, input.templateId)).limit(1);
-    if (!template || (template.siteId != null && template.siteId !== site.id)) {
-      throw new HTTPException(404, { message: '模板不存在或不适用于所选站点' });
     }
   }
 }
@@ -561,10 +550,6 @@ export function submitCmsPagePublishSideEffect(input: {
 async function trackingContext(input: CmsPublishSubmitInput, taskId: number, ctx: TaskRunContext) {
   const site = await resolveEffectiveCmsSiteRow(input.siteId);
   const channels = await getActivePublishChannels(input.siteId);
-  const [template] = input.templateId
-    ? await db.select({ activeVersion: cmsTemplates.activeVersion, currentVersion: cmsTemplates.currentVersion })
-      .from(cmsTemplates).where(eq(cmsTemplates.id, input.templateId)).limit(1)
-    : [null];
   const protocol = (site.settings as Record<string, unknown> | null)?.protocol === 'http' ? 'http' : 'https';
   const defaultChannel = channels.find((item) => item.isDefault) ?? channels[0];
   const artifactProgress = { count: 0, failed: 0 };
@@ -579,9 +564,6 @@ async function trackingContext(input: CmsPublishSubmitInput, taskId: number, ctx
       channelId: input.channelId ?? null,
       pageId: input.pageId ?? null,
       themeCode: input.themeCode ?? site.theme,
-      themePackageId: input.themePackageId ?? null,
-      templateId: input.templateId ?? null,
-      templateVersion: template?.activeVersion ?? template?.currentVersion ?? null,
       publishChannelIds: Object.fromEntries(channels.map((item) => [item.code, item.id])),
       defaultChannelCode: defaultChannel.code,
       origins: Object.fromEntries(channels.map((item) => [
@@ -609,15 +591,15 @@ export function registerCmsPublishingTaskHandler(): void {
     taskType: 'cms-publish-build',
     title: 'CMS 统一发布',
     module: 'CMS内容管理',
-    description: '统一处理内容、栏目、整站、主题与模板影响重建，并记录逐路径产物。',
+    description: '统一处理内容、栏目、整站与主题影响重建，并记录逐路径产物。',
     allowConcurrent: true,
     maxAttempts: 3,
     retryDelayMs: 5000,
     async run(ctx) {
       const input = ctx.payload as unknown as CmsPublishSubmitInput;
       const systemTriggered = (ctx.payload as { systemTriggered?: unknown }).systemTriggered === true;
-      if (!systemTriggered && !(await hasPermission('cms:publish:build', 'cms:theme:activate', 'cms:template:activate'))) {
-        throw new Error('发布任务创建者的 CMS 发布/主题/模板激活权限已失效');
+      if (!systemTriggered && !(await hasPermission('cms:publish:build'))) {
+        throw new Error('发布任务创建者的 CMS 发布权限已失效');
       }
       return withCmsSitePublishLock(input.siteId, input, async () => {
       await validatePublishInput(input, systemTriggered);

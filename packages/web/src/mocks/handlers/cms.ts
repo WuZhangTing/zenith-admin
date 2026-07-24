@@ -17,7 +17,7 @@ import {
   mockCmsCollectRules, mockCmsCollectItems, getNextCmsCollectRuleId,
   mockCmsPages, getNextCmsPageId,
 } from '../data/cms';
-import { mockCmsPublishingTasks, mockCmsTemplates, mockCmsThemePackages } from '../data/cms-stage3';
+import { mockCmsPublishingTasks } from '../data/cms-stage3';
 import { mockCmsDistributionRules } from '../data/cms-stage5';
 import { createProgressingMockTask } from './async-tasks';
 import { mockDateTime, mockDate } from '../utils/date';
@@ -111,51 +111,20 @@ function sanitizeMockCmsHtml(value: string | null): string | null {
 export const cmsHandlers = [
   // ═══ 站点 ═══════════════════════════════════════════════════════════════
   http.get('/api/cms/sites/all', () => okJson(mockCmsSites.filter((s) => s.status === 'enabled').map(redactMockSite))),
-  http.get('/api/cms/sites/themes', ({ request }) => {
-    const siteId = Number(new URL(request.url).searchParams.get('siteId')) || undefined;
-    return okJson([
-      { code: 'default', label: '默认主题' },
-      { code: 'docs', label: '文档主题' },
-      ...mockCmsThemePackages
-        .filter((item) => siteId && item.activeSiteIds.includes(siteId))
-        .map((item) => ({ code: item.code, label: `${item.name} ${item.version}` })),
-    ]);
-  }),
+  http.get('/api/cms/sites/themes', () => okJson([
+    { code: 'default', label: '默认主题' },
+    { code: 'docs', label: '文档主题' },
+  ])),
   // 主题可选模板清单（与 packages/server/src/cms/themes/default 注册的变体保持一致）
-  http.get('/api/cms/sites/themes/:code/templates', ({ params, request }) => {
-    const siteId = Number(new URL(request.url).searchParams.get('siteId')) || undefined;
+  http.get('/api/cms/sites/themes/:code/templates', ({ params }) => {
     const code = String(params.code);
-    const site = mockCmsSites.find((item) => item.id === siteId);
-    const activePackage = mockCmsThemePackages.find((item) =>
-      item.code === code
-      && item.status === 'validated'
-      && item.activeSiteIds.includes(siteId ?? 0)
-      && site?.theme === code);
-    if (activePackage) {
-      return okJson({
-        list: activePackage.manifest.templates.filter((item) => item.type === 'list').map((item) => ({ name: item.code, label: item.name })),
-        detail: activePackage.manifest.templates.filter((item) => item.type === 'detail').map((item) => ({ name: item.code, label: item.name })),
-      });
-    }
     if (!['default', 'docs'].includes(code)) return okJson({ list: [], detail: [] });
-    const dynamic = mockCmsTemplates.filter((item) =>
-      item.themeCode === code
-      && item.source === 'manual'
-      && item.status === 'enabled'
-      && item.activeVersion != null
-      && (item.siteId == null || item.siteId === siteId));
     return okJson({
-      list: [
-        ...(code === 'default' ? [
-          { name: 'list-card', label: '卡片网格（产品/案例）' },
-          { name: 'list-compact', label: '紧凑标题（公告/文件）' },
-        ] : []),
-        ...dynamic.filter((item) => item.type === 'list').map((item) => ({ name: item.code, label: item.name })),
-      ],
-      detail: [
-        ...(code === 'default' ? [{ name: 'detail-plain', label: '简洁正文（公告/政策）' }] : []),
-        ...dynamic.filter((item) => item.type === 'detail').map((item) => ({ name: item.code, label: item.name })),
-      ],
+      list: code === 'default' ? [
+        { name: 'list-card', label: '卡片网格（产品/案例）' },
+        { name: 'list-compact', label: '紧凑标题（公告/文件）' },
+      ] : [],
+      detail: code === 'default' ? [{ name: 'detail-plain', label: '简洁正文（公告/政策）' }] : [],
     });
   }),
   // 主题参数声明（与 packages/server/src/cms/themes/default 的 settingsSchema 保持一致）
@@ -171,7 +140,7 @@ export const cmsHandlers = [
     const site = mockCmsSites.find((s) => s.id === Number(params.id));
     if (!site) return notFound('站点不存在');
     const theme = new URL(request.url).searchParams.get('theme') || site.theme;
-    return okJson({ theme, themeRegistered: ['default', 'docs'].includes(theme) || mockCmsThemePackages.some((item) => item.code === theme && item.activeSiteIds.includes(site.id)), invalidRefs: [] });
+    return okJson({ theme, themeRegistered: ['default', 'docs'].includes(theme), invalidRefs: [] });
   }),
   http.get('/api/cms/sites', ({ request }) => {
     const { url, page, pageSize, keyword } = pageParams(request);

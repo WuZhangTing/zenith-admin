@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
 import { Banner, Button, Form, Input, InputNumber, Select, Switch, Tag, TextArea, Toast, Modal, Row, Col, SideSheet, Tabs, TabPane, Upload } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -106,8 +105,6 @@ function displayEffectiveValue(field: CmsSiteInheritableField, resolved: Record<
     },
     theme: {
       code: resolved.theme,
-      deploymentId: resolved.activeThemeDeploymentId,
-      packageVersion: resolved.activeThemePackageVersion,
     },
     themeConfig: resolved.themeConfig,
     templates: resolved.defaultTemplates,
@@ -250,7 +247,6 @@ export default function SitesPage() {
   const { hasPermission } = usePermission();
   const formApi = useRef<FormApi | null>(null);
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
 
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
@@ -1101,18 +1097,8 @@ export default function SitesPage() {
                   <Form.TagInput field="aliasDomains" label="别名域名" placeholder="回车添加" />
                 </Col>
                 <Col span={12}>
-                  {editingRecord ? (
-                    <div className="semi-form-field">
-                      <div className="semi-form-field-label">当前主题</div>
-                      <Button theme="borderless" onClick={() => navigate('/cms/themes')}>
-                        {editingRecord.effectiveTheme ?? editingRecord.theme}
-                        {editingRecord.inheritance?.theme ? '（继承父级）' : ''}（前往主题生命周期管理）
-                      </Button>
-                    </div>
-                  ) : (
-                    <Form.Select field="theme" label="主题" style={{ width: '100%' }}
-                      optionList={(themes ?? []).map((t) => ({ value: t.code, label: t.label }))} />
-                  )}
+                  <Form.Select field="theme" label="主题" style={{ width: '100%' }}
+                    optionList={(themes ?? []).map((t) => ({ value: t.code, label: t.label }))} />
                 </Col>
                 <Col span={12}>
                   <Form.Select field="staticMode" label="静态化模式" style={{ width: '100%' }}

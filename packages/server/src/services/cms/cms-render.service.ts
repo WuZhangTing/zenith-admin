@@ -28,8 +28,6 @@ import { getActiveAds } from './cms-ads.service';
 import { getCmsFormByCode } from './cms-forms.service';
 import type { CmsChannel, CmsDeviceChannel, CmsFormField, CmsSiteTemplateDefaults } from '@zenith/shared';
 import { CMS_CONTENT_STATUS_LABELS } from '@zenith/shared';
-import type { CmsTemplateType } from '@zenith/shared';
-import { renderCmsDslTemplateIfConfigured } from './cms-templates.service';
 
 // ─── URL 规则（站点内相对路径，静态文件名与之一一对应）──────────────────────────
 export function channelUrl(baseUrl: string, path: string, page = 1): string {
@@ -71,23 +69,6 @@ export type RenderResult =
 
 function renderDoc<P extends object>(component: ComponentType<P>, props: P): string {
   return '<!DOCTYPE html>' + renderToStaticMarkup(createElement(component, props));
-}
-
-async function renderResolvedDoc<P extends object>(
-  site: CmsSiteRow,
-  type: CmsTemplateType,
-  component: ComponentType<P>,
-  props: P,
-  templateCode?: string | null,
-): Promise<string> {
-  const dsl = await renderCmsDslTemplateIfConfigured({
-    siteId: site.id,
-    themeCode: site.theme,
-    type,
-    templateCode,
-    context: props as Record<string, unknown>,
-  });
-  return dsl ?? renderDoc(component, props);
 }
 
 // ─── 模板解析链（发布通道感知）───────────────────────────────────────────────────
@@ -410,7 +391,7 @@ export async function renderCustomPage(
     page: { name: pageRow.name, slug: pageRow.slug },
     blocksHtml,
   };
-  const html = await renderResolvedDoc(site, 'custom_page', resolveCustomPageTemplate(theme), props);
+  const html = renderDoc(resolveCustomPageTemplate(theme), props);
   return { status: 200, html, kind: opts?.asHome ? 'home' : 'page' };
 }
 
@@ -444,7 +425,7 @@ export async function renderHomePage(site: CmsSiteRow, baseUrl: string, viewer?:
     recommended: home.recommended.map(toItem),
     hot: home.hot.map(toItem),
   };
-  const html = await renderResolvedDoc(site, 'index', theme.templates.index, props);
+  const html = renderDoc(theme.templates.index, props);
   return { status: 200, html, kind: 'home' };
 }
 
@@ -488,7 +469,7 @@ export async function renderChannelPage(site: CmsSiteRow, baseUrl: string, chann
         captcha: resolveCmsFormCaptcha(form, site),
       } : null,
     };
-    const html = await renderResolvedDoc(site, 'page', theme.templates.page, props);
+    const html = renderDoc(theme.templates.page, props);
     return { status: 200, html, kind: 'page' };
   }
 
@@ -502,7 +483,7 @@ export async function renderChannelPage(site: CmsSiteRow, baseUrl: string, chann
     items: rows.map((r) => toContentItem(r, baseUrl, channel.path)),
     pagination: buildPagination(baseUrl, channel.path, page, channel.pageSize, total),
   };
-  const html = await renderResolvedDoc(site, 'list', resolvedList.component, props, resolvedList.templateCode);
+  const html = renderDoc(resolvedList.component, props);
   return { status: 200, html, kind: 'list' };
 }
 
@@ -618,7 +599,7 @@ export async function renderDetailPage(site: CmsSiteRow, baseUrl: string, channe
       captchaEnabled: isCaptchaEnabled(site),
     },
   };
-  const html = await renderResolvedDoc(site, 'detail', detailTemplate.component, props, detailTemplate.templateCode);
+  const html = renderDoc(detailTemplate.component, props);
   return { status: 200, html, kind: 'detail', contentId: row.id };
 }
 
@@ -691,7 +672,7 @@ export async function renderContentPreviewPage(site: CmsSiteRow, baseUrl: string
       captchaEnabled: isCaptchaEnabled(site),
     },
   };
-  const html = await renderResolvedDoc(site, 'detail', previewTemplate.component, props, previewTemplate.templateCode);
+  const html = renderDoc(previewTemplate.component, props);
   const statusLabel = CMS_CONTENT_STATUS_LABELS[row.status] ?? row.status;
   const banner = '<div style="position:sticky;top:0;z-index:9999;background:#fff7e6;border-bottom:1px solid #ffd591;'
     + 'color:#874d00;padding:8px 16px;font-size:13px;text-align:center">'
@@ -736,7 +717,7 @@ export async function renderSearchPage(
       pages,
     },
   };
-  const html = await renderResolvedDoc(site, 'search', theme.templates.search, props);
+  const html = renderDoc(theme.templates.search, props);
   return { status: 200, html, kind: 'search' };
 }
 
@@ -745,7 +726,7 @@ export async function renderNotFound(site: CmsSiteRow, baseUrl: string, path: st
   const seo = mergeSeo(site, { title: `页面不存在 - ${site.name}` });
   const base = await buildBaseContext(site, baseUrl, seo);
   const props = { ...base, path };
-  const html = await renderResolvedDoc(site, 'not_found', theme.templates.notFound, props);
+  const html = renderDoc(theme.templates.notFound, props);
   return { status: 404, html, kind: 'notFound' };
 }
 
@@ -792,9 +773,7 @@ export async function renderInteractionPage(site: CmsSiteRow, baseUrl: string, c
       memberSubmitApi: `/api/member/cms/interactions/${interaction.id}/submit`,
     },
   };
-  const html = await renderResolvedDoc(
-    site,
-    'interaction',
+  const html = renderDoc(
     resolveInteractionTemplate(getBuiltinThemeFallback(site.theme)),
     props,
   );
@@ -850,7 +829,7 @@ export async function renderTagPage(site: CmsSiteRow, baseUrl: string, slug: str
       pages,
     },
   };
-  const html = await renderResolvedDoc(site, 'tag', theme.templates.tag, props);
+  const html = renderDoc(theme.templates.tag, props);
   return { status: 200, html, kind: 'list' };
 }
 

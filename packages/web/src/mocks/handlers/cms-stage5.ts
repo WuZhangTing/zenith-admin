@@ -24,7 +24,6 @@ import {
   mockCmsDistributionRules,
   mockCmsDistributionRuns,
 } from '../data/cms-stage5';
-import { mockCmsTemplates, mockCmsThemePackages } from '../data/cms-stage3';
 import { createProgressingMockTask, setMockTaskItems } from './async-tasks';
 import { mockDateTime } from '../utils/date';
 
@@ -300,29 +299,6 @@ function executeMockDistribution(rule: CmsDistributionRule, taskId: number) {
 }
 
 export const cmsStage5Handlers = [
-  http.get('/api/public/cms/theme-assets/:siteId/:code/:version/assets/*', ({ params }) => {
-    const site = mockCmsSites.find((item) => item.id === Number(params.siteId));
-    if (!site) return new HttpResponse(null, { status: 404 });
-    const themeSource = sourceForField(site.id, 'theme');
-    const code = String(params.code);
-    const version = String(params.version);
-    const asset = `assets/${String(params['*'] ?? params['0'] ?? '')}`;
-    const pkg = mockCmsThemePackages.find((item) =>
-      item.code === code
-      && item.version === version
-      && item.status === 'validated'
-      && item.validationReport.valid
-      && item.activeSiteIds.includes(themeSource.id));
-    if (themeSource.theme !== code || !pkg?.manifest.assets.includes(asset)) {
-      return new HttpResponse(null, { status: 404 });
-    }
-    const contentType = asset.endsWith('.css') ? 'text/css; charset=utf-8' : 'application/octet-stream';
-    return new HttpResponse(asset.endsWith('.css') ? '/* inherited scoped demo asset */' : new Uint8Array(), {
-      status: 200,
-      headers: { 'Content-Type': contentType, 'Cache-Control': 'public, max-age=31536000, immutable' },
-    });
-  }),
-
   http.get('/api/cms/sites/all', () =>
     okJson(mockCmsSites.filter((site) => site.status === 'enabled').map(withEffectiveSummary))),
 
@@ -338,78 +314,23 @@ export const cmsStage5Handlers = [
     return okJson(paginate(rows.map(withEffectiveSummary), page, pageSize));
   }),
 
-  http.get('/api/cms/sites/themes', ({ request }) => {
-    const siteId = Number(new URL(request.url).searchParams.get('siteId')) || 0;
-    const site = mockCmsSites.find((item) => item.id === siteId);
-    const themes = [
-      { code: 'default', label: '默认主题' },
-      { code: 'docs', label: '文档主题' },
-    ];
-    if (!site) return okJson(themes);
-    const source = sourceForField(site.id, 'theme');
-    const activePackage = mockCmsThemePackages.find((item) =>
-      item.status === 'validated' && item.activeSiteIds.includes(source.id) && item.code === source.theme);
-    return okJson(activePackage
-      ? [...themes, { code: activePackage.code, label: `${activePackage.name} ${activePackage.version}` }]
-      : themes);
-  }),
+  http.get('/api/cms/sites/themes', () => okJson([
+    { code: 'default', label: '默认主题' },
+    { code: 'docs', label: '文档主题' },
+  ])),
 
-  http.get('/api/cms/sites/themes/:code/templates', ({ params, request }) => {
-    const siteId = Number(new URL(request.url).searchParams.get('siteId')) || 0;
-    const site = mockCmsSites.find((item) => item.id === siteId);
+  http.get('/api/cms/sites/themes/:code/templates', ({ params }) => {
     const code = String(params.code);
-    if (!site) return errorJson(404, '站点不存在');
-    const themeSource = sourceForField(site.id, 'theme');
-    const activePackage = mockCmsThemePackages.find((item) =>
-      item.code === code
-      && item.status === 'validated'
-      && item.activeSiteIds.includes(themeSource.id)
-      && sourceForField(site.id, 'theme').theme === code);
-    if (activePackage) {
-      return okJson({
-        list: activePackage.manifest.templates.filter((item) => item.type === 'list').map((item) => ({ name: item.code, label: item.name, source: 'package' })),
-        detail: activePackage.manifest.templates.filter((item) => item.type === 'detail').map((item) => ({ name: item.code, label: item.name, source: 'package' })),
-      });
-    }
     if (!['default', 'docs'].includes(code)) return okJson({ list: [], detail: [] });
-    const templateScope = (() => {
-      const nodes = chain(site.id);
-      const ids = [nodes[0].id];
-      let index = 0;
-      while (index < nodes.length - 1 && (nodes[index].inheritance ?? EMPTY_INHERITANCE).templates) {
-        index += 1;
-        ids.push(nodes[index].id);
-      }
-      return ids;
-    })();
-    const manual = mockCmsTemplates.filter((template) =>
-      template.themeCode === code
-      && template.source === 'manual'
-      && template.status === 'enabled'
-      && template.activeVersion != null
-      && (template.siteId == null || templateScope.includes(template.siteId)));
-    const make = (type: 'list' | 'detail') => {
-      const options = new Map<string, { name: string; label: string; source: string; sourceSiteId: number | null }>();
-      const builtins = type === 'list' && code === 'default'
-        ? [{ name: 'list-card', label: '卡片网格（产品/案例）' }, { name: 'list-compact', label: '紧凑标题（公告/文件）' }]
-        : type === 'detail' && code === 'default'
-          ? [{ name: 'detail-plain', label: '简洁正文（公告/政策）' }]
-          : [];
-      builtins.forEach((item) => options.set(item.name, { ...item, source: 'builtin', sourceSiteId: null }));
-      [...manual].sort((a, b) => {
-        const rank = (value: typeof a) => value.siteId == null ? -1 : templateScope.length - templateScope.indexOf(value.siteId);
-        return rank(a) - rank(b);
-      }).filter((template) => template.type === type).forEach((template) => {
-        options.set(template.code, {
-          name: template.code,
-          label: template.name,
-          source: template.siteId == null ? 'global' : template.siteId === site.id ? 'own' : 'inherited',
-          sourceSiteId: template.siteId,
-        });
-      });
-      return [...options.values()];
-    };
-    return okJson({ list: make('list'), detail: make('detail') });
+    return okJson({
+      list: code === 'default' ? [
+        { name: 'list-card', label: '卡片网格（产品/案例）', source: 'builtin', sourceSiteId: null },
+        { name: 'list-compact', label: '紧凑标题（公告/文件）', source: 'builtin', sourceSiteId: null },
+      ] : [],
+      detail: code === 'default' ? [
+        { name: 'detail-plain', label: '简洁正文（公告/政策）', source: 'builtin', sourceSiteId: null },
+      ] : [],
+    });
   }),
 
   http.get('/api/cms/sites/:id/template-health', ({ params, request }) => {
@@ -418,7 +339,7 @@ export const cmsStage5Handlers = [
     const theme = new URL(request.url).searchParams.get('theme') || sourceForField(site.id, 'theme').theme;
     return okJson({
       theme,
-      themeRegistered: ['default', 'docs'].includes(theme) || mockCmsThemePackages.some((item) => item.code === theme),
+      themeRegistered: ['default', 'docs'].includes(theme),
       invalidRefs: [],
     });
   }),

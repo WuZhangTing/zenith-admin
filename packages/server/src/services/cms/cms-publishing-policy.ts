@@ -1,6 +1,19 @@
 import { createHash } from 'node:crypto';
 import type { CmsPublishSubmitInput } from '@zenith/shared';
-import { canonicalizeCmsJson } from '../../cms/templates/dsl';
+
+/** 递归按 key 排序的 canonical JSON（用于提交去重指纹） */
+function canonicalizeCmsJson(value: unknown): string {
+  const canonical = (input: unknown): unknown => {
+    if (Array.isArray(input)) return input.map(canonical);
+    if (input && typeof input === 'object') {
+      return Object.fromEntries(
+        Object.keys(input as Record<string, unknown>).sort().map((key) => [key, canonical((input as Record<string, unknown>)[key])]),
+      );
+    }
+    return input;
+  };
+  return JSON.stringify(canonical(value));
+}
 
 export const CMS_REUSABLE_PUBLISH_TASK_STATUSES = ['pending', 'running'] as const;
 

@@ -687,6 +687,20 @@
       "when": 1784850119208,
       "tag": "0097_powerful_red_wolf",
       "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1784902915571,
+      "tag": "0098_funny_photon",
+      "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1784903883186,
+      "tag": "0099_rare_mauler",
+      "breakpoints": true
     }
   ]
 }

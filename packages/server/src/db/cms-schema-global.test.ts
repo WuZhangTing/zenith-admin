@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { getTableConfig, type PgTable } from 'drizzle-orm/pg-core';
 import * as cmsSchema from './schema/cms';
-import { cmsDistributionRules, cmsSiteInheritances, cmsSites, cmsThemeDeployments } from './schema/cms';
+import { cmsDistributionRules, cmsSiteInheritances, cmsSites } from './schema/cms';
 
 function cmsTables(): { name: string; table: PgTable }[] {
   const tables: { name: string; table: PgTable }[] = [];
@@ -18,15 +18,19 @@ function cmsTables(): { name: string; table: PgTable }[] {
 }
 
 describe('global CMS schema', () => {
-  it('keeps all 54 CMS tables outside tenant ownership', () => {
+  it('keeps all 50 CMS tables outside tenant ownership', () => {
     const tables = cmsTables();
-    expect(tables).toHaveLength(54);
+    expect(tables).toHaveLength(50);
     expect(tables.map((item) => item.name)).not.toEqual(expect.arrayContaining([
       'cms_surveys',
       'cms_survey_questions',
       'cms_survey_answers',
       'cms_polls',
       'cms_poll_votes',
+      'cms_templates',
+      'cms_template_versions',
+      'cms_theme_packages',
+      'cms_theme_deployments',
     ]));
     for (const { name, table } of tables) {
       const tenantColumn = getTableConfig(table).columns.find((column) => column.name === 'tenant_id');
@@ -64,14 +68,5 @@ describe('global CMS schema', () => {
       'cms_distribution_rules_target_idx',
       'cms_distribution_rules_due_idx',
     ]));
-  });
-
-  it('allows at most one active theme deployment per site regardless of theme code', () => {
-    const config = getTableConfig(cmsThemeDeployments);
-    const activeIndex = config.indexes.find((item) => item.config.name === 'cms_theme_deployments_site_active_uq');
-    expect(activeIndex?.config.unique).toBe(true);
-    expect(activeIndex?.config.columns).toHaveLength(1);
-    expect(activeIndex?.config.columns[0]).toMatchObject({ name: 'site_id' });
-    expect(activeIndex?.config.where).toBeDefined();
   });
 });

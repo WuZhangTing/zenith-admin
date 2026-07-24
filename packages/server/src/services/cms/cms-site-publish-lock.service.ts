@@ -3,10 +3,9 @@ import { eq, sql } from 'drizzle-orm';
 import { TaskCancelledError } from '../../lib/task-center';
 import { db } from '../../db';
 import type { DbExecutor, DbTransaction } from '../../db/types';
-import { cmsSites, cmsTemplates, type CmsSiteRow } from '../../db/schema';
+import { cmsSites, type CmsSiteRow } from '../../db/schema';
 import type { CmsPublishSubmitInput } from '@zenith/shared';
 import { HTTPException } from 'hono/http-exception';
-import { getCmsEffectiveThemeDeployment } from './cms-site-inheritance.service';
 
 const writeFenceStore = new AsyncLocalStorage<() => Promise<void>>();
 
@@ -35,12 +34,10 @@ export async function bumpCmsTemplateRefsRevision(tx: DbTransaction, siteId: num
   return site.revision;
 }
 
-export async function cmsSiteFencePayload(executor: DbExecutor, site: CmsSiteRow) {
-  const { deployment } = await getCmsEffectiveThemeDeployment(site.id, executor);
+export async function cmsSiteFencePayload(_executor: DbExecutor, site: CmsSiteRow) {
   return {
     expectedThemeRevision: site.themeRevision,
     expectedTemplateRefsRevision: site.templateRefsRevision,
-    expectedDeploymentId: deployment?.id ?? null,
   };
 }
 
@@ -66,19 +63,6 @@ export async function assertCmsPublishFence(
   }
   if (input.expectedTemplateRefsRevision != null && site.templateRefsRevision !== input.expectedTemplateRefsRevision) {
     stale(`templateRefsRevision 期望 ${input.expectedTemplateRefsRevision}，当前 ${site.templateRefsRevision}`);
-  }
-  if (input.expectedDeploymentId !== undefined) {
-    const { deployment } = await getCmsEffectiveThemeDeployment(input.siteId, executor);
-    if ((deployment?.id ?? null) !== input.expectedDeploymentId) {
-      stale(`deployment 期望 ${input.expectedDeploymentId ?? 'builtin'}，当前 ${deployment?.id ?? 'builtin'}`);
-    }
-  }
-  if (input.templateId && input.expectedTemplateLifecycleRevision != null) {
-    const [template] = await executor.select({ revision: cmsTemplates.lifecycleRevision })
-      .from(cmsTemplates).where(eq(cmsTemplates.id, input.templateId)).limit(1);
-    if (!template || template.revision !== input.expectedTemplateLifecycleRevision) {
-      stale(`template #${input.templateId} revision 期望 ${input.expectedTemplateLifecycleRevision}，当前 ${template?.revision ?? 'missing'}`);
-    }
   }
 }
 

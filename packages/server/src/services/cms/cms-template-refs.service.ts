@@ -15,7 +15,6 @@ import { cmsChannels, cmsContents } from '../../db/schema';
 import type { CmsChannelRow } from '../../db/schema';
 import { isTemplateRegistered, isThemeRegistered, listThemeTemplates, getThemeSettingsSchema } from '../../cms/themes/registry';
 import type { CmsSiteTemplateDefaults, CmsTemplateHealth, CmsInvalidTemplateRef } from '@zenith/shared';
-import { resolveAvailableCmsTemplateNames } from './cms-template-resolution.service';
 import { resolveEffectiveCmsSiteRow } from './cms-site-inheritance.service';
 
 type TemplateKind = 'list' | 'detail';
@@ -67,16 +66,13 @@ function assertTemplateNameInSet(
   throw new HTTPException(400, { message: `${location}「${name}」在主题「${themeCode}」中不存在（${available}）` });
 }
 
-async function availableTemplateSets(themeCode: string, siteId?: number, executor?: DbExecutor) {
-  if (!siteId) {
-    const builtin = isThemeRegistered(themeCode) ? listThemeTemplates(themeCode) : { list: [], detail: [] };
-    return {
-      themeAvailable: isThemeRegistered(themeCode),
-      list: new Set(builtin.list.map((item) => item.name)),
-      detail: new Set(builtin.detail.map((item) => item.name)),
-    };
-  }
-  return resolveAvailableCmsTemplateNames(siteId, themeCode, { executor });
+async function availableTemplateSets(themeCode: string, _siteId?: number, _executor?: DbExecutor) {
+  const builtin = isThemeRegistered(themeCode) ? listThemeTemplates(themeCode) : { list: [], detail: [] };
+  return {
+    themeAvailable: isThemeRegistered(themeCode),
+    list: new Set(builtin.list.map((item) => item.name)),
+    detail: new Set(builtin.detail.map((item) => item.name)),
+  };
 }
 
 function assertTemplateDefaultsMap(
@@ -151,46 +147,6 @@ export async function assertContentTemplateBySite(siteId: number, detailTemplate
   assertTemplateNameInSet(sets.detail, theme, detailTemplate, '详情模板');
 }
 
-/** 生命周期停用前扫描某个活动模板 code 的显式引用；返回可行动的位置摘要。 */
-export async function findCmsTemplateReferences(
-  siteId: number,
-  kind: TemplateKind,
-  templateCode: string,
-): Promise<string[]> {
-  const [site, channels, contentCount] = await Promise.all([
-    resolveEffectiveCmsSiteRow(siteId).catch(() => null),
-    db.select().from(cmsChannels).where(eq(cmsChannels.siteId, siteId)),
-    kind === 'detail'
-      ? db.$count(cmsContents, and(
-          eq(cmsContents.siteId, siteId),
-          eq(cmsContents.detailTemplate, templateCode),
-        ))
-      : Promise.resolve(0),
-  ]);
-  if (!site) return [];
-  const refs: string[] = [];
-  const collectMap = (value: unknown, prefix: string) => {
-    if (!value || typeof value !== 'object') return;
-    for (const [device, raw] of Object.entries(value as Record<string, unknown>)) {
-      const cfg = parseTemplateDefaults(raw);
-      if (kind === 'list' && cfg.list === templateCode) refs.push(`${prefix}[${device}]列表`);
-      if (kind === 'detail' && cfg.detail === templateCode) refs.push(`${prefix}[${device}]详情`);
-      if (kind === 'detail') {
-        for (const [model, name] of Object.entries(cfg.detailByModel ?? {})) {
-          if (name === templateCode) refs.push(`${prefix}[${device}]${model}详情`);
-        }
-      }
-    }
-  };
-  collectMap((site.settings as Record<string, unknown> | null)?.defaultTemplates, '站点');
-  for (const channel of channels) {
-    if (kind === 'list' && channel.listTemplate === templateCode) refs.push(`栏目 #${channel.id} 列表`);
-    if (kind === 'detail' && channel.detailTemplate === templateCode) refs.push(`栏目 #${channel.id} 详情`);
-    collectMap((channel.settings as Record<string, unknown> | null)?.templates, `栏目 #${channel.id}`);
-  }
-  if (contentCount > 0) refs.push(`${contentCount} 条内容详情`);
-  return refs;
-}
 
 // ─── 存量扫描（主题健康检查）───────────────────────────────────────────────────
 function scanChannelRefs(

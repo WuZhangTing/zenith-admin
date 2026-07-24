@@ -1,4 +1,3 @@
-import { and, eq, isNotNull } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import {
   CMS_SECRET_MASK,
@@ -7,15 +6,12 @@ import {
   type CmsSiteEffectiveConfig,
   type CmsSiteInheritableField,
   type CmsSiteInheritanceFlags,
-  type CmsTemplateType,
 } from '@zenith/shared';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
 import {
   cmsSiteInheritances,
   cmsSites,
-  cmsThemeDeployments,
-  cmsTemplates,
   type CmsSiteInheritanceRow,
   type CmsSiteRow,
 } from '../../db/schema';
@@ -214,19 +210,6 @@ export async function resolveEffectiveCmsSiteRow(
   return (await resolveEffectiveCmsSite(siteId, executor)).site;
 }
 
-export async function getCmsEffectiveThemeDeployment(siteId: number, executor: DbExecutor = db) {
-  const resolved = await resolveEffectiveCmsSite(siteId, executor);
-  const themeSourceSiteId = resolved.sourceSiteIds.theme;
-  const deployment = await executor.query.cmsThemeDeployments.findFirst({
-    where: and(
-      eq(cmsThemeDeployments.siteId, themeSourceSiteId),
-      eq(cmsThemeDeployments.status, 'active'),
-    ),
-    with: { themePackage: true },
-  });
-  return { resolved, themeSourceSiteId, deployment: deployment ?? null };
-}
-
 export async function listCmsInheritanceAffectedSiteIds(
   sourceSiteId: number,
   field: CmsSiteInheritableField,
@@ -243,40 +226,6 @@ export async function listCmsInheritanceAffectedSiteIds(
     })
     .map((row) => row.id);
   return [...new Set(ids)].sort((a, b) => a - b);
-}
-
-export async function listCmsTemplateAffectedSiteIds(
-  scopeSiteId: number | null,
-  themeCode: string,
-  executor: DbExecutor = db,
-  template?: { type: CmsTemplateType; code: string },
-): Promise<number[]> {
-  const state = await loadCmsInheritanceState(executor);
-  const matchingSiteIds = template
-    ? new Set((await executor.select({ siteId: cmsTemplates.siteId }).from(cmsTemplates).where(and(
-        eq(cmsTemplates.themeCode, themeCode),
-        eq(cmsTemplates.type, template.type),
-        eq(cmsTemplates.code, template.code),
-        eq(cmsTemplates.source, 'manual'),
-        eq(cmsTemplates.status, 'enabled'),
-        isNotNull(cmsTemplates.activeVersion),
-      ))).map((row) => row.siteId))
-    : null;
-  return state.sites
-    .filter((row) => row.status === 'enabled')
-    .filter((row) => {
-      const snapshot = resolveCmsSiteSnapshot(state.sites, state.inheritances, row.id);
-      if (snapshot.site.theme !== themeCode) return false;
-      const scopeChain = buildCmsTemplateScopeChain(state.sites, state.inheritances, row.id);
-      const scopeIndex = scopeSiteId == null ? scopeChain.length : scopeChain.indexOf(scopeSiteId);
-      if (scopeIndex < 0) return false;
-      if (matchingSiteIds && scopeChain.slice(0, scopeIndex).some((siteId) => matchingSiteIds.has(siteId))) {
-        return false;
-      }
-      return true;
-    })
-    .map((row) => row.id)
-    .sort((a, b) => a - b);
 }
 
 function secretMask(value: unknown): string | null {
@@ -301,7 +250,7 @@ export async function getCmsSiteEffectiveConfig(
     };
   };
   const settings = snapshot.site.settings as Record<string, unknown>;
-  const { deployment, themeSourceSiteId } = await getCmsEffectiveThemeDeployment(siteId);
+  const themeSourceSiteId = (await resolveEffectiveCmsSite(siteId)).sourceSiteIds.theme;
   const chainRootFirst = [...snapshot.chain].reverse();
   return {
     siteId,
@@ -324,9 +273,6 @@ export async function getCmsSiteEffectiveConfig(
       cdnPurgeToken: secretMask(settings.cdnPurgeToken),
       theme: snapshot.site.theme,
       themeSourceSiteId: visible == null || visible.has(themeSourceSiteId) ? themeSourceSiteId : null,
-      activeThemeDeploymentId: deployment?.id ?? null,
-      activeThemePackageId: deployment?.themePackageId ?? null,
-      activeThemePackageVersion: deployment?.themePackage.version ?? null,
       themeConfig: settings.themeConfig && typeof settings.themeConfig === 'object'
         ? structuredClone(settings.themeConfig as Record<string, unknown>)
         : {},

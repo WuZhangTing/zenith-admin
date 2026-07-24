@@ -2,7 +2,6 @@ import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import {
   createCmsInteractionSchema,
-  cmsTemplateDslSchema,
 } from '@zenith/shared';
 import {
   canExposeCmsInteractionResults,
@@ -112,19 +111,10 @@ describe('CMS Stage4 unified interactions', () => {
     expect(canExposeCmsInteractionResults({ visibility: 'after_close', status: 'published', submitted: true })).toBe(false);
   });
 
-  it('rejects legacy DSL packages and migration drops both legacy product tables', async () => {
-    expect(cmsTemplateDslSchema.safeParse({ version: 1, root: { kind: 'text', value: 'legacy' } }).success).toBe(false);
+  it('migration drops both legacy product tables', async () => {
     const migration = await stage4Migration();
     expect(migration).toContain('DROP TABLE "cms_polls"');
     expect(migration).toContain('DROP TABLE "cms_surveys"');
     expect(migration).toContain('CREATE TABLE "cms_interactions"');
-    const textCast = migration.indexOf('ALTER COLUMN "type" SET DATA TYPE text');
-    const dataUpdate = migration.indexOf(`SET "type" = 'interaction' WHERE "type" = 'survey'`);
-    const enumDrop = migration.indexOf('DROP TYPE "public"."cms_template_type"');
-    const enumCast = migration.indexOf('USING "type"::"public"."cms_template_type"');
-    expect(textCast).toBeGreaterThanOrEqual(0);
-    expect(dataUpdate).toBeGreaterThan(textCast);
-    expect(enumDrop).toBeGreaterThan(dataUpdate);
-    expect(enumCast).toBeGreaterThan(enumDrop);
   });
 });

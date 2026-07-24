@@ -7,7 +7,6 @@ import {
   mockCmsDistributionRuns,
 } from '@/mocks/data/cms-stage5';
 import { cmsStage5Handlers } from '@/mocks/handlers/cms-stage5';
-import { mockCmsThemePackages } from '@/mocks/data/cms-stage3';
 
 const snapshots = {
   sites: structuredClone(mockCmsSites),
@@ -16,7 +15,6 @@ const snapshots = {
   rules: structuredClone(mockCmsDistributionRules),
   runs: structuredClone(mockCmsDistributionRuns),
   items: structuredClone([...mockCmsDistributionItems.entries()]),
-  packages: structuredClone(mockCmsThemePackages),
 };
 
 afterEach(() => {
@@ -27,7 +25,6 @@ afterEach(() => {
   mockCmsDistributionRuns.splice(0, mockCmsDistributionRuns.length, ...structuredClone(snapshots.runs));
   mockCmsDistributionItems.clear();
   for (const [taskId, items] of structuredClone(snapshots.items)) mockCmsDistributionItems.set(taskId, items);
-  mockCmsThemePackages.splice(0, mockCmsThemePackages.length, ...structuredClone(snapshots.packages));
 });
 
 async function call(method: string, path: string, body?: unknown) {
@@ -85,24 +82,14 @@ describe('CMS Stage 5 MSW handlers', () => {
     expect((restored.body.data as typeof config).resolved.title).toBe('Zenith 技术中心');
   });
 
-  it('uses the shared child-parent-global template catalog with child overrides first', async () => {
+  it('serves the builtin template catalog for the default theme', async () => {
     const response = await call('GET', '/api/cms/sites/themes/default/templates?siteId=2');
     const catalog = response.body.data as {
       list: Array<{ name: string; source: string }>;
       detail: Array<{ name: string; source: string }>;
     };
-    expect(catalog.list.find((item) => item.name === 'list-editorial')?.source).toBe('inherited');
-    expect(catalog.detail.find((item) => item.name === 'detail-editorial')?.source).toBe('own');
-  });
-
-  it('serves inherited package assets through the child site scope only when the parent deployment is active', async () => {
-    const pkg = mockCmsThemePackages[0]!;
-    pkg.manifest.assets = ['assets/site.css'];
-    pkg.activeSiteIds = [1];
-    mockCmsSites[0].theme = pkg.code;
-    mockCmsSites[1].inheritance = { ...mockCmsSites[1].inheritance!, theme: true };
-    const response = await call('GET', `/api/public/cms/theme-assets/2/${pkg.code}/${pkg.version}/assets/site.css`);
-    expect(response.status).toBe(200);
+    expect(catalog.list.find((item) => item.name === 'list-card')?.source).toBe('builtin');
+    expect(catalog.detail.find((item) => item.name === 'detail-plain')?.source).toBe('builtin');
   });
 
   it('reports lock conflicts, enforces idempotency and excludes drafts', async () => {

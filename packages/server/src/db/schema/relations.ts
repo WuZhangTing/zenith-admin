@@ -54,7 +54,7 @@ import {
   cmsLinkWords, cmsMemberSubscriptions, cmsMemberViewHistory, cmsModelFields, cmsModels,
   cmsPageBlockAcls, cmsPages, cmsPublishArtifacts, cmsPublishChannels, cmsPushLogs,
   cmsRedirects, cmsResourceFolders, cmsResources, cmsSearchWords, cmsSiteInheritances, cmsSites, cmsSiteUsers,
-  cmsTags, cmsTemplateVersions, cmsTemplates, cmsThemeDeployments, cmsThemePackages,
+  cmsTags,
 } from './cms';
 
 // ─── 关联关系 ────────────────────────────────────────────────────────────────
@@ -1270,8 +1270,6 @@ export const cmsSitesRelations = relations(cmsSites, ({ one, many }) => ({
   searchWords: many(cmsSearchWords),
   hotwordGroups: many(cmsHotwordGroups),
   hotwords: many(cmsHotwords),
-  templates: many(cmsTemplates),
-  themeDeployments: many(cmsThemeDeployments),
   publishArtifacts: many(cmsPublishArtifacts),
   interactions: many(cmsInteractions),
   subscriptions: many(cmsMemberSubscriptions),
@@ -1285,29 +1283,6 @@ export const cmsSiteInheritancesRelations = relations(cmsSiteInheritances, ({ on
   site: one(cmsSites, { fields: [cmsSiteInheritances.siteId], references: [cmsSites.id] }),
 }));
 
-export const cmsTemplatesRelations = relations(cmsTemplates, ({ one, many }) => ({
-  site: one(cmsSites, { fields: [cmsTemplates.siteId], references: [cmsSites.id] }),
-  versions: many(cmsTemplateVersions),
-  publishArtifacts: many(cmsPublishArtifacts),
-}));
-
-export const cmsTemplateVersionsRelations = relations(cmsTemplateVersions, ({ one }) => ({
-  template: one(cmsTemplates, { fields: [cmsTemplateVersions.templateId], references: [cmsTemplates.id] }),
-  themePackage: one(cmsThemePackages, { fields: [cmsTemplateVersions.themePackageId], references: [cmsThemePackages.id] }),
-  createdByUser: one(users, { fields: [cmsTemplateVersions.createdBy], references: [users.id] }),
-}));
-
-export const cmsThemePackagesRelations = relations(cmsThemePackages, ({ many }) => ({
-  templateVersions: many(cmsTemplateVersions),
-  deployments: many(cmsThemeDeployments),
-  publishArtifacts: many(cmsPublishArtifacts),
-}));
-
-export const cmsThemeDeploymentsRelations = relations(cmsThemeDeployments, ({ one }) => ({
-  site: one(cmsSites, { fields: [cmsThemeDeployments.siteId], references: [cmsSites.id] }),
-  themePackage: one(cmsThemePackages, { fields: [cmsThemeDeployments.themePackageId], references: [cmsThemePackages.id] }),
-}));
-
 export const cmsPublishArtifactsRelations = relations(cmsPublishArtifacts, ({ one }) => ({
   task: one(asyncTasks, { fields: [cmsPublishArtifacts.taskId], references: [asyncTasks.id] }),
   site: one(cmsSites, { fields: [cmsPublishArtifacts.siteId], references: [cmsSites.id] }),
@@ -1315,8 +1290,6 @@ export const cmsPublishArtifactsRelations = relations(cmsPublishArtifacts, ({ on
   content: one(cmsContents, { fields: [cmsPublishArtifacts.contentId], references: [cmsContents.id] }),
   channel: one(cmsChannels, { fields: [cmsPublishArtifacts.channelId], references: [cmsChannels.id] }),
   page: one(cmsPages, { fields: [cmsPublishArtifacts.pageId], references: [cmsPages.id] }),
-  themePackage: one(cmsThemePackages, { fields: [cmsPublishArtifacts.themePackageId], references: [cmsThemePackages.id] }),
-  template: one(cmsTemplates, { fields: [cmsPublishArtifacts.templateId], references: [cmsTemplates.id] }),
 }));
 
 export const cmsModelsRelations = relations(cmsModels, ({ many }) => ({

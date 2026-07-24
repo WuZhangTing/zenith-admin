@@ -14,9 +14,6 @@ export interface CmsPublishTrackingContext {
   channelId?: number | null;
   pageId?: number | null;
   themeCode?: string | null;
-  themePackageId?: number | null;
-  templateId?: number | null;
-  templateVersion?: number | null;
   /** 发布通道 code → id；defaultCode 用于不带 __code/ 前缀的产物。 */
   publishChannelIds: Record<string, number>;
   defaultChannelCode: string;
@@ -91,9 +88,6 @@ export async function recordCmsPublishArtifact(input: {
     channelId: context.channelId ?? null,
     pageId: context.pageId ?? null,
     themeCode: context.themeCode ?? null,
-    themePackageId: context.themePackageId ?? null,
-    templateId: context.templateId ?? null,
-    templateVersion: context.templateVersion ?? null,
     path: relPath,
     url: artifactUrl(context.origins[channel.code], channel.publicPath),
     checksum,
@@ -109,9 +103,6 @@ export async function recordCmsPublishArtifact(input: {
       channelId: sql`excluded.channel_id`,
       pageId: sql`excluded.page_id`,
       themeCode: sql`excluded.theme_code`,
-      themePackageId: sql`excluded.theme_package_id`,
-      templateId: sql`excluded.template_id`,
-      templateVersion: sql`excluded.template_version`,
       url: sql`excluded.url`,
       checksum: sql`excluded.checksum`,
       size: sql`excluded.size`,

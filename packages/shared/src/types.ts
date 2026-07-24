@@ -10349,9 +10349,6 @@ export interface CmsSiteEffectiveConfig {
     cdnPurgeToken: string | null;
     theme: string;
     themeSourceSiteId: number | null;
-    activeThemeDeploymentId: number | null;
-    activeThemePackageId: number | null;
-    activeThemePackageVersion: string | null;
     themeConfig: Record<string, unknown>;
     defaultTemplates: Record<string, CmsSiteTemplateDefaults>;
   };
@@ -10430,7 +10427,7 @@ export interface CmsSiteTemplateDefaults {
 export interface CmsThemeTemplateOption {
   name: string;
   label: string;
-  source?: 'own' | 'inherited' | 'global' | 'builtin' | 'package';
+  source?: 'own' | 'inherited' | 'global' | 'builtin';
   sourceSiteId?: number | null;
 }
 
@@ -10484,189 +10481,6 @@ export interface CmsThemeSettingField {
   group?: string;
 }
 
-// ─── CMS Stage 3：声明式模板 / 签名主题包 / 发布中心 ───────────────────────────
-export type CmsTemplateType =
-  | 'layout'
-  | 'index'
-  | 'list'
-  | 'detail'
-  | 'page'
-  | 'search'
-  | 'tag'
-  | 'not_found'
-  | 'custom_page'
-  | 'block'
-  | 'interaction';
-
-export type CmsTemplateSource = 'manual' | 'package';
-
-export type CmsTemplateDslScalar = string | number | boolean | null;
-
-export type CmsTemplateDslValue =
-  | CmsTemplateDslScalar
-  | { bind: string; fallback?: CmsTemplateDslScalar }
-  | { asset: string };
-
-export type CmsTemplateDslNode =
-  | {
-      kind: 'element';
-      tag: string;
-      attrs?: Record<string, CmsTemplateDslValue>;
-      children?: CmsTemplateDslNode[];
-    }
-  | { kind: 'text'; value: CmsTemplateDslValue }
-  | { kind: 'binding'; bind: string; fallback?: CmsTemplateDslScalar }
-  | {
-      kind: 'if';
-      bind: string;
-      children: CmsTemplateDslNode[];
-      fallback?: CmsTemplateDslNode[];
-    }
-  | {
-      kind: 'each';
-      source: string;
-      item?: string;
-      children: CmsTemplateDslNode[];
-      empty?: CmsTemplateDslNode[];
-    }
-  | { kind: 'rich_text'; bind: string; className?: string }
-  | {
-      kind: 'component';
-      name: string;
-      props?: Record<string, CmsTemplateDslValue>;
-    };
-
-export interface CmsTemplateDslDocument {
-  version: 2;
-  root: CmsTemplateDslNode;
-}
-
-export interface CmsTemplateValidationIssue {
-  path: string;
-  code: string;
-  message: string;
-}
-
-export interface CmsTemplateValidationReport {
-  valid: boolean;
-  version: number | null;
-  checksum: string | null;
-  nodeCount: number;
-  maxDepth: number;
-  issues: CmsTemplateValidationIssue[];
-}
-
-export interface CmsTemplate {
-  id: number;
-  siteId: number | null;
-  themeCode: string;
-  type: CmsTemplateType;
-  code: string;
-  name: string;
-  source: CmsTemplateSource;
-  status: 'enabled' | 'disabled';
-  currentVersion: number;
-  activeVersion: number | null;
-  lifecycleRevision: number;
-  description: string | null;
-  createdBy?: number | null;
-  updatedBy?: number | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CmsTemplateVersion {
-  id: number;
-  templateId: number;
-  version: number;
-  dsl: CmsTemplateDslDocument;
-  checksum: string;
-  changeNote: string | null;
-  themePackageId: number | null;
-  createdBy?: number | null;
-  createdByName?: string | null;
-  createdAt: string;
-}
-
-export interface CmsTemplateDetail extends CmsTemplate {
-  versions: CmsTemplateVersion[];
-}
-
-export interface CmsTemplateDiffItem {
-  path: string;
-  change: 'added' | 'removed' | 'changed';
-  before: unknown;
-  after: unknown;
-}
-
-export interface CmsThemePackageTemplateEntry {
-  code: string;
-  name: string;
-  type: CmsTemplateType;
-  path: string;
-}
-
-export interface CmsThemePackageManifest {
-  schemaVersion: 2;
-  code: string;
-  name: string;
-  version: string;
-  engine: { min: number; max: number };
-  templates: CmsThemePackageTemplateEntry[];
-  assets: string[];
-  checksums: Record<string, string>;
-  signingKeyId: string;
-  signature: string;
-}
-
-export interface CmsThemePackageValidationReport {
-  valid: boolean;
-  archiveChecksum: string;
-  manifest: CmsThemePackageManifest | null;
-  fileCount: number;
-  compressedBytes: number;
-  uncompressedBytes: number;
-  issues: CmsTemplateValidationIssue[];
-}
-
-export interface CmsThemePackage {
-  id: number;
-  code: string;
-  name: string;
-  version: string;
-  engineMin: number;
-  engineMax: number;
-  signingKeyId: string;
-  archiveChecksum: string;
-  status: 'validated' | 'disabled';
-  manifest: CmsThemePackageManifest;
-  validationReport: CmsThemePackageValidationReport;
-  activeSiteIds: number[];
-  exportAvailable: boolean;
-  createdBy?: number | null;
-  updatedBy?: number | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CmsThemeImpactReport {
-  siteId: number;
-  affectedSiteIds: number[];
-  affectedSiteNames: string[];
-  themeCode: string;
-  themeAvailable: boolean;
-  activePackageId: number | null;
-  activePackageVersion: string | null;
-  evaluatedPackageId: number | null;
-  evaluatedPackageVersion: string | null;
-  invalidRefs: CmsInvalidTemplateRef[];
-  affectedChannels: number;
-  affectedContents: number;
-  affectedPages: number;
-  pendingRebuildTasks: number;
-  estimatedPaths: number;
-  ranges: string[];
-}
 
 export type CmsPublishTargetType =
   | 'content'
@@ -10674,7 +10488,6 @@ export type CmsPublishTargetType =
   | 'channel'
   | 'site'
   | 'theme'
-  | 'template'
   | 'page';
 
 export type CmsPublishArtifactStatus = 'generated' | 'deleted' | 'failed';
@@ -10689,9 +10502,6 @@ export interface CmsPublishArtifact {
   channelId: number | null;
   pageId: number | null;
   themeCode: string | null;
-  themePackageId: number | null;
-  templateId: number | null;
-  templateVersion: number | null;
   path: string;
   url: string | null;
   checksum: string | null;
@@ -10787,14 +10597,10 @@ export interface CmsPublishSubmitInput {
   pageIsHome?: boolean;
   pageRemoved?: boolean;
   themeCode?: string;
-  themePackageId?: number;
-  templateId?: number;
   reason?: string;
   /** 生命周期/引用 fence，仅由可信服务端写入 task payload。 */
   expectedThemeRevision?: number;
   expectedTemplateRefsRevision?: number;
-  expectedTemplateLifecycleRevision?: number;
-  expectedDeploymentId?: number | null;
   contentSnapshots?: CmsContentPublishSnapshot[];
   deletePaths?: string[];
 }
