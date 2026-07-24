@@ -806,8 +806,11 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
   }, [breadcrumbs, preferences.breadcrumbShowHome, location.pathname, menuTree]);
   const [openKeys, setOpenKeys] = useState<string[]>([]);
 
+  // 无条件同步展开链：收起态由渲染层 `effectiveCollapsed ? [] : openKeys` 门控，
+  // state 层不做 collapsed 判断（否则 hover 模式下 collapsed 恒为 true，openKeys 永远为空，
+  // 刷新后悬浮展开/手动展开时当前页面所属目录不会自动展开）
   useEffect(() => {
-    if ((!collapsed || isMobileNav) && currentSectionKeys.length > 0) {
+    if (currentSectionKeys.length > 0) {
       if (preferences.sidebarAccordion) {
         // 手风琴模式：路由切换时仅保留当前路径的祖先链
         setOpenKeys(currentSectionKeys);
@@ -815,7 +818,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
         setOpenKeys((prev) => Array.from(new Set([...prev, ...currentSectionKeys])));
       }
     }
-  }, [collapsed, currentSectionKeys, isMobileNav, preferences.sidebarAccordion]);
+  }, [currentSectionKeys, preferences.sidebarAccordion]);
 
   // ─── 锁屏快捷键 Alt+L / 侧边栏 toggle Alt+S ────────────────────────────────
   useEffect(() => {
