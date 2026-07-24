@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Button, Form, Spin, Toast, Row, Col, Banner, SideSheet, Timeline, Modal, Upload, Typography, useFormApi, Select, Input, Collapse } from '@douyinfe/semi-ui';
+import { Button, Form, Spin, Toast, Row, Col, Banner, SideSheet, Timeline, Modal, Upload, Typography, useFormApi, Select, Input, Collapse, Tabs, TabPane } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
 import { ArrowLeft, Save, Send, History, ImageUp, Eye, GitCompare, Images, SpellCheck, ScrollText } from 'lucide-react';
@@ -670,84 +670,86 @@ export default function ContentEditPage() {
                 </Form.Section>
               ) : null}
             </Col>
-            {/* 右：属性面板 —— 高频直出,低频折叠分组 */}
+            {/* 右：属性面板 —— 横向标签页分组 */}
             <Col xs={24} lg={8}>
-              <Form.Slot label="内容形态">
-                <Select
-                  value={contentType}
-                  onChange={(v) => { if (!id) { setNewContentType(v as CmsContentType); dirtyRef.current = true; } }}
-                  disabled={!!id}
-                  style={{ width: '100%' }}
-                  optionList={Object.entries(CMS_CONTENT_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
-                />
-                {id ? <div style={{ marginTop: 4, fontSize: 12, color: 'var(--semi-color-text-2)' }}>形态创建后不可变更</div> : null}
-              </Form.Slot>
-              <Form.TreeSelect
-                field="channelId"
-                label="所属栏目"
-                style={{ width: '100%' }}
-                treeData={channelsToTree(treeQuery.data ?? [])}
-                rules={[{ required: true, message: '请选择栏目' }]}
-              />
-              <Form.Select
-                field="tagIds"
-                label="标签"
-                multiple
-                style={{ width: '100%' }}
-                optionList={(tags ?? []).map((t) => ({ value: t.id, label: t.name }))}
-              />
-              <Form.Input
-                field="coverImage"
-                label="封面图 URL"
-                placeholder="https://... 或从媒体库选择"
-                suffix={(
-                  <span style={{ display: 'inline-flex', gap: 2 }}>
-                    <Button size="small" theme="borderless" icon={<Images size={14} />} onClick={() => setCoverPickerVisible(true)}>媒体库</Button>
-                    <Upload
-                      action=""
-                      accept="image/*"
-                      limit={1}
-                      showUploadList={false}
-                      customRequest={async ({ fileInstance, onSuccess, onError }) => {
-                        if (!siteId) { onError?.({ status: 0 }); return; }
-                        try {
-                          const formData = new FormData();
-                          formData.append('file', fileInstance);
-                          const res = await request.postForm<{ url: string; thumbUrl: string | null; watermarked: boolean }>(
-                            `/api/cms/upload-image?siteId=${siteId}`, formData,
-                          ).then(unwrap);
-                          coverProgrammaticRef.current = true;
-                          coverThumbRef.current = res.thumbUrl ?? null;
-                          formApi.current?.setValue('coverImage', res.url);
-                          dirtyRef.current = true;
-                          Toast.success(res.watermarked ? '上传成功（已加水印）' : '上传成功');
-                          onSuccess?.({});
-                        } catch {
-                          onError?.({ status: 0 });
-                        }
-                      }}
-                    >
-                      <Button size="small" theme="borderless" icon={<ImageUp size={14} />}>上传</Button>
-                    </Upload>
-                  </span>
-                )}
-              />
-              {contentType === 'link' ? (
-                <Form.Input
-                  field="externalLink"
-                  label="外链地址"
-                  placeholder="https://（外链型内容必填）"
-                  rules={[{ required: true, message: '外链型内容须填写外链地址' }]}
-                />
-              ) : null}
-              <Row gutter={12}>
-                <Col span={6}><Form.Switch field="isTop" label="置顶" /></Col>
-                <Col span={6}><Form.Switch field="isOriginal" label="原创" /></Col>
-                <Col span={6}><Form.Switch field="isRecommend" label="推荐" /></Col>
-                <Col span={6}><Form.Switch field="isHot" label="热门" /></Col>
-              </Row>
-              <Collapse accordion keepDOM style={{ marginTop: 8 }}>
-                <Collapse.Panel header="归属与来源" itemKey="attribution">
+              <Tabs type="line" size="small" collapsible>
+                <TabPane tab="基础信息" itemKey="basic">
+                  <Form.Slot label="内容形态">
+                    <Select
+                      value={contentType}
+                      onChange={(v) => { if (!id) { setNewContentType(v as CmsContentType); dirtyRef.current = true; } }}
+                      disabled={!!id}
+                      style={{ width: '100%' }}
+                      optionList={Object.entries(CMS_CONTENT_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+                    />
+                    {id ? <div style={{ marginTop: 4, fontSize: 12, color: 'var(--semi-color-text-2)' }}>形态创建后不可变更</div> : null}
+                  </Form.Slot>
+                  <Form.TreeSelect
+                    field="channelId"
+                    label="所属栏目"
+                    style={{ width: '100%' }}
+                    treeData={channelsToTree(treeQuery.data ?? [])}
+                    rules={[{ required: true, message: '请选择栏目' }]}
+                  />
+                  <Form.Select
+                    field="tagIds"
+                    label="标签"
+                    multiple
+                    style={{ width: '100%' }}
+                    optionList={(tags ?? []).map((t) => ({ value: t.id, label: t.name }))}
+                  />
+                  <Form.Input
+                    field="coverImage"
+                    label="封面图 URL"
+                    placeholder="https://... 或从媒体库选择"
+                    suffix={(
+                      <span style={{ display: 'inline-flex', gap: 2 }}>
+                        <Button size="small" theme="borderless" icon={<Images size={14} />} onClick={() => setCoverPickerVisible(true)}>媒体库</Button>
+                        <Upload
+                          action=""
+                          accept="image/*"
+                          limit={1}
+                          showUploadList={false}
+                          customRequest={async ({ fileInstance, onSuccess, onError }) => {
+                            if (!siteId) { onError?.({ status: 0 }); return; }
+                            try {
+                              const formData = new FormData();
+                              formData.append('file', fileInstance);
+                              const res = await request.postForm<{ url: string; thumbUrl: string | null; watermarked: boolean }>(
+                                `/api/cms/upload-image?siteId=${siteId}`, formData,
+                              ).then(unwrap);
+                              coverProgrammaticRef.current = true;
+                              coverThumbRef.current = res.thumbUrl ?? null;
+                              formApi.current?.setValue('coverImage', res.url);
+                              dirtyRef.current = true;
+                              Toast.success(res.watermarked ? '上传成功（已加水印）' : '上传成功');
+                              onSuccess?.({});
+                            } catch {
+                              onError?.({ status: 0 });
+                            }
+                          }}
+                        >
+                          <Button size="small" theme="borderless" icon={<ImageUp size={14} />}>上传</Button>
+                        </Upload>
+                      </span>
+                    )}
+                  />
+                  {contentType === 'link' ? (
+                    <Form.Input
+                      field="externalLink"
+                      label="外链地址"
+                      placeholder="https://（外链型内容必填）"
+                      rules={[{ required: true, message: '外链型内容须填写外链地址' }]}
+                    />
+                  ) : null}
+                  <Row gutter={12}>
+                    <Col span={6}><Form.Switch field="isTop" label="置顶" /></Col>
+                    <Col span={6}><Form.Switch field="isOriginal" label="原创" /></Col>
+                    <Col span={6}><Form.Switch field="isRecommend" label="推荐" /></Col>
+                    <Col span={6}><Form.Switch field="isHot" label="热门" /></Col>
+                  </Row>
+                </TabPane>
+                <TabPane tab="归属与来源" itemKey="attribution">
                   <Form.TreeSelect
                     field="extraChannelIds"
                     label="副栏目（一文多栏目）"
@@ -775,8 +777,8 @@ export default function ContentEditPage() {
                     <Col span={12}><Form.Input field="source" label="来源" /></Col>
                     <Col span={12}><Form.Input field="sourceUrl" label="来源链接" placeholder="https://（可选）" /></Col>
                   </Row>
-                </Collapse.Panel>
-                <Collapse.Panel header="发布计划与排序" itemKey="schedule">
+                </TabPane>
+                <TabPane tab="发布计划" itemKey="schedule">
                   <Row gutter={12}>
                     <Col span={12}>
                       <Form.InputNumber field="topWeight" label="置顶权重" min={0} max={9999} style={{ width: '100%' }} />
@@ -810,8 +812,8 @@ export default function ContentEditPage() {
                     style={{ width: '100%' }}
                     placeholder="到期自动下线（留空永不过期）"
                   />
-                </Collapse.Panel>
-                <Collapse.Panel header="高级设置" itemKey="advanced">
+                </TabPane>
+                <TabPane tab="高级设置" itemKey="advanced">
                   <Form.Input field="slug" label="自定义 URL 标识" placeholder="留空使用 ID" />
                   {contentType !== 'link' ? (
                     <Form.Input
@@ -831,15 +833,16 @@ export default function ContentEditPage() {
                         onClick={handleTemplateTryOn}>试穿</Button>
                     </div>
                   </Form.Slot>
-                </Collapse.Panel>
-                <Collapse.Panel header="SEO（留空继承栏目/站点）" itemKey="seo">
+                </TabPane>
+                <TabPane tab="SEO" itemKey="seo">
+                  <div style={{ marginTop: 8, fontSize: 12, color: 'var(--semi-color-text-2)' }}>留空则继承栏目/站点设置</div>
                   <Form.Input field="seoTitle" label="SEO 标题" />
                   <Form.Input field="seoKeywords" label="SEO 关键词" />
                   <Form.TextArea field="seoDescription" label="SEO 描述" rows={2} />
                   <Form.Input field="socialImageAlt" label="社交图片说明" maxLength={255} placeholder="用于 og:image:alt / twitter:image:alt" />
                   <Form.Input field="twitterCreator" label="Twitter/X 作者" maxLength={100} placeholder="@creator" />
-                </Collapse.Panel>
-              </Collapse>
+                </TabPane>
+              </Tabs>
             </Col>
           </Row>
         </Form>
