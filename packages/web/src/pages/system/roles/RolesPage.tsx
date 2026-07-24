@@ -473,7 +473,7 @@ export default function RolesPage() {
         onCancel={() => setMenuModalVisible(false)}
         onOk={handleAssignMenus}
         okButtonProps={{ disabled: !menuRoleDetailQuery.isSuccess, loading: assignMenusMutation.isPending }}
-        width={480}
+        width={640}
       >
         <MenuPermissionPanel
           allMenus={menuTreeQuery.data ?? []}

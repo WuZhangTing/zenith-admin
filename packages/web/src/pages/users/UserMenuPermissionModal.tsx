@@ -78,7 +78,7 @@ export function UserMenuPermissionModal({ userId, userName, visible, onClose }: 
       okButtonProps={{ disabled: !permissionsQuery.isSuccess }}
       footer={activeTab === 'effective' ? null : undefined}
       confirmLoading={saveMenusMutation.isPending}
-      width={520}
+      width={640}
     >
       <Tabs activeKey={activeTab} onChange={setActiveTab}>
         <TabPane tab="直接授权" itemKey="direct">
