@@ -1736,11 +1736,47 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
   const sidebarClassName = `admin-sidebar${effectiveCollapsed ? ' admin-sidebar--collapsed' : ''}${stickyNavClass}`;
   const mobileHeaderTitle = currentPageTitle ?? displayBreadcrumbs.at(-1)?.title ?? config.appTitle;
 
-  // 菜单自动滚动至可视区
+  // 菜单自动滚动至可视区：把选中项滚动到侧栏滚动容器的垂直中部
+  // 说明：
+  // 1. 不用 el.scrollIntoView({ block: 'nearest' })——它只做最小滚动，选中项常常贴在容器上/下边缘
+  //    （顶部还会被 sticky 的一级目录标题遮住），且会连带滚动所有可滚动祖先。
+  // 2. 路由切换往往伴随目录展开动画，首帧的位置是旧布局，故在动画结束后再校正一次。
   useEffect(() => {
     if (!(preferences.scrollMenuIntoView ?? true) || effectiveCollapsed) return;
-    const el = document.querySelector('.admin-sidebar__nav .semi-navigation-item-selected');
-    el?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
+    // sticky 的一级目录标题会盖住容器顶部，视觉安全区需要下移
+    const SAFE_TOP = 48;
+    const SAFE_BOTTOM = 24;
+    let lastOffset = -1;
+    let pendingTop: number | null = null;
+
+    const run = () => {
+      const nav = document.querySelector('.admin-sidebar__nav');
+      const container = nav?.querySelector<HTMLElement>('.semi-navigation-list-wrapper');
+      const el = nav?.querySelector<HTMLElement>('.semi-navigation-item-selected');
+      if (!container || !el) return;
+      const elRect = el.getBoundingClientRect();
+      if (elRect.height === 0) return;
+      const maxScroll = container.scrollHeight - container.clientHeight;
+      if (maxScroll <= 0) return;
+      const offsetTop = elRect.top - container.getBoundingClientRect().top + container.scrollTop;
+      // 布局相对上一次校正没有变化，说明展开动画已结束且位置已处理过
+      if (offsetTop === lastOffset) return;
+      lastOffset = offsetTop;
+      // 以「已发起的目标滚动位置」为参考判断可见性，避免平滑滚动途中误判
+      const viewTop = pendingTop ?? container.scrollTop;
+      if (offsetTop >= viewTop + SAFE_TOP && offsetTop + elRect.height <= viewTop + container.clientHeight - SAFE_BOTTOM) return;
+      const centered = offsetTop - (container.clientHeight - elRect.height) / 2;
+      const target = Math.min(Math.max(centered, 0), maxScroll);
+      pendingTop = target;
+      container.scrollTo({ top: target, behavior: reduceMotion ? 'auto' : 'smooth' });
+    };
+
+    const raf = requestAnimationFrame(run);
+    const timer = setTimeout(run, 320);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
   }, [currentSelectedKeys, effectiveCollapsed, preferences.scrollMenuIntoView, reduceMotion]);
   const layoutClassName = [
     'admin-layout',
