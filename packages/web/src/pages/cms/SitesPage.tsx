@@ -614,24 +614,21 @@ export default function SitesPage() {
   }
 
   const columns: ColumnProps<CmsSite>[] = [
-    { title: '站点名称', dataIndex: 'name', width: 160 },
+    { title: '站点名称', dataIndex: 'name', width: 240 },
     {
       title: '父级 / 层级',
-      width: 150,
+      width: 200,
       render: (_: unknown, record) => record.parentName
         ? `${record.parentName} / L${record.depth ?? '-'}`
         : `根站点 / L${record.depth ?? 1}`,
     },
+    { title: '标识', dataIndex: 'code', width: 110 },
     {
-      title: '标识',
-      dataIndex: 'code',
-      width: 110,
-      render: (v: string, record) => (
-        <span>
-          {v}
-          {record.isDefault ? <Tag size="small" color="green" style={{ marginLeft: 6 }}>默认</Tag> : null}
-        </span>
-      ),
+      title: '默认站点',
+      dataIndex: 'isDefault',
+      width: 90,
+      align: 'center',
+      render: (v: boolean) => v ? <Tag size="small" color="green">默认</Tag> : <span style={{ color: 'var(--semi-color-text-2)' }}>—</span>,
     },
     {
       title: '域名',
