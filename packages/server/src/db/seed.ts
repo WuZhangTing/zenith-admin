@@ -9,7 +9,6 @@ import { SEED_MENUS, SEED_ROLES, SEED_DEPARTMENTS, SEED_POSITIONS, SEED_DICTS, S
 import type { PaymentChannel, PaymentMethod } from '@zenith/shared';
 import { SEED_PAYMENT_DEDUCT_PLANS, SEED_CMS_EDITOR_USER, SEED_CMS_SITES, SEED_CMS_SITE_INHERITANCES, SEED_CMS_PUBLISH_CHANNELS, SEED_CMS_MODELS, SEED_CMS_CHANNELS, SEED_CMS_DISTRIBUTION_RULES, SEED_CMS_CONTENTS, SEED_CMS_CONTENT_CHANNELS, SEED_CMS_CONTENT_RELATIONS, SEED_CMS_CONTENT_VERSIONS, SEED_CMS_TAGS, SEED_CMS_FRAGMENTS, SEED_CMS_FRIEND_LINKS, SEED_CMS_AD_SLOTS, SEED_CMS_ADS, SEED_CMS_AD_EVENTS, SEED_CMS_FORMS, SEED_CMS_SENSITIVE_WORDS, SEED_CMS_ERROR_PRONE_WORDS, SEED_CMS_LINK_WORDS, SEED_CMS_COMMENTS, SEED_CMS_INTERACTIONS, SEED_CMS_INTERACTION_RESPONSES, SEED_CMS_INTERACTION_ANSWERS, SEED_CMS_SUBSCRIPTIONS, SEED_CMS_RESOURCES, SEED_CMS_RESOURCE_FOLDERS, SEED_CMS_SEARCH_WORDS, SEED_CMS_HOTWORD_GROUPS, SEED_CMS_HOTWORDS, SEED_CMS_COLLECT_RULES, SEED_CMS_COLLECT_ITEMS, SEED_CMS_PAGES, SEED_CMS_PAGE_BLOCK_ACLS, SEED_CMS_TEMPLATES, SEED_CMS_TEMPLATE_VERSIONS, SEED_CMS_THEME_PACKAGES, SEED_CMS_PUBLISH_TASKS, SEED_CMS_PUBLISH_ARTIFACTS, SEED_CMS_DISTRIBUTION_TASKS, SEED_CMS_DISTRIBUTION_TASK_ITEMS } from '@zenith/shared';
 import { buildSearchVector } from '../services/cms/cms-search.service';
-import { mapMenuSeedRows, upsertCmsMenuSeedRows } from './cms-menu-seed';
 
 const require = createRequire(import.meta.url);
 
@@ -92,15 +91,27 @@ async function seed() {
 
 async function seedRest() {
   // ─── 2. 菜单数据（数据来源：@zenith/shared SEED_MENUS）─────────────────────
-  // 非 CMS 菜单保持只插入；CMS 菜单随后按固定 id 安全 upsert，确保权限重命名可落到旧安装。
-  const menuRows = mapMenuSeedRows(SEED_MENUS);
-  await db.insert(menus).values(menuRows).onConflictDoNothing({ target: menus.id });
-  await upsertCmsMenuSeedRows(db, menuRows);
-  // 菜单结构调整（幂等）：将「OAuth2 应用」从系统设置迁移到「开放平台」，仅当仍在旧位置时生效
-  await db.execute(sql`UPDATE menus SET parent_id = 1300, title = '应用管理', sort = 1 WHERE id = 480 AND parent_id = 200`);
-  await db.execute(sql`UPDATE menus SET permission = 'analytics:clean' WHERE id = 603 AND permission = 'analytics:manage'`);
+  // 菜单是系统定义资源，以 SEED_MENUS 为唯一权威来源：清空重建（绑定表随 CASCADE 清空后重新种入），
+  // 避免历史 ID 残留；用户收藏菜单引用旧 ID，一并重置。
+  await db.execute(sql`TRUNCATE TABLE menus, role_menus, user_menus, tenant_package_menus RESTART IDENTITY CASCADE`);
+  await db.execute(sql`UPDATE users SET favorite_menus = NULL`);
+  const menuRows = SEED_MENUS.map((row) => ({
+    id: row.id,
+    parentId: row.parentId,
+    title: row.title,
+    name: row.name ?? null,
+    path: row.path ?? null,
+    component: row.component ?? null,
+    icon: row.icon ?? null,
+    type: row.type,
+    permission: row.permission ?? null,
+    sort: row.sort,
+    status: row.status,
+    visible: row.visible,
+  }));
+  await db.insert(menus).values(menuRows);
   await db.execute(sql`SELECT setval('menus_id_seq', GREATEST((SELECT MAX(id) FROM menus), 1))`);
-  logger.info('  ✔ Menus seeded (CMS rows safely upserted)');
+  logger.info(`  ✔ Menus rebuilt from seed — ${menuRows.length} records`);
 
   // ─── 3. 角色数据（数据来源：@zenith/shared SEED_ROLES）────────────────────
   const roleRows = SEED_ROLES.map(({ id, name, code, description, status, dataScope }) => ({ id, name, code, description, status, dataScope }));

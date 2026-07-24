@@ -586,14 +586,11 @@ export default function MenusPage() {
                 </Form.RadioGroup>
               </Col>
             )}
-            <Col span={12}>
-              <Form.Input
-                field="permission"
-                label="权限标识"
-                placeholder="如：system:user:list"
-                rules={menuType === 'button' ? [{ required: true, message: '请输入权限标识' }] : undefined}
-              />
-            </Col>
+            {menuType === 'button' && (
+              <Col span={12}>
+                <Form.Input field="permission" label="权限标识" placeholder="如：system:user:list" rules={[{ required: true, message: '请输入权限标识' }]} />
+              </Col>
+            )}
             <Col span={12}>
               <Form.InputNumber field="sort" label="排序" placeholder="请输入排序" min={0} style={{ width: '100%' }} />
             </Col>

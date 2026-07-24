@@ -9,8 +9,8 @@
  *  - readonly?:      只读模式（不可勾选，用于「有效权限」预览）
  *  - extraTreeData?:  叶/节点额外渲染内容（key->ReactNode），用于显示来源 Tag
  */
-import { useState } from 'react';
-import { Button, Space, Spin, Tree } from '@douyinfe/semi-ui';
+import { useMemo, useState } from 'react';
+import { Banner, Button, Space, Spin, Tree } from '@douyinfe/semi-ui';
 import type { Menu } from '@zenith/shared';
 
 type MenuPermissionPanelProps = Readonly<{
@@ -45,6 +45,23 @@ function getAllMenuKeys(items: Menu[]): string[] {
   return items.flatMap((m) => [String(m.id), ...(m.children ? getAllMenuKeys(m.children) : [])]);
 }
 
+function flattenMenus(items: Menu[], map = new Map<number, Menu>()): Map<number, Menu> {
+  for (const m of items) {
+    map.set(m.id, m);
+    if (m.children) flattenMenus(m.children, map);
+  }
+  return map;
+}
+
+/** 页面/目录节点的「查询」按钮子节点：勾选页面时自动带上，保证页面数据可加载 */
+function queryButtonIdsOf(node: Menu): number[] {
+  return (node.children ?? [])
+    .filter((c) => c.type === 'button' && (
+      c.permission?.endsWith(':list') || c.permission?.endsWith(':query') || c.title === '查询'
+    ))
+    .map((c) => c.id);
+}
+
 export function MenuPermissionPanel({
   allMenus,
   checkedMenuIds,
@@ -54,6 +71,7 @@ export function MenuPermissionPanel({
   labelSuffix,
 }: MenuPermissionPanelProps) {
   const [expandedKeys, setExpandedKeys] = useState<string[]>(() => getAllMenuKeys(allMenus));
+  const menuIndex = useMemo(() => flattenMenus(allMenus), [allMenus]);
 
   if (loading) {
     return (
@@ -63,28 +81,51 @@ export function MenuPermissionPanel({
     );
   }
 
+  // 父子不联动（精确授权）：新勾选页面/目录时自动带上其「查询」按钮；取消勾选不级联
+  const handleChange = (keys: string[]) => {
+    const next = new Set(keys.map(Number));
+    const prev = new Set(checkedMenuIds);
+    for (const id of next) {
+      if (prev.has(id)) continue;
+      const node = menuIndex.get(id);
+      if (node && node.type !== 'button') {
+        for (const qid of queryButtonIdsOf(node)) next.add(qid);
+      }
+    }
+    onChange?.([...next]);
+  };
+
   return (
     <>
       {!readonly && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-          <Space>
-            <Button size="small" theme="borderless" onClick={() => onChange?.(getAllMenuIds(allMenus))}>全选</Button>
-            <Button size="small" theme="borderless" onClick={() => onChange?.([])}>全不选</Button>
-          </Space>
-          <Space>
-            <Button size="small" theme="borderless" onClick={() => setExpandedKeys(getAllMenuKeys(allMenus))}>展开全部</Button>
-            <Button size="small" theme="borderless" onClick={() => setExpandedKeys([])}>折叠全部</Button>
-          </Space>
-        </div>
+        <>
+          <Banner
+            type="info"
+            closeIcon={null}
+            style={{ marginBottom: 8 }}
+            description="菜单仅控制页面可见性，操作能力（含查询）由按钮权限决定；勾选按钮不会带出所属页面。勾选页面时已自动带上「查询」按钮。"
+          />
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+            <Space>
+              <Button size="small" theme="borderless" onClick={() => onChange?.(getAllMenuIds(allMenus))}>全选</Button>
+              <Button size="small" theme="borderless" onClick={() => onChange?.([])}>全不选</Button>
+            </Space>
+            <Space>
+              <Button size="small" theme="borderless" onClick={() => setExpandedKeys(getAllMenuKeys(allMenus))}>展开全部</Button>
+              <Button size="small" theme="borderless" onClick={() => setExpandedKeys([])}>折叠全部</Button>
+            </Space>
+          </div>
+        </>
       )}
       <Tree
         treeData={menusToTreeData(allMenus, labelSuffix)}
         multiple
         autoMergeValue={false}
+        checkRelation="unRelated"
         expandedKeys={expandedKeys}
         onExpand={(keys) => setExpandedKeys(keys)}
         value={checkedMenuIds.map(String)}
-        onChange={readonly ? undefined : (keys) => onChange?.((keys as string[]).map(Number))}
+        onChange={readonly ? undefined : (keys) => handleChange(keys as string[])}
         disableStrictly={readonly}
         style={{ maxHeight: 400, overflow: 'auto' }}
       />

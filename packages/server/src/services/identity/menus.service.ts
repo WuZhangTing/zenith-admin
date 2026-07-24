@@ -113,16 +113,20 @@ async function ensureMenuParentValid(parentId: number, currentId?: number) {
 export async function listUserMenuTree(): Promise<Menu[]> {
   const user = currentUser();
   // 禁用菜单对所有人（含超管）不可见，前端不再注册禁用路由；菜单管理页走 listMenuTree 不受影响
+  // 按钮型节点是纯操作权限点（权限码经登录态下发），不参与页面/侧边栏展示
   const allMenus = (await db.select().from(menus).orderBy(asc(menus.sort), asc(menus.id)))
-    .filter((m) => m.status === 'enabled');
+    .filter((m) => m.status === 'enabled' && m.type !== 'button');
 
   if (isSuperAdmin(user)) {
     return buildMenuTree(allMenus.map(mapMenu));
   }
 
-  const allowedMenuIds = new Set(await getUserMenuIds(user.userId));
+  // 菜单显示与操作权限解耦：仅分配了按钮（如「查询」）不会带出其所属页面；
+  // 祖先补全只从已分配的目录/页面节点出发，用于侧边栏分组路径完整。
+  const assignedIds = await getUserMenuIds(user.userId);
   const idToMenu = new Map(allMenus.map((m) => [m.id, m]));
-  for (const id of new Set(allowedMenuIds)) {
+  const allowedMenuIds = new Set(assignedIds.filter((id) => idToMenu.has(id)));
+  for (const id of [...allowedMenuIds]) {
     let current = idToMenu.get(id);
     while (current && current.parentId !== 0) {
       if (allowedMenuIds.has(current.parentId)) break;

@@ -6,7 +6,6 @@ import postgres from 'postgres';
 import { config } from '../config';
 import logger from '../lib/logger';
 import * as schema from './schema';
-import { runAppDataMigrations } from './data-migrations';
 
 const MIGRATIONS_FOLDER = './drizzle';
 
@@ -97,8 +96,6 @@ const db = drizzle(client, { schema });
 logger.info('Running migrations...');
 await adoptBaseline(client);
 await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
-const appliedDataMigrations = await runAppDataMigrations(db);
-if (appliedDataMigrations.length) logger.info(`Application data migrations applied: ${appliedDataMigrations.join(', ')}`);
 logger.info('Migrations complete.');
 await client.end();
 process.exit(0);

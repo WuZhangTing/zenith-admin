@@ -95,7 +95,7 @@ describe('analytics P0 contracts', () => {
       'analytics-ingest',
       'error-report',
     ]));
-    expect(SEED_MENUS.find((menu) => menu.id === 603)?.permission).toBe('analytics:clean');
+    expect(SEED_MENUS.find((menu) => menu.permission === 'analytics:clean')?.type).toBe('button');
   });
 
   it('deduplicates legacy settings rows before adding the unique index', () => {
