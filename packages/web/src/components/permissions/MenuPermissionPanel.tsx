@@ -70,7 +70,8 @@ export function MenuPermissionPanel({
   readonly = false,
   labelSuffix,
 }: MenuPermissionPanelProps) {
-  const [expandedKeys, setExpandedKeys] = useState<string[]>(() => getAllMenuKeys(allMenus));
+  // 默认折叠（菜单树节点较多，全展开列表过长）；可用「展开全部」按钮展开
+  const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
   const menuIndex = useMemo(() => flattenMenus(allMenus), [allMenus]);
 
   if (loading) {
