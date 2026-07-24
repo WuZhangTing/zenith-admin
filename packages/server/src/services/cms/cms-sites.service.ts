@@ -515,7 +515,7 @@ export async function createCmsSite(data: CreateCmsSiteInput) {
     : { ...DEFAULT_CMS_SITE_INHERITANCE, ...requestedInheritance };
   const settings = normalizeNewCmsSiteSettings(data.settings as Record<string, unknown> | undefined);
   if (!isThemeRegistered(siteData.theme ?? 'default')) {
-    throw new HTTPException(400, { message: '新站点只能先选择内置主题；签名主题包请在站点创建后通过主题管理激活' });
+    throw new HTTPException(400, { message: `主题「${siteData.theme ?? 'default'}」不存在，仅支持内置主题` });
   }
   assertCdnPurgeSetting(settings);
   await assertSiteTemplateSettings(siteData.theme ?? 'default', settings);

@@ -79,7 +79,7 @@ export const cmsSites = pgTable('cms_sites', {
   favicon: varchar('favicon', { length: 500 }),
   icp: varchar('icp', { length: 100 }),
   copyright: varchar('copyright', { length: 255 }),
-  /** 主题包名（cms/themes/registry 注册的主题） */
+  /** 内置主题名（cms/themes/registry 注册的主题） */
   theme: varchar('theme', { length: 50 }).notNull().default('default'),
   /** 主题生命周期事件修订号；每次激活/停用/回滚原子 +1，并进入发布任务幂等键。 */
   themeRevision: integer('theme_revision').notNull().default(0),

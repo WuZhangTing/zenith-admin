@@ -76,21 +76,10 @@ const taskTypes: AsyncTaskTypeMeta[] = [
     retentionDays: 30,
   },
   {
-    taskType: 'cms-theme-import',
-    title: 'CMS 签名主题包导入',
-    module: 'CMS内容管理',
-    description: '验证签名、ZIP 安全边界和声明式 DSL 后导入主题包。',
-    allowConcurrent: true,
-    enabled: true,
-    maxAttempts: 2,
-    retryDelayMs: 5000,
-    retentionDays: 30,
-  },
-  {
     taskType: 'cms-publish-build',
     title: 'CMS 统一发布',
     module: 'CMS内容管理',
-    description: '统一执行内容、栏目、整站、主题与模板影响重建并记录逐路径产物。',
+    description: '统一执行内容、栏目、整站与主题影响重建并记录逐路径产物。',
     allowConcurrent: true,
     enabled: true,
     maxAttempts: 3,
@@ -368,7 +357,7 @@ export function createImmediateMockTask(input: {
 }
 
 export function createProgressingMockTask(input: {
-  taskType: 'report-dq-rule-run' | 'report-dataset-materialize' | 'report-sla-rule-evaluate' | 'report-fill-sync' | 'analytics-rollup-rebuild' | 'analytics-segment-materialize' | 'analytics-campaign-execute' | 'cms-static-build' | 'cms-search-reindex' | 'cms-deadlink-check' | 'cms-collect-run' | 'cms-content-import' | 'cms-resource-governance' | 'cms-theme-import' | 'cms-publish-build' | 'cms-ad-events-cleanup' | 'cms-interactions-batch-status' | 'cms-subscription-notify' | 'cms-distribution-sync';
+  taskType: 'report-dq-rule-run' | 'report-dataset-materialize' | 'report-sla-rule-evaluate' | 'report-fill-sync' | 'analytics-rollup-rebuild' | 'analytics-segment-materialize' | 'analytics-campaign-execute' | 'cms-static-build' | 'cms-search-reindex' | 'cms-deadlink-check' | 'cms-collect-run' | 'cms-content-import' | 'cms-resource-governance' | 'cms-publish-build' | 'cms-ad-events-cleanup' | 'cms-interactions-batch-status' | 'cms-subscription-notify' | 'cms-distribution-sync';
   title: string;
   payload?: Record<string, unknown>;
   totalItems?: number;

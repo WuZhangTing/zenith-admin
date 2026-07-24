@@ -378,7 +378,7 @@ export const CmsInvalidTemplateRefDTO = z
 export const CmsTemplateHealthDTO = z
   .object({
     theme: z.string().openapi({ example: 'default' }),
-    themeRegistered: z.boolean().openapi({ description: '主题是否为内置可信主题，或该站点已有活动且校验通过的签名主题包' }),
+    themeRegistered: z.boolean().openapi({ description: '主题是否为内置可信主题' }),
     invalidRefs: z.array(CmsInvalidTemplateRefDTO),
   })
   .openapi('CmsTemplateHealth');

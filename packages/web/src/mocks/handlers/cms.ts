@@ -162,7 +162,7 @@ export const cmsHandlers = [
     }
     const theme = String(body.theme ?? 'default');
     if (!['default', 'docs'].includes(theme)) {
-      return badRequest('新站点只能先选择内置主题；签名主题包请在站点创建后通过主题管理激活');
+      return badRequest(`主题「${theme}」不存在，仅支持内置主题`);
     }
     const now = mockDateTime();
     if (body.isDefault) mockCmsSites.forEach((s) => { s.isDefault = false; });

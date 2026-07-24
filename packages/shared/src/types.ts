@@ -10456,7 +10456,7 @@ export interface CmsInvalidTemplateRef {
 export interface CmsTemplateHealth {
   /** 被检查的主题（默认站点当前主题，可用 ?theme= 预检目标主题） */
   theme: string;
-  /** 主题是否为内置可信主题，或该站点已有活动且校验通过的签名主题包 */
+  /** 主题是否为内置可信主题 */
   themeRegistered: boolean;
   invalidRefs: CmsInvalidTemplateRef[];
 }
@@ -10464,7 +10464,7 @@ export interface CmsTemplateHealth {
 /** 主题参数字段类型（后台主题参数面板动态表单） */
 export type CmsThemeSettingFieldType = 'text' | 'textarea' | 'color' | 'number' | 'switch' | 'select' | 'image';
 
-/** 主题参数字段声明（主题包 settingsSchema，值存 cms_sites.settings.themeConfig[name]） */
+/** 主题参数字段声明（内置主题 settingsSchema，值存 cms_sites.settings.themeConfig[name]） */
 export interface CmsThemeSettingField {
   /** settings.themeConfig 的 key（小写字母开头驼峰） */
   name: string;
