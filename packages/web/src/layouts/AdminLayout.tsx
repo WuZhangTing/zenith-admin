@@ -5,7 +5,7 @@ import { UserAvatar } from '@/components/UserAvatar';
 import { BackTop, Badge, Banner, Breadcrumb, Button, ColorPicker, Divider, Dropdown, Empty, Input, List, Notification, Popover, Select, TextArea, Tooltip, Modal, Nav, Typography, SideSheet, Switch, InputNumber, RadioGroup, Radio, Toast } from '@douyinfe/semi-ui';
 import { AppModal } from '@/components/AppModal';
 import { IllustrationIdle, IllustrationIdleDark } from '@douyinfe/semi-illustrations';
-import { Bell, Building2, Check, Info, Expand, Shrink, Megaphone, Sun, Moon, Monitor, MoreHorizontal, User as UserIcon, Settings, LogOut, X, Palette, Pin, RotateCcw, PinOff, XCircle, ChevronLeft, ChevronRight, Trash2, Lock, Copy, ClipboardPaste, Route, Keyboard, Search, Star, Clock, Wrench, ExternalLink, Menu as MenuIcon, Files, Smartphone, MessageSquareHeart } from 'lucide-react';
+import { Bell, Building2, Check, Info, Expand, Shrink, Megaphone, Sun, Moon, Monitor, MoreHorizontal, User as UserIcon, Settings, LogOut, X, Palette, Pin, RotateCcw, PinOff, XCircle, ChevronLeft, ChevronRight, Trash2, Lock, Copy, ClipboardPaste, Route, Keyboard, Search, Star, Clock, Wrench, ExternalLink, Link2, Menu as MenuIcon, Files, Smartphone, MessageSquareHeart } from 'lucide-react';
 import { pinyinMatch, ensurePinyin } from '@/utils/pinyin';
 import MenuSearchInput, { type FlatMenuItem } from '@/components/MenuSearchInput';
 import type { User, Menu, InAppMessage, Announcement, Tenant, WsMessage, SystemConfig } from '@zenith/shared';
@@ -2172,6 +2172,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
                         <Dropdown.Item icon={<RotateCcw size={14} />} onClick={() => handleTabRefresh(tab.key)}>刷新页面</Dropdown.Item>
                         <Dropdown.Item icon={<ExternalLink size={14} />} onClick={() => window.open(tab.key, '_blank')}>在新标签页中打开</Dropdown.Item>
                         <Dropdown.Item icon={<Copy size={14} />} onClick={() => void navigator.clipboard.writeText(tab.title)}>复制名称</Dropdown.Item>
+                        <Dropdown.Item icon={<Link2 size={14} />} onClick={() => void navigator.clipboard.writeText(`${window.location.origin}${tab.key}`)}>复制链接</Dropdown.Item>
                         <Dropdown.Item icon={<Route size={14} />} onClick={() => {
                           const crumbs = findBreadcrumbs(menuTree, tab.key);
                           const path = crumbs.length > 0
