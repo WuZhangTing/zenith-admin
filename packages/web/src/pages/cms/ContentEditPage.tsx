@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Button, Form, Spin, Toast, Row, Col, Banner, SideSheet, Timeline, Modal, Upload, Typography, useFormApi, Select, Input, Collapse, Tabs, TabPane } from '@douyinfe/semi-ui';
+import { Button, Form, Spin, Toast, Row, Col, Banner, SideSheet, Timeline, Modal, Upload, Typography, useFormApi, Select, Input, Tabs, TabPane } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
 import { ArrowLeft, Save, Send, History, ImageUp, Eye, GitCompare, Images, SpellCheck, ScrollText } from 'lucide-react';
@@ -21,6 +21,7 @@ import {
 import { CMS_CONTENT_STATUS_LABELS, CMS_CONTENT_TYPE_LABELS } from '@zenith/shared';
 import type { CmsChannel, CmsModelField, CmsEditLock, CmsTextCheckResult, CmsContentType, CmsAlbumImage } from '@zenith/shared';
 import { cmsPreviewUrl } from './CmsSiteSelect';
+import './ContentEditPage.css';
 
 const AUTO_SAVE_INTERVAL_MS = 30_000;
 const EDIT_LOCK_HEARTBEAT_MS = 30_000;
@@ -451,7 +452,7 @@ export default function ContentEditPage() {
   const diffVersion = (versionsQuery.data ?? []).find((v) => v.id === diffVersionId);
 
   return (
-    <div className="page-container">
+    <div className="page-container cms-content-edit">
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <Button icon={<ArrowLeft size={14} />} onClick={() => navigate(-1)}>返回</Button>
         <h3 style={{ margin: 0, flex: 1, minWidth: 200 }}>
@@ -504,7 +505,7 @@ export default function ContentEditPage() {
         <Banner type="danger" description={`驳回原因：${detail.rejectReason}`} style={{ marginBottom: 12 }} closeIcon={null} />
       ) : null}
 
-      <Spin spinning={loading}>
+      <Spin spinning={loading} wrapperClassName="cms-content-edit__spin">
         <Form
           key={`${detail?.id ?? 'new'}-${formEpoch}`}
           getFormApi={(api) => { formApi.current = api; }}
@@ -523,25 +524,11 @@ export default function ContentEditPage() {
             }
           }}
           labelPosition="top"
+          className="cms-content-edit__form"
         >
-          <Row gutter={24}>
-            {/* 左：主编辑区 —— 标题+正文首屏即达,次要字段折叠收纳 */}
-            <Col xs={24} lg={16}>
-              <Form.Input
-                field="title" label="标题" size="large"
-                rules={[{ required: true, message: '请输入标题' }]}
-                onBlur={() => void checkTitleDuplicate()}
-              />
-              {/* 次要标题字段紧随标题,默认折叠 */}
-              <Collapse keepDOM style={{ marginBottom: 12 }}>
-                <Collapse.Panel header="副标题 / 短标题 / 摘要（可选）" itemKey="extra-titles">
-                  <Row gutter={12}>
-                    <Col span={12}><Form.Input field="subTitle" label="副标题" placeholder="可选" /></Col>
-                    <Col span={12}><Form.Input field="shortTitle" label="短标题" placeholder="列表窄位展示（可选）" /></Col>
-                  </Row>
-                  <Form.TextArea field="summary" label="摘要" rows={2} placeholder="留空时前台自动截取正文" />
-                </Collapse.Panel>
-              </Collapse>
+          <div className="cms-content-edit__cols">
+            {/* 左：正文主编辑区（宽屏下独立滚动） */}
+            <div className="cms-content-edit__main">
               {contentType === 'link' ? (
                 <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }} description="外链型内容：前台列表点击标题直接新窗口跳转外链地址（右侧「外链地址」必填），不生成详情页。" />
               ) : null}
@@ -669,11 +656,19 @@ export default function ContentEditPage() {
                   </Row>
                 </Form.Section>
               ) : null}
-            </Col>
-            {/* 右：属性面板 —— 横向标签页分组 */}
-            <Col xs={24} lg={8}>
+            </div>
+            {/* 右：基本信息面板 —— 横向标签页分组（宽屏下独立滚动） */}
+            <div className="cms-content-edit__side">
               <Tabs type="line" size="small" collapsible>
                 <TabPane tab="基础信息" itemKey="basic">
+                  <Form.Input
+                    field="title" label="标题"
+                    rules={[{ required: true, message: '请输入标题' }]}
+                    onBlur={() => void checkTitleDuplicate()}
+                  />
+                  <Form.Input field="subTitle" label="副标题" placeholder="可选" />
+                  <Form.Input field="shortTitle" label="短标题" placeholder="列表窄位展示（可选）" />
+                  <Form.TextArea field="summary" label="摘要" rows={2} placeholder="留空时前台自动截取正文" />
                   <Form.Slot label="内容形态">
                     <Select
                       value={contentType}
@@ -843,8 +838,8 @@ export default function ContentEditPage() {
                   <Form.Input field="twitterCreator" label="Twitter/X 作者" maxLength={100} placeholder="@creator" />
                 </TabPane>
               </Tabs>
-            </Col>
-          </Row>
+            </div>
+          </div>
         </Form>
       </Spin>
 
