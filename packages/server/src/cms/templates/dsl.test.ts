@@ -9,18 +9,32 @@ import {
 } from './dsl';
 
 describe('CMS declarative template DSL', () => {
-  it('rejects executable elements, event attributes, arbitrary bindings and components', () => {
-    const samples = [
+  it('accepts arbitrary elements, attributes and bindings (whitelist removed); unknown components still rejected', () => {
+    const allowed = [
       { version: 2, root: { kind: 'element', tag: 'script', children: [] } },
       { version: 2, root: { kind: 'element', tag: 'div', attrs: { onClick: 'alert(1)' } } },
-      { version: 2, root: { kind: 'binding', bind: 'process.env.SECRET' } },
-      { version: 2, root: { kind: 'component', name: 'ArbitraryImport' } },
+      { version: 2, root: { kind: 'binding', bind: 'anything.goes' } },
+      { version: 2, root: { kind: 'element', tag: 'style', children: [{ kind: 'text', value: 'body { color: red; }' }] } },
     ];
-    for (const sample of samples) {
-      const report = validateCmsTemplateDsl(sample);
-      expect(report.valid).toBe(false);
-      expect(report.issues.length).toBeGreaterThan(0);
+    for (const sample of allowed) {
+      expect(validateCmsTemplateDsl(sample).valid).toBe(true);
     }
+    const report = validateCmsTemplateDsl({ version: 2, root: { kind: 'component', name: 'ArbitraryImport' } });
+    expect(report.valid).toBe(false);
+    expect(report.issues.some((item) => item.code === 'component_not_available')).toBe(true);
+  });
+
+  it('renders style content without HTML escaping', () => {
+    const dsl: CmsTemplateDslDocument = {
+      version: 2,
+      root: {
+        kind: 'element', tag: 'style',
+        children: [{ kind: 'text', value: '.a > .b { color: red; }' }],
+      },
+    };
+    const html = renderCmsTemplateDsl(dsl, {});
+    expect(html).toContain('.a > .b { color: red; }');
+    expect(html).not.toContain('&gt;');
   });
 
   it('enforces depth, node count, string length and DSL version limits', () => {

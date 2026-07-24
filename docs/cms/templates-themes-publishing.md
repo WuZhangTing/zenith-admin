@@ -4,17 +4,19 @@ CMS Stage 3 将模板扩展从“上传 React/TSX 代码”改为**仓库内可�
 
 ## 声明式模板 DSL
 
-当前 DSL 版本为 `2`，文档结构为 `{ version: 2, root: node }`。Stage 4 将主题引擎兼容版本提升为 `2`；旧 `version: 1` 文档以及旧 `survey/poll` 模板类型在导入校验阶段直接拒绝，不会延迟到运行时 500。节点仅允许：
+当前 DSL 版本为 `2`，文档结构为 `{ version: 2, root: node }`。Stage 4 将主题引擎兼容版本提升为 `2`；旧 `version: 1` 文档以及旧 `survey/poll` 模板类型在导入校验阶段直接拒绝，不会延迟到运行时 500。
 
-- `element`：固定 HTML 标签与逐标签属性白名单；禁止 `script`、`style`、`iframe`、事件属性和 `dangerouslySetInnerHTML`
+**信任模型**：模板作者视为受信任，标签/属性/数据绑定白名单已移除——`element` 允许任意 HTML 标签与属性（含 `style`/`script` 与事件属性，`style`/`script` 的文本子节点原样输出不做 HTML 转义），`binding` / `if` / `each` 可读取渲染上下文中的任意路径与集合。节点类型：
+
+- `element`：任意 HTML 标签与属性
 - `text` / `binding`：React 文本转义
-- `if` / `each`：固定绑定和集合白名单，不支持表达式
-- `rich_text`：只允许正文、单页正文和搭建页 HTML，统一经过 Stage 1 `sanitizeCmsHtml`
-- `component`：`seo_head`、`site_header`、`site_footer`、`breadcrumbs`、`content_list`、`content_detail`、`pagination`、`fragment`、`page_blocks`
+- `if` / `each`：按上下文路径取值/遍历，不支持表达式
+- `rich_text`：绑定 HTML 上下文字段，统一经过 Stage 1 `sanitizeCmsHtml`
+- `component`：`seo_head`、`site_header`、`site_footer`、`breadcrumbs`、`content_list`、`content_detail`、`pagination`、`fragment`、`page_blocks`（未知组件名仍拒绝）
 
-绑定只覆盖站点、栏目、内容、SEO、导航、分页、碎片、友链、标签等 CMS 渲染上下文。不存在 `eval`、`Function`、任意表达式、模块名或组件导入。
+绑定读取的是服务端构造的 CMS 渲染上下文（站点、栏目、内容、SEO、导航、分页、碎片、友链、标签等）。不存在 `eval`、`Function` 或模块导入；`href`/`src` 属性值仍做 URL 协议消毒（拒绝 `javascript:` 等）。
 
-`{ "asset": "..." }` 只在签名主题包中可用；手工模板没有包资源上下文，校验会给出明确错误，避免保存后才在正式渲染中失败。
+`{ "asset": "..." }` 只在签名主题包中可用；手工模板没有包资源上下文，校验会给出明确错误，避免保存后才在正式渲染中失败。资源路径保留穿越防护。
 
 硬限制：最大 32 层、500 节点、单节点 100 子节点/16 属性、单字符串 4096 字符、文档 256 KiB。保存、预览、激活和主题包导入都会重新校验。校验或渲染失败会明确失败，不会把错误模板当成功结果。
 

@@ -15,27 +15,8 @@ import { sanitizeCmsHtml } from '../../services/cms/cms-html-sanitizer';
 import { CmsFragmentContent } from '../themes/blocks';
 import type { CmsBaseContext } from '../themes/types';
 
-const ELEMENTS = new Set([
-  'html', 'head', 'body', 'title', 'meta', 'link',
-  'header', 'nav', 'main', 'section', 'article', 'aside', 'footer',
-  'div', 'span', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p',
-  'a', 'img', 'ul', 'ol', 'li', 'time', 'strong', 'em', 'small',
-  'figure', 'figcaption', 'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td',
-  'br', 'hr', 'code', 'pre', 'blockquote',
-]);
-
-const GLOBAL_ATTRIBUTES = new Set(['id', 'className', 'title', 'role', 'aria-label']);
-const TAG_ATTRIBUTES: Record<string, Set<string>> = {
-  html: new Set(['lang']),
-  meta: new Set(['charSet', 'name', 'property', 'content']),
-  link: new Set(['rel', 'href', 'media']),
-  a: new Set(['href', 'target', 'rel']),
-  img: new Set(['src', 'alt', 'width', 'height', 'loading']),
-  time: new Set(['dateTime']),
-  th: new Set(['colSpan', 'rowSpan', 'scope']),
-  td: new Set(['colSpan', 'rowSpan']),
-};
-
+// 白名单机制已移除：模板作者视为受信任，任意 HTML 标签/属性/数据绑定均可使用。
+// 仍保留：结构 schema、体量预算（防 DoS）、资源路径穿越防护、URL 协议消毒与富文本 sanitizer。
 const COMPONENTS = new Set([
   'seo_head',
   'site_header',
@@ -47,59 +28,13 @@ const COMPONENTS = new Set([
   'fragment',
   'page_blocks',
 ]);
-const COMPONENT_PROPS: Record<string, Set<string>> = {
-  seo_head: new Set(),
-  site_header: new Set(),
-  site_footer: new Set(),
-  breadcrumbs: new Set(),
-  content_list: new Set(['source']),
-  content_detail: new Set(),
-  pagination: new Set(),
-  fragment: new Set(['code']),
-  page_blocks: new Set(),
-};
 
-const RICH_TEXT_BINDINGS = new Set(['content.body', 'page.contentHtml', 'blocksHtml']);
-const CONTENT_COLLECTIONS = new Set(['items', 'latest', 'recommended', 'hot']);
 const MAX_RENDERED_NODES = CMS_TEMPLATE_DSL_LIMITS.maxNodes * 10;
 const MAX_COLLECTION_ITEMS = 500;
 
-const BASE_BINDINGS = new Set([
-  'baseUrl', 'searchUrl', 'keyword', 'path',
-  'site.id', 'site.code', 'site.name', 'site.title', 'site.description', 'site.logo',
-  'site.favicon', 'site.icp', 'site.copyright', 'site.theme',
-  'seo.title', 'seo.keywords', 'seo.description', 'seo.canonical', 'seo.ogTitle',
-  'seo.ogDescription', 'seo.ogImage', 'seo.ogImageAlt', 'seo.ogType', 'seo.ogUrl',
-  'seo.ogSiteName', 'seo.twitterCard', 'seo.twitterSite', 'seo.twitterCreator',
-  'seo.twitterTitle', 'seo.twitterDescription', 'seo.twitterImage', 'seo.twitterImageAlt',
-  'channel.id', 'channel.name', 'channel.url', 'channel.description', 'channel.image',
-  'content.id', 'content.title', 'content.url', 'content.summary', 'content.coverImage',
-  'content.coverThumb', 'content.author', 'content.source', 'content.publishedAt',
-  'content.viewCount', 'content.likeCount', 'content.favoriteCount', 'content.body',
-  'content.isTop', 'content.isRecommend', 'content.isHot', 'content.contentType',
-  'page.name', 'page.slug', 'page.contentHtml',
-  'tag.name', 'tag.slug', 'tag.contentCount',
-  'pagination.page', 'pagination.pageSize', 'pagination.total', 'pagination.totalPages',
-]);
-
-const COLLECTION_FIELDS: Record<string, Set<string>> = {
-  nav: new Set(['id', 'name', 'url', 'target']),
-  items: new Set(['id', 'title', 'url', 'summary', 'coverImage', 'coverThumb', 'author', 'source', 'publishedAt', 'viewCount', 'isTop', 'isRecommend', 'isHot', 'contentType']),
-  latest: new Set(['id', 'title', 'url', 'summary', 'coverImage', 'coverThumb', 'author', 'source', 'publishedAt', 'viewCount']),
-  recommended: new Set(['id', 'title', 'url', 'summary', 'coverImage', 'coverThumb', 'author', 'source', 'publishedAt', 'viewCount']),
-  hot: new Set(['id', 'title', 'url', 'summary', 'coverImage', 'coverThumb', 'author', 'source', 'publishedAt', 'viewCount']),
-  breadcrumbs: new Set(['name', 'url']),
-  related: new Set(['title', 'url']),
-  comments: new Set(['id', 'parentId', 'nickname', 'content', 'likeCount', 'isMember', 'createdAt']),
-  friendLinks: new Set(['name', 'url', 'logo']),
-  'pagination.pages': new Set(['page', 'url', 'current']),
-  'content.tags': new Set(['name', 'slug', 'url']),
-  langAlternates: new Set(['language', 'name', 'url', 'current']),
-};
-
-const SAFE_DYNAMIC_BINDING = /^(?:site\.themeConfig|content\.extend)\.[a-zA-Z][a-zA-Z0-9_]{0,63}$/;
-const SAFE_CLASS_NAME = /^[A-Za-z0-9 _-]*$/;
 const SAFE_ASSET_PATH = /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$/;
+/** style/script 的文本子节点需原样输出，避免 React 对 CSS/JS 内容做 HTML 转义 */
+const RAW_TEXT_TAGS = new Set(['style', 'script']);
 
 export class CmsTemplateDslError extends Error {
   readonly issues: CmsTemplateValidationIssue[];
@@ -250,20 +185,10 @@ function validateString(value: string, path: string, state: ValidationState): vo
   }
 }
 
-function bindingAllowed(bind: string, aliases: Map<string, Set<string>>): boolean {
-  if (BASE_BINDINGS.has(bind) || SAFE_DYNAMIC_BINDING.test(bind)) return true;
-  const dot = bind.indexOf('.');
-  if (dot <= 0) return false;
-  const alias = bind.slice(0, dot);
-  const field = bind.slice(dot + 1);
-  return aliases.get(alias)?.has(field) === true;
-}
-
-function validateValue(value: CmsTemplateDslValue, path: string, state: ValidationState, aliases: Map<string, Set<string>>): void {
+function validateValue(value: CmsTemplateDslValue, path: string, state: ValidationState): void {
   if (typeof value === 'string') validateString(value, path, state);
   if (!value || typeof value !== 'object') return;
   if ('bind' in value) {
-    if (!bindingAllowed(value.bind, aliases)) addIssue(state, path, 'binding_not_allowed', `数据绑定「${value.bind}」不在白名单`);
     if (typeof value.fallback === 'string') validateString(value.fallback, `${path}.fallback`, state);
   } else if ('asset' in value && !SAFE_ASSET_PATH.test(value.asset.replaceAll('\\', '/'))) {
     addIssue(state, path, 'asset_path_invalid', '资源路径格式无效');
@@ -275,13 +200,12 @@ function validateNodes(
   depth: number,
   path: string,
   state: ValidationState,
-  aliases: Map<string, Set<string>>,
 ): void {
   if (nodes.length > CMS_TEMPLATE_DSL_LIMITS.maxChildrenPerNode) {
     addIssue(state, path, 'too_many_children', `单节点子节点不能超过 ${CMS_TEMPLATE_DSL_LIMITS.maxChildrenPerNode}`);
   }
   for (let index = 0; index < nodes.length; index++) {
-    validateNode(nodes[index], depth, `${path}.${index}`, state, aliases);
+    validateNode(nodes[index], depth, `${path}.${index}`, state);
   }
 }
 
@@ -290,7 +214,6 @@ function validateNode(
   depth: number,
   path: string,
   state: ValidationState,
-  aliases: Map<string, Set<string>>,
 ): void {
   state.nodeCount += 1;
   state.maxDepth = Math.max(state.maxDepth, depth);
@@ -305,66 +228,41 @@ function validateNode(
 
   switch (node.kind) {
     case 'element': {
-      if (!ELEMENTS.has(node.tag)) addIssue(state, `${path}.tag`, 'element_not_allowed', `元素「${node.tag}」不在白名单`);
       const attrs = Object.entries(node.attrs ?? {});
       if (attrs.length > CMS_TEMPLATE_DSL_LIMITS.maxAttributesPerNode) {
         addIssue(state, `${path}.attrs`, 'too_many_attributes', `属性不能超过 ${CMS_TEMPLATE_DSL_LIMITS.maxAttributesPerNode} 个`);
       }
       for (const [name, value] of attrs) {
-        if (/^on/i.test(name) || (!GLOBAL_ATTRIBUTES.has(name) && !TAG_ATTRIBUTES[node.tag]?.has(name))) {
-          addIssue(state, `${path}.attrs.${name}`, 'attribute_not_allowed', `属性「${name}」不允许用于 <${node.tag}>`);
-        }
-        validateValue(value, `${path}.attrs.${name}`, state, aliases);
+        validateValue(value, `${path}.attrs.${name}`, state);
       }
-      if (node.tag === 'link') {
-        const rel = node.attrs?.rel;
-        if (typeof rel !== 'string' || !['stylesheet', 'canonical', 'icon'].includes(rel)) {
-          addIssue(state, `${path}.attrs.rel`, 'link_rel_not_allowed', 'link.rel 仅允许 stylesheet/canonical/icon');
-        }
-        if (rel === 'stylesheet' && (!node.attrs?.href || typeof node.attrs.href !== 'object' || !('asset' in node.attrs.href))) {
-          addIssue(state, `${path}.attrs.href`, 'stylesheet_must_be_asset', '样式表只能引用主题包内受限静态资源');
-        }
-      }
-      validateNodes(node.children ?? [], depth + 1, `${path}.children`, state, aliases);
+      validateNodes(node.children ?? [], depth + 1, `${path}.children`, state);
       break;
     }
     case 'text':
-      validateValue(node.value, `${path}.value`, state, aliases);
+      validateValue(node.value, `${path}.value`, state);
       break;
     case 'binding':
-      if (!bindingAllowed(node.bind, aliases)) addIssue(state, `${path}.bind`, 'binding_not_allowed', `数据绑定「${node.bind}」不在白名单`);
       if (typeof node.fallback === 'string') validateString(node.fallback, `${path}.fallback`, state);
       break;
     case 'if':
-      if (!bindingAllowed(node.bind, aliases)) addIssue(state, `${path}.bind`, 'binding_not_allowed', `数据绑定「${node.bind}」不在白名单`);
-      validateNodes(node.children, depth + 1, `${path}.children`, state, aliases);
-      validateNodes(node.fallback ?? [], depth + 1, `${path}.fallback`, state, aliases);
+      validateNodes(node.children, depth + 1, `${path}.children`, state);
+      validateNodes(node.fallback ?? [], depth + 1, `${path}.fallback`, state);
       break;
     case 'each': {
-      const fields = COLLECTION_FIELDS[node.source];
-      if (!fields) addIssue(state, `${path}.source`, 'collection_not_allowed', `集合「${node.source}」不在白名单`);
-      const alias = node.item ?? 'item';
-      const nested = new Map(aliases);
-      if (fields) nested.set(alias, fields);
-      validateNodes(node.children, depth + 1, `${path}.children`, state, nested);
-      validateNodes(node.empty ?? [], depth + 1, `${path}.empty`, state, aliases);
+      validateNodes(node.children, depth + 1, `${path}.children`, state);
+      validateNodes(node.empty ?? [], depth + 1, `${path}.empty`, state);
       break;
     }
     case 'rich_text':
-      if (!RICH_TEXT_BINDINGS.has(node.bind)) addIssue(state, `${path}.bind`, 'html_binding_not_allowed', `富文本绑定「${node.bind}」不在白名单`);
-      if (node.className && !SAFE_CLASS_NAME.test(node.className)) addIssue(state, `${path}.className`, 'class_invalid', 'className 格式无效');
       break;
     case 'component': {
-      if (!COMPONENTS.has(node.name)) addIssue(state, `${path}.name`, 'component_not_allowed', `组件「${node.name}」不在白名单`);
+      if (!COMPONENTS.has(node.name)) addIssue(state, `${path}.name`, 'component_not_available', `组件「${node.name}」不存在`);
       const props = Object.entries(node.props ?? {});
       if (props.length > CMS_TEMPLATE_DSL_LIMITS.maxAttributesPerNode) {
         addIssue(state, `${path}.props`, 'too_many_properties', `组件属性不能超过 ${CMS_TEMPLATE_DSL_LIMITS.maxAttributesPerNode} 个`);
       }
       for (const [name, value] of props) {
-        if (!COMPONENT_PROPS[node.name]?.has(name)) {
-          addIssue(state, `${path}.props.${name}`, 'component_prop_not_allowed', `组件属性「${name}」不在白名单`);
-        }
-        validateValue(value, `${path}.props.${name}`, state, aliases);
+        validateValue(value, `${path}.props.${name}`, state);
       }
       break;
     }
@@ -406,7 +304,7 @@ export function validateCmsTemplateDsl(value: unknown): CmsTemplateValidationRep
   }
   const dsl = parsed.data as CmsTemplateDslDocument;
   const state: ValidationState = { issues: [], nodeCount: 0, maxDepth: 0 };
-  validateNode(dsl.root, 1, '$.root', state, new Map());
+  validateNode(dsl.root, 1, '$.root', state);
   return {
     valid: state.issues.length === 0,
     version: dsl.version,
@@ -469,7 +367,6 @@ function resolveValue(value: CmsTemplateDslValue, state: RenderState, attrName?:
   }
   if (typeof resolved === 'string') {
     if (attrName === 'href' || attrName === 'src') return safeUrl(resolved);
-    if (attrName === 'className' && !SAFE_CLASS_NAME.test(resolved)) throw new CmsTemplateDslError('模板渲染失败：className 不安全');
   }
   return resolved as CmsTemplateDslScalar;
 }
@@ -539,7 +436,6 @@ function renderComponent(node: Extract<CmsTemplateDslNode, { kind: 'component' }
     }
     case 'content_list': {
       const source = typeof prop('source') === 'string' ? String(prop('source')) : ('items' in ctx ? 'items' : 'latest');
-      if (!CONTENT_COLLECTIONS.has(source)) throw new CmsTemplateDslError('模板渲染失败：内容集合不在白名单');
       const rows = collectionFor(source, state) as Array<{ id: number; title: string; url: string; summary?: string | null; publishedAt?: string | null }>;
       return <section className="cms-dsl-list">{rows.map((item) => <article key={item.id}><h2><a href={safeUrl(item.url)}>{item.title}</a></h2>{item.summary ? <p>{item.summary}</p> : null}{item.publishedAt ? <time>{item.publishedAt}</time> : null}</article>)}</section>;
     }
@@ -576,6 +472,18 @@ function renderNode(node: CmsTemplateDslNode, state: RenderState): ReactNode {
       const attrs = Object.fromEntries(
         Object.entries(node.attrs ?? {}).map(([name, value]) => [name, resolveValue(value, state, name)]),
       );
+      // style/script 内容需原样输出：React 会对文本子节点做 HTML 转义，破坏 CSS/JS 语法
+      if (RAW_TEXT_TAGS.has(node.tag)) {
+        const raw = (node.children ?? [])
+          .map((child) => {
+            const value = child.kind === 'text' ? resolveValue(child.value, state)
+              : child.kind === 'binding' ? resolveValue({ bind: child.bind, fallback: child.fallback }, state)
+              : null;
+            return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
+          })
+          .join('');
+        return createElement(node.tag, { ...attrs, key: state.key, dangerouslySetInnerHTML: { __html: raw } });
+      }
       return createElement(
         node.tag,
         { ...attrs, key: state.key },

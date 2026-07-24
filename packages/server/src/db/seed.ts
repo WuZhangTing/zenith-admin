@@ -875,18 +875,21 @@ async function seedRest() {
   ).onConflictDoNothing({ target: cmsThemePackages.id });
   await db.execute(sql`SELECT setval('cms_theme_packages_id_seq', GREATEST((SELECT MAX(id) FROM cms_theme_packages), 1))`);
 
+  // 种子模板以 SEED 为权威来源：清空重建（不考虑存量数据兼容），保证模板/样式更新可落库
+  await db.delete(cmsTemplateVersions);
+  await db.delete(cmsTemplates);
   await db.insert(cmsTemplates).values(
     SEED_CMS_TEMPLATES.map(({ id, siteId, themeCode, type, code, name, source, status, currentVersion, activeVersion, lifecycleRevision, description }) => ({
       id, siteId, themeCode, type, code, name, source, status, currentVersion, activeVersion, lifecycleRevision, description,
     })),
-  ).onConflictDoNothing({ target: cmsTemplates.id });
+  );
   await db.execute(sql`SELECT setval('cms_templates_id_seq', GREATEST((SELECT MAX(id) FROM cms_templates), 1))`);
 
   await db.insert(cmsTemplateVersions).values(
     SEED_CMS_TEMPLATE_VERSIONS.map(({ id, templateId, version, dsl, checksum, changeNote, themePackageId }) => ({
       id, templateId, version, dsl, checksum, changeNote, themePackageId,
     })),
-  ).onConflictDoNothing({ target: cmsTemplateVersions.id });
+  );
   await db.execute(sql`SELECT setval('cms_template_versions_id_seq', GREATEST((SELECT MAX(id) FROM cms_template_versions), 1))`);
 
   await db.insert(cmsModels).values(

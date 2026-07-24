@@ -3499,11 +3499,48 @@ export const SEED_CMS_PAGE_BLOCK_ACLS = [
   { id: 1, pageId: 1, blockId: 'hero-1', subjectType: 'role' as const, subjectId: 1, createdAt: SEED_DATE },
 ];
 
+const CMS_SEED_DSL_STYLE = `
+:root { --primary: #1f6feb; --text: #1f2328; --text-2: #59636e; --border: #d1d9e0; --bg: #ffffff; --bg-2: #f6f8fa; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; color: var(--text); background: var(--bg); line-height: 1.6; }
+a { color: inherit; text-decoration: none; }
+a:hover { color: var(--primary); }
+img { max-width: 100%; }
+.cms-dsl-header { max-width: 1080px; margin: 0 auto; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border-bottom: 1px solid var(--border); }
+.cms-dsl-header > a { display: inline-flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 600; }
+.cms-dsl-header img { height: 32px; }
+.cms-dsl-header nav { display: flex; flex-wrap: wrap; gap: 4px; }
+.cms-dsl-header nav a { padding: 6px 14px; border-radius: 6px; font-size: 15px; white-space: nowrap; }
+.cms-dsl-header nav a:hover { background: var(--bg-2); }
+.cms-dsl-main { max-width: 1080px; margin: 0 auto; padding: 24px 16px 48px; }
+.cms-dsl-main > h1 { font-size: 24px; margin-bottom: 12px; }
+.cms-dsl-breadcrumbs { font-size: 13px; color: var(--text-2); margin-bottom: 16px; }
+.cms-dsl-list { display: flex; flex-direction: column; gap: 20px; }
+.cms-dsl-list article { padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.cms-dsl-list h2 { font-size: 18px; margin-bottom: 6px; }
+.cms-dsl-list p { color: var(--text-2); font-size: 14px; margin-bottom: 6px; }
+.cms-dsl-list time { color: var(--text-2); font-size: 13px; }
+.cms-dsl-detail h1 { font-size: 26px; margin-bottom: 8px; }
+.cms-dsl-detail > p { color: var(--text-2); font-size: 13px; margin-bottom: 20px; }
+.cms-dsl-detail p { margin-bottom: 12px; }
+.cms-dsl-pagination { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; font-size: 14px; }
+.cms-dsl-pagination a, .cms-dsl-pagination span { padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; }
+.cms-dsl-pagination span { background: var(--primary); border-color: var(--primary); color: #fff; }
+.cms-dsl-pagination a:hover { border-color: var(--primary); }
+.cms-dsl-footer { max-width: 1080px; margin: 24px auto 0; padding: 20px 16px 32px; border-top: 1px solid var(--border); color: var(--text-2); font-size: 13px; display: flex; flex-wrap: wrap; gap: 16px; }
+.cms-dsl-page-blocks { display: flex; flex-direction: column; gap: 16px; }
+`;
+
 const CMS_SEED_LIST_DSL: CmsTemplateDslDocument = {
   version: 2,
   root: {
     kind: 'element', tag: 'html', attrs: { lang: 'zh-CN' }, children: [
-      { kind: 'element', tag: 'head', children: [{ kind: 'component', name: 'seo_head' }] },
+      {
+        kind: 'element', tag: 'head', children: [
+          { kind: 'component', name: 'seo_head' },
+          { kind: 'element', tag: 'style', children: [{ kind: 'text', value: CMS_SEED_DSL_STYLE }] },
+        ],
+      },
       {
         kind: 'element', tag: 'body', attrs: { className: 'cms-dsl-demo' }, children: [
           { kind: 'component', name: 'site_header' },
@@ -3526,7 +3563,12 @@ const CMS_SEED_DETAIL_DSL: CmsTemplateDslDocument = {
   version: 2,
   root: {
     kind: 'element', tag: 'html', attrs: { lang: 'zh-CN' }, children: [
-      { kind: 'element', tag: 'head', children: [{ kind: 'component', name: 'seo_head' }] },
+      {
+        kind: 'element', tag: 'head', children: [
+          { kind: 'component', name: 'seo_head' },
+          { kind: 'element', tag: 'style', children: [{ kind: 'text', value: CMS_SEED_DSL_STYLE }] },
+        ],
+      },
       {
         kind: 'element', tag: 'body', attrs: { className: 'cms-dsl-demo' }, children: [
           { kind: 'component', name: 'site_header' },
@@ -3567,17 +3609,17 @@ export const SEED_CMS_TEMPLATES: CmsTemplate[] = [
 export const SEED_CMS_TEMPLATE_VERSIONS: CmsTemplateVersion[] = [
   {
     id: 1, templateId: 1, version: 1, dsl: CMS_SEED_LIST_DSL,
-    checksum: '73925b023218d48db78e51fae9416aee8f4d043bbabe7dbf88f804e2c428901a',
+    checksum: '6fdc8be29052687a4721b2f8ffd4c3308318fe0e626b318aa8cc4d9a43893b6f',
     changeNote: 'Stage 3 初始演示版本', themePackageId: null, createdAt: SEED_DATE,
   },
   {
     id: 2, templateId: 2, version: 1, dsl: CMS_SEED_DETAIL_DSL,
-    checksum: 'bc2917b6dba9ed734189eb796f752d2ccae6bbbb2d917c16f1b39470920794ff',
+    checksum: '1bf00e7078c21959071fadb4b620679a5a4b31393ac584646df492a0325fedd5',
     changeNote: 'Stage 3 初始演示版本', themePackageId: null, createdAt: SEED_DATE,
   },
   {
     id: 3, templateId: 3, version: 1, dsl: CMS_SEED_DETAIL_DSL,
-    checksum: 'bc2917b6dba9ed734189eb796f752d2ccae6bbbb2d917c16f1b39470920794ff',
+    checksum: '1bf00e7078c21959071fadb4b620679a5a4b31393ac584646df492a0325fedd5',
     changeNote: 'Stage 5 子站模板覆盖演示', themePackageId: null, createdAt: SEED_DATE,
   },
 ];
