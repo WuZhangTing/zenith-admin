@@ -253,7 +253,7 @@ export default function MenusPage() {
     );
   }, [toggleStatusMutation]);
 
-  const FIXED_COLS_WIDTH = 90 + 180 + 250 + 200 + 70 + 180 + 80 + 80 + 260; // 除菜单名称外其他列总宽
+  const FIXED_COLS_WIDTH = 90 + 180 + 250 + 200 + 70 + 180 + 80 + 80 + 200; // 除菜单名称外其他列总宽
   // 菜单名称列宽度：保持固定最小宽度，使内容总宽可超出容器，让 fixed:right 生效
   const titleColWidth = Math.max(280, tableWidth - FIXED_COLS_WIDTH);
   const totalTableWidth = titleColWidth + FIXED_COLS_WIDTH;
@@ -337,7 +337,7 @@ export default function MenusPage() {
       render: (val: boolean, row: Menu) => row.type === 'button' ? '—' : <DictTag dictCode="menu_visible" value={val ? 'show' : 'hidden'} />,
     },
     createOperationColumn<Menu>({
-      width: 260,
+      width: 200,
       desktopInlineKeys: ['child', 'edit', 'delete'],
       actions: (row) => [
         {
