@@ -628,7 +628,7 @@ export default function ContentEditPage() {
                 </Form.Section>
               ) : null}
               {contentType !== 'link' ? (
-                <Form.Slot label={contentType === 'article' ? '正文' : '图文说明（可选）'}>
+                <Form.Slot noLabel>
                   {isMapped ? (
                     <div
                       style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 16, maxHeight: 420, overflow: 'auto', background: 'var(--semi-color-fill-0)' }}
@@ -640,6 +640,7 @@ export default function ContentEditPage() {
                       onChange={(v) => { setBody(v); dirtyRef.current = true; }}
                       height={contentType === 'article' ? 420 : 240}
                       enablePageBreak={contentType === 'article'}
+                      placeholder={contentType === 'article' ? '请输入正文内容...' : '图文说明（可选）'}
                       uploadServer={siteId ? `${appConfig.apiBaseUrl}/api/cms/upload-image?siteId=${siteId}` : undefined}
                     />
                   )}
@@ -776,6 +777,14 @@ export default function ContentEditPage() {
                   <Form.Input field="source" label="来源" size="small" />
                   <Form.Input field="sourceUrl" label="来源链接" size="small" placeholder="https://（可选）" />
                 </TabPane>
+                <TabPane tab="SEO" itemKey="seo">
+                  <div style={{ marginTop: 8, fontSize: 12, color: 'var(--semi-color-text-2)' }}>留空则继承栏目/站点设置</div>
+                  <Form.Input field="seoTitle" label="SEO 标题" size="small" />
+                  <Form.Input field="seoKeywords" label="SEO 关键词" size="small" />
+                  <Form.TextArea field="seoDescription" label="SEO 描述" rows={2} />
+                  <Form.Input field="socialImageAlt" label="社交图片说明" size="small" maxLength={255} placeholder="用于 og:image:alt / twitter:image:alt" />
+                  <Form.Input field="twitterCreator" label="Twitter/X 作者" size="small" maxLength={100} placeholder="@creator" />
+                </TabPane>
                 <TabPane tab="发布计划" itemKey="schedule">
                   <Form.InputNumber field="topWeight" label="置顶权重" min={0} max={9999} size="small" style={{ width: '100%' }} />
                   <Form.DatePicker
@@ -829,14 +838,6 @@ export default function ContentEditPage() {
                         onClick={handleTemplateTryOn}>试穿</Button>
                     </div>
                   </Form.Slot>
-                </TabPane>
-                <TabPane tab="SEO" itemKey="seo">
-                  <div style={{ marginTop: 8, fontSize: 12, color: 'var(--semi-color-text-2)' }}>留空则继承栏目/站点设置</div>
-                  <Form.Input field="seoTitle" label="SEO 标题" size="small" />
-                  <Form.Input field="seoKeywords" label="SEO 关键词" size="small" />
-                  <Form.TextArea field="seoDescription" label="SEO 描述" rows={2} />
-                  <Form.Input field="socialImageAlt" label="社交图片说明" size="small" maxLength={255} placeholder="用于 og:image:alt / twitter:image:alt" />
-                  <Form.Input field="twitterCreator" label="Twitter/X 作者" size="small" maxLength={100} placeholder="@creator" />
                 </TabPane>
               </Tabs>
             </div>
