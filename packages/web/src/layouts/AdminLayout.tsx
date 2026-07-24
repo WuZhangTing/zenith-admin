@@ -121,7 +121,8 @@ function findNavItemAncestorKeys(items: NavItem[], targetKey: string): string[] 
   return null;
 }
 
-function findAncestorKeys(menuTree: Menu[], targetPath: string): string[] {
+// 返回 null 表示路径不在菜单树中（如详情页）；返回 [] 表示命中顶级菜单项（无祖先目录）
+function findAncestorKeys(menuTree: Menu[], targetPath: string): string[] | null {
   function traverse(nodes: Menu[], ancestors: string[]): string[] | null {
     for (const node of nodes) {
       if (!node.visible || node.type === 'button') continue;
@@ -135,7 +136,7 @@ function findAncestorKeys(menuTree: Menu[], targetPath: string): string[] {
     }
     return null;
   }
-  return traverse(menuTree, []) ?? [];
+  return traverse(menuTree, []);
 }
 
 interface BreadcrumbData {
@@ -810,13 +811,13 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
   // state 层不做 collapsed 判断（否则 hover 模式下 collapsed 恒为 true，openKeys 永远为空，
   // 刷新后悬浮展开/手动展开时当前页面所属目录不会自动展开）
   useEffect(() => {
-    if (currentSectionKeys.length > 0) {
-      if (preferences.sidebarAccordion) {
-        // 手风琴模式：路由切换时仅保留当前路径的祖先链
-        setOpenKeys(currentSectionKeys);
-      } else {
-        setOpenKeys((prev) => Array.from(new Set([...prev, ...currentSectionKeys])));
-      }
+    // null = 路径不在菜单树中（如详情页），保持当前展开状态
+    if (currentSectionKeys === null) return;
+    if (preferences.sidebarAccordion) {
+      // 手风琴模式：仅保留当前路径的祖先链；顶级菜单项（祖先链为空）收起全部目录
+      setOpenKeys(currentSectionKeys);
+    } else if (currentSectionKeys.length > 0) {
+      setOpenKeys((prev) => Array.from(new Set([...prev, ...currentSectionKeys])));
     }
   }, [currentSectionKeys, preferences.sidebarAccordion]);
 
