@@ -1034,7 +1034,7 @@ export default function SitesPage() {
         rowKey="id"
         size="small"
         empty="暂无站点"
-        scroll={{ x: 1550 }}
+        scroll={{ x: 1770 }}
         expandedRowKeys={treeView ? expandedRowKeys : undefined}
         onExpandedRowsChange={(rows) => setExpandedRowKeys(
           rows?.filter((row): row is CmsSite => 'id' in row).map((row) => row.id) ?? [],
