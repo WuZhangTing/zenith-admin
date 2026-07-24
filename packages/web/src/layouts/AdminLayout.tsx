@@ -1747,14 +1747,17 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
     // sticky 的一级目录标题会遮挡容器顶部，视觉安全区需要下移
     const SAFE_TOP = 48;
     const SAFE_BOTTOM = 24;
-    // 初次进入时菜单数据是异步到达的，等待选中项出现的预算要比等待动画稳定的预算长
+    // 初次进入时菜单数据是异步到达的，等待选中项出现的预算要比等待动画稳定的预算长；
+    // 出现后仍持续观察一段时间：目录展开动画会让布局在首次定位之后继续变化（此时
+    // 容器可能尚无可滚动空间 maxScroll=0），布局每次企稳都要重新定位一次。
     const APPEAR_WAIT = 5000;
-    const SETTLE_WAIT = 800;
+    const WATCH_WAIT = 1200;
     const startedAt = performance.now();
     let appearedAt = 0;
     let rafId = 0;
     let prevKey = '';
     let stableFrames = 0;
+    let settledKey = '';
 
     const settle = (container: HTMLElement, el: HTMLElement, offsetTop: number) => {
       const height = el.getBoundingClientRect().height;
@@ -1787,11 +1790,11 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
       const key = `${Math.round(offsetTop)}|${container.scrollHeight}`;
       if (key === prevKey) stableFrames += 1;
       else { prevKey = key; stableFrames = 0; }
-      if (stableFrames < 2 && now - appearedAt < SETTLE_WAIT) {
-        rafId = requestAnimationFrame(tick);
-        return;
+      if (stableFrames >= 2 && key !== settledKey) {
+        settledKey = key;
+        settle(container, el, offsetTop);
       }
-      settle(container, el, offsetTop);
+      if (now - appearedAt < WATCH_WAIT) rafId = requestAnimationFrame(tick);
     };
 
     rafId = requestAnimationFrame(tick);
