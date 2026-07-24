@@ -28,7 +28,7 @@
 | 用户 | `users.id`、`users.username`、`users.status` | 后台管理员账号，状态枚举为 `enabled` / `disabled` |
 | 角色 | `roles.code`、`roles.status`、`roles.data_scope` | 角色编码参与 JWT `roles` 与超管判断；`data_scope` 控制数据权限 |
 | 用户-角色 | `user_roles.user_id`、`user_roles.role_id` | 用户与角色多对多 |
-| 菜单 | `menus.type`、`menus.permission`、`menus.visible` | `type` 枚举为 `directory` / `menu` / `button`；按钮通常只承载权限码 |
+| 菜单 | `menus.type`、`menus.permission`、`menus.visible` | `type` 枚举为 `directory` / `menu` / `button`；权限码仅由按钮承载，目录/菜单是纯显示资源（显示与操作解耦） |
 | 角色-菜单 | `role_menus.role_id`、`role_menus.menu_id` | 角色继承的菜单与按钮权限 |
 | 用户-菜单 | `user_menus.user_id`、`user_menus.menu_id` | 用户直接授权的菜单与按钮权限 |
 
@@ -56,7 +56,7 @@ guard({ permission: 'system:user:update' })
 
 | 接口 | 行为 |
 |------|------|
-| `GET /api/menus/user` | 当前登录用户菜单树。超管返回全部菜单；普通用户根据角色菜单与用户直接菜单计算，并补齐父级菜单 |
+| `GET /api/menus/user` | 当前登录用户菜单树。超管返回全部菜单；普通用户根据角色菜单与用户直接菜单计算，仅从目录/页面节点补齐父级（按钮为纯权限点，不带出所属页面，也不出现在树中） |
 | `GET /api/menus` | 管理用菜单树，需登录 |
 | `GET /api/menus/flat` | 平铺菜单列表，需 `system:menu:list` |
 

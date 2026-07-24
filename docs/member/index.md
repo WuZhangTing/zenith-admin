@@ -344,7 +344,7 @@
 | `/api/checkin-rules` | `DELETE /{id}` | `member:checkin:rule:delete` |
 | `/api/member-checkins` | `GET /` | `member:checkin:log:list` |
 
-会员中心后台菜单种子位于 `SEED_MENUS` 的 800 段，包括会员管理、会员等级、积分管理、钱包管理、优惠券、领券记录、签到配置与签到记录。
+会员中心后台菜单种子位于 `SEED_MENUS` 的 9000 段，包括会员管理、会员等级、积分管理、钱包管理、优惠券、领券记录、签到配置与签到记录。
 
 ---
 
