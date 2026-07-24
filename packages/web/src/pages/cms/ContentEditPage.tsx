@@ -662,18 +662,19 @@ export default function ContentEditPage() {
               <Tabs type="line" size="small" collapsible>
                 <TabPane tab="基础信息" itemKey="basic">
                   <Form.Input
-                    field="title" label="标题"
+                    field="title" label="标题" size="small"
                     rules={[{ required: true, message: '请输入标题' }]}
                     onBlur={() => void checkTitleDuplicate()}
                   />
-                  <Form.Input field="subTitle" label="副标题" placeholder="可选" />
-                  <Form.Input field="shortTitle" label="短标题" placeholder="列表窄位展示（可选）" />
+                  <Form.Input field="subTitle" label="副标题" size="small" placeholder="可选" />
+                  <Form.Input field="shortTitle" label="短标题" size="small" placeholder="列表窄位展示（可选）" />
                   <Form.TextArea field="summary" label="摘要" rows={2} placeholder="留空时前台自动截取正文" />
                   <Form.Slot label="内容形态">
                     <Select
                       value={contentType}
                       onChange={(v) => { if (!id) { setNewContentType(v as CmsContentType); dirtyRef.current = true; } }}
                       disabled={!!id}
+                      size="small"
                       style={{ width: '100%' }}
                       optionList={Object.entries(CMS_CONTENT_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
                     />
@@ -682,6 +683,7 @@ export default function ContentEditPage() {
                   <Form.TreeSelect
                     field="channelId"
                     label="所属栏目"
+                    size="small"
                     style={{ width: '100%' }}
                     treeData={channelsToTree(treeQuery.data ?? [])}
                     rules={[{ required: true, message: '请选择栏目' }]}
@@ -690,12 +692,14 @@ export default function ContentEditPage() {
                     field="tagIds"
                     label="标签"
                     multiple
+                    size="small"
                     style={{ width: '100%' }}
                     optionList={(tags ?? []).map((t) => ({ value: t.id, label: t.name }))}
                   />
                   <Form.Input
                     field="coverImage"
                     label="封面图 URL"
+                    size="small"
                     placeholder="https://... 或从媒体库选择"
                     suffix={(
                       <span style={{ display: 'inline-flex', gap: 2 }}>
@@ -733,15 +737,16 @@ export default function ContentEditPage() {
                     <Form.Input
                       field="externalLink"
                       label="外链地址"
+                      size="small"
                       placeholder="https://（外链型内容必填）"
                       rules={[{ required: true, message: '外链型内容须填写外链地址' }]}
                     />
                   ) : null}
                   <Row gutter={12}>
-                    <Col span={6}><Form.Switch field="isTop" label="置顶" /></Col>
-                    <Col span={6}><Form.Switch field="isOriginal" label="原创" /></Col>
-                    <Col span={6}><Form.Switch field="isRecommend" label="推荐" /></Col>
-                    <Col span={6}><Form.Switch field="isHot" label="热门" /></Col>
+                    <Col span={6}><Form.Switch field="isTop" label="置顶" size="small" /></Col>
+                    <Col span={6}><Form.Switch field="isOriginal" label="原创" size="small" /></Col>
+                    <Col span={6}><Form.Switch field="isRecommend" label="推荐" size="small" /></Col>
+                    <Col span={6}><Form.Switch field="isHot" label="热门" size="small" /></Col>
                   </Row>
                 </TabPane>
                 <TabPane tab="归属与来源" itemKey="attribution">
@@ -749,6 +754,7 @@ export default function ContentEditPage() {
                     field="extraChannelIds"
                     label="副栏目（一文多栏目）"
                     multiple
+                    size="small"
                     style={{ width: '100%' }}
                     treeData={channelsToTree(treeQuery.data ?? [])}
                     placeholder="同时展示在其他栏目（可选）"
@@ -758,43 +764,36 @@ export default function ContentEditPage() {
                     label="相关文章"
                     multiple
                     filter
+                    size="small"
                     style={{ width: '100%' }}
                     placeholder="手动指定相关阅读（不足自动按标签补齐）"
                     optionList={(relatedCandidatesQuery.data?.list ?? [])
                       .filter((c) => c.id !== id)
                       .map((c) => ({ value: c.id, label: c.title }))}
                   />
-                  <Row gutter={12}>
-                    <Col span={12}><Form.Input field="author" label="作者" /></Col>
-                    <Col span={12}><Form.Input field="editor" label="责任编辑" /></Col>
-                  </Row>
-                  <Row gutter={12}>
-                    <Col span={12}><Form.Input field="source" label="来源" /></Col>
-                    <Col span={12}><Form.Input field="sourceUrl" label="来源链接" placeholder="https://（可选）" /></Col>
-                  </Row>
+                  <Form.Input field="author" label="作者" size="small" />
+                  <Form.Input field="editor" label="责任编辑" size="small" />
+                  <Form.Input field="source" label="来源" size="small" />
+                  <Form.Input field="sourceUrl" label="来源链接" size="small" placeholder="https://（可选）" />
                 </TabPane>
                 <TabPane tab="发布计划" itemKey="schedule">
-                  <Row gutter={12}>
-                    <Col span={12}>
-                      <Form.InputNumber field="topWeight" label="置顶权重" min={0} max={9999} style={{ width: '100%' }} />
-                    </Col>
-                    <Col span={12}>
-                      <Form.DatePicker
-                        field="topExpireAt"
-                        label="置顶到期"
-                        type="dateTime"
-                        density="compact"
-                        style={{ width: '100%' }}
-                        placeholder="到期自动取消置顶"
-                      />
-                    </Col>
-                  </Row>
-                  <Form.InputNumber field="sort" label="排序权重" style={{ width: '100%' }} />
+                  <Form.InputNumber field="topWeight" label="置顶权重" min={0} max={9999} size="small" style={{ width: '100%' }} />
+                  <Form.DatePicker
+                    field="topExpireAt"
+                    label="置顶到期"
+                    type="dateTime"
+                    density="compact"
+                    size="small"
+                    style={{ width: '100%' }}
+                    placeholder="到期自动取消置顶"
+                  />
+                  <Form.InputNumber field="sort" label="排序权重" size="small" style={{ width: '100%' }} />
                   <Form.DatePicker
                     field="scheduledAt"
                     label="定时发布"
                     type="dateTime"
                     density="compact"
+                    size="small"
                     style={{ width: '100%' }}
                     disabled={!hasPermission('cms:content:publish')}
                     placeholder={hasPermission('cms:content:publish') ? '到期自动发布（每分钟检查）' : '需要内容发布权限'}
@@ -804,38 +803,40 @@ export default function ContentEditPage() {
                     label="过期下线"
                     type="dateTime"
                     density="compact"
+                    size="small"
                     style={{ width: '100%' }}
                     placeholder="到期自动下线（留空永不过期）"
                   />
                 </TabPane>
                 <TabPane tab="高级设置" itemKey="advanced">
-                  <Form.Input field="slug" label="自定义 URL 标识" placeholder="留空使用 ID" />
+                  <Form.Input field="slug" label="自定义 URL 标识" size="small" placeholder="留空使用 ID" />
                   {contentType !== 'link' ? (
                     <Form.Input
                       field="externalLink"
                       label="外链地址"
+                      size="small"
                       placeholder="填写后点击标题直接跳转"
                     />
                   ) : null}
                   <Form.Slot noLabel>
                     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
                       <div style={{ flex: 1 }}>
-                        <Form.Select field="detailTemplate" label="详情模板" style={{ width: '100%' }} showClear
+                        <Form.Select field="detailTemplate" label="详情模板" size="small" style={{ width: '100%' }} showClear
                           placeholder="跟随栏目/站点默认"
                           optionList={(themeTemplates?.detail ?? []).map((t) => ({ value: t.name, label: t.label }))} />
                       </div>
-                      <Button style={{ marginBottom: 12 }} icon={<Eye size={14} />} title="以当前选中模板试穿预览本文（不影响线上）"
+                      <Button size="small" style={{ marginBottom: 12 }} icon={<Eye size={14} />} title="以当前选中模板试穿预览本文（不影响线上）"
                         onClick={handleTemplateTryOn}>试穿</Button>
                     </div>
                   </Form.Slot>
                 </TabPane>
                 <TabPane tab="SEO" itemKey="seo">
                   <div style={{ marginTop: 8, fontSize: 12, color: 'var(--semi-color-text-2)' }}>留空则继承栏目/站点设置</div>
-                  <Form.Input field="seoTitle" label="SEO 标题" />
-                  <Form.Input field="seoKeywords" label="SEO 关键词" />
+                  <Form.Input field="seoTitle" label="SEO 标题" size="small" />
+                  <Form.Input field="seoKeywords" label="SEO 关键词" size="small" />
                   <Form.TextArea field="seoDescription" label="SEO 描述" rows={2} />
-                  <Form.Input field="socialImageAlt" label="社交图片说明" maxLength={255} placeholder="用于 og:image:alt / twitter:image:alt" />
-                  <Form.Input field="twitterCreator" label="Twitter/X 作者" maxLength={100} placeholder="@creator" />
+                  <Form.Input field="socialImageAlt" label="社交图片说明" size="small" maxLength={255} placeholder="用于 og:image:alt / twitter:image:alt" />
+                  <Form.Input field="twitterCreator" label="Twitter/X 作者" size="small" maxLength={100} placeholder="@creator" />
                 </TabPane>
               </Tabs>
             </div>
