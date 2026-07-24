@@ -6,21 +6,44 @@
 
 ---
 
-## 菜单 ID 速查
+## 菜单 ID 分段规则
 
-**不要使用硬编码的 ID 列表**，因为它会随功能迭代而过时。
+菜单 ID 按**一级目录分段**管理，每个一级目录独占一个 **1000 段**（如系统管理 = 1000–1999、系统设置 = 2000–2999、CMS 内容管理 = 14000–14999）；平台级独立页占用 1–999（首页 = 1，个人中心 = 11，公告中心 = 12，我的消息 = 13）。
+
+段内分配规则：
+
+- **一级目录** = 段基数（如 `1000`）
+- **子目录 / 页面菜单**：落在 **10 的倍数**槽位（如 `1010`、`1020`、`1030`…），按 `sort` 顺序排列
+- **按钮**：紧跟父菜单 ID **顺延 +1..+n**（如页面 `1010` 的按钮为 `1011`、`1012`…）；按钮超过 9 个时自然占用后续 10 槽，下一个页面从其后最近的 10 倍数开始
+
 在为新模块分配 ID 前，**必须先读取实际文件**了解当前分布：
 
 ```text
-packages/shared/src/seed-data.ts   ← 查阅 SEED_MENUS 数组，找出当前已用的最大 ID 及所有父目录 ID
+packages/shared/src/seed-data.ts   ← 查阅 SEED_MENUS 数组（含各段注释，如「─── 系统管理（1000 段）」）
 ```
 
 典型查询方式：
 
-- 搜索 `parentId: 0` 找到所有一级目录（确定可选的父节点）
-- 找出最大已用 ID，新菜单 ID 从 **(最大已用 ID + 步进)** 开始，步进建议 10–50，保持松散，便于以后插入
+- 新增**一级目录**：取当前最大段基数 + 1000
+- 新增**页面**：在目标段内找到最后一个节点，从其后最近的 10 倍数槽位开始
+- 新增**按钮**：父菜单 ID 顺延 +1
 
 > **严禁**基于任何文档中记录的"当前最大 ID"来分配新 ID，这类记录必然滞后于代码。始终以源文件为准。
+
+---
+
+## 菜单与权限解耦（核心语义）
+
+系统采用**显示与操作解耦**模型：
+
+| 节点类型 | 职责 | `permission` 字段 |
+| --- | --- | --- |
+| `directory` / `menu` | **纯显示资源**（侧边栏分组 / 页面可见性） | **必须为空** |
+| `button` | **纯权限点**（含「查询」），承载全部权限码 | 必填 |
+
+- 每个页面菜单的**第一个按钮固定为「查询」**（`sort: 0`，权限码 `xxx:list`），控制页面数据加载；页面本身不带权限码
+- 授权语义：勾选按钮**不会**带出所属页面（后端 `listUserMenuTree` 祖先补全只从目录/页面节点出发）；授权面板勾选页面时自动带上其「查询」按钮
+- 典型场景：只授予「查询」按钮 = 仅 API 可用（跨页面下拉等），页面不可见
 
 ---
 
@@ -29,21 +52,20 @@ packages/shared/src/seed-data.ts   ← 查阅 SEED_MENUS 数组，找出当前�
 ### 新增目录（一级菜单 / 二级目录，若需要）
 
 ```ts
-// 在 SEED_MENUS 数组末尾追加：
-{ id: <新ID>, parentId: 0,   title: 'XXX模块',  name: 'XxxModule',  path: undefined,  component: undefined,  icon: 'Layers',  type: 'directory', sort: 99, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+// 一级目录 = 新 1000 段的基数（当前最大段基数 + 1000），纯显示资源，不带 permission
+{ id: <段基数>, parentId: 0, title: 'XXX模块', name: 'XxxModule', icon: 'Layers', type: 'directory', sort: 99, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ```
 
 ### 新增菜单页面条目
 
 ```ts
-// type: 'menu' — 可导航的页面
-{ id: <新ID>, parentId: <父目录ID>,   title: 'XXX管理',  name: 'SystemXxx',
+// type: 'menu' — 可导航的页面（纯显示资源，不带 permission；列表权限码放在「查询」按钮上）
+{ id: <10的倍数槽位>, parentId: <父目录ID>, title: 'XXX管理', name: 'SystemXxx',
   path: '/system/xxxs',
   component: 'xxxs/XxxPage',         // ← 必须精确匹配 packages/web/src/pages/ 下的文件路径，无扩展名
   icon: 'CircleDot',                  // ← lucide-react 图标名
   type: 'menu', sort: 10,
   status: 'enabled', visible: true,
-  permission: 'system:xxx:list',      // ← 列表权限码
   createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ```
 
@@ -56,15 +78,15 @@ packages/shared/src/seed-data.ts   ← 查阅 SEED_MENUS 数组，找出当前�
 ### 新增按钮权限条目
 
 ```ts
-// type: 'button' — 不可导航，只挂权限码；path/component/icon 均为 undefined
-{ id: <新ID+1>, parentId: <菜单ID>, title: '新增XXX',  name: undefined, path: undefined, component: undefined, icon: undefined,
-  type: 'button', sort: 1, status: 'enabled', visible: true,
+// type: 'button' — 不可导航，只挂权限码；ID 从父菜单顺延 +1
+// 第一个按钮固定为「查询」（sort: 0），承载页面的列表权限码
+{ id: <菜单ID+1>, parentId: <菜单ID>, title: '查询', type: 'button', sort: 0, status: 'enabled', visible: true,
+  permission: 'system:xxx:list', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+{ id: <菜单ID+2>, parentId: <菜单ID>, title: '新增XXX', type: 'button', sort: 1, status: 'enabled', visible: true,
   permission: 'system:xxx:create', createdAt: SEED_DATE, updatedAt: SEED_DATE },
-{ id: <新ID+2>, parentId: <菜单ID>, title: '编辑XXX',  name: undefined, path: undefined, component: undefined, icon: undefined,
-  type: 'button', sort: 2, status: 'enabled', visible: true,
+{ id: <菜单ID+3>, parentId: <菜单ID>, title: '编辑XXX', type: 'button', sort: 2, status: 'enabled', visible: true,
   permission: 'system:xxx:update', createdAt: SEED_DATE, updatedAt: SEED_DATE },
-{ id: <新ID+3>, parentId: <菜单ID>, title: '删除XXX',  name: undefined, path: undefined, component: undefined, icon: undefined,
-  type: 'button', sort: 3, status: 'enabled', visible: true,
+{ id: <菜单ID+4>, parentId: <菜单ID>, title: '删除XXX', type: 'button', sort: 3, status: 'enabled', visible: true,
   permission: 'system:xxx:delete', createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ```
 
@@ -121,63 +143,37 @@ logger.info('  ✔ Xxxs seeded (onConflictDoNothing)');
 
 ### 菜单种子更新方式
 
-菜单使用**单次批量** `onConflictDoUpdate`，确保重跑 seed 时可以更新已有菜单；**不要在循环里逐条 upsert**：
+菜单是系统定义资源，`SEED_MENUS` 为**唯一权威来源**。seed.ts 对菜单采用**清空重建**策略（`TRUNCATE ... CASCADE` 后全量插入，绑定表与用户收藏一并重置后重新种入），**新增菜单只需维护 `SEED_MENUS`，重跑 `npm run db:seed` 即可生效**：
 
 ```ts
-const menuRows = SEED_MENUS.map((row) => ({
-  id: row.id,
-  parentId: row.parentId,
-  title: row.title,
-  name: row.name ?? null,
-  path: row.path ?? null,
-  component: row.component ?? null,
-  icon: row.icon ?? null,
-  type: row.type,
-  permission: row.permission ?? null,
-  sort: row.sort,
-  status: row.status,
-  visible: row.visible,
-}));
-
-await db.insert(menus).values(menuRows).onConflictDoUpdate({
-  target: menus.id,
-  set: {
-    parentId:   sql`excluded.parent_id`,
-    title:      sql`excluded.title`,
-    name:       sql`excluded.name`,
-    path:       sql`excluded.path`,
-    component:  sql`excluded.component`,
-    icon:       sql`excluded.icon`,
-    type:       sql`excluded.type`,
-    permission: sql`excluded.permission`,
-    sort:       sql`excluded.sort`,
-    status:     sql`excluded.status`,
-    visible:    sql`excluded.visible`,
-    updatedAt:  new Date(),
-  },
-});
+// packages/server/src/db/seed.ts（已有实现，无需改动；此处仅说明机制）
+await db.execute(sql`TRUNCATE TABLE menus, role_menus, user_menus, tenant_package_menus RESTART IDENTITY CASCADE`);
+await db.execute(sql`UPDATE users SET favorite_menus = NULL`);
+const menuRows = SEED_MENUS.map((row) => ({ /* 字段映射 */ }));
+await db.insert(menus).values(menuRows);
+await db.execute(sql`SELECT setval('menus_id_seq', GREATEST((SELECT MAX(id) FROM menus), 1))`);
 ```
+
+> 超管角色自动绑定全部菜单；其他角色按 `SEED_ROLES.menuIds` 绑定。角色/套餐引用菜单 ID 时**禁止硬编码魔法数字**，使用 `collectMenuSubtreeIds(rootId)` 等结构化推导（见 `seed-data.ts`）。
 
 ---
 
 ## 完整示例（以「部门管理」为参考）
 
 ```ts
-// seed-data.ts 中的实际写法（部门管理的实际 ID 请以源文件为准）
-{ id: 36, parentId: 2,  title: '部门管理', name: 'SystemDepartments',
+// seed-data.ts 中的实际写法（系统管理 = 1000 段；实际 ID 请以源文件为准）
+{ id: 1020, parentId: 1000, title: '部门管理', name: 'SystemDepartments',
   path: '/system/departments',
   component: 'system/departments/DepartmentsPage',
   icon: 'Building2', type: 'menu', sort: 2,
   status: 'enabled', visible: true,
-  permission: 'system:department:list',
   createdAt: SEED_DATE, updatedAt: SEED_DATE },
-{ id: 37, parentId: 36, title: '新增部门', name: undefined, path: undefined, component: undefined, icon: undefined,
-  type: 'button', sort: 1, status: 'enabled', visible: true,
+{ id: 1021, parentId: 1020, title: '查询', type: 'button', sort: 0, status: 'enabled', visible: true,
+  permission: 'system:department:list', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+{ id: 1022, parentId: 1020, title: '新增部门', type: 'button', sort: 1, status: 'enabled', visible: true,
   permission: 'system:department:create', createdAt: SEED_DATE, updatedAt: SEED_DATE },
-{ id: 38, parentId: 36, title: '编辑部门', name: undefined, path: undefined, component: undefined, icon: undefined,
-  type: 'button', sort: 2, status: 'enabled', visible: true,
+{ id: 1023, parentId: 1020, title: '编辑部门', type: 'button', sort: 2, status: 'enabled', visible: true,
   permission: 'system:department:update', createdAt: SEED_DATE, updatedAt: SEED_DATE },
-{ id: 39, parentId: 36, title: '删除部门', name: undefined, path: undefined, component: undefined, icon: undefined,
-  type: 'button', sort: 3, status: 'enabled', visible: true,
+{ id: 1024, parentId: 1020, title: '删除部门', type: 'button', sort: 3, status: 'enabled', visible: true,
   permission: 'system:department:delete', createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ```
