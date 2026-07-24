@@ -506,6 +506,8 @@ export default function MenusPage() {
               style={{ width: '100%' }}
               placeholder="请选择父级菜单"
               filterTreeNode
+              showFilteredOnly
+              virtualize={{ height: 300, itemSize: 36 }}
             />
           </Form.Slot>
 

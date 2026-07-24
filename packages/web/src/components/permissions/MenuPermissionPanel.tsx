@@ -31,6 +31,8 @@ function menusToTreeData(items: Menu[], labelSuffix?: Record<string, React.React
         {labelSuffix?.[String(m.id)]}
       </span>
     ),
+    // label 为 ReactNode，搜索改用该字段（treeNodeFilterProp="filterLabel"）
+    filterLabel: m.title,
     key: String(m.id),
     value: m.id,
     children: m.children ? menusToTreeData(m.children, labelSuffix) : undefined,
@@ -128,7 +130,12 @@ export function MenuPermissionPanel({
         value={checkedMenuIds.map(String)}
         onChange={readonly ? undefined : (keys) => handleChange(keys as string[])}
         disableStrictly={readonly}
-        style={{ maxHeight: 400, overflow: 'auto' }}
+        filterTreeNode
+        treeNodeFilterProp="filterLabel"
+        showFilteredOnly
+        searchPlaceholder="搜索菜单名称"
+        virtualize={{ height: 400, itemSize: 36 }}
+        style={{ height: 448 }}
       />
     </>
   );
