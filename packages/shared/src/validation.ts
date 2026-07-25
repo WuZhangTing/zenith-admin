@@ -5243,6 +5243,8 @@ export const createCmsChannelSchema = z.object({
   parentId: z.number().int().min(0).default(0),
   modelId: z.number().int().positive().nullable().optional(),
   name: z.string().min(1, '栏目名称不能为空').max(100),
+  /** 栏目标识（站内唯一）：留空时服务端按 slug 自动生成 */
+  code: z.string().max(50).regex(cmsSlugRegex, '标识仅支持小写字母、数字、中划线').optional(),
   slug: z.string().min(1, 'URL 标识不能为空').max(100).regex(cmsSlugRegex, '标识仅支持小写字母、数字、中划线'),
   type: z.enum(['list', 'page', 'link']).default('list'),
   linkUrl: z.string().max(500).refine(isValidCmsLink, CMS_LINK_FORMAT_MESSAGE).nullable().optional(),

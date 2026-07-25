@@ -880,8 +880,8 @@ async function seedRest() {
   }
 
   await db.insert(cmsChannels).values(
-    SEED_CMS_CHANNELS.map(({ id, siteId, parentId, modelId, name, slug, path, type, linkUrl, listTemplate, detailTemplate, pageSize, pageContent, seoTitle, seoKeywords, seoDescription, image, visible, status, sort, settings }) => ({
-      id, siteId, parentId, modelId, name, slug, path, type, linkUrl, listTemplate, detailTemplate, pageSize, pageContent, seoTitle, seoKeywords, seoDescription, image, visible, status, sort, settings,
+    SEED_CMS_CHANNELS.map(({ id, siteId, parentId, modelId, name, code, slug, path, type, linkUrl, listTemplate, detailTemplate, pageSize, pageContent, seoTitle, seoKeywords, seoDescription, image, visible, status, sort, settings }) => ({
+      id, siteId, parentId, modelId, name, code, slug, path, type, linkUrl, listTemplate, detailTemplate, pageSize, pageContent, seoTitle, seoKeywords, seoDescription, image, visible, status, sort, settings,
     })),
   ).onConflictDoNothing({ target: cmsChannels.id });
   await db.execute(sql`SELECT setval('cms_channels_id_seq', GREATEST((SELECT MAX(id) FROM cms_channels), 1))`);

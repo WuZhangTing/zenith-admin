@@ -701,6 +701,13 @@
       "when": 1784903883186,
       "tag": "0099_rare_mauler",
       "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1784980781229,
+      "tag": "0100_thin_black_widow",
+      "breakpoints": true
     }
   ]
 }

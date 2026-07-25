@@ -399,12 +399,18 @@ export const cmsHandlers = [
     const parentId = Number(body.parentId ?? 0);
     const parent = mockCmsChannels.find((c) => c.id === parentId);
     const slug = String(body.slug ?? '');
+    const siteId = Number(body.siteId);
+    // 与服务端一致：code 留空取 slug，站点内冲突追加序号
+    const usedCodes = new Set(mockCmsChannels.filter((c) => c.siteId === siteId).map((c) => c.code));
+    let code = String(body.code ?? '').trim() || slug;
+    for (let i = 2; usedCodes.has(code) && i < 1000; i++) code = `${slug}-${i}`;
     const channel: CmsChannel = {
       id: getNextCmsChannelId(),
-      siteId: Number(body.siteId),
+      siteId,
       parentId,
       modelId: (body.modelId as number) ?? null,
       name: String(body.name ?? ''),
+      code,
       slug,
       path: parent ? `${parent.path}/${slug}` : slug,
       type: (body.type as CmsChannel['type']) ?? 'list',
@@ -484,15 +490,26 @@ export const cmsHandlers = [
     const siteId = Number(url.searchParams.get('siteId'));
     const link = (url.searchParams.get('link') ?? '').trim();
     const ref = parseCmsLink(link);
-    if (!ref) return okJson({ kind: 'invalid', label: link, targetId: null, exists: false });
-    if (ref.kind === 'external') return okJson({ kind: 'external', label: ref.url, targetId: null, exists: true });
-    if (ref.kind === 'internal') return okJson({ kind: 'internal', label: ref.path, targetId: null, exists: true });
+    if (!ref) return okJson({ kind: 'invalid', label: link, targetId: null, targetCode: null, exists: false });
+    if (ref.kind === 'external') return okJson({ kind: 'external', label: ref.url, targetId: null, targetCode: null, exists: true });
+    if (ref.kind === 'internal') return okJson({ kind: 'internal', label: ref.path, targetId: null, targetCode: null, exists: true });
+    if (ref.code !== null) {
+      const channel = mockCmsChannels.find((ch) => ch.code === ref.code && ch.siteId === siteId);
+      return okJson({
+        kind: 'entity-channel',
+        label: channel?.name ?? `栏目「${ref.code}」（不存在）`,
+        targetId: channel?.id ?? null,
+        targetCode: ref.code,
+        exists: !!channel,
+      });
+    }
     if (ref.entityType === 'content') {
       const target = mockCmsContents.find((c) => c.id === ref.id && c.siteId === siteId);
       return okJson({
         kind: 'entity-content',
         label: target?.title ?? `内容 #${ref.id}（已删除）`,
         targetId: ref.id,
+        targetCode: null,
         exists: !!target,
       });
     }
@@ -501,6 +518,7 @@ export const cmsHandlers = [
       kind: 'entity-channel',
       label: channel?.name ?? `栏目 #${ref.id}（已删除）`,
       targetId: ref.id,
+      targetCode: null,
       exists: !!channel,
     });
   }),
@@ -1549,6 +1567,7 @@ export const cmsP2Handlers = [
         modelId: null,
         modelName: null,
         name,
+        code: slug,
         slug,
         path: parentPath ? `${parentPath}/${slug}` : slug,
         type: 'list',

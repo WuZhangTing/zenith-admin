@@ -1,16 +1,29 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import {
-  buildCmsEntityLink, buildCmsInternalLink, isCmsEntityLink, isCmsSiteLink,
+  buildCmsChannelCodeLink, buildCmsEntityLink, buildCmsInternalLink, isCmsEntityLink, isCmsSiteLink,
   isValidCmsLink, parseCmsLink, remapCmsEntityLink,
 } from '@zenith/shared';
 
 describe('CMS 链接协议', () => {
   it('按 scheme 分层解析实体引用 / 站内路径 / 站外链接', () => {
-    expect(parseCmsLink('entity:content/123')).toEqual({ kind: 'entity', entityType: 'content', id: 123 });
-    expect(parseCmsLink('entity:channel/45')).toEqual({ kind: 'entity', entityType: 'channel', id: 45 });
+    expect(parseCmsLink('entity:content/123')).toEqual({ kind: 'entity', entityType: 'content', id: 123, code: null });
+    expect(parseCmsLink('entity:channel/45')).toEqual({ kind: 'entity', entityType: 'channel', id: 45, code: null });
     expect(parseCmsLink('internal:/news/')).toEqual({ kind: 'internal', path: '/news/' });
     expect(parseCmsLink('https://example.com')).toEqual({ kind: 'external', url: 'https://example.com' });
+  });
+
+  it('按栏目标识引用栏目（站点复制后仍有效的稳定写法）', () => {
+    expect(parseCmsLink('entity:channel@news')).toEqual({ kind: 'entity', entityType: 'channel', id: null, code: 'news' });
+    expect(parseCmsLink('entity:channel@notice-2')).toEqual({ kind: 'entity', entityType: 'channel', id: null, code: 'notice-2' });
+    expect(buildCmsChannelCodeLink('news')).toBe('entity:channel@news');
+    expect(isCmsEntityLink('entity:channel@news')).toBe(true);
+    expect(isCmsSiteLink('entity:channel@news')).toBe(true);
+    // 标识只允许小写字母/数字/中划线；内容不支持 @ 写法
+    for (const bad of ['entity:channel@News', 'entity:channel@', 'entity:channel@a_b', 'entity:content@news']) {
+      expect(parseCmsLink(bad)).toBeNull();
+      expect(isValidCmsLink(bad)).toBe(false);
+    }
   });
 
   it('把历史自由文本数据无损归类，不破坏既有链接', () => {
@@ -48,6 +61,8 @@ describe('CMS 链接协议', () => {
     expect(remapCmsEntityLink('entity:channel/10', () => undefined)).toBeNull();
     // 非实体链接原样透传
     expect(remapCmsEntityLink('https://a.com', () => 1)).toBe('https://a.com');
+    // 按 code 引用无需重映射，这正是 code 相对 id 的价值
+    expect(remapCmsEntityLink('entity:channel@news', () => undefined)).toBe('entity:channel@news');
   });
 
   it('渲染层解析链接，而非在写入时固化 URL（保证目标改 slug 后自动跟随）', async () => {

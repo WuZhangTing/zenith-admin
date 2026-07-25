@@ -25,10 +25,11 @@ import type { CmsChannel, CmsPage, CmsPageBlock, CmsPageBlockType } from '@zenit
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 import { formatDateTimeForApi } from '@/utils/date';
 
-function channelsToSelectTree(nodes: CmsChannel[]): { key: string; value: number; label: string; children?: ReturnType<typeof channelsToSelectTree> }[] {
+/** 区块按栏目标识引用栏目：value 用 code，站点复制/重建后配置无需重配 */
+function channelsToSelectTree(nodes: CmsChannel[]): { key: string; value: string; label: string; children?: ReturnType<typeof channelsToSelectTree> }[] {
   return nodes.map((n) => ({
-    key: String(n.id),
-    value: n.id,
+    key: n.code,
+    value: n.code,
     label: n.name,
     children: n.children ? channelsToSelectTree(n.children) : undefined,
   }));
@@ -547,7 +548,7 @@ export default function PagesPage() {
             {editingBlockType === 'content-list' ? (
               <>
                 <Form.Input field="title" label="标题" />
-                <Form.TreeSelect field="channelId" label="栏目" style={{ width: '100%' }} showClear
+                <Form.TreeSelect field="channelCode" label="栏目" style={{ width: '100%' }} showClear
                   treeData={channelsToSelectTree(treeQuery.data ?? [])} placeholder="留空取全站" />
                 <Form.Select field="mode" label="取数模式" style={{ width: '100%' }}
                   optionList={[

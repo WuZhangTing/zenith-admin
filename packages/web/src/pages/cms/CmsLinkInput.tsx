@@ -4,7 +4,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
 import { ChevronDown, Home, Link2, RotateCcw, Search } from 'lucide-react';
 import {
-  buildCmsEntityLink, parseCmsLink, CMS_CONTENT_STATUS_LABELS,
+  buildCmsEntityLink, buildCmsChannelCodeLink, parseCmsLink, CMS_CONTENT_STATUS_LABELS,
 } from '@zenith/shared';
 import type { CmsChannel, CmsContent } from '@zenith/shared';
 import { useAllCmsSites, useCmsChannelTree, useCmsContentList, useCmsLinkTarget } from '@/hooks/queries/cms';
@@ -148,11 +148,22 @@ function ChannelPickerModal({ siteId, visible, onCancel, onSelect, excludeId }: 
   siteId: number | undefined;
   visible: boolean;
   onCancel: () => void;
-  onSelect: (channelId: number) => void;
+  onSelect: (channel: CmsChannel) => void;
   excludeId?: number;
 }>) {
   const treeQuery = useCmsChannelTree(siteId);
   const treeData = useMemo(() => channelsToTree(treeQuery.data ?? []), [treeQuery.data]);
+  const channelById = useMemo(() => {
+    const map = new Map<number, CmsChannel>();
+    const walk = (nodes: CmsChannel[]) => {
+      for (const n of nodes) {
+        map.set(n.id, n);
+        if (n.children) walk(n.children);
+      }
+    };
+    walk(treeQuery.data ?? []);
+    return map;
+  }, [treeQuery.data]);
 
   return (
     <Modal title="选择栏目" visible={visible} onCancel={onCancel} footer={null} width={480} closeOnEsc>
@@ -163,7 +174,8 @@ function ChannelPickerModal({ siteId, visible, onCancel, onSelect, excludeId }: 
         style={{ maxHeight: 420, overflow: 'auto' }}
         onSelect={(key) => {
           const id = Number(key);
-          if (id !== excludeId) onSelect(id);
+          const channel = channelById.get(id);
+          if (channel && id !== excludeId) onSelect(channel);
         }}
       />
     </Modal>
@@ -178,7 +190,7 @@ function ChannelPickerModal({ siteId, visible, onCancel, onSelect, excludeId }: 
  * 输入框右侧的选择器、下方的目标回显、以及两个选择弹窗。
  *
  * 存储值遵循 `packages/shared/src/cms-link.ts` 的协议：
- * `entity:content/123` / `entity:channel/45` / `internal:/path` / `https://…`
+ * `entity:channel@news`（栏目，优先）/ `entity:content/123` / `internal:/path` / `https://…`
  */
 export function useCmsLinkPicker({
   siteId, value, onPick, disabled, excludeContentId, excludeChannelId,
@@ -250,7 +262,7 @@ export function useCmsLinkPicker({
         visible={picker === 'channel'}
         excludeId={excludeChannelId}
         onCancel={() => setPicker(null)}
-        onSelect={(channelId) => { onPick(buildCmsEntityLink('channel', channelId)); setPicker(null); }}
+        onSelect={(channel) => { onPick(buildCmsChannelCodeLink(channel.code)); setPicker(null); }}
       />
     </>
   );

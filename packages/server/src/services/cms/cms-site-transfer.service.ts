@@ -191,6 +191,7 @@ export async function importCmsSite(payload: unknown) {
     // 2. 栏目树：先父后子逐层插入，重映射 id/parentId
     const channelIdMap = new Map<number, number>();
     const channelPathMap = new Map<number, string>();
+    const usedChannelCodes = new Set<string>();
     const pendingChannels = [...(pkg.channels ?? [])] as PlainRow[];
     let guard = pendingChannels.length * 2 + 10;
     while (pendingChannels.length > 0 && guard-- > 0) {
@@ -204,6 +205,13 @@ export async function importCmsSite(payload: unknown) {
       if (oldId === null) throw new HTTPException(400, { message: '导入栏目缺少有效 id' });
       const oldParentId = num(ch.parentId) ?? 0;
       const slug = requireCmsSlug(ch.slug, `栏目 #${oldId} slug`);
+      // code 随包原样保留：这正是「按 code 引用」跨站点仍然有效的前提。
+      // 旧包没有 code 时回落到 slug，撞车再补序号（新站点内 code 必须唯一）。
+      let code = (str(ch.code) ?? slug).slice(0, 50);
+      for (let i = 2; usedChannelCodes.has(code) && i < 1000; i++) {
+        code = `${slug.slice(0, 50 - String(i).length - 1)}-${i}`;
+      }
+      usedChannelCodes.add(code);
       const parentPath = oldParentId === 0 ? '' : channelPathMap.get(oldParentId);
       if (oldParentId !== 0 && !parentPath) throw new HTTPException(400, { message: `栏目 #${oldId} 的父栏目不存在` });
       const channelPath = parentPath ? `${parentPath}/${slug}` : slug;
@@ -211,6 +219,7 @@ export async function importCmsSite(payload: unknown) {
         siteId,
         parentId: channelIdMap.get(oldParentId) ?? 0,
         name: str(ch.name) ?? '未命名栏目',
+        code,
         slug,
         path: channelPath,
         type: (str(ch.type) as typeof cmsChannels.$inferInsert.type) ?? 'list',

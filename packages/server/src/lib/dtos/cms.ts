@@ -179,6 +179,7 @@ export const CmsChannelDTO: z.ZodType = z
     modelId: z.number().int().nullable(),
     modelName: z.string().nullable().optional(),
     name: z.string().openapi({ example: '新闻中心' }),
+    code: z.string().openapi({ example: 'news', description: '栏目标识（站内唯一）：模板 / 区块 / 内链 / 开放 API 的稳定引用' }),
     slug: z.string().openapi({ example: 'news' }),
     path: z.string().openapi({ example: 'news' }),
     type: z.enum(['list', 'page', 'link']),
@@ -539,7 +540,8 @@ export const CmsLinkTargetDTO = z
   .object({
     kind: z.enum(['entity-content', 'entity-channel', 'internal', 'external', 'invalid']),
     label: z.string().openapi({ description: '可读描述：实体链接为目标标题/栏目名，其余为原值', example: '关于印发继续教育规程的通知' }),
-    targetId: z.number().int().nullable().openapi({ description: '实体链接的目标 id；非实体链接为 null' }),
+    targetId: z.number().int().nullable().openapi({ description: '实体链接的目标 id；非实体链接或按标识引用且目标不存在时为 null' }),
+    targetCode: z.string().nullable().openapi({ description: '按栏目标识引用时回显该标识；其余为 null', example: 'news' }),
     exists: z.boolean().openapi({ description: '目标是否仍存在（false 时前端提示链接已失效）' }),
   })
   .openapi('CmsLinkTarget');

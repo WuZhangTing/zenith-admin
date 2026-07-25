@@ -207,6 +207,13 @@ export const cmsChannels = pgTable('cms_channels', {
   parentId: integer('parent_id').notNull().default(0),
   modelId: integer('model_id').references(() => cmsModels.id, { onDelete: 'set null' }),
   name: varchar('name', { length: 100 }).notNull(),
+  /**
+   * 栏目标识（站内唯一）—— 模板 / 页面搭建区块 / 内链 / 开放 API 的稳定引用。
+   *
+   * 与 `slug` 的分工：`slug` 是 URL 片段，改了 URL 就变（要配 301）；`code` 是程序引用标识，
+   * 移动栏目、改 slug、站点复制后都不变，因此 `entity:channel@news` 这类内链跨站点依然有效。
+   */
+  code: varchar('code', { length: 50 }).notNull(),
   /** URL 路径段（本级） */
   slug: varchar('slug', { length: 100 }).notNull(),
   /** 完整 URL 路径（各级 slug 以 / 连接，保存时由 service 重算） */
@@ -235,6 +242,7 @@ export const cmsChannels = pgTable('cms_channels', {
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   uniqueIndex('cms_channels_site_path_uq').on(t.siteId, t.path),
+  uniqueIndex('cms_channels_site_code_uq').on(t.siteId, t.code),
   index('cms_channels_site_parent_idx').on(t.siteId, t.parentId),
 ]);
 

@@ -84,13 +84,21 @@ router.get('/v1/cms/channels', async (c) => {
   return c.json(okBody(tree), 200);
 });
 
-// GET /v1/cms/contents?siteCode=&channelId=&page=&pageSize= —— 已发布内容分页
+// GET /v1/cms/contents?siteCode=&channel=|channelId=&page=&pageSize= —— 已发布内容分页
 router.get('/v1/cms/contents', async (c) => {
   if (!hasScope(c, 'cms:read')) return c.json(errBody('应用未授权 scope：cms:read', 403), 403);
   const site = await resolveCmsSite(c);
   if (!site) return c.json(errBody('站点不存在（请携带 siteCode 参数）', 404), 404);
-  const channelId = Number(c.req.query('channelId')) || 0;
-  if (!channelId) return c.json(errBody('缺少 channelId 参数', 400), 400);
+  // 推荐用 channel=栏目标识（站点复制/重建后依然有效）；channelId 保留兼容
+  const channelCode = c.req.query('channel')?.trim();
+  let channelId = Number(c.req.query('channelId')) || 0;
+  if (channelCode) {
+    const { findCmsChannelByCode } = await import('../../services/cms/cms-channels.service');
+    const channel = await findCmsChannelByCode(site.id, channelCode);
+    if (!channel) return c.json(errBody(`栏目标识「${channelCode}」不存在`, 404), 404);
+    channelId = channel.id;
+  }
+  if (!channelId) return c.json(errBody('缺少 channel（栏目标识）或 channelId 参数', 400), 400);
   const page = Math.max(1, Number(c.req.query('page')) || 1);
   const pageSize = Math.min(50, Math.max(1, Number(c.req.query('pageSize')) || 20));
   const { listPublishedContents, mapCmsContent } = await import('../../services/cms/cms-contents.service');

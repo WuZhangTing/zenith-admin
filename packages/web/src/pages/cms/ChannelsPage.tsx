@@ -173,6 +173,7 @@ export default function ChannelsPage() {
     ? {
         parentId: editingRecord.parentId,
         name: editingRecord.name,
+        code: editingRecord.code,
         slug: editingRecord.slug,
         type: editingRecord.type,
         modelId: editingRecord.modelId ?? undefined,
@@ -198,6 +199,8 @@ export default function ChannelsPage() {
       return; // 校验失败保持编辑区打开
     }
     if (values.modelId === undefined) values.modelId = null;
+    // 栏目标识留空 → 不下发该字段，交给服务端按 slug 自动生成
+    if (typeof values.code === 'string' && !values.code.trim()) delete values.code;
     // 模板下拉清空后为 undefined，显式置 null 才能在更新时清除覆盖
     values.listTemplate = values.listTemplate ?? null;
     values.detailTemplate = values.detailTemplate ?? null;
@@ -344,7 +347,7 @@ export default function ChannelsPage() {
             whiteSpace: 'nowrap',
             color: record.status === 'disabled' ? 'var(--semi-color-text-2)' : undefined,
           }}
-          title={`${record.name}  /${record.path}/`}
+          title={`${record.name}\n栏目标识：${record.code}\n路径：/${record.path}/`}
         >
           {label}
         </span>
@@ -439,7 +442,7 @@ export default function ChannelsPage() {
         if (values.type !== channelType) setChannelType(values.type as string);
       }}
       labelPosition="left"
-      labelWidth={90}
+      labelWidth={110}
     >
       <Form.TreeSelect
         field="parentId"
@@ -466,6 +469,13 @@ export default function ChannelsPage() {
         </Col>
         <Col span={24} lg={12}>
           <Form.Input field="slug" label="URL 标识" placeholder="小写字母/数字/中划线" rules={[{ required: true, message: '请输入 URL 标识' }]} />
+        </Col>
+        <Col span={24} lg={12}>
+          <Form.Input
+            field="code"
+            label="栏目标识"
+            placeholder="留空自动取 URL 标识"
+          />
         </Col>
         <Col span={24} lg={12}>
           <Form.Select field="type" label="栏目类型" style={{ width: '100%' }}
@@ -642,9 +652,6 @@ export default function ChannelsPage() {
       >
         <Typography.Text strong ellipsis={{ showTooltip: true }} style={{ maxWidth: 320 }}>
           {editingRecord ? editingRecord.name : '新增栏目'}
-        </Typography.Text>
-        <Typography.Text type="tertiary" size="small">
-          {editingRecord ? `/${editingRecord.path}/` : '填写以下信息后保存'}
         </Typography.Text>
       </MasterDetailLayout.Header>
       <MasterDetailLayout.Body padding="16px 20px">

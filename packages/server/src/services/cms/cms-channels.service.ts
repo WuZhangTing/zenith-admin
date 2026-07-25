@@ -10,8 +10,7 @@ import { mergeWhere } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUser } from '../../lib/context';
 import type { CreateCmsChannelInput, UpdateCmsChannelInput, CmsChannel } from '@zenith/shared';
-import { buildCmsEntityLink } from '@zenith/shared';
-import { ensureCmsLinkTargetExists } from './cms-link.service';
+import { ensureCmsLinkTargetExists, isCmsLinkToChannel } from './cms-link.service';
 import { assertChannelTemplatesBySite } from './cms-template-refs.service';
 import {
   assertCompleteCmsBatch, isCmsPlatformAdmin,
@@ -30,6 +29,7 @@ export function mapCmsChannel(row: CmsChannelRow, modelName?: string | null): Cm
     modelId: row.modelId ?? null,
     modelName: modelName ?? null,
     name: row.name,
+    code: row.code,
     slug: row.slug,
     path: row.path,
     type: row.type,
@@ -78,6 +78,14 @@ export async function ensureCmsChannelExists(id: number): Promise<CmsChannelRow>
   const [row] = await db.select().from(cmsChannels).where(eq(cmsChannels.id, id)).limit(1);
   if (!row) throw new HTTPException(404, { message: '栏目不存在' });
   return row;
+}
+
+/** 按栏目标识查栏目（开放 API / 模板按 code 引用栏目时用） */
+export async function findCmsChannelByCode(siteId: number, code: string): Promise<CmsChannelRow | null> {
+  const [row] = await db.select().from(cmsChannels)
+    .where(and(eq(cmsChannels.siteId, siteId), eq(cmsChannels.code, code)))
+    .limit(1);
+  return row ?? null;
 }
 
 export async function getCmsChannel(id: number) {
@@ -155,6 +163,33 @@ async function recomputeChildPaths(executor: DbExecutor, channelId: number, newP
   }
 }
 
+/**
+ * 生成站内唯一的栏目标识：优先用传入值，留空时取 slug，冲突则追加 -2 / -3…
+ *
+ * 只在写入前做一次「查重 + 补后缀」，真正的唯一性仍由
+ * `cms_channels_site_code_uq` 兜底（并发写入由 rethrowPgUniqueViolation 转成 400）。
+ */
+async function resolveChannelCode(
+  executor: DbExecutor,
+  siteId: number,
+  preferred: string | null | undefined,
+  fallbackSlug: string,
+  selfId?: number,
+): Promise<string> {
+  const base = (preferred?.trim() || fallbackSlug).slice(0, 50);
+  const taken = await executor.select({ code: cmsChannels.code, id: cmsChannels.id })
+    .from(cmsChannels).where(eq(cmsChannels.siteId, siteId));
+  const used = new Set(taken.filter((r) => r.id !== selfId).map((r) => r.code));
+  if (!used.has(base)) return base;
+  // 用户显式填了 code 却撞车时直接报错，不要偷偷改成别的值
+  if (preferred?.trim()) throw new HTTPException(400, { message: `栏目标识「${base}」在本站点已被占用` });
+  for (let i = 2; i < 1000; i++) {
+    const candidate = `${base.slice(0, 50 - String(i).length - 1)}-${i}`;
+    if (!used.has(candidate)) return candidate;
+  }
+  throw new HTTPException(400, { message: '无法生成唯一的栏目标识，请手动填写' });
+}
+
 // ─── 创建 ─────────────────────────────────────────────────────────────────────
 export async function createCmsChannel(data: CreateCmsChannelInput) {
   await ensureCmsSiteExists(data.siteId);
@@ -176,8 +211,10 @@ export async function createCmsChannel(data: CreateCmsChannelInput) {
         settings: data.settings as Record<string, unknown> | undefined,
       });
       const path = await computePath(tx, data.siteId, data.parentId ?? 0, data.slug);
+      const code = await resolveChannelCode(tx, data.siteId, data.code, data.slug);
       const [created] = await tx.insert(cmsChannels).values({
         ...data,
+        code,
         path,
       }).returning();
       if (!isCmsPlatformAdmin()) {
@@ -198,7 +235,7 @@ export async function createCmsChannel(data: CreateCmsChannelInput) {
     await enqueueCmsPublishOutboxes([row.task], `栏目 #${row.created.id} 创建`);
     return getCmsChannel(row.created.id);
   } catch (err) {
-    rethrowPgUniqueViolation(err, '同站点下已存在相同路径的栏目');
+    rethrowPgUniqueViolation(err, '同站点下已存在相同路径或栏目标识的栏目');
   }
 }
 
@@ -222,8 +259,8 @@ export async function updateCmsChannel(id: number, data: UpdateCmsChannelInput) 
   }
   if (data.linkUrl !== undefined) {
     await ensureCmsLinkTargetExists(current.siteId, data.linkUrl);
-    // 链接型栏目指向自身会形成 302 死循环
-    if (data.linkUrl === buildCmsEntityLink('channel', id)) {
+    // 链接型栏目指向自身会形成 302 死循环（id 引用与 code 引用两种写法都要拦）
+    if (isCmsLinkToChannel(data.linkUrl, current)) {
       throw new HTTPException(400, { message: '内部链接不能指向栏目自身' });
     }
   }
@@ -249,7 +286,10 @@ export async function updateCmsChannel(id: number, data: UpdateCmsChannelInput) 
         }
       }
       const path = await computePath(tx, current.siteId, nextParentId, nextSlug, id);
-      const [updated] = await tx.update(cmsChannels).set({ ...data, path }).where(and(
+      const code = data.code === undefined
+        ? current.code
+        : await resolveChannelCode(tx, current.siteId, data.code, nextSlug, id);
+      const [updated] = await tx.update(cmsChannels).set({ ...data, code, path }).where(and(
         eq(cmsChannels.id, id),
       )).returning();
       if (!updated) throw new HTTPException(404, { message: '栏目不存在' });
@@ -268,7 +308,7 @@ export async function updateCmsChannel(id: number, data: UpdateCmsChannelInput) 
     await enqueueCmsPublishOutboxes([mutation.task], `栏目 #${id} 更新`);
     return getCmsChannel(id);
   } catch (err) {
-    rethrowPgUniqueViolation(err, '同站点下已存在相同路径的栏目');
+    rethrowPgUniqueViolation(err, '同站点下已存在相同路径或栏目标识的栏目');
   }
 }
 
@@ -406,10 +446,11 @@ export async function batchCreateCmsChannels(siteId: number, parentId: number, n
     await assertChannelAccess(parentId);
     if (parent.siteId !== siteId) throw new HTTPException(400, { message: '父栏目不属于当前站点' });
   }
-  const existing = await db.select({ slug: cmsChannels.slug, path: cmsChannels.path }).from(cmsChannels).where(and(
+  const existing = await db.select({ code: cmsChannels.code, path: cmsChannels.path }).from(cmsChannels).where(and(
     eq(cmsChannels.siteId, siteId),
   ));
   const usedPaths = new Set(existing.map((r) => r.path));
+  const usedCodes = new Set(existing.map((r) => r.code));
   try {
     const mutation = await db.transaction(async (tx) => {
       const site = await lockCmsSiteForMutation(tx, siteId);
@@ -423,10 +464,17 @@ export async function batchCreateCmsChannels(siteId: number, parentId: number, n
           path = await computePath(tx, siteId, parentId, slug);
         }
         usedPaths.add(path);
+        // code 站点内唯一，与 path 分开去重（同名不同层级时 slug 可能已被别处占用）
+        let code = slug.slice(0, 50);
+        for (let i = 2; usedCodes.has(code) && i < 1000; i++) {
+          code = `${slug.slice(0, 50 - String(i).length - 1)}-${i}`;
+        }
+        usedCodes.add(code);
         const [createdRow] = await tx.insert(cmsChannels).values({
           siteId,
           parentId,
           name,
+          code,
           slug,
           path,
           type: 'list',
@@ -452,7 +500,7 @@ export async function batchCreateCmsChannels(siteId: number, parentId: number, n
     if (mutation.task) await enqueueCmsPublishOutboxes([mutation.task], '批量创建栏目');
     return mutation.count;
   } catch (err) {
-    rethrowPgUniqueViolation(err, '存在与现有栏目重复的路径');
+    rethrowPgUniqueViolation(err, '存在与现有栏目重复的路径或栏目标识');
   }
 }
 

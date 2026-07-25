@@ -10660,6 +10660,8 @@ export interface CmsChannel {
   /** 模型名称（JOIN 后附加） */
   modelName?: string | null;
   name: string;
+  /** 栏目标识（站内唯一）：模板 / 区块 / 内链 / 开放 API 的稳定引用，移动栏目与改 slug 都不影响 */
+  code: string;
   slug: string;
   path: string;
   type: CmsChannelType;

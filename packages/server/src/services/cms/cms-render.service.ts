@@ -367,10 +367,14 @@ export async function renderCustomPage(
   );
   // content-list 区块数据预取
   const channelPathMap = await loadChannelPathMap(site.id);
+  const hasChannelCodeBlock = blocks.some((b) => b.type === 'content-list' && typeof b.props.channelCode === 'string' && b.props.channelCode);
+  const channelCodeMap = hasChannelCodeBlock ? await loadChannelCodeMap(site.id) : new Map<string, number>();
   const contentListData = new Map<string, CmsContentItem[]>();
   for (const block of blocks) {
     if (block.type !== 'content-list') continue;
-    const channelId = Number(block.props.channelId) || undefined;
+    // 优先按栏目标识引用；旧页面配置仍存的是数值 id，保持兼容
+    const code = typeof block.props.channelCode === 'string' ? block.props.channelCode : '';
+    const channelId = (code ? channelCodeMap.get(code) : Number(block.props.channelId)) || undefined;
     const count = Math.min(20, Math.max(1, Number(block.props.count) || 5));
     const mode = block.props.mode === 'recommend' || block.props.mode === 'hot' ? block.props.mode : 'latest';
     const rows = await listBlockContents(site.id, { channelId, count, mode });
@@ -428,6 +432,12 @@ export async function renderHomePage(site: CmsSiteRow, baseUrl: string, viewer?:
 async function loadChannelPathMap(siteId: number): Promise<Map<number, string>> {
   const rows = await db.select({ id: cmsChannels.id, path: cmsChannels.path }).from(cmsChannels).where(eq(cmsChannels.siteId, siteId));
   return new Map(rows.map((r) => [r.id, r.path]));
+}
+
+/** 栏目标识 → id（页面搭建区块按 code 引用栏目，站点复制后无需重配） */
+async function loadChannelCodeMap(siteId: number): Promise<Map<string, number>> {
+  const rows = await db.select({ id: cmsChannels.id, code: cmsChannels.code }).from(cmsChannels).where(eq(cmsChannels.siteId, siteId));
+  return new Map(rows.map((r) => [r.code, r.id]));
 }
 
 export async function renderChannelPage(site: CmsSiteRow, baseUrl: string, channel: CmsChannelRow, page = 1, device: CmsDeviceChannel = 'pc', templateOverride?: string | null): Promise<RenderResult> {

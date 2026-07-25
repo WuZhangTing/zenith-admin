@@ -16,14 +16,15 @@ Base：`/api/open/v1/cms`，全部只读，仅返回**已发布**内容。
 GET /api/open/v1/cms/channels?siteCode=main
 ```
 
-返回站点启用中的栏目树（含 id/name/slug/path/type/children）。
+返回站点启用中的栏目树（含 id/code/name/slug/path/type/children）。`code` 为站内唯一的栏目标识，建议客户端按它引用栏目而非数值 id。
 
 ### 内容列表
 
 ```http
-GET /api/open/v1/cms/contents?siteCode=main&channelId=3&page=1&pageSize=20
+GET /api/open/v1/cms/contents?siteCode=main&channel=news&page=1&pageSize=20
 ```
 
+- `channel` 为栏目标识（推荐，站点重建/迁移后依然有效）；也可用 `channelId=3` 按数值 id 查询，两者至少提供其一
 - 聚合主栏目与副栏目内容，置顶优先、发布时间倒序
 - `pageSize` 上限 50；列表**不含正文**（减小载荷）
 - 返回 `{ list, total, page, pageSize }`
