@@ -332,7 +332,7 @@ export default function ChannelsPage() {
     const record = data ? channelById.get(Number(data.key)) : undefined;
     if (!record) return label;
     return (
-      <div className="cms-channel-node" style={{ display: 'flex', alignItems: 'center', gap: 4, width: '100%', minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, width: '100%', minWidth: 0 }}>
         <span
           style={{
             flex: 1,
