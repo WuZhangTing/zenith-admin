@@ -67,7 +67,9 @@
 
 ## 页面搭建
 
-区块 JSON 装配式页面（`/p/{slug}/`，isHome 可接管站点首页），6 种区块：hero / richtext / image / content-list / columns / fragment。
+区块 JSON 装配式页面（默认 `/p/{slug}/`，isHome 可接管站点首页），6 种区块：hero / richtext / image / content-list / columns / fragment。
+
+**自定义访问路径**：页面可设 `path` 覆盖默认的 `/p/{slug}/`，支持 `about`（→ `/about/`）、`about.html`、多级 `zh/about` 等形态。入库前归一为「无前后斜杠、无 `/index.html`」，使 URL 生成、静态产物路径与前台路由查表共用同一 key。保存时拦截三类冲突：系统保留首段（`p` / `tag` / `interaction` / `search` / `preview` / `api` / `assets`）与 `robots.txt`、`sitemap.xml`、`rss.xml`；站点内已被其他页面占用；与本站栏目路径相同（栏目侧有对称校验，批量建栏目时遇冲突自动改名而非报错）。改 `path` 或 `slug` 时按变更前路径删除旧产物，不留可访问的孤儿页面。
 
 搭建器（v1.6.0 增强）：
 

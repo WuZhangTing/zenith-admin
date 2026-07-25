@@ -536,6 +536,7 @@ export function submitCmsPagePublishSideEffect(input: {
   slug?: string;
   isHome?: boolean;
   removed?: boolean;
+  removePath?: string | null;
 }): void {
   const actor = currentUserOrNull() ?? SYSTEM_USER;
   void runWithCurrentUser(actor, async () => {
@@ -552,6 +553,7 @@ export function submitCmsPagePublishSideEffect(input: {
       targetType: 'page',
       pageId,
       pageSlug: input.slug,
+      pageRemovePath: input.removePath ?? undefined,
       pageIsHome: input.isHome,
       pageRemoved: input.removed,
       reason: input.removed ? '搭建页面停用或删除' : '搭建页面保存',
@@ -665,6 +667,7 @@ export function registerCmsPublishingTaskHandler(): void {
             slug,
             isHome: page?.isHome ?? input.pageIsHome ?? false,
             removed: input.pageRemoved ?? (page ? page.status !== 'enabled' : true),
+            removePath: input.pageRemovePath ?? null,
           }));
           await ctx.progress({ processed: 1, failed: tracked.artifactProgress.failed, total: 1, note: '搭建页面重建完成', checkpoint: { phase: 'page', lastId: input.pageId ?? null, pageSlug: slug } });
         } else {

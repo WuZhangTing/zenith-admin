@@ -2,7 +2,7 @@
 import { and, desc, eq, inArray, ne, notInArray, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { cmsPageBlockAcls, cmsPages } from '../../db/schema';
+import { cmsPageBlockAcls, cmsPages, cmsChannels } from '../../db/schema';
 import type { CmsPageRow } from '../../db/schema';
 import type { CmsPageBlock } from '@zenith/shared';
 import { formatDateTime } from '../../lib/datetime';
@@ -27,6 +27,7 @@ export function mapCmsPage(row: CmsPageRow, blocks?: CmsPageBlock[]) {
     siteId: row.siteId,
     name: row.name,
     slug: row.slug,
+    path: row.path ?? null,
     isHome: row.isHome,
     blocks: blocks ?? (row.blocks ?? []) as CmsPageBlock[],
     requiresDynamic: row.requiresDynamic,
@@ -70,6 +71,7 @@ export interface CmsPageInput {
   siteId: number;
   name: string;
   slug: string;
+  path?: string | null;
   isHome?: boolean;
   blocks?: CmsPageBlock[];
   seoTitle?: string | null;
@@ -77,6 +79,30 @@ export interface CmsPageInput {
   seoDescription?: string | null;
   status?: 'enabled' | 'disabled';
   remark?: string | null;
+}
+
+/**
+ * 自定义访问路径冲突校验。
+ *
+ * 自定义路径在前台路由里排在栏目/详情解析之前，若与栏目路径撞车会静默吞掉整个栏目，
+ * 所以必须在保存时拦死。栏目侧有对称校验（见 cms-channels.service 的 assertChannelPathFree）。
+ */
+async function assertCustomPagePathFree(executor: DbExecutor, siteId: number, path: string | null | undefined, exceptId?: number): Promise<void> {
+  if (!path) return;
+  // 栏目路径本身、以及其命名空间下的详情/分页路径都不能被占用
+  // （前台自定义路径先于栏目与详情解析，撞上就会静默吞掉整个栏目或某篇内容）
+  const channels = await executor.select({ path: cmsChannels.path, name: cmsChannels.name })
+    .from(cmsChannels).where(eq(cmsChannels.siteId, siteId));
+  const channel = channels.find((c) => path === c.path || path.startsWith(`${c.path}/`));
+  if (channel) {
+    throw new HTTPException(400, { message: `访问路径落在栏目「${channel.name}」（${channel.path}）的路径空间内` });
+  }
+  const conds = [eq(cmsPages.siteId, siteId), eq(cmsPages.path, path)];
+  if (exceptId) conds.push(ne(cmsPages.id, exceptId));
+  const [page] = await executor.select({ name: cmsPages.name }).from(cmsPages).where(and(...conds)).limit(1);
+  if (page) {
+    throw new HTTPException(400, { message: `访问路径已被页面「${page.name}」占用` });
+  }
 }
 
 async function clearOtherHome(executor: DbExecutor, siteId: number, exceptId?: number) {
@@ -94,6 +120,7 @@ export async function createCmsPage(input: CmsPageInput) {
   try {
     const mutation = await db.transaction(async (tx) => {
       const site = await lockCmsSiteForMutation(tx, input.siteId);
+      await assertCustomPagePathFree(tx, input.siteId, input.path);
       if (input.isHome) await clearOtherHome(tx, input.siteId);
       const [row] = await tx.insert(cmsPages).values({
         ...input,
@@ -137,6 +164,7 @@ export async function updateCmsPage(id: number, input: Partial<CmsPageInput>) {
         throw new HTTPException(403, { message: '无页面编辑权限，只能修改已获授权的区块内容' });
       }
       if (blocks) await assertCmsPageBlocksUpdateAllowed(current, blocks, tx);
+      if (input.path !== undefined) await assertCustomPagePathFree(tx, current.siteId, input.path, id);
       const requiresDynamic = blocks ? cmsPageRequiresDynamic(blocks) : current.requiresDynamic;
       if (rest.isHome) await clearOtherHome(tx, current.siteId, id);
       const [row] = await tx.update(cmsPages).set({
@@ -199,8 +227,17 @@ export async function getPublishedPageBySlug(siteId: number, slug: string): Prom
   return row ?? null;
 }
 
-export async function getHomeTakeoverPage(siteId: number): Promise<CmsPageRow | null> {
+/** 按自定义访问路径查页面；入参需与入库形态同源（无前后斜杠、无 /index.html） */
+export async function getPublishedPageByPath(siteId: number, rawPath: string): Promise<CmsPageRow | null> {
+  const key = rawPath.replace(/^\/+|\/+$/g, '').replace(/\/index\.html$/i, '');
+  if (!key) return null;
   const [row] = await db.select().from(cmsPages)
+    .where(and(eq(cmsPages.siteId, siteId), eq(cmsPages.path, key), eq(cmsPages.status, 'enabled')))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function getHomeTakeoverPage(siteId: number): Promise<CmsPageRow | null> {  const [row] = await db.select().from(cmsPages)
     .where(and(eq(cmsPages.siteId, siteId), eq(cmsPages.isHome, true), eq(cmsPages.status, 'enabled')))
     .orderBy(desc(cmsPages.id))
     .limit(1);
@@ -223,7 +260,10 @@ export async function resolveDynamicCmsPageForPath(siteId: number, rawPath: stri
     return row?.requiresDynamic ? row : null;
   }
   const match = /^p\/([a-z0-9-]+)(?:\/(?:index\.html)?)?$/.exec(cleaned);
-  if (!match) return null;
-  const row = await getPublishedPageBySlug(siteId, match[1]);
-  return row?.requiresDynamic ? row : null;
+  if (match) {
+    const row = await getPublishedPageBySlug(siteId, match[1]);
+    return row?.requiresDynamic ? row : null;
+  }
+  const byPath = await getPublishedPageByPath(siteId, cleaned);
+  return byPath?.requiresDynamic ? byPath : null;
 }

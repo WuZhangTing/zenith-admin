@@ -10637,6 +10637,7 @@ export interface CmsPublishSubmitInput {
   channelId?: number;
   pageId?: number;
   pageSlug?: string;
+  pageRemovePath?: string;
   pageIsHome?: boolean;
   pageRemoved?: boolean;
   themeCode?: string;
@@ -11529,6 +11530,11 @@ export interface CmsPage {
   siteId: number;
   name: string;
   slug: string;
+  /**
+   * 自定义访问路径（已归一：无前后斜杠、无 `/index.html` 后缀）。
+   * 为空时前台路径回落 `/p/{slug}/`。
+   */
+  path: string | null;
   isHome: boolean;
   blocks: CmsPageBlock[];
   /** guest/member 展示条件存在时强制动态渲染，禁止静态输出。 */

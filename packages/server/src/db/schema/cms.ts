@@ -1160,6 +1160,11 @@ export const cmsPages = pgTable('cms_pages', {
   name: varchar('name', { length: 100 }).notNull(),
   /** 前台路径：/p/{slug}/ */
   slug: varchar('slug', { length: 100 }).notNull(),
+  /**
+   * 自定义访问路径（不含前后斜杠，如 `about` / `zh/about` / `about.html`）。
+   * 为空时回落 `p/{slug}/`。站点内唯一，且保存时校验不与保留路径、栏目路径冲突。
+   */
+  path: varchar('path', { length: 200 }),
   /** 接管站点首页（每站点最多一个生效） */
   isHome: boolean('is_home').notNull().default(false),
   /** 区块数组：{ id, type, props, displayCondition? }[]，类型见 shared CmsPageBlock */
@@ -1181,6 +1186,8 @@ export const cmsPages = pgTable('cms_pages', {
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   uniqueIndex('cms_pages_site_slug_uq').on(t.siteId, t.slug),
+  // path 可空，仅对已设置的行做站点内唯一约束
+  uniqueIndex('cms_pages_site_path_uq').on(t.siteId, t.path).where(sql`${t.path} IS NOT NULL`),
   index('cms_pages_site_idx').on(t.siteId),
 ]);
 

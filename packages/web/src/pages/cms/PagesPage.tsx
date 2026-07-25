@@ -20,7 +20,7 @@ import {
 } from '@/hooks/queries/cms';
 import { useAllRoles } from '@/hooks/queries/roles';
 import { useAllUsers } from '@/hooks/queries/users';
-import { CMS_PAGE_BLOCK_AUDIENCE_LABELS, CMS_PAGE_BLOCK_TYPES } from '@zenith/shared';
+import { CMS_PAGE_BLOCK_AUDIENCE_LABELS, CMS_PAGE_BLOCK_TYPES, cmsCustomPagePath } from '@zenith/shared';
 import type { CmsChannel, CmsPage, CmsPageBlock, CmsPageBlockType } from '@zenith/shared';
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 import { formatDateTimeForApi } from '@/utils/date';
@@ -232,7 +232,10 @@ export default function PagesPage() {
         </span>
       ),
     },
-    { title: '路径', dataIndex: 'slug', width: 140, render: (v: string) => <Typography.Text code>/p/{v}/</Typography.Text> },
+    {
+      title: '访问路径', dataIndex: 'slug', width: 180,
+      render: (_v: string, record: CmsPage) => <Typography.Text code>{cmsCustomPagePath(record)}</Typography.Text>,
+    },
     { title: '区块数', width: 80, render: (_: unknown, r) => r.blocks.length },
     {
       title: '渲染策略',
@@ -273,7 +276,7 @@ export default function PagesPage() {
           key: 'preview',
           label: '预览',
           onClick: () => {
-            window.open(cmsPreviewUrl(currentSite.code, record.isHome ? '/' : `/p/${record.slug}/`), '_blank');
+            window.open(cmsPreviewUrl(currentSite.code, record.isHome ? '/' : `/${cmsCustomPagePath(record)}`), '_blank');
           },
         }] : []),
         ...(hasPermission('cms:page:delete') ? [{
@@ -344,6 +347,7 @@ export default function PagesPage() {
           initValues={editablePage ? {
             name: editablePage.name,
             slug: editablePage.slug,
+            path: editablePage.path ?? '',
             isHome: editablePage.isHome,
             status: editablePage.status,
             seoTitle: editablePage.seoTitle ?? '',
@@ -355,6 +359,9 @@ export default function PagesPage() {
           <Form.Input field="slug" label="路径 slug" placeholder="小写字母/数字/中划线，访问 /p/{slug}/"
             disabled={!canEditPage}
             rules={[{ required: true, message: '请输入 slug' }, { pattern: /^[a-z0-9-]+$/, message: '仅小写字母/数字/中划线' }]} />
+          <Form.Input field="path" label="自定义路径" placeholder="如 about 或 about.html，留空则用 /p/{slug}/"
+            disabled={!canEditPage}
+            extraText="支持多级分段（如 zh/about）；不能与栏目路径或系统保留段冲突" />
           <Form.Switch field="isHome" label="接管首页" disabled={!canEditPage} extraText="启用后站点首页渲染此页面（每站点一个）" />
           <Form.RadioGroup field="status" label="状态" disabled={!canEditPage}>
             <Form.Radio value="enabled">启用</Form.Radio>
@@ -466,7 +473,7 @@ export default function PagesPage() {
                   size="small"
                   theme="borderless"
                   icon={<ExternalLink size={13} />}
-                  onClick={() => window.open(cmsPreviewUrl(currentSite.code, editingPage.isHome ? '/' : `/p/${editingPage.slug}/`), '_blank')}
+                  onClick={() => window.open(cmsPreviewUrl(currentSite.code, editingPage.isHome ? '/' : `/${cmsCustomPagePath(editingPage)}`), '_blank')}
                 >
                   新窗口打开
                 </Button>
@@ -475,7 +482,7 @@ export default function PagesPage() {
             <iframe
               key={previewEpoch}
               title="页面预览"
-              src={`${cmsPreviewUrl(currentSite.code, editingPage.isHome ? '/' : `/p/${editingPage.slug}/`)}?_t=${previewEpoch}`}
+              src={`${cmsPreviewUrl(currentSite.code, editingPage.isHome ? '/' : `/${cmsCustomPagePath(editingPage)}`)}?_t=${previewEpoch}`}
               style={{ width: '100%', height: 380, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', background: '#fff' }}
             />
           </>

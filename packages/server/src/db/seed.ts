@@ -880,8 +880,8 @@ async function seedRest() {
   }
 
   await db.insert(cmsChannels).values(
-    SEED_CMS_CHANNELS.map(({ id, siteId, parentId, modelId, name, code, slug, path, type, linkUrl, listTemplate, detailTemplate, pageSize, pageContent, seoTitle, seoKeywords, seoDescription, image, visible, status, sort, settings }) => ({
-      id, siteId, parentId, modelId, name, code, slug, path, type, linkUrl, listTemplate, detailTemplate, pageSize, pageContent, seoTitle, seoKeywords, seoDescription, image, visible, status, sort, settings,
+    SEED_CMS_CHANNELS.map(({ id, siteId, parentId, modelId, name, code, slug, path, type, linkUrl, listTemplate, detailTemplate, staticMode, detailPathRule, pageSize, pageContent, seoTitle, seoKeywords, seoDescription, image, visible, status, sort, settings }) => ({
+      id, siteId, parentId, modelId, name, code, slug, path, type, linkUrl, listTemplate, detailTemplate, staticMode, detailPathRule, pageSize, pageContent, seoTitle, seoKeywords, seoDescription, image, visible, status, sort, settings,
     })),
   ).onConflictDoNothing({ target: cmsChannels.id });
   await db.execute(sql`SELECT setval('cms_channels_id_seq', GREATEST((SELECT MAX(id) FROM cms_channels), 1))`);
@@ -1065,8 +1065,8 @@ async function seedRest() {
   await db.execute(sql`SELECT setval('cms_collect_items_id_seq', GREATEST((SELECT MAX(id) FROM cms_collect_items), 1))`);
 
   await db.insert(cmsPages).values(
-    SEED_CMS_PAGES.map(({ id, siteId, name, slug, isHome, blocks, requiresDynamic, seoTitle, seoKeywords, seoDescription, status, remark }) => ({
-      id, siteId, name, slug, isHome, blocks, requiresDynamic, seoTitle, seoKeywords, seoDescription, status, remark,
+    SEED_CMS_PAGES.map(({ id, siteId, name, slug, path, isHome, blocks, requiresDynamic, seoTitle, seoKeywords, seoDescription, status, remark }) => ({
+      id, siteId, name, slug, path, isHome, blocks, requiresDynamic, seoTitle, seoKeywords, seoDescription, status, remark,
     })),
   ).onConflictDoNothing({ target: cmsPages.id });
   await db.execute(sql`SELECT setval('cms_pages_id_seq', GREATEST((SELECT MAX(id) FROM cms_pages), 1))`);

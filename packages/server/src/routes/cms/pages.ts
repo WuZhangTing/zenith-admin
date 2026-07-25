@@ -10,6 +10,7 @@ import {
   listCmsPages, getCmsPage, createCmsPage, updateCmsPage, deleteCmsPage,
 } from '../../services/cms/cms-pages.service';
 import { triggerCustomPageStaticRefresh } from '../../services/cms/cms-static.service';
+import { customPagePath } from '../../services/cms/cms-urls';
 import { listCmsPageBlockAcls, setCmsPageBlockAcls } from '../../services/cms/cms-page-acl.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -73,9 +74,12 @@ const updateRouteDef = defineOpenAPIRoute({
     const before = await getCmsPage(id);
     setAuditBeforeData(c, before);
     const row = await updateCmsPage(id, c.req.valid('json'));
-    // slug 变化时移除旧路径文件
-    if (before.slug !== row.slug) {
-      triggerCustomPageStaticRefresh({ siteId: row.siteId, slug: before.slug, isHome: false, removed: true });
+    // slug 或自定义路径变化时，按变更前的路径移除旧产物
+    if (before.slug !== row.slug || before.path !== row.path) {
+      triggerCustomPageStaticRefresh({
+        siteId: row.siteId, slug: before.slug, isHome: false, removed: true,
+        removePath: customPagePath(before),
+      });
     }
     triggerCustomPageStaticRefresh({ siteId: row.siteId, slug: row.slug, isHome: row.isHome || before.isHome });
     return c.json(okBody(row, '更新成功'), 200);
@@ -93,7 +97,10 @@ const deleteRouteDef = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const removed = await deleteCmsPage(c.req.valid('param').id);
-    triggerCustomPageStaticRefresh({ siteId: removed.siteId, slug: removed.slug, isHome: removed.isHome, removed: true });
+    triggerCustomPageStaticRefresh({
+      siteId: removed.siteId, slug: removed.slug, isHome: removed.isHome, removed: true,
+      removePath: customPagePath(removed),
+    });
     return c.json(okBody(null, '删除成功'), 200);
   },
 });

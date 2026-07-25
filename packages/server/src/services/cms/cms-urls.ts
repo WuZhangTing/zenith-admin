@@ -6,7 +6,21 @@
  * 现有 `from './cms-render.service'` 的导入无需改动。
  */
 import dayjs from 'dayjs';
+import { cmsCustomPagePath } from '@zenith/shared';
 import type { CmsChannelDetailPathRule } from '@zenith/shared';
+
+/** 搭建页 URL / 静态产物路径：设了 path 用它，否则回落 p/{slug}/ */
+export { cmsCustomPagePath as customPagePath } from '@zenith/shared';
+
+/**
+ * 搭建页 URL。
+ *
+ * 刻意接收整个 page 而非裸 slug：自定义路径落地后，URL 生成、静态写文件、sitemap
+ * 三处必须算出同一结果，收成对象可让编译器点出所有漏改的调用点。
+ */
+export function customPageUrl(baseUrl: string, page: { slug: string; path?: string | null }): string {
+  return `${baseUrl}/${cmsCustomPagePath(page)}`;
+}
 
 export function channelUrl(baseUrl: string, path: string, page = 1): string {
   return page <= 1 ? `${baseUrl}/${path}/` : `${baseUrl}/${path}/index_${page}.html`;

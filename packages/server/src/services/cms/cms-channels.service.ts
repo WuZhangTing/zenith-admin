@@ -1,8 +1,8 @@
-import { eq, asc, and, inArray, isNull, type SQL } from 'drizzle-orm';
+import { eq, asc, and, inArray, isNull, isNotNull, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { pinyin } from 'pinyin-pro';
 import { db } from '../../db';
-import { cmsChannels, cmsContents, cmsModels, cmsContentChannels, cmsCollectRules, cmsChannelUsers, users } from '../../db/schema';
+import { cmsChannels, cmsContents, cmsModels, cmsContentChannels, cmsCollectRules, cmsChannelUsers, cmsPages, users } from '../../db/schema';
 import type { CmsChannelRow } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
 import { formatDateTime } from '../../lib/datetime';
@@ -139,6 +139,21 @@ async function ensureModelValid(modelId: number | null | undefined) {
   if (!row) throw new HTTPException(400, { message: `指定的内容模型（id=${modelId}）不存在` });
 }
 
+/**
+ * 栏目路径不得与搭建页自定义访问路径冲突。
+ *
+ * 前台路由里搭建页自定义路径排在栏目解析之前，冲突会让整个栏目静默失联，
+ * 因此两侧对称拦截（页面侧见 cms-pages.service 的 assertCustomPagePathFree）。
+ */
+async function assertChannelPathFree(executor: DbExecutor, siteId: number, path: string): Promise<void> {
+  const pages = await executor.select({ name: cmsPages.name, path: cmsPages.path }).from(cmsPages)
+    .where(and(eq(cmsPages.siteId, siteId), isNotNull(cmsPages.path)));
+  const hit = pages.find((p) => p.path && (p.path === path || p.path.startsWith(`${path}/`)));
+  if (hit) {
+    throw new HTTPException(400, { message: `栏目路径与搭建页「${hit.name}」的自定义访问路径（${hit.path}）冲突` });
+  }
+}
+
 /** 计算完整路径（父路径 + 本级 slug）并校验父栏目合法性 */
 async function computePath(executor: DbExecutor, siteId: number, parentId: number, slug: string, selfId?: number): Promise<string> {
   if (parentId === 0) return slug;
@@ -213,6 +228,7 @@ export async function createCmsChannel(data: CreateCmsChannelInput) {
         settings: data.settings as Record<string, unknown> | undefined,
       });
       const path = await computePath(tx, data.siteId, data.parentId ?? 0, data.slug);
+      await assertChannelPathFree(tx, data.siteId, path);
       const code = await resolveChannelCode(tx, data.siteId, data.code, data.slug);
       const [created] = await tx.insert(cmsChannels).values({
         ...data,
@@ -288,6 +304,7 @@ export async function updateCmsChannel(id: number, data: UpdateCmsChannelInput) 
         }
       }
       const path = await computePath(tx, current.siteId, nextParentId, nextSlug, id);
+      await assertChannelPathFree(tx, current.siteId, path);
       const code = data.code === undefined
         ? current.code
         : await resolveChannelCode(tx, current.siteId, data.code, nextSlug, id);
@@ -452,6 +469,10 @@ export async function batchCreateCmsChannels(siteId: number, parentId: number, n
     eq(cmsChannels.siteId, siteId),
   ));
   const usedPaths = new Set(existing.map((r) => r.path));
+  // 搭建页自定义路径一并占位：批量建栏目时按冲突自动改名，而不是中途报错
+  const pagePaths = await db.select({ path: cmsPages.path }).from(cmsPages)
+    .where(and(eq(cmsPages.siteId, siteId), isNotNull(cmsPages.path)));
+  for (const row of pagePaths) if (row.path) usedPaths.add(row.path);
   const usedCodes = new Set(existing.map((r) => r.code));
   try {
     const mutation = await db.transaction(async (tx) => {

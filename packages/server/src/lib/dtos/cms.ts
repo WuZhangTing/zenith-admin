@@ -1299,6 +1299,7 @@ export const CmsPageDTO = z
     siteId: z.number().int(),
     name: z.string(),
     slug: z.string(),
+    path: z.string().nullable().openapi({ example: 'about', description: '自定义访问路径（已归一，无前后斜杠）；为空时回落 /p/{slug}/' }),
     isHome: z.boolean(),
     blocks: z.array(CmsPageBlockDTO),
     requiresDynamic: z.boolean(),

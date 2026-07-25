@@ -12,7 +12,7 @@ import type {
   CmsBaseContext, CmsNavItem, CmsSeo, CmsContentItem, CmsPagination, CmsBreadcrumb, CmsChannelInfo,
 } from '../../cms/themes/types';
 import { listCmsChannelTree } from './cms-channels.service';
-import { channelUrl, tagUrl, contentUrl, type CmsUrlChannel } from './cms-urls';
+import { channelUrl, tagUrl, contentUrl, customPageUrl, type CmsUrlChannel } from './cms-urls';
 import { buildCmsLinkResolver, resolveCmsLink, type CmsLinkResolver } from './cms-link.service';
 import {
   listPublishedContents, listHomeContents, getPublishedContent, getAdjacentContents, listContentTags,
@@ -32,7 +32,7 @@ import type { CmsChannel, CmsDeviceChannel, CmsFormField, CmsSiteTemplateDefault
 import { CMS_CONTENT_STATUS_LABELS } from '@zenith/shared';
 
 // ─── URL 规则（站点内相对路径，静态文件名与之一一对应）──────────────────────────
-export { channelUrl, tagUrl, contentUrl } from './cms-urls';
+export { channelUrl, tagUrl, contentUrl, customPageUrl, customPagePath } from './cms-urls';
 export type { CmsUrlChannel } from './cms-urls';
 
 /** 正文分页拆分：编辑器插入 <p>[分页]</p>（兼容 <!-- pagebreak --> 与 <hr data-page-break>） */
@@ -360,11 +360,6 @@ async function findChannelByPathPrefix(siteId: number, dir: string): Promise<Cms
 }
 
 // ─── 各页面渲染 ───────────────────────────────────────────────────────────────
-/** 可视化搭建页面 URL：/p/{slug}/ */
-export function customPageUrl(baseUrl: string, slug: string): string {
-  return `${baseUrl}/p/${slug}/`;
-}
-
 /** 渲染可视化搭建页面（含 content-list 区块数据预取） */
 export async function renderCustomPage(
   site: CmsSiteRow,
@@ -377,7 +372,7 @@ export async function renderCustomPage(
     title: pageRow.seoTitle ?? (opts?.asHome ? undefined : `${pageRow.name} - ${site.title?.trim() || site.name}`),
     keywords: pageRow.seoKeywords ?? undefined,
     description: pageRow.seoDescription ?? undefined,
-    pathForCanonical: opts?.asHome ? '/' : customPageUrl('', pageRow.slug),
+    pathForCanonical: opts?.asHome ? '/' : customPageUrl('', pageRow),
   });
   const base = {
     ...await buildBaseContext(site, baseUrl, seo),
@@ -962,7 +957,17 @@ export async function renderSitePath(
     const { getPublishedPageBySlug } = await import('./cms-pages.service');
     const pageRow = await getPublishedPageBySlug(site.id, pageMatch2[1]);
     if (!pageRow) return renderNotFound(site, baseUrl, `/${cleaned}`);
+    // 设了自定义路径后，默认路径跳转到规范 URL：既不产生重复内容，旧链接也不断
+    if (pageRow.path) return { status: 302, location: customPageUrl(baseUrl, pageRow) };
     return renderCustomPage(site, baseUrl, pageRow, { member: viewer?.member });
+  }
+
+  // 搭建页自定义访问路径：置于栏目/详情解析之前，保证运营指定的路径确定性命中
+  // （与栏目路径的冲突在保存时已双向拦截，此处不会误吞栏目）
+  {
+    const { getPublishedPageByPath } = await import('./cms-pages.service');
+    const pageRow = await getPublishedPageByPath(site.id, cleaned);
+    if (pageRow) return renderCustomPage(site, baseUrl, pageRow, { member: viewer?.member });
   }
 
   // 前台统一互动问卷页 /interaction/{code}/

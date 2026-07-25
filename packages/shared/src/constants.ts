@@ -1626,6 +1626,18 @@ export const CMS_FRAGMENT_TYPE_LABELS: Record<(typeof CMS_FRAGMENT_TYPES)[number
 /** CMS 前台预览路径前缀（无域名绑定时通过 /__cms/{siteCode}/... 访问站点） */
 export const CMS_PREVIEW_PREFIX = '/__cms';
 
+/**
+ * 搭建页站内路径（不含前导斜杠）：设了自定义 path 用它，否则回落 `p/{slug}/`。
+ *
+ * 放在 shared 是因为「URL 生成 / 静态产物路径 / 后台预览链接」三处必须完全一致，
+ * 前后端各写一份迟早分叉，表现为后台预览 404。
+ */
+export function cmsCustomPagePath(page: { slug: string; path?: string | null }): string {
+  const custom = page.path?.trim();
+  if (!custom) return `p/${page.slug}/`;
+  return custom.endsWith('.html') ? custom : `${custom}/`;
+}
+
 /** CMS 发布通道路径段前缀：非默认通道预览 /__cms/{site}/__{code}/...、静态产物 __{code}/ 子树 */
 export const CMS_CHANNEL_SEGMENT_PREFIX = '__';
 

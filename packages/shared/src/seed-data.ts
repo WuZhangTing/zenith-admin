@@ -3491,7 +3491,7 @@ export const SEED_CMS_DISTRIBUTION_RULES: CmsDistributionRule[] = [
 
 export const SEED_CMS_PAGES: CmsPage[] = [
   {
-    id: 1, siteId: 1, name: '产品能力落地页', slug: 'capabilities', isHome: false,
+    id: 1, siteId: 1, name: '产品能力落地页', slug: 'capabilities', path: 'capabilities.html', isHome: false,
     blocks: [
       { id: 'hero-1', type: 'hero', props: { title: 'Zenith CMS', subtitle: '内容、检索与素材治理一体化' } },
       { id: 'content-1', type: 'content-list', props: { title: '最新内容', channelId: 1, limit: 5 } },

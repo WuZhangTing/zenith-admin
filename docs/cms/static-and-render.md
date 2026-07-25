@@ -16,7 +16,7 @@
 | 栏目列表 | `/{channelPath}/`，分页 `/{channelPath}/index_{n}.html` |
 | 内容详情 | `/{channelPath}/{归档目录}{idOrSlug}.html`，正文多页 `/{channelPath}/{归档目录}{idOrSlug}_{n}.html`；内容设了 `staticPath` 时改用该相对路径（分页在扩展名前追加 `_{n}`）。归档目录见「详情页目录归档」 |
 | 标签聚合 | `/tag/{slug}/` |
-| 搭建页面 | `/p/{slug}/` |
+| 搭建页面 | `/p/{slug}/`，或页面自定义的 `path`（如 `/about.html`、`/zh/about/`） |
 | 互动问卷 | `/interaction/{code}/` |
 | 搜索 | `/search?q=`（永远动态） |
 | 草稿预览 | `/preview/{id}?exp=&sig=`（签名校验） |

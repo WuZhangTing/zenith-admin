@@ -5448,6 +5448,8 @@ export const submitCmsPublishSchema = z.object({
   channelId: z.number().int().positive().optional(),
   pageId: z.number().int().positive().optional(),
   pageSlug: cmsTemplateCodeSchema.max(100).optional(),
+  /** 路径/slug 变更时携带的旧静态路径，用于删除失效产物 */
+  pageRemovePath: z.string().max(220).optional(),
   pageIsHome: z.boolean().optional(),
   pageRemoved: z.boolean().optional(),
   themeCode: cmsTemplateCodeSchema.max(50).optional(),
@@ -5713,10 +5715,36 @@ export const cmsPageBlockSchema = z.object({
   displayCondition: cmsPageBlockDisplayConditionSchema.optional(),
 }).strict();
 
+/**
+ * 搭建页自定义访问路径。
+ *
+ * 归一为「无前后斜杠、无 /index.html 后缀」的形态存库，让 URL 生成、静态产物路径与前台
+ * 路由查表三处用同一个 key，避免 `about` / `about/` / `about/index.html` 三写不一致。
+ * 保留段在此拦掉，站点内唯一与栏目冲突由 service 层查库校验。
+ */
+export const CMS_PAGE_RESERVED_PATH_PREFIXES = [
+  'p', 'tag', 'interaction', 'search', 'preview', 'api', 'assets',
+] as const;
+
+export const cmsPagePathSchema = z.string().trim().max(200)
+  .transform((raw) => {
+    const cleaned = raw.replace(/^\/+|\/+$/g, '').replace(/\/index\.html$/i, '');
+    return cleaned === '' ? null : cleaned;
+  })
+  .refine((v) => v === null || /^[a-z0-9][a-z0-9-]*(?:\/[a-z0-9][a-z0-9-]*)*(?:\.html)?$/.test(v), {
+    message: '访问路径仅支持小写字母、数字、中划线与斜杠分段，可选 .html 结尾',
+  })
+  .refine((v) => v === null || !CMS_PAGE_RESERVED_PATH_PREFIXES.includes(v.split('/')[0] as never), {
+    message: '访问路径首段为系统保留字，请更换',
+  })
+  .refine((v) => v !== 'index.html', { message: '访问路径不能是 index.html（会覆盖站点首页）' })
+  .nullish();
+
 export const createCmsPageSchema = z.object({
   siteId: z.number().int().positive(),
   name: z.string().trim().min(1).max(100),
   slug: z.string().trim().min(1).max(100).regex(cmsSlugRegex, 'slug 仅允许小写字母、数字、中划线'),
+  path: cmsPagePathSchema,
   isHome: z.boolean().default(false),
   blocks: z.array(cmsPageBlockSchema).max(50).default([]),
   seoTitle: z.string().max(255).nullish(),
@@ -5729,6 +5757,7 @@ export const createCmsPageSchema = z.object({
 export const updateCmsPageSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   slug: z.string().trim().min(1).max(100).regex(cmsSlugRegex, 'slug 仅允许小写字母、数字、中划线').optional(),
+  path: cmsPagePathSchema,
   isHome: z.boolean().optional(),
   blocks: z.array(cmsPageBlockSchema).max(50).optional(),
   seoTitle: z.string().max(255).nullish(),

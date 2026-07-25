@@ -1,0 +1,2 @@
+ALTER TABLE "cms_pages" ADD COLUMN "path" varchar(200);--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_pages_site_path_uq" ON "cms_pages" USING btree ("site_id","path") WHERE "cms_pages"."path" IS NOT NULL;

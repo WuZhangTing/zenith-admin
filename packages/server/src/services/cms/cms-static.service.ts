@@ -12,7 +12,7 @@ import { TaskCancelledError } from '../../lib/task-center';
 import { getActivePublishChannels, type PublishChannelInfo } from './cms-publish-channels.service';
 import {
   renderSitePath, renderHomePage, renderChannelPage, renderDetailPage, renderTagPage, renderCustomPage,
-  channelUrl, contentUrl, tagUrl, customPageUrl, siteOrigin, listSiteTags, generateRssXml, countContentBodyPages,
+  channelUrl, contentUrl, tagUrl, customPageUrl, customPagePath, siteOrigin, listSiteTags, generateRssXml, countContentBodyPages,
 } from './cms-render.service';
 import { triggerCdnPurge, triggerCdnPurgeAll } from './cms-cdn.service';
 
@@ -225,7 +225,7 @@ export async function generateSitemapXml(site: CmsSiteRow): Promise<string> {
   const { listPublishedPages } = await import('./cms-pages.service');
   for (const page of await listPublishedPages(site.id)) {
     if (page.isHome) continue; // 首页接管已由 '/' 收录
-    entries.push({ loc: `${origin}${customPageUrl('', page.slug)}`, lastmod: formatIso8601(page.updatedAt), priority: '0.7' });
+    entries.push({ loc: `${origin}${customPageUrl('', page)}`, lastmod: formatIso8601(page.updatedAt), priority: '0.7' });
   }
 
   const body = entries.map((e) => [
@@ -455,26 +455,27 @@ export function triggerContentStaticRefresh(contentId: number): void {
   }).catch((err) => logger.error(`[CMS] 内容 ${contentId} 发布任务提交失败`, err));
 }
 
-/** 可视化搭建页面增量静态刷新：重写 /p/{slug}/（isHome 同时重写首页）；停用/删除时移除文件 */
-export async function refreshCustomPageStatic(input: { siteId: number; slug: string; isHome: boolean; removed?: boolean }): Promise<void> {
+/**
+ * 可视化搭建页面增量静态刷新：重写页面路径（isHome 同时重写首页）；停用/删除时移除文件。
+ *
+ * `removePath` 用于「slug/自定义路径变更」场景 —— 旧产物的路径已不在库里，必须由调用方
+ * 显式带上，否则旧 URL 会残留一份可访问的孤儿页面（孤儿清扫只在整站重建时才跑）。
+ */
+export async function refreshCustomPageStatic(input: { siteId: number; slug: string; isHome: boolean; removed?: boolean; removePath?: string | null }): Promise<void> {
   const site = await resolveEffectiveCmsSiteRow(input.siteId).catch(() => null);
   if (!site || site.staticMode === 'dynamic') return;
   const publishChannels = await getActivePublishChannels(site.id);
-  if (input.removed) {
-    for (const ch of publishChannels) await deleteStaticFile(site.code, channelStaticPath(ch, `p/${input.slug}/`));
-  } else {
-    const { getPublishedPageBySlug } = await import('./cms-pages.service');
-    const pageRow = await getPublishedPageBySlug(site.id, input.slug);
-    if (pageRow?.requiresDynamic) {
-      for (const ch of publishChannels) await deleteStaticFile(site.code, channelStaticPath(ch, `p/${input.slug}/`));
-    } else if (pageRow) {
-      const result = await renderCustomPage(site, '', pageRow);
-      if (result.status === 200) {
-        for (const ch of publishChannels) await writeStaticFile(site.code, channelStaticPath(ch, `p/${input.slug}/`), result.html);
-      }
-    } else {
-      for (const ch of publishChannels) await deleteStaticFile(site.code, channelStaticPath(ch, `p/${input.slug}/`));
+  const { getPublishedPageBySlug } = await import('./cms-pages.service');
+  const pageRow = input.removed ? null : await getPublishedPageBySlug(site.id, input.slug);
+  const targetPath = input.removePath?.trim() || (pageRow ? customPagePath(pageRow) : `p/${input.slug}/`);
+  const shouldWrite = !input.removed && !!pageRow && !pageRow.requiresDynamic && !input.removePath;
+  if (shouldWrite) {
+    const result = await renderCustomPage(site, '', pageRow!);
+    if (result.status === 200) {
+      for (const ch of publishChannels) await writeStaticFile(site.code, channelStaticPath(ch, targetPath), result.html);
     }
+  } else {
+    for (const ch of publishChannels) await deleteStaticFile(site.code, channelStaticPath(ch, targetPath));
   }
   if (input.isHome) {
     for (const ch of publishChannels) await refreshHomeStaticForChannel(site, ch);
@@ -483,13 +484,13 @@ export async function refreshCustomPageStatic(input: { siteId: number; slug: str
   triggerCdnPurge(site, [
     'sitemap.xml',
     ...publishChannels.flatMap((ch) => [
-      channelStaticPath(ch, `p/${input.slug}/`),
+      channelStaticPath(ch, targetPath),
       ...(input.isHome ? [channelStaticPath(ch, '')] : []),
     ]),
   ]);
 }
 
-export function triggerCustomPageStaticRefresh(input: { siteId: number; slug: string; isHome: boolean; removed?: boolean }): void {
+export function triggerCustomPageStaticRefresh(input: { siteId: number; slug: string; isHome: boolean; removed?: boolean; removePath?: string | null }): void {
   void import('./cms-publishing.service').then(({ submitCmsPagePublishSideEffect }) => {
     submitCmsPagePublishSideEffect(input);
   }).catch((err) => logger.error(`[CMS] 搭建页 ${input.slug} 发布任务提交失败`, err));
@@ -637,7 +638,7 @@ async function buildSiteStaticInner(
       if (skipCompleted(key)) continue;
       const result = await renderCustomPage(site, '', page);
       if (result.status === 200) {
-        await writeStaticFile(site.code, channelStaticPath(publishChannel, `p/${page.slug}/`), result.html);
+        await writeStaticFile(site.code, channelStaticPath(publishChannel, customPagePath(page)), result.html);
         pages += 1;
       }
       if (await report(`${channelLabel}搭建页「${page.name}」已生成`, {

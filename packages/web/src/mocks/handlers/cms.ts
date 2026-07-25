@@ -2108,6 +2108,7 @@ export const cmsP6Handlers = [
       siteId: Number(body.siteId),
       name: String(body.name ?? ''),
       slug: String(body.slug ?? ''),
+      path: (body.path as string)?.trim() || null,
       isHome: body.isHome === true,
       blocks: (body.blocks as import('@zenith/shared').CmsPageBlock[]) ?? [],
       requiresDynamic: ((body.blocks as import('@zenith/shared').CmsPageBlock[]) ?? [])
