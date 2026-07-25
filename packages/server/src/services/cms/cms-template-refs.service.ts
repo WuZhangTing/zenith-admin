@@ -107,6 +107,67 @@ export async function assertSiteTemplateSettings(
   );
 }
 
+/**
+ * 剔除「本次请求未改动、且在当前主题下已失效」的默认模板引用。
+ *
+ * 主题升级移除模板变体后，站点 settings.defaultTemplates 里的历史引用会变成死配置。
+ * 由于站点保存按**合并后的完整 settings** 做校验，这类存量脏数据会连带卡住该站点
+ * 所有与模板无关的 settings 写入（如内容策略开关）。这里在校验前把它们摘掉实现自愈；
+ * 本次新提交/改动的失效模板名不在剔除范围内，仍由 assertSiteTemplateSettings 抛 400，
+ * 保留对拼写错误的即时反馈。
+ */
+export function pruneStaleTemplateDefaults(
+  themeCode: string,
+  settings: Record<string, unknown>,
+  previousSettings: Record<string, unknown> | null | undefined,
+): { settings: Record<string, unknown>; removed: string[] } {
+  const raw = settings.defaultTemplates;
+  if (!raw || typeof raw !== 'object' || !isThemeRegistered(themeCode)) return { settings, removed: [] };
+
+  const sets = {
+    list: new Set(listThemeTemplates(themeCode).list.map((t) => t.name)),
+    detail: new Set(listThemeTemplates(themeCode).detail.map((t) => t.name)),
+  };
+  const previous = (previousSettings?.defaultTemplates ?? {}) as Record<string, unknown>;
+  const removed: string[] = [];
+  const next: Record<string, CmsSiteTemplateDefaults> = {};
+
+  for (const [device, value] of Object.entries(raw as Record<string, unknown>)) {
+    const cfg = parseTemplateDefaults(value);
+    const prev = parseTemplateDefaults(previous[device]);
+    /** 仅当该项在本次请求中未发生变化时才允许静默摘除 */
+    const stale = (kind: TemplateKind, name: string | null, prevName: string | null) =>
+      !!name && !sets[kind].has(name) && name === prevName;
+
+    const entry: CmsSiteTemplateDefaults = {};
+    if (stale('list', cfg.list ?? null, prev.list ?? null)) {
+      removed.push(`[${device}]列表模板「${cfg.list}」`);
+    } else if (cfg.list) {
+      entry.list = cfg.list;
+    }
+    if (stale('detail', cfg.detail ?? null, prev.detail ?? null)) {
+      removed.push(`[${device}]详情模板「${cfg.detail}」`);
+    } else if (cfg.detail) {
+      entry.detail = cfg.detail;
+    }
+
+    const byModel: Record<string, string> = {};
+    for (const [modelCode, name] of Object.entries(cfg.detailByModel ?? {})) {
+      if (!name) continue; // 空值 = 跟随默认，不必落库
+      if (stale('detail', name, (prev.detailByModel ?? {})[modelCode] ?? null)) {
+        removed.push(`[${device}]${modelCode} 详情模板「${name}」`);
+      } else {
+        byModel[modelCode] = name;
+      }
+    }
+    if (Object.keys(byModel).length > 0) entry.detailByModel = byModel;
+    if (Object.keys(entry).length > 0) next[device] = entry;
+  }
+
+  if (removed.length === 0) return { settings, removed: [] };
+  return { settings: { ...settings, defaultTemplates: next }, removed };
+}
+
 /** 站点保存校验：settings.themeConfig 中 select 类型参数的值须在主题声明的选项内 */
 export function assertSiteThemeConfig(themeCode: string, settings: Record<string, unknown> | null | undefined): void {
   if (!isThemeRegistered(themeCode)) return;

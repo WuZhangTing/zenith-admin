@@ -14,6 +14,7 @@ import type { DbExecutor, DbTransaction } from '../../db/types';
 import { formatDateTime } from '../../lib/datetime';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
+import logger from '../../lib/logger';
 import { currentUser, hasPermission } from '../../lib/context';
 import {
   CMS_SITE_INHERITABLE_FIELDS,
@@ -24,7 +25,7 @@ import {
   type CreateCmsSiteInput,
   type UpdateCmsSiteInput,
 } from '@zenith/shared';
-import { assertSiteTemplateSettings, assertSiteThemeConfig } from './cms-template-refs.service';
+import { assertSiteTemplateSettings, assertSiteThemeConfig, pruneStaleTemplateDefaults } from './cms-template-refs.service';
 import { isCmsPlatformAdmin } from './cms-access';
 import {
   mergeCmsSiteSettings, normalizeNewCmsSiteSettings, redactCmsSiteSettings,
@@ -572,6 +573,22 @@ export async function createCmsSite(data: CreateCmsSiteInput) {
 }
 
 // ─── 更新 ─────────────────────────────────────────────────────────────────────
+
+/**
+ * 保存前自愈：摘掉本次未改动、但在当前主题下已失效的默认模板引用。
+ * 主题移除模板变体后留下的死配置，否则会卡住该站点全部 settings 写入。
+ */
+function pruneStaleCmsTemplateDefaults(
+  site: Pick<CmsSiteRow, 'id' | 'theme' | 'settings'>,
+  merged: Record<string, unknown>,
+): Record<string, unknown> {
+  const { settings, removed } = pruneStaleTemplateDefaults(site.theme, merged, site.settings);
+  if (removed.length > 0) {
+    logger.warn(`[CMS] 站点 #${site.id} 已自动清除失效默认模板配置：${removed.join('、')}`);
+  }
+  return settings;
+}
+
 export async function updateCmsSite(id: number, data: UpdateCmsSiteInput) {
   await assertSiteAccess(id);
   const current = await ensureCmsSiteExists(id);
@@ -604,7 +621,7 @@ export async function updateCmsSite(id: number, data: UpdateCmsSiteInput) {
   }
   const settings = data.settings === undefined
     ? current.settings
-    : mergeCmsSiteSettings(current.settings, data.settings as Record<string, unknown>);
+    : pruneStaleCmsTemplateDefaults(current, mergeCmsSiteSettings(current.settings, data.settings as Record<string, unknown>));
   // 模板引用/主题参数校验：普通站点更新始终按当前生效主题校验，theme 只允许生命周期接口修改。
   if (data.settings !== undefined) {
     const state = await loadCmsInheritanceState();
@@ -648,7 +665,7 @@ export async function updateCmsSite(id: number, data: UpdateCmsSiteInput) {
       const locked = await lockCmsSiteForMutation(tx, id);
       const lockedSettings = data.settings === undefined
         ? locked.settings
-        : mergeCmsSiteSettings(locked.settings, data.settings as Record<string, unknown>);
+        : pruneStaleCmsTemplateDefaults(locked, mergeCmsSiteSettings(locked.settings, data.settings as Record<string, unknown>));
       if (data.settings !== undefined) {
         const state = await loadCmsInheritanceState(tx);
         const effective = resolveCmsSiteSnapshot(
