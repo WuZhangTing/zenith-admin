@@ -136,6 +136,7 @@ export class PageErrorBoundary extends React.Component<Props, State> {
           <div style={{ display: 'flex', gap: 12, marginTop: 16, justifyContent: 'center' }}>
             <Button
               icon={<RefreshCw size={14} />}
+              theme="solid"
               type="primary"
               onClick={this.handleRetry}
             >
@@ -144,13 +145,14 @@ export class PageErrorBoundary extends React.Component<Props, State> {
             <Button
               icon={<Home size={14} />}
               theme="light"
+              type="primary"
               onClick={() => { globalThis.location.href = import.meta.env.BASE_URL; }}
             >
               返回首页
             </Button>
             <Button
               icon={<Copy size={14} />}
-              theme="borderless"
+              theme="light"
               type="tertiary"
               onClick={this.handleCopy}
             >
