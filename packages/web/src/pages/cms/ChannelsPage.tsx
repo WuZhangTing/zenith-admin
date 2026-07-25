@@ -441,14 +441,12 @@ export default function ChannelsPage() {
       labelPosition="left"
       labelWidth={90}
     >
-      <Form.Slot label="父栏目">
-        <Form.TreeSelect
-          field="parentId"
-          noLabel
-          style={{ width: '100%' }}
-          treeData={[{ key: '0', value: 0, label: '顶级栏目' }, ...toTreeSelectData(tree, editingRecord?.id)]}
-        />
-      </Form.Slot>
+      <Form.TreeSelect
+        field="parentId"
+        label="父栏目"
+        style={{ width: '100%' }}
+        treeData={[{ key: '0', value: 0, label: '顶级栏目' }, ...toTreeSelectData(tree, editingRecord?.id)]}
+      />
       <Row gutter={16}>
         <Col span={24} lg={12}>
           <Form.Input
