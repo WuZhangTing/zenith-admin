@@ -729,7 +729,7 @@ export default function ContentsPage() {
   );
 
   return (
-    <div className="page-container page-tabs-page">
+    <div className="page-container page-container--stretch">
       <MasterDetailLayout
         master={masterContent}
         detail={(
@@ -749,7 +749,7 @@ export default function ContentsPage() {
         showDetail={!showChannelTree}
         onResponsiveChange={setIsLayoutNarrow}
         persistKey="cms-contents"
-        style={{ flex: 1, overflow: 'hidden' }}
+        style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}
       />
     </div>
   );

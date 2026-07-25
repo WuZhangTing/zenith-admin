@@ -354,51 +354,6 @@ export default function ResourcesPage() {
 
   return (
     <div className="page-container page-container--stretch">
-      <SearchToolbar>
-        <Select
-          placeholder="素材类型"
-          style={{ width: 130 }}
-          showClear
-          value={type}
-          onChange={(v) => { setType(v as CmsResourceType | undefined); setPage(1); }}
-          optionList={CMS_RESOURCE_TYPES.map((t) => ({ label: CMS_RESOURCE_TYPE_LABELS[t], value: t }))}
-        />
-        <Input prefix={<Search size={14} />} placeholder="搜索素材名称" showClear value={keywordDraft} onChange={setKeywordDraft} style={{ width: 200 }} onEnterPress={handleSearch} />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-        {canUpload ? (
-          <Button type="primary" icon={<Upload size={14} />} loading={uploadMutation.isPending} disabled={siteId === undefined} onClick={() => fileInputRef.current?.click()}>
-            上传素材
-          </Button>
-        ) : null}
-        {selectedIds.length > 0 && canDelete ? (
-          <Button type="danger" onClick={() => handleDelete(selectedIds)}>批量删除（{selectedIds.length}）</Button>
-        ) : null}
-        {selectedIds.length > 0 && canUpdate ? (
-          <Button icon={<Move size={14} />} onClick={() => void moveSelected(folderId && folderId > 0 ? folderId : null)}>
-            移动到当前目录
-          </Button>
-        ) : null}
-        {siteId && canDelete ? (
-          <>
-            <Button icon={<ShieldCheck size={14} />} onClick={() => void submitGovernance('scan', true)}>孤立扫描</Button>
-            <Button type="danger" onClick={() => {
-              Modal.confirm({
-                title: '清理全部孤立素材？',
-                content: '任务会逐项复核完整引用后删除底层文件，支持取消与明细报告。',
-                onOk: () => submitGovernance('cleanup', false),
-              });
-            }}>清理孤立素材</Button>
-          </>
-        ) : null}
-        <DatePicker type="dateTime" value={governanceStart} onChange={(value) => setGovernanceStart(value as Date | undefined)} placeholder="治理开始时间" />
-        <DatePicker type="dateTime" value={governanceEnd} onChange={(value) => setGovernanceEnd(value as Date | undefined)} placeholder="治理结束时间" />
-        {siteId ? <ExportButton entity="cms.resource-governance" query={{
-          siteId,
-          startTime: governanceStart ? formatDateTimeForApi(governanceStart) : undefined,
-          endTime: governanceEnd ? formatDateTimeForApi(governanceEnd) : undefined,
-        }} label="导出治理报告" /> : null}
-      </SearchToolbar>
       <MasterDetailLayout
         persistKey="cms-resources-folders"
         defaultSize={260}
@@ -478,6 +433,32 @@ export default function ResourcesPage() {
         )}
         detail={(
           <MasterDetailLayout.Body padding="0 0 0 16px">
+            <SearchToolbar>
+              <Select
+                placeholder="素材类型"
+                style={{ width: 130 }}
+                showClear
+                value={type}
+                onChange={(v) => { setType(v as CmsResourceType | undefined); setPage(1); }}
+                optionList={CMS_RESOURCE_TYPES.map((t) => ({ label: CMS_RESOURCE_TYPE_LABELS[t], value: t }))}
+              />
+              <Input prefix={<Search size={14} />} placeholder="搜索素材名称" showClear value={keywordDraft} onChange={setKeywordDraft} style={{ width: 200 }} onEnterPress={handleSearch} />
+              <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+              <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+              {canUpload ? (
+                <Button type="primary" icon={<Upload size={14} />} loading={uploadMutation.isPending} disabled={siteId === undefined} onClick={() => fileInputRef.current?.click()}>
+                  上传素材
+                </Button>
+              ) : null}
+              {selectedIds.length > 0 && canDelete ? (
+                <Button type="danger" onClick={() => handleDelete(selectedIds)}>批量删除（{selectedIds.length}）</Button>
+              ) : null}
+              {selectedIds.length > 0 && canUpdate ? (
+                <Button icon={<Move size={14} />} onClick={() => void moveSelected(folderId && folderId > 0 ? folderId : null)}>
+                  移动到当前目录
+                </Button>
+              ) : null}
+            </SearchToolbar>
             <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={(e) => void handleUploadFile(e)} />
             <ConfigurableTable
               bordered
@@ -497,6 +478,27 @@ export default function ResourcesPage() {
               }}
             />
             <Typography.Title heading={6} style={{ margin: '18px 0 8px' }}>素材治理任务</Typography.Title>
+            <SearchToolbar>
+              {siteId && canDelete ? (
+                <>
+                  <Button icon={<ShieldCheck size={14} />} onClick={() => void submitGovernance('scan', true)}>孤立扫描</Button>
+                  <Button type="danger" onClick={() => {
+                    Modal.confirm({
+                      title: '清理全部孤立素材？',
+                      content: '任务会逐项复核完整引用后删除底层文件，支持取消与明细报告。',
+                      onOk: () => submitGovernance('cleanup', false),
+                    });
+                  }}>清理孤立素材</Button>
+                </>
+              ) : null}
+              <DatePicker type="dateTime" value={governanceStart} onChange={(value) => setGovernanceStart(value as Date | undefined)} placeholder="治理开始时间" />
+              <DatePicker type="dateTime" value={governanceEnd} onChange={(value) => setGovernanceEnd(value as Date | undefined)} placeholder="治理结束时间" />
+              {siteId ? <ExportButton entity="cms.resource-governance" query={{
+                siteId,
+                startTime: governanceStart ? formatDateTimeForApi(governanceStart) : undefined,
+                endTime: governanceEnd ? formatDateTimeForApi(governanceEnd) : undefined,
+              }} label="导出治理报告" /> : null}
+            </SearchToolbar>
             <ConfigurableTable
               bordered
               columns={[
