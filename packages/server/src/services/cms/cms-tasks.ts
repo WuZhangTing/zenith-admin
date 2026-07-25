@@ -41,7 +41,7 @@ export function registerCmsTaskHandlers(): void {
         });
         return cancelRequested;
       }, { resumeAfterKey: typeof ctx.checkpoint?.lastKey === 'string' ? ctx.checkpoint.lastKey : null });
-      return { pages: result.pages };
+      return { pages: result.pages, pruned: result.pruned };
     },
   });
 
@@ -57,6 +57,7 @@ export function registerCmsTaskHandlers(): void {
         .filter((id) => Number.isInteger(id) && id > 0))].sort((a, b) => a - b);
       if (siteIds.length === 0) throw new Error('缺少 siteIds 参数');
       let pages = 0;
+      let pruned = 0;
       const lastSiteId = Number(ctx.checkpoint?.lastSiteId ?? 0);
       let completedSiteId = lastSiteId;
       let completed = siteIds.filter((id) => id <= lastSiteId).length;
@@ -81,6 +82,7 @@ export function registerCmsTaskHandlers(): void {
           return cancelRequested;
         }, { resumeAfterKey });
         pages += result.pages;
+        pruned += result.pruned;
         completed += 1;
         completedSiteId = siteId;
         const { cancelRequested } = await ctx.progress({
@@ -89,9 +91,9 @@ export function registerCmsTaskHandlers(): void {
           note: `站点 ${completed}/${siteIds.length} 完成`,
           checkpoint: { phase: 'legacy-theme-site', lastSiteId: siteId, currentSiteId: null, lastKey: null },
         });
-        if (cancelRequested) return { pages, sites: completed };
+        if (cancelRequested) return { pages, pruned, sites: completed };
       }
-      return { pages, sites: siteIds.length };
+      return { pages, pruned, sites: siteIds.length };
     },
   });
 

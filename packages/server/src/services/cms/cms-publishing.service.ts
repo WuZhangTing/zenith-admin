@@ -620,6 +620,7 @@ export function registerCmsPublishingTaskHandler(): void {
         eq(cmsPublishArtifacts.path, `@target/${input.targetType}`),
       ));
       const tracked = await trackingContext(input, ctx.taskId, ctx);
+      let prunedArtifacts = 0;
       try {
         if (input.targetType === 'content' || input.targetType === 'contents') {
           const snapshots = [...(input.contentSnapshots ?? [])].sort((a, b) => a.contentId - b.contentId);
@@ -667,7 +668,7 @@ export function registerCmsPublishingTaskHandler(): void {
           }));
           await ctx.progress({ processed: 1, failed: tracked.artifactProgress.failed, total: 1, note: '搭建页面重建完成', checkpoint: { phase: 'page', lastId: input.pageId ?? null, pageSlug: slug } });
         } else {
-          await withCmsPublishArtifactTracking(tracked.context, () => buildSiteStatic(input.siteId, async (progress) => {
+          const build = await withCmsPublishArtifactTracking(tracked.context, () => buildSiteStatic(input.siteId, async (progress) => {
             const state = await ctx.progress({
               processed: progress.processed,
               failed: tracked.artifactProgress.failed,
@@ -677,6 +678,7 @@ export function registerCmsPublishingTaskHandler(): void {
             });
             return state.cancelRequested;
           }, { resumeAfterKey: typeof ctx.checkpoint?.lastKey === 'string' ? ctx.checkpoint.lastKey : null }));
+          prunedArtifacts = build.pruned;
         }
       } catch (error) {
         if (error instanceof TaskCancelledError) throw error;
@@ -690,6 +692,7 @@ export function registerCmsPublishingTaskHandler(): void {
       return {
         artifacts: tracked.artifactProgress.count,
         failedArtifacts: tracked.artifactProgress.failed,
+        prunedArtifacts,
         targetType: input.targetType,
       };
       }).catch(async (error) => {

@@ -1,5 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { eq, and, isNull, asc } from 'drizzle-orm';
 import { db } from '../../db';
 import { cmsChannels, cmsContents } from '../../db/schema';
@@ -17,7 +18,7 @@ import { triggerCdnPurge, triggerCdnPurgeAll } from './cms-cdn.service';
 
 // ─── 静态目录 ─────────────────────────────────────────────────────────────────
 import {
-  CMS_STATIC_ROOT, isStrictlyWithin, resolveStaticFile, siteStaticDir,
+  CMS_STATIC_ROOT, isStrictlyWithin, pathToStaticFile, resolveStaticFile, siteStaticDir,
 } from './cms-static-path';
 import { assertSiteAccess } from './cms-sites.service';
 import { resolveEffectiveCmsSiteRow } from './cms-site-inheritance.service';
@@ -57,6 +58,7 @@ export async function writeStaticFile(siteCode: string, relPath: string, html: s
     await fs.writeFile(tmp, html, 'utf8');
     await assertCmsStaticWriteFence();
     await fs.rename(tmp, abs);
+    buildWriteCollector.getStore()?.add(normalizeStaticRelPath(relPath));
     await recordCmsPublishArtifact({ relPath, status: 'generated', content: html });
   } catch (error) {
     await fs.rm(tmp, { force: true }).catch(() => undefined);
@@ -99,6 +101,75 @@ export async function clearSiteStatic(siteCode: string): Promise<void> {
   if (!isStrictlyWithin(CMS_STATIC_ROOT, dir)) throw new Error('CMS 站点静态目录越界');
   await assertCmsStaticWriteFence();
   await fs.rm(dir, { recursive: true, force: true });
+}
+
+// ─── 孤儿产物清扫（全量重建的 mark & sweep）─────────────────────────────────────
+/**
+ * 本次构建写入的相对路径集合。
+ *
+ * 用 AsyncLocalStorage 而非层层透传：写文件散落在 writeRenderedPath / regenerateChannelPages /
+ * refreshHomeStaticForChannel 等多个 helper 中，透传参数既啰嗦又容易漏，漏一处就会把有效产物
+ * 误判成孤儿删掉。与 cms-publish-artifact-tracker 采用同一模式，且天然按调用栈隔离，
+ * 多站点/并发构建互不串扰。
+ */
+const buildWriteCollector = new AsyncLocalStorage<Set<string>>();
+
+/**
+ * 统一成磁盘上的实际相对路径，供集合比对。
+ *
+ * 必须复用 `pathToStaticFile`：写入侧记的是 URL 形态（`news/`、``），
+ * 磁盘上却是 `news/index.html`、`index.html`。只做斜杠归一会让首页/栏目页
+ * 在集合里查不到，被当成孤儿全部删掉。
+ */
+function normalizeStaticRelPath(relPath: string): string {
+  try {
+    return pathToStaticFile(relPath).replaceAll('\\', '/');
+  } catch {
+    return relPath.replaceAll('\\', '/').replace(/^\/+/, '');
+  }
+}
+
+/** 递归列出站点静态目录下的全部文件（返回归一化相对路径） */
+async function listSiteStaticFiles(dir: string, prefix = ''): Promise<string[]> {
+  const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+  const files: string[] = [];
+  for (const entry of entries) {
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) files.push(...await listSiteStaticFiles(path.join(dir, entry.name), rel));
+    else if (entry.isFile()) files.push(rel);
+  }
+  return files;
+}
+
+/** 自底向上删除空目录（清扫后残留的空壳目录，如改归档规则后的旧年份目录） */
+async function removeEmptyDirs(dir: string): Promise<void> {
+  const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+  for (const entry of entries) {
+    if (entry.isDirectory()) await removeEmptyDirs(path.join(dir, entry.name));
+  }
+  const rest = await fs.readdir(dir).catch(() => ['keep']);
+  if (rest.length === 0) await fs.rmdir(dir).catch(() => undefined);
+}
+
+/**
+ * 清扫孤儿产物：删除站点静态目录下本次全量构建未写入的文件。
+ *
+ * 只在「未断点续跑、且完整跑完」的整站重建后调用 —— 续跑/取消时 kept 集合不完整，
+ * 清扫会误删有效产物。删除走 deleteStaticFile，因此同样受发布围栏保护并留下 deleted 产物记录。
+ */
+export async function pruneOrphanStaticFiles(siteCode: string, kept: ReadonlySet<string>): Promise<number> {
+  const dir = siteStaticDir(siteCode);
+  if (!isStrictlyWithin(CMS_STATIC_ROOT, dir)) throw new Error('CMS 站点静态目录越界');
+  // 入参可能混用 URL 形态（`news/`）与磁盘形态（`news/index.html`），统一归一后再比对
+  const keptFiles = new Set([...kept].map(normalizeStaticRelPath));
+  const existing = await listSiteStaticFiles(dir);
+  let removed = 0;
+  for (const relPath of existing) {
+    if (keptFiles.has(relPath)) continue;
+    if (await deleteStaticFile(siteCode, relPath)) removed += 1;
+  }
+  if (removed > 0) await removeEmptyDirs(dir);
+  return removed;
 }
 
 // ─── sitemap / robots ─────────────────────────────────────────────────────────
@@ -460,7 +531,17 @@ export async function buildSiteStatic(
   siteId: number,
   onProgress?: (p: FullBuildProgress) => Promise<boolean | void>,
   options?: { resumeAfterKey?: string | null },
-): Promise<{ pages: number }> {
+): Promise<{ pages: number; pruned: number }> {
+  const written = new Set<string>();
+  return buildWriteCollector.run(written, () => buildSiteStaticInner(siteId, written, onProgress, options));
+}
+
+async function buildSiteStaticInner(
+  siteId: number,
+  written: Set<string>,
+  onProgress?: (p: FullBuildProgress) => Promise<boolean | void>,
+  options?: { resumeAfterKey?: string | null },
+): Promise<{ pages: number; pruned: number }> {
   const site = await resolveEffectiveCmsSiteRow(siteId).catch(() => null);
   if (!site) throw new Error(`站点不存在（id=${siteId}）`);
 
@@ -508,7 +589,7 @@ export async function buildSiteStatic(
       if (await refreshHomeStaticForChannel(site, publishChannel)) pages += 1;
       if (await report(`${channelLabel}首页已生成`, {
         phase: 'home', lastKey: homeKey, lastId: null, publishChannelCode: publishChannel.code,
-      })) return { pages };
+      })) return { pages, pruned: 0 };
     }
 
     for (const channel of channels) {
@@ -517,7 +598,7 @@ export async function buildSiteStatic(
       pages += await regenerateChannelPages(site, channel, publishChannel);
       if (await report(`${channelLabel}栏目「${channel.name}」已生成`, {
         phase: 'channel', lastKey: key, lastId: channel.id, publishChannelCode: publishChannel.code,
-      })) return { pages };
+      })) return { pages, pruned: 0 };
     }
 
     for (const row of contents) {
@@ -533,7 +614,7 @@ export async function buildSiteStatic(
       }
       if (await report(`${channelLabel}内容 ${row.id} 已生成`, {
         phase: 'content', lastKey: key, lastId: row.id, publishChannelCode: publishChannel.code,
-      })) return { pages };
+      })) return { pages, pruned: 0 };
     }
 
     // 标签聚合页（仅首屏分页；深分页访问时由 hybrid 模式按需回写）
@@ -547,7 +628,7 @@ export async function buildSiteStatic(
       }
       if (await report(`${channelLabel}标签「${tag.name}」已生成`, {
         phase: 'tag', lastKey: key, lastId: tag.id, publishChannelCode: publishChannel.code,
-      })) return { pages };
+      })) return { pages, pruned: 0 };
     }
 
     // 可视化搭建页面 /p/{slug}/
@@ -561,25 +642,32 @@ export async function buildSiteStatic(
       }
       if (await report(`${channelLabel}搭建页「${page.name}」已生成`, {
         phase: 'page', lastKey: key, lastId: page.id, publishChannelCode: publishChannel.code,
-      })) return { pages };
+      })) return { pages, pruned: 0 };
     }
   }
 
   const sitemapKey = cmsStaticTargetKey('~meta', 0, 1);
   if (!skipCompleted(sitemapKey)) {
     await writeStaticFile(site.code, 'sitemap.xml', await generateSitemapXml(site));
-    if (await report('sitemap.xml 已生成', { phase: 'meta', lastKey: sitemapKey, lastId: 1, publishChannelCode: null })) return { pages };
+    if (await report('sitemap.xml 已生成', { phase: 'meta', lastKey: sitemapKey, lastId: 1, publishChannelCode: null })) return { pages, pruned: 0 };
   }
   const rssKey = cmsStaticTargetKey('~meta', 0, 2);
   if (!skipCompleted(rssKey)) {
     await writeStaticFile(site.code, 'rss.xml', await generateRssXml(site));
-    if (await report('rss.xml 已生成', { phase: 'meta', lastKey: rssKey, lastId: 2, publishChannelCode: null })) return { pages };
+    if (await report('rss.xml 已生成', { phase: 'meta', lastKey: rssKey, lastId: 2, publishChannelCode: null })) return { pages, pruned: 0 };
   }
   const robotsKey = cmsStaticTargetKey('~meta', 0, 3);
   if (!skipCompleted(robotsKey)) {
     await writeStaticFile(site.code, 'robots.txt', buildRobotsTxt(site));
-    if (await report('robots.txt 已生成', { phase: 'meta', lastKey: robotsKey, lastId: 3, publishChannelCode: null })) return { pages };
+    if (await report('robots.txt 已生成', { phase: 'meta', lastKey: robotsKey, lastId: 3, publishChannelCode: null })) return { pages, pruned: 0 };
   }
   triggerCdnPurgeAll(site);
-  return { pages };
+  // 孤儿清扫：仅在「从头完整跑完」时执行。断点续跑的 written 集合只含续跑段，
+  // 直接清扫会把前半程的有效产物当成孤儿删掉，故明确跳过。
+  let pruned = 0;
+  if (resumeAfterKey == null) {
+    pruned = await pruneOrphanStaticFiles(site.code, written);
+    if (pruned > 0) logger.info(`[CMS] 站点 ${site.code} 全量重建清理孤儿产物 ${pruned} 个`);
+  }
+  return { pages, pruned };
 }
