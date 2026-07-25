@@ -10,6 +10,8 @@ import { mergeWhere } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUser } from '../../lib/context';
 import type { CreateCmsChannelInput, UpdateCmsChannelInput, CmsChannel } from '@zenith/shared';
+import { buildCmsEntityLink } from '@zenith/shared';
+import { ensureCmsLinkTargetExists } from './cms-link.service';
 import { assertChannelTemplatesBySite } from './cms-template-refs.service';
 import {
   assertCompleteCmsBatch, isCmsPlatformAdmin,
@@ -164,6 +166,7 @@ export async function createCmsChannel(data: CreateCmsChannelInput) {
     detailTemplate: data.detailTemplate,
     settings: data.settings as Record<string, unknown> | undefined,
   });
+  await ensureCmsLinkTargetExists(data.siteId, data.linkUrl);
   try {
     const row = await db.transaction(async (tx) => {
       const site = await lockCmsSiteForMutation(tx, data.siteId);
@@ -216,6 +219,13 @@ export async function updateCmsChannel(id: number, data: UpdateCmsChannelInput) 
   if (nextParentId === id) throw new HTTPException(400, { message: '父栏目不能是自身' });
   if (nextParentId !== 0 && nextParentId !== current.parentId) {
     await assertChannelAccess(nextParentId);
+  }
+  if (data.linkUrl !== undefined) {
+    await ensureCmsLinkTargetExists(current.siteId, data.linkUrl);
+    // 链接型栏目指向自身会形成 302 死循环
+    if (data.linkUrl === buildCmsEntityLink('channel', id)) {
+      throw new HTTPException(400, { message: '内部链接不能指向栏目自身' });
+    }
   }
 
   try {

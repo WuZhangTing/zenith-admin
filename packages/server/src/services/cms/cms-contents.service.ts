@@ -21,6 +21,8 @@ import { isWorkflowAuditEnabled, startCmsContentWorkflow, assertNoActiveContentW
 import { triggerCmsContentWebhook } from './cms-webhook.service';
 import { assertContentTemplateBySite } from './cms-template-refs.service';
 import type { AsyncTask, CmsContentPublishSnapshot, CreateCmsContentInput, UpdateCmsContentInput, CmsContentStatus } from '@zenith/shared';
+import { buildCmsEntityLink, isCmsEntityLink } from '@zenith/shared';
+import { ensureCmsLinkTargetExists } from './cms-link.service';
 import {
   assertCompleteCmsBatch, } from './cms-access';
 import { pageOffset } from '../../lib/pagination';
@@ -456,6 +458,7 @@ export async function createCmsContent(data: CreateCmsContentInput) {
   });
   await assertChannelsAccess(extraChannelIds);
   await assertRelatedContentAccess(data.siteId, relatedIds);
+  await ensureCmsLinkTargetExists(data.siteId, rest.externalLink);
   const extend = (rest.extend ?? {}) as Record<string, unknown>;
   const modelId = channel.modelId ?? null;
   const extendTexts = [...await collectSearchableExtendTexts(modelId, extend), ...mediaDataTexts(rest.mediaData as Record<string, unknown>)];
@@ -542,6 +545,11 @@ export async function updateCmsContent(
   });
   if (extraChannelIds) await assertChannelsAccess(extraChannelIds);
   if (relatedIds) await assertRelatedContentAccess(current.siteId, relatedIds);
+  if (rest.externalLink !== undefined) await ensureCmsLinkTargetExists(current.siteId, rest.externalLink);
+  // 内部链接不能指向自己（保存后会形成自跳转死循环）
+  if (isCmsEntityLink(rest.externalLink) && rest.externalLink === buildCmsEntityLink('content', id)) {
+    throw new HTTPException(400, { message: '内部链接不能指向内容自身' });
+  }
   // 乐观锁：携带 expectedVersion 时先行比对，冲突返回 409（前端提示刷新后重试）
   if (expectedVersion !== undefined && current.version !== expectedVersion) {
     throw new HTTPException(409, { message: '内容已被其他人修改，请刷新页面获取最新版本后再保存' });

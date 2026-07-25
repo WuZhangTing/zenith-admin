@@ -12,8 +12,9 @@ import type {
   CmsResource, CmsResourceType, CmsResourceReference, UpdateCmsResourceInput, CropCmsResourceInput,
   CmsContentLockState, CmsResourceFolder, CmsHotwordGroup, CmsMemberSubscription, CmsSubscriptionAggregate,
   CmsPageBlockAcl,
+  CmsLinkTarget,
 } from '@zenith/shared';
-import { CMS_TEMPLATE_RESOLUTION_SOURCE_LABELS } from '@zenith/shared';
+import { CMS_TEMPLATE_RESOLUTION_SOURCE_LABELS, isCmsEntityLink } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap, LOOKUP_STALE_TIME } from '@/lib/query';
 
@@ -325,6 +326,25 @@ export function useCmsContentDetail(id: number | undefined, enabled = true) {
     queryKey: cmsContentKeys.detail(id),
     queryFn: () => request.get<CmsContent>(`/api/cms/contents/${id}`).then(unwrap),
     enabled: enabled && id !== undefined,
+  });
+}
+
+/** 内部链接目标描述（编辑页把 entity:content/123 回显成可读标题） */
+export const cmsLinkTargetKeys = {
+  all: ['cms-link-target'] as const,
+  detail: (siteId: number | undefined, link: string) => ['cms-link-target', 'detail', siteId, link] as const,
+};
+
+export function useCmsLinkTarget(siteId: number | undefined, link: string | null | undefined) {
+  const value = link?.trim() ?? '';
+  return useQuery({
+    queryKey: cmsLinkTargetKeys.detail(siteId, value),
+    queryFn: () => request
+      .get<CmsLinkTarget>(`/api/cms/contents/link-target?siteId=${siteId}&link=${encodeURIComponent(value)}`)
+      .then(unwrap),
+    // 仅实体链接需要回源解析；外链/站内路径前端自己就能显示
+    enabled: siteId !== undefined && isCmsEntityLink(value),
+    staleTime: 30_000,
   });
 }
 

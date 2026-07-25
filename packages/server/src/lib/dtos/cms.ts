@@ -535,6 +535,15 @@ export const CmsPreviewLinkDTO = z
   })
   .openapi('CmsPreviewLink');
 
+export const CmsLinkTargetDTO = z
+  .object({
+    kind: z.enum(['entity-content', 'entity-channel', 'internal', 'external', 'invalid']),
+    label: z.string().openapi({ description: '可读描述：实体链接为目标标题/栏目名，其余为原值', example: '关于印发继续教育规程的通知' }),
+    targetId: z.number().int().nullable().openapi({ description: '实体链接的目标 id；非实体链接为 null' }),
+    exists: z.boolean().openapi({ description: '目标是否仍存在（false 时前端提示链接已失效）' }),
+  })
+  .openapi('CmsLinkTarget');
+
 export const CmsDashboardStatsDTO = z
   .object({
     totals: z.object({

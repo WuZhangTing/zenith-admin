@@ -12,7 +12,7 @@ import { ensureCmsSiteExists, assertSiteAccess, invalidateSiteCache } from './cm
 import { isCmsPlatformAdmin } from './cms-access';
 import { normalizeNewCmsSiteSettings, redactCmsSiteSettings } from './cms-site-settings';
 import { sanitizeCmsHtml } from './cms-html-sanitizer';
-import { CMS_SECRET_MASK, cmsSlugRegex } from '@zenith/shared';
+import { CMS_SECRET_MASK, cmsSlugRegex, isCmsEntityLink, remapCmsEntityLink } from '@zenith/shared';
 import { parseCmsImportSiteCode } from './cms-import-security';
 import { currentUser } from '../../lib/context';
 import { assertAllCmsSiteChannelsAccess } from './cms-channels.service';
@@ -328,6 +328,26 @@ export async function importCmsSite(payload: unknown) {
       .filter((r): r is { contentId: number; relatedId: number; sort: number } => !!r.contentId && !!r.relatedId);
     if (remappedRelations.length > 0) {
       await tx.insert(cmsContentRelations).values(remappedRelations).onConflictDoNothing();
+    }
+
+    // 5.1 内部链接 id 重映射：entity:content/N、entity:channel/N 里的 id 是导出站点的，
+    // 必须换成本站新 id，否则会指向本站不相干的同 id 记录。映射缺失时置空（宁可空也不能错指）。
+    const remapLink = (raw: string | null | undefined): string | null => remapCmsEntityLink(
+      raw,
+      (entityType, id) => (entityType === 'content' ? contentIdMap : channelIdMap).get(id),
+    );
+    const relinkTargets: [table: typeof cmsContents | typeof cmsChannels, column: 'externalLink' | 'linkUrl', rows: PlainRow[], idMap: Map<number, number>][] = [
+      [cmsContents, 'externalLink', (pkg.contents ?? []) as PlainRow[], contentIdMap],
+      [cmsChannels, 'linkUrl', (pkg.channels ?? []) as PlainRow[], channelIdMap],
+    ];
+    for (const [table, column, rows, idMap] of relinkTargets) {
+      for (const row of rows) {
+        const original = str(row[column]);
+        if (!isCmsEntityLink(original)) continue;
+        const newId = idMap.get(num(row.id) ?? 0);
+        if (!newId) continue;
+        await tx.update(table).set({ [column]: remapLink(original) }).where(eq(table.id, newId));
+      }
     }
 
     // 6. 站点附属实体

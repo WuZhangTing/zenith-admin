@@ -12,3 +12,4 @@ export * from './workflow-form-runtime';
 export * from './workflow-serial';
 export * from './workflow-formula';
 export * from './rule-cell';
+export * from './cms-link';

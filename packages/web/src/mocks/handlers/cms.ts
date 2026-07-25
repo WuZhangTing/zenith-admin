@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw';
 import type { CmsChannel, CmsContent, CmsContentStatus, CmsForm, CmsModelField, CmsPublishChannel, CmsResourceReference } from '@zenith/shared';
-import { CMS_SEARCH_DICTIONARY_WORD_PATTERN, CMS_SECRET_MASK, SEED_CMS_EDITOR_USER } from '@zenith/shared';
+import { CMS_SEARCH_DICTIONARY_WORD_PATTERN, CMS_SECRET_MASK, SEED_CMS_EDITOR_USER, parseCmsLink } from '@zenith/shared';
 import {
   mockCmsSites, mockCmsModels, mockCmsChannels, mockCmsContents, mockCmsTags,
   mockCmsFragments, mockCmsFriendLinks, buildMockChannelTree,
@@ -478,6 +478,31 @@ export const cmsHandlers = [
       .slice(0, 5)
       .map((c) => ({ id: c.id, title: c.title, status: c.status }));
     return okJson({ duplicate: matches.length > 0, matches });
+  }),
+  http.get('/api/cms/contents/link-target', ({ request }) => {
+    const url = new URL(request.url);
+    const siteId = Number(url.searchParams.get('siteId'));
+    const link = (url.searchParams.get('link') ?? '').trim();
+    const ref = parseCmsLink(link);
+    if (!ref) return okJson({ kind: 'invalid', label: link, targetId: null, exists: false });
+    if (ref.kind === 'external') return okJson({ kind: 'external', label: ref.url, targetId: null, exists: true });
+    if (ref.kind === 'internal') return okJson({ kind: 'internal', label: ref.path, targetId: null, exists: true });
+    if (ref.entityType === 'content') {
+      const target = mockCmsContents.find((c) => c.id === ref.id && c.siteId === siteId);
+      return okJson({
+        kind: 'entity-content',
+        label: target?.title ?? `内容 #${ref.id}（已删除）`,
+        targetId: ref.id,
+        exists: !!target,
+      });
+    }
+    const channel = mockCmsChannels.find((ch) => ch.id === ref.id && ch.siteId === siteId);
+    return okJson({
+      kind: 'entity-channel',
+      label: channel?.name ?? `栏目 #${ref.id}（已删除）`,
+      targetId: ref.id,
+      exists: !!channel,
+    });
   }),
   http.get('/api/cms/contents/:id', ({ params }) => {
     const content = mockCmsContents.find((c) => c.id === Number(params.id));

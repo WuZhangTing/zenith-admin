@@ -12,6 +12,8 @@ import type {
   CmsBaseContext, CmsNavItem, CmsSeo, CmsContentItem, CmsPagination, CmsBreadcrumb, CmsChannelInfo,
 } from '../../cms/themes/types';
 import { listCmsChannelTree } from './cms-channels.service';
+import { channelUrl, tagUrl, contentUrl } from './cms-urls';
+import { buildCmsLinkResolver, resolveCmsLink, type CmsLinkResolver } from './cms-link.service';
 import {
   listPublishedContents, listHomeContents, getPublishedContent, getAdjacentContents, listContentTags,
   listPublishedContentsByTag, listRelatedContents, resolveContentBodyExtend,
@@ -30,20 +32,7 @@ import type { CmsChannel, CmsDeviceChannel, CmsFormField, CmsSiteTemplateDefault
 import { CMS_CONTENT_STATUS_LABELS } from '@zenith/shared';
 
 // ─── URL 规则（站点内相对路径，静态文件名与之一一对应）──────────────────────────
-export function channelUrl(baseUrl: string, path: string, page = 1): string {
-  return page <= 1 ? `${baseUrl}/${path}/` : `${baseUrl}/${path}/index_${page}.html`;
-}
-
-export function tagUrl(baseUrl: string, slug: string, page = 1): string {
-  return page <= 1 ? `${baseUrl}/tag/${slug}/` : `${baseUrl}/tag/${slug}/index_${page}.html`;
-}
-
-export function contentUrl(baseUrl: string, channelPath: string, content: Pick<CmsContentRow, 'id' | 'slug'>, bodyPage = 1): string {
-  const base = content.slug ?? content.id;
-  return bodyPage <= 1
-    ? `${baseUrl}/${channelPath}/${base}.html`
-    : `${baseUrl}/${channelPath}/${base}_${bodyPage}.html`;
-}
+export { channelUrl, tagUrl, contentUrl } from './cms-urls';
 
 /** 正文分页拆分：编辑器插入 <p>[分页]</p>（兼容 <!-- pagebreak --> 与 <hr data-page-break>） */
 const PAGE_BREAK_RE = /<p[^>]*>(?:\s|&nbsp;|<br\s*\/?>)*\[分页\](?:\s|&nbsp;|<br\s*\/?>)*<\/p>|<!--\s*pagebreak\s*-->|<hr[^>]*data-page-break[^>]*\/?>/gi;
@@ -267,14 +256,16 @@ async function buildLangAlternates(site: CmsSiteRow): Promise<CmsBaseContext['la
   return alternates.length > 1 ? alternates : [];
 }
 
-function toContentItem(row: CmsContentRow, baseUrl: string, channelPath: string): CmsContentItem {
-  const isExternal = !!row.externalLink?.trim();
+function toContentItem(row: CmsContentRow, baseUrl: string, channelPath: string, resolveLink?: CmsLinkResolver): CmsContentItem {
+  const rawLink = row.externalLink?.trim();
+  // 链接型内容：解析后指向目标；目标已删除/下线时降级为不可点（避免指向必然 404 的自身详情页）
+  const link = rawLink ? (resolveLink?.(rawLink) ?? { url: rawLink, isExternal: true }) : null;
   const media = (row.mediaData ?? {}) as { images?: unknown[]; mediaType?: 'video' | 'audio' };
   return {
     id: row.id,
     title: row.title,
-    url: isExternal ? row.externalLink! : contentUrl(baseUrl, channelPath, row),
-    isExternal,
+    url: rawLink ? (link?.url ?? '#') : contentUrl(baseUrl, channelPath, row),
+    isExternal: link?.isExternal ?? false,
     contentType: row.contentType,
     summary: row.summary?.trim() ? row.summary : (row.body ? stripHtml(row.body).slice(0, 120) : null),
     coverImage: row.coverImage ?? null,
@@ -383,7 +374,8 @@ export async function renderCustomPage(
     const count = Math.min(20, Math.max(1, Number(block.props.count) || 5));
     const mode = block.props.mode === 'recommend' || block.props.mode === 'hot' ? block.props.mode : 'latest';
     const rows = await listBlockContents(site.id, { channelId, count, mode });
-    contentListData.set(block.id, rows.map((row) => toContentItem(row, baseUrl, channelPathMap.get(row.channelId) ?? '')));
+    const resolveLink = await buildCmsLinkResolver(site.id, baseUrl, rows.map((r) => r.externalLink));
+    contentListData.set(block.id, rows.map((row) => toContentItem(row, baseUrl, channelPathMap.get(row.channelId) ?? '', resolveLink)));
   }
   const blocksHtml = renderBlocksHtml({ blocks, ctx: base, contentListData });
   const props = {
@@ -418,7 +410,11 @@ export async function renderHomePage(site: CmsSiteRow, baseUrl: string, viewer?:
     listHomeContents(site.id),
   ]);
   const channelPathMap = await loadChannelPathMap(site.id);
-  const toItem = (row: CmsContentRow) => toContentItem(row, baseUrl, channelPathMap.get(row.channelId) ?? '');
+  const resolveLink = await buildCmsLinkResolver(
+    site.id, baseUrl,
+    [...home.latest, ...home.recommended, ...home.hot].map((r) => r.externalLink),
+  );
+  const toItem = (row: CmsContentRow) => toContentItem(row, baseUrl, channelPathMap.get(row.channelId) ?? '', resolveLink);
   const props = {
     ...base,
     latest: home.latest.map(toItem),
@@ -437,7 +433,8 @@ async function loadChannelPathMap(siteId: number): Promise<Map<number, string>> 
 export async function renderChannelPage(site: CmsSiteRow, baseUrl: string, channel: CmsChannelRow, page = 1, device: CmsDeviceChannel = 'pc', templateOverride?: string | null): Promise<RenderResult> {
   const theme = getBuiltinThemeFallback(site.theme);
   if (channel.type === 'link') {
-    return { status: 302, location: channel.linkUrl ?? `${baseUrl}/` };
+    const resolved = await resolveCmsLink(site.id, baseUrl, channel.linkUrl);
+    return { status: 302, location: resolved?.url ?? `${baseUrl}/` };
   }
   const seo = mergeSeo(site, {
     title: channel.seoTitle ?? `${channel.name} - ${site.title?.trim() || site.name}`,
@@ -476,11 +473,12 @@ export async function renderChannelPage(site: CmsSiteRow, baseUrl: string, chann
   const { total, rows } = await listPublishedContents(site.id, channel.id, page, channel.pageSize);
   if (page > 1 && rows.length === 0) return renderNotFound(site, baseUrl, `/${channel.path}/index_${page}.html`);
   const resolvedList = resolveListComponent(site, device, channel, templateOverride);
+  const resolveLink = await buildCmsLinkResolver(site.id, baseUrl, rows.map((r) => r.externalLink));
   const props = {
     ...base,
     channel: toChannelInfo(channel, baseUrl),
     breadcrumbs,
-    items: rows.map((r) => toContentItem(r, baseUrl, channel.path)),
+    items: rows.map((r) => toContentItem(r, baseUrl, channel.path, resolveLink)),
     pagination: buildPagination(baseUrl, channel.path, page, channel.pageSize, total),
   };
   const html = renderDoc(resolvedList.component, props);
@@ -534,7 +532,12 @@ export async function countContentBodyPages(row: Pick<CmsContentRow, 'body' | 'e
 export async function renderDetailPage(site: CmsSiteRow, baseUrl: string, channel: CmsChannelRow, idOrSlug: string, device: CmsDeviceChannel = 'pc', bodyPage = 1, templateOverride?: string | null): Promise<RenderResult> {
   const row = await getPublishedContent(site.id, channel.id, idOrSlug);
   if (!row) return renderNotFound(site, baseUrl, `/${channel.path}/${idOrSlug}.html`);
-  if (row.externalLink?.trim()) return { status: 302, location: row.externalLink };
+  if (row.externalLink?.trim()) {
+    const resolved = await resolveCmsLink(site.id, baseUrl, row.externalLink);
+    // 站内目标已删除/下线 → 该链接内容不再有可达目标，按 404 处理
+    if (!resolved) return renderNotFound(site, baseUrl, `/${channel.path}/${idOrSlug}.html`);
+    return { status: 302, location: resolved.url };
+  }
 
   const canonicalPath = contentUrl('', channel.path, row, bodyPage);
   const origin = siteOrigin(site);
@@ -649,12 +652,13 @@ export async function renderContentPreviewPage(site: CmsSiteRow, baseUrl: string
   ]);
   const previewTemplate = await resolveDetailComponent(site, device, channel, row.detailTemplate, row.modelId);
   const { pageBody: previewBody, extras: previewExtras } = buildDetailExtras(row, resolved.body, baseUrl, channel.path, 1);
+  const resolveLink = await buildCmsLinkResolver(site.id, baseUrl, [row.externalLink]);
   const props = {
     ...base,
     channel: toChannelInfo(channel, baseUrl),
     breadcrumbs,
     content: {
-      ...toContentItem(row, baseUrl, channel.path),
+      ...toContentItem(row, baseUrl, channel.path, resolveLink),
       body: applyInteractionMarkers(applyLinkWords(previewBody, linkWords), site.code),
       ...previewExtras,
       extend: resolved.extend,
@@ -807,6 +811,7 @@ export async function renderTagPage(site: CmsSiteRow, baseUrl: string, slug: str
   const { total, rows } = await listPublishedContentsByTag(site.id, tag.id, page, pageSize);
   if (page > 1 && rows.length === 0) return renderNotFound(site, baseUrl, tagUrl('', slug, page));
   const channelPathMap = await loadChannelPathMap(site.id);
+  const resolveLink = await buildCmsLinkResolver(site.id, baseUrl, rows.map((r) => r.externalLink));
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const window = 5;
   const start = Math.max(1, Math.min(page - Math.floor(window / 2), totalPages - window + 1));
@@ -821,7 +826,7 @@ export async function renderTagPage(site: CmsSiteRow, baseUrl: string, slug: str
       { name: '首页', url: `${baseUrl}/` },
       { name: `标签：${tag.name}`, url: tagUrl(baseUrl, slug) },
     ],
-    items: rows.map((r) => toContentItem(r, baseUrl, channelPathMap.get(r.channelId) ?? '')),
+    items: rows.map((r) => toContentItem(r, baseUrl, channelPathMap.get(r.channelId) ?? '', resolveLink)),
     pagination: {
       page, pageSize, total, totalPages,
       prevUrl: page > 1 ? tagUrl(baseUrl, slug, page - 1) : null,
@@ -851,10 +856,14 @@ export async function generateRssXml(site: CmsSiteRow, channel?: CmsChannelRow |
     .orderBy(desc(cmsContents.publishedAt), desc(cmsContents.id))
     .limit(50);
   const channelPathMap = await loadChannelPathMap(site.id);
+  const resolveLink = await buildCmsLinkResolver(site.id, origin, rows.map((r) => r.externalLink));
   const feedTitle = channel ? `${channel.name} - ${site.name}` : (site.title?.trim() || site.name);
   const feedLink = channel ? `${origin}${channelUrl('', channel.path)}` : `${origin}/`;
   const items = rows.map((row) => {
-    const link = row.externalLink?.trim() || `${origin}${contentUrl('', channelPathMap.get(row.channelId) ?? '', row)}`;
+    const rawLink = row.externalLink?.trim();
+    const link = rawLink
+      ? (resolveLink(rawLink)?.url ?? rawLink)
+      : `${origin}${contentUrl('', channelPathMap.get(row.channelId) ?? '', row)}`;
     return [
       '    <item>',
       `      <title>${rssEscape(row.title)}</title>`,

@@ -23,6 +23,9 @@ import { createContentPreviewLink } from '../../services/cms/cms-preview.service
 import { CmsContentVersionDTO, CmsContentVersionDiffDTO, CmsEditLockDTO, CmsPreviewLinkDTO, AsyncTaskDTO, CmsContentOpLogDTO, CmsTextCheckResultDTO } from '../../lib/openapi-dtos';
 import { mapAsyncTask, submitAsyncTask } from '../../lib/task-center';
 import { lockCmsContent, unlockCmsContent } from '../../services/cms/cms-content-lock.service';
+import { describeCmsLink } from '../../services/cms/cms-link.service';
+import { ensureCmsSiteExists, assertSiteAccess } from '../../services/cms/cms-sites.service';
+import { CmsLinkTargetDTO } from '../../lib/openapi-dtos';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -79,6 +82,31 @@ const checkTitleRoute = defineOpenAPIRoute({
   handler: async (c) => {
     const { siteId, title, excludeId } = c.req.valid('query');
     return c.json(okBody(await checkCmsContentTitle(siteId, title, excludeId)), 200);
+  },
+});
+
+const describeLinkRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/link-target',
+    tags: ['CMS-内容管理'], summary: '解析内部链接目标（编辑页回显 entity: 链接的可读名称）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'cms:content:list' })] as const,
+    request: {
+      query: z.object({
+        siteId: z.coerce.number().int().positive(),
+        link: z.string().max(500),
+      }),
+    },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(CmsLinkTargetDTO, '链接目标描述'),
+    },
+  }),
+  handler: async (c) => {
+    const { siteId, link } = c.req.valid('query');
+    await ensureCmsSiteExists(siteId);
+    await assertSiteAccess(siteId);
+    return c.json(okBody(await describeCmsLink(siteId, link)), 200);
   },
 });
 
@@ -571,7 +599,7 @@ const persistentUnlockRoute = defineOpenAPIRoute({
 });
 
 router.openapiRoutes([
-  listRoute, checkTitleRoute, getOneRoute, createRoute_, updateRoute_,
+  listRoute, checkTitleRoute, describeLinkRoute, getOneRoute, createRoute_, updateRoute_,
   submitRoute, publishRoute, rejectRoute, offlineRoute,
   recycleRoute, restoreRoute, purgeRoute,
   versionsRoute, restoreVersionRoute, versionDiffRoute,

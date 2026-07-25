@@ -21,6 +21,7 @@ import {
 import { CMS_CONTENT_STATUS_LABELS, CMS_CONTENT_TYPE_LABELS, CMS_CONTENT_TYPES } from '@zenith/shared';
 import type { CmsChannel, CmsModelField, CmsEditLock, CmsTextCheckResult, CmsContentType, CmsAlbumImage } from '@zenith/shared';
 import { cmsPreviewUrl } from './CmsSiteSelect';
+import { useCmsLinkPicker } from './CmsLinkInput';
 import './ContentEditPage.css';
 
 const AUTO_SAVE_INTERVAL_MS = 30_000;
@@ -194,6 +195,8 @@ export default function ContentEditPage() {
 
   const [body, setBody] = useState('');
   const [selectedChannelId, setSelectedChannelId] = useState<number | undefined>(channelIdParam);
+  // 链接字段的镜像值：仅用于回显解析出的内部链接目标名（真值仍在 Form 里）
+  const [externalLink, setExternalLink] = useState('');
   const contentType: CmsContentType = detail?.contentType ?? newContentType;
   // 图集图片（受控管理，保存时并入 mediaData.images）
   const [albumImages, setAlbumImages] = useState<CmsAlbumImage[]>([]);
@@ -213,6 +216,18 @@ export default function ContentEditPage() {
   const [checkModalVisible, setCheckModalVisible] = useState(false);
   const isMapped = !!detail?.mappingSourceId;
   const isPersistentlyLocked = !!detail?.lockedAt;
+
+  const linkPicker = useCmsLinkPicker({
+    siteId,
+    value: externalLink,
+    disabled: isPersistentlyLocked,
+    excludeContentId: id,
+    onPick: (next) => {
+      formApi.current?.setValue('externalLink', next);
+      setExternalLink(next);
+      dirtyRef.current = true;
+    },
+  });
 
   // 封面缩略图跟踪：上传时随 thumbUrl 更新；手动改 URL/媒体库选择时清空（防错配）
   const coverThumbRef = useRef<string | null>(null);
@@ -244,6 +259,7 @@ export default function ContentEditPage() {
       bodyInitializedForRef.current = detail.id;
       setBody(detail.body ?? '');
       setSelectedChannelId(detail.channelId);
+      setExternalLink(detail.externalLink ?? '');
       setAlbumImages(Array.isArray(detail.mediaData?.images) ? detail.mediaData.images.map((img) => ({ ...img })) : []);
       coverThumbRef.current = detail.coverThumb ?? null;
       lastCoverImageRef.current = detail.coverImage ?? '';
@@ -567,6 +583,7 @@ export default function ContentEditPage() {
           onValueChange={(values) => {
             dirtyRef.current = true;
             if (values.channelId !== selectedChannelId) setSelectedChannelId(values.channelId as number);
+            setExternalLink((values.externalLink as string) ?? '');
             // 封面 URL 手动变更（非上传回填）时清空缩略图，防止图不对版
             const cover = (values.coverImage as string) ?? '';
             if (cover !== lastCoverImageRef.current) {
@@ -583,14 +600,16 @@ export default function ContentEditPage() {
             <div className="cms-content-edit__main">
               {contentType === 'link' ? (
                 <>
-                  <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }} description="外链型内容：前台列表点击标题直接新窗口跳转外链地址，不生成详情页。" />
+                  <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }} description="链接型内容：前台列表点击标题直接跳转，不生成详情页。可手输外链，也可用右侧「内部链接」选择站内内容/栏目（目标改 slug 或换栏目时链接自动跟随）。" />
                   <Form.Input
                     field="externalLink"
-                    label="外链地址"
+                    label="链接地址"
                     size="large"
-                    placeholder="https://（外链型内容必填）"
-                    rules={[{ required: true, message: '外链型内容须填写外链地址' }]}
+                    placeholder="https://… 或点右侧「内部链接」选择站内内容/栏目"
+                    rules={[{ required: true, message: '链接型内容须填写链接地址' }]}
+                    suffix={linkPicker.suffix}
                   />
+                  {linkPicker.hint}
                 </>
               ) : null}
               {contentType === 'album' && !isMapped ? (
@@ -861,12 +880,16 @@ export default function ContentEditPage() {
                 <TabPane tab="高级设置" itemKey="advanced">
                   <Form.Input field="slug" label="自定义 URL 标识" size="small" placeholder="留空使用 ID" />
                   {contentType !== 'link' ? (
-                    <Form.Input
-                      field="externalLink"
-                      label="外链地址"
-                      size="small"
-                      placeholder="填写后点击标题直接跳转"
-                    />
+                    <>
+                      <Form.Input
+                        field="externalLink"
+                        label="跳转链接"
+                        size="small"
+                        placeholder="填写后点击标题直接跳转"
+                        suffix={linkPicker.suffix}
+                      />
+                      {linkPicker.hint}
+                    </>
                   ) : null}
                   <Form.Slot noLabel>
                     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
@@ -885,6 +908,9 @@ export default function ContentEditPage() {
           </div>
         </Form>
       </Spin>
+
+      {/* 内部链接选择弹窗 */}
+      {linkPicker.modals}
 
       {/* 封面图媒体库选择 */}
       <MediaPickerModal

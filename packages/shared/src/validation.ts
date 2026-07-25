@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CMS_LINK_FORMAT_MESSAGE, isValidCmsLink } from './cms-link';
 import {
   EXPORT_JOB_FORMATS,
   REPORT_ACL_ROLES,
@@ -5244,7 +5245,7 @@ export const createCmsChannelSchema = z.object({
   name: z.string().min(1, '栏目名称不能为空').max(100),
   slug: z.string().min(1, 'URL 标识不能为空').max(100).regex(cmsSlugRegex, '标识仅支持小写字母、数字、中划线'),
   type: z.enum(['list', 'page', 'link']).default('list'),
-  linkUrl: z.string().max(500).nullable().optional(),
+  linkUrl: z.string().max(500).refine(isValidCmsLink, CMS_LINK_FORMAT_MESSAGE).nullable().optional(),
   listTemplate: z.string().max(50).nullable().optional(),
   detailTemplate: z.string().max(50).nullable().optional(),
   pageSize: z.number().int().min(1).max(100).default(20),
@@ -5295,7 +5296,7 @@ export const createCmsContentSchema = z.object({
   isOriginal: z.boolean().default(false),
   body: z.string().nullable().optional(),
   extend: z.record(z.string(), z.unknown()).default({}),
-  externalLink: z.string().max(500).nullable().optional(),
+  externalLink: z.string().max(500).refine(isValidCmsLink, CMS_LINK_FORMAT_MESSAGE).nullable().optional(),
   /** 详情模板覆盖（主题变体模板名；空 = 跟随栏目/站点默认） */
   detailTemplate: z.string().max(50).nullable().optional(),
   isTop: z.boolean().default(false),
