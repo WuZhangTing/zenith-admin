@@ -437,13 +437,25 @@ const batchTagRoute = defineOpenAPIRoute({
 const duplicateRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/{id}/duplicate',
-    tags: ['CMS-内容管理'], summary: '复制为草稿',
+    tags: ['CMS-内容管理'], summary: '复制为草稿（可指定本站其他栏目）',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'cms:content:create', audit: { description: 'CMS 内容复制', module: 'CMS内容管理' } })] as const,
-    request: { params: IdParam },
+    request: {
+      params: IdParam,
+      body: {
+        content: jsonContent(z.object({
+          /** 目标栏目（同站点）；留空复制到原栏目 */
+          targetChannelId: z.number().int().positive().optional(),
+        })),
+        required: false,
+      },
+    },
     responses: { ...commonErrorResponses, ...ok(CmsContentDTO, '复制成功') },
   }),
-  handler: async (c) => c.json(okBody(await duplicateCmsContent(c.req.valid('param').id), '复制成功'), 200),
+  handler: async (c) => {
+    const { targetChannelId } = c.req.valid('json') ?? {};
+    return c.json(okBody(await duplicateCmsContent(c.req.valid('param').id, targetChannelId), '复制成功'), 200);
+  },
 });
 
 const distributeRoute = defineOpenAPIRoute({

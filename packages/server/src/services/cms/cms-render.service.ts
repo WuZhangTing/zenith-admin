@@ -12,7 +12,7 @@ import type {
   CmsBaseContext, CmsNavItem, CmsSeo, CmsContentItem, CmsPagination, CmsBreadcrumb, CmsChannelInfo,
 } from '../../cms/themes/types';
 import { listCmsChannelTree } from './cms-channels.service';
-import { channelUrl, tagUrl, contentUrl } from './cms-urls';
+import { channelUrl, tagUrl, contentUrl, type CmsUrlChannel } from './cms-urls';
 import { buildCmsLinkResolver, resolveCmsLink, type CmsLinkResolver } from './cms-link.service';
 import {
   listPublishedContents, listHomeContents, getPublishedContent, getAdjacentContents, listContentTags,
@@ -33,6 +33,7 @@ import { CMS_CONTENT_STATUS_LABELS } from '@zenith/shared';
 
 // ─── URL 规则（站点内相对路径，静态文件名与之一一对应）──────────────────────────
 export { channelUrl, tagUrl, contentUrl } from './cms-urls';
+export type { CmsUrlChannel } from './cms-urls';
 
 /** 正文分页拆分：编辑器插入 <p>[分页]</p>（兼容 <!-- pagebreak --> 与 <hr data-page-break>） */
 const PAGE_BREAK_RE = /<p[^>]*>(?:\s|&nbsp;|<br\s*\/?>)*\[分页\](?:\s|&nbsp;|<br\s*\/?>)*<\/p>|<!--\s*pagebreak\s*-->|<hr[^>]*data-page-break[^>]*\/?>/gi;
@@ -256,7 +257,7 @@ async function buildLangAlternates(site: CmsSiteRow): Promise<CmsBaseContext['la
   return alternates.length > 1 ? alternates : [];
 }
 
-function toContentItem(row: CmsContentRow, baseUrl: string, channelPath: string, resolveLink?: CmsLinkResolver): CmsContentItem {
+function toContentItem(row: CmsContentRow, baseUrl: string, channel: CmsUrlChannel, resolveLink?: CmsLinkResolver): CmsContentItem {
   const rawLink = row.externalLink?.trim();
   // 链接型内容：解析后指向目标；目标已删除/下线时降级为不可点（避免指向必然 404 的自身详情页）
   const link = rawLink ? (resolveLink?.(rawLink) ?? { url: rawLink, isExternal: true }) : null;
@@ -265,7 +266,7 @@ function toContentItem(row: CmsContentRow, baseUrl: string, channelPath: string,
     id: row.id,
     title: row.title,
     titleStyle: row.titleStyle ?? {},
-    url: rawLink ? (link?.url ?? '#') : contentUrl(baseUrl, channelPath, row),
+    url: rawLink ? (link?.url ?? '#') : contentUrl(baseUrl, channel, row),
     isExternal: link?.isExternal ?? false,
     contentType: row.contentType,
     summary: row.summary?.trim() ? row.summary : (row.body ? stripHtml(row.body).slice(0, 120) : null),
@@ -338,6 +339,23 @@ export async function findChannelByPath(siteId: number, path: string): Promise<C
   return row ?? null;
 }
 
+/** 归档目录最多占 3 段（date 规则的 年/月/日） */
+const MAX_ARCHIVE_SEGMENTS = 3;
+
+/**
+ * 按最长前缀查找栏目：详情页目录可能带归档段（`news/2026/7/5`），
+ * 逐级剥离尾段重试。同名子栏目真实存在时会先命中子栏目，语义正确。
+ */
+async function findChannelByPathPrefix(siteId: number, dir: string): Promise<CmsChannelRow | null> {
+  const segments = dir.split('/');
+  const minLength = Math.max(1, segments.length - MAX_ARCHIVE_SEGMENTS);
+  for (let length = segments.length; length >= minLength; length--) {
+    const hit = await findChannelByPath(siteId, segments.slice(0, length).join('/'));
+    if (hit) return hit;
+  }
+  return null;
+}
+
 // ─── 各页面渲染 ───────────────────────────────────────────────────────────────
 /** 可视化搭建页面 URL：/p/{slug}/ */
 export function customPageUrl(baseUrl: string, slug: string): string {
@@ -380,7 +398,7 @@ export async function renderCustomPage(
     const mode = block.props.mode === 'recommend' || block.props.mode === 'hot' ? block.props.mode : 'latest';
     const rows = await listBlockContents(site.id, { channelId, count, mode });
     const resolveLink = await buildCmsLinkResolver(site.id, baseUrl, rows.map((r) => r.externalLink));
-    contentListData.set(block.id, rows.map((row) => toContentItem(row, baseUrl, channelPathMap.get(row.channelId) ?? '', resolveLink)));
+    contentListData.set(block.id, rows.map((row) => toContentItem(row, baseUrl, channelPathMap.get(row.channelId) ?? FALLBACK_URL_CHANNEL, resolveLink)));
   }
   const blocksHtml = renderBlocksHtml({ blocks, ctx: base, contentListData });
   const props = {
@@ -419,7 +437,7 @@ export async function renderHomePage(site: CmsSiteRow, baseUrl: string, viewer?:
     site.id, baseUrl,
     [...home.latest, ...home.recommended, ...home.hot].map((r) => r.externalLink),
   );
-  const toItem = (row: CmsContentRow) => toContentItem(row, baseUrl, channelPathMap.get(row.channelId) ?? '', resolveLink);
+  const toItem = (row: CmsContentRow) => toContentItem(row, baseUrl, channelPathMap.get(row.channelId) ?? FALLBACK_URL_CHANNEL, resolveLink);
   const props = {
     ...base,
     latest: home.latest.map(toItem),
@@ -430,10 +448,14 @@ export async function renderHomePage(site: CmsSiteRow, baseUrl: string, viewer?:
   return { status: 200, html, kind: 'home' };
 }
 
-async function loadChannelPathMap(siteId: number): Promise<Map<number, string>> {
-  const rows = await db.select({ id: cmsChannels.id, path: cmsChannels.path }).from(cmsChannels).where(eq(cmsChannels.siteId, siteId));
-  return new Map(rows.map((r) => [r.id, r.path]));
+async function loadChannelPathMap(siteId: number): Promise<Map<number, CmsUrlChannel>> {
+  const rows = await db.select({ id: cmsChannels.id, path: cmsChannels.path, detailPathRule: cmsChannels.detailPathRule })
+    .from(cmsChannels).where(eq(cmsChannels.siteId, siteId));
+  return new Map(rows.map((r) => [r.id, { path: r.path, detailPathRule: r.detailPathRule }]));
 }
+
+/** 栏目在 map 中缺失时的兜底（站点根下不归档），避免生成 `undefined` 路径 */
+const FALLBACK_URL_CHANNEL: CmsUrlChannel = { path: '', detailPathRule: 'none' };
 
 /** 栏目标识 → id（页面搭建区块按 code 引用栏目，站点复制后无需重配） */
 async function loadChannelCodeMap(siteId: number): Promise<Map<string, number>> {
@@ -489,7 +511,7 @@ export async function renderChannelPage(site: CmsSiteRow, baseUrl: string, chann
     ...base,
     channel: toChannelInfo(channel, baseUrl),
     breadcrumbs,
-    items: rows.map((r) => toContentItem(r, baseUrl, channel.path, resolveLink)),
+    items: rows.map((r) => toContentItem(r, baseUrl, channel, resolveLink)),
     pagination: buildPagination(baseUrl, channel.path, page, channel.pageSize, total),
   };
   const html = renderDoc(resolvedList.component, props);
@@ -497,7 +519,7 @@ export async function renderChannelPage(site: CmsSiteRow, baseUrl: string, chann
 }
 
 /** 详情页专属上下文片段：形态数据 + 正文分页 */
-function buildDetailExtras(row: CmsContentRow, resolvedBody: string | null, baseUrl: string, channelPath: string, bodyPage: number) {
+function buildDetailExtras(row: CmsContentRow, resolvedBody: string | null, baseUrl: string, channel: CmsUrlChannel, bodyPage: number) {
   const media = (row.mediaData ?? {}) as {
     images?: { url?: string; thumb?: string | null; caption?: string | null }[];
     mediaUrl?: string; poster?: string; duration?: string;
@@ -514,11 +536,11 @@ function buildDetailExtras(row: CmsContentRow, resolvedBody: string | null, base
     totalPages,
     pages: bodyPages.map((_, i) => ({
       page: i + 1,
-      url: contentUrl(baseUrl, channelPath, row, i + 1),
+      url: contentUrl(baseUrl, channel, row, i + 1),
       current: i + 1 === bodyPage,
     })),
-    prevUrl: bodyPage > 1 ? contentUrl(baseUrl, channelPath, row, bodyPage - 1) : null,
-    nextUrl: bodyPage < totalPages ? contentUrl(baseUrl, channelPath, row, bodyPage + 1) : null,
+    prevUrl: bodyPage > 1 ? contentUrl(baseUrl, channel, row, bodyPage - 1) : null,
+    nextUrl: bodyPage < totalPages ? contentUrl(baseUrl, channel, row, bodyPage + 1) : null,
   } : null;
 
   return {
@@ -541,7 +563,7 @@ export async function countContentBodyPages(row: Pick<CmsContentRow, 'body' | 'e
   return splitBodyPages(resolved.body).length;
 }
 
-export async function renderDetailPage(site: CmsSiteRow, baseUrl: string, channel: CmsChannelRow, idOrSlug: string, device: CmsDeviceChannel = 'pc', bodyPage = 1, templateOverride?: string | null): Promise<RenderResult> {
+export async function renderDetailPage(site: CmsSiteRow, baseUrl: string, channel: CmsChannelRow, idOrSlug: string, device: CmsDeviceChannel = 'pc', bodyPage = 1, templateOverride?: string | null, canonicalGuardPath?: string | null): Promise<RenderResult> {
   const row = await getPublishedContent(site.id, channel.id, idOrSlug);
   if (!row) return renderNotFound(site, baseUrl, `/${channel.path}/${idOrSlug}.html`);
   if (row.externalLink?.trim()) {
@@ -551,7 +573,12 @@ export async function renderDetailPage(site: CmsSiteRow, baseUrl: string, channe
     return { status: 302, location: resolved.url };
   }
 
-  const canonicalPath = contentUrl('', channel.path, row, bodyPage);
+  const canonicalPath = contentUrl('', channel, row, bodyPage);
+  // 归档目录/自定义静态路径下，同一内容只允许在规范路径上可达，
+  // 否则剥离归档段后的宽松匹配会让内容在任意目录名下重复可访问（SEO 重复内容 + 静态产物错位）
+  if (canonicalGuardPath != null && `/${canonicalGuardPath.replace(/^\/+/, '')}` !== canonicalPath) {
+    return renderNotFound(site, baseUrl, `/${canonicalGuardPath.replace(/^\/+/, '')}`);
+  }
   const origin = siteOrigin(site);
   const seo = mergeSeo(site, {
     title: (row.seoTitle ?? `${row.title} - ${site.title?.trim() || site.name}`) + (bodyPage > 1 ? `（第${bodyPage}页）` : ''),
@@ -588,7 +615,7 @@ export async function renderDetailPage(site: CmsSiteRow, baseUrl: string, channe
     resolveContentBodyExtend(row),
   ]);
   const related = await buildRelatedLinks(baseUrl, relatedRows);
-  const { pageBody, totalPages, extras } = buildDetailExtras(row, resolved.body, baseUrl, channel.path, bodyPage);
+  const { pageBody, totalPages, extras } = buildDetailExtras(row, resolved.body, baseUrl, channel, bodyPage);
   if (bodyPage > totalPages) return renderNotFound(site, baseUrl, `/${channel.path}/${idOrSlug}_${bodyPage}.html`);
   const detailTemplate = await resolveDetailComponent(site, device, channel, row.detailTemplate, row.modelId, templateOverride);
   const props = {
@@ -596,20 +623,20 @@ export async function renderDetailPage(site: CmsSiteRow, baseUrl: string, channe
     channel: toChannelInfo(channel, baseUrl),
     breadcrumbs,
     content: {
-      ...toContentItem(row, baseUrl, channel.path),
+      ...toContentItem(row, baseUrl, channel),
       body: applyInteractionMarkers(applyLinkWords(pageBody, linkWords), site.code),
       ...extras,
       extend: resolved.extend,
       tags: tags.map((t) => ({ name: t.name, slug: t.slug, url: tagUrl(baseUrl, t.slug) })),
-      prev: adjacent.prev ? { title: adjacent.prev.title, url: contentUrl(baseUrl, channel.path, adjacent.prev) } : null,
-      next: adjacent.next ? { title: adjacent.next.title, url: contentUrl(baseUrl, channel.path, adjacent.next) } : null,
+      prev: adjacent.prev ? { title: adjacent.prev.title, url: contentUrl(baseUrl, channel, adjacent.prev) } : null,
+      next: adjacent.next ? { title: adjacent.next.title, url: contentUrl(baseUrl, channel, adjacent.next) } : null,
     },
     related,
     comments: comments.map((cm) => ({ id: cm.id, parentId: cm.parentId, nickname: cm.nickname, content: cm.content, likeCount: cm.likeCount, isMember: cm.memberId != null, createdAt: cm.createdAt })),
     commentForm: {
       action: '/api/public/cms/comments',
       contentId: row.id,
-      returnUrl: contentUrl(baseUrl, channel.path, row),
+      returnUrl: contentUrl(baseUrl, channel, row),
       memberSubmitApi: `/api/member/cms/contents/${row.id}/comments`,
       captchaEnabled: isCaptchaEnabled(site),
     },
@@ -622,9 +649,9 @@ export async function renderDetailPage(site: CmsSiteRow, baseUrl: string, channe
 async function buildRelatedLinks(baseUrl: string, rows: CmsContentRow[]): Promise<{ title: string; url: string }[]> {
   if (rows.length === 0) return [];
   const channelIds = [...new Set(rows.map((r) => r.channelId))];
-  const channels = await db.select({ id: cmsChannels.id, path: cmsChannels.path })
+  const channels = await db.select({ id: cmsChannels.id, path: cmsChannels.path, detailPathRule: cmsChannels.detailPathRule })
     .from(cmsChannels).where(inArray(cmsChannels.id, channelIds));
-  const pathById = new Map(channels.map((ch) => [ch.id, ch.path]));
+  const pathById = new Map(channels.map((ch) => [ch.id, { path: ch.path, detailPathRule: ch.detailPathRule }]));
   return rows
     .filter((r) => pathById.has(r.channelId))
     .map((r) => ({ title: r.title, url: contentUrl(baseUrl, pathById.get(r.channelId)!, r) }));
@@ -645,7 +672,7 @@ export async function renderContentPreviewPage(site: CmsSiteRow, baseUrl: string
   const seo = mergeSeo(site, {
     title: `【预览】${row.title}`,
     description: row.seoDescription ?? row.summary ?? undefined,
-    pathForCanonical: contentUrl('', channel.path, row),
+    pathForCanonical: contentUrl('', channel, row),
     ogTitle: row.title,
     ogImage: row.coverImage ?? undefined,
     ogImageAlt: row.socialImageAlt ?? undefined,
@@ -663,14 +690,14 @@ export async function renderContentPreviewPage(site: CmsSiteRow, baseUrl: string
     resolveContentBodyExtend(row),
   ]);
   const previewTemplate = await resolveDetailComponent(site, device, channel, row.detailTemplate, row.modelId);
-  const { pageBody: previewBody, extras: previewExtras } = buildDetailExtras(row, resolved.body, baseUrl, channel.path, 1);
+  const { pageBody: previewBody, extras: previewExtras } = buildDetailExtras(row, resolved.body, baseUrl, channel, 1);
   const resolveLink = await buildCmsLinkResolver(site.id, baseUrl, [row.externalLink]);
   const props = {
     ...base,
     channel: toChannelInfo(channel, baseUrl),
     breadcrumbs,
     content: {
-      ...toContentItem(row, baseUrl, channel.path, resolveLink),
+      ...toContentItem(row, baseUrl, channel, resolveLink),
       body: applyInteractionMarkers(applyLinkWords(previewBody, linkWords), site.code),
       ...previewExtras,
       extend: resolved.extend,
@@ -683,7 +710,7 @@ export async function renderContentPreviewPage(site: CmsSiteRow, baseUrl: string
     commentForm: {
       action: '/api/public/cms/comments',
       contentId: row.id,
-      returnUrl: contentUrl(baseUrl, channel.path, row),
+      returnUrl: contentUrl(baseUrl, channel, row),
       memberSubmitApi: `/api/member/cms/contents/${row.id}/comments`,
       captchaEnabled: isCaptchaEnabled(site),
     },
@@ -838,7 +865,7 @@ export async function renderTagPage(site: CmsSiteRow, baseUrl: string, slug: str
       { name: '首页', url: `${baseUrl}/` },
       { name: `标签：${tag.name}`, url: tagUrl(baseUrl, slug) },
     ],
-    items: rows.map((r) => toContentItem(r, baseUrl, channelPathMap.get(r.channelId) ?? '', resolveLink)),
+    items: rows.map((r) => toContentItem(r, baseUrl, channelPathMap.get(r.channelId) ?? FALLBACK_URL_CHANNEL, resolveLink)),
     pagination: {
       page, pageSize, total, totalPages,
       prevUrl: page > 1 ? tagUrl(baseUrl, slug, page - 1) : null,
@@ -875,7 +902,7 @@ export async function generateRssXml(site: CmsSiteRow, channel?: CmsChannelRow |
     const rawLink = row.externalLink?.trim();
     const link = rawLink
       ? (resolveLink(rawLink)?.url ?? rawLink)
-      : `${origin}${contentUrl('', channelPathMap.get(row.channelId) ?? '', row)}`;
+      : `${origin}${contentUrl('', channelPathMap.get(row.channelId) ?? FALLBACK_URL_CHANNEL, row)}`;
     return [
       '    <item>',
       `      <title>${rssEscape(row.title)}</title>`,
@@ -953,15 +980,17 @@ export async function renderSitePath(
       return renderChannelPage(site, baseUrl, channel, Number(pageMatch[1]), device, templateOverride);
     }
     if (!dir) return renderNotFound(site, baseUrl, `/${cleaned}`);
-    const channel = await findChannelByPath(site.id, dir);
-    if (!channel) return renderNotFound(site, baseUrl, `/${cleaned}`);
+    // 详情页目录可能带归档段（如 news/2026/7/5），栏目路径按最长前缀匹配后逐级剥离；
+    // 真实存在同名子栏目时先命中子栏目，语义正确。
+    const detail = await findChannelByPathPrefix(site.id, dir);
+    if (!detail) return renderNotFound(site, baseUrl, `/${cleaned}`);
     const fileBase = file.slice(0, -'.html'.length);
     // 正文多页：{idOrSlug}_{n}.html（slug 不含下划线，无歧义）
     const bodyPageMatch = /^(.+)_(\d+)$/.exec(fileBase);
     if (bodyPageMatch && Number(bodyPageMatch[2]) >= 2) {
-      return renderDetailPage(site, baseUrl, channel, bodyPageMatch[1], device, Number(bodyPageMatch[2]), templateOverride);
+      return renderDetailPage(site, baseUrl, detail, bodyPageMatch[1], device, Number(bodyPageMatch[2]), templateOverride, cleaned);
     }
-    return renderDetailPage(site, baseUrl, channel, fileBase, device, 1, templateOverride);
+    return renderDetailPage(site, baseUrl, detail, fileBase, device, 1, templateOverride, cleaned);
   }
 
   const channel = await findChannelByPath(site.id, cleaned);

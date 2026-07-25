@@ -715,6 +715,13 @@
       "when": 1784986409869,
       "tag": "0101_smooth_squadron_supreme",
       "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1784991642081,
+      "tag": "0102_stormy_doomsday",
+      "breakpoints": true
     }
   ]
 }

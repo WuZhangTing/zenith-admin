@@ -38,7 +38,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { useTaskProgressEvents } from '@/hooks/useAsyncTasks';
-import { useAllCmsSites } from '@/hooks/queries/cms';
+import { useAllCmsSites, useCmsPublishChannels } from '@/hooks/queries/cms';
 import {
   cmsPublishingKeys,
   useBatchCmsPublishingAction,
@@ -57,6 +57,8 @@ type TabKey = 'queue' | 'history' | 'artifacts' | 'failed';
 interface Filters {
   siteId?: number;
   targetType?: CmsPublishTargetType;
+  /** 产物页专用：0 = 站点级产物（无归属通道） */
+  publishChannelId?: number;
   taskType: string;
   createdBy: string;
   keyword: string;
@@ -67,6 +69,7 @@ interface Filters {
 const EMPTY_FILTERS: Filters = {
   siteId: undefined,
   targetType: undefined,
+  publishChannelId: undefined,
   taskType: '',
   createdBy: '',
   keyword: '',
@@ -88,6 +91,8 @@ export default function PublishingPage() {
   const [selected, setSelected] = useState<number[]>([]);
   const taskPagination = usePagination();
   const artifactPagination = usePagination();
+  // 产物页按通道筛选：通道随所选站点变化，未选站点时不可用
+  const publishChannels = useCmsPublishChannels(draft.siteId, activeTab === 'artifacts' && !!draft.siteId).data ?? [];
 
   const taskStatus = activeTab === 'queue' ? 'active' : activeTab === 'failed' ? 'failed' : 'terminal';
   const taskListQuery = useCmsPublishingList({
@@ -101,6 +106,7 @@ export default function PublishingPage() {
     pageSize: artifactPagination.pageSize,
     siteId: submitted.siteId,
     targetType: submitted.targetType,
+    publishChannelId: submitted.publishChannelId,
     startTime: submitted.startTime,
     endTime: submitted.endTime,
     keyword: submitted.keyword || undefined,
@@ -216,6 +222,10 @@ export default function PublishingPage() {
   const artifactColumns: ColumnProps<CmsPublishArtifact>[] = [
     { title: '任务ID', dataIndex: 'taskId', width: 100 },
     { title: '目标', dataIndex: 'targetType', width: 120, render: (value: CmsPublishTargetType) => CMS_PUBLISH_TARGET_TYPE_LABELS[value] },
+    {
+      title: '发布通道', dataIndex: 'publishChannelName', width: 130,
+      render: (value: string | null) => value ?? <Typography.Text type="tertiary">站点级</Typography.Text>,
+    },
     { title: '路径', dataIndex: 'path', width: 320, render: renderEllipsis },
     { title: 'URL', dataIndex: 'url', width: 320, render: renderEllipsis },
     { title: '大小', dataIndex: 'size', width: 100, render: (value: number | null) => value == null ? '-' : `${value} B` },
@@ -261,6 +271,20 @@ export default function PublishingPage() {
     <>
       <Select placeholder="全部站点" showClear optionList={siteOptions} value={draft.siteId} onChange={(value) => setDraft((prev) => ({ ...prev, siteId: value ? Number(value) : undefined }))} style={{ width: 150 }} />
       <Select placeholder="目标类型" optionList={[{ value: '', label: '全部目标' }, ...CMS_PUBLISH_TARGET_TYPES.map((value) => ({ value, label: CMS_PUBLISH_TARGET_TYPE_LABELS[value] }))]} value={draft.targetType ?? ''} onChange={(value) => setDraft((prev) => ({ ...prev, targetType: value ? value as CmsPublishTargetType : undefined }))} style={{ width: 150 }} />
+      {activeTab === 'artifacts' ? (
+        <Select
+          placeholder="全部通道"
+          showClear
+          disabled={!draft.siteId}
+          optionList={[
+            { value: 0, label: '站点级产物' },
+            ...publishChannels.map((ch) => ({ value: ch.id, label: ch.name })),
+          ]}
+          value={draft.publishChannelId}
+          onChange={(value) => setDraft((prev) => ({ ...prev, publishChannelId: value == null ? undefined : Number(value) }))}
+          style={{ width: 150 }}
+        />
+      ) : null}
       <Input placeholder="创建人" value={draft.createdBy} onChange={(createdBy) => setDraft((prev) => ({ ...prev, createdBy }))} style={{ width: 130 }} />
       <DatePicker
         type="dateTimeRange"

@@ -11,6 +11,7 @@ import {
   type CmsContentRow,
 } from '../../db/schema';
 import { contentUrl, splitBodyPages } from './cms-render.service';
+import type { CmsUrlChannel } from './cms-urls';
 import { virtualDefaultChannel, type PublishChannelInfo } from './cms-publish-channels.service';
 
 async function activePublishChannels(executor: DbExecutor, siteId: number): Promise<PublishChannelInfo[]> {
@@ -37,15 +38,15 @@ function staticPath(channel: PublishChannelInfo, relPath: string): string {
 }
 
 export function buildCmsContentSnapshotTargets(
-  content: Pick<CmsContentRow, 'id' | 'slug'>,
-  channelPath: string,
+  content: Pick<CmsContentRow, 'id' | 'slug' | 'staticPath' | 'publishedAt' | 'createdAt'>,
+  channel: CmsUrlChannel,
   bodyPages: number,
   publishChannels: readonly PublishChannelInfo[],
 ) {
   return publishChannels.map((publishChannel) => ({
     publishChannelCode: publishChannel.code,
     paths: Array.from({ length: bodyPages }, (_, index) =>
-      staticPath(publishChannel, contentUrl('', channelPath, content, index + 1))),
+      staticPath(publishChannel, contentUrl('', channel, content, index + 1))),
   }));
 }
 
@@ -66,12 +67,13 @@ export async function captureCmsContentPublishSnapshot(
     refreshChannelIds?: number[];
   },
 ): Promise<{ snapshot: CmsContentPublishSnapshot; deletePaths: string[] }> {
-  const [channel] = await executor.select({ id: cmsChannels.id, path: cmsChannels.path }).from(cmsChannels)
+  const [channel] = await executor.select({ id: cmsChannels.id, path: cmsChannels.path, detailPathRule: cmsChannels.detailPathRule })
+    .from(cmsChannels)
     .where(eq(cmsChannels.id, row.channelId)).limit(1);
   if (!channel) throw new Error(`内容 #${row.id} 的栏目不存在`);
   const publishChannels = await activePublishChannels(executor, row.siteId);
   const bodyPages = await bodyPageCount(executor, row);
-  const targets = buildCmsContentSnapshotTargets(row, channel.path, bodyPages, publishChannels);
+  const targets = buildCmsContentSnapshotTargets(row, channel, bodyPages, publishChannels);
   const existing = options?.includeExistingArtifacts
     ? await executor.select({ path: cmsPublishArtifacts.path }).from(cmsPublishArtifacts).where(and(
         eq(cmsPublishArtifacts.siteId, row.siteId),

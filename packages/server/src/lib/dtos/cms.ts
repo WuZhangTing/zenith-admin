@@ -3,6 +3,7 @@
  */
 import { z } from '@hono/zod-openapi';
 import {
+  CMS_CHANNEL_DETAIL_PATH_RULES,
   CMS_CHANNEL_STATIC_MODES,
   CMS_DISTRIBUTION_CONFLICT_STRATEGIES,
   CMS_DISTRIBUTION_MODES,
@@ -188,6 +189,7 @@ export const CmsChannelDTO: z.ZodType = z
     listTemplate: z.string().nullable(),
     detailTemplate: z.string().nullable(),
     staticMode: z.enum(CMS_CHANNEL_STATIC_MODES).openapi({ description: '栏目静态化模式（inherit = 跟随站点）' }),
+    detailPathRule: z.enum(CMS_CHANNEL_DETAIL_PATH_RULES).openapi({ description: '详情页静态产物目录归档策略（内容 staticPath 优先）' }),
     pageSize: z.number().int(),
     pageContent: z.string().nullable(),
     seoTitle: z.string().nullable(),
@@ -417,6 +419,7 @@ export const CmsPublishArtifactDTO = z.object({
   taskId: z.number().int(),
   siteId: z.number().int(),
   publishChannelId: z.number().int().nullable(),
+  publishChannelName: z.string().nullable().openapi({ description: '发布通道名称（站点级产物如 sitemap/rss 为空）' }),
   targetType: z.enum(['content', 'contents', 'channel', 'site', 'theme', 'page']),
   contentId: z.number().int().nullable(),
   channelId: z.number().int().nullable(),

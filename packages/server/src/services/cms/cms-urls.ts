@@ -5,6 +5,8 @@
  * 不产生 render ↔ link 的循环依赖。`cms-render.service.ts` 已重新导出这三个函数，
  * 现有 `from './cms-render.service'` 的导入无需改动。
  */
+import dayjs from 'dayjs';
+import type { CmsChannelDetailPathRule } from '@zenith/shared';
 
 export function channelUrl(baseUrl: string, path: string, page = 1): string {
   return page <= 1 ? `${baseUrl}/${path}/` : `${baseUrl}/${path}/index_${page}.html`;
@@ -14,10 +16,67 @@ export function tagUrl(baseUrl: string, slug: string, page = 1): string {
   return page <= 1 ? `${baseUrl}/tag/${slug}/` : `${baseUrl}/tag/${slug}/index_${page}.html`;
 }
 
+/**
+ * 详情页 URL 计算所需的栏目信息。
+ *
+ * 刻意用对象而非裸 `path` 字符串：归档目录必须在「静态化写文件」与「模板生成链接」
+ * 两侧算出完全一致的结果，任何一处漏传规则都会产生指向 404 的链接。收成对象后
+ * 由编译器强制所有调用点显式提供规则。
+ */
+export interface CmsUrlChannel {
+  path: string;
+  detailPathRule: CmsChannelDetailPathRule;
+}
+
+/**
+ * 详情页 URL 计算所需的内容信息。
+ *
+ * `publishedAt` / `createdAt` 刻意设为**必填**（可为 null）：日期类归档规则依赖它们，
+ * 若设成可选，查询里漏 select 时会静默算出未归档路径，产出与规范路径不一致的静态产物
+ * （表现为整批详情页 404），且编译期无感知。必填可让编译器逐个点出漏传处。
+ */
+export interface CmsUrlContent {
+  id: number;
+  slug: string | null;
+  staticPath: string | null;
+  publishedAt: Date | null;
+  createdAt: Date | null;
+}
+
+function pad2(n: number): string {
+  return n < 10 ? `0${n}` : String(n);
+}
+
+/**
+ * 归档目录片段（含结尾 `/`；不归档返回空串）。
+ *
+ * 日期取值口径与全站展示一致：走 dayjs 本地时区，和 `formatDateTime()` 呈现的发布时间同源，
+ * 因此运营在后台看到「发布时间 2024-01-01」时，产物就落在 `2024/` 下，不会出现错位一天的困惑。
+ * 未发布时回退创建时间；两者都缺失则退化为不归档，保证任何数据状态下都能算出稳定路径。
+ */
+export function contentArchiveDir(rule: CmsChannelDetailPathRule, content: CmsUrlContent): string {
+  if (rule === 'none') return '';
+  if (rule === 'idHash') return `${Math.abs(content.id) % 10}/`;
+  const at = content.publishedAt ?? content.createdAt;
+  if (!at) return '';
+  const d = dayjs(at);
+  if (!d.isValid()) return '';
+  const y = d.year();
+  const m = d.month() + 1;
+  const day = d.date();
+  switch (rule) {
+    case 'year': return `${y}/`;
+    case 'month': return `${y}/${m}/`;
+    case 'date': return `${y}/${m}/${day}/`;
+    case 'dateStr': return `${y}-${pad2(m)}-${pad2(day)}/`;
+    default: return '';
+  }
+}
+
 export function contentUrl(
   baseUrl: string,
-  channelPath: string,
-  content: { id: number; slug: string | null; staticPath?: string | null },
+  channel: CmsUrlChannel,
+  content: CmsUrlContent,
   bodyPage = 1,
 ): string {
   // 自定义静态路径优先：整条相对路径由运营指定，正文分页在扩展名前追加 _N
@@ -29,8 +88,9 @@ export function contentUrl(
       ? `${baseUrl}/${custom}_${bodyPage}`
       : `${baseUrl}/${custom.slice(0, dot)}_${bodyPage}${custom.slice(dot)}`;
   }
+  const dir = contentArchiveDir(channel.detailPathRule, content);
   const base = content.slug ?? content.id;
   return bodyPage <= 1
-    ? `${baseUrl}/${channelPath}/${base}.html`
-    : `${baseUrl}/${channelPath}/${base}_${bodyPage}.html`;
+    ? `${baseUrl}/${channel.path}/${dir}${base}.html`
+    : `${baseUrl}/${channel.path}/${dir}${base}_${bodyPage}.html`;
 }

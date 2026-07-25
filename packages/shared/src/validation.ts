@@ -52,6 +52,7 @@ import {
   OAUTH2_GRANT_TYPES,
   OPEN_APP_ENVIRONMENTS,
   CMS_SEARCH_DICTIONARY_WORD_PATTERN,
+  CMS_CHANNEL_DETAIL_PATH_RULES,
   CMS_CHANNEL_STATIC_MODES,
   CMS_DISTRIBUTION_CONFLICT_STRATEGIES,
   CMS_DISTRIBUTION_MODES,
@@ -5264,6 +5265,8 @@ export const createCmsChannelSchema = z.object({
   detailTemplate: z.string().max(50).nullable().optional(),
   /** 静态化模式：inherit = 跟随站点 */
   staticMode: z.enum(CMS_CHANNEL_STATIC_MODES).default('inherit'),
+  /** 详情页静态产物目录归档策略 */
+  detailPathRule: z.enum(CMS_CHANNEL_DETAIL_PATH_RULES).default('none'),
   pageSize: z.number().int().min(1).max(100).default(20),
   pageContent: z.string().nullable().optional(),
   seoTitle: z.string().max(255).nullable().optional(),

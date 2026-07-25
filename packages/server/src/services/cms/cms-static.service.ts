@@ -21,6 +21,7 @@ import {
 } from './cms-static-path';
 import { assertSiteAccess } from './cms-sites.service';
 import { resolveEffectiveCmsSiteRow } from './cms-site-inheritance.service';
+import type { CmsUrlChannel } from './cms-urls';
 import { resolveCmsSiteOpsSettings } from './cms-site-settings';
 import { assertAllCmsSiteChannelsAccess } from './cms-channels.service';
 import { recordCmsPublishArtifact } from './cms-publish-artifact-tracker';
@@ -116,9 +117,9 @@ export async function generateSitemapXml(site: CmsSiteRow): Promise<string> {
       eq(cmsChannels.siteId, site.id),
       eq(cmsChannels.status, 'enabled'),
     ));
-  const channelPathMap = new Map<number, string>();
+  const channelPathMap = new Map<number, CmsUrlChannel>();
   for (const ch of channels) {
-    channelPathMap.set(ch.id, ch.path);
+    channelPathMap.set(ch.id, { path: ch.path, detailPathRule: ch.detailPathRule });
     if (ch.type === 'link') continue;
     entries.push({ loc: `${origin}${channelUrl('', ch.path)}`, lastmod: formatIso8601(ch.updatedAt), priority: '0.8' });
   }
@@ -126,8 +127,10 @@ export async function generateSitemapXml(site: CmsSiteRow): Promise<string> {
   const contents = await db.select({
     id: cmsContents.id,
     slug: cmsContents.slug,
+    staticPath: cmsContents.staticPath,
     channelId: cmsContents.channelId,
     publishedAt: cmsContents.publishedAt,
+    createdAt: cmsContents.createdAt,
     externalLink: cmsContents.externalLink,
   })
     .from(cmsContents)
@@ -135,9 +138,9 @@ export async function generateSitemapXml(site: CmsSiteRow): Promise<string> {
     .limit(50000);
   for (const row of contents) {
     if (row.externalLink?.trim()) continue;
-    const chPath = channelPathMap.get(row.channelId);
-    if (!chPath) continue;
-    entries.push({ loc: `${origin}${contentUrl('', chPath, row)}`, lastmod: formatIso8601(row.publishedAt), priority: '0.6' });
+    const urlChannel = channelPathMap.get(row.channelId);
+    if (!urlChannel) continue;
+    entries.push({ loc: `${origin}${contentUrl('', urlChannel, row)}`, lastmod: formatIso8601(row.publishedAt), priority: '0.6' });
   }
 
   // 标签聚合页
@@ -298,7 +301,7 @@ export async function refreshContentStatic(contentId: number): Promise<void> {
   )).limit(1);
   if (!channel) return;
 
-  const detailPath = contentUrl('', channel.path, content);
+  const detailPath = contentUrl('', channel, content);
   // 栏目关闭静态化：清掉可能存在的历史产物后不再生成
   const channelDynamic = isChannelDynamic(site, channel);
   const isVisible = !channelDynamic && content.status === 'published' && !content.deletedAt && !content.externalLink?.trim();
@@ -309,21 +312,21 @@ export async function refreshContentStatic(contentId: number): Promise<void> {
     if (isVisible) {
       for (let p = 1; p <= bodyPages; p++) {
         const result = await renderDetailPage(site, '', channel, String(content.slug ?? content.id), publishChannel.code, p);
-        if (result.status === 200) await writeStaticFile(site.code, channelStaticPath(publishChannel, contentUrl('', channel.path, content, p)), result.html);
+        if (result.status === 200) await writeStaticFile(site.code, channelStaticPath(publishChannel, contentUrl('', channel, content, p)), result.html);
       }
     } else {
       await deleteStaticFile(site.code, channelStaticPath(publishChannel, detailPath));
     }
     // 清理已收缩/下线的多余分页文件（best-effort，窗口 5 页）
     for (let p = Math.max(2, bodyPages + 1); p <= bodyPages + 5; p++) {
-      await deleteStaticFile(site.code, channelStaticPath(publishChannel, contentUrl('', channel.path, content, p)));
+      await deleteStaticFile(site.code, channelStaticPath(publishChannel, contentUrl('', channel, content, p)));
     }
 
     await regenerateChannelPages(site, channel, publishChannel, pageCap);
     await refreshHomeStaticForChannel(site, publishChannel);
     // CDN 刷新路径：详情页（含正文分页）+ 栏目列表页 + 首页
     for (let p = 1; p <= bodyPages; p++) {
-      purgePaths.push(channelStaticPath(publishChannel, contentUrl('', channel.path, content, p)));
+      purgePaths.push(channelStaticPath(publishChannel, contentUrl('', channel, content, p)));
     }
     purgePaths.push(channelStaticPath(publishChannel, channelUrl('', channel.path)));
     purgePaths.push(channelStaticPath(publishChannel, ''));
@@ -464,7 +467,7 @@ export async function buildSiteStatic(
   const channels = await db.select().from(cmsChannels)
     .where(and(eq(cmsChannels.siteId, siteId), eq(cmsChannels.status, 'enabled')))
     .orderBy(asc(cmsChannels.id));
-  const contents = await db.select({ id: cmsContents.id, slug: cmsContents.slug, staticPath: cmsContents.staticPath, channelId: cmsContents.channelId, externalLink: cmsContents.externalLink, body: cmsContents.body, extend: cmsContents.extend, mappingSourceId: cmsContents.mappingSourceId })
+  const contents = await db.select({ id: cmsContents.id, slug: cmsContents.slug, staticPath: cmsContents.staticPath, publishedAt: cmsContents.publishedAt, createdAt: cmsContents.createdAt, channelId: cmsContents.channelId, externalLink: cmsContents.externalLink, body: cmsContents.body, extend: cmsContents.extend, mappingSourceId: cmsContents.mappingSourceId })
     .from(cmsContents)
     .where(and(eq(cmsContents.siteId, siteId), eq(cmsContents.status, 'published'), isNull(cmsContents.deletedAt)))
     .orderBy(asc(cmsContents.id));
@@ -524,7 +527,7 @@ export async function buildSiteStatic(
       if (channel && !row.externalLink?.trim() && !isChannelDynamic(site, channel)) {
         const bodyPages = await countContentBodyPages(row);
         for (let p = 1; p <= bodyPages; p++) {
-          const ok = await writeRenderedPath(site, contentUrl('', channel.path, row, p), publishChannel);
+          const ok = await writeRenderedPath(site, contentUrl('', channel, row, p), publishChannel);
           if (ok) pages += 1;
         }
       }

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Input, Tag, Toast, Modal, Tabs, TabPane, Tree, Typography, Dropdown, Form, Upload, Select, SplitButtonGroup } from '@douyinfe/semi-ui';
+import { Button, Input, Tag, Toast, Modal, Tabs, TabPane, Tree, TreeSelect, Typography, Dropdown, Form, Upload, Select, SplitButtonGroup } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
@@ -112,6 +112,9 @@ export default function ContentsPage() {
   const [tagModalVisible, setTagModalVisible] = useState(false);
   const [distributeModalVisible, setDistributeModalVisible] = useState(false);
   const [distributeTargetSiteId, setDistributeTargetSiteId] = useState<number | undefined>(undefined);
+  // 复制到其他栏目（同站）：选中待复制内容与目标栏目
+  const [copyTarget, setCopyTarget] = useState<CmsContent | null>(null);
+  const [copyChannelId, setCopyChannelId] = useState<number | undefined>(undefined);
   const distributeTargetTreeQuery = useCmsChannelTree(distributeTargetSiteId);
 
   function handleSearch() {
@@ -384,8 +387,12 @@ export default function ContentsPage() {
               key: 'duplicate',
               label: '复制',
               onClick: () => {
-                void duplicateMutation.mutateAsync(record.id).then(() => Toast.success('已复制为草稿'));
+                void duplicateMutation.mutateAsync({ id: record.id }).then(() => Toast.success('已复制为草稿'));
               },
+            }, {
+              key: 'copy-to-channel',
+              label: '复制到其他栏目',
+              onClick: () => { setCopyTarget(record); setCopyChannelId(undefined); },
             }] : []),
             // 标记快捷切换（收纳在更多菜单，按当前值显示反向操作）
             ...(hasPermission('cms:content:update') ? [{
@@ -637,6 +644,34 @@ export default function ContentsPage() {
         }}
       />
       {/* P3 批量操作弹窗 */}
+      <AppModal
+        title={copyTarget ? `复制「${copyTarget.title}」到其他栏目` : '复制到其他栏目'}
+        visible={copyTarget != null}
+        onOk={() => {
+          if (!copyTarget) return;
+          if (!copyChannelId) { Toast.warning('请选择目标栏目'); return; }
+          void duplicateMutation.mutateAsync({ id: copyTarget.id, targetChannelId: copyChannelId })
+            .then(() => {
+              Toast.success('已复制为草稿到目标栏目');
+              setCopyTarget(null);
+            });
+        }}
+        onCancel={() => setCopyTarget(null)}
+        okButtonProps={{ loading: duplicateMutation.isPending }}
+        width={480}
+        closeOnEsc
+      >
+        <TreeSelect
+          placeholder="选择目标栏目"
+          style={{ width: '100%' }}
+          treeData={channelsToSelectTree(treeQuery.data ?? [])}
+          value={copyChannelId}
+          onChange={(value: unknown) => setCopyChannelId(value == null ? undefined : Number(value))}
+        />
+        <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 8 }}>
+          副本以草稿状态创建，URL 标识与自定义静态路径置空；换栏目后扩展字段按目标栏目模型解释。
+        </Typography.Text>
+      </AppModal>
       <AppModal
         title={`批量移动 ${selectedIds.length} 条内容`}
         visible={moveModalVisible}

@@ -18,7 +18,7 @@ import {
 import { useAllUsers } from '@/hooks/queries/users';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
-import { CMS_CHANNEL_STATIC_MODE_LABELS, CMS_CHANNEL_STATIC_MODES, CMS_CHANNEL_TYPE_LABELS, CMS_DEFAULT_CHANNEL_CODE } from '@zenith/shared';
+import { CMS_CHANNEL_DETAIL_PATH_RULE_LABELS, CMS_CHANNEL_DETAIL_PATH_RULES, CMS_CHANNEL_STATIC_MODE_LABELS, CMS_CHANNEL_STATIC_MODES, CMS_CHANNEL_TYPE_LABELS, CMS_DEFAULT_CHANNEL_CODE } from '@zenith/shared';
 import type { CmsChannel, CmsContent, CmsSiteTemplateDefaults, PaginatedResponse } from '@zenith/shared';
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 
@@ -188,8 +188,9 @@ export default function ChannelsPage() {
         listTemplate: editingRecord.listTemplate ?? undefined,
         detailTemplate: editingRecord.detailTemplate ?? undefined,
         staticMode: editingRecord.staticMode,
+        detailPathRule: editingRecord.detailPathRule,
       }
-    : { parentId: createParentId ?? 0, type: 'list', pageSize: 20, sort: 0, visible: true, status: 'enabled', staticMode: 'inherit' };
+    : { parentId: createParentId ?? 0, type: 'list', pageSize: 20, sort: 0, visible: true, status: 'enabled', staticMode: 'inherit', detailPathRule: 'none' };
 
   async function handleSave() {
     if (!siteId) return;
@@ -513,6 +514,20 @@ export default function ChannelsPage() {
                 value: mode,
               }))}
               extraText="选择「动态渲染」后本栏目不产出静态文件，始终走 SSR"
+            />
+          </Col>
+        ) : null}
+        {channelType === 'list' ? (
+          <Col span={24} lg={12}>
+            <Form.Select
+              field="detailPathRule"
+              label="详情页归档"
+              style={{ width: '100%' }}
+              optionList={CMS_CHANNEL_DETAIL_PATH_RULES.map((rule) => ({
+                label: CMS_CHANNEL_DETAIL_PATH_RULE_LABELS[rule],
+                value: rule,
+              }))}
+              extraText="按日期/散列把详情页打散到子目录；内容自填静态路径时不生效。改动后需整站重建"
             />
           </Col>
         ) : null}

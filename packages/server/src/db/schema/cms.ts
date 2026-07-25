@@ -8,6 +8,7 @@ import {
   CMS_PUBLISH_ARTIFACT_STATUSES,
   CMS_PUBLISH_TARGET_TYPES,
   CMS_AD_EVENT_TYPES,
+  CMS_CHANNEL_DETAIL_PATH_RULES,
   CMS_CHANNEL_STATIC_MODES,
   CMS_DEVICE_TYPES,
   CMS_DISTRIBUTION_CONFLICT_STRATEGIES,
@@ -29,6 +30,8 @@ import {
 export const cmsStaticModeEnum = pgEnum('cms_static_mode', ['dynamic', 'hybrid', 'static']);
 /** 栏目静态化模式：inherit=跟随站点，其余覆盖站点 staticMode */
 export const cmsChannelStaticModeEnum = pgEnum('cms_channel_static_mode', CMS_CHANNEL_STATIC_MODES);
+/** 详情页静态产物目录归档策略（内容 static_path 优先级更高） */
+export const cmsChannelDetailPathRuleEnum = pgEnum('cms_channel_detail_path_rule', CMS_CHANNEL_DETAIL_PATH_RULES);
 export const cmsChannelTypeEnum = pgEnum('cms_channel_type', ['list', 'page', 'link']);
 export const cmsContentStatusEnum = pgEnum('cms_content_status', ['draft', 'pending', 'published', 'offline', 'rejected']);
 /** 内容形态：article=图文 album=图集 media=音视频 link=外链 */
@@ -231,6 +234,8 @@ export const cmsChannels = pgTable('cms_channels', {
   detailTemplate: varchar('detail_template', { length: 50 }),
   /** 静态化模式：inherit = 跟随站点，其余覆盖站点设置 */
   staticMode: cmsChannelStaticModeEnum('static_mode').notNull().default('inherit'),
+  /** 详情页静态产物目录归档策略（内容 static_path 非空时不生效） */
+  detailPathRule: cmsChannelDetailPathRuleEnum('detail_path_rule').notNull().default('none'),
   pageSize: integer('page_size').notNull().default(20),
   /** type=page 时的单页富文本内容 */
   pageContent: text('page_content'),

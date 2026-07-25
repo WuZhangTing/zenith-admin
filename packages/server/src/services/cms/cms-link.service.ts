@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { parseCmsLink } from '@zenith/shared';
-import type { CmsLinkEntityType, CmsLinkRef, CmsLinkTarget } from '@zenith/shared';
+import type { CmsChannelDetailPathRule, CmsLinkEntityType, CmsLinkRef, CmsLinkTarget } from '@zenith/shared';
 import { db } from '../../db';
 import { cmsChannels, cmsContents } from '../../db/schema';
 import { channelUrl, contentUrl } from './cms-urls';
@@ -26,8 +26,14 @@ export type CmsLinkResolver = (raw: string | null | undefined) => CmsLinkResolut
 /** 实体链接最多跟随的跳数（A→B→C），超出视为环，判定为死链 */
 const MAX_HOPS = 3;
 
-type ContentTarget = { id: number; slug: string | null; channelId: number; externalLink: string | null };
-type ChannelTarget = { id: number; code: string; path: string; type: string; linkUrl: string | null };
+type ContentTarget = {
+  id: number; slug: string | null; staticPath: string | null;
+  publishedAt: Date | null; createdAt: Date; channelId: number; externalLink: string | null;
+};
+type ChannelTarget = {
+  id: number; code: string; path: string;
+  detailPathRule: CmsChannelDetailPathRule; type: string; linkUrl: string | null;
+};
 
 function collectRefs(rawLinks: Iterable<string | null | undefined>): Map<string, CmsLinkRef> {
   const refs = new Map<string, CmsLinkRef>();
@@ -64,6 +70,9 @@ async function loadContentTargets(siteId: number, seedIds: Set<number>): Promise
     const rows = await db.select({
       id: cmsContents.id,
       slug: cmsContents.slug,
+      staticPath: cmsContents.staticPath,
+      publishedAt: cmsContents.publishedAt,
+      createdAt: cmsContents.createdAt,
       channelId: cmsContents.channelId,
       externalLink: cmsContents.externalLink,
     })
@@ -112,6 +121,7 @@ export async function buildCmsLinkResolver(
       id: cmsChannels.id,
       code: cmsChannels.code,
       path: cmsChannels.path,
+      detailPathRule: cmsChannels.detailPathRule,
       type: cmsChannels.type,
       linkUrl: cmsChannels.linkUrl,
       status: cmsChannels.status,
@@ -149,7 +159,7 @@ export async function buildCmsLinkResolver(
       // 目标自身也是链接型内容：继续跟随，静态化场景下没有 302 可依赖
       if (target.externalLink?.trim()) return follow(target.externalLink, seen);
       const channel = channelMap.get(target.channelId);
-      return channel ? { url: contentUrl(baseUrl, channel.path, target), isExternal: false } : null;
+      return channel ? { url: contentUrl(baseUrl, channel, target), isExternal: false } : null;
     }
 
     const channel = channelMap.get(id);

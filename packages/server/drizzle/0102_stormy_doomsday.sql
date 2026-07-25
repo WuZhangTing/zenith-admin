@@ -1,0 +1,2 @@
+CREATE TYPE "public"."cms_channel_detail_path_rule" AS ENUM('none', 'year', 'month', 'date', 'dateStr', 'idHash');--> statement-breakpoint
+ALTER TABLE "cms_channels" ADD COLUMN "detail_path_rule" "cms_channel_detail_path_rule" DEFAULT 'none' NOT NULL;

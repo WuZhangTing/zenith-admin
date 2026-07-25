@@ -131,6 +131,7 @@ export function triggerAutoPushForContent(contentId: number): void {
     const [row] = await db.select({
       content: cmsContents,
       channelPath: cmsChannels.path,
+      channelDetailPathRule: cmsChannels.detailPathRule,
       site: cmsSites,
     })
       .from(cmsContents)
@@ -146,7 +147,11 @@ export function triggerAutoPushForContent(contentId: number): void {
     const cfg = getSitePushConfig(row.site);
     if (!cfg.baiduPushToken && !cfg.indexNowKey) return;
     if (!siteOrigin(row.site)) return;
-    await pushCmsUrlsForSite(row.site, [contentUrl('', row.channelPath, row.content)]);
+    await pushCmsUrlsForSite(row.site, [contentUrl(
+      '',
+      { path: row.channelPath, detailPathRule: row.channelDetailPathRule },
+      row.content,
+    )]);
   })().catch((err) => {
     logger.error(`[CMS] 内容 ${contentId} 自动推送失败`, err);
   });

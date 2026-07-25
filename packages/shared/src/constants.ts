@@ -1335,6 +1335,21 @@ export const CMS_CHANNEL_STATIC_MODE_LABELS: Record<(typeof CMS_CHANNEL_STATIC_M
   static: '全静态',
 };
 
+/**
+ * 详情页静态产物的目录归档策略（在栏目路径之后追加一级目录）。
+ * 用于把海量内容打散到多目录，避免单目录文件过多拖慢文件系统。
+ * 内容自定义 staticPath 优先级更高，设了就完全绕过本规则。
+ */
+export const CMS_CHANNEL_DETAIL_PATH_RULES = ['none', 'year', 'month', 'date', 'dateStr', 'idHash'] as const;
+export const CMS_CHANNEL_DETAIL_PATH_RULE_LABELS: Record<(typeof CMS_CHANNEL_DETAIL_PATH_RULES)[number], string> = {
+  none: '不归档（栏目目录下）',
+  year: '按年（2026/）',
+  month: '按年月（2026/7/）',
+  date: '按年月日（2026/7/25/）',
+  dateStr: '按日期串（2026-07-25/）',
+  idHash: '按 ID 散列（0-9 分桶）',
+};
+
 /** 内容标题样式可选色（空 = 主题默认色） */
 export const CMS_TITLE_STYLE_COLORS = ['#d93026', '#0064fa', '#1f8f3c', '#f5a623', '#8a2be2'] as const;
 

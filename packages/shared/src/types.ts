@@ -10270,6 +10270,9 @@ export type CmsStaticMode = 'dynamic' | 'hybrid' | 'static';
 /** 栏目静态化模式：inherit=跟随站点，其余覆盖站点设置 */
 export type CmsChannelStaticMode = 'inherit' | CmsStaticMode;
 
+/** 详情页静态产物目录归档策略（栏目路径后追加一级目录；内容 staticPath 优先） */
+export type CmsChannelDetailPathRule = 'none' | 'year' | 'month' | 'date' | 'dateStr' | 'idHash';
+
 /** 内容标题样式（列表页 / 详情页标题展示） */
 export interface CmsTitleStyle {
   bold?: boolean;
@@ -10701,6 +10704,8 @@ export interface CmsChannel {
   detailTemplate: string | null;
   /** 栏目静态化模式（inherit = 跟随站点） */
   staticMode: CmsChannelStaticMode;
+  /** 详情页静态产物目录归档策略（内容 staticPath 优先级更高） */
+  detailPathRule: CmsChannelDetailPathRule;
   pageSize: number;
   pageContent: string | null;
   seoTitle: string | null;

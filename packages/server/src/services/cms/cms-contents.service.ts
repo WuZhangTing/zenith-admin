@@ -1580,26 +1580,41 @@ export async function batchAddCmsContentTags(ids: number[], tagIds: number[]): P
   return rows.length;
 }
 
-/** 复制内容为草稿（标题加后缀，slug 置空避免唯一冲突，标签一并复制） */
-export async function duplicateCmsContent(id: number) {
+/**
+ * 复制内容为草稿（标题加后缀，slug / staticPath 置空避免唯一冲突，标签一并复制）。
+ * `targetChannelId` 可指定复制到**本站其他栏目**（跨站复制走 distributeCmsContents）。
+ */
+export async function duplicateCmsContent(id: number, targetChannelId?: number) {
   const current = await ensureCmsContentExists(id);
   await assertSiteAccess(current.siteId);
   await assertChannelAccess(current.channelId);
   assertCmsContentUnlocked(current);
+  // 目标栏目：默认原栏目；指定时校验属于同站点、可投放且有写权限
+  let channelId = current.channelId;
+  let modelId = current.modelId;
+  if (targetChannelId !== undefined && targetChannelId !== current.channelId) {
+    await assertChannelAccess(targetChannelId);
+    const target = await ensureChannelForContent(current.siteId, targetChannelId);
+    channelId = target.id;
+    // 换栏目即换模型：扩展字段按目标栏目模型重新解释，避免残留异构字段
+    modelId = target.modelId ?? null;
+  }
   const tagRows = await db.select({ tagId: cmsContentTags.tagId }).from(cmsContentTags).where(and(
     eq(cmsContentTags.contentId, id),
   ));
   const row = await db.transaction(async (tx) => {
     const [created] = await tx.insert(cmsContents).values({
       siteId: current.siteId,
-      channelId: current.channelId,
-      modelId: current.modelId,
+      channelId,
+      modelId,
       contentType: current.contentType,
       mediaData: current.mediaData ?? {},
       title: `${current.title}（副本）`.slice(0, 255),
+      titleStyle: current.titleStyle ?? {},
       subTitle: current.subTitle,
       shortTitle: current.shortTitle,
       slug: null,
+      staticPath: null,
       summary: current.summary,
       coverImage: current.coverImage,
       coverThumb: current.coverThumb,
@@ -1609,6 +1624,7 @@ export async function duplicateCmsContent(id: number) {
       sourceUrl: current.sourceUrl,
       isOriginal: current.isOriginal,
       body: current.body,
+      attachments: current.attachments ?? [],
       extend: current.extend ?? {},
       externalLink: current.externalLink,
       isTop: false,
@@ -1634,7 +1650,9 @@ export async function duplicateCmsContent(id: number) {
       })));
       await recalcTagContentCounts(tx, tagRows.map((t) => t.tagId));
     }
-    await logContentOp(tx, created.id, 'created', `复制自内容 #${current.id}`);
+    await logContentOp(tx, created.id, 'created', channelId === current.channelId
+      ? `复制自内容 #${current.id}`
+      : `复制自内容 #${current.id}（跨栏目）`);
     return created;
   });
   return getCmsContent(row.id);

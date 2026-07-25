@@ -1482,7 +1482,8 @@ export function useCmsContentBatchOps() {
 export function useDuplicateCmsContent() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => request.post<CmsContent>(`/api/cms/contents/${id}/duplicate`, {}).then(unwrap),
+    mutationFn: ({ id, targetChannelId }: { id: number; targetChannelId?: number }) =>
+      request.post<CmsContent>(`/api/cms/contents/${id}/duplicate`, targetChannelId ? { targetChannelId } : {}).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: cmsContentKeys.all }),
   });
 }
