@@ -2,12 +2,14 @@ import { useMemo, useState } from 'react';
 import { Button, Dropdown, Input, Modal, Table, Tag, Tree, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
-import { ChevronDown, Link2, Search } from 'lucide-react';
+import { ChevronDown, Home, Link2, RotateCcw, Search } from 'lucide-react';
 import {
-  buildCmsEntityLink, parseCmsLink, CMS_CONTENT_STATUS_LABELS, CMS_CONTENT_TYPE_LABELS,
+  buildCmsEntityLink, parseCmsLink, CMS_CONTENT_STATUS_LABELS,
 } from '@zenith/shared';
 import type { CmsChannel, CmsContent } from '@zenith/shared';
-import { useCmsChannelTree, useCmsContentList, useCmsLinkTarget } from '@/hooks/queries/cms';
+import { useAllCmsSites, useCmsChannelTree, useCmsContentList, useCmsLinkTarget } from '@/hooks/queries/cms';
+import { useIsMobile } from '@/hooks/useMediaQuery';
+import { formatDateTime } from '@/utils/date';
 
 type PickerMode = 'content' | 'channel' | null;
 
@@ -20,7 +22,7 @@ function channelsToTree(nodes: CmsChannel[]): TreeNodeData[] {
   }));
 }
 
-/** 内容选择弹窗：按关键词检索本站内容 */
+/** 内容选择弹窗：左侧栏目树定位，右侧按关键词检索本站内容 */
 function ContentPickerModal({ siteId, visible, onCancel, onSelect, excludeId }: Readonly<{
   siteId: number | undefined;
   visible: boolean;
@@ -30,26 +32,44 @@ function ContentPickerModal({ siteId, visible, onCancel, onSelect, excludeId }: 
 }>) {
   const [draftKeyword, setDraftKeyword] = useState('');
   const [keyword, setKeyword] = useState('');
+  const [channelId, setChannelId] = useState<number | undefined>(undefined);
   const [page, setPage] = useState(1);
-  const pageSize = 8;
+  const pageSize = 10;
+  const isMobile = useIsMobile();
+  const enabled = visible && siteId !== undefined;
   const listQuery = useCmsContentList(
-    { page, pageSize, siteId: siteId ?? 0, keyword: keyword || undefined },
-    visible && siteId !== undefined,
+    { page, pageSize, siteId: siteId ?? 0, channelId, keyword: keyword || undefined },
+    enabled,
   );
   const rows = (listQuery.data?.list ?? []).filter((c) => c.id !== excludeId);
+
+  const treeQuery = useCmsChannelTree(enabled ? siteId : undefined);
+  const sitesQuery = useAllCmsSites();
+  const siteName = sitesQuery.data?.find((s) => s.id === siteId)?.name ?? '全部栏目';
+  const treeData: TreeNodeData[] = useMemo(() => [{
+    key: 'all',
+    label: siteName,
+    icon: <Home size={14} style={{ marginRight: 4 }} />,
+    children: channelsToTree(treeQuery.data ?? []),
+  }], [siteName, treeQuery.data]);
+
+  const handleSearch = () => { setKeyword(draftKeyword); setPage(1); };
+  const handleReset = () => { setDraftKeyword(''); setKeyword(''); setChannelId(undefined); setPage(1); };
 
   const columns: ColumnProps<CmsContent>[] = [
     { title: '标题', dataIndex: 'title', ellipsis: true },
     {
-      title: '形态', dataIndex: 'contentType', width: 88,
-      render: (v: CmsContent['contentType']) => CMS_CONTENT_TYPE_LABELS[v],
-    },
-    {
-      title: '状态', dataIndex: 'status', width: 88,
+      title: '状态', dataIndex: 'status', width: 80,
       render: (v: CmsContent['status']) => CMS_CONTENT_STATUS_LABELS[v],
     },
     {
-      title: '操作', width: 72, fixed: 'right',
+      title: '发布时间', dataIndex: 'publishedAt', width: 170,
+      render: (v: CmsContent['publishedAt']) => (
+        <span style={{ whiteSpace: 'nowrap' }}>{v ? formatDateTime(v) : '-'}</span>
+      ),
+    },
+    {
+      title: '操作', width: 68, fixed: 'right',
       render: (_: unknown, record: CmsContent) => (
         <Button theme="borderless" size="small" onClick={() => onSelect(record)}>选择</Button>
       ),
@@ -57,31 +77,68 @@ function ContentPickerModal({ siteId, visible, onCancel, onSelect, excludeId }: 
   ];
 
   return (
-    <Modal title="选择内容" visible={visible} onCancel={onCancel} footer={null} width={720} closeOnEsc>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <Input
-          prefix={<Search size={14} />}
-          placeholder="搜索标题"
-          value={draftKeyword}
-          onChange={setDraftKeyword}
-          onEnterPress={() => { setKeyword(draftKeyword); setPage(1); }}
-          showClear
-        />
-        <Button type="primary" onClick={() => { setKeyword(draftKeyword); setPage(1); }}>查询</Button>
+    <Modal title="选择内容" visible={visible} onCancel={onCancel} footer={null} width={900} closeOnEsc>
+      <div style={{
+        display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
+        gap: isMobile ? 12 : 16,
+        height: isMobile ? 'auto' : 480,
+      }}>
+        <div
+          style={{
+            width: isMobile ? '100%' : 220,
+            flexShrink: 0,
+            maxHeight: isMobile ? 180 : undefined,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            paddingRight: isMobile ? 0 : 12,
+            paddingBottom: isMobile ? 12 : 0,
+            borderRight: isMobile ? undefined : '1px solid var(--semi-color-border)',
+            borderBottom: isMobile ? '1px solid var(--semi-color-border)' : undefined,
+          }}
+        >
+          <Tree
+            treeData={treeData}
+            value={channelId ? String(channelId) : 'all'}
+            filterTreeNode
+            showFilteredOnly
+            searchPlaceholder="输入栏目名称"
+            defaultExpandAll
+            onSelect={(key) => { setChannelId(key === 'all' ? undefined : Number(key)); setPage(1); }}
+            style={{ flex: 1, width: '100%', overflow: 'auto' }}
+          />
+        </div>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+            <Input
+              prefix={<Search size={14} />}
+              placeholder="输入内容标题"
+              value={draftKeyword}
+              onChange={setDraftKeyword}
+              onEnterPress={handleSearch}
+              showClear
+              style={{ flex: 1, minWidth: 160 }}
+            />
+            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+          </div>
+          <Table
+            size="small"
+            rowKey="id"
+            columns={columns}
+            dataSource={rows}
+            loading={listQuery.isFetching}
+            scroll={{ x: 520, y: isMobile ? 240 : 336 }}
+            pagination={{
+              currentPage: page,
+              pageSize,
+              total: listQuery.data?.total ?? 0,
+              onPageChange: setPage,
+            }}
+          />
+        </div>
       </div>
-      <Table
-        size="small"
-        rowKey="id"
-        columns={columns}
-        dataSource={rows}
-        loading={listQuery.isFetching}
-        pagination={{
-          currentPage: page,
-          pageSize,
-          total: listQuery.data?.total ?? 0,
-          onPageChange: setPage,
-        }}
-      />
     </Modal>
   );
 }
