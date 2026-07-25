@@ -1,18 +1,21 @@
-import { eq, asc, and, like, type SQL } from 'drizzle-orm';
+import { eq, asc, and, isNull, like, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { cmsFriendLinks } from '../../db/schema';
+import { cmsFriendLinkGroups, cmsFriendLinks } from '../../db/schema';
 import type { CmsFriendLinkRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import type { CreateCmsFriendLinkInput, UpdateCmsFriendLinkInput } from '@zenith/shared';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
+import { ensureFriendLinkGroupInSite } from './cms-friend-link-groups.service';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
-export function mapCmsFriendLink(row: CmsFriendLinkRow) {
+export function mapCmsFriendLink(row: CmsFriendLinkRow, groupName?: string | null) {
   return {
     id: row.id,
     siteId: row.siteId,
+    groupId: row.groupId ?? null,
+    groupName: groupName ?? null,
     name: row.name,
     url: row.url,
     logo: row.logo ?? null,
@@ -36,6 +39,8 @@ export interface ListCmsFriendLinksQuery {
   siteId: number;
   keyword?: string;
   status?: 'enabled' | 'disabled';
+  /** 按分组筛选；0 = 仅未分组 */
+  groupId?: number;
   page: number;
   pageSize: number;
 }
@@ -46,42 +51,97 @@ export async function listCmsFriendLinks(q: ListCmsFriendLinksQuery) {
   const conditions: SQL[] = [eq(cmsFriendLinks.siteId, q.siteId)];
   if (q.keyword) conditions.push(like(cmsFriendLinks.name, `%${escapeLike(q.keyword)}%`));
   if (q.status) conditions.push(eq(cmsFriendLinks.status, q.status));
+  if (q.groupId !== undefined) {
+    conditions.push(q.groupId === 0 ? isNull(cmsFriendLinks.groupId) : eq(cmsFriendLinks.groupId, q.groupId));
+  }
   const where = mergeWhere(and(...conditions));
   const [total, list] = await Promise.all([
     db.$count(cmsFriendLinks, where),
     withPagination(
-      db.select().from(cmsFriendLinks).where(where).orderBy(asc(cmsFriendLinks.sort), asc(cmsFriendLinks.id)).$dynamic(),
+      db.select({ link: cmsFriendLinks, groupName: cmsFriendLinkGroups.name })
+        .from(cmsFriendLinks)
+        .leftJoin(cmsFriendLinkGroups, eq(cmsFriendLinks.groupId, cmsFriendLinkGroups.id))
+        .where(where)
+        .orderBy(asc(cmsFriendLinks.sort), asc(cmsFriendLinks.id)).$dynamic(),
       q.page,
       q.pageSize,
     ),
   ]);
-  return { list: list.map(mapCmsFriendLink), total, page: q.page, pageSize: q.pageSize };
+  return {
+    list: list.map((row) => mapCmsFriendLink(row.link, row.groupName)),
+    total,
+    page: q.page,
+    pageSize: q.pageSize,
+  };
 }
 
-/** 前台渲染上下文用：站点全部启用友链 */
+/**
+ * 前台渲染上下文用：站点全部启用友链，按分组聚合。
+ * 未分组的友链归入 `code: ''` 的兜底组，主题可据此决定是否展示组标题。
+ */
+export async function listEnabledFriendLinkGroups(siteId: number) {
+  const [links, groups] = await Promise.all([
+    db.select().from(cmsFriendLinks)
+      .where(and(eq(cmsFriendLinks.siteId, siteId), eq(cmsFriendLinks.status, 'enabled')))
+      .orderBy(asc(cmsFriendLinks.sort), asc(cmsFriendLinks.id)),
+    db.select().from(cmsFriendLinkGroups)
+      .where(and(eq(cmsFriendLinkGroups.siteId, siteId), eq(cmsFriendLinkGroups.status, 'enabled')))
+      .orderBy(asc(cmsFriendLinkGroups.sort), asc(cmsFriendLinkGroups.id)),
+  ]);
+  const byGroup = new Map<number | null, typeof links>();
+  for (const link of links) {
+    // 引用了已停用/已删分组的友链降级为未分组，避免整条消失
+    const key = link.groupId != null && groups.some((g) => g.id === link.groupId) ? link.groupId : null;
+    byGroup.set(key, [...(byGroup.get(key) ?? []), link]);
+  }
+  const result = groups
+    .map((group) => ({
+      code: group.code,
+      name: group.name,
+      links: (byGroup.get(group.id) ?? []).map((l) => ({ name: l.name, url: l.url, logo: l.logo ?? null })),
+    }))
+    .filter((group) => group.links.length > 0);
+  const ungrouped = byGroup.get(null) ?? [];
+  if (ungrouped.length > 0) {
+    result.push({ code: '', name: '', links: ungrouped.map((l) => ({ name: l.name, url: l.url, logo: l.logo ?? null })) });
+  }
+  return result;
+}
+
+/** 前台渲染上下文用：站点全部启用友链（平铺，兼容不分组的主题） */
 export async function listEnabledFriendLinks(siteId: number) {
   const rows = await db.select().from(cmsFriendLinks)
     .where(and(eq(cmsFriendLinks.siteId, siteId), eq(cmsFriendLinks.status, 'enabled')))
     .orderBy(asc(cmsFriendLinks.sort), asc(cmsFriendLinks.id));
-  return rows.map(mapCmsFriendLink);
+  return rows.map((row) => mapCmsFriendLink(row));
 }
 
 // ─── 创建 / 更新 / 删除 ────────────────────────────────────────────────────────
+/** 写操作返回体也要带 groupName，避免前端拿到与列表不一致的结构 */
+async function resolveGroupName(groupId: number | null): Promise<string | null> {
+  if (!groupId) return null;
+  const [row] = await db.select({ name: cmsFriendLinkGroups.name }).from(cmsFriendLinkGroups)
+    .where(eq(cmsFriendLinkGroups.id, groupId)).limit(1);
+  return row?.name ?? null;
+}
+
 export async function createCmsFriendLink(data: CreateCmsFriendLinkInput) {
   await ensureCmsSiteExists(data.siteId);
   await assertSiteAccess(data.siteId);
+  await ensureFriendLinkGroupInSite(data.siteId, data.groupId);
   const [row] = await db.insert(cmsFriendLinks).values(data).returning();
-  return mapCmsFriendLink(row);
+  return mapCmsFriendLink(row, await resolveGroupName(row.groupId));
 }
 
 export async function updateCmsFriendLink(id: number, data: UpdateCmsFriendLinkInput) {
   const current = await ensureCmsFriendLinkExists(id);
   await assertSiteAccess(current.siteId);
+  if (data.groupId !== undefined) await ensureFriendLinkGroupInSite(current.siteId, data.groupId);
   const [row] = await db.update(cmsFriendLinks).set(data).where(and(
     eq(cmsFriendLinks.id, id),
   )).returning();
   if (!row) throw new HTTPException(404, { message: '友情链接不存在' });
-  return mapCmsFriendLink(row);
+  return mapCmsFriendLink(row, await resolveGroupName(row.groupId));
 }
 
 export async function deleteCmsFriendLink(id: number) {

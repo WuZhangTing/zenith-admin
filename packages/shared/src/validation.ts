@@ -54,6 +54,7 @@ import {
   CMS_SEARCH_DICTIONARY_WORD_PATTERN,
   CMS_CHANNEL_DETAIL_PATH_RULES,
   CMS_CHANNEL_STATIC_MODES,
+  CMS_FIELD_OPTION_SOURCES,
   CMS_DISTRIBUTION_CONFLICT_STRATEGIES,
   CMS_DISTRIBUTION_MODES,
   CMS_PUBLISH_TARGET_TYPES,
@@ -5102,6 +5103,9 @@ export const createCmsSiteSchema = z.object({
   copyright: z.string().max(255).nullable().optional(),
   theme: z.string().max(50).default('default'),
   staticMode: z.enum(['dynamic', 'hybrid', 'static']).default('hybrid'),
+  /** 站点级扩展模型与其字段值 */
+  modelId: z.number().int().positive().nullable().optional(),
+  extend: z.record(z.string(), z.unknown()).default({}),
   robots: z.string().max(4000).nullable().optional(),
   settings: z.record(z.string(), z.unknown()).default({}),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
@@ -5125,6 +5129,8 @@ export const updateCmsSiteSchema = z.object({
   /** 主题切换：仅允许内置主题（服务端校验注册表），变更后 bump themeRevision */
   theme: createCmsSiteSchema.shape.theme.removeDefault().optional(),
   robots: createCmsSiteSchema.shape.robots.optional(),
+  modelId: createCmsSiteSchema.shape.modelId.optional(),
+  extend: createCmsSiteSchema.shape.extend.removeDefault().optional(),
   settings: createCmsSiteSchema.shape.settings.removeDefault().optional(),
   status: createCmsSiteSchema.shape.status.removeDefault().optional(),
   sort: createCmsSiteSchema.shape.sort.removeDefault().optional(),
@@ -5237,8 +5243,16 @@ export const cmsModelFieldSchema = z.object({
   showInList: z.boolean().default(false),
   placeholder: z.string().max(200).nullable().optional(),
   defaultValue: z.string().max(1000).nullable().optional(),
+  /** 选项来源：manual=手工 options；dict=引用系统字典 */
+  optionSource: z.enum(CMS_FIELD_OPTION_SOURCES).default('manual'),
+  dictCode: z.string().max(64).nullable().optional(),
   options: z.array(z.object({ label: z.string().max(100), value: z.string().max(100) })).nullable().optional(),
   sort: z.number().int().default(0),
+}).superRefine((value, ctx) => {
+  // 引用字典却没填字典编码 = 该字段永远渲染成空下拉，属于配置错误，保存时即拦下
+  if (value.optionSource === 'dict' && !value.dictCode?.trim()) {
+    ctx.addIssue({ code: 'custom', path: ['dictCode'], message: '选择「引用系统字典」时必须指定字典' });
+  }
 });
 
 export const createCmsModelSchema = z.object({
@@ -5383,8 +5397,19 @@ export const createCmsFragmentSchema = z.object({
 });
 export const updateCmsFragmentSchema = createCmsFragmentSchema.partial().omit({ siteId: true });
 
+export const createCmsFriendLinkGroupSchema = z.object({
+  siteId: z.number().int().positive(),
+  name: z.string().min(1, '分组名称不能为空').max(100),
+  code: z.string().min(1, '分组标识不能为空').max(50).regex(cmsSlugRegex, '标识仅支持小写字母、数字、中划线'),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
+  sort: z.number().int().default(0),
+  remark: z.string().max(500).nullable().optional(),
+});
+export const updateCmsFriendLinkGroupSchema = createCmsFriendLinkGroupSchema.partial().omit({ siteId: true });
+
 export const createCmsFriendLinkSchema = z.object({
   siteId: z.number().int().positive(),
+  groupId: z.number().int().positive().nullable().optional(),
   name: z.string().min(1, '链接名称不能为空').max(100),
   url: z.string().min(1, '链接地址不能为空').max(500),
   logo: z.string().max(500).nullable().optional(),
@@ -5407,6 +5432,8 @@ export type CreateCmsTagInput = z.input<typeof createCmsTagSchema>;
 export type UpdateCmsTagInput = z.input<typeof updateCmsTagSchema>;
 export type CreateCmsFragmentInput = z.input<typeof createCmsFragmentSchema>;
 export type UpdateCmsFragmentInput = z.input<typeof updateCmsFragmentSchema>;
+export type CreateCmsFriendLinkGroupInput = z.input<typeof createCmsFriendLinkGroupSchema>;
+export type UpdateCmsFriendLinkGroupInput = z.input<typeof updateCmsFriendLinkGroupSchema>;
 export type CreateCmsFriendLinkInput = z.input<typeof createCmsFriendLinkSchema>;
 export type UpdateCmsFriendLinkInput = z.input<typeof updateCmsFriendLinkSchema>;
 

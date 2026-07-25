@@ -1,7 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   PaginatedResponse, CmsSite, CmsModel, CmsChannel, CmsContent, CmsTag, CmsFragment,
-  CmsFriendLink, CmsSearchResult, CmsContentStatus, CmsFragmentType, AsyncTask,
+  CmsFriendLink, CmsFriendLinkGroup, CmsSearchResult, CmsContentStatus, CmsFragmentType, AsyncTask,
   CmsContentVersion, CmsRedirect, CmsLinkWord, CmsComment, CmsCommentStatus,
   CmsAdSlot, CmsAd, CmsAdEvent, CmsAdEventStats, CmsForm, CmsFormSubmission, CmsSensitiveWord, CmsPushLog,
   CmsSearchWord, CmsHotKeyword, CmsCollectRule, CmsCollectItem, CmsPage,
@@ -524,6 +524,8 @@ export interface CmsFriendLinkListParams {
   siteId: number;
   keyword?: string;
   status?: string;
+  /** 0 = 仅未分组 */
+  groupId?: number;
 }
 
 export const cmsFriendLinkKeys = {
@@ -531,7 +533,57 @@ export const cmsFriendLinkKeys = {
   lists: ['cms-friend-links', 'list'] as const,
   list: (params: CmsFriendLinkListParams) => ['cms-friend-links', 'list', params] as const,
   detail: (id: number | undefined) => ['cms-friend-links', 'detail', id] as const,
+  groups: ['cms-friend-links', 'groups'] as const,
+  groupList: (params: CmsFriendLinkGroupListParams) => ['cms-friend-links', 'groups', 'list', params] as const,
+  groupAll: (siteId: number | undefined) => ['cms-friend-links', 'groups', 'all', siteId] as const,
 };
+
+export interface CmsFriendLinkGroupListParams {
+  page: number;
+  pageSize: number;
+  siteId: number;
+  keyword?: string;
+  status?: 'enabled' | 'disabled';
+}
+
+export function useCmsFriendLinkGroupList(params: CmsFriendLinkGroupListParams, enabled = true) {
+  return useQuery({
+    queryKey: cmsFriendLinkKeys.groupList(params),
+    queryFn: () => request.get<PaginatedResponse<CmsFriendLinkGroup>>(`/api/cms/friend-links/groups${toQueryString(params)}`).then(unwrap),
+    placeholderData: keepPreviousData,
+    enabled,
+  });
+}
+
+/** 站点全部启用分组（友链表单下拉 / 列表筛选） */
+export function useAllCmsFriendLinkGroups(siteId: number | undefined, enabled = true) {
+  return useQuery({
+    queryKey: cmsFriendLinkKeys.groupAll(siteId),
+    queryFn: () => request.get<CmsFriendLinkGroup[]>(`/api/cms/friend-links/groups/all?siteId=${siteId}`).then(unwrap),
+    enabled: enabled && siteId !== undefined,
+    staleTime: LOOKUP_STALE_TIME,
+  });
+}
+
+export function useSaveCmsFriendLinkGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
+      (id === undefined
+        ? request.post<CmsFriendLinkGroup>('/api/cms/friend-links/groups', values)
+        : request.put<CmsFriendLinkGroup>(`/api/cms/friend-links/groups/${id}`, values)
+      ).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: cmsFriendLinkKeys.all }),
+  });
+}
+
+export function useDeleteCmsFriendLinkGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => request.delete(`/api/cms/friend-links/groups/${id}`).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: cmsFriendLinkKeys.all }),
+  });
+}
 
 export function useCmsFriendLinkList(params: CmsFriendLinkListParams, enabled = true) {
   return useQuery({

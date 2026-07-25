@@ -5,6 +5,7 @@ import {
   cmsSites,
   cmsChannels,
   cmsDistributionRules,
+  cmsModels,
   cmsSiteInheritances,
   cmsSiteUsers,
   users,
@@ -200,6 +201,7 @@ interface CmsSiteMapMeta {
   inheritance?: CmsSiteInheritanceFlags;
   effectiveTheme?: string;
   effectiveStaticMode?: CmsSiteRow['staticMode'];
+  modelName?: string | null;
 }
 
 export function mapCmsSite(row: CmsSiteRow, meta: CmsSiteMapMeta = {}) {
@@ -228,6 +230,9 @@ export function mapCmsSite(row: CmsSiteRow, meta: CmsSiteMapMeta = {}) {
     staticMode: row.staticMode,
     effectiveStaticMode: meta.effectiveStaticMode,
     robots: row.robots ?? null,
+    modelId: row.modelId ?? null,
+    modelName: meta.modelName,
+    extend: row.extend ?? {},
     settings: redactCmsSiteSettings(row.settings),
     status: row.status,
     sort: row.sort,
@@ -289,7 +294,10 @@ export async function getCmsSite(id: number) {
     visible,
   );
   if (!mapped) throw new HTTPException(404, { message: '站点不存在' });
-  return mapped;
+  if (!mapped.modelId) return mapped;
+  const [model] = await db.select({ name: cmsModels.name }).from(cmsModels)
+    .where(eq(cmsModels.id, mapped.modelId)).limit(1);
+  return { ...mapped, modelName: model?.name ?? null };
 }
 
 // ─── 列表 ─────────────────────────────────────────────────────────────────────
@@ -515,6 +523,7 @@ export async function createCmsSite(data: CreateCmsSiteInput) {
     ? { ...DEFAULT_CMS_SITE_INHERITANCE }
     : { ...DEFAULT_CMS_SITE_INHERITANCE, ...requestedInheritance };
   const settings = normalizeNewCmsSiteSettings(data.settings as Record<string, unknown> | undefined);
+  await ensureSiteModelValid(siteData.modelId);
   if (!isThemeRegistered(siteData.theme ?? 'default')) {
     throw new HTTPException(400, { message: `主题「${siteData.theme ?? 'default'}」不存在，仅支持内置主题` });
   }
@@ -574,6 +583,14 @@ export async function createCmsSite(data: CreateCmsSiteInput) {
 
 // ─── 更新 ─────────────────────────────────────────────────────────────────────
 
+/** 校验站点扩展模型有效性（与栏目 ensureModelValid 同口径） */
+async function ensureSiteModelValid(modelId: number | null | undefined) {
+  if (!modelId) return;
+  const [row] = await db.select({ id: cmsModels.id }).from(cmsModels)
+    .where(eq(cmsModels.id, modelId)).limit(1);
+  if (!row) throw new HTTPException(400, { message: `指定的内容模型（id=${modelId}）不存在` });
+}
+
 /**
  * 保存前自愈：摘掉本次未改动、但在当前主题下已失效的默认模板引用。
  * 主题移除模板变体后留下的死配置，否则会卡住该站点全部 settings 写入。
@@ -592,6 +609,7 @@ function pruneStaleCmsTemplateDefaults(
 export async function updateCmsSite(id: number, data: UpdateCmsSiteInput) {
   await assertSiteAccess(id);
   const current = await ensureCmsSiteExists(id);
+  await ensureSiteModelValid(data.modelId);
   if (data.status === 'disabled' && current.status !== 'disabled') {
     await assertNoEnabledDistributionRules(db, id);
   }
@@ -699,6 +717,10 @@ export async function updateCmsSite(id: number, data: UpdateCmsSiteInput) {
         sort: data.sort,
         remark: data.remark,
       };
+      if (data.modelId !== undefined) patch.modelId = data.modelId;
+      // extend 与 modelId 解耦写入：解绑模型时同步清空扩展值，避免残留异构字段
+      if (data.extend !== undefined) patch.extend = data.extend;
+      else if (data.modelId === null) patch.extend = {};
       // 主题切换：仅内置主题；变更时 bump themeRevision 供发布 fence 判定
       if (data.theme !== undefined && data.theme !== locked.theme) {
         if (!isThemeRegistered(data.theme)) {

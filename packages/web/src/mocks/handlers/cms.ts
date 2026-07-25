@@ -3,9 +3,9 @@ import type { CmsChannel, CmsContent, CmsContentStatus, CmsForm, CmsModelField, 
 import { CMS_SEARCH_DICTIONARY_WORD_PATTERN, CMS_SECRET_MASK, SEED_CMS_EDITOR_USER, parseCmsLink } from '@zenith/shared';
 import {
   mockCmsSites, mockCmsModels, mockCmsChannels, mockCmsContents, mockCmsTags,
-  mockCmsFragments, mockCmsFriendLinks, buildMockChannelTree,
+  mockCmsFragments, mockCmsFriendLinks, mockCmsFriendLinkGroups, buildMockChannelTree,
   getNextCmsSiteId, getNextCmsModelId, getNextCmsModelFieldId, getNextCmsChannelId,
-  getNextCmsContentId, getNextCmsTagId, getNextCmsFragmentId, getNextCmsFriendLinkId,
+  getNextCmsContentId, getNextCmsTagId, getNextCmsFragmentId, getNextCmsFriendLinkId, getNextCmsFriendLinkGroupId,
   mockCmsAdSlots, mockCmsAds, mockCmsForms, mockCmsFormSubmissions, mockCmsSensitiveWords,
   mockCmsErrorProneWords, mockCmsContentOpLogs, mockCmsLinkWords, mockCmsComments, mockCmsRedirects, mockCmsPushLogs, mockCmsContentVersions,
   getNextCmsAdSlotId, getNextCmsAdId, getNextCmsFormId, getNextCmsSensitiveWordId,
@@ -186,6 +186,8 @@ export const cmsHandlers = [
       templateRefsRevision: 0,
       staticMode: (body.staticMode as 'dynamic' | 'hybrid' | 'static') ?? 'hybrid',
       robots: (body.robots as string) ?? null,
+      modelId: (body.modelId as number) ?? null,
+      extend: (body.extend as Record<string, unknown>) ?? {},
       settings: mergeMockSiteSettings({}, (body.settings as Record<string, unknown>) ?? {}),
       status: (body.status as 'enabled' | 'disabled') ?? 'enabled',
       sort: Number(body.sort ?? 0),
@@ -322,6 +324,8 @@ export const cmsHandlers = [
       showInList: Boolean(f.showInList),
       placeholder: (f.placeholder as string) ?? null,
       defaultValue: null,
+      optionSource: (f.optionSource as 'manual' | 'dict') ?? 'manual',
+      dictCode: (f.dictCode as string) ?? null,
       options: (f.options as { label: string; value: string }[]) ?? null,
       sort: i,
       createdAt: now,
@@ -361,7 +365,9 @@ export const cmsHandlers = [
         showInList: Boolean(f.showInList),
         placeholder: (f.placeholder as string) ?? null,
         defaultValue: null,
-        options: (f.options as { label: string; value: string }[]) ?? null,
+        optionSource: (f.optionSource as 'manual' | 'dict') ?? 'manual',
+      dictCode: (f.dictCode as string) ?? null,
+      options: (f.options as { label: string; value: string }[]) ?? null,
         sort: i,
         createdAt: now,
         updatedAt: now,
@@ -823,20 +829,79 @@ export const cmsHandlers = [
     return okJson(null, '删除成功');
   }),
 
+  // ═══ 友情链接分组 ═══════════════════════════════════════════════════════
+  // 注册顺序必须早于 /friend-links/:id，否则 groups 会被当成 id 命中
+  http.get('/api/cms/friend-links/groups', ({ request }) => {
+    const { url, page, pageSize, keyword } = pageParams(request);
+    const siteId = Number(url.searchParams.get('siteId'));
+    let list = mockCmsFriendLinkGroups.filter((g) => g.siteId === siteId);
+    if (keyword) list = list.filter((g) => g.name.includes(keyword) || g.code.includes(keyword));
+    const withCount = list.map((g) => ({ ...g, linkCount: mockCmsFriendLinks.filter((l) => l.groupId === g.id).length }));
+    return okJson(paginate(withCount, page, pageSize));
+  }),
+  http.get('/api/cms/friend-links/groups/all', ({ request }) => {
+    const siteId = Number(new URL(request.url).searchParams.get('siteId'));
+    return okJson(mockCmsFriendLinkGroups.filter((g) => g.siteId === siteId && g.status === 'enabled'));
+  }),
+  http.post('/api/cms/friend-links/groups', async ({ request }) => {
+    const body = (await request.json()) as Body;
+    const now = mockDateTime();
+    const group = {
+      id: getNextCmsFriendLinkGroupId(),
+      siteId: Number(body.siteId),
+      name: String(body.name ?? ''),
+      code: String(body.code ?? ''),
+      status: (body.status as 'enabled' | 'disabled') ?? 'enabled',
+      sort: Number(body.sort ?? 0),
+      remark: (body.remark as string) ?? null,
+      linkCount: 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+    mockCmsFriendLinkGroups.push(group);
+    return okJson(group, '创建成功');
+  }),
+  http.put('/api/cms/friend-links/groups/:id', async ({ params, request }) => {
+    const idx = mockCmsFriendLinkGroups.findIndex((g) => g.id === Number(params.id));
+    if (idx === -1) return notFound('友链分组不存在');
+    Object.assign(mockCmsFriendLinkGroups[idx], await request.json(), { updatedAt: mockDateTime() });
+    const group = mockCmsFriendLinkGroups[idx];
+    for (const link of mockCmsFriendLinks) if (link.groupId === group.id) link.groupName = group.name;
+    return okJson(group, '更新成功');
+  }),
+  http.delete('/api/cms/friend-links/groups/:id', ({ params }) => {
+    const id = Number(params.id);
+    const idx = mockCmsFriendLinkGroups.findIndex((g) => g.id === id);
+    if (idx === -1) return notFound('友链分组不存在');
+    mockCmsFriendLinkGroups.splice(idx, 1);
+    for (const link of mockCmsFriendLinks) {
+      if (link.groupId === id) { link.groupId = null; link.groupName = null; }
+    }
+    return okJson(null, '删除成功');
+  }),
+
   // ═══ 友情链接 ═══════════════════════════════════════════════════════════
   http.get('/api/cms/friend-links', ({ request }) => {
     const { url, page, pageSize, keyword } = pageParams(request);
     const siteId = Number(url.searchParams.get('siteId'));
+    const groupIdParam = url.searchParams.get('groupId');
     let list = mockCmsFriendLinks.filter((l) => l.siteId === siteId);
     if (keyword) list = list.filter((l) => l.name.includes(keyword));
+    if (groupIdParam != null && groupIdParam !== '') {
+      const groupId = Number(groupIdParam);
+      list = list.filter((l) => (groupId === 0 ? l.groupId == null : l.groupId === groupId));
+    }
     return okJson(paginate(list, page, pageSize));
   }),
   http.post('/api/cms/friend-links', async ({ request }) => {
     const body = (await request.json()) as Body;
     const now = mockDateTime();
+    const groupId = (body.groupId as number) ?? null;
     const link = {
       id: getNextCmsFriendLinkId(),
       siteId: Number(body.siteId),
+      groupId,
+      groupName: mockCmsFriendLinkGroups.find((g) => g.id === groupId)?.name ?? null,
       name: String(body.name ?? ''),
       url: String(body.url ?? ''),
       logo: (body.logo as string) ?? null,
@@ -853,7 +918,9 @@ export const cmsHandlers = [
     const idx = mockCmsFriendLinks.findIndex((l) => l.id === Number(params.id));
     if (idx === -1) return notFound('友情链接不存在');
     Object.assign(mockCmsFriendLinks[idx], await request.json(), { updatedAt: mockDateTime() });
-    return okJson(mockCmsFriendLinks[idx], '更新成功');
+    const link = mockCmsFriendLinks[idx];
+    link.groupName = mockCmsFriendLinkGroups.find((g) => g.id === link.groupId)?.name ?? null;
+    return okJson(link, '更新成功');
   }),
   http.delete('/api/cms/friend-links/:id', ({ params }) => {
     const idx = mockCmsFriendLinks.findIndex((l) => l.id === Number(params.id));
@@ -1425,7 +1492,9 @@ export const cmsP2Handlers = [
         label: String(f.label ?? ''),
         fieldType: String(f.fieldType ?? 'text') as CmsForm['fields'][number]['fieldType'],
         required: Boolean(f.required),
-        options: (f.options as { label: string; value: string }[]) ?? null,
+        optionSource: (f.optionSource as 'manual' | 'dict') ?? 'manual',
+      dictCode: (f.dictCode as string) ?? null,
+      options: (f.options as { label: string; value: string }[]) ?? null,
         minLength: (f.minLength as number | null) ?? null,
         maxLength: (f.maxLength as number | null) ?? null,
         pattern: (f.pattern as string | null) ?? null,

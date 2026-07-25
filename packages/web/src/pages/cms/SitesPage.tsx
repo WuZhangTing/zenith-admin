@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Banner, Button, Form, Input, InputNumber, Select, Switch, Tag, TextArea, Toast, Modal, Row, Col, SideSheet, Tabs, TabPane, Upload } from '@douyinfe/semi-ui';
+import { Banner, Button, Form, Input, InputNumber, Select, Switch, Tag, TextArea, Toast, Modal, Row, Col, SideSheet, Tabs, TabPane, Typography, Upload } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, RotateCcw, Plus, Upload as UploadIcon, ImageUp, Zap, ExternalLink, ChevronsDownUp, ChevronsUpDown, ListTree, List as ListIcon } from 'lucide-react';
@@ -34,7 +34,7 @@ import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 import { useWorkflowDefinitionList } from '@/hooks/queries/workflow-definitions';
 import { CMS_SITE_INHERITABLE_FIELD_LABELS, CMS_SITE_INHERITABLE_FIELDS, CMS_SITE_OPS_DEFAULTS, CMS_STATIC_MODE_LABELS, CMS_STATIC_MODES, CMS_DEFAULT_CHANNEL_CODE, CMS_TWITTER_CARDS, CMS_TWITTER_CARD_LABELS } from '@zenith/shared';
-import type { AsyncTask, CmsSite, CmsSiteInheritanceFlags, CmsSiteInheritableField, CmsSiteTemplateDefaults, CmsInvalidTemplateRef, CmsThemeSettingField } from '@zenith/shared';
+import type { AsyncTask, CmsModelField, CmsSite, CmsSiteInheritanceFlags, CmsSiteInheritableField, CmsSiteTemplateDefaults, CmsInvalidTemplateRef, CmsThemeSettingField } from '@zenith/shared';
 import { cmsPreviewUrl } from './CmsSiteSelect';
 import { cmsCredentialWriteValue } from './cms-site-credentials';
 
@@ -171,6 +171,40 @@ function parseLangLinks(text: string): { language: string; siteCode: string }[] 
     .filter((x): x is { language: string; siteCode: string } => !!x);
 }
 
+/** 站点扩展模型字段控件（值写入 extend.{name}，与内容编辑页保持一致的渲染规则） */
+function SiteModelFieldControl({ field }: Readonly<{ field: CmsModelField }>) {
+  const f = `extend.${field.name}`;
+  const rules = field.required ? [{ required: true, message: `请填写${field.label}` }] : undefined;
+  const common = { field: f, label: field.label, labelWidth: 140, rules, placeholder: field.placeholder ?? undefined };
+  // 字典来源的选项由服务端解析进 resolvedOptions，前端不重复判断来源
+  const options = field.resolvedOptions ?? field.options ?? [];
+  switch (field.fieldType) {
+    case 'textarea':
+    case 'richtext':
+      return <Form.TextArea {...common} rows={3} />;
+    case 'number':
+      return <Form.InputNumber {...common} style={{ width: '100%' }} />;
+    case 'date':
+      return <Form.DatePicker {...common} type="date" density="compact" style={{ width: '100%' }} />;
+    case 'datetime':
+      return <Form.DatePicker {...common} type="dateTime" density="compact" style={{ width: '100%' }} />;
+    case 'select':
+      return <Form.Select {...common} style={{ width: '100%' }} optionList={options} showClear />;
+    case 'radio':
+      return (
+        <Form.RadioGroup {...common}>
+          {options.map((o) => <Form.Radio key={o.value} value={o.value}>{o.label}</Form.Radio>)}
+        </Form.RadioGroup>
+      );
+    case 'checkbox':
+      return <Form.CheckboxGroup {...common} options={options} direction="horizontal" />;
+    case 'switch':
+      return <Form.Switch {...common} />;
+    default:
+      return <Form.Input {...common} />;
+  }
+}
+
 /** settings 中的内容策略 → 表单初值（缺项回落 CMS_SITE_OPS_DEFAULTS，与服务端解析规则一致） */
 function resolveSiteOpsFormValues(settings: Record<string, unknown> | null | undefined): Record<string, unknown> {
   const s = settings ?? {};
@@ -298,6 +332,10 @@ export default function SitesPage() {
   const { data: themeTemplates } = useCmsThemeTemplates(modalVisible ? selectedTheme : undefined, editingRecord?.id);
   const { data: themeSettingsSchema } = useCmsThemeSettingsSchema(modalVisible ? selectedTheme : undefined);
   const { data: allModels } = useAllCmsModels();
+  // 站点扩展模型：跟随表单里实时选中的模型（Form 值不具备响应性，用 state 镜像）
+  const [selectedModelId, setSelectedModelId] = useState<number | undefined>(undefined);
+  const siteModel = (allModels ?? []).find((m) => m.id === selectedModelId);
+  const siteModelFields = siteModel?.fields ?? [];
   // 站点发布通道（模板页签动态渲染；新建站点回退虚拟 PC 默认通道）
   const { data: sitePublishChannels } = useCmsPublishChannels(editingRecord?.id, modalVisible);
   // 模板健康检查：按当前选中主题扫描栏目/内容级失效引用（切主题即预检）
@@ -450,6 +488,7 @@ export default function SitesPage() {
     setEditingRecord(null);
     setActiveTab('basic');
     setSelectedTheme('default');
+    setSelectedModelId(undefined);
     setTemplateDefaults({});
     setThemeConfig({});
     setModalVisible(true);
@@ -459,6 +498,7 @@ export default function SitesPage() {
     setEditingRecord(record);
     setActiveTab('basic');
     setSelectedTheme(record.effectiveTheme ?? record.theme);
+    setSelectedModelId(record.modelId ?? undefined);
     setTemplateDefaults(templateDefaultsFromSettings(record.settings));
     setThemeConfig({ ...((record.settings as Record<string, unknown>)?.themeConfig as Record<string, unknown> ?? {}) });
     setModalVisible(true);
@@ -513,6 +553,8 @@ export default function SitesPage() {
         language: String((editingRecord.settings as Record<string, unknown>)?.language ?? ''),
         langLinksText: langLinksToText((editingRecord.settings as Record<string, unknown>)?.langLinks),
         ...resolveSiteOpsFormValues(editingRecord.settings as Record<string, unknown>),
+        modelId: editingRecord.modelId ?? undefined,
+        extend: editingRecord.extend ?? {},
       }
     : {
         parentId: null, theme: 'default', staticMode: 'hybrid', status: 'enabled', isDefault: false, aliasDomains: [],
@@ -1191,6 +1233,36 @@ export default function SitesPage() {
                   <Form.TextArea field="langLinksText" label="关联站点" labelWidth={140} rows={3}
                     placeholder={'每行一条：语言代码=站点标识\n如 en-US=en-site'} />
                 </Form.Section>
+              </div>
+            </TabPane>
+            <TabPane tab="扩展模型" itemKey="extendModel">
+              <div style={{ paddingTop: 16 }}>
+                <Form.Section text="站点扩展模型">
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Select field="modelId" label="绑定模型" labelWidth={140} showClear style={{ width: '100%' }}
+                        placeholder="不绑定"
+                        onChange={(value) => setSelectedModelId(value == null ? undefined : Number(value))}
+                        optionList={(allModels ?? []).map((m) => ({ value: m.id, label: `${m.name}（${m.code}）` }))}
+                        extraText="绑定后可为站点维护自定义字段，主题通过 site.extend.{字段标识} 读取" />
+                    </Col>
+                  </Row>
+                </Form.Section>
+                {siteModelFields.length > 0 ? (
+                  <Form.Section text={`扩展字段（${siteModel?.name}）`}>
+                    <Row gutter={16}>
+                      {siteModelFields.map((f) => (
+                        <Col key={f.name} span={f.fieldType === 'textarea' || f.fieldType === 'richtext' ? 24 : 12}>
+                          <SiteModelFieldControl field={f} />
+                        </Col>
+                      ))}
+                    </Row>
+                  </Form.Section>
+                ) : (
+                  <Typography.Text type="tertiary">
+                    {siteModel ? '该模型未配置扩展字段，请先到「内容模型」中添加。' : '选择模型后在此维护站点自定义字段。'}
+                  </Typography.Text>
+                )}
               </div>
             </TabPane>
             <TabPane tab="内容策略" itemKey="contentPolicy">

@@ -137,7 +137,22 @@
 
 ### 内容模型（自定义字段）
 
-模型定义字段元数据（12 种类型：text/textarea/richtext/number/date/datetime/image/file/select/radio/checkbox/switch），值存入 `cms_contents.extend` JSONB。字段可配置必填、纳入检索（searchable）、列表显示。栏目绑定模型后，该栏目下内容编辑页动态渲染模型字段。
+模型定义字段元数据（12 种类型：text/textarea/richtext/number/date/datetime/image/file/select/radio/checkbox/switch），值存入 `extend` JSONB。字段可配置必填、纳入检索（searchable）、列表显示。
+
+模型可绑定到**三级**对象，均通过各自的 `model_id` + `extend` 列承载：
+
+| 绑定级 | 绑定位置 | 值存放 | 用途 |
+|---|---|---|---|
+| 站点 | `cms_sites.model_id` | `cms_sites.extend` | 站点级运营元数据（备案号、客服电话、App 下载地址等），主题上下文通过 `site.extend` 读取 |
+| 栏目 | `cms_channels.model_id` | 栏目下内容的 `extend` | 决定该栏目下内容编辑页动态渲染哪些扩展字段 |
+| 内容 | `cms_contents.model_id` | `cms_contents.extend` | 由所属栏目继承，换栏目时跟随目标栏目 |
+
+**选项来源**：`select` / `radio` / `checkbox` 三类字段的选项支持两种来源：
+
+- **手动设置**（默认）：在模型字段编辑区直接维护 `{label, value}[]`
+- **系统字典**：只填字典编码（如 `content_status`），选项在读取模型时实时解析自 `dict_items`（仅取启用项，按 sort 排序）。字典维护一处，所有引用它的模型字段自动同步，无需逐个模型改选项
+
+解析结果通过 `resolvedOptions` 返回给前端，内容编辑页与站点扩展字段区统一按它渲染；`options` 保留手动来源的原始值。字典编码不存在时 `resolvedOptions` 为空数组，不影响其他字段渲染。
 
 ### 一文多栏目
 

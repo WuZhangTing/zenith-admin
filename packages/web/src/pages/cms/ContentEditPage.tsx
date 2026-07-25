@@ -83,6 +83,14 @@ function MediaFieldControl({ field }: Readonly<{ field: CmsModelField }>) {
   );
 }
 
+/**
+ * 字段可选项：优先用服务端解析后的 resolvedOptions（字典来源已展开），
+ * 回落 options 兼容尚未返回 resolvedOptions 的旧接口响应。
+ */
+function fieldOptions(field: CmsModelField): { label: string; value: string }[] {
+  return field.resolvedOptions ?? field.options ?? [];
+}
+
 /** 按模型字段元数据渲染动态表单控件（值写入 extend.{name}） */
 function ModelFieldControl({ field }: Readonly<{ field: CmsModelField }>) {
   const f = `extend.${field.name}`;
@@ -100,15 +108,15 @@ function ModelFieldControl({ field }: Readonly<{ field: CmsModelField }>) {
     case 'datetime':
       return <Form.DatePicker {...common} type="dateTime" density="compact" style={{ width: '100%' }} />;
     case 'select':
-      return <Form.Select {...common} style={{ width: '100%' }} optionList={field.options ?? []} showClear />;
+      return <Form.Select {...common} style={{ width: '100%' }} optionList={fieldOptions(field)} showClear />;
     case 'radio':
       return (
         <Form.RadioGroup {...common}>
-          {(field.options ?? []).map((o) => <Form.Radio key={o.value} value={o.value}>{o.label}</Form.Radio>)}
+          {fieldOptions(field).map((o) => <Form.Radio key={o.value} value={o.value}>{o.label}</Form.Radio>)}
         </Form.RadioGroup>
       );
     case 'checkbox':
-      return <Form.CheckboxGroup {...common} options={field.options ?? []} direction="horizontal" />;
+      return <Form.CheckboxGroup {...common} options={fieldOptions(field)} direction="horizontal" />;
     case 'switch':
       return <Form.Switch {...common} />;
     case 'image':

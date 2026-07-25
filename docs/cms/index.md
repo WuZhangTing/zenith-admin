@@ -36,10 +36,10 @@ graph LR
 | 站点管理 | `/cms/sites` | 父子站群、显式继承、域名路由、主题、审核模式、Webhook | [站群与分发](./site-groups-and-distribution) |
 | 栏目管理 | `/cms/channels` | 左侧栏目树 + 右侧编辑区，树形栏目（列表/单页/外链），栏目标识 code + 级联 path | [内容管线](./content-pipeline) |
 | 内容管理 | `/cms/contents` | 5 态状态机、多形态内容（图文/图集/音视频/外链）、批量操作、导入导出、回收站 | [内容管线](./content-pipeline) |
-| 内容模型 | `/cms/models` | 12 种自定义字段类型（EAV via JSONB） | [内容管线](./content-pipeline) |
+| 内容模型 | `/cms/models` | 12 种自定义字段类型（EAV via JSONB），选项可绑系统字典，支持站点/栏目/内容三级绑定 | [内容管线](./content-pipeline) |
 | 标签管理 | `/cms/tags` | 站点级标签 + 前台聚合页 | [内容管线](./content-pipeline) |
 | 碎片管理 | `/cms/fragments` | 模板可引用的后台可编辑区块 | [互动与运营](./interaction) |
-| 友情链接 | `/cms/friend-links` | 前台页脚友链 | [互动与运营](./interaction) |
+| 友情链接 | `/cms/friend-links` | 前台页脚友链，支持分组管理与按组渲染 | [互动与运营](./interaction) |
 | 素材中心 | `/cms/resources` | 文件夹树、完整引用扫描、孤立素材治理任务与报告导出 | [内容管线](./content-pipeline) |
 | 站点静态化 | `/cms/sites` | 站点管理操作中提交全站静态化任务 | [渲染与静态化](./static-and-render) |
 | 检索管理 | `/cms/search` | 分词测试、词典、热词、死链检测 | [全文检索](./search) |

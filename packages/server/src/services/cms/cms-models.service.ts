@@ -1,7 +1,7 @@
 import { eq, asc, and, or, like, inArray, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { cmsModels, cmsModelFields, cmsChannels, cmsContents } from '../../db/schema';
+import { cmsModels, cmsModelFields, cmsChannels, cmsContents, dicts, dictItems } from '../../db/schema';
 import type { CmsModelRow, CmsModelFieldRow } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
 import { formatDateTime } from '../../lib/datetime';
@@ -10,7 +10,56 @@ import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import type { CreateCmsModelInput, UpdateCmsModelInput, CmsModelFieldInput } from '@zenith/shared';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
-export function mapCmsModelField(row: CmsModelFieldRow) {
+
+/**
+ * 批量解析字段的最终选项。
+ *
+ * 字典来源的字段在这里一次性查回所有引用到的字典项（按 dictCode 分组），
+ * 避免逐字段查询造成 N+1；解析结果统一放进 `resolvedOptions`，
+ * 前端表单只消费该字段，不必各自判断来源。
+ */
+export async function resolveCmsModelFieldOptions(
+  rows: readonly CmsModelFieldRow[],
+): Promise<Map<number, { label: string; value: string }[]>> {
+  const resolved = new Map<number, { label: string; value: string }[]>();
+  const dictCodes = [...new Set(rows
+    .filter((r) => r.optionSource === 'dict' && r.dictCode?.trim())
+    .map((r) => r.dictCode!.trim()))];
+
+  const byCode = new Map<string, { label: string; value: string }[]>();
+  if (dictCodes.length > 0) {
+    const items = await db.select({
+      code: dicts.code,
+      label: dictItems.label,
+      value: dictItems.value,
+      sort: dictItems.sort,
+      id: dictItems.id,
+    })
+      .from(dictItems)
+      .innerJoin(dicts, eq(dictItems.dictId, dicts.id))
+      .where(and(
+        inArray(dicts.code, dictCodes),
+        eq(dicts.status, 'enabled'),
+        eq(dictItems.status, 'enabled'),
+      ))
+      .orderBy(asc(dictItems.sort), asc(dictItems.id));
+    for (const item of items) {
+      const list = byCode.get(item.code) ?? [];
+      list.push({ label: item.label, value: item.value });
+      byCode.set(item.code, list);
+    }
+  }
+
+  for (const row of rows) {
+    resolved.set(row.id, row.optionSource === 'dict'
+      // 字典被删/停用时给空数组而不是回落手工选项：静默回落会让运营以为配置仍生效
+      ? (byCode.get(row.dictCode?.trim() ?? '') ?? [])
+      : (row.options ?? []));
+  }
+  return resolved;
+}
+
+export function mapCmsModelField(row: CmsModelFieldRow, resolvedOptions?: { label: string; value: string }[]) {
   return {
     id: row.id,
     modelId: row.modelId,
@@ -22,11 +71,20 @@ export function mapCmsModelField(row: CmsModelFieldRow) {
     showInList: row.showInList,
     placeholder: row.placeholder ?? null,
     defaultValue: row.defaultValue ?? null,
+    optionSource: row.optionSource,
+    dictCode: row.dictCode ?? null,
     options: row.options ?? null,
+    ...(resolvedOptions ? { resolvedOptions } : {}),
     sort: row.sort,
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
   };
+}
+
+/** 带选项解析的字段映射（前端动态表单入口统一走这里） */
+export async function mapCmsModelFieldsResolved(rows: readonly CmsModelFieldRow[]) {
+  const resolved = await resolveCmsModelFieldOptions(rows);
+  return rows.map((row) => mapCmsModelField(row, resolved.get(row.id) ?? []));
 }
 
 export function mapCmsModel(row: CmsModelRow, fields?: CmsModelFieldRow[]) {
@@ -38,7 +96,7 @@ export function mapCmsModel(row: CmsModelRow, fields?: CmsModelFieldRow[]) {
     isSystem: row.isSystem,
     status: row.status,
     sort: row.sort,
-    ...(fields ? { fields: fields.map(mapCmsModelField) } : {}),
+    ...(fields ? { fields: fields.map((field) => mapCmsModelField(field)) } : {}),
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
   };
@@ -57,7 +115,7 @@ export async function getCmsModel(id: number) {
     with: { fields: { orderBy: [asc(cmsModelFields.sort), asc(cmsModelFields.id)] } },
   });
   if (!row) throw new HTTPException(404, { message: '内容模型不存在' });
-  return mapCmsModel(row, row.fields);
+  return { ...mapCmsModel(row), fields: await mapCmsModelFieldsResolved(row.fields) };
 }
 
 /** 获取模型的字段定义（内容编辑动态表单/检索索引用） */
@@ -111,11 +169,24 @@ export async function listCmsModels(q: ListCmsModelsQuery) {
 }
 
 /** 全部启用模型（栏目绑定下拉用） */
+/**
+ * 全部启用模型（含字段与解析后的选项）。
+ *
+ * 内容编辑页的模型字段动态表单直接消费本接口的 `fields`，因此必须带字段；
+ * 选项在此一次性解析（字典来源查库展开），前端无需二次请求。
+ */
 export async function listAllCmsModels() {
-  const rows = await db.select().from(cmsModels)
-    .where(eq(cmsModels.status, 'enabled'))
-    .orderBy(asc(cmsModels.sort), asc(cmsModels.id));
-  return rows.map((r) => mapCmsModel(r));
+  const rows = await db.query.cmsModels.findMany({
+    where: eq(cmsModels.status, 'enabled'),
+    orderBy: [asc(cmsModels.sort), asc(cmsModels.id)],
+    with: { fields: { orderBy: [asc(cmsModelFields.sort), asc(cmsModelFields.id)] } },
+  });
+  const allFields = rows.flatMap((row) => row.fields);
+  const resolved = await resolveCmsModelFieldOptions(allFields);
+  return rows.map((row) => ({
+    ...mapCmsModel(row),
+    fields: row.fields.map((field) => mapCmsModelField(field, resolved.get(field.id) ?? [])),
+  }));
 }
 
 /** 先删后插，原子性替换模型字段（保留 id 不变的字段做 update，避免外部引用失效） */
@@ -136,6 +207,9 @@ async function replaceModelFields(executor: DbExecutor, modelId: number, fields:
       showInList: f.showInList ?? false,
       placeholder: f.placeholder ?? null,
       defaultValue: f.defaultValue ?? null,
+      optionSource: f.optionSource ?? 'manual',
+      // 手动来源时清空 dictCode，避免切换来源后残留脏引用
+      dictCode: f.optionSource === 'dict' ? (f.dictCode ?? null) : null,
       options: f.options ?? null,
       sort: f.sort ?? i,
     })));

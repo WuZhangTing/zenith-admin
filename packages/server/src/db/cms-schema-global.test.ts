@@ -18,9 +18,9 @@ function cmsTables(): { name: string; table: PgTable }[] {
 }
 
 describe('global CMS schema', () => {
-  it('keeps all 50 CMS tables outside tenant ownership', () => {
+  it('keeps all 51 CMS tables outside tenant ownership', () => {
     const tables = cmsTables();
-    expect(tables).toHaveLength(50);
+    expect(tables).toHaveLength(51);
     expect(tables.map((item) => item.name)).not.toEqual(expect.arrayContaining([
       'cms_surveys',
       'cms_survey_questions',

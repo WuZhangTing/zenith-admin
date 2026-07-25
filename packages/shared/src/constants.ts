@@ -1353,6 +1353,16 @@ export const CMS_CHANNEL_DETAIL_PATH_RULE_LABELS: Record<(typeof CMS_CHANNEL_DET
 /** 内容标题样式可选色（空 = 主题默认色） */
 export const CMS_TITLE_STYLE_COLORS = ['#d93026', '#0064fa', '#1f8f3c', '#f5a623', '#8a2be2'] as const;
 
+/** 模型字段选项来源：manual=手工维护，dict=引用系统字典（随字典自动更新） */
+export const CMS_FIELD_OPTION_SOURCES = ['manual', 'dict'] as const;
+export const CMS_FIELD_OPTION_SOURCE_LABELS: Record<(typeof CMS_FIELD_OPTION_SOURCES)[number], string> = {
+  manual: '手工维护',
+  dict: '引用系统字典',
+};
+
+/** 需要选项的字段类型（仅这些类型才展示选项来源配置） */
+export const CMS_FIELD_TYPES_WITH_OPTIONS = ['select', 'radio', 'checkbox'] as const;
+
 /** 站点内容策略（存 cms_sites.settings JSONB，逐项默认值见 CMS_SITE_OPS_DEFAULTS） */
 export const CMS_SITE_OPS_SETTING_KEYS = [
   'publishedContentEditable',

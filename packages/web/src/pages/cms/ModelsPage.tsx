@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, Tag, Toast, Modal, ArrayField, Row, Col } from '@douyinfe/semi-ui';
+import { Button, Form, Input, Tag, Toast, Modal, ArrayField, Row, Col, Typography, useFormApi } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, RotateCcw, Plus, Trash2 } from 'lucide-react';
@@ -12,10 +12,48 @@ import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { useCmsModelList, useCmsModelDetail, useSaveCmsModel, useDeleteCmsModel, cmsModelKeys } from '@/hooks/queries/cms';
-import { CMS_FIELD_TYPES, CMS_FIELD_TYPE_LABELS } from '@zenith/shared';
+import { useDictList } from '@/hooks/queries/dicts';
+import { CMS_FIELD_OPTION_SOURCE_LABELS, CMS_FIELD_OPTION_SOURCES, CMS_FIELD_TYPES, CMS_FIELD_TYPES_WITH_OPTIONS, CMS_FIELD_TYPE_LABELS } from '@zenith/shared';
 import type { CmsModel } from '@zenith/shared';
 
 const FIELD_TYPE_OPTIONS = CMS_FIELD_TYPES.map((t) => ({ value: t, label: CMS_FIELD_TYPE_LABELS[t] }));
+const OPTION_SOURCE_OPTIONS = CMS_FIELD_OPTION_SOURCES.map((s) => ({ value: s, label: CMS_FIELD_OPTION_SOURCE_LABELS[s] }));
+
+/**
+ * 选项来源配置行：仅 select/radio/checkbox 需要，其余类型不渲染避免干扰。
+ * 选「引用系统字典」后由服务端按字典编码解析，字典项变更自动同步，无需回来改模型。
+ */
+function FieldOptionSource({ field }: { field: string }) {
+  const formApi = useFormApi();
+  const fieldType = formApi.getValue(`${field}[fieldType]`) as string | undefined;
+  const optionSource = formApi.getValue(`${field}[optionSource]`) as string | undefined;
+  const dictQuery = useDictList({ page: 1, pageSize: 200 });
+  const dictOptions = (dictQuery.data?.list ?? []).map((d) => ({ value: d.code, label: `${d.name}（${d.code}）` }));
+
+  if (!CMS_FIELD_TYPES_WITH_OPTIONS.includes(fieldType as (typeof CMS_FIELD_TYPES_WITH_OPTIONS)[number])) return null;
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', width: '100%', paddingLeft: 24 }}>
+      <Form.Select field={`${field}[optionSource]`} noLabel initValue="manual" style={{ width: 150 }} optionList={OPTION_SOURCE_OPTIONS} />
+      {optionSource === 'dict' ? (
+        <Form.Select
+          field={`${field}[dictCode]`}
+          noLabel
+          filter
+          showClear
+          style={{ width: 260 }}
+          placeholder="选择字典"
+          loading={dictQuery.isFetching}
+          optionList={dictOptions}
+          rules={[{ required: true, message: '请选择字典' }]}
+        />
+      ) : (
+        <Typography.Text type="tertiary" size="small" style={{ lineHeight: '32px' }}>
+          手工选项在字典管理外维护；如需与系统字典联动请切换为「引用系统字典」
+        </Typography.Text>
+      )}
+    </div>
+  );
+}
 
 export default function ModelsPage() {
   const { hasPermission } = usePermission();
@@ -79,6 +117,9 @@ export default function ModelsPage() {
           searchable: f.searchable,
           showInList: f.showInList,
           placeholder: f.placeholder ?? '',
+          optionSource: f.optionSource ?? 'manual',
+          dictCode: f.dictCode ?? '',
+          options: f.options ?? null,
         })),
       }
     : { status: 'enabled', fields: [] };
@@ -224,7 +265,7 @@ export default function ModelsPage() {
               {({ add, arrayFields }) => (
                 <>
                   {arrayFields.map(({ field, key, remove }) => (
-                    <div key={key} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 4 }}>
+                    <div key={key} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 4, flexWrap: 'wrap' }}>
                       <Form.Input field={`${field}[name]`} noLabel placeholder="字段标识（英文）" style={{ width: 140 }}
                         rules={[{ required: true, message: '必填' }, { pattern: /^[a-z][a-z0-9_]*$/, message: '小写字母开头' }]} />
                       <Form.Input field={`${field}[label]`} noLabel placeholder="字段名称" style={{ width: 120 }}
@@ -235,6 +276,7 @@ export default function ModelsPage() {
                       <Form.Checkbox field={`${field}[searchable]`} noLabel>检索</Form.Checkbox>
                       <Form.Checkbox field={`${field}[showInList]`} noLabel>列表显示</Form.Checkbox>
                       <Button type="danger" theme="borderless" icon={<Trash2 size={14} />} onClick={() => remove()} style={{ marginTop: 4 }} />
+                      <FieldOptionSource field={field} />
                     </div>
                   ))}
                   <Button icon={<Plus size={14} />} onClick={() => add()}>添加字段</Button>

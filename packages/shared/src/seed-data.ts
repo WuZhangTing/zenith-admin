@@ -18,7 +18,7 @@ import type {
   ReportDatasource, ReportDataset, ReportDashboard, ApiScope, RatePlan, ReportPrintTemplate,
   UserFeedback, ReportFolder, ReportMetric, ReportEnvironment, ReportDqRule, ReportQueryQuota,
   ReportSlaRule, ReportAssetTemplate, ReportFillTemplate, AnalyticsEventPropertyDef, AnalyticsSite,
-  CmsSite, CmsPublishChannel, CmsModel, CmsChannel, CmsContent, CmsTag, CmsFragment, CmsFriendLink,
+  CmsSite, CmsPublishChannel, CmsModel, CmsChannel, CmsContent, CmsTag, CmsFragment, CmsFriendLink, CmsFriendLinkGroup,
   CmsAdSlot, CmsAd, CmsAdEvent, CmsForm, CmsSensitiveWord, CmsErrorProneWord, CmsLinkWord, CmsComment,
   CmsInteraction, CmsInteractionQuestion, CmsMemberSubscription, CmsResource, CmsResourceFolder, CmsSearchWord, CmsHotwordGroup,
   CmsContentVersion, CmsCollectRule, CmsCollectItem, CmsPage,
@@ -3189,7 +3189,7 @@ export const SEED_CMS_SITES: CmsSite[] = [
     title: 'Zenith Admin — 企业级全栈管理系统', keywords: 'Zenith,CMS,后台管理,内容管理',
     description: 'Zenith Admin 是基于 Hono + React + PostgreSQL 的企业级全栈管理系统，内置 CMS 内容管理、多站点与全文检索。',
     logo: null, favicon: null, icp: null, copyright: '© 2024 Zenith Admin', theme: 'default',
-    themeRevision: 0, templateRefsRevision: 0, staticMode: 'hybrid', robots: null,
+    themeRevision: 0, templateRefsRevision: 0, staticMode: 'hybrid', robots: null, modelId: null, extend: {},
     settings: {
       auditMode: 'simple',
       webhookUrl: 'https://hooks.example.invalid/cms',
@@ -3214,7 +3214,7 @@ export const SEED_CMS_SITES: CmsSite[] = [
     id: 2, parentId: 1, name: 'Zenith 技术子站', code: 'tech', domain: null, aliasDomains: [], isDefault: false,
     title: 'Zenith 技术中心', keywords: null, description: null,
     logo: null, favicon: null, icp: null, copyright: '© 2024 Zenith Tech', theme: 'default',
-    themeRevision: 0, templateRefsRevision: 0, staticMode: 'dynamic', robots: null,
+    themeRevision: 0, templateRefsRevision: 0, staticMode: 'dynamic', robots: null, modelId: null, extend: {},
     settings: {
       cdnPurgeUrl: 'https://cdn.example.invalid/purge',
       cdnPurgeToken: 'demo-child-token',
@@ -3261,8 +3261,9 @@ export const SEED_CMS_MODELS: (CmsModel & { fields: NonNullable<CmsModel['fields
     id: 2, name: '产品', code: 'product', description: '产品展示模型（含价格/规格自定义字段）', isSystem: true,
     status: 'enabled', sort: 2, createdAt: SEED_DATE, updatedAt: SEED_DATE,
     fields: [
-      { id: 1, modelId: 2, name: 'price', label: '价格', fieldType: 'text', required: false, searchable: false, showInList: true, placeholder: '如：￥9999', defaultValue: null, options: null, sort: 1, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-      { id: 2, modelId: 2, name: 'spec', label: '规格参数', fieldType: 'textarea', required: false, searchable: true, showInList: false, placeholder: null, defaultValue: null, options: null, sort: 2, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+      { id: 1, modelId: 2, name: 'price', label: '价格', fieldType: 'text', required: false, searchable: false, showInList: true, placeholder: '如：￥9999', defaultValue: null, optionSource: 'manual', dictCode: null, options: null, sort: 1, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+      { id: 2, modelId: 2, name: 'spec', label: '规格参数', fieldType: 'textarea', required: false, searchable: true, showInList: false, placeholder: null, defaultValue: null, optionSource: 'manual', dictCode: null, options: null, sort: 2, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+      { id: 3, modelId: 2, name: 'status_tag', label: '售卖状态', fieldType: 'select', required: false, searchable: false, showInList: true, placeholder: null, defaultValue: null, optionSource: 'dict', dictCode: 'common_status', options: null, sort: 3, createdAt: SEED_DATE, updatedAt: SEED_DATE },
     ],
   },
 ];
@@ -3403,9 +3404,15 @@ export const SEED_CMS_FRAGMENTS: CmsFragment[] = [
   { id: 2, siteId: 1, code: 'home-side',   name: '首页侧栏', type: 'html', content: '<p style="font-size:13px;color:#59636e">碎片内容可在后台「碎片管理」中随时修改，无需改代码。</p>', status: 'enabled', remark: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];
 
+export const SEED_CMS_FRIEND_LINK_GROUPS: CmsFriendLinkGroup[] = [
+  { id: 1, siteId: 1, name: '技术栈', code: 'tech', status: 'enabled', sort: 1, remark: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2, siteId: 1, name: '合作伙伴', code: 'partner', status: 'enabled', sort: 2, remark: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+];
+
 export const SEED_CMS_FRIEND_LINKS: CmsFriendLink[] = [
-  { id: 1, siteId: 1, name: 'Hono',       url: 'https://hono.dev',           logo: null, status: 'enabled', sort: 1, remark: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 2, siteId: 1, name: 'PostgreSQL', url: 'https://www.postgresql.org', logo: null, status: 'enabled', sort: 2, remark: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1, siteId: 1, groupId: 1, name: 'Hono',       url: 'https://hono.dev',           logo: null, status: 'enabled', sort: 1, remark: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2, siteId: 1, groupId: 1, name: 'PostgreSQL', url: 'https://www.postgresql.org', logo: null, status: 'enabled', sort: 2, remark: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 3, siteId: 1, groupId: null, name: 'Zenith 文档', url: 'https://example.invalid/docs', logo: null, status: 'enabled', sort: 3, remark: '未分组示例', createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];
 
 // ─── CMS 素材中心（P2 示例素材）──────────────────────────────────────────────────

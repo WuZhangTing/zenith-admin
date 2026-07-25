@@ -10273,6 +10273,9 @@ export type CmsChannelStaticMode = 'inherit' | CmsStaticMode;
 /** 详情页静态产物目录归档策略（栏目路径后追加一级目录；内容 staticPath 优先） */
 export type CmsChannelDetailPathRule = 'none' | 'year' | 'month' | 'date' | 'dateStr' | 'idHash';
 
+/** 模型字段选项来源 */
+export type CmsFieldOptionSource = 'manual' | 'dict';
+
 /** 内容标题样式（列表页 / 详情页标题展示） */
 export interface CmsTitleStyle {
   bold?: boolean;
@@ -10414,6 +10417,12 @@ export interface CmsSite {
   staticMode: CmsStaticMode;
   effectiveStaticMode?: CmsStaticMode;
   robots: string | null;
+  /** 站点级扩展模型（对标 XModel 站点/栏目/内容三级绑定） */
+  modelId: number | null;
+  /** 站点扩展模型名称（JOIN 后附加） */
+  modelName?: string | null;
+  /** 站点扩展模型字段值（key = cms_model_fields.name） */
+  extend: Record<string, unknown>;
   settings: Record<string, unknown>;
   status: 'enabled' | 'disabled';
   sort: number;
@@ -10667,7 +10676,17 @@ export interface CmsModelField {
   showInList: boolean;
   placeholder: string | null;
   defaultValue: string | null;
+  /** 选项来源：manual=下方 options 手工维护；dict=引用 dictCode 指向的系统字典 */
+  optionSource: CmsFieldOptionSource;
+  /** optionSource=dict 时引用的字典编码 */
+  dictCode: string | null;
+  /** 手工维护的原始选项（optionSource=manual 时有效） */
   options: { label: string; value: string }[] | null;
+  /**
+   * 解析后的最终选项：manual 直接取 options，dict 取字典项。
+   * 表单渲染一律消费本字段，避免每处自行判断来源。
+   */
+  resolvedOptions?: { label: string; value: string }[];
   sort: number;
   createdAt: string;
   updatedAt: string;
@@ -11060,9 +11079,28 @@ export interface CmsFragment {
   updatedAt: string;
 }
 
+/** 友链分组（独立实体：支持排序与稳定 code，供主题按组取数） */
+export interface CmsFriendLinkGroup {
+  id: number;
+  siteId: number;
+  name: string;
+  code: string;
+  status: 'enabled' | 'disabled';
+  sort: number;
+  remark: string | null;
+  /** 组内友链数（列表页展示，JOIN 后附加） */
+  linkCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CmsFriendLink {
   id: number;
   siteId: number;
+  /** 所属分组；null = 未分组 */
+  groupId: number | null;
+  /** 分组名称（JOIN 后附加） */
+  groupName?: string | null;
   name: string;
   url: string;
   logo: string | null;

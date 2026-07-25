@@ -13,6 +13,7 @@ import {
   CMS_DEVICE_TYPES,
   CMS_DISTRIBUTION_CONFLICT_STRATEGIES,
   CMS_DISTRIBUTION_MODES,
+  CMS_FIELD_OPTION_SOURCES,
   CMS_INTERACTION_CAPTCHA_POLICIES,
   CMS_INTERACTION_KINDS,
   CMS_INTERACTION_PARTICIPANT_SCOPES,
@@ -37,6 +38,8 @@ export const cmsContentStatusEnum = pgEnum('cms_content_status', ['draft', 'pend
 /** 内容形态：article=图文 album=图集 media=音视频 link=外链 */
 export const cmsContentTypeEnum = pgEnum('cms_content_type', ['article', 'album', 'media', 'link']);
 export const cmsFieldTypeEnum = pgEnum('cms_field_type', ['text', 'textarea', 'richtext', 'number', 'date', 'datetime', 'image', 'file', 'select', 'radio', 'checkbox', 'switch']);
+/** 模型字段选项来源：manual=手工维护，dict=引用系统字典（随字典自动更新） */
+export const cmsFieldOptionSourceEnum = pgEnum('cms_field_option_source', CMS_FIELD_OPTION_SOURCES);
 export const cmsFragmentTypeEnum = pgEnum('cms_fragment_type', ['html', 'text', 'image', 'json']);
 export const cmsSearchWordTypeEnum = pgEnum('cms_search_word_type', ['extension', 'stop']);
 export const cmsFormCaptchaProviderEnum = pgEnum('cms_form_captcha_provider', ['inherit', 'none', 'math', 'turnstile']);
@@ -89,6 +92,10 @@ export const cmsSites = pgTable('cms_sites', {
   copyright: varchar('copyright', { length: 255 }),
   /** 内置主题名（cms/themes/registry 注册的主题） */
   theme: varchar('theme', { length: 50 }).notNull().default('default'),
+  /** 站点级扩展模型（对标 XModel 站点/栏目/内容三级绑定的站点级） */
+  modelId: integer('model_id').references(() => cmsModels.id, { onDelete: 'set null' }),
+  /** 站点扩展模型字段值（key = cms_model_fields.name），主题可直接读取 */
+  extend: jsonb('extend').$type<Record<string, unknown>>().notNull().default({}),
   /** 主题生命周期事件修订号；每次激活/停用/回滚原子 +1，并进入发布任务幂等键。 */
   themeRevision: integer('theme_revision').notNull().default(0),
   /** 站点/栏目/内容/页面模板引用修订号；引用写入与主题健康检查的 TOCTOU 屏障。 */
@@ -194,7 +201,11 @@ export const cmsModelFields = pgTable('cms_model_fields', {
   showInList: boolean('show_in_list').notNull().default(false),
   placeholder: varchar('placeholder', { length: 200 }),
   defaultValue: text('default_value'),
-  /** select/radio/checkbox 的选项 */
+  /** 选项来源：manual=下方 options 手工维护；dict=引用 dictCode 指向的系统字典 */
+  optionSource: cmsFieldOptionSourceEnum('option_source').notNull().default('manual'),
+  /** optionSource=dict 时引用的字典编码（dicts.code） */
+  dictCode: varchar('dict_code', { length: 64 }),
+  /** select/radio/checkbox 的选项（optionSource=manual 时生效） */
   options: jsonb('options').$type<{ label: string; value: string }[]>(),
   sort: integer('sort').notNull().default(0),
   ...auditColumns(),
@@ -755,10 +766,33 @@ export const cmsFragments = pgTable('cms_fragments', {
 export type CmsFragmentRow = typeof cmsFragments.$inferSelect;
 export type NewCmsFragment = typeof cmsFragments.$inferInsert;
 
+// ─── CMS 友链分组（独立实体：需排序与稳定 code 供主题按组取数，字符串分组表达不了）───
+export const cmsFriendLinkGroups = pgTable('cms_friend_link_groups', {
+  id: serial('id').primaryKey(),
+  siteId: integer('site_id').notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 100 }).notNull(),
+  /** 分组标识（站内唯一）：主题按组取数的稳定引用，改名不影响 */
+  code: varchar('code', { length: 50 }).notNull(),
+  status: statusEnum('status').notNull().default('enabled'),
+  sort: integer('sort').notNull().default(0),
+  remark: text('remark'),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  uniqueIndex('cms_friend_link_groups_site_code_uq').on(t.siteId, t.code),
+  index('cms_friend_link_groups_site_sort_idx').on(t.siteId, t.sort, t.id),
+]);
+
+export type CmsFriendLinkGroupRow = typeof cmsFriendLinkGroups.$inferSelect;
+export type NewCmsFriendLinkGroup = typeof cmsFriendLinkGroups.$inferInsert;
+
 // ─── CMS 友情链接 ─────────────────────────────────────────────────────────────
 export const cmsFriendLinks = pgTable('cms_friend_links', {
   id: serial('id').primaryKey(),
   siteId: integer('site_id').notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
+  /** 所属分组；空 = 未分组（主题渲染时归入默认块） */
+  groupId: integer('group_id').references(() => cmsFriendLinkGroups.id, { onDelete: 'set null' }),
   name: varchar('name', { length: 100 }).notNull(),
   url: varchar('url', { length: 500 }).notNull(),
   logo: varchar('logo', { length: 500 }),
@@ -768,7 +802,9 @@ export const cmsFriendLinks = pgTable('cms_friend_links', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [
+  index('cms_friend_links_site_group_idx').on(t.siteId, t.groupId, t.sort, t.id),
+]);
 
 export type CmsFriendLinkRow = typeof cmsFriendLinks.$inferSelect;
 export type NewCmsFriendLink = typeof cmsFriendLinks.$inferInsert;

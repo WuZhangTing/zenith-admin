@@ -21,6 +21,8 @@ export interface CmsRenderSite {
   icp: string | null;
   copyright: string | null;
   theme: string;
+  /** 站点扩展模型字段值（key = 字段标识），主题可直接读取自定义站点字段 */
+  extend: Record<string, unknown>;
   settings: Record<string, unknown>;
   /** 主题参数（settingsSchema 默认值 ⊕ settings.themeConfig 合并后的最终值，模板直接消费） */
   themeConfig: Record<string, unknown>;
@@ -163,6 +165,11 @@ export interface CmsBaseContext {
   /** 广告位 code → 投放中广告列表 */
   ads: Record<string, CmsAdItem[]>;
   friendLinks: { name: string; url: string; logo: string | null }[];
+  /**
+   * 按分组聚合的友链（组内已排序）。未分组的友链归入 `code: ''` 的兜底组，
+   * 主题可据此决定是否渲染组标题。`friendLinks` 保留平铺形态兼容旧主题。
+   */
+  friendLinkGroups: { code: string; name: string; links: { name: string; url: string; logo: string | null }[] }[];
   seo: CmsSeo;
   searchUrl: string;
   /** 行为统计（站点开启后注入采集脚本）；detail 页附 contentId 供浏览计数 beacon */

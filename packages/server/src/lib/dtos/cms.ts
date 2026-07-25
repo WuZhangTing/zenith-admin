@@ -7,6 +7,7 @@ import {
   CMS_CHANNEL_STATIC_MODES,
   CMS_DISTRIBUTION_CONFLICT_STRATEGIES,
   CMS_DISTRIBUTION_MODES,
+  CMS_FIELD_OPTION_SOURCES,
   CMS_SITE_INHERITABLE_FIELDS,
 } from '@zenith/shared';
 import { auditFields } from './_audit';
@@ -51,6 +52,9 @@ export const CmsSiteDTO = z
     staticMode: z.enum(['dynamic', 'hybrid', 'static']),
     effectiveStaticMode: z.enum(['dynamic', 'hybrid', 'static']).optional(),
     robots: z.string().nullable(),
+    modelId: z.number().int().nullable().openapi({ description: '站点级扩展模型' }),
+    modelName: z.string().nullable().optional(),
+    extend: z.record(z.string(), z.unknown()).openapi({ description: '站点扩展模型字段值（key = 字段标识）' }),
     settings: z.record(z.string(), z.unknown()),
     status: z.enum(['enabled', 'disabled']),
     sort: z.number().int(),
@@ -150,7 +154,11 @@ export const CmsModelFieldDTO = z
     showInList: z.boolean(),
     placeholder: z.string().nullable(),
     defaultValue: z.string().nullable(),
+    optionSource: z.enum(CMS_FIELD_OPTION_SOURCES).openapi({ description: '选项来源：manual=手工维护，dict=引用系统字典' }),
+    dictCode: z.string().nullable().openapi({ description: 'optionSource=dict 时引用的字典编码' }),
     options: z.array(z.object({ label: z.string(), value: z.string() })).nullable(),
+    resolvedOptions: z.array(z.object({ label: z.string(), value: z.string() })).optional()
+      .openapi({ description: '解析后的最终选项（manual 取 options，dict 取字典项）；表单渲染消费本字段' }),
     sort: z.number().int(),
     createdAt: z.string(),
     updatedAt: z.string(),
@@ -326,10 +334,28 @@ export const CmsFragmentDTO = z
   })
   .openapi('CmsFragment');
 
+export const CmsFriendLinkGroupDTO = z
+  .object({
+    id: z.number().int(),
+    siteId: z.number().int(),
+    name: z.string().openapi({ example: '技术栈' }),
+    code: z.string().openapi({ example: 'tech', description: '分组标识（站内唯一），主题按组取数的稳定引用' }),
+    status: z.enum(['enabled', 'disabled']),
+    sort: z.number().int(),
+    remark: z.string().nullable(),
+    linkCount: z.number().int().optional().openapi({ description: '组内友链数' }),
+    ...auditFields,
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('CmsFriendLinkGroup');
+
 export const CmsFriendLinkDTO = z
   .object({
     id: z.number().int(),
     siteId: z.number().int(),
+    groupId: z.number().int().nullable().openapi({ description: '所属分组；空 = 未分组' }),
+    groupName: z.string().nullable().optional(),
     name: z.string().openapi({ example: '合作伙伴' }),
     url: z.string(),
     logo: z.string().nullable(),

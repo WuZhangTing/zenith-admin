@@ -115,6 +115,8 @@ main { min-height: 60vh; padding: 24px 0 48px; }
 .front-form .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 .site-footer { border-top: 1px solid var(--border); background: var(--bg-2); padding: 24px 0; font-size: 13px; color: var(--text-2); }
 .site-footer .links { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+.site-footer .link-groups { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.site-footer .link-groups .links { margin-bottom: 0; }
 .site-footer .extra { white-space: pre-line; margin-bottom: 8px; }
 .empty { text-align: center; color: var(--text-2); padding: 48px 0; }
 .theme-toggle { background: none; border: 1px solid var(--border); border-radius: 6px; width: 32px; height: 32px; cursor: pointer; font-size: 15px; line-height: 1; color: var(--text-2); flex-shrink: 0; }
@@ -239,7 +241,7 @@ export function CmsFollowButton(props: {
 
 /** 默认主题布局：完整 HTML 文档（内联样式，静态页零外部依赖） */
 export function Layout({ ctx, currentUrl, children }: LayoutProps) {
-  const { site, seo, nav, friendLinks, baseUrl } = ctx;
+  const { site, seo, nav, friendLinkGroups, baseUrl } = ctx;
   const theme = buildThemeOverrides(site.settings);
   const contactPhone = typeof site.themeConfig.contactPhone === 'string' ? site.themeConfig.contactPhone : null;
   const footerText = typeof site.themeConfig.footerText === 'string' ? site.themeConfig.footerText : null;
@@ -327,11 +329,15 @@ export function Layout({ ctx, currentUrl, children }: LayoutProps) {
         </main>
         <footer className="site-footer">
           <div className="container">
-            {friendLinks.length > 0 ? (
-              <div className="links">
-                <span>友情链接：</span>
-                {friendLinks.map((l) => (
-                  <a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer">{l.name}</a>
+            {friendLinkGroups.length > 0 ? (
+              <div className="link-groups">
+                {friendLinkGroups.map((group) => (
+                  <div className="links" key={group.code || '__ungrouped'}>
+                    <span>{group.name || '友情链接'}：</span>
+                    {group.links.map((l) => (
+                      <a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer">{l.name}</a>
+                    ))}
+                  </div>
                 ))}
               </div>
             ) : null}

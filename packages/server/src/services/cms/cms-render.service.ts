@@ -19,7 +19,7 @@ import {
   listPublishedContentsByTag, listRelatedContents, resolveContentBodyExtend,
 } from './cms-contents.service';
 import { getFragmentMap } from './cms-fragments.service';
-import { listEnabledFriendLinks } from './cms-friend-links.service';
+import { listEnabledFriendLinks, listEnabledFriendLinkGroups } from './cms-friend-links.service';
 import { searchCmsContents, stripHtml } from './cms-search.service';
 import { getEnabledLinkWords, applyLinkWords } from './cms-link-words.service';
 import { applyInteractionMarkers } from './cms-interactions.service';
@@ -185,10 +185,11 @@ function mergeSeo(site: CmsSiteRow, overrides: Partial<CmsSeo> & { pathForCanoni
 export { mergeSeo as mergeCmsSeo };
 
 async function buildBaseContext(site: CmsSiteRow, baseUrl: string, seo: CmsSeo, analyticsContentId?: number): Promise<CmsBaseContext> {
-  const [tree, fragments, friendLinks, ads, langAlternates] = await Promise.all([
+  const [tree, fragments, friendLinks, friendLinkGroups, ads, langAlternates] = await Promise.all([
     listCmsChannelTree({ siteId: site.id, status: 'enabled' }, { skipAccessCheck: true }),
     getFragmentMap(site.id),
     listEnabledFriendLinks(site.id),
+    listEnabledFriendLinkGroups(site.id),
     getActiveAds(site.id),
     buildLangAlternates(site),
   ]);
@@ -206,6 +207,7 @@ async function buildBaseContext(site: CmsSiteRow, baseUrl: string, seo: CmsSeo, 
       icp: site.icp ?? null,
       copyright: site.copyright ?? null,
       theme: site.theme,
+      extend: site.extend ?? {},
       settings: site.settings ?? {},
       themeConfig: resolveThemeConfig(site.theme, site.settings as Record<string, unknown> | null),
     },
@@ -214,6 +216,7 @@ async function buildBaseContext(site: CmsSiteRow, baseUrl: string, seo: CmsSeo, 
     fragments,
     ads,
     friendLinks: friendLinks.map((l) => ({ name: l.name, url: l.url, logo: l.logo })),
+    friendLinkGroups,
     seo,
     searchUrl: `${baseUrl}/search`,
     analytics: typeof analyticsSiteKey === 'string' && analyticsSiteKey

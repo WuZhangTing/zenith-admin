@@ -46,6 +46,7 @@ describe('CMS social SEO rendering behavior', () => {
       fragments: {},
       ads: {},
       friendLinks: [],
+      friendLinkGroups: [],
       seo,
       searchUrl: '/search',
       analytics: null,
