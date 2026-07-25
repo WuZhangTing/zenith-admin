@@ -17,9 +17,18 @@ export function tagUrl(baseUrl: string, slug: string, page = 1): string {
 export function contentUrl(
   baseUrl: string,
   channelPath: string,
-  content: { id: number; slug: string | null },
+  content: { id: number; slug: string | null; staticPath?: string | null },
   bodyPage = 1,
 ): string {
+  // 自定义静态路径优先：整条相对路径由运营指定，正文分页在扩展名前追加 _N
+  const custom = content.staticPath?.trim();
+  if (custom) {
+    if (bodyPage <= 1) return `${baseUrl}/${custom}`;
+    const dot = custom.lastIndexOf('.');
+    return dot <= 0
+      ? `${baseUrl}/${custom}_${bodyPage}`
+      : `${baseUrl}/${custom.slice(0, dot)}_${bodyPage}${custom.slice(dot)}`;
+  }
   const base = content.slug ?? content.id;
   return bodyPage <= 1
     ? `${baseUrl}/${channelPath}/${base}.html`

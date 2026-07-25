@@ -1326,6 +1326,43 @@ export const CMS_STATIC_MODE_LABELS: Record<(typeof CMS_STATIC_MODES)[number], s
   static: '全静态',
 };
 
+/** 栏目静态化模式：inherit=跟随站点，其余覆盖站点设置 */
+export const CMS_CHANNEL_STATIC_MODES = ['inherit', 'dynamic', 'hybrid', 'static'] as const;
+export const CMS_CHANNEL_STATIC_MODE_LABELS: Record<(typeof CMS_CHANNEL_STATIC_MODES)[number], string> = {
+  inherit: '跟随站点',
+  dynamic: '动态渲染',
+  hybrid: '混合',
+  static: '全静态',
+};
+
+/** 内容标题样式可选色（空 = 主题默认色） */
+export const CMS_TITLE_STYLE_COLORS = ['#d93026', '#0064fa', '#1f8f3c', '#f5a623', '#8a2be2'] as const;
+
+/** 站点内容策略（存 cms_sites.settings JSONB，逐项默认值见 CMS_SITE_OPS_DEFAULTS） */
+export const CMS_SITE_OPS_SETTING_KEYS = [
+  'publishedContentEditable',
+  'recycleKeepDays',
+  'maxPageOnContentPublish',
+  'autoReplaceSensitiveWords',
+  'autoReplaceErrorProneWords',
+  'autoCoverFromBody',
+] as const;
+
+export const CMS_SITE_OPS_DEFAULTS = {
+  /** 已发布内容是否允许直接编辑（关闭后需先下线） */
+  publishedContentEditable: true,
+  /** 回收站保留天数（0 = 永久保留，不自动清理） */
+  recycleKeepDays: 30,
+  /** 单内容发布时重建所属栏目列表页的页数上限（0 = 全部重建） */
+  maxPageOnContentPublish: 0,
+  /** 内容保存时按敏感词库自动替换 */
+  autoReplaceSensitiveWords: false,
+  /** 内容保存时按易错词库自动替换 */
+  autoReplaceErrorProneWords: false,
+  /** 未填封面时自动提取正文首图作为封面 */
+  autoCoverFromBody: false,
+} as const;
+
 /** 内置模板下拉的来源标签（本站直选 / 主题内置） */
 export const CMS_TEMPLATE_RESOLUTION_SOURCE_LABELS = {
   own: '本站',

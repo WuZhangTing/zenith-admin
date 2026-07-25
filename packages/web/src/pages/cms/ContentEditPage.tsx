@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Form, Spin, Toast, Row, Col, Banner, SideSheet, Timeline, Modal, Upload, Typography, useFormApi, Tag, Input, Tabs, TabPane } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
-import { ArrowLeft, Save, Send, History, ImageUp, Eye, GitCompare, Images, SpellCheck, ScrollText } from 'lucide-react';
+import { ArrowLeft, Save, Send, History, ImageUp, Eye, GitCompare, Images, Paperclip, SpellCheck, ScrollText } from 'lucide-react';
 import RichTextEditor from '@/components/RichTextEditor';
 import { MediaPickerModal } from '@/components/MediaPickerModal';
 import { formatDateTimeForApi } from '@/utils/date';
@@ -16,16 +16,23 @@ import {
   useCmsContentDetail, useCmsChannelTree, useAllCmsModels, useAllCmsTags,
   useSaveCmsContent, useCmsContentAction, useCmsContentVersions, useRestoreCmsContentVersion,
   useCmsVersionDiff, useCmsPreviewLink, acquireCmsEditLock, releaseCmsEditLock, useCmsContentList,
-  useAllCmsSites, useCmsThemeTemplates, useCmsContentOpLogs, useCmsCheckText,
+  useAllCmsSites, useCmsThemeTemplates, useCmsContentOpLogs, useCmsCheckText, useUploadCmsResource,
 } from '@/hooks/queries/cms';
-import { CMS_CONTENT_STATUS_LABELS, CMS_CONTENT_TYPE_LABELS, CMS_CONTENT_TYPES } from '@zenith/shared';
-import type { CmsChannel, CmsModelField, CmsEditLock, CmsTextCheckResult, CmsContentType, CmsAlbumImage } from '@zenith/shared';
+import { CMS_CONTENT_STATUS_LABELS, CMS_CONTENT_TYPE_LABELS, CMS_CONTENT_TYPES, CMS_TITLE_STYLE_COLORS } from '@zenith/shared';
+import type { CmsChannel, CmsModelField, CmsEditLock, CmsTextCheckResult, CmsContentType, CmsAlbumImage, CmsContentAttachment } from '@zenith/shared';
 import { cmsPreviewUrl } from './CmsSiteSelect';
 import { useCmsLinkPicker } from './CmsLinkInput';
 import './ContentEditPage.css';
 
 const AUTO_SAVE_INTERVAL_MS = 30_000;
 const EDIT_LOCK_HEARTBEAT_MS = 30_000;
+
+/** 附件体积展示（KB/MB 保留一位小数） */
+function formatAttachmentSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
 
 function channelsToTree(nodes: CmsChannel[]): TreeNodeData[] {
   return nodes.map((n) => ({
@@ -173,6 +180,7 @@ export default function ContentEditPage() {
   const actionMutation = useCmsContentAction();
   const previewMutation = useCmsPreviewLink();
   const uploadMediaMutation = useUploadFile();
+  const uploadResourceMutation = useUploadCmsResource();
 
   // P4 标题查重：失焦时同站查重提示（不阻断保存）
   const lastCheckedTitle = useRef('');
@@ -200,6 +208,8 @@ export default function ContentEditPage() {
   const contentType: CmsContentType = detail?.contentType ?? newContentType;
   // 图集图片（受控管理，保存时并入 mediaData.images）
   const [albumImages, setAlbumImages] = useState<CmsAlbumImage[]>([]);
+  // 正文附件（受控管理，保存时随 payload.attachments 提交）
+  const [attachments, setAttachments] = useState<CmsContentAttachment[]>([]);
   const [albumPickerVisible, setAlbumPickerVisible] = useState(false);
   const [versionsVisible, setVersionsVisible] = useState(false);
   const versionsQuery = useCmsContentVersions(id, versionsVisible);
@@ -261,6 +271,7 @@ export default function ContentEditPage() {
       setSelectedChannelId(detail.channelId);
       setExternalLink(detail.externalLink ?? '');
       setAlbumImages(Array.isArray(detail.mediaData?.images) ? detail.mediaData.images.map((img) => ({ ...img })) : []);
+      setAttachments(Array.isArray(detail.attachments) ? detail.attachments.map((a) => ({ ...a })) : []);
       coverThumbRef.current = detail.coverThumb ?? null;
       lastCoverImageRef.current = detail.coverImage ?? '';
     }
@@ -316,6 +327,9 @@ export default function ContentEditPage() {
         subTitle: detail.subTitle ?? '',
         shortTitle: detail.shortTitle ?? '',
         slug: detail.slug ?? '',
+        staticPath: detail.staticPath ?? '',
+        titleBold: detail.titleStyle?.bold ?? false,
+        titleColor: detail.titleStyle?.color ?? '',
         summary: detail.summary ?? '',
         coverImage: detail.coverImage ?? '',
         author: detail.author ?? '',
@@ -347,7 +361,7 @@ export default function ContentEditPage() {
         mediaPoster: detail.mediaData?.poster ?? '',
         mediaDuration: detail.mediaData?.duration ?? '',
       }
-    : { channelId: channelIdParam, isTop: false, topWeight: 0, isOriginal: false, isRecommend: false, isHot: false, sort: 0, tagIds: [], extraChannelIds: [], relatedIds: [], extend: {}, mediaType: 'video' };
+    : { channelId: channelIdParam, isTop: false, topWeight: 0, isOriginal: false, isRecommend: false, isHot: false, sort: 0, tagIds: [], extraChannelIds: [], relatedIds: [], extend: {}, mediaType: 'video', titleBold: false, titleColor: '' };
 
   async function save(opts?: { silent?: boolean }): Promise<number | null> {
     if (isPersistentlyLocked) {
@@ -382,6 +396,15 @@ export default function ContentEditPage() {
     }
     const payload: Record<string, unknown> = { ...values, body };
     if (!values.slug) payload.slug = null;
+    payload.staticPath = values.staticPath ? String(values.staticPath).trim() : null;
+    // 标题样式：两个表单字段合成 titleStyle JSON（都为空时提交空对象，回落主题默认）
+    payload.titleStyle = {
+      ...(values.titleBold ? { bold: true } : {}),
+      ...(values.titleColor ? { color: String(values.titleColor) } : {}),
+    };
+    delete payload.titleBold;
+    delete payload.titleColor;
+    payload.attachments = attachments;
     payload.twitterCreator = values.twitterCreator ? String(values.twitterCreator).trim() : null;
     payload.socialImageAlt = values.socialImageAlt ? String(values.socialImageAlt).trim() : null;
     // 模板下拉清空后为 undefined，显式置 null 才能在更新时清除覆盖
@@ -726,6 +749,65 @@ export default function ContentEditPage() {
                   )}
                 </Form.Slot>
               ) : null}
+              {contentType !== 'link' ? (
+                <Form.Section text={`附件（${attachments.length}）`}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {attachments.map((att, i) => (
+                      <div key={`${att.url}-${i}`} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <Tag size="small">{att.ext ? att.ext.toUpperCase() : '文件'}</Tag>
+                        <Input
+                          size="small"
+                          placeholder="附件显示名称"
+                          value={att.name}
+                          disabled={isPersistentlyLocked}
+                          onChange={(v) => {
+                            setAttachments((list) => list.map((x, xi) => xi === i ? { ...x, name: v } : x));
+                            dirtyRef.current = true;
+                          }}
+                          style={{ flex: 1, minWidth: 180 }}
+                        />
+                        <Typography.Text type="tertiary" size="small" style={{ flexShrink: 0 }}>
+                          {att.size > 0 ? formatAttachmentSize(att.size) : '—'}
+                        </Typography.Text>
+                        <Button size="small" theme="borderless" disabled={i === 0 || isPersistentlyLocked}
+                          onClick={() => { setAttachments((l) => { const n = [...l]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; return n.map((x, xi) => ({ ...x, sort: xi })); }); dirtyRef.current = true; }}>上移</Button>
+                        <Button size="small" theme="borderless" disabled={i === attachments.length - 1 || isPersistentlyLocked}
+                          onClick={() => { setAttachments((l) => { const n = [...l]; [n[i], n[i + 1]] = [n[i + 1], n[i]]; return n.map((x, xi) => ({ ...x, sort: xi })); }); dirtyRef.current = true; }}>下移</Button>
+                        <Button size="small" theme="borderless" type="danger" disabled={isPersistentlyLocked}
+                          onClick={() => { setAttachments((l) => l.filter((_, xi) => xi !== i).map((x, xi) => ({ ...x, sort: xi }))); dirtyRef.current = true; }}>删除</Button>
+                      </div>
+                    ))}
+                    <div>
+                      <Upload
+                        action=""
+                        multiple
+                        limit={20}
+                        showUploadList={false}
+                        disabled={isPersistentlyLocked}
+                        customRequest={async ({ fileInstance, onSuccess, onError }) => {
+                          if (!siteId) { onError?.({ status: 0 }); return; }
+                          try {
+                            const uploaded = await uploadResourceMutation.mutateAsync({ siteId, file: fileInstance });
+                            setAttachments((list) => [...list, {
+                              name: fileInstance.name,
+                              url: uploaded.url ?? '',
+                              size: fileInstance.size ?? 0,
+                              ext: (fileInstance.name.split('.').pop() ?? '').toLowerCase(),
+                              sort: list.length,
+                            }]);
+                            dirtyRef.current = true;
+                            onSuccess?.({});
+                          } catch {
+                            onError?.({ status: 0 });
+                          }
+                        }}
+                      >
+                        <Button icon={<Paperclip size={14} />} loading={uploadResourceMutation.isPending} disabled={isPersistentlyLocked}>上传附件</Button>
+                      </Upload>
+                    </div>
+                  </div>
+                </Form.Section>
+              ) : null}
               {modelFields.length > 0 && !isMapped ? (
                 <Form.Section text={`模型字段（${currentModel?.name}）`}>
                   <Row gutter={16}>
@@ -755,6 +837,35 @@ export default function ContentEditPage() {
                     rules={[{ required: true, message: '请输入标题' }]}
                     onBlur={() => void checkTitleDuplicate()}
                   />
+                  <Form.Slot label="标题样式">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                      <Form.Switch field="titleBold" noLabel size="small" />
+                      <span style={{ fontSize: 12, color: 'var(--semi-color-text-2)' }}>加粗</span>
+                      <Form.Select field="titleColor" noLabel size="small" showClear style={{ width: 132 }} placeholder="默认色"
+                        optionList={CMS_TITLE_STYLE_COLORS.map((c) => ({ value: c, label: c }))}
+                        renderSelectedItem={(o: { value?: unknown }) => (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <i style={{ width: 10, height: 10, borderRadius: 'var(--semi-border-radius-small)', background: String(o.value) }} />
+                            {String(o.value)}
+                          </span>
+                        )}
+                        renderOptionItem={({ value, onClick, selected }) => (
+                          <div
+                            role="option"
+                            aria-selected={selected}
+                            onClick={onClick}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', cursor: 'pointer',
+                              background: selected ? 'var(--semi-color-primary-light-default)' : undefined,
+                            }}
+                          >
+                            <i style={{ width: 12, height: 12, borderRadius: 'var(--semi-border-radius-small)', background: String(value) }} />
+                            <span style={{ color: String(value) }}>{String(value)}</span>
+                          </div>
+                        )}
+                      />
+                    </div>
+                  </Form.Slot>
                   <Form.Input field="subTitle" label="副标题" size="small" placeholder="可选" />
                   <Form.Input field="shortTitle" label="短标题" size="small" placeholder="列表窄位展示（可选）" />
                   <Form.TextArea field="summary" label="摘要" rows={2} placeholder="留空时前台自动截取正文" />
@@ -879,6 +990,13 @@ export default function ContentEditPage() {
                 </TabPane>
                 <TabPane tab="高级设置" itemKey="advanced">
                   <Form.Input field="slug" label="自定义 URL 标识" size="small" placeholder="留空使用 ID" />
+                  <Form.Input
+                    field="staticPath"
+                    label="自定义静态路径"
+                    size="small"
+                    placeholder="留空按栏目 + URL 标识生成"
+                    extraText="站内唯一，形如 news/2026/hello.html，支持 .html/.htm/.shtml/.json"
+                  />
                   {contentType !== 'link' ? (
                     <>
                       <Form.Input

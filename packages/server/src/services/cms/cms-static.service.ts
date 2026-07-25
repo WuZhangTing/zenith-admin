@@ -6,7 +6,7 @@ import { cmsChannels, cmsContents } from '../../db/schema';
 import type { CmsSiteRow, CmsChannelRow } from '../../db/schema';
 import logger from '../../lib/logger';
 import { formatIso8601 } from '../../lib/datetime';
-import { CMS_CHANNEL_SEGMENT_PREFIX, type CmsContentPublishSnapshot } from '@zenith/shared';
+import { CMS_CHANNEL_SEGMENT_PREFIX, type CmsContentPublishSnapshot, type CmsStaticMode } from '@zenith/shared';
 import { TaskCancelledError } from '../../lib/task-center';
 import { getActivePublishChannels, type PublishChannelInfo } from './cms-publish-channels.service';
 import {
@@ -21,6 +21,7 @@ import {
 } from './cms-static-path';
 import { assertSiteAccess } from './cms-sites.service';
 import { resolveEffectiveCmsSiteRow } from './cms-site-inheritance.service';
+import { resolveCmsSiteOpsSettings } from './cms-site-settings';
 import { assertAllCmsSiteChannelsAccess } from './cms-channels.service';
 import { recordCmsPublishArtifact } from './cms-publish-artifact-tracker';
 import { cmsStaticTargetKey, isCmsStaticTargetCompleted } from './cms-static-build-plan';
@@ -177,6 +178,31 @@ export function buildRobotsTxt(site: CmsSiteRow): string {
 // ─── 增量静态化 ───────────────────────────────────────────────────────────────
 const MAX_LIST_PAGES = 50;
 
+/**
+ * 栏目实际生效的静态化模式：栏目 `inherit` 时跟随站点，否则覆盖站点设置。
+ * 判空返回 true 表示该栏目不产出静态文件（纯动态渲染）。
+ */
+export function resolveChannelStaticMode(
+  site: Pick<CmsSiteRow, 'staticMode'>,
+  channel: Pick<CmsChannelRow, 'staticMode'>,
+): CmsStaticMode {
+  return channel.staticMode === 'inherit' ? site.staticMode : channel.staticMode;
+}
+
+/** 栏目是否跳过静态化（纯动态） */
+export function isChannelDynamic(
+  site: Pick<CmsSiteRow, 'staticMode'>,
+  channel: Pick<CmsChannelRow, 'staticMode'>,
+): boolean {
+  return resolveChannelStaticMode(site, channel) === 'dynamic';
+}
+
+/** 站点「发布内容时重建列表页数上限」（0 = 不限制） */
+function listPageCap(site: Pick<CmsSiteRow, 'settings'>): number {
+  const cap = resolveCmsSiteOpsSettings(site.settings).maxPageOnContentPublish;
+  return cap > 0 ? Math.min(cap, MAX_LIST_PAGES) : MAX_LIST_PAGES;
+}
+
 /** 静态产物相对路径：非默认通道落在 __{code}/ 子树 */
 function channelStaticPath(channel: PublishChannelInfo, relPath: string): string {
   const clean = relPath.replace(/^\/+/, '');
@@ -216,9 +242,18 @@ async function refreshHomeStaticForChannel(
   return true;
 }
 
-/** 重新生成栏目的全部分页列表（超出的旧分页文件删除） */
-async function regenerateChannelPages(site: CmsSiteRow, channel: CmsChannelRow, publishChannel: PublishChannelInfo): Promise<number> {
+/**
+ * 重新生成栏目的全部分页列表（超出的旧分页文件删除）。
+ * `pageCap` 用于站点「发布内容时重建列表页数上限」，仅限制本次重建的页数，不影响历史分页清理。
+ */
+async function regenerateChannelPages(
+  site: CmsSiteRow,
+  channel: CmsChannelRow,
+  publishChannel: PublishChannelInfo,
+  pageCap = MAX_LIST_PAGES,
+): Promise<number> {
   if (channel.type === 'link') return 0;
+  if (isChannelDynamic(site, channel)) return 0;
   let generated = 0;
   const first = await renderChannelPage(site, '', channel, 1, publishChannel.code);
   if (first.status !== 200) return 0;
@@ -233,7 +268,8 @@ async function regenerateChannelPages(site: CmsSiteRow, channel: CmsChannelRow, 
     isNull(cmsContents.deletedAt),
   ));
   const totalPages = Math.min(Math.max(1, Math.ceil(total / channel.pageSize)), MAX_LIST_PAGES);
-  for (let p = 2; p <= totalPages; p++) {
+  const buildPages = Math.min(totalPages, Math.max(1, pageCap));
+  for (let p = 2; p <= buildPages; p++) {
     const result = await renderChannelPage(site, '', channel, p, publishChannel.code);
     if (result.status === 200) {
       await writeStaticFile(site.code, channelStaticPath(publishChannel, `${channel.path}/index_${p}.html`), result.html);
@@ -249,7 +285,8 @@ async function regenerateChannelPages(site: CmsSiteRow, channel: CmsChannelRow, 
 
 /**
  * 内容发布/更新/下线后的增量静态化：
- * 详情页 + 所属栏目全部分页 + 首页 + sitemap（按站点启用的发布通道逐通道生成）。staticMode=dynamic 的站点直接跳过。
+ * 详情页 + 所属栏目全部分页 + 首页 + sitemap（按站点启用的发布通道逐通道生成）。
+ * 站点或所属栏目为 dynamic 时跳过详情页产物；列表页重建页数受站点 maxPageOnContentPublish 限制。
  */
 export async function refreshContentStatic(contentId: number): Promise<void> {
   const [content] = await db.select().from(cmsContents).where(eq(cmsContents.id, contentId)).limit(1);
@@ -262,8 +299,11 @@ export async function refreshContentStatic(contentId: number): Promise<void> {
   if (!channel) return;
 
   const detailPath = contentUrl('', channel.path, content);
-  const isVisible = content.status === 'published' && !content.deletedAt && !content.externalLink?.trim();
+  // 栏目关闭静态化：清掉可能存在的历史产物后不再生成
+  const channelDynamic = isChannelDynamic(site, channel);
+  const isVisible = !channelDynamic && content.status === 'published' && !content.deletedAt && !content.externalLink?.trim();
   const bodyPages = isVisible ? await countContentBodyPages(content) : 1;
+  const pageCap = listPageCap(site);
   const purgePaths: string[] = ['sitemap.xml', 'rss.xml'];
   for (const publishChannel of await getActivePublishChannels(site.id)) {
     if (isVisible) {
@@ -279,7 +319,7 @@ export async function refreshContentStatic(contentId: number): Promise<void> {
       await deleteStaticFile(site.code, channelStaticPath(publishChannel, contentUrl('', channel.path, content, p)));
     }
 
-    await regenerateChannelPages(site, channel, publishChannel);
+    await regenerateChannelPages(site, channel, publishChannel, pageCap);
     await refreshHomeStaticForChannel(site, publishChannel);
     // CDN 刷新路径：详情页（含正文分页）+ 栏目列表页 + 首页
     for (let p = 1; p <= bodyPages; p++) {
@@ -317,11 +357,14 @@ export async function applyCmsContentPublishSnapshot(
     if (!channel || channel.path !== snapshot.channelPath) {
       throw new TaskCancelledError(`内容 #${snapshot.contentId} 栏目路径快照已过期`, { stale: true });
     }
-    for (const target of snapshot.targets) {
-      for (let page = 1; page <= target.paths.length; page++) {
-        const rendered = await renderDetailPage(site, '', channel, snapshot.slug, target.publishChannelCode, page);
-        if (rendered.status !== 200) throw new Error(`内容 #${snapshot.contentId} 快照路径 ${target.paths[page - 1]} 渲染失败（${rendered.status}）`);
-        await writeStaticFile(site.code, target.paths[page - 1], rendered.html);
+    // 栏目在快照生成后被切为纯动态：跳过产物生成（旧产物已在上方 deletePaths 清理）
+    if (!isChannelDynamic(site, channel)) {
+      for (const target of snapshot.targets) {
+        for (let page = 1; page <= target.paths.length; page++) {
+          const rendered = await renderDetailPage(site, '', channel, snapshot.slug, target.publishChannelCode, page);
+          if (rendered.status !== 200) throw new Error(`内容 #${snapshot.contentId} 快照路径 ${target.paths[page - 1]} 渲染失败（${rendered.status}）`);
+          await writeStaticFile(site.code, target.paths[page - 1], rendered.html);
+        }
       }
     }
   }
@@ -421,7 +464,7 @@ export async function buildSiteStatic(
   const channels = await db.select().from(cmsChannels)
     .where(and(eq(cmsChannels.siteId, siteId), eq(cmsChannels.status, 'enabled')))
     .orderBy(asc(cmsChannels.id));
-  const contents = await db.select({ id: cmsContents.id, slug: cmsContents.slug, channelId: cmsContents.channelId, externalLink: cmsContents.externalLink, body: cmsContents.body, extend: cmsContents.extend, mappingSourceId: cmsContents.mappingSourceId })
+  const contents = await db.select({ id: cmsContents.id, slug: cmsContents.slug, staticPath: cmsContents.staticPath, channelId: cmsContents.channelId, externalLink: cmsContents.externalLink, body: cmsContents.body, extend: cmsContents.extend, mappingSourceId: cmsContents.mappingSourceId })
     .from(cmsContents)
     .where(and(eq(cmsContents.siteId, siteId), eq(cmsContents.status, 'published'), isNull(cmsContents.deletedAt)))
     .orderBy(asc(cmsContents.id));
@@ -478,7 +521,7 @@ export async function buildSiteStatic(
       const key = cmsStaticTargetKey(publishChannel.code, 2, row.id);
       if (skipCompleted(key)) continue;
       const channel = channelMap.get(row.channelId);
-      if (channel && !row.externalLink?.trim()) {
+      if (channel && !row.externalLink?.trim() && !isChannelDynamic(site, channel)) {
         const bodyPages = await countContentBodyPages(row);
         for (let p = 1; p <= bodyPages; p++) {
           const ok = await writeRenderedPath(site, contentUrl('', channel.path, row, p), publishChannel);

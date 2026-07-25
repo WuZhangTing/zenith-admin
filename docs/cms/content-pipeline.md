@@ -52,6 +52,21 @@
 
 除标题/摘要/正文外，支持**副标题、短标题**（列表窄位展示）、作者、**责任编辑**、来源、**来源链接**、**原创标记**（v1.8.0+）。原创内容在列表以「原创」标识展示。
 
+### 标题样式
+
+内容可单独设置**标题加粗**与**标题颜色**（`cms_contents.title_style` JSONB，`{ bold?, color? }`），颜色取自预置色板（`CMS_TITLE_STYLE_COLORS`）。后台内容列表与前台列表/详情页标题同步生效；两项都为空时回落主题默认外观。
+
+### 正文附件
+
+正文之外可挂载**结构化附件列表**（`cms_contents.attachments` JSONB，单条含 `name/url/size/ext/sort`，上限 50 个）。编辑页「附件」区支持上传、改名、上下移动与删除，文件走 `POST /api/cms/resources/upload` 入素材库（非图片类型原样入库）。
+
+- 附件非空时自动置位 `hasAttachment`，不再仅依赖正文链接正则推断
+- 前台详情页在正文下方渲染「附件下载」区（含类型徽标与体积）
+
+### 自定义静态路径
+
+内容可指定 `staticPath` 覆盖默认的「栏目路径 + slug/id」命名，形如 `news/2026/hello.html`（支持 `.html/.htm/.shtml/.json`）。**站内唯一**（部分唯一索引 `cms_contents_site_static_path_uq`，忽略回收站内容）；正文分页在扩展名前追加 `_N`。留空时行为不变。
+
 ### 封面缩略图
 
 站点开启缩略图（站点设置 → 图片处理）后，编辑页**上传**封面/图集图片自动生成缩略图（`coverThumb` / `images[].thumb`），前台列表与图集九宫格优先使用缩略图，节省流量；手动填 URL 或媒体库选择时使用原图。
@@ -91,6 +106,28 @@
 
 - **敏感词命中**：区分拦截词（须删除）与替换词（提交时自动替换），仅提示不拦截保存
 - **易错词命中**：来自「易错词库」（`/cms/error-prone-words`，权限 `cms:word:list|manage`），支持**单个/全部一键替换**为正确写法，替换作用于标题/副标题/摘要/正文
+
+站点还可开启**保存时自动替换**（站点设置 → 内容策略）：
+
+| 开关 | 行为 |
+| --- | --- |
+| `autoReplaceSensitiveWords` | 保存时按敏感词库替换标题/摘要/正文；命中**拦截词**（未配置替换文本）仍抛 400 拒绝保存 |
+| `autoReplaceErrorProneWords` | 保存时按易错词库把常见错词替换为正确写法 |
+
+两者共用带 60s 缓存的 AC 自动机，关闭时不加载词库，无额外开销。
+
+### 站点内容策略
+
+站点设置 →「内容策略」标签页统一维护以下开关，全部存 `cms_sites.settings` JSONB（缺项回落 `CMS_SITE_OPS_DEFAULTS`，无需数据迁移）：
+
+| 键 | 默认 | 作用 |
+| --- | --- | --- |
+| `publishedContentEditable` | `true` | 关闭后编辑**已发布**内容直接返回 400，须先下线 |
+| `recycleKeepDays` | `30` | 回收站保留天数，超期由每日周期任务彻底删除；`0` = 永久保留 |
+| `maxPageOnContentPublish` | `0` | 单条内容发布时最多重建所属栏目前 N 页列表；`0` = 全部重建 |
+| `autoReplaceSensitiveWords` | `false` | 见上 |
+| `autoReplaceErrorProneWords` | `false` | 见上 |
+| `autoCoverFromBody` | `false` | 未填封面时，保存自动提取正文第一张图片作为封面（跳过 `data:` URI） |
 
 ### 操作日志时间线
 

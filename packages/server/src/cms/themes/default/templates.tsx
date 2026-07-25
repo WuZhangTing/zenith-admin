@@ -1,4 +1,6 @@
 import { CmsFollowButton, Layout } from './Layout';
+import type { CSSProperties } from 'react';
+import type { CmsContentAttachment, CmsTitleStyle } from '@zenith/shared';
 import type {
   CmsBaseContext, CmsBreadcrumb, CmsContentItem, CmsHomeContext, CmsListContext,
   CmsDetailContext, CmsPageContext, CmsSearchContext, CmsNotFoundContext, CmsPagination,
@@ -32,6 +34,43 @@ function typeBadgeText(item: CmsContentItem): string | null {
   return TYPE_BADGES[item.contentType] ?? null;
 }
 
+/** 内容标题样式 → 内联 style（空对象时返回 undefined，保持主题默认外观） */
+function titleStyleOf(style: CmsTitleStyle | undefined): CSSProperties | undefined {
+  if (!style) return undefined;
+  const css: CSSProperties = {};
+  if (style.bold) css.fontWeight = 700;
+  if (style.color) css.color = style.color;
+  return Object.keys(css).length > 0 ? css : undefined;
+}
+
+/** 附件下载区（无附件时不渲染） */
+function AttachmentList({ items }: { items: CmsContentAttachment[] }) {
+  if (!items || items.length === 0) return null;
+  return (
+    <section className="attachments">
+      <h2>附件下载</h2>
+      <ul>
+        {items.map((a) => (
+          <li key={`${a.url}-${a.sort}`}>
+            <a href={a.url} download target="_blank" rel="noopener">
+              {a.ext ? <span className="ext">{a.ext.toUpperCase()}</span> : null}
+              <span className="name">{a.name}</span>
+            </a>
+            {a.size > 0 ? <span className="size">{formatFileSize(a.size)}</span> : null}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** 附件体积展示（KB/MB 保留一位小数） */
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 function ContentItemRow({ item }: { item: CmsContentItem }) {
   const cover = item.coverThumb ?? item.coverImage;
   const badge = typeBadgeText(item);
@@ -45,6 +84,7 @@ function ContentItemRow({ item }: { item: CmsContentItem }) {
           {badge ? <span className="badge type">{badge}</span> : null}
           <a
             href={item.url}
+            style={titleStyleOf(item.titleStyle)}
             {...(item.isExternal ? { target: '_blank', rel: 'noopener nofollow' } : {})}
           >
             {item.title}{item.isExternal ? ' ↗' : ''}
@@ -408,7 +448,7 @@ export function DetailTemplate(ctx: CmsDetailContext) {
     <Layout ctx={ctx} currentUrl={ctx.channel.url}>
       <Breadcrumbs items={ctx.breadcrumbs} />
       <article className="article">
-        <h1>{content.title}</h1>
+        <h1 style={titleStyleOf(content.titleStyle)}>{content.title}</h1>
         <div className="meta">
           {content.author ? <span>作者：{content.author}</span> : null}
           {content.author ? (
@@ -421,6 +461,7 @@ export function DetailTemplate(ctx: CmsDetailContext) {
         <MediaBlock content={content} />
         <div className="body" dangerouslySetInnerHTML={{ __html: content.body }} />
         <BodyPagination p={content.bodyPagination} />
+        <AttachmentList items={content.attachments} />
         {content.tags.length > 0 ? (
           <div className="tags">
             {content.tags.map((t) => <a key={t.slug} href={t.url}><span>{t.name}</span></a>)}
@@ -549,7 +590,7 @@ export function ListCardTemplate(ctx: CmsListContext) {
             <a className="card" key={item.id} href={item.url}>
               {item.coverImage ? <img className="cover" src={item.coverImage} alt={item.title} loading="lazy" /> : null}
               <div className="card-body">
-                <h3>
+                <h3 style={titleStyleOf(item.titleStyle)}>
                   {item.isTop ? <span className="badge">置顶</span> : null}
                   {item.title}
                 </h3>
@@ -584,7 +625,7 @@ export function ListCompactTemplate(ctx: CmsListContext) {
         <ul className="compact-list">
           {ctx.items.map((item) => (
             <li key={item.id}>
-              <a href={item.url}>
+              <a href={item.url} style={titleStyleOf(item.titleStyle)}>
                 {item.isTop ? <span className="badge">置顶</span> : null}
                 {item.title}
               </a>
@@ -610,7 +651,7 @@ export function DetailPlainTemplate(ctx: CmsDetailContext) {
       `}</style>
       <Breadcrumbs items={ctx.breadcrumbs} />
       <article className="article article-plain">
-        <h1>{content.title}</h1>
+        <h1 style={titleStyleOf(content.titleStyle)}>{content.title}</h1>
         <div className="meta">
           {content.author ? <span>作者：{content.author}</span> : null}
           {content.author ? (
@@ -623,6 +664,7 @@ export function DetailPlainTemplate(ctx: CmsDetailContext) {
         <MediaBlock content={content} />
         <div className="body" dangerouslySetInnerHTML={{ __html: content.body }} />
         <BodyPagination p={content.bodyPagination} />
+        <AttachmentList items={content.attachments} />
       </article>
       {(content.prev || content.next) ? (
         <nav className="article-nav">

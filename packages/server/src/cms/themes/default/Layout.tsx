@@ -78,6 +78,13 @@ main { min-height: 60vh; padding: 24px 0 48px; }
 .article .body img { border-radius: 8px; }
 .article .tags { margin-top: 24px; display: flex; gap: 8px; flex-wrap: wrap; }
 .article .tags span { font-size: 12px; background: var(--bg-2); border-radius: 4px; padding: 3px 10px; color: var(--text-2); }
+.attachments { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--border); }
+.attachments h2 { font-size: 15px; font-weight: 600; margin-bottom: 10px; }
+.attachments li { list-style: none; display: flex; align-items: baseline; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--border); font-size: 14px; }
+.attachments li a { display: inline-flex; align-items: baseline; gap: 8px; min-width: 0; }
+.attachments .ext { font-size: 11px; font-weight: 600; letter-spacing: .04em; background: var(--bg-2); color: var(--text-2); border-radius: 3px; padding: 2px 6px; flex-shrink: 0; }
+.attachments .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attachments .size { color: var(--text-2); font-size: 12px; margin-left: auto; flex-shrink: 0; }
 .article-nav { max-width: 800px; margin: 24px auto 0; padding-top: 16px; border-top: 1px solid var(--border); font-size: 14px; color: var(--text-2); display: flex; flex-direction: column; gap: 6px; }
 .section-title { font-size: 18px; font-weight: 600; margin: 28px 0 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
 .home-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 32px; }

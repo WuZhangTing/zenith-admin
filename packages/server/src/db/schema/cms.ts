@@ -8,6 +8,7 @@ import {
   CMS_PUBLISH_ARTIFACT_STATUSES,
   CMS_PUBLISH_TARGET_TYPES,
   CMS_AD_EVENT_TYPES,
+  CMS_CHANNEL_STATIC_MODES,
   CMS_DEVICE_TYPES,
   CMS_DISTRIBUTION_CONFLICT_STRATEGIES,
   CMS_DISTRIBUTION_MODES,
@@ -19,11 +20,15 @@ import {
   CMS_INTERACTION_RESULT_VISIBILITIES,
   CMS_INTERACTION_STATUSES,
   CMS_SUBSCRIPTION_SUBJECT_TYPES,
+  type CmsContentAttachment,
   type CmsDistributionFilters,
+  type CmsTitleStyle,
 } from '@zenith/shared';
 
 // ─── 枚举（pgEnum / TS union / Zod enum 三处同步，见 @zenith/shared）────────────
 export const cmsStaticModeEnum = pgEnum('cms_static_mode', ['dynamic', 'hybrid', 'static']);
+/** 栏目静态化模式：inherit=跟随站点，其余覆盖站点 staticMode */
+export const cmsChannelStaticModeEnum = pgEnum('cms_channel_static_mode', CMS_CHANNEL_STATIC_MODES);
 export const cmsChannelTypeEnum = pgEnum('cms_channel_type', ['list', 'page', 'link']);
 export const cmsContentStatusEnum = pgEnum('cms_content_status', ['draft', 'pending', 'published', 'offline', 'rejected']);
 /** 内容形态：article=图文 album=图集 media=音视频 link=外链 */
@@ -224,6 +229,8 @@ export const cmsChannels = pgTable('cms_channels', {
   /** 覆盖主题默认模板名（列表页 / 详情页） */
   listTemplate: varchar('list_template', { length: 50 }),
   detailTemplate: varchar('detail_template', { length: 50 }),
+  /** 静态化模式：inherit = 跟随站点，其余覆盖站点设置 */
+  staticMode: cmsChannelStaticModeEnum('static_mode').notNull().default('inherit'),
   pageSize: integer('page_size').notNull().default(20),
   /** type=page 时的单页富文本内容 */
   pageContent: text('page_content'),
@@ -296,6 +303,8 @@ export const cmsContents = pgTable('cms_contents', {
   /** 形态结构化数据：album={images:[{url,thumb?,caption?}]} media={mediaType,mediaUrl,poster?,duration?} */
   mediaData: jsonb('media_data').$type<Record<string, unknown>>().notNull().default({}),
   title: varchar('title', { length: 255 }).notNull(),
+  /** 标题样式（加粗 / 颜色），空对象 = 主题默认 */
+  titleStyle: jsonb('title_style').$type<CmsTitleStyle>().notNull().default({}),
   /** 副标题（P1 内容字段增强） */
   subTitle: varchar('sub_title', { length: 255 }),
   /** 短标题（列表窄位展示） */
@@ -316,12 +325,16 @@ export const cmsContents = pgTable('cms_contents', {
   isOriginal: boolean('is_original').notNull().default(false),
   /** 正文富文本 HTML */
   body: text('body'),
+  /** 正文附件列表（前台详情页可下载；非空时 hasAttachment 自动置位） */
+  attachments: jsonb('attachments').$type<CmsContentAttachment[]>().notNull().default([]),
   /** 模型自定义字段值（key = cms_model_fields.name） */
   extend: jsonb('extend').$type<Record<string, unknown>>().notNull().default({}),
   /** 外链型内容：点击直接跳转 */
   externalLink: varchar('external_link', { length: 500 }),
   /** 详情模板覆盖（主题变体模板名；null = 跟随栏目/站点默认） */
   detailTemplate: varchar('detail_template', { length: 50 }),
+  /** 自定义静态化相对路径（如 news/2026/hello.html）；空 = 按 slug/id 生成 */
+  staticPath: varchar('static_path', { length: 255 }),
   isTop: boolean('is_top').notNull().default(false),
   /** 置顶权重（数值越大越靠前，isTop=true 时生效） */
   topWeight: integer('top_weight').notNull().default(0),
@@ -391,6 +404,8 @@ export const cmsContents = pgTable('cms_contents', {
     .where(sql`${t.distributionRuleId} is not null and ${t.distributionSourceId} is not null and ${t.deletedAt} is null`),
   uniqueIndex('cms_contents_site_slug_uq').on(t.siteId, t.slug)
     .where(sql`${t.slug} is not null and ${t.deletedAt} is null`),
+  uniqueIndex('cms_contents_site_static_path_uq').on(t.siteId, t.staticPath)
+    .where(sql`${t.staticPath} is not null and ${t.deletedAt} is null`),
 ]);
 
 export type CmsContentRow = typeof cmsContents.$inferSelect;

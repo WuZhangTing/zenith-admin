@@ -18,7 +18,7 @@ import {
 import { useAllUsers } from '@/hooks/queries/users';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
-import { CMS_CHANNEL_TYPE_LABELS, CMS_DEFAULT_CHANNEL_CODE } from '@zenith/shared';
+import { CMS_CHANNEL_STATIC_MODE_LABELS, CMS_CHANNEL_STATIC_MODES, CMS_CHANNEL_TYPE_LABELS, CMS_DEFAULT_CHANNEL_CODE } from '@zenith/shared';
 import type { CmsChannel, CmsContent, CmsSiteTemplateDefaults, PaginatedResponse } from '@zenith/shared';
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 
@@ -187,8 +187,9 @@ export default function ChannelsPage() {
         seoDescription: editingRecord.seoDescription ?? '',
         listTemplate: editingRecord.listTemplate ?? undefined,
         detailTemplate: editingRecord.detailTemplate ?? undefined,
+        staticMode: editingRecord.staticMode,
       }
-    : { parentId: createParentId ?? 0, type: 'list', pageSize: 20, sort: 0, visible: true, status: 'enabled' };
+    : { parentId: createParentId ?? 0, type: 'list', pageSize: 20, sort: 0, visible: true, status: 'enabled', staticMode: 'inherit' };
 
   async function handleSave() {
     if (!siteId) return;
@@ -499,6 +500,20 @@ export default function ChannelsPage() {
         {channelType === 'list' ? (
           <Col span={24} lg={12}>
             <Form.InputNumber field="pageSize" label="每页条数" min={1} max={100} style={{ width: '100%' }} />
+          </Col>
+        ) : null}
+        {channelType !== 'link' ? (
+          <Col span={24} lg={12}>
+            <Form.Select
+              field="staticMode"
+              label="静态化模式"
+              style={{ width: '100%' }}
+              optionList={CMS_CHANNEL_STATIC_MODES.map((mode) => ({
+                label: CMS_CHANNEL_STATIC_MODE_LABELS[mode],
+                value: mode,
+              }))}
+              extraText="选择「动态渲染」后本栏目不产出静态文件，始终走 SSR"
+            />
           </Col>
         ) : null}
         <Col span={24} lg={12}>

@@ -52,6 +52,7 @@ import {
   OAUTH2_GRANT_TYPES,
   OPEN_APP_ENVIRONMENTS,
   CMS_SEARCH_DICTIONARY_WORD_PATTERN,
+  CMS_CHANNEL_STATIC_MODES,
   CMS_DISTRIBUTION_CONFLICT_STRATEGIES,
   CMS_DISTRIBUTION_MODES,
   CMS_PUBLISH_TARGET_TYPES,
@@ -5138,6 +5139,17 @@ export const updateCmsSiteInheritanceSchema = cmsSiteInheritanceSchema.partial()
     message: '至少提交一个继承项',
   });
 
+/** 站点内容策略（cms_sites.settings 的受控子集，逐项可缺省） */
+export const cmsSiteOpsSettingsSchema = z.object({
+  publishedContentEditable: z.boolean(),
+  recycleKeepDays: z.number().int().min(0).max(3650),
+  maxPageOnContentPublish: z.number().int().min(0).max(1000),
+  autoReplaceSensitiveWords: z.boolean(),
+  autoReplaceErrorProneWords: z.boolean(),
+  autoCoverFromBody: z.boolean(),
+}).partial();
+export type CmsSiteOpsSettingsInput = z.input<typeof cmsSiteOpsSettingsSchema>;
+
 export const cmsDistributionFiltersSchema = z.object({
   statuses: z.array(z.literal('published')).min(1).default(['published']),
   contentTypes: z.array(z.enum(['article', 'album', 'media', 'link'])).default([]),
@@ -5250,6 +5262,8 @@ export const createCmsChannelSchema = z.object({
   linkUrl: z.string().max(500).refine(isValidCmsLink, CMS_LINK_FORMAT_MESSAGE).nullable().optional(),
   listTemplate: z.string().max(50).nullable().optional(),
   detailTemplate: z.string().max(50).nullable().optional(),
+  /** 静态化模式：inherit = 跟随站点 */
+  staticMode: z.enum(CMS_CHANNEL_STATIC_MODES).default('inherit'),
   pageSize: z.number().int().min(1).max(100).default(20),
   pageContent: z.string().nullable().optional(),
   seoTitle: z.string().max(255).nullable().optional(),
@@ -5283,6 +5297,11 @@ export const createCmsContentSchema = z.object({
     duration: z.string().max(20).optional(),
   }).default({}),
   title: z.string().min(1, '标题不能为空').max(255),
+  /** 标题样式（加粗 / 颜色）；color 为 #rrggbb */
+  titleStyle: z.object({
+    bold: z.boolean().optional(),
+    color: z.string().regex(/^#[0-9a-fA-F]{6}$/, '颜色需为 #rrggbb 格式').nullable().optional(),
+  }).default({}),
   subTitle: z.string().max(255).nullable().optional(),
   shortTitle: z.string().max(100).nullable().optional(),
   slug: z.string().max(255).regex(cmsSlugRegex, '标识仅支持小写字母、数字、中划线').nullable().optional(),
@@ -5297,10 +5316,23 @@ export const createCmsContentSchema = z.object({
   sourceUrl: z.string().max(500).nullable().optional(),
   isOriginal: z.boolean().default(false),
   body: z.string().nullable().optional(),
+  /** 正文附件列表（前台详情页可下载） */
+  attachments: z.array(z.object({
+    name: z.string().trim().min(1, '附件名称不能为空').max(200),
+    url: z.string().trim().min(1, '附件地址不能为空').max(500),
+    size: z.number().int().min(0).default(0),
+    ext: z.string().trim().max(20).default(''),
+    sort: z.number().int().default(0),
+  })).max(50, '附件最多 50 个').default([]),
   extend: z.record(z.string(), z.unknown()).default({}),
   externalLink: z.string().max(500).refine(isValidCmsLink, CMS_LINK_FORMAT_MESSAGE).nullable().optional(),
   /** 详情模板覆盖（主题变体模板名；空 = 跟随栏目/站点默认） */
   detailTemplate: z.string().max(50).nullable().optional(),
+  /** 自定义静态化相对路径（站内唯一）；空 = 按 slug/id 生成 */
+  staticPath: z.string().trim().max(255)
+    .regex(/^[a-z0-9][a-z0-9\-_/]*\.(html|shtml|htm|json)$/, '静态路径需形如 news/2026/hello.html')
+    .refine((v) => !v.includes('..') && !v.includes('//'), '静态路径不能包含 .. 或连续斜杠')
+    .nullable().optional(),
   isTop: z.boolean().default(false),
   /** 置顶权重（数值越大越靠前，isTop=true 时生效） */
   topWeight: z.number().int().min(0).max(9999).default(0),

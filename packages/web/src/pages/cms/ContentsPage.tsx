@@ -267,7 +267,18 @@ export default function ContentsPage() {
           {record.mappingSourceId ? <Tag size="small" color="teal" style={{ marginRight: 4 }}>映射</Tag> : null}
           {record.lockedAt ? <Tag size="small" color="red" style={{ marginRight: 4 }}>锁定</Tag> : null}
           {record.isOriginal ? <Tag size="small" color="green" style={{ marginRight: 4 }}>原创</Tag> : null}
-          <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 240, verticalAlign: 'middle' }}>{v}</Typography.Text>
+          {(record.attachments?.length ?? 0) > 0 ? <Tag size="small" color="grey" style={{ marginRight: 4 }}>{`附${record.attachments.length}`}</Tag> : null}
+          <Typography.Text
+            ellipsis={{ showTooltip: true }}
+            style={{
+              maxWidth: 240,
+              verticalAlign: 'middle',
+              ...(record.titleStyle?.bold ? { fontWeight: 700 } : {}),
+              ...(record.titleStyle?.color ? { color: record.titleStyle.color } : {}),
+            }}
+          >
+            {v}
+          </Typography.Text>
         </span>
       ),
     },

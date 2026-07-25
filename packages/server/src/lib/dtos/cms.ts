@@ -3,6 +3,7 @@
  */
 import { z } from '@hono/zod-openapi';
 import {
+  CMS_CHANNEL_STATIC_MODES,
   CMS_DISTRIBUTION_CONFLICT_STRATEGIES,
   CMS_DISTRIBUTION_MODES,
   CMS_SITE_INHERITABLE_FIELDS,
@@ -186,6 +187,7 @@ export const CmsChannelDTO: z.ZodType = z
     linkUrl: z.string().nullable(),
     listTemplate: z.string().nullable(),
     detailTemplate: z.string().nullable(),
+    staticMode: z.enum(CMS_CHANNEL_STATIC_MODES).openapi({ description: '栏目静态化模式（inherit = 跟随站点）' }),
     pageSize: z.number().int(),
     pageContent: z.string().nullable(),
     seoTitle: z.string().nullable(),
@@ -230,6 +232,10 @@ export const CmsContentDTO = z
     contentType: z.enum(['article', 'album', 'media', 'link']).openapi({ description: '内容形态（创建后不可变更）' }),
     mediaData: z.record(z.string(), z.unknown()).openapi({ description: '形态结构化数据：album.images / media.mediaType|mediaUrl|poster|duration' }),
     title: z.string().openapi({ example: '公司荣获行业大奖' }),
+    titleStyle: z.object({
+      bold: z.boolean().optional(),
+      color: z.string().nullable().optional(),
+    }).openapi({ description: '标题样式（加粗 / 颜色）；空对象 = 主题默认' }),
     subTitle: z.string().nullable().openapi({ description: '副标题' }),
     shortTitle: z.string().nullable().openapi({ description: '短标题（列表窄位展示）' }),
     slug: z.string().nullable(),
@@ -242,9 +248,17 @@ export const CmsContentDTO = z
     sourceUrl: z.string().nullable().openapi({ description: '来源链接' }),
     isOriginal: z.boolean().openapi({ description: '原创标记' }),
     body: z.string().nullable(),
+    attachments: z.array(z.object({
+      name: z.string(),
+      url: z.string(),
+      size: z.number().int(),
+      ext: z.string(),
+      sort: z.number().int(),
+    })).openapi({ description: '正文附件列表（前台详情页可下载）' }),
     extend: z.record(z.string(), z.unknown()),
     externalLink: z.string().nullable(),
     detailTemplate: z.string().nullable().openapi({ description: '详情模板覆盖（主题变体模板名；空 = 跟随栏目/站点默认）' }),
+    staticPath: z.string().nullable().openapi({ description: '自定义静态化相对路径（站内唯一）；空 = 按 slug/id 生成' }),
     isTop: z.boolean(),
     topWeight: z.number().int().openapi({ description: '置顶权重（数值越大越靠前）' }),
     topExpireAt: z.string().nullable().openapi({ description: '置顶到期时间（到期自动取消置顶；空 = 永久）' }),

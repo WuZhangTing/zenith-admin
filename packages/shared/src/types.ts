@@ -10267,6 +10267,37 @@ export interface UserFeedback {
 // ─── CMS 内容管理 ─────────────────────────────────────────────────────────────
 export type CmsStaticMode = 'dynamic' | 'hybrid' | 'static';
 
+/** 栏目静态化模式：inherit=跟随站点，其余覆盖站点设置 */
+export type CmsChannelStaticMode = 'inherit' | CmsStaticMode;
+
+/** 内容标题样式（列表页 / 详情页标题展示） */
+export interface CmsTitleStyle {
+  bold?: boolean;
+  /** 十六进制色值（#rrggbb）；空/缺省 = 主题默认色 */
+  color?: string | null;
+}
+
+/** 内容附件（正文之外的可下载文件） */
+export interface CmsContentAttachment {
+  name: string;
+  url: string;
+  /** 字节数（0 = 未知） */
+  size: number;
+  /** 扩展名（小写，不含点） */
+  ext: string;
+  sort: number;
+}
+
+/** 站点内容策略（存 cms_sites.settings，缺省值见 CMS_SITE_OPS_DEFAULTS） */
+export interface CmsSiteOpsSettings {
+  publishedContentEditable: boolean;
+  recycleKeepDays: number;
+  maxPageOnContentPublish: number;
+  autoReplaceSensitiveWords: boolean;
+  autoReplaceErrorProneWords: boolean;
+  autoCoverFromBody: boolean;
+}
+
 export type CmsChannelType = 'list' | 'page' | 'link';
 
 export type CmsContentStatus = 'draft' | 'pending' | 'published' | 'offline' | 'rejected';
@@ -10668,6 +10699,8 @@ export interface CmsChannel {
   linkUrl: string | null;
   listTemplate: string | null;
   detailTemplate: string | null;
+  /** 栏目静态化模式（inherit = 跟随站点） */
+  staticMode: CmsChannelStaticMode;
   pageSize: number;
   pageContent: string | null;
   seoTitle: string | null;
@@ -10695,6 +10728,8 @@ export interface CmsContent {
   /** 形态结构化数据（album/media 使用） */
   mediaData: CmsContentMediaData;
   title: string;
+  /** 标题样式（加粗 / 颜色；空对象 = 主题默认） */
+  titleStyle: CmsTitleStyle;
   /** 副标题 */
   subTitle: string | null;
   /** 短标题（列表窄位展示） */
@@ -10713,10 +10748,14 @@ export interface CmsContent {
   /** 原创标记 */
   isOriginal: boolean;
   body: string | null;
+  /** 正文附件列表（前台详情页可下载） */
+  attachments: CmsContentAttachment[];
   extend: Record<string, unknown>;
   externalLink: string | null;
   /** 详情模板覆盖（主题变体模板名；null = 跟随栏目/站点默认） */
   detailTemplate: string | null;
+  /** 自定义静态化相对路径（空 = 按 slug/id 生成） */
+  staticPath: string | null;
   isTop: boolean;
   /** 置顶权重（数值越大越靠前，isTop=true 时生效） */
   topWeight: number;

@@ -26,9 +26,35 @@ export function isPgUniqueViolation(error: unknown): boolean {
 }
 
 /**
- * 将 PostgreSQL 唯一约束冲突统一映射为业务错误，其他错误原样抛出。
+ * 沿 cause 链取出违反的约束名，用于区分同表多个唯一约束。
+ * postgres.js 用 `constraint_name`，node-postgres 用 `constraint`，两者都兼容。
  */
-export function rethrowPgUniqueViolation(error: unknown, message: string): never {
-  if (isPgUniqueViolation(error)) throw new HTTPException(400, { message: message });
+export function getPgConstraintName(error: unknown): string | undefined {
+  let current: unknown = error;
+  for (let depth = 0; current != null && depth < 5; depth++) {
+    const row = current as { constraint_name?: unknown; constraint?: unknown; cause?: unknown };
+    if (typeof row.constraint_name === 'string') return row.constraint_name;
+    if (typeof row.constraint === 'string') return row.constraint;
+    current = row.cause;
+  }
+  return undefined;
+}
+
+/**
+ * 将 PostgreSQL 唯一约束冲突统一映射为业务错误，其他错误原样抛出。
+ *
+ * `byConstraint` 用于同一张表存在多个唯一约束时给出精准提示（命中约束名优先，
+ * 未命中则回落到 `message`）。
+ */
+export function rethrowPgUniqueViolation(
+  error: unknown,
+  message: string,
+  byConstraint?: Readonly<Record<string, string>>,
+): never {
+  if (isPgUniqueViolation(error)) {
+    const constraint = getPgConstraintName(error);
+    const specific = constraint ? byConstraint?.[constraint] : undefined;
+    throw new HTTPException(400, { message: specific ?? message });
+  }
   throw error;
 }

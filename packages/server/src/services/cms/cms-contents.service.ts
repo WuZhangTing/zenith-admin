@@ -2,7 +2,7 @@ import { eq, asc, desc, and, or, like, inArray, notInArray, isNull, isNotNull, n
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { cmsSites, cmsContents, cmsContentTags, cmsTags, cmsChannels, cmsContentChannels, cmsContentRelations, cmsCollectItems, users } from '../../db/schema';
-import type { CmsContentRow, CmsTagRow } from '../../db/schema';
+import type { CmsContentRow, CmsSiteRow, CmsTagRow } from '../../db/schema';
 import type { DbExecutor, DbTransaction } from '../../db/types';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
@@ -20,9 +20,13 @@ import { currentUserOrNull, hasPermission } from '../../lib/context';
 import { isWorkflowAuditEnabled, startCmsContentWorkflow, assertNoActiveContentWorkflow } from './cms-workflow.service';
 import { triggerCmsContentWebhook } from './cms-webhook.service';
 import { assertContentTemplateBySite } from './cms-template-refs.service';
-import type { AsyncTask, CmsContentPublishSnapshot, CreateCmsContentInput, UpdateCmsContentInput, CmsContentStatus } from '@zenith/shared';
+import type { AsyncTask, CmsContentAttachment, CmsContentPublishSnapshot, CmsSiteOpsSettings, CreateCmsContentInput, UpdateCmsContentInput, CmsContentStatus } from '@zenith/shared';
 import { buildCmsEntityLink, isCmsEntityLink } from '@zenith/shared';
 import { ensureCmsLinkTargetExists } from './cms-link.service';
+import { extractFirstImage, normalizeAttachments } from './cms-body.service';
+import { resolveCmsSiteOpsSettings } from './cms-site-settings';
+import { sanitizeUserText } from './cms-sensitive-words.service';
+import { replaceErrorProneWords } from './cms-error-prone-words.service';
 import {
   assertCompleteCmsBatch, } from './cms-access';
 import { pageOffset } from '../../lib/pagination';
@@ -86,6 +90,7 @@ export function mapCmsContent(row: CmsContentRow, extra?: { channelName?: string
     contentType: row.contentType,
     mediaData: row.mediaData ?? {},
     title: row.title,
+    titleStyle: row.titleStyle ?? {},
     subTitle: row.subTitle ?? null,
     shortTitle: row.shortTitle ?? null,
     slug: row.slug ?? null,
@@ -98,9 +103,11 @@ export function mapCmsContent(row: CmsContentRow, extra?: { channelName?: string
     sourceUrl: row.sourceUrl ?? null,
     isOriginal: row.isOriginal,
     body: row.body ?? null,
+    attachments: row.attachments ?? [],
     extend: row.extend ?? {},
     externalLink: row.externalLink ?? null,
     detailTemplate: row.detailTemplate ?? null,
+    staticPath: row.staticPath ?? null,
     isTop: row.isTop,
     topWeight: row.topWeight,
     topExpireAt: formatNullableDateTime(row.topExpireAt),
@@ -425,11 +432,18 @@ export async function checkCmsContentTitle(siteId: number, title: string, exclud
 // ─── 属性自动标记（P4：保存时按正文/形态数据/封面检测含图/含视频/含附件）──────────
 const ATTACHMENT_LINK_RE = /<a\b[^>]*href="[^"]*\.(?:pdf|docx?|xlsx?|pptx?|zip|rar|7z|csv)(?:[?#][^"]*)?"/i;
 
+/** cms_contents 的多个唯一约束 → 精准错误提示（未命中回落到通用文案） */
+const CMS_CONTENT_UNIQUE_MESSAGES = {
+  cms_contents_site_slug_uq: '同站点下已存在相同 URL 标识的内容',
+  cms_contents_site_static_path_uq: '同站点下已存在相同静态路径的内容',
+} as const;
+
 export function detectContentFlags(input: {
   contentType: string;
   body: string | null | undefined;
   mediaData: Record<string, unknown> | null | undefined;
   coverImage: string | null | undefined;
+  attachments?: readonly CmsContentAttachment[] | null;
 }): { hasImage: boolean; hasVideo: boolean; hasAttachment: boolean } {
   const body = input.body ?? '';
   const media = input.mediaData ?? {};
@@ -439,18 +453,82 @@ export function detectContentFlags(input: {
     || (input.contentType === 'album' && albumImages.length > 0);
   const hasVideo = /<video\b|<iframe\b[^>]*(?:youtube|bilibili|qq\.com\/txp)/i.test(body)
     || (input.contentType === 'media' && (media as { mediaType?: string }).mediaType === 'video');
-  const hasAttachment = ATTACHMENT_LINK_RE.test(body) || /<a\b[^>]*href="[^"]*\/api\/files\//i.test(body);
+  const hasAttachment = (input.attachments?.length ?? 0) > 0
+    || ATTACHMENT_LINK_RE.test(body)
+    || /<a\b[^>]*href="[^"]*\/api\/files\//i.test(body);
   return { hasImage, hasVideo, hasAttachment };
 }
 
+// ─── 站点内容策略（保存管线：词库自动替换 + 正文首图自动封面）────────────────────
+
+/** 站点开关关闭时直接返回原文，避免无谓的词库加载 */
+async function applyWordPolicies(
+  text: string | null | undefined,
+  ops: CmsSiteOpsSettings,
+): Promise<string | null | undefined> {
+  if (text == null || text === '') return text;
+  let out = text;
+  if (ops.autoReplaceSensitiveWords) out = await sanitizeUserText(out);
+  if (ops.autoReplaceErrorProneWords) out = await replaceErrorProneWords(out);
+  return out;
+}
+
+interface CmsContentPolicyInput {
+  title?: string;
+  summary?: string | null;
+  body?: string | null;
+  coverImage?: string | null;
+  attachments?: CmsContentAttachment[];
+}
+
+/**
+ * 内容保存前的站点策略处理（创建与更新共用）：
+ * 1. 按站点开关对标题/摘要/正文执行敏感词与易错词自动替换（敏感词拦截词仍抛 400）；
+ * 2. 附件列表规范化（去空 / 补扩展名 / 重排序号）；
+ * 3. 未填封面且开启自动封面时，提取正文首图回填。
+ * 仅处理本次提交中出现的字段，未提交字段保持 undefined 以免误覆盖。
+ */
+async function applyCmsContentPolicies<T extends CmsContentPolicyInput>(
+  input: T,
+  site: Pick<CmsSiteRow, 'settings'>,
+  fallback: { body?: string | null; coverImage?: string | null } = {},
+): Promise<T> {
+  const ops = resolveCmsSiteOpsSettings(site.settings);
+  const out: T = { ...input };
+
+  if (out.title !== undefined) out.title = (await applyWordPolicies(out.title, ops)) as string;
+  if (out.summary !== undefined) out.summary = (await applyWordPolicies(out.summary, ops)) ?? null;
+  if (out.body !== undefined) out.body = (await applyWordPolicies(out.body, ops)) ?? null;
+  if (out.attachments !== undefined) out.attachments = normalizeAttachments(out.attachments);
+
+  if (ops.autoCoverFromBody) {
+    const effectiveCover = out.coverImage !== undefined ? out.coverImage : fallback.coverImage;
+    if (!effectiveCover?.trim()) {
+      const effectiveBody = out.body !== undefined ? out.body : fallback.body;
+      const firstImage = extractFirstImage(effectiveBody);
+      if (firstImage) out.coverImage = firstImage;
+    }
+  }
+  return out;
+}
+
+/** 站点关闭「已发布内容可编辑」时，拦截对已发布内容的直接编辑 */
+function assertCmsContentEditable(current: CmsContentRow, site: Pick<CmsSiteRow, 'settings'>): void {
+  if (current.status !== 'published') return;
+  if (resolveCmsSiteOpsSettings(site.settings).publishedContentEditable) return;
+  throw new HTTPException(400, { message: '站点已关闭「已发布内容可编辑」，请先下线内容再编辑' });
+}
+
+
 // ─── 创建 ─────────────────────────────────────────────────────────────────────
 export async function createCmsContent(data: CreateCmsContentInput) {
-  await ensureCmsSiteExists(data.siteId);
+  const siteRow = await ensureCmsSiteExists(data.siteId);
   await assertSiteAccess(data.siteId);
   await assertChannelAccess(data.channelId);
   await assertContentTemplateBySite(data.siteId, data.detailTemplate);
   const channel = await ensureChannelForContent(data.siteId, data.channelId);
-  const { tagIds = [], extraChannelIds = [], relatedIds = [], scheduledAt, expireAt, topExpireAt, ...rest } = data;
+  const { tagIds = [], extraChannelIds = [], relatedIds = [], scheduledAt, expireAt, topExpireAt, ...raw } = data;
+  const rest = await applyCmsContentPolicies(raw as typeof raw & CmsContentPolicyInput, siteRow);
   const parsedScheduledAt = parseDateTimeInput(scheduledAt);
   await requireCmsScheduledAtMutationPermission({
     current: null,
@@ -485,6 +563,7 @@ export async function createCmsContent(data: CreateCmsContentInput) {
           body: rest.body,
           mediaData: rest.mediaData as Record<string, unknown>,
           coverImage: rest.coverImage,
+          attachments: rest.attachments,
         }),
         searchVector: buildSearchVector({
           siteId: data.siteId,
@@ -515,7 +594,7 @@ export async function createCmsContent(data: CreateCmsContentInput) {
     if (mutation.refsTask) await enqueueCmsPublishOutboxes([mutation.refsTask], `内容 #${mutation.created.id} 模板引用创建`);
     return getCmsContent(mutation.created.id);
   } catch (err) {
-    rethrowPgUniqueViolation(err, '同站点下已存在相同 URL 标识的内容');
+    rethrowPgUniqueViolation(err, '同站点下已存在相同 URL 标识的内容', CMS_CONTENT_UNIQUE_MESSAGES);
   }
 }
 
@@ -529,6 +608,8 @@ export async function updateCmsContent(
   await assertSiteAccess(current.siteId);
   await assertChannelAccess(current.channelId);
   assertCmsContentUnlocked(current);
+  const siteRow = await ensureCmsSiteExists(current.siteId);
+  assertCmsContentEditable(current, siteRow);
   await assertNoLockedCmsMappedCopies(id);
   await assertContentTemplateBySite(current.siteId, data.detailTemplate);
   let modelId = current.modelId;
@@ -537,7 +618,12 @@ export async function updateCmsContent(
     const channel = await ensureChannelForContent(current.siteId, data.channelId);
     modelId = channel.modelId ?? null;
   }
-  const { tagIds, extraChannelIds, relatedIds, scheduledAt, expireAt, topExpireAt, expectedVersion, ...rest } = data;
+  const { tagIds, extraChannelIds, relatedIds, scheduledAt, expireAt, topExpireAt, expectedVersion, ...raw } = data;
+  const rest = await applyCmsContentPolicies(
+    raw as typeof raw & CmsContentPolicyInput,
+    siteRow,
+    { body: current.body, coverImage: current.coverImage },
+  );
   const parsedScheduledAt = scheduledAt === undefined ? undefined : parseDateTimeInput(scheduledAt);
   await requireCmsScheduledAtMutationPermission({
     current: current.scheduledAt,
@@ -587,6 +673,7 @@ export async function updateCmsContent(
           body: rest.body !== undefined ? rest.body : current.body,
           mediaData: nextMediaData,
           coverImage: rest.coverImage !== undefined ? rest.coverImage : current.coverImage,
+          attachments: rest.attachments !== undefined ? rest.attachments : current.attachments,
         }),
         // 映射内容正文在来源行，保持自身检索向量不动（分发时已按来源快照写入）
         ...(current.mappingSourceId ? {} : {
@@ -651,7 +738,7 @@ export async function updateCmsContent(
     }
     return getCmsContent(id);
   } catch (err) {
-    rethrowPgUniqueViolation(err, '同站点下已存在相同 URL 标识的内容');
+    rethrowPgUniqueViolation(err, '同站点下已存在相同 URL 标识的内容', CMS_CONTENT_UNIQUE_MESSAGES);
   }
 }
 
@@ -1623,11 +1710,26 @@ export async function distributeCmsContents(ids: number[], targetSiteId: number,
   });
 }
 
-/** 回收站自动清理：彻底删除进入回收站超过 N 天的内容（系统周期任务调用） */
-export async function cleanupCmsRecycleBin(retentionDays = 30): Promise<number> {
-  const threshold = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
-  const targets = await db.select({ id: cmsContents.id }).from(cmsContents)
-    .where(and(isNotNull(cmsContents.deletedAt), lt(cmsContents.deletedAt, threshold), isNull(cmsContents.lockedAt)));
-  if (targets.length === 0) return 0;
-  return purgeCmsContents(targets.map((t) => t.id), { skipAccessCheck: true });
+/**
+ * 回收站自动清理：按各站点的 `settings.recycleKeepDays` 彻底删除超期内容（系统周期任务调用）。
+ * `recycleKeepDays = 0` 表示该站点永久保留，跳过清理。
+ */
+export async function cleanupCmsRecycleBin(): Promise<number> {
+  const sites = await db.select({ id: cmsSites.id, settings: cmsSites.settings }).from(cmsSites);
+  const now = Date.now();
+  const targetIds: number[] = [];
+  for (const site of sites) {
+    const keepDays = resolveCmsSiteOpsSettings(site.settings).recycleKeepDays;
+    if (keepDays <= 0) continue;
+    const threshold = new Date(now - keepDays * 24 * 60 * 60 * 1000);
+    const rows = await db.select({ id: cmsContents.id }).from(cmsContents).where(and(
+      eq(cmsContents.siteId, site.id),
+      isNotNull(cmsContents.deletedAt),
+      lt(cmsContents.deletedAt, threshold),
+      isNull(cmsContents.lockedAt),
+    ));
+    targetIds.push(...rows.map((r) => r.id));
+  }
+  if (targetIds.length === 0) return 0;
+  return purgeCmsContents(targetIds, { skipAccessCheck: true });
 }

@@ -708,6 +708,13 @@
       "when": 1784980781229,
       "tag": "0100_thin_black_widow",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1784986409869,
+      "tag": "0101_smooth_squadron_supreme",
+      "breakpoints": true
     }
   ]
 }

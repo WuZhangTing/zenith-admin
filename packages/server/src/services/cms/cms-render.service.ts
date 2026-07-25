@@ -264,6 +264,7 @@ function toContentItem(row: CmsContentRow, baseUrl: string, channelPath: string,
   return {
     id: row.id,
     title: row.title,
+    titleStyle: row.titleStyle ?? {},
     url: rawLink ? (link?.url ?? '#') : contentUrl(baseUrl, channelPath, row),
     isExternal: link?.isExternal ?? false,
     contentType: row.contentType,
@@ -525,6 +526,7 @@ function buildDetailExtras(row: CmsContentRow, resolvedBody: string | null, base
     totalPages,
     extras: {
       bodyPagination,
+      attachments: row.attachments ?? [],
       albumImages,
       mediaUrl: media.mediaUrl ?? null,
       mediaPoster: media.poster ?? null,

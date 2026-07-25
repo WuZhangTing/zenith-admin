@@ -316,10 +316,10 @@ export async function registerSystemTasks(): Promise<void> {
     title: 'CMS 回收站自动清理',
     module: 'CMS内容管理',
     cronExpression: '50 3 * * *',
-    description: '每天清理进入回收站超过 30 天的内容（彻底删除，含标签计数重算）。',
+    description: '每天按各站点「回收站保留天数」清理超期内容（彻底删除，含标签计数重算；0 天 = 永久保留）。',
     allowManualRun: true,
     run: async () => {
-      const count = await cleanupCmsRecycleBin(30);
+      const count = await cleanupCmsRecycleBin();
       return `清理了 ${count} 条回收站内容`;
     },
   });

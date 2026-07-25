@@ -1,4 +1,4 @@
-import { CMS_SECRET_MASK } from '@zenith/shared';
+import { CMS_SECRET_MASK, CMS_SITE_OPS_DEFAULTS, type CmsSiteOpsSettings } from '@zenith/shared';
 
 export { CMS_SECRET_MASK };
 
@@ -72,4 +72,34 @@ export function normalizeNewCmsSiteSettings(
   incoming: Record<string, unknown> | null | undefined,
 ): Record<string, unknown> {
   return mergeCmsSiteSettings({}, incoming);
+}
+
+// ─── 站点内容策略（settings 的受控子集，缺省回落 CMS_SITE_OPS_DEFAULTS）──────────
+
+function boolSetting(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function intSetting(value: unknown, fallback: number, max: number): number {
+  const num = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.min(Math.max(Math.trunc(num), 0), max);
+}
+
+/**
+ * 解析站点内容策略开关。settings 缺项时回落到 CMS_SITE_OPS_DEFAULTS，
+ * 因此新站点与历史站点无需数据迁移即可获得一致行为。
+ */
+export function resolveCmsSiteOpsSettings(
+  settings: Record<string, unknown> | null | undefined,
+): CmsSiteOpsSettings {
+  const s = settings ?? {};
+  return {
+    publishedContentEditable: boolSetting(s.publishedContentEditable, CMS_SITE_OPS_DEFAULTS.publishedContentEditable),
+    recycleKeepDays: intSetting(s.recycleKeepDays, CMS_SITE_OPS_DEFAULTS.recycleKeepDays, 3650),
+    maxPageOnContentPublish: intSetting(s.maxPageOnContentPublish, CMS_SITE_OPS_DEFAULTS.maxPageOnContentPublish, 1000),
+    autoReplaceSensitiveWords: boolSetting(s.autoReplaceSensitiveWords, CMS_SITE_OPS_DEFAULTS.autoReplaceSensitiveWords),
+    autoReplaceErrorProneWords: boolSetting(s.autoReplaceErrorProneWords, CMS_SITE_OPS_DEFAULTS.autoReplaceErrorProneWords),
+    autoCoverFromBody: boolSetting(s.autoCoverFromBody, CMS_SITE_OPS_DEFAULTS.autoCoverFromBody),
+  };
 }

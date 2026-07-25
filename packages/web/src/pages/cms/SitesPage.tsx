@@ -33,7 +33,7 @@ import {
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 import { useWorkflowDefinitionList } from '@/hooks/queries/workflow-definitions';
-import { CMS_SITE_INHERITABLE_FIELD_LABELS, CMS_SITE_INHERITABLE_FIELDS, CMS_STATIC_MODE_LABELS, CMS_STATIC_MODES, CMS_DEFAULT_CHANNEL_CODE, CMS_TWITTER_CARDS, CMS_TWITTER_CARD_LABELS } from '@zenith/shared';
+import { CMS_SITE_INHERITABLE_FIELD_LABELS, CMS_SITE_INHERITABLE_FIELDS, CMS_SITE_OPS_DEFAULTS, CMS_STATIC_MODE_LABELS, CMS_STATIC_MODES, CMS_DEFAULT_CHANNEL_CODE, CMS_TWITTER_CARDS, CMS_TWITTER_CARD_LABELS } from '@zenith/shared';
 import type { AsyncTask, CmsSite, CmsSiteInheritanceFlags, CmsSiteInheritableField, CmsSiteTemplateDefaults, CmsInvalidTemplateRef, CmsThemeSettingField } from '@zenith/shared';
 import { cmsPreviewUrl } from './CmsSiteSelect';
 import { cmsCredentialWriteValue } from './cms-site-credentials';
@@ -169,6 +169,21 @@ function parseLangLinks(text: string): { language: string; siteCode: string }[] 
       return language && siteCode ? { language, siteCode } : null;
     })
     .filter((x): x is { language: string; siteCode: string } => !!x);
+}
+
+/** settings 中的内容策略 → 表单初值（缺项回落 CMS_SITE_OPS_DEFAULTS，与服务端解析规则一致） */
+function resolveSiteOpsFormValues(settings: Record<string, unknown> | null | undefined): Record<string, unknown> {
+  const s = settings ?? {};
+  const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);
+  const int = (v: unknown, d: number) => (Number.isFinite(Number(v)) ? Number(v) : d);
+  return {
+    publishedContentEditable: bool(s.publishedContentEditable, CMS_SITE_OPS_DEFAULTS.publishedContentEditable),
+    recycleKeepDays: int(s.recycleKeepDays, CMS_SITE_OPS_DEFAULTS.recycleKeepDays),
+    maxPageOnContentPublish: int(s.maxPageOnContentPublish, CMS_SITE_OPS_DEFAULTS.maxPageOnContentPublish),
+    autoReplaceSensitiveWords: bool(s.autoReplaceSensitiveWords, CMS_SITE_OPS_DEFAULTS.autoReplaceSensitiveWords),
+    autoReplaceErrorProneWords: bool(s.autoReplaceErrorProneWords, CMS_SITE_OPS_DEFAULTS.autoReplaceErrorProneWords),
+    autoCoverFromBody: bool(s.autoCoverFromBody, CMS_SITE_OPS_DEFAULTS.autoCoverFromBody),
+  };
 }
 
 /** 主题参数编辑态 → settings.themeConfig（剔除空值，保持 JSONB 干净） */
@@ -497,11 +512,13 @@ export default function SitesPage() {
         clearBaiduPushToken: false,
         language: String((editingRecord.settings as Record<string, unknown>)?.language ?? ''),
         langLinksText: langLinksToText((editingRecord.settings as Record<string, unknown>)?.langLinks),
+        ...resolveSiteOpsFormValues(editingRecord.settings as Record<string, unknown>),
       }
     : {
         parentId: null, theme: 'default', staticMode: 'hybrid', status: 'enabled', isDefault: false, aliasDomains: [],
         themeDark: 'light', imageMaxWidth: 1600, watermarkEnabled: false, watermarkPosition: 'southeast',
         watermarkOpacity: 45, thumbEnabled: false, thumbWidth: 400, auditMode: 'simple',
+        ...CMS_SITE_OPS_DEFAULTS,
       };
 
   async function handleSave() {
@@ -521,6 +538,8 @@ export default function SitesPage() {
       auditMode, auditWorkflowDefinitionId,
       webhookUrl, webhookSecret, clearWebhookSecret, captchaEnabled,
       cdnPurgeUrl, cdnPurgeToken, clearCdnPurgeToken, clearBaiduPushToken, language, langLinksText,
+      publishedContentEditable, recycleKeepDays, maxPageOnContentPublish,
+      autoReplaceSensitiveWords, autoReplaceErrorProneWords, autoCoverFromBody,
       theme: requestedTheme,
       ...rest
     } = values;
@@ -553,6 +572,13 @@ export default function SitesPage() {
       langLinks: parseLangLinks(String(langLinksText ?? '')),
       defaultTemplates: templateDefaultsToSettings(templateDefaults),
       themeConfig: cleanThemeConfig(themeConfig),
+      // 内容策略
+      publishedContentEditable: publishedContentEditable !== false,
+      recycleKeepDays: Number(recycleKeepDays ?? CMS_SITE_OPS_DEFAULTS.recycleKeepDays),
+      maxPageOnContentPublish: Number(maxPageOnContentPublish ?? CMS_SITE_OPS_DEFAULTS.maxPageOnContentPublish),
+      autoReplaceSensitiveWords: autoReplaceSensitiveWords === true,
+      autoReplaceErrorProneWords: autoReplaceErrorProneWords === true,
+      autoCoverFromBody: autoCoverFromBody === true,
     };
     // 主题参数变更 + 非纯动态站点 → 保存后提示重新生成静态页
     const prevThemeConfig = JSON.stringify(cleanThemeConfig((prevSettings.themeConfig as Record<string, unknown>) ?? {}));
@@ -1164,6 +1190,46 @@ export default function SitesPage() {
                   <Form.Input field="language" label="本站语言" labelWidth={140} placeholder="如 zh-CN；留空不启用" />
                   <Form.TextArea field="langLinksText" label="关联站点" labelWidth={140} rows={3}
                     placeholder={'每行一条：语言代码=站点标识\n如 en-US=en-site'} />
+                </Form.Section>
+              </div>
+            </TabPane>
+            <TabPane tab="内容策略" itemKey="contentPolicy">
+              <div style={{ paddingTop: 16 }}>
+                <Form.Section text="编辑与回收站">
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Switch field="publishedContentEditable" label="已发布内容可编辑" labelWidth={160}
+                        extraText="关闭后已发布内容需先下线才能修改" />
+                    </Col>
+                    <Col span={12}>
+                      <Form.InputNumber field="recycleKeepDays" label="回收站保留天数" labelWidth={160} min={0} max={3650}
+                        style={{ width: '100%' }} extraText="超期由每日周期任务彻底删除；0 = 永久保留" />
+                    </Col>
+                  </Row>
+                </Form.Section>
+                <Form.Section text="发布性能">
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.InputNumber field="maxPageOnContentPublish" label="重建列表页数上限" labelWidth={160} min={0} max={1000}
+                        style={{ width: '100%' }} extraText="单条内容发布时最多重建栏目前 N 页；0 = 全部重建" />
+                    </Col>
+                  </Row>
+                </Form.Section>
+                <Form.Section text="保存时自动处理">
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Switch field="autoReplaceSensitiveWords" label="自动替换敏感词" labelWidth={160}
+                        extraText="按敏感词库替换标题/摘要/正文；命中拦截词仍会拒绝保存" />
+                    </Col>
+                    <Col span={12}>
+                      <Form.Switch field="autoReplaceErrorProneWords" label="自动替换易错词" labelWidth={160}
+                        extraText="按易错词库将常见错词替换为正确写法" />
+                    </Col>
+                    <Col span={12}>
+                      <Form.Switch field="autoCoverFromBody" label="正文首图作封面" labelWidth={160}
+                        extraText="未填写封面图时，保存自动提取正文第一张图片" />
+                    </Col>
+                  </Row>
                 </Form.Section>
               </div>
             </TabPane>

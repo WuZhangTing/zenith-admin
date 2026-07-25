@@ -1,5 +1,12 @@
 import type { ComponentType } from 'react';
-import type { CmsFormField, CmsFragmentType, CmsSearchResult, CmsThemeSettingField } from '@zenith/shared';
+import type {
+  CmsContentAttachment,
+  CmsFormField,
+  CmsFragmentType,
+  CmsSearchResult,
+  CmsThemeSettingField,
+  CmsTitleStyle,
+} from '@zenith/shared';
 
 /** 渲染上下文：站点信息 */
 export interface CmsRenderSite {
@@ -64,6 +71,8 @@ export interface CmsSeo {
 export interface CmsContentItem {
   id: number;
   title: string;
+  /** 标题样式（加粗 / 颜色）；空对象 = 主题默认 */
+  titleStyle: CmsTitleStyle;
   url: string;
   /** 外链型内容：列表点击新窗口直达外链 */
   isExternal: boolean;
@@ -110,6 +119,8 @@ export interface CmsContentDetail extends CmsContentItem {
   body: string;
   /** 正文多页分页（含分页符时非 null，body 为当前页片段） */
   bodyPagination: CmsBodyPagination | null;
+  /** 正文附件（可下载） */
+  attachments: CmsContentAttachment[];
   /** album：图片列表 */
   albumImages: CmsAlbumImageItem[];
   /** media：媒体地址与海报 */

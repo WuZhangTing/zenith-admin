@@ -14,7 +14,7 @@
 |------|-----|
 | 首页 | `/`（可被「页面搭建」isHome 页面接管） |
 | 栏目列表 | `/{channelPath}/`，分页 `/{channelPath}/index_{n}.html` |
-| 内容详情 | `/{channelPath}/{idOrSlug}.html`，正文多页 `/{channelPath}/{idOrSlug}_{n}.html` |
+| 内容详情 | `/{channelPath}/{idOrSlug}.html`，正文多页 `/{channelPath}/{idOrSlug}_{n}.html`；内容设了 `staticPath` 时改用该相对路径（分页在扩展名前追加 `_{n}`） |
 | 标签聚合 | `/tag/{slug}/` |
 | 搭建页面 | `/p/{slug}/` |
 | 互动问卷 | `/interaction/{code}/` |
@@ -33,6 +33,22 @@
 | `static` | 仅发布时生成，miss 不回写 | 高安全静态托管 |
 
 静态产物：首页、栏目全分页（上限 50 页）、详情页、标签页、搭建页、`sitemap.xml`（5 万条上限）、`robots.txt`、RSS。写入采用 `.tmp` + rename 原子操作。默认通道产物在站点根目录，非默认通道在 `{siteCode}/__{channelCode}/` 子树逐通道生成；`sitemap.xml`/`robots.txt`/RSS 仅站点级一份。dynamic 模式 Redis 页面缓存 key 含通道维度（`cms:page:{siteId}:{channelCode}:{path}`）。
+
+### 栏目级静态化开关
+
+栏目 `staticMode` 可逐栏目覆盖站点设置：
+
+| 值 | 行为 |
+|------|------|
+| `inherit`（默认） | 跟随站点 `staticMode` |
+| `dynamic` | 本栏目**不产出**任何静态文件（列表页、详情页均走 SSR），站点其余栏目不受影响 |
+| `hybrid` / `static` | 覆盖站点设置，语义同上表 |
+
+生效点：增量刷新（`refreshContentStatic`）、快照发布（`applyCmsContentPublishSnapshot`）、栏目重建与全量构建（`buildSiteStatic`）。切为 `dynamic` 后，历史产物在下一次内容变更的删除阶段被清理。链接型栏目（`type=link`）本来就不生成静态文件，不展示该选项。
+
+### 发布时重建页数上限
+
+站点 `settings.maxPageOnContentPublish`（内容策略）限制**单条内容发布/更新**时重建所属栏目的列表页数（默认 `0` = 全部重建，上限同 50 页）。仅作用于增量刷新路径；栏目级重建与全量构建始终生成全部分页。超出页数的历史分页文件仍会正常清理，不会残留。
 
 ### 页面区块展示条件的静态安全策略
 

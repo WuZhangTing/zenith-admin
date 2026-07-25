@@ -36,6 +36,7 @@ export function mapCmsChannel(row: CmsChannelRow, modelName?: string | null): Cm
     linkUrl: row.linkUrl ?? null,
     listTemplate: row.listTemplate ?? null,
     detailTemplate: row.detailTemplate ?? null,
+    staticMode: row.staticMode,
     pageSize: row.pageSize,
     pageContent: row.pageContent ?? null,
     seoTitle: row.seoTitle ?? null,
