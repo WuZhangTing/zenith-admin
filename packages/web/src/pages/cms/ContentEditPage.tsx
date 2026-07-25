@@ -119,6 +119,28 @@ function diffValueText(value: unknown): string {
   return String(value);
 }
 
+/** 右侧属性面板字段 → 所属标签页，校验失败时自动切到出错分组 */
+const SIDE_TAB_BY_FIELD: Record<string, string> = {
+  channelId: 'basic', title: 'basic', subTitle: 'basic', shortTitle: 'basic', summary: 'basic',
+  tagIds: 'basic', coverImage: 'basic', isTop: 'basic', isOriginal: 'basic', isRecommend: 'basic', isHot: 'basic',
+  extraChannelIds: 'attribution', relatedIds: 'attribution',
+  author: 'attribution', editor: 'attribution', source: 'attribution', sourceUrl: 'attribution',
+  seoTitle: 'seo', seoKeywords: 'seo', seoDescription: 'seo', socialImageAlt: 'seo', twitterCreator: 'seo',
+  topWeight: 'schedule', topExpireAt: 'schedule', sort: 'schedule', scheduledAt: 'schedule', expireAt: 'schedule',
+  slug: 'advanced', detailTemplate: 'advanced',
+};
+
+/** 展平 Semi 校验错误对象（含 extend.xxx 嵌套），提取字段路径与提示文案 */
+function flattenFormErrors(errors: unknown, prefix = ''): { field: string; message: string }[] {
+  if (!errors || typeof errors !== 'object') return [];
+  return Object.entries(errors as Record<string, unknown>).flatMap(([key, value]) => {
+    const field = prefix ? `${prefix}.${key}` : key;
+    if (typeof value === 'string') return value ? [{ field, message: value }] : [];
+    if (value && typeof value === 'object') return flattenFormErrors(value, field);
+    return [];
+  });
+}
+
 export default function ContentEditPage() {
   const { hasPermission } = usePermission();
   const navigate = useNavigate();
@@ -179,6 +201,8 @@ export default function ContentEditPage() {
   const [diffVersionId, setDiffVersionId] = useState<number | undefined>(undefined);
   const diffQuery = useCmsVersionDiff(id, diffVersionId);
   const [coverPickerVisible, setCoverPickerVisible] = useState(false);
+  // 右侧属性面板当前标签页（受控：校验失败时自动切到出错分组）
+  const [sideTab, setSideTab] = useState('basic');
   const [opLogsVisible, setOpLogsVisible] = useState(false);
   const opLogsQuery = useCmsContentOpLogs(id, opLogsVisible);
   const checkMutation = useCmsCheckText();
@@ -311,12 +335,29 @@ export default function ContentEditPage() {
       if (!opts?.silent) Toast.warning('内容已被持久锁定，当前页面为只读状态');
       return null;
     }
-    if (!siteId) return null;
+    if (!siteId) {
+      if (!opts?.silent) Toast.error('未指定所属站点，请从内容列表进入编辑页');
+      return null;
+    }
     let values: Record<string, unknown>;
     try {
       values = (await formApi.current?.validate()) ?? {};
-    } catch {
-      if (!opts?.silent) Toast.error('请完善必填项后再保存');
+    } catch (err) {
+      if (!opts?.silent) {
+        const issues = flattenFormErrors(err);
+        // 出错字段可能藏在未激活的属性面板标签页里，自动切过去
+        const firstTab = issues.map(({ field }) => (
+          field === 'externalLink'
+            ? (contentType === 'link' ? 'basic' : 'advanced')
+            : SIDE_TAB_BY_FIELD[field]
+        )).find(Boolean);
+        if (firstTab) setSideTab(firstTab);
+        const hints = issues.slice(0, 3).map((i) => i.message).join('；');
+        Toast.error({
+          content: hints ? `请完善必填项：${hints}${issues.length > 3 ? ' 等' : ''}` : '请完善必填项后再保存',
+          duration: 4,
+        });
+      }
       return null;
     }
     const payload: Record<string, unknown> = { ...values, body };
@@ -409,15 +450,21 @@ export default function ContentEditPage() {
   }
 
   async function handlePreview() {
-    if (!id) return;
-    // 预览前把当前改动落库，保证预览即所见
-    if (dirtyRef.current) {
-      const savedId = await save({ silent: true }).catch(() => null);
-      if (!savedId) {
+    // 新建内容需先落库拿到 id；已存在内容有改动时先静默保存，保证「预览即所见」
+    let previewId = id;
+    if (!previewId || dirtyRef.current) {
+      const savedId = await save(previewId ? { silent: true } : undefined).catch(() => null);
+      if (savedId) {
+        previewId = savedId;
+        if (!id) navigate(`/cms/contents/edit?id=${savedId}&siteId=${siteId}`, { replace: true });
+      } else if (previewId) {
         Toast.warning('存在未通过校验的字段，预览将展示最近一次保存的内容');
+      } else {
+        // 新建且保存未通过：save() 已给出校验反馈，无内容可预览
+        return;
       }
     }
-    const link = await previewMutation.mutateAsync(id);
+    const link = await previewMutation.mutateAsync(previewId);
     window.open(link.url, '_blank');
   }
 
@@ -462,9 +509,9 @@ export default function ContentEditPage() {
         </h3>
         <Button icon={<Save size={14} />} loading={saveMutation.isPending} disabled={isPersistentlyLocked} onClick={() => void handleSaveDraft()}>保存</Button>
         <Button icon={<SpellCheck size={14} />} loading={checkMutation.isPending} onClick={() => void handleCheckText()}>内容检查</Button>
+        <Button icon={<Eye size={14} />} loading={previewMutation.isPending || saveMutation.isPending} onClick={() => void handlePreview()}>预览</Button>
         {id ? (
           <>
-            <Button icon={<Eye size={14} />} loading={previewMutation.isPending} onClick={() => void handlePreview()}>预览</Button>
             <Button icon={<History size={14} />} onClick={() => setVersionsVisible(true)}>历史版本</Button>
             <Button icon={<ScrollText size={14} />} onClick={() => setOpLogsVisible(true)}>操作记录</Button>
           </>
@@ -660,8 +707,16 @@ export default function ContentEditPage() {
             </div>
             {/* 右：基本信息面板 —— 横向标签页分组（宽屏下独立滚动） */}
             <div className="cms-content-edit__side">
-              <Tabs type="line" size="small" collapsible>
+              <Tabs type="line" size="small" collapsible activeKey={sideTab} onChange={setSideTab}>
                 <TabPane tab="基础信息" itemKey="basic">
+                  <Form.TreeSelect
+                    field="channelId"
+                    label="所属栏目"
+                    size="small"
+                    style={{ width: '100%' }}
+                    treeData={channelsToTree(treeQuery.data ?? [])}
+                    rules={[{ required: true, message: '请选择栏目' }]}
+                  />
                   <Form.Input
                     field="title" label="标题" size="small"
                     rules={[{ required: true, message: '请输入标题' }]}
@@ -681,14 +736,6 @@ export default function ContentEditPage() {
                     />
                     {id ? <div style={{ marginTop: 4, fontSize: 12, color: 'var(--semi-color-text-2)' }}>形态创建后不可变更</div> : null}
                   </Form.Slot>
-                  <Form.TreeSelect
-                    field="channelId"
-                    label="所属栏目"
-                    size="small"
-                    style={{ width: '100%' }}
-                    treeData={channelsToTree(treeQuery.data ?? [])}
-                    rules={[{ required: true, message: '请选择栏目' }]}
-                  />
                   <Form.Select
                     field="tagIds"
                     label="标签"
