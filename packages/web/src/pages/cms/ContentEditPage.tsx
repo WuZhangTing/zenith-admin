@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Button, Form, Spin, Toast, Row, Col, Banner, SideSheet, Timeline, Modal, Upload, Typography, useFormApi, Select, Input, Tabs, TabPane } from '@douyinfe/semi-ui';
+import { Button, Form, Spin, Toast, Row, Col, Banner, SideSheet, Timeline, Modal, Upload, Typography, useFormApi, Tag, Input, Tabs, TabPane } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
 import { ArrowLeft, Save, Send, History, ImageUp, Eye, GitCompare, Images, SpellCheck, ScrollText } from 'lucide-react';
@@ -18,7 +18,7 @@ import {
   useCmsVersionDiff, useCmsPreviewLink, acquireCmsEditLock, releaseCmsEditLock, useCmsContentList,
   useAllCmsSites, useCmsThemeTemplates, useCmsContentOpLogs, useCmsCheckText,
 } from '@/hooks/queries/cms';
-import { CMS_CONTENT_STATUS_LABELS, CMS_CONTENT_TYPE_LABELS } from '@zenith/shared';
+import { CMS_CONTENT_STATUS_LABELS, CMS_CONTENT_TYPE_LABELS, CMS_CONTENT_TYPES } from '@zenith/shared';
 import type { CmsChannel, CmsModelField, CmsEditLock, CmsTextCheckResult, CmsContentType, CmsAlbumImage } from '@zenith/shared';
 import { cmsPreviewUrl } from './CmsSiteSelect';
 import './ContentEditPage.css';
@@ -150,6 +150,11 @@ export default function ContentEditPage() {
   const id = searchParams.get('id') ? Number(searchParams.get('id')) : undefined;
   const siteIdParam = searchParams.get('siteId') ? Number(searchParams.get('siteId')) : undefined;
   const channelIdParam = searchParams.get('channelId') ? Number(searchParams.get('channelId')) : undefined;
+  // 内容形态由列表页「新增」分裂按钮指定，创建后不可变更
+  const contentTypeParam = searchParams.get('contentType');
+  const newContentType: CmsContentType = CMS_CONTENT_TYPES.includes(contentTypeParam as CmsContentType)
+    ? (contentTypeParam as CmsContentType)
+    : 'article';
 
   const detailQuery = useCmsContentDetail(id);
   const detail = detailQuery.data;
@@ -189,8 +194,6 @@ export default function ContentEditPage() {
 
   const [body, setBody] = useState('');
   const [selectedChannelId, setSelectedChannelId] = useState<number | undefined>(channelIdParam);
-  // 内容形态：新建可选，保存后不可变更
-  const [newContentType, setNewContentType] = useState<CmsContentType>('article');
   const contentType: CmsContentType = detail?.contentType ?? newContentType;
   // 图集图片（受控管理，保存时并入 mediaData.images）
   const [albumImages, setAlbumImages] = useState<CmsAlbumImage[]>([]);
@@ -504,6 +507,7 @@ export default function ContentEditPage() {
         <Button icon={<ArrowLeft size={14} />} onClick={() => navigate(-1)}>返回</Button>
         <h3 style={{ margin: 0, flex: 1, minWidth: 200 }}>
           {id ? '编辑内容' : '新增内容'}
+          <Tag size="small" color="blue" style={{ marginLeft: 12, verticalAlign: 'middle' }}>{CMS_CONTENT_TYPE_LABELS[contentType]}</Tag>
           {detail ? <span style={{ marginLeft: 12, fontSize: 13, fontWeight: 'normal', color: 'var(--semi-color-text-2)' }}>状态：{CMS_CONTENT_STATUS_LABELS[detail.status]}</span> : null}
           {autoSavedAt ? <span style={{ marginLeft: 12, fontSize: 12, fontWeight: 'normal', color: 'var(--semi-color-text-2)' }}>已自动保存 {autoSavedAt}</span> : null}
         </h3>
@@ -725,17 +729,6 @@ export default function ContentEditPage() {
                   <Form.Input field="subTitle" label="副标题" size="small" placeholder="可选" />
                   <Form.Input field="shortTitle" label="短标题" size="small" placeholder="列表窄位展示（可选）" />
                   <Form.TextArea field="summary" label="摘要" rows={2} placeholder="留空时前台自动截取正文" />
-                  <Form.Slot label="内容形态">
-                    <Select
-                      value={contentType}
-                      onChange={(v) => { if (!id) { setNewContentType(v as CmsContentType); dirtyRef.current = true; } }}
-                      disabled={!!id}
-                      size="small"
-                      style={{ width: '100%' }}
-                      optionList={Object.entries(CMS_CONTENT_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
-                    />
-                    {id ? <div style={{ marginTop: 4, fontSize: 12, color: 'var(--semi-color-text-2)' }}>形态创建后不可变更</div> : null}
-                  </Form.Slot>
                   <Form.Select
                     field="tagIds"
                     label="标签"

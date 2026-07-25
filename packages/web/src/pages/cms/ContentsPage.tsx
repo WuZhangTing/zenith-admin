@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Input, Tag, Toast, Modal, Tabs, TabPane, Tree, Typography, Dropdown, Form, Upload, Select } from '@douyinfe/semi-ui';
+import { Button, Input, Tag, Toast, Modal, Tabs, TabPane, Tree, Typography, Dropdown, Form, Upload, Select, SplitButtonGroup } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
@@ -434,11 +434,29 @@ export default function ContentsPage() {
   const renderResetButton = () => (
     <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
   );
+  const gotoCreate = (type: CmsContentType) => navigate(
+    `/cms/contents/edit?siteId=${siteId}${channelId ? `&channelId=${channelId}` : ''}&contentType=${type}`,
+  );
   const renderCreateButton = () => hasPermission('cms:content:create') && siteId ? (
-    <Button type="primary" icon={<Plus size={14} />}
-      onClick={() => navigate(`/cms/contents/edit?siteId=${siteId}${channelId ? `&channelId=${channelId}` : ''}`)}>
-      新增
-    </Button>
+    <SplitButtonGroup>
+      <Button type="primary" icon={<Plus size={14} />} onClick={() => gotoCreate('article')}>新增</Button>
+      <Dropdown
+        trigger="click"
+        position="bottomRight"
+        clickToHide
+        render={(
+          <Dropdown.Menu>
+            {Object.entries(CMS_CONTENT_TYPE_LABELS).map(([value, label]) => (
+              <Dropdown.Item key={value} onClick={() => gotoCreate(value as CmsContentType)}>
+                新增{label}
+              </Dropdown.Item>
+            ))}
+          </Dropdown.Menu>
+        )}
+      >
+        <Button type="primary" icon={<ChevronDown size={14} />} />
+      </Dropdown>
+    </SplitButtonGroup>
   ) : null;
   const renderImportButton = () => hasPermission('cms:content:create') && siteId ? (
     <Upload
