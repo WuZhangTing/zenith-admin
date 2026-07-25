@@ -583,7 +583,7 @@ export default function ChannelsPage() {
   );
 
   const masterPanel = (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <>
       <MasterDetailLayout.Header
         extra={(
           <>
@@ -626,47 +626,43 @@ export default function ChannelsPage() {
           />
         )}
       </MasterDetailLayout.Body>
-    </div>
+    </>
   );
 
   // ─── 右侧：栏目编辑区 ──────────────────────────────────────────────────────
-  const detailPanel = (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      {editorOpen ? (
-        <>
-          <MasterDetailLayout.Header
-            extra={(
-              <>
-                <Button type="tertiary" onClick={closeEditor}>取消</Button>
-                <Button type="primary" theme="solid" loading={saveMutation.isPending} onClick={() => void handleSave()}>
-                  保存
-                </Button>
-              </>
-            )}
-          >
-            <Typography.Text strong ellipsis={{ showTooltip: true }} style={{ maxWidth: 320 }}>
-              {editingRecord ? editingRecord.name : '新增栏目'}
-            </Typography.Text>
-            <Typography.Text type="tertiary" size="small">
-              {editingRecord ? `/${editingRecord.path}/` : '填写以下信息后保存'}
-            </Typography.Text>
-          </MasterDetailLayout.Header>
-          <MasterDetailLayout.Body padding="16px 20px">
-            <div style={{ maxWidth: 900 }}>
-              {editorForm}
-            </div>
-          </MasterDetailLayout.Body>
-        </>
-      ) : (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <Empty
-            image={<IllustrationNoContent style={{ width: 140, height: 140 }} />}
-            darkModeImage={<IllustrationNoContentDark style={{ width: 140, height: 140 }} />}
-            title="未选择栏目"
-            description="从左侧栏目树选择一个栏目进行编辑，或点击「新增栏目」创建"
-          />
+  const detailPanel = editorOpen ? (
+    <>
+      <MasterDetailLayout.Header
+        extra={(
+          <>
+            <Button type="tertiary" onClick={closeEditor}>取消</Button>
+            <Button type="primary" theme="solid" loading={saveMutation.isPending} onClick={() => void handleSave()}>
+              保存
+            </Button>
+          </>
+        )}
+      >
+        <Typography.Text strong ellipsis={{ showTooltip: true }} style={{ maxWidth: 320 }}>
+          {editingRecord ? editingRecord.name : '新增栏目'}
+        </Typography.Text>
+        <Typography.Text type="tertiary" size="small">
+          {editingRecord ? `/${editingRecord.path}/` : '填写以下信息后保存'}
+        </Typography.Text>
+      </MasterDetailLayout.Header>
+      <MasterDetailLayout.Body padding="16px 20px">
+        <div style={{ maxWidth: 900 }}>
+          {editorForm}
         </div>
-      )}
+      </MasterDetailLayout.Body>
+    </>
+  ) : (
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <Empty
+        image={<IllustrationNoContent style={{ width: 140, height: 140 }} />}
+        darkModeImage={<IllustrationNoContentDark style={{ width: 140, height: 140 }} />}
+        title="未选择栏目"
+        description="从左侧栏目树选择一个栏目进行编辑，或点击「新增栏目」创建"
+      />
     </div>
   );
 
