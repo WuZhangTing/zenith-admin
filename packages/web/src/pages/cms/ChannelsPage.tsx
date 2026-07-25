@@ -1,12 +1,12 @@
-import { useRef, useState } from 'react';
-import { Button, Form, Tag, Toast, Modal, Row, Col, Select, SideSheet, Tabs, TabPane } from '@douyinfe/semi-ui';
-import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
+import { useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
+import { Button, Dropdown, Empty, Form, Tag, Toast, Modal, Row, Col, Select, Tabs, TabPane, Tooltip, Tree, Typography } from '@douyinfe/semi-ui';
+import { IllustrationNoContent, IllustrationNoContentDark } from '@douyinfe/semi-illustrations';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
-import { Plus, ExternalLink, Merge, ListPlus, Eye } from 'lucide-react';
+import { Plus, ExternalLink, Merge, ListPlus, Eye, MoreHorizontal, RefreshCw } from 'lucide-react';
 import { pinyin } from 'pinyin-pro';
-import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
+import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import RichTextEditor from '@/components/RichTextEditor';
@@ -69,6 +69,11 @@ function toTreeSelectData(nodes: CmsChannel[], excludeId?: number): TreeNodeData
     }));
 }
 
+/** 栏目树拍平为一维数组，用于按 id 反查最新栏目对象 */
+function flattenChannels(nodes: CmsChannel[]): CmsChannel[] {
+  return nodes.flatMap((n) => [n, ...(n.children ? flattenChannels(n.children) : [])]);
+}
+
 /** 汉字名称 → 拼音 slug（与服务端 slugifyChannelName 规则一致） */
 function slugifyName(name: string): string {
   const py = pinyin(name, { toneType: 'none', type: 'array', nonZh: 'consecutive' }).join('-');
@@ -81,15 +86,16 @@ export default function ChannelsPage() {
   const [siteId, setSiteId] = useState<number | undefined>(undefined);
 
   const treeQuery = useCmsChannelTree(siteId);
-  const tree = treeQuery.data ?? [];
+  const tree = useMemo(() => treeQuery.data ?? [], [treeQuery.data]);
   const { data: models } = useAllCmsModels();
   const { data: sites } = useAllCmsSites();
   const currentSite = sites?.find((s) => s.id === siteId);
   const { data: themeTemplates } = useCmsThemeTemplates(currentSite?.effectiveTheme ?? currentSite?.theme, currentSite?.id);
   const { data: publishChannels } = useCmsPublishChannels(siteId);
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<CmsChannel | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  /** 非 null 表示处于新建态，值为新栏目的父栏目 id（0 = 顶级） */
+  const [createParentId, setCreateParentId] = useState<number | null>(null);
   const [channelType, setChannelType] = useState<string>('list');
   const [pageContent, setPageContent] = useState('');
   const [channelTemplates, setChannelTemplates] = useState<ChannelTemplatesState>({});
@@ -100,6 +106,13 @@ export default function ChannelsPage() {
   const batchCreateMutation = useBatchCreateCmsChannels();
   const [mergeModalVisible, setMergeModalVisible] = useState(false);
   const [batchModalVisible, setBatchModalVisible] = useState(false);
+
+  const flatChannels = useMemo(() => flattenChannels(tree), [tree]);
+  // 编辑对象由 selectedId 从最新树数据派生，保存后 refetch 即可自动刷新，避免持有过期快照
+  const editingRecord = createParentId === null
+    ? flatChannels.find((c) => c.id === selectedId) ?? null
+    : null;
+  const editorOpen = createParentId !== null || editingRecord !== null;
 
   // ─── 栏目授权用户（P5 栏目级数据权限）──────────────────────────────────────
   const [usersModalChannel, setUsersModalChannel] = useState<CmsChannel | null>(null);
@@ -129,26 +142,29 @@ export default function ChannelsPage() {
   const batchFormApi = useRef<FormApi | null>(null);
 
   function openCreate(parentId = 0) {
-    setEditingRecord(null);
+    setSelectedId(null);
+    setCreateParentId(parentId);
     setChannelType('list');
     setPageContent('');
     setChannelTemplates({});
-    setModalVisible(true);
-    // Form initValues 由 key 重置，父栏目通过 setTimeout 设置避免 Form 未挂载
-    setTimeout(() => formApi.current?.setValue('parentId', parentId), 0);
   }
 
   function openEdit(record: CmsChannel) {
-    setEditingRecord(record);
+    setCreateParentId(null);
+    setSelectedId(record.id);
     setChannelType(record.type);
     setPageContent(record.pageContent ?? '');
     setChannelTemplates(channelTemplatesFromSettings(record.settings));
-    setModalVisible(true);
   }
 
-  function closeModal() {
-    setModalVisible(false);
-    setEditingRecord(null);
+  function closeEditor() {
+    setCreateParentId(null);
+    setSelectedId(null);
+  }
+
+  function handleSiteChange(next: number | undefined) {
+    setSiteId(next);
+    closeEditor();
   }
 
   const formInitValues = editingRecord
@@ -169,15 +185,15 @@ export default function ChannelsPage() {
         listTemplate: editingRecord.listTemplate ?? undefined,
         detailTemplate: editingRecord.detailTemplate ?? undefined,
       }
-    : { parentId: 0, type: 'list', pageSize: 20, sort: 0, visible: true, status: 'enabled' };
+    : { parentId: createParentId ?? 0, type: 'list', pageSize: 20, sort: 0, visible: true, status: 'enabled' };
 
-  async function handleModalOk() {
+  async function handleSave() {
     if (!siteId) return;
     let values: Record<string, unknown>;
     try {
       values = (await formApi.current?.validate()) ?? {};
     } catch {
-      return; // 校验失败保持抽屉打开
+      return; // 校验失败保持编辑区打开
     }
     if (values.modelId === undefined) values.modelId = null;
     // 模板下拉清空后为 undefined，显式置 null 才能在更新时清除覆盖
@@ -190,17 +206,21 @@ export default function ChannelsPage() {
       templates: channelTemplatesToSettings(channelTemplates),
     };
     if (!editingRecord) payload.siteId = siteId;
+    let saved: CmsChannel;
     try {
-      await saveMutation.mutateAsync({ id: editingRecord?.id, values: payload });
+      saved = await saveMutation.mutateAsync({ id: editingRecord?.id, values: payload });
     } catch {
-      return; // 错误提示由请求层统一 Toast，保持抽屉打开
+      return; // 错误提示由请求层统一 Toast，保持编辑区打开
     }
     Toast.success(editingRecord ? '更新成功' : '创建成功');
-    closeModal();
+    // 新建成功后停留在该栏目的编辑态，方便继续补充模板/SEO
+    setCreateParentId(null);
+    setSelectedId(saved.id);
   }
 
   async function handleDelete(id: number) {
     await deleteMutation.mutateAsync(id);
+    if (selectedId === id) closeEditor();
     Toast.success('删除成功');
   }
 
@@ -250,88 +270,103 @@ export default function ChannelsPage() {
     Toast.success(`已创建 ${names.length} 个栏目（slug 自动取拼音）`);
   }
 
-  const columns: ColumnProps<CmsChannel>[] = [
-    { title: '栏目名称', dataIndex: 'name', width: 220 },
-    {
-      title: '类型',
-      dataIndex: 'type',
-      width: 100,
-      render: (v: CmsChannel['type']) => {
-        const color = v === 'list' ? 'blue' : v === 'page' ? 'purple' : 'orange';
-        return <Tag size="small" color={color}>{CMS_CHANNEL_TYPE_LABELS[v]}</Tag>;
+  const channelById = useMemo(() => new Map(flatChannels.map((c) => [c.id, c])), [flatChannels]);
+
+  const channelTreeData: TreeNodeData[] = useMemo(() => {
+    const build = (nodes: CmsChannel[]): TreeNodeData[] => nodes.map((n) => ({
+      key: String(n.id),
+      value: n.id,
+      label: n.name,
+      children: n.children?.length ? build(n.children) : undefined,
+    }));
+    return build(tree);
+  }, [tree]);
+
+  function confirmClear(record: CmsChannel) {
+    Modal.confirm({
+      title: `清空「${record.name}」？`,
+      content: '栏目下全部内容将移入回收站（不含子栏目）',
+      onOk: async () => {
+        await clearMutation.mutateAsync(record.id);
+        Toast.success('已清空，内容移入回收站');
       },
-    },
-    { title: 'URL 路径', dataIndex: 'path', width: 180, render: (v: string) => `/${v}/` },
-    { title: '绑定模型', dataIndex: 'modelName', width: 110, render: (v: string | null) => v ?? '-' },
-    { title: '排序', dataIndex: 'sort', width: 70 },
-    {
-      title: '导航显示',
-      dataIndex: 'visible',
-      width: 90,
-      render: (v: boolean) => (v ? <Tag size="small" color="green">显示</Tag> : <Tag size="small">隐藏</Tag>),
-    },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      width: 80,
-      fixed: 'right',
-      render: (v: string) => (v === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag color="red" size="small">停用</Tag>),
-    },
-    createOperationColumn<CmsChannel>({
-      width: 240,
-      desktopInlineKeys: ['addChild', 'edit', 'delete'],
-      actions: (record) => [
-        {
-          key: 'visit',
-          label: '访问',
-          onClick: () => {
-            if (currentSite) window.open(cmsPreviewUrl(currentSite.code, `${record.path}/`), '_blank');
-          },
-        },
-        ...(hasPermission('cms:channel:create') ? [{
-          key: 'addChild',
-          label: '添加子栏目',
-          onClick: () => openCreate(record.id),
-        }] : []),
-        ...(hasPermission('cms:channel:update') ? [{
-          key: 'edit',
-          label: '编辑',
-          onClick: () => openEdit(record),
-        }, {
-          key: 'users',
-          label: '授权用户',
-          onClick: () => openUsersModal(record),
-        }] : []),
-        ...(hasPermission('cms:channel:update') && record.type === 'list' ? [{
-          key: 'clear',
-          label: '清空栏目',
-          danger: true,
-          onClick: () => {
-            Modal.confirm({
-              title: `清空「${record.name}」？`,
-              content: '栏目下全部内容将移入回收站（不含子栏目）',
-              onOk: async () => {
-                await clearMutation.mutateAsync(record.id);
-                Toast.success('已清空，内容移入回收站');
-              },
-            });
-          },
-        }] : []),
-        ...(hasPermission('cms:channel:delete') ? [{
-          key: 'delete',
-          label: '删除',
-          danger: true,
-          onClick: () => {
-            Modal.confirm({
-              title: '确定要删除该栏目吗？',
-              content: '需先清空子栏目与栏目下内容',
-              onOk: () => handleDelete(record.id),
-            });
-          },
-        }] : []),
-      ],
-    }),
-  ];
+    });
+  }
+
+  function confirmDelete(record: CmsChannel) {
+    Modal.confirm({
+      title: `确定要删除「${record.name}」吗？`,
+      content: '需先清空子栏目与栏目下内容',
+      onOk: () => handleDelete(record.id),
+    });
+  }
+
+  const channelNodeMenu = (record: CmsChannel) => (
+    <Dropdown.Menu>
+      <Dropdown.Item
+        disabled={!currentSite}
+        onClick={() => { if (currentSite) window.open(cmsPreviewUrl(currentSite.code, `${record.path}/`), '_blank'); }}
+      >
+        访问前台
+      </Dropdown.Item>
+      {hasPermission('cms:channel:create') ? (
+        <Dropdown.Item onClick={() => openCreate(record.id)}>添加子栏目</Dropdown.Item>
+      ) : null}
+      {hasPermission('cms:channel:update') ? (
+        <Dropdown.Item onClick={() => openUsersModal(record)}>授权用户</Dropdown.Item>
+      ) : null}
+      {hasPermission('cms:channel:update') && record.type === 'list' ? (
+        <Dropdown.Item type="danger" onClick={() => confirmClear(record)}>清空栏目</Dropdown.Item>
+      ) : null}
+      {hasPermission('cms:channel:delete') ? (
+        <>
+          <Dropdown.Divider />
+          <Dropdown.Item type="danger" onClick={() => confirmDelete(record)}>删除</Dropdown.Item>
+        </>
+      ) : null}
+    </Dropdown.Menu>
+  );
+
+  /** 树节点：名称 + 类型/隐藏/停用标记 + 行内操作菜单 */
+  const renderChannelLabel = (label?: ReactNode, data?: TreeNodeData) => {
+    const record = data ? channelById.get(Number(data.key)) : undefined;
+    if (!record) return label;
+    return (
+      <div className="cms-channel-node" style={{ display: 'flex', alignItems: 'center', gap: 4, width: '100%', minWidth: 0 }}>
+        <span
+          style={{
+            flex: 1,
+            minWidth: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            color: record.status === 'disabled' ? 'var(--semi-color-text-2)' : undefined,
+          }}
+          title={`${record.name}  /${record.path}/`}
+        >
+          {label}
+        </span>
+        {record.type === 'list' ? null : (
+          <Tag size="small" color={record.type === 'page' ? 'purple' : 'orange'}>
+            {CMS_CHANNEL_TYPE_LABELS[record.type]}
+          </Tag>
+        )}
+        {record.visible ? null : (
+          <Tooltip content="不在前台导航中显示"><Tag size="small">隐藏</Tag></Tooltip>
+        )}
+        {record.status === 'disabled' ? <Tag size="small" color="red">停用</Tag> : null}
+        <Dropdown trigger="click" clickToHide stopPropagation position="bottomRight" render={channelNodeMenu(record)}>
+          <Button
+            size="small"
+            theme="borderless"
+            type="tertiary"
+            icon={<MoreHorizontal size={13} />}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </Dropdown>
+      </div>
+    );
+  };
 
   // 模板配置页签的通道来源（站点无通道记录时回退虚拟 PC 默认通道，与站点编辑页一致）
   const tplChannelTabs: { code: string; name: string }[] = (() => {
@@ -392,10 +427,236 @@ export default function ChannelsPage() {
     );
   };
 
+  const editorForm = (
+    <Form
+      key={editingRecord ? `edit-${editingRecord.id}` : `create-${createParentId ?? 0}`}
+      getFormApi={(api) => { formApi.current = api; }}
+      allowEmpty
+      initValues={formInitValues}
+      onValueChange={(values) => {
+        if (values.type !== channelType) setChannelType(values.type as string);
+      }}
+      labelPosition="left"
+      labelWidth={90}
+    >
+      <Form.Slot label="父栏目">
+        <Form.TreeSelect
+          field="parentId"
+          noLabel
+          style={{ width: '100%' }}
+          treeData={[{ key: '0', value: 0, label: '顶级栏目' }, ...toTreeSelectData(tree, editingRecord?.id)]}
+        />
+      </Form.Slot>
+      <Row gutter={16}>
+        <Col span={24} lg={12}>
+          <Form.Input
+            field="name"
+            label="栏目名称"
+            rules={[{ required: true, message: '请输入栏目名称' }]}
+            onBlur={() => {
+              // 新建且 slug 为空时按名称自动生成拼音标识
+              if (editingRecord) return;
+              const api = formApi.current;
+              const name = api?.getValue('name');
+              if (typeof name === 'string' && name.trim() && !api?.getValue('slug')) {
+                api?.setValue('slug', slugifyName(name));
+              }
+            }}
+          />
+        </Col>
+        <Col span={24} lg={12}>
+          <Form.Input field="slug" label="URL 标识" placeholder="小写字母/数字/中划线" rules={[{ required: true, message: '请输入 URL 标识' }]} />
+        </Col>
+        <Col span={24} lg={12}>
+          <Form.Select field="type" label="栏目类型" style={{ width: '100%' }}
+            optionList={[
+              { value: 'list', label: '列表栏目（挂内容）' },
+              { value: 'page', label: '单页栏目（富文本）' },
+              { value: 'link', label: '外链栏目（跳转）' },
+            ]} />
+        </Col>
+        {channelType === 'list' ? (
+          <Col span={24} lg={12}>
+            <Form.Select field="modelId" label="内容模型" style={{ width: '100%' }} showClear
+              optionList={(models ?? []).map((m) => ({ value: m.id, label: m.name }))} />
+          </Col>
+        ) : null}
+        {channelType === 'link' ? (
+          <Col span={24} lg={12}>
+            <Form.Input field="linkUrl" label="跳转地址" placeholder="https://..." rules={[{ required: true, message: '请输入跳转地址' }]} />
+          </Col>
+        ) : null}
+        {channelType === 'list' ? (
+          <Col span={24} lg={12}>
+            <Form.InputNumber field="pageSize" label="每页条数" min={1} max={100} style={{ width: '100%' }} />
+          </Col>
+        ) : null}
+        <Col span={24} lg={12}>
+          <Form.InputNumber field="sort" label="排序" style={{ width: '100%' }} />
+        </Col>
+        <Col span={24} lg={12}>
+          <Form.Switch field="visible" label="导航显示" />
+        </Col>
+        <Col span={24} lg={12}>
+          <Form.RadioGroup field="status" label="状态">
+            <Form.Radio value="enabled">启用</Form.Radio>
+            <Form.Radio value="disabled">停用</Form.Radio>
+          </Form.RadioGroup>
+        </Col>
+      </Row>
+      {channelType === 'page' ? (
+        <Form.Slot label="单页内容">
+          <RichTextEditor value={pageContent} onChange={setPageContent} height={240} />
+        </Form.Slot>
+      ) : null}
+      {channelType === 'list' ? (
+        <Form.Section text="模板配置（按发布通道 × 内容模型；留空逐级回退：通道配置 → 全通道通用 → 站点默认 → 主题默认）">
+          <Tabs type="card" size="small">
+            <TabPane tab="全通道通用" itemKey="__common">
+              <Row gutter={16} style={{ paddingTop: 12 }}>
+                <Col span={24}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <Form.Select field="listTemplate" label="列表模板" style={{ width: '100%' }} showClear
+                        placeholder="跟随站点默认"
+                        optionList={(themeTemplates?.list ?? []).map((t) => ({ value: t.name, label: t.label }))} />
+                    </div>
+                    {editingRecord ? (
+                      <Button icon={<Eye size={14} />} title="以当前选中模板试穿预览栏目列表页（不影响线上）"
+                        onClick={previewListTemplate}>预览</Button>
+                    ) : null}
+                  </div>
+                </Col>
+                <Col span={24}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <Form.Select field="detailTemplate" label="详情模板" style={{ width: '100%' }} showClear
+                        placeholder="跟随站点默认"
+                        optionList={(themeTemplates?.detail ?? []).map((t) => ({ value: t.name, label: t.label }))} />
+                    </div>
+                    {editingRecord ? (
+                      <Button icon={<Eye size={14} />} title="以当前选中模板试穿预览最新一篇已发布内容（不影响线上）"
+                        onClick={() => void previewDetailTemplate()}>预览</Button>
+                    ) : null}
+                  </div>
+                </Col>
+              </Row>
+            </TabPane>
+            {tplChannelTabs.map((ch) => renderChannelTplPane(ch))}
+          </Tabs>
+        </Form.Section>
+      ) : null}
+      <Form.Section text="SEO 设置（留空继承站点默认）">
+        <Form.Input field="seoTitle" label="SEO 标题" />
+        <Form.Input field="seoKeywords" label="SEO 关键词" />
+        <Form.TextArea field="seoDescription" label="SEO 描述" rows={2} />
+      </Form.Section>
+    </Form>
+  );
+
+  // ─── 左侧：栏目树 ──────────────────────────────────────────────────────────
+  const masterPanel = (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      <MasterDetailLayout.Header
+        extra={(
+          <>
+            <Tooltip content="刷新栏目树">
+              <Button
+                size="small"
+                theme="borderless"
+                type="tertiary"
+                icon={<RefreshCw size={14} />}
+                loading={treeQuery.isFetching}
+                onClick={() => void treeQuery.refetch()}
+              />
+            </Tooltip>
+            {hasPermission('cms:channel:create') ? (
+              <Tooltip content="新增顶级栏目">
+                <Button size="small" theme="borderless" icon={<Plus size={15} />} onClick={() => openCreate(0)} />
+              </Tooltip>
+            ) : null}
+          </>
+        )}
+      >
+        <Typography.Text strong>栏目树</Typography.Text>
+        {flatChannels.length > 0 ? (
+          <Typography.Text type="tertiary" size="small">共 {flatChannels.length} 个</Typography.Text>
+        ) : null}
+      </MasterDetailLayout.Header>
+      <MasterDetailLayout.Body padding={8}>
+        {siteId === undefined ? (
+          <Typography.Text type="tertiary" style={{ display: 'block', padding: '24px 8px', textAlign: 'center' }}>
+            请先在上方选择站点
+          </Typography.Text>
+        ) : channelTreeData.length === 0 ? (
+          <Typography.Text type="tertiary" style={{ display: 'block', padding: '24px 8px', textAlign: 'center' }}>
+            {treeQuery.isFetching ? '加载中…' : '暂无栏目，点击右上角「新增栏目」创建'}
+          </Typography.Text>
+        ) : (
+          <Tree
+            treeData={channelTreeData}
+            value={selectedId === null ? '' : String(selectedId)}
+            filterTreeNode
+            showFilteredOnly
+            searchPlaceholder="搜索栏目名称"
+            defaultExpandAll
+            renderLabel={renderChannelLabel}
+            onSelect={(key) => {
+              const record = channelById.get(Number(key));
+              if (record) openEdit(record);
+            }}
+            style={{ width: '100%' }}
+          />
+        )}
+      </MasterDetailLayout.Body>
+    </div>
+  );
+
+  // ─── 右侧：栏目编辑区 ──────────────────────────────────────────────────────
+  const detailPanel = (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      {editorOpen ? (
+        <>
+          <MasterDetailLayout.Header
+            extra={(
+              <>
+                <Button type="tertiary" onClick={closeEditor}>取消</Button>
+                <Button type="primary" theme="solid" loading={saveMutation.isPending} onClick={() => void handleSave()}>
+                  保存
+                </Button>
+              </>
+            )}
+          >
+            <Typography.Text strong ellipsis={{ showTooltip: true }} style={{ maxWidth: 320 }}>
+              {editingRecord ? editingRecord.name : '新增栏目'}
+            </Typography.Text>
+            <Typography.Text type="tertiary" size="small">
+              {editingRecord ? `/${editingRecord.path}/` : '填写以下信息后保存'}
+            </Typography.Text>
+          </MasterDetailLayout.Header>
+          <MasterDetailLayout.Body padding="16px 20px">
+            <div style={{ maxWidth: 900 }}>
+              {editorForm}
+            </div>
+          </MasterDetailLayout.Body>
+        </>
+      ) : (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <Empty
+            image={<IllustrationNoContent style={{ width: 140, height: 140 }} />}
+            darkModeImage={<IllustrationNoContentDark style={{ width: 140, height: 140 }} />}
+            title="未选择栏目"
+            description="从左侧栏目树选择一个栏目进行编辑，或点击「新增栏目」创建"
+          />
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="page-container">
       <SearchToolbar>
-        <CmsSiteSelect value={siteId} onChange={setSiteId} />
+        <CmsSiteSelect value={siteId} onChange={handleSiteChange} />
         {currentSite ? (
           <Button
             icon={<ExternalLink size={14} />}
@@ -415,159 +676,19 @@ export default function ChannelsPage() {
         ) : null}
       </SearchToolbar>
 
-      <ConfigurableTable
+      <MasterDetailLayout
+        persistKey="cms-channels"
+        defaultSize={300}
+        minSize={220}
+        maxSize={460}
         bordered
-        columns={columns}
-        dataSource={tree}
-        loading={treeQuery.isFetching}
-        rowKey="id"
-        size="small"
-        empty="暂无栏目，点击右上角「新增栏目」创建"
-        scroll={{ x: 1090 }}
-        onRefresh={() => void treeQuery.refetch()}
-        refreshLoading={treeQuery.isFetching}
-        pagination={false}
-        expandAllRows
+        gap={12}
+        style={{ height: 'calc(100vh - 190px)', minHeight: 520 }}
+        showDetail={editorOpen}
+        onBack={closeEditor}
+        master={masterPanel}
+        detail={detailPanel}
       />
-
-      <SideSheet
-        title={editingRecord ? '编辑栏目' : '新增栏目'}
-        visible={modalVisible}
-        onCancel={closeModal}
-        width={720}
-        closeOnEsc
-        footer={(
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            <Button type="tertiary" onClick={closeModal}>取消</Button>
-            <Button type="primary" theme="solid" loading={saveMutation.isPending} onClick={() => void handleModalOk()}>保存</Button>
-          </div>
-        )}
-      >
-        <Form
-          key={editingRecord?.id ?? 'new'}
-          getFormApi={(api) => { formApi.current = api; }}
-          allowEmpty
-          initValues={formInitValues}
-          onValueChange={(values) => {
-            if (values.type !== channelType) setChannelType(values.type as string);
-          }}
-          labelPosition="left"
-          labelWidth={90}
-        >
-          <Form.Slot label="父栏目">
-            <Form.TreeSelect
-              field="parentId"
-              noLabel
-              style={{ width: '100%' }}
-              treeData={[{ key: '0', value: 0, label: '顶级栏目' }, ...toTreeSelectData(tree, editingRecord?.id)]}
-            />
-          </Form.Slot>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input
-                field="name"
-                label="栏目名称"
-                rules={[{ required: true, message: '请输入栏目名称' }]}
-                onBlur={() => {
-                  // 新建且 slug 为空时按名称自动生成拼音标识
-                  if (editingRecord) return;
-                  const api = formApi.current;
-                  const name = api?.getValue('name');
-                  if (typeof name === 'string' && name.trim() && !api?.getValue('slug')) {
-                    api?.setValue('slug', slugifyName(name));
-                  }
-                }}
-              />
-            </Col>
-            <Col span={12}>
-              <Form.Input field="slug" label="URL 标识" placeholder="小写字母/数字/中划线" rules={[{ required: true, message: '请输入 URL 标识' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Select field="type" label="栏目类型" style={{ width: '100%' }}
-                optionList={[
-                  { value: 'list', label: '列表栏目（挂内容）' },
-                  { value: 'page', label: '单页栏目（富文本）' },
-                  { value: 'link', label: '外链栏目（跳转）' },
-                ]} />
-            </Col>
-            {channelType === 'list' ? (
-              <Col span={12}>
-                <Form.Select field="modelId" label="内容模型" style={{ width: '100%' }} showClear
-                  optionList={(models ?? []).map((m) => ({ value: m.id, label: m.name }))} />
-              </Col>
-            ) : null}
-            {channelType === 'link' ? (
-              <Col span={12}>
-                <Form.Input field="linkUrl" label="跳转地址" placeholder="https://..." rules={[{ required: true, message: '请输入跳转地址' }]} />
-              </Col>
-            ) : null}
-            {channelType === 'list' ? (
-              <Col span={12}>
-                <Form.InputNumber field="pageSize" label="每页条数" min={1} max={100} style={{ width: '100%' }} />
-              </Col>
-            ) : null}
-            <Col span={12}>
-              <Form.InputNumber field="sort" label="排序" style={{ width: '100%' }} />
-            </Col>
-            <Col span={12}>
-              <Form.Switch field="visible" label="导航显示" />
-            </Col>
-            <Col span={12}>
-              <Form.RadioGroup field="status" label="状态">
-                <Form.Radio value="enabled">启用</Form.Radio>
-                <Form.Radio value="disabled">停用</Form.Radio>
-              </Form.RadioGroup>
-            </Col>
-          </Row>
-          {channelType === 'page' ? (
-            <Form.Slot label="单页内容">
-              <RichTextEditor value={pageContent} onChange={setPageContent} height={240} />
-            </Form.Slot>
-          ) : null}
-          {channelType === 'list' ? (
-            <Form.Section text="模板配置（按发布通道 × 内容模型；留空逐级回退：通道配置 → 全通道通用 → 站点默认 → 主题默认）">
-              <Tabs type="card" size="small">
-                <TabPane tab="全通道通用" itemKey="__common">
-                  <Row gutter={16} style={{ paddingTop: 12 }}>
-                    <Col span={24}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <Form.Select field="listTemplate" label="列表模板" style={{ width: '100%' }} showClear
-                            placeholder="跟随站点默认"
-                            optionList={(themeTemplates?.list ?? []).map((t) => ({ value: t.name, label: t.label }))} />
-                        </div>
-                        {editingRecord ? (
-                          <Button icon={<Eye size={14} />} title="以当前选中模板试穿预览栏目列表页（不影响线上）"
-                            onClick={previewListTemplate}>预览</Button>
-                        ) : null}
-                      </div>
-                    </Col>
-                    <Col span={24}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <Form.Select field="detailTemplate" label="详情模板" style={{ width: '100%' }} showClear
-                            placeholder="跟随站点默认"
-                            optionList={(themeTemplates?.detail ?? []).map((t) => ({ value: t.name, label: t.label }))} />
-                        </div>
-                        {editingRecord ? (
-                          <Button icon={<Eye size={14} />} title="以当前选中模板试穿预览最新一篇已发布内容（不影响线上）"
-                            onClick={() => void previewDetailTemplate()}>预览</Button>
-                        ) : null}
-                      </div>
-                    </Col>
-                  </Row>
-                </TabPane>
-                {tplChannelTabs.map((ch) => renderChannelTplPane(ch))}
-              </Tabs>
-            </Form.Section>
-          ) : null}
-          <Form.Section text="SEO 设置（留空继承站点默认）">
-            <Form.Input field="seoTitle" label="SEO 标题" />
-            <Form.Input field="seoKeywords" label="SEO 关键词" />
-            <Form.TextArea field="seoDescription" label="SEO 描述" rows={2} />
-          </Form.Section>
-        </Form>
-      </SideSheet>
 
       {/* 栏目合并 */}
       <AppModal
