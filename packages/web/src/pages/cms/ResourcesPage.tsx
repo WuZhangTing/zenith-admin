@@ -205,6 +205,8 @@ export default function ResourcesPage() {
   const qc = useQueryClient();
   const [siteId, setSiteId] = useState<number | undefined>(undefined);
   const [folderKey, setFolderKey] = useState('all');
+  /** 窄屏单栏模式下当前展示素材列表（宽屏忽略）：默认进列表，「返回」回到文件夹树 */
+  const [showListOnNarrow, setShowListOnNarrow] = useState(true);
   const [governanceStart, setGovernanceStart] = useState<Date | undefined>(undefined);
   const [governanceEnd, setGovernanceEnd] = useState<Date | undefined>(undefined);
   const [type, setType] = useState<CmsResourceType | undefined>(undefined);
@@ -345,7 +347,7 @@ export default function ResourcesPage() {
   ];
 
   return (
-    <div className="page-container">
+    <div className="page-container page-container--stretch">
       <SearchToolbar>
         <CmsSiteSelect value={siteId} onChange={(v) => { setSiteId(v); setPage(1); }} width={200} />
         <Select
@@ -397,27 +399,33 @@ export default function ResourcesPage() {
         defaultSize={260}
         minSize={220}
         maxSize={380}
-        bordered
-        style={{ height: 'calc(100vh - 190px)', minHeight: 520 }}
+        style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}
+        showDetail={showListOnNarrow}
+        onBack={() => setShowListOnNarrow(false)}
         master={(
-          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-            <div style={{ flexShrink: 0, padding: 12, display: 'flex', gap: 6, borderBottom: '1px solid var(--semi-color-border)' }}>
-              <Typography.Text strong style={{ flex: 1 }}>素材文件夹</Typography.Text>
-              {canUpdate ? <Button theme="borderless" icon={<FolderPlus size={15} />} onClick={() => { setEditingFolder(null); setFolderModalVisible(true); }} /> : null}
-              {canUpdate && selectedFolder ? <Button theme="borderless" icon={<FolderPen size={15} />} onClick={() => { setEditingFolder(selectedFolder); setFolderModalVisible(true); }} /> : null}
-              {canDelete && selectedFolder ? <Button theme="borderless" type="danger" icon={<FolderX size={15} />} onClick={() => {
-                Modal.confirm({
-                  title: `删除文件夹「${selectedFolder.name}」？`,
-                  content: '仅空文件夹可删除。',
-                  onOk: async () => {
-                    await deleteFolderMutation.mutateAsync(selectedFolder.id);
-                    setFolderKey('all');
-                    Toast.success('文件夹已删除');
-                  },
-                });
-              }} /> : null}
-            </div>
-            <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 8 }}>
+          <>
+            <MasterDetailLayout.Header
+              extra={(
+                <>
+                  {canUpdate ? <Button size="small" theme="borderless" icon={<FolderPlus size={15} />} onClick={() => { setEditingFolder(null); setFolderModalVisible(true); }} /> : null}
+                  {canUpdate && selectedFolder ? <Button size="small" theme="borderless" icon={<FolderPen size={15} />} onClick={() => { setEditingFolder(selectedFolder); setFolderModalVisible(true); }} /> : null}
+                  {canDelete && selectedFolder ? <Button size="small" theme="borderless" type="danger" icon={<FolderX size={15} />} onClick={() => {
+                    Modal.confirm({
+                      title: `删除文件夹「${selectedFolder.name}」？`,
+                      content: '仅空文件夹可删除。',
+                      onOk: async () => {
+                        await deleteFolderMutation.mutateAsync(selectedFolder.id);
+                        setFolderKey('all');
+                        Toast.success('文件夹已删除');
+                      },
+                    });
+                  }} /> : null}
+                </>
+              )}
+            >
+              <Typography.Text strong>素材文件夹</Typography.Text>
+            </MasterDetailLayout.Header>
+            <MasterDetailLayout.Body padding={8}>
               {foldersQuery.isError ? <Empty title="文件夹加载失败" description="请刷新重试" /> : <Tree
                 treeData={[
                   { key: 'all', label: '全部素材' },
@@ -425,31 +433,31 @@ export default function ResourcesPage() {
                   ...foldersToTree(foldersQuery.data ?? []),
                 ]}
                 value={folderKey}
-                onChange={(key) => { setFolderKey(String(key)); setPage(1); setSelectedIds([]); }}
+                onChange={(key) => { setFolderKey(String(key)); setPage(1); setSelectedIds([]); setShowListOnNarrow(true); }}
                 defaultExpandAll
               />}
-            </div>
-          </div>
+            </MasterDetailLayout.Body>
+          </>
         )}
         detail={(
-          <div style={{ height: '100%', overflow: 'auto', paddingLeft: 16 }}>
+          <MasterDetailLayout.Body padding="0 0 0 16px">
             <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={(e) => void handleUploadFile(e)} />
             <ConfigurableTable
-        bordered
-        columns={columns}
-        dataSource={listQuery.data?.list ?? []}
-        loading={listQuery.isFetching}
-        rowKey="id"
-        size="small"
-        empty="暂无素材，请先选择站点后上传"
-        scroll={{ x: 1020 }}
-        onRefresh={() => void listQuery.refetch()}
-        refreshLoading={listQuery.isFetching}
-        pagination={buildPagination(listQuery.data?.total ?? 0)}
-        rowSelection={{
-          selectedRowKeys: selectedIds.map(String),
-          onChange: (keys) => setSelectedIds((keys ?? []).map(Number)),
-        }}
+              bordered
+              columns={columns}
+              dataSource={listQuery.data?.list ?? []}
+              loading={listQuery.isFetching}
+              rowKey="id"
+              size="small"
+              empty="暂无素材，请先选择站点后上传"
+              scroll={{ x: 1020 }}
+              onRefresh={() => void listQuery.refetch()}
+              refreshLoading={listQuery.isFetching}
+              pagination={buildPagination(listQuery.data?.total ?? 0)}
+              rowSelection={{
+                selectedRowKeys: selectedIds.map(String),
+                onChange: (keys) => setSelectedIds((keys ?? []).map(Number)),
+              }}
             />
             <Typography.Title heading={6} style={{ margin: '18px 0 8px' }}>素材治理任务</Typography.Title>
             <ConfigurableTable
@@ -474,7 +482,7 @@ export default function ResourcesPage() {
               onRefresh={refreshTasks}
               refreshLoading={tasksLoading}
             />
-          </div>
+          </MasterDetailLayout.Body>
         )}
       />
 
