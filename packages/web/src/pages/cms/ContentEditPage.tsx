@@ -349,9 +349,10 @@ export default function ContentEditPage() {
       if (!opts?.silent) {
         const issues = flattenFormErrors(err);
         // 出错字段可能藏在未激活的属性面板标签页里，自动切过去
+        // （link 型的外链地址在左侧主区域常驻可见，无需切换）
         const firstTab = issues.map(({ field }) => (
           field === 'externalLink'
-            ? (contentType === 'link' ? 'basic' : 'advanced')
+            ? (contentType === 'link' ? undefined : 'advanced')
             : SIDE_TAB_BY_FIELD[field]
         )).find(Boolean);
         if (firstTab) setSideTab(firstTab);
@@ -581,7 +582,16 @@ export default function ContentEditPage() {
             {/* 左：正文主编辑区（宽屏下独立滚动） */}
             <div className="cms-content-edit__main">
               {contentType === 'link' ? (
-                <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }} description="外链型内容：前台列表点击标题直接新窗口跳转外链地址（右侧「外链地址」必填），不生成详情页。" />
+                <>
+                  <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }} description="外链型内容：前台列表点击标题直接新窗口跳转外链地址，不生成详情页。" />
+                  <Form.Input
+                    field="externalLink"
+                    label="外链地址"
+                    size="large"
+                    placeholder="https://（外链型内容必填）"
+                    rules={[{ required: true, message: '外链型内容须填写外链地址' }]}
+                  />
+                </>
               ) : null}
               {contentType === 'album' && !isMapped ? (
                 <Form.Slot label={`图集图片（${albumImages.length}）`}>
@@ -774,15 +784,6 @@ export default function ContentEditPage() {
                       </span>
                     )}
                   />
-                  {contentType === 'link' ? (
-                    <Form.Input
-                      field="externalLink"
-                      label="外链地址"
-                      size="small"
-                      placeholder="https://（外链型内容必填）"
-                      rules={[{ required: true, message: '外链型内容须填写外链地址' }]}
-                    />
-                  ) : null}
                   <Row gutter={12}>
                     <Col span={6}><Form.Switch field="isTop" label="置顶" size="small" /></Col>
                     <Col span={6}><Form.Switch field="isOriginal" label="原创" size="small" /></Col>
