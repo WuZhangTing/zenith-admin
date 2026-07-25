@@ -57,6 +57,10 @@ graph LR
 | 发布中心 | `/cms/publishing` | 通用任务队列投影、产物、失败恢复与导出 | [渲染与静态化](./static-and-render) |
 | 内容分发 | `/cms/distribution` | 跨站 copy/mapping/定时同步、冲突治理、行级结果与导出 | [站群与分发](./site-groups-and-distribution) |
 
+> **后台交互约定**：栏目管理 / 内容管理 / 素材中心三个页面统一为左右两栏（`MasterDetailLayout`）——
+> 左栏顶部是**站点切换器**，下方是栏目树/文件夹树（可拖宽、宽度持久化、窄屏折叠为单栏）；
+> 右栏是该站点下的编辑区或数据列表。切换站点、树的增删改都在左栏完成。
+
 ## 架构总览
 
 ```text

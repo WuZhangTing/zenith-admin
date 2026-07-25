@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Tag, Toast, Modal, Tabs, TabPane, Tree, Typography, Dropdown, Form, Upload, Select, SplitButtonGroup } from '@douyinfe/semi-ui';
@@ -72,6 +72,13 @@ export default function ContentsPage() {
   const treeQuery = useCmsChannelTree(siteId);
   const { data: sites } = useAllCmsSites();
   const currentSite = sites?.find((s) => s.id === siteId);
+
+  // 引用稳定：CmsSiteSelect 把 onChange 放进了 useEffect 依赖
+  const handleSiteChange = useCallback((next: number) => {
+    setSiteId(next);
+    setChannelId(undefined);
+    setPage(1);
+  }, [setPage]);
 
   const statusFilter: CmsContentStatus | undefined =
     activeTab === 'pending' ? 'pending' : activeTab === 'published' ? 'published' : undefined;
@@ -570,7 +577,6 @@ export default function ContentsPage() {
         primary={(
           <>
             {renderChannelTreeButton()}
-            <CmsSiteSelect value={siteId} onChange={(v) => { setSiteId(v); setChannelId(undefined); setPage(1); }} width={180} />
             {renderKeywordSearch()}
             {renderTypeFilter()}
             {renderSearchButton()}
@@ -594,7 +600,6 @@ export default function ContentsPage() {
         )}
         mobileFilters={(
           <>
-            <CmsSiteSelect value={siteId} onChange={(v) => { setSiteId(v); setChannelId(undefined); setPage(1); }} width={180} />
             {renderTypeFilter()}
           </>
         )}
@@ -686,7 +691,7 @@ export default function ContentsPage() {
 
   // ─── 栏目树侧栏（MasterDetailLayout：可拖宽/持久化/窄屏单栏切换，与用户管理一致）──
   const masterContent = (
-    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+    <>
       {showChannelTree && (
         <button
           type="button"
@@ -701,27 +706,26 @@ export default function ContentsPage() {
           返回内容列表
         </button>
       )}
-      <div style={{
-        display: 'flex', alignItems: 'center', fontWeight: 600, fontSize: 13, padding: '10px 12px',
-        color: 'var(--semi-color-text-0)', borderBottom: '1px solid var(--semi-color-border)', marginBottom: 4, flexShrink: 0,
-      }}>
-        栏目
-      </div>
-      <Tree
-        treeData={[{ key: 'all', label: '全部栏目' }, ...channelsToTree(treeQuery.data ?? [])]}
-        value={channelId ? String(channelId) : 'all'}
-        filterTreeNode
-        showFilteredOnly
-        searchPlaceholder="搜索栏目"
-        onSelect={(key) => {
-          setChannelId(key === 'all' ? undefined : Number(key));
-          setPage(1);
-          setShowChannelTree(false);
-        }}
-        defaultExpandAll
-        style={{ width: '100%' }}
-      />
-    </div>
+      <MasterDetailLayout.Header>
+        <CmsSiteSelect value={siteId} onChange={handleSiteChange} width="100%" />
+      </MasterDetailLayout.Header>
+      <MasterDetailLayout.Body padding={8}>
+        <Tree
+          treeData={[{ key: 'all', label: '全部栏目' }, ...channelsToTree(treeQuery.data ?? [])]}
+          value={channelId ? String(channelId) : 'all'}
+          filterTreeNode
+          showFilteredOnly
+          searchPlaceholder="搜索栏目"
+          onSelect={(key) => {
+            setChannelId(key === 'all' ? undefined : Number(key));
+            setPage(1);
+            setShowChannelTree(false);
+          }}
+          defaultExpandAll
+          style={{ width: '100%' }}
+        />
+      </MasterDetailLayout.Body>
+    </>
   );
 
   return (

@@ -1,9 +1,9 @@
-import { useRef, useState } from 'react';
-import { Button, DatePicker, Form, Input, Modal, Select, Space, Tag, Toast, Typography, Empty, Spin, Tree } from '@douyinfe/semi-ui';
+import { useCallback, useRef, useState } from 'react';
+import { Button, DatePicker, Dropdown, Form, Input, Modal, Select, Space, Tag, Toast, Tooltip, Typography, Empty, Spin, Tree } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
-import { Search, RotateCcw, Upload, FileText, Film, Music, File as FileIcon, FolderPlus, FolderPen, FolderX, Move, ShieldCheck } from 'lucide-react';
+import { Search, RotateCcw, Upload, FileText, Film, Music, File as FileIcon, FolderPlus, FolderPen, FolderX, Move, ShieldCheck, MoreHorizontal } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -239,6 +239,12 @@ export default function ResourcesPage() {
   const canDelete = hasPermission('cms:resource:delete');
   const selectedFolder = folderId && folderId > 0 ? findFolder(foldersQuery.data ?? [], folderId) : null;
 
+  // 引用稳定：CmsSiteSelect 把 onChange 放进了 useEffect 依赖
+  const handleSiteChange = useCallback((next: number) => {
+    setSiteId(next);
+    setPage(1);
+  }, [setPage]);
+
   function handleSearch() {
     setKeyword(keywordDraft.trim() || undefined);
     setPage(1);
@@ -349,7 +355,6 @@ export default function ResourcesPage() {
   return (
     <div className="page-container page-container--stretch">
       <SearchToolbar>
-        <CmsSiteSelect value={siteId} onChange={(v) => { setSiteId(v); setPage(1); }} width={200} />
         <Select
           placeholder="素材类型"
           style={{ width: 130 }}
@@ -407,23 +412,55 @@ export default function ResourcesPage() {
             <MasterDetailLayout.Header
               extra={(
                 <>
-                  {canUpdate ? <Button size="small" theme="borderless" icon={<FolderPlus size={15} />} onClick={() => { setEditingFolder(null); setFolderModalVisible(true); }} /> : null}
-                  {canUpdate && selectedFolder ? <Button size="small" theme="borderless" icon={<FolderPen size={15} />} onClick={() => { setEditingFolder(selectedFolder); setFolderModalVisible(true); }} /> : null}
-                  {canDelete && selectedFolder ? <Button size="small" theme="borderless" type="danger" icon={<FolderX size={15} />} onClick={() => {
-                    Modal.confirm({
-                      title: `删除文件夹「${selectedFolder.name}」？`,
-                      content: '仅空文件夹可删除。',
-                      onOk: async () => {
-                        await deleteFolderMutation.mutateAsync(selectedFolder.id);
-                        setFolderKey('all');
-                        Toast.success('文件夹已删除');
-                      },
-                    });
-                  }} /> : null}
+                  {canUpdate ? (
+                    <Tooltip content="新建文件夹">
+                      <Button size="small" theme="borderless" icon={<FolderPlus size={15} />} onClick={() => { setEditingFolder(null); setFolderModalVisible(true); }} />
+                    </Tooltip>
+                  ) : null}
+                  {selectedFolder && (canUpdate || canDelete) ? (
+                    <Dropdown
+                      trigger="click"
+                      clickToHide
+                      position="bottomRight"
+                      render={(
+                        <Dropdown.Menu>
+                          {canUpdate ? (
+                            <Dropdown.Item
+                              icon={<FolderPen size={14} />}
+                              onClick={() => { setEditingFolder(selectedFolder); setFolderModalVisible(true); }}
+                            >
+                              重命名文件夹
+                            </Dropdown.Item>
+                          ) : null}
+                          {canDelete ? (
+                            <Dropdown.Item
+                              type="danger"
+                              icon={<FolderX size={14} />}
+                              onClick={() => {
+                                Modal.confirm({
+                                  title: `删除文件夹「${selectedFolder.name}」？`,
+                                  content: '仅空文件夹可删除。',
+                                  onOk: async () => {
+                                    await deleteFolderMutation.mutateAsync(selectedFolder.id);
+                                    setFolderKey('all');
+                                    Toast.success('文件夹已删除');
+                                  },
+                                });
+                              }}
+                            >
+                              删除文件夹
+                            </Dropdown.Item>
+                          ) : null}
+                        </Dropdown.Menu>
+                      )}
+                    >
+                      <Button size="small" theme="borderless" type="tertiary" icon={<MoreHorizontal size={16} />} />
+                    </Dropdown>
+                  ) : null}
                 </>
               )}
             >
-              <Typography.Text strong>素材文件夹</Typography.Text>
+              <CmsSiteSelect value={siteId} onChange={handleSiteChange} width="100%" />
             </MasterDetailLayout.Header>
             <MasterDetailLayout.Body padding={8}>
               {foldersQuery.isError ? <Empty title="文件夹加载失败" description="请刷新重试" /> : <Tree
