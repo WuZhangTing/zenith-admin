@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Button, Dropdown, Empty, Form, Tag, Toast, Modal, Row, Col, Select, Tabs, TabPane, Tooltip, Tree, Typography } from '@douyinfe/semi-ui';
 import { IllustrationNoContent, IllustrationNoContentDark } from '@douyinfe/semi-illustrations';
@@ -7,7 +7,6 @@ import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
 import { Plus, ExternalLink, Merge, ListPlus, Eye, MoreHorizontal, RefreshCw } from 'lucide-react';
 import { pinyin } from 'pinyin-pro';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
-import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import RichTextEditor from '@/components/RichTextEditor';
 import { usePermission } from '@/hooks/usePermission';
@@ -162,10 +161,13 @@ export default function ChannelsPage() {
     setSelectedId(null);
   }
 
-  function handleSiteChange(next: number | undefined) {
+  // 站点切换会重挂载栏目树，同时清掉右侧编辑态。
+  // 用 useCallback 保持引用稳定：CmsSiteSelect 内部把 onChange 放进了 useEffect 依赖。
+  const handleSiteChange = useCallback((next: number) => {
     setSiteId(next);
-    closeEditor();
-  }
+    setCreateParentId(null);
+    setSelectedId(null);
+  }, []);
 
   const formInitValues = editingRecord
     ? {
@@ -554,43 +556,58 @@ export default function ChannelsPage() {
     </Form>
   );
 
-  // ─── 左侧：栏目树 ──────────────────────────────────────────────────────────
+  // ─── 左侧：站点 + 栏目树（栏目域的全部操作都归左栏，右栏专注单个栏目编辑）────
+  const treeActionsMenu = (
+    <Dropdown.Menu>
+      {hasPermission('cms:channel:create') ? (
+        <Dropdown.Item icon={<ListPlus size={14} />} onClick={() => setBatchModalVisible(true)}>批量新增</Dropdown.Item>
+      ) : null}
+      {hasPermission('cms:channel:update') ? (
+        <Dropdown.Item icon={<Merge size={14} />} onClick={() => setMergeModalVisible(true)}>栏目合并</Dropdown.Item>
+      ) : null}
+      <Dropdown.Item
+        icon={<RefreshCw size={14} />}
+        onClick={() => void treeQuery.refetch()}
+      >
+        刷新栏目树
+      </Dropdown.Item>
+      <Dropdown.Divider />
+      <Dropdown.Item
+        icon={<ExternalLink size={14} />}
+        disabled={!currentSite}
+        onClick={() => { if (currentSite) window.open(cmsPreviewUrl(currentSite.code), '_blank'); }}
+      >
+        访问站点
+      </Dropdown.Item>
+    </Dropdown.Menu>
+  );
+
   const masterPanel = (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <MasterDetailLayout.Header
         extra={(
           <>
-            <Tooltip content="刷新栏目树">
-              <Button
-                size="small"
-                theme="borderless"
-                type="tertiary"
-                icon={<RefreshCw size={14} />}
-                loading={treeQuery.isFetching}
-                onClick={() => void treeQuery.refetch()}
-              />
-            </Tooltip>
             {hasPermission('cms:channel:create') ? (
               <Tooltip content="新增顶级栏目">
-                <Button size="small" theme="borderless" icon={<Plus size={15} />} onClick={() => openCreate(0)} />
+                <Button size="small" theme="borderless" icon={<Plus size={16} />} onClick={() => openCreate(0)} />
               </Tooltip>
             ) : null}
+            <Dropdown trigger="click" clickToHide position="bottomRight" render={treeActionsMenu}>
+              <Button size="small" theme="borderless" type="tertiary" icon={<MoreHorizontal size={16} />} />
+            </Dropdown>
           </>
         )}
       >
-        <Typography.Text strong>栏目树</Typography.Text>
-        {flatChannels.length > 0 ? (
-          <Typography.Text type="tertiary" size="small">共 {flatChannels.length} 个</Typography.Text>
-        ) : null}
+        <CmsSiteSelect value={siteId} onChange={handleSiteChange} width="100%" />
       </MasterDetailLayout.Header>
       <MasterDetailLayout.Body padding={8}>
         {siteId === undefined ? (
           <Typography.Text type="tertiary" style={{ display: 'block', padding: '24px 8px', textAlign: 'center' }}>
-            请先在上方选择站点
+            请先选择站点
           </Typography.Text>
         ) : channelTreeData.length === 0 ? (
           <Typography.Text type="tertiary" style={{ display: 'block', padding: '24px 8px', textAlign: 'center' }}>
-            {treeQuery.isFetching ? '加载中…' : '暂无栏目，点击右上角「新增栏目」创建'}
+            {treeQuery.isFetching ? '加载中…' : '暂无栏目，点击右上角「+」创建'}
           </Typography.Text>
         ) : (
           <Tree
@@ -654,36 +671,13 @@ export default function ChannelsPage() {
   );
 
   return (
-    <div className="page-container">
-      <SearchToolbar>
-        <CmsSiteSelect value={siteId} onChange={handleSiteChange} />
-        {currentSite ? (
-          <Button
-            icon={<ExternalLink size={14} />}
-            onClick={() => window.open(cmsPreviewUrl(currentSite.code), '_blank')}
-          >
-            访问站点
-          </Button>
-        ) : null}
-        {hasPermission('cms:channel:update') ? (
-          <Button icon={<Merge size={14} />} onClick={() => setMergeModalVisible(true)}>栏目合并</Button>
-        ) : null}
-        {hasPermission('cms:channel:create') ? (
-          <Button icon={<ListPlus size={14} />} onClick={() => setBatchModalVisible(true)}>批量新增</Button>
-        ) : null}
-        {hasPermission('cms:channel:create') ? (
-          <Button type="primary" icon={<Plus size={14} />} onClick={() => openCreate(0)}>新增栏目</Button>
-        ) : null}
-      </SearchToolbar>
-
+    <div className="page-container page-container--stretch">
       <MasterDetailLayout
         persistKey="cms-channels"
         defaultSize={300}
         minSize={220}
         maxSize={460}
-        bordered
-        gap={12}
-        style={{ height: 'calc(100vh - 190px)', minHeight: 520 }}
+        style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}
         showDetail={editorOpen}
         onBack={closeEditor}
         master={masterPanel}

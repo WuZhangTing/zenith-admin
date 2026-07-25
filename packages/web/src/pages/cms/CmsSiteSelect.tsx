@@ -5,7 +5,7 @@ import { useAllCmsSites } from '@/hooks/queries/cms';
 interface CmsSiteSelectProps {
   value: number | undefined;
   onChange: (siteId: number) => void;
-  width?: number;
+  width?: number | string;
 }
 
 /** CMS 各管理页共用的站点切换器：自动选中默认/首个站点 */
