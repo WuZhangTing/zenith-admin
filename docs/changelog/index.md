@@ -4,6 +4,45 @@
 
 ---
 
+## v1.17.0 - 2026-07-26
+
+CMS 面向「内容中台」的两项底座改造：素材由 URL 直存改为 **ID 句柄引用**，以及补齐 **Headless 开放 API**。两者都不保留向后兼容路径，存量数据由迁移一次性归一。
+
+> **破坏性变更**：`cms_contents.cover_thumb` 已移除（改为读取时派生）；所有 CMS 素材字段落库形态由 URL 改为 `cms-res://{id}` 句柄；CMS Webhook 由直接投递改为 outbox 投递；Headless 游标格式改为微秒基准。
+
+### Added
+
+#### CMS 素材引用
+
+- **`cms-res://` 句柄引用**：内容正文、封面、媒体数据、栏目图、页面区块等所有素材位置改为存 `cms-res://{id}` 句柄，写入时归一、读取时解析（批量 + 60s 进程内缓存）。素材替换后全站引用同步生效，不再出现「换了图但正文还指向旧 URL」
+- **反向引用索引**：新增 `cms_resource_refs`，在属主自身的写事务内按属主重建。素材治理从「每个素材对 9 张表各做一次全表 `LIKE '%url%'` 扫描」降为一次索引查询，治理任务不再是 O(N×M)
+- **素材替换接口**：保留素材 id 直接替换其指向的文件，所有引用点自动跟随；`cms_resources.owns_file` 标记素材是否拥有底层文件，删除自动登记的素材不会连带删掉文件中心里其他模块正在使用的文件
+- **统一媒体库**：从文件中心选取的素材自动登记进站点素材库，纳入 CMS 素材治理视野
+- **跨站素材接管**：站点导出包含素材库，内容分发到目标站时素材一并接管（`adoptCmsResourcesIntoSite`），源站删除不会让目标站断链
+
+#### CMS Headless 开放 API
+
+- **查询 DSL**：`/api/open/v1/cms/contents` 支持栏目 / 栏目路径 / 标签 / 内容类型 / 关键词 / 作者 / 模型 / 布尔位 / 发布时间区间 / `extend.*` 扩展字段过滤，配合 `sort`、`fields` 裁剪与 `include`（tags/channel/relations/attachments/body/extend）。白名单一律 **fail-closed 返回 400**，不做静默忽略——静默忽略会让调用方误以为过滤生效、拿到比预期更宽的数据集；`extend.*` 额外要求字段在模型中标记为可检索
+- **游标翻页**：keyset 推进，深翻不退化为大 offset。时间列按**微秒**比较（PG `timestamp` 是微秒精度、JS `Date` 只到毫秒），`ORDER BY` 强制 `nulls last` 让空值组在两个方向恒在尾部；多字段排序无法用单游标准确表达边界，直接 400 而非静默降级
+- **增量同步**：`/cms/contents/sync` 按 `updated_at` 输出变更集，内容与墓碑合并为同一条 keyset 流；彻底删除的行靠新增的 `cms_content_tombstones` 补齐，客户端本地缓存不会残留已删内容
+- **受治理的写入**：创建 / 更新 / 提交审核 / 移入回收站，复用后台既有 `createCmsContent` / `updateCmsContent` 管线，版本快照、操作日志、发布 outbox、静态产物、敏感词、编辑锁、素材句柄归一化与引用索引全部自动生效，不另起写路径；更新支持 `expectedVersion` 乐观锁（冲突 409）
+- **站点级开放授权（fail-closed）**：新增 `cms_open_app_grants`，持有 `cms:write` 不等于能写任意站点，须在「站点 → 开放授权」显式授权（可再限定栏目白名单）。直接发布要求 `cms:publish` scope + 授权行开关 + 站点内容策略三者同时成立，默认关闭——外部写入一律先落草稿走审核管道
+- **内容 Webhook**：由 fire-and-forget 改为**事务性 outbox**，复用开放平台既有投递管线（重试 / 去重 / 自动停用 / 投递日志）。站点级订阅只广播给持有该站点授权的应用
+
+### Changed
+
+- **可见性口径统一**：开放 API 只返回已发布、未回收、未归档、**且所属栏目处于启用状态**的内容。栏目启停会 bump 其下内容的 `updated_at`，让增量同步能把这批上下线变更推给集成方；此前不带 `channel` 参数的站级 feed 会吐出停用栏目的内容，而显式指定该栏目反而 404
+- **幂等中间件按调用方分命名空间**：客户端 Token 与自动指纹两种模式的 Redis key 统一按身份（AppKey / userId / IP）哈希，指纹纳入完整 URL（含 query）。此前不同开放应用可读到彼此的缓存响应，而开放 API 的 `siteCode` 恰好就在 query 里
+
+### Fixed
+
+- **`/api/openapi.json` 整份 500**：递归 Zod schema 无限展开导致栈溢出，Swagger 与 SDK 生成全不可用。根因是 `z.lazy(() => z.object({...}))` 每次取值都新建实例，生成器无法通过实例识别环路——新增 `lazyRecursive()` 缓存内部实例，并为嵌套的递归 schema 补注册 refId（两个条件缺一不可）。新增 `openapi-doc.test.ts` 作为回归防线
+- **开放网关子路由不进文档**：`open-gateway` 是普通 `Hono`，而 `OpenAPIHono.route()` 只在父子同为 `OpenAPIHono` 时合并子路由的 registry，端点可访问但进不了 `openapi.json`
+- **富文本清洗会吞掉素材句柄**：`sanitizeCmsHtml` 的协议白名单不含 `cms-res`，导入 / 物化 / 分发链路会把正文里的图片永久删掉
+- **开放授权删除缺站点 ACL**：`DELETE /open-grants/{grantId}` 未校验该授权行所属站点的访问权
+
+---
+
 ## v1.16.1 - 2026-07-26
 
 ### Fixed
