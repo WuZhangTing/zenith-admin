@@ -358,31 +358,39 @@ export default function ChannelsPage() {
     );
   };
 
-  /** 栏目级「按内容模型细分」的详情模板（动态字段名不走 Form，受控 state 管理） */
+  /**
+   * 栏目级「按内容模型细分」的详情模板。
+   *
+   * 走 Form.Slot 而非自绘 label：字段名是动态的（模型 code），进不了 Form 的受控字段，
+   * 但 label 列必须与同区域的 Form.Select 对齐，Slot 会继承 Form 的 labelPosition/labelWidth。
+   */
   const renderChannelTplPane = () => {
     const cfg = channelTemplates;
     const patch = (p: Partial<ChannelTemplateConfig>) => setChannelTemplates((s) => ({ ...s, ...p }));
-    const rowStyle = { display: 'flex', alignItems: 'center', gap: 12 } as const;
-    const labelStyle = { width: 130, flexShrink: 0, textAlign: 'right', fontSize: 14, color: 'var(--semi-color-text-0)' } as const;
     const detailTplOptions = (themeTemplates?.detail ?? []).map((t) => ({ value: t.name, label: t.label }));
     if ((models ?? []).length === 0) return null;
-    return (
-      <div style={{ paddingTop: 4, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {(models ?? []).map((m) => (
-          <div style={rowStyle} key={m.id}>
-            <span style={labelStyle}>{m.name}详情模板</span>
-            <Select
-              placeholder="跟随详情模板"
-              value={cfg.detailByModel[m.code] ?? undefined}
-              onChange={(v) => patch({ detailByModel: { ...cfg.detailByModel, [m.code]: (v as string) ?? null } })}
-              showClear
-              style={{ width: 300 }}
-              optionList={detailTplOptions}
-            />
+    return (models ?? []).map((m) => (
+      <Col span={24} key={m.id}>
+        <Form.Slot label={`${m.name}详情模板`}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <Select
+                placeholder="跟随详情模板"
+                value={cfg.detailByModel[m.code] ?? undefined}
+                onChange={(v) => patch({ detailByModel: { ...cfg.detailByModel, [m.code]: (v as string) ?? null } })}
+                showClear
+                style={{ width: '100%' }}
+                optionList={detailTplOptions}
+              />
+            </div>
+            {/* 占位撑出与上方「预览」按钮等宽的列，保证各行下拉右边缘对齐 */}
+            {editingRecord ? (
+              <Button icon={<Eye size={14} />} style={{ visibility: 'hidden' }} tabIndex={-1} aria-hidden>预览</Button>
+            ) : null}
           </div>
-        ))}
-      </div>
-    );
+        </Form.Slot>
+      </Col>
+    ));
   };
 
   const editorForm = (
@@ -529,8 +537,8 @@ export default function ChannelsPage() {
                 ) : null}
               </div>
             </Col>
+            {renderChannelTplPane()}
           </Row>
-          {renderChannelTplPane()}
         </Form.Section>
       ) : null}
       <Form.Section text="SEO 设置（留空继承站点默认）">

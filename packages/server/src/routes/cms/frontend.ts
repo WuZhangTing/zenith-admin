@@ -210,7 +210,7 @@ export function createCmsFrontendRoutes(): Hono {
       }
     }
 
-    // dynamic 模式：Redis 页面缓存（key 带发布通道维度）
+    // dynamic 模式：Redis 页面缓存
     const cacheKey = `${PAGE_CACHE_PREFIX}${site.id}:${sitePath}`;
     if (!dynamicPage && !isPreview && site.staticMode === 'dynamic') {
       const cached = await redis.get(cacheKey).catch(() => null);

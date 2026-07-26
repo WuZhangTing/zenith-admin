@@ -348,7 +348,7 @@ async function regenerateChannelPages(
 
 /**
  * 内容发布/更新/下线后的增量静态化：
- * 详情页 + 所属栏目全部分页 + 首页 + sitemap（按站点启用的发布通道逐通道生成）。
+ * 详情页 + 所属栏目全部分页 + 首页 + sitemap。
  * 站点或所属栏目为 dynamic 时跳过详情页产物；列表页重建页数受站点 maxPageOnContentPublish 限制。
  */
 export async function refreshContentStatic(contentId: number): Promise<void> {

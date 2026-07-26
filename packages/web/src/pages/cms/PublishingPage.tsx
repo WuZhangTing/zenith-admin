@@ -220,10 +220,6 @@ export default function PublishingPage() {
   const artifactColumns: ColumnProps<CmsPublishArtifact>[] = [
     { title: '任务ID', dataIndex: 'taskId', width: 100 },
     { title: '目标', dataIndex: 'targetType', width: 120, render: (value: CmsPublishTargetType) => CMS_PUBLISH_TARGET_TYPE_LABELS[value] },
-    {
-      title: '发布通道', dataIndex: 'publishChannelName', width: 130,
-      render: (value: string | null) => value ?? <Typography.Text type="tertiary">站点级</Typography.Text>,
-    },
     { title: '路径', dataIndex: 'path', width: 320, render: renderEllipsis },
     { title: 'URL', dataIndex: 'url', width: 320, render: renderEllipsis },
     { title: '大小', dataIndex: 'size', width: 100, render: (value: number | null) => value == null ? '-' : `${value} B` },

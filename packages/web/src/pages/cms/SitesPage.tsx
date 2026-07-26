@@ -831,50 +831,50 @@ export default function SitesPage() {
   // 栏目/内容级失效引用（站点级由本地自动清理负责；这两级存在其他表，仅提示不阻断保存）
   const externalInvalidRefs = (templateHealth?.invalidRefs ?? []).filter((r) => r.source !== 'site');
 
-  /** 站点默认模板配置面板（动态字段名不走 Form，受控 state 管理） */
+  /**
+   * 站点默认模板配置面板。
+   *
+   * 走 Form.Slot 而非自绘 label：字段名是动态的（模型 code），进不了 Form 的受控字段，
+   * 但 label 列必须与同一 Tab 内其他 Form 字段对齐，Slot 会继承 Form 的 labelPosition/labelWidth。
+   */
   const renderTemplateDefaults = () => {
     const cfg = templateDefaults;
     const patch = (p: Partial<TemplateDefaultsState>) => setTemplateDefaults((s) => ({ ...s, ...p }));
-    const rowStyle = { display: 'flex', alignItems: 'center', gap: 12 } as const;
-    const labelStyle = { width: 140, flexShrink: 0, textAlign: 'right', fontSize: 14, color: 'var(--semi-color-text-0)' } as const;
     return (
-      <div style={{ paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={rowStyle}>
-          <span style={labelStyle}>栏目列表页模板</span>
+      <>
+        <Form.Slot label="列表模板">
           <Select
             placeholder="跟随主题默认"
             value={cfg.list ?? undefined}
             onChange={(v) => patch({ list: (v as string) ?? null })}
             showClear
-            style={{ width: 320 }}
+            style={{ width: '100%' }}
             optionList={listTplOptions}
           />
-        </div>
-        <div style={rowStyle}>
-          <span style={labelStyle}>内容详情页模板</span>
+        </Form.Slot>
+        <Form.Slot label="详情模板">
           <Select
             placeholder="跟随主题默认"
             value={cfg.detail ?? undefined}
             onChange={(v) => patch({ detail: (v as string) ?? null })}
             showClear
-            style={{ width: 320 }}
+            style={{ width: '100%' }}
             optionList={detailTplOptions}
           />
-        </div>
+        </Form.Slot>
         {(allModels ?? []).map((m) => (
-          <div style={rowStyle} key={m.id}>
-            <span style={labelStyle}>{m.name}详情模板</span>
+          <Form.Slot label={`${m.name}详情模板`} key={m.id}>
             <Select
               placeholder="跟随详情页默认"
               value={cfg.detailByModel[m.code] ?? undefined}
               onChange={(v) => patch({ detailByModel: { ...cfg.detailByModel, [m.code]: (v as string) ?? null } })}
               showClear
-              style={{ width: 320 }}
+              style={{ width: '100%' }}
               optionList={detailTplOptions}
             />
-          </div>
+          </Form.Slot>
         ))}
-      </div>
+      </>
     );
   };
 
@@ -1332,7 +1332,7 @@ export default function SitesPage() {
                 </Form.Section>
               </div>
             </TabPane>
-            <TabPane tab="模板与通道" itemKey="templates">
+            <TabPane tab="模板与主题" itemKey="templates">
               <div style={{ paddingTop: 16 }}>
                 {externalInvalidRefs.length > 0 && (
                   <Banner
@@ -1353,10 +1353,6 @@ export default function SitesPage() {
                     )}
                   />
                 )}
-                <div style={{ marginBottom: 16, color: 'var(--semi-color-text-2)', fontSize: 13 }}>
-                  发布通道（PC/H5/小程序等输出端）在「CMS 内容管理 → 发布通道」页面按站点自由创建，
-                  每个通道可独立绑定域名与 UA 跳转规则；此处按通道配置站点级默认模板。
-                </div>
                 <Form.Section text="默认模板（栏目/内容未指定模板时的站点级兜底；留空 = 主题默认）">
                   {renderTemplateDefaults()}
                 </Form.Section>

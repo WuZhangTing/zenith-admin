@@ -58,7 +58,7 @@ function assertCdnPurgeSetting(settings: Record<string, unknown>): void {
 }
 
 // ─── 站点配置内存缓存（前台按 Host 高频查找；写操作后失效）──────────────────────
-let siteCache: { byHost: Map<string, CmsSiteRow>; byId: Map<number, CmsSiteRow>; byCode: Map<string, CmsSiteRow>; defaultSite: CmsSiteRow | null; loadedAt: number } | null = null;
+let siteCache: { byHost: Map<string, CmsSiteRow>; byCode: Map<string, CmsSiteRow>; defaultSite: CmsSiteRow | null; loadedAt: number } | null = null;
 const SITE_CACHE_TTL_MS = 30_000;
 
 export function invalidateSiteCache(): void {
@@ -75,19 +75,17 @@ async function loadSiteCache() {
     .filter((row) => buildCmsSiteChain(allRows, row.id).every((ancestor) => ancestor.status === 'enabled'))
     .map((row) => resolveCmsSiteSnapshot(allRows, inheritances, row.id).site);
   const byHost = new Map<string, CmsSiteRow>();
-  const byId = new Map<number, CmsSiteRow>();
   const byCode = new Map<string, CmsSiteRow>();
   let defaultSite: CmsSiteRow | null = null;
   for (const row of rows) {
     if (!byCode.has(row.code)) byCode.set(row.code, row);
-    byId.set(row.id, row);
     if (row.domain && !byHost.has(row.domain.toLowerCase())) byHost.set(row.domain.toLowerCase(), row);
     for (const alias of row.aliasDomains ?? []) {
       if (alias && !byHost.has(alias.toLowerCase())) byHost.set(alias.toLowerCase(), row);
     }
     if (row.isDefault && !defaultSite) defaultSite = row;
   }
-  siteCache = { byHost, byId, byCode, defaultSite, loadedAt: Date.now() };
+  siteCache = { byHost, byCode, defaultSite, loadedAt: Date.now() };
   return siteCache;
 }
 
@@ -105,12 +103,6 @@ export async function resolveSiteByHost(host: string | undefined): Promise<CmsSi
     if (hit) return hit;
   }
   return cache.defaultSite;
-}
-
-/** 前台按 id 取启用站点（发布通道独立域名命中后取所属站点） */
-export async function resolveSiteById(id: number): Promise<CmsSiteRow | null> {
-  const cache = await getSiteCache();
-  return cache.byId.get(id) ?? null;
 }
 
 /** 预览模式按 code 匹配站点 */
