@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { formatDateTime } from '../../lib/datetime';
+import dayjs from 'dayjs';
+import timezone from 'dayjs/plugin/timezone';
+import utc from 'dayjs/plugin/utc';
+import { APP_TIME_ZONE, formatDateTime } from '../../lib/datetime';
 import { contentArchiveDir, contentUrl } from './cms-urls';
 
-const AT = new Date(2026, 6, 5); // 2026-07-05（月/日单位数，用于验证补零差异）
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+// 固定在 APP_TIME_ZONE 的正午构造，避开任何 runner 时区的日界，使字面断言与 TZ 无关
+// （用 new Date(2026, 6, 5) 会随 OS 时区漂移，CI 与本地结果不一致）
+const AT = dayjs.tz('2026-07-05 12:00:00', 'YYYY-MM-DD HH:mm:ss', APP_TIME_ZONE).toDate();
 
 function content(overrides: Partial<Parameters<typeof contentUrl>[2]> = {}) {
   return { id: 42, slug: null, publishedAt: AT, createdAt: AT, ...overrides };
@@ -36,8 +44,8 @@ describe('contentArchiveDir', () => {
     expect(contentArchiveDir('year', content({ publishedAt: null, createdAt: null }))).toBe('');
   });
 
-  it('取值口径与 formatDateTime 展示一致（同为 dayjs 本地时区）', () => {
-    // 存的是 UTC 2023-12-31T16:00Z，在 UTC+8 下展示为 2024-01-01，归档目录须同为 2024
+  it('取值口径与 formatDateTime 展示一致（同为 APP_TIME_ZONE，而非 OS 本地时区）', () => {
+    // APP_TIME_ZONE 默认 Asia/Shanghai，部署机 TZ 未设置时裸 dayjs 会按 UTC 算，两者差一年
     const utcBoundary = new Date('2023-12-31T16:00:00.000Z');
     const displayedYear = Number(formatDateTime(utcBoundary).slice(0, 4));
     expect(contentArchiveDir('year', content({ publishedAt: utcBoundary }))).toBe(`${displayedYear}/`);
@@ -69,7 +77,7 @@ describe('contentUrl 与归档规则', () => {
     expect(contentUrl('', channel, c, 3)).toBe('/topic/2026/special_3.html');
   });
 
-  it('baseUrl 前缀参与拼接（预览 / 通道子树场景）', () => {
+  it('baseUrl 前缀参与拼接（预览场景）', () => {
     expect(contentUrl('/__cms/main', channel, content())).toBe('/__cms/main/news/2026/42.html');
   });
 

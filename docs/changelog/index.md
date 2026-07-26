@@ -4,6 +4,15 @@
 
 ---
 
+## v1.16.1 - 2026-07-26
+
+### Fixed
+
+- **详情页归档目录时区错位**：归档目录（`detailPathRule` 的年 / 年月 / 年月日 / 日期串规则）此前用裸 dayjs 按**操作系统本地时区**计算，而后台展示的发布时间走 `APP_TIME_ZONE`（`APP_TIME_ZONE` → `TZ` → `Asia/Shanghai` 兜底）。部署机时区与 `APP_TIME_ZONE` 不一致时（例如容器内 `TZ` 未设置、OS 为 UTC），跨年/跨月边界发布的内容会落进与后台显示不符的目录。现统一走 `APP_TIME_ZONE`，与 `formatDateTime()` 同源
+- **归档目录用例随时区漂移**：`cms-urls.test.ts` 的日期夹具改用 `APP_TIME_ZONE` 正午构造，避开任意 runner 时区的日界，使断言与 CI/本地时区无关（该用例此前在 UTC runner 上暴露了上述真实缺陷）
+
+---
+
 ## v1.16.0 - 2026-07-26
 
 以 [ChestnutCMS](https://github.com/liweiyi/ChestnutCMS) 为参照做了一轮完整的功能对标与架构瘦身：补齐 12 项经消费方核实的真实缺口，同时**移除发布通道**这一从 ChestnutCMS 直译、在响应式 React SSR 架构下已成负债的机制。

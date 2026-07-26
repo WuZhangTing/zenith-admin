@@ -6,8 +6,14 @@
  * 现有 `from './cms-render.service'` 的导入无需改动。
  */
 import dayjs from 'dayjs';
+import timezone from 'dayjs/plugin/timezone';
+import utc from 'dayjs/plugin/utc';
 import { cmsCustomPagePath } from '@zenith/shared';
 import type { CmsChannelDetailPathRule } from '@zenith/shared';
+import { APP_TIME_ZONE } from '../../lib/datetime';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 /** 搭建页 URL / 静态产物路径：设了 path 用它，否则回落 p/{slug}/ */
 export { cmsCustomPagePath as customPagePath } from '@zenith/shared';
@@ -64,8 +70,9 @@ function pad2(n: number): string {
 /**
  * 归档目录片段（含结尾 `/`；不归档返回空串）。
  *
- * 日期取值口径与全站展示一致：走 dayjs 本地时区，和 `formatDateTime()` 呈现的发布时间同源，
- * 因此运营在后台看到「发布时间 2024-01-01」时，产物就落在 `2024/` 下，不会出现错位一天的困惑。
+ * 日期取值口径必须与全站展示一致 —— 走 `APP_TIME_ZONE`（与 `formatDateTime()` 同源），
+ * 而**不是** OS 本地时区：`APP_TIME_ZONE` 有 `Asia/Shanghai` 兜底，部署机时区不同时
+ * 裸 dayjs 会和后台显示的发布时间差一年/一月，产出与运营预期不符的产物路径。
  * 未发布时回退创建时间；两者都缺失则退化为不归档，保证任何数据状态下都能算出稳定路径。
  */
 export function contentArchiveDir(rule: CmsChannelDetailPathRule, content: CmsUrlContent): string {
@@ -73,7 +80,7 @@ export function contentArchiveDir(rule: CmsChannelDetailPathRule, content: CmsUr
   if (rule === 'idHash') return `${Math.abs(content.id) % 10}/`;
   const at = content.publishedAt ?? content.createdAt;
   if (!at) return '';
-  const d = dayjs(at);
+  const d = dayjs(at).tz(APP_TIME_ZONE);
   if (!d.isValid()) return '';
   const y = d.year();
   const m = d.month() + 1;
