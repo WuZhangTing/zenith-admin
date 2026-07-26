@@ -1,4 +1,15 @@
 import sanitizeHtml from 'sanitize-html';
+import { CMS_RESOURCE_URI_PREFIX } from '@zenith/shared';
+
+/**
+ * 素材句柄 scheme（`cms-res://{id}`）。
+ *
+ * 必须列入白名单：正文里的素材以句柄存储，而多条链路（站点导入、映射物化、
+ * 分发同步、碎片改类型）会把**已落库的正文**再次送进净化器。若不放行，
+ * sanitize-html 会把整个 `src`/`href` 属性丢掉，等于永久删除正文中的全部图片与媒体。
+ * 句柄本身不可能承载脚本 —— 它只是 `cms-res://` 加数字，读取时才解析成真实 URL。
+ */
+const RESOURCE_URI_SCHEME = CMS_RESOURCE_URI_PREFIX.replace('://', '');
 
 const ALLOWED_TAGS = [
   'p', 'br', 'hr', 'div', 'span',
@@ -22,18 +33,20 @@ const ALLOWED_ATTRIBUTES: sanitizeHtml.IOptions['allowedAttributes'] = {
   source: ['src', 'type'],
 };
 
+const MEDIA_SCHEMES = ['http', 'https', RESOURCE_URI_SCHEME];
+
 /** Sanitize untrusted rich text once at the server-side persistence boundary. */
 export function sanitizeCmsHtml(html: string | null | undefined): string {
   if (!html) return '';
   return sanitizeHtml(html, {
     allowedTags: [...ALLOWED_TAGS],
     allowedAttributes: ALLOWED_ATTRIBUTES,
-    allowedSchemes: ['http', 'https', 'mailto', 'tel'],
+    allowedSchemes: ['http', 'https', 'mailto', 'tel', RESOURCE_URI_SCHEME],
     allowedSchemesByTag: {
-      img: ['http', 'https'],
-      video: ['http', 'https'],
-      audio: ['http', 'https'],
-      source: ['http', 'https'],
+      img: MEDIA_SCHEMES,
+      video: MEDIA_SCHEMES,
+      audio: MEDIA_SCHEMES,
+      source: MEDIA_SCHEMES,
     },
     allowProtocolRelative: false,
     disallowedTagsMode: 'discard',

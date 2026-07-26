@@ -6,6 +6,7 @@ import type { CmsAdSlotRow, CmsAdRow } from '../../db/schema';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { assertSiteAccess } from './cms-sites.service';
+import { canonicalizeCmsResourceFields, deleteCmsResourceRefsForOwner, syncCmsResourceRefs, resolveCmsResourcePayload } from './cms-resource-refs.service';
 import type { CreateCmsAdSlotInput, UpdateCmsAdSlotInput, CreateCmsAdInput, UpdateCmsAdInput } from '@zenith/shared';
 import { ensureCmsSiteExists } from './cms-sites.service';
 import { withPagination } from '../../lib/where-helpers';
@@ -152,7 +153,7 @@ export async function listCmsAds(q: ListCmsAdsQuery) {
     withPagination(base.orderBy(asc(cmsAds.sort), asc(cmsAds.id)).$dynamic(), q.page, q.pageSize),
   ]);
   return {
-    list: rows.map((r) => mapCmsAd(r.ad, r.slotName)),
+    list: await resolveCmsResourcePayload(rows.map((r) => mapCmsAd(r.ad, r.slotName))),
     total,
     page: q.page,
     pageSize: q.pageSize,
@@ -166,12 +167,16 @@ export async function createCmsAd(data: CreateCmsAdInput) {
     throw new HTTPException(400, { message: '跳转地址仅允许站内相对路径或 http/https URL，且不得包含账号凭据' });
   }
   const { startAt, endAt, ...rest } = data;
-  const [row] = await db.insert(cmsAds).values({
-    ...rest,
-    startAt: parseDateTimeInput(startAt),
-    endAt: parseDateTimeInput(endAt),
-  }).returning();
-  return mapCmsAd(row, slot.name);
+  const row = await db.transaction(async (tx) => {
+    const [created] = await tx.insert(cmsAds).values({
+      ...await canonicalizeCmsResourceFields(tx, slot.siteId, rest, 'ad'),
+      startAt: parseDateTimeInput(startAt),
+      endAt: parseDateTimeInput(endAt),
+    }).returning();
+    await syncCmsResourceRefs(tx, 'ad', created.id, slot.siteId, created);
+    return created;
+  });
+  return resolveCmsResourcePayload(mapCmsAd(row, slot.name));
 }
 
 export async function updateCmsAd(id: number, data: UpdateCmsAdInput) {
@@ -184,17 +189,24 @@ export async function updateCmsAd(id: number, data: UpdateCmsAdInput) {
     throw new HTTPException(400, { message: '跳转地址仅允许站内相对路径或 http/https URL，且不得包含账号凭据' });
   }
   const { startAt, endAt, ...rest } = data;
-  const [row] = await db.update(cmsAds).set({
-    ...rest,
-    ...(startAt !== undefined ? { startAt: parseDateTimeInput(startAt) } : {}),
-    ...(endAt !== undefined ? { endAt: parseDateTimeInput(endAt) } : {}),
-  }).where(eq(cmsAds.id, id)).returning();
-  return mapCmsAd(row, slot.name);
+  const row = await db.transaction(async (tx) => {
+    const [updated] = await tx.update(cmsAds).set({
+      ...await canonicalizeCmsResourceFields(tx, slot.siteId, rest, 'ad'),
+      ...(startAt !== undefined ? { startAt: parseDateTimeInput(startAt) } : {}),
+      ...(endAt !== undefined ? { endAt: parseDateTimeInput(endAt) } : {}),
+    }).where(eq(cmsAds.id, id)).returning();
+    await syncCmsResourceRefs(tx, 'ad', updated.id, slot.siteId, updated);
+    return updated;
+  });
+  return resolveCmsResourcePayload(mapCmsAd(row, slot.name));
 }
 
 export async function deleteCmsAd(id: number) {
   const current = await ensureCmsAdExists(id);
   const slot = await ensureCmsAdSlotExists(current.slotId);
   await assertSiteAccess(slot.siteId);
-  await db.delete(cmsAds).where(eq(cmsAds.id, id));
+  await db.transaction(async (tx) => {
+    await tx.delete(cmsAds).where(eq(cmsAds.id, id));
+    await deleteCmsResourceRefsForOwner(tx, 'ad', [id]);
+  });
 }

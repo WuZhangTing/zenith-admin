@@ -107,6 +107,29 @@ function sanitizeMockCmsHtml(value: string | null): string | null {
   return value?.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/\son\w+="[^"]*"/gi, '') ?? null;
 }
 
+/**
+ * 素材引用查询（对应服务端的 cms_resource_refs 反向索引）。
+ *
+ * 服务端把素材统一存为 `cms-res://{id}` 句柄后按索引精确查询；Demo 数据里既有句柄
+ * 也有历史裸 URL，这里两种形态都识别，保证演示站的引用数与删除保护表现一致。
+ */
+function collectMockResourceRefs(res: { id: number; siteId: number; url: string }): CmsResourceReference[] {
+  const handle = `cms-res://${res.id}`;
+  const hit = (value: string | null | undefined) => !!value && (value.includes(handle) || value.includes(res.url));
+  const refs: CmsResourceReference[] = [];
+  for (const c of mockCmsContents) {
+    if (c.siteId !== res.siteId) continue;
+    if (hit(c.coverImage)) refs.push({ kind: 'content', id: c.id, title: c.title, field: 'coverImage' });
+    if (hit(c.body)) refs.push({ kind: 'content', id: c.id, title: c.title, field: 'body' });
+  }
+  for (const link of mockCmsFriendLinks) {
+    if (link.siteId !== res.siteId) continue;
+    if (hit(link.logo)) refs.push({ kind: 'friendLink', id: link.id, title: link.name, field: 'logo' });
+    if (hit(link.url)) refs.push({ kind: 'friendLink', id: link.id, title: link.name, field: 'url' });
+  }
+  return refs;
+}
+
 export const cmsHandlers = [
   // ═══ 站点 ═══════════════════════════════════════════════════════════════
   http.get('/api/cms/sites/all', () => okJson(mockCmsSites.filter((s) => s.status === 'enabled').map(redactMockSite))),
@@ -593,7 +616,7 @@ export const cmsHandlers = [
       slug: (body.slug as string) ?? null,
       summary: (body.summary as string) ?? null,
       coverImage: (body.coverImage as string) ?? null,
-      coverThumb: (body.coverThumb as string) ?? null,
+      coverThumb: null,
       author: (body.author as string) ?? null,
       editor: (body.editor as string) ?? null,
       source: (body.source as string) ?? null,
@@ -1219,13 +1242,7 @@ export const cmsP2Handlers = [
   http.get('/api/cms/resources/:id/references', ({ params }) => {
     const res = mockCmsResources.find((r) => r.id === Number(params.id));
     if (!res) return notFound('素材不存在');
-    const refs: CmsResourceReference[] = mockCmsContents
-      .filter((c) => c.siteId === res.siteId && (c.coverImage === res.url || (c.body ?? '').includes(res.url)))
-      .map((c) => ({ kind: 'content' as const, id: c.id, title: c.title, field: c.coverImage === res.url ? 'coverImage' : 'body' }));
-    refs.push(...mockCmsFriendLinks
-      .filter((link) => link.siteId === res.siteId && (link.logo === res.url || link.url === res.url))
-      .map((link) => ({ kind: 'friendLink' as const, id: link.id, title: link.name, field: link.logo === res.url ? 'logo' : 'url' })));
-    return okJson(refs);
+    return okJson(collectMockResourceRefs(res));
   }),
   http.get('/api/cms/resources', ({ request }) => {
     const { url, page, pageSize, keyword } = pageParams(request);
@@ -1237,7 +1254,9 @@ export const cmsP2Handlers = [
     if (folderId === 0) list = list.filter((r) => r.folderId == null);
     else if (folderId) list = list.filter((r) => r.folderId === folderId);
     if (keyword) list = list.filter((r) => r.name.includes(keyword));
-    return okJson(paginate([...list].sort((a, b) => b.id - a.id), page, pageSize));
+    const sorted = [...list].sort((a, b) => b.id - a.id)
+      .map((r) => ({ ...r, refCount: collectMockResourceRefs(r).length }));
+    return okJson(paginate(sorted, page, pageSize));
   }),
   http.post('/api/cms/resources/upload', async ({ request }) => {
     const url = new URL(request.url);
@@ -1267,6 +1286,8 @@ export const cmsP2Handlers = [
       height: type === 'image' ? 128 : null,
       mimeType: mime,
       remark: null,
+      // 上传素材由 CMS 持有物理文件，删除时可联动清理
+      ownsFile: true,
       createdAt: mockDateTime(),
       updatedAt: mockDateTime(),
     };
@@ -1283,8 +1304,7 @@ export const cmsP2Handlers = [
     res.updatedAt = mockDateTime();
     return okJson(res, '已保存');
   }),
-  http.post('/api/cms/resources/:id/crop', async ({ params, request }) => {
-    const res = mockCmsResources.find((r) => r.id === Number(params.id));
+  http.post('/api/cms/resources/:id/crop', async ({ params, request }) => {    const res = mockCmsResources.find((r) => r.id === Number(params.id));
     if (!res) return notFound('素材不存在');
     const rect = (await request.json()) as { width: number; height: number };
     const dot = res.name.lastIndexOf('.');
@@ -1302,14 +1322,39 @@ export const cmsP2Handlers = [
     mockCmsResources.unshift(cropped);
     return okJson(cropped, '裁剪成功，已另存为新素材');
   }),
+  http.post('/api/cms/resources/:id/replace', async ({ params, request }) => {
+    const res = mockCmsResources.find((r) => r.id === Number(params.id));
+    if (!res) return notFound('素材不存在');
+    const form = await request.formData();
+    const file = form.get('file') as File | null;
+    if (!file) return HttpResponse.json({ code: 400, message: '请选择要上传的文件', data: null }, { status: 400 });
+    // 句柄化后素材 id 是稳定引用，换文件只改素材行本身，站内引用无需改动
+    const idx = Math.floor(Math.random() * 12) + 1;
+    res.name = file.name;
+    res.url = res.type === 'image' ? `/avatars/avatar-${String(idx).padStart(2, '0')}.svg` : `/files/${file.name}`;
+    res.size = file.size;
+    res.mimeType = file.type || res.mimeType;
+    res.updatedAt = mockDateTime();
+    return okJson(res, '替换成功，引用该素材的位置将自动指向新文件');
+  }),
+  http.post('/api/cms/resources/rebuild-refs', async ({ request }) => {
+    const payload = (await request.json()) as { siteId: number };
+    return okJson(createProgressingMockTask({
+      taskType: 'cms-resource-ref-rebuild',
+      title: 'CMS 素材引用索引重建',
+      payload,
+      totalItems: 9,
+      itemDelayMs: 150,
+    }), '任务已提交');
+  }),
   http.post('/api/cms/resources/delete', async ({ request }) => {
     const { ids } = (await request.json()) as { ids: number[] };
     for (const id of ids) {
       const res = mockCmsResources.find((r) => r.id === id);
       if (!res) continue;
-      const referenced = mockCmsContents.some((c) => c.siteId === res.siteId && (c.coverImage === res.url || (c.body ?? '').includes(res.url)));
-      if (referenced) {
-        return HttpResponse.json({ code: 400, message: `素材「${res.name}」仍被引用，请先处理引用后再删除`, data: null }, { status: 400 });
+      const refs = collectMockResourceRefs(res);
+      if (refs.length > 0) {
+        return HttpResponse.json({ code: 400, message: `素材「${res.name}」仍被 ${refs.length} 处引用，请先处理引用后再删除`, data: null }, { status: 400 });
       }
     }
     for (const id of ids) {

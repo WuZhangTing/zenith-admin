@@ -10,6 +10,7 @@ import type { CreateCmsFragmentInput, UpdateCmsFragmentInput, CmsFragmentType } 
 import { assertCompleteCmsBatch } from './cms-access';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
 import { sanitizeCmsFragmentContent } from './cms-fragment-content';
+import { canonicalizeCmsResourceContent, deleteCmsResourceRefsForOwner, syncCmsResourceRefs, resolveCmsResourcePayload } from './cms-resource-refs.service';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapCmsFragment(row: CmsFragmentRow) {
@@ -37,7 +38,7 @@ export async function ensureCmsFragmentExists(id: number): Promise<CmsFragmentRo
 export async function getCmsFragment(id: number) {
   const row = await ensureCmsFragmentExists(id);
   await assertSiteAccess(row.siteId);
-  return mapCmsFragment(row);
+  return resolveCmsResourcePayload(mapCmsFragment(row));
 }
 
 // ─── 列表 ─────────────────────────────────────────────────────────────────────
@@ -70,7 +71,7 @@ export async function listCmsFragments(q: ListCmsFragmentsQuery) {
       q.pageSize,
     ),
   ]);
-  return { list: list.map(mapCmsFragment), total, page: q.page, pageSize: q.pageSize };
+  return { list: await resolveCmsResourcePayload(list.map(mapCmsFragment)), total, page: q.page, pageSize: q.pageSize };
 }
 
 /** 前台渲染上下文用：站点全部启用碎片 code → { type, content } 映射 */
@@ -81,7 +82,7 @@ export async function getFragmentMap(siteId: number): Promise<Record<string, { t
   for (const row of rows) {
     map[row.code] = { type: row.type, content: row.content ?? '' };
   }
-  return map;
+  return resolveCmsResourcePayload(map);
 }
 
 // ─── 创建 / 更新 / 删除 ────────────────────────────────────────────────────────
@@ -89,11 +90,19 @@ export async function createCmsFragment(data: CreateCmsFragmentInput) {
   await ensureCmsSiteExists(data.siteId);
   await assertSiteAccess(data.siteId);
   try {
-    const [row] = await db.insert(cmsFragments).values({
-      ...data,
-      content: sanitizeCmsFragmentContent(data.type ?? 'html', data.content),
-    }).returning();
-    return mapCmsFragment(row);
+    const row = await db.transaction(async (tx) => {
+      const [created] = await tx.insert(cmsFragments).values({
+        ...data,
+        content: await canonicalizeCmsResourceContent(
+          tx,
+          data.siteId,
+          sanitizeCmsFragmentContent(data.type ?? 'html', data.content),
+        ),
+      }).returning();
+      await syncCmsResourceRefs(tx, 'fragment', created.id, created.siteId, created);
+      return created;
+    });
+    return resolveCmsResourcePayload(mapCmsFragment(row));
   } catch (err) {
     rethrowPgUniqueViolation(err, '同站点下碎片标识已存在');
   }
@@ -105,16 +114,26 @@ export async function updateCmsFragment(id: number, data: UpdateCmsFragmentInput
   const type = data.type ?? current.type;
   const content = data.content === undefined ? current.content : data.content;
   try {
-    const [row] = await db.update(cmsFragments).set({
-      ...data,
-      ...((data.type !== undefined || data.content !== undefined)
-        ? { content: sanitizeCmsFragmentContent(type, content) }
-        : {}),
-    }).where(and(
-      eq(cmsFragments.id, id),
-    )).returning();
-    if (!row) throw new HTTPException(404, { message: '碎片不存在' });
-    return mapCmsFragment(row);
+    const row = await db.transaction(async (tx) => {
+      const [updated] = await tx.update(cmsFragments).set({
+        ...data,
+        ...((data.type !== undefined || data.content !== undefined)
+          ? {
+              content: await canonicalizeCmsResourceContent(
+                tx,
+                current.siteId,
+                sanitizeCmsFragmentContent(type, content),
+              ),
+            }
+          : {}),
+      }).where(and(
+        eq(cmsFragments.id, id),
+      )).returning();
+      if (!updated) throw new HTTPException(404, { message: '碎片不存在' });
+      await syncCmsResourceRefs(tx, 'fragment', updated.id, updated.siteId, updated);
+      return updated;
+    });
+    return resolveCmsResourcePayload(mapCmsFragment(row));
   } catch (err) {
     rethrowPgUniqueViolation(err, '同站点下碎片标识已存在');
   }
@@ -123,10 +142,13 @@ export async function updateCmsFragment(id: number, data: UpdateCmsFragmentInput
 export async function deleteCmsFragment(id: number) {
   const current = await ensureCmsFragmentExists(id);
   await assertSiteAccess(current.siteId);
-  const [row] = await db.delete(cmsFragments).where(and(
-    eq(cmsFragments.id, id),
-  )).returning();
-  if (!row) throw new HTTPException(404, { message: '碎片不存在' });
+  await db.transaction(async (tx) => {
+    const [row] = await tx.delete(cmsFragments).where(and(
+      eq(cmsFragments.id, id),
+    )).returning();
+    if (!row) throw new HTTPException(404, { message: '碎片不存在' });
+    await deleteCmsResourceRefsForOwner(tx, 'fragment', [row.id]);
+  });
 }
 
 export async function batchDeleteCmsFragments(ids: number[]) {
@@ -135,5 +157,8 @@ export async function batchDeleteCmsFragments(ids: number[]) {
     .where(inArray(cmsFragments.id, ids));
   assertCompleteCmsBatch(ids, rows.map((row) => row.id), '碎片');
   for (const siteId of new Set(rows.map((row) => row.siteId))) await assertSiteAccess(siteId);
-  await db.delete(cmsFragments).where(inArray(cmsFragments.id, ids));
+  await db.transaction(async (tx) => {
+    await tx.delete(cmsFragments).where(inArray(cmsFragments.id, ids));
+    await deleteCmsResourceRefsForOwner(tx, 'fragment', rows.map((row) => row.id));
+  });
 }

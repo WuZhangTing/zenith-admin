@@ -21,6 +21,7 @@ import {
   CMS_INTERACTION_REPEAT_POLICIES,
   CMS_INTERACTION_RESULT_VISIBILITIES,
   CMS_INTERACTION_STATUSES,
+  CMS_RESOURCE_OWNER_TYPES,
   CMS_SUBSCRIPTION_SUBJECT_TYPES,
   type CmsContentAttachment,
   type CmsDistributionFilters,
@@ -60,6 +61,8 @@ export const cmsDistributionConflictStrategyEnum = pgEnum(
   'cms_distribution_conflict_strategy',
   CMS_DISTRIBUTION_CONFLICT_STRATEGIES,
 );
+/** 素材引用方类型（cms_resource_refs.owner_type） */
+export const cmsResourceOwnerTypeEnum = pgEnum('cms_resource_owner_type', CMS_RESOURCE_OWNER_TYPES);
 
 /** PostgreSQL tsvector 列（drizzle 无内置类型），存全文检索向量 */
 const tsvector = customType<{ data: string }>({
@@ -303,8 +306,6 @@ export const cmsContents = pgTable('cms_contents', {
   slug: varchar('slug', { length: 255 }),
   summary: text('summary'),
   coverImage: varchar('cover_image', { length: 500 }),
-  /** 封面缩略图（上传管线按站点配置生成；空 = 前台回退原图） */
-  coverThumb: varchar('cover_thumb', { length: 500 }),
   author: varchar('author', { length: 50 }),
   /** 责任编辑 */
   editor: varchar('editor', { length: 50 }),
@@ -1240,8 +1241,16 @@ export const cmsResources = pgTable('cms_resources', {
   name: varchar('name', { length: 255 }).notNull(),
   url: varchar('url', { length: 500 }).notNull(),
   thumbUrl: varchar('thumb_url', { length: 500 }),
-  /** 底层 managed_files id（删除素材时联动删除物理文件；手动登记的外链素材为 null） */
+  /** 底层 managed_files id（手动登记的外链素材为 null） */
   fileId: pgUuid('file_id'),
+  /**
+   * 本素材是否拥有底层物理文件。
+   *
+   * `false` 表示文件由别处（文件中心、来源站点）持有，本行只是引用登记：
+   * 从文件中心选图时自动登记的素材、站点导入复制出的素材都属于这类。
+   * 删除素材时只有 `true` 才允许联动删除物理文件，否则会把其他模块/站点还在用的文件删掉。
+   */
+  ownsFile: boolean('owns_file').notNull().default(true),
   size: integer('size').notNull().default(0),
   width: integer('width'),
   height: integer('height'),
@@ -1253,6 +1262,35 @@ export const cmsResources = pgTable('cms_resources', {
 }, (t) => [
   index('cms_resources_site_type_idx').on(t.siteId, t.type),
   index('cms_resources_site_folder_idx').on(t.siteId, t.folderId),
+  index('cms_resources_file_idx').on(t.fileId),
+  // URL → 素材 id 归一化查询依赖它，同时防止同站点重复登记同一文件
+  uniqueIndex('cms_resources_site_url_uq').on(t.siteId, t.url),
 ]);
 
 export type CmsResourceRow = typeof cmsResources.$inferSelect;
+
+/**
+ * 素材反向引用索引。
+ *
+ * 素材在业务对象中以 `cms-res://{id}` 句柄存储，owner 每次写入时在**同一事务内**
+ * 按 owner 维度整体重建自己的引用行（先删后插），因此索引不会漂移。
+ * 孤立素材判定、删除保护与引用明细全部由本表的索引查询完成，
+ * 取代原先「按 URL 子串对 9 张表做全表 LIKE 扫描」的 O(N×M) 实现。
+ */
+export const cmsResourceRefs = pgTable('cms_resource_refs', {
+  id: serial('id').primaryKey(),
+  siteId: integer('site_id').notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
+  resourceId: integer('resource_id').notNull().references(() => cmsResources.id, { onDelete: 'cascade' }),
+  ownerType: cmsResourceOwnerTypeEnum('owner_type').notNull(),
+  ownerId: integer('owner_id').notNull(),
+  /** 承载引用的字段路径，如 coverImage / body / extend.photos */
+  field: varchar('field', { length: 64 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('cms_resource_refs_uq').on(t.resourceId, t.ownerType, t.ownerId, t.field),
+  index('cms_resource_refs_resource_idx').on(t.resourceId),
+  index('cms_resource_refs_site_idx').on(t.siteId),
+  index('cms_resource_refs_owner_idx').on(t.ownerType, t.ownerId),
+]);
+
+export type CmsResourceRefRow = typeof cmsResourceRefs.$inferSelect;

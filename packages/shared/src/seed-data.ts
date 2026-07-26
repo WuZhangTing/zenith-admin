@@ -3269,13 +3269,14 @@ export const SEED_CMS_TAGS: CmsTag[] = [
   { id: 2, siteId: 1, name: '行业动态', slug: 'industry', groupName: '资讯', contentCount: 1, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];
 
-export const SEED_CMS_CONTENTS: (CmsContent & { tagIds: number[] })[] = [
+/** coverThumb 由封面素材派生而非独立字段，种子数据不声明 */
+export const SEED_CMS_CONTENTS: (Omit<CmsContent, 'coverThumb'> & { tagIds: number[] })[] = [
   {
     id: 1, siteId: 1, channelId: 1, channelName: '新闻中心', modelId: 1,
     contentType: 'article', mediaData: {},
     titleStyle: {}, title: 'Zenith Admin 发布 CMS 内容管理模块', subTitle: null, shortTitle: 'CMS 模块发布', slug: null,
     summary: '全新 CMS 模块支持多站点、SEO 优化、SSR 静态化发布与基于 PostgreSQL 的中文全文检索。',
-    coverImage: null, coverThumb: null, author: '管理员', editor: '管理员', source: '官方', sourceUrl: null, isOriginal: true, body: '<p>Zenith Admin 全新 CMS 模块正式发布：支持站群管理、内容模型自定义字段、React SSR 静态化与 PostgreSQL 全文检索，功能全面对标国内主流 CMS。</p>',
+    coverImage: 'cms-res://1', author: '管理员', editor: '管理员', source: '官方', sourceUrl: null, isOriginal: true, body: '<p>Zenith Admin 全新 CMS 模块正式发布：支持站群管理、内容模型自定义字段、React SSR 静态化与 PostgreSQL 全文检索，功能全面对标国内主流 CMS。</p>',
     attachments: [], extend: {}, externalLink: null, detailTemplate: null, staticPath: null, isTop: true, topWeight: 10, topExpireAt: null, isRecommend: true, isHot: false,
     status: 'published', rejectReason: null, publishedAt: SEED_DATE, scheduledAt: null, expireAt: null,
     viewCount: 128, likeCount: 0, favoriteCount: 0, version: 1, sort: 0, seoTitle: null, seoKeywords: 'CMS,发布', seoDescription: null, socialImageAlt: null, twitterCreator: null,
@@ -3287,7 +3288,7 @@ export const SEED_CMS_CONTENTS: (CmsContent & { tagIds: number[] })[] = [
     contentType: 'article', mediaData: {},
     titleStyle: {}, title: '内容管理系统选型指南：静态化与全文检索实践', subTitle: null, shortTitle: null, slug: null,
     summary: '解析传统 CMS 的静态化方案与现代 SSR 渲染的结合方式，以及不依赖 Elasticsearch 的 PostgreSQL 全文检索实现。',
-    coverImage: null, coverThumb: null, author: '管理员', editor: null, source: '原创', sourceUrl: null, isOriginal: true, body: '<p>本文介绍混合静态化模式（发布时增量生成 + 访问时回写）与应用层中文分词方案在 PostgreSQL tsvector 上的落地实践。</p>',
+    coverImage: null, author: '管理员', editor: null, source: '原创', sourceUrl: null, isOriginal: true, body: '<p>本文介绍混合静态化模式（发布时增量生成 + 访问时回写）与应用层中文分词方案在 PostgreSQL tsvector 上的落地实践。</p>',
     attachments: [], extend: {}, externalLink: null, detailTemplate: null, staticPath: null, isTop: false, topWeight: 0, topExpireAt: null, isRecommend: true, isHot: true,
     status: 'published', rejectReason: null, publishedAt: SEED_DATE, scheduledAt: null, expireAt: null,
     viewCount: 86, likeCount: 0, favoriteCount: 0, version: 1, sort: 0, seoTitle: null, seoKeywords: '静态化,全文检索', seoDescription: null, socialImageAlt: null, twitterCreator: null,
@@ -3299,9 +3300,9 @@ export const SEED_CMS_CONTENTS: (CmsContent & { tagIds: number[] })[] = [
     contentType: 'article', mediaData: {},
     titleStyle: {}, title: 'Zenith 企业版', subTitle: '一体化数字化底座', shortTitle: null, slug: 'enterprise',
     summary: '面向中大型企业的一体化数字化底座。',
-    coverImage: null, coverThumb: null, author: null, editor: null, source: null, sourceUrl: null, isOriginal: false, body: '<p>Zenith 企业版提供完整的权限体系、工作流引擎、支付中心与 CMS 内容管理能力。</p>',
+    coverImage: null, author: null, editor: null, source: null, sourceUrl: null, isOriginal: false, body: '<p>Zenith 企业版提供完整的权限体系、工作流引擎、支付中心与 CMS 内容管理能力。</p>',
     attachments: [
-      { name: 'Zenith 企业版产品白皮书.pdf', url: '/uploads/cms/docs/zenith-enterprise-whitepaper.pdf', size: 1_048_576, ext: 'pdf', sort: 0 },
+      { name: 'Zenith 企业版产品白皮书.pdf', url: 'cms-res://3', size: 1_048_576, ext: 'pdf', sort: 0 },
     ],
     extend: { price: '联系销售', spec: '支持私有化部署，PostgreSQL 16 + Redis 7' }, externalLink: null, detailTemplate: null, staticPath: null,
     isTop: false, topWeight: 0, topExpireAt: null, isRecommend: false, isHot: false,
@@ -3321,7 +3322,7 @@ export const SEED_CMS_CONTENTS: (CmsContent & { tagIds: number[] })[] = [
     },
     titleStyle: {}, title: '产品发布会精彩瞬间（图集）', subTitle: null, shortTitle: '发布会图集', slug: null,
     summary: 'Zenith Admin 年度产品发布会现场图集。',
-    coverImage: 'https://picsum.photos/seed/zenith-album-1/1200/800', coverThumb: 'https://picsum.photos/seed/zenith-album-1/400/267',
+    coverImage: 'https://picsum.photos/seed/zenith-album-1/1200/800',
     author: '管理员', editor: null, source: '官方', sourceUrl: null, isOriginal: true, body: '<p>发布会现场图集，点击图片查看大图。</p>',
     attachments: [], extend: {}, externalLink: null, detailTemplate: null, staticPath: null, isTop: false, topWeight: 0, topExpireAt: null, isRecommend: true, isHot: false,
     hasImage: true,
@@ -3340,7 +3341,7 @@ export const SEED_CMS_CONTENTS: (CmsContent & { tagIds: number[] })[] = [
     },
     titleStyle: {}, title: '三分钟了解 Zenith CMS（视频）', subTitle: null, shortTitle: null, slug: null,
     summary: '视频快速导览：站群、静态化、全文检索与多形态内容。',
-    coverImage: 'https://picsum.photos/seed/zenith-video/1200/675', coverThumb: null,
+    coverImage: 'https://picsum.photos/seed/zenith-video/1200/675',
     author: '管理员', editor: null, source: '官方', sourceUrl: null, isOriginal: true, body: '<p>视频简介：本片演示 CMS 模块核心能力。</p>',
     attachments: [], extend: {}, externalLink: null, detailTemplate: null, staticPath: null, isTop: false, topWeight: 0, topExpireAt: null, isRecommend: false, isHot: true,
     hasImage: true, hasVideo: true,
@@ -3354,7 +3355,7 @@ export const SEED_CMS_CONTENTS: (CmsContent & { tagIds: number[] })[] = [
     contentType: 'article', mediaData: {},
     titleStyle: {}, title: 'Zenith Admin 发布 CMS 内容管理模块', subTitle: null, shortTitle: 'CMS 模块发布', slug: null,
     summary: '由 Stage 5 分发规则映射自根站点；正文跟随来源，发布仍需走子站审核管道。',
-    coverImage: null, coverThumb: null, author: '管理员', editor: null, source: '站群分发', sourceUrl: null,
+    coverImage: null, author: '管理员', editor: null, source: '站群分发', sourceUrl: null,
     isOriginal: false, body: null, attachments: [], extend: {}, externalLink: null, detailTemplate: null, staticPath: null,
     isTop: false, topWeight: 0, topExpireAt: null, isRecommend: false, isHot: false,
     status: 'draft', rejectReason: null, publishedAt: null, scheduledAt: null, expireAt: null,
@@ -3406,9 +3407,9 @@ export const SEED_CMS_FRIEND_LINKS: CmsFriendLink[] = [
 
 // ─── CMS 素材中心（P2 示例素材）──────────────────────────────────────────────────
 export const SEED_CMS_RESOURCES: CmsResource[] = [
-  { id: 1, siteId: 1, folderId: 1, type: 'image', name: 'demo-avatar-01.svg', url: '/avatars/avatar-01.svg', thumbUrl: null, fileId: null, size: 4096, width: 128, height: 128, mimeType: 'image/svg+xml', remark: '演示素材（外链登记）', createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 2, siteId: 1, folderId: 1, type: 'image', name: 'demo-avatar-02.svg', url: '/avatars/avatar-02.svg', thumbUrl: null, fileId: null, size: 4096, width: 128, height: 128, mimeType: 'image/svg+xml', remark: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 3, siteId: 1, folderId: 2, type: 'document', name: '产品白皮书.pdf', url: '/files/demo-whitepaper.pdf', thumbUrl: null, fileId: null, size: 1048576, width: null, height: null, mimeType: 'application/pdf', remark: '示例文档素材', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1, siteId: 1, folderId: 1, type: 'image', name: 'demo-avatar-01.svg', url: '/avatars/avatar-01.svg', thumbUrl: null, fileId: null, ownsFile: true, size: 4096, width: 128, height: 128, mimeType: 'image/svg+xml', remark: '演示素材（外链登记）', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2, siteId: 1, folderId: 1, type: 'image', name: 'demo-avatar-02.svg', url: '/avatars/avatar-02.svg', thumbUrl: null, fileId: null, ownsFile: true, size: 4096, width: 128, height: 128, mimeType: 'image/svg+xml', remark: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 3, siteId: 1, folderId: 2, type: 'document', name: '产品白皮书.pdf', url: '/files/demo-whitepaper.pdf', thumbUrl: null, fileId: null, ownsFile: true, size: 1048576, width: null, height: null, mimeType: 'application/pdf', remark: '示例文档素材', createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];
 
 export const SEED_CMS_RESOURCE_FOLDERS: CmsResourceFolder[] = [

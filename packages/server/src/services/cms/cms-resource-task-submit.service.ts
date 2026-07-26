@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { currentUser } from '../../lib/context';
 import { submitAsyncTask } from '../../lib/task-center';
 import { assertSiteAccess } from './cms-sites.service';
-import { CMS_RESOURCE_GOVERNANCE_TASK } from './cms-resource-tasks';
+import { CMS_RESOURCE_GOVERNANCE_TASK, CMS_RESOURCE_REF_REBUILD_TASK } from './cms-resource-tasks';
 
 export type CmsResourceTaskPayload =
   | { operation: 'scan' | 'cleanup'; siteId: number; dryRun: boolean }
@@ -60,5 +60,23 @@ export async function submitCmsResourceTask(payload: CmsResourceTaskPayload, tit
     title,
     payload: normalized,
     idempotencyKey: buildCmsResourceTaskIdempotencyKey(userId, normalized),
+  });
+}
+
+/**
+ * 提交素材引用索引重建任务。
+ *
+ * 引用索引由 owner 写事务实时维护，正常情况下不需要重建；本任务用于存量数据回填
+ * 与索引疑似漂移时的修复，逐 owner 类型分阶段执行，可断点续跑。
+ */
+export async function submitCmsResourceRefRebuildTask(siteId: number) {
+  await assertSiteAccess(siteId);
+  const userId = currentUser().userId;
+  const bucket = Math.floor(Date.now() / CMS_RESOURCE_IDEMPOTENCY_WINDOW_MS);
+  return submitAsyncTask({
+    taskType: CMS_RESOURCE_REF_REBUILD_TASK,
+    title: 'CMS 素材引用索引重建',
+    payload: { siteId },
+    idempotencyKey: `cms-resource-refs:${userId}:${bucket}:${siteId}`,
   });
 }

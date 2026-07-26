@@ -1,7 +1,7 @@
 import { eq, asc, desc, and, or, like, inArray, notInArray, isNull, isNotNull, ne, lt, gt, lte, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { cmsSites, cmsContents, cmsContentTags, cmsTags, cmsChannels, cmsContentChannels, cmsContentRelations, cmsCollectItems, users } from '../../db/schema';
+import { cmsSites, cmsContents, cmsContentTags, cmsContentVersions, cmsTags, cmsChannels, cmsContentChannels, cmsContentRelations, cmsCollectItems, users } from '../../db/schema';
 import type { CmsContentRow, CmsSiteRow, CmsTagRow } from '../../db/schema';
 import type { DbExecutor, DbTransaction } from '../../db/types';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
@@ -43,6 +43,14 @@ import {
   lockCmsSiteForMutation,
 } from './cms-site-publish-lock.service';
 import { captureCmsContentPublishSnapshot } from './cms-content-publish-snapshot.service';
+import {
+  adoptCmsResourcesIntoSite,
+  canonicalizeCmsResourceFields,
+  deleteCmsResourceRefsForOwner,
+  resolveCmsContentRow,
+  resolveCmsContentRows,
+  syncCmsResourceRefs,
+} from './cms-resource-refs.service';
 import { enqueueCmsPublishOutboxes, insertCmsPublishOutbox, insertCmsSiteRefsRebuildOutbox } from './cms-publish-outbox.service';
 import {
   enqueueCmsSubscriptionNotification,
@@ -80,7 +88,16 @@ async function insertContentPublishOutbox(
 }
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
-export function mapCmsContent(row: CmsContentRow, extra?: { channelName?: string | null; tags?: CmsTagRow[]; extraChannelIds?: number[]; relatedIds?: number[]; mappingSourceTitle?: string | null; lockedByName?: string | null }) {
+
+/**
+ * 已解析素材句柄的内容行。
+ *
+ * `coverThumb` 不再是数据库列，而是由封面素材派生（媒体库选图同样有缩略图，
+ * 且替换素材后自动跟随）；正文/形态数据/扩展字段中的 `cms-res://` 也已还原为真实 URL。
+ */
+export type ResolvedCmsContentRow = CmsContentRow & { coverThumb: string | null };
+
+export function mapCmsContent(row: CmsContentRow & { coverThumb?: string | null }, extra?: { channelName?: string | null; tags?: CmsTagRow[]; extraChannelIds?: number[]; relatedIds?: number[]; mappingSourceTitle?: string | null; lockedByName?: string | null }) {
   return {
     id: row.id,
     siteId: row.siteId,
@@ -179,7 +196,13 @@ export async function getCmsContent(id: number) {
     },
   });
   if (!row) throw new HTTPException(404, { message: '内容不存在' });
-  const mapped = mapCmsContent(row, {
+  // 映射内容：正文/扩展字段透传来源内容（只读展示；本行自身不存正文）
+  const source = row.mappingSourceId && row.mappingSource ? row.mappingSource : null;
+  const resolved = await resolveCmsContentRow({
+    ...row,
+    ...(source ? { body: source.body ?? null, extend: source.extend ?? {} } : {}),
+  });
+  return mapCmsContent(resolved, {
     channelName: row.channel?.name,
     tags: row.contentTags.map((ct) => ct.tag),
     extraChannelIds: row.extraChannels.map((ec) => ec.channelId),
@@ -187,12 +210,6 @@ export async function getCmsContent(id: number) {
     mappingSourceTitle: row.mappingSource?.title ?? null,
     lockedByName: row.lockedByUser?.nickname ?? null,
   });
-  // 映射内容：正文/扩展字段透传来源内容（只读展示；本行自身不存正文）
-  if (row.mappingSourceId && row.mappingSource) {
-    mapped.body = row.mappingSource.body ?? null;
-    mapped.extend = row.mappingSource.extend ?? {};
-  }
-  return mapped;
 }
 
 // ─── 列表 ─────────────────────────────────────────────────────────────────────
@@ -270,8 +287,9 @@ export async function listCmsContents(q: ListCmsContentsQuery) {
       offset: pageOffset(q.page, q.pageSize),
     }),
   ]);
+  const resolvedRows = await resolveCmsContentRows(rows);
   return {
-    list: rows.map((r) => mapCmsContent(r, {
+    list: resolvedRows.map((r) => mapCmsContent(r, {
       channelName: r.channel?.name,
       lockedByName: r.lockedByUser?.nickname ?? null,
     })),
@@ -528,7 +546,7 @@ export async function createCmsContent(data: CreateCmsContentInput) {
   await assertContentTemplateBySite(data.siteId, data.detailTemplate);
   const channel = await ensureChannelForContent(data.siteId, data.channelId);
   const { tagIds = [], extraChannelIds = [], relatedIds = [], scheduledAt, expireAt, topExpireAt, ...raw } = data;
-  const rest = await applyCmsContentPolicies(raw as typeof raw & CmsContentPolicyInput, siteRow);
+  const policied = await applyCmsContentPolicies(raw as typeof raw & CmsContentPolicyInput, siteRow);
   const parsedScheduledAt = parseDateTimeInput(scheduledAt);
   await requireCmsScheduledAtMutationPermission({
     current: null,
@@ -536,10 +554,12 @@ export async function createCmsContent(data: CreateCmsContentInput) {
   });
   await assertChannelsAccess(extraChannelIds);
   await assertRelatedContentAccess(data.siteId, relatedIds);
-  await ensureCmsLinkTargetExists(data.siteId, rest.externalLink);
-  const extend = (rest.extend ?? {}) as Record<string, unknown>;
+  await ensureCmsLinkTargetExists(data.siteId, policied.externalLink);
   const modelId = channel.modelId ?? null;
-  const extendTexts = [...await collectSearchableExtendTexts(modelId, extend), ...mediaDataTexts(rest.mediaData as Record<string, unknown>)];
+  const extendTexts = [
+    ...await collectSearchableExtendTexts(modelId, (policied.extend ?? {}) as Record<string, unknown>),
+    ...mediaDataTexts(policied.mediaData as Record<string, unknown>),
+  ];
   // P5 部门数据权限：创建时快照创建人及其部门
   const creator = currentUserOrNull();
   const creatorDept = creator
@@ -549,9 +569,11 @@ export async function createCmsContent(data: CreateCmsContentInput) {
     const mutation = await db.transaction(async (tx) => {
       let site = await lockCmsSiteForMutation(tx, data.siteId);
       await assertContentTemplateBySite(data.siteId, data.detailTemplate);
+      // 素材句柄归一化必须在事务内：会为文件中心引用补登记素材行，回滚时要一并撤销
+      const rest = await canonicalizeCmsResourceFields(tx, data.siteId, policied, 'content');
       const [created] = await tx.insert(cmsContents).values({
         ...rest,
-        extend,
+        extend: (rest.extend ?? {}) as Record<string, unknown>,
         modelId,
         createdBy: creator?.userId ?? null,
         deptId: creatorDept?.departmentId ?? null,
@@ -577,6 +599,7 @@ export async function createCmsContent(data: CreateCmsContentInput) {
       await setContentTags(tx, created.id, data.siteId, tagIds);
       await setContentExtraChannels(tx, created.id, data.siteId, created.channelId, extraChannelIds);
       await setContentRelations(tx, created.id, data.siteId, relatedIds);
+      await syncCmsResourceRefs(tx, 'content', created.id, created.siteId, created);
       await logContentOp(tx, created.id, 'created');
       let refsTask: AsyncTask | null = null;
       if (created.detailTemplate) {
@@ -661,8 +684,10 @@ export async function updateCmsContent(
       const versionGuard = expectedVersion !== undefined
         ? and(eq(cmsContents.id, id), eq(cmsContents.version, expectedVersion), isNull(cmsContents.lockedAt))!
         : and(eq(cmsContents.id, id), isNull(cmsContents.lockedAt))!;
+      // 素材句柄归一化必须在事务内：会为文件中心引用补登记素材行，回滚时要一并撤销
+      const canonical = await canonicalizeCmsResourceFields(tx, current.siteId, rest, 'content');
       const [updated] = await tx.update(cmsContents).set({
-        ...rest,
+        ...canonical,
         modelId,
         version: sql`${cmsContents.version} + 1`,
         ...(parsedScheduledAt !== undefined ? { scheduledAt: parsedScheduledAt } : {}),
@@ -670,10 +695,10 @@ export async function updateCmsContent(
         ...(topExpireAt !== undefined ? { topExpireAt: parseDateTimeInput(topExpireAt) } : {}),
         ...detectContentFlags({
           contentType: current.contentType,
-          body: rest.body !== undefined ? rest.body : current.body,
+          body: canonical.body !== undefined ? canonical.body : current.body,
           mediaData: nextMediaData,
           coverImage: rest.coverImage !== undefined ? rest.coverImage : current.coverImage,
-          attachments: rest.attachments !== undefined ? rest.attachments : current.attachments,
+          attachments: canonical.attachments !== undefined ? canonical.attachments : current.attachments,
         }),
         // 映射内容正文在来源行，保持自身检索向量不动（分发时已按来源快照写入）
         ...(current.mappingSourceId ? {} : {
@@ -699,6 +724,7 @@ export async function updateCmsContent(
       if (relatedIds) {
         await setContentRelations(tx, id, current.siteId, relatedIds);
       }
+      await syncCmsResourceRefs(tx, 'content', id, updated.siteId, updated);
       await logContentOp(tx, id, 'updated');
       let refsTask: AsyncTask | null = null;
       if (data.detailTemplate !== undefined && data.detailTemplate !== locked.detailTemplate) {
@@ -1116,9 +1142,14 @@ export async function purgeCmsContents(ids: number[], options?: { skipAccessChec
       const srcById = new Map(sources.map((s) => [s.id, s]));
       for (const m of mappedRows) {
         const src = srcById.get(m.mappingSourceId!);
-        await tx.update(cmsContents)
+        const [materialized] = await tx.update(cmsContents)
           .set({ body: sanitizeCmsHtml(src?.body), extend: src?.extend ?? {}, mappingSourceId: null })
-          .where(eq(cmsContents.id, m.id));
+          .where(eq(cmsContents.id, m.id))
+          .returning();
+        // 物化后正文由本行自己持有，素材引用要从来源转移到映射行，否则来源删除后素材变孤立
+        if (materialized) {
+          await syncCmsResourceRefs(tx, 'content', materialized.id, materialized.siteId, materialized);
+        }
       }
     }
     await tx.update(cmsCollectItems)
@@ -1126,6 +1157,11 @@ export async function purgeCmsContents(ids: number[], options?: { skipAccessChec
       .where(inArray(cmsCollectItems.contentId, lockedIds));
     const tagRows = await tx.select({ tagId: cmsContentTags.tagId }).from(cmsContentTags)
       .where(inArray(cmsContentTags.contentId, lockedIds));
+    // 版本行随内容级联删除，但引用索引不是外键关系，需显式清理，否则素材永远判不出孤立
+    const versionIds = await tx.select({ id: cmsContentVersions.id }).from(cmsContentVersions)
+      .where(inArray(cmsContentVersions.contentId, lockedIds));
+    await deleteCmsResourceRefsForOwner(tx, 'contentVersion', versionIds.map((row) => row.id));
+    await deleteCmsResourceRefsForOwner(tx, 'content', lockedIds);
     await tx.delete(cmsContents).where(inArray(cmsContents.id, lockedIds));
     await recalcTagContentCounts(tx, tagRows.map((t) => t.tagId));
     const refsTasks: AsyncTask[] = [];
@@ -1261,7 +1297,7 @@ export async function listPublishedContents(siteId: number, channelId: number, p
       pageSize,
     ),
   ]);
-  return { total, rows };
+  return { total, rows: await resolveCmsContentRows(rows) };
 }
 
 /** 首页区块：最新 / 推荐 / 热门（归档内容不参与） */
@@ -1272,38 +1308,58 @@ export async function listHomeContents(siteId: number, limit = 10) {
     db.select().from(cmsContents).where(and(base, eq(cmsContents.isRecommend, true))).orderBy(desc(cmsContents.publishedAt)).limit(limit),
     db.select().from(cmsContents).where(and(base, eq(cmsContents.isHot, true))).orderBy(desc(cmsContents.viewCount)).limit(limit),
   ]);
-  return { latest, recommended, hot };
+  return {
+    latest: await resolveCmsContentRows(latest),
+    recommended: await resolveCmsContentRows(recommended),
+    hot: await resolveCmsContentRows(hot),
+  };
 }
 
 /** 前台详情（按 id 或 slug）；返回 null 表示 404 */
-export async function getPublishedContent(siteId: number, channelId: number, idOrSlug: string): Promise<CmsContentRow | null> {
+export async function getPublishedContent(siteId: number, channelId: number, idOrSlug: string): Promise<ResolvedCmsContentRow | null> {
   const numericId = /^\d+$/.test(idOrSlug) ? Number(idOrSlug) : null;
   const matcher = numericId !== null ? eq(cmsContents.id, numericId) : eq(cmsContents.slug, idOrSlug);
   const [row] = await db.select().from(cmsContents)
     .where(and(publishedWhere(siteId), eq(cmsContents.channelId, channelId), matcher))
     .limit(1);
-  return row ?? null;
+  return row ? resolveCmsContentRow(row) : null;
 }
 
 /** 按 id 取站点内已发布内容（不限栏目；Headless API 用） */
-export async function getPublishedContentById(siteId: number, id: number): Promise<CmsContentRow | null> {
+export async function getPublishedContentById(siteId: number, id: number): Promise<ResolvedCmsContentRow | null> {
   const [row] = await db.select().from(cmsContents)
     .where(and(publishedWhere(siteId), eq(cmsContents.id, id)))
     .limit(1);
-  return row ?? null;
+  return row ? resolveCmsContentRow(row) : null;
 }
 
 /**
- * 解析内容正文/扩展字段（映射内容透传来源行）：
- * 前台详情渲染、草稿预览、Headless API 输出正文前统一经过此函数。
+ * 取内容的正文/扩展字段原始值（映射内容透传来源行），**保留 `cms-res://` 句柄**。
+ *
+ * 站群分发等「内容到内容」的复制场景要用这个：保留句柄意味着跨站引用仍被引用索引记录，
+ * 来源站点删除素材时会被删除保护拦下；若写入解析后的绝对 URL，目标站的引用关系就断了。
  */
-export async function resolveContentBodyExtend(row: Pick<CmsContentRow, 'body' | 'extend' | 'mappingSourceId'>): Promise<{ body: string | null; extend: Record<string, unknown> }> {
+export async function getContentBodyExtendRaw(
+  row: Pick<CmsContentRow, 'body' | 'extend' | 'mappingSourceId'>,
+): Promise<{ body: string | null; extend: Record<string, unknown> }> {
   if (!row.mappingSourceId) return { body: row.body ?? null, extend: row.extend ?? {} };
   const [src] = await db.select({ body: cmsContents.body, extend: cmsContents.extend })
     .from(cmsContents).where(and(
       eq(cmsContents.id, row.mappingSourceId),
     )).limit(1);
   return { body: src?.body ?? null, extend: src?.extend ?? {} };
+}
+
+/**
+ * 解析内容正文/扩展字段（映射内容透传来源行）：
+ * 前台详情渲染、草稿预览、Headless API 输出正文前统一经过此函数。
+ *
+ * 输出同时完成素材句柄 → URL 的解析，调用方拿到的即是可直接渲染的正文。
+ */
+export async function resolveContentBodyExtend(row: Pick<CmsContentRow, 'body' | 'extend' | 'mappingSourceId'>): Promise<{ body: string | null; extend: Record<string, unknown> }> {
+  const raw = await getContentBodyExtendRaw(row);
+  const [resolved] = await resolveCmsContentRows([{ coverImage: null, body: raw.body, extend: raw.extend }]);
+  return { body: resolved.body ?? null, extend: (resolved.extend ?? {}) as Record<string, unknown> };
 }
 
 /** 上一篇 / 下一篇（同栏目按发布时间序；跳过归档内容） */
@@ -1314,7 +1370,7 @@ export async function getAdjacentContents(row: CmsContentRow) {
     db.select().from(cmsContents).where(and(base, lt(cmsContents.publishedAt, anchor))).orderBy(desc(cmsContents.publishedAt)).limit(1),
     db.select().from(cmsContents).where(and(base, gt(cmsContents.publishedAt, anchor))).orderBy(asc(cmsContents.publishedAt)).limit(1),
   ]);
-  return { prev: prevRows[0] ?? null, next: nextRows[0] ?? null };
+  return { prev: prevRows[0] ? await resolveCmsContentRow(prevRows[0]) : null, next: nextRows[0] ? await resolveCmsContentRow(nextRows[0]) : null };
 }
 
 /**
@@ -1492,7 +1548,7 @@ export async function listPublishedContentsByTag(siteId: number, tagId: number, 
       pageSize,
     ),
   ]);
-  return { total, rows };
+  return { total, rows: await resolveCmsContentRows(rows) };
 }
 
 /** 批量移动栏目（目标须为本站点列表栏目；重算 modelId；事务保证读写一致） */
@@ -1617,7 +1673,6 @@ export async function duplicateCmsContent(id: number, targetChannelId?: number) 
       staticPath: null,
       summary: current.summary,
       coverImage: current.coverImage,
-      coverThumb: current.coverThumb,
       author: current.author,
       editor: current.editor,
       source: current.source,
@@ -1653,6 +1708,7 @@ export async function duplicateCmsContent(id: number, targetChannelId?: number) 
     await logContentOp(tx, created.id, 'created', channelId === current.channelId
       ? `复制自内容 #${current.id}`
       : `复制自内容 #${current.id}（跨栏目）`);
+    await syncCmsResourceRefs(tx, 'content', created.id, created.siteId, created);
     return created;
   });
   return getCmsContent(row.id);
@@ -1686,27 +1742,35 @@ export async function distributeCmsContents(ids: number[], targetSiteId: number,
       if (current.siteId === targetSiteId) continue; // 同站分发无意义，跳过
       // 映射的映射仍指向原始来源，避免形成解析链
       const mappingSourceId = mode === 'mapping' ? (current.mappingSourceId ?? current.id) : null;
+      // 跨站复制：素材登记到目标站并改写句柄，避免来源站删除后目标站整片断图
+      const media = await adoptCmsResourcesIntoSite(tx, targetSiteId, {
+        coverImage: current.coverImage,
+        mediaData: current.mediaData ?? {},
+        body: mode === 'mapping' ? null : sanitizeCmsHtml(current.body),
+        extend: mode === 'mapping' ? {} : (current.extend ?? {}),
+        externalLink: current.externalLink,
+        sourceUrl: current.sourceUrl,
+      });
       const [created] = await tx.insert(cmsContents).values({
         siteId: targetSiteId,
         channelId: targetChannelId,
         modelId: channel.modelId ?? null,
         contentType: current.contentType,
-        mediaData: current.mediaData ?? {},
+        mediaData: media.mediaData,
         title: current.title,
         subTitle: current.subTitle,
         shortTitle: current.shortTitle,
         slug: null,
         summary: current.summary,
-        coverImage: current.coverImage,
-        coverThumb: current.coverThumb,
+        coverImage: media.coverImage,
         author: current.author,
         editor: current.editor,
         source: current.source,
-        sourceUrl: current.sourceUrl,
+        sourceUrl: media.sourceUrl,
         isOriginal: current.isOriginal,
-        body: mode === 'mapping' ? null : sanitizeCmsHtml(current.body),
-        extend: mode === 'mapping' ? {} : (current.extend ?? {}),
-        externalLink: current.externalLink,
+        body: media.body,
+        extend: media.extend,
+        externalLink: media.externalLink,
         mappingSourceId,
         status: 'draft',
         seoTitle: current.seoTitle,
@@ -1722,6 +1786,7 @@ export async function distributeCmsContents(ids: number[], targetSiteId: number,
         }),
       }).returning();
       await logContentOp(tx, created.id, 'created', mode === 'mapping' ? `映射自内容 #${current.id}` : `站群分发复制自内容 #${current.id}`);
+      await syncCmsResourceRefs(tx, 'content', created.id, created.siteId, created);
       copied += 1;
     }
     return copied;

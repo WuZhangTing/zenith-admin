@@ -14,6 +14,10 @@ import { buildSearchVector } from './cms-search.service';
 import { submitCmsContent } from './cms-contents.service';
 import { sanitizeCmsHtml } from './cms-html-sanitizer';
 import { assertCmsContentUnlocked } from './cms-content-lock.service';
+import {
+  canonicalizeCmsResourceFields, deleteCmsResourceRefsForOwner, resolveCmsContentRow, resolveCmsContentRows,
+  syncCmsResourceRefs,
+} from './cms-resource-refs.service';
 
 const CONTRIBUTION_SOURCE = '会员投稿';
 
@@ -72,8 +76,9 @@ export async function listMyContributions(params: { page: number; pageSize: numb
       params.page, params.pageSize,
     ),
   ]);
+  const resolved = await resolveCmsContentRows(rows.map((r) => r.content));
   return {
-    list: rows.map((r) => mapContribution(r.content, r.channelName)),
+    list: resolved.map((content, index) => mapContribution(content, rows[index].channelName)),
     total, page: params.page, pageSize: params.pageSize,
   };
 }
@@ -92,7 +97,7 @@ export async function getMyContribution(id: number) {
   const [channel] = await db.select({ name: cmsChannels.name }).from(cmsChannels).where(and(
     eq(cmsChannels.id, row.channelId),
   )).limit(1);
-  return mapContribution(row, channel?.name);
+  return mapContribution(await resolveCmsContentRow(row), channel?.name);
 }
 
 async function ensureContributableChannel(siteId: number, channelId: number) {
@@ -125,19 +130,24 @@ export async function createContribution(input: ContributionInput) {
   const body = sanitizeCmsHtml(input.body);
   if (!body.trim()) throw new HTTPException(400, { message: '正文净化后不能为空' });
   const [me] = await db.select({ nickname: members.nickname }).from(members).where(eq(members.id, memberId)).limit(1);
-  const [created] = await db.insert(cmsContents).values({
-    siteId: input.siteId,
-    channelId: input.channelId,
-    modelId: channel.modelId ?? null,
-    title: input.title,
-    summary: input.summary ?? null,
-    body,
-    author: me?.nickname ?? `会员${memberId}`,
-    source: CONTRIBUTION_SOURCE,
-    status: 'draft',
-    memberId,
-    searchVector: buildSearchVector({ siteId: input.siteId, title: input.title, summary: input.summary ?? null, body, seoKeywords: null, extendTexts: [] }),
-  }).returning();
+  const created = await db.transaction(async (tx) => {
+    const canonical = await canonicalizeCmsResourceFields(tx, input.siteId, { body }, 'content');
+    const [row] = await tx.insert(cmsContents).values({
+      siteId: input.siteId,
+      channelId: input.channelId,
+      modelId: channel.modelId ?? null,
+      title: input.title,
+      summary: input.summary ?? null,
+      body: canonical.body,
+      author: me?.nickname ?? `会员${memberId}`,
+      source: CONTRIBUTION_SOURCE,
+      status: 'draft',
+      memberId,
+      searchVector: buildSearchVector({ siteId: input.siteId, title: input.title, summary: input.summary ?? null, body, seoKeywords: null, extendTexts: [] }),
+    }).returning();
+    await syncCmsResourceRefs(tx, 'content', row.id, row.siteId, row);
+    return row;
+  });
   await submitCmsContent(created.id, { skipAccessCheck: true });
   return getMyContribution(created.id);
 }
@@ -152,13 +162,17 @@ export async function updateMyContribution(id: number, input: Omit<ContributionI
   await ensureContributableChannel(row.siteId, input.channelId);
   const body = sanitizeCmsHtml(input.body);
   if (!body.trim()) throw new HTTPException(400, { message: '正文净化后不能为空' });
-  await db.update(cmsContents).set({
-    channelId: input.channelId,
-    title: input.title,
-    summary: input.summary ?? null,
-    body,
-    searchVector: buildSearchVector({ siteId: row.siteId, title: input.title, summary: input.summary ?? null, body, seoKeywords: null, extendTexts: [] }),
-  }).where(and(eq(cmsContents.id, id), isNull(cmsContents.lockedAt)));
+  await db.transaction(async (tx) => {
+    const canonical = await canonicalizeCmsResourceFields(tx, row.siteId, { body }, 'content');
+    const [updated] = await tx.update(cmsContents).set({
+      channelId: input.channelId,
+      title: input.title,
+      summary: input.summary ?? null,
+      body: canonical.body,
+      searchVector: buildSearchVector({ siteId: row.siteId, title: input.title, summary: input.summary ?? null, body, seoKeywords: null, extendTexts: [] }),
+    }).where(and(eq(cmsContents.id, id), isNull(cmsContents.lockedAt))).returning();
+    if (updated) await syncCmsResourceRefs(tx, 'content', updated.id, updated.siteId, updated);
+  });
   await submitCmsContent(id, { skipAccessCheck: true });
   return getMyContribution(id);
 }
@@ -170,5 +184,10 @@ export async function deleteMyContribution(id: number) {
   if (row.status !== 'draft' && row.status !== 'rejected') {
     throw new HTTPException(400, { message: '仅草稿或被驳回的投稿可删除' });
   }
-  await db.delete(cmsContents).where(and(eq(cmsContents.id, id), isNull(cmsContents.lockedAt)));
+  await db.transaction(async (tx) => {
+    const deleted = await tx.delete(cmsContents)
+      .where(and(eq(cmsContents.id, id), isNull(cmsContents.lockedAt)))
+      .returning({ id: cmsContents.id });
+    await deleteCmsResourceRefsForOwner(tx, 'content', deleted.map((item) => item.id));
+  });
 }

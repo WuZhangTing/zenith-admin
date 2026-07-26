@@ -15,6 +15,7 @@ import logger from '../../lib/logger';
 import { CMS_SECRET_MASK, type CmsFormField, type CreateCmsFormInput, type UpdateCmsFormInput } from '@zenith/shared';
 import { assertCompleteCmsBatch } from './cms-access';
 import { ensureCmsSiteExists } from './cms-sites.service';
+import { canonicalizeCmsResourceContent, deleteCmsResourceRefsForOwner, syncCmsResourceRefs, resolveCmsResourcePayload } from './cms-resource-refs.service';
 import { validateCmsFormFields } from './cms-form-validation';
 import { verifyCmsFormCaptcha } from './cms-form-captcha.service';
 import { compileCmsFormPattern } from './cms-form-pattern';
@@ -137,7 +138,7 @@ export async function listCmsForms(q: ListCmsFormsQuery) {
       q.pageSize,
     ),
   ]);
-  return { list: rows.map((r) => mapCmsForm(r.form, r.submissionCount)), total, page: q.page, pageSize: q.pageSize };
+  return { list: await resolveCmsResourcePayload(rows.map((r) => mapCmsForm(r.form, r.submissionCount))), total, page: q.page, pageSize: q.pageSize };
 }
 
 export type FormFieldInput = {
@@ -206,12 +207,16 @@ export async function createCmsForm(data: CreateCmsFormInput) {
     turnstileSecret,
   });
   try {
-    const [row] = await db.insert(cmsForms).values({
-      ...data,
-      fields: normalizeCmsFormFields(data.fields),
-      turnstileSecret,
-    }).returning();
-    return mapCmsForm(row);
+    const row = await db.transaction(async (tx) => {
+      const [created] = await tx.insert(cmsForms).values({
+        ...data,
+        fields: await canonicalizeCmsResourceContent(tx, data.siteId, normalizeCmsFormFields(data.fields)),
+        turnstileSecret,
+      }).returning();
+      await syncCmsResourceRefs(tx, 'form', created.id, created.siteId, created);
+      return created;
+    });
+    return resolveCmsResourcePayload(mapCmsForm(row));
   } catch (err) {
     rethrowPgUniqueViolation(err, '同站点下表单标识已存在');
   }
@@ -228,12 +233,18 @@ export async function updateCmsForm(id: number, data: UpdateCmsFormInput) {
     turnstileSecret,
   });
   try {
-    const [row] = await db.update(cmsForms).set({
-      ...rest,
-      ...(fields !== undefined ? { fields: normalizeCmsFormFields(fields) } : {}),
-      ...(incomingSecret !== undefined ? { turnstileSecret } : {}),
-    }).where(eq(cmsForms.id, id)).returning();
-    return mapCmsForm(row);
+    const row = await db.transaction(async (tx) => {
+      const [updated] = await tx.update(cmsForms).set({
+        ...rest,
+        ...(fields !== undefined
+          ? { fields: await canonicalizeCmsResourceContent(tx, current.siteId, normalizeCmsFormFields(fields)) }
+          : {}),
+        ...(incomingSecret !== undefined ? { turnstileSecret } : {}),
+      }).where(eq(cmsForms.id, id)).returning();
+      await syncCmsResourceRefs(tx, 'form', updated.id, updated.siteId, updated);
+      return updated;
+    });
+    return resolveCmsResourcePayload(mapCmsForm(row));
   } catch (err) {
     rethrowPgUniqueViolation(err, '同站点下表单标识已存在');
   }
@@ -242,7 +253,10 @@ export async function updateCmsForm(id: number, data: UpdateCmsFormInput) {
 export async function deleteCmsForm(id: number) {
   const current = await ensureCmsFormExists(id);
   await assertSiteAccess(current.siteId);
-  await db.delete(cmsForms).where(eq(cmsForms.id, id));
+  await db.transaction(async (tx) => {
+    await tx.delete(cmsForms).where(eq(cmsForms.id, id));
+    await deleteCmsResourceRefsForOwner(tx, 'form', [id]);
+  });
 }
 
 // ─── 提交数据管理 ─────────────────────────────────────────────────────────────

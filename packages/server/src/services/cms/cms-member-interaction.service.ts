@@ -15,6 +15,7 @@ import { submitCmsComment } from './cms-comments.service';
 import { withPagination } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { CMS_INTERACTION_POINTS, CMS_INTERACTION_DAILY_LIMITS } from '@zenith/shared';
+import { resolveCmsResourceCovers } from './cms-resource-refs.service';
 import type { CmsInteractionState, CmsMemberContentItem, CmsMemberComment, PaginatedResponse } from '@zenith/shared';
 import { formatDate } from '../../lib/datetime';
 
@@ -172,16 +173,17 @@ export async function recordMemberView(contentId: number): Promise<void> {
 
 /** 内容行 → 会员中心条目（URL 拼站内详情路径） */
 function toMemberContentItem(
-  content: Pick<CmsContentRow, 'id' | 'title' | 'slug' | 'coverThumb' | 'coverImage' | 'contentType' | 'status' | 'deletedAt'>,
+  content: Pick<CmsContentRow, 'id' | 'title' | 'slug' | 'coverImage' | 'contentType' | 'status' | 'deletedAt'>,
   channelPath: string | undefined,
   extra: { createdAt: Date; updatedAt?: Date; viewCount?: number },
+  cover: { coverImage: string | null; coverThumb: string | null },
 ): CmsMemberContentItem {
   const available = content.status === 'published' && !content.deletedAt && channelPath;
   return {
     contentId: content.id,
     title: content.title,
     url: available ? `/${channelPath}/${content.slug ?? content.id}.html` : null,
-    coverThumb: content.coverThumb ?? content.coverImage ?? null,
+    coverThumb: cover.coverThumb ?? cover.coverImage,
     contentType: content.contentType,
     ...(extra.viewCount !== undefined ? { viewCount: extra.viewCount } : {}),
     createdAt: formatDateTime(extra.createdAt),
@@ -211,8 +213,9 @@ export async function listMyFavorites(page: number, pageSize: number) {
     }),
   ]);
   const paths = await loadChannelPaths(rows.map((r) => r.content.channelId));
+  const covers = await resolveCmsResourceCovers(rows.map((r) => r.content.coverImage));
   return {
-    list: rows.map((r) => toMemberContentItem(r.content, paths.get(r.content.channelId), { createdAt: r.createdAt })),
+    list: rows.map((r, index) => toMemberContentItem(r.content, paths.get(r.content.channelId), { createdAt: r.createdAt }, covers[index])),
     total, page, pageSize,
   };
 }
@@ -232,10 +235,11 @@ export async function listMyViewHistory(page: number, pageSize: number) {
     }),
   ]);
   const paths = await loadChannelPaths(rows.map((r) => r.content.channelId));
+  const covers = await resolveCmsResourceCovers(rows.map((r) => r.content.coverImage));
   return {
-    list: rows.map((r) => toMemberContentItem(r.content, paths.get(r.content.channelId), {
+    list: rows.map((r, index) => toMemberContentItem(r.content, paths.get(r.content.channelId), {
       createdAt: r.createdAt, updatedAt: r.updatedAt, viewCount: r.viewCount,
-    })),
+    }, covers[index])),
     total, page, pageSize,
   };
 }

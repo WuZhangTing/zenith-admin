@@ -19,6 +19,7 @@ import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
 import { assertCmsContentsUnlocked } from './cms-content-lock.service';
 import { bumpCmsTemplateRefsRevision, lockCmsSiteForMutation } from './cms-site-publish-lock.service';
 import { enqueueCmsPublishOutboxes, insertCmsSiteRefsRebuildOutbox } from './cms-publish-outbox.service';
+import { canonicalizeCmsResourceFields, deleteCmsResourceRefsForOwner, syncCmsResourceRefs, resolveCmsResourcePayload } from './cms-resource-refs.service';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapCmsChannel(row: CmsChannelRow, modelName?: string | null): CmsChannel {
@@ -99,7 +100,7 @@ export async function getCmsChannel(id: number) {
     with: { model: { columns: { name: true } } },
   });
   if (!row) throw new HTTPException(404, { message: '栏目不存在' });
-  return mapCmsChannel(row, row.model?.name);
+  return resolveCmsResourcePayload(mapCmsChannel(row, row.model?.name));
 }
 
 // ─── 查询 ─────────────────────────────────────────────────────────────────────
@@ -127,7 +128,7 @@ export async function listCmsChannelTree(
     with: { model: { columns: { name: true } } },
     orderBy: [asc(cmsChannels.sort), asc(cmsChannels.id)],
   });
-  return buildChannelTree(rows.map((r) => mapCmsChannel(r, r.model?.name)));
+  return resolveCmsResourcePayload(buildChannelTree(rows.map((r) => mapCmsChannel(r, r.model?.name))));
 }
 
 /** 校验 modelId 有效性 */
@@ -229,10 +230,11 @@ export async function createCmsChannel(data: CreateCmsChannelInput) {
       await assertChannelPathFree(tx, data.siteId, path);
       const code = await resolveChannelCode(tx, data.siteId, data.code, data.slug);
       const [created] = await tx.insert(cmsChannels).values({
-        ...data,
+        ...await canonicalizeCmsResourceFields(tx, data.siteId, data, 'channel'),
         code,
         path,
       }).returning();
+      await syncCmsResourceRefs(tx, 'channel', created.id, created.siteId, created);
       if (!isCmsPlatformAdmin()) {
         await tx.insert(cmsChannelUsers).values({
           channelId: created.id,
@@ -304,10 +306,13 @@ export async function updateCmsChannel(id: number, data: UpdateCmsChannelInput) 
       const code = data.code === undefined
         ? current.code
         : await resolveChannelCode(tx, current.siteId, data.code, nextSlug, id);
-      const [updated] = await tx.update(cmsChannels).set({ ...data, code, path }).where(and(
-        eq(cmsChannels.id, id),
-      )).returning();
+      const [updated] = await tx.update(cmsChannels)
+        .set({ ...await canonicalizeCmsResourceFields(tx, current.siteId, data, 'channel'), code, path })
+        .where(and(
+          eq(cmsChannels.id, id),
+        )).returning();
       if (!updated) throw new HTTPException(404, { message: '栏目不存在' });
+      await syncCmsResourceRefs(tx, 'channel', updated.id, updated.siteId, updated);
       if (path !== current.path) {
         await recomputeChildPaths(tx, id, path);
       }
@@ -343,6 +348,7 @@ export async function deleteCmsChannel(id: number) {
   const mutation = await db.transaction(async (tx) => {
     const site = await lockCmsSiteForMutation(tx, current.siteId);
     await tx.delete(cmsChannels).where(eq(cmsChannels.id, id));
+    await deleteCmsResourceRefsForOwner(tx, 'channel', [id]);
     const revision = await bumpCmsTemplateRefsRevision(tx, current.siteId);
     const task = await insertCmsSiteRefsRebuildOutbox(
       tx,
@@ -425,6 +431,7 @@ export async function mergeCmsChannels(sourceIds: number[], targetId: number): P
     await tx.delete(cmsChannels).where(and(
       inArray(cmsChannels.id, uniqueSources),
     ));
+    await deleteCmsResourceRefsForOwner(tx, 'channel', uniqueSources);
     const revision = await bumpCmsTemplateRefsRevision(tx, target.siteId);
     const task = await insertCmsSiteRefsRebuildOutbox(
       tx,

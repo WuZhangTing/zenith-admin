@@ -931,6 +931,27 @@ export function useCmsResourceGovernance() {
   });
 }
 
+/** 替换素材文件：保留素材 id，站内所有引用位置自动指向新文件 */
+export function useReplaceCmsResource() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, file }: { id: number; file: File }) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      return request.post<CmsResource>(`/api/cms/resources/${id}/replace`, formData).then(unwrap);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: cmsResourceKeys.all }),
+  });
+}
+
+/** 重建素材引用索引（存量回填 / 索引修复） */
+export function useRebuildCmsResourceRefs() {
+  return useMutation({
+    mutationFn: (body: { siteId: number }) =>
+      request.post<AsyncTask>('/api/cms/resources/rebuild-refs', body).then(unwrap),
+  });
+}
+
 export function useMoveCmsResources() {
   const qc = useQueryClient();
   return useMutation({

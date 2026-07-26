@@ -7,6 +7,7 @@ import { formatDateTime } from '../../lib/datetime';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import type { CreateCmsFriendLinkInput, UpdateCmsFriendLinkInput } from '@zenith/shared';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
+import { canonicalizeCmsResourceFields, deleteCmsResourceRefsForOwner, syncCmsResourceRefs, resolveCmsResourcePayload } from './cms-resource-refs.service';
 import { ensureFriendLinkGroupInSite } from './cms-friend-link-groups.service';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
@@ -68,7 +69,7 @@ export async function listCmsFriendLinks(q: ListCmsFriendLinksQuery) {
     ),
   ]);
   return {
-    list: list.map((row) => mapCmsFriendLink(row.link, row.groupName)),
+    list: await resolveCmsResourcePayload(list.map((row) => mapCmsFriendLink(row.link, row.groupName))),
     total,
     page: q.page,
     pageSize: q.pageSize,
@@ -129,26 +130,41 @@ export async function createCmsFriendLink(data: CreateCmsFriendLinkInput) {
   await ensureCmsSiteExists(data.siteId);
   await assertSiteAccess(data.siteId);
   await ensureFriendLinkGroupInSite(data.siteId, data.groupId);
-  const [row] = await db.insert(cmsFriendLinks).values(data).returning();
-  return mapCmsFriendLink(row, await resolveGroupName(row.groupId));
+  const row = await db.transaction(async (tx) => {
+    const [created] = await tx.insert(cmsFriendLinks)
+      .values(await canonicalizeCmsResourceFields(tx, data.siteId, data, 'friendLink'))
+      .returning();
+    await syncCmsResourceRefs(tx, 'friendLink', created.id, created.siteId, created);
+    return created;
+  });
+  return resolveCmsResourcePayload(mapCmsFriendLink(row, await resolveGroupName(row.groupId)));
 }
 
 export async function updateCmsFriendLink(id: number, data: UpdateCmsFriendLinkInput) {
   const current = await ensureCmsFriendLinkExists(id);
   await assertSiteAccess(current.siteId);
   if (data.groupId !== undefined) await ensureFriendLinkGroupInSite(current.siteId, data.groupId);
-  const [row] = await db.update(cmsFriendLinks).set(data).where(and(
-    eq(cmsFriendLinks.id, id),
-  )).returning();
-  if (!row) throw new HTTPException(404, { message: '友情链接不存在' });
-  return mapCmsFriendLink(row, await resolveGroupName(row.groupId));
+  const row = await db.transaction(async (tx) => {
+    const [updated] = await tx.update(cmsFriendLinks)
+      .set(await canonicalizeCmsResourceFields(tx, current.siteId, data, 'friendLink'))
+      .where(and(
+        eq(cmsFriendLinks.id, id),
+      )).returning();
+    if (!updated) throw new HTTPException(404, { message: '友情链接不存在' });
+    await syncCmsResourceRefs(tx, 'friendLink', updated.id, updated.siteId, updated);
+    return updated;
+  });
+  return resolveCmsResourcePayload(mapCmsFriendLink(row, await resolveGroupName(row.groupId)));
 }
 
 export async function deleteCmsFriendLink(id: number) {
   const current = await ensureCmsFriendLinkExists(id);
   await assertSiteAccess(current.siteId);
-  const [row] = await db.delete(cmsFriendLinks).where(and(
-    eq(cmsFriendLinks.id, id),
-  )).returning();
-  if (!row) throw new HTTPException(404, { message: '友情链接不存在' });
+  await db.transaction(async (tx) => {
+    const [row] = await tx.delete(cmsFriendLinks).where(and(
+      eq(cmsFriendLinks.id, id),
+    )).returning();
+    if (!row) throw new HTTPException(404, { message: '友情链接不存在' });
+    await deleteCmsResourceRefsForOwner(tx, 'friendLink', [row.id]);
+  });
 }

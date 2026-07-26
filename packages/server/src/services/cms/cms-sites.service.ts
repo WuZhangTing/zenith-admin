@@ -35,6 +35,7 @@ import { cmsCdnPurgeHostAllowlist, validateCdnPurgeEndpoint } from './cms-cdn-po
 import { isThemeRegistered } from '../../cms/themes/registry';
 import { lockCmsSiteForMutation } from './cms-site-publish-lock.service';
 import { enqueueCmsPublishOutboxes, insertCmsSiteRefsRebuildOutbox } from './cms-publish-outbox.service';
+import { canonicalizeCmsResourceFields, resolveCmsResourcePayload, syncCmsResourceRefs } from './cms-resource-refs.service';
 import {
   DEFAULT_CMS_SITE_INHERITANCE,
   buildCmsSiteChain,
@@ -286,10 +287,10 @@ export async function getCmsSite(id: number) {
     visible,
   );
   if (!mapped) throw new HTTPException(404, { message: '站点不存在' });
-  if (!mapped.modelId) return mapped;
+  if (!mapped.modelId) return resolveCmsResourcePayload(mapped);
   const [model] = await db.select({ name: cmsModels.name }).from(cmsModels)
     .where(eq(cmsModels.id, mapped.modelId)).limit(1);
-  return { ...mapped, modelName: model?.name ?? null };
+  return resolveCmsResourcePayload({ ...mapped, modelName: model?.name ?? null });
 }
 
 // ─── 列表 ─────────────────────────────────────────────────────────────────────
@@ -328,7 +329,7 @@ export async function listCmsSites(q: ListCmsSitesQuery) {
     db.select().from(cmsSites),
     db.select().from(cmsSiteInheritances),
   ]);
-  return { list: mapCmsSiteRows(list, allRows, inheritanceRows, accessible), total, page, pageSize };
+  return { list: await resolveCmsResourcePayload(mapCmsSiteRows(list, allRows, inheritanceRows, accessible)), total, page, pageSize };
 }
 
 /** 全部启用站点（下拉选择/站点切换器用，绑定用户仅见授权站点） */
@@ -555,6 +556,7 @@ export async function createCmsSite(data: CreateCmsSiteInput) {
         domain: siteData.domain?.trim() ? siteData.domain.trim().toLowerCase() : null,
         aliasDomains: (siteData.aliasDomains ?? []).map((d) => d.trim().toLowerCase()).filter(Boolean),
       }).returning();
+      await syncCmsResourceRefs(tx, 'site', created.id, created.id, created);
       await tx.insert(cmsSiteInheritances).values({ siteId: created.id, ...inheritance });
       const state = await loadCmsInheritanceState(tx);
       const effective = resolveCmsSiteSnapshot(state.sites, state.inheritances, created.id).site;
@@ -726,10 +728,13 @@ export async function updateCmsSite(id: number, data: UpdateCmsSiteInput) {
       }
       if (data.domain !== undefined) patch.domain = data.domain?.trim() ? data.domain.trim().toLowerCase() : null;
       if (data.aliasDomains !== undefined) patch.aliasDomains = (data.aliasDomains ?? []).map((d) => d.trim().toLowerCase()).filter(Boolean);
-      const [updated] = await tx.update(cmsSites).set(patch).where(and(
-        eq(cmsSites.id, id),
-      )).returning();
+      const [updated] = await tx.update(cmsSites)
+        .set(await canonicalizeCmsResourceFields(tx, id, patch, 'site'))
+        .where(and(
+          eq(cmsSites.id, id),
+        )).returning();
       if (!updated) throw new HTTPException(404, { message: '站点不存在' });
+      await syncCmsResourceRefs(tx, 'site', updated.id, updated.id, updated);
       const tasks = await insertEffectiveConfigRebuildTasks(
         tx,
         id,

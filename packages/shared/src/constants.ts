@@ -1470,6 +1470,35 @@ export const CMS_RESOURCE_TYPE_LABELS: Record<(typeof CMS_RESOURCE_TYPES)[number
   other: '其他',
 };
 
+/**
+ * 素材句柄 URI 前缀。
+ *
+ * 内容正文、JSONB 字段与标量列统一以 `cms-res://{id}` 引用素材中心条目，
+ * 写入时由服务端把已知素材 URL 归一为句柄，读取/渲染时再解析回真实 URL。
+ * 句柄化使「替换素材」「迁移存储 / CDN」「改文件名」不再产生死链，
+ * 并让 `cms_resource_refs` 反向索引可以精确建立（不再靠子串匹配）。
+ */
+export const CMS_RESOURCE_URI_PREFIX = 'cms-res://';
+
+/** 素材引用方（反向索引 owner_type 取值） */
+export const CMS_RESOURCE_OWNER_TYPES = [
+  'site', 'content', 'contentVersion', 'channel', 'fragment', 'friendLink', 'ad', 'page', 'form',
+] as const;
+
+export type CmsResourceOwnerType = (typeof CMS_RESOURCE_OWNER_TYPES)[number];
+
+export const CMS_RESOURCE_OWNER_TYPE_LABELS: Record<CmsResourceOwnerType, string> = {
+  site: '站点',
+  content: '内容',
+  contentVersion: '内容版本',
+  channel: '栏目',
+  fragment: '碎片',
+  friendLink: '友情链接',
+  ad: '广告',
+  page: '搭建页面',
+  form: '表单',
+};
+
 /** CMS 广告事件类型。 */
 export const CMS_AD_EVENT_TYPES = ['impression', 'click'] as const;
 

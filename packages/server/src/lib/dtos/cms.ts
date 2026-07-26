@@ -8,6 +8,7 @@ import {
   CMS_DISTRIBUTION_CONFLICT_STRATEGIES,
   CMS_DISTRIBUTION_MODES,
   CMS_FIELD_OPTION_SOURCES,
+  CMS_RESOURCE_OWNER_TYPES,
   CMS_SITE_INHERITABLE_FIELDS,
 } from '@zenith/shared';
 import { auditFields } from './_audit';
@@ -699,6 +700,8 @@ export const CmsResourceDTO = z
     height: z.number().int().nullable(),
     mimeType: z.string().nullable(),
     remark: z.string().nullable(),
+    ownsFile: z.boolean().openapi({ description: 'false = 仅引用登记（文件由文件中心/来源站点持有），删除素材不会删除物理文件' }),
+    refCount: z.number().int().optional().openapi({ description: '站内引用数（来自 cms_resource_refs 索引，0 = 孤立素材）' }),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
@@ -706,7 +709,7 @@ export const CmsResourceDTO = z
 
 export const CmsResourceReferenceDTO = z
   .object({
-    kind: z.enum(['site', 'content', 'channel', 'fragment', 'friendLink', 'ad', 'page', 'form', 'theme']),
+    kind: z.enum(CMS_RESOURCE_OWNER_TYPES),
     id: z.number().int(),
     title: z.string(),
     field: z.string(),

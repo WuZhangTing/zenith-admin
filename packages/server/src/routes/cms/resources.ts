@@ -13,13 +13,13 @@ import {
 import { AsyncTaskDTO, CmsResourceDTO, CmsResourceFolderDTO, CmsResourceReferenceDTO } from '../../lib/openapi-dtos';
 import {
   listCmsResources, uploadCmsResource, updateCmsResource, deleteCmsResources,
-  listCmsResourceReferences, cropCmsResource,
+  listCmsResourceReferences, cropCmsResource, replaceCmsResource,
 } from '../../services/cms/cms-resources.service';
 import {
   createCmsResourceFolder, deleteCmsResourceFolder, listCmsResourceFolderTree, updateCmsResourceFolder,
 } from '../../services/cms/cms-resource-folders.service';
 import { mapAsyncTask } from '../../lib/task-center';
-import { submitCmsResourceTask } from '../../services/cms/cms-resource-task-submit.service';
+import { submitCmsResourceTask, submitCmsResourceRefRebuildTask } from '../../services/cms/cms-resource-task-submit.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -238,9 +238,66 @@ const moveResourcesRoute = defineOpenAPIRoute({
   },
 });
 
+const replaceRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/{id}/replace',
+    tags: ['CMS-素材中心'], summary: '替换素材文件（保留素材 id，全站引用自动跟随）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'cms:resource:update', audit: { description: 'CMS 替换素材', module: 'CMS内容管理', recordBody: false } })] as const,
+    request: {
+      params: IdParam,
+      body: {
+        content: {
+          'multipart/form-data': {
+            schema: z.object({
+              file: z.any().openapi({ type: 'string', format: 'binary' }),
+            }),
+          },
+        },
+        required: true,
+      },
+    },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(CmsResourceDTO, '替换成功'),
+      400: { content: jsonContent(ErrorResponse), description: '未选择文件或类型不匹配' },
+    },
+  }),
+  handler: async (c) => {
+    const body = await c.req.parseBody();
+    const file = body.file;
+    if (!file || typeof (file as File).arrayBuffer !== 'function') {
+      throw new HTTPException(400, { message: '请选择要上传的文件' });
+    }
+    const row = await replaceCmsResource(c.req.valid('param').id, file as File);
+    return c.json(okBody(row, '替换成功，引用该素材的位置将自动指向新文件'), 200);
+  },
+});
+
+const rebuildRefsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/rebuild-refs',
+    tags: ['CMS-素材中心'], summary: '提交素材引用索引重建任务（存量回填 / 索引修复）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'cms:resource:update', audit: { description: '重建 CMS 素材引用索引', module: 'CMS内容管理' } })] as const,
+    request: {
+      body: {
+        content: jsonContent(z.object({ siteId: z.number().int().positive() })),
+        required: true,
+      },
+    },
+    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交') },
+  }),
+  handler: async (c) => {
+    const row = await submitCmsResourceRefRebuildTask(c.req.valid('json').siteId);
+    return c.json(okBody(mapAsyncTask(row), '任务已提交'), 200);
+  },
+});
+
 router.openapiRoutes([
   listRoute, folderTreeRoute, createFolderRoute, updateFolderRoute, deleteFolderRoute,
-  uploadRoute, updateRoute, referencesRoute, cropRoute, deleteRoute, governanceRoute, moveResourcesRoute,
+  uploadRoute, updateRoute, referencesRoute, cropRoute, replaceRoute, deleteRoute,
+  governanceRoute, rebuildRefsRoute, moveResourcesRoute,
 ] as const);
 
 export default router;

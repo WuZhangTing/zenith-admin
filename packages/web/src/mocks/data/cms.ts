@@ -22,7 +22,13 @@ import type {
 export const mockCmsSites: CmsSite[] = SEED_CMS_SITES.map((s) => ({ ...s }));
 export const mockCmsModels: CmsModel[] = SEED_CMS_MODELS.map((m) => ({ ...m, fields: m.fields.map((f) => ({ ...f })) }));
 export const mockCmsChannels: CmsChannel[] = SEED_CMS_CHANNELS.map((c) => ({ ...c }));
-export const mockCmsContents: (CmsContent & { tagIds: number[] })[] = SEED_CMS_CONTENTS.map((c) => ({ ...c, extend: { ...c.extend }, tagIds: [...c.tagIds] }));
+export const mockCmsContents: (CmsContent & { tagIds: number[] })[] = SEED_CMS_CONTENTS.map((c) => ({
+  ...c,
+  // coverThumb 由服务端从封面素材派生，Demo 数据不预置
+  coverThumb: null,
+  extend: { ...c.extend },
+  tagIds: [...c.tagIds],
+}));
 export const mockCmsTags: CmsTag[] = SEED_CMS_TAGS.map((t) => ({ ...t }));
 export const mockCmsFragments: CmsFragment[] = SEED_CMS_FRAGMENTS.map((f) => ({ ...f }));
 export const mockCmsFriendLinkGroups: CmsFriendLinkGroup[] = SEED_CMS_FRIEND_LINK_GROUPS.map((g) => ({ ...g }));

@@ -7,6 +7,7 @@ import type { DbExecutor } from '../../db/types';
 import { formatDateTime } from '../../lib/datetime';
 import { assertSiteAccess } from './cms-sites.service';
 import { assertChannelAccess } from './cms-channels.service';
+import { deleteCmsResourceRefsForOwner, resolveCmsResourcePayload, syncCmsResourceRefs } from './cms-resource-refs.service';
 
 /** 每条内容保留的最大版本数（超出自动裁剪最旧版本） */
 const MAX_VERSIONS = 20;
@@ -21,7 +22,6 @@ export function buildContentSnapshot(row: CmsContentRow): Record<string, unknown
     slug: row.slug,
     summary: row.summary,
     coverImage: row.coverImage,
-    coverThumb: row.coverThumb,
     author: row.author,
     editor: row.editor,
     source: row.source,
@@ -51,23 +51,29 @@ export async function snapshotContentVersion(executor: DbExecutor, row: CmsConte
       eq(cmsContentVersions.contentId, row.id),
     ));
   const version = (latest ?? 0) + 1;
-  await executor.insert(cmsContentVersions).values({
+  const [created] = await executor.insert(cmsContentVersions).values({
     contentId: row.id,
     version,
     title: row.title,
     snapshot: buildContentSnapshot(row),
     remark,
+  }).returning({ id: cmsContentVersions.id });
+  // 快照冻结了当时的正文与封面，同样要占住素材引用，避免历史版本回滚后指向已被清理的素材
+  await syncCmsResourceRefs(executor, 'contentVersion', created.id, row.siteId, {
+    snapshot: buildContentSnapshot(row),
   });
   // 裁剪最旧版本（单条 DELETE 子查询，避免逐条删除）
-  const staleIds = executor.select({ id: cmsContentVersions.id })
+  const staleIds = await executor.select({ id: cmsContentVersions.id })
     .from(cmsContentVersions)
     .where(and(
       eq(cmsContentVersions.contentId, row.id),
     ))
     .orderBy(desc(cmsContentVersions.version))
     .offset(MAX_VERSIONS);
+  if (staleIds.length === 0) return;
+  await deleteCmsResourceRefsForOwner(executor, 'contentVersion', staleIds.map((item) => item.id));
   await executor.delete(cmsContentVersions).where(and(
-    inArray(cmsContentVersions.id, staleIds),
+    inArray(cmsContentVersions.id, staleIds.map((item) => item.id)),
   ));
 }
 
@@ -94,7 +100,7 @@ export async function listContentVersions(contentId: number) {
     with: { createdByUser: { columns: { nickname: true } } },
     orderBy: desc(cmsContentVersions.version),
   });
-  return rows.map((r) => mapCmsContentVersion(r, r.createdByUser?.nickname));
+  return resolveCmsResourcePayload(rows.map((r) => mapCmsContentVersion(r, r.createdByUser?.nickname)));
 }
 
 export async function ensureVersionExists(contentId: number, versionId: number): Promise<CmsContentVersionRow> {
@@ -124,7 +130,8 @@ export async function restoreContentVersion(contentId: number, versionId: number
   await db.transaction(async (tx) => {
     await snapshotContentVersion(tx, current, `回滚到 v${version.version} 前留档`);
   });
-  return version.snapshot;
+  // 快照里存的是素材句柄，回填到编辑器前解析为真实地址；保存时会再次归一化，可无损往返
+  return resolveCmsResourcePayload(version.snapshot);
 }
 
 // ─── 版本差异对比 ─────────────────────────────────────────────────────────────
@@ -136,7 +143,6 @@ const SNAPSHOT_FIELD_LABELS: Record<string, string> = {
   slug: 'URL 标识',
   summary: '摘要',
   coverImage: '封面图',
-  coverThumb: '封面缩略图',
   author: '作者',
   editor: '责任编辑',
   source: '来源',

@@ -5309,8 +5309,6 @@ export const createCmsContentSchema = z.object({
   slug: z.string().max(255).regex(cmsSlugRegex, '标识仅支持小写字母、数字、中划线').nullable().optional(),
   summary: z.string().max(2000).nullable().optional(),
   coverImage: z.string().max(500).nullable().optional(),
-  /** 封面缩略图（上传管线生成；空 = 前台回退原图） */
-  coverThumb: z.string().max(500).nullable().optional(),
   author: z.string().max(50).nullable().optional(),
   /** 责任编辑 */
   editor: z.string().max(50).nullable().optional(),

@@ -1,11 +1,8 @@
-import { eq, and, desc, gt, inArray, isNull, like, or, sql, type SQL } from 'drizzle-orm';
+import { eq, and, desc, gt, inArray, isNull, like, notInArray, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import sharp from 'sharp';
 import { db } from '../../db';
-import {
-  cmsResources, cmsContents, cmsAds, cmsAdSlots, cmsFragments, cmsSites, cmsChannels,
-  cmsPages, cmsForms, cmsResourceFolders, cmsFriendLinks, cmsContentVersions,
-} from '../../db/schema';
+import { cmsResources, cmsResourceFolders, cmsResourceRefs } from '../../db/schema';
 import type { CmsResourceRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
 import { mergeWhere, withPagination, escapeLike } from '../../lib/where-helpers';
@@ -17,38 +14,12 @@ import { assertCompleteCmsBatch } from './cms-access';
 import { ensureCmsSiteExists } from './cms-sites.service';
 import { assertAllCmsSiteChannelsAccess } from './cms-channels.service';
 import { ensureCmsResourceFolderExists } from './cms-resource-folders.service';
-
-const CONTENT_RESOURCE_FIELDS = [
-  ['coverImage', cmsContents.coverImage],
-  ['coverThumb', cmsContents.coverThumb],
-  ['body', cmsContents.body],
-  ['mediaData', cmsContents.mediaData],
-  ['extend', cmsContents.extend],
-  ['sourceUrl', cmsContents.sourceUrl],
-  ['externalLink', cmsContents.externalLink],
-] as const;
-const CHANNEL_RESOURCE_FIELDS = [
-  ['image', cmsChannels.image],
-  ['pageContent', cmsChannels.pageContent],
-  ['settings', cmsChannels.settings],
-  ['linkUrl', cmsChannels.linkUrl],
-] as const;
-const FRIEND_LINK_RESOURCE_FIELDS = [
-  ['logo', cmsFriendLinks.logo],
-  ['url', cmsFriendLinks.url],
-] as const;
-
-function referenceWhere(fields: ReadonlyArray<readonly [string, unknown]>, pattern: string): SQL {
-  return or(...fields.map(([, column]) => sql`${column}::text like ${pattern}`))!;
-}
-
-function referenceValues(row: object, fields: ReadonlyArray<readonly [string, unknown]>): Record<string, unknown> {
-  const record = row as Record<string, unknown>;
-  return Object.fromEntries(fields.map(([field]) => [field, record[field]]));
-}
+import {
+  countCmsResourceRefs, invalidateCmsResourceCache, listCmsOrphanResourceIds, listCmsResourceRefDetails,
+} from './cms-resource-refs.service';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
-export function mapCmsResource(row: CmsResourceRow, folderName?: string | null) {
+export function mapCmsResource(row: CmsResourceRow, folderName?: string | null, refCount?: number) {
   return {
     id: row.id,
     siteId: row.siteId,
@@ -64,6 +35,8 @@ export function mapCmsResource(row: CmsResourceRow, folderName?: string | null) 
     height: row.height ?? null,
     mimeType: row.mimeType ?? null,
     remark: row.remark ?? null,
+    ownsFile: row.ownsFile,
+    ...(refCount !== undefined ? { refCount } : {}),
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
   };
@@ -112,7 +85,13 @@ export async function listCmsResources(q: ListCmsResourcesQuery) {
       q.page, q.pageSize,
     ),
   ]);
-  return { list: rows.map((row) => mapCmsResource(row.resource, row.folderName)), total, page: q.page, pageSize: q.pageSize };
+  const refCounts = await countCmsResourceRefs(rows.map((row) => row.resource.id));
+  return {
+    list: rows.map((row) => mapCmsResource(row.resource, row.folderName, refCounts.get(row.resource.id) ?? 0)),
+    total,
+    page: q.page,
+    pageSize: q.pageSize,
+  };
 }
 
 /** 素材上传：图片走站点图片管线（压缩/水印/缩略图），其他类型原样入库 */
@@ -161,95 +140,60 @@ export async function updateCmsResource(id: number, data: UpdateCmsResourceInput
   return mapCmsResource(row);
 }
 
-export function cmsResourceContainsUrl(value: unknown, url: string): boolean {
-  if (typeof value === 'string') return value.includes(url);
-  return value != null && typeof value === 'object' && JSON.stringify(value).includes(url);
-}
+/**
+ * 素材替换：保留素材 id 换掉底层文件，全站引用自动跟随新地址。
+ *
+ * 句柄化之前做不到这件事 —— URL 就是句柄，换文件必然要逐处改引用。
+ */
+export async function replaceCmsResource(id: number, file: File) {
+  const current = await ensureResource(id);
+  const type = detectResourceType(file.type);
+  if (current.type === 'image' && type !== 'image') {
+    throw new HTTPException(400, { message: '图片素材只能替换为图片' });
+  }
 
-export function cmsResourceMatchingFields(fields: Record<string, unknown>, url: string): string[] {
-  return Object.entries(fields)
-    .filter(([, value]) => cmsResourceContainsUrl(value, url))
-    .map(([field]) => field);
-}
+  const uploaded = type === 'image'
+    ? await processCmsImageUpload(file, current.siteId)
+    : await (async () => {
+        const raw = await uploadManagedFile(file);
+        return { url: raw.url ?? '', thumbUrl: null, fileId: raw.id, width: null, height: null };
+      })();
+  if (!uploaded.url) throw new HTTPException(500, { message: '素材替换失败：上传未返回地址' });
 
-export function buildCmsFieldReferences(
-  kind: CmsResourceReference['kind'],
-  id: number,
-  title: string,
-  fields: Record<string, unknown>,
-  url: string,
-): CmsResourceReference[] {
-  return cmsResourceMatchingFields(fields, url).map((field) => ({ kind, id, title, field }));
+  const [row] = await db.update(cmsResources).set({
+    type,
+    url: uploaded.url,
+    thumbUrl: uploaded.thumbUrl,
+    fileId: uploaded.fileId,
+    // 新文件由本次上传产生，归本素材所有；替换引用登记型素材后它就成了自有素材
+    ownsFile: true,
+    size: file.size,
+    width: uploaded.width,
+    height: uploaded.height,
+    mimeType: file.type || null,
+  }).where(eq(cmsResources.id, id)).returning();
+  invalidateCmsResourceCache([id]);
+  // 旧物理文件在素材行改指向后才删除，且仅当没有别的素材行还共用它
+  if (current.fileId && current.fileId !== uploaded.fileId) {
+    await deleteOrphanedManagedFile(current, [id]);
+  }
+  return mapCmsResource(row);
 }
 
 export function isCmsResourceOrphan(references: CmsResourceReference[]): boolean {
   return references.length === 0;
 }
 
-/** 单素材完整引用扫描：站点、内容、栏目、碎片、广告、页面、表单与主题配置。 */
+/**
+ * 单素材引用明细。
+ *
+ * 由 `cms_resource_refs` 索引直接查出，不再对内容/栏目/页面等 9 张表做 `LIKE '%url%'` 全表扫描，
+ * 也不会再出现 `a.jpg` 命中 `a.jpg.bak` 这类子串误判。
+ */
 export async function listCmsResourceReferences(id: number): Promise<CmsResourceReference[]> {
   const res = await ensureResource(id);
   await assertAllCmsSiteChannelsAccess(res.siteId);
-  const pattern = `%${escapeLike(res.url)}%`;
-  const [siteRows, contents, channels, ads, fragments, friendLinks, pages, forms, versions] = await Promise.all([
-    db.select().from(cmsSites).where(and(
-      eq(cmsSites.id, res.siteId),
-      sql`(${cmsSites.logo} = ${res.url} or ${cmsSites.favicon} = ${res.url} or ${cmsSites.settings}::text like ${pattern})`,
-    )),
-    db.select().from(cmsContents)
-      .where(and(
-        eq(cmsContents.siteId, res.siteId),
-        referenceWhere(CONTENT_RESOURCE_FIELDS, pattern),
-      )),
-    db.select().from(cmsChannels).where(and(
-      eq(cmsChannels.siteId, res.siteId),
-      referenceWhere(CHANNEL_RESOURCE_FIELDS, pattern),
-    )),
-    db.select({ id: cmsAds.id, name: cmsAds.name, image: cmsAds.image, linkUrl: cmsAds.linkUrl }).from(cmsAds)
-      .innerJoin(cmsAdSlots, eq(cmsAds.slotId, cmsAdSlots.id))
-      .where(and(
-        eq(cmsAdSlots.siteId, res.siteId),
-        sql`(${cmsAds.image} = ${res.url} or ${cmsAds.linkUrl} = ${res.url})`,
-      )),
-    db.select({ id: cmsFragments.id, name: cmsFragments.name }).from(cmsFragments)
-      .where(and(eq(cmsFragments.siteId, res.siteId), sql`${cmsFragments.content} like ${pattern}`)),
-    db.select({ id: cmsFriendLinks.id, name: cmsFriendLinks.name, logo: cmsFriendLinks.logo, url: cmsFriendLinks.url }).from(cmsFriendLinks)
-      .where(and(eq(cmsFriendLinks.siteId, res.siteId), referenceWhere(FRIEND_LINK_RESOURCE_FIELDS, pattern))),
-    db.select().from(cmsPages).where(and(eq(cmsPages.siteId, res.siteId), sql`${cmsPages.blocks}::text like ${pattern}`)),
-    db.select().from(cmsForms).where(and(eq(cmsForms.siteId, res.siteId), sql`${cmsForms.fields}::text like ${pattern}`)),
-    db.select({
-      contentId: cmsContentVersions.contentId,
-      version: cmsContentVersions.version,
-      title: cmsContents.title,
-    }).from(cmsContentVersions)
-      .innerJoin(cmsContents, eq(cmsContentVersions.contentId, cmsContents.id))
-      .where(and(eq(cmsContents.siteId, res.siteId), sql`${cmsContentVersions.snapshot}::text like ${pattern}`)),
-  ]);
-  const refs: CmsResourceReference[] = [];
-  for (const site of siteRows) {
-    if (site.logo === res.url) refs.push({ kind: 'site', id: site.id, title: site.name, field: 'logo' });
-    if (site.favicon === res.url) refs.push({ kind: 'site', id: site.id, title: site.name, field: 'favicon' });
-    if (cmsResourceContainsUrl(site.settings, res.url)) refs.push({ kind: 'theme', id: site.id, title: site.name, field: 'settings/themeConfig' });
-  }
-  for (const content of contents) {
-    refs.push(...buildCmsFieldReferences('content', content.id, content.title, referenceValues(content, CONTENT_RESOURCE_FIELDS), res.url));
-  }
-  for (const channel of channels) {
-    refs.push(...buildCmsFieldReferences('channel', channel.id, channel.name, referenceValues(channel, CHANNEL_RESOURCE_FIELDS), res.url));
-  }
-  for (const ad of ads) {
-    for (const field of cmsResourceMatchingFields({ image: ad.image, linkUrl: ad.linkUrl }, res.url)) {
-      refs.push({ kind: 'ad', id: ad.id, title: ad.name, field });
-    }
-  }
-  refs.push(...fragments.map((row) => ({ kind: 'fragment' as const, id: row.id, title: row.name, field: 'content' })));
-  for (const link of friendLinks) {
-    refs.push(...buildCmsFieldReferences('friendLink', link.id, link.name, referenceValues(link, FRIEND_LINK_RESOURCE_FIELDS), res.url));
-  }
-  refs.push(...pages.map((row) => ({ kind: 'page' as const, id: row.id, title: row.name, field: 'blocks' })));
-  refs.push(...forms.map((row) => ({ kind: 'form' as const, id: row.id, title: row.name, field: 'fields' })));
-  refs.push(...versions.map((row) => ({ kind: 'content' as const, id: row.contentId, title: `${row.title}（版本 ${row.version}）`, field: 'versionSnapshot' })));
-  return refs;
+  return listCmsResourceRefDetails(res.id);
 }
 
 export async function moveCmsResources(ids: number[], folderId: number | null): Promise<number> {
@@ -279,10 +223,11 @@ export async function listCmsResourcesAfter(siteId: number, afterId: number, lim
 }
 
 export async function deleteCmsOrphanResource(row: CmsResourceRow): Promise<void> {
-  const refs = await listCmsResourceReferences(row.id);
-  if (!isCmsResourceOrphan(refs)) throw new HTTPException(409, { message: '素材已产生引用，无法治理删除' });
+  const refCount = await db.$count(cmsResourceRefs, eq(cmsResourceRefs.resourceId, row.id));
+  if (refCount > 0) throw new HTTPException(409, { message: '素材已产生引用，无法治理删除' });
   await db.delete(cmsResources).where(eq(cmsResources.id, row.id));
-  if (row.fileId) await deleteManagedFile(row.fileId).catch(() => undefined);
+  invalidateCmsResourceCache([row.id]);
+  await deleteOrphanedManagedFile(row, []);
 }
 
 /** 批量删除：任一素材存在站内引用则整体拒绝；联动删除底层物理文件（尽力而为） */
@@ -293,17 +238,42 @@ export async function deleteCmsResources(ids: number[]): Promise<number> {
   for (const siteId of new Set(rows.map((r) => r.siteId))) {
     await assertSiteAccess(siteId);
   }
-  for (const row of rows) {
-    const refs = await listCmsResourceReferences(row.id);
-    if (refs.length > 0) {
-      throw new HTTPException(400, { message: `素材「${row.name}」仍被 ${refs.length} 处引用，请先处理引用后再删除` });
-    }
+  const refCounts = await countCmsResourceRefs(rows.map((row) => row.id));
+  const blocked = rows.find((row) => (refCounts.get(row.id) ?? 0) > 0);
+  if (blocked) {
+    throw new HTTPException(400, { message: `素材「${blocked.name}」仍被 ${refCounts.get(blocked.id)} 处引用，请先处理引用后再删除` });
   }
   await db.delete(cmsResources).where(inArray(cmsResources.id, ids));
+  invalidateCmsResourceCache(ids);
   for (const row of rows) {
-    if (row.fileId) await deleteManagedFile(row.fileId).catch(() => undefined);
+    await deleteOrphanedManagedFile(row, []);
   }
   return rows.length;
+}
+
+/** 站点内孤立素材 id 全量（治理任务用；一条索引查询取代逐素材全表扫描） */
+export async function listCmsSiteOrphanResourceIds(siteId: number): Promise<number[]> {
+  await ensureCmsSiteExists(siteId);
+  await assertSiteAccess(siteId);
+  return listCmsOrphanResourceIds(siteId);
+}
+
+/**
+ * 删除底层物理文件，但仅当本素材确实持有该文件、且没有别的素材行还指向同一个 `file_id` 时。
+ *
+ * `ownsFile=false` 的行只是引用登记：文件由文件中心或来源站点持有（从文件中心选图自动登记、
+ * 站点导入 / 站群分发复制出的素材都属此类）。无条件删除会把其他模块、其他站点正在用的文件删掉。
+ */
+async function deleteOrphanedManagedFile(row: Pick<CmsResourceRow, 'fileId' | 'ownsFile'>, excludeResourceIds: readonly number[]): Promise<void> {
+  if (!row.fileId) return;
+  // 引用登记型素材（文件中心选图、站点导入/站群分发复制）不持有文件，删除本行不得动物理文件
+  if (!row.ownsFile) return;
+  const stillUsed = await db.$count(cmsResources, and(
+    eq(cmsResources.fileId, row.fileId),
+    excludeResourceIds.length > 0 ? notInArray(cmsResources.id, [...excludeResourceIds]) : undefined,
+  ));
+  if (stillUsed > 0) return;
+  await deleteManagedFile(row.fileId).catch(() => undefined);
 }
 
 // ─── 图片裁剪（非破坏：另存为新素材）──────────────────────────────────────────

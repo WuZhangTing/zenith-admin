@@ -53,7 +53,7 @@ import {
   cmsInteractionAnswers, cmsInteractionQuestions, cmsInteractionResponses, cmsInteractions,
   cmsLinkWords, cmsMemberSubscriptions, cmsMemberViewHistory, cmsModelFields, cmsModels,
   cmsPageBlockAcls, cmsPages, cmsPublishArtifacts, cmsPushLogs,
-  cmsRedirects, cmsResourceFolders, cmsResources, cmsSearchWords, cmsSiteInheritances, cmsSites, cmsSiteUsers,
+  cmsRedirects, cmsResourceFolders, cmsResourceRefs, cmsResources, cmsSearchWords, cmsSiteInheritances, cmsSites, cmsSiteUsers,
   cmsTags,
 } from './cms';
 
@@ -1506,9 +1506,15 @@ export const cmsResourceFoldersRelations = relations(cmsResourceFolders, ({ one,
   resources: many(cmsResources),
 }));
 
-export const cmsResourcesRelations = relations(cmsResources, ({ one }) => ({
+export const cmsResourcesRelations = relations(cmsResources, ({ one, many }) => ({
   site: one(cmsSites, { fields: [cmsResources.siteId], references: [cmsSites.id] }),
   folder: one(cmsResourceFolders, { fields: [cmsResources.folderId], references: [cmsResourceFolders.id] }),
+  refs: many(cmsResourceRefs),
+}));
+
+export const cmsResourceRefsRelations = relations(cmsResourceRefs, ({ one }) => ({
+  site: one(cmsSites, { fields: [cmsResourceRefs.siteId], references: [cmsSites.id] }),
+  resource: one(cmsResources, { fields: [cmsResourceRefs.resourceId], references: [cmsResources.id] }),
 }));
 
 export const cmsSearchWordsRelations = relations(cmsSearchWords, ({ one }) => ({

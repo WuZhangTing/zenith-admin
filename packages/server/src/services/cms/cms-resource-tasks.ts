@@ -1,14 +1,19 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../../db';
-import { cmsResources } from '../../db/schema';
+import {
+  cmsAds, cmsAdSlots, cmsChannels, cmsContents, cmsContentVersions, cmsForms, cmsFragments,
+  cmsFriendLinks, cmsPages, cmsResources, cmsSites,
+} from '../../db/schema';
 import { registerTaskHandler } from '../../lib/task-center';
 import {
-  deleteCmsOrphanResource, isCmsResourceOrphan, listCmsResourceReferences, listCmsResourcesAfter, moveCmsResources,
+  deleteCmsOrphanResource, listCmsResourcesAfter, listCmsSiteOrphanResourceIds, moveCmsResources,
 } from './cms-resources.service';
+import { syncCmsResourceRefs } from './cms-resource-refs.service';
 import { assertSiteAccess } from './cms-sites.service';
 import type { CmsResourceTaskPayload as GovernancePayload } from './cms-resource-task-submit.service';
 
 export const CMS_RESOURCE_GOVERNANCE_TASK = 'cms-resource-governance';
+export const CMS_RESOURCE_REF_REBUILD_TASK = 'cms-resource-ref-rebuild';
 
 export function registerCmsResourceTaskHandler(): void {
   registerTaskHandler({
@@ -44,7 +49,10 @@ export function registerCmsResourceTaskHandler(): void {
         return { operation: 'move', processed, total: ids.length };
       }
 
+      // 孤立判定由 cms_resource_refs 索引一次查全（旧实现是逐素材对 9 张表做全表 LIKE 扫描）
       const total = await db.$count(cmsResources, eq(cmsResources.siteId, payload.siteId));
+      const orphanIds = await listCmsSiteOrphanResourceIds(payload.siteId);
+      const orphanSet = new Set(orphanIds);
       let lastId = Number(ctx.checkpoint?.lastId ?? 0);
       let processed = Number(ctx.checkpoint?.processed ?? 0);
       let orphanCount = Number(ctx.checkpoint?.orphanCount ?? 0);
@@ -53,8 +61,7 @@ export function registerCmsResourceTaskHandler(): void {
         const rows = await listCmsResourcesAfter(payload.siteId, lastId, 100);
         if (rows.length === 0) break;
         for (const row of rows) {
-          const refs = await listCmsResourceReferences(row.id);
-          const orphan = isCmsResourceOrphan(refs);
+          const orphan = orphanSet.has(row.id);
           if (orphan) orphanCount += 1;
           if (orphan && payload.operation === 'cleanup' && !payload.dryRun) {
             await deleteCmsOrphanResource(row);
@@ -66,13 +73,12 @@ export function registerCmsResourceTaskHandler(): void {
             status: orphan ? 'success' : 'skipped',
             message: orphan
               ? (payload.operation === 'cleanup' && !payload.dryRun ? '孤立素材已清理' : '孤立素材')
-              : `存在 ${refs.length} 处引用`,
+              : '存在站内引用',
             data: {
               siteId: payload.siteId,
               resourceId: row.id,
               url: row.url,
               orphan,
-              references: refs.length,
               operation: payload.operation,
               dryRun: payload.dryRun,
             },
@@ -92,4 +98,112 @@ export function registerCmsResourceTaskHandler(): void {
       return { operation: payload.operation, processed, total, orphanCount, deletedCount, dryRun: payload.dryRun };
     },
   });
+
+  registerTaskHandler({
+    taskType: CMS_RESOURCE_REF_REBUILD_TASK,
+    title: 'CMS 素材引用索引重建',
+    module: 'CMS内容管理',
+    allowConcurrent: false,
+    maxAttempts: 2,
+    retryDelayMs: 3000,
+    async run(ctx) {
+      const siteId = Number((ctx.payload as { siteId?: number }).siteId);
+      await assertSiteAccess(siteId);
+      const stages = await buildRefRebuildStages(siteId);
+      let processed = Number(ctx.checkpoint?.processed ?? 0);
+      const total = stages.length;
+      for (let index = processed; index < stages.length; index++) {
+        const stage = stages[index];
+        const count = await stage.run();
+        await ctx.reportItems([{
+          key: `stage-${stage.key}`,
+          label: stage.label,
+          status: 'success',
+          message: `已重建 ${count} 个对象的引用`,
+          data: { siteId, ownerType: stage.key, count },
+        }]);
+        processed = index + 1;
+        const { cancelRequested } = await ctx.progress({
+          processed,
+          total,
+          note: `${stage.label} 完成（${processed}/${total}）`,
+          checkpoint: { processed },
+        });
+        if (cancelRequested) return { siteId, processed, total, cancelled: true };
+      }
+      return { siteId, processed, total };
+    },
+  });
+}
+
+/**
+ * 按 owner 类型分批重建站点内的素材引用索引。
+ *
+ * 用途有二：一是存量数据首次接入句柄化后的回填，二是当引用索引被怀疑漂移时的修复工具。
+ * 每个 owner 独立重建，失败可单独重试。
+ */
+async function buildRefRebuildStages(siteId: number): Promise<{ key: string; label: string; run: () => Promise<number> }[]> {
+  const rebuild = async <T extends { id: number }>(
+    ownerType: Parameters<typeof syncCmsResourceRefs>[1],
+    rows: readonly T[],
+  ): Promise<number> => {
+    await db.transaction(async (tx) => {
+      for (const row of rows) await syncCmsResourceRefs(tx, ownerType, row.id, siteId, row);
+    });
+    return rows.length;
+  };
+
+  return [
+    {
+      key: 'site',
+      label: '站点配置',
+      run: async () => rebuild('site', await db.select().from(cmsSites).where(eq(cmsSites.id, siteId))),
+    },
+    {
+      key: 'channel',
+      label: '栏目',
+      run: async () => rebuild('channel', await db.select().from(cmsChannels).where(eq(cmsChannels.siteId, siteId))),
+    },
+    {
+      key: 'content',
+      label: '内容',
+      run: async () => rebuild('content', await db.select().from(cmsContents).where(eq(cmsContents.siteId, siteId))),
+    },
+    {
+      key: 'contentVersion',
+      label: '内容版本快照',
+      run: async () => rebuild('contentVersion', await db.select({ id: cmsContentVersions.id, snapshot: cmsContentVersions.snapshot })
+        .from(cmsContentVersions)
+        .innerJoin(cmsContents, eq(cmsContentVersions.contentId, cmsContents.id))
+        .where(eq(cmsContents.siteId, siteId))),
+    },
+    {
+      key: 'fragment',
+      label: '碎片',
+      run: async () => rebuild('fragment', await db.select().from(cmsFragments).where(eq(cmsFragments.siteId, siteId))),
+    },
+    {
+      key: 'friendLink',
+      label: '友情链接',
+      run: async () => rebuild('friendLink', await db.select().from(cmsFriendLinks).where(eq(cmsFriendLinks.siteId, siteId))),
+    },
+    {
+      key: 'ad',
+      label: '广告',
+      run: async () => rebuild('ad', await db.select({ id: cmsAds.id, image: cmsAds.image, linkUrl: cmsAds.linkUrl })
+        .from(cmsAds)
+        .innerJoin(cmsAdSlots, eq(cmsAds.slotId, cmsAdSlots.id))
+        .where(eq(cmsAdSlots.siteId, siteId))),
+    },
+    {
+      key: 'page',
+      label: '搭建页面',
+      run: async () => rebuild('page', await db.select().from(cmsPages).where(eq(cmsPages.siteId, siteId))),
+    },
+    {
+      key: 'form',
+      label: '表单',
+      run: async () => rebuild('form', await db.select().from(cmsForms).where(eq(cmsForms.siteId, siteId))),
+    },
+  ];
 }

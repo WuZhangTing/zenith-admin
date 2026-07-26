@@ -1,5 +1,5 @@
 import { db } from './index';
-import { users, menus, roles, roleMenus, userRoles, dicts, dictItems, fileStorageConfigs, departments, positions, userPositions, systemConfigs, cronJobs, rateLimitRules, regions, tenants, tenantPackages, tenantPackageMenus, emailTemplates, smsConfigs, smsTemplates, inAppTemplates, tags, dataMaskConfigs, memberLevels, memberTags, members, memberPointAccounts, memberPointTransactions, memberWallets, coupons, memberCoupons, checkinRules, checkinSettings, checkinMilestones, workflowForms, workflowDataSources, workflowConnectors, workflowTemplates, workflowDefinitions, aiPromptTemplates, paymentMethodConfigs, paymentDeductPlans, mpAccounts, mpTags, mpFans, mpMessages, mpAutoReplies, mpMenus, mpMaterials, mpDrafts, mpMessageTemplates, mpBroadcasts, mpQrcodes, mpKfAccounts, mpKfSessions, mpKfSessionEvents, mpKfRoutingConfigs, mpConditionalMenus, channels, channelQuickReplies, reportDatasources, reportDatasets, reportDashboards, apiScopes, ratePlans, reportPrintTemplates, ruleDecisionTables, ruleDecisionFlows, ruleLists, ruleListItems, reportFolders, reportEnvironments, reportMetrics, reportDqRules, reportQueryQuotas, reportSlaRules, reportAssetTemplates, reportFillTemplates, analyticsEventMeta, analyticsSites, asyncTaskItems, asyncTasks, cmsSites, cmsSiteInheritances, cmsModels, cmsModelFields, cmsChannels, cmsDistributionRules, cmsContents, cmsTags, cmsContentTags, cmsContentChannels, cmsContentRelations, cmsContentVersions, cmsFragments, cmsFriendLinkGroups, cmsFriendLinks, cmsAdSlots, cmsAds, cmsAdEvents, cmsForms, cmsSensitiveWords, cmsErrorProneWords, cmsLinkWords, cmsComments, cmsSiteUsers, cmsChannelUsers, cmsInteractions, cmsInteractionQuestions, cmsInteractionResponses, cmsInteractionAnswers, cmsMemberSubscriptions, cmsResources, cmsResourceFolders, cmsSearchWords, cmsHotwordGroups, cmsHotwords, cmsCollectRules, cmsCollectItems, cmsPages, cmsPageBlockAcls, cmsPublishArtifacts } from './schema';
+import { users, menus, roles, roleMenus, userRoles, dicts, dictItems, fileStorageConfigs, departments, positions, userPositions, systemConfigs, cronJobs, rateLimitRules, regions, tenants, tenantPackages, tenantPackageMenus, emailTemplates, smsConfigs, smsTemplates, inAppTemplates, tags, dataMaskConfigs, memberLevels, memberTags, members, memberPointAccounts, memberPointTransactions, memberWallets, coupons, memberCoupons, checkinRules, checkinSettings, checkinMilestones, workflowForms, workflowDataSources, workflowConnectors, workflowTemplates, workflowDefinitions, aiPromptTemplates, paymentMethodConfigs, paymentDeductPlans, mpAccounts, mpTags, mpFans, mpMessages, mpAutoReplies, mpMenus, mpMaterials, mpDrafts, mpMessageTemplates, mpBroadcasts, mpQrcodes, mpKfAccounts, mpKfSessions, mpKfSessionEvents, mpKfRoutingConfigs, mpConditionalMenus, channels, channelQuickReplies, reportDatasources, reportDatasets, reportDashboards, apiScopes, ratePlans, reportPrintTemplates, ruleDecisionTables, ruleDecisionFlows, ruleLists, ruleListItems, reportFolders, reportEnvironments, reportMetrics, reportDqRules, reportQueryQuotas, reportSlaRules, reportAssetTemplates, reportFillTemplates, analyticsEventMeta, analyticsSites, asyncTaskItems, asyncTasks, cmsSites, cmsSiteInheritances, cmsModels, cmsModelFields, cmsChannels, cmsDistributionRules, cmsContents, cmsTags, cmsContentTags, cmsContentChannels, cmsContentRelations, cmsContentVersions, cmsFragments, cmsFriendLinkGroups, cmsFriendLinks, cmsAdSlots, cmsAds, cmsAdEvents, cmsForms, cmsSensitiveWords, cmsErrorProneWords, cmsLinkWords, cmsComments, cmsSiteUsers, cmsChannelUsers, cmsInteractions, cmsInteractionQuestions, cmsInteractionResponses, cmsInteractionAnswers, cmsMemberSubscriptions, cmsResources, cmsResourceFolders, cmsResourceRefs, cmsSearchWords, cmsHotwordGroups, cmsHotwords, cmsCollectRules, cmsCollectItems, cmsPages, cmsPageBlockAcls, cmsPublishArtifacts } from './schema';
 import bcrypt from 'bcryptjs';
 import { and, eq, isNull, inArray, sql } from 'drizzle-orm';
 import { createRequire } from 'node:module';
@@ -9,6 +9,7 @@ import { SEED_MENUS, SEED_ROLES, SEED_DEPARTMENTS, SEED_POSITIONS, SEED_DICTS, S
 import type { PaymentChannel, PaymentMethod } from '@zenith/shared';
 import { SEED_PAYMENT_DEDUCT_PLANS, SEED_CMS_EDITOR_USER, SEED_CMS_SITES, SEED_CMS_SITE_INHERITANCES, SEED_CMS_MODELS, SEED_CMS_CHANNELS, SEED_CMS_DISTRIBUTION_RULES, SEED_CMS_CONTENTS, SEED_CMS_CONTENT_CHANNELS, SEED_CMS_CONTENT_RELATIONS, SEED_CMS_CONTENT_VERSIONS, SEED_CMS_TAGS, SEED_CMS_FRAGMENTS, SEED_CMS_FRIEND_LINK_GROUPS, SEED_CMS_FRIEND_LINKS, SEED_CMS_AD_SLOTS, SEED_CMS_ADS, SEED_CMS_AD_EVENTS, SEED_CMS_FORMS, SEED_CMS_SENSITIVE_WORDS, SEED_CMS_ERROR_PRONE_WORDS, SEED_CMS_LINK_WORDS, SEED_CMS_COMMENTS, SEED_CMS_INTERACTIONS, SEED_CMS_INTERACTION_RESPONSES, SEED_CMS_INTERACTION_ANSWERS, SEED_CMS_SUBSCRIPTIONS, SEED_CMS_RESOURCES, SEED_CMS_RESOURCE_FOLDERS, SEED_CMS_SEARCH_WORDS, SEED_CMS_HOTWORD_GROUPS, SEED_CMS_HOTWORDS, SEED_CMS_COLLECT_RULES, SEED_CMS_COLLECT_ITEMS, SEED_CMS_PAGES, SEED_CMS_PAGE_BLOCK_ACLS, SEED_CMS_PUBLISH_TASKS, SEED_CMS_PUBLISH_ARTIFACTS, SEED_CMS_DISTRIBUTION_TASKS, SEED_CMS_DISTRIBUTION_TASK_ITEMS } from '@zenith/shared';
 import { buildSearchVector } from '../services/cms/cms-search.service';
+import { extractCmsResourceRefFields } from '../lib/cms-resource-uri';
 
 const require = createRequire(import.meta.url);
 
@@ -907,8 +908,8 @@ async function seedRest() {
   await db.execute(sql`SELECT setval('cms_tags_id_seq', GREATEST((SELECT MAX(id) FROM cms_tags), 1))`);
 
   await db.insert(cmsContents).values(
-    SEED_CMS_CONTENTS.map(({ id, siteId, channelId, modelId, contentType, mediaData, title, subTitle, shortTitle, slug, summary, coverImage, coverThumb, author, editor, source, sourceUrl, isOriginal, body, extend, externalLink, isTop, topWeight, isRecommend, isHot, hasImage, hasVideo, hasAttachment, status, publishedAt, viewCount, sort, seoTitle, seoKeywords, seoDescription, socialImageAlt, twitterCreator, mappingSourceId, distributionRuleId, distributionSourceId, distributionSourceVersion, lockedAt, lockedBy, lockReason }) => ({
-      id, siteId, channelId, modelId, contentType, mediaData: mediaData as Record<string, unknown>, title, subTitle, shortTitle, slug, summary, coverImage, coverThumb, author, editor, source, sourceUrl, isOriginal, body, extend, externalLink, isTop, topWeight, isRecommend, isHot, status,
+    SEED_CMS_CONTENTS.map(({ id, siteId, channelId, modelId, contentType, mediaData, title, subTitle, shortTitle, slug, summary, coverImage, author, editor, source, sourceUrl, isOriginal, body, extend, externalLink, isTop, topWeight, isRecommend, isHot, hasImage, hasVideo, hasAttachment, status, publishedAt, viewCount, sort, seoTitle, seoKeywords, seoDescription, socialImageAlt, twitterCreator, mappingSourceId, distributionRuleId, distributionSourceId, distributionSourceVersion, lockedAt, lockedBy, lockReason }) => ({
+      id, siteId, channelId, modelId, contentType, mediaData: mediaData as Record<string, unknown>, title, subTitle, shortTitle, slug, summary, coverImage, author, editor, source, sourceUrl, isOriginal, body, extend, externalLink, isTop, topWeight, isRecommend, isHot, status,
       hasImage: hasImage ?? false, hasVideo: hasVideo ?? false, hasAttachment: hasAttachment ?? false,
       publishedAt: publishedAt ? new Date(publishedAt) : null,
       viewCount, sort, seoTitle, seoKeywords, seoDescription, socialImageAlt, twitterCreator,
@@ -1031,9 +1032,30 @@ async function seedRest() {
   await db.execute(sql`SELECT setval('cms_resource_folders_id_seq', GREATEST((SELECT MAX(id) FROM cms_resource_folders), 1))`);
 
   await db.insert(cmsResources).values(
-    SEED_CMS_RESOURCES.map(({ id, siteId, folderId, type, name, url, thumbUrl, fileId, size, width, height, mimeType, remark }) => ({ id, siteId, folderId, type, name, url, thumbUrl, fileId, size, width, height, mimeType, remark })),
+    SEED_CMS_RESOURCES.map(({ id, siteId, folderId, type, name, url, thumbUrl, fileId, ownsFile, size, width, height, mimeType, remark }) => ({ id, siteId, folderId, type, name, url, thumbUrl, fileId, ownsFile, size, width, height, mimeType, remark })),
   ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_resources_id_seq', GREATEST((SELECT MAX(id) FROM cms_resources), 1))`);
+
+  // 素材反向引用索引：与内容/栏目等写入路径同源，用同一套提取逻辑保证种子数据与运行时一致
+  const cmsResourceRefRows = SEED_CMS_CONTENTS.flatMap((content) =>
+    extractCmsResourceRefFields({
+      coverImage: content.coverImage,
+      body: content.body,
+      mediaData: content.mediaData,
+      extend: content.extend,
+      attachments: content.attachments,
+      externalLink: content.externalLink,
+      sourceUrl: content.sourceUrl,
+    }).map(({ field, resourceId }) => ({
+      siteId: content.siteId,
+      resourceId,
+      ownerType: 'content' as const,
+      ownerId: content.id,
+      field,
+    })));
+  if (cmsResourceRefRows.length > 0) {
+    await db.insert(cmsResourceRefs).values(cmsResourceRefRows).onConflictDoNothing();
+  }
 
   await db.insert(cmsSearchWords).values(
     SEED_CMS_SEARCH_WORDS.map(({ id, siteId, word, type, groupName, weight, status, remark }) => ({ id, siteId, word, type, groupName, weight, status, remark })),

@@ -66,9 +66,10 @@ import {
   decideCmsDistributionConflict,
 } from './cms-distribution-policy';
 import { sanitizeCmsHtml } from './cms-html-sanitizer';
+import { adoptCmsResourcesIntoSite, canonicalizeCmsResourceFields, syncCmsResourceRefs } from './cms-resource-refs.service';
 import { buildSearchVector } from './cms-search.service';
 import {
-  resolveContentBodyExtend,
+  getContentBodyExtendRaw,
   offlineCmsContent,
   updateCmsContent,
 } from './cms-contents.service';
@@ -347,13 +348,19 @@ export async function deleteCmsDistributionRule(id: number): Promise<void> {
       if (content.mappingSourceId == null) continue;
       const source = sourceById.get(content.mappingSourceId);
       const origin = source?.mappingSourceId ? sourceById.get(source.mappingSourceId) : source;
-      await tx.update(cmsContents).set({
-        body: sanitizeCmsHtml(origin?.body ?? content.body),
-        extend: origin?.extend ?? content.extend ?? {},
+      const [materializedRow] = await tx.update(cmsContents).set({
+        ...await adoptCmsResourcesIntoSite(tx, content.siteId, {
+          body: sanitizeCmsHtml(origin?.body ?? content.body),
+          extend: origin?.extend ?? content.extend ?? {},
+        }),
         mappingSourceId: null,
         distributionRuleId: null,
         version: sql`${cmsContents.version} + 1`,
-      }).where(eq(cmsContents.id, content.id));
+      }).where(eq(cmsContents.id, content.id)).returning();
+      // 正文从来源转移到本行，引用索引要跟着搬家，否则来源删除后素材被判为孤立
+      if (materializedRow) {
+        await syncCmsResourceRefs(tx, 'content', materializedRow.id, materializedRow.siteId, materializedRow);
+      }
       await logContentOp(tx, content.id, 'updated', `分发规则 #${id} 删除，映射已物化为独立内容`);
     }
     const [deleted] = await tx.delete(cmsDistributionRules).where(eq(cmsDistributionRules.id, id)).returning();
@@ -467,7 +474,6 @@ function updatePatch(source: CmsContentRow, body: string, mode: CmsDistributionM
     shortTitle: source.shortTitle,
     summary: source.summary,
     coverImage: source.coverImage,
-    coverThumb: source.coverThumb,
     author: source.author,
     editor: source.editor,
     source: source.source,
@@ -505,27 +511,35 @@ async function createMaterializedContent(
       isNull(cmsContents.deletedAt),
     )).limit(1);
     if (existing) return tx.select().from(cmsContents).where(eq(cmsContents.id, existing.id)).limit(1);
+    // 跨站复制：把来源站素材登记到目标站并改写句柄，让每个站点只引用自己的素材行
+    const media = await adoptCmsResourcesIntoSite(tx, rule.targetSiteId, {
+      coverImage: source.coverImage,
+      mediaData: source.mediaData ?? {},
+      body: rule.mode === 'mapping' ? null : body,
+      extend: rule.mode === 'mapping' ? {} : extend,
+      externalLink: source.externalLink,
+      sourceUrl: source.sourceUrl,
+    });
     const rows = await tx.insert(cmsContents).values({
       siteId: rule.targetSiteId,
       channelId: rule.targetChannelId,
       modelId: targetChannel.modelId ?? null,
       contentType: source.contentType,
-      mediaData: source.mediaData ?? {},
+      mediaData: media.mediaData,
       title: source.title,
       subTitle: source.subTitle,
       shortTitle: source.shortTitle,
       slug,
       summary: source.summary,
-      coverImage: source.coverImage,
-      coverThumb: source.coverThumb,
+      coverImage: media.coverImage,
       author: source.author,
       editor: source.editor,
       source: source.source,
-      sourceUrl: source.sourceUrl,
+      sourceUrl: media.sourceUrl,
       isOriginal: false,
-      body: rule.mode === 'mapping' ? null : body,
-      extend: rule.mode === 'mapping' ? {} : extend,
-      externalLink: source.externalLink,
+      body: media.body,
+      extend: media.extend,
+      externalLink: media.externalLink,
       detailTemplate: null,
       isTop: false,
       topWeight: 0,
@@ -558,6 +572,7 @@ async function createMaterializedContent(
       }),
     }).returning();
     await logContentOp(tx, rows[0].id, 'created', `分发规则 #${rule.id} 从内容 #${source.id} 创建草稿`);
+    await syncCmsResourceRefs(tx, 'content', rows[0].id, rows[0].siteId, rows[0]);
     return rows;
   });
   return created;
@@ -571,25 +586,39 @@ async function synchronizeExisting(
   extend: Record<string, unknown>,
 ) {
   assertCmsContentUnlocked(target);
-  const patch = updatePatch(source, body, rule.mode);
+  // updatePatch 还带着 coverImage / mediaData / externalLink / sourceUrl 四个素材字段，
+  // 它们已是来源站句柄，归一化对句柄是 no-op，因此必须整体跨站登记后再交给 updateCmsContent，
+  // 否则每次同步都会把这些字段回退成来源站句柄，来源站删除时目标站封面与图集集体变空
+  const patch = await adoptCmsResourcesIntoSite(db, rule.targetSiteId, updatePatch(source, body, rule.mode));
   patch.expectedVersion = target.version;
   await updateCmsContent(target.id, patch, { suppressDistributionSideEffects: true });
   const mappingSourceId = rule.mode === 'mapping' ? (source.mappingSourceId ?? source.id) : null;
-  const [updated] = await db.update(cmsContents).set({
-    mappingSourceId,
-    ...(rule.mode === 'mapping' ? { body: null, extend: {} } : { body, extend }),
-    distributionRuleId: rule.id,
-    distributionSourceId: source.id,
-    distributionSourceVersion: source.version,
-    searchVector: buildSearchVector({
-      siteId: rule.targetSiteId,
-      title: source.title,
-      seoKeywords: source.seoKeywords,
-      summary: source.summary,
-      body,
-      extendTexts: Object.values(extend).filter((value): value is string => typeof value === 'string'),
-    }),
-  }).where(eq(cmsContents.id, target.id)).returning();
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx.update(cmsContents).set({
+      mappingSourceId,
+      // 本次写入会覆盖 updateCmsContent 刚落的 body/extend，因此必须在同一事务内重建引用索引
+      ...(rule.mode === 'mapping'
+        ? { body: null, extend: {} }
+        : await adoptCmsResourcesIntoSite(
+            tx,
+            rule.targetSiteId,
+            await canonicalizeCmsResourceFields(tx, rule.targetSiteId, { body, extend }, 'content'),
+          )),
+      distributionRuleId: rule.id,
+      distributionSourceId: source.id,
+      distributionSourceVersion: source.version,
+      searchVector: buildSearchVector({
+        siteId: rule.targetSiteId,
+        title: source.title,
+        seoKeywords: source.seoKeywords,
+        summary: source.summary,
+        body,
+        extendTexts: Object.values(extend).filter((value): value is string => typeof value === 'string'),
+      }),
+    }).where(eq(cmsContents.id, target.id)).returning();
+    await syncCmsResourceRefs(tx, 'content', row.id, row.siteId, row);
+    return row;
+  });
   await logContentOp(db, target.id, 'updated', `分发规则 #${rule.id} 同步来源内容 #${source.id} v${source.version}`);
   return updated;
 }
@@ -608,7 +637,8 @@ async function synchronizeOne(
   if (source.status !== 'published' || source.deletedAt || source.archivedAt) {
     return { outcome: 'skipped', targetContentId: null, message: '来源内容已不再满足已发布条件' };
   }
-  const resolved = await resolveContentBodyExtend(source);
+  // 分发保留素材句柄：目标站沿用同一素材引用，来源站删除素材时会被删除保护拦下
+  const resolved = await getContentBodyExtendRaw(source);
   const body = sanitizeCmsHtml(resolved.body);
   const extend = resolved.extend;
   const [tracked] = await db.select().from(cmsContents).where(and(
@@ -689,21 +719,29 @@ async function detachStaleMapping(
   if (target.status === 'published') await offlineCmsContent(target.id);
   const body = sanitizeCmsHtml(source?.body ?? target.body);
   const extend = source?.extend ?? target.extend ?? {};
-  const [updated] = await db.update(cmsContents).set({
-    body,
-    extend,
-    mappingSourceId: null,
-    distributionSourceVersion: source?.version ?? target.distributionSourceVersion,
-    version: sql`${cmsContents.version} + 1`,
-    searchVector: buildSearchVector({
-      siteId: target.siteId,
-      title: target.title,
-      seoKeywords: target.seoKeywords,
-      summary: target.summary,
-      body,
-      extendTexts: Object.values(extend).filter((value): value is string => typeof value === 'string'),
-    }),
-  }).where(and(eq(cmsContents.id, target.id), isNull(cmsContents.lockedAt))).returning();
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx.update(cmsContents).set({
+      // 物化后正文归本行所有，与引用索引一并在事务内落定
+      ...await adoptCmsResourcesIntoSite(
+        tx,
+        target.siteId,
+        await canonicalizeCmsResourceFields(tx, target.siteId, { body, extend }, 'content'),
+      ),
+      mappingSourceId: null,
+      distributionSourceVersion: source?.version ?? target.distributionSourceVersion,
+      version: sql`${cmsContents.version} + 1`,
+      searchVector: buildSearchVector({
+        siteId: target.siteId,
+        title: target.title,
+        seoKeywords: target.seoKeywords,
+        summary: target.summary,
+        body,
+        extendTexts: Object.values(extend).filter((value): value is string => typeof value === 'string'),
+      }),
+    }).where(and(eq(cmsContents.id, target.id), isNull(cmsContents.lockedAt))).returning();
+    if (row) await syncCmsResourceRefs(tx, 'content', row.id, row.siteId, row);
+    return row;
+  });
   if (!updated) throw new HTTPException(409, { message: '目标内容锁状态已变化' });
   await logContentOp(
     db,

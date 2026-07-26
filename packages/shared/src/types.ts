@@ -1,4 +1,4 @@
-import type { AiProvider, AiAgentStatus, OAuthProviderType, PaymentChannel, PaymentMethod, PaymentOrderStatus, PaymentRefundStatus, PaymentRefundApprovalStatus, PaymentReconStatus, PaymentReconResult, PaymentReconHandleStatus, PaymentWebhookDeliveryStatus, PaymentLedgerDirection, PaymentLedgerType, PaymentSettlementStatus, PaymentSharingReceiverType, PaymentSharingOrderStatus, PaymentLinkStatus, PaymentRiskScope, PaymentRiskAction, PaymentRiskDimension, PaymentRiskReviewStatus, PaymentTransferStatus, PaymentDeductPeriod, PaymentContractStatus, PaymentDisputeType, PaymentDisputeStatus, PaymentPreauthStatus, MemberStatus, PointTxType, WalletTxType, CouponType, CouponValidType, CouponTemplateStatus, MemberCouponStatus, WorkflowFormType } from './constants';
+import type { AiProvider, AiAgentStatus, OAuthProviderType, PaymentChannel, PaymentMethod, PaymentOrderStatus, PaymentRefundStatus, PaymentRefundApprovalStatus, PaymentReconStatus, PaymentReconResult, PaymentReconHandleStatus, PaymentWebhookDeliveryStatus, PaymentLedgerDirection, PaymentLedgerType, PaymentSettlementStatus, PaymentSharingReceiverType, PaymentSharingOrderStatus, PaymentLinkStatus, PaymentRiskScope, PaymentRiskAction, PaymentRiskDimension, PaymentRiskReviewStatus, PaymentTransferStatus, PaymentDeductPeriod, PaymentContractStatus, PaymentDisputeType, PaymentDisputeStatus, PaymentPreauthStatus, MemberStatus, PointTxType, WalletTxType, CouponType, CouponValidType, CouponTemplateStatus, MemberCouponStatus, WorkflowFormType, CmsResourceOwnerType } from './constants';
 import { REPORT_DASHBOARD_LIFECYCLE_STATUSES, REPORT_DASHBOARD_VERSION_SOURCES } from './constants';
 
 export type EntityStatus = 'enabled' | 'disabled';
@@ -10736,7 +10736,7 @@ export interface CmsContent {
   slug: string | null;
   summary: string | null;
   coverImage: string | null;
-  /** 封面缩略图（上传管线生成；空 = 前台回退原图） */
+  /** 封面缩略图（由封面素材派生，非入参；素材被替换后自动跟随） */
   coverThumb: string | null;
   author: string | null;
   /** 责任编辑 */
@@ -11196,14 +11196,17 @@ export interface CmsResource {
   height: number | null;
   mimeType: string | null;
   remark: string | null;
-  /** 站内引用数（列表 JOIN 后附加，可选） */
+  /** false = 仅引用登记（文件由文件中心/来源站点持有），删除素材不会删除物理文件 */
+  ownsFile: boolean;
+  /** 站内引用数（列表按 cms_resource_refs 聚合后附加，可选） */
+  refCount?: number;
   createdAt: string;
   updatedAt: string;
 }
 
 /** 素材引用位置（删除前校验 / 引用查询） */
 export interface CmsResourceReference {
-  kind: 'site' | 'content' | 'channel' | 'fragment' | 'friendLink' | 'ad' | 'page' | 'form' | 'theme';
+  kind: CmsResourceOwnerType;
   id: number;
   title: string;
   field: string;

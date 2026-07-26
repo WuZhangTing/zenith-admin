@@ -18,11 +18,11 @@ import {
   cmsResourceKeys, useCmsResourceList, useCmsResourceReferences,
   useUploadCmsResource, useUpdateCmsResource, useCropCmsResource, useDeleteCmsResources,
   useCmsResourceFolders, useSaveCmsResourceFolder, useDeleteCmsResourceFolder,
-  useCmsResourceGovernance, useMoveCmsResources,
+  useCmsResourceGovernance, useMoveCmsResources, useReplaceCmsResource, useRebuildCmsResourceRefs,
 } from '@/hooks/queries/cms';
 import { useMyAsyncTasks } from '@/hooks/useAsyncTasks';
-import { CMS_RESOURCE_TYPE_LABELS, CMS_RESOURCE_TYPES } from '@zenith/shared';
-import type { CmsResource, CmsResourceFolder, CmsResourceReference, CmsResourceType } from '@zenith/shared';
+import { CMS_RESOURCE_OWNER_TYPE_LABELS, CMS_RESOURCE_TYPE_LABELS, CMS_RESOURCE_TYPES } from '@zenith/shared';
+import type { CmsResource, CmsResourceFolder, CmsResourceType } from '@zenith/shared';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { formatDateTimeForApi } from '@/utils/date';
 
@@ -30,9 +30,7 @@ const TYPE_COLORS: Record<CmsResourceType, 'blue' | 'purple' | 'cyan' | 'orange'
   image: 'blue', video: 'purple', audio: 'cyan', document: 'orange', other: 'grey',
 };
 
-const REFERENCE_KIND_LABELS: Record<CmsResourceReference['kind'], string> = {
-  site: '站点', content: '内容', channel: '栏目', fragment: '碎片', friendLink: '友情链接', ad: '广告', page: '页面', form: '表单', theme: '主题',
-};
+const REFERENCE_KIND_LABELS = CMS_RESOURCE_OWNER_TYPE_LABELS;
 
 function formatSize(bytes: number): string {
   if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(1)} MB`;
@@ -221,6 +219,8 @@ export default function ResourcesPage() {
   const [editingFolder, setEditingFolder] = useState<CmsResourceFolder | null>(null);
   const folderFormApi = useRef<FormApi | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const replaceInputRef = useRef<HTMLInputElement>(null);
+  const [replaceTarget, setReplaceTarget] = useState<CmsResource | null>(null);
 
   const folderId = folderKey === 'all' ? undefined : Number(folderKey);
   const listQuery = useCmsResourceList({ page, pageSize, siteId: siteId ?? 0, type, keyword, folderId }, siteId !== undefined);
@@ -232,7 +232,9 @@ export default function ResourcesPage() {
   const deleteFolderMutation = useDeleteCmsResourceFolder();
   const governanceMutation = useCmsResourceGovernance();
   const moveMutation = useMoveCmsResources();
-  const { tasks, loading: tasksLoading, refresh: refreshTasks } = useMyAsyncTasks({ taskTypes: ['cms-resource-governance'] });
+  const replaceMutation = useReplaceCmsResource();
+  const rebuildRefsMutation = useRebuildCmsResourceRefs();
+  const { tasks, loading: tasksLoading, refresh: refreshTasks } = useMyAsyncTasks({ taskTypes: ['cms-resource-governance', 'cms-resource-ref-rebuild'] });
 
   const canUpload = hasPermission('cms:resource:upload');
   const canUpdate = hasPermission('cms:resource:update');
@@ -265,6 +267,23 @@ export default function ResourcesPage() {
     if (!file || siteId === undefined) return;
     await uploadMutation.mutateAsync({ siteId, folderId: folderId && folderId > 0 ? folderId : undefined, file });
     Toast.success('上传成功');
+  }
+
+  async function handleReplaceFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    const target = replaceTarget;
+    setReplaceTarget(null);
+    if (!file || !target) return;
+    await replaceMutation.mutateAsync({ id: target.id, file });
+    Toast.success('替换成功，引用该素材的位置已自动指向新文件');
+  }
+
+  async function submitRebuildRefs() {
+    if (!siteId) return;
+    await rebuildRefsMutation.mutateAsync({ siteId });
+    Toast.success('引用索引重建任务已提交');
+    void refreshTasks();
   }
 
   async function submitFolder() {
@@ -337,12 +356,21 @@ export default function ResourcesPage() {
       render: (_: number | null, record: CmsResource) => (record.width && record.height ? `${record.width}×${record.height}` : '-'),
     },
     { title: '大小', dataIndex: 'size', width: 100, render: (v: number) => formatSize(v) },
+    {
+      title: '引用数', dataIndex: 'refCount', width: 90,
+      render: (v: number | undefined) => (v ? <Tag size="small" color="blue">{v}</Tag> : <Tag size="small" color="grey">孤立</Tag>),
+    },
     { title: '上传时间', dataIndex: 'createdAt', width: 170 },
     createOperationColumn<CmsResource>({
-      width: 220,
-      desktopInlineKeys: ['references', 'crop', 'rename', 'delete'],
+      width: 260,
+      desktopInlineKeys: ['references', 'replace', 'crop', 'rename', 'delete'],
       actions: (record) => [
         { key: 'references', label: '引用', onClick: () => setRefsTarget(record) },
+        ...(canUpdate ? [{
+          key: 'replace',
+          label: '替换',
+          onClick: () => { setReplaceTarget(record); replaceInputRef.current?.click(); },
+        }] : []),
         ...(canUpdate && record.type === 'image' && record.fileId ? [{
           key: 'crop', label: '裁剪', onClick: () => setCropTarget(record),
         }] : []),
@@ -460,6 +488,7 @@ export default function ResourcesPage() {
               ) : null}
             </SearchToolbar>
             <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={(e) => void handleUploadFile(e)} />
+            <input ref={replaceInputRef} type="file" style={{ display: 'none' }} onChange={(e) => void handleReplaceFile(e)} />
             <ConfigurableTable
               bordered
               columns={columns}
@@ -490,6 +519,15 @@ export default function ResourcesPage() {
                     });
                   }}>清理孤立素材</Button>
                 </>
+              ) : null}
+              {siteId && canUpdate ? (
+                <Button onClick={() => {
+                  Modal.confirm({
+                    title: '重建素材引用索引？',
+                    content: '引用索引由内容写入时实时维护，一般无需重建。存量数据首次接入或怀疑索引漂移时使用。',
+                    onOk: () => submitRebuildRefs(),
+                  });
+                }}>重建引用索引</Button>
               ) : null}
               <DatePicker type="dateTime" value={governanceStart} onChange={(value) => setGovernanceStart(value as Date | undefined)} placeholder="治理开始时间" />
               <DatePicker type="dateTime" value={governanceEnd} onChange={(value) => setGovernanceEnd(value as Date | undefined)} placeholder="治理结束时间" />

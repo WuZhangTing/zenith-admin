@@ -18,6 +18,7 @@ import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
 import { assertChannelAccess, getAccessibleChannelIds } from './cms-channels.service';
 import { hasPermission } from '../../lib/context';
 import { sanitizeCmsHtml } from './cms-html-sanitizer';
+import { canonicalizeCmsResourceFields, syncCmsResourceRefs } from './cms-resource-refs.service';
 import { publishCmsContent } from './cms-contents.service';
 import { requireCmsCollectPublishPermission } from './cms-collect-policy';
 
@@ -368,18 +369,30 @@ export function registerCmsCollectTaskHandler(): void {
             bodyHtml = await localizeArticleImages(bodyHtml, operatorId);
           }
           bodyHtml = sanitizeCmsHtml(bodyHtml);
-          const [content] = await db.insert(cmsContents).values({
-            siteId: rule.siteId,
-            channelId: rule.channelId,
-            modelId: channel.modelId ?? null,
-            title: article.title,
-            summary: article.summary,
-            coverImage: article.coverImage,
-            body: bodyHtml,
-            source: '采集',
-            status: 'draft',
-            searchVector: buildSearchVector({ siteId: rule.siteId, title: article.title, summary: article.summary, body: bodyHtml, seoKeywords: null, extendTexts: [] }),
-          }).returning({ id: cmsContents.id });
+          // 图片本地化后地址落在文件中心，这里连同封面一起归一为素材句柄并登记引用，
+          // 否则采集入库的图片对素材治理不可见
+          const content = await db.transaction(async (tx) => {
+            const canonical = await canonicalizeCmsResourceFields(
+              tx,
+              rule.siteId,
+              { body: bodyHtml, coverImage: article.coverImage },
+              'content',
+            );
+            const [row] = await tx.insert(cmsContents).values({
+              siteId: rule.siteId,
+              channelId: rule.channelId,
+              modelId: channel.modelId ?? null,
+              title: article.title,
+              summary: article.summary,
+              coverImage: canonical.coverImage,
+              body: canonical.body,
+              source: '采集',
+              status: 'draft',
+              searchVector: buildSearchVector({ siteId: rule.siteId, title: article.title, summary: article.summary, body: bodyHtml, seoKeywords: null, extendTexts: [] }),
+            }).returning();
+            await syncCmsResourceRefs(tx, 'content', row.id, row.siteId, row);
+            return row;
+          });
           if (rule.autoPublish) await publishCmsContent(content.id);
           await db.insert(cmsCollectItems).values({
             ruleId: rule.id,

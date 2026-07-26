@@ -14,6 +14,7 @@ import { cmsPageRequiresDynamic, sanitizeCmsPageBlocks } from './cms-page-blocks
 import type { DbExecutor } from '../../db/types';
 import { bumpCmsTemplateRefsRevision, lockCmsSiteForMutation } from './cms-site-publish-lock.service';
 import { enqueueCmsPublishOutboxes, insertCmsSiteRefsRebuildOutbox } from './cms-publish-outbox.service';
+import { canonicalizeCmsResourceContent, deleteCmsResourceRefsForOwner, syncCmsResourceRefs, resolveCmsResourcePayload } from './cms-resource-refs.service';
 import {
   assertCmsPageBlocksUpdateAllowed,
   decorateCmsPageBlocks,
@@ -62,7 +63,7 @@ export async function getCmsPage(id: number) {
   const [row] = await db.select().from(cmsPages).where(eq(cmsPages.id, id)).limit(1);
   if (!row) throw new HTTPException(404, { message: '页面不存在' });
   await assertSiteAccess(row.siteId);
-  return mapCmsPage(row, await decorateCmsPageBlocks(row));
+  return resolveCmsResourcePayload(mapCmsPage(row, await decorateCmsPageBlocks(row)));
 }
 
 const SLUG_RE = /^[a-z0-9-]+$/;
@@ -124,9 +125,10 @@ export async function createCmsPage(input: CmsPageInput) {
       if (input.isHome) await clearOtherHome(tx, input.siteId);
       const [row] = await tx.insert(cmsPages).values({
         ...input,
-        ...(blocks ? { blocks } : {}),
+        ...(blocks ? { blocks: await canonicalizeCmsResourceContent(tx, input.siteId, blocks) } : {}),
         requiresDynamic,
       }).returning();
+      await syncCmsResourceRefs(tx, 'page', row.id, row.siteId, row);
       const revision = await bumpCmsTemplateRefsRevision(tx, input.siteId);
       const task = await insertCmsSiteRefsRebuildOutbox(
         tx,
@@ -169,11 +171,12 @@ export async function updateCmsPage(id: number, input: Partial<CmsPageInput>) {
       if (rest.isHome) await clearOtherHome(tx, current.siteId, id);
       const [row] = await tx.update(cmsPages).set({
         ...rest,
-        ...(blocks ? { blocks } : {}),
+        ...(blocks ? { blocks: await canonicalizeCmsResourceContent(tx, current.siteId, blocks) } : {}),
         requiresDynamic,
       }).where(and(
         eq(cmsPages.id, id),
       )).returning();
+      await syncCmsResourceRefs(tx, 'page', row.id, row.siteId, row);
       if (blocks) {
         const blockIds = blocks.map((block) => block.id);
         await tx.delete(cmsPageBlockAcls).where(and(
@@ -206,6 +209,7 @@ export async function deleteCmsPage(id: number) {
   const mutation = await db.transaction(async (tx) => {
     const site = await lockCmsSiteForMutation(tx, current.siteId);
     await tx.delete(cmsPages).where(eq(cmsPages.id, id));
+    await deleteCmsResourceRefsForOwner(tx, 'page', [id]);
     const revision = await bumpCmsTemplateRefsRevision(tx, current.siteId);
     const task = await insertCmsSiteRefsRebuildOutbox(
       tx,

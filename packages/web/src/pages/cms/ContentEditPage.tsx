@@ -247,11 +247,6 @@ export default function ContentEditPage() {
     },
   });
 
-  // 封面缩略图跟踪：上传时随 thumbUrl 更新；手动改 URL/媒体库选择时清空（防错配）
-  const coverThumbRef = useRef<string | null>(null);
-  const coverProgrammaticRef = useRef(false);
-  const lastCoverImageRef = useRef<string>('');
-
   // ─── 编辑锁 / 乐观锁 / 自动保存状态 ─────────────────────────────────────────
   const [lockHolder, setLockHolder] = useState<CmsEditLock['holder']>(null);
   const [autoSavedAt, setAutoSavedAt] = useState<string | null>(null);
@@ -280,8 +275,6 @@ export default function ContentEditPage() {
       setExternalLink(detail.externalLink ?? '');
       setAlbumImages(Array.isArray(detail.mediaData?.images) ? detail.mediaData.images.map((img) => ({ ...img })) : []);
       setAttachments(Array.isArray(detail.attachments) ? detail.attachments.map((a) => ({ ...a })) : []);
-      coverThumbRef.current = detail.coverThumb ?? null;
-      lastCoverImageRef.current = detail.coverImage ?? '';
     }
   }, [detail]);
 
@@ -441,8 +434,6 @@ export default function ContentEditPage() {
     delete payload.mediaUrl;
     delete payload.mediaPoster;
     delete payload.mediaDuration;
-    // 封面缩略图（随上传更新；封面清空则一并清空）
-    payload.coverThumb = values.coverImage ? coverThumbRef.current : null;
     // 映射内容：正文/扩展字段共享来源，不随保存提交（服务端也会拒绝）
     if (isMapped) {
       delete payload.body;
@@ -615,13 +606,6 @@ export default function ContentEditPage() {
             dirtyRef.current = true;
             if (values.channelId !== selectedChannelId) setSelectedChannelId(values.channelId as number);
             setExternalLink((values.externalLink as string) ?? '');
-            // 封面 URL 手动变更（非上传回填）时清空缩略图，防止图不对版
-            const cover = (values.coverImage as string) ?? '';
-            if (cover !== lastCoverImageRef.current) {
-              if (!coverProgrammaticRef.current) coverThumbRef.current = null;
-              coverProgrammaticRef.current = false;
-              lastCoverImageRef.current = cover;
-            }
           }}
           labelPosition="top"
           className="cms-content-edit__form"
@@ -906,8 +890,6 @@ export default function ContentEditPage() {
                               const res = await request.postForm<{ url: string; thumbUrl: string | null; watermarked: boolean }>(
                                 `/api/cms/upload-image?siteId=${siteId}`, formData,
                               ).then(unwrap);
-                              coverProgrammaticRef.current = true;
-                              coverThumbRef.current = res.thumbUrl ?? null;
                               formApi.current?.setValue('coverImage', res.url);
                               dirtyRef.current = true;
                               Toast.success(res.watermarked ? '上传成功（已加水印）' : '上传成功');
@@ -1043,8 +1025,6 @@ export default function ContentEditPage() {
         visible={coverPickerVisible}
         onCancel={() => setCoverPickerVisible(false)}
         onSelect={(file) => {
-          coverProgrammaticRef.current = true;
-          coverThumbRef.current = null;
           formApi.current?.setValue('coverImage', file.url);
           dirtyRef.current = true;
           setCoverPickerVisible(false);
