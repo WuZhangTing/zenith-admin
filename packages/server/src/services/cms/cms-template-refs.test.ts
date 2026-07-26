@@ -9,31 +9,31 @@ describe('pruneStaleTemplateDefaults', () => {
   const withDefaults = (defaultTemplates: unknown) => ({ defaultTemplates });
 
   it('剔除本次未改动、且主题中已不存在的模板引用', () => {
-    const previous = withDefaults({ pc: { list: 'list-editorial', detail: 'detail-editorial' } });
-    const merged = withDefaults({ pc: { list: 'list-editorial', detail: 'detail-editorial' } });
+    const previous = withDefaults({ list: 'list-editorial', detail: 'detail-editorial' });
+    const merged = withDefaults({ list: 'list-editorial', detail: 'detail-editorial' });
 
     const { settings, removed } = pruneStaleTemplateDefaults('default', merged, previous);
 
     expect(settings.defaultTemplates).toEqual({});
     expect(removed).toEqual([
-      '[pc]列表模板「list-editorial」',
-      '[pc]详情模板「detail-editorial」',
+      '列表模板「list-editorial」',
+      '详情模板「detail-editorial」',
     ]);
   });
 
   it('保留本次新提交的失效模板名，交由校验层抛错（保住拼写错误反馈）', () => {
     const previous = withDefaults({});
-    const merged = withDefaults({ pc: { list: 'list-typo' } });
+    const merged = withDefaults({ list: 'list-typo' });
 
     const { settings, removed } = pruneStaleTemplateDefaults('default', merged, previous);
 
-    expect(settings.defaultTemplates).toEqual({ pc: { list: 'list-typo' } });
+    expect(settings.defaultTemplates).toEqual({ list: 'list-typo' });
     expect(removed).toEqual([]);
   });
 
   it('模板名本次被改动时不静默摘除，即使新值同样失效', () => {
-    const previous = withDefaults({ pc: { list: 'list-editorial' } });
-    const merged = withDefaults({ pc: { list: 'list-another-missing' } });
+    const previous = withDefaults({ list: 'list-editorial' });
+    const merged = withDefaults({ list: 'list-another-missing' });
 
     const { removed } = pruneStaleTemplateDefaults('default', merged, previous);
 
@@ -41,7 +41,7 @@ describe('pruneStaleTemplateDefaults', () => {
   });
 
   it('有效模板引用原样保留，且返回原对象引用避免无谓写入', () => {
-    const merged = withDefaults({ pc: { list: 'list-card', detail: 'detail-plain' } });
+    const merged = withDefaults({ list: 'list-card', detail: 'detail-plain' });
 
     const result = pruneStaleTemplateDefaults('default', merged, merged);
 
@@ -50,17 +50,17 @@ describe('pruneStaleTemplateDefaults', () => {
   });
 
   it('按模型维度的详情模板同样自愈，且不影响同组有效项', () => {
-    const previous = withDefaults({ pc: { detailByModel: { article: 'detail-editorial', product: 'detail-plain' } } });
-    const merged = withDefaults({ pc: { detailByModel: { article: 'detail-editorial', product: 'detail-plain' } } });
+    const previous = withDefaults({ detailByModel: { article: 'detail-editorial', product: 'detail-plain' } });
+    const merged = withDefaults({ detailByModel: { article: 'detail-editorial', product: 'detail-plain' } });
 
     const { settings, removed } = pruneStaleTemplateDefaults('default', merged, previous);
 
-    expect(settings.defaultTemplates).toEqual({ pc: { detailByModel: { product: 'detail-plain' } } });
-    expect(removed).toEqual(['[pc]article 详情模板「detail-editorial」']);
+    expect(settings.defaultTemplates).toEqual({ detailByModel: { product: 'detail-plain' } });
+    expect(removed).toEqual(['article 详情模板「detail-editorial」']);
   });
 
   it('未注册主题不做任何处理（交由主题校验层报错）', () => {
-    const merged = withDefaults({ pc: { list: 'list-editorial' } });
+    const merged = withDefaults({ list: 'list-editorial' });
 
     const result = pruneStaleTemplateDefaults('not-a-theme', merged, merged);
 

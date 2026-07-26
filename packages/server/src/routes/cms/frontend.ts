@@ -251,7 +251,7 @@ export function createCmsFrontendRoutes(): Hono {
       if (!verifyContentPreviewToken(contentId, exp, sig)) {
         return c.text('预览链接无效或已过期', 403);
       }
-      const result = await renderContentPreviewPage(site, baseUrl, contentId, channel.code);
+      const result = await renderContentPreviewPage(site, baseUrl, contentId);
       return respond(c, result);
     }
 
@@ -288,7 +288,7 @@ export function createCmsFrontendRoutes(): Hono {
 
     // SSR 渲染（__template = 预览态模板试穿参数：仅预览路径生效；预览本就不回写静态/不写缓存，无污染风险）
     const templateOverride = isPreview ? (c.req.query('__template')?.trim() || null) : null;
-    const result = await renderSitePath(site, baseUrl, sitePath, channel.code, templateOverride, { member: memberViewer });
+    const result = await renderSitePath(site, baseUrl, sitePath, templateOverride, { member: memberViewer });
     if (result.status === 200) {
       trackVisit(result.kind, 'contentId' in result ? result.contentId : null);
       const ttl = PAGE_CACHE_TTL_BY_KIND[result.kind] ?? PAGE_CACHE_TTL_DEFAULT_SECONDS;

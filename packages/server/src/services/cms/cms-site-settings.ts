@@ -8,6 +8,15 @@ export function isSensitiveCmsSettingKey(key: string): boolean {
   return SENSITIVE_SETTING_KEY.test(key);
 }
 
+/**
+ * 整体替换而非深合并的 settings 键。
+ *
+ * `defaultTemplates` 在后台是「完整状态对象」——表单每次提交都携带全量值，清空某一项就是把它
+ * 从对象里去掉。走默认的深合并会让被清空的项保留旧值（表现为模板下拉清了也不生效），
+ * 因此该键整体替换。
+ */
+const REPLACE_SETTING_KEYS = new Set(['defaultTemplates']);
+
 function cloneRecord(value: Record<string, unknown>): Record<string, unknown> {
   return structuredClone(value);
 }
@@ -38,6 +47,7 @@ function mergeValue(existing: unknown, incoming: unknown, key: string): unknown 
     return incoming;
   }
   if (incoming && typeof incoming === 'object' && !Array.isArray(incoming)) {
+    if (REPLACE_SETTING_KEYS.has(key)) return incoming;
     const existingRecord = existing && typeof existing === 'object' && !Array.isArray(existing)
       ? existing as Record<string, unknown>
       : {};

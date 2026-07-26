@@ -10387,7 +10387,7 @@ export interface CmsSiteEffectiveConfig {
     theme: string;
     themeSourceSiteId: number | null;
     themeConfig: Record<string, unknown>;
-    defaultTemplates: Record<string, CmsSiteTemplateDefaults>;
+    defaultTemplates: CmsSiteTemplateDefaults;
   };
   sources: Record<CmsSiteInheritableField, CmsSiteInheritanceSource>;
 }
@@ -10456,7 +10456,7 @@ export interface CmsPublishChannel {
   updatedAt: string;
 }
 
-/** 站点级默认模板配置（存于 sites.settings.defaultTemplates[device]） */
+/** 站点级默认模板配置（存于 sites.settings.defaultTemplates） */
 export interface CmsSiteTemplateDefaults {
   /** 栏目列表页默认模板（空 = 主题默认） */
   list?: string | null;

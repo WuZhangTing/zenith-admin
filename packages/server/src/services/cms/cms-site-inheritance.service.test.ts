@@ -72,7 +72,7 @@ describe('CMS explicit site inheritance resolver', () => {
         auditMode: 'workflow',
         webhookUrl: 'https://hooks.example.test/cms',
         webhookSecret: 'parent-secret',
-        defaultTemplates: { pc: { list: 'root-list' } },
+        defaultTemplates: { list: 'root-list' },
       },
     }),
     site({
@@ -85,7 +85,7 @@ describe('CMS explicit site inheritance resolver', () => {
       settings: {
         auditMode: 'simple',
         webhookSecret: 'child-secret',
-        defaultTemplates: { pc: { list: 'child-list' } },
+        defaultTemplates: { list: 'child-list' },
       },
     }),
   ];
@@ -108,7 +108,7 @@ describe('CMS explicit site inheritance resolver', () => {
       auditMode: 'workflow',
       webhookUrl: 'https://hooks.example.test/cms',
       webhookSecret: 'parent-secret',
-      defaultTemplates: { pc: { list: 'root-list' } },
+      defaultTemplates: { list: 'root-list' },
     });
     expect(resolved.sourceSiteIds).toMatchObject({
       seoTitle: 2,

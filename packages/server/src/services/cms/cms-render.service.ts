@@ -28,7 +28,7 @@ import { resolveCmsFormCaptcha } from './cms-form-captcha.service';
 import { listApprovedComments } from './cms-comments.service';
 import { getActiveAds } from './cms-ads.service';
 import { getCmsFormByCode } from './cms-forms.service';
-import type { CmsChannel, CmsDeviceChannel, CmsFormField, CmsSiteTemplateDefaults } from '@zenith/shared';
+import type { CmsChannel, CmsFormField, CmsSiteTemplateDefaults } from '@zenith/shared';
 import { CMS_CONTENT_STATUS_LABELS } from '@zenith/shared';
 
 // ─── URL 规则（站点内相对路径，静态文件名与之一一对应）──────────────────────────
@@ -61,19 +61,17 @@ function renderDoc<P extends object>(component: ComponentType<P>, props: P): str
   return '<!DOCTYPE html>' + renderToStaticMarkup(createElement(component, props));
 }
 
-// ─── 模板解析链（发布通道感知）───────────────────────────────────────────────────
-/** 站点 settings.defaultTemplates 按发布通道取默认模板配置 */
-function siteTemplateDefaults(site: CmsSiteRow, device: CmsDeviceChannel): CmsSiteTemplateDefaults {
+// ─── 模板解析链 ───────────────────────────────────────────────────────────────
+/** 站点 settings.defaultTemplates */
+function siteTemplateDefaults(site: CmsSiteRow): CmsSiteTemplateDefaults {
   const settings = site.settings as Record<string, unknown> | null;
-  const all = settings?.defaultTemplates as Record<string, CmsSiteTemplateDefaults | undefined> | undefined;
-  return all?.[device] ?? {};
+  return (settings?.defaultTemplates ?? {}) as CmsSiteTemplateDefaults;
 }
 
-/** 栏目 settings.templates 按发布通道取栏目级模板覆盖（结构与站点默认一致） */
-function channelTemplateOverrides(channel: CmsChannelRow, device: CmsDeviceChannel): CmsSiteTemplateDefaults {
+/** 栏目 settings.templates：仅承载按模型细分的详情模板（通用列表/详情走 channel 的独立列） */
+function channelTemplateOverrides(channel: CmsChannelRow): CmsSiteTemplateDefaults {
   const settings = channel.settings as Record<string, unknown> | null;
-  const all = settings?.templates as Record<string, CmsSiteTemplateDefaults | undefined> | undefined;
-  return all?.[device] ?? {};
+  return (settings?.templates ?? {}) as CmsSiteTemplateDefaults;
 }
 
 // 模型 id → code 内存缓存（detailByModel 解析用；模型极少变动）
@@ -88,25 +86,22 @@ async function getModelCode(modelId: number): Promise<string | null> {
   return modelCodeCache.map.get(modelId) ?? null;
 }
 
-/** 列表模板：试穿参数（预览态） → 栏目[通道] → 栏目通用 → 站点默认[通道] → 主题默认 */
-function resolveListComponent(site: CmsSiteRow, device: CmsDeviceChannel, channel: CmsChannelRow, templateOverride?: string | null) {
+/** 列表模板：试穿参数（预览态） → 栏目 → 站点默认 → 主题默认 */
+function resolveListComponent(site: CmsSiteRow, channel: CmsChannelRow, templateOverride?: string | null) {
   const theme = getBuiltinThemeFallback(site.theme);
-  const tryOn = templateOverride || null;
-  const name = tryOn
-    || channelTemplateOverrides(channel, device).list
+  const name = (templateOverride || null)
     || channel.listTemplate
-    || siteTemplateDefaults(site, device).list
+    || siteTemplateDefaults(site).list
     || null;
   return { component: resolveListTemplate(theme, name), templateCode: name };
 }
 
 /**
- * 详情模板：试穿参数（预览态） → 内容覆盖 → 栏目[通道].detailByModel[模型] → 栏目[通道].detail → 栏目通用
- * → 站点默认[通道].detailByModel[模型] → 站点默认[通道].detail → 主题默认
+ * 详情模板：试穿参数（预览态） → 内容覆盖 → 栏目.detailByModel[模型] → 栏目详情模板
+ * → 站点默认.detailByModel[模型] → 站点默认详情模板 → 主题默认
  */
 async function resolveDetailComponent(
   site: CmsSiteRow,
-  device: CmsDeviceChannel,
   channel: CmsChannelRow,
   contentTemplate?: string | null,
   contentModelId?: number | null,
@@ -119,10 +114,10 @@ async function resolveDetailComponent(
   const modelCode = modelId ? await getModelCode(modelId) : null;
   const pickDetail = (cfg: CmsSiteTemplateDefaults): string | null => {
     if (modelCode && cfg.detailByModel?.[modelCode]) return cfg.detailByModel[modelCode] ?? null;
-    return cfg.detail ?? null;
+    return null;
   };
-  name = name || pickDetail(channelTemplateOverrides(channel, device)) || channel.detailTemplate || null;
-  name = name || pickDetail(siteTemplateDefaults(site, device)) || null;
+  name = name || pickDetail(channelTemplateOverrides(channel)) || channel.detailTemplate || null;
+  name = name || pickDetail(siteTemplateDefaults(site)) || siteTemplateDefaults(site).detail || null;
   return { component: resolveDetailTemplate(theme, name), templateCode: name };
 }
 
@@ -461,7 +456,7 @@ async function loadChannelCodeMap(siteId: number): Promise<Map<string, number>> 
   return new Map(rows.map((r) => [r.code, r.id]));
 }
 
-export async function renderChannelPage(site: CmsSiteRow, baseUrl: string, channel: CmsChannelRow, page = 1, device: CmsDeviceChannel = 'pc', templateOverride?: string | null): Promise<RenderResult> {
+export async function renderChannelPage(site: CmsSiteRow, baseUrl: string, channel: CmsChannelRow, page = 1, templateOverride?: string | null): Promise<RenderResult> {
   const theme = getBuiltinThemeFallback(site.theme);
   if (channel.type === 'link') {
     const resolved = await resolveCmsLink(site.id, baseUrl, channel.linkUrl);
@@ -503,7 +498,7 @@ export async function renderChannelPage(site: CmsSiteRow, baseUrl: string, chann
 
   const { total, rows } = await listPublishedContents(site.id, channel.id, page, channel.pageSize);
   if (page > 1 && rows.length === 0) return renderNotFound(site, baseUrl, `/${channel.path}/index_${page}.html`);
-  const resolvedList = resolveListComponent(site, device, channel, templateOverride);
+  const resolvedList = resolveListComponent(site, channel, templateOverride);
   const resolveLink = await buildCmsLinkResolver(site.id, baseUrl, rows.map((r) => r.externalLink));
   const props = {
     ...base,
@@ -561,7 +556,7 @@ export async function countContentBodyPages(row: Pick<CmsContentRow, 'body' | 'e
   return splitBodyPages(resolved.body).length;
 }
 
-export async function renderDetailPage(site: CmsSiteRow, baseUrl: string, channel: CmsChannelRow, idOrSlug: string, device: CmsDeviceChannel = 'pc', bodyPage = 1, templateOverride?: string | null, canonicalGuardPath?: string | null): Promise<RenderResult> {
+export async function renderDetailPage(site: CmsSiteRow, baseUrl: string, channel: CmsChannelRow, idOrSlug: string, bodyPage = 1, templateOverride?: string | null, canonicalGuardPath?: string | null): Promise<RenderResult> {
   const row = await getPublishedContent(site.id, channel.id, idOrSlug);
   if (!row) return renderNotFound(site, baseUrl, `/${channel.path}/${idOrSlug}.html`);
   if (row.externalLink?.trim()) {
@@ -615,7 +610,7 @@ export async function renderDetailPage(site: CmsSiteRow, baseUrl: string, channe
   const related = await buildRelatedLinks(baseUrl, relatedRows);
   const { pageBody, totalPages, extras } = buildDetailExtras(row, resolved.body, baseUrl, channel, bodyPage);
   if (bodyPage > totalPages) return renderNotFound(site, baseUrl, `/${channel.path}/${idOrSlug}_${bodyPage}.html`);
-  const detailTemplate = await resolveDetailComponent(site, device, channel, row.detailTemplate, row.modelId, templateOverride);
+  const detailTemplate = await resolveDetailComponent(site, channel, row.detailTemplate, row.modelId, templateOverride);
   const props = {
     ...base,
     channel: toChannelInfo(channel, baseUrl),
@@ -659,7 +654,7 @@ async function buildRelatedLinks(baseUrl: string, rows: CmsContentRow[]): Promis
  * 草稿预览渲染（签名链接访问，不校验发布状态）：
  * 复用详情页模板，顶部注入预览提示条；无缓存、无静态回写、无浏览计数。
  */
-export async function renderContentPreviewPage(site: CmsSiteRow, baseUrl: string, contentId: number, device: CmsDeviceChannel = 'pc'): Promise<RenderResult> {
+export async function renderContentPreviewPage(site: CmsSiteRow, baseUrl: string, contentId: number): Promise<RenderResult> {
   const [row] = await db.select().from(cmsContents)
     .where(and(eq(cmsContents.id, contentId), eq(cmsContents.siteId, site.id), isNull(cmsContents.deletedAt)))
     .limit(1);
@@ -687,7 +682,7 @@ export async function renderContentPreviewPage(site: CmsSiteRow, baseUrl: string
     getEnabledLinkWords(site.id),
     resolveContentBodyExtend(row),
   ]);
-  const previewTemplate = await resolveDetailComponent(site, device, channel, row.detailTemplate, row.modelId);
+  const previewTemplate = await resolveDetailComponent(site, channel, row.detailTemplate, row.modelId);
   const { pageBody: previewBody, extras: previewExtras } = buildDetailExtras(row, resolved.body, baseUrl, channel, 1);
   const resolveLink = await buildCmsLinkResolver(site.id, baseUrl, [row.externalLink]);
   const props = {
@@ -936,7 +931,6 @@ export async function renderSitePath(
   site: CmsSiteRow,
   baseUrl: string,
   rawPath: string,
-  device: CmsDeviceChannel = 'pc',
   templateOverride?: string | null,
   viewer?: { member?: boolean },
 ): Promise<RenderResult> {
@@ -985,7 +979,7 @@ export async function renderSitePath(
       if (!dir) return renderNotFound(site, baseUrl, `/${cleaned}`);
       const channel = await findChannelByPath(site.id, dir);
       if (!channel) return renderNotFound(site, baseUrl, `/${cleaned}`);
-      return renderChannelPage(site, baseUrl, channel, Number(pageMatch[1]), device, templateOverride);
+      return renderChannelPage(site, baseUrl, channel, Number(pageMatch[1]), templateOverride);
     }
     if (!dir) return renderNotFound(site, baseUrl, `/${cleaned}`);
     // 详情页目录可能带归档段（如 news/2026/7/5），栏目路径按最长前缀匹配后逐级剥离；
@@ -996,12 +990,12 @@ export async function renderSitePath(
     // 正文多页：{idOrSlug}_{n}.html（slug 不含下划线，无歧义）
     const bodyPageMatch = /^(.+)_(\d+)$/.exec(fileBase);
     if (bodyPageMatch && Number(bodyPageMatch[2]) >= 2) {
-      return renderDetailPage(site, baseUrl, detail, bodyPageMatch[1], device, Number(bodyPageMatch[2]), templateOverride, cleaned);
+      return renderDetailPage(site, baseUrl, detail, bodyPageMatch[1], Number(bodyPageMatch[2]), templateOverride, cleaned);
     }
-    return renderDetailPage(site, baseUrl, detail, fileBase, device, 1, templateOverride, cleaned);
+    return renderDetailPage(site, baseUrl, detail, fileBase, 1, templateOverride, cleaned);
   }
 
   const channel = await findChannelByPath(site.id, cleaned);
   if (!channel) return renderNotFound(site, baseUrl, `/${cleaned}`);
-  return renderChannelPage(site, baseUrl, channel, 1, device, templateOverride);
+  return renderChannelPage(site, baseUrl, channel, 1, templateOverride);
 }

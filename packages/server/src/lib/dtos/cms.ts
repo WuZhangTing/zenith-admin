@@ -99,7 +99,11 @@ export const CmsSiteEffectiveConfigDTO = z.object({
     theme: z.string(),
     themeSourceSiteId: z.number().int().nullable(),
     themeConfig: z.record(z.string(), z.unknown()),
-    defaultTemplates: z.record(z.string(), z.unknown()),
+    defaultTemplates: z.object({
+      list: z.string().nullish(),
+      detail: z.string().nullish(),
+      detailByModel: z.record(z.string(), z.string().nullable()).optional(),
+    }),
   }),
   sources: z.record(z.enum(CMS_SITE_INHERITABLE_FIELDS), CmsSiteInheritanceSourceDTO),
 }).openapi('CmsSiteEffectiveConfig');

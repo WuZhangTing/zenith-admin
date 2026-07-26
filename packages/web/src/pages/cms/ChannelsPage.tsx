@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Button, Dropdown, Empty, Form, Tag, Toast, Modal, Row, Col, Select, Tabs, TabPane, Tooltip, Tree, Typography } from '@douyinfe/semi-ui';
+import { Button, Dropdown, Empty, Form, Tag, Toast, Modal, Row, Col, Select, Tooltip, Tree, Typography } from '@douyinfe/semi-ui';
 import { IllustrationNoContent, IllustrationNoContentDark } from '@douyinfe/semi-illustrations';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
@@ -12,49 +12,33 @@ import RichTextEditor from '@/components/RichTextEditor';
 import { usePermission } from '@/hooks/usePermission';
 import {
   useCmsChannelTree, useAllCmsModels, useAllCmsSites, useSaveCmsChannel, useDeleteCmsChannel,
-  useCmsThemeTemplates, useCmsPublishChannels, useMergeCmsChannels, useClearCmsChannel, useBatchCreateCmsChannels,
+  useCmsThemeTemplates, useMergeCmsChannels, useClearCmsChannel, useBatchCreateCmsChannels,
   useCmsChannelUsers, useSetCmsChannelUsers,
 } from '@/hooks/queries/cms';
 import { useAllUsers } from '@/hooks/queries/users';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
-import { CMS_CHANNEL_DETAIL_PATH_RULE_LABELS, CMS_CHANNEL_DETAIL_PATH_RULES, CMS_CHANNEL_STATIC_MODE_LABELS, CMS_CHANNEL_STATIC_MODES, CMS_CHANNEL_TYPE_LABELS, CMS_DEFAULT_CHANNEL_CODE } from '@zenith/shared';
+import { CMS_CHANNEL_DETAIL_PATH_RULE_LABELS, CMS_CHANNEL_DETAIL_PATH_RULES, CMS_CHANNEL_STATIC_MODE_LABELS, CMS_CHANNEL_STATIC_MODES, CMS_CHANNEL_TYPE_LABELS } from '@zenith/shared';
 import type { CmsChannel, CmsContent, CmsSiteTemplateDefaults, PaginatedResponse } from '@zenith/shared';
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 
+/** 栏目级模板覆盖编辑态：仅按内容模型细分的详情模板（通用列表/详情走栏目自身字段） */
 interface ChannelTemplateConfig {
-  list: string | null;
-  detail: string | null;
   detailByModel: Record<string, string | null>;
 }
 
-/** 栏目级按发布通道模板覆盖编辑态（存 settings.templates[通道code]，动态字段名不走 Form） */
-type ChannelTemplatesState = Record<string, ChannelTemplateConfig>;
+type ChannelTemplatesState = ChannelTemplateConfig;
 
-const EMPTY_TPL_CONFIG: ChannelTemplateConfig = { list: null, detail: null, detailByModel: {} };
+const EMPTY_TPL_CONFIG: ChannelTemplateConfig = { detailByModel: {} };
 
 function channelTemplatesFromSettings(settings: Record<string, unknown> | null | undefined): ChannelTemplatesState {
-  const state: ChannelTemplatesState = {};
-  const all = settings?.templates as Record<string, CmsSiteTemplateDefaults | undefined> | undefined;
-  for (const [code, cfg] of Object.entries(all ?? {})) {
-    if (!cfg) continue;
-    state[code] = { list: cfg.list ?? null, detail: cfg.detail ?? null, detailByModel: { ...(cfg.detailByModel ?? {}) } };
-  }
-  return state;
+  const cfg = (settings?.templates ?? {}) as CmsSiteTemplateDefaults;
+  return { detailByModel: { ...(cfg.detailByModel ?? {}) } };
 }
 
-function channelTemplatesToSettings(state: ChannelTemplatesState): Record<string, CmsSiteTemplateDefaults> {
-  const out: Record<string, CmsSiteTemplateDefaults> = {};
-  for (const [code, cfg] of Object.entries(state)) {
-    const detailByModel = Object.fromEntries(Object.entries(cfg.detailByModel).filter(([, v]) => v));
-    const entry: CmsSiteTemplateDefaults = {
-      ...(cfg.list ? { list: cfg.list } : {}),
-      ...(cfg.detail ? { detail: cfg.detail } : {}),
-      ...(Object.keys(detailByModel).length > 0 ? { detailByModel } : {}),
-    };
-    if (Object.keys(entry).length > 0) out[code] = entry;
-  }
-  return out;
+function channelTemplatesToSettings(state: ChannelTemplatesState): CmsSiteTemplateDefaults {
+  const detailByModel = Object.fromEntries(Object.entries(state.detailByModel).filter(([, v]) => v));
+  return Object.keys(detailByModel).length > 0 ? { detailByModel } : {};
 }
 
 function toTreeSelectData(nodes: CmsChannel[], excludeId?: number): TreeNodeData[] {
@@ -90,14 +74,13 @@ export default function ChannelsPage() {
   const { data: sites } = useAllCmsSites();
   const currentSite = sites?.find((s) => s.id === siteId);
   const { data: themeTemplates } = useCmsThemeTemplates(currentSite?.effectiveTheme ?? currentSite?.theme, currentSite?.id);
-  const { data: publishChannels } = useCmsPublishChannels(siteId);
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
   /** 非 null 表示处于新建态，值为新栏目的父栏目 id（0 = 顶级） */
   const [createParentId, setCreateParentId] = useState<number | null>(null);
   const [channelType, setChannelType] = useState<string>('list');
   const [pageContent, setPageContent] = useState('');
-  const [channelTemplates, setChannelTemplates] = useState<ChannelTemplatesState>({});
+  const [channelTemplates, setChannelTemplates] = useState<ChannelTemplatesState>(EMPTY_TPL_CONFIG);
   const saveMutation = useSaveCmsChannel();
   const deleteMutation = useDeleteCmsChannel();
   const mergeMutation = useMergeCmsChannels();
@@ -145,7 +128,7 @@ export default function ChannelsPage() {
     setCreateParentId(parentId);
     setChannelType('list');
     setPageContent('');
-    setChannelTemplates({});
+    setChannelTemplates(EMPTY_TPL_CONFIG);
   }
 
   function openEdit(record: CmsChannel) {
@@ -375,62 +358,30 @@ export default function ChannelsPage() {
     );
   };
 
-  // 模板配置页签的通道来源（站点无通道记录时回退虚拟 PC 默认通道，与站点编辑页一致）
-  const tplChannelTabs: { code: string; name: string }[] = (() => {
-    const enabled = (publishChannels ?? []).filter((ch) => ch.status === 'enabled');
-    if (enabled.length > 0) return enabled.map((ch) => ({ code: ch.code, name: ch.name }));
-    return [{ code: CMS_DEFAULT_CHANNEL_CODE, name: 'PC 桌面' }];
-  })();
-
-  /** 单个发布通道的栏目级模板覆盖面板（动态字段名不走 Form，受控 state 管理） */
-  const renderChannelTplPane = (ch: { code: string; name: string }) => {
-    const cfg = channelTemplates[ch.code] ?? EMPTY_TPL_CONFIG;
-    const patch = (p: Partial<ChannelTemplateConfig>) =>
-      setChannelTemplates((s) => ({ ...s, [ch.code]: { ...(s[ch.code] ?? EMPTY_TPL_CONFIG), ...p } }));
+  /** 栏目级「按内容模型细分」的详情模板（动态字段名不走 Form，受控 state 管理） */
+  const renderChannelTplPane = () => {
+    const cfg = channelTemplates;
+    const patch = (p: Partial<ChannelTemplateConfig>) => setChannelTemplates((s) => ({ ...s, ...p }));
     const rowStyle = { display: 'flex', alignItems: 'center', gap: 12 } as const;
     const labelStyle = { width: 130, flexShrink: 0, textAlign: 'right', fontSize: 14, color: 'var(--semi-color-text-0)' } as const;
-    const listTplOptions = (themeTemplates?.list ?? []).map((t) => ({ value: t.name, label: t.label }));
     const detailTplOptions = (themeTemplates?.detail ?? []).map((t) => ({ value: t.name, label: t.label }));
+    if ((models ?? []).length === 0) return null;
     return (
-      <TabPane tab={ch.name} itemKey={ch.code} key={ch.code}>
-        <div style={{ paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={rowStyle}>
-            <span style={labelStyle}>列表模板</span>
+      <div style={{ paddingTop: 4, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {(models ?? []).map((m) => (
+          <div style={rowStyle} key={m.id}>
+            <span style={labelStyle}>{m.name}详情模板</span>
             <Select
-              placeholder="跟随全通道通用"
-              value={cfg.list ?? undefined}
-              onChange={(v) => patch({ list: (v as string) ?? null })}
-              showClear
-              style={{ width: 300 }}
-              optionList={listTplOptions}
-            />
-          </div>
-          <div style={rowStyle}>
-            <span style={labelStyle}>详情模板</span>
-            <Select
-              placeholder="跟随全通道通用"
-              value={cfg.detail ?? undefined}
-              onChange={(v) => patch({ detail: (v as string) ?? null })}
+              placeholder="跟随详情模板"
+              value={cfg.detailByModel[m.code] ?? undefined}
+              onChange={(v) => patch({ detailByModel: { ...cfg.detailByModel, [m.code]: (v as string) ?? null } })}
               showClear
               style={{ width: 300 }}
               optionList={detailTplOptions}
             />
           </div>
-          {(models ?? []).map((m) => (
-            <div style={rowStyle} key={m.id}>
-              <span style={labelStyle}>{m.name}详情模板</span>
-              <Select
-                placeholder="跟随详情模板"
-                value={cfg.detailByModel[m.code] ?? undefined}
-                onChange={(v) => patch({ detailByModel: { ...cfg.detailByModel, [m.code]: (v as string) ?? null } })}
-                showClear
-                style={{ width: 300 }}
-                optionList={detailTplOptions}
-              />
-            </div>
-          ))}
-        </div>
-      </TabPane>
+        ))}
+      </div>
     );
   };
 
@@ -550,40 +501,36 @@ export default function ChannelsPage() {
         </Form.Slot>
       ) : null}
       {channelType === 'list' ? (
-        <Form.Section text="模板配置（按发布通道 × 内容模型；留空逐级回退：通道配置 → 全通道通用 → 站点默认 → 主题默认）">
-          <Tabs type="card" size="small">
-            <TabPane tab="全通道通用" itemKey="__common">
-              <Row gutter={16} style={{ paddingTop: 12 }}>
-                <Col span={24}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <Form.Select field="listTemplate" label="列表模板" style={{ width: '100%' }} showClear
-                        placeholder="跟随站点默认"
-                        optionList={(themeTemplates?.list ?? []).map((t) => ({ value: t.name, label: t.label }))} />
-                    </div>
-                    {editingRecord ? (
-                      <Button icon={<Eye size={14} />} title="以当前选中模板试穿预览栏目列表页（不影响线上）"
-                        onClick={previewListTemplate}>预览</Button>
-                    ) : null}
-                  </div>
-                </Col>
-                <Col span={24}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <Form.Select field="detailTemplate" label="详情模板" style={{ width: '100%' }} showClear
-                        placeholder="跟随站点默认"
-                        optionList={(themeTemplates?.detail ?? []).map((t) => ({ value: t.name, label: t.label }))} />
-                    </div>
-                    {editingRecord ? (
-                      <Button icon={<Eye size={14} />} title="以当前选中模板试穿预览最新一篇已发布内容（不影响线上）"
-                        onClick={() => void previewDetailTemplate()}>预览</Button>
-                    ) : null}
-                  </div>
-                </Col>
-              </Row>
-            </TabPane>
-            {tplChannelTabs.map((ch) => renderChannelTplPane(ch))}
-          </Tabs>
+        <Form.Section text="模板配置（留空逐级回退：栏目 → 站点默认 → 主题默认）">
+          <Row gutter={16} style={{ paddingTop: 12 }}>
+            <Col span={24}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <Form.Select field="listTemplate" label="列表模板" style={{ width: '100%' }} showClear
+                    placeholder="跟随站点默认"
+                    optionList={(themeTemplates?.list ?? []).map((t) => ({ value: t.name, label: t.label }))} />
+                </div>
+                {editingRecord ? (
+                  <Button icon={<Eye size={14} />} title="以当前选中模板试穿预览栏目列表页（不影响线上）"
+                    onClick={previewListTemplate}>预览</Button>
+                ) : null}
+              </div>
+            </Col>
+            <Col span={24}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <Form.Select field="detailTemplate" label="详情模板" style={{ width: '100%' }} showClear
+                    placeholder="跟随站点默认"
+                    optionList={(themeTemplates?.detail ?? []).map((t) => ({ value: t.name, label: t.label }))} />
+                </div>
+                {editingRecord ? (
+                  <Button icon={<Eye size={14} />} title="以当前选中模板试穿预览最新一篇已发布内容（不影响线上）"
+                    onClick={() => void previewDetailTemplate()}>预览</Button>
+                ) : null}
+              </div>
+            </Col>
+          </Row>
+          {renderChannelTplPane()}
         </Form.Section>
       ) : null}
       <Form.Section text="SEO 设置（留空继承站点默认）">

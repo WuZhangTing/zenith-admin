@@ -284,7 +284,7 @@ function channelStaticPath(channel: PublishChannelInfo, relPath: string): string
 }
 
 async function writeRenderedPath(site: CmsSiteRow, relPath: string, channel: PublishChannelInfo): Promise<boolean> {
-  const result = await renderSitePath(site, '', relPath, channel.code);
+  const result = await renderSitePath(site, '', relPath);
   if (result.status === 200) {
     await writeStaticFile(site.code, channelStaticPath(channel, relPath), result.html);
     return true;
@@ -329,7 +329,7 @@ async function regenerateChannelPages(
   if (channel.type === 'link') return 0;
   if (isChannelDynamic(site, channel)) return 0;
   let generated = 0;
-  const first = await renderChannelPage(site, '', channel, 1, publishChannel.code);
+  const first = await renderChannelPage(site, '', channel, 1);
   if (first.status !== 200) return 0;
   await writeStaticFile(site.code, channelStaticPath(publishChannel, `${channel.path}/`), first.html);
   generated += 1;
@@ -344,7 +344,7 @@ async function regenerateChannelPages(
   const totalPages = Math.min(Math.max(1, Math.ceil(total / channel.pageSize)), MAX_LIST_PAGES);
   const buildPages = Math.min(totalPages, Math.max(1, pageCap));
   for (let p = 2; p <= buildPages; p++) {
-    const result = await renderChannelPage(site, '', channel, p, publishChannel.code);
+    const result = await renderChannelPage(site, '', channel, p);
     if (result.status === 200) {
       await writeStaticFile(site.code, channelStaticPath(publishChannel, `${channel.path}/index_${p}.html`), result.html);
       generated += 1;
@@ -382,7 +382,7 @@ export async function refreshContentStatic(contentId: number): Promise<void> {
   for (const publishChannel of await getActivePublishChannels(site.id)) {
     if (isVisible) {
       for (let p = 1; p <= bodyPages; p++) {
-        const result = await renderDetailPage(site, '', channel, String(content.slug ?? content.id), publishChannel.code, p);
+        const result = await renderDetailPage(site, '', channel, String(content.slug ?? content.id), p);
         if (result.status === 200) await writeStaticFile(site.code, channelStaticPath(publishChannel, contentUrl('', channel, content, p)), result.html);
       }
     } else {
@@ -435,7 +435,7 @@ export async function applyCmsContentPublishSnapshot(
     if (!isChannelDynamic(site, channel)) {
       for (const target of snapshot.targets) {
         for (let page = 1; page <= target.paths.length; page++) {
-          const rendered = await renderDetailPage(site, '', channel, snapshot.slug, target.publishChannelCode, page);
+          const rendered = await renderDetailPage(site, '', channel, snapshot.slug, page);
           if (rendered.status !== 200) throw new Error(`内容 #${snapshot.contentId} 快照路径 ${target.paths[page - 1]} 渲染失败（${rendered.status}）`);
           await writeStaticFile(site.code, target.paths[page - 1], rendered.html);
         }

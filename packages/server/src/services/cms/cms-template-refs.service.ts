@@ -53,7 +53,7 @@ function parseTemplateDefaults(value: unknown): CmsSiteTemplateDefaults {
   };
 }
 
-/** 校验一组「通道 → 模板默认值」配置（站点 settings.defaultTemplates / 栏目 settings.templates 共用结构） */
+/** 校验一组模板默认值配置（站点 settings.defaultTemplates / 栏目 settings.templates 共用结构） */
 function assertTemplateNameInSet(
   names: Set<string>,
   themeCode: string,
@@ -75,6 +75,19 @@ async function availableTemplateSets(themeCode: string, _siteId?: number, _execu
   };
 }
 
+/** 栏目 settings.templates 仅保留 detailByModel（list/detail 走独立列，避免同一语义两处存） */
+function assertChannelTemplateOverrides(
+  themeCode: string,
+  value: unknown,
+  sets: { list: Set<string>; detail: Set<string> },
+): void {
+  if (!value || typeof value !== 'object') return;
+  const cfg = parseTemplateDefaults(value);
+  for (const [modelCode, name] of Object.entries(cfg.detailByModel ?? {})) {
+    assertTemplateNameInSet(sets.detail, themeCode, name, `栏目 ${modelCode} 详情模板`);
+  }
+}
+
 function assertTemplateDefaultsMap(
   themeCode: string,
   value: unknown,
@@ -82,13 +95,11 @@ function assertTemplateDefaultsMap(
   sets: { list: Set<string>; detail: Set<string> },
 ): void {
   if (!value || typeof value !== 'object') return;
-  for (const [device, raw] of Object.entries(value as Record<string, unknown>)) {
-    const cfg = parseTemplateDefaults(raw);
-    assertTemplateNameInSet(sets.list, themeCode, cfg.list, `${locationPrefix}[${device}]列表模板`);
-    assertTemplateNameInSet(sets.detail, themeCode, cfg.detail, `${locationPrefix}[${device}]详情模板`);
-    for (const [modelCode, name] of Object.entries(cfg.detailByModel ?? {})) {
-      assertTemplateNameInSet(sets.detail, themeCode, name, `${locationPrefix}[${device}]${modelCode} 详情模板`);
-    }
+  const cfg = parseTemplateDefaults(value);
+  assertTemplateNameInSet(sets.list, themeCode, cfg.list, `${locationPrefix}列表模板`);
+  assertTemplateNameInSet(sets.detail, themeCode, cfg.detail, `${locationPrefix}详情模板`);
+  for (const [modelCode, name] of Object.entries(cfg.detailByModel ?? {})) {
+    assertTemplateNameInSet(sets.detail, themeCode, name, `${locationPrefix}${modelCode} 详情模板`);
   }
 }
 
@@ -102,7 +113,7 @@ export async function assertSiteTemplateSettings(
   assertTemplateDefaultsMap(
     themeCode,
     settings?.defaultTemplates,
-    '站点默认模板',
+    '站点默认',
     await availableTemplateSets(themeCode, siteId, executor),
   );
 }
@@ -130,39 +141,35 @@ export function pruneStaleTemplateDefaults(
   };
   const previous = (previousSettings?.defaultTemplates ?? {}) as Record<string, unknown>;
   const removed: string[] = [];
-  const next: Record<string, CmsSiteTemplateDefaults> = {};
 
-  for (const [device, value] of Object.entries(raw as Record<string, unknown>)) {
-    const cfg = parseTemplateDefaults(value);
-    const prev = parseTemplateDefaults(previous[device]);
-    /** 仅当该项在本次请求中未发生变化时才允许静默摘除 */
-    const stale = (kind: TemplateKind, name: string | null, prevName: string | null) =>
-      !!name && !sets[kind].has(name) && name === prevName;
+  const cfg = parseTemplateDefaults(raw);
+  const prev = parseTemplateDefaults(previous);
+  /** 仅当该项在本次请求中未发生变化时才允许静默摘除 */
+  const stale = (kind: TemplateKind, name: string | null, prevName: string | null) =>
+    !!name && !sets[kind].has(name) && name === prevName;
 
-    const entry: CmsSiteTemplateDefaults = {};
-    if (stale('list', cfg.list ?? null, prev.list ?? null)) {
-      removed.push(`[${device}]列表模板「${cfg.list}」`);
-    } else if (cfg.list) {
-      entry.list = cfg.list;
-    }
-    if (stale('detail', cfg.detail ?? null, prev.detail ?? null)) {
-      removed.push(`[${device}]详情模板「${cfg.detail}」`);
-    } else if (cfg.detail) {
-      entry.detail = cfg.detail;
-    }
-
-    const byModel: Record<string, string> = {};
-    for (const [modelCode, name] of Object.entries(cfg.detailByModel ?? {})) {
-      if (!name) continue; // 空值 = 跟随默认，不必落库
-      if (stale('detail', name, (prev.detailByModel ?? {})[modelCode] ?? null)) {
-        removed.push(`[${device}]${modelCode} 详情模板「${name}」`);
-      } else {
-        byModel[modelCode] = name;
-      }
-    }
-    if (Object.keys(byModel).length > 0) entry.detailByModel = byModel;
-    if (Object.keys(entry).length > 0) next[device] = entry;
+  const next: CmsSiteTemplateDefaults = {};
+  if (stale('list', cfg.list ?? null, prev.list ?? null)) {
+    removed.push(`列表模板「${cfg.list}」`);
+  } else if (cfg.list) {
+    next.list = cfg.list;
   }
+  if (stale('detail', cfg.detail ?? null, prev.detail ?? null)) {
+    removed.push(`详情模板「${cfg.detail}」`);
+  } else if (cfg.detail) {
+    next.detail = cfg.detail;
+  }
+
+  const byModel: Record<string, string> = {};
+  for (const [modelCode, name] of Object.entries(cfg.detailByModel ?? {})) {
+    if (!name) continue; // 空值 = 跟随默认，不必落库
+    if (stale('detail', name, (prev.detailByModel ?? {})[modelCode] ?? null)) {
+      removed.push(`${modelCode} 详情模板「${name}」`);
+    } else {
+      byModel[modelCode] = name;
+    }
+  }
+  if (Object.keys(byModel).length > 0) next.detailByModel = byModel;
 
   if (removed.length === 0) return { settings, removed: [] };
   return { settings: { ...settings, defaultTemplates: next }, removed };
@@ -197,7 +204,7 @@ export async function assertChannelTemplatesBySite(
   const sets = await availableTemplateSets(theme, siteId);
   assertTemplateNameInSet(sets.list, theme, data.listTemplate, '列表模板');
   assertTemplateNameInSet(sets.detail, theme, data.detailTemplate, '详情模板');
-  assertTemplateDefaultsMap(theme, data.settings?.templates, '栏目通道模板', sets);
+  assertChannelTemplateOverrides(theme, data.settings?.templates, sets);
 }
 
 /** 内容保存校验：detailTemplate 须存在于站点主题 */
@@ -220,13 +227,9 @@ function scanChannelRefs(
   if (channel.detailTemplate && !available.detail.has(channel.detailTemplate)) out.push({ ...base, kind: 'detail', template: channel.detailTemplate, location: '详情模板' });
   const templates = (channel.settings as Record<string, unknown> | null)?.templates;
   if (!templates || typeof templates !== 'object') return;
-  for (const [device, raw] of Object.entries(templates as Record<string, unknown>)) {
-    const cfg = parseTemplateDefaults(raw);
-    if (cfg.list && !available.list.has(cfg.list)) out.push({ ...base, kind: 'list', template: cfg.list, location: `通道模板[${device}]列表` });
-    if (cfg.detail && !available.detail.has(cfg.detail)) out.push({ ...base, kind: 'detail', template: cfg.detail, location: `通道模板[${device}]详情` });
-    for (const [modelCode, name] of Object.entries(cfg.detailByModel ?? {})) {
-      if (name && !available.detail.has(name)) out.push({ ...base, kind: 'detail', template: name, location: `通道模板[${device}]${modelCode} 详情` });
-    }
+  const cfg = parseTemplateDefaults(templates);
+  for (const [modelCode, name] of Object.entries(cfg.detailByModel ?? {})) {
+    if (name && !available.detail.has(name)) out.push({ ...base, kind: 'detail', template: name, location: `${modelCode} 详情模板` });
   }
 }
 
@@ -250,13 +253,11 @@ export async function getSiteTemplateHealth(
   // 站点级：settings.defaultTemplates
   const defaults = (site.settings as Record<string, unknown> | null)?.defaultTemplates;
   if (defaults && typeof defaults === 'object') {
-    for (const [device, raw] of Object.entries(defaults as Record<string, unknown>)) {
-      const cfg = parseTemplateDefaults(raw);
-      if (cfg.list && !available.list.has(cfg.list)) invalidRefs.push({ source: 'site', kind: 'list', template: cfg.list, location: `站点默认模板[${device}]列表` });
-      if (cfg.detail && !available.detail.has(cfg.detail)) invalidRefs.push({ source: 'site', kind: 'detail', template: cfg.detail, location: `站点默认模板[${device}]详情` });
-      for (const [modelCode, name] of Object.entries(cfg.detailByModel ?? {})) {
-        if (name && !available.detail.has(name)) invalidRefs.push({ source: 'site', kind: 'detail', template: name, location: `站点默认模板[${device}]${modelCode} 详情` });
-      }
+    const cfg = parseTemplateDefaults(defaults);
+    if (cfg.list && !available.list.has(cfg.list)) invalidRefs.push({ source: 'site', kind: 'list', template: cfg.list, location: '站点默认列表模板' });
+    if (cfg.detail && !available.detail.has(cfg.detail)) invalidRefs.push({ source: 'site', kind: 'detail', template: cfg.detail, location: '站点默认详情模板' });
+    for (const [modelCode, name] of Object.entries(cfg.detailByModel ?? {})) {
+      if (name && !available.detail.has(name)) invalidRefs.push({ source: 'site', kind: 'detail', template: name, location: `站点默认 ${modelCode} 详情模板` });
     }
   }
 

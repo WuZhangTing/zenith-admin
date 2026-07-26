@@ -17,7 +17,7 @@ import { useAllUsers } from '@/hooks/queries/users';
 import {
   useCmsSiteList, useCmsThemes, useSaveCmsSite, useDeleteCmsSite, cmsSiteKeys,
   useCmsSiteUsers, useSetCmsSiteUsers, useEnableSiteAnalytics, useImportCmsSite,
-  useCmsThemeTemplates, useAllCmsModels, useCmsPublishChannels, useCmsSiteTemplateHealth,
+  useCmsThemeTemplates, useAllCmsModels, useCmsSiteTemplateHealth,
   useCmsThemeSettingsSchema, useCmsStaticBuild,
   useAllCmsSites,
 } from '@/hooks/queries/cms';
@@ -33,7 +33,7 @@ import {
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 import { useWorkflowDefinitionList } from '@/hooks/queries/workflow-definitions';
-import { CMS_SITE_INHERITABLE_FIELD_LABELS, CMS_SITE_INHERITABLE_FIELDS, CMS_SITE_OPS_DEFAULTS, CMS_STATIC_MODE_LABELS, CMS_STATIC_MODES, CMS_DEFAULT_CHANNEL_CODE, CMS_TWITTER_CARDS, CMS_TWITTER_CARD_LABELS } from '@zenith/shared';
+import { CMS_SITE_INHERITABLE_FIELD_LABELS, CMS_SITE_INHERITABLE_FIELDS, CMS_SITE_OPS_DEFAULTS, CMS_STATIC_MODE_LABELS, CMS_STATIC_MODES, CMS_TWITTER_CARDS, CMS_TWITTER_CARD_LABELS } from '@zenith/shared';
 import type { AsyncTask, CmsModelField, CmsSite, CmsSiteInheritanceFlags, CmsSiteInheritableField, CmsSiteTemplateDefaults, CmsInvalidTemplateRef, CmsThemeSettingField } from '@zenith/shared';
 import { cmsPreviewUrl } from './CmsSiteSelect';
 import { cmsCredentialWriteValue } from './cms-site-credentials';
@@ -45,16 +45,13 @@ interface SearchParams {
 
 const defaultSearchParams: SearchParams = { keyword: '', status: '' };
 
-interface ChannelTemplateConfig {
+interface TemplateDefaultsState {
   list: string | null;
   detail: string | null;
   detailByModel: Record<string, string | null>;
 }
 
-/** 站点默认模板编辑态（key = 发布通道编码；受控管理，字段名含动态编码不走 Form） */
-type TemplateDefaultsState = Record<string, ChannelTemplateConfig>;
-
-const EMPTY_CHANNEL_CONFIG: ChannelTemplateConfig = { list: null, detail: null, detailByModel: {} };
+const EMPTY_TEMPLATE_DEFAULTS: TemplateDefaultsState = { list: null, detail: null, detailByModel: {} };
 
 const EMPTY_INHERITANCE: CmsSiteInheritanceFlags = {
   seoTitle: false,
@@ -115,32 +112,22 @@ function displayEffectiveValue(field: CmsSiteInheritableField, resolved: Record<
 }
 
 function templateDefaultsFromSettings(settings: Record<string, unknown> | null | undefined): TemplateDefaultsState {
-  const state: TemplateDefaultsState = {};
-  const all = settings?.defaultTemplates as Record<string, CmsSiteTemplateDefaults | undefined> | undefined;
-  for (const [code, cfg] of Object.entries(all ?? {})) {
-    if (!cfg) continue;
-    state[code] = {
-      list: cfg.list ?? null,
-      detail: cfg.detail ?? null,
-      detailByModel: { ...(cfg.detailByModel ?? {}) },
-    };
-  }
-  return state;
+  const cfg = (settings?.defaultTemplates ?? {}) as CmsSiteTemplateDefaults;
+  return {
+    list: cfg.list ?? null,
+    detail: cfg.detail ?? null,
+    detailByModel: { ...(cfg.detailByModel ?? {}) },
+  };
 }
 
 /** 序列化为 settings.defaultTemplates（去掉空值，保持 JSONB 干净） */
-function templateDefaultsToSettings(state: TemplateDefaultsState): Record<string, CmsSiteTemplateDefaults> {
-  const out: Record<string, CmsSiteTemplateDefaults> = {};
-  for (const [code, cfg] of Object.entries(state)) {
-    const detailByModel = Object.fromEntries(Object.entries(cfg.detailByModel).filter(([, v]) => v));
-    const entry: CmsSiteTemplateDefaults = {
-      ...(cfg.list ? { list: cfg.list } : {}),
-      ...(cfg.detail ? { detail: cfg.detail } : {}),
-      ...(Object.keys(detailByModel).length > 0 ? { detailByModel } : {}),
-    };
-    if (Object.keys(entry).length > 0) out[code] = entry;
-  }
-  return out;
+function templateDefaultsToSettings(state: TemplateDefaultsState): CmsSiteTemplateDefaults {
+  const detailByModel = Object.fromEntries(Object.entries(state.detailByModel).filter(([, v]) => v));
+  return {
+    ...(state.list ? { list: state.list } : {}),
+    ...(state.detail ? { detail: state.detail } : {}),
+    ...(Object.keys(detailByModel).length > 0 ? { detailByModel } : {}),
+  };
 }
 
 /** settings.langLinks → 每行 `语言代码=站点标识` 文本（表单编辑态） */
@@ -326,7 +313,7 @@ export default function SitesPage() {
   const [activeTab, setActiveTab] = useState('basic');
   // 模板下拉跟随表单里实时选中的主题（Form 值不具备响应性，用 state 镜像）
   const [selectedTheme, setSelectedTheme] = useState('default');
-  const [templateDefaults, setTemplateDefaults] = useState<TemplateDefaultsState>({});
+  const [templateDefaults, setTemplateDefaults] = useState<TemplateDefaultsState>(EMPTY_TEMPLATE_DEFAULTS);
   // 主题参数编辑态（settings.themeConfig；动态字段名不走 Form，受控管理）
   const [themeConfig, setThemeConfig] = useState<Record<string, unknown>>({});
   const { data: themeTemplates } = useCmsThemeTemplates(modalVisible ? selectedTheme : undefined, editingRecord?.id);
@@ -336,8 +323,6 @@ export default function SitesPage() {
   const [selectedModelId, setSelectedModelId] = useState<number | undefined>(undefined);
   const siteModel = (allModels ?? []).find((m) => m.id === selectedModelId);
   const siteModelFields = siteModel?.fields ?? [];
-  // 站点发布通道（模板页签动态渲染；新建站点回退虚拟 PC 默认通道）
-  const { data: sitePublishChannels } = useCmsPublishChannels(editingRecord?.id, modalVisible);
   // 模板健康检查：按当前选中主题扫描栏目/内容级失效引用（切主题即预检）
   const { data: templateHealth } = useCmsSiteTemplateHealth(editingRecord?.id, selectedTheme, modalVisible);
   const saveMutation = useSaveCmsSite();
@@ -351,25 +336,21 @@ export default function SitesPage() {
     const validList = new Set(themeTemplates.list.map((t) => t.name));
     const validDetail = new Set(themeTemplates.detail.map((t) => t.name));
     const removed: string[] = [];
-    const cleaned: TemplateDefaultsState = {};
-    for (const [code, cfg] of Object.entries(templateDefaults)) {
-      const detailByModel = Object.fromEntries(
-        Object.entries(cfg.detailByModel).filter(([model, v]) => {
-          if (!v || validDetail.has(v)) return true;
-          removed.push(`[${code}]${model} 详情模板「${v}」`);
-          return false;
-        }),
-      );
-      if (cfg.list && !validList.has(cfg.list)) removed.push(`[${code}]列表模板「${cfg.list}」`);
-      if (cfg.detail && !validDetail.has(cfg.detail)) removed.push(`[${code}]详情模板「${cfg.detail}」`);
-      cleaned[code] = {
-        list: cfg.list && validList.has(cfg.list) ? cfg.list : null,
-        detail: cfg.detail && validDetail.has(cfg.detail) ? cfg.detail : null,
-        detailByModel,
-      };
-    }
+    const detailByModel = Object.fromEntries(
+      Object.entries(templateDefaults.detailByModel).filter(([model, v]) => {
+        if (!v || validDetail.has(v)) return true;
+        removed.push(`${model} 详情模板「${v}」`);
+        return false;
+      }),
+    );
+    if (templateDefaults.list && !validList.has(templateDefaults.list)) removed.push(`列表模板「${templateDefaults.list}」`);
+    if (templateDefaults.detail && !validDetail.has(templateDefaults.detail)) removed.push(`详情模板「${templateDefaults.detail}」`);
     if (removed.length > 0) {
-      setTemplateDefaults(cleaned);
+      setTemplateDefaults({
+        list: templateDefaults.list && validList.has(templateDefaults.list) ? templateDefaults.list : null,
+        detail: templateDefaults.detail && validDetail.has(templateDefaults.detail) ? templateDefaults.detail : null,
+        detailByModel,
+      });
       Toast.warning({ content: `已清除 ${removed.length} 项在主题「${selectedTheme}」下失效的默认模板配置：${removed.join('、')}（保存后生效）`, duration: 6 });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅在主题清单变化时清理，避免编辑操作反复触发
@@ -489,7 +470,7 @@ export default function SitesPage() {
     setActiveTab('basic');
     setSelectedTheme('default');
     setSelectedModelId(undefined);
-    setTemplateDefaults({});
+    setTemplateDefaults(EMPTY_TEMPLATE_DEFAULTS);
     setThemeConfig({});
     setModalVisible(true);
   }
@@ -850,60 +831,50 @@ export default function SitesPage() {
   // 栏目/内容级失效引用（站点级由本地自动清理负责；这两级存在其他表，仅提示不阻断保存）
   const externalInvalidRefs = (templateHealth?.invalidRefs ?? []).filter((r) => r.source !== 'site');
 
-  // 模板页签的通道来源：编辑时取站点通道（启用的）；新建站点尚无通道记录，回退虚拟默认通道
-  const templateChannelTabs: { code: string; name: string }[] = (() => {
-    const enabled = (sitePublishChannels ?? []).filter((ch) => ch.status === 'enabled');
-    if (enabled.length > 0) return enabled.map((ch) => ({ code: ch.code, name: ch.name }));
-    return [{ code: CMS_DEFAULT_CHANNEL_CODE, name: 'PC 桌面' }];
-  })();
-
-  /** 单个发布通道的默认模板配置面板（动态字段名不走 Form，受控 state 管理） */
-  const renderChannelTemplates = (channel: { code: string; name: string }) => {
-    const cfg = templateDefaults[channel.code] ?? EMPTY_CHANNEL_CONFIG;
-    const patch = (p: Partial<ChannelTemplateConfig>) =>
-      setTemplateDefaults((s) => ({ ...s, [channel.code]: { ...(s[channel.code] ?? EMPTY_CHANNEL_CONFIG), ...p } }));
+  /** 站点默认模板配置面板（动态字段名不走 Form，受控 state 管理） */
+  const renderTemplateDefaults = () => {
+    const cfg = templateDefaults;
+    const patch = (p: Partial<TemplateDefaultsState>) => setTemplateDefaults((s) => ({ ...s, ...p }));
     const rowStyle = { display: 'flex', alignItems: 'center', gap: 12 } as const;
     const labelStyle = { width: 140, flexShrink: 0, textAlign: 'right', fontSize: 14, color: 'var(--semi-color-text-0)' } as const;
     return (
-      <TabPane tab={channel.name} itemKey={channel.code} key={channel.code}>
-        <div style={{ paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={rowStyle}>
-            <span style={labelStyle}>栏目列表页模板</span>
+      <div style={{ paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={rowStyle}>
+          <span style={labelStyle}>栏目列表页模板</span>
+          <Select
+            placeholder="跟随主题默认"
+            value={cfg.list ?? undefined}
+            onChange={(v) => patch({ list: (v as string) ?? null })}
+            showClear
+            style={{ width: 320 }}
+            optionList={listTplOptions}
+          />
+        </div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>内容详情页模板</span>
+          <Select
+            placeholder="跟随主题默认"
+            value={cfg.detail ?? undefined}
+            onChange={(v) => patch({ detail: (v as string) ?? null })}
+            showClear
+            style={{ width: 320 }}
+            optionList={detailTplOptions}
+          />
+        </div>
+        {(allModels ?? []).map((m) => (
+          <div style={rowStyle} key={m.id}>
+            <span style={labelStyle}>{m.name}详情模板</span>
             <Select
-              placeholder="跟随主题默认"
-              value={cfg.list ?? undefined}
-              onChange={(v) => patch({ list: (v as string) ?? null })}
-              showClear
-              style={{ width: 320 }}
-              optionList={listTplOptions}
-            />
-          </div>
-          <div style={rowStyle}>
-            <span style={labelStyle}>内容详情页模板</span>
-            <Select
-              placeholder="跟随主题默认"
-              value={cfg.detail ?? undefined}
-              onChange={(v) => patch({ detail: (v as string) ?? null })}
+              placeholder="跟随详情页默认"
+              value={cfg.detailByModel[m.code] ?? undefined}
+              onChange={(v) => patch({ detailByModel: { ...cfg.detailByModel, [m.code]: (v as string) ?? null } })}
               showClear
               style={{ width: 320 }}
               optionList={detailTplOptions}
             />
           </div>
-          {(allModels ?? []).map((m) => (
-            <div style={rowStyle} key={m.id}>
-              <span style={labelStyle}>{m.name}详情模板</span>
-              <Select
-                placeholder="跟随详情页默认"
-                value={cfg.detailByModel[m.code] ?? undefined}
-                onChange={(v) => patch({ detailByModel: { ...cfg.detailByModel, [m.code]: (v as string) ?? null } })}
-                showClear
-                style={{ width: 320 }}
-                optionList={detailTplOptions}
-              />
-            </div>
-          ))}
-        </div>
-      </TabPane>
+        ))}
+      </div>
     );
   };
 
@@ -1387,9 +1358,7 @@ export default function SitesPage() {
                   每个通道可独立绑定域名与 UA 跳转规则；此处按通道配置站点级默认模板。
                 </div>
                 <Form.Section text="默认模板（栏目/内容未指定模板时的站点级兜底；留空 = 主题默认）">
-                  <Tabs type="card" size="small">
-                    {templateChannelTabs.map((channel) => renderChannelTemplates(channel))}
-                  </Tabs>
+                  {renderTemplateDefaults()}
                 </Form.Section>
               </div>
             </TabPane>

@@ -736,6 +736,13 @@
       "when": 1785000178777,
       "tag": "0104_damp_phantom_reporter",
       "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1785027260512,
+      "tag": "0105_flat_template_defaults",
+      "breakpoints": true
     }
   ]
 }
