@@ -1,7 +1,7 @@
 import { eq, asc, desc, and, or, like, inArray, notInArray, isNull, isNotNull, ne, lt, gt, lte, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { cmsSites, cmsContents, cmsContentTags, cmsContentVersions, cmsTags, cmsChannels, cmsContentChannels, cmsContentRelations, cmsCollectItems, users } from '../../db/schema';
+import { cmsSites, cmsContents, cmsContentTags, cmsContentTombstones, cmsContentVersions, cmsTags, cmsChannels, cmsContentChannels, cmsContentRelations, cmsCollectItems, users } from '../../db/schema';
 import type { CmsContentRow, CmsSiteRow, CmsTagRow } from '../../db/schema';
 import type { DbExecutor, DbTransaction } from '../../db/types';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
@@ -18,7 +18,7 @@ import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
 import { getDataScopeCondition } from '../../lib/data-scope';
 import { currentUserOrNull, hasPermission } from '../../lib/context';
 import { isWorkflowAuditEnabled, startCmsContentWorkflow, assertNoActiveContentWorkflow } from './cms-workflow.service';
-import { triggerCmsContentWebhook } from './cms-webhook.service';
+import { enqueueCmsWebhookEvents, insertCmsContentWebhookOutbox } from './cms-webhook.service';
 import { assertContentTemplateBySite } from './cms-template-refs.service';
 import type { AsyncTask, CmsContentAttachment, CmsContentPublishSnapshot, CmsSiteOpsSettings, CreateCmsContentInput, UpdateCmsContentInput, CmsContentStatus } from '@zenith/shared';
 import { buildCmsEntityLink, isCmsEntityLink } from '@zenith/shared';
@@ -726,6 +726,7 @@ export async function updateCmsContent(
       }
       await syncCmsResourceRefs(tx, 'content', id, updated.siteId, updated);
       await logContentOp(tx, id, 'updated');
+      const webhookTask = await insertCmsContentWebhookOutbox(tx, 'cms.content.updated', updated);
       let refsTask: AsyncTask | null = null;
       if (data.detailTemplate !== undefined && data.detailTemplate !== locked.detailTemplate) {
         const revision = await bumpCmsTemplateRefsRevision(tx, current.siteId);
@@ -750,12 +751,13 @@ export async function updateCmsContent(
             },
           )
         : null;
-      return { task, refsTask };
+      return { task, refsTask, webhookTask };
     });
     await enqueueCmsPublishOutboxes(
       [mutation.task, mutation.refsTask].filter((task): task is AsyncTask => task != null),
       `内容 #${id} 更新`,
     );
+    await enqueueCmsWebhookEvents([mutation.webhookTask]);
     if (!options?.suppressDistributionSideEffects) {
       const { submitCmsMappingDistributionSideEffects } = await import('./cms-distributions.service');
       await submitCmsMappingDistributionSideEffects(id).catch((error) => {
@@ -920,10 +922,13 @@ export async function publishCmsContent(id: number, opts?: PublishCmsContentOpti
     await logContentOp(tx, id, 'published', opts?.fromWorkflow ? '工作流审核通过' : null);
     const task = await insertContentPublishOutbox(tx, site, updated, 'publish', oldPublish.deletePaths, { build: true });
     const notificationTask = await insertCmsSubscriptionNotificationOutbox(tx, updated);
-    return { updated, task, notificationTask };
+    // 事件外推走事务 outbox：事务提交即代表事件不会丢，替代原先的 fire-and-forget
+    const webhookTask = await insertCmsContentWebhookOutbox(tx, 'cms.content.published', updated);
+    return { updated, task, notificationTask, webhookTask };
   });
   await enqueueCmsPublishOutboxes([publication.task], `内容 #${id} 发布`);
   await enqueueCmsSubscriptionNotification(publication.notificationTask);
+  await enqueueCmsWebhookEvents([publication.webhookTask]);
   triggerCmsPublishedSideEffects(publication.updated);
   return opts?.skipAccessCheck ? mapCmsContent(publication.updated) : getCmsContent(id);
 }
@@ -932,7 +937,6 @@ function triggerCmsPublishedSideEffects(row: CmsContentRow): void {
   void import('./cms-member-interaction.service').then(({ awardContributionPoints }) => {
     awardContributionPoints(row);
   });
-  triggerCmsContentWebhook('content.published', row.id);
   void import('./cms-push.service').then((pushService) => {
     pushService.triggerAutoPushForContent(row.id);
   });
@@ -990,10 +994,11 @@ export async function offlineCmsContent(id: number, options?: { skipAccessCheck?
     if (!updated) throw new HTTPException(409, { message: '内容状态已变化，请刷新后重试' });
     await logContentOp(tx, id, 'offlined');
     const task = await insertContentPublishOutbox(tx, site, updated, 'offline', oldPublish.deletePaths, { build: false });
-    return { updated, task };
+    const webhookTask = await insertCmsContentWebhookOutbox(tx, 'cms.content.offline', updated);
+    return { updated, task, webhookTask };
   });
   await enqueueCmsPublishOutboxes([mutation.task], `内容 #${id} 下线`);
-  triggerCmsContentWebhook('content.offline', id);
+  await enqueueCmsWebhookEvents([mutation.webhookTask]);
   void import('./cms-distributions.service')
     .then(({ submitCmsMappingDistributionSideEffects }) => submitCmsMappingDistributionSideEffects(id))
     .catch((error) => logger.warn(`[cms-distribution] 内容 #${id} 下线后的映射任务提交失败`, error));
@@ -1053,6 +1058,7 @@ export async function recycleCmsContents(ids: number[]) {
     }
     await logContentOps(tx, rows.map((row) => ({ id: row.id })), 'recycled');
     const tasks: AsyncTask[] = [];
+    const webhookTasks: (AsyncTask | null)[] = [];
     for (const row of rows) {
       tasks.push(await insertContentPublishOutbox(
         tx,
@@ -1062,12 +1068,13 @@ export async function recycleCmsContents(ids: number[]) {
         oldSnapshots.get(row.id)?.deletePaths ?? [],
         { build: false },
       ));
+      webhookTasks.push(await insertCmsContentWebhookOutbox(tx, 'cms.content.recycled', row));
     }
-    return { rows, tasks: [...tasks, ...refsTasks] };
+    return { rows, tasks: [...tasks, ...refsTasks], webhookTasks };
   });
   await enqueueCmsPublishOutboxes(mutation.tasks, '内容批量回收');
+  await enqueueCmsWebhookEvents(mutation.webhookTasks);
   for (const row of mutation.rows) {
-    triggerCmsContentWebhook('content.recycled', row.id);
     void import('./cms-distributions.service')
       .then(({ submitCmsMappingDistributionSideEffects }) => submitCmsMappingDistributionSideEffects(row.id))
       .catch((error) => logger.warn(`[cms-distribution] 内容 #${row.id} 回收后的映射任务提交失败`, error));
@@ -1129,7 +1136,7 @@ export async function purgeCmsContents(ids: number[], options?: { skipAccessChec
       captured.set(row.id, await captureCmsContentPublishSnapshot(tx, row, { includeExistingArtifacts: true }));
     }
     const lockedIds = lockedTargets.map((row) => row.id);
-    if (lockedIds.length === 0) return { count: 0, tasks: [] as AsyncTask[] };
+    if (lockedIds.length === 0) return { count: 0, tasks: [] as AsyncTask[], webhookTasks: [] as (AsyncTask | null)[] };
     // 物化：把被删来源的正文/扩展字段拷回映射行，映射行转为独立内容
     const mappedRows = await tx.select({ id: cmsContents.id, mappingSourceId: cmsContents.mappingSourceId, lockedAt: cmsContents.lockedAt, lockReason: cmsContents.lockReason })
       .from(cmsContents).where(inArray(cmsContents.mappingSourceId, lockedIds));
@@ -1162,6 +1169,11 @@ export async function purgeCmsContents(ids: number[], options?: { skipAccessChec
       .where(inArray(cmsContentVersions.contentId, lockedIds));
     await deleteCmsResourceRefsForOwner(tx, 'contentVersion', versionIds.map((row) => row.id));
     await deleteCmsResourceRefsForOwner(tx, 'content', lockedIds);
+    // 墓碑：硬删除后行本身消失，Headless 增量同步只能靠它输出 op=delete，
+    // 否则客户端按 updated_at 游标永远拉不到这条变更，本地缓存会残留已删内容
+    await tx.insert(cmsContentTombstones)
+      .values(lockedTargets.map((row) => ({ siteId: row.siteId, contentId: row.id })))
+      .onConflictDoNothing();
     await tx.delete(cmsContents).where(inArray(cmsContents.id, lockedIds));
     await recalcTagContentCounts(tx, tagRows.map((t) => t.tagId));
     const refsTasks: AsyncTask[] = [];
@@ -1177,6 +1189,7 @@ export async function purgeCmsContents(ids: number[], options?: { skipAccessChec
       ));
     }
     const tasks: AsyncTask[] = [];
+    const webhookTasks: (AsyncTask | null)[] = [];
     for (const row of lockedTargets) {
       const old = captured.get(row.id)!;
       tasks.push(await insertContentPublishOutbox(
@@ -1187,10 +1200,12 @@ export async function purgeCmsContents(ids: number[], options?: { skipAccessChec
         old.deletePaths,
         { build: false, purged: true, snapshot: old.snapshot },
       ));
+      webhookTasks.push(await insertCmsContentWebhookOutbox(tx, 'cms.content.deleted', row));
     }
-    return { count: lockedIds.length, tasks: [...tasks, ...refsTasks] };
+    return { count: lockedIds.length, tasks: [...tasks, ...refsTasks], webhookTasks };
   });
   await enqueueCmsPublishOutboxes(mutation.tasks, '内容彻底删除');
+  await enqueueCmsWebhookEvents(mutation.webhookTasks);
   return mutation.count;
 }
 

@@ -2989,6 +2989,8 @@ export const SEED_API_SCOPES: ApiScope[] = [
   { id: 7, code: 'data:write',     name: '写入数据',         description: '调用写入/变更类接口',        scopeGroup: 'data',    status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 8, code: 'order:read',     name: '读取订单',         description: '读取订单数据',              scopeGroup: 'order',   status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 9, code: 'cms:read',       name: '读取 CMS 内容',    description: '读取 CMS 栏目与已发布内容（Headless API）', scopeGroup: 'data', status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 10, code: 'cms:write',     name: '写入 CMS 内容',    description: '创建/更新 CMS 内容并提交审核（还需在站点「开放授权」中授权站点与栏目）', scopeGroup: 'data', status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 11, code: 'cms:publish',   name: '发布 CMS 内容',    description: '绕过审核直接发布（还需授权开启「允许直接发布」且站点开启开关）', scopeGroup: 'data', status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];
 
 // ─── 开放平台：限流套餐 ───────────────────────────────────────────────────────

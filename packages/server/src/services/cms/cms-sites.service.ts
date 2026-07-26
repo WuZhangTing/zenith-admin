@@ -36,6 +36,7 @@ import { isThemeRegistered } from '../../cms/themes/registry';
 import { lockCmsSiteForMutation } from './cms-site-publish-lock.service';
 import { enqueueCmsPublishOutboxes, insertCmsSiteRefsRebuildOutbox } from './cms-publish-outbox.service';
 import { canonicalizeCmsResourceFields, resolveCmsResourcePayload, syncCmsResourceRefs } from './cms-resource-refs.service';
+import { syncCmsSiteWebhookSubscription } from './cms-webhook.service';
 import {
   DEFAULT_CMS_SITE_INHERITANCE,
   buildCmsSiteChain,
@@ -745,6 +746,10 @@ export async function updateCmsSite(id: number, data: UpdateCmsSiteInput) {
     });
     invalidateSiteCache();
     if (row.tasks.length) await enqueueCmsPublishOutboxes(row.tasks, `站点 #${id} 配置更新`);
+    // Webhook 配置托管为一条 internal 订阅，站点级回调因此也有重试与投递日志
+    await syncCmsSiteWebhookSubscription(id).catch((error) => {
+      logger.warn(`[cms-webhook] 站点 #${id} Webhook 订阅同步失败`, error);
+    });
     return getCmsSite(row.updated.id);
   } catch (err) {
     rethrowPgUniqueViolation(err, '站点标识或域名已存在');

@@ -62,6 +62,19 @@ import {
 } from './constants';
 
 const DATE_TIME_PATTERN = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+
+/**
+ * 自引用递归 schema 的 lazy 包装：**内部实例必须缓存**。
+ *
+ * `z.lazy(() => z.object({...}))` 每次取值都会新建一个 schema 实例，
+ * OpenAPI 生成器只能靠实例标识判断环路，拿到的永远是新对象 → 无限展开 →
+ * `/api/openapi.json` 栈溢出返回 500（整个 Swagger 文档不可用）。
+ * 缓存后自引用命中同一实例，生成器改为输出 `$ref`，递归即终止。
+ */
+function lazyRecursive<T extends z.ZodType>(build: () => T) {
+  let cached: T | undefined;
+  return z.lazy(() => (cached ??= build()));
+}
 const dateTimeStringSchema = z.string().regex(DATE_TIME_PATTERN, '日期时间格式必须为 YYYY-MM-DD HH:mm:ss');
 const timezoneSchema = z.string().min(1).max(64)
   .refine((timezone) => timezone === 'UTC' || Intl.supportedValuesOf('timeZone').includes(timezone), '时区标识无效');
@@ -1045,14 +1058,14 @@ export const workflowFieldVisibilityConditionSchema = z.object({
 });
 
 /** 规则组（支持嵌套子组）：rules 项为「单条条件」或「子组」 */
-export const workflowFieldVisibilityRuleGroupSchema: z.ZodType<WorkflowFieldVisibilityRuleGroup> = z.lazy(() =>
+export const workflowFieldVisibilityRuleGroupSchema: z.ZodType<WorkflowFieldVisibilityRuleGroup> = lazyRecursive(() =>
   z.object({
     logic: z.enum(['and', 'or']),
     rules: z.array(z.union([workflowFieldVisibilityRuleGroupSchema, workflowFieldVisibilityConditionSchema])),
   })
 );
 
-export const workflowFormCascaderNodeSchema: z.ZodType<WorkflowFormCascaderNode> = z.lazy(() =>
+export const workflowFormCascaderNodeSchema: z.ZodType<WorkflowFormCascaderNode> = lazyRecursive(() =>
   z.object({
     value: z.string().min(1),
     label: z.string().optional(),
@@ -1060,7 +1073,7 @@ export const workflowFormCascaderNodeSchema: z.ZodType<WorkflowFormCascaderNode>
   })
 );
 
-export const workflowFormFieldSchema: z.ZodType<WorkflowFormField> = z.lazy(() =>
+export const workflowFormFieldSchema: z.ZodType<WorkflowFormField> = lazyRecursive(() =>
   z.object({
     key: z.string().min(1, '字段 key 不能为空'),
     label: z.string().min(1, '字段标签不能为空'),
@@ -3424,7 +3437,7 @@ export type UpdateMpAutoReplyInput = z.infer<typeof updateMpAutoReplySchema>;
 
 // 公众号自定义菜单
 // 递归 schema：server 侧会为其注册 OpenAPI refId（见 packages/server/src/lib/dtos/mp.ts）
-export const mpMenuButtonSchema: z.ZodType<MpMenuButton> = z.lazy(() => z.object({
+export const mpMenuButtonSchema: z.ZodType<MpMenuButton> = lazyRecursive(() => z.object({
   name: z.string().min(1, '按钮名称不能为空').max(60),
   type: z.string().max(32).optional(),
   key: z.string().max(128).optional(),

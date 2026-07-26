@@ -3,8 +3,8 @@
  *
  * 覆盖要点：
  *  1. 客户端 Token 模式（X-Idempotency-Key）：首次放行 + SET NX、重复提交 429、
- *     成功 JSON 响应缓存 + 网络重试返回缓存响应
- *  2. 自动指纹模式：同用户同请求体 429、key 长度截断（128）
+ *     成功 JSON 响应缓存 + 网络重试返回缓存响应、不同调用方之间的 key 隔离
+ *  2. 自动指纹模式：同用户同请求体 429、查询串参与指纹、key 长度截断（128）
  *  3. autoFingerprint=false 且无 header → 直接放行（不触 Redis）
  *  4. 并发竞争：GET 未命中但 SET NX 失败 → 429
  *  5. Redis 故障降级放行（不阻断业务）
@@ -37,16 +37,23 @@ import { idempotencyGuard, type IdempotencyOptions } from './idempotency';
 
 const redisMock = vi.mocked(redis);
 
-function buildApp(opts: IdempotencyOptions = {}, status = 200) {
+function buildApp(opts: IdempotencyOptions = {}, status = 200, openAppKey?: string) {
   const app = new Hono();
   const handler = vi.fn();
-  app.post('/orders', idempotencyGuard(opts), (c) => {
+  app.post('/orders', async (c, next) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (openAppKey) c.set('openApp', { clientId: openAppKey } as any);
+    await next();
+  }, idempotencyGuard(opts), (c) => {
     handler();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return c.json({ code: 0, message: 'success', data: { orderNo: 'PO-1' } }, status as any);
   });
   return { app, handler };
 }
+
+/** 幂等 key 一律是身份 + 请求特征的哈希，不再把客户端原文写进 Redis key */
+const HASHED_KEY = /^test:idempotency:[0-9a-f]{32}$/;
 
 function post(app: Hono, headers: Record<string, string> = {}, body = '{"amount":100}') {
   return app.request('/orders', {
@@ -72,7 +79,7 @@ describe('idempotencyGuard - 客户端 Token 模式', () => {
     expect(handler).toHaveBeenCalledTimes(1);
     // 第一次 set：processing 占位（SET NX EX）
     expect(redisMock.set).toHaveBeenCalledWith(
-      'test:idempotency:client-key-123',
+      expect.stringMatching(HASHED_KEY),
       expect.stringContaining('processing'),
       'EX',
       60,
@@ -97,7 +104,8 @@ describe('idempotencyGuard - 客户端 Token 模式', () => {
 
     expect(redisMock.set).toHaveBeenCalledTimes(2);
     const [key, value, , ttl] = redisMock.set.mock.calls[1];
-    expect(key).toBe('test:idempotency:k1');
+    expect(key).toMatch(HASHED_KEY);
+    expect(key).toBe(redisMock.set.mock.calls[0][0]);
     expect(ttl).toBe(30);
     const cached = JSON.parse(value as string);
     expect(cached.status).toBe(200);
@@ -118,11 +126,24 @@ describe('idempotencyGuard - 客户端 Token 模式', () => {
   });
 
   it('超长客户端 key 截断为 128 字符（防 key 注入撑爆 Redis）', async () => {
-    const { app } = buildApp();
-    await post(app, { 'X-Idempotency-Key': 'x'.repeat(300) });
+    const { app: appA } = buildApp();
+    await post(appA, { 'X-Idempotency-Key': 'x'.repeat(300) });
+    const { app: appB } = buildApp();
+    await post(appB, { 'X-Idempotency-Key': `${'x'.repeat(128)}-tail-differs` });
 
-    const key = redisMock.set.mock.calls[0][0] as string;
-    expect(key).toBe(`test:idempotency:${'x'.repeat(128)}`);
+    // 超出 128 的部分被丢弃 → 两个请求落在同一个 key 上
+    expect(redisMock.set.mock.calls[0][0]).toMatch(HASHED_KEY);
+    expect(redisMock.set.mock.calls[0][0]).toBe(redisMock.set.mock.calls[2][0]);
+  });
+
+  it('同一 key 在不同调用方之间隔离（防跨应用响应回放）', async () => {
+    const { app: appA } = buildApp({}, 200, 'app-a');
+    await post(appA, { 'X-Idempotency-Key': 'same-key' });
+    const { app: appB } = buildApp({}, 200, 'app-b');
+    await post(appB, { 'X-Idempotency-Key': 'same-key' });
+
+    // 每次成功请求 set 两次（占位 + 缓存）
+    expect(redisMock.set.mock.calls[0][0]).not.toBe(redisMock.set.mock.calls[2][0]);
   });
 
   it('非 2xx 响应不缓存（仅 processing 占位，无第二次 set）', async () => {
@@ -157,6 +178,14 @@ describe('idempotencyGuard - 自动指纹模式', () => {
     const key1 = redisMock.set.mock.calls[0][0];
     const key2 = redisMock.set.mock.calls[2][0]; // 每次成功请求 set 两次（占位 + 缓存）
     expect(key1).not.toBe(key2);
+  });
+
+  it('查询串不同的请求产生不同指纹（开放 API 的 siteCode 等目标参数）', async () => {
+    const { app } = buildApp();
+    await app.request('/orders?siteCode=main', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    await app.request('/orders?siteCode=tech', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+
+    expect(redisMock.set.mock.calls[0][0]).not.toBe(redisMock.set.mock.calls[2][0]);
   });
 
   it('未登录（currentUser 抛错）时退化为 IP 指纹，不抛异常', async () => {

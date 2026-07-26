@@ -54,6 +54,7 @@ import {
   cmsLinkWords, cmsMemberSubscriptions, cmsMemberViewHistory, cmsModelFields, cmsModels,
   cmsPageBlockAcls, cmsPages, cmsPublishArtifacts, cmsPushLogs,
   cmsRedirects, cmsResourceFolders, cmsResourceRefs, cmsResources, cmsSearchWords, cmsSiteInheritances, cmsSites, cmsSiteUsers,
+  cmsOpenAppGrants, cmsContentTombstones,
   cmsTags,
 } from './cms';
 
@@ -1515,6 +1516,14 @@ export const cmsResourcesRelations = relations(cmsResources, ({ one, many }) => 
 export const cmsResourceRefsRelations = relations(cmsResourceRefs, ({ one }) => ({
   site: one(cmsSites, { fields: [cmsResourceRefs.siteId], references: [cmsSites.id] }),
   resource: one(cmsResources, { fields: [cmsResourceRefs.resourceId], references: [cmsResources.id] }),
+}));
+
+export const cmsOpenAppGrantsRelations = relations(cmsOpenAppGrants, ({ one }) => ({
+  site: one(cmsSites, { fields: [cmsOpenAppGrants.siteId], references: [cmsSites.id] }),
+}));
+
+export const cmsContentTombstonesRelations = relations(cmsContentTombstones, ({ one }) => ({
+  site: one(cmsSites, { fields: [cmsContentTombstones.siteId], references: [cmsSites.id] }),
 }));
 
 export const cmsSearchWordsRelations = relations(cmsSearchWords, ({ one }) => ({

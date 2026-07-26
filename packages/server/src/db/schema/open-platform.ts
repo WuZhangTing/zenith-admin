@@ -1,6 +1,7 @@
 import { bigint, boolean, date, index, integer, jsonb, pgEnum, pgTable, serial, text, timestamp, unique, varchar, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { statusEnum } from './common';
 import { auditColumns, users } from './core';
+import { cmsSites } from './cms';
 
 export const openAppEnvironmentEnum = pgEnum('open_app_environment', ['production', 'sandbox']);
 export const openAppReviewStatusEnum = pgEnum('open_app_review_status', ['draft', 'pending', 'approved', 'rejected']);
@@ -269,6 +270,15 @@ export const appWebhookSubscriptions = pgTable('app_webhook_subscriptions', {
   signMode: appWebhookSignModeEnum('sign_mode').notNull().default('hmacSha256'),
   /** 订阅的事件类型；空数组 = 订阅全部 */
   events: text('events').array().notNull().default([]),
+  /**
+   * CMS 站点域事件的过滤条件：非空表示只投递该站点的事件。
+   *
+   * 应用域事件（app.*）由 clientId 定向投递，与本列无关；
+   * CMS 事件没有天然的 clientId，改为「广播给已授权该站点的应用」，本列进一步收窄范围。
+   */
+  cmsSiteId: integer('cms_site_id').references(() => cmsSites.id, { onDelete: 'cascade' }),
+  /** 内部订阅：由 CMS 站点 Webhook 配置托管，不在开放平台订阅列表中暴露给开发者 */
+  internal: boolean('internal').notNull().default(false),
   /** 自定义请求头 */
   headers: jsonb('headers').$type<Record<string, string>>(),
   status: statusEnum('status').notNull().default('enabled'),
@@ -278,7 +288,10 @@ export const appWebhookSubscriptions = pgTable('app_webhook_subscriptions', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('app_webhook_subscriptions_client_idx').on(t.clientId)]);
+}, (t) => [
+  index('app_webhook_subscriptions_client_idx').on(t.clientId),
+  index('app_webhook_subscriptions_cms_site_idx').on(t.cmsSiteId),
+]);
 
 export type AppWebhookSubscriptionRow = typeof appWebhookSubscriptions.$inferSelect;
 

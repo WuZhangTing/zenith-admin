@@ -10302,6 +10302,25 @@ export interface CmsSiteOpsSettings {
   autoReplaceSensitiveWords: boolean;
   autoReplaceErrorProneWords: boolean;
   autoCoverFromBody: boolean;
+  /** 是否允许开放 API 直接发布（默认关闭，外部写入先落草稿走审核） */
+  openApiPublishEnabled: boolean;
+}
+
+/** 开放应用的 CMS 站点授权（Headless 写入的 fail-closed 边界） */
+export interface CmsOpenAppGrant {
+  id: number;
+  clientId: string;
+  appName: string | null;
+  siteId: number;
+  siteName: string | null;
+  /** 允许写入的栏目；空数组 = 该站点全部栏目 */
+  channelIds: number[];
+  /** 允许直接发布（还需应用持有 cms:publish 且站点开启开关） */
+  canPublish: boolean;
+  status: 'enabled' | 'disabled';
+  remark: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export type CmsChannelType = 'list' | 'page' | 'link';

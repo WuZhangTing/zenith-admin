@@ -18,10 +18,12 @@ function cmsTables(): { name: string; table: PgTable }[] {
 }
 
 describe('global CMS schema', () => {
-  it('keeps all 51 CMS tables outside tenant ownership', () => {
+  it('keeps all 53 CMS tables outside tenant ownership', () => {
     const tables = cmsTables();
-    expect(tables).toHaveLength(51);
-    expect(tables.map((item) => item.name)).toEqual(expect.arrayContaining(['cms_resource_refs']));
+    expect(tables).toHaveLength(53);
+    expect(tables.map((item) => item.name)).toEqual(expect.arrayContaining([
+      'cms_resource_refs', 'cms_open_app_grants', 'cms_content_tombstones',
+    ]));
     expect(tables.map((item) => item.name)).not.toEqual(expect.arrayContaining([
       'cms_surveys',
       'cms_survey_questions',

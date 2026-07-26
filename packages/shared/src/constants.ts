@@ -1371,6 +1371,7 @@ export const CMS_SITE_OPS_SETTING_KEYS = [
   'autoReplaceSensitiveWords',
   'autoReplaceErrorProneWords',
   'autoCoverFromBody',
+  'openApiPublishEnabled',
 ] as const;
 
 export const CMS_SITE_OPS_DEFAULTS = {
@@ -1386,6 +1387,13 @@ export const CMS_SITE_OPS_DEFAULTS = {
   autoReplaceErrorProneWords: false,
   /** 未填封面时自动提取正文首图作为封面 */
   autoCoverFromBody: false,
+  /**
+   * 是否允许开放 API 直接发布内容。
+   *
+   * 默认关闭：外部应用写入的内容一律先落草稿走站点审核管道，与「站点导入包统一降级为草稿」
+   * 同一条安全约定。开启后仍需应用同时持有 cms:publish scope 与授权行的 canPublish。
+   */
+  openApiPublishEnabled: false,
 } as const;
 
 /** 内置模板下拉的来源标签（本站直选 / 主题内置） */
@@ -1501,6 +1509,70 @@ export const CMS_RESOURCE_OWNER_TYPE_LABELS: Record<CmsResourceOwnerType, string
 
 /** CMS 广告事件类型。 */
 export const CMS_AD_EVENT_TYPES = ['impression', 'click'] as const;
+// ─── Headless 开放 API ────────────────────────────────────────────────────────
+
+/**
+ * 开放 API 的 CMS scope。
+ *
+ * 读写分离且发布单列：`cms:write` 只能落草稿并提交审核，直接发布必须同时持有
+ * `cms:publish` 且站点开启开关 —— 与「站点导入包一律降级为草稿」是同一条安全约定，
+ * 避免外部应用绕过站点的审核管道。
+ */
+export const CMS_OPEN_SCOPES = ['cms:read', 'cms:write', 'cms:publish'] as const;
+export type CmsOpenScope = (typeof CMS_OPEN_SCOPES)[number];
+
+/** 内容列表允许的排序字段（白名单，fail-closed） */
+export const CMS_OPEN_SORT_FIELDS = [
+  'publishedAt', 'createdAt', 'updatedAt', 'sort', 'topWeight', 'viewCount', 'likeCount', 'favoriteCount', 'id',
+] as const;
+export type CmsOpenSortField = (typeof CMS_OPEN_SORT_FIELDS)[number];
+
+/** 内容列表允许的 include 展开项 */
+export const CMS_OPEN_INCLUDES = ['tags', 'channel', 'relations', 'attachments', 'body', 'extend'] as const;
+export type CmsOpenInclude = (typeof CMS_OPEN_INCLUDES)[number];
+
+/** 内容对象允许被 `fields` 裁剪保留的字段（未列出的字段一律不输出） */
+export const CMS_OPEN_CONTENT_FIELDS = [
+  'id', 'siteId', 'channelId', 'channelCode', 'modelCode', 'contentType',
+  'title', 'subTitle', 'shortTitle', 'slug', 'summary', 'coverImage', 'coverThumb',
+  'author', 'editor', 'source', 'sourceUrl', 'isOriginal', 'externalLink',
+  'isTop', 'topWeight', 'isRecommend', 'isHot', 'hasImage', 'hasVideo', 'hasAttachment',
+  'viewCount', 'likeCount', 'favoriteCount', 'sort', 'version',
+  'seoTitle', 'seoKeywords', 'seoDescription',
+  'publishedAt', 'createdAt', 'updatedAt', 'url',
+  // include 展开项
+  'body', 'extend', 'tags', 'channel', 'relations', 'attachments', 'mediaData',
+] as const;
+
+/** 列表分页上限（cursor 模式同样适用） */
+export const CMS_OPEN_PAGE_SIZE_MAX = 100;
+export const CMS_OPEN_SYNC_PAGE_SIZE_MAX = 200;
+
+/** 增量同步的变更类型 */
+export const CMS_OPEN_SYNC_OPS = ['upsert', 'delete'] as const;
+export type CmsOpenSyncOp = (typeof CMS_OPEN_SYNC_OPS)[number];
+
+/** 开放应用可订阅的 CMS 事件 */
+export const CMS_OPEN_WEBHOOK_EVENTS = [
+  'cms.content.published',
+  'cms.content.updated',
+  'cms.content.offline',
+  'cms.content.recycled',
+  'cms.content.deleted',
+  'cms.comment.created',
+  'cms.form.submitted',
+] as const;
+export type CmsOpenWebhookEvent = (typeof CMS_OPEN_WEBHOOK_EVENTS)[number];
+
+export const CMS_OPEN_WEBHOOK_EVENT_LABELS: Record<CmsOpenWebhookEvent, string> = {
+  'cms.content.published': 'CMS 内容发布',
+  'cms.content.updated': 'CMS 内容更新',
+  'cms.content.offline': 'CMS 内容下线',
+  'cms.content.recycled': 'CMS 内容回收',
+  'cms.content.deleted': 'CMS 内容彻底删除',
+  'cms.comment.created': 'CMS 评论提交',
+  'cms.form.submitted': 'CMS 表单提交',
+};
 
 export const CMS_AD_EVENT_TYPE_LABELS: Record<(typeof CMS_AD_EVENT_TYPES)[number], string> = {
   impression: '曝光',

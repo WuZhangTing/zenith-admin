@@ -75,7 +75,8 @@ CMS 前台路由（Hono 兜底路由）
 后台管理（React SPA /cms/*）
    └─ /api/cms/* REST 接口（权限 cms:*，站点数据权限 cms_site_users）
 开放平台
-   └─ /api/open/v1/cms/*（Headless 只读 API，scope cms:read）
+   └─ /api/open/v1/cms/*（Headless 双向 API：查询 DSL / 游标翻页 / 增量同步 / 受治理写入，
+      scope cms:read|cms:write|cms:publish，写入需站点级开放授权）
 ```
 
 ## 数据表
@@ -83,6 +84,8 @@ CMS 前台路由（Hono 兜底路由）
 核心表：`cms_sites` / `cms_site_inheritances` / `cms_distribution_rules` / `cms_models` / `cms_model_fields` / `cms_channels` / `cms_contents` / `cms_tags` / `cms_content_tags` / `cms_content_channels`（副栏目）/ `cms_content_relations`（相关文章）/ `cms_content_versions` / `cms_content_op_logs`（操作日志时间线）
 
 素材表：`cms_resource_folders` / `cms_resources` / `cms_resource_refs`（素材反向引用索引，owner 写事务内维护，供孤立治理与删除保护）
+
+开放能力：`cms_open_app_grants`（开放应用的站点/栏目写入授权，fail-closed）/ `cms_content_tombstones`（硬删除墓碑，供 Headless 增量同步输出 `op=delete`）
 
 运营表：`cms_comments` / `cms_ad_slots` / `cms_ads` / `cms_ad_events` / `cms_forms` / `cms_form_submissions` / `cms_sensitive_words` / `cms_error_prone_words`（易错词）/ `cms_fragments` / `cms_friend_links` / `cms_pages` / `cms_page_block_acls`
 

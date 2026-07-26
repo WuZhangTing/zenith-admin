@@ -391,6 +391,8 @@ export const cmsContents = pgTable('cms_contents', {
   index('cms_contents_mapping_source_idx').on(t.mappingSourceId),
   index('cms_contents_distribution_source_idx').on(t.distributionRuleId, t.distributionSourceId),
   index('cms_contents_locked_at_idx').on(t.lockedAt),
+  // Headless 增量同步的 keyset 游标（按 updated_at 递增拉变更集）
+  index('cms_contents_sync_idx').on(t.siteId, t.updatedAt, t.id),
   uniqueIndex('cms_contents_distribution_materialization_uq').on(t.distributionRuleId, t.distributionSourceId)
     .where(sql`${t.distributionRuleId} is not null and ${t.distributionSourceId} is not null and ${t.deletedAt} is null`),
   uniqueIndex('cms_contents_site_slug_uq').on(t.siteId, t.slug)
@@ -1294,3 +1296,49 @@ export const cmsResourceRefs = pgTable('cms_resource_refs', {
 ]);
 
 export type CmsResourceRefRow = typeof cmsResourceRefs.$inferSelect;
+
+/**
+ * 开放应用的 CMS 站点/栏目授权（Headless 写入的 fail-closed 边界）。
+ *
+ * 持有 `cms:write` scope 只说明「这个应用可以调用写接口」，不等于「可以写任意站点」。
+ * 与人类侧的 `cms_site_users` / `cms_channel_users` 同构：未显式授权一律拒绝。
+ */
+export const cmsOpenAppGrants = pgTable('cms_open_app_grants', {
+  id: serial('id').primaryKey(),
+  /** 开放应用 AppKey（= oauth2_clients.client_id） */
+  clientId: varchar('client_id', { length: 64 }).notNull(),
+  siteId: integer('site_id').notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
+  /** 允许写入的栏目 id；空数组 = 该站点全部栏目 */
+  channelIds: integer('channel_ids').array().notNull().default([]),
+  /** 是否允许直接发布（还需 cms:publish scope 与站点开关同时成立） */
+  canPublish: boolean('can_publish').notNull().default(false),
+  status: statusEnum('status').notNull().default('enabled'),
+  remark: varchar('remark', { length: 200 }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  uniqueIndex('cms_open_app_grants_client_site_uq').on(t.clientId, t.siteId),
+  index('cms_open_app_grants_client_idx').on(t.clientId),
+  index('cms_open_app_grants_site_idx').on(t.siteId),
+]);
+
+export type CmsOpenAppGrantRow = typeof cmsOpenAppGrants.$inferSelect;
+
+/**
+ * 内容硬删除墓碑，供 Headless 增量同步输出 `op=delete`。
+ *
+ * 回收站是软删（同步侧表现为 `offline`），但「彻底删除」会让行消失，
+ * 客户端按 `updated_at` 游标永远拉不到这条变更，本地缓存会残留已删内容。
+ */
+export const cmsContentTombstones = pgTable('cms_content_tombstones', {
+  id: serial('id').primaryKey(),
+  siteId: integer('site_id').notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
+  contentId: integer('content_id').notNull(),
+  deletedAt: timestamp('deleted_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('cms_content_tombstones_content_uq').on(t.contentId),
+  index('cms_content_tombstones_sync_idx').on(t.siteId, t.deletedAt, t.contentId),
+]);
+
+export type CmsContentTombstoneRow = typeof cmsContentTombstones.$inferSelect;

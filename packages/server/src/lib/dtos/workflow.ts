@@ -2,16 +2,23 @@
  * 工作流相关 DTO
  */
 import { z } from '@hono/zod-openapi';
-import { workflowFormFieldSchema } from '@zenith/shared';
+import { workflowFormFieldSchema, workflowFieldVisibilityRuleGroupSchema, workflowFormCascaderNodeSchema } from '@zenith/shared';
 import { auditFields } from './_audit';
 
 /**
  * 递归表单字段 schema 的 OpenAPI ref 注册。
- * `workflowFormFieldSchema` 是 z.lazy 自引用递归结构，若不注册 refId，
- * OpenAPI 文档生成时会无限展开导致栈溢出（/api/openapi.json 500）。
- * zod-to-openapi 对 ZodLazy 调用 .openapi(refId) 会把元数据回写到原实例，
- * 因此内部 children 自引用也会命中同一 refId，生成 $ref 终止递归。
+ *
+ * 这些 schema 是 z.lazy 自引用递归结构，OpenAPI 文档生成靠两个条件才能终止递归：
+ * 1. lazy 内部实例被缓存（见 shared/validation.ts 的 `lazyRecursive`），自引用命中同一实例；
+ * 2. **每个**递归 schema 都注册了 refId —— 生成器只有拿到 refId 才会输出 `$ref`。
+ *
+ * 少一个条件就会无限展开、栈溢出，导致整份 `/api/openapi.json` 返回 500。
+ * 因此除字段本身外，字段内嵌的可见性规则组与级联选项节点也必须在此注册。
+ * （zod-to-openapi 对 ZodLazy 调用 .openapi(refId) 会把元数据回写到原实例，
+ * 因此内部自引用同样命中该 refId。）
  */
+export const WorkflowFieldVisibilityRuleGroupDTO = workflowFieldVisibilityRuleGroupSchema.openapi('WorkflowFieldVisibilityRuleGroup');
+export const WorkflowFormCascaderNodeDTO = workflowFormCascaderNodeSchema.openapi('WorkflowFormCascaderNode');
 export const WorkflowFormFieldDTO = workflowFormFieldSchema.openapi('WorkflowFormField');
 
 export const WorkflowCategoryDTO = z

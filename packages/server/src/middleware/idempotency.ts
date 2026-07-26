@@ -9,9 +9,12 @@
  *   适合：支付创单、工单提交等需要客户端显式保证的场景。
  *
  * **模式 2 — 服务端自动指纹（自动兜底）**
- *   服务端根据 (userId | ip) + method + pathname + body-hash 计算 SHA-256 指纹。
+ *   服务端根据 (AppKey | userId | ip) + method + pathname + query + body-hash 计算 SHA-256 指纹。
  *   TTL 内若同一指纹再次到达，直接拒绝。
  *   适合：普通表单防重复提交，无需前端改造。
+ *
+ * 两种模式的 Redis key 都按**调用方身份**分命名空间：缓存的是完整响应体，
+ * 不隔离就会把别人的响应回放给当前调用方。
  *
  * 用法（在 createRoute 的 middleware 数组中声明）：
  *
@@ -107,22 +110,41 @@ export function idempotencyGuard(options: IdempotencyOptions = {}) {
     let idempotencyKey: string | null = null;
     let keySource: 'header' | 'fingerprint' = 'fingerprint';
 
-    const clientKey = c.req.header('x-idempotency-key');
-    if (clientKey) {
-      // 模式 1：客户端 Token（最大 128 字符，防止 key 注入攻击）
-      idempotencyKey = clientKey.slice(0, 128);
-      keySource = 'header';
-    } else if (autoFingerprint) {
-      // 模式 2：服务端自动指纹
-      let identity: string;
+    /**
+     * 调用方身份。
+     *
+     * 开放网关请求没有管理员 ALS 上下文（`currentUser()` 会抛），但已鉴权的 AppKey 就在 context 里。
+     * 不用它的话所有开放应用会退化到同一个 `'0.0.0.0'` 身份共用命名空间，命中缓存后会把
+     * 别的应用的响应原样回放 —— 既丢自己的写入，又泄露对方数据。
+     */
+    const openAppKey = c.get('openApp')?.clientId;
+    let identity: string;
+    if (openAppKey) {
+      identity = `app:${openAppKey}`;
+    } else {
       try {
         const user = currentUser();
         identity = user ? `u${user.userId}` : c.req.header('x-forwarded-for')?.split(',')[0].trim() ?? '0.0.0.0';
       } catch {
         identity = '0.0.0.0';
       }
+    }
+
+    const clientKey = c.req.header('x-idempotency-key');
+    if (clientKey) {
+      // 模式 1：客户端 Token（最大 128 字符，防止 key 注入攻击）
+      // 同样按身份分命名空间：否则不同调用方用了相同 key 值就会互相读到对方的缓存响应
+      idempotencyKey = crypto.createHash('sha256')
+        .update(`${identity}|${clientKey.slice(0, 128)}`)
+        .digest('hex')
+        .slice(0, 32);
+      keySource = 'header';
+    } else if (autoFingerprint) {
+      // 模式 2：服务端自动指纹
       const method = c.req.method;
-      const path = new URL(c.req.url).pathname;
+      // 目标对象常由 query 决定（如开放 API 的 siteCode），只取 pathname 会让不同站点的请求撞指纹
+      const url = new URL(c.req.url);
+      const path = `${url.pathname}${url.search}`;
       const bodyHash = await hashBody(c);
       const raw = `${identity}|${method}|${path}|${bodyHash}`;
       idempotencyKey = crypto.createHash('sha256').update(raw).digest('hex').slice(0, 32);

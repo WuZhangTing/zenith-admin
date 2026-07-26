@@ -111,5 +111,6 @@ export function resolveCmsSiteOpsSettings(
     autoReplaceSensitiveWords: boolSetting(s.autoReplaceSensitiveWords, CMS_SITE_OPS_DEFAULTS.autoReplaceSensitiveWords),
     autoReplaceErrorProneWords: boolSetting(s.autoReplaceErrorProneWords, CMS_SITE_OPS_DEFAULTS.autoReplaceErrorProneWords),
     autoCoverFromBody: boolSetting(s.autoCoverFromBody, CMS_SITE_OPS_DEFAULTS.autoCoverFromBody),
+    openApiPublishEnabled: boolSetting(s.openApiPublishEnabled, CMS_SITE_OPS_DEFAULTS.openApiPublishEnabled),
   };
 }

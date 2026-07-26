@@ -13,6 +13,7 @@ import {
   mockCmsSearchWords, mockCmsHotKeywords, mockCmsHotwordGroups,
   getNextCmsSearchWordId, getNextCmsHotwordGroupId, getNextCmsHotwordId,
   mockCmsResources, mockCmsResourceFolders, getNextCmsResourceId, getNextCmsResourceFolderId,
+  mockCmsOpenGrants, getNextCmsOpenGrantId,
   mockCmsCollectRules, mockCmsCollectItems, getNextCmsCollectRuleId,
   mockCmsPages, getNextCmsPageId,
 } from '../data/cms';
@@ -1727,6 +1728,39 @@ export const cmsP2Handlers = [
   // ─── 站点授权用户 ───────────────────────────────────────────────────────────
   http.get('/api/cms/sites/:id/users', () => okJson({ userIds: [2], users: [{ id: 2, username: SEED_CMS_EDITOR_USER.username, nickname: SEED_CMS_EDITOR_USER.nickname }] })),
   http.put('/api/cms/sites/:id/users', () => okJson(null, '保存成功')),
+
+  // 开放应用授权（Headless 写入的 fail-closed 边界）
+  http.get('/api/cms/sites/:id/open-grants', ({ params }) =>
+    okJson(mockCmsOpenGrants.filter((g) => g.siteId === Number(params.id)))),
+  http.put('/api/cms/sites/:id/open-grants', async ({ params, request }) => {
+    const siteId = Number(params.id);
+    const body = (await request.json()) as {
+      clientId: string; channelIds?: number[]; canPublish?: boolean; status?: 'enabled' | 'disabled'; remark?: string | null;
+    };
+    const existing = mockCmsOpenGrants.find((g) => g.siteId === siteId && g.clientId === body.clientId);
+    const row = {
+      id: existing?.id ?? getNextCmsOpenGrantId(),
+      clientId: body.clientId,
+      appName: existing?.appName ?? '演示开放应用',
+      siteId,
+      siteName: mockCmsSites.find((s) => s.id === siteId)?.name ?? null,
+      channelIds: body.channelIds ?? [],
+      canPublish: body.canPublish === true,
+      status: body.status ?? ('enabled' as const),
+      remark: body.remark ?? null,
+      createdAt: existing?.createdAt ?? mockDateTime(),
+      updatedAt: mockDateTime(),
+    };
+    if (existing) Object.assign(existing, row);
+    else mockCmsOpenGrants.unshift(row);
+    return okJson(row, '已保存');
+  }),
+  http.delete('/api/cms/sites/open-grants/:grantId', ({ params }) => {
+    const idx = mockCmsOpenGrants.findIndex((g) => g.id === Number(params.grantId));
+    if (idx < 0) return notFound('授权不存在');
+    mockCmsOpenGrants.splice(idx, 1);
+    return okJson(null, '已删除');
+  }),
 
   // ─── P5 企业级治理 ─────────────────────────────────────────────────────────
   // 栏目授权用户（栏目级数据权限）

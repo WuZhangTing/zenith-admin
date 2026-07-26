@@ -15,7 +15,7 @@ import type {
   CmsAdSlot, CmsAd, CmsAdEvent, CmsForm, CmsFormSubmission, CmsSensitiveWord, CmsErrorProneWord, CmsLinkWord, CmsComment,
   CmsRedirect, CmsPushLog, CmsContentVersion, CmsSearchWord, CmsHotKeyword, CmsContentOpLog, CmsInteraction,
   CmsInteractionResponse, CmsMemberSubscription, CmsPageBlockAcl,
-  CmsResource, CmsResourceFolder, CmsHotwordGroup, CmsCollectRule, CmsCollectItem, CmsPage,
+  CmsResource, CmsResourceFolder, CmsHotwordGroup, CmsCollectRule, CmsCollectItem, CmsPage, CmsOpenAppGrant,
 } from '@zenith/shared';
 
 // 从共享种子数据派生（禁止重复定义静态数组）
@@ -157,6 +157,25 @@ export const mockCmsResources: CmsResource[] = SEED_CMS_RESOURCES.map((r) => ({ 
 export const mockCmsResourceFolders: CmsResourceFolder[] = SEED_CMS_RESOURCE_FOLDERS.map((folder) => ({ ...folder }));
 export const getNextCmsResourceId = nextIdFactory(Math.max(0, ...mockCmsResources.map((x) => x.id)) + 1);
 export const getNextCmsResourceFolderId = nextIdFactory(Math.max(0, ...mockCmsResourceFolders.map((x) => x.id)) + 1);
+
+/** 开放应用授权（Demo 预置一条，演示 Headless 写入的 fail-closed 边界） */
+export const mockCmsOpenGrants: CmsOpenAppGrant[] = [
+  {
+    id: 1,
+    clientId: 'demo-headless-app',
+    appName: '演示开放应用',
+    siteId: 1,
+    siteName: SEED_CMS_SITES[0]?.name ?? null,
+    channelIds: [],
+    canPublish: false,
+    status: 'enabled',
+    remark: '仅可创建草稿并提交审核',
+    createdAt: '2026-01-01 00:00:00',
+    updatedAt: '2026-01-01 00:00:00',
+  },
+];
+export const getNextCmsOpenGrantId = nextIdFactory(Math.max(0, ...mockCmsOpenGrants.map((x) => x.id)) + 1);
+
 export const mockCmsCollectRules: CmsCollectRule[] = SEED_CMS_COLLECT_RULES.map((rule) => ({ ...rule }));
 export const mockCmsCollectItems: CmsCollectItem[] = SEED_CMS_COLLECT_ITEMS.map((item) => ({ ...item }));
 export const getNextCmsCollectRuleId = nextIdFactory(Math.max(0, ...mockCmsCollectRules.map((x) => x.id)) + 1);

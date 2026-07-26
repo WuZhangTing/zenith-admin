@@ -143,16 +143,30 @@ export function segmentForIndex(text: string | null | undefined, siteId?: number
 }
 
 /** 查询分词：cut 粗粒度（与索引的细粒度切分配合保证可命中），返回去重 token 数组 */
-export function segmentForQuery(keyword: string, siteId?: number): string[] {
-  const plain = keyword.trim();
+export function segmentForQuery(keyword: string, siteId?: number): string[] {  const plain = keyword.trim();
   if (!plain) return [];
   const tokens = getJieba(siteId).cut(plain, true);
   const stopWords = siteId ? stopWordsBySite.get(siteId) : undefined;
   return filterCmsSearchTokens(tokens, stopWords);
 }
 
-export interface SearchVectorInput {
-  siteId?: number;
+/**
+ * 全文检索匹配条件（`search_vector @@ tsquery`）。
+ *
+ * 与 `searchCmsContents` 共用同一套分词与 tsquery 构造，避免开放 API 与站内搜索
+ * 在同一关键词上给出不同结果集。关键词切不出 token 时返回 null，调用方按「无命中」处理。
+ */
+export function buildCmsSearchCondition(keyword: string, siteId: number): SQL | null {
+  const tokens = segmentForQuery(keyword, siteId);
+  if (tokens.length === 0) return null;
+  const cfg = sql.raw(`'${TSVECTOR_CONFIG}'`);
+  const tsquery = usesAppSegmentation()
+    ? sql`plainto_tsquery(${cfg}::regconfig, ${tokens.join(' ')})`
+    : sql`plainto_tsquery(${cfg}::regconfig, ${keyword.trim()})`;
+  return sql`${cmsContents.searchVector} @@ ${tsquery}`;
+}
+
+export interface SearchVectorInput {  siteId?: number;
   title: string;
   seoKeywords?: string | null;
   summary?: string | null;

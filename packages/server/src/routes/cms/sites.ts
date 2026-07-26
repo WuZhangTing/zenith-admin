@@ -24,6 +24,7 @@ import {
   CmsThemeDTO,
   CmsThemeSettingFieldDTO,
   CmsThemeTemplatesDTO,
+  CmsOpenAppGrantDTO,
 } from '../../lib/openapi-dtos';
 import { getThemeSettingsSchema, isThemeRegistered, listThemes, listThemeTemplates } from '../../cms/themes/registry';
 import {
@@ -34,6 +35,9 @@ import {
 } from '../../services/cms/cms-sites.service';
 import { getSiteTemplateHealth } from '../../services/cms/cms-template-refs.service';
 import { exportCmsSite, importCmsSite } from '../../services/cms/cms-site-transfer.service';
+import {
+  deleteCmsOpenAppGrant, listCmsOpenAppGrants, saveCmsOpenAppGrant,
+} from '../../services/cms/cms-open-grants.service';
 import { formatFileTimestamp } from '../../lib/datetime';
 import { assertAllCmsSiteChannelsAccess } from '../../services/cms/cms-channels.service';
 
@@ -354,11 +358,74 @@ const importSiteRoute = defineOpenAPIRoute({
   },
 });
 
+// ─── 开放授权（Headless 写入的 fail-closed 边界）──────────────────────────────
+const listGrantsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/{id}/open-grants',
+    tags: ['CMS-站点管理'], summary: '站点的开放应用授权列表',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'cms:site:update' })] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...ok(z.array(CmsOpenAppGrantDTO), '授权列表') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    await assertSiteAccess(id);
+    return c.json(okBody(await listCmsOpenAppGrants(id)), 200);
+  },
+});
+
+const saveGrantRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'put', path: '/{id}/open-grants',
+    tags: ['CMS-站点管理'], summary: '授权开放应用写入本站点（未授权一律拒绝）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'cms:site:update', audit: { description: '设置 CMS 站点开放授权', module: 'CMS内容管理' } })] as const,
+    request: {
+      params: IdParam,
+      body: {
+        content: jsonContent(z.object({
+          clientId: z.string().min(1).max(64).openapi({ description: '开放应用 AppKey' }),
+          channelIds: z.array(z.number().int().positive()).default([]).openapi({ description: '空数组 = 该站点全部栏目' }),
+          canPublish: z.boolean().default(false).openapi({ description: '允许直接发布；还需应用持有 cms:publish 且站点开启「允许开放 API 直接发布」' }),
+          status: z.enum(['enabled', 'disabled']).default('enabled'),
+          remark: z.string().max(200).nullable().optional(),
+        })),
+        required: true,
+      },
+    },
+    responses: { ...commonErrorResponses, ...ok(CmsOpenAppGrantDTO, '已保存') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    await assertSiteAccess(id);
+    const row = await saveCmsOpenAppGrant({ ...c.req.valid('json'), siteId: id });
+    setAuditAfterData(c, row);
+    return c.json(okBody(row, '已保存'), 200);
+  },
+});
+
+const deleteGrantRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'delete', path: '/open-grants/{grantId}',
+    tags: ['CMS-站点管理'], summary: '删除开放应用授权',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'cms:site:update', audit: { description: '删除 CMS 站点开放授权', module: 'CMS内容管理' } })] as const,
+    request: { params: z.object({ grantId: z.coerce.number().int().positive() }) },
+    responses: { ...commonErrorResponses, ...okMsg('已删除') },
+  }),
+  handler: async (c) => {
+    await deleteCmsOpenAppGrant(c.req.valid('param').grantId);
+    return c.json(okBody(null, '已删除'), 200);
+  },
+});
+
 router.openapiRoutes([
   listRoute, allRoute, treeRoute, themesRoute, themeTemplatesRoute, themeSettingsSchemaRoute,
   templateHealthRoute, inheritanceChainRoute, effectiveConfigRoute, moveRoute, updateInheritanceRoute,
   getOneRoute, createRoute_, updateRoute_, deleteRoute_, getSiteUsersRoute, setSiteUsersRoute,
   enableAnalyticsRoute, importSiteRoute,
+  listGrantsRoute, saveGrantRoute, deleteGrantRoute,
 ] as const);
 
 // 站点导出：JSON 附件下载（结构+内容整站打包，不含运行数据）

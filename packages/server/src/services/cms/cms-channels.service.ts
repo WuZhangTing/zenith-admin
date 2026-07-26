@@ -312,6 +312,12 @@ export async function updateCmsChannel(id: number, data: UpdateCmsChannelInput) 
           eq(cmsChannels.id, id),
         )).returning();
       if (!updated) throw new HTTPException(404, { message: '栏目不存在' });
+      if (data.status !== undefined && data.status !== current.status) {
+        // 栏目启停等同其下内容的整体上下线（publicWhere / 增量同步都按栏目状态判定可见性）。
+        // 内容行本身没被改动，不 bump updated_at 的话 Headless 增量同步永远推不出这批变更，
+        // 集成方本地会残留一批前台已经看不到的内容。
+        await tx.update(cmsContents).set({ updatedAt: new Date() }).where(eq(cmsContents.channelId, id));
+      }
       await syncCmsResourceRefs(tx, 'channel', updated.id, updated.siteId, updated);
       if (path !== current.path) {
         await recomputeChildPaths(tx, id, path);

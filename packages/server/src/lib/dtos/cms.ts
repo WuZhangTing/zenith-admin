@@ -1314,3 +1314,105 @@ export const CmsPageDTO = z
     updatedAt: z.string(),
   })
   .openapi('CmsPage');
+
+// ─── Headless 开放 API ────────────────────────────────────────────────────────
+
+/**
+ * 开放 API 的内容对象。
+ *
+ * 字段随 `fields` 裁剪、随 `include` 展开，因此除 `id` 外全部标记为 optional；
+ * 具体可用字段清单见 `CMS_OPEN_CONTENT_FIELDS`。
+ */
+export const CmsOpenContentDTO = z
+  .object({
+    id: z.number().int(),
+    siteId: z.number().int().optional(),
+    channelId: z.number().int().optional(),
+    channelCode: z.string().nullable().optional(),
+    modelCode: z.string().nullable().optional(),
+    contentType: z.enum(['article', 'album', 'media', 'link']).optional(),
+    title: z.string().optional(),
+    subTitle: z.string().nullable().optional(),
+    shortTitle: z.string().nullable().optional(),
+    slug: z.string().nullable().optional(),
+    summary: z.string().nullable().optional(),
+    coverImage: z.string().nullable().optional(),
+    coverThumb: z.string().nullable().optional(),
+    author: z.string().nullable().optional(),
+    editor: z.string().nullable().optional(),
+    source: z.string().nullable().optional(),
+    sourceUrl: z.string().nullable().optional(),
+    isOriginal: z.boolean().optional(),
+    externalLink: z.string().nullable().optional(),
+    isTop: z.boolean().optional(),
+    topWeight: z.number().int().optional(),
+    isRecommend: z.boolean().optional(),
+    isHot: z.boolean().optional(),
+    hasImage: z.boolean().optional(),
+    hasVideo: z.boolean().optional(),
+    hasAttachment: z.boolean().optional(),
+    viewCount: z.number().int().optional(),
+    likeCount: z.number().int().optional(),
+    favoriteCount: z.number().int().optional(),
+    sort: z.number().int().optional(),
+    version: z.number().int().optional(),
+    seoTitle: z.string().nullable().optional(),
+    seoKeywords: z.string().nullable().optional(),
+    seoDescription: z.string().nullable().optional(),
+    publishedAt: z.string().nullable().optional(),
+    createdAt: z.string().optional(),
+    updatedAt: z.string().optional(),
+    url: z.string().nullable().optional().openapi({ description: '站内详情页相对路径' }),
+    body: z.string().nullable().optional().openapi({ description: 'include=body 或详情接口返回' }),
+    extend: z.record(z.string(), z.unknown()).optional(),
+    mediaData: z.record(z.string(), z.unknown()).optional(),
+    attachments: z.array(z.record(z.string(), z.unknown())).optional(),
+    tags: z.array(z.object({ name: z.string(), slug: z.string() })).optional(),
+    relations: z.array(z.number().int()).optional(),
+    channel: z.object({ id: z.number().int(), code: z.string(), path: z.string() }).nullable().optional(),
+  })
+  .openapi('CmsOpenContent');
+
+/** 游标分页结果（深翻不退化，且并发插入不错行） */
+export const CmsOpenContentCursorPageDTO = z
+  .object({
+    list: z.array(CmsOpenContentDTO),
+    pageSize: z.number().int(),
+    hasMore: z.boolean(),
+    nextCursor: z.string().nullable().openapi({ description: '下一页游标；null 表示已到末页' }),
+  })
+  .openapi('CmsOpenContentCursorPage');
+
+export const CmsOpenSyncChangeDTO = z
+  .object({
+    op: z.enum(['upsert', 'delete']),
+    id: z.number().int(),
+    updatedAt: z.string(),
+    content: CmsOpenContentDTO.optional().openapi({ description: 'op=upsert 时返回；delete 时省略' }),
+  })
+  .openapi('CmsOpenSyncChange');
+
+export const CmsOpenSyncResultDTO = z
+  .object({
+    changes: z.array(CmsOpenSyncChangeDTO),
+    pageSize: z.number().int(),
+    hasMore: z.boolean(),
+    nextCursor: z.string().nullable(),
+  })
+  .openapi('CmsOpenSyncResult');
+
+export const CmsOpenAppGrantDTO = z
+  .object({
+    id: z.number().int(),
+    clientId: z.string().openapi({ description: '开放应用 AppKey' }),
+    appName: z.string().nullable(),
+    siteId: z.number().int(),
+    siteName: z.string().nullable(),
+    channelIds: z.array(z.number().int()).openapi({ description: '允许写入的栏目；空数组 = 该站点全部栏目' }),
+    canPublish: z.boolean().openapi({ description: '是否允许直接发布（还需 cms:publish scope 与站点开关）' }),
+    status: z.enum(['enabled', 'disabled']),
+    remark: z.string().nullable(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('CmsOpenAppGrant');

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Banner, Button, Form, Input, InputNumber, Select, Switch, Tag, TextArea, Toast, Modal, Row, Col, SideSheet, Tabs, TabPane, Typography, Upload } from '@douyinfe/semi-ui';
+import { Banner, Button, Checkbox, Form, Input, InputNumber, Select, Space, Switch, Tag, TextArea, Toast, Modal, Row, Col, SideSheet, Tabs, TabPane, Typography, Upload } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, RotateCcw, Plus, Upload as UploadIcon, ImageUp, Zap, ExternalLink, ChevronsDownUp, ChevronsUpDown, ListTree, List as ListIcon } from 'lucide-react';
@@ -20,6 +20,7 @@ import {
   useCmsThemeTemplates, useAllCmsModels, useCmsSiteTemplateHealth,
   useCmsThemeSettingsSchema, useCmsStaticBuild,
   useAllCmsSites,
+  useCmsChannelTree, useCmsOpenGrants, useSaveCmsOpenGrant, useDeleteCmsOpenGrant,
 } from '@/hooks/queries/cms';
 import {
   cmsSiteHierarchyKeys,
@@ -34,7 +35,7 @@ import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 import { useWorkflowDefinitionList } from '@/hooks/queries/workflow-definitions';
 import { CMS_SITE_INHERITABLE_FIELD_LABELS, CMS_SITE_INHERITABLE_FIELDS, CMS_SITE_OPS_DEFAULTS, CMS_STATIC_MODE_LABELS, CMS_STATIC_MODES, CMS_TWITTER_CARDS, CMS_TWITTER_CARD_LABELS } from '@zenith/shared';
-import type { AsyncTask, CmsModelField, CmsSite, CmsSiteInheritanceFlags, CmsSiteInheritableField, CmsSiteTemplateDefaults, CmsInvalidTemplateRef, CmsThemeSettingField } from '@zenith/shared';
+import type { AsyncTask, CmsChannel, CmsModelField, CmsOpenAppGrant, CmsSite, CmsSiteInheritanceFlags, CmsSiteInheritableField, CmsSiteTemplateDefaults, CmsInvalidTemplateRef, CmsThemeSettingField } from '@zenith/shared';
 import { cmsPreviewUrl } from './CmsSiteSelect';
 import { cmsCredentialWriteValue } from './cms-site-credentials';
 
@@ -412,6 +413,34 @@ export default function SitesPage() {
     setUsersModalSite(null);
   }
 
+  // ─── 开放授权（Headless 写入边界：未授权的开放应用一律拒绝）─────────────────
+  const [grantsSite, setGrantsSite] = useState<CmsSite | null>(null);
+  const [grantDraft, setGrantDraft] = useState<{ clientId: string; channelIds: number[]; canPublish: boolean }>(
+    { clientId: '', channelIds: [], canPublish: false },
+  );
+  const grantsQuery = useCmsOpenGrants(grantsSite?.id, !!grantsSite);
+  const saveGrantMutation = useSaveCmsOpenGrant();
+  const deleteGrantMutation = useDeleteCmsOpenGrant();
+  const grantChannelsQuery = useCmsChannelTree(grantsSite?.id);
+  const grantChannelOptions = useMemo(() => {
+    const flatten = (nodes: CmsChannel[], depth = 0): { value: number; label: string }[] =>
+      nodes.flatMap((node) => [
+        { value: node.id, label: `${'　'.repeat(depth)}${node.name}` },
+        ...(node.children ? flatten(node.children, depth + 1) : []),
+      ]);
+    return flatten(grantChannelsQuery.data ?? []);
+  }, [grantChannelsQuery.data]);
+
+  async function handleSaveGrant() {
+    if (!grantsSite || !grantDraft.clientId.trim()) {
+      Toast.warning('请填写开放应用 AppKey');
+      return;
+    }
+    await saveGrantMutation.mutateAsync({ siteId: grantsSite.id, ...grantDraft, clientId: grantDraft.clientId.trim() });
+    setGrantDraft({ clientId: '', channelIds: [], canPublish: false });
+    Toast.success('授权已保存');
+  }
+
   function openMoveSite(record: CmsSite) {
     setMoveSite(record);
     setMoveParentId(record.parentId ?? null);
@@ -719,6 +748,10 @@ export default function SitesPage() {
           key: 'users',
           label: '授权用户',
           onClick: () => openUsersModal(record),
+        }, {
+          key: 'open-grants',
+          label: '开放授权',
+          onClick: () => setGrantsSite(record),
         }, {
           key: 'export',
           label: '导出',
@@ -1400,6 +1433,91 @@ export default function SitesPage() {
           style={{ width: '100%' }}
           loading={siteUsersQuery.isFetching}
           optionList={(allUsers ?? []).map((u) => ({ value: u.id, label: `${u.nickname}（${u.username}）` }))}
+        />
+      </AppModal>
+
+      {/* 开放授权弹窗（Headless 写入的 fail-closed 边界） */}
+      <AppModal
+        title={grantsSite ? `「${grantsSite.name}」开放授权` : '开放授权'}
+        visible={!!grantsSite}
+        onCancel={() => setGrantsSite(null)}
+        footer={null}
+        width={720}
+        closeOnEsc
+      >
+        <div style={{ marginBottom: 12, color: 'var(--semi-color-text-2)', fontSize: 13 }}>
+          开放应用持有 <code>cms:write</code> 只代表能调写接口，能写哪个站点由此处决定：**未在此授权的应用一律拒绝**。
+          栏目留空表示该站点全部栏目。「允许直接发布」还需应用同时持有 <code>cms:publish</code>，
+          且在站点编辑 →「内容策略」中开启「允许开放 API 直接发布」。
+        </div>
+        <Space wrap align="end" style={{ marginBottom: 12, width: '100%' }}>
+          <Input
+            placeholder="开放应用 AppKey"
+            value={grantDraft.clientId}
+            onChange={(v) => setGrantDraft((d) => ({ ...d, clientId: v }))}
+            style={{ width: 220 }}
+          />
+          <Select
+            multiple
+            filter
+            placeholder="可写栏目（留空 = 全部）"
+            value={grantDraft.channelIds}
+            onChange={(v) => setGrantDraft((d) => ({ ...d, channelIds: (v as number[]) ?? [] }))}
+            optionList={grantChannelOptions}
+            style={{ width: 240 }}
+          />
+          <Checkbox
+            checked={grantDraft.canPublish}
+            onChange={(e: { target: { checked?: boolean } }) => setGrantDraft((d) => ({ ...d, canPublish: e.target.checked === true }))}
+          >
+            允许直接发布
+          </Checkbox>
+          <Button type="primary" loading={saveGrantMutation.isPending} onClick={() => void handleSaveGrant()}>
+            保存授权
+          </Button>
+        </Space>
+        <ConfigurableTable
+          bordered
+          size="small"
+          rowKey="id"
+          loading={grantsQuery.isFetching}
+          dataSource={grantsQuery.data ?? []}
+          pagination={false}
+          empty="尚未授权任何开放应用"
+          columns={[
+            { title: 'AppKey', dataIndex: 'clientId', width: 180 },
+            { title: '应用', dataIndex: 'appName', width: 140, render: (v: string | null) => v ?? '-' },
+            {
+              title: '可写栏目', dataIndex: 'channelIds', width: 160,
+              render: (v: number[]) => (v?.length ? `${v.length} 个栏目` : <Tag size="small" color="blue">全部栏目</Tag>),
+            },
+            {
+              title: '直接发布', dataIndex: 'canPublish', width: 100,
+              render: (v: boolean) => (v ? <Tag size="small" color="orange">允许</Tag> : <Tag size="small" color="grey">禁止</Tag>),
+            },
+            {
+              title: '状态', dataIndex: 'status', width: 90,
+              render: (v: string) => (v === 'enabled' ? <Tag size="small" color="green">启用</Tag> : <Tag size="small" color="grey">停用</Tag>),
+            },
+            createOperationColumn<CmsOpenAppGrant>({
+              width: 90,
+              desktopInlineKeys: ['delete'],
+              actions: (record) => [{
+                key: 'delete',
+                label: '删除',
+                danger: true,
+                onClick: () => { Modal.confirm({
+                  title: `删除对「${record.clientId}」的授权？`,
+                  content: '删除后该应用将无法再写入本站点。',
+                  okButtonProps: { type: 'danger', theme: 'solid' },
+                  onOk: async () => {
+                    await deleteGrantMutation.mutateAsync(record.id);
+                    Toast.success('已删除');
+                  },
+                }); },
+              }],
+            }),
+          ]}
         />
       </AppModal>
 

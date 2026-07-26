@@ -1,7 +1,7 @@
 import { randomBytes, createHmac, randomUUID } from 'node:crypto';
 import { eq, and, or, desc, ilike, inArray, isNull, lte, sql, type SQL } from 'drizzle-orm';
 import { db } from '../../db';
-import { appWebhookSubscriptions, appWebhookDeliveries, oauth2Clients, users } from '../../db/schema';
+import { appWebhookSubscriptions, appWebhookDeliveries, cmsOpenAppGrants, oauth2Clients, users } from '../../db/schema';
 import type { AppWebhookSubscriptionRow, AppWebhookDeliveryRow } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
@@ -10,7 +10,7 @@ import { escapeLike } from '../../lib/where-helpers';
 import { encryptField, decryptField } from '../../lib/encryption';
 import { httpPost, type HttpResponse } from '../../lib/http-client';
 import logger from '../../lib/logger';
-import { openEventBus } from '../../lib/open-event-bus';
+import { openEventBus, type OpenPlatformEvent } from '../../lib/open-event-bus';
 import { mapWithConcurrency } from '../../lib/concurrency';
 import { OPEN_WEBHOOK_SIGNATURE_HEADER, OPEN_WEBHOOK_RETRY_STAGES_MINUTES, OPEN_WEBHOOK_EVENTS, OPEN_WEBHOOK_EVENT_LABELS } from '@zenith/shared';
 import type { CreateAppWebhookInput, UpdateAppWebhookInput } from '@zenith/shared';
@@ -508,21 +508,58 @@ export async function dispatchDelivery(deliveryId: number): Promise<boolean> {
   return true;
 }
 
-async function findMatchingSubscriptions(clientId: string, eventType: string): Promise<AppWebhookSubscriptionRow[]> {
+/**
+ * 事件 → 订阅匹配。
+ *
+ * 应用域事件（带 clientId）定向投递给该应用；站点域事件（cms.*，无 clientId）
+ * 广播给「已被授权该站点」的应用 —— 授权表是唯一的可见性来源，未授权应用即便
+ * 订阅了事件类型也收不到，避免通过 Webhook 侧信道泄露其他站点的内容变更。
+ */
+async function findMatchingSubscriptions(event: OpenPlatformEvent): Promise<AppWebhookSubscriptionRow[]> {
+  const siteId = event.scope?.siteId;
+  if (event.clientId) {
+    const rows = await db.select().from(appWebhookSubscriptions)
+      .where(and(eq(appWebhookSubscriptions.clientId, event.clientId), eq(appWebhookSubscriptions.status, 'enabled')));
+    return rows.filter((s) => matchesEventType(s, event.type) && matchesSite(s, siteId));
+  }
+  if (siteId == null) return [];
+
   const rows = await db.select().from(appWebhookSubscriptions)
-    .where(and(eq(appWebhookSubscriptions.clientId, clientId), eq(appWebhookSubscriptions.status, 'enabled')));
-  return rows.filter((s) => (s.events ?? []).length === 0 || (s.events ?? []).includes(eventType));
+    .where(eq(appWebhookSubscriptions.status, 'enabled'));
+  const candidates = rows.filter((s) => matchesEventType(s, event.type) && matchesSite(s, siteId));
+  if (candidates.length === 0) return [];
+
+  // 内部订阅由站点 Webhook 配置托管，不需要开放应用授权；外部应用必须显式授权该站点
+  const externalClientIds = [...new Set(candidates.filter((s) => !s.internal).map((s) => s.clientId))];
+  const granted = externalClientIds.length > 0
+    ? new Set((await db.select({ clientId: cmsOpenAppGrants.clientId }).from(cmsOpenAppGrants).where(and(
+        eq(cmsOpenAppGrants.siteId, siteId),
+        eq(cmsOpenAppGrants.status, 'enabled'),
+        inArray(cmsOpenAppGrants.clientId, externalClientIds),
+      ))).map((row) => row.clientId))
+    : new Set<string>();
+  return candidates.filter((s) => s.internal || granted.has(s.clientId));
+}
+
+function matchesEventType(sub: AppWebhookSubscriptionRow, type: string): boolean {
+  const events = sub.events ?? [];
+  return events.length === 0 || events.includes(type);
+}
+
+function matchesSite(sub: AppWebhookSubscriptionRow, siteId: number | undefined): boolean {
+  if (sub.cmsSiteId == null) return true;
+  return sub.cmsSiteId === siteId;
 }
 
 /** 注册开放平台事件总线订阅者：事件 → 匹配订阅 → 投递 */
 export function registerOpenWebhookSubscriber(): void {
   openEventBus.onAny(async (event) => {
     try {
-      const subs = await findMatchingSubscriptions(event.clientId, event.type);
+      const subs = await findMatchingSubscriptions(event);
       for (const sub of subs) {
         const delivery = await insertDelivery({
           subscriptionId: sub.id,
-          clientId: event.clientId,
+          clientId: sub.clientId,
           eventType: event.type,
           eventId: event.eventId,
           payload: event,

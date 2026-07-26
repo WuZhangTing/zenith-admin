@@ -7,7 +7,7 @@ import type {
   CmsSearchWord, CmsHotKeyword, CmsCollectRule, CmsCollectItem, CmsPage,
   CmsEditLock, CmsPreviewLink, CmsContentVersionDiff, CmsDashboardStats,
   CmsThemeTemplateManifest, CmsContentOpLog, CmsErrorProneWord, CmsTextCheckResult,
-  CmsTemplateHealth, CmsThemeSettingField,
+  CmsTemplateHealth, CmsThemeSettingField, CmsOpenAppGrant,
   CmsContentType, CmsInteraction, CmsInteractionResponse, CmsInteractionStats, CmsInteractionStatus, CmsVisitStats, CmsSearchAnalytics,
   CmsResource, CmsResourceType, CmsResourceReference, UpdateCmsResourceInput, CropCmsResourceInput,
   CmsContentLockState, CmsResourceFolder, CmsHotwordGroup, CmsMemberSubscription, CmsSubscriptionAggregate,
@@ -1351,6 +1351,37 @@ export function useSetCmsSiteUsers() {
     mutationFn: ({ siteId, userIds }: { siteId: number; userIds: number[] }) =>
       request.put<null>(`/api/cms/sites/${siteId}/users`, { userIds }).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: cmsSiteKeys.all }),
+  });
+}
+
+// ─── 开放应用授权（Headless 写入的 fail-closed 边界）───────────────────────────
+export const cmsOpenGrantKeys = {
+  all: ['cms-open-grants'] as const,
+  list: (siteId: number | undefined) => ['cms-open-grants', siteId] as const,
+};
+
+export function useCmsOpenGrants(siteId: number | undefined, enabled = true) {
+  return useQuery({
+    queryKey: cmsOpenGrantKeys.list(siteId),
+    queryFn: () => request.get<CmsOpenAppGrant[]>(`/api/cms/sites/${siteId}/open-grants`).then(unwrap),
+    enabled: enabled && siteId !== undefined,
+  });
+}
+
+export function useSaveCmsOpenGrant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ siteId, ...body }: { siteId: number; clientId: string; channelIds: number[]; canPublish: boolean; status?: 'enabled' | 'disabled'; remark?: string | null }) =>
+      request.put<CmsOpenAppGrant>(`/api/cms/sites/${siteId}/open-grants`, body).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: cmsOpenGrantKeys.all }),
+  });
+}
+
+export function useDeleteCmsOpenGrant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (grantId: number) => request.delete<null>(`/api/cms/sites/open-grants/${grantId}`).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: cmsOpenGrantKeys.all }),
   });
 }
 
