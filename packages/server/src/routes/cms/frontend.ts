@@ -181,7 +181,6 @@ export function createCmsFrontendRoutes(): Hono {
         sitePath,
         pageKind,
         contentId: contentId ?? extractContentIdFromPath(sitePath),
-        channelCode: channel.code,
         ip: getClientIp(c),
         userAgent: c.req.header('user-agent') ?? null,
         referrer: c.req.header('referer') ?? null,

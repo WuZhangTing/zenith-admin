@@ -963,9 +963,9 @@ async function seedRest() {
   await db.execute(sql`SELECT setval('cms_ads_id_seq', GREATEST((SELECT MAX(id) FROM cms_ads), 1))`);
 
   await db.insert(cmsAdEvents).values(
-    SEED_CMS_AD_EVENTS.map(({ id, siteId, adId, slotId, eventType, occurredAt, visitorHash, ipHash, userAgent, device, referrer, path, publishChannelId, memberId }) => ({
+    SEED_CMS_AD_EVENTS.map(({ id, siteId, adId, slotId, eventType, occurredAt, visitorHash, ipHash, userAgent, device, referrer, path, memberId }) => ({
       id, siteId, adId, slotId, eventType, occurredAt: new Date(occurredAt), visitorHash, ipHash,
-      userAgent, device, referrer, path, publishChannelId, memberId, dedupeKey: `seed-ad-event-${id}`,
+      userAgent, device, referrer, path, memberId, dedupeKey: `seed-ad-event-${id}`,
     })),
   ).onConflictDoNothing({ target: cmsAdEvents.id });
   await db.execute(sql`SELECT setval('cms_ad_events_id_seq', GREATEST((SELECT MAX(id) FROM cms_ad_events), 1))`);

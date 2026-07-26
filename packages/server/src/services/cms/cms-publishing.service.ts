@@ -5,7 +5,6 @@ import {
   gte,
   ilike,
   inArray,
-  isNull,
   lte,
   or,
   sql,
@@ -29,7 +28,6 @@ import {
   cmsContents,
   cmsPages,
   cmsPublishArtifacts,
-  cmsPublishChannels,
   cmsSites,
   type AsyncTaskRow,
   type CmsPublishArtifactRow,
@@ -264,13 +262,11 @@ async function ensurePublishingTaskAccessible(id: number, manage = false) {
   return row;
 }
 
-function mapArtifact(row: CmsPublishArtifactRow, publishChannelName?: string | null) {
+function mapArtifact(row: CmsPublishArtifactRow) {
   return {
     id: row.id,
     taskId: row.taskId,
     siteId: row.siteId,
-    publishChannelId: row.publishChannelId ?? null,
-    publishChannelName: publishChannelName ?? null,
     targetType: row.targetType,
     contentId: row.contentId ?? null,
     channelId: row.channelId ?? null,
@@ -323,8 +319,6 @@ export interface ListCmsPublishArtifactsQuery {
   startTime?: string;
   endTime?: string;
   keyword?: string;
-  /** 按发布通道筛选产物；传 0 表示只看未归属通道的产物（站点级 sitemap/rss 等） */
-  publishChannelId?: number;
 }
 
 export async function listCmsPublishArtifacts(query: ListCmsPublishArtifactsQuery) {
@@ -333,11 +327,6 @@ export async function listCmsPublishArtifacts(query: ListCmsPublishArtifactsQuer
   const conditions: SQL[] = [...taskConditions, eq(cmsPublishArtifacts.taskId, asyncTasks.id)];
   if (query.targetType) conditions.push(eq(cmsPublishArtifacts.targetType, query.targetType));
   if (query.status) conditions.push(eq(cmsPublishArtifacts.status, query.status));
-  if (query.publishChannelId !== undefined) {
-    conditions.push(query.publishChannelId === 0
-      ? isNull(cmsPublishArtifacts.publishChannelId)
-      : eq(cmsPublishArtifacts.publishChannelId, query.publishChannelId));
-  }
   if (query.keyword?.trim()) {
     const keyword = `%${escapeLike(query.keyword.trim())}%`;
     conditions.push(or(ilike(cmsPublishArtifacts.path, keyword), ilike(cmsPublishArtifacts.url, keyword), ilike(cmsPublishArtifacts.error, keyword))!);
@@ -348,10 +337,9 @@ export async function listCmsPublishArtifacts(query: ListCmsPublishArtifactsQuer
   if (start) conditions.push(sql`${artifactTime} >= ${start}`);
   if (end) conditions.push(sql`${artifactTime} <= ${end}`);
   const where = and(...conditions);
-  const base = db.select({ artifact: cmsPublishArtifacts, publishChannelName: cmsPublishChannels.name })
+  const base = db.select({ artifact: cmsPublishArtifacts })
     .from(cmsPublishArtifacts)
     .innerJoin(asyncTasks, eq(cmsPublishArtifacts.taskId, asyncTasks.id))
-    .leftJoin(cmsPublishChannels, eq(cmsPublishArtifacts.publishChannelId, cmsPublishChannels.id))
     .where(where)
     .orderBy(desc(cmsPublishArtifacts.id))
     .limit(query.pageSize)
@@ -362,7 +350,7 @@ export async function listCmsPublishArtifacts(query: ListCmsPublishArtifactsQuer
     base,
   ]);
   return {
-    list: rows.map((row) => mapArtifact(row.artifact, row.publishChannelName)),
+    list: rows.map((row) => mapArtifact(row.artifact)),
     total: countRows[0]?.total ?? 0,
     page: query.page,
     pageSize: query.pageSize,

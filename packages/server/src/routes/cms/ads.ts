@@ -27,7 +27,6 @@ const adEventFilters = {
   slotId: z.coerce.number().int().positive().optional(),
   eventType: z.enum(['impression', 'click']).optional(),
   device: z.enum(['pc', 'mobile', 'bot']).optional(),
-  publishChannelId: z.coerce.number().int().positive().optional(),
   startTime: z.string().optional(),
   endTime: z.string().optional(),
 };

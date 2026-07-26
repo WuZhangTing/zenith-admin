@@ -82,7 +82,6 @@ export async function recordCmsPublishArtifact(input: {
   await db.insert(cmsPublishArtifacts).values({
     taskId: context.taskId,
     siteId: context.siteId,
-    publishChannelId: channel.id,
     targetType: context.targetType,
     contentId: context.contentId ?? null,
     channelId: context.channelId ?? null,
@@ -98,7 +97,6 @@ export async function recordCmsPublishArtifact(input: {
   }).onConflictDoUpdate({
     target: [cmsPublishArtifacts.taskId, cmsPublishArtifacts.path],
     set: {
-      publishChannelId: sql`excluded.publish_channel_id`,
       contentId: sql`excluded.content_id`,
       channelId: sql`excluded.channel_id`,
       pageId: sql`excluded.page_id`,

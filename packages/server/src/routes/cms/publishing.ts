@@ -72,7 +72,6 @@ const artifactsRoute = defineOpenAPIRoute({
         taskId: z.coerce.number().int().positive().optional(),
         targetType: z.enum(CMS_PUBLISH_TARGET_TYPES).optional(),
         status: z.enum(CMS_PUBLISH_ARTIFACT_STATUSES).optional(),
-        publishChannelId: z.coerce.number().int().min(0).optional(),
         startTime: z.string().optional(),
         endTime: z.string().optional(),
         keyword: z.string().max(100).optional(),

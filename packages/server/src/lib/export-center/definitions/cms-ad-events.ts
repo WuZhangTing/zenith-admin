@@ -18,7 +18,6 @@ interface AdEventExportRow extends Record<string, unknown> {
   eventType: string;
   occurredAt: string;
   device: string;
-  publishChannelName: string;
   path: string;
   referrer: string;
   visitorHash: string;
@@ -39,7 +38,6 @@ async function* exportRows(
       eventType: CMS_AD_EVENT_TYPE_LABELS[row.eventType],
       occurredAt: row.occurredAt,
       device: row.device,
-      publishChannelName: row.publishChannelName ?? '',
       path: row.path ?? '',
       referrer: row.referrer ?? '',
       visitorHash: row.visitorHash,
@@ -59,7 +57,6 @@ function queryOf(query: Record<string, unknown>): Omit<ListCmsAdEventsQuery, 'pa
     device: ['pc', 'mobile', 'bot'].includes(String(query.device))
       ? query.device as 'pc' | 'mobile' | 'bot'
       : undefined,
-    publishChannelId: query.publishChannelId ? Number(query.publishChannelId) : undefined,
     startTime: typeof query.startTime === 'string' ? query.startTime : undefined,
     endTime: typeof query.endTime === 'string' ? query.endTime : undefined,
   };
@@ -73,7 +70,6 @@ const columns: ExportColumn<AdEventExportRow>[] = [
   { key: 'eventType', header: '事件类型', width: 12 },
   { key: 'occurredAt', header: '发生时间', width: 22, type: 'datetime' },
   { key: 'device', header: '设备', width: 12 },
-  { key: 'publishChannelName', header: '发布通道', width: 18 },
   { key: 'path', header: '页面路径', width: 36 },
   { key: 'referrer', header: '来源', width: 40 },
   { key: 'visitorHash', header: '访客哈希', width: 34, sensitive: true },

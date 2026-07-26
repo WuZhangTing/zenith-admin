@@ -622,8 +622,6 @@ export const cmsVisitLogs = pgTable('cms_visit_logs', {
   pageKind: varchar('page_kind', { length: 20 }).notNull().default('other'),
   /** 详情页关联内容（内容排行用） */
   contentId: integer('content_id'),
-  /** 发布通道编码 */
-  channelCode: varchar('channel_code', { length: 50 }).notNull().default('pc'),
   /** 访客标识（ip+ua 哈希，UV 去重用） */
   visitorHash: varchar('visitor_hash', { length: 32 }).notNull(),
   ip: varchar('ip', { length: 64 }),
@@ -668,7 +666,6 @@ export const cmsAdEvents = pgTable('cms_ad_events', {
   device: cmsDeviceTypeEnum('device').notNull().default('pc'),
   referrer: varchar('referrer', { length: 1000 }),
   path: varchar('path', { length: 500 }),
-  publishChannelId: integer('publish_channel_id').references(() => cmsPublishChannels.id, { onDelete: 'set null' }),
   memberId: integer('member_id').references(() => members.id, { onDelete: 'set null' }),
   /** 事件类型 + 广告 + 访客 + 防刷时间桶的摘要，数据库唯一约束为最终幂等屏障。 */
   dedupeKey: varchar('dedupe_key', { length: 64 }).notNull(),
@@ -678,7 +675,6 @@ export const cmsAdEvents = pgTable('cms_ad_events', {
   index('cms_ad_events_ad_time_idx').on(t.adId, t.occurredAt, t.id),
   index('cms_ad_events_slot_time_idx').on(t.slotId, t.occurredAt, t.id),
   index('cms_ad_events_type_device_time_idx').on(t.eventType, t.device, t.occurredAt),
-  index('cms_ad_events_channel_time_idx').on(t.publishChannelId, t.occurredAt),
 ]);
 
 export type CmsAdEventRow = typeof cmsAdEvents.$inferSelect;
@@ -1214,7 +1210,6 @@ export const cmsPublishArtifacts = pgTable('cms_publish_artifacts', {
   id: serial('id').primaryKey(),
   taskId: integer('task_id').notNull().references(() => asyncTasks.id, { onDelete: 'cascade' }),
   siteId: integer('site_id').notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
-  publishChannelId: integer('publish_channel_id').references(() => cmsPublishChannels.id, { onDelete: 'set null' }),
   targetType: cmsPublishTargetTypeEnum('target_type').notNull(),
   contentId: integer('content_id').references(() => cmsContents.id, { onDelete: 'set null' }),
   channelId: integer('channel_id').references(() => cmsChannels.id, { onDelete: 'set null' }),

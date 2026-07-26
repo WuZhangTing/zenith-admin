@@ -51,7 +51,6 @@ export interface RecordVisitInput {
   sitePath: string;
   pageKind: string;
   contentId?: number | null;
-  channelCode: string;
   ip: string | null;
   userAgent: string | null;
   referrer: string | null;
@@ -71,7 +70,6 @@ export function recordCmsVisit(input: RecordVisitInput): void {
     path: `/${input.sitePath}`.slice(0, 500),
     pageKind: input.pageKind.slice(0, 20),
     contentId: input.contentId ?? null,
-    channelCode: input.channelCode.slice(0, 50),
     visitorHash,
     ip: input.ip?.slice(0, 64) ?? null,
     deviceType,
@@ -118,7 +116,7 @@ export async function getCmsVisitStats(siteId: number, days = 30) {
     sql`${cmsVisitLogs.deviceType} <> 'bot'`,
   )!;
 
-  const [trendRows, deviceRows, referrerRows, channelRows, topContentRows] = await Promise.all([
+  const [trendRows, deviceRows, referrerRows, topContentRows] = await Promise.all([
     db.select({
       date: dateExpr,
       pv: sql<number>`count(*)::int`,
@@ -139,10 +137,6 @@ export async function getCmsVisitStats(siteId: number, days = 30) {
       .groupBy(cmsVisitLogs.referrerHost)
       .orderBy(desc(sql`count(*)`))
       .limit(10),
-    db.select({
-      channelCode: cmsVisitLogs.channelCode,
-      pv: sql<number>`count(*)::int`,
-    }).from(cmsVisitLogs).where(base).groupBy(cmsVisitLogs.channelCode).orderBy(desc(sql`count(*)`)),
     db.select({
       contentId: cmsVisitLogs.contentId,
       pv: sql<number>`count(*)::int`,
@@ -181,7 +175,6 @@ export async function getCmsVisitStats(siteId: number, days = 30) {
     topContents: topContentRows.map((r) => ({ contentId: r.contentId!, title: r.title, pv: r.pv, uv: r.uv })),
     devices: deviceRows.map((r) => ({ deviceType: r.deviceType, pv: r.pv })),
     referrers: referrerRows.map((r) => ({ host: r.host!, pv: r.pv })),
-    channels: channelRows.map((r) => ({ channelCode: r.channelCode, pv: r.pv })),
   };
 }
 

@@ -1708,10 +1708,6 @@ export const cmsP2Handlers = [
         { host: 'www.baidu.com', pv: 260 },
         { host: 'github.com', pv: 90 },
       ],
-      channels: [
-        { channelCode: 'pc', pv: 1450 },
-        { channelCode: 'h5', pv: 980 },
-      ],
     });
   }),
   http.get('/api/cms/stats/search', ({ request }) => {

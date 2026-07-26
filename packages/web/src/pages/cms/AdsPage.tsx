@@ -16,7 +16,6 @@ import {
   useCmsAdSlots, useSaveCmsAdSlot, useDeleteCmsAdSlot,
   useCmsAdList, useSaveCmsAd, useDeleteCmsAd,
   cmsAdEventKeys, useCleanupCmsAdEvents, useCmsAdEventList, useCmsAdEventStats,
-  useCmsPublishChannels,
 } from '@/hooks/queries/cms';
 import {
   CMS_AD_EVENT_TYPE_LABELS,
@@ -264,7 +263,6 @@ interface AdEventSearch {
   slotId?: number;
   eventType?: 'impression' | 'click';
   device?: 'pc' | 'mobile' | 'bot';
-  publishChannelId?: number;
   timeRange?: [Date, Date];
 }
 
@@ -280,7 +278,6 @@ function EventsTab({ siteId, setSiteId }: Readonly<{
   const [detail, setDetail] = useState<CmsAdEvent | null>(null);
   const slotsQuery = useCmsAdSlots(siteId);
   const adsQuery = useCmsAdList({ page: 1, pageSize: 1000, siteId: siteId ?? 0 }, !!siteId);
-  const channelsQuery = useCmsPublishChannels(siteId);
   const params = {
     page,
     pageSize,
@@ -319,9 +316,6 @@ function EventsTab({ siteId, setSiteId }: Readonly<{
       <Select placeholder="设备" showClear value={draft.device} style={{ width: 130 }}
         optionList={Object.entries(CMS_DEVICE_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
         onChange={(value) => setDraft((current) => ({ ...current, device: value as AdEventSearch['device'] }))} />
-      <Select placeholder="发布通道" showClear value={draft.publishChannelId} style={{ width: 150 }}
-        optionList={(channelsQuery.data ?? []).map((channel) => ({ value: channel.id, label: channel.name }))}
-        onChange={(value) => setDraft((current) => ({ ...current, publishChannelId: value as number | undefined }))} />
       <DatePicker type="dateTimeRange" value={draft.timeRange}
         onChange={(value) => setDraft((current) => ({ ...current, timeRange: value as [Date, Date] | undefined }))}
         placeholder={['发生开始时间', '发生结束时间']} style={{ width: 330 }} />
@@ -340,7 +334,6 @@ function EventsTab({ siteId, setSiteId }: Readonly<{
       title: '设备', dataIndex: 'device', width: 100,
       render: (value: CmsAdEvent['device']) => CMS_DEVICE_TYPE_LABELS[value],
     },
-    { title: '发布通道', dataIndex: 'publishChannelName', width: 140, render: (value: string | null) => value ?? '-' },
     { title: '页面路径', dataIndex: 'path', width: 220, render: (value: string | null) => value ?? '-' },
     { title: '会员 ID', dataIndex: 'memberId', width: 100, render: (value: number | null) => value ?? '-' },
     createOperationColumn<CmsAdEvent>({

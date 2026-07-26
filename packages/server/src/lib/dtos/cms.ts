@@ -448,8 +448,6 @@ export const CmsPublishArtifactDTO = z.object({
   id: z.number().int(),
   taskId: z.number().int(),
   siteId: z.number().int(),
-  publishChannelId: z.number().int().nullable(),
-  publishChannelName: z.string().nullable().openapi({ description: '发布通道名称（站点级产物如 sitemap/rss 为空）' }),
   targetType: z.enum(['content', 'contents', 'channel', 'site', 'theme', 'page']),
   contentId: z.number().int().nullable(),
   channelId: z.number().int().nullable(),
@@ -782,8 +780,6 @@ export const CmsAdEventDTO = z
     device: z.enum(['pc', 'mobile', 'bot']),
     referrer: z.string().nullable(),
     path: z.string().nullable(),
-    publishChannelId: z.number().int().nullable(),
-    publishChannelName: z.string().nullable().optional(),
     memberId: z.number().int().nullable(),
   })
   .openapi('CmsAdEvent');
@@ -1074,7 +1070,6 @@ export const CmsVisitStatsDTO = z
     })),
     devices: z.array(z.object({ deviceType: z.enum(['pc', 'mobile', 'bot']), pv: z.number().int() })),
     referrers: z.array(z.object({ host: z.string(), pv: z.number().int() })),
-    channels: z.array(z.object({ channelCode: z.string(), pv: z.number().int() })),
   })
   .openapi('CmsVisitStats');
 

@@ -18,7 +18,6 @@ import {
   mockCmsInteractionResponses,
   mockCmsPageBlockAcls,
   mockCmsPages,
-  mockCmsPublishChannels,
   mockCmsSites,
   mockCmsSubscriptions,
 } from '../data/cms';
@@ -432,7 +431,7 @@ export const cmsStage4Handlers = [
   http.get('/api/cms/ads/events', ({ request }) => {
     const { url, page, pageSize } = paging(request);
     let list = mockCmsAdEvents.filter((event) => event.siteId === Number(url.searchParams.get('siteId')));
-    const numericFilters = ['adId', 'slotId', 'publishChannelId'] as const;
+    const numericFilters = ['adId', 'slotId'] as const;
     numericFilters.forEach((key) => {
       const value = Number(url.searchParams.get(key));
       if (value) list = list.filter((event) => event[key] === value);
@@ -504,8 +503,6 @@ export const cmsStage4Handlers = [
         device: 'pc',
         referrer: request.headers.get('referer'),
         path: eventToken.path,
-        publishChannelId: 1,
-        publishChannelName: mockCmsPublishChannels[0]?.name ?? null,
         memberId: null,
       });
       ad.clickCount += 1;
@@ -542,8 +539,6 @@ export const cmsStage4Handlers = [
         device: 'pc',
         referrer: null,
         path: eventToken!.path,
-        publishChannelId: 1,
-        publishChannelName: mockCmsPublishChannels[0]?.name ?? null,
         memberId: null,
       });
       ad.viewCount += 1;

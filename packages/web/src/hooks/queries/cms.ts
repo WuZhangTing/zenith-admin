@@ -1049,7 +1049,6 @@ export interface CmsAdEventListParams {
   slotId?: number;
   eventType?: 'impression' | 'click';
   device?: 'pc' | 'mobile' | 'bot';
-  publishChannelId?: number;
   startTime?: string;
   endTime?: string;
 }

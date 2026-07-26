@@ -52,7 +52,7 @@ import {
   cmsFormSubmissions, cmsFragments, cmsFriendLinks, cmsHotwordGroups, cmsHotwords,
   cmsInteractionAnswers, cmsInteractionQuestions, cmsInteractionResponses, cmsInteractions,
   cmsLinkWords, cmsMemberSubscriptions, cmsMemberViewHistory, cmsModelFields, cmsModels,
-  cmsPageBlockAcls, cmsPages, cmsPublishArtifacts, cmsPublishChannels, cmsPushLogs,
+  cmsPageBlockAcls, cmsPages, cmsPublishArtifacts, cmsPushLogs,
   cmsRedirects, cmsResourceFolders, cmsResources, cmsSearchWords, cmsSiteInheritances, cmsSites, cmsSiteUsers,
   cmsTags,
 } from './cms';
@@ -1286,7 +1286,6 @@ export const cmsSiteInheritancesRelations = relations(cmsSiteInheritances, ({ on
 export const cmsPublishArtifactsRelations = relations(cmsPublishArtifacts, ({ one }) => ({
   task: one(asyncTasks, { fields: [cmsPublishArtifacts.taskId], references: [asyncTasks.id] }),
   site: one(cmsSites, { fields: [cmsPublishArtifacts.siteId], references: [cmsSites.id] }),
-  publishChannel: one(cmsPublishChannels, { fields: [cmsPublishArtifacts.publishChannelId], references: [cmsPublishChannels.id] }),
   content: one(cmsContents, { fields: [cmsPublishArtifacts.contentId], references: [cmsContents.id] }),
   channel: one(cmsChannels, { fields: [cmsPublishArtifacts.channelId], references: [cmsChannels.id] }),
   page: one(cmsPages, { fields: [cmsPublishArtifacts.pageId], references: [cmsPages.id] }),
@@ -1465,7 +1464,6 @@ export const cmsAdEventsRelations = relations(cmsAdEvents, ({ one }) => ({
   site: one(cmsSites, { fields: [cmsAdEvents.siteId], references: [cmsSites.id] }),
   ad: one(cmsAds, { fields: [cmsAdEvents.adId], references: [cmsAds.id] }),
   slot: one(cmsAdSlots, { fields: [cmsAdEvents.slotId], references: [cmsAdSlots.id] }),
-  publishChannel: one(cmsPublishChannels, { fields: [cmsAdEvents.publishChannelId], references: [cmsPublishChannels.id] }),
   member: one(members, { fields: [cmsAdEvents.memberId], references: [members.id] }),
 }));
 

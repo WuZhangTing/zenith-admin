@@ -117,9 +117,6 @@ function VisitsTab({ siteId, days }: { siteId: number | undefined; days: number 
           <Card title="设备分布（含爬虫）" style={{ marginTop: 12 }} bodyStyle={{ padding: '16px 20px' }}>
             <DistBars items={(stats?.devices ?? []).map((d) => ({ key: d.deviceType, pv: d.pv }))} labelOf={(k) => DEVICE_LABELS[k] ?? k} />
           </Card>
-          <Card title="发布通道访问对比" style={{ marginTop: 12 }} bodyStyle={{ padding: '16px 20px' }}>
-            <DistBars items={(stats?.channels ?? []).map((ch) => ({ key: ch.channelCode, pv: ch.pv }))} />
-          </Card>
         </Col>
       </Row>
     </Spin>

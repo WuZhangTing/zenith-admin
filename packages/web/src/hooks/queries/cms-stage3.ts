@@ -33,7 +33,6 @@ export interface CmsPublishArtifactListParams {
   targetType?: CmsPublishTargetType;
   status?: CmsPublishArtifactStatus;
   /** 0 = 仅站点级产物（sitemap/rss 等无归属通道） */
-  publishChannelId?: number;
   startTime?: string;
   endTime?: string;
   keyword?: string;

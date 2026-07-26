@@ -38,7 +38,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { useTaskProgressEvents } from '@/hooks/useAsyncTasks';
-import { useAllCmsSites, useCmsPublishChannels } from '@/hooks/queries/cms';
+import { useAllCmsSites } from '@/hooks/queries/cms';
 import {
   cmsPublishingKeys,
   useBatchCmsPublishingAction,
@@ -92,7 +92,6 @@ export default function PublishingPage() {
   const taskPagination = usePagination();
   const artifactPagination = usePagination();
   // 产物页按通道筛选：通道随所选站点变化，未选站点时不可用
-  const publishChannels = useCmsPublishChannels(draft.siteId, activeTab === 'artifacts' && !!draft.siteId).data ?? [];
 
   const taskStatus = activeTab === 'queue' ? 'active' : activeTab === 'failed' ? 'failed' : 'terminal';
   const taskListQuery = useCmsPublishingList({
@@ -106,7 +105,6 @@ export default function PublishingPage() {
     pageSize: artifactPagination.pageSize,
     siteId: submitted.siteId,
     targetType: submitted.targetType,
-    publishChannelId: submitted.publishChannelId,
     startTime: submitted.startTime,
     endTime: submitted.endTime,
     keyword: submitted.keyword || undefined,
@@ -271,20 +269,6 @@ export default function PublishingPage() {
     <>
       <Select placeholder="全部站点" showClear optionList={siteOptions} value={draft.siteId} onChange={(value) => setDraft((prev) => ({ ...prev, siteId: value ? Number(value) : undefined }))} style={{ width: 150 }} />
       <Select placeholder="目标类型" optionList={[{ value: '', label: '全部目标' }, ...CMS_PUBLISH_TARGET_TYPES.map((value) => ({ value, label: CMS_PUBLISH_TARGET_TYPE_LABELS[value] }))]} value={draft.targetType ?? ''} onChange={(value) => setDraft((prev) => ({ ...prev, targetType: value ? value as CmsPublishTargetType : undefined }))} style={{ width: 150 }} />
-      {activeTab === 'artifacts' ? (
-        <Select
-          placeholder="全部通道"
-          showClear
-          disabled={!draft.siteId}
-          optionList={[
-            { value: 0, label: '站点级产物' },
-            ...publishChannels.map((ch) => ({ value: ch.id, label: ch.name })),
-          ]}
-          value={draft.publishChannelId}
-          onChange={(value) => setDraft((prev) => ({ ...prev, publishChannelId: value == null ? undefined : Number(value) }))}
-          style={{ width: 150 }}
-        />
-      ) : null}
       <Input placeholder="创建人" value={draft.createdBy} onChange={(createdBy) => setDraft((prev) => ({ ...prev, createdBy }))} style={{ width: 130 }} />
       <DatePicker
         type="dateTimeRange"

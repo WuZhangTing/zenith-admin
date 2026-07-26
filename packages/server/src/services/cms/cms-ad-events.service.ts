@@ -251,7 +251,6 @@ export interface ListCmsAdEventsQuery {
   slotId?: number;
   eventType?: CmsAdEventType;
   device?: CmsDeviceType;
-  publishChannelId?: number;
   startTime?: string;
   endTime?: string;
   page: number;
@@ -264,7 +263,6 @@ export function buildCmsAdEventWhere(q: Omit<ListCmsAdEventsQuery, 'page' | 'pag
   if (q.slotId) conditions.push(eq(cmsAdEvents.slotId, q.slotId));
   if (q.eventType) conditions.push(eq(cmsAdEvents.eventType, q.eventType));
   if (q.device) conditions.push(eq(cmsAdEvents.device, q.device));
-  if (q.publishChannelId) conditions.push(eq(cmsAdEvents.publishChannelId, q.publishChannelId));
   if (q.startTime) {
     const parsed = parseDateRangeStart(q.startTime);
     if (!parsed) throw new HTTPException(400, { message: '开始时间格式无效' });
@@ -300,8 +298,6 @@ export function mapCmsAdEvent(row: CmsAdEventRow, extra?: {
     device: row.device,
     referrer: row.referrer ?? null,
     path: row.path ?? null,
-    publishChannelId: row.publishChannelId ?? null,
-    publishChannelName: extra?.publishChannelName ?? null,
     memberId: row.memberId ?? null,
   };
 }
@@ -315,13 +311,11 @@ export async function listCmsAdEvents(q: ListCmsAdEventsQuery) {
     siteName: cmsSites.name,
     adName: cmsAds.name,
     slotName: cmsAdSlots.name,
-    publishChannelName: cmsPublishChannels.name,
   })
     .from(cmsAdEvents)
     .innerJoin(cmsSites, eq(cmsAdEvents.siteId, cmsSites.id))
     .leftJoin(cmsAds, eq(cmsAdEvents.adId, cmsAds.id))
     .leftJoin(cmsAdSlots, eq(cmsAdEvents.slotId, cmsAdSlots.id))
-    .leftJoin(cmsPublishChannels, eq(cmsAdEvents.publishChannelId, cmsPublishChannels.id))
     .where(where)
     .orderBy(desc(cmsAdEvents.occurredAt), desc(cmsAdEvents.id));
   const [total, rows] = await Promise.all([
@@ -348,13 +342,11 @@ export async function* streamCmsAdEvents(
       siteName: cmsSites.name,
       adName: cmsAds.name,
       slotName: cmsAdSlots.name,
-      publishChannelName: cmsPublishChannels.name,
     })
       .from(cmsAdEvents)
       .innerJoin(cmsSites, eq(cmsAdEvents.siteId, cmsSites.id))
       .leftJoin(cmsAds, eq(cmsAdEvents.adId, cmsAds.id))
       .leftJoin(cmsAdSlots, eq(cmsAdEvents.slotId, cmsAdSlots.id))
-      .leftJoin(cmsPublishChannels, eq(cmsAdEvents.publishChannelId, cmsPublishChannels.id))
       .where(and(baseWhere, beforeId === null ? undefined : lt(cmsAdEvents.id, beforeId)))
       .orderBy(desc(cmsAdEvents.id))
       .limit(limit);

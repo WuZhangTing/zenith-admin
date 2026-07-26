@@ -78,7 +78,6 @@ export const mockCmsAdEvents: CmsAdEvent[] = SEED_CMS_AD_EVENTS.map((event) => (
   siteName: SEED_CMS_SITES.find((site) => site.id === event.siteId)?.name ?? null,
   adName: SEED_CMS_ADS.find((ad) => ad.id === event.adId)?.name ?? null,
   slotName: SEED_CMS_AD_SLOTS.find((slot) => slot.id === event.slotId)?.name ?? null,
-  publishChannelName: SEED_CMS_PUBLISH_CHANNELS.find((channel) => channel.id === event.publishChannelId)?.name ?? null,
 }));
 export const mockCmsForms: (CmsForm & { submissionCount: number })[] = SEED_CMS_FORMS.map((f) => ({ ...f, fields: f.fields.map((x) => ({ ...x })), submissionCount: 1 }));
 export const mockCmsFormSubmissions: CmsFormSubmission[] = [

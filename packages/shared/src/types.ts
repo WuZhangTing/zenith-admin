@@ -10539,7 +10539,6 @@ export interface CmsPublishArtifact {
   id: number;
   taskId: number;
   siteId: number;
-  publishChannelId: number | null;
   targetType: CmsPublishTargetType;
   contentId: number | null;
   channelId: number | null;
@@ -11296,8 +11295,6 @@ export interface CmsAdEvent {
   device: CmsDeviceType;
   referrer: string | null;
   path: string | null;
-  publishChannelId: number | null;
-  publishChannelName?: string | null;
   memberId: number | null;
 }
 
@@ -11320,7 +11317,6 @@ export interface CmsVisitStats {
   topContents: { contentId: number; title: string; pv: number; uv: number }[];
   devices: { deviceType: 'pc' | 'mobile' | 'bot'; pv: number }[];
   referrers: { host: string; pv: number }[];
-  channels: { channelCode: string; pv: number }[];
 }
 
 /** CMS 搜索分析（P4） */

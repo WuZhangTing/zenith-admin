@@ -3570,9 +3570,9 @@ export const SEED_CMS_DISTRIBUTION_TASK_ITEMS = [
 ];
 
 export const SEED_CMS_PUBLISH_ARTIFACTS = [
-  { id: 1, taskId: 900001, siteId: 1, publishChannelId: 1, targetType: 'site' as const, path: 'index.html', url: null, checksum: 'f3f39f3b8456f63a1a414a8c311260e0b73e978fdfc8e0161653c9b92fc9c4bc', size: 4280, status: 'generated' as const, generatedAt: SEED_DATE, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 2, taskId: 900001, siteId: 1, publishChannelId: 1, targetType: 'site' as const, path: 'sitemap.xml', url: null, checksum: 'e152f7eafc61e5aa9e0f8e83de6fdb203f415f8eaff86ab8f54cf0f9e850caef', size: 860, status: 'generated' as const, generatedAt: SEED_DATE, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 3, taskId: 900001, siteId: 1, publishChannelId: 1, targetType: 'site' as const, path: 'robots.txt', url: null, checksum: 'b884b75b9a9d5c1b28627a65105f0b62b7f24e633eeb3e4b3de414e8ee3dc1c4', size: 56, status: 'generated' as const, generatedAt: SEED_DATE, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1, taskId: 900001, siteId: 1, targetType: 'site' as const, path: 'index.html', url: null, checksum: 'f3f39f3b8456f63a1a414a8c311260e0b73e978fdfc8e0161653c9b92fc9c4bc', size: 4280, status: 'generated' as const, generatedAt: SEED_DATE, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2, taskId: 900001, siteId: 1, targetType: 'site' as const, path: 'sitemap.xml', url: null, checksum: 'e152f7eafc61e5aa9e0f8e83de6fdb203f415f8eaff86ab8f54cf0f9e850caef', size: 860, status: 'generated' as const, generatedAt: SEED_DATE, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 3, taskId: 900001, siteId: 1, targetType: 'site' as const, path: 'robots.txt', url: null, checksum: 'b884b75b9a9d5c1b28627a65105f0b62b7f24e633eeb3e4b3de414e8ee3dc1c4', size: 56, status: 'generated' as const, generatedAt: SEED_DATE, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];
 
 // ─── CMS P2：广告位 / 广告 / 表单 / 敏感词 / 内链词 / 评论（示例）────────────────
@@ -3591,7 +3591,7 @@ export const SEED_CMS_AD_EVENTS: CmsAdEvent[] = [
   {
     id: 1, siteId: 1, adId: 1, slotId: 1, eventType: 'impression', occurredAt: SEED_DATE,
     visitorHash: CMS_SEED_VISITOR_HASH, ipHash: CMS_SEED_IP_HASH, userAgent: 'Zenith Demo',
-    device: 'pc', referrer: null, path: '/', publishChannelId: 1, memberId: null,
+    device: 'pc', referrer: null, path: '/', memberId: null,
   },
 ];
 
