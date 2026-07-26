@@ -68,7 +68,7 @@ describe('CMS Stage4 page block ACL and display security', () => {
     expect(frontend).toContain('resolveDynamicCmsPageForPath');
     expect(frontend).toContain("if (!dynamicPage && !isPreview");
     expect(frontend).toContain("'Cache-Control': 'private, no-store'");
-    expect(staticService).toContain('refreshHomeStaticForChannel');
+    expect(staticService).toContain('refreshHomeStatic');
     expect(staticService).toContain('takeover?.requiresDynamic');
     expect(blockRenderer).not.toContain('data-cms-date-block');
     expect(blockRenderer).not.toContain('DATE_CONDITION_SCRIPT');

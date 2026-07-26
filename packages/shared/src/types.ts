@@ -10659,10 +10659,8 @@ export interface CmsContentPublishSnapshot {
   bodyPages: number;
   build: boolean;
   purged?: boolean;
-  targets: Array<{
-    publishChannelCode: string;
-    paths: string[];
-  }>;
+  /** 本内容对应的全部静态产物路径（含正文分页） */
+  paths: string[];
   refreshChannelIds: number[];
 }
 

@@ -139,11 +139,6 @@ async function resolveUaRedirect(c: Context, target: ResolvedTarget): Promise<st
   return `${protocol}://${targetHost}${url.pathname}${url.search}`;
 }
 
-/** 静态产物相对路径：非默认通道写入 __{code}/ 子树 */
-function channelStaticPath(channel: PublishChannelInfo, sitePath: string): string {
-  return channel.isDefault ? sitePath : `${CMS_CHANNEL_SEGMENT_PREFIX}${channel.code}/${sitePath}`;
-}
-
 /** 详情路径提取纯数字内容 id（静态命中无渲染上下文时尽力关联；slug 详情返回 null） */
 function extractContentIdFromPath(sitePath: string): number | null {
   const m = /\/(\d+)(?:_\d+)?\.html$/.exec(`/${sitePath}`);
@@ -269,7 +264,7 @@ export function createCmsFrontendRoutes(): Hono {
 
     // 静态文件命中（预览模式跳过，保证后台改动即时可见；非默认通道走 __{code}/ 子树）
     if (!dynamicPage && !isPreview && site.staticMode !== 'dynamic' && (sitePath === '' || sitePath.endsWith('/') || sitePath.endsWith('.html'))) {
-      const cached = await readStaticFile(site.code, channelStaticPath(channel, sitePath));
+      const cached = await readStaticFile(site.code, sitePath);
       if (cached !== null) {
         trackVisit(pageKindFromPath(sitePath));
         return htmlResponse(c, cached, PAGE_CACHE_TTL_DEFAULT_SECONDS, { 'X-Cms-Cache': 'static' });
@@ -294,7 +289,7 @@ export function createCmsFrontendRoutes(): Hono {
       const ttl = PAGE_CACHE_TTL_BY_KIND[result.kind] ?? PAGE_CACHE_TTL_DEFAULT_SECONDS;
       if (!dynamicPage && !isPreview && site.staticMode === 'hybrid') {
         // 混合模式：miss 即渲染并回写，下次直接命中静态文件
-        void writeStaticFile(site.code, channelStaticPath(channel, sitePath), result.html).catch((err) => {
+        void writeStaticFile(site.code, sitePath, result.html).catch((err) => {
           logger.error(`[CMS] 静态回写失败 site=${site.code} channel=${channel.code} path=${sitePath}`, err);
         });
       }

@@ -7,9 +7,8 @@ import { cmsChannels, cmsContents } from '../../db/schema';
 import type { CmsSiteRow, CmsChannelRow } from '../../db/schema';
 import logger from '../../lib/logger';
 import { formatIso8601 } from '../../lib/datetime';
-import { CMS_CHANNEL_SEGMENT_PREFIX, type CmsContentPublishSnapshot, type CmsStaticMode } from '@zenith/shared';
+import { type CmsContentPublishSnapshot, type CmsStaticMode } from '@zenith/shared';
 import { TaskCancelledError } from '../../lib/task-center';
-import { getActivePublishChannels, type PublishChannelInfo } from './cms-publish-channels.service';
 import {
   renderSitePath, renderHomePage, renderChannelPage, renderDetailPage, renderTagPage, renderCustomPage,
   channelUrl, contentUrl, tagUrl, customPageUrl, customPagePath, siteOrigin, listSiteTags, generateRssXml, countContentBodyPages,
@@ -108,7 +107,7 @@ export async function clearSiteStatic(siteCode: string): Promise<void> {
  * 本次构建写入的相对路径集合。
  *
  * 用 AsyncLocalStorage 而非层层透传：写文件散落在 writeRenderedPath / regenerateChannelPages /
- * refreshHomeStaticForChannel 等多个 helper 中，透传参数既啰嗦又容易漏，漏一处就会把有效产物
+ * refreshHomeStatic 等多个 helper 中，透传参数既啰嗦又容易漏，漏一处就会把有效产物
  * 误判成孤儿删掉。与 cms-publish-artifact-tracker 采用同一模式，且天然按调用栈隔离，
  * 多站点/并发构建互不串扰。
  */
@@ -277,32 +276,23 @@ function listPageCap(site: Pick<CmsSiteRow, 'settings'>): number {
   return cap > 0 ? Math.min(cap, MAX_LIST_PAGES) : MAX_LIST_PAGES;
 }
 
-/** 静态产物相对路径：非默认通道落在 __{code}/ 子树 */
-function channelStaticPath(channel: PublishChannelInfo, relPath: string): string {
-  const clean = relPath.replace(/^\/+/, '');
-  return channel.isDefault ? clean : `${CMS_CHANNEL_SEGMENT_PREFIX}${channel.code}/${clean}`;
-}
-
-async function writeRenderedPath(site: CmsSiteRow, relPath: string, channel: PublishChannelInfo): Promise<boolean> {
+async function writeRenderedPath(site: CmsSiteRow, relPath: string): Promise<boolean> {
   const result = await renderSitePath(site, '', relPath);
   if (result.status === 200) {
-    await writeStaticFile(site.code, channelStaticPath(channel, relPath), result.html);
+    await writeStaticFile(site.code, relPath, result.html);
     return true;
   }
 
   if (result.status === 404) {
-    await deleteStaticFile(site.code, channelStaticPath(channel, relPath));
+    await deleteStaticFile(site.code, relPath);
   }
   return false;
 }
 
-async function refreshHomeStaticForChannel(
-  site: CmsSiteRow,
-  publishChannel: PublishChannelInfo,
-): Promise<boolean> {
+async function refreshHomeStatic(site: CmsSiteRow): Promise<boolean> {
   const { getHomeTakeoverPage } = await import('./cms-pages.service');
   const takeover = await getHomeTakeoverPage(site.id);
-  const staticPath = channelStaticPath(publishChannel, '');
+  const staticPath = '';
   if (takeover?.requiresDynamic) {
     await deleteStaticFile(site.code, staticPath);
     return false;
@@ -323,7 +313,6 @@ async function refreshHomeStaticForChannel(
 async function regenerateChannelPages(
   site: CmsSiteRow,
   channel: CmsChannelRow,
-  publishChannel: PublishChannelInfo,
   pageCap = MAX_LIST_PAGES,
 ): Promise<number> {
   if (channel.type === 'link') return 0;
@@ -331,7 +320,7 @@ async function regenerateChannelPages(
   let generated = 0;
   const first = await renderChannelPage(site, '', channel, 1);
   if (first.status !== 200) return 0;
-  await writeStaticFile(site.code, channelStaticPath(publishChannel, `${channel.path}/`), first.html);
+  await writeStaticFile(site.code, `${channel.path}/`, first.html);
   generated += 1;
   if (channel.type === 'page') return generated;
 
@@ -346,13 +335,13 @@ async function regenerateChannelPages(
   for (let p = 2; p <= buildPages; p++) {
     const result = await renderChannelPage(site, '', channel, p);
     if (result.status === 200) {
-      await writeStaticFile(site.code, channelStaticPath(publishChannel, `${channel.path}/index_${p}.html`), result.html);
+      await writeStaticFile(site.code, `${channel.path}/index_${p}.html`, result.html);
       generated += 1;
     }
   }
   // 清掉超出当前页数的历史分页
   for (let p = totalPages + 1; p <= MAX_LIST_PAGES; p++) {
-    await deleteStaticFile(site.code, channelStaticPath(publishChannel, `${channel.path}/index_${p}.html`));
+    await deleteStaticFile(site.code, `${channel.path}/index_${p}.html`);
   }
   return generated;
 }
@@ -379,29 +368,27 @@ export async function refreshContentStatic(contentId: number): Promise<void> {
   const bodyPages = isVisible ? await countContentBodyPages(content) : 1;
   const pageCap = listPageCap(site);
   const purgePaths: string[] = ['sitemap.xml', 'rss.xml'];
-  for (const publishChannel of await getActivePublishChannels(site.id)) {
-    if (isVisible) {
-      for (let p = 1; p <= bodyPages; p++) {
-        const result = await renderDetailPage(site, '', channel, String(content.slug ?? content.id), p);
-        if (result.status === 200) await writeStaticFile(site.code, channelStaticPath(publishChannel, contentUrl('', channel, content, p)), result.html);
-      }
-    } else {
-      await deleteStaticFile(site.code, channelStaticPath(publishChannel, detailPath));
-    }
-    // 清理已收缩/下线的多余分页文件（best-effort，窗口 5 页）
-    for (let p = Math.max(2, bodyPages + 1); p <= bodyPages + 5; p++) {
-      await deleteStaticFile(site.code, channelStaticPath(publishChannel, contentUrl('', channel, content, p)));
-    }
-
-    await regenerateChannelPages(site, channel, publishChannel, pageCap);
-    await refreshHomeStaticForChannel(site, publishChannel);
-    // CDN 刷新路径：详情页（含正文分页）+ 栏目列表页 + 首页
+  if (isVisible) {
     for (let p = 1; p <= bodyPages; p++) {
-      purgePaths.push(channelStaticPath(publishChannel, contentUrl('', channel, content, p)));
+      const result = await renderDetailPage(site, '', channel, String(content.slug ?? content.id), p);
+      if (result.status === 200) await writeStaticFile(site.code, contentUrl('', channel, content, p), result.html);
     }
-    purgePaths.push(channelStaticPath(publishChannel, channelUrl('', channel.path)));
-    purgePaths.push(channelStaticPath(publishChannel, ''));
+  } else {
+    await deleteStaticFile(site.code, detailPath);
   }
+  // 清理已收缩/下线的多余分页文件（best-effort，窗口 5 页）
+  for (let p = Math.max(2, bodyPages + 1); p <= bodyPages + 5; p++) {
+    await deleteStaticFile(site.code, contentUrl('', channel, content, p));
+  }
+
+  await regenerateChannelPages(site, channel, pageCap);
+  await refreshHomeStatic(site);
+  // CDN 刷新路径：详情页（含正文分页）+ 栏目列表页 + 首页
+  for (let p = 1; p <= bodyPages; p++) {
+    purgePaths.push(contentUrl('', channel, content, p));
+  }
+  purgePaths.push(channelUrl('', channel.path));
+  purgePaths.push('');
   await writeStaticFile(site.code, 'sitemap.xml', await generateSitemapXml(site));
   await writeStaticFile(site.code, 'rss.xml', await generateRssXml(site));
   triggerCdnPurge(site, purgePaths);
@@ -433,12 +420,10 @@ export async function applyCmsContentPublishSnapshot(
     }
     // 栏目在快照生成后被切为纯动态：跳过产物生成（旧产物已在上方 deletePaths 清理）
     if (!isChannelDynamic(site, channel)) {
-      for (const target of snapshot.targets) {
-        for (let page = 1; page <= target.paths.length; page++) {
-          const rendered = await renderDetailPage(site, '', channel, snapshot.slug, page);
-          if (rendered.status !== 200) throw new Error(`内容 #${snapshot.contentId} 快照路径 ${target.paths[page - 1]} 渲染失败（${rendered.status}）`);
-          await writeStaticFile(site.code, target.paths[page - 1], rendered.html);
-        }
+      for (let page = 1; page <= snapshot.paths.length; page++) {
+        const rendered = await renderDetailPage(site, '', channel, snapshot.slug, page);
+        if (rendered.status !== 200) throw new Error(`内容 #${snapshot.contentId} 快照路径 ${snapshot.paths[page - 1]} 渲染失败（${rendered.status}）`);
+        await writeStaticFile(site.code, snapshot.paths[page - 1], rendered.html);
       }
     }
   }
@@ -464,30 +449,19 @@ export function triggerContentStaticRefresh(contentId: number): void {
 export async function refreshCustomPageStatic(input: { siteId: number; slug: string; isHome: boolean; removed?: boolean; removePath?: string | null }): Promise<void> {
   const site = await resolveEffectiveCmsSiteRow(input.siteId).catch(() => null);
   if (!site || site.staticMode === 'dynamic') return;
-  const publishChannels = await getActivePublishChannels(site.id);
   const { getPublishedPageBySlug } = await import('./cms-pages.service');
   const pageRow = input.removed ? null : await getPublishedPageBySlug(site.id, input.slug);
   const targetPath = input.removePath?.trim() || (pageRow ? customPagePath(pageRow) : `p/${input.slug}/`);
   const shouldWrite = !input.removed && !!pageRow && !pageRow.requiresDynamic && !input.removePath;
   if (shouldWrite) {
     const result = await renderCustomPage(site, '', pageRow!);
-    if (result.status === 200) {
-      for (const ch of publishChannels) await writeStaticFile(site.code, channelStaticPath(ch, targetPath), result.html);
-    }
+    if (result.status === 200) await writeStaticFile(site.code, targetPath, result.html);
   } else {
-    for (const ch of publishChannels) await deleteStaticFile(site.code, channelStaticPath(ch, targetPath));
+    await deleteStaticFile(site.code, targetPath);
   }
-  if (input.isHome) {
-    for (const ch of publishChannels) await refreshHomeStaticForChannel(site, ch);
-  }
+  if (input.isHome) await refreshHomeStatic(site);
   await writeStaticFile(site.code, 'sitemap.xml', await generateSitemapXml(site));
-  triggerCdnPurge(site, [
-    'sitemap.xml',
-    ...publishChannels.flatMap((ch) => [
-      channelStaticPath(ch, targetPath),
-      ...(input.isHome ? [channelStaticPath(ch, '')] : []),
-    ]),
-  ]);
+  triggerCdnPurge(site, ['sitemap.xml', targetPath, ...(input.isHome ? [''] : [])]);
 }
 
 export function triggerCustomPageStaticRefresh(input: { siteId: number; slug: string; isHome: boolean; removed?: boolean; removePath?: string | null }): void {
@@ -503,10 +477,8 @@ export async function refreshChannelStatic(channelId: number): Promise<{ pages: 
   const site = await resolveEffectiveCmsSiteRow(channel.siteId).catch(() => null);
   if (!site) throw new Error(`站点不存在（id=${channel.siteId}）`);
   let pages = 0;
-  for (const publishChannel of await getActivePublishChannels(site.id)) {
-    pages += await regenerateChannelPages(site, channel, publishChannel);
-    if (await refreshHomeStaticForChannel(site, publishChannel)) pages += 1;
-  }
+  pages += await regenerateChannelPages(site, channel);
+  if (await refreshHomeStatic(site)) pages += 1;
   await writeStaticFile(site.code, 'sitemap.xml', await generateSitemapXml(site));
   await writeStaticFile(site.code, 'rss.xml', await generateRssXml(site));
   triggerCdnPurgeAll(site);
@@ -525,7 +497,6 @@ export interface CmsStaticBuildCheckpoint {
   phase: 'home' | 'channel' | 'content' | 'tag' | 'page' | 'meta';
   lastKey: string;
   lastId: number | null;
-  publishChannelCode: string | null;
 }
 
 export async function buildSiteStatic(
@@ -562,10 +533,8 @@ async function buildSiteStaticInner(
   const customPages = publishedPages
     .filter((page) => !page.isHome && !page.requiresDynamic)
     .sort((a, b) => a.id - b.id);
-  const publishChannels = [...await getActivePublishChannels(siteId)]
-    .sort((a, b) => a.code < b.code ? -1 : a.code > b.code ? 1 : 0);
-  // 每通道：首页 + 栏目 + 内容 + 标签 + 搭建页；站点级：sitemap/rss/robots
-  const total = publishChannels.length * (1 + channels.length + contents.length + activeTags.length + customPages.length) + 3;
+  // 首页 + 栏目 + 内容 + 标签 + 搭建页；站点级：sitemap/rss/robots
+  const total = 1 + channels.length + contents.length + activeTags.length + customPages.length + 3;
   let processed = 0;
   let pages = 0;
   const resumeAfterKey = options?.resumeAfterKey ?? null;
@@ -583,84 +552,81 @@ async function buildSiteStaticInner(
     return cancelled === true;
   };
 
-  for (const publishChannel of publishChannels) {
-    const channelLabel = publishChannels.length > 1 ? `[${publishChannel.name}] ` : '';
-    const homeKey = cmsStaticTargetKey(publishChannel.code, 0, 0);
-    if (!skipCompleted(homeKey)) {
-      if (await refreshHomeStaticForChannel(site, publishChannel)) pages += 1;
-      if (await report(`${channelLabel}首页已生成`, {
-        phase: 'home', lastKey: homeKey, lastId: null, publishChannelCode: publishChannel.code,
-      })) return { pages, pruned: 0 };
-    }
+  const homeKey = cmsStaticTargetKey('~site', 0, 0);
+  if (!skipCompleted(homeKey)) {
+    if (await refreshHomeStatic(site)) pages += 1;
+    if (await report(`首页已生成`, {
+      phase: 'home', lastKey: homeKey, lastId: null,
+    })) return { pages, pruned: 0 };
+  }
 
-    for (const channel of channels) {
-      const key = cmsStaticTargetKey(publishChannel.code, 1, channel.id);
-      if (skipCompleted(key)) continue;
-      pages += await regenerateChannelPages(site, channel, publishChannel);
-      if (await report(`${channelLabel}栏目「${channel.name}」已生成`, {
-        phase: 'channel', lastKey: key, lastId: channel.id, publishChannelCode: publishChannel.code,
-      })) return { pages, pruned: 0 };
-    }
+  for (const channel of channels) {
+    const key = cmsStaticTargetKey('~site', 1, channel.id);
+    if (skipCompleted(key)) continue;
+    pages += await regenerateChannelPages(site, channel);
+    if (await report(`栏目「${channel.name}」已生成`, {
+      phase: 'channel', lastKey: key, lastId: channel.id,
+    })) return { pages, pruned: 0 };
+  }
 
-    for (const row of contents) {
-      const key = cmsStaticTargetKey(publishChannel.code, 2, row.id);
-      if (skipCompleted(key)) continue;
-      const channel = channelMap.get(row.channelId);
-      if (channel && !row.externalLink?.trim() && !isChannelDynamic(site, channel)) {
-        const bodyPages = await countContentBodyPages(row);
-        for (let p = 1; p <= bodyPages; p++) {
-          const ok = await writeRenderedPath(site, contentUrl('', channel, row, p), publishChannel);
-          if (ok) pages += 1;
-        }
+  for (const row of contents) {
+    const key = cmsStaticTargetKey('~site', 2, row.id);
+    if (skipCompleted(key)) continue;
+    const channel = channelMap.get(row.channelId);
+    if (channel && !row.externalLink?.trim() && !isChannelDynamic(site, channel)) {
+      const bodyPages = await countContentBodyPages(row);
+      for (let p = 1; p <= bodyPages; p++) {
+        const ok = await writeRenderedPath(site, contentUrl('', channel, row, p));
+        if (ok) pages += 1;
       }
-      if (await report(`${channelLabel}内容 ${row.id} 已生成`, {
-        phase: 'content', lastKey: key, lastId: row.id, publishChannelCode: publishChannel.code,
-      })) return { pages, pruned: 0 };
     }
+    if (await report(`内容 ${row.id} 已生成`, {
+      phase: 'content', lastKey: key, lastId: row.id,
+    })) return { pages, pruned: 0 };
+  }
 
-    // 标签聚合页（仅首屏分页；深分页访问时由 hybrid 模式按需回写）
-    for (const tag of activeTags) {
-      const key = cmsStaticTargetKey(publishChannel.code, 3, tag.id);
-      if (skipCompleted(key)) continue;
-      const result = await renderTagPage(site, '', tag.slug, 1);
-      if (result.status === 200) {
-        await writeStaticFile(site.code, channelStaticPath(publishChannel, `tag/${tag.slug}/`), result.html);
-        pages += 1;
-      }
-      if (await report(`${channelLabel}标签「${tag.name}」已生成`, {
-        phase: 'tag', lastKey: key, lastId: tag.id, publishChannelCode: publishChannel.code,
-      })) return { pages, pruned: 0 };
+  // 标签聚合页（仅首屏分页；深分页访问时由 hybrid 模式按需回写）
+  for (const tag of activeTags) {
+    const key = cmsStaticTargetKey('~site', 3, tag.id);
+    if (skipCompleted(key)) continue;
+    const result = await renderTagPage(site, '', tag.slug, 1);
+    if (result.status === 200) {
+      await writeStaticFile(site.code, `tag/${tag.slug}/`, result.html);
+      pages += 1;
     }
+    if (await report(`标签「${tag.name}」已生成`, {
+      phase: 'tag', lastKey: key, lastId: tag.id,
+    })) return { pages, pruned: 0 };
+  }
 
-    // 可视化搭建页面 /p/{slug}/
-    for (const page of customPages) {
-      const key = cmsStaticTargetKey(publishChannel.code, 4, page.id);
-      if (skipCompleted(key)) continue;
-      const result = await renderCustomPage(site, '', page);
-      if (result.status === 200) {
-        await writeStaticFile(site.code, channelStaticPath(publishChannel, customPagePath(page)), result.html);
-        pages += 1;
-      }
-      if (await report(`${channelLabel}搭建页「${page.name}」已生成`, {
-        phase: 'page', lastKey: key, lastId: page.id, publishChannelCode: publishChannel.code,
-      })) return { pages, pruned: 0 };
+  // 可视化搭建页面 /p/{slug}/
+  for (const page of customPages) {
+    const key = cmsStaticTargetKey('~site', 4, page.id);
+    if (skipCompleted(key)) continue;
+    const result = await renderCustomPage(site, '', page);
+    if (result.status === 200) {
+      await writeStaticFile(site.code, customPagePath(page), result.html);
+      pages += 1;
     }
+    if (await report(`搭建页「${page.name}」已生成`, {
+      phase: 'page', lastKey: key, lastId: page.id,
+    })) return { pages, pruned: 0 };
   }
 
   const sitemapKey = cmsStaticTargetKey('~meta', 0, 1);
   if (!skipCompleted(sitemapKey)) {
     await writeStaticFile(site.code, 'sitemap.xml', await generateSitemapXml(site));
-    if (await report('sitemap.xml 已生成', { phase: 'meta', lastKey: sitemapKey, lastId: 1, publishChannelCode: null })) return { pages, pruned: 0 };
+    if (await report('sitemap.xml 已生成', { phase: 'meta', lastKey: sitemapKey, lastId: 1 })) return { pages, pruned: 0 };
   }
   const rssKey = cmsStaticTargetKey('~meta', 0, 2);
   if (!skipCompleted(rssKey)) {
     await writeStaticFile(site.code, 'rss.xml', await generateRssXml(site));
-    if (await report('rss.xml 已生成', { phase: 'meta', lastKey: rssKey, lastId: 2, publishChannelCode: null })) return { pages, pruned: 0 };
+    if (await report('rss.xml 已生成', { phase: 'meta', lastKey: rssKey, lastId: 2 })) return { pages, pruned: 0 };
   }
   const robotsKey = cmsStaticTargetKey('~meta', 0, 3);
   if (!skipCompleted(robotsKey)) {
     await writeStaticFile(site.code, 'robots.txt', buildRobotsTxt(site));
-    if (await report('robots.txt 已生成', { phase: 'meta', lastKey: robotsKey, lastId: 3, publishChannelCode: null })) return { pages, pruned: 0 };
+    if (await report('robots.txt 已生成', { phase: 'meta', lastKey: robotsKey, lastId: 3 })) return { pages, pruned: 0 };
   }
   triggerCdnPurgeAll(site);
   // 孤儿清扫：仅在「从头完整跑完」时执行。断点续跑的 written 集合只含续跑段，
