@@ -70,7 +70,6 @@ import {
   assertChannelAccess,
   ensureCmsChannelExists,
 } from './cms-channels.service';
-import { getActivePublishChannels } from './cms-publish-channels.service';
 import {
   buildSiteStatic,
   applyCmsContentPublishSnapshot,
@@ -551,9 +550,7 @@ export function submitCmsPagePublishSideEffect(input: {
 
 async function trackingContext(input: CmsPublishSubmitInput, taskId: number, ctx: TaskRunContext) {
   const site = await resolveEffectiveCmsSiteRow(input.siteId);
-  const channels = await getActivePublishChannels(input.siteId);
   const protocol = (site.settings as Record<string, unknown> | null)?.protocol === 'http' ? 'http' : 'https';
-  const defaultChannel = channels.find((item) => item.isDefault) ?? channels[0];
   const artifactProgress = { count: 0, failed: 0 };
   return {
     site,
@@ -566,12 +563,7 @@ async function trackingContext(input: CmsPublishSubmitInput, taskId: number, ctx
       channelId: input.channelId ?? null,
       pageId: input.pageId ?? null,
       themeCode: input.themeCode ?? site.theme,
-      publishChannelIds: Object.fromEntries(channels.map((item) => [item.code, item.id])),
-      defaultChannelCode: defaultChannel.code,
-      origins: Object.fromEntries(channels.map((item) => [
-        item.code,
-        item.domain ? `${protocol}://${item.domain}` : site.domain ? `${protocol}://${site.domain}` : null,
-      ])),
+      origin: site.domain ? `${protocol}://${site.domain}` : null,
       onArtifact: async (artifact: { path: string; status: CmsPublishArtifactStatus; error: string | null; size: number | null }) => {
         artifactProgress.count += 1;
         if (artifact.status === 'failed') artifactProgress.failed += 1;

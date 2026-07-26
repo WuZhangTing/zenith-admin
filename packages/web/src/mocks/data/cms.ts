@@ -1,5 +1,5 @@
 import {
-  SEED_CMS_SITES, SEED_CMS_PUBLISH_CHANNELS, SEED_CMS_MODELS, SEED_CMS_CHANNELS, SEED_CMS_CONTENTS,
+  SEED_CMS_SITES, SEED_CMS_MODELS, SEED_CMS_CHANNELS, SEED_CMS_CONTENTS,
   SEED_CMS_TAGS, SEED_CMS_FRAGMENTS, SEED_CMS_FRIEND_LINK_GROUPS, SEED_CMS_FRIEND_LINKS,
   SEED_CMS_AD_SLOTS, SEED_CMS_ADS, SEED_CMS_FORMS, SEED_CMS_SENSITIVE_WORDS,
   SEED_CMS_ERROR_PRONE_WORDS, SEED_CMS_LINK_WORDS, SEED_CMS_COMMENTS, SEED_CMS_INTERACTIONS,
@@ -11,7 +11,7 @@ import {
   SEED_CMS_CONTENT_VERSIONS,
 } from '@zenith/shared';
 import type {
-  CmsSite, CmsPublishChannel, CmsModel, CmsChannel, CmsContent, CmsTag, CmsFragment, CmsFriendLink, CmsFriendLinkGroup,
+  CmsSite, CmsModel, CmsChannel, CmsContent, CmsTag, CmsFragment, CmsFriendLink, CmsFriendLinkGroup,
   CmsAdSlot, CmsAd, CmsAdEvent, CmsForm, CmsFormSubmission, CmsSensitiveWord, CmsErrorProneWord, CmsLinkWord, CmsComment,
   CmsRedirect, CmsPushLog, CmsContentVersion, CmsSearchWord, CmsHotKeyword, CmsContentOpLog, CmsInteraction,
   CmsInteractionResponse, CmsMemberSubscription, CmsPageBlockAcl,
@@ -20,7 +20,6 @@ import type {
 
 // 从共享种子数据派生（禁止重复定义静态数组）
 export const mockCmsSites: CmsSite[] = SEED_CMS_SITES.map((s) => ({ ...s }));
-export const mockCmsPublishChannels: CmsPublishChannel[] = SEED_CMS_PUBLISH_CHANNELS.map((c) => ({ ...c }));
 export const mockCmsModels: CmsModel[] = SEED_CMS_MODELS.map((m) => ({ ...m, fields: m.fields.map((f) => ({ ...f })) }));
 export const mockCmsChannels: CmsChannel[] = SEED_CMS_CHANNELS.map((c) => ({ ...c }));
 export const mockCmsContents: (CmsContent & { tagIds: number[] })[] = SEED_CMS_CONTENTS.map((c) => ({ ...c, extend: { ...c.extend }, tagIds: [...c.tagIds] }));
@@ -38,7 +37,6 @@ function nextIdFactory(initial: number) {
 }
 
 export const getNextCmsSiteId = nextIdFactory(Math.max(0, ...mockCmsSites.map((x) => x.id)) + 1);
-export const getNextCmsPublishChannelId = nextIdFactory(Math.max(0, ...mockCmsPublishChannels.map((x) => x.id)) + 1);
 export const getNextCmsModelId = nextIdFactory(Math.max(0, ...mockCmsModels.map((x) => x.id)) + 1);
 export const getNextCmsModelFieldId = nextIdFactory(Math.max(0, ...mockCmsModels.flatMap((m) => (m.fields ?? []).map((f) => f.id))) + 1);
 export const getNextCmsChannelId = nextIdFactory(Math.max(0, ...mockCmsChannels.map((x) => x.id)) + 1);

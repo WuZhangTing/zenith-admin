@@ -1638,12 +1638,6 @@ export function cmsCustomPagePath(page: { slug: string; path?: string | null }):
   return custom.endsWith('.html') ? custom : `${custom}/`;
 }
 
-/** CMS 发布通道路径段前缀：非默认通道预览 /__cms/{site}/__{code}/...、静态产物 __{code}/ 子树 */
-export const CMS_CHANNEL_SEGMENT_PREFIX = '__';
-
-/** 默认发布通道编码（站点无通道记录时的虚拟默认通道） */
-export const CMS_DEFAULT_CHANNEL_CODE = 'pc';
-
 // ─── CMS P2 ───────────────────────────────────────────────────────────────────
 export const CMS_COMMENT_STATUSES = ['pending', 'approved', 'rejected'] as const;
 

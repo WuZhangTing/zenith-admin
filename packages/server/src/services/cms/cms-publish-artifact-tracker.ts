@@ -14,10 +14,8 @@ export interface CmsPublishTrackingContext {
   channelId?: number | null;
   pageId?: number | null;
   themeCode?: string | null;
-  /** 发布通道 code → id；defaultCode 用于不带 __code/ 前缀的产物。 */
-  publishChannelIds: Record<string, number>;
-  defaultChannelCode: string;
-  origins: Record<string, string | null>;
+  /** 站点对外 origin（用于产物 URL），无绑定域名时为 null */
+  origin: string | null;
   onArtifact?: (artifact: {
     path: string;
     status: CmsPublishArtifactStatus;
@@ -35,27 +33,6 @@ export function withCmsPublishArtifactTracking<T>(
   return Promise.resolve(tracker.run(context, fn));
 }
 
-function channelFromPath(
-  relPath: string,
-  context: CmsPublishTrackingContext,
-): { code: string; id: number | null; publicPath: string } {
-  const normalized = relPath.replaceAll('\\', '/').replace(/^\/+/, '');
-  const firstSlash = normalized.indexOf('/');
-  const first = firstSlash >= 0 ? normalized.slice(0, firstSlash) : normalized;
-  if (first.startsWith('__') && first.length > 2) {
-    const code = first.slice(2);
-    return {
-      code,
-      id: context.publishChannelIds[code] ?? null,
-      publicPath: firstSlash >= 0 ? normalized.slice(firstSlash + 1) : '',
-    };
-  }
-  return {
-    code: context.defaultChannelCode,
-    id: context.publishChannelIds[context.defaultChannelCode] ?? null,
-    publicPath: normalized,
-  };
-}
 
 function artifactUrl(origin: string | null | undefined, publicPath: string): string | null {
   if (!origin) return null;
@@ -72,7 +49,6 @@ export async function recordCmsPublishArtifact(input: {
   const context = tracker.getStore();
   if (!context) return;
   const relPath = input.relPath.replaceAll('\\', '/').replace(/^\/+/, '') || 'index.html';
-  const channel = channelFromPath(relPath, context);
   const bytes = input.content == null
     ? null
     : Buffer.isBuffer(input.content) ? input.content : Buffer.from(input.content, 'utf8');
@@ -88,7 +64,7 @@ export async function recordCmsPublishArtifact(input: {
     pageId: context.pageId ?? null,
     themeCode: context.themeCode ?? null,
     path: relPath,
-    url: artifactUrl(context.origins[channel.code], channel.publicPath),
+    url: artifactUrl(context.origin, relPath),
     checksum,
     size,
     status: input.status,

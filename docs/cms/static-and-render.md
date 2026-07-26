@@ -5,8 +5,8 @@
 ## 站点路由
 
 - **域名模式**：前台按请求 Host 精确匹配站点 `domain` / `aliasDomains`，未命中回退默认站点（`isDefault`）
-- **预览模式**：`/__cms/{siteCode}/...` 前缀直达任意站点（跳过静态缓存，后台改动即时可见）；非默认通道预览走 `/__cms/{siteCode}/__{channelCode}/...`
-- **发布通道**：通道（PC/H5/小程序等输出端）在「CMS 内容管理 → 发布通道」按站点自由创建（`cms_publish_channels` 表）。默认通道服务站点主域名与静态根目录；非默认通道可绑定独立域名（Host 精确匹配）与 UA 正则——两者同配时，主域名按 UA 302 跳通道域名、通道域名 UA 不匹配时跳回主域名（响应带 `Vary: User-Agent`）。站点无通道记录时自动回退虚拟 PC 默认通道，零迁移兼容
+- **预览模式**：`/__cms/{siteCode}/...` 前缀直达任意站点（跳过静态缓存，后台改动即时可见）
+- **多域名**：同一站点绑多个域名走 `aliasDomains`；设备差异由响应式主题的 CSS 断点解决，不做服务端 UA 分支（静态产物按 URL 缓存，按 UA 分叉要么废掉 CDN 缓存、要么产生重复内容）。若确需 PC/移动两套完全不同的前台，建子站点 + 站群映射分发
 
 ## URL 规则
 
@@ -32,7 +32,7 @@
 | `hybrid`（默认） | 静态文件命中直返；miss 时 SSR 渲染并**回写**静态文件 | 通用推荐 |
 | `static` | 仅发布时生成，miss 不回写 | 高安全静态托管 |
 
-静态产物：首页、栏目全分页（上限 50 页）、详情页、标签页、搭建页、`sitemap.xml`（5 万条上限）、`robots.txt`、RSS。写入采用 `.tmp` + rename 原子操作。默认通道产物在站点根目录，非默认通道在 `{siteCode}/__{channelCode}/` 子树逐通道生成；`sitemap.xml`/`robots.txt`/RSS 仅站点级一份。dynamic 模式 Redis 页面缓存 key 含通道维度（`cms:page:{siteId}:{channelCode}:{path}`）。
+静态产物：首页、栏目全分页（上限 50 页）、详情页、标签页、搭建页、`sitemap.xml`（5 万条上限）、`robots.txt`、RSS。写入采用 `.tmp` + rename 原子操作。产物统一落在 `{siteCode}/` 单棵树下。dynamic 模式 Redis 页面缓存 key 为 `cms:page:{siteId}:{path}`。
 
 ### 栏目级静态化开关
 
@@ -75,7 +75,7 @@
 
 静态产物的路径由栏目路径、归档规则、内容 slug/staticPath 等共同决定，任何一项变更都会让旧路径下的文件失去归属。**整站重建结束时会自动清扫这些孤儿**：
 
-- **mark**：构建过程中用 AsyncLocalStorage 收集本次写入的全部相对路径（含各发布通道的 `__{code}/` 子树）
+- **mark**：构建过程中用 AsyncLocalStorage 收集本次写入的全部相对路径
 - **sweep**：递归遍历站点静态目录，删除不在写入集合中的文件，并自底向上回收空目录
 - 删除走 `deleteStaticFile`，因此同样受发布围栏保护，且每个被删文件都会落一条 `deleted` 产物记录，可在发布中心审计
 - 清扫数量回填任务结果 `prunedArtifacts`
@@ -132,7 +132,7 @@ SSR 响应按页面类型分级缓存（v1.6.0+）：
 | 列表页 | 栏目 `listTemplate` → 站点 `settings.defaultTemplates.list` → 主题默认 |
 | 详情页 | 内容 `detailTemplate` → 栏目 `settings.templates.detailByModel[模型code]` → 栏目 `detailTemplate` → 站点 `defaultTemplates.detailByModel[模型code]` → 站点 `defaultTemplates.detail` → 主题默认 |
 
-通道维度 key 为发布通道编码（`cms_publish_channels.code`，用户自建）。站点级默认模板在站点编辑 →「模板与通道」页签配置；栏目级在栏目编辑「模板配置」区按「全通道通用 + 各通道」页签配置，均支持按内容模型细分详情模板。
+站点级默认模板在站点编辑 →「模板与主题」页签配置，栏目级在栏目编辑「模板配置」区配置，两级均支持按内容模型细分详情模板。
 
 ### 失效模板引用的自愈
 

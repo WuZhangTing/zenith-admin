@@ -1,15 +1,11 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-import { CMS_PREVIEW_PREFIX, CMS_CHANNEL_SEGMENT_PREFIX } from '@zenith/shared';
+import { CMS_PREVIEW_PREFIX } from '@zenith/shared';
 import { config } from '../../config';
 import redis from '../../lib/redis';
 import logger from '../../lib/logger';
 import type { CmsSiteRow } from '../../db/schema';
-import { resolveSiteByHost, resolveSiteById, resolveSiteByCode } from '../../services/cms/cms-sites.service';
-import {
-  getDefaultPublishChannel, findActiveChannelByCode, resolveChannelByHost, resolveChannelUaRedirectHost,
-  type PublishChannelInfo,
-} from '../../services/cms/cms-publish-channels.service';
+import { resolveSiteByHost, resolveSiteByCode } from '../../services/cms/cms-sites.service';
 import { resolveRedirect } from '../../services/cms/cms-redirects.service';
 import {
   renderSitePath, renderSearchPage, renderContentPreviewPage, type RenderResult,
@@ -63,15 +59,11 @@ function htmlResponse(c: Context, html: string, cacheSeconds: number, extraHeade
 
 interface ResolvedTarget {
   site: CmsSiteRow;
-  /** 站内相对路径（不含预览前缀 / 通道段） */
+  /** 站内相对路径（不含预览前缀） */
   sitePath: string;
-  /** 渲染链接前缀：正式域名 ''，预览 /__cms/{code}（非默认通道再加 /__{channelCode}） */
+  /** 渲染链接前缀：正式域名 ''，预览 /__cms/{code} */
   baseUrl: string;
   isPreview: boolean;
-  /** 命中的发布通道（默认通道 / 独立域名通道 / 预览通道段） */
-  channel: PublishChannelInfo;
-  /** Host 是否精确命中站点或通道域名（false = 默认站点兜底，跳过 UA 跳转） */
-  hostMatched: boolean;
 }
 
 async function resolveTarget(host: string | undefined, pathname: string): Promise<ResolvedTarget | null> {
@@ -81,63 +73,18 @@ async function resolveTarget(host: string | undefined, pathname: string): Promis
     if (!code) return null;
     const site = await resolveSiteByCode(code);
     if (!site) return null;
-    // /__cms/{site}/__{channelCode}/... → 指定通道预览（未命中的 __ 段按普通路径走，自然 404）
-    let channel = await getDefaultPublishChannel(site.id);
-    let pathSegments = restSegments;
-    const seg = restSegments[0];
-    if (seg && seg.startsWith(CMS_CHANNEL_SEGMENT_PREFIX) && seg.length > CMS_CHANNEL_SEGMENT_PREFIX.length) {
-      const hit = await findActiveChannelByCode(site.id, seg.slice(CMS_CHANNEL_SEGMENT_PREFIX.length));
-      if (hit) {
-        channel = hit;
-        pathSegments = restSegments.slice(1);
-      }
-    }
     return {
       site,
-      sitePath: pathSegments.join('/'),
-      baseUrl: `${CMS_PREVIEW_PREFIX}/${code}${channel.isDefault ? '' : `/${CMS_CHANNEL_SEGMENT_PREFIX}${channel.code}`}`,
+      sitePath: restSegments.join('/'),
+      baseUrl: `${CMS_PREVIEW_PREFIX}/${code}`,
       isPreview: true,
-      channel,
-      hostMatched: false,
     };
-  }
-  const sitePath = pathname.replace(/^\/+/, '');
-  // 非默认通道独立域名优先命中
-  const channelHit = await resolveChannelByHost(host);
-  if (channelHit) {
-    const site = await resolveSiteById(channelHit.siteId);
-    if (site) {
-      return { site, sitePath, baseUrl: '', isPreview: false, channel: channelHit, hostMatched: true };
-    }
   }
   const site = await resolveSiteByHost(host);
   if (!site) return null;
-  const hostname = host?.split(':')[0].toLowerCase() ?? '';
-  const pcHosts = [site.domain?.toLowerCase(), ...(site.aliasDomains ?? []).map((d) => d.toLowerCase())];
-  return {
-    site,
-    sitePath,
-    baseUrl: '',
-    isPreview: false,
-    channel: await getDefaultPublishChannel(site.id),
-    hostMatched: !!hostname && pcHosts.includes(hostname),
-  };
+  return { site, sitePath: pathname.replace(/^\/+/, ''), baseUrl: '', isPreview: false };
 }
 
-/** 默认通道 ↔ 独立域名通道按 UA 302 互跳；返回 null 表示无需跳转 */
-async function resolveUaRedirect(c: Context, target: ResolvedTarget): Promise<string | null> {
-  if (target.isPreview || !target.hostMatched) return null;
-  const targetHost = await resolveChannelUaRedirectHost(
-    target.site.id,
-    target.site.domain,
-    target.channel,
-    c.req.header('user-agent'),
-  );
-  if (!targetHost) return null;
-  const protocol = (target.site.settings as Record<string, unknown> | null)?.protocol === 'http' ? 'http' : 'https';
-  const url = new URL(c.req.url);
-  return `${protocol}://${targetHost}${url.pathname}${url.search}`;
-}
 
 /** 详情路径提取纯数字内容 id（静态命中无渲染上下文时尽力关联；slug 详情返回 null） */
 function extractContentIdFromPath(sitePath: string): number | null {
@@ -169,7 +116,7 @@ export function createCmsFrontendRoutes(): Hono {
 
     const target = await resolveTarget(c.req.header('host'), pathname);
     if (!target) return next();
-    const { site, sitePath, baseUrl, isPreview, channel } = target;
+    const { site, sitePath, baseUrl, isPreview } = target;
     const dynamicPage = await resolveDynamicCmsPageForPath(site.id, sitePath);
     const memberViewer = c.get('member')?.memberId != null;
 
@@ -187,13 +134,6 @@ export function createCmsFrontendRoutes(): Hono {
         host: c.req.header('host') ?? null,
       });
     };
-
-    // 默认通道 ↔ 独立域名通道按 UA 302 互跳
-    const uaRedirect = await resolveUaRedirect(c, target);
-    if (uaRedirect) {
-      c.header('Vary', 'User-Agent');
-      return c.redirect(uaRedirect, 302);
-    }
 
     // 301/302 重定向规则（优先级最高）
     const redirect = await resolveRedirect(site.id, `/${sitePath}`);
@@ -271,7 +211,7 @@ export function createCmsFrontendRoutes(): Hono {
     }
 
     // dynamic 模式：Redis 页面缓存（key 带发布通道维度）
-    const cacheKey = `${PAGE_CACHE_PREFIX}${site.id}:${channel.code}:${sitePath}`;
+    const cacheKey = `${PAGE_CACHE_PREFIX}${site.id}:${sitePath}`;
     if (!dynamicPage && !isPreview && site.staticMode === 'dynamic') {
       const cached = await redis.get(cacheKey).catch(() => null);
       if (cached) {
@@ -289,7 +229,7 @@ export function createCmsFrontendRoutes(): Hono {
       if (!dynamicPage && !isPreview && site.staticMode === 'hybrid') {
         // 混合模式：miss 即渲染并回写，下次直接命中静态文件
         void writeStaticFile(site.code, sitePath, result.html).catch((err) => {
-          logger.error(`[CMS] 静态回写失败 site=${site.code} channel=${channel.code} path=${sitePath}`, err);
+          logger.error(`[CMS] 静态回写失败 site=${site.code} path=${sitePath}`, err);
         });
       }
       if (!dynamicPage && !isPreview && site.staticMode === 'dynamic') {

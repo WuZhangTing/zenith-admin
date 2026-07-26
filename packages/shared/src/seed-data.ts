@@ -18,7 +18,7 @@ import type {
   ReportDatasource, ReportDataset, ReportDashboard, ApiScope, RatePlan, ReportPrintTemplate,
   UserFeedback, ReportFolder, ReportMetric, ReportEnvironment, ReportDqRule, ReportQueryQuota,
   ReportSlaRule, ReportAssetTemplate, ReportFillTemplate, AnalyticsEventPropertyDef, AnalyticsSite,
-  CmsSite, CmsPublishChannel, CmsModel, CmsChannel, CmsContent, CmsTag, CmsFragment, CmsFriendLink, CmsFriendLinkGroup,
+  CmsSite, CmsModel, CmsChannel, CmsContent, CmsTag, CmsFragment, CmsFriendLink, CmsFriendLinkGroup,
   CmsAdSlot, CmsAd, CmsAdEvent, CmsForm, CmsSensitiveWord, CmsErrorProneWord, CmsLinkWord, CmsComment,
   CmsInteraction, CmsInteractionQuestion, CmsMemberSubscription, CmsResource, CmsResourceFolder, CmsSearchWord, CmsHotwordGroup,
   CmsContentVersion, CmsCollectRule, CmsCollectItem, CmsPage,
@@ -908,11 +908,6 @@ export const SEED_MENUS: Menu[] = [
   { id: 14183, parentId: 14180, title: '编辑页面', type: 'button', permission: 'cms:page:update', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14184, parentId: 14180, title: '删除页面', type: 'button', permission: 'cms:page:delete', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14185, parentId: 14180, title: '管理区块权限', type: 'button', permission: 'cms:page:acl', sort: 4, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 14190, parentId: 14000, title: '发布通道', name: 'CmsPublishChannels', path: '/cms/publish-channels', component: 'cms/PublishChannelsPage', icon: 'Radio', type: 'menu', sort: 17, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 14191, parentId: 14190, title: '查询', type: 'button', permission: 'cms:publish-channel:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 14192, parentId: 14190, title: '新增通道', type: 'button', permission: 'cms:publish-channel:create', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 14193, parentId: 14190, title: '编辑通道', type: 'button', permission: 'cms:publish-channel:update', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 14194, parentId: 14190, title: '删除通道', type: 'button', permission: 'cms:publish-channel:delete', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14200, parentId: 14000, title: '易错词库', name: 'CmsErrorProneWords', path: '/cms/error-prone-words', component: 'cms/ErrorProneWordsPage', icon: 'SpellCheck', type: 'menu', sort: 18, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14201, parentId: 14200, title: '查询', type: 'button', permission: 'cms:word:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14202, parentId: 14200, title: '管理易错词', type: 'button', permission: 'cms:word:manage', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
@@ -3244,12 +3239,6 @@ export const SEED_CMS_SITE_INHERITANCES: Array<{ siteId: number } & CmsSiteInher
     themeConfig: site.inheritance?.themeConfig ?? false,
     templates: site.inheritance?.templates ?? false,
   }));
-
-export const SEED_CMS_PUBLISH_CHANNELS: CmsPublishChannel[] = [
-  { id: 1, siteId: 1, name: 'PC 桌面', code: 'pc', domain: null, uaRegex: null, isDefault: true, status: 'enabled', sort: 1, remark: '默认通道', createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 2, siteId: 1, name: 'H5 移动', code: 'h5', domain: null, uaRegex: 'Mobile|Android|iPhone', isDefault: false, status: 'enabled', sort: 2, remark: '移动端通道（绑定域名后按 UA 自动跳转）', createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 3, siteId: 2, name: 'PC 桌面', code: 'pc', domain: null, uaRegex: null, isDefault: true, status: 'enabled', sort: 1, remark: '技术子站默认通道', createdAt: SEED_DATE, updatedAt: SEED_DATE },
-];
 
 export const SEED_CMS_MODELS: (CmsModel & { fields: NonNullable<CmsModel['fields']> })[] = [
   {

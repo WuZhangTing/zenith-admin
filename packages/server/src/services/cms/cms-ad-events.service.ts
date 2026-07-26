@@ -7,7 +7,6 @@ import {
   cmsAds,
   cmsAdSlots,
   cmsAdStats,
-  cmsPublishChannels,
   cmsSites,
 } from '../../db/schema';
 import type { CmsAdEventRow } from '../../db/schema';
@@ -31,11 +30,9 @@ export interface CmsAdEventMeta {
   userAgent: string | null;
   referrer: string | null;
   path: string | null;
-  publishChannelId: number | null;
   memberId: number | null;
   occurredAt?: Date;
   host?: string | null;
-  channelCode?: string | null;
   expectedSiteId?: number;
 }
 
@@ -129,7 +126,6 @@ async function recordAcceptedEvents(
     device,
     referrer: meta.referrer?.slice(0, 1000) ?? null,
     path: meta.path?.slice(0, 500) ?? null,
-    publishChannelId: meta.publishChannelId,
     memberId: meta.memberId,
     dedupeKey: cmsAdEventDedupeKey(ad.id, eventType, visitorHash, occurredAt),
   }));
@@ -157,22 +153,6 @@ export async function recordCmsAdImpressions(ids: number[], meta: CmsAdEventMeta
       eq(cmsSites.status, 'enabled'),
       meta.expectedSiteId ? eq(cmsAdSlots.siteId, meta.expectedSiteId) : undefined,
     ));
-  const siteIds = new Set(rows.map((row) => row.siteId));
-  if (!meta.publishChannelId && siteIds.size === 1) {
-    meta = {
-      ...meta,
-      publishChannelId: await resolveCmsAdPublishChannelId(
-        [...siteIds][0],
-        meta.host ?? null,
-        meta.channelCode,
-      ),
-    };
-  }
-  if (meta.publishChannelId && siteIds.size > 0) {
-    const [channel] = await db.select({ siteId: cmsPublishChannels.siteId }).from(cmsPublishChannels)
-      .where(and(eq(cmsPublishChannels.id, meta.publishChannelId), eq(cmsPublishChannels.status, 'enabled'))).limit(1);
-    if (!channel || !siteIds.has(channel.siteId)) meta = { ...meta, publishChannelId: null };
-  }
   return recordAcceptedEvents(rows, 'impression', meta);
 }
 
@@ -197,53 +177,11 @@ export async function recordCmsAdClick(id: number, meta: CmsAdEventMeta): Promis
   if (!row) return null;
   const linkUrl = normalizeCmsAdClickUrl(row.linkUrl);
   if (!linkUrl) return null;
-  if (!meta.publishChannelId) {
-    meta = {
-      ...meta,
-      publishChannelId: await resolveCmsAdPublishChannelId(row.siteId, meta.host ?? null, meta.channelCode),
-    };
-  }
-  if (meta.publishChannelId) {
-    const [channel] = await db.select({ id: cmsPublishChannels.id }).from(cmsPublishChannels)
-      .where(and(
-        eq(cmsPublishChannels.id, meta.publishChannelId),
-        eq(cmsPublishChannels.siteId, row.siteId),
-        eq(cmsPublishChannels.status, 'enabled'),
-      )).limit(1);
-    if (!channel) meta = { ...meta, publishChannelId: null };
-  }
   await recordAcceptedEvents([row], 'click', meta);
   return linkUrl;
 }
 
-export async function resolveCmsAdPublishChannelId(siteId: number, host: string | null, code?: string | null): Promise<number | null> {
-  if (code) {
-    const [row] = await db.select({ id: cmsPublishChannels.id }).from(cmsPublishChannels)
-      .where(and(
-        eq(cmsPublishChannels.siteId, siteId),
-        eq(cmsPublishChannels.code, code),
-        eq(cmsPublishChannels.status, 'enabled'),
-      )).limit(1);
-    return row?.id ?? null;
-  }
-  const hostname = host?.split(':')[0].toLowerCase() ?? '';
-  if (hostname) {
-    const [row] = await db.select({ id: cmsPublishChannels.id }).from(cmsPublishChannels)
-      .where(and(
-        eq(cmsPublishChannels.siteId, siteId),
-        eq(cmsPublishChannels.domain, hostname),
-        eq(cmsPublishChannels.status, 'enabled'),
-      )).limit(1);
-    if (row) return row.id;
-  }
-  const [fallback] = await db.select({ id: cmsPublishChannels.id }).from(cmsPublishChannels)
-    .where(and(
-      eq(cmsPublishChannels.siteId, siteId),
-      eq(cmsPublishChannels.isDefault, true),
-      eq(cmsPublishChannels.status, 'enabled'),
-    )).limit(1);
-  return fallback?.id ?? null;
-}
+
 
 export interface ListCmsAdEventsQuery {
   siteId: number;

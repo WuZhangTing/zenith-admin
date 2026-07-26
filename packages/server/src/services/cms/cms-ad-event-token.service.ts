@@ -10,7 +10,7 @@ import { config } from '../../config';
 import { db } from '../../db';
 import { cmsAds, cmsAdSlots, cmsSites } from '../../db/schema';
 import redis from '../../lib/redis';
-import { normalizeCmsAdClickUrl, resolveCmsAdPublishChannelId } from './cms-ad-events.service';
+import { normalizeCmsAdClickUrl } from './cms-ad-events.service';
 import { hashCmsIp, hashCmsVisitor } from './cms-visitor';
 import { verifyCmsAdRenderProof } from './cms-ad-render-proof';
 
@@ -26,7 +26,6 @@ export interface CmsAdEventTokenPayload {
   siteId: number;
   adId: number;
   path: string;
-  publishChannelId: number | null;
   memberId: number | null;
   visitorHash: string;
   expiresAt: number;
@@ -94,7 +93,6 @@ export async function throttleCmsAdTokenIssue(ip: string): Promise<void> {
 export async function issueCmsAdEventTokens(input: {
   siteCode: string;
   ads: Array<{ adId: number; renderProof: string }>;
-  channelCode?: string | null;
   host?: string | null;
   memberId: number | null;
   ip: string;
@@ -141,11 +139,6 @@ export async function issueCmsAdEventTokens(input: {
       or(isNull(cmsAds.startAt), lte(cmsAds.startAt, now)),
       or(isNull(cmsAds.endAt), gte(cmsAds.endAt, now)),
     ));
-  const publishChannelId = await resolveCmsAdPublishChannelId(
-    site.id,
-    input.host ?? null,
-    input.channelCode,
-  );
   const visitorHash = hashCmsVisitor(input.ip, input.userAgent);
   const expiresAt = Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS;
   return rows.map((row) => {
@@ -154,7 +147,6 @@ export async function issueCmsAdEventTokens(input: {
       siteId: site.id,
       adId: row.id,
       path,
-      publishChannelId,
       memberId: input.memberId,
       visitorHash,
       expiresAt,

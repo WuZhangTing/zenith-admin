@@ -37,7 +37,7 @@
 - 广告位（模板引用标识）+ 广告（图片/链接/投放时间窗/排序）
 - 页面渲染后先从 `/api/public/cms/ads/tokens/{siteCode}` 领取 5 分钟一次性事件令牌，再上报曝光或启用 `/api/public/cms/ads/{id}/click?token=`。令牌签名绑定 site/ad/page、可信代理解析后的访客指纹、通道和可选会员；伪造 UA、篡改或重放均拒绝，静态页同样在浏览器渲染后领取新令牌。
 - 点击只允许仍在投放且站点仍启用的广告，跳转目标必须是站内相对路径或无凭据的 http/https URL。
-- `cms_ad_events` 追加记录 site/ad/slot、impression/click、发生时间、访客/IP 哈希、UA/设备/来源/路径、发布通道及可选会员。曝光按广告+访客+60 秒桶、点击按 10 秒桶去重。
+- `cms_ad_events` 追加记录 site/ad/slot、impression/click、发生时间、访客/IP 哈希、UA/设备/来源/路径及可选会员。曝光按广告+访客+60 秒桶、点击按 10 秒桶去重。
 - 事件插入、`cms_ads` 计数与 `cms_ad_stats` 日聚合在同一事务中按**实际插入事件**批量更新，保证三者一致；一次曝光请求最多 50 个广告，不逐事件多表重写。
 - 后台 `/cms/ads` 为「广告 / 事件明细 / 统计」页内 Tabs。事件可按完整维度和时间范围筛选，导出实体 `cms.ad-events`；原始导出另需 `cms:ad-event:export-raw`。
 - `cms_ad_event_retention_days`（默认 180）控制周期清理；人工清理和每日调度均提交任务中心 `cms-ad-events-cleanup`，支持 checkpoint/items/取消/重试。

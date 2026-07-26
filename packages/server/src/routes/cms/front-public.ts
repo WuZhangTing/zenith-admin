@@ -204,7 +204,6 @@ export function createCmsFrontPublicRoutes(): Hono {
     c.header('Cache-Control', 'no-store');
     let body: {
       ads?: Array<{ adId?: number; renderProof?: string }>;
-      channelCode?: string;
     };
     try {
       body = await c.req.json();
@@ -222,7 +221,6 @@ export function createCmsFrontPublicRoutes(): Hono {
             renderProof: typeof item.renderProof === 'string' ? item.renderProof : '',
           }))
           : [],
-        channelCode: typeof body.channelCode === 'string' ? body.channelCode.slice(0, 50) : null,
         host: c.req.header('host') ?? null,
         memberId: c.get('member')?.memberId ?? null,
         ip,
@@ -263,7 +261,6 @@ export function createCmsFrontPublicRoutes(): Hono {
         userAgent: c.req.header('user-agent') ?? null,
         referrer,
         path: payload.path,
-        publishChannelId: payload.publishChannelId,
         memberId: payload.memberId,
         expectedSiteId: payload.siteId,
       }) : null;
@@ -299,7 +296,6 @@ export function createCmsFrontPublicRoutes(): Hono {
       if (payloads.some((item) =>
         item.siteId !== first.siteId
         || item.path !== first.path
-        || item.publishChannelId !== first.publishChannelId
         || item.memberId !== first.memberId)) {
         throw new HTTPException(403, { message: '广告曝光令牌不属于同一页面' });
       }
@@ -308,7 +304,6 @@ export function createCmsFrontPublicRoutes(): Hono {
         userAgent,
         referrer: c.req.header('referer') ?? null,
         path: first.path,
-        publishChannelId: first.publishChannelId,
         memberId: first.memberId,
         expectedSiteId: first.siteId,
       });
