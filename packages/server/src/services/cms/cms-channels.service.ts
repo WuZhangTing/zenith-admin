@@ -216,7 +216,6 @@ export async function createCmsChannel(data: CreateCmsChannelInput) {
   await assertChannelTemplatesBySite(data.siteId, {
     listTemplate: data.listTemplate,
     detailTemplate: data.detailTemplate,
-    settings: data.settings as Record<string, unknown> | undefined,
   });
   await ensureCmsLinkTargetExists(data.siteId, data.linkUrl);
   try {
@@ -225,7 +224,6 @@ export async function createCmsChannel(data: CreateCmsChannelInput) {
       await assertChannelTemplatesBySite(data.siteId, {
         listTemplate: data.listTemplate,
         detailTemplate: data.detailTemplate,
-        settings: data.settings as Record<string, unknown> | undefined,
       });
       const path = await computePath(tx, data.siteId, data.parentId ?? 0, data.slug);
       await assertChannelPathFree(tx, data.siteId, path);
@@ -266,7 +264,6 @@ export async function updateCmsChannel(id: number, data: UpdateCmsChannelInput) 
   await assertChannelTemplatesBySite(current.siteId, {
     listTemplate: data.listTemplate,
     detailTemplate: data.detailTemplate,
-    settings: data.settings as Record<string, unknown> | undefined,
   });
 
   const nextParentId = data.parentId ?? current.parentId;
@@ -289,7 +286,6 @@ export async function updateCmsChannel(id: number, data: UpdateCmsChannelInput) 
       await assertChannelTemplatesBySite(current.siteId, {
         listTemplate: data.listTemplate,
         detailTemplate: data.detailTemplate,
-        settings: data.settings as Record<string, unknown> | undefined,
       });
       // 防环：新父栏目不能是自身后代
       if (nextParentId !== 0 && nextParentId !== current.parentId) {

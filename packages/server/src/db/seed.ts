@@ -115,7 +115,7 @@ async function seedRest() {
 
   // ─── 3. 角色数据（数据来源：@zenith/shared SEED_ROLES）────────────────────
   const roleRows = SEED_ROLES.map(({ id, name, code, description, status, dataScope }) => ({ id, name, code, description, status, dataScope }));
-  await db.insert(roles).values(roleRows).onConflictDoNothing({ target: roles.id });
+  await db.insert(roles).values(roleRows).onConflictDoNothing();
   await db.execute(sql`SELECT setval('roles_id_seq', GREATEST((SELECT MAX(id) FROM roles), 1))`);
   logger.info('  ✔ Roles seeded (onConflictDoNothing)');
 
@@ -156,7 +156,7 @@ async function seedRest() {
     status: row.status,
   }));
   if (newDeptRows.length > 0) {
-    await db.insert(departments).values(newDeptRows).onConflictDoNothing({ target: departments.id });
+    await db.insert(departments).values(newDeptRows).onConflictDoNothing();
     logger.info(`  ✔ Departments seeded — ${newDeptRows.length} new entries`);
   } else {
     logger.info('  ✔ Departments up-to-date');
@@ -176,7 +176,7 @@ async function seedRest() {
     remark: row.remark ?? null,
   }));
   if (newPositionRows.length > 0) {
-    await db.insert(positions).values(newPositionRows).onConflictDoNothing({ target: positions.id });
+    await db.insert(positions).values(newPositionRows).onConflictDoNothing();
     logger.info(`  ✔ Positions seeded — ${newPositionRows.length} new entries`);
   } else {
     logger.info('  ✔ Positions up-to-date');
@@ -223,7 +223,7 @@ async function seedRest() {
 
   // ─── 6. 字典数据（数据来源：@zenith/shared SEED_DICTS）────────────────────
   const dictRows = SEED_DICTS.map(({ id, name, code, description, status }) => ({ id, name, code, description, status }));
-  await db.insert(dicts).values(dictRows).onConflictDoNothing({ target: dicts.id });
+  await db.insert(dicts).values(dictRows).onConflictDoNothing();
   await db.execute(sql`SELECT setval('dicts_id_seq', GREATEST((SELECT MAX(id) FROM dicts), 1))`);
   logger.info('  ✔ Dicts seeded (onConflictDoNothing)');
 
@@ -237,7 +237,7 @@ async function seedRest() {
     localRootPath: 'storage/local',
     basePath: 'uploads',
     remark: '系统默认本地文件服务',
-  }).onConflictDoNothing({ target: fileStorageConfigs.id });
+  }).onConflictDoNothing();
   await db.execute(sql`SELECT setval('file_storage_configs_id_seq', GREATEST((SELECT MAX(id) FROM file_storage_configs), 1))`);
   logger.info('  ✔ File storage configs seeded (onConflictDoNothing)');
 
@@ -280,7 +280,7 @@ async function seedRest() {
   const cronJobRows = SEED_CRON_JOBS.map(({ name, cronExpression, handler, status, description }) => ({ name, cronExpression, handler, status, description }));
   await db.insert(cronJobs)
     .values(cronJobRows)
-    .onConflictDoNothing({ target: cronJobs.name });
+    .onConflictDoNothing();
   logger.info('  ✔ Cron jobs seeded (onConflictDoNothing)');
 
   // ─── 10. 限流规则种子数据（数据来源：@zenith/shared SEED_RATE_LIMIT_RULES）──
@@ -295,13 +295,13 @@ async function seedRest() {
       blockedMessage,
       pathPatterns,
     })))
-    .onConflictDoNothing({ target: rateLimitRules.name });
+    .onConflictDoNothing();
   logger.info('  ✔ Rate limit rules seeded (onConflictDoNothing)');
 
   // ─── 开放平台：API Scope 注册表（来源：@zenith/shared SEED_API_SCOPES）──────
   await db.insert(apiScopes).values(
     SEED_API_SCOPES.map(({ id, code, name, description, scopeGroup, status }) => ({ id, code, name, description, scopeGroup, status })),
-  ).onConflictDoNothing({ target: apiScopes.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('api_scopes_id_seq', GREATEST((SELECT MAX(id) FROM api_scopes), 1))`);
   logger.info('  ✔ API scopes seeded (onConflictDoNothing)');
 
@@ -310,7 +310,7 @@ async function seedRest() {
     SEED_RATE_PLANS.map(({ id, code, name, description, qpsLimit, dailyQuota, monthlyQuota, isDefault, status }) => ({
       id, code, name, description, qpsLimit, dailyQuota, monthlyQuota, isDefault, status,
     })),
-  ).onConflictDoNothing({ target: ratePlans.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('rate_plans_id_seq', GREATEST((SELECT MAX(id) FROM rate_plans), 1))`);
   logger.info('  ✔ Rate plans seeded (onConflictDoNothing)');
 
@@ -346,7 +346,7 @@ async function seedRest() {
   let inserted = 0;
   for (let i = 0; i < regionRows.length; i += BATCH_SIZE) {
     const batch = regionRows.slice(i, i + BATCH_SIZE);
-    await db.insert(regions).values(batch).onConflictDoNothing({ target: regions.code });
+    await db.insert(regions).values(batch).onConflictDoNothing();
     inserted += batch.length;
   }
   logger.info(`  ✔ Regions seeded (onConflictDoNothing) — ${inserted} records`);
@@ -354,7 +354,7 @@ async function seedRest() {
   // ─── 租户套餐示例数据（数据来源：@zenith/shared SEED_TENANT_PACKAGES）─────────────────────────
   await db.insert(tenantPackages).values(
     SEED_TENANT_PACKAGES.map(({ id, name, status, remark }) => ({ id, name, status, remark })),
-  ).onConflictDoNothing({ target: tenantPackages.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('tenant_packages_id_seq', GREATEST((SELECT MAX(id) FROM tenant_packages), 1))`);
   const pkgMenuRows = SEED_TENANT_PACKAGES.flatMap((p) => (p.menuIds ?? []).map((menuId) => ({ packageId: p.id, menuId })));
   if (pkgMenuRows.length > 0) {
@@ -365,19 +365,19 @@ async function seedRest() {
   // ─── 租户示例数据（数据来源：@zenith/shared SEED_TENANTS）───────────────────────────────────
   await db.insert(tenants).values(
     SEED_TENANTS.map(({ name, code, contactName, contactPhone, status, maxUsers, packageId, remark }) => ({ name, code, contactName, contactPhone, status, maxUsers, packageId, remark })),
-  ).onConflictDoNothing({ target: tenants.code });
+  ).onConflictDoNothing();
   logger.info('  ✔ Tenants seeded (onConflictDoNothing)');
 
   // ─── 邮件模板示例数据（数据来源：@zenith/shared SEED_EMAIL_TEMPLATES）─────────────────────────
   await db.insert(emailTemplates).values(
     SEED_EMAIL_TEMPLATES.map(({ name, code, subject, content, variables, status, remark }) => ({ name, code, subject, content, variables, status, remark })),
-  ).onConflictDoNothing({ target: emailTemplates.code });
+  ).onConflictDoNothing();
   logger.info('  ✔ Email templates seeded (onConflictDoNothing)');
 
   // ─── 短信模板示例数据（数据来源：@zenith/shared SEED_SMS_TEMPLATES）──────────────────────
   await db.insert(smsTemplates).values(
     SEED_SMS_TEMPLATES.map(({ name, code, templateCode, signName, content, variables, provider, status, remark }) => ({ name, code, templateCode, signName, content, variables, provider, status, remark })),
-  ).onConflictDoNothing({ target: smsTemplates.code });
+  ).onConflictDoNothing();
   logger.info('  ✔ SMS templates seeded (onConflictDoNothing)');
 
   // ─── 短信服务商配置示例 ─────────────────────────────────────────────────────
@@ -403,14 +403,14 @@ async function seedRest() {
   await db.insert(mpAccounts).values(
     SEED_MP_ACCOUNTS.map(({ id, name, account, appId, appSecret, token, encodingAesKey, encryptMode, type, qrCodeUrl, isDefault, autoCreateMember, status, remark }) =>
       ({ id, name, account, appId, appSecret, token, encodingAesKey, encryptMode, type, qrCodeUrl, isDefault, autoCreateMember, status, remark })),
-  ).onConflictDoNothing({ target: mpAccounts.appId });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('mp_accounts_id_seq', GREATEST((SELECT MAX(id) FROM mp_accounts), 1))`);
   logger.info('  ✔ MP accounts seeded (onConflictDoNothing)');
 
   // ─── 公众号标签示例数据（数据来源：@zenith/shared SEED_MP_TAGS）──────────────────
   await db.insert(mpTags).values(
     SEED_MP_TAGS.map(({ id, accountId, wechatTagId, name, fansCount }) => ({ id, accountId, wechatTagId, name, fansCount })),
-  ).onConflictDoNothing({ target: mpTags.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('mp_tags_id_seq', GREATEST((SELECT MAX(id) FROM mp_tags), 1))`);
   logger.info('  ✔ MP tags seeded (onConflictDoNothing)');
 
@@ -418,7 +418,7 @@ async function seedRest() {
   await db.insert(mpFans).values(
     SEED_MP_FANS.map(({ id, accountId, openid, nickname, avatar, sex, country, province, city, language, subscribe, remark, tagIds }) =>
       ({ id, accountId, openid, nickname, avatar, sex, country, province, city, language, subscribe, remark, tagIds })),
-  ).onConflictDoNothing({ target: mpFans.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('mp_fans_id_seq', GREATEST((SELECT MAX(id) FROM mp_fans), 1))`);
   logger.info('  ✔ MP fans seeded (onConflictDoNothing)');
 
@@ -426,7 +426,7 @@ async function seedRest() {
   await db.insert(mpMessages).values(
     SEED_MP_MESSAGES.map(({ id, accountId, openid, direction, msgType, content, mediaId, mediaUrl, event, msgId, status, createdAt }) =>
       ({ id, accountId, openid, direction, msgType, content, mediaId, mediaUrl, event, msgId, status, createdAt: new Date(createdAt) })),
-  ).onConflictDoNothing({ target: mpMessages.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('mp_messages_id_seq', GREATEST((SELECT MAX(id) FROM mp_messages), 1))`);
   logger.info('  ✔ MP messages seeded (onConflictDoNothing)');
 
@@ -434,58 +434,58 @@ async function seedRest() {
   await db.insert(mpAutoReplies).values(
     SEED_MP_AUTO_REPLIES.map(({ id, accountId, replyType, keyword, matchType, contentType, content, mediaId, newsArticles, transferToKf, status, sort }) =>
       ({ id, accountId, replyType, keyword, matchType, contentType, content, mediaId, newsArticles, transferToKf, status, sort })),
-  ).onConflictDoNothing({ target: mpAutoReplies.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('mp_auto_replies_id_seq', GREATEST((SELECT MAX(id) FROM mp_auto_replies), 1))`);
   logger.info('  ✔ MP auto-replies seeded (onConflictDoNothing)');
 
   await db.insert(mpMenus).values(
     SEED_MP_MENUS.map(({ id, accountId, buttons, status }) => ({ id, accountId, buttons, status })),
-  ).onConflictDoNothing({ target: mpMenus.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('mp_menus_id_seq', GREATEST((SELECT MAX(id) FROM mp_menus), 1))`);
   logger.info('  ✔ MP menus seeded (onConflictDoNothing)');
 
   // ─── 公众号素材 / 图文草稿 / 模板消息示例数据 ────────────────────────────────────
   await db.insert(mpMaterials).values(
     SEED_MP_MATERIALS.map(({ id, accountId, type, name, wechatMediaId, url, fileSize }) => ({ id, accountId, type, name, wechatMediaId, url, fileSize })),
-  ).onConflictDoNothing({ target: mpMaterials.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('mp_materials_id_seq', GREATEST((SELECT MAX(id) FROM mp_materials), 1))`);
   logger.info('  ✔ MP materials seeded (onConflictDoNothing)');
 
   await db.insert(mpDrafts).values(
     SEED_MP_DRAFTS.map(({ id, accountId, title, articles, status }) => ({ id, accountId, title, articles, status })),
-  ).onConflictDoNothing({ target: mpDrafts.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('mp_drafts_id_seq', GREATEST((SELECT MAX(id) FROM mp_drafts), 1))`);
   logger.info('  ✔ MP drafts seeded (onConflictDoNothing)');
 
   await db.insert(mpMessageTemplates).values(
     SEED_MP_MESSAGE_TEMPLATES.map(({ id, accountId, templateId, title, content, example }) => ({ id, accountId, templateId, title, content, example })),
-  ).onConflictDoNothing({ target: mpMessageTemplates.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('mp_message_templates_id_seq', GREATEST((SELECT MAX(id) FROM mp_message_templates), 1))`);
   logger.info('  ✔ MP message templates seeded (onConflictDoNothing)');
 
   // ─── 公众号群发 / 带参二维码示例数据（数据来源：@zenith/shared）─────────────────────
   await db.insert(mpBroadcasts).values(
     SEED_MP_BROADCASTS.map(({ id, accountId, msgType, target, tagId, content, mediaId, status }) => ({ id, accountId, msgType, target, tagId, content, mediaId, status })),
-  ).onConflictDoNothing({ target: mpBroadcasts.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('mp_broadcasts_id_seq', GREATEST((SELECT MAX(id) FROM mp_broadcasts), 1))`);
   logger.info('  ✔ MP broadcasts seeded (onConflictDoNothing)');
 
   await db.insert(mpQrcodes).values(
     SEED_MP_QRCODES.map(({ id, accountId, type, sceneStr, name, ticket, url, expireSeconds, scanCount, rewardPoints }) => ({ id, accountId, type, sceneStr, name, ticket, url, expireSeconds, scanCount, rewardPoints })),
-  ).onConflictDoNothing({ target: mpQrcodes.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('mp_qrcodes_id_seq', GREATEST((SELECT MAX(id) FROM mp_qrcodes), 1))`);
   logger.info('  ✔ MP qrcodes seeded (onConflictDoNothing)');
 
   await db.insert(mpKfAccounts).values(
     SEED_MP_KF_ACCOUNTS.map(({ id, accountId, kfAccount, nickname, avatar, kfId, inviteStatus, inviteWx, status }) => ({ id, accountId, kfAccount, nickname, avatar, kfId, inviteStatus, inviteWx, status })),
-  ).onConflictDoNothing({ target: mpKfAccounts.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('mp_kf_accounts_id_seq', GREATEST((SELECT MAX(id) FROM mp_kf_accounts), 1))`);
   logger.info('  ✔ MP kf accounts seeded (onConflictDoNothing)');
 
   // 多客服路由配置 + 会话状态机 + 事件流水（时间取 now，避免被超时任务立即清理）
   await db.insert(mpKfRoutingConfigs).values(
     SEED_MP_KF_ROUTING_CONFIGS.map((c) => ({ ...c })),
-  ).onConflictDoNothing({ target: mpKfRoutingConfigs.accountId });
+  ).onConflictDoNothing();
   const mpKfNow = new Date();
   await db.insert(mpKfSessions).values(
     SEED_MP_KF_SESSIONS.map((s) => ({
@@ -498,30 +498,30 @@ async function seedRest() {
       acceptedAt: s.status === 'waiting' ? null : mpKfNow,
       closedAt: s.status === 'closed' ? mpKfNow : null,
     })),
-  ).onConflictDoNothing({ target: mpKfSessions.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('mp_kf_sessions_id_seq', GREATEST((SELECT MAX(id) FROM mp_kf_sessions), 1))`);
   await db.insert(mpKfSessionEvents).values(
     SEED_MP_KF_SESSION_EVENTS.map((e) => ({ id: e.id, sessionId: e.sessionId, accountId: e.accountId, type: e.type, fromKfId: e.fromKfId, toKfId: e.toKfId, detail: e.detail })),
-  ).onConflictDoNothing({ target: mpKfSessionEvents.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('mp_kf_session_events_id_seq', GREATEST((SELECT MAX(id) FROM mp_kf_session_events), 1))`);
   logger.info('  ✔ MP kf sessions seeded (onConflictDoNothing)');
 
   await db.insert(mpConditionalMenus).values(
     SEED_MP_CONDITIONAL_MENUS.map((m) => ({ id: m.id, accountId: m.accountId, name: m.name, buttons: m.buttons, matchRule: m.matchRule as Record<string, string>, status: m.status })),
-  ).onConflictDoNothing({ target: mpConditionalMenus.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('mp_conditional_menus_id_seq', GREATEST((SELECT MAX(id) FROM mp_conditional_menus), 1))`);
   logger.info('  ✔ MP conditional menus seeded (onConflictDoNothing)');
 
   // ─── 站内信模板示例数据（数据来源：@zenith/shared SEED_INAPP_TEMPLATES）─────────────────────
   await db.insert(inAppTemplates).values(
     SEED_INAPP_TEMPLATES.map(({ name, code, title, content, type, variables, status, remark }) => ({ name, code, title, content, type, variables, status, remark })),
-  ).onConflictDoNothing({ target: inAppTemplates.code });
+  ).onConflictDoNothing();
   logger.info('  ✔ In-app templates seeded (onConflictDoNothing)');
 
   // ─── AI 提示词模板内置预设（数据来源：@zenith/shared SEED_AI_PROMPT_TEMPLATES）─────
   await db.insert(aiPromptTemplates).values(
     SEED_AI_PROMPT_TEMPLATES.map(({ id, name, content, description, category, scope, userId, isBuiltin, sort, isEnabled }) => ({ id, name, content, description, category, scope, userId, isBuiltin, sort, isEnabled })),
-  ).onConflictDoNothing({ target: aiPromptTemplates.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('ai_prompt_templates_id_seq', GREATEST((SELECT MAX(id) FROM ai_prompt_templates), 1))`);
   logger.info('  ✔ AI prompt templates seeded (onConflictDoNothing)');
 
@@ -536,7 +536,7 @@ async function seedRest() {
       enabled,
       sort,
     })),
-  ).onConflictDoNothing({ target: paymentMethodConfigs.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('payment_method_configs_id_seq', GREATEST((SELECT MAX(id) FROM payment_method_configs), 1))`);
   logger.info('  ✔ Payment method configs seeded (onConflictDoNothing)');
 
@@ -552,14 +552,14 @@ async function seedRest() {
       status,
       remark,
     })),
-  ).onConflictDoNothing({ target: paymentDeductPlans.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('payment_deduct_plans_id_seq', GREATEST((SELECT MAX(id) FROM payment_deduct_plans), 1))`);
   logger.info('  ✔ Payment deduct plans seeded (onConflictDoNothing)');
 
   // ── 标签 ────────────────────────────────────────────────────────────────────
   await db.insert(tags).values(
     SEED_TAGS.map(({ name, color, groupName, description, status, sortOrder }) => ({ name, color, groupName, description, status, sortOrder })),
-  ).onConflictDoNothing({ target: tags.name });
+  ).onConflictDoNothing();
   logger.info('  ✔ Tags seeded (onConflictDoNothing)');
 
   // ── 数据脱敏规则 ──────────────────────────────────────────────────────────────
@@ -571,21 +571,21 @@ async function seedRest() {
   // ── 会员等级 ──────────────────────────────────────────────────
   await db.insert(memberLevels).values(
     SEED_MEMBER_LEVELS.map(({ id, name, level, growthThreshold, discount, benefits, sort, status }) => ({ id, name, level, growthThreshold, discount, benefits, sort, status })),
-  ).onConflictDoNothing({ target: memberLevels.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('member_levels_id_seq', GREATEST((SELECT MAX(id) FROM member_levels), 1))`);
   logger.info('  ✔ Member levels seeded (onConflictDoNothing)');
 
   // ── 优惠券模板 ────────────────────────────────────────────────
   await db.insert(coupons).values(
     SEED_COUPONS.map(({ id, name, type, faceValue, threshold, maxDiscount, totalQuantity, perLimit, validType, validDays, exchangePoints, status, description }) => ({ id, name, type, faceValue, threshold, maxDiscount, totalQuantity, perLimit, validType, validDays, exchangePoints: exchangePoints ?? 0, status, description })),
-  ).onConflictDoNothing({ target: coupons.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('coupons_id_seq', GREATEST((SELECT MAX(id) FROM coupons), 1))`);
   logger.info('  ✔ Coupons seeded (onConflictDoNothing)');
 
   // ── 会员标签 ──────────────────────────────────────────────────
   await db.insert(memberTags).values(
     SEED_MEMBER_TAGS.map(({ id, name, color, description, sort, status }) => ({ id, name, color, description, sort, status })),
-  ).onConflictDoNothing({ target: memberTags.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('member_tags_id_seq', GREATEST((SELECT MAX(id) FROM member_tags), 1))`);
   logger.info('  ✔ Member tags seeded (onConflictDoNothing)');
 
@@ -618,7 +618,7 @@ async function seedRest() {
   await db.insert(workflowForms).values(
     SEED_WORKFLOW_FORMS.map(({ id, name, code, description, categoryId, schema, status }) =>
       ({ id, name, code, description, categoryId, schema, status })),
-  ).onConflictDoNothing({ target: workflowForms.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('workflow_forms_id_seq', GREATEST((SELECT MAX(id) FROM workflow_forms), 1))`);
   logger.info('  ✔ Workflow forms seeded (onConflictDoNothing)');
 
@@ -626,7 +626,7 @@ async function seedRest() {
   await db.insert(workflowDataSources).values(
     SEED_WORKFLOW_DATA_SOURCES.map(({ id, name, method, url, itemsPath, valueField, labelField, keywordParam, status, remark }) =>
       ({ id, name, method, url, headersEncrypted: null, itemsPath: itemsPath ?? undefined, valueField, labelField, keywordParam: keywordParam ?? undefined, status, remark: remark ?? undefined })),
-  ).onConflictDoNothing({ target: workflowDataSources.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('workflow_data_sources_id_seq', GREATEST((SELECT MAX(id) FROM workflow_data_sources), 1))`);
   logger.info('  ✔ Workflow data sources seeded (onConflictDoNothing)');
 
@@ -634,7 +634,7 @@ async function seedRest() {
   await db.insert(workflowConnectors).values(
     SEED_WORKFLOW_CONNECTORS.map(({ id, name, code, description, type, config, timeoutMs, retryMax, circuitBreakerEnabled, failureThreshold, cooldownSec, rateLimitEnabled, rateLimitWindowSec, rateLimitMax, status }) =>
       ({ id, name, code, description, type, config, credentialsEncrypted: null, timeoutMs, retryMax, circuitBreakerEnabled, failureThreshold, cooldownSec, rateLimitEnabled, rateLimitWindowSec, rateLimitMax, status, tenantId: null })),
-  ).onConflictDoNothing({ target: workflowConnectors.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('workflow_connectors_id_seq', GREATEST((SELECT MAX(id) FROM workflow_connectors), 1))`);
   logger.info('  ✔ Workflow connectors seeded (onConflictDoNothing)');
 
@@ -642,7 +642,7 @@ async function seedRest() {
   await db.insert(ruleDecisionTables).values(
     SEED_DECISION_TABLES.map(({ id, key, name, description, hitPolicy, inputs, outputs, rules }) =>
       ({ id, key, name, description, hitPolicy, inputs, outputs, rules, tenantId: null })),
-  ).onConflictDoNothing({ target: ruleDecisionTables.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('rule_decision_tables_id_seq', GREATEST((SELECT MAX(id) FROM rule_decision_tables), 1))`);
   logger.info('  ✔ Decision tables seeded (onConflictDoNothing)');
 
@@ -650,7 +650,7 @@ async function seedRest() {
   await db.insert(ruleDecisionFlows).values(
     SEED_DECISION_FLOWS.map(({ id, key, name, description, steps }) =>
       ({ id, key, name, description, steps, tenantId: null })),
-  ).onConflictDoNothing({ target: ruleDecisionFlows.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('rule_decision_flows_id_seq', GREATEST((SELECT MAX(id) FROM rule_decision_flows), 1))`);
   logger.info('  ✔ Decision flows seeded (onConflictDoNothing)');
 
@@ -658,12 +658,12 @@ async function seedRest() {
   await db.insert(ruleLists).values(
     SEED_RULE_LISTS.map(({ id, key, name, type, description, status }) =>
       ({ id, key, name, type, description, status, tenantId: null })),
-  ).onConflictDoNothing({ target: ruleLists.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('rule_lists_id_seq', GREATEST((SELECT MAX(id) FROM rule_lists), 1))`);
   await db.insert(ruleListItems).values(
     SEED_RULE_LIST_ITEMS.map(({ id, listId, value, label, expiresAt, remark }) =>
       ({ id, listId, value, label, expiresAt: expiresAt ? new Date(expiresAt) : null, remark })),
-  ).onConflictDoNothing({ target: ruleListItems.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('rule_list_items_id_seq', GREATEST((SELECT MAX(id) FROM rule_list_items), 1))`);
   logger.info('  ✔ Rule lists seeded (onConflictDoNothing)');
 
@@ -673,7 +673,7 @@ async function seedRest() {
   await db.insert(workflowTemplates).values(
     SEED_WORKFLOW_TEMPLATES.map(({ id, name, code, description, categoryName, icon, color, flowData, formSchema, sort, builtin, tenantId }) =>
       ({ id, name, code, description, categoryName, icon, color, flowData, formSchema, sort, builtin, tenantId })),
-  ).onConflictDoNothing({ target: workflowTemplates.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('workflow_templates_id_seq', GREATEST((SELECT MAX(id) FROM workflow_templates), 1))`);
   logger.info('  ✔ Workflow templates seeded (onConflictDoNothing)');
 
@@ -681,7 +681,7 @@ async function seedRest() {
   await db.insert(workflowDefinitions).values(
     SEED_WORKFLOW_DEFINITIONS.map(({ id, name, description, initiatorScopeType, flowData, formType, customForm, status, version, tenantId }) =>
       ({ id, name, description, initiatorScopeType, flowData, formType, customForm, status, version, tenantId })),
-  ).onConflictDoNothing({ target: workflowDefinitions.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('workflow_definitions_id_seq', GREATEST((SELECT MAX(id) FROM workflow_definitions), 1))`);
   // 升级库场景：种子 id 被既有定义占用时按名称查缺补插（自增 id）
   for (const def of SEED_WORKFLOW_DEFINITIONS) {
@@ -741,7 +741,7 @@ async function seedRest() {
 
   await db.insert(reportDatasources).values(
     SEED_REPORT_DATASOURCES.map(({ id, name, type, config, status, remark }) => ({ id, name, type, config, status, remark })),
-  ).onConflictDoNothing({ target: reportDatasources.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('report_datasources_id_seq', GREATEST((SELECT MAX(id) FROM report_datasources), 1))`);
 
   await db.insert(reportDatasets).values(
@@ -839,7 +839,7 @@ async function seedRest() {
     SEED_ANALYTICS_EVENT_META.map(({ eventName, displayName, category, description, propertySchema, strictMode }) => ({
       eventName, displayName, category, description, propertySchema, strictMode,
     })),
-  ).onConflictDoNothing({ target: analyticsEventMeta.eventName });
+  ).onConflictDoNothing();
   logger.info('  ✔ Analytics event meta (tracking plan) seeded (onConflictDoNothing)');
 
   // ─── 行为中心：站点模型初始种子（数据来源：@zenith/shared SEED_ANALYTICS_SITES）──
@@ -847,7 +847,7 @@ async function seedRest() {
     SEED_ANALYTICS_SITES.map(({ id, tenantId, siteKey, name, appId, allowedOrigins, dailyEventQuota, status, remark }) => ({
       id, tenantId, siteKey, name, appId, allowedOrigins, dailyEventQuota, status, remark,
     })),
-  ).onConflictDoNothing({ target: analyticsSites.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('analytics_sites_id_seq', GREATEST((SELECT MAX(id) FROM analytics_sites), 1))`);
   logger.info('  ✔ Analytics sites seeded (onConflictDoNothing)');
 
@@ -856,19 +856,21 @@ async function seedRest() {
     SEED_CMS_SITES.map(({ id, parentId, name, code, domain, aliasDomains, isDefault, title, keywords, description, logo, favicon, icp, copyright, theme, themeRevision, templateRefsRevision, staticMode, robots, settings, status, sort, remark }) => ({
       id, parentId, name, code, domain, aliasDomains, isDefault, title, keywords, description, logo, favicon, icp, copyright, theme, themeRevision, templateRefsRevision, staticMode, robots, settings, status, sort, remark,
     })),
-  ).onConflictDoNothing({ target: cmsSites.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_sites_id_seq', GREATEST((SELECT MAX(id) FROM cms_sites), 1))`);
-  await db.insert(cmsSiteInheritances).values(SEED_CMS_SITE_INHERITANCES).onConflictDoNothing({ target: cmsSiteInheritances.siteId });
+  await db.insert(cmsSiteInheritances).values(SEED_CMS_SITE_INHERITANCES).onConflictDoNothing();
 
   await db.insert(cmsModels).values(
     SEED_CMS_MODELS.map(({ id, name, code, description, isSystem, status, sort }) => ({ id, name, code, description, isSystem, status, sort })),
-  ).onConflictDoNothing({ target: cmsModels.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_models_id_seq', GREATEST((SELECT MAX(id) FROM cms_models), 1))`);
-  const cmsModelFieldRows = SEED_CMS_MODELS.flatMap((m) => m.fields.map(({ id, modelId, name, label, fieldType, required, searchable, showInList, placeholder, defaultValue, options, sort }) => ({
-    id, modelId, name, label, fieldType, required, searchable, showInList, placeholder, defaultValue, options, sort,
+  const cmsModelFieldRows = SEED_CMS_MODELS.flatMap((m) => m.fields.map(({ id, modelId, name, label, fieldType, required, searchable, showInList, placeholder, defaultValue, optionSource, dictCode, options, sort }) => ({
+    id, modelId, name, label, fieldType, required, searchable, showInList, placeholder, defaultValue, optionSource, dictCode, options, sort,
   })));
   if (cmsModelFieldRows.length > 0) {
-    await db.insert(cmsModelFields).values(cmsModelFieldRows).onConflictDoNothing({ target: cmsModelFields.id });
+    // 不指定 target：本表除主键外还有 (model_id, name) 唯一约束，模型字段经后台「先删后插」
+    // 重存后 id 会重新分配，只挡 id 冲突会让重复 seed 撞上 name 约束直接抛错、卡死启动
+    await db.insert(cmsModelFields).values(cmsModelFieldRows).onConflictDoNothing();
     await db.execute(sql`SELECT setval('cms_model_fields_id_seq', GREATEST((SELECT MAX(id) FROM cms_model_fields), 1))`);
   }
 
@@ -876,7 +878,7 @@ async function seedRest() {
     SEED_CMS_CHANNELS.map(({ id, siteId, parentId, modelId, name, code, slug, path, type, linkUrl, listTemplate, detailTemplate, staticMode, detailPathRule, pageSize, pageContent, seoTitle, seoKeywords, seoDescription, image, visible, status, sort, settings }) => ({
       id, siteId, parentId, modelId, name, code, slug, path, type, linkUrl, listTemplate, detailTemplate, staticMode, detailPathRule, pageSize, pageContent, seoTitle, seoKeywords, seoDescription, image, visible, status, sort, settings,
     })),
-  ).onConflictDoNothing({ target: cmsChannels.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_channels_id_seq', GREATEST((SELECT MAX(id) FROM cms_channels), 1))`);
   await db.insert(cmsSiteUsers).values(
     SEED_CMS_SITES.map((site) => ({ siteId: site.id, userId: cmsEditorId })),
@@ -896,12 +898,12 @@ async function seedRest() {
       lastRunAt: lastRunAt ? new Date(lastRunAt) : null,
       status, revision, remark,
     })),
-  ).onConflictDoNothing({ target: cmsDistributionRules.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_distribution_rules_id_seq', GREATEST((SELECT MAX(id) FROM cms_distribution_rules), 1))`);
 
   await db.insert(cmsTags).values(
     SEED_CMS_TAGS.map(({ id, siteId, name, slug, groupName, contentCount }) => ({ id, siteId, name, slug, groupName, contentCount })),
-  ).onConflictDoNothing({ target: cmsTags.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_tags_id_seq', GREATEST((SELECT MAX(id) FROM cms_tags), 1))`);
 
   await db.insert(cmsContents).values(
@@ -917,7 +919,7 @@ async function seedRest() {
         extendTexts: Object.values(extend ?? {}).filter((v): v is string => typeof v === 'string'),
       }),
     })),
-  ).onConflictDoNothing({ target: cmsContents.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_contents_id_seq', GREATEST((SELECT MAX(id) FROM cms_contents), 1))`);
   const cmsContentTagRows = SEED_CMS_CONTENTS.flatMap((c) => c.tagIds.map((tagId) => ({ contentId: c.id, tagId })));
   if (cmsContentTagRows.length > 0) {
@@ -927,32 +929,32 @@ async function seedRest() {
   await db.insert(cmsContentRelations).values(SEED_CMS_CONTENT_RELATIONS).onConflictDoNothing();
   await db.insert(cmsContentVersions).values(
     SEED_CMS_CONTENT_VERSIONS.map(({ id, contentId, version, title, snapshot, remark }) => ({ id, contentId, version, title, snapshot, remark })),
-  ).onConflictDoNothing({ target: cmsContentVersions.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_content_versions_id_seq', GREATEST((SELECT MAX(id) FROM cms_content_versions), 1))`);
 
   await db.insert(cmsFragments).values(
     SEED_CMS_FRAGMENTS.map(({ id, siteId, code, name, type, content, status, remark }) => ({ id, siteId, code, name, type, content, status, remark })),
-  ).onConflictDoNothing({ target: cmsFragments.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_fragments_id_seq', GREATEST((SELECT MAX(id) FROM cms_fragments), 1))`);
 
   await db.insert(cmsFriendLinkGroups).values(
     SEED_CMS_FRIEND_LINK_GROUPS.map(({ id, siteId, name, code, status, sort, remark }) => ({ id, siteId, name, code, status, sort, remark })),
-  ).onConflictDoNothing({ target: cmsFriendLinkGroups.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_friend_link_groups_id_seq', GREATEST((SELECT MAX(id) FROM cms_friend_link_groups), 1))`);
 
   await db.insert(cmsFriendLinks).values(
     SEED_CMS_FRIEND_LINKS.map(({ id, siteId, groupId, name, url, logo, status, sort, remark }) => ({ id, siteId, groupId, name, url, logo, status, sort, remark })),
-  ).onConflictDoNothing({ target: cmsFriendLinks.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_friend_links_id_seq', GREATEST((SELECT MAX(id) FROM cms_friend_links), 1))`);
 
   await db.insert(cmsAdSlots).values(
     SEED_CMS_AD_SLOTS.map(({ id, siteId, code, name, remark }) => ({ id, siteId, code, name, remark })),
-  ).onConflictDoNothing({ target: cmsAdSlots.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_ad_slots_id_seq', GREATEST((SELECT MAX(id) FROM cms_ad_slots), 1))`);
 
   await db.insert(cmsAds).values(
     SEED_CMS_ADS.map(({ id, slotId, name, image, linkUrl, sort, status }) => ({ id, slotId, name, image, linkUrl, sort, status })),
-  ).onConflictDoNothing({ target: cmsAds.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_ads_id_seq', GREATEST((SELECT MAX(id) FROM cms_ads), 1))`);
 
   await db.insert(cmsAdEvents).values(
@@ -960,24 +962,24 @@ async function seedRest() {
       id, siteId, adId, slotId, eventType, occurredAt: new Date(occurredAt), visitorHash, ipHash,
       userAgent, device, referrer, path, memberId, dedupeKey: `seed-ad-event-${id}`,
     })),
-  ).onConflictDoNothing({ target: cmsAdEvents.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_ad_events_id_seq', GREATEST((SELECT MAX(id) FROM cms_ad_events), 1))`);
 
   await db.insert(cmsForms).values(
     SEED_CMS_FORMS.map(({ id, siteId, code, name, fields, successMessage, notifyEmail, captchaProvider, turnstileSiteKey, turnstileSecret, status }) => ({
       id, siteId, code, name, fields, successMessage, notifyEmail, captchaProvider, turnstileSiteKey, turnstileSecret, status,
     })),
-  ).onConflictDoNothing({ target: cmsForms.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_forms_id_seq', GREATEST((SELECT MAX(id) FROM cms_forms), 1))`);
 
   await db.insert(cmsSensitiveWords).values(
     SEED_CMS_SENSITIVE_WORDS.map(({ id, word, replaceWith, status }) => ({ id, word, replaceWith, status })),
-  ).onConflictDoNothing({ target: cmsSensitiveWords.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_sensitive_words_id_seq', GREATEST((SELECT MAX(id) FROM cms_sensitive_words), 1))`);
 
   await db.insert(cmsErrorProneWords).values(
     SEED_CMS_ERROR_PRONE_WORDS.map(({ id, word, correction, status, remark }) => ({ id, word, correction, status, remark })),
-  ).onConflictDoNothing({ target: cmsErrorProneWords.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_error_prone_words_id_seq', GREATEST((SELECT MAX(id) FROM cms_error_prone_words), 1))`);
 
   await db.insert(cmsInteractions).values(
@@ -985,7 +987,7 @@ async function seedRest() {
       id, siteId, code, kind, title, description, status, participantScope, repeatPolicy,
       resultVisibility, captchaPolicy, turnstileSiteKey, thankYouMessage, responseCount,
     })),
-  ).onConflictDoNothing({ target: cmsInteractions.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_interactions_id_seq', GREATEST((SELECT MAX(id) FROM cms_interactions), 1))`);
   const interactionQuestionRows = SEED_CMS_INTERACTIONS.flatMap((interaction) => interaction.questions.map(({
     id, interactionId, label, type, required, options, minChoices, maxChoices, sort,
@@ -993,16 +995,16 @@ async function seedRest() {
     id, interactionId, label, type, required, options: [...options], minChoices, maxChoices, sort,
   })));
   if (interactionQuestionRows.length > 0) {
-    await db.insert(cmsInteractionQuestions).values(interactionQuestionRows).onConflictDoNothing({ target: cmsInteractionQuestions.id });
+    await db.insert(cmsInteractionQuestions).values(interactionQuestionRows).onConflictDoNothing();
     await db.execute(sql`SELECT setval('cms_interaction_questions_id_seq', GREATEST((SELECT MAX(id) FROM cms_interaction_questions), 1))`);
   }
   await db.insert(cmsInteractionResponses).values(
     SEED_CMS_INTERACTION_RESPONSES.map((row) => ({ ...row, createdAt: new Date(row.createdAt) })),
-  ).onConflictDoNothing({ target: cmsInteractionResponses.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_interaction_responses_id_seq', GREATEST((SELECT MAX(id) FROM cms_interaction_responses), 1))`);
   await db.insert(cmsInteractionAnswers).values(
     SEED_CMS_INTERACTION_ANSWERS.map((row) => ({ ...row, value: Array.isArray(row.value) ? [...row.value] : row.value })),
-  ).onConflictDoNothing({ target: cmsInteractionAnswers.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_interaction_answers_id_seq', GREATEST((SELECT MAX(id) FROM cms_interaction_answers), 1))`);
   await db.insert(cmsMemberSubscriptions).values(
     SEED_CMS_SUBSCRIPTIONS.map(({ id, memberId, siteId, subjectType, subjectKey, subjectId, subjectLabel, notificationEnabled, active, pointsAwardedAt, createdAt, updatedAt }) => ({
@@ -1010,39 +1012,39 @@ async function seedRest() {
       active, pointsAwardedAt: pointsAwardedAt ? new Date(pointsAwardedAt) : null,
       createdAt: new Date(createdAt), updatedAt: new Date(updatedAt),
     })),
-  ).onConflictDoNothing({ target: cmsMemberSubscriptions.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_member_subscriptions_id_seq', GREATEST((SELECT MAX(id) FROM cms_member_subscriptions), 1))`);
 
   await db.insert(cmsLinkWords).values(
     SEED_CMS_LINK_WORDS.map(({ id, siteId, keyword, url, maxReplaces, status }) => ({ id, siteId, keyword, url, maxReplaces, status })),
-  ).onConflictDoNothing({ target: cmsLinkWords.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_link_words_id_seq', GREATEST((SELECT MAX(id) FROM cms_link_words), 1))`);
 
   await db.insert(cmsComments).values(
     SEED_CMS_COMMENTS.map(({ id, siteId, contentId, memberId, nickname, content, status, ip, userAgent }) => ({ id, siteId, contentId, memberId, nickname, content, status, ip, userAgent })),
-  ).onConflictDoNothing({ target: cmsComments.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_comments_id_seq', GREATEST((SELECT MAX(id) FROM cms_comments), 1))`);
 
   await db.insert(cmsResourceFolders).values(
     SEED_CMS_RESOURCE_FOLDERS.map(({ id, siteId, parentId, name, sort }) => ({ id, siteId, parentId, name, sort })),
-  ).onConflictDoNothing({ target: cmsResourceFolders.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_resource_folders_id_seq', GREATEST((SELECT MAX(id) FROM cms_resource_folders), 1))`);
 
   await db.insert(cmsResources).values(
     SEED_CMS_RESOURCES.map(({ id, siteId, folderId, type, name, url, thumbUrl, fileId, size, width, height, mimeType, remark }) => ({ id, siteId, folderId, type, name, url, thumbUrl, fileId, size, width, height, mimeType, remark })),
-  ).onConflictDoNothing({ target: cmsResources.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_resources_id_seq', GREATEST((SELECT MAX(id) FROM cms_resources), 1))`);
 
   await db.insert(cmsSearchWords).values(
     SEED_CMS_SEARCH_WORDS.map(({ id, siteId, word, type, groupName, weight, status, remark }) => ({ id, siteId, word, type, groupName, weight, status, remark })),
-  ).onConflictDoNothing({ target: cmsSearchWords.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_search_words_id_seq', GREATEST((SELECT MAX(id) FROM cms_search_words), 1))`);
 
   await db.insert(cmsHotwordGroups).values(
     SEED_CMS_HOTWORD_GROUPS.map(({ id, siteId, name, sort, status }) => ({ id, siteId, name, sort, status })),
-  ).onConflictDoNothing({ target: cmsHotwordGroups.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_hotword_groups_id_seq', GREATEST((SELECT MAX(id) FROM cms_hotword_groups), 1))`);
-  await db.insert(cmsHotwords).values(SEED_CMS_HOTWORDS).onConflictDoNothing({ target: cmsHotwords.id });
+  await db.insert(cmsHotwords).values(SEED_CMS_HOTWORDS).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_hotwords_id_seq', GREATEST((SELECT MAX(id) FROM cms_hotwords), 1))`);
 
   await db.insert(cmsCollectRules).values(
@@ -1050,24 +1052,24 @@ async function seedRest() {
       id, siteId, channelId, name, listUrl, pageStart, pageEnd, listSelector, titleSelector, bodySelector, summarySelector, coverSelector, removeSelectors, autoPublish, localizeImages, maxItems, status,
       lastRunAt: lastRunAt ? new Date(lastRunAt) : null, remark,
     })),
-  ).onConflictDoNothing({ target: cmsCollectRules.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_collect_rules_id_seq', GREATEST((SELECT MAX(id) FROM cms_collect_rules), 1))`);
   await db.insert(cmsCollectItems).values(
     SEED_CMS_COLLECT_ITEMS.map(({ id, ruleId, url, title, status, contentId, error }) => ({ id, ruleId, url, title, status, contentId, error })),
-  ).onConflictDoNothing({ target: cmsCollectItems.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_collect_items_id_seq', GREATEST((SELECT MAX(id) FROM cms_collect_items), 1))`);
 
   await db.insert(cmsPages).values(
     SEED_CMS_PAGES.map(({ id, siteId, name, slug, path, isHome, blocks, requiresDynamic, seoTitle, seoKeywords, seoDescription, status, remark }) => ({
       id, siteId, name, slug, path, isHome, blocks, requiresDynamic, seoTitle, seoKeywords, seoDescription, status, remark,
     })),
-  ).onConflictDoNothing({ target: cmsPages.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_pages_id_seq', GREATEST((SELECT MAX(id) FROM cms_pages), 1))`);
   await db.insert(cmsPageBlockAcls).values(
     SEED_CMS_PAGE_BLOCK_ACLS.map(({ id, pageId, blockId, subjectType, subjectId, createdAt }) => ({
       id, pageId, blockId, subjectType, subjectId, createdAt: new Date(createdAt),
     })),
-  ).onConflictDoNothing({ target: cmsPageBlockAcls.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_page_block_acls_id_seq', GREATEST((SELECT MAX(id) FROM cms_page_block_acls), 1))`);
 
   const seedPublishTaskInput = SEED_CMS_PUBLISH_TASKS[0];
@@ -1087,7 +1089,7 @@ async function seedRest() {
     completedAt: new Date(seedPublishTaskInput.completedAt),
     createdAt: new Date(seedPublishTaskInput.createdAt),
     idempotencyKey: 'seed:cms-publish-stage3-demo',
-  }).onConflictDoNothing({ target: asyncTasks.idempotencyKey }).returning({ id: asyncTasks.id });
+  }).onConflictDoNothing().returning({ id: asyncTasks.id });
   const seedPublishTask = insertedPublishTask ?? (await db.select({ id: asyncTasks.id }).from(asyncTasks)
     .where(eq(asyncTasks.idempotencyKey, 'seed:cms-publish-stage3-demo')).limit(1))[0];
   if (!seedPublishTask) throw new Error('CMS 发布演示任务 seed 失败');
@@ -1100,7 +1102,7 @@ async function seedRest() {
       generatedAt: new Date(generatedAt),
       createdAt: new Date(createdAt),
     })),
-  ).onConflictDoNothing({ target: cmsPublishArtifacts.id });
+  ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_publish_artifacts_id_seq', GREATEST((SELECT MAX(id) FROM cms_publish_artifacts), 1))`);
 
   const seedDistributionTaskInput = SEED_CMS_DISTRIBUTION_TASKS[0];
@@ -1120,7 +1122,7 @@ async function seedRest() {
     completedAt: new Date(seedDistributionTaskInput.completedAt),
     createdAt: new Date(seedDistributionTaskInput.createdAt),
     idempotencyKey: 'seed:cms-distribution-stage5-demo',
-  }).onConflictDoNothing({ target: asyncTasks.idempotencyKey }).returning({ id: asyncTasks.id });
+  }).onConflictDoNothing().returning({ id: asyncTasks.id });
   const seedDistributionTask = insertedDistributionTask ?? (await db.select({ id: asyncTasks.id }).from(asyncTasks)
     .where(eq(asyncTasks.idempotencyKey, 'seed:cms-distribution-stage5-demo')).limit(1))[0];
   if (!seedDistributionTask) throw new Error('CMS 分发演示任务 seed 失败');

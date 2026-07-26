@@ -757,6 +757,13 @@
       "when": 1785031183760,
       "tag": "0107_wandering_sleepwalker",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1785055232464,
+      "tag": "0108_drop_channel_model_templates",
+      "breakpoints": true
     }
   ]
 }

@@ -75,19 +75,6 @@ async function availableTemplateSets(themeCode: string, _siteId?: number, _execu
   };
 }
 
-/** 栏目 settings.templates 仅保留 detailByModel（list/detail 走独立列，避免同一语义两处存） */
-function assertChannelTemplateOverrides(
-  themeCode: string,
-  value: unknown,
-  sets: { list: Set<string>; detail: Set<string> },
-): void {
-  if (!value || typeof value !== 'object') return;
-  const cfg = parseTemplateDefaults(value);
-  for (const [modelCode, name] of Object.entries(cfg.detailByModel ?? {})) {
-    assertTemplateNameInSet(sets.detail, themeCode, name, `栏目 ${modelCode} 详情模板`);
-  }
-}
-
 function assertTemplateDefaultsMap(
   themeCode: string,
   value: unknown,
@@ -192,19 +179,16 @@ export function assertSiteThemeConfig(themeCode: string, settings: Record<string
   }
 }
 
-/** 栏目保存校验：listTemplate / detailTemplate / settings.templates 中的模板名须存在于站点主题 */
+/** 栏目保存校验：listTemplate / detailTemplate 中的模板名须存在于站点主题 */
 export async function assertChannelTemplatesBySite(
   siteId: number,
-  data: { listTemplate?: string | null; detailTemplate?: string | null; settings?: Record<string, unknown> },
+  data: { listTemplate?: string | null; detailTemplate?: string | null },
 ): Promise<void> {
-  const hasSettingsTemplates = data.settings?.templates && typeof data.settings.templates === 'object'
-    && Object.keys(data.settings.templates as Record<string, unknown>).length > 0;
-  if (!data.listTemplate && !data.detailTemplate && !hasSettingsTemplates) return;
+  if (!data.listTemplate && !data.detailTemplate) return;
   const theme = await getSiteTheme(siteId);
   const sets = await availableTemplateSets(theme, siteId);
   assertTemplateNameInSet(sets.list, theme, data.listTemplate, '列表模板');
   assertTemplateNameInSet(sets.detail, theme, data.detailTemplate, '详情模板');
-  assertChannelTemplateOverrides(theme, data.settings?.templates, sets);
 }
 
 /** 内容保存校验：detailTemplate 须存在于站点主题 */
@@ -225,12 +209,6 @@ function scanChannelRefs(
   const base = { source: 'channel' as const, channelId: channel.id, channelName: channel.name };
   if (channel.listTemplate && !available.list.has(channel.listTemplate)) out.push({ ...base, kind: 'list', template: channel.listTemplate, location: '列表模板' });
   if (channel.detailTemplate && !available.detail.has(channel.detailTemplate)) out.push({ ...base, kind: 'detail', template: channel.detailTemplate, location: '详情模板' });
-  const templates = (channel.settings as Record<string, unknown> | null)?.templates;
-  if (!templates || typeof templates !== 'object') return;
-  const cfg = parseTemplateDefaults(templates);
-  for (const [modelCode, name] of Object.entries(cfg.detailByModel ?? {})) {
-    if (name && !available.detail.has(name)) out.push({ ...base, kind: 'detail', template: name, location: `${modelCode} 详情模板` });
-  }
 }
 
 /**

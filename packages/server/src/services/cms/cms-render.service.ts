@@ -68,12 +68,6 @@ function siteTemplateDefaults(site: CmsSiteRow): CmsSiteTemplateDefaults {
   return (settings?.defaultTemplates ?? {}) as CmsSiteTemplateDefaults;
 }
 
-/** 栏目 settings.templates：仅承载按模型细分的详情模板（通用列表/详情走 channel 的独立列） */
-function channelTemplateOverrides(channel: CmsChannelRow): CmsSiteTemplateDefaults {
-  const settings = channel.settings as Record<string, unknown> | null;
-  return (settings?.templates ?? {}) as CmsSiteTemplateDefaults;
-}
-
 // 模型 id → code 内存缓存（detailByModel 解析用；模型极少变动）
 let modelCodeCache: { map: Map<number, string>; loadedAt: number } | null = null;
 const MODEL_CACHE_TTL_MS = 30_000;
@@ -97,8 +91,12 @@ function resolveListComponent(site: CmsSiteRow, channel: CmsChannelRow, template
 }
 
 /**
- * 详情模板：试穿参数（预览态） → 内容覆盖 → 栏目.detailByModel[模型] → 栏目详情模板
+ * 详情模板：试穿参数（预览态） → 内容覆盖 → 栏目详情模板
  * → 站点默认.detailByModel[模型] → 站点默认详情模板 → 主题默认
+ *
+ * 栏目级不做「按模型细分」：详情页只在内容主栏目下可达（getPublishedContent 锁 channelId），
+ * 而内容 modelId 恒等于其主栏目的 modelId，栏目内模型唯一，按模型细分退化为
+ * channel.detailTemplate 的重复槽位。站点默认跨栏目生效，模型有区分度，故保留。
  */
 async function resolveDetailComponent(
   site: CmsSiteRow,
@@ -108,16 +106,13 @@ async function resolveDetailComponent(
   templateOverride?: string | null,
 ) {
   const theme = getBuiltinThemeFallback(site.theme);
-  const tryOn = templateOverride || null;
-  let name = tryOn || contentTemplate || null;
-  const modelId = contentModelId ?? channel.modelId;
-  const modelCode = modelId ? await getModelCode(modelId) : null;
-  const pickDetail = (cfg: CmsSiteTemplateDefaults): string | null => {
-    if (modelCode && cfg.detailByModel?.[modelCode]) return cfg.detailByModel[modelCode] ?? null;
-    return null;
-  };
-  name = name || pickDetail(channelTemplateOverrides(channel)) || channel.detailTemplate || null;
-  name = name || pickDetail(siteTemplateDefaults(site)) || siteTemplateDefaults(site).detail || null;
+  let name = (templateOverride || null) || contentTemplate || channel.detailTemplate || null;
+  if (!name) {
+    const modelId = contentModelId ?? channel.modelId;
+    const modelCode = modelId ? await getModelCode(modelId) : null;
+    const siteCfg = siteTemplateDefaults(site);
+    name = (modelCode ? siteCfg.detailByModel?.[modelCode] ?? null : null) || siteCfg.detail || null;
+  }
   return { component: resolveDetailTemplate(theme, name), templateCode: name };
 }
 
@@ -500,11 +495,15 @@ export async function renderChannelPage(site: CmsSiteRow, baseUrl: string, chann
   if (page > 1 && rows.length === 0) return renderNotFound(site, baseUrl, `/${channel.path}/index_${page}.html`);
   const resolvedList = resolveListComponent(site, channel, templateOverride);
   const resolveLink = await buildCmsLinkResolver(site.id, baseUrl, rows.map((r) => r.externalLink));
+  // 详情 URL 必须按内容自己的主栏目算：列表会聚合副栏目内容（listPublishedContents 含
+  // cms_content_channels），而详情页只在主栏目路径下可达（getPublishedContent 锁 channelId）。
+  // 用当前栏目拼链接会让副栏目条目全部指向 404，也会给同一内容制造第二个 URL。
+  const channelPathMap = await loadChannelPathMap(site.id);
   const props = {
     ...base,
     channel: toChannelInfo(channel, baseUrl),
     breadcrumbs,
-    items: rows.map((r) => toContentItem(r, baseUrl, channel, resolveLink)),
+    items: rows.map((r) => toContentItem(r, baseUrl, channelPathMap.get(r.channelId) ?? FALLBACK_URL_CHANNEL, resolveLink)),
     pagination: buildPagination(baseUrl, channel.path, page, channel.pageSize, total),
   };
   const html = renderDoc(resolvedList.component, props);

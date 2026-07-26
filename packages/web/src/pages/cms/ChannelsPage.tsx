@@ -19,27 +19,8 @@ import { useAllUsers } from '@/hooks/queries/users';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 import { CMS_CHANNEL_DETAIL_PATH_RULE_LABELS, CMS_CHANNEL_DETAIL_PATH_RULES, CMS_CHANNEL_STATIC_MODE_LABELS, CMS_CHANNEL_STATIC_MODES, CMS_CHANNEL_TYPE_LABELS } from '@zenith/shared';
-import type { CmsChannel, CmsContent, CmsSiteTemplateDefaults, PaginatedResponse } from '@zenith/shared';
+import type { CmsChannel, CmsContent, PaginatedResponse } from '@zenith/shared';
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
-
-/** 栏目级模板覆盖编辑态：仅按内容模型细分的详情模板（通用列表/详情走栏目自身字段） */
-interface ChannelTemplateConfig {
-  detailByModel: Record<string, string | null>;
-}
-
-type ChannelTemplatesState = ChannelTemplateConfig;
-
-const EMPTY_TPL_CONFIG: ChannelTemplateConfig = { detailByModel: {} };
-
-function channelTemplatesFromSettings(settings: Record<string, unknown> | null | undefined): ChannelTemplatesState {
-  const cfg = (settings?.templates ?? {}) as CmsSiteTemplateDefaults;
-  return { detailByModel: { ...(cfg.detailByModel ?? {}) } };
-}
-
-function channelTemplatesToSettings(state: ChannelTemplatesState): CmsSiteTemplateDefaults {
-  const detailByModel = Object.fromEntries(Object.entries(state.detailByModel).filter(([, v]) => v));
-  return Object.keys(detailByModel).length > 0 ? { detailByModel } : {};
-}
 
 function toTreeSelectData(nodes: CmsChannel[], excludeId?: number): TreeNodeData[] {
   return nodes
@@ -80,7 +61,6 @@ export default function ChannelsPage() {
   const [createParentId, setCreateParentId] = useState<number | null>(null);
   const [channelType, setChannelType] = useState<string>('list');
   const [pageContent, setPageContent] = useState('');
-  const [channelTemplates, setChannelTemplates] = useState<ChannelTemplatesState>(EMPTY_TPL_CONFIG);
   const saveMutation = useSaveCmsChannel();
   const deleteMutation = useDeleteCmsChannel();
   const mergeMutation = useMergeCmsChannels();
@@ -128,7 +108,6 @@ export default function ChannelsPage() {
     setCreateParentId(parentId);
     setChannelType('list');
     setPageContent('');
-    setChannelTemplates(EMPTY_TPL_CONFIG);
   }
 
   function openEdit(record: CmsChannel) {
@@ -136,7 +115,6 @@ export default function ChannelsPage() {
     setSelectedId(record.id);
     setChannelType(record.type);
     setPageContent(record.pageContent ?? '');
-    setChannelTemplates(channelTemplatesFromSettings(record.settings));
   }
 
   function closeEditor() {
@@ -190,11 +168,6 @@ export default function ChannelsPage() {
     values.listTemplate = values.listTemplate ?? null;
     values.detailTemplate = values.detailTemplate ?? null;
     const payload: Record<string, unknown> = { ...values, pageContent };
-    // 按通道模板覆盖并入 settings.templates（保留 formCode 等既有 settings 键）
-    payload.settings = {
-      ...(editingRecord?.settings ?? {}),
-      templates: channelTemplatesToSettings(channelTemplates),
-    };
     if (!editingRecord) payload.siteId = siteId;
     let saved: CmsChannel;
     try {
@@ -358,41 +331,6 @@ export default function ChannelsPage() {
     );
   };
 
-  /**
-   * 栏目级「按内容模型细分」的详情模板。
-   *
-   * 走 Form.Slot 而非自绘 label：字段名是动态的（模型 code），进不了 Form 的受控字段，
-   * 但 label 列必须与同区域的 Form.Select 对齐，Slot 会继承 Form 的 labelPosition/labelWidth。
-   */
-  const renderChannelTplPane = () => {
-    const cfg = channelTemplates;
-    const patch = (p: Partial<ChannelTemplateConfig>) => setChannelTemplates((s) => ({ ...s, ...p }));
-    const detailTplOptions = (themeTemplates?.detail ?? []).map((t) => ({ value: t.name, label: t.label }));
-    if ((models ?? []).length === 0) return null;
-    return (models ?? []).map((m) => (
-      <Col span={24} key={m.id}>
-        <Form.Slot label={`${m.name}详情模板`}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <Select
-                placeholder="跟随详情模板"
-                value={cfg.detailByModel[m.code] ?? undefined}
-                onChange={(v) => patch({ detailByModel: { ...cfg.detailByModel, [m.code]: (v as string) ?? null } })}
-                showClear
-                style={{ width: '100%' }}
-                optionList={detailTplOptions}
-              />
-            </div>
-            {/* 占位撑出与上方「预览」按钮等宽的列，保证各行下拉右边缘对齐 */}
-            {editingRecord ? (
-              <Button icon={<Eye size={14} />} style={{ visibility: 'hidden' }} tabIndex={-1} aria-hidden>预览</Button>
-            ) : null}
-          </div>
-        </Form.Slot>
-      </Col>
-    ));
-  };
-
   const editorForm = (
     <Form
       key={editingRecord ? `edit-${editingRecord.id}` : `create-${createParentId ?? 0}`}
@@ -537,7 +475,6 @@ export default function ChannelsPage() {
                 ) : null}
               </div>
             </Col>
-            {renderChannelTplPane()}
           </Row>
         </Form.Section>
       ) : null}

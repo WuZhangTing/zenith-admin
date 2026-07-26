@@ -130,9 +130,11 @@ SSR 响应按页面类型分级缓存（v1.6.0+）：
 | 页面 | 解析顺序 |
 |------|----------|
 | 列表页 | 栏目 `listTemplate` → 站点 `settings.defaultTemplates.list` → 主题默认 |
-| 详情页 | 内容 `detailTemplate` → 栏目 `settings.templates.detailByModel[模型code]` → 栏目 `detailTemplate` → 站点 `defaultTemplates.detailByModel[模型code]` → 站点 `defaultTemplates.detail` → 主题默认 |
+| 详情页 | 内容 `detailTemplate` → 栏目 `detailTemplate` → 站点 `defaultTemplates.detailByModel[模型code]` → 站点 `defaultTemplates.detail` → 主题默认 |
 
-站点级默认模板在站点编辑 →「模板与主题」页签配置，栏目级在栏目编辑「模板配置」区配置，两级均支持按内容模型细分详情模板。
+站点级默认模板在站点编辑 →「模板与主题」页签配置，**支持按内容模型细分详情模板**；栏目级在栏目编辑「模板配置」区配置列表/详情两项。
+
+栏目级不提供「按模型细分」：详情页只在内容主栏目路径下可达（`getPublishedContent` 锁 `channel_id`），而内容 `model_id` 恒等于其主栏目的 `model_id` —— 栏目内模型唯一，按模型细分会退化成 `detailTemplate` 的重复槽位，还会在栏目编辑页列出该栏目永远命中不了的其他模型。站点默认跨栏目生效、模型有区分度，故只在站点级保留。
 
 ### 失效模板引用的自愈
 
