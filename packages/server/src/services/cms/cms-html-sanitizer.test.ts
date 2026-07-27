@@ -96,10 +96,13 @@ describe('CMS 内联样式白名单', () => {
    * 渐变白名单的绕过防线。
    *
    * 这条正则是**唯一**允许出现括号与任意内容的白名单项，所以它是整个样式白名单的
-   * 主要攻击面。两类历史绕过必须一直挡住：
+   * 主要攻击面。三类历史绕过必须一直挡住：
    *  1. 换行——JS 正则的 `.` 不匹配行终止符，而值本身允许换行，前瞻会只扫第一行；
    *  2. CSS 转义——`\75 rl(` 在浏览器 tokenizer 里等于 `url(`，正则看到的字面量
-   *     与浏览器最终执行的不是一回事。
+   *     与浏览器最终执行的不是一回事；
+   *  3. **非 url() 的取 URL 函数**——`image-set('https://evil/x.png' 1x)` 等接受裸字符串，
+   *     浏览器照样发请求（实测 Chrome / Edge 会真的发出去）。因此改用函数白名单，
+   *     新增的 CSS 函数默认被拒，而不是等出事再补黑名单。
    *
    * 触发面不限于管理员：会员投稿正文（cms-contribution.service）走的是同一个净化器，
    * 正文最终由主题 dangerouslySetInnerHTML 输出到公开文章页，且前台没有 CSP 兜底。
@@ -112,9 +115,20 @@ describe('CMS 内联样式白名单', () => {
     ['CSS 转义 \\75 rl(', '<div style="background-image:linear-gradient(red,red),\\75 rl(https://evil.example/p.png)">x</div>'],
     ['CSS 转义大写', '<div style="background:linear-gradient(red,red),\\55 RL(https://evil/p.png)">x</div>'],
     ['换行后接 expression', '<div style="background:linear-gradient(red,red)\nexpression(alert(1))">x</div>'],
-  ])('渐变值不可借 %s 夹带 url()/expression()', (_label, html) => {
-    const clean = sanitizeCmsHtml(html);
-    expect(clean).not.toMatch(/url\(|expression|\\/i);
+    ['image-set 单引号', '<div style="background-image:linear-gradient(red,red),image-set(\'https://evil/b.png\' 1x)">x</div>'],
+    ['image-set 双引号', '<div style="background-image:linear-gradient(red,red),image-set(&quot;https://evil/b.png&quot; 1x)">x</div>'],
+    ['-webkit-image-set', '<div style="background:linear-gradient(red,red),-webkit-image-set(\'https://evil/b.png\' 1x)">x</div>'],
+    ['image-set + type()', '<div style="background:linear-gradient(red,red),image-set(\'https://evil/b.png\' type(\'image/png\'))">x</div>'],
+    ['src()', '<div style="background:linear-gradient(red,red),src(\'https://evil/b.png\')">x</div>'],
+    ['image()', '<div style="background:linear-gradient(red,red),image(\'//evil/b.png\')">x</div>'],
+    ['element()', '<div style="background:linear-gradient(red,red),element(#x)">x</div>'],
+    ['paint() worklet', '<div style="background:linear-gradient(red,red),paint(myworklet)">x</div>'],
+    ['cross-fade() 套 image-set', '<div style="background:linear-gradient(red,red),cross-fade(image-set(\'https://evil/x.png\') 50%)">x</div>'],
+    ['协议相对裸写', '<div style="background:linear-gradient(red,red),image-set(//evil/b.png 1x)">x</div>'],
+    ['var() 间接引用', '<div style="background:linear-gradient(red,red),var(--x)">x</div>'],
+    ['尚不存在的新函数', '<div style="background:linear-gradient(red,red),brand-new-fn(https)">x</div>'],
+  ])('渐变值不可借 %s 引用外部资源', (_label, html) => {
+    expect(styleOf(html)).toBe('');
   });
 
   it.each([
@@ -122,6 +136,12 @@ describe('CMS 内联样式白名单', () => {
     ['重复渐变多色标', '<div style="background-image:repeating-linear-gradient(45deg,#fff 0 10px,#eee 10px 20px)">x</div>'],
     ['径向渐变含 rgba', '<div style="background:radial-gradient(circle at 50% 50%, rgba(0,0,0,.6), transparent)">x</div>'],
     ['圆锥渐变', '<div style="background:conic-gradient(from 90deg,#f00,#00f)">x</div>'],
+    ['turn 单位', '<div style="background:conic-gradient(from 0.25turn,#f00,#00f)">x</div>'],
+    ['空格斜杠 rgb', '<div style="background:linear-gradient(to right, rgb(0 0 0 / 50%), rgb(255 255 255 / 80%))">x</div>'],
+    ['hsl / hsla', '<div style="background:linear-gradient(hsl(200 50% 40%), hsla(0,0%,0%,.5))">x</div>'],
+    ['calc 色标', '<div style="background:linear-gradient(red calc(10% + 2px), blue)">x</div>'],
+    ['负角度', '<div style="background:linear-gradient(-45deg,#000,#fff)">x</div>'],
+    ['多层渐变', '<div style="background:linear-gradient(red,red),linear-gradient(blue,blue)">x</div>'],
   ])('不误伤合法的 %s', (_label, html) => {
     expect(sanitizeCmsHtml(html)).toMatch(/gradient\(/);
   });

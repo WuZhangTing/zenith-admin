@@ -53,18 +53,29 @@ const LENGTH_LIST = /^(?:auto|-?(?:\d+|\d*\.\d+)(?:px|em|rem|%|vh|vw|vmin|vmax|p
 /** 边框简写：宽度 + 线型 + 颜色，顺序宽松 */
 const BORDER = /^(?:(?:-?(?:\d+|\d*\.\d+)(?:px|em|rem)|thin|medium|thick)\s+)?(?:none|hidden|solid|dashed|dotted|double|groove|ridge)(?:\s+(?:#[0-9a-f]{3,8}|rgba?\([\d\s.,%/]+\)|[a-z]{3,20}))?$/i;
 /**
- * 渐变：否定前瞻挡掉 url() / expression() / javascript: / -moz-binding 与反斜杠，
- * 再限制不得出现 `;` `{` `}`，杜绝从声明里越狱写出额外规则。
+ * 渐变。
  *
- * 前瞻必须用 `[\s\S]*` 而非 `.*`：JS 正则的 `.` 不匹配行终止符，而 `[^;{}]*` 允许换行，
- * 于是 `linear-gradient(red,red)\n,url(https://evil/beacon.png)` 会让前瞻只扫第一行、
- * 后半段的 url() 完全不被检查却仍整体匹配。
+ * 三重约束，核心是**函数白名单**而非追着黑名单跑：
  *
- * 反斜杠一并禁掉：CSS 转义序列 `\75 rl(` 在浏览器 tokenizer 里就是 `url(`，
- * 正则看到的字面量与浏览器最终执行的不是一回事。这是唯一允许 `\` 的白名单项，
- * 堵掉它等于关掉整个 CSS 转义入口。
+ * 1. **函数白名单**（第二个前瞻）：值里出现的每一个 `名字(` 都必须在允许集合内。
+ *    `url(` 从来不是 CSS 取到 URL 的唯一写法——`image-set('https://evil/x.png' 1x)`、
+ *    `src('…')`、`image('…')`、`element(#id)`、`paint(worklet)` 都能引用外部资源，
+ *    只列黑名单等于追着 CSS 规范新增的函数跑，永远慢一步。白名单让新函数默认被拒。
+ * 2. **正字符集**：没有 `'` `"`（断掉 `<string>` 形式的 URL）、没有 `:`（断掉 `https:`）、
+ *    没有 `\`（断掉 `\75 rl(` 这类 CSS 转义，正则看到的字面量与浏览器执行的不是一回事）。
+ * 3. **子串黑名单**（第一个前瞻）：纵深防御。必须用 `[\s\S]*`——JS 正则的 `.` 不匹配
+ *    行终止符，而值本身允许换行，用 `.*` 会让前瞻只扫第一行。
+ *
+ * `//` 一并禁掉：协议相对地址（`//evil/x.png`）不需要 scheme 就能发请求。
  */
-const GRADIENT = /^(?![\s\S]*(?:url\(|expression\(|javascript:|-moz-binding|\\))(?:repeating-)?(?:linear|radial|conic)-gradient\([^;{}]*\)$/i;
+const GRADIENT_FUNCTIONS = '(?:repeating-)?(?:linear|radial|conic)-gradient\\(|rgba?\\(|hsla?\\(|calc\\(';
+const GRADIENT = new RegExp(
+  '^'
+  + '(?![\\s\\S]*(?:url\\(|expression\\(|javascript:|-moz-binding|//))'
+  + `(?![\\s\\S]*(?<![-\\w])(?!${GRADIENT_FUNCTIONS})[-\\w]+\\()`
+  + '(?:repeating-)?(?:linear|radial|conic)-gradient\\([\\w\\s.,%#()/+-]*\\)$',
+  'i',
+);
 /** 背景：纯色或渐变（不放行 url()，避免外链追踪与旧浏览器的脚本面） */
 const BACKGROUND = [COLOR, GRADIENT];
 
