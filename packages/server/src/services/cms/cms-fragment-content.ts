@@ -24,4 +24,29 @@ export function sanitizeCmsFragmentContent(
   }
 }
 
+/**
+ * 碎片改动是否影响前台渲染。
+ *
+ * 渲染上下文只取启用碎片的 `code → { type, content }`（见 `getFragmentMap`），
+ * 因此只有这四个字段值得触发整站重建；name / remark 这类后台备注不该让整站重跑一遍。
+ * 放在纯函数模块里，便于单测直接覆盖，不必拉起 db / redis。
+ */
+export function cmsFragmentRenderChanged(
+  before: CmsFragmentRenderFields,
+  after: CmsFragmentRenderFields,
+): boolean {
+  if (before.status !== 'enabled' && after.status !== 'enabled') return false;
+  return before.code !== after.code
+    || before.type !== after.type
+    || before.status !== after.status
+    || before.content !== after.content;
+}
+
+export interface CmsFragmentRenderFields {
+  code: string;
+  type: CmsFragmentType | string;
+  status: string;
+  content: string | null;
+}
+
 export const sanitizeCmsImportedFragment = sanitizeCmsFragmentContent;

@@ -16,9 +16,9 @@ import { generateRssXml, findChannelByPath } from '../../services/cms/cms-render
 import { recordCmsVisit, pageKindFromPath } from '../../services/cms/cms-stats.service';
 import { optionalMemberSessionMiddleware } from '../../middleware/optional-member-session';
 import { resolveDynamicCmsPageForPath } from '../../services/cms/cms-pages.service';
+import { CMS_PAGE_CACHE_PREFIX } from '../../services/cms/cms-page-cache.service';
 import { getClientIp } from '../../lib/request-helpers';
 
-const PAGE_CACHE_PREFIX = `${config.redis.keyPrefix}cms:page:`;
 const SITEMAP_CACHE_PREFIX = `${config.redis.keyPrefix}cms:sitemap:`;
 const SITEMAP_CACHE_TTL_SECONDS = 600;
 
@@ -211,7 +211,7 @@ export function createCmsFrontendRoutes(): Hono {
     }
 
     // dynamic 模式：Redis 页面缓存
-    const cacheKey = `${PAGE_CACHE_PREFIX}${site.id}:${sitePath}`;
+    const cacheKey = `${CMS_PAGE_CACHE_PREFIX}${site.id}:${sitePath}`;
     if (!dynamicPage && !isPreview && site.staticMode === 'dynamic') {
       const cached = await redis.get(cacheKey).catch(() => null);
       if (cached) {
