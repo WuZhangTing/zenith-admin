@@ -23,7 +23,7 @@ const ALLOWED_TAGS = [
 ] as const;
 
 const ALLOWED_ATTRIBUTES: sanitizeHtml.IOptions['allowedAttributes'] = {
-  '*': ['class'],
+  '*': ['class', 'style'],
   a: ['href', 'title', 'target', 'rel'],
   img: ['src', 'alt', 'title', 'width', 'height', 'loading'],
   th: ['colspan', 'rowspan', 'scope'],
@@ -31,6 +31,88 @@ const ALLOWED_ATTRIBUTES: sanitizeHtml.IOptions['allowedAttributes'] = {
   video: ['src', 'poster', 'controls', 'preload', 'width', 'height'],
   audio: ['src', 'controls', 'preload'],
   source: ['src', 'type'],
+};
+
+// ─── 内联样式白名单 ───────────────────────────────────────────────────────────
+//
+// 不放行 style 的代价是「所见非所得」：富文本编辑器调的字号/颜色、碎片里写的
+// 渐变横幅，落库时被静默抹掉（本仓 seed 的 home-banner 就是这样一存就变白板）。
+// 放行 style ≠ 放行脚本：`<script>` 不在 allowedTags，且这里逐属性限定取值格式——
+// 未列出的属性一律丢弃，列出的属性取值不匹配也丢弃。
+//
+// **有意不放行**：position / top / right / bottom / left / z-index / transform
+// （可用来把元素浮到站点导航之上做点击劫持）、content、filter、animation、
+// transition、behavior、-moz-binding（遗留浏览器的脚本执行面）。
+
+/** 颜色：十六进制 / rgb(a) / hsl(a) / 关键字 */
+const COLOR = /^(?:#[0-9a-f]{3,8}|rgba?\([\d\s.,%/]+\)|hsla?\([\d\s.,%/deg]+\)|[a-z]{3,20})$/i;
+/** 单个长度值（含无单位数字，供 line-height / opacity / flex 使用） */
+const LENGTH = /^-?(?:\d+|\d*\.\d+)(?:px|em|rem|%|vh|vw|vmin|vmax|pt|ch)?$/;
+/** 长度简写：最多四段，允许 auto（margin: 0 auto） */
+const LENGTH_LIST = /^(?:auto|-?(?:\d+|\d*\.\d+)(?:px|em|rem|%|vh|vw|vmin|vmax|pt|ch)?)(?:\s+(?:auto|-?(?:\d+|\d*\.\d+)(?:px|em|rem|%|vh|vw|vmin|vmax|pt|ch)?)){0,3}$/;
+/** 边框简写：宽度 + 线型 + 颜色，顺序宽松 */
+const BORDER = /^(?:(?:-?(?:\d+|\d*\.\d+)(?:px|em|rem)|thin|medium|thick)\s+)?(?:none|hidden|solid|dashed|dotted|double|groove|ridge)(?:\s+(?:#[0-9a-f]{3,8}|rgba?\([\d\s.,%/]+\)|[a-z]{3,20}))?$/i;
+/**
+ * 渐变：先用否定前瞻挡掉 url() / expression() / javascript: / -moz-binding，
+ * 再限制不得出现 `;` `{` `}`，杜绝从声明里越狱写出额外规则。
+ */
+const GRADIENT = /^(?!.*(?:url\(|expression\(|javascript:|-moz-binding))(?:repeating-)?(?:linear|radial|conic)-gradient\([^;{}]*\)$/i;
+/** 背景：纯色或渐变（不放行 url()，避免外链追踪与旧浏览器的脚本面） */
+const BACKGROUND = [COLOR, GRADIENT];
+
+const keywords = (...words: string[]) => [new RegExp(`^(?:${words.join('|')})$`, 'i')];
+
+const ALLOWED_STYLES: sanitizeHtml.IOptions['allowedStyles'] = {
+  '*': {
+    // 排版
+    color: [COLOR],
+    'font-size': [LENGTH],
+    'font-weight': keywords('normal', 'bold', 'bolder', 'lighter', '[1-9]00'),
+    'font-style': keywords('normal', 'italic', 'oblique'),
+    'font-family': [/^[\w\s,'"-]{1,120}$/],
+    'line-height': [LENGTH],
+    'letter-spacing': [LENGTH],
+    'text-align': keywords('left', 'right', 'center', 'justify', 'start', 'end'),
+    'text-decoration': keywords('none', 'underline', 'line-through', 'overline'),
+    'text-indent': [LENGTH],
+    'text-transform': keywords('none', 'uppercase', 'lowercase', 'capitalize'),
+    'white-space': keywords('normal', 'nowrap', 'pre', 'pre-wrap', 'pre-line', 'break-spaces'),
+    'word-break': keywords('normal', 'break-all', 'keep-all', 'break-word'),
+    opacity: [LENGTH],
+    // 盒模型
+    margin: [LENGTH_LIST],
+    'margin-top': [LENGTH_LIST], 'margin-right': [LENGTH_LIST],
+    'margin-bottom': [LENGTH_LIST], 'margin-left': [LENGTH_LIST],
+    padding: [LENGTH_LIST],
+    'padding-top': [LENGTH_LIST], 'padding-right': [LENGTH_LIST],
+    'padding-bottom': [LENGTH_LIST], 'padding-left': [LENGTH_LIST],
+    width: [LENGTH_LIST], height: [LENGTH_LIST],
+    'max-width': [LENGTH_LIST], 'max-height': [LENGTH_LIST],
+    'min-width': [LENGTH_LIST], 'min-height': [LENGTH_LIST],
+    'box-sizing': keywords('content-box', 'border-box'),
+    'border-radius': [LENGTH_LIST],
+    border: [BORDER], 'border-top': [BORDER], 'border-right': [BORDER],
+    'border-bottom': [BORDER], 'border-left': [BORDER],
+    'border-color': [COLOR], 'border-width': [LENGTH_LIST],
+    'border-style': keywords('none', 'hidden', 'solid', 'dashed', 'dotted', 'double', 'groove', 'ridge'),
+    // 背景
+    background: BACKGROUND,
+    'background-color': [COLOR],
+    'background-image': [GRADIENT],
+    // 布局
+    display: keywords('block', 'inline', 'inline-block', 'flex', 'inline-flex', 'grid', 'inline-grid', 'none', 'table', 'table-cell', 'table-row'),
+    'flex-direction': keywords('row', 'row-reverse', 'column', 'column-reverse'),
+    'flex-wrap': keywords('nowrap', 'wrap', 'wrap-reverse'),
+    'justify-content': keywords('flex-start', 'flex-end', 'center', 'space-between', 'space-around', 'space-evenly', 'start', 'end'),
+    'align-items': keywords('flex-start', 'flex-end', 'center', 'baseline', 'stretch', 'start', 'end'),
+    gap: [LENGTH_LIST], 'row-gap': [LENGTH], 'column-gap': [LENGTH],
+    'grid-template-columns': [/^(?:[\w\s.%()-]|,){1,120}$/],
+    'vertical-align': keywords('baseline', 'top', 'middle', 'bottom', 'sub', 'super', 'text-top', 'text-bottom'),
+    float: keywords('left', 'right', 'none'),
+    clear: keywords('left', 'right', 'both', 'none'),
+    overflow: keywords('visible', 'hidden', 'auto', 'scroll'),
+    'list-style-type': keywords('none', 'disc', 'circle', 'square', 'decimal', 'lower-alpha', 'upper-alpha', 'lower-roman', 'upper-roman'),
+  },
 };
 
 const MEDIA_SCHEMES = ['http', 'https', RESOURCE_URI_SCHEME];
@@ -41,6 +123,7 @@ export function sanitizeCmsHtml(html: string | null | undefined): string {
   return sanitizeHtml(html, {
     allowedTags: [...ALLOWED_TAGS],
     allowedAttributes: ALLOWED_ATTRIBUTES,
+    allowedStyles: ALLOWED_STYLES,
     allowedSchemes: ['http', 'https', 'mailto', 'tel', RESOURCE_URI_SCHEME],
     allowedSchemesByTag: {
       img: MEDIA_SCHEMES,

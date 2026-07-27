@@ -1,9 +1,72 @@
-import { useState } from 'react';
-import { Button, Form, Modal, Typography, useFormApi, useFormState } from '@douyinfe/semi-ui';
+import { useMemo, useState } from 'react';
+import { Button, Form, Modal, Tabs, TabPane, Typography, useFormApi, useFormState } from '@douyinfe/semi-ui';
+import Editor from '@monaco-editor/react';
 import { Images, X } from 'lucide-react';
 import { MediaPickerModal } from '@/components/MediaPickerModal';
+import RichTextEditor from '@/components/RichTextEditor';
+import { useThemeController } from '@/providers/theme-controller';
 import { CMS_FRAGMENT_TYPES, CMS_FRAGMENT_TYPE_LABELS } from '@zenith/shared';
 import type { CmsFragmentType } from '@zenith/shared';
+
+/**
+ * 富文本编辑器能否无损往返这段 HTML。
+ *
+ * wangEditor 只认自己的文档模型（段落 / 标题 / 列表 / 图片…），碰到自定义容器
+ * （如 seed 的渐变横幅 `<div style="background:linear-gradient(...)">`）会在往返时
+ * 重排甚至丢弃。切过去之前必须提醒，否则运营点一下「可视化」就毁掉了设计块。
+ */
+export function hasStructuralMarkup(html: string): boolean {
+  return /<(?:div|section|table|figure)[\s>]/i.test(html) || /\sstyle=/i.test(html);
+}
+
+/** HTML 碎片的双模式编辑器：源码（Monaco）为主，可视化（富文本）兜住纯文案改动 */
+function HtmlFragmentEditor({ value, onChange }: Readonly<{ value: string; onChange: (next: string) => void }>) {
+  const { isDark } = useThemeController();
+  const [mode, setMode] = useState<'source' | 'visual'>('source');
+  const structural = useMemo(() => hasStructuralMarkup(value), [value]);
+
+  function handleModeChange(next: string) {
+    if (next === mode) return;
+    if (next === 'visual' && structural) {
+      Modal.confirm({
+        title: '可视化编辑可能改写这段 HTML',
+        content: '富文本编辑器会按自己的文档结构重排内容，自定义容器与内联样式可能丢失。复杂布局建议保持在源码模式。',
+        okText: '仍要切换',
+        onOk: () => setMode('visual'),
+      });
+      return;
+    }
+    setMode(next as 'source' | 'visual');
+  }
+
+  return (
+    <Tabs type="line" size="small" activeKey={mode} onChange={handleModeChange} keepDOM={false} lazyRender>
+      <TabPane tab="源码" itemKey="source">
+        <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-small)', overflow: 'hidden' }}>
+          <Editor
+            height={320}
+            language="html"
+            theme={isDark ? 'vs-dark' : 'light'}
+            value={value}
+            onChange={(next) => onChange(next ?? '')}
+            options={{
+              minimap: { enabled: false },
+              scrollBeyondLastLine: false,
+              wordWrap: 'on',
+              fontSize: 13,
+              lineNumbers: 'on',
+              automaticLayout: true,
+              tabSize: 2,
+            }}
+          />
+        </div>
+      </TabPane>
+      <TabPane tab="可视化" itemKey="visual">
+        <RichTextEditor value={value} onChange={onChange} height={320} disableFullscreen />
+      </TabPane>
+    </Tabs>
+  );
+}
 
 /**
  * 碎片类型 + 内容的联动编辑区。
@@ -105,18 +168,10 @@ export function FragmentContentField() {
       ) : null}
 
       {type === 'html' ? (
-        <Form.TextArea
-          field="content"
-          label="内容"
-          rows={10}
-          placeholder="HTML 片段"
-        />
-      ) : null}
-
-      {type === 'html' ? (
-        <Form.Slot noLabel>
-          <Typography.Text type="tertiary" size="small">
-            保存时会统一净化：脚本、事件属性与不在白名单的标签会被移除。
+        <Form.Slot label="内容">
+          <HtmlFragmentEditor value={content} onChange={(next) => formApi.setValue('content', next)} />
+          <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 6 }}>
+            保存时会统一净化：脚本、事件属性与不在白名单的标签/样式会被移除。
           </Typography.Text>
         </Form.Slot>
       ) : null}
