@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { Button, DatePicker, Dropdown, Form, Input, Modal, Select, Space, Tag, Toast, Tooltip, Typography, Empty, Spin, Tree } from '@douyinfe/semi-ui';
+import { Button, DatePicker, Dropdown, Form, Input, Modal, Select, Space, Tag, Toast, Tooltip, Typography, Empty, Tree } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
@@ -22,7 +22,7 @@ import {
 } from '@/hooks/queries/cms';
 import { useMyAsyncTasks } from '@/hooks/useAsyncTasks';
 import { CMS_RESOURCE_OWNER_TYPE_LABELS, CMS_RESOURCE_TYPE_LABELS, CMS_RESOURCE_TYPES } from '@zenith/shared';
-import type { CmsResource, CmsResourceFolder, CmsResourceType } from '@zenith/shared';
+import type { CmsResource, CmsResourceFolder, CmsResourceReference, CmsResourceOwnerType, CmsResourceType } from '@zenith/shared';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { formatDateTimeForApi } from '@/utils/date';
 
@@ -176,23 +176,49 @@ function CropModal({ resource, onClose }: Readonly<{ resource: CmsResource | nul
 function ReferencesModal({ resource, onClose }: Readonly<{ resource: CmsResource | null; onClose: () => void }>) {
   const refsQuery = useCmsResourceReferences(resource?.id ?? null);
   const refs = refsQuery.data ?? [];
+  const columns: ColumnProps<CmsResourceReference>[] = [
+    {
+      title: '引用方', dataIndex: 'kind', width: 110,
+      render: (v: CmsResourceOwnerType) => <Tag size="small">{REFERENCE_KIND_LABELS[v]}</Tag>,
+    },
+    { title: 'ID', dataIndex: 'id', width: 80 },
+    {
+      title: '标题', dataIndex: 'title',
+      render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 260, display: 'block' }}>{v}</Typography.Text>,
+    },
+    {
+      title: '引用字段', dataIndex: 'field', width: 140,
+      render: (v: string) => <Typography.Text type="tertiary" ellipsis={{ showTooltip: true }} style={{ maxWidth: 120, display: 'block' }}>{v}</Typography.Text>,
+    },
+  ];
   return (
-    <AppModal title={`引用位置 — ${resource?.name ?? ''}`} visible={resource !== null} onCancel={onClose} footer={null} width={480} centered closeOnEsc>
-      {refsQuery.isLoading ? (
-        <div style={{ textAlign: 'center', padding: 24 }}><Spin /></div>
-      ) : refsQuery.isError ? (
+    <AppModal
+      title={`引用位置 — ${resource?.name ?? ''}`}
+      visible={resource !== null}
+      onCancel={onClose}
+      footer={null}
+      width={720}
+      centered
+      closeOnEsc
+    >
+      {refsQuery.isError ? (
         <Empty title="引用扫描失败" description="请稍后重试或检查权限" style={{ padding: 24 }} />
-      ) : refs.length === 0 ? (
-        <Empty title="暂无引用" description="该素材未被站内内容、广告或碎片引用，可安全删除" style={{ padding: 24 }} />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 12 }}>
-          {refs.map((r) => (
-            <div key={`${r.kind}-${r.id}`} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Tag size="small">{REFERENCE_KIND_LABELS[r.kind]}</Tag>
-              <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 360 }}>#{r.id} {r.title} · {r.field}</Typography.Text>
-            </div>
-          ))}
-        </div>
+        <ConfigurableTable<CmsResourceReference>
+          bordered
+          size="small"
+          columnSettings={false}
+          columns={columns}
+          dataSource={refs}
+          loading={refsQuery.isFetching}
+          // 同一属主可以在多个字段上引用同一素材（如封面 + 正文），仅用 kind+id 会产生重复 key
+          rowKey={(record) => `${record?.kind}-${record?.id}-${record?.field}`}
+          pagination={false}
+          scroll={{ y: 360 }}
+          empty="该素材未被站内内容、广告或碎片引用，可安全删除"
+          onRefresh={() => void refsQuery.refetch()}
+          refreshLoading={refsQuery.isFetching}
+        />
       )}
     </AppModal>
   );
