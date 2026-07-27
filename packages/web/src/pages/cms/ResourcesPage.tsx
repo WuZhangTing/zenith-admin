@@ -340,12 +340,15 @@ export default function ResourcesPage() {
     },
     {
       title: '名称', dataIndex: 'name', width: 240,
-      render: (v: string, record: CmsResource) => (
-        <div style={{ minWidth: 0 }}>
-          <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 220, display: 'block' }}>{v}</Typography.Text>
-          {record.remark ? <Typography.Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 220, display: 'block' }}>{record.remark}</Typography.Text> : null}
-        </div>
+      render: (v: string) => (
+        <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 220, display: 'block' }}>{v}</Typography.Text>
       ),
+    },
+    {
+      title: '备注', dataIndex: 'remark', width: 200,
+      render: (v: string | null) => (v
+        ? <Typography.Text type="tertiary" ellipsis={{ showTooltip: true }} style={{ maxWidth: 180, display: 'block' }}>{v}</Typography.Text>
+        : '-'),
     },
     {
       title: '类型', dataIndex: 'type', width: 90,
@@ -360,7 +363,7 @@ export default function ResourcesPage() {
       title: '引用数', dataIndex: 'refCount', width: 90,
       render: (v: number | undefined) => (v ? <Tag size="small" color="blue">{v}</Tag> : <Tag size="small" color="grey">孤立</Tag>),
     },
-    { title: '上传时间', dataIndex: 'createdAt', width: 170 },
+    { title: '上传时间', dataIndex: 'createdAt', width: 180 },
     createOperationColumn<CmsResource>({
       width: 260,
       desktopInlineKeys: ['references', 'replace', 'crop', 'rename', 'delete'],
@@ -497,7 +500,7 @@ export default function ResourcesPage() {
               rowKey="id"
               size="small"
               empty="暂无素材，请先选择站点后上传"
-              scroll={{ x: 1020 }}
+              scroll={{ x: 1360 }}
               onRefresh={() => void listQuery.refetch()}
               refreshLoading={listQuery.isFetching}
               pagination={buildPagination(listQuery.data?.total ?? 0)}
