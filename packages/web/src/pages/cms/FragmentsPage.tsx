@@ -12,9 +12,10 @@ import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { useCmsFragmentList, useSaveCmsFragment, useDeleteCmsFragment, cmsFragmentKeys } from '@/hooks/queries/cms';
-import { CMS_FRAGMENT_TYPES, CMS_FRAGMENT_TYPE_LABELS } from '@zenith/shared';
+import { CMS_FRAGMENT_TYPE_LABELS } from '@zenith/shared';
 import type { CmsFragment } from '@zenith/shared';
 import { CmsSiteSelect } from './CmsSiteSelect';
+import { FragmentContentField } from './FragmentContentField';
 
 export default function FragmentsPage() {
   const { hasPermission } = usePermission();
@@ -171,9 +172,7 @@ export default function FragmentsPage() {
         >
           <Form.Input field="name" label="碎片名称" rules={[{ required: true, message: '请输入碎片名称' }]} />
           <Form.Input field="code" label="引用标识" disabled={!!editingRecord} placeholder="模板中通过该标识引用，如 home-banner" rules={[{ required: true, message: '请输入引用标识' }]} />
-          <Form.Select field="type" label="类型" style={{ width: 200 }}
-            optionList={CMS_FRAGMENT_TYPES.map((t) => ({ value: t, label: CMS_FRAGMENT_TYPE_LABELS[t] }))} />
-          <Form.TextArea field="content" label="内容" rows={6} placeholder="html 类型填 HTML 片段；image 类型填图片 URL" />
+          <FragmentContentField />
           <Form.RadioGroup field="status" label="状态">
             <Form.Radio value="enabled">启用</Form.Radio>
             <Form.Radio value="disabled">停用</Form.Radio>
