@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import type { CmsBaseContext } from '../../cms/themes/types';
 import { renderBlocksHtml } from '../../cms/themes/blocks';
-import { sanitizeCmsImportedFragment } from './cms-fragment-content';
+import { sanitizeCmsImportedFragment, normalizeImportedCmsFragmentType } from './cms-fragment-content';
 import { sanitizeCmsPageBlocks } from './cms-page-blocks';
 
 describe('CMS imported visual content safety', () => {
@@ -15,32 +15,30 @@ describe('CMS imported visual content safety', () => {
     expect(clean).not.toMatch(/onclick|script|javascript:/i);
   });
 
-  it('canonicalizes imported JSON and renders HTML-looking values as inert text', () => {
-    const clean = sanitizeCmsImportedFragment(
-      'json',
-      '{ "payload": "<img src=x onerror=alert(1)>" }',
-    );
-    expect(clean).toBe('{"payload":"<img src=x onerror=alert(1)>"}');
+  it('拒绝已移除的 json 类型（写入口），导入包则降级为 text 而非整包失败', () => {
+    expect(() => sanitizeCmsImportedFragment('json', '{"a":1}')).toThrow();
+    expect(normalizeImportedCmsFragmentType('json')).toBe('text');
+    expect(normalizeImportedCmsFragmentType('image')).toBe('image');
+    expect(normalizeImportedCmsFragmentType('who-knows')).toBe('html');
+    expect(normalizeImportedCmsFragmentType(undefined)).toBe('html');
+  });
+
+  it('text 碎片按纯文本渲染，HTML 样值保持惰性', () => {
     const rendered = renderBlocksHtml({
       blocks: [{
-        id: 'json-fragment',
+        id: 'text-fragment',
         type: 'fragment',
-        props: { code: 'unsafe-json' },
+        props: { code: 'unsafe-text' },
       }],
       ctx: {
         fragments: {
-          'unsafe-json': { type: 'json', content: clean! },
+          'unsafe-text': { type: 'text', content: '<img src=x onerror=alert(1)>' },
         },
       } as CmsBaseContext,
       contentListData: new Map(),
     });
-    expect(rendered).toContain('<pre>');
     expect(rendered).toContain('&lt;img src=x onerror=alert(1)&gt;');
     expect(rendered).not.toContain('<img src=x');
-  });
-
-  it('rejects invalid imported JSON fragments', () => {
-    expect(() => sanitizeCmsImportedFragment('json', '{"broken":')).toThrow();
   });
 
   it('routes default and docs theme fragments through the safe renderer', async () => {

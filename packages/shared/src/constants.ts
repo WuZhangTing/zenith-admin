@@ -1715,13 +1715,12 @@ export const CMS_FIELD_TYPE_LABELS: Record<(typeof CMS_FIELD_TYPES)[number], str
   switch: '开关',
 };
 
-export const CMS_FRAGMENT_TYPES = ['html', 'text', 'image', 'json'] as const;
+export const CMS_FRAGMENT_TYPES = ['html', 'text', 'image'] as const;
 
 export const CMS_FRAGMENT_TYPE_LABELS: Record<(typeof CMS_FRAGMENT_TYPES)[number], string> = {
   html: 'HTML',
   text: '纯文本',
   image: '图片',
-  json: 'JSON',
 };
 
 /** CMS 前台预览路径前缀（无域名绑定时通过 /__cms/{siteCode}/... 访问站点） */

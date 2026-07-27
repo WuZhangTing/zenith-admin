@@ -19,7 +19,7 @@ import { currentUser } from '../../lib/context';
 import { assertAllCmsSiteChannelsAccess } from './cms-channels.service';
 import { sanitizeCmsPageBlocks } from './cms-page-blocks';
 import { CMS_IMPORTED_CONTENT_LIFECYCLE } from './cms-publish-permission';
-import { sanitizeCmsImportedFragment } from './cms-fragment-content';
+import { sanitizeCmsImportedFragment, normalizeImportedCmsFragmentType } from './cms-fragment-content';
 import { normalizeCmsFormFields, type FormFieldInput } from './cms-forms.service';
 import { remapCmsResourceUris } from '../../lib/cms-resource-uri';
 import { assertSafeCmsResourceUrl, syncCmsResourceRefs } from './cms-resource-refs.service';
@@ -445,12 +445,14 @@ export async function importCmsSite(payload: unknown) {
 
     // 6. 站点附属实体
     for (const f of (data.fragments ?? []) as PlainRow[]) {
-      const type = str(f.type) ?? 'html';
+      // 旧导出包里可能带 json 类型碎片；该类型已移除，与 DB 迁移口径一致降级为 text，
+      // 而不是让整包导入失败——包内其余内容与它无关。
+      const type = normalizeImportedCmsFragmentType(str(f.type));
       const [created] = await tx.insert(cmsFragments).values({
         siteId,
         code: str(f.code) ?? `fragment-${num(f.id)}`,
         name: str(f.name) ?? '未命名碎片',
-        type: type as typeof cmsFragments.$inferInsert.type,
+        type,
         content: sanitizeCmsImportedFragment(type, f.content),
         status: (str(f.status) as typeof cmsFragments.$inferInsert.status) ?? 'enabled',
         remark: str(f.remark),

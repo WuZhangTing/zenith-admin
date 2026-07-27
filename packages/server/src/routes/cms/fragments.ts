@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { createCmsFragmentSchema, updateCmsFragmentSchema } from '@zenith/shared';
+import { createCmsFragmentSchema, updateCmsFragmentSchema, CMS_FRAGMENT_TYPES } from '@zenith/shared';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
@@ -24,7 +24,7 @@ const listRoute = defineOpenAPIRoute({
       query: PaginationQuery.extend({
         siteId: z.coerce.number().int().positive(),
         keyword: z.string().optional(),
-        type: z.enum(['html', 'text', 'image', 'json']).optional(),
+        type: z.enum(CMS_FRAGMENT_TYPES).optional(),
       }),
     },
     responses: { ...commonErrorResponses, ...okPaginated(CmsFragmentDTO, '碎片列表') },

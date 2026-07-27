@@ -10352,7 +10352,7 @@ export interface CmsContentMediaData {
 
 export type CmsFieldType = 'text' | 'textarea' | 'richtext' | 'number' | 'date' | 'datetime' | 'image' | 'file' | 'select' | 'radio' | 'checkbox' | 'switch';
 
-export type CmsFragmentType = 'html' | 'text' | 'image' | 'json';
+export type CmsFragmentType = 'html' | 'text' | 'image';
 
 export type CmsSiteInheritableField =
   | 'seoTitle'

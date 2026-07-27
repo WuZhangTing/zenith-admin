@@ -173,7 +173,7 @@ export default function FragmentsPage() {
           <Form.Input field="code" label="引用标识" disabled={!!editingRecord} placeholder="模板中通过该标识引用，如 home-banner" rules={[{ required: true, message: '请输入引用标识' }]} />
           <Form.Select field="type" label="类型" style={{ width: 200 }}
             optionList={CMS_FRAGMENT_TYPES.map((t) => ({ value: t, label: CMS_FRAGMENT_TYPE_LABELS[t] }))} />
-          <Form.TextArea field="content" label="内容" rows={6} placeholder="html 类型填 HTML 片段；image 类型填图片 URL；json 类型填 JSON" />
+          <Form.TextArea field="content" label="内容" rows={6} placeholder="html 类型填 HTML 片段；image 类型填图片 URL" />
           <Form.RadioGroup field="status" label="状态">
             <Form.Radio value="enabled">启用</Form.Radio>
             <Form.Radio value="disabled">停用</Form.Radio>

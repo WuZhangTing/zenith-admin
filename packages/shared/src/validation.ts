@@ -5386,7 +5386,7 @@ export const createCmsFragmentSchema = z.object({
   siteId: z.number().int().positive(),
   code: z.string().min(1, '碎片标识不能为空').max(50).regex(cmsSlugRegex, '标识仅支持小写字母、数字、中划线'),
   name: z.string().min(1, '碎片名称不能为空').max(100),
-  type: z.enum(['html', 'text', 'image', 'json']).default('html'),
+  type: z.enum(['html', 'text', 'image']).default('html'),
   content: z.string().nullable().optional(),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(500).nullable().optional(),

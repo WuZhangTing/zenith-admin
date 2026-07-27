@@ -2,7 +2,7 @@ import type { CmsFragmentType } from '@zenith/shared';
 import { HTTPException } from 'hono/http-exception';
 import { sanitizeCmsHtml } from './cms-html-sanitizer';
 
-const fragmentTypes = new Set<CmsFragmentType>(['html', 'text', 'image', 'json']);
+const fragmentTypes = new Set<CmsFragmentType>(['html', 'text', 'image']);
 
 export function sanitizeCmsFragmentContent(
   type: CmsFragmentType | string,
@@ -15,13 +15,7 @@ export function sanitizeCmsFragmentContent(
   if (typeof content !== 'string') {
     throw new HTTPException(400, { message: '碎片内容必须是字符串或 null' });
   }
-  if (type === 'html') return sanitizeCmsHtml(content);
-  if (type !== 'json') return content;
-  try {
-    return JSON.stringify(JSON.parse(content));
-  } catch {
-    throw new HTTPException(400, { message: 'JSON 碎片内容格式无效' });
-  }
+  return type === 'html' ? sanitizeCmsHtml(content) : content;
 }
 
 /**
@@ -50,3 +44,15 @@ export interface CmsFragmentRenderFields {
 }
 
 export const sanitizeCmsImportedFragment = sanitizeCmsFragmentContent;
+
+/**
+ * 导入包里的碎片类型归一。
+ *
+ * `json` 类型已移除（无真实消费方，结构化配置由站点扩展模型承担），但旧导出包里仍可能带它。
+ * 与 DB 迁移同一口径降级为 `text`，而不是让整包导入失败——包内其余内容与该碎片无关。
+ * 未知类型同样回落到 `html` 默认值，保持导入的宽容度。
+ */
+export function normalizeImportedCmsFragmentType(type: string | null | undefined): CmsFragmentType {
+  if (type === 'json') return 'text';
+  return fragmentTypes.has(type as CmsFragmentType) ? (type as CmsFragmentType) : 'html';
+}

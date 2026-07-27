@@ -115,15 +115,6 @@ export function CmsFragmentContent({
   if (fragment.type === 'text') {
     return <Wrapper className={className}>{fragment.content}</Wrapper>;
   }
-  if (fragment.type === 'json') {
-    let display = fragment.content;
-    try {
-      display = JSON.stringify(JSON.parse(fragment.content), null, 2);
-    } catch {
-      // Legacy invalid JSON remains inert text.
-    }
-    return <Wrapper className={className}><pre>{display}</pre></Wrapper>;
-  }
   return null;
 }
 

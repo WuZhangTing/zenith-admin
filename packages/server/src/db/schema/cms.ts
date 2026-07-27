@@ -41,7 +41,7 @@ export const cmsContentTypeEnum = pgEnum('cms_content_type', ['article', 'album'
 export const cmsFieldTypeEnum = pgEnum('cms_field_type', ['text', 'textarea', 'richtext', 'number', 'date', 'datetime', 'image', 'file', 'select', 'radio', 'checkbox', 'switch']);
 /** 模型字段选项来源：manual=手工维护，dict=引用系统字典（随字典自动更新） */
 export const cmsFieldOptionSourceEnum = pgEnum('cms_field_option_source', CMS_FIELD_OPTION_SOURCES);
-export const cmsFragmentTypeEnum = pgEnum('cms_fragment_type', ['html', 'text', 'image', 'json']);
+export const cmsFragmentTypeEnum = pgEnum('cms_fragment_type', ['html', 'text', 'image']);
 export const cmsSearchWordTypeEnum = pgEnum('cms_search_word_type', ['extension', 'stop']);
 export const cmsFormCaptchaProviderEnum = pgEnum('cms_form_captcha_provider', ['inherit', 'none', 'math', 'turnstile']);
 export const cmsPublishTargetTypeEnum = pgEnum('cms_publish_target_type', CMS_PUBLISH_TARGET_TYPES);

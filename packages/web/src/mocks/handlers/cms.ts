@@ -777,7 +777,7 @@ export const cmsHandlers = [
       siteId: Number(body.siteId),
       code: String(body.code ?? ''),
       name: String(body.name ?? ''),
-      type: (body.type as 'html' | 'text' | 'image' | 'json') ?? 'html',
+      type: (body.type as 'html' | 'text' | 'image') ?? 'html',
       content: (body.content as string) ?? null,
       status: (body.status as 'enabled' | 'disabled') ?? 'enabled',
       remark: (body.remark as string) ?? null,
