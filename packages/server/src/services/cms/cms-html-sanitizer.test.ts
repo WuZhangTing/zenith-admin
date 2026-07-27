@@ -92,6 +92,40 @@ describe('CMS 内联样式白名单', () => {
     expect(styleOf(html)).toBe('');
   });
 
+  /**
+   * 渐变白名单的绕过防线。
+   *
+   * 这条正则是**唯一**允许出现括号与任意内容的白名单项，所以它是整个样式白名单的
+   * 主要攻击面。两类历史绕过必须一直挡住：
+   *  1. 换行——JS 正则的 `.` 不匹配行终止符，而值本身允许换行，前瞻会只扫第一行；
+   *  2. CSS 转义——`\75 rl(` 在浏览器 tokenizer 里等于 `url(`，正则看到的字面量
+   *     与浏览器最终执行的不是一回事。
+   *
+   * 触发面不限于管理员：会员投稿正文（cms-contribution.service）走的是同一个净化器，
+   * 正文最终由主题 dangerouslySetInnerHTML 输出到公开文章页，且前台没有 CSP 兜底。
+   */
+  it.each([
+    ['换行', '<div style="background-image:linear-gradient(red,red)\n,url(https://evil.example/b.png)">x</div>'],
+    ['回车', '<div style="background-image:linear-gradient(red,red)\r,url(https://evil.example/b.png)">x</div>'],
+    ['CRLF', '<div style="background-image:linear-gradient(red,red)\r\n,url(https://evil.example/b.png)">x</div>'],
+    ['行分隔符 U+2028', '<div style="background-image:linear-gradient(red,red)\u2028,url(https://evil.example/b.png)">x</div>'],
+    ['CSS 转义 \\75 rl(', '<div style="background-image:linear-gradient(red,red),\\75 rl(https://evil.example/p.png)">x</div>'],
+    ['CSS 转义大写', '<div style="background:linear-gradient(red,red),\\55 RL(https://evil/p.png)">x</div>'],
+    ['换行后接 expression', '<div style="background:linear-gradient(red,red)\nexpression(alert(1))">x</div>'],
+  ])('渐变值不可借 %s 夹带 url()/expression()', (_label, html) => {
+    const clean = sanitizeCmsHtml(html);
+    expect(clean).not.toMatch(/url\(|expression|\\/i);
+  });
+
+  it.each([
+    ['线性渐变', '<div style="background:linear-gradient(120deg,#1f6feb,#0969da)">x</div>'],
+    ['重复渐变多色标', '<div style="background-image:repeating-linear-gradient(45deg,#fff 0 10px,#eee 10px 20px)">x</div>'],
+    ['径向渐变含 rgba', '<div style="background:radial-gradient(circle at 50% 50%, rgba(0,0,0,.6), transparent)">x</div>'],
+    ['圆锥渐变', '<div style="background:conic-gradient(from 90deg,#f00,#00f)">x</div>'],
+  ])('不误伤合法的 %s', (_label, html) => {
+    expect(sanitizeCmsHtml(html)).toMatch(/gradient\(/);
+  });
+
   it('挡住从声明里越狱写出额外规则', () => {
     // color:red}body{display:none 若被原样保留，等于让碎片改写全站样式
     expect(styleOf('<div style="color:red}body{display:none">x</div>')).toBe('color:red');

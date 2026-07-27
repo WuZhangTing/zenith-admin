@@ -53,10 +53,18 @@ const LENGTH_LIST = /^(?:auto|-?(?:\d+|\d*\.\d+)(?:px|em|rem|%|vh|vw|vmin|vmax|p
 /** 边框简写：宽度 + 线型 + 颜色，顺序宽松 */
 const BORDER = /^(?:(?:-?(?:\d+|\d*\.\d+)(?:px|em|rem)|thin|medium|thick)\s+)?(?:none|hidden|solid|dashed|dotted|double|groove|ridge)(?:\s+(?:#[0-9a-f]{3,8}|rgba?\([\d\s.,%/]+\)|[a-z]{3,20}))?$/i;
 /**
- * 渐变：先用否定前瞻挡掉 url() / expression() / javascript: / -moz-binding，
+ * 渐变：否定前瞻挡掉 url() / expression() / javascript: / -moz-binding 与反斜杠，
  * 再限制不得出现 `;` `{` `}`，杜绝从声明里越狱写出额外规则。
+ *
+ * 前瞻必须用 `[\s\S]*` 而非 `.*`：JS 正则的 `.` 不匹配行终止符，而 `[^;{}]*` 允许换行，
+ * 于是 `linear-gradient(red,red)\n,url(https://evil/beacon.png)` 会让前瞻只扫第一行、
+ * 后半段的 url() 完全不被检查却仍整体匹配。
+ *
+ * 反斜杠一并禁掉：CSS 转义序列 `\75 rl(` 在浏览器 tokenizer 里就是 `url(`，
+ * 正则看到的字面量与浏览器最终执行的不是一回事。这是唯一允许 `\` 的白名单项，
+ * 堵掉它等于关掉整个 CSS 转义入口。
  */
-const GRADIENT = /^(?!.*(?:url\(|expression\(|javascript:|-moz-binding))(?:repeating-)?(?:linear|radial|conic)-gradient\([^;{}]*\)$/i;
+const GRADIENT = /^(?![\s\S]*(?:url\(|expression\(|javascript:|-moz-binding|\\))(?:repeating-)?(?:linear|radial|conic)-gradient\([^;{}]*\)$/i;
 /** 背景：纯色或渐变（不放行 url()，避免外链追踪与旧浏览器的脚本面） */
 const BACKGROUND = [COLOR, GRADIENT];
 

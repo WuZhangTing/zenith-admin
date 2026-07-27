@@ -5382,16 +5382,30 @@ export const createCmsTagSchema = z.object({
 });
 export const updateCmsTagSchema = createCmsTagSchema.partial().omit({ siteId: true });
 
-export const createCmsFragmentSchema = z.object({
+/**
+ * 碎片基础 shape：**不带 `.default()`**。
+ *
+ * Zod 的 `.partial()` 会保留 `.default()`，于是「部分更新」schema 在字段省略时反而会
+ * **主动填入默认值**：`PUT {"remark":"x"}` 解析出来是 `{remark, type:'html', status:'enabled'}`，
+ * 服务层 `...data` 展开后就把刻意停用的碎片静默启用、把 text 碎片改成 html。
+ * 默认值只属于创建语义，因此在这里剥离，由 create schema 单独补上。
+ */
+const cmsFragmentBaseShape = {
   siteId: z.number().int().positive(),
   code: z.string().min(1, '碎片标识不能为空').max(50).regex(cmsSlugRegex, '标识仅支持小写字母、数字、中划线'),
   name: z.string().min(1, '碎片名称不能为空').max(100),
-  type: z.enum(['html', 'text', 'image']).default('html'),
+  type: z.enum(['html', 'text', 'image']),
   content: z.string().nullable().optional(),
-  status: z.enum(['enabled', 'disabled']).default('enabled'),
+  status: z.enum(['enabled', 'disabled']),
   remark: z.string().max(500).nullable().optional(),
+};
+
+export const createCmsFragmentSchema = z.object({
+  ...cmsFragmentBaseShape,
+  type: cmsFragmentBaseShape.type.default('html'),
+  status: cmsFragmentBaseShape.status.default('enabled'),
 });
-export const updateCmsFragmentSchema = createCmsFragmentSchema.partial().omit({ siteId: true });
+export const updateCmsFragmentSchema = z.object(cmsFragmentBaseShape).partial().omit({ siteId: true });
 
 export const createCmsFriendLinkGroupSchema = z.object({
   siteId: z.number().int().positive(),

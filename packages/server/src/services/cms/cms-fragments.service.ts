@@ -173,13 +173,12 @@ export async function updateCmsFragment(id: number, data: UpdateCmsFragmentInput
   const type = data.type ?? current.type;
   const content = data.content === undefined ? current.content : data.content;
   /**
-   * 仅在**正文本身被提交**或**类型真的变了**时才重新净化。
+   * 仅在**正文本身被提交**或**类型被显式改动**时才重新净化。
    *
-   * `updateCmsFragmentSchema` 由 create schema `.partial()` 而来，`type` 带 `.default('html')`，
-   * 因此哪怕只改备注，`data.type` 也不是 undefined。若据此重跑净化，会把已落库的正文再洗一遍——
-   * 内联 style 等不在白名单的属性会被静默抹掉，等于改个备注就破坏了运营排版。
+   * 不加这个判断会把已落库的正文再洗一遍，内联样式里不在白名单的属性被静默抹掉——
+   * 改个备注就破坏了运营排版。
    */
-  const needsContentRewrite = data.content !== undefined || (data.type !== undefined && data.type !== current.type);
+  const needsContentRewrite = data.content !== undefined || data.type !== undefined;
   try {
     const mutation = await db.transaction(async (tx) => {
       const site = (await lockFragmentSites(tx, [current.siteId])).get(current.siteId)!;
