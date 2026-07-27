@@ -481,6 +481,23 @@ export function useDeleteCmsFragment() {
   });
 }
 
+/**
+ * 碎片内容预览净化。
+ *
+ * 走服务端而非前端自己实现一份白名单：净化规则只有服务端一份，前端复刻必然漂移，
+ * 预览就又变成「所见非所得」——用户看到样式生效、保存后却被抹掉。
+ * 编辑中的内容不入库，因此 queryKey 只按内容做缓存，不进 cmsFragmentKeys 命名空间。
+ */
+export function useCmsFragmentPreview(type: string, content: string, enabled = true) {
+  return useQuery({
+    queryKey: ['cms-fragments', 'preview', type, content] as const,
+    queryFn: () => request.post<{ content: string }>('/api/cms/fragments/preview', { type, content }).then(unwrap),
+    enabled,
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
 // ═══ 友情链接 ═══════════════════════════════════════════════════════════════
 export interface CmsFriendLinkListParams {
   page: number;

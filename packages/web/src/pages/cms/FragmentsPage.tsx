@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, Tag, Toast, Modal } from '@douyinfe/semi-ui';
+import { Button, Form, Input, Tag, Toast, Modal, Typography, useFormState } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, RotateCcw, Plus } from 'lucide-react';
@@ -13,9 +13,21 @@ import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { useCmsFragmentList, useSaveCmsFragment, useDeleteCmsFragment, cmsFragmentKeys } from '@/hooks/queries/cms';
 import { CMS_FRAGMENT_TYPE_LABELS } from '@zenith/shared';
-import type { CmsFragment } from '@zenith/shared';
+import type { CmsFragment, CmsFragmentType } from '@zenith/shared';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { FragmentContentField } from './FragmentContentField';
+import { FragmentPreviewPanel } from './FragmentPreviewPanel';
+
+/** 预览需要读表单实时值，因此必须挂在 Form 内部 */
+function FragmentPreview() {
+  const { values } = useFormState();
+  return (
+    <FragmentPreviewPanel
+      type={(values.type as CmsFragmentType) ?? 'html'}
+      content={(values.content as string) ?? ''}
+    />
+  );
+}
 
 export default function FragmentsPage() {
   const { hasPermission } = usePermission();
@@ -157,7 +169,7 @@ export default function FragmentsPage() {
         onOk={handleModalOk}
         onCancel={() => { setModalVisible(false); setEditingRecord(null); }}
         okButtonProps={{ loading: saveMutation.isPending }}
-        width={640}
+        width={1080}
         closeOnEsc
       >
         <Form
@@ -170,14 +182,30 @@ export default function FragmentsPage() {
           labelPosition="left"
           labelWidth={90}
         >
-          <Form.Input field="name" label="碎片名称" rules={[{ required: true, message: '请输入碎片名称' }]} />
-          <Form.Input field="code" label="引用标识" disabled={!!editingRecord} placeholder="模板中通过该标识引用，如 home-banner" rules={[{ required: true, message: '请输入引用标识' }]} />
-          <FragmentContentField />
-          <Form.RadioGroup field="status" label="状态">
-            <Form.Radio value="enabled">启用</Form.Radio>
-            <Form.Radio value="disabled">停用</Form.Radio>
-          </Form.RadioGroup>
-          <Form.Input field="remark" label="备注" />
+          {/* 碎片改完直接影响线上首页，编辑与预览并排展示，避免盲改 */}
+          <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 560px', minWidth: 0 }}>
+              <Form.Input field="name" label="碎片名称" rules={[{ required: true, message: '请输入碎片名称' }]} />
+              <Form.Input field="code" label="引用标识" disabled={!!editingRecord} placeholder="模板中通过该标识引用，如 home-banner" rules={[{ required: true, message: '请输入引用标识' }]} />
+              <FragmentContentField />
+              <Form.RadioGroup field="status" label="状态">
+                <Form.Radio value="enabled">启用</Form.Radio>
+                <Form.Radio value="disabled">停用</Form.Radio>
+              </Form.RadioGroup>
+              <Form.Input field="remark" label="备注" />
+            </div>
+            <div style={{ flex: '1 1 360px', minWidth: 320 }}>
+              <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 6 }}>前台预览</Typography.Text>
+              <div style={{
+                border: '1px solid var(--semi-color-border)',
+                borderRadius: 'var(--semi-border-radius-medium)',
+                overflow: 'hidden',
+                background: 'var(--semi-color-bg-0)',
+              }}>
+                <FragmentPreview />
+              </div>
+            </div>
+          </div>
         </Form>
       </AppModal>
     </div>

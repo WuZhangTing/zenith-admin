@@ -769,6 +769,21 @@ export const cmsHandlers = [
     if (keyword) list = list.filter((f) => f.name.includes(keyword) || f.code.includes(keyword));
     return okJson(paginate(list, page, pageSize));
   }),
+  // 注册顺序必须早于 POST /api/cms/fragments，否则 preview 会被创建接口先命中
+  http.post('/api/cms/fragments/preview', async ({ request }) => {
+    const body = (await request.json()) as Body;
+    const content = String(body.content ?? '');
+    // Demo 模式没有服务端净化器，做一层与真实白名单同向的近似：
+    // 去掉脚本、事件属性与 position/url()/expression() 这类被明确排除的写法
+    const sanitized = String(body.type) === 'html'
+      ? content
+        .replace(/<script[\s\S]*?<\/script>/gi, '')
+        .replace(/\son\w+="[^"]*"/gi, '')
+        .replace(/(?:position|z-index|transform)\s*:\s*[^;"']+;?/gi, '')
+        .replace(/(?:background(?:-image)?|behavior|-moz-binding)\s*:\s*url\([^)]*\)\s*;?/gi, '')
+      : content;
+    return okJson({ content: sanitized });
+  }),
   http.post('/api/cms/fragments', async ({ request }) => {
     const body = (await request.json()) as Body;
     const now = mockDateTime();

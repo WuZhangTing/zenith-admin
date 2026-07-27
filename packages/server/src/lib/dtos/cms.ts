@@ -8,6 +8,7 @@ import {
   CMS_DISTRIBUTION_CONFLICT_STRATEGIES,
   CMS_DISTRIBUTION_MODES,
   CMS_FIELD_OPTION_SOURCES,
+  CMS_FRAGMENT_TYPES,
   CMS_RESOURCE_OWNER_TYPES,
   CMS_SITE_INHERITABLE_FIELDS,
 } from '@zenith/shared';
@@ -329,7 +330,7 @@ export const CmsFragmentDTO = z
     siteId: z.number().int(),
     code: z.string().openapi({ example: 'home-banner' }),
     name: z.string().openapi({ example: '首页横幅' }),
-    type: z.enum(['html', 'text', 'image', 'json']),
+    type: z.enum(CMS_FRAGMENT_TYPES),
     content: z.string().nullable(),
     status: z.enum(['enabled', 'disabled']),
     remark: z.string().nullable(),

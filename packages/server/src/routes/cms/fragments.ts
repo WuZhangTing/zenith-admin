@@ -11,6 +11,7 @@ import {
   listCmsFragments, getCmsFragment, createCmsFragment, updateCmsFragment, deleteCmsFragment,
   ensureCmsFragmentExists, mapCmsFragment,
 } from '../../services/cms/cms-fragments.service';
+import { sanitizeCmsFragmentContent } from '../../services/cms/cms-fragment-content';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -101,6 +102,32 @@ const deleteRoute_ = defineOpenAPIRoute({
   },
 });
 
-router.openapiRoutes([listRoute, getOneRoute, createRoute_, updateRoute_, deleteRoute_] as const);
+const previewRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/preview',
+    tags: ['CMS-碎片管理'], summary: '碎片内容预览净化',
+    description: '返回净化后的内容，供编辑器实时预览。净化白名单只有服务端一份，'
+      + '前端自行实现会与它漂移，预览就又变成「所见非所得」。',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'cms:fragment:list' })] as const,
+    request: {
+      body: {
+        content: jsonContent(z.object({
+          type: z.enum(CMS_FRAGMENT_TYPES),
+          content: z.string().max(200_000).nullable().optional(),
+        })),
+        required: true,
+      },
+    },
+    responses: { ...commonErrorResponses, ...ok(z.object({ content: z.string() }), '净化后的内容') },
+  }),
+  handler: async (c) => {
+    const { type, content } = c.req.valid('json');
+    return c.json(okBody({ content: sanitizeCmsFragmentContent(type, content ?? '') ?? '' }), 200);
+  },
+});
+
+// preview 必须排在 /{id} 之前，否则会被当成 id 参数吞掉
+router.openapiRoutes([listRoute, previewRoute, getOneRoute, createRoute_, updateRoute_, deleteRoute_] as const);
 
 export default router;
