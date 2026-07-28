@@ -4,6 +4,32 @@
 
 ---
 
+## v1.19.0 - 2026-07-28
+
+移除 CMS 碎片管理。这不是精简功能，而是纠正一个在当前架构下站不住的抽象。
+
+> **破坏性变更**：碎片功能整体移除——`cms_fragments` 表、`/api/cms/fragments/*` 接口、碎片管理菜单与 `cms:fragment:*` 权限均不再存在；页面搭建的 `fragment` 区块类型一并移除，迁移会清除存量区块及其区块级 ACL。
+
+### Removed
+
+- **CMS 碎片管理**：碎片是「按 `code` 引用的 HTML 字符串袋」。在 in-repo TSX + SSR 架构下，模板在编译期就知道自己有哪些插槽，所以插槽应当被**声明**，而不是靠魔法字符串去猜。主题里其实早有更好的机制——`settingsSchema` 声明式列出可配置项（类型 / label / 分组 / 默认值），后台按 `fieldType` 自动渲染表单，运营看到的就是主题真正支持的东西。相比之下碎片：
+  - **后台完全没有可发现性**：主题需要哪些 `code` 只写在 TSX 里，碎片列表既不显示「主题使用中」也不显示「无人引用」。运营建一个不存在的 `code` 不会在任何地方渲染，也没有任何提示
+  - **三种类型里 `text` / `image` 与 `settingsSchema` 的 `textarea` / `image` 完全冗余**，仅 `html` 独有
+  - **两套机制曾渲染进同一个视觉位置**：`themeConfig.bannerImage` 与 `home-banner` 碎片都输出到 `.fragment-banner` 且前后紧邻，主题作者不得不在字段说明里写「与 home-banner 碎片可并存，横幅在前」——一句话暴露了抽象重叠
+  - **成本上也没有优势**：两者都在 `buildBaseContext` 里进入每个页面上下文，改任一个都要整站重建
+
+  移除范围覆盖表与枚举、搭建页区块类型、菜单与权限、路由 / service / DTO / 主题插槽 / 渲染上下文 `fragments` / 素材治理扫描项 / 站点导出段、前端页面与 MSW handler。旧导出包若仍带 `fragments` 段会被直接忽略而非报错。
+
+  后续若需要富文本插槽，正确的做法是给 `settingsSchema` 增加 `richtext` 字段类型，复用已有的净化白名单与编辑器，而不是另起一套无类型的全局字符串表。
+
+### Changed
+
+- 首页横幅归一由 `themeConfig.bannerImage` 承担，CSS 类 `.fragment-banner` 更名 `.home-banner`
+- `renderBlocksHtml` 去掉 `ctx` 参数——`fragment` 区块是它唯一的消费方
+- 移除 `cms-page-cache.service`：它随碎片发布链路引入，唯一调用方消失后不留死代码，页面缓存前缀回归 `frontend.ts`
+
+---
+
 ## v1.18.0 - 2026-07-27
 
 CMS 碎片（模板可引用的后台可编辑区块）的一轮完整改造：先修好「改了不生效」，再按类型重做编辑体验。过程中发现并修复了两个影响面超出碎片本身的安全问题。
