@@ -5,7 +5,6 @@ import { IllustrationNoContent, IllustrationNoContentDark } from '@douyinfe/semi
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
 import { Plus, ExternalLink, Merge, ListPlus, Eye, MoreHorizontal, RefreshCw } from 'lucide-react';
-import { pinyin } from 'pinyin-pro';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import AppModal from '@/components/AppModal';
 import RichTextEditor from '@/components/RichTextEditor';
@@ -17,6 +16,7 @@ import {
 } from '@/hooks/queries/cms';
 import { useAllUsers } from '@/hooks/queries/users';
 import { request } from '@/utils/request';
+import { slugifyName } from '@/utils/slug';
 import { unwrap } from '@/lib/query';
 import { CMS_CHANNEL_DETAIL_PATH_RULE_LABELS, CMS_CHANNEL_DETAIL_PATH_RULES, CMS_CHANNEL_STATIC_MODE_LABELS, CMS_CHANNEL_STATIC_MODES, CMS_CHANNEL_TYPE_LABELS } from '@zenith/shared';
 import type { CmsChannel, CmsContent, PaginatedResponse } from '@zenith/shared';
@@ -36,12 +36,6 @@ function toTreeSelectData(nodes: CmsChannel[], excludeId?: number): TreeNodeData
 /** 栏目树拍平为一维数组，用于按 id 反查最新栏目对象 */
 function flattenChannels(nodes: CmsChannel[]): CmsChannel[] {
   return nodes.flatMap((n) => [n, ...(n.children ? flattenChannels(n.children) : [])]);
-}
-
-/** 汉字名称 → 拼音 slug（与服务端 slugifyChannelName 规则一致） */
-function slugifyName(name: string): string {
-  const py = pinyin(name, { toneType: 'none', type: 'array', nonZh: 'consecutive' }).join('-');
-  return py.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 100);
 }
 
 export default function ChannelsPage() {

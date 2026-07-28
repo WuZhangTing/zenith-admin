@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Button,
   DatePicker,
-  Form,
   Input,
   Modal,
   Progress,
@@ -13,29 +12,22 @@ import {
   TabPane,
   Tabs,
   Tag,
-  TextArea,
   Toast,
   Typography,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Plus, RotateCcw, Search } from 'lucide-react';
 import {
-  CMS_INTERACTION_CAPTCHA_POLICY_LABELS,
   CMS_INTERACTION_KIND_LABELS,
   CMS_INTERACTION_PARTICIPANT_SCOPE_LABELS,
   CMS_INTERACTION_QUESTION_TYPE_LABELS,
   CMS_INTERACTION_REPEAT_POLICY_LABELS,
-  CMS_INTERACTION_RESULT_VISIBILITY_LABELS,
   CMS_INTERACTION_STATUS_LABELS,
   type CmsInteraction,
   type CmsInteractionKind,
-  type CmsInteractionQuestion,
-  type CmsInteractionQuestionType,
   type CmsInteractionResponse,
   type CmsInteractionStatus,
 } from '@zenith/shared';
-import AppModal from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -46,45 +38,16 @@ import {
   cmsInteractionKeys,
   useBatchCmsInteractionStatus,
   useAllCmsSites,
-  useCmsInteractionDetail,
   useCmsInteractionList,
   useCmsInteractionResponseList,
   useCmsInteractionStats,
   useDeleteCmsInteraction,
-  useSaveCmsInteraction,
   useSetCmsInteractionStatus,
 } from '@/hooks/queries/cms';
 import { formatDateTimeForApi } from '@/utils/date';
 import { renderEllipsis } from '@/utils/table-columns';
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
-
-type InteractionFormValues = {
-  kind: CmsInteractionKind;
-  code: string;
-  title: string;
-  description?: string;
-  status: CmsInteractionStatus;
-  participantScope: 'anonymous' | 'member';
-  repeatPolicy: 'once_per_member' | 'once_per_ip' | 'multiple';
-  resultVisibility: 'always' | 'after_submit' | 'after_close' | 'hidden';
-  captchaPolicy: 'inherit' | 'none' | 'math' | 'turnstile';
-  turnstileSiteKey?: string;
-  turnstileSecret?: string;
-  thankYouMessage: string;
-  startAt?: Date | string;
-  endAt?: Date | string;
-};
-
-interface QuestionDraft {
-  id?: number;
-  label: string;
-  type: CmsInteractionQuestionType;
-  required: boolean;
-  minChoices: number;
-  maxChoices: number;
-  options: CmsInteractionQuestion['options'];
-  optionsText: string;
-}
+import InteractionEditorModal from './interaction/InteractionEditorModal';
 
 interface ListSearch {
   keyword: string;
@@ -98,28 +61,6 @@ const STATUS_COLORS: Record<CmsInteractionStatus, 'grey' | 'green' | 'orange'> =
   published: 'green',
   closed: 'orange',
 };
-
-function questionToDraft(question: CmsInteractionQuestion): QuestionDraft {
-  return {
-    id: question.id,
-    label: question.label,
-    type: question.type,
-    required: question.required,
-    minChoices: question.minChoices,
-    maxChoices: question.maxChoices,
-    options: question.options,
-    optionsText: question.options.map((option) => option.label).join('\n'),
-  };
-}
-
-function buildOptions(question: QuestionDraft) {
-  const labels = [...new Set(question.optionsText.split('\n').map((item) => item.trim()).filter(Boolean))];
-  return labels.map((label, index) => {
-    const existing = question.options[index];
-    const stable = existing?.id ?? `opt-${index + 1}`;
-    return { id: stable, label, value: existing?.value ?? stable };
-  });
-}
 
 function ResultsSheet({ interaction, onClose }: Readonly<{
   interaction: CmsInteraction | null;
@@ -165,7 +106,6 @@ function ResultsSheet({ interaction, onClose }: Readonly<{
 export default function SurveysPage() {
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
-  const formApi = useRef<FormApi | null>(null);
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [siteId, setSiteId] = useState<number | undefined>();
   const [draft, setDraft] = useState<ListSearch>(initialSearch);
@@ -173,8 +113,6 @@ export default function SurveysPage() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [editing, setEditing] = useState<CmsInteraction | null>(null);
-  const [kindDraft, setKindDraft] = useState<CmsInteractionKind>('survey');
-  const [questions, setQuestions] = useState<QuestionDraft[]>([]);
   const [resultsTarget, setResultsTarget] = useState<CmsInteraction | null>(null);
   const [responseDetail, setResponseDetail] = useState<CmsInteractionResponse | null>(null);
   const [responsePage, setResponsePage] = useState(1);
@@ -190,9 +128,6 @@ export default function SurveysPage() {
   }, !!siteId);
   const sitesQuery = useAllCmsSites();
   const currentSite = sitesQuery.data?.find((site) => site.id === siteId);
-  const detailQuery = useCmsInteractionDetail(editing?.id, modalVisible && !!editing);
-  const editingDetail = detailQuery.data ?? editing;
-  const saveMutation = useSaveCmsInteraction();
   const deleteMutation = useDeleteCmsInteraction();
   const statusMutation = useSetCmsInteractionStatus();
   const batchMutation = useBatchCmsInteractionStatus();
@@ -205,15 +140,8 @@ export default function SurveysPage() {
     endTime: responseTimeRange ? formatDateTimeForApi(responseTimeRange[1]) : undefined,
   }, !!siteId);
 
-  useEffect(() => {
-    if (!modalVisible || !editingDetail) return;
-    setKindDraft(editingDetail.kind);
-    setQuestions((editingDetail.questions ?? []).map(questionToDraft));
-  }, [editingDetail, modalVisible]);
-
   const canManage = hasPermission('cms:interaction:manage');
   const canBatch = hasPermission('cms:interaction:batch');
-  const questionsLocked = (editingDetail?.responseCount ?? 0) > 0;
 
   const handleSearch = () => {
     setPage(1);
@@ -230,71 +158,14 @@ export default function SurveysPage() {
     void queryClient.invalidateQueries({ queryKey: cmsInteractionKeys.lists });
   };
 
-  const openCreate = () => {
-    setEditing(null);
-    setKindDraft('survey');
-    setQuestions([{
-      label: '',
-      type: 'single',
-      required: true,
-      minChoices: 1,
-      maxChoices: 1,
-      options: [],
-      optionsText: '选项一\n选项二',
-    }]);
-    setModalVisible(true);
-  };
-
-  const handleSave = async () => {
-    if (!siteId) return;
-    let values: InteractionFormValues;
-    try {
-      values = await formApi.current?.validate() as InteractionFormValues;
-    } catch {
-      throw new Error('validation');
-    }
-    if (!questionsLocked && (questions.length === 0 || questions.some((question) => !question.label.trim()))) {
-      Toast.warning('请完善题目');
-      throw new Error('validation');
-    }
-    const normalizedQuestions = questions.map((question, index) => ({
-      id: question.id,
-      label: question.label.trim(),
-      type: question.type,
-      required: question.required,
-      options: question.type === 'text' ? [] : buildOptions(question),
-      minChoices: question.type === 'text' ? 0 : question.minChoices,
-      maxChoices: question.type === 'single' ? 1 : question.maxChoices,
-      sort: index,
-    }));
-    if (kindDraft === 'poll' && (normalizedQuestions.length !== 1 || normalizedQuestions[0].type === 'text')) {
-      Toast.warning('投票必须且只能包含一道选择题');
-      throw new Error('validation');
-    }
-    if (values.captchaPolicy === 'turnstile') {
-      if (!values.turnstileSiteKey?.trim()) {
-        Toast.warning('请配置 Turnstile Site Key');
-        throw new Error('validation');
-      }
-      if (!values.turnstileSecret?.trim() && !editingDetail?.turnstileSecretConfigured) {
-        Toast.warning('请配置 Turnstile Secret Key');
-        throw new Error('validation');
-      }
-    }
-    const payload: Record<string, unknown> = {
-      ...values,
-      kind: kindDraft,
-      description: values.description || null,
-      startAt: values.startAt instanceof Date ? formatDateTimeForApi(values.startAt) : (values.startAt || null),
-      endAt: values.endAt instanceof Date ? formatDateTimeForApi(values.endAt) : (values.endAt || null),
-      ...(questionsLocked ? {} : { questions: normalizedQuestions }),
-      ...(editing ? {} : { siteId }),
-    };
-    if (!values.turnstileSecret?.trim()) delete payload.turnstileSecret;
-    await saveMutation.mutateAsync({ id: editing?.id, values: payload });
-    Toast.success(editing ? '更新成功' : '创建成功');
+  const closeEditor = () => {
     setModalVisible(false);
     setEditing(null);
+  };
+
+  const openCreate = () => {
+    setEditing(null);
+    setModalVisible(true);
   };
 
   const changeStatus = async (record: CmsInteraction, status: CmsInteractionStatus) => {
@@ -490,136 +361,13 @@ export default function SurveysPage() {
         </TabPane>
       </Tabs>
 
-      <AppModal
-        title={editing ? `设计：${editing.title}` : '新增互动问卷'}
+      <InteractionEditorModal
         visible={modalVisible}
-        onCancel={() => { setModalVisible(false); setEditing(null); }}
-        onOk={handleSave}
-        okButtonProps={{ loading: saveMutation.isPending }}
-        width={800}
-        closeOnEsc
-      >
-        <Spin spinning={!!editing && detailQuery.isFetching}>
-          <Form<InteractionFormValues>
-            key={editingDetail?.id ?? 'new'}
-            getFormApi={(api) => { formApi.current = api; }}
-            labelPosition="left"
-            labelWidth={110}
-            allowEmpty
-            initValues={editingDetail ? {
-              kind: editingDetail.kind,
-              code: editingDetail.code,
-              title: editingDetail.title,
-              description: editingDetail.description ?? '',
-              status: editingDetail.status,
-              participantScope: editingDetail.participantScope,
-              repeatPolicy: editingDetail.repeatPolicy,
-              resultVisibility: editingDetail.resultVisibility,
-              captchaPolicy: editingDetail.captchaPolicy,
-              turnstileSiteKey: editingDetail.turnstileSiteKey ?? '',
-              turnstileSecret: '',
-              thankYouMessage: editingDetail.thankYouMessage,
-              startAt: editingDetail.startAt ?? undefined,
-              endAt: editingDetail.endAt ?? undefined,
-            } : {
-              kind: 'survey',
-              code: '',
-              title: '',
-              description: '',
-              status: 'draft',
-              participantScope: 'anonymous',
-              repeatPolicy: 'once_per_ip',
-              resultVisibility: 'after_submit',
-              captchaPolicy: 'inherit',
-              turnstileSiteKey: '',
-              turnstileSecret: '',
-              thankYouMessage: '感谢您的参与！',
-              startAt: undefined,
-              endAt: undefined,
-            }}
-          >
-            <Form.Select field="kind" label="互动类型" disabled={!!editing} style={{ width: '100%' }}
-              optionList={Object.entries(CMS_INTERACTION_KIND_LABELS).map(([value, label]) => ({ value, label }))}
-              onChange={(value) => setKindDraft(value as CmsInteractionKind)} />
-            <Form.Input field="title" label="标题" rules={[{ required: true, message: '请输入标题' }]} />
-            <Form.Input field="code" label="访问标识" disabled={!!editing} rules={[{ required: true, message: '请输入标识' }]}
-              extraText="前台地址 /interaction/{标识}/；正文用 [互动:标识] 嵌入" />
-            <Form.TextArea field="description" label="说明" rows={2} />
-            <Form.Select field="participantScope" label="参与范围" style={{ width: '100%' }}
-              optionList={Object.entries(CMS_INTERACTION_PARTICIPANT_SCOPE_LABELS).map(([value, label]) => ({ value, label }))} />
-            <Form.Select field="repeatPolicy" label="重复提交" style={{ width: '100%' }}
-              optionList={Object.entries(CMS_INTERACTION_REPEAT_POLICY_LABELS).map(([value, label]) => ({ value, label }))} />
-            <Form.Select field="resultVisibility" label="结果可见性" style={{ width: '100%' }}
-              optionList={Object.entries(CMS_INTERACTION_RESULT_VISIBILITY_LABELS).map(([value, label]) => ({ value, label }))} />
-            <Form.Select field="captchaPolicy" label="验证码策略" style={{ width: '100%' }}
-              optionList={Object.entries(CMS_INTERACTION_CAPTCHA_POLICY_LABELS).map(([value, label]) => ({ value, label }))} />
-            <Form.Input field="turnstileSiteKey" label="Turnstile Site Key"
-              extraText="仅验证码策略为 Cloudflare Turnstile 时生效" />
-            <Form.Input field="turnstileSecret" label="Turnstile Secret Key" mode="password"
-              placeholder={editingDetail?.turnstileSecretConfigured ? '已配置，留空保持不变' : '仅服务端保存，不会回显'} />
-            <Form.Input field="thankYouMessage" label="感谢语" rules={[{ required: true, message: '请输入感谢语' }]} />
-            <Form.DatePicker field="startAt" label="开始时间" type="dateTime" style={{ width: '100%' }} />
-            <Form.DatePicker field="endAt" label="结束时间" type="dateTime" style={{ width: '100%' }} />
-            <Form.RadioGroup field="status" label="状态">
-              <Form.Radio value="draft">草稿</Form.Radio>
-              <Form.Radio value="published">进行中</Form.Radio>
-              <Form.Radio value="closed">已关闭</Form.Radio>
-            </Form.RadioGroup>
-          </Form>
-          <div style={{ marginTop: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <Typography.Title heading={6}>题目设计（{questions.length}）</Typography.Title>
-              {!questionsLocked && kindDraft === 'survey' ? (
-                <Button size="small" icon={<Plus size={13} />} onClick={() => setQuestions((current) => [...current, {
-                  label: '', type: 'single', required: true, minChoices: 1, maxChoices: 1, options: [], optionsText: '',
-                }])}>加题</Button>
-              ) : null}
-            </div>
-            {questionsLocked ? (
-              <Typography.Text type="warning">已收集答卷，题目结构已锁定；仍可调整时间、状态与展示策略。</Typography.Text>
-            ) : null}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 360, overflow: 'auto', marginTop: 8 }}>
-              {questions.map((question, index) => (
-                <div key={question.id ?? `new-${index}`} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 12 }}>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <Input value={question.label} placeholder="题目" disabled={questionsLocked}
-                      onChange={(value) => setQuestions((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, label: value } : item))} />
-                    <Select value={question.type} disabled={questionsLocked} style={{ width: 110 }}
-                      optionList={Object.entries(CMS_INTERACTION_QUESTION_TYPE_LABELS)
-                        .filter(([value]) => kindDraft !== 'poll' || value !== 'text')
-                        .map(([value, label]) => ({ value, label }))}
-                      onChange={(value) => setQuestions((current) => current.map((item, itemIndex) => itemIndex === index ? {
-                        ...item,
-                        type: value as CmsInteractionQuestionType,
-                        maxChoices: value === 'single' ? 1 : item.maxChoices,
-                      } : item))} />
-                    <Button theme="borderless" size="small" disabled={questionsLocked}
-                      onClick={() => setQuestions((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, required: !item.required } : item))}>
-                      {question.required ? '必答' : '选答'}
-                    </Button>
-                    <Button theme="borderless" type="danger" size="small" disabled={questionsLocked || questions.length <= 1 || kindDraft === 'poll'}
-                      onClick={() => setQuestions((current) => current.filter((_, itemIndex) => itemIndex !== index))}>删除</Button>
-                  </div>
-                  {question.type !== 'text' ? (
-                    <>
-                      <TextArea value={question.optionsText} rows={3} disabled={questionsLocked} placeholder="每行一个选项"
-                        onChange={(value) => setQuestions((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, optionsText: value } : item))} />
-                      {question.type === 'multiple' ? (
-                        <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
-                          <Input type="number" value={String(question.minChoices)} disabled={questionsLocked} prefix="最少"
-                            onChange={(value) => setQuestions((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, minChoices: Number(value) || 0 } : item))} />
-                          <Input type="number" value={String(question.maxChoices)} disabled={questionsLocked} prefix="最多"
-                            onChange={(value) => setQuestions((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, maxChoices: Number(value) || 1 } : item))} />
-                        </div>
-                      ) : null}
-                    </>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </div>
-        </Spin>
-      </AppModal>
+        siteId={siteId}
+        editing={editing}
+        onCancel={closeEditor}
+        onSaved={closeEditor}
+      />
 
       <ResultsSheet interaction={resultsTarget} onClose={() => setResultsTarget(null)} />
       <SideSheet title="答卷详情" visible={!!responseDetail} onCancel={() => setResponseDetail(null)} width={520}>

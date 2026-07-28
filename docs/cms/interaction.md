@@ -17,6 +17,7 @@
 - 前台页 `/interaction/{code}/`，正文嵌入标记 `[互动:code]`；公开提交 `/api/public/cms/interactions/{siteCode}/{code}/submit`，会员提交 `/api/member/cms/interactions/{id}/submit`。
 - 答卷写入 `cms_interaction_responses + cms_interaction_answers`，IP 只保存加盐哈希；`repeat_key` 与显式请求幂等键分别有唯一屏障。选择题按参与人数统计，文本题仅管理接口返回，公共状态与提交响应不会包含 `texts`。题目替换与提交共用 interaction 行锁，已有答卷后不能换题。
 - 批量发布/关闭走任务中心 `cms-interactions-batch-status`，含 checkpoint、行级 items、权限复验、取消与重试；答卷导出实体为 `cms.interaction-responses`，原始导出另需 `cms:interaction:export-raw`。
+- 后台设计器（`pages/cms/interaction/`）为全屏三步弹窗：①基本信息（标题自动生成拼音访问标识）②题目设计（题目/选项均可上下移、题目可复制、选项行内增删或「批量编辑」按行粘贴，内置满意度/NPS/报名/单题投票模板）③参与与展示（Turnstile 收进「高级」折叠，验证码策略切换时才必填）。右侧常驻前台样式预览（≥lg 宽度）。`kind=poll` 在 UI 层即收敛为单道选择题并隐藏文本题，「每位会员一次」在参与范围非仅会员时禁选并自动回退；校验错误定位到具体题目卡片与出错步骤，已有答卷时顶部 Banner 提示并锁定题目结构。
 
 ## 评论
 
