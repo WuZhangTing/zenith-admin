@@ -1604,7 +1604,9 @@ export const CMS_SUBSCRIPTION_SUBJECT_TYPE_LABELS: Record<(typeof CMS_SUBSCRIPTI
 /** 统一互动问卷模型。 */
 export const CMS_INTERACTION_KINDS = ['survey', 'poll'] as const;
 export const CMS_INTERACTION_STATUSES = ['draft', 'published', 'closed'] as const;
-export const CMS_INTERACTION_QUESTION_TYPES = ['single', 'multiple', 'text'] as const;
+export const CMS_INTERACTION_QUESTION_TYPES = [
+  'single', 'multiple', 'text', 'rating', 'nps', 'matrix', 'date', 'number',
+] as const;
 export const CMS_INTERACTION_PARTICIPANT_SCOPES = ['anonymous', 'member'] as const;
 export const CMS_INTERACTION_REPEAT_POLICIES = ['once_per_member', 'once_per_ip', 'multiple'] as const;
 export const CMS_INTERACTION_RESULT_VISIBILITIES = ['always', 'after_submit', 'after_close', 'hidden'] as const;
@@ -1625,6 +1627,30 @@ export const CMS_INTERACTION_QUESTION_TYPE_LABELS: Record<(typeof CMS_INTERACTIO
   single: '单选',
   multiple: '多选',
   text: '文本',
+  rating: '评分',
+  nps: 'NPS',
+  matrix: '矩阵',
+  date: '日期',
+  number: '数字',
+};
+
+/** 需要配置候选选项的题型（矩阵的选项即为列） */
+export const CMS_INTERACTION_CHOICE_QUESTION_TYPES = ['single', 'multiple', 'matrix'] as const;
+
+/** 「其他」选项的哨兵值；实际提交为 `__other__:自由文本` */
+export const CMS_INTERACTION_OTHER_VALUE = '__other__';
+export const CMS_INTERACTION_OTHER_PREFIX = `${CMS_INTERACTION_OTHER_VALUE}:`;
+/** 矩阵题答案的行列分隔符：`rowId::optionValue` */
+export const CMS_INTERACTION_MATRIX_SEPARATOR = '::';
+/** NPS 固定 0-10 分 */
+export const CMS_INTERACTION_NPS_MAX = 10;
+export const CMS_INTERACTION_RATING_MAX_LIMIT = 10;
+
+/** 条件显示比较符 */
+export const CMS_INTERACTION_CONDITION_OPS = ['any', 'none'] as const;
+export const CMS_INTERACTION_CONDITION_OP_LABELS: Record<(typeof CMS_INTERACTION_CONDITION_OPS)[number], string> = {
+  any: '选中其中任一项时显示',
+  none: '均未选中时显示',
 };
 
 export const CMS_INTERACTION_PARTICIPANT_SCOPE_LABELS: Record<(typeof CMS_INTERACTION_PARTICIPANT_SCOPES)[number], string> = {

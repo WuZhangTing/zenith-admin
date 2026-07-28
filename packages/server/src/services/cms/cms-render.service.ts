@@ -803,6 +803,12 @@ export async function renderInteractionPage(site: CmsSiteRow, baseUrl: string, c
         options: question.options ?? [],
         minChoices: question.minChoices,
         maxChoices: question.maxChoices,
+        allowOther: question.allowOther,
+        otherLabel: question.otherLabel ?? null,
+        ratingMax: question.ratingMax,
+        matrixRows: question.matrixRows ?? [],
+        pageNo: question.pageNo,
+        visibleWhen: question.visibleWhen ?? null,
       })),
     },
     submit: {

@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import type {
   CmsInteraction,
+  CmsInteractionOption,
   CmsInteractionQuestion,
   CmsInteractionResponse,
   CmsMemberSubscription,
@@ -113,36 +114,72 @@ function interactionStats(interaction: CmsInteraction) {
     interactionId: interaction.id,
     responseCount: responses.length,
     questions: (interaction.questions ?? []).map((question) => {
-      if (question.type === 'text') {
+      const answered = responses.filter((response) => response.answers[String(question.id)] !== undefined);
+      const base = {
+        id: question.id,
+        label: question.label,
+        type: question.type,
+        options: [] as (CmsInteractionOption & { count: number; percent: number })[],
+        texts: [] as string[],
+        answered: answered.length,
+        average: null as number | null,
+        npsScore: null as number | null,
+        matrixRows: [] as { id: string; label: string; options: (CmsInteractionOption & { count: number; percent: number })[] }[],
+      };
+      if (question.type === 'text' || question.type === 'date') {
         return {
-          id: question.id,
-          label: question.label,
-          type: question.type,
-          options: [],
+          ...base,
           texts: responses
             .map((response) => response.answers[String(question.id)])
             .filter((value): value is string => typeof value === 'string')
             .slice(0, 50),
         };
       }
-
-      const answered = responses.filter((response) => response.answers[String(question.id)] !== undefined);
+      if (question.type === 'rating' || question.type === 'nps' || question.type === 'number') {
+        const scores = answered
+          .map((response) => Number(response.answers[String(question.id)]))
+          .filter((score) => Number.isFinite(score));
+        const promoters = scores.filter((score) => score >= 9).length;
+        const detractors = scores.filter((score) => score <= 6).length;
+        return {
+          ...base,
+          average: scores.length
+            ? Math.round((scores.reduce((sum, score) => sum + score, 0) / scores.length) * 100) / 100
+            : null,
+          npsScore: question.type === 'nps' && scores.length
+            ? Math.round(((promoters - detractors) / scores.length) * 1000) / 10
+            : null,
+        };
+      }
+      const countFor = (predicate: (value: string) => boolean) => answered.filter((response) => {
+        const value = response.answers[String(question.id)];
+        return Array.isArray(value) ? value.some(predicate) : predicate(String(value));
+      }).length;
+      if (question.type === 'matrix') {
+        return {
+          ...base,
+          matrixRows: question.matrixRows.map((row) => ({
+            id: row.id,
+            label: row.label,
+            options: question.options.map((option) => {
+              const count = countFor((value) => value === `${row.id}::${option.value}`);
+              return { ...option, count, percent: answered.length ? Math.round((count / answered.length) * 1000) / 10 : 0 };
+            }),
+          })),
+        };
+      }
+      const options = [...question.options];
+      if (question.allowOther) {
+        options.push({ id: '__other__', label: question.otherLabel || '其他', value: '__other__' });
+      }
       return {
-        id: question.id,
-        label: question.label,
-        type: question.type,
-        options: question.options.map((option) => {
-          const count = answered.filter((response) => {
-            const value = response.answers[String(question.id)];
-            return Array.isArray(value) ? value.includes(option.value) : value === option.value;
-          }).length;
-          return {
-            ...option,
-            count,
-            percent: answered.length ? Math.round((count / answered.length) * 1000) / 10 : 0,
-          };
+        ...base,
+        options: options.map((option) => {
+          const count = option.value === '__other__'
+            ? countFor((value) => value === '__other__' || value.startsWith('__other__:'))
+            : countFor((value) => value === option.value);
+          return { ...option, count, percent: answered.length ? Math.round((count / answered.length) * 1000) / 10 : 0 };
         }),
-        texts: [],
       };
     }),
   };
@@ -169,6 +206,12 @@ function normalizeQuestions(interactionId: number, raw: unknown): CmsInteraction
       minChoices: question.minChoices ?? (question.required ? 1 : 0),
       maxChoices: question.type === 'single' ? 1 : (question.maxChoices ?? 1),
       sort: question.sort ?? index,
+      allowOther: question.allowOther ?? false,
+      otherLabel: question.otherLabel ?? null,
+      ratingMax: question.ratingMax ?? 5,
+      matrixRows: question.matrixRows?.map((row) => ({ ...row })) ?? [],
+      pageNo: question.pageNo ?? 1,
+      visibleWhen: question.visibleWhen ?? null,
     };
   });
 }

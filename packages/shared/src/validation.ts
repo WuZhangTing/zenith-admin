@@ -57,6 +57,11 @@ import {
   CMS_FIELD_OPTION_SOURCES,
   CMS_DISTRIBUTION_CONFLICT_STRATEGIES,
   CMS_DISTRIBUTION_MODES,
+  CMS_INTERACTION_CHOICE_QUESTION_TYPES,
+  CMS_INTERACTION_CONDITION_OPS,
+  CMS_INTERACTION_OTHER_VALUE,
+  CMS_INTERACTION_QUESTION_TYPES,
+  CMS_INTERACTION_RATING_MAX_LIMIT,
   CMS_PUBLISH_TARGET_TYPES,
   CMS_SITE_INHERITABLE_FIELDS,
 } from './constants';
@@ -5609,15 +5614,32 @@ export const cmsInteractionOptionSchema = z.object({
   value: z.string().trim().min(1).max(100),
 }).strict();
 
+export const cmsInteractionMatrixRowSchema = z.object({
+  id: z.string().trim().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/, '矩阵行 id 仅支持字母、数字、下划线和中划线'),
+  label: z.string().trim().min(1).max(100),
+}).strict();
+
+export const cmsInteractionVisibleWhenSchema = z.object({
+  questionIndex: z.number().int().min(0).max(99),
+  op: z.enum(CMS_INTERACTION_CONDITION_OPS).default('any'),
+  values: z.array(z.string().trim().min(1).max(100)).min(1).max(50),
+}).strict();
+
 export const cmsInteractionQuestionSchema = z.object({
   id: z.number().int().positive().optional(),
   label: z.string().min(1, '题目不能为空').max(200),
-  type: z.enum(['single', 'multiple', 'text']).default('single'),
+  type: z.enum(CMS_INTERACTION_QUESTION_TYPES).default('single'),
   required: z.boolean().default(true),
   options: z.array(cmsInteractionOptionSchema).max(50).default([]),
   minChoices: z.number().int().min(0).max(50).default(1),
   maxChoices: z.number().int().min(1).max(50).default(1),
   sort: z.number().int().default(0),
+  allowOther: z.boolean().default(false),
+  otherLabel: z.string().trim().max(50).nullable().optional(),
+  ratingMax: z.number().int().min(2).max(CMS_INTERACTION_RATING_MAX_LIMIT).default(5),
+  matrixRows: z.array(cmsInteractionMatrixRowSchema).max(30).default([]),
+  pageNo: z.number().int().min(1).max(50).default(1),
+  visibleWhen: cmsInteractionVisibleWhenSchema.nullable().optional(),
 }).strict();
 
 const cmsInteractionBaseSchema = z.object({
@@ -5661,27 +5683,64 @@ function validateCmsInteractionDefinition(
     ctx.addIssue({ code: 'custom', path: ['questions'], message: '投票必须且只能包含一道选择题' });
   }
   value.questions.forEach((question, index) => {
-    if (value.kind === 'poll' && question.type === 'text') {
-      ctx.addIssue({ code: 'custom', path: ['questions', index, 'type'], message: '投票不支持文本题' });
+    const isChoice = (CMS_INTERACTION_CHOICE_QUESTION_TYPES as readonly string[]).includes(question.type);
+    if (value.kind === 'poll' && question.type !== 'single' && question.type !== 'multiple') {
+      ctx.addIssue({ code: 'custom', path: ['questions', index, 'type'], message: '投票只支持单选或多选题' });
     }
-    if (question.type === 'text' && question.options.length > 0) {
-      ctx.addIssue({ code: 'custom', path: ['questions', index, 'options'], message: '文本题不能配置选项' });
+    if (!isChoice && question.options.length > 0) {
+      ctx.addIssue({ code: 'custom', path: ['questions', index, 'options'], message: '该题型不能配置选项' });
     }
-    if (question.type !== 'text' && question.options.length < 2) {
+    if (isChoice && question.options.length < 2) {
       ctx.addIssue({ code: 'custom', path: ['questions', index, 'options'], message: '选择题至少配置两个选项' });
     }
     if (question.type === 'single' && (question.minChoices > 1 || question.maxChoices > 1)) {
       ctx.addIssue({ code: 'custom', path: ['questions', index, 'maxChoices'], message: '单选题只能选择一项' });
     }
-    if (question.minChoices > question.maxChoices || (question.type !== 'text' && question.maxChoices > question.options.length)) {
+    if (question.type === 'multiple'
+      && (question.minChoices > question.maxChoices || question.maxChoices > question.options.length)) {
       ctx.addIssue({ code: 'custom', path: ['questions', index, 'maxChoices'], message: '选择数量范围无效' });
+    }
+    if (question.type === 'matrix' && question.matrixRows.length === 0) {
+      ctx.addIssue({ code: 'custom', path: ['questions', index, 'matrixRows'], message: '矩阵题至少配置一行' });
+    }
+    if (question.type !== 'matrix' && question.matrixRows.length > 0) {
+      ctx.addIssue({ code: 'custom', path: ['questions', index, 'matrixRows'], message: '仅矩阵题可配置行' });
+    }
+    if (question.allowOther && question.type !== 'single' && question.type !== 'multiple') {
+      ctx.addIssue({ code: 'custom', path: ['questions', index, 'allowOther'], message: '仅单选/多选题支持「其他」填空' });
     }
     const optionIds = new Set(question.options.map((option) => option.id));
     const optionValues = new Set(question.options.map((option) => option.value));
     if (optionIds.size !== question.options.length || optionValues.size !== question.options.length) {
       ctx.addIssue({ code: 'custom', path: ['questions', index, 'options'], message: '选项 id 与 value 必须唯一' });
     }
+    if (question.options.some((option) => option.value.startsWith(CMS_INTERACTION_OTHER_VALUE))) {
+      ctx.addIssue({ code: 'custom', path: ['questions', index, 'options'], message: `选项 value 不能以 ${CMS_INTERACTION_OTHER_VALUE} 开头` });
+    }
+    const rowIds = new Set(question.matrixRows.map((row) => row.id));
+    if (rowIds.size !== question.matrixRows.length) {
+      ctx.addIssue({ code: 'custom', path: ['questions', index, 'matrixRows'], message: '矩阵行 id 必须唯一' });
+    }
+    if (question.visibleWhen) {
+      // 条件只能依赖排在前面的题目，避免循环依赖与前台渲染顺序问题
+      if (question.visibleWhen.questionIndex >= index) {
+        ctx.addIssue({ code: 'custom', path: ['questions', index, 'visibleWhen'], message: '条件显示只能依赖排在前面的题目' });
+      } else {
+        const source = value.questions[question.visibleWhen.questionIndex];
+        if (source && source.type !== 'single' && source.type !== 'multiple') {
+          ctx.addIssue({ code: 'custom', path: ['questions', index, 'visibleWhen'], message: '条件显示只能依赖单选或多选题' });
+        }
+      }
+    }
+    if (question.pageNo > 1 && value.kind === 'poll') {
+      ctx.addIssue({ code: 'custom', path: ['questions', index, 'pageNo'], message: '投票不支持分页' });
+    }
   });
+  // 页码必须从 1 开始且连续，避免出现空白页
+  const pages = [...new Set(value.questions.map((question) => question.pageNo))].sort((a, b) => a - b);
+  if (pages.length > 0 && pages.some((page, index) => page !== index + 1)) {
+    ctx.addIssue({ code: 'custom', path: ['questions'], message: '分页页码必须从 1 开始且连续' });
+  }
 }
 
 export const createCmsInteractionSchema = cmsInteractionBaseSchema.superRefine(validateCmsInteractionDefinition);
@@ -5689,7 +5748,8 @@ export const updateCmsInteractionSchema = partialForUpdate(cmsInteractionBaseSch
 
 /** 前台统一答卷提交：key = 题目 id 字符串。 */
 export const submitCmsInteractionSchema = z.object({
-  answers: z.record(z.string(), z.union([z.string().max(2000), z.array(z.string().max(100)).max(50)])),
+  // 数组项需容纳 `rowId::optionValue`（矩阵）与 `__other__:自由文本`（其他填空）
+  answers: z.record(z.string(), z.union([z.string().max(2000), z.array(z.string().max(300)).max(50)])),
   captchaId: z.string().max(128).optional(),
   captchaAnswer: z.string().max(32).optional(),
   turnstileToken: z.string().max(4096).optional(),

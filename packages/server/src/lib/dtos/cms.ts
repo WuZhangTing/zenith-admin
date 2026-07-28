@@ -8,6 +8,7 @@ import {
   CMS_DISTRIBUTION_CONFLICT_STRATEGIES,
   CMS_DISTRIBUTION_MODES,
   CMS_FIELD_OPTION_SOURCES,
+  CMS_INTERACTION_CONDITION_OPS,
   CMS_INTERACTION_QUESTION_TYPES,
   CMS_RESOURCE_OWNER_TYPES,
   CMS_SITE_INHERITABLE_FIELDS,
@@ -913,17 +914,35 @@ export const CmsInteractionOptionDTO = z.object({
   value: z.string(),
 });
 
+export const CmsInteractionMatrixRowDTO = z
+  .object({ id: z.string(), label: z.string() })
+  .openapi('CmsInteractionMatrixRow');
+
+export const CmsInteractionVisibleWhenDTO = z
+  .object({
+    questionIndex: z.number().int().openapi({ description: '依赖题目的 0 基序号，必须小于当前题目序号' }),
+    op: z.enum(CMS_INTERACTION_CONDITION_OPS),
+    values: z.array(z.string()),
+  })
+  .openapi('CmsInteractionVisibleWhen');
+
 export const CmsInteractionQuestionDTO = z
   .object({
     id: z.number().int(),
     interactionId: z.number().int(),
     label: z.string().openapi({ example: '您最常用的功能是？' }),
-    type: z.enum(['single', 'multiple', 'text']),
+    type: z.enum(CMS_INTERACTION_QUESTION_TYPES),
     required: z.boolean(),
     options: z.array(CmsInteractionOptionDTO),
     minChoices: z.number().int(),
     maxChoices: z.number().int(),
     sort: z.number().int(),
+    allowOther: z.boolean().openapi({ description: '单选/多选题是否提供「其他 ___」填空' }),
+    otherLabel: z.string().nullable(),
+    ratingMax: z.number().int().openapi({ description: '评分题上限；NPS 固定 0-10' }),
+    matrixRows: z.array(CmsInteractionMatrixRowDTO),
+    pageNo: z.number().int().openapi({ description: '分页问卷页码，从 1 开始' }),
+    visibleWhen: CmsInteractionVisibleWhenDTO.nullable(),
   })
   .openapi('CmsInteractionQuestion');
 
@@ -953,6 +972,11 @@ export const CmsInteractionDTO = z
   })
   .openapi('CmsInteraction');
 
+const StatOptionDTO = CmsInteractionOptionDTO.extend({
+  count: z.number().int(),
+  percent: z.number().openapi({ description: '按已答人数计算的百分比（0-100，1 位小数）' }),
+});
+
 export const CmsInteractionStatsDTO = z
   .object({
     interactionId: z.number().int(),
@@ -960,12 +984,17 @@ export const CmsInteractionStatsDTO = z
     questions: z.array(z.object({
       id: z.number().int(),
       label: z.string(),
-      type: z.enum(['single', 'multiple', 'text']),
-      options: z.array(CmsInteractionOptionDTO.extend({
-        count: z.number().int(),
-        percent: z.number().openapi({ description: '按已答人数计算的百分比（0-100，1 位小数）' }),
+      type: z.enum(CMS_INTERACTION_QUESTION_TYPES),
+      options: z.array(StatOptionDTO),
+      texts: z.array(z.string()).openapi({ description: '文字题 / 「其他」填空的最近样本（最多 50 条）' }),
+      answered: z.number().int().openapi({ description: '该题实际作答人数（条件显示题会小于总答卷数）' }),
+      average: z.number().nullable().openapi({ description: '评分 / NPS / 数字题均值' }),
+      npsScore: z.number().nullable().openapi({ description: 'NPS 净推荐值（推荐者% - 贬损者%）' }),
+      matrixRows: z.array(z.object({
+        id: z.string(),
+        label: z.string(),
+        options: z.array(StatOptionDTO),
       })),
-      texts: z.array(z.string()).openapi({ description: '文字题最近样本（最多 50 条）' }),
     })),
   })
   .openapi('CmsInteractionStats');
@@ -977,11 +1006,13 @@ export const CmsInteractionPublicStatsDTO = z
     questions: z.array(z.object({
       id: z.number().int(),
       label: z.string(),
-      type: z.enum(['single', 'multiple', 'text']),
+      type: z.enum(CMS_INTERACTION_QUESTION_TYPES),
       options: z.array(CmsInteractionOptionDTO.extend({
         count: z.number().int(),
         percent: z.number(),
       })),
+      average: z.number().nullable(),
+      npsScore: z.number().nullable(),
     })),
   })
   .openapi('CmsInteractionPublicStats');

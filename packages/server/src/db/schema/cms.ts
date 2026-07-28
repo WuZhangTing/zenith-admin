@@ -546,6 +546,17 @@ export const cmsInteractionQuestions = pgTable('cms_interaction_questions', {
   minChoices: integer('min_choices').notNull().default(1),
   maxChoices: integer('max_choices').notNull().default(1),
   sort: integer('sort').notNull().default(0),
+  /** 单选/多选题是否提供「其他 ___」自由填空；答案形如 `__other__:自由文本` */
+  allowOther: boolean('allow_other').notNull().default(false),
+  otherLabel: varchar('other_label', { length: 50 }),
+  /** 评分题上限（NPS 固定 0-10，不读此字段） */
+  ratingMax: integer('rating_max').notNull().default(5),
+  /** 矩阵题的行；列复用 options，答案形如 `rowId::optionValue` */
+  matrixRows: jsonb('matrix_rows').$type<{ id: string; label: string }[]>().notNull().default([]),
+  /** 分页问卷页码，从 1 开始 */
+  pageNo: integer('page_no').notNull().default(1),
+  /** 条件显示规则；null 表示始终显示 */
+  visibleWhen: jsonb('visible_when').$type<{ questionIndex: number; op: 'any' | 'none'; values: string[] } | null>(),
 }, (t) => [
   index('cms_interaction_questions_parent_idx').on(t.interactionId, t.sort),
 ]);

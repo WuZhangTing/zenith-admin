@@ -799,6 +799,13 @@
       "when": 1785246414126,
       "tag": "0113_sticky_spirit",
       "breakpoints": true
+    },
+    {
+      "idx": 114,
+      "version": "7",
+      "when": 1785253625901,
+      "tag": "0114_spotty_hellfire_club",
+      "breakpoints": true
     }
   ]
 }

@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import type {
   CmsContentAttachment,
   CmsFormField,
+  CmsInteractionQuestionType,
   CmsSearchResult,
   CmsThemeSettingField,
   CmsTitleStyle,
@@ -287,11 +288,17 @@ export interface CmsInteractionPageContext extends CmsBaseContext {
     questions: {
       id: number;
       label: string;
-      type: 'single' | 'multiple' | 'text';
+      type: CmsInteractionQuestionType;
       required: boolean;
       options: { id: string; label: string; value: string }[];
       minChoices: number;
       maxChoices: number;
+      allowOther: boolean;
+      otherLabel: string | null;
+      ratingMax: number;
+      matrixRows: { id: string; label: string }[];
+      pageNo: number;
+      visibleWhen: { questionIndex: number; op: 'any' | 'none'; values: string[] } | null;
     }[];
   };
   submit: { stateApi: string; publicSubmitApi: string; memberSubmitApi: string };

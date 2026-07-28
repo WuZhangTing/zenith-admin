@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyQuestionType,
+  createMatrixRow,
   createOption,
   createQuestion,
-  duplicateOptionLabels,
+  duplicateLabels,
   duplicateQuestion,
   moveItem,
+  normalizePageNumbers,
   normalizeQuestions,
   parseOptionsText,
+  remapConditions,
   stringifyOptions,
   validateQuestionSet,
   validateQuestions,
@@ -70,10 +73,10 @@ describe('parseOptionsText', () => {
   });
 });
 
-describe('duplicateOptionLabels', () => {
+describe('duplicateLabels', () => {
   it('仅返回重复出现的文案，忽略空值', () => {
     const options = [createOption('A'), createOption('A'), createOption('B'), createOption('  ')];
-    expect([...duplicateOptionLabels(options)]).toEqual(['A']);
+    expect([...duplicateLabels(options)]).toEqual(['A']);
   });
 });
 
@@ -142,9 +145,9 @@ describe('validateQuestions', () => {
     expect(validateQuestions([max], 'survey').get(max.key)).toBe('最多选择数不能超过选项个数');
   });
 
-  it('投票不允许文本题', () => {
+  it('投票不允许非选择题', () => {
     const question = { ...createQuestion('text'), label: '说说看' };
-    expect(validateQuestions([question], 'poll').get(question.key)).toBe('投票不支持文本题');
+    expect(validateQuestions([question], 'poll').get(question.key)).toBe('投票只支持单选或多选题');
     expect(validateQuestions([question], 'survey').size).toBe(0);
   });
 
@@ -162,5 +165,131 @@ describe('validateQuestionSet', () => {
     const questions = [choiceQuestion(['A', 'B']), choiceQuestion(['C', 'D'])];
     expect(validateQuestionSet(questions, 'poll')).toBe('投票必须且只能包含一道选择题');
     expect(validateQuestionSet(questions, 'survey')).toBeNull();
+  });
+
+  it('投票不支持分页', () => {
+    expect(validateQuestionSet([choiceQuestion(['A', 'B'], { pageNo: 2 })], 'poll')).toBe('投票不支持分页');
+  });
+});
+
+describe('新题型', () => {
+  it('切到评分/NPS/矩阵时收敛结构', () => {
+    const rating = applyQuestionType(choiceQuestion(['A', 'B']), 'rating');
+    expect(rating.options).toEqual([]);
+    expect(rating.ratingMax).toBe(5);
+    const nps = applyQuestionType(rating, 'nps');
+    expect(nps.ratingMax).toBe(10);
+    const matrix = applyQuestionType(nps, 'matrix');
+    expect(matrix.matrixRows.length).toBeGreaterThan(0);
+    expect(matrix.options.length).toBeGreaterThan(0);
+    // 矩阵切回文本时行与选项都清空
+    expect(applyQuestionType(matrix, 'text').matrixRows).toEqual([]);
+  });
+
+  it('「其他」仅在单选/多选保留', () => {
+    const withOther: QuestionDraft = { ...choiceQuestion(['A', 'B']), allowOther: true };
+    expect(applyQuestionType(withOther, 'multiple').allowOther).toBe(true);
+    expect(applyQuestionType(withOther, 'rating').allowOther).toBe(false);
+  });
+
+  it('矩阵题缺行或行重复时报错', () => {
+    const noRows: QuestionDraft = { ...choiceQuestion(['A', 'B'], { type: 'matrix' }), matrixRows: [] };
+    expect(validateQuestions([noRows], 'survey').get(noRows.key)).toBe('矩阵题至少配置一行');
+    const dupRows: QuestionDraft = {
+      ...choiceQuestion(['A', 'B'], { type: 'matrix' }),
+      matrixRows: [createMatrixRow('行'), createMatrixRow('行')],
+    };
+    expect(validateQuestions([dupRows], 'survey').get(dupRows.key)).toBe('矩阵行文案不能重复');
+  });
+
+  it('评分上限越界时报错', () => {
+    const bad = choiceQuestion([], { type: 'rating', ratingMax: 99 });
+    expect(validateQuestions([bad], 'survey').get(bad.key)).toBe('评分上限需在 2-10 之间');
+  });
+
+  it('投票只允许单选/多选', () => {
+    const rating = choiceQuestion([], { type: 'rating' });
+    expect(validateQuestions([rating], 'poll').get(rating.key)).toBe('投票只支持单选或多选题');
+  });
+
+  it('normalizeQuestions 按题型裁掉不相关字段', () => {
+    const [rating] = normalizeQuestions([choiceQuestion(['A', 'B'], { type: 'rating', allowOther: true })]);
+    expect(rating.options).toEqual([]);
+    expect(rating.matrixRows).toEqual([]);
+    expect(rating.allowOther).toBe(false);
+    const [nps] = normalizeQuestions([choiceQuestion([], { type: 'nps', ratingMax: 3 })]);
+    expect(nps.ratingMax).toBe(10);
+  });
+});
+
+describe('条件显示与分页', () => {
+  it('条件只能依赖排在前面的单选/多选题', () => {
+    const source = choiceQuestion(['A', 'B']);
+    const target: QuestionDraft = {
+      ...choiceQuestion([], { type: 'text' }),
+      visibleWhen: { questionIndex: 1, op: 'any', values: ['A'] },
+    };
+    expect(validateQuestions([source, target], 'survey').get(target.key)).toBe('条件显示只能依赖排在前面的题目');
+    const ok: QuestionDraft = { ...target, visibleWhen: { questionIndex: 0, op: 'any', values: ['A'] } };
+    expect(validateQuestions([source, ok], 'survey').size).toBe(0);
+    const empty: QuestionDraft = { ...target, visibleWhen: { questionIndex: 0, op: 'any', values: [] } };
+    expect(validateQuestions([source, empty], 'survey').get(empty.key)).toBe('条件显示至少选择一个触发选项');
+  });
+
+  it('条件不能依赖非选择题', () => {
+    const source = choiceQuestion([], { type: 'text' });
+    const target: QuestionDraft = {
+      ...choiceQuestion(['A', 'B']),
+      visibleWhen: { questionIndex: 0, op: 'any', values: ['A'] },
+    };
+    expect(validateQuestions([source, target], 'survey').get(target.key)).toBe('条件显示只能依赖单选或多选题');
+  });
+
+  it('remapConditions 跟随题序调整引用，失效时清空', () => {
+    const first = choiceQuestion(['A', 'B']);
+    const second = choiceQuestion(['C', 'D']);
+    const third: QuestionDraft = {
+      ...choiceQuestion([], { type: 'text' }),
+      visibleWhen: { questionIndex: 0, op: 'any', values: ['A'] },
+    };
+    // 交换前两题：引用从 0 变成 1
+    const swapped = remapConditions([second, first, third], [1, 0, 2]);
+    expect(swapped[2].visibleWhen?.questionIndex).toBe(1);
+    // 删除被依赖的题目：条件清空
+    const removed = remapConditions([second, third], [1, 2]);
+    expect(removed[1].visibleWhen).toBeNull();
+    // 被依赖题目移到后面：条件同样失效
+    const moved = remapConditions([third, first], [2, 0]);
+    expect(moved[0].visibleWhen).toBeNull();
+  });
+
+  it('normalizePageNumbers 压缩成连续页码', () => {
+    const questions = [
+      choiceQuestion(['A', 'B'], { pageNo: 1 }),
+      choiceQuestion(['C', 'D'], { pageNo: 5 }),
+      choiceQuestion(['E', 'F'], { pageNo: 9 }),
+    ];
+    expect(normalizePageNumbers(questions).map((q) => q.pageNo)).toEqual([1, 2, 3]);
+    // 已连续时返回同一批对象引用
+    const normalized = normalizePageNumbers(questions);
+    expect(normalizePageNumbers(normalized)[1]).toBe(normalized[1]);
+  });
+
+  it('复制题目会清除条件引用，避免语义错位', () => {
+    const source: QuestionDraft = {
+      ...choiceQuestion(['A', 'B']),
+      visibleWhen: { questionIndex: 0, op: 'any', values: ['A'] },
+    };
+    expect(duplicateQuestion(source).visibleWhen).toBeNull();
+  });
+});
+
+describe('parseOptionsText 复用矩阵行标识', () => {
+  it('同名行保留原 id，新行生成新 id', () => {
+    const rows = [createMatrixRow('第一行'), createMatrixRow('第二行')];
+    const parsed = parseOptionsText('第二行\n第三行', rows.map((row) => ({ id: row.id, label: row.label, value: row.id })));
+    expect(parsed.map((row) => row.label)).toEqual(['第二行', '第三行']);
+    expect(parsed[0].id).toBe(rows[1].id);
+    expect(parsed[1].id).not.toBe(rows[0].id);
   });
 });

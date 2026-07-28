@@ -169,8 +169,10 @@ export default function InteractionEditorModal({
     if (value !== 'poll') return;
     setQuestions((current) => {
       const first = current[0] ?? createQuestion('single');
-      const normalized = first.type === 'text' ? applyQuestionType(first, 'single') : first;
-      return [normalized];
+      const normalized = first.type === 'single' || first.type === 'multiple'
+        ? first
+        : applyQuestionType(first, 'single');
+      return [{ ...normalized, pageNo: 1, visibleWhen: null }];
     });
     setQuestionErrors(new Map());
   };

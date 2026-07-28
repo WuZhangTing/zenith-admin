@@ -55,6 +55,17 @@ main { min-height: 60vh; padding: 24px 0 48px; }
 .survey-question legend { font-weight: 600; font-size: 15px; padding: 0 6px; }
 .survey-options { display: flex; flex-direction: column; gap: 8px; }
 .survey-option { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.survey-other-text { margin-left: 24px; max-width: 320px; }
+.survey-scale { display: flex; flex-wrap: wrap; gap: 10px; }
+.survey-scale-item { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; }
+.survey-matrix-wrap { overflow-x: auto; }
+.survey-matrix { width: 100%; border-collapse: collapse; font-size: 14px; }
+.survey-matrix th, .survey-matrix td { border: 1px solid var(--border); padding: 6px 10px; text-align: center; }
+.survey-matrix th[scope="row"] { text-align: left; font-weight: 400; }
+.survey-choice-hint { display: block; margin-top: 6px; font-size: 12px; color: var(--text-2); }
+.survey-pager { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
+.survey-progress { flex: 1; font-size: 13px; color: var(--text-2); }
+.interaction-metric { margin: 4px 0 8px; font-size: 13px; color: var(--primary); font-weight: 600; }
 .survey-done { padding: 32px; text-align: center; font-size: 16px; color: var(--primary); }
 .poll-title { font-size: 16px; margin: 0 0 10px; }
 .cms-poll { margin: 16px 0; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-2); }

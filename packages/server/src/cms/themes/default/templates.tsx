@@ -194,15 +194,86 @@ function FormCaptcha({ config }: { config: CmsFrontFormConfig['captcha'] }) {
 const INTERACTION_SCRIPT = `(function(){
 var boxes=document.querySelectorAll('.cms-interaction');if(!boxes.length)return;
 var token=null;try{token=localStorage.getItem('zenith_member_token')}catch(e){}
+var OTHER='__other__';var MSEP='::';
 function esc(v){var d=document.createElement('div');d.textContent=String(v==null?'':v);return d.innerHTML}
 function headers(json){var h=json?{'Content-Type':'application/json'}:{};if(token)h.Authorization='Bearer '+token;return h}
-function resultsHtml(data){if(!data)return '<p class="interaction-hint">结果暂不可见</p>';var html='<div class="interaction-results"><p>共 '+data.responseCount+' 人参与</p>';data.questions.forEach(function(q){html+='<section><h4>'+esc(q.label)+'</h4>';if(q.type==='text'){html+='<p class="interaction-hint">文本答案不公开展示</p>'}else{q.options.forEach(function(o){html+='<div class="poll-bar-row"><span class="poll-bar-label">'+esc(o.label)+'</span><span class="poll-bar-track"><span class="poll-bar-fill" style="width:'+o.percent+'%"></span></span><span class="poll-bar-num">'+o.count+' · '+o.percent+'%</span></div>'})}html+='</section>'});return html+'</div>'}
+function bars(opts){var h='';(opts||[]).forEach(function(o){h+='<div class="poll-bar-row"><span class="poll-bar-label">'+esc(o.label)+'</span><span class="poll-bar-track"><span class="poll-bar-fill" style="width:'+o.percent+'%"></span></span><span class="poll-bar-num">'+o.count+' \\u00b7 '+o.percent+'%</span></div>'});return h}
+function resultsHtml(data){if(!data)return '<p class="interaction-hint">\\u7ed3\\u679c\\u6682\\u4e0d\\u53ef\\u89c1</p>';var html='<div class="interaction-results"><p>\\u5171 '+data.responseCount+' \\u4eba\\u53c2\\u4e0e</p>';data.questions.forEach(function(q){html+='<section><h4>'+esc(q.label)+'</h4>';if(q.type==='text'||q.type==='date'||q.type==='number'){html+='<p class="interaction-hint">\\u8be5\\u9898\\u7b54\\u6848\\u4e0d\\u516c\\u5f00\\u5c55\\u793a</p>'}else{if(q.npsScore!==null&&q.npsScore!==undefined)html+='<p class="interaction-metric">NPS\\uff1a'+q.npsScore+'</p>';else if(q.average!==null&&q.average!==undefined)html+='<p class="interaction-metric">\\u5e73\\u5747\\uff1a'+q.average+'</p>';html+=bars(q.options)}html+='</section>'});return html+'</div>'}
 function showResults(box,data){box.innerHTML=resultsHtml(data)}
 function loadMathCaptcha(form){var box=form.querySelector('.cms-captcha-box');if(!box)return;fetch('/api/public/cms/captcha').then(function(r){return r.json()}).then(function(r){if(!r||r.code!==0)return;box.querySelector('[name=captchaId]').value=r.data.id;box.querySelector('.cms-captcha-img').innerHTML=r.data.svg}).catch(function(){})}
 function loadTurnstile(form,state){var target=form.querySelector('.cms-turnstile');if(!target||!state.captcha.siteKey)return;function render(){if(!window.turnstile||target.dataset.widgetId)return;target.dataset.widgetId=String(window.turnstile.render(target,{sitekey:state.captcha.siteKey}))}if(window.turnstile){render();return}var script=document.querySelector('script[data-cms-turnstile]');if(!script){script=document.createElement('script');script.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';script.async=true;script.defer=true;script.dataset.cmsTurnstile='1';document.head.appendChild(script)}script.addEventListener('load',render,{once:true})}
 function resetCaptcha(form,state){if(state.captcha.provider==='math')loadMathCaptcha(form);if(state.captcha.provider==='turnstile'&&window.turnstile){var target=form.querySelector('.cms-turnstile');if(target&&target.dataset.widgetId)window.turnstile.reset(target.dataset.widgetId)}}
-function renderForm(box,state){var i=state.interaction;if(i.participantScope==='member'&&!token){box.innerHTML='<p class="interaction-hint">本互动仅限会员参与，<a href="/member.html#/">请先登录</a></p>';return}var html='';if(i.repeatPolicy==='multiple'&&state.resultsVisible&&state.results)html+='<div class="interaction-live-results">'+resultsHtml(state.results)+'</div>';html+='<form class="front-form interaction-form">';i.questions.forEach(function(q,n){html+='<fieldset class="survey-question"><legend>'+(n+1)+'. '+esc(q.label)+(q.required?' <span class="req">*</span>':'')+'</legend>';if(q.type==='text'){html+='<textarea name="q_'+q.id+'" maxlength="2000" '+(q.required?'required':'')+'></textarea>'}else{html+='<div class="survey-options">';q.options.forEach(function(o){html+='<label class="survey-option"><input type="'+(q.type==='multiple'?'checkbox':'radio')+'" name="q_'+q.id+'" value="'+esc(o.value)+'" '+(q.required&&q.type==='single'?'required':'')+'> '+esc(o.label)+'</label>'});html+='</div>'}html+='</fieldset>'});if(state.captcha.provider==='math')html+='<div class="cms-captcha-box"><input type="hidden" name="captchaId"><label>验证码 <input name="captchaAnswer" required autocomplete="off"></label><span class="cms-captcha-img"></span></div>';if(state.captcha.provider==='turnstile')html+='<div class="cms-turnstile"></div>';html+='<button type="submit">提交</button></form>';box.innerHTML=html;var f=box.querySelector('form');if(state.captcha.provider==='math')loadMathCaptcha(f);if(state.captcha.provider==='turnstile')loadTurnstile(f,state);
-f.addEventListener('submit',function(e){e.preventDefault();var answers={};f.querySelectorAll('[name^=q_]').forEach(function(el){var k=el.name.slice(2);if(el.type==='checkbox'){if(el.checked)(answers[k]||(answers[k]=[])).push(el.value)}else if(el.type==='radio'){if(el.checked)answers[k]=el.value}else if(el.value)answers[k]=el.value});var payload={answers:answers,idempotencyKey:(Date.now().toString(36)+Math.random().toString(36).slice(2))};var ci=f.querySelector('[name=captchaId]'),ca=f.querySelector('[name=captchaAnswer]'),ct=f.querySelector('[name="cf-turnstile-response"]');if(ci)payload.captchaId=ci.value;if(ca)payload.captchaAnswer=ca.value;if(ct)payload.turnstileToken=ct.value;var url=token?'/api/member/cms/interactions/'+i.id+'/submit':'/api/public/cms/interactions/'+box.dataset.site+'/'+box.dataset.code+'/submit';fetch(url,{method:'POST',headers:headers(true),body:JSON.stringify(payload)}).then(function(r){return r.json()}).then(function(r){if(!r||r.code!==0){alert(r&&r.message||'提交失败');resetCaptcha(f,state);return}if(i.repeatPolicy==='multiple'){var old=box.querySelector('.survey-done');if(old)old.remove();f.insertAdjacentHTML('beforebegin','<p class="survey-done">'+esc(r.message||'提交成功，可继续参与')+'</p>');var live=box.querySelector('.interaction-live-results');if(r.data&&r.data.results){if(live)live.outerHTML='<div class="interaction-live-results">'+resultsHtml(r.data.results)+'</div>';else box.insertAdjacentHTML('afterbegin','<div class="interaction-live-results">'+resultsHtml(r.data.results)+'</div>')}f.reset();resetCaptcha(f,state);return}if(r.data&&r.data.results)showResults(box,r.data.results);else box.innerHTML='<p class="survey-done">'+esc(r.message||'提交成功')+'</p>'}).catch(function(){alert('提交失败，请稍后再试');resetCaptcha(f,state)})})}
+function scalePoints(q){var min=q.type==='nps'?0:1;var max=q.type==='nps'?10:(q.ratingMax||5);var out=[];for(var i=min;i<=max;i++)out.push(String(i));return out}
+function questionHtml(q,n){
+var name='q_'+q.id;var req=q.required?' <span class="req">*</span>':'';
+var h='<fieldset class="survey-question" data-qid="'+q.id+'" data-type="'+q.type+'" data-page="'+(q.pageNo||1)+'" data-index="'+n+'"';
+if(q.visibleWhen)h+=' data-cond="'+esc(JSON.stringify(q.visibleWhen))+'"';
+h+='><legend>'+(n+1)+'. '+esc(q.label)+req+'</legend>';
+if(q.type==='text'){h+='<textarea name="'+name+'" maxlength="2000"'+(q.required?' required':'')+'></textarea>'}
+else if(q.type==='date'){h+='<input type="date" name="'+name+'"'+(q.required?' required':'')+'>'}
+else if(q.type==='number'){h+='<input type="number" step="any" name="'+name+'"'+(q.required?' required':'')+'>'}
+else if(q.type==='rating'||q.type==='nps'){h+='<div class="survey-scale">';scalePoints(q).forEach(function(v){h+='<label class="survey-scale-item"><input type="radio" name="'+name+'" value="'+v+'"'+(q.required?' required':'')+'> '+v+'</label>'});h+='</div>'}
+else if(q.type==='matrix'){h+='<div class="survey-matrix-wrap"><table class="survey-matrix"><thead><tr><th></th>';(q.options||[]).forEach(function(o){h+='<th>'+esc(o.label)+'</th>'});h+='</tr></thead><tbody>';(q.matrixRows||[]).forEach(function(r){h+='<tr><th scope="row">'+esc(r.label)+'</th>';(q.options||[]).forEach(function(o){h+='<td><input type="radio" name="'+name+'_'+esc(r.id)+'" value="'+esc(r.id+MSEP+o.value)+'"'+(q.required?' required':'')+'></td>'});h+='</tr>'});h+='</tbody></table></div>'}
+else{var t=q.type==='multiple'?'checkbox':'radio';h+='<div class="survey-options">';(q.options||[]).forEach(function(o){h+='<label class="survey-option"><input type="'+t+'" name="'+name+'" value="'+esc(o.value)+'"'+(q.required&&q.type==='single'?' required':'')+'> '+esc(o.label)+'</label>'});
+if(q.allowOther){h+='<label class="survey-option survey-option-other"><input type="'+t+'" name="'+name+'" value="'+OTHER+'"> '+esc(q.otherLabel||'\\u5176\\u4ed6')+'</label><input class="survey-other-text" type="text" name="'+name+'_other" maxlength="200" placeholder="\\u8bf7\\u586b\\u5199" disabled>'}
+h+='</div>';if(q.type==='multiple')h+='<span class="survey-choice-hint">\\u53ef\\u9009 '+q.minChoices+' ~ '+q.maxChoices+' \\u9879</span>'}
+return h+'</fieldset>'}
+function pickedValues(form,qid){var out=[];form.querySelectorAll('[name="q_'+qid+'"]').forEach(function(el){if((el.type==='radio'||el.type==='checkbox')&&el.checked)out.push(el.value)});return out}
+function applyConditions(form){form.querySelectorAll('.survey-question[data-cond]').forEach(function(fs){var rule;try{rule=JSON.parse(fs.dataset.cond)}catch(e){return}var src=form.querySelector('.survey-question[data-index="'+rule.questionIndex+'"]');if(!src){fs.dataset.condHidden='';return}var vals=pickedValues(form,src.dataset.qid);var hit=vals.some(function(v){return rule.values.indexOf(v)>=0});var hidden=rule.op==='none'?hit:!hit;fs.dataset.condHidden=hidden?'1':''})}
+function pageList(form){var pages=[];form.querySelectorAll('.survey-question').forEach(function(fs){var p=Number(fs.dataset.page||1);if(pages.indexOf(p)<0)pages.push(p)});pages.sort(function(a,b){return a-b});return pages.length?pages:[1]}
+function refresh(form,state){
+applyConditions(form);
+var pages=pageList(form);var index=Math.max(0,Math.min(state.page,pages.length-1));state.page=index;var current=pages[index];
+form.querySelectorAll('.survey-question').forEach(function(fs){
+var visible=Number(fs.dataset.page||1)===current&&!fs.dataset.condHidden;
+fs.hidden=!visible;fs.disabled=!visible});
+form.querySelectorAll('.survey-option-other input[type=radio],.survey-option-other input[type=checkbox]').forEach(function(el){
+var text=el.closest('.survey-options').querySelector('.survey-other-text');if(!text)return;
+text.disabled=!el.checked;if(!el.checked)text.value=''});
+var pager=form.querySelector('.survey-pager');if(!pager)return;
+var last=index===pages.length-1;
+pager.querySelector('.survey-progress').textContent=pages.length>1?('\\u7b2c '+(index+1)+' / '+pages.length+' \\u9875'):'';
+pager.querySelector('.survey-prev').hidden=index===0;
+pager.querySelector('.survey-next').hidden=last;
+pager.querySelector('.survey-submit').hidden=!last}
+function otherValue(fs,name,v){if(v!==OTHER)return v;var t=fs.querySelector('[name="'+name+'_other"]');var text=t&&t.value?t.value.trim():'';return text?OTHER+':'+text:OTHER}
+function collect(form,state){var answers={};state.interaction.questions.forEach(function(q){
+var fs=form.querySelector('.survey-question[data-qid="'+q.id+'"]');if(!fs||fs.disabled)return;var name='q_'+q.id;
+if(q.type==='matrix'){var picks=[];fs.querySelectorAll('input[type=radio]').forEach(function(el){if(el.checked)picks.push(el.value)});if(picks.length)answers[q.id]=picks;return}
+if(q.type==='multiple'){var vals=[];fs.querySelectorAll('input[name="'+name+'"]').forEach(function(el){if(el.checked)vals.push(otherValue(fs,name,el.value))});if(vals.length)answers[q.id]=vals;return}
+if(q.type==='single'||q.type==='rating'||q.type==='nps'){var picked=null;fs.querySelectorAll('input[name="'+name+'"]').forEach(function(el){if(el.checked)picked=el.value});if(picked!==null)answers[q.id]=otherValue(fs,name,picked);return}
+var el=fs.querySelector('[name="'+name+'"]');if(el&&el.value)answers[q.id]=el.value});return answers}
+function renderForm(box,state){
+var i=state.interaction;
+if(i.participantScope==='member'&&!token){box.innerHTML='<p class="interaction-hint">\\u672c\\u4e92\\u52a8\\u4ec5\\u9650\\u4f1a\\u5458\\u53c2\\u4e0e\\uff0c<a href="/member.html#/">\\u8bf7\\u5148\\u767b\\u5f55</a></p>';return}
+var html='';
+if(i.repeatPolicy==='multiple'&&state.resultsVisible&&state.results)html+='<div class="interaction-live-results">'+resultsHtml(state.results)+'</div>';
+html+='<form class="front-form interaction-form" novalidate>';
+i.questions.forEach(function(q,n){html+=questionHtml(q,n)});
+if(state.captcha.provider==='math')html+='<div class="cms-captcha-box"><input type="hidden" name="captchaId"><label>\\u9a8c\\u8bc1\\u7801 <input name="captchaAnswer" required autocomplete="off"></label><span class="cms-captcha-img"></span></div>';
+if(state.captcha.provider==='turnstile')html+='<div class="cms-turnstile"></div>';
+html+='<div class="survey-pager"><span class="survey-progress"></span><button type="button" class="survey-prev" hidden>\\u4e0a\\u4e00\\u9875</button><button type="button" class="survey-next" hidden>\\u4e0b\\u4e00\\u9875</button><button type="submit" class="survey-submit">\\u63d0\\u4ea4</button></div></form>';
+box.innerHTML=html;
+var f=box.querySelector('form');state.page=0;
+if(state.captcha.provider==='math')loadMathCaptcha(f);
+if(state.captcha.provider==='turnstile')loadTurnstile(f,state);
+f.addEventListener('change',function(){refresh(f,state)});
+f.querySelector('.survey-prev').addEventListener('click',function(){state.page-=1;refresh(f,state);f.scrollIntoView({block:'start'})});
+f.querySelector('.survey-next').addEventListener('click',function(){state.page+=1;refresh(f,state);f.scrollIntoView({block:'start'})});
+refresh(f,state);
+f.addEventListener('submit',function(e){e.preventDefault();
+var payload={answers:collect(f,state),idempotencyKey:(Date.now().toString(36)+Math.random().toString(36).slice(2))};
+var ci=f.querySelector('[name=captchaId]'),ca=f.querySelector('[name=captchaAnswer]'),ct=f.querySelector('[name="cf-turnstile-response"]');
+if(ci)payload.captchaId=ci.value;if(ca)payload.captchaAnswer=ca.value;if(ct)payload.turnstileToken=ct.value;
+var url=token?'/api/member/cms/interactions/'+i.id+'/submit':'/api/public/cms/interactions/'+box.dataset.site+'/'+box.dataset.code+'/submit';
+fetch(url,{method:'POST',headers:headers(true),body:JSON.stringify(payload)}).then(function(r){return r.json()}).then(function(r){
+if(!r||r.code!==0){alert(r&&r.message||'\\u63d0\\u4ea4\\u5931\\u8d25');resetCaptcha(f,state);return}
+if(i.repeatPolicy==='multiple'){var old=box.querySelector('.survey-done');if(old)old.remove();
+f.insertAdjacentHTML('beforebegin','<p class="survey-done">'+esc(r.message||'\\u63d0\\u4ea4\\u6210\\u529f\\uff0c\\u53ef\\u7ee7\\u7eed\\u53c2\\u4e0e')+'</p>');
+var live=box.querySelector('.interaction-live-results');
+if(r.data&&r.data.results){if(live)live.outerHTML='<div class="interaction-live-results">'+resultsHtml(r.data.results)+'</div>';else box.insertAdjacentHTML('afterbegin','<div class="interaction-live-results">'+resultsHtml(r.data.results)+'</div>')}
+f.reset();state.page=0;refresh(f,state);resetCaptcha(f,state);return}
+if(r.data&&r.data.results)showResults(box,r.data.results);else box.innerHTML='<p class="survey-done">'+esc(r.message||'\\u63d0\\u4ea4\\u6210\\u529f')+'</p>'}).catch(function(){alert('\\u63d0\\u4ea4\\u5931\\u8d25\\uff0c\\u8bf7\\u7a0d\\u540e\\u518d\\u8bd5');resetCaptcha(f,state)})})}
 boxes.forEach(function(box){fetch('/api/public/cms/interactions/'+box.dataset.site+'/'+box.dataset.code,{headers:headers(false)}).then(function(r){return r.json()}).then(function(r){if(!r||r.code!==0){box.style.display='none';return}var s=r.data;if(!s.open){showResults(box,s.results);return}if(s.resultsVisible&&s.submitted&&s.interaction.repeatPolicy!=='multiple'){showResults(box,s.results);return}renderForm(box,s)}).catch(function(){box.style.display='none'})});
 })();`;
 

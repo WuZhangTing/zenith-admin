@@ -9,6 +9,7 @@ import {
   applyInteractionMarkers,
   interactionCodeStem,
   nextInteractionCopyCode,
+  npsScoreOf,
   toCmsInteractionAnswerDetail,
   toCmsInteractionPublicStats,
 } from './cms-interactions.service';
@@ -154,5 +155,112 @@ describe('CMS Stage4 unified interactions', () => {
     expect(toCmsInteractionAnswerDetail({
       questionId: 4, label: '建议', type: 'text', options: null, value: 'very',
     }).display).toBe('very');
+  });
+
+  it('renders new question types readably', () => {
+    const options = [{ label: '好用', value: 'good' }, { label: '待改进', value: 'bad' }];
+    // 矩阵：行标签：列标签
+    expect(toCmsInteractionAnswerDetail({
+      questionId: 1, label: '模块评价', type: 'matrix', options,
+      matrixRows: [{ id: 'r1', label: '内容管理' }, { id: 'r2', label: '发布' }],
+      value: ['r1::good', 'r2::bad'],
+    }).display).toBe('内容管理：好用、发布：待改进');
+    // 矩阵行被删除后回退成原始 id，不丢数据
+    expect(toCmsInteractionAnswerDetail({
+      questionId: 1, label: '模块评价', type: 'matrix', options, matrixRows: [], value: ['r9::good'],
+    }).display).toBe('r9：好用');
+    // 评分与 NPS 带单位
+    expect(toCmsInteractionAnswerDetail({
+      questionId: 2, label: '打分', type: 'rating', options: null, value: '4',
+    }).display).toBe('4 分');
+    expect(toCmsInteractionAnswerDetail({
+      questionId: 3, label: '推荐度', type: 'nps', options: null, value: '9',
+    }).display).toBe('9 分');
+    // 「其他」填空展示自定义标签 + 自由文本
+    expect(toCmsInteractionAnswerDetail({
+      questionId: 4, label: '行业', type: 'single', options, otherLabel: '其他行业',
+      value: '__other__:文旅',
+    }).display).toBe('其他行业：文旅');
+    // 未填写自由文本时只展示标签
+    expect(toCmsInteractionAnswerDetail({
+      questionId: 5, label: '行业', type: 'single', options, value: '__other__',
+    }).display).toBe('其他');
+    // 日期与数字原样返回
+    expect(toCmsInteractionAnswerDetail({
+      questionId: 6, label: '上线时间', type: 'date', options: null, value: '2026-08-01',
+    }).display).toBe('2026-08-01');
+  });
+
+  it('computes NPS as promoters minus detractors', () => {
+    expect(npsScoreOf([])).toBeNull();
+    // 5 个推荐者(9-10)、3 个贬损者(0-6)、2 个被动者(7-8) => 50% - 30% = 20
+    expect(npsScoreOf([10, 10, 9, 9, 9, 0, 3, 6, 7, 8])).toBe(20);
+    expect(npsScoreOf([10, 10])).toBe(100);
+    expect(npsScoreOf([0, 6])).toBe(-100);
+    // 7-8 分为被动者，既不加也不减
+    expect(npsScoreOf([7, 8])).toBe(0);
+  });
+
+  it('accepts new question types and rejects invalid definitions', () => {
+    const base = { siteId: 1, code: 'q', kind: 'survey' as const, title: 'Q' };
+    const ok = createCmsInteractionSchema.safeParse({
+      ...base,
+      questions: [
+        { label: 'NPS', type: 'nps', options: [] },
+        { label: '评分', type: 'rating', options: [], ratingMax: 5 },
+        {
+          label: '矩阵', type: 'matrix',
+          options: [option('a'), option('b')],
+          matrixRows: [{ id: 'r1', label: '行一' }],
+        },
+        { label: '行业', type: 'single', options: [option('gov'), option('edu')], allowOther: true },
+        {
+          label: '补充', type: 'text', options: [], required: false,
+          visibleWhen: { questionIndex: 3, op: 'any', values: ['gov'] },
+        },
+      ],
+    });
+    expect(ok.success).toBe(true);
+
+    // 矩阵必须有行
+    expect(createCmsInteractionSchema.safeParse({
+      ...base, questions: [{ label: '矩阵', type: 'matrix', options: [option('a'), option('b')], matrixRows: [] }],
+    }).success).toBe(false);
+    // 条件只能依赖前面的题
+    expect(createCmsInteractionSchema.safeParse({
+      ...base,
+      questions: [
+        { label: '补充', type: 'text', options: [], visibleWhen: { questionIndex: 1, op: 'any', values: ['a'] } },
+        { label: '来源', type: 'single', options: [option('a'), option('b')] },
+      ],
+    }).success).toBe(false);
+    // 条件不能依赖非选择题
+    expect(createCmsInteractionSchema.safeParse({
+      ...base,
+      questions: [
+        { label: '打分', type: 'rating', options: [] },
+        { label: '补充', type: 'text', options: [], visibleWhen: { questionIndex: 0, op: 'any', values: ['5'] } },
+      ],
+    }).success).toBe(false);
+    // 页码必须连续
+    expect(createCmsInteractionSchema.safeParse({
+      ...base,
+      questions: [
+        { label: '一', type: 'text', options: [], pageNo: 1 },
+        { label: '二', type: 'text', options: [], pageNo: 3 },
+      ],
+    }).success).toBe(false);
+    // 「其他」只允许单选/多选
+    expect(createCmsInteractionSchema.safeParse({
+      ...base, questions: [{ label: '打分', type: 'rating', options: [], allowOther: true }],
+    }).success).toBe(false);
+    // 选项 value 不能占用「其他」哨兵前缀
+    expect(createCmsInteractionSchema.safeParse({
+      ...base,
+      questions: [{
+        label: '来源', type: 'single',
+        options: [{ id: 'a', label: 'a', value: '__other__' }, option('b')],
+      }],
+    }).success).toBe(false);
   });
 });

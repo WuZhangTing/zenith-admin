@@ -14,12 +14,18 @@ import {
 import { HTTPException } from 'hono/http-exception';
 import {
   createCmsInteractionSchema,
+  CMS_INTERACTION_CHOICE_QUESTION_TYPES,
+  CMS_INTERACTION_MATRIX_SEPARATOR,
+  CMS_INTERACTION_NPS_MAX,
+  CMS_INTERACTION_OTHER_PREFIX,
+  CMS_INTERACTION_OTHER_VALUE,
   type CmsInteractionAnswerDetail,
   type CmsInteractionKind,
   type CmsInteractionQuestionType,
   type CmsInteractionRepeatPolicy,
   type CmsInteractionResponse,
   type CmsInteractionPublicStats,
+  type CmsInteractionQuestionStats,
   type CmsInteractionStats,
   type CreateCmsInteractionInput,
   type SubmitCmsInteractionInput,
@@ -68,6 +74,12 @@ export function mapCmsInteractionQuestion(row: CmsInteractionQuestionRow) {
     minChoices: row.minChoices,
     maxChoices: row.maxChoices,
     sort: row.sort,
+    allowOther: row.allowOther,
+    otherLabel: row.otherLabel ?? null,
+    ratingMax: row.ratingMax,
+    matrixRows: row.matrixRows ?? [],
+    pageNo: row.pageNo,
+    visibleWhen: row.visibleWhen ?? null,
   };
 }
 
@@ -156,16 +168,28 @@ async function replaceInteractionQuestions(
   questions: CreateCmsInteractionInput['questions'],
 ): Promise<void> {
   await tx.delete(cmsInteractionQuestions).where(eq(cmsInteractionQuestions.interactionId, interactionId));
-  await tx.insert(cmsInteractionQuestions).values(questions.map((question, index) => ({
-    interactionId,
-    label: question.label,
-    type: question.type ?? 'single',
-    required: question.required ?? true,
-    options: question.type === 'text' ? [] : (question.options ?? []),
-    minChoices: question.type === 'text' ? 0 : (question.minChoices ?? 1),
-    maxChoices: question.type === 'single' ? 1 : (question.maxChoices ?? 1),
-    sort: question.sort ?? index,
-  })));
+  await tx.insert(cmsInteractionQuestions).values(questions.map((question, index) => {
+    const type = question.type ?? 'single';
+    const isChoice = (CMS_INTERACTION_CHOICE_QUESTION_TYPES as readonly string[]).includes(type);
+    return {
+      interactionId,
+      label: question.label,
+      type,
+      required: question.required ?? true,
+      options: isChoice ? (question.options ?? []) : [],
+      minChoices: type === 'multiple' ? (question.minChoices ?? 1) : (type === 'single' ? 1 : 0),
+      maxChoices: type === 'multiple' ? (question.maxChoices ?? 1) : 1,
+      sort: question.sort ?? index,
+      allowOther: (type === 'single' || type === 'multiple') && (question.allowOther ?? false),
+      otherLabel: question.otherLabel?.trim() || null,
+      ratingMax: type === 'nps' ? CMS_INTERACTION_NPS_MAX : (question.ratingMax ?? 5),
+      matrixRows: type === 'matrix' ? (question.matrixRows ?? []) : [],
+      pageNo: question.pageNo ?? 1,
+      visibleWhen: question.visibleWhen
+        ? { ...question.visibleWhen, op: question.visibleWhen.op ?? 'any' }
+        : null,
+    };
+  }));
 }
 
 export async function createCmsInteraction(input: CreateCmsInteractionInput) {
@@ -393,36 +417,146 @@ function repeatKeyFor(
   return `i:${ipHash}`;
 }
 
+/** 「其他」答案：`__other__` 或 `__other__:自由文本` */
+function isOtherAnswer(value: string): boolean {
+  return value === CMS_INTERACTION_OTHER_VALUE || value.startsWith(CMS_INTERACTION_OTHER_PREFIX);
+}
+
+/** 判断条件显示题目在本次作答下是否可见；不可见的题目不参与必答校验也不落库 */
+function isQuestionVisible(
+  question: CmsInteractionQuestionRow,
+  questionsBySort: CmsInteractionQuestionRow[],
+  answered: Map<number, string[]>,
+): boolean {
+  const rule = question.visibleWhen;
+  if (!rule) return true;
+  const source = questionsBySort[rule.questionIndex];
+  if (!source) return true;
+  const picked = answered.get(source.id) ?? [];
+  const hit = picked.some((value) => rule.values.includes(value));
+  return rule.op === 'none' ? !hit : hit;
+}
+
+function assertChoiceAnswers(
+  question: CmsInteractionQuestionRow,
+  values: string[],
+): void {
+  const allowed = new Set((question.options ?? []).map((option) => option.value));
+  const invalid = values.filter((value) => !allowed.has(value) && !(question.allowOther && isOtherAnswer(value)));
+  if (invalid.length > 0) {
+    throw new HTTPException(400, { message: `题目「${question.label}」选项无效` });
+  }
+  if (question.allowOther && values.filter(isOtherAnswer).length > 1) {
+    throw new HTTPException(400, { message: `题目「${question.label}」只能填写一项「其他」` });
+  }
+  const maxChoices = question.type === 'single' ? 1 : question.maxChoices;
+  const minChoices = question.required ? Math.max(1, question.minChoices) : question.minChoices;
+  if (values.length < minChoices || values.length > maxChoices) {
+    throw new HTTPException(400, { message: `题目「${question.label}」需选择 ${minChoices}-${maxChoices} 项` });
+  }
+}
+
+/** 其他填空的自由文本统一截断，防止绕过 answers 的长度上限 */
+function normalizeOtherAnswer(value: string): string {
+  if (!isOtherAnswer(value)) return value;
+  const text = value.slice(CMS_INTERACTION_OTHER_PREFIX.length).trim();
+  return text ? `${CMS_INTERACTION_OTHER_PREFIX}${text.slice(0, 200)}` : CMS_INTERACTION_OTHER_VALUE;
+}
+
+function assertMatrixAnswers(question: CmsInteractionQuestionRow, values: string[]): void {
+  const rowIds = new Set((question.matrixRows ?? []).map((row) => row.id));
+  const optionValues = new Set((question.options ?? []).map((option) => option.value));
+  const seenRows = new Set<string>();
+  for (const value of values) {
+    const separator = value.indexOf(CMS_INTERACTION_MATRIX_SEPARATOR);
+    const rowId = separator < 0 ? '' : value.slice(0, separator);
+    const optionValue = separator < 0 ? '' : value.slice(separator + CMS_INTERACTION_MATRIX_SEPARATOR.length);
+    if (!rowIds.has(rowId) || !optionValues.has(optionValue)) {
+      throw new HTTPException(400, { message: `题目「${question.label}」矩阵作答无效` });
+    }
+    if (seenRows.has(rowId)) {
+      throw new HTTPException(400, { message: `题目「${question.label}」每行只能选择一项` });
+    }
+    seenRows.add(rowId);
+  }
+  if (question.required && seenRows.size !== rowIds.size) {
+    throw new HTTPException(400, { message: `题目「${question.label}」需要每行都作答` });
+  }
+}
+
+function assertScaleAnswer(question: CmsInteractionQuestionRow, value: string): number {
+  const parsed = Number(value);
+  const max = question.type === 'nps' ? CMS_INTERACTION_NPS_MAX : question.ratingMax;
+  const min = question.type === 'nps' ? 0 : 1;
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+    throw new HTTPException(400, { message: `题目「${question.label}」需在 ${min}-${max} 之间` });
+  }
+  return parsed;
+}
+
 function validateInteractionAnswers(
   questions: CmsInteractionQuestionRow[],
   input: SubmitCmsInteractionInput,
 ): Array<{ questionId: number; value: string | string[] }> {
   const result: Array<{ questionId: number; value: string | string[] }> = [];
-  for (const question of questions) {
+  // 条件显示依赖题序，按 sort 排序后逐题推进，保证被依赖题已先行判定
+  const ordered = [...questions].sort((a, b) => a.sort - b.sort || a.id - b.id);
+  const answered = new Map<number, string[]>();
+  for (const question of ordered) {
     const raw = input.answers[String(question.id)];
     const values = Array.isArray(raw)
       ? [...new Set(raw.map(String).filter(Boolean))]
       : raw === undefined || raw === ''
         ? []
         : [String(raw)];
+    if (!isQuestionVisible(question, ordered, answered)) {
+      // 条件未命中：即使前端误传也不落库，避免脏数据混入统计
+      continue;
+    }
     if (values.length === 0) {
       if (question.required) throw new HTTPException(400, { message: `题目「${question.label}」为必答题` });
       continue;
     }
-    if (question.type === 'text') {
-      result.push({ questionId: question.id, value: values[0].slice(0, 2000) });
-      continue;
+    switch (question.type) {
+      case 'text': {
+        result.push({ questionId: question.id, value: values[0].slice(0, 2000) });
+        break;
+      }
+      case 'rating':
+      case 'nps': {
+        const score = assertScaleAnswer(question, values[0]);
+        result.push({ questionId: question.id, value: String(score) });
+        break;
+      }
+      case 'number': {
+        const parsed = Number(values[0]);
+        if (!Number.isFinite(parsed)) {
+          throw new HTTPException(400, { message: `题目「${question.label}」需填写数字` });
+        }
+        result.push({ questionId: question.id, value: String(parsed) });
+        break;
+      }
+      case 'date': {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(values[0])) {
+          throw new HTTPException(400, { message: `题目「${question.label}」日期格式无效` });
+        }
+        result.push({ questionId: question.id, value: values[0] });
+        break;
+      }
+      case 'matrix': {
+        assertMatrixAnswers(question, values);
+        answered.set(question.id, values);
+        result.push({ questionId: question.id, value: values });
+        break;
+      }
+      default: {
+        const normalized = values.map(normalizeOtherAnswer);
+        assertChoiceAnswers(question, normalized);
+        answered.set(question.id, normalized);
+        result.push({ questionId: question.id, value: question.type === 'single' ? normalized[0] : normalized });
+        break;
+      }
     }
-    const allowed = new Set((question.options ?? []).map((option) => option.value));
-    if (values.some((value) => !allowed.has(value))) {
-      throw new HTTPException(400, { message: `题目「${question.label}」选项无效` });
-    }
-    const maxChoices = question.type === 'single' ? 1 : question.maxChoices;
-    const minChoices = question.required ? Math.max(1, question.minChoices) : question.minChoices;
-    if (values.length < minChoices || values.length > maxChoices) {
-      throw new HTTPException(400, { message: `题目「${question.label}」需选择 ${minChoices}-${maxChoices} 项` });
-    }
-    result.push({ questionId: question.id, value: question.type === 'single' ? values[0] : values });
   }
   return result;
 }
@@ -629,6 +763,30 @@ export async function getCmsInteractionPublicState(
   };
 }
 
+/** 选项分布：给定命中计数与分母，产出带百分比的选项数组 */
+function distributionOf(
+  options: { id: string; label: string; value: string }[],
+  counts: Map<string, number>,
+  answered: number,
+) {
+  return options.map((option) => {
+    const count = counts.get(option.value) ?? 0;
+    return {
+      ...option,
+      count,
+      percent: answered > 0 ? Math.round((count / answered) * 1000) / 10 : 0,
+    };
+  });
+}
+
+/** NPS 净推荐值：推荐者（9-10）占比 - 贬损者（0-6）占比 */
+export function npsScoreOf(scores: number[]): number | null {
+  if (scores.length === 0) return null;
+  const promoters = scores.filter((score) => score >= 9).length;
+  const detractors = scores.filter((score) => score <= 6).length;
+  return Math.round(((promoters - detractors) / scores.length) * 1000) / 10;
+}
+
 async function getCmsInteractionStatsInternal(id: number): Promise<CmsInteractionStats> {
   const interaction = await db.query.cmsInteractions.findFirst({
     where: eq(cmsInteractions.id, id),
@@ -645,17 +803,33 @@ async function getCmsInteractionStatsInternal(id: number): Promise<CmsInteractio
     .where(eq(cmsInteractionResponses.interactionId, id))
     .orderBy(desc(cmsInteractionAnswers.id))
     .limit(100_000);
+  const byQuestion = new Map<number, typeof answers>();
+  for (const answer of answers) {
+    const list = byQuestion.get(answer.questionId) ?? [];
+    list.push(answer);
+    byQuestion.set(answer.questionId, list);
+  }
   return {
     interactionId: id,
     responseCount: interaction.responseCount,
     questions: [...interaction.questions].sort((a, b) => a.sort - b.sort || a.id - b.id).map((question) => {
-      const questionAnswers = answers.filter((answer) => answer.questionId === question.id);
-      if (question.type === 'text') {
+      const questionAnswers = byQuestion.get(question.id) ?? [];
+      const answered = new Set(questionAnswers.map((answer) => answer.responseId)).size;
+      const base = {
+        id: question.id,
+        label: question.label,
+        type: question.type,
+        options: [] as CmsInteractionQuestionStats['options'],
+        texts: [] as string[],
+        answered,
+        average: null as number | null,
+        npsScore: null as number | null,
+        matrixRows: [] as CmsInteractionQuestionStats['matrixRows'],
+      };
+
+      if (question.type === 'text' || question.type === 'date') {
         return {
-          id: question.id,
-          label: question.label,
-          type: question.type,
-          options: [],
+          ...base,
           texts: questionAnswers
             .map((answer) => answer.value)
             .filter((value): value is string => typeof value === 'string' && value.trim() !== '')
@@ -663,24 +837,92 @@ async function getCmsInteractionStatsInternal(id: number): Promise<CmsInteractio
         };
       }
 
-      const counts = new Map((question.options ?? []).map((option) => [option.value, 0]));
+      if (question.type === 'rating' || question.type === 'nps' || question.type === 'number') {
+        const scores = questionAnswers
+          .map((answer) => Number(Array.isArray(answer.value) ? answer.value[0] : answer.value))
+          .filter((score) => Number.isFinite(score));
+        const average = scores.length > 0
+          ? Math.round((scores.reduce((sum, score) => sum + score, 0) / scores.length) * 100) / 100
+          : null;
+        // 评分/NPS 同时给出分值分布，便于前台画柱状图
+        const buckets = new Map<string, number>();
+        for (const score of scores) buckets.set(String(score), (buckets.get(String(score)) ?? 0) + 1);
+        const scale = question.type === 'nps'
+          ? Array.from({ length: CMS_INTERACTION_NPS_MAX + 1 }, (_, index) => String(index))
+          : Array.from({ length: question.ratingMax }, (_, index) => String(index + 1));
+        const scaleOptions = question.type === 'number'
+          ? []
+          : scale.map((value) => ({ id: value, label: `${value} 分`, value }));
+        return {
+          ...base,
+          options: distributionOf(scaleOptions, buckets, answered),
+          average,
+          npsScore: question.type === 'nps' ? npsScoreOf(scores) : null,
+        };
+      }
+
+      if (question.type === 'matrix') {
+        const rowCounts = new Map<string, Map<string, number>>();
+        const rowAnswered = new Map<string, Set<number>>();
+        for (const answer of questionAnswers) {
+          const values = Array.isArray(answer.value) ? answer.value : [answer.value];
+          for (const value of values) {
+            const separator = value.indexOf(CMS_INTERACTION_MATRIX_SEPARATOR);
+            if (separator < 0) continue;
+            const rowId = value.slice(0, separator);
+            const optionValue = value.slice(separator + CMS_INTERACTION_MATRIX_SEPARATOR.length);
+            const counts = rowCounts.get(rowId) ?? new Map<string, number>();
+            counts.set(optionValue, (counts.get(optionValue) ?? 0) + 1);
+            rowCounts.set(rowId, counts);
+            const responders = rowAnswered.get(rowId) ?? new Set<number>();
+            responders.add(answer.responseId);
+            rowAnswered.set(rowId, responders);
+          }
+        }
+        return {
+          ...base,
+          matrixRows: (question.matrixRows ?? []).map((row) => ({
+            id: row.id,
+            label: row.label,
+            options: distributionOf(
+              question.options ?? [],
+              rowCounts.get(row.id) ?? new Map(),
+              rowAnswered.get(row.id)?.size ?? 0,
+            ),
+          })),
+        };
+      }
+
+      // 单选 / 多选：「其他」不论自由文本内容如何，统一归入同一个桶
+      const counts = new Map<string, number>();
+      let otherCount = 0;
       for (const answer of questionAnswers) {
         const values = Array.isArray(answer.value) ? answer.value : [answer.value];
         for (const value of values) {
-          if (counts.has(value)) counts.set(value, (counts.get(value) ?? 0) + 1);
+          if (isOtherAnswer(value)) otherCount += 1;
+          else counts.set(value, (counts.get(value) ?? 0) + 1);
         }
       }
-      const answered = new Set(questionAnswers.map((answer) => answer.responseId)).size;
+      const options = [...(question.options ?? [])];
+      if (question.allowOther) {
+        options.push({
+          id: CMS_INTERACTION_OTHER_VALUE,
+          label: question.otherLabel?.trim() || '其他',
+          value: CMS_INTERACTION_OTHER_VALUE,
+        });
+        counts.set(CMS_INTERACTION_OTHER_VALUE, otherCount);
+      }
       return {
-        id: question.id,
-        label: question.label,
-        type: question.type,
-        options: (question.options ?? []).map((option) => ({
-          ...option,
-          count: counts.get(option.value) ?? 0,
-          percent: answered > 0 ? Math.round(((counts.get(option.value) ?? 0) / answered) * 1000) / 10 : 0,
-        })),
-        texts: [],
+        ...base,
+        options: distributionOf(options, counts, answered),
+        // 「其他」的自由文本作为文本答案一并回传，运营才看得到写了什么
+        texts: question.allowOther
+          ? questionAnswers
+              .flatMap((answer) => (Array.isArray(answer.value) ? answer.value : [answer.value]))
+              .filter((value) => value.startsWith(CMS_INTERACTION_OTHER_PREFIX))
+              .map((value) => value.slice(CMS_INTERACTION_OTHER_PREFIX.length))
+              .slice(0, 50)
+          : [],
       };
     }),
   };
@@ -695,6 +937,8 @@ export function toCmsInteractionPublicStats(stats: CmsInteractionStats): CmsInte
       label: question.label,
       type: question.type,
       options: question.options.map((option) => ({ ...option })),
+      average: question.average,
+      npsScore: question.npsScore,
     })),
   };
 }
@@ -756,11 +1000,40 @@ export function toCmsInteractionAnswerDetail(input: {
   label: string;
   type: CmsInteractionQuestionType;
   options: { label: string; value: string }[] | null;
+  matrixRows?: { id: string; label: string }[] | null;
+  otherLabel?: string | null;
   value: string | string[];
 }): CmsInteractionAnswerDetail {
   const raw = Array.isArray(input.value) ? input.value : [input.value];
   const labelOf = new Map((input.options ?? []).map((option) => [option.value, option.label]));
-  const values = input.type === 'text' ? raw : raw.map((value) => labelOf.get(value) ?? value);
+  const rowLabelOf = new Map((input.matrixRows ?? []).map((row) => [row.id, row.label]));
+  const otherLabel = input.otherLabel?.trim() || '其他';
+  const values = raw.map((value) => {
+    switch (input.type) {
+      case 'text':
+      case 'date':
+      case 'number':
+        return value;
+      case 'rating':
+        return `${value} 分`;
+      case 'nps':
+        return `${value} 分`;
+      case 'matrix': {
+        const separator = value.indexOf(CMS_INTERACTION_MATRIX_SEPARATOR);
+        if (separator < 0) return value;
+        const rowId = value.slice(0, separator);
+        const optionValue = value.slice(separator + CMS_INTERACTION_MATRIX_SEPARATOR.length);
+        return `${rowLabelOf.get(rowId) ?? rowId}：${labelOf.get(optionValue) ?? optionValue}`;
+      }
+      default: {
+        if (value === CMS_INTERACTION_OTHER_VALUE) return otherLabel;
+        if (value.startsWith(CMS_INTERACTION_OTHER_PREFIX)) {
+          return `${otherLabel}：${value.slice(CMS_INTERACTION_OTHER_PREFIX.length)}`;
+        }
+        return labelOf.get(value) ?? value;
+      }
+    }
+  });
   return {
     questionId: input.questionId,
     label: input.label,
@@ -787,6 +1060,8 @@ async function loadAnswers(responseIds: number[]): Promise<LoadedAnswers> {
     label: cmsInteractionQuestions.label,
     type: cmsInteractionQuestions.type,
     options: cmsInteractionQuestions.options,
+    matrixRows: cmsInteractionQuestions.matrixRows,
+    otherLabel: cmsInteractionQuestions.otherLabel,
   })
     .from(cmsInteractionAnswers)
     .innerJoin(cmsInteractionQuestions, eq(cmsInteractionAnswers.questionId, cmsInteractionQuestions.id))

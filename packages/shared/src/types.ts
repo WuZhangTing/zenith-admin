@@ -10894,7 +10894,9 @@ export interface CmsMemberContentItem {
 
 export type CmsInteractionKind = 'survey' | 'poll';
 export type CmsInteractionStatus = 'draft' | 'published' | 'closed';
-export type CmsInteractionQuestionType = 'single' | 'multiple' | 'text';
+export type CmsInteractionQuestionType =
+  | 'single' | 'multiple' | 'text' | 'rating' | 'nps' | 'matrix' | 'date' | 'number';
+export type CmsInteractionConditionOp = 'any' | 'none';
 export type CmsInteractionParticipantScope = 'anonymous' | 'member';
 export type CmsInteractionRepeatPolicy = 'once_per_member' | 'once_per_ip' | 'multiple';
 export type CmsInteractionResultVisibility = 'always' | 'after_submit' | 'after_close' | 'hidden';
@@ -10904,6 +10906,21 @@ export interface CmsInteractionOption {
   id: string;
   label: string;
   value: string;
+}
+
+/** 条件显示：依赖同一问卷中排在前面的某道选择题 */
+export interface CmsInteractionVisibleWhen {
+  /** 依赖题目的 0 基序号，必须小于当前题目序号 */
+  questionIndex: number;
+  op: CmsInteractionConditionOp;
+  /** 触发的选项 value 列表 */
+  values: string[];
+}
+
+/** 矩阵题的行定义（列复用 options） */
+export interface CmsInteractionMatrixRow {
+  id: string;
+  label: string;
 }
 
 export interface CmsInteractionQuestion {
@@ -10916,6 +10933,18 @@ export interface CmsInteractionQuestion {
   minChoices: number;
   maxChoices: number;
   sort: number;
+  /** 选择题是否提供「其他 ___」自由填空 */
+  allowOther: boolean;
+  /** 「其他」选项的展示文案，默认「其他」 */
+  otherLabel: string | null;
+  /** 评分题上限（NPS 固定 0-10，不读此字段） */
+  ratingMax: number;
+  /** 矩阵题的行 */
+  matrixRows: CmsInteractionMatrixRow[];
+  /** 分页问卷的页码，从 1 开始 */
+  pageNo: number;
+  /** 条件显示规则，为空表示始终显示 */
+  visibleWhen: CmsInteractionVisibleWhen | null;
 }
 
 export interface CmsInteraction {
@@ -10942,16 +10971,31 @@ export interface CmsInteraction {
 }
 
 /** 统一互动结果统计（选择题计数 + 文本题脱敏样本）。 */
+/** 单题统计。选择题看 options，评分/NPS/数字看 average，矩阵看 matrixRows。 */
+export interface CmsInteractionQuestionStats {
+  id: number;
+  label: string;
+  type: CmsInteractionQuestionType;
+  options: (CmsInteractionOption & { count: number; percent: number })[];
+  texts: string[];
+  /** 该题实际作答人数（分母，条件显示题会小于总答卷数） */
+  answered: number;
+  /** 评分 / NPS / 数字题的均值，其余为 null */
+  average: number | null;
+  /** NPS 净推荐值（推荐者% - 贬损者%），仅 nps 题有值 */
+  npsScore: number | null;
+  /** 矩阵题按行的选项分布 */
+  matrixRows: {
+    id: string;
+    label: string;
+    options: (CmsInteractionOption & { count: number; percent: number })[];
+  }[];
+}
+
 export interface CmsInteractionStats {
   interactionId: number;
   responseCount: number;
-  questions: {
-    id: number;
-    label: string;
-    type: CmsInteractionQuestionType;
-    options: (CmsInteractionOption & { count: number; percent: number })[];
-    texts: string[];
-  }[];
+  questions: CmsInteractionQuestionStats[];
 }
 
 /** 前台可公开的互动统计；文本答卷永不进入公共响应。 */
@@ -10963,6 +11007,8 @@ export interface CmsInteractionPublicStats {
     label: string;
     type: CmsInteractionQuestionType;
     options: (CmsInteractionOption & { count: number; percent: number })[];
+    average: number | null;
+    npsScore: number | null;
   }[];
 }
 

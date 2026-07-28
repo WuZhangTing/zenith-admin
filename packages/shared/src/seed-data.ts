@@ -3608,6 +3608,23 @@ export const SEED_CMS_LINK_WORDS: CmsLinkWord[] = [
 ];
 
 // ─── CMS Stage 4：统一互动问卷（survey + poll 示例）────────────────────────────
+
+/** 题目默认值填充，避免每条种子重复书写新增字段 */
+function interactionQuestion(
+  question: Pick<CmsInteractionQuestion, 'id' | 'interactionId' | 'label' | 'type' | 'required' | 'minChoices' | 'maxChoices' | 'sort' | 'options'>
+    & Partial<CmsInteractionQuestion>,
+): CmsInteractionQuestion {
+  return {
+    allowOther: false,
+    otherLabel: null,
+    ratingMax: 5,
+    matrixRows: [],
+    pageNo: 1,
+    visibleWhen: null,
+    ...question,
+  };
+}
+
 export const SEED_CMS_INTERACTIONS: (CmsInteraction & { questions: CmsInteractionQuestion[] })[] = [
   {
     id: 1, siteId: 1, code: 'satisfaction', kind: 'survey', title: '产品满意度调查',
@@ -3617,7 +3634,7 @@ export const SEED_CMS_INTERACTIONS: (CmsInteraction & { questions: CmsInteractio
     startAt: null, endAt: null, responseCount: 1,
     createdAt: SEED_DATE, updatedAt: SEED_DATE,
     questions: [
-      {
+      interactionQuestion({
         id: 1, interactionId: 1, label: '您对 Zenith CMS 的整体满意度？', type: 'single', required: true,
         minChoices: 1, maxChoices: 1, sort: 0,
         options: [
@@ -3626,8 +3643,8 @@ export const SEED_CMS_INTERACTIONS: (CmsInteraction & { questions: CmsInteractio
           { id: 'neutral', label: '一般', value: 'neutral' },
           { id: 'unsatisfied', label: '不满意', value: 'unsatisfied' },
         ],
-      },
-      {
+      }),
+      interactionQuestion({
         id: 2, interactionId: 1, label: '您使用过哪些功能？', type: 'multiple', required: false,
         minChoices: 0, maxChoices: 3, sort: 1,
         options: [
@@ -3636,11 +3653,11 @@ export const SEED_CMS_INTERACTIONS: (CmsInteraction & { questions: CmsInteractio
           { id: 'search', label: '全文检索', value: 'search' },
           { id: 'interaction', label: '互动问卷', value: 'interaction' },
         ],
-      },
-      {
+      }),
+      interactionQuestion({
         id: 3, interactionId: 1, label: '其他意见或建议', type: 'text', required: false,
         minChoices: 0, maxChoices: 1, sort: 2, options: [],
-      },
+      }),
     ],
   },
   {
@@ -3651,7 +3668,7 @@ export const SEED_CMS_INTERACTIONS: (CmsInteraction & { questions: CmsInteractio
     startAt: null, endAt: null, responseCount: 1,
     createdAt: SEED_DATE, updatedAt: SEED_DATE,
     questions: [
-      {
+      interactionQuestion({
         id: 4, interactionId: 2, label: '请选择一项', type: 'single', required: true,
         minChoices: 1, maxChoices: 1, sort: 0,
         options: [
@@ -3659,7 +3676,58 @@ export const SEED_CMS_INTERACTIONS: (CmsInteraction & { questions: CmsInteractio
           { id: 'page-builder', label: '可视化页面搭建', value: 'page-builder' },
           { id: 'distribution', label: '内容分发推送', value: 'distribution' },
         ],
-      },
+      }),
+    ],
+  },
+  {
+    id: 3, siteId: 1, code: 'nps-2026', kind: 'survey', title: '2026 年度体验调研',
+    description: '演示评分、NPS、矩阵、「其他」填空、条件显示与分页问卷。', status: 'draft',
+    participantScope: 'anonymous', repeatPolicy: 'once_per_ip', resultVisibility: 'after_close',
+    captchaPolicy: 'inherit', turnstileSiteKey: null, turnstileSecretConfigured: false, thankYouMessage: '感谢您抽出时间！',
+    startAt: null, endAt: null, responseCount: 0,
+    createdAt: SEED_DATE, updatedAt: SEED_DATE,
+    questions: [
+      interactionQuestion({
+        id: 5, interactionId: 3, label: '您有多大可能把我们推荐给同事？', type: 'nps', required: true,
+        minChoices: 0, maxChoices: 1, sort: 0, options: [], ratingMax: 10,
+      }),
+      interactionQuestion({
+        id: 6, interactionId: 3, label: '请为文档质量打分', type: 'rating', required: true,
+        minChoices: 0, maxChoices: 1, sort: 1, options: [], ratingMax: 5,
+      }),
+      interactionQuestion({
+        id: 7, interactionId: 3, label: '请评价以下模块', type: 'matrix', required: false,
+        minChoices: 0, maxChoices: 1, sort: 2,
+        options: [
+          { id: 'good', label: '好用', value: 'good' },
+          { id: 'ok', label: '一般', value: 'ok' },
+          { id: 'bad', label: '待改进', value: 'bad' },
+        ],
+        matrixRows: [
+          { id: 'content', label: '内容管理' },
+          { id: 'publish', label: '发布静态化' },
+          { id: 'interaction', label: '互动问卷' },
+        ],
+      }),
+      interactionQuestion({
+        id: 8, interactionId: 3, label: '您所在的行业', type: 'single', required: false,
+        minChoices: 0, maxChoices: 1, sort: 3, pageNo: 2,
+        allowOther: true, otherLabel: '其他行业',
+        options: [
+          { id: 'gov', label: '政府机构', value: 'gov' },
+          { id: 'edu', label: '教育科研', value: 'edu' },
+          { id: 'media', label: '媒体出版', value: 'media' },
+        ],
+      }),
+      interactionQuestion({
+        id: 9, interactionId: 3, label: '请补充说明贵单位的使用场景', type: 'text', required: false,
+        minChoices: 0, maxChoices: 1, sort: 4, options: [], pageNo: 2,
+        visibleWhen: { questionIndex: 3, op: 'any', values: ['gov', 'edu'] },
+      }),
+      interactionQuestion({
+        id: 10, interactionId: 3, label: '预计上线时间', type: 'date', required: false,
+        minChoices: 0, maxChoices: 1, sort: 5, options: [], pageNo: 2,
+      }),
     ],
   },
 ];
