@@ -14,7 +14,7 @@ import type {
   CmsSite, CmsModel, CmsChannel, CmsContent, CmsTag, CmsFriendLink, CmsFriendLinkGroup,
   CmsAdSlot, CmsAd, CmsAdEvent, CmsForm, CmsFormSubmission, CmsSensitiveWord, CmsErrorProneWord, CmsLinkWord, CmsComment,
   CmsRedirect, CmsPushLog, CmsContentVersion, CmsSearchWord, CmsHotKeyword, CmsContentOpLog, CmsInteraction,
-  CmsInteractionResponse, CmsMemberSubscription, CmsPageBlockAcl,
+  CmsInteractionAnswerDetail, CmsInteractionResponse, CmsMemberSubscription, CmsPageBlockAcl,
   CmsResource, CmsResourceFolder, CmsHotwordGroup, CmsCollectRule, CmsCollectItem, CmsPage, CmsOpenAppGrant,
 } from '@zenith/shared';
 
@@ -117,22 +117,50 @@ export const mockCmsInteractions: CmsInteraction[] = SEED_CMS_INTERACTIONS.map((
     options: question.options.map((option) => ({ ...option })),
   })),
 }));
-export const mockCmsInteractionResponses: CmsInteractionResponse[] = SEED_CMS_INTERACTION_RESPONSES.map((response) => ({
-  id: response.id,
-  interactionId: response.interactionId,
-  interactionTitle: SEED_CMS_INTERACTIONS.find((interaction) => interaction.id === response.interactionId)?.title,
-  kind: SEED_CMS_INTERACTIONS.find((interaction) => interaction.id === response.interactionId)?.kind,
-  memberId: response.memberId,
-  memberDisplay: response.memberId ? '演***员' : '游客',
-  visitorHash: response.visitorHash,
-  ipHash: response.ipHash,
-  answers: Object.fromEntries(
+/** 由题目定义把选项 value 反查成文案，与服务端 loadAnswers 口径一致 */
+export function buildMockAnswerDetails(
+  interactionId: number,
+  answers: Record<string, string | string[]>,
+): CmsInteractionAnswerDetail[] {
+  const questions = SEED_CMS_INTERACTIONS.find((item) => item.id === interactionId)?.questions ?? [];
+  return [...questions]
+    .sort((a, b) => a.sort - b.sort || a.id - b.id)
+    .filter((question) => answers[String(question.id)] !== undefined)
+    .map((question) => {
+      const raw = answers[String(question.id)];
+      const list = Array.isArray(raw) ? raw : [raw];
+      const labelOf = new Map(question.options.map((option) => [option.value, option.label]));
+      const values = question.type === 'text' ? list : list.map((value) => labelOf.get(value) ?? value);
+      return {
+        questionId: question.id,
+        label: question.label,
+        type: question.type,
+        values,
+        display: values.join('、'),
+      };
+    });
+}
+
+export const mockCmsInteractionResponses: CmsInteractionResponse[] = SEED_CMS_INTERACTION_RESPONSES.map((response) => {
+  const answers = Object.fromEntries(
     SEED_CMS_INTERACTION_ANSWERS
       .filter((answer) => answer.responseId === response.id)
       .map((answer) => [String(answer.questionId), answer.value]),
-  ),
-  createdAt: response.createdAt,
-}));
+  );
+  return {
+    id: response.id,
+    interactionId: response.interactionId,
+    interactionTitle: SEED_CMS_INTERACTIONS.find((interaction) => interaction.id === response.interactionId)?.title,
+    kind: SEED_CMS_INTERACTIONS.find((interaction) => interaction.id === response.interactionId)?.kind,
+    memberId: response.memberId,
+    memberDisplay: response.memberId ? '演***员' : '游客',
+    visitorHash: response.visitorHash,
+    ipHash: response.ipHash,
+    answers,
+    answerDetails: buildMockAnswerDetails(response.interactionId, answers),
+    createdAt: response.createdAt,
+  };
+});
 export const getNextCmsInteractionId = nextIdFactory(Math.max(0, ...mockCmsInteractions.map((x) => x.id)) + 1);
 export const getNextCmsInteractionResponseId = nextIdFactory(Math.max(0, ...mockCmsInteractionResponses.map((x) => x.id)) + 1);
 export const mockCmsSubscriptions: CmsMemberSubscription[] = SEED_CMS_SUBSCRIPTIONS.map((subscription) => ({

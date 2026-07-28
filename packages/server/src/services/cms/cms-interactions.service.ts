@@ -14,7 +14,9 @@ import {
 import { HTTPException } from 'hono/http-exception';
 import {
   createCmsInteractionSchema,
+  type CmsInteractionAnswerDetail,
   type CmsInteractionKind,
+  type CmsInteractionQuestionType,
   type CmsInteractionRepeatPolicy,
   type CmsInteractionResponse,
   type CmsInteractionPublicStats,
@@ -49,6 +51,11 @@ import {
   verifyCmsCaptchaAdapter,
 } from './cms-captcha-adapter.service';
 import { hashCmsRequestKey, hashCmsVisitor, hashCmsIp } from './cms-visitor';
+
+/** 与 schema 中 `cms_interactions.code` / `.title` 的列长度保持一致 */
+const CMS_INTERACTION_CODE_MAX = 50;
+const CMS_INTERACTION_TITLE_MAX = 200;
+const COPY_TITLE_SUFFIX = '（副本）';
 
 export function mapCmsInteractionQuestion(row: CmsInteractionQuestionRow) {
   return {
@@ -204,7 +211,7 @@ export async function updateCmsInteraction(id: number, input: UpdateCmsInteracti
       .limit(1);
     if (!current) throw new HTTPException(404, { message: '互动问卷不存在' });
     if (input.questions && current.responseCount > 0) {
-      throw new HTTPException(409, { message: '已有答卷的互动问卷不可替换题目；可关闭后复制新建' });
+      throw new HTTPException(409, { message: '已有答卷的互动问卷不可替换题目；请用「复制」生成副本后修改' });
     }
     const currentQuestions = await tx.select().from(cmsInteractionQuestions)
       .where(eq(cmsInteractionQuestions.interactionId, id))
@@ -265,6 +272,85 @@ export async function deleteCmsInteraction(id: number): Promise<void> {
   const current = await ensureCmsInteractionExists(id);
   await assertSiteAccess(current.siteId);
   await db.delete(cmsInteractions).where(eq(cmsInteractions.id, id));
+}
+
+/** 去掉已有的 `-copy` / `-copy-N` 后缀，避免复制副本时无限累加 */
+export function interactionCodeStem(code: string): string {
+  return code.replace(/-copy(?:-\d+)?$/, '') || code;
+}
+
+/** 在已占用标识集合中挑一个未使用的副本标识，并保证不超过列长度上限 */
+export function nextInteractionCopyCode(baseCode: string, taken: ReadonlySet<string>): string {
+  const stem = interactionCodeStem(baseCode);
+  for (let index = 1; index <= 100; index += 1) {
+    const suffix = index === 1 ? '-copy' : `-copy-${index}`;
+    const candidate = `${stem.slice(0, CMS_INTERACTION_CODE_MAX - suffix.length)}${suffix}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+  throw new HTTPException(400, { message: '副本过多，请先清理已有副本或手动指定标识' });
+}
+
+/** 在站点内找一个未被占用的副本标识 */
+async function nextAvailableInteractionCode(siteId: number, baseCode: string): Promise<string> {
+  const stem = interactionCodeStem(baseCode);
+  const rows = await db.select({ code: cmsInteractions.code })
+    .from(cmsInteractions)
+    .where(and(
+      eq(cmsInteractions.siteId, siteId),
+      ilike(cmsInteractions.code, `${escapeLike(stem)}-copy%`),
+    ));
+  return nextInteractionCopyCode(baseCode, new Set(rows.map((row) => row.code)));
+}
+
+/**
+ * 复制互动问卷：配置与题目全量克隆，标识自动去重，状态强制为草稿且答卷数归零。
+ * 「已有答卷不可替换题目」时的官方出路。
+ */
+export async function copyCmsInteraction(id: number) {
+  const current = await ensureCmsInteractionExists(id);
+  await assertSiteAccess(current.siteId);
+  const questions = await db.select().from(cmsInteractionQuestions)
+    .where(eq(cmsInteractionQuestions.interactionId, id))
+    .orderBy(asc(cmsInteractionQuestions.sort), asc(cmsInteractionQuestions.id));
+  const code = await nextAvailableInteractionCode(current.siteId, current.code);
+  const title = `${current.title.slice(0, CMS_INTERACTION_TITLE_MAX - COPY_TITLE_SUFFIX.length)}${COPY_TITLE_SUFFIX}`;
+  try {
+    const newId = await db.transaction(async (tx) => {
+      const [row] = await tx.insert(cmsInteractions).values({
+        siteId: current.siteId,
+        code,
+        kind: current.kind,
+        title,
+        description: current.description,
+        status: 'draft',
+        participantScope: current.participantScope,
+        repeatPolicy: current.repeatPolicy,
+        resultVisibility: current.resultVisibility,
+        captchaPolicy: current.captchaPolicy,
+        turnstileSiteKey: current.turnstileSiteKey,
+        turnstileSecret: current.turnstileSecret,
+        thankYouMessage: current.thankYouMessage,
+        startAt: current.startAt,
+        endAt: current.endAt,
+      }).returning({ id: cmsInteractions.id });
+      if (questions.length > 0) {
+        await tx.insert(cmsInteractionQuestions).values(questions.map((question) => ({
+          interactionId: row.id,
+          label: question.label,
+          type: question.type,
+          required: question.required,
+          options: question.options ?? [],
+          minChoices: question.minChoices,
+          maxChoices: question.maxChoices,
+          sort: question.sort,
+        })));
+      }
+      return row.id;
+    });
+    return getCmsInteraction(newId);
+  } catch (error) {
+    rethrowPgUniqueViolation(error, '同站点下互动标识已存在');
+  }
 }
 
 function isInteractionOpen(row: CmsInteractionRow, now = new Date()): boolean {
@@ -661,20 +747,63 @@ export function buildCmsInteractionResponseWhere(
   return and(...conditions)!;
 }
 
-async function loadAnswerMap(responseIds: number[]): Promise<Map<number, Record<string, string | string[]>>> {
-  if (responseIds.length === 0) return new Map();
+/**
+ * 把一条原始答案关联题目后转成可读结构：选项 value 反查文案，
+ * 选项被改名/删除时回退成原始 value，保证答卷永远看得见内容。
+ */
+export function toCmsInteractionAnswerDetail(input: {
+  questionId: number;
+  label: string;
+  type: CmsInteractionQuestionType;
+  options: { label: string; value: string }[] | null;
+  value: string | string[];
+}): CmsInteractionAnswerDetail {
+  const raw = Array.isArray(input.value) ? input.value : [input.value];
+  const labelOf = new Map((input.options ?? []).map((option) => [option.value, option.label]));
+  const values = input.type === 'text' ? raw : raw.map((value) => labelOf.get(value) ?? value);
+  return {
+    questionId: input.questionId,
+    label: input.label,
+    type: input.type,
+    values,
+    display: values.join('、'),
+  };
+}
+
+interface LoadedAnswers {
+  /** 原始答案：questionId -> 选项 value / 文本，保持既有 API 兼容 */
+  answers: Map<number, Record<string, string | string[]>>;
+  /** 关联题目后的可读答案，按题目 sort 排序 */
+  details: Map<number, CmsInteractionAnswerDetail[]>;
+}
+
+/** 一次性载入答案并关联题目，把选项 value 反查成选项文案 */
+async function loadAnswers(responseIds: number[]): Promise<LoadedAnswers> {
+  if (responseIds.length === 0) return { answers: new Map(), details: new Map() };
   const rows = await db.select({
     responseId: cmsInteractionAnswers.responseId,
     questionId: cmsInteractionAnswers.questionId,
     value: cmsInteractionAnswers.value,
-  }).from(cmsInteractionAnswers).where(inArray(cmsInteractionAnswers.responseId, responseIds));
-  const map = new Map<number, Record<string, string | string[]>>();
+    label: cmsInteractionQuestions.label,
+    type: cmsInteractionQuestions.type,
+    options: cmsInteractionQuestions.options,
+  })
+    .from(cmsInteractionAnswers)
+    .innerJoin(cmsInteractionQuestions, eq(cmsInteractionAnswers.questionId, cmsInteractionQuestions.id))
+    .where(inArray(cmsInteractionAnswers.responseId, responseIds))
+    .orderBy(asc(cmsInteractionQuestions.sort), asc(cmsInteractionQuestions.id));
+  const answers = new Map<number, Record<string, string | string[]>>();
+  const details = new Map<number, CmsInteractionAnswerDetail[]>();
   for (const row of rows) {
-    const answer = map.get(row.responseId) ?? {};
+    const answer = answers.get(row.responseId) ?? {};
     answer[String(row.questionId)] = row.value;
-    map.set(row.responseId, answer);
+    answers.set(row.responseId, answer);
+
+    const list = details.get(row.responseId) ?? [];
+    list.push(toCmsInteractionAnswerDetail(row));
+    details.set(row.responseId, list);
   }
-  return map;
+  return { answers, details };
 }
 
 export async function listCmsInteractionResponses(q: ListCmsInteractionResponsesQuery) {
@@ -701,7 +830,7 @@ export async function listCmsInteractionResponses(q: ListCmsInteractionResponses
       .where(where),
     withPagination(base.$dynamic(), q.page, q.pageSize),
   ]);
-  const answerMap = await loadAnswerMap(rows.map((row) => row.response.id));
+  const { answers, details } = await loadAnswers(rows.map((row) => row.response.id));
   const list: CmsInteractionResponse[] = rows.map((row) => ({
     id: row.response.id,
     interactionId: row.response.interactionId,
@@ -711,7 +840,8 @@ export async function listCmsInteractionResponses(q: ListCmsInteractionResponses
     memberDisplay: row.response.memberId ? maskedMember(row) : '游客',
     visitorHash: row.response.visitorHash,
     ipHash: row.response.ipHash,
-    answers: answerMap.get(row.response.id) ?? {},
+    answers: answers.get(row.response.id) ?? {},
+    answerDetails: details.get(row.response.id) ?? [],
     createdAt: formatDateTime(row.response.createdAt),
   }));
   return { list, total: countRows[0]?.value ?? 0, page: q.page, pageSize: q.pageSize };
@@ -740,7 +870,7 @@ export async function* streamCmsInteractionResponses(
       .where(and(baseWhere, beforeId === null ? undefined : lt(cmsInteractionResponses.id, beforeId)))
       .orderBy(desc(cmsInteractionResponses.id))
       .limit(limit);
-    const answerMap = await loadAnswerMap(rows.map((row) => row.response.id));
+    const { answers, details } = await loadAnswers(rows.map((row) => row.response.id));
     return rows.map((row): CmsInteractionResponse => ({
       id: row.response.id,
       interactionId: row.response.interactionId,
@@ -752,7 +882,8 @@ export async function* streamCmsInteractionResponses(
         : '游客',
       visitorHash: row.response.visitorHash,
       ipHash: row.response.ipHash,
-      answers: answerMap.get(row.response.id) ?? {},
+      answers: answers.get(row.response.id) ?? {},
+      answerDetails: details.get(row.response.id) ?? [],
       createdAt: formatDateTime(row.response.createdAt),
     }));
   });

@@ -10966,6 +10966,16 @@ export interface CmsInteractionPublicStats {
   }[];
 }
 
+export interface CmsInteractionAnswerDetail {
+  questionId: number;
+  label: string;
+  type: CmsInteractionQuestionType;
+  /** 选择题为命中的选项文案；文本题为单元素数组 */
+  values: string[];
+  /** 拼接后的展示文案（多选用「、」连接） */
+  display: string;
+}
+
 export interface CmsInteractionResponse {
   id: number;
   interactionId: number;
@@ -10976,6 +10986,8 @@ export interface CmsInteractionResponse {
   visitorHash: string;
   ipHash: string;
   answers: Record<string, string | string[]>;
+  /** 已关联题目的可读答案，按题目 sort 排序 */
+  answerDetails: CmsInteractionAnswerDetail[];
   createdAt: string;
 }
 

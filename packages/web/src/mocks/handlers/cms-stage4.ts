@@ -7,6 +7,7 @@ import type {
   CmsPageBlock,
 } from '@zenith/shared';
 import {
+  buildMockAnswerDetails,
   getNextCmsAdEventId,
   getNextCmsInteractionId,
   getNextCmsInteractionResponseId,
@@ -239,6 +240,7 @@ function submitInteraction(
     visitorHash: 'demo-visitor-hash',
     ipHash: 'demo-ip-hash',
     answers: (body.answers as Record<string, string | string[]>) ?? {},
+    answerDetails: buildMockAnswerDetails(interaction.id, (body.answers as Record<string, string | string[]>) ?? {}),
     createdAt: mockDateTime(),
   };
   mockCmsInteractionResponses.unshift(response);
@@ -278,10 +280,12 @@ export const cmsStage4Handlers = [
     const kind = url.searchParams.get('kind');
     const start = url.searchParams.get('startTime');
     const end = url.searchParams.get('endTime');
+    const interactionId = Number(url.searchParams.get('interactionId')) || undefined;
     const interactionIds = new Set(mockCmsInteractions
       .filter((interaction) => interaction.siteId === siteId && (!kind || interaction.kind === kind))
       .map((interaction) => interaction.id));
     let list = mockCmsInteractionResponses.filter((response) => interactionIds.has(response.interactionId));
+    if (interactionId) list = list.filter((response) => response.interactionId === interactionId);
     if (start) list = list.filter((response) => response.createdAt >= start);
     if (end) list = list.filter((response) => response.createdAt <= end);
     return ok(paginate(list, page, pageSize));
@@ -353,6 +357,33 @@ export const cmsStage4Handlers = [
       updatedAt: mockDateTime(),
     });
     return ok(interaction, '更新成功');
+  }),
+  http.post('/api/cms/interactions/:id/copy', ({ params }) => {
+    const source = mockCmsInteractions.find((item) => item.id === Number(params.id));
+    if (!source) return error(404, '互动问卷不存在');
+    const stem = source.code.replace(/-copy(?:-\d+)?$/, '') || source.code;
+    const taken = new Set(mockCmsInteractions.filter((item) => item.siteId === source.siteId).map((item) => item.code));
+    let code = `${stem}-copy`;
+    for (let index = 2; taken.has(code) && index <= 100; index += 1) code = `${stem}-copy-${index}`;
+    const id = getNextCmsInteractionId();
+    const copied: CmsInteraction = {
+      ...source,
+      id,
+      code,
+      title: `${source.title}（副本）`,
+      status: 'draft',
+      responseCount: 0,
+      questions: (source.questions ?? []).map((question, index) => ({
+        ...question,
+        id: id * 1000 + index + 1,
+        interactionId: id,
+        options: question.options.map((option) => ({ ...option })),
+      })),
+      createdAt: mockDateTime(),
+      updatedAt: mockDateTime(),
+    };
+    mockCmsInteractions.unshift(copied);
+    return ok(copied, '复制成功');
   }),
   http.post('/api/cms/interactions/:id/status', async ({ params, request }) => {
     const interaction = mockCmsInteractions.find((item) => item.id === Number(params.id));

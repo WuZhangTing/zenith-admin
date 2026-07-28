@@ -24,6 +24,7 @@ import {
   validationHook,
 } from '../../lib/openapi-schemas';
 import {
+  copyCmsInteraction,
   createCmsInteraction,
   deleteCmsInteraction,
   getCmsInteraction,
@@ -179,6 +180,21 @@ const batchStatusRoute = defineOpenAPIRoute({
   ), 200),
 });
 
+const copyRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/{id}/copy',
+    tags: ['CMS-互动问卷'], summary: '复制互动问卷（生成草稿副本）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({
+      permission: 'cms:interaction:manage',
+      audit: { description: '复制 CMS 互动问卷', module: 'CMS内容管理' },
+    })] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...ok(CmsInteractionDTO, '复制成功') },
+  }),
+  handler: async (c) => c.json(okBody(await copyCmsInteraction(c.req.valid('param').id), '复制成功'), 200),
+});
+
 const deleteRouteDef = defineOpenAPIRoute({
   route: createRoute({
     method: 'delete', path: '/{id}',
@@ -208,6 +224,7 @@ router.openapiRoutes([
   createRouteDef,
   updateRouteDef,
   statusRoute,
+  copyRoute,
   deleteRouteDef,
 ] as const);
 

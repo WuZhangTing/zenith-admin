@@ -39,8 +39,10 @@ import {
   useBatchCmsInteractionStatus,
   useAllCmsSites,
   useCmsInteractionList,
+  useCmsInteractionOptions,
   useCmsInteractionResponseList,
   useCmsInteractionStats,
+  useCopyCmsInteraction,
   useDeleteCmsInteraction,
   useSetCmsInteractionStatus,
 } from '@/hooks/queries/cms';
@@ -117,6 +119,7 @@ export default function SurveysPage() {
   const [responseDetail, setResponseDetail] = useState<CmsInteractionResponse | null>(null);
   const [responsePage, setResponsePage] = useState(1);
   const [responseTimeRange, setResponseTimeRange] = useState<[Date, Date] | undefined>();
+  const [responseInteractionId, setResponseInteractionId] = useState<number | undefined>();
 
   const listQuery = useCmsInteractionList({
     page,
@@ -129,12 +132,15 @@ export default function SurveysPage() {
   const sitesQuery = useAllCmsSites();
   const currentSite = sitesQuery.data?.find((site) => site.id === siteId);
   const deleteMutation = useDeleteCmsInteraction();
+  const copyMutation = useCopyCmsInteraction();
   const statusMutation = useSetCmsInteractionStatus();
   const batchMutation = useBatchCmsInteractionStatus();
+  const interactionOptionsQuery = useCmsInteractionOptions(siteId);
   const responseQuery = useCmsInteractionResponseList({
     page: responsePage,
     pageSize,
     siteId: siteId ?? 0,
+    interactionId: responseInteractionId,
     kind: submitted.kind,
     startTime: responseTimeRange ? formatDateTimeForApi(responseTimeRange[0]) : undefined,
     endTime: responseTimeRange ? formatDateTimeForApi(responseTimeRange[1]) : undefined,
@@ -155,6 +161,7 @@ export default function SurveysPage() {
     setDraft(initialSearch);
     setSubmitted(initialSearch);
     setResponseTimeRange(undefined);
+    setResponseInteractionId(undefined);
     void queryClient.invalidateQueries({ queryKey: cmsInteractionKeys.lists });
   };
 
@@ -228,6 +235,21 @@ export default function SurveysPage() {
           onClick: () => { setEditing(record); setModalVisible(true); },
         },
         {
+          key: 'copy', label: '复制', hidden: !canManage,
+          onClick: () => {
+            Modal.confirm({
+              title: `复制「${record.title}」？`,
+              content: '将生成一份草稿副本（配置与题目全量复制，答卷不复制），可直接修改题目。',
+              onOk: async () => {
+                const created = await copyMutation.mutateAsync(record.id);
+                Toast.success(`已生成副本「${created.title}」`);
+                setEditing(created);
+                setModalVisible(true);
+              },
+            });
+          },
+        },
+        {
           key: 'delete', label: '删除', danger: true,
           hidden: !canManage,
           onClick: () => {
@@ -253,6 +275,11 @@ export default function SurveysPage() {
       render: (value: CmsInteractionKind | undefined) => value ? CMS_INTERACTION_KIND_LABELS[value] : '-',
     },
     { title: '参与者', dataIndex: 'memberDisplay', width: 140 },
+    {
+      title: '作答摘要', dataIndex: 'answerDetails', width: 320,
+      render: (details: CmsInteractionResponse['answerDetails']) =>
+        renderEllipsis(details.map((detail) => `${detail.label}：${detail.display}`).join('；') || '-'),
+    },
     { title: '提交时间', dataIndex: 'createdAt', width: 180 },
     createOperationColumn<CmsInteractionResponse>({
       width: 90,
@@ -279,6 +306,7 @@ export default function SurveysPage() {
 
   const responseExportQuery = {
     siteId,
+    interactionId: responseInteractionId,
     kind: submitted.kind,
     startTime: responseTimeRange ? formatDateTimeForApi(responseTimeRange[0]) : undefined,
     endTime: responseTimeRange ? formatDateTimeForApi(responseTimeRange[1]) : undefined,
@@ -328,6 +356,11 @@ export default function SurveysPage() {
             primary={(
               <>
                 <CmsSiteSelect value={siteId} onChange={setSiteId} />
+                <Select placeholder="全部互动问卷" showClear value={responseInteractionId} style={{ width: 200 }}
+                  filter
+                  loading={interactionOptionsQuery.isFetching}
+                  optionList={(interactionOptionsQuery.data ?? []).map((item) => ({ value: item.id, label: item.title }))}
+                  onChange={(value) => { setResponseInteractionId(value as number | undefined); setResponsePage(1); }} />
                 <Select placeholder="全部类型" showClear value={draft.kind} style={{ width: 140 }}
                   optionList={Object.entries(CMS_INTERACTION_KIND_LABELS).map(([value, label]) => ({ value, label }))}
                   onChange={(value) => setDraft((current) => ({ ...current, kind: value as CmsInteractionKind | undefined }))} />
@@ -372,12 +405,35 @@ export default function SurveysPage() {
       <ResultsSheet interaction={resultsTarget} onClose={() => setResultsTarget(null)} />
       <SideSheet title="答卷详情" visible={!!responseDetail} onCancel={() => setResponseDetail(null)} width={520}>
         {responseDetail ? (
-          <dl style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: 12 }}>
-            <dt>互动问卷</dt><dd>{responseDetail.interactionTitle}</dd>
-            <dt>参与者</dt><dd>{responseDetail.memberDisplay}</dd>
-            <dt>提交时间</dt><dd>{responseDetail.createdAt}</dd>
-            <dt>答案</dt><dd><pre style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{JSON.stringify(responseDetail.answers, null, 2)}</pre></dd>
-          </dl>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <dl style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 10, margin: 0 }}>
+              <dt>互动问卷</dt><dd style={{ margin: 0 }}>{responseDetail.interactionTitle}</dd>
+              <dt>参与者</dt><dd style={{ margin: 0 }}>{responseDetail.memberDisplay}</dd>
+              <dt>提交时间</dt><dd style={{ margin: 0 }}>{responseDetail.createdAt}</dd>
+            </dl>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <Typography.Title heading={6}>作答内容</Typography.Title>
+              {responseDetail.answerDetails.length === 0 ? (
+                <Typography.Text type="tertiary">该答卷没有作答记录（题目可能已被删除）</Typography.Text>
+              ) : responseDetail.answerDetails.map((detail, index) => (
+                <section key={detail.questionId}>
+                  <Typography.Text strong>
+                    {index + 1}. {detail.label}
+                    <Tag size="small" style={{ marginLeft: 8 }}>{CMS_INTERACTION_QUESTION_TYPE_LABELS[detail.type]}</Tag>
+                  </Typography.Text>
+                  <div style={{
+                    marginTop: 6,
+                    padding: '8px 10px',
+                    background: 'var(--semi-color-fill-0)',
+                    borderRadius: 'var(--semi-border-radius-medium)',
+                    whiteSpace: 'pre-wrap',
+                  }}>
+                    {detail.display || <Typography.Text type="tertiary">未作答</Typography.Text>}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </div>
         ) : null}
       </SideSheet>
     </div>

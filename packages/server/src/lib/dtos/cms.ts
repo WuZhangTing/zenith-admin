@@ -8,6 +8,7 @@ import {
   CMS_DISTRIBUTION_CONFLICT_STRATEGIES,
   CMS_DISTRIBUTION_MODES,
   CMS_FIELD_OPTION_SOURCES,
+  CMS_INTERACTION_QUESTION_TYPES,
   CMS_RESOURCE_OWNER_TYPES,
   CMS_SITE_INHERITABLE_FIELDS,
 } from '@zenith/shared';
@@ -994,6 +995,16 @@ export const CmsInteractionSubmitResultDTO = z
   })
   .openapi('CmsInteractionSubmitResult');
 
+export const CmsInteractionAnswerDetailDTO = z
+  .object({
+    questionId: z.number().int(),
+    label: z.string(),
+    type: z.enum(CMS_INTERACTION_QUESTION_TYPES),
+    values: z.array(z.string()),
+    display: z.string(),
+  })
+  .openapi('CmsInteractionAnswerDetail');
+
 export const CmsInteractionResponseDTO = z
   .object({
     id: z.number().int(),
@@ -1005,6 +1016,7 @@ export const CmsInteractionResponseDTO = z
     visitorHash: z.string(),
     ipHash: z.string(),
     answers: z.record(z.string(), z.union([z.string(), z.array(z.string())])),
+    answerDetails: z.array(CmsInteractionAnswerDetailDTO),
     createdAt: z.string(),
   })
   .openapi('CmsInteractionResponse');

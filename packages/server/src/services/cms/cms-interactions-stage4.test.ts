@@ -7,6 +7,9 @@ import {
   canExposeCmsInteractionResults,
   cmsInteractionRepeatIdentity,
   applyInteractionMarkers,
+  interactionCodeStem,
+  nextInteractionCopyCode,
+  toCmsInteractionAnswerDetail,
   toCmsInteractionPublicStats,
 } from './cms-interactions.service';
 
@@ -116,5 +119,40 @@ describe('CMS Stage4 unified interactions', () => {
     expect(migration).toContain('DROP TABLE "cms_polls"');
     expect(migration).toContain('DROP TABLE "cms_surveys"');
     expect(migration).toContain('CREATE TABLE "cms_interactions"');
+  });
+
+  it('generates non-colliding copy codes and never nests -copy suffixes', () => {
+    expect(interactionCodeStem('satisfaction')).toBe('satisfaction');
+    expect(interactionCodeStem('satisfaction-copy')).toBe('satisfaction');
+    expect(interactionCodeStem('satisfaction-copy-7')).toBe('satisfaction');
+    expect(nextInteractionCopyCode('satisfaction', new Set())).toBe('satisfaction-copy');
+    expect(nextInteractionCopyCode('satisfaction', new Set(['satisfaction-copy']))).toBe('satisfaction-copy-2');
+    // 副本的副本仍挂在原始词根上，不会累加成 xxx-copy-copy
+    expect(nextInteractionCopyCode('satisfaction-copy', new Set(['satisfaction-copy', 'satisfaction-copy-2'])))
+      .toBe('satisfaction-copy-3');
+    const long = 'a'.repeat(60);
+    expect(nextInteractionCopyCode(long, new Set()).length).toBeLessThanOrEqual(50);
+    expect(() => nextInteractionCopyCode('x', new Set([
+      'x-copy',
+      ...Array.from({ length: 99 }, (_, i) => `x-copy-${i + 2}`),
+    ]))).toThrow();
+  });
+
+  it('resolves option values to labels and falls back when options changed', () => {
+    const options = [{ label: '非常满意', value: 'very' }, { label: '满意', value: 'ok' }];
+    expect(toCmsInteractionAnswerDetail({
+      questionId: 1, label: '满意度', type: 'single', options, value: 'very',
+    })).toEqual({ questionId: 1, label: '满意度', type: 'single', values: ['非常满意'], display: '非常满意' });
+    expect(toCmsInteractionAnswerDetail({
+      questionId: 2, label: '功能', type: 'multiple', options, value: ['very', 'ok'],
+    }).display).toBe('非常满意、满意');
+    // 选项被删除/改名后回退成原始 value，不吞内容
+    expect(toCmsInteractionAnswerDetail({
+      questionId: 3, label: '功能', type: 'multiple', options, value: ['very', 'removed'],
+    }).display).toBe('非常满意、removed');
+    // 文本题原样返回，不做任何选项反查
+    expect(toCmsInteractionAnswerDetail({
+      questionId: 4, label: '建议', type: 'text', options: null, value: 'very',
+    }).display).toBe('very');
   });
 });

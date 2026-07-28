@@ -1194,7 +1194,20 @@ export const cmsInteractionKeys = {
   stats: (id: number | undefined) => ['cms-interactions', 'stats', id] as const,
   responseLists: ['cms-interactions', 'responses'] as const,
   responseList: (params: CmsInteractionResponseListParams) => ['cms-interactions', 'responses', params] as const,
+  options: (siteId: number | undefined) => ['cms-interactions', 'options', siteId] as const,
 };
+
+/** 站点下全部互动问卷（下拉筛选用，最多 200 条） */
+export function useCmsInteractionOptions(siteId: number | undefined) {
+  return useQuery({
+    queryKey: cmsInteractionKeys.options(siteId),
+    queryFn: () => request
+      .get<PaginatedResponse<CmsInteraction>>(`/api/cms/interactions${toQueryString({ siteId, page: 1, pageSize: 200 })}`)
+      .then(unwrap)
+      .then((data) => data.list),
+    enabled: siteId !== undefined,
+  });
+}
 
 export function useCmsInteractionList(params: CmsInteractionListParams, enabled = true) {
   return useQuery({
@@ -1264,6 +1277,14 @@ export function useDeleteCmsInteraction() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/cms/interactions/${id}`).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: cmsInteractionKeys.all }),
+  });
+}
+
+export function useCopyCmsInteraction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => request.post<CmsInteraction>(`/api/cms/interactions/${id}/copy`, {}).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: cmsInteractionKeys.all }),
   });
 }
