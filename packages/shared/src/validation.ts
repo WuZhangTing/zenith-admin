@@ -75,6 +75,43 @@ function lazyRecursive<T extends z.ZodType>(build: () => T) {
   let cached: T | undefined;
   return z.lazy(() => (cached ??= build()));
 }
+
+/** `.default()` 剥离后的字段类型（用于保持 partialForUpdate 的类型推导） */
+type StripDefault<T> = T extends z.ZodDefault<infer Inner> ? Inner : T;
+
+/**
+ * 由 create schema 派生「部分更新」schema：**先剥离 `.default()`，再 `.partial()`**。
+ *
+ * Zod 的 `.partial()` 会**保留** `.default()`，所以 `createXxxSchema.partial()` 在字段省略时
+ * 反而会主动填入默认值。服务层普遍用 `.set({ ...data })` 写库，于是一次
+ * `PUT { "remark": "x" }` 会静默改写一批根本没提交的字段——实测注入过：
+ *
+ * - `updateRoleSchema` → `dataScope: 'all'`：把 dept/self 范围的角色提权为全量可见
+ * - `updateTenantIdentityProviderSchema` → `status: 'disabled'` + `ldapStartTls: false`：
+ *   身份源被停用（登录中断）并把 LDAP 降级为明文
+ * - `updateCmsChannelSchema` → `parentId: 0`：栏目被挂回站点根并级联改写子栏目 URL
+ * - `updateCmsContentSchema` → `tagIds: []`（JS 里 `[]` 是 truthy）：清空全部标签与关联
+ *
+ * 默认值只属于**创建**语义：创建时字段缺失需要一个合理初值，更新时字段缺失的语义是
+ * 「别动它」。两者不能共用一份 shape。
+ */
+export function partialForUpdate<T extends z.ZodObject<z.ZodRawShape>>(
+  schema: T,
+): z.ZodObject<{ [K in keyof T['shape']]: z.ZodOptional<StripDefault<T['shape'][K]>> }> {
+  const shape = schema.shape as Record<string, z.ZodType>;
+  const stripped: Record<string, z.ZodType> = {};
+  for (const key of Object.keys(shape)) {
+    let field = shape[key];
+    // 循环而非单次：理论上可能出现 .default().default() 的叠加包装
+    while (field instanceof z.ZodDefault) {
+      field = (field as unknown as { def: { innerType: z.ZodType } }).def.innerType;
+    }
+    stripped[key] = field;
+  }
+  return z.object(stripped).partial() as unknown as z.ZodObject<{
+    [K in keyof T['shape']]: z.ZodOptional<StripDefault<T['shape'][K]>>
+  }>;
+}
 const dateTimeStringSchema = z.string().regex(DATE_TIME_PATTERN, '日期时间格式必须为 YYYY-MM-DD HH:mm:ss');
 const timezoneSchema = z.string().min(1).max(64)
   .refine((timezone) => timezone === 'UTC' || Intl.supportedValuesOf('timeZone').includes(timezone), '时区标识无效');
@@ -139,7 +176,7 @@ function validateOAuth2Client(value: z.infer<typeof oauth2ClientCreateSchema>, c
 
 export const createOAuth2ClientSchema = oauth2ClientCreateSchema.superRefine(validateOAuth2Client);
 
-export const updateOAuth2ClientSchema = oauth2ClientBaseSchema.partial().extend({
+export const updateOAuth2ClientSchema = partialForUpdate(oauth2ClientBaseSchema).extend({
   status: z.enum(['enabled', 'disabled']).optional(),
 });
 
@@ -185,7 +222,7 @@ export const createUserSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
 
-export const updateUserSchema = createUserSchema.partial().omit({ password: true });
+export const updateUserSchema = partialForUpdate(createUserSchema).omit({ password: true });
 
 export const changePasswordSchema = z.object({
   oldPassword: z.string().min(6, '原密码至少6个字符').max(64),
@@ -239,7 +276,7 @@ export const createMenuSchema = z.object({
   visible: z.boolean().default(true),
 });
 
-export const updateMenuSchema = createMenuSchema.partial();
+export const updateMenuSchema = partialForUpdate(createMenuSchema);
 
 // ─── 角色 Schema ──────────────────────────────────────────────────────────────
 export const createRoleSchema = z.object({
@@ -251,7 +288,7 @@ export const createRoleSchema = z.object({
   deptScopeIds: z.array(z.number().int().positive()).optional().nullable(),
 });
 
-export const updateRoleSchema = createRoleSchema.partial();
+export const updateRoleSchema = partialForUpdate(createRoleSchema);
 
 export const assignRoleMenusSchema = z.object({
   menuIds: z.array(z.number().int()),
@@ -277,7 +314,7 @@ export const createDepartmentSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
 
-export const updateDepartmentSchema = createDepartmentSchema.partial();
+export const updateDepartmentSchema = partialForUpdate(createDepartmentSchema);
 
 // ─── 岗位 Schema ──────────────────────────────────────────────────────────────
 export const createPositionSchema = z.object({
@@ -288,7 +325,7 @@ export const createPositionSchema = z.object({
   remark: z.string().max(256).optional(),
 });
 
-export const updatePositionSchema = createPositionSchema.partial();
+export const updatePositionSchema = partialForUpdate(createPositionSchema);
 
 // ─── 用户组 Schema ────────────────────────────────────────────────────────
 export const createUserGroupSchema = z.object({
@@ -300,7 +337,7 @@ export const createUserGroupSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
 
-export const updateUserGroupSchema = createUserGroupSchema.partial();
+export const updateUserGroupSchema = partialForUpdate(createUserGroupSchema);
 
 export const assignUserGroupMembersSchema = z.object({
   userIds: z.array(z.number().int().positive()),
@@ -314,7 +351,7 @@ export const createDictSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
 
-export const updateDictSchema = createDictSchema.partial();
+export const updateDictSchema = partialForUpdate(createDictSchema);
 
 export const createDictItemSchema = z.object({
   label: z.string().min(1, '标签不能为空').max(64),
@@ -327,7 +364,7 @@ export const createDictItemSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
-export const updateDictItemSchema = createDictItemSchema.partial();
+export const updateDictItemSchema = partialForUpdate(createDictItemSchema);
 
 // ─── 文件管理 Schema ─────────────────────────────────────────────────────────
 const baseFileStorageConfigSchema = z.object({
@@ -492,7 +529,7 @@ export const createFileStorageConfigSchema = baseFileStorageConfigSchema.superRe
   }
 });
 
-export const updateFileStorageConfigSchema = baseFileStorageConfigSchema.partial().superRefine(addUrlStrategyIssues);
+export const updateFileStorageConfigSchema = partialForUpdate(baseFileStorageConfigSchema).superRefine(addUrlStrategyIssues);
 
 // ─── 分片上传 ─────────────────────────────────────────────────────────────────
 export const initChunkUploadSchema = z.object({
@@ -575,7 +612,7 @@ export const createSystemConfigSchema = z.object({
   description: z.string().max(256).default(''),
 });
 
-export const updateSystemConfigSchema = createSystemConfigSchema.partial();
+export const updateSystemConfigSchema = partialForUpdate(createSystemConfigSchema);
 
 export type CreateSystemConfigInput = z.infer<typeof createSystemConfigSchema>;
 export type UpdateSystemConfigInput = z.infer<typeof updateSystemConfigSchema>;
@@ -595,7 +632,7 @@ export const createCronJobSchema = z.object({
   monitorTimeout: z.number().int().min(0).nullable().optional(),
 });
 
-export const updateCronJobSchema = createCronJobSchema.partial();
+export const updateCronJobSchema = partialForUpdate(createCronJobSchema);
 
 export type CreateCronJobInput = z.infer<typeof createCronJobSchema>;
 export type UpdateCronJobInput = z.infer<typeof updateCronJobSchema>;
@@ -610,7 +647,7 @@ export const createRegionSchema = z.object({
   status:     z.enum(['enabled', 'disabled']).default('enabled'),
 });
 
-export const updateRegionSchema = createRegionSchema.partial();
+export const updateRegionSchema = partialForUpdate(createRegionSchema);
 
 export type CreateRegionInput = z.infer<typeof createRegionSchema>;
 export type UpdateRegionInput = z.infer<typeof updateRegionSchema>;
@@ -638,6 +675,12 @@ export const createBackupSchema = z.object({
 export type CreateBackupInput = z.infer<typeof createBackupSchema>;
 
 // ─── OAuth 配置 Schema ─────────────────────────────────────────────────────
+/**
+ * 注意：这是**整体替换**语义（后台配置表单每次提交全部字段，服务端 upsert），
+ * 不是部分更新。因此这里的 `.default()` 是有意的兜底——`updateOauthConfig` 把
+ * `clientId` / `enabled` 声明为必填并无条件写库。
+ * 不要套用 `partialForUpdate`：那会让这两个字段变成可选，与服务层契约冲突。
+ */
 export const updateOauthConfigSchema = z.object({
   clientId: z.string().max(256).default(''),
   clientSecret: z.string().max(512).default(''),
@@ -698,7 +741,7 @@ export const createTenantIdentityProviderSchema = z.object({
   remark: z.string().max(500).nullable().optional(),
 });
 
-export const updateTenantIdentityProviderSchema = createTenantIdentityProviderSchema.partial();
+export const updateTenantIdentityProviderSchema = partialForUpdate(createTenantIdentityProviderSchema);
 
 export const searchIdentityProviderUsersSchema = z.object({
   keyword: z.string().max(100).optional(),
@@ -736,9 +779,8 @@ export const createTenantSchema = z.object({
   adminEmail: z.string().email('管理员邮箱格式不正确').max(128).optional(),
 });
 
-export const updateTenantSchema = createTenantSchema
-  .omit({ adminUsername: true, adminPassword: true, adminNickname: true, adminEmail: true })
-  .partial();
+export const updateTenantSchema = partialForUpdate(createTenantSchema
+  .omit({ adminUsername: true, adminPassword: true, adminNickname: true, adminEmail: true }));
 
 export const switchTenantSchema = z.object({
   tenantId: z.number().int().positive().nullable(),
@@ -755,7 +797,7 @@ export const createTenantPackageSchema = z.object({
   remark: z.string().max(500).optional(),
 });
 
-export const updateTenantPackageSchema = createTenantPackageSchema.partial();
+export const updateTenantPackageSchema = partialForUpdate(createTenantPackageSchema);
 
 export const assignTenantPackageMenusSchema = z.object({
   menuIds: z.array(z.number().int()).default([]),
@@ -782,7 +824,7 @@ export const createEmailTemplateSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(500).optional(),
 });
-export const updateEmailTemplateSchema = createEmailTemplateSchema.partial();
+export const updateEmailTemplateSchema = partialForUpdate(createEmailTemplateSchema);
 export type CreateEmailTemplateInput = z.infer<typeof createEmailTemplateSchema>;
 export type UpdateEmailTemplateInput = z.infer<typeof updateEmailTemplateSchema>;
 
@@ -808,7 +850,7 @@ export const createSmsConfigSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(500).optional(),
 });
-export const updateSmsConfigSchema = createSmsConfigSchema.partial().extend({
+export const updateSmsConfigSchema = partialForUpdate(createSmsConfigSchema).extend({
   accessKeySecret: z.string().max(512).optional(), // 更新时允许不传（保持原值）
 });
 export type CreateSmsConfigInput = z.infer<typeof createSmsConfigSchema>;
@@ -826,7 +868,7 @@ export const createSmsTemplateSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(500).optional(),
 });
-export const updateSmsTemplateSchema = createSmsTemplateSchema.partial();
+export const updateSmsTemplateSchema = partialForUpdate(createSmsTemplateSchema);
 export type CreateSmsTemplateInput = z.infer<typeof createSmsTemplateSchema>;
 export type UpdateSmsTemplateInput = z.infer<typeof updateSmsTemplateSchema>;
 
@@ -849,7 +891,7 @@ export const createInAppTemplateSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(500).optional(),
 });
-export const updateInAppTemplateSchema = createInAppTemplateSchema.partial();
+export const updateInAppTemplateSchema = partialForUpdate(createInAppTemplateSchema);
 export type CreateInAppTemplateInput = z.infer<typeof createInAppTemplateSchema>;
 export type UpdateInAppTemplateInput = z.infer<typeof updateInAppTemplateSchema>;
 
@@ -874,7 +916,7 @@ export const createTagSchema = z.object({
   sortOrder:   z.number().int().default(0),
 });
 
-export const updateTagSchema = createTagSchema.partial();
+export const updateTagSchema = partialForUpdate(createTagSchema);
 
 export type CreateTagInput = z.infer<typeof createTagSchema>;
 export type UpdateTagInput = z.infer<typeof updateTagSchema>;
@@ -1209,7 +1251,7 @@ export const createWorkflowFormSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
 
-export const updateWorkflowFormSchema = createWorkflowFormSchema.partial().extend({
+export const updateWorkflowFormSchema = partialForUpdate(createWorkflowFormSchema).extend({
   /** 乐观锁：客户端持有的 revision，与当前不一致时返回 409 */
   expectedRevision: z.number().int().min(1).optional(),
   /** 字段 key 重命名映射（旧 key → 新 key），服务端级联更新引用该表单的流程定义 flowData */
@@ -1234,7 +1276,7 @@ export const createWorkflowDataSourceSchema = z.object({
   remark: z.string().max(256).optional(),
 });
 
-export const updateWorkflowDataSourceSchema = createWorkflowDataSourceSchema.partial();
+export const updateWorkflowDataSourceSchema = partialForUpdate(createWorkflowDataSourceSchema);
 
 export type CreateWorkflowDataSourceInput = z.input<typeof createWorkflowDataSourceSchema>;
 export type UpdateWorkflowDataSourceInput = z.input<typeof updateWorkflowDataSourceSchema>;
@@ -1269,7 +1311,7 @@ export const createWorkflowConnectorSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
 
-export const updateWorkflowConnectorSchema = createWorkflowConnectorSchema.partial().extend({
+export const updateWorkflowConnectorSchema = partialForUpdate(createWorkflowConnectorSchema).extend({
   /** true=清空凭据；不传且 credentials 也不传=保留原凭据 */
   clearCredentials: z.boolean().optional(),
 });
@@ -1312,7 +1354,7 @@ export const createWorkflowDefinitionSchema = z.object({
   status: z.enum(['draft', 'published', 'disabled']).default('draft'),
 });
 
-export const updateWorkflowDefinitionSchema = createWorkflowDefinitionSchema.partial();
+export const updateWorkflowDefinitionSchema = partialForUpdate(createWorkflowDefinitionSchema);
 
 // 流程级自动化规则
 const workflowAutomationActionStartWorkflowSchema = z.object({
@@ -1365,7 +1407,7 @@ export const createWorkflowAutomationSchema = z.object({
   sort: z.number().int().nonnegative().default(0),
 });
 
-export const updateWorkflowAutomationSchema = createWorkflowAutomationSchema.partial();
+export const updateWorkflowAutomationSchema = partialForUpdate(createWorkflowAutomationSchema);
 
 export type WorkflowAutomationActionInput = z.infer<typeof workflowAutomationActionSchema>;
 export type CreateWorkflowAutomationInput = z.infer<typeof createWorkflowAutomationSchema>;
@@ -1383,7 +1425,7 @@ export const createWorkflowScheduleSchema = z.object({
   formData: z.record(z.string(), z.unknown()).nullable().optional(),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
-export const updateWorkflowScheduleSchema = createWorkflowScheduleSchema.partial();
+export const updateWorkflowScheduleSchema = partialForUpdate(createWorkflowScheduleSchema);
 export type CreateWorkflowScheduleInput = z.infer<typeof createWorkflowScheduleSchema>;
 export type UpdateWorkflowScheduleInput = z.infer<typeof updateWorkflowScheduleSchema>;
 
@@ -1395,7 +1437,7 @@ export const createWorkflowSavedViewSchema = z.object({
   isDefault: z.boolean().optional(),
   sort: z.number().int().nonnegative().optional(),
 });
-export const updateWorkflowSavedViewSchema = createWorkflowSavedViewSchema.partial().omit({ pageKey: true });
+export const updateWorkflowSavedViewSchema = partialForUpdate(createWorkflowSavedViewSchema).omit({ pageKey: true });
 export type CreateWorkflowSavedViewInput = z.infer<typeof createWorkflowSavedViewSchema>;
 export type UpdateWorkflowSavedViewInput = z.infer<typeof updateWorkflowSavedViewSchema>;
 
@@ -1618,7 +1660,7 @@ export const createWorkflowQuickPhraseSchema = z.object({
   content: z.string().min(1, '内容不能为空').max(255),
   sort: z.number().int().nonnegative().default(0),
 });
-export const updateWorkflowQuickPhraseSchema = createWorkflowQuickPhraseSchema.partial();
+export const updateWorkflowQuickPhraseSchema = partialForUpdate(createWorkflowQuickPhraseSchema);
 
 // ── 审批代理 / 离岗委托 ──
 export const createWorkflowDelegationSchema = z.object({
@@ -1631,7 +1673,7 @@ export const createWorkflowDelegationSchema = z.object({
   endAt: z.string().max(32).nullable().optional(),
   enabled: z.boolean().default(true),
 });
-export const updateWorkflowDelegationSchema = createWorkflowDelegationSchema.partial();
+export const updateWorkflowDelegationSchema = partialForUpdate(createWorkflowDelegationSchema);
 
 // ── 管理员强制操作 ──
 export const jumpWorkflowInstanceSchema = z.object({
@@ -1671,7 +1713,7 @@ export const createWorkflowTemplateSchema = z.object({
   formSchema: z.record(z.string(), z.unknown()).nullable().optional(),
   sort: z.number().int().nonnegative().default(0),
 });
-export const updateWorkflowTemplateSchema = createWorkflowTemplateSchema.partial();
+export const updateWorkflowTemplateSchema = partialForUpdate(createWorkflowTemplateSchema);
 /** 从现有流程定义另存为模板 */
 export const saveAsTemplateSchema = z.object({
   definitionId: z.number().int().positive('请选择流程定义'),
@@ -1884,7 +1926,7 @@ export const createChatWebhookSchema = z.object({
   conversationId: z.number().int().positive('请选择目标会话'),
   enabled: z.boolean().default(true),
 });
-export const updateChatWebhookSchema = createChatWebhookSchema.partial().omit({ conversationId: true });
+export const updateChatWebhookSchema = partialForUpdate(createChatWebhookSchema).omit({ conversationId: true });
 
 export type CreateChatWebhookInput = z.infer<typeof createChatWebhookSchema>;
 export type UpdateChatWebhookInput = z.infer<typeof updateChatWebhookSchema>;
@@ -2046,7 +2088,7 @@ export const createChannelQuickReplySchema = z.object({
 export type CreateChannelQuickReplyInput = z.infer<typeof createChannelQuickReplySchema>;
 
 /** 更新客服快捷回复 */
-export const updateChannelQuickReplySchema = createChannelQuickReplySchema.partial();
+export const updateChannelQuickReplySchema = partialForUpdate(createChannelQuickReplySchema);
 export type UpdateChannelQuickReplyInput = z.infer<typeof updateChannelQuickReplySchema>;
 
 /** 指派 / 转接会话（assigneeId 为 null = 取消指派） */
@@ -2078,7 +2120,7 @@ export const createChannelTemplateSchema = z.object({
 export type CreateChannelTemplateInput = z.infer<typeof createChannelTemplateSchema>;
 
 /** 更新群发消息模板 */
-export const updateChannelTemplateSchema = createChannelTemplateSchema.partial();
+export const updateChannelTemplateSchema = partialForUpdate(createChannelTemplateSchema);
 export type UpdateChannelTemplateInput = z.infer<typeof updateChannelTemplateSchema>;
 
 /** 添加订阅者（运营号批量加订阅用户） */
@@ -2136,7 +2178,7 @@ export const createAiProviderConfigSchema = z.object({
   isEnabled: z.boolean().default(true),
 });
 
-export const updateAiProviderConfigSchema = createAiProviderConfigSchema.partial();
+export const updateAiProviderConfigSchema = partialForUpdate(createAiProviderConfigSchema);
 
 export type CreateAiProviderConfigInput = z.infer<typeof createAiProviderConfigSchema>;
 export type UpdateAiProviderConfigInput = z.infer<typeof updateAiProviderConfigSchema>;
@@ -2201,7 +2243,7 @@ export const createAiPromptTemplateSchema = z.object({
   isEnabled: z.boolean().default(true),
 });
 
-export const updateAiPromptTemplateSchema = createAiPromptTemplateSchema.partial();
+export const updateAiPromptTemplateSchema = partialForUpdate(createAiPromptTemplateSchema);
 
 export type CreateAiPromptTemplateInput = z.infer<typeof createAiPromptTemplateSchema>;
 export type UpdateAiPromptTemplateInput = z.infer<typeof updateAiPromptTemplateSchema>;
@@ -2248,7 +2290,7 @@ export const createAiKnowledgeBaseSchema = z.object({
   description: z.string().max(300).nullable().optional(),
 });
 
-export const updateAiKnowledgeBaseSchema = createAiKnowledgeBaseSchema.partial();
+export const updateAiKnowledgeBaseSchema = partialForUpdate(createAiKnowledgeBaseSchema);
 
 export type CreateAiKnowledgeBaseInput = z.infer<typeof createAiKnowledgeBaseSchema>;
 export type UpdateAiKnowledgeBaseInput = z.infer<typeof updateAiKnowledgeBaseSchema>;
@@ -2287,7 +2329,7 @@ export const createAiAgentSchema = z.object({
   isEnabled: z.boolean().optional(),
 });
 
-export const updateAiAgentSchema = createAiAgentSchema.partial();
+export const updateAiAgentSchema = partialForUpdate(createAiAgentSchema);
 
 export const reviewAiAgentSchema = z.object({
   approve: z.boolean(),
@@ -2316,7 +2358,7 @@ export const createAiHttpToolSchema = z.object({
   isEnabled: z.boolean().optional(),
 });
 
-export const updateAiHttpToolSchema = createAiHttpToolSchema.partial();
+export const updateAiHttpToolSchema = partialForUpdate(createAiHttpToolSchema);
 
 export type CreateAiHttpToolInput = z.infer<typeof createAiHttpToolSchema>;
 export type UpdateAiHttpToolInput = z.infer<typeof updateAiHttpToolSchema>;
@@ -2334,7 +2376,7 @@ export const createAiEvalSetSchema = z.object({
   items: z.array(aiEvalItemSchema).min(1, '至少一条评测问题').max(50),
 });
 
-export const updateAiEvalSetSchema = createAiEvalSetSchema.partial();
+export const updateAiEvalSetSchema = partialForUpdate(createAiEvalSetSchema);
 
 export const runAiEvalSchema = z.object({
   /** 服务商配置 ID（缺省 = 系统默认配置） */
@@ -2387,7 +2429,7 @@ export const createDataMaskConfigSchema = z.object({
   remark:          z.string().max(256).optional(),
 });
 
-export const updateDataMaskConfigSchema = createDataMaskConfigSchema.partial();
+export const updateDataMaskConfigSchema = partialForUpdate(createDataMaskConfigSchema);
 
 export type CreateDataMaskConfigInput = z.infer<typeof createDataMaskConfigSchema>;
 export type UpdateDataMaskConfigInput = z.infer<typeof updateDataMaskConfigSchema>;
@@ -2415,7 +2457,7 @@ export const createDbQueryFavoriteSchema = z.object({
   tags: z.array(z.string().max(50)).max(10).default([]),
 });
 
-export const updateDbQueryFavoriteSchema = createDbQueryFavoriteSchema.partial();
+export const updateDbQueryFavoriteSchema = partialForUpdate(createDbQueryFavoriteSchema);
 
 export type CreateDbQueryFavoriteInput = z.infer<typeof createDbQueryFavoriteSchema>;
 export type UpdateDbQueryFavoriteInput = z.infer<typeof updateDbQueryFavoriteSchema>;
@@ -2452,7 +2494,7 @@ export const createPaymentChannelConfigSchema = z.object({
 
 // partial() 不会剥离 default：显式声明带默认值的字段为纯 optional，
 // 否则部分更新（如仅改 notifyUrl）会把 sandbox/isDefault/status 静默重置为默认值
-export const updatePaymentChannelConfigSchema = createPaymentChannelConfigSchema.partial().extend({
+export const updatePaymentChannelConfigSchema = partialForUpdate(createPaymentChannelConfigSchema).extend({
   status: z.enum(['enabled', 'disabled']).optional(),
   isDefault: z.boolean().optional(),
   sandbox: z.boolean().optional(),
@@ -2504,7 +2546,7 @@ export const createPaymentFeeRuleSchema = z.object({
   priority: z.number().int().min(0).max(9999).default(0),
   remark: z.string().max(256).optional(),
 });
-export const updatePaymentFeeRuleSchema = createPaymentFeeRuleSchema.partial();
+export const updatePaymentFeeRuleSchema = partialForUpdate(createPaymentFeeRuleSchema);
 
 /** 分账接收方 */
 export const createPaymentSharingReceiverSchema = z.object({
@@ -2516,7 +2558,7 @@ export const createPaymentSharingReceiverSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(256).optional(),
 });
-export const updatePaymentSharingReceiverSchema = createPaymentSharingReceiverSchema.partial();
+export const updatePaymentSharingReceiverSchema = partialForUpdate(createPaymentSharingReceiverSchema);
 
 /** 对账差异处理 */
 export const handlePaymentReconItemSchema = z.object({
@@ -2546,7 +2588,7 @@ export const createPaymentAppSchema = z.object({
   unionpayConfigId: z.number().int().positive().nullable().optional(),
   remark: z.string().max(256).optional(),
 });
-export const updatePaymentAppSchema = createPaymentAppSchema.partial();
+export const updatePaymentAppSchema = partialForUpdate(createPaymentAppSchema);
 
 /** 支付链接 */
 export const createPaymentLinkSchema = z.object({
@@ -2559,7 +2601,7 @@ export const createPaymentLinkSchema = z.object({
   status: z.enum(['active', 'disabled']).default('active'),
   remark: z.string().max(256).optional(),
 });
-export const updatePaymentLinkSchema = createPaymentLinkSchema.partial();
+export const updatePaymentLinkSchema = partialForUpdate(createPaymentLinkSchema);
 
 /** 风控限额规则 */
 export const createPaymentRiskRuleSchema = z.object({
@@ -2577,7 +2619,7 @@ export const createPaymentRiskRuleSchema = z.object({
   remark: z.string().max(256).optional(),
 });
 // partial() 不剥离 default，显式覆盖带默认值字段为纯 optional（防部分更新静默重置）
-export const updatePaymentRiskRuleSchema = createPaymentRiskRuleSchema.partial().extend({
+export const updatePaymentRiskRuleSchema = partialForUpdate(createPaymentRiskRuleSchema).extend({
   scope: z.enum(['global', 'channel', 'bizType']).optional(),
   blocklist: z.array(z.string().max(128)).optional(),
   allowlist: z.array(z.string().max(128)).optional(),
@@ -2959,7 +3001,7 @@ function validateAlertDelivery(
 }
 
 export const createErrorAlertRuleSchema = errorAlertRuleBaseSchema.superRefine(validateAlertDelivery);
-export const updateErrorAlertRuleSchema = errorAlertRuleBaseSchema.partial().superRefine((value, ctx) => {
+export const updateErrorAlertRuleSchema = partialForUpdate(errorAlertRuleBaseSchema).superRefine((value, ctx) => {
   if (value.enabled === true && value.channels !== undefined) validateAlertDelivery(value, ctx);
 });
 
@@ -2983,7 +3025,7 @@ const monitorAlertRuleBaseSchema = z.object({
   enabled: z.boolean().default(true),
 });
 export const createMonitorAlertRuleSchema = monitorAlertRuleBaseSchema.superRefine(validateAlertDelivery);
-export const updateMonitorAlertRuleSchema = monitorAlertRuleBaseSchema.partial().superRefine((value, ctx) => {
+export const updateMonitorAlertRuleSchema = partialForUpdate(monitorAlertRuleBaseSchema).superRefine((value, ctx) => {
   if (value.enabled === true && value.channels !== undefined) validateAlertDelivery(value, ctx);
 });
 
@@ -3036,7 +3078,7 @@ export const createAnalyticsEventMetaSchema = z.object({
   ownerName: z.string().max(64).nullable().optional(),
   strictMode: z.boolean().default(false),
 });
-export const updateAnalyticsEventMetaSchema = createAnalyticsEventMetaSchema.partial();
+export const updateAnalyticsEventMetaSchema = partialForUpdate(createAnalyticsEventMetaSchema);
 
 // ─── 行为中心阶段 1：租户级事件启停覆盖 ───────────────────────────────────────
 export const createAnalyticsEventOverrideSchema = z.object({
@@ -3067,7 +3109,7 @@ export const createAnalyticsSiteSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(500).nullable().optional(),
 });
-export const updateAnalyticsSiteSchema = createAnalyticsSiteSchema.partial();
+export const updateAnalyticsSiteSchema = partialForUpdate(createAnalyticsSiteSchema);
 
 // ─── 行为中心阶段 1：用户分群 ──────────────────────────────────────────────────
 export const analyticsSegmentPropertyFilterSchema = z.object({
@@ -3104,7 +3146,7 @@ export const createAnalyticsUserSegmentSchema = z.object({
   rules: analyticsSegmentRuleSchema,
   status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
-export const updateAnalyticsUserSegmentSchema = createAnalyticsUserSegmentSchema.partial();
+export const updateAnalyticsUserSegmentSchema = partialForUpdate(createAnalyticsUserSegmentSchema);
 
 const analyticsWebhookUrlSchema = z.string().max(500).url('Webhook URL 格式不正确').refine((value) => {
   try {
@@ -3142,7 +3184,7 @@ const analyticsCampaignBaseSchema = z.object({
 
 export const createAnalyticsCampaignSchema = analyticsCampaignBaseSchema.superRefine(refineAnalyticsCampaign);
 
-export const updateAnalyticsCampaignSchema = analyticsCampaignBaseSchema.omit({ segmentId: true }).partial().superRefine(refineAnalyticsCampaign);
+export const updateAnalyticsCampaignSchema = partialForUpdate(analyticsCampaignBaseSchema.omit({ segmentId: true })).superRefine(refineAnalyticsCampaign);
 
 
 // ─── 行为中心阶段 2：A/B 实验 ──────────────────────────────────────────────────
@@ -3186,7 +3228,7 @@ const analyticsExperimentBaseSchema = z.object({
 });
 
 export const createAnalyticsExperimentSchema = analyticsExperimentBaseSchema.superRefine(refineExperimentWindow);
-export const updateAnalyticsExperimentSchema = analyticsExperimentBaseSchema.partial().superRefine(refineExperimentWindow);
+export const updateAnalyticsExperimentSchema = partialForUpdate(analyticsExperimentBaseSchema).superRefine(refineExperimentWindow);
 
 // ─── 采集设置 ─────────────────────────────────────────────────────────────────
 export const updateAnalyticsSettingsSchema = z.object({
@@ -3296,7 +3338,7 @@ export const createBizLeaveSchema = z.object({
   reason: z.string().max(500).nullable().optional(),
 });
 
-export const updateBizLeaveSchema = createBizLeaveSchema.partial();
+export const updateBizLeaveSchema = partialForUpdate(createBizLeaveSchema);
 
 export type CreateBizLeaveInput = z.infer<typeof createBizLeaveSchema>;
 export type UpdateBizLeaveInput = z.infer<typeof updateBizLeaveSchema>;
@@ -3356,7 +3398,7 @@ export const createMpAccountSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(500).optional(),
 });
-export const updateMpAccountSchema = createMpAccountSchema.partial().extend({
+export const updateMpAccountSchema = partialForUpdate(createMpAccountSchema).extend({
   appSecret: z.string().max(128).optional(), // 更新时留空表示保持原值
 });
 export type CreateMpAccountInput = z.infer<typeof createMpAccountSchema>;
@@ -3431,7 +3473,7 @@ export const createMpAutoReplySchema = mpAutoReplyBase
   .refine((d) => d.contentType !== 'text' || !!d.content, { message: '请填写回复内容', path: ['content'] })
   .refine((d) => !(['image', 'voice', 'video'] as string[]).includes(d.contentType) || !!d.mediaId, { message: '请选择素材', path: ['mediaId'] })
   .refine((d) => d.contentType !== 'news' || (d.newsArticles?.length ?? 0) > 0, { message: '请至少添加一篇图文', path: ['newsArticles'] });
-export const updateMpAutoReplySchema = mpAutoReplyBase.omit({ accountId: true, replyType: true }).partial();
+export const updateMpAutoReplySchema = partialForUpdate(mpAutoReplyBase.omit({ accountId: true, replyType: true }));
 export type CreateMpAutoReplyInput = z.infer<typeof createMpAutoReplySchema>;
 export type UpdateMpAutoReplyInput = z.infer<typeof updateMpAutoReplySchema>;
 
@@ -3557,7 +3599,7 @@ export const createMpBroadcastSchema = mpBroadcastBase
   .refine((d) => d.msgType !== 'text' || !!d.content, { message: '请填写群发文本内容', path: ['content'] })
   .refine((d) => d.msgType === 'text' || !!d.mediaId, { message: '请选择图片素材或图文草稿', path: ['mediaId'] })
   .refine((d) => d.target !== 'tag' || !!d.tagId, { message: '按标签群发时请选择标签', path: ['tagId'] });
-export const updateMpBroadcastSchema = mpBroadcastBase.omit({ accountId: true }).partial()
+export const updateMpBroadcastSchema = partialForUpdate(mpBroadcastBase.omit({ accountId: true }))
   .refine((d) => d.target !== 'tag' || d.tagId == null || d.tagId > 0, { message: '标签不合法', path: ['tagId'] });
 export type CreateMpBroadcastInput = z.infer<typeof createMpBroadcastSchema>;
 export type UpdateMpBroadcastInput = z.infer<typeof updateMpBroadcastSchema>;
@@ -3742,7 +3784,7 @@ export const createReportDatasourceSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(256).optional(),
 });
-export const updateReportDatasourceSchema = createReportDatasourceSchema.partial();
+export const updateReportDatasourceSchema = partialForUpdate(createReportDatasourceSchema);
 export type CreateReportDatasourceInput = z.input<typeof createReportDatasourceSchema>;
 export type UpdateReportDatasourceInput = z.input<typeof updateReportDatasourceSchema>;
 
@@ -3837,7 +3879,7 @@ const reportDatasetSchemaBase = z.object({
   remark: z.string().max(256).optional(),
 });
 export const createReportDatasetSchema = reportDatasetSchemaBase.superRefine(refineDatasetDefinition);
-export const updateReportDatasetSchema = reportDatasetSchemaBase.partial().superRefine(refineDatasetDefinition);
+export const updateReportDatasetSchema = partialForUpdate(reportDatasetSchemaBase).superRefine(refineDatasetDefinition);
 export type CreateReportDatasetInput = z.input<typeof createReportDatasetSchema>;
 export type UpdateReportDatasetInput = z.input<typeof updateReportDatasetSchema>;
 
@@ -3962,7 +4004,7 @@ export const createReportDashboardSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(256).optional(),
 });
-export const updateReportDashboardSchema = createReportDashboardSchema.partial().extend({
+export const updateReportDashboardSchema = partialForUpdate(createReportDashboardSchema).extend({
   expectedRevision: z.number().int().positive(),
 });
 export type CreateReportDashboardInput = z.input<typeof createReportDashboardSchema>;
@@ -4011,7 +4053,7 @@ export const createReportCategorySchema = z.object({
   sort: z.number().int().default(0),
   remark: z.string().max(256).optional(),
 });
-export const updateReportCategorySchema = createReportCategorySchema.partial();
+export const updateReportCategorySchema = partialForUpdate(createReportCategorySchema);
 export type CreateReportCategoryInput = z.input<typeof createReportCategorySchema>;
 export type UpdateReportCategoryInput = z.input<typeof updateReportCategorySchema>;
 
@@ -4088,7 +4130,7 @@ export const createReportSubscriptionSchema = z.object({
   enabled: z.boolean().default(true),
   remark: z.string().max(256).optional(),
 });
-export const updateReportSubscriptionSchema = createReportSubscriptionSchema.partial().extend({
+export const updateReportSubscriptionSchema = partialForUpdate(createReportSubscriptionSchema).extend({
   webhookUrl: z.union([z.url('Webhook 地址必须是合法 URL').max(512), z.literal('******')]).nullable().optional(),
 });
 export type CreateReportSubscriptionInput = z.input<typeof createReportSubscriptionSchema>;
@@ -4308,7 +4350,7 @@ export const createReportPrintTemplateSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(256).optional(),
 });
-export const updateReportPrintTemplateSchema = createReportPrintTemplateSchema.partial();
+export const updateReportPrintTemplateSchema = partialForUpdate(createReportPrintTemplateSchema);
 export type CreateReportPrintTemplateInput = z.input<typeof createReportPrintTemplateSchema>;
 export type UpdateReportPrintTemplateInput = z.input<typeof updateReportPrintTemplateSchema>;
 /** 渲染（取数填充）入参 */
@@ -4364,7 +4406,7 @@ function refineReportAlertSource(
   }
 }
 export const createReportAlertSchema = reportAlertSchemaBase.superRefine(refineReportAlertSource);
-export const updateReportAlertSchema = reportAlertSchemaBase.partial().extend({
+export const updateReportAlertSchema = partialForUpdate(reportAlertSchemaBase).extend({
   webhookUrl: z.union([z.url('Webhook 地址必须是合法 URL').max(512), z.literal('******')]).nullable().optional(),
 }).superRefine((value, ctx) => {
   if (value.datasetId !== undefined || value.metricId !== undefined) refineReportAlertSource(value, ctx);
@@ -4449,7 +4491,7 @@ export const createReportFolderSchema = z.object({
   sort: z.number().int().min(-1_000_000).max(1_000_000).default(0),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
-export const updateReportFolderSchema = createReportFolderSchema.partial().omit({ resourceType: true });
+export const updateReportFolderSchema = partialForUpdate(createReportFolderSchema).omit({ resourceType: true });
 export const moveReportFolderSchema = z.object({
   parentId: z.number().int().positive().nullable(),
   sort: z.number().int().min(-1_000_000).max(1_000_000).optional(),
@@ -4487,7 +4529,7 @@ function refineReportMetric(
   }
 }
 export const createReportMetricSchema = reportMetricSchemaBase.superRefine(refineReportMetric);
-export const updateReportMetricSchema = reportMetricSchemaBase.partial().extend({
+export const updateReportMetricSchema = partialForUpdate(reportMetricSchemaBase).extend({
   expectedRevision: z.number().int().positive(),
 }).superRefine(refineReportMetric);
 export const reportMetricLifecycleActionSchema = z.object({
@@ -4508,9 +4550,8 @@ export const grantReportResourceAclSchema = reportResourceRefSchema.extend({
   inheritFromFolder: z.boolean().default(false),
   expiresAt: dateTimeStringSchema.nullable().optional(),
 });
-export const updateReportResourceAclSchema = grantReportResourceAclSchema
-  .pick({ role: true, inheritFromFolder: true, expiresAt: true })
-  .partial();
+export const updateReportResourceAclSchema = partialForUpdate(grantReportResourceAclSchema
+  .pick({ role: true, inheritFromFolder: true, expiresAt: true }));
 export const revokeReportResourceAclSchema = z.object({ reason: z.string().max(500).optional() });
 export type GrantReportResourceAclInput = z.input<typeof grantReportResourceAclSchema>;
 export type UpdateReportResourceAclInput = z.input<typeof updateReportResourceAclSchema>;
@@ -4551,7 +4592,7 @@ export const createReportEnvironmentSchema = z.object({
   isDefault: z.boolean().default(false),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
-export const updateReportEnvironmentSchema = createReportEnvironmentSchema.partial().omit({ code: true });
+export const updateReportEnvironmentSchema = partialForUpdate(createReportEnvironmentSchema).omit({ code: true });
 export type CreateReportEnvironmentInput = z.input<typeof createReportEnvironmentSchema>;
 export type UpdateReportEnvironmentInput = z.input<typeof updateReportEnvironmentSchema>;
 
@@ -4617,7 +4658,7 @@ function refineReportDqRule(
   }
 }
 export const createReportDqRuleSchema = reportDqRuleSchemaBase.superRefine(refineReportDqRule);
-export const updateReportDqRuleSchema = reportDqRuleSchemaBase.partial().superRefine(refineReportDqRule);
+export const updateReportDqRuleSchema = partialForUpdate(reportDqRuleSchemaBase).superRefine(refineReportDqRule);
 export const runReportDqRuleSchema = z.object({ sampleLimit: z.number().int().min(0).max(100).default(20) });
 export const updateReportDqAnomalyStatusSchema = z.object({
   status: z.enum(['acknowledged', 'resolved', 'ignored']),
@@ -4664,7 +4705,7 @@ function refineReportQueryQuota(
   }
 }
 export const createReportQueryQuotaSchema = reportQueryQuotaSchemaBase.superRefine(refineReportQueryQuota);
-export const updateReportQueryQuotaSchema = reportQueryQuotaSchemaBase.partial().superRefine(refineReportQueryQuota);
+export const updateReportQueryQuotaSchema = partialForUpdate(reportQueryQuotaSchemaBase).superRefine(refineReportQueryQuota);
 export const resetReportQueryQuotaSchema = z.object({ scopeDate: z.string().date().optional() });
 export type CreateReportQueryQuotaInput = z.input<typeof createReportQueryQuotaSchema>;
 export type UpdateReportQueryQuotaInput = z.input<typeof updateReportQueryQuotaSchema>;
@@ -4693,7 +4734,7 @@ export const createReportSlaRuleSchema = reportSlaRuleSchemaBase.superRefine((va
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['webhookUrl'], message: 'Webhook 通知必须填写地址' });
   }
 });
-export const updateReportSlaRuleSchema = reportSlaRuleSchemaBase.partial().extend({
+export const updateReportSlaRuleSchema = partialForUpdate(reportSlaRuleSchemaBase).extend({
   webhookUrl: z.union([z.url('Webhook 地址必须是合法 URL').max(512), z.literal('******')]).nullable().optional(),
 });
 export const updateReportSlaViolationSchema = z.object({
@@ -4742,7 +4783,7 @@ export const createReportAssetTemplateSchema = z.object({
   previewFileId: z.uuid().nullable().optional(),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
-export const updateReportAssetTemplateSchema = createReportAssetTemplateSchema.partial().omit({ code: true });
+export const updateReportAssetTemplateSchema = partialForUpdate(createReportAssetTemplateSchema).omit({ code: true });
 export const cloneReportAssetTemplateSchema = z.object({
   name: z.string().trim().min(1).max(128),
   folderId: z.number().int().positive().nullable().optional(),
@@ -4887,7 +4928,7 @@ export const createApiScopeSchema = z.object({
   scopeGroup: z.string().min(1).max(64).default('general'),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
-export const updateApiScopeSchema = createApiScopeSchema.partial().omit({ code: true });
+export const updateApiScopeSchema = partialForUpdate(createApiScopeSchema).omit({ code: true });
 export type CreateApiScopeInput = z.input<typeof createApiScopeSchema>;
 export type UpdateApiScopeInput = z.input<typeof updateApiScopeSchema>;
 
@@ -4906,7 +4947,7 @@ export const createRatePlanSchema = z.object({
   isDefault: z.boolean().default(false),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
-export const updateRatePlanSchema = createRatePlanSchema.partial().omit({ code: true });
+export const updateRatePlanSchema = partialForUpdate(createRatePlanSchema).omit({ code: true });
 export type CreateRatePlanInput = z.input<typeof createRatePlanSchema>;
 export type UpdateRatePlanInput = z.input<typeof updateRatePlanSchema>;
 
@@ -4934,7 +4975,7 @@ export const createAppWebhookSchema = z.object({
   headers: z.record(z.string(), z.string()).optional(),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
-export const updateAppWebhookSchema = createAppWebhookSchema.partial().omit({ clientId: true });
+export const updateAppWebhookSchema = partialForUpdate(createAppWebhookSchema).omit({ clientId: true });
 export type CreateAppWebhookInput = z.input<typeof createAppWebhookSchema>;
 export type UpdateAppWebhookInput = z.input<typeof updateAppWebhookSchema>;
 
@@ -4981,7 +5022,7 @@ export const createDecisionTableSchema = z.object({
   rules: z.array(ruleDecisionRowSchema).default([]),
   settings: ruleDecisionTableSettingsSchema.optional(),
 });
-export const updateDecisionTableSchema = createDecisionTableSchema.partial().omit({ key: true }).extend({
+export const updateDecisionTableSchema = partialForUpdate(createDecisionTableSchema).omit({ key: true }).extend({
   /** 编辑乐观锁：携带打开编辑时的 updatedAt，服务端不一致时返回 409 */
   expectedUpdatedAt: z.string().optional(),
 });
@@ -4999,7 +5040,7 @@ export const createRuleTestCaseSchema = z.object({
   input: z.record(z.string(), z.unknown()).default({}),
   expected: z.record(z.string(), z.unknown()).default({}),
 });
-export const updateRuleTestCaseSchema = createRuleTestCaseSchema.partial();
+export const updateRuleTestCaseSchema = partialForUpdate(createRuleTestCaseSchema);
 export type CreateRuleTestCaseInput = z.input<typeof createRuleTestCaseSchema>;
 
 // ─── 规则中心：决策流 Schema ─────────────────────────────────────────────────────
@@ -5016,7 +5057,7 @@ export const createDecisionFlowSchema = z.object({
   description: z.string().max(500).nullable().optional(),
   steps: z.array(ruleFlowStepSchema).default([]),
 });
-export const updateDecisionFlowSchema = createDecisionFlowSchema.partial().omit({ key: true }).extend({
+export const updateDecisionFlowSchema = partialForUpdate(createDecisionFlowSchema).omit({ key: true }).extend({
   expectedUpdatedAt: z.string().optional(),
 });
 export type CreateDecisionFlowInput = z.input<typeof createDecisionFlowSchema>;
@@ -5029,7 +5070,7 @@ export const createRuleListSchema = z.object({
   type: z.enum(['black', 'white', 'grey']).default('black'),
   description: z.string().max(500).nullable().optional(),
 });
-export const updateRuleListSchema = createRuleListSchema.partial().omit({ key: true }).extend({
+export const updateRuleListSchema = partialForUpdate(createRuleListSchema).omit({ key: true }).extend({
   status: z.enum(['enabled', 'disabled']).optional(),
 });
 export const createRuleListItemSchema = z.object({
@@ -5154,7 +5195,7 @@ export const moveCmsSiteSchema = z.object({
   parentId: z.number().int().positive().nullable(),
 });
 
-export const updateCmsSiteInheritanceSchema = cmsSiteInheritanceSchema.partial()
+export const updateCmsSiteInheritanceSchema = partialForUpdate(cmsSiteInheritanceSchema)
   .refine((value) => Object.keys(value).some((key) => CMS_SITE_INHERITABLE_FIELDS.includes(key as (typeof CMS_SITE_INHERITABLE_FIELDS)[number])), {
     message: '至少提交一个继承项',
   });
@@ -5217,7 +5258,7 @@ function validateCmsDistributionRuleShape(
 }
 
 export const createCmsDistributionRuleSchema = cmsDistributionRuleBaseSchema.superRefine(validateCmsDistributionRuleShape);
-export const updateCmsDistributionRuleSchema = cmsDistributionRuleBaseSchema.partial().superRefine(validateCmsDistributionRuleShape);
+export const updateCmsDistributionRuleSchema = partialForUpdate(cmsDistributionRuleBaseSchema).superRefine(validateCmsDistributionRuleShape);
 
 export const submitCmsSiteGroupPublishSchema = z.object({
   rootSiteId: z.number().int().positive(),
@@ -5261,7 +5302,7 @@ export const createCmsModelSchema = z.object({
   sort: z.number().int().default(0),
   fields: z.array(cmsModelFieldSchema).default([]),
 });
-export const updateCmsModelSchema = createCmsModelSchema.partial();
+export const updateCmsModelSchema = partialForUpdate(createCmsModelSchema);
 
 export const createCmsChannelSchema = z.object({
   siteId: z.number().int().positive(),
@@ -5292,7 +5333,7 @@ export const createCmsChannelSchema = z.object({
   sort: z.number().int().default(0),
   settings: z.record(z.string(), z.unknown()).default({}),
 });
-export const updateCmsChannelSchema = createCmsChannelSchema.partial().omit({ siteId: true });
+export const updateCmsChannelSchema = partialForUpdate(createCmsChannelSchema).omit({ siteId: true });
 
 export const createCmsContentSchema = z.object({
   siteId: z.number().int().positive(),
@@ -5366,7 +5407,7 @@ export const createCmsContentSchema = z.object({
   /** 相关文章 id 列表（手动关联） */
   relatedIds: z.array(z.number().int().positive()).default([]),
 });
-export const updateCmsContentSchema = createCmsContentSchema.partial().omit({ siteId: true, contentType: true }).extend({
+export const updateCmsContentSchema = partialForUpdate(createCmsContentSchema).omit({ siteId: true, contentType: true }).extend({
   /** 乐观锁：携带读取时的版本号，服务端版本不一致返回 409（不传则跳过检查） */
   expectedVersion: z.number().int().positive().optional(),
 });
@@ -5380,7 +5421,7 @@ export const createCmsTagSchema = z.object({
   slug: z.string().min(1, 'URL 标识不能为空').max(100).regex(cmsSlugRegex, '标识仅支持小写字母、数字、中划线'),
   groupName: z.string().max(50).nullable().optional(),
 });
-export const updateCmsTagSchema = createCmsTagSchema.partial().omit({ siteId: true });
+export const updateCmsTagSchema = partialForUpdate(createCmsTagSchema).omit({ siteId: true });
 
 export const createCmsFriendLinkGroupSchema = z.object({
   siteId: z.number().int().positive(),
@@ -5390,7 +5431,7 @@ export const createCmsFriendLinkGroupSchema = z.object({
   sort: z.number().int().default(0),
   remark: z.string().max(500).nullable().optional(),
 });
-export const updateCmsFriendLinkGroupSchema = createCmsFriendLinkGroupSchema.partial().omit({ siteId: true });
+export const updateCmsFriendLinkGroupSchema = partialForUpdate(createCmsFriendLinkGroupSchema).omit({ siteId: true });
 
 export const createCmsFriendLinkSchema = z.object({
   siteId: z.number().int().positive(),
@@ -5402,7 +5443,7 @@ export const createCmsFriendLinkSchema = z.object({
   sort: z.number().int().default(0),
   remark: z.string().max(500).nullable().optional(),
 });
-export const updateCmsFriendLinkSchema = createCmsFriendLinkSchema.partial().omit({ siteId: true });
+export const updateCmsFriendLinkSchema = partialForUpdate(createCmsFriendLinkSchema).omit({ siteId: true });
 
 export type CreateCmsSiteInput = z.input<typeof createCmsSiteSchema>;
 export type UpdateCmsSiteInput = z.input<typeof updateCmsSiteSchema>;
@@ -5468,7 +5509,7 @@ export const createCmsRedirectSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(200).nullable().optional(),
 });
-export const updateCmsRedirectSchema = createCmsRedirectSchema.partial().omit({ siteId: true });
+export const updateCmsRedirectSchema = partialForUpdate(createCmsRedirectSchema).omit({ siteId: true });
 
 export const createCmsLinkWordSchema = z.object({
   siteId: z.number().int().positive(),
@@ -5477,7 +5518,7 @@ export const createCmsLinkWordSchema = z.object({
   maxReplaces: z.number().int().min(1).max(10).default(1),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
-export const updateCmsLinkWordSchema = createCmsLinkWordSchema.partial().omit({ siteId: true });
+export const updateCmsLinkWordSchema = partialForUpdate(createCmsLinkWordSchema).omit({ siteId: true });
 
 export const createCmsAdSlotSchema = z.object({
   siteId: z.number().int().positive(),
@@ -5485,7 +5526,7 @@ export const createCmsAdSlotSchema = z.object({
   name: z.string().min(1, '名称不能为空').max(100),
   remark: z.string().max(200).nullable().optional(),
 });
-export const updateCmsAdSlotSchema = createCmsAdSlotSchema.partial().omit({ siteId: true });
+export const updateCmsAdSlotSchema = partialForUpdate(createCmsAdSlotSchema).omit({ siteId: true });
 
 export const createCmsAdSchema = z.object({
   slotId: z.number().int().positive(),
@@ -5497,7 +5538,7 @@ export const createCmsAdSchema = z.object({
   sort: z.number().int().default(0),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
-export const updateCmsAdSchema = createCmsAdSchema.partial();
+export const updateCmsAdSchema = partialForUpdate(createCmsAdSchema);
 
 export const cleanupCmsAdEventsSchema = z.object({
   siteId: z.number().int().positive().optional(),
@@ -5544,14 +5585,14 @@ export const createCmsFormSchema = cmsFormBaseSchema.superRefine((form, ctx) => 
     ctx.addIssue({ code: 'custom', path: ['turnstileSiteKey'], message: 'Turnstile Site Key 不能为空' });
   }
 });
-export const updateCmsFormSchema = cmsFormBaseSchema.partial().omit({ siteId: true });
+export const updateCmsFormSchema = partialForUpdate(cmsFormBaseSchema).omit({ siteId: true });
 
 export const createCmsSensitiveWordSchema = z.object({
   word: z.string().min(1, '敏感词不能为空').max(50),
   replaceWith: z.string().max(50).nullable().optional(),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
-export const updateCmsSensitiveWordSchema = createCmsSensitiveWordSchema.partial();
+export const updateCmsSensitiveWordSchema = partialForUpdate(createCmsSensitiveWordSchema);
 
 export const createCmsErrorProneWordSchema = z.object({
   word: z.string().min(1, '易错词不能为空').max(50),
@@ -5559,7 +5600,7 @@ export const createCmsErrorProneWordSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(200).nullable().optional(),
 });
-export const updateCmsErrorProneWordSchema = createCmsErrorProneWordSchema.partial();
+export const updateCmsErrorProneWordSchema = partialForUpdate(createCmsErrorProneWordSchema);
 
 // ─── CMS Stage 4：统一互动问卷 ────────────────────────────────────────────────
 export const cmsInteractionOptionSchema = z.object({
@@ -5644,7 +5685,7 @@ function validateCmsInteractionDefinition(
 }
 
 export const createCmsInteractionSchema = cmsInteractionBaseSchema.superRefine(validateCmsInteractionDefinition);
-export const updateCmsInteractionSchema = cmsInteractionBaseSchema.partial().omit({ siteId: true, code: true });
+export const updateCmsInteractionSchema = partialForUpdate(cmsInteractionBaseSchema).omit({ siteId: true, code: true });
 
 /** 前台统一答卷提交：key = 题目 id 字符串。 */
 export const submitCmsInteractionSchema = z.object({
@@ -5819,7 +5860,7 @@ export const createCmsResourceFolderSchema = z.object({
   name: z.string().trim().min(1, '文件夹名称不能为空').max(100),
   sort: z.number().int().default(0),
 });
-export const updateCmsResourceFolderSchema = createCmsResourceFolderSchema.partial().omit({ siteId: true });
+export const updateCmsResourceFolderSchema = partialForUpdate(createCmsResourceFolderSchema).omit({ siteId: true });
 export const moveCmsResourcesSchema = z.object({
   ids: z.array(z.number().int().positive()).min(1).max(1000),
   folderId: z.number().int().positive().nullable(),
@@ -5850,7 +5891,7 @@ export const createCmsSearchWordSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(200).nullable().optional(),
 });
-export const updateCmsSearchWordSchema = createCmsSearchWordSchema.partial().omit({ siteId: true });
+export const updateCmsSearchWordSchema = partialForUpdate(createCmsSearchWordSchema).omit({ siteId: true });
 
 export const batchUpdateCmsSearchWordsSchema = z.object({
   ids: z.array(z.number().int().positive()).min(1).max(1000),
@@ -5866,7 +5907,7 @@ export const createCmsHotwordGroupSchema = z.object({
   sort: z.number().int().default(0),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
-export const updateCmsHotwordGroupSchema = createCmsHotwordGroupSchema.partial().omit({ siteId: true });
+export const updateCmsHotwordGroupSchema = partialForUpdate(createCmsHotwordGroupSchema).omit({ siteId: true });
 
 export const createCmsHotwordSchema = z.object({
   siteId: z.number().int().positive(),
@@ -5875,7 +5916,7 @@ export const createCmsHotwordSchema = z.object({
   sort: z.number().int().default(0),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
-export const updateCmsHotwordSchema = createCmsHotwordSchema.partial().omit({ siteId: true });
+export const updateCmsHotwordSchema = partialForUpdate(createCmsHotwordSchema).omit({ siteId: true });
 
 export type CreateCmsSearchWordInput = z.input<typeof createCmsSearchWordSchema>;
 export type UpdateCmsSearchWordInput = z.input<typeof updateCmsSearchWordSchema>;
