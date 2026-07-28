@@ -8,9 +8,12 @@ import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
   AsyncTaskDTO,
+  CmsInteractionCrossStatsDTO,
   CmsInteractionDTO,
   CmsInteractionResponseDTO,
   CmsInteractionStatsDTO,
+  CmsInteractionTextAnswerDTO,
+  CmsInteractionTrendStatsDTO,
 } from '../../lib/openapi-dtos';
 import {
   commonErrorResponses,
@@ -28,8 +31,11 @@ import {
   createCmsInteraction,
   deleteCmsInteraction,
   getCmsInteraction,
+  getCmsInteractionCrossStats,
   getCmsInteractionStats,
+  getCmsInteractionTrend,
   listCmsInteractionResponses,
+  listCmsInteractionTexts,
   listCmsInteractions,
   setCmsInteractionStatus,
   updateCmsInteraction,
@@ -101,6 +107,66 @@ const statsRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...ok(CmsInteractionStatsDTO, '结果统计') },
   }),
   handler: async (c) => c.json(okBody(await getCmsInteractionStats(c.req.valid('param').id)), 200),
+});
+
+const textsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/{id}/stats/texts',
+    tags: ['CMS-互动问卷'], summary: '文本 / 日期 /「其他」填空答案分页',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'cms:interaction:list' })] as const,
+    request: {
+      params: IdParam,
+      query: PaginationQuery.extend({
+        questionId: z.coerce.number().int().positive(),
+        keyword: z.string().optional(),
+      }),
+    },
+    responses: { ...commonErrorResponses, ...okPaginated(CmsInteractionTextAnswerDTO, '文本答案') },
+  }),
+  handler: async (c) => c.json(okBody(await listCmsInteractionTexts({
+    interactionId: c.req.valid('param').id,
+    ...c.req.valid('query'),
+  })), 200),
+});
+
+const crossStatsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/{id}/stats/cross',
+    tags: ['CMS-互动问卷'], summary: '两道选择题的交叉分析',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'cms:interaction:list' })] as const,
+    request: {
+      params: IdParam,
+      query: z.object({
+        xQuestionId: z.coerce.number().int().positive(),
+        yQuestionId: z.coerce.number().int().positive(),
+      }),
+    },
+    responses: { ...commonErrorResponses, ...ok(CmsInteractionCrossStatsDTO, '交叉分析') },
+  }),
+  handler: async (c) => {
+    const { xQuestionId, yQuestionId } = c.req.valid('query');
+    return c.json(okBody(await getCmsInteractionCrossStats(c.req.valid('param').id, xQuestionId, yQuestionId)), 200);
+  },
+});
+
+const trendRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/{id}/stats/trend',
+    tags: ['CMS-互动问卷'], summary: '答卷提交趋势（按天）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'cms:interaction:list' })] as const,
+    request: {
+      params: IdParam,
+      query: z.object({ days: z.coerce.number().int().min(1).max(180).default(30) }),
+    },
+    responses: { ...commonErrorResponses, ...ok(CmsInteractionTrendStatsDTO, '提交趋势') },
+  }),
+  handler: async (c) => c.json(
+    okBody(await getCmsInteractionTrend(c.req.valid('param').id, c.req.valid('query').days)),
+    200,
+  ),
 });
 
 const createRouteDef = defineOpenAPIRoute({
@@ -220,6 +286,9 @@ router.openapiRoutes([
   responseListRoute,
   batchStatusRoute,
   detailRoute,
+  textsRoute,
+  crossStatsRoute,
+  trendRoute,
   statsRoute,
   createRouteDef,
   updateRouteDef,

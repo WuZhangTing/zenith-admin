@@ -999,6 +999,38 @@ export const CmsInteractionStatsDTO = z
   })
   .openapi('CmsInteractionStats');
 
+export const CmsInteractionTextAnswerDTO = z
+  .object({
+    responseId: z.number().int(),
+    value: z.string(),
+    createdAt: z.string(),
+  })
+  .openapi('CmsInteractionTextAnswer');
+
+export const CmsInteractionCrossStatsDTO = z
+  .object({
+    xQuestionId: z.number().int(),
+    xLabel: z.string(),
+    yQuestionId: z.number().int(),
+    yLabel: z.string(),
+    columns: z.array(z.object({ value: z.string(), label: z.string() })),
+    rows: z.array(z.object({
+      value: z.string(),
+      label: z.string(),
+      total: z.number().int(),
+      cells: z.array(z.object({ count: z.number().int(), percent: z.number() })),
+    })),
+  })
+  .openapi('CmsInteractionCrossStats');
+
+export const CmsInteractionTrendStatsDTO = z
+  .object({
+    interactionId: z.number().int(),
+    days: z.number().int(),
+    points: z.array(z.object({ date: z.string(), count: z.number().int() })),
+  })
+  .openapi('CmsInteractionTrendStats');
+
 export const CmsInteractionPublicStatsDTO = z
   .object({
     interactionId: z.number().int(),

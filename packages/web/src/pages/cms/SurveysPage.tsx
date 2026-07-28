@@ -5,10 +5,8 @@ import {
   DatePicker,
   Input,
   Modal,
-  Progress,
   Select,
   SideSheet,
-  Spin,
   TabPane,
   Tabs,
   Tag,
@@ -41,7 +39,6 @@ import {
   useCmsInteractionList,
   useCmsInteractionOptions,
   useCmsInteractionResponseList,
-  useCmsInteractionStats,
   useCopyCmsInteraction,
   useDeleteCmsInteraction,
   useSetCmsInteractionStatus,
@@ -50,6 +47,7 @@ import { formatDateTimeForApi } from '@/utils/date';
 import { renderEllipsis } from '@/utils/table-columns';
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 import InteractionEditorModal from './interaction/InteractionEditorModal';
+import InteractionResultsSheet from './interaction/InteractionResultsSheet';
 
 interface ListSearch {
   keyword: string;
@@ -63,47 +61,6 @@ const STATUS_COLORS: Record<CmsInteractionStatus, 'grey' | 'green' | 'orange'> =
   published: 'green',
   closed: 'orange',
 };
-
-function ResultsSheet({ interaction, onClose }: Readonly<{
-  interaction: CmsInteraction | null;
-  onClose: () => void;
-}>) {
-  const query = useCmsInteractionStats(interaction?.id, !!interaction);
-  return (
-    <SideSheet title={interaction ? `结果统计：${interaction.title}` : '结果统计'} visible={!!interaction} onCancel={onClose} width={540}>
-      <Spin spinning={query.isFetching}>
-        {query.data ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <Typography.Text type="tertiary">共收集 {query.data.responseCount} 份答卷</Typography.Text>
-            {query.data.questions.map((question, index) => (
-              <section key={question.id}>
-                <Typography.Title heading={6}>
-                  {index + 1}. {question.label}
-                  <Tag size="small" style={{ marginLeft: 8 }}>{CMS_INTERACTION_QUESTION_TYPE_LABELS[question.type]}</Tag>
-                </Typography.Title>
-                {question.type === 'text' ? (
-                  question.texts.length > 0
-                    ? question.texts.map((text, textIndex) => (
-                        <div key={`${question.id}-${textIndex}`} style={{ padding: 8, marginTop: 6, background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)' }}>{text}</div>
-                      ))
-                    : <Typography.Text type="tertiary">暂无文本回答</Typography.Text>
-                ) : question.options.map((option) => (
-                  <div key={option.id} style={{ marginTop: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                      <span>{option.label}</span>
-                      <span>{option.count} · {option.percent}%</span>
-                    </div>
-                    <Progress percent={option.percent} showInfo={false} />
-                  </div>
-                ))}
-              </section>
-            ))}
-          </div>
-        ) : null}
-      </Spin>
-    </SideSheet>
-  );
-}
 
 export default function SurveysPage() {
   const { hasPermission } = usePermission();
@@ -402,8 +359,7 @@ export default function SurveysPage() {
         onSaved={closeEditor}
       />
 
-      <ResultsSheet interaction={resultsTarget} onClose={() => setResultsTarget(null)} />
-      <SideSheet title="答卷详情" visible={!!responseDetail} onCancel={() => setResponseDetail(null)} width={520}>
+      <InteractionResultsSheet interaction={resultsTarget} onClose={() => setResultsTarget(null)} />      <SideSheet title="答卷详情" visible={!!responseDetail} onCancel={() => setResponseDetail(null)} width={520}>
         {responseDetail ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <dl style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 10, margin: 0 }}>
@@ -439,3 +395,4 @@ export default function SurveysPage() {
     </div>
   );
 }
+

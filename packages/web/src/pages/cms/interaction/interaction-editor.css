@@ -190,6 +190,108 @@
   align-self: flex-start;
 }
 
+/* ─── 结果统计面板 ─────────────────────────────────────────────────────────── */
+.interaction-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  margin-top: 12px;
+}
+
+.interaction-stats__question {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.interaction-stats__muted {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--semi-color-text-2);
+}
+
+.interaction-stats__bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.interaction-stats__bar-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.interaction-stats__matrix-wrap {
+  overflow-x: auto;
+}
+
+.interaction-stats__matrix {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.interaction-stats__matrix th,
+.interaction-stats__matrix td {
+  padding: 6px 10px;
+  border: 1px solid var(--semi-color-border);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.interaction-stats__matrix th[scope="row"] {
+  text-align: left;
+  font-weight: 400;
+}
+
+.interaction-stats__texts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: var(--semi-border-radius-medium);
+  background: var(--semi-color-fill-0);
+}
+
+.interaction-stats__text-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.interaction-stats__text-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0;
+  border-bottom: 1px dashed var(--semi-color-border);
+  font-size: 13px;
+}
+
+.interaction-stats__text-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.interaction-stats__cross,
+.interaction-stats__trend {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.interaction-stats__cross-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* ─── 前台样式预览 ─────────────────────────────────────────────────────────── */
 .interaction-preview {
   display: flex;
@@ -334,3 +436,4 @@
   font-size: 12px;
   color: var(--semi-color-text-2);
 }
+

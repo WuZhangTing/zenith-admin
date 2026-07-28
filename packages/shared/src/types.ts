@@ -10992,6 +10992,38 @@ export interface CmsInteractionQuestionStats {
   }[];
 }
 
+/** 文本 / 日期 / 「其他」填空的单条答案样本 */
+export interface CmsInteractionTextAnswer {
+  responseId: number;
+  value: string;
+  createdAt: string;
+}
+
+/** 交叉分析：两道选择题的联合分布 */
+export interface CmsInteractionCrossStats {
+  xQuestionId: number;
+  xLabel: string;
+  yQuestionId: number;
+  yLabel: string;
+  /** 表头（Y 题选项） */
+  columns: { value: string; label: string }[];
+  /** 每行对应 X 题一个选项 */
+  rows: {
+    value: string;
+    label: string;
+    total: number;
+    /** 与 columns 等长 */
+    cells: { count: number; percent: number }[];
+  }[];
+}
+
+/** 答卷提交趋势（按天） */
+export interface CmsInteractionTrendStats {
+  interactionId: number;
+  days: number;
+  points: { date: string; count: number }[];
+}
+
 export interface CmsInteractionStats {
   interactionId: number;
   responseCount: number;

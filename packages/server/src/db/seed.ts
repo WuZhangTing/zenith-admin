@@ -987,8 +987,11 @@ async function seedRest() {
   await db.execute(sql`SELECT setval('cms_interactions_id_seq', GREATEST((SELECT MAX(id) FROM cms_interactions), 1))`);
   const interactionQuestionRows = SEED_CMS_INTERACTIONS.flatMap((interaction) => interaction.questions.map(({
     id, interactionId, label, type, required, options, minChoices, maxChoices, sort,
+    allowOther, otherLabel, ratingMax, matrixRows, pageNo, visibleWhen,
   }) => ({
     id, interactionId, label, type, required, options: [...options], minChoices, maxChoices, sort,
+    allowOther, otherLabel, ratingMax, matrixRows: [...matrixRows], pageNo,
+    visibleWhen: visibleWhen ? { ...visibleWhen, values: [...visibleWhen.values] } : null,
   })));
   if (interactionQuestionRows.length > 0) {
     await db.insert(cmsInteractionQuestions).values(interactionQuestionRows).onConflictDoNothing();

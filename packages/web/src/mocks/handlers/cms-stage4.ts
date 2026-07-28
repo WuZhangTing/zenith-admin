@@ -23,7 +23,7 @@ import {
   mockCmsSites,
   mockCmsSubscriptions,
 } from '../data/cms';
-import { mockDateTime } from '../utils/date';
+import { mockDate, mockDateTime } from '../utils/date';
 import { createProgressingMockTask } from './async-tasks';
 
 type Body = Record<string, unknown>;
@@ -332,6 +332,98 @@ export const cmsStage4Handlers = [
     if (start) list = list.filter((response) => response.createdAt >= start);
     if (end) list = list.filter((response) => response.createdAt <= end);
     return ok(paginate(list, page, pageSize));
+  }),
+  http.get('/api/cms/interactions/:id/stats/texts', ({ params, request }) => {
+    const interaction = mockCmsInteractions.find((item) => item.id === Number(params.id));
+    if (!interaction) return error(404, '互动问卷不存在');
+    const { url, page, pageSize } = paging(request);
+    const questionId = Number(url.searchParams.get('questionId'));
+    const keyword = url.searchParams.get('keyword')?.trim() ?? '';
+    const question = (interaction.questions ?? []).find((item) => item.id === questionId);
+    if (!question) return error(404, '题目不存在');
+    const isFreeText = ['text', 'date', 'number'].includes(question.type);
+    if (!isFreeText && !question.allowOther) return error(400, '该题型没有文本答案');
+    const list = mockCmsInteractionResponses
+      .filter((response) => response.interactionId === interaction.id)
+      .flatMap((response) => {
+        const raw = response.answers[String(questionId)];
+        const values = Array.isArray(raw) ? raw : raw === undefined ? [] : [raw];
+        return values
+          .filter((value) => isFreeText || value.startsWith('__other__:'))
+          .map((value) => ({
+            responseId: response.id,
+            value: value.startsWith('__other__:') ? value.slice('__other__:'.length) : value,
+            createdAt: response.createdAt,
+          }));
+      })
+      .filter((item) => !keyword || item.value.includes(keyword))
+      .reverse();
+    return ok(paginate(list, page, pageSize));
+  }),
+  http.get('/api/cms/interactions/:id/stats/cross', ({ params, request }) => {
+    const interaction = mockCmsInteractions.find((item) => item.id === Number(params.id));
+    if (!interaction) return error(404, '互动问卷不存在');
+    const url = new URL(request.url);
+    const xId = Number(url.searchParams.get('xQuestionId'));
+    const yId = Number(url.searchParams.get('yQuestionId'));
+    if (xId === yId) return error(400, '交叉分析需要选择两道不同的题目');
+    const questions = interaction.questions ?? [];
+    const x = questions.find((item) => item.id === xId);
+    const y = questions.find((item) => item.id === yId);
+    if (!x || !y) return error(404, '题目不存在');
+    if (!['single', 'multiple'].includes(x.type) || !['single', 'multiple'].includes(y.type)) {
+      return error(400, '交叉分析仅支持单选或多选题');
+    }
+    const bucket = (value: string) => (value.startsWith('__other__') ? '__other__' : value);
+    const valuesOf = (response: CmsInteractionResponse, questionId: number) => {
+      const raw = response.answers[String(questionId)];
+      const list = Array.isArray(raw) ? raw : raw === undefined ? [] : [raw];
+      return [...new Set(list.map(bucket))];
+    };
+    const optionsOf = (question: CmsInteractionQuestion) => {
+      const list = question.options.map((option) => ({ value: option.value, label: option.label }));
+      if (question.allowOther) list.push({ value: '__other__', label: question.otherLabel || '其他' });
+      return list;
+    };
+    const columns = optionsOf(y);
+    const responses = mockCmsInteractionResponses.filter((response) => response.interactionId === interaction.id);
+    return ok({
+      xQuestionId: xId,
+      xLabel: x.label,
+      yQuestionId: yId,
+      yLabel: y.label,
+      columns,
+      rows: optionsOf(x).map((option) => {
+        const cells = columns.map((column) => responses.filter((response) =>
+          valuesOf(response, xId).includes(option.value) && valuesOf(response, yId).includes(column.value)).length);
+        const total = cells.reduce((sum, count) => sum + count, 0);
+        return {
+          value: option.value,
+          label: option.label,
+          total,
+          cells: cells.map((count) => ({ count, percent: total ? Math.round((count / total) * 1000) / 10 : 0 })),
+        };
+      }),
+    });
+  }),
+  http.get('/api/cms/interactions/:id/stats/trend', ({ params, request }) => {
+    const interaction = mockCmsInteractions.find((item) => item.id === Number(params.id));
+    if (!interaction) return error(404, '互动问卷不存在');
+    const days = Math.min(Math.max(Number(new URL(request.url).searchParams.get('days')) || 30, 1), 180);
+    const byDay = new Map<string, number>();
+    mockCmsInteractionResponses
+      .filter((response) => response.interactionId === interaction.id)
+      .forEach((response) => {
+        const day = response.createdAt.slice(0, 10);
+        byDay.set(day, (byDay.get(day) ?? 0) + 1);
+      });
+    const points = Array.from({ length: days }, (_, index) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (days - 1 - index));
+      const key = mockDate(date);
+      return { date: key, count: byDay.get(key) ?? 0 };
+    });
+    return ok({ interactionId: interaction.id, days, points });
   }),
   http.get('/api/cms/interactions/:id/stats', ({ params }) => {
     const interaction = mockCmsInteractions.find((item) => item.id === Number(params.id));
@@ -807,3 +899,4 @@ export function resetMockCmsAdEventTokens(): void {
   adEventTokens.clear();
   adEventDedupe.clear();
 }
+

@@ -8,7 +8,8 @@ import type {
   CmsEditLock, CmsPreviewLink, CmsContentVersionDiff, CmsDashboardStats,
   CmsThemeTemplateManifest, CmsContentOpLog, CmsErrorProneWord, CmsTextCheckResult,
   CmsTemplateHealth, CmsThemeSettingField, CmsOpenAppGrant,
-  CmsContentType, CmsInteraction, CmsInteractionResponse, CmsInteractionStats, CmsInteractionStatus, CmsVisitStats, CmsSearchAnalytics,
+  CmsContentType, CmsInteraction, CmsInteractionCrossStats, CmsInteractionResponse, CmsInteractionStats, CmsInteractionStatus,
+  CmsInteractionTextAnswer, CmsInteractionTrendStats, CmsVisitStats, CmsSearchAnalytics,
   CmsResource, CmsResourceType, CmsResourceReference, UpdateCmsResourceInput, CropCmsResourceInput,
   CmsContentLockState, CmsResourceFolder, CmsHotwordGroup, CmsMemberSubscription, CmsSubscriptionAggregate,
   CmsPageBlockAcl,
@@ -1192,6 +1193,11 @@ export const cmsInteractionKeys = {
   list: (params: CmsInteractionListParams) => ['cms-interactions', 'list', params] as const,
   detail: (id: number | undefined) => ['cms-interactions', 'detail', id] as const,
   stats: (id: number | undefined) => ['cms-interactions', 'stats', id] as const,
+  texts: (id: number | undefined, questionId: number | undefined, page: number, keyword: string) =>
+    ['cms-interactions', 'stats', id, 'texts', questionId, page, keyword] as const,
+  cross: (id: number | undefined, x: number | undefined, y: number | undefined) =>
+    ['cms-interactions', 'stats', id, 'cross', x, y] as const,
+  trend: (id: number | undefined, days: number) => ['cms-interactions', 'stats', id, 'trend', days] as const,
   responseLists: ['cms-interactions', 'responses'] as const,
   responseList: (params: CmsInteractionResponseListParams) => ['cms-interactions', 'responses', params] as const,
   options: (siteId: number | undefined) => ['cms-interactions', 'options', siteId] as const,
@@ -1240,6 +1246,54 @@ export function useCmsInteractionResponseList(params: CmsInteractionResponseList
     queryFn: () => request.get<PaginatedResponse<CmsInteractionResponse>>(`/api/cms/interactions/responses${toQueryString(params)}`).then(unwrap),
     placeholderData: keepPreviousData,
     enabled,
+  });
+}
+
+/** 文本 / 日期 /「其他」填空答案分页 */
+export function useCmsInteractionTexts(
+  id: number | undefined,
+  questionId: number | undefined,
+  page: number,
+  pageSize: number,
+  keyword: string,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: cmsInteractionKeys.texts(id, questionId, page, keyword),
+    queryFn: () => request
+      .get<PaginatedResponse<CmsInteractionTextAnswer>>(
+        `/api/cms/interactions/${id}/stats/texts${toQueryString({ questionId, page, pageSize, keyword: keyword || undefined })}`,
+      )
+      .then(unwrap),
+    placeholderData: keepPreviousData,
+    enabled: enabled && id !== undefined && questionId !== undefined,
+  });
+}
+
+export function useCmsInteractionCrossStats(
+  id: number | undefined,
+  xQuestionId: number | undefined,
+  yQuestionId: number | undefined,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: cmsInteractionKeys.cross(id, xQuestionId, yQuestionId),
+    queryFn: () => request
+      .get<CmsInteractionCrossStats>(
+        `/api/cms/interactions/${id}/stats/cross${toQueryString({ xQuestionId, yQuestionId })}`,
+      )
+      .then(unwrap),
+    enabled: enabled && id !== undefined && xQuestionId !== undefined && yQuestionId !== undefined,
+  });
+}
+
+export function useCmsInteractionTrend(id: number | undefined, days: number, enabled = true) {
+  return useQuery({
+    queryKey: cmsInteractionKeys.trend(id, days),
+    queryFn: () => request
+      .get<CmsInteractionTrendStats>(`/api/cms/interactions/${id}/stats/trend${toQueryString({ days })}`)
+      .then(unwrap),
+    enabled: enabled && id !== undefined,
   });
 }
 

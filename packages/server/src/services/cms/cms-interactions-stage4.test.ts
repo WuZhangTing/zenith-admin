@@ -10,6 +10,7 @@ import {
   interactionCodeStem,
   nextInteractionCopyCode,
   npsScoreOf,
+  scaleStatsFromHistogram,
   toCmsInteractionAnswerDetail,
   toCmsInteractionPublicStats,
 } from './cms-interactions.service';
@@ -106,6 +107,15 @@ describe('CMS Stage4 unified interactions', () => {
     expect(theme).toContain('f.reset()');
   });
 
+  it('aggregates statistics in SQL instead of pulling answers into memory', async () => {
+    const service = await readFile(new URL('./cms-interactions.service.ts', import.meta.url), 'utf8');
+    // 旧实现把最多 10 万条 answers 拉进内存做 JS 聚合，超限即静默截断
+    expect(service).not.toContain('limit(100_000)');
+    expect(service).toContain('GROUP BY a.question_id, v.val');
+    // 数组与标量答案统一由 LATERAL 摊平，避免在 JS 里分支处理
+    expect(service).toContain('jsonb_array_elements_text(a.value)');
+  });
+
   it('enforces repeat identities and result visibility without leaking hidden results', () => {
     expect(cmsInteractionRepeatIdentity({ policy: 'once_per_member', memberId: 7, ipHash: 'ip' })).toBe('m:7');
     expect(cmsInteractionRepeatIdentity({ policy: 'once_per_ip', memberId: null, ipHash: 'hash' })).toBe('i:hash');
@@ -199,6 +209,18 @@ describe('CMS Stage4 unified interactions', () => {
     expect(npsScoreOf([0, 6])).toBe(-100);
     // 7-8 分为被动者，既不加也不减
     expect(npsScoreOf([7, 8])).toBe(0);
+  });
+
+  it('derives scale average and NPS from the SQL histogram without rescanning rows', () => {
+    // 直方图口径：分值 → 人数，均值必须按人数加权而非按桶数平均
+    const { average, scores } = scaleStatsFromHistogram(new Map([['10', 2], ['9', 1], ['5', 1]]));
+    expect(average).toBe(8.5);
+    expect(scores).toHaveLength(4);
+    expect(npsScoreOf(scores)).toBe(50);
+    // 空直方图（无人作答）不产生 0 分假象
+    expect(scaleStatsFromHistogram(new Map()).average).toBeNull();
+    // 非数字桶（脏数据 / 选项 value）被忽略，不污染均值
+    expect(scaleStatsFromHistogram(new Map([['3', 1], ['bad', 5]])).average).toBe(3);
   });
 
   it('accepts new question types and rejects invalid definitions', () => {
