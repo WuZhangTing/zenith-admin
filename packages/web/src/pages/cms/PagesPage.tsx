@@ -16,7 +16,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import {
   useCmsSiteList, useCmsPageList, useSaveCmsPage, useDeleteCmsPage, useCmsChannelTree,
-  useCmsFragmentList, cmsPageKeys, useCmsPageDetail, useCmsPageBlockAcls, useSetCmsPageBlockAcls,
+  cmsPageKeys, useCmsPageDetail, useCmsPageBlockAcls, useSetCmsPageBlockAcls,
 } from '@/hooks/queries/cms';
 import { useAllRoles } from '@/hooks/queries/roles';
 import { useAllUsers } from '@/hooks/queries/users';
@@ -50,7 +50,6 @@ function blockSummary(block: CmsPageBlock): string {
     case 'image': return String(p.src ?? '');
     case 'content-list': return `${String(p.title ?? '')}（${String(p.mode ?? 'latest')} × ${Number(p.count) || 5}）`;
     case 'columns': return `${Array.isArray(p.items) ? p.items.length : 0} 列`;
-    case 'fragment': return `code: ${String(p.code ?? '')}`;
     default: return '';
   }
 }
@@ -77,8 +76,6 @@ export default function PagesPage() {
   const detailQuery = useCmsPageDetail(editingPage?.id);
   const editablePage = detailQuery.data ?? editingPage;
   const baseFormApi = useRef<FormApi | null>(null);
-  const { data: fragmentsPage } = useCmsFragmentList({ page: 1, pageSize: 100, siteId: siteId ?? 0 }, !!siteId && builderVisible);
-  const fragments = fragmentsPage?.list;
   // 区块编辑
   const [blockModal, setBlockModal] = useState<{ block: CmsPageBlock; index: number } | null>(null);
   const blockFormApi = useRef<FormApi | null>(null);
@@ -131,7 +128,6 @@ export default function PagesPage() {
       image: { src: '', alt: '', linkUrl: '' },
       'content-list': { title: '最新内容', mode: 'latest', count: 5 },
       columns: { items: [{ title: '特性一', description: '' }, { title: '特性二', description: '' }, { title: '特性三', description: '' }] },
-      fragment: { code: '' },
     };
     setBlocks((prev) => [...prev, {
       id: newBlockId(),
@@ -570,11 +566,6 @@ export default function PagesPage() {
               <Form.Slot label="列卡片">
                 <ColumnsEditor formApi={blockFormApi} initItems={(blockModal.block.props.items as { title?: string; description?: string }[]) ?? []} />
               </Form.Slot>
-            ) : null}
-            {editingBlockType === 'fragment' ? (
-              <Form.Select field="code" label="碎片" style={{ width: '100%' }}
-                optionList={(fragments ?? []).map((f) => ({ value: f.code, label: `${f.name}（${f.code}）` }))}
-                rules={[{ required: true, message: '请选择碎片' }]} />
             ) : null}
           </Form>
         ) : null}

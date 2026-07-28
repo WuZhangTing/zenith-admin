@@ -4,8 +4,8 @@
  * 区块样式内联 <style>（.pb-* 前缀），静态页零外部依赖。
  */
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { CmsFragmentType, CmsPageBlock } from '@zenith/shared';
-import type { CmsBaseContext, CmsContentItem } from './types';
+import type { CmsPageBlock } from '@zenith/shared';
+import type { CmsContentItem } from './types';
 import { sanitizeCmsHtml } from '../../services/cms/cms-html-sanitizer';
 
 export const BLOCK_STYLES = `
@@ -29,7 +29,6 @@ export const BLOCK_STYLES = `
 .pb-columns .pb-col { border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
 .pb-columns .pb-col h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
 .pb-columns .pb-col p { font-size: 13.5px; color: var(--text-2); }
-.pb-fragment { margin-bottom: 32px; }
 @media (max-width: 768px) { .pb-hero { padding: 40px 16px; } .pb-hero h1 { font-size: 26px; } }
 `;
 
@@ -94,44 +93,14 @@ function ColumnsBlock({ props }: { props: Record<string, unknown> }) {
   );
 }
 
-export function CmsFragmentContent({
-  fragment,
-  className,
-  imageAlt,
-  as: Wrapper = 'div',
-}: {
-  fragment: { type: CmsFragmentType | string; content: string } | undefined;
-  className?: string;
-  imageAlt: string;
-  as?: 'div' | 'section';
-}) {
-  if (!fragment?.content) return null;
-  if (fragment.type === 'html') {
-    return <Wrapper className={className} dangerouslySetInnerHTML={{ __html: sanitizeCmsHtml(fragment.content) }} />;
-  }
-  if (fragment.type === 'image') {
-    return <Wrapper className={className}><img src={fragment.content} alt={imageAlt} /></Wrapper>;
-  }
-  if (fragment.type === 'text') {
-    return <Wrapper className={className}>{fragment.content}</Wrapper>;
-  }
-  return null;
-}
-
-function FragmentBlock({ props, ctx }: { props: Record<string, unknown>; ctx: CmsBaseContext }) {
-  const code = str(props.code);
-  return <CmsFragmentContent fragment={ctx.fragments[code]} className="pb-fragment" imageAlt={code} as="section" />;
-}
-
 export interface BlockRenderInput {
   blocks: CmsPageBlock[];
-  ctx: CmsBaseContext;
   /** content-list 区块的数据（key = block.id），由 render service 预取 */
   contentListData: Map<string, CmsContentItem[]>;
 }
 
 /** 渲染全部区块为 HTML 字符串（含区块样式 <style>） */
-export function renderBlocksHtml({ blocks, ctx, contentListData }: BlockRenderInput): string {
+export function renderBlocksHtml({ blocks, contentListData }: BlockRenderInput): string {
   const rendered = blocks.map((block) => {
     let html: string;
     switch (block.type) {
@@ -149,9 +118,6 @@ export function renderBlocksHtml({ blocks, ctx, contentListData }: BlockRenderIn
         break;
       case 'columns':
         html = renderToStaticMarkup(<ColumnsBlock props={block.props} />);
-        break;
-      case 'fragment':
-        html = renderToStaticMarkup(<FragmentBlock props={block.props} ctx={ctx} />);
         break;
       default:
         html = '';

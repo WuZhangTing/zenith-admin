@@ -1,6 +1,6 @@
 import {
   SEED_CMS_SITES, SEED_CMS_MODELS, SEED_CMS_CHANNELS, SEED_CMS_CONTENTS,
-  SEED_CMS_TAGS, SEED_CMS_FRAGMENTS, SEED_CMS_FRIEND_LINK_GROUPS, SEED_CMS_FRIEND_LINKS,
+  SEED_CMS_TAGS, SEED_CMS_FRIEND_LINK_GROUPS, SEED_CMS_FRIEND_LINKS,
   SEED_CMS_AD_SLOTS, SEED_CMS_ADS, SEED_CMS_FORMS, SEED_CMS_SENSITIVE_WORDS,
   SEED_CMS_ERROR_PRONE_WORDS, SEED_CMS_LINK_WORDS, SEED_CMS_COMMENTS, SEED_CMS_INTERACTIONS,
   SEED_CMS_INTERACTION_RESPONSES, SEED_CMS_INTERACTION_ANSWERS, SEED_CMS_SUBSCRIPTIONS,
@@ -11,7 +11,7 @@ import {
   SEED_CMS_CONTENT_VERSIONS,
 } from '@zenith/shared';
 import type {
-  CmsSite, CmsModel, CmsChannel, CmsContent, CmsTag, CmsFragment, CmsFriendLink, CmsFriendLinkGroup,
+  CmsSite, CmsModel, CmsChannel, CmsContent, CmsTag, CmsFriendLink, CmsFriendLinkGroup,
   CmsAdSlot, CmsAd, CmsAdEvent, CmsForm, CmsFormSubmission, CmsSensitiveWord, CmsErrorProneWord, CmsLinkWord, CmsComment,
   CmsRedirect, CmsPushLog, CmsContentVersion, CmsSearchWord, CmsHotKeyword, CmsContentOpLog, CmsInteraction,
   CmsInteractionResponse, CmsMemberSubscription, CmsPageBlockAcl,
@@ -30,7 +30,6 @@ export const mockCmsContents: (CmsContent & { tagIds: number[] })[] = SEED_CMS_C
   tagIds: [...c.tagIds],
 }));
 export const mockCmsTags: CmsTag[] = SEED_CMS_TAGS.map((t) => ({ ...t }));
-export const mockCmsFragments: CmsFragment[] = SEED_CMS_FRAGMENTS.map((f) => ({ ...f }));
 export const mockCmsFriendLinkGroups: CmsFriendLinkGroup[] = SEED_CMS_FRIEND_LINK_GROUPS.map((g) => ({ ...g }));
 export const mockCmsFriendLinks: CmsFriendLink[] = SEED_CMS_FRIEND_LINKS.map((l) => ({
   ...l,
@@ -48,7 +47,6 @@ export const getNextCmsModelFieldId = nextIdFactory(Math.max(0, ...mockCmsModels
 export const getNextCmsChannelId = nextIdFactory(Math.max(0, ...mockCmsChannels.map((x) => x.id)) + 1);
 export const getNextCmsContentId = nextIdFactory(Math.max(0, ...mockCmsContents.map((x) => x.id)) + 1);
 export const getNextCmsTagId = nextIdFactory(Math.max(0, ...mockCmsTags.map((x) => x.id)) + 1);
-export const getNextCmsFragmentId = nextIdFactory(Math.max(0, ...mockCmsFragments.map((x) => x.id)) + 1);
 export const getNextCmsFriendLinkId = nextIdFactory(Math.max(0, ...mockCmsFriendLinks.map((x) => x.id)) + 1);
 export const getNextCmsFriendLinkGroupId = nextIdFactory(Math.max(0, ...mockCmsFriendLinkGroups.map((x) => x.id)) + 1);
 

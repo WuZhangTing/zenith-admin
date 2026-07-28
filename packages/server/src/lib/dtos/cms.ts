@@ -8,7 +8,6 @@ import {
   CMS_DISTRIBUTION_CONFLICT_STRATEGIES,
   CMS_DISTRIBUTION_MODES,
   CMS_FIELD_OPTION_SOURCES,
-  CMS_FRAGMENT_TYPES,
   CMS_RESOURCE_OWNER_TYPES,
   CMS_SITE_INHERITABLE_FIELDS,
 } from '@zenith/shared';
@@ -323,22 +322,6 @@ export const CmsContentLockDTO = z
     lockReason: z.string().nullable(),
   })
   .openapi('CmsContentLock');
-
-export const CmsFragmentDTO = z
-  .object({
-    id: z.number().int(),
-    siteId: z.number().int(),
-    code: z.string().openapi({ example: 'home-banner' }),
-    name: z.string().openapi({ example: '首页横幅' }),
-    type: z.enum(CMS_FRAGMENT_TYPES),
-    content: z.string().nullable(),
-    status: z.enum(['enabled', 'disabled']),
-    remark: z.string().nullable(),
-    ...auditFields,
-    createdAt: z.string(),
-    updatedAt: z.string(),
-  })
-  .openapi('CmsFragment');
 
 export const CmsFriendLinkGroupDTO = z
   .object({
@@ -1131,7 +1114,6 @@ export const CmsSiteImportResultDTO = z
       channels: z.number().int(),
       tags: z.number().int(),
       contents: z.number().int(),
-      fragments: z.number().int(),
       friendLinks: z.number().int(),
       redirects: z.number().int(),
       linkWords: z.number().int(),
@@ -1271,7 +1253,7 @@ export const CmsCollectItemDTO = z
 export const CmsPageBlockDTO = z
   .object({
     id: z.string(),
-    type: z.enum(['hero', 'richtext', 'image', 'content-list', 'columns', 'fragment']),
+    type: z.enum(['hero', 'richtext', 'image', 'content-list', 'columns']),
     props: z.record(z.string(), z.unknown()),
     displayCondition: z.object({
       audience: z.enum(['always', 'guest', 'member']),

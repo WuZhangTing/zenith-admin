@@ -67,7 +67,7 @@
 
 ## 页面搭建
 
-区块 JSON 装配式页面（默认 `/p/{slug}/`，isHome 可接管站点首页），6 种区块：hero / richtext / image / content-list / columns / fragment。
+区块 JSON 装配式页面（默认 `/p/{slug}/`，isHome 可接管站点首页），5 种区块：hero / richtext / image / content-list / columns。
 
 **自定义访问路径**：页面可设 `path` 覆盖默认的 `/p/{slug}/`，支持 `about`（→ `/about/`）、`about.html`、多级 `zh/about` 等形态。入库前归一为「无前后斜杠、无 `/index.html`」，使 URL 生成、静态产物路径与前台路由查表共用同一 key。保存时拦截三类冲突：系统保留首段（`p` / `tag` / `interaction` / `search` / `preview` / `api` / `assets`）与 `robots.txt`、`sitemap.xml`、`rss.xml`；站点内已被其他页面占用；与本站栏目路径相同（栏目侧有对称校验，批量建栏目时遇冲突自动改名而非报错）。改 `path` 或 `slug` 时按变更前路径删除旧产物，不留可访问的孤儿页面。
 
@@ -79,14 +79,9 @@
 - 页面详情返回每个区块的 `canManage/aclConfigured/disabledReason`。页面更新与 ACL 设置先锁站点，再在事务内重读页面和启用角色授权；无权区块内容与其相对顺序必须不变，但允许删除排在其前面的有权区块。新区块仍要求页面编辑权限，设置 ACL 独立要求 `cms:page:acl`。
 - 展示条件仅 `always/guest/member/dateRange`。所有条件区块都由服务端按当前会话与时间过滤，绝不先输出再用 CSS 隐藏；为避免静态产物跨时间边界泄露，当前实现将 guest/member/dateRange 页面统一标记为 dynamic。可选会员认证同时校验 JWT、JTI 黑名单、Redis 会话和会员状态，任一失败按游客。
 
-## 碎片与友链
+## 友链
 
-- **碎片**：模板可引用的后台可编辑区块（html/text/image），改文案无需改代码；HTML 统一净化后渲染。JSON 类型已移除——它没有真正的消费方（主题只做 `<pre>` 原样展示），结构化配置由站点扩展模型（`cms_sites.model_id` + `extend`）承担
-- **按类型分流的编辑体验**：`image` 走媒体库选择（自动登记进站点素材库并归一为 `cms-res://` 句柄，素材替换时碎片同步生效），`text` 为纯文本域，`html` 提供「源码（Monaco）/ 可视化（富文本）」双模式。切到可视化前若检测到自定义容器或内联样式会先提示——富文本会按自己的文档结构重排，复杂布局建议保持源码模式
-- **内联样式白名单**：净化器放行 `style`，但逐属性限定取值格式（颜色 / 长度 / 枚举词），并**有意不放行** `position` / `z-index` / `transform`（可覆盖站点导航做点击劫持）、`url()`、`expression()`、`behavior`、`-moz-binding`。此前 `style` 一律丢弃，导致富文本调的字号颜色与碎片里的渐变横幅一存就没——本仓 seed 的 `home-banner` 就是典型受害者
-- **实时预览**：编辑弹窗左侧编辑、右侧预览。预览内容经 `POST /api/cms/fragments/preview` 由**服务端净化器**产出，展示的是「保存后真正会存下来的样子」——前端复刻一份白名单必然与服务端漂移，预览就又成了所见非所得；净化结果与输入不一致时会明确提示哪些内容将被移除。渲染走 `sandbox=""` 的 iframe：既关掉脚本执行，也隔离样式，碎片 CSS 不会污染后台界面、后台样式也不会扭曲预览
-- **碎片改动即时生效**：碎片被主题模板与搭建页 `fragment` 区块引用、引用位置无法静态推断，因此新增/修改/删除启用中的碎片会入队一次**站点级重建**，并清空该站 dynamic 模式的 Redis 页面缓存（`cms:page:{siteId}:*`）。不接这条链路的话，static 模式永远是旧产物、hybrid 命中旧静态文件、dynamic 最长 10 分钟才过期，「应急公告」「合规文案」这类用法直接不成立
-- 只有 `code` / `type` / `status` / `content` 参与渲染，改名称、备注不会触发整站重建；停用态之间的改动同样不重建。正文仅在**本身被提交**或**类型变更**时才重新净化——否则改个备注就会把已落库正文里不在白名单的内联样式静默抹掉
+> **碎片（`cms_fragments`）已移除。** 它是「按 `code` 引用的 HTML 字符串袋」，在 in-repo TSX + SSR 架构下属于错位抽象：模板编译期就知道自己有哪些插槽，主题的 `settingsSchema` 已能声明式表达（带类型、label、分组，后台自动生成表单且可发现），而碎片靠魔法字符串耦合、后台看不到主题需要哪些 code、也看不到自己建的碎片有没有人引用。三种类型里 `text` / `image` 与 `settingsSchema` 的 `textarea` / `image` 完全冗余，仅 `html` 独有。首页横幅改由 `themeConfig.bannerImage` 单独承担——此前两套机制渲染进同一个视觉位置，主题作者不得不写注释解释它们如何共存。需要富文本插槽时，正确的做法是给 `settingsSchema` 增加 `richtext` 字段类型，而非另起一套无类型的全局字符串表。
 
 ## 表单验证与验证码
 

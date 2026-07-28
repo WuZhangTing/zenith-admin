@@ -91,7 +91,7 @@ main { min-height: 60vh; padding: 24px 0 48px; }
 .side-list li { list-style: none; padding: 8px 0; border-bottom: 1px dashed var(--border); font-size: 14px; display: flex; justify-content: space-between; gap: 8px; }
 .side-list li a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-list li time { color: var(--text-2); font-size: 12px; flex-shrink: 0; }
-.fragment-banner { border-radius: 10px; overflow: hidden; margin-bottom: 24px; }
+.home-banner { border-radius: 10px; overflow: hidden; margin-bottom: 24px; }
 .search-result mark { background: #fff8c5; color: #953800; padding: 0 1px; }
 .search-result .content-item h3 mark { background: none; color: #d1242f; }
 .ad-slot { margin-bottom: 24px; display: flex; flex-direction: column; gap: 12px; }

@@ -1,7 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
-  PaginatedResponse, CmsSite, CmsModel, CmsChannel, CmsContent, CmsTag, CmsFragment,
-  CmsFriendLink, CmsFriendLinkGroup, CmsSearchResult, CmsContentStatus, CmsFragmentType, AsyncTask,
+  PaginatedResponse, CmsSite, CmsModel, CmsChannel, CmsContent, CmsTag,
+  CmsFriendLink, CmsFriendLinkGroup, CmsSearchResult, CmsContentStatus, AsyncTask,
   CmsContentVersion, CmsRedirect, CmsLinkWord, CmsComment, CmsCommentStatus,
   CmsAdSlot, CmsAd, CmsAdEvent, CmsAdEventStats, CmsForm, CmsFormSubmission, CmsSensitiveWord, CmsPushLog,
   CmsSearchWord, CmsHotKeyword, CmsCollectRule, CmsCollectItem, CmsPage,
@@ -433,68 +433,6 @@ export function useDeleteCmsTag() {
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/cms/tags/${id}`).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: cmsTagKeys.all }),
-  });
-}
-
-// ═══ 碎片 ═══════════════════════════════════════════════════════════════════
-export interface CmsFragmentListParams {
-  page: number;
-  pageSize: number;
-  siteId: number;
-  keyword?: string;
-  type?: CmsFragmentType;
-}
-
-export const cmsFragmentKeys = {
-  all: ['cms-fragments'] as const,
-  lists: ['cms-fragments', 'list'] as const,
-  list: (params: CmsFragmentListParams) => ['cms-fragments', 'list', params] as const,
-  detail: (id: number | undefined) => ['cms-fragments', 'detail', id] as const,
-};
-
-export function useCmsFragmentList(params: CmsFragmentListParams, enabled = true) {
-  return useQuery({
-    queryKey: cmsFragmentKeys.list(params),
-    queryFn: () => request.get<PaginatedResponse<CmsFragment>>(`/api/cms/fragments${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-    enabled,
-  });
-}
-
-export function useSaveCmsFragment() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
-      (id === undefined
-        ? request.post<CmsFragment>('/api/cms/fragments', values)
-        : request.put<CmsFragment>(`/api/cms/fragments/${id}`, values)
-      ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: cmsFragmentKeys.all }),
-  });
-}
-
-export function useDeleteCmsFragment() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/cms/fragments/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: cmsFragmentKeys.all }),
-  });
-}
-
-/**
- * 碎片内容预览净化。
- *
- * 走服务端而非前端自己实现一份白名单：净化规则只有服务端一份，前端复刻必然漂移，
- * 预览就又变成「所见非所得」——用户看到样式生效、保存后却被抹掉。
- * 编辑中的内容不入库，因此 queryKey 只按内容做缓存，不进 cmsFragmentKeys 命名空间。
- */
-export function useCmsFragmentPreview(type: string, content: string, enabled = true) {
-  return useQuery({
-    queryKey: ['cms-fragments', 'preview', type, content] as const,
-    queryFn: () => request.post<{ content: string }>('/api/cms/fragments/preview', { type, content }).then(unwrap),
-    enabled,
-    staleTime: 60_000,
-    placeholderData: keepPreviousData,
   });
 }
 

@@ -13,9 +13,8 @@ describe('CMS site import code validation', () => {
     expect(() => parseCmsImportSiteCode('Docs_Site')).toThrow();
   });
 
-  it('sanitizes imported fragments, page blocks and rich content at the service boundary', async () => {
+  it('sanitizes imported page blocks and rich content at the service boundary', async () => {
     const source = await readFile(new URL('./cms-site-transfer.service.ts', import.meta.url), 'utf8');
-    expect(source).toContain('sanitizeCmsImportedFragment');
     expect(source).toContain('blocks: sanitizeCmsPageBlocks(p.blocks ?? [])');
     expect(source).toContain('body: sanitizeCmsHtml(str(c.body))');
     expect(source).toContain('pageContent: sanitizeCmsHtml(str(ch.pageContent))');

@@ -41,7 +41,6 @@ export const cmsContentTypeEnum = pgEnum('cms_content_type', ['article', 'album'
 export const cmsFieldTypeEnum = pgEnum('cms_field_type', ['text', 'textarea', 'richtext', 'number', 'date', 'datetime', 'image', 'file', 'select', 'radio', 'checkbox', 'switch']);
 /** 模型字段选项来源：manual=手工维护，dict=引用系统字典（随字典自动更新） */
 export const cmsFieldOptionSourceEnum = pgEnum('cms_field_option_source', CMS_FIELD_OPTION_SOURCES);
-export const cmsFragmentTypeEnum = pgEnum('cms_fragment_type', ['html', 'text', 'image']);
 export const cmsSearchWordTypeEnum = pgEnum('cms_search_word_type', ['extension', 'stop']);
 export const cmsFormCaptchaProviderEnum = pgEnum('cms_form_captcha_provider', ['inherit', 'none', 'math', 'turnstile']);
 export const cmsPublishTargetTypeEnum = pgEnum('cms_publish_target_type', CMS_PUBLISH_TARGET_TYPES);
@@ -717,27 +716,6 @@ export const cmsContentTags = pgTable('cms_content_tags', {
 }, (t) => [primaryKey({ columns: [t.contentId, t.tagId] })]);
 
 export type CmsContentTagRow = typeof cmsContentTags.$inferSelect;
-
-// ─── CMS 碎片（模板中可引用的后台可编辑区块）───────────────────────────────────
-export const cmsFragments = pgTable('cms_fragments', {
-  id: serial('id').primaryKey(),
-  siteId: integer('site_id').notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
-  /** 模板引用标识：<ThemeFragment code="home-banner" /> */
-  code: varchar('code', { length: 50 }).notNull(),
-  name: varchar('name', { length: 100 }).notNull(),
-  type: cmsFragmentTypeEnum('type').notNull().default('html'),
-  content: text('content'),
-  status: statusEnum('status').notNull().default('enabled'),
-  remark: text('remark'),
-  ...auditColumns(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
-  uniqueIndex('cms_fragments_site_code_uq').on(t.siteId, t.code),
-]);
-
-export type CmsFragmentRow = typeof cmsFragments.$inferSelect;
-export type NewCmsFragment = typeof cmsFragments.$inferInsert;
 
 // ─── CMS 友链分组（独立实体：需排序与稳定 code 供主题按组取数，字符串分组表达不了）───
 export const cmsFriendLinkGroups = pgTable('cms_friend_link_groups', {

@@ -7,7 +7,6 @@ import type {
   CmsCommentItem, CmsCommentFormConfig, CmsFrontFormConfig, CmsTagPageContext, CmsCustomPageContext,
   CmsInteractionPageContext,
 } from '../types';
-import { CmsFragmentContent } from '../blocks';
 import {
   resolveCmsRenderedPagePath,
   signCmsAdRenderProof,
@@ -117,9 +116,7 @@ function Pagination({ p }: { p: CmsPagination }) {
   );
 }
 
-function HtmlFragment({ ctx, code, className }: { ctx: CmsBaseContext; code: string; className?: string }) {
-  return <CmsFragmentContent fragment={ctx.fragments[code]} className={className} imageAlt={code} />;
-}
+
 
 /** 广告位：图片广告渲染图片，无图广告渲染文字条；点击经由计数中转 302 跳转 */
 function AdSlot({ ctx, code }: { ctx: CmsBaseContext; code: string }) {
@@ -314,13 +311,12 @@ export function IndexTemplate(ctx: CmsHomeContext) {
   return (
     <Layout ctx={ctx} currentUrl={`${ctx.baseUrl}/`}>
       {bannerImage ? (
-        <div className="fragment-banner">
+        <div className="home-banner">
           {bannerLink
             ? <a href={bannerLink} target="_blank" rel="noopener noreferrer"><img src={bannerImage} alt="banner" /></a>
             : <img src={bannerImage} alt="banner" />}
         </div>
       ) : null}
-      <HtmlFragment ctx={ctx} code="home-banner" className="fragment-banner" />
       <AdSlot ctx={ctx} code="home-ad" />
       <div className="home-grid">
         <section>
@@ -350,7 +346,6 @@ export function IndexTemplate(ctx: CmsHomeContext) {
               </ul>
             </>
           ) : null}
-          <HtmlFragment ctx={ctx} code="home-side" />
         </aside>
       </div>
     </Layout>

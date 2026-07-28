@@ -18,7 +18,7 @@ import type {
   ReportDatasource, ReportDataset, ReportDashboard, ApiScope, RatePlan, ReportPrintTemplate,
   UserFeedback, ReportFolder, ReportMetric, ReportEnvironment, ReportDqRule, ReportQueryQuota,
   ReportSlaRule, ReportAssetTemplate, ReportFillTemplate, AnalyticsEventPropertyDef, AnalyticsSite,
-  CmsSite, CmsModel, CmsChannel, CmsContent, CmsTag, CmsFragment, CmsFriendLink, CmsFriendLinkGroup,
+  CmsSite, CmsModel, CmsChannel, CmsContent, CmsTag, CmsFriendLink, CmsFriendLinkGroup,
   CmsAdSlot, CmsAd, CmsAdEvent, CmsForm, CmsSensitiveWord, CmsErrorProneWord, CmsLinkWord, CmsComment,
   CmsInteraction, CmsInteractionQuestion, CmsMemberSubscription, CmsResource, CmsResourceFolder, CmsSearchWord, CmsHotwordGroup,
   CmsContentVersion, CmsCollectRule, CmsCollectItem, CmsPage,
@@ -864,11 +864,6 @@ export const SEED_MENUS: Menu[] = [
   { id: 14082, parentId: 14080, title: '新增标签', type: 'button', permission: 'cms:tag:create', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14083, parentId: 14080, title: '编辑标签', type: 'button', permission: 'cms:tag:update', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14084, parentId: 14080, title: '删除标签', type: 'button', permission: 'cms:tag:delete', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 14090, parentId: 14000, title: '碎片管理', name: 'CmsFragments', path: '/cms/fragments', component: 'cms/FragmentsPage', icon: 'Puzzle', type: 'menu', sort: 6, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 14091, parentId: 14090, title: '查询', type: 'button', permission: 'cms:fragment:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 14092, parentId: 14090, title: '新增碎片', type: 'button', permission: 'cms:fragment:create', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 14093, parentId: 14090, title: '编辑碎片', type: 'button', permission: 'cms:fragment:update', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 14094, parentId: 14090, title: '删除碎片', type: 'button', permission: 'cms:fragment:delete', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14100, parentId: 14000, title: '友情链接', name: 'CmsFriendLinks', path: '/cms/friend-links', component: 'cms/FriendLinksPage', icon: 'Link2', type: 'menu', sort: 7, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14101, parentId: 14100, title: '查询', type: 'button', permission: 'cms:link:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14102, parentId: 14100, title: '新增友链', type: 'button', permission: 'cms:link:create', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
@@ -3179,7 +3174,7 @@ export const SEED_ANALYTICS_EVENT_META: SeedAnalyticsEventMeta[] = [
   ], strictMode: false },
 ];
 
-// ─── CMS：站点 / 模型 / 栏目 / 内容 / 标签 / 碎片 / 友链 ─────────────────────────
+// ─── CMS：站点 / 模型 / 栏目 / 内容 / 标签 / 友链 ─────────────────────────────
 export const SEED_CMS_SITES: CmsSite[] = [
   {
     id: 1, parentId: null, name: 'Zenith 官方网站', code: 'main', domain: null, aliasDomains: [], isDefault: true,
@@ -3389,11 +3384,6 @@ export const SEED_CMS_CONTENT_VERSIONS: CmsContentVersion[] = [
     createdByName: '管理员',
     createdAt: SEED_DATE,
   },
-];
-
-export const SEED_CMS_FRAGMENTS: CmsFragment[] = [
-  { id: 1, siteId: 1, code: 'home-banner', name: '首页横幅', type: 'html', content: '<div style="padding:28px 24px;background:linear-gradient(120deg,#1f6feb,#0969da);border-radius:10px;color:#fff"><h2 style="margin:0 0 6px;font-size:22px">Zenith CMS</h2><p style="margin:0;opacity:.85">多站点 · SEO · SSR 静态化 · PostgreSQL 全文检索</p></div>', status: 'enabled', remark: '首页顶部横幅区块', createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 2, siteId: 1, code: 'home-side',   name: '首页侧栏', type: 'html', content: '<p style="font-size:13px;color:#59636e">碎片内容可在后台「碎片管理」中随时修改，无需改代码。</p>', status: 'enabled', remark: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];
 
 export const SEED_CMS_FRIEND_LINK_GROUPS: CmsFriendLinkGroup[] = [

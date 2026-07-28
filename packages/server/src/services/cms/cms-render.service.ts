@@ -19,7 +19,6 @@ import {
   listPublishedContentsByTag, listRelatedContents, resolveContentBodyExtend, type ResolvedCmsContentRow,
 } from './cms-contents.service';
 import { resolveCmsContentRow, resolveCmsContentRows, resolveCmsResourcePayload } from './cms-resource-refs.service';
-import { getFragmentMap } from './cms-fragments.service';
 import { listEnabledFriendLinks, listEnabledFriendLinkGroups } from './cms-friend-links.service';
 import { searchCmsContents, stripHtml } from './cms-search.service';
 import { getEnabledLinkWords, applyLinkWords } from './cms-link-words.service';
@@ -176,16 +175,15 @@ function mergeSeo(site: CmsSiteRow, overrides: Partial<CmsSeo> & { pathForCanoni
 export { mergeSeo as mergeCmsSeo };
 
 async function buildBaseContext(site: CmsSiteRow, baseUrl: string, seo: CmsSeo, analyticsContentId?: number): Promise<CmsBaseContext> {
-  const [tree, fragments, friendLinks, friendLinkGroups, ads, langAlternates] = await Promise.all([
+  const [tree, friendLinks, friendLinkGroups, ads, langAlternates] = await Promise.all([
     listCmsChannelTree({ siteId: site.id, status: 'enabled' }, { skipAccessCheck: true }),
-    getFragmentMap(site.id),
     listEnabledFriendLinks(site.id),
     listEnabledFriendLinkGroups(site.id),
     getActiveAds(site.id),
     buildLangAlternates(site),
   ]);
   const analyticsSiteKey = (site.settings as Record<string, unknown> | null)?.analyticsSiteKey;
-  // 站点 logo/favicon/主题配置、碎片、广告、友链都以素材句柄存储，
+  // 站点 logo/favicon/主题配置、广告、友链都以素材句柄存储，
   // 整块上下文统一解析一次，避免逐个模板忘记解析而渲染出 cms-res:// 裸串
   return resolveCmsResourcePayload({
     site: {
@@ -206,7 +204,6 @@ async function buildBaseContext(site: CmsSiteRow, baseUrl: string, seo: CmsSeo, 
     },
     baseUrl,
     nav: navFromTree(tree, baseUrl),
-    fragments,
     ads,
     friendLinks: friendLinks.map((l) => ({ name: l.name, url: l.url, logo: l.logo })),
     friendLinkGroups,
@@ -391,7 +388,7 @@ export async function renderCustomPage(
     const resolveLink = await buildCmsLinkResolver(site.id, baseUrl, rows.map((r) => r.externalLink));
     contentListData.set(block.id, rows.map((row) => toContentItem(row, baseUrl, channelPathMap.get(row.channelId) ?? FALLBACK_URL_CHANNEL, resolveLink)));
   }
-  const blocksHtml = renderBlocksHtml({ blocks, ctx: base, contentListData });
+  const blocksHtml = renderBlocksHtml({ blocks, contentListData });
   const props = {
     ...base,
     page: { name: pageRow.name, slug: pageRow.slug },

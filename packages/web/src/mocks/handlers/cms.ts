@@ -3,9 +3,9 @@ import type { CmsChannel, CmsContent, CmsContentStatus, CmsForm, CmsModelField, 
 import { CMS_SEARCH_DICTIONARY_WORD_PATTERN, CMS_SECRET_MASK, SEED_CMS_EDITOR_USER, parseCmsLink } from '@zenith/shared';
 import {
   mockCmsSites, mockCmsModels, mockCmsChannels, mockCmsContents, mockCmsTags,
-  mockCmsFragments, mockCmsFriendLinks, mockCmsFriendLinkGroups, buildMockChannelTree,
+  mockCmsFriendLinks, mockCmsFriendLinkGroups, buildMockChannelTree,
   getNextCmsSiteId, getNextCmsModelId, getNextCmsModelFieldId, getNextCmsChannelId,
-  getNextCmsContentId, getNextCmsTagId, getNextCmsFragmentId, getNextCmsFriendLinkId, getNextCmsFriendLinkGroupId,
+  getNextCmsContentId, getNextCmsTagId, getNextCmsFriendLinkId, getNextCmsFriendLinkGroupId,
   mockCmsAdSlots, mockCmsAds, mockCmsForms, mockCmsFormSubmissions, mockCmsSensitiveWords,
   mockCmsErrorProneWords, mockCmsContentOpLogs, mockCmsLinkWords, mockCmsComments, mockCmsRedirects, mockCmsPushLogs, mockCmsContentVersions,
   getNextCmsAdSlotId, getNextCmsAdId, getNextCmsFormId, getNextCmsSensitiveWordId,
@@ -153,7 +153,7 @@ export const cmsHandlers = [
   // 主题参数声明（与 packages/server/src/cms/themes/default 的 settingsSchema 保持一致）
   http.get('/api/cms/sites/themes/:code/settings-schema', ({ params }) => okJson(params.code === 'default' ? [
     { name: 'contactPhone', label: '页头联系电话', fieldType: 'text', group: '页头', placeholder: '如 400-800-8888', description: '显示在页头搜索框左侧，留空不显示' },
-    { name: 'bannerImage', label: '首页横幅图', fieldType: 'image', group: '首页', description: '显示在首页顶部（与 home-banner 碎片可并存，横幅在前）' },
+    { name: 'bannerImage', label: '首页横幅图', fieldType: 'image', group: '首页', description: '显示在首页顶部，留空不显示' },
     { name: 'bannerLink', label: '横幅跳转链接', fieldType: 'text', group: '首页', placeholder: 'https://... 留空不跳转' },
     { name: 'showHotSection', label: '显示热门排行', fieldType: 'switch', defaultValue: true, group: '首页' },
     { name: 'footerText', label: '页脚附加文案', fieldType: 'textarea', group: '页脚', placeholder: '如联系地址、邮箱等，支持多行' },
@@ -758,60 +758,6 @@ export const cmsHandlers = [
     const idx = mockCmsTags.findIndex((t) => t.id === Number(params.id));
     if (idx === -1) return notFound('标签不存在');
     mockCmsTags.splice(idx, 1);
-    return okJson(null, '删除成功');
-  }),
-
-  // ═══ 碎片 ═══════════════════════════════════════════════════════════════
-  http.get('/api/cms/fragments', ({ request }) => {
-    const { url, page, pageSize, keyword } = pageParams(request);
-    const siteId = Number(url.searchParams.get('siteId'));
-    let list = mockCmsFragments.filter((f) => f.siteId === siteId);
-    if (keyword) list = list.filter((f) => f.name.includes(keyword) || f.code.includes(keyword));
-    return okJson(paginate(list, page, pageSize));
-  }),
-  // 注册顺序必须早于 POST /api/cms/fragments，否则 preview 会被创建接口先命中
-  http.post('/api/cms/fragments/preview', async ({ request }) => {
-    const body = (await request.json()) as Body;
-    const content = String(body.content ?? '');
-    // Demo 模式没有服务端净化器，做一层与真实白名单同向的近似：
-    // 去掉脚本、事件属性与 position/url()/expression() 这类被明确排除的写法
-    const sanitized = String(body.type) === 'html'
-      ? content
-        .replace(/<script[\s\S]*?<\/script>/gi, '')
-        .replace(/\son\w+="[^"]*"/gi, '')
-        .replace(/(?:position|z-index|transform)\s*:\s*[^;"']+;?/gi, '')
-        .replace(/(?:background(?:-image)?|behavior|-moz-binding)\s*:\s*url\([^)]*\)\s*;?/gi, '')
-      : content;
-    return okJson({ content: sanitized });
-  }),
-  http.post('/api/cms/fragments', async ({ request }) => {
-    const body = (await request.json()) as Body;
-    const now = mockDateTime();
-    const fragment = {
-      id: getNextCmsFragmentId(),
-      siteId: Number(body.siteId),
-      code: String(body.code ?? ''),
-      name: String(body.name ?? ''),
-      type: (body.type as 'html' | 'text' | 'image') ?? 'html',
-      content: (body.content as string) ?? null,
-      status: (body.status as 'enabled' | 'disabled') ?? 'enabled',
-      remark: (body.remark as string) ?? null,
-      createdAt: now,
-      updatedAt: now,
-    };
-    mockCmsFragments.push(fragment);
-    return okJson(fragment, '创建成功');
-  }),
-  http.put('/api/cms/fragments/:id', async ({ params, request }) => {
-    const idx = mockCmsFragments.findIndex((f) => f.id === Number(params.id));
-    if (idx === -1) return notFound('碎片不存在');
-    Object.assign(mockCmsFragments[idx], await request.json(), { updatedAt: mockDateTime() });
-    return okJson(mockCmsFragments[idx], '更新成功');
-  }),
-  http.delete('/api/cms/fragments/:id', ({ params }) => {
-    const idx = mockCmsFragments.findIndex((f) => f.id === Number(params.id));
-    if (idx === -1) return notFound('碎片不存在');
-    mockCmsFragments.splice(idx, 1);
     return okJson(null, '删除成功');
   }),
 
@@ -1789,7 +1735,7 @@ export const cmsP2Handlers = [
       exportedAt: mockDateTime(),
       site: { name: site?.name ?? '演示站点', code: site?.code ?? 'demo' },
       channels: [], tags: [], contents: [], contentTags: [], contentChannels: [], contentRelations: [],
-      fragments: [], friendLinks: [], redirects: [], linkWords: [], adSlots: [], ads: [], forms: [], pages: [],
+      friendLinks: [], redirects: [], linkWords: [], adSlots: [], ads: [], forms: [], pages: [],
     };
     return new HttpResponse(JSON.stringify(pkg, null, 2), {
       headers: {
@@ -1804,7 +1750,7 @@ export const cmsP2Handlers = [
       siteId: 999,
       siteName: body?.site?.name ?? '导入站点',
       siteCode: `${body?.site?.code ?? 'imported'}-2`,
-      counts: { channels: 0, tags: 0, contents: 0, fragments: 0, friendLinks: 0, redirects: 0, linkWords: 0, adSlots: 0, ads: 0, forms: 0, pages: 0 },
+      counts: { channels: 0, tags: 0, contents: 0, friendLinks: 0, redirects: 0, linkWords: 0, adSlots: 0, ads: 0, forms: 0, pages: 0 },
     }, '站点导入成功，内容已统一转为草稿');
   }),
 ];

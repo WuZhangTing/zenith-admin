@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../../db';
 import {
-  cmsAds, cmsAdSlots, cmsChannels, cmsContents, cmsContentVersions, cmsForms, cmsFragments,
+  cmsAds, cmsAdSlots, cmsChannels, cmsContents, cmsContentVersions, cmsForms,
   cmsFriendLinks, cmsPages, cmsResources, cmsSites,
 } from '../../db/schema';
 import { registerTaskHandler } from '../../lib/task-center';
@@ -176,11 +176,6 @@ async function buildRefRebuildStages(siteId: number): Promise<{ key: string; lab
         .from(cmsContentVersions)
         .innerJoin(cmsContents, eq(cmsContentVersions.contentId, cmsContents.id))
         .where(eq(cmsContents.siteId, siteId))),
-    },
-    {
-      key: 'fragment',
-      label: '碎片',
-      run: async () => rebuild('fragment', await db.select().from(cmsFragments).where(eq(cmsFragments.siteId, siteId))),
     },
     {
       key: 'friendLink',

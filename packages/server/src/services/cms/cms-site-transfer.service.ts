@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import {
   cmsSites, cmsChannels, cmsContents, cmsTags, cmsContentTags, cmsContentChannels, cmsContentRelations,
-  cmsFragments, cmsFriendLinks, cmsRedirects, cmsLinkWords, cmsAdSlots, cmsAds, cmsForms, cmsPages,
+  cmsFriendLinks, cmsRedirects, cmsLinkWords, cmsAdSlots, cmsAds, cmsForms, cmsPages,
   cmsResourceFolders, cmsResources,
   cmsSiteInheritances, cmsSiteUsers, cmsChannelUsers,
 } from '../../db/schema';
@@ -19,7 +19,6 @@ import { currentUser } from '../../lib/context';
 import { assertAllCmsSiteChannelsAccess } from './cms-channels.service';
 import { sanitizeCmsPageBlocks } from './cms-page-blocks';
 import { CMS_IMPORTED_CONTENT_LIFECYCLE } from './cms-publish-permission';
-import { sanitizeCmsImportedFragment, normalizeImportedCmsFragmentType } from './cms-fragment-content';
 import { normalizeCmsFormFields, type FormFieldInput } from './cms-forms.service';
 import { remapCmsResourceUris } from '../../lib/cms-resource-uri';
 import { assertSafeCmsResourceUrl, syncCmsResourceRefs } from './cms-resource-refs.service';
@@ -27,7 +26,7 @@ import { assertSafeCmsResourceUrl, syncCmsResourceRefs } from './cms-resource-re
 /**
  * 站点导入导出（P5 企业级治理）：整站结构与内容打包为 JSON，用于备份迁移 / 环境同步。
  * 覆盖范围：站点配置、栏目树、标签、素材库（文件夹 + 素材登记）、内容（含附加栏目/相关文章/标签关联）、
- * 碎片、友情链接、重定向、内链词、广告位+广告、自定义表单定义、搭建页面。
+ * 友情链接、重定向、内链词、广告位+广告、自定义表单定义、搭建页面。
  * 不含运行数据（访问/搜索日志、互动记录、评论、表单提交、版本历史、操作日志、用户绑定）。
  *
  * 素材以 `cms-res://{id}` 句柄内嵌在正文与 JSONB 中，因此导入时必须先建素材、拿到 id 映射，
@@ -58,12 +57,11 @@ export async function exportCmsSite(siteId: number) {
   await assertAllCmsSiteChannelsAccess(siteId);
   const site = await ensureCmsSiteExists(siteId);
 
-  const [channels, tags, contents, fragments, friendLinks, redirects, linkWords, adSlots, forms, pages, resourceFolders, resources] = await Promise.all([
+  const [channels, tags, contents, friendLinks, redirects, linkWords, adSlots, forms, pages, resourceFolders, resources] = await Promise.all([
     db.select().from(cmsChannels).where(eq(cmsChannels.siteId, siteId)),
     db.select().from(cmsTags).where(eq(cmsTags.siteId, siteId)),
     // 回收站内容不导出；归档内容保留
     db.select().from(cmsContents).where(and(eq(cmsContents.siteId, siteId), isNull(cmsContents.deletedAt))),
-    db.select().from(cmsFragments).where(eq(cmsFragments.siteId, siteId)),
     db.select().from(cmsFriendLinks).where(eq(cmsFriendLinks.siteId, siteId)),
     db.select().from(cmsRedirects).where(eq(cmsRedirects.siteId, siteId)),
     db.select().from(cmsLinkWords).where(eq(cmsLinkWords.siteId, siteId)),
@@ -116,7 +114,6 @@ export async function exportCmsSite(siteId: number) {
     contentTags: contentTags.map((r) => ({ contentId: r.contentId, tagId: r.tagId })),
     contentChannels: contentChannels.map((r) => ({ contentId: r.contentId, channelId: r.channelId })),
     contentRelations: contentRelations.map((r) => ({ contentId: r.contentId, relatedId: r.relatedId, sort: r.sort })),
-    fragments: fragments.map((r) => exportRow(r, ['siteId'])),
     friendLinks: friendLinks.map((r) => exportRow(r, ['id', 'siteId'])),
     redirects: redirects.map((r) => exportRow(r, ['id', 'siteId'])),
     linkWords: linkWords.map((r) => exportRow(r, ['id', 'siteId'])),
@@ -444,21 +441,6 @@ export async function importCmsSite(payload: unknown) {
     }
 
     // 6. 站点附属实体
-    for (const f of (data.fragments ?? []) as PlainRow[]) {
-      // 旧导出包里可能带 json 类型碎片；该类型已移除，与 DB 迁移口径一致降级为 text，
-      // 而不是让整包导入失败——包内其余内容与它无关。
-      const type = normalizeImportedCmsFragmentType(str(f.type));
-      const [created] = await tx.insert(cmsFragments).values({
-        siteId,
-        code: str(f.code) ?? `fragment-${num(f.id)}`,
-        name: str(f.name) ?? '未命名碎片',
-        type,
-        content: sanitizeCmsImportedFragment(type, f.content),
-        status: (str(f.status) as typeof cmsFragments.$inferInsert.status) ?? 'enabled',
-        remark: str(f.remark),
-      }).returning();
-      await syncCmsResourceRefs(tx, 'fragment', created.id, siteId, created);
-    }
     for (const l of (data.friendLinks ?? []) as PlainRow[]) {
       const [created] = await tx.insert(cmsFriendLinks).values({
         siteId,
@@ -560,7 +542,6 @@ export async function importCmsSite(payload: unknown) {
         contents: contentIdMap.size,
         resourceFolders: folderIdMap.size,
         resources: resourceIdMap.size,
-        fragments: (data.fragments ?? []).length,
         friendLinks: (data.friendLinks ?? []).length,
         redirects: (data.redirects ?? []).length,
         linkWords: (data.linkWords ?? []).length,

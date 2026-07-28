@@ -4,7 +4,6 @@ import type {
   CmsDetailContext, CmsPageContext, CmsSearchContext, CmsNotFoundContext, CmsPagination,
   CmsTagPageContext, CmsNavItem, CmsTheme, CmsCustomPageContext,
 } from '../types';
-import { CmsFragmentContent } from '../blocks';
 
 const CAPTCHA_SCRIPT = `(function(){function load(box){fetch('/api/public/cms/captcha').then(function(r){return r.json()}).then(function(r){if(!r||r.code!==0)return;box.querySelector('input[name="captchaId"]').value=r.data.id;var img=box.querySelector('.cms-captcha-img');img.innerHTML=r.data.svg;img.title='看不清？点击刷新'}).catch(function(){})}document.querySelectorAll('.cms-captcha-box').forEach(function(box){load(box);var img=box.querySelector('.cms-captcha-img');if(img)img.addEventListener('click',function(){load(box)})});})();`;
 
@@ -277,14 +276,12 @@ function Pagination({ p }: { p: CmsPagination }) {
 }
 
 function IndexTemplate(ctx: CmsHomeContext) {
-  const banner = ctx.fragments['home-banner'];
   return (
     <Layout ctx={ctx} currentUrl={`${ctx.baseUrl}/`}>
       <div className="hero">
         <h1>{ctx.site.name}</h1>
         {ctx.site.description ? <p>{ctx.site.description}</p> : null}
       </div>
-      <CmsFragmentContent fragment={banner} imageAlt="home-banner" />
       <h2 className="section-heading">最新更新</h2>
       <div className="doc-list">
         {ctx.latest.length === 0 ? <div className="empty">暂无内容</div> : ctx.latest.map((item) => <DocItemRow key={item.id} item={item} />)}

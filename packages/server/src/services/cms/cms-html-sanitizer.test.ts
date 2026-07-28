@@ -28,7 +28,7 @@ describe('CMS untrusted HTML sanitizer', () => {
   });
 
   /**
-   * 站点导入、映射物化、分发同步、碎片改类型等链路会把**已落库**的正文再次送进净化器。
+   * 站点导入、映射物化、分发同步等链路会把**已落库**的正文再次送进净化器。
    * 正文里的素材是 `cms-res://{id}` 句柄，若 scheme 不在白名单，sanitize-html 会整个丢掉
    * src/href 属性 —— 等于每走一次这些链路就永久删掉正文中的全部图片与媒体。
    */
@@ -55,7 +55,7 @@ describe('CMS untrusted HTML sanitizer', () => {
 /**
  * 内联样式白名单。
  *
- * 不放行 style 的代价是「所见非所得」：富文本编辑器调的字号/颜色、碎片里写的渐变横幅，
+ * 不放行 style 的代价是「所见非所得」：富文本编辑器调的字号/颜色、正文里写的渐变卡片，
  * 落库时被静默抹掉——本仓 seed 的 home-banner 就是一存就变白板。放行 style 不等于放行脚本：
  * `<script>` 不在 allowedTags，且逐属性限定取值格式，未列出的属性一律丢弃。
  */
@@ -147,7 +147,7 @@ describe('CMS 内联样式白名单', () => {
   });
 
   it('挡住从声明里越狱写出额外规则', () => {
-    // color:red}body{display:none 若被原样保留，等于让碎片改写全站样式
+    // color:red}body{display:none 若被原样保留，等于让正文改写全站样式
     expect(styleOf('<div style="color:red}body{display:none">x</div>')).toBe('color:red');
   });
 

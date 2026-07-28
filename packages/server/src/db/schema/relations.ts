@@ -49,7 +49,7 @@ import {
   cmsAdEvents, cmsAds, cmsAdSlots, cmsChannelUsers, cmsChannels, cmsComments,
   cmsContentChannels, cmsContentFavorites, cmsContentLikes, cmsContentOpLogs,
   cmsContentRelations, cmsContents, cmsContentTags, cmsContentVersions, cmsDistributionRules, cmsForms,
-  cmsFormSubmissions, cmsFragments, cmsFriendLinks, cmsHotwordGroups, cmsHotwords,
+  cmsFormSubmissions, cmsFriendLinks, cmsHotwordGroups, cmsHotwords,
   cmsInteractionAnswers, cmsInteractionQuestions, cmsInteractionResponses, cmsInteractions,
   cmsLinkWords, cmsMemberSubscriptions, cmsMemberViewHistory, cmsModelFields, cmsModels,
   cmsPageBlockAcls, cmsPages, cmsPublishArtifacts, cmsPushLogs,
@@ -1264,7 +1264,6 @@ export const cmsSitesRelations = relations(cmsSites, ({ one, many }) => ({
   channels: many(cmsChannels),
   contents: many(cmsContents),
   tags: many(cmsTags),
-  fragments: many(cmsFragments),
   friendLinks: many(cmsFriendLinks),
   resourceFolders: many(cmsResourceFolders),
   resources: many(cmsResources),
@@ -1422,10 +1421,6 @@ export const cmsContentTagsRelations = relations(cmsContentTags, ({ one }) => ({
 export const cmsTagsRelations = relations(cmsTags, ({ one, many }) => ({
   site: one(cmsSites, { fields: [cmsTags.siteId], references: [cmsSites.id] }),
   contentTags: many(cmsContentTags),
-}));
-
-export const cmsFragmentsRelations = relations(cmsFragments, ({ one }) => ({
-  site: one(cmsSites, { fields: [cmsFragments.siteId], references: [cmsSites.id] }),
 }));
 
 export const cmsFriendLinksRelations = relations(cmsFriendLinks, ({ one }) => ({

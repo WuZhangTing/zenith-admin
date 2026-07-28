@@ -2,7 +2,6 @@ import type { ComponentType } from 'react';
 import type {
   CmsContentAttachment,
   CmsFormField,
-  CmsFragmentType,
   CmsSearchResult,
   CmsThemeSettingField,
   CmsTitleStyle,
@@ -160,8 +159,7 @@ export interface CmsBaseContext {
   /** URL 前缀：正式域名下为 ''，预览模式为 /__cms/{code} */
   baseUrl: string;
   nav: CmsNavItem[];
-  /** 碎片 code → { type, content } */
-  fragments: Record<string, { type: CmsFragmentType; content: string }>;
+
   /** 广告位 code → 投放中广告列表 */
   ads: Record<string, CmsAdItem[]>;
   friendLinks: { name: string; url: string; logo: string | null }[];

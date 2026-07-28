@@ -43,7 +43,6 @@ describe('CMS social SEO rendering behavior', () => {
       },
       baseUrl: '',
       nav: [],
-      fragments: {},
       ads: {},
       friendLinks: [],
       friendLinkGroups: [],

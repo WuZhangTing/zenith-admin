@@ -172,7 +172,7 @@ function CropModal({ resource, onClose }: Readonly<{ resource: CmsResource | nul
   );
 }
 
-/** 引用弹窗：列出素材被内容/广告/碎片引用的位置 */
+/** 引用弹窗：列出素材被内容/栏目/广告等引用的位置 */
 function ReferencesModal({ resource, onClose }: Readonly<{ resource: CmsResource | null; onClose: () => void }>) {
   const refsQuery = useCmsResourceReferences(resource?.id ?? null);
   const refs = refsQuery.data ?? [];
@@ -215,7 +215,7 @@ function ReferencesModal({ resource, onClose }: Readonly<{ resource: CmsResource
           rowKey={(record) => `${record?.kind}-${record?.id}-${record?.field}`}
           pagination={false}
           scroll={{ y: 360 }}
-          empty="该素材未被站内内容、广告或碎片引用，可安全删除"
+          empty="该素材未被站内内容、栏目或广告引用，可安全删除"
           onRefresh={() => void refsQuery.refetch()}
           refreshLoading={refsQuery.isFetching}
         />

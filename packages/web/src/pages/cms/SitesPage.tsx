@@ -252,7 +252,7 @@ function SiteStaticPanel({ site, canBuild }: { site: CmsSite; canBuild: boolean 
           <span>
             全站静态化会将首页、全部栏目分页、全部已发布内容、sitemap.xml、robots.txt 渲染为静态 HTML 文件。
             当前有效静态化模式：<b>{CMS_STATIC_MODE_LABELS[effectiveConfigQuery.data?.resolved.staticMode ?? site.staticMode]}</b>。
-            混合模式下内容发布时已自动增量生成，全量生成用于模板/碎片/导航变更后的整站刷新（主题代码变更已由系统自动检测重建）。
+            混合模式下内容发布时已自动增量生成，全量生成用于模板/导航变更后的整站刷新（主题代码变更已由系统自动检测重建）。
           </span>
         )}
       />

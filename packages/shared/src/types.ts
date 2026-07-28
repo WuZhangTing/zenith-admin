@@ -10352,8 +10352,6 @@ export interface CmsContentMediaData {
 
 export type CmsFieldType = 'text' | 'textarea' | 'richtext' | 'number' | 'date' | 'datetime' | 'image' | 'file' | 'select' | 'radio' | 'checkbox' | 'switch';
 
-export type CmsFragmentType = 'html' | 'text' | 'image';
-
 export type CmsSiteInheritableField =
   | 'seoTitle'
   | 'seoKeywords'
@@ -11060,19 +11058,6 @@ export interface CmsDashboardStats {
   channelDistribution: { channelId: number; channelName: string; count: number }[];
 }
 
-export interface CmsFragment {
-  id: number;
-  siteId: number;
-  code: string;
-  name: string;
-  type: CmsFragmentType;
-  content: string | null;
-  status: 'enabled' | 'disabled';
-  remark: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
 /** 友链分组（独立实体：支持排序与稳定 code，供主题按组取数） */
 export interface CmsFriendLinkGroup {
   id: number;
@@ -11486,7 +11471,7 @@ export interface CmsCollectItem {
 }
 
 // ─── CMS 可视化页面搭建（P3 Batch6）───────────────────────────────────────────
-export type CmsPageBlockType = 'hero' | 'richtext' | 'image' | 'content-list' | 'columns' | 'fragment';
+export type CmsPageBlockType = 'hero' | 'richtext' | 'image' | 'content-list' | 'columns';
 export type CmsPageBlockAudience = 'always' | 'guest' | 'member';
 
 export interface CmsPageBlockDisplayCondition {
@@ -11547,5 +11532,4 @@ export const CMS_PAGE_BLOCK_TYPES: { value: CmsPageBlockType; label: string }[] 
   { value: 'image', label: '图片' },
   { value: 'content-list', label: '内容列表' },
   { value: 'columns', label: '多列卡片' },
-  { value: 'fragment', label: '碎片引用' },
 ];

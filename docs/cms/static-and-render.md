@@ -121,7 +121,7 @@ SSR 响应按页面类型分级缓存（v1.6.0+）：
 
 ## 主题与模板解析
 
-内置可信主题注册于 `packages/server/src/cms/themes/registry.ts`（`default` 企业门户 / `docs` 文档站），全部为仓库内 React TSX 组件，由服务端 SSR（`renderToStaticMarkup`）渲染。站点在「站点管理」编辑中选择主题，切换时服务端校验主题已注册并原子递增 `themeRevision`（发布任务以此做过期栅栏）。模板上下文含导航、碎片、广告位、友链、SEO、评论、相关文章等。
+内置可信主题注册于 `packages/server/src/cms/themes/registry.ts`（`default` 企业门户 / `docs` 文档站），全部为仓库内 React TSX 组件，由服务端 SSR（`renderToStaticMarkup`）渲染。站点在「站点管理」编辑中选择主题，切换时服务端校验主题已注册并原子递增 `themeRevision`（发布任务以此做过期栅栏）。模板上下文含导航、广告位、友链、SEO、评论、相关文章等。
 
 主题除默认模板集外可注册**变体模板**（`extraListTemplates` / `extraDetailTemplates`，带展示名），default 主题内置 `list-card`（卡片网格）、`list-compact`（紧凑标题）、`detail-plain`（简洁正文）。可选清单通过 `GET /api/cms/sites/themes/{code}/templates` 返回，后台站点/栏目/内容三级下拉动态取。
 

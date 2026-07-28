@@ -1490,7 +1490,7 @@ export const CMS_RESOURCE_URI_PREFIX = 'cms-res://';
 
 /** 素材引用方（反向索引 owner_type 取值） */
 export const CMS_RESOURCE_OWNER_TYPES = [
-  'site', 'content', 'contentVersion', 'channel', 'fragment', 'friendLink', 'ad', 'page', 'form',
+  'site', 'content', 'contentVersion', 'channel', 'friendLink', 'ad', 'page', 'form',
 ] as const;
 
 export type CmsResourceOwnerType = (typeof CMS_RESOURCE_OWNER_TYPES)[number];
@@ -1500,7 +1500,6 @@ export const CMS_RESOURCE_OWNER_TYPE_LABELS: Record<CmsResourceOwnerType, string
   content: '内容',
   contentVersion: '内容版本',
   channel: '栏目',
-  fragment: '碎片',
   friendLink: '友情链接',
   ad: '广告',
   page: '搭建页面',
@@ -1713,14 +1712,6 @@ export const CMS_FIELD_TYPE_LABELS: Record<(typeof CMS_FIELD_TYPES)[number], str
   radio: '单选',
   checkbox: '多选',
   switch: '开关',
-};
-
-export const CMS_FRAGMENT_TYPES = ['html', 'text', 'image'] as const;
-
-export const CMS_FRAGMENT_TYPE_LABELS: Record<(typeof CMS_FRAGMENT_TYPES)[number], string> = {
-  html: 'HTML',
-  text: '纯文本',
-  image: '图片',
 };
 
 /** CMS 前台预览路径前缀（无域名绑定时通过 /__cms/{siteCode}/... 访问站点） */

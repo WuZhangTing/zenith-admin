@@ -12,7 +12,7 @@ import { and, eq, inArray, notExists, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import {
-  cmsAds, cmsChannels, cmsContents, cmsContentVersions, cmsForms, cmsFragments,
+  cmsAds, cmsChannels, cmsContents, cmsContentVersions, cmsForms,
   cmsFriendLinks, cmsPages, cmsResourceRefs, cmsResources, cmsSites, managedFiles,
 } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
@@ -28,7 +28,6 @@ export const CMS_RESOURCE_OWNER_FIELDS = {
   content: ['coverImage', 'body', 'mediaData', 'extend', 'attachments', 'externalLink', 'sourceUrl'],
   contentVersion: ['snapshot'],
   channel: ['image', 'pageContent', 'settings', 'linkUrl'],
-  fragment: ['content'],
   friendLink: ['logo', 'url'],
   ad: ['image', 'linkUrl'],
   page: ['blocks'],
@@ -485,13 +484,12 @@ async function loadOwnerTitles(idsByType: Map<CmsResourceOwnerType, number[]>): 
   const contentIds = ids('content');
   const versionIds = ids('contentVersion');
   const channelIds = ids('channel');
-  const fragmentIds = ids('fragment');
   const friendLinkIds = ids('friendLink');
   const adIds = ids('ad');
   const pageIds = ids('page');
   const formIds = ids('form');
 
-  const [sites, contents, versions, channels, fragments, friendLinks, ads, pages, forms] = await Promise.all([
+  const [sites, contents, versions, channels, friendLinks, ads, pages, forms] = await Promise.all([
     siteIds.length
       ? db.select({ id: cmsSites.id, title: cmsSites.name }).from(cmsSites).where(inArray(cmsSites.id, siteIds))
       : [],
@@ -506,9 +504,6 @@ async function loadOwnerTitles(idsByType: Map<CmsResourceOwnerType, number[]>): 
       : [],
     channelIds.length
       ? db.select({ id: cmsChannels.id, title: cmsChannels.name }).from(cmsChannels).where(inArray(cmsChannels.id, channelIds))
-      : [],
-    fragmentIds.length
-      ? db.select({ id: cmsFragments.id, title: cmsFragments.name }).from(cmsFragments).where(inArray(cmsFragments.id, fragmentIds))
       : [],
     friendLinkIds.length
       ? db.select({ id: cmsFriendLinks.id, title: cmsFriendLinks.name }).from(cmsFriendLinks).where(inArray(cmsFriendLinks.id, friendLinkIds))
@@ -528,7 +523,6 @@ async function loadOwnerTitles(idsByType: Map<CmsResourceOwnerType, number[]>): 
   put('content', contents);
   put('contentVersion', versions.map((row) => ({ id: row.id, title: `${row.title}（版本 ${row.version}）` })));
   put('channel', channels);
-  put('fragment', fragments);
   put('friendLink', friendLinks);
   put('ad', ads);
   put('page', pages);

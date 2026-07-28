@@ -96,7 +96,7 @@ const updateRoute = defineOpenAPIRoute({
 const referencesRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/{id}/references',
-    tags: ['CMS-素材中心'], summary: '素材站内引用（内容/广告/碎片）',
+    tags: ['CMS-素材中心'], summary: '素材站内引用（内容/栏目/广告等）',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'cms:resource:list' })] as const,
     request: { params: IdParam },
