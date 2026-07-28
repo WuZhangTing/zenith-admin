@@ -63,6 +63,11 @@ main { min-height: 60vh; padding: 24px 0 48px; }
 .survey-matrix th, .survey-matrix td { border: 1px solid var(--border); padding: 6px 10px; text-align: center; }
 .survey-matrix th[scope="row"] { text-align: left; font-weight: 400; }
 .survey-choice-hint { display: block; margin-top: 6px; font-size: 12px; color: var(--text-2); }
+.survey-error { margin: 8px 0 0; font-size: 13px; color: #c0392b; }
+.survey-question-invalid { border-color: #c0392b; }
+.survey-form-error { margin: 12px 0 0; padding: 8px 12px; border-radius: 6px; background: rgba(192, 57, 43, 0.08); font-size: 13px; color: #c0392b; }
+.survey-restored { margin: 0 0 12px; font-size: 13px; color: var(--text-2); }
+.survey-restored button { margin-left: 6px; }
 .survey-pager { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
 .survey-progress { flex: 1; font-size: 13px; color: var(--text-2); }
 .interaction-metric { margin: 4px 0 8px; font-size: 13px; color: var(--primary); font-weight: 600; }

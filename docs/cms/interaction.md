@@ -16,6 +16,7 @@
 - 题目扩展能力：单选/多选可开「其他 ___」自由填空（答案存 `__other__:自由文本`，统计归入同一桶且原文回传）；矩阵题的行存 `matrix_rows`、列复用 `options`，答案存 `rowId::optionValue`；`page_no` 支持分页问卷；`visible_when`（`{questionIndex, op: any|none, values}`）支持条件显示，**只能依赖排在前面的单选/多选题**，条件未命中的题目服务端不做必答校验也不落库。
 - 参与范围 `anonymous|member`，重复策略 `once_per_member|once_per_ip|multiple`，结果可见性 `always|after_submit|after_close|hidden`，验证码 `inherit|none|math|turnstile`。Turnstile 复用统一 captcha adapter，密钥只写不回显，验证失败或依赖故障均 fail-closed。
 - 前台页 `/interaction/{code}/`，正文嵌入标记 `[互动:code]`；公开提交 `/api/public/cms/interactions/{siteCode}/{code}/submit`，会员提交 `/api/member/cms/interactions/{id}/submit`。
+- 前台表单：题目按 `page_no` 分页（进度 + 上一页/下一页），条件显示随选择实时联动；多选的必答与最少/最多选择数、矩阵每行必答、「其他」填空是否为空均在**浏览器侧先校验**并把错误内联渲染到对应题目下（提交失败也不再用 `alert()`）。分页只影响可见性，跨页答案统一提交；提交出错时自动翻回出错那一页。填写内容按站点+标识存 localStorage 草稿，刷新可断点续答，提交成功后自动清除。
 - 答卷写入 `cms_interaction_responses + cms_interaction_answers`，IP 只保存加盐哈希；`repeat_key` 与显式请求幂等键分别有唯一屏障。选择题按参与人数统计，文本题仅管理接口返回，公共状态与提交响应不会包含 `texts`。题目替换与提交共用 interaction 行锁，已有答卷后不能换题——此时用 `POST /api/cms/interactions/{id}/copy` 生成草稿副本（配置与题目全量克隆、标识自动加 `-copy` 后缀去重、答卷数归零）后再改。
 - 答卷明细与导出均关联题目输出可读答案（`answerDetails`：选项 value 反查文案，选项被改名/删除时回退原始 value）；答卷可按具体问卷筛选，选定单份问卷导出时按题目展开为**宽表**（一题一列、表头即题干），跨问卷导出回退为答案 JSON 单列。
 - 批量发布/关闭走任务中心 `cms-interactions-batch-status`，含 checkpoint、行级 items、权限复验、取消与重试；答卷导出实体为 `cms.interaction-responses`，原始导出另需 `cms:interaction:export-raw`。

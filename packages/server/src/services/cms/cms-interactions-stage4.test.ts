@@ -125,6 +125,22 @@ describe('CMS Stage4 unified interactions', () => {
     expect(canExposeCmsInteractionResults({ visibility: 'after_close', status: 'published', submitted: true })).toBe(false);
   });
 
+  it('validates and drafts on the client before hitting the server', async () => {
+    const theme = await readFile(new URL('../../cms/themes/default/templates.tsx', import.meta.url), 'utf8');
+    // 多选/矩阵/「其他」的必答与数量约束先在浏览器校验，不再靠服务端 400 + alert
+    expect(theme).toContain('function questionError(q,fs)');
+    expect(theme).toContain('function validate(form,state,onlyCurrentPage)');
+    expect(theme).not.toContain("alert(r&&r.message");
+    expect(theme).toContain('setFormError');
+    // 分页只影响可见性：跨页答案必须一起提交，只有条件未命中才 disabled
+    expect(theme).toContain('fs.disabled=condHidden');
+    // localStorage 草稿：断点续答，提交成功后清除
+    expect(theme).toContain('function saveDraft(box,form,state)');
+    expect(theme).toContain('clearDraft(box)');
+    // 属性上下文必须转义引号，否则 data-cond 的 JSON 会被首个引号截断
+    expect(theme).toContain("replace(/\"/g,'&quot;')");
+  });
+
   it('migration drops both legacy product tables', async () => {
     const migration = await stage4Migration();
     expect(migration).toContain('DROP TABLE "cms_polls"');
