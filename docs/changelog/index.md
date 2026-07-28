@@ -4,6 +4,28 @@
 
 ---
 
+## v1.19.1 - 2026-07-28
+
+安全修复：部分更新接口会静默改写未提交的字段（[#7](https://github.com/iwangbowen/zenith-admin/issues/7)）。
+
+### Fixed
+
+- **部分更新 schema 不再注入默认值**：Zod 的 `.partial()` **保留** `.default()`，所以 `createXxxSchema.partial()` 在字段省略时反而会主动填入默认值。服务层普遍用 `.set({ ...data })` 写库，于是一次 `PUT { "remark": "x" }` 会静默改写一批根本没提交的字段。四条链路均已实测复现并修复：
+  - **角色数据范围提权**：`updateRoleSchema` 注入 `dataScope: 'all'`，把 `dept` / `self` 范围的角色提权为全量可见，且紧接着 `clearUserPermissionCache()` 对所有持有该角色的用户立即生效；同时把已禁用的角色重新启用
+  - **身份源停用 + TLS 降级**：`updateTenantIdentityProviderSchema` 注入 `status: 'disabled'`（走该 IdP 的用户登录中断）与 `ldapStartTls: false`（LDAP 降级为明文，bind 凭据裸奔），另有 `jitEnabled` / `defaultRoleIds` / `attributeMapping` 被整体重置
+  - **栏目被挂回站点根**：`updateCmsChannelSchema` 注入 `parentId: 0`（`0 ?? x` 结果是 `0`），父栏目权限校验与防环检查一并跳过，并级联改写全部子栏目的公开 URL；`status` 注入还会连带 bump 该栏目下每条内容的 `updated_at`，污染 Headless 增量同步
+  - **内容关联被清空**：`updateCmsContentSchema` 注入 `tagIds: []`（JS 里 `[]` 是 truthy），清空全部标签、副栏目与相关内容关联，并重置 `extend` / `isTop` / `isRecommend` / `isHot`
+
+  修法是引入 `partialForUpdate()`：先剥离 `.default()` 再 `.partial()`。默认值只属于**创建**语义——创建时字段缺失需要合理初值，更新时缺失的语义是「别动它」，两者不能共用一份 shape。
+
+### Changed
+
+- 全仓另外 82 个同类 update schema 一并迁移。这批迁移是**类型安全**的：`.partial()` 早已把这些字段在类型上标成 optional，服务层本就必须处理 `undefined`，只有运行时在骗人。其中同样含高危字段的还有 `updateMenuSchema`（`parentId` / `status` / `visible`）、`updateDepartmentSchema`（`parentId`）、`updateFileStorageConfigSchema`（`isDefault`）、`updateWorkflowConnectorSchema`（状态与熔断 / 限流开关）等
+- `updateOauthConfigSchema` 保持原样并注明理由：它是**整体替换**语义（表单每次提交全部字段、服务端 upsert 且把 `clientId` / `enabled` 声明为必填），默认值在那里是有意的兜底
+- 新增 `update-schema-defaults.test.ts` 全仓守卫：扫描所有导出的 `update*Schema`，断言空对象与单字段输入都不会凭空多出字段。逐个写用例挡不住新增的 schema，例外需在 `FULL_REPLACE_SCHEMAS` 中显式登记并说明理由
+
+---
+
 ## v1.19.0 - 2026-07-28
 
 移除 CMS 碎片管理。这不是精简功能，而是纠正一个在当前架构下站不住的抽象。
