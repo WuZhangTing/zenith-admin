@@ -12,6 +12,11 @@ import {
   CMS_INTERACTION_QUESTION_TYPES,
   CMS_RESOURCE_OWNER_TYPES,
   CMS_SITE_INHERITABLE_FIELDS,
+  CMS_WIDGET_REF_OWNER_TYPES,
+  CMS_WIDGET_RENDERER_KEYS,
+  CMS_WIDGET_SOURCE_TYPES,
+  CMS_WIDGET_STATUSES,
+  CMS_WIDGET_TYPES,
 } from '@zenith/shared';
 import { auditFields } from './_audit';
 import { AsyncTaskDTO, AsyncTaskItemDTO } from './async-tasks';
@@ -1328,7 +1333,7 @@ export const CmsCollectItemDTO = z
 export const CmsPageBlockDTO = z
   .object({
     id: z.string(),
-    type: z.enum(['hero', 'richtext', 'image', 'content-list', 'columns']),
+    type: z.enum(['hero', 'richtext', 'image', 'content-list', 'columns', 'widget-ref']),
     props: z.record(z.string(), z.unknown()),
     displayCondition: z.object({
       audience: z.enum(['always', 'guest', 'member']),
@@ -1372,6 +1377,111 @@ export const CmsPageDTO = z
     updatedAt: z.string(),
   })
   .openapi('CmsPage');
+
+export const CmsWidgetItemDTO = z
+  .object({
+    id: z.string(),
+    sourceType: z.enum(CMS_WIDGET_SOURCE_TYPES),
+    sourceId: z.number().int().nullable().optional(),
+    title: z.string().nullable().optional(),
+    summary: z.string().nullable().optional(),
+    url: z.string().nullable().optional(),
+    image: z.string().nullable().optional(),
+    displayDate: z.string().nullable().optional(),
+  })
+  .openapi('CmsWidgetItem');
+
+export const CmsWidgetDataDTO = z
+  .object({ items: z.array(CmsWidgetItemDTO) })
+  .openapi('CmsWidgetData');
+
+export const CmsWidgetDTO = z
+  .object({
+    id: z.number().int(),
+    siteId: z.number().int(),
+    name: z.string(),
+    code: z.string(),
+    type: z.enum(CMS_WIDGET_TYPES),
+    schemaVersion: z.number().int(),
+    draftData: CmsWidgetDataDTO,
+    publishedData: CmsWidgetDataDTO.nullable(),
+    publishedName: z.string().nullable(),
+    draftRevision: z.number().int(),
+    publishedRevision: z.number().int(),
+    status: z.enum(CMS_WIDGET_STATUSES),
+    defaultRendererKey: z.enum(CMS_WIDGET_RENDERER_KEYS),
+    remark: z.string().nullable(),
+    referenceCount: z.number().int(),
+    hasUnpublishedChanges: z.boolean(),
+    ...auditFields,
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('CmsWidget');
+
+export const CmsWidgetRefDTO = z
+  .object({
+    id: z.number().int(),
+    siteId: z.number().int(),
+    widgetId: z.number().int(),
+    ownerType: z.enum(CMS_WIDGET_REF_OWNER_TYPES),
+    ownerId: z.number().int(),
+    field: z.string(),
+    rendererKey: z.enum(CMS_WIDGET_RENDERER_KEYS),
+    styleProps: z.record(z.string(), z.unknown()),
+    ownerName: z.string().nullable(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('CmsWidgetRef');
+
+export const CmsResolvedWidgetItemDTO = z
+  .object({
+    id: z.string(),
+    sourceType: z.enum(CMS_WIDGET_SOURCE_TYPES),
+    sourceId: z.number().int().nullable(),
+    title: z.string(),
+    summary: z.string().nullable(),
+    url: z.string().nullable(),
+    image: z.string().nullable(),
+    displayDate: z.string().nullable(),
+  })
+  .openapi('CmsResolvedWidgetItem');
+
+export const CmsResolvedWidgetDTO = z
+  .object({
+    id: z.number().int(),
+    name: z.string(),
+    type: z.enum(CMS_WIDGET_TYPES),
+    rendererKey: z.enum(CMS_WIDGET_RENDERER_KEYS),
+    items: z.array(CmsResolvedWidgetItemDTO),
+  })
+  .openapi('CmsResolvedWidget');
+
+export const CmsWidgetRendererOptionDTO = z
+  .object({
+    key: z.enum(CMS_WIDGET_RENDERER_KEYS),
+    label: z.string(),
+  })
+  .openapi('CmsWidgetRendererOption');
+
+export const CmsWidgetPreviewDTO = z
+  .object({
+    widget: CmsResolvedWidgetDTO,
+    html: z.string(),
+    renderers: z.array(CmsWidgetRendererOptionDTO),
+  })
+  .openapi('CmsWidgetPreview');
+
+export const CmsWidgetSlotDTO = z
+  .object({
+    key: z.literal('home.sidebar'),
+    label: z.string(),
+    allowedTypes: z.array(z.enum(CMS_WIDGET_TYPES)),
+    rendererKeys: z.array(z.enum(CMS_WIDGET_RENDERER_KEYS)),
+    binding: CmsWidgetRefDTO.nullable(),
+  })
+  .openapi('CmsWidgetSlot');
 
 // ─── Headless 开放 API ────────────────────────────────────────────────────────
 

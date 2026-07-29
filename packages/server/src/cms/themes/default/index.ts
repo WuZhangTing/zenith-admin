@@ -1,4 +1,5 @@
 import type { CmsTheme } from '../types';
+import { CMS_WIDGET_RENDERER_KEYS } from '@zenith/shared';
 import {
   IndexTemplate, ListTemplate, DetailTemplate, PageTemplate, SearchTemplate, TagTemplate, NotFoundTemplate, CustomPageTemplate,
   ListCardTemplate, ListCompactTemplate, DetailPlainTemplate, InteractionTemplate,
@@ -33,4 +34,10 @@ export const defaultTheme: CmsTheme = {
     { name: 'showHotSection', label: '显示热门排行', fieldType: 'switch', defaultValue: true, group: '首页' },
     { name: 'footerText', label: '页脚附加文案', fieldType: 'textarea', group: '页脚', placeholder: '如联系地址、邮箱等，支持多行' },
   ],
+  widgetSlots: [{
+    key: 'home.sidebar',
+    label: '首页侧栏',
+    allowedTypes: ['manual-list'],
+    rendererKeys: [...CMS_WIDGET_RENDERER_KEYS],
+  }],
 };

@@ -2,6 +2,8 @@ import type { ComponentType } from 'react';
 import logger from '../../lib/logger';
 import type { CmsThemeSettingField } from '@zenith/shared';
 import type { CmsTheme, CmsListContext, CmsDetailContext, CmsTemplateVariant } from './types';
+import type { CmsWidgetRendererKey, CmsWidgetType } from '@zenith/shared';
+import { listCoreCmsWidgetRenderers, resolveCoreCmsWidgetRenderer } from './widgets';
 import { defaultTheme } from './default';
 import { docsTheme } from './docs';
 
@@ -101,6 +103,22 @@ export function listThemeTemplates(code: string): {
 /** 主题参数声明（后台「主题参数」面板动态表单用） */
 export function getThemeSettingsSchema(code: string): CmsThemeSettingField[] {
   return themes.get(code)?.settingsSchema ?? [];
+}
+
+export function getThemeWidgetSlots(code: string) {
+  return themes.get(code)?.widgetSlots ?? [];
+}
+
+export function listThemeWidgetRenderers(code: string, type: CmsWidgetType) {
+  const theme = themes.get(code);
+  return listCoreCmsWidgetRenderers(type).map((item) => ({
+    ...item,
+    label: theme?.widgetRenderers?.[item.key]?.label ?? item.label,
+  }));
+}
+
+export function resolveThemeWidgetRenderer(code: string, type: CmsWidgetType, key: CmsWidgetRendererKey) {
+  return themes.get(code)?.widgetRenderers?.[key] ?? resolveCoreCmsWidgetRenderer(type, key);
 }
 
 /** 按字段类型宽容解析单个主题参数值；非法值回退 undefined（走默认值） */

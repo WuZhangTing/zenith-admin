@@ -15,7 +15,7 @@ import {
   mockCmsResources, mockCmsResourceFolders, getNextCmsResourceId, getNextCmsResourceFolderId,
   mockCmsOpenGrants, getNextCmsOpenGrantId,
   mockCmsCollectRules, mockCmsCollectItems, getNextCmsCollectRuleId,
-  mockCmsPages, getNextCmsPageId,
+  mockCmsPages, getNextCmsPageId, mockCmsWidgetRefs, getNextCmsWidgetRefId, mockCmsWidgets,
 } from '../data/cms';
 import { mockCmsPublishingTasks } from '../data/cms-stage3';
 import { mockCmsDistributionRules } from '../data/cms-stage5';
@@ -23,6 +23,40 @@ import { createProgressingMockTask } from './async-tasks';
 import { mockDateTime, mockDate } from '../utils/date';
 
 type Body = Record<string, unknown>;
+
+function syncMockPageWidgetRefs(page: (typeof mockCmsPages)[number]) {
+  for (let index = mockCmsWidgetRefs.length - 1; index >= 0; index -= 1) {
+    const ref = mockCmsWidgetRefs[index];
+    if (ref.ownerType === 'page' && ref.ownerId === page.id) mockCmsWidgetRefs.splice(index, 1);
+  }
+
+  for (const block of page.blocks) {
+    if (block.type !== 'widget-ref') continue;
+    const widgetId = Number(block.props.widgetId);
+    if (!Number.isInteger(widgetId) || widgetId <= 0) continue;
+    mockCmsWidgetRefs.push({
+      id: getNextCmsWidgetRefId(),
+      siteId: page.siteId,
+      widgetId,
+      ownerType: 'page',
+      ownerId: page.id,
+      field: block.id,
+      rendererKey: String(block.props.rendererKey ?? 'list-sidebar') as import('@zenith/shared').CmsWidgetRendererKey,
+      styleProps: block.props.styleProps && typeof block.props.styleProps === 'object'
+        ? block.props.styleProps as Record<string, unknown>
+        : {},
+      ownerName: page.name,
+      createdAt: mockDateTime(),
+      updatedAt: mockDateTime(),
+    });
+  }
+}
+
+function publishedWidgetUsing(sourceType: 'content' | 'channel', sourceId: number) {
+  return mockCmsWidgets.find((widget) =>
+    widget.status === 'published'
+    && widget.publishedData?.items.some((item) => item.sourceType === sourceType && item.sourceId === sourceId));
+}
 
 function okJson<T>(data: T, message = 'ok') {
   return HttpResponse.json({ code: 0, message, data });
@@ -416,6 +450,8 @@ export const cmsHandlers = [
     const idx = mockCmsChannels.findIndex((c) => c.id === Number(params.id));
     if (idx === -1) return notFound('栏目不存在');
     const body = (await request.json()) as Body;
+    const widget = body.status === 'disabled' ? publishedWidgetUsing('channel', Number(params.id)) : null;
+    if (widget) return HttpResponse.json({ code: 409, message: `已发布页面部件「${widget.name}」引用了该栏目`, data: null }, { status: 409 });
     Object.assign(mockCmsChannels[idx], body, { updatedAt: mockDateTime() });
     const parent = mockCmsChannels.find((c) => c.id === mockCmsChannels[idx].parentId);
     mockCmsChannels[idx].path = parent ? `${parent.path}/${mockCmsChannels[idx].slug}` : mockCmsChannels[idx].slug;
@@ -423,6 +459,8 @@ export const cmsHandlers = [
   }),
   http.delete('/api/cms/channels/:id', ({ params }) => {
     const id = Number(params.id);
+    const widget = publishedWidgetUsing('channel', id);
+    if (widget) return HttpResponse.json({ code: 409, message: `已发布页面部件「${widget.name}」引用了该栏目`, data: null }, { status: 409 });
     if (mockCmsChannels.some((c) => c.parentId === id)) {
       return HttpResponse.json({ code: 400, message: '存在子栏目，请先删除子栏目', data: null }, { status: 400 });
     }
@@ -512,6 +550,8 @@ export const cmsHandlers = [
   }),
   http.post('/api/cms/contents/recycle', async ({ request }) => {
     const { ids } = (await request.json()) as { ids: number[] };
+    const widget = ids.map((id) => publishedWidgetUsing('content', id)).find(Boolean);
+    if (widget) return HttpResponse.json({ code: 409, message: `已发布页面部件「${widget.name}」引用了所选内容`, data: null }, { status: 409 });
     for (const c of mockCmsContents) {
       if (ids.includes(c.id)) {
         (c as { deleted?: boolean }).deleted = true;
@@ -532,6 +572,8 @@ export const cmsHandlers = [
   }),
   http.post('/api/cms/contents/purge', async ({ request }) => {
     const { ids } = (await request.json()) as { ids: number[] };
+    const widget = ids.map((id) => publishedWidgetUsing('content', id)).find(Boolean);
+    if (widget) return HttpResponse.json({ code: 409, message: `已发布页面部件「${widget.name}」引用了所选内容`, data: null }, { status: 409 });
     for (const id of ids) {
       const idx = mockCmsContents.findIndex((c) => c.id === id);
       if (idx >= 0) mockCmsContents.splice(idx, 1);
@@ -579,6 +621,8 @@ export const cmsHandlers = [
       submit: 'pending', publish: 'published', reject: 'rejected', offline: 'offline',
     };
     if (!statusMap[action]) return undefined;
+    const widget = action === 'offline' ? publishedWidgetUsing('content', content.id) : null;
+    if (widget) return HttpResponse.json({ code: 409, message: `已发布页面部件「${widget.name}」引用了该内容`, data: null }, { status: 409 });
     if (content.lockedAt) return HttpResponse.json({ code: 423, message: `内容已被持久锁定：${content.lockReason ?? ''}`, data: null }, { status: 423 });
     if (statusMap[action]) {
       content.status = statusMap[action];
@@ -1731,11 +1775,16 @@ export const cmsP2Handlers = [
   http.get('/api/cms/sites/:id/export', ({ params }) => {
     const site = mockCmsSites.find((s) => s.id === Number(params.id));
     const pkg = {
-      version: 1,
+      version: 2,
       exportedAt: mockDateTime(),
       site: { name: site?.name ?? '演示站点', code: site?.code ?? 'demo' },
+      resourceFolders: [],
+      resources: [],
       channels: [], tags: [], contents: [], contentTags: [], contentChannels: [], contentRelations: [],
-      friendLinks: [], redirects: [], linkWords: [], adSlots: [], ads: [], forms: [], pages: [],
+      friendLinks: [], redirects: [], linkWords: [], adSlots: [], ads: [], forms: [],
+      pages: mockCmsPages.filter((page) => page.siteId === Number(params.id)),
+      widgets: mockCmsWidgets.filter((widget) => widget.siteId === Number(params.id)),
+      widgetSlots: mockCmsWidgetRefs.filter((ref) => ref.siteId === Number(params.id) && ref.ownerType === 'theme_slot'),
     };
     return new HttpResponse(JSON.stringify(pkg, null, 2), {
       headers: {
@@ -1750,7 +1799,7 @@ export const cmsP2Handlers = [
       siteId: 999,
       siteName: body?.site?.name ?? '导入站点',
       siteCode: `${body?.site?.code ?? 'imported'}-2`,
-      counts: { channels: 0, tags: 0, contents: 0, friendLinks: 0, redirects: 0, linkWords: 0, adSlots: 0, ads: 0, forms: 0, pages: 0 },
+      counts: { channels: 0, tags: 0, contents: 0, resourceFolders: 0, resources: 0, friendLinks: 0, redirects: 0, linkWords: 0, adSlots: 0, ads: 0, forms: 0, widgets: 0, pages: 0 },
     }, '站点导入成功，内容已统一转为草稿');
   }),
 ];
@@ -2105,17 +2154,23 @@ export const cmsP6Handlers = [
       updatedAt: now,
     };
     mockCmsPages.push(row);
+    syncMockPageWidgetRefs(row);
     return okJson(row, '创建成功');
   }),
   http.put('/api/cms/pages/:id', async ({ params, request }) => {
     const idx = mockCmsPages.findIndex((p) => p.id === Number(params.id));
     if (idx === -1) return notFound('页面不存在');
     Object.assign(mockCmsPages[idx], await request.json(), { updatedAt: mockDateTime() });
+    syncMockPageWidgetRefs(mockCmsPages[idx]);
     return okJson(mockCmsPages[idx], '更新成功');
   }),
   http.delete('/api/cms/pages/:id', ({ params }) => {
     const idx = mockCmsPages.findIndex((p) => p.id === Number(params.id));
     if (idx === -1) return notFound('页面不存在');
+    for (let refIndex = mockCmsWidgetRefs.length - 1; refIndex >= 0; refIndex -= 1) {
+      const ref = mockCmsWidgetRefs[refIndex];
+      if (ref.ownerType === 'page' && ref.ownerId === Number(params.id)) mockCmsWidgetRefs.splice(refIndex, 1);
+    }
     mockCmsPages.splice(idx, 1);
     return okJson(null, '删除成功');
   }),

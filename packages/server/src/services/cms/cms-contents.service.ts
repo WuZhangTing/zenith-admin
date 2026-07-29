@@ -59,6 +59,8 @@ import {
 import { resolveEffectiveCmsSiteRow } from './cms-site-inheritance.service';
 import logger from '../../lib/logger';
 import { sanitizeCmsHtml } from './cms-html-sanitizer';
+import { assertCmsWidgetSourcesMutable } from './cms-widgets.service';
+import { submitCmsWidgetSourceRefreshSideEffect } from './cms-widget-tasks';
 
 async function insertContentPublishOutbox(
   tx: DbTransaction,
@@ -751,13 +753,16 @@ export async function updateCmsContent(
             },
           )
         : null;
-      return { task, refsTask, webhookTask };
+      return { task, refsTask, webhookTask, updated };
     });
     await enqueueCmsPublishOutboxes(
       [mutation.task, mutation.refsTask].filter((task): task is AsyncTask => task != null),
       `内容 #${id} 更新`,
     );
     await enqueueCmsWebhookEvents([mutation.webhookTask]);
+    if (mutation.updated.status === 'published' && !mutation.updated.deletedAt) {
+      submitCmsWidgetSourceRefreshSideEffect('content', [id]);
+    }
     if (!options?.suppressDistributionSideEffects) {
       const { submitCmsMappingDistributionSideEffects } = await import('./cms-distributions.service');
       await submitCmsMappingDistributionSideEffects(id).catch((error) => {
@@ -972,12 +977,14 @@ export async function offlineCmsContent(id: number, options?: { skipAccessCheck?
     await assertSiteAccess(current.siteId);
     await assertChannelAccess(current.channelId);
   }
+  await assertCmsWidgetSourcesMutable('content', [id]);
   assertCmsContentUnlocked(current);
   await assertNoLockedCmsMappedCopies(id);
   const mutation = await db.transaction(async (tx) => {
     const site = await lockCmsSiteForMutation(tx, current.siteId);
     const [locked] = await tx.select().from(cmsContents).where(eq(cmsContents.id, id)).for('update').limit(1);
     if (!locked) throw new HTTPException(404, { message: '内容不存在' });
+    await assertCmsWidgetSourcesMutable('content', [id], tx);
     if (!canTransitionCmsContentStatus(locked.status, 'offline')) {
       throw new HTTPException(400, { message: `当前状态（${locked.status}）不允许此操作` });
     }
@@ -1025,6 +1032,7 @@ async function assertBatchSiteAccess(ids: number[]): Promise<void> {
 export async function recycleCmsContents(ids: number[]) {
   if (ids.length === 0) return 0;
   await assertBatchSiteAccess(ids);
+  await assertCmsWidgetSourcesMutable('content', ids);
   for (const id of [...new Set(ids)]) await assertNoLockedCmsMappedCopies(id);
   const initial = await db.select({ id: cmsContents.id, siteId: cmsContents.siteId }).from(cmsContents)
     .where(and(inArray(cmsContents.id, ids), isNull(cmsContents.deletedAt)));
@@ -1036,6 +1044,7 @@ export async function recycleCmsContents(ids: number[]) {
     const locked = await tx.select().from(cmsContents)
       .where(and(inArray(cmsContents.id, ids), isNull(cmsContents.deletedAt), isNull(cmsContents.lockedAt)))
       .for('update');
+    await assertCmsWidgetSourcesMutable('content', locked.map((row) => row.id), tx);
     const oldSnapshots = new Map<number, Awaited<ReturnType<typeof captureCmsContentPublishSnapshot>>>();
     for (const row of locked) {
       oldSnapshots.set(row.id, await captureCmsContentPublishSnapshot(tx, row, { includeExistingArtifacts: true }));
@@ -1117,6 +1126,7 @@ export async function purgeCmsContents(ids: number[], options?: { skipAccessChec
   if (ids.length === 0) return 0;
   if (options?.skipAccessCheck) await assertCmsContentsUnlocked(ids);
   else await assertBatchSiteAccess(ids);
+  await assertCmsWidgetSourcesMutable('content', ids);
   const targets = await db.select().from(cmsContents)
     .where(and(inArray(cmsContents.id, ids), isNotNull(cmsContents.deletedAt), isNull(cmsContents.lockedAt)));
   if (targets.length === 0) return 0;
@@ -1131,6 +1141,7 @@ export async function purgeCmsContents(ids: number[], options?: { skipAccessChec
       isNotNull(cmsContents.deletedAt),
       isNull(cmsContents.lockedAt),
     )).for('update');
+    await assertCmsWidgetSourcesMutable('content', lockedTargets.map((row) => row.id), tx);
     const captured = new Map<number, Awaited<ReturnType<typeof captureCmsContentPublishSnapshot>>>();
     for (const row of lockedTargets) {
       captured.set(row.id, await captureCmsContentPublishSnapshot(tx, row, { includeExistingArtifacts: true }));
@@ -1474,8 +1485,8 @@ export function canAutoOfflineCmsContent(
     && row.lockedAt === null;
 }
 
-/** 过期下线：expireAt 到期的已发布内容自动下线；返回受影响内容 id（供静态刷新） */
-export async function offlineExpiredCmsContents(now = new Date()): Promise<number[]> {
+/** 过期下线：被已发布页面部件引用的内容保持线上，并显式返回阻塞清单供调度日志告警。 */
+export async function offlineExpiredCmsContents(now = new Date()): Promise<{ offlined: number[]; blocked: number[] }> {
   const rows = await db.select({ id: cmsContents.id }).from(cmsContents).where(and(
       isNotNull(cmsContents.expireAt),
       lte(cmsContents.expireAt, now),
@@ -1484,15 +1495,18 @@ export async function offlineExpiredCmsContents(now = new Date()): Promise<numbe
       isNull(cmsContents.lockedAt),
     ));
   const completed: number[] = [];
+  const blocked: number[] = [];
   for (const row of rows) {
     try {
       await offlineCmsContent(row.id, { skipAccessCheck: true, expireAtBefore: now });
       completed.push(row.id);
     } catch (error) {
       if (!(error instanceof HTTPException) || error.status !== 409) throw error;
+      blocked.push(row.id);
+      logger.warn(`[CMS] 内容 #${row.id} 已到期但下线被阻止：${error.message}`);
     }
   }
-  return completed;
+  return { offlined: completed, blocked };
 }
 
 /** 置顶到期自动取消：topExpireAt 到期的置顶内容取消置顶；返回受影响内容 id（供静态刷新） */
@@ -1609,6 +1623,7 @@ export async function batchMoveCmsContents(ids: number[], channelId: number): Pr
   });
   if (typeof mutation === 'number') return mutation;
   await enqueueCmsPublishOutboxes(mutation.tasks, '内容批量移动');
+  submitCmsWidgetSourceRefreshSideEffect('content', ids);
   return mutation.count;
 }
 

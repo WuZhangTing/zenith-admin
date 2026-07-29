@@ -20,6 +20,8 @@ import { assertCmsContentsUnlocked } from './cms-content-lock.service';
 import { bumpCmsTemplateRefsRevision, lockCmsSiteForMutation } from './cms-site-publish-lock.service';
 import { enqueueCmsPublishOutboxes, insertCmsSiteRefsRebuildOutbox } from './cms-publish-outbox.service';
 import { canonicalizeCmsResourceFields, deleteCmsResourceRefsForOwner, syncCmsResourceRefs, resolveCmsResourcePayload } from './cms-resource-refs.service';
+import { assertCmsWidgetChannelVisibilityMutable, assertCmsWidgetSourcesMutable } from './cms-widgets.service';
+import { submitCmsWidgetChannelRefreshSideEffect, submitCmsWidgetSourceRefreshSideEffect } from './cms-widget-tasks';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapCmsChannel(row: CmsChannelRow, modelName?: string | null): CmsChannel {
@@ -262,6 +264,9 @@ export async function updateCmsChannel(id: number, data: UpdateCmsChannelInput) 
   const current = await ensureCmsChannelExists(id);
   await assertSiteAccess(current.siteId);
   await assertChannelAccess(id);
+  if (data.status === 'disabled' && current.status !== 'disabled') {
+    await assertCmsWidgetChannelVisibilityMutable([id]);
+  }
   await ensureModelValid(data.modelId);
   await assertChannelTemplatesBySite(current.siteId, {
     listTemplate: data.listTemplate,
@@ -285,6 +290,9 @@ export async function updateCmsChannel(id: number, data: UpdateCmsChannelInput) 
   try {
     const mutation = await db.transaction(async (tx) => {
       const site = await lockCmsSiteForMutation(tx, current.siteId);
+      if (data.status === 'disabled' && current.status !== 'disabled') {
+        await assertCmsWidgetChannelVisibilityMutable([id], tx);
+      }
       await assertChannelTemplatesBySite(current.siteId, {
         listTemplate: data.listTemplate,
         detailTemplate: data.detailTemplate,
@@ -332,6 +340,7 @@ export async function updateCmsChannel(id: number, data: UpdateCmsChannelInput) 
       return { task };
     });
     await enqueueCmsPublishOutboxes([mutation.task], `栏目 #${id} 更新`);
+    submitCmsWidgetChannelRefreshSideEffect([id]);
     return getCmsChannel(id);
   } catch (err) {
     rethrowPgUniqueViolation(err, '同站点下已存在相同路径或栏目标识的栏目');
@@ -343,6 +352,7 @@ export async function deleteCmsChannel(id: number) {
   const current = await ensureCmsChannelExists(id);
   await assertSiteAccess(current.siteId);
   await assertChannelAccess(id);
+  await assertCmsWidgetSourcesMutable('channel', [id]);
   const [childCount, contentCount, collectRuleCount] = await Promise.all([
     db.$count(cmsChannels, eq(cmsChannels.parentId, id)),
     db.$count(cmsContents, eq(cmsContents.channelId, id)),
@@ -353,6 +363,7 @@ export async function deleteCmsChannel(id: number) {
   if (collectRuleCount > 0) throw new HTTPException(400, { message: `栏目被 ${collectRuleCount} 条采集规则引用，请先调整采集规则` });
   const mutation = await db.transaction(async (tx) => {
     const site = await lockCmsSiteForMutation(tx, current.siteId);
+    await assertCmsWidgetSourcesMutable('channel', [id], tx);
     await tx.delete(cmsChannels).where(eq(cmsChannels.id, id));
     await deleteCmsResourceRefsForOwner(tx, 'channel', [id]);
     const revision = await bumpCmsTemplateRefsRevision(tx, current.siteId);
@@ -402,9 +413,11 @@ export async function mergeCmsChannels(sourceIds: number[], targetId: number): P
   const sourceContents = await db.select({ id: cmsContents.id }).from(cmsContents)
     .where(inArray(cmsContents.channelId, uniqueSources));
   await assertCmsContentsUnlocked(sourceContents.map((row) => row.id));
+  await assertCmsWidgetSourcesMutable('channel', uniqueSources);
 
   const mutation = await db.transaction(async (tx) => {
     const site = await lockCmsSiteForMutation(tx, target.siteId);
+    await assertCmsWidgetSourcesMutable('channel', uniqueSources, tx);
     // 主栏目迁移（含回收站内容，保证来源栏目可删）
     const moved = await tx.update(cmsContents)
       .set({ channelId: targetId, modelId: target.modelId ?? null })
@@ -448,6 +461,7 @@ export async function mergeCmsChannels(sourceIds: number[], targetId: number): P
     return { count: moved.length, task };
   });
   await enqueueCmsPublishOutboxes([mutation.task], '栏目合并');
+  submitCmsWidgetSourceRefreshSideEffect('content', sourceContents.map((row) => row.id));
   return mutation.count;
 }
 

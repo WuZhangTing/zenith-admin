@@ -6,6 +6,7 @@ import {
   cmsFriendLinks, cmsRedirects, cmsLinkWords, cmsAdSlots, cmsAds, cmsForms, cmsPages,
   cmsResourceFolders, cmsResources,
   cmsSiteInheritances, cmsSiteUsers, cmsChannelUsers,
+  cmsWidgetRefs, cmsWidgets,
 } from '../../db/schema';
 import { formatDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { buildSearchVector } from './cms-search.service';
@@ -13,7 +14,15 @@ import { ensureCmsSiteExists, assertSiteAccess, invalidateSiteCache } from './cm
 import { isCmsPlatformAdmin } from './cms-access';
 import { normalizeNewCmsSiteSettings, redactCmsSiteSettings } from './cms-site-settings';
 import { sanitizeCmsHtml } from './cms-html-sanitizer';
-import { CMS_SECRET_MASK, cmsSlugRegex, isCmsEntityLink, remapCmsEntityLink } from '@zenith/shared';
+import {
+  CMS_SECRET_MASK,
+  cmsSlugRegex,
+  cmsWidgetDataSchema,
+  isCmsEntityLink,
+  remapCmsEntityLink,
+  type CmsPageBlock,
+  type CmsWidgetData,
+} from '@zenith/shared';
 import { parseCmsImportSiteCode } from './cms-import-security';
 import { currentUser } from '../../lib/context';
 import { assertAllCmsSiteChannelsAccess } from './cms-channels.service';
@@ -22,6 +31,7 @@ import { CMS_IMPORTED_CONTENT_LIFECYCLE } from './cms-publish-permission';
 import { normalizeCmsFormFields, type FormFieldInput } from './cms-forms.service';
 import { remapCmsResourceUris } from '../../lib/cms-resource-uri';
 import { assertSafeCmsResourceUrl, syncCmsResourceRefs } from './cms-resource-refs.service';
+import { syncCmsPageWidgetRefs } from './cms-widgets.service';
 
 /**
  * 站点导入导出（P5 企业级治理）：整站结构与内容打包为 JSON，用于备份迁移 / 环境同步。
@@ -33,7 +43,7 @@ import { assertSafeCmsResourceUrl, syncCmsResourceRefs } from './cms-resource-re
  * 再把所有句柄改写为新站 id，否则导入站点会跨站引用来源站素材（来源站删除即断链）。
  */
 
-export const CMS_SITE_EXPORT_VERSION = 1;
+export const CMS_SITE_EXPORT_VERSION = 2;
 
 /** 导出时统一剔除的列（导入侧由数据库默认值/当前用户重新生成） */
 const OMIT_COMMON = new Set(['createdBy', 'updatedBy', 'createdAt', 'updatedAt']);
@@ -57,7 +67,7 @@ export async function exportCmsSite(siteId: number) {
   await assertAllCmsSiteChannelsAccess(siteId);
   const site = await ensureCmsSiteExists(siteId);
 
-  const [channels, tags, contents, friendLinks, redirects, linkWords, adSlots, forms, pages, resourceFolders, resources] = await Promise.all([
+  const [channels, tags, contents, friendLinks, redirects, linkWords, adSlots, forms, pages, widgets, widgetSlots, resourceFolders, resources] = await Promise.all([
     db.select().from(cmsChannels).where(eq(cmsChannels.siteId, siteId)),
     db.select().from(cmsTags).where(eq(cmsTags.siteId, siteId)),
     // 回收站内容不导出；归档内容保留
@@ -68,6 +78,11 @@ export async function exportCmsSite(siteId: number) {
     db.select().from(cmsAdSlots).where(eq(cmsAdSlots.siteId, siteId)),
     db.select().from(cmsForms).where(eq(cmsForms.siteId, siteId)),
     db.select().from(cmsPages).where(eq(cmsPages.siteId, siteId)),
+    db.select().from(cmsWidgets).where(eq(cmsWidgets.siteId, siteId)),
+    db.select().from(cmsWidgetRefs).where(and(
+      eq(cmsWidgetRefs.siteId, siteId),
+      eq(cmsWidgetRefs.ownerType, 'theme_slot'),
+    )),
     db.select().from(cmsResourceFolders).where(eq(cmsResourceFolders.siteId, siteId)),
     db.select().from(cmsResources).where(eq(cmsResources.siteId, siteId)),
   ]);
@@ -124,6 +139,8 @@ export async function exportCmsSite(siteId: number) {
       turnstileSecret: r.turnstileSecret ? CMS_SECRET_MASK : null,
     }, ['id', 'siteId'])),
     pages: pages.map((r) => exportRow(r, ['id', 'siteId', 'isHome'])),
+    widgets: widgets.map((r) => exportRow(r, ['siteId'])),
+    widgetSlots: widgetSlots.map((r) => exportRow(r, ['id', 'siteId', 'ownerType', 'ownerId'])),
   };
 }
 
@@ -150,6 +167,37 @@ function str(v: unknown): string | null {
   return typeof v === 'string' ? v : null;
 }
 
+function remapImportedWidgetData(
+  value: unknown,
+  contentIdMap: ReadonlyMap<number, number>,
+  channelIdMap: ReadonlyMap<number, number>,
+): CmsWidgetData {
+  const parsed = cmsWidgetDataSchema.safeParse(value);
+  if (!parsed.success) return { items: [] };
+  return {
+    items: parsed.data.items.flatMap((item) => {
+      if (item.sourceType === 'manual') return [item];
+      const mapped = (item.sourceType === 'content' ? contentIdMap : channelIdMap).get(item.sourceId ?? 0);
+      return mapped ? [{ ...item, sourceId: mapped }] : [];
+    }),
+  };
+}
+
+function remapImportedWidgetBlocks(value: unknown, widgetIdMap: ReadonlyMap<number, number>): CmsPageBlock[] {
+  if (!Array.isArray(value)) return [];
+  const blocks = value.flatMap((raw) => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [raw];
+    const block = raw as Record<string, unknown>;
+    if (block.type !== 'widget-ref') return [raw];
+    const props = block.props && typeof block.props === 'object' && !Array.isArray(block.props)
+      ? block.props as Record<string, unknown>
+      : {};
+    const mapped = widgetIdMap.get(Number(props.widgetId));
+    return mapped ? [{ ...block, props: { ...props, widgetId: mapped } }] : [];
+  });
+  return sanitizeCmsPageBlocks(blocks);
+}
+
 function requireCmsSlug(value: unknown, label: string, maxLength = 100): string {
   const slug = str(value);
   if (!slug || slug.length > maxLength || !cmsSlugRegex.test(slug)) {
@@ -161,7 +209,7 @@ function requireCmsSlug(value: unknown, label: string, maxLength = 100): string 
 /** 导入整站：创建新站点并重映射全部内部引用。返回新站点 id 与各实体导入数量 */
 export async function importCmsSite(payload: unknown) {
   const pkg = payload as Partial<CmsSiteExportPackage> | null;
-  if (!pkg || typeof pkg !== 'object' || pkg.version !== CMS_SITE_EXPORT_VERSION || !pkg.site || typeof pkg.site !== 'object') {
+  if (!pkg || typeof pkg !== 'object' || ![1, CMS_SITE_EXPORT_VERSION].includes(Number(pkg.version)) || !pkg.site || typeof pkg.site !== 'object') {
     throw new HTTPException(400, { message: '导入文件格式不正确或版本不兼容' });
   }
   const site = pkg.site as PlainRow;
@@ -440,6 +488,31 @@ export async function importCmsSite(payload: unknown) {
       }
     }
 
+    // 5.2 页面部件：来源 id 必须在栏目/内容完成后重映射；导入后统一回到草稿态。
+    const widgetIdMap = new Map<number, number>();
+    for (const widget of (data.widgets ?? []) as PlainRow[]) {
+      const oldId = num(widget.id);
+      if (oldId === null) continue;
+      const draftData = remapImportedWidgetData(widget.draftData, contentIdMap, channelIdMap);
+      const [created] = await tx.insert(cmsWidgets).values({
+        siteId,
+        name: str(widget.name) ?? `页面部件-${oldId}`,
+        code: requireCmsSlug(widget.code, `页面部件 #${oldId} 编码`),
+        type: 'manual-list',
+        schemaVersion: 1,
+        draftData,
+        publishedData: null,
+        publishedName: null,
+        draftRevision: 1,
+        publishedRevision: 0,
+        status: 'draft',
+        defaultRendererKey: str(widget.defaultRendererKey) ?? 'list-sidebar',
+        remark: str(widget.remark),
+      }).returning();
+      widgetIdMap.set(oldId, created.id);
+      await syncCmsResourceRefs(tx, 'widget', created.id, siteId, created);
+    }
+
     // 6. 站点附属实体
     for (const l of (data.friendLinks ?? []) as PlainRow[]) {
       const [created] = await tx.insert(cmsFriendLinks).values({
@@ -517,20 +590,24 @@ export async function importCmsSite(payload: unknown) {
       await syncCmsResourceRefs(tx, 'form', created.id, siteId, created);
     }
     for (const p of (data.pages ?? []) as PlainRow[]) {
+      const blocks = remapImportedWidgetBlocks(p.blocks, widgetIdMap);
       const [created] = await tx.insert(cmsPages).values({
         siteId,
         name: str(p.name) ?? '未命名页面',
         slug: requireCmsSlug(p.slug, `页面 #${num(p.id)} slug`),
         isHome: false,
-        blocks: sanitizeCmsPageBlocks(p.blocks ?? []),
+        blocks,
         seoTitle: str(p.seoTitle),
         seoKeywords: str(p.seoKeywords),
         seoDescription: str(p.seoDescription),
         status: (str(p.status) as typeof cmsPages.$inferInsert.status) ?? 'enabled',
         remark: str(p.remark),
       }).returning();
+      await syncCmsPageWidgetRefs(tx, created.id, siteId, blocks);
       await syncCmsResourceRefs(tx, 'page', created.id, siteId, created);
     }
+    // 导入页面部件统一降级为草稿；主题插槽只允许绑定已发布部件，因此不恢复旧站绑定。
+    // 页面中的 widget-ref 会保留并重映射，部件重新发布后可由运营在站点主题配置中恢复插槽。
 
     return {
       siteId,
@@ -548,6 +625,7 @@ export async function importCmsSite(payload: unknown) {
         adSlots: slotIdMap.size,
         ads: (data.ads ?? []).length,
         forms: (data.forms ?? []).length,
+        widgets: widgetIdMap.size,
         pages: (data.pages ?? []).length,
       },
     };

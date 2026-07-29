@@ -38,6 +38,13 @@ import { CMS_SITE_INHERITABLE_FIELD_LABELS, CMS_SITE_INHERITABLE_FIELDS, CMS_SIT
 import type { AsyncTask, CmsChannel, CmsModelField, CmsOpenAppGrant, CmsSite, CmsSiteInheritanceFlags, CmsSiteInheritableField, CmsSiteTemplateDefaults, CmsInvalidTemplateRef, CmsThemeSettingField } from '@zenith/shared';
 import { cmsPreviewUrl } from './CmsSiteSelect';
 import { cmsCredentialWriteValue } from './cms-site-credentials';
+import {
+  useCmsWidgetRenderers,
+  useCmsWidgetSlots,
+  usePublishedCmsWidgets,
+  useSaveCmsWidgetSlot,
+} from '@/hooks/queries/cms-widgets';
+import type { CmsWidgetRendererKey } from '@zenith/shared';
 
 interface SearchParams {
   keyword: string;
@@ -319,6 +326,12 @@ export default function SitesPage() {
   const [themeConfig, setThemeConfig] = useState<Record<string, unknown>>({});
   const { data: themeTemplates } = useCmsThemeTemplates(modalVisible ? selectedTheme : undefined, editingRecord?.id);
   const { data: themeSettingsSchema } = useCmsThemeSettingsSchema(modalVisible ? selectedTheme : undefined);
+  const widgetSlotsQuery = useCmsWidgetSlots(editingRecord?.id, modalVisible && !!editingRecord);
+  const widgetOptionsQuery = usePublishedCmsWidgets(editingRecord?.id, modalVisible && !!editingRecord);
+  const widgetRenderersQuery = useCmsWidgetRenderers(editingRecord?.id, 'manual-list', modalVisible && !!editingRecord);
+  const saveWidgetSlotMutation = useSaveCmsWidgetSlot();
+  const [homeSidebarWidgetId, setHomeSidebarWidgetId] = useState<number | null>(null);
+  const [homeSidebarRenderer, setHomeSidebarRenderer] = useState<CmsWidgetRendererKey>('list-sidebar');
   const { data: allModels } = useAllCmsModels();
   // 站点扩展模型：跟随表单里实时选中的模型（Form 值不具备响应性，用 state 镜像）
   const [selectedModelId, setSelectedModelId] = useState<number | undefined>(undefined);
@@ -356,6 +369,12 @@ export default function SitesPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅在主题清单变化时清理，避免编辑操作反复触发
   }, [themeTemplates, modalVisible]);
+
+  useEffect(() => {
+    const slot = widgetSlotsQuery.data?.find((item) => item.key === 'home.sidebar');
+    setHomeSidebarWidgetId(slot?.binding?.widgetId ?? null);
+    setHomeSidebarRenderer(slot?.binding?.rendererKey ?? 'list-sidebar');
+  }, [widgetSlotsQuery.data]);
 
   // ─── 授权用户（站点级数据权限）────────────────────────────────────────────
   const [usersModalSite, setUsersModalSite] = useState<CmsSite | null>(null);
@@ -1061,6 +1080,61 @@ export default function SitesPage() {
     ));
   };
 
+  const renderWidgetSlotSection = () => {
+    if (!editingRecord) return null;
+    const slot = widgetSlotsQuery.data?.find((item) => item.key === 'home.sidebar');
+    if (!slot) return null;
+    return (
+      <Form.Section text="页面部件插槽 — 首页侧栏">
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <Select
+            value={homeSidebarWidgetId ?? undefined}
+            placeholder="不绑定页面部件"
+            showClear
+            filter
+            loading={widgetOptionsQuery.isFetching}
+            optionList={(widgetOptionsQuery.data ?? []).map((widget) => ({
+              value: widget.id,
+              label: `${widget.name}（${widget.code}）`,
+            }))}
+            onChange={(value) => setHomeSidebarWidgetId(value == null ? null : Number(value))}
+            style={{ width: 320 }}
+          />
+          <Select
+            value={homeSidebarRenderer}
+            optionList={(widgetRenderersQuery.data ?? []).map((renderer) => ({
+              value: renderer.key,
+              label: renderer.label,
+            }))}
+            onChange={(value) => setHomeSidebarRenderer(value as CmsWidgetRendererKey)}
+            style={{ width: 180 }}
+          />
+          <Button
+            type="primary"
+            loading={saveWidgetSlotMutation.isPending}
+            disabled={!hasPermission('cms:widget:update')}
+            onClick={async () => {
+              await saveWidgetSlotMutation.mutateAsync({
+                slotKey: 'home.sidebar',
+                values: {
+                  siteId: editingRecord.id,
+                  widgetId: homeSidebarWidgetId,
+                  rendererKey: homeSidebarRenderer,
+                },
+              });
+              Toast.success('首页侧栏页面部件已更新');
+            }}
+          >
+            保存插槽
+          </Button>
+        </div>
+        <Typography.Text type="tertiary" size="small">
+          Header/Footer 仍由主题 Layout 统一负责；这里只配置首页侧栏的可选页面部件。
+        </Typography.Text>
+      </Form.Section>
+    );
+  };
+
   return (
     <div className="page-container">
       <SearchToolbar
@@ -1327,6 +1401,7 @@ export default function SitesPage() {
                   </Row>
                 </Form.Section>
                 {renderThemeSettingsSections()}
+                {renderWidgetSlotSection()}
                 <Form.Section text="图片处理（编辑器/封面上传时生效）">
                   <Row gutter={16}>
                     <Col span={12}>

@@ -21,6 +21,7 @@ import {
   decorateCmsPageBlocksBatch,
 } from './cms-page-acl.service';
 import { hasPermission } from '../../lib/context';
+import { deleteCmsPageWidgetRefs, syncCmsPageWidgetRefs } from './cms-widgets.service';
 
 export function mapCmsPage(row: CmsPageRow, blocks?: CmsPageBlock[]) {
   return {
@@ -128,6 +129,7 @@ export async function createCmsPage(input: CmsPageInput) {
         ...(blocks ? { blocks: await canonicalizeCmsResourceContent(tx, input.siteId, blocks) } : {}),
         requiresDynamic,
       }).returning();
+      await syncCmsPageWidgetRefs(tx, row.id, row.siteId, (row.blocks ?? []) as CmsPageBlock[]);
       await syncCmsResourceRefs(tx, 'page', row.id, row.siteId, row);
       const revision = await bumpCmsTemplateRefsRevision(tx, input.siteId);
       const task = await insertCmsSiteRefsRebuildOutbox(
@@ -176,6 +178,7 @@ export async function updateCmsPage(id: number, input: Partial<CmsPageInput>) {
       }).where(and(
         eq(cmsPages.id, id),
       )).returning();
+      await syncCmsPageWidgetRefs(tx, row.id, row.siteId, (row.blocks ?? []) as CmsPageBlock[]);
       await syncCmsResourceRefs(tx, 'page', row.id, row.siteId, row);
       if (blocks) {
         const blockIds = blocks.map((block) => block.id);
@@ -208,6 +211,7 @@ export async function deleteCmsPage(id: number) {
   await assertSiteAccess(current.siteId);
   const mutation = await db.transaction(async (tx) => {
     const site = await lockCmsSiteForMutation(tx, current.siteId);
+    await deleteCmsPageWidgetRefs(tx, [id]);
     await tx.delete(cmsPages).where(eq(cmsPages.id, id));
     await deleteCmsResourceRefsForOwner(tx, 'page', [id]);
     const revision = await bumpCmsTemplateRefsRevision(tx, current.siteId);

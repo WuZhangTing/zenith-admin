@@ -7,6 +7,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import type { CmsPageBlock } from '@zenith/shared';
 import type { CmsContentItem } from './types';
 import { sanitizeCmsHtml } from '../../services/cms/cms-html-sanitizer';
+import type { CmsResolvedWidget } from '@zenith/shared';
+import { renderCmsWidgetHtml } from './widgets';
+import { resolveThemeWidgetRenderer } from './registry';
 
 export const BLOCK_STYLES = `
 .pb-hero { text-align: center; padding: 64px 24px; border-radius: 12px; background: var(--bg-2); background-size: cover; background-position: center; margin-bottom: 32px; }
@@ -97,10 +100,13 @@ export interface BlockRenderInput {
   blocks: CmsPageBlock[];
   /** content-list 区块的数据（key = block.id），由 render service 预取 */
   contentListData: Map<string, CmsContentItem[]>;
+  /** widget-ref 区块的数据（key = block.id），由 render service 批量解析 */
+  widgetData: Map<string, CmsResolvedWidget>;
+  themeCode: string;
 }
 
 /** 渲染全部区块为 HTML 字符串（含区块样式 <style>） */
-export function renderBlocksHtml({ blocks, contentListData }: BlockRenderInput): string {
+export function renderBlocksHtml({ blocks, contentListData, widgetData, themeCode }: BlockRenderInput): string {
   const rendered = blocks.map((block) => {
     let html: string;
     switch (block.type) {
@@ -119,6 +125,14 @@ export function renderBlocksHtml({ blocks, contentListData }: BlockRenderInput):
       case 'columns':
         html = renderToStaticMarkup(<ColumnsBlock props={block.props} />);
         break;
+      case 'widget-ref': {
+        const widget = widgetData.get(block.id);
+        const renderer = widget
+          ? resolveThemeWidgetRenderer(themeCode, widget.type, widget.rendererKey)
+          : null;
+        html = widget && renderer ? renderCmsWidgetHtml(widget, renderer) : '';
+        break;
+      }
       default:
         html = '';
     }

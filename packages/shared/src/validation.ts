@@ -64,6 +64,11 @@ import {
   CMS_INTERACTION_RATING_MAX_LIMIT,
   CMS_PUBLISH_TARGET_TYPES,
   CMS_SITE_INHERITABLE_FIELDS,
+  CMS_WIDGET_REF_OWNER_TYPES,
+  CMS_WIDGET_RENDERER_KEYS,
+  CMS_WIDGET_SOURCE_TYPES,
+  CMS_WIDGET_STATUSES,
+  CMS_WIDGET_TYPES,
 } from './constants';
 
 const DATE_TIME_PATTERN = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
@@ -5794,7 +5799,7 @@ export const cmsPageBlockDisplayConditionSchema = z.object({
 
 export const cmsPageBlockSchema = z.object({
   id: z.string().trim().min(1).max(100),
-  type: z.enum(['hero', 'richtext', 'image', 'content-list', 'columns']),
+  type: z.enum(['hero', 'richtext', 'image', 'content-list', 'columns', 'widget-ref']),
   props: z.record(z.string(), z.unknown()),
   displayCondition: cmsPageBlockDisplayConditionSchema.optional(),
 }).strict();
@@ -5859,6 +5864,72 @@ export const setCmsPageBlockAclSchema = z.object({
   }).strict()).max(200),
 });
 
+// ─── CMS 页面部件 ─────────────────────────────────────────────────────────────
+export const cmsWidgetItemSchema = z.object({
+  id: z.string().trim().min(1).max(100),
+  sourceType: z.enum(CMS_WIDGET_SOURCE_TYPES),
+  sourceId: z.number().int().positive().nullable().optional(),
+  title: z.string().trim().max(255).nullable().optional(),
+  summary: z.string().trim().max(1000).nullable().optional(),
+  url: z.string().trim().max(1000).nullable().optional(),
+  image: z.string().trim().max(1000).nullable().optional(),
+  displayDate: z.string().regex(DATE_TIME_PATTERN, '时间格式应为 YYYY-MM-DD HH:mm:ss').nullable().optional(),
+}).strict().superRefine((value, ctx) => {
+  if (value.sourceType === 'manual') {
+    if (value.sourceId != null) {
+      ctx.addIssue({ code: 'custom', path: ['sourceId'], message: '手工条目不能指定来源 ID' });
+    }
+    if (!value.title?.trim()) {
+      ctx.addIssue({ code: 'custom', path: ['title'], message: '手工条目标题不能为空' });
+    }
+  } else if (!value.sourceId) {
+    ctx.addIssue({ code: 'custom', path: ['sourceId'], message: '内容或栏目条目必须指定来源 ID' });
+  }
+});
+
+export const cmsWidgetDataSchema = z.object({
+  items: z.array(cmsWidgetItemSchema).max(100),
+}).strict().superRefine((value, ctx) => {
+  const ids = new Set<string>();
+  value.items.forEach((item, index) => {
+    if (ids.has(item.id)) {
+      ctx.addIssue({ code: 'custom', path: ['items', index, 'id'], message: '页面部件条目 id 不能重复' });
+    }
+    ids.add(item.id);
+  });
+});
+
+const cmsWidgetEditableSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  code: z.string().trim().min(1).max(100).regex(cmsSlugRegex, '编码仅允许小写字母、数字、中划线'),
+  draftData: cmsWidgetDataSchema,
+  defaultRendererKey: z.enum(CMS_WIDGET_RENDERER_KEYS),
+  remark: z.string().trim().max(200).nullable().optional(),
+});
+
+export const createCmsWidgetSchema = cmsWidgetEditableSchema.extend({
+  siteId: z.number().int().positive(),
+  type: z.enum(CMS_WIDGET_TYPES).default('manual-list'),
+  draftData: cmsWidgetDataSchema.default({ items: [] }),
+  defaultRendererKey: z.enum(CMS_WIDGET_RENDERER_KEYS).default('list-sidebar'),
+});
+
+export const updateCmsWidgetSchema = cmsWidgetEditableSchema.partial();
+
+export const batchCmsWidgetSchema = z.object({
+  ids: z.array(z.number().int().positive()).min(1).max(100),
+  action: z.enum(['publish', 'offline', 'delete']),
+}).strict();
+
+export const saveCmsWidgetSlotSchema = z.object({
+  siteId: z.number().int().positive(),
+  widgetId: z.number().int().positive().nullable(),
+  rendererKey: z.enum(CMS_WIDGET_RENDERER_KEYS).default('list-sidebar'),
+  styleProps: z.record(z.string(), z.unknown()).default({}),
+}).strict();
+
+export const cmsWidgetRefOwnerTypeSchema = z.enum(CMS_WIDGET_REF_OWNER_TYPES);
+
 export const submitCmsCommentSchema = z.object({
   contentId: z.coerce.number().int().positive(),
   nickname: z.string().min(1, '昵称不能为空').max(50),
@@ -5904,6 +5975,12 @@ export type CmsPageBlockInput = z.input<typeof cmsPageBlockSchema>;
 export type CreateCmsPageInput = z.input<typeof createCmsPageSchema>;
 export type UpdateCmsPageInput = z.input<typeof updateCmsPageSchema>;
 export type SetCmsPageBlockAclInput = z.input<typeof setCmsPageBlockAclSchema>;
+export type CmsWidgetItemInput = z.input<typeof cmsWidgetItemSchema>;
+export type CmsWidgetDataInput = z.input<typeof cmsWidgetDataSchema>;
+export type CreateCmsWidgetInput = z.input<typeof createCmsWidgetSchema>;
+export type UpdateCmsWidgetInput = z.input<typeof updateCmsWidgetSchema>;
+export type BatchCmsWidgetInput = z.input<typeof batchCmsWidgetSchema>;
+export type SaveCmsWidgetSlotInput = z.input<typeof saveCmsWidgetSlotSchema>;
 export type SubmitCmsCommentInput = z.input<typeof submitCmsCommentSchema>;
 export type MemberSubmitCmsCommentInput = z.input<typeof memberSubmitCmsCommentSchema>;
 

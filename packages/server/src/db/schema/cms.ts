@@ -23,9 +23,14 @@ import {
   CMS_INTERACTION_STATUSES,
   CMS_RESOURCE_OWNER_TYPES,
   CMS_SUBSCRIPTION_SUBJECT_TYPES,
+  CMS_WIDGET_REF_OWNER_TYPES,
+  CMS_WIDGET_LIVE_SOURCE_TYPES,
+  CMS_WIDGET_STATUSES,
+  CMS_WIDGET_TYPES,
   type CmsContentAttachment,
   type CmsDistributionFilters,
   type CmsTitleStyle,
+  type CmsWidgetData,
 } from '@zenith/shared';
 
 // ─── 枚举（pgEnum / TS union / Zod enum 三处同步，见 @zenith/shared）────────────
@@ -62,6 +67,10 @@ export const cmsDistributionConflictStrategyEnum = pgEnum(
 );
 /** 素材引用方类型（cms_resource_refs.owner_type） */
 export const cmsResourceOwnerTypeEnum = pgEnum('cms_resource_owner_type', CMS_RESOURCE_OWNER_TYPES);
+export const cmsWidgetTypeEnum = pgEnum('cms_widget_type', CMS_WIDGET_TYPES);
+export const cmsWidgetStatusEnum = pgEnum('cms_widget_status', CMS_WIDGET_STATUSES);
+export const cmsWidgetRefOwnerTypeEnum = pgEnum('cms_widget_ref_owner_type', CMS_WIDGET_REF_OWNER_TYPES);
+export const cmsWidgetSourceTypeEnum = pgEnum('cms_widget_source_type', CMS_WIDGET_LIVE_SOURCE_TYPES);
 
 /** PostgreSQL tsvector 列（drizzle 无内置类型），存全文检索向量 */
 const tsvector = customType<{ data: string }>({
@@ -1113,7 +1122,76 @@ export const cmsCollectItems = pgTable('cms_collect_items', {
 
 export type CmsCollectItemRow = typeof cmsCollectItems.$inferSelect;
 
-// ═══ P3 Batch6：可视化页面搭建 ══════════════════════════════════════════════════
+// ═══ 页面部件与可视化页面搭建 ══════════════════════════════════════════════════
+
+// ─── 页面部件：结构化草稿 + 当前线上快照，不维护历史版本 ────────────────────────
+export const cmsWidgets = pgTable('cms_widgets', {
+  id: serial('id').primaryKey(),
+  siteId: integer('site_id').notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 100 }).notNull(),
+  code: varchar('code', { length: 100 }).notNull(),
+  type: cmsWidgetTypeEnum('type').notNull().default('manual-list'),
+  schemaVersion: integer('schema_version').notNull().default(1),
+  draftData: jsonb('draft_data').$type<CmsWidgetData>().notNull().default({ items: [] }),
+  publishedData: jsonb('published_data').$type<CmsWidgetData>(),
+  publishedName: varchar('published_name', { length: 100 }),
+  draftRevision: integer('draft_revision').notNull().default(1),
+  publishedRevision: integer('published_revision').notNull().default(0),
+  status: cmsWidgetStatusEnum('status').notNull().default('draft'),
+  defaultRendererKey: varchar('default_renderer_key', { length: 50 }).notNull().default('list-sidebar'),
+  remark: varchar('remark', { length: 200 }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  uniqueIndex('cms_widgets_site_code_uq').on(t.siteId, t.code),
+  index('cms_widgets_site_status_idx').on(t.siteId, t.status),
+]);
+
+export type CmsWidgetRow = typeof cmsWidgets.$inferSelect;
+export type NewCmsWidget = typeof cmsWidgets.$inferInsert;
+
+/**
+ * 部件放置/反向引用。
+ * page 行由 cms_pages.blocks 同步生成；theme_slot 行本身就是站点插槽绑定。
+ */
+export const cmsWidgetRefs = pgTable('cms_widget_refs', {
+  id: serial('id').primaryKey(),
+  siteId: integer('site_id').notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
+  widgetId: integer('widget_id').notNull().references(() => cmsWidgets.id, { onDelete: 'cascade' }),
+  ownerType: cmsWidgetRefOwnerTypeEnum('owner_type').notNull(),
+  /** page = cms_pages.id；theme_slot = cms_sites.id */
+  ownerId: integer('owner_id').notNull(),
+  /** page = block.id；theme_slot = slot key */
+  field: varchar('field', { length: 100 }).notNull(),
+  rendererKey: varchar('renderer_key', { length: 50 }).notNull(),
+  styleProps: jsonb('style_props').$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  uniqueIndex('cms_widget_refs_owner_field_uq').on(t.ownerType, t.ownerId, t.field),
+  index('cms_widget_refs_widget_idx').on(t.widgetId),
+  index('cms_widget_refs_site_owner_idx').on(t.siteId, t.ownerType, t.ownerId),
+]);
+
+export type CmsWidgetRefRow = typeof cmsWidgetRefs.$inferSelect;
+
+/** 已发布部件对实时内容/栏目的依赖索引；发布时整体重建，下线时清空。 */
+export const cmsWidgetSourceRefs = pgTable('cms_widget_source_refs', {
+  id: serial('id').primaryKey(),
+  siteId: integer('site_id').notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
+  widgetId: integer('widget_id').notNull().references(() => cmsWidgets.id, { onDelete: 'cascade' }),
+  itemId: varchar('item_id', { length: 100 }).notNull(),
+  sourceType: cmsWidgetSourceTypeEnum('source_type').notNull(),
+  sourceId: integer('source_id').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('cms_widget_source_refs_widget_item_uq').on(t.widgetId, t.itemId),
+  index('cms_widget_source_refs_source_idx').on(t.sourceType, t.sourceId),
+  index('cms_widget_source_refs_site_idx').on(t.siteId),
+]);
+
+export type CmsWidgetSourceRefRow = typeof cmsWidgetSourceRefs.$inferSelect;
 
 // ─── 自定义页面（区块 JSON 装配，前台 /p/{slug}/；isHome 可接管站点首页）────────
 export const cmsPages = pgTable('cms_pages', {

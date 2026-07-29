@@ -43,7 +43,7 @@ export async function publishScheduledCmsContents(): Promise<string> {
     }
 
     // 过期下线
-    const expiredIds = await offlineExpiredCmsContents(now);
+    const expired = await offlineExpiredCmsContents(now);
 
     // 置顶到期自动取消（刷新静态页恢复正常排序）
     const untopIds = await cancelExpiredTopContents(now).catch((err) => {
@@ -56,8 +56,10 @@ export async function publishScheduledCmsContents(): Promise<string> {
       return 0;
     });
 
-    if (due.length === 0 && expiredIds.length === 0 && untopIds.length === 0 && flushed === 0) return '无到期的定时发布/过期内容';
-    return `定时发布 ${published}/${due.length} 条，过期下线 ${expiredIds.length} 条，置顶到期取消 ${untopIds.length} 条，浏览计数落库 ${flushed} 条`;
+    if (due.length === 0 && expired.offlined.length === 0 && expired.blocked.length === 0 && untopIds.length === 0 && flushed === 0) {
+      return '无到期的定时发布/过期内容';
+    }
+    return `定时发布 ${published}/${due.length} 条，过期下线 ${expired.offlined.length} 条，部件引用阻塞 ${expired.blocked.length} 条，置顶到期取消 ${untopIds.length} 条，浏览计数落库 ${flushed} 条`;
   } finally {
     await redis.del(LOCK_KEY).catch(() => undefined);
   }

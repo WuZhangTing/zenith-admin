@@ -1490,7 +1490,7 @@ export const CMS_RESOURCE_URI_PREFIX = 'cms-res://';
 
 /** 素材引用方（反向索引 owner_type 取值） */
 export const CMS_RESOURCE_OWNER_TYPES = [
-  'site', 'content', 'contentVersion', 'channel', 'friendLink', 'ad', 'page', 'form',
+  'site', 'content', 'contentVersion', 'channel', 'friendLink', 'ad', 'page', 'widget', 'form',
 ] as const;
 
 export type CmsResourceOwnerType = (typeof CMS_RESOURCE_OWNER_TYPES)[number];
@@ -1503,6 +1503,7 @@ export const CMS_RESOURCE_OWNER_TYPE_LABELS: Record<CmsResourceOwnerType, string
   friendLink: '友情链接',
   ad: '广告',
   page: '搭建页面',
+  widget: '页面部件',
   form: '表单',
 };
 
@@ -1591,6 +1592,37 @@ export const CMS_PAGE_BLOCK_AUDIENCE_LABELS: Record<(typeof CMS_PAGE_BLOCK_AUDIE
   guest: '仅游客',
   member: '仅登录会员',
 };
+
+/** CMS 页面部件。 */
+export const CMS_WIDGET_TYPES = ['manual-list'] as const;
+export const CMS_WIDGET_TYPE_LABELS: Record<(typeof CMS_WIDGET_TYPES)[number], string> = {
+  'manual-list': '手工列表',
+};
+
+export const CMS_WIDGET_STATUSES = ['draft', 'published', 'offline'] as const;
+export const CMS_WIDGET_STATUS_LABELS: Record<(typeof CMS_WIDGET_STATUSES)[number], string> = {
+  draft: '草稿',
+  published: '已发布',
+  offline: '已下线',
+};
+
+export const CMS_WIDGET_SOURCE_TYPES = ['manual', 'content', 'channel'] as const;
+export const CMS_WIDGET_LIVE_SOURCE_TYPES = ['content', 'channel'] as const;
+export const CMS_WIDGET_SOURCE_TYPE_LABELS: Record<(typeof CMS_WIDGET_SOURCE_TYPES)[number], string> = {
+  manual: '手工录入',
+  content: 'CMS 内容',
+  channel: 'CMS 栏目',
+};
+
+export const CMS_WIDGET_RENDERER_KEYS = ['list-sidebar', 'list-grid', 'list-carousel'] as const;
+export const CMS_WIDGET_RENDERER_LABELS: Record<(typeof CMS_WIDGET_RENDERER_KEYS)[number], string> = {
+  'list-sidebar': '侧边栏列表',
+  'list-grid': '卡片宫格',
+  'list-carousel': '轮播展示',
+};
+
+export const CMS_WIDGET_REF_OWNER_TYPES = ['page', 'theme_slot'] as const;
+export const CMS_WIDGET_SLOT_KEYS = ['home.sidebar'] as const;
 
 /** CMS 会员订阅对象类型。 */
 export const CMS_SUBSCRIPTION_SUBJECT_TYPES = ['site', 'channel', 'author'] as const;

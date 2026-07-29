@@ -11,6 +11,7 @@ import {
   resolveCmsRenderedPagePath,
   signCmsAdRenderProof,
 } from '../../../services/cms/cms-ad-render-proof';
+import { renderCmsWidgetHtml } from '../widgets';
 
 function Breadcrumbs({ items }: { items: CmsBreadcrumb[] }) {
   return (
@@ -459,6 +460,7 @@ export function IndexTemplate(ctx: CmsHomeContext) {
           </div>
         </section>
         <aside>
+          {ctx.homeSidebar ? <div dangerouslySetInnerHTML={{ __html: renderCmsWidgetHtml(ctx.homeSidebar) }} /> : null}
           {ctx.recommended.length > 0 ? (
             <>
               <h2 className="section-title">推荐阅读</h2>
@@ -822,4 +824,3 @@ export function InteractionTemplate(ctx: CmsInteractionPageContext) {
     </Layout>
   );
 }
-

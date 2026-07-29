@@ -21,7 +21,7 @@ import type {
   CmsSite, CmsModel, CmsChannel, CmsContent, CmsTag, CmsFriendLink, CmsFriendLinkGroup,
   CmsAdSlot, CmsAd, CmsAdEvent, CmsForm, CmsSensitiveWord, CmsErrorProneWord, CmsLinkWord, CmsComment,
   CmsInteraction, CmsInteractionQuestion, CmsMemberSubscription, CmsResource, CmsResourceFolder, CmsSearchWord, CmsHotwordGroup,
-  CmsContentVersion, CmsCollectRule, CmsCollectItem, CmsPage,
+  CmsContentVersion, CmsCollectRule, CmsCollectItem, CmsPage, CmsWidget,
   CmsSiteInheritanceFlags, CmsDistributionRule,
 } from './types';
 import { ANALYTICS_EXPERIMENT_EXPOSURE_EVENT, ANALYTICS_SEMANTIC_EVENT_LABELS, type AnalyticsSemanticEventName } from './constants';
@@ -897,7 +897,16 @@ export const SEED_MENUS: Menu[] = [
   { id: 14173, parentId: 14170, title: '编辑规则', type: 'button', permission: 'cms:collect:update', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14174, parentId: 14170, title: '删除规则', type: 'button', permission: 'cms:collect:delete', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14175, parentId: 14170, title: '执行采集', type: 'button', permission: 'cms:collect:run', sort: 4, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 14180, parentId: 14000, title: '页面搭建', name: 'CmsPages', path: '/cms/pages', component: 'cms/PagesPage', icon: 'LayoutTemplate', type: 'menu', sort: 16, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 14300, parentId: 14000, title: '页面部件', name: 'CmsWidgets', path: '/cms/widgets', component: 'cms/WidgetsPage', icon: 'PanelsTopLeft', type: 'menu', sort: 16, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 14301, parentId: 14300, title: '查询', type: 'button', permission: 'cms:widget:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 14302, parentId: 14300, title: '新增部件', type: 'button', permission: 'cms:widget:create', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 14303, parentId: 14300, title: '编辑部件', type: 'button', permission: 'cms:widget:update', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 14304, parentId: 14300, title: '发布部件', type: 'button', permission: 'cms:widget:publish', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 14305, parentId: 14300, title: '下线部件', type: 'button', permission: 'cms:widget:offline', sort: 4, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 14306, parentId: 14300, title: '删除部件', type: 'button', permission: 'cms:widget:delete', sort: 5, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 14310, parentId: 14300, title: '页面部件编辑', name: 'CmsWidgetEdit', path: '/cms/widgets/edit', component: 'cms/WidgetEditPage', type: 'menu', sort: 7, status: 'enabled', visible: false, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 14311, parentId: 14310, title: '查询', type: 'button', permission: 'cms:widget:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 14180, parentId: 14000, title: '页面搭建', name: 'CmsPages', path: '/cms/pages', component: 'cms/PagesPage', icon: 'LayoutTemplate', type: 'menu', sort: 17, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14181, parentId: 14180, title: '查询', type: 'button', permission: 'cms:page:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14182, parentId: 14180, title: '新增页面', type: 'button', permission: 'cms:page:create', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14183, parentId: 14180, title: '编辑页面', type: 'button', permission: 'cms:page:update', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
@@ -3477,11 +3486,79 @@ export const SEED_CMS_PAGES: CmsPage[] = [
     blocks: [
       { id: 'hero-1', type: 'hero', props: { title: 'Zenith CMS', subtitle: '内容、检索与素材治理一体化' } },
       { id: 'content-1', type: 'content-list', props: { title: '最新内容', channelId: 1, limit: 5 } },
+      { id: 'widget-1', type: 'widget-ref', props: { widgetId: 1, rendererKey: 'list-grid', styleProps: {} } },
     ],
     seoTitle: 'Zenith CMS 产品能力', seoKeywords: 'CMS,内容管理', seoDescription: '可视化页面搭建演示',
     requiresDynamic: false,
     status: 'enabled', remark: 'Stage 4 Demo 页面', createdAt: SEED_DATE, updatedAt: SEED_DATE,
   },
+];
+
+export const SEED_CMS_WIDGETS: CmsWidget[] = [
+  {
+    id: 1,
+    siteId: 1,
+    name: '首页侧栏推荐',
+    code: 'home-sidebar',
+    type: 'manual-list',
+    schemaVersion: 1,
+    draftData: {
+      items: [
+        { id: 'content-1', sourceType: 'content', sourceId: 1 },
+        { id: 'channel-1', sourceType: 'channel', sourceId: 1, title: '浏览产品与能力' },
+        {
+          id: 'manual-1',
+          sourceType: 'manual',
+          title: '关注 Zenith CMS',
+          summary: '获取产品更新与实践案例',
+          url: 'https://example.invalid/zenith-cms',
+          image: 'cms-res://1',
+          displayDate: null,
+        },
+      ],
+    },
+    publishedData: {
+      items: [
+        { id: 'content-1', sourceType: 'content', sourceId: 1 },
+        { id: 'channel-1', sourceType: 'channel', sourceId: 1, title: '浏览产品与能力' },
+        {
+          id: 'manual-1',
+          sourceType: 'manual',
+          title: '关注 Zenith CMS',
+          summary: '获取产品更新与实践案例',
+          url: 'https://example.invalid/zenith-cms',
+          image: 'cms-res://1',
+          displayDate: null,
+        },
+      ],
+    },
+    publishedName: '首页侧栏推荐',
+    draftRevision: 1,
+    publishedRevision: 1,
+    status: 'published',
+    defaultRendererKey: 'list-sidebar',
+    remark: '页面部件演示数据',
+    referenceCount: 2,
+    hasUnpublishedChanges: false,
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
+];
+
+export const SEED_CMS_WIDGET_REFS = [
+  {
+    id: 1, siteId: 1, widgetId: 1, ownerType: 'theme_slot' as const, ownerId: 1,
+    field: 'home.sidebar', rendererKey: 'list-sidebar' as const, styleProps: {}, createdAt: SEED_DATE, updatedAt: SEED_DATE,
+  },
+  {
+    id: 2, siteId: 1, widgetId: 1, ownerType: 'page' as const, ownerId: 1,
+    field: 'widget-1', rendererKey: 'list-grid' as const, styleProps: {}, createdAt: SEED_DATE, updatedAt: SEED_DATE,
+  },
+];
+
+export const SEED_CMS_WIDGET_SOURCE_REFS = [
+  { id: 1, siteId: 1, widgetId: 1, itemId: 'content-1', sourceType: 'content' as const, sourceId: 1, createdAt: SEED_DATE },
+  { id: 2, siteId: 1, widgetId: 1, itemId: 'channel-1', sourceType: 'channel' as const, sourceId: 1, createdAt: SEED_DATE },
 ];
 
 export const SEED_CMS_PAGE_BLOCK_ACLS = [

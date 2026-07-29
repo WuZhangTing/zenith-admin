@@ -6,7 +6,11 @@ import type {
   CmsSearchResult,
   CmsThemeSettingField,
   CmsTitleStyle,
+  CmsResolvedWidget,
+  CmsWidgetRendererKey,
+  CmsWidgetType,
 } from '@zenith/shared';
+import type { CmsWidgetRendererDefinition } from './widgets';
 
 /** 渲染上下文：站点信息 */
 export interface CmsRenderSite {
@@ -183,6 +187,8 @@ export interface CmsHomeContext extends CmsBaseContext {
   latest: CmsContentItem[];
   recommended: CmsContentItem[];
   hot: CmsContentItem[];
+  /** 主题声明的首页侧栏部件；未绑定或部件未发布时为 null。 */
+  homeSidebar: CmsResolvedWidget | null;
 }
 
 export interface CmsChannelInfo {
@@ -338,4 +344,13 @@ export interface CmsTheme {
   extraDetailTemplates?: Record<string, CmsTemplateVariant<CmsDetailContext>>;
   /** 主题参数声明：后台「主题参数」面板按此渲染表单，值存 settings.themeConfig，模板经 site.themeConfig 消费 */
   settingsSchema?: CmsThemeSettingField[];
+  /** 主题可放置页面部件的位置；第一期仅支持单值 home.sidebar。 */
+  widgetSlots?: {
+    key: 'home.sidebar';
+    label: string;
+    allowedTypes: CmsWidgetType[];
+    rendererKeys: CmsWidgetRendererKey[];
+  }[];
+  /** 主题仅在确实需要不同 DOM 时覆盖核心 renderer；普通视觉差异优先使用 CSS Token。 */
+  widgetRenderers?: Partial<Record<CmsWidgetRendererKey, CmsWidgetRendererDefinition>>;
 }

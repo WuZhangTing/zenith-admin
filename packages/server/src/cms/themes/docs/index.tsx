@@ -4,6 +4,8 @@ import type {
   CmsDetailContext, CmsPageContext, CmsSearchContext, CmsNotFoundContext, CmsPagination,
   CmsTagPageContext, CmsNavItem, CmsTheme, CmsCustomPageContext,
 } from '../types';
+import { CMS_WIDGET_RENDERER_KEYS } from '@zenith/shared';
+import { renderCmsWidgetHtml } from '../widgets';
 
 const CAPTCHA_SCRIPT = `(function(){function load(box){fetch('/api/public/cms/captcha').then(function(r){return r.json()}).then(function(r){if(!r||r.code!==0)return;box.querySelector('input[name="captchaId"]').value=r.data.id;var img=box.querySelector('.cms-captcha-img');img.innerHTML=r.data.svg;img.title='看不清？点击刷新'}).catch(function(){})}document.querySelectorAll('.cms-captcha-box').forEach(function(box){load(box);var img=box.querySelector('.cms-captcha-img');if(img)img.addEventListener('click',function(){load(box)})});})();`;
 
@@ -286,6 +288,7 @@ function IndexTemplate(ctx: CmsHomeContext) {
       <div className="doc-list">
         {ctx.latest.length === 0 ? <div className="empty">暂无内容</div> : ctx.latest.map((item) => <DocItemRow key={item.id} item={item} />)}
       </div>
+      {ctx.homeSidebar ? <div dangerouslySetInnerHTML={{ __html: renderCmsWidgetHtml(ctx.homeSidebar) }} /> : null}
       {ctx.recommended.length > 0 ? (
         <>
           <h2 className="section-heading">推荐阅读</h2>
@@ -502,4 +505,10 @@ export const docsTheme: CmsTheme = {
     notFound: NotFoundTemplate,
   },
   customPage: CustomPageTemplate,
+  widgetSlots: [{
+    key: 'home.sidebar',
+    label: '首页侧栏',
+    allowedTypes: ['manual-list'],
+    rendererKeys: [...CMS_WIDGET_RENDERER_KEYS],
+  }],
 };

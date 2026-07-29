@@ -13,7 +13,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import {
   cmsAds, cmsChannels, cmsContents, cmsContentVersions, cmsForms,
-  cmsFriendLinks, cmsPages, cmsResourceRefs, cmsResources, cmsSites, managedFiles,
+  cmsFriendLinks, cmsPages, cmsResourceRefs, cmsResources, cmsSites, cmsWidgets, managedFiles,
 } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
 import {
@@ -31,6 +31,7 @@ export const CMS_RESOURCE_OWNER_FIELDS = {
   friendLink: ['logo', 'url'],
   ad: ['image', 'linkUrl'],
   page: ['blocks'],
+  widget: ['draftData', 'publishedData'],
   form: ['fields'],
 } as const satisfies Record<CmsResourceOwnerType, readonly string[]>;
 
@@ -487,9 +488,10 @@ async function loadOwnerTitles(idsByType: Map<CmsResourceOwnerType, number[]>): 
   const friendLinkIds = ids('friendLink');
   const adIds = ids('ad');
   const pageIds = ids('page');
+  const widgetIds = ids('widget');
   const formIds = ids('form');
 
-  const [sites, contents, versions, channels, friendLinks, ads, pages, forms] = await Promise.all([
+  const [sites, contents, versions, channels, friendLinks, ads, pages, widgets, forms] = await Promise.all([
     siteIds.length
       ? db.select({ id: cmsSites.id, title: cmsSites.name }).from(cmsSites).where(inArray(cmsSites.id, siteIds))
       : [],
@@ -514,6 +516,9 @@ async function loadOwnerTitles(idsByType: Map<CmsResourceOwnerType, number[]>): 
     pageIds.length
       ? db.select({ id: cmsPages.id, title: cmsPages.name }).from(cmsPages).where(inArray(cmsPages.id, pageIds))
       : [],
+    widgetIds.length
+      ? db.select({ id: cmsWidgets.id, title: cmsWidgets.name }).from(cmsWidgets).where(inArray(cmsWidgets.id, widgetIds))
+      : [],
     formIds.length
       ? db.select({ id: cmsForms.id, title: cmsForms.name }).from(cmsForms).where(inArray(cmsForms.id, formIds))
       : [],
@@ -526,6 +531,7 @@ async function loadOwnerTitles(idsByType: Map<CmsResourceOwnerType, number[]>): 
   put('friendLink', friendLinks);
   put('ad', ads);
   put('page', pages);
+  put('widget', widgets);
   put('form', forms);
   return titles;
 }

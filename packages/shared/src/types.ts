@@ -11561,7 +11561,7 @@ export interface CmsCollectItem {
 }
 
 // ─── CMS 可视化页面搭建（P3 Batch6）───────────────────────────────────────────
-export type CmsPageBlockType = 'hero' | 'richtext' | 'image' | 'content-list' | 'columns';
+export type CmsPageBlockType = 'hero' | 'richtext' | 'image' | 'content-list' | 'columns' | 'widget-ref';
 export type CmsPageBlockAudience = 'always' | 'guest' | 'member';
 
 export interface CmsPageBlockDisplayCondition {
@@ -11622,4 +11622,104 @@ export const CMS_PAGE_BLOCK_TYPES: { value: CmsPageBlockType; label: string }[] 
   { value: 'image', label: '图片' },
   { value: 'content-list', label: '内容列表' },
   { value: 'columns', label: '多列卡片' },
+  { value: 'widget-ref', label: '页面部件' },
 ];
+
+// ─── CMS 页面部件 ─────────────────────────────────────────────────────────────
+export type CmsWidgetType = 'manual-list';
+export type CmsWidgetStatus = 'draft' | 'published' | 'offline';
+export type CmsWidgetSourceType = 'manual' | 'content' | 'channel';
+export type CmsWidgetRendererKey = 'list-sidebar' | 'list-grid' | 'list-carousel';
+export type CmsWidgetRefOwnerType = 'page' | 'theme_slot';
+export type CmsWidgetSlotKey = 'home.sidebar';
+
+export interface CmsWidgetItem {
+  id: string;
+  sourceType: CmsWidgetSourceType;
+  sourceId?: number | null;
+  /** 来源字段的人工覆盖；空值表示跟随实时来源。手工条目至少填写 title。 */
+  title?: string | null;
+  summary?: string | null;
+  url?: string | null;
+  image?: string | null;
+  displayDate?: string | null;
+}
+
+export interface CmsWidgetData {
+  items: CmsWidgetItem[];
+}
+
+export interface CmsWidget {
+  id: number;
+  siteId: number;
+  name: string;
+  code: string;
+  type: CmsWidgetType;
+  schemaVersion: number;
+  draftData: CmsWidgetData;
+  publishedData: CmsWidgetData | null;
+  publishedName: string | null;
+  draftRevision: number;
+  publishedRevision: number;
+  status: CmsWidgetStatus;
+  defaultRendererKey: CmsWidgetRendererKey;
+  remark: string | null;
+  referenceCount: number;
+  hasUnpublishedChanges: boolean;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CmsWidgetRef {
+  id: number;
+  siteId: number;
+  widgetId: number;
+  ownerType: CmsWidgetRefOwnerType;
+  ownerId: number;
+  field: string;
+  rendererKey: CmsWidgetRendererKey;
+  styleProps: Record<string, unknown>;
+  ownerName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CmsResolvedWidgetItem {
+  id: string;
+  sourceType: CmsWidgetSourceType;
+  sourceId: number | null;
+  title: string;
+  summary: string | null;
+  url: string | null;
+  image: string | null;
+  displayDate: string | null;
+}
+
+export interface CmsResolvedWidget {
+  id: number;
+  name: string;
+  type: CmsWidgetType;
+  rendererKey: CmsWidgetRendererKey;
+  items: CmsResolvedWidgetItem[];
+}
+
+export interface CmsWidgetRendererOption {
+  key: CmsWidgetRendererKey;
+  label: string;
+}
+
+export interface CmsWidgetPreview {
+  widget: CmsResolvedWidget;
+  html: string;
+  renderers: CmsWidgetRendererOption[];
+}
+
+export interface CmsWidgetSlot {
+  key: CmsWidgetSlotKey;
+  label: string;
+  allowedTypes: CmsWidgetType[];
+  rendererKeys: CmsWidgetRendererKey[];
+  binding: CmsWidgetRef | null;
+}

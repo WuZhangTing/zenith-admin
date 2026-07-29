@@ -12,6 +12,7 @@ import { registerCmsPublishingTaskHandler } from './cms-publishing.service';
 import { registerCmsStage4TaskHandlers } from './cms-stage4-tasks';
 import { registerCmsDistributionTaskHandler } from './cms-distributions.service';
 import { registerCmsWebhookTaskHandler } from './cms-webhook.service';
+import { registerCmsWidgetTaskHandlers } from './cms-widget-tasks';
 
 /** CMS 任务中心 handler 注册（index.ts 启动流程中、registerSystemTasks 之前调用） */
 export function registerCmsTaskHandlers(): void {
@@ -23,6 +24,7 @@ export function registerCmsTaskHandlers(): void {
   registerCmsStage4TaskHandlers();
   registerCmsDistributionTaskHandler();
   registerCmsWebhookTaskHandler();
+  registerCmsWidgetTaskHandlers();
   registerTaskHandler({
     taskType: 'cms-static-build',
     title: 'CMS 全站静态化',

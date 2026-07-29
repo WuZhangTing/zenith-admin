@@ -15,7 +15,8 @@ describe('CMS site import code validation', () => {
 
   it('sanitizes imported page blocks and rich content at the service boundary', async () => {
     const source = await readFile(new URL('./cms-site-transfer.service.ts', import.meta.url), 'utf8');
-    expect(source).toContain('blocks: sanitizeCmsPageBlocks(p.blocks ?? [])');
+    expect(source).toContain('return sanitizeCmsPageBlocks(blocks)');
+    expect(source).toContain('const blocks = remapImportedWidgetBlocks(p.blocks, widgetIdMap)');
     expect(source).toContain('body: sanitizeCmsHtml(str(c.body))');
     expect(source).toContain('pageContent: sanitizeCmsHtml(str(ch.pageContent))');
   });

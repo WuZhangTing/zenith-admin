@@ -289,7 +289,7 @@ async function writeRenderedPath(site: CmsSiteRow, relPath: string): Promise<boo
   return false;
 }
 
-async function refreshHomeStatic(site: CmsSiteRow): Promise<boolean> {
+export async function refreshHomeStatic(site: CmsSiteRow): Promise<boolean> {
   const { getHomeTakeoverPage } = await import('./cms-pages.service');
   const takeover = await getHomeTakeoverPage(site.id);
   const staticPath = '';

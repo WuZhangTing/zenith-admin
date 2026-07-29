@@ -54,7 +54,7 @@ import {
   cmsLinkWords, cmsMemberSubscriptions, cmsMemberViewHistory, cmsModelFields, cmsModels,
   cmsPageBlockAcls, cmsPages, cmsPublishArtifacts, cmsPushLogs,
   cmsRedirects, cmsResourceFolders, cmsResourceRefs, cmsResources, cmsSearchWords, cmsSiteInheritances, cmsSites, cmsSiteUsers,
-  cmsOpenAppGrants, cmsContentTombstones,
+  cmsOpenAppGrants, cmsContentTombstones, cmsWidgets, cmsWidgetRefs, cmsWidgetSourceRefs,
   cmsTags,
 } from './cms';
 
@@ -1275,6 +1275,7 @@ export const cmsSitesRelations = relations(cmsSites, ({ one, many }) => ({
   subscriptions: many(cmsMemberSubscriptions),
   adEvents: many(cmsAdEvents),
   pages: many(cmsPages),
+  widgets: many(cmsWidgets),
   sourceDistributionRules: many(cmsDistributionRules, { relationName: 'cmsDistributionSourceSite' }),
   targetDistributionRules: many(cmsDistributionRules, { relationName: 'cmsDistributionTargetSite' }),
 }));
@@ -1466,6 +1467,22 @@ export const cmsAdEventsRelations = relations(cmsAdEvents, ({ one }) => ({
 export const cmsPagesRelations = relations(cmsPages, ({ one, many }) => ({
   site: one(cmsSites, { fields: [cmsPages.siteId], references: [cmsSites.id] }),
   blockAcls: many(cmsPageBlockAcls),
+}));
+
+export const cmsWidgetsRelations = relations(cmsWidgets, ({ one, many }) => ({
+  site: one(cmsSites, { fields: [cmsWidgets.siteId], references: [cmsSites.id] }),
+  refs: many(cmsWidgetRefs),
+  sourceRefs: many(cmsWidgetSourceRefs),
+}));
+
+export const cmsWidgetRefsRelations = relations(cmsWidgetRefs, ({ one }) => ({
+  site: one(cmsSites, { fields: [cmsWidgetRefs.siteId], references: [cmsSites.id] }),
+  widget: one(cmsWidgets, { fields: [cmsWidgetRefs.widgetId], references: [cmsWidgets.id] }),
+}));
+
+export const cmsWidgetSourceRefsRelations = relations(cmsWidgetSourceRefs, ({ one }) => ({
+  site: one(cmsSites, { fields: [cmsWidgetSourceRefs.siteId], references: [cmsSites.id] }),
+  widget: one(cmsWidgets, { fields: [cmsWidgetSourceRefs.widgetId], references: [cmsWidgets.id] }),
 }));
 
 export const cmsPageBlockAclsRelations = relations(cmsPageBlockAcls, ({ one }) => ({

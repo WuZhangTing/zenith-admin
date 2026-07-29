@@ -28,6 +28,10 @@ import { resolveCmsFormCaptcha } from './cms-form-captcha.service';
 import { listApprovedComments } from './cms-comments.service';
 import { getActiveAds } from './cms-ads.service';
 import { getCmsFormByCode } from './cms-forms.service';
+import {
+  resolveCmsWidgetPlacements,
+  resolveCmsWidgetSlotForRender,
+} from './cms-widgets.service';
 import type { CmsChannel, CmsFormField, CmsSiteTemplateDefaults } from '@zenith/shared';
 import { CMS_CONTENT_STATUS_LABELS } from '@zenith/shared';
 
@@ -388,7 +392,20 @@ export async function renderCustomPage(
     const resolveLink = await buildCmsLinkResolver(site.id, baseUrl, rows.map((r) => r.externalLink));
     contentListData.set(block.id, rows.map((row) => toContentItem(row, baseUrl, channelPathMap.get(row.channelId) ?? FALLBACK_URL_CHANNEL, resolveLink)));
   }
-  const blocksHtml = renderBlocksHtml({ blocks, contentListData });
+  const widgetData = await resolveCmsWidgetPlacements(
+    site.id,
+    baseUrl,
+    blocks.flatMap((block) => block.type === 'widget-ref'
+      ? [{
+          key: block.id,
+          widgetId: Number(block.props.widgetId),
+          rendererKey: typeof block.props.rendererKey === 'string'
+            ? block.props.rendererKey as import('@zenith/shared').CmsWidgetRendererKey
+            : undefined,
+        }]
+      : []),
+  );
+  const blocksHtml = renderBlocksHtml({ blocks, contentListData, widgetData, themeCode: site.theme });
   const props = {
     ...base,
     page: { name: pageRow.name, slug: pageRow.slug },
@@ -417,9 +434,10 @@ export async function renderHomePage(site: CmsSiteRow, baseUrl: string, viewer?:
   if (takeover) return renderCustomPage(site, baseUrl, takeover, { asHome: true, member: viewer?.member });
   const theme = getBuiltinThemeFallback(site.theme);
   const seo = mergeSeo(site, { pathForCanonical: '/' });
-  const [base, home] = await Promise.all([
+  const [base, home, homeSidebar] = await Promise.all([
     buildBaseContext(site, baseUrl, seo),
     listHomeContents(site.id),
+    resolveCmsWidgetSlotForRender(site.id, 'home.sidebar', baseUrl),
   ]);
   const channelPathMap = await loadChannelPathMap(site.id);
   const resolveLink = await buildCmsLinkResolver(
@@ -432,6 +450,7 @@ export async function renderHomePage(site: CmsSiteRow, baseUrl: string, viewer?:
     latest: home.latest.map(toItem),
     recommended: home.recommended.map(toItem),
     hot: home.hot.map(toItem),
+    homeSidebar,
   };
   const html = renderDoc(theme.templates.index, props);
   return { status: 200, html, kind: 'home' };

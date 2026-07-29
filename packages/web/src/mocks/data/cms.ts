@@ -8,6 +8,7 @@ import {
   SEED_CMS_RESOURCES, SEED_CMS_RESOURCE_FOLDERS, SEED_CMS_SEARCH_WORDS,
   SEED_CMS_HOTWORD_GROUPS, SEED_CMS_HOTWORDS,
   SEED_CMS_COLLECT_RULES, SEED_CMS_COLLECT_ITEMS, SEED_CMS_PAGES,
+  SEED_CMS_WIDGETS, SEED_CMS_WIDGET_REFS,
   SEED_CMS_CONTENT_VERSIONS,
 } from '@zenith/shared';
 import type {
@@ -16,6 +17,7 @@ import type {
   CmsRedirect, CmsPushLog, CmsContentVersion, CmsSearchWord, CmsHotKeyword, CmsContentOpLog, CmsInteraction,
   CmsInteractionAnswerDetail, CmsInteractionResponse, CmsMemberSubscription, CmsPageBlockAcl,
   CmsResource, CmsResourceFolder, CmsHotwordGroup, CmsCollectRule, CmsCollectItem, CmsPage, CmsOpenAppGrant,
+  CmsWidget, CmsWidgetRef,
 } from '@zenith/shared';
 
 // 从共享种子数据派生（禁止重复定义静态数组）
@@ -220,3 +222,18 @@ export const mockCmsPageBlockAcls: CmsPageBlockAcl[] = SEED_CMS_PAGE_BLOCK_ACLS.
   subjectName: acl.subjectType === 'role' ? '超级管理员' : '管理员',
 }));
 export const getNextCmsPageId = nextIdFactory(Math.max(0, ...mockCmsPages.map((x) => x.id)) + 1);
+export const mockCmsWidgets: CmsWidget[] = SEED_CMS_WIDGETS.map((widget) => ({
+  ...widget,
+  draftData: { items: widget.draftData.items.map((item) => ({ ...item })) },
+  publishedData: widget.publishedData
+    ? { items: widget.publishedData.items.map((item) => ({ ...item })) }
+    : null,
+}));
+export const mockCmsWidgetRefs: CmsWidgetRef[] = SEED_CMS_WIDGET_REFS.map((ref) => ({
+  ...ref,
+  ownerName: ref.ownerType === 'page'
+    ? mockCmsPages.find((page) => page.id === ref.ownerId)?.name ?? null
+    : mockCmsSites.find((site) => site.id === ref.ownerId)?.name ?? null,
+}));
+export const getNextCmsWidgetId = nextIdFactory(Math.max(0, ...mockCmsWidgets.map((x) => x.id)) + 1);
+export const getNextCmsWidgetRefId = nextIdFactory(Math.max(0, ...mockCmsWidgetRefs.map((x) => x.id)) + 1);

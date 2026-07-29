@@ -24,6 +24,7 @@ import { CMS_PAGE_BLOCK_AUDIENCE_LABELS, CMS_PAGE_BLOCK_TYPES, cmsCustomPagePath
 import type { CmsChannel, CmsPage, CmsPageBlock, CmsPageBlockType } from '@zenith/shared';
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 import { formatDateTimeForApi } from '@/utils/date';
+import { useCmsWidgetRenderers, usePublishedCmsWidgets } from '@/hooks/queries/cms-widgets';
 
 /** 区块按栏目标识引用栏目：value 用 code，站点复制/重建后配置无需重配 */
 function channelsToSelectTree(nodes: CmsChannel[]): { key: string; value: string; label: string; children?: ReturnType<typeof channelsToSelectTree> }[] {
@@ -50,6 +51,7 @@ function blockSummary(block: CmsPageBlock): string {
     case 'image': return String(p.src ?? '');
     case 'content-list': return `${String(p.title ?? '')}（${String(p.mode ?? 'latest')} × ${Number(p.count) || 5}）`;
     case 'columns': return `${Array.isArray(p.items) ? p.items.length : 0} 列`;
+    case 'widget-ref': return `页面部件 #${String(p.widgetId ?? '未选择')} · ${String(p.rendererKey ?? 'list-sidebar')}`;
     default: return '';
   }
 }
@@ -90,6 +92,8 @@ export default function PagesPage() {
   const setAclMutation = useSetCmsPageBlockAcls();
   const usersQuery = useAllUsers({ enabled: !!aclBlock });
   const rolesQuery = useAllRoles({ enabled: !!aclBlock });
+  const widgetOptionsQuery = usePublishedCmsWidgets(siteId, builderVisible);
+  const widgetRenderersQuery = useCmsWidgetRenderers(siteId, 'manual-list', builderVisible);
   const canEditPage = hasPermission('cms:page:update');
 
   useEffect(() => {
@@ -128,6 +132,7 @@ export default function PagesPage() {
       image: { src: '', alt: '', linkUrl: '' },
       'content-list': { title: '最新内容', mode: 'latest', count: 5 },
       columns: { items: [{ title: '特性一', description: '' }, { title: '特性二', description: '' }, { title: '特性三', description: '' }] },
+      'widget-ref': { widgetId: undefined, rendererKey: 'list-sidebar', styleProps: {} },
     };
     setBlocks((prev) => [...prev, {
       id: newBlockId(),
@@ -566,6 +571,32 @@ export default function PagesPage() {
               <Form.Slot label="列卡片">
                 <ColumnsEditor formApi={blockFormApi} initItems={(blockModal.block.props.items as { title?: string; description?: string }[]) ?? []} />
               </Form.Slot>
+            ) : null}
+            {editingBlockType === 'widget-ref' ? (
+              <>
+                <Form.Select
+                  field="widgetId"
+                  label="页面部件"
+                  filter
+                  loading={widgetOptionsQuery.isFetching}
+                  optionList={(widgetOptionsQuery.data ?? []).map((widget) => ({
+                    value: widget.id,
+                    label: `${widget.name}（${widget.code}）`,
+                  }))}
+                  rules={[{ required: true, message: '请选择已发布页面部件' }]}
+                  style={{ width: '100%' }}
+                />
+                <Form.Select
+                  field="rendererKey"
+                  label="展示模板"
+                  optionList={(widgetRenderersQuery.data ?? []).map((renderer) => ({
+                    value: renderer.key,
+                    label: renderer.label,
+                  }))}
+                  rules={[{ required: true, message: '请选择展示模板' }]}
+                  style={{ width: '100%' }}
+                />
+              </>
             ) : null}
           </Form>
         ) : null}
