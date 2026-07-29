@@ -7,6 +7,7 @@ import type {
   CmsWidgetRendererKey,
   CmsWidgetRendererOption,
   CmsWidgetSlot,
+  CmsWidgetSourceReference,
   CmsWidgetStatus,
   CmsWidgetType,
   PaginatedResponse,
@@ -35,6 +36,8 @@ export const cmsWidgetKeys = {
   renderers: (siteId: number | undefined, type: CmsWidgetType) =>
     ['cms-widgets', 'renderers', siteId, type] as const,
   slots: (siteId: number | undefined) => ['cms-widgets', 'slots', siteId] as const,
+  sourceRefs: (sourceType: 'content' | 'channel', sourceId: number | undefined) =>
+    ['cms-widgets', 'source-refs', sourceType, sourceId] as const,
 };
 
 export function useCmsWidgetList(params: CmsWidgetListParams) {
@@ -85,6 +88,20 @@ export function useCmsWidgetRefs(id: number | undefined, enabled = true) {
     queryKey: cmsWidgetKeys.refs(id),
     queryFn: () => request.get<CmsWidgetRef[]>(`/api/cms/widgets/${id}/refs`).then(unwrap),
     enabled: enabled && id !== undefined,
+  });
+}
+
+export function useCmsWidgetSourceRefs(
+  sourceType: 'content' | 'channel',
+  sourceId: number | undefined,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: cmsWidgetKeys.sourceRefs(sourceType, sourceId),
+    queryFn: () => request
+      .get<CmsWidgetSourceReference[]>(`/api/cms/widgets/source-refs${toQueryString({ sourceType, sourceId })}`)
+      .then(unwrap),
+    enabled: enabled && sourceId !== undefined,
   });
 }
 

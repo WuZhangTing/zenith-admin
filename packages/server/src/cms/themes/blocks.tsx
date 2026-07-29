@@ -8,7 +8,7 @@ import type { CmsPageBlock } from '@zenith/shared';
 import type { CmsContentItem } from './types';
 import { sanitizeCmsHtml } from '../../services/cms/cms-html-sanitizer';
 import type { CmsResolvedWidget } from '@zenith/shared';
-import { renderCmsWidgetHtml } from './widgets';
+import { CMS_WIDGET_STYLES, renderCmsWidgetHtml } from './widgets';
 import { resolveThemeWidgetRenderer } from './registry';
 
 export const BLOCK_STYLES = `
@@ -130,7 +130,7 @@ export function renderBlocksHtml({ blocks, contentListData, widgetData, themeCod
         const renderer = widget
           ? resolveThemeWidgetRenderer(themeCode, widget.type, widget.rendererKey)
           : null;
-        html = widget && renderer ? renderCmsWidgetHtml(widget, renderer) : '';
+        html = widget && renderer ? renderCmsWidgetHtml(widget, renderer, { includeStyles: false }) : '';
         break;
       }
       default:
@@ -138,5 +138,6 @@ export function renderBlocksHtml({ blocks, contentListData, widgetData, themeCod
     }
     return html;
   }).join('\n');
-  return `<style>${BLOCK_STYLES}</style>\n${rendered}`;
+  const widgetStyles = widgetData.size > 0 ? CMS_WIDGET_STYLES : '';
+  return `<style>${BLOCK_STYLES}${widgetStyles}</style>\n${rendered}`;
 }

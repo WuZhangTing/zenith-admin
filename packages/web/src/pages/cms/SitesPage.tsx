@@ -700,7 +700,17 @@ export default function SitesPage() {
     }
     try {
       const result = await importMutation.mutateAsync(pkg);
-      Toast.success(`站点「${result.siteName}」导入成功（栏目 ${result.counts.channels ?? 0}、内容 ${result.counts.contents ?? 0}）`);
+      Toast.success(`站点「${result.siteName}」导入成功（栏目 ${result.counts.channels ?? 0}、内容 ${result.counts.contents ?? 0}、部件 ${result.counts.widgets ?? 0}）`);
+      if (result.warnings.length > 0) {
+        Modal.warning({
+          title: '导入完成，以下项目需要处理',
+          content: (
+            <ul style={{ margin: 0, paddingLeft: 20 }}>
+              {result.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+            </ul>
+          ),
+        });
+      }
     } catch {
       // 错误提示由请求层统一 Toast
     }
@@ -1112,7 +1122,7 @@ export default function SitesPage() {
           <Button
             type="primary"
             loading={saveWidgetSlotMutation.isPending}
-            disabled={!hasPermission('cms:widget:update')}
+            disabled={!hasPermission('cms:widget:bind')}
             onClick={async () => {
               await saveWidgetSlotMutation.mutateAsync({
                 slotKey: 'home.sidebar',

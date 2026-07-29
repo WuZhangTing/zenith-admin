@@ -20,6 +20,7 @@ import {
 import { mockCmsPublishingTasks } from '../data/cms-stage3';
 import { mockCmsDistributionRules } from '../data/cms-stage5';
 import { createProgressingMockTask } from './async-tasks';
+import { submitMockCmsWidgetSourceRefresh } from './cms-widgets';
 import { mockDateTime, mockDate } from '../utils/date';
 
 type Body = Record<string, unknown>;
@@ -55,7 +56,13 @@ function syncMockPageWidgetRefs(page: (typeof mockCmsPages)[number]) {
 function publishedWidgetUsing(sourceType: 'content' | 'channel', sourceId: number) {
   return mockCmsWidgets.find((widget) =>
     widget.status === 'published'
-    && widget.publishedData?.items.some((item) => item.sourceType === sourceType && item.sourceId === sourceId));
+    && widget.publishedData?.items.some((item) => (
+      item.sourceType === sourceType && item.sourceId === sourceId
+    ) || (
+      sourceType === 'channel'
+      && item.sourceType === 'content'
+      && mockCmsContents.some((content) => content.id === item.sourceId && content.channelId === sourceId)
+    )));
 }
 
 function okJson<T>(data: T, message = 'ok') {
@@ -455,6 +462,7 @@ export const cmsHandlers = [
     Object.assign(mockCmsChannels[idx], body, { updatedAt: mockDateTime() });
     const parent = mockCmsChannels.find((c) => c.id === mockCmsChannels[idx].parentId);
     mockCmsChannels[idx].path = parent ? `${parent.path}/${mockCmsChannels[idx].slug}` : mockCmsChannels[idx].slug;
+    submitMockCmsWidgetSourceRefresh('channel', [Number(params.id)]);
     return okJson(mockCmsChannels[idx], '更新成功');
   }),
   http.delete('/api/cms/channels/:id', ({ params }) => {
@@ -628,6 +636,7 @@ export const cmsHandlers = [
       content.status = statusMap[action];
       if (action === 'publish') content.publishedAt = mockDateTime();
       content.updatedAt = mockDateTime();
+      submitMockCmsWidgetSourceRefresh('content', [content.id]);
       const opActionMap: Record<string, { action: string; label: string }> = {
         submit: { action: 'submitted', label: '提交审核' },
         publish: { action: 'published', label: '发布' },
@@ -722,6 +731,7 @@ export const cmsHandlers = [
       version: (mockCmsContents[idx].version ?? 1) + 1,
       updatedAt: mockDateTime(),
     });
+    submitMockCmsWidgetSourceRefresh('content', [Number(params.id)]);
     return okJson(mockCmsContents[idx], '更新成功');
   }),
   http.post('/api/cms/contents/:id/lock', async ({ params, request }) => {
@@ -1794,12 +1804,23 @@ export const cmsP2Handlers = [
     });
   }),
   http.post('/api/cms/sites/import', async ({ request }) => {
-    const body = (await request.json()) as { site?: { name?: string; code?: string } };
+    const body = (await request.json()) as {
+      site?: { name?: string; code?: string };
+      widgets?: unknown[];
+      widgetSlots?: unknown[];
+    };
+    const widgetCount = body.widgets?.length ?? 0;
+    const skippedWidgetSlots = body.widgetSlots?.length ?? 0;
     return okJson({
       siteId: 999,
       siteName: body?.site?.name ?? '导入站点',
       siteCode: `${body?.site?.code ?? 'imported'}-2`,
-      counts: { channels: 0, tags: 0, contents: 0, resourceFolders: 0, resources: 0, friendLinks: 0, redirects: 0, linkWords: 0, adSlots: 0, ads: 0, forms: 0, widgets: 0, pages: 0 },
+      counts: { channels: 0, tags: 0, contents: 0, resourceFolders: 0, resources: 0, friendLinks: 0, redirects: 0, linkWords: 0, adSlots: 0, ads: 0, forms: 0, widgets: widgetCount, pages: 0 },
+      skipped: { widgetSlots: skippedWidgetSlots },
+      warnings: [
+        ...(widgetCount > 0 ? [`已导入 ${widgetCount} 个页面部件并统一降级为草稿，请审核后重新发布`] : []),
+        ...(skippedWidgetSlots > 0 ? [`已跳过 ${skippedWidgetSlots} 个主题页面部件插槽绑定，请在部件发布后重新绑定`] : []),
+      ],
     }, '站点导入成功，内容已统一转为草稿');
   }),
 ];
@@ -1947,6 +1968,7 @@ export const cmsP3Handlers = [
     for (const c of mockCmsContents) {
       if (ids.includes(c.id)) c.channelId = Number(body.channelId);
     }
+    submitMockCmsWidgetSourceRefresh('content', ids);
     return okJson(null, `已移动 ${ids.length} 条内容`);
   }),
   http.post('/api/cms/contents/batch-flags', async ({ request }) => {

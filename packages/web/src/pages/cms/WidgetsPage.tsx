@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -63,6 +63,7 @@ export default function WidgetsPage() {
   const [draft, setDraft] = useState<SearchState>(DEFAULT_SEARCH);
   const [submitted, setSubmitted] = useState<SearchState>(DEFAULT_SEARCH);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [selectedRecords, setSelectedRecords] = useState<Record<number, CmsWidget>>({});
   const [refsWidget, setRefsWidget] = useState<CmsWidget | null>(null);
 
   const listQuery = useCmsWidgetList({
@@ -78,8 +79,27 @@ export default function WidgetsPage() {
   const offlineMutation = useOfflineCmsWidget();
   const deleteMutation = useDeleteCmsWidget();
   const batchMutation = useCmsWidgetBatch();
-  const { tasks } = useMyAsyncTasks({ taskTypes: ['cms-widget-batch', 'cms-widget-refresh'] });
-  const activeTasks = tasks.filter((task) => ['pending', 'running', 'retrying'].includes(task.status));
+  const { tasks, refresh: refreshTasks } = useMyAsyncTasks({ taskTypes: ['cms-widget-batch', 'cms-widget-refresh'] });
+  const taskStatusesRef = useRef(new Map<number, string>());
+  const widgetTasks = tasks
+    .filter((task) => task.taskType === 'cms-widget-batch' || task.taskType === 'cms-widget-refresh')
+    .slice(0, 5);
+
+  useEffect(() => {
+    let batchCompleted = false;
+    for (const task of tasks) {
+      const previous = taskStatusesRef.current.get(task.id);
+      if (
+        task.taskType === 'cms-widget-batch'
+        && (previous === 'pending' || previous === 'running')
+        && (task.status === 'success' || task.status === 'failed' || task.status === 'cancelled')
+      ) {
+        batchCompleted = true;
+      }
+      taskStatusesRef.current.set(task.id, task.status);
+    }
+    if (batchCompleted) void queryClient.invalidateQueries({ queryKey: cmsWidgetKeys.all });
+  }, [queryClient, tasks]);
 
   function handleSearch() {
     resetPage();
@@ -94,14 +114,27 @@ export default function WidgetsPage() {
     void queryClient.invalidateQueries({ queryKey: cmsWidgetKeys.lists });
   }
 
-  async function runSingle(action: 'publish' | 'offline', id: number) {
+  function runSingle(action: 'publish' | 'offline', widget: CmsWidget) {
+    const execute = async () => {
+      if (action === 'publish') {
+        await publishMutation.mutateAsync(widget.id);
+        Toast.success('发布成功，引用刷新任务已提交');
+      } else {
+        await offlineMutation.mutateAsync(widget.id);
+        Toast.success('下线成功，引用刷新任务已提交');
+      }
+    };
     if (action === 'publish') {
-      await publishMutation.mutateAsync(id);
-      Toast.success('发布成功，引用刷新任务已提交');
-    } else {
-      await offlineMutation.mutateAsync(id);
-      Toast.success('下线成功，引用刷新任务已提交');
+      Modal.confirm({
+        title: `发布页面部件「${widget.name}」？`,
+        content: widget.impactCount > 0
+          ? `发布后将刷新 ${widget.impactCount} 个页面或首页${widget.highFanout ? '，该部件影响范围较大，请确认变更' : ''}。`
+          : '当前没有页面或主题插槽引用，发布不会触发页面刷新。',
+        onOk: execute,
+      });
+      return;
     }
+    void execute();
   }
 
   function confirmDelete(widget: CmsWidget) {
@@ -123,11 +156,19 @@ export default function WidgetsPage() {
     const label = action === 'publish' ? '发布' : action === 'offline' ? '下线' : '删除';
     Modal.confirm({
       title: `批量${label} ${selectedIds.length} 个页面部件？`,
-      content: action === 'delete' ? '仍被引用的部件会在任务明细中标记失败。' : '操作将在任务中心异步执行。',
+      content: action === 'delete'
+        ? '仍被引用的部件会在任务明细中标记为跳过。'
+        : action === 'publish'
+          ? `操作将在任务中心异步执行，预计最多刷新 ${Object.values(selectedRecords)
+              .reduce((sum, widget) => sum + widget.impactCount, 0)} 个目标（重叠目标会自动合并）。`
+          : '操作将在任务中心异步执行。',
       okButtonProps: action === 'delete' ? { type: 'danger', theme: 'solid' } : undefined,
       onOk: async () => {
-        await batchMutation.mutateAsync({ ids: selectedIds, action });
+        const task = await batchMutation.mutateAsync({ ids: selectedIds, action });
+        taskStatusesRef.current.set(task.id, task.status);
+        await refreshTasks({ silent: true });
         setSelectedIds([]);
+        setSelectedRecords({});
         Toast.success('批量任务已提交');
       },
     });
@@ -153,6 +194,17 @@ export default function WidgetsPage() {
       ),
     },
     { title: '引用数', dataIndex: 'referenceCount', width: 90 },
+    {
+      title: '影响页面',
+      dataIndex: 'impactCount',
+      width: 120,
+      render: (value: number, record) => (
+        <span>
+          {value}
+          {record.highFanout ? <Tag size="small" color="red" style={{ marginLeft: 6 }}>高</Tag> : null}
+        </span>
+      ),
+    },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180 },
     {
       title: '状态',
@@ -178,14 +230,14 @@ export default function WidgetsPage() {
           label: '发布',
           hidden: !hasPermission('cms:widget:publish'),
           loading: publishMutation.isPending && publishMutation.variables === record.id,
-          onClick: () => runSingle('publish', record.id),
+          onClick: () => runSingle('publish', record),
         },
         {
           key: 'offline',
           label: '下线',
           hidden: record.status !== 'published' || !hasPermission('cms:widget:offline'),
           loading: offlineMutation.isPending && offlineMutation.variables === record.id,
-          onClick: () => runSingle('offline', record.id),
+          onClick: () => runSingle('offline', record),
         },
         {
           key: 'refs',
@@ -242,7 +294,7 @@ export default function WidgetsPage() {
       <SearchToolbar
         primary={(
           <>
-            <CmsSiteSelect value={siteId} onChange={(value) => { setSiteId(value); resetPage(); setSelectedIds([]); }} />
+            <CmsSiteSelect value={siteId} onChange={(value) => { setSiteId(value); resetPage(); setSelectedIds([]); setSelectedRecords({}); }} />
             {keywordInput}
             {statusFilter}
             {typeFilter}
@@ -275,7 +327,7 @@ export default function WidgetsPage() {
         )}
         mobilePrimary={(
           <>
-            <CmsSiteSelect value={siteId} onChange={(value) => { setSiteId(value); resetPage(); setSelectedIds([]); }} width={150} />
+            <CmsSiteSelect value={siteId} onChange={(value) => { setSiteId(value); resetPage(); setSelectedIds([]); setSelectedRecords({}); }} width={150} />
             {keywordInput}
             <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
           </>
@@ -283,9 +335,9 @@ export default function WidgetsPage() {
         mobileFilters={<>{statusFilter}{typeFilter}</>}
         mobileActions={(
           <>
-            {selectedIds.length > 0 ? <Button theme="borderless" onClick={() => submitBatch('publish')}>批量发布</Button> : null}
-            {selectedIds.length > 0 ? <Button theme="borderless" onClick={() => submitBatch('offline')}>批量下线</Button> : null}
-            {selectedIds.length > 0 ? <Button theme="borderless" type="danger" onClick={() => submitBatch('delete')}>批量删除</Button> : null}
+            {selectedIds.length > 0 && hasPermission('cms:widget:publish') ? <Button theme="borderless" onClick={() => submitBatch('publish')}>批量发布</Button> : null}
+            {selectedIds.length > 0 && hasPermission('cms:widget:offline') ? <Button theme="borderless" onClick={() => submitBatch('offline')}>批量下线</Button> : null}
+            {selectedIds.length > 0 && hasPermission('cms:widget:delete') ? <Button theme="borderless" type="danger" onClick={() => submitBatch('delete')}>批量删除</Button> : null}
           </>
         )}
         filterTitle="页面部件筛选"
@@ -300,20 +352,48 @@ export default function WidgetsPage() {
         loading={listQuery.isFetching}
         rowKey="id"
         empty={siteId ? '暂无页面部件' : '请先选择站点'}
-        scroll={{ x: 1250 }}
+        scroll={{ x: 1350 }}
         pagination={buildPagination(listQuery.data?.total ?? 0)}
         rowSelection={{
           selectedRowKeys: selectedIds,
-          onChange: (keys) => setSelectedIds((keys ?? []).map(Number)),
+          onChange: (keys) => {
+            const nextIds = (keys ?? []).map(Number);
+            const selected = new Set(nextIds);
+            setSelectedIds(nextIds);
+            setSelectedRecords((current) => {
+              const next = Object.fromEntries(
+                Object.entries(current).filter(([id]) => selected.has(Number(id))),
+              ) as Record<number, CmsWidget>;
+              for (const widget of listQuery.data?.list ?? []) {
+                if (selected.has(widget.id)) next[widget.id] = widget;
+              }
+              return next;
+            });
+          },
         }}
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
       />
 
-      {activeTasks.length > 0 ? (
+      {widgetTasks.length > 0 ? (
         <div style={{ marginTop: 16 }}>
-          <Typography.Title heading={6}>进行中的页面部件任务</Typography.Title>
-          {activeTasks.map((task) => <AsyncTaskProgress key={task.id} task={task} />)}
+          <Typography.Title heading={6}>最近页面部件任务</Typography.Title>
+          <div style={{ display: 'grid', gap: 10 }}>
+            {widgetTasks.map((task) => {
+              const result = task.result as { succeeded?: number; failed?: number; skipped?: number } | null;
+              return (
+                <div key={task.id} style={{ padding: 12, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)' }}>
+                  <Typography.Text strong>{task.title}</Typography.Text>
+                  <AsyncTaskProgress task={task} />
+                  {result && task.taskType === 'cms-widget-batch' ? (
+                    <Typography.Text type="tertiary" size="small">
+                      成功 {result.succeeded ?? 0} · 跳过 {result.skipped ?? 0} · 失败 {result.failed ?? 0}
+                    </Typography.Text>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
         </div>
       ) : null}
 

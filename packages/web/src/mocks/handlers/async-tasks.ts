@@ -532,7 +532,10 @@ function tickTask(task: AsyncTask) {
     return;
   }
   if (task.processedCount >= total) {
-    task.result = { processed: task.processedCount, failed, message: `批量处理完成，共 ${task.processedCount} 条${failed > 0 ? `，失败 ${failed} 条` : ''}` };
+    const configuredOutcome = task.payload.outcome;
+    task.result = configuredOutcome && typeof configuredOutcome === 'object' && !Array.isArray(configuredOutcome)
+      ? configuredOutcome as Record<string, unknown>
+      : { processed: task.processedCount, failed, message: `批量处理完成，共 ${task.processedCount} 条${failed > 0 ? `，失败 ${failed} 条` : ''}` };
     finalize(task, 'success');
     return;
   }

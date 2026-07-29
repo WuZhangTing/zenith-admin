@@ -5914,7 +5914,11 @@ export const createCmsWidgetSchema = cmsWidgetEditableSchema.extend({
   defaultRendererKey: z.enum(CMS_WIDGET_RENDERER_KEYS).default('list-sidebar'),
 });
 
-export const updateCmsWidgetSchema = cmsWidgetEditableSchema.partial();
+export const updateCmsWidgetSchema = cmsWidgetEditableSchema
+  .omit({ code: true })
+  .partial()
+  .extend({ expectedRevision: z.number().int().positive() })
+  .strict();
 
 export const batchCmsWidgetSchema = z.object({
   ids: z.array(z.number().int().positive()).min(1).max(100),

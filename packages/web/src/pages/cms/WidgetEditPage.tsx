@@ -5,6 +5,7 @@ import {
   Card,
   Col,
   Form,
+  Modal,
   Row,
   Select,
   Space,
@@ -21,9 +22,12 @@ import {
   Eye,
   GripVertical,
   ImageUp,
+  Monitor,
   Plus,
   Save,
   Send,
+  Smartphone,
+  Tablet,
   Trash2,
 } from 'lucide-react';
 import dayjs from 'dayjs';
@@ -80,6 +84,8 @@ export default function WidgetEditPage() {
   const [mediaPickerVisible, setMediaPickerVisible] = useState(false);
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewId, setPreviewId] = useState<number | undefined>();
+  const [previewViewport, setPreviewViewport] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+  const [draftRevision, setDraftRevision] = useState<number | undefined>();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const initializedRef = useRef<number | 'new' | null>(null);
   const baseFormApi = useRef<FormApi | null>(null);
@@ -108,9 +114,11 @@ export default function WidgetEditPage() {
       setSiteId(widget.siteId);
       setItems(widget.draftData.items);
       setSelectedRenderer(widget.defaultRendererKey);
+      setDraftRevision(widget.draftRevision);
     } else {
       setItems([]);
       setSelectedRenderer('list-sidebar');
+      setDraftRevision(undefined);
     }
   }, [activeId, widget]);
 
@@ -188,17 +196,20 @@ export default function WidgetEditPage() {
     }
     const values = await baseFormApi.current?.validate();
     if (!values) throw new Error('validation');
+    if (activeId && draftRevision === undefined) throw new Error('revision-required');
     const saved = await saveMutation.mutateAsync({
       id: activeId,
       values: {
-        ...(activeId ? {} : { siteId, type: 'manual-list' }),
+        ...(activeId
+          ? { expectedRevision: draftRevision }
+          : { siteId, type: 'manual-list', code: values.code }),
         name: values.name,
-        code: values.code,
         defaultRendererKey: selectedRenderer,
         remark: values.remark?.trim() || null,
         draftData: { items },
       },
     });
+    setDraftRevision(saved.draftRevision);
     if (!activeId) {
       setActiveId(saved.id);
       initializedRef.current = saved.id;
@@ -210,8 +221,16 @@ export default function WidgetEditPage() {
 
   async function handlePublish() {
     const saved = await saveWidget();
-    await publishMutation.mutateAsync(saved.id);
-    Toast.success('发布成功，引用刷新任务已提交');
+    Modal.confirm({
+      title: `发布页面部件「${saved.name}」？`,
+      content: saved.impactCount > 0
+        ? `发布后将刷新 ${saved.impactCount} 个页面或首页${saved.highFanout ? '，该部件影响范围较大，请确认变更' : ''}。`
+        : '当前没有页面或主题插槽引用，发布不会触发页面刷新。',
+      onOk: async () => {
+        await publishMutation.mutateAsync(saved.id);
+        Toast.success('发布成功，引用刷新任务已提交');
+      },
+    });
   }
 
   async function handlePreview() {
@@ -461,19 +480,51 @@ export default function WidgetEditPage() {
       />
 
       <AppModal
-        title={`SSR 预览 · ${CMS_WIDGET_RENDERER_LABELS[selectedRenderer]}`}
+        title={`真实主题预览 · ${CMS_WIDGET_RENDERER_LABELS[selectedRenderer]}`}
         visible={previewVisible}
         onCancel={() => setPreviewVisible(false)}
         footer={null}
-        width={900}
+        width={1200}
         closeOnEsc
       >
         <Spin spinning={previewQuery.isFetching}>
-          <iframe
-            title="页面部件 SSR 预览"
-            srcDoc={`<!doctype html><html><head><style>:root{--text:#213547;--text-2:#67676c;--border:#e2e2e3;--bg:#fff;--bg-2:#f6f6f7}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif;padding:16px}</style></head><body>${previewQuery.data?.html ?? ''}</body></html>`}
-            style={{ width: '100%', height: 460, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)' }}
-          />
+          <Space style={{ marginBottom: 12 }}>
+            <Button
+              type={previewViewport === 'desktop' ? 'primary' : 'tertiary'}
+              icon={<Monitor size={14} />}
+              onClick={() => setPreviewViewport('desktop')}
+            >
+              桌面
+            </Button>
+            <Button
+              type={previewViewport === 'tablet' ? 'primary' : 'tertiary'}
+              icon={<Tablet size={14} />}
+              onClick={() => setPreviewViewport('tablet')}
+            >
+              平板
+            </Button>
+            <Button
+              type={previewViewport === 'mobile' ? 'primary' : 'tertiary'}
+              icon={<Smartphone size={14} />}
+              onClick={() => setPreviewViewport('mobile')}
+            >
+              手机
+            </Button>
+          </Space>
+          <div style={{ display: 'flex', justifyContent: 'center', overflow: 'auto', padding: 12, background: 'var(--semi-color-fill-0)' }}>
+            <iframe
+              title="页面部件真实主题预览"
+              srcDoc={previewQuery.data?.documentHtml ?? ''}
+              sandbox=""
+              style={{
+                width: previewViewport === 'desktop' ? '100%' : previewViewport === 'tablet' ? 768 : 390,
+                height: 620,
+                border: '1px solid var(--semi-color-border)',
+                borderRadius: 'var(--semi-border-radius-medium)',
+                background: '#fff',
+              }}
+            />
+          </div>
         </Spin>
       </AppModal>
     </div>

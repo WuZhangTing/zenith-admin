@@ -23,6 +23,7 @@ import {
 import { CMS_CONTENT_STATUS_LABELS, CMS_CONTENT_TYPE_LABELS } from '@zenith/shared';
 import type { CmsChannel, CmsContent, CmsContentStatus, CmsContentType } from '@zenith/shared';
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
+import { CmsWidgetSourceRefsSheet, type CmsWidgetSourceTarget } from './CmsWidgetSourceRefsSheet';
 
 const STATUS_COLORS: Record<CmsContentStatus, 'grey' | 'orange' | 'green' | 'red' | 'violet'> = {
   draft: 'grey',
@@ -65,6 +66,7 @@ export default function ContentsPage() {
   const [draftKeyword, setDraftKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [widgetSourceTarget, setWidgetSourceTarget] = useState<CmsWidgetSourceTarget | null>(null);
   // 窄屏单栏模式下的栏目树显隐（MasterDetailLayout 响应式）
   const [showChannelTree, setShowChannelTree] = useState(false);
   const [isLayoutNarrow, setIsLayoutNarrow] = useState(false);
@@ -348,6 +350,11 @@ export default function ContentsPage() {
               label: '预览',
               onClick: () => previewContent(record),
             }] : []),
+            ...(hasPermission('cms:widget:list') ? [{
+              key: 'widget-refs',
+              label: '页面部件引用',
+              onClick: () => setWidgetSourceTarget({ type: 'content', id: record.id, name: record.title }),
+            }] : []),
             ...(hasPermission('cms:content:lock') ? [{ key: 'lock', label: '锁定', onClick: () => handlePersistentLock(record) }] : []),
           ]
         : [
@@ -360,6 +367,11 @@ export default function ContentsPage() {
               key: 'preview',
               label: '预览',
               onClick: () => previewContent(record),
+            }] : []),
+            ...(hasPermission('cms:widget:list') ? [{
+              key: 'widget-refs',
+              label: '页面部件引用',
+              onClick: () => setWidgetSourceTarget({ type: 'content', id: record.id, name: record.title }),
             }] : []),
             ...(hasPermission('cms:content:update') && (record.status === 'draft' || record.status === 'rejected') ? [{
               key: 'submit',
@@ -796,6 +808,10 @@ export default function ContentsPage() {
         onResponsiveChange={setIsLayoutNarrow}
         persistKey="cms-contents"
         style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}
+      />
+      <CmsWidgetSourceRefsSheet
+        target={widgetSourceTarget}
+        onClose={() => setWidgetSourceTarget(null)}
       />
     </div>
   );

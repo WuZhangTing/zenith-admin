@@ -3,6 +3,7 @@ import {
 } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import {
+  CMS_WIDGET_HIGH_FANOUT_THRESHOLD,
   CMS_WIDGET_RENDERER_KEYS,
   type CmsPageBlock,
   type CmsResolvedWidget,
@@ -52,7 +53,12 @@ import { channelUrl, contentUrl } from './cms-urls';
 const WIDGET_SCHEMA_VERSION = 1;
 const rendererKeys = new Set<string>(CMS_WIDGET_RENDERER_KEYS);
 
-function triggerWidgetRefresh(input: { widgetIds?: number[]; homeSiteIds?: number[] }): void {
+function triggerWidgetRefresh(input: {
+  widgetIds?: number[];
+  homeSiteIds?: number[];
+  eventKey?: string;
+  debounceBySite?: boolean;
+}): void {
   void import('./cms-widget-tasks').then(({ submitCmsWidgetRefreshSideEffect }) => {
     submitCmsWidgetRefreshSideEffect(input);
   }).catch((error) => logger.error('[CMS] 页面部件刷新任务提交失败', error));
@@ -74,7 +80,15 @@ function rendererKey(value: unknown, fallback: CmsWidgetRendererKey = 'list-side
     : fallback;
 }
 
-export function mapCmsWidget(row: CmsWidgetRow, referenceCount = 0) {
+interface CmsWidgetReferenceStats {
+  referenceCount: number;
+  impactCount: number;
+}
+
+export function mapCmsWidget(
+  row: CmsWidgetRow,
+  stats: CmsWidgetReferenceStats = { referenceCount: 0, impactCount: 0 },
+) {
   return {
     id: row.id,
     siteId: row.siteId,
@@ -90,7 +104,9 @@ export function mapCmsWidget(row: CmsWidgetRow, referenceCount = 0) {
     status: row.status,
     defaultRendererKey: rendererKey(row.defaultRendererKey),
     remark: row.remark ?? null,
-    referenceCount,
+    referenceCount: stats.referenceCount,
+    impactCount: stats.impactCount,
+    highFanout: stats.impactCount >= CMS_WIDGET_HIGH_FANOUT_THRESHOLD,
     hasUnpublishedChanges: row.draftRevision !== row.publishedRevision,
     createdBy: row.createdBy ?? null,
     updatedBy: row.updatedBy ?? null,
@@ -99,15 +115,19 @@ export function mapCmsWidget(row: CmsWidgetRow, referenceCount = 0) {
   };
 }
 
-async function referenceCounts(widgetIds: number[]): Promise<Map<number, number>> {
+async function referenceStats(widgetIds: number[]): Promise<Map<number, CmsWidgetReferenceStats>> {
   if (widgetIds.length === 0) return new Map();
   const rows = await db.select({
     widgetId: cmsWidgetRefs.widgetId,
-    count: sql<number>`count(*)::int`,
+    referenceCount: sql<number>`count(*)::int`,
+    impactCount: sql<number>`count(distinct (${cmsWidgetRefs.ownerType}::text || ':' || ${cmsWidgetRefs.ownerId}::text))::int`,
   }).from(cmsWidgetRefs)
     .where(inArray(cmsWidgetRefs.widgetId, widgetIds))
     .groupBy(cmsWidgetRefs.widgetId);
-  return new Map(rows.map((row) => [row.widgetId, row.count]));
+  return new Map(rows.map((row) => [row.widgetId, {
+    referenceCount: row.referenceCount,
+    impactCount: row.impactCount,
+  }]));
 }
 
 export async function listCmsWidgets(params: {
@@ -136,8 +156,8 @@ export async function listCmsWidgets(params: {
       params.pageSize,
     ),
   ]);
-  const counts = await referenceCounts(rows.map((row) => row.id));
-  const list = rows.map((row) => mapCmsWidget(row, counts.get(row.id) ?? 0));
+  const stats = await referenceStats(rows.map((row) => row.id));
+  const list = rows.map((row) => mapCmsWidget(row, stats.get(row.id)));
   return resolveCmsResourcePayload({ list, total, page: params.page, pageSize: params.pageSize });
 }
 
@@ -148,8 +168,8 @@ export async function listPublishedCmsWidgets(siteId: number) {
     eq(cmsWidgets.siteId, siteId),
     eq(cmsWidgets.status, 'published'),
   )).orderBy(cmsWidgets.name, cmsWidgets.id);
-  const counts = await referenceCounts(rows.map((row) => row.id));
-  return resolveCmsResourcePayload(rows.map((row) => mapCmsWidget(row, counts.get(row.id) ?? 0)));
+  const stats = await referenceStats(rows.map((row) => row.id));
+  return resolveCmsResourcePayload(rows.map((row) => mapCmsWidget(row, stats.get(row.id))));
 }
 
 export async function listCmsWidgetRenderersForSite(siteId: number, type: CmsWidgetRow['type']) {
@@ -167,8 +187,8 @@ export async function ensureCmsWidgetExists(id: number, executor: DbExecutor = d
 export async function getCmsWidget(id: number) {
   const row = await ensureCmsWidgetExists(id);
   await assertSiteAccess(row.siteId);
-  const counts = await referenceCounts([id]);
-  return resolveCmsResourcePayload(mapCmsWidget(row, counts.get(id) ?? 0));
+  const stats = await referenceStats([id]);
+  return resolveCmsResourcePayload(mapCmsWidget(row, stats.get(id)));
 }
 
 async function assertWidgetSources(
@@ -279,18 +299,25 @@ export async function updateCmsWidget(id: number, input: UpdateCmsWidgetInput) {
       await lockCmsSiteForMutation(tx, initial.siteId);
       const [locked] = await tx.select().from(cmsWidgets).where(eq(cmsWidgets.id, id)).for('update').limit(1);
       if (!locked) throw new HTTPException(404, { message: '页面部件不存在' });
+      if (locked.draftRevision !== input.expectedRevision) {
+        throw new HTTPException(409, { message: '页面部件草稿已被其他人更新，请刷新后再编辑' });
+      }
       const canonicalData = draftData
         ? await canonicalizeCmsResourceContent(tx, locked.siteId, draftData)
         : undefined;
-      const revisionChanged = canonicalData !== undefined || (input.name !== undefined && input.name !== locked.name);
-      const [updated] = await tx.update(cmsWidgets).set({
+      const revisionChanged = canonicalData !== undefined
+        || (input.name !== undefined && input.name !== locked.name)
+        || (input.defaultRendererKey !== undefined && input.defaultRendererKey !== locked.defaultRendererKey)
+        || (input.remark !== undefined && (input.remark ?? null) !== (locked.remark ?? null));
+      const changes = {
         ...(input.name !== undefined ? { name: input.name } : {}),
-        ...(input.code !== undefined ? { code: input.code } : {}),
         ...(canonicalData !== undefined ? { draftData: canonicalData } : {}),
         ...(input.defaultRendererKey !== undefined ? { defaultRendererKey: input.defaultRendererKey } : {}),
         ...(input.remark !== undefined ? { remark: input.remark ?? null } : {}),
         ...(revisionChanged ? { draftRevision: sql`${cmsWidgets.draftRevision} + 1` } : {}),
-      }).where(eq(cmsWidgets.id, id)).returning();
+      };
+      if (Object.keys(changes).length === 0) return;
+      const [updated] = await tx.update(cmsWidgets).set(changes).where(eq(cmsWidgets.id, id)).returning();
       await syncCmsResourceRefs(tx, 'widget', updated.id, updated.siteId, updated);
     });
     return getCmsWidget(id);
@@ -305,7 +332,7 @@ export async function publishCmsWidget(
 ) {
   const initial = await ensureCmsWidgetExists(id);
   if (!options?.skipAccessCheck) await assertSiteAccess(initial.siteId);
-  await db.transaction(async (tx) => {
+  const { updated, eventToken } = await db.transaction(async (tx) => {
     await lockCmsSiteForMutation(tx, initial.siteId);
     const [locked] = await tx.select().from(cmsWidgets).where(eq(cmsWidgets.id, id)).for('update').limit(1);
     if (!locked) throw new HTTPException(404, { message: '页面部件不存在' });
@@ -319,21 +346,28 @@ export async function publishCmsWidget(
     }).where(eq(cmsWidgets.id, id)).returning();
     await syncPublishedSourceRefs(tx, updated);
     await syncCmsResourceRefs(tx, 'widget', updated.id, updated.siteId, updated);
+    return { updated, eventToken: locked.updatedAt.getTime() };
   });
-  if (!options?.suppressRefresh) triggerWidgetRefresh({ widgetIds: [id] });
+  if (!options?.suppressRefresh) triggerWidgetRefresh({
+    widgetIds: [id],
+    eventKey: `publish:${id}:${updated.draftRevision}:${eventToken}`,
+  });
   return options?.skipAccessCheck ? mapCmsWidget(await ensureCmsWidgetExists(id)) : getCmsWidget(id);
 }
 
 export async function offlineCmsWidget(
   id: number,
-  options?: { skipAccessCheck?: boolean; suppressRefresh?: boolean },
+  options?: { skipAccessCheck?: boolean; suppressRefresh?: boolean; allowAlreadyOffline?: boolean },
 ) {
   const initial = await ensureCmsWidgetExists(id);
   if (!options?.skipAccessCheck) await assertSiteAccess(initial.siteId);
+  if (initial.status === 'offline' && options?.allowAlreadyOffline) {
+    return options.skipAccessCheck ? mapCmsWidget(initial) : getCmsWidget(id);
+  }
   if (initial.status !== 'published') {
     throw new HTTPException(400, { message: `当前状态（${initial.status}）不允许下线` });
   }
-  await db.transaction(async (tx) => {
+  const { updated, eventToken } = await db.transaction(async (tx) => {
     await lockCmsSiteForMutation(tx, initial.siteId);
     const [locked] = await tx.select().from(cmsWidgets).where(eq(cmsWidgets.id, id)).for('update').limit(1);
     if (!locked || locked.status !== 'published') {
@@ -344,8 +378,12 @@ export async function offlineCmsWidget(
       .returning();
     if (!updated) throw new HTTPException(409, { message: '页面部件状态已变化，请刷新后重试' });
     await syncPublishedSourceRefs(tx, updated);
+    return { updated, eventToken: locked.updatedAt.getTime() };
   });
-  if (!options?.suppressRefresh) triggerWidgetRefresh({ widgetIds: [id] });
+  if (!options?.suppressRefresh) triggerWidgetRefresh({
+    widgetIds: [id],
+    eventKey: `offline:${id}:${updated.draftRevision}:${eventToken}`,
+  });
   return options?.skipAccessCheck ? mapCmsWidget(await ensureCmsWidgetExists(id)) : getCmsWidget(id);
 }
 
@@ -517,7 +555,11 @@ export async function saveCmsWidgetSlot(
       });
     }
   });
-  triggerWidgetRefresh({ widgetIds: input.widgetId ? [input.widgetId] : [], homeSiteIds: [input.siteId] });
+  triggerWidgetRefresh({
+    widgetIds: input.widgetId ? [input.widgetId] : [],
+    homeSiteIds: [input.siteId],
+    debounceBySite: true,
+  });
   return listCmsWidgetSlots(input.siteId);
 }
 
@@ -542,6 +584,71 @@ export async function assertCmsWidgetSourcesMutable(
   const names = [...new Set(refs.map((ref) => `#${ref.widgetId}「${ref.widgetName}」`))].slice(0, 5);
   throw new HTTPException(409, {
     message: `有已发布页面部件 ${names.join('、')} 引用了该${sourceType === 'content' ? '内容' : '栏目'}，请先下线或调整页面部件`,
+  });
+}
+
+export async function listCmsWidgetSourceReferences(
+  sourceType: Exclude<CmsWidgetSourceType, 'manual'>,
+  sourceId: number,
+) {
+  const sourceRows = sourceType === 'content'
+    ? await db.select({
+        siteId: cmsContents.siteId,
+        channelId: cmsContents.channelId,
+      }).from(cmsContents)
+      .where(eq(cmsContents.id, sourceId)).limit(1)
+    : await db.select({
+        siteId: cmsChannels.siteId,
+        channelId: cmsChannels.id,
+      }).from(cmsChannels)
+      .where(eq(cmsChannels.id, sourceId)).limit(1);
+  const source = sourceRows[0];
+  if (!source) throw new HTTPException(404, { message: sourceType === 'content' ? '内容不存在' : '栏目不存在' });
+  const { assertChannelAccess } = await import('./cms-channels.service');
+  await assertChannelAccess(source.channelId);
+  const directRows = await db.select({
+    widgetId: cmsWidgets.id,
+    widgetName: cmsWidgets.name,
+    widgetCode: cmsWidgets.code,
+    itemId: cmsWidgetSourceRefs.itemId,
+    sourceType: cmsWidgetSourceRefs.sourceType,
+    sourceId: cmsWidgetSourceRefs.sourceId,
+  }).from(cmsWidgetSourceRefs)
+    .innerJoin(cmsWidgets, eq(cmsWidgetSourceRefs.widgetId, cmsWidgets.id))
+    .where(and(
+      eq(cmsWidgetSourceRefs.sourceType, sourceType),
+      eq(cmsWidgetSourceRefs.sourceId, sourceId),
+      eq(cmsWidgets.status, 'published'),
+    ))
+    .orderBy(cmsWidgets.name, cmsWidgetSourceRefs.itemId);
+  const contentRows = sourceType === 'channel'
+    ? await db.select({
+        widgetId: cmsWidgets.id,
+        widgetName: cmsWidgets.name,
+        widgetCode: cmsWidgets.code,
+        itemId: cmsWidgetSourceRefs.itemId,
+        sourceType: cmsWidgetSourceRefs.sourceType,
+        sourceId: cmsWidgetSourceRefs.sourceId,
+      }).from(cmsWidgetSourceRefs)
+        .innerJoin(cmsWidgets, eq(cmsWidgetSourceRefs.widgetId, cmsWidgets.id))
+        .innerJoin(cmsContents, eq(cmsWidgetSourceRefs.sourceId, cmsContents.id))
+        .where(and(
+          eq(cmsWidgetSourceRefs.sourceType, 'content'),
+          eq(cmsContents.channelId, sourceId),
+          eq(cmsWidgets.status, 'published'),
+        ))
+        .orderBy(cmsWidgets.name, cmsWidgetSourceRefs.itemId)
+    : [];
+  const rows = [...directRows, ...contentRows];
+  const stats = await referenceStats(rows.map((row) => row.widgetId));
+  return rows.map((row) => {
+    const widgetStats = stats.get(row.widgetId) ?? { referenceCount: 0, impactCount: 0 };
+    return {
+      ...row,
+      sourceType: row.sourceType as Exclude<CmsWidgetSourceType, 'manual'>,
+      ...widgetStats,
+      highFanout: widgetStats.impactCount >= CMS_WIDGET_HIGH_FANOUT_THRESHOLD,
+    };
   });
 }
 
@@ -583,24 +690,6 @@ export async function findPublishedWidgetIdsBySource(
       eq(cmsWidgets.status, 'published'),
     ));
   return [...new Set(rows.map((row) => row.widgetId))];
-}
-
-export async function findPublishedWidgetIdsAffectedByChannels(channelIds: number[]): Promise<number[]> {
-  if (channelIds.length === 0) return [];
-  const uniqueIds = [...new Set(channelIds)];
-  const [direct, throughContents] = await Promise.all([
-    findPublishedWidgetIdsBySource('channel', uniqueIds),
-    db.select({ widgetId: cmsWidgetSourceRefs.widgetId })
-      .from(cmsWidgetSourceRefs)
-      .innerJoin(cmsWidgets, eq(cmsWidgetSourceRefs.widgetId, cmsWidgets.id))
-      .innerJoin(cmsContents, eq(cmsWidgetSourceRefs.sourceId, cmsContents.id))
-      .where(and(
-        eq(cmsWidgetSourceRefs.sourceType, 'content'),
-        inArray(cmsContents.channelId, uniqueIds),
-        eq(cmsWidgets.status, 'published'),
-      )),
-  ]);
-  return [...new Set([...direct, ...throughContents.map((row) => row.widgetId)])];
 }
 
 interface WidgetPlacement {
@@ -764,9 +853,12 @@ export async function getCmsWidgetPreview(id: number, requestedRenderer?: CmsWid
   if (!widget) throw new HTTPException(404, { message: '页面部件预览数据不存在' });
   const renderer = resolveThemeWidgetRenderer(site.theme, widget.type, widget.rendererKey);
   if (!renderer) throw new HTTPException(400, { message: '当前主题不支持所选展示模板' });
+  const { renderCmsWidgetThemePreview } = await import('./cms-render.service');
   return {
+    siteId: row.siteId,
     widget,
     html: renderCmsWidgetHtml(widget, renderer),
+    documentHtml: await renderCmsWidgetThemePreview(site, widget),
     renderers: listThemeWidgetRenderers(site.theme, widget.type),
   };
 }

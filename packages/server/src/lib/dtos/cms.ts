@@ -1200,8 +1200,13 @@ export const CmsSiteImportResultDTO = z
       adSlots: z.number().int(),
       ads: z.number().int(),
       forms: z.number().int(),
+      resourceFolders: z.number().int(),
+      resources: z.number().int(),
+      widgets: z.number().int(),
       pages: z.number().int(),
     }),
+    skipped: z.object({ widgetSlots: z.number().int() }),
+    warnings: z.array(z.string()),
   })
   .openapi('CmsSiteImportResult');
 
@@ -1412,6 +1417,8 @@ export const CmsWidgetDTO = z
     defaultRendererKey: z.enum(CMS_WIDGET_RENDERER_KEYS),
     remark: z.string().nullable(),
     referenceCount: z.number().int(),
+    impactCount: z.number().int(),
+    highFanout: z.boolean(),
     hasUnpublishedChanges: z.boolean(),
     ...auditFields,
     createdAt: z.string(),
@@ -1434,6 +1441,20 @@ export const CmsWidgetRefDTO = z
     updatedAt: z.string(),
   })
   .openapi('CmsWidgetRef');
+
+export const CmsWidgetSourceReferenceDTO = z
+  .object({
+    widgetId: z.number().int(),
+    widgetName: z.string(),
+    widgetCode: z.string(),
+    itemId: z.string(),
+    sourceType: z.enum(['content', 'channel']),
+    sourceId: z.number().int(),
+    referenceCount: z.number().int(),
+    impactCount: z.number().int(),
+    highFanout: z.boolean(),
+  })
+  .openapi('CmsWidgetSourceReference');
 
 export const CmsResolvedWidgetItemDTO = z
   .object({
@@ -1467,8 +1488,10 @@ export const CmsWidgetRendererOptionDTO = z
 
 export const CmsWidgetPreviewDTO = z
   .object({
+    siteId: z.number().int(),
     widget: CmsResolvedWidgetDTO,
     html: z.string(),
+    documentHtml: z.string(),
     renderers: z.array(CmsWidgetRendererOptionDTO),
   })
   .openapi('CmsWidgetPreview');

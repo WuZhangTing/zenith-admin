@@ -1600,6 +1600,7 @@ export const CMS_WIDGET_TYPE_LABELS: Record<(typeof CMS_WIDGET_TYPES)[number], s
 };
 
 export const CMS_WIDGET_STATUSES = ['draft', 'published', 'offline'] as const;
+export const CMS_WIDGET_HIGH_FANOUT_THRESHOLD = 20;
 export const CMS_WIDGET_STATUS_LABELS: Record<(typeof CMS_WIDGET_STATUSES)[number], string> = {
   draft: '草稿',
   published: '已发布',

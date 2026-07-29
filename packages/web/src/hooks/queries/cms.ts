@@ -14,6 +14,7 @@ import type {
   CmsContentLockState, CmsResourceFolder, CmsHotwordGroup, CmsMemberSubscription, CmsSubscriptionAggregate,
   CmsPageBlockAcl,
   CmsLinkTarget,
+  CmsSiteImportResult,
 } from '@zenith/shared';
 import { CMS_TEMPLATE_RESOLUTION_SOURCE_LABELS, isCmsEntityLink } from '@zenith/shared';
 import { request } from '@/utils/request';
@@ -1434,13 +1435,6 @@ export function useSetCmsChannelUsers() {
 }
 
 // ─── 站点导入（P5 整站备份迁移；导出走 request.download 直接下载）─────────────
-export interface CmsSiteImportResult {
-  siteId: number;
-  siteName: string;
-  siteCode: string;
-  counts: Record<string, number>;
-}
-
 export function useImportCmsSite() {
   const qc = useQueryClient();
   return useMutation({

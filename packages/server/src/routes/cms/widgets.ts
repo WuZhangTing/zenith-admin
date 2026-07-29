@@ -28,6 +28,7 @@ import {
   CmsWidgetRefDTO,
   CmsWidgetRendererOptionDTO,
   CmsWidgetSlotDTO,
+  CmsWidgetSourceReferenceDTO,
 } from '../../lib/openapi-dtos';
 import {
   createCmsWidget,
@@ -37,6 +38,7 @@ import {
   listCmsWidgetRefs,
   listCmsWidgetRenderersForSite,
   listCmsWidgetSlots,
+  listCmsWidgetSourceReferences,
   listCmsWidgets,
   listPublishedCmsWidgets,
   offlineCmsWidget,
@@ -127,7 +129,7 @@ const saveSlotRoute = defineOpenAPIRoute({
     summary: '绑定或清空主题部件插槽',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({
-      permission: 'cms:widget:update',
+      permission: 'cms:widget:bind',
       audit: { description: '更新 CMS 主题页面部件插槽', module: 'CMS内容管理' },
     })] as const,
     request: {
@@ -165,6 +167,28 @@ const batchRoute = defineOpenAPIRoute({
     await submitCmsWidgetBatchTask(c.req.valid('json')),
     '批量任务已提交',
   ), 200),
+});
+
+const sourceRefsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get',
+    path: '/source-refs',
+    tags: ['CMS-页面部件'],
+    summary: '查看内容或栏目被哪些已发布页面部件引用',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'cms:widget:list' })] as const,
+    request: {
+      query: z.object({
+        sourceType: z.enum(['content', 'channel']),
+        sourceId: z.coerce.number().int().positive(),
+      }),
+    },
+    responses: { ...commonErrorResponses, ...ok(z.array(CmsWidgetSourceReferenceDTO), '来源引用') },
+  }),
+  handler: async (c) => {
+    const { sourceType, sourceId } = c.req.valid('query');
+    return c.json(okBody(await listCmsWidgetSourceReferences(sourceType, sourceId)), 200);
+  },
 });
 
 const detailRoute = defineOpenAPIRoute({
@@ -327,6 +351,7 @@ router.openapiRoutes([
   slotsRoute,
   saveSlotRoute,
   batchRoute,
+  sourceRefsRoute,
   refsRoute,
   previewRoute,
   publishRoute,

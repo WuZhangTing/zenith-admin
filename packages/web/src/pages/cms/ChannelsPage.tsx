@@ -21,6 +21,7 @@ import { unwrap } from '@/lib/query';
 import { CMS_CHANNEL_DETAIL_PATH_RULE_LABELS, CMS_CHANNEL_DETAIL_PATH_RULES, CMS_CHANNEL_STATIC_MODE_LABELS, CMS_CHANNEL_STATIC_MODES, CMS_CHANNEL_TYPE_LABELS } from '@zenith/shared';
 import type { CmsChannel, CmsContent, PaginatedResponse } from '@zenith/shared';
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
+import { CmsWidgetSourceRefsSheet, type CmsWidgetSourceTarget } from './CmsWidgetSourceRefsSheet';
 
 function toTreeSelectData(nodes: CmsChannel[], excludeId?: number): TreeNodeData[] {
   return nodes
@@ -62,6 +63,7 @@ export default function ChannelsPage() {
   const batchCreateMutation = useBatchCreateCmsChannels();
   const [mergeModalVisible, setMergeModalVisible] = useState(false);
   const [batchModalVisible, setBatchModalVisible] = useState(false);
+  const [widgetSourceTarget, setWidgetSourceTarget] = useState<CmsWidgetSourceTarget | null>(null);
 
   const flatChannels = useMemo(() => flattenChannels(tree), [tree]);
   // 编辑对象由 selectedId 从最新树数据派生，保存后 refetch 即可自动刷新，避免持有过期快照
@@ -266,6 +268,13 @@ export default function ChannelsPage() {
       >
         访问前台
       </Dropdown.Item>
+      {hasPermission('cms:widget:list') ? (
+        <Dropdown.Item
+          onClick={() => setWidgetSourceTarget({ type: 'channel', id: record.id, name: record.name })}
+        >
+          页面部件引用
+        </Dropdown.Item>
+      ) : null}
       {hasPermission('cms:channel:create') ? (
         <Dropdown.Item onClick={() => openCreate(record.id)}>添加子栏目</Dropdown.Item>
       ) : null}
@@ -667,6 +676,10 @@ export default function ChannelsPage() {
           optionList={(allUsers ?? []).map((u) => ({ value: u.id, label: `${u.nickname}（${u.username}）` }))}
         />
       </AppModal>
+      <CmsWidgetSourceRefsSheet
+        target={widgetSourceTarget}
+        onClose={() => setWidgetSourceTarget(null)}
+      />
     </div>
   );
 }

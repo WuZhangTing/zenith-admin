@@ -1,8 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { cmsWidgetDataSchema, type CmsResolvedWidget } from '@zenith/shared';
+import { cmsWidgetDataSchema, updateCmsWidgetSchema, type CmsResolvedWidget } from '@zenith/shared';
+import { renderBlocksHtml } from '../../cms/themes/blocks';
 import { getThemeWidgetSlots, listThemeWidgetRenderers } from '../../cms/themes/registry';
 import { renderCmsWidgetHtml } from '../../cms/themes/widgets';
+import { stripCmsPreviewScripts } from './cms-preview';
 
 async function source(name: string): Promise<string> {
   return readFile(new URL(`./${name}`, import.meta.url), 'utf8');
@@ -71,13 +73,49 @@ describe('CMS page widgets', () => {
     }
   });
 
+  it('requires optimistic revision and rejects immutable code in updates', () => {
+    expect(updateCmsWidgetSchema.safeParse({ name: '新名称' }).success).toBe(false);
+    expect(updateCmsWidgetSchema.safeParse({
+      expectedRevision: 2,
+      name: '新名称',
+      code: 'must-not-change',
+    }).success).toBe(false);
+  });
+
+  it('injects widget styles only once for multiple blocks on the same page', () => {
+    const widget: CmsResolvedWidget = {
+      id: 1,
+      name: '推荐',
+      type: 'manual-list',
+      rendererKey: 'list-sidebar',
+      items: [],
+    };
+    const html = renderBlocksHtml({
+      blocks: [
+        { id: 'one', type: 'widget-ref', props: { widgetId: 1 } },
+        { id: 'two', type: 'widget-ref', props: { widgetId: 1 } },
+      ],
+      contentListData: new Map(),
+      widgetData: new Map([['one', widget], ['two', widget]]),
+      themeCode: 'default',
+    });
+
+    expect(html.match(/<style>/g)).toHaveLength(1);
+  });
+
+  it('removes executable scripts from full theme previews', () => {
+    expect(stripCmsPreviewScripts('<html><script>sendBeacon()</script><main>preview</main></html>'))
+      .toBe('<html><main>preview</main></html>');
+  });
+
   it('keeps page refs, source guards, transfer and rendering wired end to end', async () => {
-    const [pages, contents, channels, transfer, render] = await Promise.all([
+    const [pages, contents, channels, transfer, render, tasks] = await Promise.all([
       source('cms-pages.service.ts'),
       source('cms-contents.service.ts'),
       source('cms-channels.service.ts'),
       source('cms-site-transfer.service.ts'),
       source('cms-render.service.ts'),
+      source('cms-widget-tasks.ts'),
     ]);
     expect(pages).toContain('syncCmsPageWidgetRefs');
     expect(pages).toContain('deleteCmsPageWidgetRefs');
@@ -89,7 +127,11 @@ describe('CMS page widgets', () => {
     expect(channels).toContain('submitCmsWidgetChannelRefreshSideEffect([id])');
     expect(transfer).toContain('widgetIdMap');
     expect(transfer).toContain('remapImportedWidgetBlocks');
+    expect(transfer).toContain('skippedWidgetSlots');
     expect(render).toContain('resolveCmsWidgetPlacements');
     expect(render).toContain("resolveCmsWidgetSlotForRender(site.id, 'home.sidebar'");
+    expect(render).toContain('renderCmsWidgetThemePreview');
+    expect(tasks).toContain('debounceBySite: true');
+    expect(tasks).toContain("status: isBusinessBlock ? 'skipped' : 'failed'");
   });
 });

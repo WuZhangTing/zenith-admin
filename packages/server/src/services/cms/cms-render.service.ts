@@ -32,8 +32,9 @@ import {
   resolveCmsWidgetPlacements,
   resolveCmsWidgetSlotForRender,
 } from './cms-widgets.service';
-import type { CmsChannel, CmsFormField, CmsSiteTemplateDefaults } from '@zenith/shared';
+import type { CmsChannel, CmsFormField, CmsResolvedWidget, CmsSiteTemplateDefaults } from '@zenith/shared';
 import { CMS_CONTENT_STATUS_LABELS } from '@zenith/shared';
+import { stripCmsPreviewScripts } from './cms-preview';
 
 // ─── URL 规则（站点内相对路径，静态文件名与之一一对应）──────────────────────────
 export { channelUrl, tagUrl, contentUrl, customPageUrl, customPagePath } from './cms-urls';
@@ -427,17 +428,32 @@ async function listBlockContents(siteId: number, opts: { channelId?: number; cou
   return resolveCmsContentRows(rows);
 }
 
-export async function renderHomePage(site: CmsSiteRow, baseUrl: string, viewer?: { member?: boolean }): Promise<RenderResult> {
+interface RenderHomePageOptions {
+  homeSidebarOverride?: CmsResolvedWidget | null;
+  skipTakeover?: boolean;
+}
+
+export async function renderHomePage(
+  site: CmsSiteRow,
+  baseUrl: string,
+  viewer?: { member?: boolean },
+  options?: RenderHomePageOptions,
+): Promise<RenderResult> {
   // 可视化页面接管首页（isHome=true 的启用页面优先）
-  const { getHomeTakeoverPage } = await import('./cms-pages.service');
-  const takeover = await getHomeTakeoverPage(site.id);
-  if (takeover) return renderCustomPage(site, baseUrl, takeover, { asHome: true, member: viewer?.member });
+  if (!options?.skipTakeover) {
+    const { getHomeTakeoverPage } = await import('./cms-pages.service');
+    const takeover = await getHomeTakeoverPage(site.id);
+    if (takeover) return renderCustomPage(site, baseUrl, takeover, { asHome: true, member: viewer?.member });
+  }
   const theme = getBuiltinThemeFallback(site.theme);
   const seo = mergeSeo(site, { pathForCanonical: '/' });
+  const homeSidebarPromise = options && Object.hasOwn(options, 'homeSidebarOverride')
+    ? Promise.resolve(options.homeSidebarOverride ?? null)
+    : resolveCmsWidgetSlotForRender(site.id, 'home.sidebar', baseUrl);
   const [base, home, homeSidebar] = await Promise.all([
     buildBaseContext(site, baseUrl, seo),
     listHomeContents(site.id),
-    resolveCmsWidgetSlotForRender(site.id, 'home.sidebar', baseUrl),
+    homeSidebarPromise,
   ]);
   const channelPathMap = await loadChannelPathMap(site.id);
   const resolveLink = await buildCmsLinkResolver(
@@ -454,6 +470,18 @@ export async function renderHomePage(site: CmsSiteRow, baseUrl: string, viewer?:
   };
   const html = renderDoc(theme.templates.index, props);
   return { status: 200, html, kind: 'home' };
+}
+
+export async function renderCmsWidgetThemePreview(
+  site: CmsSiteRow,
+  widget: CmsResolvedWidget,
+): Promise<string> {
+  const result = await renderHomePage(site, `/__cms/${site.code}`, undefined, {
+    homeSidebarOverride: widget,
+    skipTakeover: true,
+  });
+  if (result.status !== 200) throw new Error('页面部件主题预览渲染失败');
+  return stripCmsPreviewScripts(result.html);
 }
 
 async function loadChannelPathMap(siteId: number): Promise<Map<number, CmsUrlChannel>> {

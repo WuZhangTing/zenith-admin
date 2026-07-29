@@ -1,7 +1,10 @@
+import { createHash } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 import { and, eq, inArray } from 'drizzle-orm';
+import { HTTPException } from 'hono/http-exception';
 import type { AsyncTask, CmsWidgetSourceType } from '@zenith/shared';
 import { db } from '../../db';
-import { cmsWidgetRefs } from '../../db/schema';
+import { cmsChannels, cmsWidgetRefs, cmsWidgets } from '../../db/schema';
 import { config } from '../../config';
 import redis from '../../lib/redis';
 import logger from '../../lib/logger';
@@ -20,7 +23,6 @@ import {
 import { triggerCdnPurge } from './cms-cdn.service';
 import {
   deleteCmsWidget,
-  findPublishedWidgetIdsAffectedByChannels,
   findPublishedWidgetIdsBySource,
   listCmsWidgetUsageTargets,
   offlineCmsWidget,
@@ -98,23 +100,54 @@ export async function refreshCmsWidgetTargets(
 
 async function submitRefreshTask(
   input: { widgetIds?: number[]; homeSiteIds?: number[] },
-  options?: { enqueue?: boolean },
+  options?: { enqueue?: boolean; eventKey?: string; debounceBySite?: boolean },
 ): Promise<AsyncTask | null> {
   const widgetIds = [...new Set(input.widgetIds ?? [])].filter((id) => Number.isInteger(id) && id > 0);
-  const homeSiteIds = [...new Set(input.homeSiteIds ?? [])].filter((id) => Number.isInteger(id) && id > 0);
+  let homeSiteIds = [...new Set(input.homeSiteIds ?? [])].filter((id) => Number.isInteger(id) && id > 0);
   if (widgetIds.length === 0 && homeSiteIds.length === 0) return null;
+  let idempotencyKey = options?.eventKey ? `cms-widget-refresh:${options.eventKey}` : null;
+  if (options?.debounceBySite) {
+    const widgetSites = widgetIds.length > 0
+      ? await db.select({ siteId: cmsWidgets.siteId }).from(cmsWidgets)
+        .where(inArray(cmsWidgets.id, widgetIds))
+      : [];
+    const siteIds = [...new Set([...homeSiteIds, ...widgetSites.map((row) => row.siteId)])].sort((a, b) => a - b);
+    if (siteIds.length === 0) return null;
+    const bucket = Math.floor(Date.now() / 5_000);
+    homeSiteIds = siteIds;
+    const siteHash = createHash('sha256').update(siteIds.join(',')).digest('hex').slice(0, 16);
+    idempotencyKey = `cms-widget-refresh:site:${siteHash}:${bucket}`;
+    const notBefore = (bucket + 1) * 5_000;
+    const row = await submitAsyncTask({
+      taskType: 'cms-widget-refresh',
+      title: 'CMS 页面部件引用刷新',
+      payload: {
+        widgetIds: [], homeSiteIds, siteIds, notBefore,
+      },
+      idempotencyKey,
+    }, { enqueue: options?.enqueue });
+    return mapAsyncTask(row);
+  }
   const row = await submitAsyncTask({
     taskType: 'cms-widget-refresh',
     title: 'CMS 页面部件引用刷新',
     payload: { widgetIds, homeSiteIds },
-    idempotencyKey: null,
+    idempotencyKey,
   }, { enqueue: options?.enqueue });
   return mapAsyncTask(row);
 }
 
-export function submitCmsWidgetRefreshSideEffect(input: { widgetIds?: number[]; homeSiteIds?: number[] }): void {
+export function submitCmsWidgetRefreshSideEffect(input: {
+  widgetIds?: number[];
+  homeSiteIds?: number[];
+  eventKey?: string;
+  debounceBySite?: boolean;
+}): void {
   const actor = currentUserOrNull() ?? SYSTEM_USER;
-  void runWithCurrentUser(actor, () => submitRefreshTask(input))
+  void runWithCurrentUser(actor, () => submitRefreshTask(input, {
+    eventKey: input.eventKey,
+    debounceBySite: input.debounceBySite,
+  }))
     .catch((error) => logger.error('[CMS] 页面部件引用刷新任务提交失败', error));
 }
 
@@ -125,15 +158,22 @@ export function submitCmsWidgetSourceRefreshSideEffect(
   const actor = currentUserOrNull() ?? SYSTEM_USER;
   void runWithCurrentUser(actor, async () => {
     const widgetIds = await findPublishedWidgetIdsBySource(sourceType, sourceIds);
-    await submitRefreshTask({ widgetIds });
+    await submitRefreshTask({ widgetIds }, { debounceBySite: true });
   }).catch((error) => logger.error('[CMS] 页面部件实时来源刷新任务提交失败', error));
 }
 
 export function submitCmsWidgetChannelRefreshSideEffect(channelIds: number[]): void {
   const actor = currentUserOrNull() ?? SYSTEM_USER;
   void runWithCurrentUser(actor, async () => {
-    const widgetIds = await findPublishedWidgetIdsAffectedByChannels(channelIds);
-    await submitRefreshTask({ widgetIds });
+    if (channelIds.length === 0) return;
+    const rows = await db.select({ siteId: cmsChannels.siteId }).from(cmsChannels)
+      .innerJoin(cmsWidgets, eq(cmsChannels.siteId, cmsWidgets.siteId))
+      .where(and(
+        inArray(cmsChannels.id, [...new Set(channelIds)]),
+        eq(cmsWidgets.status, 'published'),
+      ));
+    const siteIds = [...new Set(rows.map((row) => row.siteId))];
+    await submitRefreshTask({ homeSiteIds: siteIds }, { debounceBySite: true });
   }).catch((error) => logger.error('[CMS] 页面部件栏目来源刷新任务提交失败', error));
 }
 
@@ -167,9 +207,35 @@ export function registerCmsWidgetTaskHandlers(): void {
     maxAttempts: 3,
     retryDelayMs: 5000,
     async run(ctx) {
-      const payload = ctx.payload as { widgetIds?: number[]; homeSiteIds?: number[] };
+      const payload = ctx.payload as {
+        widgetIds?: number[];
+        homeSiteIds?: number[];
+        siteIds?: number[];
+        notBefore?: number;
+      };
+      const waitMs = Math.max(0, Number(payload.notBefore ?? 0) - Date.now());
+      if (waitMs > 0) {
+        const state = await ctx.progress({
+          processed: 0,
+          total: null,
+          note: '正在合并同一站点的连续变更…',
+        });
+        if (state.cancelRequested) return { pages: 0, homes: 0 };
+        await delay(Math.min(waitMs, 5_000));
+        if (await ctx.isCancelRequested()) return { pages: 0, homes: 0 };
+      }
+      const siteWidgetRows = payload.siteIds?.length
+        ? await db.select({ id: cmsWidgets.id }).from(cmsWidgets).where(and(
+            inArray(cmsWidgets.siteId, payload.siteIds),
+            eq(cmsWidgets.status, 'published'),
+          ))
+        : [];
+      const widgetIds = [...new Set([
+        ...(payload.widgetIds ?? []),
+        ...siteWidgetRows.map((row) => row.id),
+      ])];
       return refreshCmsWidgetTargets(
-        payload.widgetIds ?? [],
+        widgetIds,
         payload.homeSiteIds ?? [],
         async (processed, total, note) => {
           const state = await ctx.progress({ processed, total, note, checkpoint: { processed } });
@@ -194,26 +260,33 @@ export function registerCmsWidgetTaskHandlers(): void {
       if (!(await hasPermission(permission))) throw new Error(`任务创建者缺少 ${permission} 权限`);
       let processed = Number(ctx.checkpoint?.processed ?? 0);
       let succeeded = Number(ctx.checkpoint?.succeeded ?? 0);
-      const changedIds: number[] = [];
+      let failed = Number(ctx.checkpoint?.failed ?? 0);
+      let skipped = Number(ctx.checkpoint?.skipped ?? 0);
+      const refreshIds = action === 'delete' ? [] : ids;
       for (let index = processed; index < ids.length; index++) {
         const id = ids[index];
         try {
           if (action === 'publish') {
             await publishCmsWidget(id, { suppressRefresh: true });
-            changedIds.push(id);
           } else if (action === 'offline') {
-            await offlineCmsWidget(id, { suppressRefresh: true });
-            changedIds.push(id);
+            await offlineCmsWidget(id, { suppressRefresh: true, allowAlreadyOffline: true });
           } else {
-            await deleteCmsWidget(id);
+            try {
+              await deleteCmsWidget(id);
+            } catch (error) {
+              if (!(error instanceof HTTPException && error.status === 404)) throw error;
+            }
           }
           succeeded += 1;
           await ctx.reportItems([{ key: `widget-${id}`, label: `页面部件 #${id}`, status: 'success', message: null }]);
         } catch (error) {
+          const isBusinessBlock = error instanceof HTTPException && error.status === 409;
+          if (isBusinessBlock) skipped += 1;
+          else failed += 1;
           await ctx.reportItems([{
             key: `widget-${id}`,
             label: `页面部件 #${id}`,
-            status: 'failed',
+            status: isBusinessBlock ? 'skipped' : 'failed',
             message: error instanceof Error ? error.message.slice(0, 200) : '操作失败',
           }]);
         }
@@ -221,14 +294,21 @@ export function registerCmsWidgetTaskHandlers(): void {
         const state = await ctx.progress({
           processed,
           total: ids.length,
-          failed: processed - succeeded,
-          note: `已处理 ${processed}/${ids.length}`,
-          checkpoint: { processed, succeeded },
+          failed,
+          note: `已处理 ${processed}/${ids.length}，成功 ${succeeded}，跳过 ${skipped}，失败 ${failed}`,
+          checkpoint: { processed, succeeded, failed, skipped },
         });
-        if (state.cancelRequested) return { processed, succeeded };
+        if (state.cancelRequested) {
+          if (refreshIds.length > 0) await refreshCmsWidgetTargets(refreshIds);
+          return {
+            processed, succeeded, failed, skipped,
+          };
+        }
       }
-      if (changedIds.length > 0) await refreshCmsWidgetTargets(changedIds);
-      return { processed, succeeded, failed: processed - succeeded };
+      if (refreshIds.length > 0) await refreshCmsWidgetTargets(refreshIds);
+      return {
+        processed, succeeded, failed, skipped,
+      };
     },
   });
 }

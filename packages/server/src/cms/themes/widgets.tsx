@@ -18,7 +18,7 @@ export interface CmsWidgetRendererDefinition {
   component: ComponentType<CmsWidgetRendererProps>;
 }
 
-const WIDGET_STYLES = `
+export const CMS_WIDGET_STYLES = `
 .cms-widget { margin: 0 0 24px; }
 .cms-widget__title { font-size: 18px; font-weight: 700; margin: 0 0 12px; }
 .cms-widget__empty { color: var(--text-2); font-size: 14px; padding: 16px 0; }
@@ -128,8 +128,10 @@ export function resolveCoreCmsWidgetRenderer(type: CmsWidgetType, key: CmsWidget
 export function renderCmsWidgetHtml(
   widget: CmsResolvedWidget,
   override?: CmsWidgetRendererDefinition | null,
+  options?: { includeStyles?: boolean },
 ): string {
   const definition = override ?? resolveCoreCmsWidgetRenderer(widget.type, widget.rendererKey);
   if (!definition) return '';
-  return `<style>${WIDGET_STYLES}</style>${renderToStaticMarkup(createElement(definition.component, { widget }))}`;
+  const styles = options?.includeStyles === false ? '' : `<style>${CMS_WIDGET_STYLES}</style>`;
+  return `${styles}${renderToStaticMarkup(createElement(definition.component, { widget }))}`;
 }

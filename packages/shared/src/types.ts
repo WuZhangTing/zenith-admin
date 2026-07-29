@@ -11665,6 +11665,8 @@ export interface CmsWidget {
   defaultRendererKey: CmsWidgetRendererKey;
   remark: string | null;
   referenceCount: number;
+  impactCount: number;
+  highFanout: boolean;
   hasUnpublishedChanges: boolean;
   createdBy?: number | null;
   updatedBy?: number | null;
@@ -11711,9 +11713,23 @@ export interface CmsWidgetRendererOption {
 }
 
 export interface CmsWidgetPreview {
+  siteId: number;
   widget: CmsResolvedWidget;
   html: string;
+  documentHtml: string;
   renderers: CmsWidgetRendererOption[];
+}
+
+export interface CmsWidgetSourceReference {
+  widgetId: number;
+  widgetName: string;
+  widgetCode: string;
+  itemId: string;
+  sourceType: Exclude<CmsWidgetSourceType, 'manual'>;
+  sourceId: number;
+  referenceCount: number;
+  impactCount: number;
+  highFanout: boolean;
 }
 
 export interface CmsWidgetSlot {
@@ -11722,4 +11738,13 @@ export interface CmsWidgetSlot {
   allowedTypes: CmsWidgetType[];
   rendererKeys: CmsWidgetRendererKey[];
   binding: CmsWidgetRef | null;
+}
+
+export interface CmsSiteImportResult {
+  siteId: number;
+  siteName: string;
+  siteCode: string;
+  counts: Record<string, number>;
+  skipped: { widgetSlots: number };
+  warnings: string[];
 }

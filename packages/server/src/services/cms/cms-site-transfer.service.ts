@@ -608,6 +608,15 @@ export async function importCmsSite(payload: unknown) {
     }
     // 导入页面部件统一降级为草稿；主题插槽只允许绑定已发布部件，因此不恢复旧站绑定。
     // 页面中的 widget-ref 会保留并重映射，部件重新发布后可由运营在站点主题配置中恢复插槽。
+    const skippedWidgetSlots = (data.widgetSlots ?? []).length;
+    const warnings = [
+      ...(widgetIdMap.size > 0
+        ? [`已导入 ${widgetIdMap.size} 个页面部件并统一降级为草稿，请审核后重新发布`]
+        : []),
+      ...(skippedWidgetSlots > 0
+        ? [`已跳过 ${skippedWidgetSlots} 个主题页面部件插槽绑定，请在部件发布后重新绑定`]
+        : []),
+    ];
 
     return {
       siteId,
@@ -628,6 +637,8 @@ export async function importCmsSite(payload: unknown) {
         widgets: widgetIdMap.size,
         pages: (data.pages ?? []).length,
       },
+      skipped: { widgetSlots: skippedWidgetSlots },
+      warnings,
     };
   });
   invalidateSiteCache();
