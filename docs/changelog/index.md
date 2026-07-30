@@ -4,6 +4,34 @@
 
 ---
 
+## v1.23.0 - 2026-07-30
+
+数据库迁移链治理版本：将 116 条迁移压缩为单条基线，并移除挂在启动路径上的历史数据补齐逻辑。无业务功能变更。
+
+### Changed
+
+#### 迁移链与启动路径
+
+- 历史数据补齐逻辑此前以顶层 `await` 挂在 `src/index.ts` 启动路径上，每次启动都要全表重扫 12 张表并开启 2 个写事务，且发生在 `serve()` 之前——一次数据库抖动即导致进程永远起不来，多副本滚动发布时还会并发写同一批行。经核查 4 个 backfill 均只服务于历史数据，新建路径已自洽，故全部移除：
+  - `backfillLegacyDashboardLifecycle` —— 仪表盘建/改时已写入 `lifecycleInitialized: true`
+  - `migrateLegacyReportSecrets` —— `prepareReportSecret()` 写入即 `encryptField()` 加密
+  - `backfillLegacyReportTenants` —— 建时已调用 `reportCreateTenantId()`
+  - `invalidateLegacyOAuthTokens` —— 新 token 必有 `familyId`
+- 116 条迁移压缩为单条基线（338 张表），`drizzle/` 由 233 文件 / 134.1 MB 降至 5 文件 / 3.50 MB
+- 移除 `migrate.ts` 中仅为存量库服务的 `adoptBaseline()` 基线收养机制（旧链检查点校验与 `UNIQUE USING INDEX` 差异对齐），文件由 92 行降至 35 行
+- 新增 `0001_extensions.sql` 保留两处无法由 `drizzle-kit generate` 重新生成的手写 DDL：`pg_trgm` 扩展与 `cms_contents_title_trgm_idx`（`gin_trgm_ops` 不在 Drizzle 索引 DSL 表达范围内）、`vector` 扩展与 `ai_kb_chunks.embedding_vec`（条件启用，该列不进入 Drizzle schema）
+
+### Fixed
+
+- `db/migrate.ts` 补充 `try/catch` 并以非零码退出，使 `migrate && start` 链路能够阻断服务带着半迁移状态启动；此前迁移异常表现为进程静默退出，排查方向易被误导
+- 修复分析事件查询使用位置式 `GROUP BY`（`ad49b3cc`）
+- 修复终端设置面板缺少底部内边距（`bdd52c5f`）
+- 面包屑显示偏好默认改为关闭（`86c5da08`）
+
+> ⚠️ **升级提示**：本版本不保留向后数据兼容。迁移链已重建基线，存量数据库无法从旧链平滑升级，需重新初始化数据库（`npm run db:migrate && npm run db:seed`）。
+
+---
+
 ## v1.22.0 - 2026-07-30
 
 依赖升级维护版本：全量刷新 36 个依赖（含 8 个跨大版本），并修复随之而来的破坏性变更。无业务功能变更。
