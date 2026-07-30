@@ -152,7 +152,7 @@ export async function ensureXxxExists(id: number) {
 
 ### 错误处理：HTTPException
 
-使用 Hono 原生 `HTTPException`（`hono/http-exception`），由 `packages/server/src/index.ts` 的全局 `onError` 统一处理：
+使用 Hono 原生 `HTTPException`（`hono/http-exception`），由 `packages/server/src/app.ts` 的全局 `onError` 统一处理：
 
 ```typescript
 import { HTTPException } from 'hono/http-exception';
@@ -213,7 +213,7 @@ const listXxxRoute = defineOpenAPIRoute({
 - 按资源拆分到 `packages/server/src/routes/`
 - 保持资源命名直观，如 `users.ts`、`roles.ts`、`dicts.ts`
 - 和前端页面、共享 schema 尽量保持一一对应，便于排查问题
-- 每个路由文件使用 `OpenAPIHono` 实例，在 `packages/server/src/index.ts` 统一注册
+- 每个路由文件使用 `OpenAPIHono` 实例，由所属业务域的 `packages/server/src/routes/{业务域}/index.ts` 挂载，`src/app.ts` 的 `createApp()` 按 `ROUTE_DOMAINS` 顺序统一装配
 
 ## 数据删除规范
 

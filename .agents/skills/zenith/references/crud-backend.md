@@ -397,16 +397,36 @@ const rows = await db.query.users.findMany({
 
 ---
 
-## Step 7：注册路由（`packages/server/src/index.ts`）
+## Step 7：注册路由（`packages/server/src/routes/{业务域}/index.ts`）
 
-在现有路由注册区域添加：
+路由**不再**逐条注册到 `src/index.ts`，而是由各业务域的 barrel 声明挂载清单；
+`src/routes/index.ts` 只声明域顺序，`src/app.ts` 的 `createApp()` 按序装配。
+
+在对应域的 barrel 里加一行：
 
 ```ts
-import xxxRoutes from './routes/xxx';
+// packages/server/src/routes/{业务域}/index.ts
+import { defineRouteDomain } from '../_kit';
+import xxxRoutes from './xxx';              // ← 新增 import
 
-// 在其他 app.route() 的同级位置添加：
-app.route('/api/xxxs', xxxRoutes);
+export default defineRouteDomain({
+  name: '{业务域}',
+  mounts: () => [
+    // …既有挂载保持原样
+    ['/api/xxxs', xxxRoutes],                // ← 新增挂载
+  ],
+});
 ```
+
+要点：
+
+- **数组顺序即挂载顺序**。同一路径被多次挂载时顺序是语义的一部分，不要改动既有条目的相对位置
+- WS 路由需要 `upgradeWebSocket` 时，把 `mounts` 写成 `(ctx) => [...]`，用 `ctx.upgradeWebSocket`
+- 需要在**全部** API 路由之后兜底的挂载（如按 Host 匹配的 `/`），必须放进 `fallback` 而不是 `mounts` 末尾——后者只能保证域内靠后，保证不了全局最后
+- 新增业务域时：建 `routes/{业务域}/index.ts`，再把它加进 `routes/index.ts` 的 `ROUTE_DOMAINS`
+
+> 改完执行 `npx vitest run src/app.routes.test.ts -u` 更新路由表快照。
+> 新增挂载会在快照 diff 中显示出来便于 review；若顺序意外漂移则测试直接失败。
 
 ---
 
@@ -545,7 +565,7 @@ const assignRoute = defineOpenAPIRoute({
 
 无需手动维护。`@hono/zod-openapi` 会从每个 `createRoute(...)` 自动汇总到 `/api/openapi.json`。
 
-新路由通过 `app.route()` 注册后，刷新 [`http://localhost:3300/api/docs`](http://localhost:3300/api/docs) 即可看到新接口。
+新路由在所属域的 `routes/{业务域}/index.ts` 中挂载后，刷新 [`http://localhost:3300/api/docs`](http://localhost:3300/api/docs) 即可看到新接口。
 
 > **要点**：每个路由的 `createRoute()` 里的 `tags` 字段就是 Swagger UI 中的分组标签，无需在任何地方另外注册。
 

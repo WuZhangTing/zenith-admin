@@ -59,7 +59,7 @@ OpenAPI Spec **自动生成**，由 `@hono/zod-openapi` 在运行时从每个路
 ### 新增接口时的更新步骤
 
 1. 在路由文件中用 `createRoute(...)` 声明新接口（设好 `method`、`path`、`tags`、`request`、`responses`）
-2. 确保路由已通过 `app.route(prefix, router)` 注册到服务端入口
+2. 确保路由已在所属业务域的 `packages/server/src/routes/{业务域}/index.ts` 中挂载（新增域需同步加入 `routes/index.ts` 的 `ROUTE_DOMAINS`）
 3. 刷新 Swagger UI 即可看到新接口（无需改其他文件）
 
 ---

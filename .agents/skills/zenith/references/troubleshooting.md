@@ -34,7 +34,7 @@
 
 **检查清单**：
 
-1. 路由是否已在 `packages/server/src/index.ts` 中通过 `app.route('/api/xxx', xxxRoutes)` 注册？
+1. 路由是否已在对应域的 `packages/server/src/routes/{业务域}/index.ts` 中挂载？（不再改 `src/index.ts`）
 2. 路由文件是否调用了 `xxxRouter.openapiRoutes([...] as const)`？
 3. 是否重启了开发服务器？（热更新可能不生效，需要手动重启）
 4. 检查浏览器缓存，尝试硬刷新（Ctrl+Shift+R）
@@ -93,8 +93,8 @@
 
 **检查清单**：
 
-1. 路由是否已注册到 `packages/server/src/index.ts`？
-2. `app.route('/api/xxxs', xxxRoutes)` 的路径前缀是否正确？
+1. 路由是否已挂载到对应域的 `packages/server/src/routes/{业务域}/index.ts`？新增域是否已加进 `routes/index.ts` 的 `ROUTE_DOMAINS`？
+2. `['/api/xxxs', xxxRoutes]` 的路径前缀是否正确？
 3. 路由文件中的 `path` 是否正确？（`/` 表示列表，`/{id}` 表示详情）
 4. 检查 `xxxRouter.openapiRoutes([...])` 是否包含了该路由
 

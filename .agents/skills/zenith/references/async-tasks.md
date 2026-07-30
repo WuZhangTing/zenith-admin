@@ -28,7 +28,7 @@
 
 ### ① 注册 handler（模块加载时执行一次）
 
-新建 `packages/server/src/services/{业务域}/xxx-tasks.ts`（或就近放在业务 service），在 `packages/server/src/index.ts` 启动流程中、`registerSystemTasks()` **之前**调用注册函数（参考 `registerTaskDemoHandlers()` 的挂载位置）：
+新建 `packages/server/src/services/{业务域}/xxx-tasks.ts`（或就近放在业务 service），在 `packages/server/src/bootstrap/workers.ts` 的 `registerBackgroundWorkers()` 中、`registerSystemTasks()` **之前**调用注册函数（参考 `registerTaskDemoHandlers()` 的挂载位置）：
 
 ```ts
 import { registerTaskHandler } from '../../lib/task-center';

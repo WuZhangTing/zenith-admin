@@ -20,7 +20,10 @@ zenith-admin/
 
 关注这些目录：
 
-- `packages/server/src/routes/`：API 路由（认证、用户、部门、岗位、角色、菜单、字典、通知、日志、监控、会话、定时任务、会员、支付、工作流、AI、运维等）
+- `packages/server/src/app.ts`：应用装配（中间件栈 → 路由装配 → 文档 → 兜底与错误处理），纯函数、无副作用，可在测试中直接构造
+- `packages/server/src/index.ts`：启动编排（遥测 → 装配 app → 监听 → 后台 worker → 事件订阅 → 优雅停机）
+- `packages/server/src/bootstrap/`：后台 worker 注册与事件总线订阅者注册
+- `packages/server/src/routes/`：API 路由（认证、用户、部门、岗位、角色、菜单、字典、通知、日志、监控、会话、定时任务、会员、支付、工作流、AI、运维等）。每个业务域在自己的 `index.ts` 中声明挂载清单，域顺序由 `routes/index.ts` 统一声明
 - `packages/server/src/services/`：Service 层（业务逻辑、数据映射 `mapXxx`、前置校验 `ensureXxx`；所有路由均已完成提取）
 - `packages/server/src/db/`：Drizzle schema、统一数据库类型别名、迁移与 seed
 - `packages/server/src/middleware/`：认证（`auth.ts`）、IP 访问控制（`ip-access.ts`）、权限守卫（`guard.ts`）、接口限流（`rate-limit.ts`）

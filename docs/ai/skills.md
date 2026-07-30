@@ -44,7 +44,7 @@ AI 会在生成代码之前，按照 `references/step0-checklist.md` 主动向�
 | 4 | 共享 TypeScript 类型 | `packages/shared/src/types.ts` |
 | 5 | Service 层（业务逻辑、数据映射、前置校验） | `packages/server/src/services/{业务域}/xxx.service.ts` |
 | 6 | Hono 路由（CRUD + 分页 + 筛选）+ 实体 DTO | `packages/server/src/routes/`；DTO 放 `packages/server/src/lib/dtos/`（按业务域拆分），barrel：`openapi-dtos.ts` |
-| 7 | 注册路由（OpenAPI Spec 同步自动生成） | `packages/server/src/index.ts` |
+| 7 | 注册路由（OpenAPI Spec 同步自动生成） | `packages/server/src/routes/{业务域}/index.ts` |
 | 8 | 前端列表页（搜索 + 表格 + 弹窗） | `packages/web/src/pages/` |
 | 9 | 菜单种子数据（菜单 + 按钮权限） | `packages/shared/src/seed-data.ts` |
 | 10 | 数据库种子数据 | `packages/server/src/db/seed.ts` |

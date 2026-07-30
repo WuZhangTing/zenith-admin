@@ -46,7 +46,7 @@ Step 0 中必须同时确认以下可选项（决定后续步骤是否执行）�
 | 4 | 共享 TS Interface | `packages/shared/src/types.ts` |
 | 5 | Service 层 | `packages/server/src/services/{业务域}/xxx.service.ts` |
 | 6 | OpenAPI Route | `packages/server/src/routes/{业务域}/xxx.ts` |
-| 7 | 注册路由 | `packages/server/src/index.ts` |
+| 7 | 注册路由 | `packages/server/src/routes/{业务域}/index.ts`（域 barrel，新增域需同步 `routes/index.ts`） |
 
 > Step 7 完成后执行 `npm run dev:server` 冒烟验证，无编译错误再继续。
 
@@ -86,7 +86,7 @@ MSW Mock 的详细代码模板见 [crud-mock.md](./references/crud-mock.md)。
 **后端：**
 - [ ] `npm run build` 无报错
 - [ ] 数据库迁移已执行
-- [ ] 路由已注册到 `packages/server/src/index.ts`
+- [ ] 路由已挂载到 `packages/server/src/routes/{业务域}/index.ts`；新增域已加进 `routes/index.ts` 的 `ROUTE_DOMAINS`；路由表快照已用 `npx vitest run src/app.routes.test.ts -u` 更新并 review 过 diff
 - [ ] DTO 定义在 `lib/dtos/` 中，路由中没有本地 `.openapi()` 声明
 - [ ] Service 中没有 `c.json()` 或 `console.*`
 - [ ] 路由 handler 中没有直接 `db.*` 调用
