@@ -1,1 +1,0 @@
-ALTER TABLE "analytics_settings" ADD COLUMN "anonymize_ip" boolean DEFAULT false NOT NULL;

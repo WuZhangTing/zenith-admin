@@ -1,2 +1,0 @@
-ALTER TABLE "rule_decision_table_versions" ADD COLUMN "settings" jsonb DEFAULT '{}'::jsonb NOT NULL;--> statement-breakpoint
-ALTER TABLE "rule_decision_tables" ADD COLUMN "settings" jsonb DEFAULT '{}'::jsonb NOT NULL;

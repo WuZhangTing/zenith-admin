@@ -1,19 +1,11 @@
 import dayjs from 'dayjs';
-import { and, eq, isNull, lt, sql } from 'drizzle-orm';
+import { and, eq, lt, sql } from 'drizzle-orm';
 import { db } from '../../db';
-import { oauth2Clients, oauth2Tokens, openApiCallLogs, openApiCallStatsDaily, openQuotaAlerts } from '../../db/schema';
+import { oauth2Clients, openApiCallLogs, openApiCallStatsDaily, openQuotaAlerts } from '../../db/schema';
 import { config } from '../../config';
 import { APP_TIME_ZONE } from '../../lib/datetime';
 
 const APP_TIME_ZONE_SQL = sql.raw(`'${APP_TIME_ZONE.replaceAll("'", "''")}'`);
-
-export async function invalidateLegacyOAuthTokens(): Promise<number> {
-  const rows = await db.update(oauth2Tokens).set({ revoked: true }).where(and(
-    isNull(oauth2Tokens.familyId),
-    eq(oauth2Tokens.revoked, false),
-  )).returning({ id: oauth2Tokens.id });
-  return rows.length;
-}
 
 export async function rollupAndCleanupOpenApiCallLogs(): Promise<{
   statDate: string;

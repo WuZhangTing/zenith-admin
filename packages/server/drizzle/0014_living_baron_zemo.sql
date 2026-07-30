@@ -1,1 +1,0 @@
-ALTER TABLE "report_dashboard_subscriptions" ADD COLUMN "last_summary" jsonb DEFAULT '{}'::jsonb NOT NULL;

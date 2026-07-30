@@ -1,2 +1,0 @@
-ALTER TABLE "member_checkins" ADD COLUMN "remark" varchar(256);--> statement-breakpoint
-CREATE INDEX "member_login_logs_member_created_idx" ON "member_login_logs" USING btree ("member_id","created_at");

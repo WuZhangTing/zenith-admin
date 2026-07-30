@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { getTableConfig } from 'drizzle-orm/pg-core';
-import { readFileSync } from 'node:fs';
 import {
   ANALYTICS_PROPERTIES_MAX_BYTES,
   SEED_MENUS,
@@ -96,12 +95,5 @@ describe('analytics P0 contracts', () => {
       'error-report',
     ]));
     expect(SEED_MENUS.find((menu) => menu.permission === 'analytics:clean')?.type).toBe('button');
-  });
-
-  it('deduplicates legacy settings rows before adding the unique index', () => {
-    const migration = readFileSync('drizzle/0042_secret_revanche.sql', 'utf8');
-    expect(migration).toContain('DELETE FROM "analytics_settings" AS duplicate');
-    expect(migration.indexOf('DELETE FROM "analytics_settings" AS duplicate'))
-      .toBeLessThan(migration.indexOf('CREATE UNIQUE INDEX "analytics_settings_tenant_uq"'));
   });
 });

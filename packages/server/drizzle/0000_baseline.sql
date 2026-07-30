@@ -2,14 +2,16 @@ CREATE TYPE "public"."status" AS ENUM('enabled', 'disabled');--> statement-break
 CREATE TYPE "public"."data_scope" AS ENUM('all', 'custom', 'dept_only', 'dept', 'self');--> statement-breakpoint
 CREATE TYPE "public"."menu_type" AS ENUM('directory', 'menu', 'button');--> statement-breakpoint
 CREATE TYPE "public"."business_type" AS ENUM('announcement');--> statement-breakpoint
+CREATE TYPE "public"."file_object_acl" AS ENUM('default', 'private', 'public-read', 'public-read-write');--> statement-breakpoint
 CREATE TYPE "public"."file_storage_provider" AS ENUM('local', 'oss', 's3', 'cos', 'obs', 'kodo', 'bos', 'azure', 'sftp');--> statement-breakpoint
+CREATE TYPE "public"."file_url_strategy" AS ENUM('proxy', 'public', 'presigned');--> statement-breakpoint
 CREATE TYPE "public"."upload_session_status" AS ENUM('uploading', 'completed', 'aborted');--> statement-breakpoint
 CREATE TYPE "public"."mask_type" AS ENUM('phone', 'email', 'id_card', 'name', 'bank_card', 'custom');--> statement-breakpoint
 CREATE TYPE "public"."async_task_item_status" AS ENUM('pending', 'success', 'failed', 'skipped');--> statement-breakpoint
 CREATE TYPE "public"."async_task_status" AS ENUM('pending', 'running', 'success', 'failed', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."export_job_delete_reason" AS ENUM('expired', 'manual', 'file_missing');--> statement-breakpoint
 CREATE TYPE "public"."export_job_execution_mode" AS ENUM('sync', 'async');--> statement-breakpoint
-CREATE TYPE "public"."export_job_format" AS ENUM('xlsx', 'csv');--> statement-breakpoint
+CREATE TYPE "public"."export_job_format" AS ENUM('xlsx', 'csv', 'pdf', 'docx');--> statement-breakpoint
 CREATE TYPE "public"."export_job_status" AS ENUM('pending', 'running', 'success', 'failed', 'cancelled', 'expired');--> statement-breakpoint
 CREATE TYPE "public"."config_type" AS ENUM('string', 'number', 'boolean', 'json');--> statement-breakpoint
 CREATE TYPE "public"."cron_run_status" AS ENUM('success', 'fail', 'running');--> statement-breakpoint
@@ -17,6 +19,8 @@ CREATE TYPE "public"."region_level" AS ENUM('province', 'city', 'county');--> st
 CREATE TYPE "public"."system_scheduler_run_status" AS ENUM('running', 'success', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."system_scheduler_task_type" AS ENUM('recurring', 'queue');--> statement-breakpoint
 CREATE TYPE "public"."system_scheduler_trigger_type" AS ENUM('schedule', 'manual', 'queue');--> statement-breakpoint
+CREATE TYPE "public"."user_feedback_category" AS ENUM('suggestion', 'bug', 'ux', 'other');--> statement-breakpoint
+CREATE TYPE "public"."user_feedback_status" AS ENUM('pending', 'processing', 'resolved', 'ignored');--> statement-breakpoint
 CREATE TYPE "public"."login_risk_action" AS ENUM('allow', 'challenge', 'block');--> statement-breakpoint
 CREATE TYPE "public"."login_risk_level" AS ENUM('low', 'medium', 'high');--> statement-breakpoint
 CREATE TYPE "public"."mfa_factor_status" AS ENUM('pending', 'enabled', 'disabled');--> statement-breakpoint
@@ -28,8 +32,15 @@ CREATE TYPE "public"."identity_provider_sync_status" AS ENUM('success', 'failed'
 CREATE TYPE "public"."identity_provider_type" AS ENUM('oidc', 'saml', 'ldap', 'ad');--> statement-breakpoint
 CREATE TYPE "public"."login_event_type" AS ENUM('login', 'logout');--> statement-breakpoint
 CREATE TYPE "public"."login_status" AS ENUM('success', 'fail');--> statement-breakpoint
+CREATE TYPE "public"."analytics_campaign_channel" AS ENUM('email', 'in_app', 'webhook');--> statement-breakpoint
+CREATE TYPE "public"."analytics_campaign_status" AS ENUM('draft', 'running', 'completed', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."analytics_device_type" AS ENUM('desktop', 'mobile', 'tablet', 'bot', 'unknown');--> statement-breakpoint
+CREATE TYPE "public"."analytics_event_override_status" AS ENUM('enabled', 'disabled');--> statement-breakpoint
+CREATE TYPE "public"."analytics_event_quality_issue_type" AS ENUM('missing_required', 'type_mismatch', 'invalid_enum', 'event_disabled', 'origin_rejected', 'quota_exceeded');--> statement-breakpoint
+CREATE TYPE "public"."analytics_event_source" AS ENUM('web_admin', 'web_member', 'server');--> statement-breakpoint
 CREATE TYPE "public"."analytics_event_status" AS ENUM('active', 'deprecated', 'blocked');--> statement-breakpoint
+CREATE TYPE "public"."analytics_experiment_status" AS ENUM('draft', 'running', 'paused', 'completed');--> statement-breakpoint
+CREATE TYPE "public"."analytics_identity_type" AS ENUM('admin', 'member', 'anonymous');--> statement-breakpoint
 CREATE TYPE "public"."error_alert_condition" AS ENUM('new_error', 'threshold', 'spike');--> statement-breakpoint
 CREATE TYPE "public"."error_level" AS ENUM('fatal', 'error', 'warning', 'info');--> statement-breakpoint
 CREATE TYPE "public"."error_status" AS ENUM('unresolved', 'resolved', 'ignored', 'muted');--> statement-breakpoint
@@ -42,13 +53,14 @@ CREATE TYPE "public"."workflow_connector_type" AS ENUM('http', 'webhook', 'email
 CREATE TYPE "public"."workflow_definition_status" AS ENUM('draft', 'published', 'disabled');--> statement-breakpoint
 CREATE TYPE "public"."workflow_event_sign_mode" AS ENUM('hmacSha256', 'none');--> statement-breakpoint
 CREATE TYPE "public"."workflow_form_type" AS ENUM('designer', 'custom', 'external');--> statement-breakpoint
-CREATE TYPE "public"."workflow_instance_status" AS ENUM('draft', 'running', 'approved', 'rejected', 'withdrawn', 'cancelled');--> statement-breakpoint
+CREATE TYPE "public"."workflow_instance_status" AS ENUM('draft', 'running', 'suspended', 'approved', 'rejected', 'withdrawn', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."workflow_job_execution_status" AS ENUM('running', 'succeeded', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."workflow_job_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'dead', 'canceled');--> statement-breakpoint
 CREATE TYPE "public"."workflow_job_type" AS ENUM('delay_wake', 'task_timeout', 'trigger_dispatch', 'external_dispatch', 'subprocess_spawn', 'subprocess_join', 'event_dispatch', 'webhook_delivery', 'compensation_action');--> statement-breakpoint
 CREATE TYPE "public"."workflow_node_type" AS ENUM('start', 'approve', 'handler', 'end', 'exclusiveGateway', 'parallelGateway', 'inclusiveGateway', 'routeGateway', 'ccNode', 'delay', 'trigger', 'subProcess', 'catchNode');--> statement-breakpoint
 CREATE TYPE "public"."workflow_task_consult_status" AS ENUM('pending', 'replied', 'revoked');--> statement-breakpoint
 CREATE TYPE "public"."workflow_task_status" AS ENUM('pending', 'approved', 'rejected', 'skipped', 'waiting');--> statement-breakpoint
+CREATE TYPE "public"."workflow_task_transfer_action" AS ENUM('transfer', 'delegate', 'reassign', 'handover', 'timeout');--> statement-breakpoint
 CREATE TYPE "public"."workflow_token_status" AS ENUM('active', 'consumed', 'dead');--> statement-breakpoint
 CREATE TYPE "public"."email_encryption" AS ENUM('none', 'ssl', 'tls');--> statement-breakpoint
 CREATE TYPE "public"."in_app_message_type" AS ENUM('info', 'success', 'warning', 'error');--> statement-breakpoint
@@ -61,8 +73,10 @@ CREATE TYPE "public"."rule_hit_policy" AS ENUM('first', 'unique', 'priority', 'c
 CREATE TYPE "public"."biz_leave_status" AS ENUM('draft', 'pending', 'approved', 'rejected', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."biz_pay_demo_status" AS ENUM('pending', 'paying', 'paid', 'closed');--> statement-breakpoint
 CREATE TYPE "public"."chat_conversation_type" AS ENUM('direct', 'group');--> statement-breakpoint
-CREATE TYPE "public"."chat_member_role" AS ENUM('owner', 'member');--> statement-breakpoint
-CREATE TYPE "public"."chat_message_type" AS ENUM('text', 'image', 'file', 'system', 'forward', 'vote', 'voice', 'card');--> statement-breakpoint
+CREATE TYPE "public"."chat_join_request_status" AS ENUM('pending', 'approved', 'rejected');--> statement-breakpoint
+CREATE TYPE "public"."chat_member_role" AS ENUM('owner', 'admin', 'member');--> statement-breakpoint
+CREATE TYPE "public"."chat_message_type" AS ENUM('text', 'image', 'file', 'system', 'forward', 'vote', 'voice', 'card', 'video');--> statement-breakpoint
+CREATE TYPE "public"."chat_scheduled_status" AS ENUM('pending', 'sent', 'canceled', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."channel_audience" AS ENUM('broadcast', 'targeted');--> statement-breakpoint
 CREATE TYPE "public"."channel_auto_reply_keyword_mode" AS ENUM('exact', 'contains');--> statement-breakpoint
 CREATE TYPE "public"."channel_auto_reply_match" AS ENUM('subscribe', 'keyword', 'default');--> statement-breakpoint
@@ -72,28 +86,42 @@ CREATE TYPE "public"."channel_message_direction" AS ENUM('out', 'in');--> statem
 CREATE TYPE "public"."channel_message_status" AS ENUM('sent', 'draft', 'scheduled');--> statement-breakpoint
 CREATE TYPE "public"."channel_message_type" AS ENUM('text', 'card', 'image', 'news');--> statement-breakpoint
 CREATE TYPE "public"."channel_type" AS ENUM('system', 'business');--> statement-breakpoint
-CREATE TYPE "public"."payment_channel" AS ENUM('wechat', 'alipay');--> statement-breakpoint
+CREATE TYPE "public"."payment_channel" AS ENUM('wechat', 'alipay', 'unionpay');--> statement-breakpoint
+CREATE TYPE "public"."payment_contract_status" AS ENUM('pending', 'signed', 'paused', 'terminated');--> statement-breakpoint
+CREATE TYPE "public"."payment_deduct_period" AS ENUM('daily', 'weekly', 'monthly', 'custom');--> statement-breakpoint
+CREATE TYPE "public"."payment_dispute_reply_author" AS ENUM('merchant', 'user', 'system');--> statement-breakpoint
+CREATE TYPE "public"."payment_dispute_status" AS ENUM('pending', 'processing', 'resolved', 'refunded');--> statement-breakpoint
+CREATE TYPE "public"."payment_dispute_type" AS ENUM('refund_request', 'service_issue', 'fraud_report', 'other');--> statement-breakpoint
 CREATE TYPE "public"."payment_event_status" AS ENUM('pending', 'done', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."payment_ledger_direction" AS ENUM('in', 'out');--> statement-breakpoint
-CREATE TYPE "public"."payment_ledger_type" AS ENUM('payment', 'refund', 'fee', 'settlement', 'adjust');--> statement-breakpoint
+CREATE TYPE "public"."payment_ledger_type" AS ENUM('payment', 'refund', 'fee', 'settlement', 'adjust', 'transfer');--> statement-breakpoint
 CREATE TYPE "public"."payment_link_status" AS ENUM('active', 'disabled', 'expired');--> statement-breakpoint
-CREATE TYPE "public"."payment_method" AS ENUM('wechat_native', 'wechat_jsapi', 'wechat_h5', 'alipay_page', 'alipay_wap', 'alipay_app');--> statement-breakpoint
+CREATE TYPE "public"."payment_method" AS ENUM('wechat_native', 'wechat_jsapi', 'wechat_h5', 'alipay_page', 'alipay_wap', 'alipay_app', 'unionpay_qr', 'wechat_papay', 'alipay_cycle', 'wechat_preauth', 'alipay_preauth');--> statement-breakpoint
 CREATE TYPE "public"."payment_order_status" AS ENUM('pending', 'paying', 'success', 'closed', 'refunding', 'refunded', 'failed');--> statement-breakpoint
+CREATE TYPE "public"."payment_preauth_status" AS ENUM('pending', 'frozen', 'captured', 'released', 'failed');--> statement-breakpoint
+CREATE TYPE "public"."payment_recon_handle_status" AS ENUM('pending', 'adjusted', 'suspended', 'ignored');--> statement-breakpoint
 CREATE TYPE "public"."payment_recon_result" AS ENUM('matched', 'local_only', 'channel_only', 'amount_diff', 'status_diff');--> statement-breakpoint
 CREATE TYPE "public"."payment_recon_status" AS ENUM('pending', 'comparing', 'done', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."payment_refund_approval_status" AS ENUM('none', 'pending', 'approved', 'rejected');--> statement-breakpoint
 CREATE TYPE "public"."payment_refund_status" AS ENUM('pending', 'processing', 'success', 'failed');--> statement-breakpoint
+CREATE TYPE "public"."payment_risk_action" AS ENUM('block', 'review');--> statement-breakpoint
+CREATE TYPE "public"."payment_risk_dimension" AS ENUM('blocklist', 'single_limit', 'daily_limit', 'daily_count');--> statement-breakpoint
+CREATE TYPE "public"."payment_risk_review_status" AS ENUM('pending', 'approved', 'rejected');--> statement-breakpoint
 CREATE TYPE "public"."payment_risk_scope" AS ENUM('global', 'channel', 'bizType');--> statement-breakpoint
 CREATE TYPE "public"."payment_settlement_status" AS ENUM('pending', 'settling', 'settled', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."payment_sharing_order_status" AS ENUM('pending', 'processing', 'success', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."payment_sharing_receiver_type" AS ENUM('merchant', 'personal');--> statement-breakpoint
+CREATE TYPE "public"."payment_transfer_status" AS ENUM('pending', 'processing', 'success', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."payment_webhook_delivery_status" AS ENUM('pending', 'success', 'failed');--> statement-breakpoint
+CREATE TYPE "public"."ai_agent_status" AS ENUM('private', 'pending', 'published', 'rejected');--> statement-breakpoint
 CREATE TYPE "public"."ai_feedback_status" AS ENUM('pending', 'resolved', 'ignored');--> statement-breakpoint
 CREATE TYPE "public"."ai_message_role" AS ENUM('system', 'user', 'assistant');--> statement-breakpoint
 CREATE TYPE "public"."ai_prompt_scope" AS ENUM('system', 'user');--> statement-breakpoint
 CREATE TYPE "public"."ai_provider" AS ENUM('openai_compatible', 'anthropic', 'gemini', 'baidu');--> statement-breakpoint
 CREATE TYPE "public"."app_webhook_delivery_status" AS ENUM('pending', 'success', 'failed', 'retrying');--> statement-breakpoint
 CREATE TYPE "public"."app_webhook_sign_mode" AS ENUM('hmacSha256', 'none');--> statement-breakpoint
+CREATE TYPE "public"."open_app_environment" AS ENUM('production', 'sandbox');--> statement-breakpoint
+CREATE TYPE "public"."open_app_review_status" AS ENUM('draft', 'pending', 'approved', 'rejected');--> statement-breakpoint
 CREATE TYPE "public"."ssh_auth_type" AS ENUM('password', 'key_path', 'key_content', 'agent');--> statement-breakpoint
 CREATE TYPE "public"."checkin_milestone_reward_type" AS ENUM('points', 'coupon');--> statement-breakpoint
 CREATE TYPE "public"."coupon_template_status" AS ENUM('draft', 'active', 'paused', 'expired');--> statement-breakpoint
@@ -131,7 +159,76 @@ CREATE TYPE "public"."mp_message_type" AS ENUM('text', 'image', 'voice', 'video'
 CREATE TYPE "public"."mp_qrcode_type" AS ENUM('temporary', 'permanent');--> statement-breakpoint
 CREATE TYPE "public"."mp_reply_content_type" AS ENUM('text', 'image', 'voice', 'video', 'news');--> statement-breakpoint
 CREATE TYPE "public"."mp_template_send_status" AS ENUM('success', 'failed');--> statement-breakpoint
+CREATE TYPE "public"."report_dashboard_lifecycle_status" AS ENUM('draft', 'published', 'offline');--> statement-breakpoint
+CREATE TYPE "public"."report_dashboard_version_source" AS ENUM('manual', 'publish', 'restore_backup');--> statement-breakpoint
 CREATE TYPE "public"."report_datasource_type" AS ENUM('api', 'sql', 'mysql', 'postgresql', 'sqlserver', 'static');--> statement-breakpoint
+CREATE TYPE "public"."report_delivery_status" AS ENUM('pending', 'running', 'success', 'partial', 'failed', 'cancelled');--> statement-breakpoint
+CREATE TYPE "public"."report_delivery_target_type" AS ENUM('subscription', 'alert', 'sla');--> statement-breakpoint
+CREATE TYPE "public"."report_delivery_trigger_type" AS ENUM('manual', 'scheduled', 'trigger', 'recover');--> statement-breakpoint
+CREATE TYPE "public"."report_resource_type" AS ENUM('datasource', 'dataset', 'dashboard', 'metric', 'print_template', 'fill_template', 'asset_template');--> statement-breakpoint
+CREATE TYPE "public"."report_schedule_misfire_policy" AS ENUM('skip', 'fire_once');--> statement-breakpoint
+CREATE TYPE "public"."report_acl_role" AS ENUM('viewer', 'editor', 'owner');--> statement-breakpoint
+CREATE TYPE "public"."report_acl_subject_type" AS ENUM('user', 'role', 'department', 'user_group');--> statement-breakpoint
+CREATE TYPE "public"."report_approval_status" AS ENUM('pending', 'approved', 'rejected', 'cancelled');--> statement-breakpoint
+CREATE TYPE "public"."report_asset_template_type" AS ENUM('dashboard', 'widget', 'print', 'semantic_model');--> statement-breakpoint
+CREATE TYPE "public"."report_chatbi_message_role" AS ENUM('user', 'assistant', 'system', 'tool');--> statement-breakpoint
+CREATE TYPE "public"."report_chatbi_session_status" AS ENUM('active', 'archived');--> statement-breakpoint
+CREATE TYPE "public"."report_dq_anomaly_status" AS ENUM('open', 'acknowledged', 'resolved', 'ignored');--> statement-breakpoint
+CREATE TYPE "public"."report_dq_rule_type" AS ENUM('not_null', 'uniqueness', 'range', 'pattern', 'freshness', 'row_count', 'custom_sql');--> statement-breakpoint
+CREATE TYPE "public"."report_dq_run_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled');--> statement-breakpoint
+CREATE TYPE "public"."report_dq_severity" AS ENUM('low', 'medium', 'high', 'critical');--> statement-breakpoint
+CREATE TYPE "public"."report_environment_kind" AS ENUM('development', 'testing', 'staging', 'production');--> statement-breakpoint
+CREATE TYPE "public"."report_fill_record_status" AS ENUM('draft', 'submitted', 'in_review', 'approved', 'rejected', 'cancelled');--> statement-breakpoint
+CREATE TYPE "public"."report_fill_sync_status" AS ENUM('pending', 'running', 'succeeded', 'failed');--> statement-breakpoint
+CREATE TYPE "public"."report_fill_template_status" AS ENUM('draft', 'published', 'disabled');--> statement-breakpoint
+CREATE TYPE "public"."report_materialization_strategy" AS ENUM('full', 'incremental');--> statement-breakpoint
+CREATE TYPE "public"."report_metric_lifecycle_status" AS ENUM('draft', 'published', 'deprecated');--> statement-breakpoint
+CREATE TYPE "public"."report_metric_type" AS ENUM('simple', 'ratio', 'composite');--> statement-breakpoint
+CREATE TYPE "public"."report_promotion_status" AS ENUM('pending', 'approved', 'deploying', 'succeeded', 'failed', 'cancelled', 'rolled_back');--> statement-breakpoint
+CREATE TYPE "public"."report_quota_scope" AS ENUM('tenant', 'user');--> statement-breakpoint
+CREATE TYPE "public"."report_sla_type" AS ENUM('freshness', 'query_latency_p95', 'availability', 'dq_score');--> statement-breakpoint
+CREATE TYPE "public"."report_sla_violation_status" AS ENUM('open', 'acknowledged', 'resolved');--> statement-breakpoint
+CREATE TYPE "public"."report_snapshot_status" AS ENUM('pending', 'building', 'ready', 'failed', 'expired', 'deleted');--> statement-breakpoint
+CREATE TYPE "public"."report_transfer_status" AS ENUM('pending', 'accepted', 'rejected', 'cancelled');--> statement-breakpoint
+CREATE TYPE "public"."cms_ad_event_type" AS ENUM('impression', 'click');--> statement-breakpoint
+CREATE TYPE "public"."cms_channel_detail_path_rule" AS ENUM('none', 'year', 'month', 'date', 'dateStr', 'idHash');--> statement-breakpoint
+CREATE TYPE "public"."cms_channel_static_mode" AS ENUM('inherit', 'dynamic', 'hybrid', 'static');--> statement-breakpoint
+CREATE TYPE "public"."cms_channel_type" AS ENUM('list', 'page', 'link');--> statement-breakpoint
+CREATE TYPE "public"."cms_collect_item_status" AS ENUM('success', 'skipped', 'failed');--> statement-breakpoint
+CREATE TYPE "public"."cms_comment_status" AS ENUM('pending', 'approved', 'rejected');--> statement-breakpoint
+CREATE TYPE "public"."cms_content_status" AS ENUM('draft', 'pending', 'published', 'offline', 'rejected');--> statement-breakpoint
+CREATE TYPE "public"."cms_content_type" AS ENUM('article', 'album', 'media', 'link');--> statement-breakpoint
+CREATE TYPE "public"."cms_device_type" AS ENUM('pc', 'mobile', 'bot');--> statement-breakpoint
+CREATE TYPE "public"."cms_distribution_conflict_strategy" AS ENUM('skip', 'overwrite', 'create-new');--> statement-breakpoint
+CREATE TYPE "public"."cms_distribution_mode" AS ENUM('copy', 'mapping', 'scheduled');--> statement-breakpoint
+CREATE TYPE "public"."cms_field_option_source" AS ENUM('manual', 'dict');--> statement-breakpoint
+CREATE TYPE "public"."cms_field_type" AS ENUM('text', 'textarea', 'richtext', 'number', 'date', 'datetime', 'image', 'file', 'select', 'radio', 'checkbox', 'switch');--> statement-breakpoint
+CREATE TYPE "public"."cms_form_captcha_provider" AS ENUM('inherit', 'none', 'math', 'turnstile');--> statement-breakpoint
+CREATE TYPE "public"."cms_interaction_captcha_policy" AS ENUM('inherit', 'none', 'math', 'turnstile');--> statement-breakpoint
+CREATE TYPE "public"."cms_interaction_kind" AS ENUM('survey', 'poll');--> statement-breakpoint
+CREATE TYPE "public"."cms_interaction_participant_scope" AS ENUM('anonymous', 'member');--> statement-breakpoint
+CREATE TYPE "public"."cms_interaction_question_type" AS ENUM('single', 'multiple', 'text', 'rating', 'nps', 'matrix', 'date', 'number');--> statement-breakpoint
+CREATE TYPE "public"."cms_interaction_repeat_policy" AS ENUM('once_per_member', 'once_per_ip', 'multiple');--> statement-breakpoint
+CREATE TYPE "public"."cms_interaction_result_visibility" AS ENUM('always', 'after_submit', 'after_close', 'hidden');--> statement-breakpoint
+CREATE TYPE "public"."cms_interaction_status" AS ENUM('draft', 'published', 'closed');--> statement-breakpoint
+CREATE TYPE "public"."cms_page_block_acl_subject_type" AS ENUM('user', 'role');--> statement-breakpoint
+CREATE TYPE "public"."cms_publish_artifact_status" AS ENUM('generated', 'deleted', 'failed');--> statement-breakpoint
+CREATE TYPE "public"."cms_publish_target_type" AS ENUM('content', 'contents', 'channel', 'site', 'theme', 'page');--> statement-breakpoint
+CREATE TYPE "public"."cms_resource_owner_type" AS ENUM('site', 'content', 'contentVersion', 'channel', 'friendLink', 'ad', 'page', 'widget', 'form');--> statement-breakpoint
+CREATE TYPE "public"."cms_resource_type" AS ENUM('image', 'video', 'audio', 'document', 'other');--> statement-breakpoint
+CREATE TYPE "public"."cms_search_word_type" AS ENUM('extension', 'stop');--> statement-breakpoint
+CREATE TYPE "public"."cms_static_mode" AS ENUM('dynamic', 'hybrid', 'static');--> statement-breakpoint
+CREATE TYPE "public"."cms_subscription_subject_type" AS ENUM('site', 'channel', 'author');--> statement-breakpoint
+CREATE TYPE "public"."cms_widget_ref_owner_type" AS ENUM('page', 'theme_slot');--> statement-breakpoint
+CREATE TYPE "public"."cms_widget_source_type" AS ENUM('content', 'channel');--> statement-breakpoint
+CREATE TYPE "public"."cms_widget_status" AS ENUM('draft', 'published', 'offline');--> statement-breakpoint
+CREATE TYPE "public"."cms_widget_type" AS ENUM('manual-list');--> statement-breakpoint
+CREATE TABLE "app_data_migrations" (
+	"key" varchar(128) PRIMARY KEY NOT NULL,
+	"description" varchar(500) NOT NULL,
+	"applied_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "departments" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"parent_id" integer DEFAULT 0 NOT NULL,
@@ -163,6 +260,8 @@ CREATE TABLE "menus" (
 	"permission" varchar(128),
 	"query" varchar(512),
 	"is_external" boolean DEFAULT false NOT NULL,
+	"embed" boolean DEFAULT false NOT NULL,
+	"keep_alive" boolean DEFAULT false NOT NULL,
 	"sort" integer DEFAULT 0 NOT NULL,
 	"status" "status" DEFAULT 'enabled' NOT NULL,
 	"visible" boolean DEFAULT true NOT NULL,
@@ -264,6 +363,12 @@ CREATE TABLE "user_group_members" (
 	CONSTRAINT "user_group_members_group_id_user_id_pk" PRIMARY KEY("group_id","user_id")
 );
 --> statement-breakpoint
+CREATE TABLE "user_group_roles" (
+	"group_id" integer NOT NULL,
+	"role_id" integer NOT NULL,
+	CONSTRAINT "user_group_roles_group_id_role_id_pk" PRIMARY KEY("group_id","role_id")
+);
+--> statement-breakpoint
 CREATE TABLE "user_groups" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"name" varchar(64) NOT NULL,
@@ -302,7 +407,7 @@ CREATE TABLE "users" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"username" varchar(32) NOT NULL,
 	"nickname" varchar(32) NOT NULL,
-	"email" varchar(128) NOT NULL,
+	"email" varchar(128),
 	"password" varchar(128) NOT NULL,
 	"avatar" varchar(256),
 	"phone" varchar(20),
@@ -320,7 +425,8 @@ CREATE TABLE "users" (
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "users_tenant_username_unique" UNIQUE("tenant_id","username"),
-	CONSTRAINT "users_tenant_email_unique" UNIQUE("tenant_id","email")
+	CONSTRAINT "users_tenant_email_unique" UNIQUE("tenant_id","email"),
+	CONSTRAINT "users_tenant_phone_unique" UNIQUE("tenant_id","phone")
 );
 --> statement-breakpoint
 CREATE TABLE "business_files" (
@@ -343,6 +449,10 @@ CREATE TABLE "file_storage_configs" (
 	"status" "status" DEFAULT 'enabled' NOT NULL,
 	"is_default" boolean DEFAULT false NOT NULL,
 	"base_path" varchar(256),
+	"object_acl" "file_object_acl" DEFAULT 'default' NOT NULL,
+	"url_strategy" "file_url_strategy" DEFAULT 'proxy' NOT NULL,
+	"public_base_url" varchar(512),
+	"presigned_expiry_seconds" integer DEFAULT 1800 NOT NULL,
 	"local_root_path" varchar(512),
 	"oss_region" varchar(64),
 	"oss_endpoint" varchar(128),
@@ -401,6 +511,7 @@ CREATE TABLE "managed_files" (
 	"size" integer DEFAULT 0 NOT NULL,
 	"mime_type" varchar(128),
 	"extension" varchar(32),
+	"object_acl" "file_object_acl",
 	"tenant_id" integer,
 	"created_by" integer,
 	"updated_by" integer,
@@ -431,6 +542,7 @@ CREATE TABLE "upload_sessions" (
 	"object_key" varchar(512) NOT NULL,
 	"bucket_name" varchar(256),
 	"multipart_upload_id" varchar(512),
+	"object_acl" "file_object_acl",
 	"status" "upload_session_status" DEFAULT 'uploading' NOT NULL,
 	"tenant_id" integer,
 	"created_by" integer,
@@ -700,6 +812,21 @@ CREATE TABLE "system_scheduler_task_configs" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "user_feedbacks" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"user_id" integer NOT NULL,
+	"score" integer,
+	"category" "user_feedback_category" DEFAULT 'suggestion' NOT NULL,
+	"content" varchar(1000),
+	"page_path" varchar(200),
+	"status" "user_feedback_status" DEFAULT 'pending' NOT NULL,
+	"handle_remark" varchar(500),
+	"handled_by" integer,
+	"handled_at" timestamp,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "login_risk_events" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"user_id" integer,
@@ -761,14 +888,15 @@ CREATE TABLE "user_api_tokens" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"user_id" integer NOT NULL,
 	"name" varchar(64) NOT NULL,
-	"token" varchar(128) NOT NULL,
+	"token_hash" varchar(64),
+	"token_prefix" varchar(20),
 	"last_used_at" timestamp with time zone,
 	"expires_at" timestamp with time zone,
 	"created_by" integer,
 	"updated_by" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "user_api_tokens_token_unique" UNIQUE("token")
+	CONSTRAINT "user_api_tokens_token_hash_unique" UNIQUE("token_hash")
 );
 --> statement-breakpoint
 CREATE TABLE "user_mfa_factors" (
@@ -1001,10 +1129,100 @@ CREATE TABLE "analytics_event_meta" (
 	"event_count" bigint DEFAULT 0 NOT NULL,
 	"first_seen_at" timestamp with time zone,
 	"last_seen_at" timestamp with time zone,
+	"version" integer DEFAULT 1 NOT NULL,
+	"owner_id" integer,
+	"owner_name" varchar(64),
+	"strict_mode" boolean DEFAULT false NOT NULL,
 	"created_by" integer,
 	"updated_by" integer,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "analytics_event_overrides" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer NOT NULL,
+	"event_name" varchar(128) NOT NULL,
+	"status" "analytics_event_override_status" DEFAULT 'enabled' NOT NULL,
+	"reason" text,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "analytics_event_quality_daily" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer DEFAULT 0 NOT NULL,
+	"stat_date" date NOT NULL,
+	"event_name" varchar(128) NOT NULL,
+	"issue_type" "analytics_event_quality_issue_type" NOT NULL,
+	"count" bigint DEFAULT 0 NOT NULL,
+	"sample" jsonb,
+	"last_seen_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "analytics_experiments" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"exp_key" varchar(64) NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"description" varchar(500),
+	"status" "analytics_experiment_status" DEFAULT 'draft' NOT NULL,
+	"traffic_allocation" integer DEFAULT 100 NOT NULL,
+	"variants" jsonb NOT NULL,
+	"metric_event_name" varchar(128) NOT NULL,
+	"start_at" timestamp with time zone,
+	"end_at" timestamp with time zone,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "analytics_saved_reports" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"name" varchar(128) NOT NULL,
+	"report_type" varchar(32) DEFAULT 'funnel' NOT NULL,
+	"config" jsonb NOT NULL,
+	"created_by" integer,
+	"created_by_name" varchar(64),
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "analytics_segment_campaigns" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"segment_id" integer NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"channel" "analytics_campaign_channel" NOT NULL,
+	"template_id" integer,
+	"webhook_url" varchar(500),
+	"status" "analytics_campaign_status" DEFAULT 'draft' NOT NULL,
+	"total_count" integer DEFAULT 0 NOT NULL,
+	"sent_count" integer DEFAULT 0 NOT NULL,
+	"failed_count" integer DEFAULT 0 NOT NULL,
+	"last_run_at" timestamp with time zone,
+	"last_error" varchar(500),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "analytics_segment_members" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"segment_id" integer NOT NULL,
+	"tenant_id" integer,
+	"distinct_id" varchar(64) NOT NULL,
+	"identity_type" "analytics_identity_type" DEFAULT 'anonymous' NOT NULL,
+	"user_id" integer,
+	"member_id" integer,
+	"snapshot_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "analytics_sessions" (
@@ -1029,6 +1247,10 @@ CREATE TABLE "analytics_sessions" (
 	"country" varchar(64),
 	"region" varchar(64),
 	"is_bounce" boolean DEFAULT true NOT NULL,
+	"source" "analytics_event_source" DEFAULT 'web_admin' NOT NULL,
+	"app_id" varchar(64) DEFAULT 'admin' NOT NULL,
+	"environment" varchar(32) DEFAULT 'production' NOT NULL,
+	"member_id" integer,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -1045,6 +1267,7 @@ CREATE TABLE "analytics_settings" (
 	"track_api" boolean DEFAULT true NOT NULL,
 	"mask_inputs" boolean DEFAULT true NOT NULL,
 	"respect_dnt" boolean DEFAULT false NOT NULL,
+	"anonymize_ip" boolean DEFAULT false NOT NULL,
 	"blacklist_paths" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"retention_days" integer DEFAULT 180 NOT NULL,
 	"error_retention_days" integer DEFAULT 90 NOT NULL,
@@ -1053,6 +1276,64 @@ CREATE TABLE "analytics_settings" (
 	"updated_by" integer,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "analytics_sites" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"site_key" varchar(64) NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"app_id" varchar(50) NOT NULL,
+	"allowed_origins" jsonb,
+	"daily_event_quota" integer,
+	"status" "analytics_event_override_status" DEFAULT 'enabled' NOT NULL,
+	"remark" varchar(500),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "analytics_user_profiles" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"distinct_id" varchar(64) NOT NULL,
+	"identity_type" "analytics_identity_type" DEFAULT 'anonymous' NOT NULL,
+	"user_id" integer,
+	"member_id" integer,
+	"display_name" varchar(64),
+	"properties" jsonb,
+	"first_seen_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"last_seen_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "analytics_user_segments" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"name" varchar(128) NOT NULL,
+	"description" text,
+	"rules" jsonb NOT NULL,
+	"status" "analytics_event_override_status" DEFAULT 'enabled' NOT NULL,
+	"estimated_size" integer DEFAULT 0 NOT NULL,
+	"snapshot_at" timestamp with time zone,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "error_alert_logs" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"rule_id" integer,
+	"rule_name" varchar(128) NOT NULL,
+	"condition" "error_alert_condition" NOT NULL,
+	"detail" text NOT NULL,
+	"channels" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"source" varchar(16) DEFAULT 'cron' NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "error_alert_rules" (
@@ -1102,6 +1383,10 @@ CREATE TABLE "error_events" (
 	"http_status" integer,
 	"http_method" varchar(16),
 	"http_url" varchar(512),
+	"source" "analytics_event_source" DEFAULT 'web_admin' NOT NULL,
+	"app_id" varchar(64) DEFAULT 'admin' NOT NULL,
+	"environment" varchar(32) DEFAULT 'production' NOT NULL,
+	"member_id" integer,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -1143,6 +1428,7 @@ CREATE TABLE "source_maps" (
 --> statement-breakpoint
 CREATE TABLE "user_events" (
 	"id" serial PRIMARY KEY NOT NULL,
+	"event_id" uuid,
 	"tenant_id" integer,
 	"distinct_id" varchar(64),
 	"anonymous_id" varchar(64),
@@ -1182,6 +1468,11 @@ CREATE TABLE "user_events" (
 	"city" varchar(64),
 	"metric_name" varchar(32),
 	"metric_value" real,
+	"source" "analytics_event_source" DEFAULT 'web_admin' NOT NULL,
+	"app_id" varchar(64) DEFAULT 'admin' NOT NULL,
+	"environment" varchar(32) DEFAULT 'production' NOT NULL,
+	"sdk_version" varchar(32),
+	"member_id" integer,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -1254,6 +1545,7 @@ CREATE TABLE "workflow_comments" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"instance_id" integer NOT NULL,
 	"task_id" integer,
+	"parent_id" integer,
 	"user_id" integer NOT NULL,
 	"content" text NOT NULL,
 	"mentions" jsonb DEFAULT '[]'::jsonb NOT NULL,
@@ -1334,7 +1626,7 @@ CREATE TABLE "workflow_data_sources" (
 	"name" varchar(64) NOT NULL,
 	"method" varchar(8) DEFAULT 'GET' NOT NULL,
 	"url" varchar(1024) NOT NULL,
-	"headers" jsonb,
+	"headers_encrypted" text,
 	"items_path" varchar(128),
 	"value_field" varchar(64) NOT NULL,
 	"label_field" varchar(64) NOT NULL,
@@ -1358,6 +1650,7 @@ CREATE TABLE "workflow_definition_versions" (
 	"form_id" integer,
 	"form_type" "workflow_form_type" DEFAULT 'designer' NOT NULL,
 	"custom_form" jsonb,
+	"form_schema" jsonb,
 	"published_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"published_by" integer,
 	"tenant_id" integer,
@@ -1417,9 +1710,9 @@ CREATE TABLE "workflow_event_subscriptions" (
 	"name" varchar(64) NOT NULL,
 	"description" varchar(256),
 	"definition_id" integer,
-	"events" text NOT NULL,
+	"events" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"url" varchar(512) NOT NULL,
-	"secret" varchar(256),
+	"secret_encrypted" text,
 	"sign_mode" "workflow_event_sign_mode" DEFAULT 'hmacSha256' NOT NULL,
 	"headers" text,
 	"connector_id" integer,
@@ -1439,6 +1732,7 @@ CREATE TABLE "workflow_forms" (
 	"category_id" integer,
 	"schema" jsonb,
 	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"revision" integer DEFAULT 1 NOT NULL,
 	"tenant_id" integer,
 	"created_by" integer,
 	"updated_by" integer,
@@ -1480,6 +1774,8 @@ CREATE TABLE "workflow_instances" (
 	"parent_task_item_index" integer,
 	"biz_type" varchar(64),
 	"biz_id" varchar(64),
+	"suspended_at" timestamp,
+	"suspend_reason" varchar(500),
 	"created_by" integer,
 	"updated_by" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -1559,6 +1855,7 @@ CREATE TABLE "workflow_schedules" (
 	"definition_id" integer NOT NULL,
 	"name" varchar(128) NOT NULL,
 	"cron_expression" varchar(64) NOT NULL,
+	"timezone" varchar(64),
 	"initiator_id" integer NOT NULL,
 	"title_template" varchar(256),
 	"form_data" jsonb,
@@ -1611,6 +1908,19 @@ CREATE TABLE "workflow_task_consults" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "workflow_task_transfers" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"task_id" integer NOT NULL,
+	"instance_id" integer NOT NULL,
+	"from_user_id" integer,
+	"to_user_id" integer NOT NULL,
+	"action" "workflow_task_transfer_action" NOT NULL,
+	"reason" varchar(500),
+	"operator_id" integer,
+	"tenant_id" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "workflow_task_urges" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"task_id" integer NOT NULL,
@@ -1640,9 +1950,9 @@ CREATE TABLE "workflow_tasks" (
 	"sub_total" integer,
 	"sub_done" integer DEFAULT 0 NOT NULL,
 	"original_assignee_id" integer,
-	"transfer_chain" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"delegated_from_id" integer,
 	"return_origin_node_key" varchar(64),
+	"activation_id" varchar(36),
 	"cc_read_at" timestamp with time zone,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "workflow_tasks_external_callback_id_unique" UNIQUE("external_callback_id")
@@ -1742,8 +2052,11 @@ CREATE TABLE "in_app_messages" (
 	"read_at" timestamp with time zone,
 	"source" "send_source" DEFAULT 'system' NOT NULL,
 	"sender_id" integer,
+	"link" varchar(512),
+	"dedupe_key" varchar(192),
 	"tenant_id" integer,
-	"created_at" timestamp DEFAULT now() NOT NULL
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "in_app_messages_dedupe_key_unique" UNIQUE("dedupe_key")
 );
 --> statement-breakpoint
 CREATE TABLE "in_app_templates" (
@@ -1893,6 +2206,24 @@ CREATE TABLE "rule_decision_executions" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "rule_decision_flows" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"key" varchar(64) NOT NULL,
+	"name" varchar(64) NOT NULL,
+	"description" text,
+	"status" "workflow_definition_status" DEFAULT 'draft' NOT NULL,
+	"steps" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"published_steps" jsonb,
+	"version" integer DEFAULT 1 NOT NULL,
+	"published_at" timestamp with time zone,
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "rule_decision_flows_key_uniq" UNIQUE("tenant_id","key")
+);
+--> statement-breakpoint
 CREATE TABLE "rule_decision_table_versions" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"table_id" integer NOT NULL,
@@ -1903,6 +2234,7 @@ CREATE TABLE "rule_decision_table_versions" (
 	"inputs" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"outputs" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"rules" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"settings" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"published_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"published_by" integer,
 	"tenant_id" integer,
@@ -1920,14 +2252,46 @@ CREATE TABLE "rule_decision_tables" (
 	"inputs" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"outputs" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"rules" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"settings" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"version" integer DEFAULT 1 NOT NULL,
 	"published_at" timestamp with time zone,
+	"review_status" varchar(16),
+	"review_requested_by" integer,
+	"review_requested_at" timestamp with time zone,
+	"review_comment" varchar(255),
 	"tenant_id" integer,
 	"created_by" integer,
 	"updated_by" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "rule_decision_tables_key_uniq" UNIQUE("tenant_id","key")
+);
+--> statement-breakpoint
+CREATE TABLE "rule_list_items" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"list_id" integer NOT NULL,
+	"value" varchar(128) NOT NULL,
+	"label" varchar(64),
+	"expires_at" timestamp with time zone,
+	"remark" varchar(255),
+	"created_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "rule_list_items_value_uniq" UNIQUE("list_id","value")
+);
+--> statement-breakpoint
+CREATE TABLE "rule_lists" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"key" varchar(64) NOT NULL,
+	"name" varchar(64) NOT NULL,
+	"type" varchar(8) DEFAULT 'black' NOT NULL,
+	"description" text,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "rule_lists_key_uniq" UNIQUE("tenant_id","key")
 );
 --> statement-breakpoint
 CREATE TABLE "rule_test_cases" (
@@ -1984,6 +2348,8 @@ CREATE TABLE "chat_conversation_members" (
 	"is_pinned" boolean DEFAULT false NOT NULL,
 	"is_starred" boolean DEFAULT false NOT NULL,
 	"is_muted" boolean DEFAULT false NOT NULL,
+	"is_archived" boolean DEFAULT false NOT NULL,
+	"muted_until" timestamp with time zone,
 	"last_read_at" timestamp with time zone,
 	"joined_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "chat_conversation_members_conversation_id_user_id_pk" PRIMARY KEY("conversation_id","user_id")
@@ -1994,9 +2360,49 @@ CREATE TABLE "chat_conversations" (
 	"type" "chat_conversation_type" DEFAULT 'direct' NOT NULL,
 	"name" varchar(64),
 	"announcement" varchar(500),
+	"mute_all" boolean DEFAULT false NOT NULL,
+	"join_approval" boolean DEFAULT false NOT NULL,
 	"created_by" integer,
 	"updated_by" integer,
 	"tenant_id" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "chat_custom_emojis" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"user_id" integer NOT NULL,
+	"url" varchar(512) NOT NULL,
+	"file_id" varchar(64),
+	"name" varchar(64),
+	"width" integer,
+	"height" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "chat_group_invites" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"conversation_id" integer NOT NULL,
+	"token" varchar(64) NOT NULL,
+	"created_by" integer,
+	"expires_at" timestamp with time zone,
+	"max_uses" integer,
+	"used_count" integer DEFAULT 0 NOT NULL,
+	"enabled" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "chat_group_invites_token_unique" UNIQUE("token")
+);
+--> statement-breakpoint
+CREATE TABLE "chat_group_join_requests" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"conversation_id" integer NOT NULL,
+	"user_id" integer NOT NULL,
+	"invite_id" integer,
+	"status" "chat_join_request_status" DEFAULT 'pending' NOT NULL,
+	"message" varchar(255),
+	"handled_by" integer,
+	"handled_at" timestamp with time zone,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
@@ -2022,6 +2428,30 @@ CREATE TABLE "chat_messages" (
 	"extra" jsonb,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "chat_quick_replies" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"user_id" integer NOT NULL,
+	"content" varchar(500) NOT NULL,
+	"sort" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "chat_scheduled_messages" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"conversation_id" integer NOT NULL,
+	"sender_id" integer NOT NULL,
+	"type" "chat_message_type" DEFAULT 'text' NOT NULL,
+	"content" text NOT NULL,
+	"extra" jsonb,
+	"scheduled_at" timestamp with time zone NOT NULL,
+	"status" "chat_scheduled_status" DEFAULT 'pending' NOT NULL,
+	"fail_reason" varchar(255),
+	"sent_message_id" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "chat_webhooks" (
@@ -2162,6 +2592,35 @@ CREATE TABLE "channels" (
 	CONSTRAINT "channels_code_unique" UNIQUE("code")
 );
 --> statement-breakpoint
+CREATE TABLE "payment_accounts" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"channel" "payment_channel" NOT NULL,
+	"pending_settle" integer DEFAULT 0 NOT NULL,
+	"available" integer DEFAULT 0 NOT NULL,
+	"frozen" integer DEFAULT 0 NOT NULL,
+	"version" integer DEFAULT 0 NOT NULL,
+	"tenant_id" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "payment_apps" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"name" varchar(64) NOT NULL,
+	"app_key" varchar(64) NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"wechat_config_id" integer,
+	"alipay_config_id" integer,
+	"unionpay_config_id" integer,
+	"remark" varchar(256),
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "payment_apps_app_key_unique" UNIQUE("app_key")
+);
+--> statement-breakpoint
 CREATE TABLE "payment_channel_configs" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"name" varchar(64) NOT NULL,
@@ -2181,12 +2640,93 @@ CREATE TABLE "payment_channel_configs" (
 	"alipay_public_key" text,
 	"alipay_sign_type" varchar(16) DEFAULT 'RSA2',
 	"alipay_gateway" varchar(256),
+	"unionpay_mer_id" varchar(64),
+	"unionpay_private_key_encrypted" text,
+	"unionpay_cert_id" varchar(64),
+	"unionpay_public_key" text,
+	"unionpay_gateway" varchar(256),
 	"remark" varchar(256),
 	"tenant_id" integer,
 	"created_by" integer,
 	"updated_by" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "payment_contracts" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"contract_no" varchar(64) NOT NULL,
+	"channel" "payment_channel" NOT NULL,
+	"channel_config_id" integer,
+	"plan_id" integer NOT NULL,
+	"signer_account" varchar(128) NOT NULL,
+	"signer_name" varchar(64),
+	"status" "payment_contract_status" DEFAULT 'pending' NOT NULL,
+	"channel_contract_no" varchar(128),
+	"biz_type" varchar(64) NOT NULL,
+	"biz_id" varchar(128) NOT NULL,
+	"next_deduct_at" timestamp with time zone,
+	"last_deduct_at" timestamp with time zone,
+	"fail_count" integer DEFAULT 0 NOT NULL,
+	"total_deduct_count" integer DEFAULT 0 NOT NULL,
+	"last_order_no" varchar(64),
+	"signed_at" timestamp with time zone,
+	"terminated_at" timestamp with time zone,
+	"remark" varchar(256),
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "payment_contracts_contract_no_unique" UNIQUE("contract_no")
+);
+--> statement-breakpoint
+CREATE TABLE "payment_deduct_plans" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"name" varchar(64) NOT NULL,
+	"period" "payment_deduct_period" DEFAULT 'monthly' NOT NULL,
+	"custom_days" integer,
+	"amount" integer NOT NULL,
+	"max_retries" integer DEFAULT 3 NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"remark" varchar(256),
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "payment_dispute_replies" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"dispute_id" integer NOT NULL,
+	"author" "payment_dispute_reply_author" DEFAULT 'merchant' NOT NULL,
+	"content" text NOT NULL,
+	"operator_id" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "payment_disputes" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"dispute_no" varchar(64) NOT NULL,
+	"channel_dispute_no" varchar(128),
+	"channel" "payment_channel" NOT NULL,
+	"order_no" varchar(64) NOT NULL,
+	"complainant" varchar(128),
+	"complainant_phone" varchar(32),
+	"type" "payment_dispute_type" DEFAULT 'other' NOT NULL,
+	"content" text NOT NULL,
+	"amount" integer DEFAULT 0 NOT NULL,
+	"status" "payment_dispute_status" DEFAULT 'pending' NOT NULL,
+	"deadline" timestamp with time zone,
+	"refund_no" varchar(64),
+	"resolved_at" timestamp with time zone,
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "payment_disputes_dispute_no_unique" UNIQUE("dispute_no")
 );
 --> statement-breakpoint
 CREATE TABLE "payment_events" (
@@ -2303,6 +2843,7 @@ CREATE TABLE "payment_orders" (
 	"currency" varchar(8) DEFAULT 'CNY' NOT NULL,
 	"channel" "payment_channel" NOT NULL,
 	"channel_config_id" integer,
+	"app_id" integer,
 	"pay_method" "payment_method" NOT NULL,
 	"status" "payment_order_status" DEFAULT 'pending' NOT NULL,
 	"user_id" integer,
@@ -2312,6 +2853,9 @@ CREATE TABLE "payment_orders" (
 	"paid_amount" integer,
 	"fee_amount" integer,
 	"net_amount" integer,
+	"original_amount" integer,
+	"discount_amount" integer,
+	"member_coupon_id" integer,
 	"paid_at" timestamp with time zone,
 	"expired_at" timestamp with time zone,
 	"notify_data" text,
@@ -2323,6 +2867,33 @@ CREATE TABLE "payment_orders" (
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "payment_orders_order_no_unique" UNIQUE("order_no"),
 	CONSTRAINT "payment_orders_channel_out_trade_no_uq" UNIQUE("channel","out_trade_no")
+);
+--> statement-breakpoint
+CREATE TABLE "payment_preauths" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"preauth_no" varchar(64) NOT NULL,
+	"channel" "payment_channel" NOT NULL,
+	"channel_config_id" integer,
+	"channel_preauth_no" varchar(128),
+	"biz_type" varchar(64) NOT NULL,
+	"biz_id" varchar(128) NOT NULL,
+	"subject" varchar(256) NOT NULL,
+	"payer_account" varchar(128) NOT NULL,
+	"frozen_amount" integer NOT NULL,
+	"captured_amount" integer,
+	"capture_order_no" varchar(64),
+	"status" "payment_preauth_status" DEFAULT 'pending' NOT NULL,
+	"error_message" varchar(512),
+	"frozen_at" timestamp with time zone,
+	"finished_at" timestamp with time zone,
+	"remark" varchar(256),
+	"operator_id" integer,
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "payment_preauths_preauth_no_unique" UNIQUE("preauth_no")
 );
 --> statement-breakpoint
 CREATE TABLE "payment_recon_batches" (
@@ -2356,6 +2927,10 @@ CREATE TABLE "payment_recon_items" (
 	"local_status" varchar(32),
 	"channel_status" varchar(32),
 	"result" "payment_recon_result" NOT NULL,
+	"handle_status" "payment_recon_handle_status",
+	"handle_remark" varchar(256),
+	"handled_at" timestamp with time zone,
+	"handled_by_id" integer,
 	"remark" varchar(256),
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
@@ -2389,6 +2964,60 @@ CREATE TABLE "payment_refunds" (
 	CONSTRAINT "payment_refunds_refund_no_unique" UNIQUE("refund_no")
 );
 --> statement-breakpoint
+CREATE TABLE "payment_report_daily" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"stat_date" varchar(10) NOT NULL,
+	"channel" varchar(16) DEFAULT '' NOT NULL,
+	"biz_type" varchar(64) DEFAULT '' NOT NULL,
+	"gross" integer DEFAULT 0 NOT NULL,
+	"fee" integer DEFAULT 0 NOT NULL,
+	"refund" integer DEFAULT 0 NOT NULL,
+	"count" integer DEFAULT 0 NOT NULL,
+	"tenant_id" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "payment_risk_hits" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"rule_id" integer,
+	"rule_name" varchar(64) NOT NULL,
+	"action" "payment_risk_action" NOT NULL,
+	"dimension" "payment_risk_dimension" NOT NULL,
+	"dimension_value" varchar(256),
+	"channel" "payment_channel" NOT NULL,
+	"biz_type" varchar(64) NOT NULL,
+	"biz_id" varchar(128) NOT NULL,
+	"order_no" varchar(64),
+	"amount" integer NOT NULL,
+	"open_id" varchar(128),
+	"user_id" integer,
+	"client_ip" varchar(64),
+	"tenant_id" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "payment_risk_reviews" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"review_no" varchar(64) NOT NULL,
+	"hit_id" integer,
+	"order_no" varchar(64) NOT NULL,
+	"channel" "payment_channel" NOT NULL,
+	"biz_type" varchar(64) NOT NULL,
+	"biz_id" varchar(128) NOT NULL,
+	"amount" integer NOT NULL,
+	"reason" varchar(256) NOT NULL,
+	"status" "payment_risk_review_status" DEFAULT 'pending' NOT NULL,
+	"reviewer_id" integer,
+	"reviewed_at" timestamp with time zone,
+	"review_remark" varchar(256),
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "payment_risk_reviews_review_no_unique" UNIQUE("review_no")
+);
+--> statement-breakpoint
 CREATE TABLE "payment_risk_rules" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"name" varchar(64) NOT NULL,
@@ -2399,6 +3028,8 @@ CREATE TABLE "payment_risk_rules" (
 	"daily_limit" integer,
 	"daily_count_limit" integer,
 	"blocklist" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"allowlist" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"action" "payment_risk_action" DEFAULT 'block' NOT NULL,
 	"status" "status" DEFAULT 'enabled' NOT NULL,
 	"remark" varchar(256),
 	"tenant_id" integer,
@@ -2438,6 +3069,7 @@ CREATE TABLE "payment_sharing_orders" (
 	"amount" integer NOT NULL,
 	"status" "payment_sharing_order_status" DEFAULT 'pending' NOT NULL,
 	"channel_sharing_no" varchar(128),
+	"attempts" integer DEFAULT 0 NOT NULL,
 	"finished_at" timestamp with time zone,
 	"remark" varchar(256),
 	"tenant_id" integer,
@@ -2454,6 +3086,7 @@ CREATE TABLE "payment_sharing_receivers" (
 	"receiver_type" "payment_sharing_receiver_type" DEFAULT 'merchant' NOT NULL,
 	"account" varchar(128) NOT NULL,
 	"ratio_bps" integer,
+	"auto_share" boolean DEFAULT false NOT NULL,
 	"status" "status" DEFAULT 'enabled' NOT NULL,
 	"remark" varchar(256),
 	"tenant_id" integer,
@@ -2461,6 +3094,33 @@ CREATE TABLE "payment_sharing_receivers" (
 	"updated_by" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "payment_transfers" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"transfer_no" varchar(64) NOT NULL,
+	"out_transfer_no" varchar(64) NOT NULL,
+	"channel" "payment_channel" NOT NULL,
+	"channel_config_id" integer,
+	"receiver_account" varchar(128) NOT NULL,
+	"receiver_name" varchar(64),
+	"amount" integer NOT NULL,
+	"remark" varchar(256),
+	"status" "payment_transfer_status" DEFAULT 'pending' NOT NULL,
+	"channel_transfer_no" varchar(128),
+	"fail_reason" varchar(512),
+	"attempts" integer DEFAULT 0 NOT NULL,
+	"biz_type" varchar(64),
+	"biz_id" varchar(128),
+	"finished_at" timestamp with time zone,
+	"operator_id" integer,
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "payment_transfers_transfer_no_unique" UNIQUE("transfer_no"),
+	CONSTRAINT "payment_transfers_channel_out_no_uq" UNIQUE("channel","out_transfer_no")
 );
 --> statement-breakpoint
 CREATE TABLE "payment_webhook_deliveries" (
@@ -2496,6 +3156,38 @@ CREATE TABLE "payment_webhook_endpoints" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "ai_agents" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"user_id" integer NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"description" varchar(300),
+	"avatar" varchar(20) DEFAULT '🤖' NOT NULL,
+	"system_prompt" text NOT NULL,
+	"config_id" integer,
+	"model" varchar(100),
+	"temperature" varchar(10),
+	"knowledge_base_id" integer,
+	"tools" text[],
+	"opening_message" text,
+	"suggested_questions" text[],
+	"status" "ai_agent_status" DEFAULT 'private' NOT NULL,
+	"cloned_from_id" integer,
+	"usage_count" integer DEFAULT 0 NOT NULL,
+	"is_enabled" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "ai_arena_votes" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"user_id" integer NOT NULL,
+	"question" text NOT NULL,
+	"model_a" varchar(100) NOT NULL,
+	"model_b" varchar(100) NOT NULL,
+	"winner" varchar(10) NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "ai_conversations" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"user_id" integer NOT NULL,
@@ -2505,6 +3197,80 @@ CREATE TABLE "ai_conversations" (
 	"is_archived" boolean DEFAULT false NOT NULL,
 	"is_pinned" boolean DEFAULT false NOT NULL,
 	"system_prompt_override" text,
+	"knowledge_base_id" integer,
+	"agent_id" integer,
+	"tags" text[],
+	"active_leaf_msg_id" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "ai_eval_runs" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"set_id" integer NOT NULL,
+	"config_id" integer,
+	"model" varchar(100) NOT NULL,
+	"status" varchar(20) DEFAULT 'running' NOT NULL,
+	"results" jsonb,
+	"avg_duration_ms" integer,
+	"total_tokens" integer,
+	"created_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "ai_eval_sets" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"description" varchar(300),
+	"items" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "ai_http_tools" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"name" varchar(60) NOT NULL,
+	"description" varchar(500) NOT NULL,
+	"method" varchar(10) DEFAULT 'GET' NOT NULL,
+	"url_template" varchar(500) NOT NULL,
+	"headers" jsonb,
+	"params" jsonb,
+	"is_enabled" boolean DEFAULT true NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "ai_kb_chunks" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"kb_id" integer NOT NULL,
+	"doc_id" integer NOT NULL,
+	"content" text NOT NULL,
+	"embedding" real[],
+	"token_count" integer DEFAULT 0 NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "ai_kb_documents" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"kb_id" integer NOT NULL,
+	"name" varchar(200) NOT NULL,
+	"source_url" varchar(500),
+	"status" varchar(20) DEFAULT 'ready' NOT NULL,
+	"chunk_count" integer DEFAULT 0 NOT NULL,
+	"char_count" integer DEFAULT 0 NOT NULL,
+	"error" varchar(500),
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "ai_knowledge_bases" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"description" varchar(300),
+	"user_id" integer NOT NULL,
+	"embedding_model" varchar(100),
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
@@ -2512,16 +3278,31 @@ CREATE TABLE "ai_conversations" (
 CREATE TABLE "ai_messages" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"conversation_id" integer NOT NULL,
+	"parent_id" integer,
 	"role" "ai_message_role" NOT NULL,
 	"content" text NOT NULL,
+	"reasoning" text,
 	"model" varchar(100),
 	"tokens_input" integer DEFAULT 0 NOT NULL,
 	"tokens_output" integer DEFAULT 0 NOT NULL,
+	"ttft_ms" integer,
+	"duration_ms" integer,
 	"feedback" integer,
 	"feedback_reason" varchar(200),
 	"feedback_status" "ai_feedback_status",
 	"feedback_remark" varchar(500),
 	"feedback_handled_at" timestamp,
+	"trace" jsonb,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "ai_prompt_template_versions" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"template_id" integer NOT NULL,
+	"version" integer NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"content" text NOT NULL,
+	"created_by" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -2535,6 +3316,7 @@ CREATE TABLE "ai_prompt_templates" (
 	"user_id" integer,
 	"is_builtin" boolean DEFAULT false NOT NULL,
 	"sort" integer DEFAULT 0 NOT NULL,
+	"usage_count" integer DEFAULT 0 NOT NULL,
 	"is_enabled" boolean DEFAULT true NOT NULL,
 	"created_by" integer,
 	"updated_by" integer,
@@ -2549,13 +3331,38 @@ CREATE TABLE "ai_provider_configs" (
 	"base_url" varchar(500) NOT NULL,
 	"api_key" varchar(1000) NOT NULL,
 	"model" varchar(100) NOT NULL,
+	"models" text[],
+	"capabilities" jsonb,
 	"system_prompt" text,
 	"max_tokens" integer DEFAULT 4096 NOT NULL,
 	"temperature" varchar(10) DEFAULT '0.7' NOT NULL,
+	"price_input_per_m" integer,
+	"price_output_per_m" integer,
 	"is_default" boolean DEFAULT false NOT NULL,
 	"is_enabled" boolean DEFAULT true NOT NULL,
+	"fallback_config_id" integer,
+	"max_concurrent" integer,
 	"created_by" integer,
 	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "ai_shared_conversations" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"token" varchar(64) NOT NULL,
+	"conversation_id" integer NOT NULL,
+	"user_id" integer NOT NULL,
+	"expires_at" timestamp,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "ai_user_preferences" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"user_id" integer NOT NULL,
+	"about_me" text,
+	"reply_style" text,
+	"is_enabled" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
@@ -2607,7 +3414,8 @@ CREATE TABLE "app_webhook_deliveries" (
 	"next_retry_at" timestamp with time zone,
 	"started_at" timestamp with time zone,
 	"finished_at" timestamp with time zone,
-	"created_at" timestamp DEFAULT now() NOT NULL
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "app_webhook_deliveries_subscription_event_unique" UNIQUE("subscription_id","event_id")
 );
 --> statement-breakpoint
 CREATE TABLE "app_webhook_subscriptions" (
@@ -2618,9 +3426,13 @@ CREATE TABLE "app_webhook_subscriptions" (
 	"secret_encrypted" text,
 	"sign_mode" "app_webhook_sign_mode" DEFAULT 'hmacSha256' NOT NULL,
 	"events" text[] DEFAULT '{}' NOT NULL,
+	"cms_site_id" integer,
+	"internal" boolean DEFAULT false NOT NULL,
 	"headers" jsonb,
 	"status" "status" DEFAULT 'enabled' NOT NULL,
 	"last_delivery_at" timestamp with time zone,
+	"consecutive_failures" integer DEFAULT 0 NOT NULL,
+	"auto_disabled_at" timestamp with time zone,
 	"created_by" integer,
 	"updated_by" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -2629,7 +3441,7 @@ CREATE TABLE "app_webhook_subscriptions" (
 --> statement-breakpoint
 CREATE TABLE "oauth2_authorization_codes" (
 	"id" serial PRIMARY KEY NOT NULL,
-	"code" varchar(128) NOT NULL,
+	"code_hash" varchar(64),
 	"client_id" varchar(64) NOT NULL,
 	"user_id" integer NOT NULL,
 	"redirect_uri" text NOT NULL,
@@ -2639,7 +3451,7 @@ CREATE TABLE "oauth2_authorization_codes" (
 	"expires_at" timestamp NOT NULL,
 	"used" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "oauth2_authorization_codes_code_unique" UNIQUE("code")
+	CONSTRAINT "oauth2_authorization_codes_code_hash_unique" UNIQUE("code_hash")
 );
 --> statement-breakpoint
 CREATE TABLE "oauth2_clients" (
@@ -2647,6 +3459,9 @@ CREATE TABLE "oauth2_clients" (
 	"client_id" varchar(64) NOT NULL,
 	"client_secret_hash" varchar(128),
 	"client_secret_encrypted" text,
+	"previous_client_secret_hash" varchar(128),
+	"previous_client_secret_encrypted" text,
+	"previous_secret_expires_at" timestamp with time zone,
 	"client_secret_prefix" varchar(20),
 	"name" varchar(100) NOT NULL,
 	"description" text,
@@ -2657,6 +3472,13 @@ CREATE TABLE "oauth2_clients" (
 	"is_public" boolean DEFAULT false NOT NULL,
 	"rate_plan_id" integer,
 	"sign_enabled" boolean DEFAULT false NOT NULL,
+	"ip_allowlist" text[] DEFAULT '{}' NOT NULL,
+	"environment" "open_app_environment" DEFAULT 'production' NOT NULL,
+	"review_status" "open_app_review_status" DEFAULT 'approved' NOT NULL,
+	"review_comment" text,
+	"submitted_at" timestamp with time zone,
+	"reviewed_at" timestamp with time zone,
+	"reviewed_by" integer,
 	"status" "status" DEFAULT 'enabled' NOT NULL,
 	"owner_id" integer,
 	"created_by" integer,
@@ -2666,11 +3488,22 @@ CREATE TABLE "oauth2_clients" (
 	CONSTRAINT "oauth2_clients_client_id_unique" UNIQUE("client_id")
 );
 --> statement-breakpoint
+CREATE TABLE "oauth2_token_families" (
+	"id" varchar(64) PRIMARY KEY NOT NULL,
+	"client_id" varchar(64) NOT NULL,
+	"user_id" integer,
+	"compromised" boolean DEFAULT false NOT NULL,
+	"revoked" boolean DEFAULT false NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "oauth2_tokens" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"token_type" varchar(20) NOT NULL,
 	"token_hash" varchar(128) NOT NULL,
 	"token_prefix" varchar(20),
+	"family_id" varchar(64),
 	"client_id" varchar(64) NOT NULL,
 	"user_id" integer,
 	"scopes" text[] DEFAULT '{}' NOT NULL,
@@ -2704,7 +3537,44 @@ CREATE TABLE "open_api_call_logs" (
 	"scope" varchar(128),
 	"error_message" varchar(512),
 	"request_id" varchar(64),
+	"environment" "open_app_environment" DEFAULT 'production' NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "open_api_call_stats_daily" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"stat_date" date NOT NULL,
+	"client_id" varchar(64) NOT NULL,
+	"app_name" varchar(100),
+	"path" varchar(256) NOT NULL,
+	"environment" "open_app_environment" DEFAULT 'production' NOT NULL,
+	"total_calls" bigint DEFAULT 0 NOT NULL,
+	"success_calls" bigint DEFAULT 0 NOT NULL,
+	"failed_calls" bigint DEFAULT 0 NOT NULL,
+	"duration_sum_ms" bigint DEFAULT 0 NOT NULL,
+	"max_duration_ms" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "open_api_call_stats_daily_unique" UNIQUE("stat_date","client_id","path","environment")
+);
+--> statement-breakpoint
+CREATE TABLE "open_quota_alerts" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"client_id" varchar(64) NOT NULL,
+	"dimension" varchar(20) NOT NULL,
+	"period" varchar(16) NOT NULL,
+	"threshold" integer NOT NULL,
+	"used" bigint NOT NULL,
+	"quota_limit" bigint NOT NULL,
+	"plan_code" varchar(64) NOT NULL,
+	"event_id" varchar(64) NOT NULL,
+	"status" varchar(20) DEFAULT 'pending' NOT NULL,
+	"attempt" integer DEFAULT 0 NOT NULL,
+	"started_at" timestamp with time zone,
+	"sent_at" timestamp with time zone,
+	"last_error" text,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "open_quota_alerts_dedupe_unique" UNIQUE("client_id","dimension","period","threshold")
 );
 --> statement-breakpoint
 CREATE TABLE "rate_plans" (
@@ -2811,6 +3681,7 @@ CREATE TABLE "coupons" (
 	"valid_start" timestamp with time zone,
 	"valid_end" timestamp with time zone,
 	"valid_days" integer,
+	"exchange_points" integer DEFAULT 0 NOT NULL,
 	"status" "coupon_template_status" DEFAULT 'draft' NOT NULL,
 	"description" varchar(256),
 	"tenant_id" integer,
@@ -2841,6 +3712,7 @@ CREATE TABLE "member_checkins" (
 	"points_awarded" integer DEFAULT 0 NOT NULL,
 	"experience_awarded" integer DEFAULT 0 NOT NULL,
 	"is_makeup" boolean DEFAULT false NOT NULL,
+	"remark" varchar(256),
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "member_checkins_member_id_checkin_date_unique" UNIQUE("member_id","checkin_date")
 );
@@ -2892,6 +3764,17 @@ CREATE TABLE "member_login_logs" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "member_notifications" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"member_id" integer NOT NULL,
+	"type" varchar(32) NOT NULL,
+	"title" varchar(128) NOT NULL,
+	"content" varchar(512),
+	"biz_id" varchar(128),
+	"read_at" timestamp with time zone,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "member_point_accounts" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"member_id" integer NOT NULL,
@@ -2915,6 +3798,39 @@ CREATE TABLE "member_point_transactions" (
 	"remark" varchar(256),
 	"operator_id" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "member_tag_bindings" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"member_id" integer NOT NULL,
+	"tag_id" integer NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "member_tag_bindings_unique" UNIQUE("member_id","tag_id")
+);
+--> statement-breakpoint
+CREATE TABLE "member_tags" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"name" varchar(32) NOT NULL,
+	"color" varchar(20),
+	"description" varchar(256),
+	"sort" integer DEFAULT 0 NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "member_tags_name_unique" UNIQUE("name")
+);
+--> statement-breakpoint
+CREATE TABLE "member_vip_renewals" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"member_id" integer NOT NULL,
+	"order_no" varchar(64) NOT NULL,
+	"contract_no" varchar(64),
+	"amount" integer NOT NULL,
+	"vip_expire_after" timestamp with time zone NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "member_vip_renewals_order_no_unique" UNIQUE("order_no")
 );
 --> statement-breakpoint
 CREATE TABLE "member_wallet_transactions" (
@@ -2955,6 +3871,7 @@ CREATE TABLE "members" (
 	"birthday" varchar(20),
 	"status" "member_status" DEFAULT 'active' NOT NULL,
 	"level_id" integer,
+	"vip_expire_at" timestamp with time zone,
 	"growth_value" integer DEFAULT 0 NOT NULL,
 	"experience" integer DEFAULT 0 NOT NULL,
 	"register_source" varchar(32) DEFAULT 'web' NOT NULL,
@@ -2962,6 +3879,9 @@ CREATE TABLE "members" (
 	"last_login_at" timestamp with time zone,
 	"last_login_ip" varchar(64),
 	"remark" varchar(256),
+	"deleted_at" timestamp with time zone,
+	"invite_code" varchar(16),
+	"invited_by" integer,
 	"tenant_id" integer,
 	"created_by" integer,
 	"updated_by" integer,
@@ -3361,28 +4281,43 @@ CREATE TABLE "mp_unmatched_keywords" (
 --> statement-breakpoint
 CREATE TABLE "report_alert_rules" (
 	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
 	"name" varchar(64) NOT NULL,
-	"dataset_id" integer NOT NULL,
+	"dataset_id" integer,
+	"metric_id" integer,
 	"field" varchar(128),
+	"group_by_field" varchar(128),
 	"aggregate" varchar(16) DEFAULT 'sum' NOT NULL,
 	"op" varchar(8) DEFAULT 'gt' NOT NULL,
 	"threshold" real DEFAULT 0 NOT NULL,
 	"cron" varchar(64),
+	"timezone" varchar(64) DEFAULT 'Asia/Shanghai' NOT NULL,
+	"misfire_policy" "report_schedule_misfire_policy" DEFAULT 'fire_once' NOT NULL,
+	"next_run_at" timestamp with time zone,
 	"channels" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"recipients" varchar(512),
+	"webhook_url" varchar(1024),
+	"silence_mins" integer DEFAULT 60 NOT NULL,
+	"notify_on_recover" boolean DEFAULT false NOT NULL,
 	"enabled" boolean DEFAULT true NOT NULL,
 	"last_checked_at" timestamp,
 	"last_triggered" boolean,
 	"last_value" real,
+	"last_notified_at" timestamp,
+	"last_delivery_at" timestamp with time zone,
+	"last_delivery_status" "report_delivery_status",
+	"last_delivery_error" varchar(512),
 	"remark" varchar(256),
 	"created_by" integer,
 	"updated_by" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "report_alert_rules_source_check" CHECK (("report_alert_rules"."dataset_id" IS NOT NULL) <> ("report_alert_rules"."metric_id" IS NOT NULL))
 );
 --> statement-breakpoint
 CREATE TABLE "report_dashboard_categories" (
 	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
 	"name" varchar(64) NOT NULL,
 	"sort" integer DEFAULT 0 NOT NULL,
 	"remark" varchar(256),
@@ -3397,9 +4332,32 @@ CREATE TABLE "report_dashboard_comments" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"dashboard_id" integer NOT NULL,
 	"widget_id" varchar(64),
+	"parent_id" integer,
 	"content" varchar(1000) NOT NULL,
-	"user_id" integer NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL
+	"user_id" integer,
+	"resolved_at" timestamp,
+	"resolved_by" integer,
+	"deleted_at" timestamp,
+	"deleted_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_dashboard_embed_tokens" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"dashboard_id" integer NOT NULL,
+	"token" varchar(64) NOT NULL,
+	"token_encrypted" varchar(256),
+	"allowed_filter_ids" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"fixed_filters" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"expire_at" timestamp with time zone,
+	"revoked_at" timestamp with time zone,
+	"remark" varchar(256),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "report_dashboard_embed_tokens_token_unique" UNIQUE("token")
 );
 --> statement-breakpoint
 CREATE TABLE "report_dashboard_favorites" (
@@ -3413,9 +4371,15 @@ CREATE TABLE "report_dashboard_shares" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"dashboard_id" integer NOT NULL,
 	"token" varchar(64) NOT NULL,
+	"token_encrypted" varchar(256),
 	"password_hash" varchar(100),
 	"enabled" boolean DEFAULT true NOT NULL,
 	"expire_at" timestamp with time zone,
+	"max_access_count" integer,
+	"access_count" integer DEFAULT 0 NOT NULL,
+	"session_version" integer DEFAULT 1 NOT NULL,
+	"allowed_cidrs" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"allowed_ips" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"created_by" integer,
 	"updated_by" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -3425,13 +4389,22 @@ CREATE TABLE "report_dashboard_shares" (
 --> statement-breakpoint
 CREATE TABLE "report_dashboard_subscriptions" (
 	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
 	"dashboard_id" integer NOT NULL,
 	"cron" varchar(64) NOT NULL,
+	"timezone" varchar(64) DEFAULT 'Asia/Shanghai' NOT NULL,
+	"misfire_policy" "report_schedule_misfire_policy" DEFAULT 'fire_once' NOT NULL,
+	"next_run_at" timestamp with time zone,
 	"channels" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"recipients" varchar(512),
+	"webhook_url" varchar(1024),
 	"enabled" boolean DEFAULT true NOT NULL,
 	"remark" varchar(256),
 	"last_run_at" timestamp with time zone,
+	"last_delivery_at" timestamp with time zone,
+	"last_delivery_status" "report_delivery_status",
+	"last_delivery_error" varchar(512),
+	"last_summary" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"created_by" integer,
 	"updated_by" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -3443,6 +4416,7 @@ CREATE TABLE "report_dashboard_versions" (
 	"dashboard_id" integer NOT NULL,
 	"version" integer NOT NULL,
 	"snapshot" jsonb NOT NULL,
+	"source" "report_dashboard_version_source" DEFAULT 'manual' NOT NULL,
 	"remark" varchar(256),
 	"created_by" integer,
 	"updated_by" integer,
@@ -3452,6 +4426,9 @@ CREATE TABLE "report_dashboard_versions" (
 --> statement-breakpoint
 CREATE TABLE "report_dashboards" (
 	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"owner_id" integer,
+	"folder_id" integer,
 	"name" varchar(64) NOT NULL,
 	"layout" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"canvas_layout" jsonb DEFAULT '[]'::jsonb NOT NULL,
@@ -3460,16 +4437,45 @@ CREATE TABLE "report_dashboards" (
 	"config" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"category_id" integer,
 	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"lifecycle_status" "report_dashboard_lifecycle_status" DEFAULT 'draft' NOT NULL,
+	"lifecycle_initialized" boolean DEFAULT false NOT NULL,
+	"revision" integer DEFAULT 1 NOT NULL,
+	"published_snapshot" jsonb,
+	"published_at" timestamp,
+	"published_by" integer,
 	"remark" varchar(256),
 	"created_by" integer,
 	"updated_by" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "report_dashboards_name_unique" UNIQUE("name")
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_dataset_execution_logs" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"dataset_id" integer,
+	"datasource_id" integer,
+	"user_id" integer,
+	"scene" varchar(32) NOT NULL,
+	"source_ref_id" varchar(64),
+	"duration_ms" integer NOT NULL,
+	"row_count" integer,
+	"bytes" integer,
+	"truncated" boolean DEFAULT false NOT NULL,
+	"slow" boolean DEFAULT false NOT NULL,
+	"cache_hit" boolean DEFAULT false NOT NULL,
+	"success" boolean DEFAULT true NOT NULL,
+	"error_code" integer,
+	"error_message" varchar(512),
+	"param_keys" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"executed_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "report_datasets" (
 	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"owner_id" integer,
+	"folder_id" integer,
 	"name" varchar(64) NOT NULL,
 	"datasource_id" integer NOT NULL,
 	"type" "report_datasource_type" NOT NULL,
@@ -3479,31 +4485,103 @@ CREATE TABLE "report_datasets" (
 	"computed_fields" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"cache_ttl" integer DEFAULT 0 NOT NULL,
 	"materialize" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"row_rules" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"status" "status" DEFAULT 'enabled' NOT NULL,
 	"remark" varchar(256),
 	"created_by" integer,
 	"updated_by" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "report_datasets_name_unique" UNIQUE("name")
+	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "report_datasources" (
 	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"owner_id" integer,
+	"folder_id" integer,
 	"name" varchar(64) NOT NULL,
 	"type" "report_datasource_type" NOT NULL,
 	"config" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"last_test_at" timestamp with time zone,
+	"last_test_status" varchar(16),
+	"last_test_latency_ms" integer,
+	"last_test_error" varchar(512),
+	"consecutive_failures" integer DEFAULT 0 NOT NULL,
 	"remark" varchar(256),
 	"created_by" integer,
 	"updated_by" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "report_datasources_name_unique" UNIQUE("name")
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_delivery_attempts" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"run_id" integer NOT NULL,
+	"channel" varchar(16) NOT NULL,
+	"attempt" integer DEFAULT 1 NOT NULL,
+	"status" "report_delivery_status" DEFAULT 'pending' NOT NULL,
+	"duration_ms" integer,
+	"error_message" varchar(512),
+	"payload_summary" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"started_at" timestamp with time zone,
+	"completed_at" timestamp with time zone,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_delivery_runs" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"target_type" "report_delivery_target_type" NOT NULL,
+	"subscription_id" integer,
+	"alert_rule_id" integer,
+	"sla_rule_id" integer,
+	"dashboard_id" integer,
+	"dataset_id" integer,
+	"target_name" varchar(128),
+	"trigger_type" "report_delivery_trigger_type" NOT NULL,
+	"status" "report_delivery_status" DEFAULT 'pending' NOT NULL,
+	"idempotency_key" varchar(128) NOT NULL,
+	"attempt" integer DEFAULT 0 NOT NULL,
+	"max_attempts" integer DEFAULT 3 NOT NULL,
+	"duration_ms" integer,
+	"error_message" varchar(512),
+	"payload_summary" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"last_value" real,
+	"triggered" boolean,
+	"acknowledged_at" timestamp with time zone,
+	"acknowledged_by" integer,
+	"acknowledge_note" varchar(500),
+	"started_at" timestamp with time zone,
+	"completed_at" timestamp with time zone,
+	"next_retry_at" timestamp with time zone,
+	"requested_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_folders" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"parent_id" integer,
+	"name" varchar(64) NOT NULL,
+	"resource_type" "report_resource_type" NOT NULL,
+	"owner_id" integer,
+	"sort" integer DEFAULT 0 NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "report_print_templates" (
 	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"owner_id" integer,
+	"folder_id" integer,
 	"name" varchar(64) NOT NULL,
 	"dataset_id" integer,
 	"content" jsonb DEFAULT '{}'::jsonb NOT NULL,
@@ -3514,8 +4592,1301 @@ CREATE TABLE "report_print_templates" (
 	"created_by" integer,
 	"updated_by" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_share_access_logs" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"share_id" integer NOT NULL,
+	"dashboard_id" integer NOT NULL,
+	"action" varchar(16) NOT NULL,
+	"client_ip" varchar(64),
+	"ok" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_asset_templates" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"folder_id" integer,
+	"owner_id" integer,
+	"code" varchar(64) NOT NULL,
+	"name" varchar(128) NOT NULL,
+	"type" "report_asset_template_type" NOT NULL,
+	"description" text,
+	"content" jsonb NOT NULL,
+	"preview_file_id" uuid,
+	"version" integer DEFAULT 1 NOT NULL,
+	"usage_count" integer DEFAULT 0 NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_asset_usage_logs" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"resource_type" "report_resource_type" NOT NULL,
+	"resource_id" integer NOT NULL,
+	"user_id" integer,
+	"action" varchar(16) NOT NULL,
+	"scene" varchar(64),
+	"duration_ms" integer,
+	"row_count" bigint DEFAULT 0 NOT NULL,
+	"byte_size" bigint DEFAULT 0 NOT NULL,
+	"success" boolean DEFAULT true NOT NULL,
+	"occurred_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_chatbi_messages" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"session_id" integer NOT NULL,
+	"user_id" integer,
+	"role" "report_chatbi_message_role" NOT NULL,
+	"content" text NOT NULL,
+	"generated_sql" text,
+	"chart_suggestion" jsonb,
+	"result_sample" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"result_row_count" bigint DEFAULT 0 NOT NULL,
+	"result_byte_size" bigint DEFAULT 0 NOT NULL,
+	"saved_resource_type" "report_resource_type",
+	"saved_resource_id" integer,
+	"saved_dataset_id" integer,
+	"saved_dashboard_id" integer,
+	"prompt_tokens" integer DEFAULT 0 NOT NULL,
+	"completion_tokens" integer DEFAULT 0 NOT NULL,
+	"cost_units" double precision DEFAULT 0 NOT NULL,
+	"latency_ms" integer,
+	"model_id" varchar(128),
+	"error_message" varchar(1000),
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_chatbi_sessions" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"user_id" integer NOT NULL,
+	"title" varchar(128) NOT NULL,
+	"datasource_id" integer,
+	"dataset_id" integer,
+	"allowed_tables" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"context_snapshot" jsonb NOT NULL,
+	"status" "report_chatbi_session_status" DEFAULT 'active' NOT NULL,
+	"total_tokens" bigint DEFAULT 0 NOT NULL,
+	"total_cost_units" double precision DEFAULT 0 NOT NULL,
+	"last_message_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_deprecation_notices" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"resource_type" "report_resource_type" NOT NULL,
+	"resource_id" integer NOT NULL,
+	"title" varchar(128) NOT NULL,
+	"message" text NOT NULL,
+	"replacement_resource_type" "report_resource_type",
+	"replacement_resource_id" integer,
+	"effective_at" timestamp with time zone NOT NULL,
+	"expires_at" timestamp with time zone,
+	"published_at" timestamp with time zone,
+	"published_by" integer,
+	"processed_at" timestamp with time zone,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_dq_anomalies" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"dataset_id" integer NOT NULL,
+	"rule_id" integer,
+	"run_id" integer,
+	"severity" "report_dq_severity" NOT NULL,
+	"title" varchar(256) NOT NULL,
+	"detail" text,
+	"sample" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"sample_row_count" integer DEFAULT 0 NOT NULL,
+	"sample_bytes" bigint DEFAULT 0 NOT NULL,
+	"status" "report_dq_anomaly_status" DEFAULT 'open' NOT NULL,
+	"acknowledged_at" timestamp with time zone,
+	"acknowledged_by" integer,
+	"acknowledgement_note" varchar(1000),
+	"resolved_at" timestamp with time zone,
+	"resolved_by" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_dq_rules" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"dataset_id" integer NOT NULL,
+	"name" varchar(128) NOT NULL,
+	"type" "report_dq_rule_type" NOT NULL,
+	"field" varchar(128),
+	"severity" "report_dq_severity" DEFAULT 'medium' NOT NULL,
+	"config" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"cron" varchar(64),
+	"timezone" varchar(64) DEFAULT 'Asia/Shanghai' NOT NULL,
+	"enabled" boolean DEFAULT true NOT NULL,
+	"last_run_at" timestamp with time zone,
+	"last_status" "report_dq_run_status",
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_dq_runs" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"rule_id" integer NOT NULL,
+	"dataset_id" integer NOT NULL,
+	"status" "report_dq_run_status" DEFAULT 'pending' NOT NULL,
+	"trigger_type" varchar(32) NOT NULL,
+	"checked_rows" bigint DEFAULT 0 NOT NULL,
+	"failed_rows" bigint DEFAULT 0 NOT NULL,
+	"pass_rate" double precision,
+	"sample_rows" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"sample_row_count" integer DEFAULT 0 NOT NULL,
+	"sample_bytes" bigint DEFAULT 0 NOT NULL,
+	"started_at" timestamp with time zone,
+	"completed_at" timestamp with time zone,
+	"duration_ms" integer,
+	"error_message" varchar(1000),
+	"schema_signature" varchar(128),
+	"requested_by" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_dq_scores" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"dataset_id" integer NOT NULL,
+	"score" double precision NOT NULL,
+	"passed_rules" integer DEFAULT 0 NOT NULL,
+	"failed_rules" integer DEFAULT 0 NOT NULL,
+	"total_rules" integer DEFAULT 0 NOT NULL,
+	"dimensions" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"measured_at" timestamp with time zone NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_environment_promotions" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"resource_type" "report_resource_type" NOT NULL,
+	"resource_id" integer NOT NULL,
+	"source_environment_id" integer NOT NULL,
+	"target_environment_id" integer NOT NULL,
+	"source_revision" integer NOT NULL,
+	"source_snapshot" jsonb NOT NULL,
+	"target_snapshot" jsonb,
+	"rollback_snapshot" jsonb,
+	"status" "report_promotion_status" DEFAULT 'pending' NOT NULL,
+	"requested_by" integer,
+	"approved_by" integer,
+	"deployed_by" integer,
+	"started_at" timestamp with time zone,
+	"completed_at" timestamp with time zone,
+	"error_message" varchar(1000),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_environments" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"code" varchar(64) NOT NULL,
+	"name" varchar(128) NOT NULL,
+	"kind" "report_environment_kind" NOT NULL,
+	"description" varchar(500),
+	"base_url" varchar(1024),
+	"config" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"is_default" boolean DEFAULT false NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_fill_records" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"template_id" integer NOT NULL,
+	"submitter_id" integer NOT NULL,
+	"status" "report_fill_record_status" DEFAULT 'draft' NOT NULL,
+	"data" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"template_revision" integer NOT NULL,
+	"template_schema_snapshot" jsonb NOT NULL,
+	"template_need_review" boolean NOT NULL,
+	"workflow_definition_id_snapshot" integer,
+	"submit_comment" varchar(1000),
+	"submitted_at" timestamp with time zone,
+	"reviewed_at" timestamp with time zone,
+	"reviewed_by" integer,
+	"review_comment" varchar(1000),
+	"workflow_instance_id" integer,
+	"generated_dataset_id" integer,
+	"sync_status" "report_fill_sync_status" DEFAULT 'pending' NOT NULL,
+	"sync_task_id" integer,
+	"sync_error" varchar(1000),
+	"synced_at" timestamp with time zone,
+	"revision" integer DEFAULT 1 NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_fill_templates" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"folder_id" integer,
+	"owner_id" integer,
+	"code" varchar(64) NOT NULL,
+	"name" varchar(128) NOT NULL,
+	"description" text,
+	"form_schema" jsonb NOT NULL,
+	"published_schema" jsonb,
+	"published_revision" integer,
+	"workflow_definition_id" integer,
+	"need_review" boolean DEFAULT false NOT NULL,
+	"generated_dataset_id" integer,
+	"status" "report_fill_template_status" DEFAULT 'draft' NOT NULL,
+	"revision" integer DEFAULT 1 NOT NULL,
+	"published_at" timestamp with time zone,
+	"published_by" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_materialization_snapshots" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"dataset_id" integer NOT NULL,
+	"strategy" "report_materialization_strategy" DEFAULT 'full' NOT NULL,
+	"status" "report_snapshot_status" DEFAULT 'pending' NOT NULL,
+	"revision" integer NOT NULL,
+	"key_field" varchar(128),
+	"watermark" varchar(256),
+	"delta_window_minutes" integer,
+	"file_id" uuid,
+	"inline_data" jsonb,
+	"row_count" bigint DEFAULT 0 NOT NULL,
+	"byte_size" bigint DEFAULT 0 NOT NULL,
+	"checksum" varchar(128),
+	"started_at" timestamp with time zone,
+	"completed_at" timestamp with time zone,
+	"expires_at" timestamp with time zone,
+	"error_message" varchar(1000),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_metrics" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"folder_id" integer,
+	"owner_id" integer,
+	"code" varchar(64) NOT NULL,
+	"name" varchar(128) NOT NULL,
+	"description" text,
+	"type" "report_metric_type" NOT NULL,
+	"dataset_id" integer NOT NULL,
+	"source_field" varchar(128),
+	"formula" text,
+	"aggregate" varchar(32),
+	"dimensions" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"time_field" varchar(128),
+	"unit" varchar(32),
+	"format" varchar(128),
+	"caliber" text,
+	"lifecycle_status" "report_metric_lifecycle_status" DEFAULT 'draft' NOT NULL,
+	"revision" integer DEFAULT 1 NOT NULL,
+	"published_snapshot" jsonb,
+	"published_at" timestamp with time zone,
+	"published_by" integer,
+	"deprecated_at" timestamp with time zone,
+	"deprecated_by" integer,
+	"deprecation_reason" varchar(500),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_publish_approvals" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"resource_type" "report_resource_type" NOT NULL,
+	"resource_id" integer NOT NULL,
+	"action" varchar(16) NOT NULL,
+	"requested_revision" integer NOT NULL,
+	"snapshot" jsonb NOT NULL,
+	"status" "report_approval_status" DEFAULT 'pending' NOT NULL,
+	"requested_by" integer,
+	"requested_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"decided_by" integer,
+	"decided_at" timestamp with time zone,
+	"decision_note" varchar(1000),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_query_cost_logs" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"user_id" integer,
+	"dataset_id" integer,
+	"datasource_id" integer,
+	"scene" varchar(64) NOT NULL,
+	"request_id" varchar(128) NOT NULL,
+	"queued_ms" integer DEFAULT 0 NOT NULL,
+	"duration_ms" integer DEFAULT 0 NOT NULL,
+	"row_count" bigint DEFAULT 0 NOT NULL,
+	"byte_size" bigint DEFAULT 0 NOT NULL,
+	"cost_units" double precision DEFAULT 0 NOT NULL,
+	"cache_hit" boolean DEFAULT false NOT NULL,
+	"success" boolean DEFAULT true NOT NULL,
+	"error_code" varchar(64),
+	"occurred_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_query_quotas" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"scope" "report_quota_scope" NOT NULL,
+	"user_id" integer,
+	"max_concurrent" integer NOT NULL,
+	"daily_query_limit" bigint DEFAULT 0 NOT NULL,
+	"daily_row_limit" bigint DEFAULT 0 NOT NULL,
+	"daily_byte_limit" bigint DEFAULT 0 NOT NULL,
+	"daily_cost_limit" double precision DEFAULT 0 NOT NULL,
+	"reset_timezone" varchar(64) DEFAULT 'Asia/Shanghai' NOT NULL,
+	"enabled" boolean DEFAULT true NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_resource_acls" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"resource_type" "report_resource_type" NOT NULL,
+	"resource_id" integer NOT NULL,
+	"subject_type" "report_acl_subject_type" NOT NULL,
+	"subject_id" integer NOT NULL,
+	"role" "report_acl_role" NOT NULL,
+	"inherit_from_folder" boolean DEFAULT false NOT NULL,
+	"expires_at" timestamp with time zone,
+	"granted_by" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_resource_transfers" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"resource_type" "report_resource_type" NOT NULL,
+	"resource_id" integer NOT NULL,
+	"from_owner_id" integer,
+	"to_owner_id" integer NOT NULL,
+	"status" "report_transfer_status" DEFAULT 'pending' NOT NULL,
+	"reason" varchar(500),
+	"requested_by" integer,
+	"decided_by" integer,
+	"decided_at" timestamp with time zone,
+	"decision_note" varchar(500),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_sla_rules" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"dataset_id" integer NOT NULL,
+	"name" varchar(128) NOT NULL,
+	"type" "report_sla_type" NOT NULL,
+	"target_value" double precision NOT NULL,
+	"warning_value" double precision,
+	"window_minutes" integer NOT NULL,
+	"cron" varchar(64),
+	"timezone" varchar(64) DEFAULT 'Asia/Shanghai' NOT NULL,
+	"severity" "report_dq_severity" DEFAULT 'high' NOT NULL,
+	"channels" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"recipients" varchar(512),
+	"webhook_url" varchar(512),
+	"silence_mins" integer DEFAULT 60 NOT NULL,
+	"enabled" boolean DEFAULT true NOT NULL,
+	"last_evaluated_at" timestamp with time zone,
+	"last_notified_at" timestamp with time zone,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "report_sla_violations" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"rule_id" integer NOT NULL,
+	"dataset_id" integer NOT NULL,
+	"status" "report_sla_violation_status" DEFAULT 'open' NOT NULL,
+	"observed_value" double precision NOT NULL,
+	"target_value" double precision NOT NULL,
+	"window_started_at" timestamp with time zone NOT NULL,
+	"window_ended_at" timestamp with time zone NOT NULL,
+	"detail" text,
+	"acknowledged_at" timestamp with time zone,
+	"acknowledged_by" integer,
+	"resolved_at" timestamp with time zone,
+	"resolved_by" integer,
+	"resolution_note" varchar(1000),
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_ad_events" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"ad_id" integer NOT NULL,
+	"slot_id" integer NOT NULL,
+	"event_type" "cms_ad_event_type" NOT NULL,
+	"occurred_at" timestamp DEFAULT now() NOT NULL,
+	"visitor_hash" varchar(64) NOT NULL,
+	"ip_hash" varchar(64) NOT NULL,
+	"user_agent" varchar(500),
+	"device" "cms_device_type" DEFAULT 'pc' NOT NULL,
+	"referrer" varchar(1000),
+	"path" varchar(500),
+	"member_id" integer,
+	"dedupe_key" varchar(64) NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_ad_slots" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"code" varchar(50) NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"remark" varchar(200),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_ad_stats" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"ad_id" integer NOT NULL,
+	"stat_date" varchar(10) NOT NULL,
+	"views" integer DEFAULT 0 NOT NULL,
+	"clicks" integer DEFAULT 0 NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_ads" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"slot_id" integer NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"image" varchar(500),
+	"link_url" varchar(500),
+	"start_at" timestamp,
+	"end_at" timestamp,
+	"click_count" integer DEFAULT 0 NOT NULL,
+	"view_count" integer DEFAULT 0 NOT NULL,
+	"sort" integer DEFAULT 0 NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_channel_users" (
+	"channel_id" integer NOT NULL,
+	"user_id" integer NOT NULL,
+	CONSTRAINT "cms_channel_users_channel_id_user_id_pk" PRIMARY KEY("channel_id","user_id")
+);
+--> statement-breakpoint
+CREATE TABLE "cms_channels" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"parent_id" integer DEFAULT 0 NOT NULL,
+	"model_id" integer,
+	"name" varchar(100) NOT NULL,
+	"code" varchar(50) NOT NULL,
+	"slug" varchar(100) NOT NULL,
+	"path" varchar(255) NOT NULL,
+	"type" "cms_channel_type" DEFAULT 'list' NOT NULL,
+	"link_url" varchar(500),
+	"list_template" varchar(50),
+	"detail_template" varchar(50),
+	"static_mode" "cms_channel_static_mode" DEFAULT 'inherit' NOT NULL,
+	"detail_path_rule" "cms_channel_detail_path_rule" DEFAULT 'none' NOT NULL,
+	"page_size" integer DEFAULT 20 NOT NULL,
+	"page_content" text,
+	"seo_title" varchar(255),
+	"seo_keywords" varchar(500),
+	"seo_description" varchar(500),
+	"image" varchar(500),
+	"visible" boolean DEFAULT true NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"sort" integer DEFAULT 0 NOT NULL,
+	"settings" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_collect_items" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"rule_id" integer NOT NULL,
+	"url" varchar(500) NOT NULL,
+	"title" varchar(255),
+	"status" "cms_collect_item_status" NOT NULL,
+	"content_id" integer,
+	"error" varchar(500),
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_collect_rules" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"channel_id" integer NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"list_url" varchar(500) NOT NULL,
+	"page_start" integer DEFAULT 1 NOT NULL,
+	"page_end" integer DEFAULT 1 NOT NULL,
+	"list_selector" varchar(200) NOT NULL,
+	"title_selector" varchar(200) NOT NULL,
+	"body_selector" varchar(200) NOT NULL,
+	"summary_selector" varchar(200),
+	"cover_selector" varchar(200),
+	"remove_selectors" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"auto_publish" boolean DEFAULT false NOT NULL,
+	"localize_images" boolean DEFAULT false NOT NULL,
+	"max_items" integer DEFAULT 50 NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"last_run_at" timestamp,
+	"remark" varchar(200),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_comments" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"content_id" integer NOT NULL,
+	"parent_id" integer DEFAULT 0 NOT NULL,
+	"member_id" integer,
+	"nickname" varchar(50) NOT NULL,
+	"content" text NOT NULL,
+	"like_count" integer DEFAULT 0 NOT NULL,
+	"status" "cms_comment_status" DEFAULT 'pending' NOT NULL,
+	"ip" varchar(64),
+	"user_agent" varchar(255),
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_content_channels" (
+	"content_id" integer NOT NULL,
+	"channel_id" integer NOT NULL,
+	CONSTRAINT "cms_content_channels_content_id_channel_id_pk" PRIMARY KEY("content_id","channel_id")
+);
+--> statement-breakpoint
+CREATE TABLE "cms_content_favorites" (
+	"member_id" integer NOT NULL,
+	"content_id" integer NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "cms_content_favorites_member_id_content_id_pk" PRIMARY KEY("member_id","content_id")
+);
+--> statement-breakpoint
+CREATE TABLE "cms_content_likes" (
+	"member_id" integer NOT NULL,
+	"content_id" integer NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "cms_content_likes_member_id_content_id_pk" PRIMARY KEY("member_id","content_id")
+);
+--> statement-breakpoint
+CREATE TABLE "cms_content_op_logs" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"content_id" integer NOT NULL,
+	"action" varchar(30) NOT NULL,
+	"detail" varchar(500),
+	"operator_id" integer,
+	"operator_name" varchar(50) DEFAULT '系统' NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_content_relations" (
+	"content_id" integer NOT NULL,
+	"related_id" integer NOT NULL,
+	"sort" integer DEFAULT 0 NOT NULL,
+	CONSTRAINT "cms_content_relations_content_id_related_id_pk" PRIMARY KEY("content_id","related_id")
+);
+--> statement-breakpoint
+CREATE TABLE "cms_content_tags" (
+	"content_id" integer NOT NULL,
+	"tag_id" integer NOT NULL,
+	CONSTRAINT "cms_content_tags_content_id_tag_id_pk" PRIMARY KEY("content_id","tag_id")
+);
+--> statement-breakpoint
+CREATE TABLE "cms_content_tombstones" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"content_id" integer NOT NULL,
+	"deleted_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_content_versions" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"content_id" integer NOT NULL,
+	"version" integer NOT NULL,
+	"title" varchar(255) NOT NULL,
+	"snapshot" jsonb NOT NULL,
+	"remark" varchar(200),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_contents" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"channel_id" integer NOT NULL,
+	"model_id" integer,
+	"content_type" "cms_content_type" DEFAULT 'article' NOT NULL,
+	"media_data" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"title" varchar(255) NOT NULL,
+	"title_style" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"sub_title" varchar(255),
+	"short_title" varchar(100),
+	"slug" varchar(255),
+	"summary" text,
+	"cover_image" varchar(500),
+	"author" varchar(50),
+	"editor" varchar(50),
+	"source" varchar(100),
+	"source_url" varchar(500),
+	"is_original" boolean DEFAULT false NOT NULL,
+	"body" text,
+	"attachments" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"extend" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"external_link" varchar(500),
+	"detail_template" varchar(50),
+	"static_path" varchar(255),
+	"is_top" boolean DEFAULT false NOT NULL,
+	"top_weight" integer DEFAULT 0 NOT NULL,
+	"top_expire_at" timestamp,
+	"is_recommend" boolean DEFAULT false NOT NULL,
+	"is_hot" boolean DEFAULT false NOT NULL,
+	"has_image" boolean DEFAULT false NOT NULL,
+	"has_video" boolean DEFAULT false NOT NULL,
+	"has_attachment" boolean DEFAULT false NOT NULL,
+	"status" "cms_content_status" DEFAULT 'draft' NOT NULL,
+	"reject_reason" varchar(500),
+	"published_at" timestamp,
+	"scheduled_at" timestamp,
+	"expire_at" timestamp,
+	"view_count" integer DEFAULT 0 NOT NULL,
+	"like_count" integer DEFAULT 0 NOT NULL,
+	"favorite_count" integer DEFAULT 0 NOT NULL,
+	"version" integer DEFAULT 1 NOT NULL,
+	"sort" integer DEFAULT 0 NOT NULL,
+	"seo_title" varchar(255),
+	"seo_keywords" varchar(500),
+	"seo_description" varchar(500),
+	"social_image_alt" varchar(255),
+	"twitter_creator" varchar(100),
+	"search_vector" "tsvector",
+	"deleted_at" timestamp,
+	"archived_at" timestamp,
+	"mapping_source_id" integer,
+	"distribution_rule_id" integer,
+	"distribution_source_id" integer,
+	"distribution_source_version" integer,
+	"member_id" integer,
+	"dept_id" integer,
+	"locked_at" timestamp,
+	"locked_by" integer,
+	"lock_reason" varchar(500),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_distribution_rules" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"source_site_id" integer NOT NULL,
+	"source_channel_id" integer,
+	"target_site_id" integer NOT NULL,
+	"target_channel_id" integer NOT NULL,
+	"mode" "cms_distribution_mode" DEFAULT 'copy' NOT NULL,
+	"conflict_strategy" "cms_distribution_conflict_strategy" DEFAULT 'skip' NOT NULL,
+	"filters" jsonb DEFAULT '{"statuses":["published"],"contentTypes":[],"keyword":null,"publishedFrom":null,"publishedTo":null}'::jsonb NOT NULL,
+	"schedule_cron" varchar(100),
+	"next_run_at" timestamp,
+	"last_run_at" timestamp,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"revision" integer DEFAULT 1 NOT NULL,
+	"remark" varchar(500),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_error_prone_words" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"word" varchar(50) NOT NULL,
+	"correction" varchar(50) NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"remark" varchar(200),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "report_print_templates_name_unique" UNIQUE("name")
+	CONSTRAINT "cms_error_prone_words_word_unique" UNIQUE("word")
+);
+--> statement-breakpoint
+CREATE TABLE "cms_form_submissions" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"form_id" integer NOT NULL,
+	"data" jsonb NOT NULL,
+	"ip" varchar(64),
+	"user_agent" varchar(255),
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_forms" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"code" varchar(50) NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"fields" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"success_message" varchar(255),
+	"notify_email" varchar(255),
+	"captcha_provider" "cms_form_captcha_provider" DEFAULT 'inherit' NOT NULL,
+	"turnstile_site_key" varchar(200),
+	"turnstile_secret" varchar(500),
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_friend_link_groups" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"code" varchar(50) NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"sort" integer DEFAULT 0 NOT NULL,
+	"remark" text,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_friend_links" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"group_id" integer,
+	"name" varchar(100) NOT NULL,
+	"url" varchar(500) NOT NULL,
+	"logo" varchar(500),
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"sort" integer DEFAULT 0 NOT NULL,
+	"remark" text,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_hotword_groups" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"sort" integer DEFAULT 0 NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_hotwords" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"group_id" integer,
+	"keyword" varchar(100) NOT NULL,
+	"sort" integer DEFAULT 0 NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_interaction_answers" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"response_id" integer NOT NULL,
+	"question_id" integer NOT NULL,
+	"value" jsonb NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_interaction_questions" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"interaction_id" integer NOT NULL,
+	"label" varchar(200) NOT NULL,
+	"type" "cms_interaction_question_type" DEFAULT 'single' NOT NULL,
+	"required" boolean DEFAULT true NOT NULL,
+	"options" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"min_choices" integer DEFAULT 1 NOT NULL,
+	"max_choices" integer DEFAULT 1 NOT NULL,
+	"sort" integer DEFAULT 0 NOT NULL,
+	"allow_other" boolean DEFAULT false NOT NULL,
+	"other_label" varchar(50),
+	"rating_max" integer DEFAULT 5 NOT NULL,
+	"matrix_rows" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"page_no" integer DEFAULT 1 NOT NULL,
+	"visible_when" jsonb
+);
+--> statement-breakpoint
+CREATE TABLE "cms_interaction_responses" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"interaction_id" integer NOT NULL,
+	"member_id" integer,
+	"visitor_hash" varchar(64) NOT NULL,
+	"ip_hash" varchar(64) NOT NULL,
+	"repeat_key" varchar(80),
+	"request_key" varchar(64),
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_interactions" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"code" varchar(50) NOT NULL,
+	"kind" "cms_interaction_kind" NOT NULL,
+	"title" varchar(200) NOT NULL,
+	"description" text,
+	"status" "cms_interaction_status" DEFAULT 'draft' NOT NULL,
+	"participant_scope" "cms_interaction_participant_scope" DEFAULT 'anonymous' NOT NULL,
+	"repeat_policy" "cms_interaction_repeat_policy" DEFAULT 'once_per_ip' NOT NULL,
+	"result_visibility" "cms_interaction_result_visibility" DEFAULT 'after_submit' NOT NULL,
+	"captcha_policy" "cms_interaction_captcha_policy" DEFAULT 'inherit' NOT NULL,
+	"turnstile_site_key" varchar(200),
+	"turnstile_secret" varchar(500),
+	"thank_you_message" varchar(500) DEFAULT '感谢您的参与！' NOT NULL,
+	"start_at" timestamp,
+	"end_at" timestamp,
+	"response_count" integer DEFAULT 0 NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_link_words" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"keyword" varchar(50) NOT NULL,
+	"url" varchar(500) NOT NULL,
+	"max_replaces" integer DEFAULT 1 NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_member_subscriptions" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"member_id" integer NOT NULL,
+	"site_id" integer NOT NULL,
+	"subject_type" "cms_subscription_subject_type" NOT NULL,
+	"subject_key" varchar(255) NOT NULL,
+	"subject_id" integer,
+	"subject_label" varchar(255) NOT NULL,
+	"notification_enabled" boolean DEFAULT true NOT NULL,
+	"active" boolean DEFAULT true NOT NULL,
+	"points_awarded_at" timestamp,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_member_view_history" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"member_id" integer NOT NULL,
+	"content_id" integer NOT NULL,
+	"site_id" integer NOT NULL,
+	"view_count" integer DEFAULT 1 NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_model_fields" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"model_id" integer NOT NULL,
+	"name" varchar(50) NOT NULL,
+	"label" varchar(100) NOT NULL,
+	"field_type" "cms_field_type" DEFAULT 'text' NOT NULL,
+	"required" boolean DEFAULT false NOT NULL,
+	"searchable" boolean DEFAULT false NOT NULL,
+	"show_in_list" boolean DEFAULT false NOT NULL,
+	"placeholder" varchar(200),
+	"default_value" text,
+	"option_source" "cms_field_option_source" DEFAULT 'manual' NOT NULL,
+	"dict_code" varchar(64),
+	"options" jsonb,
+	"sort" integer DEFAULT 0 NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_models" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"code" varchar(50) NOT NULL,
+	"description" text,
+	"is_system" boolean DEFAULT false NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"sort" integer DEFAULT 0 NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "cms_models_code_unique" UNIQUE("code")
+);
+--> statement-breakpoint
+CREATE TABLE "cms_open_app_grants" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"client_id" varchar(64) NOT NULL,
+	"site_id" integer NOT NULL,
+	"channel_ids" integer[] DEFAULT '{}' NOT NULL,
+	"can_publish" boolean DEFAULT false NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"remark" varchar(200),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_page_block_acls" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"page_id" integer NOT NULL,
+	"block_id" varchar(100) NOT NULL,
+	"subject_type" "cms_page_block_acl_subject_type" NOT NULL,
+	"subject_id" integer NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_pages" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"slug" varchar(100) NOT NULL,
+	"path" varchar(200),
+	"is_home" boolean DEFAULT false NOT NULL,
+	"blocks" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"requires_dynamic" boolean DEFAULT false NOT NULL,
+	"seo_title" varchar(255),
+	"seo_keywords" varchar(500),
+	"seo_description" varchar(500),
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"remark" varchar(200),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_publish_artifacts" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"task_id" integer NOT NULL,
+	"site_id" integer NOT NULL,
+	"target_type" "cms_publish_target_type" NOT NULL,
+	"content_id" integer,
+	"channel_id" integer,
+	"page_id" integer,
+	"theme_code" varchar(50),
+	"path" varchar(1000) NOT NULL,
+	"url" varchar(1000),
+	"checksum" varchar(64),
+	"size" integer,
+	"status" "cms_publish_artifact_status" NOT NULL,
+	"error" text,
+	"generated_at" timestamp,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_push_logs" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"engine" varchar(20) NOT NULL,
+	"urls" jsonb NOT NULL,
+	"success" boolean NOT NULL,
+	"status_code" integer,
+	"response" text,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_redirects" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"from_path" varchar(500) NOT NULL,
+	"to_url" varchar(500) NOT NULL,
+	"redirect_type" integer DEFAULT 301 NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"remark" varchar(200),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_resource_folders" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"parent_id" integer,
+	"name" varchar(100) NOT NULL,
+	"sort" integer DEFAULT 0 NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_resource_refs" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"resource_id" integer NOT NULL,
+	"owner_type" "cms_resource_owner_type" NOT NULL,
+	"owner_id" integer NOT NULL,
+	"field" varchar(64) NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_resources" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"folder_id" integer,
+	"type" "cms_resource_type" DEFAULT 'image' NOT NULL,
+	"name" varchar(255) NOT NULL,
+	"url" varchar(500) NOT NULL,
+	"thumb_url" varchar(500),
+	"file_id" uuid,
+	"owns_file" boolean DEFAULT true NOT NULL,
+	"size" integer DEFAULT 0 NOT NULL,
+	"width" integer,
+	"height" integer,
+	"mime_type" varchar(128),
+	"remark" varchar(200),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_search_logs" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"keyword" varchar(64) NOT NULL,
+	"result_count" integer DEFAULT 0 NOT NULL,
+	"ip" varchar(64),
+	"device_type" "cms_device_type" DEFAULT 'pc' NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_search_words" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"word" varchar(50) NOT NULL,
+	"type" "cms_search_word_type" DEFAULT 'extension' NOT NULL,
+	"group_name" varchar(100) DEFAULT '默认分组' NOT NULL,
+	"weight" integer DEFAULT 1000 NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"remark" varchar(200),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_sensitive_words" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"word" varchar(50) NOT NULL,
+	"replace_with" varchar(50),
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "cms_sensitive_words_word_unique" UNIQUE("word")
+);
+--> statement-breakpoint
+CREATE TABLE "cms_site_inheritances" (
+	"site_id" integer PRIMARY KEY NOT NULL,
+	"seo_title" boolean DEFAULT false NOT NULL,
+	"seo_keywords" boolean DEFAULT false NOT NULL,
+	"seo_description" boolean DEFAULT false NOT NULL,
+	"static_mode" boolean DEFAULT false NOT NULL,
+	"review_mode" boolean DEFAULT false NOT NULL,
+	"webhook" boolean DEFAULT false NOT NULL,
+	"cdn" boolean DEFAULT false NOT NULL,
+	"theme" boolean DEFAULT false NOT NULL,
+	"theme_config" boolean DEFAULT false NOT NULL,
+	"templates" boolean DEFAULT false NOT NULL,
+	"revision" integer DEFAULT 0 NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_site_users" (
+	"site_id" integer NOT NULL,
+	"user_id" integer NOT NULL,
+	CONSTRAINT "cms_site_users_site_id_user_id_pk" PRIMARY KEY("site_id","user_id")
+);
+--> statement-breakpoint
+CREATE TABLE "cms_sites" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"parent_id" integer,
+	"name" varchar(100) NOT NULL,
+	"code" varchar(50) NOT NULL,
+	"domain" varchar(255),
+	"alias_domains" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"is_default" boolean DEFAULT false NOT NULL,
+	"title" varchar(200),
+	"keywords" varchar(500),
+	"description" varchar(1000),
+	"logo" varchar(500),
+	"favicon" varchar(500),
+	"icp" varchar(100),
+	"copyright" varchar(255),
+	"theme" varchar(50) DEFAULT 'default' NOT NULL,
+	"model_id" integer,
+	"extend" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"theme_revision" integer DEFAULT 0 NOT NULL,
+	"template_refs_revision" integer DEFAULT 0 NOT NULL,
+	"static_mode" "cms_static_mode" DEFAULT 'hybrid' NOT NULL,
+	"robots" text,
+	"settings" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"sort" integer DEFAULT 0 NOT NULL,
+	"remark" text,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "cms_sites_code_unique" UNIQUE("code")
+);
+--> statement-breakpoint
+CREATE TABLE "cms_tags" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"name" varchar(50) NOT NULL,
+	"slug" varchar(100) NOT NULL,
+	"group_name" varchar(50),
+	"content_count" integer DEFAULT 0 NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_visit_logs" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"path" varchar(500) NOT NULL,
+	"page_kind" varchar(20) DEFAULT 'other' NOT NULL,
+	"content_id" integer,
+	"visitor_hash" varchar(32) NOT NULL,
+	"ip" varchar(64),
+	"device_type" "cms_device_type" DEFAULT 'pc' NOT NULL,
+	"referrer_host" varchar(255),
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_widget_refs" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"widget_id" integer NOT NULL,
+	"owner_type" "cms_widget_ref_owner_type" NOT NULL,
+	"owner_id" integer NOT NULL,
+	"field" varchar(100) NOT NULL,
+	"renderer_key" varchar(50) NOT NULL,
+	"style_props" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_widget_source_refs" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"widget_id" integer NOT NULL,
+	"item_id" varchar(100) NOT NULL,
+	"source_type" "cms_widget_source_type" NOT NULL,
+	"source_id" integer NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "cms_widgets" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"site_id" integer NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"code" varchar(100) NOT NULL,
+	"type" "cms_widget_type" DEFAULT 'manual-list' NOT NULL,
+	"schema_version" integer DEFAULT 1 NOT NULL,
+	"draft_data" jsonb DEFAULT '{"items":[]}'::jsonb NOT NULL,
+	"published_data" jsonb,
+	"published_name" varchar(100),
+	"draft_revision" integer DEFAULT 1 NOT NULL,
+	"published_revision" integer DEFAULT 0 NOT NULL,
+	"status" "cms_widget_status" DEFAULT 'draft' NOT NULL,
+	"default_renderer_key" varchar(50) DEFAULT 'list-sidebar' NOT NULL,
+	"remark" varchar(200),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 ALTER TABLE "departments" ADD CONSTRAINT "departments_leader_id_users_id_fk" FOREIGN KEY ("leader_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -3538,13 +5909,15 @@ ALTER TABLE "tenant_package_menus" ADD CONSTRAINT "tenant_package_menus_package_
 ALTER TABLE "tenant_package_menus" ADD CONSTRAINT "tenant_package_menus_menu_id_menus_id_fk" FOREIGN KEY ("menu_id") REFERENCES "public"."menus"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tenant_packages" ADD CONSTRAINT "tenant_packages_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tenant_packages" ADD CONSTRAINT "tenant_packages_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "tenants" ADD CONSTRAINT "tenants_package_id_tenant_packages_id_fk" FOREIGN KEY ("package_id") REFERENCES "public"."tenant_packages"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "tenants" ADD CONSTRAINT "tenants_package_id_tenant_packages_id_fk" FOREIGN KEY ("package_id") REFERENCES "public"."tenant_packages"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tenants" ADD CONSTRAINT "tenants_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tenants" ADD CONSTRAINT "tenants_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_dept_scopes" ADD CONSTRAINT "user_dept_scopes_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_dept_scopes" ADD CONSTRAINT "user_dept_scopes_dept_id_departments_id_fk" FOREIGN KEY ("dept_id") REFERENCES "public"."departments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_group_members" ADD CONSTRAINT "user_group_members_group_id_user_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."user_groups"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_group_members" ADD CONSTRAINT "user_group_members_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "user_group_roles" ADD CONSTRAINT "user_group_roles_group_id_user_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."user_groups"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "user_group_roles" ADD CONSTRAINT "user_group_roles_role_id_roles_id_fk" FOREIGN KEY ("role_id") REFERENCES "public"."roles"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_groups" ADD CONSTRAINT "user_groups_owner_id_users_id_fk" FOREIGN KEY ("owner_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_groups" ADD CONSTRAINT "user_groups_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_groups" ADD CONSTRAINT "user_groups_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -3596,6 +5969,8 @@ ALTER TABLE "system_configs" ADD CONSTRAINT "system_configs_created_by_users_id_
 ALTER TABLE "system_configs" ADD CONSTRAINT "system_configs_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "system_scheduler_runs" ADD CONSTRAINT "system_scheduler_runs_triggered_by_users_id_fk" FOREIGN KEY ("triggered_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "system_scheduler_runs" ADD CONSTRAINT "system_scheduler_runs_alert_ack_by_users_id_fk" FOREIGN KEY ("alert_ack_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "user_feedbacks" ADD CONSTRAINT "user_feedbacks_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "user_feedbacks" ADD CONSTRAINT "user_feedbacks_handled_by_users_id_fk" FOREIGN KEY ("handled_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "login_risk_events" ADD CONSTRAINT "login_risk_events_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "login_risk_events" ADD CONSTRAINT "login_risk_events_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "oauth_configs" ADD CONSTRAINT "oauth_configs_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -3624,16 +5999,41 @@ ALTER TABLE "dicts" ADD CONSTRAINT "dicts_created_by_users_id_fk" FOREIGN KEY ("
 ALTER TABLE "dicts" ADD CONSTRAINT "dicts_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "login_logs" ADD CONSTRAINT "login_logs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "operation_logs" ADD CONSTRAINT "operation_logs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "analytics_event_meta" ADD CONSTRAINT "analytics_event_meta_owner_id_users_id_fk" FOREIGN KEY ("owner_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "analytics_event_meta" ADD CONSTRAINT "analytics_event_meta_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "analytics_event_meta" ADD CONSTRAINT "analytics_event_meta_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "analytics_event_overrides" ADD CONSTRAINT "analytics_event_overrides_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "analytics_event_overrides" ADD CONSTRAINT "analytics_event_overrides_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "analytics_event_overrides" ADD CONSTRAINT "analytics_event_overrides_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "analytics_experiments" ADD CONSTRAINT "analytics_experiments_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "analytics_experiments" ADD CONSTRAINT "analytics_experiments_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "analytics_experiments" ADD CONSTRAINT "analytics_experiments_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "analytics_saved_reports" ADD CONSTRAINT "analytics_saved_reports_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "analytics_segment_campaigns" ADD CONSTRAINT "analytics_segment_campaigns_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "analytics_segment_campaigns" ADD CONSTRAINT "analytics_segment_campaigns_segment_id_analytics_user_segments_id_fk" FOREIGN KEY ("segment_id") REFERENCES "public"."analytics_user_segments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "analytics_segment_campaigns" ADD CONSTRAINT "analytics_segment_campaigns_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "analytics_segment_campaigns" ADD CONSTRAINT "analytics_segment_campaigns_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "analytics_segment_members" ADD CONSTRAINT "analytics_segment_members_segment_id_analytics_user_segments_id_fk" FOREIGN KEY ("segment_id") REFERENCES "public"."analytics_user_segments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "analytics_segment_members" ADD CONSTRAINT "analytics_segment_members_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "analytics_sessions" ADD CONSTRAINT "analytics_sessions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "analytics_sessions" ADD CONSTRAINT "analytics_sessions_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "analytics_settings" ADD CONSTRAINT "analytics_settings_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "analytics_settings" ADD CONSTRAINT "analytics_settings_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "analytics_sites" ADD CONSTRAINT "analytics_sites_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "analytics_sites" ADD CONSTRAINT "analytics_sites_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "analytics_sites" ADD CONSTRAINT "analytics_sites_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "analytics_user_profiles" ADD CONSTRAINT "analytics_user_profiles_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "analytics_user_segments" ADD CONSTRAINT "analytics_user_segments_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "analytics_user_segments" ADD CONSTRAINT "analytics_user_segments_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "analytics_user_segments" ADD CONSTRAINT "analytics_user_segments_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "error_alert_logs" ADD CONSTRAINT "error_alert_logs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "error_alert_logs" ADD CONSTRAINT "error_alert_logs_rule_id_error_alert_rules_id_fk" FOREIGN KEY ("rule_id") REFERENCES "public"."error_alert_rules"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "error_alert_rules" ADD CONSTRAINT "error_alert_rules_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "error_alert_rules" ADD CONSTRAINT "error_alert_rules_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "error_alert_rules" ADD CONSTRAINT "error_alert_rules_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "error_events" ADD CONSTRAINT "error_events_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "error_events" ADD CONSTRAINT "error_events_group_id_error_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."error_groups"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "error_events" ADD CONSTRAINT "error_events_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "error_groups" ADD CONSTRAINT "error_groups_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "error_groups" ADD CONSTRAINT "error_groups_assignee_id_users_id_fk" FOREIGN KEY ("assignee_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "error_groups" ADD CONSTRAINT "error_groups_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -3642,6 +6042,7 @@ ALTER TABLE "source_maps" ADD CONSTRAINT "source_maps_tenant_id_tenants_id_fk" F
 ALTER TABLE "source_maps" ADD CONSTRAINT "source_maps_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "source_maps" ADD CONSTRAINT "source_maps_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_events" ADD CONSTRAINT "user_events_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "user_events" ADD CONSTRAINT "user_events_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "announcement_reads" ADD CONSTRAINT "announcement_reads_announcement_id_announcements_id_fk" FOREIGN KEY ("announcement_id") REFERENCES "public"."announcements"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "announcement_recipients" ADD CONSTRAINT "announcement_recipients_announcement_id_announcements_id_fk" FOREIGN KEY ("announcement_id") REFERENCES "public"."announcements"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "announcements" ADD CONSTRAINT "announcements_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -3656,11 +6057,13 @@ ALTER TABLE "workflow_categories" ADD CONSTRAINT "workflow_categories_created_by
 ALTER TABLE "workflow_categories" ADD CONSTRAINT "workflow_categories_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_comments" ADD CONSTRAINT "workflow_comments_instance_id_workflow_instances_id_fk" FOREIGN KEY ("instance_id") REFERENCES "public"."workflow_instances"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_comments" ADD CONSTRAINT "workflow_comments_task_id_workflow_tasks_id_fk" FOREIGN KEY ("task_id") REFERENCES "public"."workflow_tasks"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_comments" ADD CONSTRAINT "workflow_comments_parent_id_workflow_comments_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."workflow_comments"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_comments" ADD CONSTRAINT "workflow_comments_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_comments" ADD CONSTRAINT "workflow_comments_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_compensation_logs" ADD CONSTRAINT "workflow_compensation_logs_compensation_id_workflow_compensations_id_fk" FOREIGN KEY ("compensation_id") REFERENCES "public"."workflow_compensations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_compensation_logs" ADD CONSTRAINT "workflow_compensation_logs_operator_id_users_id_fk" FOREIGN KEY ("operator_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_compensation_logs" ADD CONSTRAINT "workflow_compensation_logs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_compensations" ADD CONSTRAINT "workflow_compensations_instance_id_workflow_instances_id_fk" FOREIGN KEY ("instance_id") REFERENCES "public"."workflow_instances"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_compensations" ADD CONSTRAINT "workflow_compensations_resolved_by_users_id_fk" FOREIGN KEY ("resolved_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_compensations" ADD CONSTRAINT "workflow_compensations_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_connector_invocations" ADD CONSTRAINT "workflow_connector_invocations_connector_id_workflow_connectors_id_fk" FOREIGN KEY ("connector_id") REFERENCES "public"."workflow_connectors"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -3692,6 +6095,7 @@ ALTER TABLE "workflow_forms" ADD CONSTRAINT "workflow_forms_category_id_workflow
 ALTER TABLE "workflow_forms" ADD CONSTRAINT "workflow_forms_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_forms" ADD CONSTRAINT "workflow_forms_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_forms" ADD CONSTRAINT "workflow_forms_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_instance_migrations" ADD CONSTRAINT "workflow_instance_migrations_instance_id_workflow_instances_id_fk" FOREIGN KEY ("instance_id") REFERENCES "public"."workflow_instances"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_instance_migrations" ADD CONSTRAINT "workflow_instance_migrations_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_instance_migrations" ADD CONSTRAINT "workflow_instance_migrations_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_instances" ADD CONSTRAINT "workflow_instances_definition_id_workflow_definitions_id_fk" FOREIGN KEY ("definition_id") REFERENCES "public"."workflow_definitions"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
@@ -3726,6 +6130,12 @@ ALTER TABLE "workflow_task_consults" ADD CONSTRAINT "workflow_task_consults_inst
 ALTER TABLE "workflow_task_consults" ADD CONSTRAINT "workflow_task_consults_inviter_id_users_id_fk" FOREIGN KEY ("inviter_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_task_consults" ADD CONSTRAINT "workflow_task_consults_consultee_id_users_id_fk" FOREIGN KEY ("consultee_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_task_consults" ADD CONSTRAINT "workflow_task_consults_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_task_transfers" ADD CONSTRAINT "workflow_task_transfers_task_id_workflow_tasks_id_fk" FOREIGN KEY ("task_id") REFERENCES "public"."workflow_tasks"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_task_transfers" ADD CONSTRAINT "workflow_task_transfers_instance_id_workflow_instances_id_fk" FOREIGN KEY ("instance_id") REFERENCES "public"."workflow_instances"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_task_transfers" ADD CONSTRAINT "workflow_task_transfers_from_user_id_users_id_fk" FOREIGN KEY ("from_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_task_transfers" ADD CONSTRAINT "workflow_task_transfers_to_user_id_users_id_fk" FOREIGN KEY ("to_user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_task_transfers" ADD CONSTRAINT "workflow_task_transfers_operator_id_users_id_fk" FOREIGN KEY ("operator_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_task_transfers" ADD CONSTRAINT "workflow_task_transfers_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_task_urges" ADD CONSTRAINT "workflow_task_urges_task_id_workflow_tasks_id_fk" FOREIGN KEY ("task_id") REFERENCES "public"."workflow_tasks"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_task_urges" ADD CONSTRAINT "workflow_task_urges_instance_id_workflow_instances_id_fk" FOREIGN KEY ("instance_id") REFERENCES "public"."workflow_instances"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_task_urges" ADD CONSTRAINT "workflow_task_urges_urger_id_users_id_fk" FOREIGN KEY ("urger_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -3772,13 +6182,22 @@ ALTER TABLE "tags" ADD CONSTRAINT "tags_created_by_users_id_fk" FOREIGN KEY ("cr
 ALTER TABLE "tags" ADD CONSTRAINT "tags_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rule_decision_executions" ADD CONSTRAINT "rule_decision_executions_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rule_decision_executions" ADD CONSTRAINT "rule_decision_executions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rule_decision_flows" ADD CONSTRAINT "rule_decision_flows_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rule_decision_flows" ADD CONSTRAINT "rule_decision_flows_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rule_decision_flows" ADD CONSTRAINT "rule_decision_flows_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rule_decision_table_versions" ADD CONSTRAINT "rule_decision_table_versions_table_id_rule_decision_tables_id_fk" FOREIGN KEY ("table_id") REFERENCES "public"."rule_decision_tables"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rule_decision_table_versions" ADD CONSTRAINT "rule_decision_table_versions_published_by_users_id_fk" FOREIGN KEY ("published_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rule_decision_table_versions" ADD CONSTRAINT "rule_decision_table_versions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rule_decision_tables" ADD CONSTRAINT "rule_decision_tables_category_id_workflow_categories_id_fk" FOREIGN KEY ("category_id") REFERENCES "public"."workflow_categories"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rule_decision_tables" ADD CONSTRAINT "rule_decision_tables_review_requested_by_users_id_fk" FOREIGN KEY ("review_requested_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rule_decision_tables" ADD CONSTRAINT "rule_decision_tables_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rule_decision_tables" ADD CONSTRAINT "rule_decision_tables_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rule_decision_tables" ADD CONSTRAINT "rule_decision_tables_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rule_list_items" ADD CONSTRAINT "rule_list_items_list_id_rule_lists_id_fk" FOREIGN KEY ("list_id") REFERENCES "public"."rule_lists"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rule_list_items" ADD CONSTRAINT "rule_list_items_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rule_lists" ADD CONSTRAINT "rule_lists_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rule_lists" ADD CONSTRAINT "rule_lists_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rule_lists" ADD CONSTRAINT "rule_lists_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rule_test_cases" ADD CONSTRAINT "rule_test_cases_table_id_rule_decision_tables_id_fk" FOREIGN KEY ("table_id") REFERENCES "public"."rule_decision_tables"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rule_test_cases" ADD CONSTRAINT "rule_test_cases_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rule_test_cases" ADD CONSTRAINT "rule_test_cases_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -3794,10 +6213,20 @@ ALTER TABLE "chat_conversation_members" ADD CONSTRAINT "chat_conversation_member
 ALTER TABLE "chat_conversations" ADD CONSTRAINT "chat_conversations_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chat_conversations" ADD CONSTRAINT "chat_conversations_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chat_conversations" ADD CONSTRAINT "chat_conversations_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "chat_custom_emojis" ADD CONSTRAINT "chat_custom_emojis_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "chat_group_invites" ADD CONSTRAINT "chat_group_invites_conversation_id_chat_conversations_id_fk" FOREIGN KEY ("conversation_id") REFERENCES "public"."chat_conversations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "chat_group_invites" ADD CONSTRAINT "chat_group_invites_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "chat_group_join_requests" ADD CONSTRAINT "chat_group_join_requests_conversation_id_chat_conversations_id_fk" FOREIGN KEY ("conversation_id") REFERENCES "public"."chat_conversations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "chat_group_join_requests" ADD CONSTRAINT "chat_group_join_requests_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "chat_group_join_requests" ADD CONSTRAINT "chat_group_join_requests_invite_id_chat_group_invites_id_fk" FOREIGN KEY ("invite_id") REFERENCES "public"."chat_group_invites"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "chat_group_join_requests" ADD CONSTRAINT "chat_group_join_requests_handled_by_users_id_fk" FOREIGN KEY ("handled_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chat_message_reactions" ADD CONSTRAINT "chat_message_reactions_message_id_chat_messages_id_fk" FOREIGN KEY ("message_id") REFERENCES "public"."chat_messages"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chat_message_reactions" ADD CONSTRAINT "chat_message_reactions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chat_messages" ADD CONSTRAINT "chat_messages_conversation_id_chat_conversations_id_fk" FOREIGN KEY ("conversation_id") REFERENCES "public"."chat_conversations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chat_messages" ADD CONSTRAINT "chat_messages_sender_id_users_id_fk" FOREIGN KEY ("sender_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "chat_quick_replies" ADD CONSTRAINT "chat_quick_replies_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "chat_scheduled_messages" ADD CONSTRAINT "chat_scheduled_messages_conversation_id_chat_conversations_id_fk" FOREIGN KEY ("conversation_id") REFERENCES "public"."chat_conversations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "chat_scheduled_messages" ADD CONSTRAINT "chat_scheduled_messages_sender_id_users_id_fk" FOREIGN KEY ("sender_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chat_webhooks" ADD CONSTRAINT "chat_webhooks_conversation_id_chat_conversations_id_fk" FOREIGN KEY ("conversation_id") REFERENCES "public"."chat_conversations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chat_webhooks" ADD CONSTRAINT "chat_webhooks_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chat_webhooks" ADD CONSTRAINT "chat_webhooks_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -3824,9 +6253,29 @@ ALTER TABLE "channel_subscriptions" ADD CONSTRAINT "channel_subscriptions_user_i
 ALTER TABLE "channels" ADD CONSTRAINT "channels_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "channels" ADD CONSTRAINT "channels_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "channels" ADD CONSTRAINT "channels_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_accounts" ADD CONSTRAINT "payment_accounts_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_apps" ADD CONSTRAINT "payment_apps_wechat_config_id_payment_channel_configs_id_fk" FOREIGN KEY ("wechat_config_id") REFERENCES "public"."payment_channel_configs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_apps" ADD CONSTRAINT "payment_apps_alipay_config_id_payment_channel_configs_id_fk" FOREIGN KEY ("alipay_config_id") REFERENCES "public"."payment_channel_configs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_apps" ADD CONSTRAINT "payment_apps_unionpay_config_id_payment_channel_configs_id_fk" FOREIGN KEY ("unionpay_config_id") REFERENCES "public"."payment_channel_configs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_apps" ADD CONSTRAINT "payment_apps_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_apps" ADD CONSTRAINT "payment_apps_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_apps" ADD CONSTRAINT "payment_apps_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_channel_configs" ADD CONSTRAINT "payment_channel_configs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_channel_configs" ADD CONSTRAINT "payment_channel_configs_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_channel_configs" ADD CONSTRAINT "payment_channel_configs_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_contracts" ADD CONSTRAINT "payment_contracts_channel_config_id_payment_channel_configs_id_fk" FOREIGN KEY ("channel_config_id") REFERENCES "public"."payment_channel_configs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_contracts" ADD CONSTRAINT "payment_contracts_plan_id_payment_deduct_plans_id_fk" FOREIGN KEY ("plan_id") REFERENCES "public"."payment_deduct_plans"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_contracts" ADD CONSTRAINT "payment_contracts_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_contracts" ADD CONSTRAINT "payment_contracts_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_contracts" ADD CONSTRAINT "payment_contracts_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_deduct_plans" ADD CONSTRAINT "payment_deduct_plans_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_deduct_plans" ADD CONSTRAINT "payment_deduct_plans_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_deduct_plans" ADD CONSTRAINT "payment_deduct_plans_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_dispute_replies" ADD CONSTRAINT "payment_dispute_replies_dispute_id_payment_disputes_id_fk" FOREIGN KEY ("dispute_id") REFERENCES "public"."payment_disputes"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_dispute_replies" ADD CONSTRAINT "payment_dispute_replies_operator_id_users_id_fk" FOREIGN KEY ("operator_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_disputes" ADD CONSTRAINT "payment_disputes_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_disputes" ADD CONSTRAINT "payment_disputes_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_disputes" ADD CONSTRAINT "payment_disputes_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_events" ADD CONSTRAINT "payment_events_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_fee_rules" ADD CONSTRAINT "payment_fee_rules_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_fee_rules" ADD CONSTRAINT "payment_fee_rules_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -3840,15 +6289,22 @@ ALTER TABLE "payment_method_configs" ADD CONSTRAINT "payment_method_configs_crea
 ALTER TABLE "payment_method_configs" ADD CONSTRAINT "payment_method_configs_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_notify_logs" ADD CONSTRAINT "payment_notify_logs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_orders" ADD CONSTRAINT "payment_orders_channel_config_id_payment_channel_configs_id_fk" FOREIGN KEY ("channel_config_id") REFERENCES "public"."payment_channel_configs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_orders" ADD CONSTRAINT "payment_orders_app_id_payment_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."payment_apps"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_orders" ADD CONSTRAINT "payment_orders_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_orders" ADD CONSTRAINT "payment_orders_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_orders" ADD CONSTRAINT "payment_orders_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_orders" ADD CONSTRAINT "payment_orders_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_orders" ADD CONSTRAINT "payment_orders_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_preauths" ADD CONSTRAINT "payment_preauths_channel_config_id_payment_channel_configs_id_fk" FOREIGN KEY ("channel_config_id") REFERENCES "public"."payment_channel_configs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_preauths" ADD CONSTRAINT "payment_preauths_operator_id_users_id_fk" FOREIGN KEY ("operator_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_preauths" ADD CONSTRAINT "payment_preauths_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_preauths" ADD CONSTRAINT "payment_preauths_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_preauths" ADD CONSTRAINT "payment_preauths_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_recon_batches" ADD CONSTRAINT "payment_recon_batches_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_recon_batches" ADD CONSTRAINT "payment_recon_batches_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_recon_batches" ADD CONSTRAINT "payment_recon_batches_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_recon_items" ADD CONSTRAINT "payment_recon_items_batch_id_payment_recon_batches_id_fk" FOREIGN KEY ("batch_id") REFERENCES "public"."payment_recon_batches"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_recon_items" ADD CONSTRAINT "payment_recon_items_handled_by_id_users_id_fk" FOREIGN KEY ("handled_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_refunds" ADD CONSTRAINT "payment_refunds_order_id_payment_orders_id_fk" FOREIGN KEY ("order_id") REFERENCES "public"."payment_orders"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_refunds" ADD CONSTRAINT "payment_refunds_applied_by_id_users_id_fk" FOREIGN KEY ("applied_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_refunds" ADD CONSTRAINT "payment_refunds_approver_id_users_id_fk" FOREIGN KEY ("approver_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -3856,6 +6312,15 @@ ALTER TABLE "payment_refunds" ADD CONSTRAINT "payment_refunds_operator_id_users_
 ALTER TABLE "payment_refunds" ADD CONSTRAINT "payment_refunds_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_refunds" ADD CONSTRAINT "payment_refunds_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_refunds" ADD CONSTRAINT "payment_refunds_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_report_daily" ADD CONSTRAINT "payment_report_daily_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_risk_hits" ADD CONSTRAINT "payment_risk_hits_rule_id_payment_risk_rules_id_fk" FOREIGN KEY ("rule_id") REFERENCES "public"."payment_risk_rules"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_risk_hits" ADD CONSTRAINT "payment_risk_hits_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_risk_hits" ADD CONSTRAINT "payment_risk_hits_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_risk_reviews" ADD CONSTRAINT "payment_risk_reviews_hit_id_payment_risk_hits_id_fk" FOREIGN KEY ("hit_id") REFERENCES "public"."payment_risk_hits"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_risk_reviews" ADD CONSTRAINT "payment_risk_reviews_reviewer_id_users_id_fk" FOREIGN KEY ("reviewer_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_risk_reviews" ADD CONSTRAINT "payment_risk_reviews_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_risk_reviews" ADD CONSTRAINT "payment_risk_reviews_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_risk_reviews" ADD CONSTRAINT "payment_risk_reviews_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_risk_rules" ADD CONSTRAINT "payment_risk_rules_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_risk_rules" ADD CONSTRAINT "payment_risk_rules_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_risk_rules" ADD CONSTRAINT "payment_risk_rules_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -3869,30 +6334,56 @@ ALTER TABLE "payment_sharing_orders" ADD CONSTRAINT "payment_sharing_orders_upda
 ALTER TABLE "payment_sharing_receivers" ADD CONSTRAINT "payment_sharing_receivers_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_sharing_receivers" ADD CONSTRAINT "payment_sharing_receivers_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_sharing_receivers" ADD CONSTRAINT "payment_sharing_receivers_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_transfers" ADD CONSTRAINT "payment_transfers_channel_config_id_payment_channel_configs_id_fk" FOREIGN KEY ("channel_config_id") REFERENCES "public"."payment_channel_configs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_transfers" ADD CONSTRAINT "payment_transfers_operator_id_users_id_fk" FOREIGN KEY ("operator_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_transfers" ADD CONSTRAINT "payment_transfers_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_transfers" ADD CONSTRAINT "payment_transfers_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_transfers" ADD CONSTRAINT "payment_transfers_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_webhook_deliveries" ADD CONSTRAINT "payment_webhook_deliveries_endpoint_id_payment_webhook_endpoints_id_fk" FOREIGN KEY ("endpoint_id") REFERENCES "public"."payment_webhook_endpoints"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_webhook_deliveries" ADD CONSTRAINT "payment_webhook_deliveries_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_webhook_endpoints" ADD CONSTRAINT "payment_webhook_endpoints_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_webhook_endpoints" ADD CONSTRAINT "payment_webhook_endpoints_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_webhook_endpoints" ADD CONSTRAINT "payment_webhook_endpoints_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ai_agents" ADD CONSTRAINT "ai_agents_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ai_arena_votes" ADD CONSTRAINT "ai_arena_votes_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_conversations" ADD CONSTRAINT "ai_conversations_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_conversations" ADD CONSTRAINT "ai_conversations_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ai_eval_runs" ADD CONSTRAINT "ai_eval_runs_set_id_ai_eval_sets_id_fk" FOREIGN KEY ("set_id") REFERENCES "public"."ai_eval_sets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ai_eval_runs" ADD CONSTRAINT "ai_eval_runs_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ai_eval_sets" ADD CONSTRAINT "ai_eval_sets_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ai_eval_sets" ADD CONSTRAINT "ai_eval_sets_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ai_http_tools" ADD CONSTRAINT "ai_http_tools_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ai_http_tools" ADD CONSTRAINT "ai_http_tools_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ai_kb_chunks" ADD CONSTRAINT "ai_kb_chunks_kb_id_ai_knowledge_bases_id_fk" FOREIGN KEY ("kb_id") REFERENCES "public"."ai_knowledge_bases"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ai_kb_chunks" ADD CONSTRAINT "ai_kb_chunks_doc_id_ai_kb_documents_id_fk" FOREIGN KEY ("doc_id") REFERENCES "public"."ai_kb_documents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ai_kb_documents" ADD CONSTRAINT "ai_kb_documents_kb_id_ai_knowledge_bases_id_fk" FOREIGN KEY ("kb_id") REFERENCES "public"."ai_knowledge_bases"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ai_knowledge_bases" ADD CONSTRAINT "ai_knowledge_bases_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_messages" ADD CONSTRAINT "ai_messages_conversation_id_ai_conversations_id_fk" FOREIGN KEY ("conversation_id") REFERENCES "public"."ai_conversations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ai_prompt_template_versions" ADD CONSTRAINT "ai_prompt_template_versions_template_id_ai_prompt_templates_id_fk" FOREIGN KEY ("template_id") REFERENCES "public"."ai_prompt_templates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ai_prompt_template_versions" ADD CONSTRAINT "ai_prompt_template_versions_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_prompt_templates" ADD CONSTRAINT "ai_prompt_templates_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_prompt_templates" ADD CONSTRAINT "ai_prompt_templates_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_prompt_templates" ADD CONSTRAINT "ai_prompt_templates_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_provider_configs" ADD CONSTRAINT "ai_provider_configs_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_provider_configs" ADD CONSTRAINT "ai_provider_configs_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ai_shared_conversations" ADD CONSTRAINT "ai_shared_conversations_conversation_id_ai_conversations_id_fk" FOREIGN KEY ("conversation_id") REFERENCES "public"."ai_conversations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ai_shared_conversations" ADD CONSTRAINT "ai_shared_conversations_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ai_user_preferences" ADD CONSTRAINT "ai_user_preferences_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_ai_configs" ADD CONSTRAINT "user_ai_configs_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "api_scopes" ADD CONSTRAINT "api_scopes_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "api_scopes" ADD CONSTRAINT "api_scopes_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "app_webhook_deliveries" ADD CONSTRAINT "app_webhook_deliveries_subscription_id_app_webhook_subscriptions_id_fk" FOREIGN KEY ("subscription_id") REFERENCES "public"."app_webhook_subscriptions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "app_webhook_subscriptions" ADD CONSTRAINT "app_webhook_subscriptions_cms_site_id_cms_sites_id_fk" FOREIGN KEY ("cms_site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "app_webhook_subscriptions" ADD CONSTRAINT "app_webhook_subscriptions_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "app_webhook_subscriptions" ADD CONSTRAINT "app_webhook_subscriptions_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "oauth2_authorization_codes" ADD CONSTRAINT "oauth2_authorization_codes_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "oauth2_clients" ADD CONSTRAINT "oauth2_clients_rate_plan_id_rate_plans_id_fk" FOREIGN KEY ("rate_plan_id") REFERENCES "public"."rate_plans"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "oauth2_clients" ADD CONSTRAINT "oauth2_clients_reviewed_by_users_id_fk" FOREIGN KEY ("reviewed_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "oauth2_clients" ADD CONSTRAINT "oauth2_clients_owner_id_users_id_fk" FOREIGN KEY ("owner_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "oauth2_clients" ADD CONSTRAINT "oauth2_clients_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "oauth2_clients" ADD CONSTRAINT "oauth2_clients_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "oauth2_token_families" ADD CONSTRAINT "oauth2_token_families_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "oauth2_tokens" ADD CONSTRAINT "oauth2_tokens_family_id_oauth2_token_families_id_fk" FOREIGN KEY ("family_id") REFERENCES "public"."oauth2_token_families"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "oauth2_tokens" ADD CONSTRAINT "oauth2_tokens_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "oauth2_user_grants" ADD CONSTRAINT "oauth2_user_grants_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rate_plans" ADD CONSTRAINT "rate_plans_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -3918,14 +6409,21 @@ ALTER TABLE "member_coupons" ADD CONSTRAINT "member_coupons_member_id_members_id
 ALTER TABLE "member_levels" ADD CONSTRAINT "member_levels_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "member_levels" ADD CONSTRAINT "member_levels_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "member_login_logs" ADD CONSTRAINT "member_login_logs_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "member_notifications" ADD CONSTRAINT "member_notifications_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "member_point_accounts" ADD CONSTRAINT "member_point_accounts_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "member_point_transactions" ADD CONSTRAINT "member_point_transactions_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "member_point_transactions" ADD CONSTRAINT "member_point_transactions_operator_id_users_id_fk" FOREIGN KEY ("operator_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "member_tag_bindings" ADD CONSTRAINT "member_tag_bindings_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "member_tag_bindings" ADD CONSTRAINT "member_tag_bindings_tag_id_member_tags_id_fk" FOREIGN KEY ("tag_id") REFERENCES "public"."member_tags"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "member_tags" ADD CONSTRAINT "member_tags_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "member_tags" ADD CONSTRAINT "member_tags_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "member_vip_renewals" ADD CONSTRAINT "member_vip_renewals_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "member_wallet_transactions" ADD CONSTRAINT "member_wallet_transactions_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "member_wallet_transactions" ADD CONSTRAINT "member_wallet_transactions_payment_order_id_payment_orders_id_fk" FOREIGN KEY ("payment_order_id") REFERENCES "public"."payment_orders"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "member_wallet_transactions" ADD CONSTRAINT "member_wallet_transactions_operator_id_users_id_fk" FOREIGN KEY ("operator_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "member_wallets" ADD CONSTRAINT "member_wallets_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "members" ADD CONSTRAINT "members_level_id_member_levels_id_fk" FOREIGN KEY ("level_id") REFERENCES "public"."member_levels"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "members" ADD CONSTRAINT "members_invited_by_members_id_fk" FOREIGN KEY ("invited_by") REFERENCES "public"."members"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "members" ADD CONSTRAINT "members_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "members" ADD CONSTRAINT "members_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "members" ADD CONSTRAINT "members_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -4006,35 +6504,336 @@ ALTER TABLE "mp_template_send_logs" ADD CONSTRAINT "mp_template_send_logs_accoun
 ALTER TABLE "mp_template_send_logs" ADD CONSTRAINT "mp_template_send_logs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "mp_unmatched_keywords" ADD CONSTRAINT "mp_unmatched_keywords_account_id_mp_accounts_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."mp_accounts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "mp_unmatched_keywords" ADD CONSTRAINT "mp_unmatched_keywords_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_alert_rules" ADD CONSTRAINT "report_alert_rules_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_alert_rules" ADD CONSTRAINT "report_alert_rules_dataset_id_report_datasets_id_fk" FOREIGN KEY ("dataset_id") REFERENCES "public"."report_datasets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_alert_rules" ADD CONSTRAINT "report_alert_rules_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_alert_rules" ADD CONSTRAINT "report_alert_rules_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dashboard_categories" ADD CONSTRAINT "report_dashboard_categories_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_dashboard_categories" ADD CONSTRAINT "report_dashboard_categories_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_dashboard_categories" ADD CONSTRAINT "report_dashboard_categories_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_dashboard_comments" ADD CONSTRAINT "report_dashboard_comments_dashboard_id_report_dashboards_id_fk" FOREIGN KEY ("dashboard_id") REFERENCES "public"."report_dashboards"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "report_dashboard_comments" ADD CONSTRAINT "report_dashboard_comments_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dashboard_comments" ADD CONSTRAINT "report_dashboard_comments_parent_id_report_dashboard_comments_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."report_dashboard_comments"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dashboard_comments" ADD CONSTRAINT "report_dashboard_comments_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dashboard_comments" ADD CONSTRAINT "report_dashboard_comments_resolved_by_users_id_fk" FOREIGN KEY ("resolved_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dashboard_comments" ADD CONSTRAINT "report_dashboard_comments_deleted_by_users_id_fk" FOREIGN KEY ("deleted_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dashboard_embed_tokens" ADD CONSTRAINT "report_dashboard_embed_tokens_dashboard_id_report_dashboards_id_fk" FOREIGN KEY ("dashboard_id") REFERENCES "public"."report_dashboards"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dashboard_embed_tokens" ADD CONSTRAINT "report_dashboard_embed_tokens_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dashboard_embed_tokens" ADD CONSTRAINT "report_dashboard_embed_tokens_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_dashboard_favorites" ADD CONSTRAINT "report_dashboard_favorites_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_dashboard_favorites" ADD CONSTRAINT "report_dashboard_favorites_dashboard_id_report_dashboards_id_fk" FOREIGN KEY ("dashboard_id") REFERENCES "public"."report_dashboards"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_dashboard_shares" ADD CONSTRAINT "report_dashboard_shares_dashboard_id_report_dashboards_id_fk" FOREIGN KEY ("dashboard_id") REFERENCES "public"."report_dashboards"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_dashboard_shares" ADD CONSTRAINT "report_dashboard_shares_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_dashboard_shares" ADD CONSTRAINT "report_dashboard_shares_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dashboard_subscriptions" ADD CONSTRAINT "report_dashboard_subscriptions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_dashboard_subscriptions" ADD CONSTRAINT "report_dashboard_subscriptions_dashboard_id_report_dashboards_id_fk" FOREIGN KEY ("dashboard_id") REFERENCES "public"."report_dashboards"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_dashboard_subscriptions" ADD CONSTRAINT "report_dashboard_subscriptions_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_dashboard_subscriptions" ADD CONSTRAINT "report_dashboard_subscriptions_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_dashboard_versions" ADD CONSTRAINT "report_dashboard_versions_dashboard_id_report_dashboards_id_fk" FOREIGN KEY ("dashboard_id") REFERENCES "public"."report_dashboards"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_dashboard_versions" ADD CONSTRAINT "report_dashboard_versions_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_dashboard_versions" ADD CONSTRAINT "report_dashboard_versions_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dashboards" ADD CONSTRAINT "report_dashboards_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dashboards" ADD CONSTRAINT "report_dashboards_owner_id_users_id_fk" FOREIGN KEY ("owner_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dashboards" ADD CONSTRAINT "report_dashboards_folder_id_report_folders_id_fk" FOREIGN KEY ("folder_id") REFERENCES "public"."report_folders"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_dashboards" ADD CONSTRAINT "report_dashboards_category_id_report_dashboard_categories_id_fk" FOREIGN KEY ("category_id") REFERENCES "public"."report_dashboard_categories"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dashboards" ADD CONSTRAINT "report_dashboards_published_by_users_id_fk" FOREIGN KEY ("published_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_dashboards" ADD CONSTRAINT "report_dashboards_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_dashboards" ADD CONSTRAINT "report_dashboards_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dataset_execution_logs" ADD CONSTRAINT "report_dataset_execution_logs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dataset_execution_logs" ADD CONSTRAINT "report_dataset_execution_logs_dataset_id_report_datasets_id_fk" FOREIGN KEY ("dataset_id") REFERENCES "public"."report_datasets"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dataset_execution_logs" ADD CONSTRAINT "report_dataset_execution_logs_datasource_id_report_datasources_id_fk" FOREIGN KEY ("datasource_id") REFERENCES "public"."report_datasources"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dataset_execution_logs" ADD CONSTRAINT "report_dataset_execution_logs_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_datasets" ADD CONSTRAINT "report_datasets_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_datasets" ADD CONSTRAINT "report_datasets_owner_id_users_id_fk" FOREIGN KEY ("owner_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_datasets" ADD CONSTRAINT "report_datasets_folder_id_report_folders_id_fk" FOREIGN KEY ("folder_id") REFERENCES "public"."report_folders"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_datasets" ADD CONSTRAINT "report_datasets_datasource_id_report_datasources_id_fk" FOREIGN KEY ("datasource_id") REFERENCES "public"."report_datasources"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_datasets" ADD CONSTRAINT "report_datasets_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_datasets" ADD CONSTRAINT "report_datasets_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_datasources" ADD CONSTRAINT "report_datasources_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_datasources" ADD CONSTRAINT "report_datasources_owner_id_users_id_fk" FOREIGN KEY ("owner_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_datasources" ADD CONSTRAINT "report_datasources_folder_id_report_folders_id_fk" FOREIGN KEY ("folder_id") REFERENCES "public"."report_folders"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_datasources" ADD CONSTRAINT "report_datasources_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_datasources" ADD CONSTRAINT "report_datasources_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_delivery_attempts" ADD CONSTRAINT "report_delivery_attempts_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_delivery_attempts" ADD CONSTRAINT "report_delivery_attempts_run_id_report_delivery_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."report_delivery_runs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_delivery_runs" ADD CONSTRAINT "report_delivery_runs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_delivery_runs" ADD CONSTRAINT "report_delivery_runs_subscription_id_report_dashboard_subscriptions_id_fk" FOREIGN KEY ("subscription_id") REFERENCES "public"."report_dashboard_subscriptions"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_delivery_runs" ADD CONSTRAINT "report_delivery_runs_alert_rule_id_report_alert_rules_id_fk" FOREIGN KEY ("alert_rule_id") REFERENCES "public"."report_alert_rules"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_delivery_runs" ADD CONSTRAINT "report_delivery_runs_dashboard_id_report_dashboards_id_fk" FOREIGN KEY ("dashboard_id") REFERENCES "public"."report_dashboards"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_delivery_runs" ADD CONSTRAINT "report_delivery_runs_dataset_id_report_datasets_id_fk" FOREIGN KEY ("dataset_id") REFERENCES "public"."report_datasets"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_delivery_runs" ADD CONSTRAINT "report_delivery_runs_acknowledged_by_users_id_fk" FOREIGN KEY ("acknowledged_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_delivery_runs" ADD CONSTRAINT "report_delivery_runs_requested_by_users_id_fk" FOREIGN KEY ("requested_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_folders" ADD CONSTRAINT "report_folders_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_folders" ADD CONSTRAINT "report_folders_parent_id_report_folders_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."report_folders"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_folders" ADD CONSTRAINT "report_folders_owner_id_users_id_fk" FOREIGN KEY ("owner_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_folders" ADD CONSTRAINT "report_folders_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_folders" ADD CONSTRAINT "report_folders_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_print_templates" ADD CONSTRAINT "report_print_templates_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_print_templates" ADD CONSTRAINT "report_print_templates_owner_id_users_id_fk" FOREIGN KEY ("owner_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_print_templates" ADD CONSTRAINT "report_print_templates_folder_id_report_folders_id_fk" FOREIGN KEY ("folder_id") REFERENCES "public"."report_folders"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_print_templates" ADD CONSTRAINT "report_print_templates_dataset_id_report_datasets_id_fk" FOREIGN KEY ("dataset_id") REFERENCES "public"."report_datasets"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_print_templates" ADD CONSTRAINT "report_print_templates_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "report_print_templates" ADD CONSTRAINT "report_print_templates_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_share_access_logs" ADD CONSTRAINT "report_share_access_logs_share_id_report_dashboard_shares_id_fk" FOREIGN KEY ("share_id") REFERENCES "public"."report_dashboard_shares"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_asset_templates" ADD CONSTRAINT "report_asset_templates_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_asset_templates" ADD CONSTRAINT "report_asset_templates_folder_id_report_folders_id_fk" FOREIGN KEY ("folder_id") REFERENCES "public"."report_folders"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_asset_templates" ADD CONSTRAINT "report_asset_templates_owner_id_users_id_fk" FOREIGN KEY ("owner_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_asset_templates" ADD CONSTRAINT "report_asset_templates_preview_file_id_managed_files_id_fk" FOREIGN KEY ("preview_file_id") REFERENCES "public"."managed_files"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_asset_templates" ADD CONSTRAINT "report_asset_templates_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_asset_templates" ADD CONSTRAINT "report_asset_templates_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_asset_usage_logs" ADD CONSTRAINT "report_asset_usage_logs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_asset_usage_logs" ADD CONSTRAINT "report_asset_usage_logs_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_chatbi_messages" ADD CONSTRAINT "report_chatbi_messages_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_chatbi_messages" ADD CONSTRAINT "report_chatbi_messages_session_id_report_chatbi_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."report_chatbi_sessions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_chatbi_messages" ADD CONSTRAINT "report_chatbi_messages_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_chatbi_messages" ADD CONSTRAINT "report_chatbi_messages_saved_dataset_id_report_datasets_id_fk" FOREIGN KEY ("saved_dataset_id") REFERENCES "public"."report_datasets"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_chatbi_messages" ADD CONSTRAINT "report_chatbi_messages_saved_dashboard_id_report_dashboards_id_fk" FOREIGN KEY ("saved_dashboard_id") REFERENCES "public"."report_dashboards"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_chatbi_sessions" ADD CONSTRAINT "report_chatbi_sessions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_chatbi_sessions" ADD CONSTRAINT "report_chatbi_sessions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_chatbi_sessions" ADD CONSTRAINT "report_chatbi_sessions_datasource_id_report_datasources_id_fk" FOREIGN KEY ("datasource_id") REFERENCES "public"."report_datasources"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_chatbi_sessions" ADD CONSTRAINT "report_chatbi_sessions_dataset_id_report_datasets_id_fk" FOREIGN KEY ("dataset_id") REFERENCES "public"."report_datasets"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_deprecation_notices" ADD CONSTRAINT "report_deprecation_notices_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_deprecation_notices" ADD CONSTRAINT "report_deprecation_notices_published_by_users_id_fk" FOREIGN KEY ("published_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_deprecation_notices" ADD CONSTRAINT "report_deprecation_notices_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_deprecation_notices" ADD CONSTRAINT "report_deprecation_notices_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dq_anomalies" ADD CONSTRAINT "report_dq_anomalies_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dq_anomalies" ADD CONSTRAINT "report_dq_anomalies_dataset_id_report_datasets_id_fk" FOREIGN KEY ("dataset_id") REFERENCES "public"."report_datasets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dq_anomalies" ADD CONSTRAINT "report_dq_anomalies_rule_id_report_dq_rules_id_fk" FOREIGN KEY ("rule_id") REFERENCES "public"."report_dq_rules"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dq_anomalies" ADD CONSTRAINT "report_dq_anomalies_run_id_report_dq_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."report_dq_runs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dq_anomalies" ADD CONSTRAINT "report_dq_anomalies_acknowledged_by_users_id_fk" FOREIGN KEY ("acknowledged_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dq_anomalies" ADD CONSTRAINT "report_dq_anomalies_resolved_by_users_id_fk" FOREIGN KEY ("resolved_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dq_rules" ADD CONSTRAINT "report_dq_rules_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dq_rules" ADD CONSTRAINT "report_dq_rules_dataset_id_report_datasets_id_fk" FOREIGN KEY ("dataset_id") REFERENCES "public"."report_datasets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dq_rules" ADD CONSTRAINT "report_dq_rules_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dq_rules" ADD CONSTRAINT "report_dq_rules_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dq_runs" ADD CONSTRAINT "report_dq_runs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dq_runs" ADD CONSTRAINT "report_dq_runs_rule_id_report_dq_rules_id_fk" FOREIGN KEY ("rule_id") REFERENCES "public"."report_dq_rules"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dq_runs" ADD CONSTRAINT "report_dq_runs_dataset_id_report_datasets_id_fk" FOREIGN KEY ("dataset_id") REFERENCES "public"."report_datasets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dq_runs" ADD CONSTRAINT "report_dq_runs_requested_by_users_id_fk" FOREIGN KEY ("requested_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dq_scores" ADD CONSTRAINT "report_dq_scores_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_dq_scores" ADD CONSTRAINT "report_dq_scores_dataset_id_report_datasets_id_fk" FOREIGN KEY ("dataset_id") REFERENCES "public"."report_datasets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_environment_promotions" ADD CONSTRAINT "report_environment_promotions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_environment_promotions" ADD CONSTRAINT "report_environment_promotions_source_environment_id_report_environments_id_fk" FOREIGN KEY ("source_environment_id") REFERENCES "public"."report_environments"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_environment_promotions" ADD CONSTRAINT "report_environment_promotions_target_environment_id_report_environments_id_fk" FOREIGN KEY ("target_environment_id") REFERENCES "public"."report_environments"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_environment_promotions" ADD CONSTRAINT "report_environment_promotions_requested_by_users_id_fk" FOREIGN KEY ("requested_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_environment_promotions" ADD CONSTRAINT "report_environment_promotions_approved_by_users_id_fk" FOREIGN KEY ("approved_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_environment_promotions" ADD CONSTRAINT "report_environment_promotions_deployed_by_users_id_fk" FOREIGN KEY ("deployed_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_environment_promotions" ADD CONSTRAINT "report_environment_promotions_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_environment_promotions" ADD CONSTRAINT "report_environment_promotions_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_environments" ADD CONSTRAINT "report_environments_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_environments" ADD CONSTRAINT "report_environments_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_environments" ADD CONSTRAINT "report_environments_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_fill_records" ADD CONSTRAINT "report_fill_records_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_fill_records" ADD CONSTRAINT "report_fill_records_template_id_report_fill_templates_id_fk" FOREIGN KEY ("template_id") REFERENCES "public"."report_fill_templates"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_fill_records" ADD CONSTRAINT "report_fill_records_submitter_id_users_id_fk" FOREIGN KEY ("submitter_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_fill_records" ADD CONSTRAINT "report_fill_records_reviewed_by_users_id_fk" FOREIGN KEY ("reviewed_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_fill_records" ADD CONSTRAINT "report_fill_records_workflow_instance_id_workflow_instances_id_fk" FOREIGN KEY ("workflow_instance_id") REFERENCES "public"."workflow_instances"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_fill_records" ADD CONSTRAINT "report_fill_records_generated_dataset_id_report_datasets_id_fk" FOREIGN KEY ("generated_dataset_id") REFERENCES "public"."report_datasets"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_fill_records" ADD CONSTRAINT "report_fill_records_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_fill_records" ADD CONSTRAINT "report_fill_records_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_fill_templates" ADD CONSTRAINT "report_fill_templates_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_fill_templates" ADD CONSTRAINT "report_fill_templates_folder_id_report_folders_id_fk" FOREIGN KEY ("folder_id") REFERENCES "public"."report_folders"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_fill_templates" ADD CONSTRAINT "report_fill_templates_owner_id_users_id_fk" FOREIGN KEY ("owner_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_fill_templates" ADD CONSTRAINT "report_fill_templates_workflow_definition_id_workflow_definitions_id_fk" FOREIGN KEY ("workflow_definition_id") REFERENCES "public"."workflow_definitions"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_fill_templates" ADD CONSTRAINT "report_fill_templates_generated_dataset_id_report_datasets_id_fk" FOREIGN KEY ("generated_dataset_id") REFERENCES "public"."report_datasets"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_fill_templates" ADD CONSTRAINT "report_fill_templates_published_by_users_id_fk" FOREIGN KEY ("published_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_fill_templates" ADD CONSTRAINT "report_fill_templates_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_fill_templates" ADD CONSTRAINT "report_fill_templates_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_materialization_snapshots" ADD CONSTRAINT "report_materialization_snapshots_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_materialization_snapshots" ADD CONSTRAINT "report_materialization_snapshots_dataset_id_report_datasets_id_fk" FOREIGN KEY ("dataset_id") REFERENCES "public"."report_datasets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_materialization_snapshots" ADD CONSTRAINT "report_materialization_snapshots_file_id_managed_files_id_fk" FOREIGN KEY ("file_id") REFERENCES "public"."managed_files"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_materialization_snapshots" ADD CONSTRAINT "report_materialization_snapshots_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_materialization_snapshots" ADD CONSTRAINT "report_materialization_snapshots_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_metrics" ADD CONSTRAINT "report_metrics_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_metrics" ADD CONSTRAINT "report_metrics_folder_id_report_folders_id_fk" FOREIGN KEY ("folder_id") REFERENCES "public"."report_folders"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_metrics" ADD CONSTRAINT "report_metrics_owner_id_users_id_fk" FOREIGN KEY ("owner_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_metrics" ADD CONSTRAINT "report_metrics_dataset_id_report_datasets_id_fk" FOREIGN KEY ("dataset_id") REFERENCES "public"."report_datasets"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_metrics" ADD CONSTRAINT "report_metrics_published_by_users_id_fk" FOREIGN KEY ("published_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_metrics" ADD CONSTRAINT "report_metrics_deprecated_by_users_id_fk" FOREIGN KEY ("deprecated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_metrics" ADD CONSTRAINT "report_metrics_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_metrics" ADD CONSTRAINT "report_metrics_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_publish_approvals" ADD CONSTRAINT "report_publish_approvals_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_publish_approvals" ADD CONSTRAINT "report_publish_approvals_requested_by_users_id_fk" FOREIGN KEY ("requested_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_publish_approvals" ADD CONSTRAINT "report_publish_approvals_decided_by_users_id_fk" FOREIGN KEY ("decided_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_publish_approvals" ADD CONSTRAINT "report_publish_approvals_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_publish_approvals" ADD CONSTRAINT "report_publish_approvals_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_query_cost_logs" ADD CONSTRAINT "report_query_cost_logs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_query_cost_logs" ADD CONSTRAINT "report_query_cost_logs_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_query_cost_logs" ADD CONSTRAINT "report_query_cost_logs_dataset_id_report_datasets_id_fk" FOREIGN KEY ("dataset_id") REFERENCES "public"."report_datasets"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_query_cost_logs" ADD CONSTRAINT "report_query_cost_logs_datasource_id_report_datasources_id_fk" FOREIGN KEY ("datasource_id") REFERENCES "public"."report_datasources"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_query_quotas" ADD CONSTRAINT "report_query_quotas_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_query_quotas" ADD CONSTRAINT "report_query_quotas_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_query_quotas" ADD CONSTRAINT "report_query_quotas_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_query_quotas" ADD CONSTRAINT "report_query_quotas_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_resource_acls" ADD CONSTRAINT "report_resource_acls_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_resource_acls" ADD CONSTRAINT "report_resource_acls_granted_by_users_id_fk" FOREIGN KEY ("granted_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_resource_acls" ADD CONSTRAINT "report_resource_acls_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_resource_acls" ADD CONSTRAINT "report_resource_acls_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_resource_transfers" ADD CONSTRAINT "report_resource_transfers_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_resource_transfers" ADD CONSTRAINT "report_resource_transfers_from_owner_id_users_id_fk" FOREIGN KEY ("from_owner_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_resource_transfers" ADD CONSTRAINT "report_resource_transfers_to_owner_id_users_id_fk" FOREIGN KEY ("to_owner_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_resource_transfers" ADD CONSTRAINT "report_resource_transfers_requested_by_users_id_fk" FOREIGN KEY ("requested_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_resource_transfers" ADD CONSTRAINT "report_resource_transfers_decided_by_users_id_fk" FOREIGN KEY ("decided_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_resource_transfers" ADD CONSTRAINT "report_resource_transfers_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_resource_transfers" ADD CONSTRAINT "report_resource_transfers_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_sla_rules" ADD CONSTRAINT "report_sla_rules_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_sla_rules" ADD CONSTRAINT "report_sla_rules_dataset_id_report_datasets_id_fk" FOREIGN KEY ("dataset_id") REFERENCES "public"."report_datasets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_sla_rules" ADD CONSTRAINT "report_sla_rules_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_sla_rules" ADD CONSTRAINT "report_sla_rules_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_sla_violations" ADD CONSTRAINT "report_sla_violations_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_sla_violations" ADD CONSTRAINT "report_sla_violations_rule_id_report_sla_rules_id_fk" FOREIGN KEY ("rule_id") REFERENCES "public"."report_sla_rules"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_sla_violations" ADD CONSTRAINT "report_sla_violations_dataset_id_report_datasets_id_fk" FOREIGN KEY ("dataset_id") REFERENCES "public"."report_datasets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_sla_violations" ADD CONSTRAINT "report_sla_violations_acknowledged_by_users_id_fk" FOREIGN KEY ("acknowledged_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "report_sla_violations" ADD CONSTRAINT "report_sla_violations_resolved_by_users_id_fk" FOREIGN KEY ("resolved_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_ad_events" ADD CONSTRAINT "cms_ad_events_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_ad_events" ADD CONSTRAINT "cms_ad_events_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_ad_slots" ADD CONSTRAINT "cms_ad_slots_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_ad_slots" ADD CONSTRAINT "cms_ad_slots_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_ad_slots" ADD CONSTRAINT "cms_ad_slots_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_ad_stats" ADD CONSTRAINT "cms_ad_stats_ad_id_cms_ads_id_fk" FOREIGN KEY ("ad_id") REFERENCES "public"."cms_ads"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_ads" ADD CONSTRAINT "cms_ads_slot_id_cms_ad_slots_id_fk" FOREIGN KEY ("slot_id") REFERENCES "public"."cms_ad_slots"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_ads" ADD CONSTRAINT "cms_ads_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_ads" ADD CONSTRAINT "cms_ads_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_channel_users" ADD CONSTRAINT "cms_channel_users_channel_id_cms_channels_id_fk" FOREIGN KEY ("channel_id") REFERENCES "public"."cms_channels"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_channel_users" ADD CONSTRAINT "cms_channel_users_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_channels" ADD CONSTRAINT "cms_channels_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_channels" ADD CONSTRAINT "cms_channels_model_id_cms_models_id_fk" FOREIGN KEY ("model_id") REFERENCES "public"."cms_models"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_channels" ADD CONSTRAINT "cms_channels_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_channels" ADD CONSTRAINT "cms_channels_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_collect_items" ADD CONSTRAINT "cms_collect_items_rule_id_cms_collect_rules_id_fk" FOREIGN KEY ("rule_id") REFERENCES "public"."cms_collect_rules"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_collect_items" ADD CONSTRAINT "cms_collect_items_content_id_cms_contents_id_fk" FOREIGN KEY ("content_id") REFERENCES "public"."cms_contents"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_collect_rules" ADD CONSTRAINT "cms_collect_rules_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_collect_rules" ADD CONSTRAINT "cms_collect_rules_channel_id_cms_channels_id_fk" FOREIGN KEY ("channel_id") REFERENCES "public"."cms_channels"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_collect_rules" ADD CONSTRAINT "cms_collect_rules_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_collect_rules" ADD CONSTRAINT "cms_collect_rules_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_comments" ADD CONSTRAINT "cms_comments_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_comments" ADD CONSTRAINT "cms_comments_content_id_cms_contents_id_fk" FOREIGN KEY ("content_id") REFERENCES "public"."cms_contents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_comments" ADD CONSTRAINT "cms_comments_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_content_channels" ADD CONSTRAINT "cms_content_channels_content_id_cms_contents_id_fk" FOREIGN KEY ("content_id") REFERENCES "public"."cms_contents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_content_channels" ADD CONSTRAINT "cms_content_channels_channel_id_cms_channels_id_fk" FOREIGN KEY ("channel_id") REFERENCES "public"."cms_channels"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_content_favorites" ADD CONSTRAINT "cms_content_favorites_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_content_favorites" ADD CONSTRAINT "cms_content_favorites_content_id_cms_contents_id_fk" FOREIGN KEY ("content_id") REFERENCES "public"."cms_contents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_content_likes" ADD CONSTRAINT "cms_content_likes_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_content_likes" ADD CONSTRAINT "cms_content_likes_content_id_cms_contents_id_fk" FOREIGN KEY ("content_id") REFERENCES "public"."cms_contents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_content_op_logs" ADD CONSTRAINT "cms_content_op_logs_content_id_cms_contents_id_fk" FOREIGN KEY ("content_id") REFERENCES "public"."cms_contents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_content_op_logs" ADD CONSTRAINT "cms_content_op_logs_operator_id_users_id_fk" FOREIGN KEY ("operator_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_content_relations" ADD CONSTRAINT "cms_content_relations_content_id_cms_contents_id_fk" FOREIGN KEY ("content_id") REFERENCES "public"."cms_contents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_content_relations" ADD CONSTRAINT "cms_content_relations_related_id_cms_contents_id_fk" FOREIGN KEY ("related_id") REFERENCES "public"."cms_contents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_content_tags" ADD CONSTRAINT "cms_content_tags_content_id_cms_contents_id_fk" FOREIGN KEY ("content_id") REFERENCES "public"."cms_contents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_content_tags" ADD CONSTRAINT "cms_content_tags_tag_id_cms_tags_id_fk" FOREIGN KEY ("tag_id") REFERENCES "public"."cms_tags"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_content_tombstones" ADD CONSTRAINT "cms_content_tombstones_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_content_versions" ADD CONSTRAINT "cms_content_versions_content_id_cms_contents_id_fk" FOREIGN KEY ("content_id") REFERENCES "public"."cms_contents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_content_versions" ADD CONSTRAINT "cms_content_versions_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_content_versions" ADD CONSTRAINT "cms_content_versions_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_contents" ADD CONSTRAINT "cms_contents_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_contents" ADD CONSTRAINT "cms_contents_channel_id_cms_channels_id_fk" FOREIGN KEY ("channel_id") REFERENCES "public"."cms_channels"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_contents" ADD CONSTRAINT "cms_contents_model_id_cms_models_id_fk" FOREIGN KEY ("model_id") REFERENCES "public"."cms_models"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_contents" ADD CONSTRAINT "cms_contents_mapping_source_id_cms_contents_id_fk" FOREIGN KEY ("mapping_source_id") REFERENCES "public"."cms_contents"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_contents" ADD CONSTRAINT "cms_contents_distribution_rule_id_cms_distribution_rules_id_fk" FOREIGN KEY ("distribution_rule_id") REFERENCES "public"."cms_distribution_rules"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_contents" ADD CONSTRAINT "cms_contents_distribution_source_id_cms_contents_id_fk" FOREIGN KEY ("distribution_source_id") REFERENCES "public"."cms_contents"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_contents" ADD CONSTRAINT "cms_contents_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_contents" ADD CONSTRAINT "cms_contents_dept_id_departments_id_fk" FOREIGN KEY ("dept_id") REFERENCES "public"."departments"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_contents" ADD CONSTRAINT "cms_contents_locked_by_users_id_fk" FOREIGN KEY ("locked_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_contents" ADD CONSTRAINT "cms_contents_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_contents" ADD CONSTRAINT "cms_contents_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_distribution_rules" ADD CONSTRAINT "cms_distribution_rules_source_site_id_cms_sites_id_fk" FOREIGN KEY ("source_site_id") REFERENCES "public"."cms_sites"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_distribution_rules" ADD CONSTRAINT "cms_distribution_rules_source_channel_id_cms_channels_id_fk" FOREIGN KEY ("source_channel_id") REFERENCES "public"."cms_channels"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_distribution_rules" ADD CONSTRAINT "cms_distribution_rules_target_site_id_cms_sites_id_fk" FOREIGN KEY ("target_site_id") REFERENCES "public"."cms_sites"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_distribution_rules" ADD CONSTRAINT "cms_distribution_rules_target_channel_id_cms_channels_id_fk" FOREIGN KEY ("target_channel_id") REFERENCES "public"."cms_channels"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_distribution_rules" ADD CONSTRAINT "cms_distribution_rules_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_distribution_rules" ADD CONSTRAINT "cms_distribution_rules_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_error_prone_words" ADD CONSTRAINT "cms_error_prone_words_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_error_prone_words" ADD CONSTRAINT "cms_error_prone_words_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_form_submissions" ADD CONSTRAINT "cms_form_submissions_form_id_cms_forms_id_fk" FOREIGN KEY ("form_id") REFERENCES "public"."cms_forms"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_forms" ADD CONSTRAINT "cms_forms_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_forms" ADD CONSTRAINT "cms_forms_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_forms" ADD CONSTRAINT "cms_forms_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_friend_link_groups" ADD CONSTRAINT "cms_friend_link_groups_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_friend_link_groups" ADD CONSTRAINT "cms_friend_link_groups_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_friend_link_groups" ADD CONSTRAINT "cms_friend_link_groups_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_friend_links" ADD CONSTRAINT "cms_friend_links_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_friend_links" ADD CONSTRAINT "cms_friend_links_group_id_cms_friend_link_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."cms_friend_link_groups"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_friend_links" ADD CONSTRAINT "cms_friend_links_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_friend_links" ADD CONSTRAINT "cms_friend_links_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_hotword_groups" ADD CONSTRAINT "cms_hotword_groups_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_hotword_groups" ADD CONSTRAINT "cms_hotword_groups_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_hotword_groups" ADD CONSTRAINT "cms_hotword_groups_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_hotwords" ADD CONSTRAINT "cms_hotwords_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_hotwords" ADD CONSTRAINT "cms_hotwords_group_id_cms_hotword_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."cms_hotword_groups"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_hotwords" ADD CONSTRAINT "cms_hotwords_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_hotwords" ADD CONSTRAINT "cms_hotwords_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_interaction_answers" ADD CONSTRAINT "cms_interaction_answers_response_id_cms_interaction_responses_id_fk" FOREIGN KEY ("response_id") REFERENCES "public"."cms_interaction_responses"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_interaction_answers" ADD CONSTRAINT "cms_interaction_answers_question_id_cms_interaction_questions_id_fk" FOREIGN KEY ("question_id") REFERENCES "public"."cms_interaction_questions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_interaction_questions" ADD CONSTRAINT "cms_interaction_questions_interaction_id_cms_interactions_id_fk" FOREIGN KEY ("interaction_id") REFERENCES "public"."cms_interactions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_interaction_responses" ADD CONSTRAINT "cms_interaction_responses_interaction_id_cms_interactions_id_fk" FOREIGN KEY ("interaction_id") REFERENCES "public"."cms_interactions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_interaction_responses" ADD CONSTRAINT "cms_interaction_responses_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_interactions" ADD CONSTRAINT "cms_interactions_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_interactions" ADD CONSTRAINT "cms_interactions_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_interactions" ADD CONSTRAINT "cms_interactions_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_link_words" ADD CONSTRAINT "cms_link_words_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_link_words" ADD CONSTRAINT "cms_link_words_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_link_words" ADD CONSTRAINT "cms_link_words_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_member_subscriptions" ADD CONSTRAINT "cms_member_subscriptions_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_member_subscriptions" ADD CONSTRAINT "cms_member_subscriptions_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_member_view_history" ADD CONSTRAINT "cms_member_view_history_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_member_view_history" ADD CONSTRAINT "cms_member_view_history_content_id_cms_contents_id_fk" FOREIGN KEY ("content_id") REFERENCES "public"."cms_contents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_member_view_history" ADD CONSTRAINT "cms_member_view_history_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_model_fields" ADD CONSTRAINT "cms_model_fields_model_id_cms_models_id_fk" FOREIGN KEY ("model_id") REFERENCES "public"."cms_models"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_model_fields" ADD CONSTRAINT "cms_model_fields_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_model_fields" ADD CONSTRAINT "cms_model_fields_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_models" ADD CONSTRAINT "cms_models_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_models" ADD CONSTRAINT "cms_models_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_open_app_grants" ADD CONSTRAINT "cms_open_app_grants_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_open_app_grants" ADD CONSTRAINT "cms_open_app_grants_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_open_app_grants" ADD CONSTRAINT "cms_open_app_grants_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_page_block_acls" ADD CONSTRAINT "cms_page_block_acls_page_id_cms_pages_id_fk" FOREIGN KEY ("page_id") REFERENCES "public"."cms_pages"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_pages" ADD CONSTRAINT "cms_pages_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_pages" ADD CONSTRAINT "cms_pages_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_pages" ADD CONSTRAINT "cms_pages_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_publish_artifacts" ADD CONSTRAINT "cms_publish_artifacts_task_id_async_tasks_id_fk" FOREIGN KEY ("task_id") REFERENCES "public"."async_tasks"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_publish_artifacts" ADD CONSTRAINT "cms_publish_artifacts_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_publish_artifacts" ADD CONSTRAINT "cms_publish_artifacts_content_id_cms_contents_id_fk" FOREIGN KEY ("content_id") REFERENCES "public"."cms_contents"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_publish_artifacts" ADD CONSTRAINT "cms_publish_artifacts_channel_id_cms_channels_id_fk" FOREIGN KEY ("channel_id") REFERENCES "public"."cms_channels"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_publish_artifacts" ADD CONSTRAINT "cms_publish_artifacts_page_id_cms_pages_id_fk" FOREIGN KEY ("page_id") REFERENCES "public"."cms_pages"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_push_logs" ADD CONSTRAINT "cms_push_logs_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_redirects" ADD CONSTRAINT "cms_redirects_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_redirects" ADD CONSTRAINT "cms_redirects_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_redirects" ADD CONSTRAINT "cms_redirects_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_resource_folders" ADD CONSTRAINT "cms_resource_folders_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_resource_folders" ADD CONSTRAINT "cms_resource_folders_parent_id_cms_resource_folders_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."cms_resource_folders"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_resource_folders" ADD CONSTRAINT "cms_resource_folders_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_resource_folders" ADD CONSTRAINT "cms_resource_folders_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_resource_refs" ADD CONSTRAINT "cms_resource_refs_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_resource_refs" ADD CONSTRAINT "cms_resource_refs_resource_id_cms_resources_id_fk" FOREIGN KEY ("resource_id") REFERENCES "public"."cms_resources"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_resources" ADD CONSTRAINT "cms_resources_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_resources" ADD CONSTRAINT "cms_resources_folder_id_cms_resource_folders_id_fk" FOREIGN KEY ("folder_id") REFERENCES "public"."cms_resource_folders"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_resources" ADD CONSTRAINT "cms_resources_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_resources" ADD CONSTRAINT "cms_resources_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_search_logs" ADD CONSTRAINT "cms_search_logs_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_search_words" ADD CONSTRAINT "cms_search_words_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_search_words" ADD CONSTRAINT "cms_search_words_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_search_words" ADD CONSTRAINT "cms_search_words_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_sensitive_words" ADD CONSTRAINT "cms_sensitive_words_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_sensitive_words" ADD CONSTRAINT "cms_sensitive_words_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_site_inheritances" ADD CONSTRAINT "cms_site_inheritances_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_site_inheritances" ADD CONSTRAINT "cms_site_inheritances_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_site_inheritances" ADD CONSTRAINT "cms_site_inheritances_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_site_users" ADD CONSTRAINT "cms_site_users_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_site_users" ADD CONSTRAINT "cms_site_users_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_sites" ADD CONSTRAINT "cms_sites_parent_id_cms_sites_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."cms_sites"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_sites" ADD CONSTRAINT "cms_sites_model_id_cms_models_id_fk" FOREIGN KEY ("model_id") REFERENCES "public"."cms_models"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_sites" ADD CONSTRAINT "cms_sites_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_sites" ADD CONSTRAINT "cms_sites_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_tags" ADD CONSTRAINT "cms_tags_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_tags" ADD CONSTRAINT "cms_tags_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_tags" ADD CONSTRAINT "cms_tags_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_visit_logs" ADD CONSTRAINT "cms_visit_logs_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_widget_refs" ADD CONSTRAINT "cms_widget_refs_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_widget_refs" ADD CONSTRAINT "cms_widget_refs_widget_id_cms_widgets_id_fk" FOREIGN KEY ("widget_id") REFERENCES "public"."cms_widgets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_widget_source_refs" ADD CONSTRAINT "cms_widget_source_refs_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_widget_source_refs" ADD CONSTRAINT "cms_widget_source_refs_widget_id_cms_widgets_id_fk" FOREIGN KEY ("widget_id") REFERENCES "public"."cms_widgets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_widgets" ADD CONSTRAINT "cms_widgets_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_widgets" ADD CONSTRAINT "cms_widgets_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_widgets" ADD CONSTRAINT "cms_widgets_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "async_task_items_task_idx" ON "async_task_items" USING btree ("task_id");--> statement-breakpoint
 CREATE INDEX "async_task_items_task_status_idx" ON "async_task_items" USING btree ("task_id","status");--> statement-breakpoint
 CREATE INDEX "async_tasks_type_idx" ON "async_tasks" USING btree ("task_type");--> statement-breakpoint
@@ -4057,6 +6856,9 @@ CREATE INDEX "system_scheduler_runs_status_idx" ON "system_scheduler_runs" USING
 CREATE INDEX "system_scheduler_runs_started_at_idx" ON "system_scheduler_runs" USING btree ("started_at");--> statement-breakpoint
 CREATE INDEX "system_scheduler_runs_triggered_by_idx" ON "system_scheduler_runs" USING btree ("triggered_by");--> statement-breakpoint
 CREATE INDEX "system_scheduler_runs_alert_ack_by_idx" ON "system_scheduler_runs" USING btree ("alert_ack_by");--> statement-breakpoint
+CREATE INDEX "user_feedbacks_status_idx" ON "user_feedbacks" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "user_feedbacks_user_idx" ON "user_feedbacks" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "user_feedbacks_created_at_idx" ON "user_feedbacks" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "login_risk_events_user_idx" ON "login_risk_events" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "login_risk_events_tenant_idx" ON "login_risk_events" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "login_risk_events_created_idx" ON "login_risk_events" USING btree ("created_at");--> statement-breakpoint
@@ -4077,16 +6879,49 @@ CREATE INDEX "analytics_rollup_date_idx" ON "analytics_daily_rollup" USING btree
 CREATE INDEX "analytics_rollup_metric_idx" ON "analytics_daily_rollup" USING btree ("metric");--> statement-breakpoint
 CREATE UNIQUE INDEX "analytics_event_meta_name_uq" ON "analytics_event_meta" USING btree ("event_name");--> statement-breakpoint
 CREATE INDEX "analytics_event_meta_status_idx" ON "analytics_event_meta" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "analytics_event_meta_owner_idx" ON "analytics_event_meta" USING btree ("owner_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "analytics_event_overrides_tenant_name_uq" ON "analytics_event_overrides" USING btree ("tenant_id","event_name");--> statement-breakpoint
+CREATE INDEX "analytics_event_overrides_status_idx" ON "analytics_event_overrides" USING btree ("status");--> statement-breakpoint
+CREATE UNIQUE INDEX "analytics_event_quality_daily_uq" ON "analytics_event_quality_daily" USING btree ("tenant_id","stat_date","event_name","issue_type");--> statement-breakpoint
+CREATE INDEX "analytics_event_quality_daily_date_idx" ON "analytics_event_quality_daily" USING btree ("stat_date");--> statement-breakpoint
+CREATE INDEX "analytics_event_quality_daily_tenant_idx" ON "analytics_event_quality_daily" USING btree ("tenant_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "analytics_experiments_tenant_key_uq" ON "analytics_experiments" USING btree (coalesce("tenant_id", 0),"exp_key");--> statement-breakpoint
+CREATE INDEX "analytics_experiments_tenant_idx" ON "analytics_experiments" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "analytics_experiments_status_idx" ON "analytics_experiments" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "analytics_saved_reports_tenant_idx" ON "analytics_saved_reports" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "analytics_saved_reports_type_idx" ON "analytics_saved_reports" USING btree ("report_type");--> statement-breakpoint
+CREATE INDEX "analytics_segment_campaigns_tenant_idx" ON "analytics_segment_campaigns" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "analytics_segment_campaigns_segment_idx" ON "analytics_segment_campaigns" USING btree ("segment_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "analytics_segment_members_segment_distinct_uq" ON "analytics_segment_members" USING btree ("segment_id","distinct_id");--> statement-breakpoint
+CREATE INDEX "analytics_segment_members_segment_idx" ON "analytics_segment_members" USING btree ("segment_id");--> statement-breakpoint
+CREATE INDEX "analytics_segment_members_tenant_idx" ON "analytics_segment_members" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "analytics_segment_members_member_idx" ON "analytics_segment_members" USING btree ("member_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "analytics_sessions_sid_uq" ON "analytics_sessions" USING btree ("session_id");--> statement-breakpoint
 CREATE INDEX "analytics_sessions_started_idx" ON "analytics_sessions" USING btree ("started_at");--> statement-breakpoint
 CREATE INDEX "analytics_sessions_user_idx" ON "analytics_sessions" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "analytics_sessions_tenant_idx" ON "analytics_sessions" USING btree ("tenant_id");--> statement-breakpoint
-CREATE INDEX "analytics_settings_tenant_idx" ON "analytics_settings" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "analytics_sessions_member_idx" ON "analytics_sessions" USING btree ("member_id");--> statement-breakpoint
+CREATE INDEX "analytics_sessions_tenant_started_idx" ON "analytics_sessions" USING btree ("tenant_id","started_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "analytics_settings_tenant_uq" ON "analytics_settings" USING btree (coalesce("tenant_id", 0));--> statement-breakpoint
+CREATE UNIQUE INDEX "analytics_sites_site_key_uq" ON "analytics_sites" USING btree ("site_key");--> statement-breakpoint
+CREATE INDEX "analytics_sites_tenant_idx" ON "analytics_sites" USING btree ("tenant_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "analytics_user_profiles_tenant_distinct_uq" ON "analytics_user_profiles" USING btree (coalesce("tenant_id", 0),"distinct_id");--> statement-breakpoint
+CREATE INDEX "analytics_user_profiles_user_idx" ON "analytics_user_profiles" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "analytics_user_profiles_member_idx" ON "analytics_user_profiles" USING btree ("member_id");--> statement-breakpoint
+CREATE INDEX "analytics_user_profiles_last_seen_idx" ON "analytics_user_profiles" USING btree ("last_seen_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "analytics_user_segments_tenant_name_uq" ON "analytics_user_segments" USING btree ("tenant_id","name") WHERE "analytics_user_segments"."tenant_id" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "analytics_user_segments_global_name_uq" ON "analytics_user_segments" USING btree ("name") WHERE "analytics_user_segments"."tenant_id" is null;--> statement-breakpoint
+CREATE INDEX "analytics_user_segments_tenant_status_idx" ON "analytics_user_segments" USING btree ("tenant_id","status");--> statement-breakpoint
+CREATE INDEX "error_alert_logs_created_idx" ON "error_alert_logs" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "error_alert_logs_rule_idx" ON "error_alert_logs" USING btree ("rule_id");--> statement-breakpoint
+CREATE INDEX "error_alert_logs_tenant_idx" ON "error_alert_logs" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "error_alert_rules_tenant_idx" ON "error_alert_rules" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "error_events_group_idx" ON "error_events" USING btree ("group_id");--> statement-breakpoint
 CREATE INDEX "error_events_created_idx" ON "error_events" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "error_events_user_idx" ON "error_events" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "error_events_tenant_idx" ON "error_events" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "error_events_member_idx" ON "error_events" USING btree ("member_id");--> statement-breakpoint
+CREATE INDEX "error_events_group_created_idx" ON "error_events" USING btree ("group_id","created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "error_groups_fingerprint_uq" ON "error_groups" USING btree ("fingerprint");--> statement-breakpoint
 CREATE INDEX "error_groups_status_idx" ON "error_groups" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "error_groups_type_idx" ON "error_groups" USING btree ("error_type");--> statement-breakpoint
@@ -4095,6 +6930,7 @@ CREATE INDEX "error_groups_tenant_idx" ON "error_groups" USING btree ("tenant_id
 CREATE INDEX "error_groups_assignee_idx" ON "error_groups" USING btree ("assignee_id");--> statement-breakpoint
 CREATE INDEX "source_maps_release_idx" ON "source_maps" USING btree ("release","file_name");--> statement-breakpoint
 CREATE INDEX "source_maps_tenant_idx" ON "source_maps" USING btree ("tenant_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "user_events_event_id_uq" ON "user_events" USING btree ("event_id");--> statement-breakpoint
 CREATE INDEX "user_events_created_idx" ON "user_events" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "user_events_type_idx" ON "user_events" USING btree ("event_type");--> statement-breakpoint
 CREATE INDEX "user_events_name_idx" ON "user_events" USING btree ("event_name");--> statement-breakpoint
@@ -4103,65 +6939,135 @@ CREATE INDEX "user_events_user_idx" ON "user_events" USING btree ("user_id");-->
 CREATE INDEX "user_events_session_idx" ON "user_events" USING btree ("session_id");--> statement-breakpoint
 CREATE INDEX "user_events_tenant_idx" ON "user_events" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "user_events_distinct_idx" ON "user_events" USING btree ("distinct_id");--> statement-breakpoint
+CREATE INDEX "user_events_member_idx" ON "user_events" USING btree ("member_id");--> statement-breakpoint
+CREATE INDEX "user_events_tenant_created_type_idx" ON "user_events" USING btree ("tenant_id","created_at","event_type");--> statement-breakpoint
+CREATE INDEX "user_events_tenant_created_name_idx" ON "user_events" USING btree ("tenant_id","created_at","event_name");--> statement-breakpoint
+CREATE INDEX "user_events_source_created_idx" ON "user_events" USING btree ("source","created_at");--> statement-breakpoint
+CREATE INDEX "user_events_perf_metric_idx" ON "user_events" USING btree ("metric_name","created_at") WHERE "user_events"."event_type" = 'perf';--> statement-breakpoint
 CREATE INDEX "wf_compensation_log_cid_idx" ON "workflow_compensation_logs" USING btree ("compensation_id");--> statement-breakpoint
 CREATE INDEX "wf_compensation_instance_idx" ON "workflow_compensations" USING btree ("instance_id");--> statement-breakpoint
 CREATE INDEX "wf_compensation_status_idx" ON "workflow_compensations" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "workflow_connector_invocations_conn_idx" ON "workflow_connector_invocations" USING btree ("connector_id","created_at");--> statement-breakpoint
+CREATE INDEX "workflow_definitions_tenant_status_idx" ON "workflow_definitions" USING btree ("tenant_id","status");--> statement-breakpoint
 CREATE INDEX "workflow_engine_health_snapshots_created_at_idx" ON "workflow_engine_health_snapshots" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "wf_inst_migration_idx" ON "workflow_instance_migrations" USING btree ("instance_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "workflow_instances_biz_key_uniq" ON "workflow_instances" USING btree ("biz_type","biz_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "workflow_instances_biz_key_uniq" ON "workflow_instances" USING btree (coalesce("tenant_id", 0),"biz_type","biz_id") WHERE "workflow_instances"."status" in ('draft', 'running', 'suspended');--> statement-breakpoint
 CREATE UNIQUE INDEX "workflow_instances_parent_task_item_key_idx" ON "workflow_instances" USING btree ("parent_task_id","parent_task_item_key");--> statement-breakpoint
-CREATE INDEX "workflow_job_executions_job_idx" ON "workflow_job_executions" USING btree ("job_id");--> statement-breakpoint
+CREATE INDEX "workflow_instances_tenant_status_idx" ON "workflow_instances" USING btree ("tenant_id","status");--> statement-breakpoint
+CREATE INDEX "workflow_instances_initiator_status_idx" ON "workflow_instances" USING btree ("initiator_id","status");--> statement-breakpoint
+CREATE INDEX "workflow_job_executions_job_idx" ON "workflow_job_executions" USING btree ("job_id","attempt");--> statement-breakpoint
 CREATE INDEX "workflow_job_executions_type_idx" ON "workflow_job_executions" USING btree ("job_type","status");--> statement-breakpoint
 CREATE INDEX "workflow_jobs_due_idx" ON "workflow_jobs" USING btree ("status","run_at");--> statement-breakpoint
 CREATE INDEX "workflow_jobs_type_status_idx" ON "workflow_jobs" USING btree ("job_type","status");--> statement-breakpoint
 CREATE INDEX "workflow_jobs_trace_idx" ON "workflow_jobs" USING btree ("trace_id");--> statement-breakpoint
 CREATE INDEX "workflow_jobs_instance_idx" ON "workflow_jobs" USING btree ("instance_id");--> statement-breakpoint
+CREATE INDEX "wf_task_transfers_task_idx" ON "workflow_task_transfers" USING btree ("task_id");--> statement-breakpoint
+CREATE INDEX "wf_task_transfers_instance_idx" ON "workflow_task_transfers" USING btree ("instance_id");--> statement-breakpoint
+CREATE INDEX "workflow_tasks_instance_status_idx" ON "workflow_tasks" USING btree ("instance_id","status");--> statement-breakpoint
+CREATE INDEX "workflow_tasks_assignee_status_idx" ON "workflow_tasks" USING btree ("assignee_id","status");--> statement-breakpoint
 CREATE INDEX "workflow_tokens_instance_status_idx" ON "workflow_tokens" USING btree ("instance_id","status");--> statement-breakpoint
 CREATE INDEX "workflow_tokens_parent_idx" ON "workflow_tokens" USING btree ("parent_token_id");--> statement-breakpoint
 CREATE INDEX "rule_exec_instance_idx" ON "rule_decision_executions" USING btree ("instance_id");--> statement-breakpoint
 CREATE INDEX "rule_exec_table_idx" ON "rule_decision_executions" USING btree ("table_id");--> statement-breakpoint
+CREATE INDEX "rule_list_items_list_idx" ON "rule_list_items" USING btree ("list_id");--> statement-breakpoint
+CREATE INDEX "chat_conversation_members_user_idx" ON "chat_conversation_members" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "chat_custom_emojis_user_idx" ON "chat_custom_emojis" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "chat_group_invites_conv_idx" ON "chat_group_invites" USING btree ("conversation_id");--> statement-breakpoint
+CREATE INDEX "chat_group_join_requests_conv_status_idx" ON "chat_group_join_requests" USING btree ("conversation_id","status");--> statement-breakpoint
+CREATE INDEX "chat_group_join_requests_user_idx" ON "chat_group_join_requests" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "chat_messages_conversation_id_idx" ON "chat_messages" USING btree ("conversation_id","id");--> statement-breakpoint
+CREATE INDEX "chat_messages_sender_idx" ON "chat_messages" USING btree ("sender_id");--> statement-breakpoint
+CREATE INDEX "chat_quick_replies_user_idx" ON "chat_quick_replies" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "chat_scheduled_messages_due_idx" ON "chat_scheduled_messages" USING btree ("status","scheduled_at");--> statement-breakpoint
+CREATE INDEX "chat_scheduled_messages_sender_idx" ON "chat_scheduled_messages" USING btree ("sender_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_accounts_channel_tenant_uq" ON "payment_accounts" USING btree ("channel","tenant_id") WHERE "payment_accounts"."tenant_id" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_accounts_channel_global_uq" ON "payment_accounts" USING btree ("channel") WHERE "payment_accounts"."tenant_id" is null;--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_contracts_active_biz_uq" ON "payment_contracts" USING btree ("biz_type","biz_id") WHERE "payment_contracts"."status" in ('pending', 'signed', 'paused');--> statement-breakpoint
+CREATE INDEX "payment_contracts_status_idx" ON "payment_contracts" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "payment_contracts_next_deduct_idx" ON "payment_contracts" USING btree ("next_deduct_at");--> statement-breakpoint
+CREATE INDEX "payment_contracts_biz_idx" ON "payment_contracts" USING btree ("biz_type","biz_id");--> statement-breakpoint
+CREATE INDEX "payment_dispute_replies_dispute_idx" ON "payment_dispute_replies" USING btree ("dispute_id");--> statement-breakpoint
+CREATE INDEX "payment_disputes_status_idx" ON "payment_disputes" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "payment_disputes_order_no_idx" ON "payment_disputes" USING btree ("order_no");--> statement-breakpoint
+CREATE INDEX "payment_disputes_deadline_idx" ON "payment_disputes" USING btree ("deadline");--> statement-breakpoint
 CREATE INDEX "payment_events_status_idx" ON "payment_events" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "payment_fee_rules_channel_idx" ON "payment_fee_rules" USING btree ("channel");--> statement-breakpoint
 CREATE INDEX "payment_ledger_order_idx" ON "payment_ledger_entries" USING btree ("order_no");--> statement-breakpoint
 CREATE INDEX "payment_ledger_type_idx" ON "payment_ledger_entries" USING btree ("type");--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_ledger_order_type_uq" ON "payment_ledger_entries" USING btree ("order_no","type") WHERE "payment_ledger_entries"."order_no" is not null and "payment_ledger_entries"."type" in ('payment', 'fee');--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_ledger_refund_uq" ON "payment_ledger_entries" USING btree ("refund_no") WHERE "payment_ledger_entries"."refund_no" is not null and "payment_ledger_entries"."type" = 'refund';--> statement-breakpoint
 CREATE INDEX "payment_notify_logs_order_no_idx" ON "payment_notify_logs" USING btree ("order_no");--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_orders_active_biz_uq" ON "payment_orders" USING btree ("biz_type","biz_id") WHERE "payment_orders"."status" in ('pending', 'paying');--> statement-breakpoint
 CREATE INDEX "payment_orders_biz_idx" ON "payment_orders" USING btree ("biz_type","biz_id");--> statement-breakpoint
 CREATE INDEX "payment_orders_status_idx" ON "payment_orders" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "payment_orders_expired_idx" ON "payment_orders" USING btree ("expired_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_preauths_active_biz_uq" ON "payment_preauths" USING btree ("biz_type","biz_id") WHERE "payment_preauths"."status" in ('pending', 'frozen');--> statement-breakpoint
+CREATE INDEX "payment_preauths_status_idx" ON "payment_preauths" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "payment_preauths_biz_idx" ON "payment_preauths" USING btree ("biz_type","biz_id");--> statement-breakpoint
 CREATE INDEX "payment_recon_batches_date_idx" ON "payment_recon_batches" USING btree ("bill_date");--> statement-breakpoint
 CREATE INDEX "payment_recon_items_batch_idx" ON "payment_recon_items" USING btree ("batch_id");--> statement-breakpoint
 CREATE INDEX "payment_refunds_order_no_idx" ON "payment_refunds" USING btree ("order_no");--> statement-breakpoint
 CREATE INDEX "payment_refunds_status_idx" ON "payment_refunds" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "payment_report_daily_date_idx" ON "payment_report_daily" USING btree ("stat_date");--> statement-breakpoint
+CREATE INDEX "payment_risk_hits_created_idx" ON "payment_risk_hits" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "payment_risk_hits_rule_idx" ON "payment_risk_hits" USING btree ("rule_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_risk_reviews_pending_order_uq" ON "payment_risk_reviews" USING btree ("order_no") WHERE "payment_risk_reviews"."status" = 'pending';--> statement-breakpoint
+CREATE INDEX "payment_risk_reviews_status_idx" ON "payment_risk_reviews" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "payment_risk_reviews_biz_idx" ON "payment_risk_reviews" USING btree ("biz_type","biz_id");--> statement-breakpoint
 CREATE INDEX "payment_risk_rules_scope_idx" ON "payment_risk_rules" USING btree ("scope");--> statement-breakpoint
 CREATE INDEX "payment_settlement_batches_status_idx" ON "payment_settlement_batches" USING btree ("status");--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_settlement_period_uq" ON "payment_settlement_batches" USING btree ("channel","period_start","period_end","tenant_id") WHERE "payment_settlement_batches"."tenant_id" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_settlement_period_global_uq" ON "payment_settlement_batches" USING btree ("channel","period_start","period_end") WHERE "payment_settlement_batches"."tenant_id" is null;--> statement-breakpoint
 CREATE INDEX "payment_sharing_orders_order_no_idx" ON "payment_sharing_orders" USING btree ("order_no");--> statement-breakpoint
 CREATE INDEX "payment_sharing_orders_receiver_idx" ON "payment_sharing_orders" USING btree ("receiver_id");--> statement-breakpoint
+CREATE INDEX "payment_transfers_status_idx" ON "payment_transfers" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "payment_transfers_biz_idx" ON "payment_transfers" USING btree ("biz_type","biz_id");--> statement-breakpoint
 CREATE INDEX "payment_webhook_deliveries_endpoint_idx" ON "payment_webhook_deliveries" USING btree ("endpoint_id");--> statement-breakpoint
 CREATE INDEX "payment_webhook_deliveries_status_idx" ON "payment_webhook_deliveries" USING btree ("status");--> statement-breakpoint
+CREATE UNIQUE INDEX "ai_http_tools_name_uq" ON "ai_http_tools" USING btree ("name");--> statement-breakpoint
+CREATE UNIQUE INDEX "ai_shared_conversations_token_uq" ON "ai_shared_conversations" USING btree ("token");--> statement-breakpoint
+CREATE UNIQUE INDEX "ai_user_preferences_user_id_uq" ON "ai_user_preferences" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "app_webhook_deliveries_sub_idx" ON "app_webhook_deliveries" USING btree ("subscription_id");--> statement-breakpoint
 CREATE INDEX "app_webhook_deliveries_client_idx" ON "app_webhook_deliveries" USING btree ("client_id");--> statement-breakpoint
 CREATE INDEX "app_webhook_deliveries_status_idx" ON "app_webhook_deliveries" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "app_webhook_deliveries_next_retry_idx" ON "app_webhook_deliveries" USING btree ("next_retry_at");--> statement-breakpoint
 CREATE INDEX "app_webhook_deliveries_created_idx" ON "app_webhook_deliveries" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "app_webhook_subscriptions_client_idx" ON "app_webhook_subscriptions" USING btree ("client_id");--> statement-breakpoint
+CREATE INDEX "app_webhook_subscriptions_cms_site_idx" ON "app_webhook_subscriptions" USING btree ("cms_site_id");--> statement-breakpoint
+CREATE INDEX "oauth2_token_families_client_idx" ON "oauth2_token_families" USING btree ("client_id");--> statement-breakpoint
+CREATE INDEX "oauth2_token_families_user_idx" ON "oauth2_token_families" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "oauth2_tokens_client_idx" ON "oauth2_tokens" USING btree ("client_id");--> statement-breakpoint
+CREATE INDEX "oauth2_tokens_family_idx" ON "oauth2_tokens" USING btree ("family_id");--> statement-breakpoint
+CREATE INDEX "oauth2_tokens_active_expiry_idx" ON "oauth2_tokens" USING btree ("revoked","expires_at");--> statement-breakpoint
+CREATE INDEX "oauth2_user_grants_client_idx" ON "oauth2_user_grants" USING btree ("client_id");--> statement-breakpoint
 CREATE INDEX "open_api_call_logs_client_idx" ON "open_api_call_logs" USING btree ("client_id");--> statement-breakpoint
 CREATE INDEX "open_api_call_logs_created_idx" ON "open_api_call_logs" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "open_api_call_logs_path_idx" ON "open_api_call_logs" USING btree ("path");--> statement-breakpoint
+CREATE INDEX "open_api_call_stats_daily_date_idx" ON "open_api_call_stats_daily" USING btree ("stat_date");--> statement-breakpoint
+CREATE INDEX "open_api_call_stats_daily_client_idx" ON "open_api_call_stats_daily" USING btree ("client_id");--> statement-breakpoint
+CREATE INDEX "open_quota_alerts_status_idx" ON "open_quota_alerts" USING btree ("status","started_at");--> statement-breakpoint
 CREATE INDEX "coupons_status_idx" ON "coupons" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "member_coupons_member_idx" ON "member_coupons" USING btree ("member_id");--> statement-breakpoint
 CREATE INDEX "member_coupons_coupon_idx" ON "member_coupons" USING btree ("coupon_id");--> statement-breakpoint
 CREATE INDEX "member_coupons_status_idx" ON "member_coupons" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "member_login_logs_member_created_idx" ON "member_login_logs" USING btree ("member_id","created_at");--> statement-breakpoint
+CREATE INDEX "member_notifications_member_idx" ON "member_notifications" USING btree ("member_id","created_at");--> statement-breakpoint
+CREATE INDEX "member_notifications_biz_idx" ON "member_notifications" USING btree ("type","biz_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "member_notifications_member_type_biz_uq" ON "member_notifications" USING btree ("member_id","type","biz_id") WHERE "member_notifications"."biz_id" is not null and "member_notifications"."type" = 'cms_content_published';--> statement-breakpoint
 CREATE UNIQUE INDEX "member_point_accounts_member_unique" ON "member_point_accounts" USING btree ("member_id");--> statement-breakpoint
 CREATE INDEX "member_point_tx_member_idx" ON "member_point_transactions" USING btree ("member_id");--> statement-breakpoint
 CREATE INDEX "member_point_tx_biz_idx" ON "member_point_transactions" USING btree ("biz_type","biz_id");--> statement-breakpoint
+CREATE INDEX "member_tag_bindings_tag_idx" ON "member_tag_bindings" USING btree ("tag_id");--> statement-breakpoint
+CREATE INDEX "member_vip_renewals_member_idx" ON "member_vip_renewals" USING btree ("member_id");--> statement-breakpoint
 CREATE INDEX "member_wallet_tx_member_idx" ON "member_wallet_transactions" USING btree ("member_id");--> statement-breakpoint
 CREATE INDEX "member_wallet_tx_biz_idx" ON "member_wallet_transactions" USING btree ("biz_type","biz_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "member_wallets_member_unique" ON "member_wallets" USING btree ("member_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "members_phone_unique" ON "members" USING btree ("phone");--> statement-breakpoint
-CREATE UNIQUE INDEX "members_email_unique" ON "members" USING btree ("email");--> statement-breakpoint
-CREATE UNIQUE INDEX "members_username_unique" ON "members" USING btree ("username");--> statement-breakpoint
+CREATE UNIQUE INDEX "members_phone_unique" ON "members" USING btree ("phone") WHERE "members"."deleted_at" is null;--> statement-breakpoint
+CREATE UNIQUE INDEX "members_email_unique" ON "members" USING btree ("email") WHERE "members"."deleted_at" is null;--> statement-breakpoint
+CREATE UNIQUE INDEX "members_username_unique" ON "members" USING btree ("username") WHERE "members"."deleted_at" is null;--> statement-breakpoint
+CREATE UNIQUE INDEX "members_invite_code_unique" ON "members" USING btree ("invite_code") WHERE "members"."invite_code" is not null;--> statement-breakpoint
 CREATE INDEX "members_status_idx" ON "members" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "members_invited_by_idx" ON "members" USING btree ("invited_by");--> statement-breakpoint
 CREATE INDEX "monitor_alert_events_rule_idx" ON "monitor_alert_events" USING btree ("rule_id");--> statement-breakpoint
 CREATE INDEX "monitor_alert_events_status_idx" ON "monitor_alert_events" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "monitor_alert_events_triggered_idx" ON "monitor_alert_events" USING btree ("triggered_at");--> statement-breakpoint
@@ -4196,568 +7102,245 @@ CREATE UNIQUE INDEX "mp_tags_account_name_uq" ON "mp_tags" USING btree ("account
 CREATE INDEX "mp_tags_account_idx" ON "mp_tags" USING btree ("account_id");--> statement-breakpoint
 CREATE INDEX "mp_template_send_logs_account_idx" ON "mp_template_send_logs" USING btree ("account_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "mp_unmatched_keywords_account_kw_uq" ON "mp_unmatched_keywords" USING btree ("account_id","keyword");--> statement-breakpoint
+CREATE INDEX "report_alert_rules_tenant_idx" ON "report_alert_rules" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "report_alert_rules_dataset_idx" ON "report_alert_rules" USING btree ("dataset_id");--> statement-breakpoint
+CREATE INDEX "report_alert_rules_metric_idx" ON "report_alert_rules" USING btree ("metric_id");--> statement-breakpoint
+CREATE INDEX "report_alert_rules_next_run_idx" ON "report_alert_rules" USING btree ("next_run_at");--> statement-breakpoint
+CREATE INDEX "report_dashboard_categories_tenant_idx" ON "report_dashboard_categories" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "report_dashboard_comments_dashboard_idx" ON "report_dashboard_comments" USING btree ("dashboard_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "report_dashboard_versions_dash_ver_uq" ON "report_dashboard_versions" USING btree ("dashboard_id","version");
---> statement-breakpoint
--- ===== 表/列注释：继承自旧迁移链 0053_table_comments.sql（基线化时从存量库实况提取，已剔除指向废弃列的条目）=====
-COMMENT ON TABLE public.announcement_reads IS '公告已读记录表';
-COMMENT ON COLUMN public.announcement_reads.id IS '主键 ID';
-COMMENT ON COLUMN public.announcement_reads.announcement_id IS '公告 ID';
-COMMENT ON COLUMN public.announcement_reads.user_id IS '阅读用户 ID';
-COMMENT ON COLUMN public.announcement_reads.read_at IS '阅读时间';
-COMMENT ON TABLE public.announcement_recipients IS '公告收件人定向表';
-COMMENT ON COLUMN public.announcement_recipients.id IS '主键 ID';
-COMMENT ON COLUMN public.announcement_recipients.announcement_id IS '公告 ID';
-COMMENT ON COLUMN public.announcement_recipients.recipient_type IS '收件人类型：user/role/dept';
-COMMENT ON COLUMN public.announcement_recipients.recipient_id IS '收件人 ID（对应类型表的主键）';
-COMMENT ON TABLE public.announcements IS '公告表';
-COMMENT ON COLUMN public.announcements.id IS '主键 ID';
-COMMENT ON COLUMN public.announcements.title IS '公告标题';
-COMMENT ON COLUMN public.announcements.content IS '公告内容（富文本/Markdown）';
-COMMENT ON COLUMN public.announcements.type IS '公告类型（notice/活动/系统等）';
-COMMENT ON COLUMN public.announcements.publish_status IS '发布状态：draft/published/...';
-COMMENT ON COLUMN public.announcements.priority IS '优先级：low/medium/high';
-COMMENT ON COLUMN public.announcements.target_type IS '目标范围：all/users/roles/depts';
-COMMENT ON COLUMN public.announcements.publish_time IS '发布时间';
-COMMENT ON COLUMN public.announcements.create_by_id IS '发布人 ID';
-COMMENT ON COLUMN public.announcements.create_by_name IS '发布人姓名';
-COMMENT ON COLUMN public.announcements.tenant_id IS '所属租户 ID';
-COMMENT ON COLUMN public.announcements.created_by IS '创建人';
-COMMENT ON COLUMN public.announcements.updated_by IS '最后更新人';
-COMMENT ON COLUMN public.announcements.created_at IS '创建时间';
-COMMENT ON COLUMN public.announcements.updated_at IS '更新时间';
-COMMENT ON TABLE public.chat_conversation_members IS '聊天会话成员表';
-COMMENT ON COLUMN public.chat_conversation_members.conversation_id IS '会话 ID';
-COMMENT ON COLUMN public.chat_conversation_members.user_id IS '成员用户 ID';
-COMMENT ON COLUMN public.chat_conversation_members.last_read_at IS '最近一次已读时间';
-COMMENT ON COLUMN public.chat_conversation_members.joined_at IS '加入时间';
-COMMENT ON COLUMN public.chat_conversation_members.is_pinned IS '是否置顶';
-COMMENT ON COLUMN public.chat_conversation_members.is_starred IS '是否标星';
-COMMENT ON COLUMN public.chat_conversation_members.role IS '成员角色：owner/member';
-COMMENT ON COLUMN public.chat_conversation_members.is_muted IS '是否免打扰';
-COMMENT ON TABLE public.chat_conversations IS '聊天会话表';
-COMMENT ON COLUMN public.chat_conversations.id IS '主键 ID';
-COMMENT ON COLUMN public.chat_conversations.type IS '会话类型：direct 单聊 / group 群聊';
-COMMENT ON COLUMN public.chat_conversations.name IS '会话名称（群聊用）';
-COMMENT ON COLUMN public.chat_conversations.tenant_id IS '所属租户 ID';
-COMMENT ON COLUMN public.chat_conversations.created_at IS '创建时间';
-COMMENT ON COLUMN public.chat_conversations.updated_at IS '更新时间';
-COMMENT ON COLUMN public.chat_conversations.announcement IS '群公告';
-COMMENT ON COLUMN public.chat_conversations.created_by IS '创建人';
-COMMENT ON COLUMN public.chat_conversations.updated_by IS '最后更新人';
-COMMENT ON TABLE public.chat_message_reactions IS '聊天消息表情回应表';
-COMMENT ON COLUMN public.chat_message_reactions.id IS '主键 ID';
-COMMENT ON COLUMN public.chat_message_reactions.message_id IS '消息 ID';
-COMMENT ON COLUMN public.chat_message_reactions.user_id IS '回应用户 ID';
-COMMENT ON COLUMN public.chat_message_reactions.emoji IS '表情字符';
-COMMENT ON COLUMN public.chat_message_reactions.created_at IS '创建时间';
-COMMENT ON TABLE public.chat_messages IS '聊天消息表';
-COMMENT ON COLUMN public.chat_messages.id IS '主键 ID';
-COMMENT ON COLUMN public.chat_messages.conversation_id IS '所属会话 ID';
-COMMENT ON COLUMN public.chat_messages.sender_id IS '发送者用户 ID';
-COMMENT ON COLUMN public.chat_messages.type IS '消息类型：text/image/file/system/forward/vote';
-COMMENT ON COLUMN public.chat_messages.content IS '消息正文';
-COMMENT ON COLUMN public.chat_messages.reply_to_id IS '引用回复的消息 ID';
-COMMENT ON COLUMN public.chat_messages.is_recalled IS '是否已撤回';
-COMMENT ON COLUMN public.chat_messages.extra IS '附加信息（JSON：图片/文件元数据等）';
-COMMENT ON COLUMN public.chat_messages.created_at IS '发送时间';
-COMMENT ON COLUMN public.chat_messages.updated_at IS '更新时间';
-COMMENT ON COLUMN public.chat_messages.is_edited IS '是否被编辑';
-COMMENT ON TABLE public.cron_job_logs IS '定时任务执行日志表';
-COMMENT ON COLUMN public.cron_job_logs.id IS '主键 ID';
-COMMENT ON COLUMN public.cron_job_logs.job_id IS '关联任务 ID';
-COMMENT ON COLUMN public.cron_job_logs.job_name IS '任务名称快照';
-COMMENT ON COLUMN public.cron_job_logs.started_at IS '开始时间';
-COMMENT ON COLUMN public.cron_job_logs.ended_at IS '结束时间';
-COMMENT ON COLUMN public.cron_job_logs.duration_ms IS '耗时（毫秒）';
-COMMENT ON COLUMN public.cron_job_logs.status IS '状态：success/fail/running';
-COMMENT ON COLUMN public.cron_job_logs.output IS '执行输出/错误堆栈';
-COMMENT ON COLUMN public.cron_job_logs.execution_count IS '本次第几次重试（从 1 起）';
-COMMENT ON TABLE public.cron_jobs IS '定时任务表';
-COMMENT ON COLUMN public.cron_jobs.id IS '主键 ID';
-COMMENT ON COLUMN public.cron_jobs.name IS '任务名称（全局唯一）';
-COMMENT ON COLUMN public.cron_jobs.cron_expression IS 'Cron 表达式';
-COMMENT ON COLUMN public.cron_jobs.handler IS '处理器键（代码注册的任务标识）';
-COMMENT ON COLUMN public.cron_jobs.params IS '处理器参数（JSON 字符串）';
-COMMENT ON COLUMN public.cron_jobs.status IS '状态：enabled/disabled';
-COMMENT ON COLUMN public.cron_jobs.description IS '描述';
-COMMENT ON COLUMN public.cron_jobs.last_run_at IS '最近一次执行开始时间';
-COMMENT ON COLUMN public.cron_jobs.last_run_status IS '最近一次执行结果：success/fail/running';
-COMMENT ON COLUMN public.cron_jobs.last_run_message IS '最近一次执行附加信息';
-COMMENT ON COLUMN public.cron_jobs.created_at IS '创建时间';
-COMMENT ON COLUMN public.cron_jobs.updated_at IS '更新时间';
-COMMENT ON COLUMN public.cron_jobs.retry_count IS '失败重试次数';
-COMMENT ON COLUMN public.cron_jobs.retry_interval IS '重试间隔（秒）';
-COMMENT ON COLUMN public.cron_jobs.monitor_timeout IS '执行超时告警阈值（秒）';
-COMMENT ON COLUMN public.cron_jobs.created_by IS '创建人';
-COMMENT ON COLUMN public.cron_jobs.updated_by IS '最后更新人';
-COMMENT ON TABLE public.db_admin_query_history IS '数据库管理员 SQL 控制台查询历史';
-COMMENT ON COLUMN public.db_admin_query_history.id IS '主键 ID';
-COMMENT ON COLUMN public.db_admin_query_history.user_id IS '执行用户 ID';
-COMMENT ON COLUMN public.db_admin_query_history.sql_text IS '执行的 SQL';
-COMMENT ON COLUMN public.db_admin_query_history.duration_ms IS '耗时（毫秒）';
-COMMENT ON COLUMN public.db_admin_query_history.row_count IS '返回/影响行数';
-COMMENT ON COLUMN public.db_admin_query_history.success IS '是否执行成功';
-COMMENT ON COLUMN public.db_admin_query_history.error_message IS '错误信息';
-COMMENT ON COLUMN public.db_admin_query_history.executed_at IS '执行时间';
-COMMENT ON TABLE public.db_backups IS '数据库备份记录表';
-COMMENT ON COLUMN public.db_backups.id IS '主键 ID';
-COMMENT ON COLUMN public.db_backups.name IS '备份名称';
-COMMENT ON COLUMN public.db_backups.type IS '备份方式：pg_dump/drizzle_export';
-COMMENT ON COLUMN public.db_backups.file_id IS '关联文件 ID（managed_files.id）';
-COMMENT ON COLUMN public.db_backups.file_size IS '备份文件大小（字节）';
-COMMENT ON COLUMN public.db_backups.status IS '状态：pending/running/success/failed';
-COMMENT ON COLUMN public.db_backups.tables IS '备份涉及的表（逗号分隔，NULL 表示全库）';
-COMMENT ON COLUMN public.db_backups.started_at IS '开始时间';
-COMMENT ON COLUMN public.db_backups.completed_at IS '完成时间';
-COMMENT ON COLUMN public.db_backups.duration_ms IS '耗时（毫秒）';
-COMMENT ON COLUMN public.db_backups.error_message IS '错误信息';
-COMMENT ON COLUMN public.db_backups.created_by IS '操作人';
-COMMENT ON COLUMN public.db_backups.created_at IS '创建时间';
-COMMENT ON COLUMN public.db_backups.updated_by IS '最后更新人';
-COMMENT ON COLUMN public.db_backups.updated_at IS '更新时间';
-COMMENT ON TABLE public.departments IS '部门表';
-COMMENT ON COLUMN public.departments.id IS '主键 ID';
-COMMENT ON COLUMN public.departments.parent_id IS '上级部门 ID（0 表示根节点）';
-COMMENT ON COLUMN public.departments.name IS '部门名称';
-COMMENT ON COLUMN public.departments.code IS '部门编码（租户内唯一）';
-COMMENT ON COLUMN public.departments.phone IS '部门联系电话';
-COMMENT ON COLUMN public.departments.email IS '部门邮箱';
-COMMENT ON COLUMN public.departments.sort IS '排序值（升序）';
-COMMENT ON COLUMN public.departments.status IS '状态：enabled/disabled';
-COMMENT ON COLUMN public.departments.created_at IS '创建时间';
-COMMENT ON COLUMN public.departments.updated_at IS '更新时间';
-COMMENT ON COLUMN public.departments.tenant_id IS '所属租户 ID';
-COMMENT ON COLUMN public.departments.leader_id IS '负责人用户 ID';
-COMMENT ON COLUMN public.departments.created_by IS '创建人';
-COMMENT ON COLUMN public.departments.updated_by IS '最后更新人';
-COMMENT ON TABLE public.dict_items IS '字典项表';
-COMMENT ON COLUMN public.dict_items.id IS '主键 ID';
-COMMENT ON COLUMN public.dict_items.dict_id IS '所属字典 ID';
-COMMENT ON COLUMN public.dict_items.label IS '显示标签';
-COMMENT ON COLUMN public.dict_items.value IS '取值（字典内唯一）';
-COMMENT ON COLUMN public.dict_items.sort IS '排序值';
-COMMENT ON COLUMN public.dict_items.status IS '状态：enabled/disabled';
-COMMENT ON COLUMN public.dict_items.remark IS '备注';
-COMMENT ON COLUMN public.dict_items.created_at IS '创建时间';
-COMMENT ON COLUMN public.dict_items.updated_at IS '更新时间';
-COMMENT ON COLUMN public.dict_items.color IS '前端展示颜色（可选）';
-COMMENT ON COLUMN public.dict_items.created_by IS '创建人';
-COMMENT ON COLUMN public.dict_items.updated_by IS '最后更新人';
-COMMENT ON TABLE public.dicts IS '数据字典表';
-COMMENT ON COLUMN public.dicts.id IS '主键 ID';
-COMMENT ON COLUMN public.dicts.name IS '字典名称';
-COMMENT ON COLUMN public.dicts.code IS '字典编码（租户内唯一）';
-COMMENT ON COLUMN public.dicts.description IS '描述';
-COMMENT ON COLUMN public.dicts.status IS '状态：enabled/disabled';
-COMMENT ON COLUMN public.dicts.created_at IS '创建时间';
-COMMENT ON COLUMN public.dicts.updated_at IS '更新时间';
-COMMENT ON COLUMN public.dicts.tenant_id IS '所属租户 ID';
-COMMENT ON COLUMN public.dicts.created_by IS '创建人';
-COMMENT ON COLUMN public.dicts.updated_by IS '最后更新人';
-COMMENT ON TABLE public.email_configs IS '邮件 SMTP 配置表（全局单例使用）';
-COMMENT ON COLUMN public.email_configs.id IS '主键 ID';
-COMMENT ON COLUMN public.email_configs.smtp_host IS 'SMTP 服务器地址';
-COMMENT ON COLUMN public.email_configs.smtp_port IS 'SMTP 端口（465/587/25）';
-COMMENT ON COLUMN public.email_configs.smtp_user IS 'SMTP 用户名';
-COMMENT ON COLUMN public.email_configs.smtp_password IS 'SMTP 密码（加密存储）';
-COMMENT ON COLUMN public.email_configs.from_name IS '发件人显示名';
-COMMENT ON COLUMN public.email_configs.from_email IS '发件人邮箱';
-COMMENT ON COLUMN public.email_configs.encryption IS '加密方式：none/ssl/tls';
-COMMENT ON COLUMN public.email_configs.status IS '状态：enabled/disabled';
-COMMENT ON COLUMN public.email_configs.created_at IS '创建时间';
-COMMENT ON COLUMN public.email_configs.updated_at IS '更新时间';
-COMMENT ON COLUMN public.email_configs.created_by IS '创建人';
-COMMENT ON COLUMN public.email_configs.updated_by IS '最后更新人';
-COMMENT ON TABLE public.email_send_logs IS '邮件发送记录表';
-COMMENT ON COLUMN public.email_send_logs.id IS '主键 ID';
-COMMENT ON COLUMN public.email_send_logs.template_id IS '使用的模板 ID';
-COMMENT ON COLUMN public.email_send_logs.to_email IS '收件人邮箱';
-COMMENT ON COLUMN public.email_send_logs.subject IS '实际发送主题';
-COMMENT ON COLUMN public.email_send_logs.content IS '实际发送正文';
-COMMENT ON COLUMN public.email_send_logs.status IS '发送状态：pending/success/failed';
-COMMENT ON COLUMN public.email_send_logs.error_msg IS '失败原因';
-COMMENT ON COLUMN public.email_send_logs.source IS '触发来源：manual/test/system/api';
-COMMENT ON COLUMN public.email_send_logs.user_id IS '触发用户 ID';
-COMMENT ON COLUMN public.email_send_logs.ip IS '触发 IP';
-COMMENT ON COLUMN public.email_send_logs.tenant_id IS '所属租户 ID';
-COMMENT ON COLUMN public.email_send_logs.sent_at IS '发送完成时间';
-COMMENT ON COLUMN public.email_send_logs.created_at IS '记录创建时间';
-COMMENT ON TABLE public.email_templates IS '邮件模板表';
-COMMENT ON COLUMN public.email_templates.id IS '主键 ID';
-COMMENT ON COLUMN public.email_templates.name IS '模板名称';
-COMMENT ON COLUMN public.email_templates.code IS '模板编码（全局唯一）';
-COMMENT ON COLUMN public.email_templates.subject IS '邮件主题（支持变量）';
-COMMENT ON COLUMN public.email_templates.content IS '邮件正文（HTML/支持变量）';
-COMMENT ON COLUMN public.email_templates.variables IS '变量定义（JSON）';
-COMMENT ON COLUMN public.email_templates.status IS '状态：enabled/disabled';
-COMMENT ON COLUMN public.email_templates.remark IS '备注';
-COMMENT ON COLUMN public.email_templates.tenant_id IS '所属租户 ID';
-COMMENT ON COLUMN public.email_templates.created_at IS '创建时间';
-COMMENT ON COLUMN public.email_templates.updated_at IS '更新时间';
-COMMENT ON COLUMN public.email_templates.created_by IS '创建人';
-COMMENT ON COLUMN public.email_templates.updated_by IS '最后更新人';
-COMMENT ON TABLE public.file_storage_configs IS '文件存储配置表（本地/OSS/S3/COS）';
-COMMENT ON COLUMN public.file_storage_configs.id IS '主键 ID';
-COMMENT ON COLUMN public.file_storage_configs.name IS '配置名称';
-COMMENT ON COLUMN public.file_storage_configs.provider IS '存储类型：local/oss/s3/cos';
-COMMENT ON COLUMN public.file_storage_configs.status IS '状态：enabled/disabled';
-COMMENT ON COLUMN public.file_storage_configs.is_default IS '是否默认存储（全局仅一个）';
-COMMENT ON COLUMN public.file_storage_configs.base_path IS '基础路径（对象 key 前缀）';
-COMMENT ON COLUMN public.file_storage_configs.local_root_path IS '本地存储根目录（local 模式）';
-COMMENT ON COLUMN public.file_storage_configs.oss_region IS '阿里云 OSS Region';
-COMMENT ON COLUMN public.file_storage_configs.oss_endpoint IS '阿里云 OSS Endpoint';
-COMMENT ON COLUMN public.file_storage_configs.oss_bucket IS '阿里云 OSS Bucket';
-COMMENT ON COLUMN public.file_storage_configs.oss_access_key_id IS '阿里云 AccessKeyId';
-COMMENT ON COLUMN public.file_storage_configs.oss_access_key_secret IS '阿里云 AccessKeySecret';
-COMMENT ON COLUMN public.file_storage_configs.remark IS '备注';
-COMMENT ON COLUMN public.file_storage_configs.created_at IS '创建时间';
-COMMENT ON COLUMN public.file_storage_configs.updated_at IS '更新时间';
-COMMENT ON COLUMN public.file_storage_configs.s3_region IS 'S3 Region';
-COMMENT ON COLUMN public.file_storage_configs.s3_endpoint IS 'S3 Endpoint（MinIO/R2 使用）';
-COMMENT ON COLUMN public.file_storage_configs.s3_bucket IS 'S3 Bucket';
-COMMENT ON COLUMN public.file_storage_configs.s3_access_key_id IS 'S3 AccessKeyId';
-COMMENT ON COLUMN public.file_storage_configs.s3_secret_access_key IS 'S3 SecretAccessKey';
-COMMENT ON COLUMN public.file_storage_configs.s3_force_path_style IS '是否强制使用 path-style 寻址';
-COMMENT ON COLUMN public.file_storage_configs.cos_region IS '腾讯云 COS Region';
-COMMENT ON COLUMN public.file_storage_configs.cos_bucket IS '腾讯云 COS Bucket';
-COMMENT ON COLUMN public.file_storage_configs.cos_secret_id IS '腾讯云 SecretId';
-COMMENT ON COLUMN public.file_storage_configs.cos_secret_key IS '腾讯云 SecretKey';
-COMMENT ON COLUMN public.file_storage_configs.created_by IS '创建人';
-COMMENT ON COLUMN public.file_storage_configs.updated_by IS '最后更新人';
-COMMENT ON TABLE public.in_app_messages IS '站内信收件记录表';
-COMMENT ON COLUMN public.in_app_messages.id IS '主键 ID';
-COMMENT ON COLUMN public.in_app_messages.template_id IS '使用的模板 ID';
-COMMENT ON COLUMN public.in_app_messages.user_id IS '接收用户 ID';
-COMMENT ON COLUMN public.in_app_messages.title IS '消息标题';
-COMMENT ON COLUMN public.in_app_messages.content IS '消息内容';
-COMMENT ON COLUMN public.in_app_messages.type IS '消息类型：info/success/warning/error';
-COMMENT ON COLUMN public.in_app_messages.is_read IS '是否已读';
-COMMENT ON COLUMN public.in_app_messages.read_at IS '阅读时间';
-COMMENT ON COLUMN public.in_app_messages.source IS '触发来源：manual/test/system/api';
-COMMENT ON COLUMN public.in_app_messages.sender_id IS '发送者用户 ID';
-COMMENT ON COLUMN public.in_app_messages.tenant_id IS '所属租户 ID';
-COMMENT ON COLUMN public.in_app_messages.created_at IS '创建时间';
-COMMENT ON TABLE public.in_app_templates IS '站内信模板表';
-COMMENT ON COLUMN public.in_app_templates.id IS '主键 ID';
-COMMENT ON COLUMN public.in_app_templates.name IS '模板名称';
-COMMENT ON COLUMN public.in_app_templates.code IS '模板编码（全局唯一）';
-COMMENT ON COLUMN public.in_app_templates.title IS '消息标题（支持变量）';
-COMMENT ON COLUMN public.in_app_templates.content IS '消息内容（支持变量）';
-COMMENT ON COLUMN public.in_app_templates.type IS '消息类型：info/success/warning/error';
-COMMENT ON COLUMN public.in_app_templates.variables IS '变量定义（JSON）';
-COMMENT ON COLUMN public.in_app_templates.status IS '状态：enabled/disabled';
-COMMENT ON COLUMN public.in_app_templates.remark IS '备注';
-COMMENT ON COLUMN public.in_app_templates.tenant_id IS '所属租户 ID';
-COMMENT ON COLUMN public.in_app_templates.created_at IS '创建时间';
-COMMENT ON COLUMN public.in_app_templates.updated_at IS '更新时间';
-COMMENT ON COLUMN public.in_app_templates.created_by IS '创建人';
-COMMENT ON COLUMN public.in_app_templates.updated_by IS '最后更新人';
-COMMENT ON TABLE public.login_logs IS '登录日志表';
-COMMENT ON COLUMN public.login_logs.id IS '主键 ID';
-COMMENT ON COLUMN public.login_logs.user_id IS '用户 ID（登录失败时可能为空）';
-COMMENT ON COLUMN public.login_logs.username IS '登录用户名';
-COMMENT ON COLUMN public.login_logs.ip IS '登录 IP';
-COMMENT ON COLUMN public.login_logs.browser IS '浏览器信息';
-COMMENT ON COLUMN public.login_logs.os IS '操作系统';
-COMMENT ON COLUMN public.login_logs.status IS '登录结果：success/fail';
-COMMENT ON COLUMN public.login_logs.message IS '失败原因或附加信息';
-COMMENT ON COLUMN public.login_logs.created_at IS '登录时间';
-COMMENT ON COLUMN public.login_logs.tenant_id IS '所属租户 ID';
-COMMENT ON TABLE public.managed_files IS '文件元数据表';
-COMMENT ON COLUMN public.managed_files.id IS '主键 ID';
-COMMENT ON COLUMN public.managed_files.storage_config_id IS '所属存储配置 ID';
-COMMENT ON COLUMN public.managed_files.storage_name IS '存储配置名称快照';
-COMMENT ON COLUMN public.managed_files.provider IS '存储类型快照';
-COMMENT ON COLUMN public.managed_files.original_name IS '原始文件名';
-COMMENT ON COLUMN public.managed_files.object_key IS '存储对象 Key（相对路径）';
-COMMENT ON COLUMN public.managed_files.size IS '文件大小（字节）';
-COMMENT ON COLUMN public.managed_files.mime_type IS 'MIME 类型';
-COMMENT ON COLUMN public.managed_files.extension IS '扩展名（不含点）';
-COMMENT ON COLUMN public.managed_files.created_at IS '上传时间';
-COMMENT ON COLUMN public.managed_files.updated_at IS '更新时间';
-COMMENT ON COLUMN public.managed_files.tenant_id IS '所属租户 ID';
-COMMENT ON COLUMN public.managed_files.created_by IS '上传人';
-COMMENT ON COLUMN public.managed_files.updated_by IS '最后更新人';
-COMMENT ON TABLE public.menus IS '菜单/权限点表';
-COMMENT ON COLUMN public.menus.id IS '主键 ID';
-COMMENT ON COLUMN public.menus.parent_id IS '上级菜单 ID（0 表示根节点）';
-COMMENT ON COLUMN public.menus.title IS '菜单显示标题';
-COMMENT ON COLUMN public.menus.name IS '路由 name（前端 Vue/React Router 命名路由）';
-COMMENT ON COLUMN public.menus.path IS '路由路径';
-COMMENT ON COLUMN public.menus.icon IS '图标名称（lucide-react）';
-COMMENT ON COLUMN public.menus.type IS '类型：directory 目录 / menu 菜单 / button 按钮（权限点）';
-COMMENT ON COLUMN public.menus.permission IS '权限标识（如 user:create）';
-COMMENT ON COLUMN public.menus.sort IS '排序值';
-COMMENT ON COLUMN public.menus.status IS '状态：enabled/disabled';
-COMMENT ON COLUMN public.menus.visible IS '是否在侧边栏可见';
-COMMENT ON COLUMN public.menus.created_at IS '创建时间';
-COMMENT ON COLUMN public.menus.updated_at IS '更新时间';
-COMMENT ON COLUMN public.menus.component IS '前端组件路径';
-COMMENT ON COLUMN public.menus.created_by IS '创建人';
-COMMENT ON COLUMN public.menus.updated_by IS '最后更新人';
-COMMENT ON TABLE public.oauth_configs IS 'OAuth 第三方登录配置表';
-COMMENT ON COLUMN public.oauth_configs.id IS '主键 ID';
-COMMENT ON COLUMN public.oauth_configs.provider IS '平台：github/dingtalk/wechat_work（唯一）';
-COMMENT ON COLUMN public.oauth_configs.client_id IS 'Client ID / AppKey';
-COMMENT ON COLUMN public.oauth_configs.client_secret IS 'Client Secret / AppSecret';
-COMMENT ON COLUMN public.oauth_configs.agent_id IS '企业微信 AgentId';
-COMMENT ON COLUMN public.oauth_configs.corp_id IS '钉钉/企业微信 CorpId';
-COMMENT ON COLUMN public.oauth_configs.enabled IS '是否启用';
-COMMENT ON COLUMN public.oauth_configs.created_at IS '创建时间';
-COMMENT ON COLUMN public.oauth_configs.updated_at IS '更新时间';
-COMMENT ON COLUMN public.oauth_configs.created_by IS '创建人';
-COMMENT ON COLUMN public.oauth_configs.updated_by IS '最后更新人';
-COMMENT ON TABLE public.operation_logs IS '操作日志表';
-COMMENT ON COLUMN public.operation_logs.id IS '主键 ID';
-COMMENT ON COLUMN public.operation_logs.user_id IS '操作用户 ID';
-COMMENT ON COLUMN public.operation_logs.username IS '操作用户名';
-COMMENT ON COLUMN public.operation_logs.module IS '所属模块';
-COMMENT ON COLUMN public.operation_logs.description IS '操作描述';
-COMMENT ON COLUMN public.operation_logs.method IS 'HTTP 方法';
-COMMENT ON COLUMN public.operation_logs.path IS '请求路径';
-COMMENT ON COLUMN public.operation_logs.request_body IS '请求体（脱敏后）';
-COMMENT ON COLUMN public.operation_logs.response_code IS '业务响应码（0 表示成功）';
-COMMENT ON COLUMN public.operation_logs.duration_ms IS '处理耗时（毫秒）';
-COMMENT ON COLUMN public.operation_logs.ip IS '客户端 IP';
-COMMENT ON COLUMN public.operation_logs.user_agent IS 'User-Agent';
-COMMENT ON COLUMN public.operation_logs.os IS '操作系统';
-COMMENT ON COLUMN public.operation_logs.browser IS '浏览器';
-COMMENT ON COLUMN public.operation_logs.created_at IS '请求时间';
-COMMENT ON COLUMN public.operation_logs.before_data IS '变更前数据快照（JSON）';
-COMMENT ON COLUMN public.operation_logs.after_data IS '变更后数据快照（JSON）';
-COMMENT ON COLUMN public.operation_logs.tenant_id IS '所属租户 ID';
-COMMENT ON COLUMN public.operation_logs.request_id IS '请求追踪 ID';
-COMMENT ON TABLE public.password_reset_tokens IS '密码重置 Token 表';
-COMMENT ON COLUMN public.password_reset_tokens.id IS '主键 ID';
-COMMENT ON COLUMN public.password_reset_tokens.user_id IS '关联用户 ID';
-COMMENT ON COLUMN public.password_reset_tokens.token IS '重置 Token（全局唯一）';
-COMMENT ON COLUMN public.password_reset_tokens.expires_at IS '过期时间';
-COMMENT ON COLUMN public.password_reset_tokens.used_at IS '使用时间（NULL 表示未使用）';
-COMMENT ON COLUMN public.password_reset_tokens.created_at IS '签发时间';
-COMMENT ON TABLE public.positions IS '岗位表';
-COMMENT ON COLUMN public.positions.id IS '主键 ID';
-COMMENT ON COLUMN public.positions.name IS '岗位名称';
-COMMENT ON COLUMN public.positions.code IS '岗位编码（租户内唯一）';
-COMMENT ON COLUMN public.positions.sort IS '排序值';
-COMMENT ON COLUMN public.positions.status IS '状态：enabled/disabled';
-COMMENT ON COLUMN public.positions.remark IS '备注';
-COMMENT ON COLUMN public.positions.created_at IS '创建时间';
-COMMENT ON COLUMN public.positions.updated_at IS '更新时间';
-COMMENT ON COLUMN public.positions.tenant_id IS '所属租户 ID';
-COMMENT ON COLUMN public.positions.created_by IS '创建人';
-COMMENT ON COLUMN public.positions.updated_by IS '最后更新人';
-COMMENT ON TABLE public.rate_limit_rules IS '接口限流规则表';
-COMMENT ON COLUMN public.rate_limit_rules.id IS '主键 ID';
-COMMENT ON COLUMN public.rate_limit_rules.name IS '规则名称（全局唯一）';
-COMMENT ON COLUMN public.rate_limit_rules.description IS '规则描述';
-COMMENT ON COLUMN public.rate_limit_rules.window_ms IS '时间窗口（毫秒）';
-COMMENT ON COLUMN public.rate_limit_rules."limit" IS '窗口内最大请求次数';
-COMMENT ON COLUMN public.rate_limit_rules.key_type IS '限流键类型：ip/user/ip_path';
-COMMENT ON COLUMN public.rate_limit_rules.enabled IS '是否启用';
-COMMENT ON COLUMN public.rate_limit_rules.blocked_message IS '触发限流时返回的提示文案';
-COMMENT ON COLUMN public.rate_limit_rules.created_at IS '创建时间';
-COMMENT ON COLUMN public.rate_limit_rules.updated_at IS '更新时间';
-COMMENT ON COLUMN public.rate_limit_rules.created_by IS '创建人';
-COMMENT ON COLUMN public.rate_limit_rules.updated_by IS '最后更新人';
-COMMENT ON TABLE public.regions IS '中国行政区划表';
-COMMENT ON COLUMN public.regions.id IS '主键 ID';
-COMMENT ON COLUMN public.regions.code IS '行政区划代码（全局唯一）';
-COMMENT ON COLUMN public.regions.name IS '区划名称';
-COMMENT ON COLUMN public.regions.level IS '层级：province/city/county';
-COMMENT ON COLUMN public.regions.parent_code IS '父级区划代码';
-COMMENT ON COLUMN public.regions.sort IS '排序值';
-COMMENT ON COLUMN public.regions.status IS '状态：enabled/disabled';
-COMMENT ON COLUMN public.regions.created_at IS '创建时间';
-COMMENT ON COLUMN public.regions.updated_at IS '更新时间';
-COMMENT ON COLUMN public.regions.created_by IS '创建人';
-COMMENT ON COLUMN public.regions.updated_by IS '最后更新人';
-COMMENT ON TABLE public.role_menus IS '角色-菜单（权限）关联表';
-COMMENT ON COLUMN public.role_menus.role_id IS '角色 ID';
-COMMENT ON COLUMN public.role_menus.menu_id IS '菜单 ID';
-COMMENT ON TABLE public.roles IS '角色表';
-COMMENT ON COLUMN public.roles.id IS '主键 ID';
-COMMENT ON COLUMN public.roles.name IS '角色名称';
-COMMENT ON COLUMN public.roles.code IS '角色编码（租户内唯一）';
-COMMENT ON COLUMN public.roles.description IS '角色描述';
-COMMENT ON COLUMN public.roles.status IS '状态：enabled/disabled';
-COMMENT ON COLUMN public.roles.created_at IS '创建时间';
-COMMENT ON COLUMN public.roles.updated_at IS '更新时间';
-COMMENT ON COLUMN public.roles.data_scope IS '数据权限范围：all 全部 / dept 本部门 / self 本人';
-COMMENT ON COLUMN public.roles.tenant_id IS '所属租户 ID';
-COMMENT ON COLUMN public.roles.created_by IS '创建人';
-COMMENT ON COLUMN public.roles.updated_by IS '最后更新人';
-COMMENT ON TABLE public.sms_configs IS '短信服务商配置表';
-COMMENT ON COLUMN public.sms_configs.id IS '主键 ID';
-COMMENT ON COLUMN public.sms_configs.name IS '配置名称';
-COMMENT ON COLUMN public.sms_configs.provider IS '服务商：aliyun/tencent';
-COMMENT ON COLUMN public.sms_configs.access_key_id IS 'AccessKeyId';
-COMMENT ON COLUMN public.sms_configs.access_key_secret IS 'AccessKeySecret';
-COMMENT ON COLUMN public.sms_configs.region IS '区域';
-COMMENT ON COLUMN public.sms_configs.sign_name IS '默认短信签名';
-COMMENT ON COLUMN public.sms_configs.is_default IS '是否默认配置';
-COMMENT ON COLUMN public.sms_configs.status IS '状态：enabled/disabled';
-COMMENT ON COLUMN public.sms_configs.remark IS '备注';
-COMMENT ON COLUMN public.sms_configs.tenant_id IS '所属租户 ID';
-COMMENT ON COLUMN public.sms_configs.created_at IS '创建时间';
-COMMENT ON COLUMN public.sms_configs.updated_at IS '更新时间';
-COMMENT ON COLUMN public.sms_configs.created_by IS '创建人';
-COMMENT ON COLUMN public.sms_configs.updated_by IS '最后更新人';
-COMMENT ON TABLE public.sms_send_logs IS '短信发送记录表';
-COMMENT ON COLUMN public.sms_send_logs.id IS '主键 ID';
-COMMENT ON COLUMN public.sms_send_logs.config_id IS '使用的服务商配置 ID';
-COMMENT ON COLUMN public.sms_send_logs.template_id IS '使用的模板 ID';
-COMMENT ON COLUMN public.sms_send_logs.provider IS '服务商：aliyun/tencent';
-COMMENT ON COLUMN public.sms_send_logs.phone IS '接收手机号';
-COMMENT ON COLUMN public.sms_send_logs.content IS '实际发送内容';
-COMMENT ON COLUMN public.sms_send_logs.status IS '发送状态：pending/success/failed';
-COMMENT ON COLUMN public.sms_send_logs.error_msg IS '失败原因';
-COMMENT ON COLUMN public.sms_send_logs.biz_id IS '服务商业务流水号';
-COMMENT ON COLUMN public.sms_send_logs.delivery_status IS '终端送达状态';
-COMMENT ON COLUMN public.sms_send_logs.delivered_at IS '终端送达时间';
-COMMENT ON COLUMN public.sms_send_logs.source IS '触发来源：manual/test/system/api';
-COMMENT ON COLUMN public.sms_send_logs.user_id IS '触发用户 ID';
-COMMENT ON COLUMN public.sms_send_logs.ip IS '触发 IP';
-COMMENT ON COLUMN public.sms_send_logs.tenant_id IS '所属租户 ID';
-COMMENT ON COLUMN public.sms_send_logs.sent_at IS '发送完成时间';
-COMMENT ON COLUMN public.sms_send_logs.created_at IS '记录创建时间';
-COMMENT ON TABLE public.sms_templates IS '短信模板表';
-COMMENT ON COLUMN public.sms_templates.id IS '主键 ID';
-COMMENT ON COLUMN public.sms_templates.name IS '模板名称';
-COMMENT ON COLUMN public.sms_templates.code IS '模板编码（全局唯一）';
-COMMENT ON COLUMN public.sms_templates.template_code IS '服务商侧模板 Code';
-COMMENT ON COLUMN public.sms_templates.sign_name IS '签名（可覆盖配置默认值）';
-COMMENT ON COLUMN public.sms_templates.content IS '模板内容（支持变量）';
-COMMENT ON COLUMN public.sms_templates.variables IS '变量定义（JSON）';
-COMMENT ON COLUMN public.sms_templates.provider IS '所属服务商：aliyun/tencent';
-COMMENT ON COLUMN public.sms_templates.status IS '状态：enabled/disabled';
-COMMENT ON COLUMN public.sms_templates.remark IS '备注';
-COMMENT ON COLUMN public.sms_templates.tenant_id IS '所属租户 ID';
-COMMENT ON COLUMN public.sms_templates.created_at IS '创建时间';
-COMMENT ON COLUMN public.sms_templates.updated_at IS '更新时间';
-COMMENT ON COLUMN public.sms_templates.created_by IS '创建人';
-COMMENT ON COLUMN public.sms_templates.updated_by IS '最后更新人';
-COMMENT ON TABLE public.system_configs IS '系统参数配置表';
-COMMENT ON COLUMN public.system_configs.id IS '主键 ID';
-COMMENT ON COLUMN public.system_configs.config_key IS '配置键（租户内唯一）';
-COMMENT ON COLUMN public.system_configs.config_value IS '配置值';
-COMMENT ON COLUMN public.system_configs.config_type IS '值类型：string/number/boolean/json';
-COMMENT ON COLUMN public.system_configs.description IS '描述';
-COMMENT ON COLUMN public.system_configs.created_at IS '创建时间';
-COMMENT ON COLUMN public.system_configs.updated_at IS '更新时间';
-COMMENT ON COLUMN public.system_configs.tenant_id IS '所属租户 ID';
-COMMENT ON COLUMN public.system_configs.created_by IS '创建人';
-COMMENT ON COLUMN public.system_configs.updated_by IS '最后更新人';
-COMMENT ON TABLE public.tags IS '标签表';
-COMMENT ON COLUMN public.tags.id IS '主键 ID';
-COMMENT ON COLUMN public.tags.name IS '标签名称（全局唯一）';
-COMMENT ON COLUMN public.tags.color IS '展示颜色';
-COMMENT ON COLUMN public.tags.group_name IS '所属分组';
-COMMENT ON COLUMN public.tags.description IS '描述';
-COMMENT ON COLUMN public.tags.status IS '状态：enabled/disabled';
-COMMENT ON COLUMN public.tags.sort_order IS '排序值';
-COMMENT ON COLUMN public.tags.created_at IS '创建时间';
-COMMENT ON COLUMN public.tags.updated_at IS '更新时间';
-COMMENT ON COLUMN public.tags.created_by IS '创建人';
-COMMENT ON COLUMN public.tags.updated_by IS '最后更新人';
-COMMENT ON TABLE public.tenants IS '租户表';
-COMMENT ON COLUMN public.tenants.id IS '主键 ID';
-COMMENT ON COLUMN public.tenants.name IS '租户名称';
-COMMENT ON COLUMN public.tenants.code IS '租户编码（全局唯一）';
-COMMENT ON COLUMN public.tenants.logo IS '租户 Logo URL';
-COMMENT ON COLUMN public.tenants.contact_name IS '联系人姓名';
-COMMENT ON COLUMN public.tenants.contact_phone IS '联系人电话';
-COMMENT ON COLUMN public.tenants.status IS '状态：enabled/disabled';
-COMMENT ON COLUMN public.tenants.expire_at IS '到期时间';
-COMMENT ON COLUMN public.tenants.max_users IS '最大用户数限制';
-COMMENT ON COLUMN public.tenants.remark IS '备注';
-COMMENT ON COLUMN public.tenants.created_at IS '创建时间';
-COMMENT ON COLUMN public.tenants.updated_at IS '更新时间';
-COMMENT ON COLUMN public.tenants.created_by IS '创建人（users.id）';
-COMMENT ON COLUMN public.tenants.updated_by IS '最后更新人（users.id）';
-COMMENT ON TABLE public.user_api_tokens IS '用户个人 API Token 表';
-COMMENT ON COLUMN public.user_api_tokens.id IS '主键 ID';
-COMMENT ON COLUMN public.user_api_tokens.user_id IS '所属用户 ID';
-COMMENT ON COLUMN public.user_api_tokens.name IS 'Token 名称（标识用途）';
-COMMENT ON COLUMN public.user_api_tokens.token IS 'Token 值（全局唯一）';
-COMMENT ON COLUMN public.user_api_tokens.last_used_at IS '最近使用时间';
-COMMENT ON COLUMN public.user_api_tokens.expires_at IS '过期时间（NULL 表示永久）';
-COMMENT ON COLUMN public.user_api_tokens.created_at IS '创建时间';
-COMMENT ON COLUMN public.user_api_tokens.created_by IS '创建人';
-COMMENT ON COLUMN public.user_api_tokens.updated_by IS '最后更新人';
-COMMENT ON COLUMN public.user_api_tokens.updated_at IS '更新时间';
-COMMENT ON TABLE public.user_oauth_accounts IS 'OAuth 第三方账号绑定表';
-COMMENT ON COLUMN public.user_oauth_accounts.id IS '主键 ID';
-COMMENT ON COLUMN public.user_oauth_accounts.user_id IS '关联用户 ID';
-COMMENT ON COLUMN public.user_oauth_accounts.provider IS '第三方平台：github/dingtalk/wechat_work';
-COMMENT ON COLUMN public.user_oauth_accounts.open_id IS '平台用户 OpenID';
-COMMENT ON COLUMN public.user_oauth_accounts.union_id IS '平台 UnionID（如有）';
-COMMENT ON COLUMN public.user_oauth_accounts.nickname IS '第三方平台昵称';
-COMMENT ON COLUMN public.user_oauth_accounts.avatar IS '第三方平台头像';
-COMMENT ON COLUMN public.user_oauth_accounts.access_token IS 'AccessToken';
-COMMENT ON COLUMN public.user_oauth_accounts.refresh_token IS 'RefreshToken';
-COMMENT ON COLUMN public.user_oauth_accounts.expires_at IS 'Token 过期时间';
-COMMENT ON COLUMN public.user_oauth_accounts.raw IS '平台返回原始 JSON';
-COMMENT ON COLUMN public.user_oauth_accounts.created_at IS '绑定时间';
-COMMENT ON COLUMN public.user_oauth_accounts.updated_at IS '更新时间';
-COMMENT ON TABLE public.user_positions IS '用户-岗位关联表';
-COMMENT ON COLUMN public.user_positions.user_id IS '用户 ID';
-COMMENT ON COLUMN public.user_positions.position_id IS '岗位 ID';
-COMMENT ON TABLE public.user_roles IS '用户-角色关联表';
-COMMENT ON COLUMN public.user_roles.user_id IS '用户 ID';
-COMMENT ON COLUMN public.user_roles.role_id IS '角色 ID';
-COMMENT ON TABLE public.users IS '用户表';
-COMMENT ON COLUMN public.users.id IS '主键 ID';
-COMMENT ON COLUMN public.users.username IS '登录用户名（租户内唯一）';
-COMMENT ON COLUMN public.users.nickname IS '昵称/显示名';
-COMMENT ON COLUMN public.users.email IS '邮箱（租户内唯一）';
-COMMENT ON COLUMN public.users.password IS '密码哈希值（bcrypt）';
-COMMENT ON COLUMN public.users.avatar IS '头像 URL';
-COMMENT ON COLUMN public.users.status IS '账号状态：enabled/disabled';
-COMMENT ON COLUMN public.users.created_at IS '创建时间';
-COMMENT ON COLUMN public.users.updated_at IS '更新时间';
-COMMENT ON COLUMN public.users.department_id IS '所属部门 ID';
-COMMENT ON COLUMN public.users.password_updated_at IS '密码最近修改时间';
-COMMENT ON COLUMN public.users.tenant_id IS '所属租户 ID';
-COMMENT ON COLUMN public.users.phone IS '手机号';
-COMMENT ON COLUMN public.users.preferences IS '个人偏好设置（JSON）';
-COMMENT ON COLUMN public.users.created_by IS '创建人';
-COMMENT ON COLUMN public.users.updated_by IS '最后更新人';
-COMMENT ON TABLE public.workflow_definitions IS '工作流定义表';
-COMMENT ON COLUMN public.workflow_definitions.id IS '主键 ID';
-COMMENT ON COLUMN public.workflow_definitions.name IS '流程名称';
-COMMENT ON COLUMN public.workflow_definitions.description IS '流程描述';
-COMMENT ON COLUMN public.workflow_definitions.flow_data IS 'React Flow 节点+边 JSON';
-COMMENT ON COLUMN public.workflow_definitions.status IS '状态：draft/published/disabled';
-COMMENT ON COLUMN public.workflow_definitions.version IS '版本号';
-COMMENT ON COLUMN public.workflow_definitions.tenant_id IS '所属租户 ID';
-COMMENT ON COLUMN public.workflow_definitions.created_by IS '创建人';
-COMMENT ON COLUMN public.workflow_definitions.created_at IS '创建时间';
-COMMENT ON COLUMN public.workflow_definitions.updated_at IS '更新时间';
-COMMENT ON COLUMN public.workflow_definitions.updated_by IS '最后更新人';
-COMMENT ON TABLE public.workflow_instances IS '工作流实例表';
-COMMENT ON COLUMN public.workflow_instances.id IS '主键 ID';
-COMMENT ON COLUMN public.workflow_instances.definition_id IS '关联流程定义 ID';
-COMMENT ON COLUMN public.workflow_instances.definition_snapshot IS '发起时的定义快照（JSON）';
-COMMENT ON COLUMN public.workflow_instances.title IS '实例标题';
-COMMENT ON COLUMN public.workflow_instances.form_data IS '表单数据（JSON）';
-COMMENT ON COLUMN public.workflow_instances.status IS '状态：draft/running/approved/rejected/withdrawn';
-COMMENT ON COLUMN public.workflow_instances.current_node_key IS '当前节点 key';
-COMMENT ON COLUMN public.workflow_instances.initiator_id IS '发起人用户 ID';
-COMMENT ON COLUMN public.workflow_instances.tenant_id IS '所属租户 ID';
-COMMENT ON COLUMN public.workflow_instances.created_at IS '创建时间';
-COMMENT ON COLUMN public.workflow_instances.updated_at IS '更新时间';
-COMMENT ON COLUMN public.workflow_instances.created_by IS '创建人';
-COMMENT ON COLUMN public.workflow_instances.updated_by IS '最后更新人';
-COMMENT ON TABLE public.workflow_tasks IS '工作流审批任务表';
-COMMENT ON COLUMN public.workflow_tasks.id IS '主键 ID';
-COMMENT ON COLUMN public.workflow_tasks.instance_id IS '关联流程实例 ID';
-COMMENT ON COLUMN public.workflow_tasks.node_key IS '节点 key';
-COMMENT ON COLUMN public.workflow_tasks.node_name IS '节点名称快照';
-COMMENT ON COLUMN public.workflow_tasks.assignee_id IS '审批人用户 ID';
-COMMENT ON COLUMN public.workflow_tasks.status IS '状态：pending/approved/rejected/skipped';
-COMMENT ON COLUMN public.workflow_tasks.comment IS '审批意见';
-COMMENT ON COLUMN public.workflow_tasks.action_at IS '处理时间';
-COMMENT ON COLUMN public.workflow_tasks.created_at IS '创建时间';
-COMMENT ON COLUMN public.workflow_tasks.node_type IS '节点类型：start/approve/end/exclusiveGateway/parallelGateway/ccNode';
+CREATE INDEX "report_dashboard_comments_parent_idx" ON "report_dashboard_comments" USING btree ("parent_id");--> statement-breakpoint
+CREATE INDEX "report_dashboard_embed_tokens_dashboard_idx" ON "report_dashboard_embed_tokens" USING btree ("dashboard_id");--> statement-breakpoint
+CREATE INDEX "report_dashboard_subscriptions_tenant_idx" ON "report_dashboard_subscriptions" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "report_dashboard_subscriptions_dashboard_idx" ON "report_dashboard_subscriptions" USING btree ("dashboard_id");--> statement-breakpoint
+CREATE INDEX "report_dashboard_subscriptions_next_run_idx" ON "report_dashboard_subscriptions" USING btree ("next_run_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "report_dashboard_versions_dash_ver_uq" ON "report_dashboard_versions" USING btree ("dashboard_id","version");--> statement-breakpoint
+CREATE UNIQUE INDEX "report_dashboards_tenant_name_uq" ON "report_dashboards" USING btree ("tenant_id","name") WHERE "report_dashboards"."tenant_id" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "report_dashboards_global_name_uq" ON "report_dashboards" USING btree ("name") WHERE "report_dashboards"."tenant_id" is null;--> statement-breakpoint
+CREATE INDEX "report_dashboards_tenant_lifecycle_idx" ON "report_dashboards" USING btree ("tenant_id","lifecycle_status");--> statement-breakpoint
+CREATE INDEX "report_dashboards_category_idx" ON "report_dashboards" USING btree ("category_id");--> statement-breakpoint
+CREATE INDEX "report_dashboards_folder_idx" ON "report_dashboards" USING btree ("folder_id");--> statement-breakpoint
+CREATE INDEX "report_dashboards_owner_idx" ON "report_dashboards" USING btree ("owner_id");--> statement-breakpoint
+CREATE INDEX "report_dataset_execution_logs_dataset_idx" ON "report_dataset_execution_logs" USING btree ("dataset_id");--> statement-breakpoint
+CREATE INDEX "report_dataset_execution_logs_datasource_idx" ON "report_dataset_execution_logs" USING btree ("datasource_id");--> statement-breakpoint
+CREATE INDEX "report_dataset_execution_logs_scene_idx" ON "report_dataset_execution_logs" USING btree ("scene");--> statement-breakpoint
+CREATE INDEX "report_dataset_execution_logs_user_idx" ON "report_dataset_execution_logs" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "report_dataset_execution_logs_executed_idx" ON "report_dataset_execution_logs" USING btree ("executed_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "report_datasets_tenant_name_uq" ON "report_datasets" USING btree ("tenant_id","name") WHERE "report_datasets"."tenant_id" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "report_datasets_global_name_uq" ON "report_datasets" USING btree ("name") WHERE "report_datasets"."tenant_id" is null;--> statement-breakpoint
+CREATE INDEX "report_datasets_tenant_status_idx" ON "report_datasets" USING btree ("tenant_id","status");--> statement-breakpoint
+CREATE INDEX "report_datasets_datasource_idx" ON "report_datasets" USING btree ("datasource_id");--> statement-breakpoint
+CREATE INDEX "report_datasets_folder_idx" ON "report_datasets" USING btree ("folder_id");--> statement-breakpoint
+CREATE INDEX "report_datasets_owner_idx" ON "report_datasets" USING btree ("owner_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "report_datasources_tenant_name_uq" ON "report_datasources" USING btree ("tenant_id","name") WHERE "report_datasources"."tenant_id" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "report_datasources_global_name_uq" ON "report_datasources" USING btree ("name") WHERE "report_datasources"."tenant_id" is null;--> statement-breakpoint
+CREATE INDEX "report_datasources_tenant_status_idx" ON "report_datasources" USING btree ("tenant_id","status");--> statement-breakpoint
+CREATE INDEX "report_datasources_folder_idx" ON "report_datasources" USING btree ("folder_id");--> statement-breakpoint
+CREATE INDEX "report_datasources_owner_idx" ON "report_datasources" USING btree ("owner_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "report_delivery_attempts_run_channel_attempt_uq" ON "report_delivery_attempts" USING btree ("run_id","channel","attempt");--> statement-breakpoint
+CREATE INDEX "report_delivery_attempts_run_idx" ON "report_delivery_attempts" USING btree ("run_id","id");--> statement-breakpoint
+CREATE INDEX "report_delivery_attempts_tenant_idx" ON "report_delivery_attempts" USING btree ("tenant_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "report_delivery_runs_idempotency_uq" ON "report_delivery_runs" USING btree ("idempotency_key");--> statement-breakpoint
+CREATE INDEX "report_delivery_runs_target_idx" ON "report_delivery_runs" USING btree ("target_type","subscription_id","alert_rule_id","id");--> statement-breakpoint
+CREATE INDEX "report_delivery_runs_subscription_idx" ON "report_delivery_runs" USING btree ("subscription_id","id");--> statement-breakpoint
+CREATE INDEX "report_delivery_runs_alert_idx" ON "report_delivery_runs" USING btree ("alert_rule_id","id");--> statement-breakpoint
+CREATE INDEX "report_delivery_runs_retry_idx" ON "report_delivery_runs" USING btree ("status","next_retry_at");--> statement-breakpoint
+CREATE INDEX "report_delivery_runs_tenant_idx" ON "report_delivery_runs" USING btree ("tenant_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "report_folders_tenant_root_name_uq" ON "report_folders" USING btree ("tenant_id","resource_type","name") WHERE "report_folders"."tenant_id" is not null and "report_folders"."parent_id" is null;--> statement-breakpoint
+CREATE UNIQUE INDEX "report_folders_tenant_child_name_uq" ON "report_folders" USING btree ("tenant_id","parent_id","resource_type","name") WHERE "report_folders"."tenant_id" is not null and "report_folders"."parent_id" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "report_folders_global_root_name_uq" ON "report_folders" USING btree ("resource_type","name") WHERE "report_folders"."tenant_id" is null and "report_folders"."parent_id" is null;--> statement-breakpoint
+CREATE UNIQUE INDEX "report_folders_global_child_name_uq" ON "report_folders" USING btree ("parent_id","resource_type","name") WHERE "report_folders"."tenant_id" is null and "report_folders"."parent_id" is not null;--> statement-breakpoint
+CREATE INDEX "report_folders_tenant_type_status_idx" ON "report_folders" USING btree ("tenant_id","resource_type","status");--> statement-breakpoint
+CREATE INDEX "report_folders_parent_sort_idx" ON "report_folders" USING btree ("parent_id","sort");--> statement-breakpoint
+CREATE INDEX "report_folders_owner_idx" ON "report_folders" USING btree ("owner_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "report_print_templates_tenant_name_uq" ON "report_print_templates" USING btree ("tenant_id","name") WHERE "report_print_templates"."tenant_id" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "report_print_templates_global_name_uq" ON "report_print_templates" USING btree ("name") WHERE "report_print_templates"."tenant_id" is null;--> statement-breakpoint
+CREATE INDEX "report_print_templates_tenant_status_idx" ON "report_print_templates" USING btree ("tenant_id","status");--> statement-breakpoint
+CREATE INDEX "report_print_templates_folder_idx" ON "report_print_templates" USING btree ("folder_id");--> statement-breakpoint
+CREATE INDEX "report_print_templates_owner_idx" ON "report_print_templates" USING btree ("owner_id");--> statement-breakpoint
+CREATE INDEX "report_share_access_logs_share_idx" ON "report_share_access_logs" USING btree ("share_id");--> statement-breakpoint
+CREATE INDEX "report_share_access_logs_created_idx" ON "report_share_access_logs" USING btree ("created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "report_asset_templates_tenant_code_uq" ON "report_asset_templates" USING btree ("tenant_id","code") WHERE "report_asset_templates"."tenant_id" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "report_asset_templates_global_code_uq" ON "report_asset_templates" USING btree ("code") WHERE "report_asset_templates"."tenant_id" is null;--> statement-breakpoint
+CREATE INDEX "report_asset_templates_tenant_type_status_idx" ON "report_asset_templates" USING btree ("tenant_id","type","status");--> statement-breakpoint
+CREATE INDEX "report_asset_templates_folder_idx" ON "report_asset_templates" USING btree ("folder_id");--> statement-breakpoint
+CREATE INDEX "report_asset_templates_owner_idx" ON "report_asset_templates" USING btree ("owner_id");--> statement-breakpoint
+CREATE INDEX "report_asset_usage_logs_resource_time_idx" ON "report_asset_usage_logs" USING btree ("tenant_id","resource_type","resource_id","occurred_at");--> statement-breakpoint
+CREATE INDEX "report_asset_usage_logs_user_time_idx" ON "report_asset_usage_logs" USING btree ("user_id","occurred_at");--> statement-breakpoint
+CREATE INDEX "report_chatbi_messages_session_time_idx" ON "report_chatbi_messages" USING btree ("session_id","created_at");--> statement-breakpoint
+CREATE INDEX "report_chatbi_messages_tenant_user_time_idx" ON "report_chatbi_messages" USING btree ("tenant_id","user_id","created_at");--> statement-breakpoint
+CREATE INDEX "report_chatbi_sessions_user_status_time_idx" ON "report_chatbi_sessions" USING btree ("tenant_id","user_id","status","updated_at");--> statement-breakpoint
+CREATE INDEX "report_chatbi_sessions_dataset_idx" ON "report_chatbi_sessions" USING btree ("dataset_id");--> statement-breakpoint
+CREATE INDEX "report_chatbi_sessions_datasource_idx" ON "report_chatbi_sessions" USING btree ("datasource_id");--> statement-breakpoint
+CREATE INDEX "report_deprecation_notices_resource_idx" ON "report_deprecation_notices" USING btree ("tenant_id","resource_type","resource_id");--> statement-breakpoint
+CREATE INDEX "report_deprecation_notices_effective_idx" ON "report_deprecation_notices" USING btree ("tenant_id","effective_at","expires_at");--> statement-breakpoint
+CREATE INDEX "report_dq_anomalies_dataset_status_idx" ON "report_dq_anomalies" USING btree ("dataset_id","status","created_at");--> statement-breakpoint
+CREATE INDEX "report_dq_anomalies_tenant_severity_status_idx" ON "report_dq_anomalies" USING btree ("tenant_id","severity","status");--> statement-breakpoint
+CREATE INDEX "report_dq_anomalies_run_idx" ON "report_dq_anomalies" USING btree ("run_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "report_dq_rules_tenant_dataset_name_uq" ON "report_dq_rules" USING btree ("tenant_id","dataset_id","name") WHERE "report_dq_rules"."tenant_id" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "report_dq_rules_global_dataset_name_uq" ON "report_dq_rules" USING btree ("dataset_id","name") WHERE "report_dq_rules"."tenant_id" is null;--> statement-breakpoint
+CREATE INDEX "report_dq_rules_dataset_enabled_idx" ON "report_dq_rules" USING btree ("dataset_id","enabled");--> statement-breakpoint
+CREATE INDEX "report_dq_rules_schedule_idx" ON "report_dq_rules" USING btree ("enabled","cron");--> statement-breakpoint
+CREATE INDEX "report_dq_runs_rule_time_idx" ON "report_dq_runs" USING btree ("rule_id","created_at");--> statement-breakpoint
+CREATE INDEX "report_dq_runs_dataset_status_time_idx" ON "report_dq_runs" USING btree ("dataset_id","status","created_at");--> statement-breakpoint
+CREATE INDEX "report_dq_runs_tenant_time_idx" ON "report_dq_runs" USING btree ("tenant_id","created_at");--> statement-breakpoint
+CREATE INDEX "report_dq_scores_dataset_time_idx" ON "report_dq_scores" USING btree ("dataset_id","measured_at");--> statement-breakpoint
+CREATE INDEX "report_dq_scores_tenant_time_idx" ON "report_dq_scores" USING btree ("tenant_id","measured_at");--> statement-breakpoint
+CREATE INDEX "report_environment_promotions_resource_idx" ON "report_environment_promotions" USING btree ("tenant_id","resource_type","resource_id","created_at");--> statement-breakpoint
+CREATE INDEX "report_environment_promotions_target_status_idx" ON "report_environment_promotions" USING btree ("target_environment_id","status","created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "report_environments_tenant_code_uq" ON "report_environments" USING btree ("tenant_id","code") WHERE "report_environments"."tenant_id" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "report_environments_global_code_uq" ON "report_environments" USING btree ("code") WHERE "report_environments"."tenant_id" is null;--> statement-breakpoint
+CREATE UNIQUE INDEX "report_environments_tenant_default_uq" ON "report_environments" USING btree ("tenant_id") WHERE "report_environments"."tenant_id" is not null and "report_environments"."is_default" = true;--> statement-breakpoint
+CREATE UNIQUE INDEX "report_environments_global_default_uq" ON "report_environments" USING btree ("is_default") WHERE "report_environments"."tenant_id" is null and "report_environments"."is_default" = true;--> statement-breakpoint
+CREATE INDEX "report_environments_tenant_kind_status_idx" ON "report_environments" USING btree ("tenant_id","kind","status");--> statement-breakpoint
+CREATE INDEX "report_fill_records_template_status_time_idx" ON "report_fill_records" USING btree ("template_id","status","created_at");--> statement-breakpoint
+CREATE INDEX "report_fill_records_submitter_status_time_idx" ON "report_fill_records" USING btree ("tenant_id","submitter_id","status","created_at");--> statement-breakpoint
+CREATE INDEX "report_fill_records_workflow_idx" ON "report_fill_records" USING btree ("workflow_instance_id");--> statement-breakpoint
+CREATE INDEX "report_fill_records_dataset_idx" ON "report_fill_records" USING btree ("generated_dataset_id");--> statement-breakpoint
+CREATE INDEX "report_fill_records_sync_idx" ON "report_fill_records" USING btree ("tenant_id","sync_status","updated_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "report_fill_templates_tenant_code_uq" ON "report_fill_templates" USING btree ("tenant_id","code") WHERE "report_fill_templates"."tenant_id" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "report_fill_templates_global_code_uq" ON "report_fill_templates" USING btree ("code") WHERE "report_fill_templates"."tenant_id" is null;--> statement-breakpoint
+CREATE INDEX "report_fill_templates_tenant_status_idx" ON "report_fill_templates" USING btree ("tenant_id","status");--> statement-breakpoint
+CREATE INDEX "report_fill_templates_folder_idx" ON "report_fill_templates" USING btree ("folder_id");--> statement-breakpoint
+CREATE INDEX "report_fill_templates_owner_idx" ON "report_fill_templates" USING btree ("owner_id");--> statement-breakpoint
+CREATE INDEX "report_fill_templates_dataset_idx" ON "report_fill_templates" USING btree ("generated_dataset_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "report_materialization_snapshots_dataset_revision_uq" ON "report_materialization_snapshots" USING btree ("dataset_id","revision");--> statement-breakpoint
+CREATE INDEX "report_materialization_snapshots_dataset_status_idx" ON "report_materialization_snapshots" USING btree ("dataset_id","status","created_at");--> statement-breakpoint
+CREATE INDEX "report_materialization_snapshots_tenant_expiry_idx" ON "report_materialization_snapshots" USING btree ("tenant_id","expires_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "report_metrics_tenant_code_uq" ON "report_metrics" USING btree ("tenant_id","code") WHERE "report_metrics"."tenant_id" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "report_metrics_global_code_uq" ON "report_metrics" USING btree ("code") WHERE "report_metrics"."tenant_id" is null;--> statement-breakpoint
+CREATE INDEX "report_metrics_tenant_lifecycle_idx" ON "report_metrics" USING btree ("tenant_id","lifecycle_status");--> statement-breakpoint
+CREATE INDEX "report_metrics_dataset_idx" ON "report_metrics" USING btree ("dataset_id");--> statement-breakpoint
+CREATE INDEX "report_metrics_folder_idx" ON "report_metrics" USING btree ("folder_id");--> statement-breakpoint
+CREATE INDEX "report_metrics_owner_idx" ON "report_metrics" USING btree ("owner_id");--> statement-breakpoint
+CREATE INDEX "report_publish_approvals_resource_idx" ON "report_publish_approvals" USING btree ("tenant_id","resource_type","resource_id");--> statement-breakpoint
+CREATE INDEX "report_publish_approvals_status_time_idx" ON "report_publish_approvals" USING btree ("tenant_id","status","requested_at");--> statement-breakpoint
+CREATE INDEX "report_publish_approvals_requester_idx" ON "report_publish_approvals" USING btree ("requested_by");--> statement-breakpoint
+CREATE UNIQUE INDEX "report_query_cost_logs_request_uq" ON "report_query_cost_logs" USING btree ("request_id");--> statement-breakpoint
+CREATE INDEX "report_query_cost_logs_tenant_time_idx" ON "report_query_cost_logs" USING btree ("tenant_id","occurred_at");--> statement-breakpoint
+CREATE INDEX "report_query_cost_logs_user_time_idx" ON "report_query_cost_logs" USING btree ("user_id","occurred_at");--> statement-breakpoint
+CREATE INDEX "report_query_cost_logs_dataset_time_idx" ON "report_query_cost_logs" USING btree ("dataset_id","occurred_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "report_query_quotas_tenant_scope_uq" ON "report_query_quotas" USING btree ("tenant_id","scope") WHERE "report_query_quotas"."tenant_id" is not null and "report_query_quotas"."scope" = 'tenant' and "report_query_quotas"."user_id" is null;--> statement-breakpoint
+CREATE UNIQUE INDEX "report_query_quotas_global_scope_uq" ON "report_query_quotas" USING btree ("scope") WHERE "report_query_quotas"."tenant_id" is null and "report_query_quotas"."scope" = 'tenant' and "report_query_quotas"."user_id" is null;--> statement-breakpoint
+CREATE UNIQUE INDEX "report_query_quotas_tenant_user_uq" ON "report_query_quotas" USING btree ("tenant_id","user_id") WHERE "report_query_quotas"."tenant_id" is not null and "report_query_quotas"."scope" = 'user' and "report_query_quotas"."user_id" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "report_query_quotas_global_user_uq" ON "report_query_quotas" USING btree ("user_id") WHERE "report_query_quotas"."tenant_id" is null and "report_query_quotas"."scope" = 'user' and "report_query_quotas"."user_id" is not null;--> statement-breakpoint
+CREATE INDEX "report_query_quotas_enabled_idx" ON "report_query_quotas" USING btree ("tenant_id","enabled");--> statement-breakpoint
+CREATE UNIQUE INDEX "report_resource_acls_tenant_subject_uq" ON "report_resource_acls" USING btree ("tenant_id","resource_type","resource_id","subject_type","subject_id","inherit_from_folder") WHERE "report_resource_acls"."tenant_id" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "report_resource_acls_global_subject_uq" ON "report_resource_acls" USING btree ("resource_type","resource_id","subject_type","subject_id","inherit_from_folder") WHERE "report_resource_acls"."tenant_id" is null;--> statement-breakpoint
+CREATE INDEX "report_resource_acls_resource_idx" ON "report_resource_acls" USING btree ("tenant_id","resource_type","resource_id");--> statement-breakpoint
+CREATE INDEX "report_resource_acls_subject_idx" ON "report_resource_acls" USING btree ("tenant_id","subject_type","subject_id");--> statement-breakpoint
+CREATE INDEX "report_resource_acls_expires_idx" ON "report_resource_acls" USING btree ("expires_at");--> statement-breakpoint
+CREATE INDEX "report_resource_transfers_resource_idx" ON "report_resource_transfers" USING btree ("tenant_id","resource_type","resource_id");--> statement-breakpoint
+CREATE INDEX "report_resource_transfers_owner_status_idx" ON "report_resource_transfers" USING btree ("to_owner_id","status","created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "report_sla_rules_tenant_dataset_name_uq" ON "report_sla_rules" USING btree ("tenant_id","dataset_id","name") WHERE "report_sla_rules"."tenant_id" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "report_sla_rules_global_dataset_name_uq" ON "report_sla_rules" USING btree ("dataset_id","name") WHERE "report_sla_rules"."tenant_id" is null;--> statement-breakpoint
+CREATE INDEX "report_sla_rules_dataset_enabled_idx" ON "report_sla_rules" USING btree ("dataset_id","enabled");--> statement-breakpoint
+CREATE INDEX "report_sla_violations_rule_time_idx" ON "report_sla_violations" USING btree ("rule_id","created_at");--> statement-breakpoint
+CREATE INDEX "report_sla_violations_tenant_status_idx" ON "report_sla_violations" USING btree ("tenant_id","status","created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_ad_events_dedupe_uq" ON "cms_ad_events" USING btree ("dedupe_key");--> statement-breakpoint
+CREATE INDEX "cms_ad_events_site_time_idx" ON "cms_ad_events" USING btree ("site_id","occurred_at","id");--> statement-breakpoint
+CREATE INDEX "cms_ad_events_ad_time_idx" ON "cms_ad_events" USING btree ("ad_id","occurred_at","id");--> statement-breakpoint
+CREATE INDEX "cms_ad_events_slot_time_idx" ON "cms_ad_events" USING btree ("slot_id","occurred_at","id");--> statement-breakpoint
+CREATE INDEX "cms_ad_events_type_device_time_idx" ON "cms_ad_events" USING btree ("event_type","device","occurred_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_ad_slots_site_code_uq" ON "cms_ad_slots" USING btree ("site_id","code");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_ad_stats_ad_date_uq" ON "cms_ad_stats" USING btree ("ad_id","stat_date");--> statement-breakpoint
+CREATE INDEX "cms_channel_users_user_idx" ON "cms_channel_users" USING btree ("user_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_channels_site_path_uq" ON "cms_channels" USING btree ("site_id","path");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_channels_site_code_uq" ON "cms_channels" USING btree ("site_id","code");--> statement-breakpoint
+CREATE INDEX "cms_channels_site_parent_idx" ON "cms_channels" USING btree ("site_id","parent_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_collect_items_rule_url_uq" ON "cms_collect_items" USING btree ("rule_id","url");--> statement-breakpoint
+CREATE INDEX "cms_collect_items_rule_idx" ON "cms_collect_items" USING btree ("rule_id","created_at");--> statement-breakpoint
+CREATE INDEX "cms_collect_rules_site_idx" ON "cms_collect_rules" USING btree ("site_id");--> statement-breakpoint
+CREATE INDEX "cms_comments_content_idx" ON "cms_comments" USING btree ("content_id","status");--> statement-breakpoint
+CREATE INDEX "cms_comments_member_idx" ON "cms_comments" USING btree ("member_id");--> statement-breakpoint
+CREATE INDEX "cms_content_favorites_content_idx" ON "cms_content_favorites" USING btree ("content_id");--> statement-breakpoint
+CREATE INDEX "cms_content_favorites_member_idx" ON "cms_content_favorites" USING btree ("member_id","created_at");--> statement-breakpoint
+CREATE INDEX "cms_content_likes_content_idx" ON "cms_content_likes" USING btree ("content_id");--> statement-breakpoint
+CREATE INDEX "cms_content_op_logs_content_idx" ON "cms_content_op_logs" USING btree ("content_id","created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_content_tombstones_content_uq" ON "cms_content_tombstones" USING btree ("content_id");--> statement-breakpoint
+CREATE INDEX "cms_content_tombstones_sync_idx" ON "cms_content_tombstones" USING btree ("site_id","deleted_at","content_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_content_versions_content_ver_uq" ON "cms_content_versions" USING btree ("content_id","version");--> statement-breakpoint
+CREATE INDEX "cms_contents_site_channel_idx" ON "cms_contents" USING btree ("site_id","channel_id");--> statement-breakpoint
+CREATE INDEX "cms_contents_status_idx" ON "cms_contents" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "cms_contents_published_at_idx" ON "cms_contents" USING btree ("published_at");--> statement-breakpoint
+CREATE INDEX "cms_contents_search_idx" ON "cms_contents" USING gin ("search_vector");--> statement-breakpoint
+CREATE INDEX "cms_contents_member_idx" ON "cms_contents" USING btree ("member_id");--> statement-breakpoint
+CREATE INDEX "cms_contents_mapping_source_idx" ON "cms_contents" USING btree ("mapping_source_id");--> statement-breakpoint
+CREATE INDEX "cms_contents_distribution_source_idx" ON "cms_contents" USING btree ("distribution_rule_id","distribution_source_id");--> statement-breakpoint
+CREATE INDEX "cms_contents_locked_at_idx" ON "cms_contents" USING btree ("locked_at");--> statement-breakpoint
+CREATE INDEX "cms_contents_sync_idx" ON "cms_contents" USING btree ("site_id","updated_at","id");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_contents_distribution_materialization_uq" ON "cms_contents" USING btree ("distribution_rule_id","distribution_source_id") WHERE "cms_contents"."distribution_rule_id" is not null and "cms_contents"."distribution_source_id" is not null and "cms_contents"."deleted_at" is null;--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_contents_site_slug_uq" ON "cms_contents" USING btree ("site_id","slug") WHERE "cms_contents"."slug" is not null and "cms_contents"."deleted_at" is null;--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_contents_site_static_path_uq" ON "cms_contents" USING btree ("site_id","static_path") WHERE "cms_contents"."static_path" is not null and "cms_contents"."deleted_at" is null;--> statement-breakpoint
+CREATE INDEX "cms_distribution_rules_source_idx" ON "cms_distribution_rules" USING btree ("source_site_id","source_channel_id","status");--> statement-breakpoint
+CREATE INDEX "cms_distribution_rules_target_idx" ON "cms_distribution_rules" USING btree ("target_site_id","target_channel_id","status");--> statement-breakpoint
+CREATE INDEX "cms_distribution_rules_due_idx" ON "cms_distribution_rules" USING btree ("mode","status","next_run_at");--> statement-breakpoint
+CREATE INDEX "cms_form_submissions_form_idx" ON "cms_form_submissions" USING btree ("form_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_forms_site_code_uq" ON "cms_forms" USING btree ("site_id","code");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_friend_link_groups_site_code_uq" ON "cms_friend_link_groups" USING btree ("site_id","code");--> statement-breakpoint
+CREATE INDEX "cms_friend_link_groups_site_sort_idx" ON "cms_friend_link_groups" USING btree ("site_id","sort","id");--> statement-breakpoint
+CREATE INDEX "cms_friend_links_site_group_idx" ON "cms_friend_links" USING btree ("site_id","group_id","sort","id");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_hotword_groups_site_name_uq" ON "cms_hotword_groups" USING btree ("site_id","name");--> statement-breakpoint
+CREATE INDEX "cms_hotword_groups_site_sort_idx" ON "cms_hotword_groups" USING btree ("site_id","sort");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_hotwords_site_keyword_uq" ON "cms_hotwords" USING btree ("site_id","keyword");--> statement-breakpoint
+CREATE INDEX "cms_hotwords_site_group_sort_idx" ON "cms_hotwords" USING btree ("site_id","group_id","sort");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_interaction_answers_response_question_uq" ON "cms_interaction_answers" USING btree ("response_id","question_id");--> statement-breakpoint
+CREATE INDEX "cms_interaction_answers_question_idx" ON "cms_interaction_answers" USING btree ("question_id");--> statement-breakpoint
+CREATE INDEX "cms_interaction_questions_parent_idx" ON "cms_interaction_questions" USING btree ("interaction_id","sort");--> statement-breakpoint
+CREATE INDEX "cms_interaction_responses_parent_time_idx" ON "cms_interaction_responses" USING btree ("interaction_id","created_at","id");--> statement-breakpoint
+CREATE INDEX "cms_interaction_responses_member_idx" ON "cms_interaction_responses" USING btree ("member_id","created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_interaction_responses_repeat_uq" ON "cms_interaction_responses" USING btree ("interaction_id","repeat_key") WHERE "cms_interaction_responses"."repeat_key" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_interaction_responses_request_uq" ON "cms_interaction_responses" USING btree ("interaction_id","request_key") WHERE "cms_interaction_responses"."request_key" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_interactions_site_code_uq" ON "cms_interactions" USING btree ("site_id","code");--> statement-breakpoint
+CREATE INDEX "cms_interactions_site_status_idx" ON "cms_interactions" USING btree ("site_id","status","kind");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_link_words_site_keyword_uq" ON "cms_link_words" USING btree ("site_id","keyword");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_member_subscriptions_subject_uq" ON "cms_member_subscriptions" USING btree ("member_id","site_id","subject_type","subject_key");--> statement-breakpoint
+CREATE INDEX "cms_member_subscriptions_member_idx" ON "cms_member_subscriptions" USING btree ("member_id","active","created_at");--> statement-breakpoint
+CREATE INDEX "cms_member_subscriptions_subject_idx" ON "cms_member_subscriptions" USING btree ("site_id","subject_type","subject_key","active");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_member_view_history_uq" ON "cms_member_view_history" USING btree ("member_id","content_id");--> statement-breakpoint
+CREATE INDEX "cms_member_view_history_member_idx" ON "cms_member_view_history" USING btree ("member_id","updated_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_model_fields_model_name_uq" ON "cms_model_fields" USING btree ("model_id","name");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_open_app_grants_client_site_uq" ON "cms_open_app_grants" USING btree ("client_id","site_id");--> statement-breakpoint
+CREATE INDEX "cms_open_app_grants_client_idx" ON "cms_open_app_grants" USING btree ("client_id");--> statement-breakpoint
+CREATE INDEX "cms_open_app_grants_site_idx" ON "cms_open_app_grants" USING btree ("site_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_page_block_acls_grant_uq" ON "cms_page_block_acls" USING btree ("page_id","block_id","subject_type","subject_id");--> statement-breakpoint
+CREATE INDEX "cms_page_block_acls_block_idx" ON "cms_page_block_acls" USING btree ("page_id","block_id");--> statement-breakpoint
+CREATE INDEX "cms_page_block_acls_subject_idx" ON "cms_page_block_acls" USING btree ("subject_type","subject_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_pages_site_slug_uq" ON "cms_pages" USING btree ("site_id","slug");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_pages_site_path_uq" ON "cms_pages" USING btree ("site_id","path") WHERE "cms_pages"."path" IS NOT NULL;--> statement-breakpoint
+CREATE INDEX "cms_pages_site_idx" ON "cms_pages" USING btree ("site_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_publish_artifacts_task_path_uq" ON "cms_publish_artifacts" USING btree ("task_id","path");--> statement-breakpoint
+CREATE INDEX "cms_publish_artifacts_site_time_idx" ON "cms_publish_artifacts" USING btree ("site_id","created_at");--> statement-breakpoint
+CREATE INDEX "cms_publish_artifacts_task_status_idx" ON "cms_publish_artifacts" USING btree ("task_id","status");--> statement-breakpoint
+CREATE INDEX "cms_publish_artifacts_target_idx" ON "cms_publish_artifacts" USING btree ("target_type","content_id","channel_id");--> statement-breakpoint
+CREATE INDEX "cms_push_logs_site_idx" ON "cms_push_logs" USING btree ("site_id","created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_redirects_site_from_uq" ON "cms_redirects" USING btree ("site_id","from_path");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_resource_folders_site_parent_name_uq" ON "cms_resource_folders" USING btree ("site_id","parent_id","name") WHERE "cms_resource_folders"."parent_id" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_resource_folders_site_root_name_uq" ON "cms_resource_folders" USING btree ("site_id","name") WHERE "cms_resource_folders"."parent_id" is null;--> statement-breakpoint
+CREATE INDEX "cms_resource_folders_site_parent_idx" ON "cms_resource_folders" USING btree ("site_id","parent_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_resource_refs_uq" ON "cms_resource_refs" USING btree ("resource_id","owner_type","owner_id","field");--> statement-breakpoint
+CREATE INDEX "cms_resource_refs_resource_idx" ON "cms_resource_refs" USING btree ("resource_id");--> statement-breakpoint
+CREATE INDEX "cms_resource_refs_site_idx" ON "cms_resource_refs" USING btree ("site_id");--> statement-breakpoint
+CREATE INDEX "cms_resource_refs_owner_idx" ON "cms_resource_refs" USING btree ("owner_type","owner_id");--> statement-breakpoint
+CREATE INDEX "cms_resources_site_type_idx" ON "cms_resources" USING btree ("site_id","type");--> statement-breakpoint
+CREATE INDEX "cms_resources_site_folder_idx" ON "cms_resources" USING btree ("site_id","folder_id");--> statement-breakpoint
+CREATE INDEX "cms_resources_file_idx" ON "cms_resources" USING btree ("file_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_resources_site_url_uq" ON "cms_resources" USING btree ("site_id","url");--> statement-breakpoint
+CREATE INDEX "cms_search_logs_site_time_idx" ON "cms_search_logs" USING btree ("site_id","created_at");--> statement-breakpoint
+CREATE INDEX "cms_search_logs_keyword_idx" ON "cms_search_logs" USING btree ("site_id","keyword");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_search_words_site_type_word_uq" ON "cms_search_words" USING btree ("site_id","type","word");--> statement-breakpoint
+CREATE INDEX "cms_search_words_site_group_idx" ON "cms_search_words" USING btree ("site_id","type","group_name");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_sites_domain_uq" ON "cms_sites" USING btree ("domain") WHERE "cms_sites"."domain" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_sites_default_uq" ON "cms_sites" USING btree ("is_default") WHERE "cms_sites"."is_default" = true;--> statement-breakpoint
+CREATE INDEX "cms_sites_parent_idx" ON "cms_sites" USING btree ("parent_id","sort","id");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_tags_site_name_uq" ON "cms_tags" USING btree ("site_id","name");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_tags_site_slug_uq" ON "cms_tags" USING btree ("site_id","slug");--> statement-breakpoint
+CREATE INDEX "cms_visit_logs_site_time_idx" ON "cms_visit_logs" USING btree ("site_id","created_at");--> statement-breakpoint
+CREATE INDEX "cms_visit_logs_content_idx" ON "cms_visit_logs" USING btree ("content_id") WHERE "cms_visit_logs"."content_id" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_widget_refs_owner_field_uq" ON "cms_widget_refs" USING btree ("owner_type","owner_id","field");--> statement-breakpoint
+CREATE INDEX "cms_widget_refs_widget_idx" ON "cms_widget_refs" USING btree ("widget_id");--> statement-breakpoint
+CREATE INDEX "cms_widget_refs_site_owner_idx" ON "cms_widget_refs" USING btree ("site_id","owner_type","owner_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_widget_source_refs_widget_item_uq" ON "cms_widget_source_refs" USING btree ("widget_id","item_id");--> statement-breakpoint
+CREATE INDEX "cms_widget_source_refs_source_idx" ON "cms_widget_source_refs" USING btree ("source_type","source_id");--> statement-breakpoint
+CREATE INDEX "cms_widget_source_refs_site_idx" ON "cms_widget_source_refs" USING btree ("site_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "cms_widgets_site_code_uq" ON "cms_widgets" USING btree ("site_id","code");--> statement-breakpoint
+CREATE INDEX "cms_widgets_site_status_idx" ON "cms_widgets" USING btree ("site_id","status");

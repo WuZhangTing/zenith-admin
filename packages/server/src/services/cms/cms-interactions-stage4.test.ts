@@ -1,4 +1,4 @@
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import {
   createCmsInteractionSchema,
@@ -16,13 +16,6 @@ import {
 } from './cms-interactions.service';
 
 const option = (id: string) => ({ id, label: id, value: id });
-
-async function stage4Migration(): Promise<string> {
-  const directory = new URL('../../../drizzle/', import.meta.url);
-  const filename = (await readdir(directory)).find((name) => name.startsWith('0096_') && name.endsWith('.sql'));
-  if (!filename) throw new Error('0096 migration missing');
-  return readFile(new URL(filename, directory), 'utf8');
-}
 
 describe('CMS Stage4 unified interactions', () => {
   it('supports survey and constrained poll definitions in one schema', () => {
@@ -139,13 +132,6 @@ describe('CMS Stage4 unified interactions', () => {
     expect(theme).toContain('clearDraft(box)');
     // 属性上下文必须转义引号，否则 data-cond 的 JSON 会被首个引号截断
     expect(theme).toContain("replace(/\"/g,'&quot;')");
-  });
-
-  it('migration drops both legacy product tables', async () => {
-    const migration = await stage4Migration();
-    expect(migration).toContain('DROP TABLE "cms_polls"');
-    expect(migration).toContain('DROP TABLE "cms_surveys"');
-    expect(migration).toContain('CREATE TABLE "cms_interactions"');
   });
 
   it('generates non-colliding copy codes and never nests -copy suffixes', () => {

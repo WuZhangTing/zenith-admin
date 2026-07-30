@@ -251,11 +251,6 @@ import { registerReportDqTaskHandlers } from './services/report/report-dq-tasks'
 import { registerReportSlaTaskHandlers } from './services/report/report-sla-tasks';
 import { registerReportFillTasks } from './services/report/report-fill-task.service';
 import { registerAnalyticsTaskHandlers } from './services/analytics/analytics-tasks';
-import {
-  backfillLegacyDashboardLifecycle,
-  backfillLegacyReportTenants,
-  migrateLegacyReportSecrets,
-} from './services/report/report-secret-migration.service';
 import { createWsRoute } from './routes/platform/ws';
 import { createWsTerminalRoute, createWsTerminalMonitorRoute } from './routes/ops/ws-terminal';
 import terminalFilesRoutes from './routes/ops/terminal-files';
@@ -698,14 +693,9 @@ app.onError((err, c) => {
   return c.json(errBody('服务器内部错误', 500), 500);
 });
 
-await backfillLegacyReportTenants();
-await backfillLegacyDashboardLifecycle();
-await migrateLegacyReportSecrets();
-const { invalidateLegacyOAuthTokens } = await import('./services/open-platform/open-api-maintenance.service');
-const invalidatedLegacyOAuthTokens = await invalidateLegacyOAuthTokens();
-if (invalidatedLegacyOAuthTokens > 0) {
-  logger.warn(`Invalidated ${invalidatedLegacyOAuthTokens} legacy OAuth tokens without a token family`);
-}
+// 历史数据补齐（report 租户回填 / dashboard 生命周期初始化 / 密文归一 /
+// 遗留 OAuth token 作废）已并入 Drizzle 迁移链，随 migrate 一次性执行，
+// 不再占用启动路径。详见 db/data-migrations.ts。
 registerOpenWebhookSubscriber();
 logger.info(`Server starting on port ${config.port}...`);
 const server = serve({ fetch: app.fetch, port: config.port });

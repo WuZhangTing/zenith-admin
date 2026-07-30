@@ -1,1 +1,0 @@
-ALTER TABLE "users" ADD CONSTRAINT "users_tenant_phone_unique" UNIQUE("tenant_id","phone");

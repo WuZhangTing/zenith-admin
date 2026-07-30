@@ -1,1 +1,0 @@
-ALTER TABLE "cms_resources" ADD COLUMN "owns_file" boolean DEFAULT true NOT NULL;
