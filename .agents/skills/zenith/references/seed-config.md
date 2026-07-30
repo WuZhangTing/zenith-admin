@@ -19,8 +19,22 @@
 在为新模块分配 ID 前，**必须先读取实际文件**了解当前分布：
 
 ```text
-packages/shared/src/seed/{业务域}.ts   ← 查阅 SEED_MENUS 数组（含各段注释，如「─── 系统管理（1000 段）」）
+packages/shared/src/seed/menus.ts        ← 聚合器：确认段顺序与分片清单
+packages/shared/src/seed/menus/*.ts      ← 按一级目录 ID 段分片，查阅目标段的实际占用
 ```
+
+菜单已按一级目录 ID 段拆分为分片文件，新增条目只改对应分片，不要往聚合器里堆：
+
+| 段基数 | 分片文件 | 段基数 | 分片文件 |
+| --- | --- | --- | --- |
+| — | `menus/common.ts`（首页 / 个人中心 / 公告 / 我的消息） | 8000 | `menus/payment.ts` |
+| 1000 | `menus/system.ts` | 9000 | `menus/member.ts` |
+| 2000 | `menus/settings.ts` | 10000 | `menus/mp.ts` |
+| 3000 | `menus/ai.ts` | 11000 | `menus/biz.ts` |
+| 4000 | `menus/workflow.ts` | 12000 | `menus/report.ts` |
+| 5000 | `menus/messaging.ts` | 13000 | `menus/open-platform.ts` |
+| 6000 | `menus/rules.ts` | 14000 | `menus/cms.ts` |
+| 7000 | `menus/analytics.ts` | | |
 
 典型查询方式：
 
@@ -47,7 +61,11 @@ packages/shared/src/seed/{业务域}.ts   ← 查阅 SEED_MENUS 数组（含各�
 
 ---
 
-## Step 9：`packages/shared/src/seed/{业务域}.ts`
+## Step 9：`packages/shared/src/seed/menus/{段}.ts`
+
+> 菜单条目写入对应 ID 段的分片文件（见上表）。**新增一级目录**时：在 `seed/menus/` 下新建分片、
+> 在 `seed/menus.ts` 中 import 并按顺序加入 `SEED_MENUS` 展开列表；分片内 `SEED_DATE` 从 `../_base` 导入
+> （**不要**从 `../menus` 导入，会与聚合器形成 ESM 值环，`npm run lint:cycles` 会拦截）。
 
 ### 新增目录（一级菜单 / 二级目录，若需要）
 
@@ -108,13 +126,14 @@ packages/shared/src/seed/{业务域}.ts   ← 查阅 SEED_MENUS 数组（含各�
 
 > **审计字段无需手填**：seed 脚本整体由 `runAsUser(adminId, ...)`（[`lib/audit-context.ts`](../../../../packages/server/src/lib/audit-context.ts)）包裹，所有 insert / update / onConflictDoUpdate 会被 db Proxy 自动注入 `createdBy = updatedBy = adminId`。**禁止**在种子数据数组中手动写 `createdBy` / `updatedBy`。
 
-### Step 10a：先在 `shared/seed-data.ts` 声明常量
+### Step 10a：先在 `shared/src/seed/{业务域}.ts` 声明常量
 
 初始数据**必须**先放到 `packages/shared/src/seed/{业务域}.ts`，使 DB seed 和 MSW mock 共用同一份数据源：
 
 ```ts
-// packages/shared/src/seed/{业务域}.ts（新增域时同步 seed/index.ts）
-import type { ..., Xxx } from './types';  // 在顶部 import 中添加 Xxx
+// packages/shared/src/seed/{业务域}.ts
+import type { Xxx } from '../{业务域}/types';   // 实体类型来自对应业务域
+import { SEED_DATE } from './_base';            // 统一基准时间（勿从 './menus' 导入，会成环）
 
 // ─── XXX 初始数据 ──────────────────────────────────────────────────────────────
 export const SEED_XXXS: Xxx[] = [
@@ -123,6 +142,9 @@ export const SEED_XXXS: Xxx[] = [
 ];
 ```
 
+> **新增 seed 分片时**：在 `packages/shared/src/seed/index.ts` 中补 `export * from './{业务域}';`，否则
+> `@zenith/shared/seed` 拿不到新常量。
+
 ### Step 10b：在 `seed.ts` 中导入并插入
 
 ```ts
@@ -130,7 +152,7 @@ export const SEED_XXXS: Xxx[] = [
 import { ..., SEED_XXXS } from '@zenith/shared/seed';
 
 // seedRest() 函数末尾追加：
-// ─── 初始 XXX 数据（数据来源：@zenith/shared SEED_XXXS）─────────────────────
+// ─── 初始 XXX 数据（数据来源：@zenith/shared/seed 的 SEED_XXXS）─────────────────
 await db.insert(xxxs).values(
   SEED_XXXS.map(({ id, name, description, status }) => ({ id, name, description, status })),
 ).onConflictDoNothing({ target: xxxs.id });

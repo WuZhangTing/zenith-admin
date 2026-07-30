@@ -43,12 +43,21 @@ Step 0 中必须同时确认以下可选项（决定后续步骤是否执行）�
 | 1 | 数据库 Schema | `packages/server/src/db/schema/{业务域}.ts`（relations 在 `relations.ts`） |
 | 2 | 生成并执行迁移 | `npm run db:generate && npm run db:migrate` |
 | 3 | 共享 Zod Schema | `packages/shared/src/{业务域}/validation.ts` |
-| 4 | 共享 TS Interface | `packages/shared/src/{业务域}/types.ts` |
+| 4 | 共享 TS Interface | `packages/shared/src/{业务域}/types.ts`（枚举常量放同域 `constants.ts`） |
 | 5 | Service 层 | `packages/server/src/services/{业务域}/xxx.service.ts` |
 | 6 | OpenAPI Route | `packages/server/src/routes/{业务域}/xxx.ts` |
 | 7 | 注册路由 | `packages/server/src/routes/{业务域}/index.ts`（域 barrel，新增域需同步 `routes/index.ts`） |
 
 > Step 7 完成后执行 `npm run dev:server` 冒烟验证，无编译错误再继续。
+
+> ⚠️ **shared 已按业务域拆分，导入一律走域子路径**：`import type { Xxx } from '@zenith/shared/{业务域}'`，
+> 种子数据用 `@zenith/shared/seed`。**禁止** `from '@zenith/shared'` 根入口（ESLint 报错）。
+> 现有域：`core` / `identity` / `platform` / `messaging` / `workflow` / `payment` / `member` / `report` /
+> `analytics` / `ai` / `chat` / `mp` / `cms` / `open-platform` / `rules` / `ops` / `tasks` / `biz`。
+> **新增业务域**时 Step 3-4 需额外做两件事：建 `packages/shared/src/{新域}/index.ts`（re-export 域内文件，
+> **不含 seed**），并在 `packages/shared/package.json` 的 `exports` 登记 `"./{新域}": "./src/{新域}/index.ts"`。
+> 枚举遵循 SSOT：常量数组 + 派生 union + `XXX_LABELS`/`XXX_OPTIONS` 一并放 `constants.ts`，`validation.ts`
+> 只做 `z.enum(XXX_TYPES)` 引用——把跨域引用的常量留在 `validation.ts` 会形成 ESM 值环导致运行时崩溃。
 
 > ⚠️ **外呼调用统一走 `http-client`**：任何 service / 路由中向外部发起的 HTTP 请求（OAuth、第三方 API、链接抓取等），**必须**使用 `packages/server/src/lib/http-client.ts` 的 `httpRequest` / `httpGet` / `httpPost` 等，**禁止**直接 `fetch()`。详见 [crud-backend.md 外呼 HTTP 调用](./references/crud-backend.md) 与 [docs/backend/http-client.md](../../../docs/backend/http-client.md)。
 
@@ -73,8 +82,8 @@ Step 0 中必须同时确认以下可选项（决定后续步骤是否执行）�
 
 | Step | 任务 | 文件 | 条件 |
 |------|------|------|------|
-| 9 | 菜单/权限配置 | `packages/shared/src/seed/menus.ts` | 总是 |
-| 10 | 种子数据 | `packages/server/src/db/seed.ts` | 总是 |
+| 9 | 菜单/权限配置 | `packages/shared/src/seed/menus/{段}.ts`（按一级目录 ID 段分片） | 总是 |
+| 10 | 种子数据 | `packages/shared/src/seed/{业务域}.ts` + `packages/server/src/db/seed.ts` | 总是 |
 | 11 | MSW Mock | `packages/web/src/mocks/data/xxxs.ts` + `handlers/xxxs.ts` | 仅 Step 0 确认需要时 |
 
 MSW Mock 的详细代码模板见 [crud-mock.md](./references/crud-mock.md)。
@@ -110,7 +119,7 @@ MSW Mock 的详细代码模板见 [crud-mock.md](./references/crud-mock.md)。
 - [ ] Modal 表单 `labelPosition="left"`，`closeOnEsc`
 
 **配置：**
-- [ ] 菜单已添加到 `packages/shared/src/seed/menus.ts`
+- [ ] 菜单已添加到 `packages/shared/src/seed/menus/{段}.ts`（新增一级目录时同步 `seed/menus.ts` 的聚合列表）
 - [ ] 需要 MSW Mock → Step 11 已完成
 
 **约束对照：** 实现过程中随时查阅 [constraints.md](./references/constraints.md)。

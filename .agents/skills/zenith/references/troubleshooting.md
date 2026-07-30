@@ -165,6 +165,19 @@
 
 ### 问题：共享包类型找不到
 
-**原因**：`@zenith/shared` 的 tsconfig path 映射未正确配置。
+**原因**：`@zenith/shared` 已按业务域拆分，只能通过域子路径导入；根入口被 ESLint 禁用，新增域未登记 `exports` 也会解析失败。
 
-**解决**：确认 `tsconfig.json` 中的 `paths` 包含 `"@zenith/shared": ["../../shared/src"]` 或类似映射。
+**解决**：
+
+1. 确认导入写法为域子路径：`import type { Xxx } from '@zenith/shared/{业务域}'`（不是 `from '@zenith/shared'`，也不是已删除的 `/types`、`/validation`、`/constants`、`/seed-data`）
+2. 确认符号确实在该域：`packages/shared/src/{业务域}/{types,validation,constants}.ts`
+3. 新增业务域时，必须同时做三件事，缺一会报模块找不到：
+   - 建 `packages/shared/src/{新域}/index.ts` 并 re-export 域内文件
+   - 在 `packages/shared/package.json` 的 `exports` 中登记 `"./{新域}": "./src/{新域}/index.ts"`
+   - 域 `index.ts` **不得**导出 seed
+
+### 问题：`z.enum(...)` 报 "Cannot convert undefined or null to object"
+
+**原因**：ESM 值环导致 TDZ —— 某域的 `validation.ts` 引用了另一域 `validation.ts` 里的常量数组，而后者又反向引用前者，初始化期取到 `undefined`。
+
+**解决**：把被跨域 `z.enum()` 引用的常量数组上移到所属域的 `constants.ts`（枚举 SSOT），`validation.ts` 只做 `z.enum(XXX_TYPES)` 引用。用 `npm run lint:cycles` 定位环路；该检测只拦截值环，`import type` 形成的类型环运行时无害、不报错。

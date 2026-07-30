@@ -43,7 +43,7 @@
 1. **DTO**（Step 6）：修改 `packages/server/src/lib/dtos/xxx.ts` 中的 DTO
 2. **Service mapXxx**（Step 5）：更新 `mapXxx()` 的返回字段
 3. **TS Interface**（Step 4）：同步修改 `packages/shared/src/{业务域}/types.ts`
-4. **前端类型**（Step 8）：前端使用 `@zenith/shared` 的 `Xxx` 类型，自动同步
+4. **前端类型**（Step 8）：前端从 `@zenith/shared/{业务域}` 导入 `Xxx` 类型，自动同步
 
 ### 新增 API 端点
 

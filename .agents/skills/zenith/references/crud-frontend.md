@@ -39,7 +39,8 @@ packages/web/src/pages/xxx/XxxPage.tsx     # 页面组件
 
 ```ts
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse, Xxx } from '@zenith/shared/{业务域}';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { Xxx } from '@zenith/shared/{业务域}';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 

@@ -205,13 +205,13 @@ import {
 import { XxxDTO } from '../../lib/openapi-dtos';
 // 业务逻辑统一从 service 导入
 import { listXxx, getXxx, createXxx, updateXxx, deleteXxx, ensureXxxExists } from '../../services/{业务域}/xxx.service';
-// 可直接从 @zenith/shared 导入（使用 Zod v4）
-// import { createXxxSchema, updateXxxSchema } from '@zenith/shared';
+// 共享 schema 从域子路径导入（禁止 '@zenith/shared' 根入口，ESLint 会报错）
+// import { createXxxSchema, updateXxxSchema } from '@zenith/shared/{业务域}';
 
 // 不使用 <AuthEnv> 泛型，不添加全局 use('*', authMiddleware)
 const xxxRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-// 若 @zenith/shared 中的 schema 不满足需求（如需 coerce），可在本地声明
+// 若 @zenith/shared/{业务域} 中的 schema 不满足需求（如需 coerce），可在本地声明
 const createXxxSchema = z.object({
   name: z.string().min(1).max(64),
   description: z.string().max(256).optional(),
