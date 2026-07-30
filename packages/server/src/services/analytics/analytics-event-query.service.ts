@@ -94,18 +94,24 @@ export async function queryEvents(input: AnalyticsEventQueryInput): Promise<Anal
     ? sql`COUNT(DISTINCT ${userEvents.distinctId}) DESC`
     : sql`COUNT(*) DESC`;
   const dateIndex = groupBy.indexOf('date');
-  const orderByExprs: Array<SQL | PgColumn> = dateIndex >= 0
-    ? [groupByExprs[dateIndex], ...groupByExprs.filter((_, index) => index !== dateIndex)]
+  // SELECT 位序：d0, d1?, value, __total。GROUP BY/ORDER BY 用位置序号，
+  // 避免 Drizzle 对同一 sql`` 片段重复绑参后 PG 认不出与 SELECT 表达式相同（42803）。
+  const selectPos = [sql`1`, sql`2`] as const;
+  const groupByPositions = groupBy.map((_, i) => selectPos[i]);
+  const orderByExprs: SQL[] = dateIndex >= 0
+    ? [selectPos[dateIndex], ...groupBy.map((_, i) => i).filter((i) => i !== dateIndex).map((i) => selectPos[i])]
     : [orderExpr];
 
-  const selectShape: Record<string, SQL | PgColumn> = { value: valueExpr, __total: sql<number>`COUNT(*) OVER()::int` };
-  groupBy.forEach((g, i) => { selectShape[`d${i}`] = groupByExprs[i]; });
+  const selectShape: Record<string, SQL | PgColumn> = {};
+  groupBy.forEach((_, i) => { selectShape[`d${i}`] = groupByExprs[i]; });
+  selectShape.value = valueExpr;
+  selectShape.__total = sql<number>`COUNT(*) OVER()::int`;
 
   const rows = (await db
     .select(selectShape)
     .from(userEvents)
     .where(where)
-    .groupBy(...groupByExprs)
+    .groupBy(...groupByPositions)
     .orderBy(...orderByExprs)
     .limit(limit)) as unknown as Array<Record<string, unknown>>;
 
