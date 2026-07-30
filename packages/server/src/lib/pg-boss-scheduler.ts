@@ -1012,7 +1012,9 @@ export async function getSystemQueueMetrics(names: string[]): Promise<Record<str
   }
   for (const name of names) {
     try {
-      const stats = await b?.getQueueStats(name);
+      // pg-boss v12.26 起 getQueueStats 返回快照序列（按 capturedOn 倒序），
+      // 未开启 persistQueueStats 时为单元素数组，取首项即当前读数。
+      const stats = (await b?.getQueueStats(name))?.at(0);
       const stateCounts = stateMap.get(name) ?? {};
       result[name] = {
         queuedCount: stats?.queuedCount ?? 0,

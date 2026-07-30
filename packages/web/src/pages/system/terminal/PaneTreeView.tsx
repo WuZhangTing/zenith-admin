@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+import { Group, Panel, Separator } from 'react-resizable-panels';
 import { Tooltip } from '@douyinfe/semi-ui';
 import { PanelRight, PanelBottom, X } from 'lucide-react';
 import TerminalTab from './TerminalTab';
@@ -108,36 +108,37 @@ export default function PaneTreeView({
   const renderNode = (node: PaneNode): ReactNode => {
     if (node.type === 'leaf') return renderLeaf(node);
     return (
-      <PanelGroup direction={node.direction} className="terminal-panel-group">
+      <Group orientation={node.direction} className="terminal-panel-group">
         {node.children.flatMap((child, i) => {
           const panel = (
-            <Panel key={child.id} id={child.id} order={i} minSize={8} className="terminal-panel">
+            // minSize 用字符串表示百分比（v4 起数字表示像素）
+            <Panel key={child.id} id={child.id} minSize="8" className="terminal-panel">
               {renderNode(child)}
             </Panel>
           );
           if (i === 0) return [panel];
           const handle = (
-            <PanelResizeHandle
+            <Separator
               key={`handle-${child.id}`}
               className={`terminal-resize-handle terminal-resize-handle--${node.direction}`}
             />
           );
           return [handle, panel];
         })}
-      </PanelGroup>
+      </Group>
     );
   };
 
   return (
     <div className="terminal-pane-tree">
       {root.type === 'leaf' ? (
-        // 单面板：始终包裹在 PanelGroup+Panel 中，保证分屏关闭后 Panel key 不变，
+        // 单面板：始终包裹在 Group+Panel 中，保证分屏关闭后 Panel key 不变，
         // TerminalTab 不重建， WebSocket 不断线。
-        <PanelGroup direction="horizontal" className="terminal-panel-group">
-          <Panel key={root.id} id={root.id} order={0} minSize={8} className="terminal-panel">
+        <Group orientation="horizontal" className="terminal-panel-group">
+          <Panel key={root.id} id={root.id} minSize="8" className="terminal-panel">
             {renderLeaf(root)}
           </Panel>
-        </PanelGroup>
+        </Group>
       ) : (
         renderNode(root)
       )}

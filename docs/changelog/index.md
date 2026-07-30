@@ -4,6 +4,34 @@
 
 ---
 
+## v1.22.0 - 2026-07-30
+
+依赖升级维护版本：全量刷新 36 个依赖（含 8 个跨大版本），并修复随之而来的破坏性变更。无业务功能变更。
+
+### Changed
+
+#### 依赖升级
+
+- **后端**：hono 4.12.32、@hono/zod-openapi 1.5.1、@hono/node-server 2.0.12、@hono/node-ws 1.3.1、@hono/otel 1.1.2、pg-boss 12.26.3、mysql2 3.23.2、mssql 12.7.0、nodemailer 9.0.3、@aws-sdk/* 3.1098.0、@azure/storage-blob 12.33.0、@alicloud/dysmsapi20170525 4.6.0、dockerode 5.0.1
+- **前端**：@douyinfe/semi-ui 与 semi-illustrations 2.101.1、lucide-react 1.28.0、react-router-dom 7.18.2、@visactor/react-vchart 2.1.4、@tanstack/react-virtual 3.14.9、react-grid-layout 2.2.4、react 与 react-dom 19.2.8
+- **跨大版本**：cos-nodejs-sdk-v5 2→3、ldapts 8→9、web-vitals 4→6、source-map 0.7→0.8、@opentelemetry/sdk-node 与 exporter-trace-otlp-http 0.220→0.221、@testing-library/jest-dom 6→7、react-resizable-panels 3→4、electron 42→43
+- **工具链**：eslint 10.8.0、typescript-eslint 8.65.0、@vitest/coverage-v8 4.1.10、tsx 4.23.1、electron-builder 26.15.3、wait-on 9.1.0、concurrently 10.0.4
+
+> jest-dom 7、ldapts 9、electron 43 均要求 Node ≥ 22（CI 使用 Node 24）。
+
+#### 终端分屏
+
+- 适配 react-resizable-panels v4 的 API 重命名：`PanelGroup` → `Group`、`PanelResizeHandle` → `Separator`、`direction` → `orientation`，并移除已废弃的 `order` 属性
+- v4 起 `minSize` 数字表示像素、字符串表示百分比，分屏最小尺寸改用 `minSize="8"` 以保持原有的 8% 下限；拖拽条高亮样式从 `[data-resize-handle-active]` 迁移到 `[data-separator]`
+- Panel 的 `id` / `key` 稳定性保持不变，分屏开合时终端不重建、WebSocket 不断线
+
+### Fixed
+
+- 修复 pg-boss 12.26 起 `getQueueStats()` 返回快照序列（按 `capturedOn` 倒序）而非单个对象，导致系统队列监控取不到队列深度的问题，现取首项作为当前读数
+- 同步 `packages/electron/package.json` 与 `electron-builder.config.js` 中滞留在 42.3.3 的 `electronVersion`，与实际 electron 依赖版本保持一致
+
+---
+
 ## v1.21.0 - 2026-07-30
 
 CMS 新增结构化页面部件，并补齐 SSR 预览、引用治理、并发控制与批量任务闭环。

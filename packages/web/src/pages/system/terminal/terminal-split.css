@@ -363,8 +363,10 @@
   cursor: row-resize;
 }
 
+/* v4 的 Separator 通过 data-separator 暴露 hover/active 状态 */
 .terminal-resize-handle:hover,
-.terminal-resize-handle[data-resize-handle-active] {
+.terminal-resize-handle[data-separator='hover'],
+.terminal-resize-handle[data-separator='active'] {
   background: var(--semi-color-primary);
 }
 

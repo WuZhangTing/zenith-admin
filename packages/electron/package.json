@@ -1,6 +1,6 @@
 {
   "name": "@zenith/electron",
-  "version": "1.21.0",
+  "version": "1.22.0",
   "private": true,
   "description": "Zenith Admin Electron Client",
   "author": "Zenith Admin",
@@ -16,7 +16,7 @@
     "appId": "com.zenith.admin",
     "productName": "Zenith Admin",
     "copyright": "Copyright © 2024",
-    "electronVersion": "42.3.3",
+    "electronVersion": "43.2.0",
     "icon": "../web/public/icons/icon-512.png",
     "directories": {
       "output": "../../dist/electron",
@@ -81,10 +81,10 @@
   },
   "devDependencies": {
     "@typescript/native": "npm:typescript@^7.0.2",
-    "concurrently": "^10.0.3",
-    "electron": "42.4.0",
-    "electron-builder": "^26.15.2",
+    "concurrently": "^10.0.4",
+    "electron": "43.2.0",
+    "electron-builder": "^26.15.3",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "wait-on": "^9.0.10"
+    "wait-on": "^9.1.0"
   }
 }

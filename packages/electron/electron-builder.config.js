@@ -4,7 +4,7 @@ const config = {
   productName: 'Zenith Admin',
   copyright: 'Copyright © 2024',
   // 与 package.json 中的 electron 版本保持一致
-  electronVersion: '42.3.3',
+  electronVersion: '43.2.0',
 
   icon: '../web/public/icons/icon-512.png',
 
