@@ -4,6 +4,40 @@
 
 ---
 
+## v1.25.0 - 2026-07-30
+
+共享层治理版本：`@zenith/shared` 从 4 个巨石文件拆为 18 个业务域 + 独立种子入口，并新增值环门禁。**无业务功能变更**，服务端 1544 项、前端 410 项测试全部通过（拆分前 `openapi-doc` 递归用例卡在 5s 超时边界偶发失败，拆分后耗时下降而稳定通过）。
+
+### Changed
+
+#### 共享层按业务域拆分
+
+- `packages/shared` 此前用 4 个文件承载全部 2728 个导出：`types.ts` 365KB、`seed-data.ts` 357KB、`validation.ts` 307KB、`constants.ts` 78KB。近 300 次提交里 `types.ts` 被改 300 次（100%）、`validation.ts` 255 次、`seed-data.ts` 237 次，而单次改动平均只有 10~100 行——每加一个字段都要先在 37 万字符的文件里定位。服务端早已按 17 个域拆好 `routes` / `services` / `db/schema`，共享层是唯一没有域边界的一层
+- 按服务端路由域切出 18 个业务域（`core` / `identity` / `platform` / `messaging` / `workflow` / `payment` / `member` / `report` / `analytics` / `ai` / `chat` / `mp` / `cms` / `open-platform` / `rules` / `ops` / `tasks` / `biz`），每域固定 `types.ts` + `validation.ts` + `constants.ts` + `index.ts`；11 个运行时模块归位（`workflow-formula` → `workflow/formula`、`rule-cell` → `rules/cell`、`cms-link` → `cms/link` 等）
+- 种子数据剥离出根入口：只服务 `db/seed.ts` 与 MSW mock，不再进入生产依赖图；`SEED_MENUS` 再按一级目录 ID 段拆为 15 个分片（`seed/menus/system.ts`、`settings.ts`、`workflow.ts`、`cms.ts` …），新增模块只改对应段
+- `package.json` 补全 `exports` 子路径映射；域 `index.ts` 刻意不导出 seed
+- 消费方 1313 个文件 / 1580 条 import 改写为域子路径，旧巨石文件与过渡 shim 全部删除
+- 枚举改为以 `constants.ts` 为唯一来源：常量数组 + 派生 union type + `XXX_LABELS` / `XXX_OPTIONS` 一并定义，`validation.ts` 只做 `z.enum(XXX_TYPES)` 引用
+
+> **成果**：共享层由 16 个文件变为 110 个，最大单文件从 365KB 降至 92.7KB，超过 100KB 的文件为 0；根入口导入 1583 → 1（仅保留元编程全量扫描一处），域子路径导入 3 → 1899；2727 个符号全部归类，0 未归类。
+
+### Added
+
+#### 依赖方向门禁
+
+- 新增 `scripts/check-value-cycles.mjs`（`npm run lint:cycles`，已并入 `npm run lint`）：只拦截会触发 ESM 初始化期 TDZ 的**值环**，`import type` 形成的类型环运行时无害不报。`madge --circular` 不区分二者——拆分后它报的 5 个环里 4 个是 type-only，照单全消会白做 80% 的功
+  - 该检测的必要性由实际事故确认：拆分过程中 `mp/validation` 与 `messaging/validation` 形成值环（`MP_CUSTOM_MSG_TYPES` 供 messaging 的 `z.enum()` 使用），初始化期取到 `undefined`，一次崩掉 133 个测试文件；修复即「枚举 SSOT 归 constants」。随后它又当场拦下了拆分 `SEED_MENUS` 时引入的 15 个环（分片 → 聚合器 → 分片），`SEED_DATE` 因此独立为 `seed/_base.ts`
+- ESLint 禁用 `@zenith/shared` 根入口及四条已删除的旧巨石路径（server + web 双端）。唯一豁免是 `update-schema-defaults.test.ts` 对所有 `update*Schema` 的全量扫描
+
+### Docs
+
+- `AGENTS.md` 与 zenith skill 同步域化约定：CRUD 各步的写入路径改为 `packages/shared/src/{业务域}/`，新增「域子路径导入」「枚举 SSOT 在 constants」「新增域需建 `index.ts` 并登记 `exports`」三条约束与对应自检项
+- 复查修正 skill 中 7 处会误导代码生成的残留，其中 2 处会直接产出编译不过的代码：域 hooks 模板把 `PaginatedResponse`（属 `core` 域）与实体类型写在同一条业务域导入；路由模板注释仍示范已被 ESLint 拦截的根入口写法
+- `troubleshooting.md`「共享包类型找不到」由 tsconfig paths 排错改写为域子路径 / `exports` 登记排错，并新增 `z.enum()` 取到 `undefined`（值环 / TDZ）的排查条目
+- `seed-config.md` 补入 15 个菜单分片的段位对照表，说明分片内 `SEED_DATE` 必须从 `../_base` 导入，以及新增 seed 分片需在 `seed/index.ts` 注册
+
+---
+
 ## v1.24.0 - 2026-07-30
 
 服务端启动文件治理版本：按业务域拆解 786 行的 `index.ts`，抽出纯函数 `createApp()`。**运行时行为经逐条比对证明零变化**，无业务功能变更。
