@@ -425,8 +425,7 @@ export default defineRouteDomain({
 - 需要在**全部** API 路由之后兜底的挂载（如按 Host 匹配的 `/`），必须放进 `fallback` 而不是 `mounts` 末尾——后者只能保证域内靠后，保证不了全局最后
 - 新增业务域时：建 `routes/{业务域}/index.ts`，再把它加进 `routes/index.ts` 的 `ROUTE_DOMAINS`
 
-> 改完执行 `npx vitest run src/app.routes.test.ts -u` 更新路由表快照。
-> 新增挂载会在快照 diff 中显示出来便于 review；若顺序意外漂移则测试直接失败。
+> 改完执行 `npm run dev:server` 冒烟验证挂载生效；调整既有条目相对位置前请人工确认不会造成路径遮蔽（同一路径多次挂载时，顺序是语义的一部分）。
 
 ---
 

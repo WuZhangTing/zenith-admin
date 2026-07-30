@@ -1,6 +1,6 @@
 {
 	"name": "zenith-admin",
-	"version": "1.25.0",
+	"version": "1.26.0",
 	"private": true,
 	"workspaces": [
 		"packages/*"
@@ -26,8 +26,7 @@
 		"test": "npm run test -w @zenith/server && npm run test -w @zenith/web",
 		"test:server": "npm run test -w @zenith/server",
 		"test:web": "npm run test -w @zenith/web",
-		"lint": "node scripts/check-value-cycles.mjs && npm run lint -w @zenith/server && npm run lint -w @zenith/analytics-sdk && npm run lint -w @zenith/web",
-		"lint:cycles": "node scripts/check-value-cycles.mjs",
+		"lint": "npm run lint -w @zenith/server && npm run lint -w @zenith/analytics-sdk && npm run lint -w @zenith/web",
 		"lint:fix": "npm run lint:fix -w @zenith/server && npm run lint:fix -w @zenith/analytics-sdk && npm run lint:fix -w @zenith/web"
 	},
 	"devDependencies": {

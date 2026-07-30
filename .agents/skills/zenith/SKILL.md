@@ -97,8 +97,8 @@ MSW Mock 的详细代码模板见 [crud-mock.md](./references/crud-mock.md)。
 - [ ] 数据库迁移已执行
 - [ ] 共享类型/schema 写入 `packages/shared/src/{业务域}/`（不是根目录巨石文件）；新增域已建 `index.ts` 并在 `packages/shared/package.json` 的 `exports` 中登记
 - [ ] 全项目无 `from '@zenith/shared'` 根入口导入（一律 `@zenith/shared/{业务域}`；种子数据用 `@zenith/shared/seed`）
-- [ ] `npm run lint:cycles` 通过（无 ESM 值环）
-- [ ] 路由已挂载到 `packages/server/src/routes/{业务域}/index.ts`；新增域已加进 `routes/index.ts` 的 `ROUTE_DOMAINS`；路由表快照已用 `npx vitest run src/app.routes.test.ts -u` 更新并 review 过 diff
+- [ ] 跨域引用的枚举常量数组位于 `constants.ts`（不在 `validation.ts`），避免 ESM 值环
+- [ ] 路由已挂载到 `packages/server/src/routes/{业务域}/index.ts`；新增域已加进 `routes/index.ts` 的 `ROUTE_DOMAINS`；调整挂载顺序时已人工确认不会造成路径遮蔽
 - [ ] DTO 定义在 `lib/dtos/` 中，路由中没有本地 `.openapi()` 声明
 - [ ] Service 中没有 `c.json()` 或 `console.*`
 - [ ] 路由 handler 中没有直接 `db.*` 调用

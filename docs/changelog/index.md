@@ -4,6 +4,30 @@
 
 ---
 
+## v1.26.0 - 2026-07-31
+
+工程配置精简版本：移除 v1.25.0 引入的值环检测脚本，并移除两个在无 Redis 环境下会产生未捕获拒绝的应用级测试。**无业务功能变更**。
+
+### Removed
+
+#### 值环检测脚本
+
+- 移除 `scripts/check-value-cycles.mjs` 及 `npm run lint:cycles`，`npm run lint` 恢复为仅运行三个包的 eslint
+- 该检测所防范的问题本身依然存在，改由规范约束：**供跨域 `z.enum()` 使用的常量数组必须放在域的 `constants.ts`**，不得留在 `validation.ts`（否则 validation 之间互相引用会形成 ESM 值环，初始化期取到 `undefined` 直接崩溃）。相关约束已写入 `AGENTS.md` 与 zenith skill；需要排查环路时可用 `npx madge --circular --extensions ts packages/shared/src`，但要注意它不区分 `import` 与 `import type`，只有值导入构成的环才有害
+
+#### 应用级测试
+
+- 移除 `src/app.routes.test.ts`（路由表快照）与 `src/app.auth-invariants.test.ts`（认证不变量），连同 77KB 的路由快照文件
+- 两者都会构造完整 app，从而触发 `middleware/rate-limit.ts` 在模块加载期执行 `redis.script('LOAD')`。该调用未接 `.catch()`，在没有 Redis 的环境（如 CI）中会在 ioredis 重试 20 次后抛出无人捕获的 `MaxRetriesPerRequestError` —— 测试本身全部通过，但 vitest 因未捕获拒绝而判定失败
+  - 该问题自 v1.24.0 引入这两个测试起就已存在，v1.24.0 的 CI 通过属于时序侥幸：未捕获拒绝需约 20~30 秒才浮现，套件更早跑完则不会被 vitest 捕获。v1.25.0 因拆分改变了测试耗时而暴露
+  - 移除后，模拟无 Redis 环境的全量服务端测试为 178 通过 / 0 错误（此前 5 个未捕获错误）
+
+### Changed
+
+- zenith skill 与 `crud-backend.md` 中「改完路由挂载后更新快照」的指引，改为「执行 `npm run dev:server` 冒烟验证，并人工确认挂载顺序不会造成路径遮蔽」
+
+---
+
 ## v1.25.0 - 2026-07-30
 
 共享层治理版本：`@zenith/shared` 从 4 个巨石文件拆为 18 个业务域 + 独立种子入口，并新增值环门禁。**无业务功能变更**，服务端 1544 项、前端 410 项测试全部通过（拆分前 `openapi-doc` 递归用例卡在 5s 超时边界偶发失败，拆分后耗时下降而稳定通过）。

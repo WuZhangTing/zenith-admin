@@ -19,7 +19,7 @@
 
 - **域子路径导入**（Step 3-8）：**禁止**从 `@zenith/shared` 根入口导入（ESLint 报错）。一律使用域入口 `@zenith/shared/{业务域}`（`core` / `identity` / `platform` / `messaging` / `workflow` / `payment` / `member` / `report` / `analytics` / `ai` / `chat` / `mp` / `cms` / `open-platform` / `rules` / `ops` / `tasks` / `biz`），种子数据用 `@zenith/shared/seed`
 - **Zod Schema 位置**（Step 3）：创建/更新 schema 定义在 `packages/shared/src/{业务域}/validation.ts`，前后端共用，**禁止**在 server/web 中重复定义
-- **枚举 SSOT 在 constants**（Step 3-4）：`XXX_TYPES` 常量数组 + 派生 union type + `XXX_LABELS`/`XXX_OPTIONS` 一并写在 `packages/shared/src/{业务域}/constants.ts`；`validation.ts` 通过 `z.enum(XXX_TYPES)` 引用。**禁止**把会被其他域 `z.enum()` 引用的常量数组放在 `validation.ts` —— validation 之间互引会形成 ESM 值环，导致 `z.enum(undefined)` 运行时崩溃（`npm run lint:cycles` 会拦截）
+- **枚举 SSOT 在 constants**（Step 3-4）：`XXX_TYPES` 常量数组 + 派生 union type + `XXX_LABELS`/`XXX_OPTIONS` 一并写在 `packages/shared/src/{业务域}/constants.ts`；`validation.ts` 通过 `z.enum(XXX_TYPES)` 引用。**禁止**把会被其他域 `z.enum()` 引用的常量数组放在 `validation.ts` —— validation 之间互引会形成 ESM 值环，`z.enum()` 在初始化期取到 `undefined` 直接崩溃（曾一次崩掉 133 个测试文件）
 - **新增业务域时**（Step 3-4）：建 `packages/shared/src/{新域}/{types,validation,constants,index}.ts`，并在 `packages/shared/package.json` 的 `exports` 中登记 `"./{新域}": "./src/{新域}/index.ts"`；域 `index.ts` **不得**导出 seed
 - **update = create.partial()**（Step 3）：`updateXxxSchema = createXxxSchema.partial()` 是标准模式；若有不可更改字段，用 `.omit({ field: true })`
 

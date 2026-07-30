@@ -180,4 +180,4 @@
 
 **原因**：ESM 值环导致 TDZ —— 某域的 `validation.ts` 引用了另一域 `validation.ts` 里的常量数组，而后者又反向引用前者，初始化期取到 `undefined`。
 
-**解决**：把被跨域 `z.enum()` 引用的常量数组上移到所属域的 `constants.ts`（枚举 SSOT），`validation.ts` 只做 `z.enum(XXX_TYPES)` 引用。用 `npm run lint:cycles` 定位环路；该检测只拦截值环，`import type` 形成的类型环运行时无害、不报错。
+**解决**：把被跨域 `z.enum()` 引用的常量数组上移到所属域的 `constants.ts`（枚举 SSOT），`validation.ts` 只做 `z.enum(XXX_TYPES)` 引用。定位环路可用 `npx madge --circular --extensions ts packages/shared/src`，但注意它不区分 `import` 与 `import type`——只有**值**导入构成的环才会导致运行时崩溃，`import type` 形成的环编译后被擦除、无害，可忽略。

@@ -65,7 +65,7 @@ packages/shared/src/seed/menus/*.ts      ← 按一级目录 ID 段分片，查�
 
 > 菜单条目写入对应 ID 段的分片文件（见上表）。**新增一级目录**时：在 `seed/menus/` 下新建分片、
 > 在 `seed/menus.ts` 中 import 并按顺序加入 `SEED_MENUS` 展开列表；分片内 `SEED_DATE` 从 `../_base` 导入
-> （**不要**从 `../menus` 导入，会与聚合器形成 ESM 值环，`npm run lint:cycles` 会拦截）。
+> （**不要**从 `../menus` 导入，会与聚合器形成 ESM 值环，分片先于 `SEED_DATE` 初始化而读到 `undefined`）。
 
 ### 新增目录（一级菜单 / 二级目录，若需要）
 

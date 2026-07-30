@@ -109,8 +109,7 @@ npm run docs:dev       # 本地预览 VitePress 文档站
   ```
 
 - **域 index 刻意不导出 seed**：种子数据只服务于 `db/seed.ts` 与 MSW mock，不应进入生产依赖图
-- **枚举 SSOT 在 constants**：`XXX_TYPES` 常量数组 + 派生 union type + `XXX_LABELS` 一并定义在域的 `constants.ts`；`validation.ts` 用 `z.enum(XXX_TYPES)` 引用。**禁止**把供跨域 `z.enum()` 使用的常量数组写在 `validation.ts` —— 会在 validation 之间形成 ESM 值环，触发 `z.enum(undefined)` 运行时崩溃
-- **值环检测**：`npm run lint:cycles`（已并入 `npm run lint`）。type-only 环无害不报，只拦截会导致 TDZ 崩溃的值环
+- **枚举 SSOT 在 constants**：`XXX_TYPES` 常量数组 + 派生 union type + `XXX_LABELS` 一并定义在域的 `constants.ts`；`validation.ts` 用 `z.enum(XXX_TYPES)` 引用。**禁止**把供跨域 `z.enum()` 使用的常量数组写在 `validation.ts` —— 会在 validation 之间形成 ESM 值环，`z.enum()` 初始化期取到 `undefined` 直接崩溃。排查环路可用 `npx madge --circular --extensions ts packages/shared/src`，但它不区分 `import` 与 `import type`：只有值导入构成的环有害，类型环编译后被擦除、可忽略
 
 
 ---
