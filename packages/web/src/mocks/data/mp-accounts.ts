@@ -1,5 +1,5 @@
-import type { MpAccount } from '@zenith/shared';
-import { SEED_MP_ACCOUNTS } from '@zenith/shared';
+import type { MpAccount } from '@zenith/shared/mp';
+import { SEED_MP_ACCOUNTS } from '@zenith/shared/seed';
 
 export const mockMpAccounts: MpAccount[] = [
   ...SEED_MP_ACCOUNTS.map((a) => ({ ...a })),

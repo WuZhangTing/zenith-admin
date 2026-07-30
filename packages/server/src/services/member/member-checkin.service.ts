@@ -24,7 +24,7 @@ import { applyGrowthDeltaInTx } from './member-levels.service';
 import { getMemberDetail } from './admin-members.service';
 import { getPointAccountBeforeAudit } from './member-points.service';
 import { trackServerEvent } from '../analytics/analytics-server-events.service';
-import { ANALYTICS_EVENT_NAMES } from '@zenith/shared';
+import { ANALYTICS_EVENT_NAMES } from '@zenith/shared/analytics';
 
 function mapMemberCheckin(row: MemberCheckinRow, memberNickname?: string | null) {
   return {

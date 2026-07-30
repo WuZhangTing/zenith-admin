@@ -8,4 +8,4 @@ export {
   evalFormula,
   type FormulaFnMeta,
   type FormulaFnGroup,
-} from '@zenith/shared';
+} from '@zenith/shared/workflow';

@@ -1,5 +1,5 @@
 import sanitizeHtml from 'sanitize-html';
-import { CMS_RESOURCE_URI_PREFIX } from '@zenith/shared';
+import { CMS_RESOURCE_URI_PREFIX } from '@zenith/shared/cms';
 
 /**
  * 素材句柄 scheme（`cms-res://{id}`）。

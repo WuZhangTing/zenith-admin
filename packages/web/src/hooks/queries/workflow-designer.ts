@@ -1,18 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  Dict,
-  PaginatedResponse,
-  WorkflowDataSource,
-  WorkflowDataSourceOption,
-  WorkflowDefinition,
-  WorkflowDefinitionHealthReport,
-  WorkflowFlowData,
-  WorkflowForm,
-  WorkflowRelationOption,
-  WorkflowSimulationCase,
-  WorkflowSimulationDecision,
-  WorkflowSimulationResult,
-} from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { Dict } from '@zenith/shared/platform';
+import type { WorkflowDataSource, WorkflowDataSourceOption, WorkflowDefinition, WorkflowDefinitionHealthReport, WorkflowFlowData, WorkflowForm, WorkflowRelationOption, WorkflowSimulationCase, WorkflowSimulationDecision, WorkflowSimulationResult } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
 import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
 import { workflowDefinitionKeys } from './workflow-definitions';

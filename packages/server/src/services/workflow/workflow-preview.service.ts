@@ -11,7 +11,7 @@ import { workflowDefinitions, users } from '../../db/schema';
 import { tenantCondition } from '../../lib/tenant';
 import { currentUser } from '../../lib/context';
 import { listSelectableApprovers, resolveAssigneeIds } from './workflow-assignee-resolver.service';
-import type { WorkflowFlowData, WorkflowApproverPreviewNode } from '@zenith/shared';
+import type { WorkflowFlowData, WorkflowApproverPreviewNode } from '@zenith/shared/workflow';
 
 const APPROVER_TYPES = new Set(['approve', 'handler']);
 const INITIATOR_SELECT_TYPES = new Set(['initiatorSelect', 'initiatorSelectScope']);

@@ -2,7 +2,7 @@
  * 支付中心前端公共工具：金额格式化与渠道/状态色映射。
  * 各支付页面统一从此处导入，禁止在页面内重复定义。
  */
-import type { PaymentChannel } from '@zenith/shared';
+import type { PaymentChannel } from '@zenith/shared/payment';
 
 /** 分 → 元展示（`¥0.00`）；空值显示 nullText（默认 '-'）。 */
 export function formatYuan(cents: number | null | undefined, nullText = '-'): string {

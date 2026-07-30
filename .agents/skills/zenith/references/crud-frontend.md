@@ -39,7 +39,7 @@ packages/web/src/pages/xxx/XxxPage.tsx     # 页面组件
 
 ```ts
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse, Xxx } from '@zenith/shared';
+import type { PaginatedResponse, Xxx } from '@zenith/shared/{业务域}';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 
@@ -129,7 +129,7 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { useDeleteXxxs, useSaveXxx, useXxxDetail, useXxxList, xxxKeys } from '@/hooks/queries/xxxs';
-import type { Xxx } from '@zenith/shared';
+import type { Xxx } from '@zenith/shared/{业务域}';
 
 // ─── 搜索参数类型 ────────────────────────────────────────────────────────
 interface SearchParams {

@@ -1,4 +1,4 @@
-import type { WorkflowFlowData, WorkflowInstance, WorkflowRejectStrategy } from '@zenith/shared';
+import type { WorkflowFlowData, WorkflowInstance, WorkflowRejectStrategy } from '@zenith/shared/workflow';
 
 export interface RejectTargetHint {
   strategy: WorkflowRejectStrategy;

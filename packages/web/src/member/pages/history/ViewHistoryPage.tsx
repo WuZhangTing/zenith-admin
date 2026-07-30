@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { Button, Empty, Modal, Pagination, Spin, Tag, Toast } from '@douyinfe/semi-ui';
 import { ExternalLink, Trash2 } from 'lucide-react';
-import { CMS_CONTENT_TYPE_LABELS } from '@zenith/shared';
+import { CMS_CONTENT_TYPE_LABELS } from '@zenith/shared/cms';
 import { MemberPage } from '../../components/MemberPage';
 import { useMyCmsViewHistory, useClearCmsViewHistory } from '../../hooks/queries';
 

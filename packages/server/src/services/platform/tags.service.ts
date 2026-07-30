@@ -6,7 +6,7 @@ import type { TagRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
 import { HTTPException } from 'hono/http-exception';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import type { CreateTagInput, UpdateTagInput } from '@zenith/shared';
+import type { CreateTagInput, UpdateTagInput } from '@zenith/shared/platform';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 

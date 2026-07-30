@@ -4,7 +4,7 @@ import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
   jsonContent, validationHook, commonErrorResponses, ok, okMsg, IdParam, okBody,
 } from '../../lib/openapi-schemas';
-import { createMpConditionalMenuSchema, updateMpConditionalMenuSchema, tryMatchMpMenuSchema } from '@zenith/shared';
+import { createMpConditionalMenuSchema, updateMpConditionalMenuSchema, tryMatchMpMenuSchema } from '@zenith/shared/mp';
 import { MpConditionalMenuDTO, MpMenuTryMatchDTO } from '../../lib/openapi-dtos';
 import {
   listMpConditionalMenus, createMpConditionalMenu, updateMpConditionalMenu,

@@ -11,7 +11,7 @@ import {
 import { FileImage, Video, Music, FileText, File } from 'lucide-react';
 import { formatFileSize } from '@/utils/file-utils';
 import { useFileStats } from '@/hooks/queries/files';
-import { FILE_STORAGE_PROVIDER_LABELS } from '@zenith/shared';
+import { FILE_STORAGE_PROVIDER_LABELS } from '@zenith/shared/platform';
 
 const PROVIDER_LABELS: Record<string, string> = FILE_STORAGE_PROVIDER_LABELS;
 

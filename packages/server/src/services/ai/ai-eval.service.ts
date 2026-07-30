@@ -8,7 +8,7 @@ import { registerTaskHandler, submitAsyncTask, mapAsyncTask } from '../../lib/ta
 import { chatOnceOpenAICompatible } from '../../lib/ai/adapters/openai-compatible';
 import { getRawDefaultProviderConfig, getRawProviderConfig } from './ai-providers.service';
 import type { AiEvalSetRow, AiEvalRunRow, AiEvalResult } from '../../db/schema';
-import type { CreateAiEvalSetInput, UpdateAiEvalSetInput, RunAiEvalInput } from '@zenith/shared';
+import type { CreateAiEvalSetInput, UpdateAiEvalSetInput, RunAiEvalInput } from '@zenith/shared/ai';
 
 function mapSet(row: AiEvalSetRow) {
   return {

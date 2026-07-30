@@ -1,5 +1,5 @@
-import { SEED_DATA_MASK_CONFIGS } from '@zenith/shared';
-import type { DataMaskConfig } from '@zenith/shared';
+import { SEED_DATA_MASK_CONFIGS } from '@zenith/shared/seed';
+import type { DataMaskConfig } from '@zenith/shared/platform';
 import { mockDateTime } from '@/mocks/utils/date';
 
 export const mockDataMaskConfigs: DataMaskConfig[] = [...SEED_DATA_MASK_CONFIGS];

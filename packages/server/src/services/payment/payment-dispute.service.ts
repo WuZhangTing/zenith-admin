@@ -27,16 +27,7 @@ import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers'
 import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { refund } from './payment.service';
 import logger from '../../lib/logger';
-import type {
-  PaymentChannel,
-  PaymentDispute,
-  PaymentDisputeDetail,
-  PaymentDisputeReply,
-  PaymentDisputeStats,
-  PaymentDisputeStatus,
-  PaymentDisputeType,
-  RefundPaymentDisputeInput,
-} from '@zenith/shared';
+import type { PaymentChannel, PaymentDispute, PaymentDisputeDetail, PaymentDisputeReply, PaymentDisputeStats, PaymentDisputeStatus, PaymentDisputeType, RefundPaymentDisputeInput } from '@zenith/shared/payment';
 
 const OPEN_STATUSES: PaymentDisputeStatus[] = ['pending', 'processing'];
 /** 模拟拉单：保持未完结工单不超过该数量，避免演示环境刷屏 */

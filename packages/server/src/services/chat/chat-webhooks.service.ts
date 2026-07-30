@@ -15,7 +15,7 @@ import { pageOffset } from '../../lib/pagination';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { escapeLike } from '../../lib/where-helpers';
 import { HTTPException } from 'hono/http-exception';
-import type { ChatWebhook, CreateChatWebhookInput, UpdateChatWebhookInput, ChatWebhookPayloadInput, ChatMessageExtra } from '@zenith/shared';
+import type { ChatWebhook, CreateChatWebhookInput, UpdateChatWebhookInput, ChatWebhookPayloadInput, ChatMessageExtra } from '@zenith/shared/chat';
 import { postBotMessage } from './chat.service';
 
 const TOKEN_PREFIX = 'cwh_';

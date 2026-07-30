@@ -8,7 +8,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { IllustrationIdle, IllustrationIdleDark } from '@douyinfe/semi-illustrations';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import { CheckCheck, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
-import type { InAppMessage } from '@zenith/shared';
+import type { InAppMessage } from '@zenith/shared/messaging';
 import { formatDateTime } from '@/utils/date';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import {

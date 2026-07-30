@@ -3,7 +3,7 @@ import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, BatchIdsBody, okBody } from '../../lib/openapi-schemas';
 import { WorkflowDefinitionDTO, WorkflowDefinitionVersionDTO, WorkflowDefinitionExportDTO, WorkflowVersionDiffDTO, WorkflowApproverPreviewNodeDTO, WorkflowSimulationResultDTO, WorkflowDefinitionHealthReportDTO } from '../../lib/openapi-dtos';
-import { importWorkflowDefinitionSchema, previewWorkflowSchema, simulateWorkflowSchema, workflowHealthCheckSchema, workflowCustomFormConfigSchema, workflowFormTypeSchema } from '@zenith/shared';
+import { importWorkflowDefinitionSchema, previewWorkflowSchema, simulateWorkflowSchema, workflowHealthCheckSchema, workflowCustomFormConfigSchema, workflowFormTypeSchema } from '@zenith/shared/workflow';
 import {
   listDefinitions, listPublishedDefinitions, getDefinition, createDefinition,
   updateDefinition, publishDefinition, disableDefinition, enableDefinition, deleteDefinition, getWorkflowDefinitionBeforeAudit,

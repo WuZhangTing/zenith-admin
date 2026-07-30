@@ -21,7 +21,7 @@ import { useMyAsyncTasks } from '@/hooks/useAsyncTasks';
 import { useAiEvalSets, useAiEvalRuns, useAiEvalRunDetail, useSaveAiEvalSet, useDeleteAiEvalSet, useRunAiEval, useDeleteAiEvalRun } from '@/hooks/queries/ai-eval';
 import { useAiChatModels } from '@/hooks/queries/ai-providers';
 import { useAuth } from '@/hooks/useAuth';
-import type { AiEvalSet, AiEvalRun, AiEvalItem } from '@zenith/shared';
+import type { AiEvalSet, AiEvalRun, AiEvalItem } from '@zenith/shared/ai';
 
 const { Text, Paragraph } = Typography;
 

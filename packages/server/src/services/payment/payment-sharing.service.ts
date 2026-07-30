@@ -26,13 +26,7 @@ import { buildAdapterContext, loadOrderConfig } from './payment.service';
 import { getAdapter } from '../../lib/payment/registry';
 import { paymentEventBus } from '../../lib/payment-event-bus';
 import logger from '../../lib/logger';
-import type {
-  CreatePaymentSharingReceiverInput,
-  UpdatePaymentSharingReceiverInput,
-  PaymentSharingOrder,
-  PaymentSharingOrderStatus,
-  PaymentSharingReceiver,
-} from '@zenith/shared';
+import type { CreatePaymentSharingReceiverInput, UpdatePaymentSharingReceiverInput, PaymentSharingOrder, PaymentSharingOrderStatus, PaymentSharingReceiver } from '@zenith/shared/payment';
 
 /** 单笔分账渠道调用次数上限（首次 + 重试） */
 const MAX_SHARING_ATTEMPTS = 3;

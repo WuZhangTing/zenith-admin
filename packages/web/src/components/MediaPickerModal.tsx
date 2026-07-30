@@ -3,7 +3,7 @@ import { Button, Empty, Input, Pagination, Spin, Upload, Toast } from '@douyinfe
 import { FileText, Search, UploadCloud } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import { useFileList, useUploadFile } from '@/hooks/queries/files';
-import type { ManagedFile } from '@zenith/shared';
+import type { ManagedFile } from '@zenith/shared/platform';
 
 export interface MediaPickerModalProps {
   visible: boolean;

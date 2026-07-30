@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { createDeveloperOAuth2ClientSchema, updateDeveloperOAuth2ClientSchema } from '@zenith/shared';
+import { createDeveloperOAuth2ClientSchema, updateDeveloperOAuth2ClientSchema } from '@zenith/shared/open-platform';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import {

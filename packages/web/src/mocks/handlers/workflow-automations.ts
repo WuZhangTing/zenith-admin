@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import type { WorkflowAutomation } from '@zenith/shared';
+import type { WorkflowAutomation } from '@zenith/shared/workflow';
 import { mockWorkflowDefinitions } from '@/mocks/data/workflow';
 import { mockDateTime } from '@/mocks/utils/date';
 

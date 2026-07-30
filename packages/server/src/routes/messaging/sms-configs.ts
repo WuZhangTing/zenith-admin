@@ -5,7 +5,7 @@ import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody,
 } from '../../lib/openapi-schemas';
-import { createSmsConfigSchema, updateSmsConfigSchema, SMS_PROVIDERS } from '@zenith/shared';
+import { createSmsConfigSchema, updateSmsConfigSchema, SMS_PROVIDERS } from '@zenith/shared/messaging';
 import { SmsConfigDTO } from '../../lib/openapi-dtos';
 import {
   listSmsConfigs, getSmsConfig, createSmsConfig, updateSmsConfig,

@@ -29,17 +29,8 @@ import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../.
 import { decryptField } from '../../lib/encryption';
 import { isPgUniqueViolation } from '../../lib/db-errors';
 import logger from '../../lib/logger';
-import { PAYMENT_METHOD_CHANNEL, PAYMENT_CHANNEL_LABELS } from '@zenith/shared';
-import type {
-  CreatePaymentInput,
-  CreatePaymentResult,
-  CreateRefundInput,
-  PaymentChannel,
-  PaymentNotifyLog,
-  PaymentOrder,
-  PaymentOrderStatus,
-  PaymentRefund,
-} from '@zenith/shared';
+import { PAYMENT_METHOD_CHANNEL, PAYMENT_CHANNEL_LABELS } from '@zenith/shared/payment';
+import type { CreatePaymentInput, CreatePaymentResult, CreateRefundInput, PaymentChannel, PaymentNotifyLog, PaymentOrder, PaymentOrderStatus, PaymentRefund } from '@zenith/shared/payment';
 import { getAdapter } from '../../lib/payment';
 import type { AdapterContext, DecryptedSecrets, NotifyResult } from '../../lib/payment';
 import type { PaymentEvent, PaymentEventType } from '../../lib/payment-event-bus';

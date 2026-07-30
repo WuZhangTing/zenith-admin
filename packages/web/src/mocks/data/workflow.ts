@@ -1,10 +1,4 @@
-import type {
-  WorkflowDefinition,
-  WorkflowDefinitionVersion,
-  WorkflowInstance,
-  WorkflowTask,
-  WorkflowFormField,
-} from '@zenith/shared';
+import type { WorkflowDefinition, WorkflowDefinitionVersion, WorkflowInstance, WorkflowTask, WorkflowFormField } from '@zenith/shared/workflow';
 import { mockWorkflowForms } from './workflow-forms';
 
 function cloneWorkflowFormFields(formId: number | null | undefined): WorkflowFormField[] | null {

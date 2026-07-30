@@ -1,15 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  AsyncTask,
-  CmsDistributionMode,
-  CmsDistributionRule,
-  CmsDistributionRun,
-  CmsDistributionRunDetail,
-  CmsSite,
-  CmsSiteEffectiveConfig,
-  CmsSiteInheritanceFlags,
-  PaginatedResponse,
-} from '@zenith/shared';
+import type { CmsDistributionMode, CmsDistributionRule, CmsDistributionRun, CmsDistributionRunDetail, CmsSite, CmsSiteEffectiveConfig, CmsSiteInheritanceFlags } from '@zenith/shared/cms';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { AsyncTask } from '@zenith/shared/tasks';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 import { cmsSiteKeys } from './cms';

@@ -15,7 +15,7 @@ import { Icon } from '@iconify/react';
 import {
   RefreshCw, Home, FilePlus, FolderPlus, Upload as UploadIcon, Folder, File as FileIcon,
 } from 'lucide-react';
-import { TOKEN_KEY } from '@zenith/shared';
+import { TOKEN_KEY } from '@zenith/shared/core';
 import { config } from '@/config';
 import { downloadBlob } from '@/utils/download';
 import { getFileIcon } from '@/utils/fileIcons';

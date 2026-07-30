@@ -12,7 +12,7 @@ import type { PgColumn } from 'drizzle-orm/pg-core';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { userEvents } from '../../db/schema';
-import type { AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsEventQueryGroupByField } from '@zenith/shared';
+import type { AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsEventQueryGroupByField } from '@zenith/shared/analytics';
 import { tenantScope } from '../../lib/tenant';
 import { mergeWhere } from '../../lib/where-helpers';
 import { APP_TIME_ZONE, formatDate, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';

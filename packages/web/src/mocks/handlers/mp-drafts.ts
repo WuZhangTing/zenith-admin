@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockMpDrafts, getNextMpDraftId } from '@/mocks/data/mp-drafts';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { MpDraft, MpArticle } from '@zenith/shared';
+import type { MpDraft, MpArticle } from '@zenith/shared/mp';
 
 export const mpDraftsHandlers = [
   http.get('/api/mp/drafts', ({ request }) => {

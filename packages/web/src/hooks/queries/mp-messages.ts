@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { MpConversation, MpDraft, MpMaterial, MpMessage, PaginatedResponse } from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { MpConversation, MpDraft, MpMaterial, MpMessage } from '@zenith/shared/mp';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 

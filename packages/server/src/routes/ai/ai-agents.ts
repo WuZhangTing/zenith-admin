@@ -24,7 +24,7 @@ import {
   cloneAgent,
   getAgentDetail,
 } from '../../services/ai/ai-agents.service';
-import { createAiAgentSchema, updateAiAgentSchema, reviewAiAgentSchema } from '@zenith/shared';
+import { createAiAgentSchema, updateAiAgentSchema, reviewAiAgentSchema } from '@zenith/shared/ai';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 

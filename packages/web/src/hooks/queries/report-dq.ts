@@ -1,19 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  AsyncTask,
-  CreateReportDqRuleInput,
-  PaginatedResponse,
-  ReportDqAnomaly,
-  ReportDqAnomalyStatus,
-  ReportDqRule,
-  ReportDqRuleType,
-  ReportDqRun,
-  ReportDqRunStatus,
-  ReportDqScore,
-  RunReportDqRuleInput,
-  UpdateReportDqAnomalyStatusInput,
-  UpdateReportDqRuleInput,
-} from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { CreateReportDqRuleInput, ReportDqAnomaly, ReportDqAnomalyStatus, ReportDqRule, ReportDqRuleType, ReportDqRun, ReportDqRunStatus, ReportDqScore, RunReportDqRuleInput, UpdateReportDqAnomalyStatusInput, UpdateReportDqRuleInput } from '@zenith/shared/report';
+import type { AsyncTask } from '@zenith/shared/tasks';
 import { toQueryString, unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
 

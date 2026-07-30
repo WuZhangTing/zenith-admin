@@ -1,23 +1,7 @@
 import { useCallback } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  ApiResponse,
-  PaginatedResponse,
-  ReportDashboard,
-  ReportDashboardCategory,
-  ReportDashboardComment,
-  ReportDashboardEmbedToken,
-  ReportDashboardLifecycleStatus,
-  ReportDashboardShare,
-  ReportDashboardVersion,
-  ReportDashboardVersionDiff,
-  ReportDatasetQueryOptions,
-  ReportPublicAccessSession,
-  ReportPublicDashboard,
-  ReportWidget,
-  ReportWidgetDataResult,
-  ReportExecutionStats,
-} from '@zenith/shared';
+import type { ApiResponse, PaginatedResponse } from '@zenith/shared/core';
+import type { ReportDashboard, ReportDashboardCategory, ReportDashboardComment, ReportDashboardEmbedToken, ReportDashboardLifecycleStatus, ReportDashboardShare, ReportDashboardVersion, ReportDashboardVersionDiff, ReportDatasetQueryOptions, ReportPublicAccessSession, ReportPublicDashboard, ReportWidget, ReportWidgetDataResult, ReportExecutionStats } from '@zenith/shared/report';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 import { useReportLookup } from './report-lookups';

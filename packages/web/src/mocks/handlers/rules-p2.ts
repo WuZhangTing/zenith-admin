@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import type { RuleDecisionFlow, RuleFlowStep, RuleFlowStepTrace, RuleList } from '@zenith/shared';
+import type { RuleDecisionFlow, RuleFlowStep, RuleFlowStepTrace, RuleList } from '@zenith/shared/rules';
 import { mockDecisionFlows, getNextFlowId, mockRuleLists, mockRuleListItems, getNextListId, getNextListItemId } from '@/mocks/data/rules-p2';
 import { mockDecisionTables } from '@/mocks/data/decision-tables';
 import { evaluateMockDecisionTable } from './decision-tables';

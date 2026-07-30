@@ -16,8 +16,8 @@ import { pageOffset } from '../../lib/pagination';
 import { escapeLike } from '../../lib/where-helpers';
 import { ensureMemberExists } from './member-auth.service';
 import { trackServerEvent } from '../analytics/analytics-server-events.service';
-import type { PointTxType } from '@zenith/shared';
-import { ANALYTICS_MEMBER_POINTS_EVENT_BY_TX_TYPE } from '@zenith/shared';
+import type { PointTxType } from '@zenith/shared/member';
+import { ANALYTICS_MEMBER_POINTS_EVENT_BY_TX_TYPE } from '@zenith/shared/analytics';
 import type { DbTransaction } from '../../db/types';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────

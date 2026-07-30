@@ -2,7 +2,7 @@ import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { Button, Descriptions, JsonViewer, TabPane, Tabs, Tag } from '@douyinfe/semi-ui';
 import AppModal from '@/components/AppModal';
 import type { ColumnProps, TableProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { OperationLog } from '@zenith/shared';
+import type { OperationLog } from '@zenith/shared/platform';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { formatDateTime } from '@/utils/date';
 import './OperationLogsTable.css';

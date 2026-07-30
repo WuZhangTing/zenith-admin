@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
-import { PREFERENCES_KEY } from '@zenith/shared';
+import { PREFERENCES_KEY } from '@zenith/shared/core';
 import { useTheme, applyThemeToDom, type ThemeMode } from '@/hooks/useTheme';
 import { usePrefersDark } from '@/hooks/useMediaQuery';
 import { applyThemeColor } from '@/lib/theme-color';

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ANALYTICS_EXPERIMENT_EXPOSURE_EVENT, TOKEN_KEY } from '@zenith/shared';
+import { ANALYTICS_EXPERIMENT_EXPOSURE_EVENT } from '@zenith/shared/analytics';
+import { TOKEN_KEY } from '@zenith/shared/core';
 
 const { configureErrorReporting, configureErrorReporterRuntime, reportError } = vi.hoisted(() => ({
   configureErrorReporting: vi.fn(),

@@ -3,7 +3,7 @@ import { authMiddleware } from '../../middleware/auth';
 import { jsonContent, validationHook, commonErrorResponses, ok, okBody } from '../../lib/openapi-schemas';
 import { AiUserPreferenceDTO } from '../../lib/openapi-dtos';
 import { getMyAiPreference, saveMyAiPreference } from '../../services/ai/ai-preferences.service';
-import { saveAiPreferenceSchema } from '@zenith/shared';
+import { saveAiPreferenceSchema } from '@zenith/shared/platform';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 

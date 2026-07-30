@@ -3,7 +3,7 @@
  */
 import { and, desc, eq, gt, inArray, isNull, like, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type { RuleListType, RuleListCheckResult } from '@zenith/shared';
+import type { RuleListType, RuleListCheckResult } from '@zenith/shared/rules';
 import { db } from '../../db';
 import { ruleLists, ruleListItems } from '../../db/schema';
 import { currentUser, currentUserOrNull } from '../../lib/context';

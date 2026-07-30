@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
-import { createRoleSchema, updateRoleSchema, assignRoleMenusSchema, assignRoleUsersSchema } from '@zenith/shared';
+import { createRoleSchema, updateRoleSchema, assignRoleMenusSchema, assignRoleUsersSchema } from '@zenith/shared/identity';
 import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, conflictResponse, ok, okPaginated, okMsg, IdParam, okBody } from '../../lib/openapi-schemas';
 import { RoleDTO, UserDTO } from '../../lib/openapi-dtos';
 import {

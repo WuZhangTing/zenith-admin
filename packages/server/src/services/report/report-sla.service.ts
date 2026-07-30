@@ -2,14 +2,7 @@ import { CronExpressionParser } from 'cron-parser';
 import dayjs from 'dayjs';
 import { HTTPException } from 'hono/http-exception';
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
-import type {
-  CreateReportSlaRuleInput,
-  ReportSlaRule,
-  ReportSlaType,
-  ReportSlaViolation,
-  UpdateReportSlaRuleInput,
-  UpdateReportSlaViolationInput,
-} from '@zenith/shared';
+import type { CreateReportSlaRuleInput, ReportSlaRule, ReportSlaType, ReportSlaViolation, UpdateReportSlaRuleInput, UpdateReportSlaViolationInput } from '@zenith/shared/report';
 import { db } from '../../db';
 import {
   reportDatasetExecutionLogs,

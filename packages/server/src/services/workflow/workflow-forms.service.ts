@@ -8,8 +8,8 @@ import { escapeLike } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime } from '../../lib/datetime';
-import { renameWorkflowFormFieldKeys } from '@zenith/shared';
-import type { CreateWorkflowFormInput, UpdateWorkflowFormInput, WorkflowFlowData, WorkflowFormField, WorkflowFormSchema, WorkflowFormSettings, WorkflowFormStatus } from '@zenith/shared';
+import { renameWorkflowFormFieldKeys } from '@zenith/shared/workflow';
+import type { CreateWorkflowFormInput, UpdateWorkflowFormInput, WorkflowFlowData, WorkflowFormField, WorkflowFormSchema, WorkflowFormSettings, WorkflowFormStatus } from '@zenith/shared/workflow';
 import type { DbExecutor, DbTransaction } from '../../db/types';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────

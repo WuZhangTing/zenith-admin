@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
-import type { CreateDeveloperOAuth2ClientInput, UpdateDeveloperOAuth2ClientInput } from '@zenith/shared';
+import type { CreateDeveloperOAuth2ClientInput, UpdateDeveloperOAuth2ClientInput } from '@zenith/shared/open-platform';
 import { db } from '../../db';
 import { oauth2Clients, roles, userRoles, users } from '../../db/schema';
 import { config } from '../../config';

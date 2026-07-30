@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Badge, Button, Empty, Popover, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import { IllustrationIdle, IllustrationIdleDark } from '@douyinfe/semi-illustrations';
 import { ListChecks } from 'lucide-react';
-import type { AsyncTask, AsyncTaskStatus } from '@zenith/shared';
+import type { AsyncTask, AsyncTaskStatus } from '@zenith/shared/tasks';
 import { request } from '@/utils/request';
 import { useMyAsyncTasks } from '@/hooks/useAsyncTasks';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';

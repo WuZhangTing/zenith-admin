@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockDicts, mockDictItems, getNextDictId, getNextDictItemId } from '@/mocks/data/dicts';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { Dict, DictItem } from '@zenith/shared';
+import type { Dict, DictItem } from '@zenith/shared/platform';
 
 export const dictsHandlers = [
   // 字典列表（支持服务端分页）

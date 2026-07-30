@@ -13,7 +13,7 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import { Folder, ChevronLeft, ChevronRight, LayoutGrid, List as ListIcon } from 'lucide-react';
-import type { FileStorageConfig, FolderEntry, ManagedFile } from '@zenith/shared';
+import type { FileStorageConfig, FolderEntry, ManagedFile } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { formatDateTime } from '@/utils/date';
 import { formatFileSize, getFileFullUrl } from '@/utils/file-utils';

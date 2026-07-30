@@ -2,17 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Banner, Button, Collapse, Form, Modal, Spin, Steps, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Eye, EyeOff, Sparkles } from 'lucide-react';
-import {
-  CMS_INTERACTION_CAPTCHA_POLICY_LABELS,
-  CMS_INTERACTION_KIND_LABELS,
-  CMS_INTERACTION_PARTICIPANT_SCOPE_LABELS,
-  CMS_INTERACTION_REPEAT_POLICY_LABELS,
-  CMS_INTERACTION_RESULT_VISIBILITY_LABELS,
-  cmsSlugRegex,
-  type CmsInteraction,
-  type CmsInteractionKind,
-  type CmsInteractionStatus,
-} from '@zenith/shared';
+import { CMS_INTERACTION_CAPTCHA_POLICY_LABELS, CMS_INTERACTION_KIND_LABELS, CMS_INTERACTION_PARTICIPANT_SCOPE_LABELS, CMS_INTERACTION_REPEAT_POLICY_LABELS, CMS_INTERACTION_RESULT_VISIBILITY_LABELS, cmsSlugRegex } from '@zenith/shared/cms';
+import type { CmsInteraction, CmsInteractionKind, CmsInteractionStatus } from '@zenith/shared/cms';
 import AppModal from '@/components/AppModal';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { mediaUp } from '@/lib/breakpoints';

@@ -3,7 +3,7 @@ import { eq, and, or, inArray } from 'drizzle-orm';
 import { workflowInstances, workflowTasks, workflowTokens, inAppMessages } from '../../../db/schema';
 import { resolveRuntimeApproveMethod, type TaskAction } from '../../../lib/workflow-engine';
 import { advanceTokens, type AdvanceTrigger, type BranchPath } from '../../../lib/workflow-token-engine';
-import type { WorkflowResolvedApproveMethod, WorkflowFlowData, WorkflowStarterContext } from '@zenith/shared';
+import type { WorkflowResolvedApproveMethod, WorkflowFlowData, WorkflowStarterContext } from '@zenith/shared/workflow';
 import { HTTPException } from 'hono/http-exception';
 import { resolveAssigneeIds } from '../workflow-assignee-resolver.service';
 import { getDecisionOutputs } from '../../platform/rules.service';

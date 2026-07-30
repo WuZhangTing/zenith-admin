@@ -7,7 +7,7 @@ import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { encryptField, decryptField } from '../../lib/encryption';
 import { AI_SSRF_OPTIONS } from '../../lib/ai/outbound';
 import { HTTPException } from 'hono/http-exception';
-import type { CreateAiProviderConfigInput, UpdateAiProviderConfigInput, TestAiConnectionInput, FetchAiModelsInput } from '@zenith/shared';
+import type { CreateAiProviderConfigInput, UpdateAiProviderConfigInput, TestAiConnectionInput, FetchAiModelsInput } from '@zenith/shared/ai';
 import { httpRequest } from '../../lib/http-client';
 
 const MASKED_KEY = '******';

@@ -17,8 +17,8 @@ import {
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ExternalLink, Megaphone, Plus, RotateCcw, Search, Undo2 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import type { WorkflowDefinition, WorkflowInstance } from '@zenith/shared';
-import { buildWorkflowSummaryItems } from '@zenith/shared';
+import type { WorkflowDefinition, WorkflowInstance } from '@zenith/shared/workflow';
+import { buildWorkflowSummaryItems } from '@zenith/shared/workflow';
 import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import SavedViewsBar from '@/components/workflow/SavedViewsBar';
@@ -51,7 +51,7 @@ import {
   workflowInstanceKeys,
 } from '@/hooks/queries/workflow-instances';
 import { usePublishedWorkflowDefinitions } from '@/hooks/queries/workflow-definitions';
-import { WORKFLOW_TASK_STATUS_LABELS } from '@zenith/shared';
+import { WORKFLOW_TASK_STATUS_LABELS } from '@zenith/shared/workflow';
 
 const TASK_STATUS_TEXT: Record<string, string> = WORKFLOW_TASK_STATUS_LABELS;
 

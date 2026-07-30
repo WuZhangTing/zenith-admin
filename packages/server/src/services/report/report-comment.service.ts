@@ -7,10 +7,7 @@ import { currentTenantId, currentUser, hasPermission } from '../../lib/context';
 import { sendSystemInApp } from '../messaging/in-app-messages.service';
 import { ensureDashboardExists } from './report-dashboard.service';
 import type { ReportDashboardCommentRow, ReportDashboardRow } from '../../db/schema';
-import type {
-  CreateReportCommentInput,
-  ReportDashboardComment,
-} from '@zenith/shared';
+import type { CreateReportCommentInput, ReportDashboardComment } from '@zenith/shared/report';
 
 type UpdateReportCommentInput = { content: string };
 type ResolveReportCommentInput = { resolved: boolean };

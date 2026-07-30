@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw';
 import { mockAiConversations, mockAiMessages, getNextConvId, getNextMsgId, mockAiDateTime as mockDateTime } from '@/mocks/data/ai';
-import type { AiConversation, AiMessage } from '@zenith/shared';
+import type { AiConversation, AiMessage } from '@zenith/shared/ai';
 
 const convStore: AiConversation[] = [...mockAiConversations];
 const msgStore: Record<number, AiMessage[]> = { ...mockAiMessages };

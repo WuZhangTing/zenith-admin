@@ -9,7 +9,7 @@
  * 业务数据始终留在业务模块自己的表，工作流仅存 businessKey + 路由变量（formData）。
  */
 import { and, eq, inArray } from 'drizzle-orm';
-import type { WorkflowInstance, WorkflowInstancePriority, WorkflowInstanceStatus } from '@zenith/shared';
+import type { WorkflowInstance, WorkflowInstancePriority, WorkflowInstanceStatus } from '@zenith/shared/workflow';
 import { db } from '../db';
 import { workflowInstances } from '../db/schema';
 import { workflowEventBus } from './workflow-event-bus';

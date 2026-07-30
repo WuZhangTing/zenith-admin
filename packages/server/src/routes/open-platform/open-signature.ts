@@ -9,7 +9,7 @@ import {
   okBody,
 } from '../../lib/openapi-schemas';
 import { OpenSignatureResultDTO, OpenSignatureAlgorithmDTO } from '../../lib/openapi-dtos';
-import { openSignatureVerifySchema } from '@zenith/shared';
+import { openSignatureVerifySchema } from '@zenith/shared/open-platform';
 import { getSignatureAlgorithmDoc, verifyAppSignature } from '../../services/open-platform/open-signature.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });

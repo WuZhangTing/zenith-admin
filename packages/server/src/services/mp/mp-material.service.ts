@@ -10,7 +10,7 @@ import { ensureMpAccountExists } from './mp-account.service';
 import { batchGetWechatMaterials, deleteWechatMaterial, uploadWechatMaterial } from '../../lib/wechat';
 import { mapWechatError } from '../../lib/wechat-error';
 import logger from '../../lib/logger';
-import type { CreateMpMaterialInput, UpdateMpMaterialInput, MpMaterialType } from '@zenith/shared';
+import type { CreateMpMaterialInput, UpdateMpMaterialInput, MpMaterialType } from '@zenith/shared/mp';
 
 export function mapMpMaterial(row: MpMaterialRow) {
   return {

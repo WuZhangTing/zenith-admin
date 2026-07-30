@@ -1,6 +1,6 @@
 import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, unique, text, uniqueIndex, index, jsonb, smallint, real, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import type { WorkflowDefinitionSnapshot } from '@zenith/shared';
+import type { WorkflowDefinitionSnapshot } from '@zenith/shared/workflow';
 import { statusEnum } from './common';
 import { auditColumns, tenants, users } from './core';
 

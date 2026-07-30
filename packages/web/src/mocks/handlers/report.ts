@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import { renderPrintContent } from '@zenith/shared';
+import { renderPrintContent } from '@zenith/shared/report';
 import {
   mockReportDatasources, mockReportDatasets, mockReportDashboards, mockReportCategories,
   mockReportAlerts, mockReportPrintTemplates, mockReportSubscriptions, mockReportComments,
@@ -11,10 +11,7 @@ import {
 } from '@/mocks/data/report';
 import { createImmediateMockTask } from '@/mocks/handlers/async-tasks';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
-import type {
-  ReportDatasource, ReportDataset, ReportDashboard, ReportDashboardCategory, ReportAlertRule,
-  ReportPrintRenderResult, ReportPrintResolvedSubreport, ReportPrintTemplate, ReportDashboardSubscription, ReportDeliveryRun,
-} from '@zenith/shared';
+import type { ReportDatasource, ReportDataset, ReportDashboard, ReportDashboardCategory, ReportAlertRule, ReportPrintRenderResult, ReportPrintResolvedSubreport, ReportPrintTemplate, ReportDashboardSubscription, ReportDeliveryRun } from '@zenith/shared/report';
 
 const ok = (data: unknown, message = 'ok') => HttpResponse.json({ code: 0, message, data });
 const notFound = (message = '记录不存在') => HttpResponse.json({ code: 404, message, data: null });

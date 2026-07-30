@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { DictItem } from '@zenith/shared';
+import type { DictItem } from '@zenith/shared/platform';
 import { request } from '@/utils/request';
 import { unwrap, LOOKUP_STALE_TIME } from '@/lib/query';
 

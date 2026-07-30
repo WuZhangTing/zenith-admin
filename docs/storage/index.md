@@ -220,7 +220,7 @@ URL 不入库，读取时按存储配置动态解析，降级链 `public → pre
 
 ### 系统配置项
 
-系统配置种子位于 `packages/shared/src/seed-data.ts`：
+系统配置种子位于 `packages/shared/src/seed/{业务域}.ts`：
 
 | Key | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |

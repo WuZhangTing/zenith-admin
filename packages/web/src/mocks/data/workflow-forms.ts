@@ -1,5 +1,5 @@
-import { SEED_WORKFLOW_FORMS } from '@zenith/shared';
-import type { WorkflowForm } from '@zenith/shared';
+import { SEED_WORKFLOW_FORMS } from '@zenith/shared/seed';
+import type { WorkflowForm } from '@zenith/shared/workflow';
 import { mockDateTime } from '@/mocks/utils/date';
 
 function cloneSchema(schema: WorkflowForm['schema']): WorkflowForm['schema'] {

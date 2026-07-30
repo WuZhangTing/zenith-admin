@@ -1,5 +1,5 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AiConversation, AiMessage } from '@zenith/shared';
+import type { AiConversation, AiMessage } from '@zenith/shared/ai';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 

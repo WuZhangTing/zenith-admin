@@ -20,13 +20,9 @@ import {
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Copy, Eye, Plus, RotateCcw, Search } from 'lucide-react';
-import {
-  REPORT_FILL_TEMPLATE_STATUS_LABELS,
-  REPORT_FILL_TEMPLATE_STATUS_OPTIONS,
-  type ReportFillTemplate,
-  type WorkflowFormField,
-  type WorkflowFormSettings,
-} from '@zenith/shared';
+import { REPORT_FILL_TEMPLATE_STATUS_LABELS, REPORT_FILL_TEMPLATE_STATUS_OPTIONS } from '@zenith/shared/report';
+import type { ReportFillTemplate } from '@zenith/shared/report';
+import type { WorkflowFormField, WorkflowFormSettings } from '@zenith/shared/workflow';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';

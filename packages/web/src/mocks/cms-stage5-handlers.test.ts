@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { CMS_SECRET_MASK, type CmsSite } from '@zenith/shared';
+import { CMS_SECRET_MASK } from '@zenith/shared/cms';
+import type { CmsSite } from '@zenith/shared/cms';
 import { mockCmsChannels, mockCmsContents, mockCmsSites } from '@/mocks/data/cms';
 import {
   mockCmsDistributionItems,

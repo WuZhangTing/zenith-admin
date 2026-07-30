@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { performance } from 'node:perf_hooks';
-import { createCmsFormSchema, type CmsFormField } from '@zenith/shared';
+import { createCmsFormSchema } from '@zenith/shared/cms';
+import type { CmsFormField } from '@zenith/shared/cms';
 import { compileCmsFormPattern } from './cms-form-pattern';
 import { validateCmsFormFields } from './cms-form-validation';
 

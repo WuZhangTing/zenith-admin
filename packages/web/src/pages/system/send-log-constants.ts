@@ -1,4 +1,5 @@
-import { SEND_SOURCE_OPTIONS, SEND_STATUS_OPTIONS, type SendStatus } from '@zenith/shared';
+import { SEND_SOURCE_OPTIONS, SEND_STATUS_OPTIONS } from '@zenith/shared/messaging';
+import type { SendStatus } from '@zenith/shared/messaging';
 
 const SEND_STATUS_COLORS: Record<SendStatus, 'orange' | 'green' | 'red'> = {
   pending: 'orange',

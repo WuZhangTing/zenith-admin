@@ -1,10 +1,6 @@
 import { http, HttpResponse } from 'msw';
-import type {
-  WorkflowComment, WorkflowQuickPhrase, WorkflowDelegation, WorkflowAnalytics,
-  WorkflowInstanceStatus, WorkflowOverdueTask, WorkflowTemplate, WorkflowTaskConsult,
-  WorkflowDefinition, WorkflowInstance,
-} from '@zenith/shared';
-import { SEED_WORKFLOW_TEMPLATES } from '@zenith/shared';
+import type { WorkflowComment, WorkflowQuickPhrase, WorkflowDelegation, WorkflowAnalytics, WorkflowInstanceStatus, WorkflowOverdueTask, WorkflowTemplate, WorkflowTaskConsult, WorkflowDefinition, WorkflowInstance } from '@zenith/shared/workflow';
+import { SEED_WORKFLOW_TEMPLATES } from '@zenith/shared/seed';
 import { mockWorkflowInstances, mockWorkflowTasks, getNextInstanceId, getNextDefinitionId } from '@/mocks/data/workflow';
 import { mockWorkflowDefinitions } from '@/mocks/data/workflow';
 import { mockUsers } from '@/mocks/data/users';

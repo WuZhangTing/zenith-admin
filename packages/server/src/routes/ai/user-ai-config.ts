@@ -17,7 +17,7 @@ import {
   updateUserAiConfig,
   deleteUserAiConfig,
 } from '../../services/ai/user-ai-config.service';
-import { saveUserAiConfigSchema } from '@zenith/shared';
+import { saveUserAiConfigSchema } from '@zenith/shared/ai';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 

@@ -1,4 +1,5 @@
-import { CMS_PAGE_BLOCK_TYPES, type CmsPageBlock, type CmsPageBlockType } from '@zenith/shared';
+import { CMS_PAGE_BLOCK_TYPES } from '@zenith/shared/cms';
+import type { CmsPageBlock, CmsPageBlockType } from '@zenith/shared/cms';
 import { HTTPException } from 'hono/http-exception';
 import { isDeepStrictEqual } from 'node:util';
 import dayjs from 'dayjs';

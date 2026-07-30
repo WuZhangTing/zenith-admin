@@ -10,7 +10,7 @@ import { ProcessInfoDTO, ProcessListResponseDTO } from '../../lib/openapi-dtos';
 import {
   listProcesses, getProcessDetail, killProcess, setProcessPriority,
 } from '../../services/ops/processes.service';
-import { killProcessSchema, setProcessPrioritySchema } from '@zenith/shared';
+import { killProcessSchema, setProcessPrioritySchema } from '@zenith/shared/ops';
 
 const processesRouter = new OpenAPIHono({ defaultHook: validationHook });
 

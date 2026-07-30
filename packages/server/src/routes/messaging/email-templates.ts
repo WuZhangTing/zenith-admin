@@ -5,7 +5,7 @@ import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody,
 } from '../../lib/openapi-schemas';
-import { createEmailTemplateSchema, updateEmailTemplateSchema } from '@zenith/shared';
+import { createEmailTemplateSchema, updateEmailTemplateSchema } from '@zenith/shared/messaging';
 import { EmailTemplateDTO } from '../../lib/openapi-dtos';
 import {
   listEmailTemplates, getEmailTemplate, createEmailTemplate, updateEmailTemplate,

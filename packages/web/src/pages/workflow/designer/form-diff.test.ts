@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { WorkflowFormField } from '@zenith/shared';
+import type { WorkflowFormField } from '@zenith/shared/workflow';
 import { diffFormFields } from './form-diff';
 
 const f = (partial: Partial<WorkflowFormField> & { key: string; type: WorkflowFormField['type'] }): WorkflowFormField =>

@@ -7,7 +7,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { checkinMilestones, coupons } from '../../db/schema';
 import type { CheckinMilestoneRow } from '../../db/schema';
-import type { CheckinMilestoneRewardType } from '@zenith/shared';
+import type { CheckinMilestoneRewardType } from '@zenith/shared/member';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 

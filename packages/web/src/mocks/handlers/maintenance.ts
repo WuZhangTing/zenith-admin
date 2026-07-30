@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import type { MaintenanceLog } from '@zenith/shared';
+import type { MaintenanceLog } from '@zenith/shared/platform';
 import { mockDateTime } from '@/mocks/utils/date';
 
 const API = import.meta.env.VITE_API_BASE_URL || '';

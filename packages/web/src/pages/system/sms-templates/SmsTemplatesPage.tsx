@@ -4,8 +4,8 @@ import { Button, Col, Form, Input, Modal, Row, Select, Spin,
   Toast, Switch } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus, RotateCcw, Search } from 'lucide-react';
-import { SMS_PROVIDER_OPTIONS } from '@zenith/shared';
-import type { SmsProvider, SmsTemplate } from '@zenith/shared';
+import { SMS_PROVIDER_OPTIONS } from '@zenith/shared/messaging';
+import type { SmsProvider, SmsTemplate } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { SearchToolbar } from '@/components/SearchToolbar';

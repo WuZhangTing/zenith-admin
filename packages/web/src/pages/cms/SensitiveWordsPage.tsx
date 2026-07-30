@@ -12,7 +12,7 @@ import { createdAtColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { useCmsSensitiveWordList, useSaveCmsSensitiveWord, useDeleteCmsSensitiveWord, cmsSensitiveWordKeys } from '@/hooks/queries/cms';
-import type { CmsSensitiveWord } from '@zenith/shared';
+import type { CmsSensitiveWord } from '@zenith/shared/cms';
 
 export default function SensitiveWordsPage() {
   const { hasPermission } = usePermission();

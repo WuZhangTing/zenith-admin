@@ -8,7 +8,7 @@ import { Descriptions, Spin, Empty, Typography, Tag } from '@douyinfe/semi-ui';
 import { FileCheck } from 'lucide-react';
 import type { WorkflowBusinessFormProps } from '@/components/workflow/BusinessFormHost';
 import { useCmsContentDetail } from '@/hooks/queries/cms';
-import { CMS_CONTENT_STATUS_LABELS } from '@zenith/shared';
+import { CMS_CONTENT_STATUS_LABELS } from '@zenith/shared/cms';
 
 export default function ContentApprovalView({ bizId }: Readonly<WorkflowBusinessFormProps>) {
   const detailQuery = useCmsContentDetail(bizId ? Number(bizId) : undefined);

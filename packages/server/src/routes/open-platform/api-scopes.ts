@@ -14,7 +14,7 @@ import {
   okBody,
 } from '../../lib/openapi-schemas';
 import { ApiScopeDTO } from '../../lib/openapi-dtos';
-import { createApiScopeSchema, updateApiScopeSchema } from '@zenith/shared';
+import { createApiScopeSchema, updateApiScopeSchema } from '@zenith/shared/open-platform';
 import {
   listApiScopes,
   listEnabledApiScopes,

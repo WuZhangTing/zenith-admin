@@ -3,7 +3,7 @@
  * 编辑中防丢失：变更后 debounce 写入 localStorage，加载时检测未保存草稿提示恢复。
  */
 import { useEffect, useRef } from 'react';
-import type { WorkflowFormField, WorkflowFormSettings } from '@zenith/shared';
+import type { WorkflowFormField, WorkflowFormSettings } from '@zenith/shared/workflow';
 
 export interface FormDraftPayload {
   name: string;

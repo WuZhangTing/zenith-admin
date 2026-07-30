@@ -1,11 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import {
-  createReportChatbiMessageSchema,
-  createReportChatbiSessionSchema,
-  reportChatbiSessionStatusSchema,
-  saveReportChatbiMessageAssetSchema,
-  updateReportChatbiSessionSchema,
-} from '@zenith/shared';
+import { createReportChatbiMessageSchema, createReportChatbiSessionSchema, reportChatbiSessionStatusSchema, saveReportChatbiMessageAssetSchema, updateReportChatbiSessionSchema } from '@zenith/shared/report';
 import {
   ReportChatbiMessageDTO,
   ReportChatbiQuotaDTO,

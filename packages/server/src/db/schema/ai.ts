@@ -1,5 +1,5 @@
 import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, text, jsonb, real, uniqueIndex } from 'drizzle-orm/pg-core';
-import { AI_PROVIDER_TYPES } from '@zenith/shared';
+import { AI_PROVIDER_TYPES } from '@zenith/shared/ai';
 import { auditColumns, tenants, users } from './core';
 
 export const aiProviderEnum = pgEnum('ai_provider', AI_PROVIDER_TYPES);

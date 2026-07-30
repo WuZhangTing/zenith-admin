@@ -8,7 +8,7 @@ import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { escapeLike } from '../../lib/where-helpers';
-import type { CreateRatePlanInput, UpdateRatePlanInput } from '@zenith/shared';
+import type { CreateRatePlanInput, UpdateRatePlanInput } from '@zenith/shared/open-platform';
 
 export function mapRatePlan(row: RatePlanRow) {
   return {

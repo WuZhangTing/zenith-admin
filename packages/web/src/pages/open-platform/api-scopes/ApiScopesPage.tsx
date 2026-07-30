@@ -4,8 +4,8 @@ import { Button, Input, Tag, Modal, Form, Toast, Typography, Select, Row, Col } 
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
-import { API_SCOPE_GROUPS, API_SCOPE_GROUP_LABELS } from '@zenith/shared';
-import type { ApiScope } from '@zenith/shared';
+import { API_SCOPE_GROUPS, API_SCOPE_GROUP_LABELS } from '@zenith/shared/open-platform';
+import type { ApiScope } from '@zenith/shared/open-platform';
 import { createdAtColumn } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';

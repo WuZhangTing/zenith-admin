@@ -1,5 +1,5 @@
 import { eq, and, like, or, gte, lte, asc, inArray } from 'drizzle-orm';
-import { SUPER_ADMIN_CODE } from '@zenith/shared';
+import { SUPER_ADMIN_CODE } from '@zenith/shared/identity';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import type { DbTransaction } from '../../db/types';

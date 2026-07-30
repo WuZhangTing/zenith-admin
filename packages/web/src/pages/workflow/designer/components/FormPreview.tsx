@@ -3,7 +3,7 @@
  */
 import { Button } from '@douyinfe/semi-ui';
 import AppModal from '@/components/AppModal';
-import type { WorkflowFormField } from '@zenith/shared';
+import type { WorkflowFormField } from '@zenith/shared/workflow';
 import WorkflowFormRenderer from './WorkflowFormRenderer';
 
 interface FormPreviewProps {

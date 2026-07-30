@@ -6,7 +6,7 @@
 import { and, desc, eq, gte, inArray, sql, type SQL } from 'drizzle-orm';
 import { db } from '../../db';
 import { analyticsEventQualityDaily, userEvents } from '../../db/schema';
-import type { AnalyticsQualityIssueType } from '@zenith/shared';
+import type { AnalyticsQualityIssueType } from '@zenith/shared/analytics';
 import { formatDate, formatDateTime } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
 import { config } from '../../config';

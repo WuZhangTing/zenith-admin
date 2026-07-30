@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw';
-import type { CmsChannel, CmsContent, CmsContentStatus, CmsForm, CmsModelField, CmsResourceReference } from '@zenith/shared';
-import { CMS_SEARCH_DICTIONARY_WORD_PATTERN, CMS_SECRET_MASK, SEED_CMS_EDITOR_USER, parseCmsLink } from '@zenith/shared';
+import type { CmsChannel, CmsContent, CmsContentStatus, CmsForm, CmsModelField, CmsResourceReference } from '@zenith/shared/cms';
+import { CMS_SEARCH_DICTIONARY_WORD_PATTERN, CMS_SECRET_MASK, parseCmsLink } from '@zenith/shared/cms';
+import { SEED_CMS_EDITOR_USER } from '@zenith/shared/seed';
 import {
   mockCmsSites, mockCmsModels, mockCmsChannels, mockCmsContents, mockCmsTags,
   mockCmsFriendLinks, mockCmsFriendLinkGroups, buildMockChannelTree,

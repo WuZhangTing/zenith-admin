@@ -7,7 +7,7 @@ import { formatDateTime } from '../../lib/datetime';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { invalidateWordCheckCache } from './cms-word-check.service';
-import type { CreateCmsSensitiveWordInput, UpdateCmsSensitiveWordInput } from '@zenith/shared';
+import type { CreateCmsSensitiveWordInput, UpdateCmsSensitiveWordInput } from '@zenith/shared/cms';
 
 // ─── 内存缓存 + Aho-Corasick 自动机 ────────────────────────────────────────────
 interface AcNode {

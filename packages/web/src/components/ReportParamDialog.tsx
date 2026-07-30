@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { DatePicker, Form, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import type { ReportDatasetParam } from '@zenith/shared';
+import type { ReportDatasetParam } from '@zenith/shared/report';
 import AppModal from './AppModal';
 import { buildReportParamInitialValues, normalizeReportParamValues } from './report-param-utils';
 

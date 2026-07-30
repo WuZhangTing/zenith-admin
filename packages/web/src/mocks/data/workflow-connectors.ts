@@ -1,5 +1,5 @@
-import { SEED_WORKFLOW_CONNECTORS } from '@zenith/shared';
-import type { WorkflowConnector } from '@zenith/shared';
+import { SEED_WORKFLOW_CONNECTORS } from '@zenith/shared/seed';
+import type { WorkflowConnector } from '@zenith/shared/workflow';
 
 export const mockWorkflowConnectors: WorkflowConnector[] = SEED_WORKFLOW_CONNECTORS.map((c) => ({
   ...c,

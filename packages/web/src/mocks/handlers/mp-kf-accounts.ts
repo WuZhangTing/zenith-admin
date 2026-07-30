@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockMpKfAccounts, getNextMpKfAccountId } from '@/mocks/data/mp-kf-accounts';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { MpKfAccount } from '@zenith/shared';
+import type { MpKfAccount } from '@zenith/shared/mp';
 
 export const mpKfAccountsHandlers = [
   http.get('/api/mp/kf-accounts', ({ request }) => {

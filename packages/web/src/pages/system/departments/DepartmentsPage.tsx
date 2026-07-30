@@ -15,7 +15,8 @@ import {
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import { Search, Plus, RotateCcw, ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
-import type { Department, User, PaginatedResponse } from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { Department, User } from '@zenith/shared/identity';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import DictTag from '@/components/DictTag';
 import { useDictItems } from '@/hooks/useDictItems';

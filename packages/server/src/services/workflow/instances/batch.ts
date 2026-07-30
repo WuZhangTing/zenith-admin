@@ -2,8 +2,8 @@
 import { eq, and, inArray } from 'drizzle-orm';
 import { db } from '../../../db';
 import { workflowInstances, workflowTasks } from '../../../db/schema';
-import type { WorkflowFlowData, WorkflowBatchActionResult } from '@zenith/shared';
-import { findNextApproverSelectNodes } from '@zenith/shared';
+import type { WorkflowFlowData, WorkflowBatchActionResult } from '@zenith/shared/workflow';
+import { findNextApproverSelectNodes } from '@zenith/shared/workflow';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../../lib/context';
 import { urgeInstance } from './cc-urge';

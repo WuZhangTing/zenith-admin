@@ -7,9 +7,7 @@ import '../report-grid.css';
 import '../report-screen.css';
 import { WidgetRenderer } from './WidgetRenderer';
 import { useIsMobile, useMediaQuery } from '@/hooks/useMediaQuery';
-import type {
-  ReportWidget, ReportGridItem, ReportCanvasItem, ReportDashboardConfig, ReportDataResult, ReportDatasetQueryOptions, ReportScreenConfig,
-} from '@zenith/shared';
+import type { ReportWidget, ReportGridItem, ReportCanvasItem, ReportDashboardConfig, ReportDataResult, ReportDatasetQueryOptions, ReportScreenConfig } from '@zenith/shared/report';
 
 const GridLayout = WidthProvider(RGL);
 

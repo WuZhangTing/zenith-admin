@@ -1,9 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { HTTPException } from 'hono/http-exception';
-import {
-  OPEN_SIGNATURE_HEADERS,
-  type OpenApiDebugResult,
-} from '@zenith/shared';
+import { OPEN_SIGNATURE_HEADERS } from '@zenith/shared/open-platform';
+import type { OpenApiDebugResult } from '@zenith/shared/open-platform';
 import { config } from '../../config';
 import { httpRequest } from '../../lib/http-client';
 import { signRequest } from '../../lib/open-signature';

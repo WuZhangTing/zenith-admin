@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { mockEmailSendLogs, getNextEmailSendLogId } from '@/mocks/data/email-send-logs';
 import { mockEmailTemplates } from '@/mocks/data/email-templates';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { EmailSendLog } from '@zenith/shared';
+import type { EmailSendLog } from '@zenith/shared/messaging';
 
 export const emailSendLogsHandlers = [
   http.get('/api/email-send-logs', ({ request }) => {

@@ -14,7 +14,7 @@ import { formatDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { paymentEventBus } from '../../lib/payment-event-bus';
 import { applyLedgerToAccount } from './payment-account.service';
 import logger from '../../lib/logger';
-import type { PaymentChannel, PaymentLedgerDirection, PaymentLedgerEntry, PaymentLedgerType } from '@zenith/shared';
+import type { PaymentChannel, PaymentLedgerDirection, PaymentLedgerEntry, PaymentLedgerType } from '@zenith/shared/payment';
 
 function genNo(): string {
   return `LED${Date.now()}${randomInt(1000, 9999)}`;

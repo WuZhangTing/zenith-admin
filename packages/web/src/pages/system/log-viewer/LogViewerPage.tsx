@@ -4,7 +4,7 @@ import {
   Button, Input, Tag, Typography, Select, Switch,
 } from '@douyinfe/semi-ui';
 import { FolderOpen, Play, Square, Search, FileText, Download } from 'lucide-react';
-import { TOKEN_KEY } from '@zenith/shared';
+import { TOKEN_KEY } from '@zenith/shared/core';
 import { config } from '@/config';
 import { request } from '@/utils/request';
 import { logViewerKeys, useLogViewerContent } from '@/hooks/queries/log-viewer';

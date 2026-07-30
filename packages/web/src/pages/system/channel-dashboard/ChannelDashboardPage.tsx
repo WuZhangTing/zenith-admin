@@ -9,13 +9,8 @@ import {
   useChartPalette,
 } from '@/components/charts';
 import { Radio, Users, MessageSquare, Send, Inbox, Clock, RotateCcw, Reply, BarChart3 } from 'lucide-react';
-import {
-  CHANNEL_CONVERSATION_STATUS_LABELS,
-  CHANNEL_AUTO_REPLY_MATCH_LABELS,
-  type ChannelDashboard,
-  type ChannelDashboardTopReply,
-  type ChannelDashboardChannelRank,
-} from '@zenith/shared';
+import { CHANNEL_CONVERSATION_STATUS_LABELS, CHANNEL_AUTO_REPLY_MATCH_LABELS } from '@zenith/shared/messaging';
+import type { ChannelDashboard, ChannelDashboardTopReply, ChannelDashboardChannelRank } from '@zenith/shared/messaging';
 import './ChannelDashboardPage.css';
 import { useChannelDashboard } from '@/hooks/queries/channel-dashboard';
 

@@ -5,8 +5,8 @@ import { buildWalletTxWhere } from '../../../services/member/member-wallet.servi
 import { batchIterable } from '../../excel-export';
 import { defineExport } from '../registry';
 import type { ExportColumn } from '../types';
-import type { WalletTxType } from '@zenith/shared';
-import { WALLET_TX_TYPE_LABELS } from '@zenith/shared';
+import type { WalletTxType } from '@zenith/shared/member';
+import { WALLET_TX_TYPE_LABELS } from '@zenith/shared/member';
 
 const TYPE_LABELS: Record<string, string> = WALLET_TX_TYPE_LABELS;
 

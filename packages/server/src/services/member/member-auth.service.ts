@@ -29,15 +29,8 @@ import { lookupIpLocation } from '../../lib/ip-location';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { verifyMemberSmsCode } from './member-sms.service';
 import { trackServerEvent } from '../analytics/analytics-server-events.service';
-import type {
-  MemberRegisterInput,
-  MemberLoginInput,
-  MemberUpdateProfileInput,
-  MemberChangePasswordInput,
-  MemberResetPasswordInput,
-  MemberLoginResult,
-} from '@zenith/shared';
-import { ANALYTICS_EVENT_NAMES } from '@zenith/shared';
+import type { MemberRegisterInput, MemberLoginInput, MemberUpdateProfileInput, MemberChangePasswordInput, MemberResetPasswordInput, MemberLoginResult } from '@zenith/shared/member';
+import { ANALYTICS_EVENT_NAMES } from '@zenith/shared/analytics';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapMember(

@@ -6,7 +6,7 @@ import { shareConversation, getConversationShare, revokeConversationShare } from
 import { setConversationKnowledgeBase } from '../../services/ai/ai-knowledge.service';
 import { updateConversationTags, switchConversationBranch, ensureConversationOwner } from '../../services/ai/ai-conversations.service';
 import { getActiveGeneration } from '../../lib/ai/generation-buffer';
-import { shareAiConversationSchema, updateAiConversationTagsSchema, setAiActiveLeafSchema } from '@zenith/shared';
+import { shareAiConversationSchema, updateAiConversationTagsSchema, setAiActiveLeafSchema } from '@zenith/shared/ai';
 
 /** 挂载在 /api/ai/conversations 下的扩展能力：分享管理 + 知识库挂载 */
 const router = new OpenAPIHono({ defaultHook: validationHook });

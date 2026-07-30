@@ -3,7 +3,7 @@ import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { jsonContent, validationHook, commonErrorResponses, ok, okMsg, okBody } from '../../lib/openapi-schemas';
 import { EmailConfigDTO } from '../../lib/openapi-dtos';
-import { emailConfigSchema } from '@zenith/shared';
+import { emailConfigSchema } from '@zenith/shared/messaging';
 import { getEmailConfig, updateEmailConfig, sendTestEmail, getEmailConfigBeforeAudit } from '../../services/messaging/email-config.service';
 
 const emailConfigRouter = new OpenAPIHono({ defaultHook: validationHook });

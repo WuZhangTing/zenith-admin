@@ -16,7 +16,7 @@ import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDateTime, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
 import { mapPointAccount, mapPointTransaction, ensurePointAccount } from './member-points.service';
 import { mapWallet, mapWalletTransaction, ensureWallet } from './member-wallet.service';
-import type { MemberStatus } from '@zenith/shared';
+import type { MemberStatus } from '@zenith/shared/member';
 
 export interface ListMembersQuery {
   keyword?: string;

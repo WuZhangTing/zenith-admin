@@ -35,7 +35,7 @@ import {
   updateFeedbackStatus,
   exportConversation,
 } from '../../services/ai/ai-conversations.service';
-import { createAiConversationSchema, submitAiFeedbackSchema, updateAiFeedbackStatusSchema } from '@zenith/shared';
+import { createAiConversationSchema, submitAiFeedbackSchema, updateAiFeedbackStatusSchema } from '@zenith/shared/ai';
 import { guard } from '../../middleware/guard';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });

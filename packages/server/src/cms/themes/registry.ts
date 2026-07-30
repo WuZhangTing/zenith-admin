@@ -1,8 +1,8 @@
 import type { ComponentType } from 'react';
 import logger from '../../lib/logger';
-import type { CmsThemeSettingField } from '@zenith/shared';
+import type { CmsThemeSettingField } from '@zenith/shared/cms';
 import type { CmsTheme, CmsListContext, CmsDetailContext, CmsTemplateVariant } from './types';
-import type { CmsWidgetRendererKey, CmsWidgetType } from '@zenith/shared';
+import type { CmsWidgetRendererKey, CmsWidgetType } from '@zenith/shared/cms';
 import { listCoreCmsWidgetRenderers, resolveCoreCmsWidgetRenderer } from './widgets';
 import { defaultTheme } from './default';
 import { docsTheme } from './docs';

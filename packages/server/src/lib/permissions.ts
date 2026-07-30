@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { SUPER_ADMIN_CODE } from '@zenith/shared';
+import { SUPER_ADMIN_CODE } from '@zenith/shared/identity';
 import { db } from '../db';
 import { users } from '../db/schema';
 import { getTenantPackageMenuIdSet } from './tenant-package';

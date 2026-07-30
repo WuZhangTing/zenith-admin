@@ -40,7 +40,7 @@ import {
   Upload,
 } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { TOKEN_KEY } from '@zenith/shared';
+import { TOKEN_KEY } from '@zenith/shared/core';
 import { config } from '@/config';
 import { downloadBlob } from '@/utils/download';
 import { useThemeController } from '@/providers/theme-controller';

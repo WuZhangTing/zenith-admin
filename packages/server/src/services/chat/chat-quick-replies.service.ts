@@ -5,7 +5,7 @@ import { chatQuickReplies } from '../../db/schema';
 import type { ChatQuickReplyRow } from '../../db/schema/chat';
 import { currentUser } from '../../lib/context';
 import { formatDateTime } from '../../lib/datetime';
-import type { ChatQuickReply } from '@zenith/shared';
+import type { ChatQuickReply } from '@zenith/shared/chat';
 
 const MAX_QUICK_REPLIES = 50;
 

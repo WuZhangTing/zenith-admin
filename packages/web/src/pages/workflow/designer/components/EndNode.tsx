@@ -1,7 +1,7 @@
 /**
  * 结束节点
  */
-import { WORKFLOW_INSTANCE_STATUS_LABELS } from '@zenith/shared';
+import { WORKFLOW_INSTANCE_STATUS_LABELS } from '@zenith/shared/workflow';
 
 // 文案统一来自 @zenith/shared；CSS 变量色为画布场景特化
 const END_LABEL: Record<string, { text: string; color: string }> = {

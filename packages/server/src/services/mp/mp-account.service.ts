@@ -9,7 +9,7 @@ import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { refreshMpAccessToken, clearMpAccessToken, WechatApiError } from '../../lib/wechat';
 import type { DbExecutor } from '../../db/types';
-import type { CreateMpAccountInput, UpdateMpAccountInput, MpAccountType } from '@zenith/shared';
+import type { CreateMpAccountInput, UpdateMpAccountInput, MpAccountType } from '@zenith/shared/mp';
 
 const SECRET_MASK = '******';
 

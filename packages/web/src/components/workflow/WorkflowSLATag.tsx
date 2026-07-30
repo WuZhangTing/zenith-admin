@@ -1,5 +1,5 @@
 import { Tag, Tooltip } from '@douyinfe/semi-ui';
-import type { WorkflowSlaLevel } from '@zenith/shared';
+import type { WorkflowSlaLevel } from '@zenith/shared/workflow';
 
 interface Props {
   level?: WorkflowSlaLevel;

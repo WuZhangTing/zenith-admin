@@ -17,7 +17,7 @@ import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { encryptField, decryptField } from '../../lib/encryption';
-import type { CreateOAuth2ClientInput, UpdateOAuth2ClientInput } from '@zenith/shared';
+import type { CreateOAuth2ClientInput, UpdateOAuth2ClientInput } from '@zenith/shared/open-platform';
 import { config } from '../../config';
 import { escapeLike } from '../../lib/where-helpers';
 

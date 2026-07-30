@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { parseCmsLink } from '@zenith/shared';
-import type { CmsChannelDetailPathRule, CmsLinkEntityType, CmsLinkRef, CmsLinkTarget } from '@zenith/shared';
+import { parseCmsLink } from '@zenith/shared/cms';
+import type { CmsChannelDetailPathRule, CmsLinkEntityType, CmsLinkRef, CmsLinkTarget } from '@zenith/shared/cms';
 import { db } from '../../db';
 import { cmsChannels, cmsContents } from '../../db/schema';
 import { channelUrl, contentUrl } from './cms-urls';

@@ -3,7 +3,7 @@ import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, okBody, errBody } from '../../lib/openapi-schemas';
 import { ManagedFileDTO, StorageBrowseResultDTO, FileStatsDTO, SheetPreviewDTO, UploadSessionInitDTO, UploadChunkResultDTO, UploadSessionStatusDTO, FileAccessUrlDTO } from '../../lib/openapi-dtos';
-import { initChunkUploadSchema, completeChunkUploadSchema } from '@zenith/shared';
+import { initChunkUploadSchema, completeChunkUploadSchema } from '@zenith/shared/platform';
 import {
   getStoredFileForRead, listManagedFiles, getManagedFile, uploadManagedFileFromBody, deleteManagedFile, batchDeleteFiles, getManagedFileBeforeAudit, getManagedFilesBeforeAudit, batchDownloadFilesAsZip, browseStorageFiles, getFileStats, getSheetPreview, getFileAccessUrl,
 } from '../../services/files/files.service';

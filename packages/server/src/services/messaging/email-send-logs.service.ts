@@ -9,7 +9,7 @@ import { currentUser } from '../../lib/context';
 import { sendMail } from '../../lib/email';
 import { renderTemplate } from '../../lib/sms-sender';
 import { ensureEmailTemplateExists } from './email-templates.service';
-import type { SendStatus, SendSource, SendEmailInput } from '@zenith/shared';
+import type { SendStatus, SendSource, SendEmailInput } from '@zenith/shared/messaging';
 
 export interface ListEmailSendLogsQuery {
   keyword?: string;

@@ -5,7 +5,7 @@ import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody,
 } from '../../lib/openapi-schemas';
-import { createMpKfAccountSchema, updateMpKfAccountSchema } from '@zenith/shared';
+import { createMpKfAccountSchema, updateMpKfAccountSchema } from '@zenith/shared/mp';
 import { MpKfAccountDTO, MpTagSyncResultDTO } from '../../lib/openapi-dtos';
 import {
   listMpKfAccounts, createMpKfAccount, updateMpKfAccount, deleteMpKfAccount, getMpKfAccountBeforeAudit, syncMpKfAccounts,

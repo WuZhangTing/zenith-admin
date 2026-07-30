@@ -9,7 +9,7 @@ import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { ensureMpAccountExists } from './mp-account.service';
 import { getWechatTags, WechatApiError } from '../../lib/wechat';
-import type { CreateMpTagInput, UpdateMpTagInput } from '@zenith/shared';
+import type { CreateMpTagInput, UpdateMpTagInput } from '@zenith/shared/mp';
 
 export function mapMpTag(row: MpTagRow) {
   return {

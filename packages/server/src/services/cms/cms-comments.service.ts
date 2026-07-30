@@ -10,7 +10,7 @@ import { config } from '../../config';
 import redis from '../../lib/redis';
 import { sanitizeUserText } from './cms-sensitive-words.service';
 import { assertSiteAccess } from './cms-sites.service';
-import type { CmsCommentStatus } from '@zenith/shared';
+import type { CmsCommentStatus } from '@zenith/shared/cms';
 import { alias } from 'drizzle-orm/pg-core';
 import { assertCompleteCmsBatch } from './cms-access';
 import { assertChannelsAccess, getAccessibleChannelIds } from './cms-channels.service';

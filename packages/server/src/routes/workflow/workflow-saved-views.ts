@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
-import { createWorkflowSavedViewSchema, updateWorkflowSavedViewSchema } from '@zenith/shared';
+import { createWorkflowSavedViewSchema, updateWorkflowSavedViewSchema } from '@zenith/shared/workflow';
 import { ErrorResponse, jsonContent, validationHook, commonErrorResponses, ok, okMsg, IdParam, okBody } from '../../lib/openapi-schemas';
 import { WorkflowSavedViewDTO } from '../../lib/openapi-dtos';
 import { listSavedViews, createSavedView, updateSavedView, deleteSavedView, getSavedViewBeforeAudit } from '../../services/workflow/workflow-saved-views.service';

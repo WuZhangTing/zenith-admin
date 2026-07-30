@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import type { PaymentReportGroupBy, PaymentReportRow } from '@zenith/shared';
+import type { PaymentReportGroupBy, PaymentReportRow } from '@zenith/shared/payment';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 

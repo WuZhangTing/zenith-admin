@@ -1,4 +1,4 @@
-import type { OAuthProviderType } from '@zenith/shared';
+import type { OAuthProviderType } from '@zenith/shared/identity';
 
 export interface OAuthUserInfo {
   openId: string;

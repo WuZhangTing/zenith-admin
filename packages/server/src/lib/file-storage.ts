@@ -12,7 +12,7 @@ import { Readable, PassThrough } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
 import type { FileStorageConfigRow, ManagedFileRow } from '../db/schema';
-import { FILE_OBJECT_ACL_SUPPORT } from '@zenith/shared';
+import { FILE_OBJECT_ACL_SUPPORT } from '@zenith/shared/platform';
 import { HTTPException } from 'hono/http-exception';
 import { formatDate } from './datetime';
 import logger from './logger';

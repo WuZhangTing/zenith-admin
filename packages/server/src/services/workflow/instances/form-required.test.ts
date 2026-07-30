@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-  collectMissingRequiredFields,
-  isWorkflowFieldRequired,
-  isWorkflowFieldVisible,
-} from '@zenith/shared';
-import type { WorkflowFormField } from '@zenith/shared';
+import { collectMissingRequiredFields, isWorkflowFieldRequired, isWorkflowFieldVisible } from '@zenith/shared/workflow';
+import type { WorkflowFormField } from '@zenith/shared/workflow';
 
 const f = (partial: Partial<WorkflowFormField> & { key: string }): WorkflowFormField => ({
   label: partial.key,

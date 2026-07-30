@@ -1,17 +1,5 @@
 import { LocaleType, type ICellData, type IRange, type IStyleData, type IWorkbookData } from '@univerjs/presets';
-import type {
-  ReportPrintBorder,
-  ReportPrintCell,
-  ReportPrintCellImage,
-  ReportPrintCellStyle,
-  ReportPrintContent,
-  ReportPrintDatasetBinding,
-  ReportPrintGrid,
-  ReportPrintPageConfig,
-  ReportPrintRepeatBlock,
-  ReportPrintSheet,
-  ReportPrintSubreportCell,
-} from '@zenith/shared';
+import type { ReportPrintBorder, ReportPrintCell, ReportPrintCellImage, ReportPrintCellStyle, ReportPrintContent, ReportPrintDatasetBinding, ReportPrintGrid, ReportPrintPageConfig, ReportPrintRepeatBlock, ReportPrintSheet, ReportPrintSubreportCell } from '@zenith/shared/report';
 
 type Matrix<T> = { [row: number]: { [col: number]: T | null | undefined } };
 type NumericArray<T> = { [index: number]: T };

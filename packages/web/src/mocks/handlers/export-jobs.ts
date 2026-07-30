@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import type { ExportEntityMeta, ExportJob, ExportJobDownload, ExportJobFormat, ExportJobStatus } from '@zenith/shared';
+import type { ExportEntityMeta, ExportJob, ExportJobDownload, ExportJobFormat, ExportJobStatus } from '@zenith/shared/tasks';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 
 const entities: ExportEntityMeta[] = [

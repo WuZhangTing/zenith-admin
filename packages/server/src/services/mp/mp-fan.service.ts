@@ -8,7 +8,7 @@ import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
 import { getFollowerOpenids, batchGetFanInfo, getWechatBlacklist, batchBlacklistFans, batchUnblacklistFans, WechatApiError } from '../../lib/wechat';
-import type { UpdateMpFanInput, MpFanSubscribe } from '@zenith/shared';
+import type { UpdateMpFanInput, MpFanSubscribe } from '@zenith/shared/mp';
 
 export function mapMpFan(row: MpFanRow) {
   return {

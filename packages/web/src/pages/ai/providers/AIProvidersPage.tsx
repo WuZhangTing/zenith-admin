@@ -7,7 +7,7 @@ import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePermission } from '@/hooks/usePermission';
-import type { AiProvider, AiProviderConfig } from '@zenith/shared';
+import type { AiProvider, AiProviderConfig } from '@zenith/shared/ai';
 import AiProviderFormModal from '../components/AiProviderFormModal';
 import {
   aiProviderKeys,

@@ -1,4 +1,4 @@
-import type { CmsInteractionKind } from '@zenith/shared';
+import type { CmsInteractionKind } from '@zenith/shared/cms';
 import { createMatrixRow, createOption, createQuestion, type QuestionDraft } from './question-draft';
 
 export interface InteractionTemplate {

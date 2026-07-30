@@ -5,8 +5,8 @@ import { buildRechargeWhere } from '../../../services/member/member-recharge.ser
 import { batchIterable } from '../../excel-export';
 import { defineExport } from '../registry';
 import type { ExportColumn } from '../types';
-import type { PaymentChannel, PaymentOrderStatus } from '@zenith/shared';
-import { PAYMENT_ORDER_STATUS_LABELS, PAYMENT_CHANNEL_LABELS } from '@zenith/shared';
+import type { PaymentChannel, PaymentOrderStatus } from '@zenith/shared/payment';
+import { PAYMENT_ORDER_STATUS_LABELS, PAYMENT_CHANNEL_LABELS } from '@zenith/shared/payment';
 
 const STATUS_LABELS: Record<string, string> = PAYMENT_ORDER_STATUS_LABELS;
 const CHANNEL_LABELS: Record<string, string> = { ...PAYMENT_CHANNEL_LABELS, mock: '模拟支付' };

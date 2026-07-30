@@ -4,8 +4,8 @@ import { Button, Input, Select, Form, Toast, Tag, Modal, Row, Col } from '@douyi
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search, RotateCcw, Plus } from 'lucide-react';
-import type { Coupon, CouponType, CouponTemplateStatus } from '@zenith/shared';
-import { COUPON_TYPE_LABELS, COUPON_TEMPLATE_STATUS_LABELS } from '@zenith/shared';
+import type { Coupon, CouponType, CouponTemplateStatus } from '@zenith/shared/member';
+import { COUPON_TYPE_LABELS, COUPON_TEMPLATE_STATUS_LABELS } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { SearchToolbar } from '@/components/SearchToolbar';

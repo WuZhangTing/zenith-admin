@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw';
-import type { IdentitySecurityPolicy, LoginRiskEvent } from '@zenith/shared';
+import type { LoginRiskEvent } from '@zenith/shared/identity';
+import type { IdentitySecurityPolicy } from '@zenith/shared/platform';
 import { mockDateTime } from '../utils/date';
 
 let policy: IdentitySecurityPolicy = {

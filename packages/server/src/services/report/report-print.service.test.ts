@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { resolvePrintDatasetBindings, resolvePrintSubreportParams } from './report-print.service';
-import type { ReportPrintDatasetBinding } from '@zenith/shared';
+import type { ReportPrintDatasetBinding } from '@zenith/shared/report';
 
 const input = {
   templateParams: [{ name: 'tenantCode', label: '租户', type: 'string' as const }],

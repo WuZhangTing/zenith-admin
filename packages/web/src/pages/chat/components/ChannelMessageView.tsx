@@ -10,7 +10,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Dropdown, Empty, Rating, Spin, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import { ArrowLeft, BadgeCheck, ChevronUp, ExternalLink, Send, Star } from 'lucide-react';
-import type { Channel, ChannelMenu, ChannelMessage, ChatMessage, ChatCardAction, WsMessage } from '@zenith/shared';
+import type { ChatMessage, ChatCardAction } from '@zenith/shared/chat';
+import type { Channel, ChannelMenu, ChannelMessage } from '@zenith/shared/messaging';
+import type { WsMessage } from '@zenith/shared/platform';
 import { request } from '@/utils/request';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { UserAvatar } from '@/components/UserAvatar';

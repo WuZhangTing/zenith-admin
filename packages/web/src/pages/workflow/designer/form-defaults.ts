@@ -3,7 +3,7 @@
  * 按发起人/部门/时间解析为初始值，供发起页注入。
  */
 import dayjs from 'dayjs';
-import type { WorkflowFormField } from '@zenith/shared';
+import type { WorkflowFormField } from '@zenith/shared/workflow';
 import { flattenAllFields } from './form-tree';
 
 export interface DynamicDefaultContext {

@@ -4,7 +4,7 @@ import { Button, DatePicker, Form, Input, Tag, Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search, RotateCcw, CalendarPlus } from 'lucide-react';
-import type { MemberCheckin } from '@zenith/shared';
+import type { MemberCheckin } from '@zenith/shared/member';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';

@@ -6,7 +6,7 @@ import {
   PaginationQuery,
 } from '../../lib/openapi-schemas';
 import { ChatWebhookDTO } from '../../lib/openapi-dtos';
-import { createChatWebhookSchema, updateChatWebhookSchema } from '@zenith/shared';
+import { createChatWebhookSchema, updateChatWebhookSchema } from '@zenith/shared/chat';
 import {
   listChatWebhooks, createChatWebhook, updateChatWebhook, deleteChatWebhook, regenerateChatWebhookToken,
   getChatWebhookBeforeAudit, sanitizeChatWebhookForAudit,

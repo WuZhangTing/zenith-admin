@@ -8,7 +8,7 @@
  */
 import { Button, Input, Select, Typography, Space, Banner } from '@douyinfe/semi-ui';
 import { Plus, Trash2, CircleCheck, CircleAlert } from 'lucide-react';
-import type { WorkflowCustomFormConfig, WorkflowCustomFormVariable } from '@zenith/shared';
+import type { WorkflowCustomFormConfig, WorkflowCustomFormVariable } from '@zenith/shared/workflow';
 import IconPicker from '@/components/IconPicker';
 import { hasPageComponent } from '@/utils/page-registry';
 

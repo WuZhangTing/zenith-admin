@@ -3,8 +3,8 @@ import { useLocation } from 'react-router-dom';
 import { Empty, Feedback, Radio, RadioGroup, Rating, TextArea, Typography } from '@douyinfe/semi-ui';
 import { IllustrationSuccess, IllustrationSuccessDark } from '@douyinfe/semi-illustrations';
 import { useSubmitFeedback } from '@/hooks/queries/user-feedbacks';
-import type { UserFeedbackCategory } from '@zenith/shared';
-import { USER_FEEDBACK_CATEGORY_LABELS } from '@zenith/shared';
+import type { UserFeedbackCategory } from '@zenith/shared/identity';
+import { USER_FEEDBACK_CATEGORY_LABELS } from '@zenith/shared/identity';
 
 const CATEGORY_OPTIONS: Array<{ value: UserFeedbackCategory; label: string }> =
   (Object.keys(USER_FEEDBACK_CATEGORY_LABELS) as UserFeedbackCategory[]).map((value) => ({ value, label: USER_FEEDBACK_CATEGORY_LABELS[value] }));

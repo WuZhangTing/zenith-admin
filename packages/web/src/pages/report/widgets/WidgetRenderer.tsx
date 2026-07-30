@@ -9,8 +9,8 @@ import {
   makeBarSpec, makeLineSpec, makeAreaSpec, makePieSpec, makeScatterSpec, makeTreemapSpec, makeMixedBarLineSpec,
   useChartPalette, chartOptions, type ChartPalette,
 } from '@/components/charts';
-import { aggregateReportRows, formatReportFieldValue } from '@zenith/shared';
-import type { ReportWidget, ReportField, ReportDataResult, ReportConditionalFormat, ReportWidgetOptions, ReportDatasetQueryOptions, ReportResultField } from '@zenith/shared';
+import { aggregateReportRows, formatReportFieldValue } from '@zenith/shared/report';
+import type { ReportWidget, ReportField, ReportDataResult, ReportConditionalFormat, ReportWidgetOptions, ReportDatasetQueryOptions, ReportResultField } from '@zenith/shared/report';
 import { useReportWidgetDictMaps } from '@/hooks/queries/report-designer';
 import { TABLE_PAGE_SIZE_OPTIONS } from '@/hooks/usePagination';
 

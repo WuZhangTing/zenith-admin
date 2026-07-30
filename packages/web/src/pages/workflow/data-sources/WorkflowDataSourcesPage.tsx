@@ -14,7 +14,7 @@ import AppModal from '@/components/AppModal';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
-import type { WorkflowDataSource, WorkflowDataSourceOption } from '@zenith/shared';
+import type { WorkflowDataSource, WorkflowDataSourceOption } from '@zenith/shared/workflow';
 import {
   useDeleteWorkflowDataSource,
   useSaveWorkflowDataSource,

@@ -1,4 +1,4 @@
-import type { EmailSendLog } from '@zenith/shared';
+import type { EmailSendLog } from '@zenith/shared/messaging';
 
 export const mockEmailSendLogs: EmailSendLog[] = [
   {

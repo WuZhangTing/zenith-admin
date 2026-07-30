@@ -1,4 +1,4 @@
-import type { ApiResponse } from '@zenith/shared';
+import type { ApiResponse } from '@zenith/shared/core';
 import { showRequestErrorToast, showRequestWarningToast } from './request-toast';
 
 /** ApiResponse 扩展：限流时携带 retryAfterSeconds */

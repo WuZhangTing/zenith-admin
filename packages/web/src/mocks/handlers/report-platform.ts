@@ -1,16 +1,5 @@
 import { http } from 'msw';
-import type {
-  ReportAclRole,
-  ReportEnvironment,
-  ReportEnvironmentPromotion,
-  ReportFolder,
-  ReportFolderTreeNode,
-  ReportMetric,
-  ReportPublishApproval,
-  ReportResourceAcl,
-  ReportResourceTransfer,
-  ReportResourceType,
-} from '@zenith/shared';
+import type { ReportAclRole, ReportEnvironment, ReportEnvironmentPromotion, ReportFolder, ReportFolderTreeNode, ReportMetric, ReportPublishApproval, ReportResourceAcl, ReportResourceTransfer, ReportResourceType } from '@zenith/shared/report';
 import {
   mockReportDashboards,
   mockReportDatasets,

@@ -5,8 +5,8 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { BellRing, ChevronLeft, RotateCcw, Send } from 'lucide-react';
-import type { WorkflowActionButtonConfig, WorkflowFieldPermission, WorkflowTask } from '@zenith/shared';
-import { applyFieldPermissionsToFields, hasEditableFieldPermission } from '@zenith/shared';
+import type { WorkflowActionButtonConfig, WorkflowFieldPermission, WorkflowTask } from '@zenith/shared/workflow';
+import { applyFieldPermissionsToFields, hasEditableFieldPermission } from '@zenith/shared/workflow';
 import { formatDateTime } from '@/utils/date';
 import ApprovalTimeline from '@/components/ApprovalTimeline';
 import FileAttachment from '@/components/FileAttachment';

@@ -1,18 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  Channel,
-  ChannelMenu,
-  ChannelMessage,
-  ChatConversation,
-  ChatCustomEmoji,
-  ChatGroupInvite,
-  ChatGroupJoinRequest,
-  ChatGroupMember,
-  ChatInviteInfo,
-  ChatOrgData,
-  ChatQuickReply,
-  ChatScheduledMessage,
-} from '@zenith/shared';
+import type { ChatConversation, ChatCustomEmoji, ChatGroupInvite, ChatGroupJoinRequest, ChatGroupMember, ChatInviteInfo, ChatOrgData, ChatQuickReply, ChatScheduledMessage } from '@zenith/shared/chat';
+import type { Channel, ChannelMenu, ChannelMessage } from '@zenith/shared/messaging';
 import { request } from '@/utils/request';
 import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
 import type { ChatUser } from '@/pages/chat/types';

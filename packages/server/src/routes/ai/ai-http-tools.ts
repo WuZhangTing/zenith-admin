@@ -13,7 +13,7 @@ import {
 import { AiHttpToolDTO, AiToolInfoDTO } from '../../lib/openapi-dtos';
 import { listHttpTools, createHttpTool, updateHttpTool, deleteHttpTool } from '../../services/ai/ai-http-tools.service';
 import { listAvailableTools } from '../../lib/ai/tools';
-import { createAiHttpToolSchema, updateAiHttpToolSchema } from '@zenith/shared';
+import { createAiHttpToolSchema, updateAiHttpToolSchema } from '@zenith/shared/ai';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 

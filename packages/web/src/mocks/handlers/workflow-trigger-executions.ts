@@ -1,8 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import type {
-  WorkflowTriggerExecution,
-  WorkflowTriggerExecutionStatus,
-} from '@zenith/shared';
+import type { WorkflowTriggerExecution, WorkflowTriggerExecutionStatus } from '@zenith/shared/workflow';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 
 function ok<T>(data: T, message = 'ok') {

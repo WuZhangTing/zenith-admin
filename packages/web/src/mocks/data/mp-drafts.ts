@@ -1,5 +1,5 @@
-import type { MpDraft } from '@zenith/shared';
-import { SEED_MP_DRAFTS } from '@zenith/shared';
+import type { MpDraft } from '@zenith/shared/mp';
+import { SEED_MP_DRAFTS } from '@zenith/shared/seed';
 
 export const mockMpDrafts: MpDraft[] = SEED_MP_DRAFTS.map((d) => ({ ...d, articles: JSON.parse(JSON.stringify(d.articles)) }));
 

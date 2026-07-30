@@ -11,8 +11,8 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { formatDateTime } from '@/utils/date';
 import { useAnalyticsDebugEvents } from '@/hooks/queries/analytics';
-import type { AnalyticsDebugEvent, AnalyticsQualityIssueType } from '@zenith/shared';
-import { ANALYTICS_QUALITY_ISSUE_TYPE_LABELS } from '@zenith/shared';
+import type { AnalyticsDebugEvent, AnalyticsQualityIssueType } from '@zenith/shared/analytics';
+import { ANALYTICS_QUALITY_ISSUE_TYPE_LABELS } from '@zenith/shared/analytics';
 
 const DEBUG_LIMIT = 50;
 

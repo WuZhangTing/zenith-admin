@@ -4,7 +4,7 @@ import { mockMenus } from '@/mocks/data/menus';
 import { mockRoles } from '@/mocks/data/roles';
 import { mockLoginLogs, mockOperationLogs } from '@/mocks/data/logs';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
-import type { MfaFactor, TotpSetupResult } from '@zenith/shared';
+import type { MfaFactor, TotpSetupResult } from '@zenith/shared/platform';
 
 const MOCK_TOKEN = 'mock-access-token-demo';
 const MOCK_REFRESH_TOKEN = 'mock-refresh-token-demo';

@@ -15,11 +15,8 @@ import {
 } from '@douyinfe/semi-ui';
 import { IllustrationNoContent, IllustrationNoContentDark } from '@douyinfe/semi-illustrations';
 import { Search } from 'lucide-react';
-import {
-  CMS_INTERACTION_QUESTION_TYPE_LABELS,
-  type CmsInteraction,
-  type CmsInteractionQuestionStats,
-} from '@zenith/shared';
+import { CMS_INTERACTION_QUESTION_TYPE_LABELS } from '@zenith/shared/cms';
+import type { CmsInteraction, CmsInteractionQuestionStats } from '@zenith/shared/cms';
 import {
   useCmsInteractionCrossStats,
   useCmsInteractionStats,

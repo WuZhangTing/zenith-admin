@@ -9,7 +9,7 @@ import { escapeLike } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { WALLET_RECHARGE_BIZ_TYPE } from './member-wallet.service';
-import type { PaymentChannel, PaymentOrderStatus } from '@zenith/shared';
+import type { PaymentChannel, PaymentOrderStatus } from '@zenith/shared/payment';
 
 export interface MemberRechargeQuery {
   keyword?: string;

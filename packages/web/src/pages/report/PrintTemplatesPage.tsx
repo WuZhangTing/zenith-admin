@@ -27,13 +27,8 @@ import {
   useSaveReportPrintTemplate,
 } from '@/hooks/queries/report-print';
 import PrintReportView from './PrintReportView';
-import type {
-  CreateReportPrintTemplateInput,
-  ExportJobFormat,
-  ReportPrintRenderResult,
-  ReportPrintTemplate,
-  UpdateReportPrintTemplateInput,
-} from '@zenith/shared';
+import type { CreateReportPrintTemplateInput, ReportPrintRenderResult, ReportPrintTemplate, UpdateReportPrintTemplateInput } from '@zenith/shared/report';
+import type { ExportJobFormat } from '@zenith/shared/tasks';
 import { useDictItems } from '@/hooks/useDictItems';
 import { flattenReportFolders, useReportFolderTree } from '@/hooks/queries/report-folders';
 import { useAllUsers } from '@/hooks/queries/users';

@@ -10,7 +10,7 @@ import { httpRequest } from '../../lib/http-client';
 import { AI_SSRF_OPTIONS } from '../../lib/ai/outbound';
 import { HTTPException } from 'hono/http-exception';
 import logger from '../../lib/logger';
-import type { CreateAiKnowledgeBaseInput, UpdateAiKnowledgeBaseInput, AddAiKbDocumentInput, ImportAiKbUrlInput } from '@zenith/shared';
+import type { CreateAiKnowledgeBaseInput, UpdateAiKnowledgeBaseInput, AddAiKbDocumentInput, ImportAiKbUrlInput } from '@zenith/shared/ai';
 
 /** 分块目标大小（估算 token） */
 const CHUNK_TOKENS = 500;

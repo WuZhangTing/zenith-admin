@@ -12,7 +12,7 @@ import { createdAtColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { useCmsTagList, useSaveCmsTag, useDeleteCmsTag, cmsTagKeys } from '@/hooks/queries/cms';
-import type { CmsTag } from '@zenith/shared';
+import type { CmsTag } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 
 export default function TagsPage() {

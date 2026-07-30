@@ -14,7 +14,7 @@ import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
 import { decryptSecret, encryptSecret } from '../../lib/secret-crypto';
-import type { WorkflowEventType } from '@zenith/shared';
+import type { WorkflowEventType } from '@zenith/shared/workflow';
 
 function maskSecret(secret: string | null | undefined): string | null {
   if (!secret) return null;

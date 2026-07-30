@@ -1,6 +1,6 @@
 import { CmsFollowButton, Layout } from './Layout';
 import type { CSSProperties } from 'react';
-import type { CmsContentAttachment, CmsTitleStyle } from '@zenith/shared';
+import type { CmsContentAttachment, CmsTitleStyle } from '@zenith/shared/cms';
 import type {
   CmsBaseContext, CmsBreadcrumb, CmsContentItem, CmsHomeContext, CmsListContext,
   CmsDetailContext, CmsPageContext, CmsSearchContext, CmsNotFoundContext, CmsPagination,

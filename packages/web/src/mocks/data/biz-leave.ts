@@ -1,4 +1,4 @@
-import type { BizLeave } from '@zenith/shared';
+import type { BizLeave } from '@zenith/shared/biz';
 import { mockDate, mockDateTime } from '@/mocks/utils/date';
 
 export const mockBizLeaves: BizLeave[] = [

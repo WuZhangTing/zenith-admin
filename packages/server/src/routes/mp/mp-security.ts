@@ -4,7 +4,7 @@ import { guard } from '../../middleware/guard';
 import {
   jsonContent, validationHook, commonErrorResponses, ok, okBody,
 } from '../../lib/openapi-schemas';
-import { checkMpContentSchema } from '@zenith/shared';
+import { checkMpContentSchema } from '@zenith/shared/mp';
 import { MpContentCheckDTO } from '../../lib/openapi-dtos';
 import { checkMpContent } from '../../services/mp/mp-security.service';
 

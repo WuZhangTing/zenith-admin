@@ -1,47 +1,10 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  AnalyticsDebugEvent,
-  AnalyticsExperiment,
-  AnalyticsExperimentReport,
-  AnalyticsEventMeta,
-  AnalyticsEventOverride,
-  AnalyticsEventOverrideStatus,
-  AnalyticsEventQueryInput,
-  AnalyticsEventQueryResult,
-  AnalyticsOverview,
-  AnalyticsQualityIssueType,
-  AnalyticsQualityQueryResult,
-  AnalyticsRetentionMode,
-  AnalyticsSegmentMember,
-  AnalyticsSegmentCampaign,
-  AnalyticsSettings,
-  AnalyticsUserSegment,
-  AnalyticsSite,
-  AsyncTask,
-  ErrorAlertRule,
-  ErrorAlertLog,
-  ErrorEvent,
-  ErrorGroup,
-  ErrorOverview,
-  FunnelQuery,
-  FunnelResult,
-  HeatmapData,
-  HeatmapPageListItem,
-  PageStats,
-  PaginatedResponse,
-  PathResult,
-  RealtimeStats,
-  RetentionResult,
-  SessionListItem,
-  SessionTimeline,
-  AnalyticsSavedReport,
-  DimensionCross,
-  TrendSeries,
-  UserStats,
-  UserTimeline,
-  FeatureStats,
-} from '@zenith/shared';
-import { ANALYTICS_CONFIG_VERSION_KEY } from '@zenith/shared';
+import type { AnalyticsDebugEvent, AnalyticsExperiment, AnalyticsExperimentReport, AnalyticsEventMeta, AnalyticsEventOverride, AnalyticsEventOverrideStatus, AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsOverview, AnalyticsQualityIssueType, AnalyticsQualityQueryResult, AnalyticsRetentionMode, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSettings, AnalyticsUserSegment, AnalyticsSite, ErrorAlertRule, ErrorAlertLog, ErrorEvent, ErrorGroup, ErrorOverview, FunnelQuery, FunnelResult, HeatmapData, HeatmapPageListItem, PageStats, PathResult, RealtimeStats, RetentionResult, AnalyticsSavedReport, DimensionCross, TrendSeries, FeatureStats } from '@zenith/shared/analytics';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { UserStats, UserTimeline } from '@zenith/shared/identity';
+import type { SessionListItem, SessionTimeline } from '@zenith/shared/platform';
+import type { AsyncTask } from '@zenith/shared/tasks';
+import { ANALYTICS_CONFIG_VERSION_KEY } from '@zenith/shared/analytics';
 import { toQueryString, unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
 import { reloadTrackerConfig } from '@/utils/tracker';

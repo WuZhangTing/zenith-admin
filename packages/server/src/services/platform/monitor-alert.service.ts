@@ -8,7 +8,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { monitorAlertRules, monitorAlertEvents } from '../../db/schema';
 import type { MonitorAlertRuleRow, MonitorAlertEventRow } from '../../db/schema';
-import type { CreateMonitorAlertRuleInput, UpdateMonitorAlertRuleInput, MonitorAlertEventQuery, MonitorMetric, MonitorAlertOperator } from '@zenith/shared';
+import type { CreateMonitorAlertRuleInput, UpdateMonitorAlertRuleInput, MonitorAlertEventQuery, MonitorMetric, MonitorAlertOperator } from '@zenith/shared/platform';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { mergeWhere } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';

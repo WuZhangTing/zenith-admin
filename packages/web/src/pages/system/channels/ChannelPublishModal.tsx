@@ -13,10 +13,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button, Col, Form, Input, Row, Select, Space, Toast, Typography, Upload, withField } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { ImagePlus, Save, Send, Settings2, Trash2, Users } from 'lucide-react';
-import type {
-  ChannelAdmin, ChannelMessage, ChannelMessageTemplate, ChannelMessageType, ChannelPublishAudienceMode,
-  ChannelSendMode, ChatCard, ChatMessageExtra,
-} from '@zenith/shared';
+import type { ChatCard, ChatMessageExtra } from '@zenith/shared/chat';
+import type { ChannelAdmin, ChannelMessage, ChannelMessageTemplate, ChannelMessageType, ChannelPublishAudienceMode, ChannelSendMode } from '@zenith/shared/messaging';
 import { config } from '@/config';
 import { formatDateTimeForApi } from '@/utils/date';
 import { AppModal } from '@/components/AppModal';

@@ -1,10 +1,6 @@
 import { HTTPException } from 'hono/http-exception';
-import {
-  OPEN_SIGNATURE_ALGORITHM,
-  OPEN_SIGNATURE_TIMESTAMP_WINDOW,
-  OPEN_SIGNATURE_HEADERS,
-} from '@zenith/shared';
-import type { OpenSignatureVerifyInput } from '@zenith/shared';
+import { OPEN_SIGNATURE_ALGORITHM, OPEN_SIGNATURE_TIMESTAMP_WINDOW, OPEN_SIGNATURE_HEADERS } from '@zenith/shared/open-platform';
+import type { OpenSignatureVerifyInput } from '@zenith/shared/open-platform';
 import { getAppSigningSecret } from './oauth2-clients.service';
 import { signRequest, timingSafeEqualHex } from '../../lib/open-signature';
 

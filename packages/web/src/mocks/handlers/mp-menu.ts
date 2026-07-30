@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockMpMenus } from '@/mocks/data/mp-menus';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { MpMenu, MpMenuButton } from '@zenith/shared';
+import type { MpMenu, MpMenuButton } from '@zenith/shared/mp';
 
 function emptyMenu(accountId: number): MpMenu {
   return { id: 0, accountId, buttons: [], status: 'draft', publishedAt: null, createdAt: '', updatedAt: '' };

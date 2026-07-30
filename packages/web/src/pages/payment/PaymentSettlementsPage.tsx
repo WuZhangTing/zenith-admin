@@ -19,8 +19,8 @@ import {
   usePaymentSettlementList,
   useUpdatePaymentSettlementStatus,
 } from '@/hooks/queries/payment-settlements';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_SETTLEMENT_STATUS_LABELS } from '@zenith/shared';
-import type { PaymentChannel, PaymentSettlementBatch, PaymentSettlementStatus } from '@zenith/shared';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_SETTLEMENT_STATUS_LABELS } from '@zenith/shared/payment';
+import type { PaymentChannel, PaymentSettlementBatch, PaymentSettlementStatus } from '@zenith/shared/payment';
 
 const yuan = formatYuan;
 const channelOptions = Object.entries(PAYMENT_CHANNEL_LABELS).map(([value, label]) => ({ value, label }));

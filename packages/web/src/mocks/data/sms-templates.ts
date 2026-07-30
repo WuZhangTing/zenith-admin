@@ -1,5 +1,5 @@
-import { SEED_SMS_TEMPLATES } from '@zenith/shared';
-import type { SmsTemplate } from '@zenith/shared';
+import { SEED_SMS_TEMPLATES } from '@zenith/shared/seed';
+import type { SmsTemplate } from '@zenith/shared/messaging';
 
 export const mockSmsTemplates: SmsTemplate[] = [...SEED_SMS_TEMPLATES];
 

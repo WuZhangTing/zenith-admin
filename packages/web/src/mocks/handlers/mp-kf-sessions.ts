@@ -5,7 +5,7 @@ import {
 } from '@/mocks/data/mp-kf-sessions';
 import { mockMpKfAccounts } from '@/mocks/data/mp-kf-accounts';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { MpMessage } from '@zenith/shared';
+import type { MpMessage } from '@zenith/shared/mp';
 
 function kfNick(kfId: number | null): string | null {
   if (!kfId) return null;

@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../../db';
 import { cmsSensitiveWords, cmsErrorProneWords } from '../../db/schema';
-import type { CmsTextCheckResult } from '@zenith/shared';
+import type { CmsTextCheckResult } from '@zenith/shared/cms';
 
 /**
  * 内容编辑词库检查：一次扫描同时命中敏感词与易错词（Aho-Corasick 多模式匹配）。

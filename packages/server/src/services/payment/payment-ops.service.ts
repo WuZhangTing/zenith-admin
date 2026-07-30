@@ -21,7 +21,7 @@ import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers'
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { processEvent } from './payment-outbox.service';
 import { markOrderPaid, mapOrder, loadOrderConfig } from './payment.service';
-import type { PaymentOrder, PaymentOutboxEvent } from '@zenith/shared';
+import type { PaymentOrder, PaymentOutboxEvent } from '@zenith/shared/payment';
 
 export function mapOutboxEvent(row: PaymentEventRow): PaymentOutboxEvent {
   return {

@@ -39,23 +39,8 @@ import {
   assertReportSqlTableAllowlist,
   extractReportSqlTableReferences,
 } from '../../lib/report-sql-safety';
-import {
-  isExternalDbType,
-  isSqlLikeType,
-  type CreateReportChatbiMessageInput,
-  type CreateReportChatbiSessionInput,
-  type ReportChatbiChartSuggestion,
-  type ReportChatbiContextSnapshot,
-  type ReportChatbiMessage,
-  type ReportChatbiSession,
-  type ReportDataResult,
-  type ReportExternalDbConfig,
-  type ReportMetaColumn,
-  type ReportSqlDatasetContent,
-  type ReportWidgetType,
-  type SaveReportChatbiMessageAssetInput,
-  type UpdateReportChatbiSessionInput,
-} from '@zenith/shared';
+import { isExternalDbType, isSqlLikeType } from '@zenith/shared/report';
+import type { CreateReportChatbiMessageInput, CreateReportChatbiSessionInput, ReportChatbiChartSuggestion, ReportChatbiContextSnapshot, ReportChatbiMessage, ReportChatbiSession, ReportDataResult, ReportExternalDbConfig, ReportMetaColumn, ReportSqlDatasetContent, ReportWidgetType, SaveReportChatbiMessageAssetInput, UpdateReportChatbiSessionInput } from '@zenith/shared/report';
 
 const CHATBI_HISTORY_COUNT = 12;
 const CHATBI_HISTORY_TOKENS = 6000;

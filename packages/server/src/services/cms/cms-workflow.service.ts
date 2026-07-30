@@ -9,7 +9,7 @@
  */
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { WORKFLOW_ACTIVE_INSTANCE_STATUSES } from '@zenith/shared';
+import { WORKFLOW_ACTIVE_INSTANCE_STATUSES } from '@zenith/shared/workflow';
 import { db } from '../../db';
 import { cmsContents, workflowDefinitions, workflowInstances } from '../../db/schema';
 import logger from '../../lib/logger';

@@ -5,8 +5,8 @@ import { Button, Input, Modal, Select, Space, Tag, Typography,
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Ban, CircleCheck, GitCompare, Layers, LayoutTemplate, Plus, RotateCcw, Save, Search, Trash2, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import type { WorkflowDefinition, WorkflowFormType, WorkflowVersionDiff as WorkflowVersionDiffData } from '@zenith/shared';
-import { WORKFLOW_FORM_TYPE_LABELS } from '@zenith/shared';
+import type { WorkflowDefinition, WorkflowFormType, WorkflowVersionDiff as WorkflowVersionDiffData } from '@zenith/shared/workflow';
+import { WORKFLOW_FORM_TYPE_LABELS } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
 import { downloadBlob } from '@/utils/download';
 import { formatDateTime } from '@/utils/date';

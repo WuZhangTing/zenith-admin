@@ -1,11 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  CreateReportPrintTemplateInput,
-  PaginatedResponse,
-  ReportPrintRenderResult,
-  ReportPrintTemplate,
-  UpdateReportPrintTemplateInput,
-} from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { CreateReportPrintTemplateInput, ReportPrintRenderResult, ReportPrintTemplate, UpdateReportPrintTemplateInput } from '@zenith/shared/report';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 import { useReportLookup } from './report-lookups';

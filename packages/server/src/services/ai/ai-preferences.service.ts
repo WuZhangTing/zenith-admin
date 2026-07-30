@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '../../db';
 import { aiUserPreferences } from '../../db/schema';
 import { currentUser } from '../../lib/context';
-import type { SaveAiPreferenceInput } from '@zenith/shared';
+import type { SaveAiPreferenceInput } from '@zenith/shared/platform';
 
 function mapRow(row: typeof aiUserPreferences.$inferSelect | undefined) {
   return {

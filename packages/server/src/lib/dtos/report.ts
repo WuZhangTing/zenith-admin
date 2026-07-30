@@ -1,10 +1,5 @@
 import { z } from '@hono/zod-openapi';
-import {
-  REPORT_DASHBOARD_LIFECYCLE_STATUSES,
-  REPORT_DASHBOARD_VERSION_SOURCES,
-  REPORT_DATASOURCE_TYPES,
-  REPORT_WIDGET_TYPES,
-} from '@zenith/shared';
+import { REPORT_DASHBOARD_LIFECYCLE_STATUSES, REPORT_DASHBOARD_VERSION_SOURCES, REPORT_DATASOURCE_TYPES, REPORT_WIDGET_TYPES } from '@zenith/shared/report';
 import { auditFields } from './_audit';
 
 const ReportFieldDTO = z.object({

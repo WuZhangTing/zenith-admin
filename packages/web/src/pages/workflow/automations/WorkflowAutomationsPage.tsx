@@ -28,12 +28,7 @@ import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag/interface';
 import { Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
-import type {
-  WorkflowAutomation,
-  WorkflowAutomationAction,
-  WorkflowAutomationTrigger,
-  WorkflowDefinition,
-} from '@zenith/shared';
+import type { WorkflowAutomation, WorkflowAutomationAction, WorkflowAutomationTrigger, WorkflowDefinition } from '@zenith/shared/workflow';
 import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';

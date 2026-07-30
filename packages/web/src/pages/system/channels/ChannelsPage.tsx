@@ -4,7 +4,7 @@ import { Button, Form, Input, Modal, Space, Tag, Toast, Typography, Upload } fro
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ImagePlus, Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
-import type { ChannelAdmin } from '@zenith/shared';
+import type { ChannelAdmin } from '@zenith/shared/messaging';
 import { config } from '@/config';
 import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import type { MemberOption } from '@zenith/shared';
+import type { MemberOption } from '@zenith/shared/member';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 

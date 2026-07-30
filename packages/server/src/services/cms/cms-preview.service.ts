@@ -6,7 +6,7 @@
  * 无需登录即可查看，杜绝把草稿正文粘贴到聊天工具的原始流程。
  */
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { CMS_PREVIEW_PREFIX } from '@zenith/shared';
+import { CMS_PREVIEW_PREFIX } from '@zenith/shared/cms';
 import { config } from '../../config';
 import { formatDateTime } from '../../lib/datetime';
 import { ensureCmsContentExists } from './cms-contents.service';

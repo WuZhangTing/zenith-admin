@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { PREFERENCES_KEY } from '@zenith/shared';
+import { PREFERENCES_KEY } from '@zenith/shared/core';
 import { request } from '@/utils/request';
 import { defaultPreferences, PreferencesContext } from './usePreferences';
 import type { UserPreferences } from './usePreferences';

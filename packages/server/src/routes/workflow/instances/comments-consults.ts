@@ -2,7 +2,7 @@
 import { createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../../middleware/guard';
-import { createWorkflowCommentSchema, createWorkflowConsultSchema, replyWorkflowConsultSchema } from '@zenith/shared';
+import { createWorkflowCommentSchema, createWorkflowConsultSchema, replyWorkflowConsultSchema } from '@zenith/shared/workflow';
 import { ErrorResponse, PaginationQuery, jsonContent, commonErrorResponses, ok, okPaginated, IdParam, okBody } from '../../../lib/openapi-schemas';
 import { WorkflowCommentDTO, WorkflowTaskConsultDTO } from '../../../lib/openapi-dtos';
 import { getWorkflowInstanceBeforeAudit, getWorkflowTaskBeforeAudit } from '../../../services/workflow/workflow-instances.service';

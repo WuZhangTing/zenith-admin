@@ -1,4 +1,4 @@
-import type { ChatWebhook } from '@zenith/shared';
+import type { ChatWebhook } from '@zenith/shared/chat';
 import { mockDateTime } from '@/mocks/utils/date';
 
 function token(seed: string): string {

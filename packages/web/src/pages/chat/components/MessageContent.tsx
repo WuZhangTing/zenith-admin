@@ -1,7 +1,7 @@
 import { Typography, List, Button } from '@douyinfe/semi-ui';
 import { getFileTypeIcon, formatFileSize, canPreviewFile } from '@/utils/file-utils';
 import { getMessageExtra, renderTextWithMentions } from '../utils';
-import type { ChatMessage, ChatMessageExtra, ChatCardAction } from '@zenith/shared';
+import type { ChatMessage, ChatMessageExtra, ChatCardAction } from '@zenith/shared/chat';
 import { VoiceMessage } from './VoiceMessage';
 import { VideoMessage } from './VideoMessage';
 import { CardMessage } from './CardMessage';

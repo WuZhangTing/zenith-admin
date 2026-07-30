@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react';
-import { TOKEN_KEY } from '@zenith/shared';
+import { TOKEN_KEY } from '@zenith/shared/core';
 import { config } from '@/config';
 import { getFileIcon } from '@/utils/fileIcons';
 

@@ -1,15 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  AsyncTask,
-  CreateReportSlaRuleInput,
-  PaginatedResponse,
-  ReportSlaRule,
-  ReportSlaType,
-  ReportSlaViolation,
-  ReportSlaViolationStatus,
-  UpdateReportSlaRuleInput,
-  UpdateReportSlaViolationInput,
-} from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { CreateReportSlaRuleInput, ReportSlaRule, ReportSlaType, ReportSlaViolation, ReportSlaViolationStatus, UpdateReportSlaRuleInput, UpdateReportSlaViolationInput } from '@zenith/shared/report';
+import type { AsyncTask } from '@zenith/shared/tasks';
 import { toQueryString, unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
 

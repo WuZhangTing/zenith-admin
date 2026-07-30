@@ -4,7 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { cmsPageBlockAcls, cmsPages, cmsChannels } from '../../db/schema';
 import type { CmsPageRow } from '../../db/schema';
-import type { CmsPageBlock } from '@zenith/shared';
+import type { CmsPageBlock } from '@zenith/shared/cms';
 import { formatDateTime } from '../../lib/datetime';
 import { escapeLike, withPagination } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';

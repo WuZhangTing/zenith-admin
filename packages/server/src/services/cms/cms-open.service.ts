@@ -23,7 +23,7 @@ import {
   encodeCmsOpenCursor, OpenQueryError, pickCmsOpenFields,
   type CmsOpenSortRule, type ParsedCmsOpenQuery,
 } from '../../lib/open-query';
-import { CMS_OPEN_SYNC_PAGE_SIZE_MAX } from '@zenith/shared';
+import { CMS_OPEN_SYNC_PAGE_SIZE_MAX } from '@zenith/shared/cms';
 import { resolveCmsContentRows } from './cms-resource-refs.service';
 import { listCmsModelFields } from './cms-models.service';
 import { contentUrl } from './cms-urls';

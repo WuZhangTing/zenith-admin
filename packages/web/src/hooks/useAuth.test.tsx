@@ -16,7 +16,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { TOKEN_KEY, REFRESH_TOKEN_KEY } from '@zenith/shared';
+import { TOKEN_KEY, REFRESH_TOKEN_KEY } from '@zenith/shared/core';
 import { useAuth } from './useAuth';
 import { formatDateTime } from '@/utils/date';
 

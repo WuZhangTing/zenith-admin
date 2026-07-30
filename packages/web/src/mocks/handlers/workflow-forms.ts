@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw';
-import { createWorkflowFormSchema, updateWorkflowFormSchema, type WorkflowForm } from '@zenith/shared';
+import { createWorkflowFormSchema, updateWorkflowFormSchema } from '@zenith/shared/workflow';
+import type { WorkflowForm } from '@zenith/shared/workflow';
 import { mockWorkflowForms, getNextWorkflowFormId } from '@/mocks/data/workflow-forms';
 import { mockWorkflowDefinitions } from '@/mocks/data/workflow';
 import { mockDateTime } from '@/mocks/utils/date';

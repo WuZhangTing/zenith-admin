@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockMpBroadcasts, getNextMpBroadcastId } from '@/mocks/data/mp-broadcasts';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { MpBroadcast } from '@zenith/shared';
+import type { MpBroadcast } from '@zenith/shared/mp';
 
 export const mpBroadcastsHandlers = [
   http.get('/api/mp/broadcasts', ({ request }) => {

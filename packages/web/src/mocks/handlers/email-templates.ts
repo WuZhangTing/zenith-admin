@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockEmailTemplates, getNextEmailTemplateId } from '@/mocks/data/email-templates';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { EmailTemplate } from '@zenith/shared';
+import type { EmailTemplate } from '@zenith/shared/messaging';
 
 export const emailTemplatesHandlers = [
   http.get('/api/email-templates', ({ request }) => {

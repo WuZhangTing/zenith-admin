@@ -4,7 +4,7 @@ import { Button, DatePicker, Form, Input, Modal, Select, SideSheet, Space, Tag, 
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, RotateCcw, Search } from 'lucide-react';
-import type { RuleList, RuleListItem } from '@zenith/shared';
+import type { RuleList, RuleListItem } from '@zenith/shared/rules';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';

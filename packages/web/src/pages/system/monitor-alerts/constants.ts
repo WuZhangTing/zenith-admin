@@ -1,4 +1,4 @@
-import type { MonitorAlertLevel, MonitorMetric } from '@zenith/shared';
+import type { MonitorAlertLevel, MonitorMetric } from '@zenith/shared/platform';
 
 export const MONITOR_METRIC_LABELS: Record<MonitorMetric, string> = {
   cpu: 'CPU 使用率',

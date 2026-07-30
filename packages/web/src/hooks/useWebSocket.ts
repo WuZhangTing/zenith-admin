@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { TOKEN_KEY } from '@zenith/shared';
-import type { WsMessage } from '@zenith/shared';
+import { TOKEN_KEY } from '@zenith/shared/core';
+import type { WsMessage } from '@zenith/shared/platform';
 import { config } from '@/config';
 
 type MessageHandler = (message: WsMessage) => void;

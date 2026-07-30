@@ -5,7 +5,7 @@ import { guard } from '../../middleware/guard';
 import { validationHook, commonErrorResponses, ok, okBody } from '../../lib/openapi-schemas';
 import { MonitorDTO, MonitorTimeseriesDTO, MonitorWsDTO, MonitorHistoryDTO } from '../../lib/openapi-dtos';
 import { getMonitorStatus, getMonitorTimeseries, getWsMetrics } from '../../services/platform/monitor.service';import { getMonitorHistory } from '../../services/platform/monitor-history.service';
-import { monitorHistoryQuerySchema } from '@zenith/shared';
+import { monitorHistoryQuerySchema } from '@zenith/shared/platform';
 import { metricsSampler } from '../../lib/metrics-sampler';
 
 const monitorRouter = new OpenAPIHono({ defaultHook: validationHook });

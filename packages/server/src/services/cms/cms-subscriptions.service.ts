@@ -18,12 +18,8 @@ import {
   type SQL,
 } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import {
-  CMS_INTERACTION_DAILY_LIMITS,
-  CMS_INTERACTION_POINTS,
-  type CmsSubscriptionSubjectInput,
-  type CmsSubscriptionSubjectType,
-} from '@zenith/shared';
+import { CMS_INTERACTION_DAILY_LIMITS, CMS_INTERACTION_POINTS } from '@zenith/shared/cms';
+import type { CmsSubscriptionSubjectInput, CmsSubscriptionSubjectType } from '@zenith/shared/cms';
 import { db } from '../../db';
 import {
   cmsChannels,

@@ -1,5 +1,5 @@
 import { configureErrorReporterRuntime as configureSdkErrorReporterRuntime } from '@zenith/analytics-sdk/error-reporter';
-import type { AnalyticsEnvironment } from '@zenith/shared';
+import type { AnalyticsEnvironment } from '@zenith/shared/analytics';
 import type { ErrorReporterRuntimeConfig } from '@zenith/analytics-sdk/error-reporter';
 
 function resolveDefaultEnvironment(): AnalyticsEnvironment {

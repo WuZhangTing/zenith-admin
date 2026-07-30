@@ -2,18 +2,8 @@
  * 移动审批轻页域 hooks（独立 QueryClient，不与 admin/member 混用）
  */
 import { QueryClient, keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  PaginatedResponse,
-  WorkflowApproverPreviewNode,
-  WorkflowComment,
-  WorkflowDefinition,
-  WorkflowInstance,
-  WorkflowInstanceSummaryItem,
-  WorkflowQuickPhrase,
-  WorkflowSelectableNextApproverGroup,
-  WorkflowSlaLevel,
-  WorkflowTaskStatus,
-} from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { WorkflowApproverPreviewNode, WorkflowComment, WorkflowDefinition, WorkflowInstance, WorkflowInstanceSummaryItem, WorkflowQuickPhrase, WorkflowSelectableNextApproverGroup, WorkflowSlaLevel, WorkflowTaskStatus } from '@zenith/shared/workflow';
 import { approvalRequest, unwrapApproval } from './approval-request';
 
 export const approvalQueryClient = new QueryClient({

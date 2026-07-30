@@ -1,5 +1,5 @@
-import { SEED_WORKFLOW_DATA_SOURCES } from '@zenith/shared';
-import type { WorkflowDataSource } from '@zenith/shared';
+import { SEED_WORKFLOW_DATA_SOURCES } from '@zenith/shared/seed';
+import type { WorkflowDataSource } from '@zenith/shared/workflow';
 import { mockDateTime } from '@/mocks/utils/date';
 
 const now = mockDateTime();

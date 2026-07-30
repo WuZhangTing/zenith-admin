@@ -2,7 +2,7 @@
 import { randomBytes } from 'node:crypto';
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type { CreateAnalyticsSiteInput, UpdateAnalyticsSiteInput } from '@zenith/shared';
+import type { CreateAnalyticsSiteInput, UpdateAnalyticsSiteInput } from '@zenith/shared/analytics';
 import { db } from '../../db';
 import { analyticsSites } from '../../db/schema';
 import type { AnalyticsSiteRow } from '../../db/schema';

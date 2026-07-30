@@ -4,10 +4,10 @@
  * 区块样式内联 <style>（.pb-* 前缀），静态页零外部依赖。
  */
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { CmsPageBlock } from '@zenith/shared';
+import type { CmsPageBlock } from '@zenith/shared/cms';
 import type { CmsContentItem } from './types';
 import { sanitizeCmsHtml } from '../../services/cms/cms-html-sanitizer';
-import type { CmsResolvedWidget } from '@zenith/shared';
+import type { CmsResolvedWidget } from '@zenith/shared/cms';
 import { CMS_WIDGET_STYLES, renderCmsWidgetHtml } from './widgets';
 import { resolveThemeWidgetRenderer } from './registry';
 

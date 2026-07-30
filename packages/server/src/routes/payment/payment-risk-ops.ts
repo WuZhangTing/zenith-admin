@@ -3,7 +3,7 @@
  * 拦截/命中留痕列表、人工审核队列（放行/拒绝）。规则 CRUD 见 /api/payment/risk-rules。
  */
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { handlePaymentRiskReviewSchema } from '@zenith/shared';
+import { handlePaymentRiskReviewSchema } from '@zenith/shared/payment';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, IdParam, okBody } from '../../lib/openapi-schemas';

@@ -3,7 +3,7 @@
  * 发起冻结（沙箱即时生效）、转支付（生成正式交易并履约）、解冻、列表。
  */
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { capturePaymentPreauthSchema, createPaymentPreauthSchema } from '@zenith/shared';
+import { capturePaymentPreauthSchema, createPaymentPreauthSchema } from '@zenith/shared/payment';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';

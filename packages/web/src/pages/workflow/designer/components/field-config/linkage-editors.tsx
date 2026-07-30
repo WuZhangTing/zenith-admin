@@ -1,6 +1,6 @@
 // ─── 选项来源与联动编辑器（日期范围联动/远程数据源/联动赋值/级联）（拆分自 FieldConfigPanel.tsx）───
 import { Input, Select, Typography, TagInput, RadioGroup, Radio } from '@douyinfe/semi-ui';
-import type { WorkflowFormField } from '@zenith/shared';
+import type { WorkflowFormField } from '@zenith/shared/workflow';
 import { useWorkflowDesignerDataSourceOptions } from '@/hooks/queries/workflow-designer';
 import { AUTOFILL_EXCLUDE, collectFlat, createsCascadeCycle } from './helpers';
 

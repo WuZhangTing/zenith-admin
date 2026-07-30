@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw';
-import type { BizPayDemo, CreatePaymentResult, PaymentChannel, PaymentMethod } from '@zenith/shared';
+import type { BizPayDemo } from '@zenith/shared/biz';
+import type { CreatePaymentResult, PaymentChannel, PaymentMethod } from '@zenith/shared/payment';
 import { mockBizPayDemos, getNextPayDemoId } from '@/mocks/data/biz-pay-demo';
 import { mockDateTime } from '@/mocks/utils/date';
 

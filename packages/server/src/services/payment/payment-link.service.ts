@@ -13,8 +13,8 @@ import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { createPayment } from './payment.service';
-import type { CreatePaymentLinkInput, UpdatePaymentLinkInput } from '@zenith/shared';
-import type { CreatePaymentResult, PaymentLink, PaymentLinkPublic, PaymentLinkStatus, PaymentMethod, PaymentCashierMethod } from '@zenith/shared';
+import type { CreatePaymentLinkInput, UpdatePaymentLinkInput } from '@zenith/shared/payment';
+import type { CreatePaymentResult, PaymentLink, PaymentLinkPublic, PaymentLinkStatus, PaymentMethod, PaymentCashierMethod } from '@zenith/shared/payment';
 
 const PUBLIC_LINK_PAY_METHODS = new Set<PaymentCashierMethod>(['wechat_native', 'wechat_h5', 'alipay_page', 'alipay_wap', 'unionpay_qr']);
 

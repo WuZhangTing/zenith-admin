@@ -5,7 +5,7 @@ import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody,
 } from '../../lib/openapi-schemas';
-import { sendEmailSchema, SEND_STATUSES, SEND_SOURCES } from '@zenith/shared';
+import { sendEmailSchema, SEND_STATUSES, SEND_SOURCES } from '@zenith/shared/messaging';
 import { EmailSendLogDTO, EmailSendResultDTO } from '../../lib/openapi-dtos';
 import {
   listEmailSendLogs, getEmailSendLog, deleteEmailSendLog, sendEmail,

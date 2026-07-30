@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Button, Input, Select, InputNumber, Tag, Typography, Tabs, TabPane } from '@douyinfe/semi-ui';
 import { Play, Square, Wifi, Search } from 'lucide-react';
-import { TOKEN_KEY } from '@zenith/shared';
+import { TOKEN_KEY } from '@zenith/shared/core';
 import { config } from '@/config';
 import {
   useDnsLookup,

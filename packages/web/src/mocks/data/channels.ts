@@ -1,5 +1,5 @@
-import type { Channel, ChannelMessage, ChannelMenu, ChannelAutoReply, ChannelQuickReply, ChannelMessageTemplate } from '@zenith/shared';
-import { SEED_CHANNELS, SEED_CHANNEL_QUICK_REPLIES } from '@zenith/shared';
+import type { Channel, ChannelMessage, ChannelMenu, ChannelAutoReply, ChannelQuickReply, ChannelMessageTemplate } from '@zenith/shared/messaging';
+import { SEED_CHANNELS, SEED_CHANNEL_QUICK_REPLIES } from '@zenith/shared/seed';
 import { mockDateTime } from '@/mocks/utils/date';
 
 /**

@@ -1,14 +1,8 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  AsyncTask,
-  AsyncTaskItem,
-  AsyncTaskTypeMeta,
-  BizPayDemo,
-  BizPayDemoStatus,
-  CreatePaymentResult,
-  PaginatedResponse,
-  PaymentMethod,
-} from '@zenith/shared';
+import type { BizPayDemo, BizPayDemoStatus } from '@zenith/shared/biz';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { CreatePaymentResult, PaymentMethod } from '@zenith/shared/payment';
+import type { AsyncTask, AsyncTaskItem, AsyncTaskTypeMeta } from '@zenith/shared/tasks';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 

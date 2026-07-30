@@ -7,7 +7,7 @@
  *
  * 单进程内存方案；多实例部署需改造为共享存储（与 ws-manager 同等约束）。
  */
-import type { RtcPeerInfo } from '@zenith/shared';
+import type { RtcPeerInfo } from '@zenith/shared/chat';
 
 // callId → (userId → RtcPeerInfo)
 const rooms = new Map<string, Map<number, RtcPeerInfo>>();

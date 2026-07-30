@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PaymentMethodConfig } from '@zenith/shared';
+import type { PaymentMethodConfig } from '@zenith/shared/payment';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 

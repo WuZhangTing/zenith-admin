@@ -32,8 +32,8 @@ import {
   resolveCmsWidgetPlacements,
   resolveCmsWidgetSlotForRender,
 } from './cms-widgets.service';
-import type { CmsChannel, CmsFormField, CmsResolvedWidget, CmsSiteTemplateDefaults } from '@zenith/shared';
-import { CMS_CONTENT_STATUS_LABELS } from '@zenith/shared';
+import type { CmsChannel, CmsFormField, CmsResolvedWidget, CmsSiteTemplateDefaults } from '@zenith/shared/cms';
+import { CMS_CONTENT_STATUS_LABELS } from '@zenith/shared/cms';
 import { stripCmsPreviewScripts } from './cms-preview';
 
 // ─── URL 规则（站点内相对路径，静态文件名与之一一对应）──────────────────────────

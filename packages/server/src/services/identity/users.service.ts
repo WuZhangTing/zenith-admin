@@ -16,8 +16,8 @@ import { unlockUser as unlockUserSession, batchCheckLoginLock, getOnlineSessions
 import { streamToExcel, streamToCsv, formatDateTimeForExcel } from '../../lib/excel-export';
 import { clearUserPermissionCache } from '../../lib/permissions';
 import type { JwtPayload } from '../../middleware/auth';
-import type { User } from '@zenith/shared';
-import { SUPER_ADMIN_CODE } from '@zenith/shared';
+import type { User } from '@zenith/shared/identity';
+import { SUPER_ADMIN_CODE } from '@zenith/shared/identity';
 import { currentUser } from '../../lib/context';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';

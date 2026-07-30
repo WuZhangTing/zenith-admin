@@ -4,7 +4,7 @@ import { Button, Input, Modal, Select, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, RotateCcw, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import type { WorkflowForm, WorkflowFormStatus } from '@zenith/shared';
+import type { WorkflowForm, WorkflowFormStatus } from '@zenith/shared/workflow';
 import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';

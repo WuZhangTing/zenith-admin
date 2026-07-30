@@ -2,7 +2,8 @@ import { asc } from 'drizzle-orm';
 import { db } from '../../../db';
 import { regions } from '../../../db/schema';
 import { defineExport } from '../registry';
-import { COMMON_STATUS_LABELS, REGION_LEVEL_LABELS } from '@zenith/shared';
+import { COMMON_STATUS_LABELS } from '@zenith/shared/core';
+import { REGION_LEVEL_LABELS } from '@zenith/shared/platform';
 import type { ExportColumn } from '../types';
 
 const LEVEL_LABELS: Record<string, string> = REGION_LEVEL_LABELS;

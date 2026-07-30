@@ -14,9 +14,10 @@ import { changePoints } from '../member/member-points.service';
 import { submitCmsComment } from './cms-comments.service';
 import { withPagination } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
-import { CMS_INTERACTION_POINTS, CMS_INTERACTION_DAILY_LIMITS } from '@zenith/shared';
+import { CMS_INTERACTION_POINTS, CMS_INTERACTION_DAILY_LIMITS } from '@zenith/shared/cms';
 import { resolveCmsResourceCovers } from './cms-resource-refs.service';
-import type { CmsInteractionState, CmsMemberContentItem, CmsMemberComment, PaginatedResponse } from '@zenith/shared';
+import type { CmsInteractionState, CmsMemberContentItem, CmsMemberComment } from '@zenith/shared/cms';
+import type { PaginatedResponse } from '@zenith/shared/core';
 import { formatDate } from '../../lib/datetime';
 
 /** 每位会员保留的浏览历史上限（超出裁剪最旧） */

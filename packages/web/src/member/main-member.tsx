@@ -4,7 +4,7 @@ import '@douyinfe/semi-ui/react19-adapter';
 // 其内联的 base.css 会被摇树裁剪，故在入口显式引入
 import '@douyinfe/semi-ui/lib/es/_base/base.css';
 import { createRoot } from 'react-dom/client';
-import { MEMBER_TOKEN_KEY } from '@zenith/shared';
+import { MEMBER_TOKEN_KEY } from '@zenith/shared/core';
 import { configureTracker, initTracker } from '@/utils/tracker';
 import MemberApp from './App-member';
 import '../styles/global.css';

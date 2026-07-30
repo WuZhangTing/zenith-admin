@@ -23,10 +23,8 @@ import {
   useSaveReportDatasource,
   useTestReportDatasourceConnection,
 } from '@/hooks/queries/report-datasources';
-import type {
-  ReportDatasource, ReportDatasourceType, ReportApiDatasourceConfig, ReportExternalDbConfig,
-} from '@zenith/shared';
-import { REPORT_DATASOURCE_TYPE_OPTIONS } from '@zenith/shared';
+import type { ReportDatasource, ReportDatasourceType, ReportApiDatasourceConfig, ReportExternalDbConfig } from '@zenith/shared/report';
+import { REPORT_DATASOURCE_TYPE_OPTIONS } from '@zenith/shared/report';
 import { useDictItems } from '@/hooks/useDictItems';
 import { renderReportDatasourceTypeTag } from './report-datasource-ui';
 import { flattenReportFolders, useReportFolderTree } from '@/hooks/queries/report-folders';

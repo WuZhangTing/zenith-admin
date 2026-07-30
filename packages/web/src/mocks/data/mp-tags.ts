@@ -1,5 +1,5 @@
-import type { MpTag } from '@zenith/shared';
-import { SEED_MP_TAGS } from '@zenith/shared';
+import type { MpTag } from '@zenith/shared/mp';
+import { SEED_MP_TAGS } from '@zenith/shared/seed';
 
 export const mockMpTags: MpTag[] = SEED_MP_TAGS.map((t) => ({ ...t }));
 

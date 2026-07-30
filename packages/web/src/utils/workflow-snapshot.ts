@@ -1,14 +1,4 @@
-import type {
-  WorkflowCustomFormConfig,
-  WorkflowDefinition,
-  WorkflowDefinitionSnapshot,
-  WorkflowFlowData,
-  WorkflowFormField,
-  WorkflowFormSettings,
-  WorkflowFormType,
-  WorkflowInstance,
-  WorkflowInstanceFormSnapshot,
-} from '@zenith/shared';
+import type { WorkflowCustomFormConfig, WorkflowDefinition, WorkflowDefinitionSnapshot, WorkflowFlowData, WorkflowFormField, WorkflowFormSettings, WorkflowFormType, WorkflowInstance, WorkflowInstanceFormSnapshot } from '@zenith/shared/workflow';
 
 export type WorkflowDetailDefinition = WorkflowDefinition | WorkflowDefinitionSnapshot;
 

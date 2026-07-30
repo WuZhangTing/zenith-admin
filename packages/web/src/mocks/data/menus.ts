@@ -1,5 +1,5 @@
-import type { Menu } from '@zenith/shared';
-import { SEED_MENUS } from '@zenith/shared';
+import type { Menu } from '@zenith/shared/identity';
+import { SEED_MENUS } from '@zenith/shared/seed';
 
 export const mockMenus: Menu[] = SEED_MENUS.map((m) => ({ ...m }));
 

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { MpConditionalMenu, MpMenu, MpMenuButton, MpMenuMatchRule } from '@zenith/shared';
+import type { MpConditionalMenu, MpMenu, MpMenuButton, MpMenuMatchRule } from '@zenith/shared/mp';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 

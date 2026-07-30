@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import type { UserApiToken, UserApiTokenCreated } from '@zenith/shared';
+import type { UserApiToken, UserApiTokenCreated } from '@zenith/shared/identity';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 
 type TokenEntry = UserApiToken & { _full: string };

@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockSmsTemplates, getNextSmsTemplateId } from '@/mocks/data/sms-templates';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { SmsTemplate } from '@zenith/shared';
+import type { SmsTemplate } from '@zenith/shared/messaging';
 
 export const smsTemplatesHandlers = [
   http.get('/api/sms-templates', ({ request }) => {

@@ -14,8 +14,11 @@ import {
   channels, channelMessages, channelSubscriptions, channelMessageTargets, users, userRoles,
   type ChannelRow, type ChannelMessageRow,
 } from '../../db/schema';
-import type { Channel, ChannelAdmin, ChannelMessage, ChannelMessageType, ChannelSubscriber, ChatCard, ChatMessageExtra, CreateChannelInput, UpdateChannelInput, PublishChannelInput, ChannelPublishAudienceInput, PaginatedResponse } from '@zenith/shared';
-import { SYSTEM_CHANNEL_CODE } from '@zenith/shared';
+import type { ChatCard, ChatMessageExtra } from '@zenith/shared/chat';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { Channel, ChannelAdmin, ChannelMessage, ChannelMessageType, ChannelSubscriber, CreateChannelInput, UpdateChannelInput, ChannelPublishAudienceInput } from '@zenith/shared/messaging';
+import type { PublishChannelInput } from '@zenith/shared/mp';
+import { SYSTEM_CHANNEL_CODE } from '@zenith/shared/platform';
 import { HTTPException } from 'hono/http-exception';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUser } from '../../lib/context';

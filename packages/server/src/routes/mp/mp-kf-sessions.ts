@@ -5,10 +5,8 @@ import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, IdParam, okBody,
 } from '../../lib/openapi-schemas';
-import {
-  acceptMpKfSessionSchema, transferMpKfSessionSchema, closeMpKfSessionSchema,
-  replyMpKfSessionSchema, updateMpKfRoutingConfigSchema, rateMpKfSessionSchema,
-} from '@zenith/shared';
+import { transferMpKfSessionSchema, updateMpKfRoutingConfigSchema } from '@zenith/shared/mp';
+import { acceptMpKfSessionSchema, closeMpKfSessionSchema, replyMpKfSessionSchema, rateMpKfSessionSchema } from '@zenith/shared/platform';
 import {
   MpKfSessionDTO, MpKfSessionDetailDTO, MpKfRoutingConfigDTO, MpKfSessionStatsDTO, MpKfSessionReportDTO,
 } from '../../lib/openapi-dtos';

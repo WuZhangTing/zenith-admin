@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Form } from '@douyinfe/semi-ui';
-import type { MemberOption } from '@zenith/shared';
+import type { MemberOption } from '@zenith/shared/member';
 import { useMemberOptions } from '@/hooks/queries/members-lookup';
 
 interface MemberSelectProps {

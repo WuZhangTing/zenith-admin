@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
-import type { ManagedFile } from '@zenith/shared';
+import type { ManagedFile } from '@zenith/shared/platform';
 import { canPreviewFile, fetchManagedFileBlob } from '@/utils/file-utils';
 
 interface FilePreviewTarget {

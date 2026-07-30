@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { validateCronExpression, getRegisteredHandlers } from '../../lib/pg-boss-scheduler';
-import { createCronJobSchema, updateCronJobSchema } from '@zenith/shared';
+import { createCronJobSchema, updateCronJobSchema } from '@zenith/shared/platform';
 import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody } from '../../lib/openapi-schemas';
 import { CronJobDTO, CronJobLogDTO, CronJobStatsDTO } from '../../lib/openapi-dtos';
 import {

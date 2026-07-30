@@ -1,17 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  LoginLog,
-  MfaFactor,
-  OAuthAccount,
-  OAuthProviderType,
-  OperationLog,
-  PaginatedResponse,
-  TotpSetupResult,
-  User,
-  UserApiToken,
-  UserApiTokenCreated,
-  UserSession,
-} from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { LoginLog, OAuthAccount, OAuthProviderType, User, UserApiToken, UserApiTokenCreated, UserSession } from '@zenith/shared/identity';
+import type { MfaFactor, OperationLog, TotpSetupResult } from '@zenith/shared/platform';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 import type { PasswordPolicy } from '@/utils/password-policy';

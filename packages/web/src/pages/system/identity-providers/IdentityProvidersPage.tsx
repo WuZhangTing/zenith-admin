@@ -16,10 +16,7 @@ import {
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, RotateCcw, Search } from 'lucide-react';
-import type {
-  IdentityProviderType,
-  TenantIdentityProvider,
-} from '@zenith/shared';
+import type { IdentityProviderType, TenantIdentityProvider } from '@zenith/shared/identity';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { AppModal } from '@/components/AppModal';

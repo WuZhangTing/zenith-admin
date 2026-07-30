@@ -21,15 +21,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type {
-  ReportAssetCatalogItem,
-  ReportAssetTemplate,
-  ReportAssetTemplateType,
-  ReportAssetUsageSummary,
-  ReportAssetUsageTrendPoint,
-  ReportDeprecationNotice,
-  ReportResourceType,
-} from '@zenith/shared';
+import type { ReportAssetCatalogItem, ReportAssetTemplate, ReportAssetTemplateType, ReportAssetUsageSummary, ReportAssetUsageTrendPoint, ReportDeprecationNotice, ReportResourceType } from '@zenith/shared/report';
 import { Plus, RotateCcw, Search } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';

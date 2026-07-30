@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { createCmsErrorProneWordSchema, updateCmsErrorProneWordSchema } from '@zenith/shared';
+import { createCmsErrorProneWordSchema, updateCmsErrorProneWordSchema } from '@zenith/shared/cms';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {

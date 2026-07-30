@@ -2,7 +2,7 @@
  * 行为面包屑环形缓冲：记录用户报错前的最近若干操作（导航/点击/网络/控制台），
  * 供错误上报时还原现场。
  */
-import type { ErrorBreadcrumb } from '@zenith/shared';
+import type { ErrorBreadcrumb } from '@zenith/shared/analytics';
 
 const MAX_BREADCRUMBS = 30;
 const buffer: ErrorBreadcrumb[] = [];

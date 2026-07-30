@@ -9,7 +9,7 @@
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { UAParser } from 'ua-parser-js';
-import type { AnalyticsDeviceType, AnalyticsEventSource, AnalyticsEnvironment } from '@zenith/shared';
+import type { AnalyticsDeviceType, AnalyticsEventSource, AnalyticsEnvironment } from '@zenith/shared/analytics';
 
 const require = createRequire(import.meta.url);
 const Ip2Region = require('node-ip2region') as {

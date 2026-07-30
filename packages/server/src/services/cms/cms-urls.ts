@@ -8,15 +8,15 @@
 import dayjs from 'dayjs';
 import timezone from 'dayjs/plugin/timezone';
 import utc from 'dayjs/plugin/utc';
-import { cmsCustomPagePath } from '@zenith/shared';
-import type { CmsChannelDetailPathRule } from '@zenith/shared';
+import { cmsCustomPagePath } from '@zenith/shared/cms';
+import type { CmsChannelDetailPathRule } from '@zenith/shared/cms';
 import { APP_TIME_ZONE } from '../../lib/datetime';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
 /** 搭建页 URL / 静态产物路径：设了 path 用它，否则回落 p/{slug}/ */
-export { cmsCustomPagePath as customPagePath } from '@zenith/shared';
+export { cmsCustomPagePath as customPagePath } from '@zenith/shared/cms';
 
 /**
  * 搭建页 URL。

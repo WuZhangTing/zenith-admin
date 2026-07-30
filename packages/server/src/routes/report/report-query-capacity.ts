@@ -1,9 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import {
-  createReportQueryQuotaSchema,
-  resetReportQueryQuotaSchema,
-  updateReportQueryQuotaSchema,
-} from '@zenith/shared';
+import { createReportQueryQuotaSchema, resetReportQueryQuotaSchema, updateReportQueryQuotaSchema } from '@zenith/shared/report';
 import {
   ReportQueryCostLogDTO,
   ReportQueryCostStatsDTO,

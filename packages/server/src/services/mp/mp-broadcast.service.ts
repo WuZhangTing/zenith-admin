@@ -10,7 +10,7 @@ import { ensureMpAccountExists } from './mp-account.service';
 import { assertContentSafe } from './mp-security.service';
 import { massSend, previewMassSend, getMassSendResult, WechatApiError } from '../../lib/wechat';
 import { mapWechatError } from '../../lib/wechat-error';
-import type { CreateMpBroadcastInput, UpdateMpBroadcastInput, MpBroadcastStatus } from '@zenith/shared';
+import type { CreateMpBroadcastInput, UpdateMpBroadcastInput, MpBroadcastStatus } from '@zenith/shared/mp';
 
 export function mapMpBroadcast(row: MpBroadcastRow) {
   return {

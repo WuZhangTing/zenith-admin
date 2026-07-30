@@ -1,5 +1,5 @@
 import { configureTracker as configureSdkTracker } from '@zenith/analytics-sdk/tracker';
-import type { AnalyticsEnvironment } from '@zenith/shared';
+import type { AnalyticsEnvironment } from '@zenith/shared/analytics';
 import type { TrackerRuntimeConfig } from '@zenith/analytics-sdk/tracker';
 
 function resolveDefaultEnvironment(): AnalyticsEnvironment {

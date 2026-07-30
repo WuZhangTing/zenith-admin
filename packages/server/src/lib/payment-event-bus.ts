@@ -11,7 +11,7 @@
  */
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
-import type { PaymentChannel } from '@zenith/shared';
+import type { PaymentChannel } from '@zenith/shared/payment';
 import logger from './logger';
 import { formatDateTime } from './datetime';
 

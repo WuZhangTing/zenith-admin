@@ -15,7 +15,7 @@ import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime, formatDate } from '../../lib/datetime';
 import logger from '../../lib/logger';
 import { createInstance } from './workflow-instances.service';
-import type { WorkflowSchedule, CreateWorkflowScheduleInput, UpdateWorkflowScheduleInput } from '@zenith/shared';
+import type { WorkflowSchedule, CreateWorkflowScheduleInput, UpdateWorkflowScheduleInput } from '@zenith/shared/workflow';
 
 type Row = typeof workflowSchedules.$inferSelect;
 

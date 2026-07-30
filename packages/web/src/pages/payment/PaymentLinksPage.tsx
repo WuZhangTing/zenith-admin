@@ -15,8 +15,8 @@ import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { createdAtColumn } from '@/utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
-import { PAYMENT_METHOD_LABELS, PAYMENT_LINK_STATUS_LABELS } from '@zenith/shared';
-import type { PaymentLink, PaymentLinkStatus, PaymentMethod } from '@zenith/shared';
+import { PAYMENT_METHOD_LABELS, PAYMENT_LINK_STATUS_LABELS } from '@zenith/shared/payment';
+import type { PaymentLink, PaymentLinkStatus, PaymentMethod } from '@zenith/shared/payment';
 import { paymentLinkKeys, useDeletePaymentLink, usePaymentLinkDetail, usePaymentLinkList, useRotatePaymentLinkToken, useSavePaymentLink } from '@/hooks/queries/payment-links';
 
 const yuan = (cents: number | null | undefined) => formatYuan(cents, '用户填写');

@@ -20,15 +20,8 @@ import {
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import dayjs from 'dayjs';
 import { Plus, RotateCcw, Search, XCircle } from 'lucide-react';
-import {
-  CMS_PUBLISH_ARTIFACT_STATUS_LABELS,
-  CMS_PUBLISH_TARGET_TYPE_LABELS,
-  CMS_PUBLISH_TARGET_TYPES,
-  type CmsPublishingTask,
-  type CmsPublishArtifact,
-  type CmsPublishArtifactStatus,
-  type CmsPublishTargetType,
-} from '@zenith/shared';
+import { CMS_PUBLISH_ARTIFACT_STATUS_LABELS, CMS_PUBLISH_TARGET_TYPE_LABELS, CMS_PUBLISH_TARGET_TYPES } from '@zenith/shared/cms';
+import type { CmsPublishingTask, CmsPublishArtifact, CmsPublishArtifactStatus, CmsPublishTargetType } from '@zenith/shared/cms';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';

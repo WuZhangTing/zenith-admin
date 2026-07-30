@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockCronJobs, getNextCronJobId } from '@/mocks/data/system';
 import { mockDateTime, mockDateTimeOffset, mockDateOffset } from '@/mocks/utils/date';
-import type { CronJob } from '@zenith/shared';
+import type { CronJob } from '@zenith/shared/platform';
 
 export const cronJobsHandlers = [
   // 获取可用任务处理器列表（必须在 :id 路由之前声明）

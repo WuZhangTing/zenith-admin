@@ -7,7 +7,7 @@ import { formatDateTime } from '../../lib/datetime';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { invalidateWordCheckCache } from './cms-word-check.service';
-import type { CreateCmsErrorProneWordInput, UpdateCmsErrorProneWordInput } from '@zenith/shared';
+import type { CreateCmsErrorProneWordInput, UpdateCmsErrorProneWordInput } from '@zenith/shared/cms';
 
 // ─── 易错词自动替换（Aho-Corasick 多模式匹配，与敏感词同构）────────────────────
 interface AcNode {

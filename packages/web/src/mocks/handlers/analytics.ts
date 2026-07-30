@@ -1,15 +1,11 @@
 import { http, HttpResponse } from 'msw';
-import type {
-  PageStats, FeatureStats, HeatmapData, HeatmapPageListItem, UserStats, AnalyticsOverview,
-  TrendSeries, RealtimeStats, SessionListItem, FunnelResult, RetentionResult, PathResult,
-  UserTimeline, DimensionBreakdown, DimensionCross, PerfStats, EventListItem, EventDetail, AnalyticsEventMeta,
-  AnalyticsSettings, AnalyticsPublicConfig, PaginatedResponse, AnalyticsRollupItem, UserBehaviorEventType,
-  SessionTimeline, AnalyticsSavedReport,
-  AnalyticsEventOverride, AnalyticsQualityDaily, AnalyticsQualityIssueType, AnalyticsQualityQueryResult, AnalyticsDebugEvent,
-  AnalyticsUserSegment, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSite, AnalyticsExperiment, AnalyticsExperimentAssignment, AnalyticsExperimentReport, AsyncTask,
-  AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsEventQueryRow, AnalyticsEventQueryGroupByField, AnalyticsEventQueryMetric,
-} from '@zenith/shared';
-import { SEED_ANALYTICS_EVENT_META, SEED_ANALYTICS_SITES, ANALYTICS_SITE_KEY_HEADER, ANALYTICS_QUALITY_ISSUE_TYPES } from '@zenith/shared';
+import type { PageStats, FeatureStats, HeatmapData, HeatmapPageListItem, AnalyticsOverview, TrendSeries, RealtimeStats, FunnelResult, RetentionResult, PathResult, DimensionBreakdown, DimensionCross, PerfStats, EventListItem, EventDetail, AnalyticsEventMeta, AnalyticsSettings, AnalyticsPublicConfig, AnalyticsRollupItem, AnalyticsSavedReport, AnalyticsEventOverride, AnalyticsQualityDaily, AnalyticsQualityIssueType, AnalyticsQualityQueryResult, AnalyticsDebugEvent, AnalyticsUserSegment, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSite, AnalyticsExperiment, AnalyticsExperimentAssignment, AnalyticsExperimentReport, AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsEventQueryRow, AnalyticsEventQueryGroupByField, AnalyticsEventQueryMetric } from '@zenith/shared/analytics';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { UserStats, UserTimeline, UserBehaviorEventType } from '@zenith/shared/identity';
+import type { SessionListItem, SessionTimeline } from '@zenith/shared/platform';
+import type { AsyncTask } from '@zenith/shared/tasks';
+import { ANALYTICS_SITE_KEY_HEADER, ANALYTICS_QUALITY_ISSUE_TYPES } from '@zenith/shared/analytics';
+import { SEED_ANALYTICS_EVENT_META, SEED_ANALYTICS_SITES } from '@zenith/shared/seed';
 import { mockDateTime, mockDateTimeOffset, mockDateOffset } from '../utils/date';
 import { createProgressingMockTask } from './async-tasks';
 

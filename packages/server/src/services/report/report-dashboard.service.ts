@@ -41,22 +41,7 @@ import {
   validateReportResourcePlacement,
 } from './report-resource.service';
 import type { ReportDashboardRow } from '../../db/schema';
-import type {
-  CreateReportDashboardInput,
-  ReportCanvasItem,
-  ReportDashboard,
-  ReportDashboardConfig,
-  ReportDashboardLifecycleStatus,
-  ReportDashboardSnapshot,
-  ReportDatasetQueryOptions,
-  ReportFilter,
-  ReportGridItem,
-  ReportLookupOption,
-  ReportMetricEvaluation,
-  ReportWidget,
-  ReportWidgetDataResult,
-  UpdateReportDashboardInput,
-} from '@zenith/shared';
+import type { CreateReportDashboardInput, ReportCanvasItem, ReportDashboard, ReportDashboardConfig, ReportDashboardLifecycleStatus, ReportDashboardSnapshot, ReportDatasetQueryOptions, ReportFilter, ReportGridItem, ReportLookupOption, ReportMetricEvaluation, ReportWidget, ReportWidgetDataResult, UpdateReportDashboardInput } from '@zenith/shared/report';
 
 type DashboardRowExt = ReportDashboardRow & {
   category?: { name: string } | null;

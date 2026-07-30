@@ -4,7 +4,7 @@ import { guard } from '../../middleware/guard';
 import {
   jsonContent, validationHook, commonErrorResponses, ok, okBody,
 } from '../../lib/openapi-schemas';
-import { getMpJsConfigSchema } from '@zenith/shared';
+import { getMpJsConfigSchema } from '@zenith/shared/mp';
 import { MpJsConfigDTO } from '../../lib/openapi-dtos';
 import { getMpJsConfig } from '../../services/mp/mp-jssdk.service';
 

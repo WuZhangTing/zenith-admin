@@ -5,7 +5,7 @@ import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, IdParam, okBody,
 } from '../../lib/openapi-schemas';
-import { updateMpFanSchema, blacklistMpFansSchema } from '@zenith/shared';
+import { updateMpFanSchema, blacklistMpFansSchema } from '@zenith/shared/mp';
 import { MpFanDTO, MpFanSyncResultDTO, MpFanBlacklistResultDTO } from '../../lib/openapi-dtos';
 import {
   listMpFans, updateMpFan, getMpFanBeforeAudit, syncMpFans,

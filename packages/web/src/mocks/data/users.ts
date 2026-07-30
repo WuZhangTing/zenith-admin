@@ -1,5 +1,5 @@
-import type { User, Role } from '@zenith/shared';
-import { SEED_ROLES, SEED_POSITIONS } from '@zenith/shared';
+import type { User, Role } from '@zenith/shared/identity';
+import { SEED_ROLES, SEED_POSITIONS } from '@zenith/shared/seed';
 
 // Demo 模式下的初始口令（明文仅用于演示环境）
 const DEMO_INITIAL_CREDENTIAL = ['1', '2', '3', '4', '5', '6'].join('');

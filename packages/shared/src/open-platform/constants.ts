@@ -1,0 +1,117 @@
+// OAuth2 服务端常量
+export const OAUTH2_GRANT_TYPES = ['authorization_code', 'client_credentials', 'refresh_token'] as const;
+
+export type OAuth2GrantType = typeof OAUTH2_GRANT_TYPES[number];
+
+export const OAUTH2_GRANT_TYPE_LABELS: Record<OAuth2GrantType, string> = {
+  authorization_code: '授权码',
+  client_credentials: '客户端凭证',
+  refresh_token: '刷新令牌',
+};
+
+export const OAUTH2_SCOPES = ['openid', 'profile', 'email', 'offline_access'] as const;
+
+export type OAuth2Scope = typeof OAUTH2_SCOPES[number];
+
+export const OAUTH2_SCOPE_DESCRIPTIONS: Record<string, string> = {
+  openid: '确认您的身份（用户 ID）',
+  profile: '读取您的基本信息（昵称、头像）',
+  email: '读取您的邮箱地址',
+  offline_access: '允许在您离线时保持访问（续签令牌）',
+};
+
+export const OAUTH2_CODE_CHALLENGE_METHODS = ['S256'] as const;
+
+export type OAuth2CodeChallengeMethod = typeof OAUTH2_CODE_CHALLENGE_METHODS[number];
+
+export const OPEN_APP_ENVIRONMENTS = ['production', 'sandbox'] as const;
+
+export type OpenAppEnvironment = typeof OPEN_APP_ENVIRONMENTS[number];
+
+export const OPEN_APP_ENVIRONMENT_LABELS: Record<OpenAppEnvironment, string> = {
+  production: '生产环境',
+  sandbox: '沙箱环境',
+};
+
+export const OPEN_APP_REVIEW_STATUSES = ['draft', 'pending', 'approved', 'rejected'] as const;
+
+export type OpenAppReviewStatus = typeof OPEN_APP_REVIEW_STATUSES[number];
+
+export const OPEN_APP_REVIEW_STATUS_LABELS: Record<OpenAppReviewStatus, string> = {
+  draft: '草稿',
+  pending: '待审核',
+  approved: '已通过',
+  rejected: '已驳回',
+};
+
+export const OAUTH2_TOKEN_EXPIRY = {
+  accessToken: 2 * 60 * 60, // 2 小时（秒）
+  refreshToken: 30 * 24 * 60 * 60, // 30 天（秒）
+  authorizationCode: 10 * 60, // 10 分钟（秒）
+} as const;
+
+// ─── 开放平台 / 开发者门户 ────────────────────────────────────────────────────
+
+/** HMAC 签名所用请求头名称 */
+export const OPEN_SIGNATURE_HEADERS = {
+  appKey: 'X-App-Key',
+  timestamp: 'X-Timestamp',
+  nonce: 'X-Nonce',
+  signature: 'X-Signature',
+} as const;
+
+/** 签名算法标识 */
+export const OPEN_SIGNATURE_ALGORITHM = 'HMAC-SHA256';
+
+/** 允许的时间戳偏移窗口（秒），超出视为过期，防重放 */
+export const OPEN_SIGNATURE_TIMESTAMP_WINDOW = 300;
+
+/** API Scope 推荐分组（scopeGroup 为自由文本，此处仅供界面下拉建议） */
+export const API_SCOPE_GROUPS = ['general', 'user', 'order', 'payment', 'member', 'data', 'system'] as const;
+
+export type ApiScopeGroup = (typeof API_SCOPE_GROUPS)[number];
+
+export const API_SCOPE_GROUP_LABELS: Record<string, string> = {
+  general: '通用',
+  user: '用户',
+  order: '订单',
+  payment: '支付',
+  member: '会员',
+  data: '数据',
+  system: '系统',
+};
+
+// ─── 开放平台：Webhook 订阅 ───────────────────────────────────────────────────
+export const OPEN_WEBHOOK_SIGN_MODES = ['hmacSha256', 'none'] as const;
+
+export type OpenWebhookSignMode = (typeof OPEN_WEBHOOK_SIGN_MODES)[number];
+
+export const OPEN_WEBHOOK_DELIVERY_STATUSES = ['pending', 'success', 'failed', 'retrying'] as const;
+
+export type OpenWebhookDeliveryStatus = (typeof OPEN_WEBHOOK_DELIVERY_STATUSES)[number];
+
+export const OPEN_WEBHOOK_DELIVERY_STATUS_LABELS: Record<OpenWebhookDeliveryStatus, string> = {
+  pending: '投递中',
+  success: '成功',
+  failed: '失败',
+  retrying: '重试中',
+};
+
+/** 可订阅的开放平台事件类型 */
+export const OPEN_WEBHOOK_EVENTS = ['app.test', 'app.call.failed', 'app.quota.warning', 'app.quota.exceeded', 'app.scope.denied'] as const;
+
+export type OpenWebhookEvent = (typeof OPEN_WEBHOOK_EVENTS)[number];
+
+export const OPEN_WEBHOOK_EVENT_LABELS: Record<string, string> = {
+  'app.test': '测试事件',
+  'app.call.failed': '调用失败',
+  'app.quota.exceeded': '配额超限',
+  'app.quota.warning': '配额预警',
+  'app.scope.denied': 'Scope 未授权',
+};
+
+/** Webhook 投递签名请求头 */
+export const OPEN_WEBHOOK_SIGNATURE_HEADER = 'X-Zenith-Signature';
+
+/** 阶梯重试间隔（分钟） */
+export const OPEN_WEBHOOK_RETRY_STAGES_MINUTES = [1, 5, 30, 180, 720] as const;

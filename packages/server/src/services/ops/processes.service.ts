@@ -4,7 +4,7 @@ import { promises as fsp } from 'node:fs';
 import os from 'node:os';
 import { HTTPException } from 'hono/http-exception';
 import { formatDateTime } from '../../lib/datetime';
-import type { ProcessInfo, ProcessListResponse, ProcessNetConn, SetProcessPriorityInput } from '@zenith/shared';
+import type { ProcessInfo, ProcessListResponse, ProcessNetConn, SetProcessPriorityInput } from '@zenith/shared/ops';
 
 const execFileAsync = promisify(execFile);
 const MAX_BUFFER = 20 * 1024 * 1024;

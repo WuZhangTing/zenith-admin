@@ -12,8 +12,8 @@ import { AppModal } from '@/components/AppModal';
 import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS } from '@zenith/shared';
-import type { PaymentChannel, PaymentChannelConfig } from '@zenith/shared';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS } from '@zenith/shared/payment';
+import type { PaymentChannel, PaymentChannelConfig } from '@zenith/shared/payment';
 import {
   paymentChannelKeys,
   useDeletePaymentChannel,

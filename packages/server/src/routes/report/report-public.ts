@@ -1,9 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
-import {
-  reportDashboardDataBodySchema,
-  reportPublicAccessSchema,
-} from '@zenith/shared';
+import { reportDashboardDataBodySchema, reportPublicAccessSchema } from '@zenith/shared/report';
 import {
   commonErrorResponses,
   jsonContent,

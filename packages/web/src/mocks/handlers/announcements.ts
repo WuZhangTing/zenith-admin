@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { mockAnnouncements, getNextAnnouncementId } from '@/mocks/data/announcements';
 import { mockManagedFiles } from '@/mocks/handlers/files';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { Announcement, AnnouncementAttachment } from '@zenith/shared';
+import type { Announcement, AnnouncementAttachment } from '@zenith/shared/messaging';
 
 type AnnouncementPayload = Partial<Announcement> & { fileIds?: string[] };
 

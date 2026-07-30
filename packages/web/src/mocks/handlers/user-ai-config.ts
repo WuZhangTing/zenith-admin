@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import type { UserAiConfig } from '@zenith/shared';
+import type { UserAiConfig } from '@zenith/shared/identity';
 import { mockDateTime } from '../utils/date';
 
 const mockUserAiConfigs: UserAiConfig[] = [];

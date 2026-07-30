@@ -2,8 +2,8 @@
 import { eq, ne, and, desc } from 'drizzle-orm';
 import { workflowTasks, users } from '../../../db/schema';
 import { type TaskAction } from '../../../lib/workflow-engine';
-import type { WorkflowFlowData, WorkflowApproverDedupMode, WorkflowDeduplicateStrategy } from '@zenith/shared';
-import { resolveApproverDedupMode } from '@zenith/shared';
+import type { WorkflowFlowData, WorkflowApproverDedupMode, WorkflowDeduplicateStrategy } from '@zenith/shared/workflow';
+import { resolveApproverDedupMode } from '@zenith/shared/workflow';
 import { resolveAssigneeIds } from '../workflow-assignee-resolver.service';
 import type { DbExecutor } from '../../../db/types';
 

@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Avatar, Button, Form, Input, Modal, Select, Space, Spin, Tag, Toast, Banner } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { RotateCcw, Search, RefreshCw, Ban } from 'lucide-react';
-import type { MpFan, MpFanSubscribe } from '@zenith/shared';
+import type { MpFan, MpFanSubscribe } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';

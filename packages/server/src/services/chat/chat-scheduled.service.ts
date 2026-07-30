@@ -8,7 +8,8 @@ import { currentUser, runWithCurrentUser } from '../../lib/context';
 import { formatDateTime, parseDateTimeInput } from '../../lib/datetime';
 import logger from '../../lib/logger';
 import { sendMessage } from './chat.service';
-import type { ChatMessageExtra, ChatScheduledMessage, SendChatMessageInput } from '@zenith/shared';
+import type { ChatMessageExtra, ChatScheduledMessage } from '@zenith/shared/chat';
+import type { SendChatMessageInput } from '@zenith/shared/messaging';
 
 const MAX_PENDING_PER_USER = 20;
 const MAX_AHEAD_DAYS = 30;

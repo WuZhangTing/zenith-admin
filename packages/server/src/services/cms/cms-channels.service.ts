@@ -9,7 +9,7 @@ import { formatDateTime } from '../../lib/datetime';
 import { mergeWhere } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUser } from '../../lib/context';
-import type { CreateCmsChannelInput, UpdateCmsChannelInput, CmsChannel } from '@zenith/shared';
+import type { CreateCmsChannelInput, UpdateCmsChannelInput, CmsChannel } from '@zenith/shared/cms';
 import { ensureCmsLinkTargetExists, isCmsLinkToChannel } from './cms-link.service';
 import { assertChannelTemplatesBySite } from './cms-template-refs.service';
 import {

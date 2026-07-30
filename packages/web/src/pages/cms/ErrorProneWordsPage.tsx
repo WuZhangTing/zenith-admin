@@ -12,7 +12,7 @@ import { createdAtColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { useCmsErrorProneWordList, useSaveCmsErrorProneWord, useDeleteCmsErrorProneWord, cmsErrorProneWordKeys } from '@/hooks/queries/cms';
-import type { CmsErrorProneWord } from '@zenith/shared';
+import type { CmsErrorProneWord } from '@zenith/shared/cms';
 
 export default function ErrorProneWordsPage() {
   const { hasPermission } = usePermission();

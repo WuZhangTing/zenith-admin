@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { TreeSelect } from '@douyinfe/semi-ui';
 import type { CSSProperties } from 'react';
-import type { Department } from '@zenith/shared';
+import type { Department } from '@zenith/shared/identity';
 import { request } from '@/utils/request';
 
 interface DeptTreeNode {

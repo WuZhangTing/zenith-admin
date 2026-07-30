@@ -11,8 +11,8 @@ import { sql } from 'drizzle-orm';
 import dayjs from 'dayjs';
 import { workflowSerialCounters } from '../../db/schema';
 import type { DbTransaction } from '../../db/types';
-import type { WorkflowSerialNoConfig, WorkflowSerialVars } from '@zenith/shared';
-import { renderWorkflowSerialNo, resolveSerialPeriodKey } from '@zenith/shared';
+import type { WorkflowSerialNoConfig, WorkflowSerialVars } from '@zenith/shared/workflow';
+import { renderWorkflowSerialNo, resolveSerialPeriodKey } from '@zenith/shared/workflow';
 
 /** 生成业务编号所需的上下文（动态变量 / 表单数据 / 生成时刻） */
 export interface SerialNoGenContext {

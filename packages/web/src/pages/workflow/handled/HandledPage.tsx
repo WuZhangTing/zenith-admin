@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { WorkflowInstance } from '@zenith/shared';
+import type { WorkflowInstance } from '@zenith/shared/workflow';
 import { formatDateTime } from '@/utils/date';
 import { KeywordSearchToolbar } from '@/components/KeywordSearchToolbar';
 import SavedViewsBar from '@/components/workflow/SavedViewsBar';

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Select, Input, InputNumber, Switch, Typography, RadioGroup, Radio, TextArea } from '@douyinfe/semi-ui';
-import type { WorkflowNodeFailurePolicy, WorkflowCompensationAction, WorkflowCompensationActionType, WorkflowNodeFailureAction } from '@zenith/shared';
+import type { WorkflowNodeFailurePolicy, WorkflowCompensationAction, WorkflowCompensationActionType, WorkflowNodeFailureAction } from '@zenith/shared/workflow';
 import { WORKFLOW_NODE_FAILURE_ACTION_OPTIONS as ACTION_OPTIONS } from '../constants';
 const COMP_TYPE_OPTIONS: Array<{ value: WorkflowCompensationActionType; label: string }> = [
   { value: 'none', label: '无' },

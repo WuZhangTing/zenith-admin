@@ -9,10 +9,8 @@ import { UserRound, Shield, Monitor, List, Key, LogOut, Plus, Copy, CheckCircle,
 import { Icon } from '@iconify/react';
 import { QRCodeSVG } from 'qrcode.react';
 
-import type {
-  User as UserType, OAuthProviderType,
-  UserSession, UserApiTokenCreated, MfaFactor, TotpSetupResult,
-} from '@zenith/shared';
+import type { User as UserType, OAuthProviderType, UserSession, UserApiTokenCreated } from '@zenith/shared/identity';
+import type { MfaFactor, TotpSetupResult } from '@zenith/shared/platform';
 import { request } from '@/utils/request';
 import { AppModal } from '@/components/AppModal';
 import { AvatarCropperModal } from '@/components/AvatarCropperModal';

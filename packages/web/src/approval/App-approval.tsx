@@ -1,6 +1,6 @@
 import { HashRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { TOKEN_KEY } from '@zenith/shared';
+import { TOKEN_KEY } from '@zenith/shared/core';
 import { approvalQueryClient } from './lib/queries';
 import LoginPage from './pages/LoginPage';
 import TaskListPage from './pages/TaskListPage';

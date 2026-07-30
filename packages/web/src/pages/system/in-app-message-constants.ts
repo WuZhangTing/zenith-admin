@@ -1,4 +1,5 @@
-import { IN_APP_MESSAGE_TYPE_OPTIONS, type InAppMessageType } from '@zenith/shared';
+import { IN_APP_MESSAGE_TYPE_OPTIONS } from '@zenith/shared/messaging';
+import type { InAppMessageType } from '@zenith/shared/messaging';
 
 type InAppMessageTypeColor = 'blue' | 'green' | 'orange' | 'red';
 

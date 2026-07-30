@@ -13,7 +13,7 @@ import {
   okBody,
   BatchIdsBody,
 } from '../../lib/openapi-schemas';
-import { createTagSchema, updateTagSchema } from '@zenith/shared';
+import { createTagSchema, updateTagSchema } from '@zenith/shared/platform';
 import { TagDTO } from '../../lib/openapi-dtos';
 import {
   listTags,

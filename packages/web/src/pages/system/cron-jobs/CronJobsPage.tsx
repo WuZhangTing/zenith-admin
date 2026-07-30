@@ -22,8 +22,8 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, Plus, RotateCcw, ScrollText, Trash2, ChevronDown, HelpCircle } from 'lucide-react';
-import type { CronJob } from '@zenith/shared';
-import { CRON_RUN_STATUS_LABELS } from '@zenith/shared';
+import type { CronJob } from '@zenith/shared/platform';
+import { CRON_RUN_STATUS_LABELS } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';

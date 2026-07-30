@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Spin, Toast } from '@douyinfe/semi-ui';
-import { REFRESH_TOKEN_KEY, TOKEN_KEY, type LoginResponse } from '@zenith/shared';
+import { REFRESH_TOKEN_KEY, TOKEN_KEY } from '@zenith/shared/core';
+import type { LoginResponse } from '@zenith/shared/identity';
 import { request } from '@/utils/request';
 import { markPostLoginHome } from '@/lib/post-login';
 

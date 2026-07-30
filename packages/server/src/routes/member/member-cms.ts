@@ -4,12 +4,8 @@
  */
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
-import {
-  cmsSubscriptionSubjectSchema,
-  memberSubmitCmsCommentSchema,
-  submitCmsInteractionSchema,
-  updateCmsSubscriptionSchema,
-} from '@zenith/shared';
+import { cmsSubscriptionSubjectSchema, submitCmsInteractionSchema, updateCmsSubscriptionSchema } from '@zenith/shared/cms';
+import { memberSubmitCmsCommentSchema } from '@zenith/shared/member';
 import { memberAuthMiddleware } from '../../middleware/member-auth';
 import { idempotencyGuard } from '../../middleware/idempotency';
 import {

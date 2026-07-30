@@ -31,15 +31,8 @@ import {
   Trash2,
 } from 'lucide-react';
 import dayjs from 'dayjs';
-import {
-  CMS_WIDGET_RENDERER_LABELS,
-  CMS_WIDGET_SOURCE_TYPE_LABELS,
-  CMS_WIDGET_STATUS_LABELS,
-  type CmsChannel,
-  type CmsWidgetItem,
-  type CmsWidgetRendererKey,
-  type CmsWidgetSourceType,
-} from '@zenith/shared';
+import { CMS_WIDGET_RENDERER_LABELS, CMS_WIDGET_SOURCE_TYPE_LABELS, CMS_WIDGET_STATUS_LABELS } from '@zenith/shared/cms';
+import type { CmsChannel, CmsWidgetItem, CmsWidgetRendererKey, CmsWidgetSourceType } from '@zenith/shared/cms';
 import AppModal from '@/components/AppModal';
 import MediaPickerModal from '@/components/MediaPickerModal';
 import { usePermission } from '@/hooks/usePermission';

@@ -1,4 +1,4 @@
-import type { SmsSendLog } from '@zenith/shared';
+import type { SmsSendLog } from '@zenith/shared/messaging';
 
 export const mockSmsSendLogs: SmsSendLog[] = [
   {

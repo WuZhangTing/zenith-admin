@@ -2,8 +2,9 @@
  * 前端错误上报：统一构造 payload 并发送到 /api/frontend-errors。
  * 携带行为面包屑、会话 ID、发布版本，附带去重与限流保护。
  */
-import { TOKEN_KEY, ANALYTICS_SITE_KEY_HEADER } from '@zenith/shared';
-import type { FrontendErrorType, ErrorLevel, AnalyticsEventSource, AnalyticsEnvironment } from '@zenith/shared';
+import { ANALYTICS_SITE_KEY_HEADER } from '@zenith/shared/analytics';
+import { TOKEN_KEY } from '@zenith/shared/core';
+import type { FrontendErrorType, ErrorLevel, AnalyticsEventSource, AnalyticsEnvironment } from '@zenith/shared/analytics';
 import { getBreadcrumbs } from './breadcrumbs';
 
 const SESSION_KEY = 'zenith_tracker_sid';

@@ -4,7 +4,7 @@ import { Editor, Toolbar } from '@wangeditor/editor-for-react';
 import type { IDomEditor, IEditorConfig, IToolbarConfig } from '@wangeditor/editor';
 import { useEffect, useState } from 'react';
 import { config as appConfig } from '@/config';
-import { TOKEN_KEY } from '@zenith/shared';
+import { TOKEN_KEY } from '@zenith/shared/core';
 
 interface RichTextEditorProps {
   value?: string;

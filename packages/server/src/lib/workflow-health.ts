@@ -7,16 +7,7 @@
  *  - branch    分支覆盖（网关默认分支缺失 / 条件重叠 / 死路 / 路由字段缺失）
  *  - timeout   超时/SLA 策略完整性（审批节点是否配置超时提醒）
  */
-import type {
-  WorkflowDefinitionBranchCoverageItem,
-  WorkflowDefinitionHealthCheckItem,
-  WorkflowDefinitionHealthIssue,
-  WorkflowDefinitionHealthReport,
-  WorkflowEdge,
-  WorkflowEdgeCondition,
-  WorkflowFlowData,
-  WorkflowNodeConfig,
-} from '@zenith/shared';
+import type { WorkflowDefinitionBranchCoverageItem, WorkflowDefinitionHealthCheckItem, WorkflowDefinitionHealthIssue, WorkflowDefinitionHealthReport, WorkflowEdge, WorkflowEdgeCondition, WorkflowFlowData, WorkflowNodeConfig } from '@zenith/shared/workflow';
 import { validateFlowData } from './workflow-engine';
 import { validateExpression } from './workflow-expression';
 import { formatDateTime } from './datetime';

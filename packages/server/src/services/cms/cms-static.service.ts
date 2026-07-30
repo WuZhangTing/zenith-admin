@@ -7,7 +7,7 @@ import { cmsChannels, cmsContents } from '../../db/schema';
 import type { CmsSiteRow, CmsChannelRow } from '../../db/schema';
 import logger from '../../lib/logger';
 import { formatIso8601 } from '../../lib/datetime';
-import { type CmsContentPublishSnapshot, type CmsStaticMode } from '@zenith/shared';
+import type { CmsContentPublishSnapshot, CmsStaticMode } from '@zenith/shared/cms';
 import { TaskCancelledError } from '../../lib/task-center';
 import {
   renderSitePath, renderHomePage, renderChannelPage, renderDetailPage, renderTagPage, renderCustomPage,

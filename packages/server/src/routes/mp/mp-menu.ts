@@ -4,7 +4,7 @@ import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
   jsonContent, validationHook, commonErrorResponses, ok, okBody,
 } from '../../lib/openapi-schemas';
-import { saveMpMenuSchema } from '@zenith/shared';
+import { saveMpMenuSchema } from '@zenith/shared/mp';
 import { MpMenuDTO } from '../../lib/openapi-dtos';
 import { getMpMenu, saveMpMenu, publishMpMenu, pullMpMenu, deleteMpMenu } from '../../services/mp/mp-menu.service';
 

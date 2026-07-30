@@ -8,13 +8,7 @@ import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { tenantCondition } from '../../lib/tenant';
 import { escapeLike } from '../../lib/where-helpers';
-import {
-  type CloneReportFillTemplateInput,
-  type CreateReportFillTemplateInput,
-  type ReportFillTemplate,
-  type ReportFillTemplateLifecycleActionInput,
-  type UpdateReportFillTemplateInput,
-} from '@zenith/shared';
+import type { CloneReportFillTemplateInput, CreateReportFillTemplateInput, ReportFillTemplate, ReportFillTemplateLifecycleActionInput, UpdateReportFillTemplateInput } from '@zenith/shared/report';
 import { reportCreateTenantId, reportScopedWhere, reportTenantScope } from './report-access';
 import {
   ensureReportResourceAccess,

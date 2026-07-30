@@ -5,7 +5,7 @@ import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { getCreateTenantId } from '../../lib/tenant';
 import { formatDateTime } from '../../lib/datetime';
-import type { WorkflowSavedView, CreateWorkflowSavedViewInput, UpdateWorkflowSavedViewInput } from '@zenith/shared';
+import type { WorkflowSavedView, CreateWorkflowSavedViewInput, UpdateWorkflowSavedViewInput } from '@zenith/shared/workflow';
 
 type Row = typeof workflowSavedViews.$inferSelect;
 

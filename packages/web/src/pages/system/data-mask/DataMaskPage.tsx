@@ -18,7 +18,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Database, Plus, RotateCcw, Search } from 'lucide-react';
-import type { DataMaskConfig, MaskType, SensitiveField } from '@zenith/shared';
+import type { DataMaskConfig, MaskType, SensitiveField } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';

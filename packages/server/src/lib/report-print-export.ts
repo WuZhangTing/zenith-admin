@@ -25,8 +25,8 @@ import {
 } from 'docx';
 import type { IBorderOptions, ISectionOptions, ITableCellBorders } from 'docx';
 import { config } from '../config';
-import { findPrintMerge, isPrintCellCoveredByMerge } from '@zenith/shared';
-import type { ReportPrintBorder, ReportPrintCell, ReportPrintCellStyle, ReportPrintGrid, ReportPrintPageConfig, ReportPrintRenderPage, ReportPrintRenderResult } from '@zenith/shared';
+import { findPrintMerge, isPrintCellCoveredByMerge } from '@zenith/shared/report';
+import type { ReportPrintBorder, ReportPrintCell, ReportPrintCellStyle, ReportPrintGrid, ReportPrintPageConfig, ReportPrintRenderPage, ReportPrintRenderResult } from '@zenith/shared/report';
 
 const PAPER_SIZE: Record<NonNullable<ReportPrintPageConfig['paper']>, number> = { A4: 9, A3: 8, A5: 11, Letter: 1 };
 const PDF_PAPER_SIZE: Record<NonNullable<ReportPrintPageConfig['paper']>, string> = { A4: 'A4', A3: 'A3', A5: 'A5', Letter: 'LETTER' };

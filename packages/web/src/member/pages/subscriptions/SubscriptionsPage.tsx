@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Button, Empty, Modal, Pagination, Select, Spin, Switch, Tag, Toast } from '@douyinfe/semi-ui';
 import { BellRing, CalendarCheck } from 'lucide-react';
-import { CMS_SUBSCRIPTION_SUBJECT_TYPE_LABELS, type CmsSubscriptionSubjectType } from '@zenith/shared';
+import { CMS_SUBSCRIPTION_SUBJECT_TYPE_LABELS } from '@zenith/shared/cms';
+import type { CmsSubscriptionSubjectType } from '@zenith/shared/cms';
 import { MemberPage } from '../../components/MemberPage';
 import {
   useCancelCmsSubscription,

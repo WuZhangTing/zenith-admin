@@ -10,7 +10,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Button, Input, Modal, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, Search, RotateCcw } from 'lucide-react';
-import type { ChannelAdmin, ChannelSubscriber } from '@zenith/shared';
+import type { ChannelAdmin, ChannelSubscriber } from '@zenith/shared/messaging';
 import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';

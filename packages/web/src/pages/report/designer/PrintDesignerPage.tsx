@@ -27,20 +27,8 @@ import {
   useReportPrintTemplateDetail,
   useSaveReportPrintTemplate,
 } from '@/hooks/queries/report-print';
-import { REPORT_FIELD_TYPE_OPTIONS } from '@zenith/shared';
-import type {
-  ReportDataset,
-  ReportDatasetParam,
-  ReportFieldType,
-  ReportPrintContent,
-  ReportPrintCrosstabConfig,
-  ReportPrintDatasetBinding,
-  ReportPrintPageConfig,
-  ReportPrintRenderResult,
-  ReportPrintSheet,
-  ReportPrintTemplate,
-  UpdateReportPrintTemplateInput,
-} from '@zenith/shared';
+import { REPORT_FIELD_TYPE_OPTIONS } from '@zenith/shared/report';
+import type { ReportDataset, ReportDatasetParam, ReportFieldType, ReportPrintContent, ReportPrintCrosstabConfig, ReportPrintDatasetBinding, ReportPrintPageConfig, ReportPrintRenderResult, ReportPrintSheet, ReportPrintTemplate, UpdateReportPrintTemplateInput } from '@zenith/shared/report';
 import { useDictItems } from '@/hooks/useDictItems';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Modal, Form, Button, Notification } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import type { User } from '@zenith/shared';
+import type { User } from '@zenith/shared/identity';
 import { request } from '@/utils/request';
 import { PasswordStrengthMeter } from './PasswordStrengthMeter';
 

@@ -3,7 +3,7 @@ import { Button, DatePicker, Select, Input, InputNumber, SideSheet, Space } from
 import { Check, Filter, RotateCcw } from 'lucide-react';
 import { formatDateForApi } from '@/utils/date';
 import { useReportFilterDynamicOptions } from '@/hooks/queries/report-designer';
-import type { ReportFilter } from '@zenith/shared';
+import type { ReportFilter } from '@zenith/shared/report';
 
 export interface FilterBarProps {
   filters: ReportFilter[];

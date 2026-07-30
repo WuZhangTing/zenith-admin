@@ -84,7 +84,34 @@ npm run docs:dev       # 本地预览 VitePress 文档站
 ### 共享层（`packages/shared`）
 
 - 直接引用 `.ts` 源文件，**无需编译步骤**——新增类型/schema 后 server 和 web 立即可用
-- `types.ts` 实体类型与 `ApiResponse<T>` / `PaginatedResponse<T>`；`validation.ts` 前后端共用的 Zod schema；`constants.ts` 枚举常量与标签映射；`seed-data.ts` DB seed 与 MSW mock 共用的种子数据
+- **已按业务域拆分**（与 server 路由域对齐），每个域固定三件套 + 可选运行时：
+
+  ```text
+  packages/shared/src/
+  ├── core/          ApiResponse<T> / PaginatedResponse<T> / EntityStatus / TOKEN_KEY 等跨域基础契约
+  ├── identity/      用户 / 角色 / 菜单 / 部门 / 岗位 / 用户组 / 租户 / 认证
+  ├── platform/      字典 / 系统配置 / 文件 / 日志 / 会话 / 监控 / 备份 / 脱敏
+  ├── messaging/     公告 / 邮件 / 短信 / 站内信 / 渠道
+  ├── workflow/      流程定义 / 实例 / 任务 / 表单（含 formula、form-runtime、helpers、serial 运行时）
+  ├── payment/  member/  report/（含 print、format、embed 等）  analytics/
+  ├── ai/  chat/  mp/  cms/（含 link）  open-platform/  rules/（含 cell）  ops/  tasks/  biz/
+  └── seed/          DB seed 与 MSW mock 共用的种子数据（menus.ts 单独承载 SEED_MENUS）
+  ```
+
+  每个域内：`types.ts`（实体类型）、`validation.ts`（Zod schema）、`constants.ts`（枚举 + LABELS/OPTIONS）、`index.ts`（域入口）
+- **必须使用域子路径导入，禁止根入口**（ESLint `no-restricted-imports` 强制）：
+
+  ```ts
+  import type { User } from '@zenith/shared/identity';        // ✅
+  import { createPaymentOrderSchema } from '@zenith/shared/payment';  // ✅
+  import { SEED_MENUS } from '@zenith/shared/seed';           // ✅ 种子数据独立入口
+  import type { User } from '@zenith/shared';                 // ❌ 会把 18 个域全部拉进依赖图
+  ```
+
+- **域 index 刻意不导出 seed**：种子数据只服务于 `db/seed.ts` 与 MSW mock，不应进入生产依赖图
+- **枚举 SSOT 在 constants**：`XXX_TYPES` 常量数组 + 派生 union type + `XXX_LABELS` 一并定义在域的 `constants.ts`；`validation.ts` 用 `z.enum(XXX_TYPES)` 引用。**禁止**把供跨域 `z.enum()` 使用的常量数组写在 `validation.ts` —— 会在 validation 之间形成 ESM 值环，触发 `z.enum(undefined)` 运行时崩溃
+- **值环检测**：`npm run lint:cycles`（已并入 `npm run lint`）。type-only 环无害不报，只拦截会导致 TDZ 崩溃的值环
+
 
 ---
 

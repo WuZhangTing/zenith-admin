@@ -24,7 +24,7 @@ import {
   listPromptTemplateVersions,
   restorePromptTemplateVersion,
 } from '../../services/ai/ai-prompt-templates.service';
-import { createAiPromptTemplateSchema, updateAiPromptTemplateSchema } from '@zenith/shared';
+import { createAiPromptTemplateSchema, updateAiPromptTemplateSchema } from '@zenith/shared/ai';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 

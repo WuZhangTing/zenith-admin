@@ -14,7 +14,7 @@ import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, RotateCcw, Search, Send } from 'lucide-react';
 import dayjs from 'dayjs';
-import type { BizLeave } from '@zenith/shared';
+import type { BizLeave } from '@zenith/shared/biz';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';

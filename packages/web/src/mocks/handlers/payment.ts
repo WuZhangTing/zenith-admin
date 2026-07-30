@@ -10,8 +10,8 @@ import {
 } from '@/mocks/data/payment';
 import { mockDateTime, mockDateTimeOffset, mockDate } from '@/mocks/utils/date';
 import { paginate } from '@/mocks/utils/handlers';
-import { PAYMENT_METHOD_CHANNEL } from '@zenith/shared';
-import type { PaymentChannelConfig, PaymentMethod, PaymentOrder, PaymentRefund } from '@zenith/shared';
+import { PAYMENT_METHOD_CHANNEL } from '@zenith/shared/payment';
+import type { PaymentChannelConfig, PaymentMethod, PaymentOrder, PaymentRefund } from '@zenith/shared/payment';
 import { recordMockPaymentSucceeded, recordMockRefundSucceeded } from './payment-ext';
 
 export const paymentHandlers = [

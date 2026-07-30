@@ -1,10 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import {
-  CMS_DISTRIBUTION_MODES,
-  CMS_DISTRIBUTION_TASK_STATUSES,
-  createCmsDistributionRuleSchema,
-  updateCmsDistributionRuleSchema,
-} from '@zenith/shared';
+import { CMS_DISTRIBUTION_MODES, CMS_DISTRIBUTION_TASK_STATUSES, createCmsDistributionRuleSchema, updateCmsDistributionRuleSchema } from '@zenith/shared/cms';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';

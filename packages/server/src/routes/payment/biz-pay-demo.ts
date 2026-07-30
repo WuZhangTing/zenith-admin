@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { createBizPayDemoSchema, payBizPayDemoSchema } from '@zenith/shared';
+import { createBizPayDemoSchema, payBizPayDemoSchema } from '@zenith/shared/biz';
 import { authMiddleware } from '../../middleware/auth';
 import { idempotencyGuard } from '../../middleware/idempotency';
 import {

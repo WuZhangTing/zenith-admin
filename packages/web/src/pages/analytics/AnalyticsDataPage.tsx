@@ -46,12 +46,8 @@ import {
   useSaveAnalyticsEventMeta,
   useSaveAnalyticsSettings,
 } from '@/hooks/queries/analytics';
-import type {
-  AnalyticsEventMeta,
-  AnalyticsSettings,
-  EventListItem,
-} from '@zenith/shared';
-import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_EVENT_PROPERTY_TYPES } from '@zenith/shared';
+import type { AnalyticsEventMeta, AnalyticsSettings, EventListItem } from '@zenith/shared/analytics';
+import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_EVENT_PROPERTY_TYPES } from '@zenith/shared/analytics';
 import { usePermission } from '@/hooks/usePermission';
 import AnalyticsQualityTab from './AnalyticsQualityTab';
 import AnalyticsDebugTab from './AnalyticsDebugTab';

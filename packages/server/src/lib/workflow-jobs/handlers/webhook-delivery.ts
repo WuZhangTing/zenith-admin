@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import type { WorkflowEvent } from '@zenith/shared';
+import type { WorkflowEvent } from '@zenith/shared/workflow';
 import { db } from '../../../db';
 import { workflowEventSubscriptions } from '../../../db/schema';
 import { invokeConnector, getConnectorRowById } from '../../../services/workflow/workflow-connectors.service';

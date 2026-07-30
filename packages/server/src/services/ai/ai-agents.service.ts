@@ -5,7 +5,7 @@ import { aiAgents, aiKnowledgeBases, aiProviderConfigs, users } from '../../db/s
 import { currentUser } from '../../lib/context';
 import { formatDateTime } from '../../lib/datetime';
 import type { AiAgentRow } from '../../db/schema';
-import type { CreateAiAgentInput, UpdateAiAgentInput } from '@zenith/shared';
+import type { CreateAiAgentInput, UpdateAiAgentInput } from '@zenith/shared/ai';
 
 function mapAgent(row: AiAgentRow, ownerName?: string | null) {
   return {

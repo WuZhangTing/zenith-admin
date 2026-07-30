@@ -1,5 +1,5 @@
 import { listAdminReportFillRecords } from '../../../services/report/report-fill-record.service';
-import type { ReportFillRecordStatus } from '@zenith/shared';
+import type { ReportFillRecordStatus } from '@zenith/shared/report';
 import { defineExport } from '../registry';
 
 interface ReportFillRecordsExportQuery extends Record<string, unknown> {

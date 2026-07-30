@@ -125,7 +125,7 @@ export async function getAnnouncementAttachments(announcementId: number): Promis
 
 // ─── WebSocket 广播 ───────────────────────────────────────────────────────────
 
-import type { WsMessage } from '@zenith/shared';
+import type { WsMessage } from '@zenith/shared/platform';
 
 async function resolveAnnouncementAudience(announcementId: number, targetType: string, tenantId: number | null): Promise<'all' | Set<number>> {
   if (targetType === 'all') return 'all';

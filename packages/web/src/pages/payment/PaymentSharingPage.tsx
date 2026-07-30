@@ -22,8 +22,8 @@ import {
   usePaymentSharingReceivers,
   useSavePaymentSharingReceiver,
 } from '@/hooks/queries/payment-sharing';
-import { PAYMENT_SHARING_RECEIVER_TYPE_LABELS, PAYMENT_SHARING_ORDER_STATUS_LABELS } from '@zenith/shared';
-import type { PaymentSharingOrder, PaymentSharingOrderStatus, PaymentSharingReceiver, PaymentSharingReceiverType } from '@zenith/shared';
+import { PAYMENT_SHARING_RECEIVER_TYPE_LABELS, PAYMENT_SHARING_ORDER_STATUS_LABELS } from '@zenith/shared/payment';
+import type { PaymentSharingOrder, PaymentSharingOrderStatus, PaymentSharingReceiver, PaymentSharingReceiverType } from '@zenith/shared/payment';
 import { useDictItems } from '@/hooks/useDictItems';
 
 const yuan = formatYuan;

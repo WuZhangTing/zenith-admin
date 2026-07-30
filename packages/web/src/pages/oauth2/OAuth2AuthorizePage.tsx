@@ -9,8 +9,10 @@ import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Spin, Card, Avatar, Tag, Button, Space, Typography, Divider, Toast } from '@douyinfe/semi-ui';
 import { ShieldCheck, X } from 'lucide-react';
-import { isSafeOAuthRedirectUri, OAUTH2_SCOPE_DESCRIPTIONS, TOKEN_KEY } from '@zenith/shared';
-import type { OAuth2AuthorizeInfo } from '@zenith/shared';
+import { TOKEN_KEY } from '@zenith/shared/core';
+import { isSafeOAuthRedirectUri } from '@zenith/shared/identity';
+import { OAUTH2_SCOPE_DESCRIPTIONS } from '@zenith/shared/open-platform';
+import type { OAuth2AuthorizeInfo } from '@zenith/shared/open-platform';
 import { request } from '@/utils/request';
 
 const { Title, Text, Paragraph } = Typography;

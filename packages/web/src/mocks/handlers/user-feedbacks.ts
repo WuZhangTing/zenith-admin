@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import type { UserFeedback, UserFeedbackCategory, UserFeedbackStatus } from '@zenith/shared';
+import type { UserFeedback, UserFeedbackCategory, UserFeedbackStatus } from '@zenith/shared/identity';
 import { mockUserFeedbacks, getNextUserFeedbackId } from '../data/user-feedbacks';
 import { mockDateTime } from '../utils/date';
 

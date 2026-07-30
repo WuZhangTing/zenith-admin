@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
-import { createWorkflowScheduleSchema, updateWorkflowScheduleSchema } from '@zenith/shared';
+import { createWorkflowScheduleSchema, updateWorkflowScheduleSchema } from '@zenith/shared/workflow';
 import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody } from '../../lib/openapi-schemas';
 import { WorkflowScheduleDTO } from '../../lib/openapi-dtos';
 import { listSchedules, createSchedule, updateSchedule, deleteSchedule, runScheduleNow, getWorkflowScheduleBeforeAudit } from '../../services/workflow/workflow-schedules.service';

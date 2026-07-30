@@ -1,5 +1,5 @@
-import type { Role } from '@zenith/shared';
-import { SEED_ROLES } from '@zenith/shared';
+import type { Role } from '@zenith/shared/identity';
+import { SEED_ROLES } from '@zenith/shared/seed';
 
 export const mockRoles: Role[] = SEED_ROLES.map((r) => ({
   ...r,

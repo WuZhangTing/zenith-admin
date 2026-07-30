@@ -14,7 +14,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
-import { SEED_MENUS } from '@zenith/shared';
+import { SEED_MENUS } from '@zenith/shared/seed';
 
 const ROUTES_DIR = join(__dirname, '..', 'routes');
 

@@ -29,12 +29,8 @@ import { assertContentSafe } from './mp-security.service';
 import { sendCustomServiceMessage, WechatApiError } from '../../lib/wechat';
 import { broadcast } from '../../lib/ws-manager';
 import logger from '../../lib/logger';
-import type {
-  MpKfSession, MpKfSessionDetail, MpKfSessionEvent, MpKfRoutingConfig, MpKfSessionStats,
-  MpKfSessionEventType, MpKfSessionCloseReason, MpKfRoutingStrategy, MpMessageType,
-  AcceptMpKfSessionInput, TransferMpKfSessionInput, CloseMpKfSessionInput,
-  ReplyMpKfSessionInput, UpdateMpKfRoutingConfigInput,
-} from '@zenith/shared';
+import type { MpKfSession, MpKfSessionDetail, MpKfSessionEvent, MpKfRoutingConfig, MpKfSessionStats, MpKfSessionEventType, MpKfSessionCloseReason, MpKfRoutingStrategy, MpMessageType, TransferMpKfSessionInput, UpdateMpKfRoutingConfigInput } from '@zenith/shared/mp';
+import type { AcceptMpKfSessionInput, CloseMpKfSessionInput, ReplyMpKfSessionInput } from '@zenith/shared/platform';
 
 // ─── 映射 ────────────────────────────────────────────────────────────────────
 interface SessionJoinRow {

@@ -1,4 +1,4 @@
-import type { EmailConfig } from '@zenith/shared';
+import type { EmailConfig } from '@zenith/shared/messaging';
 
 const SEED_DATE = '2024-01-01 00:00:00';
 

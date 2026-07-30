@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { WorkflowFormField } from '@zenith/shared';
+import type { WorkflowFormField } from '@zenith/shared/workflow';
 import {
   findField,
   updateField,

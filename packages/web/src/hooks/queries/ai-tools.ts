@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AiHttpTool, AiToolInfo, CreateAiHttpToolInput, UpdateAiHttpToolInput } from '@zenith/shared';
+import type { AiHttpTool, AiToolInfo, CreateAiHttpToolInput, UpdateAiHttpToolInput } from '@zenith/shared/ai';
 import { request } from '@/utils/request';
 import { LOOKUP_STALE_TIME, unwrap } from '@/lib/query';
 

@@ -11,7 +11,7 @@ import { acquireProviderSlot } from '../../lib/ai/reliability';
 import { updateConversationTitle } from './ai-conversations.service';
 import logger from '../../lib/logger';
 import type { StreamChatConfig, ChatMessage, ChatToolCall, StreamChunk } from '../../lib/ai/factory';
-import type { AiProvider, AiModelCapabilities } from '@zenith/shared';
+import type { AiProvider, AiModelCapabilities } from '@zenith/shared/ai';
 
 export type { StreamChunk };
 

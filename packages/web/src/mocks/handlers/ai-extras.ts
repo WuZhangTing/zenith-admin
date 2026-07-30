@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import type { AiKnowledgeBase, AiKbDocument, AiUserPreference } from '@zenith/shared';
+import type { AiKnowledgeBase, AiKbDocument, AiUserPreference } from '@zenith/shared/ai';
 import { mockDateTime } from '../utils/date';
 
 /* ─── 个人指令 ─────────────────────────────────────────────── */

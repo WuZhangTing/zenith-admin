@@ -1,15 +1,5 @@
 import type { ComponentType } from 'react';
-import type {
-  CmsContentAttachment,
-  CmsFormField,
-  CmsInteractionQuestionType,
-  CmsSearchResult,
-  CmsThemeSettingField,
-  CmsTitleStyle,
-  CmsResolvedWidget,
-  CmsWidgetRendererKey,
-  CmsWidgetType,
-} from '@zenith/shared';
+import type { CmsContentAttachment, CmsFormField, CmsInteractionQuestionType, CmsSearchResult, CmsThemeSettingField, CmsTitleStyle, CmsResolvedWidget, CmsWidgetRendererKey, CmsWidgetType } from '@zenith/shared/cms';
 import type { CmsWidgetRendererDefinition } from './widgets';
 
 /** 渲染上下文：站点信息 */

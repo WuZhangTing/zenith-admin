@@ -6,7 +6,7 @@ import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody,
 } from '../../lib/openapi-schemas';
-import { createMpQrcodeSchema } from '@zenith/shared';
+import { createMpQrcodeSchema } from '@zenith/shared/mp';
 import { MpQrcodeDTO } from '../../lib/openapi-dtos';
 import {
   listMpQrcodes, createMpQrcode, deleteMpQrcode, getMpQrcodeBeforeAudit,

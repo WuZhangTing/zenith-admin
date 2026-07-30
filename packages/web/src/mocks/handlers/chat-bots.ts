@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import type { ChatWebhook } from '@zenith/shared';
+import type { ChatWebhook } from '@zenith/shared/chat';
 import { mockChatWebhooks, getNextWebhookId, genWebhookToken } from '@/mocks/data/chat-bots';
 import { mockChatConversations } from '@/mocks/data/chat';
 import { mockDateTime } from '@/mocks/utils/date';

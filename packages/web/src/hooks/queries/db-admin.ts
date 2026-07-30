@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { DbQueryFavorite, PaginatedResponse } from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { DbQueryFavorite } from '@zenith/shared/ops';
 import type { ErSchema } from '@/pages/system/db-admin/ErDiagram';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';

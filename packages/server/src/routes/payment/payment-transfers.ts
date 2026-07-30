@@ -3,7 +3,7 @@
  * 发起转账（微信零钱 / 支付宝账户）、查单同步、失败重试（仅渠道未受理）、列表与汇总。
  */
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { createPaymentTransferSchema } from '@zenith/shared';
+import { createPaymentTransferSchema } from '@zenith/shared/payment';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';

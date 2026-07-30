@@ -1,4 +1,4 @@
-import type { InAppMessage } from '@zenith/shared';
+import type { InAppMessage } from '@zenith/shared/messaging';
 
 export const mockInAppMessages: InAppMessage[] = [
   {

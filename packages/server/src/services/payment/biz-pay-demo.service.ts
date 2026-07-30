@@ -14,7 +14,8 @@
  */
 import { and, desc, eq, inArray, like } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type { BizPayDemo, BizPayDemoStatus, PaymentMethod, PaymentCashierMethod, CreatePaymentResult } from '@zenith/shared';
+import type { BizPayDemo, BizPayDemoStatus } from '@zenith/shared/biz';
+import type { PaymentMethod, PaymentCashierMethod, CreatePaymentResult } from '@zenith/shared/payment';
 import { db } from '../../db';
 import { bizPayDemos, type BizPayDemoRow } from '../../db/schema';
 import { currentUser } from '../../lib/context';

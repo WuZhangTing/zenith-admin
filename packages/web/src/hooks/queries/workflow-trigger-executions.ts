@@ -1,5 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import type { PaginatedResponse, WorkflowTriggerExecution, WorkflowTriggerExecutionStatus } from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { WorkflowTriggerExecution, WorkflowTriggerExecutionStatus } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 

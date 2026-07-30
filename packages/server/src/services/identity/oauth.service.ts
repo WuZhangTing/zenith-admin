@@ -8,7 +8,8 @@ import { currentUser } from '../../lib/context';
 import { registerSession } from '../../lib/session-manager';
 import { getUserRoles, issueTokens } from './auth.service';
 import { parseUserAgent } from '../../lib/request-helpers';
-import { OAUTH_PROVIDERS, type OAuthProviderType } from '@zenith/shared';
+import { OAUTH_PROVIDERS } from '@zenith/shared/identity';
+import type { OAuthProviderType } from '@zenith/shared/identity';
 import { formatDateTime } from '../../lib/datetime';
 
 const VALID_PROVIDERS = new Set<string>(OAUTH_PROVIDERS);

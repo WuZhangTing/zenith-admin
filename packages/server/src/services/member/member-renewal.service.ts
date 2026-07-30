@@ -21,8 +21,9 @@ import {
   type SignContractResult,
 } from '../payment/payment-contract.service';
 import { ensureMemberExists } from './member-auth.service';
-import type { MemberRenewalInfo, MemberSignRenewalInput, MemberVipRenewal, PaymentDeductPlan } from '@zenith/shared';
-import { MEMBER_RENEWAL_BIZ_TYPE } from '@zenith/shared';
+import type { MemberRenewalInfo, MemberSignRenewalInput, MemberVipRenewal } from '@zenith/shared/member';
+import type { PaymentDeductPlan } from '@zenith/shared/payment';
+import { MEMBER_RENEWAL_BIZ_TYPE } from '@zenith/shared/member';
 import { allDeductPlans } from '../payment/payment-contract.service';
 
 function mapRenewal(row: MemberVipRenewalRow): MemberVipRenewal {

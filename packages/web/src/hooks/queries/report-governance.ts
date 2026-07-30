@@ -1,27 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  CreateReportEnvironmentInput,
-  CreateReportEnvironmentPromotionInput,
-  CreateReportPublishApprovalInput,
-  CreateReportResourceTransferInput,
-  DecideReportPublishApprovalInput,
-  DecideReportResourceTransferInput,
-  GrantReportResourceAclInput,
-  PaginatedResponse,
-  ReportAclRole,
-  ReportApprovalStatus,
-  ReportEnvironment,
-  ReportEnvironmentPromotion,
-  ReportEnvironmentPromotionActionInput,
-  ReportPromotionStatus,
-  ReportPublishApproval,
-  ReportResourceAcl,
-  ReportResourceTransfer,
-  ReportResourceType,
-  ReportTransferStatus,
-  UpdateReportEnvironmentInput,
-  UpdateReportResourceAclInput,
-} from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { CreateReportEnvironmentInput, CreateReportEnvironmentPromotionInput, CreateReportPublishApprovalInput, CreateReportResourceTransferInput, DecideReportPublishApprovalInput, DecideReportResourceTransferInput, GrantReportResourceAclInput, ReportAclRole, ReportApprovalStatus, ReportEnvironment, ReportEnvironmentPromotion, ReportEnvironmentPromotionActionInput, ReportPromotionStatus, ReportPublishApproval, ReportResourceAcl, ReportResourceTransfer, ReportResourceType, ReportTransferStatus, UpdateReportEnvironmentInput, UpdateReportResourceAclInput } from '@zenith/shared/report';
 import { toQueryString, unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
 

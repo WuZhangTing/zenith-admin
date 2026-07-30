@@ -21,10 +21,7 @@ import { sendMail } from '../../lib/email';
 import { sendSmsByProvider, renderTemplate } from '../../lib/sms-sender';
 import { breakerAllow, breakerSuccess, breakerFailure, breakerState, breakerReset } from '../../lib/workflow-connector-breaker';
 import { rateLimitAcquire, rateLimitReset } from '../../lib/workflow-connector-rate-limit';
-import type {
-  WorkflowConnector, WorkflowConnectorType, WorkflowConnectorHttpConfig, WorkflowConnectorCredentials,
-  WorkflowConnectorInvokeResult, CreateWorkflowConnectorInput, UpdateWorkflowConnectorInput, TestWorkflowConnectorInput,
-} from '@zenith/shared';
+import type { WorkflowConnector, WorkflowConnectorType, WorkflowConnectorHttpConfig, WorkflowConnectorCredentials, WorkflowConnectorInvokeResult, CreateWorkflowConnectorInput, UpdateWorkflowConnectorInput, TestWorkflowConnectorInput } from '@zenith/shared/workflow';
 
 // ─── 凭据编解码 ───────────────────────────────────────────────────────────────
 function encodeCredentials(creds: WorkflowConnectorCredentials | undefined): string | null {

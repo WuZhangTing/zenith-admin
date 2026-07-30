@@ -3,7 +3,7 @@ import { mockRoles, getNextRoleId } from '@/mocks/data/roles';
 import { mockMenus } from '@/mocks/data/menus';
 import { mockUsers } from '@/mocks/data/users';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { Role } from '@zenith/shared';
+import type { Role } from '@zenith/shared/identity';
 
 export const rolesHandlers = [
   // 角色列表（支持服务端分页）

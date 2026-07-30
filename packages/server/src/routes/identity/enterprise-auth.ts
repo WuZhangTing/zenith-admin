@@ -16,7 +16,7 @@ import {
   handleEnterpriseSamlAcs,
 } from '../../services/identity/identity-providers.service';
 import { getClientInfo } from '../../services/identity/auth.service';
-import { enterpriseLdapLoginSchema } from '@zenith/shared/validation';
+import { enterpriseLdapLoginSchema } from '@zenith/shared/identity';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 

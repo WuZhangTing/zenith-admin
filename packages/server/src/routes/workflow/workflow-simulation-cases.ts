@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { saveWorkflowSimulationCaseSchema } from '@zenith/shared';
+import { saveWorkflowSimulationCaseSchema } from '@zenith/shared/workflow';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
 import {

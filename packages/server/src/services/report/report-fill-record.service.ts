@@ -7,15 +7,7 @@ import { formatDateTime } from '../../lib/datetime';
 import { getUserPermissions, isSuperAdmin } from '../../lib/permissions';
 import { pageOffset } from '../../lib/pagination';
 import { escapeLike } from '../../lib/where-helpers';
-import {
-  type CancelReportFillRecordInput,
-  type CreateReportFillRecordInput,
-  type ReportFillRecord,
-  type ReportFillRecordStatus,
-  type ReviewReportFillRecordInput,
-  type SubmitReportFillRecordInput,
-  type UpdateReportFillRecordInput,
-} from '@zenith/shared';
+import type { CancelReportFillRecordInput, CreateReportFillRecordInput, ReportFillRecord, ReportFillRecordStatus, ReviewReportFillRecordInput, SubmitReportFillRecordInput, UpdateReportFillRecordInput } from '@zenith/shared/report';
 import { createInstance, withdrawInstance } from '../workflow/instances/lifecycle';
 import { reportCreateTenantId, reportScopedWhere, reportTenantScope } from './report-access';
 import {

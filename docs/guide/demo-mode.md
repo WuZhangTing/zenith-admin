@@ -173,7 +173,7 @@ packages/web/src/mocks/
 
 ### 新增业务模块时
 
-1. 若模块有初始种子数据，先在 `packages/shared/src/seed-data.ts` 中声明对应 `SEED_XXXS` 常量
+1. 若模块有初始种子数据，先在 `packages/shared/src/seed/{业务域}.ts` 中声明对应 `SEED_XXXS` 常量
 2. 在 `packages/server/src/db/seed.ts` 中导入并写入数据库
 3. 在 `data/` 下创建对应数据文件，导入共享种子数据并按 Demo 需要展开
 4. 在 `handlers/` 下创建对应的 Handler 文件，实现接口模拟

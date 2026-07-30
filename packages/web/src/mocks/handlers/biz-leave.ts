@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw';
-import type { BizLeave, WorkflowInstance, WorkflowTask } from '@zenith/shared';
+import type { BizLeave } from '@zenith/shared/biz';
+import type { WorkflowInstance, WorkflowTask } from '@zenith/shared/workflow';
 import { mockBizLeaves, getNextLeaveId } from '@/mocks/data/biz-leave';
 import {
   getNextInstanceId,

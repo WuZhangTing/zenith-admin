@@ -1,5 +1,5 @@
 import type { WSContext } from 'hono/ws';
-import type { WsMessage } from '@zenith/shared';
+import type { WsMessage } from '@zenith/shared/platform';
 import { formatDateTime } from './datetime';
 
 // tokenId → WSContext (precise single-session targeting)

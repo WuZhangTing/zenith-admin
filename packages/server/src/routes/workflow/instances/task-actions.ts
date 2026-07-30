@@ -3,7 +3,7 @@ import { createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../../middleware/guard';
 import { idempotencyGuard } from '../../../middleware/idempotency';
-import { approveWorkflowTaskSchema, rejectWorkflowTaskSchema } from '@zenith/shared';
+import { approveWorkflowTaskSchema, rejectWorkflowTaskSchema } from '@zenith/shared/workflow';
 import { ErrorResponse, jsonContent, commonErrorResponses, ok, okBody } from '../../../lib/openapi-schemas';
 import { WorkflowInstanceDTO, WorkflowSelectableNextApproverGroupDTO } from '../../../lib/openapi-dtos';
 import { approveTask, rejectTask, getWorkflowTaskBeforeAudit, listTaskSelectableNextApprovers } from '../../../services/workflow/workflow-instances.service';

@@ -15,7 +15,8 @@
  * syncCmsSiteWebhookSubscription），因此站点级 Webhook 同样享有重试与投递日志。
  */
 import { and, eq } from 'drizzle-orm';
-import type { AsyncTask, CmsOpenWebhookEvent } from '@zenith/shared';
+import type { CmsOpenWebhookEvent } from '@zenith/shared/cms';
+import type { AsyncTask } from '@zenith/shared/tasks';
 import { db } from '../../db';
 import { appWebhookSubscriptions, cmsContents, cmsSites } from '../../db/schema';
 import type { CmsContentRow } from '../../db/schema';

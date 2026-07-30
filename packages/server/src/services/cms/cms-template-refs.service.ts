@@ -14,7 +14,7 @@ import type { DbExecutor } from '../../db/types';
 import { cmsChannels, cmsContents } from '../../db/schema';
 import type { CmsChannelRow } from '../../db/schema';
 import { isTemplateRegistered, isThemeRegistered, listThemeTemplates, getThemeSettingsSchema } from '../../cms/themes/registry';
-import type { CmsSiteTemplateDefaults, CmsTemplateHealth, CmsInvalidTemplateRef } from '@zenith/shared';
+import type { CmsSiteTemplateDefaults, CmsTemplateHealth, CmsInvalidTemplateRef } from '@zenith/shared/cms';
 import { resolveEffectiveCmsSiteRow } from './cms-site-inheritance.service';
 
 type TemplateKind = 'list' | 'detail';

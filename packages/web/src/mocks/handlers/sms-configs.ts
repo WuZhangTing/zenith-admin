@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockSmsConfigs, getNextSmsConfigId } from '@/mocks/data/sms-configs';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { SmsConfig } from '@zenith/shared';
+import type { SmsConfig } from '@zenith/shared/messaging';
 
 function maskSecret<T extends { accessKeySecret?: string }>(c: T): T {
   return { ...c, accessKeySecret: '********' };

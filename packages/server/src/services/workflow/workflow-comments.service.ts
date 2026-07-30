@@ -8,7 +8,7 @@ import { tenantCondition } from '../../lib/tenant';
 import { formatDateTime } from '../../lib/datetime';
 import { scheduleSendToUsers } from '../../lib/ws-manager';
 import logger from '../../lib/logger';
-import type { WorkflowComment, CreateWorkflowCommentInput } from '@zenith/shared';
+import type { WorkflowComment, CreateWorkflowCommentInput } from '@zenith/shared/workflow';
 
 type CommentRow = typeof workflowComments.$inferSelect;
 

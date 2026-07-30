@@ -1,6 +1,6 @@
 // ─── 显隐/条件必填/条件只读设置（拆分自 FieldConfigPanel.tsx）───
 import { Typography } from '@douyinfe/semi-ui';
-import type { WorkflowFormField } from '@zenith/shared';
+import type { WorkflowFormField } from '@zenith/shared/workflow';
 import type { FieldTypeFlags } from './field-type-flags';
 import { VisibilityRulesEditor } from './VisibilityRulesEditor';
 

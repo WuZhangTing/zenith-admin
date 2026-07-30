@@ -1,4 +1,4 @@
-import { POINT_TX_TYPE_LABELS } from '@zenith/shared';
+import { POINT_TX_TYPE_LABELS } from '@zenith/shared/member';
 import { Coins } from 'lucide-react';
 import { MemberPage } from '../../components/MemberPage';
 import { TransactionList } from '../../components/TransactionList';

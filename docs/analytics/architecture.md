@@ -14,7 +14,7 @@
 | `error_alert_rules` | 错误告警规则（条件、阈值、时间窗口、渠道、收件人、去抖时间） |
 | `source_maps` | 上传的 Source Map（堆栈还原，replace 语义维护） |
 
-> 修改这些表后需 `npm run db:generate && npm run db:migrate`，并在 `packages/shared/src/seed-data.ts` 同步菜单/权限。
+> 修改这些表后需 `npm run db:generate && npm run db:migrate`，并在 `packages/shared/src/seed/{业务域}.ts` 同步菜单/权限。
 
 ## 服务端实现
 

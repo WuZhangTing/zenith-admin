@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw';
-import type { RuleDecisionTable, RuleDecisionInput, RuleDecisionOutput, RuleDecisionRow, RuleEvaluateResult, RuleCollectAggregate, RuleUsageItem } from '@zenith/shared';
-import { matchRuleCell } from '@zenith/shared';
+import type { RuleDecisionTable, RuleDecisionInput, RuleDecisionOutput, RuleDecisionRow, RuleEvaluateResult, RuleCollectAggregate, RuleUsageItem } from '@zenith/shared/rules';
+import { matchRuleCell } from '@zenith/shared/rules';
 import { mockDecisionTables, getNextTableId, mockDecisionVersions, mockTestCases, getNextCaseId, mockExecutions, getNextExecId } from '@/mocks/data/decision-tables';
 import { mockDateTime } from '@/mocks/utils/date';
 

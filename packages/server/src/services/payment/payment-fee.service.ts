@@ -14,8 +14,8 @@ import { formatDateTime } from '../../lib/datetime';
 import { recordLedgerEntry } from './payment-ledger.service';
 import { paymentEventBus } from '../../lib/payment-event-bus';
 import logger from '../../lib/logger';
-import type { CreatePaymentFeeRuleInput, UpdatePaymentFeeRuleInput } from '@zenith/shared';
-import type { PaymentChannel, PaymentFeeRule, PaymentMethod } from '@zenith/shared';
+import type { CreatePaymentFeeRuleInput, UpdatePaymentFeeRuleInput } from '@zenith/shared/payment';
+import type { PaymentChannel, PaymentFeeRule, PaymentMethod } from '@zenith/shared/payment';
 
 export function mapFeeRule(row: PaymentFeeRuleRow): PaymentFeeRule {
   return {

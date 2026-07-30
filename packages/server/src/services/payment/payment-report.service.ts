@@ -14,8 +14,8 @@ import { tenantCondition } from '../../lib/tenant';
 import { mergeWhere } from '../../lib/where-helpers';
 import { formatDate, parseDateTimeInput } from '../../lib/datetime';
 import logger from '../../lib/logger';
-import { PAYMENT_CHANNEL_LABELS } from '@zenith/shared';
-import type { PaymentChannel, PaymentReportGroupBy, PaymentReportRow } from '@zenith/shared';
+import { PAYMENT_CHANNEL_LABELS } from '@zenith/shared/payment';
+import type { PaymentChannel, PaymentReportGroupBy, PaymentReportRow } from '@zenith/shared/payment';
 
 export interface ReportSummaryQuery {
   groupBy?: PaymentReportGroupBy;

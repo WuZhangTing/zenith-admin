@@ -7,8 +7,8 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { useCmsCommentList, useCmsCommentAction } from '@/hooks/queries/cms';
-import { CMS_COMMENT_STATUS_LABELS } from '@zenith/shared';
-import type { CmsComment, CmsCommentStatus } from '@zenith/shared';
+import { CMS_COMMENT_STATUS_LABELS } from '@zenith/shared/cms';
+import type { CmsComment, CmsCommentStatus } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 
 const STATUS_COLORS: Record<CmsCommentStatus, 'orange' | 'green' | 'red'> = {

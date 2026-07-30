@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Button, Col, Form, Row, Spin, Toast } from '@douyinfe/semi-ui';
-import type { AiProvider, AiProviderConfig, UserAiConfig } from '@zenith/shared';
+import type { AiProvider, AiProviderConfig } from '@zenith/shared/ai';
+import type { UserAiConfig } from '@zenith/shared/identity';
 import { AppModal } from '@/components/AppModal';
 import { useAiProviderDetail, useSaveAiProvider, useTestAiProviderConnection, useFetchAiProviderModels, useAiProviderList } from '@/hooks/queries/ai-providers';
 import { useSaveAiUserConfig } from '@/hooks/queries/ai-user-config';

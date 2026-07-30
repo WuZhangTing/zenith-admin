@@ -9,7 +9,7 @@ import { mergeWhere, withPagination, escapeLike } from '../../lib/where-helpers'
 import { uploadManagedFile, deleteManagedFile, readFileContent } from '../files/files.service';
 import { processCmsImageUpload } from './cms-image.service';
 import { assertSiteAccess } from './cms-sites.service';
-import type { CmsResourceType, CmsResourceReference, UpdateCmsResourceInput, CropCmsResourceInput } from '@zenith/shared';
+import type { CmsResourceType, CmsResourceReference, UpdateCmsResourceInput, CropCmsResourceInput } from '@zenith/shared/cms';
 import { assertCompleteCmsBatch } from './cms-access';
 import { ensureCmsSiteExists } from './cms-sites.service';
 import { assertAllCmsSiteChannelsAccess } from './cms-channels.service';

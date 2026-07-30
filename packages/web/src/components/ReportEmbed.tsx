@@ -16,20 +16,7 @@ import { ScreenCanvas } from '@/pages/report/widgets/ScreenCanvas';
 import { FilterBar } from '@/pages/report/widgets/FilterBar';
 import { MobileDashboardHeader } from '@/pages/report/widgets/MobileDashboardHeader';
 import { useIsMobile } from '@/hooks/useMediaQuery';
-import type {
-  ReportCanvasItem,
-  ReportDashboardConfig,
-  ReportEmbedDrilldownPayload,
-  ReportEmbedFilterChangePayload,
-  ReportEmbedFilterValue,
-  ReportEmbedFilterValues,
-  ReportEmbedState,
-  ReportEmbedWidgetClickPayload,
-  ReportFilter,
-  ReportGridItem,
-  ReportWidget,
-  ReportDatasetQueryOptions,
-} from '@zenith/shared';
+import type { ReportCanvasItem, ReportDashboardConfig, ReportEmbedDrilldownPayload, ReportEmbedFilterChangePayload, ReportEmbedFilterValue, ReportEmbedFilterValues, ReportEmbedState, ReportEmbedWidgetClickPayload, ReportFilter, ReportGridItem, ReportWidget, ReportDatasetQueryOptions } from '@zenith/shared/report';
 import { useReportDashboardWidgetData } from '@/hooks/queries/report-dashboards';
 import { useReportEmbedDashboard, useReportEmbedData } from '@/hooks/queries/reports-embed';
 import {

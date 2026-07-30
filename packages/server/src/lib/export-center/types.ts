@@ -1,5 +1,5 @@
 import type ExcelJS from 'exceljs';
-import type { ExportJobFormat } from '@zenith/shared';
+import type { ExportJobFormat } from '@zenith/shared/tasks';
 import type { JwtPayload } from '../../middleware/auth';
 import type { MaskType, CustomMaskRule } from '../masking';
 

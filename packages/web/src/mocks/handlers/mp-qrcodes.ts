@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockMpQrcodes, getNextMpQrcodeId } from '@/mocks/data/mp-qrcodes';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { MpQrcode } from '@zenith/shared';
+import type { MpQrcode } from '@zenith/shared/mp';
 
 export const mpQrcodesHandlers = [
   http.get('/api/mp/qrcodes', ({ request }) => {

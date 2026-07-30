@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createCmsSearchWordSchema, SEED_CMS_SEARCH_WORDS } from '@zenith/shared';
+import { createCmsSearchWordSchema } from '@zenith/shared/cms';
+import { SEED_CMS_SEARCH_WORDS } from '@zenith/shared/seed';
 import { loadCmsExtensionWords, normalizeCmsSearchDictionaryWord } from './cms-search-dictionary';
 import { filterCmsSearchTokens } from './cms-search.service';
 

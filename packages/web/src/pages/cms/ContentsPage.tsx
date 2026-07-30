@@ -20,8 +20,8 @@ import {
   useAllCmsSites, useAllCmsTags, useCmsContentBatchOps, useDuplicateCmsContent, useImportCmsContents, cmsContentKeys,
   useCmsContentPersistentLock,
 } from '@/hooks/queries/cms';
-import { CMS_CONTENT_STATUS_LABELS, CMS_CONTENT_TYPE_LABELS } from '@zenith/shared';
-import type { CmsChannel, CmsContent, CmsContentStatus, CmsContentType } from '@zenith/shared';
+import { CMS_CONTENT_STATUS_LABELS, CMS_CONTENT_TYPE_LABELS } from '@zenith/shared/cms';
+import type { CmsChannel, CmsContent, CmsContentStatus, CmsContentType } from '@zenith/shared/cms';
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 import { CmsWidgetSourceRefsSheet, type CmsWidgetSourceTarget } from './CmsWidgetSourceRefsSheet';
 

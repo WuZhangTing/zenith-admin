@@ -4,7 +4,7 @@ import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import { Building2 } from 'lucide-react';
 import { UserAvatar } from '@/components/UserAvatar';
 import { useChatOrgData } from '@/hooks/queries/chat';
-import type { ChatOrgUser } from '@zenith/shared';
+import type { ChatOrgUser } from '@zenith/shared/chat';
 import type { ChatUser } from '../types';
 
 const { Text } = Typography;

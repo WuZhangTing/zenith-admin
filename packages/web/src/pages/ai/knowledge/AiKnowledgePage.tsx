@@ -3,7 +3,7 @@ import { Button, Form, Input, Modal, SideSheet, Tag, Toast, Typography, Upload }
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Plus, RotateCcw, Search, FileUp, Globe } from 'lucide-react';
-import type { AiKnowledgeBase, AiKbDocument } from '@zenith/shared';
+import type { AiKnowledgeBase, AiKbDocument } from '@zenith/shared/ai';
 import { AppModal } from '@/components/AppModal';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';

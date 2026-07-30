@@ -1,5 +1,5 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
-import type { CmsContentPublishSnapshot } from '@zenith/shared';
+import type { CmsContentPublishSnapshot } from '@zenith/shared/cms';
 import type { DbExecutor } from '../../db/types';
 import {
   asyncTasks,

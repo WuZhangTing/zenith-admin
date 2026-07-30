@@ -12,8 +12,8 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import { Search, RotateCcw } from 'lucide-react';
-import type { OnlineUser } from '@zenith/shared';
-import { TOKEN_KEY } from '@zenith/shared';
+import type { OnlineUser } from '@zenith/shared/platform';
+import { TOKEN_KEY } from '@zenith/shared/core';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';

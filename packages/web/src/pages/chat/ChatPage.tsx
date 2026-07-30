@@ -24,11 +24,9 @@ import { request } from '@/utils/request';
 import { formatDateTime, formatConvTime, formatDateTimeForApi } from '@/utils/date';
 import { formatFileSize, getFileTypeIcon, fetchManagedFileBlob, canPreviewFile, isSpreadsheetFile } from '@/utils/file-utils';
 import FilePreviewModal from '@/components/FilePreviewModal';
-import type {
-  ChatConversation, ChatMessage, WsMessage, ChatLinkPreview, ChatAssetMeta, ChatMessageExtra,
-  ChatGroupMember, ChatMessageSearchItem, ChatMessageSearchResult, ChatMessageContext, ChatVoteData,
-  ChatReadState, ChatPresence, ChatCardAction, Channel,
-} from '@zenith/shared';
+import type { ChatConversation, ChatMessage, ChatLinkPreview, ChatAssetMeta, ChatMessageExtra, ChatGroupMember, ChatMessageSearchItem, ChatMessageSearchResult, ChatMessageContext, ChatVoteData, ChatReadState, ChatPresence, ChatCardAction } from '@zenith/shared/chat';
+import type { Channel } from '@zenith/shared/messaging';
+import type { WsMessage } from '@zenith/shared/platform';
 import {
   extractFirstUrl, getFileExtension, getAssetMeta, getMessageSummary, shouldDisplayMessageTime,
   getImageDimensions,
@@ -58,7 +56,7 @@ import { callManager } from '@/webrtc/useCallManager';
 import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { useDiscoverableChannels, chatKeys, useAddChatCustomEmoji } from '@/hooks/queries/chat';
-import type { ChatCustomEmoji } from '@zenith/shared';
+import type { ChatCustomEmoji } from '@zenith/shared/chat';
 
 const { Text, Title } = Typography;
 

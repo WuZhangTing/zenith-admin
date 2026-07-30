@@ -11,10 +11,7 @@ import {
   type WechatMenuMatchRule,
 } from '../../lib/wechat';
 import { mapWechatError } from '../../lib/wechat-error';
-import type {
-  MpConditionalMenu, MpMenuButton, MpMenuMatchRule,
-  CreateMpConditionalMenuInput, UpdateMpConditionalMenuInput,
-} from '@zenith/shared';
+import type { MpConditionalMenu, MpMenuButton, MpMenuMatchRule, CreateMpConditionalMenuInput, UpdateMpConditionalMenuInput } from '@zenith/shared/mp';
 
 export function mapMpConditionalMenu(row: MpConditionalMenuRow): MpConditionalMenu {
   return {

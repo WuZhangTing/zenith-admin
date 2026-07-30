@@ -11,7 +11,7 @@
  */
 import { useMemo, useState } from 'react';
 import { Banner, Button, Space, Spin, Tree } from '@douyinfe/semi-ui';
-import type { Menu } from '@zenith/shared';
+import type { Menu } from '@zenith/shared/identity';
 
 type MenuPermissionPanelProps = Readonly<{
   allMenus: Menu[];

@@ -48,33 +48,8 @@ import type {
   ReportDashboardVersionRow,
   ReportDashboardRow,
 } from '../../db/schema';
-import type {
-  CreateReportCategoryInput,
-  CreateReportEmbedTokenInput,
-  CreateReportShareInput,
-  CreateReportVersionInput,
-  ReportDashboard,
-  ReportDashboardCategory,
-  ReportDashboardConfig,
-  ReportDashboardEmbedToken,
-  ReportDashboardLifecycleActionInput,
-  ReportDashboardShare,
-  ReportDashboardSnapshot,
-  ReportDashboardVersion,
-  ReportDashboardVersionDiff,
-  ReportDashboardVersionSource,
-  ReportFilter,
-  ReportGridItem,
-  ReportPublicAccessSession,
-  ReportPublicDashboard,
-  ReportWidget,
-  ReportWidgetDataResult,
-  ReportDatasetQueryOptions,
-  UpdateReportCategoryInput,
-  ReportLookupOption,
-  UpdateReportShareInput,
-} from '@zenith/shared';
-import type { ReportWidgetOptions } from '@zenith/shared';
+import type { CreateReportCategoryInput, CreateReportEmbedTokenInput, CreateReportShareInput, CreateReportVersionInput, ReportDashboard, ReportDashboardCategory, ReportDashboardConfig, ReportDashboardEmbedToken, ReportDashboardLifecycleActionInput, ReportDashboardShare, ReportDashboardSnapshot, ReportDashboardVersion, ReportDashboardVersionDiff, ReportDashboardVersionSource, ReportFilter, ReportGridItem, ReportPublicAccessSession, ReportPublicDashboard, ReportWidget, ReportWidgetDataResult, ReportDatasetQueryOptions, UpdateReportCategoryInput, ReportLookupOption, UpdateReportShareInput } from '@zenith/shared/report';
+import type { ReportWidgetOptions } from '@zenith/shared/report';
 import { resolveReportSecret } from './report-secrets';
 import { ensureReportResourceAccess } from './report-resource-acl.service';
 import { recordReportAssetUsage } from './report-asset-usage.service';

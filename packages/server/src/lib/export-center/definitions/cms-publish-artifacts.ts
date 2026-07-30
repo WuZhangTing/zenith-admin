@@ -1,8 +1,5 @@
 import { and, desc, eq, ilike, sql, type SQL } from 'drizzle-orm';
-import {
-  CMS_PUBLISH_ARTIFACT_STATUS_LABELS,
-  CMS_PUBLISH_TARGET_TYPE_LABELS,
-} from '@zenith/shared';
+import { CMS_PUBLISH_ARTIFACT_STATUS_LABELS, CMS_PUBLISH_TARGET_TYPE_LABELS } from '@zenith/shared/cms';
 import { db } from '../../../db';
 import { asyncTasks, cmsPublishArtifacts } from '../../../db/schema';
 import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../datetime';

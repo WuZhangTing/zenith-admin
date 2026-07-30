@@ -13,7 +13,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { useAllPaymentChannelConfigsLookup } from '@/hooks/queries/payment-channels';
 import { paymentAppKeys, useDeletePaymentApp, usePaymentAppList, useSavePaymentApp } from '@/hooks/queries/payment-apps';
 import { createdAtColumn } from '@/utils/table-columns';
-import type { PaymentApp, PaymentChannel, PaymentChannelConfig } from '@zenith/shared';
+import type { PaymentApp, PaymentChannel, PaymentChannelConfig } from '@zenith/shared/payment';
 import { useDictItems } from '@/hooks/useDictItems';
 
 interface SearchParams { keyword: string; status: string; }

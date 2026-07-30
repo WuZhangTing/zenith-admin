@@ -5,7 +5,7 @@ import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okBody,
 } from '../../lib/openapi-schemas';
-import { sendMpMessageSchema } from '@zenith/shared';
+import { sendMpMessageSchema } from '@zenith/shared/messaging';
 import { MpMessageDTO, MpConversationDTO } from '../../lib/openapi-dtos';
 import { listMessages, listConversations, sendCustomMessage } from '../../services/mp/mp-message.service';
 

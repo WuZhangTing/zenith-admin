@@ -7,7 +7,7 @@ import {
   ok, okPaginated, okMsg, IdParam, okBody,
 } from '../../lib/openapi-schemas';
 import { RuleListDTO, RuleListItemDTO, RuleListCheckResultDTO } from '../../lib/openapi-dtos';
-import { createRuleListSchema, updateRuleListSchema, createRuleListItemSchema, batchRuleListItemsSchema, checkRuleListSchema } from '@zenith/shared';
+import { createRuleListSchema, updateRuleListSchema, createRuleListItemSchema, batchRuleListItemsSchema, checkRuleListSchema } from '@zenith/shared/rules';
 import {
   listRuleLists, createRuleList, updateRuleList, deleteRuleList,
   listRuleListItems, createRuleListItem, batchCreateRuleListItems, deleteRuleListItem, purgeExpiredRuleListItems,

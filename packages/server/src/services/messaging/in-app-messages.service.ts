@@ -10,7 +10,7 @@ import { currentUser } from '../../lib/context';
 import { renderTemplate } from '../../lib/sms-sender';
 import { scheduleSendToUsers } from '../../lib/ws-manager';
 import { ensureInAppTemplateExists } from './in-app-templates.service';
-import type { InAppMessageType, SendInAppInput } from '@zenith/shared';
+import type { InAppMessageType, SendInAppInput } from '@zenith/shared/messaging';
 
 export interface ListInAppMessagesQuery {
   keyword?: string;

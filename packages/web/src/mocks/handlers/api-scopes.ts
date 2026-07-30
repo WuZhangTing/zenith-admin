@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import type { ApiScope } from '@zenith/shared';
+import type { ApiScope } from '@zenith/shared/open-platform';
 import { mockApiScopes } from '@/mocks/data/api-scopes';
 import { mockDateTime } from '@/mocks/utils/date';
 

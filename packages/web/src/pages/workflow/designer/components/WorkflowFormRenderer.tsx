@@ -11,8 +11,8 @@ import { Form, Select, Button, Typography, Row, Col, Divider, Rating, Toast, wit
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus, Eraser, Trash2, Copy, ClipboardPaste } from 'lucide-react';
 import dayjs from 'dayjs';
-import type { WorkflowFormField, WorkflowFormFieldColumn, WorkflowFormFieldOptionItem, WorkflowFormFieldCompareRule, WorkflowRelationOption, WorkflowFormCascaderNode } from '@zenith/shared';
-import { evalWorkflowFieldRuleGroup as evalRuleGroup, isWorkflowFieldVisible as isFieldVisible } from '@zenith/shared';
+import type { WorkflowFormField, WorkflowFormFieldColumn, WorkflowFormFieldOptionItem, WorkflowFormFieldCompareRule, WorkflowRelationOption, WorkflowFormCascaderNode } from '@zenith/shared/workflow';
+import { evalWorkflowFieldRuleGroup as evalRuleGroup, isWorkflowFieldVisible as isFieldVisible } from '@zenith/shared/workflow';
 import { CURRENCY_OPTIONS, toDateFnsToken, dateFormatHasTime } from '../form-types';
 import { evalFormula } from '../form-formula';
 import { rmbUpper } from '@/utils/rmb';

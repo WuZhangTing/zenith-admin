@@ -1,5 +1,5 @@
 import { QueryClient } from '@tanstack/react-query';
-import type { ApiResponse } from '@zenith/shared';
+import type { ApiResponse } from '@zenith/shared/core';
 
 /** 业务错误：统一响应 code !== 0 时由 unwrap 抛出（request 层已自动 toast，调用方通常无需重复提示） */
 export class ApiError extends Error {

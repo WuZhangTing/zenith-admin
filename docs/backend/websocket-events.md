@@ -1,6 +1,6 @@
 # WebSocket 事件清单
 
-服务端通过 `/api/ws` 提供后台实时消息 WebSocket 端点，前端 `useWebSocket` 维护单例连接并将所有消息按类型分发。业务事件 payload 类型集中定义于 [`packages/shared/src/types.ts`](https://github.com/) 的 `WsMessage` 联合类型，前后端共享。
+服务端通过 `/api/ws` 提供后台实时消息 WebSocket 端点，前端 `useWebSocket` 维护单例连接并将所有消息按类型分发。业务事件 payload 类型集中定义于 [`packages/shared/src/{业务域}/types.ts`](https://github.com/) 的 `WsMessage` 联合类型，前后端共享。
 
 Web 终端使用独立端点 `/api/ws/terminal` 与 `/api/ws/terminal-monitor`，消息类型为 `TerminalMessage` 和监控端专用消息，不混入 `/api/ws` 的 `WsMessage`。
 

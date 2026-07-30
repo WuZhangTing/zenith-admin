@@ -3,7 +3,7 @@
  * 账户总览、余额核对（快照 vs 流水聚合）、快照重建、人工调账。
  */
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { adjustPaymentAccountSchema } from '@zenith/shared';
+import { adjustPaymentAccountSchema } from '@zenith/shared/payment';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';

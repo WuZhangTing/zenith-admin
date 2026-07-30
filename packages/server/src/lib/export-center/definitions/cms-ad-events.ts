@@ -1,6 +1,6 @@
 import { db } from '../../../db';
 import { cmsAdEvents } from '../../../db/schema';
-import { CMS_AD_EVENT_TYPE_LABELS } from '@zenith/shared';
+import { CMS_AD_EVENT_TYPE_LABELS } from '@zenith/shared/cms';
 import {
   buildCmsAdEventWhere,
   streamCmsAdEvents,

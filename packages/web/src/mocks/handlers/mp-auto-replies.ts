@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockMpAutoReplies, getNextMpAutoReplyId } from '@/mocks/data/mp-auto-replies';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { MpAutoReply } from '@zenith/shared';
+import type { MpAutoReply } from '@zenith/shared/mp';
 
 export const mpAutoRepliesHandlers = [
   http.get('/api/mp/auto-replies/unmatched', ({ request }) => {

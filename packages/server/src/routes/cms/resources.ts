@@ -1,9 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
-import {
-  createCmsResourceFolderSchema, cropCmsResourceSchema, moveCmsResourcesSchema,
-  updateCmsResourceFolderSchema, updateCmsResourceSchema,
-} from '@zenith/shared';
+import { createCmsResourceFolderSchema, cropCmsResourceSchema, moveCmsResourcesSchema, updateCmsResourceFolderSchema, updateCmsResourceSchema } from '@zenith/shared/cms';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
 import {

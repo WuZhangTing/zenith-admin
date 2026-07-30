@@ -1,24 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import type {
-  CheckinMilestone,
-  CheckinRule,
-  CheckinSettings,
-  Coupon,
-  Member,
-  MemberCheckin,
-  MemberCoupon,
-  MemberLevel,
-  MemberLoginLog,
-  MemberPointAccount,
-  MemberPointTransaction,
-  MemberRecharge,
-  MemberStatsCharts,
-  MemberStatsOverview,
-  MemberTag,
-  MemberWallet,
-  MemberWalletTransaction,
-  PaginatedResponse,
-} from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { CheckinMilestone, CheckinRule, CheckinSettings, Coupon, Member, MemberCheckin, MemberCoupon, MemberLevel, MemberLoginLog, MemberPointAccount, MemberPointTransaction, MemberRecharge, MemberStatsCharts, MemberStatsOverview, MemberTag, MemberWallet, MemberWalletTransaction } from '@zenith/shared/member';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 

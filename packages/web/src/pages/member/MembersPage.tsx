@@ -4,8 +4,8 @@ import { Button, Input, Select, Modal, Form, Toast, Tag, Spin, Row, Col, Dropdow
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search, Plus, RotateCcw, KeyRound, ChevronDown, Tags } from 'lucide-react';
-import type { Member, MemberTag } from '@zenith/shared';
-import { MEMBER_STATUS_LABELS } from '@zenith/shared';
+import type { Member, MemberTag } from '@zenith/shared/member';
+import { MEMBER_STATUS_LABELS } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { useDictItems } from '@/hooks/useDictItems';

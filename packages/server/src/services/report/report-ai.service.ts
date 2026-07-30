@@ -10,7 +10,7 @@ import { ensureDatasetExists } from './report-dataset.service';
 import { streamChat } from '../../lib/ai/factory';
 import { loadSchemaMeta } from '../../lib/report-schema-meta';
 import { isReadonlyReportSql } from '../../lib/report-sql-safety';
-import type { ReportField, ReportSqlDatasetContent } from '@zenith/shared';
+import type { ReportField, ReportSqlDatasetContent } from '@zenith/shared/report';
 
 const MAX_SCHEMA_CHARS = 6000;
 

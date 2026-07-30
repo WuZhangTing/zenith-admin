@@ -1,7 +1,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { analyticsHandlers } from '@/mocks/handlers/analytics';
-import { ANALYTICS_SITE_KEY_HEADER } from '@zenith/shared';
+import { ANALYTICS_SITE_KEY_HEADER } from '@zenith/shared/analytics';
 
 const ORIGIN = window.location.origin;
 interface ApiEnvelope { code: number; message: string; data: any }

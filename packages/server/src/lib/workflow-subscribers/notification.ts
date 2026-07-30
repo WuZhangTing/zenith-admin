@@ -13,7 +13,8 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../../db';
 import { inAppMessages, workflowInstances, users, smsTemplates } from '../../db/schema';
-import type { InAppMessageType, WorkflowNotifyChannels } from '@zenith/shared';
+import type { InAppMessageType } from '@zenith/shared/messaging';
+import type { WorkflowNotifyChannels } from '@zenith/shared/workflow';
 import { workflowEventBus } from '../workflow-event-bus';
 import { sendMail } from '../email';
 import { sendSmsByProvider, renderTemplate } from '../sms-sender';

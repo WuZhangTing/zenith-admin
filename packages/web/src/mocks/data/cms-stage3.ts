@@ -1,10 +1,5 @@
-import {
-  SEED_CMS_PUBLISH_ARTIFACTS,
-  SEED_CMS_PUBLISH_TASKS,
-  type CmsPublishingTask,
-  type CmsPublishArtifact,
-  type CmsPublishTargetType,
-} from '@zenith/shared';
+import type { CmsPublishingTask, CmsPublishArtifact, CmsPublishTargetType } from '@zenith/shared/cms';
+import { SEED_CMS_PUBLISH_ARTIFACTS, SEED_CMS_PUBLISH_TASKS } from '@zenith/shared/seed';
 
 export const mockCmsPublishingTasks: CmsPublishingTask[] = SEED_CMS_PUBLISH_TASKS.map((item) => ({
   ...item,

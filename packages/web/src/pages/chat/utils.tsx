@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatAssetMeta, ChatMessageExtra } from '@zenith/shared';
+import type { ChatMessage, ChatAssetMeta, ChatMessageExtra } from '@zenith/shared/chat';
 
 export const MESSAGE_TIME_GROUP_GAP_MS = 5 * 60 * 1000;
 

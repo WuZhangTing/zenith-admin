@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Avatar, Button, Input, Toast, Banner, Spin, Empty, Select, Typography } from '@douyinfe/semi-ui';
 import { RefreshCw, Send, Paperclip } from 'lucide-react';
-import { MP_MESSAGE_TYPE_LABELS } from '@zenith/shared';
-import type { MpConversation, MpMessage, MpMessageType } from '@zenith/shared';
+import { MP_MESSAGE_TYPE_LABELS } from '@zenith/shared/mp';
+import type { MpConversation, MpMessage, MpMessageType } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { NavListPanel, NavListItem } from '@/components/NavListPanel';

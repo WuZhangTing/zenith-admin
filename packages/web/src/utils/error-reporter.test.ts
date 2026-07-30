@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { TOKEN_KEY } from '@zenith/shared';
+import { TOKEN_KEY } from '@zenith/shared/core';
 import { configureErrorReporterRuntime, configureErrorReporting, reportError } from './error-reporter';
 
 vi.mock('./breadcrumbs', () => ({

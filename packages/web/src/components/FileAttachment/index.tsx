@@ -11,7 +11,7 @@ import {
 import type { CSSProperties } from 'react';
 import type { FileItem, RenderFileItemProps } from '@douyinfe/semi-ui/lib/es/upload';
 import { Plus, Download, X, Eye, RotateCcw } from 'lucide-react';
-import { TOKEN_KEY } from '@zenith/shared';
+import { TOKEN_KEY } from '@zenith/shared/core';
 import { config } from '@/config';
 import { formatDateTime } from '@/utils/date';
 import {

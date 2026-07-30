@@ -1,8 +1,4 @@
-import type {
-  CmsDistributionConflictStrategy,
-  CmsDistributionFilters,
-  CmsDistributionMode,
-} from '@zenith/shared';
+import type { CmsDistributionConflictStrategy, CmsDistributionFilters, CmsDistributionMode } from '@zenith/shared/cms';
 
 export function assertCmsDistributionScope(input: {
   sourceSiteId: number;

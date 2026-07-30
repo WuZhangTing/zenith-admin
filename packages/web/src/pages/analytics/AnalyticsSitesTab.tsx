@@ -5,7 +5,7 @@ import { Button, Form, Input, Modal, Popconfirm, Select, Space, Tag, Toast, Typo
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Plus, RotateCcw, Search } from 'lucide-react';
-import type { AnalyticsSite } from '@zenith/shared';
+import type { AnalyticsSite } from '@zenith/shared/analytics';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import {

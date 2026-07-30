@@ -1,4 +1,4 @@
-import type { AppWebhookSubscription, AppWebhookDelivery } from '@zenith/shared';
+import type { AppWebhookSubscription, AppWebhookDelivery } from '@zenith/shared/open-platform';
 
 export const mockWebhookSubscriptions: AppWebhookSubscription[] = [
   {

@@ -24,10 +24,7 @@ import {
   useReportDesignerDatasets,
   useSaveReportDashboardDesign,
 } from '@/hooks/queries/report-designer';
-import type {
-  ReportWidget, ReportWidgetType, ReportGridItem, ReportCanvasItem,
-  ReportWidgetOptions, ReportFilter, ReportDashboardConfig, ReportScreenConfig, ReportCarouselConfig,
-} from '@zenith/shared';
+import type { ReportWidget, ReportWidgetType, ReportGridItem, ReportCanvasItem, ReportWidgetOptions, ReportFilter, ReportDashboardConfig, ReportScreenConfig, ReportCarouselConfig } from '@zenith/shared/report';
 
 const GridLayout = WidthProvider(RGL);
 const COLS = 12;

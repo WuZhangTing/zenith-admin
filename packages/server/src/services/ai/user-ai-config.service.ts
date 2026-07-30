@@ -5,7 +5,7 @@ import { userAiConfigs } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { formatDateTime } from '../../lib/datetime';
 import { sealApiKey, unsealApiKey } from './ai-providers.service';
-import type { SaveUserAiConfigInput } from '@zenith/shared';
+import type { SaveUserAiConfigInput } from '@zenith/shared/ai';
 
 const MASKED_KEY = '******';
 

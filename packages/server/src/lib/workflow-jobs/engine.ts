@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { and, asc, eq, gt, inArray, isNotNull, lt, lte, or, sql, type SQL } from 'drizzle-orm';
-import type { WorkflowJobType } from '@zenith/shared';
+import type { WorkflowJobType } from '@zenith/shared/workflow';
 import { db } from '../../db';
 import { workflowJobs, workflowJobExecutions } from '../../db/schema';
 import type { WorkflowJobRow, NewWorkflowJob } from '../../db/schema';

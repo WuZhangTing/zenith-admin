@@ -1,10 +1,5 @@
-import type {
-  MpKfSession, MpKfSessionEvent, MpKfRoutingConfig, MpKfSessionStats, MpMessage,
-} from '@zenith/shared';
-import {
-  SEED_MP_KF_SESSIONS, SEED_MP_KF_SESSION_EVENTS, SEED_MP_KF_ROUTING_CONFIGS,
-  SEED_MP_KF_ACCOUNTS, SEED_MP_FANS, SEED_MP_MESSAGES,
-} from '@zenith/shared';
+import type { MpKfSession, MpKfSessionEvent, MpKfRoutingConfig, MpKfSessionStats, MpMessage } from '@zenith/shared/mp';
+import { SEED_MP_KF_SESSIONS, SEED_MP_KF_SESSION_EVENTS, SEED_MP_KF_ROUTING_CONFIGS, SEED_MP_KF_ACCOUNTS, SEED_MP_FANS, SEED_MP_MESSAGES } from '@zenith/shared/seed';
 import { mockDateTime } from '@/mocks/utils/date';
 
 const kfNickById = new Map<number, string>(SEED_MP_KF_ACCOUNTS.map((k) => [k.id, k.nickname]));

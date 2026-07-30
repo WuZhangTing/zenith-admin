@@ -4,15 +4,7 @@ import { Client, InvalidCredentialsError, type Entry } from 'ldapts';
 import { SAML, ValidateInResponseTo, type CacheItem, type CacheProvider, type Profile } from '@node-saml/node-saml';
 import { and, desc, eq, ilike, isNull, ne, or } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type {
-  CreateTenantIdentityProviderInput,
-  IdentityProviderConnectionTestResult,
-  IdentityProviderAttributeMapping,
-  IdentityProviderSyncResult,
-  IdentityProviderType,
-  LdapDirectoryUser,
-  UpdateTenantIdentityProviderInput,
-} from '@zenith/shared';
+import type { CreateTenantIdentityProviderInput, IdentityProviderConnectionTestResult, IdentityProviderAttributeMapping, IdentityProviderSyncResult, IdentityProviderType, LdapDirectoryUser, UpdateTenantIdentityProviderInput } from '@zenith/shared/identity';
 import { config } from '../../config';
 import { db } from '../../db';
 import { identityProviderSyncLogs, roles, tenantIdentityProviders, tenants, userIdentityAccounts, userRoles, users } from '../../db/schema';

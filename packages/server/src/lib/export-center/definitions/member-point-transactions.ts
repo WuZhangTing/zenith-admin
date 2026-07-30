@@ -5,8 +5,8 @@ import { buildPointTxWhere } from '../../../services/member/member-points.servic
 import { batchIterable } from '../../excel-export';
 import { defineExport } from '../registry';
 import type { ExportColumn } from '../types';
-import type { PointTxType } from '@zenith/shared';
-import { POINT_TX_TYPE_LABELS } from '@zenith/shared';
+import type { PointTxType } from '@zenith/shared/member';
+import { POINT_TX_TYPE_LABELS } from '@zenith/shared/member';
 
 const TYPE_LABELS: Record<string, string> = POINT_TX_TYPE_LABELS;
 

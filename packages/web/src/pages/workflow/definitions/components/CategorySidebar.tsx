@@ -6,7 +6,7 @@ import { useMutation } from '@tanstack/react-query';
 import { Button, Dropdown, Modal, Toast, Form } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { MoreHorizontal, Plus, Layers, LayoutGrid, Pencil, Trash2 } from 'lucide-react';
-import type { WorkflowCategory } from '@zenith/shared';
+import type { WorkflowCategory } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
 import AppModal from '@/components/AppModal';
 import { NavListPanel, NavListItem } from '@/components/NavListPanel';

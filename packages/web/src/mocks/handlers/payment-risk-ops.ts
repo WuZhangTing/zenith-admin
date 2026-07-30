@@ -1,7 +1,7 @@
 import { http } from 'msw';
 import { mockDateTime } from '@/mocks/utils/date';
 import { ok, notFound, badRequest, paginate } from '@/mocks/utils/handlers';
-import type { PaymentRiskHit, PaymentRiskReview } from '@zenith/shared';
+import type { PaymentRiskHit, PaymentRiskReview } from '@zenith/shared/payment';
 import dayjs from 'dayjs';
 
 const hits: PaymentRiskHit[] = [

@@ -13,7 +13,7 @@ import {
   okBody,
 } from '../../lib/openapi-schemas';
 import { RatePlanDTO } from '../../lib/openapi-dtos';
-import { createRatePlanSchema, updateRatePlanSchema } from '@zenith/shared';
+import { createRatePlanSchema, updateRatePlanSchema } from '@zenith/shared/open-platform';
 import {
   listRatePlans,
   listEnabledRatePlans,

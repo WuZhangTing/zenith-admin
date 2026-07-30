@@ -1,5 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import type { PaginatedResponse, PaymentNotifyLog } from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { PaymentNotifyLog } from '@zenith/shared/payment';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 

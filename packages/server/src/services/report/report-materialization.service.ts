@@ -2,12 +2,7 @@ import { createHash } from 'node:crypto';
 import dayjs from 'dayjs';
 import { HTTPException } from 'hono/http-exception';
 import { and, asc, desc, eq, gt, inArray, isNull, lt, max, or } from 'drizzle-orm';
-import type {
-  ReportDataResult,
-  ReportMaterializationSnapshot,
-  ReportMaterializationStrategy,
-  ReportResultField,
-} from '@zenith/shared';
+import type { ReportDataResult, ReportMaterializationSnapshot, ReportMaterializationStrategy, ReportResultField } from '@zenith/shared/report';
 import { config } from '../../config';
 import { db } from '../../db';
 import { reportDatasets, reportMaterializationSnapshots } from '../../db/schema';

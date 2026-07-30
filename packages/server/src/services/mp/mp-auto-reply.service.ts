@@ -7,7 +7,7 @@ import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers'
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
-import type { CreateMpAutoReplyInput, UpdateMpAutoReplyInput, MpAutoReplyType, MpReplyContentType, MpReplyArticle } from '@zenith/shared';
+import type { CreateMpAutoReplyInput, UpdateMpAutoReplyInput, MpAutoReplyType, MpReplyContentType, MpReplyArticle } from '@zenith/shared/mp';
 
 export function mapMpAutoReply(row: MpAutoReplyRow) {
   return {

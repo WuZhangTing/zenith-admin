@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, lte, type SQL } from 'drizzle-orm';
-import type { WorkflowHealthIssue, WorkflowHealthSummary } from '@zenith/shared';
+import type { WorkflowHealthIssue, WorkflowHealthSummary } from '@zenith/shared/workflow';
 import { db } from '../../db';
 import { workflowJobExecutions, workflowJobs, workflowInstances, workflowTasks } from '../../db/schema';
 import { currentUser } from '../../lib/context';

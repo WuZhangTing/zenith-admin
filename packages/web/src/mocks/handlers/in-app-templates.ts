@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockInAppTemplates, getNextInAppTemplateId } from '@/mocks/data/in-app-templates';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { InAppTemplate } from '@zenith/shared';
+import type { InAppTemplate } from '@zenith/shared/messaging';
 
 export const inAppTemplatesHandlers = [
   http.get('/api/in-app-templates', ({ request }) => {

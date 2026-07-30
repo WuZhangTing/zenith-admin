@@ -7,7 +7,7 @@ import { tenantCondition } from '../../lib/tenant';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import logger from '../../lib/logger';
-import type { WorkflowTaskConsult, CreateWorkflowConsultInput, ReplyWorkflowConsultInput } from '@zenith/shared';
+import type { WorkflowTaskConsult, CreateWorkflowConsultInput, ReplyWorkflowConsultInput } from '@zenith/shared/workflow';
 
 type ConsultRow = typeof workflowTaskConsults.$inferSelect;
 

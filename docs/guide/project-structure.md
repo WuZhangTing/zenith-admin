@@ -74,13 +74,42 @@ zenith-admin/
 
 ## `packages/shared`
 
-共享层用于减少前后端重复定义：
+共享层用于减少前后端重复定义，**按业务域拆分**（与 `packages/server/src/routes` 的域一一对应）：
 
-- `packages/shared/src/types.ts`：实体类型、分页类型、接口响应类型
-- `packages/shared/src/validation.ts`：Zod 校验 schema
-- `packages/shared/src/constants.ts`：常量与枚举
-- `packages/shared/src/seed-data.ts`：前后端共用初始种子数据
-- `packages/shared/src/index.ts`：共享包导出入口
+```text
+packages/shared/src/
+├── core/              ApiResponse<T> / PaginatedResponse<T> / EntityStatus / Token key 等跨域基础契约
+├── identity/          用户 / 角色 / 菜单 / 部门 / 岗位 / 用户组 / 租户 / 认证
+├── platform/          字典 / 系统配置 / 文件 / 日志 / 会话 / 监控 / 备份 / 脱敏 / 标签 / 地区
+├── messaging/         公告 / 邮件 / 短信 / 站内信 / 渠道
+├── workflow/          流程与表单（附 formula / form-runtime / helpers / serial 运行时）
+├── payment/           支付订单 / 退款 / 对账 / 结算 / 分账 / 风控
+├── member/            会员 / 等级 / 积分 / 钱包 / 优惠券 / 签到
+├── report/            数据源 / 数据集 / 仪表盘 / 治理（附 print / format / embed / aggregation / visual-sql）
+├── analytics/         行为埋点 / 分群 / 实验 / 前端错误监控
+├── ai/ chat/ mp/      智能助手 / 即时通讯 / 公众号
+├── cms/               内容管理（附 link）
+├── open-platform/     OAuth2 应用 / API Scope / 限流套餐 / Webhook
+├── rules/             决策表 / 决策流 / 名单库（附 cell）
+├── ops/ tasks/ biz/   运维 / 异步任务与导出 / 业务示例
+├── seed/              DB seed 与 MSW mock 共用的种子数据（menus.ts 单独承载 SEED_MENUS）
+└── index.ts           根入口（仅供元编程全量扫描，业务代码禁用）
+```
+
+每个域内固定三件套：
+
+- `{业务域}/types.ts`：实体类型与接口响应类型
+- `{业务域}/validation.ts`：Zod 校验 schema
+- `{业务域}/constants.ts`：常量与枚举（枚举 SSOT，含 `XXX_LABELS` / `XXX_OPTIONS`）
+- `{业务域}/index.ts`：域公共入口（**刻意不导出 seed**）
+
+导入一律走域子路径，根入口已被 ESLint 禁用：
+
+```ts
+import type { User } from '@zenith/shared/identity';
+import { createPaymentOrderSchema } from '@zenith/shared/payment';
+import { SEED_MENUS } from '@zenith/shared/seed';
+```
 
 ## `docs`
 

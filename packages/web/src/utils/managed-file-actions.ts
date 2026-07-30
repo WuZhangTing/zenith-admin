@@ -1,5 +1,5 @@
 import { Modal } from '@douyinfe/semi-ui';
-import type { ManagedFile } from '@zenith/shared';
+import type { ManagedFile } from '@zenith/shared/platform';
 import type { ResponsiveTableAction } from '@/components/ResponsiveTableActions';
 import type { FilePreviewController } from '@/hooks/useFilePreview';
 import { canPreviewFile } from '@/utils/file-utils';

@@ -1,7 +1,7 @@
 // ─── 发起人自选审批人与表单起始权限（拆分自 workflow-instances.service.ts）───
 import { advanceTokens } from '../../../lib/workflow-token-engine';
-import type { WorkflowFlowData, WorkflowStarterContext } from '@zenith/shared';
-import { findNextApproverSelectNodes } from '@zenith/shared';
+import type { WorkflowFlowData, WorkflowStarterContext } from '@zenith/shared/workflow';
+import { findNextApproverSelectNodes } from '@zenith/shared/workflow';
 import { HTTPException } from 'hono/http-exception';
 import { filterSelectedApproverIds } from '../workflow-assignee-resolver.service';
 import type { DbExecutor } from '../../../db/types';

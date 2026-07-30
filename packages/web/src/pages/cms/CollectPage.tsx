@@ -18,7 +18,7 @@ import {
   useCmsChannelTree, useCmsCollectRules, useSaveCmsCollectRule, useDeleteCmsCollectRule,
   useRunCmsCollectRule, useCmsCollectItems, cmsCollectKeys,
 } from '@/hooks/queries/cms';
-import type { CmsChannel, CmsCollectRule, CmsCollectItem } from '@zenith/shared';
+import type { CmsChannel, CmsCollectRule, CmsCollectItem } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 
 function channelsToSelectTree(nodes: CmsChannel[]): { key: string; value: number; label: string; disabled: boolean; children?: ReturnType<typeof channelsToSelectTree> }[] {

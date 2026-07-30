@@ -20,16 +20,8 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Plus, RotateCcw, Search } from 'lucide-react';
-import {
-  OAUTH2_GRANT_TYPE_LABELS,
-  OAUTH2_GRANT_TYPES,
-  OAUTH2_SCOPES,
-  OPEN_APP_ENVIRONMENT_LABELS,
-  OPEN_APP_ENVIRONMENTS,
-  OPEN_APP_REVIEW_STATUS_LABELS,
-  OPEN_APP_REVIEW_STATUSES,
-} from '@zenith/shared';
-import type { OAuth2Client } from '@zenith/shared';
+import { OAUTH2_GRANT_TYPE_LABELS, OAUTH2_GRANT_TYPES, OAUTH2_SCOPES, OPEN_APP_ENVIRONMENT_LABELS, OPEN_APP_ENVIRONMENTS, OPEN_APP_REVIEW_STATUS_LABELS, OPEN_APP_REVIEW_STATUSES } from '@zenith/shared/open-platform';
+import type { OAuth2Client } from '@zenith/shared/open-platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { createdAtColumn } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';

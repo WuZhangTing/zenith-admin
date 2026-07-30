@@ -7,7 +7,7 @@ import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers'
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
-import type { CreateInAppTemplateInput, UpdateInAppTemplateInput, InAppMessageType } from '@zenith/shared';
+import type { CreateInAppTemplateInput, UpdateInAppTemplateInput, InAppMessageType } from '@zenith/shared/messaging';
 
 export function mapInAppTemplate(row: InAppTemplateRow) {
   return {

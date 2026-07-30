@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { mockTenants, getNextTenantId } from '@/mocks/data/tenants';
 import { mockTenantPackages } from '@/mocks/data/tenant-packages';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { Tenant } from '@zenith/shared';
+import type { Tenant } from '@zenith/shared/identity';
 
 function withPackageName(t: Tenant): Tenant {
   return {

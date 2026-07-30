@@ -4,7 +4,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Copy, RotateCcw } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import { useChatGroupInvite, useResetChatGroupInvite } from '@/hooks/queries/chat';
-import type { ChatGroupInvite } from '@zenith/shared';
+import type { ChatGroupInvite } from '@zenith/shared/chat';
 
 const { Text } = Typography;
 

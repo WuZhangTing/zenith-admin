@@ -2,7 +2,7 @@ import React from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ReportPublicDashboard } from '@zenith/shared';
+import type { ReportPublicDashboard } from '@zenith/shared/report';
 import PublicDashboardPage from './PublicDashboardPage';
 
 const mocks = vi.hoisted(() => {

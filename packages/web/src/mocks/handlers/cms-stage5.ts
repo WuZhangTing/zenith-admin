@@ -1,15 +1,7 @@
 import { http, HttpResponse } from 'msw';
-import {
-  CMS_SECRET_MASK,
-  CMS_SITE_INHERITABLE_FIELDS,
-  CMS_SITE_MAX_DEPTH,
-  type AsyncTaskItem,
-  type CmsDistributionRule,
-  type CmsDistributionRun,
-  type CmsSite,
-  type CmsSiteInheritableField,
-  type CmsSiteInheritanceFlags,
-} from '@zenith/shared';
+import { CMS_SECRET_MASK, CMS_SITE_INHERITABLE_FIELDS, CMS_SITE_MAX_DEPTH } from '@zenith/shared/cms';
+import type { CmsDistributionRule, CmsDistributionRun, CmsSite, CmsSiteInheritableField, CmsSiteInheritanceFlags } from '@zenith/shared/cms';
+import type { AsyncTaskItem } from '@zenith/shared/tasks';
 import {
   buildMockChannelTree,
   getNextCmsContentId,

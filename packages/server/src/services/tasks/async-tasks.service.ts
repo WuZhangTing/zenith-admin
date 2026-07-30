@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, ilike, inArray, lte, or, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type { AsyncTaskItemStatus, AsyncTaskStats, AsyncTaskStatus } from '@zenith/shared';
+import type { AsyncTaskItemStatus, AsyncTaskStats, AsyncTaskStatus } from '@zenith/shared/tasks';
 import { db } from '../../db';
 import { asyncTaskItems, asyncTasks, users } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';

@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockWorkflowConnectors, getNextConnectorId } from '../data/workflow-connectors';
 import { mockDateTime, mockDateTimeOffset } from '../utils/date';
-import type { WorkflowConnector, WorkflowConnectorInvocation } from '@zenith/shared';
+import type { WorkflowConnector, WorkflowConnectorInvocation } from '@zenith/shared/workflow';
 
 interface ConnectorBody {
   name?: string; code?: string; description?: string | null; type?: WorkflowConnector['type'];

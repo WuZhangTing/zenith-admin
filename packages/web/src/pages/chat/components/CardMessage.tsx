@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button, Tag, Typography } from '@douyinfe/semi-ui';
 import { Check, ChevronRight } from 'lucide-react';
-import type { ChatMessage, ChatCardAction } from '@zenith/shared';
+import type { ChatMessage, ChatCardAction } from '@zenith/shared/chat';
 import { getMessageExtra } from '../utils';
 
 const { Text } = Typography;

@@ -7,7 +7,7 @@ import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { escapeLike } from '../../lib/where-helpers';
-import type { CreateApiScopeInput, UpdateApiScopeInput } from '@zenith/shared';
+import type { CreateApiScopeInput, UpdateApiScopeInput } from '@zenith/shared/open-platform';
 
 export function mapApiScope(row: ApiScopeRow) {
   return {

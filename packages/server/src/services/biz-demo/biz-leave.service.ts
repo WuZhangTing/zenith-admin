@@ -7,8 +7,9 @@
  */
 import { and, desc, eq, isNull, like, inArray } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type { BizLeave, BizLeaveStatus, WorkflowInstanceStatus } from '@zenith/shared';
-import { WORKFLOW_ACTIVE_INSTANCE_STATUSES } from '@zenith/shared';
+import type { BizLeave, BizLeaveStatus } from '@zenith/shared/biz';
+import type { WorkflowInstanceStatus } from '@zenith/shared/workflow';
+import { WORKFLOW_ACTIVE_INSTANCE_STATUSES } from '@zenith/shared/workflow';
 import { db } from '../../db';
 import { bizLeaves, users, workflowDefinitions, workflowInstances, workflowTasks, type BizLeaveRow } from '../../db/schema';
 import { currentUser } from '../../lib/context';

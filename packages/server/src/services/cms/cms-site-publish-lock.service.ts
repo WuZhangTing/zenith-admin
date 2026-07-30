@@ -4,7 +4,7 @@ import { TaskCancelledError } from '../../lib/task-center';
 import { db } from '../../db';
 import type { DbExecutor, DbTransaction } from '../../db/types';
 import { cmsSites, type CmsSiteRow } from '../../db/schema';
-import type { CmsPublishSubmitInput } from '@zenith/shared';
+import type { CmsPublishSubmitInput } from '@zenith/shared/cms';
 import { HTTPException } from 'hono/http-exception';
 
 const writeFenceStore = new AsyncLocalStorage<() => Promise<void>>();

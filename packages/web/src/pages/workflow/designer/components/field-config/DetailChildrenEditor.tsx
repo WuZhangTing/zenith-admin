@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { Button, Input, InputNumber, Select, TagInput, TextArea, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { Plus, Trash2 } from 'lucide-react';
-import type { WorkflowFormField, WorkflowFormFieldType } from '@zenith/shared';
+import type { WorkflowFormField, WorkflowFormFieldType } from '@zenith/shared/workflow';
 import { createLocalFieldKey } from './helpers';
 
 // ─── 明细子字段编辑器 ────────────────────────────────────────────────

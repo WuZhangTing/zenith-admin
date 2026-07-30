@@ -11,7 +11,7 @@ import { addDailyTokensUsed, getDailyTokensUsed } from '../../lib/ai/quota';
 import { checkSensitiveContent } from '../../lib/ai/content-filter';
 import { getConfigNumber } from '../../lib/system-config';
 import { currentUser } from '../../lib/context';
-import { arenaVoteSchema } from '@zenith/shared';
+import { arenaVoteSchema } from '@zenith/shared/ai';
 import { z } from 'zod';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });

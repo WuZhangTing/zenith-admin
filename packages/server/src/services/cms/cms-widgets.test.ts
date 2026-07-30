@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { cmsWidgetDataSchema, updateCmsWidgetSchema, type CmsResolvedWidget } from '@zenith/shared';
+import { cmsWidgetDataSchema, updateCmsWidgetSchema } from '@zenith/shared/cms';
+import type { CmsResolvedWidget } from '@zenith/shared/cms';
 import { renderBlocksHtml } from '../../cms/themes/blocks';
 import { getThemeWidgetSlots, listThemeWidgetRenderers } from '../../cms/themes/registry';
 import { renderCmsWidgetHtml } from '../../cms/themes/widgets';

@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CreatePaymentResult, PaginatedResponse, PaymentOrder, PaymentRefund } from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { CreatePaymentResult, PaymentOrder, PaymentRefund } from '@zenith/shared/payment';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 import { paymentRefundKeys } from './payment-refunds';

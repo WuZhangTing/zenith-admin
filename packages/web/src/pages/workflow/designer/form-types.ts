@@ -49,8 +49,8 @@ import {
   LocateFixed,
   type LucideIcon,
 } from 'lucide-react';
-import { BASIC_COMPARISON_OPERATOR_LABELS } from '@zenith/shared';
-import type { WorkflowFormFieldType } from '@zenith/shared';
+import { BASIC_COMPARISON_OPERATOR_LABELS } from '@zenith/shared/core';
+import type { WorkflowFormFieldType } from '@zenith/shared/workflow';
 
 // ─── 控件类型元信息 ──────────────────────────────────────────────────
 

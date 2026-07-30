@@ -12,7 +12,7 @@ import { useEffect, useState } from 'react';
 import { SideSheet, Tabs, TabPane, Input, TextArea, Typography, Form, Select, InputNumber, Switch, RadioGroup, Radio, Button } from '@douyinfe/semi-ui';
 import { Plus, Trash2, AlertTriangle } from 'lucide-react';
 import type { FlowNode, FlowNodeType, AssigneeType, ApproveMethod, ApprovalType, RejectStrategy, EmptyAssigneeStrategy, OperationPermission, FieldPermission, TimeoutConfig, SameInitiatorStrategy, DeduplicateStrategy, ActionButtonsConfig, NodeHealthInfo, NodeHealthIssue } from '../types';
-import type { NodeListenerConfig } from '@zenith/shared';
+import type { NodeListenerConfig } from '@zenith/shared/workflow';
 import {
   ADDABLE_NODE_TYPES,
   DEFAULT_APPROVER_OPERATIONS,
@@ -28,7 +28,7 @@ import ActionButtonsTab from './tabs/ActionButtonsTab';
 import { normalizeActionButtons } from '../action-buttons';
 import NodeListenersTab from './tabs/NodeListenersTab';
 import FailurePolicySection from './FailurePolicySection';
-import type { WorkflowNodeFailurePolicy } from '@zenith/shared';
+import type { WorkflowNodeFailurePolicy } from '@zenith/shared/workflow';
 import { useWorkflowDesignerConnectorOptions, useWorkflowDesignerDecisionTableOptions } from '@/hooks/queries/workflow-designer';
 
 interface UserOption { id: number; nickname: string; }

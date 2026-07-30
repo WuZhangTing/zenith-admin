@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button, Modal, Spin, Toast, Input, TextArea, Typography } from '@douyinfe/semi-ui';
 import { LayoutTemplate, ArrowLeft } from 'lucide-react';
-import type { WorkflowTemplate, WorkflowDefinition } from '@zenith/shared';
+import type { WorkflowTemplate, WorkflowDefinition } from '@zenith/shared/workflow';
 import { useCloneWorkflowTemplate, useWorkflowTemplates } from '@/hooks/queries/workflow-templates';
 
 interface Props {

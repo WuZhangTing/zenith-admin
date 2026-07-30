@@ -1,15 +1,6 @@
 import { http, HttpResponse } from 'msw';
-import {
-  CMS_WIDGET_HIGH_FANOUT_THRESHOLD,
-  CMS_WIDGET_RENDERER_KEYS,
-  CMS_WIDGET_RENDERER_LABELS,
-  type CmsResolvedWidget,
-  type CmsResolvedWidgetItem,
-  type CmsWidget,
-  type CmsWidgetItem,
-  type CmsWidgetRendererKey,
-  type CmsWidgetSourceReference,
-} from '@zenith/shared';
+import { CMS_WIDGET_HIGH_FANOUT_THRESHOLD, CMS_WIDGET_RENDERER_KEYS, CMS_WIDGET_RENDERER_LABELS } from '@zenith/shared/cms';
+import type { CmsResolvedWidget, CmsResolvedWidgetItem, CmsWidget, CmsWidgetItem, CmsWidgetRendererKey, CmsWidgetSourceReference } from '@zenith/shared/cms';
 import {
   getNextCmsWidgetId,
   getNextCmsWidgetRefId,

@@ -6,8 +6,8 @@ import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody,
 } from '../../lib/openapi-schemas';
-import { createMpMaterialSchema, updateMpMaterialSchema, MP_MATERIAL_TYPES } from '@zenith/shared';
-import type { MpMaterialType } from '@zenith/shared';
+import { createMpMaterialSchema, updateMpMaterialSchema, MP_MATERIAL_TYPES } from '@zenith/shared/mp';
+import type { MpMaterialType } from '@zenith/shared/mp';
 import { MpMaterialDTO, MpTagSyncResultDTO } from '../../lib/openapi-dtos';
 import {
   listMpMaterials, createMpMaterial, updateMpMaterial, deleteMpMaterial, getMpMaterialBeforeAudit, syncMpMaterials, uploadMpMaterial,

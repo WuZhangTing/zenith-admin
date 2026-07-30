@@ -3,7 +3,7 @@ import { Form, Button, Toast, Space, Spin, Typography, Divider, Tabs, TabPane } 
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Save } from 'lucide-react';
 import { Icon } from '@iconify/react';
-import type { OAuthProviderType } from '@zenith/shared';
+import type { OAuthProviderType } from '@zenith/shared/identity';
 import { usePermission } from '@/hooks/usePermission';
 import { useOAuthConfigs, useSaveOAuthConfig } from '@/hooks/queries/oauth-config';
 

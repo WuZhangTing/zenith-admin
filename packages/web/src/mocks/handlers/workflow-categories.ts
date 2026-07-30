@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import type { WorkflowCategory } from '@zenith/shared';
+import type { WorkflowCategory } from '@zenith/shared/workflow';
 import { mockWorkflowCategories, getNextCategoryId } from '@/mocks/data/workflow-categories';
 import { mockDateTime } from '@/mocks/utils/date';
 

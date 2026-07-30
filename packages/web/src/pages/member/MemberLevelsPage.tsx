@@ -4,7 +4,7 @@ import { Button, Space, Modal, Form, Toast, Tag, Row, Col } from '@douyinfe/semi
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, RotateCcw } from 'lucide-react';
-import type { MemberLevel } from '@zenith/shared';
+import type { MemberLevel } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';

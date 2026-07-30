@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute } from '@hono/zod-openapi';
 import { z } from '@hono/zod-openapi';
-import { updatePaymentMethodConfigSchema } from '@zenith/shared';
+import { updatePaymentMethodConfigSchema } from '@zenith/shared/payment';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { jsonContent, validationHook, commonErrorResponses, ok, IdParam, okBody } from '../../lib/openapi-schemas';

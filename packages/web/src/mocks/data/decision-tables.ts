@@ -1,5 +1,5 @@
-import { SEED_DECISION_TABLES } from '@zenith/shared';
-import type { RuleDecisionTable } from '@zenith/shared';
+import { SEED_DECISION_TABLES } from '@zenith/shared/seed';
+import type { RuleDecisionTable } from '@zenith/shared/rules';
 import { mockDateTime } from '@/mocks/utils/date';
 
 export const mockDecisionTables: RuleDecisionTable[] = SEED_DECISION_TABLES.map((t) => ({

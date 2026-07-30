@@ -6,10 +6,7 @@ import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDateTime } from '../../lib/datetime';
-import type {
-  WorkflowTemplate, WorkflowFlowData, WorkflowFormSchema,
-  CreateWorkflowTemplateInput, UpdateWorkflowTemplateInput, SaveAsTemplateInput,
-} from '@zenith/shared';
+import type { WorkflowTemplate, WorkflowFlowData, WorkflowFormSchema, CreateWorkflowTemplateInput, UpdateWorkflowTemplateInput, SaveAsTemplateInput } from '@zenith/shared/workflow';
 import { createDefinition } from './workflow-definitions.service';
 import { createWorkflowForm } from './workflow-forms.service';
 

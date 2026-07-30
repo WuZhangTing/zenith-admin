@@ -2,7 +2,7 @@ import { desc } from 'drizzle-orm';
 import { db } from '../../../db';
 import { tenants } from '../../../db/schema';
 import { defineExport } from '../registry';
-import { COMMON_STATUS_LABELS } from '@zenith/shared';
+import { COMMON_STATUS_LABELS } from '@zenith/shared/core';
 import type { ExportColumn } from '../types';
 
 const STATUS_LABELS: Record<string, string> = COMMON_STATUS_LABELS;

@@ -21,7 +21,7 @@ import {
   testAiProviderConnection,
   fetchProviderModels,
 } from '../../services/ai/ai-providers.service';
-import { createAiProviderConfigSchema, updateAiProviderConfigSchema, testAiConnectionSchema, fetchAiModelsSchema } from '@zenith/shared';
+import { createAiProviderConfigSchema, updateAiProviderConfigSchema, testAiConnectionSchema, fetchAiModelsSchema } from '@zenith/shared/ai';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 

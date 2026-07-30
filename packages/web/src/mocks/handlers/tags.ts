@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockTags, getNextTagId, getTagGroups } from '@/mocks/data/tags';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { Tag } from '@zenith/shared';
+import type { Tag } from '@zenith/shared/platform';
 
 export const tagsHandlers = [
   // 标签列表（支持分页 + 关键字/状态/分组筛选）

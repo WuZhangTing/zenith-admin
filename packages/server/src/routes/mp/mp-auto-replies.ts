@@ -5,7 +5,7 @@ import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody,
 } from '../../lib/openapi-schemas';
-import { createMpAutoReplySchema, updateMpAutoReplySchema, MP_AUTO_REPLY_TYPES } from '@zenith/shared';
+import { createMpAutoReplySchema, updateMpAutoReplySchema, MP_AUTO_REPLY_TYPES } from '@zenith/shared/mp';
 import { MpAutoReplyDTO, MpUnmatchedKeywordDTO } from '../../lib/openapi-dtos';
 import {
   listMpAutoReplies, createMpAutoReply, updateMpAutoReply, deleteMpAutoReply, getMpAutoReplyBeforeAudit,

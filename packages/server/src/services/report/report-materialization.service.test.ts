@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ReportDataResult } from '@zenith/shared';
+import type { ReportDataResult } from '@zenith/shared/report';
 import {
   filterIncrementalDelta,
   mergeIncrementalSnapshot,

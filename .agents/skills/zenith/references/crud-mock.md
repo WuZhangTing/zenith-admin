@@ -24,8 +24,8 @@ packages/web/src/mocks/
 ## Step 10a：`packages/web/src/mocks/data/xxxs.ts`
 
 ```ts
-import { SEED_XXXS } from '@zenith/shared';  // 从共享种子数据导入，与 DB seed 保持一致
-import type { Xxx } from '@zenith/shared';
+import { SEED_XXXS } from '@zenith/shared/seed';  // 从共享种子数据导入，与 DB seed 保持一致
+import type { Xxx } from '@zenith/shared/{业务域}';
 import { mockDateTime } from '@/mocks/utils/date';
 
 // 如 Xxx 类型有 mock 专属字段（如运行时计数），在此扩展
@@ -50,7 +50,7 @@ export function getNextXxxId(): number {
 }
 ```
 
-> **规则**：若种子数据已在 `packages/shared/src/seed-data.ts` 定义为 `SEED_XXXS`，
+> **规则**：若种子数据已在 `packages/shared/src/seed/{业务域}.ts` 定义为 `SEED_XXXS`，
 > 则直接导入，**禁止**在 mock data 文件中重复写静态数组。
 > 若 demo 模式需要额外字段（如运行时计数 `memberCount`），用 `.map()` 展开后追加，不要整体复制。
 > 新增模块时，**先**在 `shared/seed-data.ts` 添加 `SEED_XXXS`，**再**在 mock data 中导入。

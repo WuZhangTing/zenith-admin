@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { mockMpMessages, getNextMpMessageId } from '@/mocks/data/mp-messages';
 import { mockMpFans } from '@/mocks/data/mp-fans';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { MpMessage, MpConversation } from '@zenith/shared';
+import type { MpMessage, MpConversation } from '@zenith/shared/mp';
 
 export const mpMessagesHandlers = [
   http.get('/api/mp/messages/conversations', ({ request }) => {

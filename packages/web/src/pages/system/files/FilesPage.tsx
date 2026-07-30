@@ -21,8 +21,9 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import { Plus, Search, RotateCcw, Trash2, FolderDown, LayoutGrid, List as ListIcon, CheckCircle2, XCircle, X } from 'lucide-react';
-import type { ManagedFile } from '@zenith/shared';
-import { TOKEN_KEY, FILE_STORAGE_PROVIDER_OPTIONS } from '@zenith/shared';
+import type { ManagedFile } from '@zenith/shared/platform';
+import { TOKEN_KEY } from '@zenith/shared/core';
+import { FILE_STORAGE_PROVIDER_OPTIONS } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { downloadBlob } from '@/utils/download';

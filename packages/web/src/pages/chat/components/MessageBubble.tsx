@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { formatDateTime } from '@/utils/date';
 import { downloadBlob } from '@/utils/download';
-import type { ChatMessage, ChatMessageExtra, ChatCardAction } from '@zenith/shared';
+import type { ChatMessage, ChatMessageExtra, ChatCardAction } from '@zenith/shared/chat';
 import { getAssetMeta } from '../utils';
 import { UserAvatar } from '@/components/UserAvatar';
 import { MessageContent } from './MessageContent';

@@ -12,7 +12,7 @@ import { FilterBar } from './widgets/FilterBar';
 import { MobileDashboardHeader, type MobileDashboardAction } from './widgets/MobileDashboardHeader';
 import { filterValuesFromSearch, withFilterParam } from './widgets/filter-url';
 import { useIsMobile } from '@/hooks/useMediaQuery';
-import type { ReportWidget, ReportFilter, ReportGridItem, ReportCanvasItem, ReportDatasetQueryOptions } from '@zenith/shared';
+import type { ReportWidget, ReportFilter, ReportGridItem, ReportCanvasItem, ReportDatasetQueryOptions } from '@zenith/shared/report';
 import {
   useCreateReportDashboardComment,
   useDeleteReportDashboardComment,

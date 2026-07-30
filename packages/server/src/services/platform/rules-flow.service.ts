@@ -7,7 +7,7 @@
  */
 import { and, desc, eq, like, inArray } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type { RuleFlowStep, RuleFlowEvaluateResult } from '@zenith/shared';
+import type { RuleFlowStep, RuleFlowEvaluateResult } from '@zenith/shared/rules';
 import { db } from '../../db';
 import { ruleDecisionFlows, ruleDecisionTables } from '../../db/schema';
 import { currentUser, currentUserOrNull } from '../../lib/context';

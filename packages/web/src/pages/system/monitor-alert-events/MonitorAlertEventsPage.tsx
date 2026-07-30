@@ -8,7 +8,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { formatDateTime } from '@/utils/date';
 import { renderEllipsis } from '@/utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
-import type { MonitorAlertEvent, MonitorMetric } from '@zenith/shared';
+import type { MonitorAlertEvent, MonitorMetric } from '@zenith/shared/platform';
 import { monitorAlertKeys, useMonitorAlertEventList } from '@/hooks/queries/monitor-alerts';
 import {
   MONITOR_ALERT_LEVEL_CONFIG as LEVEL_CONFIG,

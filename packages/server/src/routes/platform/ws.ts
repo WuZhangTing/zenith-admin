@@ -6,7 +6,7 @@ import { isTokenBlacklisted } from '../../lib/session-manager';
 import { registerConnection, removeConnection, sendToUser, incWsRecv } from '../../lib/ws-manager';
 import { joinRoom, leaveAllRooms } from '../../lib/rtc-manager';
 import { getConversationMemberIds } from '../../lib/chat-member-cache';
-import type { WsMessage } from '@zenith/shared';
+import type { WsMessage } from '@zenith/shared/platform';
 
 /** 转发给会话内其他成员（成员列表走短 TTL 缓存，避免 typing 等高频事件反复查库） */
 async function relayToConversation(conversationId: number, senderId: number, msg: WsMessage): Promise<void> {

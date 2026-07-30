@@ -1,16 +1,5 @@
-import {
-  CMS_INTERACTION_CHOICE_QUESTION_TYPES,
-  CMS_INTERACTION_MATRIX_SEPARATOR,
-  CMS_INTERACTION_NPS_MAX,
-  CMS_INTERACTION_OTHER_VALUE,
-  CMS_INTERACTION_RATING_MAX_LIMIT,
-  type CmsInteractionConditionOp,
-  type CmsInteractionKind,
-  type CmsInteractionMatrixRow,
-  type CmsInteractionQuestion,
-  type CmsInteractionQuestionType,
-  type CmsInteractionVisibleWhen,
-} from '@zenith/shared';
+import { CMS_INTERACTION_CHOICE_QUESTION_TYPES, CMS_INTERACTION_MATRIX_SEPARATOR, CMS_INTERACTION_NPS_MAX, CMS_INTERACTION_OTHER_VALUE, CMS_INTERACTION_RATING_MAX_LIMIT } from '@zenith/shared/cms';
+import type { CmsInteractionConditionOp, CmsInteractionKind, CmsInteractionMatrixRow, CmsInteractionQuestion, CmsInteractionQuestionType, CmsInteractionVisibleWhen } from '@zenith/shared/cms';
 
 export type QuestionOption = CmsInteractionQuestion['options'][number];
 

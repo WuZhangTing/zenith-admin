@@ -13,7 +13,7 @@ import { formatDateTime } from '@/utils/date';
 import { renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
-import type { ReportDashboard, ReportWidget } from '@zenith/shared';
+import type { ReportDashboard, ReportWidget } from '@zenith/shared/report';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   reportDashboardKeys,

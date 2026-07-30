@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ANALYTICS_CONFIG_VERSION_KEY } from '@zenith/shared';
+import { ANALYTICS_CONFIG_VERSION_KEY } from '@zenith/shared/analytics';
 
 /**
  * 行为中心阶段 1：设置热更新（tracker 侧）测试。

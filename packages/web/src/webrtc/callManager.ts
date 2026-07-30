@@ -11,9 +11,8 @@
  */
 import { sendWsMessage } from '@/hooks/useWebSocket';
 import { request } from '@/utils/request';
-import type {
-  WsMessage, RtcPeerInfo, RtcCallType, RtcInvitePayload, RtcConfig, RtcIceCandidateInit,
-} from '@zenith/shared';
+import type { RtcPeerInfo, RtcCallType, RtcInvitePayload, RtcConfig, RtcIceCandidateInit } from '@zenith/shared/chat';
+import type { WsMessage } from '@zenith/shared/platform';
 
 export type CallPhase = 'idle' | 'outgoing' | 'incoming' | 'connected';
 

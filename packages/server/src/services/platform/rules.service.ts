@@ -1,9 +1,6 @@
 import { and, desc, eq, like, inArray, lt, gte, lte, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type {
-  RuleDecisionInput, RuleDecisionOutput, RuleDecisionRow, RuleHitPolicy, RuleEvaluateResult, RuleTestRunResult, RuleCaseResult,
-  RuleDecisionTableSettings, RuleUsageItem, RuleTableStats, RuleShadowRunResult, RuleShadowDiffSample,
-} from '@zenith/shared';
+import type { RuleDecisionInput, RuleDecisionOutput, RuleDecisionRow, RuleHitPolicy, RuleEvaluateResult, RuleTestRunResult, RuleCaseResult, RuleDecisionTableSettings, RuleUsageItem, RuleTableStats, RuleShadowRunResult, RuleShadowDiffSample } from '@zenith/shared/rules';
 import { db } from '../../db';
 import { ruleDecisionTables, ruleDecisionTableVersions, ruleTestCases, ruleDecisionExecutions, workflowDefinitions, systemConfigs } from '../../db/schema';
 import { currentUser, currentUserOrNull } from '../../lib/context';
@@ -14,7 +11,7 @@ import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
 import { evaluateDecisionTable, isOutputExpression } from '../../lib/rules-engine';
 import { validateExpression } from '../../lib/workflow-expression';
-import { validateRuleCell } from '@zenith/shared';
+import { validateRuleCell } from '@zenith/shared/rules';
 import { diffDecisionSnapshots } from '../../lib/rules-version-diff';
 
 type TableRow = typeof ruleDecisionTables.$inferSelect;

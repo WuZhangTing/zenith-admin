@@ -1,16 +1,5 @@
-import {
-  createReportFillTemplateSchema,
-  updateReportFillTemplateSchema,
-  type CreateReportFillTemplateInput,
-  type ReportChatbiMessage,
-  type ReportDataResult,
-  type ReportFieldType,
-  type ReportFillRecord,
-  type ReportFillRecordStatus,
-  type ReportWidget,
-  type ReportWidgetType,
-  type UpdateReportFillTemplateInput,
-} from '@zenith/shared';
+import { createReportFillTemplateSchema, updateReportFillTemplateSchema } from '@zenith/shared/report';
+import type { CreateReportFillTemplateInput, ReportChatbiMessage, ReportDataResult, ReportFieldType, ReportFillRecord, ReportFillRecordStatus, ReportWidget, ReportWidgetType, UpdateReportFillTemplateInput } from '@zenith/shared/report';
 import { ApiError } from '@/lib/query';
 
 const SAFE_CHATBI_CHART_TYPES = new Set<ReportWidgetType>([

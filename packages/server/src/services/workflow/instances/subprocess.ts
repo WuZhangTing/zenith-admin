@@ -3,7 +3,7 @@ import { eq, and, inArray } from 'drizzle-orm';
 import { db } from '../../../db';
 import { workflowInstances, workflowTasks, workflowDefinitions, users } from '../../../db/schema';
 import { validateFlowData, type TaskAction } from '../../../lib/workflow-engine';
-import type { WorkflowFlowData, WorkflowEventActor } from '@zenith/shared';
+import type { WorkflowFlowData, WorkflowEventActor } from '@zenith/shared/workflow';
 import { buildStarterContext } from '../workflow-assignee-resolver.service';
 import { resolveFormSnapshot } from '../workflow-forms.service';
 import { createHash } from 'node:crypto';

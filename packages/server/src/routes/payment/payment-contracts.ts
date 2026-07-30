@@ -3,7 +3,7 @@
  * 扣款计划 CRUD、签约协议列表/详情、创建签约（演示）、解约/暂停/恢复、手动补扣。
  */
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { createPaymentContractSchema, createPaymentDeductPlanSchema, updatePaymentDeductPlanSchema } from '@zenith/shared';
+import { createPaymentContractSchema, createPaymentDeductPlanSchema, updatePaymentDeductPlanSchema } from '@zenith/shared/payment';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';

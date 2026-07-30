@@ -1,10 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import {
-  createReportSlaRuleSchema,
-  reportSlaTypeSchema,
-  updateReportSlaRuleSchema,
-  updateReportSlaViolationSchema,
-} from '@zenith/shared';
+import { createReportSlaRuleSchema, reportSlaTypeSchema, updateReportSlaRuleSchema, updateReportSlaViolationSchema } from '@zenith/shared/report';
 import { AsyncTaskDTO, ReportSlaRuleDTO, ReportSlaViolationDTO } from '../../lib/openapi-dtos';
 import {
   commonErrorResponses,

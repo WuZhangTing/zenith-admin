@@ -16,7 +16,7 @@ import {
 } from '@xyflow/react';
 import dagre from 'dagre';
 import { Switch, Space, Typography, Empty, Spin } from '@douyinfe/semi-ui';
-import type { WorkflowFormField } from '@zenith/shared';
+import type { WorkflowFormField } from '@zenith/shared/workflow';
 import { ThemedReactFlow } from '@/components/ThemedReactFlow';
 import { FORM_FIELD_TYPES } from '../form-types';
 import { buildFieldDependencyGraph, DEP_KIND_COLOR, type DepKind } from '../form-graph';

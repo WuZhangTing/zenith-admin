@@ -1,9 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
-import {
-  batchUpdateCmsSearchWordsSchema, createCmsHotwordGroupSchema, createCmsHotwordSchema,
-  createCmsSearchWordSchema, updateCmsHotwordGroupSchema, updateCmsHotwordSchema, updateCmsSearchWordSchema,
-} from '@zenith/shared';
+import { batchUpdateCmsSearchWordsSchema, createCmsHotwordGroupSchema, createCmsHotwordSchema, createCmsSearchWordSchema, updateCmsHotwordGroupSchema, updateCmsHotwordSchema, updateCmsSearchWordSchema } from '@zenith/shared/cms';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { commonErrorResponses, jsonContent, ok, okBody, okPaginated, okMsg, IdParam, ErrorResponse, PaginationQuery, validationHook } from '../../lib/openapi-schemas';

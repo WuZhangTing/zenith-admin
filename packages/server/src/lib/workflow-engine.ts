@@ -23,17 +23,8 @@
  * - delay / trigger     —— 自动节点，由统一作业账本（workflow-jobs）调度
  * - subProcess          —— 子实例发起 / 多实例展开 / 汇聚由 instances/subprocess.ts 接管
  */
-import type {
-  WorkflowFlowData,
-  WorkflowNodeConfig,
-  WorkflowEdge,
-  WorkflowEdgeCondition,
-  WorkflowConditionGroup,
-  WorkflowStarterContext,
-  WorkflowApproveMethod,
-  WorkflowResolvedApproveMethod,
-} from '@zenith/shared';
-import { WORKFLOW_SCHEMA_VERSION } from '@zenith/shared';
+import type { WorkflowFlowData, WorkflowNodeConfig, WorkflowEdge, WorkflowEdgeCondition, WorkflowConditionGroup, WorkflowStarterContext, WorkflowApproveMethod, WorkflowResolvedApproveMethod } from '@zenith/shared/workflow';
+import { WORKFLOW_SCHEMA_VERSION } from '@zenith/shared/workflow';
 import dayjs from 'dayjs';
 
 /**

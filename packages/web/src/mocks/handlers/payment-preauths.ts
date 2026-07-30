@@ -1,8 +1,8 @@
 import { http } from 'msw';
 import { mockDateTime } from '@/mocks/utils/date';
 import { ok, notFound, badRequest, paginate } from '@/mocks/utils/handlers';
-import { PAYMENT_METHOD_CHANNEL } from '@zenith/shared';
-import type { PaymentChannel, PaymentPreauth } from '@zenith/shared';
+import { PAYMENT_METHOD_CHANNEL } from '@zenith/shared/payment';
+import type { PaymentChannel, PaymentPreauth } from '@zenith/shared/payment';
 import dayjs from 'dayjs';
 
 let nextId = 3;

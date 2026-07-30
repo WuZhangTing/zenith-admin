@@ -66,19 +66,10 @@ import {
   useSaveFunnelReport,
   useDeleteFunnelReport,
 } from '@/hooks/queries/analytics';
-import type {
-  AnalyticsRetentionMode,
-  AnalyticsSavedReport,
-  AnalyticsSegmentPropertyFilter,
-  DimensionBreakdown,
-  FeatureStats,
-  HeatmapData,
-  HeatmapPageListItem,
-  PageStats,
-  SessionListItem,
-  UserStats,
-} from '@zenith/shared';
-import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_RETENTION_MODE_OPTIONS, ANALYTICS_SEGMENT_COMPARE_OP_OPTIONS } from '@zenith/shared';
+import type { AnalyticsRetentionMode, AnalyticsSavedReport, AnalyticsSegmentPropertyFilter, DimensionBreakdown, FeatureStats, HeatmapData, HeatmapPageListItem, PageStats } from '@zenith/shared/analytics';
+import type { UserStats } from '@zenith/shared/identity';
+import type { SessionListItem } from '@zenith/shared/platform';
+import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_RETENTION_MODE_OPTIONS, ANALYTICS_SEGMENT_COMPARE_OP_OPTIONS } from '@zenith/shared/analytics';
 import AnalyticsEventQueryTab from './AnalyticsEventQueryTab';
 import AnalyticsExperimentsTab from './AnalyticsExperimentsTab';
 

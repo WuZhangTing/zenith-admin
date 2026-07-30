@@ -2,9 +2,9 @@ import { useRef, useState } from 'react';
 import { Button, MarkdownRender, Select, Space, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import { Send, Square, Trophy } from 'lucide-react';
 import AppModal from '@/components/AppModal';
-import { TOKEN_KEY } from '@zenith/shared';
+import { TOKEN_KEY } from '@zenith/shared/core';
 import { config } from '@/config';
-import type { AiChatModel } from '@zenith/shared';
+import type { AiChatModel } from '@zenith/shared/ai';
 import { submitArenaVote } from '@/hooks/queries/ai-extras';
 
 const { Text } = Typography;

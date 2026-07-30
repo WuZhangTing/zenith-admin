@@ -1,7 +1,7 @@
 import { eq, and, ne, asc, inArray, countDistinct } from 'drizzle-orm';
 import { db } from '../../db';
 import { menus, roleMenus, userMenus, roles } from '../../db/schema';
-import type { Menu } from '@zenith/shared';
+import type { Menu } from '@zenith/shared/identity';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { getEffectiveTenantId } from '../../lib/tenant';

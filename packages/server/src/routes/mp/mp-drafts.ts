@@ -5,7 +5,7 @@ import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody,
 } from '../../lib/openapi-schemas';
-import { createMpDraftSchema, updateMpDraftSchema } from '@zenith/shared';
+import { createMpDraftSchema, updateMpDraftSchema } from '@zenith/shared/mp';
 import { MpDraftDTO } from '../../lib/openapi-dtos';
 import {
   listMpDrafts, getMpDraft, createMpDraft, updateMpDraft, deleteMpDraft, pushMpDraft,

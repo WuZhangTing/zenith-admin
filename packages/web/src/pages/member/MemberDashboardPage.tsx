@@ -14,7 +14,7 @@ import {
   useChartPalette,
 } from '@/components/charts';
 import { Users, UserPlus, CalendarPlus, Activity, Coins, Wallet, CalendarCheck, Ticket } from 'lucide-react';
-import type { MemberStatsOverview } from '@zenith/shared';
+import type { MemberStatsOverview } from '@zenith/shared/member';
 import { useMemberStatsCharts, useMemberStatsOverview } from '@/hooks/queries/member-admin';
 
 const { Text } = Typography;

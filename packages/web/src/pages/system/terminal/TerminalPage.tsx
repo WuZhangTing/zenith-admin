@@ -10,7 +10,7 @@ import SftpExplorer from './SftpExplorer';
 import DockerExplorer from './DockerExplorer';
 import { useTerminalPreferences } from './useTerminalPreferences';
 import { request } from '@/utils/request';
-import { TOKEN_KEY } from '@zenith/shared';
+import { TOKEN_KEY } from '@zenith/shared/core';
 import { getFileIcon, getShellIcon } from '@/utils/fileIcons';
 import { terminalSessionStore } from './terminalSessionStore';
 import {

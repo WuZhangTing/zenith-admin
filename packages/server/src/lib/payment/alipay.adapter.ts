@@ -8,7 +8,7 @@ import { HTTPException } from 'hono/http-exception';
 import { httpPost } from '../http-client';
 import { formatDateTime } from '../datetime';
 import logger from '../logger';
-import type { CreatePaymentResult } from '@zenith/shared';
+import type { CreatePaymentResult } from '@zenith/shared/payment';
 import { rsaSign, rsaVerify, ensurePem, type RsaAlgorithm } from './signing';
 import type {
   AdapterContext,

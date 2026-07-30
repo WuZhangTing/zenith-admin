@@ -1,13 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  ChannelConversation,
-  ChannelConversationStatus,
-  ChannelCsAgent,
-  ChannelCsPerformance,
-  ChannelMessage,
-  ChannelQuickReply,
-  PaginatedResponse,
-} from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { ChannelConversation, ChannelConversationStatus, ChannelCsAgent, ChannelCsPerformance, ChannelMessage, ChannelQuickReply } from '@zenith/shared/messaging';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 

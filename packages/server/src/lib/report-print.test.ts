@@ -4,8 +4,8 @@
  *      空数据保留单行空带、合并单元格（非带区整体下移 / 带内随数据克隆）、页眉页脚占位符。
  */
 import { describe, it, expect } from 'vitest';
-import { fillPrintGrid, renderPrintContent, resolvePrintBandText } from '@zenith/shared';
-import type { ReportPrintContent, ReportPrintCrosstabConfig, ReportPrintGrid } from '@zenith/shared';
+import { fillPrintGrid, renderPrintContent, resolvePrintBandText } from '@zenith/shared/report';
+import type { ReportPrintContent, ReportPrintCrosstabConfig, ReportPrintGrid } from '@zenith/shared/report';
 
 const cellAt = (g: ReportPrintGrid, r: number, c: number) => g.cells.find((x) => x.row === r && x.col === c)?.v;
 

@@ -7,7 +7,7 @@ import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../.
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { assertSiteAccess } from './cms-sites.service';
 import { canonicalizeCmsResourceFields, deleteCmsResourceRefsForOwner, syncCmsResourceRefs, resolveCmsResourcePayload } from './cms-resource-refs.service';
-import type { CreateCmsAdSlotInput, UpdateCmsAdSlotInput, CreateCmsAdInput, UpdateCmsAdInput } from '@zenith/shared';
+import type { CreateCmsAdSlotInput, UpdateCmsAdSlotInput, CreateCmsAdInput, UpdateCmsAdInput } from '@zenith/shared/cms';
 import { ensureCmsSiteExists } from './cms-sites.service';
 import { withPagination } from '../../lib/where-helpers';
 import { normalizeCmsAdClickUrl } from './cms-ad-events.service';

@@ -4,16 +4,9 @@ import { Button, Col, Descriptions, Form, Input, Modal, Row, Select, Space, TabP
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { AlertTriangle, CheckCircle2, RefreshCw, RotateCcw, Search, Trash2 } from 'lucide-react';
-import type {
-  SystemSchedulerAlertChannel,
-  SystemSchedulerNode,
-  SystemSchedulerRun,
-  SystemSchedulerRunStatus,
-  SystemSchedulerTask,
-  SystemSchedulerTaskType,
-  SystemSchedulerTriggerType,
-} from '@zenith/shared';
-import { NOTIFY_CHANNEL_LABELS, NOTIFY_CHANNEL_OPTIONS } from '@zenith/shared';
+import type { SystemSchedulerAlertChannel } from '@zenith/shared/chat';
+import type { SystemSchedulerNode, SystemSchedulerRun, SystemSchedulerRunStatus, SystemSchedulerTask, SystemSchedulerTaskType, SystemSchedulerTriggerType } from '@zenith/shared/platform';
+import { NOTIFY_CHANNEL_LABELS, NOTIFY_CHANNEL_OPTIONS } from '@zenith/shared/messaging';
 import UserSelect from '@/components/UserSelect';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';

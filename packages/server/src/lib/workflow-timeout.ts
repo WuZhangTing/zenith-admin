@@ -1,4 +1,4 @@
-import type { WorkflowTimeoutConfig } from '@zenith/shared';
+import type { WorkflowTimeoutConfig } from '@zenith/shared/workflow';
 
 const UNIT_MS: Record<NonNullable<WorkflowTimeoutConfig['unit']>, number> = {
   minutes: 60 * 1000,

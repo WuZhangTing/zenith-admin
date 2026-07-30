@@ -15,7 +15,7 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import { Play, RotateCcw } from 'lucide-react';
-import type { OpenApiDebugResult } from '@zenith/shared';
+import type { OpenApiDebugResult } from '@zenith/shared/open-platform';
 import { useDebugMyApp, useMyAppList } from '@/hooks/queries/developer-apps';
 
 const { Paragraph, Text, Title } = Typography;

@@ -3,7 +3,7 @@
  * 可选计划 / 我的续费状态 / 签约 / 解约 / 手动续费一期。
  */
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { memberSignRenewalSchema } from '@zenith/shared';
+import { memberSignRenewalSchema } from '@zenith/shared/member';
 import { memberAuthMiddleware } from '../../middleware/member-auth';
 import { idempotencyGuard } from '../../middleware/idempotency';
 import { jsonContent, validationHook, commonErrorResponses, ok, okMsg, okBody } from '../../lib/openapi-schemas';

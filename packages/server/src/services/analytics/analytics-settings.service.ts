@@ -2,7 +2,7 @@ import { eq, isNull } from 'drizzle-orm';
 import { db } from '../../db';
 import { analyticsSettings } from '../../db/schema';
 import type { AnalyticsSettingsRow } from '../../db/schema';
-import type { UpdateAnalyticsSettingsInput, AnalyticsPublicConfig } from '@zenith/shared';
+import type { UpdateAnalyticsSettingsInput, AnalyticsPublicConfig } from '@zenith/shared/analytics';
 import { currentCreateTenantId, getCreateTenantId } from '../../lib/tenant';
 import { formatDateTime } from '../../lib/datetime';
 import { currentUserOrNull } from '../../lib/context';

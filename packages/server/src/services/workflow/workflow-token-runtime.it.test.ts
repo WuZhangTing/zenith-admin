@@ -10,7 +10,7 @@
 import 'dotenv/config';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { and, eq, inArray } from 'drizzle-orm';
-import type { WorkflowFlowData } from '@zenith/shared';
+import type { WorkflowFlowData } from '@zenith/shared/workflow';
 import type { JwtPayload } from '../../middleware/auth';
 import { runWithCurrentUser, runWithTraceId } from '../../lib/context';
 

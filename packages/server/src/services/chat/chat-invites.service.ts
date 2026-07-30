@@ -9,7 +9,7 @@ import { currentUser } from '../../lib/context';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { scheduleSendToUsers } from '../../lib/ws-manager';
 import { invalidateConversationMembers } from '../../lib/chat-member-cache';
-import type { ChatGroupInvite, ChatGroupJoinRequest, ChatInviteInfo } from '@zenith/shared';
+import type { ChatGroupInvite, ChatGroupJoinRequest, ChatInviteInfo } from '@zenith/shared/chat';
 
 const MAX_GROUP_MEMBERS = 20;
 const INVITE_TTL_DAYS = 7;

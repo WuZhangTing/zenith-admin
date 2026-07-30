@@ -1,8 +1,6 @@
 import { http, HttpResponse } from 'msw';
-import type {
-  ErrorGroup, ErrorEvent, ErrorOverview, SourceMapItem, ErrorAlertRule, ErrorAlertLog, PaginatedResponse,
-  FrontendErrorType, ErrorLevel,
-} from '@zenith/shared';
+import type { ErrorGroup, ErrorEvent, ErrorOverview, SourceMapItem, ErrorAlertRule, ErrorAlertLog, FrontendErrorType, ErrorLevel } from '@zenith/shared/analytics';
+import type { PaginatedResponse } from '@zenith/shared/core';
 import { mockDateTime, mockDateTimeOffset, mockDateOffset } from '../utils/date';
 
 const ok = <T>(data: T, message = 'ok') => HttpResponse.json({ code: 0, message, data });

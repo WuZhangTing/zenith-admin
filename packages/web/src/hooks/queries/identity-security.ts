@@ -1,5 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { IdentitySecurityPolicy, LoginRiskEvent, PaginatedResponse } from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { LoginRiskEvent } from '@zenith/shared/identity';
+import type { IdentitySecurityPolicy } from '@zenith/shared/platform';
 import { toQueryString, unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
 

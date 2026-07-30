@@ -13,10 +13,7 @@ import { db } from '../../db';
 import { analyticsUserSegments, analyticsSegmentMembers, analyticsUserProfiles, userEvents } from '../../db/schema';
 import type { AnalyticsUserSegmentRow } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
-import type {
-  AnalyticsSegmentRule, AnalyticsSegmentEventCondition, AnalyticsSegmentAttributeCondition,
-  CreateAnalyticsUserSegmentInput, UpdateAnalyticsUserSegmentInput,
-} from '@zenith/shared';
+import type { AnalyticsSegmentRule, AnalyticsSegmentEventCondition, AnalyticsSegmentAttributeCondition, CreateAnalyticsUserSegmentInput, UpdateAnalyticsUserSegmentInput } from '@zenith/shared/analytics';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
 import { mergeWhere, escapeLike } from '../../lib/where-helpers';

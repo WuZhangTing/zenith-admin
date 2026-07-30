@@ -4,7 +4,7 @@ import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { platformAdminOnly } from '../../middleware/platform-admin';
 import { jsonContent, validationHook, commonErrorResponses, ok, okMsg, okPaginated, IdParam, okBody, PaginationQuery } from '../../lib/openapi-schemas';
 import { DataMaskConfigDTO, SensitiveFieldDTO } from '../../lib/openapi-dtos';
-import { maskTypeValues } from '@zenith/shared';
+import { maskTypeValues } from '@zenith/shared/platform';
 import {
   listDataMaskConfigs,
   getDataMaskConfig,

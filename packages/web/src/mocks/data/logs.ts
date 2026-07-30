@@ -1,4 +1,5 @@
-import type { IpAccessLog, LoginLog, OperationLog } from '@zenith/shared';
+import type { LoginLog } from '@zenith/shared/identity';
+import type { IpAccessLog, OperationLog } from '@zenith/shared/platform';
 import { mockDateTimeOffset } from '@/mocks/utils/date';
 
 export const mockLoginLogs: LoginLog[] = [

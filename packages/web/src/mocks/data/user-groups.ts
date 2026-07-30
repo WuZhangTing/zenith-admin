@@ -1,4 +1,4 @@
-import type { UserGroup } from '@zenith/shared';
+import type { UserGroup } from '@zenith/shared/identity';
 
 interface MockUserGroup extends UserGroup {
   memberIds: number[];

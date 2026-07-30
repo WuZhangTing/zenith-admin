@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { request } from '@/utils/request';
-import { TOKEN_KEY, REFRESH_TOKEN_KEY, PREFERENCES_KEY, TABS_STORAGE_KEY } from '@zenith/shared';
-import type { User, LoginResponse, LoginResult } from '@zenith/shared';
+import { TOKEN_KEY, REFRESH_TOKEN_KEY, PREFERENCES_KEY, TABS_STORAGE_KEY } from '@zenith/shared/core';
+import type { User, LoginResponse, LoginResult } from '@zenith/shared/identity';
 
 const DEVICE_ID_KEY = 'zenith_device_id';
 

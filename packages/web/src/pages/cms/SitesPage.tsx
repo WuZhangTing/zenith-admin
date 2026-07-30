@@ -34,8 +34,9 @@ import {
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 import { useWorkflowDefinitionList } from '@/hooks/queries/workflow-definitions';
-import { CMS_SITE_INHERITABLE_FIELD_LABELS, CMS_SITE_INHERITABLE_FIELDS, CMS_SITE_OPS_DEFAULTS, CMS_STATIC_MODE_LABELS, CMS_STATIC_MODES, CMS_TWITTER_CARDS, CMS_TWITTER_CARD_LABELS } from '@zenith/shared';
-import type { AsyncTask, CmsChannel, CmsModelField, CmsOpenAppGrant, CmsSite, CmsSiteInheritanceFlags, CmsSiteInheritableField, CmsSiteTemplateDefaults, CmsInvalidTemplateRef, CmsThemeSettingField } from '@zenith/shared';
+import { CMS_SITE_INHERITABLE_FIELD_LABELS, CMS_SITE_INHERITABLE_FIELDS, CMS_SITE_OPS_DEFAULTS, CMS_STATIC_MODE_LABELS, CMS_STATIC_MODES, CMS_TWITTER_CARDS, CMS_TWITTER_CARD_LABELS } from '@zenith/shared/cms';
+import type { CmsChannel, CmsModelField, CmsOpenAppGrant, CmsSite, CmsSiteInheritanceFlags, CmsSiteInheritableField, CmsSiteTemplateDefaults, CmsInvalidTemplateRef, CmsThemeSettingField } from '@zenith/shared/cms';
+import type { AsyncTask } from '@zenith/shared/tasks';
 import { cmsPreviewUrl } from './CmsSiteSelect';
 import { cmsCredentialWriteValue } from './cms-site-credentials';
 import {
@@ -44,7 +45,7 @@ import {
   usePublishedCmsWidgets,
   useSaveCmsWidgetSlot,
 } from '@/hooks/queries/cms-widgets';
-import type { CmsWidgetRendererKey } from '@zenith/shared';
+import type { CmsWidgetRendererKey } from '@zenith/shared/cms';
 
 interface SearchParams {
   keyword: string;

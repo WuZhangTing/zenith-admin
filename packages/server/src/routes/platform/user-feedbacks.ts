@@ -9,7 +9,8 @@ import {
   okBody, errBody,
 } from '../../lib/openapi-schemas';
 import { UserFeedbackDTO } from '../../lib/openapi-dtos';
-import { createUserFeedbackSchema, handleUserFeedbackSchema } from '@zenith/shared';
+import { createUserFeedbackSchema } from '@zenith/shared/identity';
+import { handleUserFeedbackSchema } from '@zenith/shared/platform';
 import {
   batchDeleteUserFeedbacks,
   createUserFeedback,

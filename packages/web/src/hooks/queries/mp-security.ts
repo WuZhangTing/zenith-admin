@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query';
-import type { CheckMpContentInput } from '@zenith/shared';
+import type { CheckMpContentInput } from '@zenith/shared/mp';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 

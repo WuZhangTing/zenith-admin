@@ -48,6 +48,36 @@ export default [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
       ],
+      // @zenith/shared 已按业务域拆分：根入口会把全部 18 个域拉进依赖图与前端产物，
+      // 使「改 CMS 类型」这类局部改动波及所有消费方，故禁止直接引用根入口与已废弃的旧巨石路径。
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@zenith/shared',
+              message:
+                "请改用域子路径：'@zenith/shared/identity' | 'payment' | 'workflow' | 'cms' | 'report' | 'core' 等；种子数据用 '@zenith/shared/seed'。",
+            },
+            {
+              name: '@zenith/shared/types',
+              message: "旧巨石路径已删除，请改用 '@zenith/shared/<domain>'。",
+            },
+            {
+              name: '@zenith/shared/validation',
+              message: "旧巨石路径已删除，请改用 '@zenith/shared/<domain>'。",
+            },
+            {
+              name: '@zenith/shared/constants',
+              message: "旧巨石路径已删除，请改用 '@zenith/shared/<domain>'。",
+            },
+            {
+              name: '@zenith/shared/seed-data',
+              message: "旧巨石路径已删除，请改用 '@zenith/shared/seed'。",
+            },
+          ],
+        },
+      ],
     },
   },
   {

@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { WorkflowCategory } from '@zenith/shared';
+import type { WorkflowCategory } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
 import { LOOKUP_STALE_TIME, unwrap } from '@/lib/query';
 

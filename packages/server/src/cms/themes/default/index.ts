@@ -1,5 +1,5 @@
 import type { CmsTheme } from '../types';
-import { CMS_WIDGET_RENDERER_KEYS } from '@zenith/shared';
+import { CMS_WIDGET_RENDERER_KEYS } from '@zenith/shared/cms';
 import {
   IndexTemplate, ListTemplate, DetailTemplate, PageTemplate, SearchTemplate, TagTemplate, NotFoundTemplate, CustomPageTemplate,
   ListCardTemplate, ListCompactTemplate, DetailPlainTemplate, InteractionTemplate,

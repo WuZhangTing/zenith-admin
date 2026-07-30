@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockMpConditionalMenus, getNextMpConditionalMenuId } from '@/mocks/data/mp-conditional-menus';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { MpConditionalMenu, MpMenuButton, MpMenuMatchRule } from '@zenith/shared';
+import type { MpConditionalMenu, MpMenuButton, MpMenuMatchRule } from '@zenith/shared/mp';
 
 export const mpConditionalMenusHandlers = [
   http.get('/api/mp/conditional-menus', ({ request }) => {

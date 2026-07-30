@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { createCmsPageSchema, setCmsPageBlockAclSchema, updateCmsPageSchema } from '@zenith/shared';
+import { createCmsPageSchema, setCmsPageBlockAclSchema, updateCmsPageSchema } from '@zenith/shared/cms';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {

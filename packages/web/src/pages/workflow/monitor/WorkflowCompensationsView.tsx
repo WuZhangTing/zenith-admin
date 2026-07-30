@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button, Descriptions, Divider, Empty, Modal, Select, SideSheet, Space, Tag, Timeline, Toast, TextArea, Typography, Upload } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { RotateCcw, Paperclip } from 'lucide-react';
-import type { WorkflowCompensation } from '@zenith/shared';
+import type { WorkflowCompensation } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { formatDateTime } from '@/utils/date';

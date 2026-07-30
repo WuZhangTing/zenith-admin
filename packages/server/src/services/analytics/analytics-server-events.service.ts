@@ -25,13 +25,8 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { db } from '../../db';
 import { userEvents } from '../../db/schema';
-import type {
-  AnalyticsEnvironment,
-  AnalyticsEventSource,
-  AnalyticsIdentityType,
-  TrackEventInput,
-} from '@zenith/shared';
-import { ANALYTICS_PROPERTIES_MAX_BYTES } from '@zenith/shared';
+import type { AnalyticsEnvironment, AnalyticsEventSource, AnalyticsIdentityType, TrackEventInput } from '@zenith/shared/analytics';
+import { ANALYTICS_PROPERTIES_MAX_BYTES } from '@zenith/shared/analytics';
 import { parseDateTimeInput } from '../../lib/datetime';
 import { evaluateEvents, recordSchemaIssues } from './analytics-governance.service';
 import { touchEventMeta } from './analytics-event-meta.service';

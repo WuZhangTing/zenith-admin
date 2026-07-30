@@ -1,10 +1,6 @@
 import { http, HttpResponse } from 'msw';
-import {
-  OPEN_SIGNATURE_ALGORITHM,
-  OPEN_SIGNATURE_TIMESTAMP_WINDOW,
-  OPEN_SIGNATURE_HEADERS,
-} from '@zenith/shared';
-import type { OpenApiCallLog } from '@zenith/shared';
+import { OPEN_SIGNATURE_ALGORITHM, OPEN_SIGNATURE_TIMESTAMP_WINDOW, OPEN_SIGNATURE_HEADERS } from '@zenith/shared/open-platform';
+import type { OpenApiCallLog } from '@zenith/shared/open-platform';
 import { mockOpenApiLogs } from '@/mocks/data/open-api-logs';
 import dayjs from 'dayjs';
 

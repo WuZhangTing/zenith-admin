@@ -6,7 +6,7 @@ import type { DbExecutor } from '../../db/types';
 import { formatDateTime } from '../../lib/datetime';
 import { currentUserOrNull } from '../../lib/context';
 import logger from '../../lib/logger';
-import { CMS_CONTENT_OP_ACTION_LABELS } from '@zenith/shared';
+import { CMS_CONTENT_OP_ACTION_LABELS } from '@zenith/shared/cms';
 import { assertSiteAccess } from './cms-sites.service';
 import { assertChannelAccess } from './cms-channels.service';
 

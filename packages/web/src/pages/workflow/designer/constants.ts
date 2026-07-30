@@ -26,8 +26,8 @@ import type {
   SameInitiatorStrategy,
   DeduplicateStrategy,
 } from './types';
-import type { WorkflowNodeFailureAction } from '@zenith/shared';
-import { WORKFLOW_APPROVE_METHOD_LABELS } from '@zenith/shared';
+import type { WorkflowNodeFailureAction } from '@zenith/shared/workflow';
+import { WORKFLOW_APPROVE_METHOD_LABELS } from '@zenith/shared/workflow';
 
 // ─── 节点类型注册信息 ────────────────────────────────────────────────
 

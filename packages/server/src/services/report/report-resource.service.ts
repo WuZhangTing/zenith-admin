@@ -1,6 +1,6 @@
 import { HTTPException } from 'hono/http-exception';
 import { eq } from 'drizzle-orm';
-import type { ReportResourceType } from '@zenith/shared';
+import type { ReportResourceType } from '@zenith/shared/report';
 import { config } from '../../config';
 import { db } from '../../db';
 import {

@@ -21,8 +21,8 @@ import {
   useQueryPaymentTransfer,
   useRetryPaymentTransfer,
 } from '@/hooks/queries/payment-transfers';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_TRANSFER_STATUS_LABELS } from '@zenith/shared';
-import type { PaymentChannel, PaymentTransfer, PaymentTransferStatus } from '@zenith/shared';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_TRANSFER_STATUS_LABELS } from '@zenith/shared/payment';
+import type { PaymentChannel, PaymentTransfer, PaymentTransferStatus } from '@zenith/shared/payment';
 
 const yuan = formatYuan;
 const STATUS_COLOR = { pending: 'grey', processing: 'blue', success: 'green', failed: 'red' } as const satisfies Record<PaymentTransferStatus, string>;

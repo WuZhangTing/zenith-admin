@@ -12,8 +12,8 @@
 import { useEffect, useMemo } from 'react';
 import { Button, Empty, Select, Spin, Tag, Timeline, Typography } from '@douyinfe/semi-ui';
 import { Clock, Flag, Mail, Send, UserPlus, type LucideIcon } from 'lucide-react';
-import { WORKFLOW_APPROVE_METHOD_LABELS as METHOD_LABEL } from '@zenith/shared';
-import type { WorkflowApproverPreviewNode } from '@zenith/shared';
+import { WORKFLOW_APPROVE_METHOD_LABELS as METHOD_LABEL } from '@zenith/shared/workflow';
+import type { WorkflowApproverPreviewNode } from '@zenith/shared/workflow';
 import { UserAvatar } from '@/components/UserAvatar';
 import { timelineDot } from '@/components/workflow/timeline-dot';
 import { useWorkflowApprovalPreview } from '@/hooks/queries/workflow-shared';

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import type { ReportPublicDashboard, ReportDatasetQueryOptions, ReportWidgetDataResult } from '@zenith/shared';
+import type { ReportPublicDashboard, ReportDatasetQueryOptions, ReportWidgetDataResult } from '@zenith/shared/report';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 import { useReportDashboardBatch } from './report-dashboards';

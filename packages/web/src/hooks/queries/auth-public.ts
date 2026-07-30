@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query';
-import type { EnterpriseIdentityDiscovery } from '@zenith/shared';
+import type { EnterpriseIdentityDiscovery } from '@zenith/shared/identity';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 

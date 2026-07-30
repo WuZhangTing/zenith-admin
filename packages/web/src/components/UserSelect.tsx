@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Select } from '@douyinfe/semi-ui';
 import type { CSSProperties } from 'react';
-import type { User } from '@zenith/shared';
+import type { User } from '@zenith/shared/identity';
 import { request } from '@/utils/request';
 
 interface UserOption {

@@ -3,7 +3,7 @@ import { createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../../middleware/guard';
 import { idempotencyGuard } from '../../../middleware/idempotency';
-import { batchSkipStuckTokensSchema, jumpWorkflowInstanceSchema, reassignWorkflowTaskSchema, recallWorkflowTaskSchema, suspendWorkflowInstanceSchema, workflowHandoverSchema } from '@zenith/shared';
+import { batchSkipStuckTokensSchema, jumpWorkflowInstanceSchema, reassignWorkflowTaskSchema, recallWorkflowTaskSchema, suspendWorkflowInstanceSchema, workflowHandoverSchema } from '@zenith/shared/workflow';
 import { ErrorResponse, jsonContent, commonErrorResponses, ok, IdParam, okBody } from '../../../lib/openapi-schemas';
 import { WorkflowInstanceDTO, WorkflowRecoveryBatchResultDTO, WorkflowTaskDTO, WorkflowHandoverPreviewDTO, WorkflowHandoverResultDTO } from '../../../lib/openapi-dtos';
 import { skipStuckToken, replayFromToken, batchSkipStuckTokens, getInstanceForAdminAudit, getWorkflowTaskBeforeAudit, getWorkflowTaskForAdminAudit, jumpInstance, reassignTask, recallTask, suspendInstance, resumeInstance, previewHandover, handoverTasks } from '../../../services/workflow/workflow-instances.service';

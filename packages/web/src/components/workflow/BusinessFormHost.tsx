@@ -10,7 +10,7 @@
 import { Suspense, useMemo } from 'react';
 import { Empty, Spin, Typography } from '@douyinfe/semi-ui';
 import { IllustrationFailure, IllustrationFailureDark } from '@douyinfe/semi-illustrations';
-import type { WorkflowCustomFormConfig, WorkflowCustomFormVariable } from '@zenith/shared';
+import type { WorkflowCustomFormConfig, WorkflowCustomFormVariable } from '@zenith/shared/workflow';
 import { lazyPageComponent } from '@/utils/page-registry';
 
 export type WorkflowBusinessFormMode = 'create' | 'view' | 'approve';

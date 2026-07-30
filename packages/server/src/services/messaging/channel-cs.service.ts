@@ -19,12 +19,9 @@ import {
   channelConversations, users, menus, roleMenus, userRoles,
   type ChannelMenuRow, type ChannelAutoReplyRow, type ChannelQuickReplyRow, type ChannelConversationRow, type ChannelRow,
 } from '../../db/schema';
-import type {
-  ChannelMenu, ChannelAutoReply, ChannelConversation, ChannelConversationStatus, ChannelMessage, ChannelMessageType, ChannelQuickReply, ChannelCsAgent, ChannelCsPerformance, ChannelRichReplyExtra,
-  ChatCard, ChatMessageExtra,
-  SaveChannelMenusInput, CreateChannelAutoReplyInput, UpdateChannelAutoReplyInput,
-  CreateChannelQuickReplyInput, UpdateChannelQuickReplyInput,
-} from '@zenith/shared';
+import type { ChatCard, ChatMessageExtra } from '@zenith/shared/chat';
+import type { ChannelMenu, ChannelAutoReply, ChannelConversation, ChannelConversationStatus, ChannelMessage, ChannelMessageType, ChannelQuickReply, ChannelCsAgent, ChannelCsPerformance, ChannelRichReplyExtra, CreateChannelAutoReplyInput, UpdateChannelAutoReplyInput, CreateChannelQuickReplyInput, UpdateChannelQuickReplyInput } from '@zenith/shared/messaging';
+import type { SaveChannelMenusInput } from '@zenith/shared/mp';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';

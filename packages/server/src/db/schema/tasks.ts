@@ -2,7 +2,7 @@ import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, unique, 
 import { sql } from 'drizzle-orm';
 import { auditColumns, tenants, users } from './core';
 import { managedFiles } from './files';
-import { EXPORT_JOB_FORMATS } from '@zenith/shared';
+import { EXPORT_JOB_FORMATS } from '@zenith/shared/tasks';
 
 export const exportJobFormatEnum = pgEnum('export_job_format', EXPORT_JOB_FORMATS);
 

@@ -2,7 +2,7 @@
  * 工作流相关 DTO
  */
 import { z } from '@hono/zod-openapi';
-import { workflowFormFieldSchema, workflowFieldVisibilityRuleGroupSchema, workflowFormCascaderNodeSchema } from '@zenith/shared';
+import { workflowFormFieldSchema, workflowFieldVisibilityRuleGroupSchema, workflowFormCascaderNodeSchema } from '@zenith/shared/workflow';
 import { auditFields } from './_audit';
 
 /**

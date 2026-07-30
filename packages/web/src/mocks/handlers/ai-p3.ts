@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import type { AiAgent, AiHttpTool, AiToolInfo, AiEvalSet, AiEvalRun } from '@zenith/shared';
+import type { AiAgent, AiHttpTool, AiToolInfo, AiEvalSet, AiEvalRun } from '@zenith/shared/ai';
 import { mockDateTime } from '../utils/date';
 
 /* ─── 智能体 ─────────────────────────────────────────────── */

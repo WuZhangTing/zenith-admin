@@ -7,12 +7,8 @@ import { useState } from 'react';
 import { Button, Form, Modal, SideSheet, Space, Table, Tag, Toast, Typography, Upload } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ImagePlus, Plus, Trash2 } from 'lucide-react';
-import type { ChannelAutoReply, ChannelMessageType, ChannelRichReplyExtra } from '@zenith/shared';
-import {
-  CHANNEL_AUTO_REPLY_MATCH_LABELS,
-  CHANNEL_AUTO_REPLY_KEYWORD_MODE_LABELS,
-  CHANNEL_MESSAGE_TYPE_LABELS as REPLY_TYPE_LABELS,
-} from '@zenith/shared';
+import type { ChannelAutoReply, ChannelMessageType, ChannelRichReplyExtra } from '@zenith/shared/messaging';
+import { CHANNEL_AUTO_REPLY_MATCH_LABELS, CHANNEL_AUTO_REPLY_KEYWORD_MODE_LABELS, CHANNEL_MESSAGE_TYPE_LABELS as REPLY_TYPE_LABELS } from '@zenith/shared/messaging';
 import { config } from '@/config';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';

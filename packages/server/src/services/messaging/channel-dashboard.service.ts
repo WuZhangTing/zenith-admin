@@ -10,10 +10,7 @@ import {
   channels, channelMessages, channelSubscriptions, channelConversations,
   channelAutoReplies, channelMessageTargets,
 } from '../../db/schema';
-import type {
-  ChannelDashboard, ChannelDashboardTrendPoint, ChannelDashboardStatusDist,
-  ChannelDashboardTopReply, ChannelDashboardChannelRank,
-} from '@zenith/shared';
+import type { ChannelDashboard, ChannelDashboardTrendPoint, ChannelDashboardStatusDist, ChannelDashboardTopReply, ChannelDashboardChannelRank } from '@zenith/shared/messaging';
 import { formatDate } from '../../lib/datetime';
 
 function startOfToday(): Date {

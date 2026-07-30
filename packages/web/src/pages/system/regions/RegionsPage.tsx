@@ -13,7 +13,7 @@ import {
 import type { CascaderData } from '@douyinfe/semi-ui/lib/es/cascader';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, Plus, RotateCcw, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
-import type { Region } from '@zenith/shared';
+import type { Region } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useDictItems } from '@/hooks/useDictItems';
 import { createdAtColumn } from '@/utils/table-columns';
@@ -24,7 +24,7 @@ import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { regionKeys, useDeleteRegion, useFlatRegions, useRegionDetail, useRegionTree, useSaveRegion } from '@/hooks/queries/regions';
-import { REGION_LEVEL_LABELS } from '@zenith/shared';
+import { REGION_LEVEL_LABELS } from '@zenith/shared/platform';
 
 const LEVEL_LABELS: Record<string, string> = REGION_LEVEL_LABELS;
 

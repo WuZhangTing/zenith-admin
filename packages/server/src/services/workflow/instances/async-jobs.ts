@@ -2,11 +2,11 @@
 import { db } from '../../../db';
 import { workflowInstances, workflowTasks } from '../../../db/schema';
 import { type TaskAction } from '../../../lib/workflow-engine';
-import type { WorkflowFlowData } from '@zenith/shared';
+import type { WorkflowFlowData } from '@zenith/shared/workflow';
 import type { DbExecutor } from '../../../db/types';
 import { enqueueJob } from '../../../lib/workflow-jobs/engine';
 import { computeTimeoutAt } from '../../../lib/workflow-timeout';
-import type { WorkflowTriggerNodeConfig } from '@zenith/shared';
+import type { WorkflowTriggerNodeConfig } from '@zenith/shared/workflow';
 import dayjs from 'dayjs';
 
 /**

@@ -1,20 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  CancelReportFillRecordInput,
-  CloneReportFillTemplateInput,
-  CreateReportFillRecordInput,
-  CreateReportFillTemplateInput,
-  PaginatedResponse,
-  ReportFillRecord,
-  ReportFillRecordStatus,
-  ReportFillTemplate,
-  ReportFillTemplateLifecycleActionInput,
-  ReportFillTemplateStatus,
-  ReviewReportFillRecordInput,
-  SubmitReportFillRecordInput,
-  UpdateReportFillRecordInput,
-  UpdateReportFillTemplateInput,
-} from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { CancelReportFillRecordInput, CloneReportFillTemplateInput, CreateReportFillRecordInput, CreateReportFillTemplateInput, ReportFillRecord, ReportFillRecordStatus, ReportFillTemplate, ReportFillTemplateLifecycleActionInput, ReportFillTemplateStatus, ReviewReportFillRecordInput, SubmitReportFillRecordInput, UpdateReportFillRecordInput, UpdateReportFillTemplateInput } from '@zenith/shared/report';
 import { request } from '@/utils/request';
 import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
 import { asyncTaskKeys } from './async-tasks';

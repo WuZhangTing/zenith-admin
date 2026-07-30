@@ -1,12 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import {
-  createReportMetricSchema,
-  reportMetricEvaluateSchema,
-  reportMetricLifecycleStatusSchema,
-  reportMetricLifecycleActionSchema,
-  reportMetricTypeSchema,
-  updateReportMetricSchema,
-} from '@zenith/shared';
+import { createReportMetricSchema, reportMetricEvaluateSchema, reportMetricLifecycleStatusSchema, reportMetricLifecycleActionSchema, reportMetricTypeSchema, updateReportMetricSchema } from '@zenith/shared/report';
 import {
   ReportMetricDTO,
   ReportMetricEvaluationDTO,

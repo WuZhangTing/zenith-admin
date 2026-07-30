@@ -12,8 +12,8 @@ import {
   useChartPalette,
 } from '@/components/charts';
 import { CronExpressionParser } from 'cron-parser';
-import type { CronJob, CronJobStatsPerJob, CronJobRecentLog, CronRunStatus } from '@zenith/shared';
-import { CRON_RUN_STATUS_LABELS } from '@zenith/shared';
+import type { CronJob, CronJobStatsPerJob, CronJobRecentLog, CronRunStatus } from '@zenith/shared/platform';
+import { CRON_RUN_STATUS_LABELS } from '@zenith/shared/platform';
 import dayjs from 'dayjs';
 import { useCronJobStats } from '@/hooks/queries/cron-jobs';
 

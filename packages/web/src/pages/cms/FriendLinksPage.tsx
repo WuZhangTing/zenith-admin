@@ -15,7 +15,7 @@ import {
   useCmsFriendLinkList, useSaveCmsFriendLink, useDeleteCmsFriendLink, cmsFriendLinkKeys,
   useAllCmsFriendLinkGroups, useCmsFriendLinkGroupList, useSaveCmsFriendLinkGroup, useDeleteCmsFriendLinkGroup,
 } from '@/hooks/queries/cms';
-import type { CmsFriendLink, CmsFriendLinkGroup } from '@zenith/shared';
+import type { CmsFriendLink, CmsFriendLinkGroup } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 
 export default function FriendLinksPage() {

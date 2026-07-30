@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { resolveSafeOutboundHost } from './outbound-url';
 import { normalizeReadonlyReportSql } from './report-sql-safety';
 import { isSensitiveTable, SENSITIVE_COLUMN_RE } from './report-schema-meta';
-import type { ReportDatasourceType, ReportExternalDbConfig, ReportDataResult, ReportDatasetQueryOptions, ReportMetaColumn } from '@zenith/shared';
+import type { ReportDatasourceType, ReportExternalDbConfig, ReportDataResult, ReportDatasetQueryOptions, ReportMetaColumn } from '@zenith/shared/report';
 
 const QUERY_TIMEOUT_MS = 15_000;
 const MAX_ROWS = 5000;

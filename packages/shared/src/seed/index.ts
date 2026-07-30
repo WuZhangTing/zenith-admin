@@ -1,0 +1,18 @@
+/**
+ * 种子数据聚合入口 —— 仅供 db/seed.ts 与 MSW mock 使用。
+ * 业务代码请勿引用：域 index 刻意不导出 seed，避免种子数据进入生产依赖图。
+ */
+export * from './menus';
+export * from './ai';
+export * from './analytics';
+export * from './cms';
+export * from './identity';
+export * from './member';
+export * from './messaging';
+export * from './mp';
+export * from './open-platform';
+export * from './payment';
+export * from './platform';
+export * from './report';
+export * from './rules';
+export * from './workflow';

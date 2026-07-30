@@ -9,7 +9,8 @@ import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
 import { getAllPrivateTemplates, sendTemplateMessage, setTemplateIndustry, getTemplateIndustry, WechatApiError } from '../../lib/wechat';
 import { mapWechatError } from '../../lib/wechat-error';
-import type { SendMpTemplateInput, MpTemplateSendStatus } from '@zenith/shared';
+import type { SendMpTemplateInput } from '@zenith/shared/messaging';
+import type { MpTemplateSendStatus } from '@zenith/shared/mp';
 
 export function mapMpTemplate(row: MpMessageTemplateRow) {
   return {

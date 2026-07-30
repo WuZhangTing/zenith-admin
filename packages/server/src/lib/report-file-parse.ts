@@ -5,7 +5,7 @@
  */
 import ExcelJS from 'exceljs';
 import { HTTPException } from 'hono/http-exception';
-import type { ReportDataResult } from '@zenith/shared';
+import type { ReportDataResult } from '@zenith/shared/report';
 
 const MAX_ROWS = 5000;
 

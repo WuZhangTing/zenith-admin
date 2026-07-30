@@ -10,9 +10,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import type { Context, MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import {
-  CMS_OPEN_INCLUDES, CMS_OPEN_PAGE_SIZE_MAX, CMS_OPEN_SORT_FIELDS, CMS_OPEN_SYNC_PAGE_SIZE_MAX,
-} from '@zenith/shared';
+import { CMS_OPEN_INCLUDES, CMS_OPEN_PAGE_SIZE_MAX, CMS_OPEN_SORT_FIELDS, CMS_OPEN_SYNC_PAGE_SIZE_MAX } from '@zenith/shared/cms';
 import {
   commonErrorResponses, ErrorResponse, jsonContent, ok, okMsg, okBody, okPaginated, validationHook,
 } from '../../lib/openapi-schemas';

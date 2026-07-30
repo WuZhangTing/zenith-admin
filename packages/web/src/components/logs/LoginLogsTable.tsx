@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Button, Descriptions, Tag } from '@douyinfe/semi-ui';
 import AppModal from '@/components/AppModal';
 import type { ColumnProps, TableProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { LoginLog } from '@zenith/shared';
+import type { LoginLog } from '@zenith/shared/identity';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { formatDateTime } from '@/utils/date';
 

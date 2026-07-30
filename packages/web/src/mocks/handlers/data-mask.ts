@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockDataMaskConfigs, createMockDataMaskConfig, getNextDataMaskId } from '@/mocks/data/data-mask';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { DataMaskConfig, SensitiveField, MaskType } from '@zenith/shared';
+import type { DataMaskConfig, SensitiveField, MaskType } from '@zenith/shared/platform';
 
 // 模拟的敏感字段扫描结果（基于 seed 数据的表结构）
 const MOCK_SENSITIVE_FIELDS: SensitiveField[] = [

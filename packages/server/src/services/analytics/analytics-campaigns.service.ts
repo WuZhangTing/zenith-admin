@@ -1,6 +1,6 @@
 import { and, desc, eq, ne, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type { CreateAnalyticsCampaignInput, UpdateAnalyticsCampaignInput } from '@zenith/shared';
+import type { CreateAnalyticsCampaignInput, UpdateAnalyticsCampaignInput } from '@zenith/shared/analytics';
 import { db } from '../../db';
 import { analyticsSegmentCampaigns, analyticsUserSegments, emailTemplates, inAppTemplates } from '../../db/schema';
 import type { AnalyticsSegmentCampaignRow } from '../../db/schema';

@@ -8,7 +8,7 @@ import { escapeLike, withPagination } from '../../lib/where-helpers';
 import { streamToCsv } from '../../lib/excel-export';
 import { HTTPException } from 'hono/http-exception';
 import { resolveAgentForChat, incrementAgentUsage } from './ai-agents.service';
-import type { AiFeedbackStatus } from '@zenith/shared';
+import type { AiFeedbackStatus } from '@zenith/shared/ai';
 
 function mapConversation(row: typeof aiConversations.$inferSelect) {
   return {

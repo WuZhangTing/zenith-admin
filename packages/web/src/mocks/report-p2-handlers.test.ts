@@ -1,15 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type {
-  AsyncTask,
-  PaginatedResponse,
-  ReportChatbiMessage,
-  ReportChatbiSession,
-  ReportFillRecord,
-  ReportFillTemplate,
-  ReportMetric,
-  ReportQueryQuotaUsage,
-  ReportResourceAcl,
-} from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { ReportChatbiMessage, ReportChatbiSession, ReportFillRecord, ReportFillTemplate, ReportMetric, ReportQueryQuotaUsage, ReportResourceAcl } from '@zenith/shared/report';
+import type { AsyncTask } from '@zenith/shared/tasks';
 import { asyncTasksHandlers } from '@/mocks/handlers/async-tasks';
 import { reportChatbiHandlers } from '@/mocks/handlers/report-chatbi';
 import { reportFillHandlers } from '@/mocks/handlers/report-fill';

@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { mockDepartments, getNextDeptId } from '@/mocks/data/departments';
 import { mockUsers } from '@/mocks/data/users';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { Department } from '@zenith/shared';
+import type { Department } from '@zenith/shared/identity';
 
 function withLeaderName(dept: Department): Department {
   const leader = dept.leaderId ? mockUsers.find((u) => u.id === dept.leaderId) : undefined;

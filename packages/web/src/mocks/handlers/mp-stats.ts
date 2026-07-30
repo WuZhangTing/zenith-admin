@@ -5,7 +5,7 @@ import { mockMpMessages } from '@/mocks/data/mp-messages';
 import { mockMpAutoReplies } from '@/mocks/data/mp-auto-replies';
 import { mockMpMaterials } from '@/mocks/data/mp-materials';
 import { mockMpDrafts } from '@/mocks/data/mp-drafts';
-import type { MpStats } from '@zenith/shared';
+import type { MpStats } from '@zenith/shared/mp';
 
 function last7Days(): string[] {
   const days: string[] = [];

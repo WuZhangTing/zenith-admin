@@ -3,7 +3,7 @@
  * 业务方按 appKey 下单，路由到应用绑定的各渠道配置。
  */
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { createPaymentAppSchema, updatePaymentAppSchema } from '@zenith/shared';
+import { createPaymentAppSchema, updatePaymentAppSchema } from '@zenith/shared/payment';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody } from '../../lib/openapi-schemas';

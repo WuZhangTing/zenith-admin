@@ -15,7 +15,7 @@ import { tenantCondition } from '../../lib/tenant';
 import { mergeWhere } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import logger from '../../lib/logger';
-import type { PaymentAccount, PaymentAccountCheckRow, PaymentChannel, PaymentLedgerDirection, PaymentLedgerType } from '@zenith/shared';
+import type { PaymentAccount, PaymentAccountCheckRow, PaymentChannel, PaymentLedgerDirection, PaymentLedgerType } from '@zenith/shared/payment';
 
 export function mapAccount(row: PaymentAccountRow): PaymentAccount {
   return {

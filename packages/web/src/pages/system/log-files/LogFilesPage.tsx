@@ -13,7 +13,7 @@ import { formatDateTime } from '@/utils/date';
 import { formatFileSize } from '@/utils/file-utils';
 import { usePermission } from '@/hooks/usePermission';
 import { config } from '@/config';
-import { TOKEN_KEY } from '@zenith/shared';
+import { TOKEN_KEY } from '@zenith/shared/core';
 import { type LogFile, useDeleteLogFile, useLogFileContent, useLogFiles } from '@/hooks/queries/log-files';
 import { buildSearchIndex, computeEffectiveLevels, type LogLevel } from './logFilesSearch';
 import { LogContentView } from './LogContentView';

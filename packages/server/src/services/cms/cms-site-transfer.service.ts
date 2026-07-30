@@ -14,15 +14,8 @@ import { ensureCmsSiteExists, assertSiteAccess, invalidateSiteCache } from './cm
 import { isCmsPlatformAdmin } from './cms-access';
 import { normalizeNewCmsSiteSettings, redactCmsSiteSettings } from './cms-site-settings';
 import { sanitizeCmsHtml } from './cms-html-sanitizer';
-import {
-  CMS_SECRET_MASK,
-  cmsSlugRegex,
-  cmsWidgetDataSchema,
-  isCmsEntityLink,
-  remapCmsEntityLink,
-  type CmsPageBlock,
-  type CmsWidgetData,
-} from '@zenith/shared';
+import { CMS_SECRET_MASK, cmsSlugRegex, cmsWidgetDataSchema, isCmsEntityLink, remapCmsEntityLink } from '@zenith/shared/cms';
+import type { CmsPageBlock, CmsWidgetData } from '@zenith/shared/cms';
 import { parseCmsImportSiteCode } from './cms-import-security';
 import { currentUser } from '../../lib/context';
 import { assertAllCmsSiteChannelsAccess } from './cms-channels.service';

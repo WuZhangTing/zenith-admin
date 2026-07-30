@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockMpTemplates, mockMpTemplateLogs, getNextMpTemplateLogId } from '@/mocks/data/mp-templates';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { MpTemplateSendLog } from '@zenith/shared';
+import type { MpTemplateSendLog } from '@zenith/shared/mp';
 
 export const mpTemplatesHandlers = [
   http.get('/api/mp/templates/logs', ({ request }) => {

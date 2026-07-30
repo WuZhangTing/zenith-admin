@@ -15,17 +15,8 @@ import {
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, RotateCcw, Search } from 'lucide-react';
-import {
-  CMS_INTERACTION_KIND_LABELS,
-  CMS_INTERACTION_PARTICIPANT_SCOPE_LABELS,
-  CMS_INTERACTION_QUESTION_TYPE_LABELS,
-  CMS_INTERACTION_REPEAT_POLICY_LABELS,
-  CMS_INTERACTION_STATUS_LABELS,
-  type CmsInteraction,
-  type CmsInteractionKind,
-  type CmsInteractionResponse,
-  type CmsInteractionStatus,
-} from '@zenith/shared';
+import { CMS_INTERACTION_KIND_LABELS, CMS_INTERACTION_PARTICIPANT_SCOPE_LABELS, CMS_INTERACTION_QUESTION_TYPE_LABELS, CMS_INTERACTION_REPEAT_POLICY_LABELS, CMS_INTERACTION_STATUS_LABELS } from '@zenith/shared/cms';
+import type { CmsInteraction, CmsInteractionKind, CmsInteractionResponse, CmsInteractionStatus } from '@zenith/shared/cms';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Form, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { TOKEN_KEY, REFRESH_TOKEN_KEY } from '@zenith/shared';
+import { TOKEN_KEY, REFRESH_TOKEN_KEY } from '@zenith/shared/core';
 import { approvalRequest } from '../lib/approval-request';
 
 interface LoginResult {

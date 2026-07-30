@@ -11,8 +11,8 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { formatDateTimeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { paymentReportKeys, usePaymentReportSummary } from '@/hooks/queries/payment-reports';
-import { PAYMENT_REPORT_GROUP_BY_LABELS } from '@zenith/shared';
-import type { PaymentReportGroupBy, PaymentReportRow } from '@zenith/shared';
+import { PAYMENT_REPORT_GROUP_BY_LABELS } from '@zenith/shared/payment';
+import type { PaymentReportGroupBy, PaymentReportRow } from '@zenith/shared/payment';
 
 const yuan = formatYuan;
 const groupByOptions = Object.entries(PAYMENT_REPORT_GROUP_BY_LABELS).map(([value, label]) => ({ value, label }));

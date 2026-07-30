@@ -8,7 +8,7 @@
  */
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { jsonContent, validationHook, commonErrorResponses, okMsg, okBody } from '../../lib/openapi-schemas';
-import { chatWebhookPayloadSchema } from '@zenith/shared';
+import { chatWebhookPayloadSchema } from '@zenith/shared/chat';
 import { ingestChatWebhook } from '../../services/chat/chat-webhooks.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });

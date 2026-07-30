@@ -1,10 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import {
-  createReportFolderSchema,
-  moveReportFolderSchema,
-  reportResourceTypeSchema,
-  updateReportFolderSchema,
-} from '@zenith/shared';
+import { createReportFolderSchema, moveReportFolderSchema, reportResourceTypeSchema, updateReportFolderSchema } from '@zenith/shared/report';
 import { ReportFolderDTO, ReportFolderTreeNodeDTO } from '../../lib/openapi-dtos';
 import {
   commonErrorResponses,

@@ -4,9 +4,9 @@ import FileAttachment from '@/components/FileAttachment';
 import { uploadedFileToAttachment } from '@/components/FileAttachment/utils';
 import { timelineDot } from '@/components/workflow/timeline-dot';
 import { TASK_STATUS_MAP } from '@/components/workflow/workflow-runtime';
-import { WORKFLOW_INSTANCE_STATUS_LABELS } from '@zenith/shared';
+import { WORKFLOW_INSTANCE_STATUS_LABELS } from '@zenith/shared/workflow';
 import { CheckCircle2, Clock, CornerUpLeft, Flag, Mail, RotateCcw, XCircle, ExternalLink, Copy, Forward, UserCog, Send, type LucideIcon } from 'lucide-react';
-import type { WorkflowTask, WorkflowInstanceStatus } from '@zenith/shared';
+import type { WorkflowTask, WorkflowInstanceStatus } from '@zenith/shared/workflow';
 import type { FlowNodeBrief } from '@/components/workflow/workflow-runtime';
 import { formatDateTime, formatDurationBetween } from '@/utils/date';
 

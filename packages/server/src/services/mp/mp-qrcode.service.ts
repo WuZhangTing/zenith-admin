@@ -10,7 +10,7 @@ import { ensureMpAccountExists } from './mp-account.service';
 import { createWechatQrcode } from '../../lib/wechat';
 import { mapWechatError } from '../../lib/wechat-error';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import type { CreateMpQrcodeInput, MpQrcodeType } from '@zenith/shared';
+import type { CreateMpQrcodeInput, MpQrcodeType } from '@zenith/shared/mp';
 
 export function mapMpQrcode(row: MpQrcodeRow) {
   return {

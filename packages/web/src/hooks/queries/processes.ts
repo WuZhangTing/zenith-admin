@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ProcessInfo } from '@zenith/shared';
+import type { ProcessInfo } from '@zenith/shared/ops';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 

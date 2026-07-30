@@ -17,7 +17,8 @@ import {
 import { currentUser } from '../../lib/context';
 import { HTTPException } from 'hono/http-exception';
 
-import { isSafeOAuthRedirectUri, OAUTH2_TOKEN_EXPIRY } from '@zenith/shared';
+import { isSafeOAuthRedirectUri } from '@zenith/shared/identity';
+import { OAUTH2_TOKEN_EXPIRY } from '@zenith/shared/open-platform';
 import type { DbExecutor, DbTransaction } from '../../db/types';
 import { config } from '../../config';
 

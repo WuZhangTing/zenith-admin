@@ -5,7 +5,7 @@ import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody,
 } from '../../lib/openapi-schemas';
-import { createMpTagSchema, updateMpTagSchema } from '@zenith/shared';
+import { createMpTagSchema, updateMpTagSchema } from '@zenith/shared/mp';
 import { MpTagDTO, MpTagSyncResultDTO } from '../../lib/openapi-dtos';
 import {
   listMpTags, createMpTag, updateMpTag, deleteMpTag, getMpTagBeforeAudit, syncMpTags,

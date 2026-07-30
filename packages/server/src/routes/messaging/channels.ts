@@ -5,14 +5,8 @@ import {
   jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg,
   IdParam, PaginationQuery, okBody,
 } from '../../lib/openapi-schemas';
-import {
-  createChannelSchema, updateChannelSchema, publishChannelSchema,
-  sendChannelMessageSchema, channelReplySchema, saveChannelMenusSchema,
-  createChannelAutoReplySchema, updateChannelAutoReplySchema,
-  createChannelQuickReplySchema, updateChannelQuickReplySchema,
-  assignConversationSchema, setConversationTagsSchema, audienceEstimateSchema,
-  createChannelTemplateSchema, updateChannelTemplateSchema, addChannelSubscribersSchema, rateConversationSchema,
-} from '@zenith/shared';
+import { createChannelSchema, updateChannelSchema, sendChannelMessageSchema, channelReplySchema, createChannelAutoReplySchema, updateChannelAutoReplySchema, createChannelQuickReplySchema, updateChannelQuickReplySchema, createChannelTemplateSchema, updateChannelTemplateSchema } from '@zenith/shared/messaging';
+import { publishChannelSchema, saveChannelMenusSchema, assignConversationSchema, setConversationTagsSchema, audienceEstimateSchema, addChannelSubscribersSchema, rateConversationSchema } from '@zenith/shared/mp';
 import {
   ChannelDTO, ChannelMessageDTO, ChannelAdminDTO,
   ChannelMenuDTO, ChannelAutoReplyDTO, ChannelConversationDTO, ChannelCsChannelDTO, ChannelQuickReplyDTO, ChannelCsAgentDTO, ChannelDashboardDTO,

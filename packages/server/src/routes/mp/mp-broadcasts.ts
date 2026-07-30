@@ -6,7 +6,7 @@ import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody,
 } from '../../lib/openapi-schemas';
-import { createMpBroadcastSchema, updateMpBroadcastSchema, previewMpBroadcastSchema } from '@zenith/shared';
+import { createMpBroadcastSchema, updateMpBroadcastSchema, previewMpBroadcastSchema } from '@zenith/shared/mp';
 import { MpBroadcastDTO, MpBroadcastResultDTO } from '../../lib/openapi-dtos';
 import {
   listMpBroadcasts, createMpBroadcast, updateMpBroadcast, deleteMpBroadcast, sendMpBroadcast, getMpBroadcastBeforeAudit,

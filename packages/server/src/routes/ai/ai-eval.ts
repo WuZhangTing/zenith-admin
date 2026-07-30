@@ -21,7 +21,7 @@ import {
   submitEvalRun,
   deleteEvalRun,
 } from '../../services/ai/ai-eval.service';
-import { createAiEvalSetSchema, updateAiEvalSetSchema, runAiEvalSchema } from '@zenith/shared';
+import { createAiEvalSetSchema, updateAiEvalSetSchema, runAiEvalSchema } from '@zenith/shared/ai';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 

@@ -35,7 +35,7 @@ import {
   listClientGrants,
   reviewOAuth2Client,
 } from '../../services/open-platform/oauth2-clients.service';
-import { createOAuth2ClientSchema, updateOAuth2ClientSchema } from '@zenith/shared';
+import { createOAuth2ClientSchema, updateOAuth2ClientSchema } from '@zenith/shared/open-platform';
 import { notifyAppReviewResult } from '../../services/open-platform/developer-apps.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });

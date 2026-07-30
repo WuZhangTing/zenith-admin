@@ -1,5 +1,5 @@
 import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, unique, text, uniqueIndex, index, jsonb } from 'drizzle-orm/pg-core';
-import { OAUTH_PROVIDERS } from '@zenith/shared';
+import { OAUTH_PROVIDERS } from '@zenith/shared/identity';
 import { auditColumns, tenants, users } from './core';
 
 export const mfaFactorTypeEnum = pgEnum('mfa_factor_type', ['totp', 'passkey', 'recovery_code']);

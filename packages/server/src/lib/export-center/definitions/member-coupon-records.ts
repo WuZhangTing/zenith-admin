@@ -5,7 +5,7 @@ import { buildMemberCouponWhere } from '../../../services/member/coupons.service
 import { batchIterable } from '../../excel-export';
 import { defineExport } from '../registry';
 import type { ExportColumn } from '../types';
-import { MEMBER_COUPON_STATUS_LABELS } from '@zenith/shared';
+import { MEMBER_COUPON_STATUS_LABELS } from '@zenith/shared/member';
 
 const STATUS_LABELS: Record<string, string> = MEMBER_COUPON_STATUS_LABELS;
 

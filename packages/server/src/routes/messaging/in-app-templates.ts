@@ -5,7 +5,7 @@ import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody,
 } from '../../lib/openapi-schemas';
-import { createInAppTemplateSchema, updateInAppTemplateSchema, IN_APP_MESSAGE_TYPES } from '@zenith/shared';
+import { createInAppTemplateSchema, updateInAppTemplateSchema, IN_APP_MESSAGE_TYPES } from '@zenith/shared/messaging';
 import { InAppTemplateDTO } from '../../lib/openapi-dtos';
 import {
   listInAppTemplates, getInAppTemplate, createInAppTemplate, updateInAppTemplate,

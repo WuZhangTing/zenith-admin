@@ -13,8 +13,9 @@ import AppModal from '@/components/AppModal';
 import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
-import type { MonitorAlertRule, MonitorMetric } from '@zenith/shared';
-import { BASIC_COMPARISON_OPERATOR_LABELS, NOTIFY_CHANNEL_LABELS } from '@zenith/shared';
+import type { MonitorAlertRule, MonitorMetric } from '@zenith/shared/platform';
+import { BASIC_COMPARISON_OPERATOR_LABELS } from '@zenith/shared/core';
+import { NOTIFY_CHANNEL_LABELS } from '@zenith/shared/messaging';
 import {
   monitorAlertKeys,
   useDeleteMonitorAlert,

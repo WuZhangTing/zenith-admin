@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Input, Toast, Typography, List as SemiList } from '@douyinfe/semi-ui';
 import AppModal from '@/components/AppModal';
 import { Search, CheckSquare, Square } from 'lucide-react';
-import type { ChatConversation } from '@zenith/shared';
+import type { ChatConversation } from '@zenith/shared/chat';
 
 const { Text } = Typography;
 

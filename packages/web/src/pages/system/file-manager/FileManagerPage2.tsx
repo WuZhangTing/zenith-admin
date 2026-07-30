@@ -21,7 +21,7 @@ import dayjs from 'dayjs';
 import { request } from '@/utils/request';
 import { formatBytes as formatSize } from '@/utils/format';
 import { toQueryString, unwrap } from '@/lib/query';
-import { TOKEN_KEY } from '@zenith/shared';
+import { TOKEN_KEY } from '@zenith/shared/core';
 import { config as appConfig } from '@/config';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { FileNameCell } from '@/components/FileNameCell';

@@ -27,7 +27,7 @@ import { httpRequest } from '../../lib/http-client';
 import redis from '../../lib/redis';
 import { config } from '../../config';
 import logger from '../../lib/logger';
-import type { WorkflowAutomationTrigger, WorkflowInstance } from '@zenith/shared';
+import type { WorkflowAutomationTrigger, WorkflowInstance } from '@zenith/shared/workflow';
 
 export function mapAutomation(row: WorkflowAutomationRow, definitionName?: string | null) {
   return {

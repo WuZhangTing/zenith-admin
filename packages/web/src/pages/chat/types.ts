@@ -1,4 +1,4 @@
-import type { ChatMessage } from '@zenith/shared';
+import type { ChatMessage } from '@zenith/shared/chat';
 
 export interface ChatUser {
   id: number;

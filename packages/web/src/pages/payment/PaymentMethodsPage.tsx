@@ -10,8 +10,8 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_LABELS } from '@zenith/shared';
-import type { PaymentChannel, PaymentMethod, PaymentMethodConfig } from '@zenith/shared';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_LABELS } from '@zenith/shared/payment';
+import type { PaymentChannel, PaymentMethod, PaymentMethodConfig } from '@zenith/shared/payment';
 import { paymentMethodKeys, usePaymentMethodList, useSavePaymentMethod } from '@/hooks/queries/payment-methods';
 
 interface MethodFormValues { label: string; icon?: string; sort?: number; enabled?: boolean; }

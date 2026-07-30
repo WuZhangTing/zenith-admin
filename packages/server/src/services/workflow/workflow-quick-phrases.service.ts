@@ -5,7 +5,7 @@ import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { formatDateTime } from '../../lib/datetime';
-import type { WorkflowQuickPhrase, CreateWorkflowQuickPhraseInput, UpdateWorkflowQuickPhraseInput } from '@zenith/shared';
+import type { WorkflowQuickPhrase, CreateWorkflowQuickPhraseInput, UpdateWorkflowQuickPhraseInput } from '@zenith/shared/workflow';
 
 type PhraseRow = typeof workflowQuickPhrases.$inferSelect;
 

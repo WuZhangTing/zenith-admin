@@ -4,27 +4,8 @@ import { HTTPException } from 'hono/http-exception';
 import { and, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
-import {
-  createReportDashboardSchema,
-  createReportDatasetSchema,
-  createReportPrintTemplateSchema,
-  reportGridItemSchema,
-  reportWidgetSchema,
-} from '@zenith/shared';
-import type {
-  ApplyReportAssetTemplateInput,
-  CreateReportAssetTemplateInput,
-  CreateReportDeprecationNoticeInput,
-  ReportAssetCatalogItem,
-  ReportAssetTemplate,
-  ReportAssetTemplateType,
-  ReportAssetUsageLog,
-  ReportAssetUsageSummary,
-  ReportDeprecationNotice,
-  ReportResourceType,
-  UpdateReportAssetTemplateInput,
-  UpdateReportDeprecationNoticeInput,
-} from '@zenith/shared';
+import { createReportDashboardSchema, createReportDatasetSchema, createReportPrintTemplateSchema, reportGridItemSchema, reportWidgetSchema } from '@zenith/shared/report';
+import type { ApplyReportAssetTemplateInput, CreateReportAssetTemplateInput, CreateReportDeprecationNoticeInput, ReportAssetCatalogItem, ReportAssetTemplate, ReportAssetTemplateType, ReportAssetUsageLog, ReportAssetUsageSummary, ReportDeprecationNotice, ReportResourceType, UpdateReportAssetTemplateInput, UpdateReportDeprecationNoticeInput } from '@zenith/shared/report';
 import { db } from '../../db';
 import {
   managedFiles,

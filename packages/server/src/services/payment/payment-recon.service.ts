@@ -26,7 +26,7 @@ import { buildAdapterContext } from './payment.service';
 import { getAdapter } from '../../lib/payment/registry';
 import logger from '../../lib/logger';
 import type { SQL } from 'drizzle-orm';
-import type { HandlePaymentReconItemInput, PaymentChannel, PaymentReconBatch, PaymentReconHandleStatus, PaymentReconItem, PaymentReconResult, PaymentReconStatus } from '@zenith/shared';
+import type { HandlePaymentReconItemInput, PaymentChannel, PaymentReconBatch, PaymentReconHandleStatus, PaymentReconItem, PaymentReconResult, PaymentReconStatus } from '@zenith/shared/payment';
 
 function genNo(prefix: string): string {
   return `${prefix}${Date.now()}${randomInt(1000, 9999)}`;

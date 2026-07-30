@@ -1,10 +1,5 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import type {
-  WorkflowApproverPreviewNode,
-  WorkflowDefinition,
-  WorkflowInstance,
-  WorkflowSelectableNextApproverGroup,
-} from '@zenith/shared';
+import type { WorkflowApproverPreviewNode, WorkflowDefinition, WorkflowInstance, WorkflowSelectableNextApproverGroup } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 

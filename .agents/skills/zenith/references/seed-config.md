@@ -19,7 +19,7 @@
 在为新模块分配 ID 前，**必须先读取实际文件**了解当前分布：
 
 ```text
-packages/shared/src/seed-data.ts   ← 查阅 SEED_MENUS 数组（含各段注释，如「─── 系统管理（1000 段）」）
+packages/shared/src/seed/{业务域}.ts   ← 查阅 SEED_MENUS 数组（含各段注释，如「─── 系统管理（1000 段）」）
 ```
 
 典型查询方式：
@@ -47,7 +47,7 @@ packages/shared/src/seed-data.ts   ← 查阅 SEED_MENUS 数组（含各段注�
 
 ---
 
-## Step 9：`packages/shared/src/seed-data.ts`
+## Step 9：`packages/shared/src/seed/{业务域}.ts`
 
 ### 新增目录（一级菜单 / 二级目录，若需要）
 
@@ -104,16 +104,16 @@ packages/shared/src/seed-data.ts   ← 查阅 SEED_MENUS 数组（含各段注�
 
 ---
 
-## Step 10：`packages/shared/src/seed-data.ts` + `packages/server/src/db/seed.ts`
+## Step 10：`packages/shared/src/seed/{业务域}.ts` + `packages/server/src/db/seed.ts`
 
 > **审计字段无需手填**：seed 脚本整体由 `runAsUser(adminId, ...)`（[`lib/audit-context.ts`](../../../../packages/server/src/lib/audit-context.ts)）包裹，所有 insert / update / onConflictDoUpdate 会被 db Proxy 自动注入 `createdBy = updatedBy = adminId`。**禁止**在种子数据数组中手动写 `createdBy` / `updatedBy`。
 
 ### Step 10a：先在 `shared/seed-data.ts` 声明常量
 
-初始数据**必须**先放到 `packages/shared/src/seed-data.ts`，使 DB seed 和 MSW mock 共用同一份数据源：
+初始数据**必须**先放到 `packages/shared/src/seed/{业务域}.ts`，使 DB seed 和 MSW mock 共用同一份数据源：
 
 ```ts
-// packages/shared/src/seed-data.ts（在文件末尾追加）
+// packages/shared/src/seed/{业务域}.ts（新增域时同步 seed/index.ts）
 import type { ..., Xxx } from './types';  // 在顶部 import 中添加 Xxx
 
 // ─── XXX 初始数据 ──────────────────────────────────────────────────────────────
@@ -127,7 +127,7 @@ export const SEED_XXXS: Xxx[] = [
 
 ```ts
 // packages/server/src/db/seed.ts — import 行追加：
-import { ..., SEED_XXXS } from '@zenith/shared';
+import { ..., SEED_XXXS } from '@zenith/shared/seed';
 
 // seedRest() 函数末尾追加：
 // ─── 初始 XXX 数据（数据来源：@zenith/shared SEED_XXXS）─────────────────────

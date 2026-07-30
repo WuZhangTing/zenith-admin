@@ -4,7 +4,7 @@ import { Button, Form, Input, Modal, Space, Tag, Toast, Typography } from '@douy
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Copy, Plus, RotateCcw, Search } from 'lucide-react';
-import type { ChatWebhook } from '@zenith/shared';
+import type { ChatWebhook } from '@zenith/shared/chat';
 import { UserAvatar } from '@/components/UserAvatar';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';

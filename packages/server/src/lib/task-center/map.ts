@@ -1,4 +1,4 @@
-import type { AsyncTask } from '@zenith/shared';
+import type { AsyncTask } from '@zenith/shared/tasks';
 import type { AsyncTaskRow } from '../../db/schema';
 import { formatDateTime, formatNullableDateTime } from '../datetime';
 import { sendToUser } from '../ws-manager';

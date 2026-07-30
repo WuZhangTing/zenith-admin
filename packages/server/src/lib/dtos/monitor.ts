@@ -2,7 +2,7 @@
  * 服务器监控相关 DTO
  */
 import { z } from '@hono/zod-openapi';
-import { monitorMetricValues } from '@zenith/shared';
+import { monitorMetricValues } from '@zenith/shared/platform';
 
 export const MonitorDTO = z
   .object({

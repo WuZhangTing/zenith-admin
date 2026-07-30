@@ -1,9 +1,7 @@
 import { http, HttpResponse } from 'msw';
-import {
-  CMS_PUBLISH_TARGET_TYPES,
-  type AsyncTask,
-  type CmsPublishTargetType,
-} from '@zenith/shared';
+import { CMS_PUBLISH_TARGET_TYPES } from '@zenith/shared/cms';
+import type { CmsPublishTargetType } from '@zenith/shared/cms';
+import type { AsyncTask } from '@zenith/shared/tasks';
 import {
   mockCmsPublishArtifacts,
   mockCmsPublishingTasks,

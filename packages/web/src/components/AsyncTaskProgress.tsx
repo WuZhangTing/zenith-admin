@@ -1,5 +1,5 @@
 import { Progress, Spin, Typography } from '@douyinfe/semi-ui';
-import type { AsyncTask } from '@zenith/shared';
+import type { AsyncTask } from '@zenith/shared/tasks';
 
 /** 通用异步任务进度单元格：确定进度显示进度条，不定进度显示 Spin + 说明文案 */
 export default function AsyncTaskProgress({ task }: { task: AsyncTask }) {

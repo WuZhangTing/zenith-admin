@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockTenantPackages, getNextTenantPackageId } from '@/mocks/data/tenant-packages';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { TenantPackage } from '@zenith/shared';
+import type { TenantPackage } from '@zenith/shared/identity';
 
 export const tenantPackagesHandlers = [
   // 全部套餐（下拉用）— 必须在 /:id 之前注册

@@ -2,8 +2,8 @@
  * 流程实例运行态聚合工具 —— 由 tasks 计算每个节点的状态与处理人。
  * 供「流程图」「节点列表」共用。
  */
-import type { WorkflowTask } from '@zenith/shared';
-import { WORKFLOW_INSTANCE_STATUS_LABELS, WORKFLOW_TASK_STATUS_LABELS } from '@zenith/shared';
+import type { WorkflowTask } from '@zenith/shared/workflow';
+import { WORKFLOW_INSTANCE_STATUS_LABELS, WORKFLOW_TASK_STATUS_LABELS } from '@zenith/shared/workflow';
 import type { FlowNode, FlowProcess, NodeRuntimeInfo } from '@/pages/workflow/designer/types';
 
 /** 线性化后的审批节点简要信息（用于展示流程全部节点，含未到达节点） */

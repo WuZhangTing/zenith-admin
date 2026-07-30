@@ -9,7 +9,7 @@ import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
 import { addWechatDraft } from '../../lib/wechat';
 import { mapWechatError } from '../../lib/wechat-error';
-import type { CreateMpDraftInput, UpdateMpDraftInput, MpArticle } from '@zenith/shared';
+import type { CreateMpDraftInput, UpdateMpDraftInput, MpArticle } from '@zenith/shared/mp';
 
 export function mapMpDraft(row: MpDraftRow) {
   return {

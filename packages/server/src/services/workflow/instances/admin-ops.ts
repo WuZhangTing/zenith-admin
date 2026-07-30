@@ -3,7 +3,7 @@ import { eq, and, asc, lte, inArray, gt } from 'drizzle-orm';
 import { db } from '../../../db';
 import { workflowInstances, workflowJobs, workflowTasks, workflowTokens, workflowDefinitions, workflowDelegations, users } from '../../../db/schema';
 import { tenantCondition } from '../../../lib/tenant';
-import type { WorkflowFlowData, WorkflowHandoverPreview, WorkflowHandoverResult, WorkflowRecoveryBatchResult } from '@zenith/shared';
+import type { WorkflowFlowData, WorkflowHandoverPreview, WorkflowHandoverResult, WorkflowRecoveryBatchResult } from '@zenith/shared/workflow';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../../lib/context';
 import { buildStarterContext } from '../workflow-assignee-resolver.service';

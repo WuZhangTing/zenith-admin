@@ -1,15 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  PaginatedResponse,
-  ReportDataset,
-  ReportDataResult,
-  ReportDatasetExecutionLog,
-  ReportDatasetPreviewInput,
-  ReportDatasetRefs,
-  ReportExecutionStats,
-  ReportMetaColumn,
-  ReportRuntimeGovernance,
-} from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { ReportDataset, ReportDataResult, ReportDatasetExecutionLog, ReportDatasetPreviewInput, ReportDatasetRefs, ReportExecutionStats, ReportMetaColumn, ReportRuntimeGovernance } from '@zenith/shared/report';
 import { request } from '@/utils/request';
 import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
 import { useReportLookup } from './report-lookups';

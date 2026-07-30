@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import type { ChatMessage, ChatMessageExtra, ChatReplySnapshot } from '@zenith/shared';
+import type { ChatMessage, ChatMessageExtra, ChatReplySnapshot } from '@zenith/shared/chat';
 import {
   mockChatConversations, mockChatUsers, getMockConvMessages,
   addMockMessage, getNextMsgId, mockChatMessages, mockGroupMembers,

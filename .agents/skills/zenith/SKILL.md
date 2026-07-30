@@ -42,8 +42,8 @@ Step 0 中必须同时确认以下可选项（决定后续步骤是否执行）�
 |------|------|------|
 | 1 | 数据库 Schema | `packages/server/src/db/schema/{业务域}.ts`（relations 在 `relations.ts`） |
 | 2 | 生成并执行迁移 | `npm run db:generate && npm run db:migrate` |
-| 3 | 共享 Zod Schema | `packages/shared/src/validation.ts` |
-| 4 | 共享 TS Interface | `packages/shared/src/types.ts` |
+| 3 | 共享 Zod Schema | `packages/shared/src/{业务域}/validation.ts` |
+| 4 | 共享 TS Interface | `packages/shared/src/{业务域}/types.ts` |
 | 5 | Service 层 | `packages/server/src/services/{业务域}/xxx.service.ts` |
 | 6 | OpenAPI Route | `packages/server/src/routes/{业务域}/xxx.ts` |
 | 7 | 注册路由 | `packages/server/src/routes/{业务域}/index.ts`（域 barrel，新增域需同步 `routes/index.ts`） |
@@ -73,7 +73,7 @@ Step 0 中必须同时确认以下可选项（决定后续步骤是否执行）�
 
 | Step | 任务 | 文件 | 条件 |
 |------|------|------|------|
-| 9 | 菜单/权限配置 | `packages/shared/src/seed-data.ts` | 总是 |
+| 9 | 菜单/权限配置 | `packages/shared/src/seed/menus.ts` | 总是 |
 | 10 | 种子数据 | `packages/server/src/db/seed.ts` | 总是 |
 | 11 | MSW Mock | `packages/web/src/mocks/data/xxxs.ts` + `handlers/xxxs.ts` | 仅 Step 0 确认需要时 |
 
@@ -86,6 +86,9 @@ MSW Mock 的详细代码模板见 [crud-mock.md](./references/crud-mock.md)。
 **后端：**
 - [ ] `npm run build` 无报错
 - [ ] 数据库迁移已执行
+- [ ] 共享类型/schema 写入 `packages/shared/src/{业务域}/`（不是根目录巨石文件）；新增域已建 `index.ts` 并在 `packages/shared/package.json` 的 `exports` 中登记
+- [ ] 全项目无 `from '@zenith/shared'` 根入口导入（一律 `@zenith/shared/{业务域}`；种子数据用 `@zenith/shared/seed`）
+- [ ] `npm run lint:cycles` 通过（无 ESM 值环）
 - [ ] 路由已挂载到 `packages/server/src/routes/{业务域}/index.ts`；新增域已加进 `routes/index.ts` 的 `ROUTE_DOMAINS`；路由表快照已用 `npx vitest run src/app.routes.test.ts -u` 更新并 review 过 diff
 - [ ] DTO 定义在 `lib/dtos/` 中，路由中没有本地 `.openapi()` 声明
 - [ ] Service 中没有 `c.json()` 或 `console.*`
@@ -107,7 +110,7 @@ MSW Mock 的详细代码模板见 [crud-mock.md](./references/crud-mock.md)。
 - [ ] Modal 表单 `labelPosition="left"`，`closeOnEsc`
 
 **配置：**
-- [ ] 菜单已添加到 `packages/shared/src/seed-data.ts`
+- [ ] 菜单已添加到 `packages/shared/src/seed/menus.ts`
 - [ ] 需要 MSW Mock → Step 11 已完成
 
 **约束对照：** 实现过程中随时查阅 [constraints.md](./references/constraints.md)。

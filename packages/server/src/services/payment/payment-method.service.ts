@@ -8,8 +8,8 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { paymentMethodConfigs, type PaymentMethodConfigRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
-import type { UpdatePaymentMethodConfigInput } from '@zenith/shared';
-import type { PaymentMethod, PaymentMethodConfig } from '@zenith/shared';
+import type { UpdatePaymentMethodConfigInput } from '@zenith/shared/payment';
+import type { PaymentMethod, PaymentMethodConfig } from '@zenith/shared/payment';
 
 export function mapMethodConfig(row: PaymentMethodConfigRow): PaymentMethodConfig {
   return {

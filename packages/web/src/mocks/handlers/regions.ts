@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockRegions, getNextRegionId, buildRegionTree } from '@/mocks/data/regions';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { Region } from '@zenith/shared';
+import type { Region } from '@zenith/shared/platform';
 
 // 与服务端一致的行政层级约束：province 仅根级、city 父须 province、county 父须 city
 function validateLevelHierarchy(level: Region['level'], parentCode: string | null | undefined): string | null {

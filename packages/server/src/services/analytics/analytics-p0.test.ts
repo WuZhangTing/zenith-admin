@@ -1,14 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { getTableConfig } from 'drizzle-orm/pg-core';
-import {
-  ANALYTICS_PROPERTIES_MAX_BYTES,
-  SEED_MENUS,
-  SEED_RATE_LIMIT_RULES,
-  createErrorAlertRuleSchema,
-  funnelStepSchema,
-  trackEventInputSchema,
-} from '@zenith/shared';
-import type { TrackEventInput } from '@zenith/shared';
+import { ANALYTICS_PROPERTIES_MAX_BYTES, createErrorAlertRuleSchema, funnelStepSchema, trackEventInputSchema } from '@zenith/shared/analytics';
+import { SEED_MENUS, SEED_RATE_LIMIT_RULES } from '@zenith/shared/seed';
+import type { TrackEventInput } from '@zenith/shared/analytics';
 import { userEvents, analyticsSettings } from '../../db/schema';
 import { getLegacyEventsWithoutIdCount, resolveDistinctId } from './analytics.service';
 

@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Tag, Select, Modal, Toast, Form } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, RotateCcw, Plus } from 'lucide-react';
-import type { DbBackup, BackupType, BackupStatus } from '@zenith/shared';
+import type { DbBackup, BackupType, BackupStatus } from '@zenith/shared/platform';
 import { AppModal } from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';

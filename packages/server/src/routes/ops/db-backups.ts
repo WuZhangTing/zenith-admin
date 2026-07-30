@@ -3,7 +3,7 @@ import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody } from '../../lib/openapi-schemas';
 import { DbBackupItemDTO } from '../../lib/openapi-dtos';
-import { createBackupSchema } from '@zenith/shared';
+import { createBackupSchema } from '@zenith/shared/platform';
 import { listDbBackups, createDbBackup, deleteDbBackup, getDbBackupBeforeAudit } from '../../services/ops/db-backups.service';
 
 const backups = new OpenAPIHono({ defaultHook: validationHook });

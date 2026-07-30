@@ -1,15 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import {
-  createReportDashboardSchema,
-  reportBatchStatusSchema,
-  reportCloneSchema,
-  reportDashboardDataBodySchema,
-  reportDashboardLifecycleActionSchema,
-  reportDashboardLifecycleStatusSchema,
-  reportLookupQuerySchema,
-  reportDashboardViewModeSchema,
-  updateReportDashboardSchema,
-} from '@zenith/shared';
+import { createReportDashboardSchema, reportBatchStatusSchema, reportCloneSchema, reportDashboardDataBodySchema, reportDashboardLifecycleActionSchema, reportDashboardLifecycleStatusSchema, reportLookupQuerySchema, reportDashboardViewModeSchema, updateReportDashboardSchema } from '@zenith/shared/report';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
@@ -46,7 +36,7 @@ import {
   offlineDashboard,
   publishDashboard,
 } from '../../services/report/report-ops.service';
-import type { ReportWidget } from '@zenith/shared';
+import type { ReportWidget } from '@zenith/shared/report';
 import { recordReportAssetUsage } from '../../services/report/report-asset-usage.service';
 import { resolveReportResource } from '../../services/report/report-resource.service';
 

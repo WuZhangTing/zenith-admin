@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { createReportSubscriptionSchema, updateReportSubscriptionSchema } from '@zenith/shared';
+import { createReportSubscriptionSchema, updateReportSubscriptionSchema } from '@zenith/shared/report';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {

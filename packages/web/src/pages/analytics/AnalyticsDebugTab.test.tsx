@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
-import type { AnalyticsDebugEvent } from '@zenith/shared';
+import type { AnalyticsDebugEvent } from '@zenith/shared/analytics';
 import { PreferencesContext, defaultPreferences } from '@/hooks/usePreferences';
 
 const useAnalyticsDebugEventsMock = vi.fn();

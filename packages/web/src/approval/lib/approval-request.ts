@@ -1,5 +1,5 @@
-import { TOKEN_KEY, REFRESH_TOKEN_KEY } from '@zenith/shared';
-import type { ApiResponse } from '@zenith/shared';
+import { TOKEN_KEY, REFRESH_TOKEN_KEY } from '@zenith/shared/core';
+import type { ApiResponse } from '@zenith/shared/core';
 import { config } from '@/config';
 import { HttpClient, type HttpRequestOptions } from '@/utils/http-client';
 

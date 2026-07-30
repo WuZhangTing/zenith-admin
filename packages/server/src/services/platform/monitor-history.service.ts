@@ -15,7 +15,7 @@ import logger from '../../lib/logger';
 import { getDisks, getLinuxMemInfo } from './monitor.service';
 import { getLatestEngineHealthMetrics } from '../workflow/workflow-engine-ops.service';
 import { getWorkflowJobAlertMetrics } from '../workflow/workflow-jobs.service';
-import type { MonitorMetric } from '@zenith/shared';
+import type { MonitorMetric } from '@zenith/shared/platform';
 
 export type MetricSnapshot = Record<MonitorMetric, number>;
 

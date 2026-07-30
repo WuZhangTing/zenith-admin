@@ -10,7 +10,7 @@ import { ensureMpAccountExists } from './mp-account.service';
 import { getWechatKfList, addWechatKfAccount, updateWechatKfAccount, delWechatKfAccount } from '../../lib/wechat';
 import { mapWechatError } from '../../lib/wechat-error';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import type { CreateMpKfAccountInput, UpdateMpKfAccountInput } from '@zenith/shared';
+import type { CreateMpKfAccountInput, UpdateMpKfAccountInput } from '@zenith/shared/mp';
 
 export function mapMpKfAccount(row: MpKfAccountRow) {
   return {

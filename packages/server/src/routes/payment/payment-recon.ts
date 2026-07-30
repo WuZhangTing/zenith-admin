@@ -23,7 +23,7 @@ import {
   handleReconItem,
   autoReconcileForCurrentUser,
 } from '../../services/payment/payment-recon.service';
-import { handlePaymentReconItemSchema } from '@zenith/shared';
+import { handlePaymentReconItemSchema } from '@zenith/shared/payment';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 const channelEnum = z.enum(['wechat', 'alipay', 'unionpay']);

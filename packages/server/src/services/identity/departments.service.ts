@@ -6,7 +6,7 @@ import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import type { Department, createDepartmentSchema, updateDepartmentSchema } from '@zenith/shared';
+import type { Department, createDepartmentSchema, updateDepartmentSchema } from '@zenith/shared/identity';
 import type { z } from 'zod';
 
 export type CreateDepartmentInput = z.infer<typeof createDepartmentSchema>;

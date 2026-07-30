@@ -1,5 +1,5 @@
-import { SEED_INAPP_TEMPLATES } from '@zenith/shared';
-import type { InAppTemplate } from '@zenith/shared';
+import { SEED_INAPP_TEMPLATES } from '@zenith/shared/seed';
+import type { InAppTemplate } from '@zenith/shared/messaging';
 
 export const mockInAppTemplates: InAppTemplate[] = [...SEED_INAPP_TEMPLATES];
 

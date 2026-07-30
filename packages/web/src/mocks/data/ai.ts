@@ -1,5 +1,5 @@
 import { mockDateTimeOffset } from '@/mocks/utils/date';
-import type { AiConversation, AiMessage, AiProviderConfig } from '@zenith/shared';
+import type { AiConversation, AiMessage, AiProviderConfig } from '@zenith/shared/ai';
 
 export const mockAiProviders: AiProviderConfig[] = [
   {

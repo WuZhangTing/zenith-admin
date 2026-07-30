@@ -25,7 +25,7 @@ import type {
   WorkflowTriggerExecution,
   WorkflowTriggerExecutionStatus,
   WorkflowTriggerType,
-} from '@zenith/shared/types';
+} from '@zenith/shared/workflow';
 import {
   useWorkflowTriggerExecutionDetail,
   useWorkflowTriggerExecutionList,

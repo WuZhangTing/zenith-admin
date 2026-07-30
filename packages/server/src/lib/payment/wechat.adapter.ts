@@ -9,7 +9,7 @@ import { HTTPException } from 'hono/http-exception';
 import { httpGet, httpPost } from '../http-client';
 import { formatDateTime } from '../datetime';
 import logger from '../logger';
-import type { CreatePaymentResult } from '@zenith/shared';
+import type { CreatePaymentResult } from '@zenith/shared/payment';
 import { rsaSign, rsaVerify, aesGcmDecrypt, ensurePem } from './signing';
 import { getPlatformCert } from './wechat-certs';
 import type {

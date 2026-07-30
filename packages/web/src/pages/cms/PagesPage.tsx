@@ -20,8 +20,8 @@ import {
 } from '@/hooks/queries/cms';
 import { useAllRoles } from '@/hooks/queries/roles';
 import { useAllUsers } from '@/hooks/queries/users';
-import { CMS_PAGE_BLOCK_AUDIENCE_LABELS, CMS_PAGE_BLOCK_TYPES, cmsCustomPagePath } from '@zenith/shared';
-import type { CmsChannel, CmsPage, CmsPageBlock, CmsPageBlockType } from '@zenith/shared';
+import { CMS_PAGE_BLOCK_AUDIENCE_LABELS, CMS_PAGE_BLOCK_TYPES, cmsCustomPagePath } from '@zenith/shared/cms';
+import type { CmsChannel, CmsPage, CmsPageBlock, CmsPageBlockType } from '@zenith/shared/cms';
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 import { formatDateTimeForApi } from '@/utils/date';
 import { useCmsWidgetRenderers, usePublishedCmsWidgets } from '@/hooks/queries/cms-widgets';

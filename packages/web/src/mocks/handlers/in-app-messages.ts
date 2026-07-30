@@ -3,7 +3,7 @@ import { mockInAppMessages, getNextInAppMessageId } from '@/mocks/data/in-app-me
 import { mockInAppTemplates } from '@/mocks/data/in-app-templates';
 import { mockUsers } from '@/mocks/data/users';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { InAppMessage } from '@zenith/shared';
+import type { InAppMessage } from '@zenith/shared/messaging';
 
 export const inAppMessagesHandlers = [
   http.get('/api/in-app-messages/admin', ({ request }) => {

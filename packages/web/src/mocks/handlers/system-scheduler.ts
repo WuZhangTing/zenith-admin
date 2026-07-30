@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import type { SystemSchedulerNode, SystemSchedulerRun, SystemSchedulerTask } from '@zenith/shared';
+import type { SystemSchedulerNode, SystemSchedulerRun, SystemSchedulerTask } from '@zenith/shared/platform';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 
 function baseTask(extra: Partial<SystemSchedulerTask>): SystemSchedulerTask {

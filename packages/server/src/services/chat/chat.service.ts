@@ -12,9 +12,8 @@ import { pageOffset } from '../../lib/pagination';
 import { httpGet } from '../../lib/http-client';
 import { config } from '../../config';
 import { HTTPException } from 'hono/http-exception';
-import type {
-  SendChatMessageInput, ForwardMessagesInput, ChatMessage, ChatConversation, ChatLinkPreview, ChatMessageExtra, ChatMessageSearchResult, ChatMessageContext, ChatForwardedItem, ChatReactionGroup, ChatVoteData, ChatReadState, ChatPresence, ChatMessageType, ChatCallRecordInput, RtcConfig,
-} from '@zenith/shared';
+import type { ForwardMessagesInput, ChatMessage, ChatConversation, ChatLinkPreview, ChatMessageExtra, ChatMessageSearchResult, ChatMessageContext, ChatForwardedItem, ChatReactionGroup, ChatVoteData, ChatReadState, ChatPresence, ChatMessageType, ChatCallRecordInput, RtcConfig } from '@zenith/shared/chat';
+import type { SendChatMessageInput } from '@zenith/shared/messaging';
 
 const IMAGE_EXT_RE = /\.(?:png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i;
 

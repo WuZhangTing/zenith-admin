@@ -36,12 +36,9 @@ import {
   defaultReportOwnerId,
   validateReportResourcePlacement,
 } from './report-resource.service';
-import { isExternalDbType, REPORT_DATASOURCE_TYPES } from '@zenith/shared';
+import { isExternalDbType, REPORT_DATASOURCE_TYPES } from '@zenith/shared/report';
 import type { ReportDatasourceRow } from '../../db/schema';
-import type {
-  ReportDatasource, ReportDatasourceConfig, ReportDatasourceType, ReportExternalDbConfig, ReportApiDatasourceConfig,
-  CreateReportDatasourceInput, UpdateReportDatasourceInput, ReportDatasourceTestInput, ReportLookupOption,
-} from '@zenith/shared';
+import type { ReportDatasource, ReportDatasourceConfig, ReportDatasourceType, ReportExternalDbConfig, ReportApiDatasourceConfig, CreateReportDatasourceInput, UpdateReportDatasourceInput, ReportDatasourceTestInput, ReportLookupOption } from '@zenith/shared/report';
 
 type DatasourceRowExt = ReportDatasourceRow & {
   folder?: { name: string } | null;

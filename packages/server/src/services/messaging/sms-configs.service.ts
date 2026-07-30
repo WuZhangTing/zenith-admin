@@ -6,7 +6,7 @@ import type { SmsConfigRow } from '../../db/schema';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
-import type { CreateSmsConfigInput, UpdateSmsConfigInput, SmsProvider } from '@zenith/shared';
+import type { CreateSmsConfigInput, UpdateSmsConfigInput, SmsProvider } from '@zenith/shared/messaging';
 
 const SECRET_MASK = '******';
 

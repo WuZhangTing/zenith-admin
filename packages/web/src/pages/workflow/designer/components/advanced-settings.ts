@@ -1,4 +1,4 @@
-import type { WorkflowSerialNoConfig, WorkflowNotifyChannels, WorkflowApproverDedupMode } from '@zenith/shared';
+import type { WorkflowSerialNoConfig, WorkflowNotifyChannels, WorkflowApproverDedupMode } from '@zenith/shared/workflow';
 
 export interface AdvancedSettingsData {
   allowWithdraw: boolean;

@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-  createDeveloperOAuth2ClientSchema,
-  isSafeOAuthRedirectUri,
-  updateOAuth2ClientSchema,
-} from '@zenith/shared';
+import { isSafeOAuthRedirectUri } from '@zenith/shared/identity';
+import { createDeveloperOAuth2ClientSchema, updateOAuth2ClientSchema } from '@zenith/shared/open-platform';
 
 describe('开放平台安全约束', () => {
   it('拒绝可执行脚本的 OAuth 回调协议', () => {

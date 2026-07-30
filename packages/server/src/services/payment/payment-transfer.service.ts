@@ -25,8 +25,8 @@ import { buildAdapterContext } from './payment.service';
 import { recordLedgerEntry } from './payment-ledger.service';
 import { getAdapter } from '../../lib/payment/registry';
 import logger from '../../lib/logger';
-import type { CreatePaymentTransferInput, PaymentChannel, PaymentTransfer, PaymentTransferStatus } from '@zenith/shared';
-import { PAYMENT_CHANNEL_LABELS } from '@zenith/shared';
+import type { CreatePaymentTransferInput, PaymentChannel, PaymentTransfer, PaymentTransferStatus } from '@zenith/shared/payment';
+import { PAYMENT_CHANNEL_LABELS } from '@zenith/shared/payment';
 
 const MAX_TRANSFER_ATTEMPTS = 3;
 

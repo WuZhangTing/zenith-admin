@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Space, Tag, Toast } from '@douyinfe/semi-ui';
 import { Bookmark } from 'lucide-react';
-import type { WorkflowSavedView } from '@zenith/shared';
+import type { WorkflowSavedView } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 import AppModal from '@/components/AppModal';

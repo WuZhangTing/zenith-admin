@@ -13,7 +13,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { useAiHttpTools, useSaveAiHttpTool, useDeleteAiHttpTool } from '@/hooks/queries/ai-tools';
-import type { AiHttpTool, AiHttpToolParam, CreateAiHttpToolInput } from '@zenith/shared';
+import type { AiHttpTool, AiHttpToolParam, CreateAiHttpToolInput } from '@zenith/shared/ai';
 
 const { Text } = Typography;
 

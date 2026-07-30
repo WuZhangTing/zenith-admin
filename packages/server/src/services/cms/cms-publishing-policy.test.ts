@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CmsPublishSubmitInput } from '@zenith/shared';
+import type { CmsPublishSubmitInput } from '@zenith/shared/cms';
 import {
   buildCmsPublishDedupeFingerprint,
   canAccessCmsPublishingTask,

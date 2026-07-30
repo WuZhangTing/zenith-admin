@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AsyncTask, PaginatedResponse, WsMessage } from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { WsMessage } from '@zenith/shared/platform';
+import type { AsyncTask } from '@zenith/shared/tasks';
 import { request } from '@/utils/request';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { unwrap } from '@/lib/query';

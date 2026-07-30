@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import type { LdapDirectoryUser, TenantIdentityProvider } from '@zenith/shared';
+import type { LdapDirectoryUser, TenantIdentityProvider } from '@zenith/shared/identity';
 import { mockDateTime } from '../utils/date';
 
 const API = import.meta.env.VITE_API_BASE_URL || '';

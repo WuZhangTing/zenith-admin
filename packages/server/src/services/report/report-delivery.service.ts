@@ -16,16 +16,7 @@ import { sendEmail } from '../messaging/email-send-logs.service';
 import { sendInApp } from '../messaging/in-app-messages.service';
 import { reportScopedWhere, reportTenantScope } from './report-access';
 import { resolveReportSecret } from './report-secrets';
-import type {
-  ReportAlertRule,
-  ReportDashboardSubscription,
-  ReportDeliveryAttempt,
-  ReportDeliveryRun,
-  ReportDeliveryStatus,
-  ReportDeliveryTriggerType,
-  ReportNotifyChannel,
-  ReportScheduleMisfirePolicy,
-} from '@zenith/shared';
+import type { ReportAlertRule, ReportDashboardSubscription, ReportDeliveryAttempt, ReportDeliveryRun, ReportDeliveryStatus, ReportDeliveryTriggerType, ReportNotifyChannel, ReportScheduleMisfirePolicy } from '@zenith/shared/report';
 
 const emailSchema = z.email('邮箱格式不正确');
 

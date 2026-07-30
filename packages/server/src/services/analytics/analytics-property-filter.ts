@@ -9,7 +9,7 @@
 import { sql, type SQL } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { HTTPException } from 'hono/http-exception';
-import type { AnalyticsSegmentPropertyFilter, AnalyticsSegmentCompareOp } from '@zenith/shared';
+import type { AnalyticsSegmentPropertyFilter, AnalyticsSegmentCompareOp } from '@zenith/shared/analytics';
 
 /** 属性 key 白名单：字母数字下划线点横线，1~64 位，禁止任意字符（杜绝 jsonb 路径注入） */
 export const PROPERTY_KEY_RE = /^[a-zA-Z0-9_.-]{1,64}$/;

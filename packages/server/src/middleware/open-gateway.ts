@@ -14,10 +14,7 @@ import { config } from '../config';
 import { errBody } from '../lib/openapi-schemas';
 import { getClientIp } from '../lib/request-helpers';
 import logger from '../lib/logger';
-import {
-  OPEN_SIGNATURE_HEADERS as H,
-  OPEN_SIGNATURE_TIMESTAMP_WINDOW,
-} from '@zenith/shared';
+import { OPEN_SIGNATURE_HEADERS as H, OPEN_SIGNATURE_TIMESTAMP_WINDOW } from '@zenith/shared/open-platform';
 import { signRequest, timingSafeEqualHex } from '../lib/open-signature';
 import { getOpenApiApp, recordOpenApiCall, type OpenApiAppContext } from '../services/open-platform/open-gateway.service';
 import { getRatePlanRowById, getDefaultRatePlanRow } from '../services/open-platform/rate-plans.service';

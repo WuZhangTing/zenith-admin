@@ -5,18 +5,8 @@ import { useRef } from 'react';
 import dayjs from 'dayjs';
 import { Divider, Form, Radio, Space, Tag, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import type { WorkflowSerialNoConfig, WorkflowNotifyChannels } from '@zenith/shared';
-import {
-  WORKFLOW_APPROVER_DEDUP_OPTIONS,
-  WORKFLOW_SUMMARY_MAX_FIELDS,
-  isWorkflowSummaryCapableField,
-  resolveApproverDedupMode,
-  renderWorkflowSerialNo,
-  WORKFLOW_SERIAL_DATE_FORMAT_OPTIONS,
-  WORKFLOW_SERIAL_RESET_PERIOD_OPTIONS,
-  WORKFLOW_SERIAL_TOKENS,
-  WORKFLOW_SERIAL_SAMPLE_VARS,
-} from '@zenith/shared';
+import type { WorkflowSerialNoConfig, WorkflowNotifyChannels } from '@zenith/shared/workflow';
+import { WORKFLOW_APPROVER_DEDUP_OPTIONS, WORKFLOW_SUMMARY_MAX_FIELDS, isWorkflowSummaryCapableField, resolveApproverDedupMode, renderWorkflowSerialNo, WORKFLOW_SERIAL_DATE_FORMAT_OPTIONS, WORKFLOW_SERIAL_RESET_PERIOD_OPTIONS, WORKFLOW_SERIAL_TOKENS, WORKFLOW_SERIAL_SAMPLE_VARS } from '@zenith/shared/workflow';
 import type { AdvancedSettingsData } from './advanced-settings';
 import { DEFAULT_SERIAL_NO } from './advanced-settings';
 

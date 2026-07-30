@@ -6,7 +6,7 @@
 
 ## 内置配置项参考
 
-以下是系统预置的 24 个配置项（由 `db:seed` 初始化，源文件：`packages/shared/src/seed-data.ts`）。
+以下是系统预置的 24 个配置项（由 `db:seed` 初始化，源文件：`packages/shared/src/seed/{业务域}.ts`）。
 
 ---
 
@@ -259,7 +259,7 @@ const maxAttempts = await getConfigNumber('login_max_attempts', 10);
 
 ## 如何新增内置配置
 
-1. 在 `packages/shared/src/seed-data.ts` 的 `SEED_SYSTEM_CONFIGS` 数组中追加记录：
+1. 在 `packages/shared/src/seed/{业务域}.ts` 的 `SEED_SYSTEM_CONFIGS` 数组中追加记录：
 
 ```typescript
 { id: 24, configKey: 'your_key', configValue: 'default', configType: 'string', description: '配置项说明', createdAt: SEED_DATE, updatedAt: SEED_DATE },

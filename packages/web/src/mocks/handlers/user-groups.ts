@@ -3,7 +3,7 @@ import { mockUserGroups, getNextUserGroupId } from '@/mocks/data/user-groups';
 import { mockUsers } from '@/mocks/data/users';
 import { mockRoles } from '@/mocks/data/roles';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { UserGroup } from '@zenith/shared';
+import type { UserGroup } from '@zenith/shared/identity';
 
 interface CreateBody {
   name: string;

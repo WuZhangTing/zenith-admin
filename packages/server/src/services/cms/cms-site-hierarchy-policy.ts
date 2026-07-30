@@ -1,4 +1,4 @@
-import { CMS_SITE_MAX_DEPTH } from '@zenith/shared';
+import { CMS_SITE_MAX_DEPTH } from '@zenith/shared/cms';
 
 export interface CmsSiteHierarchyNode {
   id: number;

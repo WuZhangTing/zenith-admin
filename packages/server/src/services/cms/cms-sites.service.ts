@@ -17,15 +17,9 @@ import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers'
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import logger from '../../lib/logger';
 import { currentUser, hasPermission } from '../../lib/context';
-import {
-  CMS_SITE_INHERITABLE_FIELDS,
-  CMS_SITE_MAX_DEPTH,
-  type AsyncTask,
-  type CmsSiteInheritableField,
-  type CmsSiteInheritanceFlags,
-  type CreateCmsSiteInput,
-  type UpdateCmsSiteInput,
-} from '@zenith/shared';
+import { CMS_SITE_INHERITABLE_FIELDS, CMS_SITE_MAX_DEPTH } from '@zenith/shared/cms';
+import type { CmsSiteInheritableField, CmsSiteInheritanceFlags, CreateCmsSiteInput, UpdateCmsSiteInput } from '@zenith/shared/cms';
+import type { AsyncTask } from '@zenith/shared/tasks';
 import { assertSiteTemplateSettings, assertSiteThemeConfig, pruneStaleTemplateDefaults } from './cms-template-refs.service';
 import { isCmsPlatformAdmin } from './cms-access';
 import {

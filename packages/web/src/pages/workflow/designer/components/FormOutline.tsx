@@ -5,7 +5,7 @@
 import { useMemo } from 'react';
 import { Tree, Typography } from '@douyinfe/semi-ui';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
-import type { WorkflowFormField } from '@zenith/shared';
+import type { WorkflowFormField } from '@zenith/shared/workflow';
 import { FORM_FIELD_TYPES } from '../form-types';
 
 interface FormOutlineProps {

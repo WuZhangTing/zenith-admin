@@ -16,14 +16,8 @@ import { createPgDumpBackup, createDrizzleExportBackup } from './db-backup';
 import { formatFileTimestamp, formatDateTime } from './datetime';
 import { config } from '../config';
 import { notifyUsersWithCard } from '../services/chat/chat-notify.service';
-import type {
-  ChatCard,
-  SystemSchedulerTaskBase,
-  SystemSchedulerTaskType,
-  SystemSchedulerRunStatus,
-  SystemSchedulerTriggerType,
-  SystemSchedulerAlertChannel,
-} from '@zenith/shared';
+import type { ChatCard, SystemSchedulerAlertChannel } from '@zenith/shared/chat';
+import type { SystemSchedulerTaskBase, SystemSchedulerTaskType, SystemSchedulerRunStatus, SystemSchedulerTriggerType } from '@zenith/shared/platform';
 import { sendMail } from './email';
 import { httpPost } from './http-client';
 

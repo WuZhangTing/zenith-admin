@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Checkbox, Input, Modal, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import { Check, CheckCheck, CircleCheckBig, ClipboardCheck, FilePlus2, ListChecks, LogOut, Plus, Search, Send, type LucideIcon } from 'lucide-react';
-import { TOKEN_KEY, REFRESH_TOKEN_KEY } from '@zenith/shared';
+import { TOKEN_KEY, REFRESH_TOKEN_KEY } from '@zenith/shared/core';
 import { formatDateTime } from '@/utils/date';
 import { UserAvatar } from '@/components/UserAvatar';
 import WorkflowSummaryLine from '@/components/workflow/WorkflowSummaryLine';

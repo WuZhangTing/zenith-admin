@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, inArray, isNull, lt, lte, or, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type { CmsAdEventType, CmsDeviceType } from '@zenith/shared';
+import type { CmsAdEventType, CmsDeviceType } from '@zenith/shared/cms';
 import { db } from '../../db';
 import {
   cmsAdEvents,

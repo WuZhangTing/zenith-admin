@@ -3,7 +3,7 @@ import { mockPositions, getNextPositionId } from '@/mocks/data/positions';
 import { mockUsers } from '@/mocks/data/users';
 import { mockDepartments } from '@/mocks/data/departments';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { Position } from '@zenith/shared';
+import type { Position } from '@zenith/shared/identity';
 
 function findDepartmentName(departmentId: number | null | undefined): string | null {
   if (!departmentId) return null;

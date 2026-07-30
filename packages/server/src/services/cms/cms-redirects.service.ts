@@ -7,7 +7,7 @@ import { formatDateTime } from '../../lib/datetime';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { assertSiteAccess } from './cms-sites.service';
-import type { CreateCmsRedirectInput, UpdateCmsRedirectInput } from '@zenith/shared';
+import type { CreateCmsRedirectInput, UpdateCmsRedirectInput } from '@zenith/shared/cms';
 
 // ─── 开放重定向防护 ────────────────────────────────────────────────────────────
 /** 目标地址是否可信：站内相对路径，或域名属于本系统任一站点（站群互跳） */

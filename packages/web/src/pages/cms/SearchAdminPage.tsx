@@ -18,8 +18,9 @@ import {
   useBatchCmsSearchWords, useCmsHotwordGroups, useSaveCmsHotwordGroup, useDeleteCmsHotwordGroup,
   useSaveCmsHotword, useDeleteCmsHotword,
 } from '@/hooks/queries/cms';
-import { CMS_SEARCH_WORD_TYPES, CMS_SEARCH_WORD_TYPE_LABELS, COMMON_STATUS_OPTIONS } from '@zenith/shared';
-import type { CmsSearchResult, CmsSearchWord, CmsHotKeyword } from '@zenith/shared';
+import { CMS_SEARCH_WORD_TYPES, CMS_SEARCH_WORD_TYPE_LABELS } from '@zenith/shared/cms';
+import { COMMON_STATUS_OPTIONS } from '@zenith/shared/core';
+import type { CmsSearchResult, CmsSearchWord, CmsHotKeyword } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { formatDateTimeForApi } from '@/utils/date';
 

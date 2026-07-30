@@ -13,12 +13,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type {
-  ReportEnvironment,
-  ReportEnvironmentPromotion,
-  ReportPromotionStatus,
-  ReportResourceType,
-} from '@zenith/shared';
+import type { ReportEnvironment, ReportEnvironmentPromotion, ReportPromotionStatus, ReportResourceType } from '@zenith/shared/report';
 import { Plus, Rocket } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';

@@ -1,6 +1,6 @@
 import { workflowDefinitions, workflowDefinitionVersions, workflowForms, workflowCategories, workflowInstances, users, userRoles } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
-import type { WorkflowFormSchema, WorkflowCustomFormConfig, WorkflowFormType } from '@zenith/shared';
+import type { WorkflowFormSchema, WorkflowCustomFormConfig, WorkflowFormType } from '@zenith/shared/workflow';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 
@@ -77,8 +77,8 @@ import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { normalizeFlowData } from '../../lib/workflow-engine';
 import { analyzeWorkflowHealth } from '../../lib/workflow-health';
 import { buildVersionDiff } from '../../lib/workflow-version-diff';
-import type { WorkflowFlowData } from '@zenith/shared';
-import { WORKFLOW_SCHEMA_VERSION, collectReferencedFormFieldKeys } from '@zenith/shared';
+import type { WorkflowFlowData } from '@zenith/shared/workflow';
+import { WORKFLOW_SCHEMA_VERSION, collectReferencedFormFieldKeys } from '@zenith/shared/workflow';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import type { DbExecutor } from '../../db/types';

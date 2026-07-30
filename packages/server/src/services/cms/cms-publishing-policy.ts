@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { CmsPublishSubmitInput } from '@zenith/shared';
+import type { CmsPublishSubmitInput } from '@zenith/shared/cms';
 
 /** 递归按 key 排序的 canonical JSON（用于提交去重指纹） */
 function canonicalizeCmsJson(value: unknown): string {

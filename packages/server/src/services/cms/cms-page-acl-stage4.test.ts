@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFile } from 'node:fs/promises';
-import type { CmsPageBlock } from '@zenith/shared';
+import type { CmsPageBlock } from '@zenith/shared/cms';
 import {
   assertCmsPageBlockMutationAllowed,
   cmsPageRequiresDynamic,

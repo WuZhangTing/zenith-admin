@@ -14,7 +14,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus, RotateCcw, Search, Tags, Trash2 } from 'lucide-react';
-import type { Tag } from '@zenith/shared';
+import type { Tag } from '@zenith/shared/platform';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { SearchToolbar } from '@/components/SearchToolbar';

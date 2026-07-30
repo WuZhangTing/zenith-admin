@@ -1,5 +1,5 @@
-import type { MpQrcode } from '@zenith/shared';
-import { SEED_MP_QRCODES } from '@zenith/shared';
+import type { MpQrcode } from '@zenith/shared/mp';
+import { SEED_MP_QRCODES } from '@zenith/shared/seed';
 
 export const mockMpQrcodes: MpQrcode[] = SEED_MP_QRCODES.map((q) => ({ ...q }));
 

@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockMpMaterials, getNextMpMaterialId } from '@/mocks/data/mp-materials';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { MpMaterial } from '@zenith/shared';
+import type { MpMaterial } from '@zenith/shared/mp';
 
 export const mpMaterialsHandlers = [
   http.get('/api/mp/materials', ({ request }) => {

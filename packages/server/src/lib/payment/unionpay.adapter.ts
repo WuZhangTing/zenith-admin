@@ -10,7 +10,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { HTTPException } from 'hono/http-exception';
 import { httpPost } from '../http-client';
 import logger from '../logger';
-import type { CreatePaymentResult } from '@zenith/shared';
+import type { CreatePaymentResult } from '@zenith/shared/payment';
 import { rsaSign, rsaVerify, ensurePem } from './signing';
 import type {
   AdapterContext,

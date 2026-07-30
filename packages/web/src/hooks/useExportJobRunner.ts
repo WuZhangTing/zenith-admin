@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { Toast } from '@douyinfe/semi-ui';
-import type { ExportJobCreateResult, ExportJobFormat, ExportJobRequestMode } from '@zenith/shared';
+import type { ExportJobCreateResult, ExportJobFormat, ExportJobRequestMode } from '@zenith/shared/tasks';
 import { unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
 

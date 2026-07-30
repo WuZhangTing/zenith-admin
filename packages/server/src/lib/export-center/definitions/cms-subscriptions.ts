@@ -1,6 +1,6 @@
 import { db } from '../../../db';
 import { cmsMemberSubscriptions } from '../../../db/schema';
-import { CMS_SUBSCRIPTION_SUBJECT_TYPE_LABELS } from '@zenith/shared';
+import { CMS_SUBSCRIPTION_SUBJECT_TYPE_LABELS } from '@zenith/shared/cms';
 import {
   buildCmsSubscriptionWhere,
   streamCmsSubscriptions,

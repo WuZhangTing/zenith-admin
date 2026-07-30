@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { submitCmsCommentSchema, submitCmsInteractionSchema } from '@zenith/shared';
+import { submitCmsCommentSchema, submitCmsInteractionSchema } from '@zenith/shared/cms';
 import { resolveSiteByCode } from '../../services/cms/cms-sites.service';
 import { getCmsCommentSite, submitCmsComment, likeCmsComment, throttleFrontSubmit } from '../../services/cms/cms-comments.service';
 import { getCmsFormByCode, submitCmsForm } from '../../services/cms/cms-forms.service';

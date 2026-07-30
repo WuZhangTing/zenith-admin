@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import type { WorkflowHealthIssue, WorkflowHealthSummary } from '@zenith/shared';
+import type { WorkflowHealthIssue, WorkflowHealthSummary } from '@zenith/shared/workflow';
 import { mockWorkflowInstances, mockWorkflowTasks } from '@/mocks/data/workflow';
 import { mockDateTime } from '@/mocks/utils/date';
 

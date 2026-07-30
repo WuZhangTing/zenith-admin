@@ -33,13 +33,8 @@ import {
   Trash2,
   UserRound,
 } from 'lucide-react';
-import type {
-  ReportChatbiMessage,
-  ReportChatbiSavedResource,
-  ReportChatbiSession,
-  ReportWidgetType,
-} from '@zenith/shared';
-import { REPORT_CHATBI_SESSION_STATUS_LABELS } from '@zenith/shared';
+import type { ReportChatbiMessage, ReportChatbiSavedResource, ReportChatbiSession, ReportWidgetType } from '@zenith/shared/report';
+import { REPORT_CHATBI_SESSION_STATUS_LABELS } from '@zenith/shared/report';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { NavListItem, NavListPanel } from '@/components/NavListPanel';
 import AppModal from '@/components/AppModal';

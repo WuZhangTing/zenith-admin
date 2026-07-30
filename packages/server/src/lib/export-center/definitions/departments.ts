@@ -5,7 +5,7 @@ import { currentUser } from '../../context';
 import { tenantCondition } from '../../tenant';
 import { buildLeaderMap } from '../../../services/identity/departments.service';
 import { defineExport } from '../registry';
-import { COMMON_STATUS_LABELS } from '@zenith/shared';
+import { COMMON_STATUS_LABELS } from '@zenith/shared/core';
 import type { ExportColumn } from '../types';
 
 const CATEGORY_LABELS: Record<string, string> = { group: '集团', company: '公司', department: '部门' };

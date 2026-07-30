@@ -18,8 +18,9 @@ import { useAllUsers } from '@/hooks/queries/users';
 import { request } from '@/utils/request';
 import { slugifyName } from '@/utils/slug';
 import { unwrap } from '@/lib/query';
-import { CMS_CHANNEL_DETAIL_PATH_RULE_LABELS, CMS_CHANNEL_DETAIL_PATH_RULES, CMS_CHANNEL_STATIC_MODE_LABELS, CMS_CHANNEL_STATIC_MODES, CMS_CHANNEL_TYPE_LABELS } from '@zenith/shared';
-import type { CmsChannel, CmsContent, PaginatedResponse } from '@zenith/shared';
+import { CMS_CHANNEL_DETAIL_PATH_RULE_LABELS, CMS_CHANNEL_DETAIL_PATH_RULES, CMS_CHANNEL_STATIC_MODE_LABELS, CMS_CHANNEL_STATIC_MODES, CMS_CHANNEL_TYPE_LABELS } from '@zenith/shared/cms';
+import type { CmsChannel, CmsContent } from '@zenith/shared/cms';
+import type { PaginatedResponse } from '@zenith/shared/core';
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 import { CmsWidgetSourceRefsSheet, type CmsWidgetSourceTarget } from './CmsWidgetSourceRefsSheet';
 

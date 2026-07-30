@@ -5,7 +5,7 @@
  * initPaymentAdapters() 中调用 registerAdapter() 即可，门面与业务层零改动。
  */
 import { HTTPException } from 'hono/http-exception';
-import type { PaymentChannel } from '@zenith/shared';
+import type { PaymentChannel } from '@zenith/shared/payment';
 import type { PaymentChannelAdapter } from './types';
 
 const adapterRegistry = new Map<PaymentChannel, PaymentChannelAdapter>();

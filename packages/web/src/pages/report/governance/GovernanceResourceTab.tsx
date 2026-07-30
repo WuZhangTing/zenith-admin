@@ -15,7 +15,8 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { REPORT_RESOURCE_TYPES, type ReportAclSubjectType, type ReportFolderTreeNode, type ReportResourceAcl, type ReportResourceType } from '@zenith/shared';
+import { REPORT_RESOURCE_TYPES } from '@zenith/shared/report';
+import type { ReportAclSubjectType, ReportFolderTreeNode, ReportResourceAcl, ReportResourceType } from '@zenith/shared/report';
 import { Plus, Shield } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';

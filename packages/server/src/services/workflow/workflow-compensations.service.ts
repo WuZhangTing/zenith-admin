@@ -1,6 +1,6 @@
 import { and, eq, asc, desc } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type { WorkflowCompensationActionStatus, WorkflowCompensationAction } from '@zenith/shared';
+import type { WorkflowCompensationActionStatus, WorkflowCompensationAction } from '@zenith/shared/workflow';
 import { db } from '../../db';
 import { workflowCompensations, workflowCompensationLogs, workflowInstances, workflowTasks, workflowTokens, users } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';

@@ -5,7 +5,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { Input } from '@douyinfe/semi-ui';
 import { Search } from 'lucide-react';
-import type { WorkflowFormField } from '@zenith/shared';
+import type { WorkflowFormField } from '@zenith/shared/workflow';
 import { FORM_FIELD_TYPES } from '../form-types';
 import { collectFlat, CONDITION_FIELD_TYPES } from './field-config/helpers';
 import { getFieldTypeFlags } from './field-config/field-type-flags';

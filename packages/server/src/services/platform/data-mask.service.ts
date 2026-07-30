@@ -7,7 +7,7 @@ import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { applyMask } from '../../lib/masking';
 import { escapeLike, withPagination } from '../../lib/where-helpers';
 import type { DataMaskConfigRow } from '../../db/schema';
-import type { DataMaskConfig, CustomMaskRule, MaskType, CreateDataMaskConfigInput, UpdateDataMaskConfigInput, SensitiveField } from '@zenith/shared';
+import type { DataMaskConfig, CustomMaskRule, MaskType, CreateDataMaskConfigInput, UpdateDataMaskConfigInput, SensitiveField } from '@zenith/shared/platform';
 
 // ─── 内存缓存（TTL 5 分钟）───────────────────────────────────────────────────
 

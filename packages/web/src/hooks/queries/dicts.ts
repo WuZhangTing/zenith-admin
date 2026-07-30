@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { Dict, DictItem, PaginatedResponse } from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { Dict, DictItem } from '@zenith/shared/platform';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 

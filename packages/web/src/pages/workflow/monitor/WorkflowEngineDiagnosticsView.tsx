@@ -2,22 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, Card, Col, Dropdown, Empty, Form, JsonViewer, List, Modal, Popover, Row, Select, Skeleton, Space, Tabs, TabPane, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, CheckCircle2, DatabaseZap, Download, GaugeCircle, GitBranch, Layers, LifeBuoy, Minus, RefreshCw, Stethoscope, Timer, TimerReset, TrendingUp, Wrench, Workflow, Zap } from 'lucide-react';
-import type {
-  WorkflowEngineActionKey,
-  WorkflowEngineActionPreview,
-  WorkflowEngineActionSampleJob,
-  WorkflowEngineComponent,
-  WorkflowEngineComponentStatus,
-  WorkflowEngineDefinitionValidationItem,
-  WorkflowEngineHistogramBucket,
-  WorkflowEngineIntrospection,
-  WorkflowEngineOutboxEvent,
-  WorkflowEngineQueueKey,
-  WorkflowEngineQueueSnapshot,
-  WorkflowEngineRuntimeIssue,
-  WorkflowEngineRuntimeTask,
-  WorkflowEngineTriggerExecution,
-} from '@zenith/shared';
+import type { WorkflowEngineActionKey, WorkflowEngineActionPreview, WorkflowEngineActionSampleJob, WorkflowEngineComponent, WorkflowEngineComponentStatus, WorkflowEngineDefinitionValidationItem, WorkflowEngineHistogramBucket, WorkflowEngineIntrospection, WorkflowEngineOutboxEvent, WorkflowEngineQueueKey, WorkflowEngineQueueSnapshot, WorkflowEngineRuntimeIssue, WorkflowEngineRuntimeTask, WorkflowEngineTriggerExecution } from '@zenith/shared/workflow';
 import {
   WORKFLOW_ISSUE_SEVERITY_META as ISSUE_META,
   WORKFLOW_JOB_STATUS_META as JOB_STATUS_META,

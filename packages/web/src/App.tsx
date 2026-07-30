@@ -17,7 +17,7 @@ import { queryClient } from '@/lib/query';
 import MaintenanceOverlay from '@/components/MaintenanceOverlay';
 import { config } from '@/config';
 import { resolvePageLoader } from '@/utils/page-registry';
-import type { Menu, User } from '@zenith/shared';
+import type { Menu, User } from '@zenith/shared/identity';
 
 import AdminLayout from '@/layouts/AdminLayout';
 

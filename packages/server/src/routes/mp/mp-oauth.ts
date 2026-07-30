@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute } from '@hono/zod-openapi'
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
 import { jsonContent, validationHook, commonErrorResponses, ok, okBody } from '../../lib/openapi-schemas';
-import { buildMpOAuthUrlSchema } from '@zenith/shared';
+import { buildMpOAuthUrlSchema } from '@zenith/shared/identity';
 import { MpOAuthUrlDTO } from '../../lib/openapi-dtos';
 import { buildMpOAuthUrl } from '../../services/mp/mp-oauth.service';
 

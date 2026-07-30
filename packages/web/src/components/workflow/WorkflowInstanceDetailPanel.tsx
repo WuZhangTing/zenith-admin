@@ -11,8 +11,8 @@ import {
 } from '@douyinfe/semi-ui';
 import { CornerUpLeft, Reply, Send, Undo2, X } from 'lucide-react';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import type { WorkflowDefinition, WorkflowFieldPermission, WorkflowInstance, WorkflowComment, WorkflowTaskConsult } from '@zenith/shared';
-import { applyFieldPermissionsToFields } from '@zenith/shared';
+import type { WorkflowDefinition, WorkflowFieldPermission, WorkflowInstance, WorkflowComment, WorkflowTaskConsult } from '@zenith/shared/workflow';
+import { applyFieldPermissionsToFields } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
 import { useAuth } from '@/hooks/useAuth';
 import { formatDateTime } from '@/utils/date';

@@ -5,7 +5,7 @@
  * 用于在创建审批任务时展开为多个 workflow_tasks 行。
  */
 import { and, eq, inArray, isNotNull } from 'drizzle-orm';
-import type { WorkflowAssigneeType, WorkflowNodeConfig, WorkflowStarterContext } from '@zenith/shared';
+import type { WorkflowAssigneeType, WorkflowNodeConfig, WorkflowStarterContext } from '@zenith/shared/workflow';
 import { db } from '../../db';
 import {
   departments,

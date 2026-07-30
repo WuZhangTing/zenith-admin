@@ -1,10 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import type {
-  WorkflowEventDelivery,
-  WorkflowEventDeliveryStatus,
-  WorkflowEventSubscription,
-  WorkflowEventType,
-} from '@zenith/shared';
+import type { WorkflowEventDelivery, WorkflowEventDeliveryStatus, WorkflowEventSubscription, WorkflowEventType } from '@zenith/shared/workflow';
 import { mockWorkflowDefinitions } from '@/mocks/data/workflow';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 

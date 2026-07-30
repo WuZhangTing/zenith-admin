@@ -11,7 +11,7 @@ import {
   useMyScheduledMessages,
   useSaveChatQuickReply,
 } from '@/hooks/queries/chat';
-import type { ChatScheduledMessage } from '@zenith/shared';
+import type { ChatScheduledMessage } from '@zenith/shared/chat';
 
 const { Text } = Typography;
 

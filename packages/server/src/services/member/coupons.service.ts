@@ -18,8 +18,8 @@ import { escapeLike, withPagination } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { trackServerEvent } from '../analytics/analytics-server-events.service';
-import type { CouponType, CouponValidType, CouponTemplateStatus } from '@zenith/shared';
-import { ANALYTICS_EVENT_NAMES } from '@zenith/shared';
+import type { CouponType, CouponValidType, CouponTemplateStatus } from '@zenith/shared/member';
+import { ANALYTICS_EVENT_NAMES } from '@zenith/shared/analytics';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapCoupon(row: CouponRow) {

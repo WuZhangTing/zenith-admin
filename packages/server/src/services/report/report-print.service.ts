@@ -4,7 +4,7 @@
  */
 import { HTTPException } from 'hono/http-exception';
 import { and, desc, eq, ilike, inArray, or } from 'drizzle-orm';
-import { ReportPrintValidationError, renderPrintContent } from '@zenith/shared';
+import { ReportPrintValidationError, renderPrintContent } from '@zenith/shared/report';
 import { db } from '../../db';
 import { reportDatasets, reportPrintTemplates } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
@@ -23,12 +23,7 @@ import {
   validateReportResourcePlacement,
 } from './report-resource.service';
 import type { ReportPrintTemplateRow } from '../../db/schema';
-import type {
-  ReportPrintTemplate, ReportPrintContent, ReportPrintPageConfig,
-  ReportDatasetParam, ReportPrintDatasetBinding, ReportPrintDatasetRows, ReportPrintRenderResult,
-  ReportPrintResolvedSubreport, ReportPrintSubreportCell,
-  CreateReportPrintTemplateInput, UpdateReportPrintTemplateInput, ReportPrintRenderInput, ReportLookupOption,
-} from '@zenith/shared';
+import type { ReportPrintTemplate, ReportPrintContent, ReportPrintPageConfig, ReportDatasetParam, ReportPrintDatasetBinding, ReportPrintDatasetRows, ReportPrintRenderResult, ReportPrintResolvedSubreport, ReportPrintSubreportCell, CreateReportPrintTemplateInput, UpdateReportPrintTemplateInput, ReportPrintRenderInput, ReportLookupOption } from '@zenith/shared/report';
 
 type PrintRowExt = ReportPrintTemplateRow & {
   dataset?: { name: string } | null;

@@ -13,11 +13,8 @@
  *   - collectAggregate  → collect 策略聚合方式（list/sum/min/max/count/distinct）
  *   - fallbackToDefaults → 未命中时回退输出列默认值（matched 仍为 false，usedFallback=true）
  */
-import type {
-  RuleDecisionInput, RuleDecisionOutput, RuleDecisionRow, RuleHitPolicy,
-  RuleEvaluateResult, RuleDecisionTableSettings, RuleCollectAggregate,
-} from '@zenith/shared';
-import { matchRuleCell } from '@zenith/shared';
+import type { RuleDecisionInput, RuleDecisionOutput, RuleDecisionRow, RuleHitPolicy, RuleEvaluateResult, RuleDecisionTableSettings, RuleCollectAggregate } from '@zenith/shared/rules';
+import { matchRuleCell } from '@zenith/shared/rules';
 import { evaluateExpression } from './workflow-expression';
 
 interface DecisionTableLike {

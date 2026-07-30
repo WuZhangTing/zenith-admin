@@ -1,0 +1,136 @@
+import { z } from 'zod';
+import { partialForUpdate } from '../core/validation';
+
+// ─── 规则中心：决策表 ────────────────────────────────────────────────────────────
+const ruleFieldTypeSchema = z.enum(['string', 'number', 'boolean', 'date']);
+
+const ruleHitPolicySchema = z.enum(['first', 'unique', 'priority', 'collect', 'any']);
+
+const ruleLiteralSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+
+export const ruleDecisionTableSettingsSchema = z.object({
+  collectAggregate: z.enum(['list', 'sum', 'min', 'max', 'count', 'distinct']).optional(),
+  fallbackToDefaults: z.boolean().optional(),
+});
+
+export const ruleDecisionInputSchema = z.object({
+  key: z.string().min(1).max(64),
+  label: z.string().min(1).max(64),
+  expr: z.string().min(1).max(500),
+  type: ruleFieldTypeSchema,
+  dictCode: z.string().max(64).nullable().optional(),
+});
+
+export const ruleDecisionOutputSchema = z.object({
+  key: z.string().min(1).max(64),
+  label: z.string().min(1).max(64),
+  type: ruleFieldTypeSchema,
+  default: ruleLiteralSchema.optional(),
+  isExpr: z.boolean().optional(),
+});
+
+export const ruleDecisionRowSchema = z.object({
+  id: z.string().min(1).max(64),
+  when: z.array(z.string()).default([]),
+  then: z.record(z.string(), ruleLiteralSchema).default({}),
+  priority: z.number().int().optional(),
+  label: z.string().max(64).optional(),
+});
+
+export const createDecisionTableSchema = z.object({
+  key: z.string().min(1).max(64).regex(/^[a-zA-Z][a-zA-Z0-9_-]*$/, 'key 仅限字母开头的字母数字下划线'),
+  name: z.string().min(1).max(64),
+  description: z.string().max(500).nullable().optional(),
+  categoryId: z.number().int().nullable().optional(),
+  hitPolicy: ruleHitPolicySchema.default('first'),
+  inputs: z.array(ruleDecisionInputSchema).default([]),
+  outputs: z.array(ruleDecisionOutputSchema).default([]),
+  rules: z.array(ruleDecisionRowSchema).default([]),
+  settings: ruleDecisionTableSettingsSchema.optional(),
+});
+
+export const updateDecisionTableSchema = partialForUpdate(createDecisionTableSchema).omit({ key: true }).extend({
+  /** 编辑乐观锁：携带打开编辑时的 updatedAt，服务端不一致时返回 409 */
+  expectedUpdatedAt: z.string().optional(),
+});
+
+export const toggleDecisionTableSchema = z.object({
+  enabled: z.boolean(),
+});
+
+export const evaluateDecisionTableSchema = z.object({
+  input: z.record(z.string(), z.unknown()).default({}),
+});
+
+export type CreateDecisionTableInput = z.input<typeof createDecisionTableSchema>;
+
+export type UpdateDecisionTableInput = z.input<typeof updateDecisionTableSchema>;
+
+export const createRuleTestCaseSchema = z.object({
+  name: z.string().min(1).max(64),
+  input: z.record(z.string(), z.unknown()).default({}),
+  expected: z.record(z.string(), z.unknown()).default({}),
+});
+
+export const updateRuleTestCaseSchema = partialForUpdate(createRuleTestCaseSchema);
+
+export type CreateRuleTestCaseInput = z.input<typeof createRuleTestCaseSchema>;
+
+// ─── 规则中心：决策流 Schema ─────────────────────────────────────────────────────
+export const ruleFlowStepSchema = z.object({
+  id: z.string().min(1).max(64),
+  tableKey: z.string().min(1).max(64),
+  label: z.string().max(64).optional(),
+  condition: z.string().max(500).optional(),
+  outputNamespace: z.string().max(32).regex(/^[a-zA-Z_$][\w$]*$/, '命名空间需为合法标识符').optional().or(z.literal('')),
+});
+
+export const createDecisionFlowSchema = z.object({
+  key: z.string().min(1).max(64).regex(/^[a-zA-Z][a-zA-Z0-9_-]*$/, 'key 仅限字母开头的字母数字下划线'),
+  name: z.string().min(1).max(64),
+  description: z.string().max(500).nullable().optional(),
+  steps: z.array(ruleFlowStepSchema).default([]),
+});
+
+export const updateDecisionFlowSchema = partialForUpdate(createDecisionFlowSchema).omit({ key: true }).extend({
+  expectedUpdatedAt: z.string().optional(),
+});
+
+export type CreateDecisionFlowInput = z.input<typeof createDecisionFlowSchema>;
+
+export type UpdateDecisionFlowInput = z.input<typeof updateDecisionFlowSchema>;
+
+// ─── 规则中心：名单库 Schema ─────────────────────────────────────────────────────
+export const createRuleListSchema = z.object({
+  key: z.string().min(1).max(64).regex(/^[a-zA-Z][a-zA-Z0-9_-]*$/, 'key 仅限字母开头的字母数字下划线'),
+  name: z.string().min(1).max(64),
+  type: z.enum(['black', 'white', 'grey']).default('black'),
+  description: z.string().max(500).nullable().optional(),
+});
+
+export const updateRuleListSchema = partialForUpdate(createRuleListSchema).omit({ key: true }).extend({
+  status: z.enum(['enabled', 'disabled']).optional(),
+});
+
+export const createRuleListItemSchema = z.object({
+  value: z.string().min(1).max(128),
+  label: z.string().max(64).nullable().optional(),
+  expiresAt: z.string().nullable().optional(),
+  remark: z.string().max(255).nullable().optional(),
+});
+
+export const batchRuleListItemsSchema = z.object({
+  values: z.array(z.string().min(1).max(128)).min(1).max(500),
+  expiresAt: z.string().nullable().optional(),
+});
+
+export const checkRuleListSchema = z.object({
+  key: z.string().min(1).max(64),
+  value: z.string().min(1).max(128),
+});
+
+// ─── 规则中心：发布审批 Schema ───────────────────────────────────────────────────
+export const reviewDecisionTableSchema = z.object({
+  approve: z.boolean(),
+  comment: z.string().max(255).optional(),
+});

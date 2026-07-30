@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import type { AnalyticsEventOverride, AnalyticsQualityDaily } from '@zenith/shared';
+import type { AnalyticsEventOverride, AnalyticsQualityDaily } from '@zenith/shared/analytics';
 import { PreferencesContext, defaultPreferences } from '@/hooks/usePreferences';
 
 const useAnalyticsQualityMock = vi.fn();

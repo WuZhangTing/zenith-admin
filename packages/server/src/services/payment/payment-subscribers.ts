@@ -7,7 +7,7 @@ import { sendToUser } from '../../lib/ws-manager';
 import logger from '../../lib/logger';
 import { creditWalletOnRecharge, WALLET_RECHARGE_BIZ_TYPE } from '../member/member-wallet.service';
 import { extendVipOnRenewal } from '../member/member-renewal.service';
-import { MEMBER_RENEWAL_BIZ_TYPE } from '@zenith/shared';
+import { MEMBER_RENEWAL_BIZ_TYPE } from '@zenith/shared/member';
 
 let registered = false;
 

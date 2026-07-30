@@ -1,15 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  CreateReportMetricInput,
-  PaginatedResponse,
-  ReportMetric,
-  ReportMetricEvaluation,
-  ReportMetricLifecycleActionInput,
-  ReportMetricLookupOption,
-  ReportMetricRefs,
-  ReportMetricType,
-  UpdateReportMetricInput,
-} from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { CreateReportMetricInput, ReportMetric, ReportMetricEvaluation, ReportMetricLifecycleActionInput, ReportMetricLookupOption, ReportMetricRefs, ReportMetricType, UpdateReportMetricInput } from '@zenith/shared/report';
 import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
 

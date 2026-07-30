@@ -14,11 +14,8 @@ import {
   useCmsFormList, useSaveCmsForm, useDeleteCmsForm,
   useCmsFormSubmissions, useDeleteCmsFormSubmissions,
 } from '@/hooks/queries/cms';
-import {
-  CMS_FORM_CAPTCHA_PROVIDERS, CMS_FORM_CAPTCHA_PROVIDER_LABELS,
-  CMS_FORM_FIELD_TYPES, CMS_FORM_FIELD_TYPE_LABELS,
-} from '@zenith/shared';
-import type { CmsForm, CmsFormSubmission } from '@zenith/shared';
+import { CMS_FORM_CAPTCHA_PROVIDERS, CMS_FORM_CAPTCHA_PROVIDER_LABELS, CMS_FORM_FIELD_TYPES, CMS_FORM_FIELD_TYPE_LABELS } from '@zenith/shared/cms';
+import type { CmsForm, CmsFormSubmission } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 
 const FIELD_TYPE_OPTIONS = CMS_FORM_FIELD_TYPES.map((t) => ({ value: t, label: CMS_FORM_FIELD_TYPE_LABELS[t] }));

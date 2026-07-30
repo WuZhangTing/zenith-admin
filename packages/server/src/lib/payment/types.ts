@@ -5,7 +5,7 @@
  * 门面层（payment.service）通过 registry 拿到对应 adapter 调用，
  * 完全不感知渠道差异与签名细节。
  */
-import type { CreatePaymentResult, PaymentChannel } from '@zenith/shared';
+import type { CreatePaymentResult, PaymentChannel } from '@zenith/shared/payment';
 import type { PaymentChannelConfigRow, PaymentOrderRow, PaymentRefundRow } from '../../db/schema';
 
 /** 已解密的渠道敏感凭据（仅在内存中存在，绝不落库/出参） */

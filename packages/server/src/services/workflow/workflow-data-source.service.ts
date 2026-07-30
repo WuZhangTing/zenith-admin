@@ -13,10 +13,7 @@ import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { httpRequest } from '../../lib/http-client';
 import { decryptSecret, encryptSecret } from '../../lib/secret-crypto';
 import type { WorkflowDataSourceRow } from '../../db/schema';
-import type {
-  WorkflowDataSource, WorkflowDataSourceOption,
-  CreateWorkflowDataSourceInput, UpdateWorkflowDataSourceInput,
-} from '@zenith/shared';
+import type { WorkflowDataSource, WorkflowDataSourceOption, CreateWorkflowDataSourceInput, UpdateWorkflowDataSourceInput } from '@zenith/shared/workflow';
 
 const OPTIONS_CACHE_TTL = 30_000;
 const optionsCache = new Map<string, { data: WorkflowDataSourceOption[]; expire: number }>();

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Empty, Modal, Pagination, Spin, Tag, Toast } from '@douyinfe/semi-ui';
 import { PenLine, Trash2, Pencil } from 'lucide-react';
-import type { CmsContentStatus } from '@zenith/shared';
+import type { CmsContentStatus } from '@zenith/shared/cms';
 import { MemberPage } from '../../components/MemberPage';
 import { useMyContributions, useDeleteContribution } from '../../hooks/queries';
 

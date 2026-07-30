@@ -3,10 +3,8 @@ import { Button, Dropdown, Input, Modal, Table, Tag, Tree, Typography } from '@d
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
 import { ChevronDown, Home, Link2, RotateCcw, Search } from 'lucide-react';
-import {
-  buildCmsEntityLink, buildCmsChannelCodeLink, parseCmsLink, CMS_CONTENT_STATUS_LABELS,
-} from '@zenith/shared';
-import type { CmsChannel, CmsContent } from '@zenith/shared';
+import { buildCmsEntityLink, buildCmsChannelCodeLink, parseCmsLink, CMS_CONTENT_STATUS_LABELS } from '@zenith/shared/cms';
+import type { CmsChannel, CmsContent } from '@zenith/shared/cms';
 import { useAllCmsSites, useCmsChannelTree, useCmsContentList, useCmsLinkTarget } from '@/hooks/queries/cms';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { formatDateTime } from '@/utils/date';

@@ -1,10 +1,10 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
-import type { OAuthProviderType } from '@zenith/shared';
+import type { OAuthProviderType } from '@zenith/shared/identity';
 import { jsonContent, validationHook, commonErrorResponses, ok, okBody } from '../../lib/openapi-schemas';
 import { OAuthConfigItemDTO } from '../../lib/openapi-dtos';
-import { updateOauthConfigSchema } from '@zenith/shared';
+import { updateOauthConfigSchema } from '@zenith/shared/identity';
 import { listOauthConfigs, updateOauthConfig, getOauthConfigBeforeAudit } from '../../services/identity/oauth-config.service';
 
 const oauthConfigRouter = new OpenAPIHono({ defaultHook: validationHook });

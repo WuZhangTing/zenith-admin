@@ -73,7 +73,7 @@
 
 **排查步骤**：
 
-1. 对比 `packages/server/src/lib/dtos/xxx.ts` 中的 `XxxDTO` 和 `packages/shared/src/types.ts` 中的 `Xxx` 接口
+1. 对比 `packages/server/src/lib/dtos/xxx.ts` 中的 `XxxDTO` 和 `packages/shared/src/{业务域}/types.ts` 中的 `Xxx` 接口
 2. 确保字段名、类型、可选性一致
 3. 时间字段：后端 DTO 为 `z.string()`，前端 interface 为 `string`（`YYYY-MM-DD HH:mm:ss`）
 
@@ -81,7 +81,7 @@
 
 **排查步骤**：
 
-1. 检查 `packages/shared/src/validation.ts` 中的 schema 定义
+1. 检查 `packages/shared/src/{业务域}/validation.ts` 中的 schema 定义
 2. 前端 `request.post('/api/xxx', payload)` 的 payload 类型应与 `CreateXxxInput` 匹配
 3. 注意 `z.coerce.number()` 和 `z.number()` 的区别（前者自动转换字符串）
 

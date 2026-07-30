@@ -1,9 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import {
-  batchCmsInteractionStatusSchema,
-  createCmsInteractionSchema,
-  updateCmsInteractionSchema,
-} from '@zenith/shared';
+import { batchCmsInteractionStatusSchema, createCmsInteractionSchema, updateCmsInteractionSchema } from '@zenith/shared/cms';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {

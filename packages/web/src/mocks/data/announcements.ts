@@ -1,4 +1,4 @@
-import type { Announcement } from '@zenith/shared';
+import type { Announcement } from '@zenith/shared/messaging';
 
 export const mockAnnouncements: Announcement[] = [
   {

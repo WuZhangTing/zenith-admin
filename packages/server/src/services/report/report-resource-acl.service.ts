@@ -1,13 +1,6 @@
 import { HTTPException } from 'hono/http-exception';
 import { and, eq, inArray } from 'drizzle-orm';
-import type {
-  GrantReportResourceAclInput,
-  ReportAclRole,
-  ReportAclSubjectType,
-  ReportResourceAcl,
-  ReportResourceType,
-  UpdateReportResourceAclInput,
-} from '@zenith/shared';
+import type { GrantReportResourceAclInput, ReportAclRole, ReportAclSubjectType, ReportResourceAcl, ReportResourceType, UpdateReportResourceAclInput } from '@zenith/shared/report';
 import { db } from '../../db';
 import {
   departments,

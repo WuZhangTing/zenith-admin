@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { mockSmsSendLogs, getNextSmsSendLogId } from '@/mocks/data/sms-send-logs';
 import { mockSmsTemplates } from '@/mocks/data/sms-templates';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { SmsSendLog } from '@zenith/shared';
+import type { SmsSendLog } from '@zenith/shared/messaging';
 
 export const smsSendLogsHandlers = [
   http.get('/api/sms-send-logs', ({ request }) => {

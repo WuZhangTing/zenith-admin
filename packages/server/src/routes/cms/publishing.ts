@@ -1,11 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import {
-  batchCmsPublishActionSchema,
-  CMS_PUBLISH_ARTIFACT_STATUSES,
-  CMS_PUBLISH_TARGET_TYPES,
-  submitCmsPublishSchema,
-  submitCmsSiteGroupPublishSchema,
-} from '@zenith/shared';
+import { batchCmsPublishActionSchema, CMS_PUBLISH_ARTIFACT_STATUSES, CMS_PUBLISH_TARGET_TYPES, submitCmsPublishSchema, submitCmsSiteGroupPublishSchema } from '@zenith/shared/cms';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';

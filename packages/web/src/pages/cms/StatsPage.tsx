@@ -5,7 +5,7 @@ import { Card, Col, Row, Spin, Table, Typography, Empty, Tabs, TabPane, RadioGro
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { useCmsVisitStats, useCmsSearchAnalytics } from '@/hooks/queries/cms';
-import type { CmsVisitStats, CmsSearchAnalytics } from '@zenith/shared';
+import type { CmsVisitStats, CmsSearchAnalytics } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 
 const DEVICE_LABELS: Record<string, string> = { pc: 'PC', mobile: '移动端', bot: '爬虫' };

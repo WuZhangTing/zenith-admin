@@ -5,7 +5,7 @@ import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody,
 } from '../../lib/openapi-schemas';
-import { createMpAccountSchema, updateMpAccountSchema, MP_ACCOUNT_TYPES } from '@zenith/shared';
+import { createMpAccountSchema, updateMpAccountSchema, MP_ACCOUNT_TYPES } from '@zenith/shared/mp';
 import { MpAccountDTO, MpConnectionTestDTO } from '../../lib/openapi-dtos';
 import {
   listMpAccounts, getMpAccount, createMpAccount, updateMpAccount,

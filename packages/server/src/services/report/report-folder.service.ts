@@ -1,13 +1,6 @@
 import { HTTPException } from 'hono/http-exception';
 import { and, asc, eq } from 'drizzle-orm';
-import type {
-  CreateReportFolderInput,
-  MoveReportFolderInput,
-  ReportFolder,
-  ReportFolderTreeNode,
-  ReportResourceType,
-  UpdateReportFolderInput,
-} from '@zenith/shared';
+import type { CreateReportFolderInput, MoveReportFolderInput, ReportFolder, ReportFolderTreeNode, ReportResourceType, UpdateReportFolderInput } from '@zenith/shared/report';
 import { db } from '../../db';
 import {
   reportAssetTemplates,

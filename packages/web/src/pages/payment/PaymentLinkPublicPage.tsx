@@ -6,8 +6,8 @@ import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { QRCodeSVG } from 'qrcode.react';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import dayjs from 'dayjs';
-import { PAYMENT_LINK_STATUS_LABELS, PAYMENT_METHOD_LABELS } from '@zenith/shared';
-import type { CreatePaymentResult, PaymentLinkPublic, PaymentLinkStatus, PaymentMethod } from '@zenith/shared';
+import { PAYMENT_LINK_STATUS_LABELS, PAYMENT_METHOD_LABELS } from '@zenith/shared/payment';
+import type { CreatePaymentResult, PaymentLinkPublic, PaymentLinkStatus, PaymentMethod } from '@zenith/shared/payment';
 import { usePayPublicPaymentLink, usePublicLinkOrderStatus, usePublicPaymentLink } from '@/hooks/queries/payment-links';
 
 const yuan = (cents: number | null | undefined) => formatYuan(cents, '自定义金额');

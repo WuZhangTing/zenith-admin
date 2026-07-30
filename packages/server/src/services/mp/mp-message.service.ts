@@ -9,7 +9,8 @@ import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
 import { assertContentSafe } from './mp-security.service';
 import { sendCustomServiceMessage, WechatApiError } from '../../lib/wechat';
-import type { SendMpMessageInput, MpMessageType, MpMessageDirection } from '@zenith/shared';
+import type { SendMpMessageInput } from '@zenith/shared/messaging';
+import type { MpMessageType, MpMessageDirection } from '@zenith/shared/mp';
 
 export function mapMpMessage(row: MpMessageRow) {
   return {

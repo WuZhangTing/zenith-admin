@@ -1,5 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AsyncTask, PaginatedResponse, ReportDashboardSubscription, ReportDeliveryRun } from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { ReportDashboardSubscription, ReportDeliveryRun } from '@zenith/shared/report';
+import type { AsyncTask } from '@zenith/shared/tasks';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 import { useReportLookup } from './report-lookups';

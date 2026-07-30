@@ -2,7 +2,7 @@
  * 公众号管理 DTO
  */
 import { z } from '@hono/zod-openapi';
-import { mpMenuButtonSchema } from '@zenith/shared';
+import { mpMenuButtonSchema } from '@zenith/shared/mp';
 import { auditFields } from './_audit';
 
 /**

@@ -12,7 +12,7 @@ import {
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Wrench, Power, PowerOff, RefreshCw } from 'lucide-react';
-import type { MaintenanceLog } from '@zenith/shared';
+import type { MaintenanceLog } from '@zenith/shared/platform';
 import { useQueryClient } from '@tanstack/react-query';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { usePermission } from '@/hooks/usePermission';

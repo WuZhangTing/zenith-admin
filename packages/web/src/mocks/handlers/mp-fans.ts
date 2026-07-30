@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockMpFans } from '@/mocks/data/mp-fans';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { MpFan } from '@zenith/shared';
+import type { MpFan } from '@zenith/shared/mp';
 
 export const mpFansHandlers = [
   http.get('/api/mp/fans', ({ request }) => {

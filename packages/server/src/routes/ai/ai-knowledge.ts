@@ -21,7 +21,7 @@ import {
   importKbUrl,
   deleteKbDocument,
 } from '../../services/ai/ai-knowledge.service';
-import { createAiKnowledgeBaseSchema, updateAiKnowledgeBaseSchema, addAiKbDocumentSchema, importAiKbUrlSchema } from '@zenith/shared';
+import { createAiKnowledgeBaseSchema, updateAiKnowledgeBaseSchema, addAiKbDocumentSchema, importAiKbUrlSchema } from '@zenith/shared/ai';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 

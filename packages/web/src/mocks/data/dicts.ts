@@ -1,5 +1,5 @@
-import type { Dict, DictItem } from '@zenith/shared';
-import { SEED_DICTS, SEED_DICT_ITEMS } from '@zenith/shared';
+import type { Dict, DictItem } from '@zenith/shared/platform';
+import { SEED_DICTS, SEED_DICT_ITEMS } from '@zenith/shared/seed';
 
 export const mockDicts: Dict[] = SEED_DICTS.map((d) => ({ ...d }));
 

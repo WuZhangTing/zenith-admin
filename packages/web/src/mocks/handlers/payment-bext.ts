@@ -2,27 +2,10 @@ import { http } from 'msw';
 import { PAYMENT_MOCK_SEED_TIME, getNextPaymentOrderId, mockPaymentChannels, mockPaymentOrders, mockPaymentRefunds } from '@/mocks/data/payment';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 import { ok, notFound, badRequest, paginate } from '@/mocks/utils/handlers';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_CHANNEL, SEED_PAYMENT_METHOD_CONFIGS } from '@zenith/shared';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_CHANNEL } from '@zenith/shared/payment';
+import { SEED_PAYMENT_METHOD_CONFIGS } from '@zenith/shared/seed';
 import { recordMockLedgerEntry, recordMockPaymentSucceeded } from './payment-ext';
-import type {
-  CreatePaymentResult,
-  PaymentChannel,
-  PaymentApp,
-  PaymentFeeRule,
-  PaymentLink,
-  PaymentLinkPublic,
-  PaymentLinkStatus,
-  PaymentMethod,
-  PaymentMethodConfig,
-  PaymentReportGroupBy,
-  PaymentReportRow,
-  PaymentRiskRule,
-  PaymentSettlementBatch,
-  PaymentSettlementStatus,
-  PaymentSharingOrder,
-  PaymentSharingReceiver,
-  PaymentTransfer,
-} from '@zenith/shared';
+import type { CreatePaymentResult, PaymentChannel, PaymentApp, PaymentFeeRule, PaymentLink, PaymentLinkPublic, PaymentLinkStatus, PaymentMethod, PaymentMethodConfig, PaymentReportGroupBy, PaymentReportRow, PaymentRiskRule, PaymentSettlementBatch, PaymentSettlementStatus, PaymentSharingOrder, PaymentSharingReceiver, PaymentTransfer } from '@zenith/shared/payment';
 
 const SEED = PAYMENT_MOCK_SEED_TIME;
 

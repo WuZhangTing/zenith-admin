@@ -10,7 +10,7 @@
 import { useState, useEffect } from 'react';
 import { Typography, Divider, Toast, Tag } from '@douyinfe/semi-ui';
 import AppModal from '@/components/AppModal';
-import type { Department } from '@zenith/shared';
+import type { Department } from '@zenith/shared/identity';
 import { DataScopePanel, DATA_SCOPE_OPTIONS } from '@/components/permissions/DataScopePanel';
 import { useSaveUserDataPermission, useUserDataPermission } from '@/hooks/queries/users';
 

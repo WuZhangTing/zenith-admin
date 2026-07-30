@@ -12,8 +12,8 @@
 
 1. **Schema**（Step 1）：在 `packages/server/src/db/schema/` 对应业务域文件的 `xxxs` 表中添加新字段
 2. **迁移**（Step 2）：`npm run db:generate && npm run db:migrate`
-3. **Zod Schema**（Step 3）：在 `packages/shared/src/validation.ts` 的 `createXxxSchema` 和 `updateXxxSchema` 中添加新字段
-4. **TS Interface**（Step 4）：在 `packages/shared/src/types.ts` 的 `Xxx` 接口中添加新字段
+3. **Zod Schema**（Step 3）：在 `packages/shared/src/{业务域}/validation.ts` 的 `createXxxSchema` 和 `updateXxxSchema` 中添加新字段
+4. **TS Interface**（Step 4）：在 `packages/shared/src/{业务域}/types.ts` 的 `Xxx` 接口中添加新字段
 5. **DTO**（Step 6）：在 `packages/server/src/lib/dtos/xxx.ts` 的 `XxxDTO` 中添加新字段
 6. **Service mapXxx**（Step 5）：在 `mapXxx()` 函数中映射新字段
 7. **Service 写入逻辑**（Step 5）：在 `createXxx()` / `updateXxx()` 中处理新字段的写入
@@ -34,7 +34,7 @@
 
 ### 修改请求参数
 
-1. **Zod Schema**（Step 3）：修改 `packages/shared/src/validation.ts` 中的 schema
+1. **Zod Schema**（Step 3）：修改 `packages/shared/src/{业务域}/validation.ts` 中的 schema
 2. **Route**（Step 6）：确认路由的 `request:`  schema 引用了正确的 schema
 3. **Service**（Step 5）：更新 service 函数的参数类型和处理逻辑
 
@@ -42,7 +42,7 @@
 
 1. **DTO**（Step 6）：修改 `packages/server/src/lib/dtos/xxx.ts` 中的 DTO
 2. **Service mapXxx**（Step 5）：更新 `mapXxx()` 的返回字段
-3. **TS Interface**（Step 4）：同步修改 `packages/shared/src/types.ts`
+3. **TS Interface**（Step 4）：同步修改 `packages/shared/src/{业务域}/types.ts`
 4. **前端类型**（Step 8）：前端使用 `@zenith/shared` 的 `Xxx` 类型，自动同步
 
 ### 新增 API 端点

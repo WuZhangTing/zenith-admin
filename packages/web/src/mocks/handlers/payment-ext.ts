@@ -2,16 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { PAYMENT_MOCK_SEED_TIME, mockPaymentOrders, mockPaymentRefunds } from '@/mocks/data/payment';
 import { mockDateTime } from '@/mocks/utils/date';
 import { ok, notFound, paginate } from '@/mocks/utils/handlers';
-import type {
-  PaymentChannel,
-  PaymentReconBatch,
-  PaymentReconItem,
-  PaymentReconResult,
-  PaymentWebhookEndpoint,
-  PaymentWebhookDelivery,
-  PaymentLedgerEntry,
-  PaymentOutboxEvent,
-} from '@zenith/shared';
+import type { PaymentChannel, PaymentReconBatch, PaymentReconItem, PaymentReconResult, PaymentWebhookEndpoint, PaymentWebhookDelivery, PaymentLedgerEntry, PaymentOutboxEvent } from '@zenith/shared/payment';
 
 const SEED = PAYMENT_MOCK_SEED_TIME;
 

@@ -7,7 +7,7 @@ import { RefreshCw, Cpu, HardDrive, Database, Server, MemoryStick, Layers, Activ
 import { formatDateTime } from '@/utils/date';
 import { formatBytesGb as formatBytes } from '@/utils/format';
 import { config } from '@/config';
-import { TOKEN_KEY } from '@zenith/shared';
+import { TOKEN_KEY } from '@zenith/shared/core';
 import { TABLE_PAGE_SIZE_OPTIONS, usePagination } from '@/hooks/usePagination';
 import { useMonitorHistory, useMonitorSnapshot } from '@/hooks/queries/monitor';
 import './MonitorPage.css';

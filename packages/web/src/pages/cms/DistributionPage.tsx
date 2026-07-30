@@ -19,20 +19,8 @@ import {
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, RotateCcw, Search } from 'lucide-react';
-import {
-  CMS_CONTENT_TYPES,
-  CMS_CONTENT_TYPE_LABELS,
-  CMS_DISTRIBUTION_CONFLICT_STRATEGIES,
-  CMS_DISTRIBUTION_CONFLICT_STRATEGY_LABELS,
-  CMS_DISTRIBUTION_MODES,
-  CMS_DISTRIBUTION_MODE_LABELS,
-  CMS_DISTRIBUTION_RUN_OUTCOME_LABELS,
-  CMS_DISTRIBUTION_TASK_STATUSES,
-  CMS_DISTRIBUTION_TASK_STATUS_LABELS,
-  type CmsChannel,
-  type CmsDistributionRule,
-  type CmsDistributionRun,
-} from '@zenith/shared';
+import { CMS_CONTENT_TYPES, CMS_CONTENT_TYPE_LABELS, CMS_DISTRIBUTION_CONFLICT_STRATEGIES, CMS_DISTRIBUTION_CONFLICT_STRATEGY_LABELS, CMS_DISTRIBUTION_MODES, CMS_DISTRIBUTION_MODE_LABELS, CMS_DISTRIBUTION_RUN_OUTCOME_LABELS, CMS_DISTRIBUTION_TASK_STATUSES, CMS_DISTRIBUTION_TASK_STATUS_LABELS } from '@zenith/shared/cms';
+import type { CmsChannel, CmsDistributionRule, CmsDistributionRun } from '@zenith/shared/cms';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
 import AppModal from '@/components/AppModal';

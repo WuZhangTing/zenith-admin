@@ -1,21 +1,5 @@
-import type {
-  RuleCaseResult,
-  RuleDecisionInput,
-  RuleDecisionOutput,
-  RuleDecisionRow,
-  RuleDecisionTable,
-  RuleFieldType,
-  RuleHitPolicy,
-  ParsedRuleCell,
-} from '@zenith/shared';
-import {
-  parseRuleCell,
-  matchParsedRuleCell,
-  validateRuleCell,
-  describeParsedRuleCell,
-  isWildcardRuleCell,
-  normalizeRuleValue,
-} from '@zenith/shared';
+import type { RuleCaseResult, RuleDecisionInput, RuleDecisionOutput, RuleDecisionRow, RuleDecisionTable, RuleFieldType, RuleHitPolicy, ParsedRuleCell } from '@zenith/shared/rules';
+import { parseRuleCell, matchParsedRuleCell, validateRuleCell, describeParsedRuleCell, isWildcardRuleCell, normalizeRuleValue } from '@zenith/shared/rules';
 
 export interface RuleInspectionIssue {
   severity: 'error' | 'warning';

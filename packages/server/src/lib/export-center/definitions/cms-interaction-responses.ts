@@ -1,6 +1,6 @@
 import { db } from '../../../db';
 import { cmsInteractionQuestions, cmsInteractionResponses, cmsInteractions } from '../../../db/schema';
-import { CMS_INTERACTION_KIND_LABELS } from '@zenith/shared';
+import { CMS_INTERACTION_KIND_LABELS } from '@zenith/shared/cms';
 import {
   buildCmsInteractionResponseWhere,
   streamCmsInteractionResponses,

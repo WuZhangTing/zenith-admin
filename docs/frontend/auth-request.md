@@ -5,7 +5,7 @@
 ## 登录态管理
 
 - 通过 `useAuth` hook 管理认证状态
-- Token 存储在 `localStorage`，key 来自 `@zenith/shared/src/constants.ts`：
+- Token 存储在 `localStorage`，key 来自 `@zenith/shared/{业务域}`：
 
 | 常量 | Key | 说明 |
 |------|-----|------|

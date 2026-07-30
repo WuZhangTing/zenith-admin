@@ -11,7 +11,7 @@ import {
   ChatOrgDataDTO, ChatQuickReplyDTO, ChatScheduledMessageDTO,
   ChatCustomEmojiDTO, ChatGroupInviteDTO, ChatInviteInfoDTO, ChatGroupJoinRequestDTO,
 } from '../../lib/openapi-dtos';
-import { chatCallRecordSchema } from '@zenith/shared';
+import { chatCallRecordSchema } from '@zenith/shared/chat';
 import {
   listConversations, getOrCreateDirectConversation, listMessages,
   searchConversationMessages, searchGlobalMessages, getMessageContext,

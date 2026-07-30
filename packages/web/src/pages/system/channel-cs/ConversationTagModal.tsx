@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { TagInput, Toast, Typography } from '@douyinfe/semi-ui';
-import type { ChannelConversation } from '@zenith/shared';
+import type { ChannelConversation } from '@zenith/shared/messaging';
 import { request } from '@/utils/request';
 import { AppModal } from '@/components/AppModal';
 

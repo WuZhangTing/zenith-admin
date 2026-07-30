@@ -1,8 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import {
-  createCmsInteractionSchema,
-} from '@zenith/shared';
+import { createCmsInteractionSchema } from '@zenith/shared/cms';
 import {
   canExposeCmsInteractionResults,
   cmsInteractionRepeatIdentity,

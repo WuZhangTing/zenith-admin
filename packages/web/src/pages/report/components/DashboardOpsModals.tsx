@@ -5,7 +5,7 @@ import dayjs from 'dayjs';
 import { QRCodeSVG } from 'qrcode.react';
 import AppModal from '@/components/AppModal';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
-import type { ReportDashboardShare } from '@zenith/shared';
+import type { ReportDashboardShare } from '@zenith/shared/report';
 import {
   useCreateReportDashboardShare,
   useDeleteReportDashboardShare,

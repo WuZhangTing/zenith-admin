@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { createExportJobSchema, EXPORT_JOB_FORMATS } from '@zenith/shared';
+import { createExportJobSchema, EXPORT_JOB_FORMATS } from '@zenith/shared/tasks';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { commonErrorResponses, IdParam, jsonContent, ok, okBody, okFile, okMsg, okPaginated, PaginationQuery, validationHook } from '../../lib/openapi-schemas';

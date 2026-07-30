@@ -11,7 +11,7 @@ import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import type { WorkflowSimulationCase, WorkflowSimulationDecision, SaveWorkflowSimulationCaseInput } from '@zenith/shared';
+import type { WorkflowSimulationCase, WorkflowSimulationDecision, SaveWorkflowSimulationCaseInput } from '@zenith/shared/workflow';
 
 function mapCase(row: WorkflowSimulationCaseRow): WorkflowSimulationCase {
   return {

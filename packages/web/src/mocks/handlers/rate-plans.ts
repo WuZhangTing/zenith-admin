@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import type { RatePlan } from '@zenith/shared';
+import type { RatePlan } from '@zenith/shared/open-platform';
 import { mockRatePlans } from '@/mocks/data/rate-plans';
 import { mockDateTime } from '@/mocks/utils/date';
 

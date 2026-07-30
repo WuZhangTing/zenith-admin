@@ -3,7 +3,7 @@ import { and, desc, eq, gte, inArray, like, lte } from 'drizzle-orm';
 import { db } from '../../db';
 import { userFeedbacks } from '../../db/schema';
 import type { UserFeedbackRow } from '../../db/schema';
-import type { UserFeedbackCategory, UserFeedbackStatus } from '@zenith/shared';
+import type { UserFeedbackCategory, UserFeedbackStatus } from '@zenith/shared/identity';
 import { currentUser } from '../../lib/context';
 import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { escapeLike } from '../../lib/where-helpers';

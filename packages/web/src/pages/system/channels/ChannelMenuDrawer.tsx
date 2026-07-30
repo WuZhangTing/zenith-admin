@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react';
 import { Button, Empty, Input, Select, SideSheet, Space, Toast, Typography } from '@douyinfe/semi-ui';
 import { Plus, Trash2 } from 'lucide-react';
-import type { ChannelMenu, ChannelMenuType } from '@zenith/shared';
+import type { ChannelMenu, ChannelMenuType } from '@zenith/shared/messaging';
 import { useChannelMenus, useSaveChannelMenus } from '@/hooks/queries/channels';
 
 interface Props {

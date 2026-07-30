@@ -1,12 +1,6 @@
 import { HTTPException } from 'hono/http-exception';
-import {
-  CMS_SECRET_MASK,
-  CMS_SITE_INHERITABLE_FIELDS,
-  CMS_SITE_MAX_DEPTH,
-  type CmsSiteEffectiveConfig,
-  type CmsSiteInheritableField,
-  type CmsSiteInheritanceFlags,
-} from '@zenith/shared';
+import { CMS_SECRET_MASK, CMS_SITE_INHERITABLE_FIELDS, CMS_SITE_MAX_DEPTH } from '@zenith/shared/cms';
+import type { CmsSiteEffectiveConfig, CmsSiteInheritableField, CmsSiteInheritanceFlags } from '@zenith/shared/cms';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
 import {

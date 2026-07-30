@@ -3,7 +3,7 @@ import { Button, DatePicker, Form, Select, Tag, Typography, Toast } from '@douyi
 import { Download, RotateCcw, Search, ThumbsUp, ThumbsDown } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import type { AiFeedbackItem, AiFeedbackStatus, AiMessage } from '@zenith/shared';
+import type { AiFeedbackItem, AiFeedbackStatus, AiMessage } from '@zenith/shared/ai';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatDateTime, formatDateForApi } from '@/utils/date';
 import ConfigurableTable from '@/components/ConfigurableTable';

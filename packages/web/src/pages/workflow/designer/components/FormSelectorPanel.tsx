@@ -7,7 +7,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Select, Typography, Empty, Spin } from '@douyinfe/semi-ui';
 import { Plus, RefreshCw, Pencil } from 'lucide-react';
 import { IllustrationIdle, IllustrationIdleDark, IllustrationNoContent, IllustrationNoContentDark } from '@douyinfe/semi-illustrations';
-import type { WorkflowForm } from '@zenith/shared';
+import type { WorkflowForm } from '@zenith/shared/workflow';
 import WorkflowFormRenderer from './WorkflowFormRenderer';
 import WorkflowFormInlineEditor from '../../forms/WorkflowFormInlineEditor';
 import { useWorkflowDesignerFormOptions, workflowDesignerKeys } from '@/hooks/queries/workflow-designer';

@@ -2,8 +2,8 @@
 import { useState } from 'react';
 import { Button, Empty, Modal, Pagination, Spin, Tag, Toast } from '@douyinfe/semi-ui';
 import { ExternalLink, Trash2 } from 'lucide-react';
-import { CMS_COMMENT_STATUS_LABELS } from '@zenith/shared';
-import type { CmsCommentStatus } from '@zenith/shared';
+import { CMS_COMMENT_STATUS_LABELS } from '@zenith/shared/cms';
+import type { CmsCommentStatus } from '@zenith/shared/cms';
 import { MemberPage } from '../../components/MemberPage';
 import { useMyCmsComments, useDeleteMyCmsComment } from '../../hooks/queries';
 

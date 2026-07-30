@@ -1,4 +1,4 @@
-import type { OpenApiCallLog } from '@zenith/shared';
+import type { OpenApiCallLog } from '@zenith/shared/open-platform';
 import dayjs from 'dayjs';
 
 const APPS = [

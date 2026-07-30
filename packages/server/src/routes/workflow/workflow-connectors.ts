@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { createWorkflowConnectorSchema, updateWorkflowConnectorSchema, testWorkflowConnectorSchema } from '@zenith/shared';
+import { createWorkflowConnectorSchema, updateWorkflowConnectorSchema, testWorkflowConnectorSchema } from '@zenith/shared/workflow';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {

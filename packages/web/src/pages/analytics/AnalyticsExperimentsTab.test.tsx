@@ -1,7 +1,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import type { AnalyticsExperiment } from '@zenith/shared';
+import type { AnalyticsExperiment } from '@zenith/shared/analytics';
 import { PreferencesContext, defaultPreferences } from '@/hooks/usePreferences';
 
 const mockExperiment = vi.hoisted<AnalyticsExperiment>(() => ({

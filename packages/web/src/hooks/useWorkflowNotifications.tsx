@@ -8,7 +8,7 @@ import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Notification } from '@douyinfe/semi-ui';
-import type { WsMessage } from '@zenith/shared';
+import type { WsMessage } from '@zenith/shared/platform';
 import { useWebSocket } from '@/hooks/useWebSocket';
 
 /** 消费工作流 WS 事件：刷新待办列表缓存，新待办弹出提醒（点击跳转处理） */

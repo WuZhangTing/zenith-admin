@@ -20,15 +20,8 @@ import {
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Activity, Plus, RotateCcw, Search } from 'lucide-react';
-import {
-  OAUTH2_GRANT_TYPE_LABELS,
-  OAUTH2_GRANT_TYPES,
-  OPEN_APP_ENVIRONMENT_LABELS,
-  OPEN_APP_ENVIRONMENTS,
-  OPEN_APP_REVIEW_STATUS_LABELS,
-  OPEN_APP_REVIEW_STATUSES,
-} from '@zenith/shared';
-import type { OAuth2Client } from '@zenith/shared';
+import { OAUTH2_GRANT_TYPE_LABELS, OAUTH2_GRANT_TYPES, OPEN_APP_ENVIRONMENT_LABELS, OPEN_APP_ENVIRONMENTS, OPEN_APP_REVIEW_STATUS_LABELS, OPEN_APP_REVIEW_STATUSES } from '@zenith/shared/open-platform';
+import type { OAuth2Client } from '@zenith/shared/open-platform';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';

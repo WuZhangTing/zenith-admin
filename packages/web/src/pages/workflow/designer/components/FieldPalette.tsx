@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Input, Typography, Popconfirm } from '@douyinfe/semi-ui';
 import { Search, BookmarkPlus, X } from 'lucide-react';
-import type { WorkflowFormField } from '@zenith/shared';
+import type { WorkflowFormField } from '@zenith/shared/workflow';
 import { FORM_FIELD_TYPE_GROUPS, type FormFieldTypeInfo } from '../form-types';
 import { loadFieldTemplates, removeFieldTemplate, FIELD_TEMPLATES_CHANGED_EVENT, type FieldTemplateEntry } from '../form-field-templates';
 

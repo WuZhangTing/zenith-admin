@@ -7,7 +7,7 @@ import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
 import { createWechatMenu, getWechatMenu, deleteWechatMenu, WechatApiError } from '../../lib/wechat';
-import type { MpMenuButton, MpMenu } from '@zenith/shared';
+import type { MpMenuButton, MpMenu } from '@zenith/shared/mp';
 
 function mapWechatError(err: unknown): never {
   if (err instanceof WechatApiError) throw new HTTPException(400, { message: err.message });

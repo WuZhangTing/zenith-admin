@@ -3,7 +3,7 @@ import Editor, { type OnMount } from '@monaco-editor/react';
 import { Button, Toast, Spin, Typography } from '@douyinfe/semi-ui';
 import { Save } from 'lucide-react';
 import type { editor } from 'monaco-editor';
-import { TOKEN_KEY } from '@zenith/shared';
+import { TOKEN_KEY } from '@zenith/shared/core';
 import { config } from '@/config';
 import { useThemeController } from '@/providers/theme-controller';
 import { useTerminalPreferences } from './useTerminalPreferences';

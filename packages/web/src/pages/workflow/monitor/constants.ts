@@ -1,4 +1,4 @@
-import type { WorkflowJobStatus } from '@zenith/shared';
+import type { WorkflowJobStatus } from '@zenith/shared/workflow';
 
 export const WORKFLOW_ISSUE_SEVERITY_META = {
   info: { text: '信息', color: 'blue' },

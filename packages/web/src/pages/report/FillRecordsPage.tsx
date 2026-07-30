@@ -20,14 +20,9 @@ import {
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ClipboardPlus, ExternalLink, RotateCcw, Search } from 'lucide-react';
-import {
-  REPORT_FILL_RECORD_STATUS_LABELS,
-  REPORT_FILL_RECORD_STATUS_OPTIONS,
-  REPORT_FILL_SYNC_STATUS_LABELS,
-  type AsyncTask,
-  type ReportFillRecord,
-  type ReportFillRecordStatus,
-} from '@zenith/shared';
+import { REPORT_FILL_RECORD_STATUS_LABELS, REPORT_FILL_RECORD_STATUS_OPTIONS, REPORT_FILL_SYNC_STATUS_LABELS } from '@zenith/shared/report';
+import type { ReportFillRecord, ReportFillRecordStatus } from '@zenith/shared/report';
+import type { AsyncTask } from '@zenith/shared/tasks';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';

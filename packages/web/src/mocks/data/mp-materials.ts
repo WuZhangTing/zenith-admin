@@ -1,5 +1,5 @@
-import type { MpMaterial } from '@zenith/shared';
-import { SEED_MP_MATERIALS } from '@zenith/shared';
+import type { MpMaterial } from '@zenith/shared/mp';
+import { SEED_MP_MATERIALS } from '@zenith/shared/seed';
 
 export const mockMpMaterials: MpMaterial[] = SEED_MP_MATERIALS.map((m) => ({ ...m }));
 

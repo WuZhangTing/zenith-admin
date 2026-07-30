@@ -1,7 +1,7 @@
 import { http } from 'msw';
 import { mockDateTime } from '@/mocks/utils/date';
 import { ok, notFound, badRequest, paginate } from '@/mocks/utils/handlers';
-import type { PaymentDispute, PaymentDisputeDetail, PaymentDisputeReply, PaymentDisputeStats } from '@zenith/shared';
+import type { PaymentDispute, PaymentDisputeDetail, PaymentDisputeReply, PaymentDisputeStats } from '@zenith/shared/payment';
 import dayjs from 'dayjs';
 
 let nextDisputeId = 4;

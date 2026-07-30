@@ -55,19 +55,9 @@ import {
 } from '@/components/charts';
 import AppModal from '@/components/AppModal';
 import { formatBytesMb as formatBytes } from '@/utils/format';
-import type {
-  ErrorAlertCondition,
-  ErrorAlertLog,
-  ErrorAlertRule,
-  ErrorBreadcrumb,
-  ErrorEvent,
-  ErrorGroup,
-  ErrorLevel,
-  ErrorStatus,
-  FrontendErrorType,
-  SourceMapItem,
-} from '@zenith/shared';
-import { NOTIFY_CHANNEL_OPTIONS, SOURCE_MAP_MAX_BYTES } from '@zenith/shared';
+import type { ErrorAlertCondition, ErrorAlertLog, ErrorAlertRule, ErrorBreadcrumb, ErrorEvent, ErrorGroup, ErrorLevel, ErrorStatus, FrontendErrorType, SourceMapItem } from '@zenith/shared/analytics';
+import { SOURCE_MAP_MAX_BYTES } from '@zenith/shared/analytics';
+import { NOTIFY_CHANNEL_OPTIONS } from '@zenith/shared/messaging';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';

@@ -1,5 +1,5 @@
-import { SEED_TENANT_PACKAGES } from '@zenith/shared';
-import type { TenantPackage } from '@zenith/shared';
+import { SEED_TENANT_PACKAGES } from '@zenith/shared/seed';
+import type { TenantPackage } from '@zenith/shared/identity';
 
 let nextTenantPackageId = Math.max(...SEED_TENANT_PACKAGES.map((p) => p.id)) + 1;
 export function getNextTenantPackageId() { return nextTenantPackageId++; }

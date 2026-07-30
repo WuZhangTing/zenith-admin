@@ -3,11 +3,8 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Banner, Button, Descriptions, Space, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { ArrowLeft, Save, Send } from 'lucide-react';
-import {
-  REPORT_FILL_RECORD_STATUS_LABELS,
-  type ReportFillRecord,
-  type ReportFillTemplate,
-} from '@zenith/shared';
+import { REPORT_FILL_RECORD_STATUS_LABELS } from '@zenith/shared/report';
+import type { ReportFillRecord, ReportFillTemplate } from '@zenith/shared/report';
 import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowFormRenderer';
 import { usePermission } from '@/hooks/usePermission';
 import {

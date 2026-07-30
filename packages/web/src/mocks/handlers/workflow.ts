@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw';
-import type { WorkflowDefinition, WorkflowDefinitionVersion, WorkflowEngineIntrospection, WorkflowEngineOutboxEvent, WorkflowEngineRuntimeTask, WorkflowFlowData, WorkflowFormField, WorkflowInstance, WorkflowInstanceFormSnapshot, WorkflowRuntimeDiagnostics, WorkflowRuntimeIssue, WorkflowSerialNoConfig, WorkflowSimulationCase, WorkflowSimulationDecision, WorkflowSimulationResult, WorkflowTask, WorkflowTaskUrge } from '@zenith/shared';
-import { buildWorkflowSummaryItems, collectReferencedFormFieldKeys, findNextApproverSelectNodes, renderWorkflowSerialNo, resolveNodeFieldPermissions, resolveSerialPeriodKey, sanitizeFormUpdatesByNodePerms, WORKFLOW_SERIAL_SAMPLE_VARS } from '@zenith/shared';
+import type { WorkflowDefinition, WorkflowDefinitionVersion, WorkflowEngineIntrospection, WorkflowEngineOutboxEvent, WorkflowEngineRuntimeTask, WorkflowFlowData, WorkflowFormField, WorkflowInstance, WorkflowInstanceFormSnapshot, WorkflowRuntimeDiagnostics, WorkflowRuntimeIssue, WorkflowSerialNoConfig, WorkflowSimulationCase, WorkflowSimulationDecision, WorkflowSimulationResult, WorkflowTask, WorkflowTaskUrge } from '@zenith/shared/workflow';
+import { buildWorkflowSummaryItems, collectReferencedFormFieldKeys, findNextApproverSelectNodes, renderWorkflowSerialNo, resolveNodeFieldPermissions, resolveSerialPeriodKey, sanitizeFormUpdatesByNodePerms, WORKFLOW_SERIAL_SAMPLE_VARS } from '@zenith/shared/workflow';
 import {
   mockWorkflowDefinitions,
   mockWorkflowInstances,

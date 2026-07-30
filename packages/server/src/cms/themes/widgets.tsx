@@ -1,13 +1,7 @@
 import { createElement, type ComponentType } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import {
-  CMS_WIDGET_RENDERER_KEYS,
-  CMS_WIDGET_RENDERER_LABELS,
-  type CmsResolvedWidget,
-  type CmsWidgetRendererKey,
-  type CmsWidgetRendererOption,
-  type CmsWidgetType,
-} from '@zenith/shared';
+import { CMS_WIDGET_RENDERER_KEYS, CMS_WIDGET_RENDERER_LABELS } from '@zenith/shared/cms';
+import type { CmsResolvedWidget, CmsWidgetRendererKey, CmsWidgetRendererOption, CmsWidgetType } from '@zenith/shared/cms';
 
 export interface CmsWidgetRendererProps {
   widget: CmsResolvedWidget;

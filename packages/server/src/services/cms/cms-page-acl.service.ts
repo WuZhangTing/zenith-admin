@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type { CmsPageBlock, SetCmsPageBlockAclInput } from '@zenith/shared';
+import type { CmsPageBlock, SetCmsPageBlockAclInput } from '@zenith/shared/cms';
 import { db } from '../../db';
 import { cmsPageBlockAcls, cmsPages, roles, userRoles, users } from '../../db/schema';
 import type { CmsPageBlockAclRow, CmsPageRow } from '../../db/schema';

@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
-import { createFileStorageConfigSchema, updateFileStorageConfigSchema } from '@zenith/shared';
+import { createFileStorageConfigSchema, updateFileStorageConfigSchema } from '@zenith/shared/platform';
 import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody } from '../../lib/openapi-schemas';
 import { FileStorageConfigDTO } from '../../lib/openapi-dtos';
 import {

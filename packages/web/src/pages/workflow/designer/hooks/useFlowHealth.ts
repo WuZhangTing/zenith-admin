@@ -4,7 +4,7 @@
  * 将返回的按 nodeKey 标记的问题聚合为 Map，驱动画布上的节点红点/告警角标。复用后端体检引擎，不重写。
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { WorkflowDefinitionHealthReport, WorkflowFlowData } from '@zenith/shared';
+import type { WorkflowDefinitionHealthReport, WorkflowFlowData } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
 import type { NodeHealthInfo, NodeHealthIssue } from '../types';
 

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { cmsSlugRegex } from '@zenith/shared';
+import { cmsSlugRegex } from '@zenith/shared/cms';
 
 export const CMS_STATIC_ROOT = process.env.CMS_STATIC_ROOT?.trim()
   ? path.resolve(process.env.CMS_STATIC_ROOT.trim())

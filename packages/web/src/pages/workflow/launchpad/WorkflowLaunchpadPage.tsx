@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Empty, List, Space, Spin, Toast, Typography } from '@douyinfe/semi-ui';
 import { useNavigate } from 'react-router-dom';
 import { ExternalLink, Send } from 'lucide-react';
-import type { WorkflowDefinition } from '@zenith/shared';
+import type { WorkflowDefinition } from '@zenith/shared/workflow';
 import { KeywordSearchToolbar } from '@/components/KeywordSearchToolbar';
 import WorkflowLaunchForm, { type WorkflowLaunchFormHandle } from '@/components/workflow/WorkflowLaunchForm';
 import WorkflowSideSheet from '@/components/workflow/WorkflowSideSheet';

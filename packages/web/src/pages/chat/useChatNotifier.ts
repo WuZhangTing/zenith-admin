@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import type { ChatConversation, WsMessage } from '@zenith/shared';
+import type { ChatConversation } from '@zenith/shared/chat';
+import type { WsMessage } from '@zenith/shared/platform';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { request } from '@/utils/request';
 import { getChatNotifyPrefs } from '@/pages/chat/notifyPrefs';

@@ -1,5 +1,5 @@
-import type { MpBroadcast } from '@zenith/shared';
-import { SEED_MP_BROADCASTS } from '@zenith/shared';
+import type { MpBroadcast } from '@zenith/shared/mp';
+import { SEED_MP_BROADCASTS } from '@zenith/shared/seed';
 
 export const mockMpBroadcasts: MpBroadcast[] = SEED_MP_BROADCASTS.map((b) => ({ ...b }));
 

@@ -1,5 +1,5 @@
 import { HTTPException } from 'hono/http-exception';
-import { aggregateReportRows, compare as compareReportValue } from '@zenith/shared';
+import { aggregateReportRows, compare as compareReportValue } from '@zenith/shared/report';
 import { and, desc, eq, ilike, inArray, isNotNull, lte, or } from 'drizzle-orm';
 import { db } from '../../db';
 import { reportAlertRules, reportDeliveryRuns } from '../../db/schema';
@@ -31,17 +31,7 @@ import {
 import { reportCreateTenantId, reportScopedWhere, reportTenantScope } from './report-access';
 import { maskReportSecret, prepareReportSecret } from './report-secrets';
 import type { ReportAlertRuleRow, ReportDeliveryRunRow } from '../../db/schema';
-import type {
-  CreateReportAlertInput,
-  ReportAlertAggregate,
-  ReportAlertEvalHit,
-  ReportAlertEvalResult,
-  ReportAlertOp,
-  ReportAlertRule,
-  ReportDeliveryStatus,
-  ReportNotifyChannel,
-  UpdateReportAlertInput,
-} from '@zenith/shared';
+import type { CreateReportAlertInput, ReportAlertAggregate, ReportAlertEvalHit, ReportAlertEvalResult, ReportAlertOp, ReportAlertRule, ReportDeliveryStatus, ReportNotifyChannel, UpdateReportAlertInput } from '@zenith/shared/report';
 
 type AlertRowExt = ReportAlertRuleRow & {
   dataset?: { name: string } | null;

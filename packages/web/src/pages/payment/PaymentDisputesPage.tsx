@@ -21,15 +21,8 @@ import {
   useResolvePaymentDispute,
   useSimulatePaymentDispute,
 } from '@/hooks/queries/payment-disputes';
-import {
-  PAYMENT_CHANNEL_LABELS,
-  PAYMENT_DISPUTE_STATUS_LABELS,
-  PAYMENT_DISPUTE_STATUS_OPTIONS,
-  PAYMENT_DISPUTE_TYPE_LABELS,
-  PAYMENT_DISPUTE_TYPE_OPTIONS,
-  PAYMENT_ORDER_STATUS_LABELS,
-} from '@zenith/shared';
-import type { PaymentChannel, PaymentDispute, PaymentDisputeStatus, PaymentDisputeType } from '@zenith/shared';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_DISPUTE_STATUS_LABELS, PAYMENT_DISPUTE_STATUS_OPTIONS, PAYMENT_DISPUTE_TYPE_LABELS, PAYMENT_DISPUTE_TYPE_OPTIONS, PAYMENT_ORDER_STATUS_LABELS } from '@zenith/shared/payment';
+import type { PaymentChannel, PaymentDispute, PaymentDisputeStatus, PaymentDisputeType } from '@zenith/shared/payment';
 
 const yuan = formatYuan;
 const STATUS_COLOR = { pending: 'red', processing: 'blue', resolved: 'green', refunded: 'purple' } as const satisfies Record<PaymentDisputeStatus, string>;

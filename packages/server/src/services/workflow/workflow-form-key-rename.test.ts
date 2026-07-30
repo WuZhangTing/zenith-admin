@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { renameWorkflowFormFieldKeys } from '@zenith/shared';
-import type { WorkflowFlowData } from '@zenith/shared';
+import { renameWorkflowFormFieldKeys } from '@zenith/shared/workflow';
+import type { WorkflowFlowData } from '@zenith/shared/workflow';
 
 /** 构造一个覆盖各引用位置的 flowData 样例 */
 function makeFlowData(): WorkflowFlowData {

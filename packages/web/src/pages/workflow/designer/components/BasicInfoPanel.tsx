@@ -2,7 +2,7 @@
  * 基础信息面板 — 步骤 ① 基础信息
  */
 import { Form, Select, Tag } from '@douyinfe/semi-ui';
-import type { WorkflowDefinition } from '@zenith/shared';
+import type { WorkflowDefinition } from '@zenith/shared/workflow';
 import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
 import { useMemo } from 'react';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';

@@ -18,8 +18,8 @@ import {
   usePaymentFeeRuleList,
   useSavePaymentFeeRule,
 } from '@/hooks/queries/payment-fee';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_LABELS } from '@zenith/shared';
-import type { PaymentChannel, PaymentFeeRule, PaymentMethod } from '@zenith/shared';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_LABELS } from '@zenith/shared/payment';
+import type { PaymentChannel, PaymentFeeRule, PaymentMethod } from '@zenith/shared/payment';
 import { useDictItems } from '@/hooks/useDictItems';
 
 const yuan = formatYuan;

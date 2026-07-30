@@ -7,13 +7,8 @@ import { tenantCondition } from '../../lib/tenant';
 import { pageOffset } from '../../lib/pagination';
 import { escapeLike } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
-import type {
-  WorkflowAnalytics,
-  WorkflowInstanceStatus,
-  WorkflowAnalyticsTrendPoint,
-  WorkflowOverdueTask,
-} from '@zenith/shared';
-import { WORKFLOW_INSTANCE_STATUS_LABELS } from '@zenith/shared';
+import type { WorkflowAnalytics, WorkflowInstanceStatus, WorkflowAnalyticsTrendPoint, WorkflowOverdueTask } from '@zenith/shared/workflow';
+import { WORKFLOW_INSTANCE_STATUS_LABELS } from '@zenith/shared/workflow';
 
 const FINISHED: WorkflowInstanceStatus[] = ['approved', 'rejected', 'withdrawn', 'cancelled'];
 

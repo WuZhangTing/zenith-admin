@@ -5,7 +5,7 @@ import type { DbExecutor } from '../../db/types';
 import { currentUser } from '../../lib/context';
 import { withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
-import type { MaintenanceLog } from '@zenith/shared';
+import type { MaintenanceLog } from '@zenith/shared/platform';
 
 export interface MaintenanceStatus {
   enabled: boolean;

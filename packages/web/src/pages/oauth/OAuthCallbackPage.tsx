@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { Spin, Toast } from '@douyinfe/semi-ui';
-import { TOKEN_KEY, REFRESH_TOKEN_KEY } from '@zenith/shared';
+import { TOKEN_KEY, REFRESH_TOKEN_KEY } from '@zenith/shared/core';
 import { request } from '@/utils/request';
 import { markPostLoginHome } from '@/lib/post-login';
 

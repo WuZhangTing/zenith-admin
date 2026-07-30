@@ -17,7 +17,7 @@ import {
   invalidateGovernanceCache,
   __resetGovernanceStateForTest,
 } from './analytics-governance.service';
-import type { TrackEventInput } from '@zenith/shared';
+import type { TrackEventInput } from '@zenith/shared/analytics';
 
 function baseEvent(overrides: Partial<TrackEventInput> = {}): TrackEventInput {
   return {

@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import type { WorkflowTriggerNodeConfig, WorkflowTriggerType } from '@zenith/shared';
+import type { WorkflowTriggerNodeConfig, WorkflowTriggerType } from '@zenith/shared/workflow';
 import { db } from '../../../db';
 import { workflowTasks, workflowInstances } from '../../../db/schema';
 import type { workflowTasks as workflowTasksTable, workflowInstances as workflowInstancesTable } from '../../../db/schema';

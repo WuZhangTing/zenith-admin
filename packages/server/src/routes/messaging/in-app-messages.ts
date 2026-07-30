@@ -5,7 +5,7 @@ import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody, BatchIdsBody,
 } from '../../lib/openapi-schemas';
-import { sendInAppSchema, IN_APP_MESSAGE_TYPES } from '@zenith/shared';
+import { sendInAppSchema, IN_APP_MESSAGE_TYPES } from '@zenith/shared/messaging';
 import { InAppMessageDTO, InAppSendResultDTO, UnreadCountDTO } from '../../lib/openapi-dtos';
 import {
   listMyInAppMessages, getMyInAppMessage, markAsRead, markAllAsRead, unreadCount,

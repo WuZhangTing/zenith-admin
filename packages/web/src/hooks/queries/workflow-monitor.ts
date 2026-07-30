@@ -1,30 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  PaginatedResponse,
-  WorkflowAnalytics,
-  WorkflowCompensation,
-  WorkflowCompensationDetail,
-  WorkflowDefinition,
-  WorkflowEngineActionKey,
-  WorkflowEngineActionPreview,
-  WorkflowEngineActionResult,
-  WorkflowEngineHealthHistory,
-  WorkflowEngineIntrospection,
-  WorkflowHandoverPreview,
-  WorkflowHandoverResult,
-  WorkflowInstance,
-  WorkflowInstanceTrace,
-  WorkflowJob,
-  WorkflowJobBatchResult,
-  WorkflowJobChain,
-  WorkflowJobExecution,
-  WorkflowJobStatus,
-  WorkflowJobSummaryItem,
-  WorkflowJobType,
-  WorkflowOverdueTask,
-  WorkflowRecoveryBatchResult,
-  WorkflowRuntimeDiagnostics,
-} from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { WorkflowAnalytics, WorkflowCompensation, WorkflowCompensationDetail, WorkflowDefinition, WorkflowEngineActionKey, WorkflowEngineActionPreview, WorkflowEngineActionResult, WorkflowEngineHealthHistory, WorkflowEngineIntrospection, WorkflowHandoverPreview, WorkflowHandoverResult, WorkflowInstance, WorkflowInstanceTrace, WorkflowJob, WorkflowJobBatchResult, WorkflowJobChain, WorkflowJobExecution, WorkflowJobStatus, WorkflowJobSummaryItem, WorkflowJobType, WorkflowOverdueTask, WorkflowRecoveryBatchResult, WorkflowRuntimeDiagnostics } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 

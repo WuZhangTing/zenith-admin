@@ -1,5 +1,5 @@
-import type { MpConditionalMenu } from '@zenith/shared';
-import { SEED_MP_CONDITIONAL_MENUS } from '@zenith/shared';
+import type { MpConditionalMenu } from '@zenith/shared/mp';
+import { SEED_MP_CONDITIONAL_MENUS } from '@zenith/shared/seed';
 import { mockDateTime } from '@/mocks/utils/date';
 
 export const mockMpConditionalMenus: MpConditionalMenu[] = SEED_MP_CONDITIONAL_MENUS.map((m) => ({

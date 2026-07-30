@@ -21,7 +21,7 @@ import { encryptField, decryptField } from '../../lib/encryption';
 import { httpPost } from '../../lib/http-client';
 import { paymentEventBus, type PaymentEvent } from '../../lib/payment-event-bus';
 import logger from '../../lib/logger';
-import type { PaymentWebhookEndpoint, PaymentWebhookDelivery } from '@zenith/shared';
+import type { PaymentWebhookEndpoint, PaymentWebhookDelivery } from '@zenith/shared/payment';
 
 const MAX_ATTEMPTS = 5;
 

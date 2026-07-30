@@ -1,0 +1,413 @@
+import { z } from 'zod';
+import { dateTimeStringSchema, partialForUpdate } from '../core/validation';
+import { MP_OAUTH_SCOPES } from '../mp/constants';
+
+export const loginSchema = z.object({
+  username: z.string().min(2, '用户名/手机号至少2个字符').max(32),
+  password: z.string().min(6, '密码至少6个字符').max(64),
+  captchaId: z.string().optional(),
+  captchaCode: z.string().optional(),
+  tenantCode: z.string().max(50).optional(),
+});
+
+
+export const registerSchema = z.object({
+  username: z.string().min(2, '用户名至少2个字符').max(32),
+  nickname: z.string().min(1, '昵称不能为空').max(32),
+  email: z.email('邮箱格式不正确'),
+  password: z.string().min(6, '密码至少6个字符').max(64),
+});
+
+
+export const createUserSchema = z.object({
+  username: z.string().min(2).max(32),
+  nickname: z.string().min(1).max(32),
+  email: z.preprocess(
+    (value) => (value === '' ? null : value),
+    z.email('邮箱格式不正确').nullable().optional()
+  ),
+  password: z.string().min(6).max(64),
+  phone: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().regex(/^1[3-9]\d{9}$/, '请输入正确的手机号码').optional()
+  ),
+  departmentId: z.number().int().positive().nullable().optional(),
+  positionIds: z.array(z.number().int().positive()).default([]),
+  roleIds: z.array(z.number().int()).default([]),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
+});
+
+
+export const updateUserSchema = partialForUpdate(createUserSchema).omit({ password: true });
+
+
+export const changePasswordSchema = z.object({
+  oldPassword: z.string().min(6, '原密码至少6个字符').max(64),
+  newPassword: z.string().min(6, '新密码至少6个字符').max(64),
+});
+
+
+export const forgotPasswordSchema = z.object({
+  email: z.email('邮箱格式不正确'),
+});
+
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1, 'token 不能为空'),
+  newPassword: z.string().min(6, '新密码至少6个字符').max(64),
+});
+
+
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+
+
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
+
+export const resetUserPasswordSchema = z.object({
+  password: z.string().min(6, '新密码至少6个字符').max(64),
+});
+
+
+export const updateProfileSchema = z.object({
+  nickname: z.string().min(1, '昵称不能为空').max(32).optional(),
+  email: z.email('邮箱格式不正确').optional(),
+  avatar: z.string().max(256).optional(),
+});
+
+
+// ─── 菜单 Schema ──────────────────────────────────────────────────────────────
+export const createMenuSchema = z.object({
+  parentId: z.number().int().default(0),
+  title: z.string().min(1, '菜单标题不能为空').max(64),
+  name: z.string().max(64).optional(),
+  path: z.string().max(256).optional(),
+  component: z.string().max(256).optional(),
+  icon: z.string().max(64).optional(),
+  type: z.enum(['directory', 'menu', 'button']).default('menu'),
+  permission: z.string().max(128).optional(),
+  sort: z.number().int().default(0),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
+  visible: z.boolean().default(true),
+});
+
+
+export const updateMenuSchema = partialForUpdate(createMenuSchema);
+
+
+// ─── 角色 Schema ──────────────────────────────────────────────────────────────
+export const createRoleSchema = z.object({
+  name: z.string().min(1, '角色名称不能为空').max(64),
+  code: z.string().min(1, '角色编码不能为空').max(64).regex(/^[a-z_]+$/, '角色编码只能包含小写字母和下划线'),
+  description: z.string().max(256).optional(),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
+  dataScope: z.enum(['all', 'custom', 'dept_only', 'dept', 'self']).default('all'),
+  deptScopeIds: z.array(z.number().int().positive()).optional().nullable(),
+});
+
+
+export const updateRoleSchema = partialForUpdate(createRoleSchema);
+
+
+export const assignRoleMenusSchema = z.object({
+  menuIds: z.array(z.number().int()),
+});
+
+
+export const assignRoleUsersSchema = z.object({
+  userIds: z.array(z.number().int()),
+});
+
+
+// ─── 部门 Schema ──────────────────────────────────────────────────────────────
+export const createDepartmentSchema = z.object({
+  parentId: z.number().int().min(0).default(0),
+  name: z.string().min(1, '部门名称不能为空').max(64),
+  code: z.string().min(1, '部门编码不能为空').max(64).regex(/^\w+$/, '部门编码只能包含字母、数字和下划线'),
+  category: z.enum(['group', 'company', 'department']).default('department'),
+  leaderId: z.number().int().nullable().optional(),
+  phone: z.string().max(32).optional(),
+  email: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.email('邮箱格式不正确').optional()
+  ),
+  sort: z.number().int().default(0),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
+});
+
+
+export const updateDepartmentSchema = partialForUpdate(createDepartmentSchema);
+
+
+// ─── 岗位 Schema ──────────────────────────────────────────────────────────────
+export const createPositionSchema = z.object({
+  name: z.string().min(1, '岗位名称不能为空').max(64),
+  code: z.string().min(1, '岗位编码不能为空').max(64).regex(/^\w+$/, '岗位编码只能包含字母、数字和下划线'),
+  sort: z.number().int().default(0),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
+  remark: z.string().max(256).optional(),
+});
+
+
+export const updatePositionSchema = partialForUpdate(createPositionSchema);
+
+
+// ─── 用户组 Schema ────────────────────────────────────────────────────────
+export const createUserGroupSchema = z.object({
+  name: z.string().min(1, '用户组名称不能为空').max(64),
+  code: z.string().min(1, '用户组编码不能为空').max(64).regex(/^\w+$/, '用户组编码只能包含字母、数字和下划线'),
+  description: z.string().max(256).optional(),
+  ownerId: z.number().int().positive().nullable().optional(),
+  departmentId: z.number().int().positive().nullable().optional(),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
+});
+
+
+export const updateUserGroupSchema = partialForUpdate(createUserGroupSchema);
+
+
+export type LoginInput = z.infer<typeof loginSchema>;
+
+
+export type RegisterInput = z.infer<typeof registerSchema>;
+
+
+export type CreateUserInput = z.infer<typeof createUserSchema>;
+
+
+export type UpdateUserInput = z.infer<typeof updateUserSchema>;
+
+
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
+
+export type ResetUserPasswordInput = z.infer<typeof resetUserPasswordSchema>;
+
+
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+
+
+export type CreateMenuInput = z.infer<typeof createMenuSchema>;
+
+
+export type UpdateMenuInput = z.infer<typeof updateMenuSchema>;
+
+
+export type CreateRoleInput = z.infer<typeof createRoleSchema>;
+
+
+export type UpdateRoleInput = z.infer<typeof updateRoleSchema>;
+
+
+export type AssignRoleMenusInput = z.infer<typeof assignRoleMenusSchema>;
+
+
+export type CreateDepartmentInput = z.infer<typeof createDepartmentSchema>;
+
+
+export type UpdateDepartmentInput = z.infer<typeof updateDepartmentSchema>;
+
+
+export type CreatePositionInput = z.infer<typeof createPositionSchema>;
+
+
+export type UpdatePositionInput = z.infer<typeof updatePositionSchema>;
+
+
+export type CreateUserGroupInput = z.infer<typeof createUserGroupSchema>;
+
+
+export type UpdateUserGroupInput = z.infer<typeof updateUserGroupSchema>;
+
+
+// ─── OAuth 配置 Schema ─────────────────────────────────────────────────────
+/**
+ * 注意：这是**整体替换**语义（后台配置表单每次提交全部字段，服务端 upsert），
+ * 不是部分更新。因此这里的 `.default()` 是有意的兜底——`updateOauthConfig` 把
+ * `clientId` / `enabled` 声明为必填并无条件写库。
+ * 不要套用 `partialForUpdate`：那会让这两个字段变成可选，与服务层契约冲突。
+ */
+export const updateOauthConfigSchema = z.object({
+  clientId: z.string().max(256).default(''),
+  clientSecret: z.string().max(512).default(''),
+  agentId: z.string().max(128).nullable().optional(),
+  corpId: z.string().max(128).nullable().optional(),
+  enabled: z.boolean().default(false),
+});
+
+
+// ─── 企业身份源 Schema ───────────────────────────────────────────────────
+export const identityProviderAttributeMappingSchema = z.object({
+  subject: z.string().max(64).optional(),
+  email: z.string().max(64).optional(),
+  username: z.string().max(64).optional(),
+  nickname: z.string().max(64).optional(),
+  phone: z.string().max(64).optional(),
+  department: z.string().max(64).optional(),
+});
+
+
+export const createTenantIdentityProviderSchema = z.object({
+  tenantId: z.number().int().positive().nullable().optional(),
+  name: z.string().min(1, '身份源名称不能为空').max(100),
+  code: z.string().min(1, '身份源编码不能为空').max(64).regex(/^[a-z][a-z0-9_-]*$/, '编码只能包含小写字母、数字、中划线和下划线，且以字母开头'),
+  type: z.enum(['oidc', 'saml', 'ldap', 'ad']),
+  status: z.enum(['enabled', 'disabled']).default('disabled'),
+  issuer: z.string().max(512).nullable().optional(),
+  authorizationEndpoint: z.string().max(512).nullable().optional(),
+  tokenEndpoint: z.string().max(512).nullable().optional(),
+  userinfoEndpoint: z.string().max(512).nullable().optional(),
+  jwksUri: z.string().max(512).nullable().optional(),
+  clientId: z.string().max(256).nullable().optional(),
+  clientSecret: z.string().max(1024).optional(),
+  scopes: z.string().max(256).default('openid profile email'),
+  samlSsoUrl: z.string().max(512).nullable().optional(),
+  samlEntityId: z.string().max(512).nullable().optional(),
+  samlCertificate: z.string().max(4096).optional(),
+  ldapUrl: z.string().max(512).nullable().optional(),
+  ldapStartTls: z.boolean().default(false),
+  ldapSkipTlsVerify: z.boolean().default(false),
+  ldapBaseDn: z.string().max(512).nullable().optional(),
+  ldapBindDn: z.string().max(512).nullable().optional(),
+  ldapBindPassword: z.string().max(1024).optional(),
+  ldapUserFilter: z.string().max(1000).nullable().optional(),
+  ldapUserSearchFilter: z.string().max(1000).nullable().optional(),
+  ldapSyncFilter: z.string().max(1000).nullable().optional(),
+  ldapGroupBaseDn: z.string().max(512).nullable().optional(),
+  ldapGroupFilter: z.string().max(1000).nullable().optional(),
+  ldapTimeoutMs: z.number().int().min(1000).max(60000).default(5000),
+  attributeMapping: identityProviderAttributeMappingSchema.default({
+    subject: 'sub',
+    email: 'email',
+    username: 'preferred_username',
+    nickname: 'name',
+    phone: 'phone_number',
+    department: 'department',
+  }),
+  jitEnabled: z.boolean().default(false),
+  defaultRoleIds: z.array(z.number().int().positive()).default([]),
+  remark: z.string().max(500).nullable().optional(),
+});
+
+
+export const updateTenantIdentityProviderSchema = partialForUpdate(createTenantIdentityProviderSchema);
+
+
+export const searchIdentityProviderUsersSchema = z.object({
+  keyword: z.string().max(100).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+
+export const syncIdentityProviderUsersSchema = z.object({
+  limit: z.number().int().min(1).max(5000).default(500),
+});
+
+
+export const enterpriseLdapLoginSchema = z.object({
+  providerId: z.number().int().positive(),
+  username: z.string().min(1, '请输入目录账号').max(128),
+  password: z.string().min(1, '请输入目录密码').max(512),
+  redirectTo: z.string().max(512).nullable().optional(),
+  deviceInfo: z.record(z.string(), z.unknown()).optional(),
+});
+
+
+// ─── 租户 Schema ────────────────────────────────────────────────────────────
+export const createTenantSchema = z.object({
+  name: z.string().min(1, '租户名称不能为空').max(100),
+  code: z.string().min(1, '租户编码不能为空').max(50).regex(/^[a-z][a-z0-9_]*$/, '租户编码只能包含小写字母、数字和下划线，且以字母开头'),
+  logo: z.string().max(500).optional(),
+  contactName: z.string().max(50).optional(),
+  contactPhone: z.string().max(20).optional(),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
+  expireAt: dateTimeStringSchema.optional().nullable(),
+  maxUsers: z.number().int().positive().optional().nullable(),
+  packageId: z.number().int().positive().optional().nullable(),
+  remark: z.string().max(500).optional(),
+  adminUsername: z.string().min(2, '管理员用户名至少 2 个字符').max(64).optional(),
+  adminPassword: z.string().min(6, '管理员密码至少 6 个字符').max(64).optional(),
+  adminNickname: z.string().max(64).optional(),
+  adminEmail: z.string().email('管理员邮箱格式不正确').max(128).optional(),
+});
+
+
+export const updateTenantSchema = partialForUpdate(createTenantSchema
+  .omit({ adminUsername: true, adminPassword: true, adminNickname: true, adminEmail: true }));
+
+
+export const switchTenantSchema = z.object({
+  tenantId: z.number().int().positive().nullable(),
+});
+
+
+export type CreateTenantInput = z.infer<typeof createTenantSchema>;
+
+
+export type UpdateTenantInput = z.infer<typeof updateTenantSchema>;
+
+
+export type SwitchTenantInput = z.infer<typeof switchTenantSchema>;
+
+
+// ─── 租户套餐 ────────────────────────────────────────────────────────────────
+export const createTenantPackageSchema = z.object({
+  name: z.string().min(1, '套餐名称不能为空').max(100),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
+  remark: z.string().max(500).optional(),
+});
+
+
+export const updateTenantPackageSchema = partialForUpdate(createTenantPackageSchema);
+
+
+export const assignTenantPackageMenusSchema = z.object({
+  menuIds: z.array(z.number().int()).default([]),
+});
+
+
+export type CreateTenantPackageInput = z.infer<typeof createTenantPackageSchema>;
+
+
+export type UpdateTenantPackageInput = z.infer<typeof updateTenantPackageSchema>;
+
+
+export type AssignTenantPackageMenusInput = z.infer<typeof assignTenantPackageMenusSchema>;
+
+
+export type UpdateOauthConfigInput = z.infer<typeof updateOauthConfigSchema>;
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// 数据分析 / 埋点 / 错误监控
+// ════════════════════════════════════════════════════════════════════════════
+
+export const userBehaviorEventTypeEnum = z.enum([
+  'page_view', 'page_leave', 'feature_use', 'area_click', 'custom', 'perf', 'api_request', 'identify',
+]);
+
+
+export const buildMpOAuthUrlSchema = z.object({
+  accountId: z.number().int().positive(),
+  redirectUri: z.string().url('回调地址需为合法 URL').max(1024),
+  scope: z.enum(MP_OAUTH_SCOPES).default('snsapi_base'),
+  state: z.string().max(128).optional(),
+});
+
+
+export type BuildMpOAuthUrlInput = z.infer<typeof buildMpOAuthUrlSchema>;
+
+
+// ─── 意见反馈 Schema ─────────────────────────────────────────────────────────
+export const createUserFeedbackSchema = z.object({
+  score: z.number().int().min(1, '评分最低 1 分').max(5, '评分最高 5 分').nullable().optional(),
+  category: z.enum(['suggestion', 'bug', 'ux', 'other']).default('suggestion'),
+  content: z.string().max(1000, '反馈内容不能超过 1000 字').nullable().optional(),
+  pagePath: z.string().max(200).nullable().optional(),
+}).refine((v) => v.score != null || (v.content != null && v.content.trim() !== ''), {
+  message: '评分与反馈内容至少填写一项',
+  path: ['content'],
+});
+
+
+export type CreateUserFeedbackInput = z.input<typeof createUserFeedbackSchema>;

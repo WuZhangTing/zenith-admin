@@ -2,13 +2,7 @@
  * 前端错误监控 DTO（Issue 模型）
  */
 import { z } from '@hono/zod-openapi';
-import {
-  ANALYTICS_BREADCRUMB_DATA_MAX_BYTES,
-  ANALYTICS_CONTEXT_MAX_BYTES,
-  ANALYTICS_ENVIRONMENTS,
-  ANALYTICS_EVENT_SOURCES,
-  SOURCE_MAP_MAX_BYTES,
-} from '@zenith/shared';
+import { ANALYTICS_BREADCRUMB_DATA_MAX_BYTES, ANALYTICS_CONTEXT_MAX_BYTES, ANALYTICS_ENVIRONMENTS, ANALYTICS_EVENT_SOURCES, SOURCE_MAP_MAX_BYTES } from '@zenith/shared/analytics';
 
 const errorTypeEnum = z.enum([
   'js_error', 'promise_rejection', 'resource_error', 'console_error', 'http_error', 'white_screen', 'crash',

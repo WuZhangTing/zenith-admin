@@ -3,7 +3,7 @@ import { Button, Tag, Space, Typography, Divider, Spin } from '@douyinfe/semi-ui
 import AppModal from '@/components/AppModal';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import { BookOpen, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
-import type { Announcement, AnnouncementAttachment } from '@zenith/shared';
+import type { Announcement, AnnouncementAttachment } from '@zenith/shared/messaging';
 import { formatDateTime } from '@/utils/date';
 import FileAttachment from '@/components/FileAttachment';
 import { useDictItems } from '@/hooks/useDictItems';

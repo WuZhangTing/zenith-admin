@@ -23,7 +23,7 @@ import {
   searchIdentityProviderUsersSchema,
   syncIdentityProviderUsersSchema,
   updateTenantIdentityProviderSchema,
-} from '@zenith/shared/validation';
+} from '@zenith/shared/identity';
 import {
   createIdentityProvider,
   deleteIdentityProvider,

@@ -1,20 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  ApplyReportAssetTemplateInput,
-  CreateReportAssetTemplateInput,
-  CreateReportDeprecationNoticeInput,
-  PaginatedResponse,
-  ReportAssetCatalogItem,
-  ReportAssetTemplate,
-  ReportAssetTemplateApplyResult,
-  ReportAssetTemplateType,
-  ReportAssetUsageSummary,
-  ReportAssetUsageTrendPoint,
-  ReportDeprecationNotice,
-  ReportResourceType,
-  UpdateReportAssetTemplateInput,
-  UpdateReportDeprecationNoticeInput,
-} from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { ApplyReportAssetTemplateInput, CreateReportAssetTemplateInput, CreateReportDeprecationNoticeInput, ReportAssetCatalogItem, ReportAssetTemplate, ReportAssetTemplateApplyResult, ReportAssetTemplateType, ReportAssetUsageSummary, ReportAssetUsageTrendPoint, ReportDeprecationNotice, ReportResourceType, UpdateReportAssetTemplateInput, UpdateReportDeprecationNoticeInput } from '@zenith/shared/report';
 import { toQueryString, unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
 

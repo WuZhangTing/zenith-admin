@@ -4,8 +4,8 @@ import { BadgeCheck, CalendarClock, Repeat, ShieldCheck } from 'lucide-react';
 import { MemberPage } from '../../components/MemberPage';
 import { formatYuan } from '../../utils/format';
 import { useMyRenewal, useRenewalPlans, useRenewNow, useSignRenewal, useTerminateRenewal } from '../../hooks/queries';
-import { PAYMENT_CONTRACT_STATUS_LABELS, PAYMENT_DEDUCT_PERIOD_LABELS } from '@zenith/shared';
-import type { PaymentDeductPlan } from '@zenith/shared';
+import { PAYMENT_CONTRACT_STATUS_LABELS, PAYMENT_DEDUCT_PERIOD_LABELS } from '@zenith/shared/payment';
+import type { PaymentDeductPlan } from '@zenith/shared/payment';
 
 function periodText(p: Pick<PaymentDeductPlan, 'period' | 'customDays'>): string {
   return p.period === 'custom' ? `每 ${p.customDays ?? '-'} 天` : PAYMENT_DEDUCT_PERIOD_LABELS[p.period];

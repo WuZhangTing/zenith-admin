@@ -7,7 +7,7 @@ import { formatDateTime } from '../../lib/datetime';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { assertSiteAccess } from './cms-sites.service';
-import type { CreateCmsLinkWordInput, UpdateCmsLinkWordInput } from '@zenith/shared';
+import type { CreateCmsLinkWordInput, UpdateCmsLinkWordInput } from '@zenith/shared/cms';
 
 // ─── 渲染缓存 ─────────────────────────────────────────────────────────────────
 let wordCache: { bySite: Map<number, CmsLinkWordRow[]>; loadedAt: number } | null = null;

@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockMpAccounts, getNextMpAccountId } from '@/mocks/data/mp-accounts';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { MpAccount } from '@zenith/shared';
+import type { MpAccount } from '@zenith/shared/mp';
 
 /** 列表脱敏：appSecret 显示掩码 */
 function maskSafe(a: MpAccount): MpAccount {

@@ -1,11 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import {
-  createReportDqRuleSchema,
-  reportDqRuleTypeSchema,
-  runReportDqRuleSchema,
-  updateReportDqAnomalyStatusSchema,
-  updateReportDqRuleSchema,
-} from '@zenith/shared';
+import { createReportDqRuleSchema, reportDqRuleTypeSchema, runReportDqRuleSchema, updateReportDqAnomalyStatusSchema, updateReportDqRuleSchema } from '@zenith/shared/report';
 import {
   AsyncTaskDTO,
   ReportDqAnomalyDTO,

@@ -26,12 +26,8 @@ import {
   useReportDatasetList,
   useSaveReportDataset,
 } from '@/hooks/queries/report-datasets';
-import { REPORT_DATASOURCE_TYPE_LABELS, REPORT_FIELD_TYPE_OPTIONS } from '@zenith/shared';
-import type {
-  ReportDataset, ReportDatasourceType, ReportField, ReportDataResult,
-  ReportApiDatasetContent, ReportSqlDatasetContent, ReportComputedField,
-  ReportStaticDatasetContent, ReportFieldFormat, ReportDatasetParam, ReportLookupOption, ReportRowRule, ReportVisualModel,
-} from '@zenith/shared';
+import { REPORT_DATASOURCE_TYPE_LABELS, REPORT_FIELD_TYPE_OPTIONS } from '@zenith/shared/report';
+import type { ReportDataset, ReportDatasourceType, ReportField, ReportDataResult, ReportApiDatasetContent, ReportSqlDatasetContent, ReportComputedField, ReportStaticDatasetContent, ReportFieldFormat, ReportDatasetParam, ReportLookupOption, ReportRowRule, ReportVisualModel } from '@zenith/shared/report';
 import { useAllRoles } from '@/hooks/queries/roles';
 import VisualModelBuilder from './components/VisualModelBuilder';
 import DatasetRefsModal from './components/DatasetRefsModal';

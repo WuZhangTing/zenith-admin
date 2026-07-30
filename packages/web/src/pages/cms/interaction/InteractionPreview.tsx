@@ -1,8 +1,5 @@
-import {
-  CMS_INTERACTION_KIND_LABELS,
-  CMS_INTERACTION_NPS_MAX,
-  type CmsInteractionKind,
-} from '@zenith/shared';
+import { CMS_INTERACTION_KIND_LABELS, CMS_INTERACTION_NPS_MAX } from '@zenith/shared/cms';
+import type { CmsInteractionKind } from '@zenith/shared/cms';
 import { isChoiceType, type QuestionDraft } from './question-draft';
 
 interface InteractionPreviewProps {

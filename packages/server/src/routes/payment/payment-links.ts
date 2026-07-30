@@ -1,11 +1,11 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { createPaymentLinkSchema, updatePaymentLinkSchema } from '@zenith/shared';
+import { createPaymentLinkSchema, updatePaymentLinkSchema } from '@zenith/shared/payment';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody } from '../../lib/openapi-schemas';
 import { PaymentLinkDTO } from '../../lib/openapi-dtos';
 import { listLinks, getLink, createLink, updateLink, deleteLink, rotateLinkToken } from '../../services/payment/payment-link.service';
-import type { PaymentLink } from '@zenith/shared';
+import type { PaymentLink } from '@zenith/shared/payment';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 

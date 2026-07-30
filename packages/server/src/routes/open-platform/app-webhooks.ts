@@ -20,7 +20,7 @@ import {
   OpenWebhookEventMetaDTO,
   AppWebhookBatchRetryResultDTO,
 } from '../../lib/openapi-dtos';
-import { createAppWebhookSchema, updateAppWebhookSchema } from '@zenith/shared';
+import { createAppWebhookSchema, updateAppWebhookSchema } from '@zenith/shared/open-platform';
 import {
   listSubscriptions,
   getSubscription,

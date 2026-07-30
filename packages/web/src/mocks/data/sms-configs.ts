@@ -1,4 +1,4 @@
-import type { SmsConfig } from '@zenith/shared';
+import type { SmsConfig } from '@zenith/shared/messaging';
 
 export const mockSmsConfigs: SmsConfig[] = [
   {

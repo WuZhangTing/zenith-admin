@@ -5,7 +5,7 @@ import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
 import { and, asc, eq, lt } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type { InitChunkUploadInput } from '@zenith/shared';
+import type { InitChunkUploadInput } from '@zenith/shared/platform';
 import { db } from '../../db';
 import { uploadSessions, uploadChunks, managedFiles, fileStorageConfigs } from '../../db/schema';
 import { buildUploadObjectKey, uploadObjectByConfig, extractBucketName, getMultipartDriver, mapObjectAclError, resolveObjectAcl } from '../../lib/file-storage';

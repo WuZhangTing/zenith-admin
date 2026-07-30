@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { OAuthConfig, OAuthProviderType } from '@zenith/shared';
+import type { OAuthConfig, OAuthProviderType } from '@zenith/shared/identity';
 import { unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
 

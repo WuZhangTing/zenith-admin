@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Select, Input, InputNumber, Toast, Typography, Space } from '@douyinfe/semi-ui';
-import type { WorkflowDefinition, WorkflowFlowData } from '@zenith/shared';
+import type { WorkflowDefinition, WorkflowFlowData } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 import AppModal from '@/components/AppModal';

@@ -11,13 +11,7 @@
  */
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
-import type {
-  WorkflowEvent,
-  WorkflowEventType,
-  WorkflowInstanceEventPayload,
-  WorkflowNodeEventPayload,
-  WorkflowTaskEventPayload,
-} from '@zenith/shared';
+import type { WorkflowEvent, WorkflowEventType, WorkflowInstanceEventPayload, WorkflowNodeEventPayload, WorkflowTaskEventPayload } from '@zenith/shared/workflow';
 import logger from './logger';
 import { formatDateTime } from './datetime';
 import { enqueueJob } from './workflow-jobs/engine';

@@ -25,16 +25,8 @@ import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers'
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { recordEvent, processEvent } from './payment-outbox.service';
-import type { CreatePaymentRiskRuleInput, UpdatePaymentRiskRuleInput } from '@zenith/shared';
-import type {
-  PaymentChannel,
-  PaymentRiskDimension,
-  PaymentRiskHit,
-  PaymentRiskReview,
-  PaymentRiskReviewStatus,
-  PaymentRiskRule,
-  PaymentRiskScope,
-} from '@zenith/shared';
+import type { CreatePaymentRiskRuleInput, UpdatePaymentRiskRuleInput } from '@zenith/shared/payment';
+import type { PaymentChannel, PaymentRiskDimension, PaymentRiskHit, PaymentRiskReview, PaymentRiskReviewStatus, PaymentRiskRule, PaymentRiskScope } from '@zenith/shared/payment';
 
 export function mapRiskRule(row: PaymentRiskRuleRow): PaymentRiskRule {
   return {

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { EmailConfig } from '@zenith/shared';
+import type { EmailConfig } from '@zenith/shared/messaging';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 

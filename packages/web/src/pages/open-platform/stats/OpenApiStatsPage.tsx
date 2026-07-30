@@ -4,10 +4,8 @@ import { Button, DatePicker, Input, InputNumber, Select, Typography, Tag, Space,
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { RotateCcw, Search } from 'lucide-react';
 import dayjs from 'dayjs';
-import type {
-  OpenApiCallLog,
-} from '@zenith/shared';
-import { OPEN_APP_ENVIRONMENT_LABELS, OPEN_APP_ENVIRONMENTS } from '@zenith/shared';
+import type { OpenApiCallLog } from '@zenith/shared/open-platform';
+import { OPEN_APP_ENVIRONMENT_LABELS, OPEN_APP_ENVIRONMENTS } from '@zenith/shared/open-platform';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { ExportButton } from '@/components/ExportButton';

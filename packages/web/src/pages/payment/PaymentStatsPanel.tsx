@@ -11,8 +11,8 @@ import {
   makePieSpec,
   useChartPalette,
 } from '@/components/charts';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_ORDER_STATUS_LABELS } from '@zenith/shared';
-import type { PaymentChannel, PaymentOrderStatus } from '@zenith/shared';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_ORDER_STATUS_LABELS } from '@zenith/shared/payment';
+import type { PaymentChannel, PaymentOrderStatus } from '@zenith/shared/payment';
 import { usePaymentStats, usePaymentTrend } from '@/hooks/queries/payment-stats';
 
 const yuan = formatYuan;

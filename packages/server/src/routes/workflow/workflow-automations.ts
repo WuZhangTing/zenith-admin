@@ -6,10 +6,7 @@ import {
   ok, okPaginated, okMsg, IdParam, BatchIdsBody, okBody,
 } from '../../lib/openapi-schemas';
 import { WorkflowAutomationDTO } from '../../lib/openapi-dtos';
-import {
-  createWorkflowAutomationSchema,
-  updateWorkflowAutomationSchema,
-} from '@zenith/shared';
+import { createWorkflowAutomationSchema, updateWorkflowAutomationSchema } from '@zenith/shared/workflow';
 import {
   listWorkflowAutomations,
   getWorkflowAutomation,

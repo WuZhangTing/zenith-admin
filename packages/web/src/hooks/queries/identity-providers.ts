@@ -1,12 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  IdentityProviderConnectionTestResult,
-  IdentityProviderSyncResult,
-  LdapDirectoryUser,
-  PaginatedResponse,
-  Tenant,
-  TenantIdentityProvider,
-} from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { IdentityProviderConnectionTestResult, IdentityProviderSyncResult, LdapDirectoryUser, Tenant, TenantIdentityProvider } from '@zenith/shared/identity';
 import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
 

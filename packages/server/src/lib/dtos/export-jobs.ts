@@ -1,5 +1,5 @@
 import { z } from '@hono/zod-openapi';
-import { EXPORT_JOB_FORMATS } from '@zenith/shared';
+import { EXPORT_JOB_FORMATS } from '@zenith/shared/tasks';
 
 const ExportJobFormatDTO = z.enum(EXPORT_JOB_FORMATS);
 const ExportJobStatusDTO = z.enum(['pending', 'running', 'success', 'failed', 'cancelled', 'expired']);

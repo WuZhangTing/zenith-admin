@@ -7,7 +7,7 @@ import {
   ok, okPaginated, okMsg, IdParam, okBody, BatchIdsBody,
 } from '../../lib/openapi-schemas';
 import { DecisionFlowDTO, RuleFlowEvaluateResultDTO } from '../../lib/openapi-dtos';
-import { createDecisionFlowSchema, updateDecisionFlowSchema, toggleDecisionTableSchema } from '@zenith/shared';
+import { createDecisionFlowSchema, updateDecisionFlowSchema, toggleDecisionTableSchema } from '@zenith/shared/rules';
 import {
   listDecisionFlows, getDecisionFlow, getDecisionFlowBeforeAudit,
   createDecisionFlow, updateDecisionFlow, deleteDecisionFlow, deleteDecisionFlows,

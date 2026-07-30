@@ -1,5 +1,5 @@
 import { and, desc, eq, isNull, like, or, type SQL } from 'drizzle-orm';
-import { CMS_CONTENT_STATUS_LABELS } from '@zenith/shared';
+import { CMS_CONTENT_STATUS_LABELS } from '@zenith/shared/cms';
 import { db } from '../../../db';
 import { cmsContents, cmsChannels } from '../../../db/schema';
 import { escapeLike } from '../../where-helpers';

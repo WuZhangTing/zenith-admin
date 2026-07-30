@@ -17,8 +17,8 @@ import {
 } from '@/hooks/queries/cms';
 import { useMyAsyncTasks } from '@/hooks/useAsyncTasks';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
-import { CMS_PUSH_ENGINE_LABELS } from '@zenith/shared';
-import type { CmsRedirect, CmsLinkWord, CmsPushLog } from '@zenith/shared';
+import { CMS_PUSH_ENGINE_LABELS } from '@zenith/shared/cms';
+import type { CmsRedirect, CmsLinkWord, CmsPushLog } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 
 // ─── 301 重定向 Tab ───────────────────────────────────────────────────────────

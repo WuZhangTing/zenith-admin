@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { Tabs, TabPane, Button, Toast, Spin, Tag, Modal } from '@douyinfe/semi-ui';
 import dayjs from 'dayjs';
-import type { Coupon } from '@zenith/shared';
+import type { Coupon } from '@zenith/shared/member';
 import { MemberPage } from '../../components/MemberPage';
 import {
   useAvailableCoupons,

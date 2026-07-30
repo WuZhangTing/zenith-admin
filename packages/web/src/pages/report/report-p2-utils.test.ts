@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ReportChatbiMessage, ReportFillRecord } from '@zenith/shared';
+import type { ReportChatbiMessage, ReportFillRecord } from '@zenith/shared/report';
 import { ApiError } from '@/lib/query';
 import {
   buildSafeChatbiWidget,

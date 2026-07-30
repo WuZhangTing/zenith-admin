@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
-import { renderPrintContent } from '@zenith/shared';
-import type { ReportPrintRenderPage, ReportPrintRenderResult } from '@zenith/shared';
+import { renderPrintContent } from '@zenith/shared/report';
+import type { ReportPrintRenderPage, ReportPrintRenderResult } from '@zenith/shared/report';
 import { renderPrintResultToDocx, renderPrintResultToPdf, renderPrintResultToWorkbook } from './report-print-export';
 
 describe('report-print-export', () => {

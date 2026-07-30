@@ -1,6 +1,6 @@
 import { mockDateTime, mockDateOffset } from '../utils/date';
-import { SEED_MEMBER_LEVELS, SEED_MEMBER_TAGS, SEED_COUPONS } from '@zenith/shared';
-import type { MemberTagBrief } from '@zenith/shared';
+import { SEED_MEMBER_LEVELS, SEED_MEMBER_TAGS, SEED_COUPONS } from '@zenith/shared/seed';
+import type { MemberTagBrief } from '@zenith/shared/member';
 
 const now = mockDateTime();
 

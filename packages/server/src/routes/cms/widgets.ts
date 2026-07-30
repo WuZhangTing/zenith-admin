@@ -1,13 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import {
-  CMS_WIDGET_RENDERER_KEYS,
-  CMS_WIDGET_STATUSES,
-  CMS_WIDGET_TYPES,
-  batchCmsWidgetSchema,
-  createCmsWidgetSchema,
-  saveCmsWidgetSlotSchema,
-  updateCmsWidgetSchema,
-} from '@zenith/shared';
+import { CMS_WIDGET_RENDERER_KEYS, CMS_WIDGET_STATUSES, CMS_WIDGET_TYPES, batchCmsWidgetSchema, createCmsWidgetSchema, updateCmsWidgetSchema } from '@zenith/shared/cms';
+import { saveCmsWidgetSlotSchema } from '@zenith/shared/report';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {

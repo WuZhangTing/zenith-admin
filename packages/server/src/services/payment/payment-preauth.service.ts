@@ -28,8 +28,8 @@ import { getAdapter } from '../../lib/payment/registry';
 import { buildAdapterContext, markOrderPaid } from './payment.service';
 import { ensureAccount } from './payment-account.service';
 import logger from '../../lib/logger';
-import type { CapturePaymentPreauthInput, CreatePaymentPreauthInput, PaymentChannel, PaymentPreauth, PaymentPreauthStatus } from '@zenith/shared';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_CHANNEL } from '@zenith/shared';
+import type { CapturePaymentPreauthInput, CreatePaymentPreauthInput, PaymentChannel, PaymentPreauth, PaymentPreauthStatus } from '@zenith/shared/payment';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_CHANNEL } from '@zenith/shared/payment';
 
 function genNo(): string {
   return `PRE${Date.now()}${randomInt(1000, 9999)}`;

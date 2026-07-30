@@ -1,12 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import type {
-  CmsInteraction,
-  CmsInteractionOption,
-  CmsInteractionQuestion,
-  CmsInteractionResponse,
-  CmsMemberSubscription,
-  CmsPageBlock,
-} from '@zenith/shared';
+import type { CmsInteraction, CmsInteractionOption, CmsInteractionQuestion, CmsInteractionResponse, CmsMemberSubscription, CmsPageBlock } from '@zenith/shared/cms';
 import {
   buildMockAnswerDetails,
   getNextCmsAdEventId,

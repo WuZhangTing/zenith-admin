@@ -26,7 +26,8 @@
 		"test": "npm run test -w @zenith/server && npm run test -w @zenith/web",
 		"test:server": "npm run test -w @zenith/server",
 		"test:web": "npm run test -w @zenith/web",
-		"lint": "npm run lint -w @zenith/server && npm run lint -w @zenith/analytics-sdk && npm run lint -w @zenith/web",
+		"lint": "node scripts/check-value-cycles.mjs && npm run lint -w @zenith/server && npm run lint -w @zenith/analytics-sdk && npm run lint -w @zenith/web",
+		"lint:cycles": "node scripts/check-value-cycles.mjs",
 		"lint:fix": "npm run lint:fix -w @zenith/server && npm run lint:fix -w @zenith/analytics-sdk && npm run lint:fix -w @zenith/web"
 	},
 	"devDependencies": {

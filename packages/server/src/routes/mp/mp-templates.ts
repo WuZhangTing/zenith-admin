@@ -5,7 +5,8 @@ import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody,
 } from '../../lib/openapi-schemas';
-import { sendMpTemplateSchema, setMpTemplateIndustrySchema, batchSendMpTemplateSchema } from '@zenith/shared';
+import { sendMpTemplateSchema, batchSendMpTemplateSchema } from '@zenith/shared/messaging';
+import { setMpTemplateIndustrySchema } from '@zenith/shared/mp';
 import { MpMessageTemplateDTO, MpTemplateSendLogDTO, MpTagSyncResultDTO, MpTemplateIndustryDTO, MpBatchSendResultDTO } from '../../lib/openapi-dtos';
 import {
   listMpTemplates, deleteMpTemplate, syncMpTemplates, sendMpTemplate, listMpTemplateSendLogs,

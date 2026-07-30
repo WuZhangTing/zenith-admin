@@ -1,4 +1,4 @@
-import type { CmsContentStatus } from '@zenith/shared';
+import type { CmsContentStatus } from '@zenith/shared/cms';
 
 export const CMS_CONTENT_STATUS_TRANSITIONS = {
   submit: ['draft', 'rejected'],

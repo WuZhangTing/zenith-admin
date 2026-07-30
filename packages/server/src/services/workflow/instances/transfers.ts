@@ -6,7 +6,7 @@ import { db } from '../../../db';
 import { workflowTaskTransfers, users } from '../../../db/schema';
 import type { DbExecutor } from '../../../db/types';
 import { formatDateTime } from '../../../lib/datetime';
-import type { WorkflowTaskTransfer } from '@zenith/shared';
+import type { WorkflowTaskTransfer } from '@zenith/shared/workflow';
 
 export type WorkflowTaskTransferAction = 'transfer' | 'delegate' | 'reassign' | 'handover' | 'timeout';
 

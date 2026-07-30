@@ -29,13 +29,8 @@ import {
   useTerminatePaymentContract,
   useUpdateDeductPlan,
 } from '@/hooks/queries/payment-contracts';
-import {
-  PAYMENT_CHANNEL_LABELS,
-  PAYMENT_CONTRACT_STATUS_LABELS,
-  PAYMENT_DEDUCT_PERIOD_LABELS,
-  PAYMENT_DEDUCT_PERIOD_OPTIONS,
-} from '@zenith/shared';
-import type { PaymentChannel, PaymentContract, PaymentContractStatus, PaymentDeductPeriod, PaymentDeductPlan } from '@zenith/shared';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_CONTRACT_STATUS_LABELS, PAYMENT_DEDUCT_PERIOD_LABELS, PAYMENT_DEDUCT_PERIOD_OPTIONS } from '@zenith/shared/payment';
+import type { PaymentChannel, PaymentContract, PaymentContractStatus, PaymentDeductPeriod, PaymentDeductPlan } from '@zenith/shared/payment';
 
 const yuan = formatYuan;
 const CONTRACT_STATUS_COLOR = { pending: 'grey', signed: 'green', paused: 'orange', terminated: 'red' } as const satisfies Record<PaymentContractStatus, string>;

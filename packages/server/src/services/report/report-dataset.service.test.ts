@@ -8,7 +8,7 @@ import { HTTPException } from 'hono/http-exception';
 import { resolveDatasetParams, buildExternalParamSql, applyRowRulesToSql, buildSystemParams } from './report-dataset.service';
 import { runWithCurrentUser } from '../../lib/context';
 import { config } from '../../config';
-import type { ReportDatasetParam } from '@zenith/shared';
+import type { ReportDatasetParam } from '@zenith/shared/report';
 import type { JwtPayload } from '../../middleware/auth';
 
 describe('resolveDatasetParams', () => {

@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { mockMpTags, getNextMpTagId } from '@/mocks/data/mp-tags';
 import { mockMpFans } from '@/mocks/data/mp-fans';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { MpTag } from '@zenith/shared';
+import type { MpTag } from '@zenith/shared/mp';
 
 export const mpTagsHandlers = [
   http.get('/api/mp/tags', ({ request }) => {

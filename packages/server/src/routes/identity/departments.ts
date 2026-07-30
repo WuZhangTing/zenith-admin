@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
-import { createDepartmentSchema, updateDepartmentSchema } from '@zenith/shared';
+import { createDepartmentSchema, updateDepartmentSchema } from '@zenith/shared/identity';
 import { jsonContent, validationHook, commonErrorResponses, ok, okMsg, IdParam, okBody } from '../../lib/openapi-schemas';
 import { DepartmentDTO } from '../../lib/openapi-dtos';
 import {

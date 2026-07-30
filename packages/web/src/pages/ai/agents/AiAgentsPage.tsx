@@ -30,8 +30,8 @@ import {
 import { useAvailableAiTools } from '@/hooks/queries/ai-tools';
 import { useAvailableKnowledgeBases } from '@/hooks/queries/ai-extras';
 import { useAiChatModels } from '@/hooks/queries/ai-providers';
-import { AI_AGENT_STATUS_LABELS } from '@zenith/shared';
-import type { AiAgent, CreateAiAgentInput } from '@zenith/shared';
+import { AI_AGENT_STATUS_LABELS } from '@zenith/shared/ai';
+import type { AiAgent, CreateAiAgentInput } from '@zenith/shared/ai';
 
 const { Text, Paragraph } = Typography;
 

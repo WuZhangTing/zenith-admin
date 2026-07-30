@@ -8,7 +8,9 @@ import { IllustrationIdle, IllustrationIdleDark } from '@douyinfe/semi-illustrat
 import { Bell, Building2, Check, Info, Expand, Shrink, Megaphone, Sun, Moon, Monitor, MoreHorizontal, User as UserIcon, Settings, LogOut, X, Palette, Pin, RotateCcw, PinOff, XCircle, ChevronLeft, ChevronRight, Trash2, Lock, Copy, ClipboardPaste, Route, Keyboard, Search, Star, Clock, Wrench, ExternalLink, Link2, Menu as MenuIcon, Files, Smartphone, MessageSquareHeart } from 'lucide-react';
 import { pinyinMatch, ensurePinyin } from '@/utils/pinyin';
 import MenuSearchInput, { type FlatMenuItem } from '@/components/MenuSearchInput';
-import type { User, Menu, InAppMessage, Announcement, Tenant, WsMessage, SystemConfig } from '@zenith/shared';
+import type { User, Menu, Tenant } from '@zenith/shared/identity';
+import type { InAppMessage, Announcement } from '@zenith/shared/messaging';
+import type { WsMessage, SystemConfig } from '@zenith/shared/platform';
 import type { ThemeMode } from '@/hooks/useTheme';
 import { usePreferences, sanitizeImportedPreferences, type NavLayout, type TableSizePreference, type RouteAnimation, type BorderRadiusPreference, type TabStyle } from '@/hooks/usePreferences';
 import { THEME_COLOR_PRESETS, getThemeColorVars } from '@/lib/theme-color';

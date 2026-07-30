@@ -1,17 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  AsyncTask,
-  CmsWidget,
-  CmsWidgetPreview,
-  CmsWidgetRef,
-  CmsWidgetRendererKey,
-  CmsWidgetRendererOption,
-  CmsWidgetSlot,
-  CmsWidgetSourceReference,
-  CmsWidgetStatus,
-  CmsWidgetType,
-  PaginatedResponse,
-} from '@zenith/shared';
+import type { CmsWidget, CmsWidgetPreview, CmsWidgetRef, CmsWidgetRendererKey, CmsWidgetRendererOption, CmsWidgetSlot, CmsWidgetSourceReference, CmsWidgetStatus, CmsWidgetType } from '@zenith/shared/cms';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { AsyncTask } from '@zenith/shared/tasks';
 import { request } from '@/utils/request';
 import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
 

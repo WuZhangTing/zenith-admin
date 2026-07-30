@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { Button, Form, Modal, SideSheet, Table, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus } from 'lucide-react';
-import type { ChannelQuickReply } from '@zenith/shared';
+import type { ChannelQuickReply } from '@zenith/shared/messaging';
 import { AppModal } from '@/components/AppModal';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import {

@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse, SystemConfig } from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { SystemConfig } from '@zenith/shared/platform';
 import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
 import type { PasswordPolicy } from '@/utils/password-policy';

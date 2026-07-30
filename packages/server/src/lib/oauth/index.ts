@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import type { OAuthProviderType } from '@zenith/shared';
+import type { OAuthProviderType } from '@zenith/shared/identity';
 import type { OAuthProvider, OAuthProviderConfig } from './types';
 import { GitHubProvider } from './github';
 import { DingTalkProvider } from './dingtalk';

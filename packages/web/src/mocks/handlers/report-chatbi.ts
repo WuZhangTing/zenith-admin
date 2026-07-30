@@ -1,9 +1,5 @@
 import { http } from 'msw';
-import type {
-  ReportChatbiMessage,
-  ReportChatbiSession,
-  ReportChatbiSessionDetail,
-} from '@zenith/shared';
+import type { ReportChatbiMessage, ReportChatbiSession, ReportChatbiSessionDetail } from '@zenith/shared/report';
 import {
   getNextReportDashboardId,
   getNextReportDatasetId,

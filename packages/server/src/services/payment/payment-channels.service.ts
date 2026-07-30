@@ -12,12 +12,7 @@ import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { encryptField } from '../../lib/encryption';
 import { formatDateTime } from '../../lib/datetime';
-import type {
-  CreatePaymentChannelConfigInput,
-  PaymentChannel,
-  PaymentChannelConfig,
-  UpdatePaymentChannelConfigInput,
-} from '@zenith/shared';
+import type { CreatePaymentChannelConfigInput, PaymentChannel, PaymentChannelConfig, UpdatePaymentChannelConfigInput } from '@zenith/shared/payment';
 
 export function mapChannelConfig(row: PaymentChannelConfigRow): PaymentChannelConfig {
   return {

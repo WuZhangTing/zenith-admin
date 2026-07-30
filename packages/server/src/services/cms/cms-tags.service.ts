@@ -6,7 +6,7 @@ import type { CmsTagRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import type { CreateCmsTagInput, UpdateCmsTagInput } from '@zenith/shared';
+import type { CreateCmsTagInput, UpdateCmsTagInput } from '@zenith/shared/cms';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────

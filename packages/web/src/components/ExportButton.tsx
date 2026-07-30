@@ -1,6 +1,6 @@
 import { Button, Dropdown, Space, SplitButtonGroup } from '@douyinfe/semi-ui';
 import { ChevronDown, Download } from 'lucide-react';
-import type { ExportJobFormat, ExportJobRequestMode } from '@zenith/shared';
+import type { ExportJobFormat, ExportJobRequestMode } from '@zenith/shared/tasks';
 import { useExportJobRunner } from '@/hooks/useExportJobRunner';
 
 interface ExportButtonProps {

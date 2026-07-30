@@ -5,7 +5,7 @@ import { Search, RotateCcw, Monitor as MonitorIcon } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { TOKEN_KEY } from '@zenith/shared';
+import { TOKEN_KEY } from '@zenith/shared/core';
 import '@xterm/xterm/css/xterm.css';
 import { config } from '@/config';
 import { usePermission } from '@/hooks/usePermission';

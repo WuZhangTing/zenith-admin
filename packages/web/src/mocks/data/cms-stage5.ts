@@ -1,11 +1,6 @@
-import {
-  SEED_CMS_DISTRIBUTION_RULES,
-  SEED_CMS_DISTRIBUTION_TASK_ITEMS,
-  SEED_CMS_DISTRIBUTION_TASKS,
-  type AsyncTaskItem,
-  type CmsDistributionRule,
-  type CmsDistributionRun,
-} from '@zenith/shared';
+import type { CmsDistributionRule, CmsDistributionRun } from '@zenith/shared/cms';
+import { SEED_CMS_DISTRIBUTION_RULES, SEED_CMS_DISTRIBUTION_TASK_ITEMS, SEED_CMS_DISTRIBUTION_TASKS } from '@zenith/shared/seed';
+import type { AsyncTaskItem } from '@zenith/shared/tasks';
 
 export const mockCmsDistributionRules: CmsDistributionRule[] =
   SEED_CMS_DISTRIBUTION_RULES.map((rule) => structuredClone(rule));

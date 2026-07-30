@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
-import { MEMBER_TOKEN_KEY, MEMBER_REFRESH_TOKEN_KEY } from '@zenith/shared';
-import type { ApiResponse, Member, MemberLoginResult } from '@zenith/shared';
+import { MEMBER_TOKEN_KEY, MEMBER_REFRESH_TOKEN_KEY } from '@zenith/shared/core';
+import type { ApiResponse } from '@zenith/shared/core';
+import type { Member, MemberLoginResult } from '@zenith/shared/member';
 import { prepareTrackerLogout } from '@/utils/tracker';
 import { memberRequest } from '../utils/member-request';
 import { memberQueryClient } from '../lib/member-query';

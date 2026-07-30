@@ -7,9 +7,8 @@ import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import {
   Search, RotateCcw, RefreshCw, Settings, Send, UserCheck, ArrowRightLeft, XCircle, MessageSquare, Star,
 } from 'lucide-react';
-import type {
-  MpKfSessionStatus, MpKfSessionEventType, MpKfSessionCloseReason, MpMessage, WsMessage,
-} from '@zenith/shared';
+import type { MpKfSessionStatus, MpKfSessionEventType, MpKfSessionCloseReason, MpMessage } from '@zenith/shared/mp';
+import type { WsMessage } from '@zenith/shared/platform';
 import { usePermission } from '@/hooks/usePermission';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { SearchToolbar } from '@/components/SearchToolbar';

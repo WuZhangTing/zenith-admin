@@ -1,4 +1,5 @@
-import { CMS_SECRET_MASK, CMS_SITE_OPS_DEFAULTS, type CmsSiteOpsSettings } from '@zenith/shared';
+import { CMS_SECRET_MASK, CMS_SITE_OPS_DEFAULTS } from '@zenith/shared/cms';
+import type { CmsSiteOpsSettings } from '@zenith/shared/cms';
 
 export { CMS_SECRET_MASK };
 

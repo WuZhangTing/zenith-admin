@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw';
-import { OPEN_WEBHOOK_EVENTS, OPEN_WEBHOOK_EVENT_LABELS } from '@zenith/shared';
-import type { AppWebhookSubscription, AppWebhookDelivery } from '@zenith/shared';
+import { OPEN_WEBHOOK_EVENTS, OPEN_WEBHOOK_EVENT_LABELS } from '@zenith/shared/open-platform';
+import type { AppWebhookSubscription, AppWebhookDelivery } from '@zenith/shared/open-platform';
 import { mockWebhookSubscriptions, mockWebhookDeliveries } from '@/mocks/data/app-webhooks';
 import { mockDateTime } from '@/mocks/utils/date';
 

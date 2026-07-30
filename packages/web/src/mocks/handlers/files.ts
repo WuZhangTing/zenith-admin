@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockFileStorageConfigs } from '@/mocks/data/system';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { FolderEntry, ManagedFile, FileStorageConfig, StorageBrowseResult } from '@zenith/shared';
+import type { FolderEntry, ManagedFile, FileStorageConfig, StorageBrowseResult } from '@zenith/shared/platform';
 
 function mockUuidV7() {
   const timeHex = Date.now().toString(16).padStart(12, '0').slice(-12);

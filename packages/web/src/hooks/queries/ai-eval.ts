@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AiEvalSet, AiEvalRun, CreateAiEvalSetInput, UpdateAiEvalSetInput, AsyncTask } from '@zenith/shared';
+import type { AiEvalSet, AiEvalRun, CreateAiEvalSetInput, UpdateAiEvalSetInput } from '@zenith/shared/ai';
+import type { AsyncTask } from '@zenith/shared/tasks';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 

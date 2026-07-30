@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { WorkflowFormSchema } from '@zenith/shared';
+import type { WorkflowFormSchema } from '@zenith/shared/workflow';
 import {
   validateReportFillSchema,
   validateReportFillValues,

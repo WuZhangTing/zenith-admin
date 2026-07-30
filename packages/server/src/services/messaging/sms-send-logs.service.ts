@@ -9,7 +9,7 @@ import { currentUser } from '../../lib/context';
 import { sendSmsByProvider, renderTemplate } from '../../lib/sms-sender';
 import { ensureSmsTemplateExists } from './sms-templates.service';
 import { findDefaultSmsConfig } from './sms-configs.service';
-import type { SmsProvider, SendSource, SendStatus, SendSmsInput } from '@zenith/shared';
+import type { SmsProvider, SendSource, SendStatus, SendSmsInput } from '@zenith/shared/messaging';
 
 export interface ListSmsSendLogsQuery {
   keyword?: string;

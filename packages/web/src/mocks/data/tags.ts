@@ -1,5 +1,5 @@
-import { SEED_TAGS } from '@zenith/shared';
-import type { Tag } from '@zenith/shared';
+import { SEED_TAGS } from '@zenith/shared/seed';
+import type { Tag } from '@zenith/shared/platform';
 
 export const mockTags: Tag[] = [...SEED_TAGS];
 

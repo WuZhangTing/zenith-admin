@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import type { PaymentStats, PaymentTrendPoint } from '@zenith/shared';
+import type { PaymentStats, PaymentTrendPoint } from '@zenith/shared/payment';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 

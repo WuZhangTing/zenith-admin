@@ -1,4 +1,4 @@
-import type { ReportDatasetParam } from '@zenith/shared';
+import type { ReportDatasetParam } from '@zenith/shared/report';
 import { formatDateForApi } from '@/utils/date';
 
 function parseDefaultValue(param: ReportDatasetParam): unknown {

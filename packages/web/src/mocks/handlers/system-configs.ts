@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockSystemConfigs } from '@/mocks/data/system';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { SystemConfig } from '@zenith/shared';
+import type { SystemConfig } from '@zenith/shared/platform';
 
 export const systemConfigsHandlers = [
   // 密码策略（公开，无需鉴权）

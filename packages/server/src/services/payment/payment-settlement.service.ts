@@ -16,7 +16,7 @@ import { isPgUniqueViolation, rethrowPgUniqueViolation } from '../../lib/db-erro
 import { recordLedgerEntry } from './payment-ledger.service';
 import logger from '../../lib/logger';
 import type { SQL } from 'drizzle-orm';
-import type { PaymentChannel, PaymentSettlementBatch, PaymentSettlementStatus } from '@zenith/shared';
+import type { PaymentChannel, PaymentSettlementBatch, PaymentSettlementStatus } from '@zenith/shared/payment';
 
 function genNo(): string {
   return `SETTLE${Date.now()}${randomInt(1000, 9999)}`;

@@ -58,7 +58,7 @@ export const xxxYyys = pgTable('xxx_yyys', {
 
 ---
 
-## Step 3：共享 Zod Schema（`packages/shared/src/validation.ts`）
+## Step 3：共享 Zod Schema（`packages/shared/src/{业务域}/validation.ts`）
 
 ```ts
 // ─── 创建 Schema ─────────────────────────────────────────────────────────
@@ -88,7 +88,7 @@ export type UpdateXxxInput = z.infer<typeof updateXxxSchema>;
 
 ---
 
-## Step 4：共享 TypeScript Interface（`packages/shared/src/types.ts`）
+## Step 4：共享 TypeScript Interface（`packages/shared/src/{业务域}/types.ts`）
 
 ```ts
 export interface Xxx {
@@ -796,7 +796,7 @@ npm run db:migrate
 
 > **注意**：PostgreSQL 的 pgEnum 添加新值需要 ALTER TYPE 命令，Drizzle 会自动生成。
 
-**1.3 在 `packages/shared/src/constants.ts` 中添加常量**
+**1.3 在 `packages/shared/src/{业务域}/constants.ts` 中添加常量**
 
 ```ts
 export const BUSINESS_TYPES = ['announcement', 'notice', 'ticket'] as const;
@@ -805,7 +805,7 @@ export type BusinessType = (typeof BUSINESS_TYPES)[number];
 
 ### Step 2：Shared 层类型和验证 Schema
 
-**2.1 在 `packages/shared/src/types.ts` 中添加附件接口**
+**2.1 在 `packages/shared/src/{业务域}/types.ts` 中添加附件接口**
 
 ```ts
 export interface NoticeAttachment {
@@ -826,7 +826,7 @@ export interface NoticeAttachment {
 }
 ```
 
-**2.2 在 `packages/shared/src/validation.ts` 中添加 fileIds 字段**
+**2.2 在 `packages/shared/src/{业务域}/validation.ts` 中添加 fileIds 字段**
 
 ```ts
 export const createNoticeSchema = z.object({

@@ -5,7 +5,7 @@ import { currentUser } from '../../lib/context';
 import { formatDateTime } from '../../lib/datetime';
 import { escapeLike, withPagination } from '../../lib/where-helpers';
 import { HTTPException } from 'hono/http-exception';
-import type { CreateAiPromptTemplateInput, UpdateAiPromptTemplateInput, AiPromptScope } from '@zenith/shared';
+import type { CreateAiPromptTemplateInput, UpdateAiPromptTemplateInput, AiPromptScope } from '@zenith/shared/ai';
 
 function mapTemplate(row: typeof aiPromptTemplates.$inferSelect) {
   return {

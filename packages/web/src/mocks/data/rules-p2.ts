@@ -1,5 +1,5 @@
-import { SEED_DECISION_FLOWS, SEED_RULE_LISTS, SEED_RULE_LIST_ITEMS } from '@zenith/shared';
-import type { RuleDecisionFlow, RuleList, RuleListItem } from '@zenith/shared';
+import { SEED_DECISION_FLOWS, SEED_RULE_LISTS, SEED_RULE_LIST_ITEMS } from '@zenith/shared/seed';
+import type { RuleDecisionFlow, RuleList, RuleListItem } from '@zenith/shared/rules';
 import { mockDateTime } from '@/mocks/utils/date';
 
 export const mockDecisionFlows: RuleDecisionFlow[] = SEED_DECISION_FLOWS.map((f) => ({

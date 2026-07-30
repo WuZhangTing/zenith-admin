@@ -132,6 +132,6 @@ SDK 启动时拉取 `GET /api/analytics/config`，应用「数据管理 → 采�
 | 会员业务 | `member.coupon.received` / `member.coupon.redeemed` | `coupons.service.ts::receiveCoupon` / `redeemCoupon` 成功后（`couponId`/`memberCouponId`/`bizType`/`bizId`） |
 | 会员业务 | `member.checkin.completed` | `member-checkin.service.ts::doCheckin` 成功后（连续天数、奖励积分等已有返回标量） |
 
-事件名常量统一定义于 `packages/shared/src/constants.ts`（`ANALYTICS_SEMANTIC_EVENT_NAMES` / `ANALYTICS_EVENT_NAMES` / `ANALYTICS_MEMBER_POINTS_EVENT_BY_TX_TYPE`），业务调用点**只引用常量**，禁止裸字符串拼写事件名。Tracking Plan 种子 `packages/shared/src/seed-data.ts` 的 `SEED_ANALYTICS_EVENT_META` 覆盖以上全部 30 个事件的 `displayName`/`category`/`propertySchema`（含 `required`/`type`/`pii` 标注），由 `db/seed.ts` 写入 `analytics_event_meta` 表，MSW Mock（`mocks/handlers/analytics.ts`）从同一常量派生初始数据，避免前后端/Mock 三处重复维护。
+事件名常量统一定义于 `packages/shared/src/{业务域}/constants.ts`（`ANALYTICS_SEMANTIC_EVENT_NAMES` / `ANALYTICS_EVENT_NAMES` / `ANALYTICS_MEMBER_POINTS_EVENT_BY_TX_TYPE`），业务调用点**只引用常量**，禁止裸字符串拼写事件名。Tracking Plan 种子 `packages/shared/src/seed/{业务域}.ts` 的 `SEED_ANALYTICS_EVENT_META` 覆盖以上全部 30 个事件的 `displayName`/`category`/`propertySchema`（含 `required`/`type`/`pii` 标注），由 `db/seed.ts` 写入 `analytics_event_meta` 表，MSW Mock（`mocks/handlers/analytics.ts`）从同一常量派生初始数据，避免前后端/Mock 三处重复维护。
 
 > 会员钱包充值走已有支付中心下单流程，由 `payment.succeeded` 覆盖，未在会员钱包模块单独重复打点；`exchangePointsForCoupon()` 等内部跨模块调用因无法安全界定"最外层业务成功"时机，暂未接入积分事件，落地范围以上述清单为准。

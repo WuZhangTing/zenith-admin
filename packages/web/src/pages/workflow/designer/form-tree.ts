@@ -3,8 +3,8 @@
  * 统一处理顶层字段、分栏（row.columns[].fields）、分组/明细（children）的
  * 查找 / 更新 / 删除 / 插入，供设计器画布的嵌套拖拽与字段配置复用。
  */
-import type { WorkflowFormField, WorkflowFormFieldType, WorkflowFieldVisibilityRuleGroup } from '@zenith/shared';
-import { isWorkflowRuleGroup, collectWorkflowRuleConditions } from '@zenith/shared';
+import type { WorkflowFormField, WorkflowFormFieldType, WorkflowFieldVisibilityRuleGroup } from '@zenith/shared/workflow';
+import { isWorkflowRuleGroup, collectWorkflowRuleConditions } from '@zenith/shared/workflow';
 
 /** 容器类型：内部可容纳子字段 */
 export const CONTAINER_TYPES: WorkflowFormFieldType[] = ['row', 'group', 'detail', 'tabs', 'steps'];

@@ -2,8 +2,9 @@ import { http } from 'msw';
 import { mockDeductPlans, mockPaymentContracts, mockVipRenewals, getNextContractId, getNextPlanId } from '@/mocks/data/payment-contracts';
 import { mockDateTime } from '@/mocks/utils/date';
 import { ok, notFound, badRequest, paginate } from '@/mocks/utils/handlers';
-import { PAYMENT_METHOD_CHANNEL } from '@zenith/shared';
-import type { MemberVipRenewal, PaymentContract, PaymentDeductMethod, PaymentDeductPeriod, PaymentDeductPlan } from '@zenith/shared';
+import { PAYMENT_METHOD_CHANNEL } from '@zenith/shared/payment';
+import type { MemberVipRenewal } from '@zenith/shared/member';
+import type { PaymentContract, PaymentDeductMethod, PaymentDeductPeriod, PaymentDeductPlan } from '@zenith/shared/payment';
 import dayjs from 'dayjs';
 
 const DEMO_MEMBER_BIZ = { bizType: 'member_renewal', bizId: '1' };

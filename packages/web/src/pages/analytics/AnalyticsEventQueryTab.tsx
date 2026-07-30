@@ -9,20 +9,8 @@ import { BarChart, chartOptions, makeBarSpec, useChartPalette } from '@/componen
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { formatDateForApi } from '@/utils/date';
 import { useAnalyticsEventMeta, useAnalyticsEventQuery } from '@/hooks/queries/analytics';
-import type {
-  AnalyticsEventQueryGroupByField,
-  AnalyticsEventQueryInput,
-  AnalyticsEventQueryMetric,
-  AnalyticsEventQueryRow,
-} from '@zenith/shared';
-import {
-  ANALYTICS_DEVICE_TYPE_OPTIONS,
-  ANALYTICS_ENVIRONMENT_OPTIONS,
-  ANALYTICS_EVENT_QUERY_GROUP_BY_LABELS,
-  ANALYTICS_EVENT_QUERY_GROUP_BY_OPTIONS,
-  ANALYTICS_EVENT_QUERY_METRIC_OPTIONS,
-  ANALYTICS_EVENT_SOURCE_OPTIONS,
-} from '@zenith/shared';
+import type { AnalyticsEventQueryGroupByField, AnalyticsEventQueryInput, AnalyticsEventQueryMetric, AnalyticsEventQueryRow } from '@zenith/shared/analytics';
+import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_ENVIRONMENT_OPTIONS, ANALYTICS_EVENT_QUERY_GROUP_BY_LABELS, ANALYTICS_EVENT_QUERY_GROUP_BY_OPTIONS, ANALYTICS_EVENT_QUERY_METRIC_OPTIONS, ANALYTICS_EVENT_SOURCE_OPTIONS } from '@zenith/shared/analytics';
 
 const DAY_OPTIONS = [7, 14, 30, 90].map((value) => ({ value, label: `近 ${value} 天` }));
 

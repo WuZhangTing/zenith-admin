@@ -4,14 +4,8 @@ import JsBarcode from 'jsbarcode';
 import { Printer } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import dayjs from 'dayjs';
-import {
-  findPrintMerge,
-  isPrintCellCoveredByMerge,
-  resolvePrintBandText,
-  type ReportPrintCell,
-  type ReportPrintRenderPage,
-  type ReportPrintRenderResult,
-} from '@zenith/shared';
+import { findPrintMerge, isPrintCellCoveredByMerge, resolvePrintBandText } from '@zenith/shared/report';
+import type { ReportPrintCell, ReportPrintRenderPage, ReportPrintRenderResult } from '@zenith/shared/report';
 import { DATE_TIME_FORMAT } from '@/utils/date';
 import './print-report.css';
 

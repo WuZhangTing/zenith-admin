@@ -16,9 +16,9 @@ import AppModal from '@/components/AppModal';
 import { config } from '@/config';
 import { formatDateTime } from '@/utils/date';
 import { formatBytesGb as formatBytes } from '@/utils/format';
-import { TOKEN_KEY } from '@zenith/shared';
+import { TOKEN_KEY } from '@zenith/shared/core';
 import { usePermission } from '@/hooks/usePermission';
-import type { ProcessInfo, ProcessListResponse } from '@zenith/shared';
+import type { ProcessInfo, ProcessListResponse } from '@zenith/shared/ops';
 import { useKillProcess, useProcessDetail, useSetProcessPriority } from '@/hooks/queries/processes';
 
 // 自定义进程表格 CSS

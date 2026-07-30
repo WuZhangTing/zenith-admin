@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Checkbox, Radio, RadioGroup, Transfer } from '@douyinfe/semi-ui';
 import { X } from 'lucide-react';
-import type { Department } from '@zenith/shared';
+import type { Department } from '@zenith/shared/identity';
 import { UserAvatar } from './UserAvatar';
 
 export interface UserTransferUser {

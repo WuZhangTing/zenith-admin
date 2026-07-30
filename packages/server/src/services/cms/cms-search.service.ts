@@ -8,7 +8,7 @@ import { escapeLike } from '../../lib/where-helpers';
 import { config } from '../../config';
 import redis from '../../lib/redis';
 import logger from '../../lib/logger';
-import type { CmsSearchResult } from '@zenith/shared';
+import type { CmsSearchResult } from '@zenith/shared/cms';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
 import { pageOffset } from '../../lib/pagination';
 import { assertAllCmsSiteChannelsAccess, getAccessibleChannelIds } from './cms-channels.service';

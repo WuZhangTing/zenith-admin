@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { mockMenus, buildMenuTree, getNextMenuId } from '@/mocks/data/menus';
 import { mockRoles } from '@/mocks/data/roles';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { Menu } from '@zenith/shared';
+import type { Menu } from '@zenith/shared/identity';
 
 export const menusHandlers = [
   // 当前用户的菜单树（用于渲染侧边栏）

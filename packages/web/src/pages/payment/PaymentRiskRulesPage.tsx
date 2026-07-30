@@ -23,23 +23,8 @@ import {
   useRejectPaymentRiskReview,
   useSavePaymentRiskRule,
 } from '@/hooks/queries/payment-risk';
-import {
-  PAYMENT_CHANNEL_LABELS,
-  PAYMENT_RISK_ACTION_LABELS,
-  PAYMENT_RISK_DIMENSION_LABELS,
-  PAYMENT_RISK_REVIEW_STATUS_LABELS,
-  PAYMENT_RISK_SCOPE_LABELS,
-} from '@zenith/shared';
-import type {
-  PaymentChannel,
-  PaymentRiskAction,
-  PaymentRiskDimension,
-  PaymentRiskHit,
-  PaymentRiskReview,
-  PaymentRiskReviewStatus,
-  PaymentRiskRule,
-  PaymentRiskScope,
-} from '@zenith/shared';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_RISK_ACTION_LABELS, PAYMENT_RISK_DIMENSION_LABELS, PAYMENT_RISK_REVIEW_STATUS_LABELS, PAYMENT_RISK_SCOPE_LABELS } from '@zenith/shared/payment';
+import type { PaymentChannel, PaymentRiskAction, PaymentRiskDimension, PaymentRiskHit, PaymentRiskReview, PaymentRiskReviewStatus, PaymentRiskRule, PaymentRiskScope } from '@zenith/shared/payment';
 import { useDictItems } from '@/hooks/useDictItems';
 
 const yuan = formatYuan;

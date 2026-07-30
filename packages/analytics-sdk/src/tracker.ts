@@ -6,8 +6,10 @@
  * - 远程配置（开关/采样/黑名单/DNT）
  */
 import { onCLS, onINP, onLCP, onFCP, onTTFB, type Metric } from 'web-vitals';
-import { TOKEN_KEY, ANALYTICS_CONFIG_VERSION_KEY, ANALYTICS_SITE_KEY_HEADER, ANALYTICS_EXPERIMENT_EXPOSURE_EVENT } from '@zenith/shared';
-import type { TrackEventInput, AnalyticsPublicConfig, UserBehaviorEventType, AnalyticsEventSource, AnalyticsEnvironment, AnalyticsExperimentAssignment } from '@zenith/shared';
+import { ANALYTICS_CONFIG_VERSION_KEY, ANALYTICS_SITE_KEY_HEADER, ANALYTICS_EXPERIMENT_EXPOSURE_EVENT } from '@zenith/shared/analytics';
+import { TOKEN_KEY } from '@zenith/shared/core';
+import type { TrackEventInput, AnalyticsPublicConfig, AnalyticsEventSource, AnalyticsEnvironment, AnalyticsExperimentAssignment } from '@zenith/shared/analytics';
+import type { UserBehaviorEventType } from '@zenith/shared/identity';
 import { addBreadcrumb } from './breadcrumbs';
 import { configureErrorReporting, configureErrorReporterRuntime, reportError } from './error-reporter';
 

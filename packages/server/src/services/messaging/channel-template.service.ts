@@ -4,7 +4,8 @@
 import { asc, eq } from 'drizzle-orm';
 import { db } from '../../db';
 import { channelMessageTemplates, type ChannelMessageTemplateRow } from '../../db/schema';
-import type { ChannelMessageTemplate, ChatMessageExtra, CreateChannelTemplateInput, UpdateChannelTemplateInput } from '@zenith/shared';
+import type { ChatMessageExtra } from '@zenith/shared/chat';
+import type { ChannelMessageTemplate, CreateChannelTemplateInput, UpdateChannelTemplateInput } from '@zenith/shared/messaging';
 import { HTTPException } from 'hono/http-exception';
 import { formatDateTime } from '../../lib/datetime';
 

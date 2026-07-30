@@ -1,12 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  CreateReportFolderInput,
-  MoveReportFolderInput,
-  ReportFolder,
-  ReportFolderTreeNode,
-  ReportResourceType,
-  UpdateReportFolderInput,
-} from '@zenith/shared';
+import type { CreateReportFolderInput, MoveReportFolderInput, ReportFolder, ReportFolderTreeNode, ReportResourceType, UpdateReportFolderInput } from '@zenith/shared/report';
 import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
 

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AiAgent, CreateAiAgentInput, UpdateAiAgentInput } from '@zenith/shared';
+import type { AiAgent, CreateAiAgentInput, UpdateAiAgentInput } from '@zenith/shared/ai';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 

@@ -1,22 +1,6 @@
-import {
-  createReportDqRuleSchema,
-  createReportMetricSchema,
-  createReportQueryQuotaSchema,
-  grantReportResourceAclSchema,
-  applyReportAssetTemplateSchema,
-  reportMetricLifecycleActionSchema,
-  type ApplyReportAssetTemplateInput,
-  type AsyncTask,
-  type CreateReportMetricInput,
-  type GrantReportResourceAclInput,
-  type ReportDqRunStatus,
-  type ReportMetric,
-  type ReportResourceType,
-  type ReportWidgetType,
-  updateReportMetricSchema,
-  updateReportDqRuleSchema,
-  updateReportQueryQuotaSchema,
-} from '@zenith/shared';
+import { createReportDqRuleSchema, createReportMetricSchema, createReportQueryQuotaSchema, grantReportResourceAclSchema, applyReportAssetTemplateSchema, reportMetricLifecycleActionSchema, updateReportMetricSchema, updateReportDqRuleSchema, updateReportQueryQuotaSchema } from '@zenith/shared/report';
+import type { ApplyReportAssetTemplateInput, CreateReportMetricInput, GrantReportResourceAclInput, ReportDqRunStatus, ReportMetric, ReportResourceType, ReportWidgetType } from '@zenith/shared/report';
+import type { AsyncTask } from '@zenith/shared/tasks';
 
 export const METRIC_WIDGET_TYPES: readonly ReportWidgetType[] = ['kpi', 'gauge', 'flipper', 'liquid'];
 

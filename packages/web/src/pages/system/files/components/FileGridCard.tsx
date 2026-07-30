@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Checkbox, Dropdown, Modal, Spin, Tooltip } from '@douyinfe/semi-ui';
-import type { ManagedFile } from '@zenith/shared';
+import type { ManagedFile } from '@zenith/shared/platform';
 import { formatFileSize, getFileTypeIcon, canPreviewFile } from '@/utils/file-utils';
 import '../FilesPage.css';
 

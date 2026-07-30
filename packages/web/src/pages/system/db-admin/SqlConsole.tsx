@@ -13,8 +13,8 @@ import {
 import type { editor as MonacoEditor, KeyMod as KeyModT, KeyCode as KeyCodeT, Position } from 'monaco-editor';
 import Editor from '@monaco-editor/react';
 import { format as formatSql } from 'sql-formatter';
-import { TOKEN_KEY } from '@zenith/shared';
-import type { DbQueryFavorite } from '@zenith/shared';
+import { TOKEN_KEY } from '@zenith/shared/core';
+import type { DbQueryFavorite } from '@zenith/shared/ops';
 import { config } from '@/config';
 import { downloadBlob } from '@/utils/download';
 import { AppModal } from '@/components/AppModal';

@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import type { WorkflowCompensationAction } from '@zenith/shared';
+import type { WorkflowCompensationAction } from '@zenith/shared/workflow';
 import { db } from '../../../db';
 import { workflowInstances, smsConfigs, smsTemplates } from '../../../db/schema';
 import { invokeConnector, getConnectorRowById } from '../../../services/workflow/workflow-connectors.service';

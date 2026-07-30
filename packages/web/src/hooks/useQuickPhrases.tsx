@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppModal } from '@/components/AppModal';
 import { Button, Input, Popconfirm, Space, Tag, Typography } from '@douyinfe/semi-ui';
 import { Plus } from 'lucide-react';
-import type { WorkflowQuickPhrase } from '@zenith/shared';
+import type { WorkflowQuickPhrase } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 

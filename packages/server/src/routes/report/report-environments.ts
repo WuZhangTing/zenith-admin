@@ -1,12 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import {
-  createReportEnvironmentPromotionSchema,
-  createReportEnvironmentSchema,
-  reportEnvironmentPromotionActionSchema,
-  reportPromotionStatusSchema,
-  reportResourceTypeSchema,
-  updateReportEnvironmentSchema,
-} from '@zenith/shared';
+import { createReportEnvironmentPromotionSchema, createReportEnvironmentSchema, reportEnvironmentPromotionActionSchema, reportPromotionStatusSchema, reportResourceTypeSchema, updateReportEnvironmentSchema } from '@zenith/shared/report';
 import {
   ReportEnvironmentDTO,
   ReportEnvironmentPromotionDTO,

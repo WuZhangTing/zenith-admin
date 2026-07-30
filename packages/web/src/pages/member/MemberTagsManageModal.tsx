@@ -3,7 +3,7 @@ import { Button, Form, Modal, Popconfirm, Space, Table, Tag, Toast } from '@douy
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus } from 'lucide-react';
-import type { MemberTag } from '@zenith/shared';
+import type { MemberTag } from '@zenith/shared/member';
 import { AppModal } from '@/components/AppModal';
 import { useDeleteMemberTag, useMemberTags, useSaveMemberTag } from '@/hooks/queries/member-admin';
 import { useDictItems } from '@/hooks/useDictItems';

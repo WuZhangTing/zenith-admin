@@ -13,14 +13,8 @@ import {
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { CircleOff, Plus, RotateCcw, Search, Send, Trash2 } from 'lucide-react';
-import {
-  CMS_WIDGET_STATUS_LABELS,
-  CMS_WIDGET_TYPE_LABELS,
-  type CmsWidget,
-  type CmsWidgetRef,
-  type CmsWidgetStatus,
-  type CmsWidgetType,
-} from '@zenith/shared';
+import { CMS_WIDGET_STATUS_LABELS, CMS_WIDGET_TYPE_LABELS } from '@zenith/shared/cms';
+import type { CmsWidget, CmsWidgetRef, CmsWidgetStatus, CmsWidgetType } from '@zenith/shared/cms';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';

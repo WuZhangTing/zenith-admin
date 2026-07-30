@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import type { OAuth2Client, OAuth2ClientCreated } from '@zenith/shared';
+import type { OAuth2Client, OAuth2ClientCreated } from '@zenith/shared/open-platform';
 import { mockDateTime } from '@/mocks/utils/date';
 
 type ClientEntry = OAuth2Client;

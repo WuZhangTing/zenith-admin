@@ -19,7 +19,8 @@ import { escapeLike } from '../../lib/where-helpers';
 import logger from '../../lib/logger';
 import { createPayment } from '../payment/payment.service';
 import { ensureMemberExists } from './member-auth.service';
-import type { WalletTxType, PaymentCashierMethod } from '@zenith/shared';
+import type { WalletTxType } from '@zenith/shared/member';
+import type { PaymentCashierMethod } from '@zenith/shared/payment';
 
 /** 钱包充值的支付业务类型标识 */
 export const WALLET_RECHARGE_BIZ_TYPE = 'member_recharge';

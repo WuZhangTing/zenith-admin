@@ -17,13 +17,8 @@ import {
   useCmsAdList, useSaveCmsAd, useDeleteCmsAd,
   cmsAdEventKeys, useCleanupCmsAdEvents, useCmsAdEventList, useCmsAdEventStats,
 } from '@/hooks/queries/cms';
-import {
-  CMS_AD_EVENT_TYPE_LABELS,
-  CMS_DEVICE_TYPE_LABELS,
-  type CmsAdEvent,
-  type CmsAdSlot,
-  type CmsAd,
-} from '@zenith/shared';
+import { CMS_AD_EVENT_TYPE_LABELS, CMS_DEVICE_TYPE_LABELS } from '@zenith/shared/cms';
+import type { CmsAdEvent, CmsAdSlot, CmsAd } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 
 // ─── 广告位 Tab ───────────────────────────────────────────────────────────────

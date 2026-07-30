@@ -1,6 +1,6 @@
 import { HTTPException } from 'hono/http-exception';
 import { and, desc, eq, ilike, inArray, lte, or, isNotNull } from 'drizzle-orm';
-import { aggregateReportRows } from '@zenith/shared';
+import { aggregateReportRows } from '@zenith/shared/report';
 import { db } from '../../db';
 import { reportDashboardSubscriptions, reportDeliveryRuns } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
@@ -33,14 +33,7 @@ import {
   prepareReportSecret,
 } from './report-secrets';
 import type { ReportDashboardSubscriptionRow, ReportDeliveryRunRow } from '../../db/schema';
-import type {
-  ReportDashboardSubscription,
-  ReportWidget,
-  ReportNotifyChannel,
-  CreateReportSubscriptionInput,
-  UpdateReportSubscriptionInput,
-  ReportDeliveryStatus,
-} from '@zenith/shared';
+import type { ReportDashboardSubscription, ReportWidget, ReportNotifyChannel, CreateReportSubscriptionInput, UpdateReportSubscriptionInput, ReportDeliveryStatus } from '@zenith/shared/report';
 
 type SubRowExt = ReportDashboardSubscriptionRow & {
   dashboard?: { name: string } | null;

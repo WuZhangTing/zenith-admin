@@ -1,4 +1,4 @@
-import type { AsyncTaskTypeMeta } from '@zenith/shared';
+import type { AsyncTaskTypeMeta } from '@zenith/shared/tasks';
 import logger from '../logger';
 import { RETRY_BACKOFF_MAX_MS, type TaskHandlerRegistration, type TaskTypeRuntimePolicy } from './types';
 

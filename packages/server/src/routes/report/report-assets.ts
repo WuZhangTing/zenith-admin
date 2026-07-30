@@ -1,15 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import {
-  applyReportAssetTemplateSchema,
-  cloneReportAssetTemplateSchema,
-  createReportAssetTemplateSchema,
-  createReportDeprecationNoticeSchema,
-  publishReportDeprecationNoticeSchema,
-  reportAssetTemplateTypeSchema,
-  reportResourceTypeSchema,
-  updateReportAssetTemplateSchema,
-  updateReportDeprecationNoticeSchema,
-} from '@zenith/shared';
+import { applyReportAssetTemplateSchema, cloneReportAssetTemplateSchema, createReportAssetTemplateSchema, createReportDeprecationNoticeSchema, publishReportDeprecationNoticeSchema, reportAssetTemplateTypeSchema, reportResourceTypeSchema, updateReportAssetTemplateSchema, updateReportDeprecationNoticeSchema } from '@zenith/shared/report';
 import {
   ReportAssetCatalogItemDTO,
   ReportAssetTemplateApplyResultDTO,

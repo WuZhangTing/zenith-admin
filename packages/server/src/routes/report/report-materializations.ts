@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute } from '@hono/zod-openapi';
-import { requestReportMaterializationSchema } from '@zenith/shared';
+import { requestReportMaterializationSchema } from '@zenith/shared/report';
 import { AsyncTaskDTO, ReportMaterializationSnapshotDTO } from '../../lib/openapi-dtos';
 import {
   commonErrorResponses,

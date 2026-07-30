@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { WorkflowDefinition, WorkflowTemplate } from '@zenith/shared';
+import type { WorkflowDefinition, WorkflowTemplate } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 

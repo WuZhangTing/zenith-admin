@@ -8,11 +8,7 @@ import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import type { DbExecutor } from '../../db/types';
-import type {
-  WorkflowDelegation,
-  CreateWorkflowDelegationInput,
-  UpdateWorkflowDelegationInput,
-} from '@zenith/shared';
+import type { WorkflowDelegation, CreateWorkflowDelegationInput, UpdateWorkflowDelegationInput } from '@zenith/shared/workflow';
 
 type DelegationRow = typeof workflowDelegations.$inferSelect;
 

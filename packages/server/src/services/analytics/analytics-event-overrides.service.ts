@@ -6,7 +6,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { analyticsEventOverrides } from '../../db/schema';
 import type { AnalyticsEventOverrideRow } from '../../db/schema';
-import type { CreateAnalyticsEventOverrideInput, UpdateAnalyticsEventOverrideInput } from '@zenith/shared';
+import type { CreateAnalyticsEventOverrideInput, UpdateAnalyticsEventOverrideInput } from '@zenith/shared/analytics';
 import { formatDateTime } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';

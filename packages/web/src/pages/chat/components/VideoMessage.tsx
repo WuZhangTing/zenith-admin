@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Play } from 'lucide-react';
 import { Spin, Typography } from '@douyinfe/semi-ui';
 import { fetchManagedFileBlob, formatFileSize } from '@/utils/file-utils';
-import type { ChatMessage } from '@zenith/shared';
+import type { ChatMessage } from '@zenith/shared/chat';
 import { getMessageExtra } from '../utils';
 
 const { Text } = Typography;

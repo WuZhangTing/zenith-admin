@@ -1,5 +1,5 @@
-import type { MpMessage } from '@zenith/shared';
-import { SEED_MP_MESSAGES } from '@zenith/shared';
+import type { MpMessage } from '@zenith/shared/mp';
+import { SEED_MP_MESSAGES } from '@zenith/shared/seed';
 
 export const mockMpMessages: MpMessage[] = SEED_MP_MESSAGES.map((m) => ({ ...m }));
 

@@ -1,10 +1,6 @@
 import { http } from 'msw';
-import type {
-  ReportFillRecord,
-  ReportFillTemplate,
-  WorkflowFormField,
-  WorkflowFormSchema,
-} from '@zenith/shared';
+import type { ReportFillRecord, ReportFillTemplate } from '@zenith/shared/report';
+import type { WorkflowFormField, WorkflowFormSchema } from '@zenith/shared/workflow';
 import {
   getNextReportDatasetId,
   mockReportDatasets,

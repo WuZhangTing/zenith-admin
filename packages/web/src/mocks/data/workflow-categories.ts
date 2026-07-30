@@ -1,5 +1,5 @@
-import { SEED_WORKFLOW_CATEGORIES } from '@zenith/shared';
-import type { WorkflowCategory } from '@zenith/shared';
+import { SEED_WORKFLOW_CATEGORIES } from '@zenith/shared/seed';
+import type { WorkflowCategory } from '@zenith/shared/workflow';
 import { mockDateTime } from '@/mocks/utils/date';
 
 export const mockWorkflowCategories: WorkflowCategory[] = SEED_WORKFLOW_CATEGORIES.map((c) => ({

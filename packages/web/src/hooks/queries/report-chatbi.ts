@@ -1,17 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  CreateReportChatbiMessageInput,
-  CreateReportChatbiSessionInput,
-  PaginatedResponse,
-  ReportChatbiMessage,
-  ReportChatbiQuota,
-  ReportChatbiSavedResource,
-  ReportChatbiSession,
-  ReportChatbiSessionDetail,
-  ReportChatbiSessionStatus,
-  SaveReportChatbiMessageAssetInput,
-  UpdateReportChatbiSessionInput,
-} from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { CreateReportChatbiMessageInput, CreateReportChatbiSessionInput, ReportChatbiMessage, ReportChatbiQuota, ReportChatbiSavedResource, ReportChatbiSession, ReportChatbiSessionDetail, ReportChatbiSessionStatus, SaveReportChatbiMessageAssetInput, UpdateReportChatbiSessionInput } from '@zenith/shared/report';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 import { reportDatasetKeys } from './report-datasets';

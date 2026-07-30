@@ -4,8 +4,8 @@ import { Button, Input, Tag, Space, Modal, Form, Toast, Typography, Select, Bann
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, RotateCcw, Search } from 'lucide-react';
-import { OPEN_WEBHOOK_DELIVERY_STATUS_LABELS, OPEN_WEBHOOK_EVENT_LABELS } from '@zenith/shared';
-import type { AppWebhookSubscription, AppWebhookDelivery } from '@zenith/shared';
+import { OPEN_WEBHOOK_DELIVERY_STATUS_LABELS, OPEN_WEBHOOK_EVENT_LABELS } from '@zenith/shared/open-platform';
+import type { AppWebhookSubscription, AppWebhookDelivery } from '@zenith/shared/open-platform';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';

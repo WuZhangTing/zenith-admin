@@ -5,7 +5,7 @@ import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody,
 } from '../../lib/openapi-schemas';
-import { sendSmsSchema, SMS_PROVIDERS, SEND_STATUSES, SEND_SOURCES } from '@zenith/shared';
+import { sendSmsSchema, SMS_PROVIDERS, SEND_STATUSES, SEND_SOURCES } from '@zenith/shared/messaging';
 import { SmsSendLogDTO, SmsSendResultDTO } from '../../lib/openapi-dtos';
 import {
   listSmsSendLogs, getSmsSendLog, deleteSmsSendLog, sendSms,

@@ -7,7 +7,7 @@ import {
 import { usePagination } from '@/hooks/usePagination';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { IpAccessLog } from '@zenith/shared';
+import type { IpAccessLog } from '@zenith/shared/platform';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { Search, RotateCcw } from 'lucide-react';

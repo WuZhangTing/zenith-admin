@@ -80,17 +80,9 @@ import {
   settleReportQueryQuota,
 } from './report-query-capacity.service';
 import { recordReportAssetUsage } from './report-asset-usage.service';
-import { isSqlLikeType, isExternalDbType, REPORT_DATASOURCE_TYPES } from '@zenith/shared';
+import { isSqlLikeType, isExternalDbType, REPORT_DATASOURCE_TYPES } from '@zenith/shared/report';
 import type { ReportDatasetRow } from '../../db/schema';
-import type {
-  ReportDataset, ReportDataResult, ReportField, ReportFieldType, ReportDatasetContent, ReportDatasetParam,
-  ReportDatasourceType, ReportDatasourceConfig, ReportComputedField, ReportExternalDbConfig,
-  ReportApiDatasourceConfig, ReportApiDatasetContent, ReportSqlDatasetContent, ReportStaticDatasetContent, ReportDatasetMaterialize,
-  ReportRowRule, ReportDatasetRefs, ReportWidget, ReportFilter, ReportDatasetQueryOptions, ReportResultField, ReportDatasetExecutionLog,
-  CreateReportDatasetInput, UpdateReportDatasetInput, ReportDatasetPreviewInput, ReportSortOrder, ReportExecutionStats,
-  ReportLookupOption, ReportRuntimeGovernance,
-  ReportDashboardSnapshot, ReportPrintContent,
-} from '@zenith/shared';
+import type { ReportDataset, ReportDataResult, ReportField, ReportFieldType, ReportDatasetContent, ReportDatasetParam, ReportDatasourceType, ReportDatasourceConfig, ReportComputedField, ReportExternalDbConfig, ReportApiDatasourceConfig, ReportApiDatasetContent, ReportSqlDatasetContent, ReportStaticDatasetContent, ReportDatasetMaterialize, ReportRowRule, ReportDatasetRefs, ReportWidget, ReportFilter, ReportDatasetQueryOptions, ReportResultField, ReportDatasetExecutionLog, CreateReportDatasetInput, UpdateReportDatasetInput, ReportDatasetPreviewInput, ReportSortOrder, ReportExecutionStats, ReportLookupOption, ReportRuntimeGovernance, ReportDashboardSnapshot, ReportPrintContent } from '@zenith/shared/report';
 
 const PREVIEW_LIMIT = 100;
 const MAX_LIMIT = 5000;

@@ -2,22 +2,9 @@ import {
   and, desc, eq, inArray, isNull, sql,
 } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import {
-  CMS_WIDGET_HIGH_FANOUT_THRESHOLD,
-  CMS_WIDGET_RENDERER_KEYS,
-  type CmsPageBlock,
-  type CmsResolvedWidget,
-  type CmsResolvedWidgetItem,
-  type CmsWidgetData,
-  type CmsWidgetRefOwnerType,
-  type CmsWidgetRendererKey,
-  type CmsWidgetSlot,
-  type CmsWidgetSourceType,
-  type CreateCmsWidgetInput,
-  type SaveCmsWidgetSlotInput,
-  type UpdateCmsWidgetInput,
-  cmsWidgetDataSchema,
-} from '@zenith/shared';
+import { CMS_WIDGET_HIGH_FANOUT_THRESHOLD, CMS_WIDGET_RENDERER_KEYS, cmsWidgetDataSchema } from '@zenith/shared/cms';
+import type { CmsPageBlock, CmsResolvedWidget, CmsResolvedWidgetItem, CmsWidgetData, CmsWidgetRefOwnerType, CmsWidgetRendererKey, CmsWidgetSlot, CmsWidgetSourceType, CreateCmsWidgetInput, UpdateCmsWidgetInput } from '@zenith/shared/cms';
+import type { SaveCmsWidgetSlotInput } from '@zenith/shared/report';
 import { db } from '../../db';
 import {
   cmsChannels,

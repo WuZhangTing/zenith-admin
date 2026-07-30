@@ -3,7 +3,7 @@ import { Button, Empty, Spin, Toast, Typography } from '@douyinfe/semi-ui';
 import { Plus, X } from 'lucide-react';
 import { request } from '@/utils/request';
 import { useAddChatCustomEmoji, useChatCustomEmojis, useDeleteChatCustomEmoji } from '@/hooks/queries/chat';
-import type { ChatCustomEmoji } from '@zenith/shared';
+import type { ChatCustomEmoji } from '@zenith/shared/chat';
 
 const { Text } = Typography;
 

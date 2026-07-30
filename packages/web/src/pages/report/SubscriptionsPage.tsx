@@ -22,8 +22,10 @@ import {
   useRunReportSubscription,
   useSaveReportSubscription,
 } from '@/hooks/queries/report-subscriptions';
-import type { ReportDashboardSubscription, ReportDeliveryRun } from '@zenith/shared';
-import { NOTIFY_CHANNEL_LABELS, REPORT_DELIVERY_STATUS_LABELS, REPORT_MISFIRE_POLICY_OPTIONS, type NotifyChannel } from '@zenith/shared';
+import type { ReportDashboardSubscription, ReportDeliveryRun } from '@zenith/shared/report';
+import { NOTIFY_CHANNEL_LABELS } from '@zenith/shared/messaging';
+import type { NotifyChannel } from '@zenith/shared/messaging';
+import { REPORT_DELIVERY_STATUS_LABELS, REPORT_MISFIRE_POLICY_OPTIONS } from '@zenith/shared/report';
 import { useDictItems } from '@/hooks/useDictItems';
 
 const deliveryStatusColorMap: Record<string, 'green' | 'red' | 'orange' | 'grey' | 'blue' | 'amber'> = {

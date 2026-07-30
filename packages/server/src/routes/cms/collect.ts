@@ -11,7 +11,7 @@ import {
 } from '../../services/cms/cms-collect.service';
 import { mapAsyncTask, submitAsyncTask } from '../../lib/task-center';
 import { currentUser } from '../../lib/context';
-import { createCmsCollectRuleSchema, updateCmsCollectRuleSchema } from '@zenith/shared';
+import { createCmsCollectRuleSchema, updateCmsCollectRuleSchema } from '@zenith/shared/cms';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 

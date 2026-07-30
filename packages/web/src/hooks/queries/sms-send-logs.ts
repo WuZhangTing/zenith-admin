@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse, SendStatus, SmsSendLog } from '@zenith/shared';
+import type { PaginatedResponse } from '@zenith/shared/core';
+import type { SendStatus, SmsSendLog } from '@zenith/shared/messaging';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AiUserPreference, AiConversationShare, AiKnowledgeBase, AiKbDocument, SaveAiPreferenceInput, CreateAiKnowledgeBaseInput, AddAiKbDocumentInput, ImportAiKbUrlInput, AiPromptTemplateVersion } from '@zenith/shared';
+import type { AiUserPreference, AiConversationShare, AiKnowledgeBase, AiKbDocument, CreateAiKnowledgeBaseInput, AddAiKbDocumentInput, ImportAiKbUrlInput, AiPromptTemplateVersion } from '@zenith/shared/ai';
+import type { SaveAiPreferenceInput } from '@zenith/shared/platform';
 import { request } from '@/utils/request';
 import { LOOKUP_STALE_TIME, unwrap } from '@/lib/query';
 

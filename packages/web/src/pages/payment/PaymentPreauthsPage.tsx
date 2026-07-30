@@ -20,8 +20,8 @@ import {
   usePaymentPreauthList,
   useReleasePaymentPreauth,
 } from '@/hooks/queries/payment-preauths';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_PREAUTH_STATUS_LABELS, PAYMENT_PREAUTH_STATUS_OPTIONS } from '@zenith/shared';
-import type { PaymentChannel, PaymentPreauth, PaymentPreauthStatus } from '@zenith/shared';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_PREAUTH_STATUS_LABELS, PAYMENT_PREAUTH_STATUS_OPTIONS } from '@zenith/shared/payment';
+import type { PaymentChannel, PaymentPreauth, PaymentPreauthStatus } from '@zenith/shared/payment';
 
 const yuan = formatYuan;
 const STATUS_COLOR = { pending: 'grey', frozen: 'blue', captured: 'green', released: 'teal', failed: 'red' } as const satisfies Record<PaymentPreauthStatus, string>;

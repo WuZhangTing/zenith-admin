@@ -4,8 +4,8 @@ import { Banner, Button, Empty, Input, Skeleton, Spin, Tag, Toast, Typography } 
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { ChevronLeft, Clock, GitBranch, Mail, Send, UserPlus, type LucideIcon } from 'lucide-react';
 import dayjs from 'dayjs';
-import type { WorkflowApproverPreviewNode } from '@zenith/shared';
-import { applyFieldPermissionsToFields, WORKFLOW_APPROVE_METHOD_LABELS as METHOD_LABEL } from '@zenith/shared';
+import type { WorkflowApproverPreviewNode } from '@zenith/shared/workflow';
+import { applyFieldPermissionsToFields, WORKFLOW_APPROVE_METHOD_LABELS as METHOD_LABEL } from '@zenith/shared/workflow';
 import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowFormRenderer';
 import {
   compactSelectedInitiatorApprovers,

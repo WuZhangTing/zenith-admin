@@ -5,7 +5,7 @@ import { Button, Form, Input, Modal, Select, Tag,
 import { AppModal } from '@/components/AppModal';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus, RotateCcw, Search } from 'lucide-react';
-import type { EmailSendLog, SendStatus } from '@zenith/shared';
+import type { EmailSendLog, SendStatus } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { SearchToolbar } from '@/components/SearchToolbar';

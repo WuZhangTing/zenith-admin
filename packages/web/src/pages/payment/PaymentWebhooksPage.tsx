@@ -21,8 +21,8 @@ import {
   useRedeliverPaymentWebhookDelivery,
   useSavePaymentWebhookEndpoint,
 } from '@/hooks/queries/payment-webhooks';
-import { PAYMENT_WEBHOOK_DELIVERY_STATUS_LABELS } from '@zenith/shared';
-import type { PaymentWebhookDelivery, PaymentWebhookEndpoint } from '@zenith/shared';
+import { PAYMENT_WEBHOOK_DELIVERY_STATUS_LABELS } from '@zenith/shared/payment';
+import type { PaymentWebhookDelivery, PaymentWebhookEndpoint } from '@zenith/shared/payment';
 import { useDictItems } from '@/hooks/useDictItems';
 
 const EVENT_OPTIONS = [

@@ -6,7 +6,7 @@ import {
   ok, okPaginated, okMsg, IdParam, okBody, conflictResponse,
 } from '../../lib/openapi-schemas';
 import { WorkflowFormDTO } from '../../lib/openapi-dtos';
-import { createWorkflowFormSchema, updateWorkflowFormSchema } from '@zenith/shared';
+import { createWorkflowFormSchema, updateWorkflowFormSchema } from '@zenith/shared/workflow';
 import {
   listWorkflowForms,
   listEnabledWorkflowForms,

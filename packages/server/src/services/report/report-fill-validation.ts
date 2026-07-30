@@ -1,12 +1,7 @@
 import dayjs from 'dayjs';
 import { HTTPException } from 'hono/http-exception';
-import type {
-  WorkflowFieldVisibilityCondition,
-  WorkflowFieldVisibilityRuleGroup,
-  WorkflowFormField,
-  WorkflowFormSchema,
-} from '@zenith/shared';
-import { workflowFormSchemaSchema, isWorkflowRuleGroup, collectWorkflowRuleConditions } from '@zenith/shared';
+import type { WorkflowFieldVisibilityCondition, WorkflowFieldVisibilityRuleGroup, WorkflowFormField, WorkflowFormSchema } from '@zenith/shared/workflow';
+import { workflowFormSchemaSchema, isWorkflowRuleGroup, collectWorkflowRuleConditions } from '@zenith/shared/workflow';
 
 const RESERVED_KEYS = new Set([
   'id', 'tenantId', 'templateId', 'templateRevision', 'submitterId', 'status',

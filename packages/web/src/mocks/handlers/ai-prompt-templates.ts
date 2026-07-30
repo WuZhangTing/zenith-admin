@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw';
-import { SEED_AI_PROMPT_TEMPLATES } from '@zenith/shared';
-import type { AiPromptScope, AiPromptTemplate, CreateAiPromptTemplateInput, UpdateAiPromptTemplateInput } from '@zenith/shared';
+import { SEED_AI_PROMPT_TEMPLATES } from '@zenith/shared/seed';
+import type { AiPromptScope, AiPromptTemplate, CreateAiPromptTemplateInput, UpdateAiPromptTemplateInput } from '@zenith/shared/ai';
 import { mockDateTime } from '../utils/date';
 
 const store: AiPromptTemplate[] = SEED_AI_PROMPT_TEMPLATES.map((item) => ({ ...item }));

@@ -12,8 +12,8 @@ import { httpPost, type HttpResponse } from '../../lib/http-client';
 import logger from '../../lib/logger';
 import { openEventBus, type OpenPlatformEvent } from '../../lib/open-event-bus';
 import { mapWithConcurrency } from '../../lib/concurrency';
-import { OPEN_WEBHOOK_SIGNATURE_HEADER, OPEN_WEBHOOK_RETRY_STAGES_MINUTES, OPEN_WEBHOOK_EVENTS, OPEN_WEBHOOK_EVENT_LABELS } from '@zenith/shared';
-import type { CreateAppWebhookInput, UpdateAppWebhookInput } from '@zenith/shared';
+import { OPEN_WEBHOOK_SIGNATURE_HEADER, OPEN_WEBHOOK_RETRY_STAGES_MINUTES, OPEN_WEBHOOK_EVENTS, OPEN_WEBHOOK_EVENT_LABELS } from '@zenith/shared/open-platform';
+import type { CreateAppWebhookInput, UpdateAppWebhookInput } from '@zenith/shared/open-platform';
 import { config } from '../../config';
 import { sendSystemInApp } from '../messaging/in-app-messages.service';
 

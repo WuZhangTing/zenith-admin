@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw';
-import type { Channel, ChannelMessage, ChannelMenu, ChannelAutoReply, ChannelConversation, ChannelQuickReply, ChannelMessageStatus, ChatMessageExtra, ChannelSubscriber, ChannelMessageTemplate, ChannelCsPerformance } from '@zenith/shared';
+import type { ChatMessageExtra } from '@zenith/shared/chat';
+import type { Channel, ChannelMessage, ChannelMenu, ChannelAutoReply, ChannelConversation, ChannelQuickReply, ChannelMessageStatus, ChannelSubscriber, ChannelMessageTemplate, ChannelCsPerformance } from '@zenith/shared/messaging';
 import {
   mockChannels, mockChannelMessages, mockChannelMenus, mockChannelAutoReplies, mockChannelQuickReplies,
   getNextChannelMessageId, getNextAutoReplyId, getNextQuickReplyId, MOCK_CURRENT_USER_ID,

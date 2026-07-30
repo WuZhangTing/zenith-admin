@@ -38,17 +38,8 @@ import { recordEvent, processEvent } from './payment-outbox.service';
 import { buildAdapterContext, markOrderPaid } from './payment.service';
 import { pageOffset } from '../../lib/pagination';
 import logger from '../../lib/logger';
-import type {
-  CreatePaymentContractInput,
-  CreatePaymentDeductPlanInput,
-  PaymentChannel,
-  PaymentContract,
-  PaymentContractStatus,
-  PaymentDeductMethod,
-  PaymentDeductPlan,
-  UpdatePaymentDeductPlanInput,
-} from '@zenith/shared';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_CHANNEL } from '@zenith/shared';
+import type { CreatePaymentContractInput, CreatePaymentDeductPlanInput, PaymentChannel, PaymentContract, PaymentContractStatus, PaymentDeductMethod, PaymentDeductPlan, UpdatePaymentDeductPlanInput } from '@zenith/shared/payment';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_CHANNEL } from '@zenith/shared/payment';
 
 const ACTIVE_CONTRACT_STATUSES: PaymentContractStatus[] = ['pending', 'signed', 'paused'];
 

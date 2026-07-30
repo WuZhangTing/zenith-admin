@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import type { WorkflowExternalApprovalConfig } from '@zenith/shared';
+import type { WorkflowExternalApprovalConfig } from '@zenith/shared/workflow';
 import { db } from '../../../db';
 import { workflowTasks, workflowInstances } from '../../../db/schema';
 import { approveTaskByCallback, rejectTaskByCallback, handleNodeExecutionError } from '../../../services/workflow/workflow-instances.service';

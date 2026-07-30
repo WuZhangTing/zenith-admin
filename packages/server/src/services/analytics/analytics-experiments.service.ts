@@ -2,13 +2,8 @@
 import { createHash } from 'node:crypto';
 import { and, desc, eq, gte, isNull, lte, or, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type {
-  AnalyticsExperimentAssignment,
-  AnalyticsExperimentVariant,
-  CreateAnalyticsExperimentInput,
-  UpdateAnalyticsExperimentInput,
-} from '@zenith/shared';
-import { ANALYTICS_EXPERIMENT_EXPOSURE_EVENT } from '@zenith/shared';
+import type { AnalyticsExperimentAssignment, AnalyticsExperimentVariant, CreateAnalyticsExperimentInput, UpdateAnalyticsExperimentInput } from '@zenith/shared/analytics';
+import { ANALYTICS_EXPERIMENT_EXPOSURE_EVENT } from '@zenith/shared/analytics';
 import { db } from '../../db';
 import { analyticsExperiments, userEvents } from '../../db/schema';
 import type { AnalyticsExperimentRow } from '../../db/schema';

@@ -1,18 +1,5 @@
 import { http } from 'msw';
-import type {
-  ReportAssetCatalogItem,
-  ReportAssetTemplate,
-  ReportAssetTemplateApplyResult,
-  ReportAssetUsageSummary,
-  ReportDeprecationNotice,
-  ReportDqAnomaly,
-  ReportDqRule,
-  ReportDqRun,
-  ReportMaterializationSnapshot,
-  ReportQueryQuota,
-  ReportResourceType,
-  ReportSlaRule,
-} from '@zenith/shared';
+import type { ReportAssetCatalogItem, ReportAssetTemplate, ReportAssetTemplateApplyResult, ReportAssetUsageSummary, ReportDeprecationNotice, ReportDqAnomaly, ReportDqRule, ReportDqRun, ReportMaterializationSnapshot, ReportQueryQuota, ReportResourceType, ReportSlaRule } from '@zenith/shared/report';
 import {
   getNextReportDashboardId,
   getNextReportDatasetId,

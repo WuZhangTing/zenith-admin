@@ -12,7 +12,7 @@
 import { and, eq, gte, inArray, isNotNull, sql, type SQL } from 'drizzle-orm';
 import { db } from '../../db';
 import { userEvents } from '../../db/schema';
-import type { FunnelQuery, FunnelResult, RetentionResult, AnalyticsRetentionMode } from '@zenith/shared';
+import type { FunnelQuery, FunnelResult, RetentionResult, AnalyticsRetentionMode } from '@zenith/shared/analytics';
 import { tenantScope } from '../../lib/tenant';
 import { mergeWhere } from '../../lib/where-helpers';
 import { clampDays, startOfDaysAgo } from '../../lib/analytics-helpers';

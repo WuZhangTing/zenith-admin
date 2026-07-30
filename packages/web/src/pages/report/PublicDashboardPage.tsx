@@ -10,20 +10,7 @@ import { FilterBar } from './widgets/FilterBar';
 import { MobileDashboardHeader } from './widgets/MobileDashboardHeader';
 import { filterValuesFromSearch, withFilterParam } from './widgets/filter-url';
 import { useIsMobile } from '@/hooks/useMediaQuery';
-import type {
-  ReportCanvasItem,
-  ReportDatasetQueryOptions,
-  ReportEmbedDrilldownPayload,
-  ReportEmbedFilterChangePayload,
-  ReportEmbedFilterValue,
-  ReportEmbedFilterValues,
-  ReportEmbedState,
-  ReportEmbedWidgetClickPayload,
-  ReportFilter,
-  ReportGridItem,
-  ReportPublicDashboard,
-  ReportWidget,
-} from '@zenith/shared';
+import type { ReportCanvasItem, ReportDatasetQueryOptions, ReportEmbedDrilldownPayload, ReportEmbedFilterChangePayload, ReportEmbedFilterValue, ReportEmbedFilterValues, ReportEmbedState, ReportEmbedWidgetClickPayload, ReportFilter, ReportGridItem, ReportPublicDashboard, ReportWidget } from '@zenith/shared/report';
 import { usePublicReportDashboard, usePublicReportDashboardAccess, usePublicReportDashboardData } from '@/hooks/queries/report-dashboards';
 import { sanitizeReportEmbedFilterValues, useReportEmbedBridge } from '@/components/report-embed-bridge';
 

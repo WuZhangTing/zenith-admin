@@ -12,23 +12,7 @@ import { analyzeWorkflowHealth } from '../../lib/workflow-health';
 import { tenantCondition } from '../../lib/tenant';
 import { buildStarterContext, resolveAdminUserId, resolveAssigneeIds } from './workflow-assignee-resolver.service';
 import { resolveFormSnapshot } from './workflow-forms.service';
-import type {
-  SimulateWorkflowInput,
-  WorkflowConditionGroup,
-  WorkflowEdge,
-  WorkflowEdgeCondition,
-  WorkflowFlowData,
-  WorkflowHealthCheckInput,
-  WorkflowDefinitionHealthReport,
-  WorkflowNodeConfig,
-  WorkflowSimulationEdgeResult,
-  WorkflowSimulationHealthIssue,
-  WorkflowSimulationBlockingPoint,
-  WorkflowSimulationNodeState,
-  WorkflowSimulationResult,
-  WorkflowSimulationTimelineItem,
-  WorkflowStarterContext,
-} from '@zenith/shared';
+import type { SimulateWorkflowInput, WorkflowConditionGroup, WorkflowEdge, WorkflowEdgeCondition, WorkflowFlowData, WorkflowHealthCheckInput, WorkflowDefinitionHealthReport, WorkflowNodeConfig, WorkflowSimulationEdgeResult, WorkflowSimulationHealthIssue, WorkflowSimulationBlockingPoint, WorkflowSimulationNodeState, WorkflowSimulationResult, WorkflowSimulationTimelineItem, WorkflowStarterContext } from '@zenith/shared/workflow';
 
 type SimulatedRuntimeStatus = 'pending' | 'waiting' | 'approved' | 'rejected' | 'skipped';
 type SimulationDecision = NonNullable<SimulateWorkflowInput['decisions']>[number];
