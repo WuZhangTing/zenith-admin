@@ -153,7 +153,7 @@ export const defaultPreferences: UserPreferences = {
   showTabIcon: true,
   tabStyle: 'line',
   navLayout: 'vertical',
-  showBreadcrumb: true,
+  showBreadcrumb: false,
   breadcrumbIcon: true,
   breadcrumbShowHome: true,
   tabAnimation: 'fade',
