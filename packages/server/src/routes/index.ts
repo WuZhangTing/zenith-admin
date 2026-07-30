@@ -1,0 +1,43 @@
+/**
+ * 路由域注册表——数组顺序即挂载顺序。
+ *
+ * 顺序沿用重构前 src/index.ts 中各域首次出现的次序，由 app.routes.test.ts
+ * 的路由表快照锁定；调整顺序前请确认不会造成路径遮蔽。
+ */
+import ops from './ops';
+import identity from './identity';
+import member from './member';
+import platform from './platform';
+import files from './files';
+import tasks from './tasks';
+import analytics from './analytics';
+import report from './report';
+import messaging from './messaging';
+import payment from './payment';
+import openPlatform from './open-platform';
+import workflow from './workflow';
+import chat from './chat';
+import mp from './mp';
+import bizDemo from './biz-demo';
+import ai from './ai';
+import cms from './cms';
+
+export const ROUTE_DOMAINS = [
+  ops,
+  identity,
+  member,
+  platform,
+  files,
+  tasks,
+  analytics,
+  report,
+  messaging,
+  payment,
+  openPlatform,
+  workflow,
+  chat,
+  mp,
+  bizDemo,
+  ai,
+  cms,
+] as const;

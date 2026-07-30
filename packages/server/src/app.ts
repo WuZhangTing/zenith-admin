@@ -1,0 +1,212 @@
+/**
+ * 应用装配——纯函数，无副作用。
+ *
+ * 与 src/index.ts 的分工：本文件只负责"把 app 组装出来"（中间件栈 → 路由挂载
+ * → 文档 → 兜底与错误处理），不启动服务器、不注册后台 worker、不订阅事件总线、
+ * 不启动采样器。这样 app 才能在测试中被直接构造（此前 index.ts 顶层就有
+ * serve()，导致 250 个路由文件里只有 2 个有测试）。
+ *
+ * 路由不再逐条罗列，而是由 src/routes/index.ts 的 ROUTE_DOMAINS 按域装配，
+ * 详见 src/routes/_kit.ts。路由表由 src/app.routes.test.ts 快照锁定。
+ */
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { cors } from 'hono/cors';
+import { logger as honoLogger } from 'hono/logger';
+import { timing } from 'hono/timing';
+import { httpInstrumentationMiddleware } from '@hono/otel';
+import { prometheus } from '@hono/prometheus';
+import { compress } from 'hono/compress';
+import { secureHeaders } from 'hono/secure-headers';
+import { requestId } from 'hono/request-id';
+import { bodyLimit } from 'hono/body-limit';
+import { timeout } from 'hono/timeout';
+import { except } from 'hono/combine';
+import { HTTPException } from 'hono/http-exception';
+import { contextStorage } from 'hono/context-storage';
+import { csrf } from 'hono/csrf';
+import { createNodeWebSocket } from '@hono/node-ws';
+import { swaggerUI } from '@hono/swagger-ui';
+import { Registry } from 'prom-client';
+import stripAnsi from 'strip-ansi';
+import { config } from './config';
+import logger from './lib/logger';
+import { errBody } from './lib/openapi-schemas';
+import { registerZenithMetrics } from './lib/prometheus-metrics';
+import { httpMetricsMiddleware } from './middleware/http-metrics';
+import { httpLoggerMiddleware } from './middleware/http-logger';
+import { ipAccessMiddleware } from './middleware/ip-access';
+import { maintenanceMiddleware } from './middleware/maintenance';
+import { authRateLimit, captchaRateLimit, pathBoundRateLimit, sensitiveRateLimit } from './middleware/rate-limit';
+import { requestTraceMiddleware } from './middleware/request-trace';
+import { ROUTE_DOMAINS } from './routes';
+import type { DomainCtx } from './routes/_kit';
+
+export function createApp() {
+  const app = new OpenAPIHono();
+  const promRegistry = new Registry();
+  const { printMetrics, registerMetrics } = prometheus({ collectDefaultMetrics: true, registry: promRegistry });
+  // 业务/系统指标（CPU/内存/HTTP/WS/DB/Redis 等）注册到同一 Registry，由 GET /metrics 统一输出
+  registerZenithMetrics(promRegistry);
+
+  const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app });
+
+  app.use('*', registerMetrics);
+  // 监控页指标采集（自带的轻量收集器，独立于 Prometheus）
+  app.use('*', httpMetricsMiddleware);
+  if (config.otel.enabled) {
+    app.use(
+      '*',
+      httpInstrumentationMiddleware({
+        serviceName: config.otel.serviceName,
+        serviceVersion: config.otel.serviceVersion,
+        captureRequestHeaders: ['x-request-id', 'user-agent'],
+        captureResponseHeaders: ['x-request-id'],
+      }),
+    );
+  }
+  app.use('*', requestId());
+  // AsyncLocalStorage 上下文（允许 currentUser()/getCtx() 在辅助函数中零参取值）
+  app.use('*', contextStorage());
+  // 链路关联 traceId：贯穿请求触发的工作流作业/事件 fan-out（跨异步/跨实例）
+  app.use('*', requestTraceMiddleware);
+  app.use('*', secureHeaders({
+    crossOriginResourcePolicy: 'cross-origin', // API 允许跨域访问
+    crossOriginOpenerPolicy: false,             // 纯 API 服务，不适用
+    xFrameOptions: false,                       // API 无 UI，不需要
+  }));
+  // 流式/二进制路由排除压缩：SSE 实时推送 + 文件下载不能被缓冲压缩
+  const COMPRESS_EXCLUDE_PREFIXES = ['/api/ws', '/api/files', '/api/db-backups', '/api/db-admin', '/api/log-files', '/api/monitor/stream', '/api/ai/conversations', '/api/ai/arena', '/api/ai/generations'];
+  app.use('*', except(
+    (c) => COMPRESS_EXCLUDE_PREFIXES.some((p) => c.req.path.startsWith(p)),
+    compress(),
+  ));
+  app.use('*', cors({ origin: config.corsOrigin, allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowHeaders: ['Content-Type', 'Authorization'] }));
+  // CSRF 防护：校验 Origin 头，防止跨站请求伪造
+  // ALLOWED_ORIGINS 为空时（开发模式）不限制；非浏览器请求（无 Origin）直接放行
+  const CSRF_EXCLUDE_PATHS = ['/api/auth/enterprise/saml/acs'];
+  app.use(
+    '*',
+    except(
+      (c) => CSRF_EXCLUDE_PATHS.includes(c.req.path),
+      csrf({
+        origin: (origin) => {
+          if (!origin) return true; // 服务端 / CLI（curl、Postman）直接放行
+          if (config.allowedOrigins.length === 0) return true; // 开发模式，不限制
+          return config.allowedOrigins.includes(origin);
+        },
+      }),
+    ),
+  );
+  app.use('*', honoLogger((msg) => logger.info(stripAnsi(msg))));
+  // HTTP 流量详细日志（对标 Logbook），默认关闭，通过 HTTP_LOG_INCOMING_ENABLED=true 启用
+  app.use('*', httpLoggerMiddleware);
+  if (config.serverTimingEnabled) {
+    app.use('*', timing());
+  }
+
+  // ─── 请求体大小限制（全局）───────────────────────────────────────────────────
+  // config.requestBodyLimit === 0 时不挂载，使用运行时默认
+  if (config.requestBodyLimit > 0) {
+    app.use(
+      '*',
+      bodyLimit({
+        maxSize: config.requestBodyLimit,
+        onError: (c) => c.json(errBody('请求体超出大小限制', 413), 413),
+      }),
+    );
+  }
+
+  // ─── 请求超时（仅对 /api/* 生效，排除长耗时路由）───────────────────────────
+  // config.requestTimeoutMs === 0 时不挂载
+  if (config.requestTimeoutMs > 0) {
+    const timeoutMs = config.requestTimeoutMs;
+    // 天生长耗时的路径前缀：WebSocket、文件上传/下载、数据库备份
+    const TIMEOUT_EXCLUDE_PREFIXES = ['/api/ws', '/api/files', '/api/db-backups', '/api/db-admin', '/api/log-files', '/api/monitor/stream', '/api/ai/conversations', '/api/ai/arena', '/api/ai/generations'];
+
+    const timeoutMiddleware = timeout(
+      timeoutMs,
+      () =>
+        new HTTPException(408, {
+          message: `请求处理超时（${timeoutMs}ms）`,
+        }),
+    );
+
+    // 使用 hono/combine except() 排除无法设超时的长耗时路由
+    app.use(
+      '/api/*',
+      except(
+        (c) => {
+          const path = c.req.path;
+          return TIMEOUT_EXCLUDE_PREFIXES.some((p) => path.startsWith(p)) || path.endsWith('/export');
+        },
+        timeoutMiddleware,
+      ),
+    );
+  }
+
+  app.use('/api/*', ipAccessMiddleware);
+
+  // ─── 接口级限流（防暴力破解 / 滥用）────────────────────────────────────────
+  app.use('/api/auth/login', authRateLimit);
+  app.use('/api/auth/captcha', captchaRateLimit);
+  app.use('/api/auth/register', sensitiveRateLimit);
+  app.use('/api/auth/forgot-password', sensitiveRateLimit);
+  app.use('/api/auth/reset-password', sensitiveRateLimit);
+
+  // 路径绑定限流：匹配自定义规则的 pathPatterns
+  app.use('/api/*', pathBoundRateLimit);
+
+  // ─── 维护模式拦截（认证路由、公开维护接口之后注册）────────────────────────
+  app.use('/api/*', maintenanceMiddleware);
+
+  // ─── 路由装配（按域，顺序见 src/routes/index.ts）─────────────────────────
+  const domainCtx: DomainCtx = { upgradeWebSocket };
+  for (const domain of ROUTE_DOMAINS) {
+    for (const [path, router] of domain.mounts(domainCtx)) app.route(path, router);
+  }
+
+  app.get('/metrics', printMetrics);
+
+  // API 文档（无需认证）
+  app.openAPIRegistry.registerComponent('securitySchemes', 'BearerAuth', {
+    type: 'http',
+    scheme: 'bearer',
+    bearerFormat: 'JWT',
+    description: '登录后获取的 accessToken，格式：`Bearer <token>`',
+  });
+  app.doc31('/api/openapi.json', (c) => ({
+    openapi: '3.1.0',
+    info: {
+      title: 'Zenith Admin API',
+      version: process.env.npm_package_version || '0.7.0',
+      description:
+        'Zenith Admin 后台管理系统 REST API 文档。\n\n' +
+        '认证方式：Bearer Token（在 Authorize 中填入登录返回的 `accessToken`）。\n\n' +
+        '所有接口的成功响应格式为 `{ code: 0, message: "success", data: T }`，' +
+        '失败时 `code` 为非零值。',
+    },
+    servers: [{ url: new URL(c.req.url).origin, description: '当前服务器' }],
+    // 全局默认安全方案，公开接口通过 security: [] 单独覆盖
+    security: [{ BearerAuth: [] }],
+  }));
+  app.get('/api/docs', swaggerUI({ url: '/api/openapi.json' }));
+
+  // ─── 兜底挂载：必须晚于全部 API 路由与文档路由 ───────────────────────────
+  // （CMS 前台 SSR 挂在 '/'，按 Host 匹配站点，会吞掉未匹配的一切路径）
+  for (const domain of ROUTE_DOMAINS) {
+    for (const [path, router] of domain.fallback?.(domainCtx) ?? []) app.route(path, router);
+  }
+
+  app.notFound((c) => c.json(errBody('接口不存在', 404), 404));
+
+  // 全局未捕获异常处理—统一返回标准错误格式
+  app.onError((err, c) => {
+    if (err instanceof HTTPException) {
+      return c.json(errBody(err.message, err.status), err.status);
+    }
+    logger.error('[Unhandled Error]', err);
+    return c.json(errBody('服务器内部错误', 500), 500);
+  });
+
+  return { app, injectWebSocket };
+}
