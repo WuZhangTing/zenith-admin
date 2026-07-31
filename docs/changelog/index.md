@@ -4,6 +4,56 @@
 
 ---
 
+## v1.28.0 - 2026-07-31
+
+缓存一致性版本：把前端「mutation 一律失效整个域」的写法，按每个写操作的**真实副作用**重建模型。**无业务功能变更**，服务端 1568 项、前端 460 项测试全部通过，另有 11 个写操作场景的真实浏览器验证。
+
+起因是一次实测：全仓 716 处 `invalidateQueries` 里有 525 处广播 `xxxKeys.all`，而 140 个 key factory 早已定义了 `lists`、94 个定义了 `detail(id)` —— 粒度基础设施建好了却没被使用。
+
+### Changed
+
+#### 缓存一致性契约（`.agents/skills/zenith/`）
+
+原规范要求 mutation 的 `onSuccess` 一律 `invalidateQueries(xxxKeys.all)`，CRUD 模板也照此生成，等于把「把同根下详情、统计、日志、下拉源一并打掉」批量复制到每个新模块。经 positions 与 cron-jobs 两个试点验证后替换为按副作用建模的契约，同步更新 `SKILL.md` 自检清单、`constraints.md` 硬约束、`crud-frontend.md` 模板与文档站 `data-fetching.md`。
+
+判据是「**有没有已挂载的查询读了这次被改动的状态**」，而不是接口像不像命令 —— 手动执行 cron 任务只返回一句提示文案，却会改写 lastRun、写执行日志、变更概览统计。
+
+两条推论来自 `invalidateQueries` 的真实语义（默认只立即重拉活跃查询，未挂载的仅标脏）：失效**未挂载**的缓存代价接近零，该失效的别漏；真正的浪费是打掉与本次改动无关、却正好同屏挂载的查询。
+
+#### 20 个业务域按副作用收敛（广播失效 525 → 377）
+
+- **静态下拉源不再被写操作连坐**：cron-jobs 的 `handlers`（5 分钟 staleTime，长期挂载）此前每次增删改跑都被打回源；chat 域单根 `['chat']` 下压着常用语、自定义表情、组织架构、用户搜索四个 lookup；file-storage 保存配置会重新拉取整个目录浏览结果；identity-providers 保存身份源会重拉租户下拉；payment-sharing 新增分账单会重拉分账方名单
+- **昂贵的派生查询受保护**：report-dashboards 的 `dashboardData`（一屏可能扇出数十个数据集查询）与列表同根，「收藏一个看板」会把整屏图表全部重跑；report-datasets 的 `metaTables` / `metaColumns` 是数据库元数据，与数据集增删改毫无关系；cms 互动问卷的答卷聚合分析（stats / cross / trend）不该因改问卷定义而重算
+- **跨域藏键归还所有者域**：公告收件人选项、数据脱敏豁免角色两处拉的都是 `/api/roles/all`，却分别以 `announcementKeys` / `dataMaskKeys` 为键 —— 角色被增删改后没有任何来源会失效它们，会静默显示旧列表。改为复用 `useAllRoles` / `useFlatDepartments`
+- **消除空转**：`xxxKeys.all` 是 `detail(id)` 的前缀，channels 有 5 处、report-dashboards 有 4 处「先 `.all` 再补具体键」，后补的调用完全不产生额外效果
+- **删除改用 `removeQueries`**：实体已不存在，失效会让仍缓存的详情去请求一个必然 404 的资源
+
+#### key 结构修正
+
+- `workflowMonitorKeys.all` 实为 `['workflow']` —— 整个工作流域根，覆盖 definitions / instances / tasks / forms / connectors 等 17 个 key factory，是全仓最大的连坐面。按 monitor / jobs / compensations 子树重新建模，任务交接改为显式列出跨文件依赖而非靠广播兜底
+- chat 域的群成员与入群申请原先嵌在 `['chat','conversations',id,...]` 之下，使得「刷新会话列表」这一意图会因前缀匹配连带打掉每个会话的成员名单。改挂独立命名空间
+- 新增 `detailOf(id)` / `dataOf(id)` / `lookupPrefix` 等前缀键，让「某看板的全部模式详情」「某看板的全部取数」这类意图可被精确表达
+
+#### 回填前必须核对数据形状
+
+只有写接口与详情接口同源（服务端同一个 `mapXxx`）时才能 `setQueryData` 回填。实践中有四个域**不能**回填：announcements（详情多 recipients / attachments）、roles（写接口不带 menuIds，回填会清空菜单勾选）、departments（树与扁平列表含聚合字段）、以及 **users —— 写接口返回未脱敏数据，详情接口按查看者角色脱敏，回填会把明文手机号与邮箱写进本不该展示它们的界面**。测试对此加了断言。
+
+### Added
+
+- `packages/web/src/test-utils/query-harness.ts`：缓存行为观测工具。`ApiRecorder` 记录并桩化请求，`observeFetches` 基于 query-core 的 fetch action 精确区分「真的重拉」与「只是被标脏」，配套 `isFresh` / `isInvalidated` / `hasCacheEntry` 缓存断言
+- 55 项域 hooks 行为测试（positions / cron-jobs / announcements / channels / chat / roles / departments / report-dashboards / users / lookup 连坐批次）。断言一律落在实际请求数、进入 fetching 的查询与缓存内容上 —— 只 spy「调用了 `invalidateQueries(某 key)`」在旧的冗余写法和被改坏的新写法下都会通过，等于没测
+- `packages/web/scripts/check-invalidation-baseline.mjs`：防回潮护栏，已接入 `npm run lint`。刻意不做全仓 `.all` 禁令（`.all` 在批量覆盖、切租户等场景合法，页面的 `handleSearch` / `handleReset` 也必须失效 `lists`），改为按作用域精确识别 mutation `onSuccess` 内的广播，基线只减不增
+
+### Fixed
+
+- **聊天页群主判定使用过期数据**：ChatPage 把群成员镜像成本地 `useState`、只在切换会话时手工拉一次，而 GroupMembersPanel 用的是 Query 缓存。同一份服务端状态存在两份副本，成员类 mutation 只刷新面板那份 —— 转让群主后页面仍按旧数据判断操作权限。改为共享 `useChatGroupMembers`，顺带减少一次重复请求
+- **岗位/角色列表的成员统计陈旧**：分配成员后列表的 `userCount` / `userPreview` 列需要回源，收敛过程中据此补齐（这类欠失效比多失效更危险）
+- **标记公告已读不刷新已读统计**：管理端的已读统计此前没有任何来源会失效它
+- **个人 AI Key 保存波及整个供应商域**：收窄为只失效聊天可选模型
+- CMS 内容审核种子的非法流程变量类型；系统配置放行冒号命名空间键名、json 类型改用 JSON 编辑器；深色模式下 JsonViewer 光标不可见；db-admin 的 EXPLAIN 原始 JSON 视图补上 `readOnly`
+
+---
+
 ## v1.27.0 - 2026-07-31
 
 代码去重版本：用 jscpd 全量扫描后，把跨包重复的逻辑与组件收敛为共享模块，并顺带修掉「测试超时」这一长期误报。**无业务功能变更**，服务端 1568 项、前端 410 项测试全部通过（首次实现 `npm test` 零失败）。
