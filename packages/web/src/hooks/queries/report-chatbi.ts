@@ -170,10 +170,12 @@ export function useSaveReportChatbiMessageAsset() {
     onSuccess: (resource, variables) => {
       void queryClient.invalidateQueries({ queryKey: reportChatbiKeys.detail(variables.sessionId) });
       void queryClient.invalidateQueries({ queryKey: reportChatbiKeys.messages(variables.sessionId) });
+      // 存为数据集/看板会新增一条记录，只需刷新对应列表与下拉源
       if (resource.resourceType === 'dataset') {
-        void queryClient.invalidateQueries({ queryKey: reportDatasetKeys.all });
+        void queryClient.invalidateQueries({ queryKey: reportDatasetKeys.lists });
+        void queryClient.invalidateQueries({ queryKey: reportDatasetKeys.lookupPrefix });
       } else {
-        void queryClient.invalidateQueries({ queryKey: reportDashboardKeys.all });
+        void queryClient.invalidateQueries({ queryKey: reportDashboardKeys.lists });
       }
     },
   });

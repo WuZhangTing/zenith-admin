@@ -22,6 +22,7 @@ export const cmsWidgetKeys = {
   refs: (id: number | undefined) => ['cms-widgets', 'refs', id] as const,
   preview: (id: number | undefined, rendererKey?: CmsWidgetRendererKey) =>
     ['cms-widgets', 'preview', id, rendererKey ?? 'default'] as const,
+  optionsPrefix: ['cms-widgets', 'options'] as const,
   options: (siteId: number | undefined) => ['cms-widgets', 'options', siteId] as const,
   renderers: (siteId: number | undefined, type: CmsWidgetType) =>
     ['cms-widgets', 'renderers', siteId, type] as const,
@@ -125,7 +126,12 @@ export function useSaveCmsWidget() {
         ? request.post<CmsWidget>('/api/cms/widgets', values)
         : request.put<CmsWidget>(`/api/cms/widgets/${id}`, values)
       ).then(unwrap),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: cmsWidgetKeys.all }),
+    onSuccess: (saved) => {
+      void queryClient.invalidateQueries({ queryKey: cmsWidgetKeys.detail(saved.id) });
+      void queryClient.invalidateQueries({ queryKey: cmsWidgetKeys.lists });
+      void queryClient.invalidateQueries({ queryKey: cmsWidgetKeys.preview(saved.id) });
+      // renderers / slots 是站点级配置，不随单个组件的内容变化
+    },
   });
 }
 
@@ -133,7 +139,12 @@ export function usePublishCmsWidget() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.post<CmsWidget>(`/api/cms/widgets/${id}/publish`).then(unwrap),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: cmsWidgetKeys.all }),
+    onSuccess: (_data, id) => {
+      void queryClient.invalidateQueries({ queryKey: cmsWidgetKeys.detail(id) });
+      void queryClient.invalidateQueries({ queryKey: cmsWidgetKeys.lists });
+      // 发布后组件才可被选用，可选组件下拉随之变化
+      void queryClient.invalidateQueries({ queryKey: cmsWidgetKeys.optionsPrefix });
+    },
   });
 }
 
@@ -141,7 +152,11 @@ export function useOfflineCmsWidget() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.post<CmsWidget>(`/api/cms/widgets/${id}/offline`).then(unwrap),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: cmsWidgetKeys.all }),
+    onSuccess: (_data, id) => {
+      void queryClient.invalidateQueries({ queryKey: cmsWidgetKeys.detail(id) });
+      void queryClient.invalidateQueries({ queryKey: cmsWidgetKeys.lists });
+      void queryClient.invalidateQueries({ queryKey: cmsWidgetKeys.optionsPrefix });
+    },
   });
 }
 
@@ -149,7 +164,13 @@ export function useDeleteCmsWidget() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/cms/widgets/${id}`).then(unwrap),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: cmsWidgetKeys.all }),
+    onSuccess: (_data, id) => {
+      queryClient.removeQueries({ queryKey: cmsWidgetKeys.detail(id) });
+      queryClient.removeQueries({ queryKey: cmsWidgetKeys.refs(id) });
+      queryClient.removeQueries({ queryKey: ['cms-widgets', 'preview', id] });
+      void queryClient.invalidateQueries({ queryKey: cmsWidgetKeys.lists });
+      void queryClient.invalidateQueries({ queryKey: cmsWidgetKeys.optionsPrefix });
+    },
   });
 }
 
@@ -158,7 +179,11 @@ export function useCmsWidgetBatch() {
   return useMutation({
     mutationFn: (input: { ids: number[]; action: 'publish' | 'offline' | 'delete' }) =>
       request.post<AsyncTask>('/api/cms/widgets/batch', input).then(unwrap),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: cmsWidgetKeys.all }),
+    // 批量操作异步执行，结果未知，刷新列表与可选组件即可
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: cmsWidgetKeys.lists });
+      void queryClient.invalidateQueries({ queryKey: cmsWidgetKeys.optionsPrefix });
+    },
   });
 }
 
@@ -178,8 +203,8 @@ export function useSaveCmsWidgetSlot() {
       };
     }) => request.put<CmsWidgetSlot[]>(`/api/cms/widgets/slots/${slotKey}`, values).then(unwrap),
     onSuccess: (_data, variables) => {
+      // slots(siteId) 已精确定位到该站点的插槽配置，无需再广播整个组件域
       void queryClient.invalidateQueries({ queryKey: cmsWidgetKeys.slots(variables.values.siteId) });
-      void queryClient.invalidateQueries({ queryKey: cmsWidgetKeys.all });
     },
   });
 }

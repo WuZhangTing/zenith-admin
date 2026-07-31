@@ -1203,6 +1203,7 @@ export const cmsInteractionKeys = {
   trend: (id: number | undefined, days: number) => ['cms-interactions', 'stats', id, 'trend', days] as const,
   responseLists: ['cms-interactions', 'responses'] as const,
   responseList: (params: CmsInteractionResponseListParams) => ['cms-interactions', 'responses', params] as const,
+  optionsPrefix: ['cms-interactions', 'options'] as const,
   options: (siteId: number | undefined) => ['cms-interactions', 'options', siteId] as const,
 };
 
@@ -1308,7 +1309,12 @@ export function useSaveCmsInteraction() {
         ? request.post<CmsInteraction>('/api/cms/interactions', values)
         : request.put<CmsInteraction>(`/api/cms/interactions/${id}`, values)
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: cmsInteractionKeys.all }),
+    onSuccess: (saved) => {
+      void qc.invalidateQueries({ queryKey: cmsInteractionKeys.detail(saved.id) });
+      void qc.invalidateQueries({ queryKey: cmsInteractionKeys.lists });
+      // stats / texts / cross / trend 是答卷聚合分析，改问卷定义不产生新答卷；
+      // options 是站点级可选问卷下拉，仅在发布状态变化时才需刷新
+    },
   });
 }
 
@@ -1317,7 +1323,12 @@ export function useSetCmsInteractionStatus() {
   return useMutation({
     mutationFn: ({ id, status }: { id: number; status: CmsInteractionStatus }) =>
       request.post<CmsInteraction>(`/api/cms/interactions/${id}/status`, { status }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: cmsInteractionKeys.all }),
+    onSuccess: (_data, { id }) => {
+      void qc.invalidateQueries({ queryKey: cmsInteractionKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: cmsInteractionKeys.lists });
+      // 发布/关闭决定问卷是否出现在可选下拉中
+      void qc.invalidateQueries({ queryKey: cmsInteractionKeys.optionsPrefix });
+    },
   });
 }
 
@@ -1326,7 +1337,10 @@ export function useBatchCmsInteractionStatus() {
   return useMutation({
     mutationFn: (values: { ids: number[]; status: 'published' | 'closed' }) =>
       request.post<AsyncTask>('/api/cms/interactions/batch/status', values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: cmsInteractionKeys.all }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: cmsInteractionKeys.lists });
+      void qc.invalidateQueries({ queryKey: cmsInteractionKeys.optionsPrefix });
+    },
   });
 }
 
@@ -1334,7 +1348,14 @@ export function useDeleteCmsInteraction() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/cms/interactions/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: cmsInteractionKeys.all }),
+    onSuccess: (_data, id) => {
+      // 问卷删除后其详情与全部答卷分析都不再有对应资源
+      qc.removeQueries({ queryKey: cmsInteractionKeys.detail(id) });
+      qc.removeQueries({ queryKey: cmsInteractionKeys.stats(id) });
+      void qc.invalidateQueries({ queryKey: cmsInteractionKeys.lists });
+      void qc.invalidateQueries({ queryKey: cmsInteractionKeys.optionsPrefix });
+      void qc.invalidateQueries({ queryKey: cmsInteractionKeys.responseLists });
+    },
   });
 }
 
@@ -1342,7 +1363,8 @@ export function useCopyCmsInteraction() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.post<CmsInteraction>(`/api/cms/interactions/${id}/copy`, {}).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: cmsInteractionKeys.all }),
+    // 复制只新增一份草稿，源问卷与其答卷分析都不受影响
+    onSuccess: () => qc.invalidateQueries({ queryKey: cmsInteractionKeys.lists }),
   });
 }
 

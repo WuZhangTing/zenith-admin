@@ -93,7 +93,11 @@ export function useSaveAiKnowledgeBase() {
         ? request.post<AiKnowledgeBase>('/api/ai/knowledge-bases', values)
         : request.put<AiKnowledgeBase>(`/api/ai/knowledge-bases/${id}`, values)
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: aiKbKeys.all }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: aiKbKeys.lists });
+      // 可选知识库下拉由知识库集合派生；文档列表不受知识库改名影响
+      void qc.invalidateQueries({ queryKey: aiKbKeys.available });
+    },
   });
 }
 
@@ -101,7 +105,12 @@ export function useDeleteAiKnowledgeBase() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/ai/knowledge-bases/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: aiKbKeys.all }),
+    onSuccess: (_data, id) => {
+      // 知识库删除后其文档缓存不再有对应资源
+      qc.removeQueries({ queryKey: aiKbKeys.docs(id) });
+      void qc.invalidateQueries({ queryKey: aiKbKeys.lists });
+      void qc.invalidateQueries({ queryKey: aiKbKeys.available });
+    },
   });
 }
 

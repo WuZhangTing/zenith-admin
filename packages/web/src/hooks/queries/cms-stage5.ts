@@ -75,9 +75,10 @@ export function useUpdateCmsSiteInheritance() {
         affectedSiteIds: number[];
       }>(`/api/cms/sites/${siteId}/inheritance`, inheritance).then(unwrap),
     onSuccess: (_data, variables) => {
-      void qc.invalidateQueries({ queryKey: cmsSiteKeys.all });
+      // 继承开关影响站点自身与其后代的生效配置；cmsSiteHierarchyKeys.all 已覆盖
+      // effective(siteId)，无需再补一次（.all 是其前缀，追加属空转）
+      void qc.invalidateQueries({ queryKey: cmsSiteKeys.detail(variables.siteId) });
       void qc.invalidateQueries({ queryKey: cmsSiteHierarchyKeys.all });
-      void qc.invalidateQueries({ queryKey: cmsSiteHierarchyKeys.effective(variables.siteId) });
       void qc.invalidateQueries({ queryKey: cmsPublishingKeys.all });
     },
   });

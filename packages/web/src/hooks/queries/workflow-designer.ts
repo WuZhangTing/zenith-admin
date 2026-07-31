@@ -191,7 +191,12 @@ export function useSaveWorkflowDesignerDefinition() {
         ? request.put<WorkflowDefinition>(`/api/workflows/definitions/${id}`, values)
         : request.post<WorkflowDefinition>('/api/workflows/definitions', values)
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: workflowDefinitionKeys.all }),
+    onSuccess: (saved) => {
+      void qc.invalidateQueries({ queryKey: workflowDefinitionKeys.detail(saved.id) });
+      void qc.invalidateQueries({ queryKey: workflowDefinitionKeys.lists });
+      void qc.invalidateQueries({ queryKey: workflowDefinitionKeys.versions(saved.id) });
+      // published 只在发布后变化；设计器的表单/连接器/数据源下拉不受影响
+    },
   });
 }
 
@@ -199,7 +204,13 @@ export function usePublishWorkflowDesignerDefinition() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.post<WorkflowDefinition>(`/api/workflows/definitions/${id}/publish`, {}).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: workflowDefinitionKeys.all }),
+    onSuccess: (_data, id) => {
+      void qc.invalidateQueries({ queryKey: workflowDefinitionKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: workflowDefinitionKeys.lists });
+      void qc.invalidateQueries({ queryKey: workflowDefinitionKeys.versions(id) });
+      // 发布会改变「已发布流程」下拉源（发起流程等场景使用）
+      void qc.invalidateQueries({ queryKey: workflowDefinitionKeys.published });
+    },
   });
 }
 
