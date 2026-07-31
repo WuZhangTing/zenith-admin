@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Form,
   Input,
+  JsonViewer,
   Modal,
   Select,
   Spin,
@@ -39,6 +40,17 @@ interface SearchParams {
 
 const defaultSearchParams: SearchParams = { keyword: '', configType: '' };
 
+/** JSON 文本美化；解析失败时原样返回，避免用户输入被吞掉 */
+function prettyJson(raw: string): string {
+  const text = (raw ?? '').trim();
+  if (!text) return '{}';
+  try {
+    return JSON.stringify(JSON.parse(text), null, 2);
+  } catch {
+    return text;
+  }
+}
+
 export default function SystemConfigsPage() {
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
@@ -49,6 +61,16 @@ export default function SystemConfigsPage() {
   const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingConfig, setEditingConfig] = useState<SystemConfig | null>(null);
+  // json 类型改用 JsonViewer 编辑：jsonSeed 是非受控初始值兼 remount key，jsonText 由 onChange 实时同步供提交读取
+  const [configType, setConfigType] = useState<string>('string');
+  const [jsonSeed, setJsonSeed] = useState<string>('{}');
+  const [jsonText, setJsonText] = useState<string>('{}');
+
+  const seedJsonEditor = (raw: string) => {
+    const pretty = prettyJson(raw);
+    setJsonSeed(pretty);
+    setJsonText(pretty);
+  };
 
   const listQuery = useSystemConfigList({
     page,
@@ -64,6 +86,21 @@ export default function SystemConfigsPage() {
   const saveMutation = useSaveSystemConfig();
   const deleteMutation = useDeleteSystemConfig();
 
+  // 弹窗打开（或详情回填）时同步编辑器状态：类型决定用哪种控件，json 需要美化后的初始文本
+  const editingKey = editing ? `${editing.id}:${editing.updatedAt}` : 'new';
+  useEffect(() => {
+    if (!modalVisible) return;
+    setConfigType(editing?.configType ?? 'string');
+    seedJsonEditor(editing?.configType === 'json' ? editing.configValue : '{}');
+    // editingKey 已覆盖 editing 的身份变化，避免对象引用抖动导致重复重置
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalVisible, editingKey]);
+
+  const closeModal = () => {
+    setModalVisible(false);
+    setEditingConfig(null);
+  };
+
   const handleSearch = () => {
     setPage(1);
     setSubmittedParams(draftParams);
@@ -76,14 +113,40 @@ export default function SystemConfigsPage() {
     void queryClient.invalidateQueries({ queryKey: systemConfigKeys.lists });
   };
 
+  /** 类型切换时在 Input 与 JsonViewer 之间搬运当前值，避免切来切去把内容丢掉 */
+  const handleTypeChange = (values: Record<string, unknown>) => {
+    const next = (values.configType as string) ?? 'string';
+    if (next === configType) return;
+    if (next === 'json') {
+      seedJsonEditor((values.configValue as string) ?? '');
+    } else if (configType === 'json') {
+      formApi.current?.setValue('configValue', jsonText);
+    }
+    setConfigType(next);
+  };
+
   const handleModalOk = async () => {
     let values;
     try { values = await formApi.current!.validate(); } catch { throw new Error('validation'); }
 
+    if (values.configType === 'json') {
+      const raw = jsonText.trim();
+      if (!raw) {
+        Toast.error('请输入配置值');
+        throw new Error('empty json');
+      }
+      try {
+        JSON.parse(raw);
+      } catch {
+        Toast.error('配置值 JSON 格式有误，请检查后重试');
+        throw new Error('invalid json');
+      }
+      values.configValue = raw;
+    }
+
     await saveMutation.mutateAsync({ id: editingConfig?.id, values });
     Toast.success(editingConfig ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditingConfig(null);
+    closeModal();
   };
 
   const openEdit = (record: SystemConfig) => {
@@ -118,7 +181,7 @@ export default function SystemConfigsPage() {
 
   const columns: ColumnProps<SystemConfig>[] = [
     { title: '配置键', dataIndex: 'configKey', width: 220, render: renderEllipsis },
-    { title: '配置値', dataIndex: 'configValue', width: 140, render: renderEllipsis },
+    { title: '配置值', dataIndex: 'configValue', width: 140, render: renderEllipsis },
     {
       title: '类型',
       dataIndex: 'configType',
@@ -241,10 +304,10 @@ export default function SystemConfigsPage() {
       <AppModal
         title={editing ? '编辑配置' : '新增配置'}
         visible={modalVisible}
-        onCancel={() => { setModalVisible(false); setEditingConfig(null); }}
+        onCancel={closeModal}
         onOk={handleModalOk}
         okButtonProps={{ disabled: modalDetailLoading }}
-        width={520}
+        width={configType === 'json' ? 720 : 520}
       >
         <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
         <Form
@@ -254,6 +317,7 @@ export default function SystemConfigsPage() {
           initValues={formInitValues}
           labelPosition="left"
           labelWidth={90}
+          onValueChange={handleTypeChange}
         >
           <Form.Input
             field="configKey"
@@ -261,7 +325,19 @@ export default function SystemConfigsPage() {
             rules={[{ required: true, message: '请输入配置键' }]}
             disabled={!!editing}
           />
-          <Form.Input field="configValue" label="配置值" placeholder="请输入配置值" rules={[{ required: true, message: '请输入配置值' }]} />
+          {configType === 'json' ? (
+            <Form.Slot label={{ text: '配置值' }}>
+              <JsonViewer
+                key={jsonSeed}
+                value={jsonSeed}
+                onChange={setJsonText}
+                height={260}
+                width="100%"
+              />
+            </Form.Slot>
+          ) : (
+            <Form.Input field="configValue" label="配置值" placeholder="请输入配置值" rules={[{ required: true, message: '请输入配置值' }]} />
+          )}
           <Form.Select
             field="configType"
             label="类型"

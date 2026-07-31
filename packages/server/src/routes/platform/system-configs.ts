@@ -18,7 +18,8 @@ const systemConfigsRoute = new OpenAPIHono({ defaultHook: validationHook });
 const configTypeValues = ['string', 'number', 'boolean', 'json'] as const;
 
 const createSystemConfigSchema = z.object({
-  configKey: z.string().min(1).max(128).regex(/^[\w.]+$/),
+  // 冒号用于模块命名空间（如 cms:theme:fingerprints），与 shared 的 createSystemConfigSchema 保持一致
+  configKey: z.string().min(1).max(128).regex(/^[\w.:]+$/),
   configValue: z.string().max(4096),
   configType: z.enum(configTypeValues).default('string'),
   description: z.string().max(256).default(''),

@@ -220,7 +220,7 @@ export type UpdateFileStorageConfigInput = z.infer<typeof updateFileStorageConfi
 
 // ─── 系统参数配置 Schema ─────────────────────────────────────────────────────
 export const createSystemConfigSchema = z.object({
-  configKey: z.string().min(1, '键名不能为空').max(128).regex(/^[\w.]+$/, '键名只能包含字母、数字、下划线和点号'),
+  configKey: z.string().min(1, '键名不能为空').max(128).regex(/^[\w.:]+$/, '键名只能包含字母、数字、下划线、点号和冒号'),
   configValue: z.string().max(4096),
   configType: z.enum(['string', 'number', 'boolean', 'json']).default('string'),
   description: z.string().max(256).default(''),
