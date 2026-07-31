@@ -50,11 +50,14 @@ import { usePermission } from '@/hooks/usePermission';
 import { callManager } from '@/webrtc/useCallManager';
 import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
-import { useDiscoverableChannels, chatKeys, useAddChatCustomEmoji } from '@/hooks/queries/chat';
+import { useDiscoverableChannels, chatKeys, useAddChatCustomEmoji, useChatGroupMembers } from '@/hooks/queries/chat';
 import type { ChatCustomEmoji } from '@zenith/shared/chat';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { Text, Title } = Typography;
+
+/** 稳定空数组：避免群成员查询无数据时每次渲染都产出新引用 */
+const EMPTY_GROUP_MEMBERS: ChatGroupMember[] = [];
 
 /** 左侧会话列表项：频道与会话合并后的统一条目（仿微信，按消息时间混排） */
 type LeftListItem =
@@ -205,7 +208,6 @@ export default function ChatPage({
   const [searchHasSearched, setSearchHasSearched] = useState(false);
   const [searchMembers, setSearchMembers] = useState<ChatGroupMember[]>([]);
   const [groupAvatarMap, setGroupAvatarMap] = useState<Record<number, Array<{ id: number; nickname: string; avatar?: string | null }>>>({});
-  const [activeGroupMembers, setActiveGroupMembers] = useState<ChatGroupMember[]>([]);
   const [readStates, setReadStates] = useState<ChatReadState[]>([]);
   const [onlineUserIds, setOnlineUserIds] = useState<Set<number>>(() => new Set());
   const [lastSeenMap, setLastSeenMap] = useState<Record<number, string | null>>({});
@@ -361,6 +363,15 @@ export default function ChatPage({
 
   const activeConv = conversations.find((c) => c.id === activeConvId) ?? null;
   const activeChannel = channels.find((c) => c.id === activeChannelId) ?? null;
+
+  // 群成员是服务端状态，交给 Query 统一持有：GroupMembersPanel 用的是同一个缓存条目，
+  // 因此加人/踢人/转让群主等 mutation 失效后，本页的 @提及候选、群主判定会一起刷新。
+  // 此前这里另存了一份 useState 副本，只在切换会话时拉取，面板改完成员后本页仍是旧数据。
+  const groupMembersQuery = useChatGroupMembers(
+    activeConvId ?? undefined,
+    activeConv?.type === 'group',
+  );
+  const activeGroupMembers = groupMembersQuery.data ?? EMPTY_GROUP_MEMBERS;
 
   const queryClient = useQueryClient();
 
@@ -664,21 +675,13 @@ export default function ChatPage({
 
   useEffect(() => {
     if (!activeConvId) {
-      setActiveGroupMembers([]);
       setPinnedMessages([]);
       setReadStates([]);
       return;
     }
     void fetchPinnedMessages(activeConvId);
     void fetchReadStates(activeConvId);
-    if (activeConv?.type === 'group') {
-      void request.get<ChatGroupMember[]>(`/api/chat/conversations/${activeConvId}/members`, { silent: true }).then((res) => {
-        if (res.code === 0 && res.data) setActiveGroupMembers(res.data);
-      });
-    } else {
-      setActiveGroupMembers([]);
-    }
-  }, [activeConv?.type, activeConvId, fetchPinnedMessages, fetchReadStates]);
+  }, [activeConvId, fetchPinnedMessages, fetchReadStates]);
 
   // 拉取相关用户在线状态：单聊对方 + 当前群成员
   useEffect(() => {
