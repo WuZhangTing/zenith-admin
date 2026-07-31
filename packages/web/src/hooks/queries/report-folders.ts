@@ -43,7 +43,10 @@ export function useSaveReportFolder() {
         ? request.put<ReportFolder>(`/api/report/folders/${id}`, values, { silent: true })
         : request.post<ReportFolder>('/api/report/folders', values, { silent: true })
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportFolderKeys.all }),
+    onSuccess: (saved) => {
+      void qc.invalidateQueries({ queryKey: reportFolderKeys.detail(saved.id) });
+      void qc.invalidateQueries({ queryKey: reportFolderKeys.lists });
+    },
   });
 }
 
@@ -52,7 +55,11 @@ export function useMoveReportFolder() {
   return useMutation({
     mutationFn: ({ id, values }: { id: number; values: MoveReportFolderInput }) =>
       request.post<ReportFolder>(`/api/report/folders/${id}/move`, values, { silent: true }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportFolderKeys.all }),
+    // 移动会改变整棵树的层级关系，列表需整体回源
+    onSuccess: (_data, { id }) => {
+      void qc.invalidateQueries({ queryKey: reportFolderKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: reportFolderKeys.lists });
+    },
   });
 }
 
@@ -60,6 +67,9 @@ export function useDeleteReportFolder() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/report/folders/${id}`, undefined, { silent: true }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportFolderKeys.all }),
+    onSuccess: (_data, id) => {
+      qc.removeQueries({ queryKey: reportFolderKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: reportFolderKeys.lists });
+    },
   });
 }

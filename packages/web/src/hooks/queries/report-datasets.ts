@@ -26,8 +26,11 @@ export const reportDatasetKeys = {
   list: (params: ReportDatasetListParams) => ['report', 'datasets', 'list', params] as const,
   detail: (id: number | undefined) => ['report', 'datasets', 'detail', id] as const,
   refs: (id: number | undefined) => ['report', 'datasets', 'refs', id] as const,
+  lookupPrefix: ['report', 'datasets', 'lookup'] as const,
   lookup: (params: { keyword?: string; status?: 'enabled' | 'disabled'; limit?: number }) => ['report', 'datasets', 'lookup', params] as const,
+  executionLogsPrefix: ['report', 'datasets', 'execution-logs'] as const,
   executionLogs: (params: Record<string, unknown>) => ['report', 'datasets', 'execution-logs', params] as const,
+  executionStatsPrefix: ['report', 'datasets', 'execution-stats'] as const,
   executionStats: (params: Record<string, unknown>) => ['report', 'datasets', 'execution-stats', params] as const,
   governance: ['report', 'datasets', 'governance'] as const,
   metaTables: ['report', 'datasets', 'meta-tables'] as const,
@@ -140,7 +143,13 @@ export function useSaveReportDataset() {
   return useMutation({
     mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
       (id ? request.put<ReportDataset>(`/api/report/datasets/${id}`, values) : request.post<ReportDataset>('/api/report/datasets', values)).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportDatasetKeys.all }),
+    onSuccess: (saved) => {
+      void qc.invalidateQueries({ queryKey: reportDatasetKeys.detail(saved.id) });
+      void qc.invalidateQueries({ queryKey: reportDatasetKeys.lists });
+      void qc.invalidateQueries({ queryKey: reportDatasetKeys.lookupPrefix });
+      void qc.invalidateQueries({ queryKey: reportDatasetKeys.governance });
+      // metaTables / metaColumns 是数据库元数据，与数据集增删改无关，不动
+    },
   });
 }
 
@@ -148,7 +157,13 @@ export function useDeleteReportDataset() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/report/datasets/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportDatasetKeys.all }),
+    onSuccess: (_data, id) => {
+      qc.removeQueries({ queryKey: reportDatasetKeys.detail(id) });
+      qc.removeQueries({ queryKey: reportDatasetKeys.refs(id) });
+      void qc.invalidateQueries({ queryKey: reportDatasetKeys.lists });
+      void qc.invalidateQueries({ queryKey: reportDatasetKeys.lookupPrefix });
+      void qc.invalidateQueries({ queryKey: reportDatasetKeys.governance });
+    },
   });
 }
 
@@ -177,8 +192,13 @@ export function useRefreshReportDatasetMaterialize() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.post<null>(`/api/report/datasets/${id}/materialize`).then(unwrap),
-    // 物化刷新改变数据集行数/更新时间，需失效列表与详情缓存
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportDatasetKeys.all }),
+    // 物化刷新改变数据集行数/更新时间，并产生一条执行记录
+    onSuccess: (_data, id) => {
+      void qc.invalidateQueries({ queryKey: reportDatasetKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: reportDatasetKeys.lists });
+      void qc.invalidateQueries({ queryKey: reportDatasetKeys.executionLogsPrefix });
+      void qc.invalidateQueries({ queryKey: reportDatasetKeys.executionStatsPrefix });
+    },
   });
 }
 
@@ -187,7 +207,12 @@ export function useBatchReportDatasetStatus() {
   return useMutation({
     mutationFn: ({ ids, status }: { ids: number[]; status: 'enabled' | 'disabled' }) =>
       request.put<null>('/api/report/datasets/batch-status', { ids, status }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportDatasetKeys.all }),
+    onSuccess: (_data, { ids }) => {
+      void qc.invalidateQueries({ queryKey: reportDatasetKeys.lists });
+      // 停用会从可选数据集下拉中移除
+      void qc.invalidateQueries({ queryKey: reportDatasetKeys.lookupPrefix });
+      for (const id of ids) void qc.invalidateQueries({ queryKey: reportDatasetKeys.detail(id) });
+    },
   });
 }
 
@@ -196,6 +221,10 @@ export function useCloneReportDataset() {
   return useMutation({
     mutationFn: ({ id, name }: { id: number; name?: string }) =>
       request.post<ReportDataset>(`/api/report/datasets/${id}/clone`, name ? { name } : {}).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportDatasetKeys.all }),
+    // 克隆只新增一条记录，源数据集不受影响
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: reportDatasetKeys.lists });
+      void qc.invalidateQueries({ queryKey: reportDatasetKeys.lookupPrefix });
+    },
   });
 }

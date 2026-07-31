@@ -20,8 +20,10 @@ export const reportDesignerKeys = {
   all: ['report', 'designer'] as const,
   datasets: ['report', 'designer', 'datasets'] as const,
   dashboards: (excludeId: number | undefined) => ['report', 'designer', 'dashboards', excludeId] as const,
+  datasetDataPrefix: ['report', 'designer', 'dataset-data'] as const,
   datasetData: (datasetId: number, params: Record<string, unknown>, limit: number) =>
     ['report', 'designer', 'dataset-data', datasetId, params, limit] as const,
+  metricDataPrefix: ['report', 'designer', 'metric-data'] as const,
   metricData: (metricId: number, params: Record<string, unknown>) =>
     ['report', 'designer', 'metric-data', metricId, params] as const,
   dictItems: (code: string) => ['report', 'designer', 'dict-items', code] as const,
@@ -64,10 +66,14 @@ export function useSaveReportDashboardDesign() {
     mutationFn: ({ id, values }: { id: number; values: Record<string, unknown> }) =>
       request.put<ReportDashboard>(`/api/report/dashboards/${id}`, values, { silent: true }) as Promise<ApiResponse<ReportDashboard>>,
     onSuccess: (_data, vars) => {
-      void qc.invalidateQueries({ queryKey: reportDashboardKeys.all });
-      void qc.invalidateQueries({ queryKey: reportDashboardKeys.detail(vars.id, 'draft') });
-      void qc.invalidateQueries({ queryKey: reportDashboardKeys.detail(vars.id, 'auto') });
-      void qc.invalidateQueries({ queryKey: reportDesignerKeys.all });
+      // 设计器保存即改写看板内容：详情（各模式）、列表与该看板的取数结果都要回源
+      void qc.invalidateQueries({ queryKey: reportDashboardKeys.detailOf(vars.id) });
+      void qc.invalidateQueries({ queryKey: reportDashboardKeys.lists });
+      void qc.invalidateQueries({ queryKey: reportDashboardKeys.dataOf(vars.id) });
+      // 设计器自身的取数缓存（datasetData / metricData）随组件配置变化
+      void qc.invalidateQueries({ queryKey: reportDesignerKeys.datasetDataPrefix });
+      void qc.invalidateQueries({ queryKey: reportDesignerKeys.metricDataPrefix });
+      // datasets / dashboards / dictItems 是设计器的下拉源，与本次保存无关
     },
   });
 }

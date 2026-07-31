@@ -13,6 +13,7 @@ export const reportAssetKeys = {
   top: (params: object) => ['report', 'assets', 'top', params] as const,
   inactive: (params: object) => ['report', 'assets', 'inactive', params] as const,
   trend: (params: object) => ['report', 'assets', 'trend', params] as const,
+  deprecationLists: ['report', 'assets', 'deprecations'] as const,
   deprecations: (params: object) => ['report', 'assets', 'deprecations', params] as const,
   templateLists: ['report', 'assets', 'templates'] as const,
   templates: (params: object) => ['report', 'assets', 'templates', params] as const,
@@ -81,7 +82,8 @@ export function useSaveReportDeprecation() {
         ? request.put<ReportDeprecationNotice>(`/api/report/assets/deprecations/${id}`, values, { silent: true })
         : request.post<ReportDeprecationNotice>('/api/report/assets/deprecations', values, { silent: true })
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportAssetKeys.all }),
+    // 下线公告与资产使用统计（usage/top/inactive/trend）、资产模板互不相干
+    onSuccess: () => qc.invalidateQueries({ queryKey: reportAssetKeys.deprecationLists }),
   });
 }
 
@@ -90,7 +92,7 @@ export function usePublishReportDeprecation() {
   return useMutation({
     mutationFn: ({ id, publish }: { id: number; publish: boolean }) =>
       request.post<ReportDeprecationNotice>(`/api/report/assets/deprecations/${id}/publish`, { publish }, { silent: true }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportAssetKeys.all }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: reportAssetKeys.deprecationLists }),
   });
 }
 
@@ -98,7 +100,7 @@ export function useDeleteReportDeprecation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/report/assets/deprecations/${id}`, undefined, { silent: true }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportAssetKeys.all }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: reportAssetKeys.deprecationLists }),
   });
 }
 
@@ -128,7 +130,10 @@ export function useSaveReportAssetTemplate() {
         ? request.put<ReportAssetTemplate>(`/api/report/assets/templates/${id}`, values, { silent: true })
         : request.post<ReportAssetTemplate>('/api/report/assets/templates', values, { silent: true })
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportAssetKeys.all }),
+    onSuccess: (saved) => {
+      void qc.invalidateQueries({ queryKey: reportAssetKeys.templateDetail(saved.id) });
+      void qc.invalidateQueries({ queryKey: reportAssetKeys.templateLists });
+    },
   });
 }
 
@@ -137,7 +142,8 @@ export function useCloneReportAssetTemplate() {
   return useMutation({
     mutationFn: ({ id, name, folderId }: { id: number; name: string; folderId?: number | null }) =>
       request.post<ReportAssetTemplate>(`/api/report/assets/templates/${id}/clone`, { name, folderId }, { silent: true }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportAssetKeys.all }),
+    // 克隆只新增一条模板，源模板不受影响
+    onSuccess: () => qc.invalidateQueries({ queryKey: reportAssetKeys.templateLists }),
   });
 }
 
@@ -146,7 +152,11 @@ export function useApplyReportAssetTemplate() {
   return useMutation({
     mutationFn: ({ id, values }: { id: number; values: ApplyReportAssetTemplateInput }) =>
       request.post<ReportAssetTemplateApplyResult>(`/api/report/assets/templates/${id}/apply`, values, { silent: true }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportAssetKeys.all }),
+    // 套用会记录使用次数；生成的看板/数据集属于各自域，由所在页面自行刷新
+    onSuccess: (_data, { id }) => {
+      void qc.invalidateQueries({ queryKey: reportAssetKeys.templateDetail(id) });
+      void qc.invalidateQueries({ queryKey: reportAssetKeys.templateLists });
+    },
   });
 }
 
@@ -154,6 +164,9 @@ export function useDeleteReportAssetTemplate() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/report/assets/templates/${id}`, undefined, { silent: true }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportAssetKeys.all }),
+    onSuccess: (_data, id) => {
+      qc.removeQueries({ queryKey: reportAssetKeys.templateDetail(id) });
+      void qc.invalidateQueries({ queryKey: reportAssetKeys.templateLists });
+    },
   });
 }

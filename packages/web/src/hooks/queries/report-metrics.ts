@@ -20,6 +20,7 @@ export const reportMetricKeys = {
   lists: ['report', 'metrics', 'list'] as const,
   list: (params: ReportMetricListParams) => ['report', 'metrics', 'list', params] as const,
   detail: (id: number | undefined) => ['report', 'metrics', 'detail', id] as const,
+  lookupPrefix: ['report', 'metrics', 'lookup'] as const,
   lookup: (params: { keyword?: string; status?: 'draft' | 'published' | 'deprecated'; limit?: number }) =>
     ['report', 'metrics', 'lookup', params] as const,
   refs: (id: number | undefined) => ['report', 'metrics', 'refs', id] as const,
@@ -69,7 +70,11 @@ export function useSaveReportMetric() {
         ? request.put<ReportMetric>(`/api/report/metrics/${id}`, values, { silent: true })
         : request.post<ReportMetric>('/api/report/metrics', values, { silent: true })
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportMetricKeys.all }),
+    onSuccess: (saved) => {
+      void qc.invalidateQueries({ queryKey: reportMetricKeys.detail(saved.id) });
+      void qc.invalidateQueries({ queryKey: reportMetricKeys.lists });
+      void qc.invalidateQueries({ queryKey: reportMetricKeys.lookupPrefix });
+    },
   });
 }
 
@@ -77,7 +82,12 @@ export function useDeleteReportMetric() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/report/metrics/${id}`, undefined, { silent: true }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportMetricKeys.all }),
+    onSuccess: (_data, id) => {
+      qc.removeQueries({ queryKey: reportMetricKeys.detail(id) });
+      qc.removeQueries({ queryKey: reportMetricKeys.refs(id) });
+      void qc.invalidateQueries({ queryKey: reportMetricKeys.lists });
+      void qc.invalidateQueries({ queryKey: reportMetricKeys.lookupPrefix });
+    },
   });
 }
 
@@ -93,7 +103,12 @@ function useReportMetricLifecycle(action: 'publish' | 'deprecate') {
   return useMutation({
     mutationFn: ({ id, values }: { id: number; values: ReportMetricLifecycleActionInput }) =>
       request.post<ReportMetric>(`/api/report/metrics/${id}/${action}`, values, { silent: true }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportMetricKeys.all }),
+    onSuccess: (_data, { id }) => {
+      void qc.invalidateQueries({ queryKey: reportMetricKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: reportMetricKeys.lists });
+      // 发布/废弃改变状态，可选指标下拉按状态过滤
+      void qc.invalidateQueries({ queryKey: reportMetricKeys.lookupPrefix });
+    },
   });
 }
 

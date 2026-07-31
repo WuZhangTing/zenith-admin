@@ -19,7 +19,9 @@ export const oauth2AppKeys = {
   detail: (id: number | undefined) => ['oauth2-apps', 'detail', id] as const,
   ratePlans: ['oauth2-apps', 'rate-plans'] as const,
   scopes: ['oauth2-apps', 'scopes'] as const,
+  grantsPrefix: ['oauth2-apps', 'grants'] as const,
   grants: (id: number, page: number, pageSize: number) => ['oauth2-apps', 'grants', id, page, pageSize] as const,
+  tokensPrefix: ['oauth2-apps', 'tokens'] as const,
   tokens: (clientId: string, page: number, pageSize: number) => ['oauth2-apps', 'tokens', clientId, page, pageSize] as const,
 };
 
@@ -63,7 +65,11 @@ export function useSaveOAuth2App() {
         ? request.post<OAuth2ClientCreated>('/api/oauth2/clients', values)
         : request.put<OAuth2Client>(`/api/oauth2/clients/${id}`, values)
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: oauth2AppKeys.all }),
+    onSuccess: (_data, { id }) => {
+      if (id !== undefined) void qc.invalidateQueries({ queryKey: oauth2AppKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: oauth2AppKeys.lists });
+      // ratePlans / scopes 是静态字典型下拉源，与应用增删改无关
+    },
   });
 }
 
@@ -71,7 +77,13 @@ export function useDeleteOAuth2App() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/oauth2/clients/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: oauth2AppKeys.all }),
+    onSuccess: (_data, id) => {
+      qc.removeQueries({ queryKey: oauth2AppKeys.detail(id) });
+      qc.removeQueries({ queryKey: ['oauth2-apps', 'grants', id] });
+      void qc.invalidateQueries({ queryKey: oauth2AppKeys.lists });
+      // 应用删除后其令牌一并失效
+      void qc.invalidateQueries({ queryKey: oauth2AppKeys.tokensPrefix });
+    },
   });
 }
 
@@ -79,7 +91,10 @@ export function useRegenerateOAuth2AppSecret() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.post<{ clientId: string; clientSecret: string; previousValidUntil: string }>(`/api/oauth2/clients/${id}/regenerate-secret`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: oauth2AppKeys.all }),
+    onSuccess: (_data, id) => {
+      void qc.invalidateQueries({ queryKey: oauth2AppKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: oauth2AppKeys.lists });
+    },
   });
 }
 
@@ -91,7 +106,10 @@ export function useReviewOAuth2App() {
       action: 'approve' | 'reject';
       comment?: string;
     }) => request.post<OAuth2Client>(`/api/oauth2/clients/${id}/review`, { action, comment }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: oauth2AppKeys.all }),
+    onSuccess: (_data, { id }) => {
+      void qc.invalidateQueries({ queryKey: oauth2AppKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: oauth2AppKeys.lists });
+    },
   });
 }
 
@@ -120,6 +138,10 @@ export function useRevokeOAuth2Token() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/oauth2/clients/tokens/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: oauth2AppKeys.all }),
+    // 吊销令牌只影响令牌列表与授权记录，不改变应用本身
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: oauth2AppKeys.tokensPrefix });
+      void qc.invalidateQueries({ queryKey: oauth2AppKeys.grantsPrefix });
+    },
   });
 }

@@ -254,12 +254,16 @@ export function useWorkflowEngineDiagnostics(params: WorkflowEngineDiagnosticsPa
   });
 }
 
+/**
+ * 实例状态变更（挂起/恢复/终止/迁移等，URL 由调用方给出）。
+ * 无法从 URL 反推具体实例，故失效整个监控子树；作业、补偿、引擎诊断不受影响。
+ */
 export function useWorkflowStateMutation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ url, body, method = 'post' }: { url: string; body?: unknown; method?: 'post' | 'delete' }) =>
       (method === 'delete' ? request.delete<null>(url, body) : request.post<null>(url, body)).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: workflowMonitorKeys.all }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: workflowMonitorKeys.monitor }),
   });
 }
 
@@ -275,7 +279,8 @@ export function useWorkflowJobBatchMutation() {
   return useMutation({
     mutationFn: ({ action, ids }: { action: 'retry' | 'skip'; ids: number[] }) =>
       request.post<WorkflowJobBatchResult>(`/api/workflows/engine/jobs/batch-${action}`, { ids }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: workflowMonitorKeys.all }),
+    // 作业重试/跳过只改变作业子树；流程定义下拉、实例监控列表不受影响
+    onSuccess: () => qc.invalidateQueries({ queryKey: workflowMonitorKeys.jobs }),
   });
 }
 
@@ -284,7 +289,7 @@ export function useWorkflowJobActionMutation() {
   return useMutation({
     mutationFn: ({ id, action }: { id: number; action: 'retry' | 'skip' }) =>
       request.post<WorkflowJob>(`/api/workflows/engine/jobs/${id}/${action}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: workflowMonitorKeys.all }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: workflowMonitorKeys.jobs }),
   });
 }
 
@@ -298,7 +303,7 @@ export function useWorkflowJobReplayDead() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: object) => request.post<WorkflowJobReplayResult>('/api/workflows/engine/jobs/replay-dead', body).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: workflowMonitorKeys.all }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: workflowMonitorKeys.jobs }),
   });
 }
 
@@ -307,7 +312,8 @@ export function useWorkflowCompensationAction() {
   return useMutation({
     mutationFn: ({ id, action, body }: { id: number; action: 'resolve' | 'resume' | 'retry' | 'note'; body?: unknown }) =>
       request.post<unknown>(`/api/workflows/compensation/${id}/${action}`, body ?? {}).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: workflowMonitorKeys.all }),
+    // 补偿处理只影响补偿子树
+    onSuccess: () => qc.invalidateQueries({ queryKey: workflowMonitorKeys.compensations }),
   });
 }
 
@@ -318,12 +324,19 @@ export function useWorkflowEngineActionPreview() {
   });
 }
 
+/**
+ * 引擎维护动作（清理僵死实例、重投事件等）：影响面横跨实例与作业，
+ * 但不涉及流程定义下拉，故失效监控与作业两棵子树。
+ */
 export function useWorkflowEngineAction() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ key, filter }: { key: WorkflowEngineActionKey; filter: { instanceId?: number; olderThanMinutes?: number; limit: number } }) =>
       request.post<WorkflowEngineActionResult>(`/api/workflows/engine/actions/${key}`, filter).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: workflowMonitorKeys.all }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: workflowMonitorKeys.monitor });
+      void qc.invalidateQueries({ queryKey: workflowMonitorKeys.jobs });
+    },
   });
 }
 
@@ -331,7 +344,10 @@ export function useWorkflowBatchRecovery() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: WorkflowRecoveryBatchInput) => request.post<WorkflowRecoveryBatchResult>('/api/workflows/instances/batch-skip-stuck', body).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: workflowMonitorKeys.all }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: workflowMonitorKeys.monitor });
+      void qc.invalidateQueries({ queryKey: workflowMonitorKeys.jobs });
+    },
   });
 }
 
@@ -349,6 +365,12 @@ export function useWorkflowHandover() {
       request.post<WorkflowHandoverResult>('/api/workflows/tasks/handover', body, {
         headers: { 'X-Idempotency-Key': `workflow-handover-${body.fromUserId}-${body.toUserId}` },
       }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: workflowMonitorKeys.all }),
+    onSuccess: () => {
+      // 交接改写任务归属：任务列表、实例、监控视图都要回源；可选地停用委托
+      void qc.invalidateQueries({ queryKey: ['workflow', 'tasks'] });
+      void qc.invalidateQueries({ queryKey: ['workflow', 'instances'] });
+      void qc.invalidateQueries({ queryKey: ['workflow', 'delegations'] });
+      void qc.invalidateQueries({ queryKey: workflowMonitorKeys.monitor });
+    },
   });
 }
