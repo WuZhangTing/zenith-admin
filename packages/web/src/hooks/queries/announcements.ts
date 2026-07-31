@@ -1,9 +1,12 @@
+import { useMemo } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse } from '@zenith/shared/core';
-import type { Department, Role, User } from '@zenith/shared/identity';
+import type { User } from '@zenith/shared/identity';
 import type { Announcement, AnnouncementAttachment, AnnouncementReadStats, AnnouncementRecipient } from '@zenith/shared/messaging';
 import { request } from '@/utils/request';
 import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
+import { useAllRoles } from './roles';
+import { useFlatDepartments } from './departments';
 
 export interface AnnouncementListParams {
   page: number;
@@ -44,8 +47,8 @@ export const announcementKeys = {
   myLists: ['announcements', 'my', 'list'] as const,
   myList: (params: MyAnnouncementListParams) => ['announcements', 'my', 'list', params] as const,
   myDetail: (id: number | undefined) => ['announcements', 'my', 'detail', id] as const,
+  readStatsAll: ['announcements', 'read-stats'] as const,
   readStats: (params: AnnouncementStatsParams) => ['announcements', 'read-stats', params] as const,
-  recipientOptions: ['announcements', 'recipient-options'] as const,
   userSearch: (keyword: string) => ['announcements', 'user-search', keyword] as const,
 };
 
@@ -86,7 +89,11 @@ export function useMarkMyAnnouncementRead() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.post<null>(`/api/announcements/${id}/read`, undefined, { silent: true }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: announcementKeys.my }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: announcementKeys.my });
+      // 管理端的已读统计随之变化；该页在另一路由，未挂载时仅标脏
+      void qc.invalidateQueries({ queryKey: announcementKeys.readStatsAll });
+    },
   });
 }
 
@@ -94,7 +101,10 @@ export function useMarkAllMyAnnouncementsRead() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => request.post<null>('/api/announcements/read-all', {}).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: announcementKeys.my }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: announcementKeys.my });
+      void qc.invalidateQueries({ queryKey: announcementKeys.readStatsAll });
+    },
   });
 }
 
@@ -116,22 +126,30 @@ export function useAnnouncementReadStats(params: AnnouncementStatsParams, enable
   });
 }
 
+/**
+ * 收件人选项（角色 + 部门）。
+ *
+ * 数据实际归属 roles / departments 域，故直接复用两个域的共享 lookup，
+ * 而不是在 announcementKeys 下另起炉灶——否则角色或部门被增删改后，
+ * 这份缓存没有任何来源会失效它，会静默显示旧的角色/部门列表。
+ */
 export function useAnnouncementRecipientOptions(enabled = true) {
-  return useQuery({
-    queryKey: announcementKeys.recipientOptions,
-    queryFn: async () => {
-      const [roles, departments] = await Promise.all([
-        request.get<Role[]>('/api/roles/all').then(unwrap),
-        request.get<Department[]>('/api/departments/flat').then(unwrap),
-      ]);
-      return {
-        roles: roles.map((r) => ({ value: r.id, label: r.name })),
-        departments: departments.map((d) => ({ value: d.id, label: d.name })),
-      };
-    },
-    staleTime: LOOKUP_STALE_TIME,
-    enabled,
-  });
+  const rolesQuery = useAllRoles({ enabled });
+  const departmentsQuery = useFlatDepartments({ enabled });
+
+  const data = useMemo(() => {
+    if (!rolesQuery.data && !departmentsQuery.data) return undefined;
+    return {
+      roles: (rolesQuery.data ?? []).map((r) => ({ value: r.id, label: r.name })),
+      departments: (departmentsQuery.data ?? []).map((d) => ({ value: d.id, label: d.name })),
+    };
+  }, [rolesQuery.data, departmentsQuery.data]);
+
+  return {
+    data,
+    isFetching: rolesQuery.isFetching || departmentsQuery.isFetching,
+    isSuccess: rolesQuery.isSuccess && departmentsQuery.isSuccess,
+  };
 }
 
 export function useAnnouncementUserSearch(keyword: string, enabled = true) {
@@ -155,7 +173,16 @@ export function useSaveAnnouncement() {
         ? request.post<Announcement>('/api/announcements', values)
         : request.put<Announcement>(`/api/announcements/${id}`, values)
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: announcementKeys.all }),
+    onSuccess: (saved) => {
+      // 写接口返回的是公告主体，不含 recipients / attachments（详情接口才有），
+      // 形状不一致，不能回填，只能失效
+      void qc.invalidateQueries({ queryKey: announcementKeys.detail(saved.id) });
+      void qc.invalidateQueries({ queryKey: announcementKeys.lists });
+      // 发布/改内容会改变各用户收件箱；收件箱在另一路由，未挂载时仅标脏，代价接近零
+      void qc.invalidateQueries({ queryKey: announcementKeys.my });
+      // 不碰 recipientOptions / userSearch：保存时弹窗尚未关闭，它们仍是活跃查询，
+      // 而角色、部门、用户三份数据与本次保存无关
+    },
   });
 }
 
@@ -163,7 +190,12 @@ export function useDeleteAnnouncement() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/announcements/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: announcementKeys.all }),
+    onSuccess: (_data, id) => {
+      qc.removeQueries({ queryKey: announcementKeys.detail(id) });
+      qc.removeQueries({ queryKey: announcementKeys.myDetail(id) });
+      void qc.invalidateQueries({ queryKey: announcementKeys.lists });
+      void qc.invalidateQueries({ queryKey: announcementKeys.my });
+    },
   });
 }
 
@@ -171,7 +203,14 @@ export function useBatchDeleteAnnouncements() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (ids: number[]) => request.delete<null>('/api/announcements/batch', { ids }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: announcementKeys.all }),
+    onSuccess: (_data, ids) => {
+      for (const id of ids) {
+        qc.removeQueries({ queryKey: announcementKeys.detail(id) });
+        qc.removeQueries({ queryKey: announcementKeys.myDetail(id) });
+      }
+      void qc.invalidateQueries({ queryKey: announcementKeys.lists });
+      void qc.invalidateQueries({ queryKey: announcementKeys.my });
+    },
   });
 }
 
@@ -180,6 +219,11 @@ export function useUpdateAnnouncementStatus() {
   return useMutation({
     mutationFn: ({ id, values }: { id: number; values: Partial<Announcement> }) =>
       request.put<Announcement>(`/api/announcements/${id}`, values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: announcementKeys.all }),
+    onSuccess: (saved) => {
+      void qc.invalidateQueries({ queryKey: announcementKeys.detail(saved.id) });
+      void qc.invalidateQueries({ queryKey: announcementKeys.lists });
+      // 上下架直接决定公告是否出现在收件箱
+      void qc.invalidateQueries({ queryKey: announcementKeys.my });
+    },
   });
 }
