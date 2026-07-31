@@ -19,10 +19,54 @@
 2. 每个域文件导出 keys 常量对象，必须包含 `all` / `lists` / `list(params)` / `detail(id)`。
 3. 分页列表查询必须 `placeholderData: keepPreviousData`（翻页不闪白屏）。
 4. **查询/重置必回源**：`handleSearch` / `handleReset` 除更新参数外必须显式 `invalidateQueries({ queryKey: xxxKeys.lists })` —— 条件未变化时 query key 不变，不失效则 staleTime 内不发请求，而本系统「查询」按钮兼具刷新语义。
-5. mutation 的 `onSuccess` 在域 hooks 中统一 `invalidateQueries({ queryKey: xxxKeys.all })`；成功 Toast 留在页面代码。
+5. **mutation 按副作用精确失效**，`onSuccess` 只碰真正受影响的 key；成功 Toast 留在页面代码。判据是「**有没有已挂载的查询读了这次被改动的状态**」，而不是接口像不像命令。详见下方[「缓存一致性契约」](#缓存一致性契约必读)。
 6. 下拉源等低频 lookup 数据用 `staleTime: LOOKUP_STALE_TIME`（5 分钟），全局共享缓存；已有共享 lookup（`useAllUsers` / `useFlatDepartments` / `useDepartmentTree` / `useMenuTree` / `useAllRoles` / `useAllPositions` / `useDictItems` 等）直接 import，**禁止重复定义**。
 7. 轮询页面用 `refetchInterval`（毫秒），禁止手写 `setInterval` 拉数据。
 8. 一次性动作（文件下载 `request.download`、验密、诊断类）可保留直接调用；WebSocket / SSE / xterm 流式逻辑不走 TanStack Query。
+
+---
+
+## 缓存一致性契约（必读）
+
+`invalidateQueries` 会把所有匹配 key 标脏，但**默认只立即重拉活跃（已挂载）的查询**
+（query-core：`type: refetchType ?? type ?? 'active'`）。由此得出两条推论：
+
+- 失效一个**未挂载**的缓存代价接近零，只是标脏，等下次挂载再回源 —— 该失效就失效，不要因为「怕多发请求」而漏掉；
+- 真正的浪费是失效那些**与本次改动无关、却正好同屏挂载**的查询（尤其是 5 分钟 staleTime 的 lookup）。
+
+因此 `xxxKeys.all` 不是默认选项：它会把同根下的详情、统计、日志、下拉源一并打掉。
+
+### 按 mutation 的副作用选择策略
+
+| mutation 形态 | 策略 |
+| --- | --- |
+| 更新，且写接口与详情接口**同源**（服务端同一个 `mapXxx`） | `setQueryData(detail(id), saved)` 回填 + 失效 `lists` |
+| 更新，但接口返回 `okBody(null, msg)` 或只返回局部字段 | 失效 `detail(id)` + `lists` |
+| 新增 | 失效 `lists` + 受影响的计数/下拉源 |
+| 删除 | `removeQueries(detail(id))` + 失效 `lists` + 受影响的下拉源 |
+| 子资源写入（成员 / 权限 / 菜单） | 失效该子键；**若列表渲染了该子资源的派生列（如 `userCount`），仍须失效 `lists`** |
+| 命令 / 动作（执行、重跑、发布） | 按**真实副作用**失效；只有确认没有任何已挂载查询读取被改状态时才可不失效 |
+| 批量覆盖、切租户、全量导入 | 允许 `.all`，但必须在代码注释里写明理由 |
+
+### 落地要求
+
+- **一律替换而非追加**：`xxxKeys.all` 是 `xxxKeys.detail(id)` 的前缀，写成 `.all` 后再补 `.detail(id)` 属于空转。
+- **删除用 `removeQueries` 而非 `invalidateQueries`**：实体已不存在，失效会让仍缓存的详情去请求一个必然 404 的资源。
+- **回填前先确认数据形状**：只有写接口与详情接口同源时才能 `setQueryData`。若列表接口额外注入了聚合字段（如 `userCount` / `userPreview`），那是列表独有的，不要拿写接口响应去覆盖列表缓存。
+- **改完必须过一遍消费页面**：确认没有「原本靠 `.all` 全炸才刷新」的列或面板。欠失效（陈旧 UI）比多失效更危险。
+- **本条约束只针对 mutation 的 `onSuccess`**，与上面第 4 条「查询/重置必回源」互不冲突。
+
+### 测试要求
+
+域 hooks 的行为测试用 `packages/web/src/test-utils/query-harness.ts`，断言必须落在**可观测行为**上：
+实际请求数（`ApiRecorder`）、真正进入 fetching 的查询（`observeFetches`）、缓存内容与新鲜度
+（`getCacheEntry` / `isFresh` / `hasCacheEntry`）。
+
+**禁止**只 spy「调用了 `invalidateQueries(某个 key)`」—— 这类断言在「冗余的旧写法」和
+「收敛后被改坏的新写法」两种情况下都会通过，等于没测。
+
+参考实现：`hooks/queries/positions.ts`（回填 + 子资源）与 `hooks/queries/cron-jobs.ts`
+（命令型副作用 + 静态 lookup 保护），对应测试同名 `.test.tsx`。
 
 ---
 
@@ -86,7 +130,12 @@ export function useSaveXxx() {
         ? request.post<Xxx>('/api/xxxs', values)
         : request.put<Xxx>(`/api/xxxs/${id}`, values)
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: xxxKeys.all }),
+    onSuccess: (saved) => {
+      // 写接口与详情接口同源（服务端同为 mapXxx）时可直接回填，省掉一次详情回源；
+      // 若写接口返回 okBody(null, ...)，改为 invalidateQueries({ queryKey: xxxKeys.detail(id) })
+      qc.setQueryData(xxxKeys.detail(saved.id), saved);
+      void qc.invalidateQueries({ queryKey: xxxKeys.lists });
+    },
   });
 }
 
@@ -99,7 +148,11 @@ export function useDeleteXxxs() {
         ? request.delete<null>(`/api/xxxs/${ids[0]}`)
         : request.delete<null>('/api/xxxs/batch', { ids })
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: xxxKeys.all }),
+    onSuccess: (_data, ids) => {
+      // 实体已不存在：移除缓存而非失效，否则仍缓存的详情会去请求必然 404 的资源
+      for (const id of ids) qc.removeQueries({ queryKey: xxxKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: xxxKeys.lists });
+    },
   });
 }
 ```

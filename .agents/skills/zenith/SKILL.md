@@ -106,7 +106,10 @@ MSW Mock 的详细代码模板见 [crud-mock.md](./references/crud-mock.md)。
 - [ ] LIKE 查询用 `escapeLike()` 转义
 
 **前端：**
-- [ ] 域 hooks 文件已创建（`hooks/queries/xxxs.ts`）：keys 含 `all`/`lists`/`list(params)`/`detail(id)`，列表查询带 `placeholderData: keepPreviousData`，mutation `onSuccess` 统一 `invalidateQueries({ queryKey: xxxKeys.all })`
+- [ ] 域 hooks 文件已创建（`hooks/queries/xxxs.ts`）：keys 含 `all`/`lists`/`list(params)`/`detail(id)`，列表查询带 `placeholderData: keepPreviousData`
+- [ ] mutation 的 `onSuccess` 按副作用精确失效（写接口与详情同源时 `setQueryData` 回填、删除用 `removeQueries`），**未无条件使用 `xxxKeys.all`**；确需全域失效已在注释写明理由。见 [crud-frontend.md 缓存一致性契约](./references/crud-frontend.md)
+- [ ] 域 hooks 配了行为测试：断言实际请求数、进入 fetching 的查询与缓存新鲜度（用 `test-utils/query-harness.ts`），而非 spy 调用了哪个 key
+- [ ] 收敛后已过一遍消费页面，确认没有原本靠 `.all` 全炸才刷新的列或面板（欠失效比多失效更危险）
 - [ ] 页面无手写 `loading`/`data` state、`fetchXxx` useCallback、初始拉取 useEffect；表格 `loading={listQuery.isFetching}`
 - [ ] 搜索用 draft/submitted 拆分；`handleSearch`/`handleReset` 显式 `invalidateQueries({ queryKey: xxxKeys.lists })`（查询必回源）
 - [ ] 下拉源复用已有共享 lookup hooks（useAllUsers/useDictItems 等），未重复定义

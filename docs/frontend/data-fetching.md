@@ -33,8 +33,8 @@ packages/web/src/
 ```ts
 // hooks/queries/xxxs.ts
 export const xxxKeys = {
-  all: ['xxxs'] as const,                                        // 域根前缀（mutation 失效用）
-  lists: ['xxxs', 'list'] as const,                              // 列表前缀（查询按钮失效用）
+  all: ['xxxs'] as const,                                        // 域根前缀（批量覆盖等全域场景才用）
+  lists: ['xxxs', 'list'] as const,                              // 列表前缀（查询按钮 / mutation 失效用）
   list: (params: XxxListParams) => ['xxxs', 'list', params] as const,
   detail: (id: number | undefined) => ['xxxs', 'detail', id] as const,
 };
@@ -52,7 +52,10 @@ export function useSaveXxx() {
   return useMutation({
     mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
       (id === undefined ? request.post<Xxx>('/api/xxxs', values) : request.put<Xxx>(`/api/xxxs/${id}`, values)).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: xxxKeys.all }),   // 失效在 hooks，成功 Toast 在页面
+    onSuccess: (saved) => {
+      qc.setQueryData(xxxKeys.detail(saved.id), saved);           // 写接口与详情同源时回填，省一次回源
+      void qc.invalidateQueries({ queryKey: xxxKeys.lists });     // 失效在 hooks，成功 Toast 在页面
+    },
   });
 }
 ```
@@ -60,7 +63,8 @@ export function useSaveXxx() {
 规则：
 
 - **params 只放可序列化的 string / number**：`Date` 先用 `formatDateTimeForApi` 转字符串，空字符串筛选项映射为 `undefined`
-- **mutation 统一在域 hooks 的 `onSuccess` 中失效域根前缀**；成功 `Toast.success` 写在页面代码；不要额外加错误 Toast（request 层已统一弹出）
+- **mutation 在域 hooks 的 `onSuccess` 中按副作用精确失效**，不要无条件失效域根 `xxxKeys.all`。`invalidateQueries` 默认只立即重拉**活跃**查询（未挂载的仅标脏），所以：失效未挂载的缓存代价接近零、该失效的别漏；真正的浪费是打掉那些与本次改动无关却同屏挂载的查询（尤其 5 分钟 staleTime 的 lookup）。删除用 `removeQueries(detail(id))`，避免仍缓存的详情去请求必然 404 的资源。成功 `Toast.success` 写在页面代码；不要额外加错误 Toast（request 层已统一弹出）
+- **域 hooks 的失效行为要有可证伪的测试**：用 `packages/web/src/test-utils/query-harness.ts` 断言实际请求数、进入 fetching 的查询与缓存新鲜度；只 spy「调用了 `invalidateQueries(某 key)`」等于没测（`all` 是 `detail` 的前缀，旧写法与被改坏的新写法都会通过）。参考 `hooks/queries/positions.ts` 与 `hooks/queries/cron-jobs.ts` 及其同名测试
 - 共享 lookup（`useAllUsers`、`useFlatDepartments`、`useDepartmentTree`、`useMenuTree`、`useAllRoles`、`useAllPositions`、`useDictItems` 等）已存在，直接 import 复用，禁止在页面或新域文件中重复定义同一数据源
 - **官方 ESLint 插件已启用**（`@tanstack/eslint-plugin-query`，见 `packages/web/eslint.config.js`）：自动检查不稳定依赖（useQuery/useQueries/useMutation 结果对象不得直接进 deps 数组）等问题；多查询聚合场景用 `useQueries` 的 `combine` 选项产出稳定引用。其中 `exhaustive-deps` 规则因误报较多（如 `silent` 等仅影响行为不影响数据的选项）已关闭——**queryFn 引用的会影响响应数据的变量必须进 queryKey**，这一点靠约定与评审保证
 
