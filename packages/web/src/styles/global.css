@@ -191,14 +191,16 @@ body {
 
 /*
  * JsonViewer 深色模式修正
- * Semi 把 .semi-json-viewer-view-line 的文字色硬编码成 #237893（不是主题变量），
- * 而 contenteditable 的光标默认取插入点的 currentColor —— 深色模式下编辑区背景是
- * rgb(28,31,35)，光标对比度只有 3.26:1，几乎看不见。
- * 同理 delimiter-colon 这个 token 在 Semi 样式表里没有对应规则，冒号也会落到同一个
- * 硬编码色上。这里把两者交回主题变量（浅色模式下 #237893 对比度正常，不动）。
+ * 1) 光标：semi-json-viewer-core 在创建可编辑容器时直接写死了行内样式
+ *    `contentContainer.style.caretColor = 'black'`，行内样式压过任何选择器，
+ *    深色模式下就是黑底黑光标 —— 必须用 !important 才能覆盖。
+ * 2) 文字：.semi-json-viewer-view-line 的基础色被硬编码成 #237893（不是主题变量），
+ *    深色背景 rgb(28,31,35) 上对比度仅 3.26:1；而 delimiter-colon 这个 token 在
+ *    Semi 样式表里没有对应规则，冒号正好落在这个基础色上。
+ * 浅色模式两者对比度都正常，只改深色。
  */
-.semi-json-viewer {
-  caret-color: var(--semi-color-text-0);
+.semi-json-viewer-content-container {
+  caret-color: var(--semi-color-text-0) !important;
 }
 body[theme-mode='dark'] .semi-json-viewer-view-line {
   color: var(--semi-color-text-0);
