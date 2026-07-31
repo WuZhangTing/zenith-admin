@@ -151,7 +151,7 @@ export function ExplainView({
           </div>
         )
       ) : (
-        <JsonViewer value={JSON.stringify(plan, null, 2)} height={440} width="100%" />
+        <JsonViewer value={JSON.stringify(plan, null, 2)} height={440} width="100%" options={{ readOnly: true }} />
       )}
     </div>
   );
