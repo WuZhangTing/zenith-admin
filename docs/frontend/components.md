@@ -113,8 +113,9 @@ const columns = [
 
 ```tsx
 import { SearchToolbar } from '../../components/SearchToolbar';
-import { Input, Button, Select } from '@douyinfe/semi-ui';
-import { Search, RotateCcw, Plus } from 'lucide-react';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { Input, Select } from '@douyinfe/semi-ui';
+import { Search } from 'lucide-react';
 
 <SearchToolbar>
   <Input
@@ -135,9 +136,9 @@ import { Search, RotateCcw, Plus } from 'lucide-react';
     <Select.Option value="enabled">启用</Select.Option>
     <Select.Option value="disabled">禁用</Select.Option>
   </Select>
-  <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-  <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-  <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+  <SearchButton onClick={handleSearch} />
+  <ResetButton onClick={handleReset} />
+  <CreateButton onClick={openCreate} />
 </SearchToolbar>
 ```
 
@@ -163,14 +164,14 @@ import { Search, RotateCcw, Plus } from 'lucide-react';
         showClear
         style={{ width: 120 }}
       />
-      <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-      <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+      <SearchButton onClick={handleSearch} />
+      <ResetButton onClick={handleReset} />
     </>
   )}
   actions={(
     <>
       <Button type="primary" icon={<Download size={14} />} onClick={handleExport}>导出</Button>
-      <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+      <CreateButton onClick={openCreate} />
     </>
   )}
   mobilePrimary={(
@@ -184,8 +185,8 @@ import { Search, RotateCcw, Plus } from 'lucide-react';
         showClear
         style={{ width: 220 }}
       />
-      <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-      <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+      <SearchButton onClick={handleSearch} />
+      <CreateButton onClick={openCreate} />
     </>
   )}
   mobileFilters={(
@@ -212,6 +213,45 @@ import { Search, RotateCcw, Plus } from 'lucide-react';
 - 简单工具栏使用 `children` 即可；复杂工具栏优先使用结构化 props
 - 移动端不要把页面导航、筛选项和顶部常用功能混在一起；筛选属于当前列表页，应放在 SearchToolbar 的底部筛选抽屉中
 - 移动端默认只露出关键词、查询、新增等高频操作；低频操作通过更多菜单承载
+
+---
+
+## toolbar-controls（查询 / 重置 / 新增 / 刷新按钮）
+
+`@/components/toolbar-controls` 提供列表页搜索工具栏的四个标准按钮。这些按钮的 `type`、图标与图标尺寸此前在
+140+ 个页面里逐字复制，改一次视觉就要动几百处，现已收敛为组件。
+
+| 组件 | 视觉 | 默认文案 |
+| --- | --- | --- |
+| `SearchButton` | `type="primary"` + `Search` 图标 | 查询 |
+| `ResetButton` | `type="tertiary"` + `RotateCcw` 图标 | 重置 |
+| `CreateButton` | `type="primary"` + `Plus` 图标 | 新增 |
+| `RefreshButton` | 同 `ResetButton` | 刷新 |
+
+四者 props 一致：`onClick` / `disabled` / `loading` / `children`。
+
+```tsx
+import { CreateButton, RefreshButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+
+// 默认文案：写自闭合
+<SearchButton onClick={handleSearch} />
+<ResetButton onClick={handleReset} />
+
+// 文案不同：用 children 覆盖，视觉保持一致
+<CreateButton onClick={openCreate}>新增规则</CreateButton>
+<RefreshButton onClick={() => void refetch()} loading={isFetching} />
+```
+
+`RefreshButton` 与 `ResetButton` 视觉相同但语义不同（重新拉数据 vs 清空筛选条件），拆成两个组件是为了避免
+将来只想调整其中一个时被同一次改动误伤。
+
+### 什么时候不要用
+
+以下两类保持原生 `Button`：
+
+- **仅仅复用了同一个图标的独立操作**，如「测试发送」「生成链接」「发起分账」「上传文件」。将来把「新增」按钮的
+  图标从 `Plus` 换成别的，不应该连带改掉它们
+- **视觉本就不同的写法**，如 `theme="borderless"`、`size="small"`、换用其他图标（`Bell` / `ClipboardPlus` 等）
 
 ---
 

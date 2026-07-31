@@ -15,6 +15,7 @@
 ### 搜索区与操作按钮
 
 - 所有元素（搜索输入框、下拉筛选、查询/重置按钮、操作按钮）统一通过 `SearchToolbar` 组件排列
+- 查询 / 重置 / 新增 / 刷新按钮统一使用 `@/components/toolbar-controls` 的 `SearchButton` / `ResetButton` / `CreateButton` / `RefreshButton`，不要手写 `<Button type="primary" icon={<Search size={14} />}>查询</Button>`；文案不同时用 children 覆盖
 - 简单列表可继续使用 `children` 写法，`SearchToolbar` 内部使用 `<Space wrap>` 包裹，子元素从左到右依次排列，按需换行
 - 筛选项或操作按钮较多的列表页应使用结构化写法：`primary` 放桌面端主搜索区，`filters` 放桌面端筛选项，`actions` 放桌面端操作区；移动端可通过 `mobilePrimary`、`mobileFilters`、`mobileActions` 单独覆盖
 - 移动端默认只露出关键词搜索、`查询`、`新增` 等高频入口；状态、时间等额外筛选放入底部筛选抽屉；导入、导出、批量删除等低频操作放入更多菜单
@@ -215,13 +216,14 @@ const listQuery = useXxxList({ page, pageSize, ...submittedParams });
 
 ```tsx
 import { SearchToolbar } from '../../components/SearchToolbar';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 <SearchToolbar>
   <Input prefix={<Search size={14} />} placeholder="搜索..." showClear
     value={keyword} onChange={setKeyword} />
-  <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-  <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-  <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+  <SearchButton onClick={handleSearch} />
+  <ResetButton onClick={handleReset} />
+  <CreateButton onClick={openCreate} />
 </SearchToolbar>
 ```
 
@@ -233,21 +235,21 @@ import { SearchToolbar } from '../../components/SearchToolbar';
     <>
       <Input prefix={<Search size={14} />} placeholder="搜索..." showClear />
       <Select placeholder="全部状态" style={{ width: 120 }} />
-      <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-      <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+      <SearchButton onClick={handleSearch} />
+      <ResetButton onClick={handleReset} />
     </>
   )}
   actions={(
     <>
       <Button type="primary" icon={<Download size={14} />} onClick={handleExport}>导出</Button>
-      <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+      <CreateButton onClick={openCreate} />
     </>
   )}
   mobilePrimary={(
     <>
       <Input prefix={<Search size={14} />} placeholder="搜索..." showClear />
-      <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-      <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+      <SearchButton onClick={handleSearch} />
+      <CreateButton onClick={openCreate} />
     </>
   )}
   mobileFilters={(
