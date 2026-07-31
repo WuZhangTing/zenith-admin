@@ -28,7 +28,11 @@ export const channelKeys = {
   list: (params: ChannelListParams) => ['channels', 'list', params] as const,
   menus: (channelId: number | undefined) => ['channels', 'menus', channelId] as const,
   autoReplies: (channelId: number | undefined) => ['channels', 'auto-replies', channelId] as const,
+  /** 全部频道的消息（消息类接口只带 messageId，无法定位所属频道时用） */
+  messagesAll: ['channels', 'messages'] as const,
   messages: (channelId: number | undefined, params: ChannelMessagesParams) => ['channels', 'messages', channelId, params] as const,
+  /** 指定频道的全部订阅者分页 */
+  channelSubscribers: (channelId: number | undefined) => ['channels', 'subscribers', channelId] as const,
   subscribers: (channelId: number | undefined, params: ChannelSubscribersParams) => ['channels', 'subscribers', channelId, params] as const,
   templates: ['channels', 'templates'] as const,
 };
@@ -90,7 +94,8 @@ export function useSaveChannel() {
   return useMutation({
     mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
       (id === undefined ? request.post<ChannelAdmin>('/api/channels', values) : request.put<ChannelAdmin>(`/api/channels/${id}`, values)).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: channelKeys.all }),
+    // 本域没有频道详情查询，列表即唯一展示面
+    onSuccess: () => qc.invalidateQueries({ queryKey: channelKeys.lists }),
   });
 }
 
@@ -98,7 +103,14 @@ export function useDeleteChannel() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/channels/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: channelKeys.all }),
+    onSuccess: (_data, id) => {
+      // 频道已删除，其菜单/自动回复/消息/订阅者缓存都不再有对应资源
+      qc.removeQueries({ queryKey: channelKeys.menus(id) });
+      qc.removeQueries({ queryKey: channelKeys.autoReplies(id) });
+      qc.removeQueries({ queryKey: ['channels', 'messages', id] });
+      qc.removeQueries({ queryKey: channelKeys.channelSubscribers(id) });
+      void qc.invalidateQueries({ queryKey: channelKeys.lists });
+    },
   });
 }
 
@@ -107,10 +119,8 @@ export function useSaveChannelMenus() {
   return useMutation({
     mutationFn: ({ channelId, menus }: { channelId: number; menus: unknown[] }) =>
       request.put<ChannelMenu[]>(`/api/channels/${channelId}/menus`, { menus }).then(unwrap),
-    onSuccess: (_data, variables) => {
-      void qc.invalidateQueries({ queryKey: channelKeys.menus(variables.channelId) });
-      void qc.invalidateQueries({ queryKey: channelKeys.all });
-    },
+    // 菜单不出现在频道列表（列表只有 subscriberCount / messageCount），故只动菜单自身
+    onSuccess: (_data, variables) => qc.invalidateQueries({ queryKey: channelKeys.menus(variables.channelId) }),
   });
 }
 
@@ -122,10 +132,7 @@ export function useSaveChannelAutoReply() {
         ? request.post<ChannelAutoReply>(`/api/channels/${channelId}/auto-replies`, values)
         : request.put<ChannelAutoReply>(`/api/channels/${channelId}/auto-replies/${id}`, values)
       ).then(unwrap),
-    onSuccess: (_data, variables) => {
-      void qc.invalidateQueries({ queryKey: channelKeys.autoReplies(variables.channelId) });
-      void qc.invalidateQueries({ queryKey: channelKeys.all });
-    },
+    onSuccess: (_data, variables) => qc.invalidateQueries({ queryKey: channelKeys.autoReplies(variables.channelId) }),
   });
 }
 
@@ -134,10 +141,7 @@ export function useDeleteChannelAutoReply() {
   return useMutation({
     mutationFn: ({ channelId, id }: { channelId: number; id: number }) =>
       request.delete<null>(`/api/channels/${channelId}/auto-replies/${id}`).then(unwrap),
-    onSuccess: (_data, variables) => {
-      void qc.invalidateQueries({ queryKey: channelKeys.autoReplies(variables.channelId) });
-      void qc.invalidateQueries({ queryKey: channelKeys.all });
-    },
+    onSuccess: (_data, variables) => qc.invalidateQueries({ queryKey: channelKeys.autoReplies(variables.channelId) }),
   });
 }
 
@@ -149,7 +153,11 @@ export function usePublishChannelMessage() {
         ? request.post<ChannelMessage>(`/api/channels/${channelId}/publish`, values)
         : request.put<ChannelMessage>(`/api/channels/admin/messages/${id}`, values)
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: channelKeys.all }),
+    onSuccess: (_data, variables) => {
+      void qc.invalidateQueries({ queryKey: ['channels', 'messages', variables.channelId] });
+      // 列表展示 messageCount
+      void qc.invalidateQueries({ queryKey: channelKeys.lists });
+    },
   });
 }
 
@@ -157,7 +165,12 @@ export function useDeleteChannelMessage() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/channels/admin/messages/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: channelKeys.all }),
+    onSuccess: () => {
+      // 接口只给消息 id，定位不到所属频道，退一步失效全部频道的消息列表；
+      // 仍远小于 `.all`（不会波及菜单、自动回复、订阅者、模板）
+      void qc.invalidateQueries({ queryKey: channelKeys.messagesAll });
+      void qc.invalidateQueries({ queryKey: channelKeys.lists });
+    },
   });
 }
 
@@ -165,7 +178,10 @@ export function usePublishChannelMessageNow() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.post<ChannelMessage>(`/api/channels/admin/messages/${id}/publish`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: channelKeys.all }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: channelKeys.messagesAll });
+      void qc.invalidateQueries({ queryKey: channelKeys.lists });
+    },
   });
 }
 
@@ -173,7 +189,10 @@ export function useRetractChannelMessage() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.post<null>(`/api/channels/admin/messages/${id}/retract`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: channelKeys.all }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: channelKeys.messagesAll });
+      void qc.invalidateQueries({ queryKey: channelKeys.lists });
+    },
   });
 }
 
@@ -217,8 +236,9 @@ export function useAddChannelSubscribers() {
     mutationFn: ({ channelId, userIds }: { channelId: number; userIds: number[] }) =>
       request.post<null>(`/api/channels/admin/${channelId}/subscribers`, { userIds }).then(unwrap),
     onSuccess: (_data, variables) => {
-      void qc.invalidateQueries({ queryKey: ['channels', 'subscribers', variables.channelId] });
-      void qc.invalidateQueries({ queryKey: channelKeys.all });
+      void qc.invalidateQueries({ queryKey: channelKeys.channelSubscribers(variables.channelId) });
+      // 列表展示 subscriberCount
+      void qc.invalidateQueries({ queryKey: channelKeys.lists });
     },
   });
 }
@@ -229,8 +249,8 @@ export function useRemoveChannelSubscriber() {
     mutationFn: ({ channelId, userId }: { channelId: number; userId: number }) =>
       request.delete<null>(`/api/channels/admin/${channelId}/subscribers/${userId}`).then(unwrap),
     onSuccess: (_data, variables) => {
-      void qc.invalidateQueries({ queryKey: ['channels', 'subscribers', variables.channelId] });
-      void qc.invalidateQueries({ queryKey: channelKeys.all });
+      void qc.invalidateQueries({ queryKey: channelKeys.channelSubscribers(variables.channelId) });
+      void qc.invalidateQueries({ queryKey: channelKeys.lists });
     },
   });
 }
