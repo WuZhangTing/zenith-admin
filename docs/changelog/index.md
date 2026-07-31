@@ -4,6 +4,43 @@
 
 ---
 
+## v1.27.0 - 2026-07-31
+
+代码去重版本：用 jscpd 全量扫描后，把跨包重复的逻辑与组件收敛为共享模块，并顺带修掉「测试超时」这一长期误报。**无业务功能变更**，服务端 1568 项、前端 410 项测试全部通过（首次实现 `npm test` 零失败）。
+
+### Changed
+
+#### 服务端逻辑去重
+
+- **`jsonDepth` / `jsonByteLength`**：分别有 4 份和 2 份副本（`shared/core/validation.ts`、`server/lib/dtos/analytics.ts`、`server/lib/dtos/frontend-errors.ts`、`server/services/analytics/analytics-server-events.service.ts`）。这三处对「用户可控自由 JSON」做同一套体积/深度限制，口径一旦分叉就会出现「客户端放行、服务端静默丢弃」的丢数据。收敛为 `packages/shared/src/core/json-shape.ts` 单一来源
+- **Aho-Corasick 自动机**：敏感词过滤、易错词替换、编辑器词库检查三个 service 各复制了一份完整实现（构建 + fail 指针 + 扫描 + 重叠区间剔除 + TTL 缓存）。收敛为 `packages/server/src/lib/aho-corasick.ts` 泛型实现，载荷类型由调用方决定；顺带补齐两处原实现缺失的行为：并发读取共享同一次加载（避免缓存失效瞬间的重复查库）、加载失败不写入缓存
+- **AI 流式适配器脚手架**：OpenAI 兼容 / Anthropic / Gemini 三个适配器的差异只在「请求怎么拼、chunk 怎么解」，而中断控制、空闲超时、SSE 分帧、错误信息提取、token 兜底估算五段完全一致且各存一份。抽出 `packages/server/src/lib/ai/adapters/_stream-kit.ts`，三个适配器合计减少约 200 行
+- **CMS 主题公共件**：`default` 与 `docs` 两套主题重复了 SEO `<head>`（TDK + Open Graph + Twitter Card + JSON-LD）、暗色主题脚本、埋点 beacon、分页与面包屑。抽出 `packages/server/src/cms/themes/_shared.tsx`；此前新增 SEO 字段只有一套主题吃得到
+
+#### 前端组件去重
+
+- **搜索工具栏按钮**：「查询 / 重置 / 新增」三个按钮的 `type`、图标与图标尺寸在 165 个文件里逐字复制了 513 次，改一次视觉要动几百处。抽出 `packages/web/src/components/toolbar-controls.tsx` 的 `SearchButton` / `ResetButton` / `CreateButton`，经 codemod 全量迁移；复审后又补齐 48 个文件里 64 处「同 type + 同图标、仅文案不同」的调用点（用 `children` 覆盖文案）
+  - 新增 `RefreshButton`：与 `ResetButton` 视觉相同但语义是「重新拉取数据」而非「清空筛选条件」，拆成两个组件避免将来只想调整其中一个时被同一次改动误伤
+  - 刻意保留两类原生 `Button`：仅仅复用了同一图标的独立操作（「测试发送」「生成链接」「发起分账」等 25 处）、视觉本就不同的写法（`theme="borderless"` / `size="small"` / 其他图标，9 处）。判据是「将来改『新增』按钮的图标，该不该连带改掉它」
+- **单图上传字段**：渠道自动回复与消息模板两个抽屉里各有两份完全相同的「预览 + 悬浮删除 + 上传」组合，连上传地址、鉴权头、响应取值都各自复制。抽出 `packages/web/src/components/ImageUploadField.tsx`
+
+#### 文档与 skill 单一来源治理
+
+- zenith skill 的前端模板仍在教被本次重构掉的旧按钮写法，导入块还留着已失效的 `Button` / `RotateCcw` / `Plus`——照模板生成的下一个 CRUD 页会立刻把重复代码写回来。已同步模板，并在 `constraints.md` 新增「搜索栏公共按钮」「单图上传字段」两条 Step 8 约束
+- 文档站前端模块把 skill 的硬性约束又抄了一份并已产生漂移：`docs/ai/skills.md` 写「删除使用 `Popconfirm` 二次确认」而实际代码用 `Modal.confirm`，skill 文件清单漏了 `async-tasks.md`。按 v1.24.0 处理 `AGENTS.md` 的同一思路收敛——`docs/frontend/ui-conventions.md` 从 273 行精简到 30 行，只保留「规范索引 + 指向 skill 的链接」与 skill 未覆盖的**页面设计原则**（取向判断，不适合写成机械条目）；`docs/frontend/components.md` 保留组件 Props 与用法示例，摘掉三处重复的「必须 / 统一」条目
+- `docs/frontend/` 的 `auth-request` / `routing` / `file-preview` / `data-fetching` 四页与 skill 无重叠，未改动
+
+### Added
+
+- `packages/server/src/lib/aho-corasick.test.ts`（13 项）与 `packages/server/src/lib/ai/adapters/_stream-kit.test.ts`（20 项）：为两个新共享模块补齐单测，覆盖 fail 链命中、码点级区间（emoji 不错位）、重叠剔除、TTL 与并发共享加载、SSE 跨块分帧、中断与空闲超时的静默/报错分流、token 兜底估算
+- `docs/frontend/components.md` 新增 `toolbar-controls` 章节（四个组件的视觉与默认文案对照表、`children` 覆盖用法、什么时候不该用）
+
+### Fixed
+
+- **测试超时误报**：`npm test` 长期有 3 个用例报 `Test timed out in 5000ms`，看似 flake，实测是稳定超标而非卡死——vitest 默认 5s 低于用例本身的工作量：FilterBar 移动端筛选抽屉 11.5s（jsdom 渲染 Semi `SideSheet` + userEvent 跑完展开→重置→输入→应用全链路）、`openapi-doc` 逐 DTO 生成 6.2s、汇总生成 5.2s（后者此前偶尔通过纯属侥幸，v1.25.0 的发布说明也记录过同一用例卡在超时边界）。这三个都是有价值的回归护栏（Swagger 递归 schema 栈溢出防线、移动端筛选交互），不应删除，改为按实际耗时给足余量：web 全局 `testTimeout` / `hookTimeout` 提到 15s，FilterBar 与两个 `openapi-doc` 用例显式 30s；server 全局仍保持默认 5s，让真正卡死的 node 用例继续快速失败
+
+---
+
 ## v1.26.0 - 2026-07-31
 
 工程配置精简版本：移除 v1.25.0 引入的值环检测脚本，并移除两个在无 Redis 环境下会产生未捕获拒绝的应用级测试。**无业务功能变更**。
