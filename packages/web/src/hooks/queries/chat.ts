@@ -23,16 +23,26 @@ export const chatKeys = {
   all: ['chat'] as const,
   lists: ['chat', 'list'] as const,
   list: (scope: string, params: object) => ['chat', 'list', scope, params] as const,
+  /**
+   * 会话列表。当前由 ChatPage 以本地 state + WebSocket 增量维护，尚未迁入 Query，
+   * 但会话级 mutation 仍以此为约定失效目标，便于后续迁移时自动接上。
+   */
   conversations: ['chat', 'conversations'] as const,
   channels: ['chat', 'channels'] as const,
   discoverableChannels: (params: DiscoverableChannelParams) => ['chat', 'list', 'discoverable-channels', params] as const,
   users: (params: ChatUserSearchParams) => ['chat', 'list', 'users', params] as const,
-  groupMembers: (conversationId: number | undefined) => ['chat', 'conversations', conversationId, 'members'] as const,
+  /**
+   * 群成员与入群申请刻意不挂在 conversations 之下：
+   * 那样会让「刷新会话列表」这一意图连带打掉每个会话的成员名单（前缀匹配）。
+   */
+  groupMembersAll: ['chat', 'group-members'] as const,
+  groupMembers: (conversationId: number | undefined) => ['chat', 'group-members', conversationId] as const,
   orgData: ['chat', 'org-data'] as const,
   quickReplies: ['chat', 'quick-replies'] as const,
   scheduledMessages: ['chat', 'scheduled-messages'] as const,
   customEmojis: ['chat', 'custom-emojis'] as const,
-  joinRequests: (conversationId: number | undefined) => ['chat', 'conversations', conversationId, 'join-requests'] as const,
+  joinRequestsAll: ['chat', 'join-requests'] as const,
+  joinRequests: (conversationId: number | undefined) => ['chat', 'join-requests', conversationId] as const,
   channelMessages: (params: ChannelMessageParams) => ['chat', 'list', 'channel-messages', params] as const,
   channelMenus: (channelId: number | undefined) => ['chat', 'channels', channelId, 'menus'] as const,
 };
@@ -77,7 +87,8 @@ export function useAddChatGroupMember() {
   return useMutation({
     mutationFn: ({ conversationId, userId }: { conversationId: number; userId: number }) =>
       request.post<null>(`/api/chat/conversations/${conversationId}/members`, { userId }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.all }),
+    // 成员变动只影响该会话的成员名单；会话列表不展示成员，故不牵动 conversations
+    onSuccess: (_data, { conversationId }) => qc.invalidateQueries({ queryKey: chatKeys.groupMembers(conversationId) }),
   });
 }
 
@@ -86,7 +97,7 @@ export function useRemoveChatGroupMember() {
   return useMutation({
     mutationFn: ({ conversationId, memberId }: { conversationId: number; memberId: number }) =>
       request.delete<null>(`/api/chat/conversations/${conversationId}/members/${memberId}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.all }),
+    onSuccess: (_data, { conversationId }) => qc.invalidateQueries({ queryKey: chatKeys.groupMembers(conversationId) }),
   });
 }
 
@@ -95,7 +106,8 @@ export function useTransferChatGroupOwner() {
   return useMutation({
     mutationFn: ({ conversationId, newOwnerId }: { conversationId: number; newOwnerId: number }) =>
       request.post<null>(`/api/chat/conversations/${conversationId}/transfer`, { newOwnerId }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.all }),
+    // 群主易主会改变各处的操作权限判定，成员名单是唯一来源
+    onSuccess: (_data, { conversationId }) => qc.invalidateQueries({ queryKey: chatKeys.groupMembers(conversationId) }),
   });
 }
 
@@ -104,7 +116,7 @@ export function useSetChatMemberRole() {
   return useMutation({
     mutationFn: ({ conversationId, userId, role }: { conversationId: number; userId: number; role: 'admin' | 'member' }) =>
       request.patch<null>(`/api/chat/conversations/${conversationId}/members/${userId}/role`, { role }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.all }),
+    onSuccess: (_data, { conversationId }) => qc.invalidateQueries({ queryKey: chatKeys.groupMembers(conversationId) }),
   });
 }
 
@@ -113,7 +125,7 @@ export function useMuteChatMember() {
   return useMutation({
     mutationFn: ({ conversationId, userId, mute, durationMinutes }: { conversationId: number; userId: number; mute: boolean; durationMinutes?: number }) =>
       request.patch<null>(`/api/chat/conversations/${conversationId}/members/${userId}/mute`, { mute, ...(durationMinutes ? { durationMinutes } : {}) }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.all }),
+    onSuccess: (_data, { conversationId }) => qc.invalidateQueries({ queryKey: chatKeys.groupMembers(conversationId) }),
   });
 }
 
@@ -122,7 +134,11 @@ export function useSetChatMuteAll() {
   return useMutation({
     mutationFn: ({ conversationId, muteAll }: { conversationId: number; muteAll: boolean }) =>
       request.patch<null>(`/api/chat/conversations/${conversationId}/mute-all`, { muteAll }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.all }),
+    onSuccess: (_data, { conversationId }) => {
+      void qc.invalidateQueries({ queryKey: chatKeys.groupMembers(conversationId) });
+      // 全员禁言开关是会话字段（ChatConversation.muteAll）
+      void qc.invalidateQueries({ queryKey: chatKeys.conversations });
+    },
   });
 }
 
@@ -242,7 +258,10 @@ export function useJoinChatByInvite() {
   return useMutation({
     mutationFn: ({ token, message }: { token: string; message?: string }) =>
       request.post<{ joined: boolean }>(`/api/chat/invites/${token}/join`, { ...(message ? { message } : {}) }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.all }),
+    onSuccess: () => {
+      // 入群成功后多出一个会话；若走审批则只是提交申请，会话列表刷新一次也无妨
+      void qc.invalidateQueries({ queryKey: chatKeys.conversations });
+    },
   });
 }
 
@@ -259,7 +278,12 @@ export function useHandleChatJoinRequest() {
   return useMutation({
     mutationFn: ({ id, approve }: { id: number; approve: boolean }) =>
       request.patch<null>(`/api/chat/join-requests/${id}`, { approve }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.all }),
+    onSuccess: () => {
+      // 接口只给申请 id，定位不到所属会话，退一步失效全部会话的申请与成员名单；
+      // 仍不波及常用语、自定义表情、组织架构等静态 lookup
+      void qc.invalidateQueries({ queryKey: chatKeys.joinRequestsAll });
+      void qc.invalidateQueries({ queryKey: chatKeys.groupMembersAll });
+    },
   });
 }
 
@@ -268,7 +292,8 @@ export function useSetChatJoinApproval() {
   return useMutation({
     mutationFn: ({ conversationId, enabled }: { conversationId: number; enabled: boolean }) =>
       request.patch<null>(`/api/chat/conversations/${conversationId}/join-approval`, { enabled }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.conversations }),
+    // 开关本身由面板持有，开启后才会产生入群申请
+    onSuccess: (_data, { conversationId }) => qc.invalidateQueries({ queryKey: chatKeys.joinRequests(conversationId) }),
   });
 }
 
@@ -277,7 +302,8 @@ export function useUpdateChatGroupInfo() {
   return useMutation({
     mutationFn: ({ conversationId, values }: { conversationId: number; values: { name?: string; announcement?: string | null } }) =>
       request.patch<null>(`/api/chat/conversations/${conversationId}/group-info`, values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.all }),
+    // 群名与公告都是 ChatConversation 字段，会话列表直接展示
+    onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.conversations }),
   });
 }
 
@@ -286,7 +312,7 @@ export function useCreateChatGroup() {
   return useMutation({
     mutationFn: ({ name, memberIds }: { name: string; memberIds?: number[] }) =>
       request.post<ChatConversation>('/api/chat/conversations/group', { name, ...(memberIds?.length ? { memberIds } : {}) }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.all }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.conversations }),
   });
 }
 

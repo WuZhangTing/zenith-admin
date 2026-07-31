@@ -20,6 +20,7 @@ import {
   createTestQueryClient,
   createWrapper,
   getCacheEntry,
+  isFresh,
   observeFetches,
 } from '@/test-utils/query-harness';
 
@@ -29,8 +30,13 @@ vi.mock('@/utils/request', () => ({ request: createRequestMock(() => api) }));
 import {
   chatKeys,
   useAddChatGroupMember,
+  useChatCustomEmojis,
   useChatGroupMembers,
+  useChatQuickReplies,
+  useChatUsers,
+  useSetChatMemberRole,
   useTransferChatGroupOwner,
+  useUpdateChatGroupInfo,
 } from './chat';
 
 const OWNER_ALICE: ChatGroupMember[] = [
@@ -47,8 +53,13 @@ beforeEach(() => {
   api.reset();
   api
     .on('GET', '/api/chat/conversations/10/members', OWNER_ALICE)
+    .on('GET', '/api/chat/quick-replies', [{ id: 1, content: '收到' }])
+    .on('GET', '/api/chat/custom-emojis', [{ id: 1, url: 'a.png' }])
+    .on('GET', '/api/chat/users', [{ id: 1, nickname: '爱丽丝' }])
     .on('POST', '/api/chat/conversations/10/members', null)
-    .on('POST', '/api/chat/conversations/10/transfer', null);
+    .on('POST', '/api/chat/conversations/10/transfer', null)
+    .on('PATCH', '/api/chat/conversations/10/members/2/role', null)
+    .on('PATCH', '/api/chat/conversations/10/group-info', null);
 });
 
 describe('群成员单一数据源', () => {
@@ -115,5 +126,67 @@ describe('群成员单一数据源', () => {
     await waitFor(() => expect(result.current.isFetching).toBe(false));
     expect(api.countOf('GET', '/api/chat/conversations/10/members')).toBe(0);
     expect(result.current.data).toBeUndefined();
+  });
+});
+
+describe('成员类 mutation 不再牵动同根静态 lookup', () => {
+  it('leaves quick replies, custom emojis and the user lookup untouched', async () => {
+    const qc = createTestQueryClient();
+    // ChatPage 上这三个 lookup 长期挂载，收敛前每次成员变更都被 chatKeys.all 打回源
+    const { result } = renderHook(
+      () => ({
+        members: useChatGroupMembers(10, true),
+        quickReplies: useChatQuickReplies(),
+        emojis: useChatCustomEmojis(),
+        users: useChatUsers({}),
+        addMember: useAddChatGroupMember(),
+        setRole: useSetChatMemberRole(),
+      }),
+      { wrapper: createWrapper(qc) },
+    );
+    await waitFor(() => {
+      expect(result.current.members.isSuccess).toBe(true);
+      expect(result.current.quickReplies.isSuccess).toBe(true);
+      expect(result.current.emojis.isSuccess).toBe(true);
+      expect(result.current.users.isSuccess).toBe(true);
+    });
+
+    const fetches = observeFetches(qc);
+    api.resetCalls();
+
+    await result.current.addMember.mutateAsync({ conversationId: 10, userId: 3 });
+    await result.current.setRole.mutateAsync({ conversationId: 10, userId: 2, role: 'admin' });
+    await waitFor(() => expect(fetches.countOf(chatKeys.groupMembers(10))).toBe(2));
+
+    expect(api.countOf('GET', '/api/chat/quick-replies')).toBe(0);
+    expect(api.countOf('GET', '/api/chat/custom-emojis')).toBe(0);
+    expect(api.countOf('GET', '/api/chat/users')).toBe(0);
+    expect(isFresh(qc, chatKeys.quickReplies)).toBe(true);
+    expect(isFresh(qc, chatKeys.customEmojis)).toBe(true);
+
+    fetches.stop();
+  });
+});
+
+describe('会话级 key 与成员 key 解耦', () => {
+  it('refreshing conversations no longer wipes every conversation member roster', async () => {
+    const qc = createTestQueryClient();
+    const { result } = renderHook(
+      () => ({ members: useChatGroupMembers(10, true), updateInfo: useUpdateChatGroupInfo() }),
+      { wrapper: createWrapper(qc) },
+    );
+    await waitFor(() => expect(result.current.members.isSuccess).toBe(true));
+
+    const fetches = observeFetches(qc);
+    api.resetCalls();
+
+    // 改群名/公告只是会话字段；此前成员 key 嵌在 conversations 之下，会被前缀连坐
+    await result.current.updateInfo.mutateAsync({ conversationId: 10, values: { name: '新群名' } });
+
+    expect(fetches.countOf(chatKeys.groupMembers(10))).toBe(0);
+    expect(api.countOf('GET', '/api/chat/conversations/10/members')).toBe(0);
+    expect(isFresh(qc, chatKeys.groupMembers(10))).toBe(true);
+
+    fetches.stop();
   });
 });
