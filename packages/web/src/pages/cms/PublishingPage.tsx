@@ -19,7 +19,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import dayjs from 'dayjs';
-import { Plus, Search, XCircle } from 'lucide-react';
+import { Search, XCircle } from 'lucide-react';
 import { CMS_PUBLISH_ARTIFACT_STATUS_LABELS, CMS_PUBLISH_TARGET_TYPE_LABELS, CMS_PUBLISH_TARGET_TYPES } from '@zenith/shared/cms';
 import type { CmsPublishingTask, CmsPublishArtifact, CmsPublishArtifactStatus, CmsPublishTargetType } from '@zenith/shared/cms';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -44,7 +44,7 @@ import {
 import { ASYNC_TASK_STATUS_TAG_MAP } from '@/utils/async-task';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
-import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 type TabKey = 'queue' | 'history' | 'artifacts' | 'failed';
 
@@ -279,7 +279,7 @@ export default function PublishingPage() {
 
   const actions = (
     <>
-      {canBuild ? <Button type="primary" icon={<Plus size={14} />} onClick={() => { setSubmitVisible(true); setSubmitForm((prev) => ({ ...prev, siteId: sites[0]?.id })); }}>新建发布</Button> : null}
+      {canBuild ? <CreateButton onClick={() => { setSubmitVisible(true); setSubmitForm((prev) => ({ ...prev, siteId: sites[0]?.id })); }}>新建发布</CreateButton> : null}
       <ExportButton entity="cms.publish-artifacts" label="导出产物" query={submitted as unknown as Record<string, unknown>} />
       <ExportButton entity="cms.publish-logs" label="导出日志" query={submitted as unknown as Record<string, unknown>} />
     </>

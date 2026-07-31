@@ -41,6 +41,18 @@ export function ResetButton({ onClick, disabled, loading, children = '重置' }:
   );
 }
 
+/**
+ * 列表刷新按钮：与 `ResetButton` 视觉一致，但语义是「重新拉取数据」而非「清空筛选条件」。
+ * 单独成组件，避免二者被同一次样式改动误伤。
+ */
+export function RefreshButton({ onClick, disabled, loading, children = '刷新' }: ToolbarButtonProps) {
+  return (
+    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={onClick} disabled={disabled} loading={loading}>
+      {children}
+    </Button>
+  );
+}
+
 /** 新增按钮（primary + 加号图标）；是否渲染由调用方按权限判断 */
 export function CreateButton({ onClick, disabled, loading, children = '新增' }: ToolbarButtonProps) {
   return (

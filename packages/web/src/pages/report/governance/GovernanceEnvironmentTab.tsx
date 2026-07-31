@@ -14,7 +14,7 @@ import {
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportEnvironment, ReportEnvironmentPromotion, ReportPromotionStatus, ReportResourceType } from '@zenith/shared/report';
-import { Plus, Rocket } from 'lucide-react';
+import { Rocket } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -33,6 +33,7 @@ import {
 import { formatDateTime } from '@/utils/date';
 import { parseJsonObject } from '../report-platform-utils';
 import { REPORT_RESOURCE_TYPE_OPTIONS, reportResourceTypeLabel } from '../report-platform-options';
+import { CreateButton } from '@/components/toolbar-controls';
 
 const environmentKindOptions = [
   { value: 'development', label: '开发' },
@@ -163,7 +164,7 @@ export default function GovernanceEnvironmentTab() {
   return (
     <>
       <SearchToolbar>
-        {hasPermission('report:environment:create') ? <Button type="primary" icon={<Plus size={14} />} onClick={() => openEnvironment()}>新增环境</Button> : null}
+        {hasPermission('report:environment:create') ? <CreateButton onClick={() => openEnvironment()}>新增环境</CreateButton> : null}
         {hasPermission('report:environment:promote') ? <Button icon={<Rocket size={14} />} onClick={() => setPromotionModal(true)}>创建发布</Button> : null}
       </SearchToolbar>
       {environmentsQuery.isError && <Banner type="danger" description="环境列表加载失败" />}

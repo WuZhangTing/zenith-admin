@@ -4,9 +4,8 @@
  * 优先级（后端 matchAutoReply）：subscribe → keyword(exact 优先 contains，按 sort) → default。
  */
 import { useState } from 'react';
-import { Button, Form, Modal, SideSheet, Table, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Form, Modal, SideSheet, Table, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Plus } from 'lucide-react';
 import type { ChannelAutoReply, ChannelMessageType, ChannelRichReplyExtra } from '@zenith/shared/messaging';
 import { CHANNEL_AUTO_REPLY_MATCH_LABELS, CHANNEL_AUTO_REPLY_KEYWORD_MODE_LABELS, CHANNEL_MESSAGE_TYPE_LABELS as REPLY_TYPE_LABELS } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
@@ -19,6 +18,7 @@ import {
   useDeleteChannelAutoReply,
   useSaveChannelAutoReply,
 } from '@/hooks/queries/channels';
+import { CreateButton } from '@/components/toolbar-controls';
 
 interface Props {
   channelId: number;
@@ -187,7 +187,7 @@ export function ChannelAutoReplyDrawer({ channelId, channelName, visible, onClos
     <SideSheet title={`自动回复 · ${channelName}`} visible={visible} onCancel={onClose} width={620} placement="right" closeOnEsc>
       <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography.Text type="tertiary" size="small">优先级：关注欢迎语 → 关键词（完全匹配优先）→ 默认兜底</Typography.Text>
-        {canSave && <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增规则</Button>}
+        {canSave && <CreateButton onClick={openCreate}>新增规则</CreateButton>}
       </div>
       <Table
         columns={columns}

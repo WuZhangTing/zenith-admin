@@ -39,6 +39,7 @@ import { useAllUsers } from '@/hooks/queries/users';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { REPORT_RESOURCE_TYPE_OPTIONS, reportResourceTypeLabel } from '../report-platform-options';
 import { aclRevokeWarning, normalizeAclGrantValues } from '../report-platform-utils';
+import { CreateButton } from '@/components/toolbar-controls';
 
 export default function GovernanceResourceTab() {
   const { hasPermission } = usePermission();
@@ -171,7 +172,7 @@ export default function GovernanceResourceTab() {
           onChange={(v) => setResourceId(v as number | undefined)}
         />
         {hasPermission('report:resource:acl') ? <Button icon={<Shield size={14} />} onClick={openAcl}>权限管理</Button> : null}
-        {hasPermission('report:folder:create') ? <Button type="primary" icon={<Plus size={14} />} onClick={() => openFolder()}>新增目录</Button> : null}
+        {hasPermission('report:folder:create') ? <CreateButton onClick={() => openFolder()}>新增目录</CreateButton> : null}
       </SearchToolbar>
       {foldersQuery.isError && <Banner type="danger" description="资源目录加载失败" />}
       <ConfigurableTable

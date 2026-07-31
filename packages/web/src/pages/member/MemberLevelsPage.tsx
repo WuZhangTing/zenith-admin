@@ -1,9 +1,8 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Space, Modal, Form, Toast, Tag, Row, Col } from '@douyinfe/semi-ui';
+import { Space, Modal, Form, Toast, Tag, Row, Col } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Plus, RotateCcw } from 'lucide-react';
 import type { MemberLevel } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -13,6 +12,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { renderEllipsis } from '../../utils/table-columns';
 import { memberAdminKeys, useDeleteMemberLevel, useMemberLevels, useSaveMemberLevel } from '@/hooks/queries/member-admin';
 import { useDictItems } from '@/hooks/useDictItems';
+import { CreateButton, RefreshButton } from '@/components/toolbar-controls';
 
 export default function MemberLevelsPage() {
   const { items: statusItems } = useDictItems('common_status');
@@ -77,11 +77,11 @@ export default function MemberLevelsPage() {
   ];
 
   const renderRefreshButton = () => (
-    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => void queryClient.invalidateQueries({ queryKey: memberAdminKeys.levels })}>刷新</Button>
+    <RefreshButton onClick={() => void queryClient.invalidateQueries({ queryKey: memberAdminKeys.levels })} />
   );
 
   const renderCreateButton = () => hasPermission('member:level:create') ? (
-    <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增等级</Button>
+    <CreateButton onClick={openCreate}>新增等级</CreateButton>
   ) : null;
 
   return (

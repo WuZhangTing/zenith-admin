@@ -3,7 +3,7 @@ import {
   Button, Form, Input, Modal, Space, Tag, Toast, Banner, Typography, Empty, Select, Divider,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Plus, RotateCcw, Trash2, FlaskConical } from 'lucide-react';
+import { Plus, Trash2, FlaskConical } from 'lucide-react';
 import type { MpConditionalMenu, MpMenuButton, MpMenuMatchRule } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -20,6 +20,7 @@ import {
   useSaveMpConditionalMenu,
   useTryMatchMpConditionalMenu,
 } from '@/hooks/queries/mp-menu';
+import { CreateButton, RefreshButton } from '@/components/toolbar-controls';
 
 const { Text } = Typography;
 
@@ -175,10 +176,10 @@ export default function MpConditionalMenusPage() {
     <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
   );
   const renderRefreshButton = () => (
-    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => void listQuery.refetch()}>刷新</Button>
+    <RefreshButton onClick={() => void listQuery.refetch()} />
   );
   const renderCreateButton = () => can('mp:condmenu:create') ? (
-    <Button type="primary" icon={<Plus size={14} />} disabled={!currentId} onClick={openCreate}>新增个性化菜单</Button>
+    <CreateButton onClick={openCreate} disabled={!currentId}>新增个性化菜单</CreateButton>
   ) : null;
   const renderMatchButton = () => (
     <Button icon={<FlaskConical size={14} />} disabled={!currentId} onClick={() => { setMatchResult(null); setMatchUserId(''); setMatchVisible(true); }}>匹配测试</Button>

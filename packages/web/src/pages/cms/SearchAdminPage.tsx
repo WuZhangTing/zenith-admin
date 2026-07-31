@@ -23,7 +23,7 @@ import { COMMON_STATUS_OPTIONS } from '@zenith/shared/core';
 import type { CmsSearchResult, CmsSearchWord, CmsHotKeyword } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { formatDateTimeForApi } from '@/utils/date';
-import { SearchButton } from '@/components/toolbar-controls';
+import { CreateButton, SearchButton } from '@/components/toolbar-controls';
 
 // ─── 检索测试 Tab ─────────────────────────────────────────────────────────────
 function SearchTestTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined; onSiteChange: (v: number) => void }>) {
@@ -88,7 +88,7 @@ function SearchTestTab({ siteId, onSiteChange }: Readonly<{ siteId: number | und
           style={{ width: 260 }}
           onEnterPress={handleSearch}
         />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>检索测试</Button>
+        <SearchButton onClick={handleSearch}>检索测试</SearchButton>
         {hasPermission('cms:search:manage') ? (
           <Button icon={<RefreshCw size={14} />} loading={reindexMutation.isPending} onClick={() => void handleReindex()}>
             重建索引{siteId ? '（当前站点）' : '（全部站点）'}
@@ -216,7 +216,7 @@ function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined
         <Select placeholder="状态" showClear value={status} onChange={(value) => setStatus(value as string | undefined)} style={{ width: 110 }}
           optionList={COMMON_STATUS_OPTIONS} />
         <SearchButton onClick={() => { setPage(1); setSubmittedKeyword(draftKeyword); }} />
-        {canManage ? <Button type="primary" icon={<Plus size={14} />} onClick={() => { setEditingRecord(null); setModalVisible(true); }}>新增词条</Button> : null}
+        {canManage ? <CreateButton onClick={() => { setEditingRecord(null); setModalVisible(true); }}>新增词条</CreateButton> : null}
         {canManage && selectedIds.length > 0 ? (
           <>
             <Button onClick={() => void batchMutation.mutateAsync({ action: 'update', body: { ids: selectedIds, status: 'enabled' } }).then(() => setSelectedIds([]))}>批量启用</Button>
@@ -368,7 +368,7 @@ function HotKeywordsTab({ siteId, onSiteChange }: Readonly<{ siteId: number | un
           }}>新建分组</Button>
         ) : null}
         {canManage && siteId ? (
-          <Button type="primary" icon={<Plus size={14} />} onClick={() => {
+          <CreateButton onClick={() => {
             let word = '';
             Modal.confirm({
               title: '添加可管理热词',
@@ -379,7 +379,7 @@ function HotKeywordsTab({ siteId, onSiteChange }: Readonly<{ siteId: number | un
                 Toast.success('热词已添加');
               },
             });
-          }}>添加热词</Button>
+          }}>添加热词</CreateButton>
         ) : null}
         {canManage && groupId ? (
           <Button onClick={() => {

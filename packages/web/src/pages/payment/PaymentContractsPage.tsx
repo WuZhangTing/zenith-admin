@@ -1,11 +1,11 @@
 import { useState, useRef } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, Modal, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Form, Input, Modal, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import { Tabs, TabPane } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Plus } from 'lucide-react';
+import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -295,7 +295,7 @@ export default function PaymentContractsPage() {
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateContract = () => canManage ? (
-    <Button type="primary" icon={<Plus size={14} />} onClick={() => setContractModal(true)}>新增签约</Button>
+    <CreateButton onClick={() => setContractModal(true)}>新增签约</CreateButton>
   ) : null;
   const renderExportButtons = () => <ExportButton entity="payment.contracts" query={exportQuery} />;
 

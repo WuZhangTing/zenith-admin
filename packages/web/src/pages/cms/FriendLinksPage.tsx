@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Input, Select, SideSheet, Tag, Toast, Modal, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Plus, FolderTree } from 'lucide-react';
+import { Search, FolderTree } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -265,7 +265,7 @@ function FriendLinkGroupSheet({ siteId, visible, onClose }: Readonly<{
     <SideSheet title="友链分组管理" visible={visible} onCancel={onClose} width={620}>
       <div style={{ marginBottom: 12 }}>
         {hasPermission('cms:link:create') ? (
-          <Button type="primary" icon={<Plus size={14} />} onClick={() => { setEditing(null); setFormVisible(true); }}>新增分组</Button>
+          <CreateButton onClick={() => { setEditing(null); setFormVisible(true); }}>新增分组</CreateButton>
         ) : null}
       </div>
       <ConfigurableTable

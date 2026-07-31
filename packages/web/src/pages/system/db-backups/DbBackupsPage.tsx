@@ -1,8 +1,7 @@
 import { useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Tag, Select, Modal, Toast, Form } from '@douyinfe/semi-ui';
+import { Tag, Select, Modal, Toast, Form } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Plus } from 'lucide-react';
 import type { DbBackup, BackupType, BackupStatus } from '@zenith/shared/platform';
 import { AppModal } from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
@@ -18,7 +17,7 @@ import {
   useDeleteDbBackup,
 } from '@/hooks/queries/db-backups';
 import { request } from '@/utils/request';
-import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 export default function DbBackupsPage() {
   const queryClient = useQueryClient();
@@ -187,7 +186,7 @@ export default function DbBackupsPage() {
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
             {hasPermission('system:db-backup:create') && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={() => setCreateVisible(true)}>新增备份</Button>
+              <CreateButton onClick={() => setCreateVisible(true)}>新增备份</CreateButton>
             )}
           </>
         )}
@@ -207,7 +206,7 @@ export default function DbBackupsPage() {
             />
             <SearchButton onClick={handleSearch} />
             {hasPermission('system:db-backup:create') && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={() => setCreateVisible(true)}>新增备份</Button>
+              <CreateButton onClick={() => setCreateVisible(true)}>新增备份</CreateButton>
             )}
           </>
         )}

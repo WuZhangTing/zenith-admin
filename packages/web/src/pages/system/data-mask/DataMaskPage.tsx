@@ -17,7 +17,7 @@ import {
   Table,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Database, Plus, Search } from 'lucide-react';
+import { Database, Search } from 'lucide-react';
 import type { DataMaskConfig, MaskType, SensitiveField } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -36,7 +36,7 @@ import {
   useSaveDataMask,
   useScanDataMaskFields,
 } from '@/hooks/queries/data-mask';
-import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { Text } = Typography;
 
@@ -377,7 +377,7 @@ export default function DataMaskPage() {
               <Button icon={<Database size={14} />} onClick={openScan}>扫描敏感字段</Button>
             )}
             {hasPermission('system:data-mask:create') && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增规则</Button>
+              <CreateButton onClick={openCreate}>新增规则</CreateButton>
             )}
           </>
         )}
@@ -394,7 +394,7 @@ export default function DataMaskPage() {
             />
             <SearchButton onClick={handleSearch} />
             {hasPermission('system:data-mask:create') && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增规则</Button>
+              <CreateButton onClick={openCreate}>新增规则</CreateButton>
             )}
           </>
         )}

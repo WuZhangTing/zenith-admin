@@ -14,6 +14,7 @@ import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { useAiHttpTools, useSaveAiHttpTool, useDeleteAiHttpTool } from '@/hooks/queries/ai-tools';
 import type { AiHttpTool, AiHttpToolParam, CreateAiHttpToolInput } from '@zenith/shared/ai';
+import { CreateButton } from '@/components/toolbar-controls';
 
 const { Text } = Typography;
 
@@ -130,7 +131,7 @@ export default function AiToolsPage() {
         <Text type="tertiary" style={{ fontSize: 13 }}>
           将企业内部 / 第三方 HTTP API 注册为 Function Calling 工具，智能体与对话可勾选调用（出站默认启用 SSRF 防护）
         </Text>
-        <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增工具</Button>
+        <CreateButton onClick={openCreate}>新增工具</CreateButton>
       </div>
       <ConfigurableTable
         bordered

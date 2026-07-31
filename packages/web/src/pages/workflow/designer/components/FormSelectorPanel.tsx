@@ -5,12 +5,13 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Select, Typography, Empty, Spin } from '@douyinfe/semi-ui';
-import { Plus, RefreshCw, Pencil } from 'lucide-react';
+import { RefreshCw, Pencil } from 'lucide-react';
 import { IllustrationIdle, IllustrationIdleDark, IllustrationNoContent, IllustrationNoContentDark } from '@douyinfe/semi-illustrations';
 import type { WorkflowForm } from '@zenith/shared/workflow';
 import WorkflowFormRenderer from './WorkflowFormRenderer';
 import WorkflowFormInlineEditor from '../../forms/WorkflowFormInlineEditor';
 import { useWorkflowDesignerFormOptions, workflowDesignerKeys } from '@/hooks/queries/workflow-designer';
+import { CreateButton } from '@/components/toolbar-controls';
 
 interface FormSelectorPanelProps {
   formId: number | null;
@@ -80,9 +81,7 @@ export default function FormSelectorPanel({ formId, formName, onSelect }: Readon
               编辑此表单
             </Button>
           )}
-          <Button icon={<Plus size={14} />} type="primary" disabled={editorOpen} onClick={() => openEditor(null)}>
-            新建表单
-          </Button>
+          <CreateButton onClick={() => openEditor(null)} disabled={editorOpen}>新建表单</CreateButton>
         </div>
       </div>
 

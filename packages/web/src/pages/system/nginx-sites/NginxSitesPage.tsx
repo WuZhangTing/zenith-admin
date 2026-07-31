@@ -15,7 +15,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { CheckCircle, Plus, RefreshCw, Search } from 'lucide-react';
+import { CheckCircle, RefreshCw, Search } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -36,7 +36,7 @@ import {
   type NginxSite,
 } from '@/hooks/queries/nginx-sites';
 import { useQueryClient } from '@tanstack/react-query';
-import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { Text } = Typography;
 
@@ -240,7 +240,7 @@ export default function NginxSitesPage() {
             <Input prefix={<Search size={14} />} placeholder="搜索站点名 / 域名 / 配置路径" value={keyword} onChange={setKeyword} showClear style={{ width: 260 }} />
             <SearchButton onClick={() => { void queryClient.invalidateQueries({ queryKey: nginxSiteKeys.lists }); }} />
             <ResetButton onClick={handleReset} />
-            {canManage && <Button type="primary" icon={<Plus size={14} />} onClick={() => setCreateVisible(true)}>新增站点</Button>}
+            {canManage && <CreateButton onClick={() => setCreateVisible(true)}>新增站点</CreateButton>}
           </>
         )}
         actions={(
@@ -253,7 +253,7 @@ export default function NginxSitesPage() {
           <>
             <Input prefix={<Search size={14} />} placeholder="搜索站点名 / 域名 / 配置路径" value={keyword} onChange={setKeyword} showClear style={{ width: 260 }} />
             <SearchButton onClick={() => { void queryClient.invalidateQueries({ queryKey: nginxSiteKeys.lists }); }} />
-            {canManage && <Button type="primary" icon={<Plus size={14} />} onClick={() => setCreateVisible(true)}>新增站点</Button>}
+            {canManage && <CreateButton onClick={() => setCreateVisible(true)}>新增站点</CreateButton>}
           </>
         )}
         mobileActions={(

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Modal, Select, Space, Switch, Tag, Toast, Tabs, TabPane, Banner, Typography, TextArea } from '@douyinfe/semi-ui';
-import { RotateCcw, Search, RefreshCw, Briefcase } from 'lucide-react';
+import { Search, RefreshCw, Briefcase } from 'lucide-react';
 import type { MpMessageTemplate } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -23,6 +23,7 @@ import {
   useSendMpTemplate,
   useSyncMpTemplates,
 } from '@/hooks/queries/mp-templates';
+import { RefreshButton } from '@/components/toolbar-controls';
 
 export default function MpTemplateMessagesPage() {
   const { hasPermission: can } = usePermission();
@@ -147,7 +148,7 @@ export default function MpTemplateMessagesPage() {
     <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
   );
   const renderTemplateRefreshButton = () => (
-    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => { tplPg.setPage(1); void queryClient.invalidateQueries({ queryKey: mpTemplateKeys.lists(currentId) }); }}>刷新</Button>
+    <RefreshButton onClick={() => { tplPg.setPage(1); void queryClient.invalidateQueries({ queryKey: mpTemplateKeys.lists(currentId) }); }} />
   );
   const renderTemplateActions = () => {
     if (!can('mp:template:sync')) return null;

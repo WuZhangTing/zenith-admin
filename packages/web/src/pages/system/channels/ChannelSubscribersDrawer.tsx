@@ -7,9 +7,9 @@
  */
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Banner, Button, Input, Modal, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Input, Modal, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Plus, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import type { ChannelAdmin, ChannelSubscriber } from '@zenith/shared/messaging';
 import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
@@ -26,7 +26,7 @@ import {
   useChannelSubscribers,
   useRemoveChannelSubscriber,
 } from '@/hooks/queries/channels';
-import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface Props {
   channel: ChannelAdmin | null;
@@ -166,7 +166,7 @@ export function ChannelSubscribersDrawer({ channel, visible, onClose }: Readonly
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
             {canManage && !isSystem && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={openAdd}>添加订阅者</Button>
+              <CreateButton onClick={openAdd}>添加订阅者</CreateButton>
             )}
           </>
         )}
@@ -184,7 +184,7 @@ export function ChannelSubscribersDrawer({ channel, visible, onClose }: Readonly
             />
             <SearchButton onClick={handleSearch} />
             {canManage && !isSystem && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={openAdd}>添加订阅者</Button>
+              <CreateButton onClick={openAdd}>添加订阅者</CreateButton>
             )}
           </>
         )}

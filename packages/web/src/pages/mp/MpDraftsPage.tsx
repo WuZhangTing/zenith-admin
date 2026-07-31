@@ -20,7 +20,7 @@ import {
   usePushMpDraft,
   useSaveMpDraft,
 } from '@/hooks/queries/mp-drafts';
-import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const blankArticle = (): MpArticle => ({ title: '', author: '', digest: '', content: '', thumbUrl: '', showCoverPic: true });
 
@@ -134,7 +134,7 @@ export default function MpDraftsPage() {
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => can('mp:draft:create') ? (
-    <Button type="primary" icon={<Plus size={14} />} disabled={!currentId} onClick={openCreate}>新增图文</Button>
+    <CreateButton onClick={openCreate} disabled={!currentId}>新增图文</CreateButton>
   ) : null;
 
   return (

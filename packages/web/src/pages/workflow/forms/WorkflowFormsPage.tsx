@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Input, Modal, Select, Tag, Toast } from '@douyinfe/semi-ui';
+import { Input, Modal, Select, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Plus, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { WorkflowForm, WorkflowFormStatus } from '@zenith/shared/workflow';
 import { formatDateTime } from '@/utils/date';
@@ -19,7 +19,7 @@ import {
   useWorkflowFormList,
   workflowFormKeys,
 } from '@/hooks/queries/workflow-forms';
-import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 type StatusFilter = WorkflowFormStatus | '';
 type TagColor = 'green' | 'grey';
@@ -233,13 +233,7 @@ export default function WorkflowFormsPage() {
   );
 
   const renderCreateButton = () => hasPermission('workflow:form:create') ? (
-    <Button
-      type="primary"
-      icon={<Plus size={14} />}
-      onClick={() => navigate('/workflow/forms/designer')}
-    >
-      新建表单
-    </Button>
+    <CreateButton onClick={() => navigate('/workflow/forms/designer')}>新建表单</CreateButton>
   ) : null;
 
   return (

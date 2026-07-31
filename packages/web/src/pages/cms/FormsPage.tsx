@@ -17,6 +17,7 @@ import {
 import { CMS_FORM_CAPTCHA_PROVIDERS, CMS_FORM_CAPTCHA_PROVIDER_LABELS, CMS_FORM_FIELD_TYPES, CMS_FORM_FIELD_TYPE_LABELS } from '@zenith/shared/cms';
 import type { CmsForm, CmsFormSubmission } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
+import { CreateButton } from '@/components/toolbar-controls';
 
 const FIELD_TYPE_OPTIONS = CMS_FORM_FIELD_TYPES.map((t) => ({ value: t, label: CMS_FORM_FIELD_TYPE_LABELS[t] }));
 
@@ -178,7 +179,7 @@ export default function FormsPage() {
     <div className="page-container">
       <SearchToolbar>
         <CmsSiteSelect value={siteId} onChange={(v) => { setSiteId(v); setPage(1); }} width={200} />
-        {canManage ? <Button type="primary" icon={<Plus size={14} />} onClick={() => { setEditingRecord(null); setModalVisible(true); }}>新增表单</Button> : null}
+        {canManage ? <CreateButton onClick={() => { setEditingRecord(null); setModalVisible(true); }}>新增表单</CreateButton> : null}
       </SearchToolbar>
 
       <ConfigurableTable

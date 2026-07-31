@@ -1,10 +1,9 @@
 import { useState, useRef } from 'react';
 import { PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Switch, Tag, Toast } from '@douyinfe/semi-ui';
+import { Form, Switch, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { RotateCcw } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -13,6 +12,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_LABELS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentMethod, PaymentMethodConfig } from '@zenith/shared/payment';
 import { paymentMethodKeys, usePaymentMethodList, useSavePaymentMethod } from '@/hooks/queries/payment-methods';
+import { RefreshButton } from '@/components/toolbar-controls';
 
 interface MethodFormValues { label: string; icon?: string; sort?: number; enabled?: boolean; }
 
@@ -75,7 +75,7 @@ export default function PaymentMethodsPage() {
   ];
 
   const renderRefreshButton = () => (
-    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => { void queryClient.invalidateQueries({ queryKey: paymentMethodKeys.lists }); }}>刷新</Button>
+    <RefreshButton onClick={() => { void queryClient.invalidateQueries({ queryKey: paymentMethodKeys.lists }); }} />
   );
 
   return (

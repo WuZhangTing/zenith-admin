@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Button, Spin, Toast, Typography } from '@douyinfe/semi-ui';
 import { QRCodeSVG } from 'qrcode.react';
-import { Copy, RotateCcw } from 'lucide-react';
+import { Copy } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import { useChatGroupInvite, useResetChatGroupInvite } from '@/hooks/queries/chat';
 import type { ChatGroupInvite } from '@zenith/shared/chat';
+import { ResetButton } from '@/components/toolbar-controls';
 
 const { Text } = Typography;
 
@@ -74,7 +75,7 @@ export function GroupInviteModal({
           </Text>
           <div style={{ display: 'flex', gap: 8 }}>
             <Button type="primary" icon={<Copy size={14} />} onClick={() => { void handleCopy(); }}>复制邀请</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} loading={resetInviteMutation.isPending} onClick={() => { void handleReset(); }}>重置链接</Button>
+            <ResetButton onClick={() => { void handleReset(); }} loading={resetInviteMutation.isPending}>重置链接</ResetButton>
           </div>
         </div>
       )}

@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
 import {
   Banner,
-  Button,
   Col,
   DatePicker,
   Empty,
@@ -18,7 +17,6 @@ import {
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportQueryCostLog, ReportQueryCostTrendPoint, ReportQueryQuota, ReportQuotaScope } from '@zenith/shared/report';
-import { Plus } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
@@ -39,7 +37,7 @@ import {
 import { useAllUsers } from '@/hooks/queries/users';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { validateQuotaForm } from '../report-platform-utils';
-import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 export default function GovernanceCapacityTab() {
   const { hasPermission } = usePermission();
@@ -158,7 +156,7 @@ export default function GovernanceCapacityTab() {
   return (
     <>
       <SearchToolbar>
-        {hasPermission('report:query-quota:create') ? <Button type="primary" icon={<Plus size={14} />} onClick={() => openQuota()}>新增配额</Button> : null}
+        {hasPermission('report:query-quota:create') ? <CreateButton onClick={() => openQuota()}>新增配额</CreateButton> : null}
       </SearchToolbar>
       {quotasQuery.isError && <Banner type="danger" description="查询配额加载失败" />}
       <ConfigurableTable bordered rowKey="id" columns={quotaColumns} dataSource={quotasQuery.data?.list ?? []} loading={quotasQuery.isFetching} empty={<Empty title="暂无查询配额" />} pagination={buildPagination(quotasQuery.data?.total ?? 0)} onRefresh={() => void quotasQuery.refetch()} refreshLoading={quotasQuery.isFetching} />

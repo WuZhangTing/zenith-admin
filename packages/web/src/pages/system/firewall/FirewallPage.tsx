@@ -10,7 +10,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Plus, RefreshCw, Search, Shield, ShieldOff } from 'lucide-react';
+import { RefreshCw, Search, Shield, ShieldOff } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -26,7 +26,7 @@ import {
   type FirewallRule,
   type FirewallStatus,
 } from '@/hooks/queries/firewall';
-import { ResetButton } from '@/components/toolbar-controls';
+import { CreateButton, ResetButton } from '@/components/toolbar-controls';
 
 const RULE_TYPE_CONFIG: Record<FirewallRule['type'], { label: string; color: 'green' | 'red' | 'orange' }> = {
   allow: { label: '允许', color: 'green' },
@@ -241,7 +241,7 @@ export default function FirewallPage() {
             />
             <ResetButton onClick={() => { setKeyword(''); void fetchAll(); }} />
             <Button icon={<RefreshCw size={14} />} loading={rulesQuery.isFetching} onClick={() => void fetchAll()}>刷新</Button>
-            {canManage && <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增规则</Button>}
+            {canManage && <CreateButton onClick={openCreate}>新增规则</CreateButton>}
           </>
         )}
         mobilePrimary={(
@@ -254,7 +254,7 @@ export default function FirewallPage() {
               showClear
               style={{ width: 240 }}
             />
-            {canManage && <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增规则</Button>}
+            {canManage && <CreateButton onClick={openCreate}>新增规则</CreateButton>}
           </>
         )}
         mobileActions={(

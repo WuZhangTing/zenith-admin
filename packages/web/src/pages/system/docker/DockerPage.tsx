@@ -19,18 +19,7 @@ import {
   Switch,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import {
-  FileText,
-  RefreshCw,
-  ChevronDown,
-  ChevronUp,
-  Activity,
-  Search,
-  Info,
-  Plus,
-  Download,
-  Trash2,
-} from 'lucide-react';
+import { FileText, RefreshCw, ChevronDown, ChevronUp, Activity, Search, Info, Download, Trash2 } from 'lucide-react';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -61,6 +50,7 @@ import {
   type StatsInfo,
   type VolumeInfo,
 } from '@/hooks/queries/docker';
+import { CreateButton } from '@/components/toolbar-controls';
 
 // ─── Prune（清理）辅助 ──────────────────────────────────────────────────────────
 function runPrune(url: string, title: string, content: string, prune: (url: string) => Promise<PruneResultData>): void {
@@ -798,14 +788,14 @@ function NetworksTab() {
           <>
             <Input prefix={<Search size={14} />} placeholder="搜索网络名 / 驱动" showClear value={keyword} onChange={setKeyword} style={{ width: 260 }} />
             <Button type="tertiary" icon={<RefreshCw size={14} />} onClick={() => void networksQuery.refetch()}>刷新</Button>
-            <Button type="primary" icon={<Plus size={14} />} onClick={() => setCreateVisible(true)}>创建网络</Button>
+            <CreateButton onClick={() => setCreateVisible(true)}>创建网络</CreateButton>
           </>
         )}
         actions={<Button icon={<Trash2 size={14} />} onClick={() => runPrune('/api/docker/prune/networks', '清理未用网络', '将删除所有未被容器使用的网络，确定继续？', pruneMutation.mutateAsync)}>清理</Button>}
         mobilePrimary={(
           <>
             <Input prefix={<Search size={14} />} placeholder="搜索网络名 / 驱动" showClear value={keyword} onChange={setKeyword} style={{ width: 260 }} />
-            <Button type="primary" icon={<Plus size={14} />} onClick={() => setCreateVisible(true)}>创建网络</Button>
+            <CreateButton onClick={() => setCreateVisible(true)}>创建网络</CreateButton>
           </>
         )}
         mobileActions={(
@@ -910,14 +900,14 @@ function VolumesTab() {
           <>
             <Input prefix={<Search size={14} />} placeholder="搜索卷名 / 驱动" showClear value={keyword} onChange={setKeyword} style={{ width: 260 }} />
             <Button type="tertiary" icon={<RefreshCw size={14} />} onClick={() => void volumesQuery.refetch()}>刷新</Button>
-            <Button type="primary" icon={<Plus size={14} />} onClick={() => setCreateVisible(true)}>创建存储卷</Button>
+            <CreateButton onClick={() => setCreateVisible(true)}>创建存储卷</CreateButton>
           </>
         )}
         actions={<Button type="danger" icon={<Trash2 size={14} />} onClick={() => runPrune('/api/docker/prune/volumes', '清理未用存储卷', '将删除所有未被容器使用的存储卷（数据不可恢复），确定继续？', pruneMutation.mutateAsync)}>清理</Button>}
         mobilePrimary={(
           <>
             <Input prefix={<Search size={14} />} placeholder="搜索卷名 / 驱动" showClear value={keyword} onChange={setKeyword} style={{ width: 260 }} />
-            <Button type="primary" icon={<Plus size={14} />} onClick={() => setCreateVisible(true)}>创建存储卷</Button>
+            <CreateButton onClick={() => setCreateVisible(true)}>创建存储卷</CreateButton>
           </>
         )}
         mobileActions={(

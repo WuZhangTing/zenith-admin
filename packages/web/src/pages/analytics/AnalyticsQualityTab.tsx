@@ -3,10 +3,10 @@
  */
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Form, Input, Select, Tag, Toast, Typography, Modal } from '@douyinfe/semi-ui';
+import { Card, Form, Input, Select, Tag, Toast, Typography, Modal } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { AlertTriangle, Plus, Search, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Search, ShieldAlert } from 'lucide-react';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -22,7 +22,7 @@ import {
 } from '@/hooks/queries/analytics';
 import type { AnalyticsEventOverride, AnalyticsQualityDaily, AnalyticsQualityIssueType } from '@zenith/shared/analytics';
 import { ANALYTICS_EVENT_OVERRIDE_STATUS_OPTIONS, ANALYTICS_QUALITY_ISSUE_TYPE_LABELS, ANALYTICS_QUALITY_ISSUE_TYPE_OPTIONS } from '@zenith/shared/analytics';
-import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const PAGE_SIZE = 20;
 const DAY_OPTIONS = [7, 30, 90].map((value) => ({ value, label: `${value} 天` }));
@@ -279,7 +279,7 @@ export default function AnalyticsQualityTab() {
           />
           <SearchButton onClick={handleOverrideSearch} disabled={!config.multiTenantMode} />
           <ResetButton onClick={handleOverrideReset} disabled={!config.multiTenantMode} />
-          <Button disabled={!config.multiTenantMode} type="primary" icon={<Plus size={14} />} onClick={openCreateOverride}>新增覆盖</Button>
+          <CreateButton onClick={openCreateOverride} disabled={!config.multiTenantMode}>新增覆盖</CreateButton>
         </SearchToolbar>
         <ConfigurableTable
           bordered

@@ -2,11 +2,11 @@ import { useRef, useState } from 'react';
 import { Button, Form, Modal, Popconfirm, Space, Table, Tag, Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Plus } from 'lucide-react';
 import type { MemberTag } from '@zenith/shared/member';
 import { AppModal } from '@/components/AppModal';
 import { useDeleteMemberTag, useMemberTags, useSaveMemberTag } from '@/hooks/queries/member-admin';
 import { useDictItems } from '@/hooks/useDictItems';
+import { CreateButton } from '@/components/toolbar-controls';
 
 const TAG_COLORS = ['red', 'orange', 'amber', 'green', 'teal', 'blue', 'purple', 'pink', 'grey'] as const;
 
@@ -70,7 +70,7 @@ export function MemberTagsManageModal({ visible, onClose }: Readonly<Props>) {
   return (
     <Modal title="会员标签管理" visible={visible} onCancel={onClose} footer={null} width={640} closeOnEsc>
       <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'flex-end' }}>
-        <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增标签</Button>
+        <CreateButton onClick={openCreate}>新增标签</CreateButton>
       </div>
       <Table
         columns={columns}

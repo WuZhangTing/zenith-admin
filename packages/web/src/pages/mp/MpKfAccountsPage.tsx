@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Avatar, Button, Form, Input, Modal, Space, Spin, Tag, Toast, Banner } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Plus, Search, RefreshCw } from 'lucide-react';
+import { Search, RefreshCw } from 'lucide-react';
 import type { MpKfAccount } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -20,7 +20,7 @@ import {
   useSaveMpKfAccount,
   useSyncMpKfAccounts,
 } from '@/hooks/queries/mp-kf';
-import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const INVITE_LABEL: Record<string, { label: string; color: 'green' | 'orange' | 'grey' }> = {
   none: { label: '未邀请', color: 'grey' },
@@ -137,7 +137,7 @@ export default function MpKfAccountsPage() {
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => can('mp:kf:create') ? (
-    <Button type="primary" icon={<Plus size={14} />} disabled={!currentId} onClick={openCreate}>添加客服</Button>
+    <CreateButton onClick={openCreate} disabled={!currentId}>添加客服</CreateButton>
   ) : null;
   const renderSyncButton = () => can('mp:kf:sync') ? (
     <Button icon={<RefreshCw size={14} />} loading={syncMutation.isPending} disabled={!currentId} onClick={() => void handleSync()}>从微信同步</Button>

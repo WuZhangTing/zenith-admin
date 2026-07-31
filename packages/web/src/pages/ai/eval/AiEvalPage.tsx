@@ -22,6 +22,7 @@ import { useAiEvalSets, useAiEvalRuns, useAiEvalRunDetail, useSaveAiEvalSet, use
 import { useAiChatModels } from '@/hooks/queries/ai-providers';
 import { useAuth } from '@/hooks/useAuth';
 import type { AiEvalSet, AiEvalRun, AiEvalItem } from '@zenith/shared/ai';
+import { CreateButton } from '@/components/toolbar-controls';
 
 const { Text, Paragraph } = Typography;
 
@@ -211,7 +212,7 @@ export default function AiEvalPage() {
     <div className="page-container page-tabs-page">
       <Tabs
         type="line"
-        tabBarExtraContent={canManage ? <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新建评测集</Button> : undefined}
+        tabBarExtraContent={canManage ? <CreateButton onClick={openCreate}>新建评测集</CreateButton> : undefined}
       >
         <TabPane tab="评测集" itemKey="sets">
           <div style={{ padding: '12px 0' }}>

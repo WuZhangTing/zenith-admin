@@ -15,7 +15,7 @@ import {
   Toast,
   Typography,
 } from '@douyinfe/semi-ui';
-import { Bot, MessageSquare, Copy, Send, Undo2, Check, X, Plus } from 'lucide-react';
+import { Bot, MessageSquare, Copy, Send, Undo2, Check, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import {
   useMyAiAgents,
@@ -32,6 +32,7 @@ import { useAvailableKnowledgeBases } from '@/hooks/queries/ai-extras';
 import { useAiChatModels } from '@/hooks/queries/ai-providers';
 import { AI_AGENT_STATUS_LABELS } from '@zenith/shared/ai';
 import type { AiAgent, CreateAiAgentInput } from '@zenith/shared/ai';
+import { CreateButton } from '@/components/toolbar-controls';
 
 const { Text, Paragraph } = Typography;
 
@@ -266,7 +267,7 @@ export default function AiAgentsPage() {
         activeKey={activeTab}
         onChange={setActiveTab}
         tabBarExtraContent={
-          <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新建智能体</Button>
+          <CreateButton onClick={openCreate}>新建智能体</CreateButton>
         }
       >
         <TabPane tab={<span><Bot size={14} style={{ verticalAlign: -2, marginRight: 4 }} />我的智能体</span>} itemKey="mine">

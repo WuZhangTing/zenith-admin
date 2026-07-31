@@ -15,21 +15,7 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import {
-  ArrowDown,
-  ArrowLeft,
-  ArrowUp,
-  Eye,
-  GripVertical,
-  ImageUp,
-  Monitor,
-  Plus,
-  Save,
-  Send,
-  Smartphone,
-  Tablet,
-  Trash2,
-} from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, Eye, GripVertical, ImageUp, Monitor, Save, Send, Smartphone, Tablet, Trash2 } from 'lucide-react';
 import dayjs from 'dayjs';
 import { CMS_WIDGET_RENDERER_LABELS, CMS_WIDGET_SOURCE_TYPE_LABELS, CMS_WIDGET_STATUS_LABELS } from '@zenith/shared/cms';
 import type { CmsChannel, CmsWidgetItem, CmsWidgetRendererKey, CmsWidgetSourceType } from '@zenith/shared/cms';
@@ -46,6 +32,7 @@ import {
 } from '@/hooks/queries/cms-widgets';
 import { formatDateTimeForApi } from '@/utils/date';
 import { CmsSiteSelect } from './CmsSiteSelect';
+import { CreateButton } from '@/components/toolbar-controls';
 
 function newItemId(): string {
   return `wi${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
@@ -329,7 +316,7 @@ export default function WidgetEditPage() {
         <Card
           title={`部件条目（${items.length}）`}
           headerExtraContent={(
-            <Button type="primary" icon={<Plus size={14} />} onClick={() => openItem()}>新增条目</Button>
+            <CreateButton onClick={() => openItem()}>新增条目</CreateButton>
           )}
         >
           {items.length === 0 ? (

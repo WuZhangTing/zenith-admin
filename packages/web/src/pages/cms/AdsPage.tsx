@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, DatePicker, Form, Tag, Toast, Modal, Tabs, TabPane, Select, SideSheet, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Plus, Trash2 } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -20,7 +20,7 @@ import {
 import { CMS_AD_EVENT_TYPE_LABELS, CMS_DEVICE_TYPE_LABELS } from '@zenith/shared/cms';
 import type { CmsAdEvent, CmsAdSlot, CmsAd } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
-import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 // ─── 广告位 Tab ───────────────────────────────────────────────────────────────
 function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
@@ -79,7 +79,7 @@ function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
   return (
     <>
       <SearchToolbar>
-        {canManage ? <Button type="primary" icon={<Plus size={14} />} onClick={() => { setEditingRecord(null); setModalVisible(true); }}>新增广告位</Button> : null}
+        {canManage ? <CreateButton onClick={() => { setEditingRecord(null); setModalVisible(true); }}>新增广告位</CreateButton> : null}
       </SearchToolbar>
       <ConfigurableTable
         bordered
@@ -198,7 +198,7 @@ function AdsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
           style={{ width: 180 }}
           optionList={(slotsQuery.data ?? []).map((s) => ({ value: s.id, label: s.name }))}
         />
-        {canManage ? <Button type="primary" icon={<Plus size={14} />} onClick={() => { setEditingRecord(null); setModalVisible(true); }}>新增广告</Button> : null}
+        {canManage ? <CreateButton onClick={() => { setEditingRecord(null); setModalVisible(true); }}>新增广告</CreateButton> : null}
       </SearchToolbar>
       <ConfigurableTable
         bordered

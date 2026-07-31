@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Input, Tabs, Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { RotateCcw, Save, Search } from 'lucide-react';
+import { Save, Search } from 'lucide-react';
 import type { LoginRiskEvent } from '@zenith/shared/identity';
 import type { IdentitySecurityPolicy } from '@zenith/shared/platform';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -16,7 +16,7 @@ import {
   useLoginRiskEventList,
   useSaveIdentitySecurityPolicy,
 } from '@/hooks/queries/identity-security';
-import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { RefreshButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { TabPane } = Tabs;
 
@@ -105,7 +105,7 @@ export default function IdentitySecurityPage() {
         <TabPane tab="策略配置" itemKey="policy">
           <SearchToolbar>
             <Button type="primary" icon={<Save size={14} />} loading={savePolicyMutation.isPending} onClick={handleSavePolicy}>保存</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} loading={policyQuery.isFetching} onClick={() => void policyQuery.refetch()}>重载</Button>
+            <RefreshButton onClick={() => void policyQuery.refetch()} loading={policyQuery.isFetching}>重载</RefreshButton>
           </SearchToolbar>
           <div style={{ maxWidth: 760, padding: '4px 0' }}>
             <Form

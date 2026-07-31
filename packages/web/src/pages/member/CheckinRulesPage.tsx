@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Toast, Modal } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { RotateCcw, Settings } from 'lucide-react';
+import { Settings } from 'lucide-react';
 import type { CheckinRule } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -19,7 +19,7 @@ import {
   useSaveCheckinRule,
   useSaveCheckinSettings,
 } from '@/hooks/queries/member-admin';
-import { CreateButton } from '@/components/toolbar-controls';
+import { CreateButton, RefreshButton } from '@/components/toolbar-controls';
 
 export default function CheckinRulesPage() {
   const { hasPermission } = usePermission();
@@ -104,9 +104,7 @@ export default function CheckinRulesPage() {
   ];
 
   const renderRefreshButton = () => (
-    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => void queryClient.invalidateQueries({ queryKey: memberAdminKeys.checkinRules })}>
-      刷新
-    </Button>
+    <RefreshButton onClick={() => void queryClient.invalidateQueries({ queryKey: memberAdminKeys.checkinRules })} />
   );
 
   const renderSettingsButton = () => hasPermission('member:checkin:setting:update') ? (

@@ -1,11 +1,20 @@
 import { useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  Button, Form, Input, Space, Spin, Toast, Modal, Switch, Tag, Row, Col,
+  Form,
+  Input,
+  Space,
+  Spin,
+  Toast,
+  Modal,
+  Switch,
+  Tag,
+  Row,
+  Col,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Plus } from 'lucide-react';
+import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -30,7 +39,7 @@ import {
   MONITOR_METRIC_OPTIONS as METRIC_OPTIONS,
   MONITOR_PERCENT_METRICS as PERCENT_METRICS,
 } from './constants';
-import { ResetButton } from '@/components/toolbar-controls';
+import { CreateButton, ResetButton } from '@/components/toolbar-controls';
 
 const OP_SYMBOL: Record<string, string> = { gt: '>', gte: '≥', lt: '<', lte: '≤' };
 const OP_OPTIONS = (['gt', 'gte', 'lt', 'lte'] as const)
@@ -210,7 +219,7 @@ export default function MonitorAlertsPage() {
               style={{ width: 220 }}
             />
             <ResetButton onClick={() => { setKeyword(''); void queryClient.invalidateQueries({ queryKey: monitorAlertKeys.lists }); }} />
-            {canManage && <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增规则</Button>}
+            {canManage && <CreateButton onClick={openCreate}>新增规则</CreateButton>}
           </>
         )}
         mobilePrimary={(
@@ -223,7 +232,7 @@ export default function MonitorAlertsPage() {
               showClear
               style={{ width: 220 }}
             />
-            {canManage && <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增规则</Button>}
+            {canManage && <CreateButton onClick={openCreate}>新增规则</CreateButton>}
           </>
         )}
         mobileActions={(

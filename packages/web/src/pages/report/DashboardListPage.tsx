@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button, Form, Input, Select, SideSheet, Space, Tag, Toast, Modal, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { FolderTree, Search, Plus, Star } from 'lucide-react';
+import { FolderTree, Search, Star } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -350,7 +350,7 @@ export default function DashboardListPage() {
       >
         <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 12 }}>
           <Typography.Text type="tertiary">删除已引用分类时，相关仪表盘分类会自动置空。</Typography.Text>
-          {hasPermission('report:dashboard:update') ? <Button type="primary" icon={<Plus size={14} />} onClick={openCategoryCreate}>新增分类</Button> : null}
+          {hasPermission('report:dashboard:update') ? <CreateButton onClick={openCategoryCreate}>新增分类</CreateButton> : null}
         </Space>
         <ConfigurableTable
           bordered

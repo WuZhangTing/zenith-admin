@@ -2,7 +2,6 @@ import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Banner,
-  Button,
   Col,
   DatePicker,
   Empty,
@@ -22,7 +21,7 @@ import {
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportAssetCatalogItem, ReportAssetTemplate, ReportAssetTemplateType, ReportAssetUsageSummary, ReportAssetUsageTrendPoint, ReportDeprecationNotice, ReportResourceType } from '@zenith/shared/report';
-import { Plus, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
@@ -366,7 +365,7 @@ export default function AssetsPage() {
         <TabPane tab="使用与弃用" itemKey="usage">
           <SearchToolbar>
             <Select value={usageDays} optionList={[{ value: 7, label: '近 7 天' }, { value: 30, label: '近 30 天' }, { value: 90, label: '近 90 天' }]} style={{ width: 130 }} onChange={(v) => setUsageDays(Number(v))} />
-            {hasPermission('report:deprecation:create') ? <Button type="primary" icon={<Plus size={14} />} onClick={() => openNotice()}>新增弃用公告</Button> : null}
+            {hasPermission('report:deprecation:create') ? <CreateButton onClick={() => openNotice()}>新增弃用公告</CreateButton> : null}
           </SearchToolbar>
           {(topQuery.isError || trendQuery.isError || inactiveQuery.isError || noticesQuery.isError) && <Banner type="danger" description="部分资产使用数据加载失败，可点击对应表格刷新重试。" />}
           <Typography.Title heading={5}>高频资产</Typography.Title>

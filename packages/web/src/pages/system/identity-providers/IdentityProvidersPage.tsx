@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  Button,
   Col,
   Form,
   Input,
@@ -559,7 +558,7 @@ export default function IdentityProvidersPage() {
             onEnterPress={handleLdapSearch}
             showClear
           />
-          <Button type="primary" icon={<Search size={14} />} loading={ldapSearchMutation.isPending} onClick={handleLdapSearch}>搜索</Button>
+          <SearchButton onClick={handleLdapSearch} loading={ldapSearchMutation.isPending}>搜索</SearchButton>
         </div>
         <Table
           size="small"

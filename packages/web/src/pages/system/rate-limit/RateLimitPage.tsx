@@ -10,7 +10,7 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Gauge, Plus, RotateCcw, ShieldOff, Zap } from 'lucide-react';
+import { Gauge, RotateCcw, ShieldOff, Zap } from 'lucide-react';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
@@ -33,6 +33,7 @@ import {
   useSaveRateLimitRule,
   useUnblockRateLimitKey,
 } from '@/hooks/queries/rate-limit';
+import { CreateButton } from '@/components/toolbar-controls';
 
 const { Title, Text } = Typography;
 
@@ -136,9 +137,7 @@ export default function RateLimitPage() {
               管理 API 接口限流规则，保存后立即热更新到运行中的服务，无需重启。统计每 30 秒自动刷新。
             </Text>
             {canManage && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={() => setCreating(true)}>
-                新增规则
-              </Button>
+              <CreateButton onClick={() => setCreating(true)}>新增规则</CreateButton>
             )}
             <Button type="primary" icon={<RotateCcw size={14} />} onClick={() => void dashboardQuery.refetch()} loading={dashboardQuery.isFetching}>
               刷新
@@ -148,9 +147,7 @@ export default function RateLimitPage() {
         mobilePrimary={(
           <>
             {canManage && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={() => setCreating(true)}>
-                新增规则
-              </Button>
+              <CreateButton onClick={() => setCreating(true)}>新增规则</CreateButton>
             )}
             <Button type="primary" icon={<RotateCcw size={14} />} onClick={() => void dashboardQuery.refetch()} loading={dashboardQuery.isFetching}>
               刷新

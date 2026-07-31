@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
 import {
   Banner,
-  Button,
   Col,
   Empty,
   Form,
@@ -15,7 +14,6 @@ import {
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportSlaRule, ReportSlaType, ReportSlaViolation, ReportSlaViolationStatus } from '@zenith/shared/report';
-import { Plus } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -32,6 +30,7 @@ import {
   useUpdateReportSlaViolation,
 } from '@/hooks/queries/report-sla';
 import { formatDateTime } from '@/utils/date';
+import { CreateButton } from '@/components/toolbar-controls';
 
 const slaTypeOptions = [
   { value: 'freshness', label: '数据新鲜度' },
@@ -159,7 +158,7 @@ export default function GovernanceSlaTab() {
       <SearchToolbar>
         <Select placeholder="数据集" filter showClear value={datasetId} optionList={datasetOptions} style={{ width: 180 }} onChange={(v) => { setPage(1); setDatasetId(v as number | undefined); }} />
         <Select placeholder="SLA 类型" showClear value={type} optionList={slaTypeOptions} style={{ width: 160 }} onChange={(v) => { setPage(1); setType(v as ReportSlaType | undefined); }} />
-        {hasPermission('report:sla:create') ? <Button type="primary" icon={<Plus size={14} />} onClick={() => openRule()}>新增规则</Button> : null}
+        {hasPermission('report:sla:create') ? <CreateButton onClick={() => openRule()}>新增规则</CreateButton> : null}
       </SearchToolbar>
       {rulesQuery.isError && <Banner type="danger" description="SLA 规则加载失败" />}
       <ConfigurableTable bordered rowKey="id" columns={ruleColumns} dataSource={rulesQuery.data?.list ?? []} loading={rulesQuery.isFetching} empty={<Empty title="暂无 SLA 规则" />} pagination={buildPagination(rulesQuery.data?.total ?? 0)} onRefresh={() => void rulesQuery.refetch()} refreshLoading={rulesQuery.isFetching} />

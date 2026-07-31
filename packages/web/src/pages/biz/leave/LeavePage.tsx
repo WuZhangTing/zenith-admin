@@ -12,7 +12,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Plus, Search, Send } from 'lucide-react';
+import { Search, Send } from 'lucide-react';
 import dayjs from 'dayjs';
 import type { BizLeave } from '@zenith/shared/biz';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -31,7 +31,7 @@ import {
   useSaveBizLeave,
   useSubmitBizLeave,
 } from '@/hooks/queries/biz-leave';
-import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 type TagColor = 'grey' | 'blue' | 'green' | 'red' | 'orange';
 
@@ -261,7 +261,7 @@ export default function LeavePage() {
 
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
-  const renderCreateButton = () => <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新建请假</Button>;
+  const renderCreateButton = () => <CreateButton onClick={openCreate}>新建请假</CreateButton>;
 
   return (
     <div className="page-container">

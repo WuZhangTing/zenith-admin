@@ -9,9 +9,8 @@
  *   - news：extra.card = { title, cover, text(摘要), actions:[{ url }] }
  */
 import { useState } from 'react';
-import { Button, Form, Modal, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Form, Modal, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Plus } from 'lucide-react';
 import { CHANNEL_MESSAGE_TYPE_LABELS as TYPE_LABELS } from '@zenith/shared/messaging';
 import type { ChatCard, ChatMessageExtra } from '@zenith/shared/chat';
 import type { ChannelMessageTemplate, ChannelMessageType } from '@zenith/shared/messaging';
@@ -25,6 +24,7 @@ import {
   useDeleteChannelTemplate,
   useSaveChannelTemplate,
 } from '@/hooks/queries/channels';
+import { CreateButton } from '@/components/toolbar-controls';
 
 interface Props {
   visible: boolean;
@@ -165,7 +165,7 @@ export function ChannelTemplateDrawer({ visible, onClose, onChanged }: Readonly<
     <SideSheet title="消息模板库" visible={visible} onCancel={onClose} width={680} placement="right" closeOnEsc>
       <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography.Text type="tertiary" size="small">模板仅保存消息内容，可在群发弹窗中一键载入</Typography.Text>
-        <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增模板</Button>
+        <CreateButton onClick={openCreate}>新增模板</CreateButton>
       </div>
       <ConfigurableTable
         bordered

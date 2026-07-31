@@ -1,8 +1,7 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Modal, Select, Spin, Tag, Toast, Banner, Typography, Tooltip, Input, Descriptions } from '@douyinfe/semi-ui';
+import { Form, Modal, Select, Spin, Tag, Toast, Banner, Typography, Tooltip, Input, Descriptions } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Plus } from 'lucide-react';
 import { MP_BROADCAST_TYPE_LABELS, MP_BROADCAST_TYPE_OPTIONS } from '@zenith/shared/mp';
 import type { MpBroadcast, MpBroadcastType, MpBroadcastTarget, MpBroadcastStatus } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
@@ -25,7 +24,7 @@ import {
   useSaveMpBroadcast,
   useSendMpBroadcast,
 } from '@/hooks/queries/mp-broadcasts';
-import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const STATUS_OPTIONS = [
   { label: '草稿', value: 'draft' },
@@ -203,7 +202,7 @@ export default function MpBroadcastsPage() {
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => can('mp:broadcast:create') ? (
-    <Button type="primary" icon={<Plus size={14} />} disabled={!currentId} onClick={openCreate}>新增群发</Button>
+    <CreateButton onClick={openCreate} disabled={!currentId}>新增群发</CreateButton>
   ) : null;
 
   return (

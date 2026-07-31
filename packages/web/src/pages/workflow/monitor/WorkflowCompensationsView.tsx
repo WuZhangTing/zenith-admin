@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button, Descriptions, Divider, Empty, Modal, Select, SideSheet, Space, Tag, Timeline, Toast, TextArea, Typography, Upload } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { RotateCcw, Paperclip } from 'lucide-react';
+import { Paperclip } from 'lucide-react';
 import type { WorkflowCompensation } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
@@ -16,6 +16,7 @@ import {
   useWorkflowCompensationDetail,
   useWorkflowCompensationList,
 } from '@/hooks/queries/workflow-monitor';
+import { RefreshButton } from '@/components/toolbar-controls';
 
 const STATUS: Record<string, { text: string; color: string }> = {
   pending: { text: '待修复', color: 'amber' },
@@ -114,7 +115,7 @@ export default function WorkflowCompensationsView() {
         <Space>
           <Select value={status} onChange={(v) => setStatus(v as string)} placeholder="状态" style={{ width: 130 }} showClear
             optionList={[{ value: 'pending', label: '待修复' }, { value: 'resolved', label: '已放行' }, { value: 'terminated', label: '已终止' }]} />
-          <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => void listQuery.refetch()}>刷新</Button>
+          <RefreshButton onClick={() => void listQuery.refetch()} />
           <Typography.Text type="tertiary" size="small">异常捕获 / 补偿产生的修复工单</Typography.Text>
         </Space>
       )} />
