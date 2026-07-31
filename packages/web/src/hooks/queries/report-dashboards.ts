@@ -28,6 +28,8 @@ export const reportDashboardKeys = {
   all: ['report', 'dashboards'] as const,
   lists: ['report', 'dashboards', 'list'] as const,
   list: (params: ReportDashboardListParams) => ['report', 'dashboards', 'list', params] as const,
+  /** 某个看板的全部模式（auto / draft / published）详情 */
+  detailOf: (id: number | undefined) => ['report', 'dashboards', 'detail', id] as const,
   detail: (id: number | undefined, mode: 'auto' | 'draft' | 'published' = 'auto') =>
     ['report', 'dashboards', 'detail', id, mode] as const,
   batch: (ids: number[], mode: 'auto' | 'draft' | 'published' = 'auto') =>
@@ -43,6 +45,11 @@ export const reportDashboardKeys = {
   versions: (id: number | undefined) => ['report', 'dashboards', 'versions', id] as const,
   versionDiff: (dashboardId: number | undefined, left: number, right: number) =>
     ['report', 'dashboards', 'version-diff', dashboardId, left, right] as const,
+  /**
+   * 某个看板的全部组件取数。一屏可能扇出数十个数据集查询，
+   * 是本域最贵的缓存，只有看板内容真正变化时才允许失效。
+   */
+  dataOf: (dashboardId: number | undefined) => ['report', 'dashboards', 'data', dashboardId] as const,
   dashboardData: (
     dashboardId: number | undefined,
     mode: 'auto' | 'draft' | 'published',
@@ -110,10 +117,12 @@ export function useSaveReportDashboard() {
     mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
       (id ? request.put<ReportDashboard>(`/api/report/dashboards/${id}`, values) : request.post<ReportDashboard>('/api/report/dashboards', values)).then(unwrap),
     onSuccess: (_data, vars) => {
-      void qc.invalidateQueries({ queryKey: reportDashboardKeys.all });
+      void qc.invalidateQueries({ queryKey: reportDashboardKeys.lists });
       if (vars.id) {
-        void qc.invalidateQueries({ queryKey: reportDashboardKeys.detail(vars.id, 'auto') });
-        void qc.invalidateQueries({ queryKey: reportDashboardKeys.detail(vars.id, 'draft') });
+        // detailOf 覆盖 auto / draft / published 三种模式，无需逐个列举
+        void qc.invalidateQueries({ queryKey: reportDashboardKeys.detailOf(vars.id) });
+        // 组件布局与查询配置变了，取数结果随之失效
+        void qc.invalidateQueries({ queryKey: reportDashboardKeys.dataOf(vars.id) });
       }
     },
   });
@@ -125,10 +134,12 @@ export function usePublishReportDashboard() {
     mutationFn: ({ dashboardId, expectedRevision, remark }: { dashboardId: number; expectedRevision: number; remark?: string }) =>
       request.post<ReportDashboard>(`/api/report/dashboards/${dashboardId}/publish`, { expectedRevision, remark }).then(unwrap),
     onSuccess: (_data, vars) => {
-      void qc.invalidateQueries({ queryKey: reportDashboardKeys.all });
-      void qc.invalidateQueries({ queryKey: reportDashboardKeys.detail(vars.dashboardId, 'auto') });
+      void qc.invalidateQueries({ queryKey: reportDashboardKeys.lists });
+      void qc.invalidateQueries({ queryKey: reportDashboardKeys.detailOf(vars.dashboardId) });
       void qc.invalidateQueries({ queryKey: reportDashboardKeys.versions(vars.dashboardId) });
       void qc.invalidateQueries({ queryKey: reportDashboardKeys.shares(vars.dashboardId) });
+      // 发布会改变 published 模式下的取数结果
+      void qc.invalidateQueries({ queryKey: reportDashboardKeys.dataOf(vars.dashboardId) });
     },
   });
 }
@@ -139,8 +150,8 @@ export function useOfflineReportDashboard() {
     mutationFn: ({ dashboardId, expectedRevision, remark }: { dashboardId: number; expectedRevision: number; remark?: string }) =>
       request.post<ReportDashboard>(`/api/report/dashboards/${dashboardId}/offline`, { expectedRevision, remark }).then(unwrap),
     onSuccess: (_data, vars) => {
-      void qc.invalidateQueries({ queryKey: reportDashboardKeys.all });
-      void qc.invalidateQueries({ queryKey: reportDashboardKeys.detail(vars.dashboardId, 'auto') });
+      void qc.invalidateQueries({ queryKey: reportDashboardKeys.lists });
+      void qc.invalidateQueries({ queryKey: reportDashboardKeys.detailOf(vars.dashboardId) });
     },
   });
 }
@@ -149,7 +160,14 @@ export function useDeleteReportDashboard() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/report/dashboards/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportDashboardKeys.all }),
+    onSuccess: (_data, id) => {
+      // 看板已删除：详情、取数、版本、分享都不再有对应资源
+      qc.removeQueries({ queryKey: reportDashboardKeys.detailOf(id) });
+      qc.removeQueries({ queryKey: reportDashboardKeys.dataOf(id) });
+      qc.removeQueries({ queryKey: reportDashboardKeys.versions(id) });
+      qc.removeQueries({ queryKey: reportDashboardKeys.shares(id) });
+      void qc.invalidateQueries({ queryKey: reportDashboardKeys.lists });
+    },
   });
 }
 
@@ -158,7 +176,10 @@ export function useBatchReportDashboardStatus() {
   return useMutation({
     mutationFn: ({ ids, status }: { ids: number[]; status: 'enabled' | 'disabled' }) =>
       request.put<null>('/api/report/dashboards/batch-status', { ids, status }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportDashboardKeys.all }),
+    onSuccess: (_data, { ids }) => {
+      void qc.invalidateQueries({ queryKey: reportDashboardKeys.lists });
+      for (const id of ids) void qc.invalidateQueries({ queryKey: reportDashboardKeys.detailOf(id) });
+    },
   });
 }
 
@@ -167,7 +188,8 @@ export function useCloneReportDashboard() {
   return useMutation({
     mutationFn: ({ id, name }: { id: number; name?: string }) =>
       request.post<ReportDashboard>(`/api/report/dashboards/${id}/clone`, name ? { name } : {}).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportDashboardKeys.all }),
+    // 克隆只新增一条记录，源看板与其取数结果都不受影响
+    onSuccess: () => qc.invalidateQueries({ queryKey: reportDashboardKeys.lists }),
   });
 }
 
@@ -207,7 +229,8 @@ export function useToggleReportDashboardFavorite() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.post<{ favorited: boolean }>(`/api/report/dashboards/${id}/favorite`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportDashboardKeys.all }),
+    // 收藏只是列表上的一个标记；此前的 `.all` 会连带重跑整个看板的组件取数
+    onSuccess: () => qc.invalidateQueries({ queryKey: reportDashboardKeys.lists }),
   });
 }
 
@@ -354,9 +377,11 @@ export function useRestoreReportDashboardVersion() {
     mutationFn: ({ dashboardId, versionId, expectedRevision }: { dashboardId: number; versionId: number; expectedRevision: number }) =>
       request.post<null>(`/api/report/dashboards/${dashboardId}/versions/${versionId}/restore`, { expectedRevision }).then(unwrap),
     onSuccess: (_data, vars) => {
-      void qc.invalidateQueries({ queryKey: reportDashboardKeys.all });
       void qc.invalidateQueries({ queryKey: reportDashboardKeys.versions(vars.dashboardId) });
-      void qc.invalidateQueries({ queryKey: reportDashboardKeys.detail(vars.dashboardId, 'draft') });
+      void qc.invalidateQueries({ queryKey: reportDashboardKeys.detailOf(vars.dashboardId) });
+      // 回滚会改写草稿内容，取数结果随之失效
+      void qc.invalidateQueries({ queryKey: reportDashboardKeys.dataOf(vars.dashboardId) });
+      void qc.invalidateQueries({ queryKey: reportDashboardKeys.lists });
     },
   });
 }
