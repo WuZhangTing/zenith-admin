@@ -694,6 +694,18 @@ async function seedRest() {
       await db.insert(workflowDefinitions).values(rest);
     }
   }
+  // 存量库修复：早期种子把 customForm.variables[].type 误写成 'text'（合法值仅 string/number/boolean/date/user/dept），
+  // 导致这些定义在设计器保存时被 Zod 拒绝。此处把非法值归一到 'string'，幂等可重复执行。
+  const VALID_CUSTOM_FORM_VARIABLE_TYPES = new Set(['string', 'number', 'boolean', 'date', 'user', 'dept']);
+  const defRows = await db.select({ id: workflowDefinitions.id, customForm: workflowDefinitions.customForm }).from(workflowDefinitions);
+  for (const row of defRows) {
+    const cf = row.customForm as { variables?: Array<{ type?: string }> } | null;
+    const vars = cf?.variables;
+    if (!Array.isArray(vars) || !vars.some((v) => !VALID_CUSTOM_FORM_VARIABLE_TYPES.has(String(v?.type)))) continue;
+    const variables = vars.map((v) => (VALID_CUSTOM_FORM_VARIABLE_TYPES.has(String(v?.type)) ? v : { ...v, type: 'string' }));
+    await db.update(workflowDefinitions).set({ customForm: { ...cf, variables } }).where(eq(workflowDefinitions.id, row.id));
+    logger.info(`  ↻ Normalized customForm variable types for workflow definition #${row.id}`);
+  }
   logger.info('  ✔ Workflow definitions seeded (onConflictDoNothing)');
 
   // ── 演示会员（手机号 13800138000 / 密码 123456）────────────────────────

@@ -1,4 +1,4 @@
-import type { WorkflowCategory, WorkflowDataSource, WorkflowForm } from '../workflow/types';
+import type { WorkflowCategory, WorkflowCustomFormConfig, WorkflowDataSource, WorkflowDefinition, WorkflowForm } from '../workflow/types';
 import { SEED_DATE } from './_base';
 
 // ─── 工作流表单库 ───────────────────────────────────────────────────────────────
@@ -394,26 +394,39 @@ export const SEED_WORKFLOW_TEMPLATES: SeedWorkflowTemplate[] = [
 ];
 
 // ─── 流程定义（业务接入示例：请假审批，formType=external）────────────────────────
+export interface SeedWorkflowDefinition {
+  id: number;
+  name: string;
+  description: string;
+  initiatorScopeType: WorkflowDefinition['initiatorScopeType'];
+  flowData: Record<string, unknown>;
+  formType: WorkflowDefinition['formType'];
+  customForm: WorkflowCustomFormConfig;
+  status: WorkflowDefinition['status'];
+  version: number;
+  tenantId: number | null;
+}
+
 // 由「请假管理」业务模块通过 startWorkflowForBiz 发起并关联；审批人查看 LeaveApprovalView。
 // 不指定显式 id（避免 serial 序列冲突），biz-leave 服务按名称查找该已发布定义。
-export const SEED_WORKFLOW_DEFINITIONS = [
+export const SEED_WORKFLOW_DEFINITIONS: SeedWorkflowDefinition[] = [
   {
     id: 1,
     name: '请假审批',
     description: '业务接入示例：由「请假管理」业务模块发起并关联的审批流程（formType=external）',
-    initiatorScopeType: 'all' as const,
+    initiatorScopeType: 'all',
     flowData: buildLinearFlow(
       [{ key: 'approve_admin', name: '管理员审批', props: { assigneeType: 'user', assigneeIds: [1] } }],
       TEMPLATE_SETTINGS,
     ),
-    formType: 'external' as const,
+    formType: 'external',
     customForm: {
       createComponent: '',
       viewComponent: 'biz/leave/LeaveApprovalView',
       icon: 'CalendarClock',
-      variables: [{ key: 'days', label: '请假天数', type: 'number' as const }],
+      variables: [{ key: 'days', label: '请假天数', type: 'number' }],
     },
-    status: 'published' as const,
+    status: 'published',
     version: 1,
     tenantId: null,
   },
@@ -421,23 +434,23 @@ export const SEED_WORKFLOW_DEFINITIONS = [
     id: 2,
     name: 'CMS 内容审核',
     description: 'CMS 站点开启工作流审核模式后，内容提交审核时自动发起本流程；审批通过自动发布并刷新静态页，驳回回写驳回状态',
-    initiatorScopeType: 'all' as const,
+    initiatorScopeType: 'all',
     flowData: buildLinearFlow(
       [{ key: 'approve_editor', name: '主编审核', props: { assigneeType: 'user', assigneeIds: [1] } }],
       TEMPLATE_SETTINGS,
     ),
-    formType: 'external' as const,
+    formType: 'external',
     customForm: {
       createComponent: '',
       viewComponent: 'cms/ContentApprovalView',
       icon: 'FileCheck',
       variables: [
-        { key: 'siteName', label: '所属站点', type: 'text' as const },
-        { key: 'channelName', label: '所属栏目', type: 'text' as const },
-        { key: 'contentTitle', label: '内容标题', type: 'text' as const },
+        { key: 'siteName', label: '所属站点', type: 'string' },
+        { key: 'channelName', label: '所属栏目', type: 'string' },
+        { key: 'contentTitle', label: '内容标题', type: 'string' },
       ],
     },
-    status: 'published' as const,
+    status: 'published',
     version: 1,
     tenantId: null,
   },
