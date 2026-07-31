@@ -49,7 +49,12 @@ export function useSaveTag() {
   return useMutation({
     mutationFn: ({ id, values }: { id?: number; values: Partial<Tag> }) =>
       (id === undefined ? request.post<Tag>('/api/tags', values) : request.put<Tag>(`/api/tags/${id}`, values)).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: tagKeys.all }),
+    onSuccess: (saved) => {
+      void qc.invalidateQueries({ queryKey: tagKeys.detail(saved.id) });
+      void qc.invalidateQueries({ queryKey: tagKeys.lists });
+      // 分组选项由标签聚合而来（/api/tags/groups），新建或改组都可能改变集合
+      void qc.invalidateQueries({ queryKey: tagKeys.groups });
+    },
   });
 }
 
@@ -57,7 +62,11 @@ export function useDeleteTag() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/tags/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: tagKeys.all }),
+    onSuccess: (_data, id) => {
+      qc.removeQueries({ queryKey: tagKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: tagKeys.lists });
+      void qc.invalidateQueries({ queryKey: tagKeys.groups });
+    },
   });
 }
 
@@ -65,7 +74,11 @@ export function useBatchDeleteTags() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (ids: number[]) => request.delete<null>('/api/tags/batch', { ids }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: tagKeys.all }),
+    onSuccess: (_data, ids) => {
+      for (const id of ids) qc.removeQueries({ queryKey: tagKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: tagKeys.lists });
+      void qc.invalidateQueries({ queryKey: tagKeys.groups });
+    },
   });
 }
 
@@ -74,6 +87,10 @@ export function useUpdateTagStatus() {
   return useMutation({
     mutationFn: ({ id, status }: { id: number; status: 'enabled' | 'disabled' }) =>
       request.put<Tag>(`/api/tags/${id}`, { status }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: tagKeys.all }),
+    // 停启用不改变分组集合
+    onSuccess: (_data, { id }) => {
+      void qc.invalidateQueries({ queryKey: tagKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: tagKeys.lists });
+    },
   });
 }

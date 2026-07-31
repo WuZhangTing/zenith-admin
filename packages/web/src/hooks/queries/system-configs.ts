@@ -18,6 +18,7 @@ export const systemConfigKeys = {
   list: (params: SystemConfigListParams) => ['system-configs', 'list', params] as const,
   detail: (id: number | undefined) => ['system-configs', 'detail', id] as const,
   passwordPolicy: ['system-configs', 'password-policy'] as const,
+  publicPrefix: ['system-configs', 'public'] as const,
   publicConfig: (key: string) => ['system-configs', 'public', key] as const,
 };
 
@@ -45,7 +46,13 @@ export function useSaveSystemConfig() {
         ? request.post<SystemConfig>('/api/system-configs', values)
         : request.put<SystemConfig>(`/api/system-configs/${id}`, values)
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: systemConfigKeys.all }),
+    onSuccess: (saved) => {
+      void qc.invalidateQueries({ queryKey: systemConfigKeys.detail(saved.id) });
+      void qc.invalidateQueries({ queryKey: systemConfigKeys.lists });
+      // 密码策略与公开配置都是从同一张配置表派生出来的读视图，改任一条配置都可能影响它们
+      void qc.invalidateQueries({ queryKey: systemConfigKeys.passwordPolicy });
+      void qc.invalidateQueries({ queryKey: systemConfigKeys.publicPrefix });
+    },
   });
 }
 
@@ -53,7 +60,12 @@ export function useDeleteSystemConfig() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/system-configs/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: systemConfigKeys.all }),
+    onSuccess: (_data, id) => {
+      qc.removeQueries({ queryKey: systemConfigKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: systemConfigKeys.lists });
+      void qc.invalidateQueries({ queryKey: systemConfigKeys.passwordPolicy });
+      void qc.invalidateQueries({ queryKey: systemConfigKeys.publicPrefix });
+    },
   });
 }
 

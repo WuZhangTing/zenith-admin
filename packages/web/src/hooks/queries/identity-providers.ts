@@ -53,7 +53,11 @@ export function useSaveIdentityProvider() {
         ? request.post<TenantIdentityProvider>('/api/identity-providers', values)
         : request.put<TenantIdentityProvider>(`/api/identity-providers/${id}`, values)
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: identityProviderKeys.all }),
+    onSuccess: (saved) => {
+      void qc.invalidateQueries({ queryKey: identityProviderKeys.detail(saved.id) });
+      void qc.invalidateQueries({ queryKey: identityProviderKeys.lists });
+      // 租户下拉源与身份源配置无关，不动
+    },
   });
 }
 
@@ -61,7 +65,10 @@ export function useDeleteIdentityProvider() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/identity-providers/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: identityProviderKeys.all }),
+    onSuccess: (_data, id) => {
+      qc.removeQueries({ queryKey: identityProviderKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: identityProviderKeys.lists });
+    },
   });
 }
 

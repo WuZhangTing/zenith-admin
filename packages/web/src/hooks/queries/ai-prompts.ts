@@ -53,7 +53,12 @@ export function useSaveAiPrompt() {
         ? request.post<AiPromptTemplate>('/api/ai/prompt-templates', values)
         : request.put<AiPromptTemplate>(`/api/ai/prompt-templates/${id}`, values)
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: aiPromptKeys.all }),
+    onSuccess: (saved) => {
+      void qc.invalidateQueries({ queryKey: aiPromptKeys.detail(saved.id) });
+      void qc.invalidateQueries({ queryKey: aiPromptKeys.lists });
+      // 可用模板列表由模板集合派生
+      void qc.invalidateQueries({ queryKey: aiPromptKeys.available });
+    },
   });
 }
 
@@ -61,7 +66,11 @@ export function useDeleteAiPrompt() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/ai/prompt-templates/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: aiPromptKeys.all }),
+    onSuccess: (_data, id) => {
+      qc.removeQueries({ queryKey: aiPromptKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: aiPromptKeys.lists });
+      void qc.invalidateQueries({ queryKey: aiPromptKeys.available });
+    },
   });
 }
 

@@ -34,7 +34,11 @@ export function useSaveAiHttpTool() {
         ? request.post<AiHttpTool>('/api/ai/http-tools', values)
         : request.put<AiHttpTool>(`/api/ai/http-tools/${id}`, values)
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: aiToolKeys.all }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: aiToolKeys.lists });
+      // 智能体编辑器的可选工具视图由 HTTP 工具集合派生
+      void qc.invalidateQueries({ queryKey: aiToolKeys.available });
+    },
   });
 }
 
@@ -42,6 +46,9 @@ export function useDeleteAiHttpTool() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/ai/http-tools/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: aiToolKeys.all }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: aiToolKeys.lists });
+      void qc.invalidateQueries({ queryKey: aiToolKeys.available });
+    },
   });
 }

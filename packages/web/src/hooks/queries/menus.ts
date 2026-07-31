@@ -35,7 +35,10 @@ export function useSaveMenu() {
         ? request.post<Menu>('/api/menus', values)
         : request.put<Menu>(`/api/menus/${id}`, values)
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: menuKeys.all }),
+    onSuccess: (saved) => {
+      void qc.invalidateQueries({ queryKey: menuKeys.detail(saved.id) });
+      void qc.invalidateQueries({ queryKey: menuKeys.tree });
+    },
   });
 }
 
@@ -43,6 +46,9 @@ export function useDeleteMenu() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/menus/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: menuKeys.all }),
+    onSuccess: (_data, id) => {
+      qc.removeQueries({ queryKey: menuKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: menuKeys.tree });
+    },
   });
 }

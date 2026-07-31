@@ -59,7 +59,12 @@ export function useSaveAiProvider() {
         ? request.post<AiProviderConfig>('/api/ai/providers', values)
         : request.put<AiProviderConfig>(`/api/ai/providers/${id}`, values)
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: aiProviderKeys.all }),
+    onSuccess: (saved) => {
+      void qc.invalidateQueries({ queryKey: aiProviderKeys.detail(saved.id) });
+      void qc.invalidateQueries({ queryKey: aiProviderKeys.lists });
+      // 聊天可用模型由启用中的供应商配置派生，改动后必须回源
+      void qc.invalidateQueries({ queryKey: aiProviderKeys.chatModels });
+    },
   });
 }
 
@@ -67,7 +72,11 @@ export function useDeleteAiProvider() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/ai/providers/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: aiProviderKeys.all }),
+    onSuccess: (_data, id) => {
+      qc.removeQueries({ queryKey: aiProviderKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: aiProviderKeys.lists });
+      void qc.invalidateQueries({ queryKey: aiProviderKeys.chatModels });
+    },
   });
 }
 
@@ -75,7 +84,12 @@ export function useSetDefaultAiProvider() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.post<null>(`/api/ai/providers/${id}/set-default`, {}).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: aiProviderKeys.all }),
+    // 默认标记会同时改变旧默认项，故整体刷新列表而非单条详情
+    onSuccess: (_data, id) => {
+      void qc.invalidateQueries({ queryKey: aiProviderKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: aiProviderKeys.lists });
+      void qc.invalidateQueries({ queryKey: aiProviderKeys.chatModels });
+    },
   });
 }
 

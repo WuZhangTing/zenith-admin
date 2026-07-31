@@ -65,7 +65,12 @@ export function useSavePaymentSharingReceiver() {
         ? request.post<PaymentSharingReceiver>('/api/payment/sharing/receivers', values)
         : request.put<PaymentSharingReceiver>(`/api/payment/sharing/receivers/${id}`, values)
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: paymentSharingKeys.all }),
+    onSuccess: (saved) => {
+      void qc.invalidateQueries({ queryKey: paymentSharingKeys.detail(saved.id) });
+      void qc.invalidateQueries({ queryKey: paymentSharingKeys.receiverLists });
+      // 启用中的分账方下拉源随之变化；分账单列表不受影响
+      void qc.invalidateQueries({ queryKey: paymentSharingKeys.enabledReceivers });
+    },
   });
 }
 
@@ -73,7 +78,11 @@ export function useDeletePaymentSharingReceiver() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/payment/sharing/receivers/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: paymentSharingKeys.all }),
+    onSuccess: (_data, id) => {
+      qc.removeQueries({ queryKey: paymentSharingKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: paymentSharingKeys.receiverLists });
+      void qc.invalidateQueries({ queryKey: paymentSharingKeys.enabledReceivers });
+    },
   });
 }
 
@@ -82,6 +91,7 @@ export function useCreatePaymentSharingOrder() {
   return useMutation({
     mutationFn: (values: { orderNo: string; receiverId: number; amount?: number; remark?: string }) =>
       request.post<PaymentSharingOrder>('/api/payment/sharing/orders', values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: paymentSharingKeys.all }),
+    // 新增分账单不改变分账方名单，故不碰 receiverLists 与 enabledReceivers
+    onSuccess: () => qc.invalidateQueries({ queryKey: paymentSharingKeys.orderLists }),
   });
 }

@@ -58,7 +58,13 @@ export function useSaveRegion() {
         ? request.post<Region>('/api/regions', values)
         : request.put<Region>(`/api/regions/${id}`, values)
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: regionKeys.all }),
+    onSuccess: (saved) => {
+      // 树 / 下拉树 / 扁平三种形态都直接渲染地区名称与层级，改动后都需回源
+      void qc.invalidateQueries({ queryKey: regionKeys.detail(saved.id) });
+      void qc.invalidateQueries({ queryKey: regionKeys.trees });
+      void qc.invalidateQueries({ queryKey: regionKeys.lookupTree });
+      void qc.invalidateQueries({ queryKey: regionKeys.flat });
+    },
   });
 }
 
@@ -66,6 +72,11 @@ export function useDeleteRegion() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/regions/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: regionKeys.all }),
+    onSuccess: (_data, id) => {
+      qc.removeQueries({ queryKey: regionKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: regionKeys.trees });
+      void qc.invalidateQueries({ queryKey: regionKeys.lookupTree });
+      void qc.invalidateQueries({ queryKey: regionKeys.flat });
+    },
   });
 }

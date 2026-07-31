@@ -67,7 +67,12 @@ export function useSaveFileStorageConfig() {
         ? request.post<FileStorageConfig>('/api/file-storage-configs', values)
         : request.put<FileStorageConfig>(`/api/file-storage-configs/${id}`, values)
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: fileStorageConfigKeys.all }),
+    onSuccess: (saved) => {
+      void qc.invalidateQueries({ queryKey: fileStorageConfigKeys.detail(saved.id) });
+      void qc.invalidateQueries({ queryKey: fileStorageConfigKeys.lists });
+      // 改配置可能同时改变默认项标记；文件浏览结果与配置增删改无关，不动
+      void qc.invalidateQueries({ queryKey: fileStorageConfigKeys.defaultConfig });
+    },
   });
 }
 
@@ -75,7 +80,13 @@ export function useDeleteFileStorageConfig() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/file-storage-configs/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: fileStorageConfigKeys.all }),
+    onSuccess: (_data, id) => {
+      qc.removeQueries({ queryKey: fileStorageConfigKeys.detail(id) });
+      // 该配置下的浏览结果已无对应存储源
+      qc.removeQueries({ queryKey: ['file-storage-configs', 'browse', id] });
+      void qc.invalidateQueries({ queryKey: fileStorageConfigKeys.lists });
+      void qc.invalidateQueries({ queryKey: fileStorageConfigKeys.defaultConfig });
+    },
   });
 }
 
@@ -83,7 +94,11 @@ export function useSetDefaultFileStorageConfig() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.put<FileStorageConfig>(`/api/file-storage-configs/${id}/default`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: fileStorageConfigKeys.all }),
+    // 默认项切换会同时改变旧默认项，故刷新整个列表
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: fileStorageConfigKeys.lists });
+      void qc.invalidateQueries({ queryKey: fileStorageConfigKeys.defaultConfig });
+    },
   });
 }
 

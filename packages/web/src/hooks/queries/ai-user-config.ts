@@ -45,8 +45,10 @@ export function useSaveAiUserConfig() {
         : request.put<UserAiConfig>(`/api/ai/user-configs/${id}`, values)
       ).then(unwrap),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: aiUserConfigKeys.all });
-      void qc.invalidateQueries({ queryKey: aiProviderKeys.all });
+      void qc.invalidateQueries({ queryKey: aiUserConfigKeys.lists });
+      // 个人 API Key 会改变聊天可选模型，但不影响供应商配置本身，故只失效模型列表
+      void qc.invalidateQueries({ queryKey: aiProviderKeys.chatModels });
+      // allowCustomKey 读的是系统配置，与本次保存无关，不动
     },
   });
 }
@@ -55,6 +57,9 @@ export function useDeleteAiUserConfig() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/ai/user-configs/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: aiUserConfigKeys.all }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: aiUserConfigKeys.lists });
+      void qc.invalidateQueries({ queryKey: aiProviderKeys.chatModels });
+    },
   });
 }

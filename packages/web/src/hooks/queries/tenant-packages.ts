@@ -54,7 +54,12 @@ export function useSaveTenantPackage() {
         ? request.post<TenantPackage>('/api/tenant-packages', values)
         : request.put<TenantPackage>(`/api/tenant-packages/${id}`, values)
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: tenantPackageKeys.all }),
+    onSuccess: (saved) => {
+      void qc.invalidateQueries({ queryKey: tenantPackageKeys.detail(saved.id) });
+      void qc.invalidateQueries({ queryKey: tenantPackageKeys.lists });
+      // 下拉源展示套餐名称
+      void qc.invalidateQueries({ queryKey: tenantPackageKeys.allPackages });
+    },
   });
 }
 
@@ -67,7 +72,11 @@ export function useDeleteTenantPackages() {
         ? request.delete<null>(`/api/tenant-packages/${ids[0]}`)
         : request.delete<null>('/api/tenant-packages/batch', { ids })
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: tenantPackageKeys.all }),
+    onSuccess: (_data, ids) => {
+      for (const id of ids) qc.removeQueries({ queryKey: tenantPackageKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: tenantPackageKeys.lists });
+      void qc.invalidateQueries({ queryKey: tenantPackageKeys.allPackages });
+    },
   });
 }
 
@@ -76,6 +85,7 @@ export function useAssignTenantPackageMenus() {
   return useMutation({
     mutationFn: ({ id, menuIds }: { id: number; menuIds: number[] }) =>
       request.put<null>(`/api/tenant-packages/${id}/menus`, { menuIds }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: tenantPackageKeys.all }),
+    // menuIds 只存在于套餐详情，列表与下拉源都不含
+    onSuccess: (_data, { id }) => qc.invalidateQueries({ queryKey: tenantPackageKeys.detail(id) }),
   });
 }
