@@ -63,7 +63,13 @@ export function useSaveDepartment() {
         ? request.post<Department>('/api/departments', values)
         : request.put<Department>(`/api/departments/${id}`, values)
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: departmentKeys.all }),
+    onSuccess: (saved) => {
+      // 树与扁平列表都会注入 children / userCount 等聚合字段，写接口响应不含，故不回填
+      void qc.invalidateQueries({ queryKey: departmentKeys.detail(saved.id) });
+      // tree 是 treeSearch 的前缀，一并覆盖带筛选条件的树
+      void qc.invalidateQueries({ queryKey: departmentKeys.tree });
+      void qc.invalidateQueries({ queryKey: departmentKeys.flat });
+    },
   });
 }
 
@@ -71,6 +77,10 @@ export function useDeleteDepartment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/departments/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: departmentKeys.all }),
+    onSuccess: (_data, id) => {
+      qc.removeQueries({ queryKey: departmentKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: departmentKeys.tree });
+      void qc.invalidateQueries({ queryKey: departmentKeys.flat });
+    },
   });
 }

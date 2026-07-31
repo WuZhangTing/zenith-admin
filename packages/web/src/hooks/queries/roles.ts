@@ -63,7 +63,13 @@ export function useSaveRole() {
         ? request.post<Role>('/api/roles', values)
         : request.put<Role>(`/api/roles/${id}`, values)
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: roleKeys.all }),
+    onSuccess: (saved) => {
+      // 写接口返回的 mapRole 不带 menuIds（详情才查关联菜单），形状不一致，不能回填
+      void qc.invalidateQueries({ queryKey: roleKeys.detail(saved.id) });
+      void qc.invalidateQueries({ queryKey: roleKeys.lists });
+      // 角色下拉源渲染名称，且被公告收件人等跨域页面复用
+      void qc.invalidateQueries({ queryKey: roleKeys.allRoles });
+    },
   });
 }
 
@@ -71,7 +77,12 @@ export function useDeleteRole() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/roles/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: roleKeys.all }),
+    onSuccess: (_data, id) => {
+      qc.removeQueries({ queryKey: roleKeys.detail(id) });
+      qc.removeQueries({ queryKey: roleKeys.users(id) });
+      void qc.invalidateQueries({ queryKey: roleKeys.lists });
+      void qc.invalidateQueries({ queryKey: roleKeys.allRoles });
+    },
   });
 }
 
@@ -80,7 +91,8 @@ export function useAssignRoleMenus() {
   return useMutation({
     mutationFn: ({ id, menuIds }: { id: number; menuIds: number[] }) =>
       request.put<null>(`/api/roles/${id}/menus`, { menuIds }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: roleKeys.all }),
+    // menuIds 只存在于角色详情，列表与下拉源都不含
+    onSuccess: (_data, { id }) => qc.invalidateQueries({ queryKey: roleKeys.detail(id) }),
   });
 }
 
@@ -89,7 +101,11 @@ export function useAssignRoleUsers() {
   return useMutation({
     mutationFn: ({ id, userIds }: { id: number; userIds: number[] }) =>
       request.put<null>(`/api/roles/${id}/users`, { userIds }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: roleKeys.all }),
+    onSuccess: (_data, { id }) => {
+      void qc.invalidateQueries({ queryKey: roleKeys.users(id) });
+      // 列表展示 userCount / userPreview
+      void qc.invalidateQueries({ queryKey: roleKeys.lists });
+    },
   });
 }
 
@@ -98,6 +114,9 @@ export function useUpdateRoleDataScope() {
   return useMutation({
     mutationFn: ({ id, values }: { id: number; values: Partial<Role> }) =>
       request.put<Role>(`/api/roles/${id}`, values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: roleKeys.all }),
+    onSuccess: (_data, { id }) => {
+      void qc.invalidateQueries({ queryKey: roleKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: roleKeys.lists });
+    },
   });
 }
