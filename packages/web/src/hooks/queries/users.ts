@@ -81,7 +81,14 @@ export function useSaveUser() {
   return useMutation({
     mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
       (id === undefined ? request.post<User>('/api/users', values) : request.put<User>(`/api/users/${id}`, values)).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: userKeys.all }),
+    onSuccess: (_data, { id }) => {
+      // 刻意不回填详情：写接口返回 mapUser（未脱敏），详情走 mapUserWithMask（按查看者角色脱敏），
+      // 用响应覆盖详情缓存会把未脱敏的手机号/邮箱写进本不该看到它们的界面
+      if (id !== undefined) void qc.invalidateQueries({ queryKey: userKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: userKeys.lists });
+      // 下拉源展示昵称与用户名，且被角色分配、岗位成员、用户组等多页共享
+      void qc.invalidateQueries({ queryKey: userKeys.allUsers });
+    },
   });
 }
 
@@ -89,7 +96,13 @@ export function useDeleteUser() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/users/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: userKeys.all }),
+    onSuccess: (_data, id) => {
+      qc.removeQueries({ queryKey: userKeys.detail(id) });
+      qc.removeQueries({ queryKey: userKeys.dataPermission(id) });
+      qc.removeQueries({ queryKey: userKeys.effectivePermissions(id) });
+      void qc.invalidateQueries({ queryKey: userKeys.lists });
+      void qc.invalidateQueries({ queryKey: userKeys.allUsers });
+    },
   });
 }
 
@@ -97,7 +110,15 @@ export function useBatchDeleteUsers() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (ids: number[]) => request.delete<null>('/api/users/batch', { ids }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: userKeys.all }),
+    onSuccess: (_data, ids) => {
+      for (const id of ids) {
+        qc.removeQueries({ queryKey: userKeys.detail(id) });
+        qc.removeQueries({ queryKey: userKeys.dataPermission(id) });
+        qc.removeQueries({ queryKey: userKeys.effectivePermissions(id) });
+      }
+      void qc.invalidateQueries({ queryKey: userKeys.lists });
+      void qc.invalidateQueries({ queryKey: userKeys.allUsers });
+    },
   });
 }
 
@@ -106,7 +127,10 @@ export function useBatchUserStatus() {
   return useMutation({
     mutationFn: ({ ids, status }: { ids: number[]; status: 'enabled' | 'disabled'; id?: number }) =>
       request.put<null>('/api/users/batch-status', { ids, status }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: userKeys.all }),
+    onSuccess: (_data, { ids }) => {
+      void qc.invalidateQueries({ queryKey: userKeys.lists });
+      for (const id of ids) void qc.invalidateQueries({ queryKey: userKeys.detail(id) });
+    },
   });
 }
 
@@ -115,7 +139,11 @@ export function useResetUserPassword() {
   return useMutation({
     mutationFn: ({ id, password }: { id: number; password: string }) =>
       request.put<null>(`/api/users/${id}/password`, { password }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: userKeys.all }),
+    // 密码不出现在任何已挂载的查询里；列表的「最后修改时间」等字段仍可能变，故只刷列表与该用户详情
+    onSuccess: (_data, { id }) => {
+      void qc.invalidateQueries({ queryKey: userKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: userKeys.lists });
+    },
   });
 }
 
@@ -124,7 +152,10 @@ export function useBatchUserPassword() {
   return useMutation({
     mutationFn: ({ ids, password }: { ids: number[]; password: string }) =>
       request.put<null>('/api/users/batch-password', { ids, password }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: userKeys.all }),
+    onSuccess: (_data, { ids }) => {
+      void qc.invalidateQueries({ queryKey: userKeys.lists });
+      for (const id of ids) void qc.invalidateQueries({ queryKey: userKeys.detail(id) });
+    },
   });
 }
 
@@ -132,7 +163,10 @@ export function useUnlockUser() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.post<null>(`/api/users/${id}/unlock`, {}).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: userKeys.all }),
+    onSuccess: (_data, id) => {
+      void qc.invalidateQueries({ queryKey: userKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: userKeys.lists });
+    },
   });
 }
 
@@ -141,7 +175,13 @@ export function useAssignUserRoles() {
   return useMutation({
     mutationFn: ({ id, roleIds }: { id: number; roleIds: number[] }) =>
       request.put<null>(`/api/users/${id}/roles`, { roleIds }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: userKeys.all }),
+    onSuccess: (_data, { id }) => {
+      void qc.invalidateQueries({ queryKey: userKeys.detail(id) });
+      // 列表展示角色名
+      void qc.invalidateQueries({ queryKey: userKeys.lists });
+      // 角色决定可见菜单
+      void qc.invalidateQueries({ queryKey: userKeys.effectivePermissions(id) });
+    },
   });
 }
 
@@ -150,6 +190,7 @@ export function useImportUsers() {
   return useMutation({
     mutationFn: ({ formData, onProgress }: { formData: FormData; onProgress?: (percent: number) => void }) =>
       request.postForm<ImportUsersResult>('/api/users/import', formData, { onProgress }).then(unwrap),
+    // 批量导入会新增未知数量的用户，无法逐条定位，全域失效并注明理由
     onSuccess: () => qc.invalidateQueries({ queryKey: userKeys.all }),
   });
 }
@@ -173,7 +214,8 @@ export function useSaveUserDataPermission() {
   return useMutation({
     mutationFn: ({ userId, dataScope, deptScopeIds }: { userId: number; dataScope: string | null; deptScopeIds: number[] }) =>
       request.put<null>(`/api/users/${userId}/data-permission`, { dataScope, deptScopeIds }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: userKeys.all }),
+    // 数据权限自成一份查询，不出现在列表与详情
+    onSuccess: (_data, { userId }) => qc.invalidateQueries({ queryKey: userKeys.dataPermission(userId) }),
   });
 }
 
@@ -182,7 +224,8 @@ export function useSaveUserMenus() {
   return useMutation({
     mutationFn: ({ userId, menuIds }: { userId: number; menuIds: number[] }) =>
       request.put<null>(`/api/users/${userId}/menus`, { menuIds }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: userKeys.all }),
+    // 直接授权菜单只改变该用户的有效权限视图
+    onSuccess: (_data, { userId }) => qc.invalidateQueries({ queryKey: userKeys.effectivePermissions(userId) }),
   });
 }
 
