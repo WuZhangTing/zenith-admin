@@ -81,10 +81,12 @@ const columns = [
 
 ### ConfigurableTable 注意事项
 
-- 所有 CRUD 列表页**必须**使用 `ConfigurableTable` 替代裸 `Table`，并保留 `bordered` 属性
-- 操作列请使用 `createOperationColumn` 创建；它会统一处理右固定、列设置不可隐藏、移动端列宽收窄和更多菜单
 - `createOperationColumn` 默认在桌面端内联展示全部动作；动作较多时可通过 `desktopInlineKeys` 指定高频内联按钮，其余动作进入更多菜单；移动端始终只显示更多按钮
 - 若需关闭列设置功能（如只有 1-2 列的简单表格），传 `columnSettings={false}`
+
+> 列表页必须用 `ConfigurableTable`（带 `bordered`）而非裸 `Table`、操作列必须经 `createOperationColumn` 创建、
+> 必须传 `onRefresh` / `refreshLoading` —— 这些硬性约束见
+> [`constraints.md` → 前端层](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints.md)。
 
 ---
 
@@ -209,10 +211,11 @@ import { Search } from 'lucide-react';
 
 ### SearchToolbar 注意事项
 
-- 按钮文案统一为**「查询」「重置」「新增」**
-- 简单工具栏使用 `children` 即可；复杂工具栏优先使用结构化 props
-- 移动端不要把页面导航、筛选项和顶部常用功能混在一起；筛选属于当前列表页，应放在 SearchToolbar 的底部筛选抽屉中
-- 移动端默认只露出关键词、查询、新增等高频操作；低频操作通过更多菜单承载
+- 简单工具栏使用 `children` 即可；筛选项/操作按钮较多时优先使用结构化 props
+- 移动端不要把页面导航、筛选项和顶部常用功能混在一起：筛选属于当前列表页，应放进底部筛选抽屉
+
+> 移动端露出哪些入口、按钮文案与 `type` 怎么定，属于硬性约束，见
+> [`constraints.md` → 搜索栏布局](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints.md)。
 
 ---
 
@@ -245,13 +248,8 @@ import { CreateButton, RefreshButton, ResetButton, SearchButton } from '@/compon
 `RefreshButton` 与 `ResetButton` 视觉相同但语义不同（重新拉数据 vs 清空筛选条件），拆成两个组件是为了避免
 将来只想调整其中一个时被同一次改动误伤。
 
-### 什么时候不要用
-
-以下两类保持原生 `Button`：
-
-- **仅仅复用了同一个图标的独立操作**，如「测试发送」「生成链接」「发起分账」「上传文件」。将来把「新增」按钮的
-  图标从 `Plus` 换成别的，不应该连带改掉它们
-- **视觉本就不同的写法**，如 `theme="borderless"`、`size="small"`、换用其他图标（`Bell` / `ClipboardPlus` 等）
+> 哪些按钮必须用这四个组件、哪两类情况应保持原生 `Button`，见
+> [`constraints.md` → 搜索栏公共按钮](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints.md)。
 
 ---
 

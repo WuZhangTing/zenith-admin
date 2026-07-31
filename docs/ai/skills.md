@@ -99,13 +99,13 @@ AI 会在生成代码之前，按照 `references/step0-checklist.md` 主动向�
 
 ## 前端页面规范
 
-生成的列表页遵循统一布局约定（详见 [UI 规范](/frontend/ui-conventions)）：
+生成的列表页遵循统一布局约定。规范正文见
+[`constraints.md` → 前端层（Step 8）](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints.md)，
+完整可复制的页面模板见
+[`crud-frontend.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/crud-frontend.md)；
+设计取向与组件 API 见 [UI 规范](/frontend/ui-conventions) 与 [公共组件](/frontend/components)。
 
-- 搜索区统一使用 `SearchToolbar`；筛选/操作较多时使用结构化模式，移动端只露出关键词、查询、新增等高频入口，其余筛选进底部抽屉，低频操作进更多菜单
-- 使用 `<ConfigurableTable bordered ... />` 数据表格
-- 操作列使用纯文字 borderless 按钮，右侧固定（`fixed: 'right'`）
-- 状态列紧靠操作列左侧并右侧固定
-- 新增/编辑使用 `Modal` 弹窗，删除使用 `Popconfirm` 二次确认
+此处不再罗列具体条目——同一条规则写在多处，重构后必然只改动其中一处而留下另一处继续误导。
 
 ---
 
@@ -115,15 +115,16 @@ AI 会在生成代码之前，按照 `references/step0-checklist.md` 主动向�
 .agents/skills/zenith/
 ├── SKILL.md               # 工作流入口与步骤定义
 └── references/
-    ├── crud-backend.md    # 后端路由完整代码模板（含 diff 记录）
-    ├── crud-frontend.md   # 前端列表页完整代码模板
-    ├── crud-mock.md       # MSW Mock handler 代码模板
-    ├── seed-config.md     # 菜单与种子数据配置参考
-    ├── constraints.md     # 核心规范约束清单
-    ├── module-modification.md # 修改现有模块流程
-    ├── release.md         # 版本发布流程
-    ├── troubleshooting.md # 调试与排错指南
-    └── step0-checklist.md # 信息收集问卷
+    ├── step0-checklist.md    # 信息收集问卷
+    ├── constraints.md        # 核心规范约束清单（动手前必读）
+    ├── crud-backend.md       # 后端 schema / service / route 代码模板
+    ├── crud-frontend.md      # 前端域 hooks / 列表页 / 弹窗代码模板
+    ├── crud-mock.md          # MSW Mock handler 代码模板
+    ├── seed-config.md        # 菜单、权限与种子数据配置参考
+    ├── module-modification.md # 修改现有模块流程（加字段 / 改接口 / 加关联）
+    ├── async-tasks.md        # 异步任务与批量操作接入任务中心
+    ├── release.md            # 版本发布流程
+    └── troubleshooting.md    # 调试与排错指南
 ```
 
 维护者在修改代码规范后，应同步更新对应的 `references/` 模板文件，确保后续 AI 生成的代码始终与项目保持一致。
