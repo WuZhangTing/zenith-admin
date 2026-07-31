@@ -19,7 +19,7 @@ import {
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportMetric, ReportMetricType } from '@zenith/shared/report';
-import { Plus, RotateCcw, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -43,6 +43,7 @@ import { useAllUsers } from '@/hooks/queries/users';
 import { formatDateTime } from '@/utils/date';
 import { renderEllipsis } from '@/utils/table-columns';
 import { isRevisionConflict, metricLifecyclePayload, normalizeMetricFormValues } from './report-platform-utils';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface MetricSearch {
   keyword: string;
@@ -229,9 +230,9 @@ export default function MetricsPage() {
   );
   const buttons = (
     <>
-      <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-      <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-      {hasPermission('report:metric:create') ? <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button> : null}
+      <SearchButton onClick={handleSearch} />
+      <ResetButton onClick={handleReset} />
+      {hasPermission('report:metric:create') ? <CreateButton onClick={openCreate} /> : null}
     </>
   );
 
@@ -240,7 +241,7 @@ export default function MetricsPage() {
       <SearchToolbar
         primary={<>{keyword}{buttons}</>}
         filters={filters}
-        mobilePrimary={<>{keyword}<Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>{hasPermission('report:metric:create') ? <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button> : null}</>}
+        mobilePrimary={<>{keyword}<SearchButton onClick={handleSearch} />{hasPermission('report:metric:create') ? <CreateButton onClick={openCreate} /> : null}</>}
         onFilterApply={handleSearch}
         onFilterReset={handleReset}
       />

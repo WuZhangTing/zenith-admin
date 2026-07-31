@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Button, Col, Form, Input, Modal, Row, Select, SideSheet, Space, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Plus, RotateCcw, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { AiPromptTemplate, AiPromptScope, CreateAiPromptTemplateInput } from '@zenith/shared/ai';
 import { AppModal } from '@/components/AppModal';
@@ -20,6 +20,7 @@ import {
   useSaveAiPrompt,
 } from '@/hooks/queries/ai-prompts';
 import { useAiPromptVersions, useRestoreAiPromptVersion } from '@/hooks/queries/ai-extras';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams {
   keyword: string;
@@ -234,21 +235,15 @@ export default function PromptTemplatesPage() {
   );
 
   const renderSearchButton = () => (
-    <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>
-      查询
-    </Button>
+    <SearchButton onClick={handleSearch} />
   );
 
   const renderResetButton = () => (
-    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>
-      重置
-    </Button>
+    <ResetButton onClick={handleReset} />
   );
 
   const renderCreateButton = () => hasPermission('ai:prompt:create') ? (
-    <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>
-      新增
-    </Button>
+    <CreateButton onClick={openCreate} />
   ) : null;
 
   return (

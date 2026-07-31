@@ -2,12 +2,13 @@ import { useMemo, useState } from 'react';
 import { Button, Dropdown, Input, Modal, Table, Tag, Tree, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
-import { ChevronDown, Home, Link2, RotateCcw, Search } from 'lucide-react';
+import { ChevronDown, Home, Link2, Search } from 'lucide-react';
 import { buildCmsEntityLink, buildCmsChannelCodeLink, parseCmsLink, CMS_CONTENT_STATUS_LABELS } from '@zenith/shared/cms';
 import type { CmsChannel, CmsContent } from '@zenith/shared/cms';
 import { useAllCmsSites, useCmsChannelTree, useCmsContentList, useCmsLinkTarget } from '@/hooks/queries/cms';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { formatDateTime } from '@/utils/date';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 type PickerMode = 'content' | 'channel' | null;
 
@@ -118,8 +119,8 @@ function ContentPickerModal({ siteId, visible, onCancel, onSelect, excludeId }: 
               showClear
               style={{ flex: 1, minWidth: 160 }}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
           </div>
           <Table
             size="small"

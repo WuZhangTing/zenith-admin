@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Tag, Modal, Form, Toast, Typography, Select, Row, Col } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { Search, Trash2 } from 'lucide-react';
 import { API_SCOPE_GROUPS, API_SCOPE_GROUP_LABELS } from '@zenith/shared/open-platform';
 import type { ApiScope } from '@zenith/shared/open-platform';
 import { createdAtColumn } from '@/utils/table-columns';
@@ -21,6 +21,7 @@ import {
   useSaveApiScope,
 } from '@/hooks/queries/open-platform';
 import { useDictItems } from '@/hooks/useDictItems';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { Text } = Typography;
 
@@ -202,9 +203,9 @@ export default function ApiScopesPage() {
               showClear
               style={{ width: 110 }}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-            {canManage && <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>}
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
+            {canManage && <CreateButton onClick={openCreate} />}
             {canManage && selectedRowKeys.length > 0 && (
               <Button type="danger" icon={<Trash2 size={14} />} onClick={handleBatchDelete}>批量删除（{selectedRowKeys.length}）</Button>
             )}
@@ -221,11 +222,11 @@ export default function ApiScopesPage() {
               showClear
               style={{ width: 200 }}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            {canManage && <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>}
+            <SearchButton onClick={handleSearch} />
+            {canManage && <CreateButton onClick={openCreate} />}
           </>
         )}
-        mobileActions={<Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>}
+        mobileActions={<ResetButton onClick={handleReset} />}
         actionTitle="Scope 操作"
       />
 

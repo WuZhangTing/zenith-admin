@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Input, Modal, Spin, Toast, Banner } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Plus, RotateCcw, Search, RefreshCw } from 'lucide-react';
+import { Search, RefreshCw } from 'lucide-react';
 import type { MpTag } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -14,6 +14,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { useMpAccounts } from './useMpAccounts';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
 import { mpTagKeys, useDeleteMpTag, useMpTagList, useSaveMpTag, useSyncMpTags } from '@/hooks/queries/mp-tags';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 export default function MpTagsPage() {
   const { hasPermission: can } = usePermission();
@@ -118,10 +119,10 @@ export default function MpTagsPage() {
       style={{ width: 180 }}
     />
   );
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => can('mp:tag:create') ? (
-    <Button type="primary" icon={<Plus size={14} />} disabled={!currentId} onClick={openCreate}>新增</Button>
+    <CreateButton onClick={openCreate} disabled={!currentId} />
   ) : null;
   const renderSyncButton = () => can('mp:tag:sync') ? (
     <Button icon={<RefreshCw size={14} />} loading={syncing} disabled={!currentId} onClick={() => void handleSync()}>从微信同步</Button>

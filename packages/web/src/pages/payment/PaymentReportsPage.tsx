@@ -2,10 +2,9 @@ import { useMemo, useState } from 'react';
 import { formatYuan } from '@/utils/payment';
 import type { CSSProperties } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Banner, Button, Checkbox, DatePicker, Row, Col, Select, Spin, Typography } from '@douyinfe/semi-ui';
+import { Banner, Checkbox, DatePicker, Row, Col, Select, Spin, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { BarChart, chartOptions, makeBarSpec, useChartPalette } from '@/components/charts';
-import { Search, RotateCcw } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { formatDateTimeForApi } from '@/utils/date';
@@ -13,6 +12,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { paymentReportKeys, usePaymentReportSummary } from '@/hooks/queries/payment-reports';
 import { PAYMENT_REPORT_GROUP_BY_LABELS } from '@zenith/shared/payment';
 import type { PaymentReportGroupBy, PaymentReportRow } from '@zenith/shared/payment';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const yuan = formatYuan;
 const groupByOptions = Object.entries(PAYMENT_REPORT_GROUP_BY_LABELS).map(([value, label]) => ({ value, label }));
@@ -124,8 +124,8 @@ export default function PaymentReportsPage() {
     </Checkbox>
   );
 
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch} disabled={!canView}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset} disabled={!canView}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} disabled={!canView} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} disabled={!canView} />;
 
   return (
     <div className="page-container">

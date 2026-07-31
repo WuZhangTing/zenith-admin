@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Tag, Space, Modal, Form, Toast, Typography, Select, Banner, SideSheet, Descriptions } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Plus, RotateCcw, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { OPEN_WEBHOOK_DELIVERY_STATUS_LABELS, OPEN_WEBHOOK_EVENT_LABELS } from '@zenith/shared/open-platform';
 import type { AppWebhookSubscription, AppWebhookDelivery } from '@zenith/shared/open-platform';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -26,6 +26,7 @@ import {
   useWebhookList,
 } from '@/hooks/queries/open-platform';
 import { useDictItems } from '@/hooks/useDictItems';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { Text, Paragraph } = Typography;
 
@@ -284,19 +285,19 @@ export default function WebhooksPage() {
             <Input prefix={<Search size={14} />} placeholder="搜索名称 / URL" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onEnterPress={handleSearch} showClear style={{ width: 200 }} />
             <Select placeholder="所属应用" value={draftParams.clientId} onChange={(v) => setDraftParams({ ...draftParams, clientId: v as string })} optionList={appOptions.map((a) => ({ value: a.clientId, label: a.name }))} showClear filter style={{ width: 180 }} />
             <Select placeholder="状态" value={draftParams.status} onChange={(v) => setDraftParams({ ...draftParams, status: v as 'enabled' | 'disabled' })} optionList={STATUS_OPTIONS} showClear style={{ width: 110 }} />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-            {canManage && <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>}
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
+            {canManage && <CreateButton onClick={openCreate} />}
           </>
         )}
         mobilePrimary={(
           <>
             <Input prefix={<Search size={14} />} placeholder="搜索名称 / URL" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onEnterPress={handleSearch} showClear style={{ width: 200 }} />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            {canManage && <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>}
+            <SearchButton onClick={handleSearch} />
+            {canManage && <CreateButton onClick={openCreate} />}
           </>
         )}
-        mobileActions={<Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>}
+        mobileActions={<ResetButton onClick={handleReset} />}
         actionTitle="Webhook 操作"
       />
 

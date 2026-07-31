@@ -3,7 +3,7 @@ import { formatYuan } from '@/utils/payment';
 import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Button, Input, Modal, Select, SideSheet, Spin, Tag, TextArea, Timeline, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search, RotateCcw, FlaskConical } from 'lucide-react';
+import { Search, FlaskConical } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -23,6 +23,7 @@ import {
 } from '@/hooks/queries/payment-disputes';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_DISPUTE_STATUS_LABELS, PAYMENT_DISPUTE_STATUS_OPTIONS, PAYMENT_DISPUTE_TYPE_LABELS, PAYMENT_DISPUTE_TYPE_OPTIONS, PAYMENT_ORDER_STATUS_LABELS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentDispute, PaymentDisputeStatus, PaymentDisputeType } from '@zenith/shared/payment';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const yuan = formatYuan;
 const STATUS_COLOR = { pending: 'red', processing: 'blue', resolved: 'green', refunded: 'purple' } as const satisfies Record<PaymentDisputeStatus, string>;
@@ -171,8 +172,8 @@ export default function PaymentDisputesPage() {
   const renderChannelFilter = () => (
     <Select placeholder="全部渠道" value={channel || undefined} onChange={(v) => setChannel((v as string) ?? '')} showClear style={{ width: 120 }} optionList={channelOptions} />
   );
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderSimulateButton = () => canHandle ? (
     <Button type="primary" icon={<FlaskConical size={14} />} loading={simulateMutation.isPending} onClick={() => void handleSimulate()}>模拟投诉</Button>
   ) : null;

@@ -1,12 +1,24 @@
 import { useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  Button, Form, Input, Select, Spin, Toast, Switch, Modal,
-  Row, Col, Typography, Tag, Banner, SideSheet, Table,
+  Form,
+  Input,
+  Select,
+  Spin,
+  Toast,
+  Switch,
+  Modal,
+  Row,
+  Col,
+  Typography,
+  Tag,
+  Banner,
+  SideSheet,
+  Table,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, Plus } from 'lucide-react';
+import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -24,6 +36,7 @@ import {
   workflowConnectorKeys,
 } from '@/hooks/queries/workflow-connectors';
 import { useDictItems } from '@/hooks/useDictItems';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 /** 可创建的连接器类型（与后端 workflowConnectorTypeSchema 对齐；mq/database 暂无运行时实现不开放） */
 const TYPE_OPTIONS: Array<{ value: WorkflowConnectorType; label: string }> = [
@@ -245,13 +258,13 @@ export default function WorkflowConnectorsPage() {
   const renderStatusFilter = () => (
     <Select placeholder="全部状态" value={draftParams.status || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={STATUS_OPTIONS} />
   );
-  const renderCreate = () => hasPermission('workflow:connector:create') ? <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button> : null;
+  const renderCreate = () => hasPermission('workflow:connector:create') ? <CreateButton onClick={openCreate} /> : null;
 
   return (
     <div className="page-container">
       <SearchToolbar
-        primary={(<>{renderKeyword()}{renderTypeFilter()}{renderStatusFilter()}<Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button><Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>{renderCreate()}</>)}
-        mobilePrimary={(<>{renderKeyword()}<Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>{renderCreate()}</>)}
+        primary={(<>{renderKeyword()}{renderTypeFilter()}{renderStatusFilter()}<SearchButton onClick={handleSearch} /><ResetButton onClick={handleReset} />{renderCreate()}</>)}
+        mobilePrimary={(<>{renderKeyword()}<SearchButton onClick={handleSearch} />{renderCreate()}</>)}
         mobileFilters={(<>{renderTypeFilter()}{renderStatusFilter()}</>)}
         filterTitle="连接器筛选"
         onFilterApply={handleSearch}

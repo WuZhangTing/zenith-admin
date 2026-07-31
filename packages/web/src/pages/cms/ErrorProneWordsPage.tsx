@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Banner, Button, Form, Input, Tag, Toast, Modal } from '@douyinfe/semi-ui';
+import { Banner, Form, Input, Tag, Toast, Modal } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, Plus } from 'lucide-react';
+import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -13,6 +13,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { useCmsErrorProneWordList, useSaveCmsErrorProneWord, useDeleteCmsErrorProneWord, cmsErrorProneWordKeys } from '@/hooks/queries/cms';
 import type { CmsErrorProneWord } from '@zenith/shared/cms';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 export default function ErrorProneWordsPage() {
   const { hasPermission } = usePermission();
@@ -96,9 +97,9 @@ export default function ErrorProneWordsPage() {
       <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }} description="易错词库用于内容编辑辅助：在内容编辑页点击「内容检查」可标出正文中的易错词，并支持一键替换为正确写法。" />
       <SearchToolbar>
         <Input prefix={<Search size={14} />} placeholder="搜索易错词/正确写法..." value={draftKeyword} onChange={setDraftKeyword} showClear style={{ width: 220 }} onEnterPress={handleSearch} />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-        {canManage ? <Button type="primary" icon={<Plus size={14} />} onClick={() => { setEditingRecord(null); setModalVisible(true); }}>新增</Button> : null}
+        <SearchButton onClick={handleSearch} />
+        <ResetButton onClick={handleReset} />
+        {canManage ? <CreateButton onClick={() => { setEditingRecord(null); setModalVisible(true); }} /> : null}
       </SearchToolbar>
 
       <ConfigurableTable

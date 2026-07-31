@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Card, DatePicker, Form, Input, InputNumber, Select, Tabs, TabPane, Toast, Tag, Timeline, Typography, Modal, Descriptions } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, Plus } from 'lucide-react';
+import { Search, Plus } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -30,6 +30,7 @@ import {
   useSimulatePaymentOrderPaid,
 } from '@/hooks/queries/payment-orders';
 import { usePaymentStats } from '@/hooks/queries/payment-stats';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const STATUS_COLOR = {
   pending: 'grey', paying: 'blue', success: 'green', closed: 'grey', refunding: 'amber', refunded: 'orange', failed: 'red',
@@ -347,8 +348,8 @@ export default function PaymentOrdersPage() {
     />
   );
 
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => hasPermission('payment:order:create') ? (
     <Button type="primary" icon={<Plus size={14} />} onClick={() => setCreateVisible(true)}>手动下单</Button>
   ) : null;

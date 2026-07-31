@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Col, Input, Row, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Col, Input, Row, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search, RotateCcw } from 'lucide-react';
+import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -11,6 +11,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import type { PaymentOutboxEvent } from '@zenith/shared/payment';
 import { paymentEventKeys, usePaymentEventList, usePaymentOpsHealth, useRedispatchPaymentEvent } from '@/hooks/queries/payment-events';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const EVENT_STATUS_LABELS = { pending: '待处理', done: '已完成', failed: '失败' } as const satisfies Record<PaymentOutboxEvent['status'], string>;
 const EVENT_STATUS_COLOR = { pending: 'blue', done: 'green', failed: 'red' } as const satisfies Record<PaymentOutboxEvent['status'], string>;
@@ -110,8 +111,8 @@ export default function PaymentEventsPage() {
     />
   );
 
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderHealthCards = () => (
     <Row gutter={[12, 12]} style={{ marginBottom: 12 }}>
       {HEALTH_LABELS.map(([key, label]) => {

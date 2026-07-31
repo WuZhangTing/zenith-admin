@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Input, Button, Select, DatePicker, Tabs, TabPane } from '@douyinfe/semi-ui';
-import { Search, RotateCcw } from 'lucide-react';
+import { Input, Select, DatePicker, Tabs, TabPane } from '@douyinfe/semi-ui';
+import { Search } from 'lucide-react';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
 import { LoginLogsTable } from '@/components/logs/LoginLogsTable';
@@ -11,6 +11,7 @@ import { useClearLogs } from '@/hooks/useClearLogs';
 import { formatDateTimeForApi } from '@/utils/date';
 import LoginLogStatsPanel from './LoginLogStatsPanel';
 import { loginLogKeys, useCleanLoginLogs, useLoginLogList } from '@/hooks/queries/login-logs';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 export default function LoginLogsPage() {
   const queryClient = useQueryClient();
@@ -136,8 +137,8 @@ export default function LoginLogsPage() {
                 {renderEventTypeFilter()}
                 {renderStatusFilter()}
                 {renderTimeRangeFilter()}
-                <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-                <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+                <SearchButton onClick={handleSearch} />
+                <ResetButton onClick={handleReset} />
               </>
             )}
             actions={(
@@ -149,7 +150,7 @@ export default function LoginLogsPage() {
             mobilePrimary={(
               <>
                 {renderUsernameSearch()}
-                <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+                <SearchButton onClick={handleSearch} />
               </>
             )}
             mobileFilters={(

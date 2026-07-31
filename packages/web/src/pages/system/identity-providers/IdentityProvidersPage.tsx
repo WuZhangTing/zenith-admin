@@ -15,7 +15,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Plus, RotateCcw, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import type { IdentityProviderType, TenantIdentityProvider } from '@zenith/shared/identity';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -36,6 +36,7 @@ import {
   useTestIdentityProviderConnection,
 } from '@/hooks/queries/identity-providers';
 import { useDictItems } from '@/hooks/useDictItems';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams {
   keyword: string;
@@ -392,16 +393,16 @@ export default function IdentityProvidersPage() {
             {renderKeywordSearch()}
             {renderTypeFilter()}
             {renderStatusFilter()}
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-            <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
+            <CreateButton onClick={openCreate} />
           </>
         )}
         mobilePrimary={(
           <>
             {renderKeywordSearch()}
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+            <SearchButton onClick={handleSearch} />
+            <CreateButton onClick={openCreate} />
           </>
         )}
         mobileFilters={<>{renderTypeFilter()}{renderStatusFilter()}</>}

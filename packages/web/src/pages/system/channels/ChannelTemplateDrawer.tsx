@@ -9,16 +9,16 @@
  *   - news：extra.card = { title, cover, text(摘要), actions:[{ url }] }
  */
 import { useState } from 'react';
-import { Button, Form, Modal, SideSheet, Space, Tag, Toast, Typography, Upload } from '@douyinfe/semi-ui';
+import { Button, Form, Modal, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { ImagePlus, Plus, Trash2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { CHANNEL_MESSAGE_TYPE_LABELS as TYPE_LABELS } from '@zenith/shared/messaging';
 import type { ChatCard, ChatMessageExtra } from '@zenith/shared/chat';
 import type { ChannelMessageTemplate, ChannelMessageType } from '@zenith/shared/messaging';
-import { config } from '@/config';
 import { formatDateTime } from '@/utils/date';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { ImageUploadField } from '@/components/ImageUploadField';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import {
   useChannelTemplates,
@@ -38,14 +38,6 @@ const TYPE_COLOR: Partial<Record<ChannelMessageType, 'blue' | 'cyan' | 'purple'>
   image: 'cyan',
   news: 'purple',
 };
-
-const UPLOAD_ACTION = `${config.apiBaseUrl}/api/files/upload-one`;
-const uploadHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem('zenith_token') ?? ''}` });
-
-function extractUploadUrl(res: unknown): string | null {
-  const r = res as { code?: number; data?: { url?: string } };
-  return r?.code === 0 && r.data?.url ? r.data.url : null;
-}
 
 interface TemplateFormValues {
   name?: string;
@@ -217,38 +209,7 @@ export function ChannelTemplateDrawer({ visible, onClose, onChanged }: Readonly<
 
           {editType === 'image' && (
             <Form.Slot label="图片">
-              <Space align="start">
-                {imageUrl
-                  ? (
-                    <div style={{ position: 'relative' }}>
-                      <img src={imageUrl} alt="图片" style={{ maxWidth: 240, maxHeight: 180, objectFit: 'cover', borderRadius: 'var(--semi-border-radius-medium)', border: '1px solid var(--semi-color-border)' }} />
-                      <Button
-                        theme="borderless"
-                        type="danger"
-                        size="small"
-                        icon={<Trash2 size={14} />}
-                        style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(255,255,255,0.8)' }}
-                        onClick={() => setImageUrl('')}
-                      />
-                    </div>
-                  )
-                  : (
-                    <Upload
-                      action={UPLOAD_ACTION}
-                      headers={uploadHeaders()}
-                      name="file"
-                      accept="image/*"
-                      limit={1}
-                      showUploadList={false}
-                      onSuccess={(res) => {
-                        const url = extractUploadUrl(res);
-                        if (url) { setImageUrl(url); Toast.success('图片已上传'); } else Toast.error('图片上传失败');
-                      }}
-                    >
-                      <Button icon={<ImagePlus size={14} />}>上传图片</Button>
-                    </Upload>
-                  )}
-              </Space>
+              <ImageUploadField value={imageUrl} onChange={setImageUrl} label="图片" />
             </Form.Slot>
           )}
 
@@ -256,38 +217,12 @@ export function ChannelTemplateDrawer({ visible, onClose, onChanged }: Readonly<
             <>
               <Form.Input field="title" label="标题" rules={[{ required: true, message: '请填写标题' }]} />
               <Form.Slot label="封面图">
-                <Space align="start">
-                  {coverUrl
-                    ? (
-                      <div style={{ position: 'relative' }}>
-                        <img src={coverUrl} alt="封面" style={{ width: 120, height: 80, objectFit: 'cover', borderRadius: 'var(--semi-border-radius-medium)', border: '1px solid var(--semi-color-border)' }} />
-                        <Button
-                          theme="borderless"
-                          type="danger"
-                          size="small"
-                          icon={<Trash2 size={14} />}
-                          style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(255,255,255,0.8)' }}
-                          onClick={() => setCoverUrl('')}
-                        />
-                      </div>
-                    )
-                    : (
-                      <Upload
-                        action={UPLOAD_ACTION}
-                        headers={uploadHeaders()}
-                        name="file"
-                        accept="image/*"
-                        limit={1}
-                        showUploadList={false}
-                        onSuccess={(res) => {
-                          const url = extractUploadUrl(res);
-                          if (url) { setCoverUrl(url); Toast.success('封面已上传'); } else Toast.error('封面上传失败');
-                        }}
-                      >
-                        <Button icon={<ImagePlus size={14} />}>上传封面</Button>
-                      </Upload>
-                    )}
-                </Space>
+                <ImageUploadField
+                  value={coverUrl}
+                  onChange={setCoverUrl}
+                  label="封面"
+                  previewStyle={{ width: 120, height: 80 }}
+                />
               </Form.Slot>
               <Form.TextArea field="summary" label="摘要" placeholder="可选，列表摘要" autosize={{ minRows: 2, maxRows: 3 }} />
               <Form.TextArea field="content" label="正文" placeholder="图文正文内容" autosize={{ minRows: 4, maxRows: 10 }} />

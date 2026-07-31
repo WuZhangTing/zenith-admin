@@ -52,6 +52,7 @@ import {
   useWorkflowJobSummary,
   workflowMonitorKeys,
 } from '@/hooks/queries/workflow-monitor';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'orange' | 'red' | 'violet';
 
@@ -493,8 +494,8 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
               style={{ width: 130 }}
               onChange={(v) => setStatus(v as WorkflowJobStatus | undefined)}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
             <Button type="tertiary" onClick={() => void openClusters()}>失败聚类</Button>
             {canOperate && (
               <Button type="warning" onClick={() => openReplay()}>重放死信</Button>
@@ -511,7 +512,7 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
               onChange={setKeyword}
               onEnterPress={handleSearch}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+            <SearchButton onClick={handleSearch} />
           </>
         )}
         mobileFilters={(

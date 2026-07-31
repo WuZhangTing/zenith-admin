@@ -6,7 +6,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, Plus, ArrowUp, ArrowDown, Trash2, Pencil, ExternalLink, ChevronDown, GripVertical, RefreshCw, LockKeyhole, ShieldCheck } from 'lucide-react';
+import { Search, Plus, ArrowUp, ArrowDown, Trash2, Pencil, ExternalLink, ChevronDown, GripVertical, RefreshCw, LockKeyhole, ShieldCheck } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -25,6 +25,7 @@ import type { CmsChannel, CmsPage, CmsPageBlock, CmsPageBlockType } from '@zenit
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 import { formatDateTimeForApi } from '@/utils/date';
 import { useCmsWidgetRenderers, usePublishedCmsWidgets } from '@/hooks/queries/cms-widgets';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 /** 区块按栏目标识引用栏目：value 用 code，站点复制/重建后配置无需重配 */
 function channelsToSelectTree(nodes: CmsChannel[]): { key: string; value: string; label: string; children?: ReturnType<typeof channelsToSelectTree> }[] {
@@ -307,10 +308,10 @@ export default function PagesPage() {
       <SearchToolbar>
         <CmsSiteSelect value={siteId} onChange={(v) => { setSiteId(v); resetPage(); }} />
         <Input prefix={<Search size={14} />} placeholder="页面名称 / slug" value={keywordDraft} onChange={setKeywordDraft} showClear style={{ width: 200 }} />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+        <SearchButton onClick={handleSearch} />
+        <ResetButton onClick={handleReset} />
         {hasPermission('cms:page:create') ? (
-          <Button type="primary" icon={<Plus size={14} />} onClick={() => openBuilder(null)}>新增</Button>
+          <CreateButton onClick={() => openBuilder(null)} />
         ) : null}
       </SearchToolbar>
 

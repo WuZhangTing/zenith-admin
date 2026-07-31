@@ -1,6 +1,7 @@
 import { httpRequest } from '../../http-client';
 import { estimateTokens } from '../tokens';
 import { AI_SSRF_OPTIONS } from '../outbound';
+import { createStreamAbort, extractApiError as extractStreamApiError, fallbackTokens, iterateSseData, toStreamError } from './_stream-kit';
 
 export interface StreamChatConfig {
   baseUrl: string;
@@ -55,18 +56,11 @@ export function estimateMessageTokens(content: string | ChatMessagePart[]): numb
  * - 连接阶段失败自动重试（AI_STREAM_CONNECT_RETRIES，默认 2）
  * - 读流空闲超时中断（AI_STREAM_IDLE_TIMEOUT_MS，默认 90s）
  */
-const STREAM_IDLE_TIMEOUT_MS = Number(process.env.AI_STREAM_IDLE_TIMEOUT_MS) || 90000;
 const STREAM_CONNECT_RETRIES = Number(process.env.AI_STREAM_CONNECT_RETRIES ?? 2);
 
 /** 从上游错误响应体中提取可读错误信息 */
 function extractApiError(body: string, status: number): string {
-  try {
-    const parsed = JSON.parse(body) as { error?: { message?: string } | string; message?: string };
-    if (typeof parsed.error === 'object' && parsed.error?.message) return parsed.error.message;
-    if (typeof parsed.error === 'string') return parsed.error;
-    if (parsed.message) return parsed.message;
-  } catch { /* ignore */ }
-  return `LLM API 调用失败（HTTP ${status}）`;
+  return extractStreamApiError(body, status, 'LLM API 调用失败');
 }
 
 export async function* streamChatOpenAICompatible(
@@ -79,22 +73,7 @@ export async function* streamChatOpenAICompatible(
     : messages;
 
   // 内部 controller：合并外部中断信号 + 空闲超时，用于中断上游请求
-  const ac = new AbortController();
-  let idleTimedOut = false;
-  const onExternalAbort = () => ac.abort();
-  if (signal) {
-    if (signal.aborted) ac.abort();
-    else signal.addEventListener('abort', onExternalAbort, { once: true });
-  }
-  let idleTimer: ReturnType<typeof setTimeout> | undefined;
-  const armIdle = () => {
-    if (idleTimer) clearTimeout(idleTimer);
-    idleTimer = setTimeout(() => { idleTimedOut = true; ac.abort(); }, STREAM_IDLE_TIMEOUT_MS);
-  };
-  const cleanup = () => {
-    if (idleTimer) clearTimeout(idleTimer);
-    if (signal) signal.removeEventListener('abort', onExternalAbort);
-  };
+  const abort = createStreamAbort(signal);
 
   let res;
   const doConnect = (includeUsage: boolean) =>
@@ -117,50 +96,47 @@ export async function* streamChatOpenAICompatible(
       }),
       timeout: 0,
       retries: STREAM_CONNECT_RETRIES,
-      signal: ac.signal,
+      signal: abort.signal,
       ...AI_SSRF_OPTIONS,
     });
   try {
-    armIdle();
+    abort.armIdle();
     res = await doConnect(true);
     if (!res.ok && res.status === 400) {
       // 个别老网关不认识 stream_options 字段并报 400，去掉后降级重试一次
       const errText = await res.text().catch(() => '');
       if (errText.includes('stream_options')) {
-        armIdle();
+        abort.armIdle();
         res = await doConnect(false);
       } else {
         yield { type: 'error', error: extractApiError(errText, res.status) };
-        cleanup();
+        abort.cleanup();
         return;
       }
     }
     if (!res.ok) {
       const errText = await res.text().catch(() => '');
       yield { type: 'error', error: extractApiError(errText, res.status) };
-      cleanup();
+      abort.cleanup();
       return;
     }
   } catch (err: unknown) {
-    cleanup();
+    abort.cleanup();
     // 用户主动中断：静默结束，由上层保存已生成内容
-    if (signal?.aborted) return;
-    if (idleTimedOut) { yield { type: 'error', error: '连接 AI 服务超时，请重试' }; return; }
-    if (err instanceof Error && err.name === 'AbortError') return;
-    yield { type: 'error', error: err instanceof Error ? err.message : 'LLM API 调用失败' };
+    const chunk = toStreamError(err, {
+      signal, abort, timeoutMessage: '连接 AI 服务超时，请重试', fallbackMessage: 'LLM API 调用失败',
+    });
+    if (chunk) yield chunk;
     return;
   }
 
   const body = res.raw.body;
   if (!body) {
-    cleanup();
+    abort.cleanup();
     yield { type: 'error', error: '响应体为空' };
     return;
   }
 
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
   let tokensInput = 0;
   let tokensOutput = 0;
   let accumulated = '';
@@ -171,98 +147,83 @@ export async function* streamChatOpenAICompatible(
 
   // 上游未返回 usage 时（部分兼容网关不支持 stream_options），用本地估算兜底，
   // 保证用量统计有量级正确的数据
-  const finalizeTokens = () => {
-    if (!tokensInput) tokensInput = allMessages.reduce((sum, m) => sum + estimateMessageTokens(m.content), 0);
-    if (!tokensOutput && (accumulated || reasoningAccumulated)) {
-      tokensOutput = estimateTokens(accumulated) + estimateTokens(reasoningAccumulated);
-    }
-  };
+  const finalTokens = () =>
+    fallbackTokens(
+      { tokensInput, tokensOutput },
+      allMessages,
+      [accumulated, reasoningAccumulated],
+      estimateMessageTokens,
+    );
 
   const collectToolCalls = (): ChatToolCall[] =>
     [...pendingToolCalls.entries()].sort((a, b) => a[0] - b[0]).map(([, c]) => c);
 
   try {
-    while (true) {
-      armIdle();
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith('data: ')) continue;
-
-        const data = trimmed.slice(6);
-        if (data === '[DONE]') {
-          if (!toolCallsEmitted && pendingToolCalls.size > 0) {
-            toolCallsEmitted = true;
-            yield { type: 'tool_calls', calls: collectToolCalls() };
-          }
-          finalizeTokens();
-          yield { type: 'done', tokensInput, tokensOutput };
-          return;
+    for await (const data of iterateSseData(body, abort)) {
+      if (data === '[DONE]') {
+        if (!toolCallsEmitted && pendingToolCalls.size > 0) {
+          toolCallsEmitted = true;
+          yield { type: 'tool_calls', calls: collectToolCalls() };
         }
+        yield { type: 'done', ...finalTokens() };
+        return;
+      }
 
-        try {
-          const parsed = JSON.parse(data);
-          const choice = parsed.choices?.[0];
-          const delta = choice?.delta;
-          const content = delta?.content;
-          if (typeof content === 'string' && content) {
-            accumulated += content;
-            yield { type: 'delta', content };
-          }
-          // 推理模型思维链（DeepSeek-R1 等：reasoning_content；部分网关：reasoning）
-          const reasoning = delta?.reasoning_content ?? delta?.reasoning;
-          if (typeof reasoning === 'string' && reasoning) {
-            reasoningAccumulated += reasoning;
-            yield { type: 'reasoning', content: reasoning };
-          }
-          // function calling：按 index 聚合流式 tool_calls 增量
-          if (Array.isArray(delta?.tool_calls)) {
-            for (const tc of delta.tool_calls as { index?: number; id?: string; function?: { name?: string; arguments?: string } }[]) {
-              const idx = tc.index ?? 0;
-              const existing = pendingToolCalls.get(idx) ?? { id: '', type: 'function' as const, function: { name: '', arguments: '' } };
-              if (tc.id) existing.id = tc.id;
-              if (tc.function?.name) existing.function.name += tc.function.name;
-              if (tc.function?.arguments) existing.function.arguments += tc.function.arguments;
-              pendingToolCalls.set(idx, existing);
-            }
-          }
-          if (choice?.finish_reason === 'tool_calls' && !toolCallsEmitted && pendingToolCalls.size > 0) {
-            toolCallsEmitted = true;
-            yield { type: 'tool_calls', calls: collectToolCalls() };
-          }
-          // 有些 API 会在最后一个 chunk 附带 usage 信息
-          if (parsed.usage) {
-            tokensInput = parsed.usage.prompt_tokens ?? 0;
-            tokensOutput = parsed.usage.completion_tokens ?? 0;
-          }
-        } catch {
-          // 忽略格式异常的 chunk
+      let parsed;
+      try {
+        parsed = JSON.parse(data);
+      } catch {
+        continue; // 忽略格式异常的 chunk
+      }
+      const choice = parsed.choices?.[0];
+      const delta = choice?.delta;
+      const content = delta?.content;
+      if (typeof content === 'string' && content) {
+        accumulated += content;
+        yield { type: 'delta', content };
+      }
+      // 推理模型思维链（DeepSeek-R1 等：reasoning_content；部分网关：reasoning）
+      const reasoning = delta?.reasoning_content ?? delta?.reasoning;
+      if (typeof reasoning === 'string' && reasoning) {
+        reasoningAccumulated += reasoning;
+        yield { type: 'reasoning', content: reasoning };
+      }
+      // function calling：按 index 聚合流式 tool_calls 增量
+      if (Array.isArray(delta?.tool_calls)) {
+        for (const tc of delta.tool_calls as { index?: number; id?: string; function?: { name?: string; arguments?: string } }[]) {
+          const idx = tc.index ?? 0;
+          const existing = pendingToolCalls.get(idx) ?? { id: '', type: 'function' as const, function: { name: '', arguments: '' } };
+          if (tc.id) existing.id = tc.id;
+          if (tc.function?.name) existing.function.name += tc.function.name;
+          if (tc.function?.arguments) existing.function.arguments += tc.function.arguments;
+          pendingToolCalls.set(idx, existing);
         }
+      }
+      if (choice?.finish_reason === 'tool_calls' && !toolCallsEmitted && pendingToolCalls.size > 0) {
+        toolCallsEmitted = true;
+        yield { type: 'tool_calls', calls: collectToolCalls() };
+      }
+      // 有些 API 会在最后一个 chunk 附带 usage 信息
+      if (parsed.usage) {
+        tokensInput = parsed.usage.prompt_tokens ?? 0;
+        tokensOutput = parsed.usage.completion_tokens ?? 0;
       }
     }
   } catch (err: unknown) {
     // 用户主动中断读流：静默结束，保留已产出的 delta
-    if (signal?.aborted) return;
-    if (idleTimedOut) { yield { type: 'error', error: 'AI 响应超时，请重试' }; return; }
-    if (err instanceof Error && err.name === 'AbortError') return;
-    yield { type: 'error', error: err instanceof Error ? err.message : '读取响应流失败' };
+    const chunk = toStreamError(err, {
+      signal, abort, timeoutMessage: 'AI 响应超时，请重试', fallbackMessage: '读取响应流失败',
+    });
+    if (chunk) yield chunk;
     return;
   } finally {
-    cleanup();
-    reader.releaseLock();
+    abort.cleanup();
   }
 
   if (!toolCallsEmitted && pendingToolCalls.size > 0) {
     yield { type: 'tool_calls', calls: collectToolCalls() };
   }
-  finalizeTokens();
-  yield { type: 'done', tokensInput, tokensOutput };
+  yield { type: 'done', ...finalTokens() };
 }
 
 /**

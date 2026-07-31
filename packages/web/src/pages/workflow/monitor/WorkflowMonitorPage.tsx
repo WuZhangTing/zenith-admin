@@ -22,7 +22,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Download, FileText, RotateCcw, Search, UserRoundCog } from 'lucide-react';
+import { Download, FileText, Search, UserRoundCog } from 'lucide-react';
 import dayjs from 'dayjs';
 import type { WorkflowApproveMethod, WorkflowAssigneeType, WorkflowCategory, WorkflowDefinition, WorkflowExecutionToken, WorkflowFlowData, WorkflowInstance, WorkflowNodeConfig, WorkflowRuntimeDiagnostics, WorkflowRuntimeIssue, WorkflowRuntimeOutboxEvent, WorkflowTask, WorkflowTriggerExecution } from '@zenith/shared/workflow';
 import { WORKFLOW_ISSUE_SEVERITY_META as ISSUE_SEVERITY_MAP } from './constants';
@@ -62,6 +62,7 @@ import {
   workflowMonitorKeys,
 } from '@/hooks/queries/workflow-monitor';
 import { useAllUsers } from '@/hooks/queries/users';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 /** 只读流程设计器（懒加载）：用于在诊断 SideSheet 内查看发起时的流程定义快照 */
 const WorkflowDesignerPage = lazy(() => import('@/pages/workflow/designer/WorkflowDesignerPage'));
@@ -1219,11 +1220,11 @@ export default function WorkflowMonitorPage() {
   );
 
   const renderSearchButton = () => (
-    <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+    <SearchButton onClick={handleSearch} />
   );
 
   const renderResetButton = () => (
-    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+    <ResetButton onClick={handleReset} />
   );
 
   const buildExportQuery = () => {

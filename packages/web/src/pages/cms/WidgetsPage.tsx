@@ -12,7 +12,7 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { CircleOff, Plus, RotateCcw, Search, Send, Trash2 } from 'lucide-react';
+import { CircleOff, Search, Send, Trash2 } from 'lucide-react';
 import { CMS_WIDGET_STATUS_LABELS, CMS_WIDGET_TYPE_LABELS } from '@zenith/shared/cms';
 import type { CmsWidget, CmsWidgetRef, CmsWidgetStatus, CmsWidgetType } from '@zenith/shared/cms';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -33,6 +33,7 @@ import {
 } from '@/hooks/queries/cms-widgets';
 import { renderEllipsis } from '@/utils/table-columns';
 import { CmsSiteSelect } from './CmsSiteSelect';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchState {
   keyword: string;
@@ -292,8 +293,8 @@ export default function WidgetsPage() {
             {keywordInput}
             {statusFilter}
             {typeFilter}
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
           </>
         )}
         actions={(
@@ -308,14 +309,7 @@ export default function WidgetsPage() {
               <Button type="danger" theme="light" icon={<Trash2 size={14} />} onClick={() => submitBatch('delete')}>批量删除</Button>
             ) : null}
             {hasPermission('cms:widget:create') ? (
-              <Button
-                type="primary"
-                icon={<Plus size={14} />}
-                disabled={!siteId}
-                onClick={() => navigate(`/cms/widgets/edit?siteId=${siteId}`)}
-              >
-                新增
-              </Button>
+              <CreateButton onClick={() => navigate(`/cms/widgets/edit?siteId=${siteId}`)} disabled={!siteId} />
             ) : null}
           </>
         )}
@@ -323,7 +317,7 @@ export default function WidgetsPage() {
           <>
             <CmsSiteSelect value={siteId} onChange={(value) => { setSiteId(value); resetPage(); setSelectedIds([]); setSelectedRecords({}); }} width={150} />
             {keywordInput}
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+            <SearchButton onClick={handleSearch} />
           </>
         )}
         mobileFilters={<>{statusFilter}{typeFilter}</>}

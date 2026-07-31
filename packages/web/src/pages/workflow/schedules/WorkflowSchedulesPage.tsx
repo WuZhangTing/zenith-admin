@@ -1,7 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  Button,
   Form,
   Modal,
   Select,
@@ -12,7 +11,6 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Plus, RotateCcw, Search } from 'lucide-react';
 import type { WorkflowSchedule } from '@zenith/shared/workflow';
 import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -32,6 +30,7 @@ import {
   workflowScheduleKeys,
 } from '@/hooks/queries/workflow-schedules';
 import { useDictItems } from '@/hooks/useDictItems';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 type ScheduleStatus = WorkflowSchedule['status'];
 
@@ -331,21 +330,15 @@ export default function WorkflowSchedulesPage() {
   );
 
   const renderSearchButton = () => (
-    <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>
-      查询
-    </Button>
+    <SearchButton onClick={handleSearch} />
   );
 
   const renderResetButton = () => (
-    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>
-      重置
-    </Button>
+    <ResetButton onClick={handleReset} />
   );
 
   const renderCreateButton = () => canCreate ? (
-    <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>
-      新增
-    </Button>
+    <CreateButton onClick={openCreate} />
   ) : null;
 
   return (

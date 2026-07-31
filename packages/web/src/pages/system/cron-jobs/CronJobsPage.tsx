@@ -21,7 +21,7 @@ import {
   Tooltip,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Plus, RotateCcw, ScrollText, Trash2, ChevronDown, HelpCircle } from 'lucide-react';
+import { Search, ScrollText, Trash2, ChevronDown, HelpCircle } from 'lucide-react';
 import type { CronJob } from '@zenith/shared/platform';
 import { CRON_RUN_STATUS_LABELS } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -52,6 +52,7 @@ import {
   useUpdateCronJobStatus,
 } from '@/hooks/queries/cron-jobs';
 import { useDictItems } from '@/hooks/useDictItems';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams {
   keyword: string;
@@ -446,8 +447,8 @@ export default function CronJobsPage() {
                   style={{ width: 140 }}
                   optionList={[{ value: '', label: '全部' }, ...statusItems.map((i) => ({ value: i.value, label: i.label }))]}
                 />
-                <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-                <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+                <SearchButton onClick={handleSearch} />
+                <ResetButton onClick={handleReset} />
               </>
             )}
             actions={(
@@ -455,7 +456,7 @@ export default function CronJobsPage() {
                 <Button icon={<ScrollText size={14} />} onClick={() => { setAllLogsPage(1); setAllLogsJobFilter(null); setAllLogsDrawerVisible(true); }}>全部执行日志</Button>
                 <ExportButton entity="system.cron-jobs" query={buildExportQuery()} />
                 {hasPermission('system:cronjob:create') && (
-                  <Button type="primary" icon={<Plus size={14} />} onClick={() => { setEditingJob(null); setCronExprValue(''); setModalVisible(true); }}>新增</Button>
+                  <CreateButton onClick={() => { setEditingJob(null); setCronExprValue(''); setModalVisible(true); }} />
                 )}
               </>
             )}
@@ -470,9 +471,9 @@ export default function CronJobsPage() {
                   style={{ width: 240 }}
                   showClear
                 />
-                <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+                <SearchButton onClick={handleSearch} />
                 {hasPermission('system:cronjob:create') && (
-                  <Button type="primary" icon={<Plus size={14} />} onClick={() => { setEditingJob(null); setCronExprValue(''); setModalVisible(true); }}>新增</Button>
+                  <CreateButton onClick={() => { setEditingJob(null); setCronExprValue(''); setModalVisible(true); }} />
                 )}
               </>
             )}

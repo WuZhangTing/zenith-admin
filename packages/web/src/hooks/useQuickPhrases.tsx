@@ -2,10 +2,10 @@ import { useCallback, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppModal } from '@/components/AppModal';
 import { Button, Input, Popconfirm, Space, Tag, Typography } from '@douyinfe/semi-ui';
-import { Plus } from 'lucide-react';
 import type { WorkflowQuickPhrase } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
+import { CreateButton } from '@/components/toolbar-controls';
 
 const quickPhraseKeys = {
   all: ['workflow', 'quick-phrases'] as const,
@@ -107,7 +107,7 @@ export function useQuickPhrases(): {
           maxLength={255}
           showClear
         />
-        <Button type="primary" icon={<Plus size={14} />} onClick={() => void handleAddPhrase()}>新增</Button>
+        <CreateButton onClick={() => void handleAddPhrase()} />
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflow: 'auto' }}>
         {quickPhrases.length === 0 && <Typography.Text type="tertiary">暂无常用语，添加后可在审批时一键填入。</Typography.Text>}

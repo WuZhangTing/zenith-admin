@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Button, Form, Input, Tag, Toast, Modal, Tabs, TabPane, TextArea, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Plus, Send } from 'lucide-react';
+import { Search, Send } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -20,6 +20,7 @@ import AsyncTaskProgress from '@/components/AsyncTaskProgress';
 import { CMS_PUSH_ENGINE_LABELS } from '@zenith/shared/cms';
 import type { CmsRedirect, CmsLinkWord, CmsPushLog } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
+import { CreateButton, SearchButton } from '@/components/toolbar-controls';
 
 // ─── 301 重定向 Tab ───────────────────────────────────────────────────────────
 function RedirectsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
@@ -93,8 +94,8 @@ function RedirectsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
     <>
       <SearchToolbar>
         <Input prefix={<Search size={14} />} placeholder="搜索来源路径..." value={draftKeyword} onChange={setDraftKeyword} showClear style={{ width: 220 }} onEnterPress={handleSearch} />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        {canManage ? <Button type="primary" icon={<Plus size={14} />} onClick={() => { setEditingRecord(null); setModalVisible(true); }}>新增</Button> : null}
+        <SearchButton onClick={handleSearch} />
+        {canManage ? <CreateButton onClick={() => { setEditingRecord(null); setModalVisible(true); }} /> : null}
       </SearchToolbar>
       <ConfigurableTable
         bordered
@@ -215,8 +216,8 @@ function LinkWordsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
       <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }} description="内容详情页渲染时自动将正文中的关键词替换为站内链接（跳过已有链接区域），提升 SEO 内链密度。修改后新访问/重新生成的页面生效。" />
       <SearchToolbar>
         <Input prefix={<Search size={14} />} placeholder="搜索关键词..." value={draftKeyword} onChange={setDraftKeyword} showClear style={{ width: 220 }} onEnterPress={handleSearch} />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        {canManage ? <Button type="primary" icon={<Plus size={14} />} onClick={() => { setEditingRecord(null); setModalVisible(true); }}>新增</Button> : null}
+        <SearchButton onClick={handleSearch} />
+        {canManage ? <CreateButton onClick={() => { setEditingRecord(null); setModalVisible(true); }} /> : null}
       </SearchToolbar>
       <ConfigurableTable
         bordered

@@ -1,11 +1,21 @@
 import { useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  Button, Col, Form, Input, Modal, Row, Select, Spin, Tag,
-  Toast, Switch, Typography, Banner,
+  Col,
+  Form,
+  Input,
+  Modal,
+  Row,
+  Select,
+  Spin,
+  Tag,
+  Toast,
+  Switch,
+  Typography,
+  Banner,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Plus, RotateCcw, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import type { MpAccount, MpAccountType } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -25,6 +35,7 @@ import {
   useSetDefaultMpAccount,
   useTestMpAccount,
 } from '@/hooks/queries/mp-accounts';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const TYPE_OPTIONS = [
   { label: '订阅号', value: 'subscribe' },
@@ -231,10 +242,10 @@ export default function MpAccountsPage() {
       style={{ width: 110 }}
     />
   );
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => can('mp:account:create') ? (
-    <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+    <CreateButton onClick={openCreate} />
   ) : null;
 
   return (

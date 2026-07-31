@@ -16,7 +16,7 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Plus, Search, RotateCcw, PlugZap } from 'lucide-react';
+import { PlugZap } from 'lucide-react';
 import type { CreateFileStorageConfigInput, FileObjectAcl, FileStorageConfig, FileStorageProvider, FileUrlStrategy, UpdateFileStorageConfigInput } from '@zenith/shared/platform';
 import { FILE_OBJECT_ACL_SUPPORT, FILE_STORAGE_PROVIDER_LABELS, FILE_URL_STRATEGY_LABELS, FILE_URL_STRATEGY_OPTIONS, PRESIGNED_EXPIRY_DEFAULT_SECONDS, PRESIGNED_EXPIRY_MAX_SECONDS, PRESIGNED_EXPIRY_MIN_SECONDS } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -39,6 +39,7 @@ import {
   useSetDefaultFileStorageConfig,
   useTestFileStorageConfig,
 } from '@/hooks/queries/file-storage-configs';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import './FileStorageConfigsPage.css';
 
 const { Text } = Typography;
@@ -598,14 +599,14 @@ export default function FileStorageConfigsPage() {
               onChange={(value) => setDraftParams((prev) => ({ ...prev, timeRange: value ? (value as [Date, Date]) : null }))}
               style={{ width: 360 }}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
           </>
         )}
         actions={(
           <>
             <ExportButton entity="system.file-storage-configs" query={buildExportQuery()} />
-            {hasPermission('system:file:config:create') && <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>}
+            {hasPermission('system:file:config:create') && <CreateButton onClick={openCreate} />}
           </>
         )}
         mobilePrimary={(
@@ -620,8 +621,8 @@ export default function FileStorageConfigsPage() {
               <Select.Option value="enabled">启用</Select.Option>
               <Select.Option value="disabled">禁用</Select.Option>
             </Select>
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            {hasPermission('system:file:config:create') && <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>}
+            <SearchButton onClick={handleSearch} />
+            {hasPermission('system:file:config:create') && <CreateButton onClick={openCreate} />}
           </>
         )}
         mobileFilters={(

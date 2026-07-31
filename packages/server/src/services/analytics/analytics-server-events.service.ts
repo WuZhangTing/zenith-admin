@@ -27,6 +27,7 @@ import { db } from '../../db';
 import { userEvents } from '../../db/schema';
 import type { AnalyticsEnvironment, AnalyticsEventSource, AnalyticsIdentityType, TrackEventInput } from '@zenith/shared/analytics';
 import { ANALYTICS_PROPERTIES_MAX_BYTES } from '@zenith/shared/analytics';
+import { jsonByteLength, jsonDepth } from '@zenith/shared/core';
 import { parseDateTimeInput } from '../../lib/datetime';
 import { evaluateEvents, recordSchemaIssues } from './analytics-governance.service';
 import { touchEventMeta } from './analytics-event-meta.service';
@@ -72,32 +73,6 @@ export interface TrackServerEventInput {
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function jsonDepth(value: unknown): number {
-  if (value === null || typeof value !== 'object') return 0;
-  const stack: Array<{ value: object; depth: number }> = [{ value, depth: 1 }];
-  const seen = new WeakSet<object>();
-  let maxDepth = 0;
-  while (stack.length > 0) {
-    const current = stack.pop()!;
-    if (seen.has(current.value)) continue;
-    seen.add(current.value);
-    maxDepth = Math.max(maxDepth, current.depth);
-    const children = Array.isArray(current.value) ? current.value : Object.values(current.value);
-    for (const child of children) {
-      if (child !== null && typeof child === 'object') stack.push({ value: child, depth: current.depth + 1 });
-    }
-  }
-  return maxDepth;
-}
-
-function jsonByteLength(value: unknown): number {
-  try {
-    return new TextEncoder().encode(JSON.stringify(value)).byteLength;
-  } catch {
-    return Number.POSITIVE_INFINITY;
-  }
 }
 
 /**

@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, DatePicker, Form, Input, Modal, Select, SideSheet, Space, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Plus, RotateCcw, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import type { RuleList, RuleListItem } from '@zenith/shared/rules';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -25,6 +25,7 @@ import {
   useSaveRuleList,
   useSaveRuleListItem,
 } from '@/hooks/queries/rules';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { Text } = Typography;
 
@@ -160,9 +161,9 @@ export default function RuleListsPage() {
           <>
             <Input prefix={<Search size={14} />} placeholder="搜索名称" value={draftKeyword} onChange={setDraftKeyword} onEnterPress={() => { setPage(1); setSubmittedKeyword(draftKeyword); setSubmittedType(draftType); void queryClient.invalidateQueries({ queryKey: ruleKeys.ruleLists.lists }); }} showClear style={{ width: 200 }} />
             <Select placeholder="类型" value={draftType} onChange={(v) => setDraftType(v as string | undefined)} optionList={TYPE_OPTIONS} showClear style={{ width: 120 }} />
-            <Button type="primary" icon={<Search size={14} />} onClick={() => { setPage(1); setSubmittedKeyword(draftKeyword); setSubmittedType(draftType); void queryClient.invalidateQueries({ queryKey: ruleKeys.ruleLists.lists }); }}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => { setDraftKeyword(''); setSubmittedKeyword(''); setDraftType(undefined); setSubmittedType(undefined); setPage(1); void queryClient.invalidateQueries({ queryKey: ruleKeys.ruleLists.lists }); }}>重置</Button>
-            {canCreate && <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>}
+            <SearchButton onClick={() => { setPage(1); setSubmittedKeyword(draftKeyword); setSubmittedType(draftType); void queryClient.invalidateQueries({ queryKey: ruleKeys.ruleLists.lists }); }} />
+            <ResetButton onClick={() => { setDraftKeyword(''); setSubmittedKeyword(''); setDraftType(undefined); setSubmittedType(undefined); setPage(1); void queryClient.invalidateQueries({ queryKey: ruleKeys.ruleLists.lists }); }} />
+            {canCreate && <CreateButton onClick={openCreate} />}
           </>
         )}
       />

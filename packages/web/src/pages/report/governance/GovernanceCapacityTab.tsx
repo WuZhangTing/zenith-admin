@@ -18,7 +18,7 @@ import {
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportQueryCostLog, ReportQueryCostTrendPoint, ReportQueryQuota, ReportQuotaScope } from '@zenith/shared/report';
-import { Plus, RotateCcw, Search } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
@@ -39,6 +39,7 @@ import {
 import { useAllUsers } from '@/hooks/queries/users';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { validateQuotaForm } from '../report-platform-utils';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 export default function GovernanceCapacityTab() {
   const { hasPermission } = usePermission();
@@ -167,8 +168,8 @@ export default function GovernanceCapacityTab() {
         <InputNumber placeholder="数据集 ID" value={costDraft.datasetId} min={1} onChange={(v) => setCostDraft((p) => ({ ...p, datasetId: v ? Number(v) : undefined }))} />
         <InputNumber placeholder="数据源 ID" value={costDraft.datasourceId} min={1} onChange={(v) => setCostDraft((p) => ({ ...p, datasourceId: v ? Number(v) : undefined }))} />
         <DatePicker type="dateTimeRange" value={costDraft.timeRange ?? undefined} style={{ width: 340 }} onChange={(v) => setCostDraft((p) => ({ ...p, timeRange: v ? v as [Date, Date] : null }))} />
-        <Button type="primary" icon={<Search size={14} />} onClick={searchCosts}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={resetCosts}>重置</Button>
+        <SearchButton onClick={searchCosts} />
+        <ResetButton onClick={resetCosts} />
         <ExportButton entity="report.query-costs" query={costParams} />
       </SearchToolbar>
       {(statsQuery.isError || trendQuery.isError || costsQuery.isError) && <Banner type="danger" description="查询成本数据加载失败" />}

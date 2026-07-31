@@ -4,9 +4,7 @@ import {
   Avatar, Badge, Banner, Button, Empty, Form, Input, Modal, Rating, Select, Space, Spin, Tabs, TabPane, Tag, Toast, Typography,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import {
-  Search, RotateCcw, RefreshCw, Settings, Send, UserCheck, ArrowRightLeft, XCircle, MessageSquare, Star,
-} from 'lucide-react';
+import { Search, RefreshCw, Settings, Send, UserCheck, ArrowRightLeft, XCircle, MessageSquare, Star } from 'lucide-react';
 import type { MpKfSessionStatus, MpKfSessionEventType, MpKfSessionCloseReason, MpMessage } from '@zenith/shared/mp';
 import type { WsMessage } from '@zenith/shared/platform';
 import { usePermission } from '@/hooks/usePermission';
@@ -28,6 +26,7 @@ import {
   useSaveMpKfRoutingConfig,
   useTransferMpKfSession,
 } from '@/hooks/queries/mp-kf';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { Text, Title } = Typography;
 
@@ -195,9 +194,9 @@ export default function MpKfSessionsPage() {
       style={{ width: 200 }}
     />
   );
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => (
-    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+    <ResetButton onClick={handleReset} />
   );
   const renderSessionActions = () => {
     const configButton = can('mp:kf:session:config') ? (

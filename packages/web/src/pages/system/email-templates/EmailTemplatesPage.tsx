@@ -1,9 +1,18 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Col, Form, Input, Modal, Row, Select, Spin,
-  Toast, Switch } from '@douyinfe/semi-ui';
+import {
+  Col,
+  Form,
+  Input,
+  Modal,
+  Row,
+  Select,
+  Spin,
+  Toast,
+  Switch,
+} from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Plus, RotateCcw, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import type { EmailTemplate } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
@@ -20,6 +29,7 @@ import {
   useEmailTemplateList,
   useSaveEmailTemplate,
 } from '@/hooks/queries/email-templates';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 export default function EmailTemplatesPage() {
   const { hasPermission: can } = usePermission();
@@ -157,10 +167,10 @@ export default function EmailTemplatesPage() {
               value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onEnterPress={handleSearch} showClear style={{ width: 220 }} />
             <Select placeholder="状态" value={draftParams.filterStatus} onChange={(v) => setDraftParams({ ...draftParams, filterStatus: v as string | undefined })}
               optionList={statusItems.map((i) => ({ label: i.label, value: i.value }))} showClear style={{ width: 110 }} />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
             {can('system:email-template:create') && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+              <CreateButton onClick={openCreate} />
             )}
           </>
         )}
@@ -168,9 +178,9 @@ export default function EmailTemplatesPage() {
           <>
             <Input prefix={<Search size={14} />} placeholder="搜索模板名称/编码/主题"
               value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onEnterPress={handleSearch} showClear style={{ width: 220 }} />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+            <SearchButton onClick={handleSearch} />
             {can('system:email-template:create') && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+              <CreateButton onClick={openCreate} />
             )}
           </>
         )}

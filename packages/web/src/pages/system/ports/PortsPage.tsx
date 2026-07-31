@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Button, Input, Tag, Select, Space, Modal, Toast } from '@douyinfe/semi-ui';
+import { Input, Tag, Select, Space, Modal, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search, RotateCcw } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { useKillPortProcess, usePortList, type PortEntry } from '@/hooks/queries/ports';
+import { ResetButton } from '@/components/toolbar-controls';
 
 function localDisplay(entry: PortEntry): string {
   const addr = entry.localAddress === '0.0.0.0' || entry.localAddress === '::' || entry.localAddress === '*' ? '*' : entry.localAddress;
@@ -96,7 +97,7 @@ export default function PortsPage() {
             <Select placeholder="全部协议" value={protocol || undefined} onChange={(v) => setProtocol((v as string) ?? '')} showClear style={{ width: 120 }}
               optionList={[{ label: 'TCP', value: 'tcp' }, { label: 'UDP', value: 'udp' }]} />
             <Select prefix="自动刷新" value={refreshInterval} onChange={(v) => setRefreshInterval(v as number)} style={{ width: 150 }} optionList={REFRESH_OPTIONS} />
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <ResetButton onClick={handleReset} />
             <Space style={{ color: 'var(--semi-color-text-2)', fontSize: 12 }}>共 {data.length} 个监听端口</Space>
           </>
         )}
@@ -117,7 +118,7 @@ export default function PortsPage() {
             <Select prefix="自动刷新" value={refreshInterval} onChange={(v) => setRefreshInterval(v as number)} style={{ width: 150 }} optionList={REFRESH_OPTIONS} />
           </>
         )}
-        mobileActions={<Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>}
+        mobileActions={<ResetButton onClick={handleReset} />}
         filterTitle="端口筛选"
         actionTitle="端口操作"
         onFilterReset={handleReset}

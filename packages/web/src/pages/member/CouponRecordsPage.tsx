@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Descriptions, Input, InputNumber, Select, Toast, Tag, Modal } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search, RotateCcw, ScanLine } from 'lucide-react';
+import { Search, ScanLine } from 'lucide-react';
 import type { MemberCoupon, MemberCouponStatus } from '@zenith/shared/member';
 import { MEMBER_COUPON_STATUS_LABELS } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
@@ -14,6 +14,7 @@ import { AppModal } from '@/components/AppModal';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { renderEllipsis } from '../../utils/table-columns';
 import { memberAdminKeys, useCouponByCode, useCouponRecordList, useRedeemCoupon, useRevokeCouponRecord } from '@/hooks/queries/member-admin';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const statusOptions = (Object.keys(MEMBER_COUPON_STATUS_LABELS) as MemberCouponStatus[]).map((v) => ({ value: v, label: MEMBER_COUPON_STATUS_LABELS[v] }));
 const STATUS_COLORS: Record<string, string> = { unused: 'blue', used: 'green', expired: 'grey', frozen: 'orange' };
@@ -146,8 +147,8 @@ export default function CouponRecordsPage() {
     />
   );
 
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderRedeemButton = () => hasPermission('member:coupon:update') ? (
     <Button type="primary" icon={<ScanLine size={14} />} onClick={openRedeem}>核销券码</Button>
   ) : null;

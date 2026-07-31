@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react';
-import { Button, Card, DatePicker, Row, Col, Spin, Typography } from '@douyinfe/semi-ui';
+import { Card, DatePicker, Row, Col, Spin, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { CommonChart, chartOptions, makeMixedBarLineSpec, useChartPalette } from '@/components/charts';
-import { Bot, CircleCheck, Coins, Gauge, MessageCircle, Search, RotateCcw, Users, Wallet } from 'lucide-react';
+import { Bot, CircleCheck, Coins, Gauge, MessageCircle, Users, Wallet } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { formatDateForApi } from '@/utils/date';
 import { aiUsageKeys, useAiUsageStats } from '@/hooks/queries/ai-usage';
 import type { AiUsageByModel, AiUsageByUser } from '@/hooks/queries/ai-usage';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { Text } = Typography;
 
@@ -181,15 +182,11 @@ export default function AiUsagePage() {
   );
 
   const renderSearchButton = () => (
-    <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>
-      查询
-    </Button>
+    <SearchButton onClick={handleSearch} />
   );
 
   const renderResetButton = () => (
-    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>
-      重置
-    </Button>
+    <ResetButton onClick={handleReset} />
   );
 
   return (

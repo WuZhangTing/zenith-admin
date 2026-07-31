@@ -17,7 +17,7 @@ import {
   Switch,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Plus, RotateCcw, Trash2, Users } from 'lucide-react';
+import { Search, Trash2, Users } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import type { User, UserGroup } from '@zenith/shared/identity';
@@ -46,6 +46,7 @@ import {
 import { useAllUsers } from '@/hooks/queries/users';
 import { useAllRoles } from '@/hooks/queries/roles';
 import { useDictItems } from '@/hooks/useDictItems';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams {
   keyword: string;
@@ -358,15 +359,15 @@ export default function UserGroupsPage() {
     />
   );
 
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderBatchDeleteButton = () => selectedRowKeys.length > 0 && hasPermission('system:user-groups:delete') ? (
     <Button type="danger" theme="light" icon={<Trash2 size={14} />} onClick={handleBatchDelete}>
       批量删除 ({selectedRowKeys.length})
     </Button>
   ) : null;
   const renderCreateButton = () => hasPermission('system:user-groups:create') ? (
-    <Button type="primary" icon={<Plus size={14} />} onClick={() => { setEditingRecord(null); setModalVisible(true); }}>新增</Button>
+    <CreateButton onClick={() => { setEditingRecord(null); setModalVisible(true); }} />
   ) : null;
 
   return (

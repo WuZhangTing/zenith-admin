@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Descriptions, Modal, Select, SideSheet, Space, Table, Tag, Toast, Typography, Input } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, RefreshCw, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Search, Trash2 } from 'lucide-react';
 import type { ExportEntityMeta, ExportJob, ExportJobDownload, ExportJobFormat, ExportJobStatus } from '@zenith/shared/tasks';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -24,6 +24,7 @@ import {
   useRerunExportJob,
   useRetryExportJob,
 } from '@/hooks/queries/export-jobs';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams {
   entity: string;
@@ -382,8 +383,8 @@ export default function ExportJobsPage() {
           style={{ width: 240 }}
           showClear
         />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+        <SearchButton onClick={handleSearch} />
+        <ResetButton onClick={handleReset} />
         <Button icon={<RefreshCw size={14} />} onClick={() => void listQuery.refetch()} loading={listQuery.isFetching}>刷新</Button>
         {selectedRowKeys.length > 0 && (
           <Button type="danger" icon={<Trash2 size={14} />} loading={batchDeleting} onClick={handleBatchDelete}>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Modal, Space, Spin, Tag, Toast, Banner, Typography, TextArea } from '@douyinfe/semi-ui';
-import { Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { Plus, Search, Trash2 } from 'lucide-react';
 import type { MpDraft, MpArticle } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -20,6 +20,7 @@ import {
   usePushMpDraft,
   useSaveMpDraft,
 } from '@/hooks/queries/mp-drafts';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const blankArticle = (): MpArticle => ({ title: '', author: '', digest: '', content: '', thumbUrl: '', showCoverPic: true });
 
@@ -130,8 +131,8 @@ export default function MpDraftsPage() {
       style={{ width: 180 }}
     />
   );
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => can('mp:draft:create') ? (
     <Button type="primary" icon={<Plus size={14} />} disabled={!currentId} onClick={openCreate}>新增图文</Button>
   ) : null;

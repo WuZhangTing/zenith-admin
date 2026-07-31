@@ -22,7 +22,7 @@ import {
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportAssetCatalogItem, ReportAssetTemplate, ReportAssetTemplateType, ReportAssetUsageSummary, ReportAssetUsageTrendPoint, ReportDeprecationNotice, ReportResourceType } from '@zenith/shared/report';
-import { Plus, RotateCcw, Search } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
@@ -53,6 +53,7 @@ import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { renderEllipsis } from '@/utils/table-columns';
 import { normalizeTemplateApplyValues, parseJsonObject } from './report-platform-utils';
 import { REPORT_RESOURCE_TYPE_OPTIONS } from './report-platform-options';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const resourceTypeOptions = REPORT_RESOURCE_TYPE_OPTIONS;
 const templateTypeOptions = [
@@ -327,8 +328,8 @@ export default function AssetsPage() {
           <SearchToolbar
             primary={<>
               <Input prefix={<Search size={14} />} placeholder="搜索资产名称" value={catalogDraft.keyword} showClear style={{ width: 220 }} onChange={(value) => setCatalogDraft((p) => ({ ...p, keyword: value }))} onEnterPress={searchCatalog} />
-              <Button type="primary" icon={<Search size={14} />} onClick={searchCatalog}>查询</Button>
-              <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={resetCatalog}>重置</Button>
+              <SearchButton onClick={searchCatalog} />
+              <ResetButton onClick={resetCatalog} />
             </>}
             filters={<>
               <Select multiple placeholder="资产类型" value={catalogDraft.types} optionList={resourceTypeOptions} style={{ width: 210 }} onChange={(value) => setCatalogDraft((p) => ({ ...p, types: value as ReportResourceType[] }))} />
@@ -340,7 +341,7 @@ export default function AssetsPage() {
             actions={<ExportButton entity="report.assets" query={catalogQueryParams} />}
             mobilePrimary={<>
               <Input prefix={<Search size={14} />} placeholder="搜索资产" value={catalogDraft.keyword} showClear onChange={(value) => setCatalogDraft((p) => ({ ...p, keyword: value }))} />
-              <Button type="primary" icon={<Search size={14} />} onClick={searchCatalog}>查询</Button>
+              <SearchButton onClick={searchCatalog} />
             </>}
             mobileActions={<ExportButton entity="report.assets" query={catalogQueryParams} variant="flat" />}
             onFilterApply={searchCatalog}
@@ -354,9 +355,9 @@ export default function AssetsPage() {
           <SearchToolbar>
             <Input prefix={<Search size={14} />} placeholder="搜索模板名称/编码" value={templateKeyword} showClear style={{ width: 230 }} onChange={setTemplateKeyword} onEnterPress={searchTemplates} />
             <Select placeholder="模板类型" showClear value={templateType} optionList={templateTypeOptions} style={{ width: 150 }} onChange={(v) => setTemplateType(v as ReportAssetTemplateType | undefined)} />
-            <Button type="primary" icon={<Search size={14} />} onClick={searchTemplates}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={resetTemplates}>重置</Button>
-            {hasPermission('report:asset-template:create') ? <Button type="primary" icon={<Plus size={14} />} onClick={() => openTemplate()}>新增</Button> : null}
+            <SearchButton onClick={searchTemplates} />
+            <ResetButton onClick={resetTemplates} />
+            {hasPermission('report:asset-template:create') ? <CreateButton onClick={() => openTemplate()} /> : null}
           </SearchToolbar>
           {templatesQuery.isError && <Banner type="danger" description="资产模板加载失败" />}
           <ConfigurableTable bordered rowKey="id" columns={templateColumns} dataSource={templatesQuery.data?.list ?? []} loading={templatesQuery.isFetching} empty={<Empty title="暂无资产模板" />} pagination={buildPagination(templatesQuery.data?.total ?? 0)} onRefresh={() => void templatesQuery.refetch()} refreshLoading={templatesQuery.isFetching} />

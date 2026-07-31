@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Modal, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -21,6 +21,7 @@ import {
 } from '@/hooks/queries/payment-settlements';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_SETTLEMENT_STATUS_LABELS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentSettlementBatch, PaymentSettlementStatus } from '@zenith/shared/payment';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const yuan = formatYuan;
 const channelOptions = Object.entries(PAYMENT_CHANNEL_LABELS).map(([value, label]) => ({ value, label }));
@@ -150,8 +151,8 @@ export default function PaymentSettlementsPage() {
     />
   );
 
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderGenerateButton = () => hasPermission('payment:settlement:generate') ? (
     <Button type="primary" icon={<Plus size={14} />} onClick={() => setGenVisible(true)}>生成结算</Button>
   ) : null;

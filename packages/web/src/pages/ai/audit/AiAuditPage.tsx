@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Button, DatePicker, Input, Select, Tag, Typography } from '@douyinfe/semi-ui';
-import { RotateCcw, Search } from 'lucide-react';
+import { DatePicker, Input, Select, Tag, Typography } from '@douyinfe/semi-ui';
+import { Search } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { AiFeedbackItem } from '@zenith/shared/ai';
 import type { PaginatedResponse } from '@zenith/shared/core';
@@ -15,6 +15,7 @@ import { renderEllipsis } from '@/utils/table-columns';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 import type { AiFeedbackContext } from '@/hooks/queries/ai-feedback';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { Text } = Typography;
 
@@ -177,8 +178,8 @@ export default function AiAuditPage() {
       style={{ width: 260 }}
     />
   );
-  const renderSearchBtn = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetBtn = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchBtn = () => <SearchButton onClick={handleSearch} />;
+  const renderResetBtn = () => <ResetButton onClick={handleReset} />;
 
   return (
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', height: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>

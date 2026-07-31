@@ -2,15 +2,15 @@
  * 行为中心阶段 1：通用事件分析工作台 —— 自定义事件 + 维度 + 指标查询，展示图表 + 明细表格。
  */
 import { useMemo, useState } from 'react';
-import { Button, Card, DatePicker, Empty, InputNumber, Select, Typography } from '@douyinfe/semi-ui';
+import { Card, DatePicker, Empty, InputNumber, Select, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search, RotateCcw } from 'lucide-react';
 import { BarChart, chartOptions, makeBarSpec, useChartPalette } from '@/components/charts';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { formatDateForApi } from '@/utils/date';
 import { useAnalyticsEventMeta, useAnalyticsEventQuery } from '@/hooks/queries/analytics';
 import type { AnalyticsEventQueryGroupByField, AnalyticsEventQueryInput, AnalyticsEventQueryMetric, AnalyticsEventQueryRow } from '@zenith/shared/analytics';
 import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_ENVIRONMENT_OPTIONS, ANALYTICS_EVENT_QUERY_GROUP_BY_LABELS, ANALYTICS_EVENT_QUERY_GROUP_BY_OPTIONS, ANALYTICS_EVENT_QUERY_METRIC_OPTIONS, ANALYTICS_EVENT_SOURCE_OPTIONS } from '@zenith/shared/analytics';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const DAY_OPTIONS = [7, 14, 30, 90].map((value) => ({ value, label: `近 ${value} 天` }));
 
@@ -184,8 +184,8 @@ export default function AnalyticsEventQueryTab() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-          <Button type="primary" icon={<Search size={14} />} loading={loading} onClick={() => void handleQuery()}>查询</Button>
-          <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+          <SearchButton onClick={() => void handleQuery()} loading={loading} />
+          <ResetButton onClick={handleReset} />
         </div>
       </Card>
 

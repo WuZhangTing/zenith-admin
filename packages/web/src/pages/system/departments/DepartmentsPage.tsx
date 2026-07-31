@@ -14,7 +14,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
-import { Search, Plus, RotateCcw, ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
+import { Search, ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
 import type { PaginatedResponse } from '@zenith/shared/core';
 import type { Department, User } from '@zenith/shared/identity';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -38,6 +38,7 @@ import {
   useFlatDepartments,
   useSaveDepartment,
 } from '@/hooks/queries/departments';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams {
   keyword: string;
@@ -351,8 +352,8 @@ export default function DepartmentsPage() {
     />
   );
 
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderExpandButton = (flat = false) => (
     <Button
       type="primary"
@@ -370,17 +371,11 @@ export default function DepartmentsPage() {
   const renderExportButtons = () => <ExportButton entity="system.departments" query={buildExportQuery()} />;
   const renderMobileExportActions = () => <ExportButton entity="system.departments" query={buildExportQuery()} variant="flat" />;
   const renderCreateButton = () => hasPermission('system:department:create') ? (
-    <Button
-      type="primary"
-      icon={<Plus size={14} />}
-      onClick={() => {
+    <CreateButton onClick={() => {
         setEditingDepartment(null);
         setModalVisible(true);
         setLeaderKeyword('');
-      }}
-    >
-      新增
-    </Button>
+      }} />
   ) : null;
 
   return (

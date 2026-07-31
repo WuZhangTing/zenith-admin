@@ -4,6 +4,7 @@ import { FileText, Search, UploadCloud } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import { useFileList, useUploadFile } from '@/hooks/queries/files';
 import type { ManagedFile } from '@zenith/shared/platform';
+import { SearchButton } from '@/components/toolbar-controls';
 
 export interface MediaPickerModalProps {
   visible: boolean;
@@ -61,7 +62,7 @@ export function MediaPickerModal({ visible, onCancel, onSelect, imageOnly = true
           showClear
           style={{ flex: 1 }}
         />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+        <SearchButton onClick={handleSearch} />
         <Upload
           action=""
           accept={imageOnly ? 'image/*' : undefined}

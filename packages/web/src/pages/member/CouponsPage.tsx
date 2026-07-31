@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Input, Select, Form, Toast, Tag, Modal, Row, Col } from '@douyinfe/semi-ui';
+import { Input, Select, Form, Toast, Tag, Modal, Row, Col } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search, RotateCcw, Plus } from 'lucide-react';
+import { Search } from 'lucide-react';
 import type { Coupon, CouponType, CouponTemplateStatus } from '@zenith/shared/member';
 import { COUPON_TYPE_LABELS, COUPON_TEMPLATE_STATUS_LABELS } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
@@ -22,6 +22,7 @@ import {
   useIssueCoupon,
   useSaveCoupon,
 } from '@/hooks/queries/member-admin';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const typeOptions = (Object.keys(COUPON_TYPE_LABELS) as CouponType[]).map((v) => ({ value: v, label: COUPON_TYPE_LABELS[v] }));
 const statusOptions = (Object.keys(COUPON_TEMPLATE_STATUS_LABELS) as CouponTemplateStatus[]).map((v) => ({ value: v, label: COUPON_TEMPLATE_STATUS_LABELS[v] }));
@@ -225,10 +226,10 @@ export default function CouponsPage() {
     />
   );
 
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => hasPermission('member:coupon:create') ? (
-    <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+    <CreateButton onClick={openCreate} />
   ) : null;
 
   return (

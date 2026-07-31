@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Button, DatePicker, Form, Input, Row, Col, Select, Skeleton, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, ShieldCheck, RefreshCw, SlidersHorizontal } from 'lucide-react';
+import { Search, ShieldCheck, RefreshCw, SlidersHorizontal } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
@@ -23,6 +23,7 @@ import {
 } from '@/hooks/queries/payment-ledger';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_LEDGER_DIRECTION_LABELS, PAYMENT_LEDGER_TYPE_LABELS } from '@zenith/shared/payment';
 import type { PaymentAccountCheckRow, PaymentChannel, PaymentLedgerDirection, PaymentLedgerEntry, PaymentLedgerType } from '@zenith/shared/payment';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const yuan = formatYuan;
 const sectionStyle: CSSProperties = {
@@ -193,8 +194,8 @@ export default function PaymentLedgerPage() {
     />
   );
 
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch} disabled={!canView}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset} disabled={!canView}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} disabled={!canView} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} disabled={!canView} />;
 
   return (
     <div className="page-container">

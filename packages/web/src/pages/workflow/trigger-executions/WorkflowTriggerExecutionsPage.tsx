@@ -5,7 +5,6 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  Button,
   Input,
   InputNumber,
   Select,
@@ -14,7 +13,7 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { RotateCcw, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { formatDateTime } from '@/utils/date';
 import { createdAtColumn } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -31,6 +30,7 @@ import {
   useWorkflowTriggerExecutionList,
   workflowTriggerExecutionKeys,
 } from '@/hooks/queries/workflow-trigger-executions';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const STATUS_MAP: Record<WorkflowTriggerExecutionStatus, { label: string; color: 'grey' | 'blue' | 'green' | 'red' | 'orange' }> = {
   pending: { label: '待执行', color: 'grey' },
@@ -183,11 +183,11 @@ export default function WorkflowTriggerExecutionsPage() {
   );
 
   const renderSearchButton = () => (
-    <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+    <SearchButton onClick={handleSearch} />
   );
 
   const renderResetButton = () => (
-    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+    <ResetButton onClick={handleReset} />
   );
 
   return (

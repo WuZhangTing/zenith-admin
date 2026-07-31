@@ -2,7 +2,6 @@ import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Banner,
-  Button,
   Col,
   Empty,
   Form,
@@ -22,7 +21,6 @@ import {
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportDqAnomaly, ReportDqAnomalyStatus, ReportDqRule, ReportDqRuleType, ReportDqRun, ReportDqRunStatus, ReportDqScore } from '@zenith/shared/report';
-import { Plus, RotateCcw, Search } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
@@ -53,6 +51,7 @@ import {
   formatDqPassRate,
   normalizeDqRuleFormValues,
 } from './report-platform-utils';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const ruleTypeOptions = [
   { value: 'not_null', label: '非空' },
@@ -255,13 +254,13 @@ export default function QualityPage() {
   ];
 
   const datasetFilter = <Select placeholder="选择数据集" filter showClear value={datasetId} optionList={datasetOptions} style={{ width: 190 }} onChange={(v) => setDatasetId(v as number | undefined)} />;
-  const searchButtons = <><Button type="primary" icon={<Search size={14} />} onClick={applySearch}>查询</Button><Button type="tertiary" icon={<RotateCcw size={14} />} onClick={resetSearch}>重置</Button></>;
+  const searchButtons = <><SearchButton onClick={applySearch} /><ResetButton onClick={resetSearch} /></>;
   const commonToolbar = (extraFilters?: React.ReactNode, actions?: React.ReactNode) => (
     <SearchToolbar
       primary={<>{datasetFilter}{searchButtons}</>}
       filters={extraFilters}
       actions={actions}
-      mobilePrimary={<>{datasetFilter}<Button type="primary" icon={<Search size={14} />} onClick={applySearch}>查询</Button>{actions}</>}
+      mobilePrimary={<>{datasetFilter}<SearchButton onClick={applySearch} />{actions}</>}
       onFilterApply={applySearch}
       onFilterReset={resetSearch}
     />
@@ -276,7 +275,7 @@ export default function QualityPage() {
               <Select placeholder="规则类型" showClear value={ruleType} optionList={ruleTypeOptions} style={{ width: 140 }} onChange={(v) => setRuleType(v as ReportDqRuleType | undefined)} />
               <Select placeholder="启用状态" showClear value={enabled === undefined ? undefined : String(enabled)} optionList={[{ value: 'true', label: '启用' }, { value: 'false', label: '停用' }]} style={{ width: 120 }} onChange={(v) => setEnabled(v == null ? undefined : v === 'true')} />
             </>,
-            hasPermission('report:dq:create') ? <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button> : null,
+            hasPermission('report:dq:create') ? <CreateButton onClick={openCreate} /> : null,
           )}
           {rulesQuery.isError && <Banner type="danger" description={rulesQuery.error instanceof Error ? rulesQuery.error.message : '质量规则加载失败'} />}
           <ConfigurableTable bordered rowKey="id" columns={ruleColumns} dataSource={rulesQuery.data?.list ?? []} loading={rulesQuery.isFetching} empty={<Empty title="暂无质量规则" />} pagination={buildPagination(rulesQuery.data?.total ?? 0)} onRefresh={() => void rulesQuery.refetch()} refreshLoading={rulesQuery.isFetching} />

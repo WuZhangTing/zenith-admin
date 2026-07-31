@@ -2,10 +2,10 @@
  * 行为中心阶段 1：事件调试流 —— 当前租户最近事件摘要，3s 轮询近实时刷新。
  */
 import { useState } from 'react';
-import { Button, Input, SideSheet, Tag, Typography } from '@douyinfe/semi-ui';
+import { Input, SideSheet, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
-import { RotateCcw, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -13,6 +13,7 @@ import { formatDateTime } from '@/utils/date';
 import { useAnalyticsDebugEvents } from '@/hooks/queries/analytics';
 import type { AnalyticsDebugEvent, AnalyticsQualityIssueType } from '@zenith/shared/analytics';
 import { ANALYTICS_QUALITY_ISSUE_TYPE_LABELS } from '@zenith/shared/analytics';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const DEBUG_LIMIT = 50;
 
@@ -87,8 +88,8 @@ export default function AnalyticsDebugTab({ active }: Readonly<{ active: boolean
           showClear
           style={{ width: 180 }}
         />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+        <SearchButton onClick={handleSearch} />
+        <ResetButton onClick={handleReset} />
         <Typography.Text type="tertiary" size="small">每 3 秒自动刷新，最多展示 {DEBUG_LIMIT} 条</Typography.Text>
       </SearchToolbar>
       <ConfigurableTable

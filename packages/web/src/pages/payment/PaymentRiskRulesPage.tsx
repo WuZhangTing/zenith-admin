@@ -1,10 +1,10 @@
 import { useState, useRef } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, Modal, Select, Switch, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Form, Input, Modal, Select, Switch, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, Plus } from 'lucide-react';
+import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -26,6 +26,7 @@ import {
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_RISK_ACTION_LABELS, PAYMENT_RISK_DIMENSION_LABELS, PAYMENT_RISK_REVIEW_STATUS_LABELS, PAYMENT_RISK_SCOPE_LABELS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentRiskAction, PaymentRiskDimension, PaymentRiskHit, PaymentRiskReview, PaymentRiskReviewStatus, PaymentRiskRule, PaymentRiskScope } from '@zenith/shared/payment';
 import { useDictItems } from '@/hooks/useDictItems';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const yuan = formatYuan;
 const channelOptions = Object.entries(PAYMENT_CHANNEL_LABELS).map(([value, label]) => ({ value, label }));
@@ -287,10 +288,10 @@ export default function PaymentRiskRulesPage() {
   const renderStatusFilter = () => (
     <Select placeholder="全部状态" value={draftParams.status || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))} />
   );
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => hasPermission('payment:risk:create') ? (
-    <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+    <CreateButton onClick={openCreate} />
   ) : null;
 
   const renderHitKeyword = () => (
@@ -349,14 +350,14 @@ export default function PaymentRiskRulesPage() {
                 {renderHitKeyword()}
                 {renderHitActionFilter()}
                 {renderHitDimensionFilter()}
-                <Button type="primary" icon={<Search size={14} />} onClick={handleHitSearch}>查询</Button>
-                <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleHitReset}>重置</Button>
+                <SearchButton onClick={handleHitSearch} />
+                <ResetButton onClick={handleHitReset} />
               </>
             )}
             mobilePrimary={(
               <>
                 {renderHitKeyword()}
-                <Button type="primary" icon={<Search size={14} />} onClick={handleHitSearch}>查询</Button>
+                <SearchButton onClick={handleHitSearch} />
               </>
             )}
             mobileFilters={(
@@ -381,14 +382,14 @@ export default function PaymentRiskRulesPage() {
               <>
                 {renderReviewKeyword()}
                 {renderReviewStatusFilter()}
-                <Button type="primary" icon={<Search size={14} />} onClick={handleReviewSearch}>查询</Button>
-                <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReviewReset}>重置</Button>
+                <SearchButton onClick={handleReviewSearch} />
+                <ResetButton onClick={handleReviewReset} />
               </>
             )}
             mobilePrimary={(
               <>
                 {renderReviewKeyword()}
-                <Button type="primary" icon={<Search size={14} />} onClick={handleReviewSearch}>查询</Button>
+                <SearchButton onClick={handleReviewSearch} />
               </>
             )}
             mobileFilters={renderReviewStatusFilter()}

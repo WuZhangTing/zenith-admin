@@ -4,7 +4,7 @@ import { Button, Form, Input, Modal, Select, Tag,
   Toast } from '@douyinfe/semi-ui';
 import { AppModal } from '@/components/AppModal';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Plus, RotateCcw, Search } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import type { EmailSendLog, SendStatus } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
@@ -21,6 +21,7 @@ import {
   useTestEmailSendLog,
 } from '@/hooks/queries/email-send-logs';
 import { SEND_LOG_STATUS_OPTIONS as STATUS_OPTIONS, SEND_SOURCE_OPTIONS as SOURCE_OPTIONS } from '../send-log-constants';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 function StatusTag({ value }: Readonly<{ value: SendStatus }>) {
   const it = STATUS_OPTIONS.find((s) => s.value === value);
@@ -136,8 +137,8 @@ export default function EmailSendLogsPage() {
               optionList={STATUS_OPTIONS} showClear style={{ width: 110 }} />
             <Select placeholder="来源" value={draftParams.filterSource} onChange={(v) => setDraftParams({ ...draftParams, filterSource: v as string | undefined })}
               optionList={SOURCE_OPTIONS} showClear style={{ width: 110 }} />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
           </>
         )}
         actions={(
@@ -154,7 +155,7 @@ export default function EmailSendLogsPage() {
           <>
             <Input prefix={<Search size={14} />} placeholder="主题/内容关键词"
               value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onEnterPress={handleSearch} showClear style={{ width: 200 }} />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+            <SearchButton onClick={handleSearch} />
             {can('system:email-send-log:send') && (
               <Button type="primary" icon={<Plus size={14} />} onClick={openTest}>测试发送</Button>
             )}

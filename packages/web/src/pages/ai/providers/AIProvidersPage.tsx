@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Button, Input, Modal, Tag, Toast, Switch } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Plus, RotateCcw, Search, ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
+import { Search, ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -16,6 +16,7 @@ import {
   useSaveAiProvider,
   useSetDefaultAiProvider,
 } from '@/hooks/queries/ai-providers';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const PROVIDER_LABELS: Record<AiProvider, string> = {
   openai_compatible: 'OpenAI Compatible',
@@ -242,15 +243,11 @@ export default function AIProvidersPage() {
   );
 
   const renderSearchButton = () => (
-    <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>
-      查询
-    </Button>
+    <SearchButton onClick={handleSearch} />
   );
 
   const renderResetButton = () => (
-    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>
-      重置
-    </Button>
+    <ResetButton onClick={handleReset} />
   );
 
   const renderExpandButton = () => (
@@ -264,9 +261,7 @@ export default function AIProvidersPage() {
   );
 
   const renderCreateButton = () => hasPermission('ai:provider:create') ? (
-    <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>
-      新增
-    </Button>
+    <CreateButton onClick={openCreate} />
   ) : null;
 
   return (

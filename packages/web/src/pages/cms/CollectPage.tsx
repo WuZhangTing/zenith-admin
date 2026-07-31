@@ -1,10 +1,10 @@
 /** 采集中心：规则 CRUD + 任务中心执行 + 采集明细（P3 Batch5） */
 import { useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, Modal, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Form, Input, Modal, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, Plus } from 'lucide-react';
+import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -20,6 +20,7 @@ import {
 } from '@/hooks/queries/cms';
 import type { CmsChannel, CmsCollectRule, CmsCollectItem } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 function channelsToSelectTree(nodes: CmsChannel[]): { key: string; value: number; label: string; disabled: boolean; children?: ReturnType<typeof channelsToSelectTree> }[] {
   return nodes.map((n) => ({
@@ -213,10 +214,10 @@ export default function CollectPage() {
       <SearchToolbar>
         <CmsSiteSelect value={siteId} onChange={(v) => { setSiteId(v); resetPage(); }} />
         <Input prefix={<Search size={14} />} placeholder="规则名称" value={keywordDraft} onChange={setKeywordDraft} showClear style={{ width: 200 }} />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+        <SearchButton onClick={handleSearch} />
+        <ResetButton onClick={handleReset} />
         {hasPermission('cms:collect:create') ? (
-          <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+          <CreateButton onClick={openCreate} />
         ) : null}
       </SearchToolbar>
 

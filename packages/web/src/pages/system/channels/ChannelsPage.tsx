@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Input, Modal, Space, Tag, Toast, Typography, Upload } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { ImagePlus, Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { ImagePlus, Search, Trash2 } from 'lucide-react';
 import type { ChannelAdmin } from '@zenith/shared/messaging';
 import { config } from '@/config';
 import { formatDateTime } from '@/utils/date';
@@ -26,6 +26,7 @@ import {
   useDeleteChannel,
   useSaveChannel,
 } from '@/hooks/queries/channels';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const TYPE_META: Record<string, { text: string; color: 'green' | 'blue' }> = {
   system: { text: '系统号', color: 'green' },
@@ -187,19 +188,19 @@ export default function ChannelsPage() {
         primary={(
           <>
             <Input prefix={<Search size={14} />} placeholder="搜索频道名称/编码" value={draftKeyword} onChange={setDraftKeyword} onEnterPress={handleSearch} showClear style={{ width: 220 }} />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-            {hasPermission('channel:channel:create') && <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>}
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
+            {hasPermission('channel:channel:create') && <CreateButton onClick={openCreate} />}
           </>
         )}
         mobilePrimary={(
           <>
             <Input prefix={<Search size={14} />} placeholder="搜索频道名称/编码" value={draftKeyword} onChange={setDraftKeyword} onEnterPress={handleSearch} showClear style={{ width: 220 }} />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            {hasPermission('channel:channel:create') && <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>}
+            <SearchButton onClick={handleSearch} />
+            {hasPermission('channel:channel:create') && <CreateButton onClick={openCreate} />}
           </>
         )}
-        mobileActions={<Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>}
+        mobileActions={<ResetButton onClick={handleReset} />}
         actionTitle="频道操作"
       />
 

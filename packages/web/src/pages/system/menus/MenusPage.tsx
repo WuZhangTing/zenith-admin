@@ -17,7 +17,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
-import { Plus, ChevronsDownUp, ChevronsUpDown, Search, RotateCcw } from 'lucide-react';
+import { ChevronsDownUp, ChevronsUpDown, Search } from 'lucide-react';
 import type { Menu } from '@zenith/shared/identity';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
@@ -31,6 +31,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import { menuKeys, useDeleteMenu, useMenuDetail, useMenuTree, useSaveMenu } from '@/hooks/queries/menus';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 export default function MenusPage() {
   const { hasPermission } = usePermission();
@@ -397,11 +398,11 @@ export default function MenusPage() {
   );
 
   const renderSearchButton = () => (
-    <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+    <SearchButton onClick={handleSearch} />
   );
 
   const renderResetButton = () => (
-    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+    <ResetButton onClick={handleReset} />
   );
 
   const renderExpandButton = () => (
@@ -415,7 +416,7 @@ export default function MenusPage() {
   );
 
   const renderCreateButton = () => hasPermission('system:menu:create') ? (
-    <Button type="primary" icon={<Plus size={14} />} onClick={() => openCreate()}>新增</Button>
+    <CreateButton onClick={() => openCreate()} />
   ) : null;
 
   return (

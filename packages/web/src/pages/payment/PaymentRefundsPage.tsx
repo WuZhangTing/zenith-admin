@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, DatePicker, Form, Input, Select, Tag, Toast, Typography, Descriptions } from '@douyinfe/semi-ui';
+import { DatePicker, Form, Input, Select, Tag, Toast, Typography, Descriptions } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search, RotateCcw } from 'lucide-react';
+import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -22,6 +22,7 @@ import {
   useQueryPaymentRefund,
   useRejectPaymentRefund,
 } from '@/hooks/queries/payment-refunds';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const STATUS_COLOR = { pending: 'grey', processing: 'blue', success: 'green', failed: 'red' } as const satisfies Record<PaymentRefundStatus, string>;
 const APPROVAL_COLOR = { none: 'grey', pending: 'amber', approved: 'green', rejected: 'red' } as const satisfies Record<PaymentRefundApprovalStatus, string>;
@@ -183,8 +184,8 @@ export default function PaymentRefundsPage() {
     />
   );
 
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderExportButtons = () => <ExportButton entity="payment.refunds" query={buildQuery(submittedParams)} />;
   const renderMobileExportActions = () => <ExportButton entity="payment.refunds" query={buildQuery(submittedParams)} variant="flat" />;
 

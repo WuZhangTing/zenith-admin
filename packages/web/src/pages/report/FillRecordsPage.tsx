@@ -19,7 +19,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { ClipboardPlus, ExternalLink, RotateCcw, Search } from 'lucide-react';
+import { ClipboardPlus, ExternalLink, Search } from 'lucide-react';
 import { REPORT_FILL_RECORD_STATUS_LABELS, REPORT_FILL_RECORD_STATUS_OPTIONS, REPORT_FILL_SYNC_STATUS_LABELS } from '@zenith/shared/report';
 import type { ReportFillRecord, ReportFillRecordStatus } from '@zenith/shared/report';
 import type { AsyncTask } from '@zenith/shared/tasks';
@@ -46,6 +46,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { formatDateTime } from '@/utils/date';
 import { canRunFillRecordAction, isRevisionConflict, shouldShowFillReviewTab } from './report-p2-utils';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface MineFilters {
   keyword: string;
@@ -330,29 +331,17 @@ export default function FillRecordsPage() {
             primary={(
               <>
                 {mineKeyword}
-                <Button
-                  type="primary"
-                  icon={<Search size={14} />}
-                  onClick={() => {
+                <SearchButton onClick={() => {
                     minePagination.setPage(1);
                     setMineSubmitted(mineDraft);
                     void queryClient.invalidateQueries({ queryKey: reportFillKeys.recordLists });
-                  }}
-                >
-                  查询
-                </Button>
-                <Button
-                  type="tertiary"
-                  icon={<RotateCcw size={14} />}
-                  onClick={() => {
+                  }} />
+                <ResetButton onClick={() => {
                     setMineDraft(DEFAULT_MINE);
                     setMineSubmitted(DEFAULT_MINE);
                     minePagination.setPage(1);
                     void queryClient.invalidateQueries({ queryKey: reportFillKeys.recordLists });
-                  }}
-                >
-                  重置
-                </Button>
+                  }} />
               </>
             )}
             filters={(
@@ -367,10 +356,10 @@ export default function FillRecordsPage() {
             mobilePrimary={(
               <>
                 {mineKeyword}
-                <Button type="primary" icon={<Search size={14} />} onClick={() => {
+                <SearchButton onClick={() => {
                   minePagination.setPage(1);
                   setMineSubmitted(mineDraft);
-                }}>查询</Button>
+                }} />
                 {canCreate && (
                   <Button type="primary" icon={<ClipboardPlus size={14} />} onClick={() => openEntry()}>新增</Button>
                 )}
@@ -402,29 +391,17 @@ export default function FillRecordsPage() {
               primary={(
                 <>
                   {statusFilter(adminDraft.status, (status) => setAdminDraft((current) => ({ ...current, status })))}
-                  <Button
-                    type="primary"
-                    icon={<Search size={14} />}
-                    onClick={() => {
+                  <SearchButton onClick={() => {
                       adminPagination.setPage(1);
                       setAdminSubmitted(adminDraft);
                       void queryClient.invalidateQueries({ queryKey: reportFillKeys.recordLists });
-                    }}
-                  >
-                    查询
-                  </Button>
-                  <Button
-                    type="tertiary"
-                    icon={<RotateCcw size={14} />}
-                    onClick={() => {
+                    }} />
+                  <ResetButton onClick={() => {
                       setAdminDraft(DEFAULT_ADMIN);
                       setAdminSubmitted(DEFAULT_ADMIN);
                       adminPagination.setPage(1);
                       void queryClient.invalidateQueries({ queryKey: reportFillKeys.recordLists });
-                    }}
-                  >
-                    重置
-                  </Button>
+                    }} />
                 </>
               )}
               filters={(
@@ -455,10 +432,10 @@ export default function FillRecordsPage() {
               mobilePrimary={(
                 <>
                   {statusFilter(adminDraft.status, (status) => setAdminDraft((current) => ({ ...current, status })))}
-                  <Button type="primary" icon={<Search size={14} />} onClick={() => {
+                  <SearchButton onClick={() => {
                     adminPagination.setPage(1);
                     setAdminSubmitted(adminDraft);
-                  }}>查询</Button>
+                  }} />
                 </>
               )}
               mobileActions={hasPermission('report:fill:record:export') ? (

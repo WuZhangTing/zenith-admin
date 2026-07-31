@@ -5,7 +5,7 @@ import { Button, Form, Input, Modal, Select, Tag, Toast, Typography } from '@dou
 import { Tabs, TabPane } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, Plus } from 'lucide-react';
+import { Search, Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -31,6 +31,7 @@ import {
 } from '@/hooks/queries/payment-contracts';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_CONTRACT_STATUS_LABELS, PAYMENT_DEDUCT_PERIOD_LABELS, PAYMENT_DEDUCT_PERIOD_OPTIONS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentContract, PaymentContractStatus, PaymentDeductPeriod, PaymentDeductPlan } from '@zenith/shared/payment';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const yuan = formatYuan;
 const CONTRACT_STATUS_COLOR = { pending: 'grey', signed: 'green', paused: 'orange', terminated: 'red' } as const satisfies Record<PaymentContractStatus, string>;
@@ -291,8 +292,8 @@ export default function PaymentContractsPage() {
   const renderChannelFilter = () => (
     <Select placeholder="全部渠道" value={channel || undefined} onChange={(v) => setChannel((v as string) ?? '')} showClear style={{ width: 120 }} optionList={channelOptions} />
   );
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateContract = () => canManage ? (
     <Button type="primary" icon={<Plus size={14} />} onClick={() => setContractModal(true)}>新增签约</Button>
   ) : null;
@@ -301,10 +302,10 @@ export default function PaymentContractsPage() {
   const renderPlanKeywordSearch = () => (
     <Input prefix={<Search size={14} />} placeholder="计划名称..." value={planKeyword} onChange={setPlanKeyword} showClear style={{ width: 200 }} onEnterPress={handlePlanSearch} />
   );
-  const renderPlanSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handlePlanSearch}>查询</Button>;
-  const renderPlanResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handlePlanReset}>重置</Button>;
+  const renderPlanSearchButton = () => <SearchButton onClick={handlePlanSearch} />;
+  const renderPlanResetButton = () => <ResetButton onClick={handlePlanReset} />;
   const renderCreatePlan = () => canPlan ? (
-    <Button type="primary" icon={<Plus size={14} />} onClick={openCreatePlan}>新增</Button>
+    <CreateButton onClick={openCreatePlan} />
   ) : null;
 
   return (

@@ -20,7 +20,7 @@ import {
   Tooltip,
   Typography,
 } from '@douyinfe/semi-ui';
-import { Plus, Search, RotateCcw, Trash2, FolderDown, LayoutGrid, List as ListIcon, CheckCircle2, XCircle, X } from 'lucide-react';
+import { Plus, Search, Trash2, FolderDown, LayoutGrid, List as ListIcon, CheckCircle2, XCircle, X } from 'lucide-react';
 import type { ManagedFile } from '@zenith/shared/platform';
 import { TOKEN_KEY } from '@zenith/shared/core';
 import { FILE_STORAGE_PROVIDER_OPTIONS } from '@zenith/shared/platform';
@@ -45,6 +45,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { useDefaultFileStorageConfig } from '@/hooks/queries/file-storage-configs';
 import { fileKeys, useBatchDeleteFiles, useDeleteFile, useFileDetail, useFileList, useUploadFile } from '@/hooks/queries/files';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import './FilesPage.css';
 
 const { Text } = Typography;
@@ -443,8 +444,8 @@ export default function FilesPage() {
             {renderProviderFilter()}
             {renderFileTypeFilter()}
             {renderTimeRangeFilter()}
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
           </>
         )}
         actions={(
@@ -481,7 +482,7 @@ export default function FilesPage() {
         mobilePrimary={(
           <>
             {renderKeywordSearch()}
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+            <SearchButton onClick={handleSearch} />
             {hasPermission('system:file:upload') && (
               <Button
                 type="primary"

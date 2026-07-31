@@ -23,6 +23,7 @@ import { COMMON_STATUS_OPTIONS } from '@zenith/shared/core';
 import type { CmsSearchResult, CmsSearchWord, CmsHotKeyword } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { formatDateTimeForApi } from '@/utils/date';
+import { SearchButton } from '@/components/toolbar-controls';
 
 // ─── 检索测试 Tab ─────────────────────────────────────────────────────────────
 function SearchTestTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined; onSiteChange: (v: number) => void }>) {
@@ -214,7 +215,7 @@ function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined
         <Input placeholder="分组" value={groupName} onChange={setGroupName} style={{ width: 130 }} />
         <Select placeholder="状态" showClear value={status} onChange={(value) => setStatus(value as string | undefined)} style={{ width: 110 }}
           optionList={COMMON_STATUS_OPTIONS} />
-        <Button type="primary" icon={<Search size={14} />} onClick={() => { setPage(1); setSubmittedKeyword(draftKeyword); }}>查询</Button>
+        <SearchButton onClick={() => { setPage(1); setSubmittedKeyword(draftKeyword); }} />
         {canManage ? <Button type="primary" icon={<Plus size={14} />} onClick={() => { setEditingRecord(null); setModalVisible(true); }}>新增词条</Button> : null}
         {canManage && selectedIds.length > 0 ? (
           <>

@@ -14,7 +14,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Lock, Search, RotateCcw, Upload } from 'lucide-react';
+import { Lock, Search, Upload } from 'lucide-react';
 import AppModal from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -34,6 +34,7 @@ import {
   useUploadSslCertificate,
   type SslCertificateRecord,
 } from '@/hooks/queries/ssl-certificates';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams {
   keyword: string;
@@ -244,8 +245,8 @@ export default function SslCertificatesPage() {
               ]}
               style={{ width: 160 }}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
             {canCreate && <Button type="primary" icon={<Lock size={14} />} onClick={() => setGenerateVisible(true)}>生成自签名证书</Button>}
             {canCreate && <Button type="primary" icon={<Upload size={14} />} onClick={() => setUploadVisible(true)}>上传证书</Button>}
           </>
@@ -261,7 +262,7 @@ export default function SslCertificatesPage() {
               showClear
               style={{ width: 240 }}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+            <SearchButton onClick={handleSearch} />
             {canCreate && <Button type="primary" icon={<Lock size={14} />} onClick={() => setGenerateVisible(true)}>生成</Button>}
             {canCreate && <Button type="primary" icon={<Upload size={14} />} onClick={() => setUploadVisible(true)}>上传</Button>}
           </>

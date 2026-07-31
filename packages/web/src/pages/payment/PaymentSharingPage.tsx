@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Input, Modal, Select, Switch, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, Plus } from 'lucide-react';
+import { Search, Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -25,6 +25,7 @@ import {
 import { PAYMENT_SHARING_RECEIVER_TYPE_LABELS, PAYMENT_SHARING_ORDER_STATUS_LABELS } from '@zenith/shared/payment';
 import type { PaymentSharingOrder, PaymentSharingOrderStatus, PaymentSharingReceiver, PaymentSharingReceiverType } from '@zenith/shared/payment';
 import { useDictItems } from '@/hooks/useDictItems';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const yuan = formatYuan;
 const receiverTypeOptions = Object.entries(PAYMENT_SHARING_RECEIVER_TYPE_LABELS).map(([value, label]) => ({ value, label }));
@@ -208,10 +209,10 @@ export default function PaymentSharingPage() {
       onEnterPress={handleReceiverSearch}
     />
   );
-  const renderReceiverSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleReceiverSearch}>查询</Button>;
-  const renderReceiverResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReceiverReset}>重置</Button>;
+  const renderReceiverSearchButton = () => <SearchButton onClick={handleReceiverSearch} />;
+  const renderReceiverResetButton = () => <ResetButton onClick={handleReceiverReset} />;
   const renderReceiverCreateButton = () => canManage ? (
-    <Button type="primary" icon={<Plus size={14} />} onClick={openCreateReceiver}>新增</Button>
+    <CreateButton onClick={openCreateReceiver} />
   ) : null;
 
   const renderOrderKeywordSearch = () => (
@@ -235,8 +236,8 @@ export default function PaymentSharingPage() {
       optionList={Object.entries(PAYMENT_SHARING_ORDER_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
     />
   );
-  const renderOrderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleOrderSearch}>查询</Button>;
-  const renderOrderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleOrderReset}>重置</Button>;
+  const renderOrderSearchButton = () => <SearchButton onClick={handleOrderSearch} />;
+  const renderOrderResetButton = () => <ResetButton onClick={handleOrderReset} />;
   const renderDispatchButton = () => canDispatch ? (
     <Button type="primary" icon={<Plus size={14} />} onClick={openDispatch}>发起分账</Button>
   ) : null;

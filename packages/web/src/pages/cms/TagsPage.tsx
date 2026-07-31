@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, Toast, Modal } from '@douyinfe/semi-ui';
+import { Form, Input, Toast, Modal } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, Plus } from 'lucide-react';
+import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -14,6 +14,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { useCmsTagList, useSaveCmsTag, useDeleteCmsTag, cmsTagKeys } from '@/hooks/queries/cms';
 import type { CmsTag } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 export default function TagsPage() {
   const { hasPermission } = usePermission();
@@ -122,10 +123,10 @@ export default function TagsPage() {
           style={{ width: 200 }}
           onEnterPress={handleSearch}
         />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+        <SearchButton onClick={handleSearch} />
+        <ResetButton onClick={handleReset} />
         {hasPermission('cms:tag:create') ? (
-          <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+          <CreateButton onClick={openCreate} />
         ) : null}
       </SearchToolbar>
 

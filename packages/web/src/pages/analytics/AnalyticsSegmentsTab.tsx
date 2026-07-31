@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, InputNumber, Input, Modal, Select, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { Plus, Search, Trash2 } from 'lucide-react';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -27,6 +27,7 @@ import { useEmailTemplateList } from '@/hooks/queries/email-templates';
 import { useInAppTemplateList } from '@/hooks/queries/in-app-templates';
 import type { AnalyticsSegmentAttributeCondition, AnalyticsSegmentCompareOp, AnalyticsSegmentCondition, AnalyticsSegmentEventCondition, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSegmentPropertyFilter, AnalyticsUserSegment } from '@zenith/shared/analytics';
 import { ANALYTICS_EVENT_OVERRIDE_STATUS_OPTIONS, ANALYTICS_CAMPAIGN_CHANNEL_OPTIONS, ANALYTICS_CAMPAIGN_STATUS_LABELS, ANALYTICS_IDENTITY_TYPE_OPTIONS, ANALYTICS_SEGMENT_COMPARE_OP_OPTIONS } from '@zenith/shared/analytics';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const PAGE_SIZE = 20;
 const MAX_CONDITIONS = 10;
@@ -184,7 +185,7 @@ function CampaignDrawer({ segment, onClose }: { segment: AnalyticsUserSegment; o
           ) : (
             <Select placeholder="选择模板" value={templateId} optionList={templateOptions} onChange={(v) => setTemplateId(v as number)} loading={channel === 'email' ? emailTemplatesQuery.isFetching : inAppTemplatesQuery.isFetching} style={{ width: 220 }} />
           )}
-          <Button type="primary" icon={<Plus size={14} />} loading={createCampaign.isPending} onClick={() => void handleCreate()}>新增</Button>
+          <CreateButton onClick={() => void handleCreate()} loading={createCampaign.isPending} />
         </SearchToolbar>
         <ConfigurableTable
           bordered
@@ -395,9 +396,9 @@ export default function AnalyticsSegmentsTab() {
           showClear
           style={{ width: 130 }}
         />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-        <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+        <SearchButton onClick={handleSearch} />
+        <ResetButton onClick={handleReset} />
+        <CreateButton onClick={openCreate} />
       </SearchToolbar>
       <ConfigurableTable
         bordered

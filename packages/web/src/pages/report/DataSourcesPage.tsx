@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button, Form, Input, Select, Switch, Toast, Modal, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Activity, Search, RotateCcw, Plus } from 'lucide-react';
+import { Activity, Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -29,6 +29,7 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { renderReportDatasourceTypeTag } from './report-datasource-ui';
 import { flattenReportFolders, useReportFolderTree } from '@/hooks/queries/report-folders';
 import { useAllUsers } from '@/hooks/queries/users';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams { keyword: string; type: string; status: string; ownerId?: number; folderId?: number }
 const defaultSearchParams: SearchParams = { keyword: '', type: '', status: '', ownerId: undefined, folderId: undefined };
@@ -299,10 +300,10 @@ export default function DataSourcesPage() {
       optionList={folders.map((f) => ({ value: f.id, label: f.name }))}
       onChange={(v) => setDraftParams((p) => ({ ...p, folderId: v as number | undefined }))} />
   );
-  const renderSearchBtn = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetBtn = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchBtn = () => <SearchButton onClick={handleSearch} />;
+  const renderResetBtn = () => <ResetButton onClick={handleReset} />;
   const renderCreateBtn = () => hasPermission('report:datasource:create')
-    ? <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button> : null;
+    ? <CreateButton onClick={openCreate} /> : null;
   const renderBatchHealthBtn = () => selectedRowKeys.length > 0 && hasPermission('report:datasource:update')
     ? <Button icon={<Activity size={14} />} onClick={() => void handleHealthCheck(selectedRowKeys)}>批量检测</Button> : null;
   const renderBatchEnableBtn = () => selectedRowKeys.length > 0 && hasPermission('report:datasource:update')

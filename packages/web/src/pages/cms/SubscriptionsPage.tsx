@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, DatePicker, Input, Select, SideSheet, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
+import { DatePicker, Input, Select, SideSheet, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { RotateCcw, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { CMS_SUBSCRIPTION_SUBJECT_TYPE_LABELS } from '@zenith/shared/cms';
 import type { CmsMemberSubscription, CmsSubscriptionAggregate, CmsSubscriptionSubjectType } from '@zenith/shared/cms';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -18,6 +18,7 @@ import {
 } from '@/hooks/queries/cms';
 import { formatDateTimeForApi } from '@/utils/date';
 import { CmsSiteSelect } from './CmsSiteSelect';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchState {
   subjectType?: CmsSubscriptionSubjectType;
@@ -91,8 +92,8 @@ export default function SubscriptionsPage() {
         style={{ width: 200 }}
       />
       {filters}
-      <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-      <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+      <SearchButton onClick={handleSearch} />
+      <ResetButton onClick={handleReset} />
     </>
   );
 
@@ -138,7 +139,7 @@ export default function SubscriptionsPage() {
             mobilePrimary={(
               <>
                 <CmsSiteSelect value={siteId} onChange={setSiteId} />
-                <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+                <SearchButton onClick={handleSearch} />
               </>
             )}
             mobileFilters={filters}
@@ -166,7 +167,7 @@ export default function SubscriptionsPage() {
             mobilePrimary={(
               <>
                 <CmsSiteSelect value={siteId} onChange={setSiteId} />
-                <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+                <SearchButton onClick={handleSearch} />
               </>
             )}
             mobileFilters={filters}

@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Select, Space, Tag, Typography } from '@douyinfe/semi-ui';
+import { Select, Space, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { RotateCcw, Search } from 'lucide-react';
 import type { WorkflowHealthIssue, WorkflowHealthSummary } from '@zenith/shared/workflow';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { useWorkflowHealthSummary, workflowHealthKeys } from '@/hooks/queries/workflow-health';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const ISSUE_LABELS: Record<WorkflowHealthIssue['type'], string> = {
   external_dispatch_failed: '外部审批失败',
@@ -134,11 +134,11 @@ export default function WorkflowHealthPage() {
   );
 
   const renderSearchButton = () => (
-    <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+    <SearchButton onClick={handleSearch} />
   );
 
   const renderResetButton = () => (
-    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+    <ResetButton onClick={handleReset} />
   );
 
   return (

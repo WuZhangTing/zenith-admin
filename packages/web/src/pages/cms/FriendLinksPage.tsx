@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Input, Select, SideSheet, Tag, Toast, Modal, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, Plus, FolderTree } from 'lucide-react';
+import { Search, Plus, FolderTree } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -17,6 +17,7 @@ import {
 } from '@/hooks/queries/cms';
 import type { CmsFriendLink, CmsFriendLinkGroup } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 export default function FriendLinksPage() {
   const { hasPermission } = usePermission();
@@ -148,10 +149,10 @@ export default function FriendLinksPage() {
             ...groupOptions.map((g) => ({ value: g.id, label: g.name })),
           ]}
         />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+        <SearchButton onClick={handleSearch} />
+        <ResetButton onClick={handleReset} />
         {hasPermission('cms:link:create') ? (
-          <Button type="primary" icon={<Plus size={14} />} onClick={() => { setEditingRecord(null); setModalVisible(true); }}>新增</Button>
+          <CreateButton onClick={() => { setEditingRecord(null); setModalVisible(true); }} />
         ) : null}
         <Button icon={<FolderTree size={14} />} disabled={!siteId} onClick={() => setGroupSheetVisible(true)}>分组管理</Button>
       </SearchToolbar>

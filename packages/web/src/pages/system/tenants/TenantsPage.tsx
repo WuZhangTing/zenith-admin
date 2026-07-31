@@ -18,7 +18,7 @@ import {
   Divider,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Plus, RotateCcw } from 'lucide-react';
+import { Search } from 'lucide-react';
 import type { Tenant } from '@zenith/shared/identity';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
@@ -40,6 +40,7 @@ import {
   useTenantList,
   useTenantStats,
 } from '@/hooks/queries/tenants';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams {
   keyword: string;
@@ -288,8 +289,8 @@ export default function TenantsPage() {
     />
   );
 
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const buildExportQuery = () => ({
     ...(submittedParams.keyword ? { keyword: submittedParams.keyword } : {}),
     ...(submittedParams.status ? { status: submittedParams.status } : {}),
@@ -297,13 +298,7 @@ export default function TenantsPage() {
   const renderExportButtons = () => <ExportButton entity="system.tenants" query={buildExportQuery()} />;
   const renderMobileExportActions = () => <ExportButton entity="system.tenants" query={buildExportQuery()} variant="flat" />;
   const renderCreateButton = () => hasPermission('system:tenant:create') ? (
-    <Button
-      type="primary"
-      icon={<Plus size={14} />}
-      onClick={() => { setEditingRecord(null); setModalVisible(true); }}
-    >
-      新增
-    </Button>
+    <CreateButton onClick={() => { setEditingRecord(null); setModalVisible(true); }} />
   ) : null;
 
   return (

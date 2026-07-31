@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Select, Tag } from '@douyinfe/semi-ui';
+import { Select, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { RotateCcw, Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { formatDateTime } from '@/utils/date';
@@ -17,6 +16,7 @@ import {
   MONITOR_METRIC_OPTIONS as METRIC_OPTIONS,
   MONITOR_PERCENT_METRICS as PERCENT_METRICS,
 } from '../monitor-alerts/constants';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 const OP_SYMBOL: Record<string, string> = { gt: '>', gte: '≥', lt: '<', lte: '≤' };
 
 function fmt(metric: MonitorMetric, value: number): string {
@@ -111,8 +111,8 @@ export default function MonitorAlertEventsPage() {
               style={{ width: 120 }}
               optionList={[{ value: 'firing', label: '告警中' }, { value: 'resolved', label: '已恢复' }]}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
           </>
         )}
         mobilePrimary={(
@@ -125,7 +125,7 @@ export default function MonitorAlertEventsPage() {
               style={{ width: 150 }}
               optionList={METRIC_OPTIONS}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+            <SearchButton onClick={handleSearch} />
           </>
         )}
         mobileFilters={(

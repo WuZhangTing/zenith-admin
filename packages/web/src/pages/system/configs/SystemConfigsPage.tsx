@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  Button,
   Form,
   Input,
   Modal,
@@ -10,7 +9,7 @@ import {
   Toast,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Plus, RotateCcw } from 'lucide-react';
+import { Search } from 'lucide-react';
 import type { SystemConfig } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { formatDateTime } from '@/utils/date';
@@ -31,6 +30,7 @@ import {
   useSystemConfigDetail,
   useSystemConfigList,
 } from '@/hooks/queries/system-configs';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams {
   keyword: string;
@@ -178,15 +178,15 @@ export default function SystemConfigsPage() {
             optionList={configTypeFilterOptions}
             loading={configTypeLoading}
           />
-          <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-          <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+          <SearchButton onClick={handleSearch} />
+          <ResetButton onClick={handleReset} />
           </>
         )}
         actions={(
           <>
           <ExportButton entity="system.configs" query={buildExportQuery()} />
           {hasPermission('system:config:create') && (
-            <Button type="primary" icon={<Plus size={14} />} onClick={() => { setEditingConfig(null); setModalVisible(true); }}>新增</Button>
+            <CreateButton onClick={() => { setEditingConfig(null); setModalVisible(true); }} />
           )}
           </>
         )}
@@ -201,9 +201,9 @@ export default function SystemConfigsPage() {
               style={{ width: 240 }}
               showClear
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+            <SearchButton onClick={handleSearch} />
             {hasPermission('system:config:create') && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={() => { setEditingConfig(null); setModalVisible(true); }}>新增</Button>
+              <CreateButton onClick={() => { setEditingConfig(null); setModalVisible(true); }} />
             )}
           </>
         )}

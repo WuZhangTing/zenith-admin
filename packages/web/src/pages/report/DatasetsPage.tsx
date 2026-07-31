@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button, Form, Input, Select, Table, Tag, Toast, Modal, Space, Typography, Empty, Switch, InputNumber, TextArea } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, Plus, Play, Upload as UploadIcon, Sparkles, Blocks } from 'lucide-react';
+import { Search, Play, Upload as UploadIcon, Sparkles, Blocks } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -37,6 +37,7 @@ import { flattenReportFolders, useReportFolderTree } from '@/hooks/queries/repor
 import { useAllUsers } from '@/hooks/queries/users';
 import { useReportDqAnomalyList } from '@/hooks/queries/report-dq';
 import { useReportDeprecationList } from '@/hooks/queries/report-assets';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams { keyword: string; status: string; ownerId?: number; folderId?: number }
 const defaultSearchParams: SearchParams = { keyword: '', status: '', ownerId: undefined, folderId: undefined };
@@ -580,10 +581,10 @@ export default function DatasetsPage() {
       optionList={folders.map((f) => ({ value: f.id, label: f.name }))}
       onChange={(v) => setDraftParams((p) => ({ ...p, folderId: v as number | undefined }))} />
   );
-  const renderSearchBtn = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetBtn = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchBtn = () => <SearchButton onClick={handleSearch} />;
+  const renderResetBtn = () => <ResetButton onClick={handleReset} />;
   const renderCreateBtn = () => hasPermission('report:dataset:create')
-    ? <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button> : null;
+    ? <CreateButton onClick={openCreate} /> : null;
   const renderBatchEnableBtn = () => selectedRowKeys.length > 0 && hasPermission('report:dataset:update')
     ? <Button onClick={() => handleBatchStatus('enabled')}>批量启用</Button> : null;
   const renderBatchDisableBtn = () => selectedRowKeys.length > 0 && hasPermission('report:dataset:update')

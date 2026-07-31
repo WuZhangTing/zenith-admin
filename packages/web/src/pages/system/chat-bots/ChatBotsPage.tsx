@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Input, Modal, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Copy, Plus, RotateCcw, Search } from 'lucide-react';
+import { Copy, Search } from 'lucide-react';
 import type { ChatWebhook } from '@zenith/shared/chat';
 import { UserAvatar } from '@/components/UserAvatar';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -22,6 +22,7 @@ import {
   useRegenerateChatBotToken,
   useSaveChatBot,
 } from '@/hooks/queries/chat-bots';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { Text } = Typography;
 
@@ -309,10 +310,10 @@ export default function ChatBotsPage() {
               style={{ width: 260 }}
               showClear
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
             {hasPermission('chat:bot:create') && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={openCreateModal}>新增</Button>
+              <CreateButton onClick={openCreateModal} />
             )}
           </>
         )}
@@ -327,13 +328,13 @@ export default function ChatBotsPage() {
               style={{ width: 260 }}
               showClear
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+            <SearchButton onClick={handleSearch} />
             {hasPermission('chat:bot:create') && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={openCreateModal}>新增</Button>
+              <CreateButton onClick={openCreateModal} />
             )}
           </>
         )}
-        mobileActions={<Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>}
+        mobileActions={<ResetButton onClick={handleReset} />}
         actionTitle="机器人操作"
       />
 

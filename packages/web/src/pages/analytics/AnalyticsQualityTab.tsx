@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Form, Input, Select, Tag, Toast, Typography, Modal } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { AlertTriangle, Plus, RotateCcw, Search, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Plus, Search, ShieldAlert } from 'lucide-react';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -22,6 +22,7 @@ import {
 } from '@/hooks/queries/analytics';
 import type { AnalyticsEventOverride, AnalyticsQualityDaily, AnalyticsQualityIssueType } from '@zenith/shared/analytics';
 import { ANALYTICS_EVENT_OVERRIDE_STATUS_OPTIONS, ANALYTICS_QUALITY_ISSUE_TYPE_LABELS, ANALYTICS_QUALITY_ISSUE_TYPE_OPTIONS } from '@zenith/shared/analytics';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const PAGE_SIZE = 20;
 const DAY_OPTIONS = [7, 30, 90].map((value) => ({ value, label: `${value} 天` }));
@@ -229,8 +230,8 @@ export default function AnalyticsQualityTab() {
             showClear
             style={{ width: 160 }}
           />
-          <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-          <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+          <SearchButton onClick={handleSearch} />
+          <ResetButton onClick={handleReset} />
         </SearchToolbar>
         <ConfigurableTable
           bordered
@@ -276,8 +277,8 @@ export default function AnalyticsQualityTab() {
             showClear
             style={{ width: 130 }}
           />
-          <Button disabled={!config.multiTenantMode} type="primary" icon={<Search size={14} />} onClick={handleOverrideSearch}>查询</Button>
-          <Button disabled={!config.multiTenantMode} type="tertiary" icon={<RotateCcw size={14} />} onClick={handleOverrideReset}>重置</Button>
+          <SearchButton onClick={handleOverrideSearch} disabled={!config.multiTenantMode} />
+          <ResetButton onClick={handleOverrideReset} disabled={!config.multiTenantMode} />
           <Button disabled={!config.multiTenantMode} type="primary" icon={<Plus size={14} />} onClick={openCreateOverride}>新增覆盖</Button>
         </SearchToolbar>
         <ConfigurableTable

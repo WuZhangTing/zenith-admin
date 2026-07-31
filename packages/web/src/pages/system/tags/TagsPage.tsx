@@ -13,7 +13,7 @@ import {
   Switch,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Plus, RotateCcw, Search, Tags, Trash2 } from 'lucide-react';
+import { Search, Tags, Trash2 } from 'lucide-react';
 import type { Tag } from '@zenith/shared/platform';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -33,6 +33,7 @@ import {
   useTagList,
   useUpdateTagStatus,
 } from '@/hooks/queries/tags';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { Text } = Typography;
 
@@ -341,8 +342,8 @@ export default function TagsPage() {
               showClear
               style={{ width: 100 }}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
           </>
         )}
         actions={(
@@ -353,7 +354,7 @@ export default function TagsPage() {
               </Button>
             )}
             {can('system:tag:create') && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+              <CreateButton onClick={openCreate} />
             )}
           </>
         )}
@@ -368,9 +369,9 @@ export default function TagsPage() {
               showClear
               style={{ width: 200 }}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+            <SearchButton onClick={handleSearch} />
             {can('system:tag:create') && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+              <CreateButton onClick={openCreate} />
             )}
           </>
         )}

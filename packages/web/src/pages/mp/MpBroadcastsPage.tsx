@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Modal, Select, Spin, Tag, Toast, Banner, Typography, Tooltip, Input, Descriptions } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Plus, RotateCcw, Search } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { MP_BROADCAST_TYPE_LABELS, MP_BROADCAST_TYPE_OPTIONS } from '@zenith/shared/mp';
 import type { MpBroadcast, MpBroadcastType, MpBroadcastTarget, MpBroadcastStatus } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
@@ -25,6 +25,7 @@ import {
   useSaveMpBroadcast,
   useSendMpBroadcast,
 } from '@/hooks/queries/mp-broadcasts';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const STATUS_OPTIONS = [
   { label: '草稿', value: 'draft' },
@@ -199,8 +200,8 @@ export default function MpBroadcastsPage() {
       style={{ width: 130 }}
     />
   );
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => can('mp:broadcast:create') ? (
     <Button type="primary" icon={<Plus size={14} />} disabled={!currentId} onClick={openCreate}>新增群发</Button>
   ) : null;

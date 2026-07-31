@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { Button, DatePicker, Form, Select, Tag, Typography, Toast } from '@douyinfe/semi-ui';
-import { Download, RotateCcw, Search, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Download, ThumbsUp, ThumbsDown } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { AiFeedbackItem, AiFeedbackStatus, AiMessage } from '@zenith/shared/ai';
@@ -15,6 +15,7 @@ import { usePermission } from '@/hooks/usePermission';
 import AppModal from '@/components/AppModal';
 import { renderEllipsis } from '@/utils/table-columns';
 import { aiFeedbackKeys, downloadAiFeedbackCsv, useAiFeedbackContext, useAiFeedbackList, useHandleAiFeedback } from '@/hooks/queries/ai-feedback';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { Text } = Typography;
 
@@ -306,11 +307,11 @@ export default function AiFeedbackPage() {
   );
 
   const renderSearchButton = () => (
-    <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+    <SearchButton onClick={handleSearch} />
   );
 
   const renderResetButton = () => (
-    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+    <ResetButton onClick={handleReset} />
   );
 
   const renderExportButton = () => (

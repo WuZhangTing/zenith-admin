@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { CmsBaseContext, CmsNavItem } from '../types';
+import { SeoHead, buildAnalyticsBeacon, buildThemeOverrides } from '../_shared';
 
 const styles = `
 :root { --primary: #1f6feb; --text: #1f2328; --text-2: #59636e; --border: #d1d9e0; --bg: #ffffff; --bg-2: #f6f8fa; }
@@ -173,46 +174,6 @@ export interface LayoutProps {
 /** 暗色变量组（[data-theme=dark] 或 auto 模式下系统偏好） */
 const DARK_VARS = '--text:#e6edf3; --text-2:#9198a1; --border:#3d444d; --bg:#0d1117; --bg-2:#151b23;';
 
-/** 主题参数（站点 settings）：主色 / 暗色模式 */
-function buildThemeOverrides(settings: Record<string, unknown>): { css: string; darkMode: 'auto' | 'light' | 'dark' } {
-  const primary = typeof settings.themePrimary === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(settings.themePrimary)
-    ? settings.themePrimary
-    : null;
-  const darkMode = settings.themeDark === 'dark' || settings.themeDark === 'auto' ? settings.themeDark : 'light';
-  let css = '';
-  if (primary) css += `:root { --primary: ${primary}; }\n`;
-  if (darkMode !== 'light') {
-    css += `html[data-theme="dark"] { ${DARK_VARS} }\n`;
-    if (darkMode === 'auto') {
-      css += `@media (prefers-color-scheme: dark) { html:not([data-theme="light"]) { ${DARK_VARS} } }\n`;
-    }
-  }
-  return { css, darkMode };
-}
-
-/** 暗色初始化脚本（head 内先行执行防闪烁）+ 切换按钮事件委托 */
-const THEME_TOGGLE_SCRIPT = `(function(){try{
-var t=localStorage.getItem('cms_theme');if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t);}
-document.addEventListener('click',function(e){
-var b=e.target&&e.target.closest?e.target.closest('.theme-toggle'):null;if(!b)return;
-var h=document.documentElement;var cur=h.getAttribute('data-theme');
-var next=cur==='dark'?'light':(cur==='light'?'dark':(window.matchMedia('(prefers-color-scheme: dark)').matches?'light':'dark'));
-h.setAttribute('data-theme',next);localStorage.setItem('cms_theme',next);});
-}catch(e){}})();`;
-
-/** 行为采集 beacon 脚本（page_view + 详情页浏览计数），仅站点开启统计时注入 */
-function buildAnalyticsBeacon(analytics: NonNullable<CmsBaseContext['analytics']>): string {
-  return `(function(){try{
-var K=${JSON.stringify(analytics.siteKey)};var C=${analytics.contentId ?? 'null'};
-var ls=window.localStorage,ss=window.sessionStorage;
-var aid=ls.getItem('cms_aid')||(Date.now().toString(36)+Math.random().toString(36).slice(2,10));ls.setItem('cms_aid',aid);
-var sid=ss.getItem('cms_sid')||(Date.now().toString(36)+Math.random().toString(36).slice(2,10));ss.setItem('cms_sid',sid);
-var ev={eventType:'page_view',sessionId:sid,anonymousId:aid,pagePath:location.pathname,pageTitle:document.title,referrer:document.referrer||undefined};
-navigator.sendBeacon('/api/analytics/events?siteKey='+encodeURIComponent(K),new Blob([JSON.stringify({events:[ev]})],{type:'application/json'}));
-if(C){navigator.sendBeacon('/api/public/cms/view',new Blob([JSON.stringify({contentId:C})],{type:'application/json'}));}
-}catch(e){}})();`;
-}
-
 /** 静态页也在浏览器渲染后领取短期一次性令牌，再启用广告点击并上报曝光。 */
 function buildAdEventScript(siteCode: string): string {
   return `(function(){try{
@@ -257,49 +218,13 @@ export function CmsFollowButton(props: {
 
 /** 默认主题布局：完整 HTML 文档（内联样式，静态页零外部依赖） */
 export function Layout({ ctx, currentUrl, children }: LayoutProps) {
-  const { site, seo, nav, friendLinkGroups, baseUrl } = ctx;
-  const theme = buildThemeOverrides(site.settings);
+  const { site, nav, friendLinkGroups, baseUrl } = ctx;
+  const theme = buildThemeOverrides(site.settings, DARK_VARS);
   const contactPhone = typeof site.themeConfig.contactPhone === 'string' ? site.themeConfig.contactPhone : null;
   const footerText = typeof site.themeConfig.footerText === 'string' ? site.themeConfig.footerText : null;
   return (
     <html lang="zh-CN">
-      <head>
-        <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>{seo.title}</title>
-        {seo.keywords ? <meta name="keywords" content={seo.keywords} /> : null}
-        {seo.description ? <meta name="description" content={seo.description} /> : null}
-        {seo.canonical ? <link rel="canonical" href={seo.canonical} /> : null}
-        {ctx.langAlternates.map((alt) => (
-          <link key={alt.language} rel="alternate" hrefLang={alt.language} href={alt.url} />
-        ))}
-        <meta property="og:type" content={seo.ogType} />
-        <meta property="og:title" content={seo.ogTitle} />
-        {seo.ogDescription ? <meta property="og:description" content={seo.ogDescription} /> : null}
-        {seo.ogImage ? <meta property="og:image" content={seo.ogImage} /> : null}
-        {seo.ogImageAlt ? <meta property="og:image:alt" content={seo.ogImageAlt} /> : null}
-        {seo.ogUrl ? <meta property="og:url" content={seo.ogUrl} /> : null}
-        <meta property="og:site_name" content={seo.ogSiteName} />
-        {seo.articlePublishedTime ? <meta property="article:published_time" content={seo.articlePublishedTime} /> : null}
-        {seo.articleModifiedTime ? <meta property="article:modified_time" content={seo.articleModifiedTime} /> : null}
-        {seo.articleAuthor ? <meta property="article:author" content={seo.articleAuthor} /> : null}
-        <meta name="twitter:card" content={seo.twitterCard} />
-        {seo.twitterSite ? <meta name="twitter:site" content={seo.twitterSite} /> : null}
-        {seo.twitterCreator ? <meta name="twitter:creator" content={seo.twitterCreator} /> : null}
-        <meta name="twitter:title" content={seo.twitterTitle} />
-        {seo.twitterDescription ? <meta name="twitter:description" content={seo.twitterDescription} /> : null}
-        {seo.twitterImage ? <meta name="twitter:image" content={seo.twitterImage} /> : null}
-        {seo.twitterImageAlt ? <meta name="twitter:image:alt" content={seo.twitterImageAlt} /> : null}
-        {site.favicon ? <link rel="icon" href={site.favicon} /> : null}
-        <meta name="generator" content="Zenith CMS" />
-        {seo.jsonLd ? (
-          <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(seo.jsonLd) }} />
-        ) : null}
-        <style dangerouslySetInnerHTML={{ __html: styles + theme.css }} />
-        {theme.darkMode !== 'light' ? (
-          <script dangerouslySetInnerHTML={{ __html: THEME_TOGGLE_SCRIPT }} />
-        ) : null}
-      </head>
+      <SeoHead ctx={ctx} css={styles + theme.css} darkMode={theme.darkMode} langAlternates />
       <body>
         {ctx.analytics ? (
           // 轻量行为采集 beacon：page_view 上报 + 详情页浏览计数（静态页零依赖）

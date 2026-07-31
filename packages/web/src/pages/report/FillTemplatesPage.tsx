@@ -19,7 +19,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Copy, Eye, Plus, RotateCcw, Search } from 'lucide-react';
+import { Copy, Eye, Search } from 'lucide-react';
 import { REPORT_FILL_TEMPLATE_STATUS_LABELS, REPORT_FILL_TEMPLATE_STATUS_OPTIONS } from '@zenith/shared/report';
 import type { ReportFillTemplate } from '@zenith/shared/report';
 import type { WorkflowFormField, WorkflowFormSettings } from '@zenith/shared/workflow';
@@ -47,6 +47,7 @@ import { renderEllipsis } from '@/utils/table-columns';
 import FormDesigner from '@/pages/workflow/designer/components/FormDesigner';
 import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowFormRenderer';
 import { isRevisionConflict, validateFillTemplateInput } from './report-p2-utils';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchState {
   keyword: string;
@@ -369,20 +370,20 @@ export default function FillTemplatesPage() {
         primary={(
           <>
             {keywordInput}
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
           </>
         )}
         filters={filters}
         actions={hasPermission('report:fill:template:create') ? (
-          <Button type="primary" icon={<Plus size={14} />} onClick={() => openEditor()}>新增</Button>
+          <CreateButton onClick={() => openEditor()} />
         ) : null}
         mobilePrimary={(
           <>
             {keywordInput}
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+            <SearchButton onClick={handleSearch} />
             {hasPermission('report:fill:template:create') && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={() => openEditor()}>新增</Button>
+              <CreateButton onClick={() => openEditor()} />
             )}
           </>
         )}

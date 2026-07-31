@@ -19,7 +19,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Activity, Plus, RotateCcw, Search } from 'lucide-react';
+import { Activity, Plus, Search } from 'lucide-react';
 import { OAUTH2_GRANT_TYPE_LABELS, OAUTH2_GRANT_TYPES, OPEN_APP_ENVIRONMENT_LABELS, OPEN_APP_ENVIRONMENTS, OPEN_APP_REVIEW_STATUS_LABELS, OPEN_APP_REVIEW_STATUSES } from '@zenith/shared/open-platform';
 import type { OAuth2Client } from '@zenith/shared/open-platform';
 import { AppModal } from '@/components/AppModal';
@@ -39,6 +39,7 @@ import {
   useSubmitMyApp,
 } from '@/hooks/queries/developer-apps';
 import { useQueryClient } from '@tanstack/react-query';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { Paragraph, Text } = Typography;
 
@@ -267,8 +268,8 @@ export default function MyAppsPage() {
         primary={(
           <>
             <Input prefix={<Search size={14} />} placeholder="搜索我的应用" value={draft.keyword} onChange={(keyword) => setDraft({ ...draft, keyword })} onEnterPress={search} showClear style={{ width: 210 }} />
-            <Button type="primary" icon={<Search size={14} />} onClick={search}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={reset}>重置</Button>
+            <SearchButton onClick={search} />
+            <ResetButton onClick={reset} />
             <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>创建应用</Button>
           </>
         )}
@@ -281,7 +282,7 @@ export default function MyAppsPage() {
         mobilePrimary={(
           <>
             <Input prefix={<Search size={14} />} placeholder="搜索我的应用" value={draft.keyword} onChange={(keyword) => setDraft({ ...draft, keyword })} onEnterPress={search} showClear style={{ width: 190 }} />
-            <Button type="primary" icon={<Search size={14} />} onClick={search}>查询</Button>
+            <SearchButton onClick={search} />
             <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>创建</Button>
           </>
         )}

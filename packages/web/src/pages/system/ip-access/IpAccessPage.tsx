@@ -10,10 +10,11 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { IpAccessLog } from '@zenith/shared/platform';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { Search, RotateCcw } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { formatDateTime } from '@/utils/date';
 import { renderEllipsis } from '../../../utils/table-columns';
 import { ipAccessKeys, useIpAccessConfigs, useIpAccessLogs, useSaveIpAccessSection } from '@/hooks/queries/ip-access';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { Title, Text } = Typography;
 
@@ -105,8 +106,8 @@ function IpAccessLogsTab() {
               <Select.Option value="blacklist">黑名单</Select.Option>
               <Select.Option value="whitelist">白名单</Select.Option>
             </Select>
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
           </>
         )}
         mobilePrimary={(
@@ -119,7 +120,7 @@ function IpAccessLogsTab() {
               showClear
               style={{ width: 200 }}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+            <SearchButton onClick={handleSearch} />
           </>
         )}
         mobileFilters={(

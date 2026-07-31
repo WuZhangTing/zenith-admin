@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Input, Button, DatePicker, Select, Tabs, TabPane, InputNumber } from '@douyinfe/semi-ui';
-import { Search, RotateCcw } from 'lucide-react';
+import { Input, DatePicker, Select, Tabs, TabPane, InputNumber } from '@douyinfe/semi-ui';
+import { Search } from 'lucide-react';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
 import { OperationLogsTable } from '@/components/logs/OperationLogsTable';
@@ -11,6 +11,7 @@ import { useClearLogs } from '@/hooks/useClearLogs';
 import { formatDateTimeForApi } from '@/utils/date';
 import OperationLogStatsPanel from './OperationLogStatsPanel';
 import { operationLogKeys, useCleanOperationLogs, useOperationLogList } from '@/hooks/queries/operation-logs';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams {
   username: string;
@@ -236,8 +237,8 @@ export default function OperationLogsPage() {
                 {renderStatusFilter()}
                 {renderTimeRangeFilter()}
                 {renderDurationFilters()}
-                <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-                <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+                <SearchButton onClick={handleSearch} />
+                <ResetButton onClick={handleReset} />
               </>
             )}
             actions={(
@@ -249,7 +250,7 @@ export default function OperationLogsPage() {
             mobilePrimary={(
               <>
                 {renderUsernameSearch()}
-                <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+                <SearchButton onClick={handleSearch} />
               </>
             )}
             mobileFilters={(

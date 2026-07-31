@@ -14,7 +14,7 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Plus, RotateCcw, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { CMS_INTERACTION_KIND_LABELS, CMS_INTERACTION_PARTICIPANT_SCOPE_LABELS, CMS_INTERACTION_QUESTION_TYPE_LABELS, CMS_INTERACTION_REPEAT_POLICY_LABELS, CMS_INTERACTION_STATUS_LABELS } from '@zenith/shared/cms';
 import type { CmsInteraction, CmsInteractionKind, CmsInteractionResponse, CmsInteractionStatus } from '@zenith/shared/cms';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -39,6 +39,7 @@ import { renderEllipsis } from '@/utils/table-columns';
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 import InteractionEditorModal from './interaction/InteractionEditorModal';
 import InteractionResultsSheet from './interaction/InteractionResultsSheet';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface ListSearch {
   keyword: string;
@@ -247,8 +248,8 @@ export default function SurveysPage() {
       <Select placeholder="全部状态" showClear value={draft.status} style={{ width: 130 }}
         optionList={Object.entries(CMS_INTERACTION_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
         onChange={(value) => setDraft((current) => ({ ...current, status: value as CmsInteractionStatus | undefined }))} />
-      <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-      <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+      <SearchButton onClick={handleSearch} />
+      <ResetButton onClick={handleReset} />
     </>
   );
 
@@ -266,12 +267,12 @@ export default function SurveysPage() {
         <TabPane tab="互动管理" itemKey="interactions">
           <SearchToolbar
             primary={listSearch}
-            actions={canManage && siteId ? <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button> : null}
+            actions={canManage && siteId ? <CreateButton onClick={openCreate} /> : null}
             mobilePrimary={(
               <>
                 <CmsSiteSelect value={siteId} onChange={setSiteId} />
-                <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-                {canManage ? <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button> : null}
+                <SearchButton onClick={handleSearch} />
+                {canManage ? <CreateButton onClick={openCreate} /> : null}
               </>
             )}
             mobileFilters={listSearch}
@@ -315,8 +316,8 @@ export default function SurveysPage() {
                 <DatePicker type="dateTimeRange" value={responseTimeRange} style={{ width: 330 }}
                   placeholder={['提交开始时间', '提交结束时间']}
                   onChange={(value) => setResponseTimeRange(value as [Date, Date] | undefined)} />
-                <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-                <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+                <SearchButton onClick={handleSearch} />
+                <ResetButton onClick={handleReset} />
               </>
             )}
             actions={siteId && hasPermission('cms:interaction:export')

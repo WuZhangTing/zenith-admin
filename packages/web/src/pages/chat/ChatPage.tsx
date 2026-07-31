@@ -11,12 +11,7 @@ import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 const VIRTUOSO_FIRST_INDEX_BUFFER = 10000;
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
-import {
-  Search, MessageSquarePlus, Send, CornerDownLeft, RotateCcw, Smile, ImagePlus, MoreHorizontal,
-  Pin, PinOff, Star, X, Paperclip, Bookmark, History, Forward, Trash2, BellOff, Images, AlertCircle,
-  ArrowLeft, ExternalLink, BarChart3, MessageSquare, Eye, Download, Mic, Bell, Phone, Video, Compass, BadgeCheck,
-  Archive, ArchiveRestore, ChevronRight,
-} from 'lucide-react';
+import { Search, MessageSquarePlus, Send, CornerDownLeft, Smile, ImagePlus, MoreHorizontal, Pin, PinOff, Star, X, Paperclip, Bookmark, History, Forward, Trash2, BellOff, Images, AlertCircle, ArrowLeft, ExternalLink, BarChart3, MessageSquare, Eye, Download, Mic, Bell, Phone, Video, Compass, BadgeCheck, Archive, ArchiveRestore, ChevronRight } from 'lucide-react';
 import { useWebSocket, sendWsMessage, useWsConnected } from '@/hooks/useWebSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
@@ -57,6 +52,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { useDiscoverableChannels, chatKeys, useAddChatCustomEmoji } from '@/hooks/queries/chat';
 import type { ChatCustomEmoji } from '@zenith/shared/chat';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { Text, Title } = Typography;
 
@@ -4019,8 +4015,8 @@ export default function ChatPage({
             />
 
             <div style={{ display: 'flex', gap: 8 }}>
-              <Button type="primary" loading={searchLoading} icon={<Search size={14} />} onClick={() => { void executeSearch(1); }}>查询</Button>
-              <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={resetSearchFilters}>重置</Button>
+              <SearchButton onClick={() => { void executeSearch(1); }} loading={searchLoading} />
+              <ResetButton onClick={resetSearchFilters} />
             </div>
           </div>
 

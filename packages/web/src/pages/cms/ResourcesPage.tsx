@@ -3,7 +3,7 @@ import { Button, DatePicker, Dropdown, Form, Input, Modal, Select, Space, Tag, T
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
-import { Search, RotateCcw, Upload, FileText, Film, Music, File as FileIcon, FolderPlus, FolderPen, FolderX, Move, ShieldCheck, MoreHorizontal } from 'lucide-react';
+import { Search, Upload, FileText, Film, Music, File as FileIcon, FolderPlus, FolderPen, FolderX, Move, ShieldCheck, MoreHorizontal } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -25,6 +25,7 @@ import { CMS_RESOURCE_OWNER_TYPE_LABELS, CMS_RESOURCE_TYPE_LABELS, CMS_RESOURCE_
 import type { CmsResource, CmsResourceFolder, CmsResourceReference, CmsResourceOwnerType, CmsResourceType } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { formatDateTimeForApi } from '@/utils/date';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const TYPE_COLORS: Record<CmsResourceType, 'blue' | 'purple' | 'cyan' | 'orange' | 'grey'> = {
   image: 'blue', video: 'purple', audio: 'cyan', document: 'orange', other: 'grey',
@@ -500,8 +501,8 @@ export default function ResourcesPage() {
                 optionList={CMS_RESOURCE_TYPES.map((t) => ({ label: CMS_RESOURCE_TYPE_LABELS[t], value: t }))}
               />
               <Input prefix={<Search size={14} />} placeholder="搜索素材名称" showClear value={keywordDraft} onChange={setKeywordDraft} style={{ width: 200 }} onEnterPress={handleSearch} />
-              <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-              <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+              <SearchButton onClick={handleSearch} />
+              <ResetButton onClick={handleReset} />
               {canUpload ? (
                 <Button type="primary" icon={<Upload size={14} />} loading={uploadMutation.isPending} disabled={siteId === undefined} onClick={() => fileInputRef.current?.click()}>
                   上传素材

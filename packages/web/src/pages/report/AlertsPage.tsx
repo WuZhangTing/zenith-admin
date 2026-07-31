@@ -2,7 +2,7 @@ import { useState, useMemo, useRef } from 'react';
 import { Button, Col, Form, Input, Modal, Row, Select, SideSheet, Switch, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, Plus } from 'lucide-react';
+import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -31,6 +31,7 @@ import { NOTIFY_CHANNEL_LABELS } from '@zenith/shared/messaging';
 import { REPORT_DELIVERY_STATUS_LABELS, REPORT_MISFIRE_POLICY_OPTIONS } from '@zenith/shared/report';
 import { useDictItems } from '@/hooks/useDictItems';
 import { switchAlertSource } from './report-platform-utils';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams {
   keyword: string;
@@ -386,10 +387,10 @@ export default function AlertsPage() {
     <Select placeholder="全部状态" value={draftParams.enabled || undefined} onChange={(value) => setDraftParams((prev) => ({ ...prev, enabled: (value as string) ?? '' }))}
       showClear style={{ width: 120 }} optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))} />
   );
-  const renderSearchBtn = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetBtn = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchBtn = () => <SearchButton onClick={handleSearch} />;
+  const renderResetBtn = () => <ResetButton onClick={handleReset} />;
   const renderCreateBtn = () => hasPermission('report:alert:create')
-    ? <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button> : null;
+    ? <CreateButton onClick={openCreate} /> : null;
   const renderBatchEnableBtn = () => selectedRowKeys.length > 0 && hasPermission('report:alert:update')
     ? <Button onClick={() => handleBatchEnabled(true)}>批量启用</Button> : null;
   const renderBatchDisableBtn = () => selectedRowKeys.length > 0 && hasPermission('report:alert:update')

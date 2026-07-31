@@ -5,7 +5,7 @@ import { Button, Input, Tag, Toast, Modal, Tabs, TabPane, Tree, TreeSelect, Typo
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
-import { Search, RotateCcw, Plus, ChevronDown, FileUp, Image as ImageIcon, Film, Paperclip, ArrowLeft, FolderTree } from 'lucide-react';
+import { Search, ChevronDown, FileUp, Image as ImageIcon, Film, Paperclip, ArrowLeft, FolderTree } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -24,6 +24,7 @@ import { CMS_CONTENT_STATUS_LABELS, CMS_CONTENT_TYPE_LABELS } from '@zenith/shar
 import type { CmsChannel, CmsContent, CmsContentStatus, CmsContentType } from '@zenith/shared/cms';
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 import { CmsWidgetSourceRefsSheet, type CmsWidgetSourceTarget } from './CmsWidgetSourceRefsSheet';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const STATUS_COLORS: Record<CmsContentStatus, 'grey' | 'orange' | 'green' | 'red' | 'violet'> = {
   draft: 'grey',
@@ -466,17 +467,17 @@ export default function ContentsPage() {
     />
   );
   const renderSearchButton = () => (
-    <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+    <SearchButton onClick={handleSearch} />
   );
   const renderResetButton = () => (
-    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+    <ResetButton onClick={handleReset} />
   );
   const gotoCreate = (type: CmsContentType) => navigate(
     `/cms/contents/edit?siteId=${siteId}${channelId ? `&channelId=${channelId}` : ''}&contentType=${type}`,
   );
   const renderCreateButton = () => hasPermission('cms:content:create') && siteId ? (
     <SplitButtonGroup>
-      <Button type="primary" icon={<Plus size={14} />} onClick={() => gotoCreate('article')}>新增</Button>
+      <CreateButton onClick={() => gotoCreate('article')} />
       <Dropdown
         trigger="click"
         position="bottomRight"

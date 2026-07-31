@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Input, Tag, Toast, Modal, ArrayField, Row, Col, Typography, useFormApi } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, Plus, Trash2 } from 'lucide-react';
+import { Search, Plus, Trash2 } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -15,6 +15,7 @@ import { useCmsModelList, useCmsModelDetail, useSaveCmsModel, useDeleteCmsModel,
 import { useDictList } from '@/hooks/queries/dicts';
 import { CMS_FIELD_OPTION_SOURCE_LABELS, CMS_FIELD_OPTION_SOURCES, CMS_FIELD_TYPES, CMS_FIELD_TYPES_WITH_OPTIONS, CMS_FIELD_TYPE_LABELS } from '@zenith/shared/cms';
 import type { CmsModel } from '@zenith/shared/cms';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const FIELD_TYPE_OPTIONS = CMS_FIELD_TYPES.map((t) => ({ value: t, label: CMS_FIELD_TYPE_LABELS[t] }));
 const OPTION_SOURCE_OPTIONS = CMS_FIELD_OPTION_SOURCES.map((s) => ({ value: s, label: CMS_FIELD_OPTION_SOURCE_LABELS[s] }));
@@ -205,10 +206,10 @@ export default function ModelsPage() {
           style={{ width: 220 }}
           onEnterPress={handleSearch}
         />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+        <SearchButton onClick={handleSearch} />
+        <ResetButton onClick={handleReset} />
         {hasPermission('cms:model:create') ? (
-          <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+          <CreateButton onClick={openCreate} />
         ) : null}
       </SearchToolbar>
 

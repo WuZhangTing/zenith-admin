@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Descriptions, InputNumber, Modal, Select, SideSheet, Switch, TabPane, Tabs, Tag, Toast, Typography, Input } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Eraser, RefreshCw, RotateCcw, Search, Trash2, XCircle } from 'lucide-react';
+import { Eraser, RefreshCw, Search, Trash2, XCircle } from 'lucide-react';
 import type { PaginatedResponse } from '@zenith/shared/core';
 import type { AsyncTask, AsyncTaskItem, AsyncTaskItemStatus, AsyncTaskStats, AsyncTaskStatus, AsyncTaskTypeMeta } from '@zenith/shared/tasks';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -30,6 +30,7 @@ import {
   useDeleteAsyncTask,
   useUpdateAsyncTaskTypeConfig,
 } from '@/hooks/queries/async-tasks';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 type TabKey = 'tasks' | 'types';
 
@@ -507,8 +508,8 @@ export default function TaskCenterPage() {
               style={{ width: 170 }}
               showClear
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
             <Button icon={<RefreshCw size={14} />} onClick={() => { void listQuery.refetch(); void statsQuery.refetch(); }} loading={listQuery.isFetching}>刷新</Button>
             {canCleanup && (
               <Button icon={<Eraser size={14} />} loading={cleanupMutation.isPending} onClick={handleCleanup}>清理过期记录</Button>

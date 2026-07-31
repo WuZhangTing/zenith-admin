@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../../db';
 import { cmsSensitiveWords, cmsErrorProneWords } from '../../db/schema';
+import { AhoCorasick, createTtlCache, toCodePoints } from '../../lib/aho-corasick';
 import type { CmsTextCheckResult } from '@zenith/shared/cms';
 
 /**
@@ -16,94 +17,51 @@ interface CheckWord {
   extra: string | null;
 }
 
-interface AcNode {
-  children: Map<string, AcNode>;
-  fail: AcNode | null;
-  hits: CheckWord[];
-}
-
-function buildAutomaton(words: CheckWord[]): AcNode {
-  const root: AcNode = { children: new Map(), fail: null, hits: [] };
-  for (const w of words) {
-    let node = root;
-    for (const ch of w.word) {
-      let next = node.children.get(ch);
-      if (!next) {
-        next = { children: new Map(), fail: null, hits: [] };
-        node.children.set(ch, next);
-      }
-      node = next;
-    }
-    node.hits.push(w);
-  }
-  const queue: AcNode[] = [];
-  for (const child of root.children.values()) {
-    child.fail = root;
-    queue.push(child);
-  }
-  while (queue.length > 0) {
-    const node = queue.shift()!;
-    for (const [ch, child] of node.children) {
-      let fail = node.fail;
-      while (fail && !fail.children.has(ch)) fail = fail.fail;
-      child.fail = fail?.children.get(ch) ?? root;
-      child.hits.push(...child.fail.hits);
-      queue.push(child);
-    }
-  }
-  return root;
-}
-
-let cache: { automaton: AcNode; loadedAt: number } | null = null;
 const CACHE_TTL_MS = 60_000;
+
+const automatonCache = createTtlCache(async () => {
+  const [sensitive, errorProne] = await Promise.all([
+    db.select().from(cmsSensitiveWords).where(eq(cmsSensitiveWords.status, 'enabled')),
+    db.select().from(cmsErrorProneWords).where(eq(cmsErrorProneWords.status, 'enabled')),
+  ]);
+  return new AhoCorasick<CheckWord>([
+    ...sensitive.map((w) => ({
+      word: w.word,
+      payload: { kind: 'sensitive' as const, word: w.word, extra: w.replaceWith ?? null },
+    })),
+    ...errorProne.map((w) => ({
+      word: w.word,
+      payload: { kind: 'errorProne' as const, word: w.word, extra: w.correction },
+    })),
+  ]);
+}, CACHE_TTL_MS);
 
 /** 词库变更（敏感词/易错词增删改）后调用，即时失效检查缓存 */
 export function invalidateWordCheckCache(): void {
-  cache = null;
-}
-
-async function getAutomaton(): Promise<AcNode> {
-  if (!cache || Date.now() - cache.loadedAt >= CACHE_TTL_MS) {
-    const [sensitive, errorProne] = await Promise.all([
-      db.select().from(cmsSensitiveWords).where(eq(cmsSensitiveWords.status, 'enabled')),
-      db.select().from(cmsErrorProneWords).where(eq(cmsErrorProneWords.status, 'enabled')),
-    ]);
-    const words: CheckWord[] = [
-      ...sensitive.map((w) => ({ kind: 'sensitive' as const, word: w.word, extra: w.replaceWith ?? null })),
-      ...errorProne.map((w) => ({ kind: 'errorProne' as const, word: w.word, extra: w.correction })),
-    ];
-    cache = { automaton: buildAutomaton(words), loadedAt: Date.now() };
-  }
-  return cache.automaton;
+  automatonCache.invalidate();
 }
 
 const MAX_CHECK_LENGTH = 200_000;
 
 /** 扫描文本，返回敏感词与易错词命中清单（含命中次数），单次扫描 O(文本长度) */
 export async function checkCmsText(text: string): Promise<CmsTextCheckResult> {
-  const root = await getAutomaton();
+  const automaton = await automatonCache.get();
   const result: CmsTextCheckResult = { sensitive: [], errorProne: [] };
-  if (root.children.size === 0 || !text) return result;
+  if (automaton.isEmpty || !text) return result;
 
   const sensitiveHits = new Map<string, { word: string; replaceWith: string | null; count: number }>();
   const errorProneHits = new Map<string, { word: string; correction: string; count: number }>();
-  let node: AcNode = root;
-  const chars = [...text.slice(0, MAX_CHECK_LENGTH)];
-  for (const ch of chars) {
-    while (node !== root && !node.children.has(ch)) node = node.fail ?? root;
-    node = node.children.get(ch) ?? root;
-    for (const w of node.hits) {
-      if (w.kind === 'sensitive') {
-        const hit = sensitiveHits.get(w.word) ?? { word: w.word, replaceWith: w.extra, count: 0 };
-        hit.count += 1;
-        sensitiveHits.set(w.word, hit);
-      } else {
-        const hit = errorProneHits.get(w.word) ?? { word: w.word, correction: w.extra ?? '', count: 0 };
-        hit.count += 1;
-        errorProneHits.set(w.word, hit);
-      }
+  automaton.scan(toCodePoints(text.slice(0, MAX_CHECK_LENGTH)), (w) => {
+    if (w.kind === 'sensitive') {
+      const hit = sensitiveHits.get(w.word) ?? { word: w.word, replaceWith: w.extra, count: 0 };
+      hit.count += 1;
+      sensitiveHits.set(w.word, hit);
+    } else {
+      const hit = errorProneHits.get(w.word) ?? { word: w.word, correction: w.extra ?? '', count: 0 };
+      hit.count += 1;
+      errorProneHits.set(w.word, hit);
     }
-  }
+  });
   result.sensitive = [...sensitiveHits.values()].sort((a, b) => b.count - a.count);
   result.errorProne = [...errorProneHits.values()].sort((a, b) => b.count - a.count);
   return result;

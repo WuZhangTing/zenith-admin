@@ -5,9 +5,8 @@
  * 在此可对全部快捷回复做 CRUD；新建/编辑时作用域可选「全局」或「当前频道」。
  */
 import { useState } from 'react';
-import { Button, Form, Modal, SideSheet, Table, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Form, Modal, SideSheet, Table, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Plus } from 'lucide-react';
 import type { ChannelQuickReply } from '@zenith/shared/messaging';
 import { AppModal } from '@/components/AppModal';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -16,6 +15,7 @@ import {
   useDeleteChannelQuickReply,
   useSaveChannelQuickReply,
 } from '@/hooks/queries/channel-cs';
+import { CreateButton } from '@/components/toolbar-controls';
 
 interface Props {
   channelId: number;
@@ -105,7 +105,7 @@ export function ChannelQuickReplyDrawer({ channelId, channelName, visible, onClo
     <SideSheet title={`快捷回复 · ${channelName}`} visible={visible} onCancel={onClose} width={680} placement="right">
       <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography.Text type="tertiary" size="small">全局快捷回复对所有运营号可用，频道专属仅对当前运营号生效</Typography.Text>
-        <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+        <CreateButton onClick={openCreate} />
       </div>
       <Table
         columns={columns}

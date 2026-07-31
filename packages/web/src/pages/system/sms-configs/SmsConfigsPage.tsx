@@ -1,9 +1,19 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Col, Form, Input, Modal, Row, Select, Spin, Tag,
-  Toast, Switch } from '@douyinfe/semi-ui';
+import {
+  Col,
+  Form,
+  Input,
+  Modal,
+  Row,
+  Select,
+  Spin,
+  Tag,
+  Toast,
+  Switch,
+} from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Plus, RotateCcw, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { SMS_PROVIDER_OPTIONS } from '@zenith/shared/messaging';
 import type { SmsConfig, SmsProvider } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
@@ -22,6 +32,7 @@ import {
   useSmsConfigDetail,
   useSmsConfigList,
 } from '@/hooks/queries/sms-configs';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 export default function SmsConfigsPage() {
   const { hasPermission: can } = usePermission();
@@ -187,10 +198,10 @@ export default function SmsConfigsPage() {
               optionList={SMS_PROVIDER_OPTIONS} showClear style={{ width: 120 }} />
             <Select placeholder="状态" value={draftParams.filterStatus} onChange={(v) => setDraftParams({ ...draftParams, filterStatus: v as string | undefined })}
               optionList={statusItems.map((i) => ({ label: i.label, value: i.value }))} showClear style={{ width: 110 }} />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
             {can('system:sms-config:create') && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+              <CreateButton onClick={openCreate} />
             )}
           </>
         )}
@@ -198,9 +209,9 @@ export default function SmsConfigsPage() {
           <>
             <Input prefix={<Search size={14} />} placeholder="搜索名称/签名"
               value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onEnterPress={handleSearch} showClear style={{ width: 200 }} />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+            <SearchButton onClick={handleSearch} />
             {can('system:sms-config:create') && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+              <CreateButton onClick={openCreate} />
             )}
           </>
         )}

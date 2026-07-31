@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Modal, Select, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Plus, RotateCcw, Search } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { WorkflowForm, WorkflowFormStatus } from '@zenith/shared/workflow';
 import { formatDateTime } from '@/utils/date';
@@ -19,6 +19,7 @@ import {
   useWorkflowFormList,
   workflowFormKeys,
 } from '@/hooks/queries/workflow-forms';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 type StatusFilter = WorkflowFormStatus | '';
 type TagColor = 'green' | 'grey';
@@ -224,11 +225,11 @@ export default function WorkflowFormsPage() {
   );
 
   const renderSearchButton = () => (
-    <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+    <SearchButton onClick={handleSearch} />
   );
 
   const renderResetButton = () => (
-    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+    <ResetButton onClick={handleReset} />
   );
 
   const renderCreateButton = () => hasPermission('workflow:form:create') ? (

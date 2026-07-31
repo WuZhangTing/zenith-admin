@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { DATE_TIME_PATTERN } from './constants';
+import { jsonByteLength, jsonDepth } from './json-shape';
 
 /**
  * 自引用递归 schema 的 lazy 包装：**内部实例必须缓存**。
@@ -58,34 +59,6 @@ export const dateTimeStringSchema = z.string().regex(DATE_TIME_PATTERN, '日期�
 
 
 // ─── 埋点事件上报 ─────────────────────────────────────────────────────────────
-function jsonDepth(value: unknown): number {
-  if (value === null || typeof value !== 'object') return 0;
-  const stack: Array<{ value: object; depth: number }> = [{ value, depth: 1 }];
-  const seen = new WeakSet<object>();
-  let maxDepth = 0;
-  while (stack.length > 0) {
-    const current = stack.pop()!;
-    if (seen.has(current.value)) continue;
-    seen.add(current.value);
-    maxDepth = Math.max(maxDepth, current.depth);
-    const children = Array.isArray(current.value) ? current.value : Object.values(current.value);
-    for (const child of children) {
-      if (child !== null && typeof child === 'object') stack.push({ value: child, depth: current.depth + 1 });
-    }
-  }
-  return maxDepth;
-}
-
-
-function jsonByteLength(value: unknown): number {
-  try {
-    return new TextEncoder().encode(JSON.stringify(value)).byteLength;
-  } catch {
-    return Number.POSITIVE_INFINITY;
-  }
-}
-
-
 export function boundedJsonRecord(label: string, maxKeys: number, maxBytes: number, maxDepth = 6) {
   return z.record(z.string(), z.unknown()).superRefine((value, ctx) => {
     if (Object.keys(value).length > maxKeys) {

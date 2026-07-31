@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Modal, Select, Space, Tag, Typography,
   Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Ban, CircleCheck, GitCompare, Layers, LayoutTemplate, Plus, RotateCcw, Save, Search, Trash2, Upload } from 'lucide-react';
+import { Ban, CircleCheck, GitCompare, Layers, LayoutTemplate, Plus, Save, Search, Trash2, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { WorkflowDefinition, WorkflowFormType, WorkflowVersionDiff as WorkflowVersionDiffData } from '@zenith/shared/workflow';
 import { WORKFLOW_FORM_TYPE_LABELS } from '@zenith/shared/workflow';
@@ -40,6 +40,7 @@ import {
 } from '@/hooks/queries/workflow-definitions';
 import { WORKFLOW_DIFF_KIND_META as DIFF_KIND_META } from '../constants';
 import { PUBLISHABLE_STATUS_META as STATUS_MAP } from '@/lib/publishable-status';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'indigo' | 'light-blue' | 'light-green' | 'lime' | 'orange' | 'pink' | 'purple' | 'red' | 'teal' | 'violet' | 'yellow' | 'white';
 
@@ -475,11 +476,11 @@ export default function WorkflowDefinitionsPage() {
   );
 
   const renderSearchButton = () => (
-    <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+    <SearchButton onClick={handleSearch} />
   );
 
   const renderResetButton = () => (
-    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+    <ResetButton onClick={handleReset} />
   );
 
   const renderCreateButton = () => hasPermission('workflow:definition:create') ? (

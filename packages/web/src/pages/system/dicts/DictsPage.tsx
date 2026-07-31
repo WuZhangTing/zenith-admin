@@ -19,7 +19,7 @@ import {
   Switch,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Plus, RotateCcw, MoreHorizontal, BookOpen, ChevronsDownUp, ChevronsUpDown, RefreshCw, Pencil, Trash2 } from 'lucide-react';
+import { Search, Plus, MoreHorizontal, BookOpen, ChevronsDownUp, ChevronsUpDown, RefreshCw, Pencil, Trash2 } from 'lucide-react';
 import type { Dict, DictItem } from '@zenith/shared/platform';
 import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -46,6 +46,7 @@ import {
   useSaveDict,
   useSaveDictItem,
 } from '@/hooks/queries/dicts';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 export default function DictsPage() {
   const { hasPermission } = usePermission();
@@ -550,11 +551,11 @@ export default function DictsPage() {
   );
 
   const renderItemSearchButton = () => (
-    <Button type="primary" icon={<Search size={14} />} onClick={handleItemSearch} disabled={!selectedDict}>查询</Button>
+    <SearchButton onClick={handleItemSearch} disabled={!selectedDict} />
   );
 
   const renderItemResetButton = () => (
-    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleItemReset} disabled={!selectedDict}>重置</Button>
+    <ResetButton onClick={handleItemReset} disabled={!selectedDict} />
   );
 
   const renderItemExpandButton = () => allItemIds.length > 0 ? (
@@ -569,14 +570,7 @@ export default function DictsPage() {
   ) : null;
 
   const renderItemCreateButton = () => hasPermission('system:dict:item') ? (
-    <Button
-      type="primary"
-      icon={<Plus size={14} />}
-      onClick={() => { setEditingItemRecord(null); setItemParentId(null); setItemColor(null); setMetadataStr('{}'); setItemModalVisible(true); }}
-      disabled={!selectedDict}
-    >
-      新增
-    </Button>
+    <CreateButton onClick={() => { setEditingItemRecord(null); setItemParentId(null); setItemColor(null); setMetadataStr('{}'); setItemModalVisible(true); }} disabled={!selectedDict} />
   ) : null;
 
   const dictDetail = (

@@ -27,7 +27,7 @@ import {
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag/interface';
-import { Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import type { WorkflowAutomation, WorkflowAutomationAction, WorkflowAutomationTrigger, WorkflowDefinition } from '@zenith/shared/workflow';
 import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -44,6 +44,7 @@ import {
   useWorkflowAutomationList,
   workflowAutomationKeys,
 } from '@/hooks/queries/workflow-automations';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const TRIGGER_OPTIONS: Array<{ value: WorkflowAutomationTrigger; label: string; color: TagColor }> = [
   { value: 'created',   label: '流程发起时', color: 'blue' },
@@ -473,15 +474,15 @@ export default function WorkflowAutomationsPage() {
   );
 
   const renderSearchButton = () => (
-    <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+    <SearchButton onClick={handleSearch} />
   );
 
   const renderResetButton = () => (
-    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+    <ResetButton onClick={handleReset} />
   );
 
   const renderCreateButton = () => canEditAutomation ? (
-    <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+    <CreateButton onClick={openCreate} />
   ) : null;
 
   return (

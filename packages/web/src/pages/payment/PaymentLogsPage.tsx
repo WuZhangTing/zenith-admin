@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
 import type { CSSProperties } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, DatePicker, Input, Modal, Select, Tag, Typography } from '@douyinfe/semi-ui';
+import { DatePicker, Input, Modal, Select, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search, RotateCcw } from 'lucide-react';
+import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -13,6 +13,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentNotifyLog } from '@zenith/shared/payment';
 import { paymentLogKeys, usePaymentLogList } from '@/hooks/queries/payment-logs';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams { keyword: string; channel: string; scene: string; signatureValid: string; timeRange: [Date, Date] | null; }
 const defaultSearch: SearchParams = { keyword: '', channel: '', scene: '', signatureValid: '', timeRange: null };
@@ -130,8 +131,8 @@ export default function PaymentLogsPage() {
     />
   );
 
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
 
   return (
     <div className="page-container">

@@ -14,7 +14,7 @@ import {
   SideSheet,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Plus, RotateCcw } from 'lucide-react';
+import { Search } from 'lucide-react';
 import type { Role, Department } from '@zenith/shared/identity';
 import { UserTransferSelect } from '@/components/UserTransferSelect';
 import type { UserTransferUser } from '@/components/UserTransferSelect';
@@ -46,6 +46,7 @@ import {
   useSaveRole,
   useUpdateRoleDataScope,
 } from '@/hooks/queries/roles';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 export default function RolesPage() {
   const { hasPermission } = usePermission();
@@ -369,18 +370,12 @@ export default function RolesPage() {
       : {}),
   });
 
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderExportButtons = () => <ExportButton entity="system.roles" query={buildExportQuery()} />;
   const renderMobileExportActions = () => <ExportButton entity="system.roles" query={buildExportQuery()} variant="flat" />;
   const renderCreateButton = () => hasPermission('system:role:create') ? (
-    <Button
-      type="primary"
-      icon={<Plus size={14} />}
-      onClick={() => { setEditingRecord(null); setModalVisible(true); }}
-    >
-      新增
-    </Button>
+    <CreateButton onClick={() => { setEditingRecord(null); setModalVisible(true); }} />
   ) : null;
 
   return (

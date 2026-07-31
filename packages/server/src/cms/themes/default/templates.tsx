@@ -2,8 +2,8 @@ import { CmsFollowButton, Layout } from './Layout';
 import type { CSSProperties } from 'react';
 import type { CmsContentAttachment, CmsTitleStyle } from '@zenith/shared/cms';
 import type {
-  CmsBaseContext, CmsBreadcrumb, CmsContentItem, CmsHomeContext, CmsListContext,
-  CmsDetailContext, CmsPageContext, CmsSearchContext, CmsNotFoundContext, CmsPagination,
+  CmsBaseContext, CmsContentItem, CmsHomeContext, CmsListContext,
+  CmsDetailContext, CmsPageContext, CmsSearchContext, CmsNotFoundContext,
   CmsCommentItem, CmsCommentFormConfig, CmsFrontFormConfig, CmsTagPageContext, CmsCustomPageContext,
   CmsInteractionPageContext,
 } from '../types';
@@ -12,19 +12,7 @@ import {
   signCmsAdRenderProof,
 } from '../../../services/cms/cms-ad-render-proof';
 import { renderCmsWidgetHtml } from '../widgets';
-
-function Breadcrumbs({ items }: { items: CmsBreadcrumb[] }) {
-  return (
-    <div className="breadcrumbs">
-      {items.map((b, i) => (
-        <span key={b.url}>
-          {i > 0 ? ' / ' : ''}
-          {i === items.length - 1 ? <span>{b.name}</span> : <a href={b.url}>{b.name}</a>}
-        </span>
-      ))}
-    </div>
-  );
-}
+import { Breadcrumbs, Pagination } from '../_shared';
 
 const TYPE_BADGES: Record<string, string | null> = { article: null, album: '图集', media: '视频', link: '外链' };
 
@@ -101,22 +89,6 @@ function ContentItemRow({ item }: { item: CmsContentItem }) {
     </div>
   );
 }
-
-function Pagination({ p }: { p: CmsPagination }) {
-  if (p.totalPages <= 1) return null;
-  return (
-    <div className="pagination">
-      {p.prevUrl ? <a href={p.prevUrl}>上一页</a> : null}
-      {p.pages.map((pg) => (
-        pg.current
-          ? <span key={pg.page} className="current">{pg.page}</span>
-          : <a key={pg.page} href={pg.url}>{pg.page}</a>
-      ))}
-      {p.nextUrl ? <a href={p.nextUrl}>下一页</a> : null}
-    </div>
-  );
-}
-
 
 
 /** 广告位：图片广告渲染图片，无图广告渲染文字条；点击经由计数中转 302 跳转 */

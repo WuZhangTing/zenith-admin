@@ -4,7 +4,7 @@ import { Button, Col, Form, Input, Modal, Row, Select, Tag,
   Toast } from '@douyinfe/semi-ui';
 import { AppModal } from '@/components/AppModal';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { CheckCheck, Plus, RotateCcw, Search } from 'lucide-react';
+import { CheckCheck, Plus, Search } from 'lucide-react';
 import type { InAppMessage, InAppMessageType } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
@@ -23,6 +23,7 @@ import {
   useSendInAppMessage,
 } from '@/hooks/queries/in-app-messages';
 import { IN_APP_MESSAGE_TYPE_OPTIONS_WITH_COLOR as TYPE_OPTIONS } from '../in-app-message-constants';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const READ_OPTIONS = [
   { label: '未读', value: 'false' },
@@ -183,8 +184,8 @@ export default function InAppMessagesPage() {
               optionList={TYPE_OPTIONS} showClear style={{ width: 110 }} />
             <Select placeholder="阅读状态" value={draftParams.filterRead} onChange={(v) => setDraftParams({ ...draftParams, filterRead: v as string | undefined })}
               optionList={READ_OPTIONS} showClear style={{ width: 120 }} />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
             {can('system:in-app-message:update') && (
               <Button type="tertiary" icon={<CheckCheck size={14} />} onClick={handleMarkAllRead}>全部已读</Button>
             )}
@@ -197,7 +198,7 @@ export default function InAppMessagesPage() {
           <>
             <Input prefix={<Search size={14} />} placeholder="标题/内容关键词"
               value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onEnterPress={handleSearch} showClear style={{ width: 200 }} />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+            <SearchButton onClick={handleSearch} />
             {can('system:in-app-message:send') && (
               <Button type="primary" icon={<Plus size={14} />} onClick={openSend}>发送站内信</Button>
             )}

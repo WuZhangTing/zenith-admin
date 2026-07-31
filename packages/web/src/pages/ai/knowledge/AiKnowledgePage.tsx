@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Button, Form, Input, Modal, SideSheet, Tag, Toast, Typography, Upload } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Plus, RotateCcw, Search, FileUp, Globe } from 'lucide-react';
+import { Plus, Search, FileUp, Globe } from 'lucide-react';
 import type { AiKnowledgeBase, AiKbDocument } from '@zenith/shared/ai';
 import { AppModal } from '@/components/AppModal';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
@@ -20,6 +20,7 @@ import {
   useDeleteAiKbDocument,
   useImportAiKbUrl,
 } from '@/hooks/queries/ai-extras';
+import { CreateButton, ResetButton } from '@/components/toolbar-controls';
 
 const { Text } = Typography;
 
@@ -224,13 +225,11 @@ export default function AiKnowledgePage() {
               showClear
               style={{ width: 220 }}
             />
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => setSearch('')}>重置</Button>
+            <ResetButton onClick={() => setSearch('')} />
           </>
         )}
         actions={hasPermission('ai:kb:create') ? (
-          <Button type="primary" icon={<Plus size={14} />} onClick={() => { setEditing(null); setModalVisible(true); }}>
-            新增
-          </Button>
+          <CreateButton onClick={() => { setEditing(null); setModalVisible(true); }} />
         ) : null}
       />
       <ConfigurableTable

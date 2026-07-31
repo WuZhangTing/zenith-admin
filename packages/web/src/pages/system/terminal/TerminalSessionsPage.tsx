@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Input, Modal, Select, Space, Tag, Toast, Typography, SideSheet, Switch } from '@douyinfe/semi-ui';
-import { Search, RotateCcw, Monitor as MonitorIcon } from 'lucide-react';
+import { Input, Modal, Select, Space, Tag, Toast, Typography, SideSheet, Switch } from '@douyinfe/semi-ui';
+import { Search, Monitor as MonitorIcon } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
@@ -24,6 +24,7 @@ import {
   type TerminalKind,
   type TerminalSessionItem,
 } from '@/hooks/queries/terminal';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const KIND_META: Record<TerminalKind, { label: string; color: 'blue' | 'green' | 'cyan' }> = {
   local: { label: '本地', color: 'blue' },
@@ -245,8 +246,8 @@ export default function TerminalSessionsPage() {
               <Select.Option value="ssh">SSH</Select.Option>
               <Select.Option value="docker">Docker</Select.Option>
             </Select>
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
             <Space spacing={4} style={{ marginLeft: 4 }}>
               <Switch size="small" checked={autoRefresh} onChange={setAutoRefresh} />
               <Typography.Text type="tertiary" size="small">自动刷新</Typography.Text>
@@ -264,7 +265,7 @@ export default function TerminalSessionsPage() {
               style={{ width: 220 }}
               showClear
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+            <SearchButton onClick={handleSearch} />
           </>
         )}
         mobileFilters={(
@@ -294,7 +295,7 @@ export default function TerminalSessionsPage() {
           </>
         )}
         mobileActions={(
-          <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+          <ResetButton onClick={handleReset} />
         )}
         filterTitle="终端会话筛选"
         actionTitle="终端会话操作"

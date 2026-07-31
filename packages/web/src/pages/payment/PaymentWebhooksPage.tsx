@@ -1,10 +1,10 @@
 import { useState, useRef } from 'react';
 import type { CSSProperties } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, Modal, Select, Space, Spin, Switch, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Form, Input, Modal, Select, Space, Spin, Switch, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, Plus } from 'lucide-react';
+import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -24,6 +24,7 @@ import {
 import { PAYMENT_WEBHOOK_DELIVERY_STATUS_LABELS } from '@zenith/shared/payment';
 import type { PaymentWebhookDelivery, PaymentWebhookEndpoint } from '@zenith/shared/payment';
 import { useDictItems } from '@/hooks/useDictItems';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const EVENT_OPTIONS = [
   { value: 'payment.succeeded', label: '支付成功' },
@@ -264,10 +265,10 @@ export default function PaymentWebhooksPage() {
       optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))}
     />
   );
-  const renderEndpointSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleEndpointSearch}>查询</Button>;
-  const renderEndpointResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleEndpointReset}>重置</Button>;
+  const renderEndpointSearchButton = () => <SearchButton onClick={handleEndpointSearch} />;
+  const renderEndpointResetButton = () => <ResetButton onClick={handleEndpointReset} />;
   const renderEndpointCreateButton = () => hasPermission('payment:webhook:create') ? (
-    <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+    <CreateButton onClick={openCreate} />
   ) : null;
 
   const renderDeliveryKeywordSearch = () => (
@@ -291,8 +292,8 @@ export default function PaymentWebhooksPage() {
       optionList={Object.entries(PAYMENT_WEBHOOK_DELIVERY_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
     />
   );
-  const renderDeliverySearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleDeliverySearch}>查询</Button>;
-  const renderDeliveryResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleDeliveryReset}>重置</Button>;
+  const renderDeliverySearchButton = () => <SearchButton onClick={handleDeliverySearch} />;
+  const renderDeliveryResetButton = () => <ResetButton onClick={handleDeliveryReset} />;
 
   return (
     <div className="page-container page-tabs-page">

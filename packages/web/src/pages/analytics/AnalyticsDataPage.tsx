@@ -25,7 +25,7 @@ import {
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
-import { Search, RotateCcw, Plus, Trash2, ChevronDown } from 'lucide-react';
+import { Search, Trash2, ChevronDown } from 'lucide-react';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -53,6 +53,7 @@ import AnalyticsQualityTab from './AnalyticsQualityTab';
 import AnalyticsDebugTab from './AnalyticsDebugTab';
 import AnalyticsSegmentsTab from './AnalyticsSegmentsTab';
 import AnalyticsSitesTab from './AnalyticsSitesTab';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const PAGE_SIZE = 20;
 
@@ -808,8 +809,8 @@ export default function AnalyticsDataPage() {
       style={{ width: 330 }}
     />
   );
-  const renderEventSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleEventSearch}>查询</Button>;
-  const renderEventResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleEventReset}>重置</Button>;
+  const renderEventSearchButton = () => <SearchButton onClick={handleEventSearch} />;
+  const renderEventResetButton = () => <ResetButton onClick={handleEventReset} />;
   const renderEventExportButtons = () => <ExportButton entity="analytics.events" query={buildExportQuery()} />;
   const renderEventCleanButtons = () => canClean ? (
     <SplitButtonGroup>
@@ -881,9 +882,9 @@ export default function AnalyticsDataPage() {
       style={{ width: 130 }}
     />
   );
-  const renderMetaSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleMetaSearch}>查询</Button>;
-  const renderMetaResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleMetaReset}>重置</Button>;
-  const renderMetaCreateButton = () => <Button type="primary" icon={<Plus size={14} />} onClick={openCreateMeta}>新增</Button>;
+  const renderMetaSearchButton = () => <SearchButton onClick={handleMetaSearch} />;
+  const renderMetaResetButton = () => <ResetButton onClick={handleMetaReset} />;
+  const renderMetaCreateButton = () => <CreateButton onClick={openCreateMeta} />;
   const renderRollupDaysFilter = () => (
     <Select value={rollupDays} onChange={handleRollupDaysChange} optionList={ROLLUP_DAY_OPTIONS} style={{ width: 130 }} />
   );

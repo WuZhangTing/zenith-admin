@@ -2,7 +2,6 @@ import { useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import {
   Banner,
-  Button,
   Col,
   DatePicker,
   Form,
@@ -18,7 +17,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Plus, RotateCcw, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { CMS_CONTENT_TYPES, CMS_CONTENT_TYPE_LABELS, CMS_DISTRIBUTION_CONFLICT_STRATEGIES, CMS_DISTRIBUTION_CONFLICT_STRATEGY_LABELS, CMS_DISTRIBUTION_MODES, CMS_DISTRIBUTION_MODE_LABELS, CMS_DISTRIBUTION_RUN_OUTCOME_LABELS, CMS_DISTRIBUTION_TASK_STATUSES, CMS_DISTRIBUTION_TASK_STATUS_LABELS } from '@zenith/shared/cms';
 import type { CmsChannel, CmsDistributionRule, CmsDistributionRun } from '@zenith/shared/cms';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -44,6 +43,7 @@ import {
   useSaveCmsDistributionRule,
 } from '@/hooks/queries/cms-stage5';
 import { useQueryClient } from '@tanstack/react-query';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface RuleSearch {
   keyword: string;
@@ -444,8 +444,8 @@ export default function DistributionPage() {
                   style={{ width: 130 }}
                   onChange={(mode) => setRuleDraft((value) => ({ ...value, mode: mode as string | undefined }))}
                 />
-                <Button type="primary" icon={<Search size={14} />} onClick={searchRules}>查询</Button>
-                <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={resetRules}>重置</Button>
+                <SearchButton onClick={searchRules} />
+                <ResetButton onClick={resetRules} />
               </>
             )}
             filters={(
@@ -469,7 +469,7 @@ export default function DistributionPage() {
               </>
             )}
             actions={hasPermission('cms:distribution:create') ? (
-              <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+              <CreateButton onClick={openCreate} />
             ) : null}
             mobilePrimary={(
               <>
@@ -480,8 +480,8 @@ export default function DistributionPage() {
                   showClear
                   onChange={(keyword) => setRuleDraft((value) => ({ ...value, keyword }))}
                 />
-                <Button type="primary" icon={<Search size={14} />} onClick={searchRules}>查询</Button>
-                {hasPermission('cms:distribution:create') ? <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button> : null}
+                <SearchButton onClick={searchRules} />
+                {hasPermission('cms:distribution:create') ? <CreateButton onClick={openCreate} /> : null}
               </>
             )}
             mobileActions={false}
@@ -545,8 +545,8 @@ export default function DistributionPage() {
             )}
             actions={(
               <>
-                <Button type="primary" icon={<Search size={14} />} onClick={searchRuns}>查询</Button>
-                <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={resetRuns}>重置</Button>
+                <SearchButton onClick={searchRuns} />
+                <ResetButton onClick={resetRuns} />
                 {hasPermission('cms:distribution:export') ? (
                   <ExportButton
                     entity="cms.distribution-runs"
@@ -571,7 +571,7 @@ export default function DistributionPage() {
                   style={{ width: 180 }}
                   onChange={(ruleId) => setRunDraft((value) => ({ ...value, ruleId: ruleId as number | undefined }))}
                 />
-                <Button type="primary" icon={<Search size={14} />} onClick={searchRuns}>查询</Button>
+                <SearchButton onClick={searchRuns} />
               </>
             )}
             mobileActions={hasPermission('cms:distribution:export') ? (

@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, DatePicker, Form, Tag, Toast, Modal, Tabs, TabPane, Select, SideSheet, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -20,6 +20,7 @@ import {
 import { CMS_AD_EVENT_TYPE_LABELS, CMS_DEVICE_TYPE_LABELS } from '@zenith/shared/cms';
 import type { CmsAdEvent, CmsAdSlot, CmsAd } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 // ─── 广告位 Tab ───────────────────────────────────────────────────────────────
 function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
@@ -353,8 +354,8 @@ function EventsTab({ siteId, setSiteId }: Readonly<{
           <>
             <CmsSiteSelect value={siteId} onChange={(value) => { setSiteId(value); setPage(1); }} />
             {filterFields}
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
           </>
         )}
         actions={(
@@ -388,7 +389,7 @@ function EventsTab({ siteId, setSiteId }: Readonly<{
         mobilePrimary={(
           <>
             <CmsSiteSelect value={siteId} onChange={setSiteId} />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+            <SearchButton onClick={handleSearch} />
           </>
         )}
         mobileFilters={filterFields}
@@ -462,8 +463,8 @@ function StatsTab({ siteId, setSiteId }: Readonly<{
         <DatePicker type="dateTimeRange" value={draft.timeRange}
           onChange={(value) => setDraft((current) => ({ ...current, timeRange: value as [Date, Date] | undefined }))}
           placeholder={['统计开始时间', '统计结束时间']} style={{ width: 330 }} />
-        <Button type="primary" icon={<Search size={14} />} onClick={() => setSubmitted(draft)}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => { setDraft({}); setSubmitted({}); }}>重置</Button>
+        <SearchButton onClick={() => setSubmitted(draft)} />
+        <ResetButton onClick={() => { setDraft({}); setSubmitted({}); }} />
       </SearchToolbar>
       {statsQuery.data ? (
         <div style={{ display: 'flex', gap: 24, marginBottom: 12 }} aria-label="广告事件统计摘要">

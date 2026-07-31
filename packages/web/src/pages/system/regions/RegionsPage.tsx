@@ -12,7 +12,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { CascaderData } from '@douyinfe/semi-ui/lib/es/cascader';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Plus, RotateCcw, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
+import { Search, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import type { Region } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -25,6 +25,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { regionKeys, useDeleteRegion, useFlatRegions, useRegionDetail, useRegionTree, useSaveRegion } from '@/hooks/queries/regions';
 import { REGION_LEVEL_LABELS } from '@zenith/shared/platform';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const LEVEL_LABELS: Record<string, string> = REGION_LEVEL_LABELS;
 
@@ -340,8 +341,8 @@ export default function RegionsPage() {
     />
   );
 
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderExpandButton = () => (
     <Button
       type="primary"
@@ -363,9 +364,7 @@ export default function RegionsPage() {
     <ExportButton entity="system.regions" query={buildExportQuery()} variant="flat" />
   ) : null;
   const renderCreateButton = () => hasPermission('system:region:create') ? (
-    <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>
-      新增
-    </Button>
+    <CreateButton onClick={openCreate} />
   ) : null;
 
   return (

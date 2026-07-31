@@ -14,9 +14,10 @@ import {
   Toast,
   Typography,
 } from '@douyinfe/semi-ui';
-import { Play, RotateCcw } from 'lucide-react';
+import { Play } from 'lucide-react';
 import type { OpenApiDebugResult } from '@zenith/shared/open-platform';
 import { useDebugMyApp, useMyAppList } from '@/hooks/queries/developer-apps';
+import { ResetButton } from '@/components/toolbar-controls';
 
 const { Paragraph, Text, Title } = Typography;
 type DebugPath = '/api/open/v1/ping' | '/api/open/v1/echo' | '/api/open/v1/userinfo';
@@ -139,7 +140,7 @@ export default function ApiDebugConsolePage() {
               )}
               <Space style={{ marginTop: 8 }}>
                 <Button type="primary" icon={<Play size={14} />} loading={debugMutation.isPending} onClick={() => void execute()}>发送请求</Button>
-                <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={reset}>重置</Button>
+                <ResetButton onClick={reset} />
               </Space>
             </Form>
           </Card>

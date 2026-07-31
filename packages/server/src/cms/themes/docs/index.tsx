@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
 import type {
-  CmsBaseContext, CmsBreadcrumb, CmsContentItem, CmsHomeContext, CmsListContext,
-  CmsDetailContext, CmsPageContext, CmsSearchContext, CmsNotFoundContext, CmsPagination,
+  CmsBaseContext, CmsContentItem, CmsHomeContext, CmsListContext,
+  CmsDetailContext, CmsPageContext, CmsSearchContext, CmsNotFoundContext,
   CmsTagPageContext, CmsNavItem, CmsTheme, CmsCustomPageContext,
 } from '../types';
 import { CMS_WIDGET_RENDERER_KEYS } from '@zenith/shared/cms';
 import { renderCmsWidgetHtml } from '../widgets';
+import { Breadcrumbs, Pagination, SeoHead, buildAnalyticsBeacon, buildThemeOverrides } from '../_shared';
 
 const CAPTCHA_SCRIPT = `(function(){function load(box){fetch('/api/public/cms/captcha').then(function(r){return r.json()}).then(function(r){if(!r||r.code!==0)return;box.querySelector('input[name="captchaId"]').value=r.data.id;var img=box.querySelector('.cms-captcha-img');img.innerHTML=r.data.svg;img.title='看不清？点击刷新'}).catch(function(){})}document.querySelectorAll('.cms-captcha-box').forEach(function(box){load(box);var img=box.querySelector('.cms-captcha-img');if(img)img.addEventListener('click',function(){load(box)})});})();`;
 
@@ -93,43 +94,6 @@ img { max-width: 100%; }
 
 const DARK_VARS = '--text:#dfdfd6; --text-2:#98989f; --border:#3c3f44; --bg:#1b1b1f; --bg-2:#242429;';
 
-function buildThemeOverrides(settings: Record<string, unknown>): { css: string; darkMode: 'auto' | 'light' | 'dark' } {
-  const primary = typeof settings.themePrimary === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(settings.themePrimary)
-    ? settings.themePrimary
-    : null;
-  const darkMode = settings.themeDark === 'dark' || settings.themeDark === 'auto' ? settings.themeDark : 'light';
-  let css = '';
-  if (primary) css += `:root { --primary: ${primary}; }\n`;
-  if (darkMode !== 'light') {
-    css += `html[data-theme="dark"] { ${DARK_VARS} }\n`;
-    if (darkMode === 'auto') {
-      css += `@media (prefers-color-scheme: dark) { html:not([data-theme="light"]) { ${DARK_VARS} } }\n`;
-    }
-  }
-  return { css, darkMode };
-}
-
-const THEME_TOGGLE_SCRIPT = `(function(){try{
-var t=localStorage.getItem('cms_theme');if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t);}
-document.addEventListener('click',function(e){
-var b=e.target&&e.target.closest?e.target.closest('.theme-toggle'):null;if(!b)return;
-var h=document.documentElement;var cur=h.getAttribute('data-theme');
-var next=cur==='dark'?'light':(cur==='light'?'dark':(window.matchMedia('(prefers-color-scheme: dark)').matches?'light':'dark'));
-h.setAttribute('data-theme',next);localStorage.setItem('cms_theme',next);});
-}catch(e){}})();`;
-
-function buildAnalyticsBeacon(analytics: NonNullable<CmsBaseContext['analytics']>): string {
-  return `(function(){try{
-var K=${JSON.stringify(analytics.siteKey)};var C=${analytics.contentId ?? 'null'};
-var ls=window.localStorage,ss=window.sessionStorage;
-var aid=ls.getItem('cms_aid')||(Date.now().toString(36)+Math.random().toString(36).slice(2,10));ls.setItem('cms_aid',aid);
-var sid=ss.getItem('cms_sid')||(Date.now().toString(36)+Math.random().toString(36).slice(2,10));ss.setItem('cms_sid',sid);
-var ev={eventType:'page_view',sessionId:sid,anonymousId:aid,pagePath:location.pathname,pageTitle:document.title,referrer:document.referrer||undefined};
-navigator.sendBeacon('/api/analytics/events?siteKey='+encodeURIComponent(K),new Blob([JSON.stringify({events:[ev]})],{type:'application/json'}));
-if(C){navigator.sendBeacon('/api/public/cms/view',new Blob([JSON.stringify({contentId:C})],{type:'application/json'}));}
-}catch(e){}})();`;
-}
-
 function SidebarNav({ items, currentUrl }: { items: CmsNavItem[]; currentUrl?: string }) {
   return (
     <aside className="doc-sidebar">
@@ -158,44 +122,11 @@ interface DocLayoutProps {
 }
 
 export function Layout({ ctx, currentUrl, sidebar = true, children }: DocLayoutProps) {
-  const { site, seo, nav, friendLinks, baseUrl } = ctx;
-  const theme = buildThemeOverrides(site.settings);
+  const { site, nav, friendLinks, baseUrl } = ctx;
+  const theme = buildThemeOverrides(site.settings, DARK_VARS);
   return (
     <html lang="zh-CN">
-      <head>
-        <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>{seo.title}</title>
-        {seo.keywords ? <meta name="keywords" content={seo.keywords} /> : null}
-        {seo.description ? <meta name="description" content={seo.description} /> : null}
-        {seo.canonical ? <link rel="canonical" href={seo.canonical} /> : null}
-        <meta property="og:type" content={seo.ogType} />
-        <meta property="og:title" content={seo.ogTitle} />
-        {seo.ogDescription ? <meta property="og:description" content={seo.ogDescription} /> : null}
-        {seo.ogImage ? <meta property="og:image" content={seo.ogImage} /> : null}
-        {seo.ogImageAlt ? <meta property="og:image:alt" content={seo.ogImageAlt} /> : null}
-        {seo.ogUrl ? <meta property="og:url" content={seo.ogUrl} /> : null}
-        <meta property="og:site_name" content={seo.ogSiteName} />
-        {seo.articlePublishedTime ? <meta property="article:published_time" content={seo.articlePublishedTime} /> : null}
-        {seo.articleModifiedTime ? <meta property="article:modified_time" content={seo.articleModifiedTime} /> : null}
-        {seo.articleAuthor ? <meta property="article:author" content={seo.articleAuthor} /> : null}
-        <meta name="twitter:card" content={seo.twitterCard} />
-        {seo.twitterSite ? <meta name="twitter:site" content={seo.twitterSite} /> : null}
-        {seo.twitterCreator ? <meta name="twitter:creator" content={seo.twitterCreator} /> : null}
-        <meta name="twitter:title" content={seo.twitterTitle} />
-        {seo.twitterDescription ? <meta name="twitter:description" content={seo.twitterDescription} /> : null}
-        {seo.twitterImage ? <meta name="twitter:image" content={seo.twitterImage} /> : null}
-        {seo.twitterImageAlt ? <meta name="twitter:image:alt" content={seo.twitterImageAlt} /> : null}
-        {site.favicon ? <link rel="icon" href={site.favicon} /> : null}
-        <meta name="generator" content="Zenith CMS" />
-        {seo.jsonLd ? (
-          <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(seo.jsonLd) }} />
-        ) : null}
-        <style dangerouslySetInnerHTML={{ __html: styles + theme.css }} />
-        {theme.darkMode !== 'light' ? (
-          <script dangerouslySetInnerHTML={{ __html: THEME_TOGGLE_SCRIPT }} />
-        ) : null}
-      </head>
+      <SeoHead ctx={ctx} css={styles + theme.css} darkMode={theme.darkMode} />
       <body>
         {ctx.analytics ? (
           <script dangerouslySetInnerHTML={{ __html: buildAnalyticsBeacon(ctx.analytics) }} />
@@ -231,19 +162,6 @@ export function Layout({ ctx, currentUrl, sidebar = true, children }: DocLayoutP
   );
 }
 
-function Breadcrumbs({ items }: { items: CmsBreadcrumb[] }) {
-  return (
-    <div className="breadcrumbs">
-      {items.map((b, i) => (
-        <span key={b.url}>
-          {i > 0 ? ' / ' : ''}
-          {i === items.length - 1 ? <span>{b.name}</span> : <a href={b.url}>{b.name}</a>}
-        </span>
-      ))}
-    </div>
-  );
-}
-
 function DocItemRow({ item }: { item: CmsContentItem }) {
   return (
     <div className="doc-item">
@@ -258,21 +176,6 @@ function DocItemRow({ item }: { item: CmsContentItem }) {
         {item.publishedAt ? <time>{item.publishedAt}</time> : null}
         <span>{item.viewCount} 阅读</span>
       </div>
-    </div>
-  );
-}
-
-function Pagination({ p }: { p: CmsPagination }) {
-  if (p.totalPages <= 1) return null;
-  return (
-    <div className="pagination">
-      {p.prevUrl ? <a href={p.prevUrl}>上一页</a> : null}
-      {p.pages.map((pg) => (
-        pg.current
-          ? <span key={pg.page} className="current">{pg.page}</span>
-          : <a key={pg.page} href={pg.url}>{pg.page}</a>
-      ))}
-      {p.nextUrl ? <a href={p.nextUrl}>下一页</a> : null}
     </div>
   );
 }

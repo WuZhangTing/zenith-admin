@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Select, Modal, Form, Toast, Tag, Spin, Row, Col, Dropdown } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search, Plus, RotateCcw, KeyRound, ChevronDown, Tags } from 'lucide-react';
+import { Search, KeyRound, ChevronDown, Tags } from 'lucide-react';
 import type { Member, MemberTag } from '@zenith/shared/member';
 import { MEMBER_STATUS_LABELS } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
@@ -32,6 +32,7 @@ import {
   useSaveMember,
   useSetMemberTags,
 } from '@/hooks/queries/member-admin';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const STATUS_COLORS: Record<string, 'green' | 'grey' | 'red'> = { active: 'green', inactive: 'grey', banned: 'red' };
 const statusOptions = (['active', 'inactive', 'banned'] as const).map((v) => ({ value: v, label: MEMBER_STATUS_LABELS[v] }));
@@ -292,10 +293,10 @@ export default function MembersPage() {
     />
   );
 
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => hasPermission('member:member:create') ? (
-    <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+    <CreateButton onClick={openCreate} />
   ) : null;
   const renderTagsManageButton = () => hasPermission('member:member:update') ? (
     <Button type="tertiary" icon={<Tags size={14} />} onClick={() => setTagsManageVisible(true)}>标签管理</Button>

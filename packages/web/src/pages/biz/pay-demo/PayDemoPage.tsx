@@ -12,7 +12,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Info, Plus, RotateCcw, Search } from 'lucide-react';
+import { Info, Plus, Search } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { PAYMENT_METHOD_LABELS } from '@zenith/shared/payment';
 import type { BizPayDemo, BizPayDemoStatus } from '@zenith/shared/biz';
@@ -31,6 +31,7 @@ import {
   usePayBizPayDemo,
   useSimulateBizPayDemoPaid,
 } from '@/hooks/queries/biz-pay-demo';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 type TagColor = 'grey' | 'blue' | 'green' | 'orange';
 
@@ -285,8 +286,8 @@ export default function PayDemoPage() {
     />
   );
 
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新建示例单</Button>;
 
   return (

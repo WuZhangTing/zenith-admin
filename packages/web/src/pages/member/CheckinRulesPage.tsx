@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Toast, Modal } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Plus, RotateCcw, Settings } from 'lucide-react';
+import { RotateCcw, Settings } from 'lucide-react';
 import type { CheckinRule } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -19,6 +19,7 @@ import {
   useSaveCheckinRule,
   useSaveCheckinSettings,
 } from '@/hooks/queries/member-admin';
+import { CreateButton } from '@/components/toolbar-controls';
 
 export default function CheckinRulesPage() {
   const { hasPermission } = usePermission();
@@ -115,9 +116,7 @@ export default function CheckinRulesPage() {
   ) : null;
 
   const renderCreateButton = () => hasPermission('member:checkin:rule:create') ? (
-    <Button type="primary" icon={<Plus size={14} />} onClick={() => { setEditing(null); setModalVisible(true); }}>
-      新增
-    </Button>
+    <CreateButton onClick={() => { setEditing(null); setModalVisible(true); }} />
   ) : null;
 
   return (

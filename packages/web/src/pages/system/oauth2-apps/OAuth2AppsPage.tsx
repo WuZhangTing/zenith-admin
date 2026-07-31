@@ -19,7 +19,7 @@ import {
   Select,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Plus, RotateCcw, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { OAUTH2_GRANT_TYPE_LABELS, OAUTH2_GRANT_TYPES, OAUTH2_SCOPES, OPEN_APP_ENVIRONMENT_LABELS, OPEN_APP_ENVIRONMENTS, OPEN_APP_REVIEW_STATUS_LABELS, OPEN_APP_REVIEW_STATUSES } from '@zenith/shared/open-platform';
 import type { OAuth2Client } from '@zenith/shared/open-platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -42,6 +42,7 @@ import {
   useSaveOAuth2App,
 } from '@/hooks/queries/oauth2-apps';
 import { useDictItems } from '@/hooks/useDictItems';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { Text, Paragraph } = Typography;
 
@@ -416,10 +417,10 @@ export default function OAuth2AppsPage() {
               showClear
               style={{ width: 220 }}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
             {canManage && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+              <CreateButton onClick={openCreate} />
             )}
           </>
         )}
@@ -454,9 +455,9 @@ export default function OAuth2AppsPage() {
               showClear
               style={{ width: 220 }}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+            <SearchButton onClick={handleSearch} />
             {canManage && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+              <CreateButton onClick={openCreate} />
             )}
             mobileFilters={(
               <>
@@ -480,7 +481,7 @@ export default function OAuth2AppsPage() {
             )}
           </>
         )}
-        mobileActions={<Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>}
+        mobileActions={<ResetButton onClick={handleReset} />}
         actionTitle="应用操作"
       />
 

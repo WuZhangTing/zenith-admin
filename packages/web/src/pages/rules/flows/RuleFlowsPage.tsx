@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Input, List, Modal, Select, SideSheet, Space, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { ChevronDown, ChevronUp, Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Search, Trash2 } from 'lucide-react';
 import type { RuleDecisionFlow, RuleFlowEvaluateResult, RuleFlowStep } from '@zenith/shared/rules';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -23,6 +23,7 @@ import {
   useToggleRuleFlow,
 } from '@/hooks/queries/rules';
 import { PUBLISHABLE_STATUS_META as STATUS } from '@/lib/publishable-status';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { Text } = Typography;
 
@@ -145,9 +146,9 @@ export default function RuleFlowsPage() {
         primary={(
           <>
             <Input prefix={<Search size={14} />} placeholder="搜索名称" value={draftKeyword} onChange={setDraftKeyword} onEnterPress={() => { setPage(1); setSubmittedKeyword(draftKeyword); void queryClient.invalidateQueries({ queryKey: ruleKeys.flows.lists }); }} showClear style={{ width: 220 }} />
-            <Button type="primary" icon={<Search size={14} />} onClick={() => { setPage(1); setSubmittedKeyword(draftKeyword); void queryClient.invalidateQueries({ queryKey: ruleKeys.flows.lists }); }}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => { setDraftKeyword(''); setSubmittedKeyword(''); setPage(1); void queryClient.invalidateQueries({ queryKey: ruleKeys.flows.lists }); }}>重置</Button>
-            {canCreate && <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>}
+            <SearchButton onClick={() => { setPage(1); setSubmittedKeyword(draftKeyword); void queryClient.invalidateQueries({ queryKey: ruleKeys.flows.lists }); }} />
+            <ResetButton onClick={() => { setDraftKeyword(''); setSubmittedKeyword(''); setPage(1); void queryClient.invalidateQueries({ queryKey: ruleKeys.flows.lists }); }} />
+            {canCreate && <CreateButton onClick={openCreate} />}
           </>
         )}
       />

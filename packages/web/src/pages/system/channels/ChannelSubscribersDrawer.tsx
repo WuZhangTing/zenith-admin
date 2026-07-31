@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Button, Input, Modal, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Plus, Search, RotateCcw } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import type { ChannelAdmin, ChannelSubscriber } from '@zenith/shared/messaging';
 import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
@@ -26,6 +26,7 @@ import {
   useChannelSubscribers,
   useRemoveChannelSubscriber,
 } from '@/hooks/queries/channels';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface Props {
   channel: ChannelAdmin | null;
@@ -162,8 +163,8 @@ export function ChannelSubscribersDrawer({ channel, visible, onClose }: Readonly
               showClear
               style={{ width: 200 }}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
             {canManage && !isSystem && (
               <Button type="primary" icon={<Plus size={14} />} onClick={openAdd}>添加订阅者</Button>
             )}
@@ -181,7 +182,7 @@ export function ChannelSubscribersDrawer({ channel, visible, onClose }: Readonly
               showClear
               style={{ width: 200 }}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+            <SearchButton onClick={handleSearch} />
             {canManage && !isSystem && (
               <Button type="primary" icon={<Plus size={14} />} onClick={openAdd}>添加订阅者</Button>
             )}
@@ -189,7 +190,7 @@ export function ChannelSubscribersDrawer({ channel, visible, onClose }: Readonly
         )}
         mobileActions={(
           <>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <ResetButton onClick={handleReset} />
             {channel && <ExportButton entity="channel.subscribers" query={exportQuery} variant="flat" />}
           </>
         )}

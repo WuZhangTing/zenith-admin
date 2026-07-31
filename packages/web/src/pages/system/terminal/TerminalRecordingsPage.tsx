@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Modal, Tag, Toast, Dropdown, SplitButtonGroup, Typography, Space, DatePicker, Select } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search, RotateCcw, Trash2, ChevronDown, Copy, Terminal, Star } from 'lucide-react';
+import { Search, Trash2, ChevronDown, Copy, Terminal, Star } from 'lucide-react';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -21,6 +21,7 @@ import {
   type RecordingDetail,
   type RecordingEvent,
 } from '@/hooks/queries/terminal';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams {
   keyword: string;
@@ -322,8 +323,8 @@ export default function TerminalRecordingsPage() {
               onChange={(v) => setSearchParams({ ...searchParams, timeRange: v ? (v as [Date, Date]) : null })}
               style={{ width: 360 }}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
           </>
         )}
         actions={(
@@ -368,7 +369,7 @@ export default function TerminalRecordingsPage() {
               showClear
               style={{ width: 220 }}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+            <SearchButton onClick={handleSearch} />
           </>
         )}
         mobileActions={(
@@ -391,7 +392,7 @@ export default function TerminalRecordingsPage() {
               onChange={(v) => setSearchParams({ ...searchParams, timeRange: v ? (v as [Date, Date]) : null })}
               style={{ width: 260 }}
             />
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <ResetButton onClick={handleReset} />
             {([12, 6, 3, 1] as const).map((m) => (
               <Button
                 key={m}

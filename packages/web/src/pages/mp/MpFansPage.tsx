@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Avatar, Button, Form, Input, Modal, Select, Space, Spin, Tag, Toast, Banner } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { RotateCcw, Search, RefreshCw, Ban } from 'lucide-react';
+import { Search, RefreshCw, Ban } from 'lucide-react';
 import type { MpFan, MpFanSubscribe } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -24,6 +24,7 @@ import {
   useUnbindMpFanMember,
 } from '@/hooks/queries/mp-fans';
 import { useMpTagOptions } from '@/hooks/queries/mp-tags';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const SEX_LABELS: Record<number, string> = { 0: '未知', 1: '男', 2: '女' };
 const SUBSCRIBE_OPTIONS = [
@@ -249,8 +250,8 @@ export default function MpFansPage() {
       style={{ width: 110 }}
     />
   );
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderSyncActions = () => {
     const syncButton = can('mp:fan:sync') ? (
       <Button icon={<RefreshCw size={14} />} loading={syncing} disabled={!currentId} onClick={() => void handleSync()}>同步粉丝</Button>

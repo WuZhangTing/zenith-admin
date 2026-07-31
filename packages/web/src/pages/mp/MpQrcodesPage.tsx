@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Image, Input, Modal, Select, Spin, Tag, Toast, Banner, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Plus, RotateCcw, Search } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import type { MpQrcode, MpQrcodeType } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -14,6 +14,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { useMpAccounts } from './useMpAccounts';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
 import { mpQrcodeKeys, useCreateMpQrcode, useDeleteMpQrcode, useMpQrcodeList } from '@/hooks/queries/mp-qrcodes';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const TYPE_OPTIONS = [
   { label: '永久二维码', value: 'permanent' },
@@ -148,8 +149,8 @@ export default function MpQrcodesPage() {
       style={{ width: 200 }}
     />
   );
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => can('mp:qrcode:create') ? (
     <Button type="primary" icon={<Plus size={14} />} disabled={!currentId} onClick={openCreate}>生成二维码</Button>
   ) : null;

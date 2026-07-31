@@ -5,7 +5,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, Plus } from 'lucide-react';
+import { Search, Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -30,6 +30,7 @@ import {
   MONITOR_METRIC_OPTIONS as METRIC_OPTIONS,
   MONITOR_PERCENT_METRICS as PERCENT_METRICS,
 } from './constants';
+import { ResetButton } from '@/components/toolbar-controls';
 
 const OP_SYMBOL: Record<string, string> = { gt: '>', gte: '≥', lt: '<', lte: '≤' };
 const OP_OPTIONS = (['gt', 'gte', 'lt', 'lte'] as const)
@@ -208,7 +209,7 @@ export default function MonitorAlertsPage() {
               showClear
               style={{ width: 220 }}
             />
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => { setKeyword(''); void queryClient.invalidateQueries({ queryKey: monitorAlertKeys.lists }); }}>重置</Button>
+            <ResetButton onClick={() => { setKeyword(''); void queryClient.invalidateQueries({ queryKey: monitorAlertKeys.lists }); }} />
             {canManage && <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增规则</Button>}
           </>
         )}
@@ -226,7 +227,7 @@ export default function MonitorAlertsPage() {
           </>
         )}
         mobileActions={(
-          <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => { setKeyword(''); void queryClient.invalidateQueries({ queryKey: monitorAlertKeys.lists }); }}>重置</Button>
+          <ResetButton onClick={() => { setKeyword(''); void queryClient.invalidateQueries({ queryKey: monitorAlertKeys.lists }); }} />
         )}
         actionTitle="告警规则操作"
       />

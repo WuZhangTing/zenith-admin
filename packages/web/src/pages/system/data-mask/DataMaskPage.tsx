@@ -17,7 +17,7 @@ import {
   Table,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Database, Plus, RotateCcw, Search } from 'lucide-react';
+import { Database, Plus, Search } from 'lucide-react';
 import type { DataMaskConfig, MaskType, SensitiveField } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -36,6 +36,7 @@ import {
   useSaveDataMask,
   useScanDataMaskFields,
 } from '@/hooks/queries/data-mask';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { Text } = Typography;
 
@@ -366,8 +367,8 @@ export default function DataMaskPage() {
               <Select.Option value="true">启用</Select.Option>
               <Select.Option value="false">停用</Select.Option>
             </Select>
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
           </>
         )}
         actions={(
@@ -391,7 +392,7 @@ export default function DataMaskPage() {
               showClear
               style={{ width: 200 }}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+            <SearchButton onClick={handleSearch} />
             {hasPermission('system:data-mask:create') && (
               <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增规则</Button>
             )}

@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
-import { Button, Input } from '@douyinfe/semi-ui';
-import { RotateCcw, Search } from 'lucide-react';
+import { Input } from '@douyinfe/semi-ui';
+import { Search } from 'lucide-react';
 import { SearchToolbar } from './SearchToolbar';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface KeywordSearchToolbarProps {
   readonly placeholder: string;
@@ -33,8 +34,8 @@ export function KeywordSearchToolbar({ placeholder, value, onChange, onSearch, o
       style={{ width }}
     />
   );
-  const searchButton = <Button type="primary" icon={<Search size={14} />} onClick={onSearch}>查询</Button>;
-  const resetButton = <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={onReset}>重置</Button>;
+  const searchButton = <SearchButton onClick={onSearch} />;
+  const resetButton = <ResetButton onClick={onReset} />;
 
   return (
     <SearchToolbar

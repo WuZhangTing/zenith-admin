@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Button, Checkbox, Form, Input, InputNumber, Select, Space, Switch, Tag, TextArea, Toast, Modal, Row, Col, SideSheet, Tabs, TabPane, Typography, Upload } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, Plus, Upload as UploadIcon, ImageUp, Zap, ExternalLink, ChevronsDownUp, ChevronsUpDown, ListTree, List as ListIcon } from 'lucide-react';
+import { Search, Upload as UploadIcon, ImageUp, Zap, ExternalLink, ChevronsDownUp, ChevronsUpDown, ListTree, List as ListIcon } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -46,6 +46,7 @@ import {
   useSaveCmsWidgetSlot,
 } from '@/hooks/queries/cms-widgets';
 import type { CmsWidgetRendererKey } from '@zenith/shared/cms';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams {
   keyword: string;
@@ -858,13 +859,13 @@ export default function SitesPage() {
   );
 
   const renderSearchButton = () => (
-    <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+    <SearchButton onClick={handleSearch} />
   );
   const renderResetButton = () => (
-    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+    <ResetButton onClick={handleReset} />
   );
   const renderCreateButton = () => hasPermission('cms:site:create') ? (
-    <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+    <CreateButton onClick={openCreate} />
   ) : null;
   const renderImportButton = () => hasPermission('cms:site:create') ? (
     <Button icon={<UploadIcon size={14} />} loading={importMutation.isPending} onClick={() => importFileRef.current?.click()}>导入</Button>

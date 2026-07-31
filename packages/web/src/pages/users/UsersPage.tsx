@@ -20,7 +20,7 @@ import {
   Switch,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Plus, RotateCcw, Download, Trash2, FileUp, ChevronsUpDown, ChevronsDownUp, Building2, ArrowLeft, KeyRound, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Search, Download, Trash2, FileUp, ChevronsUpDown, ChevronsDownUp, Building2, ArrowLeft, KeyRound, ToggleLeft, ToggleRight } from 'lucide-react';
 import type { User, Role, Department, Position } from '@zenith/shared/identity';
 import { request } from '@/utils/request';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -63,6 +63,7 @@ import {
   useUserList,
   userKeys,
 } from '@/hooks/queries/users';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams {
   keyword: string;
@@ -761,8 +762,8 @@ export default function UsersPage() {
     />
   );
 
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderBatchActions = () => (
     <>
       {selectedDeletableCount > 0 && hasPermission('system:user:delete') && (
@@ -801,7 +802,7 @@ export default function UsersPage() {
   ) : null;
 
   const renderCreateButton = () => hasPermission('system:user:create') ? (
-    <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+    <CreateButton onClick={openCreate} />
   ) : null;
 
   return (

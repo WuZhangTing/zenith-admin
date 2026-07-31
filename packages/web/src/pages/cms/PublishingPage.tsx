@@ -19,7 +19,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import dayjs from 'dayjs';
-import { Plus, RotateCcw, Search, XCircle } from 'lucide-react';
+import { Plus, Search, XCircle } from 'lucide-react';
 import { CMS_PUBLISH_ARTIFACT_STATUS_LABELS, CMS_PUBLISH_TARGET_TYPE_LABELS, CMS_PUBLISH_TARGET_TYPES } from '@zenith/shared/cms';
 import type { CmsPublishingTask, CmsPublishArtifact, CmsPublishArtifactStatus, CmsPublishTargetType } from '@zenith/shared/cms';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -44,6 +44,7 @@ import {
 import { ASYNC_TASK_STATUS_TAG_MAP } from '@/utils/async-task';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 type TabKey = 'queue' | 'history' | 'artifacts' | 'failed';
 
@@ -242,8 +243,8 @@ export default function PublishingPage() {
   const primary = (
     <>
       <Input prefix={<Search size={14} />} placeholder="任务/路径关键词" value={draft.keyword} showClear onChange={(keyword) => setDraft((prev) => ({ ...prev, keyword }))} />
-      <Button type="primary" icon={<Search size={14} />} onClick={applySearch}>查询</Button>
-      <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={resetSearch}>重置</Button>
+      <SearchButton onClick={applySearch} />
+      <ResetButton onClick={resetSearch} />
       {selected.length > 0 && canManage ? (
         <>
           <Button type="warning" onClick={() => runBatch('cancel')}>批量取消（{selected.length}）</Button>

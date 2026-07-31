@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  Button,
   Input,
   Modal,
   RadioGroup,
@@ -11,7 +10,7 @@ import {
   Toast,
   Typography,
 } from '@douyinfe/semi-ui';
-import { Search, RotateCcw } from 'lucide-react';
+import { Search } from 'lucide-react';
 import type { OnlineUser } from '@zenith/shared/platform';
 import { TOKEN_KEY } from '@zenith/shared/core';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -23,6 +22,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import { renderEllipsis } from '../../../utils/table-columns';
 import { sessionKeys, useForceLogoutSession, useSessionList } from '@/hooks/queries/sessions';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 export default function OnlineSessionsPage() {
   const { hasPermission } = usePermission();
@@ -144,8 +144,8 @@ export default function OnlineSessionsPage() {
               style={{ width: 240 }}
               showClear
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
           </>
         )}
         mobilePrimary={(
@@ -159,11 +159,11 @@ export default function OnlineSessionsPage() {
               style={{ width: 240 }}
               showClear
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+            <SearchButton onClick={handleSearch} />
           </>
         )}
         mobileActions={(
-          <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+          <ResetButton onClick={handleReset} />
         )}
         actionTitle="会话操作"
       />

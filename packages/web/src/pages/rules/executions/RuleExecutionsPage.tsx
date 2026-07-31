@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, DatePicker, Input, Select, SideSheet, Space, Tag, Typography } from '@douyinfe/semi-ui';
+import { DatePicker, Input, Select, SideSheet, Space, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { RotateCcw, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import type { RuleDecisionExecution } from '@zenith/shared/rules';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -10,6 +10,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import { ruleKeys, useRuleExecutions } from '@/hooks/queries/rules';
 import { formatDateTimeForApi } from '@/utils/date';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { Text } = Typography;
 
@@ -85,8 +86,8 @@ export default function RuleExecutionsPage() {
               }}
               style={{ width: 360 }}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
           </>
         )}
       />

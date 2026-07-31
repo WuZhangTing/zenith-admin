@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, DatePicker, Input, InputNumber, Select, Typography, Tag, Space, Row, Col, Card } from '@douyinfe/semi-ui';
+import { DatePicker, Input, InputNumber, Select, Typography, Tag, Space, Row, Col, Card } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { RotateCcw, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import dayjs from 'dayjs';
 import type { OpenApiCallLog } from '@zenith/shared/open-platform';
 import { OPEN_APP_ENVIRONMENT_LABELS, OPEN_APP_ENVIRONMENTS } from '@zenith/shared/open-platform';
@@ -20,6 +20,7 @@ import {
   useOpenApiStatsTrend,
   useOpenAppOptions,
 } from '@/hooks/queries/open-platform';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { Text, Title } = Typography;
 
@@ -192,8 +193,8 @@ export default function OpenApiStatsPage() {
               optionList={[{ value: 'day', label: '按天' }, { value: 'hour', label: '按小时' }]}
               style={{ width: 110 }}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleApply}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleApply} />
+            <ResetButton onClick={handleReset} />
           </>
         )}
         filters={(
@@ -265,7 +266,7 @@ export default function OpenApiStatsPage() {
               showClear
               style={{ width: 190 }}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleApply}>查询</Button>
+            <SearchButton onClick={handleApply} />
           </>
         )}
         mobileFilters={(

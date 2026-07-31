@@ -2,6 +2,7 @@
  * 数据分析 / 埋点 DTO
  */
 import { z } from '@hono/zod-openapi';
+import { jsonByteLength, jsonDepth } from '@zenith/shared/core';
 import { ANALYTICS_PROPERTIES_MAX_BYTES, ANALYTICS_ENVIRONMENTS, ANALYTICS_EVENT_PROPERTY_TYPES, ANALYTICS_EVENT_SOURCES, ANALYTICS_IDENTITY_TYPES, ANALYTICS_QUALITY_ISSUE_TYPES, ANALYTICS_SEGMENT_COMPARE_OPS, ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS, ANALYTICS_EVENT_QUERY_METRICS, ANALYTICS_RETENTION_MODES, ANALYTICS_CAMPAIGN_CHANNELS, ANALYTICS_CAMPAIGN_STATUSES, ANALYTICS_EXPERIMENT_STATUSES } from '@zenith/shared/analytics';
 
 const eventTypeEnum = z.enum([
@@ -30,28 +31,10 @@ const analyticsSegmentPropertyFilterDTO = z.object({
 });
 
 // ─── 埋点上报 ─────────────────────────────────────────────────────────────────
-function jsonDepth(value: unknown): number {
-  if (value === null || typeof value !== 'object') return 0;
-  const stack: Array<{ value: object; depth: number }> = [{ value, depth: 1 }];
-  const seen = new WeakSet<object>();
-  let maxDepth = 0;
-  while (stack.length > 0) {
-    const current = stack.pop()!;
-    if (seen.has(current.value)) continue;
-    seen.add(current.value);
-    maxDepth = Math.max(maxDepth, current.depth);
-    const children = Array.isArray(current.value) ? current.value : Object.values(current.value);
-    for (const child of children) {
-      if (child !== null && typeof child === 'object') stack.push({ value: child, depth: current.depth + 1 });
-    }
-  }
-  return maxDepth;
-}
-
 const eventPropertiesDTO = z.record(z.string(), z.unknown()).superRefine((value, ctx) => {
   if (Object.keys(value).length > 50) ctx.addIssue({ code: 'custom', message: '事件属性最多允许 50 个字段' });
   if (jsonDepth(value) > 6) ctx.addIssue({ code: 'custom', message: '事件属性嵌套层级不能超过 6 层' });
-  if (new TextEncoder().encode(JSON.stringify(value)).byteLength > ANALYTICS_PROPERTIES_MAX_BYTES) {
+  if (jsonByteLength(value) > ANALYTICS_PROPERTIES_MAX_BYTES) {
     ctx.addIssue({ code: 'custom', message: `事件属性序列化后不能超过 ${ANALYTICS_PROPERTIES_MAX_BYTES} 字节` });
   }
 });

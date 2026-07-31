@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Button, DatePicker, Descriptions, Form, Input, Modal, Rating, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, Trash2 } from 'lucide-react';
+import { Search, Trash2 } from 'lucide-react';
 import type { UserFeedback, UserFeedbackCategory, UserFeedbackStatus } from '@zenith/shared/identity';
 import { USER_FEEDBACK_CATEGORY_LABELS, USER_FEEDBACK_STATUS_LABELS } from '@zenith/shared/identity';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -18,6 +18,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { usePublicConfig } from '@/hooks/queries/system-configs';
 import { useDeleteFeedbacks, useHandleFeedback, useUserFeedbackList, userFeedbackKeys } from '@/hooks/queries/user-feedbacks';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 // 文案统一来自 @zenith/shared；Tag 色为本页特化
 const CATEGORY_OPTIONS: Array<{ value: UserFeedbackCategory; label: string; color: 'blue' | 'red' | 'orange' | 'grey' }> = [
@@ -241,11 +242,11 @@ export default function FeedbacksPage() {
   );
 
   const renderSearchButton = () => (
-    <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+    <SearchButton onClick={handleSearch} />
   );
 
   const renderResetButton = () => (
-    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+    <ResetButton onClick={handleReset} />
   );
 
   const renderBatchDeleteButton = () => selectedRowKeys.length > 0 && hasPermission('system:feedback:delete') ? (

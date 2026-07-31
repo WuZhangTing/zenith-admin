@@ -16,6 +16,7 @@ import {
   useLoginRiskEventList,
   useSaveIdentitySecurityPolicy,
 } from '@/hooks/queries/identity-security';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { TabPane } = Tabs;
 
@@ -165,8 +166,8 @@ export default function IdentitySecurityPage() {
               showClear
               style={{ width: 220 }}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleRiskSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleRiskReset}>重置</Button>
+            <SearchButton onClick={handleRiskSearch} />
+            <ResetButton onClick={handleRiskReset} />
           </SearchToolbar>
           <ConfigurableTable
             bordered

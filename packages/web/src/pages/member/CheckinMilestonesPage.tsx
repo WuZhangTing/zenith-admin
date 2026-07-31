@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Tag, Toast, Modal } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Plus, RotateCcw } from 'lucide-react';
+import { RotateCcw } from 'lucide-react';
 import type { CheckinMilestone, CheckinMilestoneRewardType } from '@zenith/shared/member';
 import { CHECKIN_MILESTONE_REWARD_TYPE_LABELS } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
@@ -19,6 +19,7 @@ import {
   useDeleteCheckinMilestone,
   useSaveCheckinMilestone,
 } from '@/hooks/queries/member-admin';
+import { CreateButton } from '@/components/toolbar-controls';
 
 interface CouponOption {
   value: number;
@@ -118,7 +119,7 @@ export default function CheckinMilestonesPage() {
   );
 
   const renderCreateButton = () => hasPermission('member:checkin:milestone:create') ? (
-    <Button type="primary" icon={<Plus size={14} />} onClick={() => openModal(null)}>新增</Button>
+    <CreateButton onClick={() => openModal(null)} />
   ) : null;
 
   return (

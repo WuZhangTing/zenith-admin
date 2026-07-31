@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, DatePicker, Input, Select, Tag } from '@douyinfe/semi-ui';
+import { DatePicker, Input, Select, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search, RotateCcw } from 'lucide-react';
+import { Search } from 'lucide-react';
 import type { MemberLoginLog } from '@zenith/shared/member';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
@@ -12,6 +12,7 @@ import ExportButton from '@/components/ExportButton';
 import { renderEllipsis } from '../../utils/table-columns';
 import { formatDateForApi } from '@/utils/date';
 import { memberAdminKeys, useMemberLoginLogList } from '@/hooks/queries/member-admin';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams {
   keyword?: string;
@@ -100,8 +101,8 @@ export default function MemberLoginLogsPage() {
     />
   );
 
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const buildExportQuery = () => {
     const [ds, de] = submittedParams.dateRange ?? [];
     return {

@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Col, Form, Input, Modal, Row, Select, Space, Spin, Tag, Toast, Switch, Banner, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Plus, RotateCcw, Search, Trash2, Flame } from 'lucide-react';
+import { Plus, Search, Trash2, Flame } from 'lucide-react';
 import { MP_REPLY_CONTENT_TYPE_LABELS, MP_REPLY_CONTENT_TYPE_OPTIONS } from '@zenith/shared/mp';
 import type { MpAutoReply, MpAutoReplyType, MpReplyContentType, MpReplyArticle } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
@@ -24,6 +24,7 @@ import {
   useMpUnmatchedKeywords,
   useSaveMpAutoReply,
 } from '@/hooks/queries/mp-auto-replies';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const REPLY_TYPE_OPTIONS = [
   { label: '关注回复', value: 'subscribe' },
@@ -230,10 +231,10 @@ export default function MpAutoRepliesPage() {
       style={{ width: 180 }}
     />
   );
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => can('mp:reply:create') ? (
-    <Button type="primary" icon={<Plus size={14} />} disabled={!currentId} onClick={openCreate}>新增</Button>
+    <CreateButton onClick={openCreate} disabled={!currentId} />
   ) : null;
   const renderHotwordsButton = () => can('mp:reply:list') ? (
     <Button icon={<Flame size={14} />} disabled={!currentId} onClick={() => void openHotwords()}>未命中热词</Button>

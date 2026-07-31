@@ -18,7 +18,7 @@ import {
   Tooltip,
   Typography,
 } from '@douyinfe/semi-ui';
-import { Search, RotateCcw, RefreshCw, Trash2, MoreHorizontal, Pencil, Clock } from 'lucide-react';
+import { Search, RefreshCw, Trash2, MoreHorizontal, Pencil, Clock } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
@@ -40,6 +40,7 @@ import {
   useUpdateCacheTtl,
   useUpdateCacheValue,
 } from '@/hooks/queries/cache';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface CategoryRow {
   category: string;
@@ -485,8 +486,8 @@ export default function CacheManagePage() {
                 style={{ width: 260 }}
                 showClear
               />
-              <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-              <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+              <SearchButton onClick={handleSearch} />
+              <ResetButton onClick={handleReset} />
               {canDelete && selectedKeys.length > 0 && (
                 <Button type="danger" theme="solid" icon={<Trash2 size={14} />} onClick={handleBatchDelete}>
                   批量删除 ({selectedKeys.length})

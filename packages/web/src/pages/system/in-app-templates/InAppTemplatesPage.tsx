@@ -1,9 +1,19 @@
 import { useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Col, Form, Input, Modal, Row, Select, Spin, Tag,
-  Toast, Switch } from '@douyinfe/semi-ui';
+import {
+  Col,
+  Form,
+  Input,
+  Modal,
+  Row,
+  Select,
+  Spin,
+  Tag,
+  Toast,
+  Switch,
+} from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Plus, RotateCcw, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import type { InAppMessageType, InAppTemplate } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
@@ -21,6 +31,7 @@ import {
   useSaveInAppTemplate,
 } from '@/hooks/queries/in-app-templates';
 import { IN_APP_MESSAGE_TYPE_OPTIONS_WITH_COLOR as TYPE_OPTIONS } from '../in-app-message-constants';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 export default function InAppTemplatesPage() {
   const { hasPermission: can } = usePermission();
@@ -165,10 +176,10 @@ export default function InAppTemplatesPage() {
               optionList={TYPE_OPTIONS} showClear style={{ width: 110 }} />
             <Select placeholder="状态" value={draftParams.filterStatus} onChange={(v) => setDraftParams({ ...draftParams, filterStatus: v as string | undefined })}
               optionList={statusItems.map((i) => ({ label: i.label, value: i.value }))} showClear style={{ width: 110 }} />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
             {can('system:in-app-template:create') && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+              <CreateButton onClick={openCreate} />
             )}
           </>
         )}
@@ -176,9 +187,9 @@ export default function InAppTemplatesPage() {
           <>
             <Input prefix={<Search size={14} />} placeholder="搜索模板名称/编码/标题"
               value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onEnterPress={handleSearch} showClear style={{ width: 240 }} />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+            <SearchButton onClick={handleSearch} />
             {can('system:in-app-template:create') && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+              <CreateButton onClick={openCreate} />
             )}
           </>
         )}

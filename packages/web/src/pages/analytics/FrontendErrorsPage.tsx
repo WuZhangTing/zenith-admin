@@ -28,21 +28,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag/interface';
-import {
-  AlertCircle,
-  AlertTriangle,
-  Bell,
-  Bug,
-  CheckCircle2,
-  ChevronDown,
-  FileCode,
-  MessageSquare,
-  RefreshCcw,
-  RotateCcw,
-  Search,
-  Trash2,
-  Zap,
-} from 'lucide-react';
+import { AlertCircle, AlertTriangle, Bell, Bug, CheckCircle2, ChevronDown, FileCode, MessageSquare, RefreshCcw, Search, Trash2, Zap } from 'lucide-react';
 import {
   BarChart,
   LineChart,
@@ -82,6 +68,7 @@ import {
   useTestFrontendAlert,
   useUpdateFrontendErrorGroup,
 } from '@/hooks/queries/analytics';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { Text, Title, Paragraph } = Typography;
 
@@ -944,8 +931,8 @@ export default function FrontendErrorsPage() {
       onEnterPress={handleIssueSearch}
     />
   );
-  const renderIssueSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleIssueSearch}>查询</Button>;
-  const renderIssueResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleIssueReset}>重置</Button>;
+  const renderIssueSearchButton = () => <SearchButton onClick={handleIssueSearch} />;
+  const renderIssueResetButton = () => <ResetButton onClick={handleIssueReset} />;
   const renderIssueBatchActions = () => selectedRowKeys.length > 0 ? (
     <>
       <SplitButtonGroup>
@@ -992,7 +979,7 @@ export default function FrontendErrorsPage() {
       onEnterPress={handleSourceMapSearch}
     />
   );
-  const renderSourceMapSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSourceMapSearch}>查询</Button>;
+  const renderSourceMapSearchButton = () => <SearchButton onClick={handleSourceMapSearch} />;
   const renderSourceMapUploadButton = () => <Button type="primary" icon={<FileCode size={14} />} onClick={openSourceMapUpload}>上传</Button>;
   const renderAlertCreateButton = () => <Button type="primary" icon={<Bell size={14} />} onClick={() => openAlertModal()}>新增</Button>;
 

@@ -6,7 +6,7 @@ import { Button, Form, Input, Modal, Select, Space, Switch, Tag, Toast, Typograp
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { QRCodeSVG } from 'qrcode.react';
-import { Search, RotateCcw, Plus } from 'lucide-react';
+import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -18,6 +18,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { PAYMENT_METHOD_LABELS, PAYMENT_LINK_STATUS_LABELS } from '@zenith/shared/payment';
 import type { PaymentLink, PaymentLinkStatus, PaymentMethod } from '@zenith/shared/payment';
 import { paymentLinkKeys, useDeletePaymentLink, usePaymentLinkDetail, usePaymentLinkList, useRotatePaymentLinkToken, useSavePaymentLink } from '@/hooks/queries/payment-links';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const yuan = (cents: number | null | undefined) => formatYuan(cents, '用户填写');
 const methodOptions = Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => ({ value, label }));
@@ -229,10 +230,10 @@ export default function PaymentLinksPage() {
     />
   );
 
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => hasPermission('payment:link:create') ? (
-    <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+    <CreateButton onClick={openCreate} />
   ) : null;
 
   return (

@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { Button, Dropdown, SideSheet, Space } from '@douyinfe/semi-ui';
-import { Filter, MoreHorizontal, RotateCcw, Search } from 'lucide-react';
+import { Filter, MoreHorizontal } from 'lucide-react';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchToolbarProps {
   /** 工具栏内容（搜索输入框、下拉筛选、按钮等），自动用 `<Space wrap>` 包裹 */
@@ -125,28 +126,16 @@ export function SearchToolbar({
           footer={hasFilterFooter ? (
             <Space>
               {onFilterReset && (
-                <Button
-                  type="tertiary"
-                  icon={<RotateCcw size={14} />}
-                  onClick={() => {
+                <ResetButton onClick={() => {
                     onFilterReset();
                     setFilterVisible(false);
-                  }}
-                >
-                  重置
-                </Button>
+                  }} />
               )}
               {onFilterApply && (
-                <Button
-                  type="primary"
-                  icon={<Search size={14} />}
-                  onClick={() => {
+                <SearchButton onClick={() => {
                     onFilterApply();
                     setFilterVisible(false);
-                  }}
-                >
-                  查询
-                </Button>
+                  }} />
               )}
             </Space>
           ) : null}

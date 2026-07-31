@@ -21,7 +21,7 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { Search, Trash2 } from 'lucide-react';
 import type { Announcement, AnnouncementTargetType, AnnouncementReadStats, AnnouncementAttachment } from '@zenith/shared/messaging';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -48,6 +48,7 @@ import {
   useSaveAnnouncement,
   useUpdateAnnouncementStatus,
 } from '@/hooks/queries/announcements';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const RichTextEditor = lazy(() => import('@/components/RichTextEditor'));
 const editorLoadingFallback = (
@@ -667,8 +668,8 @@ export default function AnnouncementsPage() {
               onChange={(v) => setDraftParams((prev) => ({ ...prev, timeRange: v ? (v as [Date, Date]) : null }))}
               style={{ width: 360 }}
             />
-            <Button icon={<Search size={14} />} type="primary" onClick={handleSearch}>查询</Button>
-            <Button icon={<RotateCcw size={14} />} type="tertiary" onClick={handleReset}>重置</Button>
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
           </>
         )}
         actions={(
@@ -679,7 +680,7 @@ export default function AnnouncementsPage() {
                 批量删除 ({selectedRowKeys.length})
               </Button>
             )}
-            {hasPermission('system:announcement:create') && <Button icon={<Plus size={14} />} type="primary" onClick={openCreateModal}>新增</Button>}
+            {hasPermission('system:announcement:create') && <CreateButton onClick={openCreateModal} />}
           </>
         )}
         mobilePrimary={(
@@ -693,8 +694,8 @@ export default function AnnouncementsPage() {
               style={{ width: 200 }}
               showClear
             />
-            <Button icon={<Search size={14} />} type="primary" onClick={handleSearch}>查询</Button>
-            {hasPermission('system:announcement:create') && <Button icon={<Plus size={14} />} type="primary" onClick={openCreateModal}>新增</Button>}
+            <SearchButton onClick={handleSearch} />
+            {hasPermission('system:announcement:create') && <CreateButton onClick={openCreateModal} />}
           </>
         )}
         mobileFilters={(

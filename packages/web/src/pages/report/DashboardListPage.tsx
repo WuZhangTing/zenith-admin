@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button, Form, Input, Select, SideSheet, Space, Tag, Toast, Modal, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { FolderTree, Search, RotateCcw, Plus, Star } from 'lucide-react';
+import { FolderTree, Search, Plus, Star } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -33,6 +33,7 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { flattenReportFolders, useReportFolderTree } from '@/hooks/queries/report-folders';
 import { useAllUsers } from '@/hooks/queries/users';
 import { useReportDeprecationList } from '@/hooks/queries/report-assets';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams { keyword: string; status: string; lifecycleStatus: '' | ReportDashboard['lifecycleStatus']; categoryId?: number; favorited: boolean; ownerId?: number; folderId?: number }
 const defaultSearchParams: SearchParams = { keyword: '', status: '', lifecycleStatus: '', favorited: false, ownerId: undefined, folderId: undefined };
@@ -266,10 +267,10 @@ export default function DashboardListPage() {
       optionList={folders.map((f) => ({ value: f.id, label: f.name }))}
       onChange={(v) => setDraftParams((p) => ({ ...p, folderId: v as number | undefined }))} />
   );
-  const renderSearchBtn = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetBtn = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchBtn = () => <SearchButton onClick={handleSearch} />;
+  const renderResetBtn = () => <ResetButton onClick={handleReset} />;
   const renderCreateBtn = () => hasPermission('report:dashboard:create')
-    ? <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button> : null;
+    ? <CreateButton onClick={openCreate} /> : null;
   const renderCategoryManageBtn = () => hasPermission('report:dashboard:update')
     ? <Button icon={<FolderTree size={14} />} onClick={() => setCategorySheetVisible(true)}>分类管理</Button> : null;
   const renderCategoryFilter = () => (

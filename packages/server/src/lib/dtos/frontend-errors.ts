@@ -2,6 +2,7 @@
  * 前端错误监控 DTO（Issue 模型）
  */
 import { z } from '@hono/zod-openapi';
+import { jsonByteLength, jsonDepth } from '@zenith/shared/core';
 import { ANALYTICS_BREADCRUMB_DATA_MAX_BYTES, ANALYTICS_CONTEXT_MAX_BYTES, ANALYTICS_ENVIRONMENTS, ANALYTICS_EVENT_SOURCES, SOURCE_MAP_MAX_BYTES } from '@zenith/shared/analytics';
 
 const errorTypeEnum = z.enum([
@@ -18,29 +19,11 @@ const webhookUrlDTO = z.url().max(512).refine(
   'Webhook URL 仅支持 HTTP/HTTPS',
 );
 
-function jsonDepth(value: unknown): number {
-  if (value === null || typeof value !== 'object') return 0;
-  const stack: Array<{ value: object; depth: number }> = [{ value, depth: 1 }];
-  const seen = new WeakSet<object>();
-  let maxDepth = 0;
-  while (stack.length > 0) {
-    const current = stack.pop()!;
-    if (seen.has(current.value)) continue;
-    seen.add(current.value);
-    maxDepth = Math.max(maxDepth, current.depth);
-    const children = Array.isArray(current.value) ? current.value : Object.values(current.value);
-    for (const child of children) {
-      if (child !== null && typeof child === 'object') stack.push({ value: child, depth: current.depth + 1 });
-    }
-  }
-  return maxDepth;
-}
-
 function boundedRecord(label: string, maxKeys: number, maxBytes: number, maxDepth: number) {
   return z.record(z.string(), z.unknown()).superRefine((value, ctx) => {
     if (Object.keys(value).length > maxKeys) ctx.addIssue({ code: 'custom', message: `${label}最多允许 ${maxKeys} 个字段` });
     if (jsonDepth(value) > maxDepth) ctx.addIssue({ code: 'custom', message: `${label}嵌套层级不能超过 ${maxDepth} 层` });
-    if (new TextEncoder().encode(JSON.stringify(value)).byteLength > maxBytes) {
+    if (jsonByteLength(value) > maxBytes) {
       ctx.addIssue({ code: 'custom', message: `${label}序列化后不能超过 ${maxBytes} 字节` });
     }
   });

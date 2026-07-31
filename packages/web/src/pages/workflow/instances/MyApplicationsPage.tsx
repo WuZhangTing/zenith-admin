@@ -15,7 +15,7 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { ExternalLink, Megaphone, Plus, RotateCcw, Search, Undo2 } from 'lucide-react';
+import { ExternalLink, Megaphone, Plus, Undo2 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { WorkflowDefinition, WorkflowInstance } from '@zenith/shared/workflow';
 import { buildWorkflowSummaryItems } from '@zenith/shared/workflow';
@@ -52,6 +52,7 @@ import {
 } from '@/hooks/queries/workflow-instances';
 import { usePublishedWorkflowDefinitions } from '@/hooks/queries/workflow-definitions';
 import { WORKFLOW_TASK_STATUS_LABELS } from '@zenith/shared/workflow';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const TASK_STATUS_TEXT: Record<string, string> = WORKFLOW_TASK_STATUS_LABELS;
 
@@ -748,11 +749,11 @@ export default function MyApplicationsPage() {
   );
 
   const renderSearchButton = () => (
-    <Button type="primary" icon={<Search size={14} />} onClick={() => { handleSearch(); }}>查询</Button>
+    <SearchButton onClick={() => { handleSearch(); }} />
   );
 
   const renderResetButton = () => (
-    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => { handleReset(); }}>重置</Button>
+    <ResetButton onClick={() => { handleReset(); }} />
   );
 
   const renderBatchWithdrawButton = () => selectedWithdrawableIds.length > 0 ? (

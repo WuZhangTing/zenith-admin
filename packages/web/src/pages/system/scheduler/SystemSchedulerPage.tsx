@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Col, Descriptions, Form, Input, Modal, Row, Select, Space, TabPane, Tabs, Tag, Toast, Typography, withField } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { AlertTriangle, CheckCircle2, RefreshCw, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, RefreshCw, Search, Trash2 } from 'lucide-react';
 import type { SystemSchedulerAlertChannel } from '@zenith/shared/chat';
 import type { SystemSchedulerNode, SystemSchedulerRun, SystemSchedulerRunStatus, SystemSchedulerTask, SystemSchedulerTaskType, SystemSchedulerTriggerType } from '@zenith/shared/platform';
 import { NOTIFY_CHANNEL_LABELS, NOTIFY_CHANNEL_OPTIONS } from '@zenith/shared/messaging';
@@ -27,6 +27,7 @@ import {
   useSystemSchedulerRuns,
   useSystemSchedulerTasks,
 } from '@/hooks/queries/system-scheduler';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 type TabKey = 'tasks' | 'runs' | 'nodes';
 
@@ -539,17 +540,11 @@ export default function SystemSchedulerPage() {
               onChange={(value) => setTaskSearch((prev) => ({ ...prev, status: String(value ?? '') }))}
               style={{ width: 120 }}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={() => void queryClient.invalidateQueries({ queryKey: systemSchedulerKeys.tasks })}>查询</Button>
-            <Button
-              type="tertiary"
-              icon={<RotateCcw size={14} />}
-              onClick={() => {
+            <SearchButton onClick={() => void queryClient.invalidateQueries({ queryKey: systemSchedulerKeys.tasks })} />
+            <ResetButton onClick={() => {
                 setTaskSearch(defaultTaskSearch);
                 void queryClient.invalidateQueries({ queryKey: systemSchedulerKeys.tasks });
-              }}
-            >
-              重置
-            </Button>
+              }} />
             <Button icon={<RefreshCw size={14} />} onClick={() => void tasksQuery.refetch()} loading={tasksQuery.isFetching}>刷新</Button>
           </SearchToolbar>
 
@@ -632,8 +627,8 @@ export default function SystemSchedulerPage() {
               showClear
               style={{ width: 180 }}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleRunSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleRunReset}>重置</Button>
+            <SearchButton onClick={handleRunSearch} />
+            <ResetButton onClick={handleRunReset} />
             <Button icon={<RefreshCw size={14} />} onClick={() => void runsQuery.refetch()} loading={runsQuery.isFetching}>刷新</Button>
             <Button
               type="danger"

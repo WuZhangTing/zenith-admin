@@ -3,23 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { CSSProperties, ReactNode } from 'react';
 import { Avatar, Button, Card, DatePicker, Dropdown, Empty, Input, InputNumber, Modal, Progress, Select, SideSheet, Skeleton, Spin, Switch, TabPane, Tabs, Tag, Timeline, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import {
-  Activity,
-  BarChart3,
-  Bookmark,
-  Clock,
-  Eye,
-  Flame,
-  Plus,
-  RefreshCcw,
-  RotateCcw,
-  Search,
-  Target,
-  Trash2,
-  TrendingUp,
-  Users,
-  Zap,
-} from 'lucide-react';
+import { Activity, BarChart3, Bookmark, Clock, Eye, Flame, Plus, RefreshCcw, Search, Target, Trash2, TrendingUp, Users, Zap } from 'lucide-react';
 import {
   AreaChart,
   BarChart,
@@ -72,6 +56,7 @@ import type { SessionListItem } from '@zenith/shared/platform';
 import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_RETENTION_MODE_OPTIONS, ANALYTICS_SEGMENT_COMPARE_OP_OPTIONS } from '@zenith/shared/analytics';
 import AnalyticsEventQueryTab from './AnalyticsEventQueryTab';
 import AnalyticsExperimentsTab from './AnalyticsExperimentsTab';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 function msToReadable(ms: number | null): string {
   if (ms == null) return '–';
@@ -776,8 +761,8 @@ function SessionsTab() {
       style={{ width: 150 }}
     />
   );
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
 
   return (
     <div style={sectionStyle}>
@@ -1180,7 +1165,7 @@ function PathTab() {
               onKeyDown={(e) => { if (e.key === 'Enter') setStartPage(startPageInput.trim()); }}
               style={{ width: 220 }}
             />
-            <Button type="primary" icon={<Search size={14} />} onClick={() => setStartPage(startPageInput.trim())}>查询</Button>
+            <SearchButton onClick={() => setStartPage(startPageInput.trim())} />
             <Select value={days} optionList={DAYS_OPTIONS} onChange={(v) => setDays(Number(v))} style={{ width: 120 }} />
           </div>
         )}

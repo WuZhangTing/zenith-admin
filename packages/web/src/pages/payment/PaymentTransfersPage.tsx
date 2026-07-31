@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Button, Form, Input, Modal, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, SendHorizontal } from 'lucide-react';
+import { Search, SendHorizontal } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -23,6 +23,7 @@ import {
 } from '@/hooks/queries/payment-transfers';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_TRANSFER_STATUS_LABELS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentTransfer, PaymentTransferStatus } from '@zenith/shared/payment';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const yuan = formatYuan;
 const STATUS_COLOR = { pending: 'grey', processing: 'blue', success: 'green', failed: 'red' } as const satisfies Record<PaymentTransferStatus, string>;
@@ -149,8 +150,8 @@ export default function PaymentTransfersPage() {
     <Select placeholder="全部状态" value={draftParams.status || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))}
       showClear style={{ width: 120 }} optionList={Object.entries(PAYMENT_TRANSFER_STATUS_LABELS).map(([value, label]) => ({ value, label }))} />
   );
-  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
-  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => canCreate ? (
     <Button type="primary" icon={<SendHorizontal size={14} />} onClick={() => setModalVisible(true)}>发起转账</Button>
   ) : null;
