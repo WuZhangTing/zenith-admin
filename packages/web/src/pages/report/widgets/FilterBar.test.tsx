@@ -25,6 +25,9 @@ afterEach(() => {
 });
 
 describe('FilterBar compact mode', () => {
+  // 本用例要渲染 compact 模式的底部抽屉（Semi SideSheet）并跑完
+  // 展开 → 重置 → 输入 → 应用 的完整交互，实测约 11s，远超 vitest 默认 5s；
+  // 这里显式给足余量，避免机器负载波动时误报超时。
   it('uses a bottom drawer with full-width draft controls and reset/apply actions', async () => {
     const user = userEvent.setup();
     const onApply = vi.fn();
@@ -54,5 +57,5 @@ describe('FilterBar compact mode', () => {
     await waitFor(() => expect(onApply).toHaveBeenCalledWith({ keyword: '新值', region: null }));
     expect(onChange).not.toHaveBeenCalled();
     expect(document.body.querySelector('.report-filter-sheet')).not.toBeNull();
-  });
+  }, 30_000);
 });

@@ -20,6 +20,12 @@ function generate(register: (app: OpenAPIHono) => void) {
   return app.getOpenAPI31Document({ openapi: '3.1.0', info: { title: 'probe', version: '1' } });
 }
 
+/**
+ * 逐个 DTO 生成一份完整文档，N 份文档 = N 次 zod→openapi 全量转换，实测约 6s。
+ * 这是本用例固有的工作量（不是卡死），而 vitest 默认 5s 超时会稳定误杀，故显式放宽。
+ */
+const HEAVY_DOC_TIMEOUT_MS = 30_000;
+
 describe('OpenAPI 文档生成', () => {
   const entries = Object.entries(dtos as Record<string, unknown>).filter(([, s]) => isZodSchema(s));
 
@@ -37,14 +43,14 @@ describe('OpenAPI 文档生成', () => {
       }
     }
     expect(failed).toEqual([]);
-  });
+  }, HEAVY_DOC_TIMEOUT_MS);
 
   it('全部 DTO 汇总后仍能生成整份文档', () => {
     const doc = generate((app) => {
       for (const [name, schema] of entries) app.openAPIRegistry.register(`Probe${name}`, schema as z.ZodType);
     });
     expect(Object.keys(doc.components?.schemas ?? {}).length).toBeGreaterThan(entries.length);
-  });
+  }, HEAVY_DOC_TIMEOUT_MS);
 
   it('开放网关必须是 OpenAPIHono，否则子路由不会进入文档', async () => {
     // OpenAPIHono.route() 只在父子同为 OpenAPIHono 时合并子路由的 openAPIRegistry；
