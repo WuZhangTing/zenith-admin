@@ -102,7 +102,12 @@ export function useSaveCmsSite() {
         ? request.post<CmsSite>('/api/cms/sites', values)
         : request.put<CmsSite>(`/api/cms/sites/${id}`, values)
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: cmsSiteKeys.all }),
+    onSuccess: (saved) => {
+      void qc.invalidateQueries({ queryKey: cmsSiteKeys.detail(saved.id) });
+      void qc.invalidateQueries({ queryKey: cmsSiteKeys.lists });
+      void qc.invalidateQueries({ queryKey: cmsSiteKeys.allSites });
+      // themes / themeTemplates / themeSettingsSchema 是主题元数据，与站点增删改无关
+    },
   });
 }
 
@@ -110,7 +115,11 @@ export function useDeleteCmsSite() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/cms/sites/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: cmsSiteKeys.all }),
+    onSuccess: (_data, id) => {
+      qc.removeQueries({ queryKey: cmsSiteKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: cmsSiteKeys.lists });
+      void qc.invalidateQueries({ queryKey: cmsSiteKeys.allSites });
+    },
   });
 }
 
@@ -509,7 +518,11 @@ export function useSaveCmsFriendLink() {
         ? request.post<CmsFriendLink>('/api/cms/friend-links', values)
         : request.put<CmsFriendLink>(`/api/cms/friend-links/${id}`, values)
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: cmsFriendLinkKeys.all }),
+    // 友链本身的增删改不改变分组集合
+    onSuccess: (saved) => {
+      void qc.invalidateQueries({ queryKey: cmsFriendLinkKeys.detail(saved.id) });
+      void qc.invalidateQueries({ queryKey: cmsFriendLinkKeys.lists });
+    },
   });
 }
 
@@ -517,7 +530,10 @@ export function useDeleteCmsFriendLink() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/cms/friend-links/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: cmsFriendLinkKeys.all }),
+    onSuccess: (_data, id) => {
+      qc.removeQueries({ queryKey: cmsFriendLinkKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: cmsFriendLinkKeys.lists });
+    },
   });
 }
 
