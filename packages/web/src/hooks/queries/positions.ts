@@ -60,7 +60,13 @@ export function useSavePosition() {
   return useMutation({
     mutationFn: ({ id, values }: { id?: number; values: Partial<Position> }) =>
       (id === undefined ? request.post<Position>('/api/positions', values) : request.put<Position>(`/api/positions/${id}`, values)).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: positionKeys.all }),
+    onSuccess: (saved) => {
+      // 写接口与详情接口同源（服务端同为 mapPosition），可直接回填，省掉一次详情回源
+      qc.setQueryData(positionKeys.detail(saved.id), saved);
+      void qc.invalidateQueries({ queryKey: positionKeys.lists });
+      // 下拉源渲染岗位名称与状态，改名/停用后必须回源；未挂载时只标脏，代价接近零
+      void qc.invalidateQueries({ queryKey: positionKeys.allPositions });
+    },
   });
 }
 
@@ -69,7 +75,15 @@ export function useDeletePositions() {
   return useMutation({
     mutationFn: (ids: number[]) =>
       (ids.length === 1 ? request.delete<null>(`/api/positions/${ids[0]}`) : request.delete<null>('/api/positions/batch', { ids })).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: positionKeys.all }),
+    onSuccess: (_data, ids) => {
+      // 实体已不存在：移除缓存而非失效，否则仍挂载的详情会去请求一个必然 404 的资源
+      for (const id of ids) {
+        qc.removeQueries({ queryKey: positionKeys.detail(id) });
+        qc.removeQueries({ queryKey: positionKeys.members(id) });
+      }
+      void qc.invalidateQueries({ queryKey: positionKeys.lists });
+      void qc.invalidateQueries({ queryKey: positionKeys.allPositions });
+    },
   });
 }
 
@@ -78,6 +92,11 @@ export function useAssignPositionMembers() {
   return useMutation({
     mutationFn: ({ id, userIds }: { id: number; userIds: number[] }) =>
       request.put<null>(`/api/positions/${id}/members`, { userIds }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: positionKeys.all }),
+    onSuccess: (_data, { id }) => {
+      void qc.invalidateQueries({ queryKey: positionKeys.members(id) });
+      // 列表的「成员」列渲染 userCount / userPreview（仅列表接口注入），成员变更后必须回源
+      void qc.invalidateQueries({ queryKey: positionKeys.lists });
+      // detail 与 allPositions 都不含成员字段，不受影响
+    },
   });
 }
