@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ChatConversation, ChatCustomEmoji, ChatGroupInvite, ChatGroupJoinRequest, ChatGroupMember, ChatInviteInfo, ChatOrgData, ChatQuickReply, ChatScheduledMessage } from '@zenith/shared/chat';
+import type { ChatConversation, ChatCustomEmoji, ChatGroupInvite, ChatGroupJoinRequest, ChatGroupMember, ChatInviteInfo, ChatMessage, ChatOrgData, ChatQuickReply, ChatScheduledMessage } from '@zenith/shared/chat';
 import type { Channel, ChannelMenu, ChannelMessage } from '@zenith/shared/messaging';
 import { request } from '@/utils/request';
 import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
@@ -37,6 +37,8 @@ export const chatKeys = {
    */
   groupMembersAll: ['chat', 'group-members'] as const,
   groupMembers: (conversationId: number | undefined) => ['chat', 'group-members', conversationId] as const,
+  /** 群公告历史（抽屉打开时才拉取，非实时） */
+  announcementHistory: (conversationId: number | undefined) => ['chat', 'announcement-history', conversationId] as const,
   orgData: ['chat', 'org-data'] as const,
   quickReplies: ['chat', 'quick-replies'] as const,
   scheduledMessages: ['chat', 'scheduled-messages'] as const,
@@ -79,6 +81,26 @@ export function useChatOrgData(enabled = true) {
     queryFn: () => request.get<ChatOrgData>('/api/chat/org-users', { silent: true }).then(unwrap),
     enabled,
     staleTime: LOOKUP_STALE_TIME,
+  });
+}
+
+/** 群公告历史：抽屉打开时才拉取，非实时数据 */
+export function useChatAnnouncementHistory(conversationId: number | undefined, enabled = true) {
+  return useQuery({
+    queryKey: chatKeys.announcementHistory(conversationId),
+    queryFn: () =>
+      request.get<ChatMessage[]>(`/api/chat/conversations/${conversationId}/announcement-history`, { silent: true }).then(unwrap),
+    enabled: enabled && conversationId !== undefined,
+  });
+}
+
+export function useDeleteChatAnnouncementHistory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ conversationId, messageId }: { conversationId: number; messageId: number }) =>
+      request.delete<null>(`/api/chat/conversations/${conversationId}/announcement-history/${messageId}`).then(unwrap),
+    onSuccess: (_data, { conversationId }) =>
+      qc.invalidateQueries({ queryKey: chatKeys.announcementHistory(conversationId) }),
   });
 }
 

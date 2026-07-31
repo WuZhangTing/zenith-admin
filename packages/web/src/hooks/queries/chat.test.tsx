@@ -30,10 +30,12 @@ vi.mock('@/utils/request', () => ({ request: createRequestMock(() => api) }));
 import {
   chatKeys,
   useAddChatGroupMember,
+  useChatAnnouncementHistory,
   useChatCustomEmojis,
   useChatGroupMembers,
   useChatQuickReplies,
   useChatUsers,
+  useDeleteChatAnnouncementHistory,
   useSetChatMemberRole,
   useTransferChatGroupOwner,
   useUpdateChatGroupInfo,
@@ -59,7 +61,9 @@ beforeEach(() => {
     .on('POST', '/api/chat/conversations/10/members', null)
     .on('POST', '/api/chat/conversations/10/transfer', null)
     .on('PATCH', '/api/chat/conversations/10/members/2/role', null)
-    .on('PATCH', '/api/chat/conversations/10/group-info', null);
+    .on('PATCH', '/api/chat/conversations/10/group-info', null)
+    .on('GET', '/api/chat/conversations/10/announcement-history', [{ id: 100, content: '旧公告' }])
+    .on('DELETE', '/api/chat/conversations/10/announcement-history/100', null);
 });
 
 describe('群成员单一数据源', () => {
@@ -168,8 +172,7 @@ describe('成员类 mutation 不再牵动同根静态 lookup', () => {
   });
 });
 
-describe('会话级 key 与成员 key 解耦', () => {
-  it('refreshing conversations no longer wipes every conversation member roster', async () => {
+describe('会话级 key 与成员 key 解耦', () => {  it('refreshing conversations no longer wipes every conversation member roster', async () => {
     const qc = createTestQueryClient();
     const { result } = renderHook(
       () => ({ members: useChatGroupMembers(10, true), updateInfo: useUpdateChatGroupInfo() }),
@@ -186,6 +189,39 @@ describe('会话级 key 与成员 key 解耦', () => {
     expect(fetches.countOf(chatKeys.groupMembers(10))).toBe(0);
     expect(api.countOf('GET', '/api/chat/conversations/10/members')).toBe(0);
     expect(isFresh(qc, chatKeys.groupMembers(10))).toBe(true);
+
+    fetches.stop();
+  });
+});
+
+describe('群公告历史迁入 Query（S11）', () => {
+  it('only fetches when the drawer is open, and refreshes itself after a delete', async () => {
+    const qc = createTestQueryClient();
+    const { result, rerender } = renderHook(
+      ({ open }: { open: boolean }) => ({
+        history: useChatAnnouncementHistory(10, open),
+        remove: useDeleteChatAnnouncementHistory(),
+      }),
+      { wrapper: createWrapper(qc), initialProps: { open: false } },
+    );
+
+    // 抽屉未打开：不应产生请求
+    await waitFor(() => expect(result.current.history.isFetching).toBe(false));
+    expect(api.countOf('GET', '/api/chat/conversations/10/announcement-history')).toBe(0);
+
+    rerender({ open: true });
+    await waitFor(() => expect(result.current.history.isSuccess).toBe(true));
+    expect(result.current.history.data).toHaveLength(1);
+
+    const fetches = observeFetches(qc);
+    api.on('GET', '/api/chat/conversations/10/announcement-history', []);
+
+    await result.current.remove.mutateAsync({ conversationId: 10, messageId: 100 });
+    await waitFor(() => expect(result.current.history.data).toHaveLength(0));
+
+    // 删除后由 mutation 失效重拉，页面不再手工维护数组
+    expect(fetches.countOf(chatKeys.announcementHistory(10))).toBe(1);
+    expect(fetches.countOf(chatKeys.groupMembers(10))).toBe(0);
 
     fetches.stop();
   });

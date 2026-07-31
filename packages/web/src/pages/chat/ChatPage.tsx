@@ -50,7 +50,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { callManager } from '@/webrtc/useCallManager';
 import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
-import { useDiscoverableChannels, chatKeys, useAddChatCustomEmoji, useChatGroupMembers } from '@/hooks/queries/chat';
+import { useDiscoverableChannels, chatKeys, useAddChatCustomEmoji, useChatAnnouncementHistory, useChatGroupMembers, useDeleteChatAnnouncementHistory } from '@/hooks/queries/chat';
 import type { ChatCustomEmoji } from '@zenith/shared/chat';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
@@ -58,6 +58,7 @@ const { Text, Title } = Typography;
 
 /** 稳定空数组：避免群成员查询无数据时每次渲染都产出新引用 */
 const EMPTY_GROUP_MEMBERS: ChatGroupMember[] = [];
+const EMPTY_ANNOUNCEMENT_HISTORY: ChatMessage[] = [];
 
 /** 左侧会话列表项：频道与会话合并后的统一条目（仿微信，按消息时间混排） */
 type LeftListItem =
@@ -145,8 +146,6 @@ const toggleConvMuted = (convId: number, isMuted: boolean) =>
 
 const removeFailedMessageById = (id: string) =>
   (prev: FailedMessage[]) => prev.filter((m) => m.id !== id);
-const removeAnnouncementById = (id: number) =>
-  <T extends { id: number }>(prev: T[]) => prev.filter((it) => it.id !== id);
 
 export interface ChatPageProps {
   variant?: 'page' | 'quick';
@@ -231,7 +230,6 @@ export default function ChatPage({
   >(null);
   const [pinnedMessages, setPinnedMessages] = useState<ChatMessage[]>([]);
   const [announcementHistoryVisible, setAnnouncementHistoryVisible] = useState(false);
-  const [announcementHistory, setAnnouncementHistory] = useState<ChatMessage[]>([]);
   const [recalledDrafts, setRecalledDrafts] = useState<Record<number, { content: string; mentions?: Array<{ userId: number; nickname: string }> }>>({});
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [selectedMessageIds, setSelectedMessageIds] = useState<number[]>([]);
@@ -597,10 +595,14 @@ export default function ChatPage({
     if (res.code === 0 && res.data) setFavoriteMessages(res.data.list);
   }, []);
 
-  const fetchAnnouncementHistory = useCallback(async (convId: number) => {
-    const res = await request.get<ChatMessage[]>(`/api/chat/conversations/${convId}/announcement-history`, { silent: true });
-    if (res.code === 0 && res.data) setAnnouncementHistory(res.data);
-  }, []);
+  // 群公告历史是抽屉打开时才需要的非实时数据，交给 Query 持有：
+  // 删除后由 mutation 失效，无需在页面里手工维护数组
+  const announcementHistoryQuery = useChatAnnouncementHistory(
+    activeConvId ?? undefined,
+    announcementHistoryVisible,
+  );
+  const announcementHistory = announcementHistoryQuery.data ?? EMPTY_ANNOUNCEMENT_HISTORY;
+  const deleteAnnouncementHistoryMutation = useDeleteChatAnnouncementHistory();
 
   const isOwnerOfActiveGroup = useMemo(() => {
     if (!currentUserId || activeConv?.type !== 'group') return false;
@@ -614,13 +616,11 @@ export default function ChatPage({
       content: '确定要删除该条公告历史记录吗？此操作不可恢复。',
       okType: 'danger',
       onOk: async () => {
-        const res = await request.delete(`/api/chat/conversations/${activeConvId}/announcement-history/${messageId}`);
-        if (res.code !== 0) return;
+        await deleteAnnouncementHistoryMutation.mutateAsync({ conversationId: activeConvId, messageId });
         Toast.success('已删除');
-        setAnnouncementHistory(removeAnnouncementById(messageId));
       },
     });
-  }, [activeConvId]);
+  }, [activeConvId, deleteAnnouncementHistoryMutation]);
 
   const openFavoriteMessage = useCallback(async (message: ChatMessage) => {
     const res = await request.get<ChatMessageContext>(
@@ -2633,7 +2633,6 @@ export default function ChatPage({
                           icon={<History size={15} />}
                           onClick={() => {
                             if (!activeConvId) return;
-                            void fetchAnnouncementHistory(activeConvId);
                             setAnnouncementHistoryVisible(true);
                           }}
                         />
