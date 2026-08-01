@@ -47,6 +47,7 @@ import {
   useSaveDictItem,
 } from '@/hooks/queries/dicts';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 export default function DictsPage() {
   const { hasPermission } = usePermission();
@@ -376,10 +377,9 @@ export default function DictsPage() {
                   <Dropdown.Item
                     type="danger"
                     onClick={() => {
-                      Modal.confirm({
+                      confirmDelete({
                         title: '确认删除此字典？',
                         content: '字典下的所有字典项也将一并删除',
-                        okButtonProps: { type: 'danger', theme: 'solid' },
                         onOk: () => handleDictDelete(dict.id),
                       });
                     }}
@@ -511,9 +511,8 @@ export default function DictsPage() {
           danger: true,
           hidden: !hasPermission('system:dict:item'),
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确认删除此字典项？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleItemDelete(row.id),
             });
           },

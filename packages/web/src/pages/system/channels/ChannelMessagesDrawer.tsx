@@ -13,6 +13,7 @@ import { formatDateTime } from '@/utils/date';
 import { TABLE_PAGE_SIZE_OPTIONS, usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
+import { confirmDelete } from '@/utils/confirm';
 import { ChannelPublishModal } from './ChannelPublishModal';
 import {
   useChannelMessages,
@@ -166,9 +167,8 @@ export function ChannelMessagesDrawer({ channel, visible, onClose }: Readonly<Pr
             label: '删除',
             danger: true,
             onClick: () => {
-              Modal.confirm({
+              confirmDelete({
                 title: '确定删除该消息？',
-                okButtonProps: { type: 'danger', theme: 'solid' },
                 onOk: () => { void handleDelete(record); },
               });
             },

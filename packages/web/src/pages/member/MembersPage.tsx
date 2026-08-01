@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Button, Input, Select, Modal, Form, Toast, Tag, Spin, Row, Col, Dropdown } from '@douyinfe/semi-ui';
+import { Button, Input, Select, Form, Toast, Tag, Spin, Row, Col, Dropdown } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search, KeyRound, ChevronDown, Tags } from 'lucide-react';
@@ -32,6 +32,7 @@ import {
   useSetMemberTags,
 } from '@/hooks/queries/member-admin';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const STATUS_COLORS: Record<string, 'green' | 'grey' | 'red'> = { active: 'green', inactive: 'grey', banned: 'red' };
 const statusOptions = (['active', 'inactive', 'banned'] as const).map((v) => ({ value: v, label: MEMBER_STATUS_LABELS[v] }));
@@ -118,10 +119,9 @@ export default function MembersPage() {
   };
 
   const handleDelete = (record: Member) => {
-    Modal.confirm({
+    confirmDelete({
       title: `确认删除会员「${record.nickname}」？`,
       content: '删除后该会员将无法登录、不再出现在列表中；其积分/钱包流水、券码与签到记录将保留用于审计对账。',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(record.id);
         Toast.success('删除成功');

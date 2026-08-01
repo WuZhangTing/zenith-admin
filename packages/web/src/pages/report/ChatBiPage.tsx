@@ -62,6 +62,7 @@ import {
 } from '@/hooks/queries/report-dashboards';
 import { useQueryClient } from '@tanstack/react-query';
 import { ApiError } from '@/lib/query';
+import { confirmDelete } from '@/utils/confirm';
 import {
   buildChatbiDataResult,
   buildSafeChatbiWidget,
@@ -350,7 +351,7 @@ export default function ChatBiPage() {
                       <Dropdown.Item
                         type="danger"
                         icon={<Trash2 size={14} />}
-                        onClick={() => Modal.confirm({
+                        onClick={() => confirmDelete({
                           title: '删除会话？',
                           content: '会话及历史消息将永久删除。',
                           onOk: async () => {

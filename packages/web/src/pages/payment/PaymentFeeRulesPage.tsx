@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
-import { Form, Modal, Select, Spin, Switch, Tag, Toast } from '@douyinfe/semi-ui';
+import { Form, Select, Spin, Switch, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -20,6 +20,7 @@ import type { PaymentChannel, PaymentFeeRule, PaymentMethod } from '@zenith/shar
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const yuan = formatYuan;
 const channelOptions = Object.entries(PAYMENT_CHANNEL_LABELS).map(([value, label]) => ({ value, label }));
@@ -144,8 +145,7 @@ export default function PaymentFeeRulesPage() {
           label: '删除',
           danger: true,
           onClick: () => {
-            Modal.confirm({
-              title: '确定要删除吗？',
+            confirmDelete({
               content: '删除后不可恢复',
               onOk: () => handleDelete(r.id),
             });

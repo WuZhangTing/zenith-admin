@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Banner, Form, Input, Tag, Toast, Modal } from '@douyinfe/semi-ui';
+import { Banner, Form, Input, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search } from 'lucide-react';
@@ -14,6 +14,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { useCmsSensitiveWordList, useSaveCmsSensitiveWord, useDeleteCmsSensitiveWord, cmsSensitiveWordKeys } from '@/hooks/queries/cms';
 import type { CmsSensitiveWord } from '@zenith/shared/cms';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 export default function SensitiveWordsPage() {
   const { hasPermission } = usePermission();
@@ -80,7 +81,7 @@ export default function SensitiveWordsPage() {
         {
           key: 'delete', label: '删除', danger: true,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该敏感词吗？',
               onOk: async () => {
                 await deleteMutation.mutateAsync(record.id);

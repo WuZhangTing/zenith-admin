@@ -25,6 +25,7 @@ import type { CmsChannel, CmsContent, CmsContentStatus, CmsContentType } from '@
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 import { CmsWidgetSourceRefsSheet, type CmsWidgetSourceTarget } from './CmsWidgetSourceRefsSheet';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const STATUS_COLORS: Record<CmsContentStatus, 'grey' | 'orange' | 'green' | 'red' | 'violet'> = {
   draft: 'grey',
@@ -333,7 +334,7 @@ export default function ContentsPage() {
                 label: '彻底删除',
                 danger: true,
                 onClick: () => {
-                  Modal.confirm({ title: '确定要彻底删除吗？', content: '删除后不可恢复', onOk: () => runBatch('purge', [record.id], '已彻底删除') });
+                  confirmDelete({ title: '确定要彻底删除吗？', content: '删除后不可恢复', onOk: () => runBatch('purge', [record.id], '已彻底删除') });
                 },
               },
             ] : []),
@@ -553,7 +554,7 @@ export default function ContentsPage() {
       <>
         <Button onClick={() => void runBatch('restore', selectedIds, `已恢复 ${selectedIds.length} 条`)}>批量恢复</Button>
         <Button type="danger" onClick={() => {
-          Modal.confirm({ title: `彻底删除 ${selectedIds.length} 条内容？`, content: '删除后不可恢复', onOk: () => runBatch('purge', selectedIds, '已彻底删除') });
+          confirmDelete({ title: `彻底删除 ${selectedIds.length} 条内容？`, content: '删除后不可恢复', onOk: () => runBatch('purge', selectedIds, '已彻底删除') });
         }}>批量删除</Button>
       </>
     ) : null) : activeTab === 'archived' ? (hasPermission('cms:content:update') ? (

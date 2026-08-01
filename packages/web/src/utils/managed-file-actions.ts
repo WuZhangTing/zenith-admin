@@ -1,8 +1,8 @@
-import { Modal } from '@douyinfe/semi-ui';
 import type { ManagedFile } from '@zenith/shared/platform';
 import type { ResponsiveTableAction } from '@/components/ResponsiveTableActions';
 import type { FilePreviewController } from '@/hooks/useFilePreview';
 import { canPreviewFile } from '@/utils/file-utils';
+import { confirmDelete } from '@/utils/confirm';
 
 interface ManagedFileActionsOptions {
   preview: FilePreviewController;
@@ -49,10 +49,9 @@ export function buildManagedFileActions(
       dividerBefore: true,
       hidden: !canDelete,
       onClick: () => {
-        Modal.confirm({
+        confirmDelete({
           title: '确认删除此文件？',
           content: '删除文件记录后，将同步尝试删除实际存储对象。',
-          okButtonProps: { type: 'danger', theme: 'solid' },
           onOk: () => onDelete(record),
         });
       },

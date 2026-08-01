@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Input, Modal, Select, Tag, Toast } from '@douyinfe/semi-ui';
+import { Input, Select, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -19,6 +19,7 @@ import {
   workflowFormKeys,
 } from '@/hooks/queries/workflow-forms';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 type StatusFilter = WorkflowFormStatus | '';
 type TagColor = 'green' | 'grey';
@@ -166,9 +167,8 @@ export default function WorkflowFormsPage() {
           danger: true,
           hidden: !hasPermission('workflow:form:delete'),
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该表单吗？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(record.id),
             });
           },

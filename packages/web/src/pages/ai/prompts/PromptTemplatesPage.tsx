@@ -21,6 +21,7 @@ import {
 import { useAiPromptVersions, useRestoreAiPromptVersion } from '@/hooks/queries/ai-extras';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
   keyword: string;
@@ -189,10 +190,9 @@ export default function PromptTemplatesPage() {
           danger: true,
           hidden: !hasPermission('ai:prompt:delete') || record.isBuiltin,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该提示词模板吗？',
               content: '删除后不可恢复',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(record.id),
             });
           },

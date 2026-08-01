@@ -1,17 +1,6 @@
 import { useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  Form,
-  Input,
-  Space,
-  Spin,
-  Toast,
-  Modal,
-  Switch,
-  Tag,
-  Row,
-  Col,
-} from '@douyinfe/semi-ui';
+import { Form, Input, Space, Spin, Toast, Switch, Tag, Row, Col } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search } from 'lucide-react';
@@ -40,6 +29,7 @@ import {
   MONITOR_PERCENT_METRICS as PERCENT_METRICS,
 } from './constants';
 import { CreateButton, ResetButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const OP_SYMBOL: Record<string, string> = { gt: '>', gte: '≥', lt: '<', lte: '≤' };
 const OP_OPTIONS = (['gt', 'gte', 'lt', 'lte'] as const)
@@ -193,10 +183,9 @@ export default function MonitorAlertsPage() {
           danger: true,
           hidden: !canManage,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该规则吗？',
               content: '删除后不可恢复',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(record.id),
             });
           },

@@ -25,6 +25,7 @@ import {
 } from '@/hooks/queries/export-jobs';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { useListSearch } from '@/hooks/useListSearch';
+import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
   entity: string;
@@ -190,10 +191,9 @@ export default function ExportJobsPage() {
   };
 
   const handleDelete = (record: ExportJob) => {
-    Modal.confirm({
+    confirmDelete({
       title: '删除导出任务',
       content: record.fileDeletedAt ? '将删除该任务记录。' : '将删除该任务记录，已生成的导出文件会随保留策略清理。',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(record.id);
         Toast.success('已删除');
@@ -204,10 +204,9 @@ export default function ExportJobsPage() {
 
   const handleBatchDelete = () => {
     if (selectedRowKeys.length === 0) return;
-    Modal.confirm({
+    confirmDelete({
       title: '批量删除导出任务',
       content: `将删除选中的 ${selectedRowKeys.length} 个导出任务记录。`,
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await batchDeleteMutation.mutateAsync(selectedRowKeys);
         Toast.success(`已删除 ${selectedRowKeys.length} 个任务`);

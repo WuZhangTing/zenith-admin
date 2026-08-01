@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Input, Modal, Select, Space, Switch, Tag, Toast, Tabs, TabPane, Banner, Typography, TextArea } from '@douyinfe/semi-ui';
+import { Button, Input, Select, Space, Switch, Tag, Toast, Tabs, TabPane, Banner, Typography, TextArea } from '@douyinfe/semi-ui';
 import { Search, RefreshCw, Briefcase } from 'lucide-react';
 import type { MpMessageTemplate } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
@@ -24,6 +24,7 @@ import {
   useSyncMpTemplates,
 } from '@/hooks/queries/mp-templates';
 import { RefreshButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 export default function MpTemplateMessagesPage() {
   const { hasPermission: can } = usePermission();
@@ -107,9 +108,8 @@ export default function MpTemplateMessagesPage() {
   };
 
   const handleDeleteTpl = (record: MpMessageTemplate) => {
-    Modal.confirm({
+    confirmDelete({
       title: `确定删除模板「${record.title}」吗？`,
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(record.id);
         Toast.success('删除成功');

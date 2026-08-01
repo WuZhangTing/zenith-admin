@@ -53,6 +53,7 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
   keyword: string;
@@ -242,10 +243,9 @@ export default function CronJobsPage() {
 
   const handleClearLogs = (months: number, jobId?: number | null) => {
     const label = months === 0 ? '全部' : `${clearLogsLabels[months]}前`;
-    Modal.confirm({
+    confirmDanger({
       title: '确认清除日志',
       content: `将删除${label}的执行日志，此操作不可恢复，确认继续吗？`,
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await clearLogsMutation.mutateAsync({ months, jobId });
         Toast.success('清除成功');
@@ -397,9 +397,8 @@ export default function CronJobsPage() {
           danger: true,
           hidden: !hasPermission('system:cronjob:delete'),
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除此任务吗？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(record.id),
             });
           },

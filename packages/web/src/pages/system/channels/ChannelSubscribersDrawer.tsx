@@ -7,7 +7,7 @@
  */
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Banner, Input, Modal, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Input, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search } from 'lucide-react';
 import type { ChannelAdmin, ChannelSubscriber } from '@zenith/shared/messaging';
@@ -27,6 +27,7 @@ import {
   useRemoveChannelSubscriber,
 } from '@/hooks/queries/channels';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface Props {
   channel: ChannelAdmin | null;
@@ -123,9 +124,8 @@ export function ChannelSubscribersDrawer({ channel, visible, onClose }: Readonly
           label: '移除',
           danger: true,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: `确定移除订阅者「${record.name}」？`,
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => { void handleRemove(record); },
             });
           },

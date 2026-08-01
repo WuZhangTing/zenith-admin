@@ -5,7 +5,7 @@
  * 在此可对全部快捷回复做 CRUD；新建/编辑时作用域可选「全局」或「当前频道」。
  */
 import { useState } from 'react';
-import { Form, Modal, SideSheet, Table, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Form, SideSheet, Table, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ChannelQuickReply } from '@zenith/shared/messaging';
 import { AppModal } from '@/components/AppModal';
@@ -16,6 +16,7 @@ import {
   useSaveChannelQuickReply,
 } from '@/hooks/queries/channel-cs';
 import { CreateButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface Props {
   channelId: number;
@@ -90,9 +91,8 @@ export function ChannelQuickReplyDrawer({ channelId, channelName, visible, onClo
           label: '删除',
           danger: true,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定删除该快捷回复？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => { void handleDelete(record); },
             });
           },

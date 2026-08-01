@@ -39,6 +39,7 @@ import {
   useTestFileStorageConfig,
 } from '@/hooks/queries/file-storage-configs';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 import './FileStorageConfigsPage.css';
 
 const { Text } = Typography;
@@ -479,10 +480,9 @@ export default function FileStorageConfigsPage() {
           hidden: !hasPermission('system:file:config:delete'),
           disabled: record.isDefault,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确认删除此文件服务配置？',
               content: '若已绑定文件记录，后端会阻止删除。',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(record),
             });
           },

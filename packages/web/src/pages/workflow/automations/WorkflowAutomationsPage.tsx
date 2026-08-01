@@ -8,21 +8,7 @@ import { useDictItems } from '@/hooks/useDictItems';
  *   - Webhook 回调 / 回写表单字段
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Button,
-  Col,
-  Form,
-  Input,
-  Modal,
-  Row,
-  Select,
-  Space,
-  Spin,
-  Tag,
-  TextArea,
-  Toast,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Button, Col, Form, Input, Row, Select, Space, Spin, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag/interface';
@@ -44,6 +30,7 @@ import {
   workflowAutomationKeys,
 } from '@/hooks/queries/workflow-automations';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const TRIGGER_OPTIONS: Array<{ value: WorkflowAutomationTrigger; label: string; color: TagColor }> = [
   { value: 'created',   label: '流程发起时', color: 'blue' },
@@ -417,9 +404,8 @@ export default function WorkflowAutomationsPage() {
           danger: true,
           hidden: !canEditAutomation,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该规则吗？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(record.id),
             });
           },

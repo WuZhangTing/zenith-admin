@@ -53,6 +53,7 @@ import { usePublishedWorkflowDefinitions } from '@/hooks/queries/workflow-defini
 import { useListSearch } from '@/hooks/useListSearch';
 import { WORKFLOW_TASK_STATUS_LABELS } from '@zenith/shared/workflow';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const TASK_STATUS_TEXT: Record<string, string> = WORKFLOW_TASK_STATUS_LABELS;
 
@@ -668,9 +669,8 @@ export default function MyApplicationsPage() {
           danger: true,
           hidden: record.status !== 'draft',
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除此草稿吗？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDeleteDraft(record.id),
             });
           },

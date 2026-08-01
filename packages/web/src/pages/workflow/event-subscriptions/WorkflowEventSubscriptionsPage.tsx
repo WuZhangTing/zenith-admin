@@ -48,6 +48,7 @@ import {
 import { useWorkflowConnectorList } from '@/hooks/queries/workflow-connectors';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const EVENT_OPTIONS: Array<{ value: WorkflowEventType; label: string }> = [
   { value: 'instance.created',   label: '实例创建' },
@@ -324,9 +325,8 @@ export default function WorkflowEventSubscriptionsPage() {
           danger: true,
           hidden: !canManageEventSubscription,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该订阅吗？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(record.id),
             });
           },

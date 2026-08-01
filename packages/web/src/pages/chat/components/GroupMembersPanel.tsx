@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
-import { Button, Modal, Toast, Tooltip, TextArea, Input, Tag, Typography, List as SemiList, Switch, Dropdown, Tabs, TabPane } from '@douyinfe/semi-ui';
+import { Button, Toast, Tooltip, TextArea, Input, Tag, Typography, List as SemiList, Switch, Dropdown, Tabs, TabPane } from '@douyinfe/semi-ui';
 import { UserPlus, UserMinus, Crown, Pencil, Shield, MicOff, Mic, Link2, UserCheck } from 'lucide-react';
 import dayjs from 'dayjs';
 import { UserAvatar } from '@/components/UserAvatar';
+import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { UserSearchList } from './UserSearchList';
 import { OrgTreePicker } from './OrgTreePicker';
 import { GroupInviteModal } from './GroupInviteModal';
@@ -102,10 +103,9 @@ export function GroupMembersPanel({
   };
 
   const handleRemoveMember = (member: ChatGroupMember) => {
-    Modal.confirm({
+    confirmDelete({
       title: `确定移除 ${member.nickname}？`,
       content: '移除后该成员将无法看到群聊消息。',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         try {
           await removeMemberMutation.mutateAsync({ conversationId, memberId: member.id });
@@ -118,7 +118,7 @@ export function GroupMembersPanel({
   };
 
   const handleTransfer = (member: ChatGroupMember) => {
-    Modal.confirm({
+    confirmDanger({
       title: `确定将群主转让给 ${member.nickname}？`,
       content: '转让后你将成为普通成员，无法撤销。',
       okButtonProps: { type: 'warning', theme: 'solid' },

@@ -40,6 +40,7 @@ import {
   useTenantStats,
 } from '@/hooks/queries/tenants';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
   keyword: string;
@@ -239,10 +240,9 @@ export default function TenantsPage() {
           danger: true,
           hidden: !hasPermission('system:tenant:delete'),
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确认删除此租户？',
               content: '删除后该租户下的所有数据将不可访问',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(row.id),
             });
           },

@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Input, Tag, Modal, Form, Toast, Typography, Select, Row, Col, Space } from '@douyinfe/semi-ui';
+import { Input, Tag, Form, Toast, Typography, Select, Row, Col, Space } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search } from 'lucide-react';
@@ -14,6 +14,7 @@ import { openPlatformKeys, useDeleteRatePlan, useRatePlanList, useSaveRatePlan }
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const { Text } = Typography;
 
@@ -152,10 +153,9 @@ export default function RatePlansPage() {
           danger: true,
           hidden: !canManage,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除此套餐吗？',
               content: '已被应用绑定的套餐无法删除',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(record.id),
             });
           },

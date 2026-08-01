@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, DatePicker, Form, Tag, Toast, Modal, Tabs, TabPane, Select, SideSheet, Typography } from '@douyinfe/semi-ui';
+import { Button, DatePicker, Form, Tag, Toast, Tabs, TabPane, Select, SideSheet, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Trash2 } from 'lucide-react';
@@ -21,6 +21,7 @@ import { CMS_AD_EVENT_TYPE_LABELS, CMS_DEVICE_TYPE_LABELS } from '@zenith/shared
 import type { CmsAdEvent, CmsAdSlot, CmsAd } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 // ─── 广告位 Tab ───────────────────────────────────────────────────────────────
 function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
@@ -62,7 +63,7 @@ function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
         {
           key: 'delete', label: '删除', danger: true,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该广告位吗？',
               content: '需先清空广告位下的广告',
               onOk: async () => {
@@ -174,7 +175,7 @@ function AdsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
         {
           key: 'delete', label: '删除', danger: true,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该广告吗？',
               onOk: async () => {
                 await deleteMutation.mutateAsync(record.id);
@@ -370,10 +371,9 @@ function EventsTab({ siteId, setSiteId }: Readonly<{
                 loading={cleanupMutation.isPending}
                 disabled={!siteId}
                 onClick={() => {
-                  Modal.confirm({
+                  confirmDelete({
                     title: '按保留策略清理广告事件？',
                     content: '将提交到任务中心分批执行，可查看进度、取消或重试。',
-                    okButtonProps: { type: 'danger', theme: 'solid' },
                     onOk: async () => {
                       await cleanupMutation.mutateAsync({ siteId });
                       Toast.success('清理任务已提交');

@@ -53,6 +53,7 @@ import { renderEllipsis } from '@/utils/table-columns';
 import { normalizeTemplateApplyValues, parseJsonObject } from './report-platform-utils';
 import { REPORT_RESOURCE_TYPE_OPTIONS } from './report-platform-options';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const resourceTypeOptions = REPORT_RESOURCE_TYPE_OPTIONS;
 const templateTypeOptions = [
@@ -260,9 +261,8 @@ export default function AssetsPage() {
         { key: 'clone', label: '克隆', hidden: !hasPermission('report:asset-template:create'), onClick: () => cloneTemplate(record) },
         {
           key: 'delete', label: '删除', danger: true, hidden: !hasPermission('report:asset-template:delete'),
-          onClick: () => { Modal.confirm({
+          onClick: () => { confirmDelete({
             title: `删除模板「${record.name}」？`,
-            okButtonProps: { type: 'danger', theme: 'solid' },
             onOk: async () => { await deleteTemplateMutation.mutateAsync(record.id); Toast.success('模板已删除'); },
           }); },
         },
@@ -292,9 +292,8 @@ export default function AssetsPage() {
         { key: 'edit', label: '编辑', hidden: !hasPermission('report:deprecation:update'), onClick: () => openNotice(record) },
         {
           key: 'delete', label: '删除', danger: true, hidden: !hasPermission('report:deprecation:delete'),
-          onClick: () => { Modal.confirm({
+          onClick: () => { confirmDelete({
             title: '删除弃用公告？',
-            okButtonProps: { type: 'danger', theme: 'solid' },
             onOk: async () => { await deleteNoticeMutation.mutateAsync(record.id); Toast.success('公告已删除'); },
           }); },
         },

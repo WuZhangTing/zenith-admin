@@ -4,7 +4,7 @@
  * 优先级（后端 matchAutoReply）：subscribe → keyword(exact 优先 contains，按 sort) → default。
  */
 import { useState } from 'react';
-import { Form, Modal, SideSheet, Table, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Form, SideSheet, Table, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ChannelAutoReply, ChannelMessageType, ChannelRichReplyExtra } from '@zenith/shared/messaging';
 import { CHANNEL_AUTO_REPLY_MATCH_LABELS, CHANNEL_AUTO_REPLY_KEYWORD_MODE_LABELS, CHANNEL_MESSAGE_TYPE_LABELS as REPLY_TYPE_LABELS } from '@zenith/shared/messaging';
@@ -19,6 +19,7 @@ import {
   useSaveChannelAutoReply,
 } from '@/hooks/queries/channels';
 import { CreateButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface Props {
   channelId: number;
@@ -172,9 +173,8 @@ export function ChannelAutoReplyDrawer({ channelId, channelName, visible, onClos
           danger: true,
           hidden: !canDelete,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定删除该规则？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => { void handleDelete(record); },
             });
           },

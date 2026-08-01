@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Toast, Modal } from '@douyinfe/semi-ui';
+import { Button, Form, Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Settings } from 'lucide-react';
@@ -20,6 +20,7 @@ import {
   useSaveCheckinSettings,
 } from '@/hooks/queries/member-admin';
 import { CreateButton, RefreshButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 export default function CheckinRulesPage() {
   const { hasPermission } = usePermission();
@@ -65,10 +66,9 @@ export default function CheckinRulesPage() {
   };
 
   const handleDelete = (record: CheckinRule) => {
-    Modal.confirm({
+    confirmDelete({
       title: `确认删除第 ${record.dayNumber} 天规则？`,
       content: '删除后该连续天数的奖励配置将失效。',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteRuleMutation.mutateAsync(record.id);
         Toast.success('删除成功');

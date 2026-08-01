@@ -17,6 +17,7 @@ import {
   useWorkflowCompensationList,
 } from '@/hooks/queries/workflow-monitor';
 import { RefreshButton } from '@/components/toolbar-controls';
+import { confirmDanger } from '@/utils/confirm';
 
 const STATUS: Record<string, { text: string; color: string }> = {
   pending: { text: '待修复', color: 'amber' },
@@ -59,7 +60,7 @@ export default function WorkflowCompensationsView() {
     setPendingAtt([]);
   };
 
-  const resolve = (r: WorkflowCompensation, action: 'resolve' | 'terminate') => { Modal.confirm({
+  const resolve = (r: WorkflowCompensation, action: 'resolve' | 'terminate') => { confirmDanger({
     title: action === 'resolve' ? '标记修复放行' : '终止流程',
     content: action === 'resolve' ? '确认异常已处理，流程继续？' : '将终止该实例并跳过待办，不可恢复',
     okButtonProps: action === 'terminate' ? { type: 'danger' } : undefined,

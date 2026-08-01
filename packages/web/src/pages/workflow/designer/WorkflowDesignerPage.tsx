@@ -55,6 +55,7 @@ import { useAllUsers } from '@/hooks/queries/users';
 import { useAllRoles } from '@/hooks/queries/roles';
 import { useFlatDepartments } from '@/hooks/queries/departments';
 import { usePublishedWorkflowDefinitions, useWorkflowDefinitionDetail } from '@/hooks/queries/workflow-definitions';
+import { confirmDanger } from '@/utils/confirm';
 import {
   usePublishWorkflowDesignerDefinition,
   useSaveWorkflowDesignerDefinition,
@@ -663,7 +664,7 @@ export default function WorkflowDesignerPage({
     const leavingBusinessWithConfig = isBusiness(formType) && !sameFamily
       && !!(customForm?.createComponent?.trim() || customForm?.viewComponent?.trim() || (customForm?.variables?.length ?? 0) > 0);
     if (leavingDesignerWithForm || leavingBusinessWithConfig) {
-      Modal.confirm({
+      confirmDanger({
         title: `切换为「${WORKFLOW_FORM_TYPE_LABELS[next]}」？`,
         content: '切换并保存后，原表单绑定/业务表单配置将被清空；流程中基于原字段（变量）的分支条件、审批人和字段权限可能失效，请在「流程设计」步骤重新检查。',
         okText: '切换',

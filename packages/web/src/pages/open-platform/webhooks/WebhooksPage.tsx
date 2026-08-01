@@ -26,6 +26,7 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 const { Text, Paragraph } = Typography;
 
@@ -233,13 +234,13 @@ export default function WebhooksPage() {
         {
           key: 'regenerate', label: '重置密钥', hidden: !canManage || record.signMode !== 'hmacSha256',
           onClick: () => {
-            Modal.confirm({ title: '重置签名密钥？旧密钥将立即失效', onOk: () => handleRegenerate(record.id) });
+            confirmDanger({ title: '重置签名密钥？旧密钥将立即失效', onOk: () => handleRegenerate(record.id) });
           },
         },
         {
           key: 'delete', label: '删除', danger: true, hidden: !canManage,
           onClick: () => {
-            Modal.confirm({ title: '确定删除此 Webhook 订阅？', content: '关联投递日志将一并删除', okButtonProps: { type: 'danger', theme: 'solid' }, onOk: () => handleDelete(record.id) });
+            confirmDelete({ title: '确定删除此 Webhook 订阅？', content: '关联投递日志将一并删除', onOk: () => handleDelete(record.id) });
           },
         },
       ],

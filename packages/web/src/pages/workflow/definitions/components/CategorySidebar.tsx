@@ -3,13 +3,14 @@
  */
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { Button, Dropdown, Modal, Toast, Form } from '@douyinfe/semi-ui';
+import { Button, Dropdown, Toast, Form } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { MoreHorizontal, Plus, Layers, LayoutGrid, Pencil, Trash2 } from 'lucide-react';
 import type { WorkflowCategory } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
 import AppModal from '@/components/AppModal';
 import { NavListPanel, NavListItem } from '@/components/NavListPanel';
+import { confirmDelete } from '@/utils/confirm';
 
 interface Props {
   categories: WorkflowCategory[];
@@ -126,10 +127,9 @@ export default function CategorySidebar({ categories, selectedId, onSelect, onCh
                         <Dropdown.Item
                           type="danger"
                           onClick={() => {
-                            Modal.confirm({
+                            confirmDelete({
                               title: '确认删除该分类？',
                               content: '分类下若仍有流程将无法删除',
-                              okButtonProps: { type: 'danger', theme: 'solid' },
                               onOk: () => void handleDelete(item as WorkflowCategory),
                             });
                           }}

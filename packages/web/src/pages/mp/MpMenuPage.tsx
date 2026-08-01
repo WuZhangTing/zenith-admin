@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Input, Select, Spin, Tag, Toast, Modal, Banner, Empty } from '@douyinfe/semi-ui';
+import { Button, Input, Select, Spin, Tag, Toast, Banner, Empty } from '@douyinfe/semi-ui';
 import { RefreshCw, Save, Send, Trash2, Plus } from 'lucide-react';
 import type { MpMenu, MpMenuButton } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
@@ -7,6 +7,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { useMpAccounts } from './useMpAccounts';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
 import { useDeleteMpMenu, useMpMenu, usePublishMpMenu, usePullMpMenu, useSaveMpMenu } from '@/hooks/queries/mp-menu';
+import { confirmDelete } from '@/utils/confirm';
 
 const CONTENT_TYPE_OPTIONS = [
   { label: '跳转网址', value: 'view' },
@@ -154,9 +155,8 @@ export default function MpMenuPage() {
 
   const doDelete = () => {
     if (!currentId) return;
-    Modal.confirm({
+    confirmDelete({
       title: '确定要删除微信端的自定义菜单吗？',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         const data = await deleteMutation.mutateAsync(currentId);
         Toast.success('已删除微信菜单');
@@ -169,7 +169,7 @@ export default function MpMenuPage() {
   };
 
   const doClear = () => {
-    Modal.confirm({
+    confirmDelete({
       title: '确定要清空本地菜单配置吗？',
       content: '此操作仅清空编辑器内容，不影响微信端已发布的菜单。',
       onOk: () => { setButtons([]); setSelected(null); setActiveL1(null); },

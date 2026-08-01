@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Button, Form, Image, Input, Modal, Select, Spin, Tag, Toast, Banner, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Image, Input, Select, Spin, Tag, Toast, Banner, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus, Search } from 'lucide-react';
 import type { MpQrcode, MpQrcodeType } from '@zenith/shared/mp';
@@ -14,6 +14,7 @@ import { MpAccountSwitcher } from './MpAccountSwitcher';
 import { mpQrcodeKeys, useCreateMpQrcode, useDeleteMpQrcode, useMpQrcodeList } from '@/hooks/queries/mp-qrcodes';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const TYPE_OPTIONS = [
   { label: '永久二维码', value: 'permanent' },
@@ -78,10 +79,9 @@ export default function MpQrcodesPage() {
   };
 
   const handleDelete = (record: MpQrcode) => {
-    Modal.confirm({
+    confirmDelete({
       title: '确定要删除该二维码吗？',
       content: '删除后本地记录移除，已投放的二维码图片仍可能被扫描。',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(record.id);
         Toast.success('删除成功');

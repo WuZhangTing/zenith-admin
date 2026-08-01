@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import type { CSSProperties } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Form, Input, Modal, Select, Space, Spin, Switch, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Form, Input, Select, Space, Spin, Switch, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search } from 'lucide-react';
@@ -25,6 +25,7 @@ import { PAYMENT_WEBHOOK_DELIVERY_STATUS_LABELS } from '@zenith/shared/payment';
 import type { PaymentWebhookDelivery, PaymentWebhookEndpoint } from '@zenith/shared/payment';
 import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const EVENT_OPTIONS = [
   { value: 'payment.succeeded', label: '支付成功' },
@@ -206,8 +207,7 @@ export default function PaymentWebhooksPage() {
           label: '删除',
           danger: true,
           onClick: () => {
-            Modal.confirm({
-              title: '确定要删除吗？',
+            confirmDelete({
               content: '删除后不可恢复',
               onOk: () => handleDelete(r.id),
             });

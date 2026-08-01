@@ -24,6 +24,7 @@ import {
 import { useMpTagOptions } from '@/hooks/queries/mp-tags';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDanger } from '@/utils/confirm';
 
 const SEX_LABELS: Record<number, string> = { 0: '未知', 1: '男', 2: '女' };
 const SUBSCRIBE_OPTIONS = [
@@ -106,9 +107,8 @@ export default function MpFansPage() {
   };
 
   const confirmUnbindMember = (record: MpFan) => {
-    Modal.confirm({
+    confirmDanger({
       title: '确定解绑该粉丝的会员？',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: () => handleUnbindMember(record),
     });
   };

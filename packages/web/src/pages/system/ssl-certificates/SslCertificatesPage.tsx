@@ -1,17 +1,5 @@
 import { useRef, useState } from 'react';
-import {
-  Button,
-  Descriptions,
-  Form,
-  Input,
-  Modal,
-  Select,
-  SideSheet,
-  Space,
-  Spin,
-  Tag,
-  Toast,
-} from '@douyinfe/semi-ui';
+import { Button, Descriptions, Form, Input, Select, SideSheet, Space, Spin, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Lock, Search, Upload } from 'lucide-react';
@@ -34,6 +22,7 @@ import {
   type SslCertificateRecord,
 } from '@/hooks/queries/ssl-certificates';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
   keyword: string;
@@ -195,9 +184,8 @@ export default function SslCertificatesPage() {
           danger: true,
           hidden: !canDelete,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该证书吗？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => { void handleDelete(record.id); },
             });
           },

@@ -1,11 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import {
-  Form,
-  Modal,
-  Select,
-  Tag,
-  Toast,
-} from '@douyinfe/semi-ui';
+import { Form, Select, Tag, Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { WorkflowDelegation } from '@zenith/shared/workflow';
@@ -25,6 +19,7 @@ import {
   workflowDelegationKeys,
 } from '@/hooks/queries/workflow-delegations';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 type Scope = 'mine' | 'all';
 
@@ -212,9 +207,8 @@ export default function WorkflowDelegationsPage() {
           danger: true,
           hidden: !canManage,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定删除该审批代理？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(record.id),
             });
           },

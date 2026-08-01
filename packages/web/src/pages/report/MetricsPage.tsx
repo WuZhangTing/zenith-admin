@@ -44,6 +44,7 @@ import { formatDateTime } from '@/utils/date';
 import { renderEllipsis } from '@/utils/table-columns';
 import { isRevisionConflict, metricLifecyclePayload, normalizeMetricFormValues } from './report-platform-utils';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface MetricSearch {
   keyword: string;
@@ -194,10 +195,9 @@ export default function MetricsPage() {
         { key: 'deprecate', label: '废弃', danger: true, hidden: !hasPermission('report:metric:publish') || record.lifecycleStatus !== 'published', onClick: () => lifecycle(record, 'deprecate') },
         {
           key: 'delete', label: '删除', danger: true, hidden: !hasPermission('report:metric:delete') || record.lifecycleStatus !== 'draft',
-          onClick: () => Modal.confirm({
+          onClick: () => confirmDelete({
             title: `删除指标「${record.name}」？`,
             content: '仅无引用的草稿指标可删除。',
-            okButtonProps: { type: 'danger', theme: 'solid' },
             onOk: async () => {
               await deleteMutation.mutateAsync(record.id);
               Toast.success('指标已删除');

@@ -32,6 +32,7 @@ import {
   useCreateAiConversation,
 } from '@/hooks/queries/ai-conversations';
 import { useDictItems } from '@/hooks/useDictItems';
+import { confirmDelete } from '@/utils/confirm';
 
 const { Configure } = AIChatInput;
 const { Title } = Typography;
@@ -1132,7 +1133,7 @@ export default function AIChatPage() {
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Download size={13} />导出 JSON</span>
           </Dropdown.Item>
           <Dropdown.Divider />
-          <Dropdown.Item type="danger" onClick={(e) => { (e as React.MouseEvent).stopPropagation(); Modal.confirm({ title: '确定要删除这个会话吗？', okButtonProps: { type: 'danger', theme: 'solid' }, onOk: () => handleDeleteConversation(conv.id) }); }}>
+          <Dropdown.Item type="danger" onClick={(e) => { (e as React.MouseEvent).stopPropagation(); confirmDelete({ title: '确定要删除这个会话吗？', onOk: () => handleDeleteConversation(conv.id) }); }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Trash2 size={13} />删除</span>
           </Dropdown.Item>
         </Dropdown.Menu>

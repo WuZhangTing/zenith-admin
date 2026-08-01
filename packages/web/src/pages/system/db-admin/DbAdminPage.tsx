@@ -50,6 +50,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { NavListPanel, NavListItem } from '@/components/NavListPanel';
 import { formatDateTime } from '@/utils/date';
+import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { RowEditModal } from './RowEditModal';
 import { ErDiagram } from './ErDiagram';
 import MonacoEditor from '@monaco-editor/react';
@@ -441,7 +442,7 @@ export default function DbAdminPage() {
             <Dropdown.Item
               type="danger"
               onClick={() => {
-                Modal.confirm({
+                confirmDanger({
                   title: `确定截断 ${fullName(t)} 吗？`,
                   content: '此操作将清空表内所有数据，且不可恢复！',
                   onOk: async () => { await handleTruncateTable(t); },
@@ -795,9 +796,8 @@ export default function DbAdminPage() {
           label: '删除',
           danger: true,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '删除该记录？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => deleteHistoryItem(record.id),
             });
           },

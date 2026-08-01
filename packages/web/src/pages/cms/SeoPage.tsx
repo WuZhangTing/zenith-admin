@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Banner, Button, Form, Input, Tag, Toast, Modal, Tabs, TabPane, TextArea, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Form, Input, Tag, Toast, Tabs, TabPane, TextArea, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, Send } from 'lucide-react';
@@ -21,6 +21,7 @@ import { CMS_PUSH_ENGINE_LABELS } from '@zenith/shared/cms';
 import type { CmsRedirect, CmsLinkWord, CmsPushLog } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 // ─── 301 重定向 Tab ───────────────────────────────────────────────────────────
 function RedirectsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
@@ -77,7 +78,7 @@ function RedirectsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
         {
           key: 'delete', label: '删除', danger: true,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该规则吗？',
               onOk: async () => {
                 await deleteMutation.mutateAsync(record.id);
@@ -198,7 +199,7 @@ function LinkWordsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
         {
           key: 'delete', label: '删除', danger: true,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该内链词吗？',
               onOk: async () => {
                 await deleteMutation.mutateAsync(record.id);

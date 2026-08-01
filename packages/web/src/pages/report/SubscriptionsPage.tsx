@@ -28,6 +28,7 @@ import type { NotifyChannel } from '@zenith/shared/messaging';
 import { REPORT_DELIVERY_STATUS_LABELS, REPORT_MISFIRE_POLICY_OPTIONS } from '@zenith/shared/report';
 import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const deliveryStatusColorMap: Record<string, 'green' | 'red' | 'orange' | 'grey' | 'blue' | 'amber'> = {
   success: 'green',
@@ -162,7 +163,7 @@ export default function SubscriptionsPage() {
         ...(hasPermission('report:subscription:update') ? [{ key: 'run', label: '立即推送', onClick: () => handleRun(r.id) }] : []),
         ...(hasPermission('report:subscription:list') ? [{ key: 'history', label: '历史', onClick: () => setHistoryTarget(r) }] : []),
         ...(hasPermission('report:subscription:update') ? [{ key: 'edit', label: '编辑', onClick: () => openEdit(r) }] : []),
-        ...(hasPermission('report:subscription:delete') ? [{ key: 'delete', label: '删除', danger: true, onClick: () => { Modal.confirm({ title: '确定删除？', onOk: () => handleDelete(r.id) }); } }] : []),
+        ...(hasPermission('report:subscription:delete') ? [{ key: 'delete', label: '删除', danger: true, onClick: () => { confirmDelete({ title: '确定删除？', onOk: () => handleDelete(r.id) }); } }] : []),
       ],
     }),
   ];

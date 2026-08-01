@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, Modal, Spin, Toast, Banner } from '@douyinfe/semi-ui';
+import { Button, Form, Input, Spin, Toast, Banner } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Search, RefreshCw } from 'lucide-react';
 import type { MpTag } from '@zenith/shared/mp';
@@ -15,6 +15,7 @@ import { useMpAccounts } from './useMpAccounts';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
 import { mpTagKeys, useDeleteMpTag, useMpTagList, useSaveMpTag, useSyncMpTags } from '@/hooks/queries/mp-tags';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 export default function MpTagsPage() {
   const { hasPermission: can } = usePermission();
@@ -78,10 +79,9 @@ export default function MpTagsPage() {
   };
 
   const handleDelete = (record: MpTag) => {
-    Modal.confirm({
+    confirmDelete({
       title: `确定要删除标签「${record.name}」吗？`,
       content: '删除后将从所有粉丝的本地标签中移除该标签。',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(record.id);
         Toast.success('删除成功');

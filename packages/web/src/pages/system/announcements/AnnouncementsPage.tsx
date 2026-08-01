@@ -50,6 +50,7 @@ import {
   useUpdateAnnouncementStatus,
 } from '@/hooks/queries/announcements';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const RichTextEditor = lazy(() => import('@/components/RichTextEditor'));
 const editorLoadingFallback = (
@@ -274,10 +275,9 @@ export default function AnnouncementsPage() {
   };
 
   const handleBatchDelete = () => {
-    Modal.confirm({
+    confirmDelete({
       title: `确认删除选中的 ${selectedRowKeys.length} 条公告？`,
       content: '删除后无法恢复，请确认操作',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await batchDeleteMutation.mutateAsync(selectedRowKeys);
         Toast.success('删除成功');
@@ -478,9 +478,8 @@ export default function AnnouncementsPage() {
     danger: true,
     hidden: !hasPermission('system:announcement:delete'),
     onClick: () => {
-      Modal.confirm({
+      confirmDelete({
         title: '确定要删除该公告吗？',
-        okButtonProps: { type: 'danger', theme: 'solid' },
         onOk: () => handleDelete(record.id),
       });
     },

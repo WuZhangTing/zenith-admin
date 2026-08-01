@@ -17,6 +17,7 @@ import {
   useSetDefaultAiProvider,
 } from '@/hooks/queries/ai-providers';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const PROVIDER_LABELS: Record<AiProvider, string> = {
   openai_compatible: 'OpenAI Compatible',
@@ -218,9 +219,8 @@ export default function AIProvidersPage() {
             danger: true,
             hidden: !hasPermission('ai:provider:delete'),
             onClick: () => {
-              Modal.confirm({
+              confirmDelete({
                 title: '确定要删除该服务商配置吗？',
-                okButtonProps: { type: 'danger', theme: 'solid' },
                 onOk: () => handleDelete(record.id),
               });
             },

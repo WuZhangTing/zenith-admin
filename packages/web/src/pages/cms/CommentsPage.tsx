@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Tag, Toast, Modal, Tabs, TabPane, Typography, Select } from '@douyinfe/semi-ui';
+import { Button, Tag, Toast, Tabs, TabPane, Typography, Select } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -7,6 +7,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { useCmsCommentList, useCmsCommentAction } from '@/hooks/queries/cms';
+import { confirmDelete } from '@/utils/confirm';
 import { CMS_COMMENT_STATUS_LABELS } from '@zenith/shared/cms';
 import type { CmsComment, CmsCommentStatus } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
@@ -98,7 +99,7 @@ export default function CommentsPage() {
         ...(canDelete ? [{
           key: 'delete', label: '删除', danger: true,
           onClick: () => {
-            Modal.confirm({ title: '确定要删除该评论吗？', onOk: () => runAction('delete', [record.id], '删除成功') });
+            confirmDelete({ title: '确定要删除该评论吗？', onOk: () => runAction('delete', [record.id], '删除成功') });
           },
         }] : []),
       ],
@@ -111,7 +112,7 @@ export default function CommentsPage() {
       {canAudit ? <Button type="warning" onClick={() => void runAction('reject', selectedIds, `已拒绝 ${selectedIds.length} 条`)}>批量拒绝</Button> : null}
       {canDelete ? (
         <Button type="danger" onClick={() => {
-          Modal.confirm({ title: `删除 ${selectedIds.length} 条评论？`, onOk: () => runAction('delete', selectedIds, '删除成功') });
+          confirmDelete({ title: `删除 ${selectedIds.length} 条评论？`, onOk: () => runAction('delete', selectedIds, '删除成功') });
         }}>批量删除</Button>
       ) : null}
     </>

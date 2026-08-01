@@ -1,10 +1,11 @@
 /** 浏览历史：CMS 内容浏览记录（最近浏览优先，可清空） */
 import { useState } from 'react';
-import { Button, Empty, Modal, Pagination, Spin, Tag, Toast } from '@douyinfe/semi-ui';
+import { Button, Empty, Pagination, Spin, Tag, Toast } from '@douyinfe/semi-ui';
 import { ExternalLink, Trash2 } from 'lucide-react';
 import { CMS_CONTENT_TYPE_LABELS } from '@zenith/shared/cms';
 import { MemberPage } from '../../components/MemberPage';
 import { useMyCmsViewHistory, useClearCmsViewHistory } from '../../hooks/queries';
+import { confirmDelete } from '@/utils/confirm';
 
 export default function ViewHistoryPage() {
   const [page, setPage] = useState(1);
@@ -15,7 +16,7 @@ export default function ViewHistoryPage() {
   const total = listQuery.data?.total ?? 0;
 
   function handleClear() {
-    Modal.confirm({
+    confirmDelete({
       title: '清空浏览历史',
       content: '确定清空全部浏览记录吗？',
       okText: '清空',

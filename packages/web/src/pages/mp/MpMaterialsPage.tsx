@@ -22,6 +22,7 @@ import {
   useUploadMpMaterial,
 } from '@/hooks/queries/mp-materials';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 function fmtSize(bytes: number | null): string {
   if (bytes == null) return '—';
@@ -84,9 +85,8 @@ export default function MpMaterialsPage() {
   };
 
   const handleDelete = (record: MpMaterial) => {
-    Modal.confirm({
+    confirmDelete({
       title: `确定要删除素材「${record.name}」吗？`,
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(record.id);
         Toast.success('删除成功');

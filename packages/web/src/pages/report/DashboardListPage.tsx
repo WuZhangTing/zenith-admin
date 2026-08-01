@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Form, Input, Select, SideSheet, Space, Tag, Toast, Modal, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Input, Select, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { FolderTree, Search, Star } from 'lucide-react';
@@ -34,6 +34,7 @@ import { useAllUsers } from '@/hooks/queries/users';
 import { useReportDeprecationList } from '@/hooks/queries/report-assets';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams { keyword: string; status: string; lifecycleStatus: '' | ReportDashboard['lifecycleStatus']; categoryId?: number; favorited: boolean; ownerId?: number; folderId?: number }
 const defaultSearchParams: SearchParams = { keyword: '', status: '', lifecycleStatus: '', favorited: false, ownerId: undefined, folderId: undefined };
@@ -167,7 +168,7 @@ export default function DashboardListPage() {
   }
 
   async function handleCategoryDelete(record: (typeof categories)[number]) {
-    Modal.confirm({
+    confirmDelete({
       title: `确定删除分类「${record.name}」吗？`,
       content: record.dashboardCount
         ? `该分类已被 ${record.dashboardCount} 个仪表盘引用。删除后这些仪表盘的分类将自动置空。`
@@ -229,7 +230,7 @@ export default function DashboardListPage() {
         ...(hasPermission('report:dashboard:update') ? [{ key: 'edit', label: '编辑', onClick: () => openEdit(record) }] : []),
         { key: 'governance', label: '权限与转移', onClick: () => navigate(`/report/governance?resourceType=dashboard&resourceId=${record.id}`) },
         ...(hasPermission('report:dashboard:create') ? [{ key: 'clone', label: '复制', onClick: () => void handleClone(record) }] : []),
-        ...(hasPermission('report:dashboard:delete') ? [{ key: 'delete', label: '删除', danger: true, onClick: () => { Modal.confirm({ title: '确定要删除吗？', content: '删除后不可恢复', onOk: () => handleDelete(record.id) }); } }] : []),
+        ...(hasPermission('report:dashboard:delete') ? [{ key: 'delete', label: '删除', danger: true, onClick: () => { confirmDelete({ content: '删除后不可恢复', onOk: () => handleDelete(record.id) }); } }] : []),
       ],
     }),
   ];

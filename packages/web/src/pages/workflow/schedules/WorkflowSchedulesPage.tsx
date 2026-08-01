@@ -1,13 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import {
-  Form,
-  Modal,
-  Select,
-  Space,
-  Tag,
-  Toast,
-  Tooltip,
-} from '@douyinfe/semi-ui';
+import { Form, Select, Space, Tag, Toast, Tooltip } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { WorkflowSchedule } from '@zenith/shared/workflow';
@@ -30,6 +22,7 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 type ScheduleStatus = WorkflowSchedule['status'];
 
@@ -278,9 +271,8 @@ export default function WorkflowSchedulesPage() {
           danger: true,
           hidden: !canDelete,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该定时发起规则吗？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(record.id),
             });
           },

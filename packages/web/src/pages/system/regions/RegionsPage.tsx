@@ -26,6 +26,7 @@ import { regionKeys, useDeleteRegion, useFlatRegions, useRegionDetail, useRegion
 import { useListSearch } from '@/hooks/useListSearch';
 import { REGION_LEVEL_LABELS } from '@zenith/shared/platform';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const LEVEL_LABELS: Record<string, string> = REGION_LEVEL_LABELS;
 
@@ -285,10 +286,9 @@ export default function RegionsPage() {
           danger: true,
           hidden: !hasPermission('system:region:delete'),
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该地区吗？',
               content: '若有子地区，需先删除子地区',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(record.id),
             });
           },

@@ -63,6 +63,7 @@ import {
   userKeys,
 } from '@/hooks/queries/users';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
   keyword: string;
@@ -201,10 +202,9 @@ export default function UsersPage() {
       return;
     }
 
-    Modal.confirm({
+    confirmDelete({
       title: `确认删除选中的 ${deletableIds.length} 个用户？`,
       content: '删除后无法恢复，请谨慎操作。',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await batchDeleteMutation.mutateAsync(deletableIds);
         Toast.success('批量删除成功');
@@ -558,9 +558,8 @@ export default function UsersPage() {
             disabled: isAdmin,
             disabledReason: 'admin 账号不允许删除',
             onClick: () => {
-              Modal.confirm({
+              confirmDelete({
                 title: '确定要删除该用户吗？',
-                okButtonProps: { type: 'danger', theme: 'solid' },
                 onOk: () => handleDelete(record.id),
               });
             },
@@ -624,10 +623,9 @@ export default function UsersPage() {
             dividerBefore: true,
             hidden: !record.isOnline || !hasPermission('system:session:forceLogout'),
             onClick: () => {
-              Modal.confirm({
+              confirmDanger({
                 title: '强制下线',
                 content: `确定要强制下线用户「${record.nickname}（${record.username}）」的全部会话吗？`,
-                okButtonProps: { type: 'danger', theme: 'solid' },
                 onOk: async () => {
                   await kickUserSessions(record.id);
                   Toast.success('已强制下线');

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
-import { Form, Input, Modal, Select, Spin, Toast, Switch, Tag, Row, Col } from '@douyinfe/semi-ui';
+import { Form, Input, Select, Spin, Toast, Switch, Tag, Row, Col } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search } from 'lucide-react';
@@ -24,6 +24,7 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
   keyword: string;
@@ -187,8 +188,7 @@ export default function PaymentChannelsPage() {
           label: '删除',
           danger: true,
           onClick: () => {
-            Modal.confirm({
-              title: '确定要删除吗？',
+            confirmDelete({
               content: '删除后不可恢复',
               onOk: () => handleDelete(r.id),
             });

@@ -1,18 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Banner,
-  Button,
-  Col,
-  Form,
-  Input,
-  Modal,
-  Radio,
-  Row,
-  Tag,
-  TextArea,
-  Toast,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Banner, Button, Col, Form, Input, Radio, Row, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { CheckCircle, RefreshCw, Search } from 'lucide-react';
@@ -37,6 +24,7 @@ import {
 } from '@/hooks/queries/nginx-sites';
 import { useQueryClient } from '@tanstack/react-query';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const { Text } = Typography;
 
@@ -180,9 +168,7 @@ export default function NginxSitesPage() {
           loading: actionMutation.isPending && actionMutation.variables?.name === record.name,
           hidden: !canManage,
           onClick: () => {
-            Modal.confirm({
-              title: '确定要删除吗？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
+            confirmDelete({
               onOk: () => { void handleAction(record.name, 'delete'); },
             });
           },

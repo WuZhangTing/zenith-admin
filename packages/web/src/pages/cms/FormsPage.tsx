@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Button, Form, Tag, Toast, Modal, ArrayField, Typography, SideSheet } from '@douyinfe/semi-ui';
+import { Button, Form, Tag, Toast, ArrayField, Typography, SideSheet } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Plus, Trash2 } from 'lucide-react';
@@ -18,6 +18,7 @@ import { CMS_FORM_CAPTCHA_PROVIDERS, CMS_FORM_CAPTCHA_PROVIDER_LABELS, CMS_FORM_
 import type { CmsForm, CmsFormSubmission } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const FIELD_TYPE_OPTIONS = CMS_FORM_FIELD_TYPES.map((t) => ({ value: t, label: CMS_FORM_FIELD_TYPE_LABELS[t] }));
 
@@ -49,7 +50,7 @@ function SubmissionsSheet({ form, onClose }: Readonly<{ form: CmsForm | null; on
       actions: (record) => hasPermission('cms:form:manage') && form ? [{
         key: 'delete', label: '删除', danger: true,
         onClick: () => {
-          Modal.confirm({
+          confirmDelete({
             title: '确定要删除该提交记录吗？',
             onOk: async () => {
               await deleteMutation.mutateAsync({ formId: form.id, ids: [record.id] });
@@ -160,7 +161,7 @@ export default function FormsPage() {
           {
             key: 'delete', label: '删除', danger: true,
             onClick: () => {
-              Modal.confirm({
+              confirmDelete({
                 title: '确定要删除该表单吗？',
                 content: '表单的全部提交数据将一并删除',
                 onOk: async () => {

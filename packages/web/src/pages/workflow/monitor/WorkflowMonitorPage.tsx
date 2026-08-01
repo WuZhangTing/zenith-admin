@@ -63,6 +63,7 @@ import {
 } from '@/hooks/queries/workflow-monitor';
 import { useAllUsers } from '@/hooks/queries/users';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 /** 只读流程设计器（懒加载）：用于在诊断 SideSheet 内查看发起时的流程定义快照 */
 const WorkflowDesignerPage = lazy(() => import('@/pages/workflow/designer/WorkflowDesignerPage'));
@@ -531,7 +532,7 @@ export default function WorkflowMonitorPage() {
   };
 
   const handleCancel = (record: WorkflowInstance) => {
-    Modal.confirm({
+    confirmDanger({
       title: '取消流程',
       content: `确定要强制取消流程「${record.title}」吗？取消后流程将立即终止，待办任务会被跳过，此操作不可恢复。`,
       okText: '确定取消',
@@ -595,11 +596,10 @@ export default function WorkflowMonitorPage() {
   };
 
   const handleDelete = (record: WorkflowInstance) => {
-    Modal.confirm({
+    confirmDelete({
       title: '删除流程',
       content: `确定要删除流程「${record.title}」吗？删除后该流程及其审批记录将被永久移除，此操作不可恢复。`,
       okText: '确定删除',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       cancelText: '取消',
       onOk: async () => {
         await stateMutation.mutateAsync({ url: `/api/workflows/instances/${record.id}`, method: 'delete' });

@@ -42,6 +42,7 @@ import {
 import { useAllUsers } from '@/hooks/queries/users';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
   keyword: string;
@@ -164,10 +165,9 @@ export default function PositionsPage() {
   };
 
   const handleBatchDelete = () => {
-    Modal.confirm({
+    confirmDelete({
       title: `确认删除选中的 ${selectedRowKeys.length} 个岗位？`,
       content: '删除后无法恢复，请确认操作',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(selectedRowKeys);
         Toast.success('删除成功');
@@ -239,9 +239,8 @@ export default function PositionsPage() {
           danger: true,
           hidden: !hasPermission('system:position:delete'),
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该岗位吗？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(record.id),
             });
           },

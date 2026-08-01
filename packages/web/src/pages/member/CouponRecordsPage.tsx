@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Descriptions, Input, InputNumber, Select, Toast, Tag, Modal } from '@douyinfe/semi-ui';
+import { Button, Descriptions, Input, InputNumber, Select, Toast, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search, ScanLine } from 'lucide-react';
 import type { MemberCoupon, MemberCouponStatus } from '@zenith/shared/member';
@@ -14,6 +14,7 @@ import { renderEllipsis } from '../../utils/table-columns';
 import { memberAdminKeys, useCouponByCode, useCouponRecordList, useRedeemCoupon, useRevokeCouponRecord } from '@/hooks/queries/member-admin';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDanger } from '@/utils/confirm';
 
 const statusOptions = (Object.keys(MEMBER_COUPON_STATUS_LABELS) as MemberCouponStatus[]).map((v) => ({ value: v, label: MEMBER_COUPON_STATUS_LABELS[v] }));
 const STATUS_COLORS: Record<string, string> = { unused: 'blue', used: 'green', expired: 'grey', frozen: 'orange' };
@@ -52,9 +53,8 @@ export default function CouponRecordsPage() {
   };
 
   const confirmRevoke = (record: MemberCoupon) => {
-    Modal.confirm({
+    confirmDanger({
       title: '确定要作废该券码吗？',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: () => handleRevoke(record.id),
     });
   };

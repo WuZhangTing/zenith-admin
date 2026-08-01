@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Form, Tag, Toast, Modal } from '@douyinfe/semi-ui';
+import { Form, Tag, Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { CheckinMilestone, CheckinMilestoneRewardType } from '@zenith/shared/member';
@@ -19,6 +19,7 @@ import {
   useSaveCheckinMilestone,
 } from '@/hooks/queries/member-admin';
 import { CreateButton, RefreshButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface CouponOption {
   value: number;
@@ -64,10 +65,9 @@ export default function CheckinMilestonesPage() {
   };
 
   const handleDelete = (record: CheckinMilestone) => {
-    Modal.confirm({
+    confirmDelete({
       title: `确认删除里程碑「${record.title}」？`,
       content: '删除后该累计天数的奖励配置将失效。',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(record.id);
         Toast.success('删除成功');

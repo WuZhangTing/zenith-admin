@@ -32,6 +32,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import { menuKeys, useDeleteMenu, useMenuDetail, useMenuTree, useSaveMenu } from '@/hooks/queries/menus';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 export default function MenusPage() {
   const { hasPermission } = usePermission();
@@ -359,10 +360,9 @@ export default function MenusPage() {
           danger: true,
           hidden: !hasPermission('system:menu:delete'),
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确认删除此菜单？',
               content: '子菜单也将一并删除',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(row.id),
             });
           },

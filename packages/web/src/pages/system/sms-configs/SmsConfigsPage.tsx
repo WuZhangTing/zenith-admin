@@ -32,6 +32,7 @@ import {
   useSmsConfigList,
 } from '@/hooks/queries/sms-configs';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 export default function SmsConfigsPage() {
   const { hasPermission: can } = usePermission();
@@ -91,9 +92,8 @@ export default function SmsConfigsPage() {
   };
 
   const handleDelete = (id: number) => {
-    Modal.confirm({
+    confirmDelete({
       title: '确定要删除该短信配置吗？',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(id);
         Toast.success('删除成功');

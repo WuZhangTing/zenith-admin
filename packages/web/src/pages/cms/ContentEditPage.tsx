@@ -12,6 +12,7 @@ import { useUploadFile } from '@/hooks/queries/files';
 import { config as appConfig } from '@/config';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
+import { confirmDanger } from '@/utils/confirm';
 import {
   useCmsContentDetail, useCmsChannelTree, useAllCmsModels, useAllCmsTags,
   useSaveCmsContent, useCmsContentAction, useCmsContentVersions, useRestoreCmsContentVersion,
@@ -1065,7 +1066,7 @@ export default function ContentEditPage() {
                     theme="borderless"
                     loading={restoreMutation.isPending}
                     onClick={() => {
-                      Modal.confirm({
+                      confirmDanger({
                         title: `回滚到 v${v.version}？`,
                         content: '当前内容将自动留档后被该版本覆盖',
                         onOk: async () => {

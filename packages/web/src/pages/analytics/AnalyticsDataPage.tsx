@@ -1,27 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  Tabs,
-  TabPane,
-  Input,
-  Select,
-  Button,
-  Toast,
-  Modal,
-  Form,
-  Switch,
-  Slider,
-  InputNumber,
-  TagInput,
-  Tag,
-  Typography,
-  SplitButtonGroup,
-  Dropdown,
-  DatePicker,
-  SideSheet,
-  Descriptions,
-  Card,
-} from '@douyinfe/semi-ui';
+import { Tabs, TabPane, Input, Select, Button, Toast, Form, Switch, Slider, InputNumber, TagInput, Tag, Typography, SplitButtonGroup, Dropdown, DatePicker, SideSheet, Descriptions, Card } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
@@ -54,6 +33,7 @@ import AnalyticsDebugTab from './AnalyticsDebugTab';
 import AnalyticsSegmentsTab from './AnalyticsSegmentsTab';
 import AnalyticsSitesTab from './AnalyticsSitesTab';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 const PAGE_SIZE = 20;
 
@@ -334,11 +314,10 @@ export default function AnalyticsDataPage() {
 
   const handleClean = (days: number) => {
     const option = CLEAN_DAY_OPTIONS.find((item) => item.value === days);
-    Modal.confirm({
+    confirmDanger({
       title: `确认清除${days === 0 ? '全部' : `${option?.label ?? `${days} 天`}前的`}埋点数据？`,
       content: '清除后数据不可恢复，请谨慎操作。',
       okText: '确认清除',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       closeOnEsc: true,
       onOk: async () => {
         await cleanMutation.mutateAsync(days);
@@ -576,7 +555,7 @@ export default function AnalyticsDataPage() {
           label: '删除',
           danger: true,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: `确定删除事件「${record.eventName}」吗？`,
               okButtonProps: { type: 'danger' },
               onOk: () => handleMetaDelete(record),

@@ -30,6 +30,7 @@ import {
   useSmsTemplateList,
 } from '@/hooks/queries/sms-templates';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 export default function SmsTemplatesPage() {
   const { hasPermission: can } = usePermission();
@@ -81,9 +82,8 @@ export default function SmsTemplatesPage() {
   };
 
   const handleDelete = (id: number) => {
-    Modal.confirm({
+    confirmDelete({
       title: '确定要删除该短信模板吗？',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(id);
         Toast.success('删除成功');

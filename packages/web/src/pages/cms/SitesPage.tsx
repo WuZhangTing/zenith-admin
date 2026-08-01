@@ -38,6 +38,7 @@ import {
 } from '@/hooks/queries/cms-widgets';
 import type { CmsWidgetRendererKey } from '@zenith/shared/cms';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
   keyword: string;
@@ -801,7 +802,7 @@ export default function SitesPage() {
           label: '删除',
           danger: true,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该站点吗？',
               content: '需先清空站点下的栏目与内容',
               onOk: () => handleDelete(record.id),
@@ -1570,10 +1571,9 @@ export default function SitesPage() {
                 key: 'delete',
                 label: '删除',
                 danger: true,
-                onClick: () => { Modal.confirm({
+                onClick: () => { confirmDelete({
                   title: `删除对「${record.clientId}」的授权？`,
                   content: '删除后该应用将无法再写入本站点。',
-                  okButtonProps: { type: 'danger', theme: 'solid' },
                   onOk: async () => {
                     await deleteGrantMutation.mutateAsync(record.id);
                     Toast.success('已删除');

@@ -22,6 +22,7 @@ import {
   type RecordingEvent,
 } from '@/hooks/queries/terminal';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
   keyword: string;
@@ -170,10 +171,9 @@ export default function TerminalRecordingsPage() {
 
   const handleClear = (months: number) => {
     const label = months === 0 ? '全部录屏' : `${clearLabels[months]}前的录屏`;
-    Modal.confirm({
+    confirmDanger({
       title: `确认清除${label}？`,
       content: `此操作将永久删除${label}，不可恢复。`,
-      okType: 'danger',
       okText: '确认清除',
       cancelText: '取消',
       onOk: async () => {
@@ -268,9 +268,8 @@ export default function TerminalRecordingsPage() {
           label: '删除',
           danger: true,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定删除这条录屏吗？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => { void handleDelete(record.id); },
             });
           },

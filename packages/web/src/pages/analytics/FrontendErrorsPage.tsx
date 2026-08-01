@@ -69,6 +69,7 @@ import {
   useUpdateFrontendErrorGroup,
 } from '@/hooks/queries/analytics';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const { Text, Title, Paragraph } = Typography;
 
@@ -460,10 +461,9 @@ export default function FrontendErrorsPage() {
 
   const batchDeleteGroups = useCallback(() => {
     if (selectedRowKeys.length === 0) return;
-    Modal.confirm({
+    confirmDelete({
       title: `确认删除选中的 ${selectedRowKeys.length} 个错误 Issue？`,
       content: '删除后无法恢复，请确认操作。',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await batchDeleteMutation.mutateAsync(selectedRowKeys);
         Toast.success('删除成功');
@@ -734,9 +734,8 @@ export default function FrontendErrorsPage() {
           label: '删除',
           danger: true,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定删除该 Source Map？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => deleteSourceMap(record.id),
             });
           },
@@ -793,9 +792,8 @@ export default function FrontendErrorsPage() {
           label: '删除',
           danger: true,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定删除该告警规则？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => deleteAlert(record.id),
             });
           },

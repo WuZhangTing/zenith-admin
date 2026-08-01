@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, Modal, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Input, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Copy, Search } from 'lucide-react';
@@ -23,6 +23,7 @@ import {
   useSaveChatBot,
 } from '@/hooks/queries/chat-bots';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 const { Text } = Typography;
 
@@ -273,7 +274,7 @@ export default function ChatBotsPage() {
           label: '重置令牌',
           hidden: !hasPermission('chat:bot:update'),
           onClick: () => {
-            Modal.confirm({
+            confirmDanger({
               title: '重置后旧地址立即失效，确认重置？',
               onOk: () => { void handleRegenerate(row); },
             });
@@ -285,9 +286,8 @@ export default function ChatBotsPage() {
           danger: true,
           hidden: !hasPermission('chat:bot:delete'),
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定删除该机器人？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => { void handleDelete(row.id); },
             });
           },

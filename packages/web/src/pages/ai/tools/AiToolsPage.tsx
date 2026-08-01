@@ -15,6 +15,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { useAiHttpTools, useSaveAiHttpTool, useDeleteAiHttpTool } from '@/hooks/queries/ai-tools';
 import type { AiHttpTool, AiHttpToolParam, CreateAiHttpToolInput } from '@zenith/shared/ai';
 import { CreateButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const { Text } = Typography;
 
@@ -111,10 +112,9 @@ export default function AiToolsPage() {
           label: '删除',
           danger: true,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该工具吗？',
               content: '已勾选此工具的智能体将无法再调用',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: async () => {
                 await deleteMutation.mutateAsync(record.id).then(() => Toast.success('已删除')).catch(() => {});
               },

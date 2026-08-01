@@ -1,25 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppModal } from '@/components/AppModal';
-import {
-  Button,
-  Checkbox,
-  DatePicker,
-  Descriptions,
-  Input,
-  List,
-  Modal,
-  Pagination,
-  Progress,
-  Select,
-  Space,
-  Spin,
-  Tabs,
-  TabPane,
-  Toast,
-  Tooltip,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Button, Checkbox, DatePicker, Descriptions, Input, List, Pagination, Progress, Select, Space, Spin, Tabs, TabPane, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { Plus, Search, Trash2, FolderDown, LayoutGrid, List as ListIcon, CheckCircle2, XCircle, X } from 'lucide-react';
 import type { ManagedFile } from '@zenith/shared/platform';
 import { TOKEN_KEY } from '@zenith/shared/core';
@@ -47,6 +29,7 @@ import { useDefaultFileStorageConfig } from '@/hooks/queries/file-storage-config
 import { fileKeys, useBatchDeleteFiles, useDeleteFile, useFileDetail, useFileList, useUploadFile } from '@/hooks/queries/files';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 import './FilesPage.css';
 
 const { Text } = Typography;
@@ -266,10 +249,9 @@ export default function FilesPage() {
   };
 
   const handleBatchDelete = () => {
-    Modal.confirm({
+    confirmDelete({
       title: `确认删除选中的 ${selectedRowKeys.length} 个文件？`,
       content: '删除后将同步尝试删除实际存储对象，无法恢复。',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await batchDeleteMutation.mutateAsync(selectedRowKeys);
         Toast.success('批量删除成功');

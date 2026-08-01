@@ -23,6 +23,7 @@ import { useAiChatModels } from '@/hooks/queries/ai-providers';
 import { useAuth } from '@/hooks/useAuth';
 import type { AiEvalSet, AiEvalRun, AiEvalItem } from '@zenith/shared/ai';
 import { CreateButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const { Text, Paragraph } = Typography;
 
@@ -116,10 +117,9 @@ export default function AiEvalPage() {
           danger: true,
           hidden: !canManage,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该评测集吗？',
               content: '将级联删除全部运行记录',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: async () => {
                 await deleteMutation.mutateAsync(record.id).then(() => Toast.success('已删除')).catch(() => {});
               },
@@ -169,9 +169,8 @@ export default function AiEvalPage() {
           danger: true,
           hidden: !canManage,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该运行记录吗？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: async () => {
                 await deleteRunMutation.mutateAsync(record.id).then(() => Toast.success('已删除')).catch(() => {});
               },

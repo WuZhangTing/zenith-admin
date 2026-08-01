@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Modal, Space, Tag, Toast } from '@douyinfe/semi-ui';
+import { Space, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { LayoutTemplate } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -11,6 +11,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { renderEllipsis } from '@/utils/table-columns';
+import { confirmDelete } from '@/utils/confirm';
 import WorkflowTemplateFormModal, { type WorkflowTemplateFormValues } from '../components/WorkflowTemplateFormModal';
 import {
   useCloneWorkflowTemplate,
@@ -178,9 +179,8 @@ export default function WorkflowTemplatesPage() {
           disabled: record.builtin,
           disabledReason: '系统内置模板不可删除',
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该模板吗？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(record.id),
             });
           },

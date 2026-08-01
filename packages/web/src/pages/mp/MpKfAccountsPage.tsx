@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Avatar, Button, Form, Input, Modal, Space, Spin, Tag, Toast, Banner } from '@douyinfe/semi-ui';
+import { Avatar, Button, Form, Input, Space, Spin, Tag, Toast, Banner } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Search, RefreshCw } from 'lucide-react';
 import type { MpKfAccount } from '@zenith/shared/mp';
@@ -21,6 +21,7 @@ import {
   useSyncMpKfAccounts,
 } from '@/hooks/queries/mp-kf';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const INVITE_LABEL: Record<string, { label: string; color: 'green' | 'orange' | 'grey' }> = {
   none: { label: '未邀请', color: 'grey' },
@@ -81,10 +82,9 @@ export default function MpKfAccountsPage() {
   };
 
   const handleDelete = (record: MpKfAccount) => {
-    Modal.confirm({
+    confirmDelete({
       title: `确定删除客服「${record.nickname}」吗？`,
       content: '将同时删除微信侧客服账号。',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(record.id);
         Toast.success('删除成功');

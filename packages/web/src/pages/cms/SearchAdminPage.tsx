@@ -26,6 +26,7 @@ import type { CmsSearchResult, CmsSearchWord, CmsHotKeyword } from '@zenith/shar
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { formatDateTimeForApi } from '@/utils/date';
 import { CreateButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 // ─── 检索测试 Tab ─────────────────────────────────────────────────────────────
 function SearchTestTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined; onSiteChange: (v: number) => void }>) {
@@ -197,7 +198,7 @@ function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined
         <span style={{ display: 'flex', gap: 4 }}>
           <Button theme="borderless" size="small" onClick={() => { setEditingRecord(record); setModalVisible(true); }}>编辑</Button>
           <Button theme="borderless" type="danger" size="small" onClick={() => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该词条吗？',
               content: '词典会即时重建；历史内容索引仍建议重新构建',
               onOk: async () => {
@@ -406,7 +407,7 @@ function HotKeywordsTab({ siteId, onSiteChange }: Readonly<{ siteId: number | un
         ) : null}
         {canManage && groupId ? (
           <Button type="danger" onClick={() => {
-            Modal.confirm({
+            confirmDelete({
               title: '删除当前热词分组？',
               content: '仅空分组可删除。',
               onOk: async () => {
@@ -419,7 +420,7 @@ function HotKeywordsTab({ siteId, onSiteChange }: Readonly<{ siteId: number | un
         ) : null}
         {canManage && siteId ? (
           <Button type="danger" icon={<Trash2 size={14} />} onClick={() => {
-            Modal.confirm({
+            confirmDelete({
               title: '清空当前站点的搜索热词？',
               onOk: async () => {
                 await clearMutation.mutateAsync(siteId);

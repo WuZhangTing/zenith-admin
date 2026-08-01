@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, Tag, Toast, Modal, ArrayField, Row, Col, Typography, useFormApi } from '@douyinfe/semi-ui';
+import { Button, Form, Input, Tag, Toast, ArrayField, Row, Col, Typography, useFormApi } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, Plus, Trash2 } from 'lucide-react';
@@ -16,6 +16,7 @@ import { useDictList } from '@/hooks/queries/dicts';
 import { CMS_FIELD_OPTION_SOURCE_LABELS, CMS_FIELD_OPTION_SOURCES, CMS_FIELD_TYPES, CMS_FIELD_TYPES_WITH_OPTIONS, CMS_FIELD_TYPE_LABELS } from '@zenith/shared/cms';
 import type { CmsModel } from '@zenith/shared/cms';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const FIELD_TYPE_OPTIONS = CMS_FIELD_TYPES.map((t) => ({ value: t, label: CMS_FIELD_TYPE_LABELS[t] }));
 const OPTION_SOURCE_OPTIONS = CMS_FIELD_OPTION_SOURCES.map((s) => ({ value: s, label: CMS_FIELD_OPTION_SOURCE_LABELS[s] }));
@@ -187,7 +188,7 @@ export default function ModelsPage() {
           label: '删除',
           danger: true,
           onClick: () => {
-            Modal.confirm({ title: '确定要删除该模型吗？', content: '被栏目或内容引用时不可删除', onOk: () => handleDelete(record.id) });
+            confirmDelete({ title: '确定要删除该模型吗？', content: '被栏目或内容引用时不可删除', onOk: () => handleDelete(record.id) });
           },
         }] : []),
       ],

@@ -32,6 +32,7 @@ import {
   useUpdateAsyncTaskTypeConfig,
 } from '@/hooks/queries/async-tasks';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 type TabKey = 'tasks' | 'types';
 
@@ -210,10 +211,9 @@ export default function TaskCenterPage() {
   };
 
   const handleDelete = (record: AsyncTask) => {
-    Modal.confirm({
+    confirmDelete({
       title: '删除任务记录',
       content: `将删除任务 #${record.id}「${record.title}」的记录（含任务项明细），不可恢复。`,
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(record.id);
         Toast.success('已删除');
@@ -237,10 +237,9 @@ export default function TaskCenterPage() {
 
   const handleBatchDelete = () => {
     if (selectedRowKeys.length === 0) return;
-    Modal.confirm({
+    confirmDelete({
       title: '批量删除任务记录',
       content: `将删除选中任务中已结束的记录（进行中的自动跳过），不可恢复。`,
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         const data = await batchDeleteMutation.mutateAsync(selectedRowKeys);
         Toast.success(`已删除 ${data.affected} 个任务记录`);
@@ -250,7 +249,7 @@ export default function TaskCenterPage() {
   };
 
   const handleCleanup = () => {
-    Modal.confirm({
+    confirmDelete({
       title: '清理已结束任务',
       content: '将按保留策略删除过期的已结束任务记录（默认 30 天，任务类型可单独配置）。',
       onOk: async () => {

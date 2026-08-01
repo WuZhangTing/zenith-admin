@@ -1,18 +1,5 @@
 import { useState, useRef } from 'react';
-import {
-  Col,
-  Form,
-  Input,
-  Modal,
-  Row,
-  Select,
-  Spin,
-  Tag,
-  Toast,
-  Switch,
-  Typography,
-  Banner,
-} from '@douyinfe/semi-ui';
+import { Col, Form, Input, Row, Select, Spin, Tag, Toast, Switch, Typography, Banner } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Search } from 'lucide-react';
 import type { MpAccount, MpAccountType } from '@zenith/shared/mp';
@@ -35,6 +22,7 @@ import {
   useTestMpAccount,
 } from '@/hooks/queries/mp-accounts';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const TYPE_OPTIONS = [
   { label: '订阅号', value: 'subscribe' },
@@ -126,9 +114,8 @@ export default function MpAccountsPage() {
   };
 
   const handleDelete = (record: MpAccount) => {
-    Modal.confirm({
+    confirmDelete({
       title: `确定要删除公众号「${record.name}」吗？`,
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(record.id);
         Toast.success('删除成功');

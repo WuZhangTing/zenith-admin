@@ -26,6 +26,7 @@ import type { CmsResource, CmsResourceFolder, CmsResourceReference, CmsResourceO
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { formatDateTimeForApi } from '@/utils/date';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const TYPE_COLORS: Record<CmsResourceType, 'blue' | 'purple' | 'cyan' | 'orange' | 'grey'> = {
   image: 'blue', video: 'purple', audio: 'cyan', document: 'orange', other: 'grey',
@@ -346,10 +347,9 @@ export default function ResourcesPage() {
   }
 
   function handleDelete(ids: number[]) {
-    Modal.confirm({
+    confirmDelete({
       title: `删除 ${ids.length} 个素材？`,
       content: '存在站内引用的素材会被拒绝删除；删除会同步移除底层文件，不可恢复。',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(ids);
         setSelectedIds([]);
@@ -450,7 +450,7 @@ export default function ResourcesPage() {
                               type="danger"
                               icon={<FolderX size={14} />}
                               onClick={() => {
-                                Modal.confirm({
+                                confirmDelete({
                                   title: `删除文件夹「${selectedFolder.name}」？`,
                                   content: '仅空文件夹可删除。',
                                   onOk: async () => {
@@ -542,7 +542,7 @@ export default function ResourcesPage() {
                 <>
                   <Button icon={<ShieldCheck size={14} />} onClick={() => void submitGovernance('scan', true)}>孤立扫描</Button>
                   <Button type="danger" onClick={() => {
-                    Modal.confirm({
+                    confirmDelete({
                       title: '清理全部孤立素材？',
                       content: '任务会逐项复核完整引用后删除底层文件，支持取消与明细报告。',
                       onOk: () => submitGovernance('cleanup', false),

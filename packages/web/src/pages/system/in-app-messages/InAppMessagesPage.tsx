@@ -23,6 +23,7 @@ import {
 } from '@/hooks/queries/in-app-messages';
 import { IN_APP_MESSAGE_TYPE_OPTIONS_WITH_COLOR as TYPE_OPTIONS } from '../in-app-message-constants';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const READ_OPTIONS = [
   { label: '未读', value: 'false' },
@@ -112,9 +113,8 @@ export default function InAppMessagesPage() {
   };
 
   const handleDelete = (id: number) => {
-    Modal.confirm({
+    confirmDelete({
       title: '确定要删除该消息吗？',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(id);
         Toast.success('删除成功');

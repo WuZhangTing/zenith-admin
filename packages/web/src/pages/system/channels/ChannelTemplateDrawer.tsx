@@ -9,7 +9,7 @@
  *   - news：extra.card = { title, cover, text(摘要), actions:[{ url }] }
  */
 import { useState } from 'react';
-import { Form, Modal, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Form, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { CHANNEL_MESSAGE_TYPE_LABELS as TYPE_LABELS } from '@zenith/shared/messaging';
 import type { ChatCard, ChatMessageExtra } from '@zenith/shared/chat';
@@ -25,6 +25,7 @@ import {
   useSaveChannelTemplate,
 } from '@/hooks/queries/channels';
 import { CreateButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface Props {
   visible: boolean;
@@ -148,9 +149,8 @@ export function ChannelTemplateDrawer({ visible, onClose, onChanged }: Readonly<
           label: '删除',
           danger: true,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定删除该模板？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => { void handleDelete(record); },
             });
           },

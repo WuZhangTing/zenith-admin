@@ -24,6 +24,7 @@ import {
 } from '@/hooks/queries/rules';
 import { PUBLISHABLE_STATUS_META as STATUS } from '@/lib/publishable-status';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const { Text } = Typography;
 
@@ -99,7 +100,7 @@ export default function RuleFlowsPage() {
     okButtonProps: r.status === 'disabled' ? undefined : { type: 'danger' },
     onOk: async () => { await toggleMutation.mutateAsync({ id: r.id, enabled: r.status === 'disabled' }); Toast.success('操作成功'); },
   }); };
-  const handleDelete = (r: RuleDecisionFlow) => { Modal.confirm({
+  const handleDelete = (r: RuleDecisionFlow) => { confirmDelete({
     title: '确定删除？', content: '删除后不可恢复', okButtonProps: { type: 'danger' },
     onOk: async () => { await deleteMutation.mutateAsync(r.id); Toast.success('删除成功'); },
   }); };

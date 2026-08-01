@@ -3,7 +3,7 @@
  */
 import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, InputNumber, Input, Modal, Select, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, InputNumber, Input, Select, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, Search, Trash2 } from 'lucide-react';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
@@ -28,6 +28,7 @@ import { useInAppTemplateList } from '@/hooks/queries/in-app-templates';
 import type { AnalyticsSegmentAttributeCondition, AnalyticsSegmentCompareOp, AnalyticsSegmentCondition, AnalyticsSegmentEventCondition, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSegmentPropertyFilter, AnalyticsUserSegment } from '@zenith/shared/analytics';
 import { ANALYTICS_EVENT_OVERRIDE_STATUS_OPTIONS, ANALYTICS_CAMPAIGN_CHANNEL_OPTIONS, ANALYTICS_CAMPAIGN_STATUS_LABELS, ANALYTICS_IDENTITY_TYPE_OPTIONS, ANALYTICS_SEGMENT_COMPARE_OP_OPTIONS } from '@zenith/shared/analytics';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const PAGE_SIZE = 20;
 const MAX_CONDITIONS = 10;
@@ -169,7 +170,7 @@ function CampaignDrawer({ segment, onClose }: { segment: AnalyticsUserSegment; o
       desktopInlineKeys: ['execute'],
       actions: (record) => [
         { key: 'execute', label: '执行', loading: executeCampaign.isPending, disabledReason: record.status === 'running' ? '执行中' : undefined, onClick: async () => { await executeCampaign.mutateAsync(record.id); Toast.success('触达任务已提交'); } },
-        { key: 'delete', label: '删除', danger: true, disabledReason: record.status === 'running' ? '执行中不可删' : undefined, onClick: () => { Modal.confirm({ title: `确定删除触达「${record.name}」吗？`, okButtonProps: { type: 'danger' }, onOk: () => deleteCampaign.mutateAsync(record.id) }); } },
+        { key: 'delete', label: '删除', danger: true, disabledReason: record.status === 'running' ? '执行中不可删' : undefined, onClick: () => { confirmDelete({ title: `确定删除触达「${record.name}」吗？`, okButtonProps: { type: 'danger' }, onOk: () => deleteCampaign.mutateAsync(record.id) }); } },
       ],
     }),
   ];
@@ -356,7 +357,7 @@ export default function AnalyticsSegmentsTab() {
           label: '删除',
           danger: true,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: `确定删除分群「${record.name}」吗？`,
               okButtonProps: { type: 'danger' },
               onOk: () => handleDelete(record),

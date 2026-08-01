@@ -41,6 +41,7 @@ import {
 import { WORKFLOW_DIFF_KIND_META as DIFF_KIND_META } from '../constants';
 import { PUBLISHABLE_STATUS_META as STATUS_MAP } from '@/lib/publishable-status';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'indigo' | 'light-blue' | 'light-green' | 'lime' | 'orange' | 'pink' | 'purple' | 'red' | 'teal' | 'violet' | 'yellow' | 'white';
 
@@ -195,10 +196,9 @@ export default function WorkflowDefinitionsPage() {
 
   const batchDelete = () => {
     if (selectedRowKeys.length === 0) return;
-    Modal.confirm({
+    confirmDelete({
       title: `确定删除选中的 ${selectedRowKeys.length} 个流程？`,
       content: '仅「非已发布」且无发起实例的流程会被删除，删除后无法恢复。',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await batchDeleteMutation.mutateAsync(selectedRowKeys);
         Toast.success('删除成功');
@@ -417,9 +417,8 @@ export default function WorkflowDefinitionsPage() {
             hidden: record.status === 'published' || !hasPermission('workflow:definition:delete'),
             dividerBefore: true,
             onClick: () => {
-              Modal.confirm({
+              confirmDelete({
                 title: '确定要删除该流程吗？',
-                okButtonProps: { type: 'danger', theme: 'solid' },
                 onOk: () => handleDelete(record.id),
               });
             },

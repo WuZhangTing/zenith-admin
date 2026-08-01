@@ -29,6 +29,7 @@ import { flattenReportFolders, useReportFolderTree } from '@/hooks/queries/repor
 import { useAllUsers } from '@/hooks/queries/users';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams { keyword: string; type: string; status: string; ownerId?: number; folderId?: number }
 const defaultSearchParams: SearchParams = { keyword: '', type: '', status: '', ownerId: undefined, folderId: undefined };
@@ -269,7 +270,7 @@ export default function DataSourcesPage() {
         ...(hasPermission('report:datasource:create') ? [{ key: 'clone', label: '复制', onClick: () => void handleClone(record) }] : []),
         ...(hasPermission('report:datasource:delete') ? [{
           key: 'delete', label: '删除', danger: true,
-          onClick: () => { Modal.confirm({ title: '确定要删除吗？', content: '删除后不可恢复；若被数据集引用将无法删除。', onOk: () => handleDelete(record.id) }); },
+          onClick: () => { confirmDelete({ content: '删除后不可恢复；若被数据集引用将无法删除。', onOk: () => handleDelete(record.id) }); },
         }] : []),
       ],
     }),

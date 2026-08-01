@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Tree, Button, Upload, Toast, Typography, Tooltip, Dropdown, Modal, Input, Collapse, Progress } from '@douyinfe/semi-ui';
+import { Tree, Button, Upload, Toast, Typography, Tooltip, Dropdown, Input, Collapse, Progress } from '@douyinfe/semi-ui';
 import { Icon } from '@iconify/react';
 import {
   Upload as UploadIcon,
@@ -23,6 +23,7 @@ import { config } from '@/config';
 import { useTerminalPreferences } from './useTerminalPreferences';
 import { getFileIcon, getFolderIcon } from '@/utils/fileIcons';
 import AppModal from '@/components/AppModal';
+import { confirmDelete as confirmDeleteModal } from '@/utils/confirm';
 import {
   fetchLocalDir,
   rootInfoQueryOptions,
@@ -387,10 +388,9 @@ export default function FileExplorer({ active, onOpenFile, onOpenTerminalAt }: F
   };
 
   const confirmDelete = (node: FileNode) => {
-    Modal.confirm({
+    confirmDeleteModal({
       title: `删除${node.fileType === 'dir' ? '目录' : '文件'}`,
       content: `确定删除「${node.label}」吗？${node.fileType === 'dir' ? '目录及其全部内容将被永久删除，' : ''}此操作不可恢复。`,
-      okType: 'danger',
       okText: '删除',
       cancelText: '取消',
       onOk: async () => {
@@ -404,10 +404,9 @@ export default function FileExplorer({ active, onOpenFile, onOpenTerminalAt }: F
 
   const handleBatchDelete = () => {
     if (!checkedKeys.length) return;
-    Modal.confirm({
+    confirmDeleteModal({
       title: `批量删除 ${checkedKeys.length} 项`,
       content: '选中的文件/目录将被永久删除，此操作不可恢复。',
-      okType: 'danger',
       okText: '确认删除',
       cancelText: '取消',
       onOk: async () => {

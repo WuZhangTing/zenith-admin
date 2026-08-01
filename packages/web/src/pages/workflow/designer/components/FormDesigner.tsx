@@ -14,6 +14,7 @@ import FormCanvas from './FormCanvas';
 import FormOutline from './FormOutline';
 import FieldConfigPanel from './FieldConfigPanel';
 import './FormDesigner.css';
+import { confirmDelete } from '@/utils/confirm';
 
 interface FormDesignerProps {
   fields: WorkflowFormField[];
@@ -427,7 +428,7 @@ export default function FormDesigner({ fields, onChange, settings, onSettingsCha
     };
     const deps = findFieldDependents(fields, key);
     if (deps.length === 0) { doRemove(); return; }
-    Modal.confirm({
+    confirmDelete({
       title: `删除字段「${target?.label ?? key}」`,
       content: (
         <div>
@@ -639,7 +640,7 @@ export default function FormDesigner({ fields, onChange, settings, onSettingsCha
       commit(next, undefined, `批量删除 ${selectedKeys.length} 个字段`);
       setSelectedKeys([]);
     };
-    Modal.confirm({
+    confirmDelete({
       title: `删除选中的 ${selectedKeys.length} 个字段？`,
       content: outsideDeps.size > 0
         ? `以下字段依赖被删字段，相关引用将被自动清理：${Array.from(outsideDeps.values()).join('、')}`

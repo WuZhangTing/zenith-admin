@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Button, Input, Tag, Modal, Form, Toast, Typography, Select, Row, Col } from '@douyinfe/semi-ui';
+import { Button, Input, Tag, Form, Toast, Typography, Select, Row, Col } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search, Trash2 } from 'lucide-react';
@@ -21,6 +21,7 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const { Text } = Typography;
 
@@ -108,10 +109,9 @@ export default function ApiScopesPage() {
   }
 
   function handleBatchDelete() {
-    Modal.confirm({
+    confirmDelete({
       title: `确定删除选中的 ${selectedRowKeys.length} 个 Scope？`,
       content: '删除后不可恢复',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await batchDeleteMutation.mutateAsync(selectedRowKeys);
         Toast.success('批量删除成功');
@@ -149,10 +149,9 @@ export default function ApiScopesPage() {
           danger: true,
           hidden: !canManage,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除此 Scope 吗？',
               content: '删除后不可恢复',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(record.id),
             });
           },

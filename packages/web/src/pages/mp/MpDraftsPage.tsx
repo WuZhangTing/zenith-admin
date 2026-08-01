@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Input, Modal, Space, Spin, Tag, Toast, Banner, Typography, TextArea } from '@douyinfe/semi-ui';
+import { Button, Input, Space, Spin, Tag, Toast, Banner, Typography, TextArea } from '@douyinfe/semi-ui';
 import { Plus, Search, Trash2 } from 'lucide-react';
 import type { MpDraft, MpArticle } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
@@ -21,6 +21,7 @@ import {
   useSaveMpDraft,
 } from '@/hooks/queries/mp-drafts';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const blankArticle = (): MpArticle => ({ title: '', author: '', digest: '', content: '', thumbUrl: '', showCoverPic: true });
 
@@ -86,9 +87,8 @@ export default function MpDraftsPage() {
   };
 
   const handleDelete = (record: MpDraft) => {
-    Modal.confirm({
+    confirmDelete({
       title: `确定删除图文「${record.title}」吗？`,
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(record.id);
         Toast.success('删除成功');

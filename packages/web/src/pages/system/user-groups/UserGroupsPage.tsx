@@ -46,6 +46,7 @@ import { useAllRoles } from '@/hooks/queries/roles';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
   keyword: string;
@@ -192,10 +193,9 @@ export default function UserGroupsPage() {
   };
 
   const handleBatchDelete = () => {
-    Modal.confirm({
+    confirmDelete({
       title: `确认删除选中的 ${selectedRowKeys.length} 个用户组？`,
       content: '删除后无法恢复，请确认操作',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(selectedRowKeys);
         Toast.success('删除成功');
@@ -303,9 +303,8 @@ export default function UserGroupsPage() {
           danger: true,
           hidden: !hasPermission('system:user-groups:delete'),
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该用户组吗？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(record.id),
             });
           },

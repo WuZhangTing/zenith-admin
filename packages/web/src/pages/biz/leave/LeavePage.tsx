@@ -31,6 +31,7 @@ import {
   useSubmitBizLeave,
 } from '@/hooks/queries/biz-leave';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 type TagColor = 'grey' | 'blue' | 'green' | 'red' | 'orange';
 
@@ -213,9 +214,8 @@ export default function LeavePage() {
           danger: true,
           hidden: record.status !== 'draft',
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定删除吗？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(record.id),
             });
           },

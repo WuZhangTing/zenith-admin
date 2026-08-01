@@ -42,6 +42,7 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 const { Text, Paragraph } = Typography;
 
@@ -367,7 +368,7 @@ export default function OAuth2AppsPage() {
           label: '重置 Secret',
           hidden: !canManage || record.isPublic,
           onClick: () => {
-            Modal.confirm({
+            confirmDanger({
               title: '重置 client_secret？此操作不可撤销',
               onOk: () => { void handleRegenerate(record); },
             });
@@ -379,10 +380,9 @@ export default function OAuth2AppsPage() {
           danger: true,
           hidden: !canManage,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除此应用吗？',
               content: '删除后不可恢复',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(record.id),
             });
           },

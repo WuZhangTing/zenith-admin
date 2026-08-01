@@ -40,6 +40,7 @@ import {
 } from '@/hooks/queries/developer-apps';
 import { useQueryClient } from '@tanstack/react-query';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const { Paragraph, Text } = Typography;
 
@@ -248,9 +249,8 @@ export default function MyAppsPage() {
           danger: true,
           hidden: app.reviewStatus === 'pending',
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确认删除应用？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: async () => {
                 await deleteMutation.mutateAsync(app.id);
                 Toast.success('应用已删除');

@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Banner, Button, DatePicker, Descriptions, Form, Input, Modal, Rating, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, DatePicker, Descriptions, Form, Input, Rating, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, Trash2 } from 'lucide-react';
@@ -18,6 +18,7 @@ import { usePublicConfig } from '@/hooks/queries/system-configs';
 import { useDeleteFeedbacks, useHandleFeedback, useUserFeedbackList, userFeedbackKeys } from '@/hooks/queries/user-feedbacks';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 // 文案统一来自 @zenith/shared；Tag 色为本页特化
 const CATEGORY_OPTIONS: Array<{ value: UserFeedbackCategory; label: string; color: 'blue' | 'red' | 'orange' | 'grey' }> = [
@@ -105,7 +106,7 @@ export default function FeedbacksPage() {
   }
 
   function confirmBatchDelete() {
-    Modal.confirm({
+    confirmDelete({
       title: `确认删除选中的 ${selectedRowKeys.length} 条反馈？`,
       content: '删除后不可恢复',
       onOk: () => handleDelete(selectedRowKeys),
@@ -171,7 +172,7 @@ export default function FeedbacksPage() {
           label: '删除',
           danger: true,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除这条反馈吗？',
               content: '删除后不可恢复',
               onOk: () => handleDelete([record.id]),

@@ -1,10 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { AppModal } from '@/components/AppModal';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import {
-  Input, Button, Badge, Typography, Empty, Spin, Toast, Tooltip, Modal, Tag, Select, DatePicker, Dropdown, ImagePreview, Popover, Progress, Switch,
-  List as SemiList, Tabs, TabPane,
-} from '@douyinfe/semi-ui';
+import { Input, Button, Badge, Typography, Empty, Spin, Toast, Tooltip, Tag, Select, DatePicker, Dropdown, ImagePreview, Popover, Progress, Switch, List as SemiList, Tabs, TabPane } from '@douyinfe/semi-ui';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 
 // Virtuoso 中支持 prepend（向前加载历史消息）需要预留的虚拟 index 起点
@@ -53,6 +50,7 @@ import dayjs from 'dayjs';
 import { useDiscoverableChannels, chatKeys, useAddChatCustomEmoji, useChatAnnouncementHistory, useChatGroupMembers, useDeleteChatAnnouncementHistory } from '@/hooks/queries/chat';
 import type { ChatCustomEmoji } from '@zenith/shared/chat';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const { Text, Title } = Typography;
 
@@ -611,10 +609,9 @@ export default function ChatPage({
 
   const handleDeleteAnnouncementHistory = useCallback((messageId: number) => {
     if (!activeConvId) return;
-    Modal.confirm({
+    confirmDelete({
       title: '删除公告历史',
       content: '确定要删除该条公告历史记录吗？此操作不可恢复。',
-      okType: 'danger',
       onOk: async () => {
         await deleteAnnouncementHistoryMutation.mutateAsync({ conversationId: activeConvId, messageId });
         Toast.success('已删除');
@@ -1385,10 +1382,9 @@ export default function ChatPage({
 
   const handleDeleteSelected = useCallback(async () => {
     if (selectedMessageIds.length === 0) return;
-    Modal.confirm({
+    confirmDelete({
       title: `删除已选的 ${selectedMessageIds.length} 条消息？`,
       content: '删除后仅对自己隐藏，不影响其他人。',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       okText: '删除',
       onOk: async () => {
         const res = await request.post('/api/chat/messages/batch-delete', { messageIds: selectedMessageIds });
@@ -2535,10 +2531,9 @@ export default function ChatPage({
                       type="danger"
                       onClick={() => {
                         const { conv } = leftPaneContextMenu;
-                        Modal.confirm({
+                        confirmDelete({
                           title: '确定要删除该会话吗？',
                           content: '删除后仅移除你当前账号下的会话记录，无法恢复。',
-                          okButtonProps: { type: 'danger', theme: 'solid' },
                           onOk: () => {
                             void request.delete(`/api/chat/conversations/${conv.id}`).then((r) => {
                               if (r.code !== 0) return;

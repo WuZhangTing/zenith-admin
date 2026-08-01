@@ -1,13 +1,5 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
-import {
-  Button,
-  Form,
-  Input,
-  Modal,
-  Space,
-  Tag,
-  Toast,
-} from '@douyinfe/semi-ui';
+import { Button, Form, Input, Space, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { RefreshCw, Search, Shield, ShieldOff } from 'lucide-react';
@@ -27,6 +19,7 @@ import {
   type FirewallStatus,
 } from '@/hooks/queries/firewall';
 import { CreateButton, ResetButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const RULE_TYPE_CONFIG: Record<FirewallRule['type'], { label: string; color: 'green' | 'red' | 'orange' }> = {
   allow: { label: '允许', color: 'green' },
@@ -170,9 +163,8 @@ export default function FirewallPage() {
           loading: deleteRuleMutation.isPending && deleteRuleMutation.variables === record.id,
           hidden: !canManage,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该规则吗？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(record.id),
             });
           },

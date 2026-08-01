@@ -41,6 +41,7 @@ import {
 } from '@/hooks/queries/rules';
 import { PUBLISHABLE_STATUS_META as STATUS } from '@/lib/publishable-status';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 const { Text } = Typography;
 
@@ -382,7 +383,7 @@ export default function RuleTablesPage() {
       });
       return;
     }
-    Modal.confirm({
+    confirmDelete({
       title: '确定删除？', content: '删除后不可恢复', okButtonProps: { type: 'danger' },
       onOk: async () => { await deleteMutation.mutateAsync(r.id); Toast.success('删除成功'); },
     });
@@ -416,7 +417,7 @@ export default function RuleTablesPage() {
   const showDiff = (v: number) => {
     setDiffVersion(v);
   };
-  const rollback = (v: number) => Modal.confirm({
+  const rollback = (v: number) => confirmDanger({
     title: `回滚到 v${v}？`, content: '将以该版本快照覆盖当前编辑态并置为草稿',
     onOk: async () => { await rollbackMutation.mutateAsync({ id: verRow!.id, version: v }); Toast.success('回滚成功'); setVerRow(null); },
   });

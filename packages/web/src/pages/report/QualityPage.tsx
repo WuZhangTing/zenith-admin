@@ -52,6 +52,7 @@ import {
   normalizeDqRuleFormValues,
 } from './report-platform-utils';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const ruleTypeOptions = [
   { value: 'not_null', label: '非空' },
@@ -209,9 +210,8 @@ export default function QualityPage() {
         { key: 'history', label: '运行历史', onClick: () => setHistoryRule(record) },
         {
           key: 'delete', label: '删除', danger: true, hidden: !hasPermission('report:dq:delete'),
-          onClick: () => { Modal.confirm({
+          onClick: () => { confirmDelete({
             title: `删除规则「${record.name}」？`,
-            okButtonProps: { type: 'danger', theme: 'solid' },
             onOk: async () => { await deleteMutation.mutateAsync(record.id); Toast.success('规则已删除'); },
           }); },
         },

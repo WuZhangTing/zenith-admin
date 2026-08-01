@@ -36,6 +36,7 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 /** 可创建的连接器类型（与后端 workflowConnectorTypeSchema 对齐；mq/database 暂无运行时实现不开放） */
 const TYPE_OPTIONS: Array<{ value: WorkflowConnectorType; label: string }> = [
@@ -232,7 +233,7 @@ export default function WorkflowConnectorsPage() {
         { key: 'edit', label: '编辑', hidden: !hasPermission('workflow:connector:update'), onClick: () => openEdit(record) },
         {
           key: 'delete', label: '删除', danger: true, hidden: !hasPermission('workflow:connector:delete'),
-          onClick: () => { Modal.confirm({ title: '确定要删除吗？', content: '删除后引用该连接器的节点将无法调用', okButtonProps: { type: 'danger', theme: 'solid' }, onOk: () => handleDelete(record.id) }); },
+          onClick: () => { confirmDelete({ content: '删除后引用该连接器的节点将无法调用', onOk: () => handleDelete(record.id) }); },
         },
       ],
     }),

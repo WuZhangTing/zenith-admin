@@ -47,6 +47,7 @@ import { usePageTracker } from '@/hooks/usePageTracker';
 import { reloadTrackerConfig } from '@/utils/tracker';
 import { useMediaQuery, useIsMobile } from '@/hooks/useMediaQuery';
 import { mediaDown } from '@/lib/breakpoints';
+import { confirmDanger } from '@/utils/confirm';
 import './AdminLayout.css';
 
 // 主题图标
@@ -3065,12 +3066,11 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
                   theme="light"
                   block
                   onClick={() => {
-                    Modal.confirm({
+                    confirmDanger({
                       title: '重置偏好设置',
                       content: '确定要将所有偏好设置恢复为默认值吗？',
                       okText: '重置',
                       cancelText: '取消',
-                      okButtonProps: { type: 'danger', theme: 'solid' },
                       onOk: () => {
                         resetPreferences();
                       },

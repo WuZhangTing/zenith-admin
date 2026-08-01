@@ -1,16 +1,5 @@
 import { useRef, useState } from 'react';
-import {
-  Banner,
-  Button,
-  Col,
-  Empty,
-  Form,
-  Modal,
-  Row,
-  Tag,
-  Toast,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Banner, Button, Col, Empty, Form, Row, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportEnvironment, ReportEnvironmentPromotion, ReportPromotionStatus, ReportResourceType } from '@zenith/shared/report';
@@ -34,6 +23,7 @@ import { formatDateTime } from '@/utils/date';
 import { parseJsonObject } from '../report-platform-utils';
 import { REPORT_RESOURCE_TYPE_OPTIONS, reportResourceTypeLabel } from '../report-platform-options';
 import { CreateButton } from '@/components/toolbar-controls';
+import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 const environmentKindOptions = [
   { value: 'development', label: '开发' },
@@ -105,7 +95,7 @@ export default function GovernanceEnvironmentTab() {
   };
   const transition = (record: ReportEnvironmentPromotion, action: 'approve' | 'deploy' | 'cancel' | 'rollback') => {
     const dangerous = ['cancel', 'rollback'].includes(action);
-    Modal.confirm({
+    confirmDanger({
       title: `${action === 'rollback' ? '回滚' : action === 'cancel' ? '取消' : action === 'approve' ? '审批' : '部署'}该环境发布？`,
       content: `${record.sourceEnvironmentName ?? record.sourceEnvironmentId} → ${record.targetEnvironmentName ?? record.targetEnvironmentId}`,
       okButtonProps: dangerous ? { type: 'danger', theme: 'solid' } : undefined,
@@ -131,10 +121,9 @@ export default function GovernanceEnvironmentTab() {
         { key: 'edit', label: '编辑', hidden: !hasPermission('report:environment:update'), onClick: () => openEnvironment(record) },
         {
           key: 'delete', label: '删除', danger: true, hidden: !hasPermission('report:environment:delete'),
-          onClick: () => { Modal.confirm({
+          onClick: () => { confirmDelete({
             title: `删除环境「${record.name}」？`,
             content: '默认环境或存在发布记录的环境无法删除。',
-            okButtonProps: { type: 'danger', theme: 'solid' },
             onOk: async () => { await deleteEnvironmentMutation.mutateAsync(record.id); Toast.success('环境已删除'); },
           }); },
         },

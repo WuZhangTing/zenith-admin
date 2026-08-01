@@ -31,6 +31,7 @@ import {
 } from '@/hooks/queries/in-app-templates';
 import { IN_APP_MESSAGE_TYPE_OPTIONS_WITH_COLOR as TYPE_OPTIONS } from '../in-app-message-constants';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 export default function InAppTemplatesPage() {
   const { hasPermission: can } = usePermission();
@@ -81,9 +82,8 @@ export default function InAppTemplatesPage() {
   };
 
   const handleDelete = (id: number) => {
-    Modal.confirm({
+    confirmDelete({
       title: '确定要删除该站内信模板吗？',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(id);
         Toast.success('删除成功');

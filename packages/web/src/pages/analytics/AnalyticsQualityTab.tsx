@@ -3,7 +3,7 @@
  */
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Card, Form, Input, Select, Tag, Toast, Typography, Modal } from '@douyinfe/semi-ui';
+import { Card, Form, Input, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { AlertTriangle, Search, ShieldAlert } from 'lucide-react';
@@ -23,6 +23,7 @@ import {
 import type { AnalyticsEventOverride, AnalyticsQualityDaily, AnalyticsQualityIssueType } from '@zenith/shared/analytics';
 import { ANALYTICS_EVENT_OVERRIDE_STATUS_OPTIONS, ANALYTICS_QUALITY_ISSUE_TYPE_LABELS, ANALYTICS_QUALITY_ISSUE_TYPE_OPTIONS } from '@zenith/shared/analytics';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const PAGE_SIZE = 20;
 const DAY_OPTIONS = [7, 30, 90].map((value) => ({ value, label: `${value} 天` }));
@@ -180,7 +181,7 @@ export default function AnalyticsQualityTab() {
           label: '删除',
           danger: true,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: `确定删除事件「${record.eventName}」的覆盖规则吗？`,
               okButtonProps: { type: 'danger' },
               onOk: () => handleOverrideDelete(record),

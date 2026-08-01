@@ -34,6 +34,7 @@ import {
 import { renderEllipsis } from '@/utils/table-columns';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete as confirmDeleteModal } from '@/utils/confirm';
 
 interface SearchState {
   keyword: string;
@@ -133,7 +134,7 @@ export default function WidgetsPage() {
   }
 
   function confirmDelete(widget: CmsWidget) {
-    Modal.confirm({
+    confirmDeleteModal({
       title: `删除页面部件「${widget.name}」？`,
       content: widget.referenceCount > 0
         ? `该部件仍有 ${widget.referenceCount} 个引用，无法删除。`

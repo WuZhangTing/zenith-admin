@@ -36,6 +36,7 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
   keyword: string;
@@ -217,10 +218,9 @@ export default function IdentityProvidersPage() {
   }
 
   function handleDelete(row: TenantIdentityProvider) {
-    Modal.confirm({
+    confirmDelete({
       title: `确认删除身份源「${row.name}」？`,
       content: '删除后，已绑定的企业身份账号关系也会被移除。',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(row.id);
         Toast.success('删除成功');

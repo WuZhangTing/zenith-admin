@@ -46,6 +46,7 @@ import {
   useUpdateRoleDataScope,
 } from '@/hooks/queries/roles';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 export default function RolesPage() {
   const { hasPermission } = usePermission();
@@ -288,9 +289,8 @@ export default function RolesPage() {
           disabled: row.code === 'super_admin',
           disabledReason: '超级管理员角色不允许删除',
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确认删除此角色？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(row.id),
             });
           },

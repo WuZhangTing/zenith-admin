@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Button, Col, Form, Input, Modal, Row, Select, Space, Spin, Tag, Toast, Switch, Banner, Typography } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Input, Row, Select, Space, Spin, Tag, Toast, Switch, Banner, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus, Search, Trash2, Flame } from 'lucide-react';
 import { MP_REPLY_CONTENT_TYPE_LABELS, MP_REPLY_CONTENT_TYPE_OPTIONS } from '@zenith/shared/mp';
@@ -24,6 +24,7 @@ import {
   useSaveMpAutoReply,
 } from '@/hooks/queries/mp-auto-replies';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const REPLY_TYPE_OPTIONS = [
   { label: '关注回复', value: 'subscribe' },
@@ -138,9 +139,8 @@ export default function MpAutoRepliesPage() {
   };
 
   const handleDelete = (record: MpAutoReply) => {
-    Modal.confirm({
+    confirmDelete({
       title: '确定要删除该自动回复吗？',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(record.id);
         Toast.success('删除成功');

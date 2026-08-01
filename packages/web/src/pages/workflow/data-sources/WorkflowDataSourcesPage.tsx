@@ -23,6 +23,7 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams { keyword: string; status: string }
 const defaultSearchParams: SearchParams = { keyword: '', status: '' };
@@ -189,10 +190,8 @@ export default function WorkflowDataSourcesPage() {
           danger: true,
           hidden: !hasPermission('workflow:datasource:delete'),
           onClick: () => {
-            Modal.confirm({
-              title: '确定要删除吗？',
+            confirmDelete({
               content: '删除后引用该数据源的表单字段将无法加载选项',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(record.id),
             });
           },

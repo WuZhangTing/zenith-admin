@@ -1,7 +1,7 @@
 /** 采集中心：规则 CRUD + 任务中心执行 + 采集明细（P3 Batch5） */
 import { useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Form, Input, Modal, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Form, Input, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search } from 'lucide-react';
@@ -21,6 +21,7 @@ import {
 import type { CmsChannel, CmsCollectRule, CmsCollectItem } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 function channelsToSelectTree(nodes: CmsChannel[]): { key: string; value: number; label: string; disabled: boolean; children?: ReturnType<typeof channelsToSelectTree> }[] {
   return nodes.map((n) => ({
@@ -177,7 +178,7 @@ export default function CollectPage() {
           label: '删除',
           danger: true,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: `删除规则「${record.name}」？`,
               content: '采集明细将一并删除，已入库内容不受影响',
               onOk: async () => {

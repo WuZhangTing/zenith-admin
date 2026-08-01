@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Input, Modal, Select, Space, Tag, Toast, Typography, SideSheet, Switch } from '@douyinfe/semi-ui';
+import { Input, Select, Space, Tag, Toast, Typography, SideSheet, Switch } from '@douyinfe/semi-ui';
 import { Search, Monitor as MonitorIcon } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Terminal } from '@xterm/xterm';
@@ -24,6 +24,7 @@ import {
   type TerminalSessionItem,
 } from '@/hooks/queries/terminal';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDanger } from '@/utils/confirm';
 
 const KIND_META: Record<TerminalKind, { label: string; color: 'blue' | 'green' | 'cyan' }> = {
   local: { label: '本地', color: 'blue' },
@@ -190,9 +191,8 @@ export default function TerminalSessionsPage() {
           danger: true,
           hidden: !hasPermission('system:terminal:monitor'),
           onClick: () => {
-            Modal.confirm({
+            confirmDanger({
               title: '确定强制终止该会话？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => { void handleTerminate(record); },
             });
           },

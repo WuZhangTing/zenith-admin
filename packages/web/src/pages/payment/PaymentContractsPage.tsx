@@ -33,6 +33,7 @@ import {
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_CONTRACT_STATUS_LABELS, PAYMENT_DEDUCT_PERIOD_LABELS, PAYMENT_DEDUCT_PERIOD_OPTIONS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentContract, PaymentContractStatus, PaymentDeductPeriod, PaymentDeductPlan } from '@zenith/shared/payment';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const yuan = formatYuan;
 const CONTRACT_STATUS_COLOR = { pending: 'grey', signed: 'green', paused: 'orange', terminated: 'red' } as const satisfies Record<PaymentContractStatus, string>;
@@ -249,7 +250,7 @@ export default function PaymentContractsPage() {
         label: '删除',
         danger: true,
         onClick: () => {
-          Modal.confirm({ title: '确定要删除吗？', content: '仅无签约协议引用的计划可删除', onOk: () => handleDeletePlan(p.id) });
+          confirmDelete({ content: '仅无签约协议引用的计划可删除', onOk: () => handleDeletePlan(p.id) });
         },
       }] : []),
     }),

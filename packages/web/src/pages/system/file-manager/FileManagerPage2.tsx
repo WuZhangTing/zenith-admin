@@ -30,6 +30,7 @@ import FilePreviewModal from '@/components/FilePreviewModal';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import AppModal from '@/components/AppModal';
 import { getFileIcon, getFolderIcon } from '@/utils/fileIcons';
+import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import EditorTab from '../terminal/EditorTab';
 import {
   useDeleteTerminalEntries,
@@ -1146,7 +1147,7 @@ export default function FileManagerPage() {
       ...(rootInfo?.isWindows ? [] : [{ label: '修改权限', fn: () => { setDialog({ mode: 'chmod', entry, value: permStringToOctal(entry.permissions) }); closeCtxMenu(); } }]),
       ...(isDir ? [{ label: '上传到此目录', fn: () => { ctxUploadDirRef.current = entry.path; ctxUploadInputRef.current?.click(); closeCtxMenu(); } }] : []),
       { label: '属性', fn: () => { setPropsEntry(entry); closeCtxMenu(); } },
-      { label: '删除', fn: () => { Modal.confirm({ title: '确定删除此项吗？', okType: 'danger', onOk: () => handleDelete([entry.path]) }); closeCtxMenu(); }, danger: true },
+      { label: '删除', fn: () => { confirmDelete({ title: '确定删除此项吗？', onOk: () => handleDelete([entry.path]) }); closeCtxMenu(); }, danger: true },
     ];
     return items;
   };
@@ -1195,10 +1196,9 @@ export default function FileManagerPage() {
         void fns.handlePaste();
       } else if (e.key === 'Delete' && selEntries.length > 0) {
         e.preventDefault();
-        Modal.confirm({
+        confirmDelete({
           title: `确定删除选中的 ${selEntries.length} 项吗？`,
           content: selEntries.slice(0, 5).map((en) => en.name).join('、') + (selEntries.length > 5 ? ` 等 ${selEntries.length} 项` : ''),
-          okButtonProps: { type: 'danger', theme: 'solid' },
           onOk: () => fns.handleDelete(selEntries.map((en) => en.path)),
         });
       } else if (e.key === 'F2' && selEntries.length === 1) {
@@ -1330,9 +1330,8 @@ export default function FileManagerPage() {
           danger: true,
           dividerBefore: true,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定删除此项吗？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete([record.path]),
             });
           },
@@ -2028,10 +2027,9 @@ export default function FileManagerPage() {
             visible={!!editorEntry}
             onCancel={() => {
               if (editorDirtyRef.current) {
-                Modal.confirm({
+                confirmDanger({
                   title: '有未保存的修改',
                   content: '关闭将丢弃未保存的内容（编辑器内 Ctrl+S 可保存），确定关闭吗？',
-                  okButtonProps: { type: 'danger', theme: 'solid' },
                   okText: '丢弃并关闭',
                   onOk: () => { editorDirtyRef.current = false; setEditorEntry(null); },
                 });

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Button, Form, Input, Modal, SideSheet, Tag, Toast, Typography, Upload } from '@douyinfe/semi-ui';
+import { Button, Form, Input, SideSheet, Tag, Toast, Typography, Upload } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Plus, Search, FileUp, Globe } from 'lucide-react';
@@ -21,6 +21,7 @@ import {
   useImportAiKbUrl,
 } from '@/hooks/queries/ai-extras';
 import { CreateButton, ResetButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const { Text } = Typography;
 
@@ -153,10 +154,9 @@ export default function AiKnowledgePage() {
           danger: true,
           hidden: !hasPermission('ai:kb:delete'),
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该知识库吗？',
               content: '将级联删除全部文档与分块，且解除已挂载对话',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: async () => {
                 await deleteMutation.mutateAsync(record.id);
                 Toast.success('删除成功');
@@ -197,9 +197,8 @@ export default function AiKnowledgePage() {
           danger: true,
           hidden: !hasPermission('ai:kb:edit'),
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该文档吗？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: async () => {
                 if (!docsKb) return;
                 await deleteDocMutation.mutateAsync({ kbId: docsKb.id, docId: record.id });

@@ -21,6 +21,7 @@ import {
   useTryMatchMpConditionalMenu,
 } from '@/hooks/queries/mp-menu';
 import { CreateButton, RefreshButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const { Text } = Typography;
 
@@ -143,8 +144,8 @@ export default function MpConditionalMenusPage() {
   };
 
   const handleDelete = (r: MpConditionalMenu) => {
-    Modal.confirm({
-      title: `删除「${r.name}」？`, content: '将同时删除微信侧个性化菜单。', okButtonProps: { type: 'danger', theme: 'solid' },
+    confirmDelete({
+      title: `删除「${r.name}」？`, content: '将同时删除微信侧个性化菜单。',
       onOk: async () => { await deleteMutation.mutateAsync(r.id); Toast.success('已删除'); },
     });
   };

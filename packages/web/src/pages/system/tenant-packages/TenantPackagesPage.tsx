@@ -1,14 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  Button,
-  Input,
-  Select,
-  Modal,
-  Form,
-  Toast,
-  Spin,
-  Switch,
-} from '@douyinfe/semi-ui';
+import { Button, Input, Select, Form, Toast, Spin, Switch } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search, Trash2 } from 'lucide-react';
@@ -32,6 +23,7 @@ import {
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
   keyword: string;
@@ -116,10 +108,9 @@ export default function TenantPackagesPage() {
   };
 
   const handleBatchDelete = () => {
-    Modal.confirm({
+    confirmDelete({
       title: `确认删除选中的 ${selectedRowKeys.length} 个套餐？`,
       content: '删除后无法恢复，已绑定该套餐的租户将解除关联。',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(selectedRowKeys);
         Toast.success('批量删除成功');
@@ -190,10 +181,9 @@ export default function TenantPackagesPage() {
           danger: true,
           hidden: !hasPermission('system:tenant-package:delete'),
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确认删除此套餐？',
               content: '删除后已绑定该套餐的租户将解除关联。',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(row.id),
             });
           },

@@ -57,6 +57,7 @@ import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_RETENTION_MODE_OPTIONS, ANALYT
 import AnalyticsEventQueryTab from './AnalyticsEventQueryTab';
 import AnalyticsExperimentsTab from './AnalyticsExperimentsTab';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 function msToReadable(ms: number | null): string {
   if (ms == null) return '–';
@@ -1003,9 +1004,8 @@ function FunnelTab() {
                         icon={<Trash2 size={12} />}
                         onClick={(e) => {
                           e.stopPropagation();
-                          Modal.confirm({
+                          confirmDelete({
                             title: `删除报表「${report.name}」？`,
-                            okButtonProps: { type: 'danger', theme: 'solid' },
                             onOk: () => deleteReportMutation.mutateAsync(report.id).then(() => Toast.success('已删除')),
                           });
                         }}

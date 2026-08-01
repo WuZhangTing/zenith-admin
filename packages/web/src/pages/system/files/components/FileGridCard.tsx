@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Checkbox, Dropdown, Modal, Spin, Tooltip } from '@douyinfe/semi-ui';
+import { Checkbox, Dropdown, Spin, Tooltip } from '@douyinfe/semi-ui';
 import type { ManagedFile } from '@zenith/shared/platform';
 import { formatFileSize, getFileTypeIcon, canPreviewFile } from '@/utils/file-utils';
+import { confirmDelete } from '@/utils/confirm';
 import '../FilesPage.css';
 
 export interface FileGridCardProps {
@@ -97,10 +98,9 @@ export function FileGridCard({
                   <Dropdown.Item
                     type="danger"
                     onClick={() => {
-                      Modal.confirm({
+                      confirmDelete({
                         title: '确认删除此文件？',
                         content: '删除文件记录后，将同步尝试删除实际存储对象。',
-                        okButtonProps: { type: 'danger', theme: 'solid' },
                         onOk: () => onDelete(file),
                       });
                     }}

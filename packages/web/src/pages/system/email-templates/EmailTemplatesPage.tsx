@@ -29,6 +29,7 @@ import {
   useSaveEmailTemplate,
 } from '@/hooks/queries/email-templates';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 export default function EmailTemplatesPage() {
   const { hasPermission: can } = usePermission();
@@ -79,9 +80,8 @@ export default function EmailTemplatesPage() {
   };
 
   const handleDelete = (id: number) => {
-    Modal.confirm({
+    confirmDelete({
       title: '确定要删除该邮件模板吗？',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(id);
         Toast.success('删除成功');

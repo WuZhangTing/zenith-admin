@@ -40,6 +40,7 @@ import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 import InteractionEditorModal from './interaction/InteractionEditorModal';
 import InteractionResultsSheet from './interaction/InteractionResultsSheet';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface ListSearch {
   keyword: string;
@@ -202,10 +203,9 @@ export default function SurveysPage() {
           key: 'delete', label: '删除', danger: true,
           hidden: !canManage,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: `删除「${record.title}」？`,
               content: `将级联删除 ${record.responseCount} 份答卷，无法恢复。`,
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: async () => {
                 await deleteMutation.mutateAsync(record.id);
                 Toast.success('删除成功');

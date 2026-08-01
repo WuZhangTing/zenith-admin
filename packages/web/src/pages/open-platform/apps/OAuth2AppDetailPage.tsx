@@ -1,19 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import {
-  Button,
-  Card,
-  Descriptions,
-  Empty,
-  Modal,
-  Skeleton,
-  Space,
-  TabPane,
-  Tabs,
-  Tag,
-  Toast,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Button, Card, Descriptions, Empty, Skeleton, Space, TabPane, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ArrowLeft } from 'lucide-react';
 import dayjs from 'dayjs';
@@ -36,6 +23,7 @@ import {
   useWebhookList,
 } from '@/hooks/queries/open-platform';
 import { usePermission } from '@/hooks/usePermission';
+import { confirmDanger } from '@/utils/confirm';
 
 const { Text, Title } = Typography;
 
@@ -159,7 +147,7 @@ function TokensTab({ clientId, canManage }: Readonly<{ clientId: string; canMana
         danger: true,
         hidden: record.revoked || !canManage,
         onClick: () => {
-          Modal.confirm({
+          confirmDanger({
             title: '确认撤销该令牌？',
             content: '撤销后客户端必须重新获取令牌。',
             onOk: async () => {

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Space, Modal, Form, Toast, Tag, Row, Col } from '@douyinfe/semi-ui';
+import { Space, Form, Toast, Tag, Row, Col } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { MemberLevel } from '@zenith/shared/member';
@@ -13,6 +13,7 @@ import { renderEllipsis } from '../../utils/table-columns';
 import { memberAdminKeys, useDeleteMemberLevel, useMemberLevels, useSaveMemberLevel } from '@/hooks/queries/member-admin';
 import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton, RefreshButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 export default function MemberLevelsPage() {
   const { items: statusItems } = useDictItems('common_status');
@@ -40,10 +41,9 @@ export default function MemberLevelsPage() {
   };
 
   const handleDelete = (record: MemberLevel) => {
-    Modal.confirm({
+    confirmDelete({
       title: `确认删除等级「${record.name}」？`,
       content: '删除后该等级下会员的等级将被置空。',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(record.id);
         Toast.success('删除成功');

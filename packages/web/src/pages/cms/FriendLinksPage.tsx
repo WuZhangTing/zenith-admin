@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, Select, SideSheet, Tag, Toast, Modal, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Input, Select, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, FolderTree } from 'lucide-react';
@@ -18,6 +18,7 @@ import {
 import type { CmsFriendLink, CmsFriendLinkGroup } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 export default function FriendLinksPage() {
   const { hasPermission } = usePermission();
@@ -111,7 +112,7 @@ export default function FriendLinksPage() {
           label: '删除',
           danger: true,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该友链吗？',
               onOk: async () => {
                 await deleteMutation.mutateAsync(record.id);

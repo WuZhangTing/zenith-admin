@@ -37,6 +37,7 @@ import { useReportDqAnomalyList } from '@/hooks/queries/report-dq';
 import { useReportDeprecationList } from '@/hooks/queries/report-assets';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams { keyword: string; status: string; ownerId?: number; folderId?: number }
 const defaultSearchParams: SearchParams = { keyword: '', status: '', ownerId: undefined, folderId: undefined };
@@ -551,7 +552,7 @@ export default function DatasetsPage() {
         ] : []),
         ...(hasPermission('report:dataset:delete') ? [{
           key: 'delete', label: '删除', danger: true,
-          onClick: () => { Modal.confirm({ title: '确定要删除吗？', content: '删除后不可恢复', onOk: () => handleDelete(record.id) }); },
+          onClick: () => { confirmDelete({ content: '删除后不可恢复', onOk: () => handleDelete(record.id) }); },
         }] : []),
       ],
     }),

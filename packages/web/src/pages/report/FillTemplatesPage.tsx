@@ -48,6 +48,7 @@ import FormDesigner from '@/pages/workflow/designer/components/FormDesigner';
 import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowFormRenderer';
 import { isRevisionConflict, validateFillTemplateInput } from './report-p2-utils';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface SearchState {
   keyword: string;
@@ -292,7 +293,7 @@ export default function FillTemplatesPage() {
           disabled: record.status === 'published',
           disabledReason: '请先下线模板再删除',
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: `删除模板「${record.name}」？`,
               content: '已有填报记录的模板不能删除。',
               onOk: async () => {

@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react';
-import { Button, Form, Input, Modal, Select, Tag,
-  Toast } from '@douyinfe/semi-ui';
+import { Button, Form, Input, Select, Tag, Toast } from '@douyinfe/semi-ui';
 import { AppModal } from '@/components/AppModal';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus, Search } from 'lucide-react';
@@ -21,6 +20,7 @@ import {
 } from '@/hooks/queries/email-send-logs';
 import { SEND_LOG_STATUS_OPTIONS as STATUS_OPTIONS, SEND_SOURCE_OPTIONS as SOURCE_OPTIONS } from '../send-log-constants';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 function StatusTag({ value }: Readonly<{ value: SendStatus }>) {
   const it = STATUS_OPTIONS.find((s) => s.value === value);
@@ -76,9 +76,8 @@ export default function EmailSendLogsPage() {
   };
 
   const handleDelete = (id: number) => {
-    Modal.confirm({
+    confirmDelete({
       title: '确定要删除该记录吗？',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(id);
         Toast.success('删除成功');

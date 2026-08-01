@@ -1,23 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppModal } from '@/components/AppModal';
-import {
-  Badge,
-  Button,
-  Dropdown,
-  Input,
-  InputNumber,
-  JsonViewer,
-  Modal,
-  Radio,
-  RadioGroup,
-  Space,
-  Tag,
-  TextArea,
-  Toast,
-  Tooltip,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Badge, Button, Dropdown, Input, InputNumber, JsonViewer, Radio, RadioGroup, Space, Tag, TextArea, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { Search, RefreshCw, Trash2, MoreHorizontal, Pencil, Clock } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { usePermission } from '@/hooks/usePermission';
@@ -41,6 +25,7 @@ import {
   useUpdateCacheValue,
 } from '@/hooks/queries/cache';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface CategoryRow {
   category: string;
@@ -231,10 +216,9 @@ export default function CacheManagePage() {
   };
 
   const handleDeleteKey = (item: CacheItem) => {
-    Modal.confirm({
+    confirmDelete({
       title: '确定要删除该缓存键吗？',
       content: <span>Key：<code>{item.displayKey}</code></span>,
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteKeyMutation.mutateAsync(item.key);
         Toast.success('删除成功');
@@ -244,10 +228,9 @@ export default function CacheManagePage() {
 
   const handleBatchDelete = () => {
     if (selectedKeys.length === 0) return;
-    Modal.confirm({
+    confirmDelete({
       title: `确定要删除选中的 ${selectedKeys.length} 个缓存键吗？`,
       content: '操作不可撤销，请谨慎。',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         const res = await batchDeleteMutation.mutateAsync(selectedKeys);
         Toast.success(`已删除 ${res.count ?? 0} 条缓存`);
@@ -256,10 +239,9 @@ export default function CacheManagePage() {
   };
 
   const handleDeleteCategory = (row: CategoryRow) => {
-    Modal.confirm({
+    confirmDelete({
       title: `确定要删除「${row.category}」分类下的所有缓存吗？`,
       content: `共 ${row.count} 条缓存将被删除，操作不可撤销。`,
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         const res = await deleteCategoryMutation.mutateAsync(row.segment);
         Toast.success(`已删除 ${res.count ?? 0} 条缓存`);
@@ -271,10 +253,9 @@ export default function CacheManagePage() {
   };
 
   const handleClearAll = () => {
-    Modal.confirm({
+    confirmDelete({
       title: '确定要清空所有缓存吗？',
       content: '此操作将删除当前命名空间下的全部缓存，包括会话数据，操作不可撤销，请谨慎！',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         const res = await clearAllMutation.mutateAsync();
         Toast.success(`已清空 ${res.count ?? 0} 条缓存`);

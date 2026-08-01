@@ -1,14 +1,13 @@
 import { useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import {
-  Modal, Button, Spin, Toast,
-} from '@douyinfe/semi-ui';
+import { Button, Spin, Toast } from '@douyinfe/semi-ui';
 import { AppModal } from '@/components/AppModal';
 import { AvatarCropperModal } from '@/components/AvatarCropperModal';
 import { PresetAvatarPickerModal } from '@/components/PresetAvatarPickerModal';
 import type { User } from '@zenith/shared/identity';
 import { request } from '@/utils/request';
 import { UserAvatar } from '@/components/UserAvatar';
+import { confirmDelete } from '@/utils/confirm';
 
 interface UserAvatarModalProps {
   readonly visible: boolean;
@@ -65,10 +64,9 @@ export function UserAvatarModal({ visible, user, onClose, onUpdated }: UserAvata
   }
 
   function handleRemoveAvatar() {
-    Modal.confirm({
+    confirmDelete({
       title: '确定要移除该用户头像吗？',
       content: '移除后将使用昵称缩写作为默认头像。',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         const res = await updateAvatarMutation.mutateAsync(null);
         if (res.code === 0) { onUpdated(res.data); Toast.success('头像已移除'); onClose(); }

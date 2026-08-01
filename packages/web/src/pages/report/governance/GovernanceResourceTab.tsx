@@ -1,18 +1,6 @@
 import { useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import {
-  Banner,
-  Button,
-  Col,
-  Empty,
-  Form,
-  Modal,
-  Row,
-  Select,
-  SideSheet,
-  Tag,
-  Toast,
-} from '@douyinfe/semi-ui';
+import { Banner, Button, Col, Empty, Form, Row, Select, SideSheet, Tag, Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { REPORT_RESOURCE_TYPES } from '@zenith/shared/report';
@@ -40,6 +28,7 @@ import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { REPORT_RESOURCE_TYPE_OPTIONS, reportResourceTypeLabel } from '../report-platform-options';
 import { aclRevokeWarning, normalizeAclGrantValues } from '../report-platform-utils';
 import { CreateButton } from '@/components/toolbar-controls';
+import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 export default function GovernanceResourceTab() {
   const { hasPermission } = usePermission();
@@ -127,10 +116,9 @@ export default function GovernanceResourceTab() {
         { key: 'edit', label: '编辑', hidden: !hasPermission('report:folder:update'), onClick: () => openFolder(record) },
         {
           key: 'delete', label: '删除', danger: true, hidden: !hasPermission('report:folder:delete'),
-          onClick: () => { Modal.confirm({
+          onClick: () => { confirmDelete({
             title: `删除目录「${record.name}」？`,
             content: '存在子目录或资源时无法删除。',
-            okButtonProps: { type: 'danger', theme: 'solid' },
             onOk: async () => { await deleteFolderMutation.mutateAsync(record.id); Toast.success('目录已删除'); },
           }); },
         },
@@ -148,10 +136,9 @@ export default function GovernanceResourceTab() {
       width: 90,
       actions: (record) => [{
         key: 'revoke', label: '撤销', danger: true, hidden: !hasPermission('report:resource:acl'),
-        onClick: () => { Modal.confirm({
+        onClick: () => { confirmDanger({
           title: '确认撤销该资源权限？',
           content: aclRevokeWarning(),
-          okButtonProps: { type: 'danger', theme: 'solid' },
           onOk: async () => { await revokeAclMutation.mutateAsync(record.id); Toast.success('权限已撤销'); },
         }); },
       }],

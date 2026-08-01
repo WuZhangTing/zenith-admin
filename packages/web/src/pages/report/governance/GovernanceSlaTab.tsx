@@ -31,6 +31,7 @@ import {
 } from '@/hooks/queries/report-sla';
 import { formatDateTime } from '@/utils/date';
 import { CreateButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const slaTypeOptions = [
   { value: 'freshness', label: '数据新鲜度' },
@@ -127,9 +128,8 @@ export default function GovernanceSlaTab() {
         { key: 'edit', label: '编辑', hidden: !hasPermission('report:sla:update'), onClick: () => openRule(record) },
         {
           key: 'delete', label: '删除', danger: true, hidden: !hasPermission('report:sla:delete'),
-          onClick: () => { Modal.confirm({
+          onClick: () => { confirmDelete({
             title: `删除 SLA 规则「${record.name}」？`,
-            okButtonProps: { type: 'danger', theme: 'solid' },
             onOk: async () => { await deleteMutation.mutateAsync(record.id); Toast.success('SLA 规则已删除'); },
           }); },
         },

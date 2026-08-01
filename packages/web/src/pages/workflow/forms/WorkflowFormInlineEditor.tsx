@@ -4,10 +4,7 @@
  * 顶部为紧凑工具栏（含撤销/重做），主体内嵌 FormDesigner，支持 PC/移动双预览。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Button, Spin, Toast, Typography, Input, Select, TextArea,
-  RadioGroup, Radio, InputNumber, SideSheet, Divider, Tooltip, Dropdown, Banner, Switch, Modal, Tag,
-} from '@douyinfe/semi-ui';
+import { Button, Spin, Toast, Typography, Input, Select, TextArea, RadioGroup, Radio, InputNumber, SideSheet, Divider, Tooltip, Dropdown, Banner, Switch, Tag } from '@douyinfe/semi-ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, X, Eye, Save, Settings, Monitor, Smartphone, Undo2, Redo2, Braces, Copy, Stethoscope, LayoutTemplate, SlidersHorizontal, AlertTriangle, CircleAlert, Share2, History as HistoryIcon, GitCompareArrows } from 'lucide-react';
 import type { WorkflowForm, WorkflowFormField, WorkflowFormFieldType, WorkflowFormSettings, WorkflowFormStatus } from '@zenith/shared/workflow';
@@ -25,6 +22,7 @@ import FormDesigner, { type FormHistoryControls } from '../designer/components/F
 import FormTemplateGallery from '../designer/components/FormTemplateGallery';
 import WorkflowFormRenderer from '../designer/components/WorkflowFormRenderer';
 import { useSaveWorkflowForm, useWorkflowFormDetail, workflowFormKeys } from '@/hooks/queries/workflow-forms';
+import { confirmDanger } from '@/utils/confirm';
 
 type PreviewState = 'fill' | 'readonly' | 'approval';
 
@@ -243,7 +241,7 @@ export default function WorkflowFormInlineEditor({
 
   // 乐观锁冲突：提示加载最新内容（放弃本地修改）或留在当前编辑
   const handleRevisionConflict = () => {
-    Modal.confirm({
+    confirmDanger({
       title: '表单已被其他人更新',
       content: '当前表单在你编辑期间已被其他人保存。加载最新内容将丢弃你未保存的修改；也可以留在当前页面复制内容后再处理。',
       okText: '加载最新内容',

@@ -1,13 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  Form,
-  Input,
-  JsonViewer,
-  Modal,
-  Select,
-  Spin,
-  Toast,
-} from '@douyinfe/semi-ui';
+import { Form, Input, JsonViewer, Select, Spin, Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search } from 'lucide-react';
 import type { SystemConfig } from '@zenith/shared/platform';
@@ -31,6 +23,7 @@ import {
   useSystemConfigList,
 } from '@/hooks/queries/system-configs';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
   keyword: string;
@@ -196,9 +189,8 @@ export default function SystemConfigsPage() {
           danger: true,
           hidden: !hasPermission('system:config:delete'),
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除此配置吗？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(record.id),
             });
           },

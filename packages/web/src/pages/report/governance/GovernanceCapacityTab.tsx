@@ -1,19 +1,5 @@
 import { useRef, useState } from 'react';
-import {
-  Banner,
-  Col,
-  DatePicker,
-  Empty,
-  Form,
-  InputNumber,
-  Modal,
-  Row,
-  SideSheet,
-  Space,
-  Tag,
-  Toast,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Banner, Col, DatePicker, Empty, Form, InputNumber, Row, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportQueryCostLog, ReportQueryCostTrendPoint, ReportQueryQuota, ReportQuotaScope } from '@zenith/shared/report';
@@ -38,6 +24,7 @@ import { useAllUsers } from '@/hooks/queries/users';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { validateQuotaForm } from '../report-platform-utils';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 export default function GovernanceCapacityTab() {
   const { hasPermission } = usePermission();
@@ -114,18 +101,16 @@ export default function GovernanceCapacityTab() {
         { key: 'edit', label: '编辑', hidden: !hasPermission('report:query-quota:update'), onClick: () => openQuota(record) },
         {
           key: 'reset', label: '重置用量', danger: true, hidden: !hasPermission('report:query-quota:update'),
-          onClick: () => { Modal.confirm({
+          onClick: () => { confirmDanger({
             title: '重置当前日期的配额用量？',
             content: '该操作仅重置计量，不会取消正在运行的查询。',
-            okButtonProps: { type: 'danger', theme: 'solid' },
             onOk: async () => { await resetMutation.mutateAsync({ id: record.id }); Toast.success('配额用量已重置'); },
           }); },
         },
         {
           key: 'delete', label: '删除', danger: true, hidden: !hasPermission('report:query-quota:delete'),
-          onClick: () => { Modal.confirm({
+          onClick: () => { confirmDelete({
             title: '删除该查询配额？',
-            okButtonProps: { type: 'danger', theme: 'solid' },
             onOk: async () => { await deleteMutation.mutateAsync(record.id); Toast.success('配额已删除'); },
           }); },
         },

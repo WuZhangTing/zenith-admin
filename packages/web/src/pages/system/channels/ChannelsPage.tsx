@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, Modal, Space, Tag, Toast, Typography, Upload } from '@douyinfe/semi-ui';
+import { Button, Form, Input, Space, Tag, Toast, Typography, Upload } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ImagePlus, Search, Trash2 } from 'lucide-react';
@@ -27,6 +27,7 @@ import {
   useSaveChannel,
 } from '@/hooks/queries/channels';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const TYPE_META: Record<string, { text: string; color: 'green' | 'blue' }> = {
   system: { text: '系统号', color: 'green' },
@@ -103,10 +104,9 @@ export default function ChannelsPage() {
   };
 
   const handleDelete = (ch: ChannelAdmin) => {
-    Modal.confirm({
+    confirmDelete({
       title: `确认删除频道「${ch.name}」？`,
       content: '该频道下的所有消息与订阅将一并删除',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(ch.id);
         Toast.success('已删除');

@@ -7,6 +7,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { RefreshCw, Activity, Wrench, KeyRound, GitCompare } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
+import { confirmDanger } from '@/utils/confirm';
 import { copyToClipboard } from './sql-format';
 import {
   useDbAdminActivity,
@@ -117,10 +118,9 @@ function ActivityPanel({ canMaintain }: Readonly<{ canMaintain: boolean }>) {
           danger: true,
           hidden: record.isCurrent,
           onClick: () => {
-            Modal.confirm({
+            confirmDanger({
               title: `强制终止 PID ${record.pid} 的连接？`,
               content: '连接将被断开',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => { void act(record.pid, 'terminate'); },
             });
           },

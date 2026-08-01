@@ -25,6 +25,7 @@ import { usePagination } from '@/hooks/usePagination';
 import DictTag from '@/components/DictTag';
 import { LoginLogsTable } from '@/components/logs/LoginLogsTable';
 import { OperationLogsTable } from '@/components/logs/OperationLogsTable';
+import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import {
   useBeginTotpSetup,
   useChangeProfilePassword,
@@ -331,10 +332,9 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
   }
 
   async function handleRemoveAvatar() {
-    Modal.confirm({
+    confirmDelete({
       title: '确定要移除头像吗？',
       content: '移除后将使用昵称缩写作为默认头像。',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         const updated = await updateAvatarMutation.mutateAsync({ avatar: null });
         applyUserUpdate(updated);
@@ -638,9 +638,8 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
                             )}
                             extra={bound ? (
                               <Button theme="borderless" type="danger" size="small" onClick={() => {
-                                Modal.confirm({
+                                confirmDanger({
                                   title: `确定要解绑 ${info.label} 账号吗？`,
-                                  okButtonProps: { type: 'danger', theme: 'solid' },
                                   onOk: () => handleOAuthUnbind(provider),
                                 });
                               }}>解绑</Button>
@@ -744,10 +743,9 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
                           title: '操作', dataIndex: 'id', width: 80, fixed: 'right',
                           render: (id: number) => (
                             <Button theme="borderless" type="danger" size="small" onClick={() => {
-                              Modal.confirm({
+                              confirmDanger({
                                 title: '确定要撤销该 Token 吗？',
                                 content: '撤销后将无法恢复，使用该 Token 的调用将立即失效。',
-                                okButtonProps: { type: 'danger', theme: 'solid' },
                                 onOk: () => handleDeleteToken(id),
                               });
                             }}>撤销</Button>

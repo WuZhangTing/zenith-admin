@@ -25,6 +25,7 @@ import {
   useSendMpBroadcast,
 } from '@/hooks/queries/mp-broadcasts';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const STATUS_OPTIONS = [
   { label: '草稿', value: 'draft' },
@@ -113,9 +114,8 @@ export default function MpBroadcastsPage() {
   };
 
   const handleDelete = (record: MpBroadcast) => {
-    Modal.confirm({
+    confirmDelete({
       title: '确定要删除该群发记录吗？',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(record.id);
         Toast.success('删除成功');

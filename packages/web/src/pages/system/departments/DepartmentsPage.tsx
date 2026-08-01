@@ -40,6 +40,7 @@ import {
   useSaveDepartment,
 } from '@/hooks/queries/departments';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
   keyword: string;
@@ -307,9 +308,8 @@ export default function DepartmentsPage() {
           danger: true,
           hidden: !hasPermission('system:department:delete'),
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该部门吗？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(record.id),
             });
           },

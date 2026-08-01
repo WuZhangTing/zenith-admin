@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, SetStateAction } from 'react';
-import { Button, Dropdown, Input, Modal, Select, Spin, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, Dropdown, Input, Select, Spin, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { Icon } from '@iconify/react';
 import {
   Activity, AlertTriangle, ArrowDown, ArrowUp, Download, FileText, ListOrdered,
@@ -15,6 +15,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { config } from '@/config';
 import { TOKEN_KEY } from '@zenith/shared/core';
 import { type LogFile, useDeleteLogFile, useLogFileContent, useLogFiles } from '@/hooks/queries/log-files';
+import { confirmDelete } from '@/utils/confirm';
 import { buildSearchIndex, computeEffectiveLevels, type LogLevel } from './logFilesSearch';
 import { LogContentView } from './LogContentView';
 
@@ -284,10 +285,9 @@ export default function LogFilesPage() {
   };
 
   const handleDelete = (file: LogFile) => {
-    Modal.confirm({
+    confirmDelete({
       title: `确定要删除 ${file.name} 吗？`,
       content: '删除后无法恢复，请谨慎操作。',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(file.name);
         Toast.success('删除成功');

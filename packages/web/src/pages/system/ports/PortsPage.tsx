@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Input, Tag, Select, Space, Modal, Toast } from '@douyinfe/semi-ui';
+import { Input, Tag, Select, Space, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search } from 'lucide-react';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -8,6 +8,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { useKillPortProcess, usePortList, type PortEntry } from '@/hooks/queries/ports';
 import { ResetButton } from '@/components/toolbar-controls';
+import { confirmDanger } from '@/utils/confirm';
 
 function localDisplay(entry: PortEntry): string {
   const addr = entry.localAddress === '0.0.0.0' || entry.localAddress === '::' || entry.localAddress === '*' ? '*' : entry.localAddress;
@@ -69,10 +70,9 @@ export default function PortsPage() {
           loading: killingPid === record.pid,
           hidden: !canKill || !record.pid,
           onClick: () => {
-            Modal.confirm({
+            confirmDanger({
               title: '结束该进程？',
               content: `将向 PID ${record.pid}（${record.processName ?? '未知'}）发送终止信号`,
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleKill(record.pid as number),
             });
           },

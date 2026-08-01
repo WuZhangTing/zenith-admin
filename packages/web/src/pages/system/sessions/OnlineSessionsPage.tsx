@@ -1,14 +1,5 @@
 import { useMemo } from 'react';
-import {
-  Input,
-  Modal,
-  RadioGroup,
-  Radio,
-  Space,
-  Tag,
-  Toast,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Input, RadioGroup, Radio, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import { Search } from 'lucide-react';
 import type { OnlineUser } from '@zenith/shared/platform';
 import { TOKEN_KEY } from '@zenith/shared/core';
@@ -22,6 +13,7 @@ import { renderEllipsis } from '../../../utils/table-columns';
 import { sessionKeys, useForceLogoutSession, useSessionList } from '@/hooks/queries/sessions';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDanger } from '@/utils/confirm';
 
 export default function OnlineSessionsPage() {
   const { hasPermission } = usePermission();
@@ -53,7 +45,7 @@ export default function OnlineSessionsPage() {
     // 模式引用，Modal.confirm 内部无法直接读 state，改用 ref
     let logoutMode: 'single' | 'all' = 'single';
 
-    Modal.confirm({
+    confirmDanger({
       title: '强制下线',
       content: (
         <Space vertical align="start" style={{ width: '100%' }}>
@@ -67,7 +59,6 @@ export default function OnlineSessionsPage() {
           </RadioGroup>
         </Space>
       ),
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await forceLogoutMutation.mutateAsync({ mode: logoutMode, tokenId: record.tokenId, userId: record.userId });
         Toast.success(logoutMode === 'all' ? '已强制下线全部会话' : '已强制下线');

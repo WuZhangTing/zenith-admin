@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Tag, Select, Modal, Toast, Form } from '@douyinfe/semi-ui';
+import { Tag, Select, Toast, Form } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { DbBackup, BackupType, BackupStatus } from '@zenith/shared/platform';
 import { AppModal } from '@/components/AppModal';
@@ -17,6 +17,7 @@ import {
 } from '@/hooks/queries/db-backups';
 import { request } from '@/utils/request';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 export default function DbBackupsPage() {
   const {
@@ -129,9 +130,7 @@ export default function DbBackupsPage() {
           danger: true,
           hidden: !hasPermission('system:db-backup:delete'),
           onClick: () => {
-            Modal.confirm({
-              title: '确定要删除吗？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
+            confirmDelete({
               onOk: () => handleDelete(record.id),
             });
           },

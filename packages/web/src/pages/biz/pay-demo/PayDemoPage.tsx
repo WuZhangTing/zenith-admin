@@ -31,6 +31,7 @@ import {
 } from '@/hooks/queries/biz-pay-demo';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { useListSearch } from '@/hooks/useListSearch';
+import { confirmDelete } from '@/utils/confirm';
 
 type TagColor = 'grey' | 'blue' | 'green' | 'orange';
 
@@ -240,9 +241,8 @@ export default function PayDemoPage() {
           danger: true,
           hidden: record.status === 'paid',
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定删除吗？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(record.id),
             });
           },

@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { downloadBlob } from '@/utils/download';
-import { Button, Form, Input, Modal, Select, Space, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Input, Select, Space, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { QRCodeSVG } from 'qrcode.react';
@@ -18,6 +18,7 @@ import type { PaymentLink, PaymentLinkStatus, PaymentMethod } from '@zenith/shar
 import { paymentLinkKeys, useDeletePaymentLink, usePaymentLinkDetail, usePaymentLinkList, useRotatePaymentLinkToken, useSavePaymentLink } from '@/hooks/queries/payment-links';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 const yuan = (cents: number | null | undefined) => formatYuan(cents, '用户填写');
 const methodOptions = Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => ({ value, label }));
@@ -181,7 +182,7 @@ export default function PaymentLinksPage() {
           label: '重置链接',
           loading: rotateTokenMutation.isPending && rotateTokenMutation.variables === r.id,
           onClick: () => {
-            Modal.confirm({
+            confirmDanger({
               title: '重置链接',
               content: '重置后旧链接立即失效，确定？',
               onOk: () => handleRotateToken(r.id),
@@ -193,8 +194,7 @@ export default function PaymentLinksPage() {
           label: '删除',
           danger: true,
           onClick: () => {
-            Modal.confirm({
-              title: '确定要删除吗？',
+            confirmDelete({
               content: '删除后不可恢复',
               onOk: () => handleDelete(r.id),
             });

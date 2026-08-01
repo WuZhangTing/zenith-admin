@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Banner, Form, Input, Modal, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Form, Input, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search } from 'lucide-react';
@@ -15,6 +15,7 @@ import type { PaymentApp, PaymentChannel, PaymentChannelConfig } from '@zenith/s
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams { keyword: string; status: string; }
 const defaultSearch: SearchParams = { keyword: '', status: '' };
@@ -131,8 +132,7 @@ export default function PaymentAppsPage() {
           label: '删除',
           danger: true,
           onClick: () => {
-            Modal.confirm({
-              title: '确定要删除吗？',
+            confirmDelete({
               content: `删除应用「${r.name}」后不可恢复`,
               onOk: () => handleDelete(r.id),
             });

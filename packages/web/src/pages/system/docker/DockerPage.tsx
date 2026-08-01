@@ -51,10 +51,11 @@ import {
   type VolumeInfo,
 } from '@/hooks/queries/docker';
 import { CreateButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 // ─── Prune（清理）辅助 ──────────────────────────────────────────────────────────
 function runPrune(url: string, title: string, content: string, prune: (url: string) => Promise<PruneResultData>): void {
-  Modal.confirm({
+  confirmDelete({
     title,
     content,
     okText: '确定清理',
@@ -619,9 +620,8 @@ function ImagesTab() {
           danger: true,
           hidden: record.isGroup,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定删除此镜像？运行中的容器使用的镜像无法删除。',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => { void handleRemove(record.id); },
             });
           },
@@ -770,9 +770,8 @@ function NetworksTab() {
           danger: true,
           hidden: SYSTEM_NETWORKS.has(record.name),
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: `确定删除网络 ${record.name}？`,
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => { void handleRemove(record.id); },
             });
           },
@@ -882,9 +881,8 @@ function VolumesTab() {
           label: '删除',
           danger: true,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: `确定删除存储卷 ${record.name}？此操作不可恢复。`,
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => { void handleRemove(record.name); },
             });
           },

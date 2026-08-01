@@ -33,6 +33,7 @@ import {
   useUpdateTagStatus,
 } from '@/hooks/queries/tags';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const { Text } = Typography;
 
@@ -190,9 +191,8 @@ export default function TagsPage() {
   };
 
   const handleDelete = (id: number) => {
-    Modal.confirm({
+    confirmDelete({
       title: '确定要删除该标签吗？',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await deleteMutation.mutateAsync(id);
         Toast.success('删除成功');
@@ -203,10 +203,9 @@ export default function TagsPage() {
 
   const handleBatchDelete = () => {
     if (!selectedRowKeys.length) return;
-    Modal.confirm({
+    confirmDelete({
       title: `确认删除选中的 ${selectedRowKeys.length} 条标签？`,
       content: '删除后无法恢复，请谨慎操作。',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await batchDeleteMutation.mutateAsync(selectedRowKeys);
         Toast.success(`已删除 ${selectedRowKeys.length} 条标签`);

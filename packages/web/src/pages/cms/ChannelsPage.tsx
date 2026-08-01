@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Button, Dropdown, Empty, Form, Tag, Toast, Modal, Row, Col, Select, Tooltip, Tree, Typography } from '@douyinfe/semi-ui';
+import { Button, Dropdown, Empty, Form, Tag, Toast, Row, Col, Select, Tooltip, Tree, Typography } from '@douyinfe/semi-ui';
 import { IllustrationNoContent, IllustrationNoContentDark } from '@douyinfe/semi-illustrations';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
@@ -18,6 +18,7 @@ import { useAllUsers } from '@/hooks/queries/users';
 import { request } from '@/utils/request';
 import { slugifyName } from '@/utils/slug';
 import { unwrap } from '@/lib/query';
+import { confirmDelete as confirmDeleteModal } from '@/utils/confirm';
 import { CMS_CHANNEL_DETAIL_PATH_RULE_LABELS, CMS_CHANNEL_DETAIL_PATH_RULES, CMS_CHANNEL_STATIC_MODE_LABELS, CMS_CHANNEL_STATIC_MODES, CMS_CHANNEL_TYPE_LABELS } from '@zenith/shared/cms';
 import type { CmsChannel, CmsContent } from '@zenith/shared/cms';
 import type { PaginatedResponse } from '@zenith/shared/core';
@@ -243,7 +244,7 @@ export default function ChannelsPage() {
   }, [tree]);
 
   function confirmClear(record: CmsChannel) {
-    Modal.confirm({
+    confirmDeleteModal({
       title: `清空「${record.name}」？`,
       content: '栏目下全部内容将移入回收站（不含子栏目）',
       onOk: async () => {
@@ -254,7 +255,7 @@ export default function ChannelsPage() {
   }
 
   function confirmDelete(record: CmsChannel) {
-    Modal.confirm({
+    confirmDeleteModal({
       title: `确定要删除「${record.name}」吗？`,
       content: '需先清空子栏目与栏目下内容',
       onOk: () => handleDelete(record.id),

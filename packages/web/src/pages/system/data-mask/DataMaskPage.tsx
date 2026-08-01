@@ -36,6 +36,7 @@ import {
   useScanDataMaskFields,
 } from '@/hooks/queries/data-mask';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 const { Text } = Typography;
 
@@ -309,9 +310,8 @@ export default function DataMaskPage() {
           danger: true,
           hidden: !hasPermission('system:data-mask:delete'),
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除该规则吗？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(record.id),
             });
           },

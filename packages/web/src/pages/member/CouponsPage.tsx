@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Input, Select, Form, Toast, Tag, Modal, Row, Col } from '@douyinfe/semi-ui';
+import { Input, Select, Form, Toast, Tag, Row, Col } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search } from 'lucide-react';
@@ -22,6 +22,7 @@ import {
   useSaveCoupon,
 } from '@/hooks/queries/member-admin';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete as confirmDeleteModal } from '@/utils/confirm';
 
 const typeOptions = (Object.keys(COUPON_TYPE_LABELS) as CouponType[]).map((v) => ({ value: v, label: COUPON_TYPE_LABELS[v] }));
 const statusOptions = (Object.keys(COUPON_TEMPLATE_STATUS_LABELS) as CouponTemplateStatus[]).map((v) => ({ value: v, label: COUPON_TEMPLATE_STATUS_LABELS[v] }));
@@ -135,9 +136,8 @@ export default function CouponsPage() {
   };
 
   const confirmDelete = (record: Coupon) => {
-    Modal.confirm({
+    confirmDeleteModal({
       title: '确定要删除该优惠券吗？',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: () => handleDelete(record.id),
     });
   };

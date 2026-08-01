@@ -1,20 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
-import {
-  Banner,
-  Col,
-  DatePicker,
-  Form,
-  Input,
-  Modal,
-  Row,
-  Select,
-  SideSheet,
-  TabPane,
-  Tabs,
-  Tag,
-  Toast,
-} from '@douyinfe/semi-ui';
+import { Banner, Col, DatePicker, Form, Input, Row, Select, SideSheet, TabPane, Tabs, Tag, Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search } from 'lucide-react';
@@ -44,6 +30,7 @@ import {
 } from '@/hooks/queries/cms-stage5';
 import { useQueryClient } from '@tanstack/react-query';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { confirmDelete } from '@/utils/confirm';
 
 interface RuleSearch {
   keyword: string;
@@ -292,7 +279,7 @@ export default function DistributionPage() {
           label: '删除',
           danger: true,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: `删除分发规则「${rule.name}」？`,
               content: '已物化内容会保留并解除规则关联；进行中的旧任务会因 revision/rule fence 安全取消。',
               onOk: async () => {
