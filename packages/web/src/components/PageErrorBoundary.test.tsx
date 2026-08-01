@@ -7,9 +7,10 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { PageErrorBoundary } from './PageErrorBoundary';
 
-function Boom({ error }: Readonly<{ error: Error }>) {
+function Boom({ error }: Readonly<{ error: Error }>): ReactNode {
   throw error;
 }
 
