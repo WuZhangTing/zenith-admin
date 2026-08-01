@@ -1,11 +1,9 @@
 import { useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Button, DatePicker, Form, Input, Tag, Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search, CalendarPlus } from 'lucide-react';
 import type { MemberCheckin } from '@zenith/shared/member';
-import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -14,6 +12,7 @@ import { AppModal } from '@/components/AppModal';
 import { MemberSelect } from '@/components/MemberSelect';
 import { formatDateForApi } from '@/utils/date';
 import { memberAdminKeys, useCheckinLogList, useMakeupCheckin } from '@/hooks/queries/member-admin';
+import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams {
@@ -28,10 +27,11 @@ const defaultSearch: SearchParams = {
 
 export default function CheckinLogsPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearch);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearch);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: memberAdminKeys.checkinLogLists });
   const [makeupVisible, setMakeupVisible] = useState(false);
   const makeupFormApi = useRef<FormApi | null>(null);
   const [dateStart, dateEnd] = submittedParams.dateRange ?? [];
@@ -45,18 +45,6 @@ export default function CheckinLogsPage() {
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
   const makeupMutation = useMakeupCheckin();
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: memberAdminKeys.checkinLogLists });
-  };
-  const handleReset = () => {
-    setDraftParams(defaultSearch);
-    setSubmittedParams(defaultSearch);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: memberAdminKeys.checkinLogLists });
-  };
 
   const handleMakeup = async () => {
     let values: { memberId?: number; date?: Date; reason?: string } | undefined;

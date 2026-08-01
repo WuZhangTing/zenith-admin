@@ -9,7 +9,6 @@ import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { usePagination } from '@/hooks/usePagination';
 import { formatDateTime } from '@/utils/date';
 import { formatBytesMb } from '@/utils/format';
 import { renderEllipsis } from '@/utils/table-columns';
@@ -25,6 +24,7 @@ import {
   useRetryExportJob,
 } from '@/hooks/queries/export-jobs';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { useListSearch } from '@/hooks/useListSearch';
 
 interface SearchParams {
   entity: string;
@@ -84,13 +84,15 @@ function renderProgress(record: ExportJob) {
 export default function ExportJobsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: exportJobKeys.lists });
   const [logsVisible, setLogsVisible] = useState(false);
   const [currentJob, setCurrentJob] = useState<ExportJob | null>(null);
   const [downloadLoadingId, setDownloadLoadingId] = useState<number | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
   const entitiesQuery = useExportEntities();
   const entities = entitiesQuery.data ?? EMPTY_ENTITIES;
   const listQuery = useExportJobList({
@@ -130,20 +132,6 @@ export default function ExportJobsPage() {
   useEffect(() => {
     setSelectedRowKeys((prev) => prev.filter((id) => data.some((item) => item.id === id)));
   }, [data]);
-
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: exportJobKeys.lists });
-  };
-
-  const handleReset = () => {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: exportJobKeys.lists });
-  };
 
   const handleDownload = async (record: ExportJob) => {
     setDownloadLoadingId(record.id);

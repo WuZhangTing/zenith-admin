@@ -1,6 +1,5 @@
 import { useState, useRef } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
-import { useQueryClient } from '@tanstack/react-query';
 import { Form, Modal, Select, Spin, Switch, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -9,7 +8,6 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import { createdAtColumn } from '@/utils/table-columns';
-import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import {
   paymentFeeKeys,
@@ -20,6 +18,7 @@ import {
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_LABELS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentFeeRule, PaymentMethod } from '@zenith/shared/payment';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const yuan = formatYuan;
@@ -45,11 +44,12 @@ interface FeeFormValues {
 export default function PaymentFeeRulesPage() {
   const { items: statusItems } = useDictItems('common_status');
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
   const formApi = useRef<FormApi | null>(null);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearch);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearch);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentFeeKeys.lists });
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editing, setEditing] = useState<PaymentFeeRule | null>(null);
@@ -66,9 +66,6 @@ export default function PaymentFeeRulesPage() {
   const toggleMutation = useSavePaymentFeeRule();
   const deleteMutation = useDeletePaymentFeeRule();
   const togglingId = toggleMutation.isPending ? (toggleMutation.variables?.id ?? null) : null;
-
-  function handleSearch() { setPage(1); setSubmittedParams(draftParams); void queryClient.invalidateQueries({ queryKey: paymentFeeKeys.lists }); }
-  function handleReset() { setDraftParams(defaultSearch); setPage(1); setSubmittedParams(defaultSearch); void queryClient.invalidateQueries({ queryKey: paymentFeeKeys.lists }); }
 
   function openCreate() { setEditing(null); setModalVisible(true); }
   function openEdit(record: PaymentFeeRule) { setEditing(record); setModalVisible(true); }

@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Select, Modal, Form, Toast, Tag, Spin, Row, Col, Dropdown } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -7,8 +6,8 @@ import { Search, KeyRound, ChevronDown, Tags } from 'lucide-react';
 import type { Member, MemberTag } from '@zenith/shared/member';
 import { MEMBER_STATUS_LABELS } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
-import { usePagination } from '@/hooks/usePagination';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useListSearch } from '@/hooks/useListSearch';
 import { UserAvatar } from '@/components/UserAvatar';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
@@ -43,13 +42,14 @@ const defaultSearch: SearchParams = { keyword: '', status: '', levelId: undefine
 
 export default function MembersPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
   const { items: genderItems } = useDictItems('user_gender');
   const formApi = useRef<FormApi | null>(null);
   const pwdFormApi = useRef<FormApi | null>(null);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearch);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearch);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: memberAdminKeys.memberLists });
   const [modalVisible, setModalVisible] = useState(false);
   const [editing, setEditing] = useState<Member | null>(null);
   const [pwdVisible, setPwdVisible] = useState(false);
@@ -94,18 +94,6 @@ export default function MembersPage() {
   const batchLevelMutation = useBatchMemberLevel();
   const setTagsMutation = useSetMemberTags();
   const batchTagsMutation = useBatchMemberTags();
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: memberAdminKeys.memberLists });
-  };
-  const handleReset = () => {
-    setDraftParams(defaultSearch);
-    setSubmittedParams(defaultSearch);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: memberAdminKeys.memberLists });
-  };
 
   const buildExportQuery = () => {
     const ap = submittedParams;

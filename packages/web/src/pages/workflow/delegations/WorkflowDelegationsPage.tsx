@@ -1,5 +1,4 @@
 import { useMemo, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Form,
   Modal,
@@ -15,10 +14,10 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { useWorkflowDefinitionList } from '@/hooks/queries/workflow-definitions';
 import { useAllUsers } from '@/hooks/queries/users';
+import { useListSearch } from '@/hooks/useListSearch';
 import {
   useDeleteWorkflowDelegation,
   useSaveWorkflowDelegation,
@@ -59,14 +58,14 @@ function renderDelegationStatus(record: WorkflowDelegation) {
 }
 
 export default function WorkflowDelegationsPage() {
-  const queryClient = useQueryClient();
   const { hasPermission } = usePermission();
   const formApi = useRef<FormApi<FormValues> | null>(null);
 
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: workflowDelegationKeys.lists });
   const listQuery = useWorkflowDelegationList({ page, pageSize, scope: submittedParams.scope });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
@@ -90,19 +89,6 @@ export default function WorkflowDelegationsPage() {
     () => (definitionsQuery.data?.list ?? []).map((d) => ({ value: d.id, label: d.name })),
     [definitionsQuery.data],
   );
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: workflowDelegationKeys.lists });
-  };
-
-  const handleReset = () => {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: workflowDelegationKeys.lists });
-  };
 
   const openCreate = () => {
     setEditing(null);

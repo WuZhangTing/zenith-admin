@@ -1,5 +1,4 @@
 import { useMemo, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Form,
   Modal,
@@ -18,7 +17,6 @@ import { AppModal } from '@/components/AppModal';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { usePublishedWorkflowDefinitions } from '@/hooks/queries/workflow-definitions';
 import { useAllUsers } from '@/hooks/queries/users';
@@ -30,6 +28,7 @@ import {
   workflowScheduleKeys,
 } from '@/hooks/queries/workflow-schedules';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 type ScheduleStatus = WorkflowSchedule['status'];
@@ -89,13 +88,14 @@ function renderLastRunStatus(status: string | null, message: string | null) {
 export default function WorkflowSchedulesPage() {
   const { items: statusItems } = useDictItems('common_status');
   const STATUS_OPTIONS = statusItems.map((i) => ({ value: i.value, label: i.label }));
-  const queryClient = useQueryClient();
   const formApi = useRef<FormApi<FormValues> | null>(null);
   const { hasPermission } = usePermission();
-  const { page, pageSize, setPage, buildPagination } = usePagination();
 
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: workflowScheduleKeys.lists });
   const listQuery = useWorkflowScheduleList({
     page,
     pageSize,
@@ -126,19 +126,6 @@ export default function WorkflowSchedulesPage() {
     () => (usersQuery.data ?? []).map((user) => ({ value: user.id, label: user.nickname || user.username })),
     [usersQuery.data],
   );
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: workflowScheduleKeys.lists });
-  };
-
-  const handleReset = () => {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: workflowScheduleKeys.lists });
-  };
 
   const openCreate = () => {
     setEditing(null);

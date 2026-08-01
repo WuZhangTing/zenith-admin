@@ -38,7 +38,7 @@ import SavedViewsBar from '@/components/workflow/SavedViewsBar';
 import WorkflowPriorityTag, { WORKFLOW_PRIORITY_OPTIONS } from '@/components/workflow/WorkflowPriorityTag';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { usePagination } from '@/hooks/usePagination';
+import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
 import WorkflowInstanceDetailPanel from '@/components/workflow/WorkflowInstanceDetailPanel';
 import WorkflowGraphView from '@/components/workflow/WorkflowGraphView';
@@ -428,11 +428,13 @@ function StatCard({
 
 export default function WorkflowMonitorPage() {
   const queryClient = useQueryClient();
-  const { page, pageSize, setPage, buildPagination } = usePagination();
   interface SearchParams { keyword: string; initiator: string; status: string; categoryId: number | ''; definitionId: number | ''; priority: string }
   const defaultSearchParams: SearchParams = { keyword: '', initiator: '', status: '', categoryId: '', definitionId: '', priority: '' };
-  const [searchParams, setSearchParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, applySearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: workflowMonitorKeys.monitorLists });
   const listQuery = useWorkflowMonitorList({
     page,
     pageSize,
@@ -491,26 +493,10 @@ export default function WorkflowMonitorPage() {
 
   const canAdmin = hasPermission('workflow:instance:cancel');
 
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(searchParams);
-    void queryClient.invalidateQueries({ queryKey: workflowMonitorKeys.monitorLists });
-  };
-
-  const handleReset = () => {
-    setSearchParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: workflowMonitorKeys.monitorLists });
-  };
-
   const handleStatCardClick = (st: string) => {
-    const next = searchParams.status === st ? '' : st;
-    const newParams = { ...searchParams, status: next };
-    setSearchParams(newParams);
-    setSubmittedParams(newParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: workflowMonitorKeys.monitorLists });
+    const next = draftParams.status === st ? '' : st;
+    const newParams = { ...draftParams, status: next };
+    applySearch(newParams);
   };
 
   const loadDetail = (instanceId: number) => {
@@ -1156,8 +1142,8 @@ export default function WorkflowMonitorPage() {
       prefix={<Search size={14} />}
       placeholder="搜索申请标题 / 流程名称"
       showClear
-      value={searchParams.keyword}
-      onChange={v => setSearchParams(prev => ({ ...prev, keyword: v }))}
+      value={draftParams.keyword}
+      onChange={v => setDraftParams(prev => ({ ...prev, keyword: v }))}
       onEnterPress={handleSearch}
       style={{ width: 240 }}
     />
@@ -1167,8 +1153,8 @@ export default function WorkflowMonitorPage() {
     <Select
       placeholder="所有分类"
       showClear
-      value={searchParams.categoryId === '' ? undefined : searchParams.categoryId}
-      onChange={v => setSearchParams(prev => ({ ...prev, categoryId: (v as number) ?? '' }))}
+      value={draftParams.categoryId === '' ? undefined : draftParams.categoryId}
+      onChange={v => setDraftParams(prev => ({ ...prev, categoryId: (v as number) ?? '' }))}
       style={{ width: 140 }}
       optionList={categories.map((c: WorkflowCategory) => ({ label: c.name, value: c.id }))}
     />
@@ -1179,8 +1165,8 @@ export default function WorkflowMonitorPage() {
       placeholder="所有流程"
       showClear
       filter
-      value={searchParams.definitionId === '' ? undefined : searchParams.definitionId}
-      onChange={v => setSearchParams(prev => ({ ...prev, definitionId: (v as number) ?? '' }))}
+      value={draftParams.definitionId === '' ? undefined : draftParams.definitionId}
+      onChange={v => setDraftParams(prev => ({ ...prev, definitionId: (v as number) ?? '' }))}
       style={{ width: 160 }}
       optionList={definitions.map((d) => ({ label: d.name, value: d.id }))}
     />
@@ -1190,8 +1176,8 @@ export default function WorkflowMonitorPage() {
     <Input
       placeholder="申请人"
       showClear
-      value={searchParams.initiator}
-      onChange={v => setSearchParams(prev => ({ ...prev, initiator: v }))}
+      value={draftParams.initiator}
+      onChange={v => setDraftParams(prev => ({ ...prev, initiator: v }))}
       onEnterPress={handleSearch}
       style={{ width: 120 }}
     />
@@ -1201,8 +1187,8 @@ export default function WorkflowMonitorPage() {
     <Select
       placeholder="所有状态"
       showClear
-      value={searchParams.status || undefined}
-      onChange={v => setSearchParams(prev => ({ ...prev, status: (v as string) ?? '' }))}
+      value={draftParams.status || undefined}
+      onChange={v => setDraftParams(prev => ({ ...prev, status: (v as string) ?? '' }))}
       style={{ width: 140 }}
       optionList={['running', 'suspended', 'approved', 'rejected', 'withdrawn', 'cancelled'].map((s) => ({ value: s, label: INSTANCE_STATUS_MAP[s].text }))}
     />
@@ -1212,8 +1198,8 @@ export default function WorkflowMonitorPage() {
     <Select
       placeholder="所有优先级"
       showClear
-      value={searchParams.priority || undefined}
-      onChange={v => setSearchParams(prev => ({ ...prev, priority: (v as string) ?? '' }))}
+      value={draftParams.priority || undefined}
+      onChange={v => setDraftParams(prev => ({ ...prev, priority: (v as string) ?? '' }))}
       style={{ width: 130 }}
       optionList={WORKFLOW_PRIORITY_OPTIONS}
     />
@@ -1228,7 +1214,7 @@ export default function WorkflowMonitorPage() {
   );
 
   const buildExportQuery = () => {
-    const { keyword, status, categoryId, definitionId, initiator, priority } = searchParams;
+    const { keyword, status, categoryId, definitionId, initiator, priority } = draftParams;
     return {
       ...(keyword ? { keyword } : {}),
       ...(status ? { status } : {}),
@@ -1255,24 +1241,21 @@ export default function WorkflowMonitorPage() {
         <TabPane tab="实例监控" itemKey="list">
       {/* 统计卡片 */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-        <StatCard label="全部" value={stats.total}     color="var(--semi-color-text-0)" onClick={() => handleStatCardClick('')}          active={searchParams.status === ''} />
-        <StatCard label="审批中" value={stats.running}  color="var(--semi-color-primary)"        onClick={() => handleStatCardClick('running')}   active={searchParams.status === 'running'} />
-        <StatCard label="已通过" value={stats.approved} color="#0dc87c"                          onClick={() => handleStatCardClick('approved')}  active={searchParams.status === 'approved'} />
-        <StatCard label="已驳回" value={stats.rejected} color="#ff4d4f"                          onClick={() => handleStatCardClick('rejected')}  active={searchParams.status === 'rejected'} />
-        <StatCard label="已撤回" value={stats.withdrawn ?? 0} color="var(--semi-color-warning)"  onClick={() => handleStatCardClick('withdrawn')} active={searchParams.status === 'withdrawn'} />
-        <StatCard label="已取消" value={stats.cancelled ?? 0} color="#8b5cf6"                   onClick={() => handleStatCardClick('cancelled')} active={searchParams.status === 'cancelled'} />
+        <StatCard label="全部" value={stats.total}     color="var(--semi-color-text-0)" onClick={() => handleStatCardClick('')}          active={draftParams.status === ''} />
+        <StatCard label="审批中" value={stats.running}  color="var(--semi-color-primary)"        onClick={() => handleStatCardClick('running')}   active={draftParams.status === 'running'} />
+        <StatCard label="已通过" value={stats.approved} color="#0dc87c"                          onClick={() => handleStatCardClick('approved')}  active={draftParams.status === 'approved'} />
+        <StatCard label="已驳回" value={stats.rejected} color="#ff4d4f"                          onClick={() => handleStatCardClick('rejected')}  active={draftParams.status === 'rejected'} />
+        <StatCard label="已撤回" value={stats.withdrawn ?? 0} color="var(--semi-color-warning)"  onClick={() => handleStatCardClick('withdrawn')} active={draftParams.status === 'withdrawn'} />
+        <StatCard label="已取消" value={stats.cancelled ?? 0} color="#8b5cf6"                   onClick={() => handleStatCardClick('cancelled')} active={draftParams.status === 'cancelled'} />
       </div>
 
       {/* 搜索栏 */}
       <SavedViewsBar
         pageKey="workflow-monitor"
-        currentFilters={searchParams as unknown as Record<string, unknown>}
+        currentFilters={draftParams as unknown as Record<string, unknown>}
         onApply={(filters) => {
           const next = { ...defaultSearchParams, ...(filters as Partial<SearchParams>) };
-          setSearchParams(next);
-          setSubmittedParams(next);
-          setPage(1);
-          void queryClient.invalidateQueries({ queryKey: workflowMonitorKeys.monitorLists });
+          applySearch(next);
         }}
       />
       <SearchToolbar

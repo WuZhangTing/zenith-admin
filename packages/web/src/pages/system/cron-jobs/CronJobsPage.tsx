@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Button,
   Col,
@@ -52,6 +51,7 @@ import {
   useUpdateCronJobStatus,
 } from '@/hooks/queries/cron-jobs';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams {
@@ -116,10 +116,11 @@ export default function CronJobsPage() {
   const { items: statusItems } = useDictItems('common_status');
   const { hasPermission } = usePermission();
   const formApi = useRef<FormApi | null>(null);
-  const queryClient = useQueryClient();
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: cronJobKeys.lists });
   const [modalVisible, setModalVisible] = useState(false);
   const [editingJob, setEditingJob] = useState<CronJob | null>(null);
   const [cronExprValue, setCronExprValue] = useState('');
@@ -172,17 +173,6 @@ export default function CronJobsPage() {
     setCronExprValue(detailQuery.data.cronExpression ?? '');
   }, [detailQuery.data, modalVisible]);
 
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: cronJobKeys.lists });
-  };
-  const handleReset = () => {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: cronJobKeys.lists });
-  };
   const buildExportQuery = () => ({
     ...(submittedParams.keyword ? { keyword: submittedParams.keyword } : {}),
     ...(submittedParams.status ? { status: submittedParams.status } : {}),

@@ -14,7 +14,6 @@ import { AppModal } from '@/components/AppModal';
 import PaymentStatsPanel from './PaymentStatsPanel';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
-import { usePagination } from '@/hooks/usePagination';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_METHOD_LABELS, PAYMENT_ORDER_STATUS_LABELS, PAYMENT_REFUND_STATUS_LABELS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentMethod, PaymentOrder, PaymentOrderStatus, PaymentRefund, PaymentRefundStatus, CreatePaymentResult, PaymentStats } from '@zenith/shared/payment';
 import {
@@ -30,6 +29,7 @@ import {
   useSimulatePaymentOrderPaid,
 } from '@/hooks/queries/payment-orders';
 import { usePaymentStats } from '@/hooks/queries/payment-stats';
+import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const STATUS_COLOR = {
@@ -66,9 +66,11 @@ export default function PaymentOrdersPage() {
   const refundFormApi = useRef<FormApi | null>(null);
 
   const [activeTab, setActiveTab] = useState<'list' | 'stats'>('list');
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearch);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearch);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentOrderKeys.lists });
 
   const [detail, setDetail] = useState<PaymentOrder | null>(null);
   const [refundTarget, setRefundTarget] = useState<PaymentOrder | null>(null);
@@ -141,9 +143,6 @@ export default function PaymentOrdersPage() {
     setRefundTarget(refundCheckTarget);
     setRefundCheckTarget(null);
   }, [canViewRefunds, refundCheckQuery.data, refundCheckQuery.isFetching, refundCheckTarget]);
-
-  function handleSearch() { setPage(1); setSubmittedParams(draftParams); void queryClient.invalidateQueries({ queryKey: paymentOrderKeys.lists }); }
-  function handleReset() { setDraftParams(defaultSearch); setSubmittedParams(defaultSearch); setPage(1); void queryClient.invalidateQueries({ queryKey: paymentOrderKeys.lists }); }
 
   function openDetail(order: PaymentOrder) {
     setDetail(order);

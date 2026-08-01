@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
-import { useQueryClient } from '@tanstack/react-query';
 import { DatePicker, Form, Input, Select, Tag, Toast, Typography, Descriptions } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search } from 'lucide-react';
@@ -10,8 +9,8 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
 import { AppModal } from '@/components/AppModal';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
-import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
+import { useListSearch } from '@/hooks/useListSearch';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_REFUND_STATUS_LABELS, PAYMENT_REFUND_APPROVAL_STATUS_LABELS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentRefund, PaymentRefundStatus, PaymentRefundApprovalStatus } from '@zenith/shared/payment';
 import {
@@ -33,10 +32,11 @@ const defaultSearch: SearchParams = { keyword: '', channel: '', status: '', appr
 
 export default function PaymentRefundsPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearch);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearch);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentRefundKeys.lists });
   const [detail, setDetail] = useState<PaymentRefund | null>(null);
   const [rejectTarget, setRejectTarget] = useState<PaymentRefund | null>(null);
   const [rejectRemark, setRejectRemark] = useState('');
@@ -63,9 +63,6 @@ export default function PaymentRefundsPage() {
   const rejectMutation = useRejectPaymentRefund();
   const queryingId = queryMutation.isPending ? (queryMutation.variables ?? null) : null;
   const approvingId = approveMutation.isPending ? (approveMutation.variables ?? null) : null;
-
-  function handleSearch() { setPage(1); setSubmittedParams(draftParams); void queryClient.invalidateQueries({ queryKey: paymentRefundKeys.lists }); }
-  function handleReset() { setDraftParams(defaultSearch); setSubmittedParams(defaultSearch); setPage(1); void queryClient.invalidateQueries({ queryKey: paymentRefundKeys.lists }); }
 
   function handleRefundQuery(record: PaymentRefund) {
     queryMutation.mutate(record.id, {

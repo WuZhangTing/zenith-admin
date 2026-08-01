@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Col,
   Form,
@@ -19,13 +18,13 @@ import { Search } from 'lucide-react';
 import type { MpAccount, MpAccountType } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useListSearch } from '@/hooks/useListSearch';
 import { config } from '@/config';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, renderEllipsis } from '../../utils/table-columns';
-import { usePagination } from '@/hooks/usePagination';
 import {
   mpAccountKeys,
   useDeleteMpAccount,
@@ -64,15 +63,15 @@ function buildCallbackUrl(id: number): string {
 
 export default function MpAccountsPage() {
   const { hasPermission: can } = usePermission();
-  const queryClient = useQueryClient();
   const { items: statusItems } = useDictItems('common_status');
-
-  const { page, pageSize, setPage, buildPagination } = usePagination();
 
   interface SearchParams { keyword: string; filterType: MpAccountType | undefined; filterStatus: string | undefined; }
   const defaultSearchParams: SearchParams = { keyword: '', filterType: undefined, filterStatus: undefined };
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: mpAccountKeys.lists });
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<MpAccount | null>(null);
@@ -99,18 +98,6 @@ export default function MpAccountsPage() {
   const submitting = saveMutation.isPending;
   const testingId = testMutation.isPending ? (testMutation.variables ?? null) : null;
   const togglingStatusId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: mpAccountKeys.lists });
-  };
-  const handleReset = () => {
-    setPage(1);
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    void queryClient.invalidateQueries({ queryKey: mpAccountKeys.lists });
-  };
 
   const openCreate = () => { setEditingRecord(null); setModalVisible(true); };
   const openEdit = (record: MpAccount) => {

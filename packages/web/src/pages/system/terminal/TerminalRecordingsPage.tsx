@@ -7,7 +7,7 @@ import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { usePagination } from '@/hooks/usePagination';
+import { useListSearch } from '@/hooks/useListSearch';
 import { useUserOptions } from '@/hooks/useUserOptions';
 import { formatDateTimeForApi } from '@/utils/date';
 import RecordingPlayer from './RecordingPlayer';
@@ -112,15 +112,16 @@ function getKeyCommandLabel(cmd: string): string | null {
 
 export default function TerminalRecordingsPage() {
   const queryClient = useQueryClient();
-  const [searchParams, setSearchParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, resetPage, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: terminalKeys.recordingLists });
   const [playRec, setPlayRec] = useState<RecordingDetail | null>(null);
   const [playStartTime, setPlayStartTime] = useState(0);
   const [detailRec, setDetailRec] = useState<RecordingDetail | null>(null);
   const [exportingId, setExportingId] = useState<number | null>(null);
   const { userOptions, loading: userOptionsLoading, ensureLoaded } = useUserOptions({ immediate: true });
-
-  const { page, pageSize, resetPage, buildPagination } = usePagination();
 
   const listQuery = useTerminalRecordingList({
     page,
@@ -146,19 +147,6 @@ export default function TerminalRecordingsPage() {
   useEffect(() => {
     if (detailQuery.data) setDetailRec(detailQuery.data);
   }, [detailQuery.data]);
-
-  const handleSearch = () => {
-    resetPage();
-    setSubmittedParams(searchParams);
-    void queryClient.invalidateQueries({ queryKey: terminalKeys.recordingLists });
-  };
-
-  const handleReset = () => {
-    setSearchParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    resetPage();
-    void queryClient.invalidateQueries({ queryKey: terminalKeys.recordingLists });
-  };
 
   const handlePlay = (id: number, startTime = 0) => {
     setPlayStartTime(startTime);
@@ -299,28 +287,28 @@ export default function TerminalRecordingsPage() {
             <Input
               prefix={<Search size={14} />}
               placeholder="搜索标题"
-              value={searchParams.keyword}
-              onChange={(v) => setSearchParams({ ...searchParams, keyword: v })}
+              value={draftParams.keyword}
+              onChange={(v) => setDraftParams({ ...draftParams, keyword: v })}
               onEnterPress={handleSearch}
               showClear
               style={{ width: 220 }}
             />
             <Select
               placeholder="操作人"
-              value={searchParams.operatorUserId ?? undefined}
+              value={draftParams.operatorUserId ?? undefined}
               optionList={userOptions}
               loading={userOptionsLoading}
               filter
               showClear
               onFocus={() => { void ensureLoaded(); }}
-              onChange={(v) => setSearchParams({ ...searchParams, operatorUserId: typeof v === 'number' ? v : null })}
+              onChange={(v) => setDraftParams({ ...draftParams, operatorUserId: typeof v === 'number' ? v : null })}
               style={{ width: 180 }}
             />
             <DatePicker
               type="dateTimeRange"
               placeholder={['开始时间', '结束时间']}
-              value={searchParams.timeRange ?? undefined}
-              onChange={(v) => setSearchParams({ ...searchParams, timeRange: v ? (v as [Date, Date]) : null })}
+              value={draftParams.timeRange ?? undefined}
+              onChange={(v) => setDraftParams({ ...draftParams, timeRange: v ? (v as [Date, Date]) : null })}
               style={{ width: 360 }}
             />
             <SearchButton onClick={handleSearch} />
@@ -363,8 +351,8 @@ export default function TerminalRecordingsPage() {
             <Input
               prefix={<Search size={14} />}
               placeholder="搜索标题"
-              value={searchParams.keyword}
-              onChange={(v) => setSearchParams({ ...searchParams, keyword: v })}
+              value={draftParams.keyword}
+              onChange={(v) => setDraftParams({ ...draftParams, keyword: v })}
               onEnterPress={handleSearch}
               showClear
               style={{ width: 220 }}
@@ -376,20 +364,20 @@ export default function TerminalRecordingsPage() {
           <>
             <Select
               placeholder="操作人"
-              value={searchParams.operatorUserId ?? undefined}
+              value={draftParams.operatorUserId ?? undefined}
               optionList={userOptions}
               loading={userOptionsLoading}
               filter
               showClear
               onFocus={() => { void ensureLoaded(); }}
-              onChange={(v) => setSearchParams({ ...searchParams, operatorUserId: typeof v === 'number' ? v : null })}
+              onChange={(v) => setDraftParams({ ...draftParams, operatorUserId: typeof v === 'number' ? v : null })}
               style={{ width: 220 }}
             />
             <DatePicker
               type="dateTimeRange"
               placeholder={['开始时间', '结束时间']}
-              value={searchParams.timeRange ?? undefined}
-              onChange={(v) => setSearchParams({ ...searchParams, timeRange: v ? (v as [Date, Date]) : null })}
+              value={draftParams.timeRange ?? undefined}
+              onChange={(v) => setDraftParams({ ...draftParams, timeRange: v ? (v as [Date, Date]) : null })}
               style={{ width: 260 }}
             />
             <ResetButton onClick={handleReset} />

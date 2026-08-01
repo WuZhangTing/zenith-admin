@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Button, Form, Input, Select, Spin, Toast, Switch, Modal,
   Row, Col, Typography, Tag, Empty,
@@ -13,7 +12,6 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
-import { usePagination } from '@/hooks/usePagination';
 import type { WorkflowDataSource, WorkflowDataSourceOption } from '@zenith/shared/workflow';
 import {
   useDeleteWorkflowDataSource,
@@ -23,6 +21,7 @@ import {
   workflowDataSourceKeys,
 } from '@/hooks/queries/workflow-data-sources';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams { keyword: string; status: string }
@@ -44,13 +43,14 @@ interface DataSourceFormValues {
 export default function WorkflowDataSourcesPage() {
   const { items: statusItems } = useDictItems('common_status');
   const STATUS_OPTIONS = statusItems.map((i) => ({ value: i.value, label: i.label }));
-  const queryClient = useQueryClient();
   const { hasPermission } = usePermission();
   const formApi = useRef<FormApi | null>(null);
 
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: workflowDataSourceKeys.lists });
   const listQuery = useWorkflowDataSourceList({
     page,
     pageSize,
@@ -71,18 +71,6 @@ export default function WorkflowDataSourcesPage() {
   const [testSource, setTestSource] = useState<WorkflowDataSource | null>(null);
   const [testOptions, setTestOptions] = useState<WorkflowDataSourceOption[]>([]);
   const [testError, setTestError] = useState('');
-
-  function handleSearch() {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: workflowDataSourceKeys.lists });
-  }
-  function handleReset() {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: workflowDataSourceKeys.lists });
-  }
 
   function openCreate() { setEditing(null); setModalVisible(true); }
   function openEdit(record: WorkflowDataSource) { setEditing(record); setModalVisible(true); }

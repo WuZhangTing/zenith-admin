@@ -26,6 +26,7 @@ import {
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_RISK_ACTION_LABELS, PAYMENT_RISK_DIMENSION_LABELS, PAYMENT_RISK_REVIEW_STATUS_LABELS, PAYMENT_RISK_SCOPE_LABELS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentRiskAction, PaymentRiskDimension, PaymentRiskHit, PaymentRiskReview, PaymentRiskReviewStatus, PaymentRiskRule, PaymentRiskScope } from '@zenith/shared/payment';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const yuan = formatYuan;
@@ -63,9 +64,11 @@ export default function PaymentRiskRulesPage() {
   const [activeTab, setActiveTab] = useState<'rules' | 'hits' | 'reviews'>('rules');
 
   // ── 规则 ──
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearch);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearch);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentRiskKeys.lists });
   const [modalVisible, setModalVisible] = useState(false);
   const [editing, setEditing] = useState<PaymentRiskRule | null>(null);
   const [scopeWatch, setScopeWatch] = useState<PaymentRiskScope>('global');
@@ -116,8 +119,6 @@ export default function PaymentRiskRulesPage() {
   const rejectMutation = useRejectPaymentRiskReview();
   const togglingId = toggleMutation.isPending ? (toggleMutation.variables?.id ?? null) : null;
 
-  function handleSearch() { setPage(1); setSubmittedParams(draftParams); void queryClient.invalidateQueries({ queryKey: paymentRiskKeys.lists }); }
-  function handleReset() { setDraftParams(defaultSearch); setPage(1); setSubmittedParams(defaultSearch); void queryClient.invalidateQueries({ queryKey: paymentRiskKeys.lists }); }
   function handleHitSearch() { setHPage(1); setSubmittedHitParams({ keyword: hitKeyword, action: hitAction, dimension: hitDimension }); void queryClient.invalidateQueries({ queryKey: paymentRiskKeys.hitLists }); }
   function handleHitReset() { setHitKeyword(''); setHitAction(''); setHitDimension(''); setHPage(1); setSubmittedHitParams({ keyword: '', action: '', dimension: '' }); void queryClient.invalidateQueries({ queryKey: paymentRiskKeys.hitLists }); }
   function handleReviewSearch() { setRPage(1); setSubmittedReviewParams({ keyword: reviewKeyword, status: reviewStatus }); void queryClient.invalidateQueries({ queryKey: paymentRiskKeys.reviewLists }); }

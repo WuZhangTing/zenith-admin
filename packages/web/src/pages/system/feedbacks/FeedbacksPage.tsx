@@ -1,6 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Button, DatePicker, Descriptions, Form, Input, Modal, Rating, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -15,9 +14,9 @@ import AppModal from '@/components/AppModal';
 import { renderEllipsis } from '@/utils/table-columns';
 import { formatDateForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
-import { usePagination } from '@/hooks/usePagination';
 import { usePublicConfig } from '@/hooks/queries/system-configs';
 import { useDeleteFeedbacks, useHandleFeedback, useUserFeedbackList, userFeedbackKeys } from '@/hooks/queries/user-feedbacks';
+import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 // 文案统一来自 @zenith/shared；Tag 色为本页特化
@@ -55,7 +54,6 @@ const defaultSearchParams: SearchParams = {
 export default function FeedbacksPage() {
   const { hasPermission } = usePermission();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const formApi = useRef<FormApi | null>(null);
 
   // ─── 反馈入口配置状态（关闭时 Banner 提示）──────────────────────────────
@@ -63,9 +61,11 @@ export default function FeedbacksPage() {
   const entryEnabled = entryConfigQuery.data?.configValue === 'true';
 
   // ─── 搜索状态 ──────────────────────────────────────────────────────────
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: userFeedbackKeys.lists });
 
   const [rangeStart, rangeEnd] = submittedParams.dateRange ?? [];
   const listQuery = useUserFeedbackList({
@@ -87,19 +87,6 @@ export default function FeedbacksPage() {
   const [handlingRecord, setHandlingRecord] = useState<UserFeedback | null>(null);
   const handleMutation = useHandleFeedback();
   const deleteMutation = useDeleteFeedbacks();
-
-  function handleSearch() {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: userFeedbackKeys.lists });
-  }
-
-  function handleReset() {
-    setPage(1);
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    void queryClient.invalidateQueries({ queryKey: userFeedbackKeys.lists });
-  }
 
   function buildExportQuery(): Record<string, unknown> {
     return {

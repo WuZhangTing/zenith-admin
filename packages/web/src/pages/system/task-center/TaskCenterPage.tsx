@@ -13,6 +13,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { useTaskProgressEvents } from '@/hooks/useAsyncTasks';
+import { useListSearch } from '@/hooks/useListSearch';
 import { ASYNC_TASK_STATUS_TAG_MAP as statusTagMap, ASYNC_TASK_ITEM_STATUS_TAG_MAP as itemStatusTagMap } from '@/utils/async-task';
 import { formatDurationMs as formatDuration } from '@/utils/format';
 import { formatDateTime } from '@/utils/date';
@@ -127,11 +128,13 @@ export default function TaskCenterPage() {
 
   const [activeTab, setActiveTab] = useState<TabKey>('tasks');
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: asyncTaskKeys.lists });
   const [detailTask, setDetailTask] = useState<AsyncTask | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
 
   // 详情抽屉：任务项明细
   const [itemStatusFilter, setItemStatusFilter] = useState('');
@@ -199,19 +202,6 @@ export default function TaskCenterPage() {
       setDetailTask((prev) => (prev && prev.id === task.id ? task : prev));
     }, [queryClient]),
   );
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: asyncTaskKeys.lists });
-  };
-
-  const handleReset = () => {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: asyncTaskKeys.lists });
-  };
 
   const runAction = async (record: AsyncTask, action: 'cancel' | 'resume' | 'restart', successMsg: string) => {
     const mutation = action === 'cancel' ? cancelMutation : action === 'resume' ? resumeMutation : restartMutation;

@@ -6,7 +6,6 @@
  */
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Button, Form, Input, Modal, Select, Space, Tag, Toast, Typography,
 } from '@douyinfe/semi-ui';
@@ -18,8 +17,8 @@ import type { BizLeave } from '@zenith/shared/biz';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { usePagination } from '@/hooks/usePagination';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useListSearch } from '@/hooks/useListSearch';
 import { formatDateForApi } from '@/utils/date';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import {
@@ -55,11 +54,12 @@ const DEFAULT_LEAVE_SEARCH_PARAMS: LeaveSearchParams = {
 
 export default function LeavePage() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { items: leaveTypeItems, getLabel: getLeaveTypeLabel } = useDictItems('leave_type');
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<LeaveSearchParams>(DEFAULT_LEAVE_SEARCH_PARAMS);
-  const [submittedParams, setSubmittedParams] = useState<LeaveSearchParams>(DEFAULT_LEAVE_SEARCH_PARAMS);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<LeaveSearchParams>({ defaults: DEFAULT_LEAVE_SEARCH_PARAMS, listKey: bizLeaveKeys.lists });
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editing, setEditing] = useState<BizLeave | null>(null);
@@ -81,18 +81,6 @@ export default function LeavePage() {
   const reopenMutation = useReopenBizLeave();
   const saving = saveMutation.isPending;
   const submittingApproval = saveForApprovalMutation.isPending || submitApprovalMutation.isPending;
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: bizLeaveKeys.lists });
-  };
-  const handleReset = () => {
-    setPage(1);
-    setDraftParams(DEFAULT_LEAVE_SEARCH_PARAMS);
-    setSubmittedParams(DEFAULT_LEAVE_SEARCH_PARAMS);
-    void queryClient.invalidateQueries({ queryKey: bizLeaveKeys.lists });
-  };
 
   const openCreate = () => { setEditing(null); setModalVisible(true); setTimeout(() => formApi.current?.reset(), 0); };
   const openEdit = (record: BizLeave) => {

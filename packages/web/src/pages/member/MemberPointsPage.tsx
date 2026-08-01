@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Select, Form, Toast, Tag } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -7,7 +6,6 @@ import { Search, Coins } from 'lucide-react';
 import type { MemberPointTransaction } from '@zenith/shared/member';
 import { POINT_TX_TYPE_LABELS } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
-import { usePagination } from '@/hooks/usePagination';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -15,6 +13,7 @@ import ExportButton from '@/components/ExportButton';
 import { MemberSelect } from '@/components/MemberSelect';
 import { createdAtColumn, renderEllipsis } from '../../utils/table-columns';
 import { memberAdminKeys, useAdjustMemberPoints, useMemberPointTransactions } from '@/hooks/queries/member-admin';
+import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const typeOptions = (Object.keys(POINT_TX_TYPE_LABELS) as (keyof typeof POINT_TX_TYPE_LABELS)[]).map((v) => ({ value: v, label: POINT_TX_TYPE_LABELS[v] }));
@@ -24,11 +23,12 @@ interface SearchParams { memberKeyword?: string; type?: string }
 
 export default function MemberPointsPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
   const adjustFormApi = useRef<FormApi | null>(null);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>({});
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>({});
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: {}, listKey: memberAdminKeys.pointLists });
   const [adjustVisible, setAdjustVisible] = useState(false);
   const listQuery = useMemberPointTransactions({
     page,
@@ -39,18 +39,6 @@ export default function MemberPointsPage() {
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
   const adjustMutation = useAdjustMemberPoints();
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: memberAdminKeys.pointLists });
-  };
-  const handleReset = () => {
-    setDraftParams({});
-    setSubmittedParams({});
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: memberAdminKeys.pointLists });
-  };
 
   const handleAdjust = async () => {
     let values;

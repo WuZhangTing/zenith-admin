@@ -34,7 +34,8 @@ import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { useDictItems } from '@/hooks/useDictItems';
 import DictTag from '@/components/DictTag';
 import { usePermission } from '@/hooks/usePermission';
-import { TABLE_PAGE_SIZE_OPTIONS, usePagination } from '@/hooks/usePagination';
+import { TABLE_PAGE_SIZE_OPTIONS } from '@/hooks/usePagination';
+import { useListSearch } from '@/hooks/useListSearch';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import {
   announcementKeys,
@@ -84,10 +85,12 @@ type SearchParams = {
 export default function AnnouncementsPage() {
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
-  const { page, pageSize, setPage, buildPagination } = usePagination();
   const defaultSearchParams: SearchParams = { title: '', type: '', publishStatus: '', timeRange: null };
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: announcementKeys.lists });
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editingNotice, setEditingNotice] = useState<Announcement | null>(null);
@@ -187,19 +190,6 @@ export default function AnnouncementsPage() {
     setUserOptions((prev) => mergeUserOptions(prev, userSearchQuery.data ?? [], new Set(currentSelectedIds)));
   }, [selectedUserIds, userSearchQuery.data]);
 
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: announcementKeys.lists });
-  };
-
-  const handleReset = () => {
-    const empty = defaultSearchParams;
-    setDraftParams(empty);
-    setSubmittedParams(empty);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: announcementKeys.lists });
-  };
   const buildExportQuery = () => ({
     ...(submittedParams.title ? { title: submittedParams.title } : {}),
     ...(submittedParams.type ? { type: submittedParams.type } : {}),

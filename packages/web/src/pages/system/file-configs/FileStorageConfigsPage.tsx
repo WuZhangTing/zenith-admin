@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Button,
   Col,
@@ -22,13 +21,13 @@ import { FILE_OBJECT_ACL_SUPPORT, FILE_STORAGE_PROVIDER_LABELS, FILE_URL_STRATEG
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
+import { useListSearch } from '@/hooks/useListSearch';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
 import { AppModal } from '@/components/AppModal';
 import { renderEllipsis } from '@/utils/table-columns';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { usePagination } from '@/hooks/usePagination';
 import StorageFileBrowser from './StorageFileBrowser';
 import {
   fileStorageConfigKeys,
@@ -210,7 +209,6 @@ function getStorageSummary(config: FileStorageConfig) {
 }
 
 export default function FileStorageConfigsPage() {
-  const queryClient = useQueryClient();
   const { hasPermission } = usePermission();
   interface SearchParams {
     status: string;
@@ -219,9 +217,11 @@ export default function FileStorageConfigsPage() {
 
   const defaultSearchParams: SearchParams = { status: '', timeRange: null };
   const formApi = useRef<FormApi | null>(null);
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: fileStorageConfigKeys.lists });
   const [modalVisible, setModalVisible] = useState(false);
   const [editingConfig, setEditingConfig] = useState<FileStorageConfig | null>(null);
   const [formProvider, setFormProvider] = useState<FileStorageProvider>('local');
@@ -251,19 +251,6 @@ export default function FileStorageConfigsPage() {
     setFormProvider(detailQuery.data.provider);
     setFormIsDefault(detailQuery.data.isDefault);
   }, [detailQuery.data]);
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: fileStorageConfigKeys.lists });
-  };
-
-  const handleReset = () => {
-    setPage(1);
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    void queryClient.invalidateQueries({ queryKey: fileStorageConfigKeys.lists });
-  };
 
   const openCreate = () => {
     setEditingConfig(null);

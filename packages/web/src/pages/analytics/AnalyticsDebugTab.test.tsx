@@ -9,8 +9,10 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
+import { QueryClientProvider } from '@tanstack/react-query';
 import type { AnalyticsDebugEvent } from '@zenith/shared/analytics';
 import { PreferencesContext, defaultPreferences } from '@/hooks/usePreferences';
+import { createTestQueryClient } from '@/test-utils/query-harness';
 
 const useAnalyticsDebugEventsMock = vi.fn();
 vi.mock('@/hooks/queries/analytics', () => ({
@@ -20,10 +22,13 @@ vi.mock('@/hooks/queries/analytics', () => ({
 import AnalyticsDebugTab from './AnalyticsDebugTab';
 
 function renderWithPreferences(ui: React.ReactElement) {
+  // 组件用 useQueryClient 在「查询 / 重置」时强制失效，保证点击必定回源
   return render(
-    <PreferencesContext.Provider value={{ preferences: defaultPreferences, setPreferences: vi.fn(), resetPreferences: vi.fn(), ready: true }}>
-      {ui}
-    </PreferencesContext.Provider>,
+    <QueryClientProvider client={createTestQueryClient()}>
+      <PreferencesContext.Provider value={{ preferences: defaultPreferences, setPreferences: vi.fn(), resetPreferences: vi.fn(), ready: true }}>
+        {ui}
+      </PreferencesContext.Provider>
+    </QueryClientProvider>,
   );
 }
 

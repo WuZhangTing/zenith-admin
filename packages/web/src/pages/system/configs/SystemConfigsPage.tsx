@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Form,
   Input,
@@ -17,12 +16,12 @@ import { formatDateTime } from '@/utils/date';
 import DictTag from '@/components/DictTag';
 import { useDictItems } from '@/hooks/useDictItems';
 import { usePermission } from '@/hooks/usePermission';
+import { useListSearch } from '@/hooks/useListSearch';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { usePagination } from '@/hooks/usePagination';
 import { renderEllipsis } from '../../../utils/table-columns';
 import {
   systemConfigKeys,
@@ -53,12 +52,13 @@ function prettyJson(raw: string): string {
 
 export default function SystemConfigsPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
   const { items: configTypeItems, loading: configTypeLoading } = useDictItems('system_config_type');
   const formApi = useRef<FormApi | null>(null);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: systemConfigKeys.lists });
   const [modalVisible, setModalVisible] = useState(false);
   const [editingConfig, setEditingConfig] = useState<SystemConfig | null>(null);
   // json 类型改用 JsonViewer 编辑：jsonSeed 是非受控初始值兼 remount key，jsonText 由 onChange 实时同步供提交读取
@@ -99,18 +99,6 @@ export default function SystemConfigsPage() {
   const closeModal = () => {
     setModalVisible(false);
     setEditingConfig(null);
-  };
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: systemConfigKeys.lists });
-  };
-  const handleReset = () => {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: systemConfigKeys.lists });
   };
 
   /** 类型切换时在 Input 与 JsonViewer 之间搬运当前值，避免切来切去把内容丢掉 */

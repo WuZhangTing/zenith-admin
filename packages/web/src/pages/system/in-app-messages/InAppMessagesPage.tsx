@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Button, Col, Form, Input, Modal, Row, Select, Tag,
   Toast } from '@douyinfe/semi-ui';
 import { AppModal } from '@/components/AppModal';
@@ -7,12 +6,12 @@ import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { CheckCheck, Plus, Search } from 'lucide-react';
 import type { InAppMessage, InAppMessageType } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
-import { usePagination } from '@/hooks/usePagination';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import { useAllUsers } from '@/hooks/queries/users';
+import { useListSearch } from '@/hooks/useListSearch';
 import {
   inAppMessageKeys,
   useDeleteInAppMessage,
@@ -32,13 +31,14 @@ const READ_OPTIONS = [
 
 export default function InAppMessagesPage() {
   const { hasPermission: can } = usePermission();
-  const queryClient = useQueryClient();
 
   interface SearchParams { keyword: string; filterType: InAppMessageType | undefined; filterRead: string | undefined; }
   const defaultSearchParams: SearchParams = { keyword: '', filterType: undefined, filterRead: undefined };
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: inAppMessageKeys.lists });
 
   const [sendVisible, setSendVisible] = useState(false);
   const formRef = useRef<FormApi>(null);
@@ -60,18 +60,6 @@ export default function InAppMessagesPage() {
   const markReadMutation = useMarkInAppMessageRead();
   const markAllReadMutation = useMarkAllInAppMessagesRead();
   const deleteMutation = useDeleteInAppMessage();
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: inAppMessageKeys.lists });
-  };
-  const handleReset = () => {
-    setPage(1);
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    void queryClient.invalidateQueries({ queryKey: inAppMessageKeys.lists });
-  };
 
   const openSend = () => {
     setSendVisible(true);

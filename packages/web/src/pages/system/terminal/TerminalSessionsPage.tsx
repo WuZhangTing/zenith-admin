@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Input, Modal, Select, Space, Tag, Toast, Typography, SideSheet, Switch } from '@douyinfe/semi-ui';
 import { Search, Monitor as MonitorIcon } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -13,7 +12,7 @@ import { useThemeController } from '@/providers/theme-controller';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { usePagination } from '@/hooks/usePagination';
+import { useListSearch } from '@/hooks/useListSearch';
 import { renderEllipsis } from '../../../utils/table-columns';
 import { useTerminalPreferences } from './useTerminalPreferences';
 import { resolveTheme, toXtermTheme } from './themes';
@@ -117,14 +116,15 @@ function MonitorTerminal({ sessionId, takeover }: { readonly sessionId: string; 
 
 export default function TerminalSessionsPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
   const [autoRefresh, setAutoRefresh] = useState(false);
 
   interface SearchParams { keyword: string; kind: TerminalKind | '' }
   const defaultSearchParams: SearchParams = { keyword: '', kind: '' };
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [searchParams, setSearchParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, applySearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: terminalKeys.sessionLists });
 
   // 监控 SideSheet 状态
   const [watching, setWatching] = useState<TerminalSessionItem | null>(null);
@@ -139,19 +139,6 @@ export default function TerminalSessionsPage() {
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
   const terminateMutation = useTerminateTerminalSession();
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(searchParams);
-    void queryClient.invalidateQueries({ queryKey: terminalKeys.sessionLists });
-  };
-
-  const handleReset = () => {
-    setSearchParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: terminalKeys.sessionLists });
-  };
 
   const handleTerminate = async (record: TerminalSessionItem) => {
     await terminateMutation.mutateAsync(record.sessionId);
@@ -222,22 +209,19 @@ export default function TerminalSessionsPage() {
             <Input
               prefix={<Search size={14} />}
               placeholder="搜索用户/主机/IP"
-              value={searchParams.keyword}
-              onChange={(v) => setSearchParams((s) => ({ ...s, keyword: v }))}
+              value={draftParams.keyword}
+              onChange={(v) => setDraftParams((s) => ({ ...s, keyword: v }))}
               onEnterPress={handleSearch}
               style={{ width: 220 }}
               showClear
             />
             <Select
               placeholder="类型"
-              value={searchParams.kind || undefined}
+              value={draftParams.kind || undefined}
               onChange={(v) => {
                 const kind = (v as TerminalKind | undefined) ?? '';
-                const next: SearchParams = { ...searchParams, kind };
-                setSearchParams(next);
-                setSubmittedParams(next);
-                setPage(1);
-                void queryClient.invalidateQueries({ queryKey: terminalKeys.sessionLists });
+                const next: SearchParams = { ...draftParams, kind };
+                applySearch(next);
               }}
               style={{ width: 120 }}
               showClear
@@ -259,8 +243,8 @@ export default function TerminalSessionsPage() {
             <Input
               prefix={<Search size={14} />}
               placeholder="搜索用户/主机/IP"
-              value={searchParams.keyword}
-              onChange={(v) => setSearchParams((s) => ({ ...s, keyword: v }))}
+              value={draftParams.keyword}
+              onChange={(v) => setDraftParams((s) => ({ ...s, keyword: v }))}
               onEnterPress={handleSearch}
               style={{ width: 220 }}
               showClear
@@ -272,14 +256,11 @@ export default function TerminalSessionsPage() {
           <>
             <Select
               placeholder="类型"
-              value={searchParams.kind || undefined}
+              value={draftParams.kind || undefined}
               onChange={(v) => {
                 const kind = (v as TerminalKind | undefined) ?? '';
-                const next: SearchParams = { ...searchParams, kind };
-                setSearchParams(next);
-                setSubmittedParams(next);
-                setPage(1);
-                void queryClient.invalidateQueries({ queryKey: terminalKeys.sessionLists });
+                const next: SearchParams = { ...draftParams, kind };
+                applySearch(next);
               }}
               style={{ width: 120 }}
               showClear

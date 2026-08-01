@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
   Button,
   Col,
@@ -23,6 +23,7 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 import { usePermission } from '@/hooks/usePermission';
+import { useListSearch } from '@/hooks/useListSearch';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { UserPreviewCell } from '@/components/UserPreviewCell';
 import ExportButton from '@/components/ExportButton';
@@ -117,10 +118,11 @@ function buildDepartmentTreeData(items: Department[], excludedIds: Set<number>):
 
 export default function DepartmentsPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
   const formApi = useRef<FormApi | null>(null);
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: departmentKeys.tree });
   const [modalVisible, setModalVisible] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
   const { items: statusItems } = useDictItems('common_status');
@@ -217,17 +219,6 @@ export default function DepartmentsPage() {
   const openEdit = (record: Department) => {
     setEditingDepartment(record);
     setModalVisible(true);
-  };
-
-  const handleReset = () => {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    void queryClient.invalidateQueries({ queryKey: departmentKeys.tree });
-  };
-
-  const handleSearch = () => {
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: departmentKeys.tree });
   };
 
   const handleModalOk = async () => {

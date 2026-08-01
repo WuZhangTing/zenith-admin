@@ -24,7 +24,7 @@ import WorkflowPriorityTag from '@/components/workflow/WorkflowPriorityTag';
 import WorkflowSLATag from '@/components/workflow/WorkflowSLATag';
 import WorkflowApprovalDetailSheet from '@/components/workflow/WorkflowApprovalDetailSheet';
 import SavedViewsBar from '@/components/workflow/SavedViewsBar';
-import { usePagination } from '@/hooks/usePagination';
+import { useListSearch } from '@/hooks/useListSearch';
 import { useQuickPhrases } from '@/hooks/useQuickPhrases';
 import { renderEllipsis } from '../../../utils/table-columns';
 import { useAllUsers } from '@/hooks/queries/users';
@@ -58,9 +58,11 @@ type ConsultState = { taskId: number; userIds: number[]; question: string } | nu
 
 export default function PendingApprovalsPage() {
   const queryClient = useQueryClient();
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, setPage, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, applySearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: workflowTaskKeys.pendingLists });
   const [sheet, setSheet] = useState<SheetState | null>(null);
   // 通知深链：/workflow/pending?instanceId=&taskId= 自动弹出对应审批详情（消费后清掉参数）
   const [urlParams, setUrlParams] = useSearchParams();
@@ -102,19 +104,6 @@ export default function PendingApprovalsPage() {
   const myConsults = myConsultsQuery.data?.list ?? [];
   const batchSubmitting = batchApproveMutation.isPending || batchRejectMutation.isPending;
   const submitting = consultMutation.isPending;
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: workflowTaskKeys.pendingLists });
-  };
-
-  const handleReset = () => {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: workflowTaskKeys.pendingLists });
-  };
 
   const handleBatch = async () => {
     if (batchSubmitting || !batch) return;
@@ -310,10 +299,7 @@ export default function PendingApprovalsPage() {
         currentFilters={submittedParams as unknown as Record<string, unknown>}
         onApply={(filters) => {
           const next = { ...defaultSearchParams, ...(filters as Partial<SearchParams>) };
-          setDraftParams(next);
-          setSubmittedParams(next);
-          setPage(1);
-          void queryClient.invalidateQueries({ queryKey: workflowTaskKeys.pendingLists });
+          applySearch(next);
         }}
       />
       <SearchToolbar

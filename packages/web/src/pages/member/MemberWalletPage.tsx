@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Select, Form, Toast, Tag } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -7,7 +6,7 @@ import { Search, WalletCards, Undo2 } from 'lucide-react';
 import type { MemberWalletTransaction } from '@zenith/shared/member';
 import { WALLET_TX_TYPE_LABELS } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
-import { usePagination } from '@/hooks/usePagination';
+import { useListSearch } from '@/hooks/useListSearch';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -30,11 +29,12 @@ interface SearchParams { memberKeyword?: string; type?: string }
 
 export default function MemberWalletPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
   const formApi = useRef<FormApi | null>(null);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>({});
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>({});
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: {}, listKey: memberAdminKeys.walletLists });
   const [modalVisible, setModalVisible] = useState(false);
   const [mode, setMode] = useState<'adjust' | 'refund'>('adjust');
   const listQuery = useMemberWalletTransactions({
@@ -47,18 +47,6 @@ export default function MemberWalletPage() {
   const total = listQuery.data?.total ?? 0;
   const adjustMutation = useAdjustMemberWallet();
   const refundMutation = useRefundMemberWallet();
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: memberAdminKeys.walletLists });
-  };
-  const handleReset = () => {
-    setDraftParams({});
-    setSubmittedParams({});
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: memberAdminKeys.walletLists });
-  };
 
   const openModal = (m: 'adjust' | 'refund') => { setMode(m); setModalVisible(true); };
 

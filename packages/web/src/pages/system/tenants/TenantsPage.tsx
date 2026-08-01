@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Button,
   Input,
@@ -28,10 +27,10 @@ import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
-import { usePagination } from '@/hooks/usePagination';
 import { useDictItems } from '@/hooks/useDictItems';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { useAllTenantPackages } from '@/hooks/queries/tenant-packages';
+import { useListSearch } from '@/hooks/useListSearch';
 import {
   useDeleteTenant,
   useSaveTenant,
@@ -52,11 +51,12 @@ const defaultSearchParams: SearchParams = { keyword: '', status: '' };
 export default function TenantsPage() {
   const { hasPermission } = usePermission();
   const { items: statusItems } = useDictItems('common_status');
-  const queryClient = useQueryClient();
   const formApi = useRef<FormApi | null>(null);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: tenantKeys.lists });
 
   const listQuery = useTenantList({
     page,
@@ -83,19 +83,6 @@ export default function TenantsPage() {
   const toggleStatusMutation = useSaveTenant();
   const deleteMutation = useDeleteTenant();
   const togglingStatusId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
-
-  function handleSearch() {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: tenantKeys.lists });
-  }
-
-  function handleReset() {
-    setPage(1);
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    void queryClient.invalidateQueries({ queryKey: tenantKeys.lists });
-  }
 
   const handleModalOk = async () => {
     let values;

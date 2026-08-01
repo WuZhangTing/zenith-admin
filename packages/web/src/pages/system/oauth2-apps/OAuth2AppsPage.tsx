@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Button,
   Input,
@@ -28,7 +27,6 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import {
   oauth2AppKeys,
@@ -42,6 +40,7 @@ import {
   useSaveOAuth2App,
 } from '@/hooks/queries/oauth2-apps';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { Text, Paragraph } = Typography;
@@ -72,7 +71,6 @@ export default function OAuth2AppsPage() {
   const navigate = useNavigate();
   const { items: statusItems } = useDictItems('common_status');
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
   const canManage = hasPermission('system:oauth2-apps:manage');
   const toggleStatusMutation = useSaveOAuth2App();
 
@@ -101,9 +99,11 @@ export default function OAuth2AppsPage() {
     reviewStatus?: 'draft' | 'pending' | 'approved' | 'rejected';
   }
   const defaultSearchParams: SearchParams = { keyword: '' };
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: oauth2AppKeys.lists });
 
   // 弹窗状态
   const [modalVisible, setModalVisible] = useState(false);
@@ -154,18 +154,6 @@ export default function OAuth2AppsPage() {
   }, [detailQuery.data]);
 
   // ─── 搜索 / 重置 ────────────────────────────────────────────────────────
-  function handleSearch() {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: oauth2AppKeys.lists });
-  }
-
-  function handleReset() {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: oauth2AppKeys.lists });
-  }
 
   // ─── 新增 ──────────────────────────────────────────────────────────────
   function openCreate() {

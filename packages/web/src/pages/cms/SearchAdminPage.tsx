@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Button, Form, Input, Tag, Toast, Typography, Tabs, TabPane, Modal, Select, DatePicker } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -10,13 +11,14 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { useMyAsyncTasks } from '@/hooks/useAsyncTasks';
 import { usePermission } from '@/hooks/usePermission';
-import { usePagination } from '@/hooks/usePagination';
+import { useListSearch } from '@/hooks/useListSearch';
 import {
   useCmsSearchTest, useCmsSegmentPreview, useCmsSearchReindex,
   useCmsSearchWordList, useSaveCmsSearchWord, useDeleteCmsSearchWord,
   useCmsHotKeywords, useClearCmsHotKeywords,
   useBatchCmsSearchWords, useCmsHotwordGroups, useSaveCmsHotwordGroup, useDeleteCmsHotwordGroup,
   useSaveCmsHotword, useDeleteCmsHotword,
+  cmsSearchKeys, cmsSearchWordKeys,
 } from '@/hooks/queries/cms';
 import { CMS_SEARCH_WORD_TYPES, CMS_SEARCH_WORD_TYPE_LABELS } from '@zenith/shared/cms';
 import { COMMON_STATUS_OPTIONS } from '@zenith/shared/core';
@@ -28,6 +30,7 @@ import { CreateButton, SearchButton } from '@/components/toolbar-controls';
 // ─── 检索测试 Tab ─────────────────────────────────────────────────────────────
 function SearchTestTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined; onSiteChange: (v: number) => void }>) {
   const { hasPermission } = usePermission();
+  const queryClient = useQueryClient();
   const [draftKeyword, setDraftKeyword] = useState('');
   const [keyword, setKeyword] = useState('');
   const [page, setPage] = useState(1);
@@ -43,6 +46,9 @@ function SearchTestTab({ siteId, onSiteChange }: Readonly<{ siteId: number | und
   function handleSearch() {
     setPage(1);
     setKeyword(draftKeyword.trim());
+    // 「检索测试」是可重复点击的动作型按钮：关键词未变时 query key 不变，
+    // 不显式失效就会在 staleTime 内静默复用上一次结果
+    void queryClient.invalidateQueries({ queryKey: cmsSearchKeys.all });
   }
 
   async function handleReindex() {
@@ -140,9 +146,11 @@ function SearchTestTab({ siteId, onSiteChange }: Readonly<{ siteId: number | und
 function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined; onSiteChange: (value: number) => void }>) {
   const { hasPermission } = usePermission();
   const formApi = useRef<FormApi | null>(null);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftKeyword, setDraftKeyword] = useState('');
-  const [submittedKeyword, setSubmittedKeyword] = useState('');
+  const {
+    page, pageSize, setPage, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch,
+  } = useListSearch<{ keyword: string }>({ defaults: { keyword: '' }, listKey: cmsSearchWordKeys.lists });
   const [type, setType] = useState<'extension' | 'stop' | undefined>(undefined);
   const [groupName, setGroupName] = useState('');
   const [status, setStatus] = useState<string | undefined>(undefined);
@@ -151,7 +159,7 @@ function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined
   const [editingRecord, setEditingRecord] = useState<CmsSearchWord | null>(null);
 
   const listQuery = useCmsSearchWordList({
-    page, pageSize, siteId: siteId ?? 0, keyword: submittedKeyword || undefined,
+    page, pageSize, siteId: siteId ?? 0, keyword: submittedParams.keyword || undefined,
     type, groupName: groupName || undefined, status,
   }, siteId !== undefined);
   const saveMutation = useSaveCmsSearchWord();
@@ -208,14 +216,14 @@ function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined
       <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }} description="自定义词典用于纠正分词（如品牌名、行业术语）。新增/修改即时对新内容生效；历史内容需在「检索测试」中重建索引。" />
       <SearchToolbar>
         <CmsSiteSelect value={siteId} onChange={(value) => { onSiteChange(value); setPage(1); }} width={180} />
-        <Input prefix={<Search size={14} />} placeholder="搜索词条..." value={draftKeyword} onChange={setDraftKeyword} showClear style={{ width: 200 }}
-          onEnterPress={() => { setPage(1); setSubmittedKeyword(draftKeyword); }} />
+        <Input prefix={<Search size={14} />} placeholder="搜索词条..." value={draftParams.keyword} onChange={(v) => setDraftParams({ keyword: v })} showClear style={{ width: 200 }}
+          onEnterPress={handleSearch} />
         <Select placeholder="词典类型" showClear value={type} onChange={(value) => setType(value as 'extension' | 'stop' | undefined)} style={{ width: 120 }}
           optionList={CMS_SEARCH_WORD_TYPES.map((value) => ({ value, label: CMS_SEARCH_WORD_TYPE_LABELS[value] }))} />
         <Input placeholder="分组" value={groupName} onChange={setGroupName} style={{ width: 130 }} />
         <Select placeholder="状态" showClear value={status} onChange={(value) => setStatus(value as string | undefined)} style={{ width: 110 }}
           optionList={COMMON_STATUS_OPTIONS} />
-        <SearchButton onClick={() => { setPage(1); setSubmittedKeyword(draftKeyword); }} />
+        <SearchButton onClick={handleSearch} />
         {canManage ? <CreateButton onClick={() => { setEditingRecord(null); setModalVisible(true); }}>新增词条</CreateButton> : null}
         {canManage && selectedIds.length > 0 ? (
           <>

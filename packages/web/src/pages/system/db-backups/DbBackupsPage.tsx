@@ -1,14 +1,13 @@
 import { useState, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Tag, Select, Modal, Toast, Form } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { DbBackup, BackupType, BackupStatus } from '@zenith/shared/platform';
 import { AppModal } from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
+import { useListSearch } from '@/hooks/useListSearch';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { usePagination } from '@/hooks/usePagination';
 import { createdAtColumn } from '../../../utils/table-columns';
 import {
   dbBackupKeys,
@@ -20,10 +19,11 @@ import { request } from '@/utils/request';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 export default function DbBackupsPage() {
-  const queryClient = useQueryClient();
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<{ status: string; type: string }>({ status: '', type: '' });
-  const [submittedParams, setSubmittedParams] = useState<{ status: string; type: string }>({ status: '', type: '' });
+  const {
+    page, pageSize, setPage, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<{ status: string; type: string }>({ defaults: { status: '', type: '' }, listKey: dbBackupKeys.lists });
   const [createVisible, setCreateVisible] = useState(false);
   const createFormApi = useRef<FormApi | null>(null);
   const { hasPermission } = usePermission();
@@ -37,18 +37,6 @@ export default function DbBackupsPage() {
   const total = listQuery.data?.total ?? 0;
   const createMutation = useCreateDbBackup();
   const deleteMutation = useDeleteDbBackup();
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: dbBackupKeys.lists });
-  };
-  const handleReset = () => {
-    setPage(1);
-    setDraftParams({ status: '', type: '' });
-    setSubmittedParams({ status: '', type: '' });
-    void queryClient.invalidateQueries({ queryKey: dbBackupKeys.lists });
-  };
 
   const closeCreateModal = () => {
     setCreateVisible(false);

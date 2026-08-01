@@ -1,6 +1,5 @@
 import { useState, useRef } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
-import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Modal, Select, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -12,6 +11,7 @@ import { AppModal } from '@/components/AppModal';
 import { formatDateTime, formatDateForApi } from '@/utils/date';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
+import { useListSearch } from '@/hooks/useListSearch';
 import {
   paymentReconKeys,
   useAutoPaymentRecon,
@@ -49,11 +49,12 @@ interface ReconFormValues {
 export default function PaymentReconPage() {
   const { hasPermission } = usePermission();
   const canHandle = hasPermission('payment:recon:handle');
-  const queryClient = useQueryClient();
   const formApi = useRef<FormApi | null>(null);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearch);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearch);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentReconKeys.lists });
 
   const [modalVisible, setModalVisible] = useState(false);
   const [autoModalVisible, setAutoModalVisible] = useState(false);
@@ -93,9 +94,6 @@ export default function PaymentReconPage() {
   const deleteMutation = useDeletePaymentReconBatch();
   const handleItemMutation = useHandlePaymentReconItem();
   const autoMutation = useAutoPaymentRecon();
-
-  function handleSearch() { setPage(1); setSubmittedParams(draftParams); void queryClient.invalidateQueries({ queryKey: paymentReconKeys.lists }); }
-  function handleReset() { setDraftParams(defaultSearch); setPage(1); setSubmittedParams(defaultSearch); void queryClient.invalidateQueries({ queryKey: paymentReconKeys.lists }); }
 
   function openCreate() {
     setModalVisible(true);

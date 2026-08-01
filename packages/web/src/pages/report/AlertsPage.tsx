@@ -11,8 +11,6 @@ import AppModal from '@/components/AppModal';
 import { formatDateTime } from '@/utils/date';
 import { renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
-import { usePagination } from '@/hooks/usePagination';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   useAcknowledgeReportAlertRun,
   useBatchReportAlertEnabled,
@@ -30,6 +28,7 @@ import type { CreateReportAlertInput, ReportAlertAggregate, ReportAlertOp, Repor
 import { NOTIFY_CHANNEL_LABELS } from '@zenith/shared/messaging';
 import { REPORT_DELIVERY_STATUS_LABELS, REPORT_MISFIRE_POLICY_OPTIONS } from '@zenith/shared/report';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useListSearch } from '@/hooks/useListSearch';
 import { switchAlertSource } from './report-platform-utils';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
@@ -86,10 +85,11 @@ export default function AlertsPage() {
   const { items: statusItems } = useDictItems('common_status');
   const { hasPermission } = usePermission();
   const formApi = useRef<FormApi | null>(null);
-  const queryClient = useQueryClient();
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: reportAlertKeys.lists });
 
   const datasetsQuery = useEnabledReportDatasets();
   const datasets = useMemo(() => datasetsQuery.data ?? [], [datasetsQuery.data]);
@@ -128,19 +128,6 @@ export default function AlertsPage() {
   const acknowledgeMutation = useAcknowledgeReportAlertRun();
   const historyQuery = useReportAlertHistory(historyTarget?.id, !!historyTarget);
   const togglingId = toggleMutation.isPending ? toggleMutation.variables?.id ?? null : null;
-
-  function handleSearch() {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: reportAlertKeys.lists });
-  }
-
-  function handleReset() {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: reportAlertKeys.lists });
-  }
 
   function openCreate() {
     setEditing(null);

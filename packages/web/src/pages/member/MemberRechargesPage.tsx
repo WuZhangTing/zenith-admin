@@ -1,12 +1,9 @@
-import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { DatePicker, Input, Select, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search } from 'lucide-react';
 import type { MemberRecharge } from '@zenith/shared/member';
 import type { PaymentChannel, PaymentOrderStatus } from '@zenith/shared/payment';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_ORDER_STATUS_LABELS } from '@zenith/shared/payment';
-import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -14,6 +11,7 @@ import ExportButton from '@/components/ExportButton';
 import { renderEllipsis } from '../../utils/table-columns';
 import { formatDateForApi } from '@/utils/date';
 import { memberAdminKeys, useMemberRechargeList } from '@/hooks/queries/member-admin';
+import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams {
@@ -34,10 +32,11 @@ const STATUS_COLORS: Record<PaymentOrderStatus, string> = {
 
 export default function MemberRechargesPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearch);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearch);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: memberAdminKeys.rechargeLists });
   const [dateStart, dateEnd] = submittedParams.dateRange ?? [];
   const listQuery = useMemberRechargeList({
     page,
@@ -50,18 +49,6 @@ export default function MemberRechargesPage() {
   });
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: memberAdminKeys.rechargeLists });
-  };
-  const handleReset = () => {
-    setDraftParams(defaultSearch);
-    setSubmittedParams(defaultSearch);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: memberAdminKeys.rechargeLists });
-  };
 
   const columns: ColumnProps<MemberRecharge>[] = [
     { title: '订单号', dataIndex: 'orderNo', width: 200, fixed: 'left', render: (v: string) => <span style={{ fontFamily: 'monospace' }}>{v}</span> },

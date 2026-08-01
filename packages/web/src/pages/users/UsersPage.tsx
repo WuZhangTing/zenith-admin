@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Table,
   Button,
@@ -32,7 +31,6 @@ import { useDictItems } from '@/hooks/useDictItems';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import { usePermission } from '@/hooks/usePermission';
-import { usePagination } from '@/hooks/usePagination';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -48,6 +46,7 @@ import { useAllRoles } from '@/hooks/queries/roles';
 import { useFlatDepartments } from '@/hooks/queries/departments';
 import { useAllPositions } from '@/hooks/queries/positions';
 import { useSystemPasswordPolicy } from '@/hooks/queries/system-configs';
+import { useListSearch } from '@/hooks/useListSearch';
 import {
   useAssignUserRoles,
   useBatchDeleteUsers,
@@ -84,13 +83,14 @@ function isAdminUser(user: Pick<User, 'username'>) {
 }
 
 export default function UsersPage() {
-  const queryClient = useQueryClient();
   const { hasPermission } = usePermission();
   const formApi = useRef<FormApi | null>(null);
   const passwordFormApi = useRef<FormApi | null>(null);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, applySearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: userKeys.lists });
   const [modalVisible, setModalVisible] = useState(false);
   const [passwordModalVisible, setPasswordModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<User | null>(null);
@@ -313,19 +313,6 @@ export default function UsersPage() {
       { onSuccess: () => Toast.success(newStatus === 'enabled' ? '已启用' : '已停用') },
     );
   }, [toggleStatus]);
-
-  function handleSearch() {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: userKeys.lists });
-  }
-
-  function handleReset() {
-    setPage(1);
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    void queryClient.invalidateQueries({ queryKey: userKeys.lists });
-  }
 
   const buildExportQuery = useCallback((params: SearchParams = submittedParams) => ({
     ...(params.keyword ? { keyword: params.keyword } : {}),
@@ -693,10 +680,7 @@ export default function UsersPage() {
           const key = selectedKey;
           const newDeptId = !key || key === '__all__' ? null : Number(key);
           const newParams = { ...draftParams, departmentId: newDeptId };
-          setDraftParams(newParams);
-          setSubmittedParams(newParams);
-          setPage(1);
-          void queryClient.invalidateQueries({ queryKey: userKeys.lists });
+          applySearch(newParams);
           setShowDeptTree(false);
         }}
         style={{ width: '100%' }}

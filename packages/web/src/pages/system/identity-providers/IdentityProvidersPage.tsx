@@ -19,7 +19,6 @@ import type { IdentityProviderType, TenantIdentityProvider } from '@zenith/share
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { AppModal } from '@/components/AppModal';
-import { usePagination } from '@/hooks/usePagination';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { useAllRoles } from '@/hooks/queries/roles';
@@ -35,6 +34,7 @@ import {
   useTestIdentityProviderConnection,
 } from '@/hooks/queries/identity-providers';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams {
@@ -123,9 +123,11 @@ export default function IdentityProvidersPage() {
   const [ldapSearchVisible, setLdapSearchVisible] = useState(false);
   const [ldapSearchProvider, setLdapSearchProvider] = useState<TenantIdentityProvider | null>(null);
   const [ldapSearchKeyword, setLdapSearchKeyword] = useState('');
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: identityProviderKeys.lists });
   const listQuery = useIdentityProviderList({
     page,
     pageSize,
@@ -153,19 +155,6 @@ export default function IdentityProvidersPage() {
   useEffect(() => {
     if (detailQuery.data) setProviderType(detailQuery.data.type);
   }, [detailQuery.data]);
-
-  function handleSearch() {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: identityProviderKeys.lists });
-  }
-
-  function handleReset() {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: identityProviderKeys.lists });
-  }
 
   function openCreate() {
     setEditing(null);

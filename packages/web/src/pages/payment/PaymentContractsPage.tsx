@@ -13,6 +13,7 @@ import { AppModal } from '@/components/AppModal';
 import ExportButton from '@/components/ExportButton';
 import { formatDateTime } from '@/utils/date';
 import { createdAtColumn } from '@/utils/table-columns';
+import { useListSearch } from '@/hooks/useListSearch';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import {
@@ -49,6 +50,9 @@ function describePlanPeriod(p: Pick<PaymentDeductPlan, 'period' | 'customDays'>)
   return p.period === 'custom' ? `每 ${p.customDays ?? '-'} 天` : PAYMENT_DEDUCT_PERIOD_LABELS[p.period];
 }
 
+interface SearchParams { keyword: string; status: string; channel: string }
+const defaultSearchParams: SearchParams = { keyword: '', status: '', channel: '' };
+
 export default function PaymentContractsPage() {
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
@@ -59,11 +63,11 @@ export default function PaymentContractsPage() {
   const [activeTab, setActiveTab] = useState<'contracts' | 'plans'>('contracts');
 
   // ── 签约协议 ──
-  const { page: cPage, pageSize: cPageSize, setPage: setCPage, buildPagination: buildCPagination } = usePagination();
-  const [keyword, setKeyword] = useState('');
-  const [status, setStatus] = useState('');
-  const [channel, setChannel] = useState('');
-  const [submittedParams, setSubmittedParams] = useState({ keyword: '', status: '', channel: '' });
+  const {
+    page: cPage, pageSize: cPageSize, buildPagination: buildCPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch({ defaults: defaultSearchParams, listKey: paymentContractKeys.lists });
   const [contractModal, setContractModal] = useState(false);
 
   // ── 扣款计划 ──
@@ -252,19 +256,6 @@ export default function PaymentContractsPage() {
   ];
 
   // ── 搜索 ──
-  const handleSearch = () => {
-    setCPage(1);
-    setSubmittedParams({ keyword, status, channel });
-    void queryClient.invalidateQueries({ queryKey: paymentContractKeys.lists });
-  };
-  const handleReset = () => {
-    setKeyword('');
-    setStatus('');
-    setChannel('');
-    setCPage(1);
-    setSubmittedParams({ keyword: '', status: '', channel: '' });
-    void queryClient.invalidateQueries({ queryKey: paymentContractKeys.lists });
-  };
   const handlePlanSearch = () => {
     setPPage(1);
     setSubmittedPlanKeyword(planKeyword);
@@ -284,13 +275,13 @@ export default function PaymentContractsPage() {
   };
 
   const renderKeywordSearch = () => (
-    <Input prefix={<Search size={14} />} placeholder="协议号/签约账号/业务ID..." value={keyword} onChange={setKeyword} showClear style={{ width: 220 }} onEnterPress={handleSearch} />
+    <Input prefix={<Search size={14} />} placeholder="协议号/签约账号/业务ID..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} showClear style={{ width: 220 }} onEnterPress={handleSearch} />
   );
   const renderStatusFilter = () => (
-    <Select placeholder="全部状态" value={status || undefined} onChange={(v) => setStatus((v as string) ?? '')} showClear style={{ width: 120 }} optionList={contractStatusOptions} />
+    <Select placeholder="全部状态" value={draftParams.status || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={contractStatusOptions} />
   );
   const renderChannelFilter = () => (
-    <Select placeholder="全部渠道" value={channel || undefined} onChange={(v) => setChannel((v as string) ?? '')} showClear style={{ width: 120 }} optionList={channelOptions} />
+    <Select placeholder="全部渠道" value={draftParams.channel || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, channel: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={channelOptions} />
   );
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;

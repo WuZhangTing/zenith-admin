@@ -3,7 +3,6 @@
  * 列表 + 详情抽屉，支持按状态 / 实例 ID / 节点 key 过滤
  */
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Input,
   InputNumber,
@@ -19,7 +18,6 @@ import { createdAtColumn } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { usePagination } from '@/hooks/usePagination';
 import type {
   WorkflowTriggerExecution,
   WorkflowTriggerExecutionStatus,
@@ -31,6 +29,7 @@ import {
   workflowTriggerExecutionKeys,
 } from '@/hooks/queries/workflow-trigger-executions';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { useListSearch } from '@/hooks/useListSearch';
 
 const STATUS_MAP: Record<WorkflowTriggerExecutionStatus, { label: string; color: 'grey' | 'blue' | 'green' | 'red' | 'orange' }> = {
   pending: { label: '待执行', color: 'grey' },
@@ -55,13 +54,14 @@ const STATUS_OPTIONS = [
 ];
 
 export default function WorkflowTriggerExecutionsPage() {
-  const queryClient = useQueryClient();
-  const { page, pageSize, setPage, buildPagination } = usePagination();
 
   interface SearchParams { status: WorkflowTriggerExecutionStatus | ''; instanceId: number | undefined; nodeKey: string }
   const defaultSearchParams: SearchParams = { status: '', instanceId: undefined, nodeKey: '' };
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: workflowTriggerExecutionKeys.lists });
 
   const listQuery = useWorkflowTriggerExecutionList({
     page,
@@ -75,18 +75,6 @@ export default function WorkflowTriggerExecutionsPage() {
   const [detailId, setDetailId] = useState<number | null>(null);
   const detailQuery = useWorkflowTriggerExecutionDetail(detailId, detailId !== null);
   const detail = detailQuery.data ?? null;
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: workflowTriggerExecutionKeys.lists });
-  };
-  const handleReset = () => {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: workflowTriggerExecutionKeys.lists });
-  };
 
   const openDetail = (row: WorkflowTriggerExecution) => {
     setDetailId(row.id);

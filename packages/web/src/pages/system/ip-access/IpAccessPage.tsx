@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Button, Card, Switch, TextArea, Toast, Spin, Typography,
   Tabs, TabPane, Tag, Input, Select,
 } from '@douyinfe/semi-ui';
-import { usePagination } from '@/hooks/usePagination';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { IpAccessLog } from '@zenith/shared/platform';
@@ -14,6 +12,7 @@ import { Search } from 'lucide-react';
 import { formatDateTime } from '@/utils/date';
 import { renderEllipsis } from '../../../utils/table-columns';
 import { ipAccessKeys, useIpAccessConfigs, useIpAccessLogs, useSaveIpAccessSection } from '@/hooks/queries/ip-access';
+import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { Title, Text } = Typography;
@@ -35,13 +34,14 @@ function toJsonArray(text: string): string {
 // ─── 拦截日志子页面 ─────────────────────────────────────────────
 
 function IpAccessLogsTab() {
-  const queryClient = useQueryClient();
-  const { page, setPage, pageSize, buildPagination } = usePagination();
 
   interface SearchParams { filterIp: string; filterBlockType: string | undefined; }
   const defaultSearchParams: SearchParams = { filterIp: '', filterBlockType: undefined };
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: ipAccessKeys.logs });
   const logsQuery = useIpAccessLogs({
     page,
     pageSize,
@@ -50,19 +50,6 @@ function IpAccessLogsTab() {
   });
   const logList = logsQuery.data?.list ?? [];
   const total = logsQuery.data?.total ?? 0;
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: ipAccessKeys.logs });
-  };
-
-  const handleReset = () => {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: ipAccessKeys.logs });
-  };
 
   const columns: ColumnProps<IpAccessLog>[] = [
     { title: 'IP 地址', dataIndex: 'ip', width: 160 },

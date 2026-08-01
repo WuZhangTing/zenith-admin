@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Button, Checkbox, Form, Input, InputNumber, Select, Space, Switch, Tag, TextArea, Toast, Modal, Row, Col, SideSheet, Tabs, TabPane, Typography, Upload } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -11,7 +10,6 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
-import { usePagination } from '@/hooks/usePagination';
 import { useMyAsyncTasks } from '@/hooks/useAsyncTasks';
 import { useAllUsers } from '@/hooks/queries/users';
 import {
@@ -22,18 +20,11 @@ import {
   useAllCmsSites,
   useCmsChannelTree, useCmsOpenGrants, useSaveCmsOpenGrant, useDeleteCmsOpenGrant,
 } from '@/hooks/queries/cms';
-import {
-  cmsSiteHierarchyKeys,
-  useCmsSiteEffectiveConfig,
-  useCmsSiteInheritanceChain,
-  useCmsSiteTree,
-  useMoveCmsSite,
-  useSubmitCmsSiteGroupPublish,
-  useUpdateCmsSiteInheritance,
-} from '@/hooks/queries/cms-stage5';
+import { useCmsSiteEffectiveConfig, useCmsSiteInheritanceChain, useCmsSiteTree, useMoveCmsSite, useSubmitCmsSiteGroupPublish, useUpdateCmsSiteInheritance } from '@/hooks/queries/cms-stage5';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 import { useWorkflowDefinitionList } from '@/hooks/queries/workflow-definitions';
+import { useListSearch } from '@/hooks/useListSearch';
 import { CMS_SITE_INHERITABLE_FIELD_LABELS, CMS_SITE_INHERITABLE_FIELDS, CMS_SITE_OPS_DEFAULTS, CMS_STATIC_MODE_LABELS, CMS_STATIC_MODES, CMS_TWITTER_CARDS, CMS_TWITTER_CARD_LABELS } from '@zenith/shared/cms';
 import type { CmsChannel, CmsModelField, CmsOpenAppGrant, CmsSite, CmsSiteInheritanceFlags, CmsSiteInheritableField, CmsSiteTemplateDefaults, CmsInvalidTemplateRef, CmsThemeSettingField } from '@zenith/shared/cms';
 import type { AsyncTask } from '@zenith/shared/tasks';
@@ -292,11 +283,12 @@ function SiteStaticPanel({ site, canBuild }: { site: CmsSite; canBuild: boolean 
 export default function SitesPage() {
   const { hasPermission } = usePermission();
   const formApi = useRef<FormApi | null>(null);
-  const queryClient = useQueryClient();
 
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: cmsSiteKeys.lists });
   const [treeView, setTreeView] = useState(true);
   const [expandedRowKeys, setExpandedRowKeys] = useState<(string | number)[]>([]);
 
@@ -498,21 +490,6 @@ export default function SitesPage() {
         Toast.success(`已提交 ${result.tasks.length} 个站点重建任务`);
       },
     });
-  }
-
-  function handleSearch() {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: cmsSiteKeys.lists });
-    void queryClient.invalidateQueries({ queryKey: cmsSiteHierarchyKeys.all });
-  }
-
-  function handleReset() {
-    setPage(1);
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    void queryClient.invalidateQueries({ queryKey: cmsSiteKeys.lists });
-    void queryClient.invalidateQueries({ queryKey: cmsSiteHierarchyKeys.all });
   }
 
   function openCreate() {

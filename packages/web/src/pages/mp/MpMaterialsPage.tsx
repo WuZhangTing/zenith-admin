@@ -1,17 +1,16 @@
 import { useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Input, Modal, Select, Spin, Tag, Toast, Banner, Upload, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Search, RefreshCw, UploadCloud } from 'lucide-react';
 import { MP_MATERIAL_TYPE_LABELS, MP_MATERIAL_TYPE_OPTIONS } from '@zenith/shared/mp';
 import type { MpMaterial, MpMaterialType } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
+import { useListSearch } from '@/hooks/useListSearch';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, renderEllipsis } from '../../utils/table-columns';
-import { usePagination } from '@/hooks/usePagination';
 import { useMpAccounts } from './useMpAccounts';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
 import {
@@ -36,11 +35,12 @@ const defaultSearch: SearchParams = { filterType: undefined, keyword: '' };
 
 export default function MpMaterialsPage() {
   const { hasPermission: can } = usePermission();
-  const queryClient = useQueryClient();
   const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearch);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearch);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: mpMaterialKeys.lists(currentId) });
 
   const listQuery = useMpMaterialList(currentId, {
     page,
@@ -64,18 +64,6 @@ export default function MpMaterialsPage() {
   const uploadMutation = useUploadMpMaterial();
 
   const ACCEPT_MAP: Record<MpMaterialType, string> = { image: 'image/*', thumb: 'image/*', voice: 'audio/*', video: 'video/*' };
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: mpMaterialKeys.lists(currentId) });
-  };
-  const handleReset = () => {
-    setDraftParams(defaultSearch);
-    setSubmittedParams(defaultSearch);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: mpMaterialKeys.lists(currentId) });
-  };
 
   const handleSync = async () => {
     if (!currentId) return;

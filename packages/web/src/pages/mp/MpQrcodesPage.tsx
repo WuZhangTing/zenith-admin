@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Image, Input, Modal, Select, Spin, Tag, Toast, Banner, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus, Search } from 'lucide-react';
@@ -10,10 +9,10 @@ import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn } from '../../utils/table-columns';
-import { usePagination } from '@/hooks/usePagination';
 import { useMpAccounts } from './useMpAccounts';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
 import { mpQrcodeKeys, useCreateMpQrcode, useDeleteMpQrcode, useMpQrcodeList } from '@/hooks/queries/mp-qrcodes';
+import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const TYPE_OPTIONS = [
@@ -27,15 +26,15 @@ const TYPE_META: Record<MpQrcodeType, { label: string; color: 'green' | 'orange'
 
 export default function MpQrcodesPage() {
   const { hasPermission: can } = usePermission();
-  const queryClient = useQueryClient();
   const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
-
-  const { page, pageSize, setPage, buildPagination } = usePagination();
 
   interface SearchParams { filterType: MpQrcodeType | undefined; keyword: string; }
   const defaultSearch: SearchParams = { filterType: undefined, keyword: '' };
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearch);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearch);
+  const {
+    page, pageSize, setPage, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: mpQrcodeKeys.lists(currentId) });
 
   const [modalVisible, setModalVisible] = useState(false);
   const [modalType, setModalType] = useState<MpQrcodeType>('permanent');
@@ -57,18 +56,6 @@ export default function MpQrcodesPage() {
   useEffect(() => {
     setPage(1);
   }, [currentId, setPage]);
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: mpQrcodeKeys.lists(currentId) });
-  };
-  const handleReset = () => {
-    setDraftParams(defaultSearch);
-    setSubmittedParams(defaultSearch);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: mpQrcodeKeys.lists(currentId) });
-  };
 
   const openCreate = () => { setModalType('permanent'); setModalVisible(true); };
 

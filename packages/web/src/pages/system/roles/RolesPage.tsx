@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Button,
   Input,
@@ -30,11 +29,11 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import { MenuPermissionPanel } from '@/components/permissions/MenuPermissionPanel';
 import { DataScopePanel } from '@/components/permissions/DataScopePanel';
-import { usePagination } from '@/hooks/usePagination';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { useDepartmentTree } from '@/hooks/queries/departments';
 import { useMenuTree } from '@/hooks/queries/menus';
 import { useAllUsers } from '@/hooks/queries/users';
+import { useListSearch } from '@/hooks/useListSearch';
 import {
   roleKeys,
   useAssignRoleMenus,
@@ -50,7 +49,6 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 
 export default function RolesPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
   interface SearchParams {
     keyword: string;
     status: string;
@@ -60,9 +58,11 @@ export default function RolesPage() {
   const defaultSearchParams: SearchParams = { keyword: '', status: '', timeRange: null };
   const formApi = useRef<FormApi | null>(null);
   const { items: statusItems } = useDictItems('common_status');
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: roleKeys.lists });
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<Role | null>(null);
   const [menuModalVisible, setMenuModalVisible] = useState(false);
@@ -126,19 +126,6 @@ export default function RolesPage() {
       value: d.id,
       children: d.children ? deptsToTreeData(d.children) : undefined,
     }));
-  }
-
-  function handleSearch() {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: roleKeys.lists });
-  }
-
-  function handleReset() {
-    setPage(1);
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    void queryClient.invalidateQueries({ queryKey: roleKeys.lists });
   }
 
   const openMenuModal = (role: Role) => {

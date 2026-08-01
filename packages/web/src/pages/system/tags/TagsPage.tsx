@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Button,
   Form,
@@ -17,12 +16,12 @@ import { Search, Tags, Trash2 } from 'lucide-react';
 import type { Tag } from '@zenith/shared/platform';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useListSearch } from '@/hooks/useListSearch';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn } from '../../../utils/table-columns';
-import { usePagination } from '@/hooks/usePagination';
 import {
   tagKeys,
   useBatchDeleteTags,
@@ -125,14 +124,15 @@ function ColorInput({ value, onChange }: { readonly value?: string; readonly onC
 
 export default function TagsPage() {
   const { hasPermission: can } = usePermission();
-  const queryClient = useQueryClient();
   const { items: statusItems } = useDictItems('common_status');
 
   interface SearchParams { keyword: string; filterStatus: string | undefined; filterGroup: string | undefined; }
   const defaultSearchParams: SearchParams = { keyword: '', filterStatus: undefined, filterGroup: undefined };
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: tagKeys.lists });
 
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
 
@@ -163,19 +163,6 @@ export default function TagsPage() {
   useEffect(() => {
     if (modalVisible && editing) setColorValue(editing.color ?? '');
   }, [modalVisible, editing]);
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: tagKeys.lists });
-  };
-
-  const handleReset = () => {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: tagKeys.lists });
-  };
 
   const openCreate = () => {
     setEditRecord(null);

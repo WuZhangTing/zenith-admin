@@ -11,8 +11,6 @@ import AppModal from '@/components/AppModal';
 import { useExportJobRunner } from '@/hooks/useExportJobRunner';
 import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
-import { usePagination } from '@/hooks/usePagination';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   useBatchReportDatasetStatus,
   useCloneReportDataset,
@@ -37,6 +35,7 @@ import { flattenReportFolders, useReportFolderTree } from '@/hooks/queries/repor
 import { useAllUsers } from '@/hooks/queries/users';
 import { useReportDqAnomalyList } from '@/hooks/queries/report-dq';
 import { useReportDeprecationList } from '@/hooks/queries/report-assets';
+import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams { keyword: string; status: string; ownerId?: number; folderId?: number }
@@ -82,11 +81,12 @@ export default function DatasetsPage() {
   const navigate = useNavigate();
   const formApi = useRef<FormApi | null>(null);
   const staticFileInputRef = useRef<HTMLInputElement | null>(null);
-  const queryClient = useQueryClient();
 
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: reportDatasetKeys.lists });
 
   const datasourcesQuery = useEnabledReportDatasources();
   const datasources = useMemo<ReportLookupOption[]>(() => datasourcesQuery.data ?? [], [datasourcesQuery.data]);
@@ -158,9 +158,6 @@ export default function DatasetsPage() {
   const generateSqlMutation = useGenerateReportDatasetSql();
   const refreshMaterializeMutation = useRefreshReportDatasetMaterialize();
   const exportRunner = useExportJobRunner();
-
-  function handleSearch() { setPage(1); setSubmittedParams(draftParams); void queryClient.invalidateQueries({ queryKey: reportDatasetKeys.lists }); }
-  function handleReset() { setDraftParams(defaultSearchParams); setSubmittedParams(defaultSearchParams); setPage(1); void queryClient.invalidateQueries({ queryKey: reportDatasetKeys.lists }); }
 
   function resetModalExtra(ds: ReportDataset | null) {
     setSelectedDsId(ds?.datasourceId ?? null);

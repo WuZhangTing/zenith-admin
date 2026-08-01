@@ -6,7 +6,6 @@
  * 履约（置 paid、发放权益）。「模拟支付成功」用于在未配置真实渠道时演示完整闭环。
  */
 import { useRef, useState, type CSSProperties } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Banner, Button, Collapse, Form, Input, Modal, Select, Space, Tag, Toast, Tooltip, Typography,
 } from '@douyinfe/semi-ui';
@@ -20,7 +19,6 @@ import type { CreatePaymentResult, PaymentMethod } from '@zenith/shared/payment'
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { usePagination } from '@/hooks/usePagination';
 import { createdAtColumn } from '@/utils/table-columns';
 import AppModal from '@/components/AppModal';
 import {
@@ -32,6 +30,7 @@ import {
   useSimulateBizPayDemoPaid,
 } from '@/hooks/queries/biz-pay-demo';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { useListSearch } from '@/hooks/useListSearch';
 
 type TagColor = 'grey' | 'blue' | 'green' | 'orange';
 
@@ -104,11 +103,12 @@ const DEFAULT_PAY_DEMO_SEARCH_PARAMS: PayDemoSearchParams = {
 };
 
 export default function PayDemoPage() {
-  const queryClient = useQueryClient();
-  const { page, pageSize, setPage, buildPagination } = usePagination();
 
-  const [draftParams, setDraftParams] = useState<PayDemoSearchParams>(DEFAULT_PAY_DEMO_SEARCH_PARAMS);
-  const [submittedParams, setSubmittedParams] = useState<PayDemoSearchParams>(DEFAULT_PAY_DEMO_SEARCH_PARAMS);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<PayDemoSearchParams>({ defaults: DEFAULT_PAY_DEMO_SEARCH_PARAMS, listKey: bizPayDemoKeys.lists });
 
   const [createVisible, setCreateVisible] = useState(false);
   const createFormApi = useRef<FormApi | null>(null);
@@ -131,18 +131,6 @@ export default function PayDemoPage() {
   const simulateMutation = useSimulateBizPayDemoPaid();
   const deleteMutation = useDeleteBizPayDemo();
   const simulatingId = simulateMutation.isPending ? (simulateMutation.variables ?? null) : null;
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: bizPayDemoKeys.lists });
-  };
-  const handleReset = () => {
-    setPage(1);
-    setDraftParams(DEFAULT_PAY_DEMO_SEARCH_PARAMS);
-    setSubmittedParams(DEFAULT_PAY_DEMO_SEARCH_PARAMS);
-    void queryClient.invalidateQueries({ queryKey: bizPayDemoKeys.lists });
-  };
 
   const openCreate = () => {
     setCreateVisible(true);

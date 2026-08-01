@@ -1,6 +1,5 @@
 import { useState, useRef } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
-import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Modal, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -11,8 +10,8 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import { formatDateTime, formatDateForApi } from '@/utils/date';
 import { createdAtColumn } from '@/utils/table-columns';
-import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
+import { useListSearch } from '@/hooks/useListSearch';
 import {
   paymentSettlementKeys,
   useGeneratePaymentSettlement,
@@ -34,12 +33,13 @@ interface GenerateFormValues { channel: PaymentChannel; period: [Date, Date]; re
 
 export default function PaymentSettlementsPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
   const canSettle = hasPermission('payment:settlement:settle');
   const formApi = useRef<FormApi | null>(null);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearch);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearch);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentSettlementKeys.lists });
 
   const [genVisible, setGenVisible] = useState(false);
 
@@ -54,9 +54,6 @@ export default function PaymentSettlementsPage() {
   const generateMutation = useGeneratePaymentSettlement();
   const transitionMutation = useUpdatePaymentSettlementStatus();
   const transitioningId = transitionMutation.isPending ? (transitionMutation.variables?.id ?? null) : null;
-
-  function handleSearch() { setPage(1); setSubmittedParams(draftParams); void queryClient.invalidateQueries({ queryKey: paymentSettlementKeys.lists }); }
-  function handleReset() { setDraftParams(defaultSearch); setPage(1); setSubmittedParams(defaultSearch); void queryClient.invalidateQueries({ queryKey: paymentSettlementKeys.lists }); }
 
   async function handleGenerate() {
     let values: GenerateFormValues;

@@ -1,5 +1,4 @@
-import { useMemo, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { Input, Modal, Select, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search } from 'lucide-react';
@@ -7,9 +6,9 @@ import { useNavigate } from 'react-router-dom';
 import type { WorkflowForm, WorkflowFormStatus } from '@zenith/shared/workflow';
 import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
-import { usePagination } from '@/hooks/usePagination';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
+import { useListSearch } from '@/hooks/useListSearch';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -48,13 +47,14 @@ function toStatus(value: unknown): StatusFilter {
 }
 
 export default function WorkflowFormsPage() {
-  const queryClient = useQueryClient();
   const { hasPermission } = usePermission();
   const navigate = useNavigate();
   const { items: statusItems } = useDictItems('common_status');
-  const { page, setPage, pageSize, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: workflowFormKeys.lists });
   const { categories } = useWorkflowCategories();
   const listQuery = useWorkflowFormList({
     page,
@@ -79,19 +79,6 @@ export default function WorkflowFormsPage() {
     () => new Map(categories.map((category) => [category.id, category.name])),
     [categories],
   );
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: workflowFormKeys.lists });
-  };
-
-  const handleReset = () => {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: workflowFormKeys.lists });
-  };
 
   const handleDelete = async (id: number) => {
     await deleteMutation.mutateAsync(id);

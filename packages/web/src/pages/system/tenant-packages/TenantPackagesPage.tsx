@@ -18,10 +18,9 @@ import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { MenuPermissionPanel } from '@/components/permissions/MenuPermissionPanel';
 import { usePermission } from '@/hooks/usePermission';
-import { usePagination } from '@/hooks/usePagination';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useMenuTree } from '@/hooks/queries/menus';
-import { useQueryClient } from '@tanstack/react-query';
+import { useListSearch } from '@/hooks/useListSearch';
 import {
   tenantPackageKeys,
   useAssignTenantPackageMenus,
@@ -45,12 +44,13 @@ export default function TenantPackagesPage() {
   const { hasPermission } = usePermission();
   const { items: statusItems } = useDictItems('common_status');
   const formApi = useRef<FormApi | null>(null);
-  const queryClient = useQueryClient();
 
-  const { page, pageSize, setPage, buildPagination } = usePagination();
   // draft：搜索区输入中的条件；submitted：点击查询后实际生效的条件（进入 query key）
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: tenantPackageKeys.lists });
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
 
   const listQuery = useTenantPackageList({
@@ -86,20 +86,6 @@ export default function TenantPackagesPage() {
   const assignMenusMutation = useAssignTenantPackageMenus();
 
   const togglingStatusId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
-
-  function handleSearch() {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    // 条件未变化时 query key 不变，显式失效以保证点击「查询」必定回源刷新
-    void queryClient.invalidateQueries({ queryKey: tenantPackageKeys.lists });
-  }
-
-  function handleReset() {
-    setPage(1);
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    void queryClient.invalidateQueries({ queryKey: tenantPackageKeys.lists });
-  }
 
   function openCreate() {
     setEditingRecord(null);

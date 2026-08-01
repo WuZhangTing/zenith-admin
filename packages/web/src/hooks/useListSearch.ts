@@ -1,0 +1,121 @@
+import { useCallback, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import type { QueryKey } from '@tanstack/react-query';
+import { usePagination, type UsePaginationReturn } from '@/hooks/usePagination';
+
+export interface UseListSearchOptions<T> {
+  /**
+   * 搜索条件的初始值；「重置」会回到这里。
+   * 传函数时按 React 的惰性初始化约定处理，且**每次重置都会重新求值**——
+   * 用于「最近 7 天」这类相对当前时间计算的默认条件。
+   */
+  readonly defaults: T | (() => T);
+  /** 「查询 / 重置」时要失效的列表 key，通常是域 hooks 的 `xxxKeys.lists` */
+  readonly listKey: QueryKey;
+  /** 同一页面还驱动了其它列表时，在此追加它们的 key */
+  readonly extraKeys?: readonly QueryKey[];
+  /** 覆盖默认页大小（默认取用户偏好） */
+  readonly pageSize?: number;
+  /** 查询后的额外副作用，如清空已选中的行 */
+  readonly onSearch?: () => void;
+  /** 重置后的额外副作用 */
+  readonly onReset?: () => void;
+}
+
+export interface UseListSearchReturn<T> extends UsePaginationReturn {
+  /** 绑定到输入框；变化不触发请求 */
+  readonly draftParams: T;
+  readonly setDraftParams: React.Dispatch<React.SetStateAction<T>>;
+  /** 进入 query key；变化自动触发请求 */
+  readonly submittedParams: T;
+  /** 提交草稿条件、回到第 1 页，并强制失效列表 */
+  readonly handleSearch: () => void;
+  /**
+   * 以指定条件立即查询（点击部门树、标签、保存的视图等「不经输入框直接筛选」的场景）。
+   * 同步更新 draft 与 submitted，并同样保证回源——
+   * 因此**不要**为这类场景去改 `submittedParams` 的裸 setter，那会绕过页码重置与失效。
+   */
+  readonly applySearch: (params: T) => void;
+  /** 清空条件、回到第 1 页，并强制失效列表 */
+  readonly handleReset: () => void;
+}
+
+/**
+ * 列表页搜索状态。
+ *
+ * 把此前每个列表页手抄一遍的三件套收敛到一处：
+ * `draft`/`submitted` 双状态、页码重置、以及**查询/重置必回源**的失效调用。
+ *
+ * ## 为什么必须失效
+ * 条件没变化时 query key 不变，`staleTime` 内 TanStack Query 不会重新发请求。
+ * 但本系统的「查询」按钮兼具刷新语义——用户点它就是想看最新数据。
+ * 手写这段样板时很容易漏掉 `invalidateQueries`，页面表现为「点查询没反应」，
+ * 且因为列表仍有数据、不报错，极难被发现。契约焊在 hook 里，调用方漏不掉。
+ *
+ * @example
+ * const {
+ *   page, pageSize, buildPagination,
+ *   draftParams, setDraftParams, submittedParams,
+ *   handleSearch, handleReset,
+ * } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: tagKeys.lists });
+ *
+ * const listQuery = useTagList({ page, pageSize, keyword: submittedParams.keyword || undefined });
+ */
+export function useListSearch<T>({
+  defaults,
+  listKey,
+  extraKeys,
+  pageSize: overridePageSize,
+  onSearch,
+  onReset,
+}: UseListSearchOptions<T>): UseListSearchReturn<T> {
+  const queryClient = useQueryClient();
+  const pagination = usePagination(overridePageSize);
+  const { setPage } = pagination;
+
+  const [draftParams, setDraftParams] = useState<T>(defaults);
+  const [submittedParams, setSubmittedParams] = useState<T>(defaults);
+
+  const invalidate = useCallback(() => {
+    for (const queryKey of [listKey, ...(extraKeys ?? [])]) {
+      void queryClient.invalidateQueries({ queryKey });
+    }
+    // key 通常是页面里的字面量数组，每次渲染引用都不同，按值快照做依赖
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryClient, JSON.stringify(listKey), JSON.stringify(extraKeys)]);
+
+  const applySearch = useCallback((params: T) => {
+    setPage(1);
+    setDraftParams(params);
+    setSubmittedParams(params);
+    invalidate();
+    onSearch?.();
+  }, [setPage, invalidate, onSearch]);
+
+  const handleSearch = useCallback(() => {
+    setPage(1);
+    setSubmittedParams(draftParams);
+    invalidate();
+    onSearch?.();
+  }, [setPage, draftParams, invalidate, onSearch]);
+
+  const handleReset = useCallback(() => {
+    // defaults 为函数时每次重置都重新求值，保证「最近 7 天」这类相对区间是最新的
+    const next = typeof defaults === 'function' ? (defaults as () => T)() : defaults;
+    setPage(1);
+    setDraftParams(next);
+    setSubmittedParams(next);
+    invalidate();
+    onReset?.();
+  }, [setPage, invalidate, onReset, defaults]);
+
+  return {
+    ...pagination,
+    draftParams,
+    setDraftParams,
+    submittedParams,
+    handleSearch,
+    applySearch,
+    handleReset,
+  };
+}

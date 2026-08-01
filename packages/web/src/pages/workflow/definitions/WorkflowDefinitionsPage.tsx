@@ -21,7 +21,7 @@ import CategorySidebar from './components/CategorySidebar';
 import { TemplateGalleryModal } from './components/TemplateGalleryModal';
 import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
 import { renderEllipsis } from '../../../utils/table-columns';
-import { usePagination } from '@/hooks/usePagination';
+import { useListSearch } from '@/hooks/useListSearch';
 import {
   useBatchDeleteWorkflowDefinitions,
   useBatchDisableWorkflowDefinitions,
@@ -82,10 +82,18 @@ export default function WorkflowDefinitionsPage() {
   const { hasPermission } = usePermission();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { page, setPage, pageSize, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, applySearch, handleReset,
+  } = useListSearch<SearchParams>({
+    defaults: defaultSearchParams,
+    listKey: workflowDefinitionKeys.lists,
+    // 条件变化后原先勾选的行可能已不在结果集里，一并清空
+    onSearch: () => setSelectedRowKeys([]),
+    onReset: () => setSelectedRowKeys([]),
+  });
   const canBatchOperate = hasPermission('workflow:definition:publish') || hasPermission('workflow:definition:delete');
   const [historyTarget, setHistoryTarget] = useState<WorkflowDefinition | null>(null);
   const [templateGalleryVisible, setTemplateGalleryVisible] = useState(false);
@@ -134,28 +142,8 @@ export default function WorkflowDefinitionsPage() {
   }, [diffTarget, versions]);
 
   const handleSelectCategory = (id: number | null) => {
-    setSelectedRowKeys([]);
-    const next = { ...draftParams, selectedCategoryId: id };
-    setDraftParams(next);
-    setSubmittedParams(next);
-    setPage(1);
+    applySearch({ ...draftParams, selectedCategoryId: id });
     setShowCategorySidebar(false);
-    void queryClient.invalidateQueries({ queryKey: workflowDefinitionKeys.lists });
-  };
-
-  const handleSearch = () => {
-    setSelectedRowKeys([]);
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: workflowDefinitionKeys.lists });
-  };
-
-  const handleReset = () => {
-    setSelectedRowKeys([]);
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: workflowDefinitionKeys.lists });
   };
 
   const handlePublish = async (record: WorkflowDefinition) => {

@@ -1,5 +1,4 @@
 import { useMemo, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Form, Input, Modal, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -8,13 +7,13 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { AppModal } from '@/components/AppModal';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { useAllPaymentChannelConfigsLookup } from '@/hooks/queries/payment-channels';
 import { paymentAppKeys, useDeletePaymentApp, usePaymentAppList, useSavePaymentApp } from '@/hooks/queries/payment-apps';
 import { createdAtColumn } from '@/utils/table-columns';
 import type { PaymentApp, PaymentChannel, PaymentChannelConfig } from '@zenith/shared/payment';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams { keyword: string; status: string; }
@@ -43,11 +42,12 @@ export default function PaymentAppsPage() {
   const STATUS_OPTIONS = statusItems.map((i) => ({ value: i.value, label: i.label }));
   const { hasPermission } = usePermission();
   const canManage = hasPermission('payment:app:manage');
-  const queryClient = useQueryClient();
   const formApi = useRef<FormApi | null>(null);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearch);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearch);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentAppKeys.lists });
   const [modalVisible, setModalVisible] = useState(false);
   const [editing, setEditing] = useState<PaymentApp | null>(null);
 
@@ -69,8 +69,6 @@ export default function PaymentAppsPage() {
     };
   }, [channelLookupQuery.data]);
 
-  function handleSearch() { setPage(1); setSubmittedParams(draftParams); void queryClient.invalidateQueries({ queryKey: paymentAppKeys.lists }); }
-  function handleReset() { setDraftParams(defaultSearch); setSubmittedParams(defaultSearch); setPage(1); void queryClient.invalidateQueries({ queryKey: paymentAppKeys.lists }); }
   function openCreate() { setEditing(null); setModalVisible(true); }
   function openEdit(record: PaymentApp) { setEditing(record); setModalVisible(true); }
   function closeModal() { setModalVisible(false); setEditing(null); formApi.current = null; }

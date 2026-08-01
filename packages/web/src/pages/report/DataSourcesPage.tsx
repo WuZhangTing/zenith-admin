@@ -11,8 +11,6 @@ import AppModal from '@/components/AppModal';
 import { formatDateTime } from '@/utils/date';
 import { renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
-import { usePagination } from '@/hooks/usePagination';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   reportDatasourceKeys,
   useBatchReportDatasourceStatus,
@@ -29,6 +27,7 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { renderReportDatasourceTypeTag } from './report-datasource-ui';
 import { flattenReportFolders, useReportFolderTree } from '@/hooks/queries/report-folders';
 import { useAllUsers } from '@/hooks/queries/users';
+import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams { keyword: string; type: string; status: string; ownerId?: number; folderId?: number }
@@ -43,11 +42,12 @@ export default function DataSourcesPage() {
   const { hasPermission } = usePermission();
   const navigate = useNavigate();
   const formApi = useRef<FormApi | null>(null);
-  const queryClient = useQueryClient();
 
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: reportDatasourceKeys.lists });
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editing, setEditing] = useState<ReportDatasource | null>(null);
@@ -73,9 +73,6 @@ export default function DataSourcesPage() {
   const deleteMutation = useDeleteReportDatasource();
   const testConnectionMutation = useTestReportDatasourceConnection();
   const togglingId = toggleMutation.isPending ? toggleMutation.variables?.id ?? null : null;
-
-  function handleSearch() { setPage(1); setSubmittedParams(draftParams); void queryClient.invalidateQueries({ queryKey: reportDatasourceKeys.lists }); }
-  function handleReset() { setDraftParams(defaultSearchParams); setSubmittedParams(defaultSearchParams); setPage(1); void queryClient.invalidateQueries({ queryKey: reportDatasourceKeys.lists }); }
 
   function openCreate() { setEditing(null); setModalVisible(true); }
   function openEdit(record: ReportDatasource) { setEditing(record); setModalVisible(true); }

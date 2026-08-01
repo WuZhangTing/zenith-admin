@@ -1,7 +1,6 @@
 import { useState, useRef } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { downloadBlob } from '@/utils/download';
-import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Input, Modal, Select, Space, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -13,11 +12,11 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { createdAtColumn } from '@/utils/table-columns';
-import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { PAYMENT_METHOD_LABELS, PAYMENT_LINK_STATUS_LABELS } from '@zenith/shared/payment';
 import type { PaymentLink, PaymentLinkStatus, PaymentMethod } from '@zenith/shared/payment';
 import { paymentLinkKeys, useDeletePaymentLink, usePaymentLinkDetail, usePaymentLinkList, useRotatePaymentLinkToken, useSavePaymentLink } from '@/hooks/queries/payment-links';
+import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const yuan = (cents: number | null | undefined) => formatYuan(cents, '用户填写');
@@ -47,12 +46,13 @@ interface LinkFormValues {
 
 export default function PaymentLinksPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
   const formApi = useRef<FormApi | null>(null);
   const qrContainerRef = useRef<HTMLDivElement | null>(null);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearch);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearch);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentLinkKeys.lists });
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editing, setEditing] = useState<PaymentLink | null>(null);
@@ -72,9 +72,6 @@ export default function PaymentLinksPage() {
   const deleteMutation = useDeletePaymentLink();
   const rotateTokenMutation = useRotatePaymentLinkToken();
   const togglingId = toggleMutation.isPending ? (toggleMutation.variables?.id ?? null) : null;
-
-  function handleSearch() { setPage(1); setSubmittedParams(draftParams); void queryClient.invalidateQueries({ queryKey: paymentLinkKeys.lists }); }
-  function handleReset() { setDraftParams(defaultSearch); setSubmittedParams(defaultSearch); setPage(1); void queryClient.invalidateQueries({ queryKey: paymentLinkKeys.lists }); }
 
   function openCreate() { setEditing(null); setModalVisible(true); }
   function openEdit(record: PaymentLink) { setEditing(record); setModalVisible(true); }

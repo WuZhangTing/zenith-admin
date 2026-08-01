@@ -8,7 +8,6 @@ import { useDictItems } from '@/hooks/useDictItems';
  *   - Webhook 回调 / 回写表单字段
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Button,
   Col,
@@ -34,9 +33,9 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { useWorkflowDefinitionList } from '@/hooks/queries/workflow-definitions';
+import { useListSearch } from '@/hooks/useListSearch';
 import {
   useDeleteWorkflowAutomation,
   useSaveWorkflowAutomation,
@@ -249,16 +248,17 @@ function draftToAction(d: ActionDraft): WorkflowAutomationAction | { __error: st
 
 export default function WorkflowAutomationsPage() {
   const { items: statusItems } = useDictItems('common_status');
-  const queryClient = useQueryClient();
   const { hasPermission } = usePermission();
   const formApi = useRef<FormApi<FormValues> | null>(null);
   const canEditAutomation = hasPermission('workflow:definition:edit');
-  const { page, pageSize, setPage, buildPagination } = usePagination();
 
   interface SearchParams { definitionId: number | ''; trigger: WorkflowAutomationTrigger | ''; status: 'enabled' | 'disabled' | '' }
   const defaultSearchParams: SearchParams = { definitionId: '', trigger: '', status: '' };
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: workflowAutomationKeys.lists });
   const listQuery = useWorkflowAutomationList({
     page,
     pageSize,
@@ -292,18 +292,6 @@ export default function WorkflowAutomationsPage() {
       actions: [],
     }), 0);
   }, [detailQuery.data, modalVisible]);
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: workflowAutomationKeys.lists });
-  };
-  const handleReset = () => {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: workflowAutomationKeys.lists });
-  };
 
   const openCreate = () => {
     setEditing(null);

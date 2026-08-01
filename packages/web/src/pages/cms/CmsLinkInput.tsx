@@ -5,7 +5,8 @@ import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
 import { ChevronDown, Home, Link2, Search } from 'lucide-react';
 import { buildCmsEntityLink, buildCmsChannelCodeLink, parseCmsLink, CMS_CONTENT_STATUS_LABELS } from '@zenith/shared/cms';
 import type { CmsChannel, CmsContent } from '@zenith/shared/cms';
-import { useAllCmsSites, useCmsChannelTree, useCmsContentList, useCmsLinkTarget } from '@/hooks/queries/cms';
+import { useQueryClient } from '@tanstack/react-query';
+import { cmsContentKeys, useAllCmsSites, useCmsChannelTree, useCmsContentList, useCmsLinkTarget } from '@/hooks/queries/cms';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { formatDateTime } from '@/utils/date';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
@@ -29,6 +30,7 @@ function ContentPickerModal({ siteId, visible, onCancel, onSelect, excludeId }: 
   onSelect: (content: CmsContent) => void;
   excludeId?: number;
 }>) {
+  const queryClient = useQueryClient();
   const [draftKeyword, setDraftKeyword] = useState('');
   const [keyword, setKeyword] = useState('');
   const [channelId, setChannelId] = useState<number | undefined>(undefined);
@@ -52,8 +54,19 @@ function ContentPickerModal({ siteId, visible, onCancel, onSelect, excludeId }: 
     children: channelsToTree(treeQuery.data ?? []),
   }], [siteName, treeQuery.data]);
 
-  const handleSearch = () => { setKeyword(draftKeyword); setPage(1); };
-  const handleReset = () => { setDraftKeyword(''); setKeyword(''); setChannelId(undefined); setPage(1); };
+  const handleSearch = () => {
+    setKeyword(draftKeyword);
+    setPage(1);
+    // 关键词未变时 query key 不变，不显式失效就不会真正回源刷新
+    void queryClient.invalidateQueries({ queryKey: cmsContentKeys.lists });
+  };
+  const handleReset = () => {
+    setDraftKeyword('');
+    setKeyword('');
+    setChannelId(undefined);
+    setPage(1);
+    void queryClient.invalidateQueries({ queryKey: cmsContentKeys.lists });
+  };
 
   const columns: ColumnProps<CmsContent>[] = [
     { title: '标题', dataIndex: 'title', ellipsis: true },

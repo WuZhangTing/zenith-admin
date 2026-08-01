@@ -9,7 +9,6 @@ import { AppModal } from '@/components/AppModal';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import {
@@ -20,6 +19,7 @@ import {
   useSaveAiPrompt,
 } from '@/hooks/queries/ai-prompts';
 import { useAiPromptVersions, useRestoreAiPromptVersion } from '@/hooks/queries/ai-extras';
+import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams {
@@ -67,12 +67,14 @@ export default function PromptTemplatesPage() {
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
   const formApi = useRef<FormApi | null>(null);
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: aiPromptKeys.lists });
   const [versionTemplate, setVersionTemplate] = useState<AiPromptTemplate | null>(null);
   const versionsQuery = useAiPromptVersions(versionTemplate?.id ?? null);
   const restoreVersionMutation = useRestoreAiPromptVersion();
-  const { page, pageSize, setPage, buildPagination } = usePagination();
   const [modalVisible, setModalVisible] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<AiPromptTemplate | null>(null);
   const listQuery = useAiPromptList({
@@ -87,19 +89,6 @@ export default function PromptTemplatesPage() {
   const modalDetailLoading = !!editingTemplate && detailQuery.isFetching;
   const saveMutation = useSaveAiPrompt();
   const deleteMutation = useDeleteAiPrompt();
-
-  function handleSearch() {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: aiPromptKeys.lists });
-  }
-
-  function handleReset() {
-    setPage(1);
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    void queryClient.invalidateQueries({ queryKey: aiPromptKeys.lists });
-  }
 
   function openCreate() {
     setEditingTemplate(null);

@@ -1,12 +1,10 @@
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Button, Descriptions, Input, InputNumber, Select, Toast, Tag, Modal } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search, ScanLine } from 'lucide-react';
 import type { MemberCoupon, MemberCouponStatus } from '@zenith/shared/member';
 import { MEMBER_COUPON_STATUS_LABELS } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
-import { usePagination } from '@/hooks/usePagination';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
@@ -14,6 +12,7 @@ import { AppModal } from '@/components/AppModal';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { renderEllipsis } from '../../utils/table-columns';
 import { memberAdminKeys, useCouponByCode, useCouponRecordList, useRedeemCoupon, useRevokeCouponRecord } from '@/hooks/queries/member-admin';
+import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const statusOptions = (Object.keys(MEMBER_COUPON_STATUS_LABELS) as MemberCouponStatus[]).map((v) => ({ value: v, label: MEMBER_COUPON_STATUS_LABELS[v] }));
@@ -23,10 +22,11 @@ interface SearchParams { memberKeyword?: string; couponId?: number; status?: str
 
 export default function CouponRecordsPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>({});
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>({});
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: {}, listKey: memberAdminKeys.couponRecordLists });
   const listQuery = useCouponRecordList({
     page,
     pageSize,
@@ -45,18 +45,6 @@ export default function CouponRecordsPage() {
   const previewQuery = useCouponByCode(previewCode, redeemVisible);
   const redeemMutation = useRedeemCoupon();
   const preview = previewQuery.data ?? null;
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: memberAdminKeys.couponRecordLists });
-  };
-  const handleReset = () => {
-    setDraftParams({});
-    setSubmittedParams({});
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: memberAdminKeys.couponRecordLists });
-  };
 
   const handleRevoke = async (id: number) => {
     await revokeMutation.mutateAsync(id);

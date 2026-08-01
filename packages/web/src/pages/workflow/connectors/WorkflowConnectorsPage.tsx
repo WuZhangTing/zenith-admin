@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Form,
   Input,
@@ -25,7 +24,6 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
-import { usePagination } from '@/hooks/usePagination';
 import type { WorkflowConnector, WorkflowConnectorType, WorkflowConnectorBreakerState, WorkflowConnectorInvokeResult, WorkflowConnectorHttpConfig, WorkflowConnectorInvocation } from '@zenith/shared/workflow';
 import {
   useDeleteWorkflowConnector,
@@ -36,6 +34,7 @@ import {
   workflowConnectorKeys,
 } from '@/hooks/queries/workflow-connectors';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 /** 可创建的连接器类型（与后端 workflowConnectorTypeSchema 对齐；mq/database 暂无运行时实现不开放） */
@@ -85,13 +84,14 @@ function parseJsonObject(text: string | undefined, label: string): Record<string
 export default function WorkflowConnectorsPage() {
   const { items: statusItems } = useDictItems('common_status');
   const STATUS_OPTIONS = statusItems.map((i) => ({ value: i.value, label: i.label }));
-  const queryClient = useQueryClient();
   const { hasPermission } = usePermission();
   const formApi = useRef<FormApi | null>(null);
 
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: workflowConnectorKeys.lists });
   const listQuery = useWorkflowConnectorList({
     page,
     pageSize,
@@ -120,17 +120,6 @@ export default function WorkflowConnectorsPage() {
   const monitorStats = monitorQuery.data?.stats ?? null;
   const monitorRows: WorkflowConnectorInvocation[] = monitorQuery.data?.invocations ?? [];
 
-  function handleSearch() {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: workflowConnectorKeys.lists });
-  }
-  function handleReset() {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: workflowConnectorKeys.lists });
-  }
   function openCreate() { setEditing(null); setModalVisible(true); }
   function openEdit(record: WorkflowConnector) { setEditing(record); setModalVisible(true); }
   function closeModal() { setModalVisible(false); setEditing(null); }

@@ -4,12 +4,11 @@ import { Download, ThumbsUp, ThumbsDown } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { AiFeedbackItem, AiFeedbackStatus, AiMessage } from '@zenith/shared/ai';
-import { useQueryClient } from '@tanstack/react-query';
 import { formatDateTime, formatDateForApi } from '@/utils/date';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { usePagination } from '@/hooks/usePagination';
+import { useListSearch } from '@/hooks/useListSearch';
 import { useDictItems } from '@/hooks/useDictItems';
 import { usePermission } from '@/hooks/usePermission';
 import AppModal from '@/components/AppModal';
@@ -65,15 +64,18 @@ function normalizeRemark(value: unknown) {
   return text ? text : null;
 }
 
+interface SearchParams { feedback: string; status: string; model: string; timeRange: [Date, Date] | null }
+const defaultSearchParams: SearchParams = { feedback: '', status: '', model: '', timeRange: null };
+
 export default function AiFeedbackPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
   const { getLabel: getReasonLabel } = useDictItems('ai_dislike_reason');
   const formApi = useRef<FormApi | null>(null);
-  const [draftParams, setDraftParams] = useState({ feedback: '', status: '', model: '' });
-  const [draftRange, setDraftRange] = useState<[Date, Date] | null>(null);
-  const [submittedParams, setSubmittedParams] = useState({ feedback: '', status: '', model: '', startDate: '', endDate: '' });
-  const { page, pageSize, setPage, buildPagination } = usePagination();
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: aiFeedbackKeys.lists });
   const [modalVisible, setModalVisible] = useState(false);
   const [handlingMessage, setHandlingMessage] = useState<AiFeedbackItem | null>(null);
   const [contextMsgId, setContextMsgId] = useState<number | null>(null);
@@ -83,8 +85,8 @@ export default function AiFeedbackPage() {
     feedback: submittedParams.feedback || undefined,
     status: submittedParams.status || undefined,
     model: submittedParams.model || undefined,
-    startDate: submittedParams.startDate || undefined,
-    endDate: submittedParams.endDate || undefined,
+    startDate: submittedParams.timeRange ? formatDateForApi(submittedParams.timeRange[0]) : undefined,
+    endDate: submittedParams.timeRange ? formatDateForApi(submittedParams.timeRange[1]) : undefined,
   });
   const data = listQuery.data ?? null;
   const handleMutation = useHandleAiFeedback();
@@ -97,33 +99,13 @@ export default function AiFeedbackPage() {
       .map((m) => ({ value: m, label: m })),
   ];
 
-  const buildSubmitted = () => ({
-    ...draftParams,
-    startDate: draftRange?.[0] ? formatDateForApi(draftRange[0]) : '',
-    endDate: draftRange?.[1] ? formatDateForApi(draftRange[1]) : '',
-  });
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(buildSubmitted());
-    void queryClient.invalidateQueries({ queryKey: aiFeedbackKeys.lists });
-  };
-  const handleReset = () => {
-    setDraftParams({ feedback: '', status: '', model: '' });
-    setDraftRange(null);
-    setSubmittedParams({ feedback: '', status: '', model: '', startDate: '', endDate: '' });
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: aiFeedbackKeys.lists });
-  };
-
   const handleExport = () => {
-    const p = buildSubmitted();
     void downloadAiFeedbackCsv({
-      feedback: p.feedback || undefined,
-      status: p.status || undefined,
-      model: p.model || undefined,
-      startDate: p.startDate || undefined,
-      endDate: p.endDate || undefined,
+      feedback: submittedParams.feedback || undefined,
+      status: submittedParams.status || undefined,
+      model: submittedParams.model || undefined,
+      startDate: submittedParams.timeRange ? formatDateForApi(submittedParams.timeRange[0]) : undefined,
+      endDate: submittedParams.timeRange ? formatDateForApi(submittedParams.timeRange[1]) : undefined,
     });
   };
 
@@ -294,13 +276,13 @@ export default function AiFeedbackPage() {
     <DatePicker
       type="dateRange"
       placeholder={['开始日期', '结束日期']}
-      value={draftRange ?? undefined}
+      value={draftParams.timeRange ?? undefined}
       onChange={(value) => {
-        if (Array.isArray(value) && value.length >= 2 && value[0] instanceof Date && value[1] instanceof Date) {
-          setDraftRange([value[0], value[1]]);
-        } else {
-          setDraftRange(null);
-        }
+        const [from, to] = Array.isArray(value) ? value : [];
+        setDraftParams((p) => ({
+          ...p,
+          timeRange: from instanceof Date && to instanceof Date ? [from, to] : null,
+        }));
       }}
       style={{ width: 260 }}
     />

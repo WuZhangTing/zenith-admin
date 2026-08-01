@@ -10,6 +10,7 @@ import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { formatDateTime } from '@/utils/date';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAnalyticsDebugEvents } from '@/hooks/queries/analytics';
 import type { AnalyticsDebugEvent, AnalyticsQualityIssueType } from '@zenith/shared/analytics';
 import { ANALYTICS_QUALITY_ISSUE_TYPE_LABELS } from '@zenith/shared/analytics';
@@ -31,6 +32,7 @@ function nullableText(value: string | number | null | undefined) {
 }
 
 export default function AnalyticsDebugTab({ active }: Readonly<{ active: boolean }>) {
+  const queryClient = useQueryClient();
   const [eventNameDraft, setEventNameDraft] = useState('');
   const [eventName, setEventName] = useState('');
   const [detailVisible, setDetailVisible] = useState(false);
@@ -39,8 +41,16 @@ export default function AnalyticsDebugTab({ active }: Readonly<{ active: boolean
   const debugQuery = useAnalyticsDebugEvents({ limit: DEBUG_LIMIT, eventName: eventName || undefined }, active);
   const events = debugQuery.data ?? [];
 
-  const handleSearch = () => setEventName(eventNameDraft);
-  const handleReset = () => { setEventNameDraft(''); setEventName(''); };
+  const handleSearch = () => {
+    setEventName(eventNameDraft);
+    // 事件名未变时 query key 不变，不显式失效就看不到新上报的事件
+    void queryClient.invalidateQueries({ queryKey: ['analytics', 'data', 'debug-events'] });
+  };
+  const handleReset = () => {
+    setEventNameDraft('');
+    setEventName('');
+    void queryClient.invalidateQueries({ queryKey: ['analytics', 'data', 'debug-events'] });
+  };
 
   const openDetail = (record: AnalyticsDebugEvent) => { setDetailRecord(record); setDetailVisible(true); };
 

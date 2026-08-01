@@ -19,12 +19,11 @@ import AppModal from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
+import { useListSearch } from '@/hooks/useListSearch';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import { renderEllipsis } from '@/utils/table-columns';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   sslCertificateKeys,
   useDeleteSslCertificate,
@@ -71,12 +70,13 @@ function renderDaysRemaining(daysRemaining: number | null) {
 
 export default function SslCertificatesPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
-  const { page, pageSize, setPage, buildPagination } = usePagination();
   const generateFormApi = useRef<FormApi | null>(null);
   const uploadFormApi = useRef<FormApi | null>(null);
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: sslCertificateKeys.lists });
   const [generateVisible, setGenerateVisible] = useState(false);
   const [uploadVisible, setUploadVisible] = useState(false);
   const [detailVisible, setDetailVisible] = useState(false);
@@ -97,19 +97,6 @@ export default function SslCertificatesPage() {
 
   const canCreate = hasPermission('system:ssl:create');
   const canDelete = hasPermission('system:ssl:delete');
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: sslCertificateKeys.lists });
-  };
-
-  const handleReset = () => {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: sslCertificateKeys.lists });
-  };
 
   const openDetail = (record: SslCertificateRecord) => {
     setDetailVisible(true);

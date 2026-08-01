@@ -31,7 +31,6 @@ import WorkflowPriorityTag, { WORKFLOW_PRIORITY_OPTIONS } from '@/components/wor
 import { INSTANCE_STATUS_MAP } from '@/components/workflow/workflow-runtime';
 import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
 import { renderEllipsis } from '../../../utils/table-columns';
-import { usePagination } from '@/hooks/usePagination';
 import { normalizeWorkflowFormSnapshot, resolveWorkflowFormType } from '@/utils/workflow-snapshot';
 import WorkflowSummaryLine from '@/components/workflow/WorkflowSummaryLine';
 import { useAllUsers } from '@/hooks/queries/users';
@@ -51,6 +50,7 @@ import {
   workflowInstanceKeys,
 } from '@/hooks/queries/workflow-instances';
 import { usePublishedWorkflowDefinitions } from '@/hooks/queries/workflow-definitions';
+import { useListSearch } from '@/hooks/useListSearch';
 import { WORKFLOW_TASK_STATUS_LABELS } from '@zenith/shared/workflow';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
@@ -345,9 +345,11 @@ function InstanceDetailDrawer({
 export default function MyApplicationsPage() {
   const queryClient = useQueryClient();
   const launchFormRef = useRef<WorkflowLaunchFormHandle>(null);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<{ status: string; priority: string }>({ status: '', priority: '' });
-  const [submittedParams, setSubmittedParams] = useState<{ status: string; priority: string }>({ status: '', priority: '' });
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, applySearch, handleReset,
+  } = useListSearch<{ status: string; priority: string }>({ defaults: { status: '', priority: '' }, listKey: workflowInstanceKeys.lists });
   const [detailVisible, setDetailVisible] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [applyVisible, setApplyVisible] = useState(false);
@@ -386,19 +388,6 @@ export default function MyApplicationsPage() {
   const loadDefinitions = async (): Promise<WorkflowDefinition[]> => {
     const res = await definitionsQuery.refetch();
     return res.data ?? definitions;
-  };
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: workflowInstanceKeys.lists });
-  };
-
-  const handleReset = () => {
-    setDraftParams({ status: '', priority: '' });
-    setSubmittedParams({ status: '', priority: '' });
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: workflowInstanceKeys.lists });
   };
 
   const openDetail = (id: number) => {
@@ -777,10 +766,7 @@ export default function MyApplicationsPage() {
         currentFilters={submittedParams as unknown as Record<string, unknown>}
         onApply={(filters) => {
           const next = { status: '', priority: '', ...(filters as Partial<{ status: string; priority: string }>) };
-          setDraftParams(next);
-          setSubmittedParams(next);
-          setPage(1);
-          void queryClient.invalidateQueries({ queryKey: workflowInstanceKeys.lists });
+          applySearch(next);
         }}
       />
       <SearchToolbar

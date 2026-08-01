@@ -1,5 +1,4 @@
-import { useState, useMemo } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { DatePicker, Input, InputNumber, Select, Typography, Tag, Space, Row, Col, Card } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search } from 'lucide-react';
@@ -9,7 +8,7 @@ import { OPEN_APP_ENVIRONMENT_LABELS, OPEN_APP_ENVIRONMENTS } from '@zenith/shar
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { ExportButton } from '@/components/ExportButton';
-import { usePagination } from '@/hooks/usePagination';
+import { useListSearch } from '@/hooks/useListSearch';
 import { AreaChart, BarChart, chartOptions, makeAreaSpec, makeBarSpec, useChartPalette, EmptyChart } from '@/components/charts';
 import {
   openPlatformKeys,
@@ -36,7 +35,6 @@ function StatCard({ label, value, hint, color }: { label: string; value: string 
 
 export default function OpenApiStatsPage() {
   const palette = useChartPalette();
-  const queryClient = useQueryClient();
   interface SearchParams {
     range: [Date, Date];
     granularity: 'hour' | 'day';
@@ -52,9 +50,11 @@ export default function OpenApiStatsPage() {
     granularity: 'day',
     keyword: '',
   });
-  const [draftParams, setDraftParams] = useState<SearchParams>(createDefaultParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(createDefaultParams);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch: handleApply, handleReset,
+  } = useListSearch<SearchParams>({ defaults: createDefaultParams, listKey: openPlatformKeys.stats.all });
   const appOptions = useOpenAppOptions().data ?? [];
 
   const rangeParams = useMemo(() => ({
@@ -83,19 +83,6 @@ export default function OpenApiStatsPage() {
   const byEndpoint = useMemo(() => byEndpointQuery.data ?? [], [byEndpointQuery.data]);
   const logs = logsQuery.data ?? null;
   const statLoading = overviewQuery.isFetching || trendQuery.isFetching || byAppQuery.isFetching || byEndpointQuery.isFetching;
-
-  function handleApply() {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: openPlatformKeys.stats.all });
-  }
-  function handleReset() {
-    const defaults = createDefaultParams();
-    setDraftParams(defaults);
-    setSubmittedParams(defaults);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: openPlatformKeys.stats.all });
-  }
 
   const trendSpec = useMemo(() => makeAreaSpec({
     data: trend,

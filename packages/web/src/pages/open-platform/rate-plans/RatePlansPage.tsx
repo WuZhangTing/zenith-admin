@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Input, Tag, Modal, Form, Toast, Typography, Select, Row, Col, Space } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -10,10 +9,10 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { openPlatformKeys, useDeleteRatePlan, useRatePlanList, useSaveRatePlan } from '@/hooks/queries/open-platform';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const { Text } = Typography;
@@ -35,15 +34,16 @@ export default function RatePlansPage() {
   const { items: statusItems } = useDictItems('common_status');
   const STATUS_OPTIONS = statusItems.map((i) => ({ value: i.value, label: i.label }));
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
   const canManage = hasPermission('open:rate-plan:manage');
   const formApi = useRef<FormApi | null>(null);
 
   interface SearchParams { keyword: string; status?: 'enabled' | 'disabled' }
   const defaultSearchParams: SearchParams = { keyword: '', status: undefined };
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: openPlatformKeys.ratePlans.lists });
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editing, setEditing] = useState<RatePlan | null>(null);
@@ -56,18 +56,6 @@ export default function RatePlansPage() {
   const data = listQuery.data ?? null;
   const saveMutation = useSaveRatePlan();
   const deleteMutation = useDeleteRatePlan();
-
-  function handleSearch() {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: openPlatformKeys.ratePlans.lists });
-  }
-  function handleReset() {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: openPlatformKeys.ratePlans.lists });
-  }
 
   function openCreate() {
     setEditing(null);

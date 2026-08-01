@@ -1,6 +1,5 @@
 import { useState, useRef } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
-import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Button, Form, Input, Modal, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -11,8 +10,8 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import { formatDateTime } from '@/utils/date';
 import { createdAtColumn } from '@/utils/table-columns';
-import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
+import { useListSearch } from '@/hooks/useListSearch';
 import {
   paymentTransferKeys,
   useCreatePaymentTransfer,
@@ -42,11 +41,12 @@ interface TransferFormValues {
 export default function PaymentTransfersPage() {
   const { hasPermission } = usePermission();
   const canCreate = hasPermission('payment:transfer:create');
-  const queryClient = useQueryClient();
   const formApi = useRef<FormApi | null>(null);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearch);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearch);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentTransferKeys.lists });
   const [modalVisible, setModalVisible] = useState(false);
 
   const listQuery = usePaymentTransferList({
@@ -63,9 +63,6 @@ export default function PaymentTransfersPage() {
   const createMutation = useCreatePaymentTransfer();
   const queryMutation = useQueryPaymentTransfer();
   const retryMutation = useRetryPaymentTransfer();
-
-  function handleSearch() { setPage(1); setSubmittedParams(draftParams); void queryClient.invalidateQueries({ queryKey: paymentTransferKeys.lists }); }
-  function handleReset() { setDraftParams(defaultSearch); setPage(1); setSubmittedParams(defaultSearch); void queryClient.invalidateQueries({ queryKey: paymentTransferKeys.lists }); }
 
   async function handleOk() {
     let values: TransferFormValues;

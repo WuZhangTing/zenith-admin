@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Input, Modal, Select, Switch, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -15,7 +14,6 @@ import { buildReportParamInitialValues } from '@/components/report-param-utils';
 import { formatDateTime } from '@/utils/date';
 import { renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
-import { usePagination } from '@/hooks/usePagination';
 import { useReportDesignerDatasets } from '@/hooks/queries/report-designer';
 import {
   useBatchReportPrintTemplateStatus,
@@ -32,6 +30,7 @@ import type { ExportJobFormat } from '@zenith/shared/tasks';
 import { useDictItems } from '@/hooks/useDictItems';
 import { flattenReportFolders, useReportFolderTree } from '@/hooks/queries/report-folders';
 import { useAllUsers } from '@/hooks/queries/users';
+import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams { keyword: string; status: string; ownerId?: number; folderId?: number }
@@ -41,13 +40,14 @@ export default function PrintTemplatesPage() {
   const { items: statusItems } = useDictItems('common_status');
   const navigate = useNavigate();
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
   const formApi = useRef<FormApi | null>(null);
   const exportResolveRef = useRef<((value: Record<string, unknown> | null) => void) | null>(null);
 
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: reportPrintKeys.lists });
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editing, setEditing] = useState<ReportPrintTemplate | null>(null);
@@ -79,18 +79,6 @@ export default function PrintTemplatesPage() {
   const renderMutation = useRenderReportPrintTemplate();
   const exportRunner = useExportJobRunner();
   const togglingId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
-
-  function handleSearch() {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: reportPrintKeys.lists });
-  }
-  function handleReset() {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: reportPrintKeys.lists });
-  }
 
   function openCreate() { setEditing(null); setModalVisible(true); }
   function openEdit(record: ReportPrintTemplate) { setEditing(record); setModalVisible(true); }

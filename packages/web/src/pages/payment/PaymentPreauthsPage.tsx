@@ -1,6 +1,5 @@
 import { useState, useRef } from 'react';
 import { formatYuan } from '@/utils/payment';
-import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Button, Form, Input, Modal, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -11,7 +10,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import { formatDateTime } from '@/utils/date';
 import { createdAtColumn } from '@/utils/table-columns';
-import { usePagination } from '@/hooks/usePagination';
+import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
 import {
   paymentPreauthKeys,
@@ -34,16 +33,18 @@ const PREAUTH_METHOD_OPTIONS = [
 
 interface PreauthFormValues { payMethod: string; payerAccount: string; subject: string; amountYuan: number; bizType?: string; remark?: string; }
 
+interface SearchParams { keyword: string; status: string; channel: string }
+const defaultSearchParams: SearchParams = { keyword: '', status: '', channel: '' };
+
 export default function PaymentPreauthsPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
   const canManage = hasPermission('payment:preauth:manage');
   const formApi = useRef<FormApi | null>(null);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [keyword, setKeyword] = useState('');
-  const [status, setStatus] = useState('');
-  const [channel, setChannel] = useState('');
-  const [submittedParams, setSubmittedParams] = useState({ keyword: '', status: '', channel: '' });
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch({ defaults: defaultSearchParams, listKey: paymentPreauthKeys.lists });
   const [modalVisible, setModalVisible] = useState(false);
   const [captureTarget, setCaptureTarget] = useState<PaymentPreauth | null>(null);
   const [captureAmountYuan, setCaptureAmountYuan] = useState('');
@@ -60,18 +61,6 @@ export default function PaymentPreauthsPage() {
   const createMutation = useCreatePaymentPreauth();
   const captureMutation = useCapturePaymentPreauth();
   const releaseMutation = useReleasePaymentPreauth();
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams({ keyword, status, channel });
-    void queryClient.invalidateQueries({ queryKey: paymentPreauthKeys.lists });
-  };
-  const handleReset = () => {
-    setKeyword(''); setStatus(''); setChannel('');
-    setPage(1);
-    setSubmittedParams({ keyword: '', status: '', channel: '' });
-    void queryClient.invalidateQueries({ queryKey: paymentPreauthKeys.lists });
-  };
 
   async function handleCreate() {
     let values: PreauthFormValues;
@@ -149,13 +138,13 @@ export default function PaymentPreauthsPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input prefix={<Search size={14} />} placeholder="预授权单号/付款人/事由..." value={keyword} onChange={setKeyword} showClear style={{ width: 220 }} onEnterPress={handleSearch} />
+    <Input prefix={<Search size={14} />} placeholder="预授权单号/付款人/事由..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} showClear style={{ width: 220 }} onEnterPress={handleSearch} />
   );
   const renderStatusFilter = () => (
-    <Select placeholder="全部状态" value={status || undefined} onChange={(v) => setStatus((v as string) ?? '')} showClear style={{ width: 120 }} optionList={PAYMENT_PREAUTH_STATUS_OPTIONS} />
+    <Select placeholder="全部状态" value={draftParams.status || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={PAYMENT_PREAUTH_STATUS_OPTIONS} />
   );
   const renderChannelFilter = () => (
-    <Select placeholder="全部渠道" value={channel || undefined} onChange={(v) => setChannel((v as string) ?? '')} showClear style={{ width: 120 }} optionList={channelOptions} />
+    <Select placeholder="全部渠道" value={draftParams.channel || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, channel: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={channelOptions} />
   );
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;

@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Input, Modal, Select, Tag,
   Toast } from '@douyinfe/semi-ui';
 import { AppModal } from '@/components/AppModal';
@@ -13,8 +12,8 @@ import ExportButton from '@/components/ExportButton';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { renderEllipsis } from '../../../utils/table-columns';
-import { usePagination } from '@/hooks/usePagination';
 import { useSmsTemplateList } from '@/hooks/queries/sms-templates';
+import { useListSearch } from '@/hooks/useListSearch';
 import {
   smsSendLogKeys,
   useDeleteSmsSendLog,
@@ -31,13 +30,14 @@ function StatusTag({ value }: Readonly<{ value: SendStatus }>) {
 
 export default function SmsSendLogsPage() {
   const { hasPermission: can } = usePermission();
-  const queryClient = useQueryClient();
 
   interface SearchParams { keyword: string; phone: string; filterStatus: SendStatus | undefined; filterSource: string | undefined; }
   const defaultSearchParams: SearchParams = { keyword: '', phone: '', filterStatus: undefined, filterSource: undefined };
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: smsSendLogKeys.lists });
 
   const [testVisible, setTestVisible] = useState(false);
   const formRef = useRef<FormApi>(null);
@@ -57,17 +57,6 @@ export default function SmsSendLogsPage() {
   const testMutation = useTestSmsSendLog();
   const deleteMutation = useDeleteSmsSendLog();
 
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: smsSendLogKeys.lists });
-  };
-  const handleReset = () => {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: smsSendLogKeys.lists });
-  };
   const buildExportQuery = () => ({
     ...(draftParams.keyword ? { keyword: draftParams.keyword } : {}),
     ...(draftParams.phone ? { phone: draftParams.phone } : {}),

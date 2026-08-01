@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Col,
   Form,
@@ -15,8 +14,8 @@ import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Search } from 'lucide-react';
 import type { EmailTemplate } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
-import { usePagination } from '@/hooks/usePagination';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useListSearch } from '@/hooks/useListSearch';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -34,13 +33,14 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 export default function EmailTemplatesPage() {
   const { hasPermission: can } = usePermission();
   const { items: statusItems } = useDictItems('common_status');
-  const queryClient = useQueryClient();
 
   interface SearchParams { keyword: string; filterStatus: string | undefined; }
   const defaultSearchParams: SearchParams = { keyword: '', filterStatus: undefined };
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: emailTemplateKeys.lists });
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<EmailTemplate | null>(null);
@@ -62,18 +62,6 @@ export default function EmailTemplatesPage() {
   const toggleStatusMutation = useSaveEmailTemplate();
   const deleteMutation = useDeleteEmailTemplate();
   const togglingStatusId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: emailTemplateKeys.lists });
-  };
-  const handleReset = () => {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: emailTemplateKeys.lists });
-  };
 
   const openCreate = () => { setEditingRecord(null); setModalVisible(true); };
   const openEdit = (record: EmailTemplate) => {

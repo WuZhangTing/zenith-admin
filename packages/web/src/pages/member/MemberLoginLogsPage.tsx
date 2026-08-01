@@ -1,10 +1,7 @@
-import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { DatePicker, Input, Select, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search } from 'lucide-react';
 import type { MemberLoginLog } from '@zenith/shared/member';
-import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -12,6 +9,7 @@ import ExportButton from '@/components/ExportButton';
 import { renderEllipsis } from '../../utils/table-columns';
 import { formatDateForApi } from '@/utils/date';
 import { memberAdminKeys, useMemberLoginLogList } from '@/hooks/queries/member-admin';
+import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams {
@@ -29,10 +27,11 @@ const statusOptions = [
 
 export default function MemberLoginLogsPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearch);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearch);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: memberAdminKeys.loginLogLists });
   const [dateStart, dateEnd] = submittedParams.dateRange ?? [];
   const listQuery = useMemberLoginLogList({
     page,
@@ -44,18 +43,6 @@ export default function MemberLoginLogsPage() {
   });
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: memberAdminKeys.loginLogLists });
-  };
-  const handleReset = () => {
-    setDraftParams(defaultSearch);
-    setSubmittedParams(defaultSearch);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: memberAdminKeys.loginLogLists });
-  };
 
   const columns: ColumnProps<MemberLoginLog>[] = [
     { title: '会员', dataIndex: 'memberNickname', width: 140, render: (v?: string | null, r?: MemberLoginLog) => v || (r?.memberId ? `#${r.memberId}` : '—') },

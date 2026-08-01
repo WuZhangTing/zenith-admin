@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Button,
   Input,
@@ -25,7 +24,7 @@ import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
-import { usePagination } from '@/hooks/usePagination';
+import { useListSearch } from '@/hooks/useListSearch';
 import {
   dataMaskKeys,
   useBatchCreateDataMask,
@@ -86,10 +85,11 @@ const defaultSearchParams: SearchParams = { keyword: '', maskType: '', enabled: 
 
 export default function DataMaskPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: dataMaskKeys.lists });
   const [modalVisible, setModalVisible] = useState(false);
   const [editing, setEditing] = useState<DataMaskConfig | null>(null);
   const [maskTypePreview, setMaskTypePreview] = useState<MaskType>('phone');
@@ -136,18 +136,6 @@ export default function DataMaskPage() {
         onOk: () => void doToggle(),
       });
     }
-  };
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: dataMaskKeys.lists });
-  };
-  const handleReset = () => {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: dataMaskKeys.lists });
   };
 
   const closeModal = () => {

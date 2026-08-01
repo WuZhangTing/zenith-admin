@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Button, Col, Form, Input, Modal, Row, Select, Space, Spin, Tag, Toast, Switch, Banner, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus, Search, Trash2, Flame } from 'lucide-react';
@@ -11,8 +10,8 @@ import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn } from '../../utils/table-columns';
-import { usePagination } from '@/hooks/usePagination';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useListSearch } from '@/hooks/useListSearch';
 import { useMpAccounts } from './useMpAccounts';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
 import {
@@ -55,15 +54,15 @@ const emptyArticle = (): MpReplyArticle => ({ title: '', description: '', picUrl
 export default function MpAutoRepliesPage() {
   const { hasPermission: can } = usePermission();
   const { items: statusItems } = useDictItems('common_status');
-  const queryClient = useQueryClient();
   const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
-
-  const { page, pageSize, setPage, buildPagination } = usePagination();
 
   interface SearchParams { filterType: MpAutoReplyType | undefined; keyword: string; }
   const defaultSearch: SearchParams = { filterType: undefined, keyword: '' };
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearch);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearch);
+  const {
+    page, pageSize, setPage, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: mpAutoReplyKeys.lists(currentId) });
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<MpAutoReply | null>(null);
@@ -91,18 +90,6 @@ export default function MpAutoRepliesPage() {
   useEffect(() => {
     setPage(1);
   }, [currentId, setPage]);
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: mpAutoReplyKeys.lists(currentId) });
-  };
-  const handleReset = () => {
-    setDraftParams(defaultSearch);
-    setSubmittedParams(defaultSearch);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: mpAutoReplyKeys.lists(currentId) });
-  };
 
   const openCreate = () => {
     setEditingRecord(null); setModalType('keyword'); setContentType('text'); setArticles([emptyArticle()]); setModalVisible(true);

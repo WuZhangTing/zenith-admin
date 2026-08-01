@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
 import type { CSSProperties } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { DatePicker, Input, Modal, Select, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search } from 'lucide-react';
@@ -9,10 +8,10 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
-import { usePagination } from '@/hooks/usePagination';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentNotifyLog } from '@zenith/shared/payment';
 import { paymentLogKeys, usePaymentLogList } from '@/hooks/queries/payment-logs';
+import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams { keyword: string; channel: string; scene: string; signatureValid: string; timeRange: [Date, Date] | null; }
@@ -29,10 +28,11 @@ const codeBlockStyle: CSSProperties = {
 };
 
 export default function PaymentLogsPage() {
-  const queryClient = useQueryClient();
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearch);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearch);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentLogKeys.lists });
   const [detailLog, setDetailLog] = useState<PaymentNotifyLog | null>(null);
 
   function buildQuery(active: SearchParams): Record<string, string> {
@@ -50,9 +50,6 @@ export default function PaymentLogsPage() {
 
   const listQuery = usePaymentLogList({ page, pageSize, ...buildQuery(submittedParams) });
   const data = listQuery.data ?? null;
-
-  function handleSearch() { setPage(1); setSubmittedParams(draftParams); void queryClient.invalidateQueries({ queryKey: paymentLogKeys.lists }); }
-  function handleReset() { setDraftParams(defaultSearch); setSubmittedParams(defaultSearch); setPage(1); void queryClient.invalidateQueries({ queryKey: paymentLogKeys.lists }); }
 
   const columns: ColumnProps<PaymentNotifyLog>[] = [
     { title: 'ID', dataIndex: 'id', width: 80 },

@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Col,
   Form,
@@ -16,8 +15,8 @@ import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Search } from 'lucide-react';
 import type { InAppMessageType, InAppTemplate } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
-import { usePagination } from '@/hooks/usePagination';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useListSearch } from '@/hooks/useListSearch';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -36,13 +35,14 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 export default function InAppTemplatesPage() {
   const { hasPermission: can } = usePermission();
   const { items: statusItems } = useDictItems('common_status');
-  const queryClient = useQueryClient();
 
   interface SearchParams { keyword: string; filterType: InAppMessageType | undefined; filterStatus: string | undefined; }
   const defaultSearchParams: SearchParams = { keyword: '', filterType: undefined, filterStatus: undefined };
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: inAppTemplateKeys.lists });
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<InAppTemplate | null>(null);
@@ -64,18 +64,6 @@ export default function InAppTemplatesPage() {
   const toggleStatusMutation = useSaveInAppTemplate();
   const deleteMutation = useDeleteInAppTemplate();
   const togglingStatusId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: inAppTemplateKeys.lists });
-  };
-  const handleReset = () => {
-    setPage(1);
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    void queryClient.invalidateQueries({ queryKey: inAppTemplateKeys.lists });
-  };
 
   const openCreate = () => { setEditingRecord(null); setModalVisible(true); };
   const openEdit = (record: InAppTemplate) => {

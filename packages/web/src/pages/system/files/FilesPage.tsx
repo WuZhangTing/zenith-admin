@@ -45,6 +45,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { useDefaultFileStorageConfig } from '@/hooks/queries/file-storage-configs';
 import { fileKeys, useBatchDeleteFiles, useDeleteFile, useFileDetail, useFileList, useUploadFile } from '@/hooks/queries/files';
+import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import './FilesPage.css';
 
@@ -132,8 +133,10 @@ export default function FilesPage() {
   const isInternalToggleRef = useRef(false);
   const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
   const [uploadProgressVisible, setUploadProgressVisible] = useState(false);
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: fileKeys.lists });
   const { page, pageSize, setPage, setPageSize, buildPagination } = usePagination(
     (preferences.filesViewMode ?? 'list') === 'grid' ? FILE_GRID_PAGE_SIZE : FILE_LIST_PAGE_SIZE,
   );
@@ -232,19 +235,6 @@ export default function FilesPage() {
       return () => clearTimeout(timer);
     }
   }, [uploadItems, uploadProgressVisible, queryClient, setPage]);
-
-  function handleSearch() {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: fileKeys.lists });
-  }
-
-  function handleReset() {
-    setPage(1);
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    void queryClient.invalidateQueries({ queryKey: fileKeys.lists });
-  }
 
   const handlePickFile = () => {
     fileInputRef.current?.click();

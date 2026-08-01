@@ -4,7 +4,6 @@
  * 提供事件订阅 CRUD + 启用/禁用 + 投递记录查看与重试。
  */
 import { useEffect, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Button,
   Col,
@@ -47,6 +46,7 @@ import {
   workflowEventSubscriptionKeys,
 } from '@/hooks/queries/workflow-event-subscriptions';
 import { useWorkflowConnectorList } from '@/hooks/queries/workflow-connectors';
+import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const EVENT_OPTIONS: Array<{ value: WorkflowEventType; label: string }> = [
@@ -93,15 +93,16 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export default function WorkflowEventSubscriptionsPage() {
-  const queryClient = useQueryClient();
   const { hasPermission } = usePermission();
   const formApi = useRef<FormApi | null>(null);
   const canManageEventSubscription = hasPermission('workflow:event-subscription:view');
-  const { page, pageSize, setPage, buildPagination } = usePagination();
   interface SearchParams { keyword: string; definitionId: number | ''; enabled: '' | 'true' | 'false' }
   const defaultSearchParams: SearchParams = { keyword: '', definitionId: '', enabled: '' };
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: workflowEventSubscriptionKeys.lists });
   const listQuery = useWorkflowEventSubscriptionList({
     page,
     pageSize,
@@ -156,18 +157,6 @@ export default function WorkflowEventSubscriptionsPage() {
       enabled: detailQuery.data.enabled,
     }), 0);
   }, [detailQuery.data, modalVisible]);
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: workflowEventSubscriptionKeys.lists });
-  };
-  const handleReset = () => {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: workflowEventSubscriptionKeys.lists });
-  };
 
   const openCreate = () => {
     setEditing(null);

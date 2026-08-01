@@ -12,7 +12,6 @@ import { ShareModal, VersionModal } from './components/DashboardOpsModals';
 import { formatDateTime } from '@/utils/date';
 import { renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
-import { usePagination } from '@/hooks/usePagination';
 import type { ReportDashboard, ReportWidget } from '@zenith/shared/report';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -33,6 +32,7 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { flattenReportFolders, useReportFolderTree } from '@/hooks/queries/report-folders';
 import { useAllUsers } from '@/hooks/queries/users';
 import { useReportDeprecationList } from '@/hooks/queries/report-assets';
+import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams { keyword: string; status: string; lifecycleStatus: '' | ReportDashboard['lifecycleStatus']; categoryId?: number; favorited: boolean; ownerId?: number; folderId?: number }
@@ -45,9 +45,11 @@ export default function DashboardListPage() {
   const formApi = useRef<FormApi | null>(null);
   const queryClient = useQueryClient();
 
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, applySearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: reportDashboardKeys.lists });
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editing, setEditing] = useState<ReportDashboard | null>(null);
@@ -90,9 +92,6 @@ export default function DashboardListPage() {
   const publishMutation = usePublishReportDashboard();
   const offlineMutation = useOfflineReportDashboard();
   const favTogglingId = favoriteMutation.isPending ? favoriteMutation.variables ?? null : null;
-
-  function handleSearch() { setPage(1); setSubmittedParams(draftParams); void queryClient.invalidateQueries({ queryKey: reportDashboardKeys.lists }); }
-  function handleReset() { setDraftParams(defaultSearchParams); setSubmittedParams(defaultSearchParams); setPage(1); void queryClient.invalidateQueries({ queryKey: reportDashboardKeys.lists }); }
 
   function openCreate() { setEditing(null); setModalVisible(true); }
   function openEdit(record: ReportDashboard) { setEditing(record); setModalVisible(true); }
@@ -281,9 +280,7 @@ export default function DashboardListPage() {
     <Button theme={draftParams.favorited ? 'solid' : 'light'} type={draftParams.favorited ? 'warning' : 'tertiary'} icon={<Star size={14} />}
       onClick={() => setDraftParams((p) => {
         const np = { ...p, favorited: !p.favorited };
-        setSubmittedParams(np);
-        setPage(1);
-        void queryClient.invalidateQueries({ queryKey: reportDashboardKeys.lists });
+        applySearch(np);
         return np;
       })}>收藏</Button>
   );

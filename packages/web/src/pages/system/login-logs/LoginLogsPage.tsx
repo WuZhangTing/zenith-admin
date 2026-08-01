@@ -1,20 +1,17 @@
-import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Input, Select, DatePicker, Tabs, TabPane } from '@douyinfe/semi-ui';
 import { Search } from 'lucide-react';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
 import { LoginLogsTable } from '@/components/logs/LoginLogsTable';
 import { ClearLogsButtons, ClearLogsMobileButtons, ClearLogsModal } from '@/components/logs/ClearLogsControl';
-import { usePagination } from '@/hooks/usePagination';
 import { useClearLogs } from '@/hooks/useClearLogs';
 import { formatDateTimeForApi } from '@/utils/date';
 import LoginLogStatsPanel from './LoginLogStatsPanel';
 import { loginLogKeys, useCleanLoginLogs, useLoginLogList } from '@/hooks/queries/login-logs';
+import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 export default function LoginLogsPage() {
-  const queryClient = useQueryClient();
   interface SearchParams {
     username: string;
     eventType: string;
@@ -23,10 +20,12 @@ export default function LoginLogsPage() {
   }
 
   const defaultParams: SearchParams = { username: '', eventType: '', status: '', timeRange: null };
-  const { page, pageSize, setPage, buildPagination } = usePagination();
 
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultParams);
+  const {
+    page, pageSize, setPage, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultParams, listKey: loginLogKeys.all });
   const listQuery = useLoginLogList({
     page,
     pageSize,
@@ -44,19 +43,6 @@ export default function LoginLogsPage() {
     clean: (months) => cleanLogsMutation.mutateAsync(months),
     onCleared: () => setPage(1),
   });
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: loginLogKeys.all });
-  };
-
-  const handleReset = () => {
-    setPage(1);
-    setDraftParams(defaultParams);
-    setSubmittedParams(defaultParams);
-    void queryClient.invalidateQueries({ queryKey: loginLogKeys.all });
-  };
 
   const renderUsernameSearch = () => (
     <Input

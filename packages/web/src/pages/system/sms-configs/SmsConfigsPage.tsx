@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Col,
   Form,
@@ -18,12 +17,12 @@ import { SMS_PROVIDER_OPTIONS } from '@zenith/shared/messaging';
 import type { SmsConfig, SmsProvider } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useListSearch } from '@/hooks/useListSearch';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
-import { usePagination } from '@/hooks/usePagination';
 import {
   smsConfigKeys,
   useDeleteSmsConfig,
@@ -37,13 +36,14 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 export default function SmsConfigsPage() {
   const { hasPermission: can } = usePermission();
   const { items: statusItems } = useDictItems('common_status');
-  const queryClient = useQueryClient();
 
-  const { page, pageSize, setPage, buildPagination } = usePagination();
   interface SearchParams { keyword: string; filterProvider: SmsProvider | undefined; filterStatus: string | undefined; }
   const defaultSearchParams: SearchParams = { keyword: '', filterProvider: undefined, filterStatus: undefined };
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: smsConfigKeys.lists });
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<SmsConfig | null>(null);
@@ -67,18 +67,6 @@ export default function SmsConfigsPage() {
   const setDefaultMutation = useSetDefaultSmsConfig();
   const deleteMutation = useDeleteSmsConfig();
   const togglingStatusId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: smsConfigKeys.lists });
-  };
-  const handleReset = () => {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: smsConfigKeys.lists });
-  };
 
   const openCreate = () => { setEditingRecord(null); setModalVisible(true); };
   const openEdit = (record: SmsConfig) => {

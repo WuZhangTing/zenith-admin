@@ -1,7 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { formatYuan } from '@/utils/payment';
 import type { CSSProperties } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Checkbox, DatePicker, Row, Col, Select, Spin, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { BarChart, chartOptions, makeBarSpec, useChartPalette } from '@/components/charts';
@@ -10,6 +9,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { formatDateTimeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { paymentReportKeys, usePaymentReportSummary } from '@/hooks/queries/payment-reports';
+import { useListSearch } from '@/hooks/useListSearch';
 import { PAYMENT_REPORT_GROUP_BY_LABELS } from '@zenith/shared/payment';
 import type { PaymentReportGroupBy, PaymentReportRow } from '@zenith/shared/payment';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
@@ -47,11 +47,12 @@ const defaultSearch: SearchParams = { groupBy: 'bizType', timeRange: null, compa
 
 export default function PaymentReportsPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
   const canView = hasPermission('payment:report:view');
   const palette = useChartPalette();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearch);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearch);
+  const {
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentReportKeys.lists });
   const summaryQuery = usePaymentReportSummary({
     groupBy: submittedParams.groupBy,
     startTime: submittedParams.timeRange ? formatDateTimeForApi(submittedParams.timeRange[0]) : undefined,
@@ -61,9 +62,6 @@ export default function PaymentReportsPage() {
   const summary = summaryQuery.data ?? null;
   const prev = summary?.prev ?? null;
   const loading = summaryQuery.isFetching;
-
-  function handleSearch() { setSubmittedParams(draftParams); void queryClient.invalidateQueries({ queryKey: paymentReportKeys.lists }); }
-  function handleReset() { setDraftParams(defaultSearch); setSubmittedParams(defaultSearch); void queryClient.invalidateQueries({ queryKey: paymentReportKeys.lists }); }
 
   const chartData = useMemo(
     () => (summary?.rows ?? []).map((r) => ({ name: r.label, 收款: Number((r.gross / 100).toFixed(2)), 净额: Number((r.net / 100).toFixed(2)) })),

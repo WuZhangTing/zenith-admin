@@ -1,16 +1,15 @@
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Input, DatePicker, Select, Tabs, TabPane, InputNumber } from '@douyinfe/semi-ui';
 import { Search } from 'lucide-react';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
 import { OperationLogsTable } from '@/components/logs/OperationLogsTable';
 import { ClearLogsButtons, ClearLogsMobileButtons, ClearLogsModal } from '@/components/logs/ClearLogsControl';
-import { usePagination } from '@/hooks/usePagination';
 import { useClearLogs } from '@/hooks/useClearLogs';
 import { formatDateTimeForApi } from '@/utils/date';
 import OperationLogStatsPanel from './OperationLogStatsPanel';
 import { operationLogKeys, useCleanOperationLogs, useOperationLogList } from '@/hooks/queries/operation-logs';
+import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams {
@@ -29,11 +28,12 @@ interface SearchParams {
 const defaultParams: SearchParams = { username: '', module: '', description: '', method: '', path: '', ip: '', status: '', timeRange: null, minDurationMs: null, maxDurationMs: null };
 
 export default function OperationLogsPage() {
-  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'list' | 'stats'>('list');
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultParams);
+  const {
+    page, pageSize, setPage, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultParams, listKey: operationLogKeys.all });
   const listQuery = useOperationLogList({
     page,
     pageSize,
@@ -72,19 +72,6 @@ export default function OperationLogsPage() {
       ...(p.minDurationMs === null ? {} : { minDurationMs: String(p.minDurationMs) }),
       ...(p.maxDurationMs === null ? {} : { maxDurationMs: String(p.maxDurationMs) }),
     };
-  };
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: operationLogKeys.all });
-  };
-
-  const handleReset = () => {
-    setPage(1);
-    setDraftParams(defaultParams);
-    setSubmittedParams(defaultParams);
-    void queryClient.invalidateQueries({ queryKey: operationLogKeys.all });
   };
 
   const renderUsernameSearch = () => (

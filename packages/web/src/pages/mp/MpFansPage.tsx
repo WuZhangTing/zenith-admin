@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Avatar, Button, Form, Input, Modal, Select, Space, Spin, Tag, Toast, Banner } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Search, RefreshCw, Ban } from 'lucide-react';
@@ -10,7 +9,6 @@ import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { renderEllipsis } from '../../utils/table-columns';
-import { usePagination } from '@/hooks/usePagination';
 import { useMpAccounts } from './useMpAccounts';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
 import {
@@ -24,6 +22,7 @@ import {
   useUnbindMpFanMember,
 } from '@/hooks/queries/mp-fans';
 import { useMpTagOptions } from '@/hooks/queries/mp-tags';
+import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const SEX_LABELS: Record<number, string> = { 0: '未知', 1: '男', 2: '女' };
@@ -34,10 +33,7 @@ const SUBSCRIBE_OPTIONS = [
 
 export default function MpFansPage() {
   const { hasPermission: can } = usePermission();
-  const queryClient = useQueryClient();
   const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
-
-  const { page, pageSize, setPage, buildPagination } = usePagination();
 
   const tagsQuery = useMpTagOptions(currentId);
   const tags = tagsQuery.data?.list ?? [];
@@ -45,8 +41,11 @@ export default function MpFansPage() {
 
   interface SearchParams { keyword: string; subscribe: MpFanSubscribe | undefined; tagId: number | undefined; blacklisted: 'true' | 'false' | undefined; }
   const defaultSearch: SearchParams = { keyword: '', subscribe: undefined, tagId: undefined, blacklisted: undefined };
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearch);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearch);
+  const {
+    page, pageSize, setPage, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: mpFanKeys.lists(currentId) });
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<MpFan | null>(null);
@@ -75,18 +74,6 @@ export default function MpFansPage() {
   useEffect(() => {
     setPage(1);
   }, [currentId, setPage]);
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: mpFanKeys.lists(currentId) });
-  };
-  const handleReset = () => {
-    setDraftParams(defaultSearch);
-    setSubmittedParams(defaultSearch);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: mpFanKeys.lists(currentId) });
-  };
 
   const handleSync = async () => {
     if (!currentId) return;

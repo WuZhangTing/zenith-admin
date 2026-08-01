@@ -1,7 +1,6 @@
 import { useState, useRef } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
 import type { CSSProperties } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Button, DatePicker, Form, Input, Row, Col, Select, Skeleton, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -10,8 +9,8 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
-import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
+import { useListSearch } from '@/hooks/useListSearch';
 import {
   paymentLedgerKeys,
   useAdjustPaymentAccount,
@@ -60,11 +59,12 @@ const defaultSearch: SearchParams = { keyword: '', direction: '', type: '', chan
 
 export default function PaymentLedgerPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
   const canView = hasPermission('payment:ledger:list');
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearch);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearch);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentLedgerKeys.all });
 
   function buildQuery(active: SearchParams): Record<string, string> {
     const q: Record<string, string> = {};
@@ -123,9 +123,6 @@ export default function PaymentLedgerPage() {
     Toast.success('调账成功');
     setAdjustVisible(false);
   }
-
-  function handleSearch() { setPage(1); setSubmittedParams(draftParams); void queryClient.invalidateQueries({ queryKey: paymentLedgerKeys.all }); }
-  function handleReset() { setDraftParams(defaultSearch); setPage(1); setSubmittedParams(defaultSearch); void queryClient.invalidateQueries({ queryKey: paymentLedgerKeys.all }); }
 
   const columns: ColumnProps<PaymentLedgerEntry>[] = [
     { title: '流水号', dataIndex: 'entryNo', width: 190, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} copyable={{ content: v }} style={{ maxWidth: 170 }}>{v}</Typography.Text> },

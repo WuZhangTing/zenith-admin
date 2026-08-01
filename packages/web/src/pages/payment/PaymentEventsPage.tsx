@@ -1,5 +1,3 @@
-import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Col, Input, Row, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search } from 'lucide-react';
@@ -7,10 +5,10 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { formatDateTime } from '@/utils/date';
-import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import type { PaymentOutboxEvent } from '@zenith/shared/payment';
 import { paymentEventKeys, usePaymentEventList, usePaymentOpsHealth, useRedispatchPaymentEvent } from '@/hooks/queries/payment-events';
+import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const EVENT_STATUS_LABELS = { pending: '待处理', done: '已完成', failed: '失败' } as const satisfies Record<PaymentOutboxEvent['status'], string>;
@@ -30,10 +28,11 @@ const defaultSearch: SearchParams = { keyword: '', status: '', type: '' };
 
 export default function PaymentEventsPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearch);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearch);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentEventKeys.lists });
   const listQuery = usePaymentEventList({
     page,
     pageSize,
@@ -46,9 +45,6 @@ export default function PaymentEventsPage() {
   const health = healthQuery.data ?? null;
   const redispatchMutation = useRedispatchPaymentEvent();
   const redispatchingId = redispatchMutation.isPending ? (redispatchMutation.variables ?? null) : null;
-
-  function handleSearch() { setPage(1); setSubmittedParams(draftParams); void queryClient.invalidateQueries({ queryKey: paymentEventKeys.lists }); }
-  function handleReset() { setDraftParams(defaultSearch); setSubmittedParams(defaultSearch); setPage(1); void queryClient.invalidateQueries({ queryKey: paymentEventKeys.lists }); }
 
   function handleRedispatch(record: PaymentOutboxEvent) {
     redispatchMutation.mutate(record.id, { onSuccess: () => Toast.success('重投成功') });

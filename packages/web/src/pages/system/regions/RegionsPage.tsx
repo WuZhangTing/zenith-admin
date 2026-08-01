@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Button,
   Form,
@@ -24,6 +23,7 @@ import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { regionKeys, useDeleteRegion, useFlatRegions, useRegionDetail, useRegionTree, useSaveRegion } from '@/hooks/queries/regions';
+import { useListSearch } from '@/hooks/useListSearch';
 import { REGION_LEVEL_LABELS } from '@zenith/shared/platform';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
@@ -41,11 +41,12 @@ const defaultSearchParams: SearchParams = { keyword: '', status: '', level: '' }
 
 export default function RegionsPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
   const formApi = useRef<FormApi | null>(null);
 
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: regionKeys.trees });
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRegion, setEditingRegion] = useState<Region | null>(null);
   const [editingLevel, setEditingLevel] = useState<string>('province');
@@ -92,17 +93,6 @@ export default function RegionsPage() {
     setEditingRegion(detail);
     setEditingLevel(detail.level);
   }, [detailQuery.data, editingRegion, modalVisible]);
-
-  function handleSearch() {
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: regionKeys.trees });
-  }
-
-  function handleReset() {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    void queryClient.invalidateQueries({ queryKey: regionKeys.trees });
-  }
 
   // 递归收集所有节点 ID
   const allRowKeys = useMemo(() => {

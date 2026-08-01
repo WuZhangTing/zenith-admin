@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Button,
   Form,
@@ -30,7 +29,6 @@ import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
-import { usePagination } from '@/hooks/usePagination';
 import { useFlatDepartments } from '@/hooks/queries/departments';
 import {
   useAssignUserGroupMembers,
@@ -46,6 +44,7 @@ import {
 import { useAllUsers } from '@/hooks/queries/users';
 import { useAllRoles } from '@/hooks/queries/roles';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams {
@@ -63,11 +62,12 @@ const defaultSearchParams: SearchParams = { keyword: '', status: '' };
 export default function UserGroupsPage() {
   const { items: statusItems } = useDictItems('common_status');
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
   const formApi = useRef<FormApi | null>(null);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: userGroupKeys.lists });
   const listQuery = useUserGroupList({
     page,
     pageSize,
@@ -151,18 +151,6 @@ export default function UserGroupsPage() {
   useEffect(() => {
     if (roleModalVisible) setRoleIds((groupRolesQuery.data ?? []).map((r) => r.id));
   }, [roleModalVisible, groupRolesQuery.data]);
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: userGroupKeys.lists });
-  };
-  const handleReset = () => {
-    setPage(1);
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    void queryClient.invalidateQueries({ queryKey: userGroupKeys.lists });
-  };
 
   const handleModalOk = async () => {
     let values;

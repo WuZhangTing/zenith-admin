@@ -190,7 +190,11 @@ export default function ChannelCustomerServicePage() {
     refreshAfterOp();
   }, [channelId, activeUserId, opLoading, resolveMutation, refreshAfterOp]);
 
-  const handleSearch = useCallback(() => { setKeyword(keywordInput.trim()); }, [keywordInput]);
+  const handleSearch = useCallback(() => {
+    setKeyword(keywordInput.trim());
+    // 关键词未变时 query key 不变，不显式失效就不会真正回源刷新会话列表
+    void queryClient.invalidateQueries({ queryKey: ['channel-cs', 'conversations'] });
+  }, [keywordInput, queryClient]);
 
   return (
     <div className="page-container" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>

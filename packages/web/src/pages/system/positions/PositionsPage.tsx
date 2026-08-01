@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Button,
   DatePicker,
@@ -29,7 +28,6 @@ import ExportButton from '@/components/ExportButton';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { usePagination } from '@/hooks/usePagination';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import { useFlatDepartments } from '@/hooks/queries/departments';
 import {
@@ -42,6 +40,7 @@ import {
   useSavePosition,
 } from '@/hooks/queries/positions';
 import { useAllUsers } from '@/hooks/queries/users';
+import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface SearchParams {
@@ -58,11 +57,12 @@ const defaultSearchParams: SearchParams = {
 
 export default function PositionsPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
   const formApi = useRef<FormApi | null>(null);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: positionKeys.lists });
   const listQuery = usePositionList({
     page,
     pageSize,
@@ -112,19 +112,6 @@ export default function PositionsPage() {
         sort: 0,
         status: 'enabled',
       };
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: positionKeys.lists });
-  };
-
-  const handleReset = () => {
-    setPage(1);
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    void queryClient.invalidateQueries({ queryKey: positionKeys.lists });
-  };
 
   const openCreate = () => {
     setEditingRecord(null);

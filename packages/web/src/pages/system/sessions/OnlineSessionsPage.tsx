@@ -1,5 +1,4 @@
-import { useMemo, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import {
   Input,
   Modal,
@@ -19,19 +18,20 @@ import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { usePagination } from '@/hooks/usePagination';
 import { renderEllipsis } from '../../../utils/table-columns';
 import { sessionKeys, useForceLogoutSession, useSessionList } from '@/hooks/queries/sessions';
+import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 export default function OnlineSessionsPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
   interface SearchParams { keyword: string; }
   const defaultSearchParams: SearchParams = { keyword: '' };
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: sessionKeys.lists });
   const listQuery = useSessionList({ page, pageSize, keyword: submittedParams.keyword || undefined });
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
@@ -48,19 +48,6 @@ export default function OnlineSessionsPage() {
       return null;
     }
   }, []);
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: sessionKeys.lists });
-  };
-
-  const handleReset = () => {
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: sessionKeys.lists });
-  };
 
   const handleForceLogout = (record: OnlineUser) => {
     // 模式引用，Modal.confirm 内部无法直接读 state，改用 ref

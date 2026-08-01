@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { formatYuan } from '@/utils/payment';
-import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Button, Input, Modal, Select, SideSheet, Spin, Tag, TextArea, Timeline, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search, FlaskConical } from 'lucide-react';
@@ -9,7 +8,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
 import { createdAtColumn } from '@/utils/table-columns';
-import { usePagination } from '@/hooks/usePagination';
+import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
 import {
   paymentDisputeKeys,
@@ -30,16 +29,17 @@ const STATUS_COLOR = { pending: 'red', processing: 'blue', resolved: 'green', re
 const channelOptions = Object.entries(PAYMENT_CHANNEL_LABELS).map(([value, label]) => ({ value, label }));
 const REPLY_AUTHOR_LABELS = { merchant: '商户', user: '投诉人', system: '系统' } as const;
 
+interface SearchParams { keyword: string; status: string; type: string; channel: string }
+const defaultSearchParams: SearchParams = { keyword: '', status: '', type: '', channel: '' };
+
 export default function PaymentDisputesPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
   const canHandle = hasPermission('payment:dispute:handle');
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [keyword, setKeyword] = useState('');
-  const [status, setStatus] = useState('');
-  const [type, setType] = useState('');
-  const [channel, setChannel] = useState('');
-  const [submittedParams, setSubmittedParams] = useState({ keyword: '', status: '', type: '', channel: '' });
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch({ defaults: defaultSearchParams, listKey: paymentDisputeKeys.lists });
   const [detailId, setDetailId] = useState<number | null>(null);
   const [replyContent, setReplyContent] = useState('');
   const [refundAmountYuan, setRefundAmountYuan] = useState<string>('');
@@ -63,18 +63,6 @@ export default function PaymentDisputesPage() {
   const resolveMutation = useResolvePaymentDispute();
   const refundMutation = useRefundPaymentDispute();
   const simulateMutation = useSimulatePaymentDispute();
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams({ keyword, status, type, channel });
-    void queryClient.invalidateQueries({ queryKey: paymentDisputeKeys.lists });
-  };
-  const handleReset = () => {
-    setKeyword(''); setStatus(''); setType(''); setChannel('');
-    setPage(1);
-    setSubmittedParams({ keyword: '', status: '', type: '', channel: '' });
-    void queryClient.invalidateQueries({ queryKey: paymentDisputeKeys.lists });
-  };
 
   async function handleSimulate() {
     const d = await simulateMutation.mutateAsync(undefined);
@@ -161,16 +149,16 @@ export default function PaymentDisputesPage() {
   };
 
   const renderKeywordSearch = () => (
-    <Input prefix={<Search size={14} />} placeholder="投诉单号/订单号/投诉人..." value={keyword} onChange={setKeyword} showClear style={{ width: 220 }} onEnterPress={handleSearch} />
+    <Input prefix={<Search size={14} />} placeholder="投诉单号/订单号/投诉人..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} showClear style={{ width: 220 }} onEnterPress={handleSearch} />
   );
   const renderStatusFilter = () => (
-    <Select placeholder="全部状态" value={status || undefined} onChange={(v) => setStatus((v as string) ?? '')} showClear style={{ width: 120 }} optionList={PAYMENT_DISPUTE_STATUS_OPTIONS} />
+    <Select placeholder="全部状态" value={draftParams.status || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={PAYMENT_DISPUTE_STATUS_OPTIONS} />
   );
   const renderTypeFilter = () => (
-    <Select placeholder="全部类型" value={type || undefined} onChange={(v) => setType((v as string) ?? '')} showClear style={{ width: 120 }} optionList={PAYMENT_DISPUTE_TYPE_OPTIONS} />
+    <Select placeholder="全部类型" value={draftParams.type || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, type: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={PAYMENT_DISPUTE_TYPE_OPTIONS} />
   );
   const renderChannelFilter = () => (
-    <Select placeholder="全部渠道" value={channel || undefined} onChange={(v) => setChannel((v as string) ?? '')} showClear style={{ width: 120 }} optionList={channelOptions} />
+    <Select placeholder="全部渠道" value={draftParams.channel || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, channel: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={channelOptions} />
   );
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;

@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Input, Select, Form, Toast, Tag, Modal, Row, Col } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -7,7 +6,7 @@ import { Search } from 'lucide-react';
 import type { Coupon, CouponType, CouponTemplateStatus } from '@zenith/shared/member';
 import { COUPON_TYPE_LABELS, COUPON_TEMPLATE_STATUS_LABELS } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
-import { usePagination } from '@/hooks/usePagination';
+import { useListSearch } from '@/hooks/useListSearch';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -45,12 +44,13 @@ interface FormValues {
 
 export default function CouponsPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
   const formApi = useRef<FormApi<FormValues> | null>(null);
   const issueFormApi = useRef<FormApi | null>(null);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>({});
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>({});
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: {}, listKey: memberAdminKeys.couponLists });
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editing, setEditing] = useState<Coupon | null>(null);
@@ -71,18 +71,6 @@ export default function CouponsPage() {
   const saveMutation = useSaveCoupon();
   const deleteMutation = useDeleteCoupon();
   const issueMutation = useIssueCoupon();
-
-  const handleSearch = () => {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: memberAdminKeys.couponLists });
-  };
-  const handleReset = () => {
-    setDraftParams({});
-    setSubmittedParams({});
-    setPage(1);
-    void queryClient.invalidateQueries({ queryKey: memberAdminKeys.couponLists });
-  };
 
   const openCreate = () => {
     setEditing(null);
