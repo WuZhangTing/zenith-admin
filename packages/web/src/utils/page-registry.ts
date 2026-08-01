@@ -17,6 +17,7 @@ type PageModuleLoader = () => Promise<{ default: React.ComponentType<unknown> }>
 
 // glob 相对当前文件（src/utils），故使用 ../pages
 const pageModules = import.meta.glob(['../pages/**/*.tsx', '!../pages/**/**Skeleton.tsx']);
+const lazyPageComponents = new Map<string, React.LazyExoticComponent<React.ComponentType<unknown>>>();
 
 /** 归一化组件路径：去除前导斜杠与 .tsx 后缀 */
 function normalizeComponentPath(component: string): string {
@@ -39,6 +40,13 @@ export function hasPageComponent(component: string | null | undefined): boolean 
 export function lazyPageComponent(
   component: string | null | undefined,
 ): React.LazyExoticComponent<React.ComponentType<unknown>> | null {
+  if (!component) return null;
+  const normalized = normalizeComponentPath(component);
+  const cached = lazyPageComponents.get(normalized);
+  if (cached) return cached;
   const loader = resolvePageLoader(component);
-  return loader ? React.lazy(loader) : null;
+  if (!loader) return null;
+  const lazyComponent = React.lazy(loader);
+  lazyPageComponents.set(normalized, lazyComponent);
+  return lazyComponent;
 }

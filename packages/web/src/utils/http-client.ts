@@ -23,6 +23,8 @@ export interface HttpClientConfig {
   refreshPath: string;
   /** 认证失效时的登录页跳转地址 */
   loginUrl: () => string;
+  /** 认证失效后的宿主回调；提供时由宿主切换登录状态，否则执行整页跳转 */
+  onUnauthorized?: () => void;
   /** 退出登录时清除的 localStorage key（默认 [tokenKey, refreshTokenKey]） */
   logoutClearKeys?: string[];
   /** skipAuth 模式下 401 响应体解析失败时的兜底错误消息 */
@@ -44,6 +46,7 @@ export class HttpClient {
   private readonly refreshTokenKey: string;
   private readonly refreshPath: string;
   private readonly loginUrl: () => string;
+  private readonly onUnauthorized?: () => void;
   private readonly logoutClearKeys: string[];
   private readonly unauthorizedFallbackMessage: string;
   private readonly handleMaintenance: boolean;
@@ -55,6 +58,7 @@ export class HttpClient {
     this.refreshTokenKey = config.refreshTokenKey;
     this.refreshPath = config.refreshPath;
     this.loginUrl = config.loginUrl;
+    this.onUnauthorized = config.onUnauthorized;
     this.logoutClearKeys = config.logoutClearKeys ?? [config.tokenKey, config.refreshTokenKey];
     this.unauthorizedFallbackMessage = config.unauthorizedFallbackMessage ?? '未授权';
     this.handleMaintenance = config.handleMaintenance ?? false;
@@ -102,10 +106,14 @@ export class HttpClient {
     return this.refreshing;
   }
 
-  /** 清除本地凭证并跳转登录页 */
+  /** 清除本地凭证，并通知宿主或跳转登录页 */
   protected clearAuthAndRedirect(): void {
     for (const key of this.logoutClearKeys) {
       localStorage.removeItem(key);
+    }
+    if (this.onUnauthorized) {
+      this.onUnauthorized();
+      return;
     }
     globalThis.location.href = this.loginUrl();
   }

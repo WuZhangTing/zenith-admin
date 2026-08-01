@@ -55,7 +55,6 @@ type SectionKey = 'profile' | 'security' | 'devices' | 'login' | 'operation' | '
 
 interface ProfilePageProps {
   readonly user: Omit<UserType, 'password'>;
-  readonly onUserUpdate: (user: Omit<UserType, 'password'>) => void;
 }
 
 function SessionList({
@@ -120,12 +119,7 @@ function SessionList({
   );
 }
 
-export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
-  /** 更新当前用户：同步 App 状态 + dispatch 事件（让 AdminLayout 立即更新头像）*/
-  function applyUserUpdate(updated: Omit<UserType, 'password'>) {
-    onUserUpdate(updated);
-    globalThis.dispatchEvent(new CustomEvent('auth:user-updated', { detail: updated }));
-  }
+export default function ProfilePage({ user }: ProfilePageProps) {
   const [activeSection, setActiveSection] = useState<SectionKey>('profile');
 
   // ─── 基本信息 ────────────────────────────────────────────────────────────────
@@ -218,9 +212,8 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
 
   async function handleUpdateProfile(values: { nickname: string; email: string; phone?: string; gender?: string | null }) {
     const payload = { ...values, gender: values.gender ?? null };
-    const updated = await updateProfileMutation.mutateAsync(payload);
+    await updateProfileMutation.mutateAsync(payload);
     Toast.success('资料已更新');
-    applyUserUpdate(updated);
   }
 
   async function handleChangePassword(values: { oldPassword: string; newPassword: string; confirmPassword: string }) {
@@ -275,8 +268,7 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
     const uploadRes = await uploadAvatarMutation.mutateAsync(formData);
     const uploadedUrl = uploadRes.data?.url;
     if (uploadRes.code === 0 && uploadedUrl) {
-      const updated = await updateAvatarMutation.mutateAsync({ avatar: uploadedUrl });
-      applyUserUpdate(updated);
+      await updateAvatarMutation.mutateAsync({ avatar: uploadedUrl });
       Toast.success('头像已更新');
       setCropFile(null);
     } else {
@@ -336,8 +328,7 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
       title: '确定要移除头像吗？',
       content: '移除后将使用昵称缩写作为默认头像。',
       onOk: async () => {
-        const updated = await updateAvatarMutation.mutateAsync({ avatar: null });
-        applyUserUpdate(updated);
+        await updateAvatarMutation.mutateAsync({ avatar: null });
         Toast.success('头像已移除');
       },
     });
@@ -349,8 +340,7 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
 
   async function handleApplyPreset(url: string) {
     setPresetModalVisible(false);
-    const updated = await updateAvatarMutation.mutateAsync({ avatar: url });
-    applyUserUpdate(updated);
+    await updateAvatarMutation.mutateAsync({ avatar: url });
     Toast.success('头像已更新');
   }
 

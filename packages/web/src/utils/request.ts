@@ -8,6 +8,7 @@ import { showRequestErrorToast } from './request-toast';
 export type { ApiResponseWithMeta } from './http-client';
 
 export type RequestOptions = HttpRequestOptions;
+export const ADMIN_AUTH_INVALIDATED_EVENT = 'auth:invalidated';
 
 /**
  * 后台 admin 端 HTTP 客户端。
@@ -104,6 +105,7 @@ export const request = new Request({
   refreshTokenKey: REFRESH_TOKEN_KEY,
   refreshPath: '/api/auth/refresh',
   loginUrl: () => `${import.meta.env.BASE_URL.replace(/\/$/, '') || ''}/login`,
+  onUnauthorized: () => globalThis.dispatchEvent(new Event(ADMIN_AUTH_INVALIDATED_EVENT)),
   unauthorizedFallbackMessage: '密码错误',
   handleMaintenance: true,
 });

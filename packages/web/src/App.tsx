@@ -1,22 +1,21 @@
 import React, { useState, useEffect, useCallback, Suspense, useMemo } from 'react';
 import { BrowserRouter, HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Button } from '@douyinfe/semi-ui';
 import { useAuth } from '@/hooks/useAuth';
 import { PageErrorBoundary } from '@/components/PageErrorBoundary';
 import { useGlobalErrorHandler } from '@/hooks/useGlobalErrorHandler';
 import { initTracker, identify, prepareTrackerLogout, resetIdentity } from '@/utils/tracker';
 import ElectronTitleBar from '@/components/ElectronTitleBar';
-import { PermissionContext } from '@/hooks/usePermission';
+import { usePermission } from '@/hooks/usePermission';
 import { PreferencesProvider } from '@/hooks/PreferencesProvider';
 import { usePreferences } from '@/hooks/usePreferences';
 import { hasPostLoginHome, clearPostLoginHome } from '@/lib/post-login';
 import { ThemeProvider } from '@/providers/ThemeProvider';
 import { request } from '@/utils/request';
-import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { queryClient } from '@/lib/query';
 import MaintenanceOverlay from '@/components/MaintenanceOverlay';
 import { config } from '@/config';
-import { resolvePageLoader } from '@/utils/page-registry';
+import { lazyPageComponent } from '@/utils/page-registry';
 import type { Menu, User } from '@zenith/shared/identity';
 
 import AdminLayout from '@/layouts/AdminLayout';
@@ -188,12 +187,11 @@ function buildAllMenuPaths(menus: Menu[]): Map<string, string> {
 
 interface AdminRouteLoaderProps {
   user: Omit<User, 'password'>;
-  permissions: string[];
   logout: () => void;
-  updateUser: (user: Omit<User, 'password'>) => void;
 }
 
-function AdminRouteLoader({ user, permissions, logout, updateUser }: Readonly<AdminRouteLoaderProps>) {
+function AdminRouteLoader({ user, logout }: Readonly<AdminRouteLoaderProps>) {
+  const { permissions } = usePermission();
   const [menus, setMenus] = useState<Menu[]>([]);
   const [allMenuPaths, setAllMenuPaths] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -220,8 +218,7 @@ function AdminRouteLoader({ user, permissions, logout, updateUser }: Readonly<Ad
   }
 
   return (
-    <PermissionContext.Provider value={permissions}>
-      <Routes>
+    <Routes>
         <Route path="/public/payment/link/:token" element={<Suspense fallback={routeFallback}><PaymentLinkPublicPage /></Suspense>} />
         <Route path="/public/report/:token" element={<Suspense fallback={routeFallback}><PublicDashboardPage /></Suspense>} />
         <Route path="/public/ai-chat/:token" element={<Suspense fallback={routeFallback}><PublicAiChatPage /></Suspense>} />
@@ -234,7 +231,7 @@ function AdminRouteLoader({ user, permissions, logout, updateUser }: Readonly<Ad
         <Route path="/" element={<AdminLayout user={user} onLogout={logout} presetMenus={menus} />}>
         {/* 固定路由 */}
         <Route index element={<HomeEntry />} />
-        <Route path="profile" element={<Suspense fallback={routeFallback}><ProfilePage user={user} onUserUpdate={updateUser} /></Suspense>} />
+        <Route path="profile" element={<Suspense fallback={routeFallback}><ProfilePage user={user} /></Suspense>} />
         <Route path="announcements" element={<Suspense fallback={routeFallback}><AnnouncementsPage /></Suspense>} />
         <Route path="inbox" element={<Suspense fallback={routeFallback}><InboxPage /></Suspense>} />
         <Route path="workflow/designer/:id" element={<Suspense fallback={routeFallback}><WorkflowDesignerPage /></Suspense>} />
@@ -258,14 +255,13 @@ function AdminRouteLoader({ user, permissions, logout, updateUser }: Readonly<Ad
 
         {/* 动态路由 */}
         {dynamicRoutes.map(m => {
-          const importFn = resolvePageLoader(m.component);
+          const Component = lazyPageComponent(m.component);
 
-          if (!importFn) {
+          if (!Component) {
             console.warn(`[Router] Component not found for path: ${m.path} -> ${m.component}`);
             return null;
           }
 
-          const Component = React.lazy(importFn);
           // 为了适配嵌套 path（去掉前面的 /）
           const routePath = m.path!.startsWith('/') ? m.path!.slice(1) : m.path!;
 
@@ -295,25 +291,30 @@ function AdminRouteLoader({ user, permissions, logout, updateUser }: Readonly<Ad
       </Route>
       <Route path="*" element={<Suspense fallback={routeFallback}><NotFoundOrForbidden allMenuPaths={allMenuPaths} /></Suspense>} />
     </Routes>
-    </PermissionContext.Provider>
+  );
+}
+
+function AuthUnavailable({ onRetry }: Readonly<{ onRetry: () => Promise<void> }>) {
+  return (
+    <div className="page-loading">
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+      <strong>暂时无法连接服务器</strong>
+      <span style={{ color: 'var(--semi-color-text-2)' }}>登录凭证已保留，请检查网络后重试。</span>
+      <Button type="primary" onClick={() => void onRetry()}>重试</Button>
+    </div>
+    </div>
   );
 }
 
 export default function App() {
   useGlobalErrorHandler();
-  const { user, permissions, loading, login, verifyMfaLogin, register, logout, updateUser } = useAuth();
+  const { user, status, login, verifyMfaLogin, register, logout, refresh } = useAuth();
   const handleLogout = useCallback(() => {
     prepareTrackerLogout();
     logout();
   }, [logout]);
 
   const isSuperAdmin = user?.roles?.some((r) => r.code === 'super_admin') ?? false;
-
-  // 退出登录 / 切换用户时清空服务端状态缓存，避免跨账号数据泄漏
-  const userId = user?.id;
-  useEffect(() => {
-    if (!userId) queryClient.clear();
-  }, [userId]);
 
   // 初始化埋点 SDK（自动采集 / Web Vitals / API 监控）
   useEffect(() => { initTracker(); }, []);
@@ -335,7 +336,7 @@ export default function App() {
   // Poll maintenance status once auth has resolved
   const maintenanceCheckedRef = React.useRef(false);
   useEffect(() => {
-    if (loading) return;
+    if (status === 'checking') return;
     if (maintenanceCheckedRef.current) return;
     maintenanceCheckedRef.current = true;
     fetch(`${config.apiBaseUrl}/api/maintenance/status`)
@@ -347,7 +348,7 @@ export default function App() {
       })
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]);
+  }, [status]);
 
   // Listen for 503 events dispatched by request.ts
   useEffect(() => {
@@ -361,14 +362,17 @@ export default function App() {
     return () => globalThis.removeEventListener('maintenance:enabled', handler);
   }, [isSuperAdmin]);
 
-  if (loading) {
+  if (status === 'checking') {
     return <PageLoadingDots />;
+  }
+  if (status === 'unavailable') {
+    return <AuthUnavailable onRetry={refresh} />;
   }
 
   // Electron file:// 协议不支持 BrowserRouter，需使用 HashRouter
   const RouterComponent = import.meta.env.VITE_ELECTRON === 'true' ? HashRouter : BrowserRouter;
   return (
-    <QueryClientProvider client={queryClient}>
+    <>
     <PageErrorBoundary>
     {maintenanceInfo && (
       <MaintenanceOverlay info={maintenanceInfo} onResolved={handleMaintenanceResolved} />
@@ -379,7 +383,7 @@ export default function App() {
       {user ? (
         <PreferencesProvider>
           <ThemeProvider>
-            <AdminRouteLoader user={user} permissions={permissions} logout={handleLogout} updateUser={updateUser} />
+            <AdminRouteLoader user={user} logout={handleLogout} />
           </ThemeProvider>
         </PreferencesProvider>
       ) : (
@@ -401,6 +405,6 @@ export default function App() {
     </RouterComponent>
     </PageErrorBoundary>
     {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
-    </QueryClientProvider>
+    </>
   );
 }

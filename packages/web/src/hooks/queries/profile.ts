@@ -5,6 +5,7 @@ import type { MfaFactor, OperationLog, TotpSetupResult } from '@zenith/shared/pl
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 import type { PasswordPolicy } from '@/utils/password-policy';
+import { updateCachedAuthUser } from './auth';
 
 export interface ProfileLogParams {
   page: number;
@@ -97,7 +98,7 @@ export function useUpdateProfile() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (values: UpdateProfilePayload) => request.put<Omit<User, 'password'>>('/api/auth/profile', values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: profileKeys.all }),
+    onSuccess: (user) => updateCachedAuthUser(qc, user),
   });
 }
 

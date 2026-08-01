@@ -13,6 +13,7 @@ import { useDictItems } from '@/hooks/useDictItems';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import { usePermission } from '@/hooks/usePermission';
+import { useAuth } from '@/hooks/useAuth';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -68,6 +69,7 @@ function isAdminUser(user: Pick<User, 'username'>) {
 
 export default function UsersPage() {
   const { hasPermission } = usePermission();
+  const { updateUser } = useAuth();
   const formApi = useRef<FormApi | null>(null);
   const passwordFormApi = useRef<FormApi | null>(null);
   const {
@@ -1143,7 +1145,7 @@ export default function UsersPage() {
           onUpdated={(updated) => {
             void listQuery.refetch();
             setAvatarUser(updated);
-            globalThis.dispatchEvent(new CustomEvent('auth:user-updated', { detail: updated }));
+            updateUser(updated);
           }}
         />
       )}

@@ -20,7 +20,7 @@ import AsyncTaskProgress from '@/components/AsyncTaskProgress';
 import { useMyAsyncTasks } from '@/hooks/useAsyncTasks';
 import { useAiEvalSets, useAiEvalRuns, useAiEvalRunDetail, useSaveAiEvalSet, useDeleteAiEvalSet, useRunAiEval, useDeleteAiEvalRun } from '@/hooks/queries/ai-eval';
 import { useAiChatModels } from '@/hooks/queries/ai-providers';
-import { useAuth } from '@/hooks/useAuth';
+import { usePermission } from '@/hooks/usePermission';
 import type { AiEvalSet, AiEvalRun, AiEvalItem } from '@zenith/shared/ai';
 import { CreateButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
@@ -34,8 +34,8 @@ interface SetFormValues {
 }
 
 export default function AiEvalPage() {
-  const { permissions } = useAuth();
-  const canManage = permissions.includes('*') || permissions.includes('ai:eval:manage');
+  const { hasPermission } = usePermission();
+  const canManage = hasPermission('ai:eval:manage');
 
   const setsQuery = useAiEvalSets();
   const { tasks } = useMyAsyncTasks({ taskTypes: ['ai-eval-run'] });

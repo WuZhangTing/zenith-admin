@@ -38,7 +38,6 @@ import { usePageTracker } from '@/hooks/usePageTracker';
 import { useMediaQuery, useIsMobile } from '@/hooks/useMediaQuery';
 import { mediaDown } from '@/lib/breakpoints';
 import { findBreadcrumbs, findNavItemAncestorKeys, updateMessageRead } from './admin/utils';
-import { useDisplayUser } from './admin/useDisplayUser';
 import { useWatermarkConfig, useQuickChatEnabled } from './admin/useSystemConfigFlags';
 import { useFullscreen } from './admin/useFullscreen';
 import { usePreferencesPanel } from './admin/usePreferencesPanel';
@@ -76,11 +75,7 @@ interface AdminLayoutProps {
   readonly presetMenus?: Menu[];
 }
 
-export default function AdminLayout({ user: userProp, onLogout, presetMenus }: AdminLayoutProps) {
-  // 本地维护 displayUser，通过 auth:user-updated 事件直接更新头像，
-  // 避免触发整条 App.tsx → Provider 树的重渲染链路。
-  const displayUser = useDisplayUser(userProp);
-  const user = displayUser;
+export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayoutProps) {
   const { preferences, setPreferences, resetPreferences } = usePreferences();
   // hover 模式下侧边栏应保持收起：刷新页面后依据偏好恢复收起状态
   const [collapsed, setCollapsed] = useState(() => preferences.sidebarHoverTrigger ?? false);
@@ -1062,7 +1057,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
 
       {/* ===== 全局聊天通知（桌面通知 + 提示音）===== */}
       <Suspense fallback={null}>
-        <ChatNotifierHost userId={displayUser?.id ?? null} />
+        <ChatNotifierHost userId={user.id} />
       </Suspense>
 
       {/* ===== 消息详情 Modal ===== */}

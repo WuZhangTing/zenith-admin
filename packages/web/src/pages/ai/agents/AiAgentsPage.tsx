@@ -16,7 +16,7 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import { Bot, MessageSquare, Copy, Send, Undo2, Check, X } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
+import { usePermission } from '@/hooks/usePermission';
 import {
   useMyAiAgents,
   useMarketAiAgents,
@@ -90,8 +90,8 @@ function AgentCard({ agent, footer, showOwner }: { agent: AiAgent; footer: React
 
 export default function AiAgentsPage() {
   const navigate = useNavigate();
-  const { permissions } = useAuth();
-  const canReview = permissions.includes('*') || permissions.includes('ai:agent:review');
+  const { hasPermission } = usePermission();
+  const canReview = hasPermission('ai:agent:review');
 
   const [activeTab, setActiveTab] = useState('mine');
   const mineQuery = useMyAiAgents();

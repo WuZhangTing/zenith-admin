@@ -1,131 +1,43 @@
-import { useState, useEffect, useCallback } from 'react';
-import { request } from '@/utils/request';
-import { TOKEN_KEY, REFRESH_TOKEN_KEY, PREFERENCES_KEY, TABS_STORAGE_KEY } from '@zenith/shared/core';
+import { createContext, useContext } from 'react';
+import type { ApiResponse } from '@zenith/shared/core';
 import type { User, LoginResponse, LoginResult } from '@zenith/shared/identity';
 
-const DEVICE_ID_KEY = 'zenith_device_id';
+export type AuthStatus = 'checking' | 'authenticated' | 'anonymous' | 'unavailable';
+export type AuthResponse<T> = ApiResponse<T> & { retryAfterSeconds?: number };
 
-function getDeviceId(): string {
-  const existing = localStorage.getItem(DEVICE_ID_KEY);
-  if (existing) return existing;
-  const value = crypto.randomUUID();
-  localStorage.setItem(DEVICE_ID_KEY, value);
-  return value;
-}
-
-function isLoginResponse(data: LoginResult): data is LoginResponse {
-  return 'token' in data;
-}
-
-interface AuthState {
+export interface AuthContextValue {
   user: Omit<User, 'password'> | null;
   permissions: string[];
+  status: AuthStatus;
   loading: boolean;
+  error: Error | null;
+  login: (
+    username: string,
+    password: string,
+    captchaId?: string,
+    captchaCode?: string,
+    tenantCode?: string,
+  ) => Promise<AuthResponse<LoginResult>>;
+  verifyMfaLogin: (
+    challengeId: string,
+    code: string,
+    rememberDevice: boolean,
+  ) => Promise<AuthResponse<LoginResponse>>;
+  register: (data: {
+    username: string;
+    nickname: string;
+    email: string;
+    password: string;
+  }) => Promise<AuthResponse<LoginResponse>>;
+  logout: () => void;
+  refresh: () => Promise<void>;
+  updateUser: (user: Omit<User, 'password'>) => void;
 }
 
+export const AuthContext = createContext<AuthContextValue | null>(null);
+
 export function useAuth() {
-  const [state, setState] = useState<AuthState>({ user: null, permissions: [], loading: true });
-
-  const fetchUser = useCallback(async () => {
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) {
-      setState({ user: null, permissions: [], loading: false });
-      return;
-    }
-    try {
-      const res = await request.get<User & { permissions: string[] }>('/api/auth/me', { silent: true });
-      if (res.code === 0) {
-        const { permissions, ...userData } = res.data;
-        setState({ user: userData, permissions: permissions ?? [], loading: false });
-      } else if (res.code === -1) {
-        // 网络错误（如后端未启动完成），不清除 token，只重置 loading
-        setState((prev) => ({ ...prev, loading: false }));
-      } else {
-        // 认证失败（如 token 过期），清除所有用户相关数据
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem(REFRESH_TOKEN_KEY);
-        localStorage.removeItem(PREFERENCES_KEY);
-        localStorage.removeItem(TABS_STORAGE_KEY);
-        setState({ user: null, permissions: [], loading: false });
-      }
-    } catch {
-      // 网络异常，不清除 token，只重置 loading
-      setState((prev) => ({ ...prev, loading: false }));
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
-
-  const login = async (username: string, password: string, captchaId?: string, captchaCode?: string, tenantCode?: string) => {
-    // 收集设备信息（尽尽所能，不强制要求）
-    let deviceInfo: Record<string, unknown> | undefined;
-    try {
-      const scr = window.screen;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const nav = navigator as any;
-      let gpu: string | undefined;
-      try {
-        const canvas = document.createElement('canvas');
-        const gl = canvas.getContext('webgl') ?? canvas.getContext('experimental-webgl');
-        if (gl) {
-          const ext = (gl as WebGLRenderingContext).getExtension('WEBGL_debug_renderer_info');
-          if (ext) gpu = (gl as WebGLRenderingContext).getParameter(ext.UNMASKED_RENDERER_WEBGL) as string || undefined;
-        }
-      } catch { /* ignore */ }
-      deviceInfo = {
-        screenWidth: scr.width,
-        screenHeight: scr.height,
-        devicePixelRatio: String(window.devicePixelRatio ?? 1),
-        ...(gpu ? { gpu } : {}),
-        ...(nav.hardwareConcurrency ? { cpuCores: nav.hardwareConcurrency } : {}),
-        ...(nav.deviceMemory ? { memoryGb: String(nav.deviceMemory) } : {}),
-      };
-    } catch { /* ignore */ }
-    const res = await request.post<LoginResult>('/api/auth/login', { username, password, captchaId, captchaCode, tenantCode, deviceInfo, deviceId: getDeviceId(), rememberDevice: true }, { silent: true });
-    if (res.code === 0 && isLoginResponse(res.data)) {
-      localStorage.setItem(TOKEN_KEY, res.data.token.accessToken);
-      localStorage.setItem(REFRESH_TOKEN_KEY, res.data.token.refreshToken);
-      await fetchUser();
-    }
-    return res;
-  };
-
-  const verifyMfaLogin = async (challengeId: string, code: string, rememberDevice: boolean) => {
-    const res = await request.post<LoginResponse>('/api/auth/mfa/verify', { challengeId, code, rememberDevice }, { silent: true });
-    if (res.code === 0) {
-      localStorage.setItem(TOKEN_KEY, res.data.token.accessToken);
-      localStorage.setItem(REFRESH_TOKEN_KEY, res.data.token.refreshToken);
-      await fetchUser();
-    }
-    return res;
-  };
-
-  const register = async (data: { username: string; nickname: string; email: string; password: string }) => {
-    const res = await request.post<LoginResponse>('/api/auth/register', data, { silent: true });
-    if (res.code === 0) {
-      localStorage.setItem(TOKEN_KEY, res.data.token.accessToken);
-      localStorage.setItem(REFRESH_TOKEN_KEY, res.data.token.refreshToken);
-      await fetchUser();
-    }
-    return res;
-  };
-
-  const logout = () => {
-    // Best-effort: notify server while the access token is still available.
-    request.post('/api/auth/logout', {}, { silent: true, skipAuth: true }).catch(() => {});
-    // Immediately clear local state first
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
-    localStorage.removeItem(PREFERENCES_KEY);
-    localStorage.removeItem(TABS_STORAGE_KEY);
-    setState({ user: null, permissions: [], loading: false });
-  };
-
-  const updateUser = (user: Omit<User, 'password'>) => {
-    setState((prev) => ({ ...prev, user }));
-  };
-
-  return { ...state, login, verifyMfaLogin, register, logout, refresh: fetchUser, updateUser };
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
+  return context;
 }

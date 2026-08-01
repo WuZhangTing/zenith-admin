@@ -1,38 +1,27 @@
-/**
- * useAuth hook 单元测试
- *
- * 覆盖要点：
- *  1. 初始无 token  → user = null，loading 最终为 false
- *  2. 有 token + 接口成功 → user 被设置，permissions 正确
- *  3. 有 token + 接口失败 → token 被清除，user = null
- *  4. 有 token + 接口抛出异常 → token 被清除，user = null
- *  5. login() 成功 → 保存 accessToken / refreshToken，fetchUser 被触发
- *  6. logout() → 立即清除 localStorage，user 置空
- *  7. updateUser() → 更新 user 状态（不触发网络请求）
- *
- * Mock 策略：
- *  - vi.mock '@/utils/request' 拦截所有 HTTP 请求
- *  - localStorage 由 jsdom 提供，beforeEach 调用 localStorage.clear() 隔离
- */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
-import { TOKEN_KEY, REFRESH_TOKEN_KEY } from '@zenith/shared/core';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
+import {
+  PREFERENCES_KEY,
+  REFRESH_TOKEN_KEY,
+  TABS_STORAGE_KEY,
+  TOKEN_KEY,
+} from '@zenith/shared/core';
+import { AuthProvider } from '@/providers/AuthProvider';
+import { ADMIN_AUTH_INVALIDATED_EVENT, request } from '@/utils/request';
 import { useAuth } from './useAuth';
-import { formatDateTime } from '@/utils/date';
 
-// ─── Mock request ─────────────────────────────────────────────────────────────
 vi.mock('@/utils/request', () => ({
+  ADMIN_AUTH_INVALIDATED_EVENT: 'auth:invalidated',
   request: {
     get: vi.fn(),
     post: vi.fn(),
   },
 }));
 
-// 动态导入 mock，避免循环依赖顺序问题
-import { request } from '@/utils/request';
 const mockRequest = vi.mocked(request);
 
-// ─── 辅助：构造 /api/auth/me 的成功响应 ───────────────────────────────────────
 function makeMeResponse(overrides: Record<string, unknown> = {}) {
   return {
     code: 0,
@@ -48,74 +37,99 @@ function makeMeResponse(overrides: Record<string, unknown> = {}) {
   };
 }
 
-// ─── Setup ───────────────────────────────────────────────────────────────────
+function createClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+}
+
+function createWrapper(client: QueryClient) {
+  return function Wrapper({ children }: Readonly<{ children: ReactNode }>) {
+    return (
+      <QueryClientProvider client={client}>
+        <AuthProvider>{children}</AuthProvider>
+      </QueryClientProvider>
+    );
+  };
+}
+
+function renderAuthHook(client = createClient()) {
+  return {
+    client,
+    ...renderHook(() => useAuth(), { wrapper: createWrapper(client) }),
+  };
+}
+
 beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
 });
 
-// ─── Tests ────────────────────────────────────────────────────────────────────
-describe('初始化', () => {
-  it('无 token 时 user 为 null，加载完成后 loading 为 false', async () => {
-    const { result } = renderHook(() => useAuth());
+describe('AuthProvider initialization', () => {
+  it('stays anonymous without credentials and does not request /api/auth/me', () => {
+    const { result } = renderAuthHook();
 
-    await waitFor(() => expect(result.current.loading).toBe(false));
-
+    expect(result.current.status).toBe('anonymous');
     expect(result.current.user).toBeNull();
-    expect(result.current.permissions).toEqual([]);
-    // 无 token 时不应发起网络请求
     expect(mockRequest.get).not.toHaveBeenCalled();
   });
 
-  it('有 token 且接口成功时设置 user 和 permissions', async () => {
+  it('loads one shared session for multiple consumers', async () => {
     localStorage.setItem(TOKEN_KEY, 'valid-token');
-    mockRequest.get.mockResolvedValueOnce(makeMeResponse());
+    mockRequest.get.mockResolvedValue(makeMeResponse());
+    const client = createClient();
 
-    const { result } = renderHook(() => useAuth());
+    function Consumer({ name }: Readonly<{ name: string }>) {
+      const auth = useAuth();
+      return <span data-testid={name}>{auth.user?.username ?? auth.status}</span>;
+    }
 
-    await waitFor(() => expect(result.current.loading).toBe(false));
+    render(
+      <QueryClientProvider client={client}>
+        <AuthProvider>
+          <Consumer name="first" />
+          <Consumer name="second" />
+        </AuthProvider>
+      </QueryClientProvider>,
+    );
 
-    expect(result.current.user?.username).toBe('admin');
-    expect(result.current.user?.nickname).toBe('管理员');
-    expect(result.current.permissions).toContain('user:read');
-    expect(result.current.permissions).toContain('role:read');
+    await waitFor(() => {
+      expect(screen.getByTestId('first')).toHaveTextContent('admin');
+      expect(screen.getByTestId('second')).toHaveTextContent('admin');
+    });
+    expect(mockRequest.get).toHaveBeenCalledTimes(1);
+    expect(mockRequest.get).toHaveBeenCalledWith('/api/auth/me', expect.objectContaining({ silent: true }));
   });
 
-  it('有 token 但接口返回非 0 时清除 token，user 为 null', async () => {
-    localStorage.setItem(TOKEN_KEY, 'expired-token');
-    mockRequest.get.mockResolvedValueOnce({
-      code: 401,
-      message: 'Unauthorized',
-      data: null,
-    });
+  it('keeps credentials and exposes unavailable status on network failure', async () => {
+    localStorage.setItem(TOKEN_KEY, 'valid-token');
+    mockRequest.get.mockResolvedValue({ code: -1, message: '网络请求失败', data: null });
 
-    const { result } = renderHook(() => useAuth());
+    const { result } = renderAuthHook();
 
-    await waitFor(() => expect(result.current.loading).toBe(false));
-
+    await waitFor(() => expect(result.current.status).toBe('unavailable'));
     expect(result.current.user).toBeNull();
+    expect(localStorage.getItem(TOKEN_KEY)).toBe('valid-token');
+  });
+
+  it('clears credentials when the session is rejected', async () => {
+    localStorage.setItem(TOKEN_KEY, 'expired-token');
+    localStorage.setItem(REFRESH_TOKEN_KEY, 'expired-refresh');
+    mockRequest.get.mockResolvedValue({ code: 401, message: 'Unauthorized', data: null });
+
+    const { result } = renderAuthHook();
+
+    await waitFor(() => expect(result.current.status).toBe('anonymous'));
     expect(localStorage.getItem(TOKEN_KEY)).toBeNull();
     expect(localStorage.getItem(REFRESH_TOKEN_KEY)).toBeNull();
   });
-
-  it('有 token 但接口抛出网络异常时保留 token（避免误登出），user 为 null', async () => {
-    localStorage.setItem(TOKEN_KEY, 'bad-token');
-    mockRequest.get.mockRejectedValueOnce(new Error('Network Error'));
-
-    const { result } = renderHook(() => useAuth());
-
-    await waitFor(() => expect(result.current.loading).toBe(false));
-
-    expect(result.current.user).toBeNull();
-    // fix(auth) 8d40983b：网络异常/后端未就绪时不清除 token（仅认证失败 code≠0 才清除），避免网络抖动误登出
-    expect(localStorage.getItem(TOKEN_KEY)).toBe('bad-token');
-  });
 });
 
-describe('login()', () => {
-  it('登录成功后保存 token 并触发 fetchUser', async () => {
-    // 第一次 GET（login 后调 fetchUser）
-    mockRequest.get.mockResolvedValueOnce(makeMeResponse());
+describe('AuthProvider actions', () => {
+  it('stores login credentials and fetches the session exactly once', async () => {
     mockRequest.post.mockResolvedValueOnce({
       code: 0,
       message: 'success',
@@ -124,10 +138,8 @@ describe('login()', () => {
         user: { id: 1 },
       },
     });
-
-    const { result } = renderHook(() => useAuth());
-    // 等待初始 loading:false（无 token 场景）
-    await waitFor(() => expect(result.current.loading).toBe(false));
+    mockRequest.get.mockResolvedValueOnce(makeMeResponse());
+    const { result } = renderAuthHook();
 
     await act(async () => {
       await result.current.login('admin', 'password');
@@ -136,131 +148,110 @@ describe('login()', () => {
     expect(localStorage.getItem(TOKEN_KEY)).toBe('new-access-token');
     expect(localStorage.getItem(REFRESH_TOKEN_KEY)).toBe('new-refresh-token');
     expect(result.current.user?.username).toBe('admin');
+    expect(mockRequest.get).toHaveBeenCalledTimes(1);
   });
 
-  it('登录失败时不保存 token，返回错误响应', async () => {
+  it('does not persist credentials after a failed login', async () => {
     mockRequest.post.mockResolvedValueOnce({
       code: 400,
       message: '用户名或密码错误',
       data: null,
     });
+    const { result } = renderAuthHook();
 
-    const { result } = renderHook(() => useAuth());
-    await waitFor(() => expect(result.current.loading).toBe(false));
-
-    let response: { code: number } | undefined;
     await act(async () => {
-      response = await result.current.login('admin', 'wrong');
+      await result.current.login('admin', 'wrong');
     });
 
-    expect(response?.code).toBe(400);
+    expect(result.current.status).toBe('anonymous');
     expect(localStorage.getItem(TOKEN_KEY)).toBeNull();
-    expect(result.current.user).toBeNull();
+    expect(mockRequest.get).not.toHaveBeenCalled();
   });
-});
 
-describe('logout()', () => {
-  it('立即清除 localStorage 的 token 并将 user 置空', async () => {
-    localStorage.setItem(TOKEN_KEY, 'some-token');
+  it('logs out without issuing another /api/auth/me request and clears identity caches', async () => {
+    localStorage.setItem(TOKEN_KEY, 'valid-token');
+    localStorage.setItem(REFRESH_TOKEN_KEY, 'valid-refresh');
+    localStorage.setItem(PREFERENCES_KEY, '{}');
+    localStorage.setItem(TABS_STORAGE_KEY, '[]');
     mockRequest.get.mockResolvedValueOnce(makeMeResponse());
-    // logout 会 fire-and-forget 调用 POST /api/auth/logout，需要提供 mock 防止未处理的 rejection
-    mockRequest.post.mockResolvedValue({ code: 0, message: 'success', data: null });
+    mockRequest.post.mockResolvedValueOnce({ code: 0, message: 'success', data: null });
+    const client = createClient();
+    client.setQueryData(['private', 'data'], { owner: 1 });
+    const { result } = renderAuthHook(client);
+    await waitFor(() => expect(result.current.status).toBe('authenticated'));
 
-    const { result } = renderHook(() => useAuth());
-    await waitFor(() => expect(result.current.user).not.toBeNull());
+    act(() => result.current.logout());
 
-    act(() => {
-      result.current.logout();
+    await waitFor(() => {
+      expect(result.current.status).toBe('anonymous');
+      expect(client.getQueryData(['private', 'data'])).toBeUndefined();
     });
-
-    expect(result.current.user).toBeNull();
     expect(localStorage.getItem(TOKEN_KEY)).toBeNull();
     expect(localStorage.getItem(REFRESH_TOKEN_KEY)).toBeNull();
-  });
-});
-
-describe('register()', () => {
-  it('注册成功后保存 token 并触发 fetchUser', async () => {
-    mockRequest.post.mockResolvedValueOnce({
-      code: 0,
-      message: 'success',
-      data: {
-        token: { accessToken: 'reg-access', refreshToken: 'reg-refresh' },
-        user: { id: 2 },
-      },
-    });
-    mockRequest.get.mockResolvedValueOnce(
-      makeMeResponse({ id: 2, username: 'newuser', nickname: '新用户' }),
-    );
-
-    const { result } = renderHook(() => useAuth());
-    await waitFor(() => expect(result.current.loading).toBe(false));
-
-    await act(async () => {
-      await result.current.register({
-        username: 'newuser',
-        nickname: '新用户',
-        email: 'new@example.com',
-        password: 'Abc@1234',
-      });
-    });
-
-    expect(localStorage.getItem(TOKEN_KEY)).toBe('reg-access');
-    expect(localStorage.getItem(REFRESH_TOKEN_KEY)).toBe('reg-refresh');
-    expect(result.current.user?.username).toBe('newuser');
+    expect(localStorage.getItem(PREFERENCES_KEY)).toBeNull();
+    expect(localStorage.getItem(TABS_STORAGE_KEY)).toBeNull();
+    expect(mockRequest.get).toHaveBeenCalledTimes(1);
   });
 
-  it('注册失败时不保存 token，返回错误响应', async () => {
-    mockRequest.post.mockResolvedValueOnce({
-      code: 400,
-      message: '用户名已存在',
-      data: null,
-    });
-
-    const { result } = renderHook(() => useAuth());
-    await waitFor(() => expect(result.current.loading).toBe(false));
-
-    let response: { code: number } | undefined;
-    await act(async () => {
-      response = await result.current.register({
-        username: 'dup',
-        nickname: '重复',
-        email: 'dup@example.com',
-        password: 'pass',
-      });
-    });
-
-    expect(response?.code).toBe(400);
-    expect(localStorage.getItem(TOKEN_KEY)).toBeNull();
-  });
-});
-
-describe('updateUser()', () => {
-  it('不触发网络请求，直接更新 user 状态', async () => {
-    localStorage.setItem(TOKEN_KEY, 'some-token');
+  it('updates the shared user while preserving permissions and avoiding refetch', async () => {
+    localStorage.setItem(TOKEN_KEY, 'valid-token');
     mockRequest.get.mockResolvedValueOnce(makeMeResponse());
+    const { result } = renderAuthHook();
+    await waitFor(() => expect(result.current.status).toBe('authenticated'));
+    const current = result.current.user!;
 
-    const { result } = renderHook(() => useAuth());
-    await waitFor(() => expect(result.current.user?.nickname).toBe('管理员'));
+    act(() => result.current.updateUser({ ...current, nickname: '新昵称' }));
+
+    await waitFor(() => expect(result.current.user?.nickname).toBe('新昵称'));
+    expect(result.current.permissions).toEqual(['user:read', 'role:read']);
+    expect(mockRequest.get).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not replace the session user when another account is edited', async () => {
+    localStorage.setItem(TOKEN_KEY, 'valid-token');
+    mockRequest.get.mockResolvedValueOnce(makeMeResponse());
+    const { result } = renderAuthHook();
+    await waitFor(() => expect(result.current.status).toBe('authenticated'));
+    const current = result.current.user!;
+
+    act(() => result.current.updateUser({ ...current, id: 2, nickname: '其他用户' }));
+
+    expect(result.current.user?.id).toBe(1);
+    expect(result.current.user?.nickname).toBe('管理员');
+  });
+});
+
+describe('AuthProvider invalidation synchronization', () => {
+  it('handles HTTP unauthorized notifications through the shared state machine', async () => {
+    localStorage.setItem(TOKEN_KEY, 'valid-token');
+    localStorage.setItem(REFRESH_TOKEN_KEY, 'valid-refresh');
+    mockRequest.get.mockResolvedValueOnce(makeMeResponse());
+    const { result } = renderAuthHook();
+    await waitFor(() => expect(result.current.status).toBe('authenticated'));
+
+    act(() => globalThis.dispatchEvent(new Event(ADMIN_AUTH_INVALIDATED_EVENT)));
+
+    await waitFor(() => expect(result.current.status).toBe('anonymous'));
+    expect(localStorage.getItem(TOKEN_KEY)).toBeNull();
+    expect(mockRequest.get).toHaveBeenCalledTimes(1);
+  });
+
+  it('synchronizes logout from another browser tab', async () => {
+    localStorage.setItem(TOKEN_KEY, 'valid-token');
+    mockRequest.get.mockResolvedValueOnce(makeMeResponse());
+    const { result } = renderAuthHook();
+    await waitFor(() => expect(result.current.status).toBe('authenticated'));
+    localStorage.removeItem(TOKEN_KEY);
 
     act(() => {
-      result.current.updateUser({
-        id: 1,
-        username: 'admin',
-        nickname: '新昵称',
-        email: 'admin@example.com',
-        status: 'enabled',
-        roles: [],
-        passwordUpdatedAt: '',
-        createdAt: formatDateTime(new Date()),
-        updatedAt: formatDateTime(new Date()),
-        departmentId: null,
-        tenantId: null,
-      });
+      globalThis.dispatchEvent(new StorageEvent('storage', {
+        key: TOKEN_KEY,
+        oldValue: 'valid-token',
+        newValue: null,
+      }));
     });
 
-    expect(result.current.user?.nickname).toBe('新昵称');
-    // updateUser 不应触发额外的网络请求
+    await waitFor(() => expect(result.current.status).toBe('anonymous'));
     expect(mockRequest.get).toHaveBeenCalledTimes(1);
   });
 });
