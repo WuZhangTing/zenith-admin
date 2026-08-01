@@ -4,6 +4,71 @@
 
 ---
 
+## v1.31.0 - 2026-08-01
+
+质量加固版本：跨大版本升级 ioredis（v5→v6，默认切 RESP3），为此前几乎无测试的 267 个路由文件补上契约层测试并修正其暴露的 37 处声明缺陷，消除 payment / CMS 的 11 处 N+1 查询。无新增业务功能，无破坏性变更。服务端 1596 项、前端 507 项测试全部通过，资金链路与支付可靠性 DB 集成测试 25 项通过，`npm run build` / `docs:build` / `build:demo` 三项构建均通过。
+
+### Added
+
+#### 路由契约层测试
+
+267 个路由文件此前只有 2 个测试。`app.ts` 顶部注释写明重构 `createApp()` 为纯函数的动机就是这件事，但该能力从未被使用；`_kit.ts`、`routes/index.ts`、`app.ts` 三处注释引用的 `src/app.routes.test.ts` 也根本不存在。
+
+新增契约测试，一次装配覆盖全部 1843 个操作（约 22 秒），锁定 6 类不变量：
+
+1. 声明 `BearerAuth` 的操作，无凭证访问必须返回 401（捕获漏挂 `authMiddleware`）
+2. 声明 `security: []` 的操作，无凭证访问不得返回 401（捕获错误的公开声明）
+3. 公开端点总数设阈值，攻击面增长必须被评审看见
+4. 返回 JSON 的操作必须声明 400/401/403/404/500
+5. 200 响应必须是 `{ code, message, data }` 包络
+6. 无重复 method + path 注册；未匹配路径返回标准 404 包络
+
+第 4 条的豁免是原则而非白名单：不返回 JSON 的端点不适用 JSON 错误契约。微信/支付宝回调必须按渠道协议返回纯文本 ACK，判据取 200 响应的 content-type，随代码自动演进。
+
+同时把 `@zenith/shared` 纳入 CI lint：该包 111 个文件承载前后端共用的全部类型与 Zod schema，此前零 lint 配置、根 lint 脚本也不覆盖，一处 schema 改错可同时打穿两端而无人拦截。
+
+### Performance
+
+#### 消除 payment / CMS 的 11 处 N+1 查询
+
+全部改写严格保持可观测行为不变——相同结果、相同报错顺序、相同写入行，只减少数据库往返：
+
+| 位置 | 改前 | 改后 |
+| --- | --- | --- |
+| `evaluateRisk` | 每条命中规则一次当日聚合，且处在下单同步路径上 | 按 `scope` 记忆（聚合条件只由 scope 决定），≤3 次且仍惰性——没配日限额的规则依然 0 次查询 |
+| `closeExpiredOrders` / `runReconciliation` | 无 limit 扫描 + 每单重查渠道配置 | 单次上限 500（cron 周期消化余量）+ 整批共用配置解析器 |
+| `retryFailedSharingOrders` / `syncProcessingSharingOrders` | 每条分账单 1~2 次点查 | `inArray` 预取订单与接收方 |
+| `syncProcessingTransfers` | 每单一次渠道配置点查 | `inArray` 去重预取 |
+| `checkAccounts` / `rebuildAccountsFromLedger` | 每个维度 3~4 次聚合点查 | GROUP BY 全量聚合，查询数与维度数量脱钩 |
+| `batchAddCmsContentTags` | 每条内容重查同一批标签（只有 siteId 不同） | 按 siteId 一次取回，站点级完整性校验口径不变 |
+| `cleanupCmsRecycleBin` | 每个站点各扫一次回收站 | 按 `recycleKeepDays` 分组的单条 OR 查询（通常只剩一条分支） |
+| `submitCmsSiteGroupPublish` / `applyCmsContentPublishSnapshot` | 逐站点 / 逐栏目点查 | 事务内 `inArray` 预取 |
+| `flushViewCountBuffer` | 每分钟逐条 UPDATE | 单条 `UPDATE ... FROM (VALUES ...)`（5000 行分片） |
+
+`rebuildSearchVectors` 刻意保持逐行写入：其取值内嵌整篇正文（≤20000 字符），批量化会产生 MB 级单语句，而该任务本就 IO-bound 在 `to_tsvector` 计算上，收益远小于风险。
+
+这些函数原本零单元覆盖，因此正确性由差分验证保证——在真实 PostgreSQL 上同时运行改前的逐行实现与改后的批量实现，逐字段断言结果一致（22 项）。
+
+### Changed
+
+- **ioredis 5.11.1 → 6.0.0**：要求 Node ≥ 20（项目运行 24），默认改用 RESP3（发 `HELLO 3`，服务端不支持时自动降级 RESP2）。`replyMapping` 默认为 `"legacy"`，因此 `hgetall` 仍返回对象、`zrange`/`zrevrange WITHSCORES` 仍是扁平字符串数组、`zincrby` 仍返回字符串、`multi`/`pipeline.exec()` 仍是 `[err, result][]`——服务端用到的 39 个命令已在真实 Redis 7.2.4 上逐一验证形状不变。另需留意两处默认值变化：TCP `keepAlive` 由 0 改为 30s，重连退避由线性（50ms 步进 / 2s 封顶）改为指数 + 抖动（5s 封顶）。v6 生成的类型定义漏掉了 ZRANGE `stop` 参数的 `number` 重载（上游回归 [redis/ioredis#2162](https://github.com/redis/ioredis/issues/2162)），3 处调用改为传字符串下标，线上编码完全等价
+- **`FileManagerPage` 垫片消除**：`FileManagerPage.tsx` 此前只有一行 `export { default } from './FileManagerPage2'`，且追溯首个提交可见它从第一天起就是垫片——从不存在被取代的 v1。这是 408 个页面文件中唯一一处此种写法。实现文件回归 `FileManagerPage.tsx`，头注释改为说明该页面是什么（操作宿主机真实文件系统、走 `/api/terminal-files/*`、权限码刻意复用 `system:terminal:execute`），并显式标注与 `FilesPage`（托管文件库，`/api/files/*` + 存储抽象层）的区别，避免再被误读为「重构未收尾」。构建产物由 3 个 chunk 减为 2 个
+
+### Fixed
+
+#### 公开端点声明缺陷（契约测试暴露）
+
+- **23 处公开端点漏写 `security: []`**（14 个文件），其中 4 个无凭证直接返回 200。危害不止于文档撒谎——这些噪声混在「已声明受保护」集合里，未来某个敏感路由真的漏挂认证时无法与它们区分
+- **14 处缺失 `commonErrorResponses`**（cache 9 条、health、maintenance/status）
+
+#### N+1 改写过程中自查发现并修复
+
+- **浏览计数批量 UPDATE 漏刷 `updated_at`**：drizzle 的 `.update()` 会自动带上 `$onUpdate` 列，手写 SQL 不会。而开放平台增量同步以 `cms_contents.updated_at` 为水位线、`viewCount` 又在同步载荷内，漏刷会让集成方再也收不到浏览数变更
+- **`rebuildAccountsFromLedger` 并发竞态**：维度扫描与聚合放进同一个 `Promise.all` 后失去先后关系，READ COMMITTED 下聚合快照可能早于维度扫描，出现「维度已被发现、聚合却缺失」从而回落到默认 0，用 0 覆盖真实余额
+- **批量语句的 65535 绑定参数上限**：两处批量语句每行 2 个绑定参数，而输入侧（路由 schema 与真实访问量）都没有上限。浏览计数刷新尤其危险——Redis 缓冲已先行删除，抛错等于丢掉整个窗口的计数。两处均改为 5000 行分片
+
+---
+
 ## v1.30.0 - 2026-08-01
 
 巨型文件拆分版本：把全仓最大的 7 个 god-file（合计约 15,300 行）机械拆分为 80+ 个内聚模块，原路径一律保留为门面（facade）或编排层，导出符号集逐一核对一致，所有外部导入零改动。后端逐行 diff 确证函数体字节级一致；前端 hook 调用序列展开对比 218 个完全一致、state 归属未变。服务端 1585 项、前端 507 项测试全部通过，资金链路 DB 集成测试 15 项通过，`npm run build` / `docs:build` / `build:demo` 三项构建均通过。
