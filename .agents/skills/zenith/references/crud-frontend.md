@@ -20,7 +20,7 @@
 3. 分页列表查询必须 `placeholderData: keepPreviousData`（翻页不闪白屏）。
 4. **查询/重置必回源**：`handleSearch` / `handleReset` 除更新参数外必须显式 `invalidateQueries({ queryKey: xxxKeys.lists })` —— 条件未变化时 query key 不变，不失效则 staleTime 内不发请求，而本系统「查询」按钮兼具刷新语义。
 5. **mutation 按副作用精确失效**，`onSuccess` 只碰真正受影响的 key；成功 Toast 留在页面代码。判据是「**有没有已挂载的查询读了这次被改动的状态**」，而不是接口像不像命令。详见下方[「缓存一致性契约」](#缓存一致性契约必读)。
-6. 下拉源等低频 lookup 数据用 `staleTime: LOOKUP_STALE_TIME`（5 分钟），全局共享缓存；已有共享 lookup（`useAllUsers` / `useFlatDepartments` / `useDepartmentTree` / `useMenuTree` / `useAllRoles` / `useAllPositions` / `useDictItems` 等）直接 import，**禁止重复定义**。
+6. 下拉源等低频 lookup 数据用 `staleTime: LOOKUP_STALE_TIME`（5 分钟），全局共享缓存；已有共享 lookup 直接 import，**禁止重复定义**，也禁止用本域 key 请求别域资源。详见下方[「下拉源必须归属所有者域」](#下拉源必须归属所有者域)。
 7. 轮询页面用 `refetchInterval`（毫秒），禁止手写 `setInterval` 拉数据。
 8. 一次性动作（文件下载 `request.download`、验密、诊断类）可保留直接调用；WebSocket / SSE / xterm 流式逻辑不走 TanStack Query。
 
@@ -1003,6 +1003,22 @@ export default function XxxPage() {
 - **不要把 master 的 div 写成 Fragment（`<>`）**：Fragment 无法接受 `height: '100%'`，列表将无高度约束
 - **Tabs 嵌套时不加 `className="tabs-fill-height"`**：会导致 Semi Design 的动画层破坏高度链，列表内容撑满后无滚动
 - **MasterDetailLayout 的 `gap` 默认为 0**：如不需要间距且无边框，保持默认即可
+
+---
+
+## 左侧平铺列表（NavListPanel）
+
+左侧 master 是**平铺列表**（分类 / 文件 / 分组等，非树形）时使用 `NavListPanel<T>` + `NavListItem`
+（`packages/web/src/components/NavListPanel.tsx`）。底层由 Semi `List` / `List.Item` 实现，
+已对齐 Semi「带筛选器」最佳实践。树形数据（需要展开/折叠节点）改用 Semi `Tree`，例如用户管理的部门树。
+
+- `NavListPanel<T>` 核心 props：`title`、`headerExtra`、`search`（搜索框配置）、`loading`、`emptyText`、`footer`（分页等）
+- **推荐用法（dataSource 模式）**：`<NavListPanel dataSource={items} renderItem={(item) => <NavListItem key={item.id} .../>} />`，空数组时自动显示 `emptyText`
+- **兼容用法（children 模式）**：`<NavListPanel>{items.map(fn)}</NavListPanel>`，空数组不触发 emptyContent（需 `childCount > 0` 判断）；rawBody 场景必须走此路径
+- **分组 / Collapse 场景**（如 DbAdmin）：传 `rawBody bodyNoPadding`，在 `children` 内自行渲染 Collapse + 内嵌 `<List split={false} className="nav-list-panel__list">`
+- `NavListItem` props：`active`、`onClick`、`icon`（左侧图标或彩色圆点）、`primary`（主标题）、`secondary`（副标题）、`meta`（底部元信息）、`extra`（hover 显示的操作区，`extraAlwaysVisible` 让其常驻）
+- extra 含多个操作时用 `Dropdown`（`trigger="click"` + `clickToHide`）+ `MoreHorizontal` 按钮包裹，参考字典管理 / 日志文件页面
+- meta 区域**禁止**使用 `<Tag color="...">` 内联标签（会渲染颜色指示器色块），改用 styled span（见日志文件页实现）
 
 ---
 

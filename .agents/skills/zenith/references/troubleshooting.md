@@ -193,8 +193,7 @@
 **解决**：
 
 1. 默认做法是**改代码**：按真实副作用列出受影响的 key（`lists` / `detail(id)` / 子键 / 前缀键），而不是广播整域。规范见 [crud-frontend.md 缓存一致性契约](./crud-frontend.md)
-2. 确属合法广播（批量覆盖、切租户、全量导入）：在 `onSuccess` 注释写明理由，再执行 `node packages/web/scripts/check-invalidation-baseline.mjs --update`
-3. 收敛完一个域后也要 `--update`，把该域额度降下来锁住成果
+2. 确属合法广播：在 `onSuccess` 注释写明理由，再执行 `node packages/web/scripts/check-invalidation-baseline.mjs --update`
 
 ### 问题：操作成功后页面数据没刷新
 
@@ -216,4 +215,4 @@
 
 **原因**：`setQueryData(detail(id), saved)` 回填了与详情接口**形状或可见性不一致**的写接口响应。
 
-**解决**：改为 `invalidateQueries({ queryKey: xxxKeys.detail(id) })`。只有写接口与详情接口同源（服务端同一个 `mapXxx`）才可回填；详情做了脱敏、多出关联数据、写接口不回传编辑过的关联字段、列表含聚合字段这四种情形一律不得回填。
+**解决**：改为 `invalidateQueries({ queryKey: xxxKeys.detail(id) })`。可回填的判定条件与四种禁止回填的情形见 [crud-frontend.md 回填红线](./crud-frontend.md#落地要求)。

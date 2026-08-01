@@ -24,7 +24,7 @@
 - **表格列**（Step 8）：在 `XxxPage.tsx` 的 `columns` 中添加新列
 - **表单字段**（Step 8）：在 Modal 的 `<Form>` 中添加新输入组件
 - **搜索筛选**（Step 8）：如需要搜索，在 `SearchParams` 和 `SearchToolbar` 中添加
-- **回填检查**（Step 8a）：新字段若属于「详情才有」或「详情做了脱敏」的数据，`useSaveXxx` 不能再 `setQueryData` 回填详情，改为失效 `detail(id)`
+- **回填检查**（Step 8a）：新字段可能让写接口响应与详情接口不再同源，按 [crud-frontend.md 的回填红线](./crud-frontend.md#落地要求)重新判断 `useSaveXxx` 是否还能 `setQueryData` 回填
 
 ### Mock（如需要）
 
@@ -53,7 +53,7 @@
 2. **Service**（Step 5）：在 service 中添加对应的业务函数
 3. **路由注册**：在 `router.openapiRoutes([...])` 中注册新路由
 4. **Swagger**：刷新 `/api/docs` 验证新接口出现
-5. **域 hooks**（Step 8a）：在 `hooks/queries/xxxs.ts` 中新增对应 query / mutation。新 mutation 的 `onSuccess` 按真实副作用失效（判据是「有没有已挂载的查询读了这次被改动的状态」），**禁止**图省事写 `xxxKeys.all` —— web 包 lint 的广播失效基线只减不增
+5. **域 hooks**（Step 8a）：在 `hooks/queries/xxxs.ts` 中新增对应 query / mutation，`onSuccess` 按 [crud-frontend.md 缓存一致性契约](./crud-frontend.md)选择失效策略
 
 ---
 
@@ -71,7 +71,7 @@
 6. **DTO**（Step 6）：在 DTO 中添加关联字段（如 `yyyName: z.string().nullable()`）
 7. **前端**（Step 8）：
    - 表格列中添加关联字段显示
-   - 表单中添加 `<Form.Select>` 下拉选择；选项数据**复用所有者域的共享 lookup hook**（`useAllYyys`，`staleTime: LOOKUP_STALE_TIME`），**禁止**用 `useEffect` 手工拉取，也禁止以本域 key 请求 `/api/yyys/all`（藏键在 Yyy 增删改后不会失效，会静默显示旧列表）
+   - 表单中添加 `<Form.Select>` 下拉选择；选项数据复用 Yyy 域导出的共享 lookup hook（`useAllYyys`），见 [crud-frontend.md 下拉源必须归属所有者域](./crud-frontend.md#下拉源必须归属所有者域)
    - 若 Yyy 的增删改会改变本列表的展示，在 Yyy 域 mutation 的 `onSuccess` 中补上对应失效
 
 ### 多对多关联
@@ -85,7 +85,7 @@
    - RQB 查询时使用 `with: { xxxYyys: { with: { yyy: true } } }`
 5. **DTO**（Step 6）：在 DTO 中添加 `yyys` 嵌套对象和 `yyyIds` 数组
 6. **前端**（Step 8）：表单中使用 `<Form.Select mode="multiple">` 多选，选项复用所有者域的共享 lookup hook
-7. **失效链路**（Step 8a）：子资源写入（成员 / 权限 / 菜单分配）失效对应子键；**若列表渲染了该子资源的派生列（如 `userCount` / `userPreview`），必须一并失效 `lists`** —— 欠失效导致的陈旧统计比多失效更危险
+7. **失效链路**（Step 8a）：子资源写入失效对应子键；若列表渲染了该子资源的派生列（如 `userCount`），按契约的「子资源写入」一行处理，一并失效 `lists`
 
 ---
 
@@ -119,9 +119,9 @@
 ## 修改后的验证清单
 
 - [ ] `npm run build` 无报错
-- [ ] `npm run lint`（web）通过，含 `check-invalidation-baseline.mjs` 的广播失效只减不增校验
+- [ ] `npm run lint -w @zenith/web` 通过
 - [ ] Swagger 文档（`/api/docs`）中接口定义已更新
 - [ ] 前端页面正常渲染新字段/新布局
-- [ ] 改动涉及 mutation 失效时，已过一遍消费页面，确认没有依赖广播才刷新的列或面板；域 hooks 行为测试（`test-utils/query-harness.ts`）已同步
+- [ ] 改动涉及 mutation 失效时，已过一遍消费页面确认相关列与面板都刷新，域 hooks 行为测试已同步
 - [ ] MSW Mock 数据已同步（如启用 Demo 模式）
 - [ ] 操作日志 diff 正常显示变更字段；若写接口返回 `okBody(null, ...)` 但需要展示变更后状态（如成员/角色/菜单/数据权限分配），已在写操作后调用 `setAuditAfterData(c, after)`

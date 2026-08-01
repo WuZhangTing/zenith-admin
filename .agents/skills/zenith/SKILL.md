@@ -9,11 +9,30 @@ user-invocable: true
 
 你是 Zenith Admin 项目的专属开发辅助 Agent。本项目是一个基于 **Hono + React + Drizzle ORM** 的全栈后台管理系统，采用 npm monorepo 结构（`packages/server` + `packages/web` + `packages/shared`）。
 
+## 参考文件分工（按需读取，规则只在各自归属处维护一份）
+
+| 文件 | 里面有什么 | 什么时候读 |
+| --- | --- | --- |
+| 本文件 `SKILL.md` | 场景识别、Step 编排、验收动作 | 每次触发 |
+| [constraints.md](./references/constraints.md) | 硬约束单一来源：一句话可核对的「必须 / 禁止」 | 动手改代码前、完成后核对 |
+| [step0-checklist.md](./references/step0-checklist.md) | Step 0 信息收集问卷 | 开始新模块前 |
+| [crud-backend.md](./references/crud-backend.md) | Step 1-7 后端模板与展开说明 | 写后端时 |
+| [crud-frontend.md](./references/crud-frontend.md) | Step 8 前端模板、数据获取与缓存一致性契约 | 写前端时 |
+| [seed-config.md](./references/seed-config.md) | Step 9-10 菜单权限与种子数据 | 配菜单/种子时 |
+| [crud-mock.md](./references/crud-mock.md) | Step 11 MSW Mock 模板 | 需要 Demo 模式时 |
+| [async-tasks.md](./references/async-tasks.md) | 任务中心接入模板与选型对照 | 有长耗时/批量操作时 |
+| [module-modification.md](./references/module-modification.md) | 加字段/改接口/加关联等场景的步骤序列 | 改已有模块时 |
+| [troubleshooting.md](./references/troubleshooting.md) | 症状 → 定位 → 指回规范 | 报错时 |
+| [release.md](./references/release.md) | 版本发布流程 | 发版时 |
+
+> 规则只在归属文件里写一遍：约束正文在 `constraints.md`，代码写法与展开说明在 `crud-*.md`。
+> 需要引用时给指针，**不要把内容抄到第二处**。
+
 ## 场景识别
 
 - **CRUD 开发**：触发词「实现 XXX CRUD」「新增 XXX 模块」「开发 XXX 功能」「新增管理页面」
 - **修改现有模块**：触发词「给 XXX 加字段」「修改 XXX 接口」「XXX 添加关联」
-- **异步任务/批量操作**：触发词「批量导入」「批量处理」「后台任务」「任务进度」「长耗时操作」「异步执行」→ 读取 [references/async-tasks.md](./references/async-tasks.md)，接入任务中心，禁止自建轮询表/后台线程
+- **异步任务/批量操作**：触发词「批量导入」「批量处理」「后台任务」「任务进度」「长耗时操作」「异步执行」
 - **发布新版本**：触发词「发布 vX.Y.Z」「准备发布」「release X.Y.Z」
 
 > **快速模式**：如果用户说「帮我实现一个简单的 XXX 管理，用默认配置」，可以跳过 Step 0 中的可选项（MSW Mock、数据权限、租户隔离等），使用合理默认值直接生成。
@@ -50,18 +69,13 @@ Step 0 中必须同时确认以下可选项（决定后续步骤是否执行）�
 
 > Step 7 完成后执行 `npm run dev:server` 冒烟验证，无编译错误再继续。
 
-> ⚠️ **shared 已按业务域拆分，导入一律走域子路径**：`import type { Xxx } from '@zenith/shared/{业务域}'`，
-> 种子数据用 `@zenith/shared/seed`。**禁止** `from '@zenith/shared'` 根入口（ESLint 报错）。
-> 现有域：`core` / `identity` / `platform` / `messaging` / `workflow` / `payment` / `member` / `report` /
-> `analytics` / `ai` / `chat` / `mp` / `cms` / `open-platform` / `rules` / `ops` / `tasks` / `biz`。
-> **新增业务域**时 Step 3-4 需额外做两件事：建 `packages/shared/src/{新域}/index.ts`（re-export 域内文件，
-> **不含 seed**），并在 `packages/shared/package.json` 的 `exports` 登记 `"./{新域}": "./src/{新域}/index.ts"`。
-> 枚举遵循 SSOT：常量数组 + 派生 union + `XXX_LABELS`/`XXX_OPTIONS` 一并放 `constants.ts`，`validation.ts`
-> 只做 `z.enum(XXX_TYPES)` 引用——把跨域引用的常量留在 `validation.ts` 会形成 ESM 值环导致运行时崩溃。
-
-> ⚠️ **外呼调用统一走 `http-client`**：任何 service / 路由中向外部发起的 HTTP 请求（OAuth、第三方 API、链接抓取等），**必须**使用 `packages/server/src/lib/http-client.ts` 的 `httpRequest` / `httpGet` / `httpPost` 等，**禁止**直接 `fetch()`。详见 [crud-backend.md 外呼 HTTP 调用](./references/crud-backend.md) 与 [docs/backend/http-client.md](../../../docs/backend/http-client.md)。
-
-> ⚠️ **长耗时/批量操作统一走任务中心**：模块包含批量导入、批量处理、报表生成、数据迁移等无法同步完成的操作时，**必须**通过 `packages/server/src/lib/task-center/` 的 `registerTaskHandler` + `submitAsyncTask` 实现（自带进度/断点续跑/自动重试/取消/行级明细/WS 推送），**禁止**自建任务表、轮询字段或 setInterval 后台线程。接入模板见 [async-tasks.md](./references/async-tasks.md)。
+> ⚠️ **三条跨步骤强制约束**（详规见括号内文档，按需读取）：
+> 1. `@zenith/shared` 一律走域子路径导入，新增域需建 `index.ts` 并登记 `exports`，枚举常量放 `constants.ts`
+>    （[constraints.md → Shared 层](./references/constraints.md)）
+> 2. 服务端对外 HTTP 请求必须用 `lib/http-client.ts`，禁止直接 `fetch()`
+>    （[constraints.md → Route 层](./references/constraints.md)、[crud-backend.md](./references/crud-backend.md)）
+> 3. 长耗时/批量操作必须接任务中心，禁止自建任务表或后台轮询线程
+>    （[async-tasks.md](./references/async-tasks.md)）
 
 ---
 
@@ -90,66 +104,30 @@ MSW Mock 的详细代码模板见 [crud-mock.md](./references/crud-mock.md)。
 
 ---
 
-### ✅ CRUD 完成标准与自检清单
+### ✅ CRUD 完成标准
 
-**后端：**
+**验收动作**（全部通过才算完成）：
+
+- [ ] `npm run db:generate && npm run db:migrate` 已执行，迁移文件已提交
 - [ ] `npm run build` 无报错
-- [ ] 数据库迁移已执行
-- [ ] 共享类型/schema 写入 `packages/shared/src/{业务域}/`（按业务域分文件，不写在根目录）；新增域已建 `index.ts` 并在 `packages/shared/package.json` 的 `exports` 中登记
-- [ ] 全项目无 `from '@zenith/shared'` 根入口导入（一律 `@zenith/shared/{业务域}`；种子数据用 `@zenith/shared/seed`）
-- [ ] 跨域引用的枚举常量数组位于 `constants.ts`（不在 `validation.ts`），避免 ESM 值环
-- [ ] 路由已挂载到 `packages/server/src/routes/{业务域}/index.ts`；新增域已加进 `routes/index.ts` 的 `ROUTE_DOMAINS`；调整挂载顺序时已人工确认不会造成路径遮蔽
-- [ ] DTO 定义在 `lib/dtos/` 中，路由中没有本地 `.openapi()` 声明
-- [ ] Service 中没有 `c.json()` 或 `console.*`
-- [ ] 路由 handler 中没有直接 `db.*` 调用
-- [ ] 分页查询用 `Promise.all` 并行执行 count 和 list
-- [ ] LIKE 查询用 `escapeLike()` 转义
+- [ ] `npm run dev:server` 冒烟通过，新接口在 `/api/docs` 中可见且可调用
+- [ ] `npm run lint -w @zenith/web` 通过（含 ESLint、stylelint 与 mutation 广播失效基线校验）
+- [ ] `npm run test -w @zenith/web` 通过；域 hooks 的失效行为测试已补充
+- [ ] 页面实测一遍：查询 / 重置 / 新增 / 编辑 / 删除 / 导出，确认操作后相关列、统计与面板都刷新
+      （欠失效比多失效更危险），移动端窄屏同样走一遍
+- [ ] Step 0 确认需要 MSW Mock 时，Demo 模式（`VITE_DEMO_MODE=true`）下页面功能完整
 
-**前端：**
-- [ ] 域 hooks 文件已创建（`hooks/queries/xxxs.ts`）：keys 含 `all`/`lists`/`list(params)`/`detail(id)`，列表查询带 `placeholderData: keepPreviousData`
-- [ ] key 结构合规：`all` 是本域自己的根（非整个业务大域根）；独立生命周期的子资源另起命名空间；多变体查询导出 `detailOf(id)`/`dataOf(id)`/`lookupPrefix` 前缀键；静态 lookup 与昂贵派生取数不与列表同前缀
-- [ ] mutation 的 `onSuccess` 按副作用精确失效（写接口与详情同源时 `setQueryData` 回填、删除用 `removeQueries`），**未无条件使用 `xxxKeys.all`**；确需全域失效已在注释写明理由。见 [crud-frontend.md 缓存一致性契约](./references/crud-frontend.md)
-- [ ] 回填前核对过数据形状与可见性：详情脱敏 / 详情多关联数据 / 写接口不回传关联字段 / 列表含聚合字段 → 一律改为失效 `detail(id)`
-- [ ] 域 hooks 配了行为测试：断言实际请求数、进入 fetching 的查询与缓存新鲜度（用 `test-utils/query-harness.ts`），而非 spy 调用了哪个 key
-- [ ] `npm run lint`（web）通过，含 `check-invalidation-baseline.mjs` 广播失效只减不增校验
-- [ ] 已过一遍消费页面，确认没有依赖广播失效才会刷新的列或面板（欠失效比多失效更危险）
-- [ ] 页面无手写 `loading`/`data` state、`fetchXxx` useCallback、初始拉取 useEffect；表格 `loading={listQuery.isFetching}`
-- [ ] 搜索用 draft/submitted 拆分；`handleSearch`/`handleReset` 显式 `invalidateQueries({ queryKey: xxxKeys.lists })`（查询必回源）
-- [ ] 下拉源复用已有共享 lookup hooks（useAllUsers/useDictItems 等），未重复定义，也未用本域 key 去请求别域资源（藏键会导致静默陈旧）
-- [ ] 页面组件已创建，使用 `SearchToolbar` + `ConfigurableTable`
-- [ ] 搜索项较多的列表页使用 `SearchToolbar` 结构化模式，移动端至少露出一个高频搜索/筛选项（优先关键词；无关键词时选最常用且区分度最高的筛选项，如渠道/类型/作用域）、查询、新增等高频入口，其他筛选进底部筛选抽屉，低频操作进更多菜单
-- [ ] 页面级多 Tab 使用 `page-container page-tabs-page`；每个 `TabPane` 内承载本 tab 的工具栏、表格/空状态/面板，tab 相关操作按钮不要放在 TabBar 外侧
-- [ ] 操作列通过 `createOperationColumn` 创建；桌面端按需用 `desktopInlineKeys` 保留高频内联按钮，移动端自动收纳到更多菜单；状态列紧靠操作列左侧也 `fixed: 'right'`
-- [ ] ConfigurableTable 传入了 `onRefresh={() => void listQuery.refetch()}` 和 `refreshLoading={listQuery.isFetching}`
-- [ ] 需要导出时使用 `ExportButton`，后端已注册导出中心实体，query 使用当前提交的筛选条件
-- [ ] Modal 表单 `labelPosition="left"`，`closeOnEsc`
-
-**配置：**
-- [ ] 菜单已添加到 `packages/shared/src/seed/menus/{段}.ts`（新增一级目录时同步 `seed/menus.ts` 的聚合列表）
-- [ ] 需要 MSW Mock → Step 11 已完成
-
-**约束对照：** 实现过程中随时查阅 [constraints.md](./references/constraints.md)。
+**规范核对**：打开 [constraints.md](./references/constraints.md)，按 Schema 层 → Shared 层 → Service 层 →
+Route 层 → 前端层 → 菜单与权限 → 全局章节，逐组对照本次改动涉及的文件。约束条目本身即核对项，
+此处不再复制第二份。
 
 ---
 
-## 修改现有模块
+## 其他场景
 
-当需要修改已有模块（加字段、改接口、加关联关系）时，读取 [references/module-modification.md](./references/module-modification.md) 并按其中的 checklist 执行。
-
----
-
-## 异步任务 / 批量操作
-
-当业务包含长耗时操作（批量导入/处理、报表生成、数据迁移、消息群发等）时，读取 [references/async-tasks.md](./references/async-tasks.md)，按其中模板接入任务中心（注册 handler → 提交接口 → 前端 `useMyAsyncTasks` + `AsyncTaskProgress`）。选型对照表（任务中心 vs 导出中心 vs 系统周期任务 vs cron_jobs vs workflow_jobs）也在该文档中。
-
----
-
-## 调试与排错
-
-遇到构建错误、迁移失败、类型不匹配等问题时，查阅 [references/troubleshooting.md](./references/troubleshooting.md)。
-
----
-
-## 发布新版本
-
-读取 [references/release.md](./references/release.md) 并严格按其中的步骤执行。
+| 场景 | 做法 |
+| --- | --- |
+| 修改已有模块（加字段 / 改接口 / 加关联 / 改枚举 / 删字段） | 读 [module-modification.md](./references/module-modification.md)，按对应场景的步骤序列执行 |
+| 长耗时 / 批量操作 | 读 [async-tasks.md](./references/async-tasks.md)，按模板接任务中心（含与导出中心、cron_jobs 等的选型对照） |
+| 构建错误 / 迁移失败 / 类型不匹配 / 缓存不刷新 | 读 [troubleshooting.md](./references/troubleshooting.md) |
+| 发布新版本 | 读 [release.md](./references/release.md) 并严格按步骤执行 |

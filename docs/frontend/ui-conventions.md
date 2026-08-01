@@ -17,12 +17,18 @@
 
 | 你要做的事 | 去哪查 |
 | --- | --- |
-| 列表页搜索区、表格、操作列、状态列怎么写 | `constraints.md` → 前端层（Step 8） |
-| 弹窗表单布局（单列 / 双列、labelWidth、closeOnEsc） | `constraints.md` → 前端层（Step 8） |
+| 列表页搜索区、表格、操作列、状态列必须用什么 | `constraints.md` → 前端层（Step 8） |
+| 上面这些具体怎么写（含结构化 `SearchToolbar`、移动端覆盖） | `crud-frontend.md` → 完整页面模板 |
+| 弹窗表单：必须加 `labelPosition="left"` / `closeOnEsc` | `constraints.md` → 前端层（Step 8） |
+| 弹窗表单：`labelWidth` 取值与单列 / 双列怎么选 | `crud-frontend.md` → 弹窗表单布局规范 |
 | 查询 / 重置 / 新增 / 刷新按钮 | `constraints.md` → 搜索栏公共按钮；API 见 [组件文档](/frontend/components#toolbar-controls-查询-重置-新增-刷新按钮) |
 | 时间格式、分页格式、图标库 | `constraints.md` → 全局章节 |
-| 完整列表页代码模板（含域 hooks、批量操作、虚拟化表格、左右分栏） | `crud-frontend.md` |
+| 完整列表页代码模板（域 hooks、批量操作、虚拟化表格、左右分栏、左侧平铺列表） | `crud-frontend.md` |
+| mutation 失效粒度、query key 结构、能否回填详情 | `crud-frontend.md` → 缓存一致性契约 |
 | 枚举标签从哪来（字典 / shared constants） | `constraints.md` → 枚举标签统一来源 |
+
+> 分工是固定的：**`constraints.md` 只写「必须 / 禁止」这类一句话可核对的断言，
+> `crud-frontend.md` 写代码怎么落地**。查约束去前者，查写法去后者。
 
 ## 页面设计原则
 
