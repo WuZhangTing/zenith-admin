@@ -95,7 +95,7 @@ MSW Mock 的详细代码模板见 [crud-mock.md](./references/crud-mock.md)。
 **后端：**
 - [ ] `npm run build` 无报错
 - [ ] 数据库迁移已执行
-- [ ] 共享类型/schema 写入 `packages/shared/src/{业务域}/`（不是根目录巨石文件）；新增域已建 `index.ts` 并在 `packages/shared/package.json` 的 `exports` 中登记
+- [ ] 共享类型/schema 写入 `packages/shared/src/{业务域}/`（按业务域分文件，不写在根目录）；新增域已建 `index.ts` 并在 `packages/shared/package.json` 的 `exports` 中登记
 - [ ] 全项目无 `from '@zenith/shared'` 根入口导入（一律 `@zenith/shared/{业务域}`；种子数据用 `@zenith/shared/seed`）
 - [ ] 跨域引用的枚举常量数组位于 `constants.ts`（不在 `validation.ts`），避免 ESM 值环
 - [ ] 路由已挂载到 `packages/server/src/routes/{业务域}/index.ts`；新增域已加进 `routes/index.ts` 的 `ROUTE_DOMAINS`；调整挂载顺序时已人工确认不会造成路径遮蔽
@@ -112,7 +112,7 @@ MSW Mock 的详细代码模板见 [crud-mock.md](./references/crud-mock.md)。
 - [ ] 回填前核对过数据形状与可见性：详情脱敏 / 详情多关联数据 / 写接口不回传关联字段 / 列表含聚合字段 → 一律改为失效 `detail(id)`
 - [ ] 域 hooks 配了行为测试：断言实际请求数、进入 fetching 的查询与缓存新鲜度（用 `test-utils/query-harness.ts`），而非 spy 调用了哪个 key
 - [ ] `npm run lint`（web）通过，含 `check-invalidation-baseline.mjs` 广播失效只减不增校验
-- [ ] 收敛后已过一遍消费页面，确认没有原本靠 `.all` 全炸才刷新的列或面板（欠失效比多失效更危险）
+- [ ] 已过一遍消费页面，确认没有依赖广播失效才会刷新的列或面板（欠失效比多失效更危险）
 - [ ] 页面无手写 `loading`/`data` state、`fetchXxx` useCallback、初始拉取 useEffect；表格 `loading={listQuery.isFetching}`
 - [ ] 搜索用 draft/submitted 拆分；`handleSearch`/`handleReset` 显式 `invalidateQueries({ queryKey: xxxKeys.lists })`（查询必回源）
 - [ ] 下拉源复用已有共享 lookup hooks（useAllUsers/useDictItems 等），未重复定义，也未用本域 key 去请求别域资源（藏键会导致静默陈旧）

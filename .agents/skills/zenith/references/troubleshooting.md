@@ -34,7 +34,7 @@
 
 **检查清单**：
 
-1. 路由是否已在对应域的 `packages/server/src/routes/{业务域}/index.ts` 中挂载？（不再改 `src/index.ts`）
+1. 路由是否已在对应域的 `packages/server/src/routes/{业务域}/index.ts` 中挂载？（挂载点是域 barrel，不是 `src/index.ts`）
 2. 路由文件是否调用了 `xxxRouter.openapiRoutes([...] as const)`？
 3. 是否重启了开发服务器？（热更新可能不生效，需要手动重启）
 4. 检查浏览器缓存，尝试硬刷新（Ctrl+Shift+R）
@@ -169,7 +169,7 @@
 
 **解决**：
 
-1. 确认导入写法为域子路径：`import type { Xxx } from '@zenith/shared/{业务域}'`（不是 `from '@zenith/shared'`，也不是已删除的 `/types`、`/validation`、`/constants`、`/seed-data`）
+1. 确认导入写法为域子路径：`import type { Xxx } from '@zenith/shared/{业务域}'`。`@zenith/shared` 只暴露各业务域子路径与 `/seed`，根入口被 ESLint 禁用，`/types`、`/validation`、`/constants`、`/seed-data` 均不可用
 2. 确认符号确实在该域：`packages/shared/src/{业务域}/{types,validation,constants}.ts`
 3. 新增业务域时，必须同时做三件事，缺一会报模块找不到：
    - 建 `packages/shared/src/{新域}/index.ts` 并 re-export 域内文件

@@ -57,7 +57,7 @@
   - 详情比写接口**多出关联数据**：如公告的收件人、附件；
   - 写接口**不回传**表单编辑过的关联字段：如角色写接口不带 `menuIds`，回填会清空菜单勾选；
   - 列表/树额外注入了**聚合字段**：如部门树、`userCount` / `userPreview`，那是列表独有的，不要拿写接口响应覆盖列表缓存。
-- **改完必须过一遍消费页面**：确认没有「原本靠 `.all` 全炸才刷新」的列或面板。欠失效（陈旧 UI）比多失效更危险。
+- **改完必须过一遍消费页面**：确认没有依赖广播失效才会刷新的列或面板。欠失效（陈旧 UI）比多失效更危险。
 - **本条约束只针对 mutation 的 `onSuccess`**，与上面第 4 条「查询/重置必回源」互不冲突。
 
 ### key 结构设计
@@ -92,13 +92,13 @@ key 的树形结构直接决定失效的连坐面，按「哪些数据应当被�
 
 web 包的 `npm run lint` 会执行 `scripts/check-invalidation-baseline.mjs`：扫描 `hooks/queries/*.ts` 中
 **mutation `onSuccess` 作用域内**的 `xxxKeys.all`，与 `scripts/invalidation-baseline.json` 比对，**只减不增**
-（新增广播、或已收敛的域回退，都会让 lint 失败）。
+（任何文件的广播数量超过基线额度即 lint 失败，基线额度为 0 的域出现广播同样失败）。
 
 - 扫描只认域 hooks 文件里 `onSuccess` 回调体内的 `.all`：keys 定义本身、页面 `handleSearch` / `handleReset`
   失效 `lists` 均不在范围内，不会误伤。
 - 确需全域失效（批量覆盖、切租户、全量导入）：先在 `onSuccess` 注释写明理由，再执行
   `node scripts/check-invalidation-baseline.mjs --update` 更新基线。
-- 收敛完一个域后同样执行 `--update`，把该域额度降下来，锁住成果。
+- 把某个域的广播改成精确失效后，同样执行 `--update` 把额度降下来，锁住结果。
 
 ---
 

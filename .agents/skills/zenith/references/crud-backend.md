@@ -399,8 +399,8 @@ const rows = await db.query.users.findMany({
 
 ## Step 7：注册路由（`packages/server/src/routes/{业务域}/index.ts`）
 
-路由**不再**逐条注册到 `src/index.ts`，而是由各业务域的 barrel 声明挂载清单；
-`src/routes/index.ts` 只声明域顺序，`src/app.ts` 的 `createApp()` 按序装配。
+路由由各业务域的 barrel 声明挂载清单；`src/routes/index.ts` 只声明域顺序，
+`src/app.ts` 的 `createApp()` 按序装配，**不在 `src/index.ts` 中逐条注册**。
 
 在对应域的 barrel 里加一行：
 
