@@ -1,8 +1,7 @@
 // ─── 工作流事件发射与流水号上下文（拆分自 workflow-instances.service.ts）───
-import type { WorkflowTask as WorkflowTaskDto, WorkflowCustomFormConfig, WorkflowDefinitionSnapshot, WorkflowFlowData, WorkflowFormType } from '@zenith/shared/workflow';
+import type { WorkflowTask as WorkflowTaskDto, WorkflowCustomFormConfig, WorkflowDefinitionSnapshot, WorkflowFlowData, WorkflowFormType, WorkflowSerialNoConfig } from '@zenith/shared/workflow';
 import { currentUserOrNull, currentUserDetail } from '../../../lib/context';
 import type { DbExecutor } from '../../../db/types';
-import type { WorkflowSerialNoConfig } from '@zenith/shared/workflow';
 import type { WorkflowDefinitionRow } from '../../../db/schema';
 import { workflowEventBus } from '../../../lib/workflow-event-bus';
 import { type SerialNoGenContext } from '../workflow-serial.service';
@@ -73,7 +72,8 @@ export function emitInstanceEvent(
     actor,
     instance,
   } as Parameters<typeof workflowEventBus.emit>[0];
-  return executor ? workflowEventBus.emitInTx(ev, executor) : void workflowEventBus.emit(ev);
+  if (executor) return workflowEventBus.emitInTx(ev, executor);
+  workflowEventBus.emit(ev);
 }
 
 /** 发射任务生命周期事件的辅助函数（传 executor 时在事务内入队 outbox，需 await） */
@@ -92,7 +92,8 @@ export function emitTaskEvent(
     task,
     comment: meta.comment,
   } as Parameters<typeof workflowEventBus.emit>[0];
-  return executor ? workflowEventBus.emitInTx(ev, executor) : void workflowEventBus.emit(ev);
+  if (executor) return workflowEventBus.emitInTx(ev, executor);
+  workflowEventBus.emit(ev);
 }
 
 /** 发射节点进入/离开事件（传 executor 时在事务内入队 outbox，需 await） */
@@ -111,5 +112,6 @@ export function emitNodeEvent(
     nodeName: meta.nodeName,
     nodeType: meta.nodeType,
   } as Parameters<typeof workflowEventBus.emit>[0];
-  return executor ? workflowEventBus.emitInTx(ev, executor) : void workflowEventBus.emit(ev);
+  if (executor) return workflowEventBus.emitInTx(ev, executor);
+  workflowEventBus.emit(ev);
 }
