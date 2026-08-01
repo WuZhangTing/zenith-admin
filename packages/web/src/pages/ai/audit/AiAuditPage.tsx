@@ -209,7 +209,7 @@ export default function AiAuditPage() {
         />
       </div>
       <AppModal
-        title={`对话上下文${contextQuery.data?.conversationTitle ? ` — ${contextQuery.data.conversationTitle}` : ''}`}
+        title={contextQuery.data?.conversationTitle ? `对话上下文 — ${contextQuery.data.conversationTitle}` : '对话上下文'}
         visible={contextMsgId !== null}
         onCancel={() => setContextMsgId(null)}
         footer={null}
@@ -225,6 +225,8 @@ export default function AiAuditPage() {
             {(contextQuery.data?.messages ?? []).map((m) => {
               const isTarget = m.id === contextQuery.data?.targetMsgId;
               const isUser = m.role === 'user';
+              const aiLabel = m.model ? `AI · ${m.model}` : 'AI';
+              const roleLabel = isUser ? '用户' : aiLabel;
               return (
                 <div key={m.id} style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start' }}>
                   <div
@@ -240,7 +242,7 @@ export default function AiAuditPage() {
                     }}
                   >
                     <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 2 }}>
-                      {isUser ? '用户' : `AI${m.model ? ` · ${m.model}` : ''}`} · {formatDateTime(m.createdAt)}
+                      {roleLabel} · {formatDateTime(m.createdAt)}
                       {isTarget && <Tag color="orange" size="small" style={{ marginLeft: 6 }}>目标消息</Tag>}
                     </Text>
                     {m.content}
