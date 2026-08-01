@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
-import { jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, PaginationQuery, BatchIdsBody, okBody } from '../../lib/openapi-schemas';
+import { BatchIdsBody, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import {
   WorkflowEventSubscriptionDTO,
   WorkflowEventSubscriptionSecretDTO,
@@ -218,8 +218,8 @@ const ReplayDeliveriesBody = z.object({
   subscriptionId: z.number().int().positive().optional(),
   eventType: z.enum(WORKFLOW_EVENT_TYPES).optional(),
   status: z.enum(['success', 'failed', 'pending', 'all']).optional(),
-  startAt: z.string().optional(),
-  endAt: z.string().optional(),
+  startAt: dateRangeBound('起始时间'),
+  endAt: dateRangeBound('结束时间'),
 });
 
 const replayDeliveriesRoute = defineOpenAPIRoute({

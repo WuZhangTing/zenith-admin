@@ -92,6 +92,33 @@ export const PaginationQuery = z.object({
     }),
 });
 
+/**
+ * 时间范围端点参数（`startTime` / `endTime` / `dateStart` 之类）。
+ *
+ * 同时接受 `YYYY-MM-DD` 与 `YYYY-MM-DD HH:mm:ss`——这与
+ * `lib/where-helpers.ts` 的 `dateRangeConditions()` 口径一致：
+ * 传纯日期时起点取当天 00:00:00、终点取当天 23:59:59.999。
+ *
+ * **必须校验格式**：此前这些参数一律是裸 `z.string().optional()`，
+ * `?endTime=abc` 会被静默当成「无筛选」，用户看到的是全量数据而非报错。
+ *
+ * @example
+ * request: { query: PaginationQuery.extend({
+ *   startTime: dateRangeBound('创建时间起'),
+ *   endTime: dateRangeBound('创建时间止'),
+ * }) }
+ */
+export function dateRangeBound(description: string) {
+  return z
+    .string()
+    .regex(
+      /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$/,
+      '时间格式必须为 YYYY-MM-DD 或 YYYY-MM-DD HH:mm:ss',
+    )
+    .optional()
+    .openapi({ example: '2026-08-01 00:00:00', description });
+}
+
 /** 常用错误响应集合（复制到 responses 里） */
 export const commonErrorResponses = {
   400: { content: jsonContent(ErrorResponse), description: '请求参数错误' },

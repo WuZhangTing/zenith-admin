@@ -1,9 +1,10 @@
-import { eq, and, or, ilike, asc, desc, sql } from 'drizzle-orm';
+import { eq, and, or, asc, desc, sql } from 'drizzle-orm';
+import type { SQL } from 'drizzle-orm';
 import { db } from '../../db';
 import { aiPromptTemplates, aiPromptTemplateVersions, users } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { formatDateTime } from '../../lib/datetime';
-import { escapeLike, withPagination } from '../../lib/where-helpers';
+import { keywordCondition, withPagination } from '../../lib/where-helpers';
 import { HTTPException } from 'hono/http-exception';
 import type { CreateAiPromptTemplateInput, UpdateAiPromptTemplateInput, AiPromptScope } from '@zenith/shared/ai';
 
@@ -42,12 +43,9 @@ export async function listPromptTemplates(params: {
   keyword?: string;
 }) {
   const { page, pageSize, scope, keyword } = params;
-  const conds = [visibilityCond()];
+  const conds: (SQL | undefined)[] = [visibilityCond()];
   if (scope) conds.push(eq(aiPromptTemplates.scope, scope));
-  if (keyword?.trim()) {
-    const kw = `%${escapeLike(keyword.trim())}%`;
-    conds.push(or(ilike(aiPromptTemplates.name, kw), ilike(aiPromptTemplates.description, kw))!);
-  }
+  conds.push(keywordCondition(keyword, [aiPromptTemplates.name, aiPromptTemplates.description], 'ilike'));
   const where = and(...conds);
 
   const listQuery = db

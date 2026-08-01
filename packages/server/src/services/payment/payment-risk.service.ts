@@ -5,7 +5,7 @@
  * 每次命中均落留痕（payment_risk_hits）；审核放行后用户重新下单复用挂起订单继续支付，
  * 拒绝则本地关闭挂起订单（渠道侧从未下单）。
  */
-import { and, desc, eq, gte, inArray, isNull, like, lte, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { randomInt } from 'node:crypto';
 import { db } from '../../db';
@@ -21,7 +21,7 @@ import {
 } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { recordEvent, processEvent } from './payment-outbox.service';
@@ -281,10 +281,7 @@ export async function listRiskHits(q: ListRiskHitsQuery) {
   const page = q.page ?? 1;
   const pageSize = q.pageSize ?? 10;
   const conds = [];
-  if (q.keyword) {
-    const kw = `%${escapeLike(q.keyword)}%`;
-    conds.push(or(like(paymentRiskHits.ruleName, kw), like(paymentRiskHits.bizId, kw), like(paymentRiskHits.orderNo, kw)));
-  }
+  conds.push(keywordCondition(q.keyword, [paymentRiskHits.ruleName, paymentRiskHits.bizId, paymentRiskHits.orderNo]));
   if (q.action) conds.push(eq(paymentRiskHits.action, q.action));
   if (q.dimension) conds.push(eq(paymentRiskHits.dimension, q.dimension));
   if (q.channel) conds.push(eq(paymentRiskHits.channel, q.channel));
@@ -370,10 +367,7 @@ export async function listRiskReviews(q: ListRiskReviewsQuery) {
   const page = q.page ?? 1;
   const pageSize = q.pageSize ?? 10;
   const conds = [];
-  if (q.keyword) {
-    const kw = `%${escapeLike(q.keyword)}%`;
-    conds.push(or(like(paymentRiskReviews.reviewNo, kw), like(paymentRiskReviews.orderNo, kw), like(paymentRiskReviews.bizId, kw)));
-  }
+  conds.push(keywordCondition(q.keyword, [paymentRiskReviews.reviewNo, paymentRiskReviews.orderNo, paymentRiskReviews.bizId]));
   if (q.status) conds.push(eq(paymentRiskReviews.status, q.status));
   if (q.channel) conds.push(eq(paymentRiskReviews.channel, q.channel));
   const where = mergeWhere(conds.length ? and(...conds) : undefined, tenantCondition(paymentRiskReviews, currentUser()));

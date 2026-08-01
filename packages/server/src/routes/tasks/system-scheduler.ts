@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
-import { commonErrorResponses, IdParam, jsonContent, ok, okBody, okPaginated, PaginationQuery, validationHook } from '../../lib/openapi-schemas';
+import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { SystemSchedulerCleanupResultDTO, SystemSchedulerNodeDTO, SystemSchedulerRunDTO, SystemSchedulerRunResultDTO, SystemSchedulerTaskConfigDTO, SystemSchedulerTaskDTO } from '../../lib/openapi-dtos';
 import {
   acknowledgeSystemSchedulerRunAlert,
@@ -63,8 +63,8 @@ const runsRoute = defineOpenAPIRoute({
         triggerType: TriggerTypeQuery.optional(),
         status: RunStatusQuery.optional(),
         alertStatus: z.enum(['all', 'alerted', 'unacked']).optional(),
-        startTime: z.string().optional(),
-        endTime: z.string().optional(),
+        startTime: dateRangeBound('起始时间'),
+        endTime: dateRangeBound('结束时间'),
       }),
     },
     responses: { ...commonErrorResponses, ...okPaginated(SystemSchedulerRunDTO, '系统调度运行日志') },

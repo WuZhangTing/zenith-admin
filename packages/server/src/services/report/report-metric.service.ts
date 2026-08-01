@@ -1,5 +1,5 @@
 import { HTTPException } from 'hono/http-exception';
-import { and, desc, eq, ilike, inArray, isNull, or } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { formatReportValue } from '@zenith/shared/report';
 import type { CreateReportMetricInput, ReportFieldFormat, ReportMetric, ReportMetricEvaluation, ReportMetricLifecycleActionInput, ReportMetricRefs, ReportMetricType, ReportWidget, ReportDashboardSnapshot, UpdateReportMetricInput } from '@zenith/shared/report';
 import { db } from '../../db';
@@ -12,7 +12,7 @@ import { currentUserId, currentUserOrNull } from '../../lib/context';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 import {
   assertDatasetEvaluableGlobally,
   ensureDatasetExists,
@@ -138,10 +138,7 @@ export async function listReportMetrics(query: {
   const accessibleIds = await listAccessibleReportResourceIds('metric');
   if (accessibleIds && accessibleIds.length === 0) return { list: [], total: 0, page, pageSize };
   if (accessibleIds) conds.push(inArray(reportMetrics.id, accessibleIds));
-  if (keyword) {
-    const value = `%${escapeLike(keyword)}%`;
-    conds.push(or(ilike(reportMetrics.name, value), ilike(reportMetrics.code, value)));
-  }
+  conds.push(keywordCondition(keyword, [reportMetrics.name, reportMetrics.code], 'ilike'));
   if (datasetId) conds.push(eq(reportMetrics.datasetId, datasetId));
   if (folderId !== undefined) conds.push(folderId === null ? isNull(reportMetrics.folderId) : eq(reportMetrics.folderId, folderId));
   if (ownerId !== undefined) conds.push(ownerId === null ? isNull(reportMetrics.ownerId) : eq(reportMetrics.ownerId, ownerId));
@@ -178,10 +175,7 @@ export async function listReportMetricLookup(query: {
   const tenantScope = reportTenantScope(reportMetrics);
   if (tenantScope) conds.push(tenantScope);
   if (accessibleIds) conds.push(inArray(reportMetrics.id, accessibleIds));
-  if (query.keyword) {
-    const value = `%${escapeLike(query.keyword)}%`;
-    conds.push(or(ilike(reportMetrics.name, value), ilike(reportMetrics.code, value)));
-  }
+  conds.push(keywordCondition(query.keyword, [reportMetrics.name, reportMetrics.code], 'ilike'));
   if (query.status) conds.push(eq(reportMetrics.lifecycleStatus, query.status));
   const rows = await db.select({
     id: reportMetrics.id,

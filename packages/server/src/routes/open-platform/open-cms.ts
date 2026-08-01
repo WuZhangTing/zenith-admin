@@ -11,9 +11,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import type { Context, MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { CMS_OPEN_INCLUDES, CMS_OPEN_PAGE_SIZE_MAX, CMS_OPEN_SORT_FIELDS, CMS_OPEN_SYNC_PAGE_SIZE_MAX } from '@zenith/shared/cms';
-import {
-  commonErrorResponses, ErrorResponse, jsonContent, ok, okMsg, okBody, okPaginated, validationHook,
-} from '../../lib/openapi-schemas';
+import { ErrorResponse, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import {
   CmsChannelDTO, CmsContentDTO, CmsOpenContentCursorPageDTO, CmsOpenContentDTO, CmsOpenSyncResultDTO,
 } from '../../lib/openapi-dtos';
@@ -91,8 +89,8 @@ const ContentListQuery = SiteCodeQuery.extend({
   model: z.string().max(50).optional().openapi({ description: '内容模型标识' }),
   isTop: z.string().optional(), isRecommend: z.string().optional(),
   isHot: z.string().optional(), isOriginal: z.string().optional(),
-  publishedFrom: z.string().max(20).optional().openapi({ example: '2026-01-01 00:00:00' }),
-  publishedTo: z.string().max(20).optional(),
+  publishedFrom: dateRangeBound('发布时间起'),
+  publishedTo: dateRangeBound('发布时间止'),
   sort: z.string().max(200).optional().openapi({ example: '-publishedAt', description: `可用字段：${CMS_OPEN_SORT_FIELDS.join(', ')}；前缀 - 为倒序` }),
   fields: z.string().max(500).optional().openapi({ description: '字段裁剪，逗号分隔；id 始终返回' }),
   include: z.string().max(200).optional().openapi({ description: `关联展开：${CMS_OPEN_INCLUDES.join(', ')}` }),

@@ -5,10 +5,7 @@ import { authMiddleware } from '../../middleware/auth';
 import { optionalAuthMiddleware } from '../../middleware/optional-auth';
 import { guard } from '../../middleware/guard';
 import { namedRateLimit } from '../../middleware/rate-limit';
-import {
-  validationHook, commonErrorResponses, ok, okMsg, okBody, okPaginated,
-  IdParam, PaginationQuery,
-} from '../../lib/openapi-schemas';
+import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import {
   BatchUserEventsBodyDTO, AnalyticsPublicConfigDTO, AnalyticsOverviewDTO, TrendSeriesDTO,
   PageStatsDTO, FeatureStatsDTO, HeatmapDataDTO, HeatmapPageListDTO, UserStatsDTO,
@@ -315,8 +312,8 @@ const eventListQuery = PaginationQuery.extend({
   username: z.string().optional(),
   pagePath: z.string().optional(),
   deviceType: z.enum(['desktop', 'mobile', 'tablet', 'bot', 'unknown']).or(z.literal('')).optional(),
-  startTime: z.string().optional(),
-  endTime: z.string().optional(),
+  startTime: dateRangeBound('起始时间'),
+  endTime: dateRangeBound('结束时间'),
 });
 
 function parseEventQuery(q: z.infer<typeof eventListQuery>) {

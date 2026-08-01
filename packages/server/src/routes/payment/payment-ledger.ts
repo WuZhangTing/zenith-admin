@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
-import { PaginationQuery, validationHook, commonErrorResponses, ok, okPaginated, okBody } from '../../lib/openapi-schemas';
+import { PaginationQuery, commonErrorResponses, dateRangeBound, ok, okBody, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { PaymentLedgerEntryDTO, PaymentLedgerSummaryDTO } from '../../lib/openapi-dtos';
 import { listLedgerEntries, getLedgerSummary } from '../../services/payment/payment-ledger.service';
 
@@ -15,8 +15,8 @@ const ledgerQuery = {
   direction: directionEnum.optional(),
   type: typeEnum.optional(),
   channel: channelEnum.optional(),
-  startTime: z.string().optional(),
-  endTime: z.string().optional(),
+  startTime: dateRangeBound('起始时间'),
+  endTime: dateRangeBound('结束时间'),
 };
 
 const listRoute = defineOpenAPIRoute({

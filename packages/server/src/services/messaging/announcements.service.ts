@@ -1,5 +1,5 @@
-import { count, desc, eq, like, and, gte, lte, inArray, isNull, isNotNull, sql, or, getTableColumns, asc, type SQL } from 'drizzle-orm';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { count, desc, eq, like, and, lte, inArray, isNull, isNotNull, sql, or, getTableColumns, asc, type SQL } from 'drizzle-orm';
+import { dateRangeConditions, escapeLike, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
 import { announcements, announcementRecipients, announcementReads, users, userRoles, roles, departments, businessFiles, managedFiles } from '../../db/schema';
@@ -240,10 +240,7 @@ export async function listAnnouncements(q: { page?: number; pageSize?: number; t
   if (title) conditions.push(like(announcements.title, `%${escapeLike(title)}%`));
   if (type) conditions.push(eq(announcements.type, type));
   if (publishStatus) conditions.push(eq(announcements.publishStatus, publishStatus));
-  const parsedStartTime = parseDateTimeInput(startTime);
-  const parsedEndTime = parseDateTimeInput(endTime);
-  if (parsedStartTime) conditions.push(gte(announcements.createdAt, parsedStartTime));
-  if (parsedEndTime) conditions.push(lte(announcements.createdAt, parsedEndTime));
+  conditions.push(...dateRangeConditions(announcements.createdAt, startTime, endTime));
   const where = and(...conditions);
   const tc = tenantCondition(announcements, user);
   const finalWhere = mergeWhere(where, tc);

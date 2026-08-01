@@ -6,7 +6,7 @@
  * 仅「渠道未受理」（channelTransferNo 为空）的 failed 单允许人工重试，杜绝双付；
  * 转账成功记资金台账（type=transfer, direction=out）。
  */
-import { and, desc, eq, gte, inArray, like, lte, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { randomInt } from 'node:crypto';
 import { db } from '../../db';
@@ -18,9 +18,9 @@ import {
 } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
-import { mergeWhere, escapeLike } from '../../lib/where-helpers';
+import { dateRangeConditions, keywordCondition, mergeWhere } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
-import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
+import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { buildAdapterContext } from './payment.service';
 import { recordLedgerEntry } from './payment-ledger.service';
 import { getAdapter } from '../../lib/payment/registry';
@@ -260,16 +260,10 @@ export async function listTransfers(q: ListTransfersQuery) {
   const page = q.page ?? 1;
   const pageSize = q.pageSize ?? 10;
   const conds = [];
-  if (q.keyword) {
-    const kw = `%${escapeLike(q.keyword)}%`;
-    conds.push(or(like(paymentTransfers.transferNo, kw), like(paymentTransfers.receiverAccount, kw)));
-  }
+  conds.push(keywordCondition(q.keyword, [paymentTransfers.transferNo, paymentTransfers.receiverAccount]));
   if (q.channel) conds.push(eq(paymentTransfers.channel, q.channel));
   if (q.status) conds.push(eq(paymentTransfers.status, q.status));
-  const start = parseDateTimeInput(q.startTime);
-  const end = parseDateTimeInput(q.endTime);
-  if (start) conds.push(gte(paymentTransfers.createdAt, start));
-  if (end) conds.push(lte(paymentTransfers.createdAt, end));
+  conds.push(...dateRangeConditions(paymentTransfers.createdAt, q.startTime, q.endTime));
   const where = mergeWhere(conds.length ? and(...conds) : undefined, tenantCondition(paymentTransfers, currentUser()));
   const [total, rows] = await Promise.all([
     db.$count(paymentTransfers, where),

@@ -13,7 +13,7 @@ import {
 import type { CmsSiteInheritanceRow, CmsSiteRow } from '../../db/schema';
 import type { DbExecutor, DbTransaction } from '../../db/types';
 import { formatDateTime } from '../../lib/datetime';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { escapeLike, keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import logger from '../../lib/logger';
 import { currentUser, hasPermission } from '../../lib/context';
@@ -298,7 +298,7 @@ export interface ListCmsSitesQuery {
 
 export async function listCmsSites(q: ListCmsSitesQuery) {
   const { keyword = '', status, page, pageSize } = q;
-  const conditions: SQL[] = [];
+  const conditions: (SQL | undefined)[] = [];
   const accessible = await getAccessibleSiteIds();
   if (accessible !== null) conditions.push(inArray(cmsSites.id, accessible));
   if (keyword) {
@@ -330,7 +330,7 @@ export async function listCmsSites(q: ListCmsSitesQuery) {
 /** 全部启用站点（下拉选择/站点切换器用，绑定用户仅见授权站点） */
 export async function listAllCmsSites() {
   const accessible = await getAccessibleSiteIds();
-  const conditions: SQL[] = [eq(cmsSites.status, 'enabled')];
+  const conditions: (SQL | undefined)[] = [eq(cmsSites.status, 'enabled')];
   if (accessible !== null) conditions.push(inArray(cmsSites.id, accessible));
   const where = and(...conditions);
   const rows = await db.select().from(cmsSites)
@@ -345,16 +345,9 @@ export async function listAllCmsSites() {
 
 export async function listCmsSiteTree(query: { keyword?: string; status?: 'enabled' | 'disabled' }) {
   const accessible = await getAccessibleSiteIds();
-  const conditions: SQL[] = [];
+  const conditions: (SQL | undefined)[] = [];
   if (accessible !== null) conditions.push(inArray(cmsSites.id, accessible));
-  if (query.keyword?.trim()) {
-    const keyword = `%${escapeLike(query.keyword.trim())}%`;
-    conditions.push(or(
-      like(cmsSites.name, keyword),
-      like(cmsSites.code, keyword),
-      like(cmsSites.domain, keyword),
-    )!);
-  }
+  conditions.push(keywordCondition(query.keyword, [cmsSites.name, cmsSites.code, cmsSites.domain]));
   if (query.status) conditions.push(eq(cmsSites.status, query.status));
   const [rows, allRows, inheritanceRows] = await Promise.all([
     db.select().from(cmsSites).where(conditions.length ? and(...conditions) : undefined)

@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { createExportJobSchema, EXPORT_JOB_FORMATS } from '@zenith/shared/tasks';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
-import { commonErrorResponses, IdParam, jsonContent, ok, okBody, okFile, okMsg, okPaginated, PaginationQuery, validationHook } from '../../lib/openapi-schemas';
+import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okFile, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { ExportEntityMetaDTO, ExportJobCreateResultDTO, ExportJobDTO, ExportJobDownloadDTO } from '../../lib/openapi-dtos';
 import {
   cancelExportJob,
@@ -57,8 +57,8 @@ const listRoute = defineOpenAPIRoute({
         status: ExportJobStatusQuery.optional(),
         format: ExportJobFormatQuery.optional(),
         keyword: z.string().optional(),
-        startTime: z.string().optional(),
-        endTime: z.string().optional(),
+        startTime: dateRangeBound('起始时间'),
+        endTime: dateRangeBound('结束时间'),
       }),
     },
     responses: { ...commonErrorResponses, ...okPaginated(ExportJobDTO, '导出任务列表') },

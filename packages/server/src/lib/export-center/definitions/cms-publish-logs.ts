@@ -29,13 +29,13 @@ const columns: ExportColumn<PublishLogExportRow>[] = [
   { key: 'createdAt', header: '记录时间', width: 22, type: 'datetime' },
 ];
 
-async function conditions(query: Record<string, unknown>): Promise<SQL[]> {
+async function conditions(query: Record<string, unknown>): Promise<(SQL | undefined)[]> {
   const siteId = Number(query.siteId);
   const taskId = Number(query.taskId);
   const taskConditions = await buildCmsPublishingConditions({
     siteId: Number.isInteger(siteId) && siteId > 0 ? siteId : undefined,
   });
-  const result: SQL[] = [...taskConditions, eq(asyncTaskItems.taskId, asyncTasks.id)];
+  const result: (SQL | undefined)[] = [...taskConditions, eq(asyncTaskItems.taskId, asyncTasks.id)];
   if (Number.isInteger(taskId) && taskId > 0) result.push(eq(asyncTaskItems.taskId, taskId));
   if (typeof query.status === 'string' && ['pending', 'success', 'failed', 'skipped'].includes(query.status)) {
     result.push(eq(asyncTaskItems.status, query.status as 'pending' | 'success' | 'failed' | 'skipped'));

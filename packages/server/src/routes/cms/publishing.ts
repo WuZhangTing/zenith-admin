@@ -3,16 +3,7 @@ import { batchCmsPublishActionSchema, CMS_PUBLISH_ARTIFACT_STATUSES, CMS_PUBLISH
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';
-import {
-  commonErrorResponses,
-  IdParam,
-  jsonContent,
-  ok,
-  okBody,
-  okPaginated,
-  PaginationQuery,
-  validationHook,
-} from '../../lib/openapi-schemas';
+import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import {
   AsyncTaskDTO,
   CmsPublishingDetailDTO,
@@ -45,8 +36,8 @@ const listRoute = defineOpenAPIRoute({
         status: z.union([TaskStatus, z.literal('active'), z.literal('terminal')]).optional(),
         taskType: z.string().max(64).optional(),
         createdBy: z.string().max(100).optional(),
-        startTime: z.string().optional(),
-        endTime: z.string().optional(),
+        startTime: dateRangeBound('起始时间'),
+        endTime: dateRangeBound('结束时间'),
         keyword: z.string().max(100).optional(),
       }),
     },
@@ -66,8 +57,8 @@ const artifactsRoute = defineOpenAPIRoute({
         taskId: z.coerce.number().int().positive().optional(),
         targetType: z.enum(CMS_PUBLISH_TARGET_TYPES).optional(),
         status: z.enum(CMS_PUBLISH_ARTIFACT_STATUSES).optional(),
-        startTime: z.string().optional(),
-        endTime: z.string().optional(),
+        startTime: dateRangeBound('起始时间'),
+        endTime: dateRangeBound('结束时间'),
         keyword: z.string().max(100).optional(),
       }),
     },

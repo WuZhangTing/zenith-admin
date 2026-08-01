@@ -11,17 +11,7 @@ import {
   CmsInteractionTextAnswerDTO,
   CmsInteractionTrendStatsDTO,
 } from '../../lib/openapi-dtos';
-import {
-  commonErrorResponses,
-  IdParam,
-  jsonContent,
-  ok,
-  okBody,
-  okMsg,
-  okPaginated,
-  PaginationQuery,
-  validationHook,
-} from '../../lib/openapi-schemas';
+import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import {
   copyCmsInteraction,
   createCmsInteraction,
@@ -72,8 +62,8 @@ const responseListRoute = defineOpenAPIRoute({
         siteId: z.coerce.number().int().positive(),
         interactionId: z.coerce.number().int().positive().optional(),
         kind: kindSchema.optional(),
-        startTime: z.string().optional(),
-        endTime: z.string().optional(),
+        startTime: dateRangeBound('起始时间'),
+        endTime: dateRangeBound('结束时间'),
       }),
     },
     responses: { ...commonErrorResponses, ...okPaginated(CmsInteractionResponseDTO, '答卷明细') },

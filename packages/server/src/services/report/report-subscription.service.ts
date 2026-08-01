@@ -1,10 +1,10 @@
 import { HTTPException } from 'hono/http-exception';
-import { and, desc, eq, ilike, inArray, lte, or, isNotNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, lte, isNotNull } from 'drizzle-orm';
 import { aggregateReportRows } from '@zenith/shared/report';
 import { db } from '../../db';
 import { reportDashboardSubscriptions, reportDeliveryRuns } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { currentUserOrNull } from '../../lib/context';
 import { assertDashboardEvaluableGlobally, ensureDashboardExists, getDashboardData } from './report-dashboard.service';
@@ -135,13 +135,7 @@ export async function listSubscriptions(query: { page?: number; pageSize?: numbe
   const conds = [];
   const tenantScope = reportTenantScope(reportDashboardSubscriptions);
   if (tenantScope) conds.push(tenantScope);
-  if (keyword) {
-    const likeKeyword = `%${escapeLike(keyword)}%`;
-    conds.push(or(
-      ilike(reportDashboardSubscriptions.cron, likeKeyword),
-      ilike(reportDashboardSubscriptions.remark, likeKeyword),
-    ));
-  }
+  conds.push(keywordCondition(keyword, [reportDashboardSubscriptions.cron, reportDashboardSubscriptions.remark], 'ilike'));
   if (dashboardId) conds.push(eq(reportDashboardSubscriptions.dashboardId, dashboardId));
   if (query.enabled !== undefined) conds.push(eq(reportDashboardSubscriptions.enabled, query.enabled));
   const where = conds.length ? and(...conds) : undefined;

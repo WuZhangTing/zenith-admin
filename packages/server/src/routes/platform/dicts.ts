@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
-import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody } from '../../lib/openapi-schemas';
+import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { createDictSchema, updateDictSchema, createDictItemSchema, updateDictItemSchema } from '@zenith/shared/platform';
 import { DictDTO, DictItemDTO } from '../../lib/openapi-dtos';
 import {
@@ -31,8 +31,8 @@ const listDictsRoute = defineOpenAPIRoute({
       query: PaginationQuery.extend({
         keyword: z.string().optional(),
         status: z.enum(['enabled', 'disabled']).optional(),
-        startDate: z.string().optional(),
-        endDate: z.string().optional(),
+        startDate: dateRangeBound('起始日期'),
+        endDate: dateRangeBound('结束日期'),
       }),
     },
     responses: { ...commonErrorResponses, ...okPaginated(DictDTO, '字典列表') },

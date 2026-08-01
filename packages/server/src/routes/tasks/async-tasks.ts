@@ -1,10 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
-import {
-  BatchIdsBody, commonErrorResponses, IdParam, jsonContent, ok, okMsg, okPaginated,
-  okBody, PaginationQuery, validationHook,
-} from '../../lib/openapi-schemas';
+import { BatchIdsBody, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import {
   AsyncTaskBatchResultDTO, AsyncTaskCleanupResultDTO, AsyncTaskDTO,
   AsyncTaskItemDTO, AsyncTaskStatsDTO, AsyncTaskTypeMetaDTO,
@@ -36,8 +33,8 @@ const ListQuery = PaginationQuery.extend({
   status: AsyncTaskStatusQuery.optional(),
   keyword: z.string().optional(),
   createdBy: z.string().optional(),
-  startTime: z.string().optional(),
-  endTime: z.string().optional(),
+  startTime: dateRangeBound('起始时间'),
+  endTime: dateRangeBound('结束时间'),
 });
 
 const UpdateTypePolicyBody = z.object({

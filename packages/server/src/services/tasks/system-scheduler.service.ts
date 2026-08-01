@@ -1,10 +1,10 @@
-import { and, desc, eq, gte, isNotNull, lte, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { CronExpressionParser } from 'cron-parser';
 import { db } from '../../db';
 import { systemSchedulerNodes, systemSchedulerRuns, systemSchedulerTaskConfigs, users } from '../../db/schema';
 import { currentUserOrNull } from '../../lib/context';
-import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
+import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import {
   getSchedulerIntrospection,
   getSystemQueueMetrics,
@@ -15,7 +15,7 @@ import {
   type SystemSchedulerTaskPolicy,
   type SystemSchedulerTaskInfo,
 } from '../../lib/pg-boss-scheduler';
-import { withPagination } from '../../lib/where-helpers';
+import { dateRangeConditions, withPagination } from '../../lib/where-helpers';
 
 export interface ListSystemSchedulerRunsQuery {
   page: number;
@@ -230,10 +230,7 @@ export async function listSystemSchedulerRuns(query: ListSystemSchedulerRunsQuer
   if (query.status) conditions.push(eq(systemSchedulerRuns.status, query.status));
   if (query.alertStatus === 'alerted') conditions.push(isNotNull(systemSchedulerRuns.alertMessage));
   if (query.alertStatus === 'unacked') conditions.push(and(isNotNull(systemSchedulerRuns.alertMessage), sql`${systemSchedulerRuns.alertAckAt} is null`)!);
-  const startTime = parseDateTimeInput(query.startTime);
-  const endTime = parseDateTimeInput(query.endTime);
-  if (startTime) conditions.push(gte(systemSchedulerRuns.startedAt, startTime));
-  if (endTime) conditions.push(lte(systemSchedulerRuns.startedAt, endTime));
+  conditions.push(...dateRangeConditions(systemSchedulerRuns.startedAt, query.startTime, query.endTime));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const [total, rows] = await Promise.all([
     db.$count(systemSchedulerRuns, where),

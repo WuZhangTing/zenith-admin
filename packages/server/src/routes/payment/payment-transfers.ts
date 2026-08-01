@@ -7,7 +7,7 @@ import { createPaymentTransferSchema } from '@zenith/shared/payment';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';
-import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, IdParam, okBody } from '../../lib/openapi-schemas';
+import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { PaymentTransferDTO, PaymentTransferSummaryDTO } from '../../lib/openapi-dtos';
 import {
   createTransfer,
@@ -32,8 +32,8 @@ const listRoute = defineOpenAPIRoute({
         keyword: z.string().optional(),
         channel: channelEnum.optional(),
         status: transferStatusEnum.optional(),
-        startTime: z.string().optional(),
-        endTime: z.string().optional(),
+        startTime: dateRangeBound('起始时间'),
+        endTime: dateRangeBound('结束时间'),
       }),
     },
     responses: { ...okPaginated(PaymentTransferDTO, '转账单列表'), ...commonErrorResponses },

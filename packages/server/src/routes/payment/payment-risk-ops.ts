@@ -6,7 +6,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { handlePaymentRiskReviewSchema } from '@zenith/shared/payment';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
-import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, IdParam, okBody } from '../../lib/openapi-schemas';
+import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { PaymentRiskHitDTO, PaymentRiskReviewDTO } from '../../lib/openapi-dtos';
 import {
   approveRiskReview,
@@ -30,8 +30,8 @@ const hitsRoute = defineOpenAPIRoute({
         action: z.enum(['block', 'review']).optional(),
         dimension: z.enum(['blocklist', 'single_limit', 'daily_limit', 'daily_count']).optional(),
         channel: channelEnum.optional(),
-        startTime: z.string().optional(),
-        endTime: z.string().optional(),
+        startTime: dateRangeBound('起始时间'),
+        endTime: dateRangeBound('结束时间'),
       }),
     },
     responses: { ...okPaginated(PaymentRiskHitDTO, '命中记录列表'), ...commonErrorResponses },

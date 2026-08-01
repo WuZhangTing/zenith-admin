@@ -24,8 +24,8 @@ import { config } from '../../config';
 import { currentUser, currentUserOrNull } from '../../lib/context';
 import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
 import { getDataScopeCondition } from '../../lib/data-scope';
-import { escapeLike, mergeWhere, withPagination } from '../../lib/where-helpers';
-import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
+import { dateRangeConditions, escapeLike, keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
+import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { decryptField } from '../../lib/encryption';
 import { isPgUniqueViolation } from '../../lib/db-errors';
 import logger from '../../lib/logger';
@@ -840,10 +840,7 @@ export async function buildOrdersWhere(q: ListOrdersQuery) {
   if (q.bizType) conditions.push(eq(paymentOrders.bizType, q.bizType));
   if (q.minAmount != null) conditions.push(gte(paymentOrders.amount, q.minAmount));
   if (q.maxAmount != null) conditions.push(lte(paymentOrders.amount, q.maxAmount));
-  const startTime = parseDateTimeInput(q.startTime);
-  const endTime = parseDateTimeInput(q.endTime);
-  if (startTime) conditions.push(gte(paymentOrders.createdAt, startTime));
-  if (endTime) conditions.push(lte(paymentOrders.createdAt, endTime));
+  conditions.push(...dateRangeConditions(paymentOrders.createdAt, q.startTime, q.endTime));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const tc = tenantCondition(paymentOrders, user);
   const scope = await getDataScopeCondition({ currentUserId: user.userId, deptColumn: paymentOrders.departmentId, ownerColumn: paymentOrders.createdBy });
@@ -909,16 +906,11 @@ export interface ListRefundsQuery {
 
 export function buildRefundsWhere(q: ListRefundsQuery) {
   const conditions = [];
-  if (q.keyword) {
-    conditions.push(or(like(paymentRefunds.refundNo, `%${escapeLike(q.keyword)}%`), like(paymentRefunds.orderNo, `%${escapeLike(q.keyword)}%`)));
-  }
+  conditions.push(keywordCondition(q.keyword, [paymentRefunds.refundNo, paymentRefunds.orderNo]));
   if (q.status) conditions.push(eq(paymentRefunds.status, q.status));
   if (q.approvalStatus) conditions.push(eq(paymentRefunds.approvalStatus, q.approvalStatus));
   if (q.channel) conditions.push(eq(paymentRefunds.channel, q.channel));
-  const startTime = parseDateTimeInput(q.startTime);
-  const endTime = parseDateTimeInput(q.endTime);
-  if (startTime) conditions.push(gte(paymentRefunds.createdAt, startTime));
-  if (endTime) conditions.push(lte(paymentRefunds.createdAt, endTime));
+  conditions.push(...dateRangeConditions(paymentRefunds.createdAt, q.startTime, q.endTime));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   return mergeWhere(where, tenantCondition(paymentRefunds, currentUser()));
 }
@@ -997,10 +989,7 @@ export async function listNotifyLogs(q: ListNotifyLogsQuery) {
   if (q.channel) conditions.push(eq(paymentNotifyLogs.channel, q.channel));
   if (q.scene) conditions.push(eq(paymentNotifyLogs.scene, q.scene));
   if (q.signatureValid != null) conditions.push(eq(paymentNotifyLogs.signatureValid, q.signatureValid));
-  const startTime = parseDateTimeInput(q.startTime);
-  const endTime = parseDateTimeInput(q.endTime);
-  if (startTime) conditions.push(gte(paymentNotifyLogs.createdAt, startTime));
-  if (endTime) conditions.push(lte(paymentNotifyLogs.createdAt, endTime));
+  conditions.push(...dateRangeConditions(paymentNotifyLogs.createdAt, q.startTime, q.endTime));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const finalWhere = mergeWhere(where, tenantCondition(paymentNotifyLogs, currentUser()));
   const [total, list] = await Promise.all([

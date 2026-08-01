@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
-import { PaginationQuery, validationHook, commonErrorResponses, ok, okPaginated, okBody, okMsg } from '../../lib/openapi-schemas';
+import { PaginationQuery, commonErrorResponses, dateRangeBound, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { LoginLogDTO, LoginLogStatsDTO } from '../../lib/openapi-dtos';
 import { listLoginLogs, loginLogStats, cleanLoginLogs, getCleanLoginLogsBeforeAudit } from '../../services/identity/login-logs.service';
 
@@ -17,8 +17,8 @@ const listRoute = defineOpenAPIRoute({
         username: z.string().optional(),
         eventType: z.enum(['login', 'logout']).optional(),
         status: z.enum(['success', 'fail']).optional(),
-        startTime: z.string().optional(),
-        endTime: z.string().optional(),
+        startTime: dateRangeBound('起始时间'),
+        endTime: dateRangeBound('结束时间'),
       }),
     },
     responses: { ...okPaginated(LoginLogDTO, '登录日志列表'), ...commonErrorResponses },

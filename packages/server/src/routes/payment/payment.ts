@@ -2,17 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';
-import {
-  PaginationQuery,
-  jsonContent,
-  validationHook,
-  commonErrorResponses,
-  ok,
-  okPaginated,
-  okMsg,
-  IdParam,
-  okBody,
-} from '../../lib/openapi-schemas';
+import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import {
   PaymentChannelConfigDTO,
   PaymentOrderDTO,
@@ -114,8 +104,8 @@ const listQuery = PaginationQuery.extend({
   bizType: z.string().optional(),
   minAmount: z.coerce.number().int().nonnegative().optional(),
   maxAmount: z.coerce.number().int().nonnegative().optional(),
-  startTime: z.string().optional(),
-  endTime: z.string().optional(),
+  startTime: dateRangeBound('起始时间'),
+  endTime: dateRangeBound('结束时间'),
 });
 
 const refundsQuery = z.object({
@@ -123,8 +113,8 @@ const refundsQuery = z.object({
   channel: channelEnum.optional(),
   status: z.enum(['pending', 'processing', 'success', 'failed']).optional(),
   approvalStatus: z.enum(['none', 'pending', 'approved', 'rejected']).optional(),
-  startTime: z.string().optional(),
-  endTime: z.string().optional(),
+  startTime: dateRangeBound('起始时间'),
+  endTime: dateRangeBound('结束时间'),
 });
 
 const logsQuery = PaginationQuery.extend({
@@ -132,8 +122,8 @@ const logsQuery = PaginationQuery.extend({
   channel: channelEnum.optional(),
   scene: z.enum(['payment', 'refund']).optional(),
   signatureValid: z.enum(['true', 'false']).optional().transform((v) => (v == null ? undefined : v === 'true')),
-  startTime: z.string().optional(),
-  endTime: z.string().optional(),
+  startTime: dateRangeBound('起始时间'),
+  endTime: dateRangeBound('结束时间'),
 });
 
 // ─── 渠道配置 ───────────────────────────────────────────────────────────────────

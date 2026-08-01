@@ -7,7 +7,7 @@
  *
  * 安全约束：只读已发布、未回收、未归档、所属栏目启用中的内容。
  */
-import { and, asc, eq, exists, gt, inArray, isNull, lt, lte, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, exists, gt, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
@@ -18,7 +18,7 @@ import {
 import type { CmsContentRow, CmsSiteRow } from '../../db/schema';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike } from '../../lib/where-helpers';
+import { dateRangeConditions, escapeLike } from '../../lib/where-helpers';
 import {
   encodeCmsOpenCursor, OpenQueryError, pickCmsOpenFields,
   type CmsOpenSortRule, type ParsedCmsOpenQuery,
@@ -231,10 +231,7 @@ async function buildListConditions(site: CmsSiteRow, query: ParsedCmsOpenQuery):
   if (query.flags.isHot !== undefined) conditions.push(eq(cmsContents.isHot, query.flags.isHot));
   if (query.flags.isOriginal !== undefined) conditions.push(eq(cmsContents.isOriginal, query.flags.isOriginal));
 
-  const from = parseDateTimeInput(query.publishedFrom ?? undefined);
-  const to = parseDateTimeInput(query.publishedTo ?? undefined);
-  if (from) conditions.push(sql`${cmsContents.publishedAt} >= ${from}`);
-  if (to) conditions.push(lte(cmsContents.publishedAt, to));
+  conditions.push(...dateRangeConditions(cmsContents.publishedAt, query.publishedFrom, query.publishedTo));
 
   if (query.keyword) {
     // 与站内搜索共用分词与 tsquery 构造，保证同一关键词结果集一致

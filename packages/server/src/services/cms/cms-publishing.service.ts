@@ -34,7 +34,7 @@ import {
   parseDateRangeEnd,
   parseDateRangeStart,
 } from '../../lib/datetime';
-import { escapeLike } from '../../lib/where-helpers';
+import { escapeLike, keywordCondition } from '../../lib/where-helpers';
 import {
   currentUser,
   currentUserOrNull,
@@ -157,9 +157,9 @@ async function hasGlobalPublishingAccess(): Promise<boolean> {
   return isCmsPlatformAdmin() || hasPermission('system:async-task:list');
 }
 
-export async function buildCmsPublishingConditions(query: Omit<ListCmsPublishingQuery, 'page' | 'pageSize'>): Promise<SQL[]> {
+export async function buildCmsPublishingConditions(query: Omit<ListCmsPublishingQuery, 'page' | 'pageSize'>): Promise<(SQL | undefined)[]> {
   const user = currentUser();
-  const conditions: SQL[] = [inArray(asyncTasks.taskType, [...CMS_PUBLISH_TASK_TYPES])];
+  const conditions: (SQL | undefined)[] = [inArray(asyncTasks.taskType, [...CMS_PUBLISH_TASK_TYPES])];
   const global = await hasGlobalPublishingAccess();
   if (!global) {
     conditions.push(eq(asyncTasks.createdBy, user.userId));
@@ -191,10 +191,7 @@ export async function buildCmsPublishingConditions(query: Omit<ListCmsPublishing
   else if (query.status === 'terminal') conditions.push(inArray(asyncTasks.status, ['success', 'failed', 'cancelled']));
   else if (query.status) conditions.push(eq(asyncTasks.status, query.status));
   if (query.taskType) conditions.push(eq(asyncTasks.taskType, query.taskType));
-  if (query.keyword?.trim()) {
-    const keyword = `%${escapeLike(query.keyword.trim())}%`;
-    conditions.push(or(ilike(asyncTasks.title, keyword), ilike(asyncTasks.taskType, keyword))!);
-  }
+  conditions.push(keywordCondition(query.keyword, [asyncTasks.title, asyncTasks.taskType], 'ilike'));
   const start = parseDateRangeStart(query.startTime);
   const end = parseDateRangeEnd(query.endTime);
   if (start) conditions.push(gte(asyncTasks.createdAt, start));
@@ -317,13 +314,10 @@ export interface ListCmsPublishArtifactsQuery {
 export async function listCmsPublishArtifacts(query: ListCmsPublishArtifactsQuery) {
   const taskConditions = await buildCmsPublishingConditions({ siteId: query.siteId });
   if (query.taskId) taskConditions.push(eq(asyncTasks.id, query.taskId));
-  const conditions: SQL[] = [...taskConditions, eq(cmsPublishArtifacts.taskId, asyncTasks.id)];
+  const conditions: (SQL | undefined)[] = [...taskConditions, eq(cmsPublishArtifacts.taskId, asyncTasks.id)];
   if (query.targetType) conditions.push(eq(cmsPublishArtifacts.targetType, query.targetType));
   if (query.status) conditions.push(eq(cmsPublishArtifacts.status, query.status));
-  if (query.keyword?.trim()) {
-    const keyword = `%${escapeLike(query.keyword.trim())}%`;
-    conditions.push(or(ilike(cmsPublishArtifacts.path, keyword), ilike(cmsPublishArtifacts.url, keyword), ilike(cmsPublishArtifacts.error, keyword))!);
-  }
+  conditions.push(keywordCondition(query.keyword, [cmsPublishArtifacts.path, cmsPublishArtifacts.url, cmsPublishArtifacts.error], 'ilike'));
   const start = parseDateRangeStart(query.startTime);
   const end = parseDateRangeEnd(query.endTime);
   const artifactTime = sql`coalesce(${cmsPublishArtifacts.generatedAt}, ${cmsPublishArtifacts.updatedAt})`;

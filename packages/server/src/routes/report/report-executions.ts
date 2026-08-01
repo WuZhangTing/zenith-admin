@@ -1,9 +1,9 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
-import { PaginationQuery, commonErrorResponses, ok, okBody, okPaginated, validationHook } from '../../lib/openapi-schemas';
+import { PaginationQuery, commonErrorResponses, dateRangeBound, ok, okBody, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { ReportDatasetExecutionLogDTO, ReportExecutionStatsDTO, ReportRuntimeGovernanceDTO } from '../../lib/openapi-dtos';
-import { parseDateTimeInput } from '../../lib/datetime';
+import { parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { getDatasetExecutionStats, getReportRuntimeGovernance, listDatasetExecutionLogs } from '../../services/report/report-dataset.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -24,8 +24,8 @@ const listRoute = defineOpenAPIRoute({
         scene: z.string().max(32).optional(),
         success: z.coerce.boolean().optional(),
         slow: z.coerce.boolean().optional(),
-        startAt: z.string().optional(),
-        endAt: z.string().optional(),
+        startAt: dateRangeBound('起始时间'),
+        endAt: dateRangeBound('结束时间'),
       }),
     },
     responses: { ...commonErrorResponses, ...okPaginated(ReportDatasetExecutionLogDTO, '执行日志列表') },
@@ -34,8 +34,8 @@ const listRoute = defineOpenAPIRoute({
     const query = c.req.valid('query');
     return c.json(okBody(await listDatasetExecutionLogs({
       ...query,
-      startAt: parseDateTimeInput(query.startAt) ?? undefined,
-      endAt: parseDateTimeInput(query.endAt) ?? undefined,
+      startAt: parseDateRangeStart(query.startAt) ?? undefined,
+      endAt: parseDateRangeEnd(query.endAt) ?? undefined,
     })), 200);
   },
 });
@@ -55,8 +55,8 @@ const statsRoute = defineOpenAPIRoute({
         dashboardId: z.coerce.number().int().positive().optional(),
         scene: z.string().max(32).optional(),
         success: z.coerce.boolean().optional(),
-        startAt: z.string().optional(),
-        endAt: z.string().optional(),
+        startAt: dateRangeBound('起始时间'),
+        endAt: dateRangeBound('结束时间'),
       }),
     },
     responses: { ...commonErrorResponses, ...ok(ReportExecutionStatsDTO, '执行统计') },
@@ -65,8 +65,8 @@ const statsRoute = defineOpenAPIRoute({
     const query = c.req.valid('query');
     return c.json(okBody(await getDatasetExecutionStats({
       ...query,
-      startAt: parseDateTimeInput(query.startAt) ?? undefined,
-      endAt: parseDateTimeInput(query.endAt) ?? undefined,
+      startAt: parseDateRangeStart(query.startAt) ?? undefined,
+      endAt: parseDateRangeEnd(query.endAt) ?? undefined,
     })), 200);
   },
 });

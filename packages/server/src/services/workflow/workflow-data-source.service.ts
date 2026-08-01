@@ -3,11 +3,11 @@
  * CRUD + 代理拉取选项（仅登记 URL 可被调用，统一走 http-client，防 SSRF）。
  */
 import { HTTPException } from 'hono/http-exception';
-import { and, desc, eq, ilike, or } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { db } from '../../db';
 import { workflowDataSources } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { httpRequest } from '../../lib/http-client';
@@ -91,10 +91,7 @@ export async function getDataSource(id: number): Promise<WorkflowDataSource> {
 export async function listDataSources(query: { page?: number; pageSize?: number; keyword?: string; status?: string }) {
   const { page = 1, pageSize = 20, keyword, status } = query;
   const conds = [];
-  if (keyword) {
-    const kw = `%${escapeLike(keyword)}%`;
-    conds.push(or(ilike(workflowDataSources.name, kw), ilike(workflowDataSources.url, kw)));
-  }
+  conds.push(keywordCondition(keyword, [workflowDataSources.name, workflowDataSources.url], 'ilike'));
   if (status === 'enabled' || status === 'disabled') conds.push(eq(workflowDataSources.status, status));
   const where = conds.length ? and(...conds) : undefined;
   const [total, rows] = await Promise.all([

@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
-import { validationHook, commonErrorResponses, ok, okBody } from '../../lib/openapi-schemas';
+import { commonErrorResponses, dateRangeBound, ok, okBody, validationHook } from '../../lib/openapi-schemas';
 import { PaymentReportSummaryDTO } from '../../lib/openapi-dtos';
 import { getReportSummary } from '../../services/payment/payment-report.service';
 
@@ -15,8 +15,8 @@ const summaryRoute = defineOpenAPIRoute({
     request: {
       query: z.object({
         groupBy: z.enum(['bizType', 'channel', 'day']).optional(),
-        startTime: z.string().optional(),
-        endTime: z.string().optional(),
+        startTime: dateRangeBound('起始时间'),
+        endTime: dateRangeBound('结束时间'),
         compare: z.enum(['true', 'false']).optional().openapi({ description: '环比：附带上一等长周期汇总（需提供时间范围）' }),
       }),
     },

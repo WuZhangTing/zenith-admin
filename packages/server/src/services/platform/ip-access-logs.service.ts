@@ -1,8 +1,8 @@
-import { desc, like, and, gte, lte, eq } from 'drizzle-orm';
+import { desc, like, and, eq } from 'drizzle-orm';
 import { db } from '../../db';
 import { ipAccessLogs } from '../../db/schema';
-import { withPagination, escapeLike, mergeWhere } from '../../lib/where-helpers';
-import { formatDateTime, parseDateTimeInput } from '../../lib/datetime';
+import { dateRangeConditions, escapeLike, mergeWhere, withPagination } from '../../lib/where-helpers';
+import { formatDateTime } from '../../lib/datetime';
 
 export interface ListIpAccessLogsQuery {
   page?: number;
@@ -19,10 +19,7 @@ export async function listIpAccessLogs(q: ListIpAccessLogsQuery) {
   const conditions = [];
   if (q.ip) conditions.push(like(ipAccessLogs.ip, `%${escapeLike(q.ip)}%`));
   if (q.blockType) conditions.push(eq(ipAccessLogs.blockType, q.blockType));
-  const startTime = parseDateTimeInput(q.startTime);
-  const endTime = parseDateTimeInput(q.endTime);
-  if (startTime) conditions.push(gte(ipAccessLogs.createdAt, startTime));
-  if (endTime) conditions.push(lte(ipAccessLogs.createdAt, endTime));
+  conditions.push(...dateRangeConditions(ipAccessLogs.createdAt, q.startTime, q.endTime));
   const where = and(...conditions);
   const finalWhere = mergeWhere(where);
   const [total, rows] = await Promise.all([

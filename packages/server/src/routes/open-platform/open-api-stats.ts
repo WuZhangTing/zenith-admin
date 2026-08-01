@@ -1,14 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
-import {
-  validationHook,
-  commonErrorResponses,
-  ok,
-  okPaginated,
-  PaginationQuery,
-  okBody,
-} from '../../lib/openapi-schemas';
+import { PaginationQuery, commonErrorResponses, dateRangeBound, ok, okBody, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import {
   OpenApiStatsOverviewDTO,
   OpenApiStatsTrendPointDTO,
@@ -26,8 +19,8 @@ import {
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const RangeQuery = z.object({
-  startTime: z.string().optional(),
-  endTime: z.string().optional(),
+  startTime: dateRangeBound('起始时间'),
+  endTime: dateRangeBound('结束时间'),
   clientId: z.string().optional(),
   environment: z.enum(['production', 'sandbox']).optional(),
 });
@@ -115,8 +108,8 @@ const logs = defineOpenAPIRoute({
         statusCode: z.coerce.number().int().min(100).max(599).optional(),
         environment: z.enum(['production', 'sandbox']).optional(),
         keyword: z.string().optional(),
-        startTime: z.string().optional(),
-        endTime: z.string().optional(),
+        startTime: dateRangeBound('起始时间'),
+        endTime: dateRangeBound('结束时间'),
       }),
     },
     responses: { ...commonErrorResponses, ...okPaginated(OpenApiCallLogDTO, '调用日志列表') },

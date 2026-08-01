@@ -2,10 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { createCmsContentSchema, lockCmsContentSchema, updateCmsContentSchema } from '@zenith/shared/cms';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
-import {
-  ErrorResponse, jsonContent, PaginationQuery, validationHook, commonErrorResponses,
-  ok, okPaginated, okMsg, IdParam, BatchIdsBody, okBody,
-} from '../../lib/openapi-schemas';
+import { BatchIdsBody, ErrorResponse, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { CmsContentDTO, CmsContentLockDTO } from '../../lib/openapi-dtos';
 import {
   listCmsContents, getCmsContent, createCmsContent, updateCmsContent,
@@ -49,8 +46,8 @@ const listRoute = defineOpenAPIRoute({
         isHot: boolParam,
         deleted: boolParam,
         archived: boolParam,
-        startTime: z.string().optional(),
-        endTime: z.string().optional(),
+        startTime: dateRangeBound('起始时间'),
+        endTime: dateRangeBound('结束时间'),
       }),
     },
     responses: { ...commonErrorResponses, ...okPaginated(CmsContentDTO, '内容列表') },

@@ -1,5 +1,5 @@
-import { and, asc, desc, eq, inArray, like, or, sql } from 'drizzle-orm';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { userGroups, userGroupMembers, userGroupRoles, users, departments, roles } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
@@ -96,9 +96,7 @@ export async function listUserGroups(q: ListUserGroupsQuery) {
   const page = q.page ?? 1;
   const pageSize = q.pageSize ?? 10;
   const conditions = [];
-  if (q.keyword) {
-    conditions.push(or(like(userGroups.name, `%${escapeLike(q.keyword)}%`), like(userGroups.code, `%${escapeLike(q.keyword)}%`)));
-  }
+  conditions.push(keywordCondition(q.keyword, [userGroups.name, userGroups.code]));
   if (q.status) conditions.push(eq(userGroups.status, q.status));
 
   const where = and(...conditions);

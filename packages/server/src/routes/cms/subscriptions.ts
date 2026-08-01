@@ -2,14 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
 import { CmsMemberSubscriptionDTO, CmsSubscriptionAggregateDTO } from '../../lib/openapi-dtos';
-import {
-  commonErrorResponses,
-  ok,
-  okBody,
-  okPaginated,
-  PaginationQuery,
-  validationHook,
-} from '../../lib/openapi-schemas';
+import { PaginationQuery, commonErrorResponses, dateRangeBound, ok, okBody, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import {
   listCmsSubscriptionAggregates,
   listCmsSubscriptions,
@@ -20,8 +13,8 @@ const filters = {
   siteId: z.coerce.number().int().positive(),
   subjectType: z.enum(['site', 'channel', 'author']).optional(),
   subjectKeyword: z.string().max(255).optional(),
-  startTime: z.string().optional(),
-  endTime: z.string().optional(),
+  startTime: dateRangeBound('起始时间'),
+  endTime: dateRangeBound('结束时间'),
 };
 
 const listRoute = defineOpenAPIRoute({

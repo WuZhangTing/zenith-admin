@@ -3,7 +3,7 @@ import { authMiddleware } from '../../middleware/auth';
 import { authRateLimit, captchaRateLimit, sensitiveRateLimit } from '../../middleware/rate-limit';
 import { generateCaptcha, resolveCaptchaComplexity } from '../../lib/captcha';
 import { getConfigBoolean, getConfigValue } from '../../lib/system-config';
-import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, okBody, IdParam } from '../../lib/openapi-schemas';
+import { ErrorResponse, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { LoginResultDTO, UserProfileDTO, CaptchaDTO, RefreshTokenResultDTO as RefreshDTO, SessionDTO, TenantItemDTO, SwitchTenantResultDTO as SwitchTenantDTO, LogRowDTO, UserPreferencesDTO } from '../../lib/openapi-dtos';
 import {
   getClientInfo,
@@ -238,7 +238,7 @@ const myLoginLogsRoute = defineOpenAPIRoute({
     method: 'get', path: '/my-login-logs', tags: ['Auth'], summary: '我的登录记录',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware] as const,
-    request: { query: PaginationQuery.extend({ eventType: z.enum(['login', 'logout']).optional(), status: z.enum(['success', 'fail']).optional(), startTime: z.string().optional(), endTime: z.string().optional() }) },
+    request: { query: PaginationQuery.extend({ eventType: z.enum(['login', 'logout']).optional(), status: z.enum(['success', 'fail']).optional(), startTime: dateRangeBound('起始时间'), endTime: dateRangeBound('结束时间') }) },
     responses: { ...commonErrorResponses, ...okPaginated(LogRowDTO, 'ok') },
   }),
   handler: async (c) => c.json(okBody(await listMyLoginLogs(c.req.valid('query'))), 200),
@@ -249,7 +249,7 @@ const myOperationLogsRoute = defineOpenAPIRoute({
     method: 'get', path: '/my-operation-logs', tags: ['Auth'], summary: '我的操作记录',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware] as const,
-    request: { query: PaginationQuery.extend({ module: z.string().optional(), startTime: z.string().optional(), endTime: z.string().optional() }) },
+    request: { query: PaginationQuery.extend({ module: z.string().optional(), startTime: dateRangeBound('起始时间'), endTime: dateRangeBound('结束时间') }) },
     responses: { ...commonErrorResponses, ...okPaginated(LogRowDTO, 'ok') },
   }),
   handler: async (c) => c.json(okBody(await listMyOperationLogs(c.req.valid('query'))), 200),

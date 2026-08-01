@@ -1,10 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
-import {
-  ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses,
-  ok, okPaginated, okMsg, IdParam, okBody, okExcel, excelBody, BatchIdsBody,
-} from '../../lib/openapi-schemas';
+import { BatchIdsBody, ErrorResponse, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, excelBody, jsonContent, ok, okBody, okExcel, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { UserDTO, ImportResultDTO, UserMenuPermissionsDTO, UserDataPermissionDTO, UserEffectivePermissionsDTO } from '../../lib/openapi-dtos';
 import {
   listAllUsers, listUsers, createUser, batchDeleteUsers, batchUpdateUserStatus, batchResetUsersPassword,
@@ -68,7 +65,7 @@ const listUsersRoute = defineOpenAPIRoute({
       query: PaginationQuery.extend({
         keyword: z.string().optional(), phone: z.string().optional(),
         departmentId: z.coerce.number().optional(), status: z.enum(['enabled', 'disabled']).optional(),
-        startTime: z.string().optional(), endTime: z.string().optional(),
+        startTime: dateRangeBound('起始时间'), endTime: dateRangeBound('结束时间'),
       }),
     },
     responses: { ...commonErrorResponses, ...okPaginated(UserDTO, 'ok') },

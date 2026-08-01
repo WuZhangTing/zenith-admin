@@ -8,7 +8,7 @@ import { HTTPException } from 'hono/http-exception';
 import { createHash } from 'node:crypto';
 import { CronExpressionParser } from 'cron-parser';
 import dayjs from 'dayjs';
-import { and, desc, eq, gte, ilike, inArray, lte, or, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lte, sql, type SQL } from 'drizzle-orm';
 import { db } from '../../db';
 import {
   reportAlertRules,
@@ -29,7 +29,7 @@ import { config as appConfig } from '../../config';
 import redis from '../../lib/redis';
 import logger from '../../lib/logger';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { httpRequest } from '../../lib/http-client';
@@ -614,10 +614,7 @@ export async function listDatasets(query: {
   if (accessibleIds) conds.push(inArray(reportDatasets.id, accessibleIds));
   if (folderId) conds.push(eq(reportDatasets.folderId, folderId));
   if (ownerId) conds.push(eq(reportDatasets.ownerId, ownerId));
-  if (keyword) {
-    const kw = `%${escapeLike(keyword)}%`;
-    conds.push(or(ilike(reportDatasets.name, kw), ilike(reportDatasets.remark, kw)));
-  }
+  conds.push(keywordCondition(keyword, [reportDatasets.name, reportDatasets.remark], 'ilike'));
   if (datasourceId) conds.push(eq(reportDatasets.datasourceId, datasourceId));
   if (type && (REPORT_DATASOURCE_TYPES as readonly string[]).includes(type)) {
     conds.push(eq(reportDatasets.type, type as ReportDatasourceType));
@@ -653,10 +650,7 @@ export async function listDatasetLookup(query: {
   const accessibleIds = await listAccessibleReportResourceIds('dataset');
   if (accessibleIds && accessibleIds.length === 0) return [];
   if (accessibleIds) conds.push(inArray(reportDatasets.id, accessibleIds));
-  if (keyword) {
-    const kw = `%${escapeLike(keyword)}%`;
-    conds.push(or(ilike(reportDatasets.name, kw), ilike(reportDatasets.remark, kw)));
-  }
+  conds.push(keywordCondition(keyword, [reportDatasets.name, reportDatasets.remark], 'ilike'));
   if (status) conds.push(eq(reportDatasets.status, status));
   const where = conds.length ? and(...conds) : undefined;
   const rows = await db.select({

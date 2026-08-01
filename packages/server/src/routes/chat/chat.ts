@@ -1,10 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { namedRateLimit } from '../../middleware/rate-limit';
-import {
-  PaginationQuery, jsonContent, validationHook, commonErrorResponses,
-  ok, okPaginated, okMsg, IdParam, okBody,
-} from '../../lib/openapi-schemas';
+import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import {
   ChatMessageDTO, ChatConversationDTO, ChatUserDTO, ChatGroupMemberDTO, ChatLinkPreviewDTO, ChatMessageExtraDTO,
   ChatMessageSearchItemDTO, ChatMessageContextDTO, ChatReactionGroupDTO, ChatReadStateDTO, ChatPresenceDTO, RtcConfigDTO,
@@ -196,8 +193,8 @@ chatRouter.openapi(
         keyword: z.string().optional(),
         types: z.string().optional(),
         senderId: z.coerce.number().int().positive().optional(),
-        startAt: z.string().optional(),
-        endAt: z.string().optional(),
+        startAt: dateRangeBound('起始时间'),
+        endAt: dateRangeBound('结束时间'),
         page: z.coerce.number().int().positive().default(1),
         pageSize: z.coerce.number().int().positive().max(100).default(20),
       }),

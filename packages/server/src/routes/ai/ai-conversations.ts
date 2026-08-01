@@ -1,20 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
-import {
-  jsonContent,
-  validationHook,
-  commonErrorResponses,
-  ok,
-  okMsg,
-  okCsv,
-  csvStreamBody,
-  IdParam,
-  okBody,
-  okPaginated,
-  okFile,
-  fileBody,
-  PaginationQuery,
-} from '../../lib/openapi-schemas';
+import { IdParam, PaginationQuery, commonErrorResponses, csvStreamBody, dateRangeBound, fileBody, jsonContent, ok, okBody, okCsv, okFile, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { AiConversationDTO, AiMessageDTO, AiFeedbackItemDTO, AiFeedbackContextDTO } from '../../lib/openapi-dtos';
 import {
   listConversations,
@@ -160,8 +146,8 @@ const FeedbackFilterFields = {
   feedback: z.enum(['1', '-1']).optional().openapi({ description: '反馈类型：1=点赞, -1=点踩' }),
   status: z.enum(['pending', 'resolved', 'ignored']).optional().openapi({ description: '处理状态筛选' }),
   model: z.string().max(100).optional().openapi({ description: '按模型筛选' }),
-  startDate: z.string().max(20).optional().openapi({ description: '反馈时间起（YYYY-MM-DD）' }),
-  endDate: z.string().max(20).optional().openapi({ description: '反馈时间止（YYYY-MM-DD）' }),
+  startDate: dateRangeBound('反馈时间起（YYYY-MM-DD）'),
+  endDate: dateRangeBound('反馈时间止（YYYY-MM-DD）'),
 };
 
 const FeedbackListQuery = PaginationQuery.extend(FeedbackFilterFields);

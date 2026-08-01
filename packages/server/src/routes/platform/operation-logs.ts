@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
-import { PaginationQuery, validationHook, commonErrorResponses, ok, okPaginated, okBody, okMsg } from '../../lib/openapi-schemas';
+import { PaginationQuery, commonErrorResponses, dateRangeBound, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { OperationLogDTO, OperationLogStatsDTO } from '../../lib/openapi-dtos';
 import { listOperationLogs, operationLogStats, cleanOperationLogs, getCleanOperationLogsBeforeAudit } from '../../services/platform/operation-logs.service';
 
@@ -21,8 +21,8 @@ const listRoute = defineOpenAPIRoute({
         path: z.string().optional(),
         ip: z.string().optional(),
         status: z.enum(['success', 'fail']).optional(),
-        startTime: z.string().optional(),
-        endTime: z.string().optional(),
+        startTime: dateRangeBound('起始时间'),
+        endTime: dateRangeBound('结束时间'),
         minDurationMs: z.coerce.number().int().nonnegative().optional(),
         maxDurationMs: z.coerce.number().int().nonnegative().optional(),
       }),

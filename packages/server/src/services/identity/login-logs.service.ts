@@ -1,10 +1,10 @@
 import { desc, eq, like, and, gte, lte, count, sql } from 'drizzle-orm';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { dateRangeConditions, escapeLike, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { loginLogs } from '../../db/schema';
 import { tenantCondition } from '../../lib/tenant';
 import { currentUser } from '../../lib/context';
-import { formatDateTime, formatDate, parseDateTimeInput } from '../../lib/datetime';
+import { formatDateTime, formatDate } from '../../lib/datetime';
 
 export interface ListLoginLogsQuery {
   page?: number;
@@ -24,10 +24,7 @@ export async function listLoginLogs(q: ListLoginLogsQuery) {
   if (q.username) conditions.push(like(loginLogs.username, `%${escapeLike(q.username)}%`));
   if (q.eventType) conditions.push(eq(loginLogs.eventType, q.eventType));
   if (q.status) conditions.push(eq(loginLogs.status, q.status));
-  const startTime = parseDateTimeInput(q.startTime);
-  const endTime = parseDateTimeInput(q.endTime);
-  if (startTime) conditions.push(gte(loginLogs.createdAt, startTime));
-  if (endTime) conditions.push(lte(loginLogs.createdAt, endTime));
+  conditions.push(...dateRangeConditions(loginLogs.createdAt, q.startTime, q.endTime));
   const where = and(...conditions);
   const tc = tenantCondition(loginLogs, user);
   const finalWhere = mergeWhere(where, tc);

@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
-import { validationHook, commonErrorResponses, okPaginated, okBody, PaginationQuery, ok } from '../../lib/openapi-schemas';
+import { PaginationQuery, commonErrorResponses, dateRangeBound, ok, okBody, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { AiFeedbackItemDTO, AiFeedbackContextDTO } from '../../lib/openapi-dtos';
 import { listAuditMessages, getFeedbackContext } from '../../services/ai/ai-conversations.service';
 
@@ -11,8 +11,8 @@ const AuditQuery = PaginationQuery.extend({
   keyword: z.string().max(200).optional().openapi({ description: '内容关键词' }),
   userId: z.coerce.number().int().positive().optional().openapi({ description: '按用户 ID 筛选' }),
   role: z.enum(['user', 'assistant']).optional().openapi({ description: '按消息角色筛选' }),
-  startDate: z.string().max(20).optional().openapi({ description: '时间起（YYYY-MM-DD）' }),
-  endDate: z.string().max(20).optional().openapi({ description: '时间止（YYYY-MM-DD）' }),
+  startDate: dateRangeBound('时间起（YYYY-MM-DD）'),
+  endDate: dateRangeBound('时间止（YYYY-MM-DD）'),
 });
 
 const list = defineOpenAPIRoute({

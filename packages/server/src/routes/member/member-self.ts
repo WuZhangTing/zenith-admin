@@ -1,9 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { memberAuthMiddleware } from '../../middleware/member-auth';
 import { idempotencyGuard } from '../../middleware/idempotency';
-import {
-  jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, okBody, PaginationQuery, IdParam,
-} from '../../lib/openapi-schemas';
+import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import {
   MemberPointAccountDTO,
   MemberPointTransactionDTO,
@@ -229,8 +227,8 @@ const checkinHistoryRoute = defineOpenAPIRoute({
     middleware: [memberAuthMiddleware] as const,
     request: {
       query: PaginationQuery.extend({
-        dateStart: z.string().optional().openapi({ param: { name: 'dateStart', in: 'query' }, example: '2026-06-01' }),
-        dateEnd: z.string().optional().openapi({ param: { name: 'dateEnd', in: 'query' }, example: '2026-06-30' }),
+        dateStart: dateRangeBound('起始日期').openapi({ param: { name: 'dateStart', in: 'query' }, example: '2026-06-01' }),
+        dateEnd: dateRangeBound('结束日期').openapi({ param: { name: 'dateEnd', in: 'query' }, example: '2026-06-30' }),
       }),
     },
     responses: { ...commonErrorResponses, ...okPaginated(MemberCheckinDTO, '签到历史') },

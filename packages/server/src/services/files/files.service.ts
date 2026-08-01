@@ -1,7 +1,7 @@
 import { managedFiles, fileStorageConfigs, users } from '../../db/schema';
 import type { FileStorageConfigRow } from '../../db/schema';
 import { buildManagedFileProxyUrl, buildPublicFileUrl, deleteStoredFile, readStoredFile, resolveFileAccessUrl, resolveObjectAcl, uploadFileByConfig } from '../../lib/file-storage';
-import { formatDateTime, parseDateTimeInput } from '../../lib/datetime';
+import { formatDateTime } from '../../lib/datetime';
 import { getConfigBoolean, getConfigValue, getConfigNumber } from '../../lib/system-config';
 
 export function mapManagedFile(row: typeof managedFiles.$inferSelect, config?: FileStorageConfigRow) {
@@ -24,8 +24,8 @@ export function mapManagedFile(row: typeof managedFiles.$inferSelect, config?: F
 }
 
 // ─── 业务逻辑 ─────────────────────────────────────────────────────────────────
-import { and, desc, asc, eq, inArray, isNull, like, or, gte, lte, sql } from 'drizzle-orm';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { and, desc, asc, eq, inArray, isNull, like, or, gte, sql } from 'drizzle-orm';
+import { dateRangeConditions, escapeLike, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { streamToExcel, formatDateTimeForExcel } from '../../lib/excel-export';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
@@ -174,10 +174,7 @@ export async function listManagedFiles(query: {
       );
     }
   }
-  const startTime = parseDateTimeInput(query.startTime);
-  const endTime = parseDateTimeInput(query.endTime);
-  if (startTime) conditions.push(gte(managedFiles.createdAt, startTime));
-  if (endTime) conditions.push(lte(managedFiles.createdAt, endTime));
+  conditions.push(...dateRangeConditions(managedFiles.createdAt, query.startTime, query.endTime));
   const where = and(...conditions);
   const tc = tenantCondition(managedFiles, user);
   const finalWhere = mergeWhere(where, tc);

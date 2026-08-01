@@ -7,7 +7,7 @@ import { replyPaymentDisputeSchema, resolvePaymentDisputeSchema, refundPaymentDi
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';
-import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, IdParam, okBody } from '../../lib/openapi-schemas';
+import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { PaymentDisputeDTO, PaymentDisputeDetailDTO, PaymentDisputeStatsDTO } from '../../lib/openapi-dtos';
 import {
   ensureDispute,
@@ -37,8 +37,8 @@ const listRoute = defineOpenAPIRoute({
         channel: channelEnum.optional(),
         type: disputeTypeEnum.optional(),
         overdueOnly: z.coerce.boolean().optional(),
-        startTime: z.string().optional(),
-        endTime: z.string().optional(),
+        startTime: dateRangeBound('起始时间'),
+        endTime: dateRangeBound('结束时间'),
       }),
     },
     responses: { ...okPaginated(PaymentDisputeDTO, '投诉工单列表'), ...commonErrorResponses },

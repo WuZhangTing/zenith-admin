@@ -1,10 +1,10 @@
-import { and, desc, eq, gte, ilike, inArray, isNull, lte, or, type SQL } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lte, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { exportJobDownloads, exportJobs, fileStorageConfigs, managedFiles, users } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike } from '../../lib/where-helpers';
-import { formatDateTime, formatFileTimestamp, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
+import { dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
+import { formatDateTime, formatFileTimestamp, formatNullableDateTime } from '../../lib/datetime';
 import { currentUser, runWithCurrentUser } from '../../lib/context';
 import { getUserPermissions, isSuperAdmin } from '../../lib/permissions';
 import { getCreateTenantId } from '../../lib/tenant';
@@ -390,20 +390,14 @@ export async function listExportJobs(query: ListExportJobsQuery) {
   const user = currentUser();
   const page = Number(query.page ?? 1);
   const pageSize = Number(query.pageSize ?? 10);
-  const conditions: SQL[] = [];
+  const conditions: (SQL | undefined)[] = [];
   const visibleWhere = await visibleJobWhere(user);
   if (visibleWhere) conditions.push(visibleWhere);
   if (query.entity) conditions.push(eq(exportJobs.entity, query.entity));
   if (query.status) conditions.push(eq(exportJobs.status, query.status));
   if (query.format) conditions.push(eq(exportJobs.format, query.format));
-  if (query.keyword) {
-    const kw = `%${escapeLike(query.keyword)}%`;
-    conditions.push(or(ilike(exportJobs.moduleName, kw), ilike(exportJobs.filename, kw), ilike(exportJobs.entity, kw))!);
-  }
-  const startTime = parseDateTimeInput(query.startTime);
-  const endTime = parseDateTimeInput(query.endTime);
-  if (startTime) conditions.push(gte(exportJobs.createdAt, startTime));
-  if (endTime) conditions.push(lte(exportJobs.createdAt, endTime));
+  conditions.push(keywordCondition(query.keyword, [exportJobs.moduleName, exportJobs.filename, exportJobs.entity], 'ilike'));
+  conditions.push(...dateRangeConditions(exportJobs.createdAt, query.startTime, query.endTime));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const [total, rows] = await Promise.all([
     db.$count(exportJobs, where),

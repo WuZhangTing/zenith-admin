@@ -8,7 +8,7 @@
  * 状态机：pending →(商户回复) processing →(完结/退款) resolved | refunded。
  * 投诉退款直接复用支付中心 refund()（含审批阈值链路），退款单号回填工单。
  */
-import { and, desc, eq, gte, inArray, like, lt, lte, notInArray, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lt, lte, notInArray, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { randomInt } from 'node:crypto';
 import dayjs from 'dayjs';
@@ -23,7 +23,7 @@ import {
 } from '../../db/schema';
 import { currentUser, currentUserOrNull } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { refund } from './payment.service';
 import logger from '../../lib/logger';
@@ -96,10 +96,7 @@ function disputesTenantCondition() {
 
 export async function buildDisputesWhere(q: ListDisputesQuery) {
   const conds = [];
-  if (q.keyword) {
-    const kw = `%${escapeLike(q.keyword)}%`;
-    conds.push(or(like(paymentDisputes.disputeNo, kw), like(paymentDisputes.orderNo, kw), like(paymentDisputes.complainant, kw)));
-  }
+  conds.push(keywordCondition(q.keyword, [paymentDisputes.disputeNo, paymentDisputes.orderNo, paymentDisputes.complainant]));
   if (q.status) conds.push(eq(paymentDisputes.status, q.status));
   if (q.channel) conds.push(eq(paymentDisputes.channel, q.channel));
   if (q.type) conds.push(eq(paymentDisputes.type, q.type));

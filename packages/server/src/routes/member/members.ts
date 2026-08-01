@@ -2,10 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';
-import {
-  ErrorResponse, jsonContent, validationHook, commonErrorResponses,
-  ok, okPaginated, okMsg, okBody, IdParam, PaginationQuery, BatchIdsBody,
-} from '../../lib/openapi-schemas';
+import { BatchIdsBody, ErrorResponse, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { MemberDTO, MemberOverviewDTO, MemberOptionDTO, MemberLoginLogDTO, MakeupCheckinResultDTO } from '../../lib/openapi-dtos';
 import {
   listMembers, getMemberDetail, getMemberOverview, getMemberOptions, listMemberLoginLogs, createMember, updateMember,
@@ -144,8 +141,8 @@ const optionsRoute = defineOpenAPIRoute({
 const loginLogQuery = PaginationQuery.extend({
   keyword: z.string().optional(),
   status: z.enum(['success', 'fail']).optional(),
-  dateStart: z.string().optional(),
-  dateEnd: z.string().optional(),
+  dateStart: dateRangeBound('起始日期'),
+  dateEnd: dateRangeBound('结束日期'),
 });
 const loginLogsRoute = defineOpenAPIRoute({
   route: createRoute({

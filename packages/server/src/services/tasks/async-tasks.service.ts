@@ -1,11 +1,11 @@
-import { and, desc, eq, gte, ilike, inArray, lte, or, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { AsyncTaskItemStatus, AsyncTaskStats, AsyncTaskStatus } from '@zenith/shared/tasks';
 import { db } from '../../db';
 import { asyncTaskItems, asyncTasks, users } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike } from '../../lib/where-helpers';
-import { formatDateTime, parseDateTimeInput } from '../../lib/datetime';
+import { buildWhere, dateRangeConditions, escapeLike, keywordCondition } from '../../lib/where-helpers';
+import { formatDateTime } from '../../lib/datetime';
 import { currentUser, hasPermission } from '../../lib/context';
 import {
   buildTaskTypeMeta,
@@ -34,18 +34,12 @@ export interface ListAsyncTasksQuery {
   endTime?: string;
 }
 
-function buildConditions(query: ListAsyncTasksQuery): SQL[] {
-  const conditions: SQL[] = [];
+function buildConditions(query: ListAsyncTasksQuery): (SQL | undefined)[] {
+  const conditions: (SQL | undefined)[] = [];
   if (query.taskType) conditions.push(eq(asyncTasks.taskType, query.taskType));
   if (query.status) conditions.push(eq(asyncTasks.status, query.status));
-  if (query.keyword) {
-    const kw = `%${escapeLike(query.keyword)}%`;
-    conditions.push(or(ilike(asyncTasks.title, kw), ilike(asyncTasks.taskType, kw))!);
-  }
-  const startTime = parseDateTimeInput(query.startTime);
-  const endTime = parseDateTimeInput(query.endTime);
-  if (startTime) conditions.push(gte(asyncTasks.createdAt, startTime));
-  if (endTime) conditions.push(lte(asyncTasks.createdAt, endTime));
+  conditions.push(keywordCondition(query.keyword, [asyncTasks.title, asyncTasks.taskType], 'ilike'));
+  conditions.push(...dateRangeConditions(asyncTasks.createdAt, query.startTime, query.endTime));
   return conditions;
 }
 
@@ -59,8 +53,8 @@ async function creatorCondition(createdBy: string): Promise<SQL | null> {
   return inArray(asyncTasks.createdBy, matched.map((row) => row.id));
 }
 
-async function queryTasks(conditions: SQL[], page: number, pageSize: number) {
-  const where = conditions.length ? and(...conditions) : undefined;
+async function queryTasks(conditions: (SQL | undefined)[], page: number, pageSize: number) {
+  const where = buildWhere(...conditions);
   const [total, rows] = await Promise.all([
     db.$count(asyncTasks, where),
     db.query.asyncTasks.findMany({
@@ -217,12 +211,9 @@ export async function listAsyncTaskItems(taskId: number, query: ListTaskItemsQue
   await ensureTaskAccessible(taskId, 'system:async-task:list');
   const page = Number(query.page ?? 1);
   const pageSize = Number(query.pageSize ?? 10);
-  const conditions: SQL[] = [eq(asyncTaskItems.taskId, taskId)];
+  const conditions: (SQL | undefined)[] = [eq(asyncTaskItems.taskId, taskId)];
   if (query.status) conditions.push(eq(asyncTaskItems.status, query.status));
-  if (query.keyword) {
-    const kw = `%${escapeLike(query.keyword)}%`;
-    conditions.push(or(ilike(asyncTaskItems.itemKey, kw), ilike(asyncTaskItems.label, kw), ilike(asyncTaskItems.message, kw))!);
-  }
+  conditions.push(keywordCondition(query.keyword, [asyncTaskItems.itemKey, asyncTaskItems.label, asyncTaskItems.message], 'ilike'));
   const where = and(...conditions);
   const [total, rows] = await Promise.all([
     db.$count(asyncTaskItems, where),

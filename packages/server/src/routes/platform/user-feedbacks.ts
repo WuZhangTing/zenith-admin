@@ -2,12 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';
-import {
-  ErrorResponse, jsonContent,
-  PaginationQuery, validationHook, commonErrorResponses,
-  ok, okPaginated, okMsg, IdParam, BatchIdsBody,
-  okBody, errBody,
-} from '../../lib/openapi-schemas';
+import { BatchIdsBody, ErrorResponse, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, errBody, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { UserFeedbackDTO } from '../../lib/openapi-dtos';
 import { createUserFeedbackSchema } from '@zenith/shared/identity';
 import { handleUserFeedbackSchema } from '@zenith/shared/platform';
@@ -55,8 +50,8 @@ const listRoute = defineOpenAPIRoute({
         keyword: z.string().optional(),
         category: z.enum(['suggestion', 'bug', 'ux', 'other']).optional(),
         status: z.enum(['pending', 'processing', 'resolved', 'ignored']).optional(),
-        startTime: z.string().optional(),
-        endTime: z.string().optional(),
+        startTime: dateRangeBound('起始时间'),
+        endTime: dateRangeBound('结束时间'),
       }),
     },
     responses: {

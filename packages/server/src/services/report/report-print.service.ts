@@ -3,12 +3,12 @@
  * CRUD + 取数渲染（复用数据集取数 + shared 填充引擎 fillPrintGrid）。
  */
 import { HTTPException } from 'hono/http-exception';
-import { and, desc, eq, ilike, inArray, or } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { ReportPrintValidationError, renderPrintContent } from '@zenith/shared/report';
 import { db } from '../../db';
 import { reportDatasets, reportPrintTemplates } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 import { currentDateTime, formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUserOrNull } from '../../lib/context';
@@ -88,10 +88,7 @@ export async function listPrintTemplates(query: {
   if (accessibleIds) conds.push(inArray(reportPrintTemplates.id, accessibleIds));
   if (folderId) conds.push(eq(reportPrintTemplates.folderId, folderId));
   if (ownerId) conds.push(eq(reportPrintTemplates.ownerId, ownerId));
-  if (keyword) {
-    const kw = `%${escapeLike(keyword)}%`;
-    conds.push(or(ilike(reportPrintTemplates.name, kw), ilike(reportPrintTemplates.remark, kw)));
-  }
+  conds.push(keywordCondition(keyword, [reportPrintTemplates.name, reportPrintTemplates.remark], 'ilike'));
   if (status === 'enabled' || status === 'disabled') conds.push(eq(reportPrintTemplates.status, status));
   const where = conds.length ? and(...conds) : undefined;
   const [total, rows] = await Promise.all([
@@ -123,10 +120,7 @@ export async function listPrintTemplateLookup(query: {
   const accessibleIds = await listAccessibleReportResourceIds('print_template');
   if (accessibleIds && accessibleIds.length === 0) return [];
   if (accessibleIds) conds.push(inArray(reportPrintTemplates.id, accessibleIds));
-  if (keyword) {
-    const kw = `%${escapeLike(keyword)}%`;
-    conds.push(or(ilike(reportPrintTemplates.name, kw), ilike(reportPrintTemplates.remark, kw)));
-  }
+  conds.push(keywordCondition(keyword, [reportPrintTemplates.name, reportPrintTemplates.remark], 'ilike'));
   if (status) conds.push(eq(reportPrintTemplates.status, status));
   const where = conds.length ? and(...conds) : undefined;
   const rows = await db.select({

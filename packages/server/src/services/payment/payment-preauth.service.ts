@@ -7,7 +7,7 @@
  * 资金账户联动：冻结成功 account.frozen += 冻结额；转支付/解冻 -= 冻结额（快照口径 =
  * 进行中预授权冻结金额之和，checkAccounts 一并核对）。
  */
-import { and, desc, eq, gte, like, lte, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, lte, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { randomInt } from 'node:crypto';
 import { db } from '../../db';
@@ -21,7 +21,7 @@ import {
 } from '../../db/schema';
 import { currentUser, currentUserOrNull } from '../../lib/context';
 import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
-import { mergeWhere, escapeLike } from '../../lib/where-helpers';
+import { keywordCondition, mergeWhere } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { getAdapter } from '../../lib/payment/registry';
@@ -109,10 +109,7 @@ export async function listPreauths(q: ListPreauthsQuery) {
   const page = q.page ?? 1;
   const pageSize = q.pageSize ?? 10;
   const conds = [];
-  if (q.keyword) {
-    const kw = `%${escapeLike(q.keyword)}%`;
-    conds.push(or(like(paymentPreauths.preauthNo, kw), like(paymentPreauths.payerAccount, kw), like(paymentPreauths.subject, kw)));
-  }
+  conds.push(keywordCondition(q.keyword, [paymentPreauths.preauthNo, paymentPreauths.payerAccount, paymentPreauths.subject]));
   if (q.status) conds.push(eq(paymentPreauths.status, q.status));
   if (q.channel) conds.push(eq(paymentPreauths.channel, q.channel));
   const start = parseDateRangeStart(q.startTime);

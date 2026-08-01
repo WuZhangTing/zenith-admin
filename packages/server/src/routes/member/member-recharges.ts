@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
-import { validationHook, commonErrorResponses, okPaginated, okBody, PaginationQuery } from '../../lib/openapi-schemas';
+import { PaginationQuery, commonErrorResponses, dateRangeBound, okBody, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { MemberRechargeDTO } from '../../lib/openapi-dtos';
 import { listMemberRecharges } from '../../services/member/member-recharge.service';
 
@@ -11,8 +11,8 @@ const listQuery = PaginationQuery.extend({
   keyword: z.string().optional(),
   status: z.enum(['pending', 'paying', 'success', 'closed', 'refunding', 'refunded', 'failed']).optional(),
   channel: z.enum(['wechat', 'alipay', 'unionpay']).optional(),
-  dateStart: z.string().optional(),
-  dateEnd: z.string().optional(),
+  dateStart: dateRangeBound('起始日期'),
+  dateEnd: dateRangeBound('结束日期'),
 });
 
 const listRoute = defineOpenAPIRoute({

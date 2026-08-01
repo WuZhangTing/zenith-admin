@@ -1,12 +1,12 @@
-import { and, asc, eq, gte, inArray, like, lte, or, sql } from 'drizzle-orm';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { dateRangeConditions, keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { positions, userPositions, users } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { formatDateTime, parseDateTimeInput } from '../../lib/datetime';
+import { formatDateTime } from '../../lib/datetime';
 
 export function mapPosition(row: typeof positions.$inferSelect) {
   return {
@@ -49,14 +49,9 @@ export async function listPositions(q: ListPositionsQuery) {
   const page = q.page ?? 1;
   const pageSize = q.pageSize ?? 10;
   const conditions = [];
-  if (q.keyword) {
-    conditions.push(or(like(positions.name, `%${escapeLike(q.keyword)}%`), like(positions.code, `%${escapeLike(q.keyword)}%`)));
-  }
+  conditions.push(keywordCondition(q.keyword, [positions.name, positions.code]));
   if (q.status) conditions.push(eq(positions.status, q.status));
-  const startTime = parseDateTimeInput(q.startTime);
-  const endTime = parseDateTimeInput(q.endTime);
-  if (startTime) conditions.push(gte(positions.createdAt, startTime));
-  if (endTime) conditions.push(lte(positions.createdAt, endTime));
+  conditions.push(...dateRangeConditions(positions.createdAt, q.startTime, q.endTime));
 
   const where = and(...conditions);
   const tc = tenantCondition(positions, currentUser());

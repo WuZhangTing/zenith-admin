@@ -5,7 +5,7 @@ import { cmsSites, cmsContents, cmsContentTags, cmsContentTombstones, cmsContent
 import type { CmsContentRow, CmsSiteRow, CmsTagRow } from '../../db/schema';
 import type { DbExecutor, DbTransaction } from '../../db/types';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { dateRangeConditions, escapeLike, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { config } from '../../config';
 import redis from '../../lib/redis';
@@ -260,10 +260,8 @@ export async function listCmsContents(q: ListCmsContentsQuery) {
     );
     if (kw) conditions.push(kw);
   }
-  const start = parseDateTimeInput(q.startTime);
-  const end = parseDateTimeInput(q.endTime);
-  if (start) conditions.push(gt(cmsContents.createdAt, start));
-  if (end) conditions.push(lt(cmsContents.createdAt, end));
+  // 时间范围为闭区间：此前用 gt/lt 开区间，边界时刻创建的内容会被漏掉
+  conditions.push(...dateRangeConditions(cmsContents.createdAt, q.startTime, q.endTime));
 
   // P5 部门数据权限：按创建时快照的部门/创建人过滤
   const scopeUser = currentUserOrNull();

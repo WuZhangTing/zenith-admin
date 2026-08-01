@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, ilike, inArray, isNull, lte, or, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, lte, or, sql, type SQL } from 'drizzle-orm';
 import { db } from '../../db';
 import {
   workflowEventSubscriptions,
@@ -9,7 +9,7 @@ import {
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
-import { escapeLike } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
@@ -95,10 +95,7 @@ export async function listSubscriptions(q: ListSubscriptionsQuery) {
   const tc = tenantCondition(workflowEventSubscriptions, currentUser());
   const conds = [];
   if (tc) conds.push(tc);
-  if (q.keyword) {
-    const k = `%${escapeLike(q.keyword)}%`;
-    conds.push(or(ilike(workflowEventSubscriptions.name, k), ilike(workflowEventSubscriptions.url, k))!);
-  }
+  conds.push(keywordCondition(q.keyword, [workflowEventSubscriptions.name, workflowEventSubscriptions.url], 'ilike'));
   if (q.definitionId !== undefined) {
     conds.push(q.definitionId === null ? isNull(workflowEventSubscriptions.definitionId) : eq(workflowEventSubscriptions.definitionId, q.definitionId));
   }
@@ -320,7 +317,7 @@ export async function listDeliveries(q: ListDeliveriesQuery) {
   const page = q.page ?? 1;
   const pageSize = q.pageSize ?? 20;
   const tc = tenantCondition(workflowJobs, currentUser());
-  const conds: SQL[] = [eq(workflowJobExecutions.jobType, 'webhook_delivery')];
+  const conds: (SQL | undefined)[] = [eq(workflowJobExecutions.jobType, 'webhook_delivery')];
   if (tc) conds.push(tc);
   if (q.subscriptionId) conds.push(sql`(${workflowJobs.payload}->>'subscriptionId')::int = ${q.subscriptionId}`);
   if (q.instanceId) conds.push(eq(workflowJobs.instanceId, q.instanceId));
@@ -347,7 +344,7 @@ export async function listDeliveries(q: ListDeliveriesQuery) {
 
 export async function getDelivery(id: number) {
   const tc = tenantCondition(workflowJobs, currentUser());
-  const conds: SQL[] = [eq(workflowJobExecutions.id, id), eq(workflowJobExecutions.jobType, 'webhook_delivery')];
+  const conds: (SQL | undefined)[] = [eq(workflowJobExecutions.id, id), eq(workflowJobExecutions.jobType, 'webhook_delivery')];
   if (tc) conds.push(tc);
   const [row] = await db.select({ execution: workflowJobExecutions, job: workflowJobs, subscriptionName: workflowEventSubscriptions.name })
     .from(workflowJobExecutions)
@@ -369,7 +366,7 @@ export async function getDeliveryBeforeAudit(id: number) {
 export async function getDeliveriesBeforeAudit(ids: number[]) {
   if (!ids.length) return [];
   const tc = tenantCondition(workflowJobs, currentUser());
-  const conds: SQL[] = [inArray(workflowJobExecutions.id, ids), eq(workflowJobExecutions.jobType, 'webhook_delivery')];
+  const conds: (SQL | undefined)[] = [inArray(workflowJobExecutions.id, ids), eq(workflowJobExecutions.jobType, 'webhook_delivery')];
   if (tc) conds.push(tc);
   const rows = await db.select({ execution: workflowJobExecutions, job: workflowJobs, subscriptionName: workflowEventSubscriptions.name })
     .from(workflowJobExecutions)
@@ -458,7 +455,7 @@ export async function updateDeliveryAfterAttempt(id: number, patch: Record<strin
 /** 手动重置投递为 retrying 立即重试 */
 export async function retryDelivery(id: number) {
   const tc = tenantCondition(workflowJobs, currentUser());
-  const conds: SQL[] = [eq(workflowJobExecutions.id, id), eq(workflowJobExecutions.jobType, 'webhook_delivery')];
+  const conds: (SQL | undefined)[] = [eq(workflowJobExecutions.id, id), eq(workflowJobExecutions.jobType, 'webhook_delivery')];
   if (tc) conds.push(tc);
   const [row] = await db.select({ jobId: workflowJobs.id })
     .from(workflowJobExecutions)
@@ -474,7 +471,7 @@ export async function retryDelivery(id: number) {
 export async function retryDeliveries(ids: number[]) {
   if (ids.length === 0) return 0;
   const tc = tenantCondition(workflowJobs, currentUser());
-  const conds: SQL[] = [inArray(workflowJobExecutions.id, ids), eq(workflowJobExecutions.jobType, 'webhook_delivery')];
+  const conds: (SQL | undefined)[] = [inArray(workflowJobExecutions.id, ids), eq(workflowJobExecutions.jobType, 'webhook_delivery')];
   if (tc) conds.push(tc);
   const rows = await db.select({ jobId: workflowJobs.id })
     .from(workflowJobExecutions)
@@ -507,7 +504,7 @@ export interface ReplayDeliveriesFilter {
  */
 export async function replayDeliveriesByFilter(f: ReplayDeliveriesFilter): Promise<{ count: number }> {
   const tc = tenantCondition(workflowJobs, currentUser());
-  const conds: SQL[] = [eq(workflowJobs.jobType, 'webhook_delivery')];
+  const conds: (SQL | undefined)[] = [eq(workflowJobs.jobType, 'webhook_delivery')];
   if (tc) conds.push(tc);
   if (f.subscriptionId) conds.push(sql`(${workflowJobs.payload}->>'subscriptionId')::int = ${f.subscriptionId}`);
   if (f.eventType) conds.push(sql`${workflowJobs.payload}->>'eventType' = ${f.eventType}`);

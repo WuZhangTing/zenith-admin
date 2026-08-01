@@ -1,10 +1,10 @@
 import { HTTPException } from 'hono/http-exception';
 import { aggregateReportRows, compare as compareReportValue } from '@zenith/shared/report';
-import { and, desc, eq, ilike, inArray, isNotNull, lte, or } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, lte } from 'drizzle-orm';
 import { db } from '../../db';
 import { reportAlertRules, reportDeliveryRuns } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUserOrNull } from '../../lib/context';
@@ -160,10 +160,7 @@ export async function listAlerts(query: { page?: number; pageSize?: number; keyw
   const conds = [];
   const tenantScope = reportTenantScope(reportAlertRules);
   if (tenantScope) conds.push(tenantScope);
-  if (keyword) {
-    const kw = `%${escapeLike(keyword)}%`;
-    conds.push(or(ilike(reportAlertRules.name, kw), ilike(reportAlertRules.remark, kw)));
-  }
+  conds.push(keywordCondition(keyword, [reportAlertRules.name, reportAlertRules.remark], 'ilike'));
   if (datasetId) conds.push(eq(reportAlertRules.datasetId, datasetId));
   if (metricId) conds.push(eq(reportAlertRules.metricId, metricId));
   if (enabled !== undefined) conds.push(eq(reportAlertRules.enabled, enabled));

@@ -2,12 +2,12 @@
  * 会员充值记录服务：基于支付订单（bizType=member_recharge）。
  * 充值订单由 member-wallet.service 下单，bizId = String(memberId)。
  */
-import { and, desc, eq, gte, lte, like, or, count, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, like, or, count, sql, type SQL } from 'drizzle-orm';
 import { db } from '../../db';
 import { paymentOrders, members } from '../../db/schema';
-import { escapeLike } from '../../lib/where-helpers';
+import { dateRangeConditions, escapeLike } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
-import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
+import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { WALLET_RECHARGE_BIZ_TYPE } from './member-wallet.service';
 import type { PaymentChannel, PaymentOrderStatus } from '@zenith/shared/payment';
 
@@ -78,10 +78,7 @@ export function buildRechargeWhere(q: Omit<MemberRechargeQuery, 'page' | 'pageSi
   }
   if (q.status) conds.push(eq(paymentOrders.status, q.status));
   if (q.channel) conds.push(eq(paymentOrders.channel, q.channel));
-  const start = parseDateTimeInput(q.dateStart);
-  if (start) conds.push(gte(paymentOrders.createdAt, start));
-  const end = parseDateTimeInput(q.dateEnd);
-  if (end) conds.push(lte(paymentOrders.createdAt, end));
+  conds.push(...dateRangeConditions(paymentOrders.createdAt, q.dateStart, q.dateEnd));
   return and(...conds);
 }
 

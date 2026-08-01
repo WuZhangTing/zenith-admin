@@ -6,11 +6,11 @@
  * - mysql/postgresql：外部数据库，凭据 AES-GCM 加密存储，取数走 report-external-db。
  */
 import { HTTPException } from 'hono/http-exception';
-import { and, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../../db';
 import { reportDatasources, reportDatasets } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { encryptField, decryptField } from '../../lib/encryption';
@@ -244,10 +244,7 @@ export async function listDatasources(query: {
   if (accessibleIds) conds.push(inArray(reportDatasources.id, accessibleIds));
   if (folderId) conds.push(eq(reportDatasources.folderId, folderId));
   if (ownerId) conds.push(eq(reportDatasources.ownerId, ownerId));
-  if (keyword) {
-    const kw = `%${escapeLike(keyword)}%`;
-    conds.push(or(ilike(reportDatasources.name, kw), ilike(reportDatasources.remark, kw)));
-  }
+  conds.push(keywordCondition(keyword, [reportDatasources.name, reportDatasources.remark], 'ilike'));
   const reportTypes = REPORT_DATASOURCE_TYPES as readonly string[];
   if (type && reportTypes.includes(type)) {
     conds.push(eq(reportDatasources.type, type as ReportDatasourceType));
@@ -282,10 +279,7 @@ export async function listDatasourceLookup(query: {
   const accessibleIds = await listAccessibleReportResourceIds('datasource');
   if (accessibleIds && accessibleIds.length === 0) return [];
   if (accessibleIds) conds.push(inArray(reportDatasources.id, accessibleIds));
-  if (keyword) {
-    const kw = `%${escapeLike(keyword)}%`;
-    conds.push(or(ilike(reportDatasources.name, kw), ilike(reportDatasources.remark, kw)));
-  }
+  conds.push(keywordCondition(keyword, [reportDatasources.name, reportDatasources.remark], 'ilike'));
   if (status) conds.push(eq(reportDatasources.status, status));
   const where = conds.length ? and(...conds) : undefined;
   const rows = await db.select({

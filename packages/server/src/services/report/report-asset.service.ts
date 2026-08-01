@@ -31,7 +31,7 @@ import {
   parseDateTimeInput,
 } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike } from '../../lib/where-helpers';
+import { escapeLike, keywordCondition } from '../../lib/where-helpers';
 import { createDashboard, getDashboard, updateDashboardDraft } from './report-dashboard.service';
 import { createDataset } from './report-dataset.service';
 import { createPrintTemplate } from './report-print.service';
@@ -698,10 +698,7 @@ export async function listReportAssetTemplates(query: {
   const accessibleIds = await listAccessibleReportResourceIds('asset_template');
   if (accessibleIds && !accessibleIds.length) return { list: [], total: 0, page, pageSize };
   if (accessibleIds) conds.push(inArray(reportAssetTemplates.id, accessibleIds));
-  if (query.keyword) {
-    const value = `%${escapeLike(query.keyword)}%`;
-    conds.push(or(ilike(reportAssetTemplates.name, value), ilike(reportAssetTemplates.code, value)));
-  }
+  conds.push(keywordCondition(query.keyword, [reportAssetTemplates.name, reportAssetTemplates.code], 'ilike'));
   if (query.type) conds.push(eq(reportAssetTemplates.type, query.type));
   if (query.status) conds.push(eq(reportAssetTemplates.status, query.status));
   const where = conds.length ? and(...conds) : undefined;

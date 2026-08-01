@@ -12,7 +12,7 @@ import { paymentLedgerEntries, paymentReportDaily } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
 import { mergeWhere } from '../../lib/where-helpers';
-import { formatDate, parseDateTimeInput } from '../../lib/datetime';
+import { formatDate, parseDateRangeEnd, parseDateRangeStart, parseDateTimeInput } from '../../lib/datetime';
 import logger from '../../lib/logger';
 import { PAYMENT_CHANNEL_LABELS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentReportGroupBy, PaymentReportRow } from '@zenith/shared/payment';
@@ -153,8 +153,8 @@ function toTotals(rows: AggRow[]): ReportTotals {
 
 export async function getReportSummary(q: ReportSummaryQuery): Promise<ReportSummary> {
   const groupBy: PaymentReportGroupBy = q.groupBy ?? 'bizType';
-  const start = parseDateTimeInput(q.startTime);
-  const end = parseDateTimeInput(q.endTime);
+  const start = parseDateRangeStart(q.startTime);
+  const end = parseDateRangeEnd(q.endTime);
 
   const agg = await aggregateReport(groupBy, start, end);
   const reportRows: PaymentReportRow[] = agg.map((r) => ({

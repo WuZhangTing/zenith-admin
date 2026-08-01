@@ -1,11 +1,11 @@
-import { and, asc, eq, gte, desc, ilike, or, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gte, desc, ilike, inArray, sql, type SQL } from 'drizzle-orm';
 import dayjs from 'dayjs';
 import { db } from '../../db';
 import { workflowInstances, workflowTasks, workflowDefinitions, workflowCategories, workflowJobs, users } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike } from '../../lib/where-helpers';
+import { escapeLike, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import type { WorkflowAnalytics, WorkflowInstanceStatus, WorkflowAnalyticsTrendPoint, WorkflowOverdueTask } from '@zenith/shared/workflow';
 import { WORKFLOW_INSTANCE_STATUS_LABELS } from '@zenith/shared/workflow';
@@ -222,7 +222,7 @@ export async function listOverdueTasks(query: { page?: number; pageSize?: number
   const page = query.page ?? 1;
   const pageSize = query.pageSize ?? 20;
   const instTenant = tenantCondition(workflowInstances, user);
-  const conds: SQL[] = [
+  const conds: (SQL | undefined)[] = [
     eq(workflowTasks.status, 'pending'),
     eq(workflowJobs.jobType, 'task_timeout'),
     eq(workflowJobs.status, 'pending'),
@@ -288,14 +288,11 @@ export interface WorkflowInstanceExportQuery {
 
 function buildInstancesExportWhere(query: WorkflowInstanceExportQuery) {
   const user = currentUser();
-  const conds: SQL[] = [];
+  const conds: (SQL | undefined)[] = [];
   const tc = tenantCondition(workflowInstances, user);
   if (tc) conds.push(tc);
   if (query.status) conds.push(eq(workflowInstances.status, query.status as WorkflowInstanceStatus));
-  if (query.keyword) {
-    const lk = `%${escapeLike(query.keyword)}%`;
-    conds.push(or(ilike(workflowInstances.title, lk), ilike(workflowDefinitions.name, lk))!);
-  }
+  conds.push(keywordCondition(query.keyword, [workflowInstances.title, workflowDefinitions.name], 'ilike'));
   if (query.categoryId) conds.push(eq(workflowDefinitions.categoryId, query.categoryId));
   if (query.definitionId) conds.push(eq(workflowInstances.definitionId, query.definitionId));
   if (query.initiatorKeyword) conds.push(ilike(users.nickname, `%${escapeLike(query.initiatorKeyword)}%`));

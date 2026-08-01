@@ -1,15 +1,15 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
-import { validationHook, commonErrorResponses, ok, okBody } from '../../lib/openapi-schemas';
+import { commonErrorResponses, dateRangeBound, ok, okBody, validationHook } from '../../lib/openapi-schemas';
 import { AiUsageStatsDTO } from '../../lib/openapi-dtos';
 import { getUsageStats } from '../../services/ai/ai-usage.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const StatsQuery = z.object({
-  startDate: z.string().max(20).optional().openapi({ description: '起始日期 YYYY-MM-DD' }),
-  endDate: z.string().max(20).optional().openapi({ description: '结束日期 YYYY-MM-DD' }),
+  startDate: dateRangeBound('起始日期 YYYY-MM-DD'),
+  endDate: dateRangeBound('结束日期 YYYY-MM-DD'),
 });
 
 const stats = defineOpenAPIRoute({

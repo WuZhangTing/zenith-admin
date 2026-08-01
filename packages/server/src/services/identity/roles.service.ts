@@ -1,6 +1,6 @@
-import { eq, and, like, or, gte, lte, asc, inArray } from 'drizzle-orm';
+import { eq, and, asc, inArray } from 'drizzle-orm';
 import { SUPER_ADMIN_CODE } from '@zenith/shared/identity';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { dateRangeConditions, keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import type { DbTransaction } from '../../db/types';
 import { roles, roleMenus, roleDeptScopes, userRoles, users } from '../../db/schema';
@@ -11,7 +11,7 @@ import { currentUser } from '../../lib/context';
 import { forceLogoutAllByUsers } from '../../lib/session-manager';
 import { HTTPException } from 'hono/http-exception';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { formatDateTime, parseDateTimeInput } from '../../lib/datetime';
+import { formatDateTime } from '../../lib/datetime';
 
 export function mapRole(row: typeof roles.$inferSelect, menuIds?: number[], deptScopeIds?: number[]) {
   return {
@@ -43,12 +43,9 @@ export async function listRoles(q: ListRolesQuery) {
   const user = currentUser();
   const { page = 1, pageSize = 10 } = q;
   const conditions = [];
-  if (q.keyword) conditions.push(or(like(roles.name, `%${escapeLike(q.keyword)}%`), like(roles.code, `%${escapeLike(q.keyword)}%`)));
+  conditions.push(keywordCondition(q.keyword, [roles.name, roles.code]));
   if (q.status) conditions.push(eq(roles.status, q.status));
-  const startTime = parseDateTimeInput(q.startTime);
-  const endTime = parseDateTimeInput(q.endTime);
-  if (startTime) conditions.push(gte(roles.createdAt, startTime));
-  if (endTime) conditions.push(lte(roles.createdAt, endTime));
+  conditions.push(...dateRangeConditions(roles.createdAt, q.startTime, q.endTime));
   const where = and(...conditions);
   const tc = tenantCondition(roles, user);
   const finalWhere = mergeWhere(where, tc);

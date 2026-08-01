@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { batchUpdateCmsSearchWordsSchema, createCmsHotwordGroupSchema, createCmsHotwordSchema, createCmsSearchWordSchema, updateCmsHotwordGroupSchema, updateCmsHotwordSchema, updateCmsSearchWordSchema } from '@zenith/shared/cms';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
-import { commonErrorResponses, jsonContent, ok, okBody, okPaginated, okMsg, IdParam, ErrorResponse, PaginationQuery, validationHook } from '../../lib/openapi-schemas';
+import { ErrorResponse, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { AsyncTaskDTO, CmsSearchResultDTO, CmsSearchWordDTO, CmsHotKeywordDTO, CmsHotwordGroupDTO } from '../../lib/openapi-dtos';
 import { mapAsyncTask, submitAsyncTask } from '../../lib/task-center';
 import { searchCmsContents, segmentForQuery, reloadCmsSearchDict, clearHotKeywords } from '../../services/cms/cms-search.service';
@@ -212,8 +212,8 @@ const hotKeywordsRoute = defineOpenAPIRoute({
         groupId: z.coerce.number().int().positive().optional(),
         keyword: z.string().optional(),
         status: z.enum(['enabled', 'disabled']).optional(),
-        startTime: z.string().optional(),
-        endTime: z.string().optional(),
+        startTime: dateRangeBound('起始时间'),
+        endTime: dateRangeBound('结束时间'),
         limit: z.coerce.number().int().min(1).max(500).optional().default(100),
       }),
     },

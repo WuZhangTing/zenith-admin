@@ -3,17 +3,7 @@ import { CMS_DISTRIBUTION_MODES, CMS_DISTRIBUTION_TASK_STATUSES, createCmsDistri
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';
-import {
-  commonErrorResponses,
-  IdParam,
-  jsonContent,
-  ok,
-  okBody,
-  okMsg,
-  okPaginated,
-  PaginationQuery,
-  validationHook,
-} from '../../lib/openapi-schemas';
+import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import {
   AsyncTaskDTO,
   CmsDistributionRuleDTO,
@@ -63,8 +53,8 @@ const runsRoute = defineOpenAPIRoute({
         ruleId: z.coerce.number().int().positive().optional(),
         siteId: z.coerce.number().int().positive().optional(),
         status: TaskStatus.optional(),
-        startTime: z.string().optional(),
-        endTime: z.string().optional(),
+        startTime: dateRangeBound('起始时间'),
+        endTime: dateRangeBound('结束时间'),
       }),
     },
     responses: { ...commonErrorResponses, ...okPaginated(CmsDistributionRunDTO, '同步记录') },

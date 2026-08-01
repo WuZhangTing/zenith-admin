@@ -2,10 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { announcementRecipientSchema } from '@zenith/shared/messaging';
-import {
-  ErrorResponse, PaginationQuery, BatchIdsBody, jsonContent, validationHook, commonErrorResponses,
-  ok, okPaginated, okMsg, IdParam, okBody,
-} from '../../lib/openapi-schemas';
+import { BatchIdsBody, ErrorResponse, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { AnnouncementDTO, AnnouncementReadStatsDTO, AnnouncementUnreadCountDTO } from '../../lib/openapi-dtos';
 import {
   listPublishedForUser, markAnnouncementRead, markAllAnnouncementsRead, getInbox, listAnnouncements,
@@ -108,7 +105,7 @@ const listRoute = defineOpenAPIRoute({
     method: 'get', path: '/', tags: ['Announcements'], summary: '公告列表（管理）',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'system:announcement:list' })] as const,
-    request: { query: PaginationQuery.extend({ title: z.string().optional(), type: z.string().optional(), publishStatus: z.string().optional(), startTime: z.string().optional(), endTime: z.string().optional() }) },
+    request: { query: PaginationQuery.extend({ title: z.string().optional(), type: z.string().optional(), publishStatus: z.string().optional(), startTime: dateRangeBound('起始时间'), endTime: dateRangeBound('结束时间') }) },
     responses: { ...commonErrorResponses, ...okPaginated(AnnouncementDTO, 'ok') },
   }),
   handler: async (c) => c.json(okBody(await listAnnouncements(c.req.valid('query'))), 200),

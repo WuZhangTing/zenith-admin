@@ -29,7 +29,7 @@ import {
 import { config } from '../../config';
 import { currentUserOrNull } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { escapeLike, keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { isPgUniqueViolation } from '../../lib/db-errors';
 import { getAdapter } from '../../lib/payment/registry';
@@ -240,10 +240,7 @@ function contractsTenantCondition() {
 
 export async function buildContractsWhere(q: ListContractsQuery) {
   const conds = [];
-  if (q.keyword) {
-    const kw = `%${escapeLike(q.keyword)}%`;
-    conds.push(or(like(paymentContracts.contractNo, kw), like(paymentContracts.signerAccount, kw), like(paymentContracts.bizId, kw)));
-  }
+  conds.push(keywordCondition(q.keyword, [paymentContracts.contractNo, paymentContracts.signerAccount, paymentContracts.bizId]));
   if (q.status) conds.push(eq(paymentContracts.status, q.status));
   if (q.channel) conds.push(eq(paymentContracts.channel, q.channel));
   if (q.planId) conds.push(eq(paymentContracts.planId, q.planId));

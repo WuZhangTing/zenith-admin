@@ -1,4 +1,4 @@
-import { eq, and, ne, isNull, inArray, like, or, gte, lte, type SQL } from 'drizzle-orm';
+import { eq, and, ne, isNull, inArray, like, type SQL } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import ExcelJS from 'exceljs';
 import { db } from '../../db';
@@ -10,7 +10,7 @@ import { ensureTenantUserQuota, getTenantUserLimit } from '../../lib/tenant-quot
 import { getTenantPackageMenuIdSet } from '../../lib/tenant-package';
 import { pageOffset } from '../../lib/pagination';
 import { getDataScopeCondition } from '../../lib/data-scope';
-import { escapeLike } from '../../lib/where-helpers';
+import { dateRangeConditions, escapeLike, keywordCondition } from '../../lib/where-helpers';
 import { getPasswordPolicy, validatePassword } from '../../lib/password-policy';
 import { unlockUser as unlockUserSession, batchCheckLoginLock, getOnlineSessions, forceLogoutAllByUsers } from '../../lib/session-manager';
 import { streamToExcel, streamToCsv, formatDateTimeForExcel } from '../../lib/excel-export';
@@ -20,7 +20,7 @@ import type { User } from '@zenith/shared/identity';
 import { SUPER_ADMIN_CODE } from '@zenith/shared/identity';
 import { currentUser } from '../../lib/context';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
+import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { applyEntityMasking } from '../platform/data-mask.service';
 import logger from '../../lib/logger';
 
@@ -71,7 +71,7 @@ async function ensureNoProtectedAdminInIds(ids: number[], action: '删除' | '�
 /** 构造「当前操作者可管理的用户」过滤条件；返回 undefined 表示不限制（全量权限） */
 async function manageableUsersCondition(): Promise<SQL | undefined> {
   const user = currentUser();
-  const conditions: SQL[] = [];
+  const conditions: (SQL | undefined)[] = [];
   const tc = tenantCondition(users, user);
   if (tc) conditions.push(tc);
   const scope = await getDataScopeCondition({
@@ -257,15 +257,12 @@ export interface ListUsersQuery {
 
 export async function buildUsersListWhere(q: ListUsersQuery, user: JwtPayload): Promise<SQL | undefined> {
   const { keyword, phone, departmentId, status, startTime, endTime } = q;
-  const conditions: SQL[] = [];
-  if (keyword) conditions.push(or(like(users.username, `%${escapeLike(keyword)}%`), like(users.nickname, `%${escapeLike(keyword)}%`), like(users.email, `%${escapeLike(keyword)}%`))!);
+  const conditions: (SQL | undefined)[] = [];
+  conditions.push(keywordCondition(keyword, [users.username, users.nickname, users.email]));
   if (phone) conditions.push(like(users.phone, `%${escapeLike(phone)}%`));
   if (departmentId) conditions.push(eq(users.departmentId, departmentId));
   if (status) conditions.push(eq(users.status, status));
-  const parsedStartTime = parseDateTimeInput(startTime);
-  const parsedEndTime = parseDateTimeInput(endTime);
-  if (parsedStartTime) conditions.push(gte(users.createdAt, parsedStartTime));
-  if (parsedEndTime) conditions.push(lte(users.createdAt, parsedEndTime));
+  conditions.push(...dateRangeConditions(users.createdAt, startTime, endTime));
   const scopeCondition = await getDataScopeCondition({
     currentUserId: user.userId, deptColumn: users.departmentId, ownerColumn: users.id,
   });

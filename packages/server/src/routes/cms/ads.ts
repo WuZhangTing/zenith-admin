@@ -2,10 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { cleanupCmsAdEventsSchema, createCmsAdSlotSchema, updateCmsAdSlotSchema, createCmsAdSchema, updateCmsAdSchema } from '@zenith/shared/cms';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
-import {
-  ErrorResponse, jsonContent, PaginationQuery, validationHook, commonErrorResponses,
-  ok, okPaginated, okMsg, IdParam, okBody,
-} from '../../lib/openapi-schemas';
+import { ErrorResponse, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { AsyncTaskDTO, CmsAdEventDTO, CmsAdEventStatsDTO, CmsAdSlotDTO, CmsAdDTO } from '../../lib/openapi-dtos';
 import {
   listCmsAdSlots, createCmsAdSlot, updateCmsAdSlot, deleteCmsAdSlot, ensureCmsAdSlotExists, mapCmsAdSlot,
@@ -21,8 +18,8 @@ const adEventFilters = {
   slotId: z.coerce.number().int().positive().optional(),
   eventType: z.enum(['impression', 'click']).optional(),
   device: z.enum(['pc', 'mobile', 'bot']).optional(),
-  startTime: z.string().optional(),
-  endTime: z.string().optional(),
+  startTime: dateRangeBound('起始时间'),
+  endTime: dateRangeBound('结束时间'),
 };
 
 // ─── 广告位 ───────────────────────────────────────────────────────────────────

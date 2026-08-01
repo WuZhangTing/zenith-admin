@@ -1,7 +1,7 @@
 // ─── 实例/待办/已办/抄送列表查询与详情（拆分自 workflow-instances.service.ts）───
 import { formatDateTime } from '../../../lib/datetime';
 import { count, countDistinct, eq, and, desc, ilike, or, inArray, sql, type SQL } from 'drizzle-orm';
-import { escapeLike, withPagination } from '../../../lib/where-helpers';
+import { escapeLike, keywordCondition, withPagination } from '../../../lib/where-helpers';
 import { db } from '../../../db';
 import { pageOffset } from '../../../lib/pagination';
 import { workflowInstances, workflowTasks, workflowDefinitions, workflowCategories, users } from '../../../db/schema';
@@ -259,16 +259,13 @@ export async function listRelationOptions(query: { definitionId?: number; keywor
   const tc = tenantCondition(workflowInstances, user);
   const participantSub = db.select({ id: workflowTasks.instanceId }).from(workflowTasks)
     .where(eq(workflowTasks.assigneeId, user.userId));
-  const conds = [
+  const conds: (SQL | undefined)[] = [
     sql`${workflowInstances.status} <> 'draft'`,
     or(eq(workflowInstances.initiatorId, user.userId), inArray(workflowInstances.id, participantSub))!,
   ];
   if (tc) conds.push(tc);
   if (definitionId) conds.push(eq(workflowInstances.definitionId, definitionId));
-  if (keyword) {
-    const v = `%${escapeLike(keyword)}%`;
-    conds.push(or(ilike(workflowInstances.title, v), ilike(workflowInstances.serialNo, v))!);
-  }
+  conds.push(keywordCondition(keyword, [workflowInstances.title, workflowInstances.serialNo], 'ilike'));
   const rows = await db.select({ inst: workflowInstances, definitionName: workflowDefinitions.name })
     .from(workflowInstances)
     .leftJoin(workflowDefinitions, eq(workflowInstances.definitionId, workflowDefinitions.id))
@@ -328,10 +325,7 @@ export async function listAllInstances(query: { page?: number; pageSize?: number
   });
   if (scopeCond) conditions.push(scopeCond);
   if (status) conditions.push(eq(workflowInstances.status, status as InstanceStatus));
-  if (keyword) {
-    const likeValue = `%${escapeLike(keyword)}%`;
-    conditions.push(or(ilike(workflowInstances.title, likeValue), ilike(workflowDefinitions.name, likeValue)));
-  }
+  conditions.push(keywordCondition(keyword, [workflowInstances.title, workflowDefinitions.name], 'ilike'));
   if (categoryId !== undefined) conditions.push(eq(workflowDefinitions.categoryId, categoryId));
   if (definitionId !== undefined) conditions.push(eq(workflowInstances.definitionId, definitionId));
   if (initiatorKeyword) conditions.push(ilike(users.nickname, `%${escapeLike(initiatorKeyword)}%`));

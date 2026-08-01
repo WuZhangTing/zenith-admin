@@ -3,14 +3,14 @@
  * 监听支付/退款成功事件自动记账（收款 in / 退款 out / 手续费 fee），
  * 提供资金维度的统一流水列表与汇总（区别于订单维度）。
  */
-import { and, desc, eq, gte, like, lte, sql } from 'drizzle-orm';
+import { and, desc, eq, like, sql } from 'drizzle-orm';
 import { randomInt } from 'node:crypto';
 import { db } from '../../db';
 import { paymentLedgerEntries, type PaymentLedgerEntryRow } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
-import { formatDateTime, parseDateTimeInput } from '../../lib/datetime';
+import { dateRangeConditions, escapeLike, mergeWhere, withPagination } from '../../lib/where-helpers';
+import { formatDateTime } from '../../lib/datetime';
 import { paymentEventBus } from '../../lib/payment-event-bus';
 import { applyLedgerToAccount } from './payment-account.service';
 import logger from '../../lib/logger';
@@ -99,10 +99,7 @@ function buildLedgerWhere(q: ListLedgerQuery) {
   if (q.direction) conds.push(eq(paymentLedgerEntries.direction, q.direction));
   if (q.type) conds.push(eq(paymentLedgerEntries.type, q.type));
   if (q.channel) conds.push(eq(paymentLedgerEntries.channel, q.channel));
-  const start = parseDateTimeInput(q.startTime);
-  const end = parseDateTimeInput(q.endTime);
-  if (start) conds.push(gte(paymentLedgerEntries.createdAt, start));
-  if (end) conds.push(lte(paymentLedgerEntries.createdAt, end));
+  conds.push(...dateRangeConditions(paymentLedgerEntries.createdAt, q.startTime, q.endTime));
   return mergeWhere(conds.length ? and(...conds) : undefined, tenantCondition(paymentLedgerEntries, currentUser()));
 }
 

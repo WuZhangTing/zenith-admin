@@ -4,7 +4,7 @@
  * - publishedSnapshot = 已发布只读快照（查看/公开/嵌入默认读取）
  */
 import { HTTPException } from 'hono/http-exception';
-import { and, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../../db';
 import { config } from '../../config';
 import {
@@ -13,7 +13,7 @@ import {
   reportDashboardFavorites,
 } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUserOrNull, hasPermission } from '../../lib/context';
@@ -224,10 +224,7 @@ export async function listDashboards(query: {
   if (accessibleIds) conds.push(inArray(reportDashboards.id, accessibleIds));
   if (folderId) conds.push(eq(reportDashboards.folderId, folderId));
   if (ownerId) conds.push(eq(reportDashboards.ownerId, ownerId));
-  if (keyword) {
-    const kw = `%${escapeLike(keyword)}%`;
-    conds.push(or(ilike(reportDashboards.name, kw), ilike(reportDashboards.remark, kw)));
-  }
+  conds.push(keywordCondition(keyword, [reportDashboards.name, reportDashboards.remark], 'ilike'));
   if (status === 'enabled' || status === 'disabled') conds.push(eq(reportDashboards.status, status));
   if (lifecycleStatus) conds.push(eq(reportDashboards.lifecycleStatus, lifecycleStatus));
   if (categoryId) conds.push(eq(reportDashboards.categoryId, categoryId));
@@ -285,10 +282,7 @@ export async function listDashboardLookup(query: {
   const accessibleIds = await listAccessibleReportResourceIds('dashboard');
   if (accessibleIds && accessibleIds.length === 0) return [];
   if (accessibleIds) conds.push(inArray(reportDashboards.id, accessibleIds));
-  if (keyword) {
-    const kw = `%${escapeLike(keyword)}%`;
-    conds.push(or(ilike(reportDashboards.name, kw), ilike(reportDashboards.remark, kw)));
-  }
+  conds.push(keywordCondition(keyword, [reportDashboards.name, reportDashboards.remark], 'ilike'));
   if (status) conds.push(eq(reportDashboards.status, status));
   if (excludeId) conds.push(sql`${reportDashboards.id} <> ${excludeId}`);
   const where = conds.length ? and(...conds) : undefined;

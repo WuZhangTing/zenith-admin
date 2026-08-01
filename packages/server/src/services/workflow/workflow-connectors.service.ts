@@ -4,14 +4,14 @@
  * - invokeConnector：运行时调用（http-client 重试/超时 + 熔断），供未来触发器/Webhook 节点复用
  * - testConnector：一键测试探测
  */
-import { and, desc, eq, gte, ilike, or, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { workflowConnectors, workflowConnectorInvocations, smsConfigs, smsTemplates } from '../../db/schema';
 import type { WorkflowConnectorRow } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
-import { escapeLike } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
@@ -82,14 +82,11 @@ async function ensureConnector(id: number): Promise<WorkflowConnectorRow> {
 export async function listWorkflowConnectors(query: { page?: number; pageSize?: number; keyword?: string; type?: WorkflowConnectorType; status?: 'enabled' | 'disabled' }) {
   const { page = 1, pageSize = 10, keyword, type, status } = query;
   const tc = tenantCondition(workflowConnectors, currentUser());
-  const conds: SQL[] = [];
+  const conds: (SQL | undefined)[] = [];
   if (tc) conds.push(tc);
   if (type) conds.push(eq(workflowConnectors.type, type));
   if (status) conds.push(eq(workflowConnectors.status, status));
-  if (keyword?.trim()) {
-    const kw = `%${escapeLike(keyword.trim())}%`;
-    conds.push(or(ilike(workflowConnectors.name, kw), ilike(workflowConnectors.code, kw))!);
-  }
+  conds.push(keywordCondition(keyword, [workflowConnectors.name, workflowConnectors.code], 'ilike'));
   const where = conds.length ? and(...conds) : undefined;
   const [total, rows] = await Promise.all([
     db.$count(workflowConnectors, where),

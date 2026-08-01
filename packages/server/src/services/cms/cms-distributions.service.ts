@@ -32,7 +32,7 @@ import {
 } from '../../db/schema';
 import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike } from '../../lib/where-helpers';
+import { escapeLike, keywordCondition } from '../../lib/where-helpers';
 import logger from '../../lib/logger';
 import {
   currentUserOrNull,
@@ -362,9 +362,9 @@ export async function deleteCmsDistributionRule(id: number): Promise<void> {
   });
 }
 
-function sourceConditions(rule: CmsDistributionRuleRow, afterId?: number): SQL[] {
+function sourceConditions(rule: CmsDistributionRuleRow, afterId?: number): (SQL | undefined)[] {
   const filters = normalizedFilters(rule.filters);
-  const conditions: SQL[] = [
+  const conditions: (SQL | undefined)[] = [
     eq(cmsContents.siteId, rule.sourceSiteId),
     eq(cmsContents.status, 'published'),
     isNull(cmsContents.deletedAt),
@@ -373,10 +373,7 @@ function sourceConditions(rule: CmsDistributionRuleRow, afterId?: number): SQL[]
   ];
   if (rule.sourceChannelId != null) conditions.push(eq(cmsContents.channelId, rule.sourceChannelId));
   if (filters.contentTypes.length) conditions.push(inArray(cmsContents.contentType, filters.contentTypes));
-  if (filters.keyword) {
-    const keyword = `%${escapeLike(filters.keyword)}%`;
-    conditions.push(or(ilike(cmsContents.title, keyword), ilike(cmsContents.summary, keyword))!);
-  }
+  conditions.push(keywordCondition(filters.keyword, [cmsContents.title, cmsContents.summary], 'ilike'));
 
   const start = parseDateRangeStart(filters.publishedFrom ?? undefined);
   const end = parseDateRangeEnd(filters.publishedTo ?? undefined);
@@ -978,8 +975,8 @@ export interface ListCmsDistributionRunsQuery {
 
 export async function buildCmsDistributionRunConditions(
   query: Omit<ListCmsDistributionRunsQuery, 'page' | 'pageSize'>,
-): Promise<SQL[]> {
-  const conditions: SQL[] = [eq(asyncTasks.taskType, DISTRIBUTION_TASK_TYPE)];
+): Promise<(SQL | undefined)[]> {
+  const conditions: (SQL | undefined)[] = [eq(asyncTasks.taskType, DISTRIBUTION_TASK_TYPE)];
   const accessible = await getAccessibleSiteIds();
   if (accessible !== null) {
     if (!accessible.length) conditions.push(sql`false`);

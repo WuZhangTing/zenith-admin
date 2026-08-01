@@ -1,11 +1,11 @@
-import { eq, ilike, or, and, sql } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { dataMaskConfigs } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { applyMask } from '../../lib/masking';
-import { escapeLike, withPagination } from '../../lib/where-helpers';
+import { keywordCondition, withPagination } from '../../lib/where-helpers';
 import type { DataMaskConfigRow } from '../../db/schema';
 import type { DataMaskConfig, CustomMaskRule, MaskType, CreateDataMaskConfigInput, UpdateDataMaskConfigInput, SensitiveField } from '@zenith/shared/platform';
 
@@ -60,9 +60,7 @@ export function mapDataMaskConfig(row: DataMaskConfigRow): DataMaskConfig {
 export async function listDataMaskConfigs(query: { page?: number; pageSize?: number; keyword?: string; maskType?: MaskType; enabled?: string } = {}) {
   const { page = 1, pageSize = 20, keyword, maskType, enabled } = query;
   const conditions = [];
-  if (keyword) {
-    conditions.push(or(ilike(dataMaskConfigs.entity, `%${escapeLike(keyword)}%`), ilike(dataMaskConfigs.field, `%${escapeLike(keyword)}%`), ilike(dataMaskConfigs.label, `%${escapeLike(keyword)}%`))!);
-  }
+  conditions.push(keywordCondition(keyword, [dataMaskConfigs.entity, dataMaskConfigs.field, dataMaskConfigs.label], 'ilike'));
   if (maskType) conditions.push(eq(dataMaskConfigs.maskType, maskType));
   if (enabled !== undefined) conditions.push(eq(dataMaskConfigs.enabled, enabled === 'true'));
   const where = conditions.length > 0 ? and(...conditions) : undefined;

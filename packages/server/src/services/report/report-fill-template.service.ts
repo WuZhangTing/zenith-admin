@@ -1,5 +1,5 @@
 import { HTTPException } from 'hono/http-exception';
-import { and, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../../db';
 import { reportFillRecords, reportFillTemplates, workflowDefinitions } from '../../db/schema';
 import { currentUser } from '../../lib/context';
@@ -7,7 +7,7 @@ import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { tenantCondition } from '../../lib/tenant';
-import { escapeLike } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 import type { CloneReportFillTemplateInput, CreateReportFillTemplateInput, ReportFillTemplate, ReportFillTemplateLifecycleActionInput, UpdateReportFillTemplateInput } from '@zenith/shared/report';
 import { reportCreateTenantId, reportScopedWhere, reportTenantScope } from './report-access';
 import {
@@ -86,10 +86,7 @@ export async function listReportFillTemplates(query: {
   const accessibleIds = await listAccessibleReportResourceIds('fill_template');
   if (accessibleIds && accessibleIds.length === 0) return { list: [], total: 0, page, pageSize };
   if (accessibleIds) conditions.push(inArray(reportFillTemplates.id, accessibleIds));
-  if (query.keyword) {
-    const value = `%${escapeLike(query.keyword)}%`;
-    conditions.push(or(ilike(reportFillTemplates.name, value), ilike(reportFillTemplates.code, value)));
-  }
+  conditions.push(keywordCondition(query.keyword, [reportFillTemplates.name, reportFillTemplates.code], 'ilike'));
   if (query.status) conditions.push(eq(reportFillTemplates.status, query.status));
   if (query.ownerId) conditions.push(eq(reportFillTemplates.ownerId, query.ownerId));
   if (query.folderId) conditions.push(eq(reportFillTemplates.folderId, query.folderId));

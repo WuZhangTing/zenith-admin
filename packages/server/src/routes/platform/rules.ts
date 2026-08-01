@@ -2,10 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { sensitiveRateLimit } from '../../middleware/rate-limit';
-import {
-  PaginationQuery, jsonContent, validationHook, commonErrorResponses,
-  ok, okPaginated, okMsg, IdParam, okBody, BatchIdsBody,
-} from '../../lib/openapi-schemas';
+import { BatchIdsBody, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { DecisionTableDTO, DecisionTableVersionDTO, RuleEvaluateResultDTO, RuleVersionDiffDTO, RuleTestCaseDTO, RuleTestRunResultDTO, RuleExecutionDTO, RuleUsageDTO, RuleTableStatsDTO, RuleShadowRunResultDTO } from '../../lib/openapi-dtos';
 import { createDecisionTableSchema, updateDecisionTableSchema, createRuleTestCaseSchema, updateRuleTestCaseSchema, toggleDecisionTableSchema, reviewDecisionTableSchema } from '@zenith/shared/rules';
 import {
@@ -305,8 +302,8 @@ const executionsRoute = defineOpenAPIRoute({
         ruleKey: z.string().optional(),
         source: z.enum(['runtime', 'manual', 'test']).optional(),
         matched: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
-        dateStart: z.string().optional(),
-        dateEnd: z.string().optional(),
+        dateStart: dateRangeBound('起始日期'),
+        dateEnd: dateRangeBound('结束日期'),
       }),
     },
     responses: { ...commonErrorResponses, ...okPaginated(RuleExecutionDTO, 'ok') },

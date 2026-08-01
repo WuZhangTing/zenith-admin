@@ -2,11 +2,9 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { acknowledgeReportDeliveryRunSchema } from '@zenith/shared/report';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
-import {
-  PaginationQuery, commonErrorResponses, jsonContent, ok, okBody, okPaginated, validationHook, IdParam, ErrorResponse,
-} from '../../lib/openapi-schemas';
+import { ErrorResponse, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { ReportDeliveryRunDTO } from '../../lib/openapi-dtos';
-import { parseDateTimeInput } from '../../lib/datetime';
+import { parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { acknowledgeAlertDeliveryRun, listAccessibleDeliveryRuns } from '../../services/report/report-delivery.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -26,8 +24,8 @@ const listRoute = defineOpenAPIRoute({
         alertRuleId: z.coerce.number().int().positive().optional(),
         status: z.enum(['pending', 'running', 'success', 'partial', 'failed', 'cancelled']).optional(),
         triggerType: z.enum(['trigger', 'recover', 'manual', 'scheduled']).optional(),
-        startAt: z.string().optional(),
-        endAt: z.string().optional(),
+        startAt: dateRangeBound('起始时间'),
+        endAt: dateRangeBound('结束时间'),
         includeAttempts: z.coerce.boolean().optional(),
       }),
     },
@@ -37,8 +35,8 @@ const listRoute = defineOpenAPIRoute({
     const query = c.req.valid('query');
     return c.json(okBody(await listAccessibleDeliveryRuns({
       ...query,
-      startAt: parseDateTimeInput(query.startAt) ?? undefined,
-      endAt: parseDateTimeInput(query.endAt) ?? undefined,
+      startAt: parseDateRangeStart(query.startAt) ?? undefined,
+      endAt: parseDateRangeEnd(query.endAt) ?? undefined,
     })), 200);
   },
 });

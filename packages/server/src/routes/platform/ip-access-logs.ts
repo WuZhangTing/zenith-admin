@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
-import { PaginationQuery, validationHook, commonErrorResponses, okPaginated, okBody } from '../../lib/openapi-schemas';
+import { PaginationQuery, commonErrorResponses, dateRangeBound, okBody, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { IpAccessLogDTO } from '../../lib/openapi-dtos';
 import { listIpAccessLogs } from '../../services/platform/ip-access-logs.service';
 
@@ -16,8 +16,8 @@ const listRoute = defineOpenAPIRoute({
       query: PaginationQuery.extend({
         ip: z.string().optional(),
         blockType: z.enum(['blacklist', 'whitelist']).optional(),
-        startTime: z.string().optional(),
-        endTime: z.string().optional(),
+        startTime: dateRangeBound('起始时间'),
+        endTime: dateRangeBound('结束时间'),
       }),
     },
     responses: { ...okPaginated(IpAccessLogDTO, 'IP 拦截日志列表'), ...commonErrorResponses },

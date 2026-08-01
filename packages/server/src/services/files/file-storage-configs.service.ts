@@ -3,7 +3,7 @@ import type { DbExecutor } from '../../db/types';
 import type { createFileStorageConfigSchema } from '@zenith/shared/platform';
 import { FILE_OBJECT_ACL_SUPPORT } from '@zenith/shared/platform';
 import type { z } from '@hono/zod-openapi';
-import { formatDateTime, parseDateTimeInput } from '../../lib/datetime';
+import { formatDateTime } from '../../lib/datetime';
 import { randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { uploadObjectByConfig, deleteObjectByConfig } from '../../lib/file-storage';
@@ -149,9 +149,9 @@ export async function clearDefaultFlag(executor: DbExecutor) {
 }
 
 // ─── 业务入口 ─────────────────────────────────────────────────────────────────
-import { asc, desc, eq, and, gte, lte } from 'drizzle-orm';
+import { asc, desc, eq, and } from 'drizzle-orm';
 import { db } from '../../db';
-import { withPagination } from '../../lib/where-helpers';
+import { dateRangeConditions, withPagination } from '../../lib/where-helpers';
 import { HTTPException } from 'hono/http-exception';
 
 export interface ListFileStorageConfigsQuery {
@@ -166,10 +166,7 @@ export async function listFileStorageConfigs(q: ListFileStorageConfigsQuery) {
   const { status, startTime, endTime, page = 1, pageSize = 10 } = q;
   const conditions = [];
   if (status === 'enabled' || status === 'disabled') conditions.push(eq(fileStorageConfigs.status, status));
-  const parsedStartTime = parseDateTimeInput(startTime);
-  const parsedEndTime = parseDateTimeInput(endTime);
-  if (parsedStartTime) conditions.push(gte(fileStorageConfigs.updatedAt, parsedStartTime));
-  if (parsedEndTime) conditions.push(lte(fileStorageConfigs.updatedAt, parsedEndTime));
+  conditions.push(...dateRangeConditions(fileStorageConfigs.updatedAt, startTime, endTime));
   const where = and(...conditions);
   const [total, list] = await Promise.all([
     db.$count(fileStorageConfigs, where),

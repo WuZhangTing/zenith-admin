@@ -7,7 +7,7 @@ import { createPaymentContractSchema, createPaymentDeductPlanSchema, updatePayme
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';
-import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody } from '../../lib/openapi-schemas';
+import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { PaymentContractDTO, PaymentDeductPlanDTO, PaymentDeductResultDTO } from '../../lib/openapi-dtos';
 import {
   adminCreateContract,
@@ -127,8 +127,8 @@ const listContractsRoute = defineOpenAPIRoute({
         channel: channelEnum.optional(),
         planId: z.coerce.number().int().positive().optional(),
         bizType: z.string().optional(),
-        startTime: z.string().optional(),
-        endTime: z.string().optional(),
+        startTime: dateRangeBound('起始时间'),
+        endTime: dateRangeBound('结束时间'),
       }),
     },
     responses: { ...okPaginated(PaymentContractDTO, '签约协议列表'), ...commonErrorResponses },

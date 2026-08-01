@@ -36,7 +36,7 @@ const columns: ExportColumn<PublishArtifactExportRow>[] = [
   { key: 'createdAt', header: '记录时间', width: 22, type: 'datetime' },
 ];
 
-async function conditions(query: Record<string, unknown>): Promise<SQL[]> {
+async function conditions(query: Record<string, unknown>): Promise<(SQL | undefined)[]> {
   const siteId = Number(query.siteId);
   const taskId = Number(query.taskId);
   const targetType = typeof query.targetType === 'string' && query.targetType in CMS_PUBLISH_TARGET_TYPE_LABELS
@@ -48,7 +48,7 @@ async function conditions(query: Record<string, unknown>): Promise<SQL[]> {
   const taskConditions = await buildCmsPublishingConditions({
     siteId: Number.isInteger(siteId) && siteId > 0 ? siteId : undefined,
   });
-  const result: SQL[] = [...taskConditions, eq(cmsPublishArtifacts.taskId, asyncTasks.id)];
+  const result: (SQL | undefined)[] = [...taskConditions, eq(cmsPublishArtifacts.taskId, asyncTasks.id)];
   if (Number.isInteger(taskId) && taskId > 0) result.push(eq(cmsPublishArtifacts.taskId, taskId));
   if (targetType) result.push(eq(cmsPublishArtifacts.targetType, targetType));
   if (status) result.push(eq(cmsPublishArtifacts.status, status));

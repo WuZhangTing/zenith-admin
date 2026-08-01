@@ -2,19 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { currentUser } from '../../lib/context';
-import {
-  validationHook,
-  commonErrorResponses,
-  ok,
-  okPaginated,
-  okMsg,
-  okBody,
-  jsonContent,
-  okFile,
-  fileBody,
-  IdParam,
-  PaginationQuery,
-} from '../../lib/openapi-schemas';
+import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, fileBody, jsonContent, ok, okBody, okFile, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
 import { TerminalRecordingDTO, TerminalRecordingDetailDTO } from '../../lib/openapi-dtos';
 import {
@@ -43,8 +31,8 @@ const CreateRecordingBody = z.object({
 const RecordingListQuery = PaginationQuery.extend({
   keyword: z.string().optional(),
   operatorUserId: z.coerce.number().int().positive().optional(),
-  startTime: z.string().optional(),
-  endTime: z.string().optional(),
+  startTime: dateRangeBound('起始时间'),
+  endTime: dateRangeBound('结束时间'),
 });
 
 const listRoute = defineOpenAPIRoute({

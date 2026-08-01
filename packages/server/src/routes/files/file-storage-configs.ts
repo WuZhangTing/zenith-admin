@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { createFileStorageConfigSchema, updateFileStorageConfigSchema } from '@zenith/shared/platform';
-import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody } from '../../lib/openapi-schemas';
+import { ErrorResponse, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { FileStorageConfigDTO } from '../../lib/openapi-dtos';
 import {
   listFileStorageConfigs,
@@ -24,7 +24,7 @@ const listRoute = defineOpenAPIRoute({
     method: 'get', path: '/', tags: ['FileStorageConfigs'], summary: '存储配置列表',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'system:file:config' })] as const,
-    request: { query: PaginationQuery.extend({ status: z.string().optional(), startTime: z.string().optional(), endTime: z.string().optional() }) },
+    request: { query: PaginationQuery.extend({ status: z.string().optional(), startTime: dateRangeBound('起始时间'), endTime: dateRangeBound('结束时间') }) },
     responses: { ...commonErrorResponses, ...okPaginated(FileStorageConfigDTO, 'ok') },
   }),
   handler: async (c) => c.json(okBody(await listFileStorageConfigs(c.req.valid('query'))), 200),

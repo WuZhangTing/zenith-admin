@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { Client, InvalidCredentialsError, type Entry } from 'ldapts';
 import { SAML, ValidateInResponseTo, type CacheItem, type CacheProvider, type Profile } from '@node-saml/node-saml';
-import { and, desc, eq, ilike, isNull, ne, or } from 'drizzle-orm';
+import { and, desc, eq, isNull, ne, or } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { CreateTenantIdentityProviderInput, IdentityProviderConnectionTestResult, IdentityProviderAttributeMapping, IdentityProviderSyncResult, IdentityProviderType, LdapDirectoryUser, UpdateTenantIdentityProviderInput } from '@zenith/shared/identity';
 import { config } from '../../config';
@@ -10,7 +10,7 @@ import { db } from '../../db';
 import { identityProviderSyncLogs, roles, tenantIdentityProviders, tenants, userIdentityAccounts, userRoles, users } from '../../db/schema';
 import redis from '../../lib/redis';
 import { formatDateTime } from '../../lib/datetime';
-import { escapeLike } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { httpGet, httpPost, HttpClientError } from '../../lib/http-client';
@@ -232,10 +232,7 @@ export interface ListIdentityProvidersQuery {
 export async function listIdentityProviders(query: ListIdentityProvidersQuery) {
   const { page = 1, pageSize = 10, keyword, tenantId, type, status } = query;
   const conditions = [];
-  if (keyword) {
-    const kw = `%${escapeLike(keyword)}%`;
-    conditions.push(or(ilike(tenantIdentityProviders.name, kw), ilike(tenantIdentityProviders.code, kw)));
-  }
+  conditions.push(keywordCondition(keyword, [tenantIdentityProviders.name, tenantIdentityProviders.code], 'ilike'));
   if (tenantId) conditions.push(eq(tenantIdentityProviders.tenantId, tenantId));
   if (type) conditions.push(eq(tenantIdentityProviders.type, type));
   if (status) conditions.push(eq(tenantIdentityProviders.status, status));

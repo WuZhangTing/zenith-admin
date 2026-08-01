@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { createRoleSchema, updateRoleSchema, assignRoleMenusSchema, assignRoleUsersSchema } from '@zenith/shared/identity';
-import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, conflictResponse, ok, okPaginated, okMsg, IdParam, okBody } from '../../lib/openapi-schemas';
+import { IdParam, PaginationQuery, commonErrorResponses, conflictResponse, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { RoleDTO, UserDTO } from '../../lib/openapi-dtos';
 import {
   listAllRoles,
@@ -39,8 +39,8 @@ const listRouteDef = defineOpenAPIRoute({
       query: PaginationQuery.extend({
         keyword: z.string().optional(),
         status: z.enum(['enabled', 'disabled']).optional(),
-        startTime: z.string().optional(),
-        endTime: z.string().optional(),
+        startTime: dateRangeBound('起始时间'),
+        endTime: dateRangeBound('结束时间'),
       }),
     },
     responses: { ...commonErrorResponses, ...okPaginated(RoleDTO, '角色列表') },

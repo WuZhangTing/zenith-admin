@@ -1,10 +1,10 @@
 import { count, desc, like, and, gte, lte, sql, eq } from 'drizzle-orm';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { dateRangeConditions, escapeLike, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { operationLogs } from '../../db/schema';
 import { tenantCondition } from '../../lib/tenant';
 import { currentUser } from '../../lib/context';
-import { formatDateTime, formatDate, parseDateTimeInput } from '../../lib/datetime';
+import { formatDateTime, formatDate } from '../../lib/datetime';
 
 export interface ListOperationLogsQuery {
   page?: number;
@@ -33,10 +33,7 @@ export function buildWhere(q: ListOperationLogsQuery) {
   if (q.ip) conditions.push(like(operationLogs.ip, `%${escapeLike(q.ip)}%`));
   if (q.status === 'success') conditions.push(and(gte(operationLogs.responseCode, 200), lte(operationLogs.responseCode, 399)));
   if (q.status === 'fail') conditions.push(gte(operationLogs.responseCode, 400));
-  const startTime = parseDateTimeInput(q.startTime);
-  const endTime = parseDateTimeInput(q.endTime);
-  if (startTime) conditions.push(gte(operationLogs.createdAt, startTime));
-  if (endTime) conditions.push(lte(operationLogs.createdAt, endTime));
+  conditions.push(...dateRangeConditions(operationLogs.createdAt, q.startTime, q.endTime));
   if (q.minDurationMs != null) conditions.push(gte(operationLogs.durationMs, q.minDurationMs));
   if (q.maxDurationMs != null) conditions.push(lte(operationLogs.durationMs, q.maxDurationMs));
   const where = and(...conditions);

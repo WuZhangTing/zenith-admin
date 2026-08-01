@@ -1,13 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
-import {
-  PaginationQuery,
-  okBody,
-  okPaginated,
-  validationHook,
-  commonErrorResponses,
-} from '../../lib/openapi-schemas';
+import { PaginationQuery, commonErrorResponses, dateRangeBound, okBody, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { MemberCheckinDTO } from '../../lib/openapi-dtos';
 import { listMemberCheckins } from '../../services/member/member-checkin.service';
 
@@ -15,8 +9,8 @@ const memberCheckinsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
 const querySchema = PaginationQuery.extend({
   memberKeyword: z.string().optional(),
-  dateStart: z.string().optional().openapi({ param: { name: 'dateStart', in: 'query' }, example: '2026-06-01' }),
-  dateEnd: z.string().optional().openapi({ param: { name: 'dateEnd', in: 'query' }, example: '2026-06-30' }),
+  dateStart: dateRangeBound('起始日期').openapi({ param: { name: 'dateStart', in: 'query' }, example: '2026-06-01' }),
+  dateEnd: dateRangeBound('结束日期').openapi({ param: { name: 'dateEnd', in: 'query' }, example: '2026-06-30' }),
 });
 
 const listRoute = defineOpenAPIRoute({

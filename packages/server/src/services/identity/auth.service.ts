@@ -1,12 +1,12 @@
-import { and, desc, eq, gt, gte, isNull, like, lte, or } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull, like, or } from 'drizzle-orm';
 import { db } from '../../db';
 import { users, loginLogs, tenants, operationLogs, passwordResetTokens, type UserRow } from '../../db/schema';
 import { signToken, verifyToken } from '../../lib/jwt';
 import { generateTokenId, registerSession, removeSession, checkLoginLock, recordLoginFailure, clearLoginAttempts, getOnlineSessions, forceLogout, getSession } from '../../lib/session-manager';
 import type { JwtPayload } from '../../middleware/auth';
-import { formatDateTime, parseDateTimeInput } from '../../lib/datetime';
+import { formatDateTime } from '../../lib/datetime';
 import { parseUserAgent } from '../../lib/request-helpers';
-import { escapeLike, withPagination } from '../../lib/where-helpers';
+import { dateRangeConditions, escapeLike, withPagination } from '../../lib/where-helpers';
 import { lookupIpLocation } from '../../lib/ip-location';
 import { getPasswordPolicy, validatePassword } from '../../lib/password-policy';
 import {
@@ -508,10 +508,7 @@ export async function listMyLoginLogs(query: { page?: number; pageSize?: number;
   const conditions = [eq(loginLogs.userId, userId)];
   if (eventType) conditions.push(eq(loginLogs.eventType, eventType));
   if (status) conditions.push(eq(loginLogs.status, status));
-  const parsedStartTime = parseDateTimeInput(startTime);
-  const parsedEndTime = parseDateTimeInput(endTime);
-  if (parsedStartTime) conditions.push(gte(loginLogs.createdAt, parsedStartTime));
-  if (parsedEndTime) conditions.push(lte(loginLogs.createdAt, parsedEndTime));
+  conditions.push(...dateRangeConditions(loginLogs.createdAt, startTime, endTime));
   const where = and(...conditions);
   const [count, rows] = await Promise.all([
     db.$count(loginLogs, where),
@@ -525,10 +522,7 @@ export async function listMyOperationLogs(query: { page?: number; pageSize?: num
   const { page = 1, pageSize = 10, module, startTime, endTime } = query;
   const conditions = [eq(operationLogs.userId, userId)];
   if (module) conditions.push(like(operationLogs.module, `%${escapeLike(module)}%`));
-  const parsedStartTime = parseDateTimeInput(startTime);
-  const parsedEndTime = parseDateTimeInput(endTime);
-  if (parsedStartTime) conditions.push(gte(operationLogs.createdAt, parsedStartTime));
-  if (parsedEndTime) conditions.push(lte(operationLogs.createdAt, parsedEndTime));
+  conditions.push(...dateRangeConditions(operationLogs.createdAt, startTime, endTime));
   const where = and(...conditions);
   const [count, rows] = await Promise.all([
     db.$count(operationLogs, where),
