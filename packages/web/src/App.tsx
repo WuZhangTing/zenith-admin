@@ -61,8 +61,8 @@ const PageLoadingDots = () => (
   </div>
 );
 
-/** 固定路由路径，不通过菜单动态加载 */
-const FIXED_ROUTES = new Set(['/profile', '/announcements', '/inbox', '/system/firewall', '/system/nginx-sites']);
+/** 固定路由路径，不通过菜单动态加载（导出供路由策略回归测试使用） */
+export const FIXED_ROUTES = new Set(['/profile', '/announcements', '/inbox', '/system/firewall', '/system/nginx-sites']);
 
 /**
  * 首页入口：登录后一次性应用「默认首页」偏好。
@@ -141,7 +141,7 @@ return matched ? <ForbiddenPage /> : <NotFoundPage />;
 }
 
 /** 扁平化菜单以便注册路由 */
-function flattenMenus(menus: Menu[]): Menu[] {
+export function flattenMenus(menus: Menu[]): Menu[] {
   const routes: Menu[] = [];
   for (const m of menus) {
     if (m.path && m.component && !FIXED_ROUTES.has(m.path)) {
@@ -172,7 +172,7 @@ function flattenEmbedMenus(menus: Menu[]): Menu[] {
  * 从所有菜单中提取「path → component」映射，用于判断某个路径是否对应一个已存在的页面组件。
  * 这样可以在 catch-all 路由中区分 403（页面存在但无权限）和 404（页面不存在）。
  */
-function buildAllMenuPaths(menus: Menu[]): Map<string, string> {
+export function buildAllMenuPaths(menus: Menu[]): Map<string, string> {
   const map = new Map<string, string>();
   for (const m of menus) {
     if (m.path && m.component && !FIXED_ROUTES.has(m.path)) {
