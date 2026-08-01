@@ -107,12 +107,15 @@ MSW Mock 的详细代码模板见 [crud-mock.md](./references/crud-mock.md)。
 
 **前端：**
 - [ ] 域 hooks 文件已创建（`hooks/queries/xxxs.ts`）：keys 含 `all`/`lists`/`list(params)`/`detail(id)`，列表查询带 `placeholderData: keepPreviousData`
+- [ ] key 结构合规：`all` 是本域自己的根（非整个业务大域根）；独立生命周期的子资源另起命名空间；多变体查询导出 `detailOf(id)`/`dataOf(id)`/`lookupPrefix` 前缀键；静态 lookup 与昂贵派生取数不与列表同前缀
 - [ ] mutation 的 `onSuccess` 按副作用精确失效（写接口与详情同源时 `setQueryData` 回填、删除用 `removeQueries`），**未无条件使用 `xxxKeys.all`**；确需全域失效已在注释写明理由。见 [crud-frontend.md 缓存一致性契约](./references/crud-frontend.md)
+- [ ] 回填前核对过数据形状与可见性：详情脱敏 / 详情多关联数据 / 写接口不回传关联字段 / 列表含聚合字段 → 一律改为失效 `detail(id)`
 - [ ] 域 hooks 配了行为测试：断言实际请求数、进入 fetching 的查询与缓存新鲜度（用 `test-utils/query-harness.ts`），而非 spy 调用了哪个 key
+- [ ] `npm run lint`（web）通过，含 `check-invalidation-baseline.mjs` 广播失效只减不增校验
 - [ ] 收敛后已过一遍消费页面，确认没有原本靠 `.all` 全炸才刷新的列或面板（欠失效比多失效更危险）
 - [ ] 页面无手写 `loading`/`data` state、`fetchXxx` useCallback、初始拉取 useEffect；表格 `loading={listQuery.isFetching}`
 - [ ] 搜索用 draft/submitted 拆分；`handleSearch`/`handleReset` 显式 `invalidateQueries({ queryKey: xxxKeys.lists })`（查询必回源）
-- [ ] 下拉源复用已有共享 lookup hooks（useAllUsers/useDictItems 等），未重复定义
+- [ ] 下拉源复用已有共享 lookup hooks（useAllUsers/useDictItems 等），未重复定义，也未用本域 key 去请求别域资源（藏键会导致静默陈旧）
 - [ ] 页面组件已创建，使用 `SearchToolbar` + `ConfigurableTable`
 - [ ] 搜索项较多的列表页使用 `SearchToolbar` 结构化模式，移动端至少露出一个高频搜索/筛选项（优先关键词；无关键词时选最常用且区分度最高的筛选项，如渠道/类型/作用域）、查询、新增等高频入口，其他筛选进底部筛选抽屉，低频操作进更多菜单
 - [ ] 页面级多 Tab 使用 `page-container page-tabs-page`；每个 `TabPane` 内承载本 tab 的工具栏、表格/空状态/面板，tab 相关操作按钮不要放在 TabBar 外侧

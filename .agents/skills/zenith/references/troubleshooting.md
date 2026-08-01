@@ -181,3 +181,39 @@
 **原因**：ESM 值环导致 TDZ —— 某域的 `validation.ts` 引用了另一域 `validation.ts` 里的常量数组，而后者又反向引用前者，初始化期取到 `undefined`。
 
 **解决**：把被跨域 `z.enum()` 引用的常量数组上移到所属域的 `constants.ts`（枚举 SSOT），`validation.ts` 只做 `z.enum(XXX_TYPES)` 引用。定位环路可用 `npx madge --circular --extensions ts packages/shared/src`，但注意它不区分 `import` 与 `import type`——只有**值**导入构成的环才会导致运行时崩溃，`import type` 形成的环编译后被擦除、无害，可忽略。
+
+---
+
+## 缓存与失效问题
+
+### 问题：`npm run lint`（web）报「mutation 失效粒度回退」
+
+**原因**：`scripts/check-invalidation-baseline.mjs` 在某个域 hooks 文件的 mutation `onSuccess` 里发现了超出基线数量的 `xxxKeys.all` 广播失效。
+
+**解决**：
+
+1. 默认做法是**改代码**：按真实副作用列出受影响的 key（`lists` / `detail(id)` / 子键 / 前缀键），而不是广播整域。规范见 [crud-frontend.md 缓存一致性契约](./crud-frontend.md)
+2. 确属合法广播（批量覆盖、切租户、全量导入）：在 `onSuccess` 注释写明理由，再执行 `node packages/web/scripts/check-invalidation-baseline.mjs --update`
+3. 收敛完一个域后也要 `--update`，把该域额度降下来锁住成果
+
+### 问题：操作成功后页面数据没刷新
+
+**原因**：欠失效 —— 被改动的状态有已挂载的查询在读，但 `onSuccess` 没覆盖到它。典型场景：
+
+- 命令型接口只返回一句提示，实际却改写了 `lastRun`、写了执行日志、变更了概览统计
+- 子资源写入（分配成员/角色）改变了列表的派生列（`userCount` / `userPreview`），却只失效了子键
+- 下拉源以本域 key 请求了别域资源（藏键），所有者域改动时无人失效它
+
+**解决**：按「有没有已挂载的查询读了这次被改动的状态」逐一补齐失效；藏键改为复用所有者域的共享 lookup hook。失效**未挂载**的缓存代价接近零，宁可多列几个 key，也不要漏。
+
+### 问题：改一条数据，整屏查询全部重拉
+
+**原因**：失效面过大。常见于 `xxxKeys.all` 指向整个业务大域的根、静态 lookup 与列表同前缀、昂贵派生取数（看板数据、聚合分析）与列表同根。
+
+**解决**：按 [crud-frontend.md 的 key 结构设计](./crud-frontend.md#key-结构设计)重新划分命名空间，并把 `onSuccess` 收敛到具体前缀键；用 `test-utils/query-harness.ts` 的 `observeFetches` 断言实际进入 fetching 的查询数量。
+
+### 问题：保存后详情显示异常（菜单勾选被清空 / 出现不该显示的明文字段）
+
+**原因**：`setQueryData(detail(id), saved)` 回填了与详情接口**形状或可见性不一致**的写接口响应。
+
+**解决**：改为 `invalidateQueries({ queryKey: xxxKeys.detail(id) })`。只有写接口与详情接口同源（服务端同一个 `mapXxx`）才可回填；详情做了脱敏、多出关联数据、写接口不回传编辑过的关联字段、列表含聚合字段这四种情形一律不得回填。

@@ -16,7 +16,7 @@
 核心约定：
 
 1. queryFn 统一 `request.get<T>(url).then(unwrap)`；`unwrap` 在 `code !== 0` 时抛 `ApiError`（request 层已自动 Toast，调用方无需重复提示）。
-2. 每个域文件导出 keys 常量对象，必须包含 `all` / `lists` / `list(params)` / `detail(id)`。
+2. 每个域文件导出 keys 常量对象，必须包含 `all` / `lists` / `list(params)` / `detail(id)`；key 的树形结构按下方[「key 结构设计」](#key-结构设计)约束。
 3. 分页列表查询必须 `placeholderData: keepPreviousData`（翻页不闪白屏）。
 4. **查询/重置必回源**：`handleSearch` / `handleReset` 除更新参数外必须显式 `invalidateQueries({ queryKey: xxxKeys.lists })` —— 条件未变化时 query key 不变，不失效则 staleTime 内不发请求，而本系统「查询」按钮兼具刷新语义。
 5. **mutation 按副作用精确失效**，`onSuccess` 只碰真正受影响的 key；成功 Toast 留在页面代码。判据是「**有没有已挂载的查询读了这次被改动的状态**」，而不是接口像不像命令。详见下方[「缓存一致性契约」](#缓存一致性契约必读)。
@@ -52,9 +52,29 @@
 
 - **一律替换而非追加**：`xxxKeys.all` 是 `xxxKeys.detail(id)` 的前缀，写成 `.all` 后再补 `.detail(id)` 属于空转。
 - **删除用 `removeQueries` 而非 `invalidateQueries`**：实体已不存在，失效会让仍缓存的详情去请求一个必然 404 的资源。
-- **回填前先确认数据形状**：只有写接口与详情接口同源时才能 `setQueryData`。若列表接口额外注入了聚合字段（如 `userCount` / `userPreview`），那是列表独有的，不要拿写接口响应去覆盖列表缓存。
+- **回填前先确认数据形状与可见性**：只有写接口与详情接口同源（服务端同一个 `mapXxx`）时才能 `setQueryData`。以下四种情况**必须**改为失效 `detail(id)`：
+  - 详情接口按查看者**脱敏**：用户域写接口返回 `mapUser`（明文），详情走 `mapUserWithMask`（按角色脱敏），回填会把未脱敏的手机号/邮箱写进本不该展示它们的界面；
+  - 详情比写接口**多出关联数据**：如公告的收件人、附件；
+  - 写接口**不回传**表单编辑过的关联字段：如角色写接口不带 `menuIds`，回填会清空菜单勾选；
+  - 列表/树额外注入了**聚合字段**：如部门树、`userCount` / `userPreview`，那是列表独有的，不要拿写接口响应覆盖列表缓存。
 - **改完必须过一遍消费页面**：确认没有「原本靠 `.all` 全炸才刷新」的列或面板。欠失效（陈旧 UI）比多失效更危险。
 - **本条约束只针对 mutation 的 `onSuccess`**，与上面第 4 条「查询/重置必回源」互不冲突。
+
+### key 结构设计
+
+key 的树形结构直接决定失效的连坐面，按「哪些数据应当被同一个意图一起打掉」分组：
+
+- **`all` 只能是本域自己的根**：写 `['report','dashboards']`，不是 `['report']`。`all` 若指向整个业务大域的根，域内任何一次广播都会波及同域其余十几个 key factory。
+- **独立生命周期的子资源另起命名空间**：群成员写成 `['chat','group-members',id]`，而不是 `['chat','conversations',id,'members']` —— 后者会让「刷新会话列表」因前缀匹配连带打掉每个会话的成员名单。只有确实随父实体一起失效的子资源才嵌套。
+- **为「意图」导出前缀键**：同一实体存在多变体查询时，用前缀键让一次调用精确覆盖整组，如 `detailOf(id)`（覆盖 auto / draft / published 三种模式的详情）、`dataOf(id)`（某看板的全部取数）、`lookupPrefix`（本域全部下拉源）。既免于在 `onSuccess` 里逐个列举变体，也免于为图省事退回 `.all`。
+- **静态 lookup 与高频写入的数据分处不同前缀**：`staleTime: LOOKUP_STALE_TIME` 的下拉源、数据库元数据（表/字段）、组织架构等长期挂载，一旦与列表同根就会被每次增删改打回源。
+- **昂贵的派生查询单独成键**：一屏可扇出数十个数据集请求的看板取数、答卷聚合分析（stats / cross / trend）等，不可与列表共享前缀。
+
+### 下拉源必须归属所有者域
+
+**禁止**用本域的 key 去拉别的域的资源（例如以 `announcementKeys.recipientOptions` 为键请求 `/api/roles/all`）。这类「藏键」在所有者域（角色）增删改时没有任何来源会失效它，界面会静默显示旧列表。
+
+一律复用所有者域导出的共享 lookup hook（`useAllRoles` / `useFlatDepartments` / `useAllUsers` / `useAllPositions` / `useDictItems` 等）；需要组合成特定选项结构时，在本域 hook 里对这些 query 的结果做 `useMemo` 派生，而不是另起一份请求。
 
 ### 测试要求
 
@@ -62,11 +82,23 @@
 实际请求数（`ApiRecorder`）、真正进入 fetching 的查询（`observeFetches`）、缓存内容与新鲜度
 （`getCacheEntry` / `isFresh` / `hasCacheEntry`）。
 
-**禁止**只 spy「调用了 `invalidateQueries(某个 key)`」—— 这类断言在「冗余的旧写法」和
-「收敛后被改坏的新写法」两种情况下都会通过，等于没测。
+**禁止**只 spy「调用了 `invalidateQueries(某个 key)`」—— 这类断言在「冗余的广播写法」和
+「被改坏的精确写法」两种情况下都会通过，等于没测。
 
 参考实现：`hooks/queries/positions.ts`（回填 + 子资源）与 `hooks/queries/cron-jobs.ts`
 （命令型副作用 + 静态 lookup 保护），对应测试同名 `.test.tsx`。
+
+### 防回潮护栏
+
+web 包的 `npm run lint` 会执行 `scripts/check-invalidation-baseline.mjs`：扫描 `hooks/queries/*.ts` 中
+**mutation `onSuccess` 作用域内**的 `xxxKeys.all`，与 `scripts/invalidation-baseline.json` 比对，**只减不增**
+（新增广播、或已收敛的域回退，都会让 lint 失败）。
+
+- 扫描只认域 hooks 文件里 `onSuccess` 回调体内的 `.all`：keys 定义本身、页面 `handleSearch` / `handleReset`
+  失效 `lists` 均不在范围内，不会误伤。
+- 确需全域失效（批量覆盖、切租户、全量导入）：先在 `onSuccess` 注释写明理由，再执行
+  `node scripts/check-invalidation-baseline.mjs --update` 更新基线。
+- 收敛完一个域后同样执行 `--update`，把该域额度降下来，锁住成果。
 
 ---
 

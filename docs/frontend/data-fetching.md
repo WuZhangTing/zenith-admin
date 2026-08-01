@@ -2,6 +2,14 @@
 
 前端所有服务端数据（列表、详情、下拉源、统计等）统一由 [TanStack Query v5](https://tanstack.com/query) 管理。`utils/request.ts` 仅作为传输层（token 刷新、错误 Toast 等，见[认证与请求](/frontend/auth-request)），页面不再手写 `loading` / `data` state 与 `fetchXxx` 拉取函数。
 
+::: tip 缓存一致性契约不在本页
+「mutation 该失效哪些 key、key 树怎么设计、什么时候不能回填详情、失效行为怎么测」这类可机械核对的规则，
+统一维护在 [`crud-frontend.md` → 缓存一致性契约](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/crud-frontend.md)，
+硬性约束条目在 [`constraints.md` → 前端层（Step 8）](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints.md)。
+
+本页只讲**分层结构**、**基建 API** 与**页面写法**，规范正文不再复制第二份，避免两处各自漂移。
+:::
+
 ## 分层结构
 
 ```text
@@ -33,7 +41,7 @@ packages/web/src/
 ```ts
 // hooks/queries/xxxs.ts
 export const xxxKeys = {
-  all: ['xxxs'] as const,                                        // 域根前缀（批量覆盖等全域场景才用）
+  all: ['xxxs'] as const,                                        // 本域自己的根（批量覆盖等全域场景才用）
   lists: ['xxxs', 'list'] as const,                              // 列表前缀（查询按钮 / mutation 失效用）
   list: (params: XxxListParams) => ['xxxs', 'list', params] as const,
   detail: (id: number | undefined) => ['xxxs', 'detail', id] as const,
@@ -53,7 +61,7 @@ export function useSaveXxx() {
     mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
       (id === undefined ? request.post<Xxx>('/api/xxxs', values) : request.put<Xxx>(`/api/xxxs/${id}`, values)).then(unwrap),
     onSuccess: (saved) => {
-      qc.setQueryData(xxxKeys.detail(saved.id), saved);           // 写接口与详情同源时回填，省一次回源
+      qc.setQueryData(xxxKeys.detail(saved.id), saved);           // 仅限写接口与详情同源；否则失效 detail(id)
       void qc.invalidateQueries({ queryKey: xxxKeys.lists });     // 失效在 hooks，成功 Toast 在页面
     },
   });
@@ -63,9 +71,9 @@ export function useSaveXxx() {
 规则：
 
 - **params 只放可序列化的 string / number**：`Date` 先用 `formatDateTimeForApi` 转字符串，空字符串筛选项映射为 `undefined`
-- **mutation 在域 hooks 的 `onSuccess` 中按副作用精确失效**，不要无条件失效域根 `xxxKeys.all`。`invalidateQueries` 默认只立即重拉**活跃**查询（未挂载的仅标脏），所以：失效未挂载的缓存代价接近零、该失效的别漏；真正的浪费是打掉那些与本次改动无关却同屏挂载的查询（尤其 5 分钟 staleTime 的 lookup）。删除用 `removeQueries(detail(id))`，避免仍缓存的详情去请求必然 404 的资源。成功 `Toast.success` 写在页面代码；不要额外加错误 Toast（request 层已统一弹出）
-- **域 hooks 的失效行为要有可证伪的测试**：用 `packages/web/src/test-utils/query-harness.ts` 断言实际请求数、进入 fetching 的查询与缓存新鲜度；只 spy「调用了 `invalidateQueries(某 key)`」等于没测（`all` 是 `detail` 的前缀，旧写法与被改坏的新写法都会通过）。参考 `hooks/queries/positions.ts` 与 `hooks/queries/cron-jobs.ts` 及其同名测试
-- 共享 lookup（`useAllUsers`、`useFlatDepartments`、`useDepartmentTree`、`useMenuTree`、`useAllRoles`、`useAllPositions`、`useDictItems` 等）已存在，直接 import 复用，禁止在页面或新域文件中重复定义同一数据源
+- **失效与 key 设计遵循[缓存一致性契约](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/crud-frontend.md)**（规范正文见 skill，本页不复制）：mutation 在域 hooks 的 `onSuccess` 中按真实副作用失效、key 树按连坐面设计、回填前核对数据形状与可见性、失效行为用 `test-utils/query-harness.ts` 写可证伪的测试。web 包 `npm run lint` 内含 `scripts/check-invalidation-baseline.mjs`，对 mutation `onSuccess` 中的域根广播做只减不增校验
+- **Toast 归属**：成功 `Toast.success` 写在页面代码；不要额外加错误 Toast（request 层已统一弹出）
+- 共享 lookup（`useAllUsers`、`useFlatDepartments`、`useDepartmentTree`、`useMenuTree`、`useAllRoles`、`useAllPositions`、`useDictItems` 等）已存在，直接 import 复用；禁止在页面或新域文件中重复定义同一数据源，也禁止用本域 key 去请求别域资源
 - **官方 ESLint 插件已启用**（`@tanstack/eslint-plugin-query`，见 `packages/web/eslint.config.js`）：自动检查不稳定依赖（useQuery/useQueries/useMutation 结果对象不得直接进 deps 数组）等问题；多查询聚合场景用 `useQueries` 的 `combine` 选项产出稳定引用。其中 `exhaustive-deps` 规则因误报较多（如 `silent` 等仅影响行为不影响数据的选项）已关闭——**queryFn 引用的会影响响应数据的变量必须进 queryKey**，这一点靠约定与评审保证
 
 ## 列表页模式
