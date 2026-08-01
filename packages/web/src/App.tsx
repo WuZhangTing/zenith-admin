@@ -11,11 +11,11 @@ import { PreferencesProvider } from '@/hooks/PreferencesProvider';
 import { usePreferences } from '@/hooks/usePreferences';
 import { hasPostLoginHome, clearPostLoginHome } from '@/lib/post-login';
 import { ThemeProvider } from '@/providers/ThemeProvider';
-import { request } from '@/utils/request';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import MaintenanceOverlay from '@/components/MaintenanceOverlay';
 import { config } from '@/config';
 import { lazyPageComponent } from '@/utils/page-registry';
+import { useCurrentUserMenuTree, useMenuTree } from '@/hooks/queries/menus';
 import type { Menu, User } from '@zenith/shared/identity';
 
 // AdminLayout 懒加载：后台布局静态依赖图很重（通知/文件预览/偏好面板/dnd-kit/DatePicker 等），
@@ -191,31 +191,33 @@ interface AdminRouteLoaderProps {
   logout: () => void;
 }
 
+const EMPTY_MENUS: Menu[] = [];
+
 function AdminRouteLoader({ user, logout }: Readonly<AdminRouteLoaderProps>) {
   const { permissions } = usePermission();
-  const [menus, setMenus] = useState<Menu[]>([]);
-  const [allMenuPaths, setAllMenuPaths] = useState<Map<string, string>>(new Map());
-  const [loading, setLoading] = useState(true);
+  const userMenusQuery = useCurrentUserMenuTree();
+  const allMenusQuery = useMenuTree();
 
-  useEffect(() => {
-    Promise.all([
-      request.get<Menu[]>('/api/menus/user'),
-      request.get<Menu[]>('/api/menus', { silent: true }),
-    ]).then(([userRes, allRes]) => {
-      if (userRes.code === 0 && userRes.data) {
-        setMenus(userRes.data);
-      }
-      if (allRes.code === 0 && allRes.data) {
-        setAllMenuPaths(buildAllMenuPaths(allRes.data));
-      }
-    }).finally(() => setLoading(false));
-  }, []);
-
+  const menus = userMenusQuery.data ?? EMPTY_MENUS;
+  const allMenuPaths = useMemo(() => buildAllMenuPaths(allMenusQuery.data ?? []), [allMenusQuery.data]);
   const dynamicRoutes = useMemo(() => flattenMenus(menus), [menus]);
   const embedRoutes = useMemo(() => flattenEmbedMenus(menus), [menus]);
 
-  if (loading) {
+  // 首载 gate：两棵树并行加载；后台 refetch 保留旧数据，不会重新进入此分支
+  if (userMenusQuery.isPending || allMenusQuery.isPending) {
     return <PageLoadingDots />;
+  }
+  // 导航树失败必须显式可重试——空菜单渲染会把故障伪装成「全部页面 404」。
+  // 管理树失败不阻塞：仅降级 403→404 判别。
+  if (userMenusQuery.isError) {
+    return (
+      <FullPageRetry
+        title="导航菜单加载失败"
+        description="网络异常或服务暂不可用，请稍后重试。"
+        retrying={userMenusQuery.isFetching}
+        onRetry={() => void userMenusQuery.refetch()}
+      />
+    );
   }
 
   return (
@@ -229,7 +231,7 @@ function AdminRouteLoader({ user, logout }: Readonly<AdminRouteLoaderProps>) {
         {/* 已登录用户访问认证页 → 重定向，避免落入 AdminLayout catch-all 404 并作为标签页出现 */}
         <Route path="/login" element={<RedirectFromLogin />} />
         <Route path="/reset-password" element={<Navigate to="/" replace />} />
-        <Route path="/" element={<Suspense fallback={<PageLoadingDots />}><AdminLayout user={user} onLogout={logout} presetMenus={menus} /></Suspense>}>
+        <Route path="/" element={<Suspense fallback={<PageLoadingDots />}><AdminLayout user={user} onLogout={logout} menus={menus} /></Suspense>}>
         {/* 固定路由 */}
         <Route index element={<HomeEntry />} />
         <Route path="profile" element={<Suspense fallback={routeFallback}><ProfilePage user={user} /></Suspense>} />
@@ -294,14 +296,19 @@ function AdminRouteLoader({ user, logout }: Readonly<AdminRouteLoaderProps>) {
   );
 }
 
-function AuthUnavailable({ onRetry }: Readonly<{ onRetry: () => Promise<void> }>) {
+function FullPageRetry({ title, description, onRetry, retrying }: Readonly<{
+  title: string;
+  description: string;
+  onRetry: () => void;
+  retrying?: boolean;
+}>) {
   return (
     <div className="page-loading">
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-      <strong>暂时无法连接服务器</strong>
-      <span style={{ color: 'var(--semi-color-text-2)' }}>登录凭证已保留，请检查网络后重试。</span>
-      <Button type="primary" onClick={() => void onRetry()}>重试</Button>
-    </div>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+        <strong>{title}</strong>
+        <span style={{ color: 'var(--semi-color-text-2)' }}>{description}</span>
+        <Button type="primary" loading={retrying} onClick={onRetry}>重试</Button>
+      </div>
     </div>
   );
 }
@@ -366,7 +373,13 @@ export default function App() {
     return <PageLoadingDots />;
   }
   if (status === 'unavailable') {
-    return <AuthUnavailable onRetry={refresh} />;
+    return (
+      <FullPageRetry
+        title="暂时无法连接服务器"
+        description="登录凭证已保留，请检查网络后重试。"
+        onRetry={() => void refresh()}
+      />
+    );
   }
 
   // Electron file:// 协议不支持 BrowserRouter，需使用 HashRouter

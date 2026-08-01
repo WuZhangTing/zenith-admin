@@ -73,10 +73,11 @@ import './AdminLayout.css';
 interface AdminLayoutProps {
   readonly user: Omit<User, 'password'>;
   readonly onLogout: () => void;
-  readonly presetMenus?: Menu[];
+  /** 当前用户可见菜单树（由 App 的 TanStack Query 提供，本组件不再持有副本） */
+  readonly menus: Menu[];
 }
 
-export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayoutProps) {
+export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLayoutProps) {
   const { preferences, setPreferences, resetPreferences } = usePreferences();
   // hover 模式下侧边栏应保持收起：刷新页面后依据偏好恢复收起状态
   const [collapsed, setCollapsed] = useState(() => preferences.sidebarHoverTrigger ?? false);
@@ -88,7 +89,6 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
   const isBelowLg = useMediaQuery(mediaDown('lg'));  // < 992：侧边栏自动收起
   const [mobileNavVisible, setMobileNavVisible] = useState(false);
   const [mobilePagesVisible, setMobilePagesVisible] = useState(false);
-  const [menuTree, setMenuTree] = useState<Menu[]>(presetMenus || []);
 
   const flatMenus = useFlatMenus(menuTree);
   // hover 模式下实际用于渲染的 collapsed：开启 hover 模式且已收起且鼠标悬浮时临时展开
@@ -309,16 +309,6 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
       setUnreadCount((c) => Math.max(0, c - 1));
     });
   };
-
-  useEffect(() => {
-    if (presetMenus) {
-      setMenuTree(presetMenus);
-    } else {
-      request.get<Menu[]>('/api/menus', { silent: true }).then((res) => {
-        if (res.code === 0 && res.data) setMenuTree(res.data);
-      });
-    }
-  }, [presetMenus]);
 
   const { currentSectionKeys, displayBreadcrumbs } = useBreadcrumbData(menuTree, location.pathname, preferences.breadcrumbShowHome);
   const { openKeys, setOpenKeys } = useSidebarOpenKeys(currentSectionKeys, preferences.sidebarAccordion);

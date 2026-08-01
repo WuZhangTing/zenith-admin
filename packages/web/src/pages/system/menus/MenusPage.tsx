@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Select, Modal, Form, Radio, Toast, TreeSelect, Row, Col, Spin, Switch, Tooltip } from '@douyinfe/semi-ui';
+import { Button, Select, Modal, Form, Radio, Toast, TreeSelect, Row, Col, Spin, Switch, Tooltip, Banner } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
@@ -425,6 +425,17 @@ export default function MenusPage() {
         onFilterApply={handleSearch}
         onFilterReset={handleReset}
       />
+
+      {menuTreeQuery.isError && (
+        <Banner
+          fullMode={false}
+          type="danger"
+          bordered
+          closeIcon={null}
+          description="菜单数据加载失败，请检查网络后点击表格右上角刷新重试"
+          style={{ marginBottom: 12 }}
+        />
+      )}
 
       <div ref={tableWrapperRef} style={{ flex: 1, minHeight: 0 }}>
         <ConfigurableTable
