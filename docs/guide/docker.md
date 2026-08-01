@@ -148,7 +148,7 @@ npm run dev
 | 阶段 | 目标镜像 | 基础 | 说明 |
 | --- | --- | --- | --- |
 | `builder` | *(中间层)* | `node:24-alpine` | 安装全量依赖、编译 shared + server + web |
-| `server` | `zenith-admin-api` | `node:22-alpine` | 仅含生产依赖 + 编译产物，约 300MB |
+| `server` | `zenith-admin-api` | `node:24-alpine` | 仅含生产依赖 + 编译产物，约 300MB |
 | `web` | `zenith-admin-web` | `nginx:1.27-alpine` | 静态文件 + nginx 配置，约 30MB |
 
 **关键技术说明**：`packages/shared` 的 `package.json` 开发模式下导出 TypeScript 源文件（供 `tsx` 使用），在 `builder` 阶段完成编译后，Dockerfile 会自动将 exports 切换为 `dist/*.js`，保证生产环境 Node.js 能正常解析，无需改动源代码。

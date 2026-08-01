@@ -2,7 +2,7 @@
 
 服务端所有对外 HTTP 调用（OAuth、链接预览、第三方 API 等）统一通过 `packages/server/src/lib/http-client.ts` 发出，**禁止**在业务代码中直接使用全局 `fetch()`。
 
-底层基于 Node 22 原生 `fetch`（undici），在其之上提供超时、重试、代理、熔断、Header 脱敏与结构化日志等能力。
+底层基于 Node 24 原生 `fetch`（undici），在其之上提供超时、重试、代理、熔断、Header 脱敏与结构化日志等能力。
 
 ## 设计目标
 

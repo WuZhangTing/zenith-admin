@@ -263,7 +263,7 @@ Zenith Admin 专为 AI 辅助开发场景设计，让 GitHub Copilot、Claude、
 
 ## 快速开始
 
-**前置条件**：Node.js >= 18、PostgreSQL、Redis
+**前置条件**：Node.js 24.x、PostgreSQL、Redis
 
 ### 1. 安装依赖
 

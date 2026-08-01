@@ -12,6 +12,7 @@ RUN apk add --no-cache python3 make g++
 # Copy workspace manifests first (leverages Docker layer cache)
 COPY package.json package-lock.json ./
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/analytics-sdk/package.json ./packages/analytics-sdk/
 COPY packages/server/package.json ./packages/server/
 COPY packages/web/package.json ./packages/web/
 
@@ -21,11 +22,13 @@ RUN npm ci
 # Copy source code
 COPY tsconfig.base.json ./
 COPY packages/shared ./packages/shared
+COPY packages/analytics-sdk ./packages/analytics-sdk
 COPY packages/server ./packages/server
 COPY packages/web ./packages/web
 
-# Build: shared → server → web
+# Build: shared → analytics-sdk → server → web
 RUN npm run build -w @zenith/shared \
+ && npm run build -w @zenith/analytics-sdk \
  && npm run build -w @zenith/server \
  && npm run build -w @zenith/web
 
@@ -41,13 +44,14 @@ RUN node -e "\
 "
 
 # ─── Stage 2: Server production image ────────────────────────────────────────
-FROM node:22-alpine AS server
+FROM node:24-alpine AS server
 
 WORKDIR /app
 
 # Copy workspace manifests for production dependency install
 COPY package.json package-lock.json ./
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/analytics-sdk/package.json ./packages/analytics-sdk/
 COPY packages/server/package.json ./packages/server/
 COPY packages/web/package.json ./packages/web/
 

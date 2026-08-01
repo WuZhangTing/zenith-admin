@@ -6,7 +6,7 @@ Zenith Admin 是一个基于 **Hono + React 19 + Drizzle ORM** 的 npm monorepo 
 
 ## 环境要求
 
-- Node.js >= 24（与 CI / Docker 构建环境一致）
+- Node.js 24.x（与 CI / Docker 环境一致）
 - npm
 - PostgreSQL
 - Redis（用于会话持久化，默认连接本地 `127.0.0.1:6379`）
