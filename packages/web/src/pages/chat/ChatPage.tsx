@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from 'react';
 import { AppModal } from '@/components/AppModal';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Input, Button, Badge, Typography, Empty, Spin, Toast, Tooltip, ImagePreview, List as SemiList } from '@douyinfe/semi-ui';
@@ -69,14 +69,16 @@ import { MediaPanel } from './components/MediaPanel';
 import { AnnouncementHistoryModal } from './components/AnnouncementHistoryModal';
 import { MultiSelectActionBar } from './components/MultiSelectActionBar';
 import { PendingAttachments } from './components/PendingAttachments';
-import { ComposerEmojiPicker } from './components/ComposerEmojiPicker';
 import { MentionPopup } from './components/MentionPopup';
 import { TypingIndicator } from './components/TypingIndicator';
 import { DiscoverChannelsModal } from './components/DiscoverChannelsModal';
-import { ReactionPickerOverlay } from './components/ReactionPickerOverlay';
 import { FavoriteMessageModal } from './components/FavoriteMessageModal';
 import { MessageSearchModal } from './components/MessageSearchModal';
 import { WsDisconnectedBanner } from './components/WsDisconnectedBanner';
+
+// emoji-mart（~490KB 含全量表情元数据）仅在用户首次打开表情浮层时才加载
+const ComposerEmojiPicker = lazy(() => import('./components/ComposerEmojiPicker').then((m) => ({ default: m.ComposerEmojiPicker })));
+const ReactionPickerOverlay = lazy(() => import('./components/ReactionPickerOverlay').then((m) => ({ default: m.ReactionPickerOverlay })));
 
 const { Text, Title } = Typography;
 
@@ -1161,10 +1163,12 @@ export default function ChatPage({
                 </Tooltip>
               </div>
               {emojiVisible && emojiAnchor && (
-                <ComposerEmojiPicker
-                  emojiPickerRef={emojiPickerRef} emojiAnchor={emojiAnchor} handleEmojiSelect={handleEmojiSelect}
-                  sendSticker={sendSticker}
-                />
+                <Suspense fallback={null}>
+                  <ComposerEmojiPicker
+                    emojiPickerRef={emojiPickerRef} emojiAnchor={emojiAnchor} handleEmojiSelect={handleEmojiSelect}
+                    sendSticker={sendSticker}
+                  />
+                </Suspense>
               )}
 
               <Tooltip content="选择图片">
@@ -1355,10 +1359,12 @@ export default function ChatPage({
       />
       {/* Reaction emoji picker — fixed overlay */}
       {reactionPickerVisible && reactionPickerAnchor && (
-        <ReactionPickerOverlay
-          reactionPickerRef={reactionPickerRef} reactionPickerAnchor={reactionPickerAnchor} reactionTargetMsgId={reactionTargetMsgId}
-          handleReaction={handleReaction} setReactionPickerVisible={setReactionPickerVisible}
-        />
+        <Suspense fallback={null}>
+          <ReactionPickerOverlay
+            reactionPickerRef={reactionPickerRef} reactionPickerAnchor={reactionPickerAnchor} reactionTargetMsgId={reactionTargetMsgId}
+            handleReaction={handleReaction} setReactionPickerVisible={setReactionPickerVisible}
+          />
+        </Suspense>
       )}
       <ForwardedMessagesModal
         visible={forwardViewVisible}
