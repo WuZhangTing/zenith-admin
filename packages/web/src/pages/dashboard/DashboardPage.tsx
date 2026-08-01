@@ -1,19 +1,13 @@
-import { useMemo, useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Card, Typography, Tag, Space, Skeleton, Empty, List, Avatar, Descriptions } from '@douyinfe/semi-ui';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
-import {
-  AreaChart,
-  LineChart,
-  PieChart,
-  chartOptions,
-  makeAreaSpec,
-  makeLineSpec,
-  makePieSpec,
-  useChartPalette,
-} from '@/components/charts';
 import { Bell, BookOpen, MonitorPlay, Users, UserCheck, Wifi, LogIn, Activity, MapPin, Clock } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+
+// 图表区懒加载：'@/components/charts' 拖 ~1.9MB 的 @visactor 依赖树，
+// 首页主体（欢迎横幅/统计卡/公告/日历）先渲染，图表 chunk 就绪后补齐
+const DashboardChartsRow = lazy(() => import('./DashboardCharts'));
 
 const GithubIcon = ({ size = 18 }: { size?: number }) => (
   <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor">
@@ -40,15 +34,6 @@ import './DashboardPage.css';
 const { Text } = Typography;
 
 type AnnouncementWithRead = DashboardAnnouncement;
-
-const PIE_COLORS = [
-  '#4A90E2', '#52C41A', '#FA8C16', '#13C2C2',
-  '#722ED1', '#F5222D', '#EB2F96', '#1677FF',
-];
-
-function shortDate(dateStr: string) {
-  return dateStr.slice(5); // MM-DD
-}
 
 const STAT_ITEMS: Array<{
   key: keyof DashboardStats;
@@ -81,7 +66,6 @@ export default function DashboardPage() {
   } = useDictItems('announcement_priority');
   const { permissions } = usePermission();
   const { user } = useAuth();
-  const palette = useChartPalette();
   const isAdmin = permissions.includes('*');
   const [selectedNotice, setSelectedNotice] = useState<AnnouncementWithRead | null>(null);
   const noticesQuery = useDashboardAnnouncements();
@@ -107,29 +91,6 @@ export default function DashboardPage() {
     { key: '认证方案', value: 'JWT Bearer Token' },
   ];
 
-  const loginTrendSpec = useMemo(() => makeLineSpec({
-    data: charts?.loginTrend ?? [],
-    xField: 'date',
-    series: [
-      { field: 'successCount', name: '成功', color: '#52C41A' },
-      { field: 'failCount', name: '失败', color: '#F5222D' },
-    ],
-    palette,
-    point: true,
-    axis: { xLabel: shortDate },
-    tooltip: { title: (x) => `日期：${x}` },
-  }), [charts?.loginTrend, palette]);
-
-  const userActivitySpec = useMemo(() => makeAreaSpec({
-    data: charts?.userActivity ?? [],
-    xField: 'date',
-    series: [{ field: 'activeUsers', name: '活跃用户', color: '#4A90E2' }],
-    palette,
-    point: true,
-    axis: { xLabel: shortDate },
-    tooltip: { title: (x) => `日期：${x}` },
-  }), [charts?.userActivity, palette]);
-
   function markAsRead(id: number) {
     markReadMutation.mutate(id);
   }
@@ -137,38 +98,6 @@ export default function DashboardPage() {
   async function openNotice(n: AnnouncementWithRead) {
     setSelectedNotice({ ...n, isRead: true });
     if (!n.isRead) markAsRead(n.id);
-  }
-
-  function renderOperationPie() {
-    if (chartsLoading) return (
-      <div className="dashboard-chart-placeholder">
-        <Skeleton active loading placeholder={
-          <div style={{ width: '100%', height: 200, display: 'flex', alignItems: 'flex-end', gap: 12, padding: '0 8px' }}>
-            {[60, 80, 45, 90, 55, 70].map((h) => (
-              <Skeleton.Button key={h} style={{ flex: 1, height: `${h}%`, borderRadius: 'var(--semi-border-radius-small)' }} />
-            ))}
-          </div>
-        } />
-      </div>
-    );
-    const pieData = charts?.operationTypes ?? [];
-    if (pieData.length === 0) {
-      return <div className="dashboard-chart-placeholder"><Empty description="今日暂无操作记录" /></div>;
-    }
-    const coloredData = pieData.map((item, idx) => ({ ...item, fill: PIE_COLORS[idx % PIE_COLORS.length] }));
-    const operationPieSpec = makePieSpec({
-      data: coloredData,
-      categoryField: 'module',
-      valueField: 'count',
-      donut: false,
-      colors: coloredData.map((d) => d.fill),
-      palette,
-      label: 'percent',
-      valueUnit: '次',
-    });
-    return (
-      <PieChart {...operationPieSpec} options={chartOptions} height={200} />
-    );
   }
 
   function renderNotices() {
@@ -339,56 +268,30 @@ export default function DashboardPage() {
         </div>
       )}
       {isAdmin && (
-        <div className="dashboard-charts-row">
-          {/* 7 天登录趋势 */}
-          <Card
-            title={<Text strong style={{ fontSize: 14 }}>7 天登录趋势</Text>}
-            className="dashboard-card dashboard-chart-card"
-            bodyStyle={{ padding: '12px 16px 8px' }}
-          >
-            {chartsLoading
-              ? <div className="dashboard-chart-placeholder">
-                  <Skeleton active loading placeholder={
-                    <div style={{ width: '100%', height: 200, padding: '12px 0' }}>
-                      <Skeleton.Paragraph rows={6} style={{ width: '100%' }} />
-                    </div>
-                  } />
-                </div>
-              : (
-                <LineChart {...loginTrendSpec} options={chartOptions} height={200} />
-              )
-            }
-          </Card>
-
-          {/* 今日操作类型分布 */}
-          <Card
-            title={<Text strong style={{ fontSize: 14 }}>今日操作分布</Text>}
-            className="dashboard-card dashboard-chart-card"
-            bodyStyle={{ padding: '12px 16px 8px' }}
-          >
-            {renderOperationPie()}
-          </Card>
-
-          {/* 用户活跃度曲线 */}
-          <Card
-            title={<Text strong style={{ fontSize: 14 }}>7 天用户活跃度</Text>}
-            className="dashboard-card dashboard-chart-card"
-            bodyStyle={{ padding: '12px 16px 8px' }}
-          >
-            {chartsLoading
-              ? <div className="dashboard-chart-placeholder">
-                  <Skeleton active loading placeholder={
-                    <div style={{ width: '100%', height: 200, padding: '12px 0' }}>
-                      <Skeleton.Paragraph rows={6} style={{ width: '100%' }} />
-                    </div>
-                  } />
-                </div>
-              : (
-                <AreaChart {...userActivitySpec} options={chartOptions} height={200} />
-              )
-            }
-          </Card>
-        </div>
+        <Suspense
+          fallback={
+            <div className="dashboard-charts-row">
+              {['7 天登录趋势', '今日操作分布', '7 天用户活跃度'].map((title) => (
+                <Card
+                  key={title}
+                  title={<Text strong style={{ fontSize: 14 }}>{title}</Text>}
+                  className="dashboard-card dashboard-chart-card"
+                  bodyStyle={{ padding: '12px 16px 8px' }}
+                >
+                  <div className="dashboard-chart-placeholder">
+                    <Skeleton active loading placeholder={
+                      <div style={{ width: '100%', height: 200, padding: '12px 0' }}>
+                        <Skeleton.Paragraph rows={6} style={{ width: '100%' }} />
+                      </div>
+                    } />
+                  </div>
+                </Card>
+              ))}
+            </div>
+          }
+        >
+          <DashboardChartsRow charts={charts} chartsLoading={chartsLoading} />
+        </Suspense>
       )}
 
       <div className="dashboard-top-grid">
