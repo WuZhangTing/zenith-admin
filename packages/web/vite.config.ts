@@ -138,6 +138,13 @@ export default defineConfig(({ mode }) => {
                 priority: 10,
               },
               {
+                // 微 chunk 收敛：按包分组曾产出 500+ 个 <10KB 的 vendor 碎片
+                // （请求开销 > 传输节省）。minSize 让不足 20KB 的组放弃独立成 chunk，
+                // 回落到 rolldown 自动分配（通常并入消费方）。实测 10KB→-198 chunk、
+                // 20KB→再 -54，总量不增（无跨页复制回归）；再往上收益递减，停在 20KB。
+                // 仅作用于本动态分组：vite-runtime / vendor-react-core 两个关键组
+                // 不受影响，语义组名（vendor-semi-* 等）超过阈值时照常独立。
+                minSize: 20 * 1024,
                 name(id: string): string | null {
                   const normalizedId = id.replaceAll('\\', '/');
 
