@@ -140,6 +140,34 @@
 2. 确认 count 和 list 的 `where` 条件一致
 3. 如果有 dataScope 或 tenantScope 过滤，count 查询也需要应用相同条件
 
+### 问题：按日期筛选时查不到当天数据
+
+**症状**：时间范围选到「今天」，列表却少了今天的记录；或起止选同一天时结果为空。
+
+**原因**：范围末端用 `parseDateTimeInput` 解析。它把 `2026-08-01` 解析成 `00:00:00`，
+`lte(col, 2026-08-01 00:00:00)` 自然排除掉当天绝大部分数据；起止同一天时区间长度为 0。
+
+**修复**：范围端点一律用 `dateRangeConditions(column, start, end)`（`lib/where-helpers`），
+内部走 `parseDateRangeStart` / `parseDateRangeEnd`，末端取当天 `23:59:59.999`。
+`parseDateTimeInput` 只用于写入实体字段的单点时间。
+
+### 问题：传了非法时间参数却返回全量数据
+
+**症状**：`?endTime=abc` 或 `?endTime=2026/08/01` 不报错，返回的是未经筛选的全量列表。
+
+**原因**：查询参数声明成裸 `z.string().optional()`，Zod 放行后解析函数返回 `null`，
+条件被静默丢弃。
+
+**修复**：改用 `dateRangeBound('说明')`（`lib/openapi-schemas`），
+只接受 `YYYY-MM-DD` 与 `YYYY-MM-DD HH:mm:ss`，非法输入直接 400。
+
+### 问题：关键字搜索把 `%` 当通配符 / 搜不到含下划线的内容
+
+**原因**：手写 `like(col, \`%${keyword}%\`)` 未转义 LIKE 元字符。
+
+**修复**：跨列关键字匹配统一用 `keywordCondition(keyword, [colA, colB], mode?)`，
+内部已 `escapeLike` 并处理空值短路；单列匹配才需要手写 `escapeLike`。
+
 ### 问题：RQB 关联查询返回 null
 
 **排查步骤**：

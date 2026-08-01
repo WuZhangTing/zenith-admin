@@ -36,6 +36,36 @@
 - **并行查询**（Step 5）：分页列表中 count 和 list 是独立操作，**必须**用 `const [total, rows] = await Promise.all([db.$count(...), db.select()...])` 并行执行，禁止串行 `await`
 - **RQB 优先**（Step 5）：关联数据查询优先使用 Drizzle RQB（`db.query.tableName.findMany/findFirst({ with: { relation: true } })`）
 
+### WHERE 条件构造（Step 5）
+
+统一使用 `packages/server/src/lib/where-helpers.ts` 的构造函数，**禁止**手写等价样板：
+
+| 场景 | 用 | 禁止 |
+| --- | --- | --- |
+| 关键字跨列模糊匹配 | `keywordCondition(keyword, [colA, colB], mode?)` | 手写 `or(like(a, \`%${escapeLike(kw)}%\`), ...)` |
+| 时间范围过滤 | `dateRangeConditions(column, start, end)` | 手写 `parseXxx` + `gte`/`lte` 两连 |
+| 合并条件数组 | `buildWhere(...conditions)` | `conditions.length ? and(...conditions) : undefined` |
+| 附加租户/数据权限条件 | `mergeWhere(where, extra)` | — |
+| 分页 | `withPagination(qb.$dynamic(), page, pageSize)` | 手写 `.limit().offset()` |
+
+- **条件数组类型必须是 `(SQL | undefined)[]`**：`keywordCondition` 等构造函数在条件不适用时返回
+  `undefined`，drizzle 的 `and()` 本就接受并自动过滤。**禁止**为了迁就 `SQL[]` 而加 `!` 非空断言
+- **`keywordCondition` 内部已判空**（空串 / 纯空格返回 `undefined`），调用点**不要**再包 `if (keyword)`
+- **`like` 与 `ilike` 按各表原有语义指定**，不得一刀切；`mode` 默认 `like`（区分大小写，PostgreSQL 默认行为）
+- **时间范围一律用闭区间**（`gte`/`lte`），禁止 `gt`/`lt`——边界时刻的记录会被漏掉
+
+### 时间范围端点的解析口径（Step 5, Step 6）
+
+- **范围端点必须走 `parseDateRangeStart` / `parseDateRangeEnd`**（或直接用 `dateRangeConditions`）。
+  传纯日期时起点取当天 `00:00:00`、终点取当天 `23:59:59.999`；
+  **禁止**用 `parseDateTimeInput` 解析范围端点——它把 `2026-08-01` 解析成 `00:00:00`，
+  「筛选到 8 月 1 日」会漏掉整个 8 月 1 日的数据
+- `parseDateTimeInput` 只用于**单点时间**（写入实体字段的 `scheduledAt` / `expireAt` / 广告投放起止等），
+  对这些字段套用范围口径会把存储值悄悄挪到 23:59:59
+- **范围端点的查询参数必须校验格式**：用 `dateRangeBound('说明')`（来自 `lib/openapi-schemas`），
+  同时接受 `YYYY-MM-DD` 与 `YYYY-MM-DD HH:mm:ss`。**禁止**裸 `z.string().optional()`——
+  `?endTime=abc` 会被静默当成「无筛选」返回全量数据
+
 ---
 
 ## Route 层（Step 6-7）
@@ -48,7 +78,7 @@
 - **Path Param 规范**（Step 6）：数值型 `id` 参数统一使用 `IdParam`（`import { IdParam } from '../../lib/openapi-schemas'`）；字符串型或自定义名参数必须在字段上添加 `.openapi({ param: { name: '...', in: 'path' }, example: '...' })`
 - **分页查询规范**（Step 6）：列表接口的查询参数统一用 `PaginationQuery.extend({ ... })` 扩展额外字段，**禁止**内联声明 `page: z.coerce.number().optional()`
 - **批量操作路由顺序**（Step 6）：`DELETE /batch` 必须注册在 `DELETE /{id}` 之前，防止路由冲突
-- **LIKE 查询转义**（Step 5, Step 6）：所有使用 `like()` / `ilike()` 的模糊查询，**必须**通过 `escapeLike(keyword)` 转义用户输入中的 `%`、`_`、`\\`，防止 LIKE 通配符注入；`escapeLike` 来自 `'../../lib/where-helpers'`
+- **LIKE 查询转义**（Step 5, Step 6）：所有使用 `like()` / `ilike()` 的模糊查询，**必须**通过 `escapeLike(keyword)` 转义用户输入中的 `%`、`_`、`\\`，防止 LIKE 通配符注入；`escapeLike` 来自 `'../../lib/where-helpers'`。关键字跨列匹配请直接用 `keywordCondition()`（内部已转义），只有单列匹配才需要手写 `escapeLike`
 - **外呼 HTTP 调用**（Step 5, Step 6）：服务端任何对外 HTTP 请求**必须**通过 `packages/server/src/lib/http-client.ts` 的 `httpRequest` / `httpGet` / `httpPost` 等；**禁止**直接使用全局 `fetch()`
 
 ---
@@ -109,7 +139,10 @@
 
 - **统一格式**：API 响应、入参、前端显示、MSW Mock 统一使用 `YYYY-MM-DD HH:mm:ss`
 - **前端**：用 `formatDateTime()` / `formatDateTimeForApi()`（来自 `@/utils/date`）
-- **后端**：用 `packages/server/src/lib/datetime.ts` 的 `formatDateTime()` / `formatNullableDateTime()` / `parseDateTimeInput()` 等
+- **后端格式化**：用 `packages/server/src/lib/datetime.ts` 的 `formatDateTime()` / `formatNullableDateTime()`
+- **后端解析**：按用途二选一，**不要混用**
+  - 时间范围端点（筛选用）→ `parseDateRangeStart()` / `parseDateRangeEnd()`，或直接用 `dateRangeConditions()`
+  - 单点时间（写入实体字段）→ `parseDateTimeInput()`
 - **Mock**：用 `mockDateTime()`（来自 `packages/web/src/mocks/utils/date.ts`）
 - **禁止**：`toISOString()` / 原生 `toLocaleString()` / `toLocaleDateString()` 等
 

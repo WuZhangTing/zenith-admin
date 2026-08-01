@@ -123,8 +123,11 @@ export interface Xxx {
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { xxxs } from '../../db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, asc, type SQL } from 'drizzle-orm';
 import { formatDateTime } from '../../lib/datetime';
+import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
+import { tenantCondition } from '../../lib/tenant';
+import { currentUser } from '../../lib/context';
 import type { XxxRow } from '../../db/schema';
 
 // ─── 数据映射函数（DB 行 → 公开 DTO 字段） ──────────────────────────────
@@ -140,6 +143,42 @@ export function mapXxx(row: XxxRow) {
     createdAt:   formatDateTime(row.createdAt),
     updatedAt:   formatDateTime(row.updatedAt),
   };
+}
+
+// ─── 分页列表（WHERE 构造一律走 where-helpers，禁止手写等价样板） ─────────
+export interface ListXxxsQuery {
+  page?: number;
+  pageSize?: number;
+  keyword?: string;
+  status?: 'enabled' | 'disabled';
+  startTime?: string;
+  endTime?: string;
+}
+
+export async function listXxxs(q: ListXxxsQuery) {
+  const { page = 1, pageSize = 10 } = q;
+
+  // 条件数组类型必须是 (SQL | undefined)[]：构造函数在条件不适用时返回 undefined，
+  // buildWhere / drizzle 的 and() 会自动过滤。禁止为迁就 SQL[] 而加 ! 非空断言。
+  const where = buildWhere(
+    // 内部已判空并 escapeLike，调用点不要再包 if (q.keyword)
+    keywordCondition(q.keyword, [xxxs.name, xxxs.description]),
+    q.status ? eq(xxxs.status, q.status) : undefined,
+    // 末端口径统一：传纯日期时终点取当天 23:59:59.999，不会漏掉当天数据
+    ...dateRangeConditions(xxxs.createdAt, q.startTime, q.endTime),
+    tenantCondition(xxxs, currentUser()),
+  );
+
+  // count 与 list 相互独立，必须并行
+  const [total, rows] = await Promise.all([
+    db.$count(xxxs, where),
+    withPagination(
+      db.select().from(xxxs).where(where).orderBy(asc(xxxs.id)).$dynamic(),
+      page,
+      pageSize,
+    ),
+  ]);
+  return { list: rows.map(mapXxx), total, page, pageSize };
 }
 
 // ─── 获取单个实体（用于详情页/编辑弹窗实时获取） ──────────────────────────
@@ -164,6 +203,14 @@ export async function ensureXxxExists(id: number) {
 > - 禁止在 service 中调用 `c.json()`、直接引用 `c`、调用 `console.*`
 > - 复杂业务逻辑（RQB 查询、事务、多表操作）放在 service，路由只调用 service 函数
 > - DB 唯一约束异常（PG 错误码 `23505`）在 service 的写入 `try-catch` 中通过 `rethrowPgUniqueViolation(err, msg)` 映射为 `HTTPException(400)`
+> - **WHERE 构造一律走 `lib/where-helpers.ts`**：`keywordCondition` / `dateRangeConditions` /
+>   `buildWhere` / `mergeWhere` / `withPagination`。禁止手写
+>   `or(like(a, \`%${escapeLike(kw)}%\`), ...)`、`conditions.length ? and(...) : undefined`、
+>   `(page - 1) * pageSize` 等等价样板，详见
+>   [constraints.md → Service 层 → WHERE 条件构造](./constraints.md)
+> - **时间范围端点必须用 `dateRangeConditions`（或 `parseDateRangeStart/End`）**，
+>   禁止用 `parseDateTimeInput`——后者把纯日期解析成 `00:00:00`，会漏掉当天数据；
+>   `parseDateTimeInput` 只用于写入实体字段的单点时间
 
 ---
 
@@ -199,7 +246,7 @@ import {
   ErrorResponse, jsonContent,
   PaginationQuery, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, BatchIdsBody,
-  okBody, errBody,
+  okBody, errBody, dateRangeBound,
 } from '../../lib/openapi-schemas';
 // 实体 DTO 必须从中心仓库导入（严禁路由内本地声明 .openapi('EntityName')）
 import { XxxDTO } from '../../lib/openapi-dtos';
@@ -251,8 +298,10 @@ const listRoute = defineOpenAPIRoute({
       query: PaginationQuery.extend({
         keyword: z.string().optional(),
         status: z.enum(['enabled', 'disabled']).optional(),
-        startTime: z.string().optional(),
-        endTime: z.string().optional(),
+        // 时间范围端点必须校验格式，禁止裸 z.string().optional()——
+        // 否则 ?endTime=abc 会被静默当成「无筛选」返回全量数据
+        startTime: dateRangeBound('创建时间起'),
+        endTime: dateRangeBound('创建时间止'),
       }),
     },
     responses: {
@@ -586,21 +635,24 @@ export const xxxs = pgTable('xxxs', {
 
 > **设计原则**：`department_id` 在创建时从创建人部门写入，之后不跟随人员调岗变动。过滤逻辑是 `WHERE data.department_id IN (我的部门及子部门)`，而非反查创建人当前部门。
 
-### 列表接口中追加 scopeCondition
+### 列表查询中追加 scopeCondition
 
 ```ts
 import { getDataScopeCondition } from '../../lib/data-scope';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 
-const xxxRouter = new OpenAPIHono({ defaultHook: validationHook });
-
-// 在 GET / 列表 handler 中：
-const currentUserId = c.get('user').userId;
+// 在 service 的列表函数中（薄路由约定：不在 route handler 里碰 db 与查询条件）
 const scopeCondition = await getDataScopeCondition({
-  currentUserId,
+  currentUserId: currentUser().userId,
   deptColumn: xxxs.departmentId,  // 目标表的 department_id 列
   ownerColumn: xxxs.id,            // 用于 self 过滤的主键列
 });
-if (scopeCondition) conditions.push(scopeCondition);
+
+const where = buildWhere(
+  keywordCondition(q.keyword, [xxxs.name]),
+  scopeCondition,                  // 无数据权限限制时为 undefined，buildWhere 自动忽略
+  tenantCondition(xxxs, currentUser()),
+);
 ```
 
 ### 创建接口中自动填入部门
@@ -673,25 +725,29 @@ export const xxxs = pgTable('xxxs', {
 });
 ```
 
-### 路由中使用
+### 在 service 中使用
 
 ```ts
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
+import { buildWhere } from '../../lib/where-helpers';
+import { currentUser } from '../../lib/context';
 
-// 列表接口
-const tCond = tenantCondition(xxxs, c.get('user'));
-if (tCond) conditions.push(tCond);
+// 列表查询：tenantCondition 关闭多租户时返回 undefined，buildWhere 自动忽略
+const where = buildWhere(
+  keywordCondition(q.keyword, [xxxs.name]),
+  tenantCondition(xxxs, currentUser()),
+);
 
-// 创建接口
+// 创建
 await db.insert(xxxs).values({
   ...validatedData,
-  tenantId: getCreateTenantId(c.get('user')),
+  tenantId: getCreateTenantId(currentUser()),
 });
 ```
 
 ### 关键约束
 
-- `tenantCondition` 在多租户关闭时返回 `undefined`，**无需**在路由中额外判断是否开启多租户
+- `tenantCondition` 在多租户关闭时返回 `undefined`，**无需**额外判断是否开启多租户——直接交给 `buildWhere` / `mergeWhere` 过滤
 - 平台超管在「平台视角」时同样返回 `undefined`，可查看全量数据
 - `getCreateTenantId` 在多租户关闭时返回 `null`，不影响写入
 
