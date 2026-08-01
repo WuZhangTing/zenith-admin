@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
-import { validationHook, okBody } from '../../lib/openapi-schemas';
+import { validationHook, okBody, commonErrorResponses } from '../../lib/openapi-schemas';
 import { CacheItemDTO, CacheOverviewDTO } from '../../lib/openapi-dtos';
 import { getCacheList, deleteCacheKey, deleteCacheByCategory, deleteAllCache, getCacheBeforeAudit, getCachesByCategoryBeforeAudit, getAllCachesBeforeAudit, getCacheFullValue, getCacheOverview, updateCacheTtl, updateCacheValue, deleteCacheKeys, getCacheKeysBeforeAudit } from '../../services/platform/cache.service';
 
@@ -18,7 +18,7 @@ const listRoute = defineOpenAPIRoute({
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'system:cache:list' })] as const,
     request: { query: z.object({ keyword: z.string().optional().openapi({ example: 'session' }) }) },
-    responses: { 200: { content: { 'application/json': { schema: CacheListResponse } }, description: '缓存列表' } },
+    responses: { ...commonErrorResponses, 200: { content: { 'application/json': { schema: CacheListResponse } }, description: '缓存列表' } },
   }),
   handler: async (c) => c.json(okBody(await getCacheList(c.req.valid('query').keyword), 'success'), 200),
 });
@@ -28,7 +28,7 @@ const overviewRoute = defineOpenAPIRoute({
     method: 'get', path: '/overview', tags: ['Cache'], summary: 'Redis 概览统计',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'system:cache:list' })] as const,
-    responses: { 200: { content: { 'application/json': { schema: CacheOverviewResponse } }, description: 'Redis 概览' } },
+    responses: { ...commonErrorResponses, 200: { content: { 'application/json': { schema: CacheOverviewResponse } }, description: 'Redis 概览' } },
   }),
   handler: async (c) => c.json(okBody(await getCacheOverview(), 'success'), 200),
 });
@@ -40,6 +40,7 @@ const deleteOneRoute = defineOpenAPIRoute({
     middleware: [authMiddleware, guard({ permission: 'system:cache:delete', audit: { module: '缓存管理', description: '删除缓存' } })] as const,
     request: { body: { content: { 'application/json': { schema: z.object({ key: z.string().openapi({ example: 'zenith:session:abc' }) }) } } } },
     responses: {
+      ...commonErrorResponses,
       200: { content: { 'application/json': { schema: GenericResponse } }, description: '删除成功' },
       400: { content: { 'application/json': { schema: GenericResponse } }, description: '参数错误' },
       403: { content: { 'application/json': { schema: GenericResponse } }, description: '命名空间不匹配' },
@@ -62,6 +63,7 @@ const deleteByCategoryRoute = defineOpenAPIRoute({
     middleware: [authMiddleware, guard({ permission: 'system:cache:delete', audit: { module: '缓存管理', description: '删除分类缓存' } })] as const,
     request: { body: { content: { 'application/json': { schema: z.object({ segment: z.string().openapi({ example: 'session' }) }) } } } },
     responses: {
+      ...commonErrorResponses,
       200: { content: { 'application/json': { schema: CountResponse } }, description: '删除成功' },
       400: { content: { 'application/json': { schema: GenericResponse } }, description: '参数错误' },
     },
@@ -81,7 +83,7 @@ const getValueRoute = defineOpenAPIRoute({
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'system:cache:list' })] as const,
     request: { query: z.object({ key: z.string().openapi({ example: 'zenith:session:abc' }) }) },
-    responses: { 200: { content: { 'application/json': { schema: GenericResponse } }, description: 'key 完整值' } },
+    responses: { ...commonErrorResponses, 200: { content: { 'application/json': { schema: GenericResponse } }, description: 'key 完整值' } },
   }),
   handler: async (c) => {
     const { key } = c.req.valid('query');
@@ -97,6 +99,7 @@ const updateTtlRoute = defineOpenAPIRoute({
     middleware: [authMiddleware, guard({ permission: 'system:cache:update', audit: { module: '缓存管理', description: '修改缓存 TTL' } })] as const,
     request: { body: { content: { 'application/json': { schema: z.object({ key: z.string().openapi({ example: 'zenith:session:abc' }), ttl: z.number().int().openapi({ example: 3600, description: '-1 为永久，正整数为秒数' }) }) } } } },
     responses: {
+      ...commonErrorResponses,
       200: { content: { 'application/json': { schema: GenericResponse } }, description: '修改成功' },
       400: { content: { 'application/json': { schema: GenericResponse } }, description: '参数错误' },
       403: { content: { 'application/json': { schema: GenericResponse } }, description: '命名空间不匹配' },
@@ -121,6 +124,7 @@ const updateValueRoute = defineOpenAPIRoute({
     middleware: [authMiddleware, guard({ permission: 'system:cache:update', audit: { module: '缓存管理', description: '修改缓存值' } })] as const,
     request: { body: { content: { 'application/json': { schema: z.object({ key: z.string().openapi({ example: 'zenith:perm:1' }), value: z.string().openapi({ example: '["dashboard:view"]' }), ttl: z.number().int().optional().openapi({ example: 600, description: '不传保留原 TTL，-1 为永久，正整数为秒数' }) }) } } } },
     responses: {
+      ...commonErrorResponses,
       200: { content: { 'application/json': { schema: GenericResponse } }, description: '修改成功' },
       400: { content: { 'application/json': { schema: GenericResponse } }, description: '参数错误或类型不支持' },
       403: { content: { 'application/json': { schema: GenericResponse } }, description: '命名空间不匹配' },
@@ -145,6 +149,7 @@ const deleteBatchRoute = defineOpenAPIRoute({
     middleware: [authMiddleware, guard({ permission: 'system:cache:delete', audit: { module: '缓存管理', description: '批量删除缓存' } })] as const,
     request: { body: { content: { 'application/json': { schema: z.object({ keys: z.array(z.string()).min(1).openapi({ example: ['zenith:session:abc'] }) }) } } } },
     responses: {
+      ...commonErrorResponses,
       200: { content: { 'application/json': { schema: CountResponse } }, description: '删除成功' },
       400: { content: { 'application/json': { schema: GenericResponse } }, description: '参数错误' },
       403: { content: { 'application/json': { schema: GenericResponse } }, description: '命名空间不匹配' },
@@ -164,7 +169,7 @@ const deleteAllRoute = defineOpenAPIRoute({
     method: 'delete', path: '/all', tags: ['Cache'], summary: '清空当前命名空间所有缓存',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'system:cache:delete', audit: { module: '缓存管理', description: '清空所有缓存' } })] as const,
-    responses: { 200: { content: { 'application/json': { schema: CountResponse } }, description: '清空成功' } },
+    responses: { ...commonErrorResponses, 200: { content: { 'application/json': { schema: CountResponse } }, description: '清空成功' } },
   }),
   handler: async (c) => {
     const before = await getAllCachesBeforeAudit();

@@ -37,6 +37,7 @@ const callback = defineOpenAPIRoute({
     path: '/{callbackId}',
     tags: ['WorkflowExternalCallback'],
     summary: '外部审批回调（公开，无需登录）',
+    security: [],
     middleware: [captureWorkflowCallbackRawBody] as const,
     request: {
       params: CallbackParam,

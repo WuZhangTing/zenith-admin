@@ -66,7 +66,7 @@ function parseRangeHeader(rangeHeader: string | undefined, size: number): { star
 
 const contentRoute = defineOpenAPIRoute({
   route: createRoute({
-    method: 'get', path: '/{id}/content', tags: ['Files'], summary: '公开访问文件内容',
+    method: 'get', path: '/{id}/content', tags: ['Files'], summary: '公开访问文件内容', security: [],
     request: { params: FileIdParam },
     responses: {
       ...commonErrorResponses,

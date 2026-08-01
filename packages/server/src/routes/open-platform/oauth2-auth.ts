@@ -112,7 +112,8 @@ const token = defineOpenAPIRoute({
     path: '/token',
     tags: ['OAuth2'],
     summary: '令牌端点（RFC 6749 application/x-www-form-urlencoded）',
-    // 公开端点：无 security / middleware
+    // 公开端点：覆盖 app.ts 注册的全局 BearerAuth 默认值
+    security: [],
     responses: {
       200: {
         description: '令牌响应',
@@ -166,6 +167,7 @@ const revoke = defineOpenAPIRoute({
     path: '/token/revoke',
     tags: ['OAuth2'],
     summary: '撤销令牌（RFC 7009）',
+    security: [],
     responses: { ...commonErrorResponses, ...okMsg('已撤销') },
   }),
   handler: async (c) => {
@@ -187,6 +189,7 @@ const introspect = defineOpenAPIRoute({
     path: '/token/introspect',
     tags: ['OAuth2'],
     summary: '令牌自省（RFC 7662）',
+    security: [],
     responses: { ...commonErrorResponses, ...ok(OAuth2IntrospectResponseDTO, '自省结果') },
   }),
   handler: async (c) => {

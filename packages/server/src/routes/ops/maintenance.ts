@@ -15,7 +15,7 @@ const statusRoute = defineOpenAPIRoute({
     tags: ['维护模式'],
     summary: '获取维护模式状态（公开）',
     security: [],
-    responses: { ...ok(MaintenanceStatusDTO, '维护模式状态') },
+    responses: { ...commonErrorResponses, ...ok(MaintenanceStatusDTO, '维护模式状态') },
   }),
   handler: async (c) => c.json(okBody(await getMaintenanceStatus()), 200),
 });

@@ -56,7 +56,7 @@ const rangeQuery = daysQuery.extend({ startDate: dateStr.optional(), endDate: da
 // ─── 采集 ─────────────────────────────────────────────────────────────────────
 const ingestRoute = defineOpenAPIRoute({
   route: createRoute({
-    method: 'post', path: '/events', tags: ['Analytics'], summary: '批量上报用户行为事件（匿名/登录均可）',
+    method: 'post', path: '/events', tags: ['Analytics'], summary: '批量上报用户行为事件（匿名/登录均可）', security: [],
     middleware: [optionalAuthMiddleware, namedRateLimit('analytics-ingest')] as const,
     request: { body: { content: { 'application/json': { schema: BatchUserEventsBodyDTO } }, required: true } },
     responses: { ...okMsg('上报成功'), ...commonErrorResponses },
@@ -75,7 +75,7 @@ const ingestRoute = defineOpenAPIRoute({
 
 const configRoute = defineOpenAPIRoute({
   route: createRoute({
-    method: 'get', path: '/config', tags: ['Analytics'], summary: 'SDK 公开采集配置',
+    method: 'get', path: '/config', tags: ['Analytics'], summary: 'SDK 公开采集配置', security: [],
     middleware: [optionalAuthMiddleware] as const,
     responses: { ...ok(AnalyticsPublicConfigDTO, '采集配置'), ...commonErrorResponses },
   }),

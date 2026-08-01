@@ -23,6 +23,7 @@ const ingestRoute = defineOpenAPIRoute({
     path: '/{token}',
     tags: ['聊天 Webhook（公开）'],
     summary: '入站 Webhook 推送消息（公开，无需登录，由外部系统调用）',
+    security: [],
     request: {
       params: TokenParam,
       body: { content: jsonContent(chatWebhookPayloadSchema), required: true },

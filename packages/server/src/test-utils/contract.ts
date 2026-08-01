@@ -1,0 +1,174 @@
+/**
+ * 契约测试基建——把整个 app 装配起来做全量路由校验。
+ *
+ * 与 `routes/identity/users.test.ts` 那类「单路由 + 定制 DB mock」的测试互补：
+ * 那种测试验证业务行为，一个文件只覆盖一个路由；本模块面向 267 个路由文件的
+ * **契约面**（认证声明、错误响应、响应包络），一次装配覆盖全部 1800+ 操作。
+ *
+ * 之所以可行，是因为 app.ts 的 `createApp()` 是纯函数——不 serve()、不注册 worker、
+ * 不订阅事件总线。唯一需要拦截的模块加载期副作用是 `lib/redis` 会立即发起连接。
+ *
+ * 用法（`vi.doMock` 不会被提升，专用于影响后续的动态 import）：
+ *
+ * ```ts
+ * mockServerInfra();
+ * const { app, operations } = await buildContractApp();
+ * ```
+ */
+import { vi } from 'vitest';
+
+/** OpenAPI 中承载操作的 HTTP 方法 */
+export const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete'] as const;
+export type HttpMethod = (typeof HTTP_METHODS)[number];
+
+export interface OpenAPIOperation {
+  security?: unknown[];
+  responses?: Record<string, { content?: Record<string, { schema?: unknown }> }>;
+  summary?: string;
+  tags?: string[];
+}
+
+export interface OpenAPIDoc {
+  paths: Record<string, Record<string, OpenAPIOperation>>;
+  components?: { schemas?: Record<string, unknown> };
+}
+
+/** 枚举出的单个操作 */
+export interface RouteOperation {
+  /** OpenAPI 原始路径，含 `{id}` 占位符 */
+  path: string;
+  method: HttpMethod;
+  operation: OpenAPIOperation;
+  /** 供断言消息使用的稳定标识，形如 `GET /api/users` */
+  id: string;
+  /**
+   * 是否显式声明为公开端点。
+   * `security: []` 覆盖 app.ts 注册的全局 `security: [{ BearerAuth: [] }]`。
+   */
+  isDeclaredPublic: boolean;
+}
+
+/**
+ * 拦截会在模块加载期产生副作用的基础设施。
+ *
+ * 必须在 `buildContractApp()` 之前调用。用 `vi.doMock` 而非 `vi.mock`：
+ * 后者会被提升到文件顶部，从辅助模块里调用不会生效。
+ */
+export function mockServerInfra(): void {
+  // lib/redis 在模块加载时就 client.connect()，测试环境没有 Redis，
+  // 放任不管会留下重连句柄，导致 vitest 无法退出。
+  vi.doMock('../lib/redis', () => ({ default: createRedisStub(), closeRedis: vi.fn() }));
+
+  // ops 域（docker / ssh / 进程管理）会真的起子进程。契约测试只发无凭证请求，
+  // 正常情况下会被 authMiddleware 挡在处理器之前；但一旦真的存在漏挂认证的路由，
+  // 处理器就会被执行——这正是要检测的缺陷，同时必须保证它不会在 CI 上起进程。
+  vi.doMock('node:child_process', () => ({
+    exec: vi.fn(),
+    execSync: vi.fn(),
+    execFile: vi.fn(),
+    spawn: vi.fn(),
+    spawnSync: vi.fn(),
+    fork: vi.fn(),
+    default: {},
+  }));
+}
+
+/**
+ * 一个「怎么调都返回 null」的 Redis 替身。
+ *
+ * 用 Proxy 而非逐个列举方法：中间件栈里的限流、幂等、会话、黑名单会用到十几个
+ * 不同命令，逐个补是维护负担，漏一个就是一条 unhandled rejection。
+ */
+function createRedisStub(): Record<string, unknown> {
+  const stub: Record<string, unknown> = {
+    // hono-rate-limiter 的 RedisStore 在构造时立即 SCRIPT LOAD
+    script: vi.fn().mockResolvedValue('stub-sha'),
+    evalsha: vi.fn().mockResolvedValue([1, 1]),
+    keys: vi.fn().mockResolvedValue([]),
+    scan: vi.fn().mockResolvedValue(['0', []]),
+    exists: vi.fn().mockResolvedValue(0),
+    // 幂等中间件用 SET NX 判断是否首次请求，'OK' 表示放行
+    set: vi.fn().mockResolvedValue('OK'),
+    on: vi.fn(),
+    off: vi.fn(),
+    once: vi.fn(),
+    connect: vi.fn().mockResolvedValue(undefined),
+    quit: vi.fn().mockResolvedValue('OK'),
+    disconnect: vi.fn(),
+    pipeline: vi.fn(() => ({ exec: vi.fn().mockResolvedValue([]) })),
+    multi: vi.fn(() => ({ exec: vi.fn().mockResolvedValue([]) })),
+    status: 'ready',
+  };
+
+  return new Proxy(stub, {
+    get(target, prop: string) {
+      if (prop === 'then') return undefined; // 避免被当成 thenable
+      if (!(prop in target)) target[prop] = vi.fn().mockResolvedValue(null);
+      return target[prop];
+    },
+  });
+}
+
+/** 只取契约测试用得到的部分，避免耦合 Hono 的完整泛型签名 */
+export interface AppLike {
+  request(url: string, init?: RequestInit): Promise<Response>;
+}
+
+/** 构造完整 app 并取出其 OpenAPI 文档 */
+export async function buildContractApp(): Promise<{
+  app: AppLike;
+  doc: OpenAPIDoc;
+  operations: RouteOperation[];
+}> {
+  const { createApp } = await import('../app');
+  const { app } = createApp();
+  const res = await app.request('/api/openapi.json');
+  if (res.status !== 200) {
+    throw new Error(`无法取得 OpenAPI 文档，状态码 ${res.status}`);
+  }
+  const doc = (await res.json()) as OpenAPIDoc;
+  return { app: app as AppLike, doc, operations: listOperations(doc) };
+}
+
+/** 把 OpenAPI 文档摊平成操作列表，按 id 稳定排序 */
+export function listOperations(doc: OpenAPIDoc): RouteOperation[] {
+  const operations: RouteOperation[] = [];
+  for (const [path, pathItem] of Object.entries(doc.paths)) {
+    for (const [method, operation] of Object.entries(pathItem)) {
+      if (!(HTTP_METHODS as readonly string[]).includes(method)) continue;
+      operations.push({
+        path,
+        method: method as HttpMethod,
+        operation,
+        id: `${method.toUpperCase()} ${path}`,
+        isDeclaredPublic: Array.isArray(operation.security) && operation.security.length === 0,
+      });
+    }
+  }
+  return operations.sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/**
+ * 把 `{id}` 之类的占位符替换成具体值。
+ *
+ * 用 `1` 而非任意字符串：数值型 path param 统一走 `IdParam`（`z.coerce.number()`），
+ * 传非数字会额外触发一层参数校验，干扰认证契约的判定。
+ */
+export function fillPathParams(path: string): string {
+  return path.replace(/\{[^}]+\}/g, '1');
+}
+
+/** 以「无任何凭证」的方式请求一个操作，返回状态码；处理器抛出未捕获异常时返回 -1 */
+export async function requestWithoutCredentials(app: AppLike, op: RouteOperation): Promise<number> {
+  const hasBody = op.method !== 'get' && op.method !== 'delete';
+  try {
+    const res = await app.request(fillPathParams(op.path), {
+      method: op.method.toUpperCase(),
+      headers: { 'Content-Type': 'application/json' },
+      ...(hasBody ? { body: '{}' } : {}),
+    });
+    return res.status;
+  } catch {
+    return -1;
+  }
+}

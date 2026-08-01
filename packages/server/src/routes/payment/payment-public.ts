@@ -23,6 +23,7 @@ const notifyRoute = defineOpenAPIRoute({
     path: '/{channel}',
     tags: ['支付回调（公开）'],
     summary: '支付异步回调（公开，无需登录，由微信/支付宝服务器调用）',
+    security: [],
     description: '渠道服务器在支付/退款完成后回调此端点。服务端读取原始 body 验签后幂等更新订单/退款，并返回渠道要求的 ACK（微信 JSON、支付宝纯文本）。',
     request: { params: NotifyParam },
     responses: {

@@ -13,6 +13,7 @@ const getShared = defineOpenAPIRoute({
     path: '/chat/{token}',
     tags: ['AI'],
     summary: '按分享 token 读取只读对话（公开，无需登录）',
+    security: [],
     middleware: [namedRateLimit('ai_share_view')] as const,
     request: { params: z.object({ token: z.string().min(8).max(64) }) },
     responses: { ...commonErrorResponses, ...ok(AiSharedConversationDTO, '只读对话内容') },

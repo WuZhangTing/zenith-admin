@@ -25,7 +25,7 @@ const r = new OpenAPIHono({ defaultHook: validationHook });
 // ─── 上报 ─────────────────────────────────────────────────────────────────────
 const reportRoute = defineOpenAPIRoute({
   route: createRoute({
-    method: 'post', path: '/', tags: ['FrontendErrors'], summary: '上报前端错误（匿名/登录均可）',
+    method: 'post', path: '/', tags: ['FrontendErrors'], summary: '上报前端错误（匿名/登录均可）', security: [],
     middleware: [optionalAuthMiddleware, namedRateLimit('error-report')] as const,
     request: { body: { content: { 'application/json': { schema: ErrorReportInputDTO } }, required: true } },
     responses: { ...okMsg('上报成功'), ...commonErrorResponses },

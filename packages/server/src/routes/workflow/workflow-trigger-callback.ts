@@ -41,6 +41,7 @@ const callback = defineOpenAPIRoute({
     path: '/{callbackId}',
     tags: ['WorkflowTriggerCallback'],
     summary: '触发器回调（公开，无需登录）',
+    security: [],
     middleware: [captureWorkflowCallbackRawBody] as const,
     request: {
       params: CallbackParam,

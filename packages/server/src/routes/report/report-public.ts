@@ -33,6 +33,7 @@ const accessRoute = defineOpenAPIRoute({
     path: '/dashboards/{token}/access',
     tags: ['报表公开'],
     summary: '公开仪表盘密码验证并签发访问会话',
+    security: [],
     request: {
       params: TokenParam,
       body: { content: jsonContent(reportPublicAccessSchema), required: false },
@@ -52,6 +53,7 @@ const getRoute = defineOpenAPIRoute({
     path: '/dashboards/{token}',
     tags: ['报表公开'],
     summary: '公开仪表盘（需访问会话）',
+    security: [],
     request: { params: TokenParam },
     responses: { ...commonErrorResponses, ...ok(ReportPublicDashboardDTO, 'ok') },
   }),
@@ -69,6 +71,7 @@ const dataRoute = defineOpenAPIRoute({
     path: '/dashboards/{token}/data',
     tags: ['报表公开'],
     summary: '公开仪表盘取数',
+    security: [],
     request: {
       params: TokenParam,
       body: { content: jsonContent(reportDashboardDataBodySchema), required: false },
@@ -95,6 +98,7 @@ const embedRoute = defineOpenAPIRoute({
     path: '/embed/{token}',
     tags: ['报表公开'],
     summary: '匿名嵌入读取仪表盘',
+    security: [],
     request: { params: TokenParam },
     responses: { ...commonErrorResponses, ...ok(ReportPublicDashboardDTO, 'ok') },
   }),
@@ -107,6 +111,7 @@ const embedDataRoute = defineOpenAPIRoute({
     path: '/embed/{token}/data',
     tags: ['报表公开'],
     summary: '匿名嵌入仪表盘取数',
+    security: [],
     request: {
       params: TokenParam,
       body: { content: jsonContent(reportDashboardDataBodySchema), required: false },

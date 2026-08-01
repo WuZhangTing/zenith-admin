@@ -14,6 +14,7 @@ const callbackRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/{accountId}', tags: ['公众号网页授权（公开）'],
     summary: '网页授权回调（公开，无需登录）',
+    security: [],
     request: {
       params: z.object({ accountId: z.coerce.number().int().positive().openapi({ param: { name: 'accountId', in: 'path' }, example: 1 }) }),
       query: z.object({ code: z.string().min(1, '缺少 code'), state: z.string().optional() }),

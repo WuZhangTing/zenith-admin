@@ -110,7 +110,7 @@ const reportRoute = defineOpenAPIRoute({
 
 const assignmentsRoute = defineOpenAPIRoute({
   route: createRoute({
-    method: 'get', path: '/experiments/assignments', tags: ['Analytics'], summary: '公开获取 A/B 实验分流结果',
+    method: 'get', path: '/experiments/assignments', tags: ['Analytics'], summary: '公开获取 A/B 实验分流结果', security: [],
     middleware: [optionalAuthMiddleware, namedRateLimit('analytics-ingest')] as const,
     request: { query: z.object({ keys: z.string().optional(), distinctId: z.string().max(64).optional() }) },
     responses: { ...ok(z.array(AnalyticsExperimentAssignmentDTO), '分流结果'), ...commonErrorResponses },

@@ -28,7 +28,7 @@ const updateSystemConfigSchema = createSystemConfigSchema.partial();
 
 const publicGetRoute = defineOpenAPIRoute({
   route: createRoute({
-    method: 'get', path: '/public/{key}', tags: ['SystemConfigs'], summary: '公开获取单项配置',
+    method: 'get', path: '/public/{key}', tags: ['SystemConfigs'], summary: '公开获取单项配置', security: [],
     request: { params: z.object({ key: z.string().openapi({ param: { name: 'key', in: 'path' }, example: 'site_name', description: '配置键' }) }) },
     responses: { ...commonErrorResponses, ...ok(PublicConfigDTO, '配置值') },
   }),
@@ -37,7 +37,7 @@ const publicGetRoute = defineOpenAPIRoute({
 
 const passwordPolicyRoute = defineOpenAPIRoute({
   route: createRoute({
-    method: 'get', path: '/password-policy', tags: ['SystemConfigs'], summary: '获取当前密码策略',
+    method: 'get', path: '/password-policy', tags: ['SystemConfigs'], summary: '获取当前密码策略', security: [],
     responses: { ...commonErrorResponses, ...ok(PasswordPolicyDTO, '密码策略') },
   }),
   handler: async (c) => c.json(okBody(await getPasswordPolicy(), 'success'), 200),

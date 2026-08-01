@@ -846,7 +846,7 @@ export interface ReportDashboardSnapshot {
 }
 
 /** 仪表盘版本快照内容 */
-export interface ReportDashboardVersionSnapshot extends ReportDashboardSnapshot {}
+export type ReportDashboardVersionSnapshot = ReportDashboardSnapshot;
 
 /** 仪表盘版本 */
 export interface ReportDashboardVersion {
