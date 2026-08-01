@@ -280,7 +280,7 @@
   font: inherit;
   text-align: inherit;
   width: 100%;
-  /* 固定高度：与 FileManagerPage2.tsx 中 VG_CARD_H 必须保持一致 */
+  /* 固定高度：与 FileManagerPage.tsx 中 VG_CARD_H 必须保持一致 */
   height: 110px;
   overflow: hidden;
 }
