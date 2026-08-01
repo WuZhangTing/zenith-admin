@@ -187,6 +187,9 @@ export default defineConfig(({ mode }) => {
                   // lucide-react 走自动分包：每个图标是独立模块，按包聚合会把全应用
                   // 数百个图标的并集塞进单一 chunk 并被入口预载；自动分包让各页面
                   // 只携带自己用到的图标
+                  // （date-fns 不适用同一策略：semi 的 locale/DatePicker foundation 成组消费
+                  // 大量 date-fns 模块，自动分包只会拆出 cloneObject/isBefore 等难以命名的
+                  // 共享微块，总量不降、请求数反增——已实测否决）
                   if (normalizedId.includes('/node_modules/lucide-react/')) {
                     return null;
                   }

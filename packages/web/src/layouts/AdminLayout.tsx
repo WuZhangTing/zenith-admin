@@ -27,7 +27,8 @@ const QuickChatButton = lazy(() => import('@/components/QuickChatButton'));
 const CallOverlayHost = lazy(() => import('@/webrtc/CallOverlayHost'));
 const ChatNotifierHost = lazy(() => import('@/pages/chat/ChatNotifierHost'));
 const LockScreen = lazy(() => import('@/components/LockScreen').then((m) => ({ default: m.LockScreen })));
-import AnnouncementDetailModal from '@/components/AnnouncementDetailModal';
+// 公告详情弹窗拖 FileAttachment→FilePreviewModal 依赖链，改为打开时按需加载
+const AnnouncementDetailModal = lazy(() => import('@/components/AnnouncementDetailModal'));
 import TaskTray from '@/components/TaskTray';
 import { KeywordInput } from '@/components/search-filters';
 import { TabSwitcher } from './TabSwitcher';
@@ -1064,12 +1065,15 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
       <MessageDetailModal selectedMessage={selectedMessage} setSelectedMessage={setSelectedMessage} />
 
       {/* ===== 公告详情 Modal ===== */}
-      {/* ===== 公告详情 Modal ===== */}
-      <AnnouncementDetailModal
-        announcement={selectedAnnouncement}
-        visible={selectedAnnouncement !== null}
-        onClose={() => setSelectedAnnouncement(null)}
-      />
+      {selectedAnnouncement !== null && (
+        <Suspense fallback={null}>
+          <AnnouncementDetailModal
+            announcement={selectedAnnouncement}
+            visible
+            onClose={() => setSelectedAnnouncement(null)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 

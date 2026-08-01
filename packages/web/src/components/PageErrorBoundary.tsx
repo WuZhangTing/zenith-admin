@@ -1,9 +1,16 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { Button, Empty, Toast } from '@douyinfe/semi-ui';
-import { IllustrationFailure, IllustrationFailureDark } from '@douyinfe/semi-illustrations';
 import { RefreshCw, Home, Copy } from 'lucide-react';
 import { formatDateTime } from '@/utils/date';
+
+// 插图仅在错误态渲染，懒加载使 ~130KB 的 semi-illustrations 不进入入口静态图
+const IllustrationFailure = React.lazy(() =>
+  import('@douyinfe/semi-illustrations').then((m) => ({ default: m.IllustrationFailure })),
+);
+const IllustrationFailureDark = React.lazy(() =>
+  import('@douyinfe/semi-illustrations').then((m) => ({ default: m.IllustrationFailureDark })),
+);
 
 interface Props {
   children: React.ReactNode;
@@ -100,8 +107,8 @@ export class PageErrorBoundary extends React.Component<Props, State> {
         }}
       >
         <Empty
-          image={<IllustrationFailure style={{ width: 120, height: 120 }} />}
-          darkModeImage={<IllustrationFailureDark style={{ width: 120, height: 120 }} />}
+          image={<React.Suspense fallback={null}><IllustrationFailure style={{ width: 120, height: 120 }} /></React.Suspense>}
+          darkModeImage={<React.Suspense fallback={null}><IllustrationFailureDark style={{ width: 120, height: 120 }} /></React.Suspense>}
           title="页面加载出错"
           description="当前页面遇到了一个意外错误。你可以尝试刷新页面，或返回首页继续操作。"
         >

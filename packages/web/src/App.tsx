@@ -18,7 +18,9 @@ import { config } from '@/config';
 import { lazyPageComponent } from '@/utils/page-registry';
 import type { Menu, User } from '@zenith/shared/identity';
 
-import AdminLayout from '@/layouts/AdminLayout';
+// AdminLayout 懒加载：后台布局静态依赖图很重（通知/文件预览/偏好面板/dnd-kit/DatePicker 等），
+// 登录页与公开页（支付链接、公开报表、OAuth 授权）不应预载它
+const AdminLayout = React.lazy(() => import('@/layouts/AdminLayout'));
 
 const LoginPage = React.lazy(() => import('@/pages/login/LoginPage'));
 const ResetPasswordPage = React.lazy(() => import('@/pages/reset-password/ResetPasswordPage'));
@@ -228,7 +230,7 @@ function AdminRouteLoader({ user, logout }: Readonly<AdminRouteLoaderProps>) {
         {/* 已登录用户访问认证页 → 重定向，避免落入 AdminLayout catch-all 404 并作为标签页出现 */}
         <Route path="/login" element={<RedirectFromLogin />} />
         <Route path="/reset-password" element={<Navigate to="/" replace />} />
-        <Route path="/" element={<AdminLayout user={user} onLogout={logout} presetMenus={menus} />}>
+        <Route path="/" element={<Suspense fallback={<PageLoadingDots />}><AdminLayout user={user} onLogout={logout} presetMenus={menus} /></Suspense>}>
         {/* 固定路由 */}
         <Route index element={<HomeEntry />} />
         <Route path="profile" element={<Suspense fallback={routeFallback}><ProfilePage user={user} /></Suspense>} />
