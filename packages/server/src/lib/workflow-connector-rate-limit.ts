@@ -56,7 +56,7 @@ export async function rateLimitAcquire(id: number, cfg: RateLimitConfig): Promis
     if (count > cfg.max) {
       // 超限：撤回刚占的位（不消耗配额），按最早记录计算需等待时间
       await redis.zrem(key, member);
-      const earliest = await redis.zrange(key, 0, 0, 'WITHSCORES');
+      const earliest = await redis.zrange(key, '0', '0', 'WITHSCORES');
       const oldestTs = earliest.length >= 2 ? Number(earliest[1]) : now;
       const retryAfterMs = Math.max(0, oldestTs + windowMs - now);
       return { allowed: false, retryAfterSec: Math.max(1, Math.ceil(retryAfterMs / 1000)) };

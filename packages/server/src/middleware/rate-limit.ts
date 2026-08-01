@@ -237,7 +237,7 @@ export async function unblockRateLimitKey(name: string, key: string): Promise<bo
   const n = await redis.del(`${RL_PREFIX}${key}`);
   try {
     const recentKey = `${STATS_PREFIX}${name}:recent`;
-    const members = await redis.zrange(recentKey, 0, -1);
+    const members = await redis.zrange(recentKey, '0', '-1');
     const toRemove = members.filter((m) => m.split('|')[1] === key);
     if (toRemove.length > 0) await redis.zrem(recentKey, ...toRemove);
   } catch {

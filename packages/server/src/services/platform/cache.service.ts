@@ -113,7 +113,7 @@ export async function getCacheFullValue(key: string): Promise<string | null> {
     return JSON.stringify(members.sort((a, b) => a.localeCompare(b)));
   }
   if (type === 'zset') {
-    const flat = await redis.zrange(key, 0, -1, 'WITHSCORES');
+    const flat = await redis.zrange(key, '0', '-1', 'WITHSCORES');
     const entries: { member: string; score: number }[] = [];
     for (let i = 0; i < flat.length; i += 2) {
       entries.push({ member: flat[i], score: Number(flat[i + 1]) });
