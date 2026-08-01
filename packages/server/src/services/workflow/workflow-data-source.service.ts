@@ -200,6 +200,18 @@ async function fetchDataSourceRawItems(id: number, keyword?: string): Promise<Ar
   return items;
 }
 
+/** 外部字段值 → 选项文本：仅原始类型可字符串化，对象/数组返回 ''（避免 [object Object]） */
+function toOptionText(v: unknown): string {
+  if (v == null) return '';
+  switch (typeof v) {
+    case 'string': return v;
+    case 'number':
+    case 'boolean':
+    case 'bigint': return String(v);
+    default: return '';
+  }
+}
+
 /** 代理拉取数据源选项（带 30s 缓存）。仅启用的登记数据源可被调用。 */
 export async function fetchDataSourceOptions(id: number, keyword?: string): Promise<WorkflowDataSourceOption[]> {
   const cacheKey = `${id}:${keyword ?? ''}`;
@@ -212,7 +224,7 @@ export async function fetchDataSourceOptions(id: number, keyword?: string): Prom
     .map((rec) => {
       const value = rec[src.valueField];
       const labelRaw = rec[src.labelField] ?? value;
-      return { value: value == null ? '' : String(value), label: labelRaw == null ? '' : String(labelRaw) };
+      return { value: toOptionText(value), label: toOptionText(labelRaw) };
     })
     .filter((o) => o.value !== '');
 
@@ -224,5 +236,5 @@ export async function fetchDataSourceOptions(id: number, keyword?: string): Prom
 export async function fetchDataSourceRecord(id: number, value: string): Promise<Record<string, unknown> | null> {
   const src = await ensureDataSourceExists(id);
   const items = await fetchDataSourceRawItems(id);
-  return items.find((rec) => String(rec[src.valueField] ?? '') === value) ?? null;
+  return items.find((rec) => toOptionText(rec[src.valueField]) === value) ?? null;
 }
