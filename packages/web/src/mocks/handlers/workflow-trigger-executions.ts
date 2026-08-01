@@ -1,10 +1,7 @@
 import { http, HttpResponse } from 'msw';
+import { ok, pageParams, pageResult } from '@/mocks/utils/handlers';
 import type { WorkflowTriggerExecution, WorkflowTriggerExecutionStatus } from '@zenith/shared/workflow';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
-
-function ok<T>(data: T, message = 'ok') {
-  return HttpResponse.json({ code: 0, message, data });
-}
 
 function err(message: string, code = 400) {
   return HttpResponse.json({ code, message });
@@ -70,15 +67,10 @@ export const mockWorkflowTriggerExecutions: WorkflowTriggerExecution[] = [
   },
 ];
 
-function paginate<T>(list: T[], page: number, pageSize: number) {
-  return list.slice((page - 1) * pageSize, page * pageSize);
-}
-
 export const workflowTriggerExecutionsHandlers = [
   http.get('/api/workflows/trigger-executions', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 20;
+    const { page, pageSize } = pageParams(url, 20);
     const instanceId = url.searchParams.get('instanceId');
     const nodeKey = (url.searchParams.get('nodeKey') ?? '').trim();
     const status = url.searchParams.get('status') as WorkflowTriggerExecutionStatus | null;
@@ -89,7 +81,7 @@ export const workflowTriggerExecutionsHandlers = [
     if (status) list = list.filter((item) => item.status === status);
     list.sort((a, b) => b.id - a.id);
 
-    return ok({ list: paginate(list, page, pageSize), total: list.length, page, pageSize });
+    return ok(pageResult(list, page, pageSize));
   }),
 
   http.get('/api/workflows/trigger-executions/:id', ({ params }) => {

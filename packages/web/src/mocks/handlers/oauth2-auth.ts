@@ -2,6 +2,7 @@
  * MSW handlers for OAuth2 standard endpoints (authorize, token, userinfo, etc.)
  */
 import { http, HttpResponse } from 'msw';
+import { ok, badRequest } from '@/mocks/utils/handlers';
 
 const BASE = '/api/oauth2';
 
@@ -15,20 +16,16 @@ export const oauth2AuthHandlers = [
     const clientId = url.searchParams.get('client_id');
     const scope = url.searchParams.get('scope') ?? 'openid';
     if (!clientId) {
-      return HttpResponse.json({ code: 400, message: 'client_id 缺失', data: null }, { status: 400 });
+      return badRequest('client_id 缺失', { status: 400 });
     }
-    return HttpResponse.json({
-      code: 0,
-      message: 'success',
-      data: {
-        clientId,
-        name: 'Demo 应用（Mock）',
-        logoUrl: null,
-        description: '这是一个演示应用',
-        requestedScopes: scope.split(' ').filter(Boolean),
-        alreadyGranted: false,
-      },
-    });
+    return ok({
+      clientId,
+      name: 'Demo 应用（Mock）',
+      logoUrl: null,
+      description: '这是一个演示应用',
+      requestedScopes: scope.split(' ').filter(Boolean),
+      alreadyGranted: false,
+    }, 'success');
   }),
 
   // 用户确认授权
@@ -37,11 +34,7 @@ export const oauth2AuthHandlers = [
     const code = `mock_code_${Date.now()}`;
     // mock 不需要真正存储 code，直接返回跳转 URL
     const stateParam = body.state ? `&state=${encodeURIComponent(body.state)}` : '';
-    return HttpResponse.json({
-      code: 0,
-      message: 'success',
-      data: { redirectUrl: `${body.redirect_uri}?code=${code}${stateParam}` },
-    });
+    return ok({ redirectUrl: `${body.redirect_uri}?code=${code}${stateParam}` }, 'success');
   }),
 
   // 令牌端点（form-urlencoded，mock 接受 JSON 也行）
@@ -72,7 +65,7 @@ export const oauth2AuthHandlers = [
 
   // 令牌撤销
   http.post(`${BASE}/token/revoke`, async () => {
-    return HttpResponse.json({ code: 0, message: '已撤销', data: null });
+    return ok(null, '已撤销');
   }),
 
   // 令牌自省

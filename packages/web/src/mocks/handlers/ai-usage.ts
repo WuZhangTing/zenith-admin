@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok } from '@/mocks/utils/handlers';
 import { mockDate } from '../utils/date';
 
 const byModel = [
@@ -44,15 +45,11 @@ const overview = {
 
 export const aiUsageHandlers = [
   http.get('/api/ai/usage/stats', () => {
-    return HttpResponse.json({
-      code: 0,
-      message: 'success',
-      data: {
-        overview,
-        byModel,
-        byUser,
-        trend: buildTrend(),
-      },
-    });
+    return ok({
+      overview,
+      byModel,
+      byUser,
+      trend: buildTrend(),
+    }, 'success');
   }),
 ];

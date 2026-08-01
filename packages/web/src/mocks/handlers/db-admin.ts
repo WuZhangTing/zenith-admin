@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw';
+import { ok, notFound, pageParams } from '@/mocks/utils/handlers';
 import { mockDateTime } from '@/mocks/utils/date';
 
 const API = import.meta.env.VITE_API_BASE_URL || '';
@@ -324,10 +325,6 @@ function runMockQuery(sqlText: string): {
   };
 }
 
-function ok(data: unknown, message = 'success') {
-  return HttpResponse.json({ code: 0, message, data });
-}
-
 // ─── Handlers ───────────────────────────────────────────────────────────────────
 export const dbAdminHandlers = [
   // 表列表
@@ -338,7 +335,7 @@ export const dbAdminHandlers = [
         schema: t.schema, name: t.name, kind: t.kind,
         rowEstimate: t.rows.length, sizeBytes: size, sizeText: prettySize(size), comment: t.comment,
       };
-    }));
+    }), 'success');
   }),
 
   // 总览
@@ -366,28 +363,27 @@ export const dbAdminHandlers = [
       startedAt: mockDateTime(),
       uptimeSeconds: 86400 * 3 + 3600 * 5,
       topTables,
-    });
+    }, 'success');
   }),
 
   // 表结构
   http.get(`${API}/api/db-admin/tables/:schema/:name/structure`, ({ params }) => {
     const t = findTable(String(params.schema), String(params.name));
-    if (!t) return HttpResponse.json({ code: 404, message: '表不存在', data: null }, { status: 404 });
+    if (!t) return notFound('表不存在', { status: 404 });
     return ok({
       columns: t.columns,
       indexes: t.indexes,
       foreignKeys: t.foreignKeys,
       primaryKey: t.columns.filter((c) => c.isPrimaryKey).map((c) => c.name),
-    });
+    }, 'success');
   }),
 
   // 表数据
   http.get(`${API}/api/db-admin/tables/:schema/:name/rows`, ({ params, request }) => {
     const t = findTable(String(params.schema), String(params.name));
-    if (!t) return HttpResponse.json({ code: 404, message: '表不存在', data: null }, { status: 404 });
+    if (!t) return notFound('表不存在', { status: 404 });
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page') ?? 1);
-    const pageSize = Number(url.searchParams.get('pageSize') ?? 20);
+    const { page, pageSize } = pageParams(url, 20);
     const filtered = applyRowsQuery(t, {
       orderBy: url.searchParams.get('orderBy') ?? undefined,
       orderDir: url.searchParams.get('orderDir') ?? undefined,
@@ -395,37 +391,37 @@ export const dbAdminHandlers = [
       search: url.searchParams.get('search') ?? undefined,
     });
     const start = (page - 1) * pageSize;
-    return ok({ list: filtered.slice(start, start + pageSize), total: filtered.length, page, pageSize });
+    return ok({ list: filtered.slice(start, start + pageSize), total: filtered.length, page, pageSize }, 'success');
   }),
 
   // 插入行
   http.post(`${API}/api/db-admin/tables/:schema/:name/rows`, async ({ params, request }) => {
     const t = findTable(String(params.schema), String(params.name));
-    if (!t) return HttpResponse.json({ code: 404, message: '表不存在', data: null }, { status: 404 });
+    if (!t) return notFound('表不存在', { status: 404 });
     const body = await request.json() as { values: Record<string, unknown> };
     const pk = t.columns.find((c) => c.isPrimaryKey)?.name ?? 'id';
     const maxId = t.rows.reduce((m, r) => Math.max(m, Number(r[pk]) || 0), 0);
     const row: Record<string, unknown> = { ...body.values };
     if (row[pk] == null) row[pk] = maxId + 1;
     t.rows.push(row);
-    return ok(row);
+    return ok(row, 'success');
   }),
 
   // 更新行
   http.patch(`${API}/api/db-admin/tables/:schema/:name/rows`, async ({ params, request }) => {
     const t = findTable(String(params.schema), String(params.name));
-    if (!t) return HttpResponse.json({ code: 404, message: '表不存在', data: null }, { status: 404 });
+    if (!t) return notFound('表不存在', { status: 404 });
     const body = await request.json() as { pk: Record<string, unknown>; changes: Record<string, unknown> };
     const target = t.rows.find((r) => Object.entries(body.pk).every(([k, v]) => String(r[k]) === String(v)));
-    if (!target) return HttpResponse.json({ code: 404, message: '记录不存在', data: null }, { status: 404 });
+    if (!target) return notFound('记录不存在', { status: 404 });
     Object.assign(target, body.changes);
-    return ok(target);
+    return ok(target, 'success');
   }),
 
   // 批量变更行（事务语义：mock 中先全量校验再统一应用，顺序 INSERT → UPDATE → DELETE）
   http.post(`${API}/api/db-admin/tables/:schema/:name/batch-mutate`, async ({ params, request }) => {
     const t = findTable(String(params.schema), String(params.name));
-    if (!t) return HttpResponse.json({ code: 404, message: '表不存在', data: null }, { status: 404 });
+    if (!t) return notFound('表不存在', { status: 404 });
     const body = await request.json() as {
       inserts?: Array<Record<string, unknown>>;
       updates?: Array<{ pk: Record<string, unknown>; changes: Record<string, unknown> }>;
@@ -441,10 +437,7 @@ export const dbAdminHandlers = [
     for (const [i, u] of updates.entries()) {
       const row = t.rows.find((r) => matchPk(r, u.pk));
       if (!row) {
-        return HttpResponse.json(
-          { code: 404, message: `第 ${i + 1} 条更新未命中记录（可能已被删除或主键变更），已回滚全部变更`, data: null },
-          { status: 404 },
-        );
+        return notFound(`第 ${i + 1} 条更新未命中记录（可能已被删除或主键变更），已回滚全部变更`, { status: 404 });
       }
       updateTargets.push({ row, changes: u.changes });
     }
@@ -452,10 +445,7 @@ export const dbAdminHandlers = [
     for (const [i, d] of deletes.entries()) {
       const idx = t.rows.findIndex((r) => matchPk(r, d.pk));
       if (idx === -1) {
-        return HttpResponse.json(
-          { code: 404, message: `第 ${i + 1} 条删除未命中记录（可能已被删除），已回滚全部变更`, data: null },
-          { status: 404 },
-        );
+        return notFound(`第 ${i + 1} 条删除未命中记录（可能已被删除），已回滚全部变更`, { status: 404 });
       }
       deleteIdxs.push(idx);
     }
@@ -471,16 +461,16 @@ export const dbAdminHandlers = [
     }
     for (const { row, changes } of updateTargets) Object.assign(row, changes);
     for (const idx of deleteIdxs.sort((a, b) => b - a)) t.rows.splice(idx, 1);
-    return ok({ inserted: inserts.length, updated: updateTargets.length, deleted: deleteIdxs.length });
+    return ok({ inserted: inserts.length, updated: updateTargets.length, deleted: deleteIdxs.length }, 'success');
   }),
 
   // 删除行
   http.delete(`${API}/api/db-admin/tables/:schema/:name/rows`, async ({ params, request }) => {
     const t = findTable(String(params.schema), String(params.name));
-    if (!t) return HttpResponse.json({ code: 404, message: '表不存在', data: null }, { status: 404 });
+    if (!t) return notFound('表不存在', { status: 404 });
     const body = await request.json() as { pk: Record<string, unknown> };
     const idx = t.rows.findIndex((r) => Object.entries(body.pk).every(([k, v]) => String(r[k]) === String(v)));
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '记录不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('记录不存在', { status: 404 });
     t.rows.splice(idx, 1);
     return ok(null, '已删除');
   }),
@@ -488,7 +478,7 @@ export const dbAdminHandlers = [
   // 截断表
   http.post(`${API}/api/db-admin/tables/:schema/:name/truncate`, ({ params }) => {
     const t = findTable(String(params.schema), String(params.name));
-    if (!t) return HttpResponse.json({ code: 404, message: '表不存在', data: null }, { status: 404 });
+    if (!t) return notFound('表不存在', { status: 404 });
     t.rows.length = 0;
     return ok(null, '已截断');
   }),
@@ -506,23 +496,23 @@ export const dbAdminHandlers = [
       return ok({
         columns: r.columns, rows, rowCount: rows.length, durationMs: r.durationMs,
         truncated: false, paginated: true, total, page: body.page!, pageSize: body.pageSize!,
-      });
+      }, 'success');
     }
     const rows = r.rows.slice(0, 5000);
     recordHistory(body.sql ?? '', r.durationMs, rows.length, true, null);
     return ok({
       columns: r.columns, rows, rowCount: rows.length, durationMs: r.durationMs,
       truncated: r.rows.length > 5000, paginated: false, total: null, page: null, pageSize: null,
-    });
+    }, 'success');
   }),
 
   // 取消查询（Demo 模式下查询瞬时返回，恒为已结束）
-  http.post(`${API}/api/db-admin/query/cancel`, () => ok({ ok: false })),
+  http.post(`${API}/api/db-admin/query/cancel`, () => ok({ ok: false }, 'success')),
 
   // 批量导入
   http.post(`${API}/api/db-admin/tables/:schema/:name/import`, async ({ params, request }) => {
     const t = findTable(String(params.schema), String(params.name));
-    if (!t) return HttpResponse.json({ code: 404, message: '表不存在', data: null }, { status: 404 });
+    if (!t) return notFound('表不存在', { status: 404 });
     const body = await request.json() as { rows: Array<Record<string, unknown>> };
     const rows = Array.isArray(body.rows) ? body.rows : [];
     const pk = t.columns.find((c) => c.isPrimaryKey)?.name ?? 'id';
@@ -532,7 +522,7 @@ export const dbAdminHandlers = [
       if (next[pk] == null) next[pk] = ++maxId;
       t.rows.push(next);
     }
-    return ok({ inserted: rows.length });
+    return ok({ inserted: rows.length }, 'success');
   }),
 
   // EXPLAIN
@@ -553,16 +543,15 @@ export const dbAdminHandlers = [
       },
       ...(analyze ? { 'Planning Time': 0.123, 'Execution Time': 0.256 } : {}),
     };
-    return ok({ plan, durationMs: analyze ? 9 : 4, analyzed: analyze });
+    return ok({ plan, durationMs: analyze ? 9 : 4, analyzed: analyze }, 'success');
   }),
 
   // 查询历史
   http.get(`${API}/api/db-admin/query/history`, ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page') ?? 1);
-    const pageSize = Number(url.searchParams.get('pageSize') ?? 20);
+    const { page, pageSize } = pageParams(url, 20);
     const start = (page - 1) * pageSize;
-    return ok({ list: queryHistory.slice(start, start + pageSize), total: queryHistory.length, page, pageSize });
+    return ok({ list: queryHistory.slice(start, start + pageSize), total: queryHistory.length, page, pageSize }, 'success');
   }),
 
   http.delete(`${API}/api/db-admin/query/history/:id`, ({ params }) => {
@@ -588,14 +577,14 @@ export const dbAdminHandlers = [
         schema: t.schema, table: t.name, columns: fk.columns,
         referencedSchema: fk.referencedSchema, referencedTable: fk.referencedTable, referencedColumns: fk.referencedColumns,
       }))),
-    });
+    }, 'success');
   }),
 
   http.get(`${API}/api/db-admin/er-diagram`, () => {
     return ok(tables.flatMap((t) => t.foreignKeys.map((fk) => ({
       schema: t.schema, table: t.name, columns: fk.columns,
       referencedSchema: fk.referencedSchema, referencedTable: fk.referencedTable, referencedColumns: fk.referencedColumns,
-    }))));
+    }))), 'success');
   }),
 
   // 导出（CSV / JSON）— 返回文本，供下载按钮工作
@@ -619,7 +608,7 @@ export const dbAdminHandlers = [
 
   http.get(`${API}/api/db-admin/tables/:schema/:name/export.csv`, ({ params }) => {
     const t = findTable(String(params.schema), String(params.name));
-    if (!t) return HttpResponse.json({ code: 404, message: '表不存在', data: null }, { status: 404 });
+    if (!t) return notFound('表不存在', { status: 404 });
     const header = t.columns.map((c) => c.name).join(',');
     const lines = t.rows.map((r) => t.columns.map((c) => String(r[c.name] ?? '')).join(','));
     return new HttpResponse(`\uFEFF${header}\n${lines.join('\n')}`, {
@@ -629,7 +618,7 @@ export const dbAdminHandlers = [
 
   http.get(`${API}/api/db-admin/tables/:schema/:name/export.sql`, ({ params }) => {
     const t = findTable(String(params.schema), String(params.name));
-    if (!t) return HttpResponse.json({ code: 404, message: '表不存在', data: null }, { status: 404 });
+    if (!t) return notFound('表不存在', { status: 404 });
     const lines = t.rows.map((r) => {
       const cols = t.columns.map((c) => `"${c.name}"`).join(', ');
       const vals = t.columns.map((c) => {
@@ -673,11 +662,11 @@ export const dbAdminHandlers = [
         query: 'BEGIN', querySeconds: 60.1, xactSeconds: 62.0, backendSeconds: 700,
         queryStart: now, backendStart: now, blockedBy: [], isCurrent: false,
       },
-    ]);
+    ], 'success');
   }),
 
-  http.post(`${API}/api/db-admin/activity/:pid/cancel`, () => ok({ ok: true })),
-  http.post(`${API}/api/db-admin/activity/:pid/terminate`, () => ok({ ok: true })),
+  http.post(`${API}/api/db-admin/activity/:pid/cancel`, () => ok({ ok: true }, 'success')),
+  http.post(`${API}/api/db-admin/activity/:pid/terminate`, () => ok({ ok: true }, 'success')),
 
   // ─── 运维：表维护 ────────────────────────────────────────────────────────────
   http.get(`${API}/api/db-admin/maintenance/tables`, () => {
@@ -696,7 +685,7 @@ export const dbAdminHandlers = [
         lastAnalyze: i % 2 === 0 ? now : null, lastAutoanalyze: now,
         vacuumCount: i, autovacuumCount: i * 3, analyzeCount: i, autoanalyzeCount: i * 2,
       };
-    }).sort((a, b) => b.deadTuples - a.deadTuples));
+    }).sort((a, b) => b.deadTuples - a.deadTuples), 'success');
   }),
 
   http.post(`${API}/api/db-admin/tables/:schema/:name/maintenance`, () => ok(null, '已执行')),
@@ -721,7 +710,7 @@ export const dbAdminHandlers = [
       ],
       totalIndexes: 38,
       totalIndexBytes: 1572864,
-    });
+    }, 'success');
   }),
 
   // ─── 对象浏览 ────────────────────────────────────────────────────────────────
@@ -748,7 +737,7 @@ export const dbAdminHandlers = [
         { name: 'plpgsql', version: '1.0', schema: 'pg_catalog', comment: 'PL/pgSQL procedural language' },
         { name: 'pg_trgm', version: '1.6', schema: 'public', comment: 'text similarity measurement' },
       ],
-    });
+    }, 'success');
   }),
 
   // ─── Drizzle Schema 漂移对照 ──────────────────────────────────────────────────
@@ -768,6 +757,6 @@ export const dbAdminHandlers = [
         },
         { schema: 'public', table: 'audit_archive', status: 'extra_in_db', columns: [] },
       ],
-    });
+    }, 'success');
   }),
 ];

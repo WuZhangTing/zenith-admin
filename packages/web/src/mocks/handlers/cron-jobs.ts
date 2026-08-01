@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound, pageParams, paginate } from '@/mocks/utils/handlers';
 import { mockCronJobs, getNextCronJobId } from '@/mocks/data/system';
 import { mockDateTime, mockDateTimeOffset, mockDateOffset } from '@/mocks/utils/date';
 import type { CronJob } from '@zenith/shared/platform';
@@ -6,14 +7,12 @@ import type { CronJob } from '@zenith/shared/platform';
 export const cronJobsHandlers = [
   // 获取可用任务处理器列表（必须在 :id 路由之前声明）
   http.get('/api/cron-jobs/handlers', () => {
-    return HttpResponse.json({ code: 0, message: 'ok', data: ['emailNotification', 'dataCleanup', 'reportGeneration', 'cacheRefresh'] });
+    return ok(['emailNotification', 'dataCleanup', 'reportGeneration', 'cacheRefresh']);
   }),
 
   // 全量执行日志（必须在 :id 路由之前声明）
   http.get('/api/cron-jobs/logs', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 20;
 
     const statuses: Array<'success' | 'fail' | 'running'> = ['success', 'success', 'success', 'fail', 'running'];
     const allLogs = mockCronJobs.flatMap((job, i) =>
@@ -30,18 +29,14 @@ export const cronJobsHandlers = [
       }))
     ).sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 
-    const total = allLogs.length;
-    const list = allLogs.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
+    return ok(paginate(allLogs, url, 20));
   }),
 
   // 按任务 ID 查询执行日志（必须在 :id 路由之前声明）
   http.get('/api/cron-jobs/:id/logs', ({ params, request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 20;
     const job = mockCronJobs.find((j) => j.id === Number(params.id));
-    if (!job) return HttpResponse.json({ code: 404, message: '任务不存在', data: null });
+    if (!job) return notFound('任务不存在');
 
     const statuses: Array<'success' | 'fail' | 'running'> = ['success', 'success', 'fail', 'success', 'running'];
     const logs = Array.from({ length: 10 }, (_, j) => ({
@@ -56,9 +51,7 @@ export const cronJobsHandlers = [
       output: statuses[j % statuses.length] === 'fail' ? 'Error: timeout' : 'OK',
     }));
 
-    const total = logs.length;
-    const list = logs.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
+    return ok(paginate(logs, url, 20));
   }),
 
   // 任务执行统计
@@ -138,27 +131,23 @@ export const cronJobsHandlers = [
       };
     });
 
-    return HttpResponse.json({
-      code: 0, message: 'ok',
-      data: {
-        totalJobs: mockCronJobs.length,
-        enabledJobs: mockCronJobs.filter(j => j.status === 'enabled').length,
-        runningJobs: 1,
-        todayRuns: 24, todaySuccesses: 21, todayFails: 3,
-        todayAvgDurationMs: 1450,
-        perJob,
-        dailyStats,
-        hourlyStats,
-        recentLogs,
-      },
+    return ok({
+      totalJobs: mockCronJobs.length,
+      enabledJobs: mockCronJobs.filter(j => j.status === 'enabled').length,
+      runningJobs: 1,
+      todayRuns: 24, todaySuccesses: 21, todayFails: 3,
+      todayAvgDurationMs: 1450,
+      perJob,
+      dailyStats,
+      hourlyStats,
+      recentLogs,
     });
   }),
 
   // 定时任务列表（分页）
   http.get('/api/cron-jobs', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const keyword = url.searchParams.get('keyword') ?? '';
 
     let list = mockCronJobs.filter((j) => {
@@ -167,14 +156,14 @@ export const cronJobsHandlers = [
     });
     const total = list.length;
     list = list.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
+    return ok({ list, total, page, pageSize });
   }),
 
   // 获取单个任务
   http.get('/api/cron-jobs/:id', ({ params }) => {
     const job = mockCronJobs.find((j) => j.id === Number(params.id));
-    if (!job) return HttpResponse.json({ code: 404, message: '任务不存在', data: null });
-    return HttpResponse.json({ code: 0, message: 'ok', data: job });
+    if (!job) return notFound('任务不存在');
+    return ok(job);
   }),
 
   // 新增任务
@@ -199,16 +188,16 @@ export const cronJobsHandlers = [
       updatedAt: mockDateTime(),
     };
     mockCronJobs.push(newJob);
-    return HttpResponse.json({ code: 0, message: '新增成功', data: newJob });
+    return ok(newJob, '新增成功');
   }),
 
   // 更新任务
   http.put('/api/cron-jobs/:id', async ({ params, request }) => {
     const job = mockCronJobs.find((j) => j.id === Number(params.id));
-    if (!job) return HttpResponse.json({ code: 404, message: '任务不存在', data: null });
+    if (!job) return notFound('任务不存在');
     const body = await request.json() as Partial<CronJob>;
     Object.assign(job, body, { updatedAt: mockDateTime() });
-    return HttpResponse.json({ code: 0, message: '更新成功', data: job });
+    return ok(job, '更新成功');
   }),
 
   // 清除所有执行日志（必须在 DELETE /:id 之前声明）
@@ -216,7 +205,7 @@ export const cronJobsHandlers = [
     const url = new URL(request.url);
     const months = Number(url.searchParams.get('months')) || 1;
     const labels: Record<number, string> = { 1: '一个月', 3: '三个月', 6: '六个月', 12: '一年' };
-    return HttpResponse.json({ code: 0, message: `已清除 ${labels[months] ?? months + '个月'} 前的日志`, data: null });
+    return ok(null, `已清除 ${labels[months] ?? months + '个月'} 前的日志`);
   }),
 
   // 清除单任务执行日志（必须在 DELETE /:id 之前声明）
@@ -224,40 +213,40 @@ export const cronJobsHandlers = [
     const url = new URL(request.url);
     const months = Number(url.searchParams.get('months')) || 1;
     const job = mockCronJobs.find((j) => j.id === Number(params.id));
-    if (!job) return HttpResponse.json({ code: 404, message: '任务不存在', data: null });
+    if (!job) return notFound('任务不存在');
     const labels: Record<number, string> = { 1: '一个月', 3: '三个月', 6: '六个月', 12: '一年' };
-    return HttpResponse.json({ code: 0, message: `已清除「${job.name}」${labels[months] ?? months + '个月'} 前的日志`, data: null });
+    return ok(null, `已清除「${job.name}」${labels[months] ?? months + '个月'} 前的日志`);
   }),
 
   // 删除任务
   http.delete('/api/cron-jobs/:id', ({ params }) => {
     const index = mockCronJobs.findIndex((j) => j.id === Number(params.id));
-    if (index === -1) return HttpResponse.json({ code: 404, message: '任务不存在', data: null });
+    if (index === -1) return notFound('任务不存在');
     mockCronJobs.splice(index, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 
   // 立即执行任务（demo 模式仅更新 lastRunAt）
   http.post('/api/cron-jobs/:id/run', ({ params }) => {
     const job = mockCronJobs.find((j) => j.id === Number(params.id));
-    if (!job) return HttpResponse.json({ code: 404, message: '任务不存在', data: null });
+    if (!job) return notFound('任务不存在');
     job.lastRunAt = mockDateTime();
     job.lastRunStatus = 'success';
     job.lastRunMessage = 'Demo 模式：模拟执行成功';
     job.updatedAt = mockDateTime();
-    return HttpResponse.json({ code: 0, message: '执行成功', data: job });
+    return ok(job, '执行成功');
   }),
 
   // 更新任务状态
   http.put('/api/cron-jobs/:id/status', async ({ params, request }) => {
     const job = mockCronJobs.find((j) => j.id === Number(params.id));
-    if (!job) return HttpResponse.json({ code: 404, message: '任务不存在', data: null });
+    if (!job) return notFound('任务不存在');
     const body = await request.json() as { status?: 'enabled' | 'disabled' };
     if (body.status !== 'enabled' && body.status !== 'disabled') {
-      return HttpResponse.json({ code: 400, message: '状态值无效', data: null });
+      return badRequest('状态值无效');
     }
     job.status = body.status;
     job.updatedAt = mockDateTime();
-    return HttpResponse.json({ code: 0, message: '操作成功', data: job });
+    return ok(job, '操作成功');
   }),
 ];

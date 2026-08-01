@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, pageParams } from '@/mocks/utils/handlers';
 import { mockLoginLogs } from '@/mocks/data/logs';
 
 /** 从登录日志派生统计数据，避免硬编码与列表数据脱节 */
@@ -54,8 +55,7 @@ function buildLoginLogStats(days: number) {
 export const loginLogsHandlers = [
   http.get('/api/login-logs', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const username = url.searchParams.get('username') ?? '';
     const eventType = url.searchParams.get('eventType') ?? '';
     const status = url.searchParams.get('status') ?? '';
@@ -68,14 +68,14 @@ export const loginLogsHandlers = [
     });
     const total = list.length;
     list = list.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
+    return ok({ list, total, page, pageSize });
   }),
 
   // 登录日志统计（页面加载时自动拉取，缺失会导致 401 → 跳转登录页）
   http.get('/api/login-logs/stats', ({ request }) => {
     const url = new URL(request.url);
     const days = Number(url.searchParams.get('days')) || 30;
-    return HttpResponse.json({ code: 0, message: 'ok', data: buildLoginLogStats(days) });
+    return ok(buildLoginLogStats(days));
   }),
 
   http.delete('/api/login-logs/clean', ({ request }) => {
@@ -89,6 +89,6 @@ export const loginLogsHandlers = [
         deleted++;
       }
     }
-    return HttpResponse.json({ code: 0, message: `共删除 ${deleted} 条登录日志`, data: null });
+    return ok(null, `共删除 ${deleted} 条登录日志`);
   }),
 ];

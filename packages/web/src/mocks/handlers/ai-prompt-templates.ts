@@ -1,10 +1,11 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound, pageParams, nextIdFrom } from '@/mocks/utils/handlers';
 import { SEED_AI_PROMPT_TEMPLATES } from '@zenith/shared/seed';
 import type { AiPromptScope, AiPromptTemplate, CreateAiPromptTemplateInput, UpdateAiPromptTemplateInput } from '@zenith/shared/ai';
 import { mockDateTime } from '../utils/date';
 
 const store: AiPromptTemplate[] = SEED_AI_PROMPT_TEMPLATES.map((item) => ({ ...item }));
-let nextId = Math.max(...store.map((item) => item.id), 0) + 1;
+let nextId = nextIdFrom(store);
 
 function nextTemplateId() {
   return nextId++;
@@ -14,15 +15,10 @@ function sortTemplates(list: AiPromptTemplate[]) {
   return [...list].sort((a, b) => a.sort - b.sort || a.id - b.id);
 }
 
-function notFound() {
-  return HttpResponse.json({ code: 404, message: '提示词模板不存在', data: null }, { status: 404 });
-}
-
 export const aiPromptTemplatesHandlers = [
   http.get('/api/ai/prompt-templates', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const scope = url.searchParams.get('scope') as AiPromptScope | null;
     const keyword = (url.searchParams.get('keyword') ?? '').trim().toLowerCase();
 
@@ -39,25 +35,25 @@ export const aiPromptTemplatesHandlers = [
 
     const total = list.length;
     const sliced = list.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'success', data: { list: sliced, total, page, pageSize } });
+    return ok({ list: sliced, total, page, pageSize }, 'success');
   }),
 
   http.get('/api/ai/prompt-templates/available', () => {
-    return HttpResponse.json({ code: 0, message: 'success', data: sortTemplates(store.filter((item) => item.isEnabled)) });
+    return ok(sortTemplates(store.filter((item) => item.isEnabled)), 'success');
   }),
 
   // 记录模板被应用一次（使用统计）
   http.post('/api/ai/prompt-templates/:id/use', ({ params }) => {
     const item = store.find((template) => template.id === Number(params.id));
-    if (!item) return notFound();
+    if (!item) return notFound('提示词模板不存在', { status: 404 });
     item.usageCount += 1;
-    return HttpResponse.json({ code: 0, message: '已记录', data: null });
+    return ok(null, '已记录');
   }),
 
   http.get('/api/ai/prompt-templates/:id', ({ params }) => {
     const item = store.find((template) => template.id === Number(params.id));
-    if (!item) return notFound();
-    return HttpResponse.json({ code: 0, message: 'success', data: item });
+    if (!item) return notFound('提示词模板不存在', { status: 404 });
+    return ok(item, 'success');
   }),
 
   http.post('/api/ai/prompt-templates', async ({ request }) => {
@@ -80,13 +76,13 @@ export const aiPromptTemplatesHandlers = [
       updatedAt: now,
     };
     store.push(item);
-    return HttpResponse.json({ code: 0, message: '创建成功', data: item });
+    return ok(item, '创建成功');
   }),
 
   http.put('/api/ai/prompt-templates/:id', async ({ params, request }) => {
     const id = Number(params.id);
     const idx = store.findIndex((template) => template.id === id);
-    if (idx === -1) return notFound();
+    if (idx === -1) return notFound('提示词模板不存在', { status: 404 });
     const body = (await request.json()) as Partial<UpdateAiPromptTemplateInput>;
     const scope = (body.scope ?? store[idx].scope) as AiPromptScope;
     store[idx] = {
@@ -98,17 +94,17 @@ export const aiPromptTemplatesHandlers = [
       isBuiltin: store[idx].isBuiltin,
       updatedAt: mockDateTime(),
     };
-    return HttpResponse.json({ code: 0, message: '更新成功', data: store[idx] });
+    return ok(store[idx], '更新成功');
   }),
 
   http.delete('/api/ai/prompt-templates/:id', ({ params }) => {
     const id = Number(params.id);
     const idx = store.findIndex((template) => template.id === id);
-    if (idx === -1) return notFound();
+    if (idx === -1) return notFound('提示词模板不存在', { status: 404 });
     if (store[idx].isBuiltin) {
-      return HttpResponse.json({ code: 400, message: '内置提示词模板不允许删除', data: null }, { status: 400 });
+      return badRequest('内置提示词模板不允许删除', { status: 400 });
     }
     store.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 ];

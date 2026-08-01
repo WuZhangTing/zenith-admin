@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound, pageParams } from '@/mocks/utils/handlers';
 import { mockUsers, getNextUserId, type MockUser } from '@/mocks/data/users';
 import { mockRoles } from '@/mocks/data/roles';
 import { mockPositions } from '@/mocks/data/positions';
@@ -33,14 +34,13 @@ function toUserResponse(user: MockUser) {
 export const usersHandlers = [
   // 全量用户（供下拉/穿梭框使用）
   http.get('/api/users/all', () => {
-    return HttpResponse.json({ code: 0, message: 'ok', data: mockUsers.map(toUserResponse) });
+    return ok(mockUsers.map(toUserResponse));
   }),
 
   // 用户列表（分页）
   http.get('/api/users', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const keyword = url.searchParams.get('keyword') ?? '';
     const phone = url.searchParams.get('phone') ?? '';
     const status = url.searchParams.get('status') ?? '';
@@ -59,18 +59,14 @@ export const usersHandlers = [
 
     const total = list.length;
     list = list.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({
-      code: 0,
-      message: 'ok',
-      data: { list: list.map(toUserResponse), total, page, pageSize },
-    });
+    return ok({ list: list.map(toUserResponse), total, page, pageSize });
   }),
 
   // 获取单个用户
   http.get('/api/users/:id', ({ params }) => {
     const user = mockUsers.find((u) => u.id === Number(params.id));
-    if (!user) return HttpResponse.json({ code: 404, message: '用户不存在', data: null });
-    return HttpResponse.json({ code: 0, message: 'ok', data: toUserResponse(user) });
+    if (!user) return notFound('用户不存在');
+    return ok(toUserResponse(user));
   }),
 
   // 新增用户
@@ -97,13 +93,13 @@ export const usersHandlers = [
       updatedAt: mockDateTime(),
     };
     mockUsers.push(newUser);
-    return HttpResponse.json({ code: 0, message: '新增成功', data: toUserResponse(newUser) });
+    return ok(toUserResponse(newUser), '新增成功');
   }),
 
   // 更新用户
   http.put('/api/users/:id', async ({ params, request }) => {
     const user = mockUsers.find((u) => u.id === Number(params.id));
-    if (!user) return HttpResponse.json({ code: 404, message: '用户不存在', data: null });
+    if (!user) return notFound('用户不存在');
     const body = await request.json() as Partial<MockUser> & { roleIds?: number[]; positionIds?: number[] };
     if (body.roleIds !== undefined) {
       user.roles = body.roleIds.map((id) => mockRoles.find((r) => r.id === id)).filter((r): r is NonNullable<typeof r> => Boolean(r));
@@ -113,17 +109,17 @@ export const usersHandlers = [
       user.positions = body.positionIds.map((id) => mockPositions.find((p) => p.id === id)).filter((p): p is NonNullable<typeof p> => Boolean(p));
     }
     Object.assign(user, { ...body, updatedAt: mockDateTime() });
-    return HttpResponse.json({ code: 0, message: '更新成功', data: toUserResponse(user) });
+    return ok(toUserResponse(user), '更新成功');
   }),
 
   // 批量删除用户
   http.delete('/api/users/batch', async ({ request }) => {
     const body = await request.json() as { ids: number[] };
     const ids = new Set(body?.ids ?? []);
-    if (ids.size === 0) return HttpResponse.json({ code: 400, message: '请选择要删除的用户', data: null });
+    if (ids.size === 0) return badRequest('请选择要删除的用户');
     const before = mockUsers.length;
     mockUsers.splice(0, mockUsers.length, ...mockUsers.filter((u) => !ids.has(u.id)));
-    return HttpResponse.json({ code: 0, message: `已删除 ${before - mockUsers.length} 个用户`, data: null });
+    return ok(null, `已删除 ${before - mockUsers.length} 个用户`);
   }),
 
   // 批量修改用户状态
@@ -136,26 +132,26 @@ export const usersHandlers = [
         u.updatedAt = mockDateTime();
       }
     });
-    return HttpResponse.json({ code: 0, message: '状态更新成功', data: null });
+    return ok(null, '状态更新成功');
   }),
 
   // 删除用户
   http.delete('/api/users/:id', ({ params }) => {
     const index = mockUsers.findIndex((u) => u.id === Number(params.id));
-    if (index === -1) return HttpResponse.json({ code: 404, message: '用户不存在', data: null });
+    if (index === -1) return notFound('用户不存在');
     if (mockUsers[index].username === 'admin') {
-      return HttpResponse.json({ code: 400, message: '不能删除管理员账号', data: null });
+      return badRequest('不能删除管理员账号');
     }
     mockUsers.splice(index, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 
   // 重置密码（与真实接口 PUT /api/users/:id/password 对齐）
   http.put('/api/users/:id/password', ({ params }) => {
     const user = mockUsers.find((u) => u.id === Number(params.id));
-    if (!user) return HttpResponse.json({ code: 404, message: '用户不存在', data: null });
+    if (!user) return notFound('用户不存在');
     user.password = DEMO_INITIAL_CREDENTIAL;
-    return HttpResponse.json({ code: 0, message: '密码修改成功', data: null });
+    return ok(null, '密码修改成功');
   }),
 
   // 批量重置密码
@@ -165,29 +161,29 @@ export const usersHandlers = [
     mockUsers.forEach((u) => {
       if (ids.has(u.id)) u.password = body.password || DEMO_INITIAL_CREDENTIAL;
     });
-    return HttpResponse.json({ code: 0, message: '密码重置成功', data: null });
+    return ok(null, '密码重置成功');
   }),
 
   // 分配用户角色
   http.put('/api/users/:id/roles', async ({ params, request }) => {
     const user = mockUsers.find((u) => u.id === Number(params.id));
-    if (!user) return HttpResponse.json({ code: 404, message: '用户不存在', data: null });
+    if (!user) return notFound('用户不存在');
     const body = await request.json() as { roleIds: number[] };
     user.roles = (body.roleIds ?? [])
       .map((rid) => mockRoles.find((r) => r.id === rid))
       .filter((r): r is NonNullable<typeof r> => Boolean(r));
     user.updatedAt = mockDateTime();
-    return HttpResponse.json({ code: 0, message: '保存成功', data: null });
+    return ok(null, '保存成功');
   }),
 
   // 修改用户状态
   http.put('/api/users/:id/status', async ({ params, request }) => {
     const user = mockUsers.find((u) => u.id === Number(params.id));
-    if (!user) return HttpResponse.json({ code: 404, message: '用户不存在', data: null });
+    if (!user) return notFound('用户不存在');
     const body = await request.json() as { status: 'enabled' | 'disabled' };
     user.status = body.status;
     user.updatedAt = mockDateTime();
-    return HttpResponse.json({ code: 0, message: '状态更新成功', data: null });
+    return ok(null, '状态更新成功');
   }),
 
   // 下载导入模板
@@ -202,14 +198,10 @@ export const usersHandlers = [
 
   // 批量导入用户
   http.post('/api/users/:id/unlock', () => {
-    return HttpResponse.json({ code: 0, message: 'success', data: null });
+    return ok(null, 'success');
   }),
 
   http.post('/api/users/import', () => {
-    return HttpResponse.json({
-      code: 0,
-      message: '导入完成',
-      data: { total: 2, success: 2, failed: 0, errors: [] },
-    });
+    return ok({ total: 2, success: 2, failed: 0, errors: [] }, '导入完成');
   }),
 ];

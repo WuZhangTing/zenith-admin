@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound } from '@/mocks/utils/handlers';
 import { mockRegions, getNextRegionId, buildRegionTree } from '@/mocks/data/regions';
 import { mockDateTime } from '@/mocks/utils/date';
 import type { Region } from '@zenith/shared/platform';
@@ -34,26 +35,26 @@ export const regionsHandlers = [
 
     const tree = buildRegionTree([...mockRegions]);
     const data = keyword || status || level ? filterTree(tree, keyword, status, level) : tree;
-    return HttpResponse.json({ code: 0, message: 'ok', data });
+    return ok(data);
   }),
 
   // GET /flat — 平铺列表
   http.get('/api/regions/flat', () => {
-    return HttpResponse.json({ code: 0, message: 'ok', data: mockRegions });
+    return ok(mockRegions);
   }),
 
   // GET /:id — 地区详情
   http.get('/api/regions/:id', ({ params }) => {
     const region = mockRegions.find((r) => r.id === Number(params.id));
-    if (!region) return HttpResponse.json({ code: 404, message: '地区不存在', data: null }, { status: 404 });
-    return HttpResponse.json({ code: 0, message: 'ok', data: region });
+    if (!region) return notFound('地区不存在', { status: 404 });
+    return ok(region);
   }),
 
   // POST / — 创建
   http.post('/api/regions', async ({ request }) => {
     const body = (await request.json()) as Partial<Region>;
     const levelError = validateLevelHierarchy(body.level ?? 'province', body.parentCode);
-    if (levelError) return HttpResponse.json({ code: 400, message: levelError, data: null }, { status: 400 });
+    if (levelError) return badRequest(levelError, { status: 400 });
     const now = mockDateTime();
     const newRegion: Region = {
       id: getNextRegionId(),
@@ -67,7 +68,7 @@ export const regionsHandlers = [
       updatedAt: now,
     };
     mockRegions.push(newRegion);
-    return HttpResponse.json({ code: 0, message: '创建成功', data: newRegion });
+    return ok(newRegion, '创建成功');
   }),
 
   // PUT /:id — 更新
@@ -75,15 +76,15 @@ export const regionsHandlers = [
     const id = Number(params.id);
     const region = mockRegions.find((r) => r.id === id);
     if (!region) {
-      return HttpResponse.json({ code: 404, message: '地区不存在', data: null }, { status: 404 });
+      return notFound('地区不存在', { status: 404 });
     }
     const body = (await request.json()) as Partial<Region>;
     const nextLevel = body.level ?? region.level;
     const nextParentCode = body.parentCode === undefined ? region.parentCode : body.parentCode;
     const levelError = validateLevelHierarchy(nextLevel, nextParentCode);
-    if (levelError) return HttpResponse.json({ code: 400, message: levelError, data: null }, { status: 400 });
+    if (levelError) return badRequest(levelError, { status: 400 });
     Object.assign(region, body, { updatedAt: mockDateTime() });
-    return HttpResponse.json({ code: 0, message: '更新成功', data: region });
+    return ok(region, '更新成功');
   }),
 
   // DELETE /:id — 删除
@@ -91,14 +92,14 @@ export const regionsHandlers = [
     const id = Number(params.id);
     const region = mockRegions.find((r) => r.id === id);
     if (!region) {
-      return HttpResponse.json({ code: 404, message: '地区不存在', data: null }, { status: 404 });
+      return notFound('地区不存在', { status: 404 });
     }
     const hasChildren = mockRegions.some((r) => r.parentCode === region.code);
     if (hasChildren) {
-      return HttpResponse.json({ code: 400, message: '该地区下存在子地区，请先删除子地区', data: null }, { status: 400 });
+      return badRequest('该地区下存在子地区，请先删除子地区', { status: 400 });
     }
     const idx = mockRegions.findIndex((r) => r.id === id);
     mockRegions.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 ];

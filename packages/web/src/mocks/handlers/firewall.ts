@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok } from '@/mocks/utils/handlers';
 
 const mockStatus = {
   enabled: true,
@@ -28,8 +29,8 @@ const mockRules: MockRule[] = [
 ];
 
 export const firewallHandlers = [
-  http.get('/api/firewall', () => HttpResponse.json({ code: 0, message: 'ok', data: mockStatus })),
-  http.get('/api/firewall/rules', () => HttpResponse.json({ code: 0, message: 'ok', data: { type: 'ufw', rules: mockRules } })),
+  http.get('/api/firewall', () => ok(mockStatus)),
+  http.get('/api/firewall/rules', () => ok({ type: 'ufw', rules: mockRules })),
   http.post('/api/firewall/rules', async ({ request }) => {
     const body = await request.json() as Partial<MockRule>;
     const newRule: MockRule = {
@@ -43,19 +44,19 @@ export const firewallHandlers = [
       comment: body.comment ?? null,
     };
     mockRules.push(newRule);
-    return HttpResponse.json({ code: 0, message: '规则已添加', data: null });
+    return ok(null, '规则已添加');
   }),
   http.delete('/api/firewall/rules/:id', ({ params }) => {
     const idx = mockRules.findIndex((rule) => rule.id === params.id);
     if (idx !== -1) mockRules.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '规则已删除', data: null });
+    return ok(null, '规则已删除');
   }),
   http.post('/api/firewall/enable', () => {
     mockStatus.enabled = true;
-    return HttpResponse.json({ code: 0, message: '防火墙已启用', data: null });
+    return ok(null, '防火墙已启用');
   }),
   http.post('/api/firewall/disable', () => {
     mockStatus.enabled = false;
-    return HttpResponse.json({ code: 0, message: '防火墙已关闭', data: null });
+    return ok(null, '防火墙已关闭');
   }),
 ];

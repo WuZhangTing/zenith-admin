@@ -1,4 +1,4 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
 import {
   mockPaymentChannels,
   getNextPaymentChannelId,
@@ -9,7 +9,7 @@ import {
   mockPaymentLogs,
 } from '@/mocks/data/payment';
 import { mockDateTime, mockDateTimeOffset, mockDate } from '@/mocks/utils/date';
-import { paginate } from '@/mocks/utils/handlers';
+import { ok, notFound, paginate } from '@/mocks/utils/handlers';
 import { PAYMENT_METHOD_CHANNEL } from '@zenith/shared/payment';
 import type { PaymentChannelConfig, PaymentMethod, PaymentOrder, PaymentRefund } from '@zenith/shared/payment';
 import { recordMockPaymentSucceeded, recordMockRefundSucceeded } from './payment-ext';
@@ -34,23 +34,19 @@ export const paymentHandlers = [
     const statusMap = new Map<string, number>();
     for (const o of mockPaymentOrders) statusMap.set(o.status, (statusMap.get(o.status) ?? 0) + 1);
     const round1 = (n: number) => Math.round(n * 10) / 10;
-    return HttpResponse.json({
-      code: 0,
-      message: 'ok',
-      data: {
-        totalAmount,
-        todayAmount: 0,
-        todayCount: 0,
-        orderCount,
-        successCount,
-        refundAmount,
-        refundCount: successRefunds.length,
-        successRate: orderCount > 0 ? round1((successCount / orderCount) * 100) : 0,
-        refundRate: totalAmount > 0 ? round1((refundAmount / totalAmount) * 100) : 0,
-        avgAmount: successCount > 0 ? Math.round(totalAmount / successCount) : 0,
-        byChannel,
-        byStatus: [...statusMap].map(([status, count]) => ({ status, count })),
-      },
+    return ok({
+      totalAmount,
+      todayAmount: 0,
+      todayCount: 0,
+      orderCount,
+      successCount,
+      refundAmount,
+      refundCount: successRefunds.length,
+      successRate: orderCount > 0 ? round1((successCount / orderCount) * 100) : 0,
+      refundRate: totalAmount > 0 ? round1((refundAmount / totalAmount) * 100) : 0,
+      avgAmount: successCount > 0 ? Math.round(totalAmount / successCount) : 0,
+      byChannel,
+      byStatus: [...statusMap].map(([status, count]) => ({ status, count })),
     });
   }),
 
@@ -68,11 +64,11 @@ export const paymentHandlers = [
       const refundAmount = seed % 6 === 0 ? Math.round(amount * 0.12) : 0;
       return { date: mockDate(d), amount, count, refundAmount };
     });
-    return HttpResponse.json({ code: 0, message: 'ok', data });
+    return ok(data);
   }),
 
   // ── 渠道配置 ──
-  http.get('/api/payment/channels/all', () => HttpResponse.json({ code: 0, message: 'ok', data: mockPaymentChannels })),
+  http.get('/api/payment/channels/all', () => ok(mockPaymentChannels)),
   http.get('/api/payment/channels', ({ request }) => {
     const url = new URL(request.url);
     const keyword = url.searchParams.get('keyword') ?? '';
@@ -81,11 +77,11 @@ export const paymentHandlers = [
     const filtered = mockPaymentChannels.filter(
       (c) => (!keyword || c.name.includes(keyword)) && (!channel || c.channel === channel) && (!status || c.status === status),
     );
-    return HttpResponse.json({ code: 0, message: 'ok', data: paginate(filtered, url) });
+    return ok(paginate(filtered, url));
   }),
   http.get('/api/payment/channels/:id', ({ params }) => {
     const c = mockPaymentChannels.find((x) => x.id === Number(params.id));
-    return c ? HttpResponse.json({ code: 0, message: 'ok', data: c }) : HttpResponse.json({ code: 404, message: '不存在', data: null });
+    return c ? ok(c) : notFound('不存在');
   }),
   http.post('/api/payment/channels', async ({ request }) => {
     const body = (await request.json()) as Partial<PaymentChannelConfig> & { wechatApiV3Key?: string; wechatPrivateKey?: string; alipayPrivateKey?: string; unionpayPrivateKey?: string };
@@ -119,44 +115,44 @@ export const paymentHandlers = [
       updatedAt: now,
     };
     mockPaymentChannels.push(item);
-    return HttpResponse.json({ code: 0, message: '创建成功', data: item });
+    return ok(item, '创建成功');
   }),
   http.put('/api/payment/channels/:id', async ({ params, request }) => {
     const c = mockPaymentChannels.find((x) => x.id === Number(params.id));
-    if (!c) return HttpResponse.json({ code: 404, message: '不存在', data: null });
+    if (!c) return notFound('不存在');
     const body = (await request.json()) as Record<string, unknown>;
     Object.assign(c, body, { updatedAt: mockDateTime() });
     if (body.unionpayPrivateKey) c.hasUnionpayPrivateKey = true;
     if (body.wechatApiV3Key) c.hasWechatApiV3Key = true;
     if (body.wechatPrivateKey) c.hasWechatPrivateKey = true;
     if (body.alipayPrivateKey) c.hasAlipayPrivateKey = true;
-    return HttpResponse.json({ code: 0, message: '更新成功', data: c });
+    return ok(c, '更新成功');
   }),
   http.delete('/api/payment/channels/:id', ({ params }) => {
     const i = mockPaymentChannels.findIndex((x) => x.id === Number(params.id));
-    if (i === -1) return HttpResponse.json({ code: 404, message: '不存在', data: null });
+    if (i === -1) return notFound('不存在');
     mockPaymentChannels.splice(i, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 
   // 渠道连通性测试（Demo 模式模拟 50ms 探测延迟，返回成功）
   http.post('/api/payment/channels/:id/test', ({ params }) => {
     const c = mockPaymentChannels.find((x) => x.id === Number(params.id));
-    if (!c) return HttpResponse.json({ code: 404, message: '渠道配置不存在', data: null });
-    return HttpResponse.json({ code: 0, message: '操作成功', data: { success: true, message: '连通性测试通过（演示模式）', latencyMs: 48 } });
+    if (!c) return notFound('渠道配置不存在');
+    return ok({ success: true, message: '连通性测试通过（演示模式）', latencyMs: 48 }, '操作成功');
   }),
 
   // 设为默认渠道（同渠道互斥）
   http.post('/api/payment/channels/:id/default', ({ params }) => {
     const target = mockPaymentChannels.find((x) => x.id === Number(params.id));
-    if (!target) return HttpResponse.json({ code: 404, message: '渠道配置不存在', data: null });
+    if (!target) return notFound('渠道配置不存在');
     const now = mockDateTime();
     for (const c of mockPaymentChannels) {
       if (c.channel === target.channel) c.isDefault = c.id === target.id;
     }
     target.status = 'enabled';
     target.updatedAt = now;
-    return HttpResponse.json({ code: 0, message: '已设为默认', data: target });
+    return ok(target, '已设为默认');
   }),
 
   // ── 支付订单 ──
@@ -183,7 +179,7 @@ export const paymentHandlers = [
         (!startTime || o.createdAt >= startTime) &&
         (!endTime || o.createdAt <= endTime),
     );
-    return HttpResponse.json({ code: 0, message: 'ok', data: paginate(filtered, url) });
+    return ok(paginate(filtered, url));
   }),
   http.post('/api/payment/orders', async ({ request }) => {
     const body = (await request.json()) as { bizType: string; bizId: string; subject: string; amount: number; payMethod: PaymentMethod; openId?: string };
@@ -204,25 +200,25 @@ export const paymentHandlers = [
       codeUrl: channel === 'wechat' ? `weixin://wxpay/bizpayurl?pr=${orderNo}` : undefined,
       payUrl: channel === 'alipay' ? `https://openapi.alipaydev.com/gateway.do?out_trade_no=${orderNo}` : undefined,
     };
-    return HttpResponse.json({ code: 0, message: '下单成功', data: { orderNo, payParams } });
+    return ok({ orderNo, payParams }, '下单成功');
   }),
   http.get('/api/payment/orders/by-no/:orderNo', ({ params }) => {
     const o = mockPaymentOrders.find((x) => x.orderNo === String(params.orderNo));
-    return o ? HttpResponse.json({ code: 0, message: 'ok', data: o }) : HttpResponse.json({ code: 404, message: '不存在', data: null });
+    return o ? ok(o) : notFound('不存在');
   }),
   http.get('/api/payment/orders/:id', ({ params }) => {
     const o = mockPaymentOrders.find((x) => x.id === Number(params.id));
-    return o ? HttpResponse.json({ code: 0, message: 'ok', data: o }) : HttpResponse.json({ code: 404, message: '不存在', data: null });
+    return o ? ok(o) : notFound('不存在');
   }),
   http.get('/api/payment/orders/:id/refunds', ({ params }) => {
     const order = mockPaymentOrders.find((x) => x.id === Number(params.id));
-    if (!order) return HttpResponse.json({ code: 404, message: '订单不存在', data: null });
+    if (!order) return notFound('订单不存在');
     const refunds = mockPaymentRefunds.filter((r) => r.orderId === order.id).sort((a, b) => b.id - a.id);
-    return HttpResponse.json({ code: 0, message: 'ok', data: refunds });
+    return ok(refunds);
   }),
   http.post('/api/payment/orders/:id/query', ({ params }) => {
     const o = mockPaymentOrders.find((x) => x.id === Number(params.id));
-    if (!o) return HttpResponse.json({ code: 404, message: '不存在', data: null });
+    if (!o) return notFound('不存在');
     if (o.status === 'paying') {
       o.status = 'success';
       o.paidAmount = o.amount;
@@ -230,21 +226,21 @@ export const paymentHandlers = [
       o.updatedAt = mockDateTime();
       recordMockPaymentSucceeded(o);
     }
-    return HttpResponse.json({ code: 0, message: '已同步', data: o });
+    return ok(o, '已同步');
   }),
   http.post('/api/payment/orders/:id/close', ({ params }) => {
     const o = mockPaymentOrders.find((x) => x.id === Number(params.id));
-    if (!o) return HttpResponse.json({ code: 404, message: '不存在', data: null });
+    if (!o) return notFound('不存在');
     o.status = 'closed';
     o.updatedAt = mockDateTime();
-    return HttpResponse.json({ code: 0, message: '订单已关闭', data: null });
+    return ok(null, '订单已关闭');
   }),
 
   // ── 退款 ──
   http.post('/api/payment/refunds', async ({ request }) => {
     const body = (await request.json()) as { orderNo: string; refundAmount: number; reason?: string };
     const order = mockPaymentOrders.find((o) => o.orderNo === body.orderNo);
-    if (!order) return HttpResponse.json({ code: 404, message: '订单不存在', data: null });
+    if (!order) return notFound('订单不存在');
     const refundNo = `REF${Date.now()}`;
     const now = mockDateTime();
     const refund: PaymentRefund = {
@@ -256,7 +252,7 @@ export const paymentHandlers = [
     order.status = body.refundAmount >= order.amount ? 'refunded' : 'success';
     order.updatedAt = now;
     recordMockRefundSucceeded(refund);
-    return HttpResponse.json({ code: 0, message: '退款已发起', data: { refundNo, status: 'success' } });
+    return ok({ refundNo, status: 'success' }, '退款已发起');
   }),
   http.get('/api/payment/refunds', ({ request }) => {
     const url = new URL(request.url);
@@ -273,12 +269,12 @@ export const paymentHandlers = [
         (!startTime || r.createdAt >= startTime) &&
         (!endTime || r.createdAt <= endTime),
     );
-    return HttpResponse.json({ code: 0, message: 'ok', data: paginate(filtered, url) });
+    return ok(paginate(filtered, url));
   }),
   // 退款查单同步（Demo 模式将处理中退款置为成功）
   http.post('/api/payment/refunds/:id/query', ({ params }) => {
     const r = mockPaymentRefunds.find((x) => x.id === Number(params.id));
-    if (!r) return HttpResponse.json({ code: 404, message: '退款记录不存在', data: null });
+    if (!r) return notFound('退款记录不存在');
     if (r.status === 'processing' || r.status === 'pending') {
       r.status = 'success';
       r.refundedAt = mockDateTime();
@@ -287,11 +283,11 @@ export const paymentHandlers = [
       if (order) order.status = r.refundAmount >= order.amount ? 'refunded' : 'success';
       recordMockRefundSucceeded(r);
     }
-    return HttpResponse.json({ code: 0, message: '已同步', data: r });
+    return ok(r, '已同步');
   }),
   http.get('/api/payment/refunds/:id', ({ params }) => {
     const r = mockPaymentRefunds.find((x) => x.id === Number(params.id));
-    return r ? HttpResponse.json({ code: 0, message: 'ok', data: r }) : HttpResponse.json({ code: 404, message: '不存在', data: null });
+    return r ? ok(r) : notFound('不存在');
   }),
 
   // ── 回调日志 ──
@@ -312,6 +308,6 @@ export const paymentHandlers = [
         (!startTime || l.createdAt >= startTime) &&
         (!endTime || l.createdAt <= endTime),
     );
-    return HttpResponse.json({ code: 0, message: 'ok', data: paginate(filtered, url) });
+    return ok(paginate(filtered, url));
   }),
 ];

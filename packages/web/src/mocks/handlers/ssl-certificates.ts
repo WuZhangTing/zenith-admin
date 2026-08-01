@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw';
+import { ok, notFound, pageParams } from '@/mocks/utils/handlers';
 import { mockDateTime } from '../utils/date';
 
 interface MockCert {
@@ -88,36 +89,31 @@ export const sslCertificatesHandlers = [
     const url = new URL(request.url);
     const keyword = (url.searchParams.get('keyword') ?? '').toLowerCase();
     const type = url.searchParams.get('type') ?? '';
-    const page = Number(url.searchParams.get('page') ?? '1');
-    const pageSize = Number(url.searchParams.get('pageSize') ?? '10');
+    const { page, pageSize } = pageParams(url);
     const filtered = mockCerts.filter((cert) => {
       const matchesKeyword = !keyword || cert.name.toLowerCase().includes(keyword) || cert.domain.toLowerCase().includes(keyword);
       const matchesType = !type || cert.type === type;
       return matchesKeyword && matchesType;
     });
     const start = (page - 1) * pageSize;
-    return HttpResponse.json({
-      code: 0,
-      message: 'ok',
-      data: {
-        list: filtered.slice(start, start + pageSize),
-        total: filtered.length,
-        page,
-        pageSize,
-      },
+    return ok({
+      list: filtered.slice(start, start + pageSize),
+      total: filtered.length,
+      page,
+      pageSize,
     });
   }),
   http.get('/api/ssl-certificates/:id', ({ params }) => {
     const cert = mockCerts.find((item) => item.id === Number(params.id));
     if (!cert) {
-      return HttpResponse.json({ code: 404, message: '证书不存在', data: null }, { status: 404 });
+      return notFound('证书不存在', { status: 404 });
     }
-    return HttpResponse.json({ code: 0, message: 'ok', data: cert });
+    return ok(cert);
   }),
   http.get('/api/ssl-certificates/:id/download', ({ params, request }) => {
     const cert = mockCerts.find((item) => item.id === Number(params.id));
     if (!cert) {
-      return HttpResponse.json({ code: 404, message: '证书不存在', data: null }, { status: 404 });
+      return notFound('证书不存在', { status: 404 });
     }
     const kind = new URL(request.url).searchParams.get('kind') === 'key' ? 'key' : 'cert';
     const content = kind === 'cert'
@@ -154,7 +150,7 @@ export const sslCertificatesHandlers = [
       updatedAt: mockDateTime(),
     };
     mockCerts.unshift(cert);
-    return HttpResponse.json({ code: 0, message: '证书已生成', data: { id: cert.id } });
+    return ok({ id: cert.id }, '证书已生成');
   }),
   http.post('/api/ssl-certificates/upload', async ({ request }) => {
     const body = await request.json() as { name: string; domain: string };
@@ -179,13 +175,13 @@ export const sslCertificatesHandlers = [
       updatedAt: mockDateTime(),
     };
     mockCerts.unshift(cert);
-    return HttpResponse.json({ code: 0, message: '证书已上传', data: { id: cert.id } });
+    return ok({ id: cert.id }, '证书已上传');
   }),
   http.delete('/api/ssl-certificates/:id', ({ params }) => {
     const index = mockCerts.findIndex((item) => item.id === Number(params.id));
     if (index !== -1) {
       mockCerts.splice(index, 1);
     }
-    return HttpResponse.json({ code: 0, message: '证书已删除', data: null });
+    return ok(null, '证书已删除');
   }),
 ];

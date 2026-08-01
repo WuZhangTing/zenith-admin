@@ -1,14 +1,11 @@
 import { http, HttpResponse } from 'msw';
+import { ok, pageParams, paginate } from '@/mocks/utils/handlers';
 import type { WorkflowComment, WorkflowQuickPhrase, WorkflowDelegation, WorkflowAnalytics, WorkflowInstanceStatus, WorkflowOverdueTask, WorkflowTemplate, WorkflowTaskConsult, WorkflowDefinition, WorkflowInstance } from '@zenith/shared/workflow';
 import { SEED_WORKFLOW_TEMPLATES } from '@zenith/shared/seed';
 import { mockWorkflowInstances, mockWorkflowTasks, getNextInstanceId, getNextDefinitionId } from '@/mocks/data/workflow';
 import { mockWorkflowDefinitions } from '@/mocks/data/workflow';
 import { mockUsers } from '@/mocks/data/users';
 import { mockDateTime } from '@/mocks/utils/date';
-
-function ok<T>(data: T, message = 'ok') {
-  return HttpResponse.json({ code: 0, message, data });
-}
 function err(message: string, code = 400) {
   return HttpResponse.json({ code, message });
 }
@@ -200,8 +197,6 @@ export const workflowExtraHandlers = [
   // ── G1 抄送我的（必须在 /instances/:id 之前注册）──
   http.get('/api/workflows/instances/cc-mine', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page') ?? 1);
-    const pageSize = Number(url.searchParams.get('pageSize') ?? 20);
     const keyword = (url.searchParams.get('keyword') ?? '').toLowerCase();
     let all = mockWorkflowInstances.filter((i) => i.status !== 'draft');
     if (keyword) all = all.filter((i) => i.title.toLowerCase().includes(keyword) || (i.definitionName ?? '').toLowerCase().includes(keyword));
@@ -209,7 +204,7 @@ export const workflowExtraHandlers = [
       const ccTaskId = 90000 + idx;
       return { ...i, ccTaskId, ccReadAt: ccReadState.has(ccTaskId) ? mockDateTime() : null } as WorkflowInstance;
     });
-    return ok({ list: list.slice((page - 1) * pageSize, page * pageSize), total: list.length, page, pageSize });
+    return ok(paginate(list, url, 20));
   }),
   http.get('/api/workflows/instances/cc-mine/unread-count', () => {
     const total = mockWorkflowInstances.filter((i) => i.status !== 'draft').length;
@@ -223,8 +218,6 @@ export const workflowExtraHandlers = [
   // ── G2 我已办（必须在 /instances/:id 之前注册）──
   http.get('/api/workflows/instances/handled-mine', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page') ?? 1);
-    const pageSize = Number(url.searchParams.get('pageSize') ?? 20);
     const keyword = (url.searchParams.get('keyword') ?? '').toLowerCase();
     let all = mockWorkflowInstances.filter((i) => i.status === 'approved' || i.status === 'rejected');
     if (keyword) all = all.filter((i) => i.title.toLowerCase().includes(keyword) || (i.definitionName ?? '').toLowerCase().includes(keyword));
@@ -233,7 +226,7 @@ export const workflowExtraHandlers = [
       myTaskStatus: i.status === 'approved' ? 'approved' : 'rejected',
       myActionAt: i.updatedAt,
     } as WorkflowInstance));
-    return ok({ list: list.slice((page - 1) * pageSize, page * pageSize), total: list.length, page, pageSize });
+    return ok(paginate(list, url, 20));
   }),
 
   // ── G8 批量撤回 / 批量催办（必须在 /instances/:id 之前注册）──
@@ -398,9 +391,7 @@ export const workflowExtraHandlers = [
   // ── T2-1 定时发起 ──
   http.get('/api/workflows/schedules', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page') ?? 1);
-    const pageSize = Number(url.searchParams.get('pageSize') ?? 20);
-    return ok({ list: mockSchedules.slice((page - 1) * pageSize, page * pageSize), total: mockSchedules.length, page, pageSize });
+    return ok(paginate(mockSchedules, url, 20));
   }),
   http.post('/api/workflows/schedules', async ({ request }) => {
     const body = await request.json() as { definitionId: number; name: string; cronExpression: string; timezone?: string | null; initiatorId: number; titleTemplate?: string | null; formData?: Record<string, unknown> | null; status?: 'enabled' | 'disabled' };
@@ -439,10 +430,8 @@ export const workflowExtraHandlers = [
   // ── 我的协办（必须在 /instances/:id 之前注册）──
   http.get('/api/workflows/instances/consults/mine', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page') ?? 1);
-    const pageSize = Number(url.searchParams.get('pageSize') ?? 20);
     const all = mockConsults.filter((c) => c.consulteeId === 1);
-    return ok({ list: all.slice((page - 1) * pageSize, page * pageSize), total: all.length, page, pageSize });
+    return ok(paginate(all, url, 20));
   }),
   http.post('/api/workflows/instances/consults/:id/reply', async ({ params, request }) => {
     const body = await request.json() as { opinion: string };
@@ -546,10 +535,8 @@ export const workflowExtraHandlers = [
   // ── 超时待办预警 ──
   http.get('/api/workflows/instances/overdue', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page') ?? 1);
-    const pageSize = Number(url.searchParams.get('pageSize') ?? 20);
     const all = buildOverdueList();
-    return ok({ list: all.slice((page - 1) * pageSize, page * pageSize), total: all.length, page, pageSize });
+    return ok(paginate(all, url, 20));
   }),
 
   // ── 流程评论 ──
@@ -756,8 +743,7 @@ export const workflowExtraHandlers = [
   // ── 审批代理 / 离岗委托 ──
   http.get('/api/workflows/delegations', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page') ?? 1);
-    const pageSize = Number(url.searchParams.get('pageSize') ?? 20);
+    const { page, pageSize } = pageParams(url, 20);
     const list = mockDelegations.slice((page - 1) * pageSize, page * pageSize);
     return ok({ list, total: mockDelegations.length, page, pageSize });
   }),

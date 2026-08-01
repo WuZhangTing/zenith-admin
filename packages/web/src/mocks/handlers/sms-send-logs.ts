@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, notFound, paginate } from '@/mocks/utils/handlers';
 import { mockSmsSendLogs, getNextSmsSendLogId } from '@/mocks/data/sms-send-logs';
 import { mockSmsTemplates } from '@/mocks/data/sms-templates';
 import { mockDateTime } from '@/mocks/utils/date';
@@ -12,8 +13,6 @@ export const smsSendLogsHandlers = [
     const provider = url.searchParams.get('provider') ?? '';
     const status = url.searchParams.get('status') ?? '';
     const source = url.searchParams.get('source') ?? '';
-    const page = Number(url.searchParams.get('page') ?? '1');
-    const pageSize = Number(url.searchParams.get('pageSize') ?? '20');
     const filtered = mockSmsSendLogs.filter((l) => {
       if (keyword && !l.phone.includes(keyword) && !(l.templateName ?? '').includes(keyword)) return false;
       if (phone && !l.phone.includes(phone)) return false;
@@ -22,22 +21,20 @@ export const smsSendLogsHandlers = [
       if (source && l.source !== source) return false;
       return true;
     });
-    const total = filtered.length;
-    const list = filtered.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
+    return ok(paginate(filtered, url, 20));
   }),
 
   http.get('/api/sms-send-logs/:id', ({ params }) => {
     const l = mockSmsSendLogs.find((x) => x.id === Number(params.id));
-    if (!l) return HttpResponse.json({ code: 404, message: '记录不存在', data: null }, { status: 404 });
-    return HttpResponse.json({ code: 0, message: 'ok', data: l });
+    if (!l) return notFound('记录不存在', { status: 404 });
+    return ok(l);
   }),
 
   http.delete('/api/sms-send-logs/:id', ({ params }) => {
     const idx = mockSmsSendLogs.findIndex((x) => x.id === Number(params.id));
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '记录不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('记录不存在', { status: 404 });
     mockSmsSendLogs.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 
   http.delete('/api/sms-send-logs/batch', async ({ request }) => {
@@ -50,7 +47,7 @@ export const smsSendLogsHandlers = [
         count++;
       }
     }
-    return HttpResponse.json({ code: 0, message: `已删除 ${count} 条记录`, data: null });
+    return ok(null, `已删除 ${count} 条记录`);
   }),
 
   http.post('/api/sms-send-logs/test', async ({ request }) => {
@@ -78,6 +75,6 @@ export const smsSendLogsHandlers = [
       createdAt: now,
     };
     mockSmsSendLogs.unshift(log);
-    return HttpResponse.json({ code: 0, message: '测试发送成功', data: { success: true, status: 'success', logId: log.id } });
+    return ok({ success: true, status: 'success', logId: log.id }, '测试发送成功');
   }),
 ];

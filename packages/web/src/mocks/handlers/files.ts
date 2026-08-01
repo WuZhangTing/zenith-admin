@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound, pageParams, nextIdFrom } from '@/mocks/utils/handlers';
 import { mockFileStorageConfigs } from '@/mocks/data/system';
 import { mockDateTime } from '@/mocks/utils/date';
 import type { FolderEntry, ManagedFile, FileStorageConfig, StorageBrowseResult } from '@zenith/shared/platform';
@@ -204,8 +205,7 @@ export const filesHandlers = [
   // 文件列表（分页）
   http.get('/api/files', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const keyword = url.searchParams.get('keyword') ?? '';
 
     let list = mockManagedFiles.filter((f) => {
@@ -214,7 +214,7 @@ export const filesHandlers = [
     });
     const total = list.length;
     list = list.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
+    return ok({ list, total, page, pageSize });
   }),
 
   // 按存储配置浏览文件目录（必须放在 /api/files/:id 之前）
@@ -222,8 +222,8 @@ export const filesHandlers = [
     const url = new URL(request.url);
     const storageConfigId = Number(url.searchParams.get('storageConfigId'));
     const path = url.searchParams.get('path') ?? '';
-    if (!storageConfigId) return HttpResponse.json({ code: 400, message: '参数错误', data: null });
-    return HttpResponse.json({ code: 0, message: 'ok', data: buildBrowseResult(storageConfigId, path) });
+    if (!storageConfigId) return badRequest('参数错误');
+    return ok(buildBrowseResult(storageConfigId, path));
   }),
 
   // 上传文件（demo 模式支持多文件）
@@ -249,14 +249,14 @@ export const filesHandlers = [
       mockManagedFiles.push(uploaded);
       return uploaded;
     });
-    return HttpResponse.json({ code: 0, message: `成功上传 ${uploadedFiles.length} 个文件`, data: uploadedFiles });
+    return ok(uploadedFiles, `成功上传 ${uploadedFiles.length} 个文件`);
   }),
 
   // 上传单个文件
   http.post('/api/files/upload-one', async ({ request }) => {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
-    if (!file) return HttpResponse.json({ code: 400, message: '请选择要上传的文件', data: null });
+    if (!file) return badRequest('请选择要上传的文件');
     const uploaded: ManagedFile = {
       id: mockUuidV7(),
       storageConfigId: 1,
@@ -273,7 +273,7 @@ export const filesHandlers = [
       updatedAt: mockDateTime(),
     };
     mockManagedFiles.push(uploaded);
-    return HttpResponse.json({ code: 0, message: '上传成功', data: uploaded });
+    return ok(uploaded, '上传成功');
   }),
 
   // 分片上传：初始化
@@ -285,7 +285,7 @@ export const filesHandlers = [
       uploadId, fileName: body.fileName, fileSize: body.fileSize, mimeType: body.mimeType,
       chunkSize: body.chunkSize, totalChunks, received: new Set(), status: 'uploading',
     });
-    return HttpResponse.json({ code: 0, message: 'ok', data: { uploadId, chunkSize: body.chunkSize, totalChunks, received: [] } });
+    return ok({ uploadId, chunkSize: body.chunkSize, totalChunks, received: [] });
   }),
 
   // 分片上传：上传单个分片
@@ -294,16 +294,16 @@ export const filesHandlers = [
     const uploadId = String(formData.get('uploadId') ?? '');
     const index = Number(formData.get('index'));
     const session = mockUploadSessions.get(uploadId);
-    if (!session) return HttpResponse.json({ code: 404, message: '上传会话不存在', data: null });
+    if (!session) return notFound('上传会话不存在');
     session.received.add(index);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { index, received: [...session.received].sort((a, b) => a - b) } });
+    return ok({ index, received: [...session.received].sort((a, b) => a - b) });
   }),
 
   // 分片上传：完成合并
   http.post('/api/files/upload/complete', async ({ request }) => {
     const body = await request.json() as { uploadId: string };
     const session = mockUploadSessions.get(body.uploadId);
-    if (!session) return HttpResponse.json({ code: 404, message: '上传会话不存在', data: null });
+    if (!session) return notFound('上传会话不存在');
     session.status = 'completed';
     const uploaded: ManagedFile = {
       id: mockUuidV7(), storageConfigId: 1, storageName: '本地磁盘', provider: 'local',
@@ -315,30 +315,30 @@ export const filesHandlers = [
     };
     mockManagedFiles.push(uploaded);
     mockUploadSessions.delete(body.uploadId);
-    return HttpResponse.json({ code: 0, message: '上传成功', data: uploaded });
+    return ok(uploaded, '上传成功');
   }),
 
   // 分片上传：查询进度（断点续传）
   http.get('/api/files/upload/:uploadId/status', ({ params }) => {
     const session = mockUploadSessions.get(String(params.uploadId));
-    if (!session) return HttpResponse.json({ code: 404, message: '上传会话不存在', data: null });
-    return HttpResponse.json({ code: 0, message: 'ok', data: {
+    if (!session) return notFound('上传会话不存在');
+    return ok({
       uploadId: session.uploadId, status: session.status, chunkSize: session.chunkSize,
       totalChunks: session.totalChunks, received: [...session.received].sort((a, b) => a - b),
-    } });
+    });
   }),
 
   // 分片上传：中止
   http.delete('/api/files/upload/:uploadId', ({ params }) => {
     mockUploadSessions.delete(String(params.uploadId));
-    return HttpResponse.json({ code: 0, message: '已中止', data: null });
+    return ok(null, '已中止');
   }),
 
   // 获取 Excel 表格预览数据（必须放在 /api/files/:id 之前）
   http.get('/api/files/:id/sheet-preview', ({ params }) => {
     const file = mockManagedFiles.find((f) => f.id === String(params.id));
-    if (!file) return HttpResponse.json({ code: 404, message: '文件不存在', data: null });
-    return HttpResponse.json({ code: 0, message: 'ok', data: { ...mockSheetPreview, name: file.originalName } });
+    if (!file) return notFound('文件不存在');
+    return ok({ ...mockSheetPreview, name: file.originalName });
   }),
 
   // 文件统计（必须放在 /api/files/:id 之前，防止 "stats" 被当成文件 ID）
@@ -371,33 +371,29 @@ export const filesHandlers = [
       uploaderStats: [{ username: 'Admin', count: total, size: totalSize }],
       sizeRangeStats: [{ range: '< 1MB', count: total - 1 }, { range: '1-10MB', count: 1 }, { range: '> 10MB', count: 0 }],
     };
-    return HttpResponse.json({ code: 0, message: 'ok', data });
+    return ok(data);
   }),
 
   // 解析文件访问直链（必须放在 /api/files/:id 之前）
   http.get('/api/files/:id/access-url', ({ params }) => {
     const file = mockManagedFiles.find((f) => f.id === String(params.id));
-    if (!file) return HttpResponse.json({ code: 404, message: '文件不存在', data: null });
-    return HttpResponse.json({
-      code: 0,
-      message: 'ok',
-      data: { url: file.directUrl ?? file.url, strategy: file.directUrl ? 'public' : 'proxy', expiresAt: null },
-    });
+    if (!file) return notFound('文件不存在');
+    return ok({ url: file.directUrl ?? file.url, strategy: file.directUrl ? 'public' : 'proxy', expiresAt: null });
   }),
 
   // 获取单个文件详情
   http.get('/api/files/:id', ({ params }) => {
     const file = mockManagedFiles.find((f) => f.id === String(params.id));
-    if (!file) return HttpResponse.json({ code: 404, message: '文件不存在', data: null });
-    return HttpResponse.json({ code: 0, message: 'ok', data: file });
+    if (!file) return notFound('文件不存在');
+    return ok(file);
   }),
 
   // 删除文件
   http.delete('/api/files/:id', ({ params }) => {
     const index = mockManagedFiles.findIndex((f) => f.id === String(params.id));
-    if (index === -1) return HttpResponse.json({ code: 404, message: '文件不存在', data: null });
+    if (index === -1) return notFound('文件不存在');
     mockManagedFiles.splice(index, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 
   // 批量删除文件
@@ -412,7 +408,7 @@ export const filesHandlers = [
         count++;
       }
     }
-    return HttpResponse.json({ code: 0, message: `已删除 ${count} 个文件`, data: null });
+    return ok(null, `已删除 ${count} 个文件`);
   }),
 
   // ─── 文件存储配置 ───────────────────────────────────────────────────────────
@@ -421,47 +417,46 @@ export const filesHandlers = [
   http.get('/api/file-storage-configs', ({ request }) => {
     const url = new URL(request.url);
     const status = url.searchParams.get('status') ?? '';
-    const page = Number(url.searchParams.get('page') ?? '1');
-    const pageSize = Number(url.searchParams.get('pageSize') ?? '10');
+    const { page, pageSize } = pageParams(url);
     const filtered = mockFileStorageConfigs.filter((c) => {
       if (status && c.status !== status) return false;
       return true;
     });
     const total = filtered.length;
     const list = filtered.slice((page - 1) * pageSize, page * pageSize).map(stripStorageSecrets);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
+    return ok({ list, total, page, pageSize });
   }),
 
   // 获取默认存储配置（必须在 /:id 之前注册，防止 "default" 被当成数字 ID）
   http.get('/api/file-storage-configs/default', () => {
     const config = mockFileStorageConfigs.find((c) => c.isDefault) ?? null;
-    return HttpResponse.json({ code: 0, message: 'ok', data: config ? stripStorageSecrets(config) : null });
+    return ok(config ? stripStorageSecrets(config) : null);
   }),
 
   // 测试存储配置连接（新增表单）
   http.post('/api/file-storage-configs/test', () => {
-    return HttpResponse.json({ code: 0, message: '存储连接测试通过', data: null });
+    return ok(null, '存储连接测试通过');
   }),
 
   // 测试已保存存储配置连接（必须在 /:id 详情之前）
   http.post('/api/file-storage-configs/:id/test', ({ params }) => {
     const config = mockFileStorageConfigs.find((c) => c.id === Number(params.id));
-    if (!config) return HttpResponse.json({ code: 404, message: '存储配置不存在', data: null });
-    return HttpResponse.json({ code: 0, message: '存储连接测试通过', data: null });
+    if (!config) return notFound('存储配置不存在');
+    return ok(null, '存储连接测试通过');
   }),
 
   // 获取单个存储配置
   http.get('/api/file-storage-configs/:id', ({ params }) => {
     const config = mockFileStorageConfigs.find((c) => c.id === Number(params.id));
-    if (!config) return HttpResponse.json({ code: 404, message: '存储配置不存在', data: null });
-    return HttpResponse.json({ code: 0, message: 'ok', data: stripStorageSecrets(config) });
+    if (!config) return notFound('存储配置不存在');
+    return ok(stripStorageSecrets(config));
   }),
 
   // 新增存储配置
   http.post('/api/file-storage-configs', async ({ request }) => {
     const body = await request.json() as Partial<FileStorageConfig>;
     const newConfig: FileStorageConfig = {
-      id: mockFileStorageConfigs.length > 0 ? Math.max(...mockFileStorageConfigs.map((c) => c.id)) + 1 : 1,
+      id: nextIdFrom(mockFileStorageConfigs),
       name: body.name ?? '',
       provider: body.provider ?? 'local',
       status: body.status ?? 'enabled',
@@ -473,33 +468,33 @@ export const filesHandlers = [
       updatedAt: mockDateTime(),
     };
     mockFileStorageConfigs.push(newConfig);
-    return HttpResponse.json({ code: 0, message: '新增成功', data: stripStorageSecrets(newConfig) });
+    return ok(stripStorageSecrets(newConfig), '新增成功');
   }),
 
   // 更新存储配置
   http.put('/api/file-storage-configs/:id', async ({ params, request }) => {
     const config = mockFileStorageConfigs.find((c) => c.id === Number(params.id));
-    if (!config) return HttpResponse.json({ code: 404, message: '存储配置不存在', data: null });
+    if (!config) return notFound('存储配置不存在');
     const body = await request.json() as Partial<FileStorageConfig>;
     // 密钥留空表示不修改，删除空密钥字段后再合并（write-only）
     for (const field of STORAGE_SECRET_FIELDS) {
       if (!body[field]) delete body[field];
     }
     Object.assign(config, body, { updatedAt: mockDateTime() });
-    return HttpResponse.json({ code: 0, message: '更新成功', data: stripStorageSecrets(config) });
+    return ok(stripStorageSecrets(config), '更新成功');
   }),
 
   // 删除存储配置
   http.delete('/api/file-storage-configs/:id', ({ params }) => {
     const index = mockFileStorageConfigs.findIndex((c) => c.id === Number(params.id));
-    if (index === -1) return HttpResponse.json({ code: 404, message: '存储配置不存在', data: null });
+    if (index === -1) return notFound('存储配置不存在');
     mockFileStorageConfigs.splice(index, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 
   // 设置默认存储
   http.put('/api/file-storage-configs/:id/default', ({ params }) => {
     mockFileStorageConfigs.forEach((c) => { c.isDefault = c.id === Number(params.id); });
-    return HttpResponse.json({ code: 0, message: '设置成功', data: null });
+    return ok(null, '设置成功');
   }),
 ];

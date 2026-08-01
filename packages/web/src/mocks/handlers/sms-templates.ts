@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound, paginate } from '@/mocks/utils/handlers';
 import { mockSmsTemplates, getNextSmsTemplateId } from '@/mocks/data/sms-templates';
 import { mockDateTime } from '@/mocks/utils/date';
 import type { SmsTemplate } from '@zenith/shared/messaging';
@@ -9,29 +10,25 @@ export const smsTemplatesHandlers = [
     const keyword = url.searchParams.get('keyword') ?? '';
     const provider = url.searchParams.get('provider') ?? '';
     const status = url.searchParams.get('status') ?? '';
-    const page = Number(url.searchParams.get('page') ?? '1');
-    const pageSize = Number(url.searchParams.get('pageSize') ?? '20');
     const filtered = mockSmsTemplates.filter((t) => {
       if (keyword && !t.name.includes(keyword) && !t.code.includes(keyword) && !t.templateCode.includes(keyword)) return false;
       if (provider && t.provider !== provider) return false;
       if (status && t.status !== status) return false;
       return true;
     });
-    const total = filtered.length;
-    const list = filtered.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
+    return ok(paginate(filtered, url, 20));
   }),
 
   http.get('/api/sms-templates/:id', ({ params }) => {
     const t = mockSmsTemplates.find((x) => x.id === Number(params.id));
-    if (!t) return HttpResponse.json({ code: 404, message: '短信模板不存在', data: null }, { status: 404 });
-    return HttpResponse.json({ code: 0, message: 'ok', data: t });
+    if (!t) return notFound('短信模板不存在', { status: 404 });
+    return ok(t);
   }),
 
   http.post('/api/sms-templates', async ({ request }) => {
     const body = await request.json() as Partial<SmsTemplate>;
     if (mockSmsTemplates.some((t) => t.code === body.code)) {
-      return HttpResponse.json({ code: 400, message: '模板编码已存在', data: null }, { status: 400 });
+      return badRequest('模板编码已存在', { status: 400 });
     }
     const now = mockDateTime();
     const item: SmsTemplate = {
@@ -49,21 +46,21 @@ export const smsTemplatesHandlers = [
       updatedAt: now,
     };
     mockSmsTemplates.push(item);
-    return HttpResponse.json({ code: 0, message: '创建成功', data: item });
+    return ok(item, '创建成功');
   }),
 
   http.put('/api/sms-templates/:id', async ({ params, request }) => {
     const t = mockSmsTemplates.find((x) => x.id === Number(params.id));
-    if (!t) return HttpResponse.json({ code: 404, message: '短信模板不存在', data: null }, { status: 404 });
+    if (!t) return notFound('短信模板不存在', { status: 404 });
     const body = await request.json() as Partial<SmsTemplate>;
     Object.assign(t, body, { id: t.id, code: t.code, updatedAt: mockDateTime() });
-    return HttpResponse.json({ code: 0, message: '更新成功', data: t });
+    return ok(t, '更新成功');
   }),
 
   http.delete('/api/sms-templates/:id', ({ params }) => {
     const idx = mockSmsTemplates.findIndex((x) => x.id === Number(params.id));
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '短信模板不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('短信模板不存在', { status: 404 });
     mockSmsTemplates.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 ];

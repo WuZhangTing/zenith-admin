@@ -1,10 +1,9 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, pageParams } from '@/mocks/utils/handlers';
 import { OPEN_SIGNATURE_ALGORITHM, OPEN_SIGNATURE_TIMESTAMP_WINDOW, OPEN_SIGNATURE_HEADERS } from '@zenith/shared/open-platform';
 import type { OpenApiCallLog } from '@zenith/shared/open-platform';
 import { mockOpenApiLogs } from '@/mocks/data/open-api-logs';
 import dayjs from 'dayjs';
-
-const ok = (data: unknown, message = 'success') => HttpResponse.json({ code: 0, message, data });
 
 function inRange(log: OpenApiCallLog, start: string | null, end: string | null): boolean {
   if (start && log.createdAt < start) return false;
@@ -73,7 +72,7 @@ export const openPlatformHandlers = [
       percentileRetentionDays: 90,
       activeApps: new Set(logs.map((l) => l.clientId)).size,
       todayCalls: logs.filter((l) => l.createdAt.startsWith(today)).length,
-    });
+    }, 'success');
   }),
 
   http.get('/api/open-api-stats/trend', ({ request }) => {
@@ -91,28 +90,27 @@ export const openPlatformHandlers = [
     const data = [...map.entries()]
       .sort((a, b) => (a[0] < b[0] ? -1 : 1))
       .map(([time, v]) => ({ time, total: v.total, success: v.success, failed: v.total - v.success }));
-    return ok(data);
+    return ok(data, 'success');
   }),
 
   http.get('/api/open-api-stats/by-app', ({ request }) => {
     const url = new URL(request.url);
     const limit = Number(url.searchParams.get('limit') ?? 10);
-    return ok(groupBy(filtered(url), (l) => l.clientId, (l) => l.appName ?? l.clientId, limit));
+    return ok(groupBy(filtered(url), (l) => l.clientId, (l) => l.appName ?? l.clientId, limit), 'success');
   }),
 
   http.get('/api/open-api-stats/by-endpoint', ({ request }) => {
     const url = new URL(request.url);
     const limit = Number(url.searchParams.get('limit') ?? 10);
-    return ok(groupBy(filtered(url), (l) => l.path, (l) => l.path, limit));
+    return ok(groupBy(filtered(url), (l) => l.path, (l) => l.path, limit), 'success');
   }),
 
   http.get('/api/open-api-stats/logs', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page') ?? 1);
-    const pageSize = Number(url.searchParams.get('pageSize') ?? 10);
+    const { page, pageSize } = pageParams(url);
     const logs = filtered(url);
     const start = (page - 1) * pageSize;
-    return ok({ list: logs.slice(start, start + pageSize), total: logs.length, page, pageSize });
+    return ok({ list: logs.slice(start, start + pageSize), total: logs.length, page, pageSize }, 'success');
   }),
 
   // ─── 签名验签工具 ──────────────────────────────────────────────────────────
@@ -133,7 +131,7 @@ export const openPlatformHandlers = [
       '4. 用 AppSecret 作为密钥对待签名串做 HMAC-SHA256，输出十六进制即 X-Signature',
       '5. 请求时携带 X-App-Key、X-Timestamp（秒级）、X-Nonce（随机串）、X-Signature 四个请求头',
     ],
-  })),
+  }, 'success')),
 
   http.post('/api/open-signature/verify', async ({ request }) => {
     const body = (await request.json()) as Record<string, string>;
@@ -152,7 +150,7 @@ export const openPlatformHandlers = [
     ].join('\n');
     const signature = pseudoSign(`${body.appKey}:${stringToSign}`);
     const matched = body.signature ? body.signature === signature : undefined;
-    return ok({ signature, stringToSign, matched });
+    return ok({ signature, stringToSign, matched }, 'success');
   }),
 ];
 

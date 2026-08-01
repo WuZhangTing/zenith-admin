@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound, pageParams, paginate, nextIdFrom } from '@/mocks/utils/handlers';
 import type { PageStats, FeatureStats, HeatmapData, HeatmapPageListItem, AnalyticsOverview, TrendSeries, RealtimeStats, FunnelResult, RetentionResult, PathResult, DimensionBreakdown, DimensionCross, PerfStats, EventListItem, EventDetail, AnalyticsEventMeta, AnalyticsSettings, AnalyticsPublicConfig, AnalyticsRollupItem, AnalyticsSavedReport, AnalyticsEventOverride, AnalyticsQualityDaily, AnalyticsQualityIssueType, AnalyticsQualityQueryResult, AnalyticsDebugEvent, AnalyticsUserSegment, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSite, AnalyticsExperiment, AnalyticsExperimentAssignment, AnalyticsExperimentReport, AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsEventQueryRow, AnalyticsEventQueryGroupByField, AnalyticsEventQueryMetric } from '@zenith/shared/analytics';
 import type { PaginatedResponse } from '@zenith/shared/core';
 import type { UserStats, UserTimeline, UserBehaviorEventType } from '@zenith/shared/identity';
@@ -8,8 +9,6 @@ import { ANALYTICS_SITE_KEY_HEADER, ANALYTICS_QUALITY_ISSUE_TYPES } from '@zenit
 import { SEED_ANALYTICS_EVENT_META, SEED_ANALYTICS_SITES } from '@zenith/shared/seed';
 import { mockDateTime, mockDateTimeOffset, mockDateOffset } from '../utils/date';
 import { createProgressingMockTask } from './async-tasks';
-
-const ok = <T>(data: T, message = 'ok') => HttpResponse.json({ code: 0, message, data });
 
 function daysAxis(days: number): string[] {
   const arr: string[] = [];
@@ -163,7 +162,7 @@ let mockSites: AnalyticsSite[] = SEED_ANALYTICS_SITES.map((site, index) => ({
   createdAt: mockDateTimeOffset(-60 * 86400000),
   updatedAt: mockDateTime(),
 }));
-let nextSiteId = Math.max(...mockSites.map((s) => s.id), 0) + 1;
+let nextSiteId = nextIdFrom(mockSites);
 function mockSiteKey(): string { return `zk_${Math.random().toString(16).slice(2).padEnd(32, '0').slice(0, 32)}`; }
 
 
@@ -358,17 +357,15 @@ export const analyticsHandlers = [
 
   http.get('/api/analytics/experiments', ({ request }) => {
     const u = new URL(request.url);
-    const page = Number(u.searchParams.get('page')) || 1;
-    const pageSize = Number(u.searchParams.get('pageSize')) || 20;
     const name = u.searchParams.get('name') || '';
     const status = u.searchParams.get('status') || '';
     const list = mockExperiments.filter((exp) => (!name || exp.name.includes(name)) && (!status || exp.status === status));
-    return ok<PaginatedResponse<AnalyticsExperiment>>({ list: list.slice((page - 1) * pageSize, page * pageSize), total: list.length, page, pageSize });
+    return ok<PaginatedResponse<AnalyticsExperiment>>(paginate(list, u, 20));
   }),
 
   http.get('/api/analytics/experiments/:id', ({ params }) => {
     const exp = mockExperiments.find((item) => item.id === Number(params.id));
-    return exp ? ok(exp) : HttpResponse.json({ code: 404, message: '实验不存在', data: null }, { status: 404 });
+    return exp ? ok(exp) : notFound('实验不存在', { status: 404 });
   }),
 
   http.post('/api/analytics/experiments', async ({ request }) => {
@@ -387,7 +384,7 @@ export const analyticsHandlers = [
   http.put('/api/analytics/experiments/:id', async ({ params, request }) => {
     const id = Number(params.id);
     const index = mockExperiments.findIndex((item) => item.id === id);
-    if (index < 0) return HttpResponse.json({ code: 404, message: '实验不存在', data: null }, { status: 404 });
+    if (index < 0) return notFound('实验不存在', { status: 404 });
     const body = await request.json() as Partial<AnalyticsExperiment>;
     mockExperiments[index] = { ...mockExperiments[index], ...body, updatedAt: mockDateTime() };
     return ok(mockExperiments[index], '更新成功');
@@ -400,7 +397,7 @@ export const analyticsHandlers = [
 
   http.post('/api/analytics/experiments/:id/:action', ({ params }) => {
     const exp = mockExperiments.find((item) => item.id === Number(params.id));
-    if (!exp) return HttpResponse.json({ code: 404, message: '实验不存在', data: null }, { status: 404 });
+    if (!exp) return notFound('实验不存在', { status: 404 });
     if (params.action === 'start') exp.status = 'running';
     if (params.action === 'pause') exp.status = 'paused';
     if (params.action === 'complete') exp.status = 'completed';
@@ -410,7 +407,7 @@ export const analyticsHandlers = [
 
   http.get('/api/analytics/experiments/:id/report', ({ params }) => {
     const exp = mockExperiments.find((item) => item.id === Number(params.id));
-    if (!exp) return HttpResponse.json({ code: 404, message: '实验不存在', data: null }, { status: 404 });
+    if (!exp) return notFound('实验不存在', { status: 404 });
     const report: AnalyticsExperimentReport = {
       experimentId: exp.id,
       expKey: exp.expKey,
@@ -489,8 +486,6 @@ export const analyticsHandlers = [
 
   http.get('/api/analytics/sessions', ({ request }) => {
     const u = new URL(request.url);
-    const page = Number(u.searchParams.get('page')) || 1;
-    const pageSize = Number(u.searchParams.get('pageSize')) || 20;
     const all: SessionListItem[] = Array.from({ length: 86 }, (_, i) => ({
       id: 5000 - i, sessionId: `sess-${1000 + i}`, userId: rand(1, 6), username: USERNAMES[i % USERNAMES.length],
       startedAt: mockDateTime(), endedAt: mockDateTime(), durationMs: rand(20000, 900000), pageCount: rand(1, 18), eventCount: rand(2, 90),
@@ -499,7 +494,7 @@ export const analyticsHandlers = [
       deviceType: DEVICES[i % DEVICES.length], region: ['广东 深圳', '北京', '上海'][i % 3], isBounce: i % 4 === 0,
       memberId: null, source: 'web_admin', appId: 'admin', environment: 'production',
     }));
-    return ok<PaginatedResponse<SessionListItem>>({ list: all.slice((page - 1) * pageSize, page * pageSize), total: all.length, page, pageSize });
+    return ok<PaginatedResponse<SessionListItem>>(paginate(all, u, 20));
   }),
 
   http.post('/api/analytics/funnel', async ({ request }) => {
@@ -630,9 +625,7 @@ export const analyticsHandlers = [
   }),
   http.get('/api/analytics/events', ({ request }) => {
     const u = new URL(request.url);
-    const page = Number(u.searchParams.get('page')) || 1;
-    const pageSize = Number(u.searchParams.get('pageSize')) || 20;
-    return ok<PaginatedResponse<EventListItem>>({ list: MOCK_EVENTS.slice((page - 1) * pageSize, page * pageSize), total: MOCK_EVENTS.length, page, pageSize });
+    return ok<PaginatedResponse<EventListItem>>(paginate(MOCK_EVENTS, u, 20));
   }),
   http.delete('/api/analytics/clean', () => ok(null, '共删除 1024 条事件数据')),
 
@@ -640,8 +633,6 @@ export const analyticsHandlers = [
   // 站点管理
   http.get('/api/analytics/sites', ({ request }) => {
     const u = new URL(request.url);
-    const page = Number(u.searchParams.get('page')) || 1;
-    const pageSize = Number(u.searchParams.get('pageSize')) || 20;
     const name = u.searchParams.get('name') ?? '';
     const appId = u.searchParams.get('appId') ?? '';
     const status = u.searchParams.get('status') ?? '';
@@ -649,12 +640,12 @@ export const analyticsHandlers = [
       (!name || site.name.includes(name))
       && (!appId || site.appId === appId)
       && (!status || site.status === status));
-    return ok<PaginatedResponse<AnalyticsSite>>({ list: list.slice((page - 1) * pageSize, page * pageSize), total: list.length, page, pageSize });
+    return ok<PaginatedResponse<AnalyticsSite>>(paginate(list, u, 20));
   }),
   http.post('/api/analytics/sites', async ({ request }) => {
     const body = (await request.json()) as Partial<AnalyticsSite>;
     const siteKey = mockSiteKey();
-    if (mockSites.some((site) => site.siteKey === siteKey)) return HttpResponse.json({ code: 400, message: '站点 Key 已存在', data: null }, { status: 400 });
+    if (mockSites.some((site) => site.siteKey === siteKey)) return badRequest('站点 Key 已存在', { status: 400 });
     const item: AnalyticsSite = {
       id: nextSiteId++, tenantId: null, tenantName: null, siteKey,
       name: body.name ?? '未命名站点', appId: body.appId ?? 'admin', allowedOrigins: body.allowedOrigins?.length ? body.allowedOrigins : null,
@@ -668,7 +659,7 @@ export const analyticsHandlers = [
     const id = Number(params.id);
     const body = (await request.json()) as Partial<AnalyticsSite>;
     const idx = mockSites.findIndex((site) => site.id === id);
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '站点不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('站点不存在', { status: 404 });
     mockSites[idx] = { ...mockSites[idx], ...body, allowedOrigins: body.allowedOrigins?.length ? body.allowedOrigins : null, updatedAt: mockDateTime() };
     return ok(mockSites[idx], '更新成功');
   }),
@@ -679,7 +670,7 @@ export const analyticsHandlers = [
   http.post('/api/analytics/sites/:id/regenerate-key', ({ params }) => {
     const id = Number(params.id);
     const idx = mockSites.findIndex((site) => site.id === id);
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '站点不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('站点不存在', { status: 404 });
     mockSites[idx] = { ...mockSites[idx], siteKey: mockSiteKey(), updatedAt: mockDateTime() };
     return ok(mockSites[idx], '重新生成成功');
   }),
@@ -687,11 +678,9 @@ export const analyticsHandlers = [
   // 事件字典 CRUD
   http.get('/api/analytics/event-meta', ({ request }) => {
     const u = new URL(request.url);
-    const page = Number(u.searchParams.get('page')) || 1;
-    const pageSize = Number(u.searchParams.get('pageSize')) || 20;
     const kw = u.searchParams.get('keyword') ?? '';
     const list = mockEventMeta.filter((m) => !kw || m.eventName.includes(kw));
-    return ok<PaginatedResponse<AnalyticsEventMeta>>({ list: list.slice((page - 1) * pageSize, page * pageSize), total: list.length, page, pageSize });
+    return ok<PaginatedResponse<AnalyticsEventMeta>>(paginate(list, u, 20));
   }),
   http.post('/api/analytics/event-meta', async ({ request }) => {
     const body = (await request.json()) as Partial<AnalyticsEventMeta>;
@@ -703,7 +692,7 @@ export const analyticsHandlers = [
     const id = Number(params.id);
     const body = (await request.json()) as Partial<AnalyticsEventMeta>;
     const idx = mockEventMeta.findIndex((m) => m.id === id);
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('不存在', { status: 404 });
     mockEventMeta[idx] = { ...mockEventMeta[idx], ...body, updatedAt: mockDateTime() };
     return ok(mockEventMeta[idx], '更新成功');
   }),
@@ -715,18 +704,16 @@ export const analyticsHandlers = [
   // 租户覆盖（Tracking Plan 租户级启停）
   http.get('/api/analytics/event-overrides', ({ request }) => {
     const u = new URL(request.url);
-    const page = Number(u.searchParams.get('page')) || 1;
-    const pageSize = Number(u.searchParams.get('pageSize')) || 20;
     const eventName = u.searchParams.get('eventName') ?? '';
     const status = u.searchParams.get('status') ?? '';
     const list = mockEventOverrides.filter((o) =>
       (!eventName || o.eventName.includes(eventName)) && (!status || o.status === status));
-    return ok<PaginatedResponse<AnalyticsEventOverride>>({ list: list.slice((page - 1) * pageSize, page * pageSize), total: list.length, page, pageSize });
+    return ok<PaginatedResponse<AnalyticsEventOverride>>(paginate(list, u, 20));
   }),
   http.post('/api/analytics/event-overrides', async ({ request }) => {
     const body = (await request.json()) as { eventName: string; status: AnalyticsEventOverride['status']; reason?: string | null };
     if (mockEventOverrides.some((o) => o.eventName === body.eventName)) {
-      return HttpResponse.json({ code: 400, message: '该事件已存在租户覆盖配置', data: null }, { status: 400 });
+      return badRequest('该事件已存在租户覆盖配置', { status: 400 });
     }
     const item: AnalyticsEventOverride = {
       id: nextOverrideId++, tenantId: MOCK_OVERRIDE_TENANT_ID, eventName: body.eventName,
@@ -739,7 +726,7 @@ export const analyticsHandlers = [
     const id = Number(params.id);
     const body = (await request.json()) as Partial<AnalyticsEventOverride>;
     const idx = mockEventOverrides.findIndex((o) => o.id === id);
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('不存在', { status: 404 });
     mockEventOverrides[idx] = { ...mockEventOverrides[idx], ...body, updatedAt: mockDateTime() };
     return ok(mockEventOverrides[idx], '更新成功');
   }),
@@ -754,8 +741,7 @@ export const analyticsHandlers = [
     const days = Number(u.searchParams.get('days')) || 7;
     const eventName = u.searchParams.get('eventName') ?? '';
     const issueType = u.searchParams.get('issueType') ?? '';
-    const page = Number(u.searchParams.get('page')) || 1;
-    const pageSize = Number(u.searchParams.get('pageSize')) || 20;
+    const { page, pageSize } = pageParams(u, 20);
     const since = mockDateOffset(-(Math.max(1, days) - 1));
     const filtered = mockQualityDaily.filter((row) =>
       row.statDate >= since
@@ -879,22 +865,20 @@ export const analyticsHandlers = [
   // ─── 用户分群 CRUD + 成员物化（行为中心阶段1）────────────────────────────────
   http.get('/api/analytics/segments', ({ request }) => {
     const u = new URL(request.url);
-    const page = Number(u.searchParams.get('page')) || 1;
-    const pageSize = Number(u.searchParams.get('pageSize')) || 20;
     const keyword = u.searchParams.get('keyword') ?? '';
     const status = u.searchParams.get('status') ?? '';
     const list = mockSegments.filter((s) =>
       (!keyword || s.name.includes(keyword) || (s.description ?? '').includes(keyword))
       && (!status || s.status === status));
-    return ok<PaginatedResponse<AnalyticsUserSegment>>({ list: list.slice((page - 1) * pageSize, page * pageSize), total: list.length, page, pageSize });
+    return ok<PaginatedResponse<AnalyticsUserSegment>>(paginate(list, u, 20));
   }),
   http.post('/api/analytics/segments', async ({ request }) => {
     const body = (await request.json()) as Partial<AnalyticsUserSegment>;
     if (!body.name || !body.rules || !body.rules.conditions?.length) {
-      return HttpResponse.json({ code: 400, message: '分群名称与规则不能为空', data: null }, { status: 400 });
+      return badRequest('分群名称与规则不能为空', { status: 400 });
     }
     if (mockSegments.some((s) => s.name === body.name)) {
-      return HttpResponse.json({ code: 400, message: '分群名称已存在', data: null }, { status: 400 });
+      return badRequest('分群名称已存在', { status: 400 });
     }
     const item: AnalyticsUserSegment = {
       id: nextSegmentId++,
@@ -914,16 +898,16 @@ export const analyticsHandlers = [
   }),
   http.get('/api/analytics/segments/:id', ({ params }) => {
     const item = mockSegments.find((s) => s.id === Number(params.id));
-    if (!item) return HttpResponse.json({ code: 404, message: '分群不存在', data: null }, { status: 404 });
+    if (!item) return notFound('分群不存在', { status: 404 });
     return ok(item);
   }),
   http.put('/api/analytics/segments/:id', async ({ params, request }) => {
     const id = Number(params.id);
     const body = (await request.json()) as Partial<AnalyticsUserSegment>;
     const idx = mockSegments.findIndex((s) => s.id === id);
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '分群不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('分群不存在', { status: 404 });
     if (body.name && mockSegments.some((s) => s.id !== id && s.name === body.name)) {
-      return HttpResponse.json({ code: 400, message: '分群名称已存在', data: null }, { status: 400 });
+      return badRequest('分群名称已存在', { status: 400 });
     }
     mockSegments[idx] = { ...mockSegments[idx], ...body, updatedAt: mockDateTime() };
     return ok(mockSegments[idx], '更新成功');
@@ -937,15 +921,13 @@ export const analyticsHandlers = [
   http.get('/api/analytics/segments/:id/members', ({ params, request }) => {
     const id = Number(params.id);
     const u = new URL(request.url);
-    const page = Number(u.searchParams.get('page')) || 1;
-    const pageSize = Number(u.searchParams.get('pageSize')) || 20;
     const list = mockSegmentMembers[id] ?? [];
-    return ok<PaginatedResponse<AnalyticsSegmentMember>>({ list: list.slice((page - 1) * pageSize, page * pageSize), total: list.length, page, pageSize });
+    return ok<PaginatedResponse<AnalyticsSegmentMember>>(paginate(list, u, 20));
   }),
   http.post('/api/analytics/segments/:id/materialize', ({ params }) => {
     const id = Number(params.id);
     const idx = mockSegments.findIndex((s) => s.id === id);
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '分群不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('分群不存在', { status: 404 });
     // Demo 模式简化：提交任务的同时即时刷新一次快照，近似真实的异步物化效果
     const size = rand(20, 200);
     mockSegments[idx] = { ...mockSegments[idx], estimatedSize: size, snapshotAt: mockDateTime(), updatedAt: mockDateTime() };
@@ -962,20 +944,18 @@ export const analyticsHandlers = [
   // ─── 行为中心阶段2：分群触达（消息中心 + Webhook）──────────────────────────────
   http.get('/api/analytics/campaigns', ({ request }) => {
     const u = new URL(request.url);
-    const page = Number(u.searchParams.get('page')) || 1;
-    const pageSize = Number(u.searchParams.get('pageSize')) || 20;
     const segmentId = Number(u.searchParams.get('segmentId')) || undefined;
     const status = u.searchParams.get('status') ?? '';
     const list = mockCampaigns.filter((c) => (!segmentId || c.segmentId === segmentId) && (!status || c.status === status));
-    return ok<PaginatedResponse<AnalyticsSegmentCampaign>>({ list: list.slice((page - 1) * pageSize, page * pageSize), total: list.length, page, pageSize });
+    return ok<PaginatedResponse<AnalyticsSegmentCampaign>>(paginate(list, u, 20));
   }),
   http.post('/api/analytics/campaigns', async ({ request }) => {
     const body = (await request.json()) as Partial<AnalyticsSegmentCampaign>;
     const segment = mockSegments.find((s) => s.id === Number(body.segmentId));
-    if (!segment) return HttpResponse.json({ code: 404, message: '分群不存在', data: null }, { status: 404 });
-    if (!body.name || !body.channel) return HttpResponse.json({ code: 400, message: '触达名称与渠道不能为空', data: null }, { status: 400 });
-    if (body.channel === 'webhook' && !/^https?:\/\/.+/i.test(body.webhookUrl ?? '')) return HttpResponse.json({ code: 400, message: 'Webhook URL 不合法', data: null }, { status: 400 });
-    if (body.channel !== 'webhook' && !body.templateId) return HttpResponse.json({ code: 400, message: '请选择消息模板', data: null }, { status: 400 });
+    if (!segment) return notFound('分群不存在', { status: 404 });
+    if (!body.name || !body.channel) return badRequest('触达名称与渠道不能为空', { status: 400 });
+    if (body.channel === 'webhook' && !/^https?:\/\/.+/i.test(body.webhookUrl ?? '')) return badRequest('Webhook URL 不合法', { status: 400 });
+    if (body.channel !== 'webhook' && !body.templateId) return badRequest('请选择消息模板', { status: 400 });
     const item: AnalyticsSegmentCampaign = {
       id: nextCampaignId++,
       tenantId: null,
@@ -1003,22 +983,22 @@ export const analyticsHandlers = [
     const id = Number(params.id);
     const body = (await request.json()) as Partial<AnalyticsSegmentCampaign>;
     const idx = mockCampaigns.findIndex((c) => c.id === id);
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '触达活动不存在', data: null }, { status: 404 });
-    if (mockCampaigns[idx].status !== 'draft') return HttpResponse.json({ code: 400, message: '仅草稿状态可修改', data: null }, { status: 400 });
+    if (idx === -1) return notFound('触达活动不存在', { status: 404 });
+    if (mockCampaigns[idx].status !== 'draft') return badRequest('仅草稿状态可修改', { status: 400 });
     mockCampaigns[idx] = { ...mockCampaigns[idx], ...body, updatedAt: mockDateTime() };
     return ok(mockCampaigns[idx], '更新成功');
   }),
   http.delete('/api/analytics/campaigns/:id', ({ params }) => {
     const id = Number(params.id);
     const item = mockCampaigns.find((c) => c.id === id);
-    if (item?.status === 'running') return HttpResponse.json({ code: 400, message: '执行中的触达活动不可删除', data: null }, { status: 400 });
+    if (item?.status === 'running') return badRequest('执行中的触达活动不可删除', { status: 400 });
     mockCampaigns = mockCampaigns.filter((c) => c.id !== id);
     return ok(null, '删除成功');
   }),
   http.post('/api/analytics/campaigns/:id/execute', ({ params }) => {
     const id = Number(params.id);
     const idx = mockCampaigns.findIndex((c) => c.id === id);
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '触达活动不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('触达活动不存在', { status: 404 });
     const total = mockSegmentMembers[mockCampaigns[idx].segmentId]?.length ?? rand(20, 120);
     mockCampaigns[idx] = { ...mockCampaigns[idx], status: 'running', totalCount: total, sentCount: 0, failedCount: 0, lastError: null, updatedAt: mockDateTime() };
     setTimeout(() => {

@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok } from '@/mocks/utils/handlers';
 import { mockDate } from '@/mocks/utils/date';
 
 function pastDates(days: number): string[] {
@@ -13,17 +14,13 @@ const dates = pastDates(7);
 
 export const dashboardHandlers = [
   http.get('/api/dashboard/stats', () => {
-    return HttpResponse.json({
-      code: 0,
-      message: 'success',
-      data: {
-        totalUsers: 12,
-        activeUsers: 10,
-        onlineUsers: 3,
-        todayLogins: 8,
-        todayOperations: 45,
-      },
-    });
+    return ok({
+      totalUsers: 12,
+      activeUsers: 10,
+      onlineUsers: 3,
+      todayLogins: 8,
+      todayOperations: 45,
+    }, 'success');
   }),
 
   http.get('/api/dashboard/charts', () => {
@@ -46,10 +43,6 @@ export const dashboardHandlers = [
       activeUsers: Math.floor(Math.random() * 6) + 1,
     }));
 
-    return HttpResponse.json({
-      code: 0,
-      message: 'success',
-      data: { loginTrend, operationTypes, userActivity },
-    });
+    return ok({ loginTrend, operationTypes, userActivity }, 'success');
   }),
 ];

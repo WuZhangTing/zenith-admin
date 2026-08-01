@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, notFound, pageParams } from '@/mocks/utils/handlers';
 import type { OAuth2Client, OAuth2ClientCreated } from '@zenith/shared/open-platform';
 import { mockDateTime } from '@/mocks/utils/date';
 
@@ -96,47 +97,36 @@ export const oauth2AppsHandlers = [
     const keyword = url.searchParams.get('keyword') ?? '';
     const environment = url.searchParams.get('environment');
     const reviewStatus = url.searchParams.get('reviewStatus');
-    const page = Number(url.searchParams.get('page') ?? 1);
-    const pageSize = Number(url.searchParams.get('pageSize') ?? 20);
+    const { page, pageSize } = pageParams(url, 20);
     const filtered = mockClients.filter((client) =>
       (!keyword || client.name.includes(keyword))
       && (!environment || client.environment === environment)
       && (!reviewStatus || client.reviewStatus === reviewStatus),
     );
     const start = (page - 1) * pageSize;
-    return HttpResponse.json({
-      code: 0,
-      message: 'success',
-      data: { list: filtered.slice(start, start + pageSize), total: filtered.length, page, pageSize },
-    });
+    return ok({ list: filtered.slice(start, start + pageSize), total: filtered.length, page, pageSize }, 'success');
   }),
 
   // 应用选项（供 Webhook/SDK 下拉）
   http.get(`${BASE}/options`, () => {
-    return HttpResponse.json({
-      code: 0,
-      message: 'success',
-      data: mockClients.filter((c) => c.status === 'enabled').map((c) => ({ clientId: c.clientId, name: c.name })),
-    });
+    return ok(mockClients.filter((c) => c.status === 'enabled').map((c) => ({ clientId: c.clientId, name: c.name })), 'success');
   }),
 
   http.get(`${BASE}/tokens`, ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page') ?? 1);
-    const pageSize = Number(url.searchParams.get('pageSize') ?? 20);
-    return HttpResponse.json({ code: 0, message: 'success', data: { list: [], total: 0, page, pageSize } });
+    const { page, pageSize } = pageParams(url, 20);
+    return ok({ list: [], total: 0, page, pageSize }, 'success');
   }),
 
   http.delete(`${BASE}/tokens/:id`, () => {
-    return HttpResponse.json({ code: 0, message: '令牌已撤销', data: null });
+    return ok(null, '令牌已撤销');
   }),
 
   http.get(`${BASE}/:id/grants`, ({ params, request }) => {
     const client = mockClients.find((item) => item.id === Number(params.id));
-    if (!client) return HttpResponse.json({ code: 404, message: '不存在', data: null }, { status: 404 });
+    if (!client) return notFound('不存在', { status: 404 });
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page') ?? 1);
-    const pageSize = Number(url.searchParams.get('pageSize') ?? 10);
+    const { page, pageSize } = pageParams(url);
     const list = [{
       id: 1,
       userId: 1,
@@ -147,7 +137,7 @@ export const oauth2AppsHandlers = [
       createdAt: '2026-06-01 10:00:00',
       updatedAt: '2026-06-01 10:00:00',
     }];
-    return HttpResponse.json({ code: 0, message: 'success', data: { list, total: list.length, page, pageSize } });
+    return ok({ list, total: list.length, page, pageSize }, 'success');
   }),
 
   // 创建
@@ -183,52 +173,52 @@ export const oauth2AppsHandlers = [
     };
     mockClients.push(newClient);
     const result: OAuth2ClientCreated = { ...newClient, clientSecret: body.isPublic ? '' : clientSecret };
-    return HttpResponse.json({ code: 0, message: '创建成功', data: result });
+    return ok(result, '创建成功');
   }),
 
   // 详情
   http.get(`${BASE}/:id`, ({ params }) => {
     const found = mockClients.find((c) => c.id === Number(params.id));
-    if (!found) return HttpResponse.json({ code: 404, message: '不存在', data: null }, { status: 404 });
-    return HttpResponse.json({ code: 0, message: 'success', data: found });
+    if (!found) return notFound('不存在', { status: 404 });
+    return ok(found, 'success');
   }),
 
   // 更新
   http.put(`${BASE}/:id`, async ({ params, request: req }) => {
     const idx = mockClients.findIndex((c) => c.id === Number(params.id));
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('不存在', { status: 404 });
     const body = await req.json() as Partial<OAuth2Client>;
     mockClients[idx] = { ...mockClients[idx], ...body, updatedAt: mockDateTime() };
-    return HttpResponse.json({ code: 0, message: '更新成功', data: mockClients[idx] });
+    return ok(mockClients[idx], '更新成功');
   }),
 
   // 删除
   http.delete(`${BASE}/:id`, ({ params }) => {
     const idx = mockClients.findIndex((c) => c.id === Number(params.id));
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('不存在', { status: 404 });
     mockClients.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 
   // 重置 Secret
   http.post(`${BASE}/:id/regenerate-secret`, ({ params }) => {
     const found = mockClients.find((c) => c.id === Number(params.id));
-    if (!found) return HttpResponse.json({ code: 404, message: '不存在', data: null }, { status: 404 });
+    if (!found) return notFound('不存在', { status: 404 });
     const clientSecret = `oas_mock${randomHex(32)}`;
     found.clientSecretPrefix = `${clientSecret.slice(0, 10)}...`;
     found.previousSecretExpiresAt = '2026-07-16 10:00:00';
-    return HttpResponse.json({ code: 0, message: 'secret 已重置', data: { clientId: found.clientId, clientSecret, previousValidUntil: found.previousSecretExpiresAt } });
+    return ok({ clientId: found.clientId, clientSecret, previousValidUntil: found.previousSecretExpiresAt }, 'secret 已重置');
   }),
 
   http.post(`${BASE}/:id/review`, async ({ params, request }) => {
     const found = mockClients.find((client) => client.id === Number(params.id));
-    if (!found) return HttpResponse.json({ code: 404, message: '不存在', data: null }, { status: 404 });
+    if (!found) return notFound('不存在', { status: 404 });
     const body = await request.json() as { action: 'approve' | 'reject'; comment?: string };
     found.reviewStatus = body.action === 'approve' ? 'approved' : 'rejected';
     found.reviewComment = body.comment ?? null;
     found.reviewedAt = mockDateTime();
     found.reviewedBy = 1;
-    return HttpResponse.json({ code: 0, message: '审核完成', data: found });
+    return ok(found, '审核完成');
   }),
 
 ];

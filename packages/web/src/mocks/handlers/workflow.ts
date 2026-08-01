@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw';
+import { ok, pageParams } from '@/mocks/utils/handlers';
 import type { WorkflowDefinition, WorkflowDefinitionVersion, WorkflowEngineIntrospection, WorkflowEngineOutboxEvent, WorkflowEngineRuntimeTask, WorkflowFlowData, WorkflowFormField, WorkflowInstance, WorkflowInstanceFormSnapshot, WorkflowRuntimeDiagnostics, WorkflowRuntimeIssue, WorkflowSerialNoConfig, WorkflowSimulationCase, WorkflowSimulationDecision, WorkflowSimulationResult, WorkflowTask, WorkflowTaskUrge } from '@zenith/shared/workflow';
 import { buildWorkflowSummaryItems, collectReferencedFormFieldKeys, findNextApproverSelectNodes, renderWorkflowSerialNo, resolveNodeFieldPermissions, resolveSerialPeriodKey, sanitizeFormUpdatesByNodePerms, WORKFLOW_SERIAL_SAMPLE_VARS } from '@zenith/shared/workflow';
 import {
@@ -18,10 +19,6 @@ import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 import dayjs from 'dayjs';
 import { DATE_TIME_FORMAT } from '@/utils/date';
 import { mockWorkflowTriggerExecutions } from './workflow-trigger-executions';
-
-function ok<T>(data: T, message = 'ok') {
-  return HttpResponse.json({ code: 0, message, data });
-}
 
 function err(message: string, code = 400) {
   return HttpResponse.json({ code, message });
@@ -1095,8 +1092,7 @@ export const workflowHandlers = [
   // 获取流程定义列表（分页 + 搜索 + 状态筛选）
   http.get('/api/workflows/definitions', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const keyword = url.searchParams.get('keyword') ?? '';
     const status = url.searchParams.get('status') ?? '';
 
@@ -1409,8 +1405,7 @@ export const workflowHandlers = [
     const definitionId = Number(params.id);
     if (!mockWorkflowDefinitions.some(d => d.id === definitionId)) return err('流程定义不存在', 404);
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page') ?? 1);
-    const pageSize = Number(url.searchParams.get('pageSize') ?? 10);
+    const { page, pageSize } = pageParams(url);
     const all = mockWorkflowDefinitionVersions
       .filter(v => v.definitionId === definitionId)
       .sort((a, b) => b.version - a.version);
@@ -1486,8 +1481,7 @@ export const workflowHandlers = [
   // 我的申请列表（当前用户 initiatorId=1）
   http.get('/api/workflows/instances', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const status = url.searchParams.get('status') ?? '';
     const definitionIdStr = url.searchParams.get('definitionId') ?? '';
 
@@ -1516,8 +1510,7 @@ export const workflowHandlers = [
 
   http.get('/api/workflows/instances/pending-mine', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const keyword = url.searchParams.get('keyword') ?? '';
     const definitionIdStr = url.searchParams.get('definitionId') ?? '';
     const definitionId = definitionIdStr ? Number(definitionIdStr) : null;
@@ -1563,8 +1556,7 @@ export const workflowHandlers = [
   // 全局流程监控（管理员看板）— 必须在 /instances/:id 之前注册，避免被参数路由捕获
   http.get('/api/workflows/instances/all', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 20;
+    const { page, pageSize } = pageParams(url, 20);
     const keyword = url.searchParams.get('keyword') ?? '';
     const status = url.searchParams.get('status') ?? '';
     const categoryIdStr = url.searchParams.get('categoryId') ?? '';
@@ -2601,7 +2593,7 @@ export const workflowHandlers = [
         createdAt: now,
       });
     });
-    return HttpResponse.json({ code: 0, message: `已加签 ${body.targetUserIds.length} 人`, data: null });
+    return ok(null, `已加签 ${body.targetUserIds.length} 人`);
   }),
 
   // 减签
@@ -2623,7 +2615,7 @@ export const workflowHandlers = [
       mockWorkflowTasks[idx] = { ...t, status: 'skipped', actionAt: now, comment: `[减签]${suffix}` };
       removed += 1;
     });
-    return HttpResponse.json({ code: 0, message: `已减签 ${removed} 人`, data: null });
+    return ok(null, `已减签 ${removed} 人`);
   }),
 
   // 催办：单任务
@@ -2651,7 +2643,7 @@ export const workflowHandlers = [
       createdAt: mockDateTime(),
     };
     mockWorkflowUrges.push(row);
-    return HttpResponse.json({ code: 0, message: '已催办', data: row });
+    return ok(row, '已催办');
   }),
 
   // 催办：单任务历史
@@ -2702,7 +2694,7 @@ export const workflowHandlers = [
     const msg = skipped > 0
       ? `已催办 ${created.length} 人，${skipped} 人催办过于频繁已跳过`
       : `已催办 ${created.length} 人`;
-    return HttpResponse.json({ code: 0, message: msg, data: created });
+    return ok(created, msg);
   }),
 
   // 动态补加抄送
@@ -2724,7 +2716,7 @@ export const workflowHandlers = [
     );
     const toAdd = Array.from(new Set(body.userIds)).filter(uid => !existingSet.has(uid));
     if (toAdd.length === 0) {
-      return HttpResponse.json({ code: 0, message: '所选用户均已抄送，无需重复添加', data: [] });
+      return ok([], '所选用户均已抄送，无需重复添加');
     }
     const now = mockDateTime();
     const sample = mockWorkflowTasks.find(t => t.instanceId === instId && t.nodeKey === body.nodeKey);
@@ -2744,7 +2736,7 @@ export const workflowHandlers = [
       mockWorkflowTasks.push(task);
       return task;
     });
-    return HttpResponse.json({ code: 0, message: `已补加 ${inserted.length} 人抄送`, data: inserted });
+    return ok(inserted, `已补加 ${inserted.length} 人抄送`);
   }),
 
   // 退回

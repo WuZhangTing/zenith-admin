@@ -1,5 +1,6 @@
 import { SEED_CMS_SITES, SEED_CMS_MODELS, SEED_CMS_CHANNELS, SEED_CMS_CONTENTS, SEED_CMS_TAGS, SEED_CMS_FRIEND_LINK_GROUPS, SEED_CMS_FRIEND_LINKS, SEED_CMS_AD_SLOTS, SEED_CMS_ADS, SEED_CMS_FORMS, SEED_CMS_SENSITIVE_WORDS, SEED_CMS_ERROR_PRONE_WORDS, SEED_CMS_LINK_WORDS, SEED_CMS_COMMENTS, SEED_CMS_INTERACTIONS, SEED_CMS_INTERACTION_RESPONSES, SEED_CMS_INTERACTION_ANSWERS, SEED_CMS_SUBSCRIPTIONS, SEED_CMS_AD_EVENTS, SEED_CMS_PAGE_BLOCK_ACLS, SEED_CMS_RESOURCES, SEED_CMS_RESOURCE_FOLDERS, SEED_CMS_SEARCH_WORDS, SEED_CMS_HOTWORD_GROUPS, SEED_CMS_HOTWORDS, SEED_CMS_COLLECT_RULES, SEED_CMS_COLLECT_ITEMS, SEED_CMS_PAGES, SEED_CMS_WIDGETS, SEED_CMS_WIDGET_REFS, SEED_CMS_CONTENT_VERSIONS } from '@zenith/shared/seed';
 import type { CmsSite, CmsModel, CmsChannel, CmsContent, CmsTag, CmsFriendLink, CmsFriendLinkGroup, CmsAdSlot, CmsAd, CmsAdEvent, CmsForm, CmsFormSubmission, CmsSensitiveWord, CmsErrorProneWord, CmsLinkWord, CmsComment, CmsRedirect, CmsPushLog, CmsContentVersion, CmsSearchWord, CmsHotKeyword, CmsContentOpLog, CmsInteraction, CmsInteractionAnswerDetail, CmsInteractionResponse, CmsMemberSubscription, CmsPageBlockAcl, CmsResource, CmsResourceFolder, CmsHotwordGroup, CmsCollectRule, CmsCollectItem, CmsPage, CmsOpenAppGrant, CmsWidget, CmsWidgetRef } from '@zenith/shared/cms';
+import { nextIdFrom } from '@/mocks/utils/handlers';
 
 // 从共享种子数据派生（禁止重复定义静态数组）
 export const mockCmsSites: CmsSite[] = SEED_CMS_SITES.map((s) => ({ ...s }));
@@ -24,14 +25,14 @@ function nextIdFactory(initial: number) {
   return () => next++;
 }
 
-export const getNextCmsSiteId = nextIdFactory(Math.max(0, ...mockCmsSites.map((x) => x.id)) + 1);
-export const getNextCmsModelId = nextIdFactory(Math.max(0, ...mockCmsModels.map((x) => x.id)) + 1);
+export const getNextCmsSiteId = nextIdFactory(nextIdFrom(mockCmsSites));
+export const getNextCmsModelId = nextIdFactory(nextIdFrom(mockCmsModels));
 export const getNextCmsModelFieldId = nextIdFactory(Math.max(0, ...mockCmsModels.flatMap((m) => (m.fields ?? []).map((f) => f.id))) + 1);
-export const getNextCmsChannelId = nextIdFactory(Math.max(0, ...mockCmsChannels.map((x) => x.id)) + 1);
-export const getNextCmsContentId = nextIdFactory(Math.max(0, ...mockCmsContents.map((x) => x.id)) + 1);
-export const getNextCmsTagId = nextIdFactory(Math.max(0, ...mockCmsTags.map((x) => x.id)) + 1);
-export const getNextCmsFriendLinkId = nextIdFactory(Math.max(0, ...mockCmsFriendLinks.map((x) => x.id)) + 1);
-export const getNextCmsFriendLinkGroupId = nextIdFactory(Math.max(0, ...mockCmsFriendLinkGroups.map((x) => x.id)) + 1);
+export const getNextCmsChannelId = nextIdFactory(nextIdFrom(mockCmsChannels));
+export const getNextCmsContentId = nextIdFactory(nextIdFrom(mockCmsContents));
+export const getNextCmsTagId = nextIdFactory(nextIdFrom(mockCmsTags));
+export const getNextCmsFriendLinkId = nextIdFactory(nextIdFrom(mockCmsFriendLinks));
+export const getNextCmsFriendLinkGroupId = nextIdFactory(nextIdFrom(mockCmsFriendLinkGroups));
 
 /** 栏目平铺 → 树（handler 内复用） */
 export function buildMockChannelTree(list: CmsChannel[]): CmsChannel[] {
@@ -80,15 +81,15 @@ export const mockCmsContentOpLogs: CmsContentOpLog[] = [
   { id: 2, contentId: 1, action: 'published', actionLabel: '发布', detail: null, operatorId: 1, operatorName: 'admin', createdAt: '2024-01-01 10:00:00' },
 ];
 
-export const getNextCmsAdSlotId = nextIdFactory(Math.max(0, ...mockCmsAdSlots.map((x) => x.id)) + 1);
-export const getNextCmsAdId = nextIdFactory(Math.max(0, ...mockCmsAds.map((x) => x.id)) + 1);
-export const getNextCmsAdEventId = nextIdFactory(Math.max(0, ...mockCmsAdEvents.map((x) => x.id)) + 1);
-export const getNextCmsFormId = nextIdFactory(Math.max(0, ...mockCmsForms.map((x) => x.id)) + 1);
-export const getNextCmsSensitiveWordId = nextIdFactory(Math.max(0, ...mockCmsSensitiveWords.map((x) => x.id)) + 1);
-export const getNextCmsErrorProneWordId = nextIdFactory(Math.max(0, ...mockCmsErrorProneWords.map((x) => x.id)) + 1);
-export const getNextCmsContentOpLogId = nextIdFactory(Math.max(0, ...mockCmsContentOpLogs.map((x) => x.id)) + 1);
-export const getNextCmsLinkWordId = nextIdFactory(Math.max(0, ...mockCmsLinkWords.map((x) => x.id)) + 1);
-export const getNextCmsCommentId = nextIdFactory(Math.max(0, ...mockCmsComments.map((x) => x.id)) + 1);
+export const getNextCmsAdSlotId = nextIdFactory(nextIdFrom(mockCmsAdSlots));
+export const getNextCmsAdId = nextIdFactory(nextIdFrom(mockCmsAds));
+export const getNextCmsAdEventId = nextIdFactory(nextIdFrom(mockCmsAdEvents));
+export const getNextCmsFormId = nextIdFactory(nextIdFrom(mockCmsForms));
+export const getNextCmsSensitiveWordId = nextIdFactory(nextIdFrom(mockCmsSensitiveWords));
+export const getNextCmsErrorProneWordId = nextIdFactory(nextIdFrom(mockCmsErrorProneWords));
+export const getNextCmsContentOpLogId = nextIdFactory(nextIdFrom(mockCmsContentOpLogs));
+export const getNextCmsLinkWordId = nextIdFactory(nextIdFrom(mockCmsLinkWords));
+export const getNextCmsCommentId = nextIdFactory(nextIdFrom(mockCmsComments));
 export const getNextCmsRedirectId = nextIdFactory(1);
 
 // ─── P3 ───────────────────────────────────────────────────────────────────────
@@ -144,8 +145,8 @@ export const mockCmsInteractionResponses: CmsInteractionResponse[] = SEED_CMS_IN
     createdAt: response.createdAt,
   };
 });
-export const getNextCmsInteractionId = nextIdFactory(Math.max(0, ...mockCmsInteractions.map((x) => x.id)) + 1);
-export const getNextCmsInteractionResponseId = nextIdFactory(Math.max(0, ...mockCmsInteractionResponses.map((x) => x.id)) + 1);
+export const getNextCmsInteractionId = nextIdFactory(nextIdFrom(mockCmsInteractions));
+export const getNextCmsInteractionResponseId = nextIdFactory(nextIdFrom(mockCmsInteractionResponses));
 export const mockCmsSubscriptions: CmsMemberSubscription[] = SEED_CMS_SUBSCRIPTIONS.map((subscription) => ({
   ...subscription,
   memberDisplay: '演***员',
@@ -157,15 +158,15 @@ export const mockCmsHotKeywords: CmsHotKeyword[] = SEED_CMS_HOTWORDS.map((word, 
   groupName: mockCmsHotwordGroups.find((group) => group.id === word.groupId)?.name ?? null,
   count: [42, 31][index] ?? 0,
 }));
-export const getNextCmsSearchWordId = nextIdFactory(Math.max(0, ...mockCmsSearchWords.map((x) => x.id)) + 1);
-export const getNextCmsHotwordGroupId = nextIdFactory(Math.max(0, ...mockCmsHotwordGroups.map((x) => x.id)) + 1);
+export const getNextCmsSearchWordId = nextIdFactory(nextIdFrom(mockCmsSearchWords));
+export const getNextCmsHotwordGroupId = nextIdFactory(nextIdFrom(mockCmsHotwordGroups));
 export const getNextCmsHotwordId = nextIdFactory(Math.max(0, ...mockCmsHotKeywords.map((x) => x.id ?? 0)) + 1);
 
 // ─── P2 素材中心 ───────────────────────────────────────────────────────────────
 export const mockCmsResources: CmsResource[] = SEED_CMS_RESOURCES.map((r) => ({ ...r }));
 export const mockCmsResourceFolders: CmsResourceFolder[] = SEED_CMS_RESOURCE_FOLDERS.map((folder) => ({ ...folder }));
-export const getNextCmsResourceId = nextIdFactory(Math.max(0, ...mockCmsResources.map((x) => x.id)) + 1);
-export const getNextCmsResourceFolderId = nextIdFactory(Math.max(0, ...mockCmsResourceFolders.map((x) => x.id)) + 1);
+export const getNextCmsResourceId = nextIdFactory(nextIdFrom(mockCmsResources));
+export const getNextCmsResourceFolderId = nextIdFactory(nextIdFrom(mockCmsResourceFolders));
 
 /** 开放应用授权（Demo 预置一条，演示 Headless 写入的 fail-closed 边界） */
 export const mockCmsOpenGrants: CmsOpenAppGrant[] = [
@@ -183,11 +184,11 @@ export const mockCmsOpenGrants: CmsOpenAppGrant[] = [
     updatedAt: '2026-01-01 00:00:00',
   },
 ];
-export const getNextCmsOpenGrantId = nextIdFactory(Math.max(0, ...mockCmsOpenGrants.map((x) => x.id)) + 1);
+export const getNextCmsOpenGrantId = nextIdFactory(nextIdFrom(mockCmsOpenGrants));
 
 export const mockCmsCollectRules: CmsCollectRule[] = SEED_CMS_COLLECT_RULES.map((rule) => ({ ...rule }));
 export const mockCmsCollectItems: CmsCollectItem[] = SEED_CMS_COLLECT_ITEMS.map((item) => ({ ...item }));
-export const getNextCmsCollectRuleId = nextIdFactory(Math.max(0, ...mockCmsCollectRules.map((x) => x.id)) + 1);
+export const getNextCmsCollectRuleId = nextIdFactory(nextIdFrom(mockCmsCollectRules));
 export const mockCmsPages: CmsPage[] = SEED_CMS_PAGES.map((page) => ({
   ...page,
   blocks: page.blocks.map((block) => ({
@@ -202,7 +203,7 @@ export const mockCmsPageBlockAcls: CmsPageBlockAcl[] = SEED_CMS_PAGE_BLOCK_ACLS.
   ...acl,
   subjectName: acl.subjectType === 'role' ? '超级管理员' : '管理员',
 }));
-export const getNextCmsPageId = nextIdFactory(Math.max(0, ...mockCmsPages.map((x) => x.id)) + 1);
+export const getNextCmsPageId = nextIdFactory(nextIdFrom(mockCmsPages));
 export const mockCmsWidgets: CmsWidget[] = SEED_CMS_WIDGETS.map((widget) => ({
   ...widget,
   draftData: { items: widget.draftData.items.map((item) => ({ ...item })) },
@@ -216,5 +217,5 @@ export const mockCmsWidgetRefs: CmsWidgetRef[] = SEED_CMS_WIDGET_REFS.map((ref) 
     ? mockCmsPages.find((page) => page.id === ref.ownerId)?.name ?? null
     : mockCmsSites.find((site) => site.id === ref.ownerId)?.name ?? null,
 }));
-export const getNextCmsWidgetId = nextIdFactory(Math.max(0, ...mockCmsWidgets.map((x) => x.id)) + 1);
-export const getNextCmsWidgetRefId = nextIdFactory(Math.max(0, ...mockCmsWidgetRefs.map((x) => x.id)) + 1);
+export const getNextCmsWidgetId = nextIdFactory(nextIdFrom(mockCmsWidgets));
+export const getNextCmsWidgetRefId = nextIdFactory(nextIdFrom(mockCmsWidgetRefs));

@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok } from '@/mocks/utils/handlers';
 import { mockDateTime } from '@/mocks/utils/date';
 
 const API = import.meta.env.VITE_API_BASE_URL || '';
@@ -11,7 +12,7 @@ const mockConfigs = [
 
 export const oauthConfigHandlers = [
   http.get(`${API}/api/oauth-config`, () => {
-    return HttpResponse.json({ code: 0, message: 'success', data: mockConfigs });
+    return ok(mockConfigs, 'success');
   }),
 
   http.put(`${API}/api/oauth-config/:provider`, async ({ params, request }) => {
@@ -21,6 +22,6 @@ export const oauthConfigHandlers = [
     if (idx >= 0) {
       Object.assign(mockConfigs[idx], body, { updatedAt: mockDateTime() });
     }
-    return HttpResponse.json({ code: 0, message: '保存成功', data: mockConfigs[idx] ?? null });
+    return ok(mockConfigs[idx] ?? null, '保存成功');
   }),
 ];

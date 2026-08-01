@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, notFound, pageParams, paginate } from '@/mocks/utils/handlers';
 import { mockInAppMessages, getNextInAppMessageId } from '@/mocks/data/in-app-messages';
 import { mockInAppTemplates } from '@/mocks/data/in-app-templates';
 import { mockUsers } from '@/mocks/data/users';
@@ -13,8 +14,7 @@ export const inAppMessagesHandlers = [
     const isRead = url.searchParams.get('isRead');
     const recipientId = url.searchParams.get('recipientId');
     const senderId = url.searchParams.get('senderId');
-    const page = Number(url.searchParams.get('page') ?? '1');
-    const pageSize = Number(url.searchParams.get('pageSize') ?? '20');
+    const { page, pageSize } = pageParams(url, 20);
     const filtered = mockInAppMessages.filter((m) => {
       if (keyword && !m.title.includes(keyword) && !m.content.includes(keyword)) return false;
       if (type && m.type !== type) return false;
@@ -27,24 +27,24 @@ export const inAppMessagesHandlers = [
     const total = filtered.length;
     const list = filtered.slice((page - 1) * pageSize, page * pageSize)
       .map((m) => ({ ...m, username: m.userName ?? null }));
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
+    return ok({ list, total, page, pageSize });
   }),
 
   http.post('/api/in-app-messages/admin/:id/read', ({ params }) => {
     const m = mockInAppMessages.find((x) => x.id === Number(params.id));
-    if (!m) return HttpResponse.json({ code: 404, message: '站内信不存在', data: null }, { status: 404 });
+    if (!m) return notFound('站内信不存在', { status: 404 });
     if (!m.isRead) {
       m.isRead = true;
       m.readAt = mockDateTime();
     }
-    return HttpResponse.json({ code: 0, message: '已标记已读', data: null });
+    return ok(null, '已标记已读');
   }),
 
   http.delete('/api/in-app-messages/admin/:id', ({ params }) => {
     const idx = mockInAppMessages.findIndex((x) => x.id === Number(params.id));
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '站内信不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('站内信不存在', { status: 404 });
     mockInAppMessages.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 
   http.get('/api/in-app-messages', ({ request }) => {
@@ -52,8 +52,6 @@ export const inAppMessagesHandlers = [
     const keyword = url.searchParams.get('keyword') ?? '';
     const type = url.searchParams.get('type') ?? '';
     const isRead = url.searchParams.get('isRead');
-    const page = Number(url.searchParams.get('page') ?? '1');
-    const pageSize = Number(url.searchParams.get('pageSize') ?? '20');
     const filtered = mockInAppMessages.filter((m) => {
       if (keyword && !m.title.includes(keyword) && !m.content.includes(keyword)) return false;
       if (type && m.type !== type) return false;
@@ -61,30 +59,28 @@ export const inAppMessagesHandlers = [
       if (isRead === 'false' && m.isRead) return false;
       return true;
     });
-    const total = filtered.length;
-    const list = filtered.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
+    return ok(paginate(filtered, url, 20));
   }),
 
   http.get('/api/in-app-messages/unread-count', () => {
     const count = mockInAppMessages.filter((m) => !m.isRead).length;
-    return HttpResponse.json({ code: 0, message: 'ok', data: { count } });
+    return ok({ count });
   }),
 
   http.get('/api/in-app-messages/:id', ({ params }) => {
     const m = mockInAppMessages.find((x) => x.id === Number(params.id));
-    if (!m) return HttpResponse.json({ code: 404, message: '站内信不存在', data: null }, { status: 404 });
-    return HttpResponse.json({ code: 0, message: 'ok', data: m });
+    if (!m) return notFound('站内信不存在', { status: 404 });
+    return ok(m);
   }),
 
   http.post('/api/in-app-messages/:id/read', ({ params }) => {
     const m = mockInAppMessages.find((x) => x.id === Number(params.id));
-    if (!m) return HttpResponse.json({ code: 404, message: '站内信不存在', data: null }, { status: 404 });
+    if (!m) return notFound('站内信不存在', { status: 404 });
     if (!m.isRead) {
       m.isRead = true;
       m.readAt = mockDateTime();
     }
-    return HttpResponse.json({ code: 0, message: '已标记已读', data: m });
+    return ok(m, '已标记已读');
   }),
 
   http.post('/api/in-app-messages/read-all', () => {
@@ -97,7 +93,7 @@ export const inAppMessagesHandlers = [
         count++;
       }
     });
-    return HttpResponse.json({ code: 0, message: `已标记 ${count} 条为已读`, data: { count } });
+    return ok({ count }, `已标记 ${count} 条为已读`);
   }),
 
   http.post('/api/in-app-messages/batch-read', async ({ request }) => {
@@ -112,7 +108,7 @@ export const inAppMessagesHandlers = [
         count++;
       }
     });
-    return HttpResponse.json({ code: 0, message: `已标记 ${count} 条为已读`, data: null });
+    return ok(null, `已标记 ${count} 条为已读`);
   }),
 
   http.post('/api/in-app-messages/send', async ({ request }) => {
@@ -147,7 +143,7 @@ export const inAppMessagesHandlers = [
       mockInAppMessages.unshift(msg);
       created.push(msg);
     }
-    return HttpResponse.json({ code: 0, message: `已发送 ${created.length} 条站内信`, data: { count: created.length } });
+    return ok({ count: created.length }, `已发送 ${created.length} 条站内信`);
   }),
 
   http.delete('/api/in-app-messages/batch', async ({ request }) => {
@@ -160,13 +156,13 @@ export const inAppMessagesHandlers = [
         count++;
       }
     }
-    return HttpResponse.json({ code: 0, message: `已删除 ${count} 条记录`, data: null });
+    return ok(null, `已删除 ${count} 条记录`);
   }),
 
   http.delete('/api/in-app-messages/:id', ({ params }) => {
     const idx = mockInAppMessages.findIndex((x) => x.id === Number(params.id));
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '站内信不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('站内信不存在', { status: 404 });
     mockInAppMessages.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 ];

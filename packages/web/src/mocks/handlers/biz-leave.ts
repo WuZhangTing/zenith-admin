@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound, pageParams } from '@/mocks/utils/handlers';
 import type { BizLeave } from '@zenith/shared/biz';
 import type { WorkflowInstance, WorkflowTask } from '@zenith/shared/workflow';
 import { mockBizLeaves, getNextLeaveId } from '@/mocks/data/biz-leave';
@@ -15,8 +16,7 @@ export const bizLeaveHandlers = [
   // 列表（我的请假）
   http.get('/api/biz/leaves', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page') ?? 1);
-    const pageSize = Number(url.searchParams.get('pageSize') ?? 10);
+    const { page, pageSize } = pageParams(url);
     const status = url.searchParams.get('status') ?? '';
     const keyword = (url.searchParams.get('keyword') ?? '').trim().toLowerCase();
     let list = [...mockBizLeaves].sort((a, b) => b.id - a.id);
@@ -24,23 +24,23 @@ export const bizLeaveHandlers = [
     if (keyword) list = list.filter((l) => (l.reason ?? '').toLowerCase().includes(keyword));
     const total = list.length;
     const paged = list.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list: paged, total, page, pageSize } });
+    return ok({ list: paged, total, page, pageSize });
   }),
 
   // 审批查看详情（供工作流参与者）
   http.get('/api/biz/leaves/:id/detail', ({ params }) => {
     const leave = mockBizLeaves.find((l) => l.id === Number(params.id));
-    if (!leave) return HttpResponse.json({ code: 404, message: '请假单不存在', data: null });
-    return HttpResponse.json({ code: 0, message: 'ok', data: leave });
+    if (!leave) return notFound('请假单不存在');
+    return ok(leave);
   }),
 
   // 提交审批：发起并关联工作流（mock 简化：置 pending + 关联一个实例 id）
   http.post('/api/biz/leaves/:id/submit', ({ params }) => {
     const leave = mockBizLeaves.find((l) => l.id === Number(params.id));
-    if (!leave) return HttpResponse.json({ code: 404, message: '请假单不存在', data: null });
-    if (leave.status !== 'draft') return HttpResponse.json({ code: 400, message: '该请假单已提交，无法重复提交', data: null });
+    if (!leave) return notFound('请假单不存在');
+    if (leave.status !== 'draft') return badRequest('该请假单已提交，无法重复提交');
     const def = mockWorkflowDefinitions.find((item) => item.name === '请假审批' && item.formType === 'external' && item.status === 'published');
-    if (!def) return HttpResponse.json({ code: 400, message: '未找到已发布的「请假审批」业务系统主导流程定义', data: null });
+    if (!def) return badRequest('未找到已发布的「请假审批」业务系统主导流程定义');
     const now = mockDateTime();
     const instanceId = getNextInstanceId();
     const firstApproveNode = def.flowData?.nodes.find((node) => node.data.type === 'approve');
@@ -99,28 +99,28 @@ export const bizLeaveHandlers = [
     leave.workflowInstanceId = instanceId;
     leave.workflowStatus = 'running';
     leave.updatedAt = now;
-    return HttpResponse.json({ code: 0, message: '已提交审批', data: leave });
+    return ok(leave, '已提交审批');
   }),
 
   // 重新编辑：驳回/取消 → 草稿（旧实例已终态，重新提交将发起新流程）
   http.post('/api/biz/leaves/:id/reopen', ({ params }) => {
     const leave = mockBizLeaves.find((l) => l.id === Number(params.id));
-    if (!leave) return HttpResponse.json({ code: 404, message: '请假单不存在', data: null });
+    if (!leave) return notFound('请假单不存在');
     if (leave.status !== 'rejected' && leave.status !== 'cancelled') {
-      return HttpResponse.json({ code: 400, message: '仅已驳回或已取消的请假单可重新编辑', data: null });
+      return badRequest('仅已驳回或已取消的请假单可重新编辑');
     }
     leave.status = 'draft';
     leave.workflowInstanceId = null;
     leave.workflowStatus = null;
     leave.updatedAt = mockDateTime();
-    return HttpResponse.json({ code: 0, message: '已转为草稿', data: leave });
+    return ok(leave, '已转为草稿');
   }),
 
   // 详情
   http.get('/api/biz/leaves/:id', ({ params }) => {
     const leave = mockBizLeaves.find((l) => l.id === Number(params.id));
-    if (!leave) return HttpResponse.json({ code: 404, message: '请假单不存在', data: null });
-    return HttpResponse.json({ code: 0, message: 'ok', data: leave });
+    if (!leave) return notFound('请假单不存在');
+    return ok(leave);
   }),
 
   // 新建（草稿）
@@ -144,14 +144,14 @@ export const bizLeaveHandlers = [
       updatedAt: now,
     };
     mockBizLeaves.unshift(leave);
-    return HttpResponse.json({ code: 0, message: '创建成功', data: leave });
+    return ok(leave, '创建成功');
   }),
 
   // 编辑（仅草稿）
   http.put('/api/biz/leaves/:id', async ({ params, request }) => {
     const leave = mockBizLeaves.find((l) => l.id === Number(params.id));
-    if (!leave) return HttpResponse.json({ code: 404, message: '请假单不存在', data: null });
-    if (leave.status !== 'draft') return HttpResponse.json({ code: 400, message: '仅草稿状态可编辑', data: null });
+    if (!leave) return notFound('请假单不存在');
+    if (leave.status !== 'draft') return badRequest('仅草稿状态可编辑');
     const body = await request.json() as Partial<BizLeave>;
     Object.assign(leave, {
       leaveType: body.leaveType ?? leave.leaveType,
@@ -161,15 +161,15 @@ export const bizLeaveHandlers = [
       reason: body.reason ?? leave.reason,
       updatedAt: mockDateTime(),
     });
-    return HttpResponse.json({ code: 0, message: '更新成功', data: leave });
+    return ok(leave, '更新成功');
   }),
 
   // 删除（仅草稿）
   http.delete('/api/biz/leaves/:id', ({ params }) => {
     const idx = mockBizLeaves.findIndex((l) => l.id === Number(params.id));
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '请假单不存在', data: null });
-    if (mockBizLeaves[idx].status !== 'draft') return HttpResponse.json({ code: 400, message: '仅草稿状态可删除', data: null });
+    if (idx === -1) return notFound('请假单不存在');
+    if (mockBizLeaves[idx].status !== 'draft') return badRequest('仅草稿状态可删除');
     mockBizLeaves.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '已删除', data: null });
+    return ok(null, '已删除');
   }),
 ];

@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound, pageParams } from '@/mocks/utils/handlers';
 import { mockMpFans } from '@/mocks/data/mp-fans';
 import { mockDateTime } from '@/mocks/utils/date';
 import type { MpFan } from '@zenith/shared/mp';
@@ -11,8 +12,7 @@ export const mpFansHandlers = [
     const subscribe = url.searchParams.get('subscribe') ?? '';
     const tagId = url.searchParams.get('tagId');
     const blacklisted = url.searchParams.get('blacklisted');
-    const page = Number(url.searchParams.get('page') ?? '1');
-    const pageSize = Number(url.searchParams.get('pageSize') ?? '20');
+    const { page, pageSize } = pageParams(url, 20);
     const filtered = mockMpFans.filter((f) => {
       if (f.accountId !== accountId) return false;
       if (keyword && !(f.nickname ?? '').includes(keyword) && !f.openid.includes(keyword) && !(f.remark ?? '').includes(keyword)) return false;
@@ -24,66 +24,66 @@ export const mpFansHandlers = [
     const total = filtered.length;
     const sorted = [...filtered].sort((a, b) => b.id - a.id);
     const list = sorted.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
+    return ok({ list, total, page, pageSize });
   }),
 
   http.post('/api/mp/fans/sync', async ({ request }) => {
     const body = await request.json() as { accountId: number };
     const count = mockMpFans.filter((f) => f.accountId === body.accountId).length;
-    return HttpResponse.json({ code: 0, message: '同步完成', data: { success: true, synced: count, total: count } });
+    return ok({ success: true, synced: count, total: count }, '同步完成');
   }),
 
   http.post('/api/mp/fans/blacklist', async ({ request }) => {
     const body = await request.json() as { accountId: number; openids: string[] };
     for (const f of mockMpFans) if (f.accountId === body.accountId && body.openids.includes(f.openid)) f.blacklisted = true;
-    return HttpResponse.json({ code: 0, message: '已拉黑', data: { success: true, count: body.openids.length } });
+    return ok({ success: true, count: body.openids.length }, '已拉黑');
   }),
 
   http.post('/api/mp/fans/unblacklist', async ({ request }) => {
     const body = await request.json() as { accountId: number; openids: string[] };
     for (const f of mockMpFans) if (f.accountId === body.accountId && body.openids.includes(f.openid)) f.blacklisted = false;
-    return HttpResponse.json({ code: 0, message: '已移出', data: { success: true, count: body.openids.length } });
+    return ok({ success: true, count: body.openids.length }, '已移出');
   }),
 
   http.post('/api/mp/fans/sync-blacklist', async ({ request }) => {
     const body = await request.json() as { accountId: number };
     const count = mockMpFans.filter((f) => f.accountId === body.accountId && f.blacklisted).length;
-    return HttpResponse.json({ code: 0, message: '同步完成', data: { success: true, synced: count, total: count } });
+    return ok({ success: true, synced: count, total: count }, '同步完成');
   }),
 
   http.put('/api/mp/fans/:id', async ({ params, request }) => {
     const f = mockMpFans.find((x) => x.id === Number(params.id));
-    if (!f) return HttpResponse.json({ code: 404, message: '粉丝不存在', data: null }, { status: 404 });
+    if (!f) return notFound('粉丝不存在', { status: 404 });
     const body = await request.json() as Partial<Pick<MpFan, 'remark' | 'tagIds'>>;
     if (body.remark !== undefined) f.remark = body.remark || null;
     if (body.tagIds !== undefined) f.tagIds = body.tagIds;
     f.updatedAt = mockDateTime();
-    return HttpResponse.json({ code: 0, message: '更新成功', data: f });
+    return ok(f, '更新成功');
   }),
 
   http.post('/api/mp/fans/:id/create-member', ({ params }) => {
     const f = mockMpFans.find((x) => x.id === Number(params.id));
-    if (!f) return HttpResponse.json({ code: 404, message: '粉丝不存在', data: null }, { status: 404 });
-    if (f.memberId) return HttpResponse.json({ code: 400, message: '该粉丝已绑定会员', data: null }, { status: 400 });
+    if (!f) return notFound('粉丝不存在', { status: 404 });
+    if (f.memberId) return badRequest('该粉丝已绑定会员', { status: 400 });
     f.memberId = 9000 + f.id;
     f.updatedAt = mockDateTime();
-    return HttpResponse.json({ code: 0, message: '会员已创建并绑定', data: f });
+    return ok(f, '会员已创建并绑定');
   }),
 
   http.post('/api/mp/fans/:id/bind-member', async ({ params, request }) => {
     const f = mockMpFans.find((x) => x.id === Number(params.id));
-    if (!f) return HttpResponse.json({ code: 404, message: '粉丝不存在', data: null }, { status: 404 });
+    if (!f) return notFound('粉丝不存在', { status: 404 });
     const body = await request.json() as { memberId: number };
     f.memberId = body.memberId;
     f.updatedAt = mockDateTime();
-    return HttpResponse.json({ code: 0, message: '绑定成功', data: f });
+    return ok(f, '绑定成功');
   }),
 
   http.post('/api/mp/fans/:id/unbind-member', ({ params }) => {
     const f = mockMpFans.find((x) => x.id === Number(params.id));
-    if (!f) return HttpResponse.json({ code: 404, message: '粉丝不存在', data: null }, { status: 404 });
+    if (!f) return notFound('粉丝不存在', { status: 404 });
     f.memberId = null;
     f.updatedAt = mockDateTime();
-    return HttpResponse.json({ code: 0, message: '已解绑', data: f });
+    return ok(f, '已解绑');
   }),
 ];

@@ -1,12 +1,10 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound, conflict } from '@/mocks/utils/handlers';
 import type { RuleDecisionFlow, RuleFlowStep, RuleFlowStepTrace, RuleList } from '@zenith/shared/rules';
 import { mockDecisionFlows, getNextFlowId, mockRuleLists, mockRuleListItems, getNextListId, getNextListItemId } from '@/mocks/data/rules-p2';
 import { mockDecisionTables } from '@/mocks/data/decision-tables';
 import { evaluateMockDecisionTable } from './decision-tables';
 import { mockDateTime } from '@/mocks/utils/date';
-
-function ok<T>(data: T, message = 'ok') { return HttpResponse.json({ code: 0, message, data }); }
-function fail(message: string, code = 400) { return HttpResponse.json({ code, message, data: null }, { status: code }); }
 
 /** mock 决策流求值：与后端 rules-flow 引擎语义对齐（条件跳过/命名空间合并/逐步 trace） */
 function evaluateFlow(steps: RuleFlowStep[], input: Record<string, unknown>) {
@@ -62,45 +60,45 @@ export const rulesP2Handlers = [
   }),
   http.put('/api/rules/decision-flows/:id', async ({ params, request }) => {
     const r = mockDecisionFlows.find((t) => t.id === Number(params.id));
-    if (!r) return fail('决策流不存在', 404);
+    if (!r) return notFound('决策流不存在', { status: 404 });
     const { expectedUpdatedAt, ...body } = (await request.json()) as Record<string, unknown> & { expectedUpdatedAt?: string };
-    if (expectedUpdatedAt && expectedUpdatedAt !== r.updatedAt) return fail('决策流已被他人修改，请刷新后重试', 409);
+    if (expectedUpdatedAt && expectedUpdatedAt !== r.updatedAt) return conflict('决策流已被他人修改，请刷新后重试', { status: 409 });
     Object.assign(r, body, { updatedAt: mockDateTime() });
     r.dirty = flowDirty(r);
     return ok(r, '更新成功');
   }),
   http.post('/api/rules/decision-flows/:id/publish', ({ params }) => {
     const r = mockDecisionFlows.find((t) => t.id === Number(params.id));
-    if (!r) return fail('决策流不存在', 404);
-    if (r.steps.length === 0) return fail('决策流至少需要一个步骤');
+    if (!r) return notFound('决策流不存在', { status: 404 });
+    if (r.steps.length === 0) return badRequest('决策流至少需要一个步骤', { status: 400 });
     const bad = r.steps.filter((s) => mockDecisionTables.find((t) => t.key === s.tableKey)?.status !== 'published');
-    if (bad.length > 0) return fail(`发布受阻：引用的决策表未发布或不存在：${bad.map((s) => s.tableKey).join('、')}`);
+    if (bad.length > 0) return badRequest(`发布受阻：引用的决策表未发布或不存在：${bad.map((s) => s.tableKey).join('、')}`, { status: 400 });
     r.status = 'published'; r.publishedSteps = JSON.parse(JSON.stringify(r.steps)); r.publishedAt = mockDateTime(); r.version += 1; r.dirty = false;
     return ok(r, '发布成功');
   }),
   http.post('/api/rules/decision-flows/:id/toggle', async ({ params, request }) => {
     const r = mockDecisionFlows.find((t) => t.id === Number(params.id));
-    if (!r) return fail('决策流不存在', 404);
+    if (!r) return notFound('决策流不存在', { status: 404 });
     const { enabled } = (await request.json()) as { enabled: boolean };
     r.status = enabled ? (r.publishedAt ? 'published' : 'draft') : 'disabled';
     return ok(r);
   }),
   http.post('/api/rules/decision-flows/:id/test', async ({ params, request }) => {
     const r = mockDecisionFlows.find((t) => t.id === Number(params.id));
-    if (!r) return fail('决策流不存在', 404);
+    if (!r) return notFound('决策流不存在', { status: 404 });
     const { input } = (await request.json()) as { input: Record<string, unknown> };
     return ok(evaluateFlow(r.steps, input ?? {}));
   }),
   http.post('/api/rules/decision-flows/evaluate', async ({ request }) => {
     const { key, input } = (await request.json()) as { key: string; input: Record<string, unknown> };
     const r = mockDecisionFlows.find((t) => t.key === key);
-    if (!r) return fail('决策流不存在', 404);
-    if (r.status === 'disabled') return fail('决策流已禁用');
+    if (!r) return notFound('决策流不存在', { status: 404 });
+    if (r.status === 'disabled') return badRequest('决策流已禁用', { status: 400 });
     return ok(evaluateFlow(r.status === 'published' && r.publishedSteps ? r.publishedSteps : r.steps, input ?? {}));
   }),
   http.delete('/api/rules/decision-flows/:id', ({ params }) => {
     const i = mockDecisionFlows.findIndex((t) => t.id === Number(params.id));
-    if (i === -1) return fail('决策流不存在', 404);
+    if (i === -1) return notFound('决策流不存在', { status: 404 });
     mockDecisionFlows.splice(i, 1);
     return ok(null, '删除成功');
   }),
@@ -132,13 +130,13 @@ export const rulesP2Handlers = [
   }),
   http.put('/api/rules/lists/:id', async ({ params, request }) => {
     const r = mockRuleLists.find((t) => t.id === Number(params.id));
-    if (!r) return fail('名单不存在', 404);
+    if (!r) return notFound('名单不存在', { status: 404 });
     Object.assign(r, await request.json() as object, { updatedAt: mockDateTime() });
     return ok(r, '更新成功');
   }),
   http.delete('/api/rules/lists/:id', ({ params }) => {
     const i = mockRuleLists.findIndex((t) => t.id === Number(params.id));
-    if (i === -1) return fail('名单不存在', 404);
+    if (i === -1) return notFound('名单不存在', { status: 404 });
     const listId = mockRuleLists[i].id;
     mockRuleLists.splice(i, 1);
     for (let k = mockRuleListItems.length - 1; k >= 0; k -= 1) if (mockRuleListItems[k].listId === listId) mockRuleListItems.splice(k, 1);
@@ -178,7 +176,7 @@ export const rulesP2Handlers = [
   http.post('/api/rules/lists/:id/items', async ({ params, request }) => {
     const listId = Number(params.id);
     const b = (await request.json()) as { value: string; label?: string | null; expiresAt?: string | null; remark?: string | null };
-    if (mockRuleListItems.some((i) => i.listId === listId && i.value === b.value.trim())) return fail('该值已在名单中');
+    if (mockRuleListItems.some((i) => i.listId === listId && i.value === b.value.trim())) return badRequest('该值已在名单中', { status: 400 });
     const row = { id: getNextListItemId(), listId, value: b.value.trim(), label: b.label ?? null, expiresAt: b.expiresAt ?? null, remark: b.remark ?? null, createdAt: mockDateTime() };
     mockRuleListItems.push(row);
     return ok(row, '新增成功');

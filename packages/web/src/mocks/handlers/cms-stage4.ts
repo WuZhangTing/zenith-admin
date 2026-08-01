@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw';
+import { ok, badRequest, unauthorized, forbidden, notFound, conflict, pageResult, nextIdFrom } from '@/mocks/utils/handlers';
 import type { CmsInteraction, CmsInteractionOption, CmsInteractionQuestion, CmsInteractionResponse, CmsMemberSubscription, CmsPageBlock } from '@zenith/shared/cms';
 import {
   buildMockAnswerDetails,
@@ -44,29 +45,12 @@ function consumeDemoAdToken(token: string, eventType: 'impression' | 'click', ad
   return row;
 }
 
-function ok<T>(data: T, message = 'ok') {
-  return HttpResponse.json({ code: 0, message, data });
-}
-
-function error(status: 400 | 401 | 403 | 404 | 409, message: string) {
-  return HttpResponse.json({ code: status, message, data: null }, { status });
-}
-
 function paging(request: Request) {
   const url = new URL(request.url);
   return {
     url,
     page: Number(url.searchParams.get('page')) || 1,
     pageSize: Number(url.searchParams.get('pageSize')) || 10,
-  };
-}
-
-function paginate<T>(list: T[], page: number, pageSize: number) {
-  return {
-    list: list.slice((page - 1) * pageSize, page * pageSize),
-    total: list.length,
-    page,
-    pageSize,
   };
 }
 
@@ -244,13 +228,13 @@ function submitInteraction(
   body: Body,
   member: boolean,
 ): ReturnType<typeof ok> {
-  if (interaction.status !== 'published') return error(400, '互动问卷未开放') as ReturnType<typeof ok>;
-  if (interaction.participantScope === 'member' && !member) return error(401, '该互动仅限会员参与') as ReturnType<typeof ok>;
+  if (interaction.status !== 'published') return badRequest('互动问卷未开放', { status: 400 }) as ReturnType<typeof ok>;
+  if (interaction.participantScope === 'member' && !member) return unauthorized('该互动仅限会员参与', { status: 401 }) as ReturnType<typeof ok>;
   if (interaction.captchaPolicy === 'math' && !String(body.captchaAnswer ?? '').trim()) {
-    return error(400, '验证码错误或已过期，请重试') as ReturnType<typeof ok>;
+    return badRequest('验证码错误或已过期，请重试', { status: 400 }) as ReturnType<typeof ok>;
   }
   if (interaction.captchaPolicy === 'turnstile' && !String(body.turnstileToken ?? '').trim()) {
-    return error(400, '验证码验证失败，请重试') as ReturnType<typeof ok>;
+    return badRequest('验证码验证失败，请重试', { status: 400 }) as ReturnType<typeof ok>;
   }
   const idempotencyKey = String(body.idempotencyKey ?? '');
   const requestKey = `${interaction.id}:${idempotencyKey}`;
@@ -265,7 +249,7 @@ function submitInteraction(
       : interaction.repeatPolicy === 'once_per_ip'
         ? response.memberId === (member ? 1 : null)
         : false));
-  if (duplicate && interaction.repeatPolicy !== 'multiple') return error(409, '您已参与过本次互动') as ReturnType<typeof ok>;
+  if (duplicate && interaction.repeatPolicy !== 'multiple') return conflict('您已参与过本次互动', { status: 409 }) as ReturnType<typeof ok>;
   const response: CmsInteractionResponse = {
     id: getNextCmsInteractionResponseId(),
     interactionId: interaction.id,
@@ -291,7 +275,7 @@ function submitInteraction(
 export const cmsStage4Handlers = [
   http.post('/api/cms/contents/:id/publish', ({ params }) => {
     const content = mockCmsContents.find((item) => item.id === Number(params.id));
-    if (!content) return error(404, '内容不存在');
+    if (!content) return notFound('内容不存在', { status: 404 });
     content.status = 'published';
     content.version += 1;
     content.updatedAt = mockDateTime();
@@ -324,18 +308,18 @@ export const cmsStage4Handlers = [
     if (interactionId) list = list.filter((response) => response.interactionId === interactionId);
     if (start) list = list.filter((response) => response.createdAt >= start);
     if (end) list = list.filter((response) => response.createdAt <= end);
-    return ok(paginate(list, page, pageSize));
+    return ok(pageResult(list, page, pageSize));
   }),
   http.get('/api/cms/interactions/:id/stats/texts', ({ params, request }) => {
     const interaction = mockCmsInteractions.find((item) => item.id === Number(params.id));
-    if (!interaction) return error(404, '互动问卷不存在');
+    if (!interaction) return notFound('互动问卷不存在', { status: 404 });
     const { url, page, pageSize } = paging(request);
     const questionId = Number(url.searchParams.get('questionId'));
     const keyword = url.searchParams.get('keyword')?.trim() ?? '';
     const question = (interaction.questions ?? []).find((item) => item.id === questionId);
-    if (!question) return error(404, '题目不存在');
+    if (!question) return notFound('题目不存在', { status: 404 });
     const isFreeText = ['text', 'date', 'number'].includes(question.type);
-    if (!isFreeText && !question.allowOther) return error(400, '该题型没有文本答案');
+    if (!isFreeText && !question.allowOther) return badRequest('该题型没有文本答案', { status: 400 });
     const list = mockCmsInteractionResponses
       .filter((response) => response.interactionId === interaction.id)
       .flatMap((response) => {
@@ -351,21 +335,21 @@ export const cmsStage4Handlers = [
       })
       .filter((item) => !keyword || item.value.includes(keyword))
       .reverse();
-    return ok(paginate(list, page, pageSize));
+    return ok(pageResult(list, page, pageSize));
   }),
   http.get('/api/cms/interactions/:id/stats/cross', ({ params, request }) => {
     const interaction = mockCmsInteractions.find((item) => item.id === Number(params.id));
-    if (!interaction) return error(404, '互动问卷不存在');
+    if (!interaction) return notFound('互动问卷不存在', { status: 404 });
     const url = new URL(request.url);
     const xId = Number(url.searchParams.get('xQuestionId'));
     const yId = Number(url.searchParams.get('yQuestionId'));
-    if (xId === yId) return error(400, '交叉分析需要选择两道不同的题目');
+    if (xId === yId) return badRequest('交叉分析需要选择两道不同的题目', { status: 400 });
     const questions = interaction.questions ?? [];
     const x = questions.find((item) => item.id === xId);
     const y = questions.find((item) => item.id === yId);
-    if (!x || !y) return error(404, '题目不存在');
+    if (!x || !y) return notFound('题目不存在', { status: 404 });
     if (!['single', 'multiple'].includes(x.type) || !['single', 'multiple'].includes(y.type)) {
-      return error(400, '交叉分析仅支持单选或多选题');
+      return badRequest('交叉分析仅支持单选或多选题', { status: 400 });
     }
     const bucket = (value: string) => (value.startsWith('__other__') ? '__other__' : value);
     const valuesOf = (response: CmsInteractionResponse, questionId: number) => {
@@ -401,7 +385,7 @@ export const cmsStage4Handlers = [
   }),
   http.get('/api/cms/interactions/:id/stats/trend', ({ params, request }) => {
     const interaction = mockCmsInteractions.find((item) => item.id === Number(params.id));
-    if (!interaction) return error(404, '互动问卷不存在');
+    if (!interaction) return notFound('互动问卷不存在', { status: 404 });
     const days = Math.min(Math.max(Number(new URL(request.url).searchParams.get('days')) || 30, 1), 180);
     const byDay = new Map<string, number>();
     mockCmsInteractionResponses
@@ -420,11 +404,11 @@ export const cmsStage4Handlers = [
   }),
   http.get('/api/cms/interactions/:id/stats', ({ params }) => {
     const interaction = mockCmsInteractions.find((item) => item.id === Number(params.id));
-    return interaction ? ok(interactionStats(interaction)) : error(404, '互动问卷不存在');
+    return interaction ? ok(interactionStats(interaction)) : notFound('互动问卷不存在', { status: 404 });
   }),
   http.get('/api/cms/interactions/:id', ({ params }) => {
     const interaction = mockCmsInteractions.find((item) => item.id === Number(params.id));
-    return interaction ? ok(interaction) : error(404, '互动问卷不存在');
+    return interaction ? ok(interaction) : notFound('互动问卷不存在', { status: 404 });
   }),
   http.get('/api/cms/interactions', ({ request }) => {
     const { url, page, pageSize } = paging(request);
@@ -436,17 +420,17 @@ export const cmsStage4Handlers = [
     if (keyword) list = list.filter((interaction) => interaction.title.includes(keyword) || interaction.code.includes(keyword));
     if (kind) list = list.filter((interaction) => interaction.kind === kind);
     if (status) list = list.filter((interaction) => interaction.status === status);
-    return ok(paginate(list, page, pageSize));
+    return ok(pageResult(list, page, pageSize));
   }),
   http.post('/api/cms/interactions', async ({ request }) => {
     const body = await request.json() as Body;
     const id = getNextCmsInteractionId();
     const questions = normalizeQuestions(id, body.questions);
     if (body.kind === 'poll' && (questions.length !== 1 || questions[0]?.type === 'text')) {
-      return error(400, '投票必须且只能包含一道选择题');
+      return badRequest('投票必须且只能包含一道选择题', { status: 400 });
     }
     if (body.repeatPolicy === 'once_per_member' && body.participantScope !== 'member') {
-      return error(400, '每位会员一次仅适用于仅会员参与');
+      return badRequest('每位会员一次仅适用于仅会员参与', { status: 400 });
     }
     const interaction: CmsInteraction = {
       id,
@@ -475,9 +459,9 @@ export const cmsStage4Handlers = [
   }),
   http.put('/api/cms/interactions/:id', async ({ params, request }) => {
     const interaction = mockCmsInteractions.find((item) => item.id === Number(params.id));
-    if (!interaction) return error(404, '互动问卷不存在');
+    if (!interaction) return notFound('互动问卷不存在', { status: 404 });
     const body = await request.json() as Body;
-    if (body.questions && interaction.responseCount > 0) return error(409, '已有答卷，不可替换题目');
+    if (body.questions && interaction.responseCount > 0) return conflict('已有答卷，不可替换题目', { status: 409 });
     const { turnstileSecret, ...safeBody } = body;
     Object.assign(interaction, safeBody, {
       turnstileSecretConfigured: turnstileSecret ? true : interaction.turnstileSecretConfigured,
@@ -488,7 +472,7 @@ export const cmsStage4Handlers = [
   }),
   http.post('/api/cms/interactions/:id/copy', ({ params }) => {
     const source = mockCmsInteractions.find((item) => item.id === Number(params.id));
-    if (!source) return error(404, '互动问卷不存在');
+    if (!source) return notFound('互动问卷不存在', { status: 404 });
     const stem = source.code.replace(/-copy(?:-\d+)?$/, '') || source.code;
     const taken = new Set(mockCmsInteractions.filter((item) => item.siteId === source.siteId).map((item) => item.code));
     let code = `${stem}-copy`;
@@ -515,7 +499,7 @@ export const cmsStage4Handlers = [
   }),
   http.post('/api/cms/interactions/:id/status', async ({ params, request }) => {
     const interaction = mockCmsInteractions.find((item) => item.id === Number(params.id));
-    if (!interaction) return error(404, '互动问卷不存在');
+    if (!interaction) return notFound('互动问卷不存在', { status: 404 });
     const body = await request.json() as { status: CmsInteraction['status'] };
     interaction.status = body.status;
     interaction.updatedAt = mockDateTime();
@@ -535,7 +519,7 @@ export const cmsStage4Handlers = [
   }),
   http.delete('/api/cms/interactions/:id', ({ params }) => {
     const index = mockCmsInteractions.findIndex((item) => item.id === Number(params.id));
-    if (index < 0) return error(404, '互动问卷不存在');
+    if (index < 0) return notFound('互动问卷不存在', { status: 404 });
     const [removed] = mockCmsInteractions.splice(index, 1);
     for (let responseIndex = mockCmsInteractionResponses.length - 1; responseIndex >= 0; responseIndex -= 1) {
       if (mockCmsInteractionResponses[responseIndex].interactionId === removed.id) mockCmsInteractionResponses.splice(responseIndex, 1);
@@ -547,18 +531,18 @@ export const cmsStage4Handlers = [
   http.get('/api/public/cms/interactions/:siteCode/:code', ({ params, request }) => {
     const site = mockCmsSites.find((item) => item.code === params.siteCode);
     const interaction = site && mockCmsInteractions.find((item) => item.siteId === site.id && item.code === params.code && item.status !== 'draft');
-    if (!interaction) return error(404, '互动问卷不存在');
+    if (!interaction) return notFound('互动问卷不存在', { status: 404 });
     return ok(publicInteractionState(interaction, request.headers.has('authorization')));
   }),
   http.post('/api/public/cms/interactions/:siteCode/:code/submit', async ({ params, request }) => {
     const site = mockCmsSites.find((item) => item.code === params.siteCode);
     const interaction = site && mockCmsInteractions.find((item) => item.siteId === site.id && item.code === params.code);
-    if (!interaction) return error(404, '互动问卷不存在');
+    if (!interaction) return notFound('互动问卷不存在', { status: 404 });
     return submitInteraction(interaction, await request.json() as Body, request.headers.has('authorization'));
   }),
   http.post('/api/member/cms/interactions/:id/submit', async ({ params, request }) => {
     const interaction = mockCmsInteractions.find((item) => item.id === Number(params.id));
-    if (!interaction) return error(404, '互动问卷不存在');
+    if (!interaction) return notFound('互动问卷不存在', { status: 404 });
     return submitInteraction(interaction, await request.json() as Body, true);
   }),
 
@@ -603,7 +587,7 @@ export const cmsStage4Handlers = [
     if (device) list = list.filter((event) => event.device === device);
     if (start) list = list.filter((event) => event.occurredAt >= start);
     if (end) list = list.filter((event) => event.occurredAt <= end);
-    return ok(paginate(list, page, pageSize));
+    return ok(pageResult(list, page, pageSize));
   }),
   http.post('/api/cms/ads/events/cleanup', async ({ request }) => {
     const body = await request.json() as { siteId?: number; retentionDays?: number };
@@ -616,10 +600,10 @@ export const cmsStage4Handlers = [
   }),
   http.post('/api/public/cms/ads/tokens/:siteCode', async ({ params, request }) => {
     const site = mockCmsSites.find((item) => item.code === params.siteCode && item.status === 'enabled');
-    if (!site) return error(404, '站点不存在或未启用');
+    if (!site) return notFound('站点不存在或未启用', { status: 404 });
     const body = await request.json() as { ads?: Array<{ adId: number; renderProof: string }> };
     const requests = body.ads ?? [];
-    if (requests.some((item) => !item.renderProof)) return error(403, '广告渲染凭证无效');
+    if (requests.some((item) => !item.renderProof)) return forbidden('广告渲染凭证无效', { status: 403 });
     const path = '/news/';
     const data = [...new Map(requests.map((item) => [item.adId, item])).values()].flatMap(({ adId: id }) => {
       const ad = mockCmsAds.find((item) => item.id === id && item.status === 'enabled');
@@ -638,7 +622,7 @@ export const cmsStage4Handlers = [
     const ad = mockCmsAds.find((item) => item.id === Number(params.id) && item.status === 'enabled');
     const token = new URL(request.url).searchParams.get('token') ?? '';
     const eventToken = consumeDemoAdToken(token, 'click', ad?.id);
-    if (!eventToken) return error(409, '广告事件令牌无效或已使用');
+    if (!eventToken) return conflict('广告事件令牌无效或已使用', { status: 409 });
     if (!ad?.linkUrl || (!ad.linkUrl.startsWith('/') && !/^https?:\/\//i.test(ad.linkUrl))) {
       return new HttpResponse('广告不存在或未投放', { status: 404 });
     }
@@ -672,7 +656,7 @@ export const cmsStage4Handlers = [
     const body = await request.json() as { tokens?: string[] };
     const eventTokens = (body.tokens ?? []).map((token) => consumeDemoAdToken(token, 'impression'));
     if (eventTokens.length === 0 || eventTokens.some((token) => !token)) {
-      return error(409, '广告事件令牌无效或已使用');
+      return conflict('广告事件令牌无效或已使用', { status: 409 });
     }
     const bucket = Math.floor(Date.now() / 60_000);
     for (const eventToken of eventTokens) {
@@ -714,7 +698,7 @@ export const cmsStage4Handlers = [
       subjectId: url.searchParams.get('subjectId') ? Number(url.searchParams.get('subjectId')) : null,
       subjectKey: String(url.searchParams.get('subjectKey') ?? ''),
     });
-    if (!resolved) return error(404, '订阅对象不存在或未开放');
+    if (!resolved) return notFound('订阅对象不存在或未开放', { status: 404 });
     const row = mockCmsSubscriptions.find((item) =>
       item.active
       && item.siteId === Number(url.searchParams.get('siteId'))
@@ -727,7 +711,7 @@ export const cmsStage4Handlers = [
     const type = url.searchParams.get('subjectType');
     let list = mockCmsSubscriptions.filter((item) => item.memberId === 1 && item.active);
     if (type) list = list.filter((item) => item.subjectType === type);
-    return ok(paginate(list, page, pageSize));
+    return ok(pageResult(list, page, pageSize));
   }),
   http.post('/api/member/cms/subscriptions', async ({ request }) => {
     const body = await request.json() as Body;
@@ -736,13 +720,13 @@ export const cmsStage4Handlers = [
     const subjectId = body.subjectId ? Number(body.subjectId) : null;
     const rawKey = String(body.subjectKey ?? '');
     const resolved = resolveMockSubscriptionSubject({ siteId, subjectType, subjectId, subjectKey: rawKey });
-    if (!resolved) return error(404, '订阅对象不存在或未开放');
+    if (!resolved) return notFound('订阅对象不存在或未开放', { status: 404 });
     const subjectKey = resolved.subjectKey;
     let row = mockCmsSubscriptions.find((item) =>
       item.memberId === 1 && item.siteId === siteId && item.subjectType === subjectType && item.subjectKey === subjectKey);
     if (!row) {
       row = {
-        id: Math.max(0, ...mockCmsSubscriptions.map((item) => item.id)) + 1,
+        id: nextIdFrom(mockCmsSubscriptions),
         memberId: 1,
         memberDisplay: '演***员',
         siteId,
@@ -768,7 +752,7 @@ export const cmsStage4Handlers = [
   }),
   http.put('/api/member/cms/subscriptions/:id', async ({ params, request }) => {
     const row = mockCmsSubscriptions.find((item) => item.id === Number(params.id) && item.memberId === 1);
-    if (!row) return error(404, '订阅不存在');
+    if (!row) return notFound('订阅不存在', { status: 404 });
     const body = await request.json() as { notificationEnabled: boolean };
     row.notificationEnabled = body.notificationEnabled;
     row.updatedAt = mockDateTime();
@@ -776,7 +760,7 @@ export const cmsStage4Handlers = [
   }),
   http.delete('/api/member/cms/subscriptions/:id', ({ params }) => {
     const row = mockCmsSubscriptions.find((item) => item.id === Number(params.id) && item.memberId === 1);
-    if (!row) return error(404, '订阅不存在');
+    if (!row) return notFound('订阅不存在', { status: 404 });
     row.active = false;
     row.updatedAt = mockDateTime();
     return ok(row, '已取消订阅');
@@ -809,7 +793,7 @@ export const cmsStage4Handlers = [
     let list = mockCmsSubscriptions.filter((item) => item.siteId === siteId && item.active);
     if (type) list = list.filter((item) => item.subjectType === type);
     if (keyword) list = list.filter((item) => item.subjectLabel.includes(keyword));
-    return ok(paginate(list, page, pageSize));
+    return ok(pageResult(list, page, pageSize));
   }),
 
   // ─── 页面区块 ACL / 展示条件安全更新 ──────────────────────────────────────
@@ -819,13 +803,13 @@ export const cmsStage4Handlers = [
   http.put('/api/cms/pages/:id/block-acls', async ({ params, request }) => {
     const pageId = Number(params.id);
     const page = mockCmsPages.find((item) => item.id === pageId);
-    if (!page) return error(404, '页面不存在');
+    if (!page) return notFound('页面不存在', { status: 404 });
     const body = await request.json() as {
       blockIds: string[];
       grants: Array<{ subjectType: 'user' | 'role'; subjectId: number }>;
     };
     if (body.blockIds.some((blockId) => !page.blocks.some((block) => block.id === blockId))) {
-      return error(404, '所选页面区块包含不存在或已替换的 blockId');
+      return notFound('所选页面区块包含不存在或已替换的 blockId', { status: 404 });
     }
     for (let index = mockCmsPageBlockAcls.length - 1; index >= 0; index -= 1) {
       if (mockCmsPageBlockAcls[index].pageId === pageId && body.blockIds.includes(mockCmsPageBlockAcls[index].blockId)) {
@@ -834,7 +818,7 @@ export const cmsStage4Handlers = [
     }
     body.blockIds.forEach((blockId) => body.grants.forEach((grant) => {
       mockCmsPageBlockAcls.push({
-        id: Math.max(0, ...mockCmsPageBlockAcls.map((item) => item.id)) + 1,
+        id: nextIdFrom(mockCmsPageBlockAcls),
         pageId,
         blockId,
         ...grant,
@@ -858,7 +842,7 @@ export const cmsStage4Handlers = [
   }),
   http.put('/api/cms/pages/:id', async ({ params, request }) => {
     const page = mockCmsPages.find((item) => item.id === Number(params.id));
-    if (!page) return error(404, '页面不存在');
+    if (!page) return notFound('页面不存在', { status: 404 });
     const body = await request.json() as Body;
     const incoming = Array.isArray(body.blocks) ? body.blocks as CmsPageBlock[] : null;
     if (incoming) {
@@ -873,7 +857,7 @@ export const cmsStage4Handlers = [
           ? { id: next.id, type: next.type, props: next.props, displayCondition: next.displayCondition }
           : null;
         if (!nextComparable || JSON.stringify(comparable) !== JSON.stringify(nextComparable)) {
-          return error(403, `区块「${previous.id}」不可管理，禁止修改、删除、替换或重排`);
+          return forbidden(`区块「${previous.id}」不可管理，禁止修改、删除、替换或重排`, { status: 403 });
         }
       }
       body.blocks = incoming.map((block) => ({ ...block, canManage: true, aclConfigured: false, disabledReason: null }));

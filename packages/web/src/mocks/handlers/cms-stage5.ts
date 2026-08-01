@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw';
+import { ok, pageParams, pageResult } from '@/mocks/utils/handlers';
 import { CMS_SECRET_MASK, CMS_SITE_INHERITABLE_FIELDS, CMS_SITE_MAX_DEPTH } from '@zenith/shared/cms';
 import type { CmsDistributionRule, CmsDistributionRun, CmsSite, CmsSiteInheritableField, CmsSiteInheritanceFlags } from '@zenith/shared/cms';
 import type { AsyncTaskItem } from '@zenith/shared/tasks';
@@ -22,7 +23,7 @@ import { mockDateTime } from '../utils/date';
 type Body = Record<string, unknown>;
 
 function okJson<T>(data: T, message = 'ok') {
-  return HttpResponse.json({ code: 0, message, data });
+  return ok(data, message);
 }
 
 function errorJson(status: number, message: string) {
@@ -191,10 +192,6 @@ function treeSites(list: CmsSite[]): CmsSite[] {
   return roots;
 }
 
-function paginate<T>(list: T[], page: number, pageSize: number) {
-  return { list: list.slice((page - 1) * pageSize, page * pageSize), total: list.length, page, pageSize };
-}
-
 function sanitizeMockHtml(value: string | null): string | null {
   return value?.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/\son\w+="[^"]*"/gi, '') ?? null;
 }
@@ -293,14 +290,13 @@ export const cmsStage5Handlers = [
 
   http.get('/api/cms/sites', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const keyword = url.searchParams.get('keyword') ?? '';
     const status = url.searchParams.get('status') ?? '';
     let rows = [...mockCmsSites];
     if (keyword) rows = rows.filter((site) => site.name.includes(keyword) || site.code.includes(keyword) || (site.domain ?? '').includes(keyword));
     if (status) rows = rows.filter((site) => site.status === status);
-    return okJson(paginate(rows.map(withEffectiveSummary), page, pageSize));
+    return okJson(pageResult(rows.map(withEffectiveSummary), page, pageSize));
   }),
 
   http.get('/api/cms/sites/themes', () => okJson([
@@ -415,8 +411,7 @@ export const cmsStage5Handlers = [
 
   http.get('/api/cms/distributions/runs', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const ruleId = Number(url.searchParams.get('ruleId')) || 0;
     const siteId = Number(url.searchParams.get('siteId')) || 0;
     const status = url.searchParams.get('status') ?? '';
@@ -424,7 +419,7 @@ export const cmsStage5Handlers = [
     if (ruleId) rows = rows.filter((run) => run.ruleId === ruleId);
     if (siteId) rows = rows.filter((run) => run.sourceSiteId === siteId || run.targetSiteId === siteId);
     if (status) rows = rows.filter((run) => run.status === status);
-    return okJson(paginate(rows, page, pageSize));
+    return okJson(pageResult(rows, page, pageSize));
   }),
 
   http.get('/api/cms/distributions/runs/:id', ({ params }) => {
@@ -436,8 +431,7 @@ export const cmsStage5Handlers = [
 
   http.get('/api/cms/distributions', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const keyword = url.searchParams.get('keyword') ?? '';
     const mode = url.searchParams.get('mode') ?? '';
     const status = url.searchParams.get('status') ?? '';
@@ -445,7 +439,7 @@ export const cmsStage5Handlers = [
     if (keyword) rows = rows.filter((rule) => rule.name.includes(keyword));
     if (mode) rows = rows.filter((rule) => rule.mode === mode);
     if (status) rows = rows.filter((rule) => rule.status === status);
-    return okJson(paginate(rows, page, pageSize));
+    return okJson(pageResult(rows, page, pageSize));
   }),
 
   http.post('/api/cms/distributions', async ({ request }) => {

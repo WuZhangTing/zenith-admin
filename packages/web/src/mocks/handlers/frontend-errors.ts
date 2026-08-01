@@ -1,9 +1,8 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, notFound, paginate } from '@/mocks/utils/handlers';
 import type { ErrorGroup, ErrorEvent, ErrorOverview, SourceMapItem, ErrorAlertRule, ErrorAlertLog, FrontendErrorType, ErrorLevel } from '@zenith/shared/analytics';
 import type { PaginatedResponse } from '@zenith/shared/core';
 import { mockDateTime, mockDateTimeOffset, mockDateOffset } from '../utils/date';
-
-const ok = <T>(data: T, message = 'ok') => HttpResponse.json({ code: 0, message, data });
 const rand = (min: number, max: number) => Math.floor(min + Math.random() * (max - min));
 
 const TYPES: FrontendErrorType[] = ['js_error', 'promise_rejection', 'resource_error', 'console_error', 'http_error', 'white_screen', 'crash'];
@@ -118,8 +117,6 @@ export const frontendErrorsHandlers = [
 
   http.get('/api/frontend-errors/groups', ({ request }) => {
     const u = new URL(request.url);
-    const page = Number(u.searchParams.get('page')) || 1;
-    const pageSize = Number(u.searchParams.get('pageSize')) || 20;
     const status = u.searchParams.get('status');
     const errorType = u.searchParams.get('errorType');
     const level = u.searchParams.get('level');
@@ -129,7 +126,7 @@ export const frontendErrorsHandlers = [
     if (errorType) list = list.filter((g) => g.errorType === errorType);
     if (level) list = list.filter((g) => g.level === level);
     if (keyword) list = list.filter((g) => g.message.includes(keyword));
-    return ok<PaginatedResponse<ErrorGroup>>({ list: list.slice((page - 1) * pageSize, page * pageSize), total: list.length, page, pageSize });
+    return ok<PaginatedResponse<ErrorGroup>>(paginate(list, u, 20));
   }),
 
   http.post('/api/frontend-errors/groups/batch-status', async ({ request }) => {
@@ -162,27 +159,23 @@ export const frontendErrorsHandlers = [
     const id = Number(params.id);
     const body = (await request.json()) as Partial<ErrorGroup>;
     const idx = mockGroups.findIndex((g) => g.id === id);
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('不存在', { status: 404 });
     mockGroups[idx] = { ...mockGroups[idx], ...body, resolvedAt: body.status === 'resolved' ? mockDateTime() : null };
     return ok(mockGroups[idx], '更新成功');
   }),
 
   http.get('/api/frontend-errors/events', ({ request }) => {
     const u = new URL(request.url);
-    const page = Number(u.searchParams.get('page')) || 1;
-    const pageSize = Number(u.searchParams.get('pageSize')) || 20;
     const groupId = Number(u.searchParams.get('groupId')) || mockGroups[0].id;
     const all = buildEvents(groupId, 40);
-    return ok<PaginatedResponse<ErrorEvent>>({ list: all.slice((page - 1) * pageSize, page * pageSize), total: all.length, page, pageSize });
+    return ok<PaginatedResponse<ErrorEvent>>(paginate(all, u, 20));
   }),
 
   http.delete('/api/frontend-errors/clean', () => ok(null, '共清除 320 条记录')),
 
   http.get('/api/frontend-errors/source-maps', ({ request }) => {
     const u = new URL(request.url);
-    const page = Number(u.searchParams.get('page')) || 1;
-    const pageSize = Number(u.searchParams.get('pageSize')) || 20;
-    return ok<PaginatedResponse<SourceMapItem>>({ list: mockSourceMaps.slice((page - 1) * pageSize, page * pageSize), total: mockSourceMaps.length, page, pageSize });
+    return ok<PaginatedResponse<SourceMapItem>>(paginate(mockSourceMaps, u, 20));
   }),
   http.post('/api/frontend-errors/source-maps', async ({ request }) => {
     const body = (await request.json()) as { release: string; fileName: string; content: string };
@@ -197,9 +190,7 @@ export const frontendErrorsHandlers = [
 
   http.get('/api/frontend-errors/alerts', ({ request }) => {
     const u = new URL(request.url);
-    const page = Number(u.searchParams.get('page')) || 1;
-    const pageSize = Number(u.searchParams.get('pageSize')) || 20;
-    return ok<PaginatedResponse<ErrorAlertRule>>({ list: mockAlerts.slice((page - 1) * pageSize, page * pageSize), total: mockAlerts.length, page, pageSize });
+    return ok<PaginatedResponse<ErrorAlertRule>>(paginate(mockAlerts, u, 20));
   }),
   http.post('/api/frontend-errors/alerts', async ({ request }) => {
     const body = (await request.json()) as Partial<ErrorAlertRule>;
@@ -211,7 +202,7 @@ export const frontendErrorsHandlers = [
     const id = Number(params.id);
     const body = (await request.json()) as Partial<ErrorAlertRule>;
     const idx = mockAlerts.findIndex((a) => a.id === id);
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('不存在', { status: 404 });
     mockAlerts[idx] = { ...mockAlerts[idx], ...body, updatedAt: mockDateTime() };
     return ok(mockAlerts[idx], '更新成功');
   }),
@@ -223,11 +214,9 @@ export const frontendErrorsHandlers = [
 
   http.get('/api/frontend-errors/alert-logs', ({ request }) => {
     const u = new URL(request.url);
-    const page = Number(u.searchParams.get('page')) || 1;
-    const pageSize = Number(u.searchParams.get('pageSize')) || 20;
     const ruleId = u.searchParams.get('ruleId');
     const list = ruleId ? mockAlertLogs.filter((l) => l.ruleId === Number(ruleId)) : mockAlertLogs;
-    return ok<PaginatedResponse<ErrorAlertLog>>({ list: list.slice((page - 1) * pageSize, page * pageSize), total: list.length, page, pageSize });
+    return ok<PaginatedResponse<ErrorAlertLog>>(paginate(list, u, 20));
   }),
 ];
 

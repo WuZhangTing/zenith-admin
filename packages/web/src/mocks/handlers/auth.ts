@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, unauthorized, notFound, pageParams, nextIdFrom } from '@/mocks/utils/handlers';
 import { mockUsers } from '@/mocks/data/users';
 import { mockMenus } from '@/mocks/data/menus';
 import { mockRoles } from '@/mocks/data/roles';
@@ -25,7 +26,7 @@ function getAllPermissions(): string[] {
 export const authHandlers = [
   // 验证码（演示模式永远禁用）
   http.get('/api/auth/captcha', () => {
-    return HttpResponse.json({ code: 0, message: 'ok', data: { enabled: false, captchaId: '', svg: '' } });
+    return ok({ enabled: false, captchaId: '', svg: '' });
   }),
 
   // 登录
@@ -33,29 +34,21 @@ export const authHandlers = [
     const body = await request.json() as { username: string; password: string };
     const user = mockUsers.find((u) => u.username === body.username || (u.phone && u.phone === body.username));
     if (!user || body.password !== user?.password) {
-      return HttpResponse.json({ code: 401, message: '用户名或密码错误', data: null });
+      return unauthorized('用户名或密码错误');
     }
     const { password: _, ...userWithoutPassword } = user;
-    return HttpResponse.json({
-      code: 0,
-      message: 'ok',
-      data: {
-        user: userWithoutPassword,
-        token: { accessToken: MOCK_TOKEN, refreshToken: MOCK_REFRESH_TOKEN },
-      },
+    return ok({
+      user: userWithoutPassword,
+      token: { accessToken: MOCK_TOKEN, refreshToken: MOCK_REFRESH_TOKEN },
     });
   }),
 
   http.post('/api/auth/mfa/verify', () => {
     const { password: _, ...userWithoutPassword } = mockUsers[0];
-    return HttpResponse.json({
-      code: 0,
-      message: '登录成功',
-      data: {
-        user: userWithoutPassword,
-        token: { accessToken: MOCK_TOKEN, refreshToken: MOCK_REFRESH_TOKEN },
-      },
-    });
+    return ok({
+      user: userWithoutPassword,
+      token: { accessToken: MOCK_TOKEN, refreshToken: MOCK_REFRESH_TOKEN },
+    }, '登录成功');
   }),
 
   // 当前用户信息（含权限）
@@ -66,33 +59,25 @@ export const authHandlers = [
     // 取最近第 2 条成功登录记录模拟上次登录
     const myLogs = mockLoginLogs.filter((l) => l.userId === mockUsers[0].id && (l.eventType ?? 'login') === 'login' && l.status === 'success');
     const prevLogin = myLogs[1] ?? null;
-    return HttpResponse.json({
-      code: 0,
-      message: 'ok',
-      data: {
-        ...userWithoutPassword,
-        permissions,
-        lastLoginAt: prevLogin?.createdAt ?? null,
-        lastLoginIp: prevLogin?.ip ?? null,
-        lastLoginLocation: prevLogin ? '广东省 深圳市 电信（Mock）' : null,
-      },
+    return ok({
+      ...userWithoutPassword,
+      permissions,
+      lastLoginAt: prevLogin?.createdAt ?? null,
+      lastLoginIp: prevLogin?.ip ?? null,
+      lastLoginLocation: prevLogin ? '广东省 深圳市 电信（Mock）' : null,
     });
   }),
 
   // token 刷新
   http.post('/api/auth/refresh', () => {
-    return HttpResponse.json({
-      code: 0,
-      message: 'ok',
-      data: { accessToken: MOCK_TOKEN, refreshToken: MOCK_REFRESH_TOKEN },
-    });
+    return ok({ accessToken: MOCK_TOKEN, refreshToken: MOCK_REFRESH_TOKEN });
   }),
 
   // 退出登录
   http.post('/api/auth/logout', () => {
     const user = mockUsers[0];
     mockLoginLogs.unshift({
-      id: Math.max(0, ...mockLoginLogs.map((l) => l.id)) + 1,
+      id: nextIdFrom(mockLoginLogs),
       userId: user.id,
       username: user.username,
       ip: '127.0.0.1',
@@ -105,7 +90,7 @@ export const authHandlers = [
       message: '退出登录成功',
       createdAt: mockDateTime(),
     });
-    return HttpResponse.json({ code: 0, message: 'ok', data: null });
+    return ok(null);
   }),
 
   // 修改个人资料
@@ -114,7 +99,7 @@ export const authHandlers = [
     const user = mockUsers[0];
     Object.assign(user, body, { updatedAt: mockDateTime() });
     const { password: _, ...userWithoutPassword } = user;
-    return HttpResponse.json({ code: 0, message: '保存成功', data: userWithoutPassword });
+    return ok(userWithoutPassword, '保存成功');
   }),
 
   // 修改密码
@@ -122,42 +107,37 @@ export const authHandlers = [
     const body = await request.json() as { oldPassword: string; newPassword: string };
     const user = mockUsers[0];
     if (body.oldPassword !== user.password) {
-      return HttpResponse.json({ code: 400, message: '原密码错误', data: null });
+      return badRequest('原密码错误');
     }
     user.password = body.newPassword;
-    return HttpResponse.json({ code: 0, message: '密码修改成功', data: null });
+    return ok(null, '密码修改成功');
   }),
 
   // 我的登录记录（仅返回当前 mock 用户的记录）
   http.get('/api/auth/my-login-logs', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const userId = mockUsers[0].id;
     const list = mockLoginLogs.filter((l) => l.userId === userId);
     const total = list.length;
     const paged = list.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list: paged, total, page, pageSize } });
+    return ok({ list: paged, total, page, pageSize });
   }),
 
   // 我的操作记录（仅返回当前 mock 用户的记录）
   http.get('/api/auth/my-operation-logs', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const userId = mockUsers[0].id;
     const list = mockOperationLogs.filter((l) => l.userId === userId);
     const total = list.length;
     const paged = list.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list: paged, total, page, pageSize } });
+    return ok({ list: paged, total, page, pageSize });
   }),
 
   // 我的在线设备列表
   http.get('/api/auth/my-sessions', () => {
-    return HttpResponse.json({
-      code: 0, message: 'ok',
-      data: mockMySessionStore,
-    });
+    return ok(mockMySessionStore);
   }),
 
   // 退出其他所有设备（必须在 /:tokenId 之前注册，否则 MSW 会把 "others" 当作 tokenId）
@@ -169,26 +149,26 @@ export const authHandlers = [
       ...mockMySessionStore.filter((s) => s.isCurrent),
     );
     const count = before - mockMySessionStore.length;
-    return HttpResponse.json({ code: 0, message: `已退出其他 ${count} 台设备`, data: { count } });
+    return ok({ count }, `已退出其他 ${count} 台设备`);
   }),
 
   // 退出指定设备
   http.delete('/api/auth/my-sessions/:tokenId', ({ params }) => {
     const idx = mockMySessionStore.findIndex((s) => s.tokenId === params.tokenId);
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '会话不存在', data: null });
+    if (idx === -1) return notFound('会话不存在');
     if (mockMySessionStore[idx].isCurrent)
-      return HttpResponse.json({ code: 400, message: '不能退出当前设备', data: null });
+      return badRequest('不能退出当前设备');
     mockMySessionStore.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '已退出该设备', data: null });
+    return ok(null, '已退出该设备');
   }),
 
   // OAuth 账号绑定列表（demo 模式默认未绑定任何账号）
   http.get('/api/auth/oauth/accounts', () => {
-    return HttpResponse.json({ code: 0, message: 'ok', data: [] });
+    return ok([]);
   }),
 
   http.get('/api/auth/mfa/factors', () => {
-    return HttpResponse.json({ code: 0, message: 'ok', data: mockMfaFactors });
+    return ok(mockMfaFactors);
   }),
 
   http.post('/api/auth/mfa/totp/setup', () => {
@@ -206,43 +186,43 @@ export const authHandlers = [
       lastUsedAt: null,
       createdAt: mockDateTime(),
     });
-    return HttpResponse.json({ code: 0, message: 'ok', data: result });
+    return ok(result);
   }),
 
   http.post('/api/auth/mfa/totp/verify', async ({ request }) => {
     const body = await request.json() as { factorId: number };
     const factor = mockMfaFactors.find((item) => item.id === body.factorId);
-    if (!factor) return HttpResponse.json({ code: 404, message: 'MFA 因子不存在', data: null }, { status: 404 });
+    if (!factor) return notFound('MFA 因子不存在', { status: 404 });
     factor.status = 'enabled';
     factor.verifiedAt = mockDateTime();
     factor.lastUsedAt = mockDateTime();
-    return HttpResponse.json({ code: 0, message: '绑定成功', data: null });
+    return ok(null, '绑定成功');
   }),
 
   http.delete('/api/auth/mfa/factors/:id', ({ params }) => {
     const id = Number(params.id);
     const factor = mockMfaFactors.find((item) => item.id === id);
-    if (!factor) return HttpResponse.json({ code: 404, message: 'MFA 因子不存在', data: null }, { status: 404 });
+    if (!factor) return notFound('MFA 因子不存在', { status: 404 });
     factor.status = 'disabled';
-    return HttpResponse.json({ code: 0, message: '已停用', data: null });
+    return ok(null, '已停用');
   }),
 
   http.get('/api/auth/trusted-devices', () => {
-    return HttpResponse.json({ code: 0, message: 'ok', data: [] });
+    return ok([]);
   }),
 
   // 忘记密码（演示模式始终返回成功，不真正发送邮件）
   http.post('/api/auth/forgot-password', () => {
-    return HttpResponse.json({ code: 0, message: '如邮箱已注册，重置链接已发送至您的邮箱', data: null });
+    return ok(null, '如邮箱已注册，重置链接已发送至您的邮箱');
   }),
 
   // 重置密码（仅 mock-reset-token 有效）
   http.post('/api/auth/reset-password', async ({ request }) => {
     const body = await request.json() as { token: string; newPassword: string };
     if (body.token !== 'mock-reset-token') {
-      return HttpResponse.json({ code: 400, message: '重置链接无效或已过期', data: null });
+      return badRequest('重置链接无效或已过期');
     }
-    return HttpResponse.json({ code: 0, message: '密码已重置，请使用新密码登录', data: null });
+    return ok(null, '密码已重置，请使用新密码登录');
   }),
 
   // 验证当前用户密码
@@ -250,32 +230,32 @@ export const authHandlers = [
     const body = await request.json() as { password: string };
     const user = mockUsers[0];
     if (body.password !== user.password) {
-      return HttpResponse.json({ code: 401, message: '密码错误', data: null }, { status: 401 });
+      return unauthorized('密码错误', { status: 401 });
     }
-    return HttpResponse.json({ code: 0, message: '验证通过', data: null });
+    return ok(null, '验证通过');
   }),
 
   // 获取偏好设置
   http.get('/api/auth/preferences', () => {
-    return HttpResponse.json({ code: 0, message: 'ok', data: mockPreferencesStore });
+    return ok(mockPreferencesStore);
   }),
 
   // 保存偏好设置（整体替换，与服务端行为一致）
   http.put('/api/auth/preferences', async ({ request }) => {
     mockPreferencesStore = await request.json() as Record<string, unknown>;
-    return HttpResponse.json({ code: 0, message: '已保存', data: mockPreferencesStore });
+    return ok(mockPreferencesStore, '已保存');
   }),
 
   // 获取收藏菜单
   http.get('/api/auth/favorite-menus', () => {
-    return HttpResponse.json({ code: 0, message: 'ok', data: mockFavoriteMenusStore });
+    return ok(mockFavoriteMenusStore);
   }),
 
   // 更新收藏菜单
   http.put('/api/auth/favorite-menus', async ({ request }) => {
     const body = await request.json() as { menuIds: number[] };
     mockFavoriteMenusStore = Array.isArray(body.menuIds) ? body.menuIds : [];
-    return HttpResponse.json({ code: 0, message: '已更新', data: mockFavoriteMenusStore });
+    return ok(mockFavoriteMenusStore, '已更新');
   }),
 ];
 

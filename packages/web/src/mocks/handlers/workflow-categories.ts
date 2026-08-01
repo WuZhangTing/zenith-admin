@@ -1,15 +1,8 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound, pageParams } from '@/mocks/utils/handlers';
 import type { WorkflowCategory } from '@zenith/shared/workflow';
 import { mockWorkflowCategories, getNextCategoryId } from '@/mocks/data/workflow-categories';
 import { mockDateTime } from '@/mocks/utils/date';
-
-function ok<T>(data: T) {
-  return HttpResponse.json({ code: 0, message: 'ok', data });
-}
-
-function fail(message: string, code = 400) {
-  return HttpResponse.json({ code, message, data: null }, { status: code });
-}
 
 export const workflowCategoriesHandlers = [
   // GET /all — 全量列表（useWorkflowCategories hook 使用）
@@ -21,8 +14,7 @@ export const workflowCategoriesHandlers = [
   // GET / — 分页列表
   http.get('/api/workflows/categories', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 20;
+    const { page, pageSize } = pageParams(url, 20);
     const keyword = url.searchParams.get('keyword') ?? '';
 
     let list = [...mockWorkflowCategories];
@@ -36,9 +28,9 @@ export const workflowCategoriesHandlers = [
   // POST / — 创建
   http.post('/api/workflows/categories', async ({ request }) => {
     const body = (await request.json()) as Partial<WorkflowCategory>;
-    if (!body.name?.trim()) return fail('分类名称不能为空');
+    if (!body.name?.trim()) return badRequest('分类名称不能为空', { status: 400 });
     if (mockWorkflowCategories.some((c) => c.code && c.code === body.code)) {
-      return fail('分类编码已存在');
+      return badRequest('分类编码已存在', { status: 400 });
     }
     const now = mockDateTime();
     const newCategory: WorkflowCategory = {
@@ -61,10 +53,10 @@ export const workflowCategoriesHandlers = [
   http.put('/api/workflows/categories/:id', async ({ params, request }) => {
     const id = Number(params.id);
     const idx = mockWorkflowCategories.findIndex((c) => c.id === id);
-    if (idx === -1) return fail('分类不存在', 404);
+    if (idx === -1) return notFound('分类不存在', { status: 404 });
     const body = (await request.json()) as Partial<WorkflowCategory>;
     if (body.code && body.code !== mockWorkflowCategories[idx].code) {
-      if (mockWorkflowCategories.some((c) => c.code === body.code)) return fail('分类编码已存在');
+      if (mockWorkflowCategories.some((c) => c.code === body.code)) return badRequest('分类编码已存在', { status: 400 });
     }
     const updated: WorkflowCategory = {
       ...mockWorkflowCategories[idx],
@@ -80,7 +72,7 @@ export const workflowCategoriesHandlers = [
   http.delete('/api/workflows/categories/:id', ({ params }) => {
     const id = Number(params.id);
     const idx = mockWorkflowCategories.findIndex((c) => c.id === id);
-    if (idx === -1) return fail('分类不存在', 404);
+    if (idx === -1) return notFound('分类不存在', { status: 404 });
     mockWorkflowCategories.splice(idx, 1);
     return ok(null);
   }),

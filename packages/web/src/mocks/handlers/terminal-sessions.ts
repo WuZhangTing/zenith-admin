@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, notFound, pageParams } from '@/mocks/utils/handlers';
 import { mockDateTimeOffset } from '@/mocks/utils/date';
 
 type Kind = 'local' | 'ssh' | 'docker';
@@ -46,8 +47,7 @@ export const terminalSessionsHandlers = [
   // 活动终端会话列表
   http.get('/api/terminal-sessions', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const keyword = (url.searchParams.get('keyword') ?? '').toLowerCase();
     const kind = url.searchParams.get('kind') ?? '';
 
@@ -58,14 +58,14 @@ export const terminalSessionsHandlers = [
     });
     const total = list.length;
     list = list.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
+    return ok({ list, total, page, pageSize });
   }),
 
   // 强制终止（demo 模式仅从列表中移除）
   http.post('/api/terminal-sessions/:sessionId/terminate', ({ params }) => {
     const idx = mockTerminalSessions.findIndex((s) => s.sessionId === params.sessionId);
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '会话不存在或已结束', data: null });
+    if (idx === -1) return notFound('会话不存在或已结束');
     mockTerminalSessions.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '已终止', data: null });
+    return ok(null, '已终止');
   }),
 ];

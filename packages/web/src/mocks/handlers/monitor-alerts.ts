@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, notFound } from '@/mocks/utils/handlers';
 import { mockDateTime, mockDateTimeOffset } from '../utils/date';
 
 /** N 分钟前的时间字符串 */
@@ -55,11 +56,11 @@ export const monitorAlertsHandlers = [
     if (metric) filtered = filtered.filter((e) => e.metric === metric);
     if (level) filtered = filtered.filter((e) => e.level === level);
     if (status) filtered = filtered.filter((e) => e.status === status);
-    return HttpResponse.json({ code: 0, message: 'success', data: paginate(filtered, request.url) });
+    return ok(paginate(filtered, request.url), 'success');
   }),
 
   http.get('/api/monitor-alerts', ({ request }) =>
-    HttpResponse.json({ code: 0, message: 'success', data: paginate(rules, request.url) })),
+    ok(paginate(rules, request.url), 'success')),
 
   http.post('/api/monitor-alerts', async ({ request }) => {
     const body = await request.json() as Partial<MockRule>;
@@ -73,32 +74,32 @@ export const monitorAlertsHandlers = [
       lastTriggeredAt: null, lastValue: null, createdAt: now, updatedAt: now,
     };
     rules.unshift(rule);
-    return HttpResponse.json({ code: 0, message: '创建成功', data: rule });
+    return ok(rule, '创建成功');
   }),
 
   http.put('/api/monitor-alerts/:id', async ({ params, request }) => {
     const id = Number(params.id);
     const rule = rules.find((r) => r.id === id);
-    if (!rule) return HttpResponse.json({ code: 404, message: '告警规则不存在', data: null }, { status: 404 });
+    if (!rule) return notFound('告警规则不存在', { status: 404 });
     const body = await request.json() as Partial<MockRule>;
     Object.assign(rule, body, { updatedAt: mockDateTime() });
-    return HttpResponse.json({ code: 0, message: '更新成功', data: rule });
+    return ok(rule, '更新成功');
   }),
 
   http.patch('/api/monitor-alerts/:id/enabled', async ({ params, request }) => {
     const id = Number(params.id);
     const rule = rules.find((r) => r.id === id);
-    if (!rule) return HttpResponse.json({ code: 404, message: '告警规则不存在', data: null }, { status: 404 });
+    if (!rule) return notFound('告警规则不存在', { status: 404 });
     const body = await request.json() as { enabled: boolean };
     rule.enabled = body.enabled;
     rule.updatedAt = mockDateTime();
-    return HttpResponse.json({ code: 0, message: '操作成功', data: rule });
+    return ok(rule, '操作成功');
   }),
 
   http.delete('/api/monitor-alerts/:id', ({ params }) => {
     const id = Number(params.id);
     const idx = rules.findIndex((r) => r.id === id);
     if (idx >= 0) rules.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 ];

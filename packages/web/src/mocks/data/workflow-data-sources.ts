@@ -1,6 +1,7 @@
 import { SEED_WORKFLOW_DATA_SOURCES } from '@zenith/shared/seed';
 import type { WorkflowDataSource } from '@zenith/shared/workflow';
 import { mockDateTime } from '@/mocks/utils/date';
+import { nextIdFrom } from '@/mocks/utils/handlers';
 
 const now = mockDateTime();
 export const mockWorkflowDataSources: WorkflowDataSource[] = SEED_WORKFLOW_DATA_SOURCES.map((x) => ({
@@ -9,7 +10,7 @@ export const mockWorkflowDataSources: WorkflowDataSource[] = SEED_WORKFLOW_DATA_
   updatedAt: now,
 }));
 
-let nextId = Math.max(0, ...mockWorkflowDataSources.map((x) => x.id)) + 1;
+let nextId = nextIdFrom(mockWorkflowDataSources);
 export function getNextDataSourceId(): number {
   return nextId++;
 }

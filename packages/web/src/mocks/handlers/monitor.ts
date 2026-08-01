@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw';
+import { ok } from '@/mocks/utils/handlers';
 import dayjs from 'dayjs';
 
 const baseStatus = {
@@ -310,23 +311,15 @@ function buildWsMetrics() {
 }
 
 export const monitorHandlers = [
-  http.get('/api/monitor', () => HttpResponse.json({ code: 0, message: 'success', data: baseStatus })),
+  http.get('/api/monitor', () => ok(baseStatus, 'success')),
   http.get('/api/monitor/timeseries', () =>
-    HttpResponse.json({
-      code: 0,
-      message: 'success',
-      data: { intervalSec: 10, capacity: 360, points: buildSeries() },
-    })),
+    ok({ intervalSec: 10, capacity: 360, points: buildSeries() }, 'success')),
   http.get('/api/monitor/history', ({ request }) => {
     const range = new URL(request.url).searchParams.get('range') ?? '1h';
-    return HttpResponse.json({ code: 0, message: 'success', data: buildHistory(range) });
+    return ok(buildHistory(range), 'success');
   }),
   http.get('/api/monitor/ws', () => {
-    return HttpResponse.json({
-      code: 0,
-      message: 'success',
-      data: buildWsMetrics(),
-    });
+    return ok(buildWsMetrics(), 'success');
   }),
   // SSE 推送：首帧发送 metrics/series/ws 全量；后续每 10s 发送 metrics:diff + series:point + ws
   http.get('/api/monitor/stream', () => {

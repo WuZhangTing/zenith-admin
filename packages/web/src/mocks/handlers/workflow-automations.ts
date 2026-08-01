@@ -1,11 +1,8 @@
 import { http, HttpResponse } from 'msw';
+import { ok, pageParams } from '@/mocks/utils/handlers';
 import type { WorkflowAutomation } from '@zenith/shared/workflow';
 import { mockWorkflowDefinitions } from '@/mocks/data/workflow';
 import { mockDateTime } from '@/mocks/utils/date';
-
-function ok<T>(data: T) {
-  return HttpResponse.json({ code: 0, message: 'ok', data });
-}
 function err(message: string, code = 400) {
   return HttpResponse.json({ code, message });
 }
@@ -21,8 +18,7 @@ function fillDefinitionName(a: WorkflowAutomation): WorkflowAutomation {
 export const workflowAutomationsHandlers = [
   http.get('/api/workflows/automations', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const definitionId = url.searchParams.get('definitionId');
     const trigger = url.searchParams.get('trigger');
     const status = url.searchParams.get('status');

@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, pageParams } from '@/mocks/utils/handlers';
 import { mockMpMessages, getNextMpMessageId } from '@/mocks/data/mp-messages';
 import { mockMpFans } from '@/mocks/data/mp-fans';
 import { mockDateTime } from '@/mocks/utils/date';
@@ -32,7 +33,7 @@ export const mpMessagesHandlers = [
       });
     }
     list.sort((a, b) => (a.lastTime < b.lastTime ? 1 : -1));
-    return HttpResponse.json({ code: 0, message: 'ok', data: list });
+    return ok(list);
   }),
 
   http.get('/api/mp/messages', ({ request }) => {
@@ -42,8 +43,7 @@ export const mpMessagesHandlers = [
     const direction = url.searchParams.get('direction') ?? '';
     const msgType = url.searchParams.get('msgType') ?? '';
     const keyword = url.searchParams.get('keyword') ?? '';
-    const page = Number(url.searchParams.get('page') ?? '1');
-    const pageSize = Number(url.searchParams.get('pageSize') ?? '20');
+    const { page, pageSize } = pageParams(url, 20);
     const filtered = mockMpMessages.filter((m) => {
       if (m.accountId !== accountId) return false;
       if (openid && m.openid !== openid) return false;
@@ -55,7 +55,7 @@ export const mpMessagesHandlers = [
     const total = filtered.length;
     const sorted = [...filtered].sort((a, b) => b.id - a.id);
     const list = sorted.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
+    return ok({ list, total, page, pageSize });
   }),
 
   http.post('/api/mp/messages/send', async ({ request }) => {
@@ -77,6 +77,6 @@ export const mpMessagesHandlers = [
       createdAt: now,
     };
     mockMpMessages.push(item);
-    return HttpResponse.json({ code: 0, message: '发送成功', data: item });
+    return ok(item, '发送成功');
   }),
 ];

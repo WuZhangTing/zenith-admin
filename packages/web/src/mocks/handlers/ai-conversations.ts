@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw';
+import { ok, badRequest, notFound, pageParams } from '@/mocks/utils/handlers';
 import { mockAiConversations, mockAiMessages, getNextConvId, getNextMsgId, mockAiDateTime as mockDateTime } from '@/mocks/data/ai';
 import type { AiConversation, AiMessage } from '@zenith/shared/ai';
 
@@ -40,7 +41,7 @@ export const aiConversationsHandlers = [
       (Number(b.isPinned) - Number(a.isPinned)) || b.updatedAt.localeCompare(a.updatedAt),
     );
     if (limit > 0) sorted = sorted.slice(offset, offset + limit);
-    return HttpResponse.json({ code: 0, message: 'ok', data: sorted });
+    return ok(sorted);
   }),
 
   // 创建对话
@@ -65,7 +66,7 @@ export const aiConversationsHandlers = [
     };
     convStore.unshift(newConv);
     msgStore[newConv.id] = [];
-    return HttpResponse.json({ code: 0, message: '创建成功', data: newConv });
+    return ok(newConv, '创建成功');
   }),
 
   // 更新对话标签
@@ -73,9 +74,9 @@ export const aiConversationsHandlers = [
     const id = Number(params.id);
     const body = await request.json() as { tags?: string[] };
     const conv = convStore.find((c) => c.id === id);
-    if (!conv) return HttpResponse.json({ code: 404, message: '对话不存在', data: null }, { status: 404 });
+    if (!conv) return notFound('对话不存在', { status: 404 });
     conv.tags = (body.tags ?? []).slice(0, 10);
-    return HttpResponse.json({ code: 0, message: '标签已更新', data: { tags: conv.tags } });
+    return ok({ tags: conv.tags }, '标签已更新');
   }),
 
   // 切换消息分支
@@ -83,7 +84,7 @@ export const aiConversationsHandlers = [
     const id = Number(params.id);
     const body = await request.json() as { leafMsgId?: number };
     const conv = convStore.find((c) => c.id === id);
-    if (!conv) return HttpResponse.json({ code: 404, message: '对话不存在', data: null }, { status: 404 });
+    if (!conv) return notFound('对话不存在', { status: 404 });
     // 简化：沿最新子分支下探
     const msgs = msgStore[id] ?? [];
     let leaf = body.leafMsgId ?? 0;
@@ -97,41 +98,41 @@ export const aiConversationsHandlers = [
       }
     }
     conv.activeLeafMsgId = leaf;
-    return HttpResponse.json({ code: 0, message: 'ok', data: { activeLeafMsgId: leaf } });
+    return ok({ activeLeafMsgId: leaf });
   }),
 
   // 进行中的生成任务（Demo：无后台生成，恒为 null）
   http.get('/api/ai/conversations/:id/active-generation', () =>
-    HttpResponse.json({ code: 0, message: 'ok', data: { genId: null } })),
+    ok({ genId: null })),
 
   // 重命名对话
   http.put('/api/ai/conversations/:id/rename', async ({ params, request }) => {
     const id = Number(params.id);
     const body = await request.json() as { title?: string };
     const conv = convStore.find((c) => c.id === id);
-    if (!conv) return HttpResponse.json({ code: 404, message: '对话不存在', data: null }, { status: 404 });
+    if (!conv) return notFound('对话不存在', { status: 404 });
     conv.title = (body.title ?? '').trim().slice(0, 200) || '新对话';
     conv.updatedAt = mockDateTime();
-    return HttpResponse.json({ code: 0, message: '重命名成功', data: null });
+    return ok(null, '重命名成功');
   }),
 
   // 置顶 / 取消置顶
   http.put('/api/ai/conversations/:id/pin', ({ params }) => {
     const id = Number(params.id);
     const conv = convStore.find((c) => c.id === id);
-    if (!conv) return HttpResponse.json({ code: 404, message: '对话不存在', data: null }, { status: 404 });
+    if (!conv) return notFound('对话不存在', { status: 404 });
     conv.isPinned = !conv.isPinned;
-    return HttpResponse.json({ code: 0, message: 'ok', data: { isPinned: conv.isPinned } });
+    return ok({ isPinned: conv.isPinned });
   }),
 
   // 归档 / 取消归档
   http.put('/api/ai/conversations/:id/archive', ({ params }) => {
     const id = Number(params.id);
     const conv = convStore.find((c) => c.id === id);
-    if (!conv) return HttpResponse.json({ code: 404, message: '对话不存在', data: null }, { status: 404 });
+    if (!conv) return notFound('对话不存在', { status: 404 });
     conv.isArchived = !conv.isArchived;
     if (conv.isArchived) conv.isPinned = false;
-    return HttpResponse.json({ code: 0, message: 'ok', data: { isArchived: conv.isArchived } });
+    return ok({ isArchived: conv.isArchived });
   }),
 
   // 设置 / 清除对话级提示词（角色模板）
@@ -139,42 +140,42 @@ export const aiConversationsHandlers = [
     const id = Number(params.id);
     const body = await request.json() as { systemPrompt?: string | null };
     const conv = convStore.find((c) => c.id === id);
-    if (!conv) return HttpResponse.json({ code: 404, message: '对话不存在', data: null }, { status: 404 });
+    if (!conv) return notFound('对话不存在', { status: 404 });
     const value = body.systemPrompt?.trim() ? body.systemPrompt.trim().slice(0, 5000) : null;
     conv.systemPromptOverride = value;
-    return HttpResponse.json({ code: 0, message: 'ok', data: { systemPromptOverride: value } });
+    return ok({ systemPromptOverride: value });
   }),
 
   // 获取单条对话
   http.get('/api/ai/conversations/:id', ({ params }) => {
     const id = Number(params.id);
     const conv = convStore.find((c) => c.id === id);
-    if (!conv) return HttpResponse.json({ code: 404, message: '对话不存在', data: null }, { status: 404 });
-    return HttpResponse.json({ code: 0, message: 'ok', data: conv });
+    if (!conv) return notFound('对话不存在', { status: 404 });
+    return ok(conv);
   }),
 
   // 删除对话
   http.delete('/api/ai/conversations/:id', ({ params }) => {
     const id = Number(params.id);
     const idx = convStore.findIndex((c) => c.id === id);
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '对话不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('对话不存在', { status: 404 });
     convStore.splice(idx, 1);
     delete msgStore[id];
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 
   // 获取消息列表
   http.get('/api/ai/conversations/:id/messages', ({ params }) => {
     const id = Number(params.id);
     const msgs = msgStore[id] ?? [];
-    return HttpResponse.json({ code: 0, message: 'ok', data: msgs });
+    return ok(msgs);
   }),
 
   // 导出对话（Markdown / JSON）
   http.get('/api/ai/conversations/:id/export', ({ params, request }) => {
     const id = Number(params.id);
     const conv = convStore.find((c) => c.id === id);
-    if (!conv) return HttpResponse.json({ code: 404, message: '对话不存在', data: null }, { status: 404 });
+    if (!conv) return notFound('对话不存在', { status: 404 });
     const url = new URL(request.url);
     const format = url.searchParams.get('format') === 'json' ? 'json' : 'md';
     const msgs = msgStore[id] ?? [];
@@ -225,7 +226,7 @@ export const aiConversationsHandlers = [
       // 重新生成：取历史末条 user 消息作为提问
       const lastUser = [...msgStore[id]].reverse().find((m) => m.role === 'user');
       if (!lastUser) {
-        return HttpResponse.json({ code: 400, message: '没有可重新生成的用户消息，请先删除旧回复', data: null }, { status: 400 });
+        return badRequest('没有可重新生成的用户消息，请先删除旧回复', { status: 400 });
       }
       userText = lastUser.content;
       assistantParentId = lastUser.id;
@@ -333,11 +334,11 @@ export const aiConversationsHandlers = [
     const convId = Number(params.convId);
     const msgId = Number(params.msgId);
     const msgs = msgStore[convId];
-    if (!msgs) return HttpResponse.json({ code: 404, message: '对话不存在', data: null }, { status: 404 });
+    if (!msgs) return notFound('对话不存在', { status: 404 });
     const idx = msgs.findIndex((m) => m.id === msgId);
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '消息不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('消息不存在', { status: 404 });
     msgStore[convId] = msgs.slice(0, idx);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 
   // 删除单条 assistant 消息（用于重新生成）
@@ -345,17 +346,16 @@ export const aiConversationsHandlers = [
     const convId = Number(params.convId);
     const msgId = Number(params.msgId);
     const msgs = msgStore[convId];
-    if (!msgs) return HttpResponse.json({ code: 404, message: '对话不存在', data: null }, { status: 404 });
+    if (!msgs) return notFound('对话不存在', { status: 404 });
     msgStore[convId] = msgs.filter((m) => m.id !== msgId);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 
   // ── 管理员反馈列表（/api/ai/conversations/admin/feedback）────────────────
   // 注意：必须在 /:id 路由之前注册，以避免 "admin" 被当成 id
   http.get('/api/ai/conversations/admin/feedback', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const feedbackParam = url.searchParams.get('feedback');
     const statusParam = url.searchParams.get('status');
     const modelParam = url.searchParams.get('model');
@@ -380,24 +380,20 @@ export const aiConversationsHandlers = [
 
     const total = allMsgs.length;
     const list = allMsgs.slice((page - 1) * pageSize, page * pageSize).map(enrichFeedbackItem);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
+    return ok({ list, total, page, pageSize });
   }),
 
   // 管理员查看反馈上下文
   http.get('/api/ai/conversations/admin/feedback/:msgId/context', ({ params }) => {
     const msgId = Number(params.msgId);
     const entry = Object.entries(msgStore).find(([, msgs]) => msgs.some((m) => m.id === msgId));
-    if (!entry) return HttpResponse.json({ code: 404, message: '消息不存在', data: null }, { status: 404 });
+    if (!entry) return notFound('消息不存在', { status: 404 });
     const convId = Number(entry[0]);
     const msgs = entry[1];
     const idx = msgs.findIndex((m) => m.id === msgId);
     const messages = msgs.slice(Math.max(0, idx - 8), idx + 3);
     const conv = convStore.find((c) => c.id === convId);
-    return HttpResponse.json({
-      code: 0,
-      message: 'ok',
-      data: { conversationId: convId, conversationTitle: conv?.title ?? null, targetMsgId: msgId, messages },
-    });
+    return ok({ conversationId: convId, conversationTitle: conv?.title ?? null, targetMsgId: msgId, messages });
   }),
 
   // 管理员导出反馈 CSV
@@ -421,12 +417,12 @@ export const aiConversationsHandlers = [
     const msgId = Number(params.msgId);
     const body = await request.json() as { status?: 'pending' | 'resolved' | 'ignored'; remark?: string | null };
     const msg = Object.values(msgStore).flat().find((m) => m.id === msgId);
-    if (!msg) return HttpResponse.json({ code: 404, message: '消息不存在', data: null }, { status: 404 });
-    if (msg.feedback === null) return HttpResponse.json({ code: 400, message: '该消息没有用户反馈', data: null }, { status: 400 });
+    if (!msg) return notFound('消息不存在', { status: 404 });
+    if (msg.feedback === null) return badRequest('该消息没有用户反馈', { status: 400 });
     msg.feedbackStatus = body.status ?? 'resolved';
     msg.feedbackRemark = body.remark?.trim() || null;
     msg.feedbackHandledAt = mockDateTime();
-    return HttpResponse.json({ code: 0, message: '处理成功', data: null });
+    return ok(null, '处理成功');
   }),
 
   // 消息反馈（点赞/点踩）
@@ -435,15 +431,15 @@ export const aiConversationsHandlers = [
     const msgId = Number(params.msgId);
     const body = await request.json() as { feedback: number | null; reason?: string | null };
     const msgs = msgStore[convId];
-    if (!msgs) return HttpResponse.json({ code: 404, message: '对话不存在', data: null }, { status: 404 });
+    if (!msgs) return notFound('对话不存在', { status: 404 });
     const msg = msgs.find((m) => m.id === msgId);
-    if (!msg) return HttpResponse.json({ code: 404, message: '消息不存在', data: null }, { status: 404 });
+    if (!msg) return notFound('消息不存在', { status: 404 });
     const isDislike = body.feedback === -1;
     msg.feedback = body.feedback ?? null;
     msg.feedbackReason = isDislike ? (body.reason ?? null) : null;
     msg.feedbackStatus = isDislike ? 'pending' : null;
     msg.feedbackRemark = null;
     msg.feedbackHandledAt = null;
-    return HttpResponse.json({ code: 0, message: 'ok', data: msg });
+    return ok(msg);
   }),
 ];

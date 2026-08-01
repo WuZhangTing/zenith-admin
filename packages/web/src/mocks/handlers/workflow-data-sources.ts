@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, notFound, pageParams } from '@/mocks/utils/handlers';
 import { mockWorkflowDataSources, getNextDataSourceId, MOCK_DATA_SOURCE_OPTIONS } from '../data/workflow-data-sources';
 import { mockDateTime } from '../utils/date';
 
@@ -23,7 +24,7 @@ export const workflowDataSourcesHandlers = [
     const list = keyword
       ? MOCK_DATA_SOURCE_OPTIONS.filter((o) => o.label.toLowerCase().includes(keyword.toLowerCase()))
       : MOCK_DATA_SOURCE_OPTIONS;
-    return HttpResponse.json({ code: 0, message: 'ok', data: list });
+    return ok(list);
   }),
 
   // 按选项值取完整记录（demo 按选项合成示例记录）
@@ -32,14 +33,13 @@ export const workflowDataSourcesHandlers = [
     const value = url.searchParams.get('value') ?? '';
     const hit = MOCK_DATA_SOURCE_OPTIONS.find((o) => o.value === value);
     const record = hit ? { value: hit.value, label: hit.label, code: hit.value, name: hit.label } : null;
-    return HttpResponse.json({ code: 0, message: 'ok', data: record });
+    return ok(record);
   }),
 
   // 分页列表
   http.get('/api/workflows/data-sources', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const keyword = url.searchParams.get('keyword') || '';
     const status = url.searchParams.get('status') || '';
 
@@ -49,15 +49,15 @@ export const workflowDataSourcesHandlers = [
 
     const total = list.length;
     const sliced = list.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list: sliced, total, page, pageSize } });
+    return ok({ list: sliced, total, page, pageSize });
   }),
 
   // 详情
   http.get('/api/workflows/data-sources/:id', ({ params }) => {
     const id = Number(params.id);
     const item = mockWorkflowDataSources.find((x) => x.id === id);
-    if (!item) return HttpResponse.json({ code: 404, message: '数据源不存在', data: null }, { status: 404 });
-    return HttpResponse.json({ code: 0, message: 'ok', data: item });
+    if (!item) return notFound('数据源不存在', { status: 404 });
+    return ok(item);
   }),
 
   // 创建
@@ -80,7 +80,7 @@ export const workflowDataSourcesHandlers = [
       updatedAt: now,
     } satisfies (typeof mockWorkflowDataSources)[number];
     mockWorkflowDataSources.push(item);
-    return HttpResponse.json({ code: 0, message: '创建成功', data: item });
+    return ok(item, '创建成功');
   }),
 
   // 更新
@@ -88,17 +88,17 @@ export const workflowDataSourcesHandlers = [
     const id = Number(params.id);
     const body = (await request.json()) as DataSourceBody;
     const idx = mockWorkflowDataSources.findIndex((x) => x.id === id);
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '数据源不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('数据源不存在', { status: 404 });
     Object.assign(mockWorkflowDataSources[idx], { ...body, updatedAt: mockDateTime() });
-    return HttpResponse.json({ code: 0, message: '更新成功', data: mockWorkflowDataSources[idx] });
+    return ok(mockWorkflowDataSources[idx], '更新成功');
   }),
 
   // 删除
   http.delete('/api/workflows/data-sources/:id', ({ params }) => {
     const id = Number(params.id);
     const idx = mockWorkflowDataSources.findIndex((x) => x.id === id);
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '数据源不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('数据源不存在', { status: 404 });
     mockWorkflowDataSources.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 ];

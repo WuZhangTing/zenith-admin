@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { fail } from '@/mocks/utils/handlers';
 
 /**
  * 兜底 handler（必须注册在所有具体 handler 之后）。
@@ -13,6 +14,6 @@ import { http, HttpResponse } from 'msw';
  */
 export const fallbackHandlers = [
   http.all('/api/*', () =>
-    HttpResponse.json({ code: -1, message: '演示模式下该接口暂未提供模拟数据', data: null }),
+    fail(-1, '演示模式下该接口暂未提供模拟数据'),
   ),
 ];

@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, notFound } from '@/mocks/utils/handlers';
 import {
   mockMembers,
   mockMemberPointAccount,
@@ -25,12 +26,8 @@ function memberView(m: (typeof mockMembers)[number]) {
 
 const demo = mockMembers[0];
 
-function ok(data: unknown, message = 'ok') {
-  return HttpResponse.json({ code: 0, message, data });
-}
-
 function paginated<T>(list: T[]) {
-  return HttpResponse.json({ code: 0, message: 'ok', data: { list, total: list.length, page: 1, pageSize: 15 } });
+  return ok({ list, total: list.length, page: 1, pageSize: 15 });
 }
 
 export const memberFrontHandlers = [
@@ -70,16 +67,13 @@ export const memberFrontHandlers = [
   http.get('/api/member/wallet/transactions', () => paginated(mockMemberWalletTxs)),
   http.post('/api/member/wallet/recharge', async ({ request }) => {
     const body = (await request.json()) as { amount: number; payMethod: string };
-    return ok(
-      {
-        orderNo: `MOCK${Date.now()}`,
-        payMethod: body.payMethod,
-        channel: body.payMethod.startsWith('wechat') ? 'wechat' : 'alipay',
-        codeUrl: 'https://example.com/mock-pay-qr',
-        expiredAt: '2027-01-01 00:00:00',
-      },
-      '已创建充值订单（演示）',
-    );
+    return ok({
+      orderNo: `MOCK${Date.now()}`,
+      payMethod: body.payMethod,
+      channel: body.payMethod.startsWith('wechat') ? 'wechat' : 'alipay',
+      codeUrl: 'https://example.com/mock-pay-qr',
+      expiredAt: '2027-01-01 00:00:00',
+    }, '已创建充值订单（演示）');
   }),
 
   // ── 自助：等级 ────────────────────────────────────────────────────────────
@@ -120,7 +114,7 @@ export const memberFrontHandlers = [
     const pageSize = parseInt(url.searchParams.get('pageSize') ?? '15');
     const start = (page - 1) * pageSize;
     const list = mockMemberLoginLogs.slice(start, start + pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total: mockMemberLoginLogs.length, page, pageSize } });
+    return ok({ list, total: mockMemberLoginLogs.length, page, pageSize });
   }),
 
   // ── CMS 会员投稿 ──────────────────────────────────────────────────────────
@@ -129,7 +123,7 @@ export const memberFrontHandlers = [
   ])),
   http.get('/api/member/cms/contributions/:id', ({ params }) => {
     const row = mockContributions.find((x) => x.id === Number(params.id));
-    return row ? ok(row) : HttpResponse.json({ code: 404, message: '投稿不存在', data: null }, { status: 404 });
+    return row ? ok(row) : notFound('投稿不存在', { status: 404 });
   }),
   http.get('/api/member/cms/contributions', ({ request }) => {
     const url = new URL(request.url);
@@ -161,7 +155,7 @@ export const memberFrontHandlers = [
   }),
   http.put('/api/member/cms/contributions/:id', async ({ params, request }) => {
     const idx = mockContributions.findIndex((x) => x.id === Number(params.id));
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '投稿不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('投稿不存在', { status: 404 });
     Object.assign(mockContributions[idx], await request.json(), { status: 'pending', rejectReason: null, updatedAt: mockDateTime() });
     return ok(mockContributions[idx], '已重新提交，等待审核');
   }),

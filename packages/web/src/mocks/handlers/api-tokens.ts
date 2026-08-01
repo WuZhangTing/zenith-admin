@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound } from '@/mocks/utils/handlers';
 import type { UserApiToken, UserApiTokenCreated } from '@zenith/shared/identity';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 
@@ -31,17 +32,17 @@ export const apiTokensHandlers = [
   // 获取 Token 列表（隐藏完整 token）
   http.get('/api/api-tokens', () => {
     const data: UserApiToken[] = mockTokenStore.map(({ _full: _, ...t }) => t);
-    return HttpResponse.json({ code: 0, message: 'ok', data });
+    return ok(data);
   }),
 
   // 创建 Token（仅在此刻返回完整值）
   http.post('/api/api-tokens', async ({ request }) => {
     const body = await request.json() as { name?: string };
     if (!body.name?.trim()) {
-      return HttpResponse.json({ code: 400, message: 'Token 名称不能为空', data: null });
+      return badRequest('Token 名称不能为空');
     }
     if (mockTokenStore.length >= 20) {
-      return HttpResponse.json({ code: 400, message: '最多只能创建 20 个 API Token', data: null });
+      return badRequest('最多只能创建 20 个 API Token');
     }
     const token = `zat_demo${Math.random().toString(36).slice(2).padEnd(20, '0').slice(0, 20)}`;
     const entry: TokenEntry = {
@@ -60,15 +61,15 @@ export const apiTokensHandlers = [
       token,
       createdAt: entry.createdAt,
     };
-    return HttpResponse.json({ code: 0, message: 'Token 已创建，请务必复制保存，此后将无法再次查看完整 Token', data: response });
+    return ok(response, 'Token 已创建，请务必复制保存，此后将无法再次查看完整 Token');
   }),
 
   // 撤销 Token
   http.delete('/api/api-tokens/:id', ({ params }) => {
     const id = Number(params.id);
     const idx = mockTokenStore.findIndex((t) => t.id === id);
-    if (idx === -1) return HttpResponse.json({ code: 404, message: 'Token 不存在', data: null });
+    if (idx === -1) return notFound('Token 不存在');
     mockTokenStore.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: 'Token 已撤销', data: null });
+    return ok(null, 'Token 已撤销');
   }),
 ];

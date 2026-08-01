@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound, pageParams } from '@/mocks/utils/handlers';
 import type { LdapDirectoryUser, TenantIdentityProvider } from '@zenith/shared/identity';
 import { mockDateTime } from '../utils/date';
 
@@ -144,15 +145,10 @@ const providers: TenantIdentityProvider[] = [
   },
 ];
 
-function ok<T>(data: T, message = 'ok') {
-  return HttpResponse.json({ code: 0, message, data });
-}
-
 export const identityProvidersHandlers = [
   http.get(`${API}/api/identity-providers`, ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page') || '1');
-    const pageSize = Number(url.searchParams.get('pageSize') || '10');
+    const { page, pageSize } = pageParams(url);
     const keyword = url.searchParams.get('keyword') || '';
     const type = url.searchParams.get('type') || '';
     const status = url.searchParams.get('status') || '';
@@ -167,7 +163,7 @@ export const identityProvidersHandlers = [
 
   http.get(`${API}/api/identity-providers/:id`, ({ params }) => {
     const item = providers.find((provider) => provider.id === Number(params.id));
-    if (!item) return HttpResponse.json({ code: 404, message: '身份源不存在', data: null });
+    if (!item) return notFound('身份源不存在');
     return ok(item);
   }),
 
@@ -217,7 +213,7 @@ export const identityProvidersHandlers = [
 
   http.put(`${API}/api/identity-providers/:id`, async ({ params, request }) => {
     const item = providers.find((provider) => provider.id === Number(params.id));
-    if (!item) return HttpResponse.json({ code: 404, message: '身份源不存在', data: null });
+    if (!item) return notFound('身份源不存在');
     const body = await request.json() as Partial<TenantIdentityProvider>;
     Object.assign(item, body, {
       tenantName: body.tenantId ? '演示租户' : null,
@@ -231,13 +227,13 @@ export const identityProvidersHandlers = [
 
   http.post(`${API}/api/identity-providers/:id/test`, ({ params }) => {
     const item = providers.find((provider) => provider.id === Number(params.id));
-    if (!item) return HttpResponse.json({ code: 404, message: '身份源不存在', data: null });
+    if (!item) return notFound('身份源不存在');
     return ok({ ok: item.type === 'ldap' || item.type === 'ad', message: '连接成功', sampleUsers: directoryUsers.slice(0, 2) });
   }),
 
   http.get(`${API}/api/identity-providers/:id/ldap/users`, ({ request, params }) => {
     const item = providers.find((provider) => provider.id === Number(params.id));
-    if (!item) return HttpResponse.json({ code: 404, message: '身份源不存在', data: null });
+    if (!item) return notFound('身份源不存在');
     const url = new URL(request.url);
     const keyword = (url.searchParams.get('keyword') || '').toLowerCase();
     const list = keyword
@@ -248,7 +244,7 @@ export const identityProvidersHandlers = [
 
   http.post(`${API}/api/identity-providers/:id/sync`, ({ params }) => {
     const item = providers.find((provider) => provider.id === Number(params.id));
-    if (!item) return HttpResponse.json({ code: 404, message: '身份源不存在', data: null });
+    if (!item) return notFound('身份源不存在');
     return ok({
       logId: 1,
       status: 'success',
@@ -264,7 +260,7 @@ export const identityProvidersHandlers = [
 
   http.delete(`${API}/api/identity-providers/:id`, ({ params }) => {
     const index = providers.findIndex((provider) => provider.id === Number(params.id));
-    if (index === -1) return HttpResponse.json({ code: 404, message: '身份源不存在', data: null });
+    if (index === -1) return notFound('身份源不存在');
     providers.splice(index, 1);
     return ok(null, '删除成功');
   }),
@@ -282,31 +278,27 @@ export const identityProvidersHandlers = [
     const body = await request.json() as { providerId: number; username: string; password: string; redirectTo?: string | null };
     const provider = providers.find((item) => item.id === body.providerId);
     if (!provider || (provider.type !== 'ldap' && provider.type !== 'ad')) {
-      return HttpResponse.json({ code: 400, message: '身份源不可用', data: null });
+      return badRequest('身份源不可用');
     }
     if (!body.username || !body.password) {
-      return HttpResponse.json({ code: 400, message: '目录账号或密码错误', data: null });
+      return badRequest('目录账号或密码错误');
     }
-    return HttpResponse.json({
-      code: 0,
-      message: '登录成功',
-      data: {
-        redirectTo: body.redirectTo || '/',
-        loginResult: {
-          user: {
-            id: 1,
-            username: 'admin',
-            nickname: '管理员',
-            email: 'admin@example.com',
-            status: 'enabled',
-            roles: [],
-            createdAt: mockDateTime(),
-            updatedAt: mockDateTime(),
-          },
-          token: { accessToken: 'mock-ldap-access-token', refreshToken: 'mock-ldap-refresh-token' },
+    return ok({
+      redirectTo: body.redirectTo || '/',
+      loginResult: {
+        user: {
+          id: 1,
+          username: 'admin',
+          nickname: '管理员',
+          email: 'admin@example.com',
+          status: 'enabled',
+          roles: [],
+          createdAt: mockDateTime(),
+          updatedAt: mockDateTime(),
         },
+        token: { accessToken: 'mock-ldap-access-token', refreshToken: 'mock-ldap-refresh-token' },
       },
-    });
+    }, '登录成功');
   }),
 
   http.get(`${API}/api/auth/enterprise/:id`, ({ params }) => {
@@ -320,48 +312,40 @@ export const identityProvidersHandlers = [
   }),
 
   http.post(`${API}/api/auth/enterprise/callback`, () => {
-    return HttpResponse.json({
-      code: 0,
-      message: '登录成功',
-      data: {
-        redirectTo: '/',
-        loginResult: {
-          user: {
-            id: 1,
-            username: 'admin',
-            nickname: '管理员',
-            email: 'admin@example.com',
-            status: 'enabled',
-            roles: [],
-            createdAt: mockDateTime(),
-            updatedAt: mockDateTime(),
-          },
-          token: { accessToken: 'mock-enterprise-access-token', refreshToken: 'mock-enterprise-refresh-token' },
+    return ok({
+      redirectTo: '/',
+      loginResult: {
+        user: {
+          id: 1,
+          username: 'admin',
+          nickname: '管理员',
+          email: 'admin@example.com',
+          status: 'enabled',
+          roles: [],
+          createdAt: mockDateTime(),
+          updatedAt: mockDateTime(),
         },
+        token: { accessToken: 'mock-enterprise-access-token', refreshToken: 'mock-enterprise-refresh-token' },
       },
-    });
+    }, '登录成功');
   }),
 
   http.post(`${API}/api/auth/enterprise/saml/exchange`, () => {
-    return HttpResponse.json({
-      code: 0,
-      message: '登录成功',
-      data: {
-        redirectTo: '/',
-        loginResult: {
-          user: {
-            id: 1,
-            username: 'admin',
-            nickname: '管理员',
-            email: 'admin@example.com',
-            status: 'enabled',
-            roles: [],
-            createdAt: mockDateTime(),
-            updatedAt: mockDateTime(),
-          },
-          token: { accessToken: 'mock-saml-access-token', refreshToken: 'mock-saml-refresh-token' },
+    return ok({
+      redirectTo: '/',
+      loginResult: {
+        user: {
+          id: 1,
+          username: 'admin',
+          nickname: '管理员',
+          email: 'admin@example.com',
+          status: 'enabled',
+          roles: [],
+          createdAt: mockDateTime(),
+          updatedAt: mockDateTime(),
         },
+        token: { accessToken: 'mock-saml-access-token', refreshToken: 'mock-saml-refresh-token' },
       },
-    });
+    }, '登录成功');
   }),
 ];

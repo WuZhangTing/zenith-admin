@@ -1,6 +1,7 @@
 import type { MpConditionalMenu } from '@zenith/shared/mp';
 import { SEED_MP_CONDITIONAL_MENUS } from '@zenith/shared/seed';
 import { mockDateTime } from '@/mocks/utils/date';
+import { nextIdFrom } from '@/mocks/utils/handlers';
 
 export const mockMpConditionalMenus: MpConditionalMenu[] = SEED_MP_CONDITIONAL_MENUS.map((m) => ({
   id: m.id,
@@ -15,5 +16,5 @@ export const mockMpConditionalMenus: MpConditionalMenu[] = SEED_MP_CONDITIONAL_M
   updatedAt: mockDateTime(),
 }));
 
-let nextId = Math.max(0, ...mockMpConditionalMenus.map((m) => m.id)) + 1;
+let nextId = nextIdFrom(mockMpConditionalMenus);
 export function getNextMpConditionalMenuId() { return nextId++; }

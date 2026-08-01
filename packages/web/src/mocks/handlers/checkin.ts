@@ -1,5 +1,6 @@
 import dayjs from 'dayjs';
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound, pageParams, nextIdFrom } from '@/mocks/utils/handlers';
 import { mockCheckinRules, mockCheckinStatus, mockMemberCheckins, mockCheckinSettings, mockCheckinMilestones, buildMilestoneStatus } from '../data/checkin';
 import { mockDate, mockDateTime } from '../utils/date';
 
@@ -9,14 +10,10 @@ let checkinStatus = { ...mockCheckinStatus };
 const settings = { ...mockCheckinSettings };
 const milestones = [...mockCheckinMilestones];
 
-function ok(data: unknown, message = 'ok') {
-  return HttpResponse.json({ code: 0, message, data });
-}
-
 function paginated<T>(list: T[], page: number, pageSize: number) {
   const start = (page - 1) * pageSize;
   const items = list.slice(start, start + pageSize);
-  return HttpResponse.json({ code: 0, message: 'ok', data: { list: items, total: list.length, page, pageSize } });
+  return ok({ list: items, total: list.length, page, pageSize });
 }
 
 function getReward(days: number) {
@@ -31,7 +28,7 @@ export const checkinHandlers = [
   http.post('/api/checkin-rules', async ({ request }) => {
     const body = await request.json() as { dayNumber: number; points: number; experience: number; remark?: string | null };
     const created = {
-      id: rules.length ? Math.max(...rules.map((rule) => rule.id)) + 1 : 1,
+      id: nextIdFrom(rules),
       dayNumber: body.dayNumber,
       points: body.points,
       experience: body.experience,
@@ -46,7 +43,7 @@ export const checkinHandlers = [
     const id = Number(params.id);
     const body = await request.json() as Partial<{ dayNumber: number; points: number; experience: number; remark: string | null }>;
     const target = rules.find((rule) => rule.id === id);
-    if (!target) return HttpResponse.json({ code: 404, message: '签到规则不存在', data: null }, { status: 404 });
+    if (!target) return notFound('签到规则不存在', { status: 404 });
     Object.assign(target, body, { updatedAt: mockDateTime() });
     return ok(target, '更新成功');
   }),
@@ -58,8 +55,7 @@ export const checkinHandlers = [
   }),
   http.get('/api/member-checkins', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page') ?? '1');
-    const pageSize = Number(url.searchParams.get('pageSize') ?? '10');
+    const { page, pageSize } = pageParams(url);
     const memberKeyword = url.searchParams.get('memberKeyword') ?? '';
     const dateStart = url.searchParams.get('dateStart');
     const dateEnd = url.searchParams.get('dateEnd');
@@ -78,7 +74,7 @@ export const checkinHandlers = [
   http.get('/api/member/checkin/status', () => ok(checkinStatus)),
   http.post('/api/member/checkin', () => {
     if (checkinStatus.checkedToday) {
-      return HttpResponse.json({ code: 400, message: '今天已经签到过了', data: null }, { status: 400 });
+      return badRequest('今天已经签到过了', { status: 400 });
     }
     const reward = getReward(checkinStatus.consecutiveDays + 1);
     const result = {
@@ -99,7 +95,7 @@ export const checkinHandlers = [
       thisMonthDates: Array.from(new Set([...checkinStatus.thisMonthDates, result.checkinDate])).sort(),
     };
     memberCheckins.unshift({
-      id: memberCheckins.length ? Math.max(...memberCheckins.map((item) => item.id)) + 1 : 1,
+      id: nextIdFrom(memberCheckins),
       memberId: 1,
       memberNickname: '演示会员',
       checkinDate: result.checkinDate,
@@ -112,8 +108,7 @@ export const checkinHandlers = [
   }),
   http.get('/api/member/checkin/history', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page') ?? '1');
-    const pageSize = Number(url.searchParams.get('pageSize') ?? '10');
+    const { page, pageSize } = pageParams(url);
     const dateStart = url.searchParams.get('dateStart');
     const dateEnd = url.searchParams.get('dateEnd');
     const filtered = memberCheckins.filter((item) => {
@@ -137,7 +132,7 @@ export const checkinHandlers = [
   http.post('/api/checkin-milestones', async ({ request }) => {
     const body = await request.json() as Omit<(typeof milestones)[number], 'id' | 'createdAt' | 'updatedAt' | 'couponName'>;
     const created = {
-      id: milestones.length ? Math.max(...milestones.map((m) => m.id)) + 1 : 1,
+      id: nextIdFrom(milestones),
       ...body,
       couponName: body.couponId ? `优惠券#${body.couponId}` : null,
       createdAt: mockDateTime(),
@@ -150,7 +145,7 @@ export const checkinHandlers = [
     const id = Number(params.id);
     const body = await request.json() as Partial<(typeof milestones)[number]>;
     const target = milestones.find((m) => m.id === id);
-    if (!target) return HttpResponse.json({ code: 404, message: '里程碑不存在', data: null }, { status: 404 });
+    if (!target) return notFound('里程碑不存在', { status: 404 });
     Object.assign(target, body, {
       couponName: (body.couponId ?? target.couponId) ? `优惠券#${body.couponId ?? target.couponId}` : null,
       updatedAt: mockDateTime(),
@@ -173,7 +168,7 @@ export const checkinHandlers = [
     const body = await request.json() as { date: string; reason?: string };
     const reward = getReward(1);
     const created = {
-      id: memberCheckins.length ? Math.max(...memberCheckins.map((item) => item.id)) + 1 : 1,
+      id: nextIdFrom(memberCheckins),
       memberId,
       memberNickname: `会员#${memberId}`,
       checkinDate: body.date,
@@ -197,13 +192,13 @@ export const checkinHandlers = [
   // ── 会员自助补签（C 端）───────────────────────────────────────
   http.post('/api/member/checkin/makeup', async ({ request }) => {
     if (!settings.makeupEnabled) {
-      return HttpResponse.json({ code: 400, message: '补签功能未开放', data: null }, { status: 400 });
+      return badRequest('补签功能未开放', { status: 400 });
     }
     const body = await request.json() as { date: string };
     const reward = getReward(1);
     checkinStatus = { ...checkinStatus, totalDays: checkinStatus.totalDays + 1 };
     memberCheckins.unshift({
-      id: memberCheckins.length ? Math.max(...memberCheckins.map((item) => item.id)) + 1 : 1,
+      id: nextIdFrom(memberCheckins),
       memberId: 1,
       memberNickname: '演示会员',
       checkinDate: body.date,

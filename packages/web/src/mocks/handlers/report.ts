@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound, pageParams } from '@/mocks/utils/handlers';
 import { renderPrintContent } from '@zenith/shared/report';
 import {
   mockReportDatasources, mockReportDatasets, mockReportDashboards, mockReportCategories,
@@ -12,9 +13,6 @@ import {
 import { createImmediateMockTask } from '@/mocks/handlers/async-tasks';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 import type { ReportDatasource, ReportDataset, ReportDashboard, ReportDashboardCategory, ReportAlertRule, ReportPrintRenderResult, ReportPrintResolvedSubreport, ReportPrintTemplate, ReportDashboardSubscription, ReportDeliveryRun } from '@zenith/shared/report';
-
-const ok = (data: unknown, message = 'ok') => HttpResponse.json({ code: 0, message, data });
-const notFound = (message = '记录不存在') => HttpResponse.json({ code: 404, message, data: null });
 
 function applyDatasetQuery(data: ReturnType<typeof getMockDatasetData>, query?: { limit?: number; page?: number; pageSize?: number; sortField?: string; sortOrder?: 'asc' | 'desc' }) {
   const rows = [...data.rows];
@@ -32,8 +30,7 @@ function applyDatasetQuery(data: ReturnType<typeof getMockDatasetData>, query?: 
 
 function paginate<T>(list: T[], request: Request) {
   const url = new URL(request.url);
-  const page = Number(url.searchParams.get('page')) || 1;
-  const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+  const { page, pageSize } = pageParams(url);
   const total = list.length;
   return { list: list.slice((page - 1) * pageSize, page * pageSize), total, page, pageSize };
 }
@@ -285,7 +282,7 @@ export const reportHandlers = [
     if (refDash.length) parts.push(`仪表盘 ${refDash.map((d) => `《${d.name}》`).join('、')}`);
     if (refPrint.length) parts.push(`打印报表 ${refPrint.map((t) => `《${t.name}》`).join('、')}`);
     if (refAlert.length) parts.push(`预警规则 ${refAlert.map((a) => `《${a.name}》`).join('、')}`);
-    if (parts.length) return HttpResponse.json({ code: 400, message: `该数据集正被引用，无法删除：${parts.join('；')}。请先在「血缘」中查看并解除引用`, data: null });
+    if (parts.length) return badRequest(`该数据集正被引用，无法删除：${parts.join('；')}。请先在「血缘」中查看并解除引用`);
     mockReportDatasets.splice(i, 1);
     return ok(null, '删除成功');
   }),
@@ -345,8 +342,7 @@ export const reportHandlers = [
 
   http.get('/api/report/dashboards/:id/comments', ({ params, request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page') ?? 1);
-    const pageSize = Number(url.searchParams.get('pageSize') ?? 20);
+    const { page, pageSize } = pageParams(url, 20);
     const widgetId = url.searchParams.get('widgetId') ?? undefined;
     const list = mockReportComments.filter((c) => c.dashboardId === Number(params.id) && (!widgetId || c.widgetId === widgetId)).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     return ok({ list: list.slice((page - 1) * pageSize, page * pageSize), total: list.length, page, pageSize });
@@ -576,11 +572,7 @@ export const reportHandlers = [
     try {
       return ok(renderMockPrintTemplate(t, body.params ?? {}, Math.min(Math.max(body.limit ?? 300, 1), 5000)));
     } catch (error) {
-      return HttpResponse.json({
-        code: 400,
-        message: error instanceof Error ? error.message : '打印预览生成失败',
-        data: null,
-      }, { status: 400 });
+      return badRequest(error instanceof Error ? error.message : '打印预览生成失败', { status: 400 });
     }
   }),
   http.get('/api/report/print', ({ request }) => {

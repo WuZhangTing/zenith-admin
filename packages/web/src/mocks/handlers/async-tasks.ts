@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound, pageParams } from '@/mocks/utils/handlers';
 import type { AsyncTask, AsyncTaskItem, AsyncTaskItemStatus, AsyncTaskStats, AsyncTaskStatus, AsyncTaskTypeMeta } from '@zenith/shared/tasks';
 import { mockDateOffset, mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 
@@ -572,8 +573,7 @@ function findTask(id: number) {
 }
 
 function paginate(url: URL, source: AsyncTask[]) {
-  const page = Number(url.searchParams.get('page')) || 1;
-  const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+  const { page, pageSize } = pageParams(url);
   const taskType = url.searchParams.get('taskType') ?? '';
   const status = (url.searchParams.get('status') ?? '') as AsyncTaskStatus | '';
   const keyword = url.searchParams.get('keyword') ?? '';
@@ -594,18 +594,18 @@ function paginate(url: URL, source: AsyncTask[]) {
 }
 
 export const asyncTasksHandlers = [
-  http.get('/api/async-tasks/types', () => HttpResponse.json({ code: 0, message: 'ok', data: taskTypes })),
+  http.get('/api/async-tasks/types', () => ok(taskTypes)),
 
   http.put('/api/async-tasks/types/:taskType/config', async ({ params, request }) => {
     const meta = taskTypes.find((item) => item.taskType === String(params.taskType));
-    if (!meta) return HttpResponse.json({ code: 404, message: '任务类型未注册', data: null }, { status: 404 });
+    if (!meta) return notFound('任务类型未注册', { status: 404 });
     const body = await request.json() as Partial<AsyncTaskTypeMeta>;
     meta.enabled = body.enabled ?? meta.enabled;
     meta.allowConcurrent = body.allowConcurrent ?? meta.allowConcurrent;
     meta.maxAttempts = body.maxAttempts ?? meta.maxAttempts;
     meta.retryDelayMs = body.retryDelayMs ?? meta.retryDelayMs;
     meta.retentionDays = body.retentionDays !== undefined ? body.retentionDays : meta.retentionDays;
-    return HttpResponse.json({ code: 0, message: '策略已更新', data: meta });
+    return ok(meta, '策略已更新');
   }),
 
   http.get('/api/async-tasks/stats', () => {
@@ -626,21 +626,21 @@ export const asyncTasksHandlers = [
         failed: [0, 1, 0, 1, 0, 2, counts.failed][i] ?? 0,
       })),
     };
-    return HttpResponse.json({ code: 0, message: 'ok', data: stats });
+    return ok(stats);
   }),
 
   http.get('/api/async-tasks/mine', ({ request }) => {
     tickAll();
-    return HttpResponse.json({ code: 0, message: 'ok', data: paginate(new URL(request.url), tasks) });
+    return ok(paginate(new URL(request.url), tasks));
   }),
 
   http.get('/api/async-tasks', ({ request }) => {
     tickAll();
-    return HttpResponse.json({ code: 0, message: 'ok', data: paginate(new URL(request.url), tasks) });
+    return ok(paginate(new URL(request.url), tasks));
   }),
 
   http.post('/api/async-tasks/cleanup', () => {
-    return HttpResponse.json({ code: 0, message: '已清理 0 条任务记录', data: { cleaned: 0 } });
+    return ok({ cleaned: 0 }, '已清理 0 条任务记录');
   }),
 
   http.post('/api/async-tasks/batch-cancel', async ({ request }) => {
@@ -660,7 +660,7 @@ export const asyncTasksHandlers = [
         affected++;
       }
     }
-    return HttpResponse.json({ code: 0, message: `已请求取消 ${affected} 个任务`, data: { affected } });
+    return ok({ affected }, `已请求取消 ${affected} 个任务`);
   }),
 
   http.post('/api/async-tasks/batch-delete', async ({ request }) => {
@@ -674,36 +674,31 @@ export const asyncTasksHandlers = [
         affected++;
       }
     }
-    return HttpResponse.json({ code: 0, message: `已删除 ${affected} 个任务记录`, data: { affected } });
+    return ok({ affected }, `已删除 ${affected} 个任务记录`);
   }),
 
   http.get('/api/async-tasks/:id/items', ({ params, request }) => {
     tickAll();
     const taskId = Number(params.id);
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const status = (url.searchParams.get('status') ?? '') as AsyncTaskItemStatus | '';
     const all = (itemsByTask.get(taskId) ?? []).filter((item) => !status || item.status === status)
       .sort((a, b) => b.id - a.id);
-    return HttpResponse.json({
-      code: 0,
-      message: 'ok',
-      data: { list: all.slice((page - 1) * pageSize, page * pageSize), total: all.length, page, pageSize },
-    });
+    return ok({ list: all.slice((page - 1) * pageSize, page * pageSize), total: all.length, page, pageSize });
   }),
 
   http.get('/api/async-tasks/:id', ({ params }) => {
     tickAll();
     const task = findTask(Number(params.id));
-    if (!task) return HttpResponse.json({ code: 404, message: '任务不存在', data: null }, { status: 404 });
-    return HttpResponse.json({ code: 0, message: 'ok', data: task });
+    if (!task) return notFound('任务不存在', { status: 404 });
+    return ok(task);
   }),
 
   http.post('/api/async-tasks/:id/cancel', ({ params }) => {
     tickAll();
     const task = findTask(Number(params.id));
-    if (!task) return HttpResponse.json({ code: 404, message: '任务不存在', data: null }, { status: 404 });
+    if (!task) return notFound('任务不存在', { status: 404 });
     if (task.status === 'pending') {
       retryAt.delete(task.id);
       task.cancelRequested = true;
@@ -712,30 +707,30 @@ export const asyncTasksHandlers = [
       task.cancelRequested = true; // 协作式取消：下一次轮询 tick 生效
       task.updatedAt = mockDateTime();
     } else {
-      return HttpResponse.json({ code: 400, message: '仅待执行或执行中的任务可以取消', data: null }, { status: 400 });
+      return badRequest('仅待执行或执行中的任务可以取消', { status: 400 });
     }
-    return HttpResponse.json({ code: 0, message: '已请求取消', data: task });
+    return ok(task, '已请求取消');
   }),
 
   http.post('/api/async-tasks/:id/resume', ({ params }) => {
     const task = findTask(Number(params.id));
-    if (!task) return HttpResponse.json({ code: 404, message: '任务不存在', data: null }, { status: 404 });
+    if (!task) return notFound('任务不存在', { status: 404 });
     if (!['failed', 'cancelled'].includes(task.status)) {
-      return HttpResponse.json({ code: 400, message: '仅失败或已取消的任务可以断点恢复', data: null }, { status: 400 });
+      return badRequest('仅失败或已取消的任务可以断点恢复', { status: 400 });
     }
     task.cancelRequested = false;
     task.errorMessage = null;
     task.completedAt = null;
     task.nextRunAt = null;
     startSim(task); // 保留 processedCount 作为断点续跑起点
-    return HttpResponse.json({ code: 0, message: '已从断点恢复', data: task });
+    return ok(task, '已从断点恢复');
   }),
 
   http.post('/api/async-tasks/:id/restart', ({ params }) => {
     const task = findTask(Number(params.id));
-    if (!task) return HttpResponse.json({ code: 404, message: '任务不存在', data: null }, { status: 404 });
+    if (!task) return notFound('任务不存在', { status: 404 });
     if (!['success', 'failed', 'cancelled'].includes(task.status)) {
-      return HttpResponse.json({ code: 400, message: '仅已结束的任务可以重新开始', data: null }, { status: 400 });
+      return badRequest('仅已结束的任务可以重新开始', { status: 400 });
     }
     task.processedCount = 0;
     task.failedCount = 0;
@@ -749,19 +744,19 @@ export const asyncTasksHandlers = [
     task.nextRunAt = null;
     itemsByTask.delete(task.id);
     startSim(task);
-    return HttpResponse.json({ code: 0, message: '已重新开始', data: task });
+    return ok(task, '已重新开始');
   }),
 
   http.delete('/api/async-tasks/:id', ({ params }) => {
     const index = tasks.findIndex((item) => item.id === Number(params.id));
-    if (index === -1) return HttpResponse.json({ code: 404, message: '任务不存在', data: null }, { status: 404 });
+    if (index === -1) return notFound('任务不存在', { status: 404 });
     if (!['success', 'failed', 'cancelled'].includes(tasks[index].status)) {
-      return HttpResponse.json({ code: 400, message: '进行中的任务不能删除，请先取消', data: null }, { status: 400 });
+      return badRequest('进行中的任务不能删除，请先取消', { status: 400 });
     }
     sims.delete(tasks[index].id);
     itemsByTask.delete(tasks[index].id);
     tasks.splice(index, 1);
-    return HttpResponse.json({ code: 0, message: '已删除', data: null });
+    return ok(null, '已删除');
   }),
 
   http.post('/api/task-demo/submit', async ({ request }) => {
@@ -775,14 +770,14 @@ export const asyncTasksHandlers = [
       stageDelayMs?: number;
     };
     const meta = taskTypes.find((item) => item.taskType === body.taskType);
-    if (!meta) return HttpResponse.json({ code: 400, message: '任务类型未注册', data: null }, { status: 400 });
+    if (!meta) return badRequest('任务类型未注册', { status: 400 });
     if (!meta.enabled) {
-      return HttpResponse.json({ code: 400, message: `「${meta.title}」已暂停提交，请联系管理员`, data: null }, { status: 400 });
+      return badRequest(`「${meta.title}」已暂停提交，请联系管理员`, { status: 400 });
     }
     if (!meta.allowConcurrent) {
       const unfinished = tasks.some((t) => t.taskType === body.taskType && ['pending', 'running'].includes(t.status));
       if (unfinished) {
-        return HttpResponse.json({ code: 400, message: `已有进行中的「${meta.title}」任务，请等待其结束后再提交`, data: null }, { status: 400 });
+        return badRequest(`已有进行中的「${meta.title}」任务，请等待其结束后再提交`, { status: 400 });
       }
     }
     const id = nextId++;
@@ -821,6 +816,6 @@ export const asyncTasksHandlers = [
     };
     tasks.unshift(task);
     startSim(task); // Demo 模式立即开始执行
-    return HttpResponse.json({ code: 0, message: '任务已提交，可在下方列表查看进度', data: task });
+    return ok(task, '任务已提交，可在下方列表查看进度');
   }),
 ];

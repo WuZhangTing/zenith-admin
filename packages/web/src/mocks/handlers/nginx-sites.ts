@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, notFound } from '@/mocks/utils/handlers';
 import { mockDateTime } from '../utils/date';
 
 const mockInfo = {
@@ -40,12 +41,12 @@ const mockConfig = `server {
 }`;
 
 export const nginxSitesHandlers = [
-  http.get('/api/nginx-sites/info', () => HttpResponse.json({ code: 0, message: 'ok', data: mockInfo })),
-  http.get('/api/nginx-sites', () => HttpResponse.json({ code: 0, message: 'ok', data: mockSites })),
+  http.get('/api/nginx-sites/info', () => ok(mockInfo)),
+  http.get('/api/nginx-sites', () => ok(mockSites)),
   http.get('/api/nginx-sites/:name', ({ params }) => {
     const site = mockSites.find((s) => s.name === params.name);
-    if (!site) return HttpResponse.json({ code: 404, message: '站点不存在', data: null }, { status: 404 });
-    return HttpResponse.json({ code: 0, message: 'ok', data: { ...site, content: mockConfig } });
+    if (!site) return notFound('站点不存在', { status: 404 });
+    return ok({ ...site, content: mockConfig });
   }),
   http.post('/api/nginx-sites', async ({ request }) => {
     const body = await request.json() as { name: string; serverName: string; listenPort?: number; root?: string; sslEnabled?: boolean };
@@ -60,24 +61,24 @@ export const nginxSitesHandlers = [
       createdAt: mockDateTime(),
       updatedAt: mockDateTime(),
     });
-    return HttpResponse.json({ code: 0, message: '站点已创建', data: null });
+    return ok(null, '站点已创建');
   }),
-  http.put('/api/nginx-sites/:name', () => HttpResponse.json({ code: 0, message: '配置已保存', data: null })),
+  http.put('/api/nginx-sites/:name', () => ok(null, '配置已保存')),
   http.delete('/api/nginx-sites/:name', ({ params }) => {
     const idx = mockSites.findIndex((s) => s.name === params.name);
     if (idx !== -1) mockSites.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '站点已删除', data: null });
+    return ok(null, '站点已删除');
   }),
   http.post('/api/nginx-sites/:name/enable', ({ params }) => {
     const site = mockSites.find((s) => s.name === params.name);
     if (site) site.enabled = true;
-    return HttpResponse.json({ code: 0, message: '站点已启用', data: null });
+    return ok(null, '站点已启用');
   }),
   http.post('/api/nginx-sites/:name/disable', ({ params }) => {
     const site = mockSites.find((s) => s.name === params.name);
     if (site) site.enabled = false;
-    return HttpResponse.json({ code: 0, message: '站点已禁用', data: null });
+    return ok(null, '站点已禁用');
   }),
-  http.post('/api/nginx-sites/test', () => HttpResponse.json({ code: 0, message: 'ok', data: { success: true, output: 'nginx: the configuration file /etc/nginx/nginx.conf syntax is ok\nnginx: configuration file /etc/nginx/nginx.conf test is successful' } })),
-  http.post('/api/nginx-sites/reload', () => HttpResponse.json({ code: 0, message: 'Nginx 已重载', data: null })),
+  http.post('/api/nginx-sites/test', () => ok({ success: true, output: 'nginx: the configuration file /etc/nginx/nginx.conf syntax is ok\nnginx: configuration file /etc/nginx/nginx.conf test is successful' })),
+  http.post('/api/nginx-sites/reload', () => ok(null, 'Nginx 已重载')),
 ];

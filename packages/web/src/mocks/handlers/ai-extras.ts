@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw';
+import { ok, notFound, pageParams } from '@/mocks/utils/handlers';
 import type { AiKnowledgeBase, AiKbDocument, AiUserPreference } from '@zenith/shared/ai';
 import { mockDateTime } from '../utils/date';
 
@@ -45,7 +46,7 @@ const docStore: Record<number, AiKbDocument[]> = {
 
 export const aiExtrasHandlers = [
   // ── 个人指令 ──
-  http.get('/api/ai/preferences', () => HttpResponse.json({ code: 0, message: 'ok', data: preference })),
+  http.get('/api/ai/preferences', () => ok(preference)),
   http.put('/api/ai/preferences', async ({ request }) => {
     const body = await request.json() as Partial<AiUserPreference>;
     preference = {
@@ -53,53 +54,41 @@ export const aiExtrasHandlers = [
       replyStyle: body.replyStyle ?? null,
       isEnabled: body.isEnabled ?? true,
     };
-    return HttpResponse.json({ code: 0, message: '保存成功', data: preference });
+    return ok(preference, '保存成功');
   }),
 
   // ── 对话分享 ──
   http.get('/api/ai/conversations/:id/share', ({ params }) => {
     const share = shares.get(Number(params.id));
-    return HttpResponse.json({
-      code: 0,
-      message: 'ok',
-      data: share ? { token: share.token, url: `/public/ai-chat/${share.token}`, expiresAt: share.expiresAt, createdAt: share.createdAt } : null,
-    });
+    return ok(share ? { token: share.token, url: `/public/ai-chat/${share.token}`, expiresAt: share.expiresAt, createdAt: share.createdAt } : null);
   }),
   http.post('/api/ai/conversations/:id/share', ({ params }) => {
     const token = `demo-share-${params.id}-${Date.now().toString(36)}`;
     const share = { token, expiresAt: null, createdAt: mockDateTime() };
     shares.set(Number(params.id), share);
-    return HttpResponse.json({
-      code: 0,
-      message: '已生成分享链接',
-      data: { token, url: `/public/ai-chat/${token}`, expiresAt: null, createdAt: share.createdAt },
-    });
+    return ok({ token, url: `/public/ai-chat/${token}`, expiresAt: null, createdAt: share.createdAt }, '已生成分享链接');
   }),
   http.delete('/api/ai/conversations/:id/share', ({ params }) => {
     shares.delete(Number(params.id));
-    return HttpResponse.json({ code: 0, message: '已取消分享', data: null });
+    return ok(null, '已取消分享');
   }),
   http.get('/api/ai/public/chat/:token', () => {
-    return HttpResponse.json({
-      code: 0,
-      message: 'ok',
-      data: {
-        title: 'Demo 分享对话',
-        sharedAt: mockDateTime(),
-        messages: [
-          { id: 1, role: 'user', content: '这是分享页的演示提问', reasoning: null, model: null, createdAt: mockDateTime() },
-          { id: 2, role: 'assistant', content: '这是 **Demo 模式** 下的分享页演示回复。', reasoning: null, model: 'qwen (demo)', createdAt: mockDateTime() },
-        ],
-      },
+    return ok({
+      title: 'Demo 分享对话',
+      sharedAt: mockDateTime(),
+      messages: [
+        { id: 1, role: 'user', content: '这是分享页的演示提问', reasoning: null, model: null, createdAt: mockDateTime() },
+        { id: 2, role: 'assistant', content: '这是 **Demo 模式** 下的分享页演示回复。', reasoning: null, model: 'qwen (demo)', createdAt: mockDateTime() },
+      ],
     });
   }),
 
   // ── 对话挂载知识库 ──
-  http.put('/api/ai/conversations/:id/knowledge-base', () => HttpResponse.json({ code: 0, message: '设置成功', data: null })),
+  http.put('/api/ai/conversations/:id/knowledge-base', () => ok(null, '设置成功')),
 
   // ── 知识库 ──
-  http.get('/api/ai/knowledge-bases/available', () => HttpResponse.json({ code: 0, message: 'ok', data: kbStore })),
-  http.get('/api/ai/knowledge-bases', () => HttpResponse.json({ code: 0, message: 'ok', data: kbStore })),
+  http.get('/api/ai/knowledge-bases/available', () => ok(kbStore)),
+  http.get('/api/ai/knowledge-bases', () => ok(kbStore)),
   http.post('/api/ai/knowledge-bases', async ({ request }) => {
     const body = await request.json() as { name?: string; description?: string | null };
     const now = mockDateTime();
@@ -116,30 +105,30 @@ export const aiExtrasHandlers = [
     };
     kbStore.push(kb);
     docStore[kb.id] = [];
-    return HttpResponse.json({ code: 0, message: '创建成功', data: kb });
+    return ok(kb, '创建成功');
   }),
   http.put('/api/ai/knowledge-bases/:id', async ({ params, request }) => {
     const kb = kbStore.find((k) => k.id === Number(params.id));
-    if (!kb) return HttpResponse.json({ code: 404, message: '知识库不存在', data: null }, { status: 404 });
+    if (!kb) return notFound('知识库不存在', { status: 404 });
     const body = await request.json() as { name?: string; description?: string | null };
     if (body.name !== undefined) kb.name = body.name;
     if (body.description !== undefined) kb.description = body.description;
     kb.updatedAt = mockDateTime();
-    return HttpResponse.json({ code: 0, message: '更新成功', data: kb });
+    return ok(kb, '更新成功');
   }),
   http.delete('/api/ai/knowledge-bases/:id', ({ params }) => {
     const idx = kbStore.findIndex((k) => k.id === Number(params.id));
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '知识库不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('知识库不存在', { status: 404 });
     kbStore.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
   http.get('/api/ai/knowledge-bases/:id/documents', ({ params }) => {
-    return HttpResponse.json({ code: 0, message: 'ok', data: docStore[Number(params.id)] ?? [] });
+    return ok(docStore[Number(params.id)] ?? []);
   }),
   http.post('/api/ai/knowledge-bases/:id/documents', async ({ params, request }) => {
     const kbId = Number(params.id);
     const kb = kbStore.find((k) => k.id === kbId);
-    if (!kb) return HttpResponse.json({ code: 404, message: '知识库不存在', data: null }, { status: 404 });
+    if (!kb) return notFound('知识库不存在', { status: 404 });
     const body = await request.json() as { name?: string; content?: string };
     const content = body.content ?? '';
     const chunkCount = Math.max(1, Math.ceil(content.length / 800));
@@ -157,13 +146,13 @@ export const aiExtrasHandlers = [
     (docStore[kbId] ??= []).push(doc);
     kb.documentCount += 1;
     kb.chunkCount += chunkCount;
-    return HttpResponse.json({ code: 0, message: '文档已入库', data: doc });
+    return ok(doc, '文档已入库');
   }),
   // 从 URL 抓取网页入库（Demo：生成模拟正文）
   http.post('/api/ai/knowledge-bases/:id/documents/import-url', async ({ params, request }) => {
     const kbId = Number(params.id);
     const kb = kbStore.find((k) => k.id === kbId);
-    if (!kb) return HttpResponse.json({ code: 404, message: '知识库不存在', data: null }, { status: 404 });
+    if (!kb) return notFound('知识库不存在', { status: 404 });
     const body = await request.json() as { url?: string; name?: string };
     const url = body.url ?? 'https://example.com';
     const doc: AiKbDocument = {
@@ -180,20 +169,20 @@ export const aiExtrasHandlers = [
     (docStore[kbId] ??= []).push(doc);
     kb.documentCount += 1;
     kb.chunkCount += 2;
-    return HttpResponse.json({ code: 0, message: '网页已入库', data: doc });
+    return ok(doc, '网页已入库');
   }),
   http.delete('/api/ai/knowledge-bases/:id/documents/:docId', ({ params }) => {
     const kbId = Number(params.id);
     const docs = docStore[kbId] ?? [];
     const idx = docs.findIndex((d) => d.id === Number(params.docId));
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '文档不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('文档不存在', { status: 404 });
     const [removed] = docs.splice(idx, 1);
     const kb = kbStore.find((k) => k.id === kbId);
     if (kb) {
       kb.documentCount = Math.max(0, kb.documentCount - 1);
       kb.chunkCount = Math.max(0, kb.chunkCount - removed.chunkCount);
     }
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 
   // ── Arena ──
@@ -207,36 +196,31 @@ export const aiExtrasHandlers = [
     sse += `event: done\ndata: ${JSON.stringify({ tokensInput: 10, tokensOutput: 30 })}\n\n`;
     return new HttpResponse(sse, { headers: { 'Content-Type': 'text/event-stream' } });
   }),
-  http.post('/api/ai/arena/vote', () => HttpResponse.json({ code: 0, message: '感谢投票', data: null })),
+  http.post('/api/ai/arena/vote', () => ok(null, '感谢投票')),
 
   // ── 审计 ──
   http.get('/api/ai/audit/messages', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list: [], total: 0, page, pageSize } });
+    const { page, pageSize } = pageParams(url);
+    return ok({ list: [], total: 0, page, pageSize });
   }),
 
   // ── 模型自动发现 ──
   http.post('/api/ai/providers/fetch-models', () => {
-    return HttpResponse.json({ code: 0, message: 'ok', data: ['gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'o4-mini'] });
+    return ok(['gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'o4-mini']);
   }),
 
   // ── 生成任务（Demo：同步返回，无实际后台生成） ──
-  http.post('/api/ai/generations/:genId/cancel', () => HttpResponse.json({ code: 0, message: '已停止', data: null })),
+  http.post('/api/ai/generations/:genId/cancel', () => ok(null, '已停止')),
 
   // ── 提示词模板版本 ──
   http.get('/api/ai/prompt-templates/:id/versions', ({ params }) => {
     const templateId = Number(params.id);
-    return HttpResponse.json({
-      code: 0,
-      message: 'ok',
-      data: [
+    return ok([
         { id: 2, templateId, version: 2, name: '示例模板', content: '你是一位资深的{{领域}}专家（v2 演示版本），请回答用户问题。', createdBy: 1, creatorName: '管理员', createdAt: mockDateTime() },
         { id: 1, templateId, version: 1, name: '示例模板', content: '你是{{领域}}助手（v1 演示版本）。', createdBy: 1, creatorName: '管理员', createdAt: '2025-01-01 00:00:00' },
-      ],
-    });
+      ]);
   }),
   http.post('/api/ai/prompt-templates/:id/versions/:versionId/restore', () =>
-    HttpResponse.json({ code: 0, message: '已恢复到历史版本', data: null })),
+    ok(null, '已恢复到历史版本')),
 ];

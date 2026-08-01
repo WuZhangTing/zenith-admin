@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, pageParams } from '@/mocks/utils/handlers';
 import type { MaintenanceLog } from '@zenith/shared/platform';
 import { mockDateTime } from '@/mocks/utils/date';
 
@@ -65,19 +66,18 @@ function findOngoingLog(): MaintenanceLog | undefined {
 export const maintenanceHandlers = [
   // GET /api/maintenance/status — public
   http.get(`${API}/api/maintenance/status`, () => {
-    return HttpResponse.json({ code: 0, message: 'success', data: mockMaintenance });
+    return ok(mockMaintenance, 'success');
   }),
 
   // GET /api/maintenance — admin
   http.get(`${API}/api/maintenance`, () => {
-    return HttpResponse.json({ code: 0, message: 'success', data: mockMaintenance });
+    return ok(mockMaintenance, 'success');
   }),
 
   // GET /api/maintenance/logs — admin（分页 + 状态筛选）
   http.get(`${API}/api/maintenance/logs`, ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const status = url.searchParams.get('status');
 
     let list = [...mockMaintenanceLogs];
@@ -87,11 +87,7 @@ export const maintenanceHandlers = [
 
     const total = list.length;
     const start = (page - 1) * pageSize;
-    return HttpResponse.json({
-      code: 0,
-      message: 'success',
-      data: { list: list.slice(start, start + pageSize), total, page, pageSize },
-    });
+    return ok({ list: list.slice(start, start + pageSize), total, page, pageSize }, 'success');
   }),
 
   // PUT /api/maintenance — admin
@@ -146,6 +142,6 @@ export const maintenanceHandlers = [
       }
     }
 
-    return HttpResponse.json({ code: 0, message: 'success', data: mockMaintenance });
+    return ok(mockMaintenance, 'success');
   }),
 ];

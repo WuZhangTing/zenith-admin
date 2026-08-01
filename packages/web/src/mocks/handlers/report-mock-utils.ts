@@ -1,11 +1,12 @@
 import { HttpResponse } from 'msw';
+import { ok } from '@/mocks/utils/handlers';
 
 export const DEMO_USER_ID = 1;
 export const DEMO_USER_NAME = '管理员';
 export const DEMO_TENANT_ID: number | null = null;
 
 export function reportOk<T>(data: T, message = 'ok') {
-  return HttpResponse.json({ code: 0, message, data });
+  return ok(data, message);
 }
 
 export function reportError(status: 400 | 403 | 404 | 409, message: string) {

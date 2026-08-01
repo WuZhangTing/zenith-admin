@@ -1,11 +1,8 @@
 import { http, HttpResponse } from 'msw';
+import { ok, pageParams, pageResult } from '@/mocks/utils/handlers';
 import type { WorkflowEventDelivery, WorkflowEventDeliveryStatus, WorkflowEventSubscription, WorkflowEventType } from '@zenith/shared/workflow';
 import { mockWorkflowDefinitions } from '@/mocks/data/workflow';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
-
-function ok<T>(data: T, message = 'ok') {
-  return HttpResponse.json({ code: 0, message, data });
-}
 
 function err(message: string, code = 400) {
   return HttpResponse.json({ code, message });
@@ -124,15 +121,10 @@ function toPublicSubscription(row: StoredSubscription): WorkflowEventSubscriptio
   };
 }
 
-function paginate<T>(list: T[], page: number, pageSize: number) {
-  return list.slice((page - 1) * pageSize, page * pageSize);
-}
-
 export const workflowEventSubscriptionsHandlers = [
   http.get('/api/workflows/event-subscriptions/deliveries/list', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 20;
+    const { page, pageSize } = pageParams(url, 20);
     const subscriptionId = url.searchParams.get('subscriptionId');
     const instanceId = url.searchParams.get('instanceId');
     const status = url.searchParams.get('status') as WorkflowEventDeliveryStatus | null;
@@ -143,7 +135,7 @@ export const workflowEventSubscriptionsHandlers = [
     if (status) list = list.filter((item) => item.status === status);
     list.sort((a, b) => b.id - a.id);
 
-    return ok({ list: paginate(list, page, pageSize), total: list.length, page, pageSize });
+    return ok(pageResult(list, page, pageSize));
   }),
 
   http.post('/api/workflows/event-subscriptions/deliveries/batch-retry', async ({ request }) => {
@@ -190,8 +182,7 @@ export const workflowEventSubscriptionsHandlers = [
 
   http.get('/api/workflows/event-subscriptions', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 20;
+    const { page, pageSize } = pageParams(url, 20);
     const keyword = (url.searchParams.get('keyword') ?? '').trim().toLowerCase();
     const definitionId = url.searchParams.get('definitionId');
     const enabled = url.searchParams.get('enabled');
@@ -209,7 +200,7 @@ export const workflowEventSubscriptionsHandlers = [
     }
     list.sort((a, b) => b.id - a.id);
 
-    return ok({ list: paginate(list, page, pageSize), total: list.length, page, pageSize });
+    return ok(pageResult(list, page, pageSize));
   }),
 
   http.post('/api/workflows/event-subscriptions', async ({ request }) => {

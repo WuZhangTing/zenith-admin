@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, notFound } from '@/mocks/utils/handlers';
 import type { UserAiConfig } from '@zenith/shared/identity';
 import { mockDateTime } from '../utils/date';
 
@@ -8,7 +9,7 @@ let nextId = 1;
 export const userAiConfigHandlers = [
   // GET /api/ai/user-configs
   http.get('/api/ai/user-configs', () => {
-    return HttpResponse.json({ code: 0, message: 'ok', data: mockUserAiConfigs });
+    return ok(mockUserAiConfigs);
   }),
 
   // POST /api/ai/user-configs
@@ -31,7 +32,7 @@ export const userAiConfigHandlers = [
       updatedAt: now,
     };
     mockUserAiConfigs.push(newCfg);
-    return HttpResponse.json({ code: 0, message: '创建成功', data: newCfg });
+    return ok(newCfg, '创建成功');
   }),
 
   // PUT /api/ai/user-configs/:id
@@ -40,7 +41,7 @@ export const userAiConfigHandlers = [
     const body = await request.json() as Partial<UserAiConfig>;
     const now = mockDateTime();
     const idx = mockUserAiConfigs.findIndex((c) => c.id === id);
-    if (idx < 0) return HttpResponse.json({ code: 404, message: '配置不存在', data: null }, { status: 404 });
+    if (idx < 0) return notFound('配置不存在', { status: 404 });
     const existing = mockUserAiConfigs[idx];
     const updated: UserAiConfig = {
       ...existing,
@@ -56,15 +57,15 @@ export const userAiConfigHandlers = [
       updatedAt: now,
     };
     mockUserAiConfigs[idx] = updated;
-    return HttpResponse.json({ code: 0, message: '更新成功', data: updated });
+    return ok(updated, '更新成功');
   }),
 
   // DELETE /api/ai/user-configs/:id
   http.delete('/api/ai/user-configs/:id', ({ params }) => {
     const id = Number(params.id);
     const idx = mockUserAiConfigs.findIndex((c) => c.id === id);
-    if (idx < 0) return HttpResponse.json({ code: 404, message: '配置不存在', data: null }, { status: 404 });
+    if (idx < 0) return notFound('配置不存在', { status: 404 });
     mockUserAiConfigs.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 ];

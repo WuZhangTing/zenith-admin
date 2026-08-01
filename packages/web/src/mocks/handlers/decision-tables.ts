@@ -1,11 +1,9 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound, conflict } from '@/mocks/utils/handlers';
 import type { RuleDecisionTable, RuleDecisionInput, RuleDecisionOutput, RuleDecisionRow, RuleEvaluateResult, RuleCollectAggregate, RuleUsageItem } from '@zenith/shared/rules';
 import { matchRuleCell } from '@zenith/shared/rules';
 import { mockDecisionTables, getNextTableId, mockDecisionVersions, mockTestCases, getNextCaseId, mockExecutions, getNextExecId } from '@/mocks/data/decision-tables';
 import { mockDateTime } from '@/mocks/utils/date';
-
-function ok<T>(data: T, message = 'ok') { return HttpResponse.json({ code: 0, message, data }); }
-function fail(message: string, code = 400) { return HttpResponse.json({ code, message, data: null }, { status: code }); }
 
 const get = (obj: Record<string, unknown>, path: string) => path.split('.').reduce<unknown>((o, k) => (o == null ? o : (o as Record<string, unknown>)[k]), obj);
 const SIMPLE_PATH = /^[a-zA-Z_$][\w$]*(\.[a-zA-Z_$][\w$]*)*$/;
@@ -133,7 +131,7 @@ export const decisionTablesHandlers = [
   }),
   http.get('/api/rules/decision-tables/:id/usages', ({ params }) => {
     const r = mockDecisionTables.find((t) => t.id === Number(params.id));
-    if (!r) return fail('决策表不存在', 404);
+    if (!r) return notFound('决策表不存在', { status: 404 });
     const usages: RuleUsageItem[] = r.key === 'coupon_eligibility'
       ? [{ type: 'coupon', id: null, name: '优惠券领取资格判定（内置消费方）', status: null }]
       : [];
@@ -141,7 +139,7 @@ export const decisionTablesHandlers = [
   }),
   http.get('/api/rules/decision-tables/:id/stats', ({ params, request }) => {
     const r = mockDecisionTables.find((t) => t.id === Number(params.id));
-    if (!r) return fail('决策表不存在', 404);
+    if (!r) return notFound('决策表不存在', { status: 404 });
     const days = Number(new URL(request.url).searchParams.get('days')) || 30;
     const execs = mockExecutions.filter((e) => e.tableId === r.id);
     const total = execs.length;
@@ -167,7 +165,7 @@ export const decisionTablesHandlers = [
   }),
   http.post('/api/rules/decision-tables/:id/shadow-run', async ({ params, request }) => {
     const r = mockDecisionTables.find((t) => t.id === Number(params.id));
-    if (!r) return fail('决策表不存在', 404);
+    if (!r) return notFound('决策表不存在', { status: 404 });
     const { limit } = (await request.json()) as { limit?: number };
     const execs = mockExecutions.filter((e) => e.tableId === r.id).slice(0, limit ?? 100);
     const samples: Array<{ executionId: number; input: Record<string, unknown>; before: Record<string, unknown>; after: Record<string, unknown>; beforeMatched: boolean; afterMatched: boolean }> = [];
@@ -183,15 +181,15 @@ export const decisionTablesHandlers = [
   }),
   http.post('/api/rules/decision-tables/:id/submit-review', ({ params }) => {
     const r = mockDecisionTables.find((t) => t.id === Number(params.id));
-    if (!r) return fail('决策表不存在', 404);
-    if (r.reviewStatus === 'pending') return fail('已有待审批的发布申请');
+    if (!r) return notFound('决策表不存在', { status: 404 });
+    if (r.reviewStatus === 'pending') return badRequest('已有待审批的发布申请', { status: 400 });
     r.reviewStatus = 'pending'; r.reviewRequestedBy = 1; r.reviewRequestedAt = mockDateTime(); r.reviewComment = null;
     return ok(r, '已提交审批');
   }),
   http.post('/api/rules/decision-tables/:id/review', async ({ params, request }) => {
     const r = mockDecisionTables.find((t) => t.id === Number(params.id));
-    if (!r) return fail('决策表不存在', 404);
-    if (r.reviewStatus !== 'pending') return fail('该决策表没有待审批的发布申请');
+    if (!r) return notFound('决策表不存在', { status: 404 });
+    if (r.reviewStatus !== 'pending') return badRequest('该决策表没有待审批的发布申请', { status: 400 });
     const { approve, comment } = (await request.json()) as { approve: boolean; comment?: string };
     r.reviewStatus = null; r.reviewRequestedBy = null; r.reviewRequestedAt = null;
     if (approve) {
@@ -217,14 +215,14 @@ export const decisionTablesHandlers = [
   http.post('/api/rules/decision-tables/:id/rollback/:version', ({ params }) => {
     const r = mockDecisionTables.find((t) => t.id === Number(params.id));
     const v = (mockDecisionVersions[Number(params.id)] ?? []).find((x) => x.version === Number(params.version));
-    if (!r || !v) return fail('版本不存在', 404);
+    if (!r || !v) return notFound('版本不存在', { status: 404 });
     Object.assign(r, { name: v.name, hitPolicy: v.hitPolicy, inputs: v.inputs, outputs: v.outputs, rules: v.rules, settings: v.settings ?? {}, status: 'draft' });
     r.dirty = computeDirty(r);
     return ok(r);
   }),
   http.get('/api/rules/decision-tables/:id', ({ params }) => {
     const row = mockDecisionTables.find((t) => t.id === Number(params.id));
-    return row ? ok(row) : fail('决策表不存在', 404);
+    return row ? ok(row) : notFound('决策表不存在', { status: 404 });
   }),
   http.post('/api/rules/decision-tables', async ({ request }) => {
     const b = (await request.json()) as Partial<RuleDecisionTable>;
@@ -235,26 +233,26 @@ export const decisionTablesHandlers = [
   }),
   http.put('/api/rules/decision-tables/:id', async ({ params, request }) => {
     const i = mockDecisionTables.findIndex((t) => t.id === Number(params.id));
-    if (i === -1) return fail('决策表不存在', 404);
+    if (i === -1) return notFound('决策表不存在', { status: 404 });
     const { expectedUpdatedAt, ...body } = (await request.json()) as Record<string, unknown> & { expectedUpdatedAt?: string };
-    if (expectedUpdatedAt && expectedUpdatedAt !== mockDecisionTables[i].updatedAt) return fail('决策表已被他人修改，请刷新后重试', 409);
+    if (expectedUpdatedAt && expectedUpdatedAt !== mockDecisionTables[i].updatedAt) return conflict('决策表已被他人修改，请刷新后重试', { status: 409 });
     mockDecisionTables[i] = { ...mockDecisionTables[i], ...body, updatedAt: mockDateTime() };
     mockDecisionTables[i].dirty = computeDirty(mockDecisionTables[i]);
     return ok(mockDecisionTables[i]);
   }),
   http.post('/api/rules/decision-tables/:id/toggle', async ({ params, request }) => {
     const r = mockDecisionTables.find((t) => t.id === Number(params.id));
-    if (!r) return fail('决策表不存在', 404);
+    if (!r) return notFound('决策表不存在', { status: 404 });
     const { enabled } = (await request.json()) as { enabled: boolean };
     r.status = enabled ? (r.publishedAt ? 'published' : 'draft') : 'disabled';
     return ok(r);
   }),
   http.post('/api/rules/decision-tables/:id/publish', ({ params }) => {
     const r = mockDecisionTables.find((t) => t.id === Number(params.id));
-    if (!r) return fail('决策表不存在', 404);
+    if (!r) return notFound('决策表不存在', { status: 404 });
     const run = runCases(r.id);
-    if (run.failed > 0) return fail(`发布受阻：${run.failed}/${run.total} 个用例未通过`);
-    if (run.total > 0 && run.coverage < 100) return fail(`发布受阻：覆盖率 ${run.coverage}%`);
+    if (run.failed > 0) return badRequest(`发布受阻：${run.failed}/${run.total} 个用例未通过`, { status: 400 });
+    if (run.total > 0 && run.coverage < 100) return badRequest(`发布受阻：覆盖率 ${run.coverage}%`, { status: 400 });
     (mockDecisionVersions[r.id] ??= []).unshift({ version: r.version, name: r.name, hitPolicy: r.hitPolicy, inputs: r.inputs, outputs: r.outputs, rules: r.rules, settings: r.settings ?? {}, publishedAt: mockDateTime() });
     r.status = 'published'; r.publishedAt = mockDateTime(); r.version += 1; r.dirty = false;
     return ok(r);
@@ -269,7 +267,7 @@ export const decisionTablesHandlers = [
   http.put('/api/rules/decision-tables/:id/cases/:caseId', async ({ params, request }) => {
     const arr = mockTestCases[Number(params.id)] ?? [];
     const i = arr.findIndex((c) => c.id === Number(params.caseId));
-    if (i === -1) return fail('测试用例不存在', 404);
+    if (i === -1) return notFound('测试用例不存在', { status: 404 });
     const b = (await request.json()) as { name?: string; input?: Record<string, unknown>; expected?: Record<string, unknown> };
     arr[i] = { ...arr[i], ...b, updatedAt: mockDateTime() };
     return ok(arr[i]);
@@ -280,7 +278,7 @@ export const decisionTablesHandlers = [
   }),
   http.post('/api/rules/decision-tables/:id/test', async ({ params, request }) => {
     const r = mockDecisionTables.find((t) => t.id === Number(params.id));
-    if (!r) return fail('决策表不存在', 404);
+    if (!r) return notFound('决策表不存在', { status: 404 });
     const { input } = (await request.json()) as { input: Record<string, unknown> };
     const res = evaluate(r, input ?? {});
     mockExecutions.unshift({ id: getNextExecId(), ruleKey: r.key, tableId: r.id, instanceId: null, nodeKey: null, source: 'test', matched: res.matched, hitPolicy: r.hitPolicy, input: input ?? {}, outputs: res.outputs, matchedRowIds: res.matchedRowIds, createdAt: mockDateTime() });
@@ -289,13 +287,13 @@ export const decisionTablesHandlers = [
   http.post('/api/rules/decision-tables/evaluate', async ({ request }) => {
     const { key, input } = (await request.json()) as { key: string; input: Record<string, unknown> };
     const r = mockDecisionTables.find((t) => t.key === key);
-    if (!r) return fail('决策表不存在', 404);
-    if (r.status === 'disabled') return fail('决策表已禁用');
+    if (!r) return notFound('决策表不存在', { status: 404 });
+    if (r.status === 'disabled') return badRequest('决策表已禁用', { status: 400 });
     return ok(evaluate(r, input ?? {}));
   }),
   http.delete('/api/rules/decision-tables/:id', ({ params }) => {
     const i = mockDecisionTables.findIndex((t) => t.id === Number(params.id));
-    if (i === -1) return fail('决策表不存在', 404);
+    if (i === -1) return notFound('决策表不存在', { status: 404 });
     mockDecisionTables.splice(i, 1);
     return ok(null);
   }),

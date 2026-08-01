@@ -1,5 +1,6 @@
 import { SEED_WORKFLOW_CONNECTORS } from '@zenith/shared/seed';
 import type { WorkflowConnector } from '@zenith/shared/workflow';
+import { nextIdFrom } from '@/mocks/utils/handlers';
 
 export const mockWorkflowConnectors: WorkflowConnector[] = SEED_WORKFLOW_CONNECTORS.map((c) => ({
   ...c,
@@ -12,5 +13,5 @@ export const mockWorkflowConnectors: WorkflowConnector[] = SEED_WORKFLOW_CONNECT
   updatedBy: null,
 }));
 
-let idSeq = Math.max(0, ...mockWorkflowConnectors.map((c) => c.id)) + 1;
+let idSeq = nextIdFrom(mockWorkflowConnectors);
 export const getNextConnectorId = (): number => idSeq++;

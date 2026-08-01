@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, notFound, paginate } from '@/mocks/utils/handlers';
 import type { ChatWebhook } from '@zenith/shared/chat';
 import { mockChatWebhooks, getNextWebhookId, genWebhookToken } from '@/mocks/data/chat-bots';
 import { mockChatConversations } from '@/mocks/data/chat';
@@ -14,12 +15,8 @@ export const chatBotsHandlers = [
   http.get('/api/chat-bots', ({ request }) => {
     const url = new URL(request.url);
     const keyword = url.searchParams.get('keyword') ?? '';
-    const page = Number(url.searchParams.get('page') ?? '1');
-    const pageSize = Number(url.searchParams.get('pageSize') ?? '20');
     const filtered = mockChatWebhooks.filter((w) => !keyword || w.name.includes(keyword));
-    const total = filtered.length;
-    const list = filtered.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
+    return ok(paginate(filtered, url, 20));
   }),
 
   http.post('/api/chat-bots', async ({ request }) => {
@@ -41,31 +38,31 @@ export const chatBotsHandlers = [
       updatedAt: now,
     };
     mockChatWebhooks.unshift(item);
-    return HttpResponse.json({ code: 0, message: '创建成功', data: item });
+    return ok(item, '创建成功');
   }),
 
   http.patch('/api/chat-bots/:id', async ({ params, request }) => {
     const hook = mockChatWebhooks.find((w) => w.id === Number(params.id));
-    if (!hook) return HttpResponse.json({ code: 404, message: 'Webhook 不存在', data: null }, { status: 404 });
+    if (!hook) return notFound('Webhook 不存在', { status: 404 });
     const body = await request.json() as Partial<Pick<ChatWebhook, 'name' | 'avatar' | 'description' | 'enabled'>>;
     Object.assign(hook, body, { updatedAt: mockDateTime() });
-    return HttpResponse.json({ code: 0, message: '更新成功', data: hook });
+    return ok(hook, '更新成功');
   }),
 
   http.post('/api/chat-bots/:id/regenerate-token', ({ params }) => {
     const hook = mockChatWebhooks.find((w) => w.id === Number(params.id));
-    if (!hook) return HttpResponse.json({ code: 404, message: 'Webhook 不存在', data: null }, { status: 404 });
+    if (!hook) return notFound('Webhook 不存在', { status: 404 });
     const tk = genWebhookToken('regen');
     hook.token = tk;
     hook.webhookUrl = `/api/public/chat/webhook/${tk}`;
     hook.updatedAt = mockDateTime();
-    return HttpResponse.json({ code: 0, message: '令牌已重置', data: hook });
+    return ok(hook, '令牌已重置');
   }),
 
   http.delete('/api/chat-bots/:id', ({ params }) => {
     const index = mockChatWebhooks.findIndex((w) => w.id === Number(params.id));
-    if (index === -1) return HttpResponse.json({ code: 404, message: 'Webhook 不存在', data: null }, { status: 404 });
+    if (index === -1) return notFound('Webhook 不存在', { status: 404 });
     mockChatWebhooks.splice(index, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 ];

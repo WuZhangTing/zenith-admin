@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound, nextIdFrom } from '@/mocks/utils/handlers';
 import { mockDateTime } from '../utils/date';
 import {
   mockMembers,
@@ -26,12 +27,8 @@ function loginLogView(l: (typeof mockMemberLoginLogs)[number]) {
   return { ...l, memberNickname: m?.nickname ?? null };
 }
 
-function ok(data: unknown, message = 'ok') {
-  return HttpResponse.json({ code: 0, message, data });
-}
-
 function paginated<T>(list: T[], page = 1, pageSize = 10) {
-  return HttpResponse.json({ code: 0, message: 'ok', data: { list, total: list.length, page, pageSize } });
+  return ok({ list, total: list.length, page, pageSize });
 }
 
 export const memberAdminHandlers = [
@@ -75,7 +72,7 @@ export const memberAdminHandlers = [
   }),
   http.get('/api/members/:id/overview', ({ params }) => {
     const m = mockMembers.find((x) => x.id === Number(params.id));
-    if (!m) return HttpResponse.json({ code: 404, message: '不存在', data: null }, { status: 404 });
+    if (!m) return notFound('不存在', { status: 404 });
     return ok({
       member: memberView(m),
       points: mockMemberPointAccount,
@@ -101,7 +98,7 @@ export const memberAdminHandlers = [
   http.post('/api/members/:id/reset-password', () => ok(null, '密码已重置')),
   http.post('/api/members/:id/growth', async ({ params, request }) => {
     const m = mockMembers.find((x) => x.id === Number(params.id));
-    if (!m) return HttpResponse.json({ code: 404, message: '会员不存在', data: null }, { status: 404 });
+    if (!m) return notFound('会员不存在', { status: 404 });
     const body = (await request.json().catch(() => ({}))) as { delta?: number };
     m.growthValue = Math.max(0, m.growthValue + (body.delta ?? 0));
     // 与后端一致：按成长值门槛自动重定级
@@ -114,7 +111,7 @@ export const memberAdminHandlers = [
   }),
   http.put('/api/members/:id/tags', async ({ params, request }) => {
     const m = mockMembers.find((x) => x.id === Number(params.id));
-    if (!m) return HttpResponse.json({ code: 404, message: '会员不存在', data: null }, { status: 404 });
+    if (!m) return notFound('会员不存在', { status: 404 });
     const body = (await request.json().catch(() => ({}))) as { tagIds?: number[] };
     m.tags = (body.tagIds ?? [])
       .map((tid) => mockMemberTags.find((t) => t.id === tid))
@@ -130,7 +127,7 @@ export const memberAdminHandlers = [
   http.post('/api/member-tags', async ({ request }) => {
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
     const created = {
-      id: mockMemberTags.length ? Math.max(...mockMemberTags.map((t) => t.id)) + 1 : 1,
+      id: nextIdFrom(mockMemberTags),
       name: String(body.name ?? '新标签'),
       color: (body.color as string | null) ?? 'blue',
       description: (body.description as string | null) ?? null,
@@ -145,7 +142,7 @@ export const memberAdminHandlers = [
   }),
   http.put('/api/member-tags/:id', async ({ params, request }) => {
     const t = mockMemberTags.find((x) => x.id === Number(params.id));
-    if (!t) return HttpResponse.json({ code: 404, message: '标签不存在', data: null }, { status: 404 });
+    if (!t) return notFound('标签不存在', { status: 404 });
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
     Object.assign(t, body, { updatedAt: mockDateTime() });
     return ok(t, '更新成功');
@@ -206,14 +203,14 @@ export const memberAdminHandlers = [
   http.post('/api/coupons/records/:id/revoke', () => ok(null, '券码已作废')),
   http.get('/api/coupons/code/:code', ({ params }) => {
     const mc = mockMemberCoupons.find((c) => c.code === String(params.code));
-    if (!mc) return HttpResponse.json({ code: 404, message: '券码不存在', data: null }, { status: 404 });
+    if (!mc) return notFound('券码不存在', { status: 404 });
     return ok(mc);
   }),
   http.post('/api/coupons/redeem', async ({ request }) => {
     const body = (await request.json().catch(() => ({}))) as { code?: string };
     const mc = mockMemberCoupons.find((c) => c.code === body.code);
-    if (!mc) return HttpResponse.json({ code: 404, message: '券码不存在', data: null }, { status: 404 });
-    if (mc.status !== 'unused') return HttpResponse.json({ code: 400, message: '优惠券不可用', data: null }, { status: 400 });
+    if (!mc) return notFound('券码不存在', { status: 404 });
+    if (mc.status !== 'unused') return badRequest('优惠券不可用', { status: 400 });
     mc.status = 'used';
     mc.usedAt = mockDateTime();
     return ok(mc, '核销成功');

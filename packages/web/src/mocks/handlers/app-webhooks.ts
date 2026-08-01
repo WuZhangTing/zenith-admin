@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound, pageParams, nextIdFrom } from '@/mocks/utils/handlers';
 import { OPEN_WEBHOOK_EVENTS, OPEN_WEBHOOK_EVENT_LABELS } from '@zenith/shared/open-platform';
 import type { AppWebhookSubscription, AppWebhookDelivery } from '@zenith/shared/open-platform';
 import { mockWebhookSubscriptions, mockWebhookDeliveries } from '@/mocks/data/app-webhooks';
@@ -6,16 +7,13 @@ import { mockDateTime } from '@/mocks/utils/date';
 
 const subs: AppWebhookSubscription[] = mockWebhookSubscriptions.map((s) => ({ ...s }));
 let deliveries: AppWebhookDelivery[] = mockWebhookDeliveries.map((d) => ({ ...d }));
-let nextSubId = Math.max(0, ...subs.map((s) => s.id)) + 1;
-let nextDeliveryId = Math.max(0, ...deliveries.map((d) => d.id)) + 1;
+let nextSubId = nextIdFrom(subs);
+let nextDeliveryId = nextIdFrom(deliveries);
 const BASE = '/api/app-webhooks';
-
-const ok = (data: unknown, message = 'success') => HttpResponse.json({ code: 0, message, data });
-const notFound = (m = '资源不存在') => HttpResponse.json({ code: 404, message: m, data: null }, { status: 404 });
 const randomSecret = () => `whsec_${Array.from({ length: 48 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
 
 export const appWebhooksHandlers = [
-  http.get(`${BASE}/events`, () => ok(OPEN_WEBHOOK_EVENTS.map((code) => ({ code, label: OPEN_WEBHOOK_EVENT_LABELS[code] ?? code })))),
+  http.get(`${BASE}/events`, () => ok(OPEN_WEBHOOK_EVENTS.map((code) => ({ code, label: OPEN_WEBHOOK_EVENT_LABELS[code] ?? code })), 'success')),
 
   // 投递日志
   http.get(`${BASE}/deliveries`, ({ request }) => {
@@ -23,24 +21,23 @@ export const appWebhooksHandlers = [
     const subscriptionId = url.searchParams.get('subscriptionId');
     const status = url.searchParams.get('status');
     const eventType = url.searchParams.get('eventType');
-    const page = Number(url.searchParams.get('page') ?? 1);
-    const pageSize = Number(url.searchParams.get('pageSize') ?? 10);
+    const { page, pageSize } = pageParams(url);
     let filtered = [...deliveries].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
     if (subscriptionId) filtered = filtered.filter((d) => d.subscriptionId === Number(subscriptionId));
     if (status) filtered = filtered.filter((d) => d.status === status);
     if (eventType) filtered = filtered.filter((d) => d.eventType === eventType);
     const start = (page - 1) * pageSize;
-    return ok({ list: filtered.slice(start, start + pageSize), total: filtered.length, page, pageSize });
+    return ok({ list: filtered.slice(start, start + pageSize), total: filtered.length, page, pageSize }, 'success');
   }),
   http.get(`${BASE}/deliveries/:id`, ({ params }) => {
     const found = deliveries.find((d) => d.id === Number(params.id));
-    return found ? ok(found) : notFound('投递记录不存在');
+    return found ? ok(found, 'success') : notFound('投递记录不存在', { status: 404 });
   }),
   http.post(`${BASE}/deliveries/:id/retry`, ({ params }) => {
     const d = deliveries.find((x) => x.id === Number(params.id));
-    if (!d) return notFound('投递记录不存在');
+    if (!d) return notFound('投递记录不存在', { status: 404 });
     if (d.status !== 'failed') {
-      return HttpResponse.json({ code: 400, message: '仅最终失败的投递可手动重试', data: null }, { status: 400 });
+      return badRequest('仅最终失败的投递可手动重试', { status: 400 });
     }
     d.status = 'success';
     d.attempt += 1;
@@ -71,14 +68,13 @@ export const appWebhooksHandlers = [
     const keyword = url.searchParams.get('keyword') ?? '';
     const clientId = url.searchParams.get('clientId') ?? '';
     const status = url.searchParams.get('status') ?? '';
-    const page = Number(url.searchParams.get('page') ?? 1);
-    const pageSize = Number(url.searchParams.get('pageSize') ?? 10);
+    const { page, pageSize } = pageParams(url);
     let filtered = subs;
     if (keyword) filtered = filtered.filter((s) => s.name.includes(keyword) || s.url.includes(keyword));
     if (clientId) filtered = filtered.filter((s) => s.clientId === clientId);
     if (status) filtered = filtered.filter((s) => s.status === status);
     const start = (page - 1) * pageSize;
-    return ok({ list: filtered.slice(start, start + pageSize), total: filtered.length, page, pageSize });
+    return ok({ list: filtered.slice(start, start + pageSize), total: filtered.length, page, pageSize }, 'success');
   }),
 
   http.post(BASE, async ({ request }) => {
@@ -109,12 +105,12 @@ export const appWebhooksHandlers = [
 
   http.get(`${BASE}/:id`, ({ params }) => {
     const found = subs.find((s) => s.id === Number(params.id));
-    return found ? ok(found) : notFound('Webhook 订阅不存在');
+    return found ? ok(found, 'success') : notFound('Webhook 订阅不存在', { status: 404 });
   }),
 
   http.put(`${BASE}/:id`, async ({ params, request }) => {
     const idx = subs.findIndex((s) => s.id === Number(params.id));
-    if (idx === -1) return notFound('Webhook 订阅不存在');
+    if (idx === -1) return notFound('Webhook 订阅不存在', { status: 404 });
     const body = (await request.json()) as Partial<AppWebhookSubscription>;
     subs[idx] = { ...subs[idx], ...body, clientId: subs[idx].clientId, updatedAt: mockDateTime() };
     return ok(subs[idx], '更新成功');
@@ -122,7 +118,7 @@ export const appWebhooksHandlers = [
 
   http.post(`${BASE}/:id/regenerate-secret`, ({ params }) => {
     const found = subs.find((s) => s.id === Number(params.id));
-    if (!found) return notFound('Webhook 订阅不存在');
+    if (!found) return notFound('Webhook 订阅不存在', { status: 404 });
     found.signMode = 'hmacSha256';
     found.hasSecret = true;
     found.secretMasked = '••••••••';
@@ -131,7 +127,7 @@ export const appWebhooksHandlers = [
 
   http.post(`${BASE}/:id/test`, ({ params }) => {
     const sub = subs.find((s) => s.id === Number(params.id));
-    if (!sub) return notFound('Webhook 订阅不存在');
+    if (!sub) return notFound('Webhook 订阅不存在', { status: 404 });
     const now = mockDateTime();
     const delivery: AppWebhookDelivery = {
       id: nextDeliveryId++, subscriptionId: sub.id, clientId: sub.clientId,
@@ -146,7 +142,7 @@ export const appWebhooksHandlers = [
 
   http.delete(`${BASE}/:id`, ({ params }) => {
     const idx = subs.findIndex((s) => s.id === Number(params.id));
-    if (idx === -1) return notFound('Webhook 订阅不存在');
+    if (idx === -1) return notFound('Webhook 订阅不存在', { status: 404 });
     subs.splice(idx, 1);
     deliveries = deliveries.filter((d) => d.subscriptionId !== Number(params.id));
     return ok(null, '删除成功');

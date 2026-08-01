@@ -1,17 +1,10 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound, conflict, pageParams } from '@/mocks/utils/handlers';
 import { createWorkflowFormSchema, updateWorkflowFormSchema } from '@zenith/shared/workflow';
 import type { WorkflowForm } from '@zenith/shared/workflow';
 import { mockWorkflowForms, getNextWorkflowFormId } from '@/mocks/data/workflow-forms';
 import { mockWorkflowDefinitions } from '@/mocks/data/workflow';
 import { mockDateTime } from '@/mocks/utils/date';
-
-function ok<T>(data: T, message = 'success') {
-  return HttpResponse.json({ code: 0, message, data });
-}
-
-function fail(message: string, code = 400) {
-  return HttpResponse.json({ code, message, data: null }, { status: code });
-}
 
 function usageCount(formId: number) {
   return mockWorkflowDefinitions.filter((definition) => definition.formId === formId).length;
@@ -28,8 +21,7 @@ function validationErrorMessage(error: { issues: Array<{ message: string }> }) {
 export const workflowFormsHandlers = [
   http.get('/api/workflows/forms', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 20;
+    const { page, pageSize } = pageParams(url, 20);
     const keyword = (url.searchParams.get('keyword') ?? '').toLowerCase();
     const status = url.searchParams.get('status') ?? '';
     const categoryId = url.searchParams.get('categoryId');
@@ -42,7 +34,7 @@ export const workflowFormsHandlers = [
     list = list.sort((a, b) => b.id - a.id).map(withUsage);
     const total = list.length;
     const paged = list.slice((page - 1) * pageSize, page * pageSize);
-    return ok({ list: paged, total, page, pageSize });
+    return ok({ list: paged, total, page, pageSize }, 'success');
   }),
 
   http.get('/api/workflows/forms/enabled', () => {
@@ -50,22 +42,22 @@ export const workflowFormsHandlers = [
       .filter((form) => form.status === 'enabled')
       .sort((a, b) => a.name.localeCompare(b.name) || b.id - a.id)
       .map(withUsage);
-    return ok(list);
+    return ok(list, 'success');
   }),
 
   http.get('/api/workflows/forms/:id', ({ params }) => {
     const form = mockWorkflowForms.find((item) => item.id === Number(params.id));
-    if (!form) return fail('表单不存在', 404);
-    return ok(withUsage(form));
+    if (!form) return notFound('表单不存在', { status: 404 });
+    return ok(withUsage(form), 'success');
   }),
 
   http.post('/api/workflows/forms', async ({ request }) => {
     const parsed = createWorkflowFormSchema.safeParse(await request.json());
-    if (!parsed.success) return fail(validationErrorMessage(parsed.error), 400);
+    if (!parsed.success) return badRequest(validationErrorMessage(parsed.error), { status: 400 });
     const body = parsed.data;
     const tenantId = 1;
     if (body.code && mockWorkflowForms.some((form) => form.tenantId === tenantId && form.code === body.code)) {
-      return fail('表单编码已存在', 400);
+      return badRequest('表单编码已存在', { status: 400 });
     }
     const now = mockDateTime();
     const form: WorkflowForm = {
@@ -87,12 +79,12 @@ export const workflowFormsHandlers = [
       updatedAt: now,
     };
     mockWorkflowForms.push(form);
-    return ok(withUsage(form));
+    return ok(withUsage(form), 'success');
   }),
 
   http.post('/api/workflows/forms/:id/duplicate', ({ params }) => {
     const src = mockWorkflowForms.find((item) => item.id === Number(params.id));
-    if (!src) return fail('表单不存在', 404);
+    if (!src) return notFound('表单不存在', { status: 404 });
     const now = mockDateTime();
     const form: WorkflowForm = {
       ...src,
@@ -114,16 +106,16 @@ export const workflowFormsHandlers = [
 
   http.put('/api/workflows/forms/:id', async ({ params, request }) => {
     const form = mockWorkflowForms.find((item) => item.id === Number(params.id));
-    if (!form) return fail('表单不存在', 404);
+    if (!form) return notFound('表单不存在', { status: 404 });
     const parsed = updateWorkflowFormSchema.safeParse(await request.json());
-    if (!parsed.success) return fail(validationErrorMessage(parsed.error), 400);
+    if (!parsed.success) return badRequest(validationErrorMessage(parsed.error), { status: 400 });
     const body = parsed.data;
     // 乐观锁：客户端持有的版本与当前不一致时返回 409（与服务端语义一致）
     if (body.expectedRevision != null && body.expectedRevision !== form.revision) {
-      return fail('表单已被其他人更新，请刷新后重试', 409);
+      return conflict('表单已被其他人更新，请刷新后重试', { status: 409 });
     }
     if (body.code && body.code !== form.code && mockWorkflowForms.some((item) => item.tenantId === form.tenantId && item.code === body.code)) {
-      return fail('表单编码已存在', 400);
+      return badRequest('表单编码已存在', { status: 400 });
     }
     // renamedKeys 级联（重写引用定义 flowData）仅服务端实现，Demo 模式下忽略
     Object.assign(form, {
@@ -137,14 +129,14 @@ export const workflowFormsHandlers = [
       updatedBy: 1,
       updatedAt: mockDateTime(),
     });
-    return ok(withUsage(form));
+    return ok(withUsage(form), 'success');
   }),
 
   http.delete('/api/workflows/forms/:id', ({ params }) => {
     const id = Number(params.id);
     const index = mockWorkflowForms.findIndex((form) => form.id === id);
-    if (index === -1) return fail('表单不存在', 404);
-    if (usageCount(id) > 0) return fail('该表单已被流程引用，无法删除', 400);
+    if (index === -1) return notFound('表单不存在', { status: 404 });
+    if (usageCount(id) > 0) return badRequest('该表单已被流程引用，无法删除', { status: 400 });
     mockWorkflowForms.splice(index, 1);
     return ok(null, '删除成功');
   }),

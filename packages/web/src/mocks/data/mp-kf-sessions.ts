@@ -1,6 +1,7 @@
 import type { MpKfSession, MpKfSessionEvent, MpKfRoutingConfig, MpKfSessionStats, MpMessage } from '@zenith/shared/mp';
 import { SEED_MP_KF_SESSIONS, SEED_MP_KF_SESSION_EVENTS, SEED_MP_KF_ROUTING_CONFIGS, SEED_MP_KF_ACCOUNTS, SEED_MP_FANS, SEED_MP_MESSAGES } from '@zenith/shared/seed';
 import { mockDateTime } from '@/mocks/utils/date';
+import { nextIdFrom } from '@/mocks/utils/handlers';
 
 const kfNickById = new Map<number, string>(SEED_MP_KF_ACCOUNTS.map((k) => [k.id, k.nickname]));
 const fanByOpenid = new Map(SEED_MP_FANS.map((f) => [f.openid, { nickname: f.nickname, avatar: f.avatar }]));
@@ -66,10 +67,10 @@ export const mockMpKfRoutingConfigs: MpKfRoutingConfig[] = SEED_MP_KF_ROUTING_CO
   updatedAt: mockDateTime(),
 }));
 
-let nextEventId = Math.max(0, ...mockMpKfSessionEvents.map((e) => e.id)) + 1;
+let nextEventId = nextIdFrom(mockMpKfSessionEvents);
 export function getNextMpKfEventId() { return nextEventId++; }
 
-let nextMsgId = Math.max(0, ...mockMpKfMessages.map((m) => m.id)) + 1;
+let nextMsgId = nextIdFrom(mockMpKfMessages);
 export function getNextMpKfMessageId() { return nextMsgId++; }
 
 export function ensureMpKfConfig(accountId: number): MpKfRoutingConfig {

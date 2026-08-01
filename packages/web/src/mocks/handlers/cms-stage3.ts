@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound } from '@/mocks/utils/handlers';
 import { CMS_PUBLISH_TARGET_TYPES } from '@zenith/shared/cms';
 import type { CmsPublishTargetType } from '@zenith/shared/cms';
 import type { AsyncTask } from '@zenith/shared/tasks';
@@ -9,9 +10,6 @@ import {
 import { mockCmsSites } from '../data/cms';
 import { mockDateTime } from '../utils/date';
 import { createProgressingMockTask } from './async-tasks';
-
-const ok = <T>(data: T, message = 'success') => HttpResponse.json({ code: 0, message, data });
-const fail = (message: string, status = 400) => HttpResponse.json({ code: status, message, data: null }, { status });
 
 function page<T>(rows: T[], url: URL) {
   const current = Number(url.searchParams.get('page')) || 1;
@@ -48,14 +46,14 @@ export const cmsStage3Handlers = [
     if (keyword) rows = rows.filter((item) => item.path.includes(keyword) || item.url?.includes(keyword));
     if (startTime) rows = rows.filter((item) => (item.generatedAt ?? item.updatedAt) >= startTime);
     if (endTime) rows = rows.filter((item) => (item.generatedAt ?? item.updatedAt) <= endTime);
-    return ok(page(rows, url));
+    return ok(page(rows, url), 'success');
   }),
 
   http.post('/api/cms/publishing/submit', async ({ request }) => {
     const body = await request.json() as Record<string, unknown>;
-    if (!CMS_PUBLISH_TARGET_TYPES.includes(body.targetType as never) || !Number(body.siteId)) return fail('发布目标参数无效');
+    if (!CMS_PUBLISH_TARGET_TYPES.includes(body.targetType as never) || !Number(body.siteId)) return badRequest('发布目标参数无效', { status: 400 });
     const targetType = body.targetType as CmsPublishTargetType;
-    if (['content', 'contents'].includes(targetType) && !Array.isArray(body.contentIds)) return fail('内容发布必须选择内容');
+    if (['content', 'contents'].includes(targetType) && !Array.isArray(body.contentIds)) return badRequest('内容发布必须选择内容', { status: 400 });
     const task = createProgressingMockTask({
       taskType: 'cms-publish-build',
       title: `CMS ${targetType} 发布`,
@@ -83,12 +81,12 @@ export const cmsStage3Handlers = [
       else continue;
       affected++;
     }
-    return ok({ affected, errors: [] });
+    return ok({ affected, errors: [] }, 'success');
   }),
 
   http.get('/api/cms/publishing/:id', ({ params }) => {
     const task = mockCmsPublishingTasks.find((item) => item.id === Number(params.id));
-    if (!task) return fail('CMS 发布任务不存在', 404);
+    if (!task) return notFound('CMS 发布任务不存在', { status: 404 });
     const artifacts = mockCmsPublishArtifacts.filter((item) => item.taskId === task.id);
     return ok({
       task,
@@ -105,21 +103,21 @@ export const cmsStage3Handlers = [
         updatedAt: item.updatedAt,
       })),
       artifacts,
-    });
+    }, 'success');
   }),
 
   http.post('/api/cms/publishing/:id/:action', ({ params }) => {
     const task = mockCmsPublishingTasks.find((item) => item.id === Number(params.id));
-    if (!task) return fail('CMS 发布任务不存在', 404);
+    if (!task) return notFound('CMS 发布任务不存在', { status: 404 });
     const action = String(params.action);
     if (action === 'cancel' && ['pending', 'running'].includes(task.status)) task.status = 'cancelled';
     else if (action === 'resume' && ['failed', 'cancelled'].includes(task.status)) task.status = 'pending';
     else if (['restart', 'rebuild'].includes(action) && ['success', 'failed', 'cancelled'].includes(task.status)) {
       task.status = 'pending';
       mockCmsPublishArtifacts.splice(0, mockCmsPublishArtifacts.length, ...mockCmsPublishArtifacts.filter((item) => item.taskId !== task.id));
-    } else return fail('当前任务状态不支持该操作');
+    } else return badRequest('当前任务状态不支持该操作', { status: 400 });
     task.updatedAt = mockDateTime();
-    return ok(task);
+    return ok(task, 'success');
   }),
 
   http.get('/api/cms/publishing', ({ request }) => {
@@ -147,6 +145,6 @@ export const cmsStage3Handlers = [
       task.artifactCount = mockCmsPublishArtifacts.filter((item) => item.taskId === task.id).length;
       task.failedArtifactCount = mockCmsPublishArtifacts.filter((item) => item.taskId === task.id && item.status === 'failed').length;
     });
-    return ok(page(rows, url));
+    return ok(page(rows, url), 'success');
   }),
 ];

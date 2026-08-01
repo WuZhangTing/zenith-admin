@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, notFound, paginate } from '@/mocks/utils/handlers';
 import { mockDicts, mockDictItems, getNextDictId, getNextDictItemId } from '@/mocks/data/dicts';
 import { mockDateTime } from '@/mocks/utils/date';
 import type { Dict, DictItem } from '@zenith/shared/platform';
@@ -11,8 +12,6 @@ export const dictsHandlers = [
     const status = url.searchParams.get('status') ?? '';
     const startDate = url.searchParams.get('startDate') ?? '';
     const endDate = url.searchParams.get('endDate') ?? '';
-    const page = Number(url.searchParams.get('page') ?? '1');
-    const pageSize = Number(url.searchParams.get('pageSize') ?? '10');
 
     const filtered = mockDicts.filter((d) => {
       if (keyword && !d.name.includes(keyword) && !d.code.includes(keyword)) return false;
@@ -21,16 +20,14 @@ export const dictsHandlers = [
       if (endDate && d.createdAt > `${endDate} 23:59:59`) return false;
       return true;
     });
-    const total = filtered.length;
-    const list = filtered.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
+    return ok(paginate(filtered, url));
   }),
 
   // 获取单个字典
   http.get('/api/dicts/:id', ({ params }) => {
     const dict = mockDicts.find((d) => d.id === Number(params.id));
-    if (!dict) return HttpResponse.json({ code: 404, message: '字典不存在', data: null });
-    return HttpResponse.json({ code: 0, message: 'ok', data: dict });
+    if (!dict) return notFound('字典不存在');
+    return ok(dict);
   }),
 
   // 新增字典
@@ -46,22 +43,22 @@ export const dictsHandlers = [
       updatedAt: mockDateTime(),
     };
     mockDicts.push(newDict);
-    return HttpResponse.json({ code: 0, message: '新增成功', data: newDict });
+    return ok(newDict, '新增成功');
   }),
 
   // 更新字典
   http.put('/api/dicts/:id', async ({ params, request }) => {
     const dict = mockDicts.find((d) => d.id === Number(params.id));
-    if (!dict) return HttpResponse.json({ code: 404, message: '字典不存在', data: null });
+    if (!dict) return notFound('字典不存在');
     const body = await request.json() as Partial<Dict>;
     Object.assign(dict, body, { updatedAt: mockDateTime() });
-    return HttpResponse.json({ code: 0, message: '更新成功', data: dict });
+    return ok(dict, '更新成功');
   }),
 
   // 删除字典
   http.delete('/api/dicts/:id', ({ params }) => {
     const index = mockDicts.findIndex((d) => d.id === Number(params.id));
-    if (index === -1) return HttpResponse.json({ code: 404, message: '字典不存在', data: null });
+    if (index === -1) return notFound('字典不存在');
     mockDicts.splice(index, 1);
     // 同时删除该字典下的所有条目
     const toRemove = mockDictItems.filter((item) => item.dictId === Number(params.id));
@@ -69,13 +66,13 @@ export const dictsHandlers = [
       const i = mockDictItems.indexOf(item);
       if (i !== -1) mockDictItems.splice(i, 1);
     });
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 
   // 获取字典条目列表
   http.get('/api/dicts/:id/items', ({ params }) => {
     const items = mockDictItems.filter((item) => item.dictId === Number(params.id));
-    return HttpResponse.json({ code: 0, message: 'ok', data: items });
+    return ok(items);
   }),
 
   // 新增字典条目
@@ -94,31 +91,31 @@ export const dictsHandlers = [
       updatedAt: mockDateTime(),
     };
     mockDictItems.push(newItem);
-    return HttpResponse.json({ code: 0, message: '新增成功', data: newItem });
+    return ok(newItem, '新增成功');
   }),
 
   // 更新字典条目
   http.put('/api/dicts/:dictId/items/:itemId', async ({ params, request }) => {
     const item = mockDictItems.find((i) => i.id === Number(params.itemId));
-    if (!item) return HttpResponse.json({ code: 404, message: '字典条目不存在', data: null });
+    if (!item) return notFound('字典条目不存在');
     const body = await request.json() as Partial<DictItem>;
     Object.assign(item, body, { updatedAt: mockDateTime() });
-    return HttpResponse.json({ code: 0, message: '更新成功', data: item });
+    return ok(item, '更新成功');
   }),
 
   // 删除字典条目
   http.delete('/api/dicts/:dictId/items/:itemId', ({ params }) => {
     const index = mockDictItems.findIndex((i) => i.id === Number(params.itemId));
-    if (index === -1) return HttpResponse.json({ code: 404, message: '字典条目不存在', data: null });
+    if (index === -1) return notFound('字典条目不存在');
     mockDictItems.splice(index, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 
   // 通过 code 查询字典条目（供前端下拉框使用）
   http.get('/api/dicts/code/:code/items', ({ params }) => {
     const dict = mockDicts.find((d) => d.code === params.code);
-    if (!dict) return HttpResponse.json({ code: 0, message: 'ok', data: [] });
+    if (!dict) return ok([]);
     const items = mockDictItems.filter((item) => item.dictId === dict.id);
-    return HttpResponse.json({ code: 0, message: 'ok', data: items });
+    return ok(items);
   }),
 ];

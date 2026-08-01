@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok } from '@/mocks/utils/handlers';
 
 interface PortEntry {
   protocol: string;
@@ -22,12 +23,12 @@ const mockPorts: PortEntry[] = [
 ];
 
 export const portsHandlers = [
-  http.get('/api/ports', () => HttpResponse.json({ code: 0, message: 'ok', data: mockPorts })),
+  http.get('/api/ports', () => ok(mockPorts)),
 
   http.delete('/api/ports/:pid', ({ params }) => {
     const pid = Number(params.pid);
     const idx = mockPorts.findIndex((p) => p.pid === pid);
     if (idx !== -1) mockPorts.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '进程已结束', data: null });
+    return ok(null, '进程已结束');
   }),
 ];

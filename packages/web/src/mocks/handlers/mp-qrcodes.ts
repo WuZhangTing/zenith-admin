@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, notFound, pageParams } from '@/mocks/utils/handlers';
 import { mockMpQrcodes, getNextMpQrcodeId } from '@/mocks/data/mp-qrcodes';
 import { mockDateTime } from '@/mocks/utils/date';
 import type { MpQrcode } from '@zenith/shared/mp';
@@ -9,8 +10,7 @@ export const mpQrcodesHandlers = [
     const accountId = Number(url.searchParams.get('accountId') ?? '0');
     const type = url.searchParams.get('type') ?? '';
     const keyword = url.searchParams.get('keyword') ?? '';
-    const page = Number(url.searchParams.get('page') ?? '1');
-    const pageSize = Number(url.searchParams.get('pageSize') ?? '20');
+    const { page, pageSize } = pageParams(url, 20);
     const filtered = mockMpQrcodes.filter((q) => {
       if (q.accountId !== accountId) return false;
       if (type && q.type !== type) return false;
@@ -19,7 +19,7 @@ export const mpQrcodesHandlers = [
     });
     const total = filtered.length;
     const list = [...filtered].sort((a, b) => b.id - a.id).slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
+    return ok({ list, total, page, pageSize });
   }),
 
   http.post('/api/mp/qrcodes', async ({ request }) => {
@@ -32,13 +32,13 @@ export const mpQrcodesHandlers = [
       expireSeconds: body.type === 'temporary' ? (body.expireSeconds ?? 604800) : null, scanCount: 0, rewardPoints: body.rewardPoints ?? 0, createdAt: now, updatedAt: now,
     };
     mockMpQrcodes.push(item);
-    return HttpResponse.json({ code: 0, message: '生成成功', data: item });
+    return ok(item, '生成成功');
   }),
 
   http.delete('/api/mp/qrcodes/:id', ({ params }) => {
     const idx = mockMpQrcodes.findIndex((x) => x.id === Number(params.id));
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '二维码不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('二维码不存在', { status: 404 });
     mockMpQrcodes.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 ];

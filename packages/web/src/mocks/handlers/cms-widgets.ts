@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound, conflict, paginate } from '@/mocks/utils/handlers';
 import { CMS_WIDGET_HIGH_FANOUT_THRESHOLD, CMS_WIDGET_RENDERER_KEYS, CMS_WIDGET_RENDERER_LABELS } from '@zenith/shared/cms';
 import type { CmsResolvedWidget, CmsResolvedWidgetItem, CmsWidget, CmsWidgetItem, CmsWidgetRendererKey, CmsWidgetSourceReference } from '@zenith/shared/cms';
 import {
@@ -14,14 +15,6 @@ import { mockDateTime } from '../utils/date';
 import { createProgressingMockTask } from './async-tasks';
 
 type Body = Record<string, unknown>;
-
-function ok<T>(data: T, message = 'ok') {
-  return HttpResponse.json({ code: 0, message, data });
-}
-
-function fail(status: number, message: string) {
-  return HttpResponse.json({ code: status, message, data: null }, { status });
-}
 
 function refreshCounts() {
   for (const widget of mockCmsWidgets) {
@@ -165,7 +158,7 @@ export const cmsWidgetsHandlers = [
     if (index >= 0) mockCmsWidgetRefs.splice(index, 1);
     if (body.widgetId) {
       const widget = mockCmsWidgets.find((entry) => entry.id === Number(body.widgetId) && entry.siteId === siteId);
-      if (!widget || widget.status !== 'published') return fail(400, '主题插槽只能绑定已发布页面部件');
+      if (!widget || widget.status !== 'published') return badRequest('主题插槽只能绑定已发布页面部件', { status: 400 });
       mockCmsWidgetRefs.push({
         id: getNextCmsWidgetRefId(),
         siteId,
@@ -277,7 +270,7 @@ export const cmsWidgetsHandlers = [
 
   http.get('/api/cms/widgets/:id/preview', ({ params, request }) => {
     const widget = mockCmsWidgets.find((entry) => entry.id === Number(params.id));
-    if (!widget) return fail(404, '页面部件不存在');
+    if (!widget) return notFound('页面部件不存在', { status: 404 });
     const rendererKey = (new URL(request.url).searchParams.get('rendererKey') || widget.defaultRendererKey) as CmsWidgetRendererKey;
     const resolved: CmsResolvedWidget = {
       id: widget.id,
@@ -299,7 +292,7 @@ export const cmsWidgetsHandlers = [
 
   http.post('/api/cms/widgets/:id/publish', ({ params }) => {
     const widget = mockCmsWidgets.find((entry) => entry.id === Number(params.id));
-    if (!widget) return fail(404, '页面部件不存在');
+    if (!widget) return notFound('页面部件不存在', { status: 404 });
     widget.publishedData = cloneItems(widget.draftData);
     widget.publishedName = widget.name;
     widget.publishedRevision = widget.draftRevision;
@@ -312,8 +305,8 @@ export const cmsWidgetsHandlers = [
 
   http.post('/api/cms/widgets/:id/offline', ({ params }) => {
     const widget = mockCmsWidgets.find((entry) => entry.id === Number(params.id));
-    if (!widget) return fail(404, '页面部件不存在');
-    if (widget.status !== 'published') return fail(400, `当前状态（${widget.status}）不允许下线`);
+    if (!widget) return notFound('页面部件不存在', { status: 404 });
+    if (widget.status !== 'published') return badRequest(`当前状态（${widget.status}）不允许下线`, { status: 400 });
     widget.status = 'offline';
     widget.updatedAt = mockDateTime();
     submitMockWidgetRefresh(widget.siteId, `offline:${widget.id}:${widget.draftRevision}:${Date.now()}`);
@@ -323,13 +316,11 @@ export const cmsWidgetsHandlers = [
   http.get('/api/cms/widgets/:id', ({ params }) => {
     refreshCounts();
     const widget = mockCmsWidgets.find((entry) => entry.id === Number(params.id));
-    return widget ? ok(widget) : fail(404, '页面部件不存在');
+    return widget ? ok(widget) : notFound('页面部件不存在', { status: 404 });
   }),
 
   http.get('/api/cms/widgets', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
     const siteId = Number(url.searchParams.get('siteId'));
     const keyword = url.searchParams.get('keyword') ?? '';
     const status = url.searchParams.get('status') ?? '';
@@ -339,12 +330,7 @@ export const cmsWidgetsHandlers = [
     if (keyword) list = list.filter((widget) => widget.name.includes(keyword) || widget.code.includes(keyword));
     if (status) list = list.filter((widget) => widget.status === status);
     if (type) list = list.filter((widget) => widget.type === type);
-    return ok({
-      list: list.slice((page - 1) * pageSize, page * pageSize),
-      total: list.length,
-      page,
-      pageSize,
-    });
+    return ok(paginate(list, url));
   }),
 
   http.post('/api/cms/widgets', async ({ request }) => {
@@ -378,11 +364,11 @@ export const cmsWidgetsHandlers = [
 
   http.put('/api/cms/widgets/:id', async ({ params, request }) => {
     const widget = mockCmsWidgets.find((entry) => entry.id === Number(params.id));
-    if (!widget) return fail(404, '页面部件不存在');
+    if (!widget) return notFound('页面部件不存在', { status: 404 });
     const body = (await request.json()) as Body;
-    if (body.code !== undefined) return fail(400, '页面部件编码创建后不可修改');
+    if (body.code !== undefined) return badRequest('页面部件编码创建后不可修改', { status: 400 });
     if (Number(body.expectedRevision) !== widget.draftRevision) {
-      return fail(409, '页面部件草稿已被其他人更新，请刷新后再编辑');
+      return conflict('页面部件草稿已被其他人更新，请刷新后再编辑', { status: 409 });
     }
     const nextRemark = body.remark == null ? null : String(body.remark);
     const changed = body.draftData !== undefined
@@ -402,9 +388,9 @@ export const cmsWidgetsHandlers = [
   http.delete('/api/cms/widgets/:id', ({ params }) => {
     const id = Number(params.id);
     const index = mockCmsWidgets.findIndex((widget) => widget.id === id);
-    if (index < 0) return fail(404, '页面部件不存在');
+    if (index < 0) return notFound('页面部件不存在', { status: 404 });
     const count = mockCmsWidgetRefs.filter((ref) => ref.widgetId === id).length;
-    if (count > 0) return fail(409, `该页面部件仍被 ${count} 个位置引用，请先解除引用`);
+    if (count > 0) return conflict(`该页面部件仍被 ${count} 个位置引用，请先解除引用`, { status: 409 });
     mockCmsWidgets.splice(index, 1);
     return ok(null, '删除成功');
   }),

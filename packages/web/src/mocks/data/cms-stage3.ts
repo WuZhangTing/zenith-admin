@@ -1,5 +1,6 @@
 import type { CmsPublishingTask, CmsPublishArtifact, CmsPublishTargetType } from '@zenith/shared/cms';
 import { SEED_CMS_PUBLISH_ARTIFACTS, SEED_CMS_PUBLISH_TASKS } from '@zenith/shared/seed';
+import { nextIdFrom } from '@/mocks/utils/handlers';
 
 export const mockCmsPublishingTasks: CmsPublishingTask[] = SEED_CMS_PUBLISH_TASKS.map((item) => ({
   ...item,
@@ -27,6 +28,6 @@ export const mockCmsPublishArtifacts: CmsPublishArtifact[] = SEED_CMS_PUBLISH_AR
   error: null,
 }));
 
-let nextArtifactId = Math.max(...mockCmsPublishArtifacts.map((item) => item.id), 0) + 1;
+let nextArtifactId = nextIdFrom(mockCmsPublishArtifacts);
 
 export const getNextCmsPublishArtifactId = () => nextArtifactId++;

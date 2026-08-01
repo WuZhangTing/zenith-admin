@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, notFound, paginate } from '@/mocks/utils/handlers';
 import { mockEmailSendLogs, getNextEmailSendLogId } from '@/mocks/data/email-send-logs';
 import { mockEmailTemplates } from '@/mocks/data/email-templates';
 import { mockDateTime } from '@/mocks/utils/date';
@@ -11,8 +12,6 @@ export const emailSendLogsHandlers = [
     const toEmail = url.searchParams.get('toEmail') ?? '';
     const status = url.searchParams.get('status') ?? '';
     const source = url.searchParams.get('source') ?? '';
-    const page = Number(url.searchParams.get('page') ?? '1');
-    const pageSize = Number(url.searchParams.get('pageSize') ?? '20');
     const filtered = mockEmailSendLogs.filter((l) => {
       if (keyword && !l.subject.includes(keyword) && !l.toEmail.includes(keyword)) return false;
       if (toEmail && !l.toEmail.includes(toEmail)) return false;
@@ -20,22 +19,20 @@ export const emailSendLogsHandlers = [
       if (source && l.source !== source) return false;
       return true;
     });
-    const total = filtered.length;
-    const list = filtered.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
+    return ok(paginate(filtered, url, 20));
   }),
 
   http.get('/api/email-send-logs/:id', ({ params }) => {
     const l = mockEmailSendLogs.find((x) => x.id === Number(params.id));
-    if (!l) return HttpResponse.json({ code: 404, message: '记录不存在', data: null }, { status: 404 });
-    return HttpResponse.json({ code: 0, message: 'ok', data: l });
+    if (!l) return notFound('记录不存在', { status: 404 });
+    return ok(l);
   }),
 
   http.delete('/api/email-send-logs/:id', ({ params }) => {
     const idx = mockEmailSendLogs.findIndex((x) => x.id === Number(params.id));
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '记录不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('记录不存在', { status: 404 });
     mockEmailSendLogs.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 
   http.delete('/api/email-send-logs/batch', async ({ request }) => {
@@ -48,7 +45,7 @@ export const emailSendLogsHandlers = [
         count++;
       }
     }
-    return HttpResponse.json({ code: 0, message: `已删除 ${count} 条记录`, data: null });
+    return ok(null, `已删除 ${count} 条记录`);
   }),
 
   http.post('/api/email-send-logs/test', async ({ request }) => {
@@ -72,6 +69,6 @@ export const emailSendLogsHandlers = [
       createdAt: now,
     };
     mockEmailSendLogs.unshift(log);
-    return HttpResponse.json({ code: 0, message: '测试发送成功', data: { success: true, status: 'success', logId: log.id } });
+    return ok({ success: true, status: 'success', logId: log.id }, '测试发送成功');
   }),
 ];

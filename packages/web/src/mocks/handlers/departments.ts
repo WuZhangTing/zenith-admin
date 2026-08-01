@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, notFound } from '@/mocks/utils/handlers';
 import { mockDepartments, getNextDeptId } from '@/mocks/data/departments';
 import { mockUsers } from '@/mocks/data/users';
 import { mockDateTime } from '@/mocks/utils/date';
@@ -31,7 +32,7 @@ function buildDeptTree(list: Department[], parentId: number = 0): Department[] {
 export const departmentsHandlers = [
   // 部门平铺列表（供下拉框使用）
   http.get('/api/departments/flat', () => {
-    return HttpResponse.json({ code: 0, message: 'ok', data: mockDepartments.map(withLeaderName) });
+    return ok(mockDepartments.map(withLeaderName));
   }),
 
   // 部门树
@@ -39,16 +40,16 @@ export const departmentsHandlers = [
     const url = new URL(request.url);
     const flat = url.searchParams.get('flat');
     if (flat === 'true') {
-      return HttpResponse.json({ code: 0, message: 'ok', data: mockDepartments.map(withLeaderName) });
+      return ok(mockDepartments.map(withLeaderName));
     }
-    return HttpResponse.json({ code: 0, message: 'ok', data: buildDeptTree(mockDepartments) });
+    return ok(buildDeptTree(mockDepartments));
   }),
 
   // 获取单个部门
   http.get('/api/departments/:id', ({ params }) => {
     const dept = mockDepartments.find((d) => d.id === Number(params.id));
-    if (!dept) return HttpResponse.json({ code: 404, message: '部门不存在', data: null });
-    return HttpResponse.json({ code: 0, message: 'ok', data: dept });
+    if (!dept) return notFound('部门不存在');
+    return ok(dept);
   }),
 
   // 新增部门
@@ -67,23 +68,23 @@ export const departmentsHandlers = [
       updatedAt: mockDateTime(),
     };
     mockDepartments.push(newDept);
-    return HttpResponse.json({ code: 0, message: '新增成功', data: newDept });
+    return ok(newDept, '新增成功');
   }),
 
   // 更新部门
   http.put('/api/departments/:id', async ({ params, request }) => {
     const dept = mockDepartments.find((d) => d.id === Number(params.id));
-    if (!dept) return HttpResponse.json({ code: 404, message: '部门不存在', data: null });
+    if (!dept) return notFound('部门不存在');
     const body = await request.json() as Partial<Department>;
     Object.assign(dept, body, { updatedAt: mockDateTime() });
-    return HttpResponse.json({ code: 0, message: '更新成功', data: dept });
+    return ok(dept, '更新成功');
   }),
 
   // 删除部门
   http.delete('/api/departments/:id', ({ params }) => {
     const index = mockDepartments.findIndex((d) => d.id === Number(params.id));
-    if (index === -1) return HttpResponse.json({ code: 404, message: '部门不存在', data: null });
+    if (index === -1) return notFound('部门不存在');
     mockDepartments.splice(index, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 ];

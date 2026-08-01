@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, notFound } from '@/mocks/utils/handlers';
 import { mockDateTime } from '@/mocks/utils/date';
 
 const API = import.meta.env.VITE_API_BASE_URL || '';
@@ -52,7 +53,7 @@ ORDER BY user_count DESC;`,
 export const dbQueryFavoritesHandlers = [
   // 获取收藏夹列表
   http.get(`${API}/api/db-admin/query-favorites`, () => {
-    return HttpResponse.json({ code: 0, message: 'success', data: [...mockFavorites] });
+    return ok([...mockFavorites], 'success');
   }),
 
   // 新增收藏
@@ -69,7 +70,7 @@ export const dbQueryFavoritesHandlers = [
       updatedAt: now,
     };
     mockFavorites.push(newFav);
-    return HttpResponse.json({ code: 0, message: 'success', data: newFav }, { status: 201 });
+    return ok(newFav, 'success', { status: 201 });
   }),
 
   // 更新收藏
@@ -78,7 +79,7 @@ export const dbQueryFavoritesHandlers = [
     const body = await request.json() as Partial<{ name: string; sql: string; description?: string; tags?: string[] }>;
     const idx = mockFavorites.findIndex((f) => f.id === id);
     if (idx === -1) {
-      return HttpResponse.json({ code: 404, message: '收藏不存在', data: null }, { status: 404 });
+      return notFound('收藏不存在', { status: 404 });
     }
     const updated = {
       ...mockFavorites[idx],
@@ -86,7 +87,7 @@ export const dbQueryFavoritesHandlers = [
       updatedAt: mockDateTime(),
     };
     mockFavorites[idx] = updated;
-    return HttpResponse.json({ code: 0, message: 'success', data: updated });
+    return ok(updated, 'success');
   }),
 
   // 删除收藏
@@ -96,6 +97,6 @@ export const dbQueryFavoritesHandlers = [
     if (idx !== -1) {
       mockFavorites.splice(idx, 1);
     }
-    return HttpResponse.json({ code: 0, message: 'success', data: null });
+    return ok(null, 'success');
   }),
 ];

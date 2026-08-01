@@ -1,7 +1,7 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
 import { PAYMENT_MOCK_SEED_TIME, mockPaymentOrders, mockPaymentRefunds } from '@/mocks/data/payment';
 import { mockDateTime } from '@/mocks/utils/date';
-import { ok, notFound, paginate } from '@/mocks/utils/handlers';
+import { ok, badRequest, notFound, paginate } from '@/mocks/utils/handlers';
 import type { PaymentChannel, PaymentReconBatch, PaymentReconItem, PaymentReconResult, PaymentWebhookEndpoint, PaymentWebhookDelivery, PaymentLedgerEntry, PaymentOutboxEvent } from '@zenith/shared/payment';
 
 const SEED = PAYMENT_MOCK_SEED_TIME;
@@ -113,7 +113,7 @@ const reconHandlers = [
     for (const items of Object.values(reconItemsByBatch)) {
       const item = items.find((i) => i.id === Number(params.id));
       if (item) {
-        if (item.handleStatus !== 'pending') return HttpResponse.json({ code: 400, message: '该差异已被处理，请刷新后查看', data: null });
+        if (item.handleStatus !== 'pending') return badRequest('该差异已被处理，请刷新后查看');
         item.handleStatus = body.action;
         item.handleRemark = body.remark ?? null;
         item.handledAt = mockDateTime();
@@ -360,7 +360,7 @@ const opsHandlers = [
   http.post('/api/payment/ops/orders/:id/simulate-paid', ({ params }) => {
     const o = mockPaymentOrders.find((x) => x.id === Number(params.id));
     if (!o) return notFound('支付订单不存在');
-    if (o.status !== 'pending' && o.status !== 'paying') return HttpResponse.json({ code: 400, message: '仅待支付/支付中订单可模拟支付', data: null });
+    if (o.status !== 'pending' && o.status !== 'paying') return badRequest('仅待支付/支付中订单可模拟支付');
     o.status = 'success';
     o.paidAmount = o.amount;
     o.paidAt = mockDateTime();
@@ -375,7 +375,7 @@ const refundApprovalHandlers = [
   http.post('/api/payment/refunds/:id/approve', ({ params }) => {
     const r = mockPaymentRefunds.find((x) => x.id === Number(params.id));
     if (!r) return notFound('退款记录不存在');
-    if (r.approvalStatus !== 'pending') return HttpResponse.json({ code: 400, message: '该退款单无需审批或已处理', data: null });
+    if (r.approvalStatus !== 'pending') return badRequest('该退款单无需审批或已处理');
     r.approvalStatus = 'approved';
     r.approverId = 1;
     r.approvedAt = mockDateTime();
@@ -390,7 +390,7 @@ const refundApprovalHandlers = [
   http.post('/api/payment/refunds/:id/reject', async ({ params, request }) => {
     const r = mockPaymentRefunds.find((x) => x.id === Number(params.id));
     if (!r) return notFound('退款记录不存在');
-    if (r.approvalStatus !== 'pending') return HttpResponse.json({ code: 400, message: '该退款单无需审批或已处理', data: null });
+    if (r.approvalStatus !== 'pending') return badRequest('该退款单无需审批或已处理');
     const body = (await request.json().catch(() => ({}))) as { remark?: string };
     r.approvalStatus = 'rejected';
     r.approverId = 1;

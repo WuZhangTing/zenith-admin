@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, notFound, pageParams } from '@/mocks/utils/handlers';
 import { mockAnnouncements, getNextAnnouncementId } from '@/mocks/data/announcements';
 import { mockManagedFiles } from '@/mocks/handlers/files';
 import { mockDateTime } from '@/mocks/utils/date';
@@ -33,8 +34,7 @@ export const announcementsHandlers = [
   // 公告列表（分页）
   http.get('/api/announcements', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const keyword = url.searchParams.get('keyword') ?? '';
     const publishStatus = url.searchParams.get('publishStatus') ?? '';
     const type = url.searchParams.get('type') ?? '';
@@ -47,7 +47,7 @@ export const announcementsHandlers = [
     });
     const total = list.length;
     list = list.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
+    return ok({ list, total, page, pageSize });
   }),
 
   // 已发布公告列表（前台展示，无需鉴权）
@@ -57,14 +57,13 @@ export const announcementsHandlers = [
       .sort((a, b) => (b.publishTime ?? '').localeCompare(a.publishTime ?? ''))
       .slice(0, 20)
       .map((n) => ({ ...n, isRead: false }));
-    return HttpResponse.json({ code: 0, message: 'ok', data });
+    return ok(data);
   }),
 
   // 公告收件箱（分页，含已读状态 — Demo 模式已读状态不持久化，始终 false）
   http.get('/api/announcements/inbox', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const isReadFilter = url.searchParams.get('isRead');
 
     let list = mockAnnouncements
@@ -77,25 +76,25 @@ export const announcementsHandlers = [
 
     const total = list.length;
     const paged = list.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list: paged, total, page, pageSize } });
+    return ok({ list: paged, total, page, pageSize });
   }),
 
   // 未读公告数（Demo 模式：返回已发布公告总数，不持久化已读状态）
   http.get('/api/announcements/unread-count', () => {
     const count = mockAnnouncements.filter((n) => n.publishStatus === 'published').length;
-    return HttpResponse.json({ code: 0, message: 'ok', data: { count } });
+    return ok({ count });
   }),
 
   // 全部标记为已读（Demo 模式不持久化，直接返回成功）
   http.post('/api/announcements/read-all', () => {
-    return HttpResponse.json({ code: 0, message: 'ok', data: null });
+    return ok(null);
   }),
 
   // 获取单个公告
   http.get('/api/announcements/:id', ({ params }) => {
     const notice = mockAnnouncements.find((n) => n.id === Number(params.id));
-    if (!notice) return HttpResponse.json({ code: 404, message: '公告不存在', data: null });
-    return HttpResponse.json({ code: 0, message: 'ok', data: notice });
+    if (!notice) return notFound('公告不存在');
+    return ok(notice);
   }),
 
   // 新增公告
@@ -122,13 +121,13 @@ export const announcementsHandlers = [
       updatedAt: mockDateTime(),
     };
     mockAnnouncements.push(newNotice);
-    return HttpResponse.json({ code: 0, message: '新增成功', data: newNotice });
+    return ok(newNotice, '新增成功');
   }),
 
   // 更新公告
   http.put('/api/announcements/:id', async ({ params, request }) => {
     const notice = mockAnnouncements.find((n) => n.id === Number(params.id));
-    if (!notice) return HttpResponse.json({ code: 404, message: '公告不存在', data: null });
+    if (!notice) return notFound('公告不存在');
     const body = await request.json() as AnnouncementPayload;
     const { fileIds, ...announcementPatch } = body;
     Object.assign(notice, announcementPatch, { updatedAt: mockDateTime() });
@@ -138,26 +137,26 @@ export const announcementsHandlers = [
     if (Object.hasOwn(body, 'fileIds')) {
       notice.attachments = buildAnnouncementAttachments(fileIds);
     }
-    return HttpResponse.json({ code: 0, message: '更新成功', data: notice });
+    return ok(notice, '更新成功');
   }),
 
   // 发布公告
   http.put('/api/announcements/:id/publish', ({ params }) => {
     const notice = mockAnnouncements.find((n) => n.id === Number(params.id));
-    if (!notice) return HttpResponse.json({ code: 404, message: '公告不存在', data: null });
+    if (!notice) return notFound('公告不存在');
     notice.publishStatus = 'published';
     notice.publishTime = mockDateTime();
     notice.updatedAt = mockDateTime();
-    return HttpResponse.json({ code: 0, message: '发布成功', data: notice });
+    return ok(notice, '发布成功');
   }),
 
   // 撤回公告
   http.put('/api/announcements/:id/recall', ({ params }) => {
     const notice = mockAnnouncements.find((n) => n.id === Number(params.id));
-    if (!notice) return HttpResponse.json({ code: 404, message: '公告不存在', data: null });
+    if (!notice) return notFound('公告不存在');
     notice.publishStatus = 'recalled';
     notice.updatedAt = mockDateTime();
-    return HttpResponse.json({ code: 0, message: '撤回成功', data: notice });
+    return ok(notice, '撤回成功');
   }),
 
   // 批量删除公告
@@ -168,25 +167,24 @@ export const announcementsHandlers = [
       const index = mockAnnouncements.findIndex((n) => n.id === id);
       if (index !== -1) mockAnnouncements.splice(index, 1);
     });
-    return HttpResponse.json({ code: 0, message: `已删除 ${ids.length} 条公告`, data: null });
+    return ok(null, `已删除 ${ids.length} 条公告`);
   }),
 
   // 删除公告
   http.delete('/api/announcements/:id', ({ params }) => {
     const index = mockAnnouncements.findIndex((n) => n.id === Number(params.id));
-    if (index === -1) return HttpResponse.json({ code: 404, message: '公告不存在', data: null });
+    if (index === -1) return notFound('公告不存在');
     mockAnnouncements.splice(index, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 
   // 已读统计详情（管理视角）
   http.get('/api/announcements/:id/read-stats', ({ params, request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const tab = url.searchParams.get('tab') === 'unread' ? 'unread' : 'read';
     const notice = mockAnnouncements.find((n) => n.id === Number(params.id));
-    if (!notice) return HttpResponse.json({ code: 404, message: '公告不存在', data: null });
+    if (!notice) return notFound('公告不存在');
 
     // 模拟已读和未读用户列表
     const mockReadUsers = [
@@ -213,14 +211,11 @@ export const announcementsHandlers = [
     const total = list.length;
     const paged = list.slice((page - 1) * pageSize, page * pageSize);
 
-    return HttpResponse.json({
-      code: 0, message: 'ok',
-      data: { readCount, totalCount, list: paged, total, page, pageSize },
-    });
+    return ok({ readCount, totalCount, list: paged, total, page, pageSize });
   }),
 
   // 标记公告已读
   http.post('/api/announcements/:id/read', () => {
-    return HttpResponse.json({ code: 0, message: 'ok', data: null });
+    return ok(null);
   }),
 ];

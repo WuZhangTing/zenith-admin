@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, notFound } from '@/mocks/utils/handlers';
 import type { AiAgent, AiHttpTool, AiToolInfo, AiEvalSet, AiEvalRun } from '@zenith/shared/ai';
 import { mockDateTime } from '../utils/date';
 
@@ -116,41 +117,41 @@ const evalRunStore: AiEvalRun[] = [
 export const aiP3Handlers = [
   // ── 智能体 ──
   http.get('/api/ai/agents/market', () =>
-    HttpResponse.json({ code: 0, message: 'ok', data: agentStore.filter((a) => a.status === 'published' && a.isEnabled) })),
+    ok(agentStore.filter((a) => a.status === 'published' && a.isEnabled))),
   http.get('/api/ai/agents/pending', () =>
-    HttpResponse.json({ code: 0, message: 'ok', data: agentStore.filter((a) => a.status === 'pending') })),
+    ok(agentStore.filter((a) => a.status === 'pending'))),
   http.get('/api/ai/agents/:id', ({ params }) => {
     const agent = agentStore.find((a) => a.id === Number(params.id));
-    if (!agent) return HttpResponse.json({ code: 404, message: '智能体不存在', data: null }, { status: 404 });
-    return HttpResponse.json({ code: 0, message: 'ok', data: agent });
+    if (!agent) return notFound('智能体不存在', { status: 404 });
+    return ok(agent);
   }),
-  http.get('/api/ai/agents', () => HttpResponse.json({ code: 0, message: 'ok', data: agentStore })),
+  http.get('/api/ai/agents', () => ok(agentStore)),
   http.post('/api/ai/agents/:id/publish', ({ params }) => {
     const agent = agentStore.find((a) => a.id === Number(params.id));
-    if (!agent) return HttpResponse.json({ code: 404, message: '智能体不存在', data: null }, { status: 404 });
+    if (!agent) return notFound('智能体不存在', { status: 404 });
     agent.status = 'pending';
-    return HttpResponse.json({ code: 0, message: '已提交审核', data: agent });
+    return ok(agent, '已提交审核');
   }),
   http.post('/api/ai/agents/:id/unpublish', ({ params }) => {
     const agent = agentStore.find((a) => a.id === Number(params.id));
-    if (!agent) return HttpResponse.json({ code: 404, message: '智能体不存在', data: null }, { status: 404 });
+    if (!agent) return notFound('智能体不存在', { status: 404 });
     agent.status = 'private';
-    return HttpResponse.json({ code: 0, message: '已撤回', data: agent });
+    return ok(agent, '已撤回');
   }),
   http.post('/api/ai/agents/:id/review', async ({ params, request }) => {
     const agent = agentStore.find((a) => a.id === Number(params.id));
-    if (!agent) return HttpResponse.json({ code: 404, message: '智能体不存在', data: null }, { status: 404 });
+    if (!agent) return notFound('智能体不存在', { status: 404 });
     const body = await request.json() as { approve?: boolean };
     agent.status = body.approve ? 'published' : 'rejected';
-    return HttpResponse.json({ code: 0, message: body.approve ? '已通过上架' : '已驳回', data: agent });
+    return ok(agent, body.approve ? '已通过上架' : '已驳回');
   }),
   http.post('/api/ai/agents/:id/clone', ({ params }) => {
     const src = agentStore.find((a) => a.id === Number(params.id));
-    if (!src) return HttpResponse.json({ code: 404, message: '智能体不存在', data: null }, { status: 404 });
+    if (!src) return notFound('智能体不存在', { status: 404 });
     const now = mockDateTime();
     const cloned: AiAgent = { ...src, id: nextAgentId++, name: `${src.name} 副本`, status: 'private', clonedFromId: src.id, usageCount: 0, knowledgeBaseId: null, createdAt: now, updatedAt: now };
     agentStore.unshift(cloned);
-    return HttpResponse.json({ code: 0, message: '克隆成功', data: cloned });
+    return ok(cloned, '克隆成功');
   }),
   http.post('/api/ai/agents', async ({ request }) => {
     const body = await request.json() as Partial<AiAgent>;
@@ -178,30 +179,26 @@ export const aiP3Handlers = [
       updatedAt: now,
     };
     agentStore.unshift(agent);
-    return HttpResponse.json({ code: 0, message: '创建成功', data: agent });
+    return ok(agent, '创建成功');
   }),
   http.put('/api/ai/agents/:id', async ({ params, request }) => {
     const agent = agentStore.find((a) => a.id === Number(params.id));
-    if (!agent) return HttpResponse.json({ code: 404, message: '智能体不存在', data: null }, { status: 404 });
+    if (!agent) return notFound('智能体不存在', { status: 404 });
     const body = await request.json() as Partial<AiAgent>;
     Object.assign(agent, body, { updatedAt: mockDateTime() });
-    return HttpResponse.json({ code: 0, message: '更新成功', data: agent });
+    return ok(agent, '更新成功');
   }),
   http.delete('/api/ai/agents/:id', ({ params }) => {
     const idx = agentStore.findIndex((a) => a.id === Number(params.id));
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '智能体不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('智能体不存在', { status: 404 });
     agentStore.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 
   // ── HTTP 工具 ──
   http.get('/api/ai/http-tools/available', () =>
-    HttpResponse.json({
-      code: 0,
-      message: 'ok',
-      data: [...BUILTIN_TOOLS, ...toolStore.filter((t) => t.isEnabled).map((t) => ({ name: t.name, description: t.description, source: 'http' as const }))],
-    })),
-  http.get('/api/ai/http-tools', () => HttpResponse.json({ code: 0, message: 'ok', data: toolStore })),
+    ok([...BUILTIN_TOOLS, ...toolStore.filter((t) => t.isEnabled).map((t) => ({ name: t.name, description: t.description, source: 'http' as const }))])),
+  http.get('/api/ai/http-tools', () => ok(toolStore)),
   http.post('/api/ai/http-tools', async ({ request }) => {
     const body = await request.json() as Partial<AiHttpTool>;
     const now = mockDateTime();
@@ -218,27 +215,27 @@ export const aiP3Handlers = [
       updatedAt: now,
     };
     toolStore.unshift(tool);
-    return HttpResponse.json({ code: 0, message: '创建成功', data: tool });
+    return ok(tool, '创建成功');
   }),
   http.put('/api/ai/http-tools/:id', async ({ params, request }) => {
     const tool = toolStore.find((t) => t.id === Number(params.id));
-    if (!tool) return HttpResponse.json({ code: 404, message: '工具不存在', data: null }, { status: 404 });
+    if (!tool) return notFound('工具不存在', { status: 404 });
     const body = await request.json() as Partial<AiHttpTool>;
     Object.assign(tool, body, { updatedAt: mockDateTime() });
-    return HttpResponse.json({ code: 0, message: '更新成功', data: tool });
+    return ok(tool, '更新成功');
   }),
   http.delete('/api/ai/http-tools/:id', ({ params }) => {
     const idx = toolStore.findIndex((t) => t.id === Number(params.id));
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '工具不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('工具不存在', { status: 404 });
     toolStore.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 
   // ── 评测 ──
-  http.get('/api/ai/eval/sets', () => HttpResponse.json({ code: 0, message: 'ok', data: evalSetStore })),
+  http.get('/api/ai/eval/sets', () => ok(evalSetStore)),
   http.post('/api/ai/eval/sets/:id/run', ({ params }) => {
     const set = evalSetStore.find((s) => s.id === Number(params.id));
-    if (!set) return HttpResponse.json({ code: 404, message: '评测集不存在', data: null }, { status: 404 });
+    if (!set) return notFound('评测集不存在', { status: 404 });
     const now = mockDateTime();
     const run: AiEvalRun = {
       id: nextEvalRunId++,
@@ -260,14 +257,10 @@ export const aiP3Handlers = [
       createdAt: now,
     };
     evalRunStore.unshift(run);
-    return HttpResponse.json({
-      code: 0,
-      message: '评测任务已提交',
-      data: {
-        run,
-        task: { id: Date.now(), taskType: 'ai-eval-run', title: `AI 评测：${set.name}`, module: '智能助手', status: 'succeeded', payload: { runId: run.id }, totalCount: set.items.length, processedCount: set.items.length, failedCount: 0, progressNote: null, result: null, errorMessage: null, cancelRequested: false, attempts: 1, maxAttempts: 1, nextRunAt: null, createdBy: 1, createdByName: '管理员', tenantId: null, startedAt: now, completedAt: now, createdAt: now, updatedAt: now },
-      },
-    });
+    return ok({
+      run,
+      task: { id: Date.now(), taskType: 'ai-eval-run', title: `AI 评测：${set.name}`, module: '智能助手', status: 'succeeded', payload: { runId: run.id }, totalCount: set.items.length, processedCount: set.items.length, failedCount: 0, progressNote: null, result: null, errorMessage: null, cancelRequested: false, attempts: 1, maxAttempts: 1, nextRunAt: null, createdBy: 1, createdByName: '管理员', tenantId: null, startedAt: now, completedAt: now, createdAt: now, updatedAt: now },
+    }, '评测任务已提交');
   }),
   http.post('/api/ai/eval/sets', async ({ request }) => {
     const body = await request.json() as Partial<AiEvalSet>;
@@ -281,36 +274,36 @@ export const aiP3Handlers = [
       updatedAt: now,
     };
     evalSetStore.unshift(set);
-    return HttpResponse.json({ code: 0, message: '创建成功', data: set });
+    return ok(set, '创建成功');
   }),
   http.put('/api/ai/eval/sets/:id', async ({ params, request }) => {
     const set = evalSetStore.find((s) => s.id === Number(params.id));
-    if (!set) return HttpResponse.json({ code: 404, message: '评测集不存在', data: null }, { status: 404 });
+    if (!set) return notFound('评测集不存在', { status: 404 });
     const body = await request.json() as Partial<AiEvalSet>;
     Object.assign(set, body, { updatedAt: mockDateTime() });
-    return HttpResponse.json({ code: 0, message: '更新成功', data: set });
+    return ok(set, '更新成功');
   }),
   http.delete('/api/ai/eval/sets/:id', ({ params }) => {
     const idx = evalSetStore.findIndex((s) => s.id === Number(params.id));
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '评测集不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('评测集不存在', { status: 404 });
     evalSetStore.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
   http.get('/api/ai/eval/runs/:id', ({ params }) => {
     const run = evalRunStore.find((r) => r.id === Number(params.id));
-    if (!run) return HttpResponse.json({ code: 404, message: '评测运行不存在', data: null }, { status: 404 });
-    return HttpResponse.json({ code: 0, message: 'ok', data: run });
+    if (!run) return notFound('评测运行不存在', { status: 404 });
+    return ok(run);
   }),
   http.get('/api/ai/eval/runs', ({ request }) => {
     const url = new URL(request.url);
     const setId = url.searchParams.get('setId');
     const list = setId ? evalRunStore.filter((r) => r.setId === Number(setId)) : evalRunStore;
-    return HttpResponse.json({ code: 0, message: 'ok', data: list });
+    return ok(list);
   }),
   http.delete('/api/ai/eval/runs/:id', ({ params }) => {
     const idx = evalRunStore.findIndex((r) => r.id === Number(params.id));
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '评测运行不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('评测运行不存在', { status: 404 });
     evalRunStore.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 ];

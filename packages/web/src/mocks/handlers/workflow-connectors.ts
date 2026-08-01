@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw';
+import { notFound, pageParams } from '@/mocks/utils/handlers';
 import { mockWorkflowConnectors, getNextConnectorId } from '../data/workflow-connectors';
 import { mockDateTime, mockDateTimeOffset } from '../utils/date';
 import type { WorkflowConnector, WorkflowConnectorInvocation } from '@zenith/shared/workflow';
@@ -17,8 +18,7 @@ export const workflowConnectorsHandlers = [
   // 分页列表
   http.get('/api/workflows/connectors', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const keyword = url.searchParams.get('keyword') || '';
     const type = url.searchParams.get('type') || '';
     const status = url.searchParams.get('status') || '';
@@ -38,7 +38,7 @@ export const workflowConnectorsHandlers = [
   // 调用统计（demo）
   http.get('/api/workflows/connectors/:id/stats', ({ params, request }) => {
     const exists = mockWorkflowConnectors.some((x) => x.id === Number(params.id));
-    if (!exists) return HttpResponse.json({ code: 404, message: '连接器不存在', data: null }, { status: 404 });
+    if (!exists) return notFound('连接器不存在', { status: 404 });
     const days = Number(new URL(request.url).searchParams.get('days')) || 7;
     const total = 128;
     const success = 121;
@@ -51,7 +51,7 @@ export const workflowConnectorsHandlers = [
   // 最近调用记录（demo）
   http.get('/api/workflows/connectors/:id/invocations', ({ params, request }) => {
     const exists = mockWorkflowConnectors.some((x) => x.id === Number(params.id));
-    if (!exists) return HttpResponse.json({ code: 404, message: '连接器不存在', data: null }, { status: 404 });
+    if (!exists) return notFound('连接器不存在', { status: 404 });
     const limit = Number(new URL(request.url).searchParams.get('limit')) || 20;
     const sources: WorkflowConnectorInvocation['source'][] = ['test', 'trigger', 'external', 'webhook'];
     const rows: WorkflowConnectorInvocation[] = Array.from({ length: Math.min(limit, 12) }, (_, i) => {
@@ -70,7 +70,7 @@ export const workflowConnectorsHandlers = [
   // 详情
   http.get('/api/workflows/connectors/:id', ({ params }) => {
     const item = mockWorkflowConnectors.find((x) => x.id === Number(params.id));
-    if (!item) return HttpResponse.json({ code: 404, message: '连接器不存在', data: null }, { status: 404 });
+    if (!item) return notFound('连接器不存在', { status: 404 });
     return HttpResponse.json({ code: 0, message: 'ok', data: item });
   }),
 
@@ -95,7 +95,7 @@ export const workflowConnectorsHandlers = [
     const id = Number(params.id);
     const body = (await request.json()) as ConnectorBody;
     const idx = mockWorkflowConnectors.findIndex((x) => x.id === id);
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '连接器不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('连接器不存在', { status: 404 });
     const cur = mockWorkflowConnectors[idx];
     const next: WorkflowConnector = {
       ...cur,
@@ -123,7 +123,7 @@ export const workflowConnectorsHandlers = [
   // 删除
   http.delete('/api/workflows/connectors/:id', ({ params }) => {
     const idx = mockWorkflowConnectors.findIndex((x) => x.id === Number(params.id));
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '连接器不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('连接器不存在', { status: 404 });
     mockWorkflowConnectors.splice(idx, 1);
     return HttpResponse.json({ code: 0, message: '删除成功', data: null });
   }),

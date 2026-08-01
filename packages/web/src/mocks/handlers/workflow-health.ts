@@ -1,11 +1,8 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok } from '@/mocks/utils/handlers';
 import type { WorkflowHealthIssue, WorkflowHealthSummary } from '@zenith/shared/workflow';
 import { mockWorkflowInstances, mockWorkflowTasks } from '@/mocks/data/workflow';
 import { mockDateTime } from '@/mocks/utils/date';
-
-function ok<T>(data: T, message = 'ok') {
-  return HttpResponse.json({ code: 0, message, data });
-}
 
 function minutesAgoText(minutes: number): string {
   const d = new Date(Date.now() - minutes * 60_000);

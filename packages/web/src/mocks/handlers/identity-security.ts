@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, paginate } from '@/mocks/utils/handlers';
 import type { LoginRiskEvent } from '@zenith/shared/identity';
 import type { IdentitySecurityPolicy } from '@zenith/shared/platform';
 import { mockDateTime } from '../utils/date';
@@ -28,26 +29,20 @@ const riskEvents: LoginRiskEvent[] = [
 
 export const identitySecurityHandlers = [
   http.get('/api/identity-security/policy', () => {
-    return HttpResponse.json({ code: 0, message: 'ok', data: policy });
+    return ok(policy);
   }),
 
   http.put('/api/identity-security/policy', async ({ request }) => {
     policy = await request.json() as IdentitySecurityPolicy;
-    return HttpResponse.json({ code: 0, message: '更新成功', data: policy });
+    return ok(policy, '更新成功');
   }),
 
   http.get('/api/identity-security/risk-events', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
     const keyword = url.searchParams.get('keyword') || '';
     const list = keyword
       ? riskEvents.filter((item) => item.username.includes(keyword) || item.reason.includes(keyword) || (item.ip ?? '').includes(keyword))
       : riskEvents;
-    return HttpResponse.json({
-      code: 0,
-      message: 'ok',
-      data: { list: list.slice((page - 1) * pageSize, page * pageSize), total: list.length, page, pageSize },
-    });
+    return ok(paginate(list, url));
   }),
 ];

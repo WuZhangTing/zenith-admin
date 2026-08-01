@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound, pageParams } from '@/mocks/utils/handlers';
 import type { SystemSchedulerNode, SystemSchedulerRun, SystemSchedulerTask } from '@zenith/shared/platform';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 
@@ -283,13 +284,12 @@ const runs: SystemSchedulerRun[] = [
 
 export const systemSchedulerHandlers = [
   http.get('/api/system-scheduler/tasks', () => {
-    return HttpResponse.json({ code: 0, message: 'ok', data: tasks });
+    return ok(tasks);
   }),
 
   http.get('/api/system-scheduler/runs', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 20;
+    const { page, pageSize } = pageParams(url, 20);
     const taskName = url.searchParams.get('taskName') ?? '';
     const taskType = url.searchParams.get('taskType') ?? '';
     const triggerType = url.searchParams.get('triggerType') ?? '';
@@ -309,42 +309,41 @@ export const systemSchedulerHandlers = [
       .filter((item) => !endTime || item.startedAt <= endTime)
       .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
     const list = filtered.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total: filtered.length, page, pageSize } });
+    return ok({ list, total: filtered.length, page, pageSize });
   }),
 
   http.get('/api/system-scheduler/runs/:id', ({ params }) => {
     const id = Number(params.id);
     const run = runs.find((item) => item.id === id);
-    if (!run) return HttpResponse.json({ code: 404, message: '运行日志不存在', data: null });
-    return HttpResponse.json({ code: 0, message: 'ok', data: run });
+    if (!run) return notFound('运行日志不存在');
+    return ok(run);
   }),
 
   http.post('/api/system-scheduler/runs/:id/ack-alert', ({ params }) => {
     const id = Number(params.id);
     const run = runs.find((item) => item.id === id);
-    if (!run) return HttpResponse.json({ code: 404, message: '运行日志不存在', data: null });
-    if (!run.alertMessage) return HttpResponse.json({ code: 400, message: '该运行日志没有告警', data: null });
+    if (!run) return notFound('运行日志不存在');
+    if (!run.alertMessage) return badRequest('该运行日志没有告警');
     run.alertAckAt = mockDateTime();
     run.alertAckBy = 1;
     run.alertAckByName = '管理员';
     run.alertAckNote = null;
-    return HttpResponse.json({ code: 0, message: 'ok', data: run });
+    return ok(run);
   }),
 
   http.get('/api/system-scheduler/nodes', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const list = nodes.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total: nodes.length, page, pageSize } });
+    return ok({ list, total: nodes.length, page, pageSize });
   }),
 
   http.post('/api/system-scheduler/tasks/:name/run', ({ params }) => {
     const name = String(params.name);
     const task = tasks.find((item) => item.name === name);
-    if (!task) return HttpResponse.json({ code: 404, message: '系统周期任务不存在或尚未注册', data: null });
-    if (!task.allowManualRun) return HttpResponse.json({ code: 400, message: '该系统周期任务不允许手动执行', data: null });
-    if (task.running && task.manualSingleton) return HttpResponse.json({ code: 400, message: '该系统周期任务已有运行中的实例，请稍后再试', data: null });
+    if (!task) return notFound('系统周期任务不存在或尚未注册');
+    if (!task.allowManualRun) return badRequest('该系统周期任务不允许手动执行');
+    if (task.running && task.manualSingleton) return badRequest('该系统周期任务已有运行中的实例，请稍后再试');
 
     const startedAt = mockDateTime();
     const runId = nextRunId++;
@@ -370,13 +369,13 @@ export const systemSchedulerHandlers = [
     task.lastRunMessage = '手动执行已投递，等待后台 worker 处理';
     task.lastDurationMs = null;
     task.totalRuns += 1;
-    return HttpResponse.json({ code: 0, message: '执行完成', data: { message: `任务已投递后台执行，运行日志 #${runId} 可跟踪结果`, runId, jobId: `mock-manual-${runId}` } });
+    return ok({ message: `任务已投递后台执行，运行日志 #${runId} 可跟踪结果`, runId, jobId: `mock-manual-${runId}` }, '执行完成');
   }),
 
   http.put('/api/system-scheduler/tasks/:name/config', async ({ params, request }) => {
     const name = String(params.name);
     const task = tasks.find((item) => item.name === name);
-    if (!task) return HttpResponse.json({ code: 404, message: '系统调度任务不存在或尚未注册', data: null });
+    if (!task) return notFound('系统调度任务不存在或尚未注册');
     const body = await request.json() as Partial<SystemSchedulerTask>;
     task.enabled = task.taskType === 'queue' ? true : Boolean(body.enabled);
     task.logRetentionDays = Number(body.logRetentionDays ?? task.logRetentionDays);
@@ -389,23 +388,19 @@ export const systemSchedulerHandlers = [
     task.alertEmails = body.alertEmails ?? task.alertEmails;
     task.alertWebhookUrl = body.alertWebhookUrl ?? task.alertWebhookUrl;
     task.manualSingleton = Boolean(body.manualSingleton);
-    return HttpResponse.json({
-      code: 0,
-      message: 'ok',
-      data: {
-        taskName: task.name,
-        enabled: task.enabled,
-        logRetentionDays: task.logRetentionDays,
-        logRetentionRuns: task.logRetentionRuns,
-        timeoutMs: task.timeoutMs,
-        failureAlertThreshold: task.failureAlertThreshold,
-        alertEnabled: task.alertEnabled,
-        alertChannels: task.alertChannels,
-        alertUserIds: task.alertUserIds,
-        alertEmails: task.alertEmails,
-        alertWebhookUrl: task.alertWebhookUrl,
-        manualSingleton: task.manualSingleton,
-      },
+    return ok({
+      taskName: task.name,
+      enabled: task.enabled,
+      logRetentionDays: task.logRetentionDays,
+      logRetentionRuns: task.logRetentionRuns,
+      timeoutMs: task.timeoutMs,
+      failureAlertThreshold: task.failureAlertThreshold,
+      alertEnabled: task.alertEnabled,
+      alertChannels: task.alertChannels,
+      alertUserIds: task.alertUserIds,
+      alertEmails: task.alertEmails,
+      alertWebhookUrl: task.alertWebhookUrl,
+      manualSingleton: task.manualSingleton,
     });
   }),
 
@@ -419,16 +414,12 @@ export const systemSchedulerHandlers = [
         if (runs[i].taskName === taskName && !keep.includes(runs[i])) runs.splice(i, 1);
       }
     }
-    return HttpResponse.json({
-      code: 0,
-      message: '清理完成',
-      data: {
-        message: `清理完成：按时间删除 ${before - runs.length} 条，按数量删除 0 条`,
-        deletedByAge: before - runs.length,
-        deletedByCount: 0,
-        totalBefore: before,
-        totalAfter: runs.length,
-      },
-    });
+    return ok({
+      message: `清理完成：按时间删除 ${before - runs.length} 条，按数量删除 0 条`,
+      deletedByAge: before - runs.length,
+      deletedByCount: 0,
+      totalBefore: before,
+      totalAfter: runs.length,
+    }, '清理完成');
   }),
 ];

@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, notFound } from '@/mocks/utils/handlers';
 import { mockUsers } from '@/mocks/data/users';
 import { mockRoles } from '@/mocks/data/roles';
 import { mockUserGroups } from '@/mocks/data/user-groups';
@@ -37,7 +38,7 @@ export const userPermissionsHandlers = [
   http.get('/api/users/:id/menus', ({ params }) => {
     const userId = Number(params.id);
     const user = mockUsers.find((u) => u.id === userId);
-    if (!user) return HttpResponse.json({ code: 404, message: '用户不存在', data: null });
+    if (!user) return notFound('用户不存在');
 
     const directMenuIds = userMenuMap[userId] ?? [];
     const userRoleIds = (user as { roleIds?: number[] }).roleIds ?? [];
@@ -45,10 +46,7 @@ export const userPermissionsHandlers = [
     for (const role of mockRoles.filter((r) => userRoleIds.includes(r.id))) {
       for (const id of (role.menuIds ?? [])) roleMenuIdSet.add(id);
     }
-    return HttpResponse.json({
-      code: 0, message: 'ok',
-      data: { directMenuIds, roleMenuIds: [...roleMenuIdSet] },
-    });
+    return ok({ directMenuIds, roleMenuIds: [...roleMenuIdSet] });
   }),
 
   // PUT /api/users/:id/menus — 分配用户菜单权限
@@ -56,14 +54,14 @@ export const userPermissionsHandlers = [
     const userId = Number(params.id);
     const body = await request.json() as { menuIds: number[] };
     userMenuMap[userId] = body.menuIds ?? [];
-    return HttpResponse.json({ code: 0, message: '保存成功', data: null });
+    return ok(null, '保存成功');
   }),
 
   // GET /api/users/:id/data-permission — 用户数据权限
   http.get('/api/users/:id/data-permission', ({ params }) => {
     const userId = Number(params.id);
     const user = mockUsers.find((u) => u.id === userId);
-    if (!user) return HttpResponse.json({ code: 404, message: '用户不存在', data: null });
+    if (!user) return notFound('用户不存在');
 
     const userRoleIds = (user as { roleIds?: number[] }).roleIds ?? [];
     const userRoles = mockRoles.filter((r) => userRoleIds.includes(r.id));
@@ -73,17 +71,14 @@ export const userPermissionsHandlers = [
     )];
     const { groupDataScope, groupDeptScopeIds, groups } = getGroupInheritance(userId);
 
-    return HttpResponse.json({
-      code: 0, message: 'ok',
-      data: {
-        userDataScope: userDataScopeMap[userId] ?? null,
-        deptScopeIds: userDeptScopeMap[userId] ?? [],
-        roleDataScope,
-        roleDeptScopeIds,
-        groupDataScope,
-        groupDeptScopeIds,
-        groups,
-      },
+    return ok({
+      userDataScope: userDataScopeMap[userId] ?? null,
+      deptScopeIds: userDeptScopeMap[userId] ?? [],
+      roleDataScope,
+      roleDeptScopeIds,
+      groupDataScope,
+      groupDeptScopeIds,
+      groups,
     });
   }),
 
@@ -93,14 +88,14 @@ export const userPermissionsHandlers = [
     const body = await request.json() as { dataScope: string | null; deptScopeIds: number[] };
     userDataScopeMap[userId] = body.dataScope ?? null;
     userDeptScopeMap[userId] = body.dataScope === 'custom' ? (body.deptScopeIds ?? []) : [];
-    return HttpResponse.json({ code: 0, message: '保存成功', data: null });
+    return ok(null, '保存成功');
   }),
 
   // GET /api/users/:id/effective-permissions — 最终有效权限
   http.get('/api/users/:id/effective-permissions', ({ params }) => {
     const userId = Number(params.id);
     const user = mockUsers.find((u) => u.id === userId);
-    if (!user) return HttpResponse.json({ code: 404, message: '用户不存在', data: null });
+    if (!user) return notFound('用户不存在');
 
     const userRoleIds = (user as { roleIds?: number[] }).roleIds ?? [];
     const userRoles = mockRoles.filter((r) => userRoleIds.includes(r.id));
@@ -123,23 +118,20 @@ export const userPermissionsHandlers = [
         ? [...new Set([...(userDataScope === 'custom' ? userDeptScopeIds : []), ...roleDeptScopeIds, ...groupDeptScopeIds])]
         : [];
 
-    return HttpResponse.json({
-      code: 0, message: 'ok',
-      data: {
-        directMenuIds,
-        roleMenuIds,
-        groupMenuIds,
-        effectiveMenuIds,
-        userDataScope,
-        roleDataScope,
-        groupDataScope,
-        effectiveDataScope,
-        userDeptScopeIds,
-        roleDeptScopeIds,
-        groupDeptScopeIds,
-        effectiveDeptScopeIds,
-        groups,
-      },
+    return ok({
+      directMenuIds,
+      roleMenuIds,
+      groupMenuIds,
+      effectiveMenuIds,
+      userDataScope,
+      roleDataScope,
+      groupDataScope,
+      effectiveDataScope,
+      userDeptScopeIds,
+      roleDeptScopeIds,
+      groupDeptScopeIds,
+      effectiveDeptScopeIds,
+      groups,
     });
   }),
 ];

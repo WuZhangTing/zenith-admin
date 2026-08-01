@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, notFound, pageParams, nextIdFrom } from '@/mocks/utils/handlers';
 import { mockSystemConfigs } from '@/mocks/data/system';
 import { mockDateTime } from '@/mocks/utils/date';
 import type { SystemConfig } from '@zenith/shared/platform';
@@ -6,18 +7,13 @@ import type { SystemConfig } from '@zenith/shared/platform';
 export const systemConfigsHandlers = [
   // 密码策略（公开，无需鉴权）
   http.get('/api/system-configs/password-policy', () => {
-    return HttpResponse.json({
-      code: 0,
-      message: 'success',
-      data: { minLength: 6, requireUppercase: false, requireSpecialChar: false },
-    });
+    return ok({ minLength: 6, requireUppercase: false, requireSpecialChar: false }, 'success');
   }),
 
   // 系统参数列表
   http.get('/api/system-configs', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const keyword = url.searchParams.get('keyword') ?? '';
     const configType = url.searchParams.get('configType') ?? '';
     const keysParam = url.searchParams.get('keys') ?? '';
@@ -26,7 +22,7 @@ export const systemConfigsHandlers = [
     if (keysParam) {
       const keyList = keysParam.split(',').map((k) => k.trim()).filter(Boolean);
       const list = mockSystemConfigs.filter((c) => keyList.includes(c.configKey));
-      return HttpResponse.json({ code: 0, message: 'ok', data: { list, total: list.length, page: 1, pageSize: list.length } });
+      return ok({ list, total: list.length, page: 1, pageSize: list.length });
     }
 
     let list = mockSystemConfigs.filter((c) => {
@@ -36,28 +32,28 @@ export const systemConfigsHandlers = [
     });
     const total = list.length;
     list = list.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
+    return ok({ list, total, page, pageSize });
   }),
 
   // 通过 key 查询公开配置（无需鉴权）
   http.get('/api/system-configs/public/:key', ({ params }) => {
     const config = mockSystemConfigs.find((c) => c.configKey === params.key);
-    if (!config) return HttpResponse.json({ code: 404, message: '配置不存在', data: null });
-    return HttpResponse.json({ code: 0, message: 'ok', data: config });
+    if (!config) return notFound('配置不存在');
+    return ok(config);
   }),
 
   // 获取单个配置
   http.get('/api/system-configs/:id', ({ params }) => {
     const config = mockSystemConfigs.find((c) => c.id === Number(params.id));
-    if (!config) return HttpResponse.json({ code: 404, message: '配置不存在', data: null });
-    return HttpResponse.json({ code: 0, message: 'ok', data: config });
+    if (!config) return notFound('配置不存在');
+    return ok(config);
   }),
 
   // 新增配置
   http.post('/api/system-configs', async ({ request }) => {
     const body = await request.json() as Partial<SystemConfig>;
     const newConfig: SystemConfig = {
-      id: mockSystemConfigs.length > 0 ? Math.max(...mockSystemConfigs.map((c) => c.id)) + 1 : 1,
+      id: nextIdFrom(mockSystemConfigs),
       configKey: body.configKey ?? '',
       configValue: body.configValue ?? '',
       configType: body.configType ?? 'string',
@@ -66,23 +62,23 @@ export const systemConfigsHandlers = [
       updatedAt: mockDateTime(),
     };
     mockSystemConfigs.push(newConfig);
-    return HttpResponse.json({ code: 0, message: '新增成功', data: newConfig });
+    return ok(newConfig, '新增成功');
   }),
 
   // 更新配置
   http.put('/api/system-configs/:id', async ({ params, request }) => {
     const config = mockSystemConfigs.find((c) => c.id === Number(params.id));
-    if (!config) return HttpResponse.json({ code: 404, message: '配置不存在', data: null });
+    if (!config) return notFound('配置不存在');
     const body = await request.json() as Partial<SystemConfig>;
     Object.assign(config, body, { updatedAt: mockDateTime() });
-    return HttpResponse.json({ code: 0, message: '更新成功', data: config });
+    return ok(config, '更新成功');
   }),
 
   // 删除配置
   http.delete('/api/system-configs/:id', ({ params }) => {
     const index = mockSystemConfigs.findIndex((c) => c.id === Number(params.id));
-    if (index === -1) return HttpResponse.json({ code: 404, message: '配置不存在', data: null });
+    if (index === -1) return notFound('配置不存在');
     mockSystemConfigs.splice(index, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 ];

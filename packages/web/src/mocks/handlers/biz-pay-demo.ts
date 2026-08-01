@@ -1,11 +1,9 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound, pageParams } from '@/mocks/utils/handlers';
 import type { BizPayDemo } from '@zenith/shared/biz';
 import type { CreatePaymentResult, PaymentChannel, PaymentMethod } from '@zenith/shared/payment';
 import { mockBizPayDemos, getNextPayDemoId } from '@/mocks/data/biz-pay-demo';
 import { mockDateTime } from '@/mocks/utils/date';
-
-const ok = (data: unknown, message = 'ok') => HttpResponse.json({ code: 0, message, data });
-const err = (message: string, code = 400) => HttpResponse.json({ code, message, data: null });
 
 const channelOf = (m: PaymentMethod): PaymentChannel => (m.startsWith('wechat') ? 'wechat' : 'alipay');
 
@@ -13,8 +11,7 @@ export const bizPayDemoHandlers = [
   // 列表
   http.get('/api/biz/pay-demos', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page') ?? 1);
-    const pageSize = Number(url.searchParams.get('pageSize') ?? 10);
+    const { page, pageSize } = pageParams(url);
     const status = url.searchParams.get('status') ?? '';
     const keyword = (url.searchParams.get('keyword') ?? '').trim().toLowerCase();
     let list = [...mockBizPayDemos].sort((a, b) => b.id - a.id);
@@ -28,7 +25,7 @@ export const bizPayDemoHandlers = [
   // 详情
   http.get('/api/biz/pay-demos/:id', ({ params }) => {
     const demo = mockBizPayDemos.find((d) => d.id === Number(params.id));
-    if (!demo) return err('示例单不存在', 404);
+    if (!demo) return notFound('示例单不存在');
     return ok(demo);
   }),
 
@@ -56,8 +53,8 @@ export const bizPayDemoHandlers = [
   // 删除
   http.delete('/api/biz/pay-demos/:id', ({ params }) => {
     const idx = mockBizPayDemos.findIndex((d) => d.id === Number(params.id));
-    if (idx === -1) return err('示例单不存在', 404);
-    if (mockBizPayDemos[idx].status === 'paid') return err('已支付的示例单不可删除');
+    if (idx === -1) return notFound('示例单不存在');
+    if (mockBizPayDemos[idx].status === 'paid') return badRequest('已支付的示例单不可删除');
     mockBizPayDemos.splice(idx, 1);
     return ok(null, '已删除');
   }),
@@ -65,8 +62,8 @@ export const bizPayDemoHandlers = [
   // 发起支付：返回二维码/跳转链接，并置「支付中」
   http.post('/api/biz/pay-demos/:id/pay', async ({ params, request }) => {
     const demo = mockBizPayDemos.find((d) => d.id === Number(params.id));
-    if (!demo) return err('示例单不存在', 404);
-    if (demo.status === 'paid') return err('该示例单已支付，无需重复发起');
+    if (!demo) return notFound('示例单不存在');
+    if (demo.status === 'paid') return badRequest('该示例单已支付，无需重复发起');
     const body = await request.json() as { payMethod: PaymentMethod };
     const payMethod = body.payMethod;
     const channel = channelOf(payMethod);
@@ -89,7 +86,7 @@ export const bizPayDemoHandlers = [
   // 模拟支付成功：履约（置 paid + 发放权益）
   http.post('/api/biz/pay-demos/:id/simulate-paid', ({ params }) => {
     const demo = mockBizPayDemos.find((d) => d.id === Number(params.id));
-    if (!demo) return err('示例单不存在', 404);
+    if (!demo) return notFound('示例单不存在');
     if (demo.status !== 'paid') {
       const now = mockDateTime();
       demo.status = 'paid';

@@ -1,6 +1,7 @@
 import type { CmsDistributionRule, CmsDistributionRun } from '@zenith/shared/cms';
 import { SEED_CMS_DISTRIBUTION_RULES, SEED_CMS_DISTRIBUTION_TASK_ITEMS, SEED_CMS_DISTRIBUTION_TASKS } from '@zenith/shared/seed';
 import type { AsyncTaskItem } from '@zenith/shared/tasks';
+import { nextIdFrom } from '@/mocks/utils/handlers';
 
 export const mockCmsDistributionRules: CmsDistributionRule[] =
   SEED_CMS_DISTRIBUTION_RULES.map((rule) => structuredClone(rule));
@@ -48,8 +49,8 @@ export const mockCmsDistributionItems = new Map<number, AsyncTaskItem[]>([
   ],
 ]);
 
-let nextRuleId = Math.max(0, ...mockCmsDistributionRules.map((rule) => rule.id)) + 1;
-let nextRunId = Math.max(0, ...mockCmsDistributionRuns.map((run) => run.id)) + 1;
+let nextRuleId = nextIdFrom(mockCmsDistributionRules);
+let nextRunId = nextIdFrom(mockCmsDistributionRuns);
 let nextItemId = Math.max(0, ...[...mockCmsDistributionItems.values()].flat().map((item) => item.id)) + 1;
 
 export function getNextCmsDistributionRuleId(): number {

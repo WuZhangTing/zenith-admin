@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound, pageParams } from '@/mocks/utils/handlers';
 import type { UserFeedback, UserFeedbackCategory, UserFeedbackStatus } from '@zenith/shared/identity';
 import { mockUserFeedbacks, getNextUserFeedbackId } from '../data/user-feedbacks';
 import { mockDateTime } from '../utils/date';
@@ -7,8 +8,7 @@ export const userFeedbacksHandlers = [
   // ─── GET /api/feedbacks — 分页列表 + 筛选 ─────────────────────────────────
   http.get('/api/feedbacks', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const keyword = url.searchParams.get('keyword') || '';
     const category = url.searchParams.get('category') || '';
     const status = url.searchParams.get('status') || '';
@@ -24,7 +24,7 @@ export const userFeedbacksHandlers = [
 
     const total = list.length;
     const sliced = list.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list: sliced, total, page, pageSize } });
+    return ok({ list: sliced, total, page, pageSize });
   }),
 
   // ─── POST /api/feedbacks — 提交反馈 ───────────────────────────────────────
@@ -53,7 +53,7 @@ export const userFeedbacksHandlers = [
       updatedAt: now,
     };
     mockUserFeedbacks.push(newFeedback);
-    return HttpResponse.json({ code: 0, message: '感谢您的反馈', data: newFeedback });
+    return ok(newFeedback, '感谢您的反馈');
   }),
 
   // ─── PUT /api/feedbacks/:id/handle — 处理反馈 ─────────────────────────────
@@ -62,7 +62,7 @@ export const userFeedbacksHandlers = [
     const body = (await request.json()) as { status: UserFeedbackStatus; handleRemark?: string | null };
     const feedback = mockUserFeedbacks.find((f) => f.id === id);
     if (!feedback) {
-      return HttpResponse.json({ code: 404, message: '反馈不存在', data: null }, { status: 404 });
+      return notFound('反馈不存在', { status: 404 });
     }
     const now = mockDateTime();
     const handled = body.status !== 'pending';
@@ -74,7 +74,7 @@ export const userFeedbacksHandlers = [
       handledAt: handled ? now : null,
       updatedAt: now,
     });
-    return HttpResponse.json({ code: 0, message: '处理成功', data: feedback });
+    return ok(feedback, '处理成功');
   }),
 
   // ─── DELETE /api/feedbacks/batch — 批量删除（需在 /:id 之前）─────────────
@@ -82,7 +82,7 @@ export const userFeedbacksHandlers = [
     const body = (await request.json()) as { ids: number[] };
     const ids = body.ids ?? [];
     if (ids.length === 0) {
-      return HttpResponse.json({ code: 400, message: '请选择要删除的记录', data: null }, { status: 400 });
+      return badRequest('请选择要删除的记录', { status: 400 });
     }
     let deleted = 0;
     for (const id of ids) {
@@ -92,7 +92,7 @@ export const userFeedbacksHandlers = [
         deleted += 1;
       }
     }
-    return HttpResponse.json({ code: 0, message: `已删除 ${deleted} 条记录`, data: null });
+    return ok(null, `已删除 ${deleted} 条记录`);
   }),
 
   // ─── DELETE /api/feedbacks/:id — 删除 ─────────────────────────────────────
@@ -100,9 +100,9 @@ export const userFeedbacksHandlers = [
     const id = Number(params.id);
     const idx = mockUserFeedbacks.findIndex((f) => f.id === id);
     if (idx === -1) {
-      return HttpResponse.json({ code: 404, message: '反馈不存在', data: null }, { status: 404 });
+      return notFound('反馈不存在', { status: 404 });
     }
     mockUserFeedbacks.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 ];

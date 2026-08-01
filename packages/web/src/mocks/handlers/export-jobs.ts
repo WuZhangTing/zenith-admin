@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound, pageParams } from '@/mocks/utils/handlers';
 import type { ExportEntityMeta, ExportJob, ExportJobDownload, ExportJobFormat, ExportJobStatus } from '@zenith/shared/tasks';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 
@@ -291,15 +292,14 @@ function makeDownloadResponse(job: ExportJob) {
 }
 
 export const exportJobsHandlers = [
-  http.get('/api/export-jobs/entities', () => HttpResponse.json({ code: 0, message: 'ok', data: entities })),
+  http.get('/api/export-jobs/entities', () => ok(entities)),
 
   http.get('/api/export-jobs', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const { page, pageSize } = pageParams(url);
     const filtered = filterJobs(url).sort((a, b) => b.id - a.id);
     const list = filtered.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total: filtered.length, page, pageSize } });
+    return ok({ list, total: filtered.length, page, pageSize });
   }),
 
   http.post('/api/export-jobs', async ({ request }) => {
@@ -312,7 +312,7 @@ export const exportJobsHandlers = [
       executionMode?: 'sync' | 'async' | 'auto';
     };
     const entity = entities.find((item) => item.entity === body.entity);
-    if (!entity) return HttpResponse.json({ code: 404, message: '导出实体不存在', data: null }, { status: 404 });
+    if (!entity) return notFound('导出实体不存在', { status: 404 });
     const id = nextJobId++;
     const format = body.format ?? 'xlsx';
     const sensitive = entity.sensitive;
@@ -351,18 +351,18 @@ export const exportJobsHandlers = [
       updatedAt: now,
     };
     jobs.unshift(job);
-    return HttpResponse.json({ code: 0, message: '导出任务已创建', data: { mode: job.executionMode, job } });
+    return ok({ mode: job.executionMode, job }, '导出任务已创建');
   }),
 
   http.get('/api/export-jobs/:id/downloads', ({ params }) => {
     const jobId = Number(params.id);
-    return HttpResponse.json({ code: 0, message: 'ok', data: downloads.filter((item) => item.jobId === jobId) });
+    return ok(downloads.filter((item) => item.jobId === jobId));
   }),
 
   http.get('/api/export-jobs/:id/download', ({ params }) => {
     const job = jobs.find((item) => item.id === Number(params.id));
-    if (!job) return HttpResponse.json({ code: 404, message: '导出任务不存在', data: null }, { status: 404 });
-    if (job.status !== 'success') return HttpResponse.json({ code: 400, message: '导出文件尚未生成', data: null }, { status: 400 });
+    if (!job) return notFound('导出任务不存在', { status: 404 });
+    if (job.status !== 'success') return badRequest('导出文件尚未生成', { status: 400 });
     job.downloadCount += 1;
     job.lastDownloadedAt = mockDateTime();
     downloads.unshift({
@@ -380,34 +380,34 @@ export const exportJobsHandlers = [
 
   http.get('/api/export-jobs/:id', ({ params }) => {
     const job = jobs.find((item) => item.id === Number(params.id));
-    if (!job) return HttpResponse.json({ code: 404, message: '导出任务不存在', data: null }, { status: 404 });
-    return HttpResponse.json({ code: 0, message: 'ok', data: job });
+    if (!job) return notFound('导出任务不存在', { status: 404 });
+    return ok(job);
   }),
 
   http.post('/api/export-jobs/:id/cancel', ({ params }) => {
     const job = jobs.find((item) => item.id === Number(params.id));
-    if (!job) return HttpResponse.json({ code: 404, message: '导出任务不存在', data: null }, { status: 404 });
+    if (!job) return notFound('导出任务不存在', { status: 404 });
     job.status = 'cancelled';
     job.completedAt = mockDateTime();
     job.updatedAt = job.completedAt;
-    return HttpResponse.json({ code: 0, message: '已取消', data: job });
+    return ok(job, '已取消');
   }),
 
   http.post('/api/export-jobs/:id/retry', ({ params }) => {
     const job = jobs.find((item) => item.id === Number(params.id));
-    if (!job) return HttpResponse.json({ code: 404, message: '导出任务不存在', data: null }, { status: 404 });
+    if (!job) return notFound('导出任务不存在', { status: 404 });
     job.status = 'pending';
     job.errorMessage = null;
     job.startedAt = null;
     job.completedAt = null;
     job.updatedAt = mockDateTime();
-    return HttpResponse.json({ code: 0, message: '已重试', data: job });
+    return ok(job, '已重试');
   }),
 
   http.delete('/api/export-jobs/:id', ({ params }) => {
     const index = jobs.findIndex((item) => item.id === Number(params.id));
-    if (index === -1) return HttpResponse.json({ code: 404, message: '导出任务不存在', data: null }, { status: 404 });
+    if (index === -1) return notFound('导出任务不存在', { status: 404 });
     jobs.splice(index, 1);
-    return HttpResponse.json({ code: 0, message: '已删除', data: null });
+    return ok(null, '已删除');
   }),
 ];

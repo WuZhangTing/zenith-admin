@@ -6,13 +6,10 @@
  * so the pages can load without triggering a 401 that causes a hard logout.
  */
 import { http, HttpResponse } from 'msw';
-
-function ok<T>(data: T) {
-  return HttpResponse.json({ code: 0, message: 'ok', data });
-}
+import { ok, forbidden, notFound, pageParams } from '@/mocks/utils/handlers';
 
 function demoErr() {
-  return HttpResponse.json({ code: 403, message: '演示模式下不支持文件操作', data: null }, { status: 403 });
+  return forbidden('演示模式下不支持文件操作', { status: 403 });
 }
 
 const DEMO_HOME = '/home/demo';
@@ -77,13 +74,12 @@ export const terminalFilesHandlers = [
   // ── 终端录屏（演示模式返回空列表）─────────────────────────────────────────
   http.get('/api/terminal-recordings', ({ request: req }) => {
     const url = new URL(req.url);
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 20;
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list: [], total: 0, page, pageSize } });
+    const { page, pageSize } = pageParams(url, 20);
+    return ok({ list: [], total: 0, page, pageSize });
   }),
 
   http.get('/api/terminal-recordings/:id', () => {
-    return HttpResponse.json({ code: 404, message: '录屏记录不存在', data: null }, { status: 404 });
+    return notFound('录屏记录不存在', { status: 404 });
   }),
 
   http.get('/api/terminal-recordings/:id/asciinema', () => {
@@ -97,23 +93,23 @@ export const terminalFilesHandlers = [
   }),
 
   http.delete('/api/terminal-recordings/:id', () => {
-    return HttpResponse.json({ code: 403, message: '演示模式下不支持删除录屏', data: null }, { status: 403 });
+    return forbidden('演示模式下不支持删除录屏', { status: 403 });
   }),
 
   http.delete('/api/terminal-recordings/clean', () => {
-    return HttpResponse.json({ code: 403, message: '演示模式下不支持清理录屏', data: null }, { status: 403 });
+    return forbidden('演示模式下不支持清理录屏', { status: 403 });
   }),
 
   // ── 日志文件（演示模式返回空列表）────────────────────────────────────────
   http.get('/api/log-files', () => {
-    return HttpResponse.json({ code: 0, message: 'ok', data: [] });
+    return ok([]);
   }),
 
   http.get('/api/log-files/:name/content', () => {
-    return HttpResponse.json({ code: 0, message: 'ok', data: { lines: ['[INFO] 演示模式：日志内容不可访问'] } });
+    return ok({ lines: ['[INFO] 演示模式：日志内容不可访问'] });
   }),
 
   http.delete('/api/log-files/:name', () => {
-    return HttpResponse.json({ code: 403, message: '演示模式下不支持删除日志', data: null }, { status: 403 });
+    return forbidden('演示模式下不支持删除日志', { status: 403 });
   }),
 ];

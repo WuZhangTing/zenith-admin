@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, notFound } from '@/mocks/utils/handlers';
 import { mockAiProviders, getNextProviderId, mockAiDateTime as mockDateTime } from '@/mocks/data/ai';
 import type { AiProvider, AiProviderConfig } from '@zenith/shared/ai';
 
@@ -7,7 +8,7 @@ const store = [...mockAiProviders];
 export const aiProvidersHandlers = [
   // 测试连接（Demo 模拟）
   http.post('/api/ai/providers/test-connection', async () => {
-    return HttpResponse.json({ code: 0, message: 'ok', data: { success: true, message: '连接成功（Demo 模拟）' } });
+    return ok({ success: true, message: '连接成功（Demo 模拟）' });
   }),
 
   // 聊天可用模型（轻量列表：仅启用配置的非敏感字段）
@@ -15,20 +16,20 @@ export const aiProvidersHandlers = [
     const models = store
       .filter((p) => p.isEnabled)
       .map((p) => ({ id: p.id, name: p.name, model: p.model, provider: p.provider, isDefault: p.isDefault }));
-    return HttpResponse.json({ code: 0, message: 'ok', data: models });
+    return ok(models);
   }),
 
   // 列表
   http.get('/api/ai/providers', () => {
-    return HttpResponse.json({ code: 0, message: 'ok', data: store });
+    return ok(store);
   }),
 
   // 单条
   http.get('/api/ai/providers/:id', ({ params }) => {
     const id = Number(params.id);
     const item = store.find((p) => p.id === id);
-    if (!item) return HttpResponse.json({ code: 404, message: '服务商不存在', data: null }, { status: 404 });
-    return HttpResponse.json({ code: 0, message: 'ok', data: item });
+    if (!item) return notFound('服务商不存在', { status: 404 });
+    return ok(item);
   }),
 
   // 创建
@@ -60,14 +61,14 @@ export const aiProvidersHandlers = [
       store.forEach((p) => { p.isDefault = false; });
     }
     store.push(newItem);
-    return HttpResponse.json({ code: 0, message: '创建成功', data: newItem });
+    return ok(newItem, '创建成功');
   }),
 
   // 更新
   http.put('/api/ai/providers/:id', async ({ params, request }) => {
     const id = Number(params.id);
     const idx = store.findIndex((p) => p.id === id);
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '服务商不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('服务商不存在', { status: 404 });
     const body = await request.json() as Partial<AiProviderConfig>;
     const now = mockDateTime();
     if (body.isDefault) {
@@ -82,24 +83,24 @@ export const aiProvidersHandlers = [
       id,
       updatedAt: now,
     };
-    return HttpResponse.json({ code: 0, message: '修改成功', data: store[idx] });
+    return ok(store[idx], '修改成功');
   }),
 
   // 删除
   http.delete('/api/ai/providers/:id', ({ params }) => {
     const id = Number(params.id);
     const idx = store.findIndex((p) => p.id === id);
-    if (idx === -1) return HttpResponse.json({ code: 404, message: '服务商不存在', data: null }, { status: 404 });
+    if (idx === -1) return notFound('服务商不存在', { status: 404 });
     store.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    return ok(null, '删除成功');
   }),
 
   // 设为默认
   http.post('/api/ai/providers/:id/set-default', ({ params }) => {
     const id = Number(params.id);
     const item = store.find((p) => p.id === id);
-    if (!item) return HttpResponse.json({ code: 404, message: '服务商不存在', data: null }, { status: 404 });
+    if (!item) return notFound('服务商不存在', { status: 404 });
     store.forEach((p) => { p.isDefault = p.id === id; });
-    return HttpResponse.json({ code: 0, message: '已设为默认', data: null });
+    return ok(null, '已设为默认');
   }),
 ];

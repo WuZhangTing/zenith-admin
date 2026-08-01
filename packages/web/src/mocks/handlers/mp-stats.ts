@@ -1,4 +1,5 @@
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok } from '@/mocks/utils/handlers';
 import { mockMpFans } from '@/mocks/data/mp-fans';
 import { mockMpTags } from '@/mocks/data/mp-tags';
 import { mockMpMessages } from '@/mocks/data/mp-messages';
@@ -36,6 +37,6 @@ export const mpStatsHandlers = [
       fanTrend: days.map((date, i) => ({ date, count: [1, 0, 2, 1, 3, 2, 1][i] ?? 0 })),
       messageTrend: days.map((date, i) => ({ date, in: [2, 1, 3, 2, 4, 1, 2][i] ?? 0, out: [1, 1, 2, 1, 3, 1, 1][i] ?? 0 })),
     };
-    return HttpResponse.json({ code: 0, message: 'ok', data: stats });
+    return ok(stats);
   }),
 ];
