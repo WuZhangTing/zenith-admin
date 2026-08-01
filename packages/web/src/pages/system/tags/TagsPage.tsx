@@ -12,7 +12,7 @@ import {
   Switch,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Search, Tags, Trash2 } from 'lucide-react';
+import { Tags, Trash2 } from 'lucide-react';
 import type { Tag } from '@zenith/shared/platform';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -33,6 +33,7 @@ import {
   useUpdateTagStatus,
 } from '@/hooks/queries/tags';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const { Text } = Typography;
@@ -303,15 +304,7 @@ export default function TagsPage() {
       <SearchToolbar
         primary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索标签名称或描述"
-              value={draftParams.keyword}
-              onChange={(v) => setDraftParams({ ...draftParams, keyword: v })}
-              onEnterPress={handleSearch}
-              showClear
-              style={{ width: 200 }}
-            />
+            <KeywordInput placeholder="搜索标签名称或描述" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
             <Select
               placeholder="所属分组"
               value={draftParams.filterGroup}
@@ -346,15 +339,7 @@ export default function TagsPage() {
         )}
         mobilePrimary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索标签名称或描述"
-              value={draftParams.keyword}
-              onChange={(v) => setDraftParams({ ...draftParams, keyword: v })}
-              onEnterPress={handleSearch}
-              showClear
-              style={{ width: 200 }}
-            />
+            <KeywordInput placeholder="搜索标签名称或描述" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
             <SearchButton onClick={handleSearch} />
             {can('system:tag:create') && (
               <CreateButton onClick={openCreate} />

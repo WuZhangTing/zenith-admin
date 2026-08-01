@@ -5,7 +5,7 @@ import { UserAvatar } from '@/components/UserAvatar';
 import { BackTop, Badge, Banner, Breadcrumb, Button, ColorPicker, Divider, Dropdown, Empty, Input, List, Notification, Popover, Select, TextArea, Tooltip, Modal, Nav, Typography, SideSheet, Switch, InputNumber, RadioGroup, Radio, Toast } from '@douyinfe/semi-ui';
 import { AppModal } from '@/components/AppModal';
 import { IllustrationIdle, IllustrationIdleDark } from '@douyinfe/semi-illustrations';
-import { Bell, Building2, Check, Info, Expand, Shrink, Megaphone, Sun, Moon, Monitor, MoreHorizontal, User as UserIcon, Settings, LogOut, X, Palette, Pin, RotateCcw, PinOff, XCircle, ChevronLeft, ChevronRight, Trash2, Lock, Copy, ClipboardPaste, Route, Keyboard, Search, Star, Clock, Wrench, ExternalLink, Link2, Menu as MenuIcon, Files, Smartphone, MessageSquareHeart } from 'lucide-react';
+import { Bell, Building2, Check, Info, Expand, Shrink, Megaphone, Sun, Moon, Monitor, MoreHorizontal, User as UserIcon, Settings, LogOut, X, Palette, Pin, RotateCcw, PinOff, XCircle, ChevronLeft, ChevronRight, Trash2, Lock, Copy, ClipboardPaste, Route, Keyboard, Star, Clock, Wrench, ExternalLink, Link2, Menu as MenuIcon, Files, Smartphone, MessageSquareHeart } from 'lucide-react';
 import { pinyinMatch, ensurePinyin } from '@/utils/pinyin';
 import MenuSearchInput, { type FlatMenuItem } from '@/components/MenuSearchInput';
 import type { User, Menu, Tenant } from '@zenith/shared/identity';
@@ -38,6 +38,7 @@ import AppLogo from '@/components/AppLogo';
 import AnnouncementDetailModal from '@/components/AnnouncementDetailModal';
 import TaskTray from '@/components/TaskTray';
 import BreadcrumbMenuPopover from '@/components/BreadcrumbMenuPopover';
+import { KeywordInput } from '@/components/search-filters';
 import { TopNavWithOverflow } from './TopNavWithOverflow';
 import { TabSwitcher } from './TabSwitcher';
 import { useLockScreen } from '@/hooks/useLockScreen';
@@ -2301,13 +2302,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
             width={380}
           >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24, paddingBottom: 24 }}>
-              <Input
-                prefix={<Search size={14} />}
-                placeholder="搜索设置项…"
-                value={prefsSearch}
-                onChange={(v) => setPrefsSearch(v)}
-                showClear
-              />
+              <KeywordInput placeholder="搜索设置项…" value={prefsSearch} onChange={(v) => setPrefsSearch(v)} />
 
               {prefSection('布局')}
 

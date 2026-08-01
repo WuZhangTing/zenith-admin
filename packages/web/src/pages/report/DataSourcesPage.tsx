@@ -1,9 +1,9 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Form, Input, Select, Switch, Toast, Modal, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Select, Switch, Toast, Modal, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Activity, Search } from 'lucide-react';
+import { Activity } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -29,6 +29,7 @@ import { flattenReportFolders, useReportFolderTree } from '@/hooks/queries/repor
 import { useAllUsers } from '@/hooks/queries/users';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams { keyword: string; type: string; status: string; ownerId?: number; folderId?: number }
@@ -277,8 +278,7 @@ export default function DataSourcesPage() {
   ];
 
   const renderKeyword = () => (
-    <Input prefix={<Search size={14} />} placeholder="搜索名称/备注..." value={draftParams.keyword}
-      onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} showClear style={{ width: 220 }} onEnterPress={handleSearch} />
+    <KeywordInput placeholder="搜索名称/备注..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} />
   );
   const renderTypeFilter = () => (
     <Select placeholder="全部类型" value={draftParams.type || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, type: (v as string) ?? '' }))}

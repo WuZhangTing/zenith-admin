@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, Tag, Toast, ArrayField, Row, Col, Typography, useFormApi } from '@douyinfe/semi-ui';
+import { Button, Form, Tag, Toast, ArrayField, Row, Col, Typography, useFormApi } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -16,6 +16,7 @@ import { useDictList } from '@/hooks/queries/dicts';
 import { CMS_FIELD_OPTION_SOURCE_LABELS, CMS_FIELD_OPTION_SOURCES, CMS_FIELD_TYPES, CMS_FIELD_TYPES_WITH_OPTIONS, CMS_FIELD_TYPE_LABELS } from '@zenith/shared/cms';
 import type { CmsModel } from '@zenith/shared/cms';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const FIELD_TYPE_OPTIONS = CMS_FIELD_TYPES.map((t) => ({ value: t, label: CMS_FIELD_TYPE_LABELS[t] }));
@@ -198,15 +199,7 @@ export default function ModelsPage() {
   return (
     <div className="page-container">
       <SearchToolbar>
-        <Input
-          prefix={<Search size={14} />}
-          placeholder="搜索模型名称/标识..."
-          value={draftKeyword}
-          onChange={setDraftKeyword}
-          showClear
-          style={{ width: 220 }}
-          onEnterPress={handleSearch}
-        />
+        <KeywordInput placeholder="搜索模型名称/标识..." value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} />
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />
         {hasPermission('cms:model:create') ? (

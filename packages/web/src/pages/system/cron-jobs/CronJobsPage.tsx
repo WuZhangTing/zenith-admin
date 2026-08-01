@@ -1,26 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  Button,
-  Col,
-  Dropdown,
-  SplitButtonGroup,
-  Row,
-  SideSheet,
-  Form,
-  Input,
-  Modal,
-  Popover,
-  Select,
-  Spin,
-  Switch,
-  Table,
-  Tabs,
-  Tag,
-  Toast,
-  Tooltip,
-} from '@douyinfe/semi-ui';
+import { Button, Col, Dropdown, SplitButtonGroup, Row, SideSheet, Form, Modal, Popover, Select, Spin, Switch, Table, Tabs, Tag, Toast, Tooltip } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, ScrollText, Trash2, ChevronDown, HelpCircle } from 'lucide-react';
+import { ScrollText, Trash2, ChevronDown, HelpCircle } from 'lucide-react';
 import type { CronJob } from '@zenith/shared/platform';
 import { CRON_RUN_STATUS_LABELS } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -53,6 +34,7 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
@@ -420,15 +402,7 @@ export default function CronJobsPage() {
           <SearchToolbar
             primary={(
               <>
-                <Input
-                  prefix={<Search size={14} />}
-                  placeholder="搜索任务名称/处理器"
-                  value={draftParams.keyword}
-                  onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))}
-                  onEnterPress={handleSearch}
-                  style={{ width: 240 }}
-                  showClear
-                />
+                <KeywordInput placeholder="搜索任务名称/处理器" value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} width={240} />
                 <Select
                   placeholder="状态"
                   value={draftParams.status || undefined}
@@ -451,15 +425,7 @@ export default function CronJobsPage() {
             )}
             mobilePrimary={(
               <>
-                <Input
-                  prefix={<Search size={14} />}
-                  placeholder="搜索任务名称/处理器"
-                  value={draftParams.keyword}
-                  onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))}
-                  onEnterPress={handleSearch}
-                  style={{ width: 240 }}
-                  showClear
-                />
+                <KeywordInput placeholder="搜索任务名称/处理器" value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} width={240} />
                 <SearchButton onClick={handleSearch} />
                 {hasPermission('system:cronjob:create') && (
                   <CreateButton onClick={() => { setEditingJob(null); setCronExprValue(''); setModalVisible(true); }} />

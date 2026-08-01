@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { DatePicker, Input, Select, SideSheet, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
+import { Select, SideSheet, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search } from 'lucide-react';
 import { CMS_SUBSCRIPTION_SUBJECT_TYPE_LABELS } from '@zenith/shared/cms';
 import type { CmsMemberSubscription, CmsSubscriptionAggregate, CmsSubscriptionSubjectType } from '@zenith/shared/cms';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -19,6 +18,7 @@ import {
 import { formatDateTimeForApi } from '@/utils/date';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 
 interface SearchState {
   subjectType?: CmsSubscriptionSubjectType;
@@ -69,28 +69,14 @@ export default function SubscriptionsPage() {
         optionList={Object.entries(CMS_SUBSCRIPTION_SUBJECT_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
         onChange={(value) => setDraft((current) => ({ ...current, subjectType: value as CmsSubscriptionSubjectType | undefined }))}
       />
-      <DatePicker
-        type="dateTimeRange"
-        value={draft.timeRange}
-        onChange={(value) => setDraft((current) => ({ ...current, timeRange: value as [Date, Date] | undefined }))}
-        placeholder={['开始时间', '结束时间']}
-        style={{ width: 330 }}
-      />
+      <DateRangeFilter value={draft.timeRange} onChange={(value) => setDraft((current) => ({ ...current, timeRange: value as [Date, Date] | undefined }))} width={330} />
     </>
   );
 
   const primary = (
     <>
       <CmsSiteSelect value={siteId} onChange={(value) => { setSiteId(value); setPage(1); }} />
-      <Input
-        prefix={<Search size={14} />}
-        value={draft.subjectKeyword}
-        onChange={(value) => setDraft((current) => ({ ...current, subjectKeyword: value }))}
-        onEnterPress={handleSearch}
-        placeholder="订阅对象"
-        showClear
-        style={{ width: 200 }}
-      />
+      <KeywordInput placeholder="订阅对象" value={draft.subjectKeyword} onChange={(value) => setDraft((current) => ({ ...current, subjectKeyword: value }))} onSearch={handleSearch} width={200} />
       {filters}
       <SearchButton onClick={handleSearch} />
       <ResetButton onClick={handleReset} />

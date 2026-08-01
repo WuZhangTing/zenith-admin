@@ -1,14 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import {
-  Button, Tag, Toast, SideSheet, Typography, Input, Empty, Select,
-} from '@douyinfe/semi-ui';
+import { Button, Tag, Toast, SideSheet, Typography, Empty, Select } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { FileText, RefreshCw, Search, Play, Square } from 'lucide-react';
+import { FileText, RefreshCw, Play, Square } from 'lucide-react';
 import { TOKEN_KEY } from '@zenith/shared/core';
 import { config } from '@/config';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
+import { KeywordInput } from '@/components/search-filters';
 import { useServiceAction, useServiceList, useServiceLogs, type ServiceAction, type ServiceInfo } from '@/hooks/queries/services';
 const ACTION_MSG: Record<ServiceAction, string> = {
   start: '已启动', stop: '已停止', restart: '已重启', enable: '已设为开机自启', disable: '已取消开机自启', mask: '已屏蔽', unmask: '已取消屏蔽',
@@ -204,7 +203,7 @@ export default function ServicesPage() {
       <SearchToolbar
         primary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="搜索服务名 / 描述" showClear value={keyword} onChange={setKeyword} style={{ width: 240 }} />
+            <KeywordInput placeholder="搜索服务名 / 描述" value={keyword} onChange={setKeyword} width={240} />
             <Select placeholder="全部状态" value={stateFilter || undefined} onChange={(v) => setStateFilter((v as string) ?? '')} showClear style={{ width: 130 }}
               optionList={[
                 { label: '运行中', value: 'active' },
@@ -222,7 +221,7 @@ export default function ServicesPage() {
         )}
         mobilePrimary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="搜索服务名 / 描述" showClear value={keyword} onChange={setKeyword} style={{ width: 240 }} />
+            <KeywordInput placeholder="搜索服务名 / 描述" value={keyword} onChange={setKeyword} width={240} />
             <Button type="tertiary" icon={<RefreshCw size={14} />} onClick={() => void listQuery.refetch()}>刷新</Button>
           </>
         )}

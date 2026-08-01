@@ -1,18 +1,6 @@
 import { useRef, useState } from 'react';
-import {
-  Col,
-  Form,
-  Input,
-  Modal,
-  Row,
-  Select,
-  Spin,
-  Tag,
-  Toast,
-  Switch,
-} from '@douyinfe/semi-ui';
+import { Col, Form, Modal, Row, Select, Spin, Tag, Toast, Switch } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Search } from 'lucide-react';
 import { SMS_PROVIDER_OPTIONS } from '@zenith/shared/messaging';
 import type { SmsConfig, SmsProvider } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
@@ -32,6 +20,7 @@ import {
   useSmsConfigList,
 } from '@/hooks/queries/sms-configs';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 export default function SmsConfigsPage() {
@@ -180,8 +169,7 @@ export default function SmsConfigsPage() {
       <SearchToolbar
         primary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="搜索名称/签名"
-              value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onEnterPress={handleSearch} showClear style={{ width: 200 }} />
+            <KeywordInput placeholder="搜索名称/签名" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
             <Select placeholder="服务商" value={draftParams.filterProvider} onChange={(v) => setDraftParams({ ...draftParams, filterProvider: v as SmsProvider | undefined })}
               optionList={SMS_PROVIDER_OPTIONS} showClear style={{ width: 120 }} />
             <Select placeholder="状态" value={draftParams.filterStatus} onChange={(v) => setDraftParams({ ...draftParams, filterStatus: v as string | undefined })}
@@ -195,8 +183,7 @@ export default function SmsConfigsPage() {
         )}
         mobilePrimary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="搜索名称/签名"
-              value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onEnterPress={handleSearch} showClear style={{ width: 200 }} />
+            <KeywordInput placeholder="搜索名称/签名" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
             <SearchButton onClick={handleSearch} />
             {can('system:sms-config:create') && (
               <CreateButton onClick={openCreate} />

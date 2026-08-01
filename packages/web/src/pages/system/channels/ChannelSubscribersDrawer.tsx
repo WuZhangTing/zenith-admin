@@ -7,9 +7,8 @@
  */
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Banner, Input, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search } from 'lucide-react';
 import type { ChannelAdmin, ChannelSubscriber } from '@zenith/shared/messaging';
 import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
@@ -27,6 +26,7 @@ import {
   useRemoveChannelSubscriber,
 } from '@/hooks/queries/channels';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface Props {
@@ -154,15 +154,7 @@ export function ChannelSubscribersDrawer({ channel, visible, onClose }: Readonly
       <SearchToolbar
         primary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索用户姓名"
-              value={draftKeyword}
-              onChange={setDraftKeyword}
-              onEnterPress={handleSearch}
-              showClear
-              style={{ width: 200 }}
-            />
+            <KeywordInput placeholder="搜索用户姓名" value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} width={200} />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
             {canManage && !isSystem && (
@@ -173,15 +165,7 @@ export function ChannelSubscribersDrawer({ channel, visible, onClose }: Readonly
         actions={channel ? <ExportButton entity="channel.subscribers" query={exportQuery} /> : null}
         mobilePrimary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索用户姓名"
-              value={draftKeyword}
-              onChange={setDraftKeyword}
-              onEnterPress={handleSearch}
-              showClear
-              style={{ width: 200 }}
-            />
+            <KeywordInput placeholder="搜索用户姓名" value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} width={200} />
             <SearchButton onClick={handleSearch} />
             {canManage && !isSystem && (
               <CreateButton onClick={openAdd}>添加订阅者</CreateButton>

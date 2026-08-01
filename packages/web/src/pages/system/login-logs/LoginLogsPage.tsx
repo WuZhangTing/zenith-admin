@@ -1,5 +1,4 @@
-import { Input, Select, DatePicker, Tabs, TabPane } from '@douyinfe/semi-ui';
-import { Search } from 'lucide-react';
+import { Select, Tabs, TabPane } from '@douyinfe/semi-ui';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
 import { LoginLogsTable } from '@/components/logs/LoginLogsTable';
@@ -10,6 +9,7 @@ import LoginLogStatsPanel from './LoginLogStatsPanel';
 import { loginLogKeys, useCleanLoginLogs, useLoginLogList } from '@/hooks/queries/login-logs';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 
 export default function LoginLogsPage() {
   interface SearchParams {
@@ -45,15 +45,7 @@ export default function LoginLogsPage() {
   });
 
   const renderUsernameSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="请输入用户名"
-      value={draftParams.username}
-      onChange={(v) => setDraftParams({ ...draftParams, username: v })}
-      onEnterPress={handleSearch}
-      style={{ width: 180 }}
-      showClear
-    />
+    <KeywordInput placeholder="请输入用户名" value={draftParams.username} onChange={(v) => setDraftParams({ ...draftParams, username: v })} onSearch={handleSearch} width={180} />
   );
 
   const renderStatusFilter = () => (
@@ -83,13 +75,7 @@ export default function LoginLogsPage() {
   );
 
   const renderTimeRangeFilter = () => (
-    <DatePicker
-      type="dateTimeRange"
-      placeholder={['开始时间', '结束时间']}
-      value={draftParams.timeRange ?? undefined}
-      onChange={(v) => setDraftParams({ ...draftParams, timeRange: v ? (v as [Date, Date]) : null })}
-      style={{ width: 360 }}
-    />
+    <DateRangeFilter value={draftParams.timeRange ?? undefined} onChange={(v) => setDraftParams({ ...draftParams, timeRange: v ? (v as [Date, Date]) : null })} />
   );
 
   const buildExportQuery = () => ({

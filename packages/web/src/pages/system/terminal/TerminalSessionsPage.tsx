@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Input, Select, Space, Tag, Toast, Typography, SideSheet, Switch } from '@douyinfe/semi-ui';
-import { Search, Monitor as MonitorIcon } from 'lucide-react';
+import { Select, Space, Tag, Toast, Typography, SideSheet, Switch } from '@douyinfe/semi-ui';
+import { Monitor as MonitorIcon } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
@@ -24,6 +24,7 @@ import {
   type TerminalSessionItem,
 } from '@/hooks/queries/terminal';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 
 const KIND_META: Record<TerminalKind, { label: string; color: 'blue' | 'green' | 'cyan' }> = {
@@ -206,15 +207,7 @@ export default function TerminalSessionsPage() {
       <SearchToolbar
         primary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索用户/主机/IP"
-              value={draftParams.keyword}
-              onChange={(v) => setDraftParams((s) => ({ ...s, keyword: v }))}
-              onEnterPress={handleSearch}
-              style={{ width: 220 }}
-              showClear
-            />
+            <KeywordInput placeholder="搜索用户/主机/IP" value={draftParams.keyword} onChange={(v) => setDraftParams((s) => ({ ...s, keyword: v }))} onSearch={handleSearch} />
             <Select
               placeholder="类型"
               value={draftParams.kind || undefined}
@@ -240,15 +233,7 @@ export default function TerminalSessionsPage() {
         )}
         mobilePrimary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索用户/主机/IP"
-              value={draftParams.keyword}
-              onChange={(v) => setDraftParams((s) => ({ ...s, keyword: v }))}
-              onEnterPress={handleSearch}
-              style={{ width: 220 }}
-              showClear
-            />
+            <KeywordInput placeholder="搜索用户/主机/IP" value={draftParams.keyword} onChange={(v) => setDraftParams((s) => ({ ...s, keyword: v }))} onSearch={handleSearch} />
             <SearchButton onClick={handleSearch} />
           </>
         )}

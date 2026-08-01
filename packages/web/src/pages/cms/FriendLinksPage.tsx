@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, Select, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Select, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, FolderTree } from 'lucide-react';
+import { FolderTree } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -18,6 +18,7 @@ import {
 import type { CmsFriendLink, CmsFriendLinkGroup } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 export default function FriendLinksPage() {
@@ -129,15 +130,7 @@ export default function FriendLinksPage() {
     <div className="page-container">
       <SearchToolbar>
         <CmsSiteSelect value={siteId} onChange={(v) => { setSiteId(v); setPage(1); }} width={180} />
-        <Input
-          prefix={<Search size={14} />}
-          placeholder="搜索名称..."
-          value={draftKeyword}
-          onChange={setDraftKeyword}
-          showClear
-          style={{ width: 200 }}
-          onEnterPress={handleSearch}
-        />
+        <KeywordInput placeholder="搜索名称..." value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} width={200} />
         <Select
           placeholder="全部分组"
           showClear

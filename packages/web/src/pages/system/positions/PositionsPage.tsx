@@ -1,20 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  Button,
-  DatePicker,
-  Form,
-  Input,
-  Modal,
-  Select,
-  Space,
-  Spin,
-  Switch,
-  Toast,
-  SideSheet,
-  Empty,
-} from '@douyinfe/semi-ui';
+import { Button, Form, Modal, Select, Space, Spin, Switch, Toast, SideSheet, Empty } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Trash2, Users } from 'lucide-react';
+import { Trash2, Users } from 'lucide-react';
 import type { Position } from '@zenith/shared/identity';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -42,6 +29,7 @@ import {
 import { useAllUsers } from '@/hooks/queries/users';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
@@ -250,15 +238,7 @@ export default function PositionsPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索岗位名称/编码"
-      value={draftParams.keyword}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))}
-      onEnterPress={handleSearch}
-      style={{ width: 240 }}
-      showClear
-    />
+    <KeywordInput placeholder="搜索岗位名称/编码" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))} onSearch={handleSearch} width={240} />
   );
 
   const renderStatusFilter = () => (
@@ -275,13 +255,7 @@ export default function PositionsPage() {
   );
 
   const renderTimeRangeFilter = () => (
-    <DatePicker
-      type="dateTimeRange"
-      placeholder={['开始时间', '结束时间']}
-      value={draftParams.timeRange ?? undefined}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, timeRange: value ? (value as [Date, Date]) : null }))}
-      style={{ width: 360 }}
-    />
+    <DateRangeFilter value={draftParams.timeRange ?? undefined} onChange={(value) => setDraftParams((prev) => ({ ...prev, timeRange: value ? (value as [Date, Date]) : null }))} />
   );
 
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;

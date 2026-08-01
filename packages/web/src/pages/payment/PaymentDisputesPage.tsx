@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { Banner, Button, Input, Modal, Select, SideSheet, Spin, Tag, TextArea, Timeline, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search, FlaskConical } from 'lucide-react';
+import { FlaskConical } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -23,6 +23,7 @@ import {
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_DISPUTE_STATUS_LABELS, PAYMENT_DISPUTE_STATUS_OPTIONS, PAYMENT_DISPUTE_TYPE_LABELS, PAYMENT_DISPUTE_TYPE_OPTIONS, PAYMENT_ORDER_STATUS_LABELS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentDispute, PaymentDisputeStatus, PaymentDisputeType } from '@zenith/shared/payment';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 
 const yuan = formatYuan;
 const STATUS_COLOR = { pending: 'red', processing: 'blue', resolved: 'green', refunded: 'purple' } as const satisfies Record<PaymentDisputeStatus, string>;
@@ -149,7 +150,7 @@ export default function PaymentDisputesPage() {
   };
 
   const renderKeywordSearch = () => (
-    <Input prefix={<Search size={14} />} placeholder="投诉单号/订单号/投诉人..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} showClear style={{ width: 220 }} onEnterPress={handleSearch} />
+    <KeywordInput placeholder="投诉单号/订单号/投诉人..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} />
   );
   const renderStatusFilter = () => (
     <Select placeholder="全部状态" value={draftParams.status || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={PAYMENT_DISPUTE_STATUS_OPTIONS} />

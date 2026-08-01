@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Banner, Col, DatePicker, Empty, Form, InputNumber, Row, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Col, Empty, Form, InputNumber, Row, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportQueryCostLog, ReportQueryCostTrendPoint, ReportQueryQuota, ReportQuotaScope } from '@zenith/shared/report';
@@ -24,6 +24,7 @@ import { useAllUsers } from '@/hooks/queries/users';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { validateQuotaForm } from '../report-platform-utils';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { DateRangeFilter } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 export default function GovernanceCapacityTab() {
@@ -150,7 +151,7 @@ export default function GovernanceCapacityTab() {
       <SearchToolbar>
         <InputNumber placeholder="数据集 ID" value={costDraft.datasetId} min={1} onChange={(v) => setCostDraft((p) => ({ ...p, datasetId: v ? Number(v) : undefined }))} />
         <InputNumber placeholder="数据源 ID" value={costDraft.datasourceId} min={1} onChange={(v) => setCostDraft((p) => ({ ...p, datasourceId: v ? Number(v) : undefined }))} />
-        <DatePicker type="dateTimeRange" value={costDraft.timeRange ?? undefined} style={{ width: 340 }} onChange={(v) => setCostDraft((p) => ({ ...p, timeRange: v ? v as [Date, Date] : null }))} />
+        <DateRangeFilter value={costDraft.timeRange ?? undefined} onChange={(v) => setCostDraft((p) => ({ ...p, timeRange: v ? v as [Date, Date] : null }))} width={340} />
         <SearchButton onClick={searchCosts} />
         <ResetButton onClick={resetCosts} />
         <ExportButton entity="report.query-costs" query={costParams} />

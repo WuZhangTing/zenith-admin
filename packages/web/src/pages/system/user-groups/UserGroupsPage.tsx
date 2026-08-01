@@ -1,22 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Button,
-  Form,
-  Input,
-  Modal,
-  Select,
-  Space,
-  Toast,
-  SideSheet,
-  Empty,
-  Tag,
-  Row,
-  Col,
-  Spin,
-  Switch,
-} from '@douyinfe/semi-ui';
+import { Button, Form, Modal, Select, Space, Toast, SideSheet, Empty, Tag, Row, Col, Spin, Switch } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Trash2, Users } from 'lucide-react';
+import { Trash2, Users } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import type { User, UserGroup } from '@zenith/shared/identity';
@@ -46,6 +31,7 @@ import { useAllRoles } from '@/hooks/queries/roles';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
@@ -325,15 +311,7 @@ export default function UserGroupsPage() {
     : { status: 'enabled' };
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索名称/编码"
-      value={draftParams.keyword}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))}
-      onEnterPress={handleSearch}
-      style={{ width: 240, maxWidth: '100%' }}
-      showClear
-    />
+    <KeywordInput placeholder="搜索名称/编码" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))} onSearch={handleSearch} width={240} />
   );
 
   const renderStatusFilter = () => (

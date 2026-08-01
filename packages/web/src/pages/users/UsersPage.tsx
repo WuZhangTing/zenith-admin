@@ -1,25 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import {
-  Table,
-  Button,
-  Input,
-  Select,
-  Space,
-  Modal,
-  Form,
-  Toast,
-  Tag,
-  DatePicker,
-  Upload,
-  Typography,
-  Row,
-  Col,
-  Tree,
-  Spin,
-  Switch,
-} from '@douyinfe/semi-ui';
+import { Table, Button, Select, Space, Modal, Form, Toast, Tag, Upload, Typography, Row, Col, Tree, Spin, Switch } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Download, Trash2, FileUp, ChevronsUpDown, ChevronsDownUp, Building2, ArrowLeft, KeyRound, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Download, Trash2, FileUp, ChevronsUpDown, ChevronsDownUp, Building2, ArrowLeft, KeyRound, ToggleLeft, ToggleRight } from 'lucide-react';
 import type { User, Role, Department, Position } from '@zenith/shared/identity';
 import { request } from '@/utils/request';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -63,6 +45,7 @@ import {
   userKeys,
 } from '@/hooks/queries/users';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
@@ -698,27 +681,11 @@ export default function UsersPage() {
   );
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索用户名/昵称/邮箱"
-      value={draftParams.keyword}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))}
-      onEnterPress={handleSearch}
-      style={{ width: 260, maxWidth: '100%' }}
-      showClear
-    />
+    <KeywordInput placeholder="搜索用户名/昵称/邮箱" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))} onSearch={handleSearch} width={260} />
   );
 
   const renderPhoneSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索手机号码"
-      value={draftParams.phone}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, phone: value }))}
-      onEnterPress={handleSearch}
-      style={{ width: 180, maxWidth: '100%' }}
-      showClear
-    />
+    <KeywordInput placeholder="搜索手机号码" value={draftParams.phone} onChange={(value) => setDraftParams((prev) => ({ ...prev, phone: value }))} onSearch={handleSearch} width={180} />
   );
 
   const renderStatusFilter = () => (
@@ -735,13 +702,7 @@ export default function UsersPage() {
   );
 
   const renderTimeRangeFilter = () => (
-    <DatePicker
-      type="dateTimeRange"
-      placeholder={["开始时间", "结束时间"]}
-      value={draftParams.timeRange ?? undefined}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, timeRange: value ? (value as [Date, Date]) : null }))}
-      style={{ width: 360, maxWidth: '100%' }}
-    />
+    <DateRangeFilter placeholder={["开始时间", "结束时间"]} value={draftParams.timeRange ?? undefined} onChange={(value) => setDraftParams((prev) => ({ ...prev, timeRange: value ? (value as [Date, Date]) : null }))} />
   );
 
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;

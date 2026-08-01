@@ -1,19 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import {
-  Button,
-  Col,
-  DatePicker,
-  Form,
-  Modal,
-  Radio,
-  Row,
-  Select,
-  Spin,
-  Switch,
-  Tag,
-  Toast,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Button, Col, Form, Modal, Radio, Row, Select, Spin, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { PlugZap } from 'lucide-react';
 import type { CreateFileStorageConfigInput, FileObjectAcl, FileStorageConfig, FileStorageProvider, FileUrlStrategy, UpdateFileStorageConfigInput } from '@zenith/shared/platform';
@@ -39,6 +25,7 @@ import {
   useTestFileStorageConfig,
 } from '@/hooks/queries/file-storage-configs';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { DateRangeFilter } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import './FileStorageConfigsPage.css';
 
@@ -579,13 +566,7 @@ export default function FileStorageConfigsPage() {
               <Select.Option value="enabled">启用</Select.Option>
               <Select.Option value="disabled">禁用</Select.Option>
             </Select>
-            <DatePicker
-              type="dateTimeRange"
-              placeholder={['开始时间', '结束时间']}
-              value={draftParams.timeRange ?? undefined}
-              onChange={(value) => setDraftParams((prev) => ({ ...prev, timeRange: value ? (value as [Date, Date]) : null }))}
-              style={{ width: 360 }}
-            />
+            <DateRangeFilter value={draftParams.timeRange ?? undefined} onChange={(value) => setDraftParams((prev) => ({ ...prev, timeRange: value ? (value as [Date, Date]) : null }))} />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
           </>
@@ -613,13 +594,7 @@ export default function FileStorageConfigsPage() {
           </>
         )}
         mobileFilters={(
-          <DatePicker
-            type="dateTimeRange"
-            placeholder={['开始时间', '结束时间']}
-            value={draftParams.timeRange ?? undefined}
-            onChange={(value) => setDraftParams((prev) => ({ ...prev, timeRange: value ? (value as [Date, Date]) : null }))}
-            style={{ width: 360 }}
-          />
+          <DateRangeFilter value={draftParams.timeRange ?? undefined} onChange={(value) => setDraftParams((prev) => ({ ...prev, timeRange: value ? (value as [Date, Date]) : null }))} />
         )}
         mobileActions={(
           <ExportButton entity="system.file-storage-configs" query={buildExportQuery()} variant="flat" />

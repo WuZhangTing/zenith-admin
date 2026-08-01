@@ -1,8 +1,7 @@
 import { useState, useRef } from 'react';
-import { Button, Input, Tag, Space, Modal, Form, Toast, Typography, Select, Banner, SideSheet, Descriptions } from '@douyinfe/semi-ui';
+import { Button, Tag, Space, Modal, Form, Toast, Typography, Select, Banner, SideSheet, Descriptions } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search } from 'lucide-react';
 import { OPEN_WEBHOOK_DELIVERY_STATUS_LABELS, OPEN_WEBHOOK_EVENT_LABELS } from '@zenith/shared/open-platform';
 import type { AppWebhookSubscription, AppWebhookDelivery } from '@zenith/shared/open-platform';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -26,6 +25,7 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 const { Text, Paragraph } = Typography;
@@ -271,7 +271,7 @@ export default function WebhooksPage() {
       <SearchToolbar
         primary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="搜索名称 / URL" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onEnterPress={handleSearch} showClear style={{ width: 200 }} />
+            <KeywordInput placeholder="搜索名称 / URL" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
             <Select placeholder="所属应用" value={draftParams.clientId} onChange={(v) => setDraftParams({ ...draftParams, clientId: v as string })} optionList={appOptions.map((a) => ({ value: a.clientId, label: a.name }))} showClear filter style={{ width: 180 }} />
             <Select placeholder="状态" value={draftParams.status} onChange={(v) => setDraftParams({ ...draftParams, status: v as 'enabled' | 'disabled' })} optionList={STATUS_OPTIONS} showClear style={{ width: 110 }} />
             <SearchButton onClick={handleSearch} />
@@ -281,7 +281,7 @@ export default function WebhooksPage() {
         )}
         mobilePrimary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="搜索名称 / URL" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onEnterPress={handleSearch} showClear style={{ width: 200 }} />
+            <KeywordInput placeholder="搜索名称 / URL" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
             <SearchButton onClick={handleSearch} />
             {canManage && <CreateButton onClick={openCreate} />}
           </>

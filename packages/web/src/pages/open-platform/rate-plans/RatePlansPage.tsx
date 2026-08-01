@@ -1,8 +1,7 @@
 import { useState, useRef } from 'react';
-import { Input, Tag, Form, Toast, Typography, Select, Row, Col, Space } from '@douyinfe/semi-ui';
+import { Tag, Form, Toast, Typography, Select, Row, Col, Space } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search } from 'lucide-react';
 import type { RatePlan } from '@zenith/shared/open-platform';
 import { createdAtColumn } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -14,6 +13,7 @@ import { openPlatformKeys, useDeleteRatePlan, useRatePlanList, useSaveRatePlan }
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const { Text } = Typography;
@@ -169,15 +169,7 @@ export default function RatePlansPage() {
       <SearchToolbar
         primary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索套餐编码 / 名称"
-              value={draftParams.keyword}
-              onChange={(v) => setDraftParams({ ...draftParams, keyword: v })}
-              onEnterPress={handleSearch}
-              showClear
-              style={{ width: 220 }}
-            />
+            <KeywordInput placeholder="搜索套餐编码 / 名称" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} />
             <Select
               placeholder="状态"
               value={draftParams.status}
@@ -193,15 +185,7 @@ export default function RatePlansPage() {
         )}
         mobilePrimary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索套餐"
-              value={draftParams.keyword}
-              onChange={(v) => setDraftParams({ ...draftParams, keyword: v })}
-              onEnterPress={handleSearch}
-              showClear
-              style={{ width: 200 }}
-            />
+            <KeywordInput placeholder="搜索套餐" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
             <SearchButton onClick={handleSearch} />
             {canManage && <CreateButton onClick={openCreate} />}
           </>

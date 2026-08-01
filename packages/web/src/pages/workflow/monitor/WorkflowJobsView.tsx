@@ -1,32 +1,8 @@
 import { useCallback, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  Button,
-  Col,
-  Descriptions,
-  Empty,
-  Form,
-  Input,
-  JsonViewer,
-  Modal,
-  Popconfirm,
-  Radio,
-  RadioGroup,
-  Row,
-  Select,
-  SideSheet,
-  Space,
-  Table,
-  Tabs,
-  TabPane,
-  Tag,
-  Timeline,
-  Toast,
-  Tooltip,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Button, Col, Descriptions, Empty, Form, JsonViewer, Modal, Popconfirm, Radio, RadioGroup, Row, Select, SideSheet, Space, Table, Tabs, TabPane, Tag, Timeline, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Download, RotateCcw, Search } from 'lucide-react';
+import { Download, RotateCcw } from 'lucide-react';
 import type { WorkflowJob, WorkflowJobExecution, WorkflowJobStatus, WorkflowJobSummaryItem, WorkflowJobType } from '@zenith/shared/workflow';
 import { WORKFLOW_JOB_STATUS_META as JOB_STATUS_META } from './constants';
 import { request } from '@/utils/request';
@@ -53,6 +29,7 @@ import {
   workflowMonitorKeys,
 } from '@/hooks/queries/workflow-monitor';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'orange' | 'red' | 'violet';
 
@@ -477,15 +454,7 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
       <SearchToolbar
         primary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="幂等键 / TraceId / 节点"
-              value={keyword}
-              showClear
-              style={{ width: 220 }}
-              onChange={setKeyword}
-              onEnterPress={handleSearch}
-            />
+            <KeywordInput placeholder="幂等键 / TraceId / 节点" value={keyword} onChange={setKeyword} onSearch={handleSearch} />
             <Select
               placeholder="状态"
               value={status}
@@ -504,14 +473,7 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
         )}
         mobilePrimary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="幂等键 / TraceId / 节点"
-              value={keyword}
-              showClear
-              onChange={setKeyword}
-              onEnterPress={handleSearch}
-            />
+            <KeywordInput placeholder="幂等键 / TraceId / 节点" value={keyword} onChange={setKeyword} onSearch={handleSearch} />
             <SearchButton onClick={handleSearch} />
           </>
         )}

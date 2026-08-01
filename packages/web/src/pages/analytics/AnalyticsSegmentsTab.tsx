@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, InputNumber, Input, Select, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Plus, Search, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -28,6 +28,7 @@ import { useInAppTemplateList } from '@/hooks/queries/in-app-templates';
 import type { AnalyticsSegmentAttributeCondition, AnalyticsSegmentCompareOp, AnalyticsSegmentCondition, AnalyticsSegmentEventCondition, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSegmentPropertyFilter, AnalyticsUserSegment } from '@zenith/shared/analytics';
 import { ANALYTICS_EVENT_OVERRIDE_STATUS_OPTIONS, ANALYTICS_CAMPAIGN_CHANNEL_OPTIONS, ANALYTICS_CAMPAIGN_STATUS_LABELS, ANALYTICS_IDENTITY_TYPE_OPTIONS, ANALYTICS_SEGMENT_COMPARE_OP_OPTIONS } from '@zenith/shared/analytics';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const PAGE_SIZE = 20;
@@ -380,15 +381,7 @@ export default function AnalyticsSegmentsTab() {
   return (
     <div>
       <SearchToolbar>
-        <Input
-          prefix={<Search size={14} />}
-          placeholder="分群名称"
-          value={filter.keyword}
-          onChange={(value) => setFilter((prev) => ({ ...prev, keyword: value }))}
-          onEnterPress={handleSearch}
-          showClear
-          style={{ width: 200 }}
-        />
+        <KeywordInput placeholder="分群名称" value={filter.keyword} onChange={(value) => setFilter((prev) => ({ ...prev, keyword: value }))} onSearch={handleSearch} width={200} />
         <Select
           placeholder="状态"
           value={filter.status || undefined}

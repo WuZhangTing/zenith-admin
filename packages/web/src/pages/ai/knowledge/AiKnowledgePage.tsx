@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
-import { Button, Form, Input, SideSheet, Tag, Toast, Typography, Upload } from '@douyinfe/semi-ui';
+import { Button, Form, SideSheet, Tag, Toast, Typography, Upload } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Plus, Search, FileUp, Globe } from 'lucide-react';
+import { Plus, FileUp, Globe } from 'lucide-react';
 import type { AiKnowledgeBase, AiKbDocument } from '@zenith/shared/ai';
 import { AppModal } from '@/components/AppModal';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
@@ -21,6 +21,7 @@ import {
   useImportAiKbUrl,
 } from '@/hooks/queries/ai-extras';
 import { CreateButton, ResetButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const { Text } = Typography;
@@ -216,14 +217,7 @@ export default function AiKnowledgePage() {
       <SearchToolbar
         primary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索知识库名称"
-              value={search}
-              onChange={(v) => setSearch(String(v ?? ''))}
-              showClear
-              style={{ width: 220 }}
-            />
+            <KeywordInput placeholder="搜索知识库名称" value={search} onChange={(v) => setSearch(String(v ?? ''))} />
             <ResetButton onClick={() => setSearch('')} />
           </>
         )}

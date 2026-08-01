@@ -1,9 +1,9 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Form, Input, Select, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Select, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { FolderTree, Search, Star } from 'lucide-react';
+import { FolderTree, Star } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -34,6 +34,7 @@ import { useAllUsers } from '@/hooks/queries/users';
 import { useReportDeprecationList } from '@/hooks/queries/report-assets';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams { keyword: string; status: string; lifecycleStatus: '' | ReportDashboard['lifecycleStatus']; categoryId?: number; favorited: boolean; ownerId?: number; folderId?: number }
@@ -236,8 +237,7 @@ export default function DashboardListPage() {
   ];
 
   const renderKeyword = () => (
-    <Input prefix={<Search size={14} />} placeholder="搜索名称/备注..." value={draftParams.keyword}
-      onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} showClear style={{ width: 220 }} onEnterPress={handleSearch} />
+    <KeywordInput placeholder="搜索名称/备注..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} />
   );
   const renderStatusFilter = () => (
     <Select placeholder="全部状态" value={draftParams.status || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))}

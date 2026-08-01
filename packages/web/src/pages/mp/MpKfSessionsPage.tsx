@@ -4,7 +4,7 @@ import {
   Avatar, Badge, Banner, Button, Empty, Form, Input, Modal, Rating, Select, Space, Spin, Tabs, TabPane, Tag, Toast, Typography,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Search, RefreshCw, Settings, Send, UserCheck, ArrowRightLeft, XCircle, MessageSquare, Star } from 'lucide-react';
+import { RefreshCw, Settings, Send, UserCheck, ArrowRightLeft, XCircle, MessageSquare, Star } from 'lucide-react';
 import type { MpKfSessionStatus, MpKfSessionEventType, MpKfSessionCloseReason, MpMessage } from '@zenith/shared/mp';
 import type { WsMessage } from '@zenith/shared/platform';
 import { usePermission } from '@/hooks/usePermission';
@@ -27,6 +27,7 @@ import {
   useTransferMpKfSession,
 } from '@/hooks/queries/mp-kf';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 
 const { Text, Title } = Typography;
 
@@ -184,15 +185,7 @@ export default function MpKfSessionsPage() {
     <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
   );
   const renderKeywordInput = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索 openid / 粉丝昵称"
-      value={keyword}
-      onChange={setKeyword}
-      onEnterPress={handleSearch}
-      showClear
-      style={{ width: 200 }}
-    />
+    <KeywordInput placeholder="搜索 openid / 粉丝昵称" value={keyword} onChange={setKeyword} onSearch={handleSearch} width={200} />
   );
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => (

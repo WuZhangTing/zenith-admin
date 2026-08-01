@@ -1,8 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, Spin, Toast, Banner } from '@douyinfe/semi-ui';
+import { Button, Form, Spin, Toast, Banner } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Search, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import type { MpTag } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -15,6 +15,7 @@ import { useMpAccounts } from './useMpAccounts';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
 import { mpTagKeys, useDeleteMpTag, useMpTagList, useSaveMpTag, useSyncMpTags } from '@/hooks/queries/mp-tags';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 export default function MpTagsPage() {
@@ -109,15 +110,7 @@ export default function MpTagsPage() {
     <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
   );
   const renderKeywordInput = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索标签名称"
-      value={draftKeyword}
-      onChange={setDraftKeyword}
-      onEnterPress={handleSearch}
-      showClear
-      style={{ width: 180 }}
-    />
+    <KeywordInput placeholder="搜索标签名称" value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} width={180} />
   );
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;

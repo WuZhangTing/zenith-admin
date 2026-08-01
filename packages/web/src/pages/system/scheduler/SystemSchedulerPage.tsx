@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Col, Descriptions, Form, Input, Modal, Row, Select, Space, TabPane, Tabs, Tag, Toast, Typography, withField } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { AlertTriangle, CheckCircle2, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, RefreshCw, Trash2 } from 'lucide-react';
 import type { SystemSchedulerAlertChannel } from '@zenith/shared/chat';
 import type { SystemSchedulerNode, SystemSchedulerRun, SystemSchedulerRunStatus, SystemSchedulerTask, SystemSchedulerTaskType, SystemSchedulerTriggerType } from '@zenith/shared/platform';
 import { NOTIFY_CHANNEL_LABELS, NOTIFY_CHANNEL_OPTIONS } from '@zenith/shared/messaging';
@@ -28,6 +28,7 @@ import {
   useSystemSchedulerTasks,
 } from '@/hooks/queries/system-scheduler';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 
 type TabKey = 'tasks' | 'runs' | 'nodes';
 
@@ -505,14 +506,7 @@ export default function SystemSchedulerPage() {
       <Tabs type="line" activeKey={activeTab} onChange={(key) => setActiveTab(key as TabKey)} lazyRender>
         <TabPane tab="系统任务" itemKey="tasks">
           <SearchToolbar>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索任务名称/标识/说明"
-              showClear
-              value={taskSearch.keyword}
-              onChange={(value) => setTaskSearch((prev) => ({ ...prev, keyword: value }))}
-              style={{ width: 240 }}
-            />
+            <KeywordInput placeholder="搜索任务名称/标识/说明" value={taskSearch.keyword} onChange={(value) => setTaskSearch((prev) => ({ ...prev, keyword: value }))} width={240} />
             <Select
               value={taskSearch.module}
               optionList={moduleOptions}

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Descriptions, InputNumber, Modal, Select, SideSheet, Switch, TabPane, Tabs, Tag, Toast, Typography, Input } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Eraser, RefreshCw, Search, Trash2, XCircle } from 'lucide-react';
+import { Eraser, RefreshCw, Trash2, XCircle } from 'lucide-react';
 import type { PaginatedResponse } from '@zenith/shared/core';
 import type { AsyncTask, AsyncTaskItem, AsyncTaskItemStatus, AsyncTaskStats, AsyncTaskStatus, AsyncTaskTypeMeta } from '@zenith/shared/tasks';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -32,6 +32,7 @@ import {
   useUpdateAsyncTaskTypeConfig,
 } from '@/hooks/queries/async-tasks';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 type TabKey = 'tasks' | 'types';
@@ -480,15 +481,7 @@ export default function TaskCenterPage() {
               onChange={(value) => setDraftParams((prev) => ({ ...prev, status: (value as string) ?? '' }))}
               style={{ width: 120 }}
             />
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索任务标题/类型"
-              value={draftParams.keyword}
-              onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))}
-              onEnterPress={handleSearch}
-              style={{ width: 190 }}
-              showClear
-            />
+            <KeywordInput placeholder="搜索任务标题/类型" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))} onSearch={handleSearch} width={190} />
             <Input
               placeholder="提交人（用户名/昵称）"
               value={draftParams.createdBy}

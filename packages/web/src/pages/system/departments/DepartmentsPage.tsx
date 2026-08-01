@@ -1,20 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import {
-  Button,
-  Col,
-  Form,
-  Input,
-  Modal,
-  Row,
-  Select,
-  Spin,
-  Switch,
-  Toast,
-} from '@douyinfe/semi-ui';
+import { Button, Col, Form, Modal, Row, Select, Spin, Switch, Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
-import { Search, ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
+import { ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
 import type { PaginatedResponse } from '@zenith/shared/core';
 import type { Department, User } from '@zenith/shared/identity';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -40,6 +29,7 @@ import {
   useSaveDepartment,
 } from '@/hooks/queries/departments';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
@@ -319,15 +309,7 @@ export default function DepartmentsPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索部门名称/编码"
-      value={draftParams.keyword}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))}
-      onEnterPress={handleSearch}
-      style={{ width: 240, maxWidth: '100%' }}
-      showClear
-    />
+    <KeywordInput placeholder="搜索部门名称/编码" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))} onSearch={handleSearch} width={240} />
   );
 
   const renderStatusFilter = () => (

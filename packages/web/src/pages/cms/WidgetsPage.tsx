@@ -1,18 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  Button,
-  Input,
-  Modal,
-  Select,
-  SideSheet,
-  Tag,
-  Toast,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Button, Modal, Select, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { CircleOff, Search, Send, Trash2 } from 'lucide-react';
+import { CircleOff, Send, Trash2 } from 'lucide-react';
 import { CMS_WIDGET_STATUS_LABELS, CMS_WIDGET_TYPE_LABELS } from '@zenith/shared/cms';
 import type { CmsWidget, CmsWidgetRef, CmsWidgetStatus, CmsWidgetType } from '@zenith/shared/cms';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -34,6 +25,7 @@ import {
 import { renderEllipsis } from '@/utils/table-columns';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete as confirmDeleteModal } from '@/utils/confirm';
 
 interface SearchState {
@@ -254,15 +246,7 @@ export default function WidgetsPage() {
   ];
 
   const keywordInput = (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="部件名称 / 编码"
-      value={draft.keyword}
-      onChange={(keyword) => setDraft((current) => ({ ...current, keyword }))}
-      onEnterPress={handleSearch}
-      showClear
-      style={{ width: 220 }}
-    />
+    <KeywordInput placeholder="部件名称 / 编码" value={draft.keyword} onChange={(keyword) => setDraft((current) => ({ ...current, keyword }))} onSearch={handleSearch} />
   );
   const statusFilter = (
     <Select

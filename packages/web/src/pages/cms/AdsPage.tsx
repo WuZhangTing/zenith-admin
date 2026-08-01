@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, DatePicker, Form, Tag, Toast, Tabs, TabPane, Select, SideSheet, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Tag, Toast, Tabs, TabPane, Select, SideSheet, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Trash2 } from 'lucide-react';
@@ -21,6 +21,7 @@ import { CMS_AD_EVENT_TYPE_LABELS, CMS_DEVICE_TYPE_LABELS } from '@zenith/shared
 import type { CmsAdEvent, CmsAdSlot, CmsAd } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { DateRangeFilter } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 // ─── 广告位 Tab ───────────────────────────────────────────────────────────────
@@ -313,9 +314,7 @@ function EventsTab({ siteId, setSiteId }: Readonly<{
       <Select placeholder="设备" showClear value={draft.device} style={{ width: 130 }}
         optionList={Object.entries(CMS_DEVICE_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
         onChange={(value) => setDraft((current) => ({ ...current, device: value as AdEventSearch['device'] }))} />
-      <DatePicker type="dateTimeRange" value={draft.timeRange}
-        onChange={(value) => setDraft((current) => ({ ...current, timeRange: value as [Date, Date] | undefined }))}
-        placeholder={['发生开始时间', '发生结束时间']} style={{ width: 330 }} />
+      <DateRangeFilter placeholder={['发生开始时间', '发生结束时间']} value={draft.timeRange} onChange={(value) => setDraft((current) => ({ ...current, timeRange: value as [Date, Date] | undefined }))} width={330} />
     </>
   );
 
@@ -460,9 +459,7 @@ function StatsTab({ siteId, setSiteId }: Readonly<{
         <Select placeholder="设备" showClear value={draft.device} style={{ width: 140 }}
           optionList={Object.entries(CMS_DEVICE_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
           onChange={(value) => setDraft((current) => ({ ...current, device: value as AdEventSearch['device'] }))} />
-        <DatePicker type="dateTimeRange" value={draft.timeRange}
-          onChange={(value) => setDraft((current) => ({ ...current, timeRange: value as [Date, Date] | undefined }))}
-          placeholder={['统计开始时间', '统计结束时间']} style={{ width: 330 }} />
+        <DateRangeFilter placeholder={['统计开始时间', '统计结束时间']} value={draft.timeRange} onChange={(value) => setDraft((current) => ({ ...current, timeRange: value as [Date, Date] | undefined }))} width={330} />
         <SearchButton onClick={() => setSubmitted(draft)} />
         <ResetButton onClick={() => { setDraft({}); setSubmitted({}); }} />
       </SearchToolbar>

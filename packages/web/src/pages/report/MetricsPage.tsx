@@ -1,25 +1,9 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  Banner,
-  Button,
-  Col,
-  Empty,
-  Form,
-  Input,
-  Modal,
-  Row,
-  Select,
-  SideSheet,
-  Space,
-  Tag,
-  Toast,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Banner, Button, Col, Empty, Form, Modal, Row, Select, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportMetric, ReportMetricType } from '@zenith/shared/report';
-import { Search } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -44,6 +28,7 @@ import { formatDateTime } from '@/utils/date';
 import { renderEllipsis } from '@/utils/table-columns';
 import { isRevisionConflict, metricLifecyclePayload, normalizeMetricFormValues } from './report-platform-utils';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface MetricSearch {
@@ -209,15 +194,7 @@ export default function MetricsPage() {
   ];
 
   const keyword = (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索指标名称/编码"
-      value={draft.keyword}
-      onChange={(value) => setDraft((prev) => ({ ...prev, keyword: value }))}
-      onEnterPress={handleSearch}
-      showClear
-      style={{ width: 230 }}
-    />
+    <KeywordInput placeholder="搜索指标名称/编码" value={draft.keyword} onChange={(value) => setDraft((prev) => ({ ...prev, keyword: value }))} onSearch={handleSearch} width={230} />
   );
   const filters = (
     <>

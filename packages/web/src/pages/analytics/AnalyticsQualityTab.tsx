@@ -3,10 +3,10 @@
  */
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Card, Form, Input, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Card, Form, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { AlertTriangle, Search, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, ShieldAlert } from 'lucide-react';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -23,6 +23,7 @@ import {
 import type { AnalyticsEventOverride, AnalyticsQualityDaily, AnalyticsQualityIssueType } from '@zenith/shared/analytics';
 import { ANALYTICS_EVENT_OVERRIDE_STATUS_OPTIONS, ANALYTICS_QUALITY_ISSUE_TYPE_LABELS, ANALYTICS_QUALITY_ISSUE_TYPE_OPTIONS } from '@zenith/shared/analytics';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const PAGE_SIZE = 20;
@@ -214,15 +215,7 @@ export default function AnalyticsQualityTab() {
         <Typography.Title heading={6} style={{ marginBottom: 12 }}>质量明细（按日 / 事件 / 问题类型）</Typography.Title>
         <SearchToolbar>
           <Select value={filter.days} onChange={(value) => setFilter((prev) => ({ ...prev, days: Number(value) }))} optionList={DAY_OPTIONS} style={{ width: 110 }} />
-          <Input
-            prefix={<Search size={14} />}
-            placeholder="事件名"
-            value={filter.eventName}
-            onChange={(value) => setFilter((prev) => ({ ...prev, eventName: value }))}
-            onEnterPress={handleSearch}
-            showClear
-            style={{ width: 160 }}
-          />
+          <KeywordInput placeholder="事件名" value={filter.eventName} onChange={(value) => setFilter((prev) => ({ ...prev, eventName: value }))} onSearch={handleSearch} width={160} />
           <Select
             placeholder="问题类型"
             value={filter.issueType || undefined}
@@ -261,15 +254,7 @@ export default function AnalyticsQualityTab() {
           <Typography.Text type="tertiary">当前未启用多租户模式，请直接在事件字典中管理全局状态。</Typography.Text>
         )}
         <SearchToolbar>
-          <Input
-            prefix={<Search size={14} />}
-            placeholder="事件名"
-            value={overrideFilter.eventName}
-            onChange={(value) => setOverrideFilter((prev) => ({ ...prev, eventName: value }))}
-            onEnterPress={handleOverrideSearch}
-            showClear
-            style={{ width: 160 }}
-          />
+          <KeywordInput placeholder="事件名" value={overrideFilter.eventName} onChange={(value) => setOverrideFilter((prev) => ({ ...prev, eventName: value }))} onSearch={handleOverrideSearch} width={160} />
           <Select
             placeholder="状态"
             value={overrideFilter.status || undefined}

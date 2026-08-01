@@ -63,7 +63,11 @@ export function NavListPanel<T = unknown>({
   const childCount = usingDataSource ? 0 : Children.count(children);
   const childrenContent = childCount > 0 ? children : null;
 
-  /** 搜索框节点，复用于 List header 槽（标准模式）或独立 div（rawBody 模式）。 */
+  /**
+   * 搜索框节点，复用于 List header 槽（标准模式）或独立 div（rawBody 模式）。
+   * 这里刻意不用 `KeywordInput`：那是搜索工具栏的筛选控件，带固定默认宽度；
+   * 面板搜索框需要跟随容器自适应，不设 width。
+   */
   const searchInput = search ? (
     <Input
       prefix={<Search size={14} />}

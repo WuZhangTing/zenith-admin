@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Button, Input, Modal, Tag, Toast, Switch } from '@douyinfe/semi-ui';
+import { Button, Modal, Tag, Toast, Switch } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search, ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
+import { ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -17,6 +17,7 @@ import {
   useSetDefaultAiProvider,
 } from '@/hooks/queries/ai-providers';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const PROVIDER_LABELS: Record<AiProvider, string> = {
@@ -231,15 +232,7 @@ export default function AIProvidersPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      placeholder="搜索名称/模型"
-      prefix={<Search size={14} />}
-      showClear
-      value={search}
-      onChange={(v) => setSearch(String(v ?? ''))}
-      onEnterPress={handleSearch}
-      style={{ width: 220 }}
-    />
+    <KeywordInput placeholder="搜索名称/模型" value={search} onChange={(v) => setSearch(String(v ?? ''))} onSearch={handleSearch} />
   );
 
   const renderSearchButton = () => (

@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { DatePicker, Input, Select, SideSheet, Space, Tag, Typography } from '@douyinfe/semi-ui';
+import { DatePicker, Select, SideSheet, Space, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search } from 'lucide-react';
 import type { RuleDecisionExecution } from '@zenith/shared/rules';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -11,6 +10,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { ruleKeys, useRuleExecutions } from '@/hooks/queries/rules';
 import { formatDateTimeForApi } from '@/utils/date';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 
 const { Text } = Typography;
 
@@ -70,7 +70,7 @@ export default function RuleExecutionsPage() {
       <SearchToolbar
         primary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="决策表 Key" value={draft.ruleKey ?? ''} onChange={(v) => setDraft((p) => ({ ...p, ruleKey: v || undefined }))} onEnterPress={handleSearch} showClear style={{ width: 200 }} />
+            <KeywordInput placeholder="决策表 Key" value={draft.ruleKey ?? ''} onChange={(v) => setDraft((p) => ({ ...p, ruleKey: v || undefined }))} onSearch={handleSearch} width={200} />
             <Select placeholder="来源" value={draft.source} onChange={(v) => setDraft((p) => ({ ...p, source: v as Filters['source'] }))} optionList={[{ value: 'runtime', label: '运行时' }, { value: 'manual', label: '手动' }, { value: 'test', label: '测试' }]} showClear style={{ width: 120 }} />
             <Select placeholder="结果" value={draft.matched === undefined ? undefined : String(draft.matched)} onChange={(v) => setDraft((p) => ({ ...p, matched: v === undefined ? undefined : v === 'true' }))} optionList={[{ value: 'true', label: '命中' }, { value: 'false', label: '未命中' }]} showClear style={{ width: 110 }} />
             <DatePicker

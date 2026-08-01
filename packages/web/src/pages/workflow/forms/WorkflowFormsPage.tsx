@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
-import { Input, Select, Tag, Toast } from '@douyinfe/semi-ui';
+import { Select, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { WorkflowForm, WorkflowFormStatus } from '@zenith/shared/workflow';
 import { formatDateTime } from '@/utils/date';
@@ -19,6 +18,7 @@ import {
   workflowFormKeys,
 } from '@/hooks/queries/workflow-forms';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 type StatusFilter = WorkflowFormStatus | '';
@@ -178,15 +178,7 @@ export default function WorkflowFormsPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索表单名称/标识"
-      value={draftParams.keyword}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))}
-      onEnterPress={handleSearch}
-      showClear
-      style={{ width: 220 }}
-    />
+    <KeywordInput placeholder="搜索表单名称/标识" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))} onSearch={handleSearch} />
   );
 
   const renderStatusFilter = () => (

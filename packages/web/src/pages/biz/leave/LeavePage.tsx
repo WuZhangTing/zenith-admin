@@ -6,12 +6,10 @@
  */
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Button, Form, Input, Modal, Select, Space, Tag, Toast, Typography,
-} from '@douyinfe/semi-ui';
+import { Button, Form, Modal, Select, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search, Send } from 'lucide-react';
+import { Send } from 'lucide-react';
 import dayjs from 'dayjs';
 import type { BizLeave } from '@zenith/shared/biz';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -31,6 +29,7 @@ import {
   useSubmitBizLeave,
 } from '@/hooks/queries/biz-leave';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 type TagColor = 'grey' | 'blue' | 'green' | 'red' | 'orange';
@@ -225,15 +224,7 @@ export default function LeavePage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索事由"
-      value={draftParams.keyword}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))}
-      onEnterPress={handleSearch}
-      showClear
-      style={{ width: 220, maxWidth: '100%' }}
-    />
+    <KeywordInput placeholder="搜索事由" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))} onSearch={handleSearch} />
   );
 
   const renderStatusFilter = () => (

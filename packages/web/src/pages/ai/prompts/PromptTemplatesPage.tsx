@@ -1,8 +1,7 @@
 import { useRef, useState } from 'react';
-import { Button, Col, Form, Input, Modal, Row, Select, SideSheet, Space, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Modal, Row, Select, SideSheet, Space, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { AiPromptTemplate, AiPromptScope, CreateAiPromptTemplateInput } from '@zenith/shared/ai';
 import { AppModal } from '@/components/AppModal';
@@ -21,6 +20,7 @@ import {
 import { useAiPromptVersions, useRestoreAiPromptVersion } from '@/hooks/queries/ai-extras';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
@@ -202,15 +202,7 @@ export default function PromptTemplatesPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索名称/描述"
-      value={draftParams.keyword}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: String(value ?? '') }))}
-      onEnterPress={handleSearch}
-      showClear
-      style={{ width: 220 }}
-    />
+    <KeywordInput placeholder="搜索名称/描述" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: String(value ?? '') }))} onSearch={handleSearch} />
   );
 
   const renderScopeFilter = () => (

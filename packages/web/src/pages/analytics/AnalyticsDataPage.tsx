@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Tabs, TabPane, Input, Select, Button, Toast, Form, Switch, Slider, InputNumber, TagInput, Tag, Typography, SplitButtonGroup, Dropdown, DatePicker, SideSheet, Descriptions, Card } from '@douyinfe/semi-ui';
+import { Tabs, TabPane, Select, Button, Toast, Form, Switch, Slider, InputNumber, TagInput, Tag, Typography, SplitButtonGroup, Dropdown, DatePicker, SideSheet, Descriptions, Card } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
-import { Search, Trash2, ChevronDown } from 'lucide-react';
+import { Trash2, ChevronDown } from 'lucide-react';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -33,6 +33,7 @@ import AnalyticsDebugTab from './AnalyticsDebugTab';
 import AnalyticsSegmentsTab from './AnalyticsSegmentsTab';
 import AnalyticsSitesTab from './AnalyticsSitesTab';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 const PAGE_SIZE = 20;
@@ -737,37 +738,13 @@ export default function AnalyticsDataPage() {
     />
   );
   const renderEventNameSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="事件名"
-      value={eventSearch.eventName}
-      onChange={(value) => setEventSearch((prev) => ({ ...prev, eventName: value }))}
-      onEnterPress={handleEventSearch}
-      showClear
-      style={{ width: 160 }}
-    />
+    <KeywordInput placeholder="事件名" value={eventSearch.eventName} onChange={(value) => setEventSearch((prev) => ({ ...prev, eventName: value }))} onSearch={handleEventSearch} width={160} />
   );
   const renderEventUsernameSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="用户名"
-      value={eventSearch.username}
-      onChange={(value) => setEventSearch((prev) => ({ ...prev, username: value }))}
-      onEnterPress={handleEventSearch}
-      showClear
-      style={{ width: 140 }}
-    />
+    <KeywordInput placeholder="用户名" value={eventSearch.username} onChange={(value) => setEventSearch((prev) => ({ ...prev, username: value }))} onSearch={handleEventSearch} width={140} />
   );
   const renderEventPagePathSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="页面路径"
-      value={eventSearch.pagePath}
-      onChange={(value) => setEventSearch((prev) => ({ ...prev, pagePath: value }))}
-      onEnterPress={handleEventSearch}
-      showClear
-      style={{ width: 180 }}
-    />
+    <KeywordInput placeholder="页面路径" value={eventSearch.pagePath} onChange={(value) => setEventSearch((prev) => ({ ...prev, pagePath: value }))} onSearch={handleEventSearch} width={180} />
   );
   const renderEventDeviceFilter = () => (
     <Select
@@ -830,26 +807,10 @@ export default function AnalyticsDataPage() {
   );
 
   const renderMetaKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="关键词"
-      value={metaSearch.keyword}
-      onChange={(value) => setMetaSearch((prev) => ({ ...prev, keyword: value }))}
-      onEnterPress={handleMetaSearch}
-      showClear
-      style={{ width: 180 }}
-    />
+    <KeywordInput placeholder="关键词" value={metaSearch.keyword} onChange={(value) => setMetaSearch((prev) => ({ ...prev, keyword: value }))} onSearch={handleMetaSearch} width={180} />
   );
   const renderMetaCategorySearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="分类"
-      value={metaSearch.category}
-      onChange={(value) => setMetaSearch((prev) => ({ ...prev, category: value }))}
-      onEnterPress={handleMetaSearch}
-      showClear
-      style={{ width: 140 }}
-    />
+    <KeywordInput placeholder="分类" value={metaSearch.category} onChange={(value) => setMetaSearch((prev) => ({ ...prev, category: value }))} onSearch={handleMetaSearch} width={140} />
   );
   const renderMetaStatusFilter = () => (
     <Select

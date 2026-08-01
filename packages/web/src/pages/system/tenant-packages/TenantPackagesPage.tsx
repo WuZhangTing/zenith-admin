@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button, Input, Select, Form, Toast, Spin, Switch } from '@douyinfe/semi-ui';
+import { Button, Select, Form, Toast, Spin, Switch } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search, Trash2 } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import type { TenantPackage } from '@zenith/shared/identity';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
@@ -23,6 +23,7 @@ import {
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
@@ -193,15 +194,7 @@ export default function TenantPackagesPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索套餐名称"
-      value={draftParams.keyword}
-      onChange={(v) => setDraftParams((prev) => ({ ...prev, keyword: v }))}
-      onEnterPress={handleSearch}
-      style={{ width: 220, maxWidth: '100%' }}
-      showClear
-    />
+    <KeywordInput placeholder="搜索套餐名称" value={draftParams.keyword} onChange={(v) => setDraftParams((prev) => ({ ...prev, keyword: v }))} onSearch={handleSearch} />
   );
 
   const renderStatusFilter = () => (

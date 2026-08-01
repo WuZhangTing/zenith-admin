@@ -3,16 +3,8 @@
  * 列表 + 详情抽屉，支持按状态 / 实例 ID / 节点 key 过滤
  */
 import { useState } from 'react';
-import {
-  Input,
-  InputNumber,
-  Select,
-  SideSheet,
-  Tag,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { InputNumber, Select, SideSheet, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search } from 'lucide-react';
 import { formatDateTime } from '@/utils/date';
 import { createdAtColumn } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -29,6 +21,7 @@ import {
   workflowTriggerExecutionKeys,
 } from '@/hooks/queries/workflow-trigger-executions';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { useListSearch } from '@/hooks/useListSearch';
 
 const STATUS_MAP: Record<WorkflowTriggerExecutionStatus, { label: string; color: 'grey' | 'blue' | 'green' | 'red' | 'orange' }> = {
@@ -141,14 +134,7 @@ export default function WorkflowTriggerExecutionsPage() {
   ];
 
   const renderNodeKeySearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      value={draftParams.nodeKey}
-      onChange={(v) => setDraftParams(prev => ({ ...prev, nodeKey: v }))}
-      placeholder="节点 key"
-      showClear
-      style={{ width: 180 }}
-    />
+    <KeywordInput placeholder="节点 key" value={draftParams.nodeKey} onChange={(v) => setDraftParams(prev => ({ ...prev, nodeKey: v }))} width={180} />
   );
 
   const renderStatusFilter = () => (

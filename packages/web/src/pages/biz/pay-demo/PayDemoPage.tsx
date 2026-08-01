@@ -6,12 +6,10 @@
  * 履约（置 paid、发放权益）。「模拟支付成功」用于在未配置真实渠道时演示完整闭环。
  */
 import { useRef, useState, type CSSProperties } from 'react';
-import {
-  Banner, Button, Collapse, Form, Input, Modal, Select, Space, Tag, Toast, Tooltip, Typography,
-} from '@douyinfe/semi-ui';
+import { Banner, Button, Collapse, Form, Modal, Select, Space, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Info, Search } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { PAYMENT_METHOD_LABELS } from '@zenith/shared/payment';
 import type { BizPayDemo, BizPayDemoStatus } from '@zenith/shared/biz';
@@ -30,6 +28,7 @@ import {
   useSimulateBizPayDemoPaid,
 } from '@/hooks/queries/biz-pay-demo';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { useListSearch } from '@/hooks/useListSearch';
 import { confirmDelete } from '@/utils/confirm';
 
@@ -252,15 +251,7 @@ export default function PayDemoPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索示例事项"
-      value={draftParams.keyword}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))}
-      onEnterPress={handleSearch}
-      showClear
-      style={{ width: 220, maxWidth: '100%' }}
-    />
+    <KeywordInput placeholder="搜索示例事项" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))} onSearch={handleSearch} />
   );
 
   const renderStatusFilter = () => (

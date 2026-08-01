@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
-import { Button, Input, Select, Form, Toast, Tag } from '@douyinfe/semi-ui';
+import { Button, Select, Form, Toast, Tag } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search, Coins } from 'lucide-react';
+import { Coins } from 'lucide-react';
 import type { MemberPointTransaction } from '@zenith/shared/member';
 import { POINT_TX_TYPE_LABELS } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
@@ -15,6 +15,7 @@ import { createdAtColumn, renderEllipsis } from '../../utils/table-columns';
 import { memberAdminKeys, useAdjustMemberPoints, useMemberPointTransactions } from '@/hooks/queries/member-admin';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 
 const typeOptions = (Object.keys(POINT_TX_TYPE_LABELS) as (keyof typeof POINT_TX_TYPE_LABELS)[]).map((v) => ({ value: v, label: POINT_TX_TYPE_LABELS[v] }));
 const TYPE_COLORS: Record<string, string> = { earn: 'green', redeem: 'orange', expire: 'grey', adjust: 'blue', refund: 'cyan' };
@@ -59,15 +60,7 @@ export default function MemberPointsPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="会员ID/昵称"
-      value={draftParams.memberKeyword}
-      showClear
-      style={{ width: 180 }}
-      onChange={(v) => setDraftParams((p) => ({ ...p, memberKeyword: v || undefined }))}
-      onEnterPress={handleSearch}
-    />
+    <KeywordInput placeholder="会员ID/昵称" value={draftParams.memberKeyword} onChange={(v) => setDraftParams((p) => ({ ...p, memberKeyword: v || undefined }))} onSearch={handleSearch} width={180} />
   );
 
   const renderTypeFilter = () => (

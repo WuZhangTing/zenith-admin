@@ -1,9 +1,8 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Form, Input, Toast } from '@douyinfe/semi-ui';
+import { Form, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -15,6 +14,7 @@ import { useCmsTagList, useSaveCmsTag, useDeleteCmsTag, cmsTagKeys } from '@/hoo
 import type { CmsTag } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 export default function TagsPage() {
@@ -115,15 +115,7 @@ export default function TagsPage() {
     <div className="page-container">
       <SearchToolbar>
         <CmsSiteSelect value={siteId} onChange={(v) => { setSiteId(v); setPage(1); }} width={180} />
-        <Input
-          prefix={<Search size={14} />}
-          placeholder="搜索标签名称/标识..."
-          value={draftKeyword}
-          onChange={setDraftKeyword}
-          showClear
-          style={{ width: 200 }}
-          onEnterPress={handleSearch}
-        />
+        <KeywordInput placeholder="搜索标签名称/标识..." value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} width={200} />
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />
         {hasPermission('cms:tag:create') ? (

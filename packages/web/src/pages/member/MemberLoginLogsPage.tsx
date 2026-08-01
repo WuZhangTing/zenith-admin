@@ -1,6 +1,5 @@
-import { DatePicker, Input, Select, Tag } from '@douyinfe/semi-ui';
+import { Select, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search } from 'lucide-react';
 import type { MemberLoginLog } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -11,6 +10,7 @@ import { formatDateForApi } from '@/utils/date';
 import { memberAdminKeys, useMemberLoginLogList } from '@/hooks/queries/member-admin';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 
 interface SearchParams {
   keyword?: string;
@@ -56,15 +56,7 @@ export default function MemberLoginLogsPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      placeholder="会员昵称/手机号/用户名"
-      prefix={<Search size={14} />}
-      value={draftParams.keyword}
-      showClear
-      style={{ width: 220 }}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value || undefined }))}
-      onEnterPress={handleSearch}
-    />
+    <KeywordInput placeholder="会员昵称/手机号/用户名" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value || undefined }))} onSearch={handleSearch} />
   );
 
   const renderStatusFilter = () => (
@@ -79,13 +71,7 @@ export default function MemberLoginLogsPage() {
   );
 
   const renderDateRangeFilter = () => (
-    <DatePicker
-      type="dateRange"
-      placeholder={['开始日期', '结束日期']}
-      value={draftParams.dateRange ?? undefined}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, dateRange: value ? (value as [Date, Date]) : null }))}
-      style={{ width: 300 }}
-    />
+    <DateRangeFilter type="dateRange" value={draftParams.dateRange ?? undefined} onChange={(value) => setDraftParams((prev) => ({ ...prev, dateRange: value ? (value as [Date, Date]) : null }))} width={300} />
   );
 
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;

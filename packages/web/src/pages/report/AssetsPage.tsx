@@ -1,27 +1,9 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  Banner,
-  Col,
-  DatePicker,
-  Empty,
-  Form,
-  Input,
-  Modal,
-  Row,
-  Select,
-  SideSheet,
-  Space,
-  TabPane,
-  Tabs,
-  Tag,
-  Toast,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Banner, Col, Empty, Form, Input, Modal, Row, Select, SideSheet, Space, TabPane, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportAssetCatalogItem, ReportAssetTemplate, ReportAssetTemplateType, ReportAssetUsageSummary, ReportAssetUsageTrendPoint, ReportDeprecationNotice, ReportResourceType } from '@zenith/shared/report';
-import { Search } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
@@ -53,6 +35,7 @@ import { renderEllipsis } from '@/utils/table-columns';
 import { normalizeTemplateApplyValues, parseJsonObject } from './report-platform-utils';
 import { REPORT_RESOURCE_TYPE_OPTIONS } from './report-platform-options';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const resourceTypeOptions = REPORT_RESOURCE_TYPE_OPTIONS;
@@ -325,7 +308,7 @@ export default function AssetsPage() {
         <TabPane tab="统一资产目录" itemKey="catalog">
           <SearchToolbar
             primary={<>
-              <Input prefix={<Search size={14} />} placeholder="搜索资产名称" value={catalogDraft.keyword} showClear style={{ width: 220 }} onChange={(value) => setCatalogDraft((p) => ({ ...p, keyword: value }))} onEnterPress={searchCatalog} />
+              <KeywordInput placeholder="搜索资产名称" value={catalogDraft.keyword} onChange={(value) => setCatalogDraft((p) => ({ ...p, keyword: value }))} onSearch={searchCatalog} />
               <SearchButton onClick={searchCatalog} />
               <ResetButton onClick={resetCatalog} />
             </>}
@@ -334,11 +317,11 @@ export default function AssetsPage() {
               <Select filter showClear placeholder="负责人" value={catalogDraft.ownerId} optionList={users.map((u) => ({ value: u.id, label: u.nickname || u.username }))} style={{ width: 150 }} onChange={(value) => setCatalogDraft((p) => ({ ...p, ownerId: value as number | undefined }))} />
               <Select filter showClear placeholder="目录" value={catalogDraft.folderId} optionList={folders.map((f) => ({ value: f.id, label: `[${f.resourceType}] ${f.name}` }))} style={{ width: 180 }} onChange={(value) => setCatalogDraft((p) => ({ ...p, folderId: value as number | undefined }))} />
               <Select showClear placeholder="生命周期" value={catalogDraft.lifecycle || undefined} optionList={['draft', 'published', 'deprecated'].map((value) => ({ value, label: value }))} style={{ width: 140 }} onChange={(value) => setCatalogDraft((p) => ({ ...p, lifecycle: (value as string) ?? '' }))} />
-              <DatePicker type="dateTimeRange" value={catalogDraft.timeRange ?? undefined} style={{ width: 340 }} onChange={(value) => setCatalogDraft((p) => ({ ...p, timeRange: value ? value as [Date, Date] : null }))} />
+              <DateRangeFilter value={catalogDraft.timeRange ?? undefined} onChange={(value) => setCatalogDraft((p) => ({ ...p, timeRange: value ? value as [Date, Date] : null }))} width={340} />
             </>}
             actions={<ExportButton entity="report.assets" query={catalogQueryParams} />}
             mobilePrimary={<>
-              <Input prefix={<Search size={14} />} placeholder="搜索资产" value={catalogDraft.keyword} showClear onChange={(value) => setCatalogDraft((p) => ({ ...p, keyword: value }))} />
+              <KeywordInput placeholder="搜索资产" value={catalogDraft.keyword} onChange={(value) => setCatalogDraft((p) => ({ ...p, keyword: value }))} />
               <SearchButton onClick={searchCatalog} />
             </>}
             mobileActions={<ExportButton entity="report.assets" query={catalogQueryParams} variant="flat" />}
@@ -351,7 +334,7 @@ export default function AssetsPage() {
 
         <TabPane tab="可复用模板" itemKey="templates">
           <SearchToolbar>
-            <Input prefix={<Search size={14} />} placeholder="搜索模板名称/编码" value={templateKeyword} showClear style={{ width: 230 }} onChange={setTemplateKeyword} onEnterPress={searchTemplates} />
+            <KeywordInput placeholder="搜索模板名称/编码" value={templateKeyword} onChange={setTemplateKeyword} onSearch={searchTemplates} width={230} />
             <Select placeholder="模板类型" showClear value={templateType} optionList={templateTypeOptions} style={{ width: 150 }} onChange={(v) => setTemplateType(v as ReportAssetTemplateType | undefined)} />
             <SearchButton onClick={searchTemplates} />
             <ResetButton onClick={resetTemplates} />

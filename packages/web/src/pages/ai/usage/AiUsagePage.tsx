@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Card, DatePicker, Row, Col, Spin, Typography } from '@douyinfe/semi-ui';
+import { Card, Row, Col, Spin, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { CommonChart, chartOptions, makeMixedBarLineSpec, useChartPalette } from '@/components/charts';
 import { Bot, CircleCheck, Coins, Gauge, MessageCircle, Users, Wallet } from 'lucide-react';
@@ -10,6 +10,7 @@ import { formatDateForApi } from '@/utils/date';
 import { aiUsageKeys, useAiUsageStats } from '@/hooks/queries/ai-usage';
 import type { AiUsageByModel, AiUsageByUser } from '@/hooks/queries/ai-usage';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { DateRangeFilter } from '@/components/search-filters';
 
 const { Text } = Typography;
 
@@ -168,17 +169,11 @@ export default function AiUsagePage() {
   });
 
   const renderDateRangeFilter = () => (
-    <DatePicker
-      type="dateRange"
-      placeholder={['开始日期', '结束日期']}
-      value={draftRange}
-      onChange={(value) => {
+    <DateRangeFilter type="dateRange" value={draftRange} onChange={(value) => {
         if (Array.isArray(value) && value.length >= 2 && value[0] instanceof Date && value[1] instanceof Date) {
           setDraftRange([value[0], value[1]]);
         }
-      }}
-      style={{ width: 300 }}
-    />
+      }} width={300} />
   );
 
   const renderSearchButton = () => (

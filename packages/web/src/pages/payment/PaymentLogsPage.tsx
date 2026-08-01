@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
 import type { CSSProperties } from 'react';
-import { DatePicker, Input, Modal, Select, Tag, Typography } from '@douyinfe/semi-ui';
+import { Modal, Select, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -13,6 +12,7 @@ import type { PaymentChannel, PaymentNotifyLog } from '@zenith/shared/payment';
 import { paymentLogKeys, usePaymentLogList } from '@/hooks/queries/payment-logs';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 
 interface SearchParams { keyword: string; channel: string; scene: string; signatureValid: string; timeRange: [Date, Date] | null; }
 const defaultSearch: SearchParams = { keyword: '', channel: '', scene: '', signatureValid: '', timeRange: null };
@@ -74,15 +74,7 @@ export default function PaymentLogsPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="订单号..."
-      value={draftParams.keyword}
-      onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))}
-      showClear
-      style={{ width: 200 }}
-      onEnterPress={handleSearch}
-    />
+    <KeywordInput placeholder="订单号..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} width={200} />
   );
 
   const renderChannelFilter = () => (
@@ -119,13 +111,7 @@ export default function PaymentLogsPage() {
   );
 
   const renderTimeRangeFilter = () => (
-    <DatePicker
-      type="dateTimeRange"
-      placeholder={['开始时间', '结束时间']}
-      value={draftParams.timeRange ?? undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, timeRange: v ? (v as [Date, Date]) : null }))}
-      style={{ width: 330 }}
-    />
+    <DateRangeFilter value={draftParams.timeRange ?? undefined} onChange={(v) => setDraftParams((p) => ({ ...p, timeRange: v ? (v as [Date, Date]) : null }))} width={330} />
   );
 
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;

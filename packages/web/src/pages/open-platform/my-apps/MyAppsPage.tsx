@@ -1,25 +1,9 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Banner,
-  Button,
-  Checkbox,
-  Col,
-  Form,
-  Input,
-  Modal,
-  Progress,
-  Row,
-  Select,
-  SideSheet,
-  Space,
-  Tag,
-  Toast,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Banner, Button, Checkbox, Col, Form, Modal, Progress, Row, Select, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Activity, Search } from 'lucide-react';
+import { Activity } from 'lucide-react';
 import { OAUTH2_GRANT_TYPE_LABELS, OAUTH2_GRANT_TYPES, OPEN_APP_ENVIRONMENT_LABELS, OPEN_APP_ENVIRONMENTS, OPEN_APP_REVIEW_STATUS_LABELS, OPEN_APP_REVIEW_STATUSES } from '@zenith/shared/open-platform';
 import type { OAuth2Client } from '@zenith/shared/open-platform';
 import { AppModal } from '@/components/AppModal';
@@ -40,6 +24,7 @@ import {
 } from '@/hooks/queries/developer-apps';
 import { useQueryClient } from '@tanstack/react-query';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const { Paragraph, Text } = Typography;
@@ -267,7 +252,7 @@ export default function MyAppsPage() {
       <SearchToolbar
         primary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="搜索我的应用" value={draft.keyword} onChange={(keyword) => setDraft({ ...draft, keyword })} onEnterPress={search} showClear style={{ width: 210 }} />
+            <KeywordInput placeholder="搜索我的应用" value={draft.keyword} onChange={(keyword) => setDraft({ ...draft, keyword })} onSearch={search} width={210} />
             <SearchButton onClick={search} />
             <ResetButton onClick={reset} />
             <CreateButton onClick={openCreate}>创建应用</CreateButton>
@@ -281,7 +266,7 @@ export default function MyAppsPage() {
         )}
         mobilePrimary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="搜索我的应用" value={draft.keyword} onChange={(keyword) => setDraft({ ...draft, keyword })} onEnterPress={search} showClear style={{ width: 190 }} />
+            <KeywordInput placeholder="搜索我的应用" value={draft.keyword} onChange={(keyword) => setDraft({ ...draft, keyword })} onSearch={search} width={190} />
             <SearchButton onClick={search} />
             <CreateButton onClick={openCreate}>创建</CreateButton>
           </>

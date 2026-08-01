@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
-import { Button, Form, Input, Space, Tag, Toast } from '@douyinfe/semi-ui';
+import { Button, Form, Space, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { RefreshCw, Search, Shield, ShieldOff } from 'lucide-react';
+import { RefreshCw, Shield, ShieldOff } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -19,6 +19,7 @@ import {
   type FirewallStatus,
 } from '@/hooks/queries/firewall';
 import { CreateButton, ResetButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const RULE_TYPE_CONFIG: Record<FirewallRule['type'], { label: string; color: 'green' | 'red' | 'orange' }> = {
@@ -223,14 +224,7 @@ export default function FirewallPage() {
       <SearchToolbar
         primary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索端口/来源/目标/备注"
-              value={keyword}
-              onChange={setKeyword}
-              showClear
-              style={{ width: 240 }}
-            />
+            <KeywordInput placeholder="搜索端口/来源/目标/备注" value={keyword} onChange={setKeyword} width={240} />
             <ResetButton onClick={() => { setKeyword(''); void fetchAll(); }} />
             <Button icon={<RefreshCw size={14} />} loading={rulesQuery.isFetching} onClick={() => void fetchAll()}>刷新</Button>
             {canManage && <CreateButton onClick={openCreate}>新增规则</CreateButton>}
@@ -238,14 +232,7 @@ export default function FirewallPage() {
         )}
         mobilePrimary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索端口/来源/目标/备注"
-              value={keyword}
-              onChange={setKeyword}
-              showClear
-              style={{ width: 240 }}
-            />
+            <KeywordInput placeholder="搜索端口/来源/目标/备注" value={keyword} onChange={setKeyword} width={240} />
             {canManage && <CreateButton onClick={openCreate}>新增规则</CreateButton>}
           </>
         )}

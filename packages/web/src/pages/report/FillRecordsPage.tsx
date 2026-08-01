@@ -1,25 +1,9 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Banner,
-  Button,
-  Descriptions,
-  Form,
-  Input,
-  Modal,
-  Select,
-  SideSheet,
-  Space,
-  Spin,
-  TabPane,
-  Tabs,
-  Tag,
-  Toast,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Banner, Button, Descriptions, Form, Modal, Select, SideSheet, Space, Spin, TabPane, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { ClipboardPlus, ExternalLink, Search } from 'lucide-react';
+import { ClipboardPlus, ExternalLink } from 'lucide-react';
 import { REPORT_FILL_RECORD_STATUS_LABELS, REPORT_FILL_RECORD_STATUS_OPTIONS, REPORT_FILL_SYNC_STATUS_LABELS } from '@zenith/shared/report';
 import type { ReportFillRecord, ReportFillRecordStatus } from '@zenith/shared/report';
 import type { AsyncTask } from '@zenith/shared/tasks';
@@ -47,6 +31,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { formatDateTime } from '@/utils/date';
 import { canRunFillRecordAction, isRevisionConflict, shouldShowFillReviewTab } from './report-p2-utils';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 
 interface MineFilters {
   keyword: string;
@@ -284,19 +269,11 @@ export default function FillRecordsPage() {
   const adminColumns = createColumns(true);
 
   const mineKeyword = (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索模板名称/编码"
-      value={mineDraft.keyword}
-      onChange={(value) => setMineDraft((current) => ({ ...current, keyword: value }))}
-      showClear
-      style={{ width: 220 }}
-      onEnterPress={() => {
+    <KeywordInput placeholder="搜索模板名称/编码" value={mineDraft.keyword} onChange={(value) => setMineDraft((current) => ({ ...current, keyword: value }))} onSearch={() => {
         minePagination.setPage(1);
         setMineSubmitted(mineDraft);
         void queryClient.invalidateQueries({ queryKey: reportFillKeys.recordLists });
-      }}
-    />
+      }} />
   );
   const templateFilter = (value: number | undefined, onChange: (value?: number) => void) => canCreate ? (
     <Select

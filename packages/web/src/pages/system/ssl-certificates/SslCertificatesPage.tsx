@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
-import { Button, Descriptions, Form, Input, Select, SideSheet, Space, Spin, Tag, Toast } from '@douyinfe/semi-ui';
+import { Button, Descriptions, Form, Select, SideSheet, Space, Spin, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Lock, Search, Upload } from 'lucide-react';
+import { Lock, Upload } from 'lucide-react';
 import AppModal from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -22,6 +22,7 @@ import {
   type SslCertificateRecord,
 } from '@/hooks/queries/ssl-certificates';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
@@ -199,15 +200,7 @@ export default function SslCertificatesPage() {
       <SearchToolbar
         primary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索名称或域名"
-              value={draftParams.keyword}
-              onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))}
-              onEnterPress={handleSearch}
-              showClear
-              style={{ width: 240 }}
-            />
+            <KeywordInput placeholder="搜索名称或域名" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))} onSearch={handleSearch} width={240} />
             <Select
               placeholder="证书类型"
               value={draftParams.type || undefined}
@@ -228,15 +221,7 @@ export default function SslCertificatesPage() {
         )}
         mobilePrimary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索名称或域名"
-              value={draftParams.keyword}
-              onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))}
-              onEnterPress={handleSearch}
-              showClear
-              style={{ width: 240 }}
-            />
+            <KeywordInput placeholder="搜索名称或域名" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))} onSearch={handleSearch} width={240} />
             <SearchButton onClick={handleSearch} />
             {canCreate && <Button type="primary" icon={<Lock size={14} />} onClick={() => setGenerateVisible(true)}>生成</Button>}
             {canCreate && <Button type="primary" icon={<Upload size={14} />} onClick={() => setUploadVisible(true)}>上传</Button>}

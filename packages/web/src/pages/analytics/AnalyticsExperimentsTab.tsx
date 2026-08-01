@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Input, InputNumber, Modal, Popconfirm, Progress, Select, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Plus, Search, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import type { AnalyticsExperiment, AnalyticsExperimentVariant } from '@zenith/shared/analytics';
 import { ANALYTICS_EXPERIMENT_STATUS_LABELS, ANALYTICS_EXPERIMENT_STATUS_OPTIONS } from '@zenith/shared/analytics';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
@@ -12,6 +12,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { analyticsKeys, useAnalyticsEventMeta, useCreateExperiment, useDeleteExperiment, useExperimentAction, useExperimentReport, useExperiments, useUpdateExperiment } from '@/hooks/queries/analytics';
 import { formatDateTime } from '@/utils/date';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 
 const PAGE_SIZE = 20;
 const defaultSearch = { name: '', status: '' as '' | AnalyticsExperiment['status'] };
@@ -184,7 +185,7 @@ export default function AnalyticsExperimentsTab() {
   return (
     <>
       <SearchToolbar>
-        <Input prefix={<Search size={14} />} placeholder="实验名称" value={draft.name} onChange={(name) => setDraft((prev) => ({ ...prev, name }))} showClear style={{ width: 220 }} />
+        <KeywordInput placeholder="实验名称" value={draft.name} onChange={(name) => setDraft((prev) => ({ ...prev, name }))} />
         <Select placeholder="状态" value={draft.status || undefined} optionList={ANALYTICS_EXPERIMENT_STATUS_OPTIONS} onChange={(status) => setDraft((prev) => ({ ...prev, status: (status as AnalyticsExperiment['status']) ?? '' }))} showClear style={{ width: 130 }} />
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />

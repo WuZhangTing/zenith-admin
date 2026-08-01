@@ -1,8 +1,7 @@
 import { useRef, useState } from 'react';
-import { Input, Select, Form, Toast, Tag, Row, Col } from '@douyinfe/semi-ui';
+import { Select, Form, Toast, Tag, Row, Col } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search } from 'lucide-react';
 import type { Coupon, CouponType, CouponTemplateStatus } from '@zenith/shared/member';
 import { COUPON_TYPE_LABELS, COUPON_TEMPLATE_STATUS_LABELS } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
@@ -22,6 +21,7 @@ import {
   useSaveCoupon,
 } from '@/hooks/queries/member-admin';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete as confirmDeleteModal } from '@/utils/confirm';
 
 const typeOptions = (Object.keys(COUPON_TYPE_LABELS) as CouponType[]).map((v) => ({ value: v, label: COUPON_TYPE_LABELS[v] }));
@@ -181,15 +181,7 @@ export default function CouponsPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="券名称"
-      value={draftParams.keyword}
-      showClear
-      style={{ width: 180 }}
-      onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v || undefined }))}
-      onEnterPress={handleSearch}
-    />
+    <KeywordInput placeholder="券名称" value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v || undefined }))} onSearch={handleSearch} width={180} />
   );
 
   const renderTypeFilter = () => (

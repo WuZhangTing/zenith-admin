@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Empty, Input, Skeleton, Tag } from '@douyinfe/semi-ui';
-import { ChevronLeft, ChevronRight, Clock, Monitor, Search } from 'lucide-react';
+import { Button, Empty, Skeleton, Tag } from '@douyinfe/semi-ui';
+import { ChevronLeft, ChevronRight, Clock, Monitor } from 'lucide-react';
 import type { WorkflowDefinition } from '@zenith/shared/workflow';
 import { canLaunchOnMobile } from '../lib/launch';
 import { getRecentDefinitionIds } from '../lib/recent';
 import { usePublishedDefinitions } from '../lib/queries';
+import { KeywordInput } from '@/components/search-filters';
 
 function DefCard({ def, onOpen }: Readonly<{ def: WorkflowDefinition; onOpen: () => void }>) {
   const mobileOk = canLaunchOnMobile(def);
@@ -69,13 +70,7 @@ export default function LaunchListPage() {
         <span className="ap-header__title">发起申请</span>
       </div>
       <div className="ap-search">
-        <Input
-          prefix={<Search size={14} />}
-          placeholder="搜索流程名称"
-          value={keyword}
-          onChange={setKeyword}
-          showClear
-        />
+        <KeywordInput placeholder="搜索流程名称" value={keyword} onChange={setKeyword} />
       </div>
       <div className="ap-body">
         {defsQuery.isLoading && <Skeleton placeholder={<Skeleton.Paragraph rows={5} />} loading active />}

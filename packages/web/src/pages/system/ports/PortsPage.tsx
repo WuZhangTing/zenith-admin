@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { Input, Tag, Select, Space, Toast } from '@douyinfe/semi-ui';
+import { Tag, Select, Space, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search } from 'lucide-react';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { useKillPortProcess, usePortList, type PortEntry } from '@/hooks/queries/ports';
 import { ResetButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 
 function localDisplay(entry: PortEntry): string {
@@ -86,14 +86,7 @@ export default function PortsPage() {
       <SearchToolbar
         primary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索端口/进程/服务/地址"
-              value={keyword}
-              onChange={setKeyword}
-              showClear
-              style={{ width: 240 }}
-            />
+            <KeywordInput placeholder="搜索端口/进程/服务/地址" value={keyword} onChange={setKeyword} width={240} />
             <Select placeholder="全部协议" value={protocol || undefined} onChange={(v) => setProtocol((v as string) ?? '')} showClear style={{ width: 120 }}
               optionList={[{ label: 'TCP', value: 'tcp' }, { label: 'UDP', value: 'udp' }]} />
             <Select prefix="自动刷新" value={refreshInterval} onChange={(v) => setRefreshInterval(v as number)} style={{ width: 150 }} optionList={REFRESH_OPTIONS} />
@@ -102,14 +95,7 @@ export default function PortsPage() {
           </>
         )}
         mobilePrimary={(
-          <Input
-            prefix={<Search size={14} />}
-            placeholder="搜索端口/进程/服务/地址"
-            value={keyword}
-            onChange={setKeyword}
-            showClear
-            style={{ width: 240 }}
-          />
+          <KeywordInput placeholder="搜索端口/进程/服务/地址" value={keyword} onChange={setKeyword} width={240} />
         )}
         mobileFilters={(
           <>

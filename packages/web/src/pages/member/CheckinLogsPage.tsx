@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
-import { Button, DatePicker, Form, Input, Tag, Toast } from '@douyinfe/semi-ui';
+import { Button, Form, Tag, Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search, CalendarPlus } from 'lucide-react';
+import { CalendarPlus } from 'lucide-react';
 import type { MemberCheckin } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -14,6 +14,7 @@ import { formatDateForApi } from '@/utils/date';
 import { memberAdminKeys, useCheckinLogList, useMakeupCheckin } from '@/hooks/queries/member-admin';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 
 interface SearchParams {
   memberKeyword?: string;
@@ -79,25 +80,11 @@ export default function CheckinLogsPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      placeholder="会员ID/昵称"
-      prefix={<Search size={14} />}
-      value={draftParams.memberKeyword}
-      showClear
-      style={{ width: 180 }}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, memberKeyword: value || undefined }))}
-      onEnterPress={handleSearch}
-    />
+    <KeywordInput placeholder="会员ID/昵称" value={draftParams.memberKeyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, memberKeyword: value || undefined }))} onSearch={handleSearch} width={180} />
   );
 
   const renderDateRangeFilter = () => (
-    <DatePicker
-      type="dateRange"
-      placeholder={['开始日期', '结束日期']}
-      value={draftParams.dateRange ?? undefined}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, dateRange: value ? (value as [Date, Date]) : null }))}
-      style={{ width: 300 }}
-    />
+    <DateRangeFilter type="dateRange" value={draftParams.dateRange ?? undefined} onChange={(value) => setDraftParams((prev) => ({ ...prev, dateRange: value ? (value as [Date, Date]) : null }))} width={300} />
   );
 
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;

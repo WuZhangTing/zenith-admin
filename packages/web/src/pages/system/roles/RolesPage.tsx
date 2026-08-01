@@ -1,19 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Button,
-  Input,
-  Select,
-  Space,
-  Modal,
-  Form,
-  Toast,
-  Spin,
-  Switch,
-  DatePicker,
-  SideSheet,
-} from '@douyinfe/semi-ui';
+import { Button, Select, Space, Modal, Form, Toast, Spin, Switch, SideSheet } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search } from 'lucide-react';
 import type { Role, Department } from '@zenith/shared/identity';
 import { UserTransferSelect } from '@/components/UserTransferSelect';
 import type { UserTransferUser } from '@/components/UserTransferSelect';
@@ -46,6 +33,7 @@ import {
   useUpdateRoleDataScope,
 } from '@/hooks/queries/roles';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 export default function RolesPage() {
@@ -312,15 +300,7 @@ export default function RolesPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索角色名称/编码"
-      value={draftParams.keyword}
-      onChange={(v) => setDraftParams((prev) => ({ ...prev, keyword: v }))}
-      onEnterPress={handleSearch}
-      style={{ width: 220, maxWidth: '100%' }}
-      showClear
-    />
+    <KeywordInput placeholder="搜索角色名称/编码" value={draftParams.keyword} onChange={(v) => setDraftParams((prev) => ({ ...prev, keyword: v }))} onSearch={handleSearch} />
   );
 
   const renderStatusFilter = () => (
@@ -337,13 +317,7 @@ export default function RolesPage() {
   );
 
   const renderTimeRangeFilter = () => (
-    <DatePicker
-      type="dateTimeRange"
-      placeholder={["开始时间", "结束时间"]}
-      value={draftParams.timeRange ?? undefined}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, timeRange: value ? (value as [Date, Date]) : null }))}
-      style={{ width: 360, maxWidth: '100%' }}
-    />
+    <DateRangeFilter placeholder={["开始时间", "结束时间"]} value={draftParams.timeRange ?? undefined} onChange={(value) => setDraftParams((prev) => ({ ...prev, timeRange: value ? (value as [Date, Date]) : null }))} />
   );
 
   const buildExportQuery = () => ({

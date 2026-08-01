@@ -22,7 +22,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Download, FileText, Search, UserRoundCog } from 'lucide-react';
+import { Download, FileText, UserRoundCog } from 'lucide-react';
 import dayjs from 'dayjs';
 import type { WorkflowApproveMethod, WorkflowAssigneeType, WorkflowCategory, WorkflowDefinition, WorkflowExecutionToken, WorkflowFlowData, WorkflowInstance, WorkflowNodeConfig, WorkflowRuntimeDiagnostics, WorkflowRuntimeIssue, WorkflowRuntimeOutboxEvent, WorkflowTask, WorkflowTriggerExecution } from '@zenith/shared/workflow';
 import { WORKFLOW_ISSUE_SEVERITY_META as ISSUE_SEVERITY_MAP } from './constants';
@@ -63,6 +63,7 @@ import {
 } from '@/hooks/queries/workflow-monitor';
 import { useAllUsers } from '@/hooks/queries/users';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 /** 只读流程设计器（懒加载）：用于在诊断 SideSheet 内查看发起时的流程定义快照 */
@@ -1138,15 +1139,7 @@ export default function WorkflowMonitorPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索申请标题 / 流程名称"
-      showClear
-      value={draftParams.keyword}
-      onChange={v => setDraftParams(prev => ({ ...prev, keyword: v }))}
-      onEnterPress={handleSearch}
-      style={{ width: 240 }}
-    />
+    <KeywordInput placeholder="搜索申请标题 / 流程名称" value={draftParams.keyword} onChange={v => setDraftParams(prev => ({ ...prev, keyword: v }))} onSearch={handleSearch} width={240} />
   );
 
   const renderCategoryFilter = () => (

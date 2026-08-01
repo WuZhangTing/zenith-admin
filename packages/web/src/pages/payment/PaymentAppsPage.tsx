@@ -1,8 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
-import { Banner, Form, Input, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Form, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { AppModal } from '@/components/AppModal';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -15,6 +14,7 @@ import type { PaymentApp, PaymentChannel, PaymentChannelConfig } from '@zenith/s
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams { keyword: string; status: string; }
@@ -143,8 +143,7 @@ export default function PaymentAppsPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input prefix={<Search size={14} />} placeholder="名称..." value={draftParams.keyword}
-      onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} showClear style={{ width: 200 }} onEnterPress={handleSearch} />
+    <KeywordInput placeholder="名称..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} width={200} />
   );
   const renderStatusFilter = () => (
     <Select placeholder="全部状态" value={draftParams.status || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))}

@@ -1,6 +1,5 @@
-import { Col, Input, Row, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Col, Row, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -10,6 +9,7 @@ import type { PaymentOutboxEvent } from '@zenith/shared/payment';
 import { paymentEventKeys, usePaymentEventList, usePaymentOpsHealth, useRedispatchPaymentEvent } from '@/hooks/queries/payment-events';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 
 const EVENT_STATUS_LABELS = { pending: '待处理', done: '已完成', failed: '失败' } as const satisfies Record<PaymentOutboxEvent['status'], string>;
 const EVENT_STATUS_COLOR = { pending: 'blue', done: 'green', failed: 'red' } as const satisfies Record<PaymentOutboxEvent['status'], string>;
@@ -73,15 +73,7 @@ export default function PaymentEventsPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="订单号..."
-      value={draftParams.keyword}
-      onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))}
-      showClear
-      style={{ width: 200 }}
-      onEnterPress={handleSearch}
-    />
+    <KeywordInput placeholder="订单号..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} width={200} />
   );
 
   const renderStatusFilter = () => (
@@ -96,15 +88,7 @@ export default function PaymentEventsPage() {
   );
 
   const renderTypeFilter = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="事件类型..."
-      value={draftParams.type}
-      onChange={(v) => setDraftParams((p) => ({ ...p, type: v }))}
-      showClear
-      style={{ width: 180 }}
-      onEnterPress={handleSearch}
-    />
+    <KeywordInput placeholder="事件类型..." value={draftParams.type} onChange={(v) => setDraftParams((p) => ({ ...p, type: v }))} onSearch={handleSearch} width={180} />
   );
 
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;

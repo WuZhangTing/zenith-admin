@@ -1,10 +1,9 @@
 import { useState, useRef } from 'react';
 import type { CSSProperties } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Form, Input, Select, Space, Spin, Switch, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Form, Select, Space, Spin, Switch, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -25,6 +24,7 @@ import { PAYMENT_WEBHOOK_DELIVERY_STATUS_LABELS } from '@zenith/shared/payment';
 import type { PaymentWebhookDelivery, PaymentWebhookEndpoint } from '@zenith/shared/payment';
 import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const EVENT_OPTIONS = [
@@ -245,15 +245,7 @@ export default function PaymentWebhooksPage() {
   ];
 
   const renderEndpointKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="名称/URL..."
-      value={endpointSearch.keyword}
-      onChange={(v) => setEndpointSearch((p) => ({ ...p, keyword: v }))}
-      showClear
-      style={{ width: 200 }}
-      onEnterPress={handleEndpointSearch}
-    />
+    <KeywordInput placeholder="名称/URL..." value={endpointSearch.keyword} onChange={(v) => setEndpointSearch((p) => ({ ...p, keyword: v }))} onSearch={handleEndpointSearch} width={200} />
   );
   const renderEndpointStatusFilter = () => (
     <Select
@@ -272,15 +264,7 @@ export default function PaymentWebhooksPage() {
   ) : null;
 
   const renderDeliveryKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="订单号..."
-      value={deliverySearch.keyword}
-      onChange={(v) => setDeliverySearch((p) => ({ ...p, keyword: v }))}
-      showClear
-      style={{ width: 200 }}
-      onEnterPress={handleDeliverySearch}
-    />
+    <KeywordInput placeholder="订单号..." value={deliverySearch.keyword} onChange={(v) => setDeliverySearch((p) => ({ ...p, keyword: v }))} onSearch={handleDeliverySearch} width={200} />
   );
   const renderDeliveryStatusFilter = () => (
     <Select

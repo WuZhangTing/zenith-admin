@@ -28,7 +28,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag/interface';
-import { AlertCircle, AlertTriangle, Bell, Bug, CheckCircle2, ChevronDown, FileCode, MessageSquare, RefreshCcw, Search, Trash2, Zap } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Bell, Bug, CheckCircle2, ChevronDown, FileCode, MessageSquare, RefreshCcw, Trash2, Zap } from 'lucide-react';
 import {
   BarChart,
   LineChart,
@@ -69,6 +69,7 @@ import {
   useUpdateFrontendErrorGroup,
 } from '@/hooks/queries/analytics';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const { Text, Title, Paragraph } = Typography;
@@ -919,15 +920,7 @@ export default function FrontendErrorsPage() {
     />
   );
   const renderIssueKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="错误信息关键词"
-      showClear
-      value={issueFilters.keyword}
-      style={{ width: 220 }}
-      onChange={(value) => setIssueFilters((prev) => ({ ...prev, keyword: value }))}
-      onEnterPress={handleIssueSearch}
-    />
+    <KeywordInput placeholder="错误信息关键词" value={issueFilters.keyword} onChange={(value) => setIssueFilters((prev) => ({ ...prev, keyword: value }))} onSearch={handleIssueSearch} />
   );
   const renderIssueSearchButton = () => <SearchButton onClick={handleIssueSearch} />;
   const renderIssueResetButton = () => <ResetButton onClick={handleIssueReset} />;

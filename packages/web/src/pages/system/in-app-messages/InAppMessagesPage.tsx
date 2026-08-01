@@ -1,9 +1,8 @@
 import { useState, useRef } from 'react';
-import { Button, Col, Form, Input, Modal, Row, Select, Tag,
-  Toast } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Modal, Row, Select, Tag, Toast } from '@douyinfe/semi-ui';
 import { AppModal } from '@/components/AppModal';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { CheckCheck, Plus, Search } from 'lucide-react';
+import { CheckCheck, Plus } from 'lucide-react';
 import type { InAppMessage, InAppMessageType } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -23,6 +22,7 @@ import {
 } from '@/hooks/queries/in-app-messages';
 import { IN_APP_MESSAGE_TYPE_OPTIONS_WITH_COLOR as TYPE_OPTIONS } from '../in-app-message-constants';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const READ_OPTIONS = [
@@ -166,8 +166,7 @@ export default function InAppMessagesPage() {
       <SearchToolbar
         primary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="标题/内容关键词"
-              value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onEnterPress={handleSearch} showClear style={{ width: 200 }} />
+            <KeywordInput placeholder="标题/内容关键词" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
             <Select placeholder="类型" value={draftParams.filterType} onChange={(v) => setDraftParams({ ...draftParams, filterType: v as InAppMessageType | undefined })}
               optionList={TYPE_OPTIONS} showClear style={{ width: 110 }} />
             <Select placeholder="阅读状态" value={draftParams.filterRead} onChange={(v) => setDraftParams({ ...draftParams, filterRead: v as string | undefined })}
@@ -184,8 +183,7 @@ export default function InAppMessagesPage() {
         )}
         mobilePrimary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="标题/内容关键词"
-              value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onEnterPress={handleSearch} showClear style={{ width: 200 }} />
+            <KeywordInput placeholder="标题/内容关键词" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
             <SearchButton onClick={handleSearch} />
             {can('system:in-app-message:send') && (
               <Button type="primary" icon={<Plus size={14} />} onClick={openSend}>发送站内信</Button>

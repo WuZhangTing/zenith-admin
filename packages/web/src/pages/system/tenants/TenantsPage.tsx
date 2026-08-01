@@ -1,23 +1,6 @@
 import { useRef, useState } from 'react';
-import {
-  Button,
-  Input,
-  Select,
-  Modal,
-  Form,
-  Toast,
-  Row,
-  Col,
-  Spin,
-  Switch,
-  SideSheet,
-  Progress,
-  Descriptions,
-  Tag,
-  Divider,
-} from '@douyinfe/semi-ui';
+import { Button, Select, Modal, Form, Toast, Row, Col, Spin, Switch, SideSheet, Progress, Descriptions, Tag, Divider } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search } from 'lucide-react';
 import type { Tenant } from '@zenith/shared/identity';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
@@ -40,6 +23,7 @@ import {
   useTenantStats,
 } from '@/hooks/queries/tenants';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
@@ -252,15 +236,7 @@ export default function TenantsPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索租户名称/编码"
-      value={draftParams.keyword}
-      onChange={(v) => setDraftParams((prev) => ({ ...prev, keyword: v }))}
-      onEnterPress={handleSearch}
-      style={{ width: 220, maxWidth: '100%' }}
-      showClear
-    />
+    <KeywordInput placeholder="搜索租户名称/编码" value={draftParams.keyword} onChange={(v) => setDraftParams((prev) => ({ ...prev, keyword: v }))} onSearch={handleSearch} />
   );
 
   const renderStatusFilter = () => (

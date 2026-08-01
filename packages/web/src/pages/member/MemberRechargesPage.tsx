@@ -1,6 +1,5 @@
-import { DatePicker, Input, Select, Tag } from '@douyinfe/semi-ui';
+import { Select, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search } from 'lucide-react';
 import type { MemberRecharge } from '@zenith/shared/member';
 import type { PaymentChannel, PaymentOrderStatus } from '@zenith/shared/payment';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_ORDER_STATUS_LABELS } from '@zenith/shared/payment';
@@ -13,6 +12,7 @@ import { formatDateForApi } from '@/utils/date';
 import { memberAdminKeys, useMemberRechargeList } from '@/hooks/queries/member-admin';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 
 interface SearchParams {
   keyword?: string;
@@ -64,15 +64,7 @@ export default function MemberRechargesPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      placeholder="会员昵称/手机号/订单号"
-      prefix={<Search size={14} />}
-      value={draftParams.keyword}
-      showClear
-      style={{ width: 220 }}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value || undefined }))}
-      onEnterPress={handleSearch}
-    />
+    <KeywordInput placeholder="会员昵称/手机号/订单号" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value || undefined }))} onSearch={handleSearch} />
   );
 
   const renderChannelFilter = () => (
@@ -98,13 +90,7 @@ export default function MemberRechargesPage() {
   );
 
   const renderDateRangeFilter = () => (
-    <DatePicker
-      type="dateRange"
-      placeholder={['开始日期', '结束日期']}
-      value={draftParams.dateRange ?? undefined}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, dateRange: value ? (value as [Date, Date]) : null }))}
-      style={{ width: 300 }}
-    />
+    <DateRangeFilter type="dateRange" value={draftParams.dateRange ?? undefined} onChange={(value) => setDraftParams((prev) => ({ ...prev, dateRange: value ? (value as [Date, Date]) : null }))} width={300} />
   );
 
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;

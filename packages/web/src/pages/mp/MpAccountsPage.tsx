@@ -1,7 +1,6 @@
 import { useState, useRef } from 'react';
-import { Col, Form, Input, Row, Select, Spin, Tag, Toast, Switch, Typography, Banner } from '@douyinfe/semi-ui';
+import { Col, Form, Row, Select, Spin, Tag, Toast, Switch, Typography, Banner } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Search } from 'lucide-react';
 import type { MpAccount, MpAccountType } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -22,6 +21,7 @@ import {
   useTestMpAccount,
 } from '@/hooks/queries/mp-accounts';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const TYPE_OPTIONS = [
@@ -186,15 +186,7 @@ export default function MpAccountsPage() {
   ];
 
   const renderKeywordInput = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索名称/微信号/AppID"
-      value={draftParams.keyword}
-      onChange={(v) => setDraftParams({ ...draftParams, keyword: v })}
-      onEnterPress={handleSearch}
-      showClear
-      style={{ width: 220 }}
-    />
+    <KeywordInput placeholder="搜索名称/微信号/AppID" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} />
   );
   const renderTypeFilter = () => (
     <Select

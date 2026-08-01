@@ -1,20 +1,7 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  Button,
-  DatePicker,
-  Input,
-  Modal,
-  Select,
-  SideSheet,
-  TabPane,
-  Tabs,
-  Tag,
-  Toast,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Button, Modal, Select, SideSheet, TabPane, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search } from 'lucide-react';
 import { CMS_INTERACTION_KIND_LABELS, CMS_INTERACTION_PARTICIPANT_SCOPE_LABELS, CMS_INTERACTION_QUESTION_TYPE_LABELS, CMS_INTERACTION_REPEAT_POLICY_LABELS, CMS_INTERACTION_STATUS_LABELS } from '@zenith/shared/cms';
 import type { CmsInteraction, CmsInteractionKind, CmsInteractionResponse, CmsInteractionStatus } from '@zenith/shared/cms';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -40,6 +27,7 @@ import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 import InteractionEditorModal from './interaction/InteractionEditorModal';
 import InteractionResultsSheet from './interaction/InteractionResultsSheet';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface ListSearch {
@@ -240,8 +228,7 @@ export default function SurveysPage() {
   const listSearch = (
     <>
       <CmsSiteSelect value={siteId} onChange={(value) => { setSiteId(value); setPage(1); setResponsePage(1); }} />
-      <Input prefix={<Search size={14} />} placeholder="标题/标识" showClear value={draft.keyword}
-        onChange={(value) => setDraft((current) => ({ ...current, keyword: value }))} onEnterPress={handleSearch} style={{ width: 200 }} />
+      <KeywordInput placeholder="标题/标识" value={draft.keyword} onChange={(value) => setDraft((current) => ({ ...current, keyword: value }))} onSearch={handleSearch} width={200} />
       <Select placeholder="全部类型" showClear value={draft.kind} style={{ width: 130 }}
         optionList={Object.entries(CMS_INTERACTION_KIND_LABELS).map(([value, label]) => ({ value, label }))}
         onChange={(value) => setDraft((current) => ({ ...current, kind: value as CmsInteractionKind | undefined }))} />
@@ -313,9 +300,7 @@ export default function SurveysPage() {
                 <Select placeholder="全部类型" showClear value={draft.kind} style={{ width: 140 }}
                   optionList={Object.entries(CMS_INTERACTION_KIND_LABELS).map(([value, label]) => ({ value, label }))}
                   onChange={(value) => setDraft((current) => ({ ...current, kind: value as CmsInteractionKind | undefined }))} />
-                <DatePicker type="dateTimeRange" value={responseTimeRange} style={{ width: 330 }}
-                  placeholder={['提交开始时间', '提交结束时间']}
-                  onChange={(value) => setResponseTimeRange(value as [Date, Date] | undefined)} />
+                <DateRangeFilter placeholder={['提交开始时间', '提交结束时间']} value={responseTimeRange} onChange={(value) => setResponseTimeRange(value as [Date, Date] | undefined)} width={330} />
                 <SearchButton onClick={handleSearch} />
                 <ResetButton onClick={handleReset} />
               </>

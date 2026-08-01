@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, Tabs, Toast } from '@douyinfe/semi-ui';
+import { Button, Form, Tabs, Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Save, Search } from 'lucide-react';
+import { Save } from 'lucide-react';
 import type { LoginRiskEvent } from '@zenith/shared/identity';
 import type { IdentitySecurityPolicy } from '@zenith/shared/platform';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -17,6 +17,7 @@ import {
   useSaveIdentitySecurityPolicy,
 } from '@/hooks/queries/identity-security';
 import { RefreshButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 
 const { TabPane } = Tabs;
 
@@ -157,15 +158,7 @@ export default function IdentitySecurityPage() {
 
         <TabPane tab="风险事件" itemKey="risk">
           <SearchToolbar>
-            <Input
-              prefix={<Search size={14} />}
-              value={draftKeyword}
-              onChange={setDraftKeyword}
-              onEnterPress={handleRiskSearch}
-              placeholder="搜索账号、IP、原因"
-              showClear
-              style={{ width: 220 }}
-            />
+            <KeywordInput placeholder="搜索账号、IP、原因" value={draftKeyword} onChange={setDraftKeyword} onSearch={handleRiskSearch} />
             <SearchButton onClick={handleRiskSearch} />
             <ResetButton onClick={handleRiskReset} />
           </SearchToolbar>

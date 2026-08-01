@@ -3,7 +3,7 @@ import { formatYuan } from '@/utils/payment';
 import { Banner, Button, Form, Input, Modal, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -22,6 +22,7 @@ import {
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_PREAUTH_STATUS_LABELS, PAYMENT_PREAUTH_STATUS_OPTIONS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentPreauth, PaymentPreauthStatus } from '@zenith/shared/payment';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 
 const yuan = formatYuan;
 const STATUS_COLOR = { pending: 'grey', frozen: 'blue', captured: 'green', released: 'teal', failed: 'red' } as const satisfies Record<PaymentPreauthStatus, string>;
@@ -138,7 +139,7 @@ export default function PaymentPreauthsPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input prefix={<Search size={14} />} placeholder="预授权单号/付款人/事由..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} showClear style={{ width: 220 }} onEnterPress={handleSearch} />
+    <KeywordInput placeholder="预授权单号/付款人/事由..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} />
   );
   const renderStatusFilter = () => (
     <Select placeholder="全部状态" value={draftParams.status || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={PAYMENT_PREAUTH_STATUS_OPTIONS} />

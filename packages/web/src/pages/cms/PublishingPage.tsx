@@ -1,25 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  Banner,
-  Button,
-  DatePicker,
-  Descriptions,
-  Form,
-  Input,
-  Modal,
-  Select,
-  SideSheet,
-  Space,
-  TabPane,
-  Tabs,
-  Tag,
-  Toast,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Banner, Button, Descriptions, Form, Input, Modal, Select, SideSheet, Space, TabPane, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import dayjs from 'dayjs';
-import { Search, XCircle } from 'lucide-react';
+import { XCircle } from 'lucide-react';
 import { CMS_PUBLISH_ARTIFACT_STATUS_LABELS, CMS_PUBLISH_TARGET_TYPE_LABELS, CMS_PUBLISH_TARGET_TYPES } from '@zenith/shared/cms';
 import type { CmsPublishingTask, CmsPublishArtifact, CmsPublishArtifactStatus, CmsPublishTargetType } from '@zenith/shared/cms';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -45,6 +29,7 @@ import { ASYNC_TASK_STATUS_TAG_MAP } from '@/utils/async-task';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 
 type TabKey = 'queue' | 'history' | 'artifacts' | 'failed';
 
@@ -235,14 +220,14 @@ export default function PublishingPage() {
     }),
   ];
 
-  const dateValue = useMemo(() => {
+  const dateValue = useMemo<[Date, Date] | undefined>(() => {
     if (!draft.startTime || !draft.endTime) return undefined;
     return [dayjs(draft.startTime).toDate(), dayjs(draft.endTime).toDate()];
   }, [draft.endTime, draft.startTime]);
 
   const primary = (
     <>
-      <Input prefix={<Search size={14} />} placeholder="任务/路径关键词" value={draft.keyword} showClear onChange={(keyword) => setDraft((prev) => ({ ...prev, keyword }))} />
+      <KeywordInput placeholder="任务/路径关键词" value={draft.keyword} onChange={(keyword) => setDraft((prev) => ({ ...prev, keyword }))} />
       <SearchButton onClick={applySearch} />
       <ResetButton onClick={resetSearch} />
       {selected.length > 0 && canManage ? (
@@ -260,20 +245,14 @@ export default function PublishingPage() {
       <Select placeholder="全部站点" showClear optionList={siteOptions} value={draft.siteId} onChange={(value) => setDraft((prev) => ({ ...prev, siteId: value ? Number(value) : undefined }))} style={{ width: 150 }} />
       <Select placeholder="目标类型" optionList={[{ value: '', label: '全部目标' }, ...CMS_PUBLISH_TARGET_TYPES.map((value) => ({ value, label: CMS_PUBLISH_TARGET_TYPE_LABELS[value] }))]} value={draft.targetType ?? ''} onChange={(value) => setDraft((prev) => ({ ...prev, targetType: value ? value as CmsPublishTargetType : undefined }))} style={{ width: 150 }} />
       <Input placeholder="创建人" value={draft.createdBy} onChange={(createdBy) => setDraft((prev) => ({ ...prev, createdBy }))} style={{ width: 130 }} />
-      <DatePicker
-        type="dateTimeRange"
-        value={dateValue}
-        onChange={(value) => {
+      <DateRangeFilter value={dateValue} onChange={(value) => {
           const range = Array.isArray(value) ? value : [];
           setDraft((prev) => ({
             ...prev,
             startTime: range[0] ? formatDateTimeForApi(range[0]) : undefined,
             endTime: range[1] ? formatDateTimeForApi(range[1]) : undefined,
           }));
-        }}
-        placeholder={['开始时间', '结束时间']}
-        style={{ width: 340 }}
-      />
+        }} width={340} />
     </>
   );
 

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Descriptions, Modal, Select, SideSheet, Space, Table, Tag, Toast, Typography, Input } from '@douyinfe/semi-ui';
+import { Button, Descriptions, Modal, Select, SideSheet, Space, Table, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Trash2 } from 'lucide-react';
 import type { ExportEntityMeta, ExportJob, ExportJobDownload, ExportJobFormat, ExportJobStatus } from '@zenith/shared/tasks';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -24,6 +24,7 @@ import {
   useRetryExportJob,
 } from '@/hooks/queries/export-jobs';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { useListSearch } from '@/hooks/useListSearch';
 import { confirmDelete } from '@/utils/confirm';
 
@@ -361,15 +362,7 @@ export default function ExportJobsPage() {
           onChange={(value) => setDraftParams((prev) => ({ ...prev, format: (value as string) ?? '' }))}
           style={{ width: 120 }}
         />
-        <Input
-          prefix={<Search size={14} />}
-          placeholder="搜索文件名/模块"
-          value={draftParams.keyword}
-          onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))}
-          onEnterPress={handleSearch}
-          style={{ width: 240 }}
-          showClear
-        />
+        <KeywordInput placeholder="搜索文件名/模块" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))} onSearch={handleSearch} width={240} />
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />
         <Button icon={<RefreshCw size={14} />} onClick={() => void listQuery.refetch()} loading={listQuery.isFetching}>刷新</Button>

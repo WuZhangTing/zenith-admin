@@ -1,10 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Card, DatePicker, Form, Input, InputNumber, Select, Tabs, TabPane, Toast, Tag, Timeline, Typography, Modal, Descriptions } from '@douyinfe/semi-ui';
+import { Button, Card, Form, Input, InputNumber, Select, Tabs, TabPane, Toast, Tag, Timeline, Typography, Modal, Descriptions } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -31,6 +31,7 @@ import {
 import { usePaymentStats } from '@/hooks/queries/payment-stats';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 
 const STATUS_COLOR = {
   pending: 'grey', paying: 'blue', success: 'green', closed: 'grey', refunding: 'amber', refunded: 'orange', failed: 'red',
@@ -260,15 +261,7 @@ export default function PaymentOrdersPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="订单号/标题..."
-      value={draftParams.keyword}
-      onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))}
-      showClear
-      style={{ width: 180 }}
-      onEnterPress={handleSearch}
-    />
+    <KeywordInput placeholder="订单号/标题..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} width={180} />
   );
 
   const renderBizTypeFilter = () => (
@@ -338,13 +331,7 @@ export default function PaymentOrdersPage() {
   );
 
   const renderTimeRangeFilter = () => (
-    <DatePicker
-      type="dateTimeRange"
-      placeholder={['创建开始', '创建结束']}
-      value={draftParams.timeRange ?? undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, timeRange: v ? (v as [Date, Date]) : null }))}
-      style={{ width: 330 }}
-    />
+    <DateRangeFilter placeholder={['创建开始', '创建结束']} value={draftParams.timeRange ?? undefined} onChange={(v) => setDraftParams((p) => ({ ...p, timeRange: v ? (v as [Date, Date]) : null }))} width={330} />
   );
 
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;

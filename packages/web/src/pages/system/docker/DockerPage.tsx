@@ -19,7 +19,7 @@ import {
   Switch,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { FileText, RefreshCw, ChevronDown, ChevronUp, Activity, Search, Info, Download, Trash2 } from 'lucide-react';
+import { FileText, RefreshCw, ChevronDown, ChevronUp, Activity, Info, Download, Trash2 } from 'lucide-react';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -51,6 +51,7 @@ import {
   type VolumeInfo,
 } from '@/hooks/queries/docker';
 import { CreateButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 // ─── Prune（清理）辅助 ──────────────────────────────────────────────────────────
@@ -351,7 +352,7 @@ function ContainersTab() {
       <SearchToolbar
         primary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="搜索容器名 / 镜像 / Compose 项目" showClear value={keyword} onChange={setKeyword} style={{ width: 280 }} />
+            <KeywordInput placeholder="搜索容器名 / 镜像 / Compose 项目" value={keyword} onChange={setKeyword} width={280} />
             <Button type="primary" icon={<RefreshCw size={14} />} onClick={() => void containersQuery.refetch()}>刷新</Button>
           </>
         )}
@@ -375,7 +376,7 @@ function ContainersTab() {
         )}
         mobilePrimary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="搜索容器名 / 镜像 / Compose 项目" showClear value={keyword} onChange={setKeyword} style={{ width: 280 }} />
+            <KeywordInput placeholder="搜索容器名 / 镜像 / Compose 项目" value={keyword} onChange={setKeyword} width={280} />
             <Button type="primary" icon={<RefreshCw size={14} />} onClick={() => void containersQuery.refetch()}>刷新</Button>
           </>
         )}
@@ -635,7 +636,7 @@ function ImagesTab() {
       <SearchToolbar
         primary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="搜索镜像名 / 标签 / ID" showClear value={keyword} onChange={setKeyword} style={{ width: 260 }} />
+            <KeywordInput placeholder="搜索镜像名 / 标签 / ID" value={keyword} onChange={setKeyword} width={260} />
             <Button type="tertiary" icon={<RefreshCw size={14} />} onClick={() => void imagesQuery.refetch()}>刷新</Button>
             <Button type="primary" icon={<Download size={14} />} onClick={() => setPullVisible(true)}>拉取镜像</Button>
           </>
@@ -662,7 +663,7 @@ function ImagesTab() {
         )}
         mobilePrimary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="搜索镜像名 / 标签 / ID" showClear value={keyword} onChange={setKeyword} style={{ width: 260 }} />
+            <KeywordInput placeholder="搜索镜像名 / 标签 / ID" value={keyword} onChange={setKeyword} width={260} />
             <Button type="primary" icon={<Download size={14} />} onClick={() => setPullVisible(true)}>拉取镜像</Button>
           </>
         )}
@@ -785,7 +786,7 @@ function NetworksTab() {
       <SearchToolbar
         primary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="搜索网络名 / 驱动" showClear value={keyword} onChange={setKeyword} style={{ width: 260 }} />
+            <KeywordInput placeholder="搜索网络名 / 驱动" value={keyword} onChange={setKeyword} width={260} />
             <Button type="tertiary" icon={<RefreshCw size={14} />} onClick={() => void networksQuery.refetch()}>刷新</Button>
             <CreateButton onClick={() => setCreateVisible(true)}>创建网络</CreateButton>
           </>
@@ -793,7 +794,7 @@ function NetworksTab() {
         actions={<Button icon={<Trash2 size={14} />} onClick={() => runPrune('/api/docker/prune/networks', '清理未用网络', '将删除所有未被容器使用的网络，确定继续？', pruneMutation.mutateAsync)}>清理</Button>}
         mobilePrimary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="搜索网络名 / 驱动" showClear value={keyword} onChange={setKeyword} style={{ width: 260 }} />
+            <KeywordInput placeholder="搜索网络名 / 驱动" value={keyword} onChange={setKeyword} width={260} />
             <CreateButton onClick={() => setCreateVisible(true)}>创建网络</CreateButton>
           </>
         )}
@@ -896,7 +897,7 @@ function VolumesTab() {
       <SearchToolbar
         primary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="搜索卷名 / 驱动" showClear value={keyword} onChange={setKeyword} style={{ width: 260 }} />
+            <KeywordInput placeholder="搜索卷名 / 驱动" value={keyword} onChange={setKeyword} width={260} />
             <Button type="tertiary" icon={<RefreshCw size={14} />} onClick={() => void volumesQuery.refetch()}>刷新</Button>
             <CreateButton onClick={() => setCreateVisible(true)}>创建存储卷</CreateButton>
           </>
@@ -904,7 +905,7 @@ function VolumesTab() {
         actions={<Button type="danger" icon={<Trash2 size={14} />} onClick={() => runPrune('/api/docker/prune/volumes', '清理未用存储卷', '将删除所有未被容器使用的存储卷（数据不可恢复），确定继续？', pruneMutation.mutateAsync)}>清理</Button>}
         mobilePrimary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="搜索卷名 / 驱动" showClear value={keyword} onChange={setKeyword} style={{ width: 260 }} />
+            <KeywordInput placeholder="搜索卷名 / 驱动" value={keyword} onChange={setKeyword} width={260} />
             <CreateButton onClick={() => setCreateVisible(true)}>创建存储卷</CreateButton>
           </>
         )}

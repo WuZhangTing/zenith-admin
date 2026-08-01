@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, DatePicker, Input, InputNumber, Select, Space, Tag, Modal, Form, Toast, Typography, SideSheet, List, Empty } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Save, Search, Upload } from 'lucide-react';
+import { Save, Upload } from 'lucide-react';
 import type { RuleDecisionTable, RuleEvaluateResult, RuleTestRunResult, RuleHitPolicy, RuleTestCase, RuleUsageItem, RuleDecisionTableSettings, RuleShadowRunResult } from '@zenith/shared/rules';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -41,6 +41,7 @@ import {
 } from '@/hooks/queries/rules';
 import { PUBLISHABLE_STATUS_META as STATUS } from '@/lib/publishable-status';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 const { Text } = Typography;
@@ -715,7 +716,7 @@ export default function RuleTablesPage() {
       <SearchToolbar
         primary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="搜索名称" value={draftKeyword} onChange={setDraftKeyword} onEnterPress={() => { setPage(1); setSubmittedKeyword(draftKeyword); setSubmittedStatus(draftStatus); void queryClient.invalidateQueries({ queryKey: ruleKeys.decisionTables.lists }); }} showClear style={{ width: 220 }} />
+            <KeywordInput placeholder="搜索名称" value={draftKeyword} onChange={setDraftKeyword} onSearch={() => { setPage(1); setSubmittedKeyword(draftKeyword); setSubmittedStatus(draftStatus); void queryClient.invalidateQueries({ queryKey: ruleKeys.decisionTables.lists }); }} />
             <Select placeholder="状态" value={draftStatus} onChange={(v) => setDraftStatus(v as string | undefined)} optionList={[{ value: 'draft', label: '草稿' }, { value: 'published', label: '已发布' }, { value: 'disabled', label: '已禁用' }]} showClear style={{ width: 130 }} />
             <SearchButton onClick={() => { setPage(1); setSubmittedKeyword(draftKeyword); setSubmittedStatus(draftStatus); void queryClient.invalidateQueries({ queryKey: ruleKeys.decisionTables.lists }); }} />
             <ResetButton onClick={() => { setDraftKeyword(''); setSubmittedKeyword(''); setDraftStatus(undefined); setSubmittedStatus(undefined); setPage(1); void queryClient.invalidateQueries({ queryKey: ruleKeys.decisionTables.lists }); }} />

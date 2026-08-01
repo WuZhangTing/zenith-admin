@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
-import { Input } from '@douyinfe/semi-ui';
-import { Search } from 'lucide-react';
 import { SearchToolbar } from './SearchToolbar';
+import { KeywordInput } from '@/components/search-filters';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 interface KeywordSearchToolbarProps {
@@ -24,15 +23,7 @@ interface KeywordSearchToolbarProps {
  */
 export function KeywordSearchToolbar({ placeholder, value, onChange, onSearch, onReset, width = 220, actions }: KeywordSearchToolbarProps) {
   const keywordInput = (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder={placeholder}
-      value={value}
-      onChange={onChange}
-      onEnterPress={onSearch}
-      showClear
-      style={{ width }}
-    />
+    <KeywordInput placeholder={placeholder} value={value} onChange={onChange} onSearch={onSearch} width={width} />
   );
   const searchButton = <SearchButton onClick={onSearch} />;
   const resetButton = <ResetButton onClick={onReset} />;

@@ -1,9 +1,8 @@
 import { useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Form, Input, Space, Spin, Toast, Switch, Tag, Row, Col } from '@douyinfe/semi-ui';
+import { Form, Space, Spin, Toast, Switch, Tag, Row, Col } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -29,6 +28,7 @@ import {
   MONITOR_PERCENT_METRICS as PERCENT_METRICS,
 } from './constants';
 import { CreateButton, ResetButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const OP_SYMBOL: Record<string, string> = { gt: '>', gte: '≥', lt: '<', lte: '≤' };
@@ -199,28 +199,14 @@ export default function MonitorAlertsPage() {
       <SearchToolbar
         primary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索规则名称..."
-              value={keyword}
-              onChange={setKeyword}
-              showClear
-              style={{ width: 220 }}
-            />
+            <KeywordInput placeholder="搜索规则名称..." value={keyword} onChange={setKeyword} />
             <ResetButton onClick={() => { setKeyword(''); void queryClient.invalidateQueries({ queryKey: monitorAlertKeys.lists }); }} />
             {canManage && <CreateButton onClick={openCreate}>新增规则</CreateButton>}
           </>
         )}
         mobilePrimary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索规则名称..."
-              value={keyword}
-              onChange={setKeyword}
-              showClear
-              style={{ width: 220 }}
-            />
+            <KeywordInput placeholder="搜索规则名称..." value={keyword} onChange={setKeyword} />
             {canManage && <CreateButton onClick={openCreate}>新增规则</CreateButton>}
           </>
         )}

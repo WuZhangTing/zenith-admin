@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Button, Form, Input, Modal, Select, Spin, Tag, Toast, Banner, Upload, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Search, RefreshCw, UploadCloud } from 'lucide-react';
+import { RefreshCw, UploadCloud } from 'lucide-react';
 import { MP_MATERIAL_TYPE_LABELS, MP_MATERIAL_TYPE_OPTIONS } from '@zenith/shared/mp';
 import type { MpMaterial, MpMaterialType } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
@@ -22,6 +22,7 @@ import {
   useUploadMpMaterial,
 } from '@/hooks/queries/mp-materials';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 function fmtSize(bytes: number | null): string {
@@ -133,15 +134,7 @@ export default function MpMaterialsPage() {
     />
   );
   const renderKeywordInput = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索素材名称"
-      value={draftParams.keyword}
-      onChange={(v) => setDraftParams({ ...draftParams, keyword: v })}
-      onEnterPress={handleSearch}
-      showClear
-      style={{ width: 180 }}
-    />
+    <KeywordInput placeholder="搜索素材名称" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={180} />
   );
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;

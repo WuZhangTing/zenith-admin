@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { DatePicker, Input, Select, Tag, Typography } from '@douyinfe/semi-ui';
-import { Search } from 'lucide-react';
+import { Select, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { AiFeedbackItem } from '@zenith/shared/ai';
 import type { PaginatedResponse } from '@zenith/shared/core';
@@ -16,6 +15,7 @@ import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 import type { AiFeedbackContext } from '@/hooks/queries/ai-feedback';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 
 const { Text } = Typography;
 
@@ -153,30 +153,16 @@ export default function AiAuditPage() {
   ];
 
   const renderKeyword = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索消息内容"
-      value={draft.keyword}
-      onChange={(v) => setDraft((p) => ({ ...p, keyword: String(v ?? '') }))}
-      onEnterPress={handleSearch}
-      showClear
-      style={{ width: 220 }}
-    />
+    <KeywordInput placeholder="搜索消息内容" value={draft.keyword} onChange={(v) => setDraft((p) => ({ ...p, keyword: String(v ?? '') }))} onSearch={handleSearch} />
   );
   const renderRole = () => (
     <Select value={draft.role} onChange={(v) => setDraft((p) => ({ ...p, role: String(v ?? '') }))} optionList={ROLE_OPTIONS} style={{ width: 120 }} />
   );
   const renderRange = () => (
-    <DatePicker
-      type="dateRange"
-      placeholder={['开始日期', '结束日期']}
-      value={draftRange ?? undefined}
-      onChange={(value) => {
+    <DateRangeFilter type="dateRange" value={draftRange ?? undefined} onChange={(value) => {
         if (Array.isArray(value) && value.length >= 2 && value[0] instanceof Date && value[1] instanceof Date) setDraftRange([value[0], value[1]]);
         else setDraftRange(null);
-      }}
-      style={{ width: 260 }}
-    />
+      }} />
   );
   const renderSearchBtn = () => <SearchButton onClick={handleSearch} />;
   const renderResetBtn = () => <ResetButton onClick={handleReset} />;

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Banner, Button, Col, Form, Input, Radio, Row, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Col, Form, Radio, Row, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { CheckCircle, RefreshCw, Search } from 'lucide-react';
+import { CheckCircle, RefreshCw } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -24,6 +24,7 @@ import {
 } from '@/hooks/queries/nginx-sites';
 import { useQueryClient } from '@tanstack/react-query';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const { Text } = Typography;
@@ -223,7 +224,7 @@ export default function NginxSitesPage() {
       <SearchToolbar
         primary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="搜索站点名 / 域名 / 配置路径" value={keyword} onChange={setKeyword} showClear style={{ width: 260 }} />
+            <KeywordInput placeholder="搜索站点名 / 域名 / 配置路径" value={keyword} onChange={setKeyword} width={260} />
             <SearchButton onClick={() => { void queryClient.invalidateQueries({ queryKey: nginxSiteKeys.lists }); }} />
             <ResetButton onClick={handleReset} />
             {canManage && <CreateButton onClick={() => setCreateVisible(true)}>新增站点</CreateButton>}
@@ -237,7 +238,7 @@ export default function NginxSitesPage() {
         )}
         mobilePrimary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="搜索站点名 / 域名 / 配置路径" value={keyword} onChange={setKeyword} showClear style={{ width: 260 }} />
+            <KeywordInput placeholder="搜索站点名 / 域名 / 配置路径" value={keyword} onChange={setKeyword} width={260} />
             <SearchButton onClick={() => { void queryClient.invalidateQueries({ queryKey: nginxSiteKeys.lists }); }} />
             {canManage && <CreateButton onClick={() => setCreateVisible(true)}>新增站点</CreateButton>}
           </>

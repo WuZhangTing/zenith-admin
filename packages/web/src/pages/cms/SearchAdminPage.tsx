@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Button, Form, Input, Tag, Toast, Typography, Tabs, TabPane, Modal, Select, DatePicker } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RefreshCw, SplitSquareHorizontal, Plus, Trash2 } from 'lucide-react';
+import { RefreshCw, SplitSquareHorizontal, Plus, Trash2 } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
@@ -26,6 +26,7 @@ import type { CmsSearchResult, CmsSearchWord, CmsHotKeyword } from '@zenith/shar
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { formatDateTimeForApi } from '@/utils/date';
 import { CreateButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 // ─── 检索测试 Tab ─────────────────────────────────────────────────────────────
@@ -86,15 +87,7 @@ function SearchTestTab({ siteId, onSiteChange }: Readonly<{ siteId: number | und
     <>
       <SearchToolbar>
         <CmsSiteSelect value={siteId} onChange={(v) => { onSiteChange(v); setPage(1); }} width={180} />
-        <Input
-          prefix={<Search size={14} />}
-          placeholder="输入关键词测试检索效果..."
-          value={draftKeyword}
-          onChange={setDraftKeyword}
-          showClear
-          style={{ width: 260 }}
-          onEnterPress={handleSearch}
-        />
+        <KeywordInput placeholder="输入关键词测试检索效果..." value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} width={260} />
         <SearchButton onClick={handleSearch}>检索测试</SearchButton>
         {hasPermission('cms:search:manage') ? (
           <Button icon={<RefreshCw size={14} />} loading={reindexMutation.isPending} onClick={() => void handleReindex()}>
@@ -217,8 +210,7 @@ function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined
       <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }} description="自定义词典用于纠正分词（如品牌名、行业术语）。新增/修改即时对新内容生效；历史内容需在「检索测试」中重建索引。" />
       <SearchToolbar>
         <CmsSiteSelect value={siteId} onChange={(value) => { onSiteChange(value); setPage(1); }} width={180} />
-        <Input prefix={<Search size={14} />} placeholder="搜索词条..." value={draftParams.keyword} onChange={(v) => setDraftParams({ keyword: v })} showClear style={{ width: 200 }}
-          onEnterPress={handleSearch} />
+        <KeywordInput placeholder="搜索词条..." value={draftParams.keyword} onChange={(v) => setDraftParams({ keyword: v })} onSearch={handleSearch} width={200} />
         <Select placeholder="词典类型" showClear value={type} onChange={(value) => setType(value as 'extension' | 'stop' | undefined)} style={{ width: 120 }}
           optionList={CMS_SEARCH_WORD_TYPES.map((value) => ({ value, label: CMS_SEARCH_WORD_TYPE_LABELS[value] }))} />
         <Input placeholder="分组" value={groupName} onChange={setGroupName} style={{ width: 130 }} />

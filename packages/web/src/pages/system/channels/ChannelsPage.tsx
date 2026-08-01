@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, Space, Tag, Toast, Typography, Upload } from '@douyinfe/semi-ui';
+import { Button, Form, Space, Tag, Toast, Typography, Upload } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { ImagePlus, Search, Trash2 } from 'lucide-react';
+import { ImagePlus, Trash2 } from 'lucide-react';
 import type { ChannelAdmin } from '@zenith/shared/messaging';
 import { config } from '@/config';
 import { formatDateTime } from '@/utils/date';
@@ -27,6 +27,7 @@ import {
   useSaveChannel,
 } from '@/hooks/queries/channels';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const TYPE_META: Record<string, { text: string; color: 'green' | 'blue' }> = {
@@ -187,7 +188,7 @@ export default function ChannelsPage() {
       <SearchToolbar
         primary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="搜索频道名称/编码" value={draftKeyword} onChange={setDraftKeyword} onEnterPress={handleSearch} showClear style={{ width: 220 }} />
+            <KeywordInput placeholder="搜索频道名称/编码" value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
             {hasPermission('channel:channel:create') && <CreateButton onClick={openCreate} />}
@@ -195,7 +196,7 @@ export default function ChannelsPage() {
         )}
         mobilePrimary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="搜索频道名称/编码" value={draftKeyword} onChange={setDraftKeyword} onEnterPress={handleSearch} showClear style={{ width: 220 }} />
+            <KeywordInput placeholder="搜索频道名称/编码" value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} />
             <SearchButton onClick={handleSearch} />
             {hasPermission('channel:channel:create') && <CreateButton onClick={openCreate} />}
           </>

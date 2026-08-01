@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { Input, DatePicker, Select, Tabs, TabPane, InputNumber } from '@douyinfe/semi-ui';
-import { Search } from 'lucide-react';
+import { Select, Tabs, TabPane, InputNumber } from '@douyinfe/semi-ui';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
 import { OperationLogsTable } from '@/components/logs/OperationLogsTable';
@@ -11,6 +10,7 @@ import OperationLogStatsPanel from './OperationLogStatsPanel';
 import { operationLogKeys, useCleanOperationLogs, useOperationLogList } from '@/hooks/queries/operation-logs';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 
 interface SearchParams {
   username: string;
@@ -75,39 +75,15 @@ export default function OperationLogsPage() {
   };
 
   const renderUsernameSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="请输入操作人"
-      value={draftParams.username}
-      onChange={(v) => setDraftParams({ ...draftParams, username: v })}
-      onEnterPress={handleSearch}
-      style={{ width: 160 }}
-      showClear
-    />
+    <KeywordInput placeholder="请输入操作人" value={draftParams.username} onChange={(v) => setDraftParams({ ...draftParams, username: v })} onSearch={handleSearch} width={160} />
   );
 
   const renderModuleSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="请输入功能模块"
-      value={draftParams.module}
-      onChange={(v) => setDraftParams({ ...draftParams, module: v })}
-      onEnterPress={handleSearch}
-      style={{ width: 160 }}
-      showClear
-    />
+    <KeywordInput placeholder="请输入功能模块" value={draftParams.module} onChange={(v) => setDraftParams({ ...draftParams, module: v })} onSearch={handleSearch} width={160} />
   );
 
   const renderDescriptionSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="请输入操作描述"
-      value={draftParams.description}
-      onChange={(v) => setDraftParams({ ...draftParams, description: v })}
-      onEnterPress={handleSearch}
-      style={{ width: 160 }}
-      showClear
-    />
+    <KeywordInput placeholder="请输入操作描述" value={draftParams.description} onChange={(v) => setDraftParams({ ...draftParams, description: v })} onSearch={handleSearch} width={160} />
   );
 
   const renderMethodFilter = () => (
@@ -127,27 +103,11 @@ export default function OperationLogsPage() {
   );
 
   const renderPathSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="请输入请求路径"
-      value={draftParams.path}
-      onChange={(v) => setDraftParams({ ...draftParams, path: v })}
-      onEnterPress={handleSearch}
-      style={{ width: 180 }}
-      showClear
-    />
+    <KeywordInput placeholder="请输入请求路径" value={draftParams.path} onChange={(v) => setDraftParams({ ...draftParams, path: v })} onSearch={handleSearch} width={180} />
   );
 
   const renderIpSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="请输入 IP 地址"
-      value={draftParams.ip}
-      onChange={(v) => setDraftParams({ ...draftParams, ip: v })}
-      onEnterPress={handleSearch}
-      style={{ width: 160 }}
-      showClear
-    />
+    <KeywordInput placeholder="请输入 IP 地址" value={draftParams.ip} onChange={(v) => setDraftParams({ ...draftParams, ip: v })} onSearch={handleSearch} width={160} />
   );
 
   const renderStatusFilter = () => (
@@ -164,13 +124,7 @@ export default function OperationLogsPage() {
   );
 
   const renderTimeRangeFilter = () => (
-    <DatePicker
-      type="dateTimeRange"
-      placeholder={['开始时间', '结束时间']}
-      value={draftParams.timeRange ?? undefined}
-      onChange={(v) => setDraftParams({ ...draftParams, timeRange: v ? (v as [Date, Date]) : null })}
-      style={{ width: 360 }}
-    />
+    <DateRangeFilter value={draftParams.timeRange ?? undefined} onChange={(v) => setDraftParams({ ...draftParams, timeRange: v ? (v as [Date, Date]) : null })} />
   );
 
   const renderDurationFilters = () => (

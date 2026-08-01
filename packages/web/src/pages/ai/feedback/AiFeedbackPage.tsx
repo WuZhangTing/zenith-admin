@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Button, DatePicker, Form, Select, Tag, Typography, Toast } from '@douyinfe/semi-ui';
+import { Button, Form, Select, Tag, Typography, Toast } from '@douyinfe/semi-ui';
 import { Download, ThumbsUp, ThumbsDown } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -15,6 +15,7 @@ import AppModal from '@/components/AppModal';
 import { renderEllipsis } from '@/utils/table-columns';
 import { aiFeedbackKeys, downloadAiFeedbackCsv, useAiFeedbackContext, useAiFeedbackList, useHandleAiFeedback } from '@/hooks/queries/ai-feedback';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { DateRangeFilter } from '@/components/search-filters';
 
 const { Text } = Typography;
 
@@ -273,19 +274,13 @@ export default function AiFeedbackPage() {
   );
 
   const renderDateRangeFilter = () => (
-    <DatePicker
-      type="dateRange"
-      placeholder={['开始日期', '结束日期']}
-      value={draftParams.timeRange ?? undefined}
-      onChange={(value) => {
+    <DateRangeFilter type="dateRange" value={draftParams.timeRange ?? undefined} onChange={(value) => {
         const [from, to] = Array.isArray(value) ? value : [];
         setDraftParams((p) => ({
           ...p,
           timeRange: from instanceof Date && to instanceof Date ? [from, to] : null,
         }));
-      }}
-      style={{ width: 260 }}
-    />
+      }} />
   );
 
   const renderSearchButton = () => (

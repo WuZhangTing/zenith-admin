@@ -16,7 +16,7 @@ import {
   Table,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Database, Search } from 'lucide-react';
+import { Database } from 'lucide-react';
 import type { DataMaskConfig, MaskType, SensitiveField } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -36,6 +36,7 @@ import {
   useScanDataMaskFields,
 } from '@/hooks/queries/data-mask';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const { Text } = Typography;
@@ -325,15 +326,7 @@ export default function DataMaskPage() {
       <SearchToolbar
         primary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索实体 / 字段"
-              value={draftParams.keyword}
-              onChange={(v) => setDraftParams((prev) => ({ ...prev, keyword: v }))}
-              onEnterPress={handleSearch}
-              showClear
-              style={{ width: 200 }}
-            />
+            <KeywordInput placeholder="搜索实体 / 字段" value={draftParams.keyword} onChange={(v) => setDraftParams((prev) => ({ ...prev, keyword: v }))} onSearch={handleSearch} width={200} />
             <Select
               placeholder="脱敏类型"
               value={draftParams.maskType || undefined}
@@ -371,15 +364,7 @@ export default function DataMaskPage() {
         )}
         mobilePrimary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索实体 / 字段"
-              value={draftParams.keyword}
-              onChange={(v) => setDraftParams((prev) => ({ ...prev, keyword: v }))}
-              onEnterPress={handleSearch}
-              showClear
-              style={{ width: 200 }}
-            />
+            <KeywordInput placeholder="搜索实体 / 字段" value={draftParams.keyword} onChange={(v) => setDraftParams((prev) => ({ ...prev, keyword: v }))} onSearch={handleSearch} width={200} />
             <SearchButton onClick={handleSearch} />
             {hasPermission('system:data-mask:create') && (
               <CreateButton onClick={openCreate}>新增规则</CreateButton>

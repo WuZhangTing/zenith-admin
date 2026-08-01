@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Form, Input, JsonViewer, Select, Spin, Toast } from '@douyinfe/semi-ui';
+import { Form, JsonViewer, Select, Spin, Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search } from 'lucide-react';
 import type { SystemConfig } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { formatDateTime } from '@/utils/date';
@@ -23,6 +22,7 @@ import {
   useSystemConfigList,
 } from '@/hooks/queries/system-configs';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
@@ -204,15 +204,7 @@ export default function SystemConfigsPage() {
       <SearchToolbar
         primary={(
           <>
-          <Input
-            prefix={<Search size={14} />}
-            placeholder="搜索配置键/描述"
-            value={draftParams.keyword}
-            onChange={(value) => setDraftParams((p) => ({ ...p, keyword: value }))}
-            onEnterPress={handleSearch}
-            style={{ width: 240 }}
-            showClear
-          />
+          <KeywordInput placeholder="搜索配置键/描述" value={draftParams.keyword} onChange={(value) => setDraftParams((p) => ({ ...p, keyword: value }))} onSearch={handleSearch} width={240} />
           <Select
             placeholder="配置类型"
             value={draftParams.configType || undefined}
@@ -235,15 +227,7 @@ export default function SystemConfigsPage() {
         )}
         mobilePrimary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索配置键/描述"
-              value={draftParams.keyword}
-              onChange={(value) => setDraftParams((p) => ({ ...p, keyword: value }))}
-              onEnterPress={handleSearch}
-              style={{ width: 240 }}
-              showClear
-            />
+            <KeywordInput placeholder="搜索配置键/描述" value={draftParams.keyword} onChange={(value) => setDraftParams((p) => ({ ...p, keyword: value }))} onSearch={handleSearch} width={240} />
             <SearchButton onClick={handleSearch} />
             {hasPermission('system:config:create') && (
               <CreateButton onClick={() => { setEditingConfig(null); setModalVisible(true); }} />

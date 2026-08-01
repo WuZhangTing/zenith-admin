@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Space, Spin, Tag, Toast, Banner, Typography, TextArea } from '@douyinfe/semi-ui';
-import { Plus, Search, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import type { MpDraft, MpArticle } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -21,6 +21,7 @@ import {
   useSaveMpDraft,
 } from '@/hooks/queries/mp-drafts';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const blankArticle = (): MpArticle => ({ title: '', author: '', digest: '', content: '', thumbUrl: '', showCoverPic: true });
@@ -121,15 +122,7 @@ export default function MpDraftsPage() {
     <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
   );
   const renderKeywordInput = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索标题"
-      value={draftKeyword}
-      onChange={setDraftKeyword}
-      onEnterPress={handleSearch}
-      showClear
-      style={{ width: 180 }}
-    />
+    <KeywordInput placeholder="搜索标题" value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} width={180} />
   );
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;

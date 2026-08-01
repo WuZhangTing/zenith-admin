@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
-import { Input, RadioGroup, Radio, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
-import { Search } from 'lucide-react';
+import { RadioGroup, Radio, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { OnlineUser } from '@zenith/shared/platform';
 import { TOKEN_KEY } from '@zenith/shared/core';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -13,6 +12,7 @@ import { renderEllipsis } from '../../../utils/table-columns';
 import { sessionKeys, useForceLogoutSession, useSessionList } from '@/hooks/queries/sessions';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 
 export default function OnlineSessionsPage() {
@@ -113,30 +113,14 @@ export default function OnlineSessionsPage() {
       <SearchToolbar
         primary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索用户名/昵称/IP"
-              value={draftParams.keyword}
-              onChange={(v) => setDraftParams({ keyword: v })}
-              onEnterPress={handleSearch}
-              style={{ width: 240 }}
-              showClear
-            />
+            <KeywordInput placeholder="搜索用户名/昵称/IP" value={draftParams.keyword} onChange={(v) => setDraftParams({ keyword: v })} onSearch={handleSearch} width={240} />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
           </>
         )}
         mobilePrimary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索用户名/昵称/IP"
-              value={draftParams.keyword}
-              onChange={(v) => setDraftParams({ keyword: v })}
-              onEnterPress={handleSearch}
-              style={{ width: 240 }}
-              showClear
-            />
+            <KeywordInput placeholder="搜索用户名/昵称/IP" value={draftParams.keyword} onChange={(v) => setDraftParams({ keyword: v })} onSearch={handleSearch} width={240} />
             <SearchButton onClick={handleSearch} />
           </>
         )}

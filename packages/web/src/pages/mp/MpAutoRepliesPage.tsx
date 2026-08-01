@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Button, Col, Form, Input, Row, Select, Space, Spin, Tag, Toast, Switch, Banner, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Plus, Search, Trash2, Flame } from 'lucide-react';
+import { Plus, Trash2, Flame } from 'lucide-react';
 import { MP_REPLY_CONTENT_TYPE_LABELS, MP_REPLY_CONTENT_TYPE_OPTIONS } from '@zenith/shared/mp';
 import type { MpAutoReply, MpAutoReplyType, MpReplyContentType, MpReplyArticle } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
@@ -24,6 +24,7 @@ import {
   useSaveMpAutoReply,
 } from '@/hooks/queries/mp-auto-replies';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const REPLY_TYPE_OPTIONS = [
@@ -208,15 +209,7 @@ export default function MpAutoRepliesPage() {
     />
   );
   const renderKeywordInput = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索关键词"
-      value={draftParams.keyword}
-      onChange={(v) => setDraftParams({ ...draftParams, keyword: v })}
-      onEnterPress={handleSearch}
-      showClear
-      style={{ width: 180 }}
-    />
+    <KeywordInput placeholder="搜索关键词" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={180} />
   );
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;

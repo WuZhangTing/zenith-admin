@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Dropdown, Form, Input, Select, SideSheet, Tag, Toast, Typography, Empty } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Plus, ArrowUp, ArrowDown, Trash2, Pencil, ExternalLink, ChevronDown, GripVertical, RefreshCw, LockKeyhole, ShieldCheck } from 'lucide-react';
+import { Plus, ArrowUp, ArrowDown, Trash2, Pencil, ExternalLink, ChevronDown, GripVertical, RefreshCw, LockKeyhole, ShieldCheck } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -24,6 +24,7 @@ import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 import { formatDateTimeForApi } from '@/utils/date';
 import { useCmsWidgetRenderers, usePublishedCmsWidgets } from '@/hooks/queries/cms-widgets';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 /** 区块按栏目标识引用栏目：value 用 code，站点复制/重建后配置无需重配 */
@@ -306,7 +307,7 @@ export default function PagesPage() {
     <div className="page-container">
       <SearchToolbar>
         <CmsSiteSelect value={siteId} onChange={(v) => { setSiteId(v); resetPage(); }} />
-        <Input prefix={<Search size={14} />} placeholder="页面名称 / slug" value={keywordDraft} onChange={setKeywordDraft} showClear style={{ width: 200 }} />
+        <KeywordInput placeholder="页面名称 / slug" value={keywordDraft} onChange={setKeywordDraft} width={200} />
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />
         {hasPermission('cms:page:create') ? (

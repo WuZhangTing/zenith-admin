@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Banner, Button, Checkbox, Form, Input, InputNumber, Select, Space, Switch, Tag, TextArea, Toast, Modal, Row, Col, SideSheet, Tabs, TabPane, Typography, Upload } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Upload as UploadIcon, ImageUp, Zap, ExternalLink, ChevronsDownUp, ChevronsUpDown, ListTree, List as ListIcon } from 'lucide-react';
+import { Upload as UploadIcon, ImageUp, Zap, ExternalLink, ChevronsDownUp, ChevronsUpDown, ListTree, List as ListIcon } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -38,6 +38,7 @@ import {
 } from '@/hooks/queries/cms-widgets';
 import type { CmsWidgetRendererKey } from '@zenith/shared/cms';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
@@ -814,15 +815,7 @@ export default function SitesPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索名称/标识/域名..."
-      value={draftParams.keyword}
-      onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))}
-      showClear
-      style={{ width: 220 }}
-      onEnterPress={handleSearch}
-    />
+    <KeywordInput placeholder="搜索名称/标识/域名..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} />
   );
 
   const renderStatusFilter = () => (

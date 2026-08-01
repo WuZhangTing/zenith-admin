@@ -1,9 +1,9 @@
 import { useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Copy, Search } from 'lucide-react';
+import { Copy } from 'lucide-react';
 import type { ChatWebhook } from '@zenith/shared/chat';
 import { UserAvatar } from '@/components/UserAvatar';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -23,6 +23,7 @@ import {
   useSaveChatBot,
 } from '@/hooks/queries/chat-bots';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 const { Text } = Typography;
@@ -301,15 +302,7 @@ export default function ChatBotsPage() {
       <SearchToolbar
         primary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索机器人名称"
-              value={draftKeyword}
-              onChange={setDraftKeyword}
-              onEnterPress={handleSearch}
-              style={{ width: 260 }}
-              showClear
-            />
+            <KeywordInput placeholder="搜索机器人名称" value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} width={260} />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
             {hasPermission('chat:bot:create') && (
@@ -319,15 +312,7 @@ export default function ChatBotsPage() {
         )}
         mobilePrimary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索机器人名称"
-              value={draftKeyword}
-              onChange={setDraftKeyword}
-              onEnterPress={handleSearch}
-              style={{ width: 260 }}
-              showClear
-            />
+            <KeywordInput placeholder="搜索机器人名称" value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} width={260} />
             <SearchButton onClick={handleSearch} />
             {hasPermission('chat:bot:create') && (
               <CreateButton onClick={openCreateModal} />

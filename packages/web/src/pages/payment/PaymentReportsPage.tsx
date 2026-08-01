@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { formatYuan } from '@/utils/payment';
 import type { CSSProperties } from 'react';
-import { Banner, Checkbox, DatePicker, Row, Col, Select, Spin, Typography } from '@douyinfe/semi-ui';
+import { Banner, Checkbox, Row, Col, Select, Spin, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { BarChart, chartOptions, makeBarSpec, useChartPalette } from '@/components/charts';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -13,6 +13,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { PAYMENT_REPORT_GROUP_BY_LABELS } from '@zenith/shared/payment';
 import type { PaymentReportGroupBy, PaymentReportRow } from '@zenith/shared/payment';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { DateRangeFilter } from '@/components/search-filters';
 
 const yuan = formatYuan;
 const groupByOptions = Object.entries(PAYMENT_REPORT_GROUP_BY_LABELS).map(([value, label]) => ({ value, label }));
@@ -103,13 +104,7 @@ export default function PaymentReportsPage() {
   );
 
   const renderTimeRangeFilter = () => (
-    <DatePicker
-      type="dateTimeRange"
-      placeholder={['开始时间', '结束时间']}
-      value={draftParams.timeRange ?? undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, timeRange: v ? (v as [Date, Date]) : null }))}
-      style={{ width: 330 }}
-    />
+    <DateRangeFilter value={draftParams.timeRange ?? undefined} onChange={(v) => setDraftParams((p) => ({ ...p, timeRange: v ? (v as [Date, Date]) : null }))} width={330} />
   );
 
   const renderCompareToggle = () => (

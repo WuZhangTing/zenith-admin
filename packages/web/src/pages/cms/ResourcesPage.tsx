@@ -1,9 +1,9 @@
 import { useCallback, useRef, useState } from 'react';
-import { Button, DatePicker, Dropdown, Form, Input, Modal, Select, Space, Tag, Toast, Tooltip, Typography, Empty, Tree } from '@douyinfe/semi-ui';
+import { Button, DatePicker, Dropdown, Form, Modal, Select, Space, Tag, Toast, Tooltip, Typography, Empty, Tree } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
-import { Search, Upload, FileText, Film, Music, File as FileIcon, FolderPlus, FolderPen, FolderX, Move, ShieldCheck, MoreHorizontal } from 'lucide-react';
+import { Upload, FileText, Film, Music, File as FileIcon, FolderPlus, FolderPen, FolderX, Move, ShieldCheck, MoreHorizontal } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -26,6 +26,7 @@ import type { CmsResource, CmsResourceFolder, CmsResourceReference, CmsResourceO
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { formatDateTimeForApi } from '@/utils/date';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const TYPE_COLORS: Record<CmsResourceType, 'blue' | 'purple' | 'cyan' | 'orange' | 'grey'> = {
@@ -500,7 +501,7 @@ export default function ResourcesPage() {
                 onChange={(v) => { setType(v as CmsResourceType | undefined); setPage(1); }}
                 optionList={CMS_RESOURCE_TYPES.map((t) => ({ label: CMS_RESOURCE_TYPE_LABELS[t], value: t }))}
               />
-              <Input prefix={<Search size={14} />} placeholder="搜索素材名称" showClear value={keywordDraft} onChange={setKeywordDraft} style={{ width: 200 }} onEnterPress={handleSearch} />
+              <KeywordInput placeholder="搜索素材名称" value={keywordDraft} onChange={setKeywordDraft} onSearch={handleSearch} width={200} />
               <SearchButton onClick={handleSearch} />
               <ResetButton onClick={handleReset} />
               {canUpload ? (

@@ -1,9 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
-import { Form, Input, Select, Spin, Toast, Switch, Tag, Row, Col } from '@douyinfe/semi-ui';
+import { Form, Select, Spin, Toast, Switch, Tag, Row, Col } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -24,6 +23,7 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
@@ -199,15 +199,7 @@ export default function PaymentChannelsPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索名称..."
-      value={draftParams.keyword}
-      onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))}
-      showClear
-      style={{ width: 200 }}
-      onEnterPress={handleSearch}
-    />
+    <KeywordInput placeholder="搜索名称..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} width={200} />
   );
 
   const renderChannelFilter = () => (

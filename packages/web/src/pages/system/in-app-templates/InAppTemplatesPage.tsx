@@ -1,18 +1,6 @@
 import { useState, useRef } from 'react';
-import {
-  Col,
-  Form,
-  Input,
-  Modal,
-  Row,
-  Select,
-  Spin,
-  Tag,
-  Toast,
-  Switch,
-} from '@douyinfe/semi-ui';
+import { Col, Form, Modal, Row, Select, Spin, Tag, Toast, Switch } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Search } from 'lucide-react';
 import type { InAppMessageType, InAppTemplate } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -31,6 +19,7 @@ import {
 } from '@/hooks/queries/in-app-templates';
 import { IN_APP_MESSAGE_TYPE_OPTIONS_WITH_COLOR as TYPE_OPTIONS } from '../in-app-message-constants';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 export default function InAppTemplatesPage() {
@@ -158,8 +147,7 @@ export default function InAppTemplatesPage() {
       <SearchToolbar
         primary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="搜索模板名称/编码/标题"
-              value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onEnterPress={handleSearch} showClear style={{ width: 240 }} />
+            <KeywordInput placeholder="搜索模板名称/编码/标题" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={240} />
             <Select placeholder="类型" value={draftParams.filterType} onChange={(v) => setDraftParams({ ...draftParams, filterType: v as InAppMessageType | undefined })}
               optionList={TYPE_OPTIONS} showClear style={{ width: 110 }} />
             <Select placeholder="状态" value={draftParams.filterStatus} onChange={(v) => setDraftParams({ ...draftParams, filterStatus: v as string | undefined })}
@@ -173,8 +161,7 @@ export default function InAppTemplatesPage() {
         )}
         mobilePrimary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="搜索模板名称/编码/标题"
-              value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onEnterPress={handleSearch} showClear style={{ width: 240 }} />
+            <KeywordInput placeholder="搜索模板名称/编码/标题" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={240} />
             <SearchButton onClick={handleSearch} />
             {can('system:in-app-template:create') && (
               <CreateButton onClick={openCreate} />

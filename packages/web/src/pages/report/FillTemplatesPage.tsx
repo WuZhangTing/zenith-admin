@@ -1,25 +1,9 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Banner,
-  Button,
-  Col,
-  Form,
-  Input,
-  Modal,
-  Row,
-  Select,
-  SideSheet,
-  Space,
-  Steps,
-  TabPane,
-  Tabs,
-  Tag,
-  Toast,
-} from '@douyinfe/semi-ui';
+import { Banner, Button, Col, Form, Modal, Row, Select, SideSheet, Space, Steps, TabPane, Tabs, Tag, Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Copy, Eye, Search } from 'lucide-react';
+import { Copy, Eye } from 'lucide-react';
 import { REPORT_FILL_TEMPLATE_STATUS_LABELS, REPORT_FILL_TEMPLATE_STATUS_OPTIONS } from '@zenith/shared/report';
 import type { ReportFillTemplate } from '@zenith/shared/report';
 import type { WorkflowFormField, WorkflowFormSettings } from '@zenith/shared/workflow';
@@ -48,6 +32,7 @@ import FormDesigner from '@/pages/workflow/designer/components/FormDesigner';
 import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowFormRenderer';
 import { isRevisionConflict, validateFillTemplateInput } from './report-p2-utils';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface SearchState {
@@ -308,15 +293,7 @@ export default function FillTemplatesPage() {
   ];
 
   const keywordInput = (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索模板名称/编码"
-      value={draft.keyword}
-      onChange={(value) => setDraft((current) => ({ ...current, keyword: value }))}
-      onEnterPress={handleSearch}
-      showClear
-      style={{ width: 220 }}
-    />
+    <KeywordInput placeholder="搜索模板名称/编码" value={draft.keyword} onChange={(value) => setDraft((current) => ({ ...current, keyword: value }))} onSearch={handleSearch} />
   );
   const filters = (
     <>

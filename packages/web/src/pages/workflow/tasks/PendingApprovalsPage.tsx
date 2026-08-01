@@ -2,18 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppModal } from '@/components/AppModal';
-import {
-  Button,
-  Input,
-  Select,
-  SideSheet,
-  Tag,
-  TextArea,
-  Toast,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Button, Select, SideSheet, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Plus, Search } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import type { WorkflowInstance, WorkflowInstanceSummaryItem, WorkflowSlaLevel } from '@zenith/shared/workflow';
 import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -41,6 +32,7 @@ import {
   workflowTaskKeys,
 } from '@/hooks/queries/workflow-tasks';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 
 interface SearchParams {
   keyword: string;
@@ -244,15 +236,7 @@ export default function PendingApprovalsPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="请输入审批标题"
-      value={draftParams.keyword}
-      onChange={(v) => setDraftParams((prev) => ({ ...prev, keyword: v }))}
-      onEnterPress={handleSearch}
-      style={{ width: 200 }}
-      showClear
-    />
+    <KeywordInput placeholder="请输入审批标题" value={draftParams.keyword} onChange={(v) => setDraftParams((prev) => ({ ...prev, keyword: v }))} onSearch={handleSearch} width={200} />
   );
 
   const renderDefinitionFilter = () => (

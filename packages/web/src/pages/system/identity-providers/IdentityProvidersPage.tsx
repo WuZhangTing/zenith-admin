@@ -1,20 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  Col,
-  Form,
-  Input,
-  Modal,
-  Row,
-  Select,
-  Switch,
-  Table,
-  Tag,
-  Toast,
-} from '@douyinfe/semi-ui';
+import { Col, Form, Modal, Row, Select, Switch, Table, Tag, Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search } from 'lucide-react';
 import type { IdentityProviderType, TenantIdentityProvider } from '@zenith/shared/identity';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -36,6 +24,7 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
@@ -316,15 +305,7 @@ export default function IdentityProvidersPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索名称/编码"
-      value={draftParams.keyword}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))}
-      onEnterPress={handleSearch}
-      style={{ width: 220, maxWidth: '100%' }}
-      showClear
-    />
+    <KeywordInput placeholder="搜索名称/编码" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))} onSearch={handleSearch} />
   );
 
   const renderTypeFilter = () => (
@@ -539,14 +520,7 @@ export default function IdentityProvidersPage() {
         width={860}
       >
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          <Input
-            prefix={<Search size={14} />}
-            placeholder="输入用户名、姓名或邮箱关键字"
-            value={ldapSearchKeyword}
-            onChange={setLdapSearchKeyword}
-            onEnterPress={handleLdapSearch}
-            showClear
-          />
+          <KeywordInput placeholder="输入用户名、姓名或邮箱关键字" value={ldapSearchKeyword} onChange={setLdapSearchKeyword} onSearch={handleLdapSearch} />
           <SearchButton onClick={handleLdapSearch} loading={ldapSearchMutation.isPending}>搜索</SearchButton>
         </div>
         <Table

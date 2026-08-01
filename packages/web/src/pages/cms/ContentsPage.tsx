@@ -5,7 +5,7 @@ import { Button, Input, Tag, Toast, Modal, Tabs, TabPane, Tree, TreeSelect, Typo
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
-import { Search, ChevronDown, FileUp, Image as ImageIcon, Film, Paperclip, ArrowLeft, FolderTree } from 'lucide-react';
+import { ChevronDown, FileUp, Image as ImageIcon, Film, Paperclip, ArrowLeft, FolderTree } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -25,6 +25,7 @@ import type { CmsChannel, CmsContent, CmsContentStatus, CmsContentType } from '@
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 import { CmsWidgetSourceRefsSheet, type CmsWidgetSourceTarget } from './CmsWidgetSourceRefsSheet';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const STATUS_COLORS: Record<CmsContentStatus, 'grey' | 'orange' | 'green' | 'red' | 'violet'> = {
@@ -447,15 +448,7 @@ export default function ContentsPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索标题/作者..."
-      value={draftKeyword}
-      onChange={setDraftKeyword}
-      showClear
-      style={{ width: 220 }}
-      onEnterPress={handleSearch}
-    />
+    <KeywordInput placeholder="搜索标题/作者..." value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} />
   );
   const renderTypeFilter = () => (
     <Select

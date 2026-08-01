@@ -5,7 +5,6 @@ import { Button, Form, Input, Select, Space, Switch, Tag, Toast, Typography } fr
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { QRCodeSVG } from 'qrcode.react';
-import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -18,6 +17,7 @@ import type { PaymentLink, PaymentLinkStatus, PaymentMethod } from '@zenith/shar
 import { paymentLinkKeys, useDeletePaymentLink, usePaymentLinkDetail, usePaymentLinkList, useRotatePaymentLinkToken, useSavePaymentLink } from '@/hooks/queries/payment-links';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 const yuan = (cents: number | null | undefined) => formatYuan(cents, '用户填写');
@@ -205,15 +205,7 @@ export default function PaymentLinksPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="标题..."
-      value={draftParams.keyword}
-      onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))}
-      showClear
-      style={{ width: 200 }}
-      onEnterPress={handleSearch}
-    />
+    <KeywordInput placeholder="标题..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} width={200} />
   );
 
   const renderStatusFilter = () => (

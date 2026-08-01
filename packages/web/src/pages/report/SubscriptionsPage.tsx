@@ -1,8 +1,7 @@
 import { useState, useRef } from 'react';
-import { Button, Form, Input, Tag, Toast, Modal, SideSheet, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Tag, Toast, Modal, SideSheet, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -28,6 +27,7 @@ import type { NotifyChannel } from '@zenith/shared/messaging';
 import { REPORT_DELIVERY_STATUS_LABELS, REPORT_MISFIRE_POLICY_OPTIONS } from '@zenith/shared/report';
 import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const deliveryStatusColorMap: Record<string, 'green' | 'red' | 'orange' | 'grey' | 'blue' | 'amber'> = {
@@ -168,7 +168,7 @@ export default function SubscriptionsPage() {
     }),
   ];
 
-  const renderKeyword = () => <Input prefix={<Search size={14} />} placeholder="搜索 Cron/备注" value={draftKeyword} onChange={setDraftKeyword} showClear style={{ width: 200 }} onEnterPress={handleSearch} />;
+  const renderKeyword = () => <KeywordInput placeholder="搜索 Cron/备注" value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} width={200} />;
   const renderCreate = () => hasPermission('report:subscription:create') ? <CreateButton onClick={openCreate} /> : null;
   const renderBatchEnable = () => selectedRowKeys.length > 0 && hasPermission('report:subscription:update') ? <Button onClick={() => handleBatchEnabled(true)}>批量启用</Button> : null;
   const renderBatchDisable = () => selectedRowKeys.length > 0 && hasPermission('report:subscription:update') ? <Button type="danger" onClick={() => handleBatchEnabled(false)}>批量停用</Button> : null;

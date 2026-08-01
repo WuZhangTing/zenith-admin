@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
-import { DatePicker, Input, InputNumber, Select, Typography, Tag, Space, Row, Col, Card } from '@douyinfe/semi-ui';
+import { DatePicker, InputNumber, Select, Typography, Tag, Space, Row, Col, Card } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search } from 'lucide-react';
 import dayjs from 'dayjs';
 import type { OpenApiCallLog } from '@zenith/shared/open-platform';
 import { OPEN_APP_ENVIRONMENT_LABELS, OPEN_APP_ENVIRONMENTS } from '@zenith/shared/open-platform';
@@ -20,6 +19,7 @@ import {
   useOpenAppOptions,
 } from '@/hooks/queries/open-platform';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 
 const { Text, Title } = Typography;
 
@@ -186,15 +186,7 @@ export default function OpenApiStatsPage() {
         )}
         filters={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="路径 / 应用名称"
-              value={draftParams.keyword}
-              onChange={(keyword) => setDraftParams({ ...draftParams, keyword })}
-              onEnterPress={handleApply}
-              showClear
-              style={{ width: 190 }}
-            />
+            <KeywordInput placeholder="路径 / 应用名称" value={draftParams.keyword} onChange={(keyword) => setDraftParams({ ...draftParams, keyword })} onSearch={handleApply} width={190} />
             <Select
               placeholder="应用"
               value={draftParams.clientId}
@@ -244,15 +236,7 @@ export default function OpenApiStatsPage() {
         actions={<ExportButton entity="open-platform.call-logs" query={logParams} executionMode="auto" />}
         mobilePrimary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索调用日志"
-              value={draftParams.keyword}
-              onChange={(keyword) => setDraftParams({ ...draftParams, keyword })}
-              onEnterPress={handleApply}
-              showClear
-              style={{ width: 190 }}
-            />
+            <KeywordInput placeholder="搜索调用日志" value={draftParams.keyword} onChange={(keyword) => setDraftParams({ ...draftParams, keyword })} onSearch={handleApply} width={190} />
             <SearchButton onClick={handleApply} />
           </>
         )}

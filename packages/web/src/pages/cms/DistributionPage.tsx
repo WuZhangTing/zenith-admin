@@ -1,9 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
-import { Banner, Col, DatePicker, Form, Input, Row, Select, SideSheet, TabPane, Tabs, Tag, Toast } from '@douyinfe/semi-ui';
+import { Banner, Col, DatePicker, Form, Row, Select, SideSheet, TabPane, Tabs, Tag, Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search } from 'lucide-react';
 import { CMS_CONTENT_TYPES, CMS_CONTENT_TYPE_LABELS, CMS_DISTRIBUTION_CONFLICT_STRATEGIES, CMS_DISTRIBUTION_CONFLICT_STRATEGY_LABELS, CMS_DISTRIBUTION_MODES, CMS_DISTRIBUTION_MODE_LABELS, CMS_DISTRIBUTION_RUN_OUTCOME_LABELS, CMS_DISTRIBUTION_TASK_STATUSES, CMS_DISTRIBUTION_TASK_STATUS_LABELS } from '@zenith/shared/cms';
 import type { CmsChannel, CmsDistributionRule, CmsDistributionRun } from '@zenith/shared/cms';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -30,6 +29,7 @@ import {
 } from '@/hooks/queries/cms-stage5';
 import { useQueryClient } from '@tanstack/react-query';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface RuleSearch {
@@ -406,15 +406,7 @@ export default function DistributionPage() {
           <SearchToolbar
             primary={(
               <>
-                <Input
-                  prefix={<Search size={14} />}
-                  value={ruleDraft.keyword}
-                  placeholder="搜索规则名称"
-                  showClear
-                  style={{ width: 220 }}
-                  onChange={(keyword) => setRuleDraft((value) => ({ ...value, keyword }))}
-                  onEnterPress={searchRules}
-                />
+                <KeywordInput placeholder="搜索规则名称" value={ruleDraft.keyword} onChange={(keyword) => setRuleDraft((value) => ({ ...value, keyword }))} onSearch={searchRules} />
                 <Select
                   placeholder="来源站点"
                   value={ruleDraft.sourceSiteId}
@@ -460,13 +452,7 @@ export default function DistributionPage() {
             ) : null}
             mobilePrimary={(
               <>
-                <Input
-                  prefix={<Search size={14} />}
-                  value={ruleDraft.keyword}
-                  placeholder="搜索规则"
-                  showClear
-                  onChange={(keyword) => setRuleDraft((value) => ({ ...value, keyword }))}
-                />
+                <KeywordInput placeholder="搜索规则" value={ruleDraft.keyword} onChange={(keyword) => setRuleDraft((value) => ({ ...value, keyword }))} />
                 <SearchButton onClick={searchRules} />
                 {hasPermission('cms:distribution:create') ? <CreateButton onClick={openCreate} /> : null}
               </>

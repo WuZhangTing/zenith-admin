@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
-import { Avatar, Button, Form, Input, Modal, Select, Space, Spin, Tag, Toast, Banner } from '@douyinfe/semi-ui';
+import { Avatar, Button, Form, Modal, Select, Space, Spin, Tag, Toast, Banner } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Search, RefreshCw, Ban } from 'lucide-react';
+import { RefreshCw, Ban } from 'lucide-react';
 import type { MpFan, MpFanSubscribe } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -24,6 +24,7 @@ import {
 import { useMpTagOptions } from '@/hooks/queries/mp-tags';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 
 const SEX_LABELS: Record<number, string> = { 0: '未知', 1: '男', 2: '女' };
@@ -196,15 +197,7 @@ export default function MpFansPage() {
     <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
   );
   const renderKeywordInput = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索昵称/openid/备注"
-      value={draftParams.keyword}
-      onChange={(v) => setDraftParams({ ...draftParams, keyword: v })}
-      onEnterPress={handleSearch}
-      showClear
-      style={{ width: 200 }}
-    />
+    <KeywordInput placeholder="搜索昵称/openid/备注" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
   );
   const renderSubscribeFilter = () => (
     <Select

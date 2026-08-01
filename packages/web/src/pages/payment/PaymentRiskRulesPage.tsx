@@ -1,10 +1,9 @@
 import { useState, useRef } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { useQueryClient } from '@tanstack/react-query';
-import { Form, Input, Modal, Select, Switch, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Form, Modal, Select, Switch, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -28,6 +27,7 @@ import type { PaymentChannel, PaymentRiskAction, PaymentRiskDimension, PaymentRi
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const yuan = formatYuan;
@@ -296,7 +296,7 @@ export default function PaymentRiskRulesPage() {
   ) : null;
 
   const renderHitKeyword = () => (
-    <Input prefix={<Search size={14} />} placeholder="规则名/订单号/业务ID..." value={hitKeyword} onChange={setHitKeyword} showClear style={{ width: 220 }} onEnterPress={handleHitSearch} />
+    <KeywordInput placeholder="规则名/订单号/业务ID..." value={hitKeyword} onChange={setHitKeyword} onSearch={handleHitSearch} />
   );
   const renderHitActionFilter = () => (
     <Select placeholder="全部动作" value={hitAction || undefined} onChange={(v) => setHitAction((v as string) ?? '')} showClear style={{ width: 120 }} optionList={actionOptions} />
@@ -306,7 +306,7 @@ export default function PaymentRiskRulesPage() {
   );
 
   const renderReviewKeyword = () => (
-    <Input prefix={<Search size={14} />} placeholder="审核单号/订单号/业务ID..." value={reviewKeyword} onChange={setReviewKeyword} showClear style={{ width: 220 }} onEnterPress={handleReviewSearch} />
+    <KeywordInput placeholder="审核单号/订单号/业务ID..." value={reviewKeyword} onChange={setReviewKeyword} onSearch={handleReviewSearch} />
   );
   const renderReviewStatusFilter = () => (
     <Select placeholder="全部状态" value={reviewStatus || undefined} onChange={(v) => setReviewStatus((v as string) ?? '')} showClear style={{ width: 120 }} optionList={reviewStatusOptions} />

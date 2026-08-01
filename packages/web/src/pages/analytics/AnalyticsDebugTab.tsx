@@ -2,10 +2,9 @@
  * 行为中心阶段 1：事件调试流 —— 当前租户最近事件摘要，3s 轮询近实时刷新。
  */
 import { useState } from 'react';
-import { Input, SideSheet, Tag, Typography } from '@douyinfe/semi-ui';
+import { SideSheet, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
-import { Search } from 'lucide-react';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -15,6 +14,7 @@ import { useAnalyticsDebugEvents } from '@/hooks/queries/analytics';
 import type { AnalyticsDebugEvent, AnalyticsQualityIssueType } from '@zenith/shared/analytics';
 import { ANALYTICS_QUALITY_ISSUE_TYPE_LABELS } from '@zenith/shared/analytics';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 
 const DEBUG_LIMIT = 50;
 
@@ -89,15 +89,7 @@ export default function AnalyticsDebugTab({ active }: Readonly<{ active: boolean
   return (
     <div>
       <SearchToolbar>
-        <Input
-          prefix={<Search size={14} />}
-          placeholder="事件名"
-          value={eventNameDraft}
-          onChange={setEventNameDraft}
-          onEnterPress={handleSearch}
-          showClear
-          style={{ width: 180 }}
-        />
+        <KeywordInput placeholder="事件名" value={eventNameDraft} onChange={setEventNameDraft} onSearch={handleSearch} width={180} />
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />
         <Typography.Text type="tertiary" size="small">每 3 秒自动刷新，最多展示 {DEBUG_LIMIT} 条</Typography.Text>

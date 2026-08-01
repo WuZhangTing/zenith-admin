@@ -1,23 +1,9 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  Button,
-  Input,
-  Select,
-  Modal,
-  Form,
-  Radio,
-  Toast,
-  TreeSelect,
-  Row,
-  Col,
-  Spin,
-  Switch,
-  Tooltip,
-} from '@douyinfe/semi-ui';
+import { Button, Select, Modal, Form, Radio, Toast, TreeSelect, Row, Col, Spin, Switch, Tooltip } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
-import { ChevronsDownUp, ChevronsUpDown, Search } from 'lucide-react';
+import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import type { Menu } from '@zenith/shared/identity';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
@@ -32,6 +18,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import { menuKeys, useDeleteMenu, useMenuDetail, useMenuTree, useSaveMenu } from '@/hooks/queries/menus';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 export default function MenusPage() {
@@ -372,15 +359,7 @@ export default function MenusPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="菜单名称"
-      showClear
-      value={pendingKeyword}
-      onChange={(val) => setPendingKeyword(val)}
-      onEnterPress={handleSearch}
-      style={{ width: 200, maxWidth: '100%' }}
-    />
+    <KeywordInput placeholder="菜单名称" value={pendingKeyword} onChange={(val) => setPendingKeyword(val)} onSearch={handleSearch} width={200} />
   );
 
   const renderStatusFilter = () => (

@@ -1,10 +1,10 @@
 import { useState, useRef } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, Select, Switch, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Select, Switch, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -26,6 +26,7 @@ import { PAYMENT_SHARING_RECEIVER_TYPE_LABELS, PAYMENT_SHARING_ORDER_STATUS_LABE
 import type { PaymentSharingOrder, PaymentSharingOrderStatus, PaymentSharingReceiver, PaymentSharingReceiverType } from '@zenith/shared/payment';
 import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const yuan = formatYuan;
@@ -199,15 +200,7 @@ export default function PaymentSharingPage() {
   };
 
   const renderReceiverKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="名称..."
-      value={receiverKeyword}
-      onChange={setReceiverKeyword}
-      showClear
-      style={{ width: 200 }}
-      onEnterPress={handleReceiverSearch}
-    />
+    <KeywordInput placeholder="名称..." value={receiverKeyword} onChange={setReceiverKeyword} onSearch={handleReceiverSearch} width={200} />
   );
   const renderReceiverSearchButton = () => <SearchButton onClick={handleReceiverSearch} />;
   const renderReceiverResetButton = () => <ResetButton onClick={handleReceiverReset} />;
@@ -216,15 +209,7 @@ export default function PaymentSharingPage() {
   ) : null;
 
   const renderOrderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="订单号..."
-      value={orderKeyword}
-      onChange={setOrderKeyword}
-      showClear
-      style={{ width: 200 }}
-      onEnterPress={handleOrderSearch}
-    />
+    <KeywordInput placeholder="订单号..." value={orderKeyword} onChange={setOrderKeyword} onSearch={handleOrderSearch} width={200} />
   );
   const renderOrderStatusFilter = () => (
     <Select

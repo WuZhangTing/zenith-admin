@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppModal } from '@/components/AppModal';
-import { Badge, Button, Dropdown, Input, InputNumber, JsonViewer, Radio, RadioGroup, Space, Tag, TextArea, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
-import { Search, RefreshCw, Trash2, MoreHorizontal, Pencil, Clock } from 'lucide-react';
+import { Badge, Button, Dropdown, InputNumber, JsonViewer, Radio, RadioGroup, Space, Tag, TextArea, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { RefreshCw, Trash2, MoreHorizontal, Pencil, Clock } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
@@ -25,6 +25,7 @@ import {
   useUpdateCacheValue,
 } from '@/hooks/queries/cache';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface CategoryRow {
@@ -458,15 +459,7 @@ export default function CacheManagePage() {
         {selectedCategory ? (
           <>
             <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-              <Input
-                prefix={<Search size={14} />}
-                placeholder="搜索 Key 名称"
-                value={searchInput}
-                onChange={setSearchInput}
-                onEnterPress={handleSearch}
-                style={{ width: 260 }}
-                showClear
-              />
+              <KeywordInput placeholder="搜索 Key 名称" value={searchInput} onChange={setSearchInput} onSearch={handleSearch} width={260} />
               <SearchButton onClick={handleSearch} />
               <ResetButton onClick={handleReset} />
               {canDelete && selectedKeys.length > 0 && (

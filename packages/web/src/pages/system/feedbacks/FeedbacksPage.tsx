@@ -1,9 +1,9 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Banner, Button, DatePicker, Descriptions, Form, Input, Rating, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Descriptions, Form, Rating, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Trash2 } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import type { UserFeedback, UserFeedbackCategory, UserFeedbackStatus } from '@zenith/shared/identity';
 import { USER_FEEDBACK_CATEGORY_LABELS, USER_FEEDBACK_STATUS_LABELS } from '@zenith/shared/identity';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -18,6 +18,7 @@ import { usePublicConfig } from '@/hooks/queries/system-configs';
 import { useDeleteFeedbacks, useHandleFeedback, useUserFeedbackList, userFeedbackKeys } from '@/hooks/queries/user-feedbacks';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 // 文案统一来自 @zenith/shared；Tag 色为本页特化
@@ -186,15 +187,7 @@ export default function FeedbacksPage() {
 
   // ─── 搜索区渲染 ────────────────────────────────────────────────────────
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索反馈内容..."
-      value={draftParams.keyword}
-      onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))}
-      showClear
-      style={{ width: 220 }}
-      onEnterPress={handleSearch}
-    />
+    <KeywordInput placeholder="搜索反馈内容..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} />
   );
 
   const renderCategoryFilter = () => (
@@ -220,13 +213,7 @@ export default function FeedbacksPage() {
   );
 
   const renderDateRangeFilter = () => (
-    <DatePicker
-      type="dateRange"
-      placeholder={['开始日期', '结束日期']}
-      value={draftParams.dateRange ?? undefined}
-      onChange={(value) => setDraftParams((p) => ({ ...p, dateRange: value ? (value as [Date, Date]) : null }))}
-      style={{ width: 260 }}
-    />
+    <DateRangeFilter type="dateRange" value={draftParams.dateRange ?? undefined} onChange={(value) => setDraftParams((p) => ({ ...p, dateRange: value ? (value as [Date, Date]) : null }))} />
   );
 
   const renderSearchButton = () => (

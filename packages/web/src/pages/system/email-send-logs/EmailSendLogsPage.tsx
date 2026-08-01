@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Button, Form, Input, Select, Tag, Toast } from '@douyinfe/semi-ui';
 import { AppModal } from '@/components/AppModal';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Plus, Search } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import type { EmailSendLog, SendStatus } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -20,6 +20,7 @@ import {
 } from '@/hooks/queries/email-send-logs';
 import { SEND_LOG_STATUS_OPTIONS as STATUS_OPTIONS, SEND_SOURCE_OPTIONS as SOURCE_OPTIONS } from '../send-log-constants';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 function StatusTag({ value }: Readonly<{ value: SendStatus }>) {
@@ -117,8 +118,7 @@ export default function EmailSendLogsPage() {
       <SearchToolbar
         primary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="主题/内容关键词"
-              value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onEnterPress={handleSearch} showClear style={{ width: 200 }} />
+            <KeywordInput placeholder="主题/内容关键词" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
             <Input placeholder="收件人邮箱" value={draftParams.toEmail} onChange={(v) => setDraftParams({ ...draftParams, toEmail: v })}
               onEnterPress={handleSearch} showClear style={{ width: 200 }} />
             <Select placeholder="状态" value={draftParams.filterStatus} onChange={(v) => setDraftParams({ ...draftParams, filterStatus: v as SendStatus | undefined })}
@@ -141,8 +141,7 @@ export default function EmailSendLogsPage() {
         )}
         mobilePrimary={(
           <>
-            <Input prefix={<Search size={14} />} placeholder="主题/内容关键词"
-              value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onEnterPress={handleSearch} showClear style={{ width: 200 }} />
+            <KeywordInput placeholder="主题/内容关键词" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
             <SearchButton onClick={handleSearch} />
             {can('system:email-send-log:send') && (
               <Button type="primary" icon={<Plus size={14} />} onClick={openTest}>测试发送</Button>

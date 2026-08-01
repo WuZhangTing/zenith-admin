@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
-import { Button, Input, Select, Form, Toast, Tag, Spin, Row, Col, Dropdown } from '@douyinfe/semi-ui';
+import { Button, Select, Form, Toast, Tag, Spin, Row, Col, Dropdown } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search, KeyRound, ChevronDown, Tags } from 'lucide-react';
+import { KeyRound, ChevronDown, Tags } from 'lucide-react';
 import type { Member, MemberTag } from '@zenith/shared/member';
 import { MEMBER_STATUS_LABELS } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
@@ -32,6 +32,7 @@ import {
   useSetMemberTags,
 } from '@/hooks/queries/member-admin';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const STATUS_COLORS: Record<string, 'green' | 'grey' | 'red'> = { active: 'green', inactive: 'grey', banned: 'red' };
@@ -238,15 +239,7 @@ export default function MembersPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="昵称/手机号/用户名/邮箱"
-      value={draftParams.keyword}
-      showClear
-      onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))}
-      onEnterPress={handleSearch}
-      style={{ width: 240 }}
-    />
+    <KeywordInput placeholder="昵称/手机号/用户名/邮箱" value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} width={240} />
   );
 
   const renderStatusFilter = () => (

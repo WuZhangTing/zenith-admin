@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Avatar, Button, Form, Input, Space, Spin, Tag, Toast, Banner } from '@douyinfe/semi-ui';
+import { Avatar, Button, Form, Space, Spin, Tag, Toast, Banner } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Search, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import type { MpKfAccount } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -21,6 +21,7 @@ import {
   useSyncMpKfAccounts,
 } from '@/hooks/queries/mp-kf';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const INVITE_LABEL: Record<string, { label: string; color: 'green' | 'orange' | 'grey' }> = {
@@ -124,15 +125,7 @@ export default function MpKfAccountsPage() {
     <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
   );
   const renderKeywordInput = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索客服昵称"
-      value={draftKeyword}
-      onChange={setDraftKeyword}
-      onEnterPress={handleSearch}
-      showClear
-      style={{ width: 180 }}
-    />
+    <KeywordInput placeholder="搜索客服昵称" value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} width={180} />
   );
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;

@@ -1,8 +1,7 @@
 import { useState, useMemo, useRef } from 'react';
-import { Button, Col, Form, Input, Modal, Row, Select, SideSheet, Switch, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Modal, Row, Select, SideSheet, Switch, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -31,6 +30,7 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { switchAlertSource } from './report-platform-utils';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
@@ -360,8 +360,7 @@ export default function AlertsPage() {
   ];
 
   const renderKeyword = () => (
-    <Input prefix={<Search size={14} />} placeholder="搜索名称/备注" value={draftParams.keyword}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))} showClear style={{ width: 200 }} onEnterPress={handleSearch} />
+    <KeywordInput placeholder="搜索名称/备注" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))} onSearch={handleSearch} width={200} />
   );
   const renderDatasetFilter = () => (
     <Select placeholder="全部数据集" value={draftParams.datasetId || undefined} onChange={(value) => setDraftParams((prev) => ({ ...prev, datasetId: value ? String(value) : '', metricId: '' }))}

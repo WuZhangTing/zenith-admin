@@ -1,27 +1,8 @@
 import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  Table,
-  Button,
-  Input,
-  Tag,
-  Space,
-  Modal,
-  SideSheet,
-  Form,
-  Spin,
-  Toast,
-  Select,
-  DatePicker,
-  RadioGroup,
-  Radio,
-  Tabs,
-  TabPane,
-  Progress,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Table, Button, Tag, Space, Modal, SideSheet, Form, Spin, Toast, Select, RadioGroup, Radio, Tabs, TabPane, Progress, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Trash2 } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import type { Announcement, AnnouncementTargetType, AnnouncementReadStats, AnnouncementAttachment } from '@zenith/shared/messaging';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -50,6 +31,7 @@ import {
   useUpdateAnnouncementStatus,
 } from '@/hooks/queries/announcements';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const RichTextEditor = lazy(() => import('@/components/RichTextEditor'));
@@ -625,15 +607,7 @@ export default function AnnouncementsPage() {
       <SearchToolbar
         primary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索标题"
-              value={draftParams.title}
-              onChange={(v) => setDraftParams((prev) => ({ ...prev, title: v }))}
-              onEnterPress={handleSearch}
-              style={{ width: 200 }}
-              showClear
-            />
+            <KeywordInput placeholder="搜索标题" value={draftParams.title} onChange={(v) => setDraftParams((prev) => ({ ...prev, title: v }))} onSearch={handleSearch} width={200} />
             <Select
               placeholder="公告类型"
               value={draftParams.type || undefined}
@@ -650,13 +624,7 @@ export default function AnnouncementsPage() {
               showClear
               style={{ width: 140 }}
             />
-            <DatePicker
-              type="dateTimeRange"
-              placeholder={['开始时间', '结束时间']}
-              value={draftParams.timeRange ?? undefined}
-              onChange={(v) => setDraftParams((prev) => ({ ...prev, timeRange: v ? (v as [Date, Date]) : null }))}
-              style={{ width: 360 }}
-            />
+            <DateRangeFilter value={draftParams.timeRange ?? undefined} onChange={(v) => setDraftParams((prev) => ({ ...prev, timeRange: v ? (v as [Date, Date]) : null }))} />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
           </>
@@ -674,15 +642,7 @@ export default function AnnouncementsPage() {
         )}
         mobilePrimary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索标题"
-              value={draftParams.title}
-              onChange={(v) => setDraftParams((prev) => ({ ...prev, title: v }))}
-              onEnterPress={handleSearch}
-              style={{ width: 200 }}
-              showClear
-            />
+            <KeywordInput placeholder="搜索标题" value={draftParams.title} onChange={(v) => setDraftParams((prev) => ({ ...prev, title: v }))} onSearch={handleSearch} width={200} />
             <SearchButton onClick={handleSearch} />
             {hasPermission('system:announcement:create') && <CreateButton onClick={openCreateModal} />}
           </>
@@ -705,13 +665,7 @@ export default function AnnouncementsPage() {
               showClear
               style={{ width: 140 }}
             />
-            <DatePicker
-              type="dateTimeRange"
-              placeholder={['开始时间', '结束时间']}
-              value={draftParams.timeRange ?? undefined}
-              onChange={(v) => setDraftParams((prev) => ({ ...prev, timeRange: v ? (v as [Date, Date]) : null }))}
-              style={{ width: 360 }}
-            />
+            <DateRangeFilter value={draftParams.timeRange ?? undefined} onChange={(v) => setDraftParams((prev) => ({ ...prev, timeRange: v ? (v as [Date, Date]) : null }))} />
           </>
         )}
         mobileActions={(

@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
-import { Button, Form, Image, Input, Select, Spin, Tag, Toast, Banner, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Image, Select, Spin, Tag, Toast, Banner, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Plus, Search } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import type { MpQrcode, MpQrcodeType } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -14,6 +14,7 @@ import { MpAccountSwitcher } from './MpAccountSwitcher';
 import { mpQrcodeKeys, useCreateMpQrcode, useDeleteMpQrcode, useMpQrcodeList } from '@/hooks/queries/mp-qrcodes';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const TYPE_OPTIONS = [
@@ -126,15 +127,7 @@ export default function MpQrcodesPage() {
     />
   );
   const renderKeywordInput = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索名称 / 场景值"
-      value={draftParams.keyword}
-      onChange={(v) => setDraftParams({ ...draftParams, keyword: v })}
-      onEnterPress={handleSearch}
-      showClear
-      style={{ width: 200 }}
-    />
+    <KeywordInput placeholder="搜索名称 / 场景值" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
   );
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;

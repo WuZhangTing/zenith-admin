@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Input, Modal, Tag, Toast, Dropdown, SplitButtonGroup, Typography, Space, DatePicker, Select } from '@douyinfe/semi-ui';
+import { Button, Modal, Tag, Toast, Dropdown, SplitButtonGroup, Typography, Space, Select } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search, Trash2, ChevronDown, Copy, Terminal, Star } from 'lucide-react';
+import { Trash2, ChevronDown, Copy, Terminal, Star } from 'lucide-react';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -22,6 +22,7 @@ import {
   type RecordingEvent,
 } from '@/hooks/queries/terminal';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
@@ -283,15 +284,7 @@ export default function TerminalRecordingsPage() {
       <SearchToolbar
         primary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索标题"
-              value={draftParams.keyword}
-              onChange={(v) => setDraftParams({ ...draftParams, keyword: v })}
-              onEnterPress={handleSearch}
-              showClear
-              style={{ width: 220 }}
-            />
+            <KeywordInput placeholder="搜索标题" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} />
             <Select
               placeholder="操作人"
               value={draftParams.operatorUserId ?? undefined}
@@ -303,13 +296,7 @@ export default function TerminalRecordingsPage() {
               onChange={(v) => setDraftParams({ ...draftParams, operatorUserId: typeof v === 'number' ? v : null })}
               style={{ width: 180 }}
             />
-            <DatePicker
-              type="dateTimeRange"
-              placeholder={['开始时间', '结束时间']}
-              value={draftParams.timeRange ?? undefined}
-              onChange={(v) => setDraftParams({ ...draftParams, timeRange: v ? (v as [Date, Date]) : null })}
-              style={{ width: 360 }}
-            />
+            <DateRangeFilter value={draftParams.timeRange ?? undefined} onChange={(v) => setDraftParams({ ...draftParams, timeRange: v ? (v as [Date, Date]) : null })} />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
           </>
@@ -347,15 +334,7 @@ export default function TerminalRecordingsPage() {
         )}
         mobilePrimary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索标题"
-              value={draftParams.keyword}
-              onChange={(v) => setDraftParams({ ...draftParams, keyword: v })}
-              onEnterPress={handleSearch}
-              showClear
-              style={{ width: 220 }}
-            />
+            <KeywordInput placeholder="搜索标题" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} />
             <SearchButton onClick={handleSearch} />
           </>
         )}
@@ -372,13 +351,7 @@ export default function TerminalRecordingsPage() {
               onChange={(v) => setDraftParams({ ...draftParams, operatorUserId: typeof v === 'number' ? v : null })}
               style={{ width: 220 }}
             />
-            <DatePicker
-              type="dateTimeRange"
-              placeholder={['开始时间', '结束时间']}
-              value={draftParams.timeRange ?? undefined}
-              onChange={(v) => setDraftParams({ ...draftParams, timeRange: v ? (v as [Date, Date]) : null })}
-              style={{ width: 260 }}
-            />
+            <DateRangeFilter value={draftParams.timeRange ?? undefined} onChange={(v) => setDraftParams({ ...draftParams, timeRange: v ? (v as [Date, Date]) : null })} width={260} />
             <ResetButton onClick={handleReset} />
             {([12, 6, 3, 1] as const).map((m) => (
               <Button

@@ -1,19 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Button, Card, Switch, TextArea, Toast, Spin, Typography,
-  Tabs, TabPane, Tag, Input, Select,
-} from '@douyinfe/semi-ui';
+import { Button, Card, Switch, TextArea, Toast, Spin, Typography, Tabs, TabPane, Tag, Select } from '@douyinfe/semi-ui';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { IpAccessLog } from '@zenith/shared/platform';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { Search } from 'lucide-react';
 import { formatDateTime } from '@/utils/date';
 import { renderEllipsis } from '../../../utils/table-columns';
 import { ipAccessKeys, useIpAccessConfigs, useIpAccessLogs, useSaveIpAccessSection } from '@/hooks/queries/ip-access';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 
 const { Title, Text } = Typography;
 
@@ -75,14 +72,7 @@ function IpAccessLogsTab() {
       <SearchToolbar
         primary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索 IP 地址"
-              value={draftParams.filterIp}
-              onChange={(v) => { setDraftParams((prev) => ({ ...prev, filterIp: v })); }}
-              showClear
-              style={{ width: 200 }}
-            />
+            <KeywordInput placeholder="搜索 IP 地址" value={draftParams.filterIp} onChange={(v) => { setDraftParams((prev) => ({ ...prev, filterIp: v })); }} width={200} />
             <Select
               placeholder="拦截类型"
               value={draftParams.filterBlockType}
@@ -99,14 +89,7 @@ function IpAccessLogsTab() {
         )}
         mobilePrimary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索 IP 地址"
-              value={draftParams.filterIp}
-              onChange={(v) => { setDraftParams((prev) => ({ ...prev, filterIp: v })); }}
-              showClear
-              style={{ width: 200 }}
-            />
+            <KeywordInput placeholder="搜索 IP 地址" value={draftParams.filterIp} onChange={(v) => { setDraftParams((prev) => ({ ...prev, filterIp: v })); }} width={200} />
             <SearchButton onClick={handleSearch} />
           </>
         )}

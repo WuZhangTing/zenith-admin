@@ -1,9 +1,8 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Banner, Form, Input, Tag, Toast } from '@douyinfe/semi-ui';
+import { Banner, Form, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -14,6 +13,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { useCmsSensitiveWordList, useSaveCmsSensitiveWord, useDeleteCmsSensitiveWord, cmsSensitiveWordKeys } from '@/hooks/queries/cms';
 import type { CmsSensitiveWord } from '@zenith/shared/cms';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 export default function SensitiveWordsPage() {
@@ -98,7 +98,7 @@ export default function SensitiveWordsPage() {
     <div className="page-container">
       <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }} description="敏感词库全局生效，作用于前台评论与自定义表单提交：拦截模式命中直接拒绝提交，替换模式命中替换为指定文本。" />
       <SearchToolbar>
-        <Input prefix={<Search size={14} />} placeholder="搜索敏感词..." value={draftKeyword} onChange={setDraftKeyword} showClear style={{ width: 220 }} onEnterPress={handleSearch} />
+        <KeywordInput placeholder="搜索敏感词..." value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} />
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />
         {canManage ? <CreateButton onClick={() => { setEditingRecord(null); setModalVisible(true); }} /> : null}

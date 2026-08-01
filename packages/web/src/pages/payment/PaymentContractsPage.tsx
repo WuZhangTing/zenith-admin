@@ -1,11 +1,10 @@
 import { useState, useRef } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { useQueryClient } from '@tanstack/react-query';
-import { Form, Input, Modal, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Form, Modal, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import { Tabs, TabPane } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -33,6 +32,7 @@ import {
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_CONTRACT_STATUS_LABELS, PAYMENT_DEDUCT_PERIOD_LABELS, PAYMENT_DEDUCT_PERIOD_OPTIONS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentContract, PaymentContractStatus, PaymentDeductPeriod, PaymentDeductPlan } from '@zenith/shared/payment';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const yuan = formatYuan;
@@ -276,7 +276,7 @@ export default function PaymentContractsPage() {
   };
 
   const renderKeywordSearch = () => (
-    <Input prefix={<Search size={14} />} placeholder="协议号/签约账号/业务ID..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} showClear style={{ width: 220 }} onEnterPress={handleSearch} />
+    <KeywordInput placeholder="协议号/签约账号/业务ID..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} />
   );
   const renderStatusFilter = () => (
     <Select placeholder="全部状态" value={draftParams.status || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={contractStatusOptions} />
@@ -292,7 +292,7 @@ export default function PaymentContractsPage() {
   const renderExportButtons = () => <ExportButton entity="payment.contracts" query={exportQuery} />;
 
   const renderPlanKeywordSearch = () => (
-    <Input prefix={<Search size={14} />} placeholder="计划名称..." value={planKeyword} onChange={setPlanKeyword} showClear style={{ width: 200 }} onEnterPress={handlePlanSearch} />
+    <KeywordInput placeholder="计划名称..." value={planKeyword} onChange={setPlanKeyword} onSearch={handlePlanSearch} width={200} />
   );
   const renderPlanSearchButton = () => <SearchButton onClick={handlePlanSearch} />;
   const renderPlanResetButton = () => <ResetButton onClick={handlePlanReset} />;

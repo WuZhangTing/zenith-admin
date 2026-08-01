@@ -1,10 +1,10 @@
 import { useState, useRef } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
 import type { CSSProperties } from 'react';
-import { Banner, Button, DatePicker, Form, Input, Row, Col, Select, Skeleton, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Form, Row, Col, Select, Skeleton, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, ShieldCheck, RefreshCw, SlidersHorizontal } from 'lucide-react';
+import { ShieldCheck, RefreshCw, SlidersHorizontal } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
@@ -23,6 +23,7 @@ import {
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_LEDGER_DIRECTION_LABELS, PAYMENT_LEDGER_TYPE_LABELS } from '@zenith/shared/payment';
 import type { PaymentAccountCheckRow, PaymentChannel, PaymentLedgerDirection, PaymentLedgerEntry, PaymentLedgerType } from '@zenith/shared/payment';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 
 const yuan = formatYuan;
 const sectionStyle: CSSProperties = {
@@ -137,15 +138,7 @@ export default function PaymentLedgerPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="订单号..."
-      value={draftParams.keyword}
-      onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))}
-      showClear
-      style={{ width: 200 }}
-      onEnterPress={handleSearch}
-    />
+    <KeywordInput placeholder="订单号..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} width={200} />
   );
 
   const renderDirectionFilter = () => (
@@ -182,13 +175,7 @@ export default function PaymentLedgerPage() {
   );
 
   const renderTimeRangeFilter = () => (
-    <DatePicker
-      type="dateTimeRange"
-      placeholder={['开始时间', '结束时间']}
-      value={draftParams.timeRange ?? undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, timeRange: v ? (v as [Date, Date]) : null }))}
-      style={{ width: 330 }}
-    />
+    <DateRangeFilter value={draftParams.timeRange ?? undefined} onChange={(v) => setDraftParams((p) => ({ ...p, timeRange: v ? (v as [Date, Date]) : null }))} width={330} />
   );
 
   const renderSearchButton = () => <SearchButton onClick={handleSearch} disabled={!canView} />;

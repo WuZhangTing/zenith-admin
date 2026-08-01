@@ -1,24 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Button,
-  Input,
-  Tag,
-  Space,
-  Modal,
-  Form,
-  Toast,
-  Typography,
-  Checkbox,
-  Spin,
-  Banner,
-  Row,
-  Col,
-  Switch,
-  Select,
-} from '@douyinfe/semi-ui';
+import { Button, Tag, Space, Modal, Form, Toast, Typography, Checkbox, Spin, Banner, Row, Col, Switch, Select } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search } from 'lucide-react';
 import { OAUTH2_GRANT_TYPE_LABELS, OAUTH2_GRANT_TYPES, OAUTH2_SCOPES, OPEN_APP_ENVIRONMENT_LABELS, OPEN_APP_ENVIRONMENTS, OPEN_APP_REVIEW_STATUS_LABELS, OPEN_APP_REVIEW_STATUSES } from '@zenith/shared/open-platform';
 import type { OAuth2Client } from '@zenith/shared/open-platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -42,6 +25,7 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 const { Text, Paragraph } = Typography;
@@ -396,15 +380,7 @@ export default function OAuth2AppsPage() {
       <SearchToolbar
         primary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索应用名称"
-              value={draftParams.keyword}
-              onChange={(v) => setDraftParams({ ...draftParams, keyword: v })}
-              onEnterPress={handleSearch}
-              showClear
-              style={{ width: 220 }}
-            />
+            <KeywordInput placeholder="搜索应用名称" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
             {canManage && (
@@ -434,15 +410,7 @@ export default function OAuth2AppsPage() {
         )}
         mobilePrimary={(
           <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索应用名称"
-              value={draftParams.keyword}
-              onChange={(v) => setDraftParams({ ...draftParams, keyword: v })}
-              onEnterPress={handleSearch}
-              showClear
-              style={{ width: 220 }}
-            />
+            <KeywordInput placeholder="搜索应用名称" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} />
             <SearchButton onClick={handleSearch} />
             {canManage && (
               <CreateButton onClick={openCreate} />

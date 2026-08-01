@@ -1,17 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Button,
-  Form,
-  Input,
-  Modal,
-  Select,
-  Spin,
-  Toast,
-  Switch,
-} from '@douyinfe/semi-ui';
+import { Button, Form, Modal, Select, Spin, Toast, Switch } from '@douyinfe/semi-ui';
 import type { CascaderData } from '@douyinfe/semi-ui/lib/es/cascader';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
+import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import type { Region } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -26,6 +17,7 @@ import { regionKeys, useDeleteRegion, useFlatRegions, useRegionDetail, useRegion
 import { useListSearch } from '@/hooks/useListSearch';
 import { REGION_LEVEL_LABELS } from '@zenith/shared/platform';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const LEVEL_LABELS: Record<string, string> = REGION_LEVEL_LABELS;
@@ -298,15 +290,7 @@ export default function RegionsPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
-      placeholder="搜索名称或代码..."
-      value={draftParams.keyword}
-      onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))}
-      showClear
-      style={{ width: 220, maxWidth: '100%' }}
-      onEnterPress={handleSearch}
-    />
+    <KeywordInput placeholder="搜索名称或代码..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} />
   );
 
   const renderLevelFilter = () => (
