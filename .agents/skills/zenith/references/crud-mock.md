@@ -12,6 +12,9 @@
 
 ```text
 packages/web/src/mocks/
+├── utils/
+│   ├── handlers.ts          # 共享响应构造与分页（现有文件，直接用，勿另起炉灶）
+│   └── date.ts              # mockDateTime() 等时间工具
 ├── data/
 │   └── xxxs.ts              # 静态初始数据 + nextId 工具函数
 ├── handlers/
@@ -21,12 +24,36 @@ packages/web/src/mocks/
 
 ---
 
+## 响应构造：一律用 `mocks/utils/handlers`
+
+**禁止在 handler 里内联 `HttpResponse.json({ code, message, data })`，也禁止在文件内自建同名 helper。**
+自建 helper 的典型后果是默认 `message` 各文件不一致（`'ok'` vs `'success'`），
+调用点看不出差异，改一次响应结构又要逐文件追。
+
+| 构造函数 | 用途 |
+| --- | --- |
+| `ok(data?, message?, init?)` | 成功响应，`message` 默认 `'ok'`；**省略 `data` 时响应体不含 `data` 字段**，需要 `data: null` 就显式传 `null` |
+| `badRequest` / `unauthorized` / `forbidden` / `notFound` / `conflict` / `locked` | 400 / 401 / 403 / 404 / 409 / 423，`data` 固定 `null` |
+| `fail(code, message, init?)` | 上述之外的业务 code |
+| `pageParams(url, defaultPageSize?)` | 解析 `{ page, pageSize }` |
+| `paginate(list, url, defaultPageSize?)` | 切片并返回 `{ list, total, page, pageSize }` |
+| `pageResult(list, page, pageSize)` | 页码来自 query 之外时用这个 |
+| `nextIdFrom(list)` | 由现有列表推下一个自增 ID，空列表返回 1 |
+
+**关于 HTTP 状态码**：所有构造函数的末位参数是原样透传的 `ResponseInit`。
+默认只在响应体里写 `code`（HTTP 仍是 200）；需要同时设置 HTTP 状态码时显式写
+`notFound('XXX 不存在', { status: 404 })`。真实后端失败时会返回非 2xx，
+**新写的 handler 一律带上 `{ status: N }`**，与后端保持一致。
+
+---
+
 ## Step 10a：`packages/web/src/mocks/data/xxxs.ts`
 
 ```ts
 import { SEED_XXXS } from '@zenith/shared/seed';  // 从共享种子数据导入，与 DB seed 保持一致
 import type { Xxx } from '@zenith/shared/{业务域}';
 import { mockDateTime } from '@/mocks/utils/date';
+import { nextIdFrom } from '@/mocks/utils/handlers';
 
 // 如 Xxx 类型有 mock 专属字段（如运行时计数），在此扩展
 export interface MockXxx extends Xxx {
@@ -43,8 +70,9 @@ export const mockXxxs: MockXxx[] = SEED_XXXS.map((x) => ({
   updatedAt: now,
 }));
 
-// 自增 ID（内存）
-let nextXxxId = Math.max(...mockXxxs.map((x) => x.id)) + 1;
+// 自增 ID（内存）。禁止手写 `Math.max(...list.map((x) => x.id)) + 1`——
+// 该写法在空列表时会得到 `-Infinity`
+let nextXxxId = nextIdFrom(mockXxxs);
 export function getNextXxxId(): number {
   return nextXxxId++;
 }
@@ -60,7 +88,9 @@ export function getNextXxxId(): number {
 ## Step 10b：`packages/web/src/mocks/handlers/xxxs.ts`
 
 ```ts
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, badRequest, notFound, paginate } from '@/mocks/utils/handlers';
+import type { Xxx } from '@zenith/shared/{业务域}';
 import { mockXxxs, getNextXxxId } from '../data/xxxs';
 import { mockDateTime } from '../utils/date';
 
@@ -68,10 +98,8 @@ export const xxxsHandlers = [
   // ─── GET / — 分页列表 + 关键词搜索 + 状态筛选 ───────────────────────
   http.get('/api/xxxs', ({ request }) => {
     const url = new URL(request.url);
-    const page     = Number(url.searchParams.get('page'))     || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
-    const keyword  = url.searchParams.get('keyword')  || '';
-    const status   = url.searchParams.get('status')   || '';
+    const keyword = url.searchParams.get('keyword') || '';
+    const status  = url.searchParams.get('status')  || '';
 
     let list = [...mockXxxs];
 
@@ -86,63 +114,53 @@ export const xxxsHandlers = [
       list = list.filter((x) => x.status === status);
     }
 
-    const total      = list.length;
-    const sliced     = list.slice((page - 1) * pageSize, page * pageSize);
-
-    return HttpResponse.json({
-      code: 0,
-      message: 'ok',
-      data: { list: sliced, total, page, pageSize },
-    });
+    // paginate 内部读 query 的 page/pageSize 并返回 { list, total, page, pageSize }
+    // 页大小默认 10，与接口约定不同时传第三个参数：paginate(list, url, 20)
+    return ok(paginate(list, url));
   }),
 
   // ─── GET /:id — 详情 ─────────────────────────────────────────────────
   http.get('/api/xxxs/:id', ({ params }) => {
-    const id = Number(params.id);
-    const xxx = mockXxxs.find((x) => x.id === id);
-    if (!xxx) {
-      return HttpResponse.json({ code: 404, message: 'XXX不存在', data: null }, { status: 404 });
-    }
-    return HttpResponse.json({ code: 0, message: 'ok', data: xxx });
+    const xxx = mockXxxs.find((x) => x.id === Number(params.id));
+    if (!xxx) return notFound('XXX 不存在', { status: 404 });
+    return ok(xxx);
   }),
 
   // ─── POST / — 创建 ────────────────────────────────────────────────────
   http.post('/api/xxxs', async ({ request }) => {
-    const body = (await request.json()) as any;
+    const body = (await request.json()) as Partial<Xxx>;
+    if (mockXxxs.some((x) => x.name === body.name)) {
+      return badRequest('名称已存在', { status: 400 });
+    }
     const now = mockDateTime();
     const newXxx = {
       id: getNextXxxId(),
-      name: body.name,
+      name: body.name ?? '',
       description: body.description ?? '',
       status: body.status ?? 'enabled',
       createdAt: now,
       updatedAt: now,
     };
     mockXxxs.push(newXxx);
-    return HttpResponse.json({ code: 0, message: '创建成功', data: newXxx });
+    return ok(newXxx, '创建成功');
   }),
 
   // ─── PUT /:id — 更新 ─────────────────────────────────────────────────
   http.put('/api/xxxs/:id', async ({ params, request }) => {
-    const id = Number(params.id);
-    const body = (await request.json()) as any;
-    const idx = mockXxxs.findIndex((x) => x.id === id);
-    if (idx === -1) {
-      return HttpResponse.json({ code: 404, message: 'XXX不存在', data: null }, { status: 404 });
-    }
+    const idx = mockXxxs.findIndex((x) => x.id === Number(params.id));
+    if (idx === -1) return notFound('XXX 不存在', { status: 404 });
+    const body = (await request.json()) as Partial<Xxx>;
     Object.assign(mockXxxs[idx], { ...body, updatedAt: mockDateTime() });
-    return HttpResponse.json({ code: 0, message: '更新成功', data: mockXxxs[idx] });
+    return ok(mockXxxs[idx], '更新成功');
   }),
 
   // ─── DELETE /:id — 删除 ──────────────────────────────────────────────
   http.delete('/api/xxxs/:id', ({ params }) => {
-    const id = Number(params.id);
-    const idx = mockXxxs.findIndex((x) => x.id === id);
-    if (idx === -1) {
-      return HttpResponse.json({ code: 404, message: 'XXX不存在', data: null }, { status: 404 });
-    }
+    const idx = mockXxxs.findIndex((x) => x.id === Number(params.id));
+    if (idx === -1) return notFound('XXX 不存在', { status: 404 });
     mockXxxs.splice(idx, 1);
-    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+    // 删除接口无返回体：显式传 null 保留 `data: null`，省略则响应体不含 data 字段
+    return ok(null, '删除成功');
   }),
 ];
 ```

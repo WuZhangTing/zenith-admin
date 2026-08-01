@@ -162,6 +162,7 @@ packages/web/src/mocks/
 │   ├── workflow.ts
 │   └── index.ts        # 汇总所有 handlers
 ├── utils/              # 辅助工具
+│   ├── handlers.ts     # 响应信封（ok/notFound/…）、分页、自增 ID
 │   └── date.ts         # mockDateTime() / mockDate()
 ├── browser.ts          # setupWorker（浏览器环境）
 └── index.ts            # enableMocking() 入口，VITE_DEMO_MODE 控制是否激活
@@ -188,9 +189,12 @@ packages/web/src/mocks/
 
 ## Handler 示例
 
+响应信封、分页与自增 ID 统一走 `mocks/utils/handlers.ts`，不要在 handler 里内联 `HttpResponse.json`：
+
 ```typescript
 // packages/web/src/mocks/handlers/positions.ts
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
+import { ok, notFound, paginate } from '@/mocks/utils/handlers';
 import { mockPositions } from '@/mocks/data/positions';
 
 export const positionsHandlers = [
@@ -198,20 +202,37 @@ export const positionsHandlers = [
     const url = new URL(request.url);
     const keyword = url.searchParams.get('keyword') ?? '';
     const status = url.searchParams.get('status') ?? '';
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
 
     const filtered = mockPositions.filter((p) => {
       if (keyword && !p.name.includes(keyword) && !p.code.includes(keyword)) return false;
       if (status && p.status !== status) return false;
       return true;
     });
-    const total = filtered.length;
-    const list = filtered.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
+    return ok(paginate(filtered, url));
+  }),
+
+  http.get('/api/positions/:id', ({ params }) => {
+    const position = mockPositions.find((p) => p.id === Number(params.id));
+    if (!position) return notFound('岗位不存在', { status: 404 });
+    return ok(position);
   }),
 ];
 ```
+
+可用的构造函数：
+
+| 函数 | 说明 |
+| --- | --- |
+| `ok(data?, message?, init?)` | 成功响应，`message` 默认 `'ok'`；省略 `data` 时响应体不含该字段 |
+| `badRequest` / `unauthorized` / `forbidden` / `notFound` / `conflict` / `locked` | 对应 400 / 401 / 403 / 404 / 409 / 423 |
+| `fail(code, message, init?)` | 上述之外的业务 code |
+| `pageParams(url, defaultPageSize?)` | 解析 `{ page, pageSize }` |
+| `paginate(list, url, defaultPageSize?)` | 切片并返回 `{ list, total, page, pageSize }` |
+| `pageResult(list, page, pageSize)` | 页码来自 query 之外时使用 |
+| `nextIdFrom(list)` | 由现有列表推下一个自增 ID |
+
+末位的 `init` 是原样透传给 `HttpResponse.json` 的 `ResponseInit`。失败响应应显式带
+`{ status: N }`，与真实后端返回非 2xx 的行为一致。
 
 ---
 

@@ -182,7 +182,7 @@ ALLOWED_ORIGINS=         # CSRF 来源白名单，逗号分隔，留空 = 开发
 
 ### Demo 演示模式（MSW Mock）
 
-`VITE_DEMO_MODE=true` 时前端通过 [MSW](https://mswjs.io/) 拦截所有 API 请求，无需后端即可完整运行。Mock 代码在 `packages/web/src/mocks/`（`data/` 静态数据、`handlers/` 每业务模块一个文件、`browser.ts` + `index.ts` 入口）。
+`VITE_DEMO_MODE=true` 时前端通过 [MSW](https://mswjs.io/) 拦截所有 API 请求，无需后端即可完整运行。Mock 代码在 `packages/web/src/mocks/`（`data/` 静态数据、`handlers/` 每业务模块一个文件、`utils/handlers.ts` 共享响应信封与分页构造、`browser.ts` + `index.ts` 入口）。
 
 构建 Demo：`npm run build:demo`（使用 `packages/web/.env.demo`）。GitHub Pages 部署由 `.github/workflows/pages.yml` 自动完成（推送 master 触发，文档站与 Demo 统一部署）。
 

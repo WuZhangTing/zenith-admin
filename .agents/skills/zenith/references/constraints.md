@@ -90,6 +90,21 @@
 
 ---
 
+## MSW Mock 层（Step 11）
+
+- **响应构造统一**：一律用 `packages/web/src/mocks/utils/handlers.ts` 的
+  `ok` / `fail` / `badRequest` / `unauthorized` / `forbidden` / `notFound` / `conflict` / `locked`；
+  **禁止**在 handler 里内联 `HttpResponse.json({ code, message, data })`，
+  **也禁止**在 handler 文件内自建同名局部 helper（默认 `message` 会各文件不一致）
+- **分页统一**：用 `paginate(list, url, defaultPageSize?)`；页码来自 query 之外时用 `pageResult(list, page, pageSize)`。
+  **禁止**手写 `Number(url.searchParams.get('page'))` 与 `(page - 1) * pageSize`
+- **自增 ID**：用 `nextIdFrom(list)`；**禁止**手写 `Math.max(...list.map((x) => x.id)) + 1`（空列表会得到 `-Infinity`）
+- **HTTP 状态码**：失败响应显式带 `{ status: N }`（如 `notFound('XXX 不存在', { status: 404 })`），与真实后端一致
+- **`data` 字段的有无是可观察差异**：`ok(x)` 省略 `data` 时响应体不含该字段，需要 `data: null` 就显式传 `null`
+- 详细模板见 [crud-mock.md](./crud-mock.md)
+
+---
+
 ## 时间格式（全局）
 
 - **统一格式**：API 响应、入参、前端显示、MSW Mock 统一使用 `YYYY-MM-DD HH:mm:ss`
@@ -111,4 +126,5 @@
 - 列表接口返回 `{ list, total, page, pageSize }`
 - SQL-builder 分页统一使用 `withPagination(query.$dynamic(), page, pageSize)`
 - RQB 分页统一使用 `offset: pageOffset(page, pageSize)`
+- MSW Mock 分页统一使用 `paginate(list, url)` / `pageResult(list, page, pageSize)`
 - 禁止手写 `(page - 1) * pageSize`
