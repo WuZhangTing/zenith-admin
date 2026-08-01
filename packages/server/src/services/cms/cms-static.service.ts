@@ -1,7 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { eq, and, isNull, asc } from 'drizzle-orm';
+import { eq, and, inArray, isNull, asc } from 'drizzle-orm';
 import { db } from '../../db';
 import { cmsChannels, cmsContents } from '../../db/schema';
 import type { CmsSiteRow, CmsChannelRow } from '../../db/schema';
@@ -427,9 +427,14 @@ export async function applyCmsContentPublishSnapshot(
       }
     }
   }
-  for (const channelId of snapshot.refreshChannelIds) {
-    const [channel] = await db.select({ id: cmsChannels.id }).from(cmsChannels).where(eq(cmsChannels.id, channelId)).limit(1);
-    if (channel) await refreshChannelStatic(channel.id);
+  // 一次校验全部待刷新栏目是否仍存在（快照生成后可能被删），替代逐个点查
+  if (snapshot.refreshChannelIds.length > 0) {
+    const existing = await db.select({ id: cmsChannels.id }).from(cmsChannels)
+      .where(inArray(cmsChannels.id, [...snapshot.refreshChannelIds]));
+    const existingIds = new Set(existing.map((row) => row.id));
+    for (const channelId of snapshot.refreshChannelIds) {
+      if (existingIds.has(channelId)) await refreshChannelStatic(channelId);
+    }
   }
 }
 

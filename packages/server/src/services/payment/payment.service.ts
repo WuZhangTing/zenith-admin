@@ -105,6 +105,32 @@ export async function loadOrderConfig(order: PaymentOrderRow): Promise<PaymentCh
   return row ?? null;
 }
 
+/** 订单 → 渠道配置的解析函数；批量任务可传入带缓存的实现替换默认的逐单查询 */
+export type OrderConfigResolver = (order: PaymentOrderRow) => Promise<PaymentChannelConfigRow | null>;
+
+/**
+ * 批量任务专用的渠道配置解析器：一批订单通常只落在少数几份配置上，
+ * 逐单调用 `loadOrderConfig` 会把同一份配置反复查回来。
+ *
+ * 缓存键取 `channelConfigId + channel`——两者共同决定 `loadOrderConfig` 的结果
+ * （configId 查不到时会回退到按 channel 找启用配置），只用其一会让
+ * 「同一个失效 configId、不同 channel」的订单互相串到对方的配置上。
+ * 每个任务实例独立 new，不跨任务复用，避免长驻缓存读到过期配置。
+ */
+export function createOrderConfigResolver(): OrderConfigResolver {
+  const cache = new Map<string, Promise<PaymentChannelConfigRow | null>>();
+  return (order) => {
+    const key = `${order.channelConfigId ?? ''}|${order.channel}`;
+    const cached = cache.get(key);
+    if (cached) return cached;
+    const pending = loadOrderConfig(order);
+    cache.set(key, pending);
+    // 失败不留缓存：一次数据库抖动不应让整批后续订单直接复用这次失败
+    void pending.catch(() => cache.delete(key));
+    return pending;
+  };
+}
+
 async function getOrderRowByNo(orderNo: string): Promise<PaymentOrderRow> {
   const tc = currentUserOrNull() ? tenantCondition(paymentOrders, currentUser()) : undefined;
   const [row] = await db.select().from(paymentOrders).where(and(eq(paymentOrders.orderNo, orderNo), tc)).limit(1);
@@ -487,9 +513,9 @@ export async function markOrderPaid(
 }
 
 /** 主动查单并同步本地状态（回调兜底，供查单接口与对账任务复用） */
-export async function syncOrderStatus(order: PaymentOrderRow): Promise<PaymentOrderRow> {
+export async function syncOrderStatus(order: PaymentOrderRow, resolveConfig: OrderConfigResolver = loadOrderConfig): Promise<PaymentOrderRow> {
   if (order.status === 'success' || order.status === 'closed' || order.status === 'refunded') return order;
-  const config = await loadOrderConfig(order);
+  const config = await resolveConfig(order);
   if (!config) return order;
   let res;
   try {

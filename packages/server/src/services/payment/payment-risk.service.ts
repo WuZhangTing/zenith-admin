@@ -177,6 +177,32 @@ function identifiersOf(input: RiskCheckInput): string[] {
 }
 
 /**
+ * 当日已支付订单的金额/笔数聚合，按 scope 在单次评估内复用。
+ *
+ * 聚合条件只由 `rule.scope` 决定——channel / bizType 的取值来自本次下单入参而非规则本身，
+ * 所以 N 条规则最多只有 global / channel / bizType 三种查询。保持按需触发：
+ * 没有配日限额的规则不会产生任何查询，短路返回的语义也与逐条查询时一致。
+ */
+function createDailyStatsLoader(input: RiskCheckInput) {
+  const cache = new Map<PaymentRiskScope, Promise<{ total: number; count: number }>>();
+  return (scope: PaymentRiskScope): Promise<{ total: number; count: number }> => {
+    const cached = cache.get(scope);
+    if (cached) return cached;
+    const scopeConds = [gte(paymentOrders.paidAt, startOfToday()), inArray(paymentOrders.status, ['success', 'refunding', 'refunded'])];
+    if (scope === 'channel') scopeConds.push(eq(paymentOrders.channel, input.channel));
+    if (scope === 'bizType') scopeConds.push(eq(paymentOrders.bizType, input.bizType));
+    const where = input.tenantId == null ? and(...scopeConds, isNull(paymentOrders.tenantId)) : and(...scopeConds, eq(paymentOrders.tenantId, input.tenantId));
+    const pending = db
+      .select({ total: sql<number>`coalesce(sum(${paymentOrders.amount}),0)`, count: sql<number>`count(*)` })
+      .from(paymentOrders)
+      .where(where)
+      .then(([agg]) => ({ total: Number(agg?.total ?? 0), count: Number(agg?.count ?? 0) }));
+    cache.set(scope, pending);
+    return pending;
+  };
+}
+
+/**
  * 下单前风控评估：按启用规则依次检查白名单（跳过）、黑名单、单笔上限、当日累计金额/笔数，
  * 返回第一条命中的决策（block/review）；全部通过返回 pass。不抛异常，由调用方决定拦截/挂起。
  */
@@ -187,6 +213,7 @@ export async function evaluateRisk(input: RiskCheckInput): Promise<RiskDecision>
   if (applicable.length === 0) return { action: 'pass' };
 
   const identifiers = identifiersOf(input);
+  const dailyStats = createDailyStatsLoader(input);
 
   for (const rule of applicable) {
     // 白名单：任一标识命中则跳过本规则全部检查
@@ -202,13 +229,7 @@ export async function evaluateRisk(input: RiskCheckInput): Promise<RiskDecision>
     }
     // 当日累计金额 / 笔数（按规则作用域聚合当日已支付订单；未支付的 pending/paying 不计入，避免误伤正常下单）
     if (rule.dailyLimit != null || rule.dailyCountLimit != null) {
-      const scopeConds = [gte(paymentOrders.paidAt, startOfToday()), inArray(paymentOrders.status, ['success', 'refunding', 'refunded'])];
-      if (rule.scope === 'channel') scopeConds.push(eq(paymentOrders.channel, input.channel));
-      if (rule.scope === 'bizType') scopeConds.push(eq(paymentOrders.bizType, input.bizType));
-      const where = input.tenantId == null ? and(...scopeConds, isNull(paymentOrders.tenantId)) : and(...scopeConds, eq(paymentOrders.tenantId, input.tenantId));
-      const [agg] = await db.select({ total: sql<number>`coalesce(sum(${paymentOrders.amount}),0)`, count: sql<number>`count(*)` }).from(paymentOrders).where(where);
-      const dayTotal = Number(agg?.total ?? 0);
-      const dayCount = Number(agg?.count ?? 0);
+      const { total: dayTotal, count: dayCount } = await dailyStats(rule.scope);
       if (rule.dailyLimit != null && dayTotal + input.amount > rule.dailyLimit) {
         return { action: rule.action, rule, dimension: 'daily_limit', dimensionValue: `${dayTotal} + ${input.amount} > ${rule.dailyLimit}`, message: `当日累计金额超过限额（${rule.name}）` };
       }

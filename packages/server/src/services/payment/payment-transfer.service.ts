@@ -213,11 +213,17 @@ export async function retryTransfer(id: number): Promise<PaymentTransfer> {
 /** 同步所有 processing 转账单（cron 兜底）。 */
 export async function syncProcessingTransfers(): Promise<{ scanned: number; finished: number }> {
   const rows = await db.select().from(paymentTransfers).where(eq(paymentTransfers.status, 'processing')).limit(50);
+  if (rows.length === 0) return { scanned: 0, finished: 0 };
+  // 一批转账单通常只落在少数几份渠道配置上，去重后一次取回，替代逐单点查
+  const configIds = [...new Set(rows.map((row) => row.channelConfigId).filter((id): id is number => id != null))];
+  const configById = new Map<number, PaymentChannelConfigRow>();
+  if (configIds.length > 0) {
+    const configs = await db.select().from(paymentChannelConfigs).where(inArray(paymentChannelConfigs.id, configIds));
+    for (const cfg of configs) configById.set(cfg.id, cfg);
+  }
   let finished = 0;
   for (const row of rows) {
-    const config = row.channelConfigId
-      ? (await db.select().from(paymentChannelConfigs).where(eq(paymentChannelConfigs.id, row.channelConfigId)).limit(1))[0]
-      : undefined;
+    const config = row.channelConfigId != null ? configById.get(row.channelConfigId) : undefined;
     if (!config) continue;
     const adapter = getAdapter(row.channel);
     if (!adapter.queryTransfer) continue;

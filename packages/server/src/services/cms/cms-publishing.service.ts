@@ -452,9 +452,13 @@ export async function submitCmsSiteGroupPublish(input: SubmitCmsSiteGroupPublish
   for (const siteId of targetSiteIds) await assertAllCmsSiteChannelsAccess(siteId);
 
   const tasks = await db.transaction(async (tx) => {
+    // 一次取回站群内全部站点行，替代逐站点点查；仍按 targetSiteIds 顺序逐个校验状态，
+    // 首个状态异常的站点即中止整个事务，报错口径不变
+    const siteRows = await tx.select().from(cmsSites).where(inArray(cmsSites.id, targetSiteIds));
+    const siteById = new Map(siteRows.map((row) => [row.id, row]));
     const submitted = [];
     for (const siteId of targetSiteIds) {
-      const [site] = await tx.select().from(cmsSites).where(eq(cmsSites.id, siteId)).limit(1);
+      const site = siteById.get(siteId);
       if (!site || site.status !== 'enabled') {
         throw new HTTPException(409, { message: `站点 #${siteId} 状态已变化，请刷新后重试` });
       }

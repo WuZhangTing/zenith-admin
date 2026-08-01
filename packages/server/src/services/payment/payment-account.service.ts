@@ -115,13 +115,18 @@ interface ComputedBalance {
   available: number;
 }
 
-/** 按流水聚合重算某账户维度的理论余额（口径与 deltaOf 一致） */
-async function computeFromLedger(channel: PaymentChannel, tenantId: number | null): Promise<ComputedBalance> {
-  const cond = tenantId == null
-    ? and(eq(paymentLedgerEntries.channel, channel), isNull(paymentLedgerEntries.tenantId))
-    : and(eq(paymentLedgerEntries.channel, channel), eq(paymentLedgerEntries.tenantId, tenantId));
-  const [agg] = await db
+/** 账户维度键：(channel, tenantId) → 稳定字符串，聚合结果按此键回填 */
+function dimKey(channel: string, tenantId: number | null): string {
+  return `${channel}:${tenantId ?? 'null'}`;
+}
+
+/** 台账流水按 (channel, tenantId) 分组聚合理论余额（口径与 deltaOf 一致）。
+ * 一次 GROUP BY 覆盖全部维度，替代逐维度各查一次。 */
+async function computeAllFromLedger(): Promise<Map<string, ComputedBalance>> {
+  const rows = await db
     .select({
+      channel: paymentLedgerEntries.channel,
+      tenantId: paymentLedgerEntries.tenantId,
       payment: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'payment' then ${paymentLedgerEntries.amount} else 0 end),0)`,
       fee: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'fee' then ${paymentLedgerEntries.amount} else 0 end),0)`,
       refund: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'refund' then ${paymentLedgerEntries.amount} else 0 end),0)`,
@@ -131,12 +136,17 @@ async function computeFromLedger(channel: PaymentChannel, tenantId: number | nul
       adjustOut: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'adjust' and ${paymentLedgerEntries.direction} = 'out' then ${paymentLedgerEntries.amount} else 0 end),0)`,
     })
     .from(paymentLedgerEntries)
-    .where(cond);
+    .groupBy(paymentLedgerEntries.channel, paymentLedgerEntries.tenantId);
   const n = (v: unknown) => Number(v ?? 0);
-  return {
-    pendingSettle: n(agg?.payment) - n(agg?.fee) - n(agg?.refund) - n(agg?.settlement),
-    available: n(agg?.settlement) - n(agg?.transfer) + n(agg?.adjustIn) - n(agg?.adjustOut),
-  };
+  const map = new Map<string, ComputedBalance>();
+  for (const agg of rows) {
+    if (!agg.channel) continue;
+    map.set(dimKey(agg.channel, agg.tenantId ?? null), {
+      pendingSettle: n(agg.payment) - n(agg.fee) - n(agg.refund) - n(agg.settlement),
+      available: n(agg.settlement) - n(agg.transfer) + n(agg.adjustIn) - n(agg.adjustOut),
+    });
+  }
+  return map;
 }
 
 /** 收集流水与快照中出现过的全部 (channel, tenantId) 维度 */
@@ -152,7 +162,7 @@ async function collectDimensions(): Promise<Array<{ channel: PaymentChannel; ten
   const dims: Array<{ channel: PaymentChannel; tenantId: number | null }> = [];
   for (const d of [...fromLedger, ...fromAccounts]) {
     if (!d.channel) continue;
-    const key = `${d.channel}:${d.tenantId ?? 'null'}`;
+    const key = dimKey(d.channel, d.tenantId ?? null);
     if (seen.has(key)) continue;
     seen.add(key);
     dims.push({ channel: d.channel as PaymentChannel, tenantId: d.tenantId ?? null });
@@ -160,26 +170,47 @@ async function collectDimensions(): Promise<Array<{ channel: PaymentChannel; ten
   return dims;
 }
 
-/** 进行中预授权冻结金额聚合（账户 frozen 快照核对口径） */
-async function computeFrozenFromPreauths(channel: PaymentChannel, tenantId: number | null): Promise<number> {
-  const cond = tenantId == null
-    ? and(eq(paymentPreauths.channel, channel), isNull(paymentPreauths.tenantId))
-    : and(eq(paymentPreauths.channel, channel), eq(paymentPreauths.tenantId, tenantId));
-  const [agg] = await db
-    .select({ total: sql<number>`coalesce(sum(${paymentPreauths.frozenAmount}),0)` })
+/** 进行中预授权冻结金额按 (channel, tenantId) 分组聚合（账户 frozen 快照核对口径） */
+async function computeAllFrozenFromPreauths(): Promise<Map<string, number>> {
+  const rows = await db
+    .select({
+      channel: paymentPreauths.channel,
+      tenantId: paymentPreauths.tenantId,
+      total: sql<number>`coalesce(sum(${paymentPreauths.frozenAmount}),0)`,
+    })
     .from(paymentPreauths)
-    .where(and(cond, eq(paymentPreauths.status, 'frozen')));
-  return Number(agg?.total ?? 0);
+    .where(eq(paymentPreauths.status, 'frozen'))
+    .groupBy(paymentPreauths.channel, paymentPreauths.tenantId);
+  const map = new Map<string, number>();
+  for (const row of rows) {
+    if (!row.channel) continue;
+    map.set(dimKey(row.channel, row.tenantId ?? null), Number(row.total ?? 0));
+  }
+  return map;
+}
+
+/** 快照全量装载为 (channel, tenantId) → 账户行 */
+async function loadAccountSnapshots(): Promise<Map<string, PaymentAccountRow>> {
+  const rows = await db.select().from(paymentAccounts);
+  return new Map(rows.map((row) => [dimKey(row.channel, row.tenantId ?? null), row]));
 }
 
 /** 余额核对：逐账户比对快照与流水聚合，返回差异明细（match=false 为异常账户） */
 export async function checkAccounts(): Promise<PaymentAccountCheckRow[]> {
+  // 维度先行：必须等 collectDimensions 完成后再取聚合，保证每个被发现的维度
+  // 其聚合快照都晚于维度扫描（并发记账时才不会出现「维度已出现、聚合却为空」）
   const dims = await collectDimensions();
+  const [ledgerByDim, frozenByDim, snapshotByDim] = await Promise.all([
+    computeAllFromLedger(),
+    computeAllFrozenFromPreauths(),
+    loadAccountSnapshots(),
+  ]);
   const result: PaymentAccountCheckRow[] = [];
   for (const dim of dims) {
-    const [snapshot] = await db.select().from(paymentAccounts).where(accountWhere(dim.channel, dim.tenantId)).limit(1);
-    const computed = await computeFromLedger(dim.channel, dim.tenantId);
-    const frozenComputed = await computeFrozenFromPreauths(dim.channel, dim.tenantId);
+    const key = dimKey(dim.channel, dim.tenantId);
+    const snapshot = snapshotByDim.get(key);
+    const computed = ledgerByDim.get(key) ?? { pendingSettle: 0, available: 0 };
+    const frozenComputed = frozenByDim.get(key) ?? 0;
     const snapPending = snapshot?.pendingSettle ?? 0;
     const snapAvailable = snapshot?.available ?? 0;
     const snapFrozen = snapshot?.frozen ?? 0;
@@ -199,11 +230,20 @@ export async function checkAccounts(): Promise<PaymentAccountCheckRow[]> {
 
 /** 从全量流水重建账户快照（存量数据初始化 / 差错修复；流水为权威数据源） */
 export async function rebuildAccountsFromLedger(): Promise<number> {
+  // 顺序同 checkAccounts：维度扫描必须先于聚合。否则并发记账时
+  // 「维度已被发现、聚合快照却早于那条流水」会让本函数拿 0 覆盖掉真实余额
   const dims = await collectDimensions();
+  const [ledgerByDim, frozenByDim, snapshotByDim] = await Promise.all([
+    computeAllFromLedger(),
+    computeAllFrozenFromPreauths(),
+    loadAccountSnapshots(),
+  ]);
   for (const dim of dims) {
-    const computed = await computeFromLedger(dim.channel, dim.tenantId);
-    const frozenComputed = await computeFrozenFromPreauths(dim.channel, dim.tenantId);
-    const account = await ensureAccount(dim.channel, dim.tenantId);
+    const key = dimKey(dim.channel, dim.tenantId);
+    const computed = ledgerByDim.get(key) ?? { pendingSettle: 0, available: 0 };
+    const frozenComputed = frozenByDim.get(key) ?? 0;
+    // 快照已存在时直接复用预取结果，只有缺账户的维度才走建号流程
+    const account = snapshotByDim.get(key) ?? await ensureAccount(dim.channel, dim.tenantId);
     await db
       .update(paymentAccounts)
       .set({

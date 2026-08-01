@@ -6,7 +6,7 @@
  * 确定性分账单号（SHR{orderNo}R{receiverId}）+ 唯一索引保证事件重复投递幂等；
  * 渠道调用失败的分账单由 cron retryFailedSharingOrders 兜底重试（上限 3 次）。
  */
-import { and, desc, eq, isNull, like, lt, or } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, like, lt, or } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { randomInt } from 'node:crypto';
 import { db } from '../../db';
@@ -22,7 +22,7 @@ import { currentUser } from '../../lib/context';
 import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
-import { buildAdapterContext, loadOrderConfig } from './payment.service';
+import { buildAdapterContext, createOrderConfigResolver, loadOrderConfig } from './payment.service';
 import { getAdapter } from '../../lib/payment/registry';
 import { paymentEventBus } from '../../lib/payment-event-bus';
 import logger from '../../lib/logger';
@@ -331,16 +331,36 @@ export async function retryFailedSharingOrders(): Promise<{ scanned: number; suc
     .from(paymentSharingOrders)
     .where(and(eq(paymentSharingOrders.status, 'failed'), isNull(paymentSharingOrders.channelSharingNo), lt(paymentSharingOrders.attempts, MAX_SHARING_ATTEMPTS)))
     .limit(50);
+  if (rows.length === 0) return { scanned: 0, succeeded: 0 };
+  // 整批一次取回订单与接收方（同一订单/接收方常被多条分账单引用），替代逐单两次点查
+  const { orderByNo, receiverById } = await loadSharingRefs(rows);
   let succeeded = 0;
   for (const sharing of rows) {
-    const [order] = await db.select().from(paymentOrders).where(eq(paymentOrders.orderNo, sharing.orderNo)).limit(1);
-    const [receiver] = await db.select().from(paymentSharingReceivers).where(eq(paymentSharingReceivers.id, sharing.receiverId)).limit(1);
+    const order = orderByNo.get(sharing.orderNo);
+    const receiver = receiverById.get(sharing.receiverId);
     if (!order || !receiver) continue;
     if (receiver.status !== 'enabled') continue;
     const updated = await executeSharingAtChannel(sharing, order, receiver);
     if (updated.row.status === 'success') succeeded++;
   }
   return { scanned: rows.length, succeeded };
+}
+
+/** 批量回查分账单引用的订单与接收方，去重后各一次查询 */
+async function loadSharingRefs(rows: PaymentSharingOrderRow[]): Promise<{
+  orderByNo: Map<string, PaymentOrderRow>;
+  receiverById: Map<number, PaymentSharingReceiverRow>;
+}> {
+  const orderNos = [...new Set(rows.map((r) => r.orderNo))];
+  const receiverIds = [...new Set(rows.map((r) => r.receiverId))];
+  const [orders, receivers] = await Promise.all([
+    db.select().from(paymentOrders).where(inArray(paymentOrders.orderNo, orderNos)),
+    db.select().from(paymentSharingReceivers).where(inArray(paymentSharingReceivers.id, receiverIds)),
+  ]);
+  return {
+    orderByNo: new Map(orders.map((o) => [o.orderNo, o])),
+    receiverById: new Map(receivers.map((r) => [r.id, r])),
+  };
 }
 
 /** 同步渠道已受理（processing）分账单的终态：调 adapter.queryProfitShare 查询分账结果并回写。 */
@@ -350,11 +370,17 @@ export async function syncProcessingSharingOrders(): Promise<{ scanned: number; 
     .from(paymentSharingOrders)
     .where(eq(paymentSharingOrders.status, 'processing'))
     .limit(50);
+  if (rows.length === 0) return { scanned: 0, finished: 0 };
+  const orderNos = [...new Set(rows.map((r) => r.orderNo))];
+  const orders = await db.select().from(paymentOrders).where(inArray(paymentOrders.orderNo, orderNos));
+  const orderByNo = new Map(orders.map((o) => [o.orderNo, o]));
+  // 整批共用配置解析器：这些订单通常只落在少数几份渠道配置上
+  const resolveConfig = createOrderConfigResolver();
   let finished = 0;
   for (const sharing of rows) {
-    const [order] = await db.select().from(paymentOrders).where(eq(paymentOrders.orderNo, sharing.orderNo)).limit(1);
+    const order = orderByNo.get(sharing.orderNo);
     if (!order) continue;
-    const config = await loadOrderConfig(order);
+    const config = await resolveConfig(order);
     if (!config) continue;
     const adapter = getAdapter(order.channel);
     if (!adapter.queryProfitShare) continue;

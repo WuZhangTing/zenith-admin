@@ -358,6 +358,9 @@ export async function getAdjacentContents(row: CmsContentRow) {
  */
 const VIEW_BUFFER_KEY = `${config.redis.keyPrefix}cms:viewbuf`;
 
+/** 单条批量 UPDATE 的最大行数（每行 2 个绑定参数，远低于 PG 的 65535 上限） */
+const VIEW_FLUSH_CHUNK = 5000;
+
 export async function increaseViewCount(id: number): Promise<void> {
   try {
     await redis.hincrby(VIEW_BUFFER_KEY, String(id), 1);
@@ -374,13 +377,24 @@ export async function flushViewCountBuffer(): Promise<number> {
   const entries = Object.entries(buffer).filter(([, v]) => Number(v) > 0);
   if (entries.length === 0) return 0;
   await redis.del(VIEW_BUFFER_KEY).catch(() => undefined);
-  for (const [idText, countText] of entries) {
-    const id = Number(idText);
-    const count = Number(countText);
-    if (!Number.isInteger(id) || !Number.isInteger(count) || count <= 0) continue;
-    await db.update(cmsContents)
-      .set({ viewCount: sql`${cmsContents.viewCount} + ${count}` })
-      .where(eq(cmsContents.id, id));
+  const deltas = entries
+    .map(([idText, countText]) => ({ id: Number(idText), count: Number(countText) }))
+    .filter((d) => Number.isInteger(d.id) && Number.isInteger(d.count) && d.count > 0);
+  // 单条 UPDATE ... FROM (VALUES ...) 累加全部增量，替代逐条 UPDATE。
+  // 两点必须保留：
+  // 1) updated_at 同步刷新——drizzle 的 .update() 会带上 $onUpdate 列，而手写 SQL 不会；
+  //    开放平台增量同步以 cms_contents.updated_at 为水位线，漏刷会让浏览数变更同步不出去
+  // 2) 分片提交——单条语句的绑定参数上限为 65535（每行 2 个），且此处的行数由
+  //    真实访问量决定；缓冲已在上面 del 掉，一次性超限抛错会丢掉整个窗口的计数
+  for (let i = 0; i < deltas.length; i += VIEW_FLUSH_CHUNK) {
+    const chunk = deltas.slice(i, i + VIEW_FLUSH_CHUNK);
+    const values = sql.join(chunk.map((d) => sql`(${d.id}::int, ${d.count}::int)`), sql`, `);
+    await db.execute(sql`
+      update ${cmsContents} as c
+      set view_count = c.view_count + delta.view_delta, updated_at = now()
+      from (values ${values}) as delta(id, view_delta)
+      where c.id = delta.id
+    `);
   }
   return entries.length;
 }

@@ -1,4 +1,4 @@
-import { eq, and, inArray, isNull, isNotNull, lt, lte, sql } from 'drizzle-orm';
+import { eq, and, inArray, isNull, isNotNull, lt, lte, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { cmsSites, cmsContents, cmsContentTags, cmsContentTombstones, cmsContentVersions, cmsTags, cmsCollectItems } from '../../db/schema';
@@ -450,6 +450,9 @@ export async function batchSetCmsContentFlags(ids: number[], flags: { isTop?: bo
   return updated.length;
 }
 
+/** 单条批量 INSERT 的最大行数（每行 2 个绑定参数，远低于 PG 的 65535 上限） */
+const TAG_BINDING_CHUNK = 5000;
+
 /** 批量追加标签（跳过已存在的绑定，重算计数） */
 export async function batchAddCmsContentTags(ids: number[], tagIds: number[]): Promise<number> {
   if (ids.length === 0 || tagIds.length === 0) return 0;
@@ -460,13 +463,26 @@ export async function batchAddCmsContentTags(ids: number[], tagIds: number[]): P
   }).from(cmsContents).where(inArray(cmsContents.id, ids));
   assertCompleteCmsBatch(ids, rows.map((row) => row.id), '内容');
   await db.transaction(async (tx) => {
-    for (const row of rows) {
-      const validTags = await tx.select({ id: cmsTags.id }).from(cmsTags)
-        .where(and(inArray(cmsTags.id, tagIds), eq(cmsTags.siteId, row.siteId)));
-      assertCompleteCmsBatch(tagIds, validTags.map((tag) => tag.id), '标签');
-      await tx.insert(cmsContentTags)
-        .values(validTags.map((tag) => ({ contentId: row.id, tagId: tag.id })))
-        .onConflictDoNothing();
+    // 合法标签只取决于内容所属站点，批量内容通常同站；一次按站点取回，
+    // 替代「每条内容重查一遍同一批标签」
+    const siteIds = [...new Set(rows.map((row) => row.siteId))];
+    const tagRows = await tx.select({ id: cmsTags.id, siteId: cmsTags.siteId }).from(cmsTags)
+      .where(and(inArray(cmsTags.id, tagIds), inArray(cmsTags.siteId, siteIds)));
+    const tagIdsBySite = new Map<number, number[]>();
+    for (const tag of tagRows) {
+      const list = tagIdsBySite.get(tag.siteId);
+      if (list) list.push(tag.id);
+      else tagIdsBySite.set(tag.siteId, [tag.id]);
+    }
+    // 校验口径不变：标签必须在该内容所属站点下全部存在，缺一即整批 404
+    for (const siteId of siteIds) {
+      assertCompleteCmsBatch(tagIds, tagIdsBySite.get(siteId) ?? [], '标签');
+    }
+    const bindings = rows.flatMap((row) => (tagIdsBySite.get(row.siteId) ?? []).map((tagId) => ({ contentId: row.id, tagId })));
+    // 分片插入：单条语句每行 2 个绑定参数，而 ids / tagIds 在路由 schema 上没有上限，
+    // 内容数 × 标签数很容易越过 PG 的 65535 参数上限
+    for (let i = 0; i < bindings.length; i += TAG_BINDING_CHUNK) {
+      await tx.insert(cmsContentTags).values(bindings.slice(i, i + TAG_BINDING_CHUNK)).onConflictDoNothing();
     }
     await recalcTagContentCounts(tx, tagIds);
   });
@@ -637,19 +653,26 @@ export async function distributeCmsContents(ids: number[], targetSiteId: number,
 export async function cleanupCmsRecycleBin(): Promise<number> {
   const sites = await db.select({ id: cmsSites.id, settings: cmsSites.settings }).from(cmsSites);
   const now = Date.now();
-  const targetIds: number[] = [];
+  // 按保留天数分组：站点绝大多数沿用同一份默认配置，分组后通常只剩一条 OR 分支，
+  // 替代「每个站点各扫一次回收站」
+  const siteIdsByKeepDays = new Map<number, number[]>();
   for (const site of sites) {
     const keepDays = resolveCmsSiteOpsSettings(site.settings).recycleKeepDays;
     if (keepDays <= 0) continue;
-    const threshold = new Date(now - keepDays * 24 * 60 * 60 * 1000);
-    const rows = await db.select({ id: cmsContents.id }).from(cmsContents).where(and(
-      eq(cmsContents.siteId, site.id),
-      isNotNull(cmsContents.deletedAt),
-      lt(cmsContents.deletedAt, threshold),
-      isNull(cmsContents.lockedAt),
-    ));
-    targetIds.push(...rows.map((r) => r.id));
+    const list = siteIdsByKeepDays.get(keepDays);
+    if (list) list.push(site.id);
+    else siteIdsByKeepDays.set(keepDays, [site.id]);
   }
-  if (targetIds.length === 0) return 0;
-  return purgeCmsContents(targetIds, { skipAccessCheck: true });
+  if (siteIdsByKeepDays.size === 0) return 0;
+  const expiredInGroup = [...siteIdsByKeepDays].map(([keepDays, siteIds]) => and(
+    inArray(cmsContents.siteId, siteIds),
+    lt(cmsContents.deletedAt, new Date(now - keepDays * 24 * 60 * 60 * 1000)),
+  ));
+  const rows = await db.select({ id: cmsContents.id }).from(cmsContents).where(and(
+    isNotNull(cmsContents.deletedAt),
+    isNull(cmsContents.lockedAt),
+    or(...expiredInGroup),
+  ));
+  if (rows.length === 0) return 0;
+  return purgeCmsContents(rows.map((r) => r.id), { skipAccessCheck: true });
 }
