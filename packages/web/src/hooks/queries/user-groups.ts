@@ -3,6 +3,7 @@ import type { PaginatedResponse } from '@zenith/shared/core';
 import type { UserGroup } from '@zenith/shared/identity';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
+import { invalidateCurrentUserAccess } from './menus';
 
 export interface UserGroupListParams {
   page: number;
@@ -104,8 +105,9 @@ export function useAssignUserGroupRoles() {
       request.put<null>(`/api/user-groups/${id}/roles`, { roleIds }).then(unwrap),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: userGroupKeys.all });
-      // 组角色变化影响成员的继承权限展示
+      // 组角色变化影响成员的继承权限展示，也可能覆盖当前登录者
       void qc.invalidateQueries({ queryKey: ['users'] });
+      invalidateCurrentUserAccess(qc);
     },
   });
 }

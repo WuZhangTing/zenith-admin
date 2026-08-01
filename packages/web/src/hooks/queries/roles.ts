@@ -3,6 +3,7 @@ import type { PaginatedResponse } from '@zenith/shared/core';
 import type { Role, User } from '@zenith/shared/identity';
 import { request } from '@/utils/request';
 import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
+import { invalidateCurrentUserAccess } from './menus';
 
 export interface RoleListParams {
   page: number;
@@ -91,8 +92,11 @@ export function useAssignRoleMenus() {
   return useMutation({
     mutationFn: ({ id, menuIds }: { id: number; menuIds: number[] }) =>
       request.put<null>(`/api/roles/${id}/menus`, { menuIds }).then(unwrap),
-    // menuIds 只存在于角色详情，列表与下拉源都不含
-    onSuccess: (_data, { id }) => qc.invalidateQueries({ queryKey: roleKeys.detail(id) }),
+    // menuIds 只存在于角色详情，列表与下拉源都不含；角色授权可能覆盖当前登录者
+    onSuccess: (_data, { id }) => {
+      void qc.invalidateQueries({ queryKey: roleKeys.detail(id) });
+      invalidateCurrentUserAccess(qc);
+    },
   });
 }
 

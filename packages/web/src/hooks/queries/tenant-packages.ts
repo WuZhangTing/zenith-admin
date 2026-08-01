@@ -3,6 +3,7 @@ import type { PaginatedResponse } from '@zenith/shared/core';
 import type { TenantPackage } from '@zenith/shared/identity';
 import { request } from '@/utils/request';
 import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
+import { invalidateCurrentUserAccess } from './menus';
 
 export interface TenantPackageListParams {
   page: number;
@@ -85,7 +86,10 @@ export function useAssignTenantPackageMenus() {
   return useMutation({
     mutationFn: ({ id, menuIds }: { id: number; menuIds: number[] }) =>
       request.put<null>(`/api/tenant-packages/${id}/menus`, { menuIds }).then(unwrap),
-    // menuIds 只存在于套餐详情，列表与下拉源都不含
-    onSuccess: (_data, { id }) => qc.invalidateQueries({ queryKey: tenantPackageKeys.detail(id) }),
+    // menuIds 只存在于套餐详情，列表与下拉源都不含；套餐白名单收紧可能影响当前登录者
+    onSuccess: (_data, { id }) => {
+      void qc.invalidateQueries({ queryKey: tenantPackageKeys.detail(id) });
+      invalidateCurrentUserAccess(qc);
+    },
   });
 }

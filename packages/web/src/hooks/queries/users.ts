@@ -3,6 +3,7 @@ import type { PaginatedResponse } from '@zenith/shared/core';
 import type { User } from '@zenith/shared/identity';
 import { request } from '@/utils/request';
 import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
+import { invalidateCurrentUserAccess } from './menus';
 
 export interface UserListParams {
   page: number;
@@ -224,8 +225,11 @@ export function useSaveUserMenus() {
   return useMutation({
     mutationFn: ({ userId, menuIds }: { userId: number; menuIds: number[] }) =>
       request.put<null>(`/api/users/${userId}/menus`, { menuIds }).then(unwrap),
-    // 直接授权菜单只改变该用户的有效权限视图
-    onSuccess: (_data, { userId }) => qc.invalidateQueries({ queryKey: userKeys.effectivePermissions(userId) }),
+    // 直接授权菜单改变该用户的有效权限视图；若改到自己，导航树与权限码需同步刷新
+    onSuccess: (_data, { userId }) => {
+      void qc.invalidateQueries({ queryKey: userKeys.effectivePermissions(userId) });
+      invalidateCurrentUserAccess(qc);
+    },
   });
 }
 

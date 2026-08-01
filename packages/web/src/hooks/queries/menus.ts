@@ -1,7 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type { Menu } from '@zenith/shared/identity';
 import { request } from '@/utils/request';
 import { LOOKUP_STALE_TIME, unwrap } from '@/lib/query';
+import { authKeys } from './auth';
 
 export const menuKeys = {
   all: ['menus'] as const,
@@ -52,6 +53,8 @@ export function useSaveMenu() {
     onSuccess: (saved) => {
       void qc.invalidateQueries({ queryKey: menuKeys.detail(saved.id) });
       void qc.invalidateQueries({ queryKey: menuKeys.tree });
+      // 菜单结构变化直接影响所有用户的导航树与动态路由
+      void qc.invalidateQueries({ queryKey: menuKeys.userTree });
     },
   });
 }
@@ -63,6 +66,17 @@ export function useDeleteMenu() {
     onSuccess: (_data, id) => {
       qc.removeQueries({ queryKey: menuKeys.detail(id) });
       void qc.invalidateQueries({ queryKey: menuKeys.tree });
+      void qc.invalidateQueries({ queryKey: menuKeys.userTree });
     },
   });
+}
+
+/**
+ * 访问权限来源（角色菜单 / 用户直授 / 用户组角色 / 租户套餐）变更后，
+ * 刷新当前登录者的导航树与权限码快照。客户端无法判断本次变更是否覆盖自己，
+ * 统一无条件失效：无活跃订阅的查询仅被标脏，不产生额外请求。
+ */
+export function invalidateCurrentUserAccess(qc: QueryClient): void {
+  void qc.invalidateQueries({ queryKey: menuKeys.userTree });
+  void qc.invalidateQueries({ queryKey: authKeys.me });
 }

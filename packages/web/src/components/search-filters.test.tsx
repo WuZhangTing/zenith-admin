@@ -6,7 +6,7 @@
  * 一旦不能穿透，页面就会绕开组件退回手写，收敛白做。
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { Input } from '@douyinfe/semi-ui';
 import { Search } from 'lucide-react';
 import { DateRangeFilter, KeywordInput, StatusSelect } from './search-filters';
@@ -72,7 +72,8 @@ describe('StatusSelect', () => {
     render(<StatusSelect items={STATUS_ITEMS} value="" onChange={onChange} />);
     fireEvent.click(screen.getByRole('combobox'));
     fireEvent.click(await screen.findByText('停用'));
-    expect(onChange).toHaveBeenCalledWith('disabled');
+    // Semi Select 的选项点击到 onChange 之间存在异步间隙，高负载下同步断言偶发失败
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith('disabled'));
   });
 
   it('空串视为未选中，不显示成选项值', () => {
