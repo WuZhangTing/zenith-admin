@@ -85,6 +85,15 @@
 
 ## 前端层（Step 8）
 
+- **列表页搜索状态**（Step 8）：统一使用 `packages/web/src/hooks/useListSearch.ts`，它整合了 `usePagination`
+  与 draft/submitted 双状态，并保证「查询 / 重置」必定 `invalidateQueries(listKey)`。
+  **禁止**在页面里手写 `const [draftParams/submittedParams] = useState(...)` 与
+  `handleSearch` / `handleReset` 三件套——条件未变化时 query key 不变，漏掉失效则点「查询」
+  不会真正回源，且列表仍有数据、不报错，几乎不可能被发现。
+  「不经输入框直接筛选」（点部门树 / 标签 / 收藏 / 应用保存的视图）用 `applySearch(params)`；
+  **禁止**为此暴露 `submittedParams` 的裸 setter，那会绕过页码重置与失效。
+  额外副作用（如查询后清空已选中行）用 `onSearch` / `onReset` 选项。写法见
+  [crud-frontend.md 搜索参数与分页联动](./crud-frontend.md)
 - **操作列创建**（Step 8）：所有表格操作列通过 `packages/web/src/components/ResponsiveTableActions.tsx` 的 `createOperationColumn` 创建；该工具统一处理 `fixed: 'right'`、列设置不可隐藏、移动端列宽收窄和更多菜单
 - **状态列固定**（Step 8）：状态列必须紧靠操作列左侧，并同样设置 `fixed: 'right'`
 - **搜索栏布局**（Step 8）：搜索区统一使用 `SearchToolbar`（`packages/web/src/components/SearchToolbar.tsx`）。筛选/操作较多时必须使用结构化模式（`primary` / `filters` / `actions`，必要时用 `mobilePrimary` / `mobileFilters` / `mobileActions` 覆盖移动端）；移动端至少露出一个高频搜索/筛选项（优先关键词，无关键词时选区分度最高的筛选项）、查询与新增，其余筛选进底部抽屉、低频操作进更多菜单。写法见 [crud-frontend.md 完整页面模板](./crud-frontend.md)，参考 `packages/web/src/pages/system/positions/PositionsPage.tsx`

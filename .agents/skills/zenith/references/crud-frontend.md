@@ -18,7 +18,10 @@
 1. queryFn 统一 `request.get<T>(url).then(unwrap)`；`unwrap` 在 `code !== 0` 时抛 `ApiError`（request 层已自动 Toast，调用方无需重复提示）。
 2. 每个域文件导出 keys 常量对象，必须包含 `all` / `lists` / `list(params)` / `detail(id)`；key 的树形结构按下方[「key 结构设计」](#key-结构设计)约束。
 3. 分页列表查询必须 `placeholderData: keepPreviousData`（翻页不闪白屏）。
-4. **查询/重置必回源**：`handleSearch` / `handleReset` 除更新参数外必须显式 `invalidateQueries({ queryKey: xxxKeys.lists })` —— 条件未变化时 query key 不变，不失效则 staleTime 内不发请求，而本系统「查询」按钮兼具刷新语义。
+4. **查询/重置必回源**：列表页统一用 `useListSearch`（`hooks/useListSearch.ts`），它把
+   draft/submitted 双状态、页码重置与 `invalidateQueries` 焊在一处。**禁止**手写这三件套——
+   条件未变化时 query key 不变，不失效则 staleTime 内不发请求，而本系统「查询」按钮兼具刷新语义；
+   手抄样板漏掉失效时不报错、列表仍有数据，几乎不可能被发现。详见下方[「搜索参数与分页联动」](#搜索参数与分页联动)。
 5. **mutation 按副作用精确失效**，`onSuccess` 只碰真正受影响的 key；成功 Toast 留在页面代码。判据是「**有没有已挂载的查询读了这次被改动的状态**」，而不是接口像不像命令。详见下方[「缓存一致性契约」](#缓存一致性契约必读)。
 6. 下拉源等低频 lookup 数据用 `staleTime: LOOKUP_STALE_TIME`（5 分钟），全局共享缓存；已有共享 lookup 直接 import，**禁止重复定义**，也禁止用本域 key 请求别域资源。详见下方[「下拉源必须归属所有者域」](#下拉源必须归属所有者域)。
 7. 轮询页面用 `refetchInterval`（毫秒），禁止手写 `setInterval` 拉数据。
@@ -214,7 +217,7 @@ import AppModal from '@/components/AppModal';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { useDictItems } from '@/hooks/useDictItems';
 import { usePermission } from '@/hooks/usePermission';
-import { usePagination } from '@/hooks/usePagination';
+import { useListSearch } from '@/hooks/useListSearch';
 import { useDeleteXxxs, useSaveXxx, useXxxDetail, useXxxList, xxxKeys } from '@/hooks/queries/xxxs';
 import type { Xxx } from '@zenith/shared/{业务域}';
 
@@ -237,12 +240,15 @@ const defaultSearchParams: SearchParams = {
 export default function XxxPage() {
   const { hasPermission } = usePermission();
   const formApi = useRef<FormApi | null>(null);
-  const queryClient = useQueryClient();
 
   // ─── 搜索状态：draft 绑输入框，submitted 进 query key ────────────────────
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  // useListSearch 内部整合了 usePagination，并保证「查询 / 重置」必定失效 listKey，
+  // 契约由 hook 兜住——禁止再手写 draft/submitted 双状态与 handleSearch/handleReset
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: xxxKeys.lists });
 
   // ─── 列表查询（key 驱动：page/pageSize/submittedParams 变化自动请求）────
   const listQuery = useXxxList({
@@ -272,20 +278,6 @@ export default function XxxPage() {
 
   // 字典数据（内部已是 useQuery，全局共享缓存）
   const { items: statusItems } = useDictItems('common_status');
-
-  // ─── 搜索 / 重置（必须显式失效，保证点击必回源）─────────────────────────
-  function handleSearch() {
-    setPage(1);
-    setSubmittedParams(draftParams);
-    void queryClient.invalidateQueries({ queryKey: xxxKeys.lists });
-  }
-
-  function handleReset() {
-    setPage(1);
-    setDraftParams(defaultSearchParams);
-    setSubmittedParams(defaultSearchParams);
-    void queryClient.invalidateQueries({ queryKey: xxxKeys.lists });
-  }
 
   // ─── 导出（导出中心）──────────────────────────────────────────────────
   function buildExportQuery(): Record<string, unknown> {
@@ -715,25 +707,39 @@ createOperationColumn<Xxx>({
 ### 搜索参数与分页联动
 
 ```ts
-// ✅ 正确：draft/submitted 拆分 + 显式失效
+// ✅ 正确：统一用 useListSearch，禁止手写 draft/submitted 双状态与两个 handler
 // - draftParams 绑定输入框，输入过程不触发请求
 // - submittedParams 进入 query key，变化自动请求
-// - invalidateQueries 保证「条件未变时点查询」也强制回源刷新
-function handleSearch() {
-  setPage(1);
-  setSubmittedParams(draftParams);
-  void queryClient.invalidateQueries({ queryKey: xxxKeys.lists });
-}
-
-function handleReset() {
-  setPage(1);
-  setDraftParams(defaultSearchParams);
-  setSubmittedParams(defaultSearchParams);
-  void queryClient.invalidateQueries({ queryKey: xxxKeys.lists });
-}
+// - handleSearch / handleReset 内部必定失效 listKey，保证「条件未变时点查询」也回源
+const {
+  page, pageSize, buildPagination,
+  draftParams, setDraftParams, submittedParams,
+  handleSearch, handleReset,
+} = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: xxxKeys.lists });
 
 // 翻页：buildPagination(total) 内部 setPage/setPageSize → key 变化自动请求，无需回调
 ```
+
+可选项，按需使用：
+
+| 选项 | 用途 |
+| --- | --- |
+| `extraKeys` | 一个页面同时驱动多个列表时，一并失效它们的 key |
+| `pageSize` | 覆盖默认页大小（默认取用户偏好） |
+| `onSearch` / `onReset` | 查询/重置后的额外副作用，如清空已选中的行 |
+| `defaults` 传函数 | 「最近 7 天」这类相对当前时间的默认条件，每次重置重新求值 |
+
+**不经输入框直接筛选**（点部门树 / 标签 / 收藏开关 / 应用保存的视图）用 `applySearch(params)`：
+
+```tsx
+const { draftParams, applySearch } = useListSearch<SearchParams>({ ... });
+
+onSelect={(deptId) => applySearch({ ...draftParams, departmentId: deptId })}
+```
+
+它同步更新 draft 与 submitted、回到第 1 页并失效列表。
+**禁止**为这类场景去暴露/调用 `submittedParams` 的裸 setter——那会绕过页码重置与失效，
+正是「点了筛选但列表没刷新」这类问题的来源。
 
 ### 权限控制
 

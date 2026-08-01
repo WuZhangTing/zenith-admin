@@ -78,37 +78,48 @@ export function useSaveXxx() {
 
 ## 列表页模式
 
-搜索条件采用 **draft / submitted 拆分**：`draftParams` 绑定输入框（输入不触发请求），`submittedParams` 与 `page` / `pageSize` 一起进入 query key（key 变化自动请求）。
+列表页统一使用 `useListSearch`（`packages/web/src/hooks/useListSearch.ts`）。它把三件事收在一处：
+`usePagination` 的分页状态、**draft / submitted 拆分**（`draftParams` 绑输入框、输入不触发请求；
+`submittedParams` 与 `page` / `pageSize` 一起进入 query key），以及查询/重置时的强制失效。
 
 ```tsx
-const queryClient = useQueryClient();
-const { page, pageSize, setPage, buildPagination } = usePagination();
-const [draftParams, setDraftParams] = useState(defaultSearchParams);
-const [submittedParams, setSubmittedParams] = useState(defaultSearchParams);
+const {
+  page, pageSize, buildPagination,
+  draftParams, setDraftParams, submittedParams,
+  handleSearch, handleReset,
+} = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: xxxKeys.lists });
 
 const listQuery = useXxxList({
   page, pageSize,
   keyword: submittedParams.keyword || undefined,
   status: submittedParams.status || undefined,
 });
-
-function handleSearch() {
-  setPage(1);
-  setSubmittedParams(draftParams);
-  void queryClient.invalidateQueries({ queryKey: xxxKeys.lists });
-}
-
-function handleReset() {
-  setPage(1);
-  setDraftParams(defaultSearchParams);
-  setSubmittedParams(defaultSearchParams);
-  void queryClient.invalidateQueries({ queryKey: xxxKeys.lists });
-}
 ```
 
 ::: warning 查询必回源
-`handleSearch` / `handleReset` 中的 `invalidateQueries` **不可省略**：条件未变化时 query key 不变，数据在 `staleTime` 内被视为新鲜将不发请求；而本系统「查询」按钮兼具刷新语义，必须强制回源。非分页的树/列表页同理（失效该页主查询的前缀 key）。
+条件未变化时 query key 不变，数据在 `staleTime` 内被视为新鲜将不发请求；
+而本系统「查询」按钮兼具刷新语义，必须强制回源。
+
+手写这段失效逻辑极易遗漏，且漏掉后不报错、列表仍有数据，表现只是「点查询没反应」，
+几乎不可能在自测中被发现。因此契约由 `useListSearch` 保证，
+**禁止**再手写 draft/submitted 双状态与 `handleSearch` / `handleReset`。
 :::
+
+可选项：
+
+| 选项 | 用途 |
+| --- | --- |
+| `extraKeys` | 一个页面同时驱动多个列表时，一并失效它们的 key |
+| `pageSize` | 覆盖默认页大小（默认取用户偏好） |
+| `onSearch` / `onReset` | 查询/重置后的额外副作用，如清空已选中的行 |
+| `defaults` 传函数 | 「最近 7 天」这类相对当前时间的默认条件，每次重置重新求值 |
+
+**不经输入框直接筛选**（点部门树、标签、收藏开关、应用保存的视图）用 `applySearch(params)`，
+它同步更新 draft 与 submitted、回到第 1 页并失效列表：
+
+```tsx
+onSelect={(deptId) => applySearch({ ...draftParams, departmentId: deptId })}
+```
 
 表格接线：
 
