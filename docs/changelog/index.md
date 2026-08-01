@@ -4,6 +4,41 @@
 
 ---
 
+## v1.30.0 - 2026-08-01
+
+巨型文件拆分版本：把全仓最大的 7 个 god-file（合计约 15,300 行）机械拆分为 80+ 个内聚模块，原路径一律保留为门面（facade）或编排层，导出符号集逐一核对一致，所有外部导入零改动。后端逐行 diff 确证函数体字节级一致；前端 hook 调用序列展开对比 218 个完全一致、state 归属未变。服务端 1585 项、前端 507 项测试全部通过，资金链路 DB 集成测试 15 项通过，`npm run build` / `docs:build` / `build:demo` 三项构建均通过。
+
+### Changed
+
+#### 巨型文件拆分（零行为变更）
+
+| 文件 | 前 | 后 | 拆出 |
+| --- | --- | --- | --- |
+| `web/pages/chat/ChatPage.tsx` | 3,898 | 1,317 | 16 个 hooks + 23 个子组件 + utils-state |
+| `web/layouts/AdminLayout.tsx` | 3,137 | 1,006 | `layouts/admin/` 下 32 个文件（15 hooks + 15 组件 + utils/constants） |
+| `server/services/report/report-dataset.service.ts` | 2,027 | 47 | params / crud / execution / execution-logs / refresh + shared |
+| `server/services/chat/chat.service.ts` | 1,957 | 23 | conversations / groups / messages / reactions / bot / rtc / directory + shared |
+| `server/services/cms/cms-contents.service.ts` | 1,771 | 51 | query / write / ops + internal |
+| `server/services/cms/cms-interactions.service.ts` | 1,335 | 46 | forms / stats / responses + shared |
+| `server/services/cms/cms-distributions.service.ts` | 1,136 | 27 | rules / sync / runs + shared |
+
+跨模块共用的私有 helper 统一下沉到 shared/internal 模块防止循环依赖；子模块不回引 facade。唯一的非搬移改动是 6 个「源码文本扫描类」测试中的文件名字符串同步指向新模块（import 语句未动）。
+
+#### 搜索工具栏筛选控件收敛
+
+关键字、状态、时间范围三类筛选统一收敛到 `search-filters.tsx` 的 `KeywordInput` / `StatusSelect` / `DateRangeFilter`，装饰性属性（搜索图标、`showClear`、固定宽度）由公共组件兜底。
+
+### Performance
+
+- **ChatPage 表情选择器懒加载**：`ComposerEmojiPicker` 与 `ReactionPickerOverlay` 改为 `React.lazy` + `Suspense`，emoji-mart 的 ~494KB chunk（419KB 表情元数据 + 75KB picker）不再随聊天页加载，首次点击表情按钮时才按需下载
+
+### Fixed
+
+- **workflow 外部数据源选项出现 `[object Object]`**：外部接口字段配置错误（值为对象/数组）时，`String()` 会生成 `[object Object]` 垃圾选项；新增 `toOptionText()` 窄化 helper，仅原始类型可字符串化，对象/数组直接过滤，选项生成与记录回查口径保持一致
+- **SonarLint 静态检查告警清理**：`instances/shared.ts` 重复导入合并、三处 `void` 操作符改写为等价提前返回；`AiAuditPage` 嵌套模板字面量与嵌套三元拆平（渲染结果不变）
+
+---
+
 ## v1.29.0 - 2026-08-01
 
 重复代码收敛版本：先用 jscpd 与精确 grep 摸清全仓重复分布，再把四类「同一件事有多套写法」的样板收敛到共享模块。过程中暴露并修掉三个真实缺陷——时间范围末端漏掉当天数据、7 个页面点「查询」不回源、64 处破坏性操作的确认按钮不是红色。服务端 1585 项、前端 491 项测试全部通过，资金链路 DB 集成测试 15 项通过，`npm run build` / `docs:build` / `build:demo` 三项构建均通过。
