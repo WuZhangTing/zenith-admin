@@ -4,6 +4,58 @@
 
 ---
 
+## v1.32.0 - 2026-08-01
+
+前端首屏性能专项：三个 SPA 入口全面瘦身，登录关键路径与移动审批入口体积大幅下降。无新增业务功能，无破坏性变更。服务端 1595 项、前端 513 项测试全部通过，`npm run build` / `docs:build` / `build:demo` 三项构建均通过。
+
+### Performance
+
+#### 三入口首屏预载实测对比（vite build，modulepreload + entry JS 合计）
+
+| 入口 | 优化前 | 优化后 |
+| --- | --- | --- |
+| `index.html`（后台管理） | 235 个 JS / 2.36MB raw / 686KB gzip | 62 个 JS / 1.03MB raw / 280KB gzip |
+| `approval.html`（移动审批） | 313 个 JS / 3.13MB raw | 27 个 JS / 0.55MB raw / 172KB gzip |
+| `member.html`（会员前台） | 150 个 JS / 1.44MB raw / 462KB gzip | 124 个 JS / 1.42MB raw / 452KB gzip |
+
+#### 移动审批入口瘦身
+
+移动审批「轻页」此前是三个入口中最重的一个：5 个页面全部静态 import，TaskDetail / LaunchForm 经 `WorkflowFormRenderer` 静态拖进 wangeditor（~780KB raw）、react-markdown、FileAttachment、RegionSelect 等全能表单依赖。
+
+- `App-approval.tsx` 5 个页面改 `React.lazy` + 路由级 Suspense
+- `WorkflowFormRenderer` 的富文本编辑器改懒加载，Suspense 收在字段内部——编辑器 chunk 加载期间仅该字段显示占位，不打断整表单渲染；同时惠及 admin 端所有承载该渲染器的页面（工作流发起 / 审批 / 设计器预览）
+
+#### admin 入口瘦身：登录页卸下后台布局依赖图
+
+`App.tsx` 此前静态 import `AdminLayout`，使登录页与公开页（支付链接 / 公开报表 / OAuth 授权）被迫预载后台布局的完整静态依赖：通知弹层、公告详情（→FileAttachment→FilePreviewModal）、偏好设置面板、dnd-kit、DatePicker+date-fns、semi-illustrations 等。
+
+- `AdminLayout` 改 `React.lazy`，与登录页彻底分离
+- `AnnouncementDetailModal` 改懒加载 + 打开时挂载
+- `PageErrorBoundary` 错误插图改懒加载——插图只在错误态渲染，~130KB 的 semi-illustrations 不再进入口静态图
+
+#### 首页仪表盘图表区懒加载
+
+DashboardPage 是登录后默认落地页，此前静态引 `@/components/charts`，模块求值即接入 VChart 主题并拖入 ~1.9MB（raw）的 @visactor 依赖树。三张图表卡片抽为独立懒加载组件：欢迎横幅 / 统计卡 / 公告 / 日历先渲染，图表 chunk 就绪后骨架占位无缝补齐；非管理员现在完全不加载 visactor。
+
+#### vendor 微 chunk 收敛
+
+按包分组此前产出 1346 个 JS chunk，其中 500+ 个小于 10KB（semi 按组件拆分后大量组件只有 1-6KB），每次页面导航触发几十个微请求。rolldown `codeSplitting` 的按包动态分组加 `minSize: 20KB`，不足阈值的组回落自动分配：chunk 总数 1346 → 1106，产物总量不增（无跨页复制回归）。`vite-runtime` 与 `vendor-react-core` 两个关键组刻意不受影响——历史上这两组被合并进重型包曾导致入口预载暴涨。
+
+同时以实测否决并备注了 date-fns 自动分包方案：semi 的 locale / DatePicker foundation 成组消费大量 date-fns 模块，自动分包只会拆出难以命名的共享微块，总量不降、请求数反增。
+
+### Changed
+
+- 认证状态收敛集中管理（`refactor(web): centralize authentication state`）
+- Node.js 版本统一到 24（`engines` 字段与 CI 保持一致）
+
+### Fixed
+
+- 表情选择器：修复未跟随应用主题的问题，稳定首次展开尺寸
+- 路由契约测试：数据库桩化，无 PostgreSQL 环境也能通过
+- 移除声称锁定挂载顺序但实际无效的域装配清单快照，保留仍在发挥作用的路由表快照，相关注释改为如实描述
+
+---
+
 ## v1.31.0 - 2026-08-01
 
 质量加固版本：跨大版本升级 ioredis（v5→v6，默认切 RESP3），为此前几乎无测试的 267 个路由文件补上契约层测试并修正其暴露的 37 处声明缺陷，消除 payment / CMS 的 11 处 N+1 查询。无新增业务功能，无破坏性变更。服务端 1596 项、前端 507 项测试全部通过，资金链路与支付可靠性 DB 集成测试 25 项通过，`npm run build` / `docs:build` / `build:demo` 三项构建均通过。
