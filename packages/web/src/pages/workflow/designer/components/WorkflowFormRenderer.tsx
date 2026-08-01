@@ -2,12 +2,12 @@
  * 工作流表单渲染器 — 设计器预览和运行时（发起/审批）共用
  * 支持联动：公式实时计算、dateRange→天数、select 级联
  */
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, ReactNode } from 'react';
+import { createContext, lazy, Suspense, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import type { ComponentProps, CSSProperties, ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import DOMPurify from 'dompurify';
-import { Form, Select, Button, Typography, Row, Col, Divider, Rating, Toast, withField, Input, InputNumber, DatePicker, Collapse, Tabs, Steps, RadioGroup, Radio } from '@douyinfe/semi-ui';
+import { Form, Select, Button, Typography, Row, Col, Divider, Rating, Toast, withField, Input, InputNumber, DatePicker, Collapse, Tabs, Steps, RadioGroup, Radio, Spin } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus, Eraser, Trash2, Copy, ClipboardPaste } from 'lucide-react';
 import dayjs from 'dayjs';
@@ -19,7 +19,9 @@ import { rmbUpper } from '@/utils/rmb';
 import FileAttachment from '@/components/FileAttachment';
 import { uploadedFileToAttachment } from '@/components/FileAttachment/utils';
 import RegionSelect from '@/components/RegionSelect';
-import RichTextEditor from '@/components/RichTextEditor';
+// 富文本编辑器懒加载：wangeditor（~780KB raw）只在可编辑富文本字段真正渲染时加载，
+// 移动审批、工作流发起/审批等承载本渲染器的入口不再静态背上编辑器
+const RichTextEditor = lazy(() => import('@/components/RichTextEditor'));
 import UserSelect from '@/components/UserSelect';
 import DepartmentSelect from '@/components/DepartmentSelect';
 import DictSelect from '@/components/DictSelect';
@@ -225,7 +227,21 @@ function SignaturePad({ value, onChange, disabled, width = 360, height = 150 }: 
 }
 
 const FormRegion = withField(RegionSelect);
-const FormRichText = withField(RichTextEditor);
+// Suspense 收在字段内部：编辑器 chunk 加载期间只有该字段显示占位，不打断整表单渲染
+function RichTextEditorField(props: Readonly<ComponentProps<typeof RichTextEditor>>) {
+  return (
+    <Suspense
+      fallback={
+        <div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-small)' }}>
+          <Spin />
+        </div>
+      }
+    >
+      <RichTextEditor {...props} />
+    </Suspense>
+  );
+}
+const FormRichText = withField(RichTextEditorField);
 const FormSignature = withField(SignaturePad);
 const FormUserSelect = withField(UserSelect);
 const FormDeptSelect = withField(DepartmentSelect);
