@@ -6,7 +6,9 @@
  * **契约面**（认证声明、错误响应、响应包络），一次装配覆盖全部 1800+ 操作。
  *
  * 之所以可行，是因为 app.ts 的 `createApp()` 是纯函数——不 serve()、不注册 worker、
- * 不订阅事件总线。唯一需要拦截的模块加载期副作用是 `lib/redis` 会立即发起连接。
+ * 不订阅事件总线。需要拦截的外部依赖有两类：模块加载期就发起连接的 `lib/redis`，
+ * 以及请求期被中间件栈同步读取的数据库（`maintenanceMiddleware` 挂在 `/api/*` 上，
+ * 每个请求——包括取 OpenAPI 文档本身——都会去查 `system_configs`）。
  *
  * 用法（`vi.doMock` 不会被提升，专用于影响后续的动态 import）：
  *
@@ -59,6 +61,12 @@ export function mockServerInfra(): void {
   // 放任不管会留下重连句柄，导致 vitest 无法退出。
   vi.doMock('../lib/redis', () => ({ default: createRedisStub(), closeRedis: vi.fn() }));
 
+  // db 必须一并拦截：maintenanceMiddleware 挂在 '/api/*' 上，每个请求都会
+  // getConfigValue() 去查 system_configs。CI 没有 PostgreSQL，查询抛错后被全局
+  // onError 兜成 500，连 /api/openapi.json 都取不到——整个套件在装配阶段就失败。
+  // 契约测试校验的是路由声明面而非数据行为，因此给一个「查不到任何数据」的替身即可。
+  vi.doMock('../db', () => ({ db: createDbStub() }));
+
   // ops 域（docker / ssh / 进程管理）会真的起子进程。契约测试只发无凭证请求，
   // 正常情况下会被 authMiddleware 挡在处理器之前；但一旦真的存在漏挂认证的路由，
   // 处理器就会被执行——这正是要检测的缺陷，同时必须保证它不会在 CI 上起进程。
@@ -71,6 +79,39 @@ export function mockServerInfra(): void {
     fork: vi.fn(),
     default: {},
   }));
+}
+
+/**
+ * 一个「查不到任何数据」的 drizzle 替身。
+ *
+ * drizzle 的查询构造器是链式且 thenable 的（`db.select().from(t).where(w).limit(1)`
+ * 可直接 await），链条形态在 267 个路由文件里千变万化，逐个列举不现实。
+ * 这里用代理让任意属性访问都返回可继续链式调用的构造器，await 时按**链尾方法名**
+ * 决定返回值：`findFirst` 语义上是单行，必须给 `undefined`，给 `[]` 会被调用方
+ * 当成「查到了」（空数组是真值），进而走进本不该走的分支。
+ */
+function createDbStub(): Record<string, unknown> {
+  const makeBuilder = (lastProp: string): unknown => new Proxy(function noop() {} as object, {
+    get(_target, prop: string) {
+      if (prop === 'then') {
+        const value = lastProp === 'findFirst' ? undefined : [];
+        return (resolve: (v: unknown) => unknown) => resolve(value);
+      }
+      return makeBuilder(prop);
+    },
+    apply: () => makeBuilder(lastProp),
+  });
+
+  const db: Record<string, unknown> = new Proxy({}, {
+    get(_target, prop: string) {
+      if (prop === 'then') return undefined; // 避免 db 本身被当成 thenable
+      // 事务回调必须真的被执行，否则包在事务里的处理器会静默跳过整段逻辑
+      if (prop === 'transaction') return async (cb: (tx: unknown) => unknown) => cb(db);
+      if (prop === '$count') return async () => 0;
+      return makeBuilder(prop);
+    },
+  });
+  return db;
 }
 
 /**
