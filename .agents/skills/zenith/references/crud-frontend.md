@@ -218,6 +218,7 @@ import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { useDictItems } from '@/hooks/useDictItems';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
+import { confirmDelete } from '@/utils/confirm';
 import { useDeleteXxxs, useSaveXxx, useXxxDetail, useXxxList, xxxKeys } from '@/hooks/queries/xxxs';
 import type { Xxx } from '@zenith/shared/{业务域}';
 
@@ -396,7 +397,7 @@ export default function XxxPage() {
           label: '删除',
           danger: true,
           onClick: () => {
-            Modal.confirm({
+            confirmDelete({
               title: '确定要删除吗？',
               content: '删除后不可恢复',
               onOk: () => handleDelete(record.id),
@@ -741,6 +742,29 @@ onSelect={(deptId) => applySearch({ ...draftParams, departmentId: deptId })}
 **禁止**为这类场景去暴露/调用 `submittedParams` 的裸 setter——那会绕过页码重置与失效，
 正是「点了筛选但列表没刷新」这类问题的来源。
 
+### 危险操作确认
+
+破坏性操作（删除、清空、彻底移除、重置密钥、撤销令牌、截断表、终止流程…）
+统一用 `@/utils/confirm`，**禁止**手写 `okButtonProps: { type: 'danger', theme: 'solid' }`：
+
+```ts
+import { confirmDanger, confirmDelete } from '@/utils/confirm';
+
+// 删除：默认标题「确定要删除吗？」
+confirmDelete({ onOk: () => handleDelete(row.id) });
+
+// 删除：指明对象的具体文案（优先，比通用文案更能防误操作）
+confirmDelete({ title: '确定要删除该标签吗？', content: '删除后不可恢复', onOk });
+
+// 其它破坏性操作
+confirmDanger({ title: `重置「${name}」的签名密钥？`, content: '旧密钥将立即失效', onOk });
+```
+
+- 两者都会注入红色实心确认按钮；漏写这条样式，「确定删除」与「确定提交」在用户眼里是同一个按钮
+- 除按钮样式外所有选项原样透传给 `Modal.confirm`，**文案不做统一**
+- 需要弱化样式时可覆盖：`confirmDanger({ ..., okButtonProps: { theme: 'borderless' } })`
+- **非破坏性确认**（提交、发布、启用、退出、导出…）继续用原生 `Modal.confirm`，不加 danger
+
 ### 权限控制
 
 ```tsx
@@ -764,10 +788,9 @@ const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
 
 // 2. 批量删除 handler
 const handleBatchDelete = () => {
-  Modal.confirm({
+  confirmDelete({
     title: `确认删除选中的 ${selectedRowKeys.length} 条记录？`,
     content: '删除后无法恢复，请谨慎操作。',
-    okButtonProps: { type: 'danger', theme: 'solid' },
     onOk: async () => {
       await deleteMutation.mutateAsync(selectedRowKeys);
       Toast.success('批量删除成功');

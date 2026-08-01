@@ -94,6 +94,14 @@
   **禁止**为此暴露 `submittedParams` 的裸 setter，那会绕过页码重置与失效。
   额外副作用（如查询后清空已选中行）用 `onSearch` / `onReset` 选项。写法见
   [crud-frontend.md 搜索参数与分页联动](./crud-frontend.md)
+- **危险操作确认**（Step 8）：破坏性操作（删除、清空、彻底移除、重置密钥、撤销令牌、截断表、
+  终止流程…）统一用 `packages/web/src/utils/confirm.ts` 的 `confirmDelete` / `confirmDanger`，
+  **禁止**手写 `Modal.confirm({ ..., okButtonProps: { type: 'danger', theme: 'solid' } })`——
+  漏写这条样式时确认按钮会渲染成与「确定提交」无异的蓝色主按钮。
+  `confirmDelete` 仅比 `confirmDanger` 多一个默认标题「确定要删除吗？」；
+  **文案不做统一**，指明删除对象的具体文案（`'确定要删除该标签吗？'`）比通用文案更能防误操作。
+  **非破坏性确认**（提交、发布、启用、退出、导出…）继续用原生 `Modal.confirm`，不加 danger。
+  写法见 [crud-frontend.md 危险操作确认](./crud-frontend.md)
 - **操作列创建**（Step 8）：所有表格操作列通过 `packages/web/src/components/ResponsiveTableActions.tsx` 的 `createOperationColumn` 创建；该工具统一处理 `fixed: 'right'`、列设置不可隐藏、移动端列宽收窄和更多菜单
 - **状态列固定**（Step 8）：状态列必须紧靠操作列左侧，并同样设置 `fixed: 'right'`
 - **搜索栏布局**（Step 8）：搜索区统一使用 `SearchToolbar`（`packages/web/src/components/SearchToolbar.tsx`）。筛选/操作较多时必须使用结构化模式（`primary` / `filters` / `actions`，必要时用 `mobilePrimary` / `mobileFilters` / `mobileActions` 覆盖移动端）；移动端至少露出一个高频搜索/筛选项（优先关键词，无关键词时选区分度最高的筛选项）、查询与新增，其余筛选进底部抽屉、低频操作进更多菜单。写法见 [crud-frontend.md 完整页面模板](./crud-frontend.md)，参考 `packages/web/src/pages/system/positions/PositionsPage.tsx`
