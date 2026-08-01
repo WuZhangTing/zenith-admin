@@ -50,7 +50,7 @@ describe('CMS resource governance', () => {
   });
 
   it('owner 写入与引用重建在同一事务内完成（索引不会漂移）', async () => {
-    const source = await readFile(new URL('./cms-contents.service.ts', import.meta.url), 'utf8');
+    const source = await readFile(new URL('./cms-contents-ops.service.ts', import.meta.url), 'utf8');
     expect(source).toContain('syncCmsResourceRefs(tx,');
     expect(source).toContain('deleteCmsResourceRefsForOwner(tx,');
   });
@@ -102,9 +102,9 @@ describe('CMS resource governance', () => {
   });
 
   it('跨站分发把素材登记到目标站再改写句柄，避免来源站删除后断图', async () => {
-    const source = await readFile(new URL('./cms-distributions.service.ts', import.meta.url), 'utf8');
+    const source = await readFile(new URL('./cms-distributions-sync.service.ts', import.meta.url), 'utf8');
     expect(source).toContain('adoptCmsResourcesIntoSite');
-    const batch = await readFile(new URL('./cms-contents.service.ts', import.meta.url), 'utf8');
+    const batch = await readFile(new URL('./cms-contents-ops.service.ts', import.meta.url), 'utf8');
     expect(batch).toContain('adoptCmsResourcesIntoSite');
   });
 
@@ -114,14 +114,14 @@ describe('CMS resource governance', () => {
    * 回退成来源站句柄，来源站删除时目标站封面集体变空。
    */
   it('跨站复制覆盖内容的全部素材字段（不只是正文与扩展字段）', async () => {
-    const dist = await readFile(new URL('./cms-distributions.service.ts', import.meta.url), 'utf8');
+    const dist = await readFile(new URL('./cms-distributions-sync.service.ts', import.meta.url), 'utf8');
     // 增量同步：整个 patch（含 coverImage/mediaData/externalLink/sourceUrl）先跨站登记
     expect(dist).toMatch(/adoptCmsResourcesIntoSite\(\s*db,\s*rule\.targetSiteId,\s*updatePatch\(/);
     // 首次物化：六个字段都取自登记结果
     for (const field of ['coverImage: media.coverImage', 'mediaData: media.mediaData', 'body: media.body', 'extend: media.extend', 'externalLink: media.externalLink', 'sourceUrl: media.sourceUrl']) {
       expect(dist).toContain(field);
     }
-    const contents = await readFile(new URL('./cms-contents.service.ts', import.meta.url), 'utf8');
+    const contents = await readFile(new URL('./cms-contents-ops.service.ts', import.meta.url), 'utf8');
     for (const field of ['coverImage: media.coverImage', 'mediaData: media.mediaData', 'sourceUrl: media.sourceUrl', 'externalLink: media.externalLink']) {
       expect(contents).toContain(field);
     }

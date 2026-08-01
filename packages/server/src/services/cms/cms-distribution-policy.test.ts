@@ -80,7 +80,7 @@ describe('CMS governed distribution policy', () => {
   });
 
   it('wires ACL, sanitizer, locks, revision fence, task items and publish outbox semantics', async () => {
-    const source = await readFile(new URL('./cms-distributions.service.ts', import.meta.url), 'utf8');
+    const source = await readFile(new URL('./cms-distributions-sync.service.ts', import.meta.url), 'utf8');
     expect(source).toContain('assertSiteAccess(rule.sourceSiteId)');
     expect(source).toContain('assertSiteAccess(rule.targetSiteId)');
     expect(source).toContain('assertChannelAccess(rule.targetChannelId)');

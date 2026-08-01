@@ -1,0 +1,42 @@
+import { useEffect } from 'react';
+import { request } from '@/utils/request';
+import type { ChatConversation, ChatGroupMember } from '@zenith/shared/chat';
+import type { GroupAvatarMap, Setter } from '../types';
+
+/** 群聊九宫格头像成员缓存补齐（自 ChatPage 原样搬移） */
+export function useGroupAvatars({
+  conversations, groupAvatarMap, setGroupAvatarMap, refreshGroupAvatarMembers,
+}: {
+  conversations: ChatConversation[];
+  groupAvatarMap: GroupAvatarMap;
+  setGroupAvatarMap: Setter<GroupAvatarMap>;
+  refreshGroupAvatarMembers: (conversationId: number) => Promise<void>;
+}) {
+  useEffect(() => {
+    const groupIds = conversations.filter((c) => c.type === 'group').map((c) => c.id);
+    const missingIds = groupIds.filter((id) => !groupAvatarMap[id]);
+    if (missingIds.length === 0) return;
+
+    let cancelled = false;
+    void Promise.all(
+      missingIds.map(async (id) => {
+        const res = await request.get<ChatGroupMember[]>(`/api/chat/conversations/${id}/members`, { silent: true });
+        return [id, (res.code === 0 && res.data ? res.data : []).slice(0, 9)] as const;
+      }),
+    ).then((entries) => {
+      if (cancelled) return;
+      const toAvatarMember = (m: ChatGroupMember) => ({ id: m.id, nickname: m.nickname, avatar: m.avatar });
+      setGroupAvatarMap((prev) => {
+        const next = { ...prev };
+        for (const [id, members] of entries) {
+          next[id] = members.map(toAvatarMember);
+        }
+        return next;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [conversations, groupAvatarMap, refreshGroupAvatarMembers]);
+}

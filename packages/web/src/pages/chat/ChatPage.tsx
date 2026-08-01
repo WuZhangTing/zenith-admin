@@ -1,33 +1,23 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { AppModal } from '@/components/AppModal';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Input, Button, Badge, Typography, Empty, Spin, Toast, Tooltip, Tag, Select, DatePicker, Dropdown, ImagePreview, Popover, Progress, Switch, List as SemiList, Tabs, TabPane } from '@douyinfe/semi-ui';
+import { Input, Button, Badge, Typography, Empty, Spin, Toast, Tooltip, ImagePreview, List as SemiList } from '@douyinfe/semi-ui';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 
-// Virtuoso 中支持 prepend（向前加载历史消息）需要预留的虚拟 index 起点
-const VIRTUOSO_FIRST_INDEX_BUFFER = 10000;
-import data from '@emoji-mart/data';
-import Picker from '@emoji-mart/react';
-import { Search, MessageSquarePlus, Send, CornerDownLeft, Smile, ImagePlus, MoreHorizontal, Pin, PinOff, Star, X, Paperclip, Bookmark, History, Forward, Trash2, BellOff, Images, AlertCircle, ArrowLeft, ExternalLink, BarChart3, MessageSquare, Eye, Download, Mic, Bell, Phone, Video, Compass, BadgeCheck, Archive, ArchiveRestore, ChevronRight } from 'lucide-react';
-import { useWebSocket, sendWsMessage, useWsConnected } from '@/hooks/useWebSocket';
+import { Search, MessageSquarePlus, Send, CornerDownLeft, Smile, ImagePlus, MoreHorizontal, X, Paperclip, Bookmark, History, Images, ArrowLeft, ExternalLink, BarChart3, Download, Mic, Phone, Video, Compass, BadgeCheck } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { request } from '@/utils/request';
-import { formatDateTime, formatConvTime, formatDateTimeForApi } from '@/utils/date';
-import { formatFileSize, getFileTypeIcon, fetchManagedFileBlob, canPreviewFile, isSpreadsheetFile } from '@/utils/file-utils';
+import { fetchManagedFileBlob, canPreviewFile, isSpreadsheetFile } from '@/utils/file-utils';
 import FilePreviewModal from '@/components/FilePreviewModal';
-import type { ChatConversation, ChatMessage, ChatLinkPreview, ChatAssetMeta, ChatMessageExtra, ChatGroupMember, ChatMessageSearchItem, ChatMessageSearchResult, ChatMessageContext, ChatVoteData, ChatReadState, ChatPresence, ChatCardAction } from '@zenith/shared/chat';
+import type { ChatConversation, ChatMessage, ChatMessageExtra, ChatGroupMember, ChatMessageSearchItem, ChatMessageContext, ChatReadState } from '@zenith/shared/chat';
 import type { Channel } from '@zenith/shared/messaging';
-import type { WsMessage } from '@zenith/shared/platform';
 import {
-  extractFirstUrl, getFileExtension, getAssetMeta, getMessageSummary, shouldDisplayMessageTime,
-  getImageDimensions,
+  shouldDisplayMessageTime,
 } from './utils';
 import './ChatPage.css';
-import type { ChatUser, PendingImage, PendingFile, SearchDatePreset, FailedMessage, UploadingItem, MessageReadReceipt } from './types';
-import { CHAT_MESSAGE_TYPE_OPTIONS } from './types';
+import type { PendingImage, PendingFile, SearchDatePreset, FailedMessage, UploadingItem } from './types';
 import { UserAvatar } from '@/components/UserAvatar';
-import { GroupGridAvatar } from './components/GroupGridAvatar';
 import { NewChatPanel } from './components/NewChatPanel';
 import { GroupMembersPanel } from './components/GroupMembersPanel';
 import { ForwardModal } from './components/ForwardModal';
@@ -36,114 +26,62 @@ import { VotePollModal } from './components/VotePollModal';
 import { MessageBubble } from './components/MessageBubble';
 import { ChannelMessageView } from './components/ChannelMessageView';
 import { ComposerExtras } from './components/ComposerExtras';
-import { StickerPanel } from './components/StickerPanel';
 import { JoinInviteModal } from './components/JoinInviteModal';
 
-import { MessageContent } from './components/MessageContent';
 import WorkflowApprovalDetailSheet from '@/components/workflow/WorkflowApprovalDetailSheet';
-import { useVoiceRecorder } from './useVoiceRecorder';
 import { getChatNotifyPrefs, setChatNotifyPrefs } from './notifyPrefs';
 import { usePermission } from '@/hooks/usePermission';
-import { callManager } from '@/webrtc/useCallManager';
 import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
-import { useDiscoverableChannels, chatKeys, useAddChatCustomEmoji, useChatAnnouncementHistory, useChatGroupMembers, useDeleteChatAnnouncementHistory } from '@/hooks/queries/chat';
-import type { ChatCustomEmoji } from '@zenith/shared/chat';
-import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { confirmDelete } from '@/utils/confirm';
+import { useAddChatCustomEmoji, useChatGroupMembers } from '@/hooks/queries/chat';
+import type { LeftListItem } from './types';
+import {
+  VIRTUOSO_FIRST_INDEX_BUFFER, computeLeftListModel, createComposerKeyDownHandler, getReplyPreviewText,
+  getRootStyle, markCardDoneLocal, markConversationReadById,
+} from './utils-state';
+import { useOverlayDismiss } from './hooks/useOverlayDismiss';
+import { useExportChat } from './hooks/useExportChat';
+import { useChannelsAndDiscover } from './hooks/useChannelsAndDiscover';
+import { useImagePreview } from './hooks/useImagePreview';
+import { useConversationExtras } from './hooks/useConversationExtras';
+import { useCardAndCall } from './hooks/useCardAndCall';
+import { useMessagesLoader } from './hooks/useMessagesLoader';
+import { useChatDrafts } from './hooks/useChatDrafts';
+import { useConversationSelection } from './hooks/useConversationSelection';
+import { useSendMedia } from './hooks/useSendMedia';
+import { useComposerActions } from './hooks/useComposerActions';
+import { useMessageActions } from './hooks/useMessageActions';
+import { useConversationSearch } from './hooks/useConversationSearch';
+import { useMediaLibrary } from './hooks/useMediaLibrary';
+import { useChatWebSocket } from './hooks/useChatWebSocket';
+import { useGroupAvatars } from './hooks/useGroupAvatars';
+import { ArchiveToggle } from './components/ArchiveToggle';
+import { LeftListRow } from './components/LeftListRow';
+import { FavoriteListRow } from './components/FavoriteListRow';
+import { GlobalSearchPane } from './components/GlobalSearchPane';
+import { LeftPaneContextMenu } from './components/LeftPaneContextMenu';
+import { ChatConvTitle } from './components/ChatConvTitle';
+import { NotifySettingsPopover } from './components/NotifySettingsPopover';
+import { UploadingFooter } from './components/UploadingFooter';
+import { MessagesListHeader } from './components/MessagesListHeader';
+import { FailedMessagesList } from './components/FailedMessagesList';
+import { MediaPanel } from './components/MediaPanel';
+import { AnnouncementHistoryModal } from './components/AnnouncementHistoryModal';
+import { MultiSelectActionBar } from './components/MultiSelectActionBar';
+import { PendingAttachments } from './components/PendingAttachments';
+import { ComposerEmojiPicker } from './components/ComposerEmojiPicker';
+import { MentionPopup } from './components/MentionPopup';
+import { TypingIndicator } from './components/TypingIndicator';
+import { DiscoverChannelsModal } from './components/DiscoverChannelsModal';
+import { ReactionPickerOverlay } from './components/ReactionPickerOverlay';
+import { FavoriteMessageModal } from './components/FavoriteMessageModal';
+import { MessageSearchModal } from './components/MessageSearchModal';
+import { WsDisconnectedBanner } from './components/WsDisconnectedBanner';
 
 const { Text, Title } = Typography;
 
 /** 稳定空数组：避免群成员查询无数据时每次渲染都产出新引用 */
 const EMPTY_GROUP_MEMBERS: ChatGroupMember[] = [];
-const EMPTY_ANNOUNCEMENT_HISTORY: ChatMessage[] = [];
-
-/** 左侧会话列表项：频道与会话合并后的统一条目（仿微信，按消息时间混排） */
-type LeftListItem =
-  | { kind: 'channel'; sortTime: number; pinned: boolean; channel: Channel }
-  | { kind: 'conv'; sortTime: number; pinned: boolean; conv: ChatConversation };
-
-const ONLINE_DOT_STYLE: React.CSSProperties = {
-  position: 'absolute', insetInlineEnd: -1, bottom: -1, width: 10, height: 10, borderRadius: '50%',
-  background: 'var(--semi-color-success)', border: '2px solid var(--semi-color-bg-1)', boxSizing: 'border-box',
-};
-
-/** 给头像叠加在线小绿点 */
-function PresenceAvatar({ online, children }: Readonly<{ online: boolean; children: React.ReactNode }>) {
-  return (
-    <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
-      {children}
-      {online && <span style={ONLINE_DOT_STYLE} />}
-    </span>
-  );
-}
-
-/** 在线/最近在线文案：lastSeen 为 'YYYY-MM-DD HH:mm:ss' */
-function formatPresenceText(online: boolean, lastSeen: string | null | undefined): string {
-  if (online) return '在线';
-  if (!lastSeen) return '离线';
-  return `最近在线 ${lastSeen.slice(5, 16)}`;
-}
-
-function getNextMentionUnread(
-  current: boolean | undefined,
-  isOwnMsg: boolean,
-  shouldAutoRead: boolean,
-  mentionedMe: boolean,
-) {
-  if (isOwnMsg) return current ?? false;
-  if (shouldAutoRead) return false;
-  return Boolean(current || mentionedMe);
-}
-
-// 模块级 state updater 工厂，避免组件内函数嵌套超过 4 层
-const removeMessageById = (id: number) => (prev: ChatMessage[]) => prev.filter((m) => m.id !== id);
-const removeUploadingItemById = (id: string) => (prev: import('./types').UploadingItem[]) => prev.filter((u) => u.id !== id);
-const updateUploadingProgress = (id: string, percent: number) =>
-  (prev: import('./types').UploadingItem[]) => prev.map((u) => (u.id === id ? { ...u, progress: percent } : u));
-function makeProgressHandler(
-  id: string,
-  setItems: React.Dispatch<React.SetStateAction<import('./types').UploadingItem[]>>,
-) {
-  return (percent: number) => { setItems(updateUploadingProgress(id, percent)); };
-}
-
-const getReplyPreviewText = (m: ChatMessage): string => {
-  if (m.type === 'image') return '[图片]';
-  if (m.type === 'file') return `[文件] ${getAssetMeta(m)?.name ?? ''}`;
-  if (m.type === 'voice') return '[语音]';
-  if (m.type === 'card') return `[卡片] ${m.extra?.card?.title ?? ''}`.trim();
-  return m.content;
-};
-const removeMessagesByIds = (ids: Set<number>) => (prev: ChatMessage[]) => prev.filter((m) => !ids.has(m.id));
-const setMessageReactions = (messageId: number, reactions: ChatMessage['reactions']) =>
-  (prev: ChatMessage[]) => prev.map((m) => (m.id === messageId ? { ...m, reactions } : m));
-const recallMessageById = (messageId: number) =>
-  (prev: ChatMessage[]) => prev.map((m) => (m.id === messageId ? { ...m, isRecalled: true, content: '消息已撤回' } : m));
-const setMessageVoteData = (messageId: number, voteData: ChatVoteData) =>
-  (prev: ChatMessage[]) => prev.map((m) => (m.id === messageId ? { ...m, extra: { ...m.extra, voteData } } : m));
-
-const removeConversationById = (convId: number) => (prev: ChatConversation[]) => prev.filter((c) => c.id !== convId);
-const markConversationReadById = (convId: number) =>
-  (prev: ChatConversation[]) => prev.map((c) => (c.id === convId ? { ...c, unreadCount: 0, hasMentionUnread: false } : c));
-const sortConversations = (a: ChatConversation, b: ChatConversation) => {
-  if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
-  const ta = a.lastMessage?.createdAt ?? a.createdAt;
-  const tb = b.lastMessage?.createdAt ?? b.createdAt;
-  return tb.localeCompare(ta);
-};
-const togglePinAndSort = (convId: number, isPinned: boolean) => (prev: ChatConversation[]) => {
-  const updated = prev.map((c) => (c.id === convId ? { ...c, isPinned: !isPinned } : c));
-  updated.sort(sortConversations);
-  return updated;
-};
-const toggleConvStarred = (convId: number, isStarred: boolean) =>
-  (prev: ChatConversation[]) => prev.map((c) => (c.id === convId ? { ...c, isStarred: !isStarred } : c));
-const toggleConvMuted = (convId: number, isMuted: boolean) =>
-  (prev: ChatConversation[]) => prev.map((c) => (c.id === convId ? { ...c, isMuted: !isMuted } : c));
-
-const removeFailedMessageById = (id: string) =>
-  (prev: FailedMessage[]) => prev.filter((m) => m.id !== id);
 
 export interface ChatPageProps {
   variant?: 'page' | 'quick';
@@ -297,65 +235,17 @@ export default function ChatPage({
   const wsHasConnectedRef = useRef(false);
   const wsDisconnectedSinceReadyRef = useRef(false);
 
-  // 点击 emoji 选择器外部时关闭
-  useEffect(() => {
-    if (!emojiVisible) return;
-    const handler = (e: MouseEvent) => {
-      const target = e.target as Node;
-      const inButton = emojiContainerRef.current?.contains(target);
-      const inPicker = emojiPickerRef.current?.contains(target);
-      if (!inButton && !inPicker) setEmojiVisible(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [emojiVisible]);
-
-  // 点击 reaction picker 外部时关闭
-  useEffect(() => {
-    if (!reactionPickerVisible) return;
-    const handler = (e: MouseEvent) => {
-      if (reactionPickerRef.current && !reactionPickerRef.current.contains(e.target as Node)) {
-        setReactionPickerVisible(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [reactionPickerVisible]);
-
-  useEffect(() => {
-    pendingImagesRef.current = pendingImages;
-  }, [pendingImages]);
-
-  useEffect(() => () => {
-    pendingImagesRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
-  }, []);
+  useOverlayDismiss({
+    emojiVisible, setEmojiVisible, emojiContainerRef, emojiPickerRef, reactionPickerVisible, setReactionPickerVisible,
+    reactionPickerRef, pendingImages, pendingImagesRef,
+  });
 
   const { user: authUser } = useAuth();
   const currentUserId = authUser?.id ?? null;
   const currentUserNickname = authUser?.nickname ?? authUser?.username ?? '我';
   const { hasPermission } = usePermission();
 
-  // 导出当前会话聊天记录（走导出中心，xlsx 同步下载）
-  const [exportingChat, setExportingChat] = useState(false);
-  const handleExportChat = useCallback(async (convId: number) => {
-    setExportingChat(true);
-    try {
-      const res = await request.post<{ job: { id: number; status: string; fileId: string | null; filename: string | null }; mode: string }>('/api/export-jobs', {
-        entity: 'chat.messages', format: 'xlsx', query: { conversationId: convId }, raw: false, watermark: true, executionMode: 'sync',
-      });
-      if (res.code !== 0) return;
-      if (!res.data) { Toast.error('导出失败'); return; }
-      const { job, mode } = res.data;
-      if (job.status === 'success' && job.fileId) {
-        await request.download(`/api/export-jobs/${job.id}/download`, job.filename ?? '聊天记录.xlsx');
-        Toast.success('导出完成');
-        return;
-      }
-      Toast.success(mode === 'async' ? '导出任务已提交，可在导出中心查看进度' : '导出任务已创建');
-    } finally {
-      setExportingChat(false);
-    }
-  }, []);
+  const { exportingChat, handleExportChat } = useExportChat();
 
   const activeConv = conversations.find((c) => c.id === activeConvId) ?? null;
   const activeChannel = channels.find((c) => c.id === activeChannelId) ?? null;
@@ -441,63 +331,13 @@ export default function ChatPage({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConv?.type, activeGroupMembers, currentUserId, mentionState]);
 
-  const fetchConversations = useCallback(async () => {
-    setLoadingConvs(true);
-    const res = await request.get<ChatConversation[]>('/api/chat/conversations', { silent: true });
-    setLoadingConvs(false);
-    if (res.code === 0 && res.data) setConversations(res.data);
-  }, []);
-
-  useEffect(() => { void fetchConversations(); }, [fetchConversations]);
-
-  const fetchChannels = useCallback(async () => {
-    const res = await request.get<Channel[]>('/api/channels/mine', { silent: true });
-    if (res.code === 0 && res.data) setChannels(res.data);
-  }, []);
-
-  useEffect(() => { void fetchChannels(); }, [fetchChannels]);
-
-  const handleUnsubscribeChannel = useCallback(async (ch: Channel) => {
-    const res = await request.delete(`/api/channels/${ch.id}/subscribe`);
-    if (res.code === 0) {
-      Toast.success('已退订');
-      setActiveChannelId(null);
-      void fetchChannels();
-    }
-  }, [fetchChannels]);
-
-  const loadDiscoverList = useCallback(async (keyword: string) => {
-    setDebouncedDiscoverKeyword(keyword.trim());
-  }, []);
-
-  const openDiscover = useCallback(() => {
-    setDiscoverKeyword('');
-    setDebouncedDiscoverKeyword('');
-    setDiscoverVisible(true);
-  }, []);
-
-  // 发现频道搜索：打开时立即加载，输入关键词时 300ms 防抖重新加载
-  useEffect(() => {
-    if (!discoverVisible) return;
-    const handler = setTimeout(() => { void loadDiscoverList(discoverKeyword); }, discoverKeyword.trim() ? 300 : 0);
-    return () => clearTimeout(handler);
-  }, [discoverVisible, discoverKeyword, loadDiscoverList]);
-
-  const discoverableChannelsQuery = useDiscoverableChannels(
-    { keyword: debouncedDiscoverKeyword || undefined },
-    discoverVisible,
-  );
-  const { data: discoverableChannels, refetch: refetchDiscoverableChannels } = discoverableChannelsQuery;
-  const discoverList = discoverableChannels ?? [];
-
-  const handleSubscribeChannel = useCallback(async (ch: Channel) => {
-    const res = await request.post(`/api/channels/${ch.id}/subscribe`, {});
-    if (res.code === 0) {
-      Toast.success('已订阅');
-      void refetchDiscoverableChannels();
-      void fetchChannels();
-    }
-  }, [fetchChannels, refetchDiscoverableChannels]);
+  const {
+    fetchConversations, handleUnsubscribeChannel, openDiscover, discoverList,
+    handleSubscribeChannel,
+  } = useChannelsAndDiscover({
+    discoverVisible, discoverKeyword, debouncedDiscoverKeyword, setLoadingConvs, setConversations, setChannels,
+    setActiveChannelId, setDiscoverKeyword, setDebouncedDiscoverKeyword, setDiscoverVisible,
+  });
 
   // 初始化时从 localStorage 加载所有草稿
   useEffect(() => {
@@ -550,164 +390,18 @@ export default function ChatPage({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isQuick]);
 
-  const cleanupPreviewBlobs = useCallback(() => {
-    previewBlobUrlsRef.current.forEach((u) => { if (u) URL.revokeObjectURL(u); });
-    previewBlobUrlsRef.current = [];
-  }, []);
+  const { cleanupPreviewBlobs, openImagePreview } = useImagePreview({
+    previewSessionRef, previewBlobUrlsRef, setPreviewSrcList, setPreviewCurrentIndex, setPreviewVisible,
+  });
 
-  const openImagePreview = useCallback(async (clickedMsg: ChatMessage, allImgs: ChatMessage[]) => {
-    const session = ++previewSessionRef.current;
-    const clickedIndex = allImgs.findIndex((m) => m.id === clickedMsg.id);
-    if (clickedIndex < 0) return;
-    cleanupPreviewBlobs();
-    try {
-      const clickedBlob = await fetchManagedFileBlob(clickedMsg.content);
-      if (previewSessionRef.current !== session) return;
-      const clickedUrl = URL.createObjectURL(clickedBlob);
-      previewBlobUrlsRef.current[clickedIndex] = clickedUrl;
-      const initialUrls = allImgs.map((_, i) => (i === clickedIndex ? clickedUrl : ''));
-      setPreviewSrcList([...initialUrls]);
-      setPreviewCurrentIndex(clickedIndex);
-      setPreviewVisible(true);
-      // 后台加载其余图片
-      for (const [i, imgMsg] of allImgs.entries()) {
-        if (i === clickedIndex) continue;
-        try {
-          const blob = await fetchManagedFileBlob(imgMsg.content);
-          if (previewSessionRef.current !== session) break;
-          const url = URL.createObjectURL(blob);
-          previewBlobUrlsRef.current[i] = url;
-          setPreviewSrcList((prev) => { const copy = [...prev]; copy[i] = url; return copy; });
-        } catch { /* skip failed */ }
-      }
-    } catch { Toast.error('图片加载失败'); }
-  }, [cleanupPreviewBlobs]);
-
-  const fetchPinnedMessages = useCallback(async (convId: number) => {
-    const res = await request.get<ChatMessage[]>(`/api/chat/conversations/${convId}/pinned-messages`, { silent: true });
-    if (res.code === 0 && res.data) setPinnedMessages(res.data);
-  }, []);
-
-  const fetchFavoriteMessages = useCallback(async () => {
-    const res = await request.get<{ list: ChatMessage[] }>(`/api/chat/favorite-messages?page=1&pageSize=100`, { silent: true });
-    if (res.code === 0 && res.data) setFavoriteMessages(res.data.list);
-  }, []);
-
-  // 群公告历史是抽屉打开时才需要的非实时数据，交给 Query 持有：
-  // 删除后由 mutation 失效，无需在页面里手工维护数组
-  const announcementHistoryQuery = useChatAnnouncementHistory(
-    activeConvId ?? undefined,
-    announcementHistoryVisible,
-  );
-  const announcementHistory = announcementHistoryQuery.data ?? EMPTY_ANNOUNCEMENT_HISTORY;
-  const deleteAnnouncementHistoryMutation = useDeleteChatAnnouncementHistory();
-
-  const isOwnerOfActiveGroup = useMemo(() => {
-    if (!currentUserId || activeConv?.type !== 'group') return false;
-    return activeGroupMembers.some((m) => m.id === currentUserId && m.role === 'owner');
-  }, [activeConv?.type, activeGroupMembers, currentUserId]);
-
-  const handleDeleteAnnouncementHistory = useCallback((messageId: number) => {
-    if (!activeConvId) return;
-    confirmDelete({
-      title: '删除公告历史',
-      content: '确定要删除该条公告历史记录吗？此操作不可恢复。',
-      onOk: async () => {
-        await deleteAnnouncementHistoryMutation.mutateAsync({ conversationId: activeConvId, messageId });
-        Toast.success('已删除');
-      },
-    });
-  }, [activeConvId, deleteAnnouncementHistoryMutation]);
-
-  const openFavoriteMessage = useCallback(async (message: ChatMessage) => {
-    const res = await request.get<ChatMessageContext>(
-      `/api/chat/conversations/${message.conversationId}/messages/${message.id}/context?before=15&after=15`,
-      { silent: true },
-    );
-    if (res.code !== 0 || !res.data) {
-      Toast.error(res.message ?? '定位收藏消息失败');
-      return;
-    }
-    setLeftPaneMode('conversations');
-    setActiveConvId(message.conversationId);
-    setMessages(res.data.list);
-    setHasMore(res.data.hasBefore);
-    setOldestMsgId(res.data.list[0]?.id ?? null);
-    setContextMode({ anchorMessageId: res.data.anchorMessageId, keyword: '收藏消息' });
-    const anchorMessageId = res.data.anchorMessageId;
-    setTimeout(() => {
-      const el = document.getElementById(`msg-${anchorMessageId}`);
-      if (!el) return;
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      el.style.transition = 'background 0.3s ease';
-      el.style.background = 'var(--semi-color-primary-light-hover)';
-      setTimeout(() => { el.style.background = ''; }, 1200);
-    }, 80);
-  }, []);
-
-  const fetchReadStates = useCallback(async (convId: number) => {
-    const res = await request.get<ChatReadState[]>(`/api/chat/conversations/${convId}/read-states`, { silent: true });
-    if (res.code === 0 && res.data) setReadStates(res.data);
-  }, []);
-
-  const fetchPresence = useCallback(async (userIds: number[]) => {
-    const ids = [...new Set(userIds)].filter((id) => id > 0);
-    if (ids.length === 0) return;
-    const res = await request.get<ChatPresence[]>(`/api/chat/presence?userIds=${ids.join(',')}`, { silent: true });
-    if (res.code !== 0 || !res.data) return;
-    setOnlineUserIds((prev) => {
-      const next = new Set(prev);
-      for (const p of res.data!) {
-        if (p.online) next.add(p.userId);
-        else next.delete(p.userId);
-      }
-      return next;
-    });
-    setLastSeenMap((prev) => {
-      const next = { ...prev };
-      for (const p of res.data!) next[p.userId] = p.lastSeen;
-      return next;
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!activeConvId) {
-      setPinnedMessages([]);
-      setReadStates([]);
-      return;
-    }
-    void fetchPinnedMessages(activeConvId);
-    void fetchReadStates(activeConvId);
-  }, [activeConvId, fetchPinnedMessages, fetchReadStates]);
-
-  // 拉取相关用户在线状态：单聊对方 + 当前群成员
-  useEffect(() => {
-    const directIds = conversations
-      .filter((c) => c.type === 'direct' && c.targetUser)
-      .map((c) => c.targetUser!.id);
-    const groupIds = activeGroupMembers.map((m) => m.id);
-    void fetchPresence([...directIds, ...groupIds]);
-  }, [conversations, activeGroupMembers, fetchPresence]);
-
-  // 计算单条消息的已读回执（仅对自己发送的消息）
-  const computeReadReceipt = useCallback((msg: ChatMessage): MessageReadReceipt | undefined => {
-    if (!activeConv || msg.senderId !== currentUserId) return undefined;
-    if (msg.isRecalled || msg.type === 'system') return undefined;
-    const isRead = (s: ChatReadState) => !!s.lastReadAt && s.lastReadAt >= msg.createdAt;
-    if (activeConv.type === 'direct') {
-      const other = readStates[0];
-      return { kind: 'direct', read: other ? isRead(other) : false };
-    }
-    const readers = readStates.filter(isRead);
-    const unreaders = readStates.filter((s) => !isRead(s));
-    return {
-      kind: 'group',
-      readCount: readers.length,
-      total: readStates.length,
-      readers: readers.map((s) => ({ nickname: s.nickname, avatar: s.avatar })),
-      unreaders: unreaders.map((s) => ({ nickname: s.nickname, avatar: s.avatar })),
-    };
-  }, [activeConv, currentUserId, readStates]);
+  const {
+    fetchFavoriteMessages, announcementHistory, isOwnerOfActiveGroup, handleDeleteAnnouncementHistory, openFavoriteMessage,
+    computeReadReceipt,
+  } = useConversationExtras({
+    activeConvId, announcementHistoryVisible, activeConv, activeGroupMembers, currentUserId, conversations,
+    readStates, setPinnedMessages, setFavoriteMessages, setLeftPaneMode, setActiveConvId, setMessages,
+    setHasMore, setOldestMsgId, setContextMode, setReadStates, setOnlineUserIds, setLastSeenMap,
+  });
 
   const handleToggleNotifyDesktop = useCallback(async (checked: boolean) => {
     if (checked && typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
@@ -724,1112 +418,86 @@ export default function ChatPage({
     setChatNotifyPrefs({ desktop: notifyDesktop, sound: checked });
   }, [notifyDesktop]);
 
-  // ── 卡片消息动作（工作流审批 / 链接）──
-  const markCardDoneLocal = (messageId: number, statusText: string) =>
-    (prev: ChatMessage[]) => prev.map((m) =>
-      m.id === messageId && m.extra?.card
-        ? { ...m, extra: { ...m.extra, card: { ...m.extra.card, status: 'done' as const, statusText } } }
-        : m);
-
-  const handleOpenWorkflowFromCard = useCallback((instanceId: number, taskId: number | null) => {
-    setCardSheet({ instanceId, taskId, action: null });
-  }, []);
-
-  const handleCardAction = useCallback((msg: ChatMessage, action: ChatCardAction) => {
-    const instanceId = msg.extra?.card?.instanceId ?? null;
-    if (action.action === 'workflow:approve' && instanceId != null) {
-      setCardSheet({ instanceId, taskId: action.taskId ?? null, action: 'approve', messageId: msg.id });
-    } else if (action.action === 'workflow:reject' && instanceId != null) {
-      setCardSheet({ instanceId, taskId: action.taskId ?? null, action: 'reject', messageId: msg.id });
-    } else if (action.action === 'link' && action.url) {
-      if (action.url.startsWith('/')) navigate(action.url);
-      else window.open(action.url, '_blank', 'noopener,noreferrer');
-    }
-  }, [navigate]);
-
-  // ── 音视频通话 ──
-  const handleStartCall = useCallback((callType: 'audio' | 'video') => {
-    if (!activeConv) return;
-    if (activeConv.type === 'direct') {
-      const t = activeConv.targetUser;
-      if (!t) return;
-      void callManager.startDirectCall(
-        { userId: t.id, nickname: t.nickname, avatar: t.avatar ?? null },
-        activeConv.id,
-        t.nickname,
-        callType,
-      ).catch((e) => Toast.error(e instanceof Error ? e.message : '无法发起通话'));
-    } else {
-      void callManager.startGroupCall(activeConv.id, activeConv.name ?? '群通话', callType)
-        .catch((e) => Toast.error(e instanceof Error ? e.message : '无法发起通话'));
-    }
-  }, [activeConv]);
-
-  useEffect(() => {
-    if (leftPaneMode === 'favorites') {
-      void fetchFavoriteMessages();
-    }
-  }, [fetchFavoriteMessages, leftPaneMode]);
-
-  const fetchMessages = useCallback(async (convId: number, beforeId?: number): Promise<ChatMessage[] | null> => {
-    setLoadingMsgs(true);
-    const qs = beforeId ? `beforeId=${beforeId}&limit=30` : 'limit=30';
-    const res = await request.get<{ list: ChatMessage[]; hasMore: boolean }>(
-      `/api/chat/conversations/${convId}/messages?${qs}`,
-      { silent: true },
-    );
-    setLoadingMsgs(false);
-    if (res.code === 0 && res.data) {
-      const newMsgs = [...res.data.list].reverse(); // backend returns newest-first, reverse to oldest-first
-      if (beforeId) {
-        setMessages((prev) => [...newMsgs, ...prev]);
-        setOldestMsgId(newMsgs[0]?.id ?? null);
-        // Virtuoso 通过 firstItemIndex 向前偏移来保持当前视口位置不跳动
-        setFirstItemIndex((prev) => prev - newMsgs.length);
-      } else {
-        setMessages(newMsgs);
-        setOldestMsgId(newMsgs[0]?.id ?? null);
-        setPendingNewMsgCount(0);
-        setContextMode(null);
-        setFirstItemIndex(VIRTUOSO_FIRST_INDEX_BUFFER);
-      }
-      setHasMore(res.data.hasMore);
-      return newMsgs;
-    }
-    return null;
-  }, []);
-
-  const DRAFT_STORAGE_KEY = 'zenith_chat_drafts';
-
-  const saveDraft = useCallback((convId: number, text: string) => {
-    try {
-      const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
-      const drafts: Record<string, string> = raw ? (JSON.parse(raw) as Record<string, string>) : {};
-      if (text.trim()) {
-        drafts[String(convId)] = text;
-      } else {
-        delete drafts[String(convId)];
-      }
-      localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(drafts));
-      setDraftsMap((prev) => {
-        if (text.trim()) return { ...prev, [convId]: text };
-        const next = { ...prev };
-        delete next[convId];
-        return next;
-      });
-    } catch { /* ignore */ }
-  }, []);
-
-  const loadDraft = useCallback((convId: number): string => {
-    try {
-      const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
-      if (!raw) return '';
-      const drafts = JSON.parse(raw) as Record<string, string>;
-      return drafts[String(convId)] ?? '';
-    } catch {
-      return '';
-    }
-  }, []);
-
-  const handleSelectConv = useCallback(async (conv: ChatConversation) => {
-    // 保存当前会话草稿
-    if (activeConvId) saveDraft(activeConvId, input);
-    setActiveConvId(conv.id);
-    setActiveChannelId(null);
-    onConvChange?.(conv.id);
-    setReplyTo(null);
-    setSelectedMentions([]);
-    setPendingImages([]);
-    setPendingFiles([]);
-    setLeftPaneMode('conversations');
-    setAnnouncementHistoryVisible(false);
-    setShowMembers(false);
-    setShowSearchPanel(false);
-    setMsgSearch('');
-    setSearchTypeFilters([]);
-    setSearchSenderId(undefined);
-    setSearchTimeRange(null);
-    setSearchDatePreset('');
-    setSearchResults([]);
-    setSearchTotal(0);
-    setSearchPage(1);
-    setSearchHasSearched(false);
-    setContextMode(null);
-    setShowMediaPanel(false);
-    setMediaItems([]);
-    setMediaPage(1);
-    setMediaHasMore(false);
-    // 恢复目标会话草稿
-    setInput(loadDraft(conv.id));
-    const loaded = await fetchMessages(conv.id);
-    // 定位未读分隔线：unreadCount 只统计他人消息，从尾部倒推
-    if (conv.unreadCount > 0 && loaded && loaded.length > 0) {
-      let remaining = conv.unreadCount;
-      let anchorId: number | null = null;
-      for (let i = loaded.length - 1; i >= 0; i--) {
-        if (loaded[i].senderId !== currentUserId && loaded[i].senderId !== null) {
-          remaining--;
-          if (remaining === 0) { anchorId = loaded[i].id; break; }
-        }
-      }
-      // 未读数超出本页加载范围时，退化为标记在最早一条
-      setUnreadDivider({ convId: conv.id, messageId: anchorId ?? loaded[0].id });
-    } else {
-      setUnreadDivider(null);
-    }
-    await request.post(`/api/chat/conversations/${conv.id}/read`, {}, { silent: true });
-    setConversations((prev) => prev.map((c) => c.id === conv.id ? { ...c, unreadCount: 0, hasMentionUnread: false } : c));
-    setTimeout(() => virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' }), 100);
-  }, [activeConvId, currentUserId, fetchMessages, input, loadDraft, onConvChange, saveDraft]);
-
-  const handleNewDirectChat = useCallback(async (user: ChatUser) => {
-    setShowNewChat(false);
-    const res = await request.post<ChatConversation>('/api/chat/conversations/direct', { targetUserId: user.id });
-    if (res.code === 0 && res.data) {
-      await fetchConversations();
-      await handleSelectConv(res.data);
-    }
-  }, [fetchConversations, handleSelectConv]);
-
-  const handleGroupCreated = useCallback(async (conv: ChatConversation) => {
-    setShowNewChat(false);
-    await fetchConversations();
-    await handleSelectConv(conv);
-  }, [fetchConversations, handleSelectConv]);
-
-  const appendMessageOnce = useCallback((message: ChatMessage) => {
-    setMessages((prev) => (prev.some((item) => item.id === message.id) ? prev : [...prev, message]));
-    if (!showMediaPanelRef.current || message.conversationId !== activeConvIdRef.current) return;
-    const type = mediaTypeRef.current;
-    const isMediaMatch =
-      (type === 'image' && message.type === 'image') ||
-      (type === 'file' && message.type === 'file') ||
-      (type === 'link' && message.type === 'text' && (message.extra?.linkPreview || /https?:\/\//i.test(message.content)));
-    if (isMediaMatch) setMediaItems((prev) => (prev.some((m) => m.id === message.id) ? prev : [message, ...prev]));
-  }, []);
-
-  const sendFileMessage = useCallback(async (file: File, onProgress?: (percent: number) => void) => {
-    if (!activeConvId) return false;
-    const fd = new FormData();
-    fd.append('file', file);
-    const uploadRes = await request.postForm<{ id: string; url: string; originalName: string; size: number }>(
-      '/api/files/upload-one',
-      fd,
-      { onProgress, silent: true },
-    );
-    if (uploadRes.code !== 0 || !uploadRes.data) return false;
-    const { id: fileId, url, originalName, size } = uploadRes.data;
-    // 视频文件走 video 消息类型（内联播放），其余为普通文件
-    const isVideo = (file.type || '').startsWith('video/');
-    const asset: ChatAssetMeta = {
-      kind: isVideo ? 'video' : 'file',
-      name: originalName,
-      size,
-      mimeType: file.type || null,
-      extension: getFileExtension(originalName),
-      fileId,
-    };
-    const msgRes = await request.post<ChatMessage>(`/api/chat/conversations/${activeConvId}/messages`, {
-      content: url,
-      type: isVideo ? 'video' : 'file',
-      extra: { asset },
-    }, { silent: true });
-    if (msgRes.code === 0 && msgRes.data) appendMessageOnce(msgRes.data);
-    return msgRes.code === 0 && Boolean(msgRes.data);
-  }, [activeConvId, appendMessageOnce]);
-
-  // 发送收藏表情（作为图片消息）
-  const sendSticker = useCallback(async (emoji: ChatCustomEmoji) => {
-    if (!activeConvId) return;
-    const asset: ChatAssetMeta = {
-      kind: 'image',
-      name: emoji.name ?? '表情',
-      size: 0,
-      mimeType: null,
-      extension: null,
-      fileId: emoji.fileId,
-      width: emoji.width,
-      height: emoji.height,
-      thumbnailUrl: emoji.url,
-    };
-    const res = await request.post<ChatMessage>(`/api/chat/conversations/${activeConvId}/messages`, {
-      content: emoji.url,
-      type: 'image',
-      extra: { asset },
-    });
-    if (res.code === 0 && res.data) appendMessageOnce(res.data);
-    setEmojiVisible(false);
-  }, [activeConvId, appendMessageOnce]);
-
-  // 图片消息 → 收藏为自定义表情
-  const handleSaveAsEmoji = useCallback((msg: ChatMessage) => {
-    const asset = msg.extra?.asset;
-    void addEmojiMutation.mutateAsync({
-      url: msg.content,
-      fileId: asset?.fileId ?? null,
-      name: asset?.name ?? null,
-      width: asset?.width ?? null,
-      height: asset?.height ?? null,
-    }).then(() => Toast.success('已收藏为表情')).catch(() => undefined);
-  }, [addEmojiMutation]);
-
-  const handleTyping = useCallback((newValue: string) => {
-    if (!activeConvId || !currentUserId || !newValue.trim()) return;
-    if (typingThrottleRef.current) return;
-    sendWsMessage({ type: 'chat:typing', payload: { conversationId: activeConvId, userId: currentUserId, nickname: currentUserNickname } });
-    typingThrottleRef.current = setTimeout(() => { typingThrottleRef.current = null; }, 3000);
-  }, [activeConvId, currentUserId, currentUserNickname]);
-
-  const sendImageFile = useCallback(async (file: File, onProgress?: (percent: number) => void) => {
-    if (!activeConvId) return false;
-    const dimensions = await getImageDimensions(file);
-    const fd = new FormData();
-    fd.append('file', file);
-    const uploadRes = await request.postForm<{ url: string; originalName: string; size: number }>(
-      '/api/files/upload-one',
-      fd,
-      { onProgress, silent: true },
-    );
-    if (uploadRes.code !== 0 || !uploadRes.data) {
-      return false;
-    }
-    const { url, originalName, size } = uploadRes.data;
-    const asset: ChatAssetMeta = {
-      kind: 'image',
-      name: originalName,
-      size,
-      mimeType: file.type || null,
-      extension: getFileExtension(originalName),
-      width: dimensions?.width ?? null,
-      height: dimensions?.height ?? null,
-      thumbnailUrl: url,
-    };
-    const msgRes = await request.post<ChatMessage>(`/api/chat/conversations/${activeConvId}/messages`, {
-      content: url,
-      type: 'image',
-      extra: { asset },
-    }, { silent: true });
-    if (msgRes.code === 0 && msgRes.data) appendMessageOnce(msgRes.data);
-    return msgRes.code === 0 && Boolean(msgRes.data);
-  }, [activeConvId, appendMessageOnce]);
-
-  const sendVoiceMessage = useCallback(async (blob: Blob, durationSec: number, mimeType: string) => {
-    if (!activeConvId) return;
-    const ext = mimeType.includes('mp4') ? 'm4a' : (mimeType.includes('ogg') ? 'ogg' : 'webm');
-    const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: mimeType });
-    const fd = new FormData();
-    fd.append('file', file);
-    const uploadRes = await request.postForm<{ id: string; url: string; originalName: string; size: number }>(
-      '/api/files/upload-one',
-      fd,
-      { silent: true },
-    );
-    if (uploadRes.code !== 0 || !uploadRes.data) { Toast.error('语音上传失败'); return; }
-    const { id: fileId, url, size } = uploadRes.data;
-    const asset: ChatAssetMeta = {
-      kind: 'voice',
-      name: file.name,
-      size,
-      mimeType,
-      extension: ext,
-      fileId,
-      duration: Math.max(1, Math.round(durationSec)),
-    };
-    const msgRes = await request.post<ChatMessage>(`/api/chat/conversations/${activeConvId}/messages`, {
-      content: url,
-      type: 'voice',
-      extra: { asset },
-    }, { silent: true });
-    if (msgRes.code === 0 && msgRes.data) appendMessageOnce(msgRes.data);
-    else Toast.error(msgRes.code === 0 ? '语音发送失败' : (msgRes.message || '语音发送失败'));
-  }, [activeConvId, appendMessageOnce]);
-
-  const voiceRecorder = useVoiceRecorder({
-    maxSeconds: 60,
-    onStop: (blob, seconds, mimeType) => { void sendVoiceMessage(blob, seconds, mimeType); },
-    onError: (message) => Toast.warning(message),
+  const { handleOpenWorkflowFromCard, handleCardAction, handleStartCall } = useCardAndCall({
+    activeConv, navigate, setCardSheet,
   });
 
-  const fetchLinkPreview = useCallback(async (url: string): Promise<ChatLinkPreview | null> => {
-    const res = await request.get<ChatLinkPreview>(`/api/chat/link-preview?url=${encodeURIComponent(url)}`, { silent: true });
-    if (res.code === 0 && res.data) return res.data;
-    return null;
-  }, []);
+  const { fetchMessages } = useMessagesLoader({
+    leftPaneMode, fetchFavoriteMessages, setLoadingMsgs, setMessages, setOldestMsgId, setFirstItemIndex,
+    setPendingNewMsgCount, setContextMode, setHasMore,
+  });
 
-  const handleSend = useCallback(async () => {
-    if (!activeConvId || sending || (!input.trim() && pendingImages.length === 0 && pendingFiles.length === 0)) return;
+  const { saveDraft, loadDraft } = useChatDrafts({ setDraftsMap });
 
-    const content = input.trim();
-    const imagesToSend = [...pendingImages];
-    const filesToSend = [...pendingFiles];
+  const { handleSelectConv, handleNewDirectChat, handleGroupCreated, appendMessageOnce } = useConversationSelection({
+    activeConvId, input, currentUserId, onConvChange, saveDraft, loadDraft,
+    fetchMessages, fetchConversations, virtuosoRef, showMediaPanelRef, mediaTypeRef, activeConvIdRef,
+    setActiveConvId, setActiveChannelId, setReplyTo, setSelectedMentions, setPendingImages, setPendingFiles,
+    setLeftPaneMode, setAnnouncementHistoryVisible, setShowMembers, setShowSearchPanel, setMsgSearch, setSearchTypeFilters,
+    setSearchSenderId, setSearchTimeRange, setSearchDatePreset, setSearchResults, setSearchTotal, setSearchPage,
+    setSearchHasSearched, setContextMode, setShowMediaPanel, setMediaItems, setMediaPage, setMediaHasMore,
+    setInput, setUnreadDivider, setConversations, setShowNewChat, setMessages,
+  });
 
-    setInput('');
-    // 清除该会话草稿
-    saveDraft(activeConvId, '');
-    setDraftsMap((prev) => { const next = { ...prev }; delete next[activeConvId]; return next; });
-    setPendingImages([]);
-    setPendingFiles([]);
-    // 注意：image previewUrl 不在这里撤销，上传中 UI 仍需要；等每张图片上传完成后再撤销
+  const {
+    sendFileMessage, sendSticker, handleSaveAsEmoji, handleTyping, sendImageFile,
+    voiceRecorder, fetchLinkPreview,
+  } = useSendMedia({
+    activeConvId, currentUserId, currentUserNickname, appendMessageOnce, addEmojiMutation, typingThrottleRef,
+    setEmojiVisible,
+  });
 
-    // ─── 1. 文字消息（快速，短暂 loading 发送按钮）──────────────────────────
-    if (content) {
-      setSending(true);
-      const body: Record<string, unknown> = { content, type: 'text' };
-      if (replyTo) body.replyToId = replyTo.id;
-      const mentions = selectedMentions.filter((item) => content.includes(`@${item.nickname}`));
-      const extra: Record<string, unknown> = mentions.length > 0 ? { mentions } : {};
-      const firstUrl = extractFirstUrl(content);
-      if (firstUrl) {
-        const preview = await fetchLinkPreview(firstUrl);
-        if (preview) extra.linkPreview = preview;
-      }
-      if (Object.keys(extra).length > 0) body.extra = extra;
-      const res = await request.post<ChatMessage>(`/api/chat/conversations/${activeConvId}/messages`, body);
-      if (res.code !== 0) {
-        const failId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-        setFailedMessages((prev) => [...prev, { id: failId, convId: activeConvId, content }]);
-      } else if (res.data) {
-        appendMessageOnce(res.data);
-      }
-      setSending(false);
-    }
+  const {
+    handleSend, handleSelectImages, handleSelectFile, handleRemovePendingImage, handleRemovePendingFile, handleInputPaste,
+    scrollToMessage, getReplyMessage, insertMention, applyMessageUpdate,
+  } = useComposerActions({
+    activeConvId, sending, setSending, input, setInput, pendingImages,
+    setPendingImages, pendingFiles, setPendingFiles, saveDraft, setDraftsMap, replyTo,
+    setReplyTo, selectedMentions, setSelectedMentions, fetchLinkPreview, appendMessageOnce, setFailedMessages,
+    setUploadingItems, sendImageFile, sendFileMessage, setHighlightedMessageId, messages, virtuosoRef,
+    firstItemIndex, setMessages, setHasMore, setOldestMsgId, setFirstItemIndex, setContextMode,
+    mentionState, setMentionClosed, activeGroupMembers, currentUserId, inputRef, setPinnedMessages,
+    setFavoriteMessages, setConversations,
+  });
 
-    setReplyTo(null);
-    setSelectedMentions([]);
+  const {
+    handleToggleFavorite, handleTogglePinMessage, handleEditRecalled, handleToggleSelectMessage, handleExitMultiSelect, handleForwardSingle,
+    handleForwardSelected, handleForwardConfirm, handleFavoriteSelected, handleOpenForwardView, handleDeleteSingle, handleDeleteSelected,
+    handleReaction, handlePickReactionEmoji, handleCreateVote, handleVoteMessage, handleEditMessage, handleRecall,
+  } = useMessageActions({
+    activeConvId, messages, selectedMessageIds, recalledDrafts, forwardingMessageIds, forwardingMode,
+    inputRef, applyMessageUpdate, appendMessageOnce, setInput, setSelectedMentions,
+    setMultiSelectMode, setSelectedMessageIds, setForwardingMode, setForwardingMessageIds, setForwardModalVisible, setForwardViewItems,
+    setForwardViewTitle, setForwardViewVisible, setMessages, setMediaItems, setReactionTargetMsgId, setReactionPickerAnchor,
+    setReactionPickerVisible, setShowVoteModal, setRecalledDrafts,
+  });
 
-    // ─── 2. 图片/文件：立即显示上传中占位，后台非阻塞上传 ─────────────────────
-    if (imagesToSend.length > 0 || filesToSend.length > 0) {
-      const tempItems: UploadingItem[] = [
-        ...imagesToSend.map((item) => ({
-          id: `upload-img-${item.id}`,
-          type: 'image' as const,
-          name: item.file.name,
-          size: item.file.size,
-          previewUrl: item.previewUrl,
-          mimeType: item.file.type || null,
-          convId: activeConvId,
-        })),
-        ...filesToSend.map((item) => ({
-          id: `upload-file-${item.id}`,
-          type: 'file' as const,
-          name: item.file.name,
-          size: item.file.size,
-          mimeType: item.file.type || null,
-          convId: activeConvId,
-        })),
-      ];
-      setUploadingItems((prev) => [...prev, ...tempItems]);
-
-      // 后台并行上传所有图片和文件，不阻塞当前函数，不 loading 发送按钮
-      void Promise.all([
-        ...imagesToSend.map(async (item) => {
-          const uploadId = `upload-img-${item.id}`;
-          const ok = await sendImageFile(item.file, makeProgressHandler(uploadId, setUploadingItems));
-          URL.revokeObjectURL(item.previewUrl);
-          setUploadingItems(removeUploadingItemById(uploadId));
-          return ok ? null : 'image';
-        }),
-        ...filesToSend.map(async (item) => {
-          const uploadId = `upload-file-${item.id}`;
-          const ok = await sendFileMessage(item.file, makeProgressHandler(uploadId, setUploadingItems));
-          setUploadingItems(removeUploadingItemById(uploadId));
-          return ok ? null : 'file';
-        }),
-      ]).then((results) => {
-        const failedImageCount = results.filter((r) => r === 'image').length;
-        const failedFileCount = results.filter((r) => r === 'file').length;
-        const failedItems: string[] = [];
-        if (failedImageCount > 0) failedItems.push(`${failedImageCount} 张图片`);
-        if (failedFileCount > 0) failedItems.push(`${failedFileCount} 个文件`);
-        if (failedItems.length > 0) Toast.error(`有 ${failedItems.join('、')}发送失败`);
-      });
-    }
-  }, [activeConvId, appendMessageOnce, fetchLinkPreview, input, pendingFiles, pendingImages, replyTo, saveDraft, selectedMentions, sendFileMessage, sendImageFile, sending, setUploadingItems]);
-
-  const handleSelectImages = useCallback((files: File[]) => {
-    const validFiles = files.filter((file) => file.type.startsWith('image/'));
-    if (validFiles.length === 0) return;
-
-    const added = validFiles.map((file) => ({
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      file,
-      previewUrl: URL.createObjectURL(file),
-    }));
-
-    setPendingImages((prev) => [...prev, ...added]);
-  }, []);
-
-  const handleSelectFile = useCallback((files: File[]) => {
-    const nonImageFiles = files.filter((file) => !file.type.startsWith('image/'));
-    const imageFiles = files.filter((file) => file.type.startsWith('image/'));
-
-    if (nonImageFiles.length === 0 && imageFiles.length > 0) {
-      Toast.info('图片请使用“选择图片”按钮发送');
-      return;
-    }
-
-    if (nonImageFiles.length > 0) {
-      const added = nonImageFiles.map((file) => ({
-        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        file,
-      }));
-      setPendingFiles((prev) => [...prev, ...added]);
-    }
-  }, []);
-
-  const handleRemovePendingImage = useCallback((id: string) => {
-    setPendingImages((prev) => {
-      const target = prev.find((item) => item.id === id);
-      if (target) URL.revokeObjectURL(target.previewUrl);
-      return prev.filter((item) => item.id !== id);
-    });
-  }, []);
-
-  const handleRemovePendingFile = useCallback((id: string) => {
-    setPendingFiles((prev) => prev.filter((item) => item.id !== id));
-  }, []);
-
-  const handleInputPaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const items = Array.from(e.clipboardData.items ?? []);
-    const imageFiles = items
-      .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
-      .map((item) => item.getAsFile())
-      .filter((file): file is File => file !== null);
-
-    if (imageFiles.length > 0) {
-      e.preventDefault();
-      handleSelectImages(imageFiles);
-      Toast.success(`已添加 ${imageFiles.length} 张图片`);
-    }
-  }, [handleSelectImages]);
-
-  const triggerHighlight = useCallback((id: number) => {
-    setHighlightedMessageId(id);
-    setTimeout(() => {
-      setHighlightedMessageId((curr) => (curr === id ? null : curr));
-    }, 1200);
-  }, []);
-
-  const scrollToMessage = useCallback(async (id: number) => {
-    // 优先查看消息是否在当前加载的 messages 中
-    const idx = messages.findIndex((m) => m.id === id);
-    if (idx !== -1) {
-      virtuosoRef.current?.scrollToIndex({ index: firstItemIndex + idx, align: 'center', behavior: 'smooth' });
-      triggerHighlight(id);
-      return;
-    }
-    // 消息不在当前加载范围内，调用 context 接口加载后再定位
-    if (!activeConvId) return;
-    const res = await request.get<ChatMessageContext>(
-      `/api/chat/conversations/${activeConvId}/messages/${id}/context?before=15&after=15`,
-      { silent: true },
-    );
-    if (res.code !== 0 || !res.data) {
-      Toast.error(res.message ?? '定位消息失败');
-      return;
-    }
-    setMessages(res.data.list);
-    setHasMore(res.data.hasBefore);
-    setOldestMsgId(res.data.list[0]?.id ?? null);
-    setFirstItemIndex(VIRTUOSO_FIRST_INDEX_BUFFER);
-    const anchorId = res.data.anchorMessageId;
-    setContextMode({ anchorMessageId: anchorId, keyword: '' });
-    setTimeout(() => {
-      const anchorIdx = res.data?.list.findIndex((m) => m.id === anchorId) ?? -1;
-      if (anchorIdx !== -1) {
-        virtuosoRef.current?.scrollToIndex({
-          index: VIRTUOSO_FIRST_INDEX_BUFFER + anchorIdx,
-          align: 'center',
-          behavior: 'smooth',
-        });
-        triggerHighlight(anchorId);
-      }
-    }, 80);
-  }, [activeConvId, firstItemIndex, messages, triggerHighlight]);
-
-  const getReplyMessage = useCallback((id: number) => messages.find((m) => m.id === id), [messages]);
-
-  const insertMention = useCallback((member: ChatGroupMember) => {
-    if (!mentionState) return;
-    const mentionText = `@${member.nickname} `;
-    setInput((prev) => prev.slice(0, mentionState.start) + mentionText + prev.slice(mentionState.end));
-    setMentionClosed(true);
-    // 全体成员虚拟条目：记录所有真实成员为 mention
-    if (member.id === -1) {
-      setSelectedMentions(activeGroupMembers
-        .filter((m) => m.id !== currentUserId)
-        .map((m) => ({ userId: m.id, nickname: m.nickname })));
-    } else {
-      setSelectedMentions((prev) => prev.some((item) => item.userId === member.id)
-        ? prev
-        : [...prev, { userId: member.id, nickname: member.nickname }]);
-    }
-    requestAnimationFrame(() => {
-      const nextPos = mentionState.start + mentionText.length;
-      inputRef.current?.setSelectionRange(nextPos, nextPos);
-      inputRef.current?.focus();
-    });
-  }, [activeGroupMembers, currentUserId, mentionState]);
-
-  const applyMessageUpdate = useCallback((updated: ChatMessage) => {
-    setMessages((prev) => prev.map((item) => item.id === updated.id ? updated : item));
-    setPinnedMessages((prev) => {
-      const next = prev.filter((item) => item.id !== updated.id);
-      if (updated.extra?.isPinned) next.unshift(updated);
-      return next.slice(0, 5);
-    });
-    setFavoriteMessages((prev) => {
-      const next = prev.filter((item) => item.id !== updated.id);
-      if (updated.extra?.isFavorited) next.unshift(updated);
-      return next;
-    });
-    setConversations((prev) => prev.map((conv) => conv.lastMessage?.id === updated.id ? { ...conv, lastMessage: updated } : conv));
-  }, []);
-
-  const handleToggleFavorite = useCallback(async (msg: ChatMessage) => {
-    const res = await request.patch<ChatMessage>(`/api/chat/messages/${msg.id}/favorite`, { favorite: !msg.extra?.isFavorited });
-    if (res.code !== 0) return;
-    if (!res.data) { Toast.error('操作失败'); return; }
-    applyMessageUpdate(res.data);
-    Toast.success(res.data.extra?.isFavorited ? '已收藏' : '已取消收藏');
-  }, [applyMessageUpdate]);
-
-  const handleTogglePinMessage = useCallback(async (msg: ChatMessage) => {
-    const res = await request.patch<ChatMessage>(`/api/chat/messages/${msg.id}/pin`, { pin: !msg.extra?.isPinned });
-    if (res.code !== 0) return;
-    if (!res.data) { Toast.error('操作失败'); return; }
-    applyMessageUpdate(res.data);
-    Toast.success(res.data.extra?.isPinned ? '已置顶消息' : '已取消置顶');
-  }, [applyMessageUpdate]);
-
-  const handleEditRecalled = useCallback((messageId: number) => {
-    const draft = recalledDrafts[messageId];
-    if (!draft) return;
-    setInput(draft.content);
-    setSelectedMentions(draft.mentions ?? []);
-    requestAnimationFrame(() => inputRef.current?.focus());
-  }, [recalledDrafts]);
-
-  const handleToggleSelectMessage = useCallback((msg: ChatMessage) => {
-    if (msg.isRecalled || msg.type === 'system') return;
-    setMultiSelectMode(true);
-    setSelectedMessageIds((prev) =>
-      prev.includes(msg.id) ? prev.filter((id) => id !== msg.id) : [...prev, msg.id],
-    );
-  }, []);
-
-  const handleExitMultiSelect = useCallback(() => {
-    setMultiSelectMode(false);
-    setSelectedMessageIds([]);
-  }, []);
-
-  const handleForwardSingle = useCallback((msg: ChatMessage) => {
-    setForwardingMode('individual');
-    setForwardingMessageIds([msg.id]);
-    setForwardModalVisible(true);
-  }, []);
-
-  const handleForwardSelected = useCallback((mode: 'merge' | 'individual') => {
-    if (selectedMessageIds.length === 0) return;
-    setForwardingMode(mode);
-    setForwardingMessageIds([...selectedMessageIds]);
-    setForwardModalVisible(true);
-  }, [selectedMessageIds]);
-
-  const handleForwardConfirm = useCallback(async (targetIds: number[]) => {
-    setForwardModalVisible(false);
-    const res = await request.post('/api/chat/messages/forward', {
-      messageIds: forwardingMessageIds,
-      targetConversationIds: targetIds,
-      mode: forwardingMode,
-    });
-    if (res.code === 0) {
-      Toast.success('转发成功');
-      handleExitMultiSelect();
-    }
-    setForwardingMessageIds([]);
-  }, [forwardingMessageIds, forwardingMode, handleExitMultiSelect]);
-
-  const handleFavoriteSelected = useCallback(async () => {
-    if (selectedMessageIds.length === 0) return;
-    const msgs = messages.filter((m) => selectedMessageIds.includes(m.id) && !m.extra?.isFavorited && !m.isRecalled && m.type !== 'system');
-    if (msgs.length === 0) { Toast.info('所选消息已全部收藏'); return; }
-    let successCount = 0;
-    for (const msg of msgs) {
-      const res = await request.patch<ChatMessage>(`/api/chat/messages/${msg.id}/favorite`, { favorite: true });
-      if (res.code === 0 && res.data) {
-        applyMessageUpdate(res.data);
-        successCount += 1;
-      }
-    }
-    Toast.success(`已收藏 ${successCount} 条消息`);
-    handleExitMultiSelect();
-  }, [selectedMessageIds, messages, applyMessageUpdate, handleExitMultiSelect]);
-
-  const handleOpenForwardView = useCallback((items: NonNullable<ChatMessageExtra['forwardedMessages']>, title: string) => {
-    setForwardViewItems(items);
-    setForwardViewTitle(title);
-    setForwardViewVisible(true);
-  }, []);
-
-  const handleDeleteSingle = useCallback(async (msg: ChatMessage) => {
-    const res = await request.post('/api/chat/messages/batch-delete', { messageIds: [msg.id] });
-    if (res.code !== 0) return;
-    setMessages(removeMessageById(msg.id));
-    setMediaItems(removeMessageById(msg.id));
-    Toast.success('已删除');
-  }, []);
-
-  const handleDeleteSelected = useCallback(async () => {
-    if (selectedMessageIds.length === 0) return;
-    confirmDelete({
-      title: `删除已选的 ${selectedMessageIds.length} 条消息？`,
-      content: '删除后仅对自己隐藏，不影响其他人。',
-      okText: '删除',
-      onOk: async () => {
-        const res = await request.post('/api/chat/messages/batch-delete', { messageIds: selectedMessageIds });
-        if (res.code !== 0) return;
-        const deletedIds = new Set(selectedMessageIds);
-        setMessages(removeMessagesByIds(deletedIds));
-        setMediaItems(removeMessagesByIds(deletedIds));
-        Toast.success('已删除');
-        handleExitMultiSelect();
-      },
-    });
-  }, [selectedMessageIds, handleExitMultiSelect]);
-
-  const handleReaction = useCallback((messageId: number, emoji: string) => {
-    void request.post<import('@zenith/shared').ChatReactionGroup[]>(
-      `/api/chat/messages/${messageId}/reactions`,
-      { emoji },
-    ).then((res) => {
-      if (res.code === 0) {
-        setMessages(setMessageReactions(messageId, res.data ?? []));
-      }
-    });
-  }, []);
-
-  const handlePickReactionEmoji = useCallback((messageId: number, e: React.MouseEvent) => {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setReactionTargetMsgId(messageId);
-    setReactionPickerAnchor({ top: rect.top, right: window.innerWidth - rect.right });
-    setReactionPickerVisible(true);
-  }, []);
-
-  const handleCreateVote = useCallback(async (voteData: ChatVoteData, question: string) => {
-    if (!activeConvId) return;
-    const res = await request.post<ChatMessage>(`/api/chat/conversations/${activeConvId}/messages`, {
-      content: question,
-      type: 'vote',
-      extra: { voteData },
-    });
-    if (res.code !== 0) return;
-    if (!res.data) { Toast.error('发起投票失败'); return; }
-    appendMessageOnce(res.data);
-    setShowVoteModal(false);
-  }, [activeConvId, appendMessageOnce]);
-
-  const handleVoteMessage = useCallback(async (msg: ChatMessage, optionIds: string[]) => {
-    const res = await request.post<ChatMessage>(`/api/chat/messages/${msg.id}/vote`, { optionIds });
-    if (res.code !== 0) return;
-    if (!res.data) { Toast.error('投票失败'); return; }
-    applyMessageUpdate(res.data);
-  }, [applyMessageUpdate]);
-
-  // 编辑消息（由 MessageBubble 内联编辑回调）
-  // ─── 消息编辑 ─────────────────────────────────────────────────────────────
-
-  const handleEditMessage = useCallback(async (updatedMsg: ChatMessage) => {
-    const res = await request.request<ChatMessage>(`/api/chat/messages/${updatedMsg.id}/edit`, {
-      method: 'PATCH',
-      body: JSON.stringify({ content: updatedMsg.content }),
-      headers: { 'Content-Type': 'application/json' },
-    });
-    if (res.code !== 0) return;
-    if (!res.data) { Toast.error('编辑失败'); return; }
-    applyMessageUpdate(res.data);
-    Toast.success('已修改');
-  }, [applyMessageUpdate]);
-
-  const handleRecall = useCallback(async (msg: ChatMessage) => {
-    if (msg.type === 'text') {
-      setRecalledDrafts((prev) => ({
-        ...prev,
-        [msg.id]: { content: msg.content, mentions: msg.extra?.mentions ?? undefined },
-      }));
-      setInput(msg.content);
-      setSelectedMentions(msg.extra?.mentions ?? []);
-      requestAnimationFrame(() => inputRef.current?.focus());
-    }
-    await request.request<null>(`/api/chat/messages/${msg.id}/recall`, { method: 'PATCH' });
-  }, []);
-
-  const resetSearchFilters = useCallback(() => {
-    setMsgSearch('');
-    setSearchTypeFilters([]);
-    setSearchSenderId(undefined);
-    setSearchTimeRange(null);
-    setSearchDatePreset('');
-    setSearchResults([]);
-    setSearchTotal(0);
-    setSearchPage(1);
-    setSearchHasSearched(false);
-    setShowSearchPanel(false);
-  }, []);
-
-  const applyDatePreset = useCallback((preset: SearchDatePreset) => {
-    if (!preset) {
-      setSearchDatePreset('');
-      setSearchTimeRange(null);
-      return;
-    }
-    const now = new Date();
-    const start = new Date(now);
-    if (preset === 'today') {
-      start.setHours(0, 0, 0, 0);
-    } else if (preset === '7d') {
-      start.setDate(start.getDate() - 6);
-      start.setHours(0, 0, 0, 0);
-    } else if (preset === '30d') {
-      start.setDate(start.getDate() - 29);
-      start.setHours(0, 0, 0, 0);
-    }
-    setSearchDatePreset(preset);
-    setSearchTimeRange([start, now]);
-  }, []);
-
-  const senderOptions = useMemo(() => {
-    const optionMap = new Map<number, { value: number; label: string }>();
-    if (currentUserId) {
-      optionMap.set(currentUserId, { value: currentUserId, label: currentUserNickname || '我' });
-    }
-    if (activeConv?.type === 'direct' && activeConv.targetUser) {
-      optionMap.set(activeConv.targetUser.id, { value: activeConv.targetUser.id, label: activeConv.targetUser.nickname });
-    }
-    searchMembers.forEach((member) => {
-      optionMap.set(member.id, { value: member.id, label: member.nickname });
-    });
-    messages.forEach((message) => {
-      if (message.senderId && message.senderName) {
-        optionMap.set(message.senderId, { value: message.senderId, label: message.senderName });
-      }
-    });
-    return Array.from(optionMap.values());
-  }, [activeConv, currentUserId, currentUserNickname, messages, searchMembers]);
-
-  useEffect(() => {
-    if (!showSearchPanel || !activeConvId || activeConv?.type !== 'group') {
-      if (!showSearchPanel) setSearchMembers([]);
-      return;
-    }
-    void (async () => {
-      const res = await request.get<ChatGroupMember[]>(`/api/chat/conversations/${activeConvId}/members`, { silent: true });
-      if (res.code === 0 && res.data) setSearchMembers(res.data);
-    })();
-  }, [activeConv?.type, activeConvId, showSearchPanel]);
-
-  const executeSearch = useCallback(async (targetPage = 1) => {
-    if (!activeConvId) return;
-
-    const hasCondition = Boolean(
-      msgSearch.trim()
-      || searchTypeFilters.length > 0
-      || searchSenderId
-      || searchTimeRange,
-    );
-    if (!hasCondition) {
-      Toast.info('请先输入关键词或设置筛选条件');
-      return;
-    }
-
-    const qs = new URLSearchParams();
-    if (msgSearch.trim()) qs.set('keyword', msgSearch.trim());
-    if (searchTypeFilters.length > 0) qs.set('types', searchTypeFilters.join(','));
-    if (searchSenderId) qs.set('senderId', String(searchSenderId));
-    if (searchTimeRange) {
-      qs.set('startAt', formatDateTimeForApi(searchTimeRange[0]));
-      qs.set('endAt', formatDateTimeForApi(searchTimeRange[1]));
-    }
-    qs.set('page', String(targetPage));
-    qs.set('pageSize', '20');
-
-    setSearchLoading(true);
-    const res = await request.get<ChatMessageSearchResult>(
-      `/api/chat/conversations/${activeConvId}/messages/search?${qs.toString()}`,
-      { silent: true },
-    );
-    setSearchLoading(false);
-
-    if (res.code === 0 && res.data) {
-      setShowSearchPanel(true);
-      setShowMembers(false);
-      setSearchHasSearched(true);
-      setSearchPage(targetPage);
-      setSearchResults(targetPage === 1 ? res.data.list : [...searchResults, ...res.data.list]);
-      setSearchTotal(res.data.total);
-      return;
-    }
-
-    setSearchHasSearched(false);
-    setShowSearchPanel(false);
-    Toast.info('服务端搜索暂不可用，已保留本地模糊过滤');
-  }, [activeConvId, msgSearch, searchResults, searchSenderId, searchTimeRange, searchTypeFilters]);
-
-  const jumpToSearchResult = useCallback(async (item: ChatMessageSearchItem) => {
-    if (!activeConvId) return;
-    const res = await request.get<ChatMessageContext>(
-      `/api/chat/conversations/${activeConvId}/messages/${item.message.id}/context?before=15&after=15`,
-      { silent: true },
-    );
-    if (res.code !== 0 || !res.data) {
-      Toast.error(res.message ?? '定位消息失败');
-      return;
-    }
-    setMessages(res.data.list);
-    setHasMore(res.data.hasBefore);
-    setOldestMsgId(res.data.list[0]?.id ?? null);
-    setContextMode({ anchorMessageId: res.data.anchorMessageId, keyword: msgSearch.trim() || item.snippet });
-    setTimeout(() => scrollToMessage(res.data.anchorMessageId), 80);
-  }, [activeConvId, msgSearch, scrollToMessage]);
+  const { resetSearchFilters, applyDatePreset, senderOptions, executeSearch, jumpToSearchResult } = useConversationSearch({
+    activeConv, activeConvId, currentUserId, currentUserNickname, messages, msgSearch,
+    searchMembers, searchResults, searchSenderId, searchTimeRange, searchTypeFilters, showSearchPanel,
+    scrollToMessage, setContextMode, setHasMore, setMessages, setMsgSearch, setOldestMsgId,
+    setSearchDatePreset, setSearchHasSearched, setSearchLoading, setSearchMembers, setSearchPage, setSearchResults,
+    setSearchSenderId, setSearchTimeRange, setSearchTotal, setSearchTypeFilters, setShowMembers, setShowSearchPanel,
+  });
 
   const restoreLatestMessages = useCallback(async () => {
     if (!activeConvId) return;
     await fetchMessages(activeConvId);
   }, [activeConvId, fetchMessages]);
 
-  const fetchMediaItems = useCallback(async (convId: number, type: 'image' | 'file' | 'link', p = 1) => {
-    setMediaLoading(true);
-    if (p === 1) setMediaItems([]);  // 切换 tab 时立即清空，避免旧数据短暂闪烁
-    const qs = type === 'link'
-      ? new URLSearchParams({ types: 'text', keyword: 'http', page: String(p), pageSize: '30' })
-      : new URLSearchParams({ types: type, page: String(p), pageSize: '30' });
-    const res = await request.get<{ list: Array<{ message: ChatMessage }> }>(
-      `/api/chat/conversations/${convId}/messages/search?${qs.toString()}`,
-      { silent: true },
-    );
-    setMediaLoading(false);
-    if (res.code === 0 && res.data) {
-      const rawCount = res.data.list.length;
-      let items = res.data.list.map((item) => item.message);
-      if (type === 'link') {
-        items = items.filter((m) => m.extra?.linkPreview || /https?:\/\//i.test(m.content));
-      }
-      if (p === 1) {
-        setMediaItems(items);
-      } else {
-        setMediaItems((prev) => [...prev, ...items]);
-      }
-      setMediaPage(p);
-      setMediaHasMore(rawCount >= 30);
-    }
-  }, []);
+  const { fetchMediaItems } = useMediaLibrary({
+    activeConvId, mediaType, showMediaPanel, setMediaHasMore, setMediaItems, setMediaLoading,
+    setMediaPage,
+  });
 
-  useEffect(() => {
-    if (!showMediaPanel || !activeConvId) return;
-    void fetchMediaItems(activeConvId, mediaType, 1);
-  }, [showMediaPanel, activeConvId, mediaType, fetchMediaItems]);
-
-  const refreshGroupAvatarMembers = useCallback(async (conversationId: number) => {
-    const res = await request.get<ChatGroupMember[]>(`/api/chat/conversations/${conversationId}/members`, { silent: true });
-    if (res.code !== 0 || !res.data) return;
-    setGroupAvatarMap((prev) => ({
-      ...prev,
-      [conversationId]: res.data.slice(0, 9).map((m) => ({ id: m.id, nickname: m.nickname, avatar: m.avatar })),
-    }));
-  }, []);
-
-  const handleWsMessage = useCallback((wsMsg: WsMessage) => {
-    if (wsMsg.type === 'channel:message') {
-      const m = wsMsg.payload;
-      setChannels((prev) => prev.map((c) =>
-        c.id === m.channelId
-          ? { ...c, lastMessage: m, unreadCount: activeChannelId === m.channelId ? 0 : c.unreadCount + 1 }
-          : c));
-      return;
-    }
-    if (wsMsg.type === 'chat:message') {
-      const msg = wsMsg.payload;
-      const isOwnMsg = msg.senderId === currentUserId;
-      const mentionedMe = !isOwnMsg && (msg.extra?.mentions ?? []).some((item) => item.userId === currentUserId);
-      const shouldAutoRead = msg.conversationId === activeConvId && (isOwnMsg || isAtBottomRef.current);
-      if (msg.conversationId === activeConvId) {
-        appendMessageOnce(msg);
-        if (shouldAutoRead) {
-          setTimeout(() => virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' }), 80);
-          request.post(`/api/chat/conversations/${msg.conversationId}/read`, {}, { silent: true }).catch(() => {});
-          setPendingNewMsgCount(0);
-        } else if (!isOwnMsg) {
-          setPendingNewMsgCount((v) => v + 1);
-        }
-      }
-      setConversations((prev) => {
-        const isActive = msg.conversationId === activeConvId;
-        const computeUnread = (c: typeof prev[number]) => {
-          if (isOwnMsg) return c.unreadCount;
-          if (isActive && shouldAutoRead) return 0;
-          return c.unreadCount + 1;
-        };
-        const updated = prev.map((c) =>
-          c.id === msg.conversationId
-            ? {
-              ...c,
-              lastMessage: msg,
-              unreadCount: computeUnread(c),
-              hasMentionUnread: getNextMentionUnread(c.hasMentionUnread, isOwnMsg, isActive && shouldAutoRead, mentionedMe),
-              updatedAt: msg.createdAt,
-            }
-            : c,
-        );
-        const idx = updated.findIndex((c) => c.id === msg.conversationId);
-        if (idx > 0) {
-          const [item] = updated.splice(idx, 1);
-          if (item.isPinned) {
-            // 置顶会话保持在置顶区最前面
-            updated.unshift(item);
-          } else {
-            // 非置顶会话插到第一个非置顶会话的位置（置顶会话之后）
-            const firstNonPinnedIdx = updated.findIndex((c) => !c.isPinned);
-            if (firstNonPinnedIdx === -1) {
-              updated.push(item);
-            } else {
-              updated.splice(firstNonPinnedIdx, 0, item);
-            }
-          }
-        }
-        return updated;
-      });
-      if (mentionedMe) {
-        const isConvMuted = conversations.find((c) => c.id === msg.conversationId)?.isMuted ?? false;
-        // WebSocket 驱动可能短时间连发多条提醒，stack 堆叠展示防止并列刷屏
-        if (!isConvMuted) Toast.info({ content: `${msg.senderName ?? '有人'} @了你`, stack: true });
-      }
-    } else if (wsMsg.type === 'chat:recall') {
-      const { messageId } = wsMsg.payload;
-      setMessages(recallMessageById(messageId));
-      setMediaItems(removeMessageById(messageId));
-    } else if (wsMsg.type === 'chat:edit') {
-      applyMessageUpdate(wsMsg.payload);
-    } else if (wsMsg.type === 'chat:reaction') {
-      const { messageId, reactions } = wsMsg.payload;
-      setMessages(setMessageReactions(messageId, reactions));
-    } else if (wsMsg.type === 'chat:vote-update') {
-      const { messageId, voteData } = wsMsg.payload;
-      setMessages(setMessageVoteData(messageId, voteData));
-    } else if (wsMsg.type === 'chat:typing') {
-      const { conversationId, userId, nickname } = wsMsg.payload;
-      if (conversationId !== activeConvId || userId === currentUserId) return;
-      const removeTypingUser = (id: number) => (p: typeof typingUsers) => {
-        const next = { ...p };
-        delete next[id];
-        return next;
-      };
-      setTypingUsers((prev) => {
-        const existing = prev[userId];
-        if (existing) clearTimeout(existing.timer);
-        const timer = setTimeout(() => setTypingUsers(removeTypingUser(userId)), 4000);
-        return { ...prev, [userId]: { nickname, timer } };
-      });
-    } else if (wsMsg.type === 'chat:member-join') {
-      void refreshGroupAvatarMembers(wsMsg.payload.conversationId);
-      if (wsMsg.payload.conversationId === activeConvId) {
-        void fetchConversations();
-      }
-    } else if (wsMsg.type === 'chat:member-leave') {
-      const { conversationId, userId } = wsMsg.payload;
-      if (userId === currentUserId) {
-        setConversations(removeConversationById(conversationId));
-        if (activeConvId === conversationId) {
-          setActiveConvId(null);
-          setMessages([]);
-        }
-        Toast.warning('你已被移出该群聊');
-      } else {
-        void refreshGroupAvatarMembers(conversationId);
-      }
-    } else if (wsMsg.type === 'chat:group-update') {
-      const { conversationId, name, announcement, muteAll } = wsMsg.payload;
-      setConversations((prev) =>
-        prev.map((c) => c.id === conversationId
-          ? {
-            ...c,
-            ...(name === undefined ? {} : { name }),
-            ...(announcement === undefined ? {} : { announcement }),
-            ...(muteAll === undefined ? {} : { muteAll }),
-          }
-          : c),
-      );
-    } else if (wsMsg.type === 'chat:member-update') {
-      // 角色/禁言变更：刷新会话列表（myRole/myMutedUntil）与成员面板
-      void fetchConversations();
-      void queryClient.invalidateQueries({ queryKey: chatKeys.groupMembers(wsMsg.payload.conversationId) });
-    } else if (wsMsg.type === 'chat:read') {
-      const { conversationId, userId, readAt } = wsMsg.payload;
-      if (conversationId !== activeConvId || userId === currentUserId) return;
-      setReadStates((prev) => prev.map((s) => (s.userId === userId ? { ...s, lastReadAt: readAt } : s)));
-    } else if (wsMsg.type === 'chat:presence') {
-      const { userId, online, lastSeen } = wsMsg.payload;
-      setOnlineUserIds((prev) => {
-        const next = new Set(prev);
-        if (online) next.add(userId);
-        else next.delete(userId);
-        return next;
-      });
-      setLastSeenMap((prev) => ({ ...prev, [userId]: online ? null : lastSeen }));
-    }
-  }, [activeChannelId, activeConvId, appendMessageOnce, applyMessageUpdate, conversations, currentUserId, fetchConversations, queryClient, refreshGroupAvatarMembers]);
-
-  const handleAtBottomStateChange = useCallback((atBottom: boolean) => {
-    isAtBottomRef.current = atBottom;
-    if (!atBottom || !activeConvId) return;
-    // 在上下文定位模式下滚动到底部时，自动恢复最新消息
-    if (contextMode) {
-      void restoreLatestMessages();
-      return;
-    }
-    if (pendingNewMsgCount > 0) setPendingNewMsgCount(0);
-    request.post(`/api/chat/conversations/${activeConvId}/read`, {}, { silent: true }).catch(() => {});
-    setConversations(markConversationReadById(activeConvId));
-  }, [activeConvId, contextMode, pendingNewMsgCount, restoreLatestMessages]);
-
-  const handleStartReached = useCallback(() => {
-    if (!hasMore || loadingMsgs || !activeConvId) return;
-    void fetchMessages(activeConvId, oldestMsgId ?? undefined);
-  }, [activeConvId, fetchMessages, hasMore, loadingMsgs, oldestMsgId]);
-
-  useWebSocket(handleWsMessage);
-  const wsConnected = useWsConnected();
-
-  // WebSocket 断线重连成功后，主动补拉会话列表与当前会话最新消息，避免断线期间漏消息。
-  useEffect(() => {
-    if (!wsConnected) {
-      if (wsHasConnectedRef.current) wsDisconnectedSinceReadyRef.current = true;
-      return;
-    }
-
-    if (!wsHasConnectedRef.current) {
-      wsHasConnectedRef.current = true;
-      return;
-    }
-
-    if (!wsDisconnectedSinceReadyRef.current) return;
-    wsDisconnectedSinceReadyRef.current = false;
-
-    const shouldStickToBottom = isAtBottomRef.current;
-    void (async () => {
-      await fetchConversations();
-
-      if (activeConvId && !contextMode) {
-        await fetchMessages(activeConvId);
-        if (shouldStickToBottom) {
-          requestAnimationFrame(() => virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' }));
-          request.post(`/api/chat/conversations/${activeConvId}/read`, {}, { silent: true }).catch(() => {});
-          setConversations(markConversationReadById(activeConvId));
-        }
-      }
-
-      Toast.success('实时连接已恢复，已同步最新消息');
-    })();
-  }, [activeConvId, contextMode, fetchConversations, fetchMessages, wsConnected]);
+  const { refreshGroupAvatarMembers, handleAtBottomStateChange, handleStartReached, wsConnected } = useChatWebSocket({
+    activeChannelId, activeConvId, contextMode, conversations, currentUserId, hasMore,
+    loadingMsgs, oldestMsgId, pendingNewMsgCount, queryClient, restoreLatestMessages,
+    fetchConversations, fetchMessages, appendMessageOnce, applyMessageUpdate,
+    isAtBottomRef, virtuosoRef, wsDisconnectedSinceReadyRef, wsHasConnectedRef, setActiveConvId, setChannels,
+    setConversations, setGroupAvatarMap, setLastSeenMap, setMediaItems, setMessages, setOnlineUserIds,
+    setPendingNewMsgCount, setReadStates, setTypingUsers,
+  });
 
   // 草稿自动保存（input 变化时持久化）
   useEffect(() => {
@@ -1842,51 +510,10 @@ export default function ChatPage({
     setMentionActiveIndex(0);
   }, [mentionCandidates]);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const popupOpen = !!(mentionState && !mentionClosed && mentionCandidates.length > 0);
-    if (popupOpen) {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setMentionActiveIndex((i) => {
-          const next = (i + 1) % mentionCandidates.length;
-          // 滚动到可见区
-          requestAnimationFrame(() => {
-            const el = mentionListRef.current?.children[next] as HTMLElement | undefined;
-            el?.scrollIntoView({ block: 'nearest' });
-          });
-          return next;
-        });
-        return;
-      }
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setMentionActiveIndex((i) => {
-          const next = (i - 1 + mentionCandidates.length) % mentionCandidates.length;
-          requestAnimationFrame(() => {
-            const el = mentionListRef.current?.children[next] as HTMLElement | undefined;
-            el?.scrollIntoView({ block: 'nearest' });
-          });
-          return next;
-        });
-        return;
-      }
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const candidate = mentionCandidates[mentionActiveIndex];
-        if (candidate) insertMention(candidate);
-        return;
-      }
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        setMentionClosed(true);
-        return;
-      }
-    }
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      void handleSend();
-    }
-  };
+  const handleKeyDown = createComposerKeyDownHandler({
+    mentionState, mentionClosed, mentionCandidates, mentionActiveIndex,
+    setMentionActiveIndex, mentionListRef, insertMention, setMentionClosed, handleSend,
+  });
 
   const handleEmojiSelect = useCallback((emoji: { native: string }) => {
     const ta = inputRef.current;
@@ -1905,31 +532,34 @@ export default function ChatPage({
     });
   }, [input]);
 
-  const filteredConvs = conversations.filter((c) => {
-    if (!convSearch) return true;
-    const name = c.type === 'direct' ? (c.targetUser?.nickname ?? '') : (c.name ?? '');
-    return name.toLowerCase().includes(convSearch.toLowerCase());
+  const { archivedConvs, archivedUnread, showArchiveToggle, leftListItems, totalUnread } = computeLeftListModel({
+    conversations, channels, convSearch, showArchived,
   });
 
-  // 归档分组：搜索时跨归档全量匹配；平时归档会话收进折叠组
-  const archivedConvs = filteredConvs.filter((c) => c.isArchived ?? false);
-  const archivedUnread = archivedConvs.reduce((s, c) => s + c.unreadCount, 0);
-  const visibleConvs = convSearch
-    ? filteredConvs
-    : filteredConvs.filter((c) => (showArchived ? (c.isArchived ?? false) : !(c.isArchived ?? false)));
-  const showArchiveToggle = !convSearch && (archivedConvs.length > 0 || showArchived);
-
-  // 仿微信：频道与会话合并为同一个列表，按最后消息时间倒序排列（置顶会话优先），不再将频道单独置顶
-  const filteredChannels = convSearch
-    ? channels.filter((ch) => ch.name.toLowerCase().includes(convSearch.toLowerCase()))
-    : (showArchived ? [] : channels);
-  const parseMsgTime = (s?: string | null) => (s ? new Date(s.replace(' ', 'T')).getTime() : 0);
-  const leftListItems: LeftListItem[] = [
-    ...filteredChannels.map((ch): LeftListItem => ({ kind: 'channel', sortTime: parseMsgTime(ch.lastMessage?.createdAt), pinned: false, channel: ch })),
-    ...visibleConvs.map((conv): LeftListItem => ({ kind: 'conv', sortTime: parseMsgTime(conv.lastMessage?.createdAt ?? conv.updatedAt), pinned: conv.isPinned ?? false, conv })),
-  ].sort((a, b) => (a.pinned !== b.pinned ? (a.pinned ? -1 : 1) : b.sortTime - a.sortTime));
-
-  const totalUnread = conversations.reduce((s, c) => s + c.unreadCount, 0);
+  /** 打开全局搜索结果：拉取上下文并跳转（原全局搜索列表 onClick 内联逻辑原样搬出） */
+  const onOpenSearchResult = async (item: import('@zenith/shared').ChatMessageSearchItem) => {
+    const res = await request.get<ChatMessageContext>(
+      `/api/chat/conversations/${item.message.conversationId}/messages/${item.message.id}/context?before=15&after=15`,
+      { silent: true },
+    );
+    if (res.code !== 0 || !res.data) {
+      import('@douyinfe/semi-ui').then(({ Toast }) => Toast.error('定位消息失败'));
+      return;
+    }
+    const targetConv = conversations.find((c) => c.id === item.message.conversationId);
+    if (!targetConv) {
+      // 会话不在列表中，刷新列表再定位
+      await fetchConversations();
+    }
+    setActiveConvId(item.message.conversationId);
+    onConvChange?.(item.message.conversationId);
+    setLeftPaneMode('conversations');
+    setMessages(res.data.list);
+    setHasMore(res.data.hasBefore);
+    setOldestMsgId(res.data.list[0]?.id ?? null);
+    setContextMode({ anchorMessageId: res.data.anchorMessageId, keyword: globalSearchKeyword.trim() });
+    setTimeout(() => scrollToMessage(res.data.anchorMessageId), 80);
+  };
 
   // 频道列表本地过滤：按名称包含匹配，不调接口
   const channelAvatarNode = useCallback((ch: Channel) => (
@@ -1951,50 +581,9 @@ export default function ChatPage({
   const visibleMessages = messages.filter((m) => !currentUserId || !(m.extra?.hiddenFor ?? []).includes(currentUserId));
   const displayMessages = visibleMessages;
 
-  useEffect(() => {
-    const groupIds = conversations.filter((c) => c.type === 'group').map((c) => c.id);
-    const missingIds = groupIds.filter((id) => !groupAvatarMap[id]);
-    if (missingIds.length === 0) return;
+  useGroupAvatars({ conversations, groupAvatarMap, setGroupAvatarMap, refreshGroupAvatarMembers });
 
-    let cancelled = false;
-    void Promise.all(
-      missingIds.map(async (id) => {
-        const res = await request.get<ChatGroupMember[]>(`/api/chat/conversations/${id}/members`, { silent: true });
-        return [id, (res.code === 0 && res.data ? res.data : []).slice(0, 9)] as const;
-      }),
-    ).then((entries) => {
-      if (cancelled) return;
-      const toAvatarMember = (m: ChatGroupMember) => ({ id: m.id, nickname: m.nickname, avatar: m.avatar });
-      setGroupAvatarMap((prev) => {
-        const next = { ...prev };
-        for (const [id, members] of entries) {
-          next[id] = members.map(toAvatarMember);
-        }
-        return next;
-      });
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [conversations, groupAvatarMap, refreshGroupAvatarMembers]);
-
-  const rootStyle: React.CSSProperties = isQuick
-    ? {
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100%',
-      minHeight: 0,
-      overflow: 'hidden',
-      background: 'var(--semi-color-bg-1)',
-    }
-    : {
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100%',
-      minHeight: 500,
-      overflow: 'hidden',
-    };
+  const rootStyle = getRootStyle(isQuick);
 
   const hasFailedInCurrentConv = failedMessages.some((m) => m.convId === activeConvId);
   const isEmptyMessagesView = displayMessages.length === 0 && !hasFailedInCurrentConv;
@@ -2117,27 +706,10 @@ export default function ChatPage({
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minWidth: 0 }}>
           <Spin spinning={loadingConvs}>
             {leftPaneMode === 'conversations' && showArchiveToggle && (
-              <button
-                type="button"
-                onClick={() => setShowArchived((v) => !v)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                  padding: '8px 12px', border: 'none', cursor: 'pointer', textAlign: 'left',
-                  background: showArchived ? 'var(--semi-color-fill-0)' : 'transparent',
-                  borderBottom: '1px solid var(--semi-color-border)',
-                }}
-              >
-                {showArchived
-                  ? <ArrowLeft size={14} style={{ color: 'var(--semi-color-text-2)', flexShrink: 0 }} />
-                  : <Archive size={14} style={{ color: 'var(--semi-color-text-2)', flexShrink: 0 }} />}
-                <Text strong style={{ fontSize: 12, flex: 1 }}>
-                  {showArchived ? '返回会话列表' : `已归档（${archivedConvs.length}）`}
-                </Text>
-                {!showArchived && archivedUnread > 0 && (
-                  <Badge count={archivedUnread} overflowCount={99} type="danger" />
-                )}
-                {!showArchived && <ChevronRight size={14} style={{ color: 'var(--semi-color-text-3)', flexShrink: 0 }} />}
-              </button>
+              <ArchiveToggle
+                showArchived={showArchived} setShowArchived={setShowArchived} archivedConvs={archivedConvs}
+                archivedUnread={archivedUnread}
+              />
             )}
             {leftPaneMode === 'conversations' && (
               <SemiList
@@ -2145,134 +717,16 @@ export default function ChatPage({
                 dataSource={leftListItems}
                 emptyContent={loadingConvs ? null : <Empty description="暂无会话" style={{ padding: '40px 0' }} imageStyle={{ width: 80 }} />}
                 split={false}
-                renderItem={(item: LeftListItem) => {
-                  if (item.kind === 'channel') {
-                    const ch = item.channel;
-                    return (
-                      <SemiList.Item
-                        key={`channel-${ch.id}`}
-                        align="center"
-                        onClick={() => { setActiveChannelId(ch.id); setActiveConvId(null); setChannels((prev) => prev.map((c) => c.id === ch.id ? { ...c, unreadCount: 0 } : c)); }}
-                        style={{ padding: '10px 12px', cursor: 'pointer', background: activeChannelId === ch.id ? 'var(--semi-color-primary-light-default)' : 'transparent' }}
-                        header={ch.unreadCount > 0
-                          ? <Badge count={ch.unreadCount} overflowCount={99}>{channelAvatarNode(ch)}</Badge>
-                          : channelAvatarNode(ch)}
-                        main={(
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}>
-                              <Text strong style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{ch.name}</Text>
-                              {ch.lastMessage && <Text type="tertiary" style={{ fontSize: 11, flexShrink: 0 }}>{formatConvTime(ch.lastMessage.createdAt)}</Text>}
-                            </div>
-                            <Text type="tertiary" style={{ fontSize: 12, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>{ch.lastMessage ? (ch.lastMessage.title ?? ch.lastMessage.content) : (ch.description ?? '')}</Text>
-                          </div>
-                        )}
-                      />
-                    );
-                  }
-                  const conv = item.conv;
-                  const name = conv.type === 'direct' ? (conv.targetUser?.nickname ?? '未知用户') : (conv.name ?? '群聊');
-                  const avatarName = conv.type === 'direct' ? (conv.targetUser?.nickname ?? '?') : (conv.name ?? '?');
-                  const avatar = conv.type === 'direct' ? conv.targetUser?.avatar : null;
-                  const groupMembers = conv.type === 'group' ? groupAvatarMap[conv.id] : undefined;
-                  const isTargetOnline = conv.type === 'direct' && conv.targetUser ? onlineUserIds.has(conv.targetUser.id) : false;
-                  const avatarNode = conv.type === 'group'
-                    ? <GroupGridAvatar name={avatarName} size={38} members={groupMembers} />
-                    : <PresenceAvatar online={isTargetOnline}><UserAvatar name={avatarName} avatar={avatar} size={38} /></PresenceAvatar>;
-                  const lastMsg = conv.lastMessage;
-                  const isActive = conv.id === activeConvId;
-                  const isPinned = conv.isPinned ?? false;
-                  const isStarred = conv.isStarred ?? false;
-                  const isMuted = conv.isMuted ?? false;
-                  const hasMentionUnread = conv.hasMentionUnread ?? false;
-                  const hasFailedMsg = failedMessages.some((m) => m.convId === conv.id);
-                  const draftText = isActive ? '' : (draftsMap[conv.id] ?? '');
-                  const hasDraft = draftText.trim().length > 0;
-                  let lastMsgText = '暂无消息';
-                  if (lastMsg) {
-                    const summary = getMessageSummary(lastMsg);
-                    if (conv.type === 'group' && lastMsg.senderName && lastMsg.type !== 'system' && !lastMsg.isRecalled) {
-                      lastMsgText = `${lastMsg.senderName}：${summary}`;
-                    } else {
-                      lastMsgText = summary;
-                    }
-                  }
-
-                  return (
-                    <SemiList.Item
-                      key={conv.id}
-                      align="center"
-                      onClick={() => { void handleSelectConv(conv); }}
-                      onRightClick={(e) => {
-                        e.preventDefault();
-                        setLeftPaneContextMenu({ x: e.clientX, y: e.clientY, type: 'conversation', conv });
-                      }}
-                      style={{
-                        padding: '10px 12px',
-                        cursor: 'pointer',
-                        background: isActive ? 'var(--semi-color-primary-light-default)' : 'transparent',
-                      }}
-                      onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--semi-color-fill-0)'; }}
-                      onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-                      header={conv.unreadCount > 0 ? (
-                        <Badge count={conv.unreadCount} overflowCount={99} dot={false}>
-                          {avatarNode}
-                        </Badge>
-                      ) : avatarNode}
-                      main={(
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          {/* 第一行：图标 + 名称 + 免打扰 */}
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, flex: 1 }}>
-                              {isPinned && <Pin size={10} style={{ color: 'var(--semi-color-primary)', flexShrink: 0 }} />}
-                              {isStarred && <Star size={10} style={{ color: '#facc15', flexShrink: 0 }} />}
-                              <Text strong style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {name}
-                              </Text>
-                            </div>
-                            {isMuted && <BellOff size={11} style={{ color: 'var(--semi-color-text-3)', flexShrink: 0 }} />}
-                          </div>
-                          {/* 第二行：消息预览 + 时间 */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, marginTop: 2 }}>
-                            <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden' }}>
-                              {hasFailedMsg && (
-                                <span style={{ flexShrink: 0, fontSize: 11, color: 'var(--semi-color-danger)', fontWeight: 500 }}>[发送失败]</span>
-                              )}
-                              {!hasFailedMsg && hasDraft && (
-                                <span style={{ flexShrink: 0, fontSize: 11, color: 'var(--semi-color-danger)', fontWeight: 500 }}>[草稿]</span>
-                              )}
-                              {!hasFailedMsg && !hasDraft && hasMentionUnread && (
-                                <span
-                                  style={{
-                                    flexShrink: 0,
-                                    fontSize: 11,
-                                    lineHeight: '16px',
-                                    padding: '0 4px',
-                                    borderRadius: 'var(--semi-border-radius-small)',
-                                    color: 'var(--semi-color-danger)',
-                                    background: 'var(--semi-color-danger-light-default)',
-                                  }}
-                                >
-                                  @我
-                                </span>
-                              )}
-                              <Text
-                                type={(hasFailedMsg || hasDraft) ? 'danger' : 'tertiary'}
-                                style={{ flex: 1, minWidth: 0, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}
-                              >
-                                {hasDraft ? draftText.trim() : lastMsgText}
-                              </Text>
-                            </div>
-                            {lastMsg && (
-                              <Text type="tertiary" style={{ fontSize: 11, flexShrink: 0 }}>
-                                {formatConvTime(lastMsg.createdAt)}
-                              </Text>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    />
-                  );
-                }}
+                renderItem={(item: LeftListItem) => (
+                  <LeftListRow
+                    key={item.kind === 'channel' ? `channel-${item.channel.id}` : item.conv.id}
+                    item={item} activeChannelId={activeChannelId} setActiveChannelId={setActiveChannelId}
+                    setActiveConvId={setActiveConvId} setChannels={setChannels} channelAvatarNode={channelAvatarNode}
+                    groupAvatarMap={groupAvatarMap} onlineUserIds={onlineUserIds} activeConvId={activeConvId}
+                    failedMessages={failedMessages} draftsMap={draftsMap} handleSelectConv={handleSelectConv}
+                    setLeftPaneContextMenu={setLeftPaneContextMenu}
+                  />
+                )}
               />
             )}
             {leftPaneMode === 'favorites' && (
@@ -2281,321 +735,30 @@ export default function ChatPage({
                 dataSource={favoriteMessages}
                 emptyContent={loadingConvs ? null : <Empty description="暂无收藏消息" style={{ padding: '40px 0' }} imageStyle={{ width: 80 }} />}
                 split={false}
-                renderItem={(msg: ChatMessage) => {
-                  const conv = conversations.find((item) => item.id === msg.conversationId);
-                  const convName = conv?.type === 'direct' ? (conv.targetUser?.nickname ?? '私聊') : (conv?.name ?? '群聊');
-                  return (
-                    <SemiList.Item
-                      key={msg.id}
-                      onClick={() => {
-                        setFavPreviewMsg(msg);
-                        setFavPreviewVisible(true);
-                      }}
-                      onRightClick={(e) => {
-                        e.preventDefault();
-                        setLeftPaneContextMenu({ x: e.clientX, y: e.clientY, type: 'favorite', msg });
-                      }}
-                      style={{ padding: '10px 12px', cursor: 'pointer' }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--semi-color-fill-0)'; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-                      main={(
-                        <div style={{ minWidth: 0, width: '100%' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
-                            <Text strong style={{ fontSize: 12, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{convName}</Text>
-                            <Text type="tertiary" style={{ fontSize: 11, flexShrink: 0 }}>{formatConvTime(msg.createdAt)}</Text>
-                          </div>
-                          <Text type="tertiary" style={{ display: 'block', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {getMessageSummary(msg)}
-                          </Text>
-                        </div>
-                      )}
-                    />
-                  );
-                }}
+                renderItem={(msg: ChatMessage) => (
+                  <FavoriteListRow
+                    key={msg.id}
+                    msg={msg} conversations={conversations} setFavPreviewMsg={setFavPreviewMsg}
+                    setFavPreviewVisible={setFavPreviewVisible} setLeftPaneContextMenu={setLeftPaneContextMenu}
+                  />
+                )}
               />
             )}
-            {leftPaneMode === 'globalSearch' && (
-              <div style={{ padding: '8px 12px 0' }}>
-                <Input
-                  prefix={<Search size={13} />}
-                  placeholder="搜索全部消息内容"
-                  size="small"
-                  value={globalSearchKeyword}
-                  onChange={(v) => {
-                    setGlobalSearchKeyword(v);
-                    if (!v.trim()) {
-                      setGlobalSearchResults([]);
-                      setGlobalSearchTotal(0);
-                      setGlobalSearchHasSearched(false);
-                    }
-                  }}
-                  onEnterPress={async () => {
-                    const kw = globalSearchKeyword.trim();
-                    if (!kw) return;
-                    setGlobalSearchLoading(true);
-                    const res = await request.get<{
-                      list: import('@zenith/shared').ChatMessageSearchItem[];
-                      total: number;
-                      page: number;
-                      pageSize: number;
-                      conversationNames: Record<string, string>;
-                    }>(`/api/chat/messages/global-search?keyword=${encodeURIComponent(kw)}&page=1&pageSize=20`, { silent: true });
-                    setGlobalSearchLoading(false);
-                    if (res.code === 0 && res.data) {
-                      setGlobalSearchResults(res.data.list);
-                      setGlobalSearchTotal(res.data.total);
-                      setGlobalSearchPage(1);
-                      setGlobalSearchConvNames(res.data.conversationNames);
-                      setGlobalSearchHasSearched(true);
-                    }
-                  }}
-                  showClear
-                />
-                {globalSearchHasSearched && (
-                  <Text type="tertiary" style={{ display: 'block', fontSize: 11, padding: '6px 0 2px' }}>
-                    共 {globalSearchTotal} 条结果
-                  </Text>
-                )}
-              </div>
-            )}
-            {leftPaneMode === 'globalSearch' && globalSearchLoading && (
-              <div style={{ display: 'flex', justifyContent: 'center', padding: 20 }}>
-                <Spin />
-              </div>
-            )}
-              {leftPaneMode === 'globalSearch' && globalSearchHasSearched && !globalSearchLoading && (
-                <SemiList
-                  dataSource={globalSearchResults}
-                  emptyContent={<Empty description="未找到相关消息" style={{ padding: '30px 0' }} imageStyle={{ width: 60 }} />}
-                  split={false}
-                  renderItem={(item: ChatMessageSearchItem) => {
-                    const convName = globalSearchConvNames[String(item.message.conversationId)] ?? '会话';
-                    return (
-                      <SemiList.Item
-                        key={item.message.id}
-                        onClick={async () => {
-                          const res = await request.get<ChatMessageContext>(
-                            `/api/chat/conversations/${item.message.conversationId}/messages/${item.message.id}/context?before=15&after=15`,
-                            { silent: true },
-                          );
-                          if (res.code !== 0 || !res.data) {
-                            import('@douyinfe/semi-ui').then(({ Toast }) => Toast.error('定位消息失败'));
-                            return;
-                          }
-                          const targetConv = conversations.find((c) => c.id === item.message.conversationId);
-                          if (!targetConv) {
-                            // 会话不在列表中，刷新列表再定位
-                            await fetchConversations();
-                          }
-                          setActiveConvId(item.message.conversationId);
-                          onConvChange?.(item.message.conversationId);
-                          setLeftPaneMode('conversations');
-                          setMessages(res.data.list);
-                          setHasMore(res.data.hasBefore);
-                          setOldestMsgId(res.data.list[0]?.id ?? null);
-                          setContextMode({ anchorMessageId: res.data.anchorMessageId, keyword: globalSearchKeyword.trim() });
-                          setTimeout(() => scrollToMessage(res.data.anchorMessageId), 80);
-                        }}
-                        style={{ padding: '8px 12px', cursor: 'pointer' }}
-                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--semi-color-fill-0)'; }}
-                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-                        main={(
-                          <div style={{ minWidth: 0, width: '100%' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 2 }}>
-                              <Text strong style={{ fontSize: 12, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{convName}</Text>
-                              <Text type="tertiary" style={{ fontSize: 11, flexShrink: 0 }}>{formatConvTime(item.message.createdAt)}</Text>
-                            </div>
-                            {item.message.senderName && (
-                              <Text type="secondary" style={{ display: 'block', fontSize: 11, marginBottom: 2 }}>{item.message.senderName}</Text>
-                            )}
-                            <Text type="tertiary" style={{ display: 'block', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {item.snippet}
-                            </Text>
-                          </div>
-                        )}
-                      />
-                    );
-                  }}
-                />
-              )}
-            {leftPaneMode === 'globalSearch' && globalSearchHasSearched && !globalSearchLoading
-              && globalSearchResults.length < globalSearchTotal && (
-              <div style={{ padding: '8px 12px', textAlign: 'center' }}>
-                <Button
-                  size="small"
-                  theme="borderless"
-                  type="tertiary"
-                  loading={globalSearchLoading}
-                  onClick={async () => {
-                    const kw = globalSearchKeyword.trim();
-                    if (!kw) return;
-                    const nextPage = globalSearchPage + 1;
-                    setGlobalSearchLoading(true);
-                    const res = await request.get<{
-                      list: import('@zenith/shared').ChatMessageSearchItem[];
-                      total: number;
-                      page: number;
-                      pageSize: number;
-                      conversationNames: Record<string, string>;
-                    }>(`/api/chat/messages/global-search?keyword=${encodeURIComponent(kw)}&page=${nextPage}&pageSize=20`, { silent: true });
-                    setGlobalSearchLoading(false);
-                    if (res.code === 0 && res.data) {
-                      setGlobalSearchResults((prev) => [...prev, ...res.data.list]);
-                      setGlobalSearchPage(nextPage);
-                      setGlobalSearchConvNames((prev) => ({ ...prev, ...res.data.conversationNames }));
-                    }
-                  }}
-                >
-                  加载更多
-                </Button>
-              </div>
-            )}
+            <GlobalSearchPane
+              leftPaneMode={leftPaneMode} globalSearchKeyword={globalSearchKeyword} setGlobalSearchKeyword={setGlobalSearchKeyword}
+              setGlobalSearchResults={setGlobalSearchResults} setGlobalSearchTotal={setGlobalSearchTotal} setGlobalSearchHasSearched={setGlobalSearchHasSearched}
+              setGlobalSearchLoading={setGlobalSearchLoading} globalSearchLoading={globalSearchLoading} globalSearchHasSearched={globalSearchHasSearched}
+              globalSearchTotal={globalSearchTotal} globalSearchResults={globalSearchResults} globalSearchPage={globalSearchPage}
+              setGlobalSearchPage={setGlobalSearchPage} globalSearchConvNames={globalSearchConvNames} setGlobalSearchConvNames={setGlobalSearchConvNames}
+              onOpenSearchResult={onOpenSearchResult}
+            />
             {leftPaneContextMenu && (
-              <Dropdown
-                trigger="click"
-                visible
-                clickToHide
-                position="bottomLeft"
-                getPopupContainer={() => document.body}
-                onVisibleChange={(visible) => {
-                  if (!visible) setLeftPaneContextMenu(null);
-                }}
-                render={leftPaneContextMenu.type === 'conversation' ? (
-                  <Dropdown.Menu>
-                    <Dropdown.Item
-                      icon={<Pin size={13} />}
-                      onClick={() => {
-                        const { conv } = leftPaneContextMenu;
-                        const isPinned = conv.isPinned ?? false;
-                        void request.patch(`/api/chat/conversations/${conv.id}/pin`, { pin: !isPinned }).then((r) => {
-                          if ((r as { code: number }).code === 0) {
-                            setConversations(togglePinAndSort(conv.id, isPinned));
-                            Toast.success(isPinned ? '已取消置顶' : '已置顶');
-                          }
-                        });
-                        setLeftPaneContextMenu(null);
-                      }}
-                    >
-                      {(leftPaneContextMenu.conv.isPinned ?? false) ? '取消置顶' : '置顶'}
-                    </Dropdown.Item>
-                    <Dropdown.Item
-                      icon={<Star size={13} />}
-                      onClick={() => {
-                        const { conv } = leftPaneContextMenu;
-                        const isStarred = conv.isStarred ?? false;
-                        void request.patch(`/api/chat/conversations/${conv.id}/star`, { star: !isStarred }).then((r) => {
-                          if ((r as { code: number }).code === 0) {
-                            setConversations(toggleConvStarred(conv.id, isStarred));
-                            Toast.success(isStarred ? '已取消星标' : '已标记星标');
-                          }
-                        });
-                        setLeftPaneContextMenu(null);
-                      }}
-                    >
-                      {(leftPaneContextMenu.conv.isStarred ?? false) ? '取消星标' : '标记星标'}
-                    </Dropdown.Item>
-                    <Dropdown.Item
-                      icon={<BellOff size={13} />}
-                      onClick={() => {
-                        const { conv } = leftPaneContextMenu;
-                        const isMuted = conv.isMuted ?? false;
-                        void request.patch(`/api/chat/conversations/${conv.id}/mute`, { mute: !isMuted }).then((r) => {
-                          if ((r as { code: number }).code === 0) {
-                            setConversations(toggleConvMuted(conv.id, isMuted));
-                            Toast.success(isMuted ? '已取消免打扰' : '已开启免打扰');
-                          }
-                        });
-                        setLeftPaneContextMenu(null);
-                      }}
-                    >
-                      {(leftPaneContextMenu.conv.isMuted ?? false) ? '取消免打扰' : '免打扰'}
-                    </Dropdown.Item>
-                    <Dropdown.Item
-                      icon={(leftPaneContextMenu.conv.isArchived ?? false) ? <ArchiveRestore size={13} /> : <Archive size={13} />}
-                      onClick={() => {
-                        const { conv } = leftPaneContextMenu;
-                        const isArchived = conv.isArchived ?? false;
-                        void request.patch(`/api/chat/conversations/${conv.id}/archive`, { archive: !isArchived }).then((r) => {
-                          if ((r as { code: number }).code === 0) {
-                            setConversations((prev) => prev.map((c) => c.id === conv.id ? { ...c, isArchived: !isArchived } : c));
-                            Toast.success(isArchived ? '已取消归档' : '已归档，可在「已归档」分组中查看');
-                          }
-                        });
-                        setLeftPaneContextMenu(null);
-                      }}
-                    >
-                      {(leftPaneContextMenu.conv.isArchived ?? false) ? '取消归档' : '归档会话'}
-                    </Dropdown.Item>
-                    <Dropdown.Divider />
-                    <Dropdown.Item
-                      type="danger"
-                      onClick={() => {
-                        const { conv } = leftPaneContextMenu;
-                        confirmDelete({
-                          title: '确定要删除该会话吗？',
-                          content: '删除后仅移除你当前账号下的会话记录，无法恢复。',
-                          onOk: () => {
-                            void request.delete(`/api/chat/conversations/${conv.id}`).then((r) => {
-                              if (r.code !== 0) return;
-                              Toast.success('会话已删除');
-                              setConversations(removeConversationById(conv.id));
-                              if (activeConvId === conv.id) {
-                                setActiveConvId(null);
-                                setMessages([]);
-                                setPendingNewMsgCount(0);
-                              }
-                            });
-                          },
-                        });
-                        setLeftPaneContextMenu(null);
-                      }}
-                    >
-                      删除会话
-                    </Dropdown.Item>
-                  </Dropdown.Menu>
-                ) : (
-                  <Dropdown.Menu>
-                    <Dropdown.Item
-                      icon={<Search size={12} />}
-                      onClick={() => {
-                        void openFavoriteMessage(leftPaneContextMenu.msg);
-                        setFavPreviewVisible(false);
-                        setLeftPaneContextMenu(null);
-                      }}
-                    >
-                      定位到原消息
-                    </Dropdown.Item>
-                    <Dropdown.Item
-                      icon={<Bookmark size={12} />}
-                      onClick={() => {
-                        void handleToggleFavorite(leftPaneContextMenu.msg);
-                        setLeftPaneContextMenu(null);
-                      }}
-                    >
-                      取消收藏
-                    </Dropdown.Item>
-                    <Dropdown.Item
-                      icon={<Pin size={12} />}
-                      onClick={() => {
-                        void handleTogglePinMessage(leftPaneContextMenu.msg);
-                        setLeftPaneContextMenu(null);
-                      }}
-                    >
-                      {leftPaneContextMenu.msg.extra?.isPinned ? '取消置顶消息' : '置顶消息'}
-                    </Dropdown.Item>
-                  </Dropdown.Menu>
-                )}
-              >
-                <span
-                  style={{
-                    position: 'fixed',
-                    left: leftPaneContextMenu.x,
-                    top: leftPaneContextMenu.y,
-                    width: 1,
-                    height: 1,
-                  }}
-                />
-              </Dropdown>
+              <LeftPaneContextMenu
+                leftPaneContextMenu={leftPaneContextMenu} setLeftPaneContextMenu={setLeftPaneContextMenu} setConversations={setConversations}
+                activeConvId={activeConvId} setActiveConvId={setActiveConvId} setMessages={setMessages}
+                setPendingNewMsgCount={setPendingNewMsgCount} openFavoriteMessage={openFavoriteMessage} setFavPreviewVisible={setFavPreviewVisible}
+                handleToggleFavorite={handleToggleFavorite} handleTogglePinMessage={handleTogglePinMessage}
+              />
             )}
           </Spin>
         </div>
@@ -2653,45 +816,10 @@ export default function ChatPage({
                         />
                       </Tooltip>
                     )}
-                    <Tooltip content="通知设置">
-                      <Popover
-                        trigger="click"
-                        position="bottomRight"
-                        showArrow
-                        content={(
-                          <div style={{ padding: '10px 12px', width: 230 }}>
-                            <Text strong style={{ fontSize: 13, display: 'block', marginBottom: 10 }}>消息通知设置</Text>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                              <Text style={{ fontSize: 13 }}>桌面通知</Text>
-                              <Switch
-                                size="small"
-                                checked={notifyDesktop && notifyPermission === 'granted'}
-                                onChange={(v) => { void handleToggleNotifyDesktop(v); }}
-                              />
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <Text style={{ fontSize: 13 }}>新消息提示音</Text>
-                              <Switch size="small" checked={notifySound} onChange={handleToggleNotifySound} />
-                            </div>
-                            {notifyPermission === 'denied' && (
-                              <Text type="tertiary" style={{ fontSize: 11, display: 'block', marginTop: 8 }}>
-                                浏览器已禁用通知权限，请在浏览器设置中允许后重试
-                              </Text>
-                            )}
-                            <Text type="tertiary" style={{ fontSize: 11, display: 'block', marginTop: 8 }}>
-                              仅在窗口处于后台时提醒，已免打扰的会话不提醒
-                            </Text>
-                          </div>
-                        )}
-                      >
-                        <Button
-                          size="small"
-                          theme="borderless"
-                          type={notifyDesktop && notifyPermission === 'granted' ? 'primary' : 'tertiary'}
-                          icon={notifyDesktop && notifyPermission === 'granted' ? <Bell size={15} /> : <BellOff size={15} />}
-                        />
-                      </Popover>
-                    </Tooltip>
+                    <NotifySettingsPopover
+                      notifyDesktop={notifyDesktop} notifyPermission={notifyPermission} notifySound={notifySound}
+                      handleToggleNotifyDesktop={handleToggleNotifyDesktop} handleToggleNotifySound={handleToggleNotifySound}
+                    />
                     <Tooltip content={showSearchPanel ? '关闭聊天记录' : '聊天记录'}>
                       <Button
                         size="small"
@@ -2787,88 +915,10 @@ export default function ChatPage({
                 />
               </Tooltip>
             )}
-            {activeConv.type === 'direct' && activeConv.targetUser && (
-              <Popover
-                trigger="click"
-                position="bottomLeft"
-                showArrow
-                content={(
-                  <div style={{ padding: '8px 4px', minWidth: 220 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                      <UserAvatar name={activeConv.targetUser.nickname} avatar={activeConv.targetUser.avatar} size={44} />
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 15 }}>{activeConv.targetUser.nickname}</div>
-                        {activeConv.targetUser.departmentName && (
-                          <div style={{ color: 'var(--semi-color-text-2)', fontSize: 12, marginTop: 2 }}>{activeConv.targetUser.departmentName}</div>
-                        )}
-                      </div>
-                    </div>
-                    {(activeConv.targetUser.positionNames ?? []).length > 0 && (
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
-                        <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13, minWidth: 52 }}>岗位</span>
-                        <span style={{ fontSize: 13 }}>{(activeConv.targetUser.positionNames ?? []).join('、')}</span>
-                      </div>
-                    )}
-                    {activeConv.targetUser.phone && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                        <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13, minWidth: 52 }}>手机</span>
-                        <span style={{ fontSize: 13 }}>{activeConv.targetUser.phone}</span>
-                      </div>
-                    )}
-                    {activeConv.targetUser.email && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13, minWidth: 52 }}>邮箱</span>
-                        <span style={{ fontSize: 13 }}>{activeConv.targetUser.email}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              >
-                <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: isQuick ? 6 : 8, maxWidth: '60%', minWidth: 0 }}>
-                  <PresenceAvatar online={onlineUserIds.has(activeConv.targetUser.id)}>
-                    <UserAvatar name={activeConv.targetUser.nickname} avatar={activeConv.targetUser.avatar} size={24} />
-                  </PresenceAvatar>
-                  <span style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0, overflow: 'hidden' }}>
-                    <Title
-                      heading={6}
-                      style={{
-                        margin: 0,
-                        lineHeight: '1.2',
-                        fontSize: isQuick ? 15 : undefined,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {activeConv.targetUser.nickname}
-                    </Title>
-                    <Text size="small" type="tertiary" style={{ whiteSpace: 'nowrap', flexShrink: 0, color: onlineUserIds.has(activeConv.targetUser.id) ? 'var(--semi-color-success)' : undefined }}>
-                      {formatPresenceText(onlineUserIds.has(activeConv.targetUser.id), lastSeenMap[activeConv.targetUser.id])}
-                    </Text>
-                  </span>
-                </span>
-              </Popover>
-            )}
-            {activeConv.type === 'group' && (
-              <>
-                <GroupGridAvatar name={activeConv.name ?? '群聊'} size={24} members={groupAvatarMap[activeConv.id]} />
-                <Title
-                  heading={6}
-                  style={{
-                    margin: 0,
-                    flex: 1,
-                    minWidth: 0,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    fontSize: isQuick ? 15 : undefined,
-                  }}
-                >
-                  {activeConv.name ?? '群聊'}
-                </Title>
-              </>
-            )}
+            <ChatConvTitle
+              activeConv={activeConv} isQuick={isQuick} onlineUserIds={onlineUserIds}
+              lastSeenMap={lastSeenMap} groupAvatarMap={groupAvatarMap}
+            />
           </MasterDetailLayout.Header>
           <MasterDetailLayout.Body scroll="hidden" style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
@@ -2881,22 +931,7 @@ export default function ChatPage({
               )}
               {!isInitialLoadingMessages && isEmptyMessagesView && (
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 8 }}>
-                  {!wsConnected && (
-                    <div
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        padding: '8px 10px', borderRadius: 'var(--semi-border-radius-medium)',
-                        background: 'var(--semi-color-warning-light-default)',
-                        border: '1px solid var(--semi-color-warning-light-active)',
-                        color: 'var(--semi-color-warning)',
-                      }}
-                    >
-                      <AlertCircle size={14} style={{ flexShrink: 0 }} />
-                      <Text style={{ flex: 1, fontSize: 12, color: 'inherit' }}>
-                        实时连接已断开，正在自动重连。重连期间仍可发送消息，但新消息可能会延迟同步。
-                      </Text>
-                    </div>
-                  )}
+                  {!wsConnected && <WsDisconnectedBanner />}
                   <Empty description="发送第一条消息吧" imageStyle={{ width: 80 }} />
                 </div>
               )}
@@ -2915,92 +950,18 @@ export default function ChatPage({
                   computeItemKey={(_idx, msg) => msg.id}
                   components={{
                     Footer: () => { // NOSONAR
-                      const items = uploadingItems.filter((u) => u.convId === activeConvId);
-                      if (items.length === 0) return null;
                       return (
-                        <div style={{ padding: isQuick ? '4px 12px 8px' : '4px 20px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          {items.map((item) => (
-                            <div key={item.id} style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                              {item.type === 'image' ? (
-                                <div style={{ position: 'relative', width: 120, height: 120, flexShrink: 0 }}>
-                                  <img src={item.previewUrl} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'var(--semi-border-radius-medium)', display: 'block', opacity: 0.55 }} />
-                                  <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--semi-border-radius-medium)', background: 'rgba(0,0,0,0.45)', gap: 6 }}>
-                                    <Progress type="circle" percent={item.progress ?? 0} size="small" showInfo={false} stroke="#fff" orbitStroke="rgba(255,255,255,0.25)" />
-                                    <span style={{ fontSize: 12, color: '#fff', fontWeight: 600 }}>{item.progress ?? 0}%</span>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 6, padding: '8px 14px', background: 'var(--semi-color-primary-light-default)', border: '1px solid var(--semi-color-primary-light-active)', borderRadius: 'var(--semi-border-radius-large)', maxWidth: 260, fontSize: 13, color: 'var(--semi-color-text-0)' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{item.name}</span>
-                                    <span style={{ flexShrink: 0, fontSize: 12, color: 'var(--semi-color-primary)', fontWeight: 600 }}>{item.progress ?? 0}%</span>
-                                  </div>
-                                  <Progress percent={item.progress ?? 0} size="small" showInfo={false} style={{ margin: 0 }} />
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
+                        <UploadingFooter
+                          uploadingItems={uploadingItems} activeConvId={activeConvId} isQuick={isQuick}
+                        />
                       );
                     },
                     Header: () => ( // NOSONAR
-                      <div style={{ padding: isQuick ? '8px 12px 0' : '12px 20px 0' }}>
-                        {!wsConnected && (
-                          <div
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
-                              padding: '8px 10px', borderRadius: 'var(--semi-border-radius-medium)',
-                              background: 'var(--semi-color-warning-light-default)',
-                              border: '1px solid var(--semi-color-warning-light-active)',
-                              color: 'var(--semi-color-warning)',
-                            }}
-                          >
-                            <AlertCircle size={14} style={{ flexShrink: 0 }} />
-                            <Text style={{ flex: 1, fontSize: 12, color: 'inherit' }}>
-                              实时连接已断开，正在自动重连。重连期间仍可发送消息，但新消息可能会延迟同步。
-                            </Text>
-                          </div>
-                        )}
-                        {pinnedMessages.length > 0 && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10, padding: '8px 10px', borderRadius: 'var(--semi-border-radius-medium)', background: 'var(--semi-color-fill-0)', border: '1px solid var(--semi-color-border)' }}>
-                            <Text strong style={{ fontSize: 12 }}><Pin size={12} style={{ marginRight: 4, verticalAlign: 'text-bottom' }} />置顶消息</Text>
-                              <SemiList
-                                dataSource={pinnedMessages}
-                                split={false}
-                                renderItem={(item: ChatMessage) => (
-                                  <SemiList.Item
-                                    key={item.id}
-                                    align="center"
-                                    onClick={() => scrollToMessage(item.id)}
-                                    style={{ padding: 0, cursor: 'pointer' }}
-                                    main={(
-                                      <Text type="tertiary" style={{ fontSize: 12, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {getMessageSummary(item)}
-                                      </Text>
-                                    )}
-                                    extra={(
-                                      <button
-                                        type="button"
-                                        title="取消置顶"
-                                        onClick={(event) => { event.stopPropagation(); void handleTogglePinMessage(item); }}
-                                        style={{ flexShrink: 0, border: 'none', background: 'transparent', padding: 2, cursor: 'pointer', color: 'var(--semi-color-text-2)', display: 'flex', alignItems: 'center', borderRadius: 'var(--semi-border-radius-small)' }}
-                                        onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--semi-color-danger)'; }}
-                                        onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--semi-color-text-2)'; }}
-                                      >
-                                        <PinOff size={12} />
-                                      </button>
-                                    )}
-                                  />
-                                )}
-                              />
-                          </div>
-                        )}
-                        {hasMore && loadingMsgs && (
-                          <div style={{ textAlign: 'center', marginBottom: 8, minHeight: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Spin size="small" />
-                          </div>
-                        )}
-                      </div>
+                      <MessagesListHeader
+                        isQuick={isQuick} wsConnected={wsConnected} pinnedMessages={pinnedMessages}
+                        scrollToMessage={scrollToMessage} handleTogglePinMessage={handleTogglePinMessage} hasMore={hasMore}
+                        loadingMsgs={loadingMsgs}
+                      />
                     ),
                   }}
                   itemContent={(virtualIndex, msg) => { // NOSONAR
@@ -3074,50 +1035,10 @@ export default function ChatPage({
               )}
               {/* ⑥ 发送失败重试 */}
               {failedMessages.some((m) => m.convId === activeConvId) && (
-                <div style={{ padding: isQuick ? '0 12px 8px' : '0 20px 8px', flexShrink: 0 }}>
-                  <SemiList
-                    split={false}
-                    dataSource={failedMessages.filter((m) => m.convId === activeConvId)}
-                    renderItem={(failed) => (
-                      <SemiList.Item
-                        key={failed.id}
-                        style={{
-                          padding: '8px 12px', margin: '4px 0',
-                          background: 'var(--semi-color-danger-light-default)',
-                          border: '1px solid var(--semi-color-danger-light-active)',
-                          borderRadius: 'var(--semi-border-radius-medium)',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                          <AlertCircle size={14} style={{ color: 'var(--semi-color-danger)', marginTop: 2, flexShrink: 0 }} />
-                          <span style={{ flex: 1, fontSize: 13, wordBreak: 'break-word', color: 'var(--semi-color-text-0)' }}>
-                            {failed.content}
-                          </span>
-                          <Button
-                            size="small"
-                            type="danger"
-                            theme="borderless"
-                            onClick={() => {
-                              setFailedMessages(removeFailedMessageById(failed.id));
-                              setInput(failed.content);
-                              requestAnimationFrame(() => inputRef.current?.focus());
-                            }}
-                          >
-                            重试
-                          </Button>
-                          <Button
-                            size="small"
-                            theme="borderless"
-                            type="tertiary"
-                            onClick={() => setFailedMessages(removeFailedMessageById(failed.id))}
-                          >
-                            忽略
-                          </Button>
-                        </div>
-                      </SemiList.Item>
-                    )}
-                  />
-                </div>
+                <FailedMessagesList
+                  isQuick={isQuick} failedMessages={failedMessages} activeConvId={activeConvId}
+                  setFailedMessages={setFailedMessages} setInput={setInput} inputRef={inputRef}
+                />
               )}
               {pendingNewMsgCount > 0 && (
                 <div style={{ position: 'absolute', bottom: 10, left: 0, right: 0, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
@@ -3159,169 +1080,12 @@ export default function ChatPage({
 
             {/* ⑤ 媒体库面板 */}
             {!isQuick && showMediaPanel && !showSearchPanel && !showMembers && (
-              <div style={{ width: 320, borderLeft: '1px solid var(--semi-color-border)', display: 'flex', flexDirection: 'column', flexShrink: 0, background: 'var(--semi-color-bg-1)' }}>
-                <div style={{ padding: '12px', borderBottom: '1px solid var(--semi-color-border)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Text strong style={{ flex: 1, fontSize: 13 }}>媒体文件</Text>
-                  <Button size="small" theme="borderless" type="tertiary" icon={<X size={14} />} onClick={() => setShowMediaPanel(false)} />
-                </div>
-                <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--semi-color-border)', display: 'flex', gap: 8 }}>
-                  <Button
-                    size="small"
-                    theme={mediaType === 'image' ? 'solid' : 'borderless'}
-                    type={mediaType === 'image' ? 'primary' : 'tertiary'}
-                    onClick={() => setMediaType('image')}
-                  >
-                    图片
-                  </Button>
-                  <Button
-                    size="small"
-                    theme={mediaType === 'file' ? 'solid' : 'borderless'}
-                    type={mediaType === 'file' ? 'primary' : 'tertiary'}
-                    onClick={() => setMediaType('file')}
-                  >
-                    文件
-                  </Button>
-                  <Button
-                    size="small"
-                    theme={mediaType === 'link' ? 'solid' : 'borderless'}
-                    type={mediaType === 'link' ? 'primary' : 'tertiary'}
-                    onClick={() => setMediaType('link')}
-                  >
-                    链接
-                  </Button>
-                </div>
-                <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
-                  <Spin spinning={mediaLoading && mediaItems.length === 0}>
-                    {mediaItems.length === 0 && !mediaLoading && (
-                      <Empty description={{ image: '暂无图片消息', file: '暂无文件消息', link: '暂无链接消息' }[mediaType]} imageStyle={{ width: 64 }} style={{ paddingTop: 40 }} />
-                    )}
-                    {mediaType === 'image' && (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4 }}>
-                        {mediaItems.map((item) => (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => { void openImagePreview(item, mediaItems.filter((m) => m.type === 'image')); }}
-                            style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', aspectRatio: '1', overflow: 'hidden', borderRadius: 'var(--semi-border-radius-small)' }}
-                          >
-                            <img
-                              src={item.extra?.asset?.thumbnailUrl ?? item.content}
-                              alt={item.extra?.asset?.name ?? '图片'}
-                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                            />
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    {mediaType === 'file' && (
-                      <SemiList
-                        split={false}
-                        dataSource={mediaItems}
-                        renderItem={(item) => {
-                          const asset = item.extra?.asset;
-                          return (
-                            <SemiList.Item
-                              key={item.id}
-                              style={{ padding: '8px 10px', background: 'var(--semi-color-bg-2)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', marginBottom: 8, overflow: 'hidden' }}
-                            >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', minWidth: 0 }}>
-                                <span style={{ display: 'flex', flexShrink: 0 }}>{getFileTypeIcon(asset?.mimeType, 22, asset?.name)}</span>
-                                <div style={{ flex: '1 1 0', minWidth: 0, overflow: 'hidden' }}>
-                                  <Text strong style={{ fontSize: 12, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {asset?.name ?? '未知文件'}
-                                  </Text>
-                                  <Text type="tertiary" style={{ fontSize: 11 }}>
-                                    {asset?.size ? formatFileSize(asset.size) : ''}
-                                  </Text>
-                                </div>
-                                <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
-                                  {canPreviewFile(asset?.mimeType) && (
-                                    <Button
-                                      size="small"
-                                      theme="borderless"
-                                      type="tertiary"
-                                      icon={<Eye size={14} />}
-                                      title="预览"
-                                      onClick={() => { handleMediaFilePreview(item); }}
-                                    />
-                                  )}
-                                  <Button
-                                    size="small"
-                                    theme="borderless"
-                                    type="primary"
-                                    icon={<Download size={14} />}
-                                    title="下载"
-                                    onClick={() => { window.open(item.content, '_blank'); }}
-                                  />
-                                </div>
-                              </div>
-                            </SemiList.Item>
-                          );
-                        }}
-                      />
-                    )}
-                    {mediaType === 'link' && (
-                      <SemiList
-                        split={false}
-                        dataSource={mediaItems}
-                        renderItem={(item) => {
-                          const preview = item.extra?.linkPreview;
-                          const urlMatch = preview?.url ?? (/(https?:\/\/[^\s]+)/.exec(item.content)?.[1] ?? item.content);
-                          return (
-                            <SemiList.Item key={item.id} style={{ padding: 0, marginBottom: 8, border: 'none', overflow: 'hidden' }}>
-                              <a
-                                href={urlMatch}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{ display: 'flex', gap: 10, padding: '10px 12px', background: 'var(--semi-color-bg-2)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', textDecoration: 'none', color: 'inherit', alignItems: 'flex-start', width: '100%', boxSizing: 'border-box', overflow: 'hidden' }}
-                              >
-                                {preview?.image && (
-                                  <img
-                                    src={preview.image}
-                                    alt=""
-                                    style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 'var(--semi-border-radius-medium)', flexShrink: 0 }}
-                                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                                  />
-                                )}
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <Text strong style={{ fontSize: 12, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {preview?.title ?? urlMatch}
-                                  </Text>
-                                  <Text type="tertiary" style={{ fontSize: 11, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
-                                    {urlMatch}
-                                  </Text>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
-                                    {preview?.favicon && (
-                                      <img src={preview.favicon} alt="" style={{ width: 12, height: 12, borderRadius: 'var(--semi-border-radius-small)' }}
-                                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                                      />
-                                    )}
-                                    <Text type="secondary" style={{ fontSize: 11 }}>{preview?.siteName ?? item.senderName}</Text>
-                                    <Text type="tertiary" style={{ fontSize: 11, marginLeft: 'auto' }}>{formatDateTime(item.createdAt)}</Text>
-                                  </div>
-                                </div>
-                              </a>
-                            </SemiList.Item>
-                          );
-                        }}
-                      />
-                    )}
-                    {mediaHasMore && (
-                      <div style={{ textAlign: 'center', marginTop: 8 }}>
-                        <Button
-                          size="small"
-                          type="tertiary"
-                          theme="borderless"
-                          loading={mediaLoading}
-                          onClick={() => { if (activeConvId) void fetchMediaItems(activeConvId, mediaType, mediaPage + 1); }}
-                        >
-                          加载更多
-                        </Button>
-                      </div>
-                    )}
-                  </Spin>
-                </div>
-              </div>
+              <MediaPanel
+                setShowMediaPanel={setShowMediaPanel} mediaType={mediaType} setMediaType={setMediaType}
+                mediaLoading={mediaLoading} mediaItems={mediaItems} openImagePreview={openImagePreview}
+                handleMediaFilePreview={handleMediaFilePreview} activeConvId={activeConvId} fetchMediaItems={fetchMediaItems}
+                mediaPage={mediaPage} mediaHasMore={mediaHasMore}
+              />
             )}
           </div>
 
@@ -3350,83 +1114,18 @@ export default function ChatPage({
             onClose={() => setFilePreview(null)}
           />
 
-          <AppModal
-            title="群公告历史"
-            visible={announcementHistoryVisible}
-            onCancel={() => setAnnouncementHistoryVisible(false)}
-            footer={null}
-            width={560}
-          >
-            <SemiList
-              dataSource={announcementHistory}
-              emptyContent={<Empty description="暂无公告历史" imageStyle={{ width: 72 }} style={{ padding: '20px 0' }} />}
-              style={{ maxHeight: 420, overflowY: 'auto' }}
-              renderItem={(item) => (
-                <SemiList.Item
-                  key={item.id}
-                  main={(
-                    <>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
-                        <Text strong style={{ fontSize: 12 }}>{item.extra?.announcementHistory?.operatorName ?? item.senderName ?? '系统'}</Text>
-                        <Text type="tertiary" style={{ fontSize: 11 }}>{formatDateTime(item.createdAt)}</Text>
-                      </div>
-                      <Text style={{ fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                        {item.extra?.announcementHistory?.announcement || '已清空群公告'}
-                      </Text>
-                    </>
-                  )}
-                  extra={isOwnerOfActiveGroup ? (
-                    <Button
-                      theme="borderless"
-                      type="danger"
-                      size="small"
-                      onClick={() => handleDeleteAnnouncementHistory(item.id)}
-                    >
-                      删除
-                    </Button>
-                  ) : null}
-                />
-              )}
-            />
-          </AppModal>
+          <AnnouncementHistoryModal
+            announcementHistoryVisible={announcementHistoryVisible} setAnnouncementHistoryVisible={setAnnouncementHistoryVisible} announcementHistory={announcementHistory}
+            isOwnerOfActiveGroup={isOwnerOfActiveGroup} handleDeleteAnnouncementHistory={handleDeleteAnnouncementHistory}
+          />
 
           {/* Input area */}
           <div style={{ padding: isQuick ? '6px 8px' : '4px 8px', borderTop: '1px solid var(--semi-color-border)' }}>
             {multiSelectMode ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', flexWrap: 'wrap' }}>
-                <Text style={{ flex: 1, fontSize: 13, minWidth: 80 }}>
-                  已选 <Text strong>{selectedMessageIds.length}</Text> 条消息
-                </Text>
-                <Button
-                  size="small" type="primary" theme="light" icon={<Forward size={14} />}
-                  disabled={selectedMessageIds.length === 0}
-                  onClick={() => handleForwardSelected('individual')}
-                >
-                  逐条转发
-                </Button>
-                <Button
-                  size="small" type="primary" icon={<Forward size={14} />}
-                  disabled={selectedMessageIds.length === 0}
-                  onClick={() => handleForwardSelected('merge')}
-                >
-                  合并转发
-                </Button>
-                <Button
-                  size="small" type="primary" theme="light" icon={<Bookmark size={14} />}
-                  disabled={selectedMessageIds.length === 0}
-                  onClick={() => { void handleFavoriteSelected(); }}
-                >
-                  收藏
-                </Button>
-                <Button
-                  size="small" type="danger" theme="light" icon={<Trash2 size={14} />}
-                  disabled={selectedMessageIds.length === 0}
-                  onClick={() => { void handleDeleteSelected(); }}
-                >
-                  删除
-                </Button>
-                <Button size="small" type="tertiary" onClick={handleExitMultiSelect}>取消多选</Button>
-              </div>
+              <MultiSelectActionBar
+                selectedMessageIds={selectedMessageIds} handleForwardSelected={handleForwardSelected} handleFavoriteSelected={handleFavoriteSelected}
+                handleDeleteSelected={handleDeleteSelected} handleExitMultiSelect={handleExitMultiSelect}
+              />
             ) : (
               <>
             {replyTo && (
@@ -3439,91 +1138,11 @@ export default function ChatPage({
               </div>
             )}
 
-            {pendingImages.length > 0 && (
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 8,
-                  marginBottom: 8,
-                  flexWrap: 'wrap',
-                  alignItems: 'center',
-                }}
-              >
-                {pendingImages.map((item, idx) => (
-                  <div key={item.id} style={{ position: 'relative', width: 64, height: 64 }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPreviewSrcList(pendingImages.map((img) => img.previewUrl));
-                        setPreviewCurrentIndex(idx);
-                        setPreviewVisible(true);
-                      }}
-                      style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', width: '100%', height: '100%', display: 'block', borderRadius: 'var(--semi-border-radius-medium)', overflow: 'hidden' }}
-                    >
-                      <img
-                        src={item.previewUrl}
-                        alt={item.file.name}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                      />
-                    </button>
-                    <Button
-                      size="small"
-                      theme="solid"
-                      type="danger"
-                      onClick={() => handleRemovePendingImage(item.id)}
-                      style={{
-                        position: 'absolute',
-                        top: -6,
-                        right: -6,
-                        minWidth: 20,
-                        height: 20,
-                        padding: 0,
-                        borderRadius: '50%',
-                        lineHeight: '20px',
-                      }}
-                    >
-                      ×
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {pendingFiles.length > 0 && (
-              <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                {pendingFiles.map((item) => (
-                  <div
-                    key={item.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      padding: '4px 8px',
-                      background: 'var(--semi-color-fill-0)',
-                      borderRadius: 'var(--semi-border-radius-medium)',
-                      border: '1px solid var(--semi-color-border)',
-                      maxWidth: 220,
-                      position: 'relative',
-                    }}
-                  >
-                    <span style={{ display: 'flex', flexShrink: 0 }}>{getFileTypeIcon(item.file.type, 18, item.file.name)}</span>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.file.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--semi-color-text-3)' }}>{formatFileSize(item.file.size)}</div>
-                    </div>
-                    <Button
-                      size="small"
-                      theme="borderless"
-                      type="danger"
-                      onClick={() => handleRemovePendingFile(item.id)}
-                      style={{ padding: '0 2px', height: 'auto', minWidth: 'auto', flexShrink: 0 }}
-                    >
-                      <X size={12} />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
+            <PendingAttachments
+              pendingImages={pendingImages} pendingFiles={pendingFiles} setPreviewSrcList={setPreviewSrcList}
+              setPreviewCurrentIndex={setPreviewCurrentIndex} setPreviewVisible={setPreviewVisible} handleRemovePendingImage={handleRemovePendingImage}
+              handleRemovePendingFile={handleRemovePendingFile}
+            />
 
             {/* Toolbar */}
             <div style={{ display: 'flex', gap: 4, marginBottom: 1, alignItems: 'center' }}>
@@ -3542,35 +1161,10 @@ export default function ChatPage({
                 </Tooltip>
               </div>
               {emojiVisible && emojiAnchor && (
-                <div
-                  ref={emojiPickerRef}
-                  style={{
-                    position: 'fixed',
-                    bottom: window.innerHeight - emojiAnchor.top + 4,
-                    left: emojiAnchor.left,
-                    zIndex: 9999,
-                    background: 'var(--semi-color-bg-3)',
-                    borderRadius: 'var(--semi-border-radius-large)',
-                    boxShadow: 'var(--semi-shadow-elevated)',
-                    overflow: 'hidden',
-                  }}
-                >
-                  <Tabs size="small" type="line" tabPaneMotion={false} style={{ padding: '0 8px' }}>
-                    <TabPane tab="表情" itemKey="emoji">
-                      <Picker
-                        data={data}
-                        onEmojiSelect={handleEmojiSelect}
-                        theme="auto"
-                        locale="zh"
-                        previewPosition="none"
-                        skinTonePosition="none"
-                      />
-                    </TabPane>
-                    <TabPane tab="收藏" itemKey="stickers">
-                      <StickerPanel onSelect={(emoji) => { void sendSticker(emoji); }} />
-                    </TabPane>
-                  </Tabs>
-                </div>
+                <ComposerEmojiPicker
+                  emojiPickerRef={emojiPickerRef} emojiAnchor={emojiAnchor} handleEmojiSelect={handleEmojiSelect}
+                  sendSticker={sendSticker}
+                />
               )}
 
               <Tooltip content="选择图片">
@@ -3655,64 +1249,15 @@ export default function ChatPage({
 
             <div style={{ position: 'relative', flex: 1 }}>
               {mentionState && !mentionClosed && mentionCandidates.length > 0 && (
-                <div
-                  ref={mentionListRef}
-                  style={{
-                    position: 'absolute',
-                    left: 0,
-                    right: 48,
-                    bottom: 'calc(100% + 8px)',
-                    zIndex: 30,
-                    background: 'var(--semi-color-bg-0)',
-                    border: '1px solid var(--semi-color-border)',
-                    borderRadius: 'var(--semi-border-radius-medium)',
-                    boxShadow: 'var(--semi-shadow-elevated)',
-                    padding: 6,
-                    maxHeight: 220,
-                    overflowY: 'auto',
-                  }}
-                >
-                  {mentionCandidates.map((member, idx) => (
-                    <button
-                      key={member.id}
-                      type="button"
-                      onClick={() => insertMention(member)}
-                      onMouseEnter={() => setMentionActiveIndex(idx)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 8, width: '100%', border: 'none',
-                        background: idx === mentionActiveIndex ? 'var(--semi-color-fill-1)' : 'transparent',
-                        padding: '6px 8px', textAlign: 'left', cursor: 'pointer', borderRadius: 'var(--semi-border-radius-medium)',
-                        transition: 'background 0.1s',
-                      }}
-                    >
-                      <UserAvatar name={member.nickname} avatar={member.avatar} size={26} />
-                      <div style={{ minWidth: 0 }}>
-                        <Text strong style={{ fontSize: 12 }}>{member.nickname}</Text>
-                        <Text type="tertiary" style={{ fontSize: 11, display: 'block' }}>@{member.username}</Text>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                <MentionPopup
+                  mentionListRef={mentionListRef} mentionCandidates={mentionCandidates} mentionActiveIndex={mentionActiveIndex}
+                  setMentionActiveIndex={setMentionActiveIndex} insertMention={insertMention}
+                />
               )}
               {Object.values(typingUsers).length > 0 && (
-                <div style={{ fontSize: 11, color: 'var(--semi-color-text-3)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ display: 'inline-flex', gap: 3, alignItems: 'center' }}>
-                    {[0, 1, 2].map((i) => (
-                      <span
-                        key={i}
-                        style={{
-                          width: 4, height: 4, borderRadius: '50%',
-                          background: 'var(--semi-color-text-3)',
-                          display: 'inline-block',
-                          animation: `chat-typing-bounce 1.2s ${i * 0.2}s ease-in-out infinite`,
-                        }}
-                      />
-                    ))}
-                  </span>
-                  {Object.values(typingUsers).length > 2
-                    ? `${Object.values(typingUsers)[0].nickname}等${Object.values(typingUsers).length}人正在输入...`
-                    : `${Object.values(typingUsers).map((u) => u.nickname).join('、')}正在输入...`}
-                </div>
+                <TypingIndicator
+                  typingUsers={typingUsers}
+                />
               )}
               <textarea
                 ref={inputRef}
@@ -3775,44 +1320,10 @@ export default function ChatPage({
           }}
         />
       )}
-      <AppModal
-        title="发现频道"
-        visible={discoverVisible}
-        onCancel={() => setDiscoverVisible(false)}
-        footer={null}
-        width={480}
-      >
-        <Input
-          prefix={<Search size={14} />}
-          placeholder="搜索频道"
-          showClear
-          value={discoverKeyword}
-          onChange={setDiscoverKeyword}
-          style={{ marginBottom: 12 }}
-        />
-        {discoverList.length === 0 ? (
-          <Empty description="暂无可订阅的频道" style={{ padding: 32 }} />
-        ) : (
-          <SemiList
-            dataSource={discoverList}
-            split={false}
-            renderItem={(ch: Channel) => (
-              <SemiList.Item
-                key={ch.id}
-                style={{ padding: '10px 4px' }}
-                header={<UserAvatar name={ch.name} avatar={ch.avatar} size={36} />}
-                main={(
-                  <div style={{ minWidth: 0 }}>
-                    <Text strong>{ch.name}</Text>
-                    <Text type="tertiary" size="small" style={{ display: 'block' }}>{ch.description}</Text>
-                  </div>
-                )}
-                extra={<Button size="small" type="primary" theme="light" onClick={() => void handleSubscribeChannel(ch)}>订阅</Button>}
-              />
-            )}
-          />
-        )}
-      </AppModal>
+      <DiscoverChannelsModal
+        discoverVisible={discoverVisible} setDiscoverVisible={setDiscoverVisible} discoverKeyword={discoverKeyword}
+        setDiscoverKeyword={setDiscoverKeyword} discoverList={discoverList} handleSubscribeChannel={handleSubscribeChannel}
+      />
 
       <ForwardModal
         visible={forwardModalVisible}
@@ -3844,27 +1355,10 @@ export default function ChatPage({
       />
       {/* Reaction emoji picker — fixed overlay */}
       {reactionPickerVisible && reactionPickerAnchor && (
-        <div
-          ref={reactionPickerRef}
-          style={{
-            position: 'fixed',
-            bottom: window.innerHeight - reactionPickerAnchor.top + 4,
-            right: reactionPickerAnchor.right,
-            zIndex: 9999,
-          }}
-        >
-          <Picker
-            data={data}
-            onEmojiSelect={(emoji: { native: string }) => {
-              if (reactionTargetMsgId !== null) handleReaction(reactionTargetMsgId, emoji.native);
-              setReactionPickerVisible(false);
-            }}
-            theme="auto"
-            locale="zh"
-            previewPosition="none"
-            skinTonePosition="none"
-          />
-        </div>
+        <ReactionPickerOverlay
+          reactionPickerRef={reactionPickerRef} reactionPickerAnchor={reactionPickerAnchor} reactionTargetMsgId={reactionTargetMsgId}
+          handleReaction={handleReaction} setReactionPickerVisible={setReactionPickerVisible}
+        />
       )}
       <ForwardedMessagesModal
         visible={forwardViewVisible}
@@ -3872,221 +1366,25 @@ export default function ChatPage({
         title={forwardViewTitle}
         onCancel={() => setForwardViewVisible(false)}
       />
-      {favPreviewMsg && (() => {
-        const conv = conversations.find((c) => c.id === favPreviewMsg.conversationId);
-        const convName = conv?.type === 'direct' ? (conv.targetUser?.nickname ?? '私聊') : (conv?.name ?? '群聊');
-        return (
-          <AppModal
-            title={
-              <div>
-                <div>收藏的消息</div>
-                <Text type="tertiary" style={{ fontSize: 12, fontWeight: 'normal' }}>{convName}</Text>
-              </div>
-            }
-            visible={favPreviewVisible}
-            onCancel={() => setFavPreviewVisible(false)}
-            footer={
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                <Button
-                  type="tertiary"
-                  theme="borderless"
-                  icon={<Bookmark size={14} />}
-                  onClick={() => {
-                    void handleToggleFavorite(favPreviewMsg);
-                    setFavPreviewVisible(false);
-                  }}
-                >
-                  取消收藏
-                </Button>
-                <Button
-                  type="primary"
-                  icon={<Search size={14} />}
-                  onClick={() => {
-                    setFavPreviewVisible(false);
-                    void openFavoriteMessage(favPreviewMsg);
-                  }}
-                >
-                  定位消息
-                </Button>
-              </div>
-            }
-            width={520}
-          >
-            <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <UserAvatar name={favPreviewMsg.senderName ?? '未知'} avatar={favPreviewMsg.senderAvatar} size={32} />
-              <div>
-                <Text strong style={{ fontSize: 13, display: 'block' }}>{favPreviewMsg.senderName ?? '未知'}</Text>
-                <Text type="tertiary" style={{ fontSize: 11 }}>{formatDateTime(favPreviewMsg.createdAt)}</Text>
-              </div>
-            </div>
-            <div style={{ background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)', padding: 12 }}>
-              <MessageContent
-                msg={favPreviewMsg}
-                isSelf={false}
-                onOpenForwardView={handleOpenForwardView}
-              />
-            </div>
-          </AppModal>
-        );
-      })()}
+      {favPreviewMsg && (
+        <FavoriteMessageModal
+          favPreviewMsg={favPreviewMsg} conversations={conversations} favPreviewVisible={favPreviewVisible}
+          setFavPreviewVisible={setFavPreviewVisible} handleToggleFavorite={handleToggleFavorite} openFavoriteMessage={openFavoriteMessage}
+          handleOpenForwardView={handleOpenForwardView}
+        />
+      )}
 
       {/* 聊天记录搜索弹窗 */}
-      <AppModal
-        title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <MessageSquare size={16} style={{ color: 'var(--semi-color-text-2)' }} />
-            <span>聊天记录</span>
-            <Text type="tertiary" style={{ fontSize: 12, marginLeft: 'auto' }}>{searchHasSearched ? `共 ${searchTotal} 条` : '未搜索'}</Text>
-          </div>
-        }
-        visible={showSearchPanel}
-        onCancel={resetSearchFilters}
-        footer={null}
-        width={900}
-        bodyStyle={{ padding: 0, maxHeight: '80vh' }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'row', height: '100%', maxHeight: '80vh' }}>
-          {/* 左列：搜索条件 */}
-          <div style={{ width: 280, flexShrink: 0, borderRight: '1px solid var(--semi-color-border)', padding: 12, display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
-            <Input
-              size="small"
-              prefix={<Search size={13} />}
-              placeholder="搜索消息内容 / 文件名 / 发送人"
-              value={msgSearch}
-              onChange={setMsgSearch}
-              onEnterPress={() => { void executeSearch(1); }}
-              showClear
-            />
-
-            <Select
-              multiple
-              showClear
-              style={{ width: '100%' }}
-              placeholder="消息类别（可多选）"
-              value={searchTypeFilters}
-              onChange={(val) => setSearchTypeFilters(((val as ChatMessage['type'][]) ?? []))}
-              optionList={CHAT_MESSAGE_TYPE_OPTIONS}
-              maxTagCount={2}
-            />
-
-            <Select
-              showClear
-              filter
-              style={{ width: '100%' }}
-              placeholder="发送人"
-              value={searchSenderId}
-              onChange={(val) => setSearchSenderId(val ? Number(val) : undefined)}
-              optionList={senderOptions}
-            />
-
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {[
-                { value: 'today', label: '今天' },
-                { value: '7d', label: '近7天' },
-                { value: '30d', label: '近30天' },
-              ].map((item) => (
-                <Button
-                  key={item.value}
-                  size="small"
-                  theme={searchDatePreset === item.value ? 'solid' : 'borderless'}
-                  type={searchDatePreset === item.value ? 'primary' : 'tertiary'}
-                  onClick={() => applyDatePreset(item.value as SearchDatePreset)}
-                >
-                  {item.label}
-                </Button>
-              ))}
-              {searchTimeRange && (
-                <Button size="small" theme="borderless" type="tertiary" onClick={() => applyDatePreset('')}>清空时间</Button>
-              )}
-            </div>
-
-            <DatePicker
-              type="dateTimeRange"
-              placeholder={['开始时间', '结束时间']}
-              value={searchTimeRange ?? undefined}
-              onChange={(val) => {
-                setSearchDatePreset('');
-                setSearchTimeRange(val ? (val as [Date, Date]) : null);
-              }}
-              style={{ width: '100%' }}
-            />
-
-            <div style={{ display: 'flex', gap: 8 }}>
-              <SearchButton onClick={() => { void executeSearch(1); }} loading={searchLoading} />
-              <ResetButton onClick={resetSearchFilters} />
-            </div>
-          </div>
-
-          {/* 右列：搜索结果 */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: 12, minHeight: 0 }}>
-            {!searchHasSearched && (
-              <Empty description="输入关键词或设置筛选条件后开始搜索" style={{ paddingTop: 48 }} imageStyle={{ width: 72 }} />
-            )}
-            {searchHasSearched && searchResults.length === 0 && !searchLoading && (
-              <Empty description="没有找到符合条件的消息" style={{ paddingTop: 48 }} imageStyle={{ width: 72 }} />
-            )}
-            <SemiList
-              split={false}
-              dataSource={searchResults}
-              renderItem={(item) => {
-                const typeLabel = CHAT_MESSAGE_TYPE_OPTIONS.find((option) => option.value === item.message.type)?.label ?? item.message.type;
-                return (
-                  <SemiList.Item
-                    key={item.message.id}
-                    style={{ padding: 0, marginBottom: 10, border: 'none' }}
-                  >
-                    <div
-                      style={{
-                        width: '100%', textAlign: 'left', border: '1px solid var(--semi-color-border)', background: 'var(--semi-color-bg-1)', borderRadius: 'var(--semi-border-radius-medium)',
-                        padding: '10px 12px',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                          <Tag size="small" color="light-blue">{typeLabel}</Tag>
-                          <Text strong style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {item.message.senderName ?? '未知发送人'}
-                          </Text>
-                        </div>
-                        <Text type="tertiary" style={{ fontSize: 11, flexShrink: 0 }}>{formatConvTime(item.message.createdAt)}</Text>
-                      </div>
-                      <Text style={{ display: 'block', fontSize: 12, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                        {item.snippet}
-                      </Text>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-                        <Button
-                          size="small"
-                          type="primary"
-                          onClick={() => {
-                            setShowSearchPanel(false);
-                            void jumpToSearchResult(item);
-                          }}
-                        >
-                          定位到聊天位置
-                        </Button>
-                      </div>
-                    </div>
-                  </SemiList.Item>
-                );
-              }}
-            />
-
-            {searchHasSearched && searchResults.length < searchTotal && (
-              <div style={{ textAlign: 'center', marginTop: 4 }}>
-                <Button
-                  size="small"
-                  type="tertiary"
-                  theme="borderless"
-                  loading={searchLoading}
-                  onClick={() => { void executeSearch(searchPage + 1); }}
-                >
-                  加载更多结果
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-      </AppModal>
+      <MessageSearchModal
+        showSearchPanel={showSearchPanel} setShowSearchPanel={setShowSearchPanel} resetSearchFilters={resetSearchFilters}
+        searchHasSearched={searchHasSearched} searchTotal={searchTotal} msgSearch={msgSearch}
+        setMsgSearch={setMsgSearch} executeSearch={executeSearch} searchTypeFilters={searchTypeFilters}
+        setSearchTypeFilters={setSearchTypeFilters} searchSenderId={searchSenderId} setSearchSenderId={setSearchSenderId}
+        senderOptions={senderOptions} searchDatePreset={searchDatePreset} applyDatePreset={applyDatePreset}
+        setSearchDatePreset={setSearchDatePreset}
+        searchTimeRange={searchTimeRange} setSearchTimeRange={setSearchTimeRange} searchLoading={searchLoading}
+        searchResults={searchResults} searchPage={searchPage} jumpToSearchResult={jumpToSearchResult}
+      />
     </div>
   );
 }

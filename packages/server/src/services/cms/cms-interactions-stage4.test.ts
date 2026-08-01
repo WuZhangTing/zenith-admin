@@ -88,7 +88,7 @@ describe('CMS Stage4 unified interactions', () => {
 
   it('serializes question replacement with submissions and keeps multiple forms reusable', async () => {
     const [service, theme] = await Promise.all([
-      readFile(new URL('./cms-interactions.service.ts', import.meta.url), 'utf8'),
+      readFile(new URL('./cms-interactions-forms.service.ts', import.meta.url), 'utf8'),
       readFile(new URL('../../cms/themes/default/templates.tsx', import.meta.url), 'utf8'),
     ]);
     expect((service.match(/\.for\('update'\)/g) ?? []).length).toBeGreaterThanOrEqual(2);
@@ -99,7 +99,7 @@ describe('CMS Stage4 unified interactions', () => {
   });
 
   it('aggregates statistics in SQL instead of pulling answers into memory', async () => {
-    const service = await readFile(new URL('./cms-interactions.service.ts', import.meta.url), 'utf8');
+    const service = await readFile(new URL('./cms-interactions-stats.service.ts', import.meta.url), 'utf8');
     // 旧实现把最多 10 万条 answers 拉进内存做 JS 聚合，超限即静默截断
     expect(service).not.toContain('limit(100_000)');
     expect(service).toContain('GROUP BY a.question_id, v.val');

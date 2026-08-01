@@ -7,7 +7,7 @@ async function source(name: string): Promise<string> {
 
 describe('CMS object-level access wiring', () => {
   it('gates content detail by both site and channel ACL', async () => {
-    const text = await source('cms-contents.service.ts');
+    const text = await source('cms-contents-query.service.ts');
     expect(text).toMatch(/getCmsContent[\s\S]*?assertSiteAccess\(current\.siteId\)[\s\S]*?assertChannelAccess\(current\.channelId\)/);
   });
 
@@ -52,7 +52,7 @@ describe('CMS object-level access wiring', () => {
   });
 
   it('enforces scheduled publication permission in both content write paths', async () => {
-    const text = await source('cms-contents.service.ts');
+    const text = await source('cms-contents-write.service.ts');
     const calls = text.match(/requireCmsScheduledAtMutationPermission\(/g) ?? [];
     expect(calls).toHaveLength(2);
     expect(text).toContain('current: null');

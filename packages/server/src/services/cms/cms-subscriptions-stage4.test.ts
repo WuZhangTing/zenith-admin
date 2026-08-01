@@ -27,7 +27,7 @@ describe('CMS Stage4 subscriptions', () => {
       readFile(new URL('../../routes/member/member-cms.ts', import.meta.url), 'utf8'),
       readFile(new URL('./cms-subscriptions.service.ts', import.meta.url), 'utf8'),
       readFile(new URL('./cms-stage4-tasks.ts', import.meta.url), 'utf8'),
-      readFile(new URL('./cms-contents.service.ts', import.meta.url), 'utf8'),
+      readFile(new URL('./cms-contents-write.service.ts', import.meta.url), 'utf8'),
     ]);
     expect(route).toContain('memberAuthMiddleware');
     expect(service).toContain('eq(cmsMemberSubscriptions.memberId, memberId)');

@@ -1,0 +1,91 @@
+// chat 域内部共享 helper：仅供 services/chat 下各模块引用；对外统一走 chat.service.ts facade
+import { eq, and, sql } from 'drizzle-orm';
+import { db } from '../../db';
+import { chatConversationMembers, chatMessages, users } from '../../db/schema';
+import { currentUser } from '../../lib/context';
+import { formatDateTime } from '../../lib/datetime';
+import { HTTPException } from 'hono/http-exception';
+import type { ChatMessage, ChatReactionGroup } from '@zenith/shared/chat';
+
+/** 生成排除当前用户已删除消息的 SQL 条件 */
+export function notHiddenFor(userId: number) {
+  // to_jsonb 是多态函数，prepared statement 参数需要显式 CAST 才能正确推断类型
+  return sql`NOT COALESCE(${chatMessages.extra}->'hiddenFor', '[]'::jsonb) @> to_jsonb(CAST(${userId} AS integer))`;
+}
+
+// ─── 数据映射 ─────────────────────────────────────────────────────────────────
+
+export function mapChatMessage(
+  row: typeof chatMessages.$inferSelect,
+  sender?: { id: number; nickname: string; avatar: string | null } | null,
+  reactions: ChatReactionGroup[] = [],
+  replyToMessage: ChatMessage['replyToMessage'] = null,
+): ChatMessage {
+  return {
+    id: row.id,
+    conversationId: row.conversationId,
+    senderId: row.senderId,
+    senderName: sender?.nickname ?? null,
+    senderAvatar: sender?.avatar ?? null,
+    type: row.type,
+    content: row.content,
+    replyToId: row.replyToId,
+    replyToMessage,
+    isRecalled: row.isRecalled,
+    isEdited: row.isEdited,
+    extra: row.extra ?? null,
+    reactions,
+    createdAt: formatDateTime(row.createdAt),
+    updatedAt: formatDateTime(row.updatedAt),
+  };
+}
+
+/** 联表查询行中的发送人信息（senderId 为空时返回 null，供 mapChatMessage 使用） */
+export function rowSender(r: { msg: { senderId: number | null }; nickname: string | null; avatar: string | null }) {
+  return r.msg.senderId
+    ? { id: r.msg.senderId, nickname: r.nickname ?? '', avatar: r.avatar ?? null }
+    : null;
+}
+
+/** 按 id 加载用户的展示信息（昵称/头像） */
+export function fetchUserBrief(userId: number) {
+  return db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { id: true, nickname: true, avatar: true },
+  });
+}
+
+/** 会话全部成员的 userId 列表（用于 WS 推送） */
+export function listConversationMemberIds(conversationId: number) {
+  return db
+    .select({ userId: chatConversationMembers.userId })
+    .from(chatConversationMembers)
+    .where(eq(chatConversationMembers.conversationId, conversationId));
+}
+
+export async function ensureConversationMember(conversationId: number) {
+  const me = currentUser();
+  const member = await db.query.chatConversationMembers.findFirst({
+    where: and(
+      eq(chatConversationMembers.conversationId, conversationId),
+      eq(chatConversationMembers.userId, me.userId),
+    ),
+  });
+  if (!member) throw new HTTPException(403, { message: '无权访问该会话' });
+  return member;
+}
+
+export async function getUserNickname(userId: number): Promise<string | null> {
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { nickname: true },
+  });
+  return user?.nickname ?? null;
+}
+
+export async function ensureMessageAccessible(messageId: number) {
+  const msg = await db.query.chatMessages.findFirst({ where: eq(chatMessages.id, messageId) });
+  if (!msg) throw new HTTPException(404, { message: '消息不存在' });
+  await ensureConversationMember(msg.conversationId);
+  return msg;
+}

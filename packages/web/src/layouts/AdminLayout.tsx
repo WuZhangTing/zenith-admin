@@ -1,30 +1,23 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { RouteErrorBoundary } from '@/components/PageErrorBoundary';
-import { UserAvatar } from '@/components/UserAvatar';
-import { BackTop, Badge, Banner, Breadcrumb, Button, ColorPicker, Divider, Dropdown, Empty, Input, List, Notification, Popover, Select, TextArea, Tooltip, Modal, Nav, Typography, SideSheet, Switch, InputNumber, RadioGroup, Radio, Toast } from '@douyinfe/semi-ui';
-import { AppModal } from '@/components/AppModal';
-import { IllustrationIdle, IllustrationIdleDark } from '@douyinfe/semi-illustrations';
-import { Bell, Building2, Check, Info, Expand, Shrink, Megaphone, Sun, Moon, Monitor, MoreHorizontal, User as UserIcon, Settings, LogOut, X, Palette, Pin, RotateCcw, PinOff, XCircle, ChevronLeft, ChevronRight, Trash2, Lock, Copy, ClipboardPaste, Route, Keyboard, Star, Clock, Wrench, ExternalLink, Link2, Menu as MenuIcon, Files, Smartphone, MessageSquareHeart } from 'lucide-react';
-import { pinyinMatch, ensurePinyin } from '@/utils/pinyin';
+import { BackTop, Dropdown, SideSheet, Toast } from '@douyinfe/semi-ui';
+import { Expand, Shrink, X, Pin, RotateCcw, PinOff, XCircle, ChevronLeft, ChevronRight, Trash2, Copy, Route, Star, ExternalLink, Link2 } from 'lucide-react';
+import { ensurePinyin } from '@/utils/pinyin';
 import MenuSearchInput, { type FlatMenuItem } from '@/components/MenuSearchInput';
-import type { User, Menu, Tenant } from '@zenith/shared/identity';
-import type { InAppMessage, Announcement } from '@zenith/shared/messaging';
-import type { WsMessage, SystemConfig } from '@zenith/shared/platform';
+import type { User, Menu } from '@zenith/shared/identity';
 import type { ThemeMode } from '@/hooks/useTheme';
-import { usePreferences, sanitizeImportedPreferences, type NavLayout, type TableSizePreference, type RouteAnimation, type BorderRadiusPreference, type TabStyle } from '@/hooks/usePreferences';
-import { THEME_COLOR_PRESETS, getThemeColorVars } from '@/lib/theme-color';
+import { usePreferences, type NavLayout } from '@/hooks/usePreferences';
+import { getThemeColorVars } from '@/lib/theme-color';
 import { applyBorderRadius } from '@/lib/border-radius';
 import { useThemeController } from '@/providers/theme-controller';
 import { useTabsStore } from '@/hooks/useTabsStore';
 import { TabsMetaContext } from '@/hooks/useTabMeta';
 import KeepAliveOutlet from './KeepAliveOutlet';
-import { useWebSocket } from '@/hooks/useWebSocket';
 import { useWorkflowRealtime } from '@/hooks/useWorkflowNotifications';
 import { request } from '@/utils/request';
-import { formatDateTime } from '@/utils/date';
 import { config } from '@/config';
-import { renderLucideIcon, useLucideIconsReady } from '@/utils/icons';
+import { renderLucideIcon } from '@/utils/icons';
 import NProgress from '@/components/NProgress';
 import Watermark from '@/components/Watermark';
 import { FeedbackWidget } from '@/components/FeedbackWidget';
@@ -34,150 +27,48 @@ const QuickChatButton = lazy(() => import('@/components/QuickChatButton'));
 const CallOverlayHost = lazy(() => import('@/webrtc/CallOverlayHost'));
 const ChatNotifierHost = lazy(() => import('@/pages/chat/ChatNotifierHost'));
 const LockScreen = lazy(() => import('@/components/LockScreen').then((m) => ({ default: m.LockScreen })));
-import AppLogo from '@/components/AppLogo';
 import AnnouncementDetailModal from '@/components/AnnouncementDetailModal';
 import TaskTray from '@/components/TaskTray';
-import BreadcrumbMenuPopover from '@/components/BreadcrumbMenuPopover';
 import { KeywordInput } from '@/components/search-filters';
-import { TopNavWithOverflow } from './TopNavWithOverflow';
 import { TabSwitcher } from './TabSwitcher';
 import { useLockScreen } from '@/hooks/useLockScreen';
 import { useFavoriteMenus } from '@/hooks/useFavoriteMenus';
 import { useRecentMenus } from '@/hooks/useRecentMenus';
 import { usePageTracker } from '@/hooks/usePageTracker';
-import { reloadTrackerConfig } from '@/utils/tracker';
 import { useMediaQuery, useIsMobile } from '@/hooks/useMediaQuery';
 import { mediaDown } from '@/lib/breakpoints';
-import { confirmDanger } from '@/utils/confirm';
+import { findBreadcrumbs, findNavItemAncestorKeys, updateMessageRead } from './admin/utils';
+import { useDisplayUser } from './admin/useDisplayUser';
+import { useWatermarkConfig, useQuickChatEnabled } from './admin/useSystemConfigFlags';
+import { useFullscreen } from './admin/useFullscreen';
+import { usePreferencesPanel } from './admin/usePreferencesPanel';
+import { useAutoLock } from './admin/useAutoLock';
+import { useTabsBarScroll } from './admin/useTabsBarScroll';
+import { useMaintenanceBanner } from './admin/useMaintenanceBanner';
+import { useTenantSwitch } from './admin/useTenantSwitch';
+import { useInAppNotifications, useChatUnread } from './admin/useInAppNotifications';
+import { useLayoutWs } from './admin/useLayoutWs';
+import { useSidebarOpenKeys } from './admin/useSidebarOpenKeys';
+import { useLayoutShortcuts } from './admin/useLayoutShortcuts';
+import { useFlatMenus, useBreadcrumbData, useNavItems, useMenuMaps, useAutoTopKey, useMixedNavItems, useKeepAlivePaths } from './admin/useMenuDerived';
+import { useNavInteractions } from './admin/useNavInteractions';
+import { useScrollMenuIntoView } from './admin/useScrollMenuIntoView';
+import { MobileQuickPagesPanel } from './admin/MobileQuickPagesPanel';
+import { RecentMenusPopover, FavoritesPopover } from './admin/QuickAccessPopovers';
+import { TenantSwitcher } from './admin/TenantSwitcher';
+import { AnnouncementPopover, MessagePopover } from './admin/NotificationPopovers';
+import { ThemeModeDropdown, PagesDropdown, MoreDropdown } from './admin/HeaderDropdowns';
+import { UserDropdown } from './admin/UserDropdown';
+import { MaintenanceBanner } from './admin/MaintenanceBanner';
+import { MobileHeader, MobileNavSheet } from './admin/MobileNav';
+import { TopBar } from './admin/TopBar';
+import { DoubleSidebar } from './admin/DoubleSidebar';
+import { SidebarNav } from './admin/SidebarNav';
+import { HeaderBreadcrumb } from './admin/HeaderBreadcrumb';
+import { PrefsLayoutSection, PrefsAppearanceSection, PrefsNavToolbarSection, PrefsSidebarSection, PrefsGeneralSection, PrefsTableSection, PrefsTabsSection, PrefsActionsSection } from './admin/PreferencesSections';
+import { ShortcutsModal } from './admin/ShortcutsModal';
+import { ImportPreferencesModal, LockPasswordModal, MessageDetailModal } from './admin/LayoutModals';
 import './AdminLayout.css';
-
-// 主题图标
-function SunIcon() {
-  return <Sun size={16} strokeWidth={1.5} />;
-}
-
-function MoonIcon() {
-  return <Moon size={16} strokeWidth={1.5} />;
-}
-
-function MonitorIcon() {
-  return <Monitor size={16} strokeWidth={1.5} />;
-}
-
-const themeLabelMap: Record<ThemeMode, { label: string; icon: React.ReactNode }> = {
-  light: { label: '浅色', icon: <SunIcon /> },
-  dark:  { label: '深色', icon: <MoonIcon /> },
-  system: { label: '跟随系统', icon: <MonitorIcon /> },
-};
-
-function getMenuIcon(iconName?: string): React.ReactNode {
-  const icon = renderLucideIcon(iconName ?? 'LayoutGrid') ?? renderLucideIcon('LayoutGrid');
-  return <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{icon}</span>;
-}
-
-// 提取为模块级函数，避免组件内嵌套函数超过 4 层
-const updateMessageRead = (id: number) => (prev: InAppMessage[]) =>
-  prev.map((m) => (m.id === id ? { ...m, isRead: true } : m));
-const updateMessageReadIfUnread = (id: number) => (prev: InAppMessage[]) =>
-  prev.map((m) => (m.id === id && !m.isRead ? { ...m, isRead: true } : m));
-const markAllMessagesRead = (prev: InAppMessage[]) =>
-  prev.map((m) => (m.isRead ? m : { ...m, isRead: true }));
-const removeMessageById = (id: number) => (prev: InAppMessage[]) =>
-  prev.filter((m) => m.id !== id);
-const markAnnouncementRead = (id: number) => (prev: (Announcement & { isRead: boolean })[]) =>
-  prev.map((a) => (a.id === id ? { ...a, isRead: true } : a));
-
-type NavItem = {
-  itemKey: string;
-  text: React.ReactNode;
-  icon?: React.ReactNode;
-  items?: NavItem[];
-  badge?: { count: number; overflowCount?: number };
-  isExternal?: boolean;
-  /** 菜单配置的默认路由参数（querystring，不含 `?`），跳转时拼接到 path */
-  query?: string | null;
-};
-
-function menuToNavItem(menu: Menu): NavItem | null {
-  if (!menu.visible || menu.type === 'button') return null;
-  const icon = getMenuIcon(menu.icon);
-  if (menu.type === 'directory') {
-    const children = (menu.children ?? [])
-      .map(menuToNavItem)
-      .filter((item): item is NavItem => item !== null);
-    return { itemKey: menu.name ?? `dir-${menu.id}`, text: menu.title, icon, items: children };
-  }
-  // 外链内嵌：转为内部路由 /embed/{id}，走正常导航（iframe 打开）；非内嵌外链保持新窗口
-  if (menu.isExternal && menu.embed) {
-    return { itemKey: `/embed/${menu.id}`, text: menu.title, icon, isExternal: false };
-  }
-  return { itemKey: menu.path ?? `menu-${menu.id}`, text: menu.title, icon, isExternal: menu.isExternal ?? false, query: menu.query ?? null };
-}
-
-function findNavItemAncestorKeys(items: NavItem[], targetKey: string): string[] | null {
-  for (const item of items) {
-    if (item.itemKey === targetKey) return [];
-    if (item.items?.length) {
-      const found = findNavItemAncestorKeys(item.items, targetKey);
-      if (found !== null) return [item.itemKey, ...found];
-    }
-  }
-  return null;
-}
-
-// 返回 null 表示路径不在菜单树中（如详情页）；返回 [] 表示命中顶级菜单项（无祖先目录）
-function findAncestorKeys(menuTree: Menu[], targetPath: string): string[] | null {
-  function traverse(nodes: Menu[], ancestors: string[]): string[] | null {
-    for (const node of nodes) {
-      if (!node.visible || node.type === 'button') continue;
-      if (node.type === 'directory') {
-        const key = node.name ?? `dir-${node.id}`;
-        const found = traverse(node.children ?? [], [...ancestors, key]);
-        if (found !== null) return found;
-      } else if (node.path === targetPath) {
-        return ancestors;
-      }
-    }
-    return null;
-  }
-  return traverse(menuTree, []);
-}
-
-interface BreadcrumbData {
-  title: string;
-  path?: string;
-  icon?: string;
-  menuChildren?: Menu[];
-}
-
-function findFirstLeafPath(children: Menu[]): string | null {
-  for (const child of children) {
-    if (!child.visible || child.type === 'button') continue;
-    if (child.type === 'directory') {
-      const leaf = findFirstLeafPath(child.children ?? []);
-      if (leaf) return leaf;
-    } else if (child.path) {
-      return child.path;
-    }
-  }
-  return null;
-}
-
-function findBreadcrumbs(menuTree: Menu[], targetPath: string): BreadcrumbData[] {
-  function traverse(nodes: Menu[], ancestors: BreadcrumbData[]): BreadcrumbData[] | null {
-    for (const node of nodes) {
-      if (!node.visible || node.type === 'button') continue;
-      if (node.type === 'directory') {
-        const found = traverse(node.children ?? [], [...ancestors, { title: node.title, icon: node.icon ?? undefined, menuChildren: node.children ?? [] }]);
-        if (found !== null) return found;
-      } else if (node.path === targetPath) {
-        return [...ancestors, { title: node.title, path: node.path ?? undefined, icon: node.icon ?? undefined }];
-      }
-    }
-    return null;
-  }
-  return traverse(menuTree, []) ?? [];
-}
 
 interface AdminLayoutProps {
   readonly user: Omit<User, 'password'>;
@@ -188,16 +79,7 @@ interface AdminLayoutProps {
 export default function AdminLayout({ user: userProp, onLogout, presetMenus }: AdminLayoutProps) {
   // 本地维护 displayUser，通过 auth:user-updated 事件直接更新头像，
   // 避免触发整条 App.tsx → Provider 树的重渲染链路。
-  const [displayUser, setDisplayUser] = useState(userProp);
-  useEffect(() => { setDisplayUser(userProp); }, [userProp]);
-  useEffect(() => {
-    function handler(e: Event) {
-      const updated = (e as CustomEvent<Omit<User, 'password'>>).detail;
-      setDisplayUser((prev) => (prev.id === updated.id ? updated : prev));
-    }
-    globalThis.addEventListener('auth:user-updated', handler);
-    return () => globalThis.removeEventListener('auth:user-updated', handler);
-  }, []);
+  const displayUser = useDisplayUser(userProp);
   const user = displayUser;
   const { preferences, setPreferences, resetPreferences } = usePreferences();
   // hover 模式下侧边栏应保持收起：刷新页面后依据偏好恢复收起状态
@@ -212,21 +94,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
   const [mobilePagesVisible, setMobilePagesVisible] = useState(false);
   const [menuTree, setMenuTree] = useState<Menu[]>(presetMenus || []);
 
-  const flatMenus = useMemo<FlatMenuItem[]>(() => {
-    const result: FlatMenuItem[] = [];
-    const walk = (nodes: Menu[], parents: string[]) => {
-      for (const node of nodes) {
-        if (node.type === 'menu' && node.path && node.status === 'enabled' && node.visible) {
-          // 外链内嵌菜单的实际访问路径是内部路由 /embed/{id}（页签/搜索/收藏按此匹配）
-          const path = node.isExternal && node.embed ? `/embed/${node.id}` : node.path;
-          result.push({ id: node.id, title: node.title, path, icon: node.icon, breadcrumb: parents });
-        }
-        if (node.children?.length) walk(node.children, node.type === 'directory' ? [...parents, node.title] : parents);
-      }
-    };
-    walk(menuTree, []);
-    return result;
-  }, [menuTree]);
+  const flatMenus = useFlatMenus(menuTree);
   // hover 模式下实际用于渲染的 collapsed：开启 hover 模式且已收起且鼠标悬浮时临时展开
   const effectiveCollapsed = (preferences.sidebarHoverTrigger && collapsed && sidebarHovered) ? false : collapsed;
   const { mode, themeColor, isDark, setThemeMode, setThemeColor } = useThemeController();
@@ -287,31 +155,10 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
   const reduceMotion = preferences.reduceMotion ?? false;
 
   // ─── 水印配置 ──────────────────────────────────────────────────────────────
-  const [watermarkConfig, setWatermarkConfig] = useState({ enabled: false, content: '', fontSize: 14, opacity: 0.15 });
-
-  useEffect(() => {
-    request.get<{ list: SystemConfig[]; total: number }>('/api/system-configs?keys=watermark_enabled,watermark_content,watermark_font_size,watermark_opacity', { silent: true })
-      .then((res) => {
-        if (res.code === 0 && res.data?.list) {
-          const list = res.data.list;
-          const enabled = list.find((c) => c.configKey === 'watermark_enabled')?.configValue === 'true';
-          const content = list.find((c) => c.configKey === 'watermark_content')?.configValue ?? '';
-          const fontSize = Number(list.find((c) => c.configKey === 'watermark_font_size')?.configValue) || 14;
-          const opacity = (Number(list.find((c) => c.configKey === 'watermark_opacity')?.configValue) || 15) / 100;
-          setWatermarkConfig({ enabled, content, fontSize, opacity });
-        }
-      });
-  }, []);
+  const watermarkConfig = useWatermarkConfig();
 
   // ─── 快捷聊天系统开关 ─────────────────────────────────────────────────────
-  const [quickChatEnabled, setQuickChatEnabled] = useState(false);
-
-  useEffect(() => {
-    request.get<{ configValue: string }>('/api/system-configs/public/quick_chat_enabled', { silent: true })
-      .then((res) => {
-        if (res.code === 0) setQuickChatEnabled(res.data?.configValue === 'true');
-      });
-  }, []);
+  const quickChatEnabled = useQuickChatEnabled();
 
   // ─── 意见反馈入口（feedback_entry_enabled 系统配置控制显隐）───────────────
   const feedbackEntryQuery = usePublicConfig('feedback_entry_enabled');
@@ -319,19 +166,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
   const [feedbackVisible, setFeedbackVisible] = useState(false);
 
   // Fullscreen
-  const [isFullscreen, setIsFullscreen] = useState(!!document.fullscreenElement);
-  useEffect(() => {
-    const handler = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', handler);
-    return () => document.removeEventListener('fullscreenchange', handler);
-  }, []);
-  const toggleFullscreen = useCallback(() => {
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
-    } else {
-      document.documentElement.requestFullscreen().catch(() => {});
-    }
-  }, []);
+  const { isFullscreen, toggleFullscreen } = useFullscreen();
 
   // 每次 App 会话只弹一次：见过一次后不再重复
   const evictToastShownRef = useRef(false);
@@ -350,51 +185,14 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
     preferences.tabEvictPolicy ?? 'fifo',
     preferences.openTabBehavior ?? 'append',
   );
-  const [prefsVisible, setPrefsVisible] = useState(false);
-  const [prefsSearch, setPrefsSearch] = useState('');
-
-  const matchesPref = useCallback((keywords: string[]): boolean => {
-    if (!prefsSearch.trim()) return true;
-    const q = prefsSearch.trim();
-    const lower = q.toLowerCase();
-    return keywords.some((kw) =>
-      kw.toLowerCase().includes(lower) ||
-      pinyinMatch(kw, q, { precision: 'start' }) !== null,
-    );
-  }, [prefsSearch]);
-
-  // 偏好面板分区标题：搜索时隐藏（搜索结果为扁平列表）
-  const prefSection = useCallback((label: string) => (
-    prefsSearch.trim() ? null : <div className="prefs-section-title">{label}</div>
-  ), [prefsSearch]);
-
-  const handleCopyPreferences = useCallback(() => {
-    void navigator.clipboard.writeText(JSON.stringify(preferences, null, 2))
-      .then(() => Toast.success('偏好设置已复制到剪贴板'))
-      .catch(() => Toast.error('复制失败，请重试'));
-  }, [preferences]);
-
-  // ─── 导入偏好 ─────────────────────────────────────────────────────────────
-  const [importPrefsVisible, setImportPrefsVisible] = useState(false);
-  const [importPrefsText, setImportPrefsText] = useState('');
-  const handleImportPreferences = useCallback(() => {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(importPrefsText);
-    } catch {
-      Toast.error('JSON 解析失败，请检查格式');
-      return;
-    }
-    const sanitized = sanitizeImportedPreferences(parsed);
-    if (!sanitized) {
-      Toast.error('未识别到有效的偏好设置字段');
-      return;
-    }
-    setPreferences(sanitized);
-    setImportPrefsVisible(false);
-    setImportPrefsText('');
-    Toast.success(`已导入 ${Object.keys(sanitized).length} 项设置`);
-  }, [importPrefsText, setPreferences]);
+  const {
+    prefsVisible, setPrefsVisible,
+    prefsSearch, setPrefsSearch,
+    matchesPref, prefSection, handleCopyPreferences,
+    importPrefsVisible, setImportPrefsVisible,
+    importPrefsText, setImportPrefsText,
+    handleImportPreferences,
+  } = usePreferencesPanel(preferences, setPreferences);
 
   // 默认首页候选：当前用户可见的菜单页面
   const homePathOptions = useMemo(() => [
@@ -415,33 +213,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
 
   // ─── 无操作自动锁屏 ─────────────────────────────────────────────────────────
   const autoLockMinutes = Number(preferences.autoLockMinutes) || 0;
-  useEffect(() => {
-    if (autoLockMinutes <= 0 || !(preferences.enableLockScreen ?? false) || isLocked || !hasPassword()) return;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let lastReset = 0;
-    const arm = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => lock(), autoLockMinutes * 60_000);
-    };
-    // 活动事件高频触发，1s 节流重置计时
-    const onActivity = () => {
-      const now = Date.now();
-      if (now - lastReset > 1000) {
-        lastReset = now;
-        arm();
-      }
-    };
-    const onVisibility = () => { if (!document.hidden) onActivity(); };
-    const events = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart'] as const;
-    events.forEach((e) => window.addEventListener(e, onActivity, { passive: true, capture: true }));
-    document.addEventListener('visibilitychange', onVisibility);
-    arm();
-    return () => {
-      clearTimeout(timer);
-      events.forEach((e) => window.removeEventListener(e, onActivity, { capture: true }));
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
-  }, [autoLockMinutes, preferences.enableLockScreen, isLocked, hasPassword, lock]);
+  useAutoLock(autoLockMinutes, preferences.enableLockScreen, isLocked, hasPassword, lock);
   const dragSrcKey = useRef<string | null>(null);
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
   const [exitingTabKeys, setExitingTabKeys] = useState<Set<string>>(new Set());
@@ -485,277 +257,48 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
   }, []);
 
   // ─── Tabs 滚动 ─────────────────────────────────────────────────────────────
-  const activeTabRef = useRef<HTMLDivElement>(null);
-  const tabsBarRef = useRef<HTMLDivElement>(null);
-  const tabsScrollRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    // 延迟以确保 DOM 已完成渲染
-    const timer = setTimeout(() => {
-      if (activeTabRef.current) {
-        activeTabRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
-      }
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [activeKey, tabs.length]);
-
-  // 滚轮横向滚动：监听挂在整条页签栏，但实际滚动的是内层 __scroll（overflow 在内层）
-  useEffect(() => {
-    const el = tabsBarRef.current;
-    if (!el) return;
-    const onWheel = (e: WheelEvent) => {
-      const scrollEl = tabsScrollRef.current;
-      if (!scrollEl) return;
-      // 纵向滚轮转横向；触控板横向滑动用 deltaX
-      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      if (delta === 0) return;
-      // 没有横向溢出时放行页面默认滚动，避免吞掉滚轮事件
-      if (scrollEl.scrollWidth <= scrollEl.clientWidth) return;
-      e.preventDefault();
-      scrollEl.scrollLeft += delta;
-    };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, [preferences.enableTabs, tabs.length]);
+  const { activeTabRef, tabsBarRef, tabsScrollRef } = useTabsBarScroll(activeKey, tabs.length, preferences.enableTabs);
 
   // ─── 租户切换（仅平台管理员） ─────────────────────────────────────────────
   const isPlatformAdmin = config.multiTenantMode && !user.tenantId && user.roles?.some((r) => r.code === 'super_admin');
   const isSuperAdmin = user.roles?.some((r) => r.code === 'super_admin') ?? false;
 
   // ─── 维护模式横幅（超管提示） ─────────────────────────────────────────
-  const [maintenanceBannerEnabled, setMaintenanceBannerEnabled] = useState(false);
-  const [maintenanceBannerMsg, setMaintenanceBannerMsg] = useState('');
-  const [disablingMaintenance, setDisablingMaintenance] = useState(false);
-
-  useEffect(() => {
-    if (!isSuperAdmin) return;
-    request.get<{ enabled: boolean; message: string }>('/api/maintenance/status', { silent: true })
-      .then((res) => {
-        if (res.code === 0 && res.data?.enabled) {
-          setMaintenanceBannerEnabled(true);
-          setMaintenanceBannerMsg(res.data.message);
-        }
-      });
-  }, [isSuperAdmin]);
-
-  useEffect(() => {
-    if (!isSuperAdmin) return;
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent<{ message?: string } | null>).detail;
-      setMaintenanceBannerEnabled(true);
-      setMaintenanceBannerMsg(detail?.message ?? '系统维护中');
-    };
-    globalThis.addEventListener('maintenance:enabled', handler);
-    return () => globalThis.removeEventListener('maintenance:enabled', handler);
-  }, [isSuperAdmin]);
-
-  // 监听维护状态变更（由管理页面或横幅触发）
-  useEffect(() => {
-    if (!isSuperAdmin) return;
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent<{ enabled?: boolean; message?: string } | null>).detail;
-      if (detail?.enabled === false) {
-        setMaintenanceBannerEnabled(false);
-      } else if (detail?.enabled === true) {
-        setMaintenanceBannerEnabled(true);
-        setMaintenanceBannerMsg(detail?.message ?? '系统维护中');
-      } else {
-        // no detail — re-fetch
-        request.get<{ enabled: boolean; message: string }>('/api/maintenance/status', { silent: true })
-          .then((res) => {
-            if (res.code === 0) {
-              setMaintenanceBannerEnabled(res.data?.enabled ?? false);
-              if (res.data?.message) setMaintenanceBannerMsg(res.data.message);
-            }
-          });
-      }
-    };
-    globalThis.addEventListener('maintenance:statusChanged', handler);
-    return () => globalThis.removeEventListener('maintenance:statusChanged', handler);
-  }, [isSuperAdmin]);
-
-  const handleDisableMaintenance = useCallback(async () => {
-    setDisablingMaintenance(true);
-    try {
-      const res = await request.put<{ enabled: boolean }>('/api/maintenance', { enabled: false });
-      if (res.code === 0) {
-        setMaintenanceBannerEnabled(false);
-        Toast.success('维护模式已关闭');
-        globalThis.dispatchEvent(new CustomEvent('maintenance:statusChanged'));
-      }
-    } finally {
-      setDisablingMaintenance(false);
-    }
-  }, []);
-  const [tenantList, setTenantList] = useState<Tenant[]>([]);
-  const [viewingTenantId, setViewingTenantId] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (isPlatformAdmin) {
-      request.get<Tenant[]>('/api/tenants/all', { silent: true }).then((res) => {
-        if (res.code === 0 && res.data) setTenantList(res.data.filter((t) => t.status === 'enabled'));
-      });
-    }
-  }, [isPlatformAdmin]);
-
-  const handleSwitchTenant = async (tenantId: number | null) => {
-    const res = await request.post<{ accessToken: string; refreshToken: string }>('/api/auth/switch-tenant', { tenantId });
-    if (res.code === 0 && res.data) {
-      localStorage.setItem('zenith_token', res.data.accessToken);
-      localStorage.setItem('zenith_refresh_token', res.data.refreshToken);
-      setViewingTenantId(tenantId);
-      globalThis.location.reload();
-    }
-  };
+  const { maintenanceBannerEnabled, maintenanceBannerMsg, disablingMaintenance, handleDisableMaintenance } = useMaintenanceBanner(isSuperAdmin);
+  const { tenantList, viewingTenantId, handleSwitchTenant } = useTenantSwitch(isPlatformAdmin);
 
   // ─── 公告 ──────────────────────────────────────────────────────────────────
-  const [inAppMessages, setInAppMessages] = useState<InAppMessage[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [announcementUnreadCount, setAnnouncementUnreadCount] = useState(0);
-  const [announcementPopVisible, setAnnouncementPopVisible] = useState(false);
-  const [recentAnnouncements, setRecentAnnouncements] = useState<(Announcement & { isRead: boolean })[]>([]);
-  const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
-  const [messagePopVisible, setMessagePopVisible] = useState(false);
-  const [selectedMessage, setSelectedMessage] = useState<InAppMessage | null>(null);
-  const recentInAppMessageRef = useRef(new Map<string, number>());
-
-  const fetchAnnouncementUnreadCount = useCallback(() => {
-    request.get<{ count: number }>('/api/announcements/unread-count', { silent: true }).then((res) => {
-      if (res.code === 0 && res.data) setAnnouncementUnreadCount(res.data.count ?? 0);
-    });
-  }, []);
-
-  const fetchRecentAnnouncements = useCallback(() => {
-    request.get<(Announcement & { isRead: boolean })[]>('/api/announcements/published', { silent: true }).then((res) => {
-      if (res.code === 0 && res.data) setRecentAnnouncements(res.data);
-    });
-  }, []);
-
-  useEffect(() => { fetchAnnouncementUnreadCount(); }, [fetchAnnouncementUnreadCount]);
-
-  // 监听 announcement 事件同步公告未读数
-  useEffect(() => {
-    const handler = () => { fetchAnnouncementUnreadCount(); fetchRecentAnnouncements(); };
-    globalThis.addEventListener('announcement:refresh', handler);
-    return () => globalThis.removeEventListener('announcement:refresh', handler);
-  }, [fetchAnnouncementUnreadCount, fetchRecentAnnouncements]);
-
-  const markAnnouncementAsRead = (id: number) => {
-    request.post(`/api/announcements/${id}/read`, undefined, { silent: true }).then((res) => {
-      if (res.code !== 0) return;
-      setRecentAnnouncements(markAnnouncementRead(id));
-      setAnnouncementUnreadCount((c) => Math.max(0, c - 1));
-    });
-  };
-
-  const fetchInAppMessages = useCallback(() => {
-    request.get<{ list: InAppMessage[]; total: number }>('/api/in-app-messages?page=1&pageSize=10', { silent: true }).then((res) => {
-      if (res.code === 0 && res.data) setInAppMessages(res.data.list ?? []);
-    });
-    request.get<{ count: number }>('/api/in-app-messages/unread-count', { silent: true }).then((res) => {
-      if (res.code === 0 && res.data) setUnreadCount(res.data.count ?? 0);
-    });
-  }, []);
-
-  useEffect(() => { fetchInAppMessages(); }, [fetchInAppMessages]);
-
-  // 监听其他页面（如站内信管理）触发的刷新事件，同步顶部铃铛 badge
-  useEffect(() => {
-    const handler = () => fetchInAppMessages();
-    globalThis.addEventListener('in-app-messages:refresh', handler);
-    return () => globalThis.removeEventListener('in-app-messages:refresh', handler);
-  }, [fetchInAppMessages]);
+  const {
+    inAppMessages, setInAppMessages,
+    unreadCount, setUnreadCount,
+    announcementUnreadCount,
+    announcementPopVisible, setAnnouncementPopVisible,
+    recentAnnouncements,
+    selectedAnnouncement, setSelectedAnnouncement,
+    messagePopVisible, setMessagePopVisible,
+    selectedMessage, setSelectedMessage,
+    recentInAppMessageRef,
+    fetchRecentAnnouncements, markAnnouncementAsRead, fetchInAppMessages,
+  } = useInAppNotifications();
 
   // ─── 聊天未读数 ────────────────────────────────────────────────────────────
-  const [chatUnreadCount, setChatUnreadCount] = useState(0);
-  // 初次加载时拉取会话列表计算未读
-  useEffect(() => {
-    request.get<Array<{ unreadCount: number }>>('/api/chat/conversations', { silent: true }).then((res) => {
-      if (res.code === 0 && res.data) {
-        setChatUnreadCount(res.data.reduce((s, c) => s + (c.unreadCount ?? 0), 0));
-      }
-    });
-  }, []);
+  const { chatUnreadCount, setChatUnreadCount } = useChatUnread();
 
   // ─── 工作流实时刷新 ─────────────────────────────────────────────────────────
   useWorkflowRealtime();
 
   // ─── WebSocket ──────────────────────────────────────────────────────────────
-  const handleWsMessage = useCallback((msg: WsMessage) => {
-    if (msg.type === 'in-app-message:new') {
-      const messageKey = `${msg.payload.title}:${msg.payload.createdAt}`;
-      const now = Date.now();
-
-      for (const [key, timestamp] of recentInAppMessageRef.current) {
-        if (now - timestamp > 60_000) {
-          recentInAppMessageRef.current.delete(key);
-        }
-      }
-
-      if (recentInAppMessageRef.current.has(messageKey)) {
-        return;
-      }
-
-      recentInAppMessageRef.current.set(messageKey, now);
-
-      // 重新拉一次以获取带有实际 id 的记录
-      fetchInAppMessages();
-
-      Notification.info({
-        title: '新消息',
-        content: msg.payload.title,
-        duration: 5,
-        position: 'topRight',
-      });
-    } else if (msg.type === 'in-app-message:read') {
-      setInAppMessages(updateMessageReadIfUnread(msg.payload.id));
-      setUnreadCount((c) => Math.max(0, c - 1));
-    } else if (msg.type === 'in-app-message:read-all') {
-      setInAppMessages(markAllMessagesRead);
-      setUnreadCount(0);
-    } else if (msg.type === 'in-app-message:deleted') {
-      setInAppMessages((prev) => {
-        const target = prev.find((m) => m.id === msg.payload.id);
-        if (target && !target.isRead) setUnreadCount((c) => Math.max(0, c - 1));
-        return removeMessageById(msg.payload.id)(prev);
-      });
-    } else if (
-      msg.type === 'announcement:new' ||
-      msg.type === 'announcement:updated' ||
-      msg.type === 'announcement:deleted' ||
-      msg.type === 'announcement:read' ||
-      msg.type === 'announcement:read-all'
-    ) {
-      globalThis.dispatchEvent(new CustomEvent('announcement:refresh', { detail: msg }));
-      if (msg.type === 'announcement:new') {
-        Notification.info({
-          title: '新公告',
-          content: msg.payload.title,
-          duration: 5,
-          position: 'topRight',
-        });
-      }
-    } else if (msg.type === 'chat:message') {
-      // 只在当前不在 /chat 页面时增加未读
-      if (!globalThis.location.pathname.startsWith('/chat')) {
-        setChatUnreadCount((v) => v + 1);
-      }
-    } else if (msg.type === 'session:force-logout') {
-      Notification.warning({
-        title: '强制下线',
-        content: msg.payload.reason,
-        duration: 0,
-        position: 'topRight',
-      });
-      // Auto-logout after a brief delay so the user can see the notification
-      setTimeout(() => { clearLockPassword(); onLogout(); }, 2000);
-    } else if (msg.type === 'analytics:config-updated') {
-      // 仅当前租户（或当前平台视角）重拉，避免其它租户保存设置引发全平台无效请求。
-      const effectiveTenantId = viewingTenantId !== null ? viewingTenantId : user.tenantId;
-      if (msg.payload.tenantId === effectiveTenantId) reloadTrackerConfig();
-    }
-  }, [onLogout, fetchInAppMessages, clearLockPassword, user.tenantId, viewingTenantId]);
-
-  const { disconnect: disconnectWs } = useWebSocket(handleWsMessage);
+  const { disconnectWs } = useLayoutWs({
+    onLogout,
+    clearLockPassword,
+    fetchInAppMessages,
+    setInAppMessages,
+    setUnreadCount,
+    setChatUnreadCount,
+    recentInAppMessageRef,
+    userTenantId: user.tenantId,
+    viewingTenantId,
+  });
 
   // 空闲时预热拼音词典（菜单/标签/命令面板搜索用），不占首屏关键路径
   useEffect(() => {
@@ -781,90 +324,22 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
     }
   }, [presetMenus]);
 
-  const currentSectionKeys = useMemo(
-    () => findAncestorKeys(menuTree, location.pathname),
-    [menuTree, location.pathname]
-  );
-
-  const breadcrumbs = useMemo(
-    () => findBreadcrumbs(menuTree, location.pathname),
-    [menuTree, location.pathname]
-  );
-  const displayBreadcrumbs = useMemo(() => {
-    if ((preferences.breadcrumbShowHome ?? true) && location.pathname !== '/') {
-      // 找到首页菜单的图标（findBreadcrumbs 不包含首页）
-      const findHomeIcon = (nodes: Menu[]): string | undefined => {
-        for (const node of nodes) {
-          if (!node.visible || node.type === 'button') continue;
-          if (node.type === 'directory' && node.children?.length) {
-            const icon = findHomeIcon(node.children);
-            if (icon) return icon;
-          } else if (node.path === '/') {
-            return node.icon ?? undefined;
-          }
-        }
-        return undefined;
-      };
-      return [{ title: '首页', path: '/', icon: findHomeIcon(menuTree) }, ...breadcrumbs];
-    }
-    return breadcrumbs;
-  }, [breadcrumbs, preferences.breadcrumbShowHome, location.pathname, menuTree]);
-  const [openKeys, setOpenKeys] = useState<string[]>([]);
-
-  // 无条件同步展开链：收起态由渲染层 `effectiveCollapsed ? [] : openKeys` 门控，
-  // state 层不做 collapsed 判断（否则 hover 模式下 collapsed 恒为 true，openKeys 永远为空，
-  // 刷新后悬浮展开/手动展开时当前页面所属目录不会自动展开）
-  useEffect(() => {
-    // null = 路径不在菜单树中（如详情页），保持当前展开状态
-    if (currentSectionKeys === null) return;
-    if (preferences.sidebarAccordion) {
-      // 手风琴模式：仅保留当前路径的祖先链；顶级菜单项（祖先链为空）收起全部目录
-      setOpenKeys(currentSectionKeys);
-    } else if (currentSectionKeys.length > 0) {
-      setOpenKeys((prev) => Array.from(new Set([...prev, ...currentSectionKeys])));
-    }
-  }, [currentSectionKeys, preferences.sidebarAccordion]);
+  const { currentSectionKeys, displayBreadcrumbs } = useBreadcrumbData(menuTree, location.pathname, preferences.breadcrumbShowHome);
+  const { openKeys, setOpenKeys } = useSidebarOpenKeys(currentSectionKeys, preferences.sidebarAccordion);
 
   // ─── 锁屏快捷键 Alt+L / 侧边栏 toggle Alt+S ────────────────────────────────
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) return;
-      // Esc 退出内容全屏不属于快捷键开关管辖（关闭行为始终可用）
-      if (e.key === 'Escape' && isContentFullscreen) {
-        setIsContentFullscreen(false);
-        return;
-      }
-      if (!(preferences.enableShortcuts ?? true)) return;
-      if (e.altKey && e.key === 'l' && (preferences.enableLockScreen ?? false) && hasPassword()) {
-        e.preventDefault();
-        lock();
-      }
-      if (e.altKey && e.key === 's') {
-        e.preventDefault();
-        handleCollapseChange(!collapsed);
-      }
-      if (e.altKey && e.key === 'c') {
-        e.preventDefault();
-        setIsContentFullscreen((v) => !v);
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [preferences.enableShortcuts, preferences.enableLockScreen, hasPassword, lock, collapsed, handleCollapseChange, isContentFullscreen]);
+  useLayoutShortcuts({
+    enableShortcuts: preferences.enableShortcuts,
+    enableLockScreen: preferences.enableLockScreen,
+    hasPassword,
+    lock,
+    collapsed,
+    handleCollapseChange,
+    isContentFullscreen,
+    setIsContentFullscreen,
+  });
 
-  const iconsReady = useLucideIconsReady();
-  const navItems = useMemo(
-    () => menuTree.map(menuToNavItem).filter((item): item is NavItem => item !== null).map((item) => {
-      if (item.itemKey === '/chat' && chatUnreadCount > 0) {
-        return { ...item, badge: { count: chatUnreadCount, overflowCount: 99 } };
-      }
-      return item;
-    }),
-    // iconsReady: 图标注册表异步加载完成后重建 nav 项以补齐菜单图标
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [menuTree, chatUnreadCount, iconsReady]
-  );
+  const navItems = useNavItems(menuTree, chatUnreadCount);
 
   const handleSidebarOpenChange = useCallback(
     ({ openKeys: nextOpenKeys }: { openKeys?: (string | number)[] }) => {
@@ -889,56 +364,12 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
     [openKeys, preferences.sidebarAccordion, navItems],
   );
 
-  const pathTitleMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    function traverse(nodes: Menu[]) {
-      for (const node of nodes) {
-        if (node.path && node.title) map[node.path] = node.title;
-        if (node.children) traverse(node.children);
-      }
-    }
-    traverse(menuTree);
-    return map;
-  }, [menuTree]);
-
-  const resolveTitle = useCallback((pathname: string) => {
-    if (pathTitleMap[pathname]) return pathTitleMap[pathname];
-    // 前缀匹配：用于带动态参数的隐藏菜单（如 /workflow/designer → /workflow/designer/1）
-    const prefixMatch = Object.entries(pathTitleMap).find(([p]) => pathname.startsWith(p + '/'));
-    return prefixMatch ? prefixMatch[1] : pathname;
-  }, [pathTitleMap]);
-
-  const pathIconMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    function traverse(nodes: Menu[]) {
-      for (const node of nodes) {
-        if (node.path && node.icon) map[node.path] = node.icon;
-        if (node.children) traverse(node.children);
-      }
-    }
-    traverse(menuTree);
-    return map;
-  }, [menuTree]);
+  const { resolveTitle, pathIconMap } = useMenuMaps(menuTree);
 
   // ─── Nav layout helpers ────────────────────────────────────────────────────
   const navLayout: NavLayout = preferences.navLayout ?? 'vertical';
 
-  const autoTopKey = useMemo(() => {
-    if (navLayout !== 'mixed' && navLayout !== 'double') return null;
-    function contains(items: NavItem[], path: string): boolean {
-      return items.some((item) =>
-        item.itemKey === path || (item.items ? contains(item.items, path) : false),
-      );
-    }
-    for (const item of navItems) {
-      if (contains([item], location.pathname)) return item.itemKey;
-    }
-    return navItems[0]?.itemKey ?? null;
-  }, [navLayout, navItems, location.pathname]);
-
-  useEffect(() => {
-    if ((navLayout === 'mixed' || navLayout === 'double') && autoTopKey) setManualTopKey(autoTopKey);
-  }, [navLayout, autoTopKey]);
+  const autoTopKey = useAutoTopKey(navLayout, navItems, location.pathname, setManualTopKey);
 
   // 进入消息中心页面时重置聊天未读数
   useEffect(() => {
@@ -949,22 +380,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
 
   const effectiveTopKey = manualTopKey ?? autoTopKey;
 
-  const mixedTopNavItems = useMemo(
-    () => navItems.map(({ itemKey, text, icon, isExternal }) => ({ itemKey, text, icon, isExternal })),
-    [navItems],
-  );
-
-  const mixedSidebarItems = useMemo(() => {
-    if (navLayout !== 'mixed') return [];
-    const top = navItems.find((i) => i.itemKey === effectiveTopKey);
-    return top?.items ?? [];
-  }, [navLayout, navItems, effectiveTopKey]);
-
-  const doubleSubItems = useMemo(() => {
-    if (navLayout !== 'double') return [];
-    const top = navItems.find((i) => i.itemKey === effectiveTopKey);
-    return top?.items ?? [];
-  }, [navLayout, navItems, effectiveTopKey]);
+  const { mixedTopNavItems, mixedSidebarItems, doubleSubItems } = useMixedNavItems(navLayout, navItems, effectiveTopKey);
 
   const showSidebar = navLayout === 'vertical' || (navLayout === 'mixed' && mixedSidebarItems.length > 0) || navLayout === 'double';
 
@@ -1052,23 +468,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
   const outletRefreshKey = `${location.pathname}:${tabRefreshVersion[location.pathname] ?? 0}`;
 
   // 页面缓存白名单：菜单开启 keepAlive 的路径（外链内嵌菜单取内部路由 /embed/{id}）
-  const keepAlivePaths = useMemo(() => {
-    const result = new Set<string>();
-    const walk = (nodes: Menu[]) => {
-      for (const node of nodes) {
-        if (node.type === 'menu' && node.keepAlive && node.path && node.status === 'enabled') {
-          if (node.isExternal) {
-            if (node.embed) result.add(`/embed/${node.id}`);
-          } else {
-            result.add(node.path);
-          }
-        }
-        if (node.children?.length) walk(node.children);
-      }
-    };
-    walk(menuTree);
-    return result;
-  }, [menuTree]);
+  const keepAlivePaths = useKeepAlivePaths(menuTree);
   const openTabPaths = useMemo(() => new Set(tabs.map((t) => t.key)), [tabs]);
   const pageCacheEnabled = preferences.enableTabs && (preferences.enablePageCache ?? true) && keepAlivePaths.size > 0;
 
@@ -1077,130 +477,12 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
     .filter((menu): menu is FlatMenuItem => Boolean(menu));
 
   // ─── Render wrappers ──────────────────────────────────────────────────────
-
-  // 预构建 itemKey → isExternal 映射，避免每次 renderWrapper 调用时重复遍历
-  const externalNavKeys = useMemo(() => {
-    const map = new Set<string>();
-    function walk(items: NavItem[]) {
-      for (const item of items) {
-        if (item.isExternal) map.add(item.itemKey);
-        if (item.items) walk(item.items);
-      }
-    }
-    walk(navItems);
-    return map;
-  }, [navItems]);
-
-  // itemKey → 菜单默认路由参数（menus.query 字段），跳转时拼接 querystring
-  const navQueryByKey = useMemo(() => {
-    const map = new Map<string, string>();
-    function walk(items: NavItem[]) {
-      for (const item of items) {
-        if (item.query) map.set(item.itemKey, item.query.replace(/^\?/, ''));
-        if (item.items) walk(item.items);
-      }
-    }
-    walk(navItems);
-    return map;
-  }, [navItems]);
-
-  const withMenuQuery = useCallback((key: string) => {
-    const query = navQueryByKey.get(key);
-    return query ? `${key}?${query}` : key;
-  }, [navQueryByKey]);
-
-  const renderWrapper = useCallback(
-    (args: { itemElement: React.ReactNode; props: { itemKey?: string | number } }) => {
-      const { itemElement, props: itemProps } = args;
-      const itemKey = String(itemProps.itemKey ?? '');
-      if (!itemKey.startsWith('/')) return itemElement;
-      if (externalNavKeys.has(itemKey)) {
-        return (
-          <a href={itemKey} target="_blank" rel="noopener noreferrer" className="admin-nav-link-wrapper">
-            {itemElement}
-          </a>
-        );
-      }
-      return (
-        <NavLink to={withMenuQuery(itemKey)} className="admin-nav-link-wrapper">
-          {itemElement}
-        </NavLink>
-      );
-    },
-    [externalNavKeys, withMenuQuery],
-  );
-
-  const renderMobileWrapper = useCallback(
-    (args: { itemElement: React.ReactNode; props: { itemKey?: string | number } }) => {
-      const { itemElement, props: itemProps } = args;
-      const itemKey = String(itemProps.itemKey ?? '');
-      if (!itemKey.startsWith('/')) return itemElement;
-      if (externalNavKeys.has(itemKey)) {
-        return (
-          <a
-            href={itemKey}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="admin-nav-link-wrapper"
-            onClick={() => setMobileNavVisible(false)}
-          >
-            {itemElement}
-          </a>
-        );
-      }
-      return (
-        <NavLink to={withMenuQuery(itemKey)} className="admin-nav-link-wrapper" onClick={() => setMobileNavVisible(false)}>
-          {itemElement}
-        </NavLink>
-      );
-    },
-    [externalNavKeys, withMenuQuery],
-  );
-
-  const handleDoubleRailClick = useCallback((item: NavItem) => {
-    setManualTopKey(item.itemKey);
-    if (item.items?.length) {
-      function findFirstLeaf(items: NavItem[]): string | null {
-        for (const i of items) {
-          if (i.items?.length) {
-            const leaf = findFirstLeaf(i.items);
-            if (leaf) return leaf;
-          } else if (i.itemKey.startsWith('/')) {
-            return i.itemKey;
-          }
-        }
-        return null;
-      }
-      const leaf = findFirstLeaf(item.items);
-      if (leaf) navigate(withMenuQuery(leaf));
-    } else if (item.itemKey.startsWith('/')) {
-      navigate(withMenuQuery(item.itemKey));
-    }
-  }, [navigate, withMenuQuery]);
-
-  const handleMixedTopSelect = useCallback(
-    ({ itemKey: key }: { itemKey: string | number }) => {
-      const k = String(key);
-      setManualTopKey(k);
-      const topItem = navItems.find((i) => i.itemKey === k);
-      if (topItem?.items?.length) {
-        function findFirstLeaf(items: NavItem[]): string | null {
-          for (const item of items) {
-            if (item.items?.length) {
-              const leaf = findFirstLeaf(item.items);
-              if (leaf) return leaf;
-            } else if (item.itemKey.startsWith('/')) {
-              return item.itemKey;
-            }
-          }
-          return null;
-        }
-        const leaf = findFirstLeaf(topItem.items);
-        if (leaf) navigate(withMenuQuery(leaf));
-      }
-    },
-    [navItems, navigate, withMenuQuery],
-  );
+  const { renderWrapper, renderMobileWrapper, handleDoubleRailClick, handleMixedTopSelect } = useNavInteractions({
+    navItems,
+    navigate,
+    setMobileNavVisible,
+    setManualTopKey,
+  });
 
   const currentSelectedKeys = useMemo(
     () => (location.pathname === '/users' ? ['/system/users'] : [location.pathname]),
@@ -1208,97 +490,18 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
   );
 
   const mobileQuickPagesPanel = (
-    <div className="mobile-quick-pages-panel">
-      <div className="mobile-quick-pages-section">
-        <div className="mobile-quick-pages-section__header">
-          <span>已打开页面</span>
-          <span>{tabs.length}</span>
-        </div>
-        {tabs.length === 0 ? (
-          <div className="mobile-quick-pages-empty">暂无打开页面</div>
-        ) : (
-          <div className="mobile-quick-pages-list">
-            {tabs.map((tab) => {
-              const isActive = tab.key === activeKey;
-              const iconName = tab.icon ?? pathIconMap[tab.key];
-              return (
-                <div key={tab.key} className={`mobile-quick-pages-item${isActive ? ' mobile-quick-pages-item--active' : ''}`}>
-                  <button
-                    type="button"
-                    className="mobile-quick-pages-item__main"
-                    onClick={() => {
-                      setMobilePagesVisible(false);
-                      handleTabChange(tab.key);
-                    }}
-                  >
-                    {iconName && (
-                      <span className="mobile-quick-pages-item__icon">{renderLucideIcon(iconName, 14)}</span>
-                    )}
-                    <span className="mobile-quick-pages-item__title">{tab.title}</span>
-                  </button>
-                  {tab.closable && (
-                    <Button
-                      icon={<X size={13} />}
-                      theme="borderless"
-                      type="tertiary"
-                      size="small"
-                      aria-label={`关闭${tab.title}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleTabClose(tab.key);
-                      }}
-                    />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      <div className="mobile-quick-pages-section">
-        <div className="mobile-quick-pages-section__header">
-          <span>最近访问</span>
-          {recentMenus.length > 0 && (
-            <button type="button" onClick={clearRecents}>清空</button>
-          )}
-        </div>
-        {recentMenus.length === 0 ? (
-          <div className="mobile-quick-pages-empty">暂无记录</div>
-        ) : (
-          <div className="mobile-quick-pages-list">
-            {recentMenus.map((menu) => (
-              <div key={menu.id} className="mobile-quick-pages-item">
-                <button
-                  type="button"
-                  className="mobile-quick-pages-item__main"
-                  onClick={() => {
-                    setMobilePagesVisible(false);
-                    navigate(menu.path);
-                  }}
-                >
-                  <span className="mobile-quick-pages-item__icon"><Clock size={14} /></span>
-                  <span className="mobile-quick-pages-item__title">{menu.title}</span>
-                  <span className="mobile-quick-pages-item__meta">{menu.breadcrumb.at(-1) ?? ''}</span>
-                </button>
-                <Button
-                  icon={<X size={13} />}
-                  theme="borderless"
-                  type="tertiary"
-                  size="small"
-                  aria-label={`移除${menu.title}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeRecent(menu.id);
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-    </div>
+    <MobileQuickPagesPanel
+      tabs={tabs}
+      activeKey={activeKey}
+      pathIconMap={pathIconMap}
+      recentMenus={recentMenus}
+      setMobilePagesVisible={setMobilePagesVisible}
+      handleTabChange={handleTabChange}
+      handleTabClose={handleTabClose}
+      clearRecents={clearRecents}
+      removeRecent={removeRecent}
+      navigate={navigate}
+    />
   );
 
   // ─── Header actions (reused in both topbar and vertical header) ────────────
@@ -1306,416 +509,88 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
     <div className="admin-header__actions">
       {(preferences.showMenuSearch ?? true) && <div className="admin-menu-search"><MenuSearchInput menus={flatMenus} /></div>}
       {/* 最近访问 */}
-      <Popover
-        position="bottomRight"
-        trigger="hover"
-        mouseEnterDelay={200}
-        mouseLeaveDelay={300}
-        showArrow
-        content={
-          <div style={{ width: 260, maxHeight: 400, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: '10px 14px 8px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--semi-color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>最近访问</span>
-              {recents.length > 0 && (
-                <button type="button" onClick={clearRecents} style={{ border: 0, background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--semi-color-text-2)', padding: 0 }}>
-                  清空
-                </button>
-              )}
-            </div>
-            {recentMenus.length === 0 ? (
-              <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--semi-color-text-2)', fontSize: 13 }}>
-                暂无记录
-              </div>
-            ) : (
-              <div style={{ overflow: 'auto', flex: 1 }}>
-                <List
-                  size="small"
-                  dataSource={recentMenus}
-                  renderItem={(menu) => (
-                    <List.Item
-                      style={{ padding: '0 4px 0 0' }}
-                      main={
-                        <button
-                          type="button"
-                          onClick={() => navigate(menu!.path)}
-                          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0 7px 14px', cursor: 'pointer', minWidth: 0, flex: 1, border: 0, background: 'transparent', textAlign: 'left' }}
-                        >
-                          <span style={{ color: 'var(--semi-color-text-2)', display: 'flex', flexShrink: 0 }}><Clock size={13} /></span>
-                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13 }}>{menu!.title}</span>
-                          <span style={{ fontSize: 11, color: 'var(--semi-color-text-3)', flexShrink: 0 }}>{menu!.breadcrumb.at(-1) ?? ''}</span>
-                        </button>
-                      }
-                      extra={
-                        <Button
-                          icon={<X size={13} />}
-                          theme="borderless"
-                          type="tertiary"
-                          size="small"
-                          title="移除记录"
-                          onClick={(e) => { e.stopPropagation(); removeRecent(menu!.id); }}
-                        />
-                      }
-                    />
-                  )}
-                />
-              </div>
-            )}
-          </div>
-        }
-      >
-        <div className="admin-header-action" style={{ display: 'inline-flex', cursor: 'pointer' }}>
-          <button type="button" className="admin-theme-btn" title="最近访问">
-            <Clock size={16} strokeWidth={1.5} />
-          </button>
-        </div>
-      </Popover>
+      <RecentMenusPopover
+        recents={recents}
+        recentMenus={recentMenus}
+        clearRecents={clearRecents}
+        removeRecent={removeRecent}
+        navigate={navigate}
+      />
       {/* 收藏菜单快捷入口 */}
       {(preferences.showFavorites ?? false) && (
-      <Popover
-        position="bottomRight"
-        trigger="hover"
-        mouseEnterDelay={200}
-        mouseLeaveDelay={300}
-        showArrow
-        content={
-          <div style={{ width: 260, maxHeight: 400, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: '10px 14px 8px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--semi-color-border)' }}>
-              我的收藏
-            </div>
-            {favorites.length === 0 ? (
-              <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--semi-color-text-2)', fontSize: 13 }}>
-                暂无收藏，点击面包屑右侧 ⭐ 可收藏当前页
-              </div>
-            ) : (
-              <div style={{ overflow: 'auto', flex: 1 }}>
-                <List
-                  size="small"
-                  dataSource={favorites.map((id) => flatMenus.find((m) => m.id === id)).filter(Boolean)}
-                  renderItem={(menu) => (
-                    <List.Item
-                      style={{ padding: '0 4px 0 0' }}
-                      main={
-                        <button
-                          type="button"
-                          onClick={() => { navigate(menu!.path); }}
-                          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0 7px 14px', cursor: 'pointer', minWidth: 0, flex: 1, border: 0, background: 'transparent', textAlign: 'left' }}
-                        >
-                          <span style={{ color: 'var(--semi-color-warning)', display: 'flex', flexShrink: 0 }}>
-                            <Star size={13} fill="currentColor" strokeWidth={0} />
-                          </span>
-                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13 }}>{menu!.title}</span>
-                          <span style={{ fontSize: 11, color: 'var(--semi-color-text-3)', flexShrink: 0 }}>{menu!.breadcrumb.at(-1) ?? ''}</span>
-                        </button>
-                      }
-                      extra={
-                        <Button
-                          icon={<X size={13} />}
-                          theme="borderless"
-                          type="tertiary"
-                          size="small"
-                          title="移除收藏"
-                          onClick={(e) => { e.stopPropagation(); toggleFavorite(menu!.id); }}
-                        />
-                      }
-                    />
-                  )}
-                />
-              </div>
-            )}
-          </div>
-        }
-      >
-        <div className="admin-header-action" style={{ display: 'inline-flex', cursor: 'pointer' }}>
-          <button
-            type="button"
-            className="admin-theme-btn"
-            title="我的收藏"
-          >
-            <Star size={16} strokeWidth={1.5} />
-          </button>
-        </div>
-      </Popover>
+        <FavoritesPopover
+          favorites={favorites}
+          flatMenus={flatMenus}
+          navigate={navigate}
+          toggleFavorite={toggleFavorite}
+        />
       )}
       {isPlatformAdmin && tenantList.length > 0 && (
-        <>
-          <Select
-            prefix={<Building2 size={14} />}
-            placeholder="平台视角"
-            value={viewingTenantId ?? undefined}
-            onChange={(v) => handleSwitchTenant((v as number) ?? null)}
-            style={{ width: 180 }}
-            showClear
-            onClear={() => handleSwitchTenant(null)}
-            optionList={tenantList.map((t) => ({ value: t.id, label: t.name }))}
-            size="small"
-          />
-          <div style={{ width: 1, height: 16, backgroundColor: 'var(--color-border)', margin: '0 4px' }} />
-        </>
+        <TenantSwitcher
+          tenantList={tenantList}
+          viewingTenantId={viewingTenantId}
+          handleSwitchTenant={handleSwitchTenant}
+        />
       )}
       <TaskTray />
-      <Popover
-        visible={announcementPopVisible}
-        onVisibleChange={(v) => { setAnnouncementPopVisible(v); if (v) fetchRecentAnnouncements(); }}
-        position="bottomRight"
-        trigger="hover"
-        mouseEnterDelay={200}
-        mouseLeaveDelay={300}
-        showArrow
-        content={
-          <div style={{ width: 360, maxHeight: 440, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: '12px 16px 8px', fontWeight: 600, fontSize: 14, borderBottom: '1px solid var(--semi-color-border)' }}>
-              最新公告
-            </div>
-            {recentAnnouncements.length === 0 ? (
-              <Empty
-                image={<IllustrationIdle style={{ width: 80, height: 80 }} />}
-                darkModeImage={<IllustrationIdleDark style={{ width: 80, height: 80 }} />}
-                description="暂无公告" style={{ padding: '24px 0' }} />
-            ) : (
-              <List
-                style={{ overflow: 'auto', maxHeight: 340 }}
-                dataSource={recentAnnouncements}
-                renderItem={(item) => (
-                  <List.Item
-                    key={item.id}
-                    style={{ padding: '10px 16px', cursor: 'pointer', opacity: item.isRead ? 0.55 : 1 }}
-                    onClick={() => {
-                      if (!item.isRead) markAnnouncementAsRead(item.id);
-                      setAnnouncementPopVisible(false);
-                      setSelectedAnnouncement(item);
-                    }}
-                    header={null}
-                    main={
-                      <div>
-                        <Typography.Text strong style={{ fontSize: 13 }}>{item.title}</Typography.Text>
-                        <div style={{ fontSize: 12, color: 'var(--semi-color-text-2)', margin: '3px 0 4px', maxHeight: 40, overflow: 'hidden', lineHeight: 1.5 }}>
-                          {item.content.replace(/<[^>]*>/g, '')}
-                        </div>
-                        <Typography.Text style={{ fontSize: 11, color: 'var(--semi-color-text-3)' }}>
-                          {formatDateTime(item.publishTime ?? item.createdAt)}
-                        </Typography.Text>
-                      </div>
-                    }
-                  />
-                )}
-              />
-            )}
-            <div style={{ padding: '8px 16px', borderTop: '1px solid var(--semi-color-border)', textAlign: 'center' }}>
-              <Button theme="borderless" type="primary" size="small" onClick={() => { setAnnouncementPopVisible(false); navigate('/announcements'); }}>
-                查看全部
-              </Button>
-            </div>
-          </div>
-        }
-      >
-        <div className="admin-header-action admin-header-action--announce" style={{ display: 'inline-flex', cursor: 'pointer' }}>
-          <Badge dot={announcementUnreadCount > 0} className="admin-notify-badge" style={{ zIndex: 1 }}>
-            <button className="admin-theme-btn" title="公告中心">
-              <Megaphone size={16} strokeWidth={1.5} />
-            </button>
-          </Badge>
-        </div>
-      </Popover>
-      <Popover
-        visible={messagePopVisible}
-        onVisibleChange={(v) => { setMessagePopVisible(v); if (v) fetchInAppMessages(); }}
-        position="bottomRight"
-        trigger="hover"
-        mouseEnterDelay={200}
-        mouseLeaveDelay={300}
-        showArrow
-        content={
-          <div style={{ width: 360, maxHeight: 440, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: '12px 16px 8px', fontWeight: 600, fontSize: 14, borderBottom: '1px solid var(--semi-color-border)' }}>
-              最新消息
-            </div>
-            {inAppMessages.length === 0 ? (
-              <Empty
-                image={<IllustrationIdle style={{ width: 80, height: 80 }} />}
-                darkModeImage={<IllustrationIdleDark style={{ width: 80, height: 80 }} />}
-                description="暂无消息" style={{ padding: '24px 0' }} />
-            ) : (
-              <List
-                style={{ overflow: 'auto', maxHeight: 340 }}
-                dataSource={inAppMessages}
-                renderItem={(item: InAppMessage) => (
-                  <List.Item
-                    key={item.id}
-                    style={{ padding: '10px 16px', cursor: 'pointer', opacity: item.isRead ? 0.55 : 1 }}
-                    onClick={() => {
-                      if (!item.isRead) markAsRead(item.id);
-                      setMessagePopVisible(false);
-                      // 带深链的消息（如待办提醒）直接跳转对应页面并自动弹出详情
-                      if (item.link) navigate(item.link);
-                      else setSelectedMessage(item);
-                    }}
-                    header={null}
-                    main={
-                      <div>
-                        <Typography.Text strong style={{ fontSize: 13 }}>{item.title}</Typography.Text>
-                        <div
-                          style={{ fontSize: 12, color: 'var(--semi-color-text-2)', margin: '3px 0 4px', maxHeight: 40, overflow: 'hidden', lineHeight: 1.5 }}
-                        >
-                          {item.content}
-                        </div>
-                        <Typography.Text style={{ fontSize: 11, color: 'var(--semi-color-text-3)' }}>
-                          {formatDateTime(item.createdAt)}
-                        </Typography.Text>
-                      </div>
-                    }
-                  />
-                )}
-              />
-            )}
-            <div
-              style={{
-                padding: '8px 16px',
-                borderTop: '1px solid var(--semi-color-border)',
-                textAlign: 'center',
-              }}
-            >
-              <Button
-                theme="borderless"
-                type="primary"
-                size="small"
-                onClick={() => {
-                  setMessagePopVisible(false);
-                  navigate('/inbox');
-                }}
-              >
-                查看全部
-              </Button>
-            </div>
-          </div>
-        }
-      >
-        <div className="admin-header-action admin-header-action--message" style={{ display: 'inline-flex', cursor: 'pointer' }}>
-          <Badge dot={unreadCount > 0} className="admin-notify-badge" style={{ zIndex: 1 }}>
-            <button className="admin-theme-btn" title="我的消息">
-              <Bell size={16} strokeWidth={1.5} />
-            </button>
-          </Badge>
-        </div>
-      </Popover>
-      <Dropdown
-        position="bottomRight"
-        render={
-          <Dropdown.Menu>
-            <Dropdown.Title>颜色模式：{themeLabelMap[mode].label}</Dropdown.Title>
-            {(['light', 'dark', 'system'] as ThemeMode[]).map((m) => (
-              <Dropdown.Item key={m} icon={themeLabelMap[m].icon} active={mode === m} onClick={() => handleThemeModeChange(m)}>
-                {themeLabelMap[m].label}
-              </Dropdown.Item>
-            ))}
-          </Dropdown.Menu>
-        }
-      >
-        <button className="admin-theme-btn admin-theme-btn--theme" title="切换主题">
-          {themeLabelMap[mode].icon}
-        </button>
-      </Dropdown>
+      <AnnouncementPopover
+        announcementPopVisible={announcementPopVisible}
+        setAnnouncementPopVisible={setAnnouncementPopVisible}
+        fetchRecentAnnouncements={fetchRecentAnnouncements}
+        recentAnnouncements={recentAnnouncements}
+        markAnnouncementAsRead={markAnnouncementAsRead}
+        setSelectedAnnouncement={setSelectedAnnouncement}
+        announcementUnreadCount={announcementUnreadCount}
+        navigate={navigate}
+      />
+      <MessagePopover
+        messagePopVisible={messagePopVisible}
+        setMessagePopVisible={setMessagePopVisible}
+        fetchInAppMessages={fetchInAppMessages}
+        inAppMessages={inAppMessages}
+        markAsRead={markAsRead}
+        setSelectedMessage={setSelectedMessage}
+        unreadCount={unreadCount}
+        navigate={navigate}
+      />
+      <ThemeModeDropdown mode={mode} handleThemeModeChange={handleThemeModeChange} />
       {/* 移动端页面入口与常用功能入口分离 */}
-      <div className="admin-header-action admin-header-action--pages">
-        <Dropdown
-          position="bottomRight"
-          visible={isMobileNav ? mobilePagesVisible : undefined}
-          onVisibleChange={isMobileNav ? setMobilePagesVisible : undefined}
-          render={mobileQuickPagesPanel}
-        >
-          <button className="admin-theme-btn" title="页面">
-            <Files size={16} strokeWidth={1.5} />
-          </button>
-        </Dropdown>
-      </div>
-      <div className="admin-header-action admin-header-action--more">
-        <Dropdown
-          position="bottomRight"
-          clickToHide
-          render={
-            <Dropdown.Menu>
-              <Dropdown.Item
-                icon={<Megaphone size={14} strokeWidth={1.5} />}
-                onClick={() => navigate('/announcements')}
-              >
-                公告中心{announcementUnreadCount > 0 && <Badge count={announcementUnreadCount} overflowCount={99} style={{ marginLeft: 6 }} />}
-              </Dropdown.Item>
-              <Dropdown.Item
-                icon={<Bell size={14} strokeWidth={1.5} />}
-                onClick={() => navigate('/inbox')}
-              >
-                我的消息{unreadCount > 0 && <Badge count={unreadCount} overflowCount={99} style={{ marginLeft: 6 }} />}
-              </Dropdown.Item>
-              <Dropdown.Divider />
-              <Dropdown.Title>颜色模式</Dropdown.Title>
-              {(['light', 'dark', 'system'] as ThemeMode[]).map((m) => (
-                <Dropdown.Item key={m} icon={themeLabelMap[m].icon} active={mode === m} onClick={() => handleThemeModeChange(m)}>
-                  {themeLabelMap[m].label}
-                </Dropdown.Item>
-              ))}
-            </Dropdown.Menu>
-          }
-        >
-          <button className="admin-theme-btn" title="更多">
-            <MoreHorizontal size={16} strokeWidth={1.5} />
-          </button>
-        </Dropdown>
-      </div>
+      <PagesDropdown
+        isMobileNav={isMobileNav}
+        mobilePagesVisible={mobilePagesVisible}
+        setMobilePagesVisible={setMobilePagesVisible}
+        mobileQuickPagesPanel={mobileQuickPagesPanel}
+      />
+      <MoreDropdown
+        navigate={navigate}
+        announcementUnreadCount={announcementUnreadCount}
+        unreadCount={unreadCount}
+        mode={mode}
+        handleThemeModeChange={handleThemeModeChange}
+      />
       {(preferences.showFullscreen ?? true) && (
         <button className="admin-theme-btn admin-theme-btn--fullscreen" title={isFullscreen ? '退出全屏' : '全屏显示'} onClick={toggleFullscreen}>
           {isFullscreen ? <Shrink size={16} strokeWidth={1.5} /> : <Expand size={16} strokeWidth={1.5} />}
         </button>
       )}
       <div style={{ width: 1, height: 16, backgroundColor: 'var(--color-border)', margin: '0 4px' }} />
-      <Dropdown
-        position="bottomRight"
-        render={
-          <Dropdown.Menu>
-            <Dropdown.Item icon={<UserIcon size={14} strokeWidth={1.5} />} onClick={() => navigate('/profile')}>个人中心</Dropdown.Item>
-            <Dropdown.Item
-              icon={<Bell size={14} strokeWidth={1.5} />}
-              onClick={() => navigate('/inbox')}
-            >
-              我的消息{unreadCount > 0 && <Badge count={unreadCount} overflowCount={99} style={{ marginLeft: 6 }} />}
-            </Dropdown.Item>
-            <Dropdown.Item icon={<Megaphone size={14} strokeWidth={1.5} />} onClick={() => navigate('/announcements')}>公告中心{announcementUnreadCount > 0 && <Badge count={announcementUnreadCount} overflowCount={99} style={{ marginLeft: 6 }} />}</Dropdown.Item>
-            <Dropdown.Item icon={<Smartphone size={14} strokeWidth={1.5} />} onClick={() => window.open(`${import.meta.env.BASE_URL.replace(/\/$/, '')}/approval.html`, '_blank')}>移动审批</Dropdown.Item>
-            {feedbackEntryEnabled && (
-              <Dropdown.Item icon={<MessageSquareHeart size={14} strokeWidth={1.5} />} onClick={() => setFeedbackVisible(true)}>意见反馈</Dropdown.Item>
-            )}
-            <Dropdown.Item icon={<Settings size={14} strokeWidth={1.5} />} onClick={() => setPrefsVisible(true)}>偏好设置</Dropdown.Item>
-            <Dropdown.Item icon={<Keyboard size={14} strokeWidth={1.5} />} onClick={() => setShortcutsVisible(true)}>快捷键</Dropdown.Item>
-            {(preferences.enableLockScreen ?? false) && hasPassword() && (
-              <Dropdown.Item icon={<Lock size={14} strokeWidth={1.5} />} onClick={() => lock()}>锁屏</Dropdown.Item>
-            )}
-            <Dropdown.Divider />
-            <Dropdown.Item
-              icon={<LogOut size={14} strokeWidth={1.5} />}
-              onClick={() => {
-                const doLogout = () => { disconnectWs(); clearLockPassword(); onLogout(); };
-                if (!(preferences.confirmLogout ?? true)) {
-                  doLogout();
-                  return;
-                }
-                Modal.confirm({
-                  title: '确认退出',
-                  content: '确定要退出登录吗？',
-                  okText: '退出',
-                  cancelText: '取消',
-                  okButtonProps: { type: 'danger', theme: 'solid' },
-                  onOk: doLogout,
-                });
-              }}
-            >
-              退出登录
-            </Dropdown.Item>
-          </Dropdown.Menu>
-        }
-      >
-        <div className="admin-header__user">
-          <UserAvatar name={user.nickname || '用户'} avatar={user.avatar} semiSize="small" size={24} style={{ fontSize: 12 }} />
-          <span className="admin-header__username">{user.nickname}</span>
-        </div>
-      </Dropdown>
+      <UserDropdown
+        user={user}
+        navigate={navigate}
+        unreadCount={unreadCount}
+        announcementUnreadCount={announcementUnreadCount}
+        feedbackEntryEnabled={feedbackEntryEnabled}
+        setFeedbackVisible={setFeedbackVisible}
+        setPrefsVisible={setPrefsVisible}
+        setShortcutsVisible={setShortcutsVisible}
+        enableLockScreen={preferences.enableLockScreen}
+        confirmLogout={preferences.confirmLogout}
+        hasPassword={hasPassword}
+        lock={lock}
+        disconnectWs={disconnectWs}
+        clearLockPassword={clearLockPassword}
+        onLogout={onLogout}
+      />
     </div>
   );
 
@@ -1741,70 +616,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
   const sidebarClassName = `admin-sidebar${effectiveCollapsed ? ' admin-sidebar--collapsed' : ''}${stickyNavClass}`;
   const mobileHeaderTitle = currentPageTitle ?? displayBreadcrumbs.at(-1)?.title ?? config.appTitle;
 
-  // 菜单自动滚动至可视区：把选中项滚动到侧栏滚动容器的垂直中部
-  // 说明：
-  // 1. 不用 el.scrollIntoView({ block: 'nearest' })——它只做最小滚动，选中项常常贴在容器上/下边缘
-  //    （顶部还会被 sticky 的一级目录标题遮住），且会连带滚动所有可滚动祖先。
-  // 2. 路由切换往往伴随目录展开/收起动画，首帧拿到的是旧布局。这里用 rAF 轮询等待
-  //    「选中项位置 + 内容总高」连续两帧不变（即动画结束）后再一次性定位，避免用错误位置滚动。
-  useEffect(() => {
-    if (!(preferences.scrollMenuIntoView ?? true) || effectiveCollapsed) return;
-    // sticky 的一级目录标题会遮挡容器顶部，视觉安全区需要下移
-    const SAFE_TOP = 48;
-    const SAFE_BOTTOM = 24;
-    // 初次进入时菜单数据是异步到达的，等待选中项出现的预算要比等待动画稳定的预算长；
-    // 出现后仍持续观察一段时间：目录展开动画会让布局在首次定位之后继续变化（此时
-    // 容器可能尚无可滚动空间 maxScroll=0），布局每次企稳都要重新定位一次。
-    const APPEAR_WAIT = 5000;
-    const WATCH_WAIT = 1200;
-    const startedAt = performance.now();
-    let appearedAt = 0;
-    let rafId = 0;
-    let prevKey = '';
-    let stableFrames = 0;
-    let settledKey = '';
-
-    const settle = (container: HTMLElement, el: HTMLElement, offsetTop: number) => {
-      const height = el.getBoundingClientRect().height;
-      const maxScroll = container.scrollHeight - container.clientHeight;
-      if (maxScroll <= 0) return;
-      const relTop = offsetTop - container.scrollTop;
-      const centerRatio = (relTop + height / 2) / container.clientHeight;
-      // 已完整可见且落在中部舒适区（20%~80%）则不滚动，避免相邻菜单之间来回抖动
-      if (relTop >= SAFE_TOP && relTop + height <= container.clientHeight - SAFE_BOTTOM
-        && centerRatio >= 0.2 && centerRatio <= 0.8) return;
-      const target = Math.min(Math.max(offsetTop - (container.clientHeight - height) / 2, 0), maxScroll);
-      if (Math.abs(target - container.scrollTop) < 2) return;
-      container.scrollTo({ top: target, behavior: reduceMotion ? 'auto' : 'smooth' });
-    };
-
-    const tick = () => {
-      const nav = document.querySelector('.admin-sidebar__nav');
-      const container = nav?.querySelector<HTMLElement>('.semi-navigation-list-wrapper');
-      const el = nav?.querySelector<HTMLElement>('.semi-navigation-item-selected');
-      const now = performance.now();
-      const elRect = el?.getBoundingClientRect();
-      if (!container || !el || !elRect?.height) {
-        // 选中项尚未出现（菜单数据未到达或目录未展开），在出现预算内继续等
-        if (now - startedAt < APPEAR_WAIT) rafId = requestAnimationFrame(tick);
-        return;
-      }
-      if (!appearedAt) appearedAt = now;
-      const offsetTop = elRect.top - container.getBoundingClientRect().top + container.scrollTop;
-      // 用「选中项绝对位置 + 内容总高」判定布局是否稳定（不受自身平滑滚动影响）
-      const key = `${Math.round(offsetTop)}|${container.scrollHeight}`;
-      if (key === prevKey) stableFrames += 1;
-      else { prevKey = key; stableFrames = 0; }
-      if (stableFrames >= 2 && key !== settledKey) {
-        settledKey = key;
-        settle(container, el, offsetTop);
-      }
-      if (now - appearedAt < WATCH_WAIT) rafId = requestAnimationFrame(tick);
-    };
-
-    rafId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafId);
-  }, [currentSelectedKeys, effectiveCollapsed, preferences.scrollMenuIntoView, reduceMotion]);
+  useScrollMenuIntoView(currentSelectedKeys, effectiveCollapsed, preferences.scrollMenuIntoView, reduceMotion);
   const layoutClassName = [
     'admin-layout',
     preferences.sidebarDarkMode ? 'admin-layout--sidebar-dark' : '',
@@ -1841,107 +653,50 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
     >
       {/* 维护模式横幅（仅超级管理员可见） */}
       {isSuperAdmin && maintenanceBannerEnabled && (
-        <Banner
-          type="warning"
-          icon={<Wrench size={15} />}
-          style={{ borderRadius: 0 }}
-          description={
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span>
-                系统当前处于 <strong>维护模式</strong>，普通用户无法访问接口。
-                {maintenanceBannerMsg && <span style={{ marginLeft: 8, color: 'var(--semi-color-text-2)' }}>{maintenanceBannerMsg}</span>}
-              </span>
-              <Button size="small" theme="solid" type="warning" loading={disablingMaintenance} onClick={handleDisableMaintenance}>
-                关闭维护模式
-              </Button>
-            </span>
-          }
-          closeIcon={null}
+        <MaintenanceBanner
+          maintenanceBannerMsg={maintenanceBannerMsg}
+          disablingMaintenance={disablingMaintenance}
+          handleDisableMaintenance={handleDisableMaintenance}
         />
       )}
       {isMobileNav && (
-        <header className="admin-mobile-header">
-          <button
-            type="button"
-            className="admin-mobile-header__menu"
-            aria-label="打开导航菜单"
-            onClick={() => setMobileNavVisible(true)}
-          >
-            <MenuIcon size={20} strokeWidth={1.8} />
-          </button>
-          <button
-            type="button"
-            className="admin-mobile-header__brand"
-            onClick={navigateHome}
-            onKeyDown={handleNavigateHomeKey}
-          >
-            <AppLogo size={26} />
-            <span className="admin-mobile-header__title">{mobileHeaderTitle}</span>
-          </button>
-          {headerActions}
-        </header>
+        <MobileHeader
+          setMobileNavVisible={setMobileNavVisible}
+          navigateHome={navigateHome}
+          handleNavigateHomeKey={handleNavigateHomeKey}
+          mobileHeaderTitle={mobileHeaderTitle}
+          headerActions={headerActions}
+        />
       )}
 
       {isMobileNav && (
-        <SideSheet
-          className="admin-mobile-nav-sheet"
-          title={
-            <button
-              type="button"
-              className="admin-mobile-nav-sheet__brand"
-              onClick={() => {
-                setMobileNavVisible(false);
-                navigateHome();
-              }}
-              onKeyDown={handleNavigateHomeKey}
-            >
-              <AppLogo size={26} />
-              <span>{config.appTitle}</span>
-            </button>
-          }
-          visible={mobileNavVisible}
-          onCancel={() => setMobileNavVisible(false)}
-          placement="left"
-          width="min(86vw, 320px)"
-          bodyStyle={{ padding: 0 }}
-        >
-          <Nav
-            className="admin-mobile-nav"
-            mode="vertical"
-            items={navItems}
-            selectedKeys={currentSelectedKeys}
-            openKeys={openKeys}
-            onOpenChange={handleSidebarOpenChange}
-            renderWrapper={renderMobileWrapper}
-          />
-        </SideSheet>
+        <MobileNavSheet
+          mobileNavVisible={mobileNavVisible}
+          setMobileNavVisible={setMobileNavVisible}
+          navigateHome={navigateHome}
+          handleNavigateHomeKey={handleNavigateHomeKey}
+          navItems={navItems}
+          currentSelectedKeys={currentSelectedKeys}
+          openKeys={openKeys}
+          handleSidebarOpenChange={handleSidebarOpenChange}
+          renderMobileWrapper={renderMobileWrapper}
+        />
       )}
 
       {/* Top bar for horizontal and mixed layouts */}
       {!isMobileNav && navLayout !== 'vertical' && navLayout !== 'double' && (
-        <header className="admin-topbar">
-          {(preferences.showLogo ?? true) && (
-            <button
-              type="button"
-              className="admin-topbar__brand"
-              style={{ cursor: 'pointer', background: 'transparent', border: 0, padding: 0, font: 'inherit', color: 'inherit' }}
-              onClick={navigateHome}
-              onKeyDown={handleNavigateHomeKey}
-            >
-              <AppLogo size={28} />
-              <span className="admin-sidebar__title">{config.appTitle}</span>
-            </button>
-          )}
-          <TopNavWithOverflow
-            className="admin-topbar__nav"
-            ariaLabel={navLayout === 'mixed' ? '分类导航' : '主导航'}
-            items={navLayout === 'mixed' ? mixedTopNavItems : navItems}
-            selectedKeys={topNavSelectedKeys}
-            renderWrapper={renderWrapper}
-            onItemClick={navLayout === 'mixed' ? (key) => handleMixedTopSelect({ itemKey: key }) : undefined}
-          />
-          {headerActions}
-        </header>
+        <TopBar
+          showLogo={preferences.showLogo ?? true}
+          navigateHome={navigateHome}
+          handleNavigateHomeKey={handleNavigateHomeKey}
+          navLayout={navLayout}
+          mixedTopNavItems={mixedTopNavItems}
+          navItems={navItems}
+          topNavSelectedKeys={topNavSelectedKeys}
+          renderWrapper={renderWrapper}
+          handleMixedTopSelect={handleMixedTopSelect}
+          headerActions={headerActions}
+        />
       )}
 
       <div className="admin-body">
@@ -1949,108 +704,36 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
 {/* Sidebar — always in vertical, conditional in mixed, always in double */}
         {!isMobileNav && showSidebar && (
           navLayout === 'double' ? (
-            <aside className={`admin-sidebar admin-sidebar--double${doubleSubItems.length === 0 ? ' admin-sidebar--double-no-sub' : ''}${stickyNavClass}`}>
-              {/* Left icon rail */}
-              <div className="double-sidebar__rail">
-                {(preferences.showLogo ?? true) && (
-                  <button
-                    type="button"
-                    className="double-sidebar__logo"
-                    onClick={navigateHome}
-                    onKeyDown={handleNavigateHomeKey}
-                  >
-                    <AppLogo size={26} />
-                  </button>
-                )}
-                <div className="double-sidebar__rail-list" role="navigation" aria-label="分组导航">
-                  {navItems.map((item) => {
-                    const isActive = effectiveTopKey === item.itemKey;
-                    return (
-                      <Tooltip key={item.itemKey} content={item.text} position="right">
-                        <button
-                          type="button"
-                          className={`double-sidebar__rail-item${isActive ? ' double-sidebar__rail-item--active' : ''}`}
-                          onClick={() => handleDoubleRailClick(item)}
-                          aria-current={isActive ? 'page' : undefined}
-                        >
-                          <span className="double-sidebar__rail-icon">
-                            {item.badge && item.badge.count > 0 ? (
-                              <Badge count={item.badge.count} overflowCount={item.badge.overflowCount ?? 99}>
-                                {item.icon}
-                              </Badge>
-                            ) : item.icon}
-                          </span>
-                          <span className="double-sidebar__rail-label">{item.text}</span>
-                        </button>
-                      </Tooltip>
-                    );
-                  })}
-                </div>
-              </div>
-              {/* Right sub-nav */}
-              <div className="double-sidebar__sub">
-                {doubleSubItems.length > 0 && (
-                  <>
-                    <div className="double-sidebar__sub-title">
-                      {navItems.find((i) => i.itemKey === effectiveTopKey)?.text ?? ''}
-                    </div>
-                    <Nav
-                      className="admin-sidebar__nav double-sidebar__sub-nav"
-                      mode="vertical"
-                      items={doubleSubItems}
-                      style={{ height: 'calc(100% - 48px)', overflow: 'hidden' }}
-                      bodyStyle={{ paddingTop: 8 }}
-                      isCollapsed={false}
-                      selectedKeys={currentSelectedKeys}
-                      openKeys={openKeys}
-                      onOpenChange={handleSidebarOpenChange}
-                      renderWrapper={renderWrapper}
-                    />
-                  </>
-                )}
-              </div>
-            </aside>
+            <DoubleSidebar
+              doubleSubItems={doubleSubItems}
+              stickyNavClass={stickyNavClass}
+              showLogo={preferences.showLogo ?? true}
+              navigateHome={navigateHome}
+              handleNavigateHomeKey={handleNavigateHomeKey}
+              navItems={navItems}
+              effectiveTopKey={effectiveTopKey}
+              handleDoubleRailClick={handleDoubleRailClick}
+              currentSelectedKeys={currentSelectedKeys}
+              openKeys={openKeys}
+              handleSidebarOpenChange={handleSidebarOpenChange}
+              renderWrapper={renderWrapper}
+            />
           ) : (
-            <aside
-              className={sidebarClassName}
+            <SidebarNav
+              sidebarClassName={sidebarClassName}
               onMouseEnter={() => { if (preferences.sidebarHoverTrigger && collapsed) setSidebarHovered(true); }}
               onMouseLeave={() => { if (preferences.sidebarHoverTrigger) setSidebarHovered(false); }}
-            >
-              <Nav
-                className="admin-sidebar__nav"
-                mode="vertical"
-                items={navLayout === 'mixed' ? mixedSidebarItems : navItems}
-                style={{ height: '100%' }}
-                bodyStyle={{ paddingTop: 8 }}
-                isCollapsed={effectiveCollapsed}
-                selectedKeys={currentSelectedKeys}
-                openKeys={effectiveCollapsed ? [] : openKeys}
-                onOpenChange={handleSidebarOpenChange}
-                onCollapseChange={handleCollapseChange}
-                header={
-                  navLayout === 'vertical' && (preferences.showLogo ?? true)
-                    ? {
-                        logo: (
-                          <button
-                            type="button"
-                            className="admin-sidebar__brand"
-                            onClick={navigateHome}
-                            onKeyDown={handleNavigateHomeKey}
-                          >
-                            <AppLogo size={28} />
-                            <span className="admin-sidebar__title">{config.appTitle}</span>
-                          </button>
-                        ),
-                      }
-                    : undefined
-                }
-                footer={{
-                  collapseButton: true,
-                  collapseText: (isCollapsed) => (isCollapsed ? '展开侧边栏' : '收起侧边栏'),
-                }}
-                renderWrapper={renderWrapper}
-              />
-            </aside>
+              items={navLayout === 'mixed' ? mixedSidebarItems : navItems}
+              effectiveCollapsed={effectiveCollapsed}
+              currentSelectedKeys={currentSelectedKeys}
+              openKeys={openKeys}
+              handleSidebarOpenChange={handleSidebarOpenChange}
+              handleCollapseChange={handleCollapseChange}
+              showBrand={navLayout === 'vertical' && (preferences.showLogo ?? true)}
+              navigateHome={navigateHome}
+              handleNavigateHomeKey={handleNavigateHomeKey}
+              renderWrapper={renderWrapper}
+            />
           )
         )}
 
@@ -2063,81 +746,19 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
             <header className="admin-header">
               {/* Left: breadcrumb (vertical / double layouts only) */}
               {preferences.showBreadcrumb && displayBreadcrumbs.length > 0 ? (
-                <div className="admin-header__breadcrumb" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Breadcrumb maxItemCount={10}>
-                    {displayBreadcrumbs.map((crumb, index) => {
-                      const isLast = index === displayBreadcrumbs.length - 1;
-                      const isHome = crumb.path === '/';
-                      const handleCrumbClick = (_item: unknown, e: React.MouseEvent) => {
-                        e.preventDefault();
-                        if (isHome) { navigateHome(); return; }
-                        if (crumb.path) { navigate(crumb.path); return; }
-                        if (crumb.menuChildren) {
-                          const leaf = findFirstLeafPath(crumb.menuChildren);
-                          if (leaf) navigate(leaf);
-                        }
-                      };
-                      const crumbInner = (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                          {preferences.breadcrumbIcon && crumb.icon && <span style={{ display: 'flex', alignItems: 'center' }}>{renderLucideIcon(crumb.icon, 13)}</span>}
-                          {isHome ? '首页' : crumb.title}
-                        </span>
-                      );
-                      const hasSubMenu = (preferences.breadcrumbSubMenu ?? false)
-                        && !isLast
-                        && !isHome
-                        && (crumb.menuChildren?.filter(c => c.visible && c.status === 'enabled' && c.type !== 'button').length ?? 0) > 0;
-                      const breadcrumbItem = (
-                        <Breadcrumb.Item
-                          key={crumb.title}
-                          href={isLast ? undefined : '#'}
-                          onClick={isLast || !(preferences.breadcrumbClickable ?? true) ? undefined : handleCrumbClick}
-                          noLink={isLast}
-                        >
-                          {crumbInner}
-                        </Breadcrumb.Item>
-                      );
-                      if (hasSubMenu) {
-                        const subItems = crumb.menuChildren!.filter(c => c.visible && c.status === 'enabled' && c.type !== 'button');
-                        return (
-                          <BreadcrumbMenuPopover
-                            key={`${crumb.title}:${location.pathname}`}
-                            onNavigate={(path) => navigate(path)}
-                            trigger={breadcrumbItem}
-                          >
-                            {subItems}
-                          </BreadcrumbMenuPopover>
-                        );
-                      }
-                      return breadcrumbItem;
-                    })}
-                  </Breadcrumb>
-                  {/* 收藏当前页按钮 */}
-                  {(preferences.showFavorites ?? false) && (() => {
-                    const currentMenu = flatMenus.find((m) => m.path === location.pathname);
-                    if (!currentMenu) return null;
-                    const faved = isFavorite(currentMenu.id);
-                    return (
-                      <Tooltip content={faved ? '取消收藏' : '收藏此页'} position="bottom">
-                        <button
-                          type="button"
-                          onClick={() => toggleFavorite(currentMenu.id)}
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            width: 22, height: 22, border: 0, borderRadius: 'var(--semi-border-radius-small)', background: 'transparent',
-                            cursor: 'pointer', flexShrink: 0, padding: 0,
-                            color: faved ? 'var(--semi-color-warning)' : 'var(--semi-color-text-2)',
-                            transition: 'color 0.15s',
-                          }}
-                          onMouseEnter={(e) => { if (!faved) e.currentTarget.style.color = 'var(--semi-color-text-0)'; }}
-                          onMouseLeave={(e) => { if (!faved) e.currentTarget.style.color = 'var(--semi-color-text-2)'; }}
-                        >
-                          <Star size={14} fill={faved ? 'currentColor' : 'none'} strokeWidth={faved ? 0 : 1.8} />
-                        </button>
-                      </Tooltip>
-                    );
-                  })()}
-                </div>
+                <HeaderBreadcrumb
+                  displayBreadcrumbs={displayBreadcrumbs}
+                  breadcrumbIcon={preferences.breadcrumbIcon}
+                  breadcrumbSubMenu={preferences.breadcrumbSubMenu}
+                  breadcrumbClickable={preferences.breadcrumbClickable}
+                  showFavorites={preferences.showFavorites}
+                  navigateHome={navigateHome}
+                  navigate={navigate}
+                  pathname={location.pathname}
+                  flatMenus={flatMenus}
+                  isFavorite={isFavorite}
+                  toggleFavorite={toggleFavorite}
+                />
               ) : (
                 <div />
               )}
@@ -2304,928 +925,109 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24, paddingBottom: 24 }}>
               <KeywordInput placeholder="搜索设置项…" value={prefsSearch} onChange={(v) => setPrefsSearch(v)} />
 
-              {prefSection('布局')}
+              <PrefsLayoutSection
+                prefSection={prefSection}
+                matchesPref={matchesPref}
+                preferences={preferences}
+                setPreferences={setPreferences}
+                navLayout={navLayout}
+              />
 
-              {/* ── 导航布局 ── */}
-              {matchesPref(['导航布局', '布局', '左侧菜单', '顶部菜单', '混合菜单', '双列菜单']) && (
-              <div>
-                <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 500, color: 'var(--semi-color-text-0)' }}>导航布局</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-                  {([
-                    { value: 'vertical' as NavLayout, label: '左侧菜单' },
-                    { value: 'horizontal' as NavLayout, label: '顶部菜单' },
-                    { value: 'mixed' as NavLayout, label: '混合菜单' },
-                    { value: 'double' as NavLayout, label: '双列菜单' },
-                  ]).map(({ value, label }) => (
-                    <button
-                      type="button"
-                      key={value}
-                      className={`layout-picker__option${navLayout === value ? ' layout-picker__option--active' : ''}`}
-                      onClick={() => setPreferences({ navLayout: value })}
-                    >
-                      <div className={`layout-picker__preview layout-picker__preview--${value}`} />
-                      <span className="layout-picker__label">{label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              )}
+              <PrefsAppearanceSection
+                prefSection={prefSection}
+                matchesPref={matchesPref}
+                preferences={preferences}
+                setPreferences={setPreferences}
+                mode={mode}
+                handleThemeModeChange={handleThemeModeChange}
+                isDark={isDark}
+                themeColor={themeColor}
+                setThemeColor={setThemeColor}
+              />
 
-              {/* ── 内容宽度 ── */}
-              {matchesPref(['内容宽度', '固定宽度', '居中', '内容区']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  固定内容宽度
-                  <Tooltip content="开启后内容区最大宽度为 1400px 并居中，适合宽屏显示器" position="right">
-                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                  </Tooltip>
-                </span>
-                <Switch checked={(preferences.contentWidth ?? 'fluid') === 'fixed'} onChange={(v) => setPreferences({ contentWidth: v ? 'fixed' : 'fluid' })} />
-              </div>
-              )}
+              <PrefsNavToolbarSection
+                prefSection={prefSection}
+                matchesPref={matchesPref}
+                preferences={preferences}
+                setPreferences={setPreferences}
+                prefsSearch={prefsSearch}
+                quickChatEnabled={quickChatEnabled}
+              />
 
-              {/* ── Logo 图标 ── */}
-              {matchesPref(['Logo', 'Logo图标', '图标', '显示Logo']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>显示 Logo 图标</span>
-                <Switch checked={preferences.showLogo ?? true} onChange={(v) => setPreferences({ showLogo: v })} />
-              </div>
-              )}
+              <PrefsSidebarSection
+                prefSection={prefSection}
+                matchesPref={matchesPref}
+                preferences={preferences}
+                setPreferences={setPreferences}
+                navLayout={navLayout}
+              />
 
-              {prefSection('外观')}
+              <PrefsGeneralSection
+                prefSection={prefSection}
+                matchesPref={matchesPref}
+                preferences={preferences}
+                setPreferences={setPreferences}
+                homePathOptions={homePathOptions}
+                autoLockMinutes={autoLockMinutes}
+                hasPassword={hasPassword}
+                clearLockPassword={clearLockPassword}
+                openLockPasswordModal={(m) => {
+                  setLockPasswordModalMode(m);
+                  setNewLockPassword('');
+                  setConfirmLockPassword('');
+                  setLockPasswordModalVisible(true);
+                }}
+              />
 
-              {/* ── 颜色模式 ── */}
-              {matchesPref(['颜色模式', '深色', '浅色', '系统', '主题模式']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>颜色模式</span>
-                <RadioGroup
-                  type="button"
-                  value={mode}
-                  onChange={(e) => {
-                    const v = e.target.value as ThemeMode;
-                    handleThemeModeChange(v);
-                  }}
-                >
-                  <Radio value="light">浅色</Radio>
-                  <Radio value="dark">深色</Radio>
-                  <Radio value="system">系统</Radio>
-                </RadioGroup>
-              </div>
-              )}
-              {!isDark && matchesPref(['顶部栏深色', '深色', '深色模式', '顶部栏', '顶部导航']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>顶部栏深色模式</span>
-                <Switch checked={preferences.headerDarkMode ?? false} onChange={(v) => setPreferences({ headerDarkMode: v })} />
-              </div>
-              )}
-              {!isDark && matchesPref(['侧边栏深色', '深色', '深色模式', '侧边栏']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>侧边栏深色模式</span>
-                <Switch checked={preferences.sidebarDarkMode ?? false} onChange={(v) => setPreferences({ sidebarDarkMode: v })} />
-              </div>
-              )}
+              <PrefsTableSection
+                prefSection={prefSection}
+                matchesPref={matchesPref}
+                preferences={preferences}
+                setPreferences={setPreferences}
+              />
 
-              {/* ── 主题色 ── */}
-              {matchesPref(['主题颜色', '主题色', '颜色', '品牌色', '自定义颜色']) && (
-              <div>
-                <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 500, color: 'var(--semi-color-text-0)' }}>主题颜色</div>
-                <div className="theme-color-picker">
-                  {THEME_COLOR_PRESETS.map((preset) => {
-                    const currentColor = isDark ? preset.dark.primary : preset.light.primary;
-                    const isActive = themeColor === preset.key;
-                    return (
-                      <Tooltip key={preset.key} content={preset.name} position="top">
-                        <button
-                          type="button"
-                          className={`theme-color-swatch${isActive ? ' theme-color-swatch--active' : ''}`}
-                          style={{ backgroundColor: currentColor, color: currentColor }}
-                          onClick={() => setThemeColor(preset.key)}
-                          title={preset.name}
-                        >
-                          {isActive && (
-                            <span className="theme-color-swatch__check">
-                              <Check size={14} strokeWidth={2.5} />
-                            </span>
-                          )}
-                        </button>
-                      </Tooltip>
-                    );
-                  })}
-                  {/* 自定义颜色 */}
-                  <ColorPicker
-                    alpha={false}
-                    usePopover
-                    value={themeColor.startsWith('#') ? ColorPicker.colorStringToValue(themeColor) : undefined}
-                    onChange={(v) => setThemeColor(v.hex)}
-                    popoverProps={{ position: 'top', zIndex: 10010 }}
-                  >
-                    <button
-                      type="button"
-                      className={`theme-color-swatch theme-color-swatch--custom${themeColor.startsWith('#') ? ' theme-color-swatch--active' : ''}`}
-                      style={themeColor.startsWith('#') ? { backgroundColor: themeColor, color: themeColor } : {}}
-                      title="自定义颜色"
-                    >
-                      {themeColor.startsWith('#')
-                        ? <span className="theme-color-swatch__check"><Check size={14} strokeWidth={2.5} /></span>
-                        : <span className="theme-color-swatch__icon"><Palette size={14} /></span>
-                      }
-                    </button>
-                  </ColorPicker>
-                </div>
-              </div>
-              )}
-
-              {/* ── 圆角大小 ── */}
-              {matchesPref(['圆角', '圆角大小', '直角', '边框圆角', 'radius', '外观']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  圆角大小
-                  <Tooltip content="调整按钮、卡片、弹窗等组件的圆角风格：直角更硬朗，大圆角更柔和" position="right">
-                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                  </Tooltip>
-                </span>
-                <RadioGroup
-                  type="button"
-                  value={preferences.borderRadius ?? 'medium'}
-                  onChange={(e) => setPreferences({ borderRadius: e.target.value as BorderRadiusPreference })}
-                >
-                  <Radio value="none">直角</Radio>
-                  <Radio value="small">小</Radio>
-                  <Radio value="medium">默认</Radio>
-                  <Radio value="large">大</Radio>
-                </RadioGroup>
-              </div>
-              )}
-
-              {/* ── 无障碍 ── */}
-              {matchesPref(['灰色', '灰色模式', '无障碍', '公祭日', '去色']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  灰色模式
-                  <Tooltip content="适用于国家公祭日等场景，全局去除色彩" position="right">
-                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                  </Tooltip>
-                </span>
-                <Switch
-                  checked={preferences.grayscale ?? false}
-                  onChange={(v) => setPreferences({ grayscale: v, ...(v ? { colorBlind: false } : {}) })}
-                />
-              </div>
-              )}
-              {matchesPref(['色弱', '色弱模式', '无障碍', '对比度', '色觉']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  色弱模式
-                  <Tooltip content="提高界面对比度，辅助色觉障碍用户" position="right">
-                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                  </Tooltip>
-                </span>
-                <Switch
-                  checked={preferences.colorBlind ?? false}
-                  onChange={(v) => setPreferences({ colorBlind: v, ...(v ? { grayscale: false } : {}) })}
-                />
-              </div>
-              )}
-
-              {/* ── 减弱动效 ── */}
-              {matchesPref(['动效', '动画', '减弱动效', '性能', '晕动', '过渡']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  减弱动效
-                  <Tooltip content="关闭路由切换、标签页、主题切换扩散等装饰性动画与过渡；加载指示不受影响。适合低配设备或对动效敏感的用户" position="right">
-                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                  </Tooltip>
-                </span>
-                <Switch checked={preferences.reduceMotion ?? false} onChange={(v) => setPreferences({ reduceMotion: v })} />
-              </div>
-              )}
-
-              {prefSection('导航与工具栏')}
-
-              {/* ── 动态标题 ── */}
-              {matchesPref(['动态标题', '浏览器标题', '页面标题', '标题']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  动态浏览器标题
-                  <Tooltip content="开启后浏览器标签页标题会随当前页面变化，如「用户管理 - Zenith Admin」；关闭后固定显示应用名称" position="right">
-                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                  </Tooltip>
-                </span>
-                <Switch checked={preferences.dynamicTitle ?? true} onChange={(v) => setPreferences({ dynamicTitle: v })} />
-              </div>
-              )}
-
-              {/* ── 面包屑 ── */}
-              {matchesPref(['面包屑', '面包屑导航', '导航栏', '路径导航']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  显示面包屑导航
-                  <Tooltip content="在页面顶部显示路径导航（如：首页 / 系统管理 / 用户管理），帮助定位当前位置" position="right">
-                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                  </Tooltip>
-                </span>
-                <Switch checked={preferences.showBreadcrumb} onChange={(v) => setPreferences({ showBreadcrumb: v })} />
-              </div>
-              )}
-              {(preferences.showBreadcrumb || !!prefsSearch.trim()) && matchesPref(['面包屑图标', '图标', '面包屑']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>面包屑显示图标</span>
-                <Switch checked={preferences.breadcrumbIcon ?? false} onChange={(v) => setPreferences({ breadcrumbIcon: v })} />
-              </div>
-              )}
-              {(preferences.showBreadcrumb || !!prefsSearch.trim()) && matchesPref(['面包屑首页', '首页', '面包屑']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  面包屑从首页开始
-                  <Tooltip content="开启后面包屑导航会以「首页」作为第一项，关闭后直接从当前页面的父级路径开始" position="right">
-                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                  </Tooltip>
-                </span>
-                <Switch checked={preferences.breadcrumbShowHome ?? true} onChange={(v) => setPreferences({ breadcrumbShowHome: v })} />
-              </div>
-              )}
-              {(preferences.showBreadcrumb || !!prefsSearch.trim()) && matchesPref(['面包屑可点击', '点击', '面包屑跳转', '面包屑']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  面包屑可点击
-                  <Tooltip content="关闭后面包屑仅展示路径文字，不可点击跳转" position="right">
-                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                  </Tooltip>
-                </span>
-                <Switch checked={preferences.breadcrumbClickable ?? true} onChange={(v) => setPreferences({ breadcrumbClickable: v })} />
-              </div>
-              )}
-              {(preferences.showBreadcrumb || !!prefsSearch.trim()) && matchesPref(['面包屑子菜单', '子菜单', '面包屑悬浮', '面包屑展开']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  面包屑子菜单
-                  <Tooltip content="悬停目录层级时弹出子菜单快速导航，支持多级展开" position="right">
-                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                  </Tooltip>
-                </span>
-                <Switch checked={preferences.breadcrumbSubMenu ?? false} onChange={(v) => setPreferences({ breadcrumbSubMenu: v })} />
-              </div>
-              )}
-
-              {/* ── 菜单搜索 ── */}
-              {matchesPref(['菜单搜索', '搜索框', '搜索', '搜索菜单']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>显示菜单搜索框</span>
-                <Switch checked={preferences.showMenuSearch ?? true} onChange={(v) => setPreferences({ showMenuSearch: v })} />
-              </div>
-              )}
-
-              {/* ── 收藏 ── */}
-              {matchesPref(['收藏', '收藏菜单', '收藏按钮', '显示收藏', '收藏入口', '快捷收藏']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>显示收藏入口</span>
-                <Switch checked={preferences.showFavorites ?? false} onChange={(v) => setPreferences({ showFavorites: v })} />
-              </div>
-              )}
-
-              {/* ── 全屏按钮 ── */}
-              {matchesPref(['全屏', '全屏按钮', '显示全屏']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>显示全屏按钮</span>
-                <Switch checked={preferences.showFullscreen ?? true} onChange={(v) => setPreferences({ showFullscreen: v })} />
-              </div>
-              )}
-
-              {/* ── 回到顶部按钮 ── */}
-              {matchesPref(['回到顶部', 'BackTop', '返回顶部', '回到顶', '顶部按钮']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  显示回到顶部按钮
-                  <Tooltip content="内容区域滚动超过 400px 后，右下角浮现回顶按钮" position="right">
-                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                  </Tooltip>
-                </span>
-                <Switch checked={preferences.showBackTop ?? true} onChange={(v) => setPreferences({ showBackTop: v })} />
-              </div>
-              )}
-
-              {/* ── 快捷聊天 ── */}
-              {quickChatEnabled && matchesPref(['快捷聊天', '聊天', 'AI助手', '聊天按钮', '快捷聊天按钮']) && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    显示快捷聊天按钮
-                    <Tooltip content="在页面右下角显示浮动聊天按钮，可快速唤起 AI 助手" position="right">
-                      <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                    </Tooltip>
-                  </span>
-                  <Switch checked={preferences.showQuickChat ?? true} onChange={(v) => setPreferences({ showQuickChat: v })} />
-                </div>
-              )}
-
-              {prefSection('侧边栏')}
-
-              {/* ── 侧边栏宽度 ── */}
-              {matchesPref(['侧边栏宽度', '侧边栏', '菜单宽度', '展开宽度']) && navLayout !== 'horizontal' && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                <span style={{ flexShrink: 0 }}>侧边栏宽度</span>
-                <InputNumber
-                  style={{ width: 110 }}
-                  size="small"
-                  min={160}
-                  max={320}
-                  step={4}
-                  suffix="px"
-                  value={preferences.sidebarWidth ?? 216}
-                  onChange={(v) => setPreferences({ sidebarWidth: Number(v) || 216 })}
-                />
-              </div>
-              )}
-
-              {/* ── 侧边栏分组标题 sticky ── */}
-              {matchesPref(['侧边栏', '分组标题', '滚动固定', '侧边栏分组']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  侧边栏分组标题滚动固定
-                  <Tooltip content="侧边栏菜单滚动时，分组标题吸附固定在顶部，便于识别当前菜单所属分组" position="right">
-                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                  </Tooltip>
-                </span>
-                <Switch checked={preferences.sidebarStickyScroll ?? true} onChange={(v) => setPreferences({ sidebarStickyScroll: v })} />
-              </div>
-              )}
-
-              {/* ── 侧栏手风琴展开 ── */}
-              {matchesPref(['侧边栏', '手风琴', '排他展开', '侧栏排他']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  侧栏排他展开
-                  <Tooltip content="开启后侧边栏同级菜单同时只允许展开一项，点击其他分组时自动收起之前展开的分组" position="right">
-                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                  </Tooltip>
-                </span>
-                <Switch checked={preferences.sidebarAccordion ?? false} onChange={(v) => setPreferences({ sidebarAccordion: v })} />
-              </div>
-              )}
-              {matchesPref(['悬浮展开', '侧边栏悬浮', '侧边栏', 'hover']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  悬浮展开侧边栏
-                  <Tooltip content="开启后侧边栏收起时，鼠标悬浮即可临时展开，移开后自动收起" position="right">
-                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                  </Tooltip>
-                </span>
-                <Switch checked={preferences.sidebarHoverTrigger ?? false} onChange={(v) => setPreferences({ sidebarHoverTrigger: v })} />
-              </div>
-              )}
-              {matchesPref(['菜单滚动', '自动定位', '菜单', '滚动定位']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  菜单自动滚动定位
-                  <Tooltip content="开启后切换菜单时，侧边栏自动平滑滚动使激活项居中可见" position="right">
-                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                  </Tooltip>
-                </span>
-                <Switch checked={preferences.scrollMenuIntoView ?? true} onChange={(v) => setPreferences({ scrollMenuIntoView: v })} />
-              </div>
-              )}
-
-              {prefSection('通用')}
-
-              {/* ── 默认首页 ── */}
-              {matchesPref(['默认首页', '首页', '登录跳转', '落地页', '默认页面', '登录页面']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                  登录默认页面
-                  <Tooltip content="登录成功后进入的页面；不影响日常点击「首页」菜单的行为" position="right">
-                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                  </Tooltip>
-                </span>
-                <Select
-                  filter
-                  style={{ width: 170 }}
-                  value={preferences.homePath ?? '/'}
-                  onChange={(v) => setPreferences({ homePath: (v as string) || '/' })}
-                  optionList={homePathOptions}
-                />
-              </div>
-              )}
-
-              {/* ── 页面加载进度条 ── */}
-              {matchesPref(['进度条', '加载进度', '页面加载', '顶部进度', 'NProgress']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  页面加载进度条
-                  <Tooltip content="页面切换时在内容区顶部显示加载进度条" position="right">
-                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                  </Tooltip>
-                </span>
-                <Switch checked={preferences.showProgressBar ?? true} onChange={(v) => setPreferences({ showProgressBar: v })} />
-              </div>
-              )}
-
-              {/* ── 全局快捷键 ── */}
-              {matchesPref(['快捷键', '键盘', '热键', 'Alt', 'Ctrl', '组合键']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  启用全局快捷键
-                  <Tooltip content="Alt+L 锁屏、Alt+S 收起/展开侧边栏、Alt+C 内容全屏、Ctrl+K 搜索菜单；关闭后这些组合键不再生效" position="right">
-                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                  </Tooltip>
-                </span>
-                <Switch checked={preferences.enableShortcuts ?? true} onChange={(v) => setPreferences({ enableShortcuts: v })} />
-              </div>
-              )}
-
-              {/* ── 退出登录确认 ── */}
-              {matchesPref(['退出确认', '退出登录', '二次确认', '注销', '登出']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  退出登录二次确认
-                  <Tooltip content="关闭后点击「退出登录」将直接退出，不再弹出确认框" position="right">
-                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                  </Tooltip>
-                </span>
-                <Switch checked={preferences.confirmLogout ?? true} onChange={(v) => setPreferences({ confirmLogout: v })} />
-              </div>
-              )}
-
-              {/* ── 文件默认视图 ── */}
-              {matchesPref(['文件视图', '文件列表', '文件管理', '列表', '网格', '文件']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>文件列表默认视图</span>
-                <RadioGroup
-                  type="button"
-                  value={preferences.filesViewMode ?? 'list'}
-                  onChange={(e) => setPreferences({ filesViewMode: e.target.value as 'list' | 'grid' })}
-                >
-                  <Radio value="list">列表</Radio>
-                  <Radio value="grid">网格</Radio>
-                </RadioGroup>
-              </div>
-              )}
-
-              {/* ── 锁屏 ── */}
-              {matchesPref(['锁屏', '屏幕锁', '密码', '锁定']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  开启屏幕锁
-                  <Tooltip content="开启后可通过 Alt+L 快捷键或用户菜单锁定屏幕，解锁需输入密码" position="right">
-                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                  </Tooltip>
-                </span>
-                <Switch
-                  checked={preferences.enableLockScreen ?? false}
-                  onChange={(v) => {
-                    if (v) {
-                      setLockPasswordModalMode('set');
-                      setNewLockPassword('');
-                      setConfirmLockPassword('');
-                      setLockPasswordModalVisible(true);
-                    } else {
-                      clearLockPassword();
-                      setPreferences({ enableLockScreen: false });
-                    }
-                  }}
-                />
-              </div>
-              )}
-              {(preferences.enableLockScreen ?? false) && hasPassword() && matchesPref(['锁屏', '密码', '锁屏密码']) && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>锁屏密码</span>
-                  <Button
-                    size="small"
-                    theme="light"
-                    onClick={() => {
-                      setLockPasswordModalMode('change');
-                      setNewLockPassword('');
-                      setConfirmLockPassword('');
-                      setLockPasswordModalVisible(true);
-                    }}
-                  >
-                    修改密码
-                  </Button>
-                </div>
-              )}
-              {(preferences.enableLockScreen ?? false) && hasPassword() && matchesPref(['自动锁屏', '锁屏', '无操作', '空闲', '闲置']) && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    无操作自动锁屏
-                    <Tooltip content="超过设定时长没有任何鼠标/键盘操作时自动锁定屏幕" position="right">
-                      <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                    </Tooltip>
-                  </span>
-                  <Select
-                    style={{ width: 110 }}
-                    value={autoLockMinutes}
-                    onChange={(v) => setPreferences({ autoLockMinutes: v as number })}
-                    optionList={[
-                      { value: 0, label: '关闭' },
-                      { value: 5, label: '5 分钟' },
-                      { value: 10, label: '10 分钟' },
-                      { value: 30, label: '30 分钟' },
-                    ]}
-                  />
-                </div>
-              )}
-
-              {prefSection('表格')}
-
-              {/* ── 表格设置 ── */}
-              {matchesPref(['表格', '边框', '斦马纹', '尺寸', '分页', '列设置', '显示表格', '启用斦马纹']) && (
-              <div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>显示表格边框</span>
-                    <Switch checked={preferences.tableBordered ?? true} onChange={(v) => setPreferences({ tableBordered: v })} />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>启用斑马纹</span>
-                    <Switch checked={preferences.tableStriped ?? false} onChange={(v) => setPreferences({ tableStriped: v })} />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>表格尺寸</span>
-                    <RadioGroup
-                      type="button"
-                      value={preferences.tableSize ?? 'default'}
-                      onChange={(e) => setPreferences({ tableSize: e.target.value as TableSizePreference })}
-                    >
-                      <Radio value="small">紧凑</Radio>
-                      <Radio value="middle">适中</Radio>
-                      <Radio value="default">宽松</Radio>
-                    </RadioGroup>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>默认分页大小</span>
-                    <Select
-                      value={preferences.tablePageSize ?? 10}
-                      onChange={(v) => setPreferences({ tablePageSize: v as number })}
-                      style={{ width: 100 }}
-                      optionList={[10, 20, 50, 100].map((v) => ({ value: v, label: `${v} 条` }))}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>显示表格列设置按钮</span>
-                    <Switch checked={preferences.showTableColumnSettings ?? true} onChange={(v) => setPreferences({ showTableColumnSettings: v })} />
-                  </div>
-                </div>
-              </div>
-              )}
-
-              {prefSection('标签页')}
-
-              {/* ── 多标签页 ── */}
-              {matchesPref(['多标签页', '标签页', '标签', '启用标签']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>启用多标签页</span>
-                <Switch checked={preferences.enableTabs} onChange={(v) => setPreferences({ enableTabs: v })} />
-              </div>
-              )}
-              {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['保存标签', '恢复标签', '标签页', '标签']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  保存标签页
-                  <Tooltip content="刷新页面或重新登录后，自动恢复上次打开的标签页" position="right">
-                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                  </Tooltip>
-                </span>
-                <Switch checked={preferences.keepTabs ?? true} onChange={(v) => setPreferences({ keepTabs: v })} />
-              </div>
-              )}
-              {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['页面缓存', 'keepalive', 'keep-alive', '缓存', '标签页', '标签']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  页面缓存
-                  <Tooltip content="菜单管理中开启「页面缓存」的页面，切换标签页时保留状态（搜索条件、滚动位置等），关闭标签页时释放" position="right">
-                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                  </Tooltip>
-                </span>
-                <Switch checked={preferences.enablePageCache ?? true} onChange={(v) => setPreferences({ enablePageCache: v })} />
-              </div>
-              )}
-              {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签图标', '图标', '标签页', '标签']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>标签页显示图标</span>
-                <Switch checked={preferences.showTabIcon} onChange={(v) => setPreferences({ showTabIcon: v })} />
-              </div>
-              )}
-              {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签切换器', '切换器', 'chevron', '标签页', '标签']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>显示标签切换器</span>
-                <Switch checked={preferences.showTabSwitcher ?? true} onChange={(v) => setPreferences({ showTabSwitcher: v })} />
-              </div>
-              )}
-              {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['最大标签', '标签数量', '标签页', '标签']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>最大标签数</span>
-                <InputNumber
-                  min={5}
-                  max={50}
-                  value={preferences.tabsMaxCount}
-                  onChange={(v) => setPreferences({ tabsMaxCount: v as number })}
-                  style={{ width: 100 }}
-                />
-              </div>
-              )}
-              {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['超限策略', 'FIFO', 'LRU', '关闭策略', '标签页', '标签']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  超限关闭策略
-                  <Tooltip content="FIFO: 关闭最早打开的标签；LRU: 关闭最久未使用的标签" position="right">
-                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                  </Tooltip>
-                </span>
-                <RadioGroup
-                  type="button"
-                  value={preferences.tabEvictPolicy ?? 'fifo'}
-                  onChange={(e) => setPreferences({ tabEvictPolicy: e.target.value as 'fifo' | 'lru' })}
-                >
-                  <Radio value="fifo">FIFO</Radio>
-                  <Radio value="lru">LRU</Radio>
-                </RadioGroup>
-              </div>
-              )}
-              {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['插入位置', '新标签位置', '标签插入', '标签页', '标签']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  新标签插入位置
-                  <Tooltip content="末尾：新标签始终排在最右侧；当前后方：新标签紧跟在当前标签之后插入" position="right">
-                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                  </Tooltip>
-                </span>
-                <RadioGroup
-                  type="button"
-                  value={preferences.openTabBehavior ?? 'append'}
-                  onChange={(e) => setPreferences({ openTabBehavior: e.target.value as 'append' | 'insert-next' })}
-                >
-                  <Radio value="append">末尾</Radio>
-                  <Radio value="insert-next">当前后方</Radio>
-                </RadioGroup>
-              </div>
-              )}
-              {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['双击标签', '双击', '标签行为', '标签页', '标签']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>双击标签行为</span>
-                <RadioGroup
-                  type="button"
-                  value={preferences.tabDoubleClickAction ?? 'refresh'}
-                  onChange={(e) => setPreferences({ tabDoubleClickAction: e.target.value as 'refresh' | 'close' | 'none' })}
-                >
-                  <Radio value="refresh">刷新</Radio>
-                  <Radio value="close">关闭</Radio>
-                  <Radio value="none">无</Radio>
-                </RadioGroup>
-              </div>
-              )}
-              {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签风格', '风格', '线条', '胶囊', '卡片', 'chrome', '谷歌', '标签页', '标签']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>标签页风格</span>
-                <RadioGroup
-                  type="button"
-                  value={preferences.tabStyle ?? 'line'}
-                  onChange={(e) => setPreferences({ tabStyle: e.target.value as TabStyle })}
-                >
-                  <Radio value="line">线条</Radio>
-                  <Radio value="pill">胶囊</Radio>
-                  <Radio value="card">卡片</Radio>
-                  <Radio value="chrome">谷歌</Radio>
-                </RadioGroup>
-              </div>
-              )}
-              {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签动画', '动画', '淡入', '滑入', '缩放', '标签页', '标签']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>标签页动画</span>
-                <RadioGroup
-                  type="button"
-                  value={preferences.tabAnimation ?? 'none'}
-                  onChange={(e) => setPreferences({ tabAnimation: e.target.value as 'none' | 'fade' | 'slide' | 'scale' })}
-                >
-                  {(['none', 'fade', 'slide', 'scale'] as const).map((anim) => {
-                    const labels: Record<string, string> = { none: '无', fade: '淡入', slide: '滑入', scale: '缩放' };
-                    const radio = <Radio value={anim}>{labels[anim]}</Radio>;
-                    if (anim === 'none') return radio;
-                    return (
-                      <Popover
-                        key={anim}
-                        trigger="hover"
-                        position="bottom"
-                        mouseEnterDelay={100}
-                        mouseLeaveDelay={100}
-                        content={
-                          <div className="tab-anim-preview" data-anim={anim}>
-                            <span className="tab-anim-preview__pill">首页</span>
-                            <span className="tab-anim-preview__pill tab-anim-preview__pill--active">用户管理</span>
-                            <span className="tab-anim-preview__pill tab-anim-preview__demo">角色管理</span>
-                          </div>
-                        }
-                      >
-                        {radio}
-                      </Popover>
-                    );
-                  })}
-                </RadioGroup>
-              </div>
-              )}
-              {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['路由动画', '切换动画', '动画', '淡入', '上滑', '左滑']) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>路由切换动画</span>
-                <RadioGroup
-                  type="button"
-                  value={preferences.routeAnimation ?? 'fade'}
-                  onChange={(e) => setPreferences({ routeAnimation: e.target.value as RouteAnimation })}
-                >
-                  <Radio value="none">无</Radio>
-                  <Radio value="fade">淡入</Radio>
-                  <Radio value="slide-up">上滑</Radio>
-                  <Radio value="slide-left">左滑</Radio>
-                </RadioGroup>
-              </div>
-              )}
+              <PrefsTabsSection
+                prefSection={prefSection}
+                matchesPref={matchesPref}
+                preferences={preferences}
+                setPreferences={setPreferences}
+                prefsSearch={prefsSearch}
+              />
 
               {/* ── 复制 / 导入 / 重置 ── */}
-              <div className="prefs-reset-btn" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <Button
-                    theme="light"
-                    block
-                    icon={<Copy size={14} />}
-                    onClick={handleCopyPreferences}
-                  >
-                    复制偏好
-                  </Button>
-                  <Button
-                    theme="light"
-                    block
-                    icon={<ClipboardPaste size={14} />}
-                    onClick={() => setImportPrefsVisible(true)}
-                  >
-                    导入偏好
-                  </Button>
-                </div>
-                <Button
-                  type="danger"
-                  theme="light"
-                  block
-                  onClick={() => {
-                    confirmDanger({
-                      title: '重置偏好设置',
-                      content: '确定要将所有偏好设置恢复为默认值吗？',
-                      okText: '重置',
-                      cancelText: '取消',
-                      onOk: () => {
-                        resetPreferences();
-                      },
-                    });
-                  }}
-                >
-                  重置所有设置
-                </Button>
-              </div>
+              <PrefsActionsSection
+                handleCopyPreferences={handleCopyPreferences}
+                onOpenImport={() => setImportPrefsVisible(true)}
+                resetPreferences={resetPreferences}
+              />
 
             </div>
           </SideSheet>
 
           {/* ─── 快捷键 Modal ─── */}
-          <AppModal
-            title={<span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Keyboard size={16} />快捷键</span>}
-            visible={shortcutsVisible}
-            onCancel={() => setShortcutsVisible(false)}
-            footer={null}
-            width={560}
-          >
-            {([
-              {
-                group: '全局',
-                items: [
-                  { keys: ['Ctrl / ⌘', 'K'], desc: '打开命令面板' },
-                  { keys: ['Alt', 'S'], desc: '展开/折叠侧边栏' },
-                  { keys: ['Alt', 'C'], desc: '内容全屏/退出' },
-                  { keys: ['Alt', 'L'], desc: '锁定屏幕（需开启锁屏功能）' },
-                ],
-              },
-              {
-                group: '多标签页',
-                items: [
-                  { keys: ['中键单击'], desc: '关闭当前标签页' },
-                  { keys: ['右键'], desc: '打开标签页上下文菜单' },
-                ],
-              },
-              {
-                group: '表格',
-                items: [
-                  { keys: ['Esc'], desc: '退出全屏模式' },
-                ],
-              },
-              {
-                group: '工作流设计器',
-                items: [
-                  { keys: ['Ctrl / ⌘', 'Z'], desc: '撤销' },
-                  { keys: ['Ctrl / ⌘', 'Shift', 'Z'], desc: '重做' },
-                  { keys: ['Ctrl / ⌘', 'Y'], desc: '重做（备用）' },
-                ],
-              },
-              {
-                group: 'AI 聊天',
-                items: [
-                  { keys: ['Enter'], desc: '发送消息' },
-                  { keys: ['Shift', 'Enter'], desc: '换行' },
-                ],
-              },
-            ] as { group: string; items: { keys: string[]; desc: string }[] }[]).map(({ group, items }, index, arr) => (
-              <div key={group}>
-                <Divider align="left" style={{ margin: '0 0 8px', fontSize: 11, color: 'var(--semi-color-text-2)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{group}</Divider>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 16px', marginBottom: index < arr.length - 1 ? 12 : 0 }}>
-                  {items.map(({ keys, desc }) => (
-                    <div key={desc} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
-                      <span style={{ color: 'var(--semi-color-text-1)', fontSize: 12, marginRight: 8 }}>{desc}</span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                        {keys.map((k, i) => (
-                          <span key={k} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                            {i > 0 && <span style={{ color: 'var(--semi-color-text-3)', fontSize: 10 }}>+</span>}
-                            <kbd style={{ display: 'inline-flex', alignItems: 'center', padding: '1px 5px', background: 'var(--semi-color-bg-1)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-small)', fontSize: 11, fontFamily: 'inherit', color: 'var(--semi-color-text-0)', boxShadow: '0 1px 0 var(--semi-color-border)', whiteSpace: 'nowrap' }}>{k}</kbd>
-                          </span>
-                        ))}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </AppModal>
+          <ShortcutsModal shortcutsVisible={shortcutsVisible} setShortcutsVisible={setShortcutsVisible} />
 
           {/* ─── 导入偏好 Modal ─── */}
-          <AppModal
-            title="导入偏好设置"
-            visible={importPrefsVisible}
-            onCancel={() => {
-              setImportPrefsVisible(false);
-              setImportPrefsText('');
-            }}
-            onOk={handleImportPreferences}
-            okText="导入"
-            cancelText="取消"
-            width={480}
-          >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <Typography.Text type="secondary" size="small">
-                粘贴通过「复制偏好」导出的 JSON 配置。未知字段与非法值会被自动忽略，导入后立即生效并同步到服务器。
-              </Typography.Text>
-              <TextArea
-                rows={10}
-                value={importPrefsText}
-                onChange={(v) => setImportPrefsText(v)}
-                placeholder={'{\n  "navLayout": "vertical",\n  "themeColor": "wechat",\n  ...\n}'}
-              />
-            </div>
-          </AppModal>
+          <ImportPreferencesModal
+            importPrefsVisible={importPrefsVisible}
+            setImportPrefsVisible={setImportPrefsVisible}
+            importPrefsText={importPrefsText}
+            setImportPrefsText={setImportPrefsText}
+            handleImportPreferences={handleImportPreferences}
+          />
 
           {/* ─── 锁屏密码设置 Modal ─── */}
-          <AppModal
-            title={lockPasswordModalMode === 'set' ? '设置锁屏密码' : '修改锁屏密码'}
-            visible={lockPasswordModalVisible}
-            onCancel={() => {
-              setLockPasswordModalVisible(false);
-              setNewLockPassword('');
-              setConfirmLockPassword('');
-            }}
-            onOk={() => {
-              if (!newLockPassword) {
-                Toast.warning('请输入密码');
-                return;
-              }
-              if (newLockPassword.length < 4) {
-                Toast.warning('密码长度不能少于 4 位');
-                return;
-              }
-              if (newLockPassword !== confirmLockPassword) {
-                Toast.warning('两次输入的密码不一致');
-                return;
-              }
-              setLockPassword(newLockPassword);
-              setPreferences({ enableLockScreen: true });
-              setLockPasswordModalVisible(false);
-              setNewLockPassword('');
-              setConfirmLockPassword('');
-              Toast.success(lockPasswordModalMode === 'set' ? '锁屏密码设置成功' : '锁屏密码修改成功');
-            }}
-            okText="确定"
-            cancelText="取消"
-            closeOnEsc
-          >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <Input
-                type="password"
-                placeholder="请输入密码（至少 4 位）"
-                value={newLockPassword}
-                onChange={(v) => setNewLockPassword(v)}
-              />
-              <Input
-                type="password"
-                placeholder="请再次输入密码"
-                value={confirmLockPassword}
-                onChange={(v) => setConfirmLockPassword(v)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    (e.currentTarget.closest('.semi-modal')?.querySelector('.semi-button-primary') as HTMLButtonElement | null)?.click();
-                  }
-                }}
-              />
-            </div>
-          </AppModal>
+          <LockPasswordModal
+            lockPasswordModalMode={lockPasswordModalMode}
+            lockPasswordModalVisible={lockPasswordModalVisible}
+            setLockPasswordModalVisible={setLockPasswordModalVisible}
+            newLockPassword={newLockPassword}
+            setNewLockPassword={setNewLockPassword}
+            confirmLockPassword={confirmLockPassword}
+            setConfirmLockPassword={setConfirmLockPassword}
+            setLockPassword={setLockPassword}
+            setPreferences={setPreferences}
+          />
         </div>
       </div>
 
@@ -3264,25 +1066,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
       </Suspense>
 
       {/* ===== 消息详情 Modal ===== */}
-      <AppModal
-        title={selectedMessage?.title ?? ''}
-        visible={selectedMessage !== null}
-        onCancel={() => setSelectedMessage(null)}
-        footer={null}
-        width={640}
-        closeOnEsc
-      >
-        {selectedMessage && (
-          <div>
-            <div style={{ marginBottom: 12, color: 'var(--semi-color-text-3)', fontSize: 12 }}>
-              {selectedMessage.senderName ?? '系统'} · {formatDateTime(selectedMessage.createdAt)}
-            </div>
-            <div style={{ lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
-              {selectedMessage.content}
-            </div>
-          </div>
-        )}
-      </AppModal>
+      <MessageDetailModal selectedMessage={selectedMessage} setSelectedMessage={setSelectedMessage} />
 
       {/* ===== 公告详情 Modal ===== */}
       {/* ===== 公告详情 Modal ===== */}

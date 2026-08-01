@@ -1,0 +1,39 @@
+import { Progress } from '@douyinfe/semi-ui';
+import type { UploadingItem } from '../types';
+
+/** 消息列表底部：当前会话上传中条目进度（自 ChatPage Virtuoso Footer 原样搬移） */
+export function UploadingFooter({
+  uploadingItems, activeConvId, isQuick,
+}: Readonly<{
+  uploadingItems: UploadingItem[];
+  activeConvId: number | null;
+  isQuick: boolean;
+}>) {
+                      const items = uploadingItems.filter((u) => u.convId === activeConvId);
+                      if (items.length === 0) return null;
+                      return (
+                        <div style={{ padding: isQuick ? '4px 12px 8px' : '4px 20px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {items.map((item) => (
+                            <div key={item.id} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                              {item.type === 'image' ? (
+                                <div style={{ position: 'relative', width: 120, height: 120, flexShrink: 0 }}>
+                                  <img src={item.previewUrl} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'var(--semi-border-radius-medium)', display: 'block', opacity: 0.55 }} />
+                                  <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--semi-border-radius-medium)', background: 'rgba(0,0,0,0.45)', gap: 6 }}>
+                                    <Progress type="circle" percent={item.progress ?? 0} size="small" showInfo={false} stroke="#fff" orbitStroke="rgba(255,255,255,0.25)" />
+                                    <span style={{ fontSize: 12, color: '#fff', fontWeight: 600 }}>{item.progress ?? 0}%</span>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 6, padding: '8px 14px', background: 'var(--semi-color-primary-light-default)', border: '1px solid var(--semi-color-primary-light-active)', borderRadius: 'var(--semi-border-radius-large)', maxWidth: 260, fontSize: 13, color: 'var(--semi-color-text-0)' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{item.name}</span>
+                                    <span style={{ flexShrink: 0, fontSize: 12, color: 'var(--semi-color-primary)', fontWeight: 600 }}>{item.progress ?? 0}%</span>
+                                  </div>
+                                  <Progress percent={item.progress ?? 0} size="small" showInfo={false} style={{ margin: 0 }} />
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      );
+}

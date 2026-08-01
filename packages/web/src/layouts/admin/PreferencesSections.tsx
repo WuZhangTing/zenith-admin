@@ -1,0 +1,905 @@
+import type { ReactNode } from 'react';
+import { Button, ColorPicker, InputNumber, Popover, Radio, RadioGroup, Select, Switch, Tooltip } from '@douyinfe/semi-ui';
+import { Check, ClipboardPaste, Copy, Info, Palette } from 'lucide-react';
+import type { NavLayout, TableSizePreference, RouteAnimation, BorderRadiusPreference, TabStyle, UserPreferences } from '@/hooks/usePreferences';
+import type { ThemeMode } from '@/hooks/useTheme';
+import { THEME_COLOR_PRESETS } from '@/lib/theme-color';
+import { confirmDanger } from '@/utils/confirm';
+
+// 偏好设置面板各分区。所有分区组件都返回 Fragment，
+// 使设置块保持为外层 flex 容器的直接子节点（gap 布局不变）。
+interface PrefsSectionBaseProps {
+  readonly prefSection: (label: string) => ReactNode;
+  readonly matchesPref: (keywords: string[]) => boolean;
+  readonly preferences: UserPreferences;
+  readonly setPreferences: (prefs: Partial<UserPreferences>) => void;
+}
+
+// ── 布局 ──
+export function PrefsLayoutSection({
+  prefSection,
+  matchesPref,
+  preferences,
+  setPreferences,
+  navLayout,
+}: PrefsSectionBaseProps & Readonly<{ navLayout: NavLayout }>) {
+  return (
+    <>
+      {prefSection('布局')}
+
+      {/* ── 导航布局 ── */}
+      {matchesPref(['导航布局', '布局', '左侧菜单', '顶部菜单', '混合菜单', '双列菜单']) && (
+      <div>
+        <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 500, color: 'var(--semi-color-text-0)' }}>导航布局</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+          {([
+            { value: 'vertical' as NavLayout, label: '左侧菜单' },
+            { value: 'horizontal' as NavLayout, label: '顶部菜单' },
+            { value: 'mixed' as NavLayout, label: '混合菜单' },
+            { value: 'double' as NavLayout, label: '双列菜单' },
+          ]).map(({ value, label }) => (
+            <button
+              type="button"
+              key={value}
+              className={`layout-picker__option${navLayout === value ? ' layout-picker__option--active' : ''}`}
+              onClick={() => setPreferences({ navLayout: value })}
+            >
+              <div className={`layout-picker__preview layout-picker__preview--${value}`} />
+              <span className="layout-picker__label">{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      )}
+
+      {/* ── 内容宽度 ── */}
+      {matchesPref(['内容宽度', '固定宽度', '居中', '内容区']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          固定内容宽度
+          <Tooltip content="开启后内容区最大宽度为 1400px 并居中，适合宽屏显示器" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch checked={(preferences.contentWidth ?? 'fluid') === 'fixed'} onChange={(v) => setPreferences({ contentWidth: v ? 'fixed' : 'fluid' })} />
+      </div>
+      )}
+
+      {/* ── Logo 图标 ── */}
+      {matchesPref(['Logo', 'Logo图标', '图标', '显示Logo']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>显示 Logo 图标</span>
+        <Switch checked={preferences.showLogo ?? true} onChange={(v) => setPreferences({ showLogo: v })} />
+      </div>
+      )}
+    </>
+  );
+}
+
+// ── 外观 ──
+export function PrefsAppearanceSection({
+  prefSection,
+  matchesPref,
+  preferences,
+  setPreferences,
+  mode,
+  handleThemeModeChange,
+  isDark,
+  themeColor,
+  setThemeColor,
+}: PrefsSectionBaseProps & Readonly<{
+  mode: ThemeMode;
+  handleThemeModeChange: (newMode: ThemeMode) => void;
+  isDark: boolean;
+  themeColor: string;
+  setThemeColor: (color: string) => void;
+}>) {
+  return (
+    <>
+      {prefSection('外观')}
+
+      {/* ── 颜色模式 ── */}
+      {matchesPref(['颜色模式', '深色', '浅色', '系统', '主题模式']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>颜色模式</span>
+        <RadioGroup
+          type="button"
+          value={mode}
+          onChange={(e) => {
+            const v = e.target.value as ThemeMode;
+            handleThemeModeChange(v);
+          }}
+        >
+          <Radio value="light">浅色</Radio>
+          <Radio value="dark">深色</Radio>
+          <Radio value="system">系统</Radio>
+        </RadioGroup>
+      </div>
+      )}
+      {!isDark && matchesPref(['顶部栏深色', '深色', '深色模式', '顶部栏', '顶部导航']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>顶部栏深色模式</span>
+        <Switch checked={preferences.headerDarkMode ?? false} onChange={(v) => setPreferences({ headerDarkMode: v })} />
+      </div>
+      )}
+      {!isDark && matchesPref(['侧边栏深色', '深色', '深色模式', '侧边栏']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>侧边栏深色模式</span>
+        <Switch checked={preferences.sidebarDarkMode ?? false} onChange={(v) => setPreferences({ sidebarDarkMode: v })} />
+      </div>
+      )}
+
+      {/* ── 主题色 ── */}
+      {matchesPref(['主题颜色', '主题色', '颜色', '品牌色', '自定义颜色']) && (
+      <div>
+        <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 500, color: 'var(--semi-color-text-0)' }}>主题颜色</div>
+        <div className="theme-color-picker">
+          {THEME_COLOR_PRESETS.map((preset) => {
+            const currentColor = isDark ? preset.dark.primary : preset.light.primary;
+            const isActive = themeColor === preset.key;
+            return (
+              <Tooltip key={preset.key} content={preset.name} position="top">
+                <button
+                  type="button"
+                  className={`theme-color-swatch${isActive ? ' theme-color-swatch--active' : ''}`}
+                  style={{ backgroundColor: currentColor, color: currentColor }}
+                  onClick={() => setThemeColor(preset.key)}
+                  title={preset.name}
+                >
+                  {isActive && (
+                    <span className="theme-color-swatch__check">
+                      <Check size={14} strokeWidth={2.5} />
+                    </span>
+                  )}
+                </button>
+              </Tooltip>
+            );
+          })}
+          {/* 自定义颜色 */}
+          <ColorPicker
+            alpha={false}
+            usePopover
+            value={themeColor.startsWith('#') ? ColorPicker.colorStringToValue(themeColor) : undefined}
+            onChange={(v) => setThemeColor(v.hex)}
+            popoverProps={{ position: 'top', zIndex: 10010 }}
+          >
+            <button
+              type="button"
+              className={`theme-color-swatch theme-color-swatch--custom${themeColor.startsWith('#') ? ' theme-color-swatch--active' : ''}`}
+              style={themeColor.startsWith('#') ? { backgroundColor: themeColor, color: themeColor } : {}}
+              title="自定义颜色"
+            >
+              {themeColor.startsWith('#')
+                ? <span className="theme-color-swatch__check"><Check size={14} strokeWidth={2.5} /></span>
+                : <span className="theme-color-swatch__icon"><Palette size={14} /></span>
+              }
+            </button>
+          </ColorPicker>
+        </div>
+      </div>
+      )}
+
+      {/* ── 圆角大小 ── */}
+      {matchesPref(['圆角', '圆角大小', '直角', '边框圆角', 'radius', '外观']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          圆角大小
+          <Tooltip content="调整按钮、卡片、弹窗等组件的圆角风格：直角更硬朗，大圆角更柔和" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <RadioGroup
+          type="button"
+          value={preferences.borderRadius ?? 'medium'}
+          onChange={(e) => setPreferences({ borderRadius: e.target.value as BorderRadiusPreference })}
+        >
+          <Radio value="none">直角</Radio>
+          <Radio value="small">小</Radio>
+          <Radio value="medium">默认</Radio>
+          <Radio value="large">大</Radio>
+        </RadioGroup>
+      </div>
+      )}
+
+      {/* ── 无障碍 ── */}
+      {matchesPref(['灰色', '灰色模式', '无障碍', '公祭日', '去色']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          灰色模式
+          <Tooltip content="适用于国家公祭日等场景，全局去除色彩" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch
+          checked={preferences.grayscale ?? false}
+          onChange={(v) => setPreferences({ grayscale: v, ...(v ? { colorBlind: false } : {}) })}
+        />
+      </div>
+      )}
+      {matchesPref(['色弱', '色弱模式', '无障碍', '对比度', '色觉']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          色弱模式
+          <Tooltip content="提高界面对比度，辅助色觉障碍用户" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch
+          checked={preferences.colorBlind ?? false}
+          onChange={(v) => setPreferences({ colorBlind: v, ...(v ? { grayscale: false } : {}) })}
+        />
+      </div>
+      )}
+
+      {/* ── 减弱动效 ── */}
+      {matchesPref(['动效', '动画', '减弱动效', '性能', '晕动', '过渡']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          减弱动效
+          <Tooltip content="关闭路由切换、标签页、主题切换扩散等装饰性动画与过渡；加载指示不受影响。适合低配设备或对动效敏感的用户" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch checked={preferences.reduceMotion ?? false} onChange={(v) => setPreferences({ reduceMotion: v })} />
+      </div>
+      )}
+    </>
+  );
+}
+
+// ── 导航与工具栏 ──
+export function PrefsNavToolbarSection({
+  prefSection,
+  matchesPref,
+  preferences,
+  setPreferences,
+  prefsSearch,
+  quickChatEnabled,
+}: PrefsSectionBaseProps & Readonly<{ prefsSearch: string; quickChatEnabled: boolean }>) {
+  return (
+    <>
+      {prefSection('导航与工具栏')}
+
+      {/* ── 动态标题 ── */}
+      {matchesPref(['动态标题', '浏览器标题', '页面标题', '标题']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          动态浏览器标题
+          <Tooltip content="开启后浏览器标签页标题会随当前页面变化，如「用户管理 - Zenith Admin」；关闭后固定显示应用名称" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch checked={preferences.dynamicTitle ?? true} onChange={(v) => setPreferences({ dynamicTitle: v })} />
+      </div>
+      )}
+
+      {/* ── 面包屑 ── */}
+      {matchesPref(['面包屑', '面包屑导航', '导航栏', '路径导航']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          显示面包屑导航
+          <Tooltip content="在页面顶部显示路径导航（如：首页 / 系统管理 / 用户管理），帮助定位当前位置" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch checked={preferences.showBreadcrumb} onChange={(v) => setPreferences({ showBreadcrumb: v })} />
+      </div>
+      )}
+      {(preferences.showBreadcrumb || !!prefsSearch.trim()) && matchesPref(['面包屑图标', '图标', '面包屑']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>面包屑显示图标</span>
+        <Switch checked={preferences.breadcrumbIcon ?? false} onChange={(v) => setPreferences({ breadcrumbIcon: v })} />
+      </div>
+      )}
+      {(preferences.showBreadcrumb || !!prefsSearch.trim()) && matchesPref(['面包屑首页', '首页', '面包屑']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          面包屑从首页开始
+          <Tooltip content="开启后面包屑导航会以「首页」作为第一项，关闭后直接从当前页面的父级路径开始" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch checked={preferences.breadcrumbShowHome ?? true} onChange={(v) => setPreferences({ breadcrumbShowHome: v })} />
+      </div>
+      )}
+      {(preferences.showBreadcrumb || !!prefsSearch.trim()) && matchesPref(['面包屑可点击', '点击', '面包屑跳转', '面包屑']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          面包屑可点击
+          <Tooltip content="关闭后面包屑仅展示路径文字，不可点击跳转" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch checked={preferences.breadcrumbClickable ?? true} onChange={(v) => setPreferences({ breadcrumbClickable: v })} />
+      </div>
+      )}
+      {(preferences.showBreadcrumb || !!prefsSearch.trim()) && matchesPref(['面包屑子菜单', '子菜单', '面包屑悬浮', '面包屑展开']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          面包屑子菜单
+          <Tooltip content="悬停目录层级时弹出子菜单快速导航，支持多级展开" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch checked={preferences.breadcrumbSubMenu ?? false} onChange={(v) => setPreferences({ breadcrumbSubMenu: v })} />
+      </div>
+      )}
+
+      {/* ── 菜单搜索 ── */}
+      {matchesPref(['菜单搜索', '搜索框', '搜索', '搜索菜单']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>显示菜单搜索框</span>
+        <Switch checked={preferences.showMenuSearch ?? true} onChange={(v) => setPreferences({ showMenuSearch: v })} />
+      </div>
+      )}
+
+      {/* ── 收藏 ── */}
+      {matchesPref(['收藏', '收藏菜单', '收藏按钮', '显示收藏', '收藏入口', '快捷收藏']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>显示收藏入口</span>
+        <Switch checked={preferences.showFavorites ?? false} onChange={(v) => setPreferences({ showFavorites: v })} />
+      </div>
+      )}
+
+      {/* ── 全屏按钮 ── */}
+      {matchesPref(['全屏', '全屏按钮', '显示全屏']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>显示全屏按钮</span>
+        <Switch checked={preferences.showFullscreen ?? true} onChange={(v) => setPreferences({ showFullscreen: v })} />
+      </div>
+      )}
+
+      {/* ── 回到顶部按钮 ── */}
+      {matchesPref(['回到顶部', 'BackTop', '返回顶部', '回到顶', '顶部按钮']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          显示回到顶部按钮
+          <Tooltip content="内容区域滚动超过 400px 后，右下角浮现回顶按钮" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch checked={preferences.showBackTop ?? true} onChange={(v) => setPreferences({ showBackTop: v })} />
+      </div>
+      )}
+
+      {/* ── 快捷聊天 ── */}
+      {quickChatEnabled && matchesPref(['快捷聊天', '聊天', 'AI助手', '聊天按钮', '快捷聊天按钮']) && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            显示快捷聊天按钮
+            <Tooltip content="在页面右下角显示浮动聊天按钮，可快速唤起 AI 助手" position="right">
+              <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+            </Tooltip>
+          </span>
+          <Switch checked={preferences.showQuickChat ?? true} onChange={(v) => setPreferences({ showQuickChat: v })} />
+        </div>
+      )}
+    </>
+  );
+}
+
+// ── 侧边栏 ──
+export function PrefsSidebarSection({
+  prefSection,
+  matchesPref,
+  preferences,
+  setPreferences,
+  navLayout,
+}: PrefsSectionBaseProps & Readonly<{ navLayout: NavLayout }>) {
+  return (
+    <>
+      {prefSection('侧边栏')}
+
+      {/* ── 侧边栏宽度 ── */}
+      {matchesPref(['侧边栏宽度', '侧边栏', '菜单宽度', '展开宽度']) && navLayout !== 'horizontal' && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+        <span style={{ flexShrink: 0 }}>侧边栏宽度</span>
+        <InputNumber
+          style={{ width: 110 }}
+          size="small"
+          min={160}
+          max={320}
+          step={4}
+          suffix="px"
+          value={preferences.sidebarWidth ?? 216}
+          onChange={(v) => setPreferences({ sidebarWidth: Number(v) || 216 })}
+        />
+      </div>
+      )}
+
+      {/* ── 侧边栏分组标题 sticky ── */}
+      {matchesPref(['侧边栏', '分组标题', '滚动固定', '侧边栏分组']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          侧边栏分组标题滚动固定
+          <Tooltip content="侧边栏菜单滚动时，分组标题吸附固定在顶部，便于识别当前菜单所属分组" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch checked={preferences.sidebarStickyScroll ?? true} onChange={(v) => setPreferences({ sidebarStickyScroll: v })} />
+      </div>
+      )}
+
+      {/* ── 侧栏手风琴展开 ── */}
+      {matchesPref(['侧边栏', '手风琴', '排他展开', '侧栏排他']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          侧栏排他展开
+          <Tooltip content="开启后侧边栏同级菜单同时只允许展开一项，点击其他分组时自动收起之前展开的分组" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch checked={preferences.sidebarAccordion ?? false} onChange={(v) => setPreferences({ sidebarAccordion: v })} />
+      </div>
+      )}
+      {matchesPref(['悬浮展开', '侧边栏悬浮', '侧边栏', 'hover']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          悬浮展开侧边栏
+          <Tooltip content="开启后侧边栏收起时，鼠标悬浮即可临时展开，移开后自动收起" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch checked={preferences.sidebarHoverTrigger ?? false} onChange={(v) => setPreferences({ sidebarHoverTrigger: v })} />
+      </div>
+      )}
+      {matchesPref(['菜单滚动', '自动定位', '菜单', '滚动定位']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          菜单自动滚动定位
+          <Tooltip content="开启后切换菜单时，侧边栏自动平滑滚动使激活项居中可见" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch checked={preferences.scrollMenuIntoView ?? true} onChange={(v) => setPreferences({ scrollMenuIntoView: v })} />
+      </div>
+      )}
+    </>
+  );
+}
+
+// ── 通用 ──
+export function PrefsGeneralSection({
+  prefSection,
+  matchesPref,
+  preferences,
+  setPreferences,
+  homePathOptions,
+  autoLockMinutes,
+  hasPassword,
+  clearLockPassword,
+  openLockPasswordModal,
+}: PrefsSectionBaseProps & Readonly<{
+  homePathOptions: { value: string; label: string }[];
+  autoLockMinutes: number;
+  hasPassword: () => boolean;
+  clearLockPassword: () => void;
+  openLockPasswordModal: (mode: 'set' | 'change') => void;
+}>) {
+  return (
+    <>
+      {prefSection('通用')}
+
+      {/* ── 默认首页 ── */}
+      {matchesPref(['默认首页', '首页', '登录跳转', '落地页', '默认页面', '登录页面']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+          登录默认页面
+          <Tooltip content="登录成功后进入的页面；不影响日常点击「首页」菜单的行为" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Select
+          filter
+          style={{ width: 170 }}
+          value={preferences.homePath ?? '/'}
+          onChange={(v) => setPreferences({ homePath: (v as string) || '/' })}
+          optionList={homePathOptions}
+        />
+      </div>
+      )}
+
+      {/* ── 页面加载进度条 ── */}
+      {matchesPref(['进度条', '加载进度', '页面加载', '顶部进度', 'NProgress']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          页面加载进度条
+          <Tooltip content="页面切换时在内容区顶部显示加载进度条" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch checked={preferences.showProgressBar ?? true} onChange={(v) => setPreferences({ showProgressBar: v })} />
+      </div>
+      )}
+
+      {/* ── 全局快捷键 ── */}
+      {matchesPref(['快捷键', '键盘', '热键', 'Alt', 'Ctrl', '组合键']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          启用全局快捷键
+          <Tooltip content="Alt+L 锁屏、Alt+S 收起/展开侧边栏、Alt+C 内容全屏、Ctrl+K 搜索菜单；关闭后这些组合键不再生效" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch checked={preferences.enableShortcuts ?? true} onChange={(v) => setPreferences({ enableShortcuts: v })} />
+      </div>
+      )}
+
+      {/* ── 退出登录确认 ── */}
+      {matchesPref(['退出确认', '退出登录', '二次确认', '注销', '登出']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          退出登录二次确认
+          <Tooltip content="关闭后点击「退出登录」将直接退出，不再弹出确认框" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch checked={preferences.confirmLogout ?? true} onChange={(v) => setPreferences({ confirmLogout: v })} />
+      </div>
+      )}
+
+      {/* ── 文件默认视图 ── */}
+      {matchesPref(['文件视图', '文件列表', '文件管理', '列表', '网格', '文件']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>文件列表默认视图</span>
+        <RadioGroup
+          type="button"
+          value={preferences.filesViewMode ?? 'list'}
+          onChange={(e) => setPreferences({ filesViewMode: e.target.value as 'list' | 'grid' })}
+        >
+          <Radio value="list">列表</Radio>
+          <Radio value="grid">网格</Radio>
+        </RadioGroup>
+      </div>
+      )}
+
+      {/* ── 锁屏 ── */}
+      {matchesPref(['锁屏', '屏幕锁', '密码', '锁定']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          开启屏幕锁
+          <Tooltip content="开启后可通过 Alt+L 快捷键或用户菜单锁定屏幕，解锁需输入密码" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch
+          checked={preferences.enableLockScreen ?? false}
+          onChange={(v) => {
+            if (v) {
+              openLockPasswordModal('set');
+            } else {
+              clearLockPassword();
+              setPreferences({ enableLockScreen: false });
+            }
+          }}
+        />
+      </div>
+      )}
+      {(preferences.enableLockScreen ?? false) && hasPassword() && matchesPref(['锁屏', '密码', '锁屏密码']) && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>锁屏密码</span>
+          <Button
+            size="small"
+            theme="light"
+            onClick={() => {
+              openLockPasswordModal('change');
+            }}
+          >
+            修改密码
+          </Button>
+        </div>
+      )}
+      {(preferences.enableLockScreen ?? false) && hasPassword() && matchesPref(['自动锁屏', '锁屏', '无操作', '空闲', '闲置']) && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            无操作自动锁屏
+            <Tooltip content="超过设定时长没有任何鼠标/键盘操作时自动锁定屏幕" position="right">
+              <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+            </Tooltip>
+          </span>
+          <Select
+            style={{ width: 110 }}
+            value={autoLockMinutes}
+            onChange={(v) => setPreferences({ autoLockMinutes: v as number })}
+            optionList={[
+              { value: 0, label: '关闭' },
+              { value: 5, label: '5 分钟' },
+              { value: 10, label: '10 分钟' },
+              { value: 30, label: '30 分钟' },
+            ]}
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
+// ── 表格 ──
+export function PrefsTableSection({
+  prefSection,
+  matchesPref,
+  preferences,
+  setPreferences,
+}: PrefsSectionBaseProps) {
+  return (
+    <>
+      {prefSection('表格')}
+
+      {/* ── 表格设置 ── */}
+      {matchesPref(['表格', '边框', '斦马纹', '尺寸', '分页', '列设置', '显示表格', '启用斦马纹']) && (
+      <div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>显示表格边框</span>
+            <Switch checked={preferences.tableBordered ?? true} onChange={(v) => setPreferences({ tableBordered: v })} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>启用斑马纹</span>
+            <Switch checked={preferences.tableStriped ?? false} onChange={(v) => setPreferences({ tableStriped: v })} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>表格尺寸</span>
+            <RadioGroup
+              type="button"
+              value={preferences.tableSize ?? 'default'}
+              onChange={(e) => setPreferences({ tableSize: e.target.value as TableSizePreference })}
+            >
+              <Radio value="small">紧凑</Radio>
+              <Radio value="middle">适中</Radio>
+              <Radio value="default">宽松</Radio>
+            </RadioGroup>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>默认分页大小</span>
+            <Select
+              value={preferences.tablePageSize ?? 10}
+              onChange={(v) => setPreferences({ tablePageSize: v as number })}
+              style={{ width: 100 }}
+              optionList={[10, 20, 50, 100].map((v) => ({ value: v, label: `${v} 条` }))}
+            />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>显示表格列设置按钮</span>
+            <Switch checked={preferences.showTableColumnSettings ?? true} onChange={(v) => setPreferences({ showTableColumnSettings: v })} />
+          </div>
+        </div>
+      </div>
+      )}
+    </>
+  );
+}
+
+// ── 标签页 ──
+export function PrefsTabsSection({
+  prefSection,
+  matchesPref,
+  preferences,
+  setPreferences,
+  prefsSearch,
+}: PrefsSectionBaseProps & Readonly<{ prefsSearch: string }>) {
+  return (
+    <>
+      {prefSection('标签页')}
+
+      {/* ── 多标签页 ── */}
+      {matchesPref(['多标签页', '标签页', '标签', '启用标签']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>启用多标签页</span>
+        <Switch checked={preferences.enableTabs} onChange={(v) => setPreferences({ enableTabs: v })} />
+      </div>
+      )}
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['保存标签', '恢复标签', '标签页', '标签']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          保存标签页
+          <Tooltip content="刷新页面或重新登录后，自动恢复上次打开的标签页" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch checked={preferences.keepTabs ?? true} onChange={(v) => setPreferences({ keepTabs: v })} />
+      </div>
+      )}
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['页面缓存', 'keepalive', 'keep-alive', '缓存', '标签页', '标签']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          页面缓存
+          <Tooltip content="菜单管理中开启「页面缓存」的页面，切换标签页时保留状态（搜索条件、滚动位置等），关闭标签页时释放" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch checked={preferences.enablePageCache ?? true} onChange={(v) => setPreferences({ enablePageCache: v })} />
+      </div>
+      )}
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签图标', '图标', '标签页', '标签']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>标签页显示图标</span>
+        <Switch checked={preferences.showTabIcon} onChange={(v) => setPreferences({ showTabIcon: v })} />
+      </div>
+      )}
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签切换器', '切换器', 'chevron', '标签页', '标签']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>显示标签切换器</span>
+        <Switch checked={preferences.showTabSwitcher ?? true} onChange={(v) => setPreferences({ showTabSwitcher: v })} />
+      </div>
+      )}
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['最大标签', '标签数量', '标签页', '标签']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>最大标签数</span>
+        <InputNumber
+          min={5}
+          max={50}
+          value={preferences.tabsMaxCount}
+          onChange={(v) => setPreferences({ tabsMaxCount: v as number })}
+          style={{ width: 100 }}
+        />
+      </div>
+      )}
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['超限策略', 'FIFO', 'LRU', '关闭策略', '标签页', '标签']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          超限关闭策略
+          <Tooltip content="FIFO: 关闭最早打开的标签；LRU: 关闭最久未使用的标签" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <RadioGroup
+          type="button"
+          value={preferences.tabEvictPolicy ?? 'fifo'}
+          onChange={(e) => setPreferences({ tabEvictPolicy: e.target.value as 'fifo' | 'lru' })}
+        >
+          <Radio value="fifo">FIFO</Radio>
+          <Radio value="lru">LRU</Radio>
+        </RadioGroup>
+      </div>
+      )}
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['插入位置', '新标签位置', '标签插入', '标签页', '标签']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          新标签插入位置
+          <Tooltip content="末尾：新标签始终排在最右侧；当前后方：新标签紧跟在当前标签之后插入" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <RadioGroup
+          type="button"
+          value={preferences.openTabBehavior ?? 'append'}
+          onChange={(e) => setPreferences({ openTabBehavior: e.target.value as 'append' | 'insert-next' })}
+        >
+          <Radio value="append">末尾</Radio>
+          <Radio value="insert-next">当前后方</Radio>
+        </RadioGroup>
+      </div>
+      )}
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['双击标签', '双击', '标签行为', '标签页', '标签']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>双击标签行为</span>
+        <RadioGroup
+          type="button"
+          value={preferences.tabDoubleClickAction ?? 'refresh'}
+          onChange={(e) => setPreferences({ tabDoubleClickAction: e.target.value as 'refresh' | 'close' | 'none' })}
+        >
+          <Radio value="refresh">刷新</Radio>
+          <Radio value="close">关闭</Radio>
+          <Radio value="none">无</Radio>
+        </RadioGroup>
+      </div>
+      )}
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签风格', '风格', '线条', '胶囊', '卡片', 'chrome', '谷歌', '标签页', '标签']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>标签页风格</span>
+        <RadioGroup
+          type="button"
+          value={preferences.tabStyle ?? 'line'}
+          onChange={(e) => setPreferences({ tabStyle: e.target.value as TabStyle })}
+        >
+          <Radio value="line">线条</Radio>
+          <Radio value="pill">胶囊</Radio>
+          <Radio value="card">卡片</Radio>
+          <Radio value="chrome">谷歌</Radio>
+        </RadioGroup>
+      </div>
+      )}
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签动画', '动画', '淡入', '滑入', '缩放', '标签页', '标签']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>标签页动画</span>
+        <RadioGroup
+          type="button"
+          value={preferences.tabAnimation ?? 'none'}
+          onChange={(e) => setPreferences({ tabAnimation: e.target.value as 'none' | 'fade' | 'slide' | 'scale' })}
+        >
+          {(['none', 'fade', 'slide', 'scale'] as const).map((anim) => {
+            const labels: Record<string, string> = { none: '无', fade: '淡入', slide: '滑入', scale: '缩放' };
+            const radio = <Radio value={anim}>{labels[anim]}</Radio>;
+            if (anim === 'none') return radio;
+            return (
+              <Popover
+                key={anim}
+                trigger="hover"
+                position="bottom"
+                mouseEnterDelay={100}
+                mouseLeaveDelay={100}
+                content={
+                  <div className="tab-anim-preview" data-anim={anim}>
+                    <span className="tab-anim-preview__pill">首页</span>
+                    <span className="tab-anim-preview__pill tab-anim-preview__pill--active">用户管理</span>
+                    <span className="tab-anim-preview__pill tab-anim-preview__demo">角色管理</span>
+                  </div>
+                }
+              >
+                {radio}
+              </Popover>
+            );
+          })}
+        </RadioGroup>
+      </div>
+      )}
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['路由动画', '切换动画', '动画', '淡入', '上滑', '左滑']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>路由切换动画</span>
+        <RadioGroup
+          type="button"
+          value={preferences.routeAnimation ?? 'fade'}
+          onChange={(e) => setPreferences({ routeAnimation: e.target.value as RouteAnimation })}
+        >
+          <Radio value="none">无</Radio>
+          <Radio value="fade">淡入</Radio>
+          <Radio value="slide-up">上滑</Radio>
+          <Radio value="slide-left">左滑</Radio>
+        </RadioGroup>
+      </div>
+      )}
+    </>
+  );
+}
+
+// ── 复制 / 导入 / 重置 ──
+export function PrefsActionsSection({
+  handleCopyPreferences,
+  onOpenImport,
+  resetPreferences,
+}: Readonly<{
+  handleCopyPreferences: () => void;
+  onOpenImport: () => void;
+  resetPreferences: () => void;
+}>) {
+  return (
+    <div className="prefs-reset-btn" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', gap: 12 }}>
+        <Button
+          theme="light"
+          block
+          icon={<Copy size={14} />}
+          onClick={handleCopyPreferences}
+        >
+          复制偏好
+        </Button>
+        <Button
+          theme="light"
+          block
+          icon={<ClipboardPaste size={14} />}
+          onClick={onOpenImport}
+        >
+          导入偏好
+        </Button>
+      </div>
+      <Button
+        type="danger"
+        theme="light"
+        block
+        onClick={() => {
+          confirmDanger({
+            title: '重置偏好设置',
+            content: '确定要将所有偏好设置恢复为默认值吗？',
+            okText: '重置',
+            cancelText: '取消',
+            onOk: () => {
+              resetPreferences();
+            },
+          });
+        }}
+      >
+        重置所有设置
+      </Button>
+    </div>
+  );
+}

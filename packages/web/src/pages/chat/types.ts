@@ -1,4 +1,25 @@
-import type { ChatMessage } from '@zenith/shared/chat';
+import type { Dispatch, SetStateAction } from 'react';
+import type { ChatConversation, ChatMessage } from '@zenith/shared/chat';
+import type { Channel } from '@zenith/shared/messaging';
+
+/** React state setter 简写：拆分出的子组件 / hook 与主组件共享同名 setter */
+export type Setter<T> = Dispatch<SetStateAction<T>>;
+
+/** 左侧会话列表项：频道与会话合并后的统一条目（仿微信，按消息时间混排） */
+export type LeftListItem =
+  | { kind: 'channel'; sortTime: number; pinned: boolean; channel: Channel }
+  | { kind: 'conv'; sortTime: number; pinned: boolean; conv: ChatConversation };
+
+/** 左栏右键菜单状态（会话 / 收藏两种目标） */
+export type LeftPaneContextMenuState =
+  | { x: number; y: number; type: 'conversation'; conv: ChatConversation }
+  | { x: number; y: number; type: 'favorite'; msg: ChatMessage };
+
+/** 正在输入用户表（key 为 userId） */
+export type TypingUsersMap = Record<number, { nickname: string; timer: ReturnType<typeof setTimeout> }>;
+
+/** 群头像九宫格成员缓存表（key 为会话 id） */
+export type GroupAvatarMap = Record<number, Array<{ id: number; nickname: string; avatar?: string | null }>>;
 
 export interface ChatUser {
   id: number;

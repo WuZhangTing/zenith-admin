@@ -112,7 +112,7 @@ describe('CMS page widgets', () => {
   it('keeps page refs, source guards, transfer and rendering wired end to end', async () => {
     const [pages, contents, channels, transfer, render, tasks] = await Promise.all([
       source('cms-pages.service.ts'),
-      source('cms-contents.service.ts'),
+      source('cms-contents-write.service.ts'),
       source('cms-channels.service.ts'),
       source('cms-site-transfer.service.ts'),
       source('cms-render.service.ts'),
