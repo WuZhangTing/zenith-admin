@@ -1,8 +1,7 @@
 import { TabPane, Tabs } from '@douyinfe/semi-ui';
-import data from '@emoji-mart/data';
-import Picker from '@emoji-mart/react';
 import type { ChatCustomEmoji } from '@zenith/shared/chat';
 import { StickerPanel } from './StickerPanel';
+import { ThemedEmojiPicker } from './ThemedEmojiPicker';
 
 /** 输入区表情选择浮层：emoji + 收藏贴纸两个 Tab（自 ChatPage 原样搬移） */
 export function ComposerEmojiPicker({
@@ -29,14 +28,7 @@ export function ComposerEmojiPicker({
                 >
                   <Tabs size="small" type="line" tabPaneMotion={false} style={{ padding: '0 8px' }}>
                     <TabPane tab="表情" itemKey="emoji">
-                      <Picker
-                        data={data}
-                        onEmojiSelect={handleEmojiSelect}
-                        theme="auto"
-                        locale="zh"
-                        previewPosition="none"
-                        skinTonePosition="none"
-                      />
+                      <ThemedEmojiPicker onEmojiSelect={handleEmojiSelect} />
                     </TabPane>
                     <TabPane tab="收藏" itemKey="stickers">
                       <StickerPanel onSelect={(emoji) => { void sendSticker(emoji); }} />

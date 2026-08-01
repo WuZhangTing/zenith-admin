@@ -1,6 +1,5 @@
-import data from '@emoji-mart/data';
-import Picker from '@emoji-mart/react';
 import type { Setter } from '../types';
+import { ThemedEmojiPicker } from './ThemedEmojiPicker';
 
 /** 消息表情回应选择浮层（自 ChatPage 原样搬移） */
 export function ReactionPickerOverlay({
@@ -22,16 +21,11 @@ export function ReactionPickerOverlay({
             zIndex: 9999,
           }}
         >
-          <Picker
-            data={data}
+          <ThemedEmojiPicker
             onEmojiSelect={(emoji: { native: string }) => {
               if (reactionTargetMsgId !== null) handleReaction(reactionTargetMsgId, emoji.native);
               setReactionPickerVisible(false);
             }}
-            theme="auto"
-            locale="zh"
-            previewPosition="none"
-            skinTonePosition="none"
           />
         </div>
   );
