@@ -4,6 +4,101 @@
 
 ---
 
+## v1.29.0 - 2026-08-01
+
+重复代码收敛版本：先用 jscpd 与精确 grep 摸清全仓重复分布，再把四类「同一件事有多套写法」的样板收敛到共享模块。过程中暴露并修掉三个真实缺陷——时间范围末端漏掉当天数据、7 个页面点「查询」不回源、64 处破坏性操作的确认按钮不是红色。服务端 1585 项、前端 491 项测试全部通过，资金链路 DB 集成测试 15 项通过，`npm run build` / `docs:build` / `build:demo` 三项构建均通过。
+
+> jscpd 只能发现逐字克隆（本仓 164 处 / 3907 行，0.85%）。本次收敛的四类重复都是**结构性**的——同一套写法只换实体名，且多为逐行重复，12 行阈值的克隆检测本就抓不到。因此各项以调用点计数衡量。
+
+### Fixed
+
+#### 时间范围末端漏掉当天数据
+
+`parseDateRangeEnd('2026-08-01')` 取当天 `23:59:59.999`，而 `parseDateTimeInput('2026-08-01')` 取 `00:00:00`。后者被用在 20 个列表接口的范围末端上（`users` / `roles` / `positions` / `login-logs` / `operation-logs` / `files` / `payment*` / `async-tasks` / `export-jobs` 等），「筛选到 8 月 1 日」会漏掉整个 8 月 1 日的数据；起止选同一天时区间长度为 0，结果全空。
+
+后台页面传的是完整时间戳所以看不出来，但这些查询参数一律是裸 `z.string().optional()`，从 Swagger、开放平台或脚本传 `?endTime=2026-08-01` 就会中招；且项目里已有 14 个页面在用只选日期的 `dateRange` 选择器，换上去即刻上线。
+
+范围端点统一改走 `dateRangeConditions()`。判定按「解析结果是否流入 `gte`/`lte` 过滤」逐条核对，写入实体字段的 27 处（广告投放起止、定时发送、凭证过期等）保持不动——对这些字段套用范围口径会把存储值悄悄挪到 23:59:59。
+
+#### 非法时间参数被静默当成「无筛选」
+
+`?endTime=abc` 或 `?endTime=2026/08/01` 此前不报错，解析返回 `null` 后条件被丢弃，用户拿到的是未经筛选的全量列表。routes 下 104 个时间参数补上 `dateRangeBound()` 格式校验，只接受 `YYYY-MM-DD` 与 `YYYY-MM-DD HH:mm:ss`。
+
+#### 7 个页面点「查询」不回源
+
+条件未变化时 query key 不变，`staleTime` 内 TanStack Query 不会重新发请求，而本系统的「查询」按钮兼具刷新语义。这段 `invalidateQueries` 此前由每个列表页手写，91 个页面里有 7 个漏掉：analytics 事件调试流、cms 链接选择器、cms 检索测试与自定义词典、渠道客服会话等。表现只是「点了没反应」——不报错、列表仍有数据，几乎不可能在自测中被发现。
+
+#### 64 处破坏性操作的确认按钮不是红色
+
+全仓 368 个 `Modal.confirm` 中 223 个是破坏性操作（删除、清空、彻底移除、重置密钥、撤销令牌、截断表、终止流程…），其中 64 个没写 `okButtonProps: { type: 'danger', theme: 'solid' }`，确认按钮渲染成与「确定提交」无异的蓝色主按钮。
+
+#### 两处查询语义修正
+
+- `cms-contents` 的时间范围用 `gt`/`lt` 开区间，边界时刻创建的内容会被漏掉，改为闭区间
+- `cms-open` 的起点用裸 `sql\`>=\``、终点用 `lte`，两端口径不一致
+
+### Changed
+
+#### MSW mock 响应信封与分页收敛
+
+`mocks/utils/handlers.ts` 的 `ok` / `notFound` / `paginate` 早已存在，但 127 个 handler 只有 7 个在用，其余各写各的：内联信封 1269 处、各文件自建同名局部 helper 57 个（默认 message 还不一致，`'ok'` 与 `'success'` 并存）、`page`/`pageSize` 声明对 83 处、手写自增 ID 18 处。
+
+| 项 | 前 | 后 |
+| --- | --- | --- |
+| 内联 `HttpResponse.json` 信封 | 1269 | 24 |
+| 局部自建 helper 定义 | 57 | 10 |
+| `page`/`pageSize` 声明对 | 83 | 10 |
+| 手写分页 slice | 107 | 60 |
+| 手写 `Math.max` 自增 ID | 18 | 13 |
+
+HTTP 状态码不做统一（61 个文件设、111 个不设，且 `http-client` 对 401/429/503 有特殊处理、`mocks/*.test.ts` 有 `expect(res.status)` 断言），helper 一律透传可选 `ResponseInit`。默认 pageSize 的 10/20/50/100 四种取值作为参数按原值传入。
+
+#### Service 层 WHERE 构造收敛
+
+`or()` 返回 `SQL | undefined`，全项目三种处理方式并存：非空断言、隐式吞 `undefined`、显式 guard。`lib/where-helpers.ts` 新增 `keywordCondition` / `dateRangeConditions` / `buildWhere`，关键字条件 41 处 / 32 文件迁移完毕，`or(like...)` 由 58 降至 19。
+
+条件数组类型由 `SQL[]` 放宽为 `(SQL | undefined)[]`——这才如实反映「条件可能不存在」，drizzle 的 `and()` 本就接受 `undefined` 并自动过滤，比逐处 `!` 断言更安全。
+
+#### 列表页搜索三件套收敛
+
+91 个列表页各自手抄 draft/submitted 双状态、页码重置与失效调用。新增 `hooks/useListSearch.ts` 把契约焊进 hook，91 个页面全部迁移，净减 669 行。
+
+另提供 `applySearch(params)` 覆盖「点部门树 / 收藏开关 / 应用保存的视图」这类不经输入框的直接筛选——此前这些地方各自手写四行，同样容易漏失效；暴露裸 `setSubmittedParams` 会让调用方绕过页码重置与失效，因此不提供。`defaults` 支持惰性函数，「最近 7 天」这类相对区间在每次重置时重新求值。
+
+迁移中顺带修正：`ai/feedback` 的 draft 与 submitted 初值不一致（draft 少了 `startDate`/`endDate`）；payment 的 contracts/disputes/preauths 把 draft 拆成一字段一个 `useState`，合并回单一对象；terminal 与 workflow-monitor 用 `searchParams` 命名 draft，统一为 `draftParams`。
+
+#### 危险操作确认收敛
+
+新增 `utils/confirm.ts` 的 `confirmDanger` / `confirmDelete`，注入红色实心确认按钮。手写 `okButtonProps` 由 185 降至 31，`Modal.confirm` 由 368 降至 145（保留的都是良性确认：提交、发布、启用、退出、导出）。
+
+文案刻意不做统一——`'确定要删除该评测集吗？'` 这类指明对象的具体文案比通用文案更能防误操作，helper 只在调用方未传 `title` 时才用默认值。破坏性词表之外的（重置密钥、截断表、转让群主、切换表单类型）逐条人工核对后走定向改写，不放宽正则，避免误伤 107 处良性确认。
+
+#### 修正已失效的路径引用
+
+`packages/shared/src/seed-data.ts` 在共享层按域拆分时已被删除，但仍有 7 处文档与注释指向它。其中 `permission-audit.test.ts` 那处是 CI 拦到权限码漂移时打给开发者的提示信息，「请先补 seed 按钮再引用」却指路到一个不存在的文件。
+
+### Added
+
+#### 新增的共享模块与配套测试
+
+| 模块 | 内容 |
+| --- | --- |
+| `web/src/mocks/utils/handlers.ts` | `ok` / `fail` / `badRequest` / `unauthorized` / `forbidden` / `notFound` / `conflict` / `locked` / `pageParams` / `pageResult` / `paginate` / `nextIdFrom` |
+| `server/src/lib/where-helpers.ts` | `keywordCondition` / `dateRangeConditions` / `buildWhere` |
+| `server/src/lib/openapi-schemas.ts` | `dateRangeBound()` 时间范围参数校验 |
+| `web/src/hooks/useListSearch.ts` | 列表页搜索状态与「查询必回源」契约 |
+| `web/src/utils/confirm.ts` | `confirmDanger` / `confirmDelete` |
+
+新增 48 项测试（server +17、web +31）。其中时间范围用「同一天的纯日期范围必须覆盖整天」这类时区无关断言锁住口径，而非断言具体时分秒——后者会随机器时区飘。
+
+#### skill 与文档站同步
+
+四类规范全部写进 `constraints.md` 作为单一来源，`crud-mock.md` / `crud-backend.md` / `crud-frontend.md` 的代码模板同步更新，`troubleshooting.md` 新增按日期筛选查不到当天、非法时间参数返回全量、LIKE 元字符未转义三条症状条目。
+
+`crud-backend.md` 的 service 模板此前缺少分页列表函数（最常写的反而没有），本次补上并演示 `buildWhere` + `keywordCondition` + `dateRangeConditions` 的标准组合；dataScope 与 tenantScope 两处示例原本写在 route handler 里 push conditions，与薄路由约定冲突，一并改到 service。
+
+---
+
 ## v1.28.1 - 2026-08-01
 
 Skill 治理版本：把 v1.28.0 缓存一致性工作中沉淀下来、但只落到代码里的规则补进 zenith skill，并按「规则单一来源 + 渐进式披露」重整 skill 的文件分工。**无代码变更**，服务端 1568 项、前端 460 项测试全部通过，`npm run build` / `docs:build` / `build:demo` 三项构建均通过。
