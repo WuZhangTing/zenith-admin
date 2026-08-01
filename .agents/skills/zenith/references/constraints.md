@@ -105,6 +105,13 @@
 - **操作列创建**（Step 8）：所有表格操作列通过 `packages/web/src/components/ResponsiveTableActions.tsx` 的 `createOperationColumn` 创建；该工具统一处理 `fixed: 'right'`、列设置不可隐藏、移动端列宽收窄和更多菜单
 - **状态列固定**（Step 8）：状态列必须紧靠操作列左侧，并同样设置 `fixed: 'right'`
 - **搜索栏布局**（Step 8）：搜索区统一使用 `SearchToolbar`（`packages/web/src/components/SearchToolbar.tsx`）。筛选/操作较多时必须使用结构化模式（`primary` / `filters` / `actions`，必要时用 `mobilePrimary` / `mobileFilters` / `mobileActions` 覆盖移动端）；移动端至少露出一个高频搜索/筛选项（优先关键词，无关键词时选区分度最高的筛选项）、查询与新增，其余筛选进底部抽屉、低频操作进更多菜单。写法见 [crud-frontend.md 完整页面模板](./crud-frontend.md)，参考 `packages/web/src/pages/system/positions/PositionsPage.tsx`
+- **搜索栏筛选控件**（Step 8）：关键字、状态、时间范围三类筛选统一使用
+  `packages/web/src/components/search-filters.tsx` 的 `KeywordInput` / `StatusSelect` / `DateRangeFilter`，
+  **禁止**手写 `prefix={<Search size={14} />}`、`showClear`、`style={{ width: N }}` 这类装饰性属性。
+  业务属性（`value` / `onChange` / `placeholder`）仍显式传入，其余 props 原样穿透。
+  **例外**：面板/弹窗内需跟随容器自适应的搜索框（如 `NavListPanel` 的 List header）不套用——
+  这些控件带固定默认宽度，会改变布局。写法与默认值见
+  [crud-frontend.md 搜索工具栏筛选控件](./crud-frontend.md)
 - **搜索栏公共按钮**（Step 8）：查询 / 重置 / 新增 / 刷新按钮统一使用 `packages/web/src/components/toolbar-controls.tsx` 的 `SearchButton` / `ResetButton` / `CreateButton` / `RefreshButton`，**禁止**手写 `<Button type="primary" icon={<Search size={14} />} onClick={...}>查询</Button>` 这类字面量。文案不同时用 children 覆盖：`<CreateButton onClick={openCreate}>新增规则</CreateButton>`；文案与默认值相同则写自闭合。**例外**：仅仅复用同一图标的独立操作（如「测试发送」「生成链接」「发起分账」）以及视觉本就不同的写法（`theme="borderless"` / `size="small"` / 其他图标）保持原生 `Button`——改「新增」按钮图标时不应连带改掉它们
 - **单图上传字段**（Step 8）：表单里的「上传图片 / 封面图」字段统一使用 `packages/web/src/components/ImageUploadField.tsx`（已内置预览、悬浮删除、上传地址与鉴权头、响应取值），**禁止**在页面里重新拼 `<Upload action={...} headers={...}>` + 预览 `<img>` + 删除按钮的组合
 - **页面级多 Tab 布局**（Step 8）：页面最外层就是多个业务 Tab 时，根节点写 `<div className="page-container page-tabs-page">`，每个 `<TabPane>` 内自带该 tab 的工具栏、操作按钮、空状态与表格；**禁止**把 TabPane 留空后在 Tabs 外部按 `activeTab` 渲染共用表格/按钮。抽屉、弹窗、卡片内代码示例、左右分栏内部小 tabs 不使用 `page-tabs-page`。结构见 [crud-frontend.md 页面级多 Tab 布局](./crud-frontend.md)

@@ -212,6 +212,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
+import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import AppModal from '@/components/AppModal';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
@@ -408,30 +409,31 @@ export default function XxxPage() {
     }),
   ];
 
+  // 筛选控件统一走 search-filters，禁止手写 prefix / showClear / 宽度这类装饰性属性
   const renderKeywordSearch = () => (
-    <Input
-      prefix={<Search size={14} />}
+    <KeywordInput
       placeholder="搜索名称..."
       value={draftParams.keyword}
       onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))}
-      showClear
-      style={{ width: 220 }}
-      onEnterPress={handleSearch}
+      onSearch={handleSearch}
     />
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="全部状态"
-      value={draftParams.status || undefined}
-      onChange={(v) =>
-        setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))
-      }
-      showClear
-      style={{ width: 120 }}
-      optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))}
+    <StatusSelect
+      items={statusItems}
+      value={draftParams.status}
+      onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
     />
   );
+
+  // 如有时间范围筛选：
+  // const renderTimeRangeFilter = () => (
+  //   <DateRangeFilter
+  //     value={draftParams.timeRange}
+  //     onChange={(v) => setDraftParams((p) => ({ ...p, timeRange: v }))}
+  //   />
+  // );
 
   // 查询 / 重置 / 新增按钮统一走 toolbar-controls，禁止手写 <Button icon={<Search .../>}>查询</Button>
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
@@ -742,8 +744,39 @@ onSelect={(deptId) => applySearch({ ...draftParams, departmentId: deptId })}
 **禁止**为这类场景去暴露/调用 `submittedParams` 的裸 setter——那会绕过页码重置与失效，
 正是「点了筛选但列表没刷新」这类问题的来源。
 
-### 危险操作确认
+### 搜索工具栏筛选控件
 
+关键字、状态、时间范围三类筛选统一用 `@/components/search-filters`，
+**禁止**手写 `prefix={<Search size={14} />}`、`showClear`、`style={{ width }}`
+这类装饰性属性——改一次图标或尺寸不该扫遍两百多个页面：
+
+```tsx
+import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
+
+<KeywordInput placeholder="搜索名称/编码" value={draftParams.keyword}
+  onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} />
+
+<StatusSelect items={statusItems} value={draftParams.status}
+  onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))} />
+
+<DateRangeFilter value={draftParams.timeRange}
+  onChange={(v) => setDraftParams((p) => ({ ...p, timeRange: v }))} />
+```
+
+| 组件 | 内置默认 | 覆盖方式 |
+| --- | --- | --- |
+| `KeywordInput` | 放大镜前缀、`showClear`、宽度 220 | `width` / `style` / 其余 props 原样穿透 |
+| `StatusSelect` | 占位「全部状态」、`showClear`、宽度 120 | `placeholder` / `width` |
+| `DateRangeFilter` | `dateTimeRange`、占位「开始时间/结束时间」、宽度 360 | `type="dateRange"`（宽度自动取 260）/ `placeholder` / `width` |
+
+- 三者只收敛**装饰性属性**，业务属性（`value` / `onChange` / `placeholder`）仍显式传入
+- `StatusSelect` 清空时回调空串而非 `undefined`，与 `draftParams` 里状态字段的类型对齐
+- `DateRangeFilter` 把 Semi 宽松的 `onChange` 收窄为 `[Date, Date] | null`，页面不必再写
+  `Array.isArray(v) && v.length >= 2` 之类的判断
+- **例外**：面板/弹窗内需要跟随容器自适应的搜索框（如 `NavListPanel` 的 List header）
+  不套用这些控件——它们带固定默认宽度，会改变布局
+
+### 危险操作确认
 破坏性操作（删除、清空、彻底移除、重置密钥、撤销令牌、截断表、终止流程…）
 统一用 `@/utils/confirm`，**禁止**手写 `okButtonProps: { type: 'danger', theme: 'solid' }`：
 

@@ -115,19 +115,12 @@ const columns = [
 
 ```tsx
 import { SearchToolbar } from '../../components/SearchToolbar';
+import { KeywordInput } from '@/components/search-filters';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { Input, Select } from '@douyinfe/semi-ui';
-import { Search } from 'lucide-react';
+import { Select } from '@douyinfe/semi-ui';
 
 <SearchToolbar>
-  <Input
-    prefix={<Search size={14} />}
-    placeholder="请输入名称"
-    value={keyword}
-    onChange={setKeyword}
-    showClear
-    style={{ width: 200 }}
-  />
+  <KeywordInput placeholder="请输入名称" value={keyword} onChange={setKeyword} width={200} />
   <Select
     placeholder="请选择状态"
     value={status}
@@ -150,15 +143,7 @@ import { Search } from 'lucide-react';
 <SearchToolbar
   primary={(
     <>
-      <Input
-        prefix={<Search size={14} />}
-        placeholder="请输入名称"
-        value={keyword}
-        onChange={setKeyword}
-        onEnterPress={handleSearch}
-        showClear
-        style={{ width: 220 }}
-      />
+      <KeywordInput placeholder="请输入名称" value={keyword} onChange={setKeyword} onSearch={handleSearch} />
       <Select
         placeholder="请选择状态"
         value={status}
@@ -178,15 +163,7 @@ import { Search } from 'lucide-react';
   )}
   mobilePrimary={(
     <>
-      <Input
-        prefix={<Search size={14} />}
-        placeholder="请输入名称"
-        value={keyword}
-        onChange={setKeyword}
-        onEnterPress={handleSearch}
-        showClear
-        style={{ width: 220 }}
-      />
+      <KeywordInput placeholder="请输入名称" value={keyword} onChange={setKeyword} onSearch={handleSearch} />
       <SearchButton onClick={handleSearch} />
       <CreateButton onClick={openCreate} />
     </>
@@ -250,6 +227,43 @@ import { CreateButton, RefreshButton, ResetButton, SearchButton } from '@/compon
 
 > 哪些按钮必须用这四个组件、哪两类情况应保持原生 `Button`，见
 > [`constraints.md` → 搜索栏公共按钮](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints.md)。
+
+---
+
+## search-filters（关键字 / 状态 / 时间范围筛选）
+
+`@/components/search-filters` 提供列表页搜索工具栏的三个标准筛选控件，与 `toolbar-controls`
+配套——那边收敛动作按钮，这边收敛筛选输入。放大镜前缀、`showClear`、固定宽度这些装饰性属性
+此前在 228 个关键字输入框与 42 个时间范围选择器里逐字重复。
+
+| 组件 | 内置默认 | 覆盖方式 |
+| --- | --- | --- |
+| `KeywordInput` | 放大镜前缀、`showClear`、宽度 220 | `width` / `style` / 其余 props 原样穿透 |
+| `StatusSelect` | 占位「全部状态」、`showClear`、宽度 120 | `placeholder` / `width` |
+| `DateRangeFilter` | `dateTimeRange`、占位「开始时间 / 结束时间」、宽度 360 | `type="dateRange"`（宽度自动取 260）/ `placeholder` / `width` |
+
+```tsx
+import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
+
+<KeywordInput placeholder="搜索名称/编码" value={draftParams.keyword}
+  onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} />
+
+<StatusSelect items={statusItems} value={draftParams.status}
+  onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))} />
+
+<DateRangeFilter value={draftParams.timeRange}
+  onChange={(v) => setDraftParams((p) => ({ ...p, timeRange: v }))} />
+```
+
+三者只收敛装饰性属性，业务属性（`value` / `onChange` / `placeholder`）仍显式传入——否则组件会退化成
+难以定制的黑盒，页面会绕开它退回手写。另外两点便利：
+
+- `StatusSelect` 清空时回调空串而非 `undefined`，与 `draftParams` 里状态字段的类型对齐
+- `DateRangeFilter` 把 Semi 宽松的 `onChange` 值收窄为 `[Date, Date] | null`，页面不必再写
+  `Array.isArray(v) && v.length >= 2` 之类的判断
+
+> **例外**：面板/弹窗内需要跟随容器自适应的搜索框（如 `NavListPanel` 的 List header）不套用这些控件——
+> 它们带固定默认宽度，会改变布局。
 
 ---
 
