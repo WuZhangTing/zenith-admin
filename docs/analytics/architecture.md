@@ -58,7 +58,7 @@ user_events（source='server'，不创建 analytics_sessions）
 | `analyticsRetention` | 每日 02:00 | 按每个租户各自的保留策略清理过期埋点 / 会话 / 错误 |
 | `evaluateErrorAlerts` | 每 5 分钟 | 评估错误告警规则并通知 |
 
-注册于 `lib/pg-boss-scheduler.ts`，种子数据见 `shared/seed-data.ts` 的 `SEED_CRON_JOBS`。
+注册于 `lib/pg-boss-scheduler.ts`，种子数据见 `packages/shared/src/seed/platform.ts` 的 `SEED_CRON_JOBS`。
 
 ## 权限码
 

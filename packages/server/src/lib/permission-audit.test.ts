@@ -8,7 +8,7 @@
  * 除平台超管外**任何角色都无法获得该权限**（曾出现 system:user:assign 缺口导致
  * 用户授权功能对非超管完全不可用）。该测试在 CI 中拦截此类契约漂移。
  *
- * 新增权限码的正确姿势：先在 packages/shared/src/seed-data.ts 对应菜单下补按钮
+ * 新增权限码的正确姿势：先在 packages/shared/src/seed/menus/{段}.ts 对应菜单下补按钮
  * （permission 字段），再在路由 guard 中引用。
  */
 import { readdirSync, readFileSync } from 'node:fs';
@@ -66,7 +66,7 @@ describe('权限清单对账（routes guard ↔ SEED_MENUS）', () => {
       .join('\n');
     expect(
       missingByFile.size,
-      `以下路由引用的权限码未在 packages/shared/src/seed-data.ts 的 SEED_MENUS 中声明，`
+      `以下路由引用的权限码未在 packages/shared/src/seed/menus/{段}.ts 的 SEED_MENUS 中声明，`
       + `除平台超管外任何角色都无法获得这些权限（请先补 seed 按钮再引用）：\n${report}`,
     ).toBe(0);
   });

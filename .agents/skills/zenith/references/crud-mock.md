@@ -81,7 +81,7 @@ export function getNextXxxId(): number {
 > **规则**：若种子数据已在 `packages/shared/src/seed/{业务域}.ts` 定义为 `SEED_XXXS`，
 > 则直接导入，**禁止**在 mock data 文件中重复写静态数组。
 > 若 demo 模式需要额外字段（如运行时计数 `memberCount`），用 `.map()` 展开后追加，不要整体复制。
-> 新增模块时，**先**在 `shared/seed-data.ts` 添加 `SEED_XXXS`，**再**在 mock data 中导入。
+> 新增模块时，**先**在 `packages/shared/src/seed/{业务域}.ts` 添加 `SEED_XXXS`，**再**在 mock data 中导入。
 
 ---
 

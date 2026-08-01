@@ -1,6 +1,6 @@
 # 菜单与种子数据配置参考
 
-本文档说明如何在 `seed-data.ts` 中添加新模块的菜单条目，以及在 `seed.ts` 中添加初始数据。
+本文档说明如何在 `packages/shared/src/seed/menus/{段}.ts` 中添加新模块的菜单条目，以及在 `seed.ts` 中添加初始数据。
 
 > **占位符约定**：`xxx` = 小写（表名、API 路径、文件名）；`Xxx` = 大驼峰（TypeScript 类型、组件名）。
 
@@ -176,14 +176,14 @@ await db.insert(menus).values(menuRows);
 await db.execute(sql`SELECT setval('menus_id_seq', GREATEST((SELECT MAX(id) FROM menus), 1))`);
 ```
 
-> 超管角色自动绑定全部菜单；其他角色按 `SEED_ROLES.menuIds` 绑定。角色/套餐引用菜单 ID 时**禁止硬编码魔法数字**，使用 `collectMenuSubtreeIds(rootId)` 等结构化推导（见 `seed-data.ts`）。
+> 超管角色自动绑定全部菜单；其他角色按 `SEED_ROLES.menuIds` 绑定。角色/套餐引用菜单 ID 时**禁止硬编码魔法数字**，使用 `collectMenuSubtreeIds(rootId)` 等结构化推导（定义见 `packages/shared/src/seed/menus.ts`）。
 
 ---
 
 ## 完整示例（以「部门管理」为参考）
 
 ```ts
-// seed-data.ts 中的实际写法（系统管理 = 1000 段；实际 ID 请以源文件为准）
+// seed/menus/system.ts 中的实际写法（系统管理 = 1000 段；实际 ID 请以源文件为准）
 { id: 1020, parentId: 1000, title: '部门管理', name: 'SystemDepartments',
   path: '/system/departments',
   component: 'system/departments/DepartmentsPage',

@@ -35,7 +35,7 @@
 
 ## 4. 权限与审计
 
-权限码清单（菜单 / 按钮在 `seed-data.ts` 中配置，超管自动绑定）：
+权限码清单（菜单 / 按钮在 `packages/shared/src/seed/menus/payment.ts` 中配置，超管自动绑定）：
 
 | 权限码 | 用途 |
 | --- | --- |

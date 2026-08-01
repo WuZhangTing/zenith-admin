@@ -61,7 +61,7 @@ Demo 站与文档站通过 `.github/workflows/pages.yml` 一同部署到 GitHub 
 
 ```text
 packages/web/src/mocks/
-├── data/               # 静态 Mock 数据（与 seed-data.ts / seed.ts 对齐）
+├── data/               # 静态 Mock 数据（与 shared/src/seed/ 及 db/seed.ts 对齐）
 │   ├── ai.ts
 │   ├── announcements.ts
 │   ├── chat.ts
