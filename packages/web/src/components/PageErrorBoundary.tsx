@@ -41,6 +41,17 @@ interface State {
  * }
  * ```
  */
+/**
+ * 判定是否为动态模块（chunk）加载失败：网络中断，或发版后旧产物已被清理。
+ * 覆盖 Chrome/Firefox/Safari 的原生 dynamic import 报错与 webpack 风格 ChunkLoadError。
+ */
+function isChunkLoadError(error: Error): boolean {
+  return (
+    error.name === 'ChunkLoadError' ||
+    /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed/i.test(error.message)
+  );
+}
+
 export class PageErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
     super(props);
@@ -65,6 +76,12 @@ export class PageErrorBoundary extends React.Component<Props, State> {
   }
 
   handleRetry = () => {
+    // chunk 加载失败时浏览器已缓存 rejected 的 module promise，
+    // 仅重置边界状态会立即再次失败，必须整页刷新拉取最新产物。
+    if (this.state.error && isChunkLoadError(this.state.error)) {
+      globalThis.location.reload();
+      return;
+    }
     this.setState({ error: null, componentStack: null });
   };
 
@@ -94,6 +111,7 @@ export class PageErrorBoundary extends React.Component<Props, State> {
 
     const isDev = import.meta.env.DEV;
     const error = this.state.error;
+    const chunkFailed = isChunkLoadError(error);
 
     return (
       <div
@@ -109,8 +127,10 @@ export class PageErrorBoundary extends React.Component<Props, State> {
         <Empty
           image={<React.Suspense fallback={null}><IllustrationFailure style={{ width: 120, height: 120 }} /></React.Suspense>}
           darkModeImage={<React.Suspense fallback={null}><IllustrationFailureDark style={{ width: 120, height: 120 }} /></React.Suspense>}
-          title="页面加载出错"
-          description="当前页面遇到了一个意外错误。你可以尝试刷新页面，或返回首页继续操作。"
+          title={chunkFailed ? '页面资源加载失败' : '页面加载出错'}
+          description={chunkFailed
+            ? '可能是网络不稳定，或系统刚刚发布了新版本。点击重新加载获取最新页面。'
+            : '当前页面遇到了一个意外错误。你可以尝试刷新页面，或返回首页继续操作。'}
         >
           {isDev && (
             <details
