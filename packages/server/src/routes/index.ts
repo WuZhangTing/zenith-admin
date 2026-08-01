@@ -1,8 +1,9 @@
 /**
  * 路由域注册表——数组顺序即挂载顺序。
  *
- * 顺序沿用重构前 src/index.ts 中各域首次出现的次序，由 app.routes.test.ts
- * 的路由表快照锁定；调整顺序前请确认不会造成路径遮蔽。
+ * 顺序沿用重构前 src/index.ts 中各域首次出现的次序。域顺序**不在**
+ * app.routes.test.ts 的路由表快照锁定范围内（快照按 method + path 排序去重），
+ * 调整顺序前请自行确认不会造成路径遮蔽。
  */
 import ops from './ops';
 import identity from './identity';

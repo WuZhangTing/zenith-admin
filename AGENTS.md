@@ -62,7 +62,7 @@ npm run docs:dev       # 本地预览 VitePress 文档站
 
 - **框架**：Hono v4（`OpenAPIHono`），通过 `@hono/node-server` 运行在 Node.js
 - **应用装配**：`src/app.ts` 的 `createApp()` 是**纯函数**（中间件栈 → 路由装配 → OpenAPI 文档 → 兜底与错误处理），不启动服务器、不注册 worker、不订阅事件，因此可在测试中直接构造；`src/index.ts` 只做启动编排；后台 worker 与事件订阅者分别在 `src/bootstrap/workers.ts` 与 `subscribers.ts`
-- **路由装配**：路由文件位于 `src/routes/{业务域}/`，每个域在自己的 `index.ts` 中用 `defineRouteDomain`（契约见 `src/routes/_kit.ts`）声明挂载清单，`src/routes/index.ts` 的 `ROUTE_DOMAINS` 只声明域顺序；路由表与域装配清单由 `src/app.routes.test.ts` 双快照锁定
+- **路由装配**：路由文件位于 `src/routes/{业务域}/`，每个域在自己的 `index.ts` 中用 `defineRouteDomain`（契约见 `src/routes/_kit.ts`）声明挂载清单，`src/routes/index.ts` 的 `ROUTE_DOMAINS` 只声明域顺序；路由表由 `src/app.routes.test.ts` 快照锁定（不含挂载顺序）
 - **Service 层**：业务逻辑、数据映射、前置校验位于 `src/services/{业务域}/`，与路由目录同构
 - **认证**：Access Token（2h）+ Refresh Token（30d）双 token；`src/middleware/auth.ts` 的 `authMiddleware` 注入 `c.set('user', payload)`；签发/校验统一走 `src/lib/jwt.ts`
 - **请求上下文**：全局挂载 `hono/context-storage`，辅助函数用 `src/lib/context.ts` 的 `currentUser()` / `getCtx()` 零参取值
