@@ -1,20 +1,36 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { request } from '@/utils/request';
-import { unwrap } from '@/lib/query';
+import { toQueryString, unwrap } from '@/lib/query';
 import { dockerKeys } from './docker';
 
-export interface FileEntry {
+/**
+ * `/api/terminal-files/*` 域的唯一 hooks 文件。
+ *
+ * 服务宿主机文件系统的所有前端消费者：文件管理器页（FileManagerPage）与
+ * 终端页的三个 Explorer（本地/SFTP/Docker）+ 在线编辑（EditorTab）。
+ * 此前拆在 file-manager.ts / terminal-files.ts 两处、query key 命名空间
+ * 各自为政（['file-manager',…] vs ['terminal-files',…]），文件管理器里的
+ * 增删改不会失效终端侧同目录缓存；合并后统一走 terminalFileKeys。
+ */
+
+/** 宿主机文件系统条目（permissions/uid/gid 仅 POSIX 平台返回） */
+export interface FsEntry {
   name: string;
   path: string;
   type: 'dir' | 'file';
   size: number;
   mtime: string;
+  permissions?: string;
+  uid?: number;
+  gid?: number;
 }
+/** @deprecated 兼容旧名，等价于 FsEntry */
+export type FileEntry = FsEntry;
 export interface DirListing {
   path: string;
   parent: string | null;
-  entries: FileEntry[];
+  entries: FsEntry[];
 }
 export interface RootInfo {
   home: string;
@@ -51,6 +67,11 @@ export const terminalFileKeys = {
   localBrowsePrefix: ['terminal-files', 'browse'] as const,
   localBrowse: (path: string) => ['terminal-files', 'browse', 'local', path] as const,
   localContent: (path: string) => ['terminal-files', 'content', 'local', path] as const,
+  checksumPrefix: ['terminal-files', 'checksum'] as const,
+  checksum: (path: string | undefined, algo: string | undefined) => ['terminal-files', 'checksum', path, algo] as const,
+  search: (dir: string, keyword: string) => ['terminal-files', 'search', dir, keyword] as const,
+  dirSizePrefix: ['terminal-files', 'dir-size'] as const,
+  dirSize: (path: string | undefined) => ['terminal-files', 'dir-size', path] as const,
   sftpHome: (profileId: number) => ['terminal-files', 'sftp-home', profileId] as const,
   sftpBrowsePrefix: (profileId: number) => ['terminal-files', 'browse', 'sftp', profileId] as const,
   sftpBrowse: (profileId: number, path: string) => ['terminal-files', 'browse', 'sftp', profileId, path] as const,
@@ -94,6 +115,92 @@ export function useFileContent(filePath: string, readUrl: string, enabled: boole
   return useQuery({
     ...fileContentQueryOptions(filePath, readUrl),
     enabled,
+  });
+}
+
+// ── 文件管理器页专用查询 ──────────────────────────────────────────────────────
+
+export function useTerminalRootInfo() {
+  return useQuery(rootInfoQueryOptions());
+}
+
+/** 目录浏览（keepPreviousData：目录切换保留旧列表避免闪白） */
+export function useTerminalFileList(path: string, enabled = true) {
+  return useQuery({
+    ...localBrowseQueryOptions(path),
+    enabled: enabled && path !== '',
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** 文件夹选择器（移动/复制目标）目录浏览，与主列表共享缓存 */
+export function useTerminalPickerList(path: string, enabled = true) {
+  return useQuery({
+    ...localBrowseQueryOptions(path),
+    enabled: enabled && path !== '',
+  });
+}
+
+export function useTerminalChecksum(path: string | undefined, algo: 'md5' | 'sha1' | 'sha256' | undefined, enabled = true) {
+  return useQuery({
+    queryKey: terminalFileKeys.checksum(path, algo),
+    queryFn: () =>
+      request
+        .get<{ algo: string; hash: string; size: number }>(`/api/terminal-files/checksum${toQueryString({ path, algo })}`)
+        .then(unwrap),
+    enabled: enabled && path !== undefined && algo !== undefined,
+    // 文件内容随时可能变化，每次打开都重新计算
+    staleTime: 0,
+  });
+}
+
+export interface DirSizeInfo { size: number; files: number; dirs: number; truncated: boolean }
+
+/** 目录大小统计（递归遍历，服务端可能截断，见 truncated 标记；每次按需重新计算） */
+export function useTerminalDirSize(path: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: terminalFileKeys.dirSize(path),
+    queryFn: () => request.get<DirSizeInfo>(`/api/terminal-files/dir-size${toQueryString({ path })}`).then(unwrap),
+    enabled: enabled && path !== undefined,
+    staleTime: 0,
+  });
+}
+
+/** 递归深度搜索（按需触发，keyword 为空不发请求；每次搜索都要新鲜结果，不走 staleTime） */
+export function useTerminalSearch(dir: string, keyword: string, enabled = true) {
+  return useQuery({
+    queryKey: terminalFileKeys.search(dir, keyword),
+    queryFn: () => request.get<FsEntry[]>(`/api/terminal-files/search${toQueryString({ dir, keyword })}`).then(unwrap),
+    enabled: enabled && keyword.trim() !== '',
+    staleTime: 0,
+  });
+}
+
+/**
+ * 通用文件操作（rename/create/move/copy/compress/extract/chmod）。
+ * endpoint 为 `/api/terminal-files/` 下的操作端点，成功后失效所有目录浏览缓存
+ * （操作可能跨目录，如 move/copy，无法精确到单目录）。
+ */
+export function useTerminalFileOperation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ endpoint, values }: { endpoint: string; values: Record<string, unknown> }) =>
+      request.post<null>(endpoint, values).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: terminalFileKeys.localBrowsePrefix }),
+  });
+}
+
+/** 批量删除条目（逐个串行删除，任一失败即中断抛出） */
+export function useDeleteTerminalEntries() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (paths: string[]) => {
+      for (const path of paths) {
+        await request.delete<null>(`/api/terminal-files/entry${toQueryString({ path })}`).then(unwrap);
+      }
+      return paths.length;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: terminalFileKeys.localBrowsePrefix }),
   });
 }
 
