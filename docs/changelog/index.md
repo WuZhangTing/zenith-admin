@@ -4,6 +4,41 @@
 
 ---
 
+## v1.35.0 - 2026-08-02
+
+巨型页面拆解专项：`FileManagerPage.tsx`（2071 行）与 `SitesPage.tsx`（1697 行）两个最大的前端单体组件重构为「装配层 + 页面私有 hooks/组件」结构，行为保持不变；顺带修复跨页缓存失效缺口与命令面板体验问题，settings 表单映射与文件工具函数补上 35 项单元测试。服务端 1595 项、前端 564 项测试全部通过，`npm run build` / `docs:build` / `build:demo` 三项构建均通过。
+
+### Fixed
+
+#### terminal-files 跨页缓存失效缺口
+
+- 合并 `hooks/queries/file-manager.ts` 与 `hooks/queries/terminal-files.ts` 为 `/api/terminal-files/*` 的唯一域文件。此前两文件各用独立 query key 命名空间（`['file-manager',…]` 与 `['terminal-files',…]`）指向同一后端资源，文件管理器中的增删改不会失效终端页本地文件 Explorer 的同目录缓存；统一命名空间后所有目录浏览缓存一致失效
+
+#### 命令面板与最近访问
+
+- 命令面板 / 顶栏弹层 / 移动端面板的最近访问条目此前硬编码时钟图标，改为优先渲染菜单自身 icon，缺失时才兜底
+- 命令面板由垂直居中改为顶部锚定（margin 12vh），搜索时列表增减不再上下跳动
+
+### Changed
+
+#### 文件管理器（system/file-manager）拆解
+
+- 入口 `FileManagerPage.tsx` 从 2071 行瘦身为约 465 行装配层，内部实现拆分至同目录：`fs-utils.ts`（15 个纯函数）、`types.ts`、`entry-actions.ts`（表格操作列与右键菜单共享的动作契约）、`hooks/`（导航历史、选择+剪贴板+冲突传输、四途径上传、画廊预览 blob 生命周期、下载、全局快捷键、收藏夹）、`components/`（工具栏、侧栏、列表/网格视图、右键菜单及全部弹层共 12 个组件）
+- 页面内 checksum / 深度搜索 / 目录大小三处内联 `request.get` 收编为声明式域查询（`useTerminalChecksum` / `useTerminalSearch` / `useTerminalDirSize`），冲突检测目录读取改走 queryClient（`staleTime: 0` 保证新鲜清单）
+- 深度搜索弹窗打开即显示「搜索中」状态（原为等待响应后才弹出），同词回车强制重新搜索
+
+#### 站点管理（cms/sites）拆解
+
+- 入口 `SitesPage.tsx` 从 1697 行瘦身为约 356 行装配层，六个独立工作流拆分至 `cms/sites/`，签名统一 `{ site, onClose }`、查询与变更各自持有（关闭即停止请求/轮询）：`SiteEditSheet`（8-tab 编辑）、`SiteUsersModal`（授权用户）、`SiteOpenGrantsModal`（开放授权）、`SiteMoveModal`（移动）、`SiteInheritanceSheet`（继承配置）、`SiteStaticSheet`（静态化）；打开任一弹窗不再重渲染整棵站点树
+- settings JSONB ⇄ 表单字段映射抽为纯函数 `site-form-mapping.ts`（46 字段初值构造 + 保存序列化），往返不丢键、`clear*` 凭证语义、legacy h5 键剔除、编辑模式 `theme` 不进 payload 均由单测锁定
+- 授权用户弹窗消除 render 期 `setState` 反模式，改为受控初始化并保持「每次打开只初始化一次」语义；保存后静态化提示的内联 `request.post` 收编为 `useCmsStaticBuild` 域 hook
+
+### Tests
+
+- 新增 35 项单元测试：`fs-utils`（副本命名、跨平台名称校验、权限字符串/八进制转换、面包屑、MIME 判定等 19 项）与 `site-form-mapping` / `site-tree-utils`（settings 往返、凭证清除、主题参数变更判定、树工具等 16 项）
+
+---
+
 ## v1.34.0 - 2026-08-02
 
 文档站全站对齐专项：112 个文档页面逐条与 v1.33.0 代码核实并刷新，消除长期漂移；文档只描述当前状态，删除历史变迁叙述；同步调整侧边栏结构。无任何应用代码改动。服务端 1595 项、前端 529 项测试全部通过，`npm run build` / `docs:build` / `build:demo` 三项构建均通过。
