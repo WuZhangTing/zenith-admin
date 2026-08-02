@@ -43,12 +43,11 @@ interface Props {
 }
 
 function getItemIcon(item: FlatMenuItem, isRecent: boolean) {
-  if (isRecent) return <Clock size={13} />;
   if (item.icon) {
     const icon = renderLucideIcon(item.icon, 13);
     if (icon) return icon;
   }
-  return <Hash size={13} />;
+  return isRecent ? <Clock size={13} /> : <Hash size={13} />;
 }
 
 export default function MenuCommandPalette({ menus, open, onClose }: Props) {
@@ -166,7 +165,6 @@ export default function MenuCommandPalette({ menus, open, onClose }: Props) {
   return (
     <Modal
       visible={open}
-      centered
       header={null}
       footer={null}
       closable={false}
@@ -175,7 +173,8 @@ export default function MenuCommandPalette({ menus, open, onClose }: Props) {
       maskClosable
       width={600}
       className="cmd-palette-modal"
-      style={{ overflow: 'hidden', borderRadius: 'var(--semi-border-radius-large)', padding: 0 }}
+      // 顶部锚定（覆盖默认 margin: 80px auto）：列表高度变化时只向下伸缩，避免垂直居中导致的跳动
+      style={{ margin: '12vh auto', overflow: 'hidden', borderRadius: 'var(--semi-border-radius-large)', padding: 0 }}
       bodyStyle={{ padding: 0, overflow: 'hidden' }}
       zIndex={9999}
       keepDOM={false}

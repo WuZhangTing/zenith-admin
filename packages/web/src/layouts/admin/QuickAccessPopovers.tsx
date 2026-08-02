@@ -2,6 +2,7 @@ import { Button, List, Popover } from '@douyinfe/semi-ui';
 import { Clock, Star, X } from 'lucide-react';
 import type { NavigateFunction } from 'react-router-dom';
 import type { FlatMenuItem } from '@/components/MenuSearchInput';
+import { renderLucideIcon } from '@/utils/icons';
 
 // 最近访问快捷入口（顶栏悬浮弹层）
 export function RecentMenusPopover({
@@ -52,7 +53,7 @@ export function RecentMenusPopover({
                         onClick={() => navigate(menu!.path)}
                         style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0 7px 14px', cursor: 'pointer', minWidth: 0, flex: 1, border: 0, background: 'transparent', textAlign: 'left' }}
                       >
-                        <span style={{ color: 'var(--semi-color-text-2)', display: 'flex', flexShrink: 0 }}><Clock size={13} /></span>
+                        <span style={{ color: 'var(--semi-color-text-2)', display: 'flex', flexShrink: 0 }}>{(menu!.icon ? renderLucideIcon(menu!.icon, 13) : null) ?? <Clock size={13} />}</span>
                         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13 }}>{menu!.title}</span>
                         <span style={{ fontSize: 11, color: 'var(--semi-color-text-3)', flexShrink: 0 }}>{menu!.breadcrumb.at(-1) ?? ''}</span>
                       </button>

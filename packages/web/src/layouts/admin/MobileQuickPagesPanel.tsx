@@ -99,7 +99,7 @@ export function MobileQuickPagesPanel({
                     navigate(menu.path);
                   }}
                 >
-                  <span className="mobile-quick-pages-item__icon"><Clock size={14} /></span>
+                  <span className="mobile-quick-pages-item__icon">{(menu.icon ? renderLucideIcon(menu.icon, 14) : null) ?? <Clock size={14} />}</span>
                   <span className="mobile-quick-pages-item__title">{menu.title}</span>
                   <span className="mobile-quick-pages-item__meta">{menu.breadcrumb.at(-1) ?? ''}</span>
                 </button>
