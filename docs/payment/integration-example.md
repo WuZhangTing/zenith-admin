@@ -70,7 +70,7 @@ export const bizPayDemos = pgTable('biz_pay_demos', {
 // services/payment/biz-pay-demo.service.ts
 export const BIZ_PAY_DEMO_TYPE = 'biz_pay_demo';
 
-export async function payBizPayDemo(id: number, input: { payMethod: PaymentMethod; openId?: string }, clientIp?: string) {
+export async function payBizPayDemo(id: number, input: { payMethod: PaymentCashierMethod; openId?: string }, clientIp?: string) {
   const row = await getOwnRow(id);
   if (row.status === 'paid') throw new HTTPException(400, { message: '该示例单已支付，无需重复发起' });
 
@@ -107,21 +107,24 @@ paymentEventBus.on('payment.succeeded', (e) => {
   });
 });
 
-// 履约（幂等）：按「主键 + 状态」原子更新，重复事件只生效一次
+// 履约（幂等）：按「主键 + 状态」原子更新，仅 pending/paying 时生效，重复事件只生效一次
 export async function markBizPayDemoPaid(event: { bizId: string; orderNo: string; amount: number }) {
   await db.update(bizPayDemos)
-    .set({ status: 'paid', paidAt: new Date(), paymentOrderNo: event.orderNo, fulfillRemark: '已自动发放示例权益' })
-    .where(and(eq(bizPayDemos.id, Number(event.bizId)), eq(bizPayDemos.status, 'paying')));
+    .set({ status: 'paid', paidAt: new Date(), paymentOrderNo: event.orderNo, fulfillRemark: '支付成功，已自动发放示例权益（演示履约）' })
+    .where(and(eq(bizPayDemos.id, Number(event.bizId)), inArray(bizPayDemos.status, ['pending', 'paying'])));
 }
 ```
 
-订阅器需在启动时注册（`index.ts` 中 `registerBizPayDemoSubscribers()`），与 `registerPaymentSubscribers()` 并列。
+> 幂等条件包含 `pending` 是刻意的：运营在「支付订单」页对未发起过渠道支付的单据「模拟支付成功」时，业务单可能仍处于 `pending`，两种状态都应允许履约推进。
+
+订阅器统一在 `packages/server/src/bootstrap/subscribers.ts` 的 `registerEventSubscribers()` 中注册（`registerBizPayDemoSubscribers()` 与 `registerPaymentSubscribers()` 等并列），应用启动时调用一次。
 
 ### ③ 路由
 
 | 路由 | 说明 |
 | --- | --- |
 | `GET /api/biz/pay-demos` | 我的示例单列表（按 `createdBy` 过滤防越权） |
+| `GET /api/biz/pay-demos/{id}` | 示例单详情 |
 | `POST /api/biz/pay-demos` | 新建示例单（`pending`） |
 | `POST /api/biz/pay-demos/{id}/pay` | 发起支付，返回二维码 / 跳转链接（挂 `idempotencyGuard`） |
 | `POST /api/biz/pay-demos/{id}/simulate-paid` | **模拟支付成功**（演示专用，见下） |
@@ -164,7 +167,7 @@ export async function simulateBizPayDemoPaid(id: number) {
 1. 选定唯一 `bizType` 字符串；业务表加 `payment_order_no` 等关联字段。
 2. 发起支付：调用 `createPayment({ bizType, bizId, amount, subject, payMethod, clientIp })`，回填订单号。
 3. 订阅 `payment.succeeded`，按 `bizType` 过滤后**幂等履约**（按业务键去重或让操作天然幂等）。
-4. 金额**全链路整数分**；退款监听 `refund.succeeded`。
-5. 在 `index.ts` 注册订阅器。
+4. 金额**全链路整数分**；退款监听 `refund.succeeded`，关单监听 `payment.closed`。
+5. 在 `bootstrap/subscribers.ts` 的 `registerEventSubscribers()` 中注册订阅器。
 
 事件投递的可靠性机制详见 [异步通知与对账](./callback)，门面与事件规范详见 [业务接入](./integration)。

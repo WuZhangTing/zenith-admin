@@ -40,7 +40,7 @@ POST 回调验签、解析成功后按以下顺序处理：
 1. **入站落库 + 去重**：依赖 `(account_id, msg_id)` 部分唯一索引原子去重；事件消息无 `MsgId` 时按 `openid + event + eventKey + createTime` 合成 sha1 作为去重键（微信重试时字段一致，事件同样可去重）。
 2. **带参二维码**：`SCAN`（已关注扫码）或 `subscribe` + `qrscene_` 前缀（扫码关注）事件 → 扫码计数 + [扫码送积分](./marketing.md#带参二维码)。
 3. **关注自动建会员**：账号开启 `auto_create_member` 时，首次 `subscribe` 事件自动建会员并绑定（详见[粉丝与会员](./fans.md#会员体系打通)）。
-4. **多客服会话接入**：非事件类实质消息触发[会话状态机](./customer-service.md)（建 / 续会话并按策略分配）。
+4. **多客服会话接入**：非事件类实质消息、且账号已启用[路由治理](./customer-service.md)（`enabled`）时，触发会话状态机（建 / 续会话并按策略分配）。
 5. **模板消息送达回执**：`TEMPLATESENDJOBFINISH` 事件按 `msgid` 回写[发送日志](./marketing.md#送达回执)最终状态。
 6. **自动回复**：关注事件 / 文本消息匹配[自动回复](./messages.md#自动回复)，以被动回复 XML 返回；安全模式下回复 XML 会 AES 加密后返回。出站回复仅在消息首次到达时落库（重试时仍返回被动回复，但不写重复记录）。
 

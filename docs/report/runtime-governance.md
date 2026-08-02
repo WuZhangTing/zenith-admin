@@ -34,6 +34,28 @@
 - **参数与字段校验**：参数名 / 字段名 / 计算字段名仅允许标识符格式；`__` 前缀保留给系统变量；API 运行参数只允许传递已声明参数；计算字段表达式引用未声明字段时拒绝保存。
 - **查询配额与成本**：按租户/用户限制并发、每日次数、行数、字节数与成本，每次取数记录成本日志（见[资源治理 · 配额与成本](./governance#配额与成本)）。
 
+### 容量护栏与环境变量
+
+除按租户/用户的配额外，运行时还有**进程级容量护栏**，与配额独立、始终生效：
+
+| 护栏 | 默认值 | 说明 |
+|------|--------|------|
+| 单数据源并发 | `REPORT_DASHBOARD_MAX_CONCURRENT`（默认 5，上限 20） | 同一数据源同时执行的查询数 |
+| 全局并发 | `max(4, 单数据源并发 × 4)` | 整个进程同时执行的报表查询数 |
+| 排队上限 | 单数据源 50 / 全局 200 | 队列满直接返回 429 |
+| 排队超时 | 30 秒 | 排队超时返回 429 |
+| 行数上限 | `REPORT_DATASET_MAX_ROWS`（默认 5000） | 单次取数最大返回行数 |
+| 字节上限 | `REPORT_DATASET_MAX_BYTES`（默认 2MB） | 单次取数最大返回字节数 |
+| 慢查询阈值 | `REPORT_SLOW_QUERY_MS`（默认 3000ms） | 超过记为慢查询，进入统计 |
+
+### 成本估算公式
+
+每次取数按以下公式估算成本单位并计入成本日志与配额：
+
+```text
+成本 = (耗时秒 + 行数/10000 + 字节数/MB) × (命中缓存 ? 0.25 : 1)
+```
+
 ## 结果缓存与失效
 
 数据集可配置 TTL 结果缓存（见[数据集 · 结果缓存](./datasets#结果缓存-ttl)）。运行时保证：
@@ -44,13 +66,17 @@
 
 ## 物化快照
 
-- 手动刷新：`POST /api/report/datasets/{id}/materialize`，以**任务中心异步任务**执行，返回任务实体可跟踪进度/取消；幂等键基于 `datasetId + updatedAt + refreshedAtMs`，防止重复刷新；
-- 周期刷新（Cron）由定时任务巡检到期项，复用同一刷新核心；
-- 快照生命周期 `pending → building → ready | failed`，就绪快照后续可进入 `expired | deleted`；全量/增量刷新与快照管理详见[资源治理](./governance)与[数据集 · 物化快照](./datasets#物化快照)。
+- 手动刷新：`POST /api/report/datasets/{id}/materialize`，以**任务中心异步任务**（`report-dataset-materialize`）执行，返回任务实体可跟踪进度/取消；幂等键基于 `datasetId + updatedAt + refreshedAtMs`，防止重复刷新；支持全量与增量两种策略（见[数据集 · 物化快照](./datasets#物化快照)）；
+- 周期刷新（Cron）由定时任务每分钟巡检到期项，复用同一刷新核心；
+- 快照生命周期 `pending → building → ready | failed`，就绪快照后续可进入 `expired | deleted`；过期与孤儿快照由每日清理任务回收。
 
-## 执行日志
+## 执行日志与运行观测
 
-每次数据集执行（预览、仪表盘取数、订阅/预警评估等）落库执行日志，可通过 `GET /api/report/executions` 查询：来源、耗时、行数、是否命中缓存、错误信息，用于定位慢查询与失败原因。
+每次数据集执行（预览、仪表盘取数、订阅/预警评估等）落库执行日志：
+
+- `GET /api/report/executions`：明细查询——来源、耗时、行数、是否命中缓存、错误信息，定位慢查询与失败原因；
+- `GET /api/report/executions/stats`：聚合统计——成功率、P95 耗时、缓存命中率、慢查询 Top 榜与时间序列，支撑运行大盘；
+- `GET /api/report/executions/governance`：返回当前运行治理配置（并发/行数/字节/慢查询阈值等生效值）与容量快照。
 
 ## 可靠投递
 
@@ -58,7 +84,7 @@
 
 ```mermaid
 flowchart LR
-  cron["调度器<br/>按 nextRunAt 巡检"] --> claim["幂等 claim<br/>多实例不重复执行"]
+  cron["pg-boss 调度<br/>每分钟巡检到期项"] --> claim["幂等 claim<br/>多实例不重复执行"]
   claim --> fetch[取数 / 聚合]
   fetch --> send{逐通道投递}
   send -->|全部成功| s([success])
@@ -70,9 +96,11 @@ flowchart LR
 
 ### 调度
 
-- 定时扫描按 `nextRunAt` + **幂等 claim** 认领到期任务，多实例部署不会重复执行；
+系统调度统一构建在 **pg-boss**（PostgreSQL 队列）上，系统内部周期任务与用户可见的「定时任务」共用同一调度器：
+
+- 订阅 / 物化 / 预警的分发扫描注册为定时任务 handler（`dispatchReportSubscriptions` / `refreshReportMaterializations` / `dispatchReportAlerts`），按 `nextRunAt` + **幂等 claim** 认领到期项，多实例部署不会重复执行；
 - 订阅 / 预警支持 **`timezone`**（IANA 时区）与 **`misfirePolicy`**（错过策略）：服务停机错过触发点后，`skip` 跳过本轮、`fire_once` 补跑一次；
-- 手动「立即推送」/「评估」提交任务中心异步任务执行。
+- 手动「立即推送」/「评估」提交任务中心异步任务执行，幂等键防重复。
 
 ### 投递历史与状态语义
 
@@ -81,7 +109,7 @@ flowchart LR
 - 历史查询：`GET /api/report/delivery-runs`；确认：`POST /api/report/delivery-runs/{id}/acknowledge`；
 - 状态语义：所有通道成功 → `success`；部分成功 → `partial`；全部失败 → `failed`；取消 → `cancelled`；
 - **只有全部必需通道成功**才更新订阅的 `lastRunAt/lastSummary` 与预警的 `lastNotifiedAt`；
-- 投递失败**不会进入静默窗口**；重试使用**指数退避**并复用同一 delivery run；
+- 投递失败**不会进入静默窗口**；重试**指数退避**（首次 60 秒起、每次翻倍、上限 15 分钟，最多 3 次尝试）并复用同一 delivery run；
 - 前端在订阅/预警列表展示「最近投递」状态列，点开可查看投递历史（见[订阅](./sharing#定时订阅推送)与[预警](./ai-and-alerts#投递历史与确认)）。
 
 ## 异步任务一览
@@ -90,18 +118,32 @@ flowchart LR
 
 | 任务类型 | 触发入口 | 用途 |
 |----------|----------|------|
-| `report-dataset-materialize` | 数据集「刷新物化」/ 治理页刷新 | 全量/增量物化快照 |
-| `report-dq-rule-run` | 数据质量「执行」 | DQ 取数、评估、评分和异常 |
-| `report-sla-rule-evaluate` | SLA「评估」 | SLA 评估与违约 |
+| `report-dataset-materialize` | 数据集「刷新物化」/ 定时巡检 | 全量/增量物化快照 |
+| `report-datasource-health-check` | 数据源「批量健康检查」 | 批量连通性测试并持久化健康状态 |
+| `report-dq-rule-run` | 数据质量「执行」/ 规则 Cron | DQ 取数、评估、评分和异常 |
+| `report-sla-rule-evaluate` | SLA「评估」/ 规则巡检 | SLA 评估、违规与通知 |
+| `report-subscription-deliver` | 订阅「立即推送」/ 定时分发 | 生成摘要并逐通道投递 |
+| `report-alert-evaluate` | 预警「评估」/ 定时分发 | 评估阈值并触发通知 |
 | `report-fill-sync` | 填报批准后内部提交 | 同步批准记录到生成数据集 |
-| 订阅手动推送 / 预警手动评估 | 列表「立即推送」/「评估」 | 立即执行一次投递/评估 |
 
 取消、重试、并发与保留期全部由任务中心统一管理。
+
+### 系统级周期任务
+
+以下内部周期任务由 pg-boss 固定注册（不占用用户「定时任务」列表，可在系统调度中心观测）：
+
+| 任务 | 周期 | 用途 |
+|------|------|------|
+| `report-dq-rule-scan` | 每分钟 | 扫描到期的 DQ 规则 Cron 并提交执行 |
+| `report-sla-rule-scan` | 每分钟 | 扫描到期的 SLA 规则并提交评估 |
+| `report-fill-workflow-reconcile` | 每 5 分钟 | 填报工作流对账兜底（见[数据填报](./fill#对账兜底自动自愈)） |
+| `report-asset-deprecation-scan` | 每小时 | 处理到达生效日的弃用公告 |
+| `report-materialization-snapshot-cleanup` | 每日 | 清理过期/孤儿物化快照 |
 
 ## 运维要点
 
 1. **Schema 变更**：修改报表相关表后必须 `npm run db:generate` 生成 Drizzle 迁移，再 `npm run db:migrate`；禁止手写迁移 SQL。
 2. **种子数据**：`npm run db:seed` 可重复运行，不覆盖已有用户资源；内置示例资源只在归属为空时补齐 `owner/folder`。
-3. **部署检查**：确认 Redis 与任务中心 worker 可用，核对物化、DQ、SLA、填报四类 handler 已注册；监控任务失败率、队列深度、数据库只读查询超时与存储增长。
+3. **部署检查**：确认 Redis、PostgreSQL（pg-boss 队列）与任务中心 worker 可用，核对物化、DQ、SLA、填报、订阅、预警、数据源健康检查等 handler 已注册；监控任务失败率、队列深度、数据库只读查询超时与存储增长。
 4. **凭据安全**：环境 `baseUrl/config` 不存密钥；数据源凭据由加密字段管理；生产环境发布只使用审批快照。
 5. **回滚**：回滚应用前先确认数据库迁移是否向后兼容；资源晋级失败使用环境回滚状态机，不直接改生产快照。

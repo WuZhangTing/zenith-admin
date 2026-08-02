@@ -1,146 +1,76 @@
 # 维护模式
 
-维护模式允许超级管理员在系统升级、数据库迁移或紧急修复期间临时暂停普通用户的 API 访问，整个过程无需重启服务。
+维护模式用于发布 / 迁移窗口期临时封禁业务 API：开启后普通用户请求被 503 拦截，超级管理员不受影响，可以继续在线操作并随时关闭。
 
----
+代码位置速查：
 
-## 功能概览
+| 模块 | 位置 |
+| --- | --- |
+| 拦截中间件 | `packages/server/src/middleware/maintenance.ts` |
+| 状态与记录 service | `packages/server/src/services/ops/maintenance.service.ts` |
+| 路由 | `packages/server/src/routes/ops/maintenance.ts` |
 
-| 能力 | 说明 |
-|------|------|
-| **一键开关** | 后台管理页面即可开启/关闭，变更在 5 秒内生效（内存缓存 TTL） |
-| **超管旁路** | 拥有 `super_admin` 角色的用户不受限制，可正常访问所有接口 |
-| **前端感知** | 普通用户收到 503 后自动显示全屏维护遮罩，每 30 秒自动检查是否恢复 |
-| **管理员横幅** | 超管登录后顶部出现橙色横幅，可直接点击关闭维护 |
-| **二次确认** | 开启时弹出 `Modal.confirm`，防止误操作 |
-| **自定义消息** | 支持配置展示给用户的维护提示语和预计结束时间 |
-| **WebSocket 旁路** | `/api/ws` 始终不受维护中间件影响 |
+## 拦截行为
 
----
-
-## 菜单入口
-
-**系统设置 → 维护模式**（路由：`/system/maintenance`，权限：`system:maintenance:manage`）
-
----
-
-## 工作机制
-
-```
-所有 /api/* 请求
-  │
-  ├── 旁路路径（直接放行）：
-  │   /api/health、/api/auth/*、/api/maintenance/status
-  │   /api/ws、/metrics
-  │
-  ├── 读取维护状态（内存缓存 5s）
-  │     enabled = false → 正常放行
-  │     enabled = true  → 继续检查
-  │
-  └── 检查 JWT 角色
-        roles 包含 super_admin → 正常放行
-        其他 / 无 token        → 返回 503 JSON
-```
-
-### 503 响应格式
+`maintenanceMiddleware` 挂载在 `/api/*`（`src/app.ts`），开启维护模式后：
 
 ```json
-{
-  "code": 503,
-  "message": "系统维护中，请稍后重试",
-  "data": null
-}
+// HTTP 503
+{ "code": 503, "message": "系统维护中，请稍后重试", "data": null }
 ```
 
----
+### 豁免规则
 
-## 前后端联动
+1. **路径豁免**（`BYPASS_PREFIXES`）：`/api/health`、`/api/auth/`（登录必须可用，否则超管进不来）、`/api/maintenance/status`、`/metrics`、`/api/ws`
+2. **超级管理员豁免**：Bearer token 校验通过且角色含超管编码 → 放行；token 无效则按普通用户拦截
 
-### 前端（普通用户）
+### 状态缓存
 
-1. `request.ts` 拦截 HTTP 503 响应，解析响应体并派发 `maintenance:enabled` CustomEvent
-2. `App.tsx` 监听该事件；若当前用户不是超管，则显示全屏 `MaintenanceOverlay`
-3. `MaintenanceOverlay` 每 30 秒轮询 `/api/maintenance/status`，恢复后自动关闭遮罩
-4. 应用首次加载时（auth 完成后）也会主动检查一次 `/api/maintenance/status`
+维护状态存 `maintenance_mode` 表（单行 upsert，`id = 1`），中间件读取走 **5 秒内存缓存**（`getMaintenanceStatus`），避免每请求查库；更新后立即 `invalidateMaintenanceCache()`，本进程即时生效，多实例部署最多延迟 5 秒。
 
-### 前端（超级管理员）
+## API 端点
 
-1. `AdminLayout` 挂载时拉取 `/api/maintenance/status`，若开启则显示顶部橙色横幅
-2. 横幅提供「关闭维护模式」按钮，点击调用 `PUT /api/maintenance { enabled: false }`
-3. 操作成功后派发 `maintenance:statusChanged` 事件，`MaintenancePage` 同步刷新状态
-4. `MaintenancePage` 开启/关闭后也派发 `maintenance:statusChanged` 事件，横幅即时联动
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/api/maintenance/status` | **公开** | 维护状态（前端登录页 / 维护提示页轮询用） |
+| GET | `/api/maintenance` | `system:maintenance:manage` | 维护模式详情 |
+| PUT | `/api/maintenance` | `system:maintenance:manage`（带审计） | 开启 / 关闭 / 更新提示 |
+| GET | `/api/maintenance/logs` | `system:maintenance:manage` | 维护时段记录分页（可按 `ongoing` / `completed` 过滤） |
 
-### 事件总线
-
-| 事件名 | 触发方 | 监听方 | 携带数据 |
-|--------|--------|--------|----------|
-| `maintenance:enabled` | `request.ts`（503 拦截） | `App.tsx`、`AdminLayout` | 503 响应体中的 `data`；维护中间件返回 `null` 时为空对象 |
-| `maintenance:statusChanged` | `MaintenancePage`、`AdminLayout` | 对方 | 更新后的状态对象或空 |
-
----
-
-## API 接口
-
-### `GET /api/maintenance/status`
-
-> **公开接口，无需认证**
-
-返回当前维护模式状态，供前端初始检查使用。
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "enabled": false,
-    "message": "系统维护中，请稍后重试",
-    "estimatedEndAt": null,
-    "startedAt": null,
-    "startedByName": null,
-    "updatedAt": "2026-06-07 18:00:00"
-  }
-}
-```
-
-### `GET /api/maintenance`
-
-> 需要 `system:maintenance:manage` 权限
-
-同 `/status`，但经过认证保护，用于管理页面拉取详情。
-
-### `PUT /api/maintenance`
-
-> 需要 `system:maintenance:manage` 权限
-
-开启或关闭维护模式。
-
-**请求体：**
+`PUT` 请求体：
 
 ```json
 {
   "enabled": true,
   "message": "系统升级中，预计 30 分钟后恢复",
-  "estimatedEndAt": "2026-06-07 20:00:00"
+  "estimatedEndAt": "2025-06-01 03:00:00"
 }
 ```
 
-**响应：** 返回更新后的维护状态（与 `/status` 格式相同）。
+状态字段包含 `enabled`、`message`、`estimatedEndAt`、`startedAt`、`startedByName`、`updatedAt`——开启时自动记录操作人与开始时间。
 
----
+## 维护时段记录
 
-## 数据库结构
+每次状态迁移自动落 `maintenance_logs` 表（在同一事务内）：
 
-维护状态持久化在 PostgreSQL 的 `maintenance_mode` 表（ID 固定为 1 的单行记录）：
+| 迁移 | 行为 |
+| --- | --- |
+| 关 → 开 | 新增一条进行中记录（开始时间、操作人、提示语） |
+| 开 → 关 | 结束当前记录：写结束时间、操作人、**结算时长**（秒） |
+| 开 → 开 | 仅更新进行中记录的提示语与预计结束时间 |
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `id` | `integer` | 固定为 1 |
-| `enabled` | `boolean` | 是否开启 |
-| `message` | `varchar(512)` | 维护提示语 |
-| `estimated_end_at` | `timestamp` | 预计结束时间（可选） |
-| `started_at` | `timestamp` | 最近一次开启时间 |
-| `started_by_name` | `varchar` | 开启人用户名（快照） |
-| `updated_at` | `timestamp` | 最后更新时间 |
+管理页面据此展示历史维护窗口与时长统计。
 
-后端使用 **5 秒内存缓存**（TTL）避免每次请求都查数据库，同时在写入后自动失效缓存（`invalidateMaintenanceCache()`）。
+## 前端联动
 
+- 开启 / 关闭维护模式的 PUT 操作会记入[审计日志](./audit-log-changes.md)（模块「维护模式」，带 before/after 快照）
+- 普通用户收到 503 后，前端跳转维护提示页并轮询 `GET /api/maintenance/status`，恢复后自动返回
+- 超管界面顶部显示维护中横幅，避免忘记关闭
+
+## 典型发布流程
+
+```text
+1. PUT /api/maintenance { enabled: true, message, estimatedEndAt }
+2. 执行数据库迁移 / 部署新版本（超管可全程在线验证）
+3. 验证通过后 PUT { enabled: false } —— 时长自动结算入维护记录
+```

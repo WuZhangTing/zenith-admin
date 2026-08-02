@@ -21,7 +21,7 @@ graph LR
         E --> F[搜索引擎推送 + Webhook]
     end
     subgraph 流量运营
-        G[SEO 管理] & H[广告事件] & I[评论] & J[互动问卷] & K[页面区块 ACL]
+        G[SEO 管理] & H[广告事件] & I[评论] & J[互动问卷] & K[页面搭建/页面部件]
     end
     subgraph 平台能力
         L[数据看板] & M[Headless API] & N[采集中心] & O[全文检索]
@@ -39,19 +39,19 @@ graph LR
 | 内容模型 | `/cms/models` | 12 种自定义字段类型（EAV via JSONB），选项可绑系统字典，支持站点/栏目/内容三级绑定 | [内容管线](./content-pipeline) |
 | 标签管理 | `/cms/tags` | 站点级标签 + 前台聚合页 | [内容管线](./content-pipeline) |
 | 友情链接 | `/cms/friend-links` | 前台页脚友链，支持分组管理与按组渲染 | [互动与运营](./interaction) |
-| 素材中心 | `/cms/resources` | 文件夹树、句柄化引用索引、素材替换、孤立素材治理与报告导出 | [内容管线](./content-pipeline) |
-| 站点静态化 | `/cms/sites` | 站点管理操作中提交全站静态化任务 | [渲染与静态化](./static-and-render) |
-| 检索管理 | `/cms/search` | 分词测试、词典、热词、死链检测 | [全文检索](./search) |
-| SEO 管理 | `/cms/seo` | 301 重定向、内链词、推送日志 | [SEO 与流量](./seo) |
+| 素材中心 | `/cms/resources` | 文件夹树、句柄化引用索引、素材替换/裁剪、孤立素材治理与报告导出 | [内容管线](./content-pipeline) |
+| 检索管理 | `/cms/search` | 分词测试、自定义词典、搜索热词 | [全文检索](./search) |
+| SEO 管理 | `/cms/seo` | 301 重定向、内链词、搜索推送、死链检测 | [SEO 与流量](./seo) |
 | 评论管理 | `/cms/comments` | 树形回复、点赞、批量审核 | [互动与运营](./interaction) |
 | 广告管理 | `/cms/ads` | 广告投放、事件明细、统计、保留期任务与导出 | [互动与运营](./interaction) |
 | 表单管理 | `/cms/forms` | 自定义表单、提交数据导出、邮件通知 | [互动与运营](./interaction) |
 | 敏感词库 | `/cms/sensitive-words` | Aho-Corasick 引擎，评论/表单提交拦截 | [互动与运营](./interaction) |
 | 易错词库 | `/cms/error-prone-words` | 编辑辅助：错误词→正确词，内容检查一键替换 | [内容管线](./content-pipeline) |
 | 互动问卷 | `/cms/interactions` | survey/poll 统一设计、发布/关闭、答卷、结果与导出 | [互动与运营](./interaction) |
-| 访问统计 | `/cms/stats` | PV/UV 趋势、内容 TOP、来源/设备/通道分布、搜索分析 | [全文检索](./search) |
+| 访问统计 | `/cms/stats` | PV/UV 趋势、内容 TOP、来源/设备分布、搜索分析 | [全文检索](./search) |
 | 采集中心 | `/cms/collect` | CSS 选择器采集 + 图片本地化 | [互动与运营](./interaction) |
-| 页面搭建 | `/cms/pages` | 区块拖拽、用户/角色 ACL、公开展示条件与实时预览 | [互动与运营](./interaction) |
+| 页面部件 | `/cms/widgets` | 手工榜单/实时来源内容块，草稿-发布-下线、主题插槽绑定、引用定向刷新 | [渲染与静态化](./static-and-render) |
+| 页面搭建 | `/cms/pages` | 区块拖拽（含 widget-ref 部件引用）、用户/角色 ACL、公开展示条件与实时预览 | [互动与运营](./interaction) |
 | 会员订阅 | `/cms/subscriptions` | 站点/栏目/作者订阅聚合、脱敏明细与导出 | [互动与运营](./interaction) |
 | 发布中心 | `/cms/publishing` | 通用任务队列投影、产物、失败恢复与导出 | [渲染与静态化](./static-and-render) |
 | 内容分发 | `/cms/distribution` | 跨站 copy/mapping/定时同步、冲突治理、行级结果与导出 | [站群与分发](./site-groups-and-distribution) |
@@ -86,7 +86,7 @@ CMS 前台路由（Hono 兜底路由）
 
 开放能力：`cms_open_app_grants`（开放应用的站点/栏目写入授权，fail-closed）/ `cms_content_tombstones`（硬删除墓碑，供 Headless 增量同步输出 `op=delete`）
 
-运营表：`cms_comments` / `cms_ad_slots` / `cms_ads` / `cms_ad_events` / `cms_forms` / `cms_form_submissions` / `cms_sensitive_words` / `cms_error_prone_words`（易错词）/ `cms_friend_links` / `cms_pages` / `cms_page_block_acls`
+运营表：`cms_comments` / `cms_ad_slots` / `cms_ads` / `cms_ad_events` / `cms_forms` / `cms_form_submissions` / `cms_sensitive_words` / `cms_error_prone_words`（易错词）/ `cms_friend_link_groups` / `cms_friend_links` / `cms_pages` / `cms_page_block_acls` / `cms_widgets` / `cms_widget_refs`（部件被页面/主题插槽引用的索引）/ `cms_widget_source_refs`（实时来源→部件反向索引，供内容/栏目变更触发定向刷新）
 
 模板与发布：主题为仓库内置 React TSX 主题（`default` / `docs`），无独立模板表；发布产物记录于 `cms_publish_artifacts`，发布任务与逐路径日志复用 `async_tasks` / `async_task_items`。
 
@@ -96,7 +96,7 @@ CMS 前台路由（Hono 兜底路由）
 
 > 访问统计为**服务端响应路径埋点**（静态命中同样统计，无需前端 JS），UV 按 ip+ua 哈希去重，爬虫流量单独归类不计入 PV/UV 卡片；报表基于原始日志实时聚合，原始日志由周期任务保留 90 天。
 
-SEO 与采集：`cms_redirects` / `cms_link_words` / `cms_push_logs` / `cms_search_words` / `cms_collect_rules` / `cms_collect_items`
+SEO 与采集：`cms_redirects` / `cms_link_words` / `cms_push_logs` / `cms_search_words` / `cms_hotword_groups` / `cms_hotwords`（可管理热词分组与词条）/ `cms_collect_rules` / `cms_collect_items`
 
 权限：`cms_site_users`（站点数据权限绑定）/ `cms_channel_users`（栏目数据权限绑定）；`cms_contents.dept_id`（创建时快照创建人部门，供部门数据权限过滤）
 
@@ -114,11 +114,11 @@ SEO 与采集：`cms_redirects` / `cms_link_words` / `cms_push_logs` / `cms_sear
 
 ## 权限码
 
-所有权限以 `cms:` 前缀，按资源划分：`cms:site:*`、`cms:site:hierarchy`、`cms:channel:*`、`cms:content:list|create|update|delete|publish|audit`、`cms:distribution:list|create|update|delete|run|export`、`cms:model:*`、`cms:tag:*`、`cms:link:*`、`cms:search:manage`、`cms:seo:manage|push`、`cms:comment:audit|delete`、`cms:ad:manage`、`cms:ad-event:list|export|export-raw|cleanup`、`cms:form:manage`、`cms:sensitive:manage`、`cms:word:list|manage`、`cms:interaction:list|manage|batch|export|export-raw`、`cms:subscription:list|export|export-raw`、`cms:stat:view`、`cms:collect:*`、`cms:page:create|update|delete|acl`、`cms:publish:view|build|manage|group`、`cms:dashboard:view`。
+所有权限以 `cms:` 前缀，按资源划分：`cms:site:list|create|update|delete|hierarchy`、`cms:channel:*`、`cms:content:list|create|update|delete|publish|audit|lock`、`cms:distribution:list|create|update|delete|run|export`、`cms:model:*`、`cms:tag:*`、`cms:link:*`、`cms:resource:list|upload|update|delete`、`cms:search:manage`、`cms:seo:manage|push`、`cms:comment:list|audit|delete`、`cms:ad:list|manage`、`cms:ad-event:list|export|export-raw|cleanup`、`cms:form:list|manage`、`cms:sensitive:list|manage`、`cms:word:list|manage`、`cms:interaction:list|manage|batch|export|export-raw`、`cms:subscription:list|export|export-raw`、`cms:stat:view`、`cms:collect:list|create|update|delete|run`、`cms:widget:list|create|update|publish|offline|delete|bind`、`cms:page:list|create|update|delete|acl`、`cms:publish:view|build|manage|group`、`cms:dashboard:view`。
 
 站点级数据权限：非平台超管必须在「站点管理 → 授权用户」中显式绑定后才能访问；未绑定时默认拒绝。平台超管可跨站点管理。
 
-## 企业级治理（P5）
+## 企业级治理
 
 - **栏目级数据权限**：非平台超管必须在「栏目管理 → 授权用户」中显式绑定后，才可管理对应栏目内容（列表、详情、状态流转与批量操作均按主栏目校验）；未绑定默认拒绝，平台超管不受限。表 `cms_channel_users`。
 - **部门数据权限**：内容创建时快照创建人 `created_by` 与其部门 `dept_id`；内容列表接入系统数据权限（`getDataScopeCondition`），角色数据范围为 本部门/本部门及以下/指定部门/仅本人 时自动过滤。

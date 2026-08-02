@@ -81,9 +81,9 @@ const user = currentUser(); // JwtPayload
 
 ```typescript
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { authMiddleware } from '../middleware/auth';
-import { guard } from '../middleware/guard';
-import { ErrorResponse, jsonContent, PaginationQuery, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody, errBody } from '../lib/openapi-schemas';
+import { authMiddleware } from '../../middleware/auth';
+import { guard } from '../../middleware/guard';
+import { jsonContent, PaginationQuery, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody, errBody } from '../../lib/openapi-schemas';
 
 // 不使用 <AuthEnv> 泛型，不添加全局 use('*', authMiddleware)
 const xxxRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -127,7 +127,7 @@ xxxRouter.openapiRoutes([createXxxRoute, /* 其他路由 */] as const);
 
 ## Service 层规范
 
-业务逻辑、数据映射、前置校验从路由中提取到 `packages/server/src/services/` 下，每个业务模块对应一个 `xxx.service.ts` 文件。所有路由均已完成 service 层提取。
+业务逻辑、数据映射、前置校验统一放在 `packages/server/src/services/{业务域}/` 下（与 `src/routes/{业务域}/` 目录同构），每个业务模块对应一个 `xxx.service.ts` 文件。
 
 ### 职责划分
 
@@ -191,9 +191,9 @@ const listXxxRoute = defineOpenAPIRoute({
 **约束：**
 
 - ❌ **禁止**在路由文件中本地声明带 `.openapi('EntityName')` 的实体 DTO（会导致 Swagger Components 重复或冲突）
-- ✅ 所有实体 DTO 按业务域拆分在 `packages/server/src/lib/dtos/` 子目录，当前 DTO 文件包括：`roles.ts`、`positions.ts`、`user-groups.ts`、`users.ts`、`menus.ts`、`departments.ts`、`tenants.ts`、`api-tokens.ts`、`auth.ts`、`dict.ts`、`files.ts`、`business-files.ts`、`logs.ts`、`announcements.ts`、`system-configs.ts`、`cron-jobs.ts`、`email-config.ts`、`cache.ts`、`db-backups.ts`、`db-admin.ts`、`monitor.ts`、`sessions.ts`、`workflow.ts`、`workflow-events.ts`、`dashboard.ts`、`region.ts`、`sms.ts`、`email.ts`、`in-app.ts`、`chat.ts`、`tags.ts`、`rate-limit.ts`、`ai.ts`、`data-mask.ts`、`oauth2.ts`、`maintenance.ts`、`terminal-files.ts`、`terminal-recordings.ts`、`processes.ts`、`analytics.ts`、`ssh-profiles.ts`、`ssh-sftp.ts`、`terminal-sessions.ts`、`frontend-errors.ts`、`payment.ts`、`member.ts`；`_audit.ts` 供 DTO 审计字段复用，`index.ts` 统一 re-export
+- ✅ 所有实体 DTO 按业务域拆分在 `packages/server/src/lib/dtos/` 下的子文件中（如 `users.ts`、`export-jobs.ts`、`async-tasks.ts`、`payment.ts`、`cms.ts` 等，与业务模块一一对应），`_audit.ts` 供 DTO 审计字段复用，`index.ts` 统一 re-export，`lib/openapi-dtos.ts` 作为对外 barrel
 - ✅ 内联使用的 request body schema、不作为 Component 的一次性匿名对象无需搬到中心文件
-- ✅ 新增实体模块时，先在 `packages/server/src/lib/dtos/` 下对应的子文件（或新建子文件）中添加 `export const XxxDTO = z.object({...}).openapi('Xxx');`，再在路由中从 `'../lib/openapi-dtos'` 导入
+- ✅ 新增实体模块时，先在 `packages/server/src/lib/dtos/` 下对应的子文件（或新建子文件）中添加 `export const XxxDTO = z.object({...}).openapi('Xxx');`，再在路由中从 `'../../lib/openapi-dtos'` 导入
 
 这样做的好处：Swagger Components 有单一来源，避免同名冲突；前端/第三方可直接使用稳定的 OpenAPI Components 名称。
 
@@ -206,20 +206,25 @@ const listXxxRoute = defineOpenAPIRoute({
 | `401` | 未登录或 token 无效 |
 | `403` | 无权限访问该资源 |
 | `404` | 资源不存在 |
+| `408` | 请求处理超时（启用 `REQUEST_TIMEOUT_MS` 时） |
+| `409` | 并发冲突（乐观锁重试耗尽等场景） |
+| `413` | 请求体超出大小限制（启用 `REQUEST_BODY_LIMIT` 时） |
+| `429` | 触发接口级限流 |
 | `500` | 服务端内部错误 |
 
-## 路由组织建议
+## 路由组织
 
-- 按资源拆分到 `packages/server/src/routes/`
-- 保持资源命名直观，如 `users.ts`、`roles.ts`、`dicts.ts`
-- 和前端页面、共享 schema 尽量保持一一对应，便于排查问题
-- 每个路由文件使用 `OpenAPIHono` 实例，由所属业务域的 `packages/server/src/routes/{业务域}/index.ts` 挂载，`src/app.ts` 的 `createApp()` 按 `ROUTE_DOMAINS` 顺序统一装配
+- 路由文件位于 `packages/server/src/routes/{业务域}/`，每个路由文件使用独立的 `OpenAPIHono` 实例并 `export default`
+- 每个业务域在自己的 `index.ts` 中用 `defineRouteDomain`（契约见 `src/routes/_kit.ts`）声明挂载清单；`src/routes/index.ts` 的 `ROUTE_DOMAINS` 只声明域顺序
+- `src/app.ts` 的 `createApp()` 按 `ROUTE_DOMAINS` 顺序统一装配所有域
+- 全量路由表（method + path）由 `src/app.routes.test.ts` 快照锁定——新增/删除路由后需运行该测试并更新快照
+- 保持资源命名直观（如 `users.ts`、`roles.ts`、`dicts.ts`），和前端页面、共享 schema 尽量一一对应
 
-## 数据删除规范
+## 数据删除与批量操作规范
 
 - 单条删除：`DELETE /api/resource/:id`
 - 批量删除：`DELETE /api/resource/batch`，body 传 `{ ids: number[] }`
-- 批量修改状态：`PATCH /api/resource/batch-status`，body 传 `{ ids: number[], status: 'enabled' | 'disabled' }`
+- 批量修改状态：`PUT /api/resource/batch-status`，body 传 `{ ids: number[], status: 'enabled' | 'disabled' }`
 
 ## 文件上传
 
@@ -308,17 +313,21 @@ Server-Timing: total;dur=45.2;desc="Total Response Time", db;dur=12.3
 | --- | --- | --- |
 | `SERVER_TIMING_ENABLED` | `false` | 设为 `true` 可开启，生产环境建议保持关闭以避免暴露内部耗时信息 |
 
-## 请求体大小限制与请求超时
+## 请求防护
 
-为防止大请求体导致服务端资源耗尽、长连接挂起等问题，服务端提供两个可选的防护中间件，均基于 Hono 官方实现（`hono/body-limit`、`hono/timeout`），**默认均不启用**。
+服务端内置多层可选防护，均在 `src/app.ts` 的 `createApp()` 中装配。
 
 ### 请求体大小限制（Body Limit）
+
+基于 `hono/body-limit`，默认不启用。
 
 - 作用范围：全局所有请求。
 - 超出限制时返回：`{ code: 413, message: '请求体超出大小限制', data: null }`（HTTP 413）。
 - 生产环境建议开启，视业务场景设定合理值。
 
 ### 请求超时（Request Timeout）
+
+基于 `hono/timeout` + `hono/combine` 的 `except()`，默认不启用。
 
 - 作用范围：`/api/*`，但**自动排除以下长耗时路径**：
   - `/api/ws` — WebSocket 连接
@@ -328,7 +337,22 @@ Server-Timing: total;dur=45.2;desc="Total Response Time", db;dur=12.3
   - `/api/log-files/*` — 日志文件读取
   - `/api/monitor/stream/*` — 监控流
   - `/api/ai/conversations/*` — AI 对话流
+  - `/api/ai/arena/*` — AI 竞技场流式对战
+  - `/api/ai/generations/*` — AI 生成任务
+  - 所有以 `/export` 结尾的导出接口
 - 超时后返回：`{ code: 408, message: '请求处理超时（Xms）', data: null }`（HTTP 408）。
+
+### CSRF 防护
+
+`hono/csrf` 校验 `Origin` 请求头，白名单由 `ALLOWED_ORIGINS`（逗号分隔）配置，留空时开发模式不限制。无 `Origin` 头的请求（curl / Postman / 服务端调用）直接放行；`/api/auth/enterprise/saml/acs`（SAML 回调）豁免校验。
+
+### 接口级限流
+
+基于 `hono-rate-limiter` + Redis，按场景挂载：登录（`/api/auth/login`）、验证码（`/api/auth/captcha`）、敏感操作（注册 / 忘记密码 / 重置密码）以及 `/api/*` 全局路径级限流。超限返回 `{ code: 429, ... }`。配置见 `src/middleware/rate-limit.ts`。
+
+### 幂等控制
+
+`idempotencyGuard`（`src/middleware/idempotency.ts`）在 `createRoute` 的 `middleware` 数组中按路由声明。客户端可显式传 `X-Idempotency-Key`，否则服务端按 `userId + method + path + bodyHash` 自动指纹，窗口期内重复请求直接返回首次结果。
 
 **环境变量配置：**
 
@@ -336,3 +360,4 @@ Server-Timing: total;dur=45.2;desc="Total Response Time", db;dur=12.3
 | --- | --- | --- |
 | `REQUEST_BODY_LIMIT` | `0` | 请求体大小上限（字节）。`0` 或未设置 = 不限制。常用值：`10485760` (10MB)、`104857600` (100MB) |
 | `REQUEST_TIMEOUT_MS` | `0` | 请求超时时间（毫秒）。`0` 或未设置 = 不启用 |
+| `ALLOWED_ORIGINS` | 空 | CSRF 来源白名单，逗号分隔。留空 = 开发模式不限制 |

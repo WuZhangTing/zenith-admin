@@ -13,7 +13,7 @@
 | `system` | 系统级模板（所有人可见） |
 | `user` | 用户私有模板 |
 
-模板字段包括 `name`、`content`、`description`、`category`、`scope`、`userId`、`isBuiltin`、`sort`、`usageCount`、`isEnabled`。管理列表支持分页、范围筛选与名称 / 描述关键词搜索。
+模板字段包括 `name`、`content`（≤5000 字符）、`description`、`category`、`scope`、`userId`、`isBuiltin`、`sort`、`usageCount`、`isEnabled`。管理列表支持分页、范围筛选与名称 / 描述关键词搜索。
 
 内置模板种子数据来自 `SEED_AI_PROMPT_TEMPLATES`（通用助手 / 翻译助手 / 编程助手 / 文案写作 / 内容总结），`isBuiltin = true`，服务端禁止删除。
 

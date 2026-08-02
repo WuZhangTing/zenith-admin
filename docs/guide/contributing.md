@@ -28,7 +28,7 @@ npm run docs:preview
 
 **触发条件：**
 
-- 推送到 `master` 分支
+- 推送到 `master` 分支且变更命中路径过滤（`docs/**`、`packages/web/**`、`packages/shared/**`、根 `package.json` / `package-lock.json`、工作流自身）
 - PR 时仅构建校验，不发布
 - 支持手动触发（`workflow_dispatch`）
 
@@ -69,18 +69,22 @@ VitePress 配置已按环境自动切换 `base` 路径：
 
 Zenith Admin 采用 **tag 触发 Release** 的自动化发布流程：
 
-1. 更新四个 `package.json` 中的版本号（根 / server / web / shared）
+1. 更新六个 `package.json` 中的版本号（根 / server / web / shared / analytics-sdk / electron）
 2. 在项目根目录执行 `npm install --package-lock-only`，同步 `package-lock.json`
-3. 执行 `npm test` 运行全部测试（涉及资金链路改动时，另跑 `MEMBER_FUNDS_DB_IT=1` 的 DB 集成测试）
-4. 在 `docs/changelog/index.md` 顶部追加当前版本的变更记录
-5. 使用 Node.js 24 执行 `npm run build` 做发布前构建校验
-6. 提交并推送到 `master`
-7. 本地打 tag 并推送，触发 Release 工作流
+3. 执行 `npm run lint` 做静态检查
+4. 执行 `npm test` 运行全部测试（涉及资金链路改动时，另跑 `MEMBER_FUNDS_DB_IT=1` 的 DB 集成测试）
+5. 在 `docs/changelog/index.md` 顶部追加当前版本的变更记录
+6. 使用 Node.js 24 依次执行 `npm run build`、`npm run docs:build`、`npm run build:demo` 做发布前构建校验
+7. 提交并推送到 `master`
+8. 本地打 tag 并推送，触发 Release 工作流
 
 ```bash
 npm install --package-lock-only
+npm run lint
 npm test
 npm run build
+npm run docs:build
+npm run build:demo
 
 git add .
 git commit -m "chore: release vX.Y.Z"
@@ -96,7 +100,7 @@ git push origin vX.Y.Z
 
 推送 `v*.*.*` 格式的 tag 后，`.github/workflows/release.yml` 自动完成：
 
-1. 构建全部产物（shared → server → web）
+1. 构建全部产物（shared → analytics-sdk → server → web）
 2. 打包发布产物：
    - `zenith-admin-server-vX.Y.Z.zip`（后端 `dist/` + `drizzle/` + `package.json`）
    - `zenith-admin-web-vX.Y.Z.zip`（前端静态文件）

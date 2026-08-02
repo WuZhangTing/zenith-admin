@@ -28,9 +28,11 @@ CRUD 操作均**先调微信**（`customservice/kfaccount/add|update|del`）成�
 | --- | --- |
 | `mp_kf_sessions` | 会话主体（粉丝 openid × 客服）：`waiting` 排队 → `active` 进行 → `closed` 结束；含 `priority` 优先级、`unread_count` 未读、各时间戳、`close_reason`、`rating` 满意度 |
 | `mp_kf_session_events` | 事件流水：`create` / `assign` / `accept` / `transfer` / `reroute` / `close`，支撑转接历史与时间线 |
-| `mp_kf_routing_configs` | 每公众号一份路由治理配置：策略、单客服最大并发、排队超时、空闲超时、自动结束开关、欢迎语 |
+| `mp_kf_routing_configs` | 每公众号一份路由治理配置：`enabled` 总开关（默认关闭）、策略、单客服最大并发、排队超时、空闲超时、自动结束开关、欢迎语 |
 
 > `(account_id, openid) where status <> 'closed'` 部分唯一索引保证同一粉丝在同一公众号下至多一个未结束会话。
+
+> **路由治理默认关闭**：`enabled` 未开启时，粉丝消息不会创建会话（回调中 `onFanInboundMessage` 直接返回），定时任务也不处理该账号。在会话工作台「路由配置」中开启后生效。
 
 ### 状态流转
 
@@ -63,28 +65,28 @@ active --空闲超时 + 开启自动结束--> closed（idle_timeout）
 
 | 操作 | 说明 |
 | --- | --- |
-| **接入** | 粉丝实质消息触发 `onFanInboundMessage`：已有未结束会话则累加未读；无会话则建排队会话，策略非 `manual` 时尝试自动分配。人工接入走 `accept` 指定客服 |
+| **接入** | 粉丝实质消息触发 `onFanInboundMessage`（需路由治理已启用）：已有未结束会话则累加未读；无会话则建排队会话，策略非 `manual` 时尝试自动分配。人工接入走 `accept` 指定客服 |
 | **转接** | `transfer` 将进行中会话改派给另一名客服，落 `transfer` 事件（含 from/to 客服 + 备注） |
 | **结束** | `close` 关闭会话（`close_reason = manual`） |
 | **回复** | 会话内 `reply` 调微信下发客服消息（开启内容安全时先校验），更新 `last_kf_msg_at` 并清零未读 |
 
-接入 / 转接时若配置了欢迎语，通过 `setImmediate` 异步最佳努力下发（不阻塞回调）。
+人工接入（`accept`）与自动分配（`assign`）时若配置了欢迎语，通过 `setImmediate` 异步最佳努力下发（不阻塞回调）；转接与超时重路由不重复下发。
 
 ---
 
 ## 超时自动路由
 
-系统定时任务 `mp-kf-session-tick`（`registerSystemRecurringJob`，每分钟）执行 `runMpKfSessionTimeouts`：
+系统定时任务 `mp-kf-session-tick`（`registerSystemRecurringJob`，每分钟）执行 `runMpKfSessionTimeouts`，仅处理已启用路由治理的账号：
 
-- **排队超时**：`waiting` 会话等待超过 `wait_timeout_minutes` 时尝试重新路由（`reroute`）分配客服；无可用客服则提升优先级。
+- **排队超时**：策略非 `manual` 时，`waiting` 会话等待超过 `wait_timeout_minutes` 尝试重新路由（`reroute`）分配客服；无可用客服则提升优先级。
 - **空闲超时**：`active` 会话 `last_msg_at` 超过 `idle_timeout_minutes` 且开启 `auto_close_enabled` 时自动结束（`close_reason = idle_timeout`）。
 
 ---
 
 ## 满意度与会话报表
 
-- **满意度**：会话结束后 `POST /api/mp/kf-sessions/{id}/rate` 记录 1–5 星评分与备注（`rating` / `rating_remark`）；概览统计返回今日 `avgRating`。
-- **会话报表**：`GET /api/mp/kf-sessions/report?days=N` 返回近 N 天每日新建 / 结束会话量、平均接入等待秒数、平均评分。
+- **满意度**：`POST /api/mp/kf-sessions/{id}/rate` 记录 1–5 星评分与备注（`rating` / `rating_remark`），通常在会话结束后评价；概览统计返回今日 `avgRating`。
+- **会话报表**：`GET /api/mp/kf-sessions/report?days=N`（1–31，默认 7）返回近 N 天每日新建 / 结束会话量、平均接入等待秒数、平均评分。
 
 ---
 
@@ -114,7 +116,7 @@ active --空闲超时 + 开启自动结束--> closed（idle_timeout）
 | `GET` | `/api/mp/kf-sessions/report` | `mp:kf:session:list` | 会话数据报表 |
 | `GET` | `/api/mp/kf-sessions/config` | `mp:kf:session:list` | 获取路由治理配置 |
 | `PUT` | `/api/mp/kf-sessions/config` | `mp:kf:session:config` | 保存路由治理配置 |
-| `GET` | `/api/mp/kf-sessions/{id}` | `mp:kf:session:list` | 会话详情（消息 + 事件时间线） |
+| `GET` | `/api/mp/kf-sessions/{id}` | `mp:kf:session:list` | 会话详情（最近 50 条消息 + 事件时间线） |
 | `POST` | `/api/mp/kf-sessions/{id}/accept` | `mp:kf:session:accept` | 接入会话 |
 | `POST` | `/api/mp/kf-sessions/{id}/transfer` | `mp:kf:session:transfer` | 转接会话 |
 | `POST` | `/api/mp/kf-sessions/{id}/close` | `mp:kf:session:close` | 结束会话 |

@@ -23,16 +23,19 @@ cp .env.docker .env
 # 3. 启动全部服务（首次会自动构建镜像，约 2-5 分钟）
 docker compose up -d
 
-# 4. 查看服务状态
+# 4. 初始化种子数据（创建默认管理员账号 admin / 123456 及菜单等初始数据，仅首次需要）
+docker compose exec api node dist/db/seed.js
+
+# 5. 查看服务状态
 docker compose ps
 ```
 
 服务启动完成后，访问：
 
-- **前端**：`http://localhost`（默认 80 端口）
+- **前端**：`http://localhost`（默认 80 端口），默认账号 `admin` / `123456`
 - **API**：`http://localhost:3300`（仅需调试时使用）
 
-> 首次启动时后端容器会自动执行 Drizzle 数据库迁移，无需手动操作。
+> 首次启动时后端容器会自动执行 Drizzle 数据库迁移；种子数据不会自动填充，需按上面第 4 步手动执行一次（可安全重复执行）。
 
 ---
 
@@ -69,7 +72,10 @@ redis    ─┤──→  api (Node.js :3300)  ──→  web (Nginx :80)
 | `ALLOWED_ORIGINS` | *(空)* | CSRF 白名单，生产环境设置为前端域名 |
 | `CORS_ORIGIN` | `*` | CORS 允许来源，同域部署无需修改 |
 | `LOG_LEVEL` | `info` | 日志级别（`debug` / `info` / `warn` / `error`） |
-| `TAG` | `latest` | 镜像标签，多版本管理时使用（如 `0.63.0`） |
+| `OAUTH_GITHUB_CLIENT_ID` | *(空)* | GitHub OAuth 登录的 Client ID（可选） |
+| `OAUTH_GITHUB_CLIENT_SECRET` | *(空)* | GitHub OAuth 登录的 Client Secret（可选） |
+| `OAUTH_CALLBACK_BASE_URL` | `http://localhost` | OAuth 回调基础地址，需与前端对外地址一致 |
+| `TAG` | `latest` | 镜像标签，多版本管理时使用（如 `1.33.0`） |
 
 ::: warning 生产环境安全提示
 `JWT_SECRET` 务必修改为强随机字符串。推荐使用：
@@ -147,9 +153,9 @@ npm run dev
 
 | 阶段 | 目标镜像 | 基础 | 说明 |
 | --- | --- | --- | --- |
-| `builder` | *(中间层)* | `node:24-alpine` | 安装全量依赖、编译 shared + server + web |
-| `server` | `zenith-admin-api` | `node:24-alpine` | 仅含生产依赖 + 编译产物，约 300MB |
-| `web` | `zenith-admin-web` | `nginx:1.27-alpine` | 静态文件 + nginx 配置，约 30MB |
+| `builder` | *(中间层)* | `node:24-alpine` | 安装全量依赖、编译 shared + analytics-sdk + server + web |
+| `server` | `zenith-admin-api` | `node:24-alpine` | 仅含生产依赖 + 编译产物 |
+| `web` | `zenith-admin-web` | `nginx:1.27-alpine` | 静态文件 + nginx 配置 |
 
 **关键技术说明**：`packages/shared` 的 `package.json` 开发模式下导出 TypeScript 源文件（供 `tsx` 使用），在 `builder` 阶段完成编译后，Dockerfile 会自动将 exports 切换为 `dist/*.js`，保证生产环境 Node.js 能正常解析，无需改动源代码。
 

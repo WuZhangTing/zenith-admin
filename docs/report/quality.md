@@ -39,11 +39,11 @@ SELECT row FROM dataset WHERE (row->>'amount')::numeric < 0
 
 ## 质量异常
 
-规则失败会产出**异常记录**，状态流转为 `open（待处理）→ acknowledged（已确认）| ignored（已忽略）| resolved（已解决）`。失败样本受行数与字节预算限制，不会保存无限结果。
+规则失败会产出**异常记录**，状态流转为 `open（待处理）→ acknowledged（已确认）| ignored（已忽略）| resolved（已解决）`。失败样本受预算限制（最多 100 行、64KB），不会保存无限结果。
 
 ## 运行历史
 
-每次执行落一条运行记录，状态为 `pending | running | succeeded | failed | cancelled`，包含检查行数、失败行数、耗时与失败样本，便于回溯。
+每次执行落一条运行记录，状态为 `pending | running | succeeded | failed | cancelled`，记录触发方式（手动/定时）、检查行数、失败行数、耗时与失败样本，便于回溯。
 
 ## 权限
 

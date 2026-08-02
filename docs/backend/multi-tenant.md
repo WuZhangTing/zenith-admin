@@ -1,287 +1,127 @@
-# 多租户指南
+# 多租户
 
-Zenith Admin 内置了可选的多租户（Multi-Tenant）能力，默认关闭。开启后，已接入的业务表按 `tenant_id` 隔离数据，适用于 SaaS 场景。
+系统支持可选的多租户模式：一套部署服务多个相互隔离的组织。多租户能力由系统配置开关控制，关闭时系统以单租户（平台）模式运行，所有租户过滤自动失效。
 
----
+代码位置速查：
 
-## 核心概念
-
-| 概念 | 说明 |
+| 模块 | 位置 |
 | --- | --- |
-| **租户（Tenant）** | 独立的业务单元，拥有各自的用户、数据与配置 |
-| **平台超管** | `super_admin` 角色且 `tenantId = null` 的用户，可管理所有租户 |
-| **租户管理员** | 属于某个租户的普通管理员，只能看到本租户数据 |
-| **多租户模式** | 通过环境变量开关控制，关闭时与单实例模式完全兼容 |
+| 租户过滤工具 | `packages/server/src/lib/tenant.ts` |
+| 用户配额 | `packages/server/src/lib/tenant-quota.ts` |
+| 套餐菜单授权 | `packages/server/src/lib/tenant-package.ts` |
+| 租户生命周期 | `packages/server/src/services/identity/tenant-lifecycle.service.ts` |
+| 表结构 | `packages/server/src/db/schema/core.ts` |
 
----
+## 数据模型
 
-## 快速启用
-
-### 第一步：后端 `.env`
-
-```dotenv
-MULTI_TENANT_MODE=true
-```
-
-### 第二步：前端 `.env`
-
-```dotenv
-VITE_MULTI_TENANT_MODE=true
-```
-
-两端都需要设置，开关**必须保持一致**。设置完成后重启服务即可生效。
-
-> 关闭时（默认），系统不追加 `tenant_id` 过滤。
-
----
-
-## 租户表结构
-
-```sql
-CREATE TABLE tenants (
-  id          SERIAL PRIMARY KEY,
-  name        VARCHAR(100) NOT NULL,
-  code        VARCHAR(50)  NOT NULL UNIQUE,   -- 租户唯一编码，登录时作为路由凭证
-  logo        VARCHAR(500),
-  contact_name  VARCHAR(50),
-  contact_phone VARCHAR(20),
-  status      status_enum  NOT NULL DEFAULT 'enabled',
-  expire_at   TIMESTAMPTZ,                    -- 到期时间（NULL = 永不到期）
-  max_users   INTEGER,                        -- 最大用户数限制（NULL = 不限）
-  remark      TEXT,
-  created_by  INTEGER,
-  updated_by  INTEGER,
-  created_at  TIMESTAMP    NOT NULL DEFAULT NOW(),
-  updated_at  TIMESTAMP    NOT NULL DEFAULT NOW()
-);
-```
-
-租户编码（`code`）是登录时定向进入指定租户的凭证，建议使用简短英文标识，如 `acme`、`demo`。
-
----
-
-## 数据隔离机制
-
-多租户模式下，已接入租户隔离的表通过 `tenant_id` 字段与 `tenantCondition()` / `tenantScope()` 查询条件实现行级隔离。常用表包括：
-
-- `departments`（部门）
-- `positions`（岗位）
-- `users`（用户）
-- `roles`（角色）
-- `dicts`（字典）
-- `managed_files`（文件记录）
-- `system_configs`（系统配置）
-- `login_logs` / `operation_logs`（日志）
-- 支付、通知、工作流、数据分析等业务表（参见 `packages/server/src/db/schema/` 各业务域文件中带 `tenant_id` 的表）
-
-多数租户业务表的 `tenant_id` 外键使用 `ON DELETE CASCADE`，删除租户时关联业务数据会随租户删除；少数记录类表按业务语义使用 `SET NULL` 或非外键字段。
-
-### 过滤工具函数
-
-`packages/server/src/lib/tenant.ts` 提供以下公共函数：
-
-```ts
-// 判断当前用户是否为平台超管
-isPlatformAdmin(user: JwtPayload): boolean
-
-// 获取当前有效的租户 ID（超管切换视角后返回切换的目标 tenantId）
-getEffectiveTenantId(user: JwtPayload): number | null
-
-// 构建查询时的 WHERE 过滤条件
-tenantCondition(table, user): SQL | undefined
-
-// service 层推荐：自动从 contextStorage/currentUser() 获取当前用户
-tenantScope(table): SQL | undefined
-
-// service 层推荐：创建数据时自动从当前用户（或超管视角）获取 tenantId
-currentCreateTenantId(): number | null
-```
-
-在 service 中使用示例：
-
-```ts
-import { tenantScope } from '../lib/tenant';
-
-export async function listBusinessRows() {
-  const cond = tenantScope(someBusinessTable);
-  const rows = await db.select()
-    .from(someBusinessTable)
-    .where(cond ? and(cond, ...otherConditions) : and(...otherConditions));
-  return rows;
-}
-```
-
----
-
-## 登录流程（多租户模式）
-
-登录接口 `POST /api/auth/login` 新增可选字段 `tenantCode`：
-
-```json
-{
-  "username": "alice",
-  "password": "password123",
-  "tenantCode": "acme"
-}
-```
-
-后端逻辑：
-
-1. 解析 `tenantCode`，查询 `tenants` 表获取租户 ID
-2. 检查租户状态（`disabled` → 返回 403）
-3. 检查租户有效期（`expire_at` 已过 → 返回 403）
-4. 验证用户名密码，要求用户的 `tenant_id` 与租户 ID 一致
-5. 将 `tenantId` 签入 JWT，后续所有请求自动携带
-
-> 不传 `tenantCode` 时，多租户模式只匹配 `tenant_id IS NULL` 的平台用户，平台超管可直接以平台身份登录。
-
-### 前端登录页
-
-当 `VITE_MULTI_TENANT_MODE=true` 时，登录表单自动显示「租户编码」输入框。
-
----
-
-## 平台超管视角切换
-
-平台超管（`super_admin` 且本人无 `tenantId`）可在管理后台顶栏的下拉框切换至任意租户的视角：
-
-- 切换会重新签发包含 `viewingTenantId` 的 Token
-- 切换后各业务列表、用户管理等页面均以目标租户视角过滤
-- 可随时切回「平台视角」（`viewingTenantId = null`），查看全量数据
-
-切换接口：`POST /api/auth/switch-tenant`，Body：`{ "tenantId": 1 }` 或 `{ "tenantId": null }`（切回平台）。
-
----
-
-## 租户管理页面（CRUD）
-
-菜单路径：**系统管理 → 租户管理**（菜单权限：`system:tenant:list`）
+### tenants 表
 
 | 字段 | 说明 |
 | --- | --- |
-| 租户名称 | 租户显示名，如「ACME 公司」 |
-| 租户编码 | 唯一标识（全局唯一），登录时使用 |
-| 状态 | `enabled` / `disabled` |
-| 到期时间 | 为空则永不过期 |
-| 最大用户数 | 为空则不限 |
-| 联系人 / 联系电话 | 选填 |
+| `code` | 租户编码（登录时输入，唯一） |
+| `name` | 租户名称 |
+| `packageId` | 绑定的租户套餐（引用 `tenant_packages`，`onDelete: restrict`） |
+| `maxUsers` | 用户数上限（**强制执行**，见下文配额） |
+| `expireAt` | 到期时间（`timestamptz`，空 = 永不过期） |
+| `status` | `enabled` / `disabled` |
+| `contactName` / `contactPhone` | 联系人信息 |
 
-**仅平台超管可访问此页面**，普通租户管理员无权操作。
+### 数据归属
 
-权限点：
+业务表通过 `tenantId` 列（引用 `tenants.id`）标记归属：
 
-| 权限码 | 说明 |
+- `tenantId = NULL` → 平台数据（不属于任何租户）
+- `tenantId = n` → 租户 n 的数据
+
+`users` 表的用户名 / 邮箱 / 手机号均为 **(tenantId, 字段) 复合唯一**——不同租户可以有同名用户。
+
+## 租户过滤工具
+
+`src/lib/tenant.ts` 提供五个核心函数，service 层查询必须使用它们而非手写 `eq(t.tenantId, ...)`：
+
+```ts
+/** 多租户功能是否开启（读系统配置，带缓存） */
+isMultiTenantEnabled(): Promise<boolean>
+
+/** 当前用户可见数据的租户过滤 SQL 片段；单租户模式或平台超管返回 undefined（不过滤） */
+tenantFilter(table): Promise<SQL | undefined>
+
+/** 写入数据时应落的 tenantId；平台超管在租户视角下写入该租户 */
+currentTenantIdForWrite(): Promise<number | null>
+
+/** 审计等场景取用户的有效租户 ID */
+getEffectiveTenantId(user): number | null
+
+/** 校验目标资源租户归属，跨租户访问抛 403 */
+assertTenantAccess(resourceTenantId): Promise<void>
+```
+
+行为矩阵：
+
+| 场景 | 过滤行为 |
 | --- | --- |
-| `system:tenant:list` | 查看列表 |
-| `system:tenant:create` | 新增租户 |
-| `system:tenant:update` | 编辑租户 |
-| `system:tenant:delete` | 删除租户 |
+| 多租户关闭 | 不过滤，所有数据可见 |
+| 平台超管（`tenantId = null`） | 默认可见全部；切换到租户视角后按该租户过滤 |
+| 租户用户 | 强制 `tenantId = 自身租户` |
 
----
+## 登录与租户上下文
 
-## 为新业务模块添加租户隔离
+登录时可选传 `tenantCode`：
 
-在实现新的 CRUD 模块（可参考 [Zenith Skill](../ai/skills)）时，若该模块需要租户隔离，按以下步骤操作：
+1. 传了 `tenantCode` → 查租户：不存在 → 401；`status = disabled` → 403「租户已停用」；已过期 → 403「租户已过期」；然后**只在该租户内**匹配用户
+2. 未传 → 只匹配平台用户（`tenant_id IS NULL`）
 
-### 1. Schema 中添加 `tenant_id` 字段
+登录成功后 JWT payload 携带 `tenantId`，后续所有过滤基于它。
+
+### 租户切换（平台超管）
+
+- `GET /api/auth/tenants` — 获取可切换的租户列表
+- `POST /api/auth/switch-tenant` — 切换视角，签发带目标 `tenantId` 的新 token；再次调用传 `tenantId: null` 切回平台视角
+
+## 租户套餐
+
+套餐（`tenant_packages` + `tenant_package_menus` 表）定义一组可用菜单，实现按套餐售卖功能模块：
+
+- 管理端点：`GET /api/tenant-packages`（分页）、`GET /api/tenant-packages/all`（下拉全量）、`GET /{id}`、`POST /`、`PUT /{id}`、`PUT /{id}/menus`（配置套餐菜单）、`DELETE /{id}`、`DELETE /batch`
+- 租户通过 `tenants.packageId` 绑定套餐
+
+菜单授权求值（`getTenantPackageMenuIdSet`，`src/lib/tenant-package.ts`）：
+
+| 场景 | 结果 |
+| --- | --- |
+| 多租户关闭 / 平台用户 / 租户未绑定套餐 | `null` — 不限制 |
+| 套餐被禁用 | **空集** — fail-closed，租户所有套餐菜单不可见 |
+| 正常绑定 | 套餐勾选的菜单 ID 集合（按钮子节点自动并入） |
+
+租户用户的最终可见菜单 = 角色授权菜单 ∩ 套餐菜单。
+
+## 用户配额
+
+`ensureTenantUserQuota()`（`src/lib/tenant-quota.ts`）在创建用户 / 导入用户时强制校验：租户当前用户数达到 `maxUsers` 时抛 400「租户用户数已达上限」。`maxUsers = 0` 或空表示不限制。
+
+## 租户生命周期
+
+- **到期巡检**：系统调度任务 `tenant-expiry-check`（每天 01:30）自动停用已过期租户并吊销其用户会话；到期前 7 / 3 / 1 天向租户管理员与平台超管发送站内信提醒
+- **用量概览**：`GET /api/tenants/{id}/stats` 返回租户的用户数、角色数等用量统计
+- 租户管理端点：`GET/POST /api/tenants`、`PUT /api/tenants/{id}`、`DELETE /api/tenants/{id}` 等，权限码 `system:tenant:*`
+
+## Service 层开发约定
 
 ```ts
-// packages/server/src/db/schema/{业务域}.ts
-export const orders = pgTable('orders', {
-  id: serial('id').primaryKey(),
-  // ... 其他字段
-  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+// ✅ 查询：合并租户过滤
+const filter = await tenantFilter(articles);
+const rows = await db.select().from(articles)
+  .where(and(filter, eq(articles.status, 'published')));
+
+// ✅ 写入：落有效租户
+await db.insert(articles).values({
+  ...input,
+  tenantId: await currentTenantIdForWrite(),
 });
+
+// ✅ 详情 / 更新 / 删除：先校验归属
+const [row] = await db.select().from(articles).where(eq(articles.id, id));
+await assertTenantAccess(row.tenantId);
 ```
 
-### 2. 列表查询中追加过滤条件
-
-```ts
-import { tenantScope } from '../lib/tenant';
-
-export async function listOrders() {
-  const conditions: SQL[] = [];
-
-  // 多租户过滤
-  const tCond = tenantScope(orders);
-  if (tCond) conditions.push(tCond);
-
-  // 其他业务过滤条件
-  if (keyword) conditions.push(like(orders.name, `%${keyword}%`));
-
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
-  const rows = await db.select().from(orders).where(where);
-  return rows;
-}
-```
-
-### 3. 创建时写入 `tenantId`
-
-```ts
-import { currentCreateTenantId } from '../lib/tenant';
-
-export async function createOrder(validatedData: CreateOrderInput) {
-  await db.insert(orders).values({
-    ...validatedData,
-    tenantId: currentCreateTenantId(),  // 自动从当前用户（或超管视角）获取
-  });
-}
-```
-
-### 注意事项
-
-- `tenantCondition` 在多租户模式关闭时返回 `undefined`，不添加任何过滤
-- 平台超管在「平台视角」（`viewingTenantId = null`）时，`tenantCondition` 同样返回 `undefined`，可查看全量数据
-- 超管切换至某租户视角后，`tenantCondition` 返回 `eq(table.tenantId, viewingTenantId)`
-- `menus` 菜单表保持全局共享；`roles`、`dicts`、`system_configs` 已支持租户级数据
-- **业务数据**（用户、部门、订单等）需要隔离，在 Step 0 信息收集时明确确认
-
----
-
-## 架构图
-
-```text
-请求进入
-  │
-  ▼
-authMiddleware（解析 JWT，写入 user payload）
-  │   user.tenantId          ← 用户本身所属租户
-  │   user.viewingTenantId   ← 超管切换视角后的目标租户（可选）
-  │
-  ▼
-业务路由
-  │
-  ├─ tenantCondition(table, user)
-  │      多租户关闭  → undefined（不过滤）
-  │      超管平台视角 → undefined（看所有）
-  │      超管租户视角 → eq(tenantId, viewingTenantId)
-  │      普通用户    → eq(tenantId, user.tenantId)
-  │
-  ▼
-数据库查询
-```
-
----
-
-## 常见问题
-
-**Q：已有项目如何从单实例迁移到多租户？**
-
-1. 运行 `npm run db:migrate`（迁移已包含 `tenants` 表及各业务表的 `tenant_id` 字段）
-2. 创建平台超管账号（`tenantId = null`，角色含 `super_admin`）
-3. 在租户管理页创建租户，为现有用户分配 `tenant_id`
-4. 设置 `MULTI_TENANT_MODE=true` 并重启
-
-**Q：如何控制单个租户的用户上限？**
-
-在租户记录的「最大用户数」（`maxUsers`）字段填入数值。目前该字段为信息字段，如需强制约束，在用户创建路由中加入检测逻辑（查询当前租户下的用户数量，超出则拒绝）。
-
-**Q：租户之间的数据是否完全物理隔离？**
-
-当前使用行级隔离（`tenant_id` 过滤）而非独立数据库。数据存储在同一 PostgreSQL 实例中，通过查询条件隔离。若需物理隔离，需自行扩展为多数据库方案。
-
-**Q：关闭多租户模式后，`tenant_id` 字段的数据怎么处理？**
-
-关闭多租户模式后，`tenantCondition` 返回 `undefined`，查询不再过滤 `tenant_id`，所有数据对所有用户可见。字段本身不会被删除，不影响数据结构。
+审计日志自动按 `getEffectiveTenantId()` 记录归属租户：租户用户记自身租户；平台超管在租户视角下记该租户，平台视角记 `null`。

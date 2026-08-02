@@ -1,149 +1,182 @@
 # 后台管理页面
 
-支付中心提供覆盖渠道配置、订单管理、退款管理、回调排查的后台管理页面，并内置收款趋势统计看板；B 档进一步扩展费率、结算、分账、支付链接、风控、支付方式与财务报表。所有列表页遵循统一布局规范（`SearchToolbar` + `ConfigurableTable`，操作列右固定）。
+支付中心在后台「支付管理」目录下共 **20 个页面**（`packages/web/src/pages/payment/`），权限码清单见[安全设计](./security.md#权限与数据权限)。
 
 ## 页面一览
 
-| 页面 | 路径 | 功能 |
-| --- | --- | --- |
-| 支付渠道配置 | `/payment/channels` | CRUD + 密钥掩码 + 沙箱开关 + 连通性测试 + 一键设为默认 |
-| 支付订单 | `/payment/orders` | 列表 / 详情 / 查单 / 手动退款；渠道·方式·状态·金额区间·创建时间范围多维筛选；订单详情含复制单号、交易时间轴、关联退款明细；「统计分析」Tab 收款趋势看板 |
-| 退款记录 | `/payment/refunds` | 列表 / 详情；时间范围筛选；退款查单同步（处理中→成功/失败，回调兜底） |
-| 回调日志 | `/payment/logs` | 排查回调与验签问题；渠道·场景·验签结果·时间范围筛选；详情展示请求头 + 原始 Body |
-
-## 支付渠道配置
-
-- 微信 / 支付宝渠道的增删改查，密钥字段以 `hasXxx` 掩码显示、留空不修改（见 [渠道适配与配置](./channels)）；
-- **状态开关**：行内 Switch 直接启用 / 停用；
-- **连通性测试**：上线前校验商户凭据（探测不存在订单号，"订单不存在"即凭据有效）；
-- **一键设为默认**：同渠道互斥，自动启用，业务下单不指定渠道时使用默认配置。
-
-## 支付订单
-
-- **多维筛选**：订单号 / 标题关键字、业务类型、渠道、支付方式、订单状态、金额区间（元）、创建时间范围；
-- **行操作**：详情、查单（主动同步状态）、关闭、手动退款（按权限与状态显隐）；
-- **手动下单**：后台直接发起支付，弹窗展示二维码 / 跳转链接 / APP 调起串，并每 3s 轮询订单详情；
-- **订单详情**：复制订单号 / 商户单号 / 渠道交易号；**交易时间轴**（创建 → 支付 → 退款 → 关闭）；**关联退款明细**表；
-- **统计分析 Tab**：收款趋势看板（见下）。
-
-## 退款记录
-
-- 按退款单号 / 订单号、渠道、状态、创建时间范围筛选；
-- **退款查单同步**：对处理中 / 待处理的退款单调渠道查单接口，纠正本地状态（成功 → 联动订单状态，失败 → 回滚订单为 `success`），作为退款回调的兜底；
-- 退款详情可复制单号、查看渠道退款号与错误信息。
-
-## 回调日志
-
-- 按订单号、渠道、场景（支付 / 退款回调）、验签结果（通过 / 失败）、时间范围筛选；
-- 详情弹窗展示**请求头 + 原始 Body**（JSON 美化），用于排查验签失败与对账争议（见 [异步通知与对账](./callback)）。
-
-## 统计接口
-
-| 接口 | 说明 |
-| --- | --- |
-| `GET /api/payment/stats` | 概览：累计 / 今日成功金额与笔数、支付成功率、退款率、成功笔均、渠道 / 状态分布 |
-| `GET /api/payment/trend?days=N` | 收款趋势：近 N 天（默认 30，最大 365）按天聚合成功金额 / 笔数 / 退款金额，无数据日期补 0 |
-| `POST /api/payment/channels/{id}/default` | 设为该渠道默认（同租户同渠道互斥，自动启用） |
-| `POST /api/payment/refunds/{id}/query` | 退款主动查单并同步本地状态 |
-
-### 收款趋势看板
-
-「支付订单 → 统计分析」Tab 以图表形式呈现：
-
-- **KPI 卡**：累计 / 今日成功金额、成功率、累计退款、退款率、成功笔均；
-- **收款趋势面积图**：近 7 / 30 / 90 天收款与退款金额双曲线；
-- **渠道成功金额分布**（柱状）+ **订单状态分布**（环图）。
-
-> 趋势按天聚合时使用 `to_char(timezone(APP_TIME_ZONE, paid_at), 'YYYY-MM-DD')` 并 `GROUP BY 1`（按序号分组），与后端 `formatDate` 时区一致、缺口补 0。
-
-## 支付中心扩展 · B 档
-
-在基础支付能力之上，B 档补齐对标主流支付平台的运营与资金能力：手续费、结算、分账、支付链接、风控、支付方式与财务报表。所有页面遵循统一布局规范，金额一律以「分」为单位存储、以「元」展示与录入，时间统一 `YYYY-MM-DD HH:mm:ss`。
-
-### 页面一览（B 档）
-
-| 页面 | 路径 | 权限码 | 功能 |
+| 分组 | 页面 | 路由 | 核心功能 |
 | --- | --- | --- | --- |
-| 费率管理 | `/payment/fee-rules` | `payment:fee:list` | 费率规则 CRUD（按渠道 / 支付方式匹配，万分比 + 固定费，可设上下限与优先级）；支付成功自动算费 |
-| 结算管理 | `/payment/settlements` | `payment:settlement:list` | 按渠道 + 账期聚合成功订单生成结算批次；状态机流转（待结算→结算中→已结算/失败） |
-| 分账管理 | `/payment/sharing` | `payment:sharing:list` | 分账接收方管理 + 针对成功订单发起单笔分账，留存渠道分账单号与状态 |
-| 支付链接 | `/payment/links` | `payment:link:list` | 生成可分享收款链接 / 收款码（固定或用户填写金额，可限次 / 限时），公开页下单 |
-| 风控限额 | `/payment/risk-rules` | `payment:risk:list` | 全局 / 按渠道 / 按业务类型限额规则（单笔上限、当日累计、当日笔数、黑名单），下单前拦截 |
-| 支付方式 | `/payment/methods` | `payment:method:list` | 管理可用支付方式（启停 / 排序 / 名称 / 图标），控制下单可选项 |
-| 财务报表 | `/payment/reports` | `payment:report:view` | 按业务类型 / 渠道 / 日聚合收款·手续费·退款·净额·笔数，柱状图可视化；历史走日切快照（cron 预聚合），支持环比对照 |
-| 转账管理 | `/payment/transfers` | `payment:transfer:list` | 发起转账/代付（微信零钱 / 支付宝账户），查单同步、失败重试（仅渠道未受理），成功自动记台账 |
-| 应用管理 | `/payment/apps` | `payment:app:list` | App 维度：业务方按 appKey 下单，路由到应用绑定的各渠道配置（微信/支付宝/云闪付各一） |
+| 交易 | 支付渠道 | `/payment/channels` | 渠道配置 CRUD、测试连通性、设为默认 |
+| 交易 | 支付订单 | `/payment/orders` | 订单查询、发起支付、主动查单、关单、发起退款、模拟支付 |
+| 交易 | 退款记录 | `/payment/refunds` | 退款查询、状态同步、大额退款审批 |
+| 交易 | 支付方式 | `/payment/methods` | 收银台支付方式启停与展示配置 |
+| 交易 | 回调日志 | `/payment/logs` | 渠道回调原始报文与验签结果查询 |
+| 资金 | 资金台账 | `/payment/ledger` | 资金流水查询、渠道资金账户快照、核对/重建、人工调账 |
+| 资金 | 费率管理 | `/payment/fee-rules` | 手续费费率规则 CRUD |
+| 资金 | 结算管理 | `/payment/settlements` | 结算批次生成与结算确认 |
+| 资金 | 分账管理 | `/payment/sharing` | 分账接收方维护、发起分账、失败重试 |
+| 资金 | 转账管理 | `/payment/transfers` | 转账/代付发起、查单、重试 |
+| 资金 | 财务报表 | `/payment/reports` | 多维汇总报表、环比对照、日切快照 |
+| 对账风控 | 对账中心 | `/payment/recon` | 账单上传/自动拉取对账、差异处理 |
+| 对账风控 | 风控中心 | `/payment/risk-rules` | 风控规则 CRUD、拦截记录、人工审核队列 |
+| 对账风控 | 交易投诉 | `/payment/disputes` | 投诉工单处理、回复时间线、投诉退款 |
+| 进阶交易 | 签约代扣 | `/payment/contracts` | 扣款计划与签约协议管理、手动补扣 |
+| 进阶交易 | 预授权 | `/payment/preauths` | 资金冻结、转支付、解冻 |
+| 生态 | 支付链接 | `/payment/links` | 免开发收款链接、聚合收银台、token 轮换 |
+| 生态 | 应用管理 | `/payment/apps` | 应用维度渠道配置绑定（appKey 路由） |
+| 生态 | Webhook | `/payment/webhooks` | 业务方 Webhook 端点与投递日志 |
+| 可观测 | 支付事件 | `/payment/events` | Outbox 事件查询、重派、运维健康指标 |
 
-### 手续费 / 费率
+## 交易
 
-- 规则按 **渠道 + 支付方式**（方式可留空表示该渠道全部方式）匹配，命中多条时取 **优先级最高** 且方式更精确者；
-- 手续费 = `费率(万分比) × 实付 / 10000 + 固定费`，再按 `[最低, 最高]` 截断；
-- 订阅 `payment.succeeded` 事件后自动结算：回写订单 `feeAmount` / `netAmount`，并记一条资金台账（`type=fee`, `direction=out`）。订单详情新增「手续费」「净额」展示。
+### 支付渠道
+
+- 渠道配置列表（微信 / 支付宝 / 云闪付），支持同渠道多配置并存；
+- 表单按渠道展示对应密钥字段，敏感字段显示脱敏摘要、留空不修改；
+- 「测试连接」调渠道探活接口验证密钥配置；「设为默认」切换统一下单缺省路由；
+- 沙箱开关：开启后该配置不外呼真实渠道，全链路模拟（配合订单页「模拟支付」演示闭环）。
+
+### 支付订单
+
+- 列表支持关键字（订单号/业务单号/标题）、状态、渠道、时间范围筛选，受**数据权限**（部门/创建人 dataScope）约束；
+- 「发起支付」（`payment:order:create`）：选择支付方式与金额直接创建订单，返回二维码/跳转链接，用于测试或代客下单；
+- 行操作：查看详情（含关联退款单列表）、「主动查单」同步渠道状态、「关闭订单」、「发起退款」（弹窗内校验可退余额）、「模拟支付」（沙箱演示：走真实 `markOrderPaid` 履约链，台账/手续费/事件照常产生）；
+- 订单详情展示原价/优惠金额（用券订单）、手续费与净额（计费订阅者回写）、归属应用等。
+
+### 退款记录
+
+- 列表含审批状态列；行操作「主动查单」同步渠道退款终态；
+- **退款审批**（`payment:refund:approve`）：达到审批阈值（`PAYMENT_REFUND_APPROVAL_THRESHOLD`）的退款单在此审批——通过立即执行渠道退款，驳回填写意见并置失败；
+- 详情展示申请人、审批人、审批时间与意见。
+
+### 支付方式
+
+- 收银台 7 种支付方式的启停、排序与展示名维护（被禁用的方式统一下单直接拒绝，公开收银台不展示）。
+
+### 回调日志
+
+- 每次渠道回调的原始报文、请求头、验签结果、处理结果、来源 IP；
+- 支持按订单号检索（`orderNo` 字段），争议排查时可还原全部回调历史。
+
+## 资金
+
+### 资金台账
+
+- 全量资金流水（`direction` × `type`：payment/refund/fee/settlement/adjust/transfer），收入/支出/净额/笔数汇总卡；
+- **渠道资金账户**面板：各渠道×租户的待结算/可用/冻结快照（随台账流水与预授权冻结联动）；
+- 「核对」比对快照与流水重算结果，不一致时告警；「重建」从流水重算全部账户快照；
+- 「人工调账」（`payment:account:adjust`）：对可用余额做人工修正，同时写入 `type=adjust` 台账留痕。
+
+### 费率管理
+
+- 费率规则 CRUD：渠道 + 支付方式（可空 = 渠道通配）匹配，`payMethod` 精确匹配优先、再按 `priority` 降序；
+- 计费公式：`fee = clamp(amount × rateBps / 10000 + fixedFee, minFee, maxFee)`；
+- 支付成功后由计费订阅者自动计算并回写订单 `feeAmount`/`netAmount`，同时记 `type=fee` 台账。
 
 ### 结算管理
 
-- **生成批次**：聚合指定渠道、账期内成功订单，`净额 = 收款(gross) − 手续费(fee) − 退款(refund)`；账期内存在未计费订单时批次备注自动标注；
-- **幂等**：同租户 + 渠道 + 账期唯一（DB 唯一索引），重复生成返回业务错误；
-- **T+1 自动结算**：定时任务 `generateDailySettlements` 每日 01:10 为昨日账期按渠道 × 租户自动生成批次（无交易跳过）；
-- **状态机**：`pending → settling → settled / failed`，仅允许声明的合法流转；标记到账（settled）时记一条结算资金台账（`type=settlement`）。
+- 手动「生成结算」（选渠道 + 账期）或由 cron `generateDailySettlements` 每日 01:10 自动 T+1 生成；
+- 净额 = 收款 − 手续费 − 退款；含未计费订单时批次备注标注（手续费暂按 0 计）；净额为负按 0 结算并备注；
+- 同租户 + 渠道 + 账期唯一索引幂等，重复生成自动跳过；
+- 状态机 pending → settling → settled/failed，「标记结算」确认后记 `type=settlement` 台账，账户快照「待结算 → 可用」划转。
 
-### 分账 / 分润
+### 分账管理
 
-- **接收方**：商户 / 个人两类，记录账号与默认分账比例（万分比，可在发起时覆盖）；支持**自动分账**开关（`autoShare`）；
-- **发起分账**：校验订单已支付成功、接收方启用，创建分账单（`processing`）后调用渠道适配器 `profitShare()`，落地 `success / failed` 与渠道分账单号；状态机 `pending → processing → success / failed`；
-- **渠道实现**：微信为**真实分账 API**（`/v3/profitsharing/orders` 请求分账 + 查询分账结果，接收方未添加时自动调 `receivers/add` 后重试；`sandbox=true` 时保持模拟）；支付宝第一期保持模拟；
-- **自动分账**：订阅 `payment.succeeded`，对启用 `autoShare` 且配置比例的接收方自动发起；确定性分账单号（`SHR{orderNo}R{receiverId}`）+ 唯一约束保证事件重复投递幂等，合计金额不超实付；
-- **失败重试与状态同步**：定时任务 `retryFailedSharing` 每 10 分钟重试渠道调用失败（渠道未受理、`channelSharingNo` 为空）且未达上限（3 次）的分账单，并对 `processing` 单调用 `queryProfitShare` 同步终态。
+- **分账接收方** Tab：维护接收方（商户/个人）账号与默认分账比例；
+- **分账单** Tab：对成功订单「发起分账」，单号 `SHR{订单号}R{接收方ID}` 确定性生成（渠道幂等键）；
+- 微信走真实分账 API（接收方未添加时自动 `receivers/add` 后重试一次）；支付宝当前为模拟实现；
+- 失败分账单由 cron `retryFailedSharing` 每 10 分钟自动重试（仅渠道未受理、未达 3 次上限），并同步已受理单终态。
 
-### 转账 / 代付
+### 转账管理
 
-- **渠道实现**：微信「商家转账到零钱」（`/v3/transfer/batches` 单笔批次 + 明细查单）、支付宝「单笔转账」（`alipay.fund.trans.uni.transfer` + `common.query`）；`sandbox=true` 渠道为模拟即时成功；
-- **状态机**：`pending → processing → success / failed`；微信受理成功即 `processing`，终态由查单同步（手动「查单」或 cron `syncPaymentTransfers` 每 5 分钟兜底）；
-- **资金安全**：`outTransferNo` 为渠道幂等键（`(channel, out_transfer_no)` 唯一）；**仅渠道未受理**（`channelTransferNo` 为空）且未达重试上限（3 次）的失败单允许人工重试，杜绝双付；发起/重试接口挂 `idempotencyGuard` 防重复提交并写审计日志；
-- **台账联动**：转账成功自动记资金台账（`type=transfer`, `direction=out`，按转账单号幂等）。
-
-### 支付链接 / 收款码（聚合收银台）
-
-- 后台 CRUD，自动生成唯一 `token`；金额留空表示由用户填写，支持限制使用次数与失效时间；
-- **token 轮换**：`POST /api/payment/links/{id}/rotate-token` 重置 token（安全轮换），旧分享链接立即失效；
-- 列表内「收款码」按钮基于 `qrcode.react` 展示二维码并可复制链接；
-- **聚合收银台（一码多付）**：公开收款页按 UA 识别运行环境并推荐/过滤支付方式——支付宝内置浏览器自动选 WAP 并下单后直接唤起收银台；手机浏览器推荐微信 H5 / 支付宝 WAP / 云闪付；桌面推荐扫码 / 电脑网站；微信内置浏览器（H5/扫码均被拦截）引导复制链接到外部浏览器打开；
-- **公开端点**（无需登录，`security:[]`）：
-
-| 接口 | 说明 |
-| --- | --- |
-| `GET /api/public/payment/link/{token}` | 获取链接展示信息（标题 / 金额 / 状态 / 剩余次数） |
-| `POST /api/public/payment/link/{token}/pay` | 按链接下单，复用 `payment.service.createPayment`，校验有效期 / 次数后原子自增使用次数 |
-
-### 风控限额
-
-- 规则作用域：`global`（全局）/ `channel`（按渠道）/ `bizType`（按业务类型）；
-- 下单前（`createPayment` 内）逐条校验命中规则：**单笔上限**、**当日累计金额**、**当日笔数**、**黑名单**（`openId` / `userId`），任一超限即抛 `HTTPException(400)` 拦截下单。当日累计口径为**已支付订单**（`success` / `refunding` / `refunded`，按 `paidAt` 归日），未支付的 `pending` / `paying` 不计入，避免误伤正常下单。
-
-### 支付方式管理
-
-- 管理 6 种内置支付方式的 **启停 / 排序 / 展示名称 / 图标**（`method` 全局唯一，种子数据预置）；
-- `createPayment` 下单时校验方式是否启用（未配置则放行，向后兼容）；
-- `GET /api/payment/methods/enabled` 提供启用方式列表，供下单选择。
+- 「发起转账」（微信零钱 / 支付宝账户，含资金流出警示），挂 `idempotencyGuard`；
+- 行操作「查单」主动同步渠道结果；「重试」仅对渠道未受理（无渠道单号）且尝试次数 < 3 的单开放，杜绝双付；
+- cron `syncPaymentTransfers` 每 5 分钟兜底同步处理中转账单；成功记 `type=transfer` 台账（direction=out）；
+- 列表含累计转出汇总。
 
 ### 财务报表
 
-- `GET /api/payment/reports/summary?groupBy=bizType|channel|day&startTime&endTime`：基于资金台账聚合，返回每组 `{ key, label, gross, fee, refund, net, count }` 及总计；
-- 前端以 KPI 卡 + 柱状图（收款 / 净额）+ 明细表呈现。
+- 汇总 KPI：收款总额 / 手续费 / 退款 / 净额 / 笔数，支持「环比对照」开关（对比上一等长周期，各卡片显示涨跌幅）；
+- 按业务类型 / 渠道 / 日期分组的明细表与趋势图；
+- 历史整日数据走 `payment_report_daily` 日切快照（cron 每日 00:20 重建近 2 天），今日数据实时聚合合并，降低大表聚合压力。
 
-### 接口一览（B 档）
+## 对账与风控
+
+### 对账中心
+
+- 「新建对账」上传渠道账单 CSV；「自动拉取」调渠道账单接口（微信支持，支付宝暂需手动上传，沙箱生成模拟账单）；另提供示例账单下载（`GET /api/payment/recon/sample-bill`）便于体验；
+- 批次详情逐笔展示比对结果（一致 / 本地单边 / 渠道单边 / 金额不一致 / 状态不一致）；
+- 差异项处理：已调账（自动按差额记 `type=adjust` 台账）/ 挂账 / 忽略，记录处理人与备注。
+
+### 风控中心
+
+三个 Tab：
+
+- **限额规则**：黑名单（openid/用户/IP）、单笔限额、单日限额、单日笔数；作用域全局/渠道/业务类型；动作 `block`（拦截）或 `review`（人工审核）；支持白名单（命中跳过规则）；
+- **拦截记录**：每次规则命中的留痕（`payment_risk_hits`）；
+- **审核队列**（`payment:risk:review`）：review 动作挂起的订单在此人工裁决——放行后用户重新下单复用挂起订单，拒绝则本地关单。
+
+### 交易投诉
+
+- 投诉工单列表（类型：退款诉求/服务问题/欺诈举报/其他；状态：待处理/处理中/已完结/已退款）；
+- 统计卡：待处理、超时未完结、近 30 天投诉率、平均处理时长；
+- 工单详情含处理时间线（商户回复/用户补充/系统动作），支持回复、完结、**投诉退款**（复用统一退款链路，含审批阈值）；
+- cron `syncPaymentDisputes` 每 5 分钟拉取渠道投诉（沙箱对近期成功订单生成模拟投诉）；另有 `POST /simulate` 手动生成演示数据。
+
+## 进阶交易
+
+### 签约代扣
+
+周期扣款（会员连续包月、租金代扣等），两个 Tab：
+
+- **扣款计划**：周期（日/周/月/自定义）、金额、最大重试次数（默认 3）；
+- **签约协议**：状态机 `pending → signed ⇄ paused → terminated`；支持新增签约（演示）、暂停/恢复、解约、「手动补扣」；
+- cron `executeDueDeductions` 每分钟扫描到期协议自动扣款（`wechat_papay` / `alipay_cycle`）；扣款单即 `payment_orders`，支付成功事件照常派发（业务订阅零改动）；扣款成功原子推进下次扣款时间，失败次日重试、达上限自动暂停。
+
+### 预授权
+
+押金类场景（酒店/租车）资金冻结：
+
+- 「发起预授权冻结」：状态机 `pending →（渠道冻结）frozen →（转支付）captured /（解冻）released`，冻结失败置 failed；
+- 「转支付」：可部分转支付（留空 = 全额），生成支付订单（`wechat_preauth`/`alipay_preauth`）走完整履约链，剩余冻结资金渠道侧自动解冻；
+- 冻结/解冻联动渠道资金账户 `frozen` 快照。
+
+## 生态开放
+
+### 支付链接
+
+免开发收款：
+
+- 创建链接（标题、金额、有效期、可用支付方式），生成公开收银台 URL（`/api/public/payment/link/{token}` 系列接口驱动）；
+- 公开收银台按访问环境（微信内 / 支付宝内 / 移动 / 桌面 UA 识别）过滤并推荐支付方式：支付宝内自动 WAP 直接唤起收银台，微信内引导复制链接到外部浏览器；
+- 支付状态轮询接口供收银台前端刷新（终态自动停止）；
+- 「轮换 token」使旧链接立即失效（防链接扩散）。
+
+### 应用管理
+
+- 应用维度渠道路由：每个应用生成唯一 `appKey`，可分别绑定微信/支付宝/云闪付渠道配置；
+- 下单传 `appKey` 时优先路由到应用绑定的配置（详见[业务接入](./integration.md#服务端统一门面)），实现多业务线独立商户号收款与归属统计（订单记录 `appId`）。
+
+### Webhook
+
+- **端点配置** Tab：URL、签名密钥（加密存储）、订阅事件类型、可选 `bizType` 过滤；
+- **投递日志** Tab：每次投递的 HTTP 状态、响应摘要、失败原因、重试次数与下次重试时间（指数退避），支持手动重投。
+
+## 可观测
+
+### 支付事件
+
+- Outbox 事件列表（类型/状态/尝试次数/错误信息），失败死信可「重派」；
+- **健康指标卡**（30s 轮询，异常红显）：Outbox 积压与死信、Webhook 待投与 24h 失败、处理中分账/转账、待处理对账差异——`GET /api/payment/ops/health`；
+- 配套运维接口：`POST /api/payment/ops/orders/{id}/simulate-paid`（订单页「模拟支付」的后端）。
+
+## 统计接口
+
+订单页顶部统计卡与看板使用：
 
 | 接口 | 说明 |
 | --- | --- |
-| `GET/POST /api/payment/fee-rules`，`GET/PUT/DELETE /api/payment/fee-rules/{id}` | 费率规则 CRUD |
-| `GET /api/payment/settlements`，`POST /api/payment/settlements/generate`，`POST /api/payment/settlements/{id}/status`，`DELETE /api/payment/settlements/{id}` | 结算批次：列表 / 生成 / 状态流转 / 删除 |
-| `GET/POST /api/payment/sharing/receivers`，`GET/PUT/DELETE /api/payment/sharing/receivers/{id}`，`GET/POST /api/payment/sharing/orders` | 分账接收方 CRUD 与分账单列表 / 发起 |
-| `GET/POST /api/payment/transfers`，`GET /api/payment/transfers/summary`，`GET /api/payment/transfers/{id}`，`POST /api/payment/transfers/{id}/query`，`POST /api/payment/transfers/{id}/retry` | 转账单列表 / 发起 / 汇总 / 详情 / 查单同步 / 失败重试 |
-| `GET/POST /api/payment/apps`，`GET/PUT/DELETE /api/payment/apps/{id}` | 支付应用（App 维度）CRUD |
-| `POST /api/payment/links/{id}/rotate-token` | 重置支付链接 token（旧链接立即失效） |
-| `GET /api/payment/ops/health` | 支付链路健康指标（Outbox 积压/死信、Webhook 待投/24h 失败、处理中分账/转账、待处理对账差异） |
-| `GET/POST /api/payment/links`，`GET/PUT/DELETE /api/payment/links/{id}` | 支付链接 CRUD |
-| `GET/POST /api/payment/risk-rules`，`GET/PUT/DELETE /api/payment/risk-rules/{id}` | 风控规则 CRUD |
-| `GET /api/payment/methods`，`GET /api/payment/methods/enabled`，`PUT /api/payment/methods/{id}` | 支付方式配置列表 / 可用列表 / 编辑 |
-| `GET /api/payment/reports/summary` | 财务报表聚合 |
-| `GET /api/public/payment/link/{token}`，`POST /api/public/payment/link/{token}/pay` | 支付链接公开展示与下单 |
+| `GET /api/payment/stats` | 概览：累计/今日收款与笔数、成功率、退款汇总、状态分布 |
+| `GET /api/payment/trend?days=N` | 近 N 天收款趋势（按日聚合） |
+| `GET /api/payment/reports/summary` | 财务报表汇总（`groupBy=bizType/channel/day`，`compare=true` 返回环比基期） |
+| `GET /api/payment/ops/health` | 运维健康指标 |

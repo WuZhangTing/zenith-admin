@@ -1,6 +1,6 @@
 # 站群层级、继承与内容分发
 
-CMS 站群是平台级全局能力，不带 `tenant_id`。Stage 5 只实现站点层级、显式配置继承和受治理内容分发；不包含结构化多语言、专题或插件。
+CMS 站群是平台级全局能力，不带 `tenant_id`，涵盖**站点层级、显式配置继承、受治理内容分发**三块；不包含结构化多语言、专题或插件。
 
 ## 站点层级
 
@@ -19,22 +19,22 @@ CMS 站群是平台级全局能力，不带 `tenant_id`。Stage 5 只实现站�
 - `PUT /api/cms/sites/{id}/parent`
 - `POST /api/cms/publishing/group-submit`
 
-整组发布先校验全部目标站点和栏目 ACL，再为每个启用站点提交独立 `cms-publish-build`。每个任务带当前 theme/template/deployment revision fence，可取消、恢复和重试。
+整组发布先校验全部目标站点和栏目 ACL，再为每个启用站点提交独立 `cms-publish-build`。每个任务携带提交时的 revision 栅栏（`themeRevision` / `templateRefsRevision`），执行中发现站点主题/模板已变更即失效退出；任务可取消、恢复和重试。
 
 ## 显式逐项继承
 
-继承开关存于 `cms_site_inheritances`，值仍保存在各站点自身。resolver 不做不可见的 JSON 魔法合并，而是对每一项沿父链选择唯一来源：
+继承开关存于 `cms_site_inheritances`（`PUT /api/cms/sites/{id}/inheritance` 维护），值仍保存在各站点自身。resolver 不做不可见的 JSON 魔法合并，而是对每一项沿父链选择唯一来源（`CMS_SITE_INHERITABLE_FIELDS`，共 10 项）：
 
-| 继承项 | 值 |
+| 继承项 | 覆盖的值 |
 |---|---|
-| SEO | `title`、`keywords`、`description` 分别选择来源 |
-| 静态化 | `staticMode` |
-| 审核 | `auditMode`、`auditWorkflowDefinitionId` |
-| Webhook | URL 与签名 secret 作为一组 |
-| CDN | purge URL 与 token 作为一组 |
-| 主题 | theme code 与活动 package deployment |
-| 主题参数 | `themeConfig`、主题色/暗色配置 |
-| 模板 | `defaultTemplates` 与站点模板解析链 |
+| `seoTitle` / `seoKeywords` / `seoDescription` | SEO 标题 / 关键词 / 描述，三项分别选择来源 |
+| `staticMode` | 静态化模式 |
+| `reviewMode` | `auditMode` 与 `auditWorkflowDefinitionId` 作为一组（审核模式 + 工作流定义） |
+| `webhook` | `webhookUrl` 与 `webhookSecret` 作为一组 |
+| `cdn` | `cdnPurgeUrl` 与 `cdnPurgeToken` 作为一组 |
+| `theme` | 主题 code |
+| `themeConfig` | `themeConfig` 与主题色/暗色配置 |
+| `templates` | `defaultTemplates`（站点级默认模板） |
 
 开关关闭表示 `own`，开启表示 `inherited`。恢复本站覆盖时，原先保存的本站值重新生效。根站点不能开启继承。
 
@@ -44,16 +44,9 @@ CMS 站群是平台级全局能力，不带 `tenant_id`。Stage 5 只实现站�
 
 ### 主题与模板解析顺序
 
-主题来源由 `theme` 继承项决定。活动 package deployment 同样取该来源站点，不会在子站点偷偷回退。
+主题来源由 `theme` 继承项决定：主题 code 取该来源站点，主题参数与站点默认模板分别由 `themeConfig`、`templates` 继承项独立选择来源，三者可以指向不同祖先。
 
-手工模板统一按以下顺序解析：
-
-1. 当前站点活动模板；
-2. `templates` 开关允许的最近父级到更远父级；
-3. 主题级全局模板；
-4. 仓库内置可信模板。
-
-同名子站模板会遮蔽父级模板。运行时、健康检查和模板选择器使用同一 scope chain。父级主题/模板生命周期操作先计算真正受影响且未被子级覆盖的站点，要求完整 ACL，并为每个站点创建 fenced 重建任务。
+主题本体为仓库内置可信 React TSX 主题（无 DB 模板表），页面渲染的模板解析链（内容/栏目级覆盖 → 站点有效 `defaultTemplates` → 主题默认模板）见 [渲染与静态化](./static-and-render#主题与模板解析)；解析所用的站点配置一律取继承 resolver 的有效值，因此子站点开启 `templates` 继承后自动沿用父站点的默认模板配置，恢复本站覆盖时本站原值重新生效。
 
 ## 受治理内容分发
 
@@ -97,5 +90,3 @@ CMS 站群是平台级全局能力，不带 `tenant_id`。Stage 5 只实现站�
 - 站群：`cms:site:hierarchy`
 - 整组发布：`cms:publish:group`
 - 分发：`cms:distribution:list|create|update|delete|run|export`
-
-权限菜单由版本化应用数据迁移 `2026-07-cms-stage5-site-groups-v1` 同步到已有生产库；不是只依赖 seed。

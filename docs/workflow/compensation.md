@@ -4,7 +4,7 @@
 
 ## 一、节点级失败策略（failurePolicy）
 
-在流程设计器中，触发器 / 子流程节点的配置面板新增「失败策略（Saga / 补偿）」区域。未启用时沿用传统「异常边 → catchNode」逻辑，完全向后兼容；启用后按 `failurePolicy.action` 分流：
+在流程设计器中，触发器 / 子流程节点的配置面板提供「失败策略（Saga / 补偿）」区域。未启用时沿用传统「异常边 → catchNode」逻辑；启用后按 `failurePolicy.action` 分流：
 
 | 动作 | 行为 |
 | --- | --- |
@@ -47,6 +47,7 @@
 
 | 操作 | 说明 | 接口 |
 | --- | --- | --- |
+| 列表 | 按状态、流程、时间筛选工单 | `GET /api/workflows/compensation/list` |
 | 详情 | 查看错误、自动动作状态与处理历史时间线 | `GET /api/workflows/compensation/{id}` |
 | 恢复推进 | 补偿完成后从失败节点继续推进流程 | `POST /api/workflows/compensation/{id}/resume` |
 | 重试补偿动作 | 自动动作 `failed` 时重新入队反向动作 | `POST /api/workflows/compensation/{id}/retry` |

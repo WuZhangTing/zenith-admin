@@ -6,11 +6,11 @@
 
 - **点赞/收藏**：会员×内容唯一（`cms_content_likes` / `cms_content_favorites`），计数原子回写 `cms_contents.like_count/favorite_count`，后台内容列表展示「赞/藏」列
 - **浏览历史**：`cms_member_view_history` 去重累计，每人保留最近 100 条；会员中心「我的收藏」「浏览历史」页支持取消收藏/清空
-- **积分联动**：阅读 +1（日限 10）、点赞 +1（日限 5）、收藏 +2（日限 5）、投稿发布 +10，复用积分中心 `changePoints()` 记账（`bizType='cms_interaction'`）；Redis `SET NX`（30 天窗口）防同内容重复给分 + 日限额计数，取消后再操作不重复给分。规则常量：`@zenith/shared` 的 `CMS_INTERACTION_POINTS` / `CMS_INTERACTION_DAILY_LIMITS`
+- **积分联动**：阅读 +1（日限 10）、点赞 +1（日限 5）、收藏 +2（日限 5）、投稿发布 +10，复用积分中心 `changePoints()` 记账（`bizType='cms_interaction'`）；Redis `SET NX`（30 天窗口）防同内容重复给分 + 日限额计数，取消后再操作不重复给分。规则常量：`@zenith/shared/cms` 的 `CMS_INTERACTION_POINTS` / `CMS_INTERACTION_DAILY_LIMITS`
 
 ## 统一互动问卷
 
-后台统一入口 `/cms/interactions`（权限 `cms:interaction:list|manage|batch|export`），不再存在独立 poll/survey 表、API 或菜单：
+后台统一入口 `/cms/interactions`（权限 `cms:interaction:list|manage|batch|export`），问卷与投票共用同一套表、API 与设计器：
 
 - `kind=survey|poll`；题目支持 single / multiple / text / **rating（评分）/ nps / matrix（矩阵）/ date / number**，poll 由服务端约束为**恰好一道单选或多选题**。
 - 题目扩展能力：单选/多选可开「其他 ___」自由填空（答案存 `__other__:自由文本`，统计归入同一桶且原文回传）；矩阵题的行存 `matrix_rows`、列复用 `options`，答案存 `rowId::optionValue`；`page_no` 支持分页问卷；`visible_when`（`{questionIndex, op: any|none, values}`）支持条件显示，**只能依赖排在前面的单选/多选题**，条件未命中的题目服务端不做必答校验也不落库。
@@ -22,21 +22,21 @@
 - 批量发布/关闭走任务中心 `cms-interactions-batch-status`，含 checkpoint、行级 items、权限复验、取消与重试；答卷导出实体为 `cms.interaction-responses`，原始导出另需 `cms:interaction:export-raw`。
 - 后台设计器（`pages/cms/interaction/`）为全屏三步弹窗：①基本信息（标题自动生成拼音访问标识）②题目设计（题目/选项/矩阵行均可上下移、题目可复制、选项行内增删或「批量编辑」按行粘贴，可设分页与条件显示，内置满意度/NPS/报名/体验评分/单题投票模板）③参与与展示（Turnstile 收进「高级」折叠，验证码策略切换时才必填）。右侧常驻前台样式预览（≥lg 宽度），按页分组渲染全部题型。`kind=poll` 在 UI 层即收敛为单道选择题、隐藏其他题型与分页，「每位会员一次」在参与范围非仅会员时禁选并自动回退；题目排序/删除后条件引用自动重算，失效即清空；校验错误定位到具体题目卡片与出错步骤，已有答卷时顶部 Banner 提示并锁定题目结构。
 - 结果统计按题型分化：选择题给选项分布，评分/NPS/数字给 `average`（NPS 另给 `npsScore` 净推荐值：推荐者 9-10 占比 - 贬损者 0-6 占比），矩阵给按行的分布，文本/日期给最近样本；`answered` 为该题实际作答人数（条件显示题会小于总答卷数）。
-- 统计全部在 SQL 侧 `GROUP BY` 聚合（数组与标量答案由 `LATERAL` 统一摊平），不再把答案拉进内存，也去掉了旧实现「最多 10 万条、超限静默截断」的失真上限。后台结果面板为三个 Tab：**题目分布**（含文本/日期/「其他」填空的分页浏览与关键词搜索，`GET /{id}/stats/texts`）、**交叉分析**（两道单选/多选题的联合分布，`GET /{id}/stats/cross`）、**提交趋势**（按天补齐空缺日期，`GET /{id}/stats/trend`）。
+- 统计全部在 SQL 侧 `GROUP BY` 聚合（数组与标量答案由 `LATERAL` 统一摊平），不把答案拉进内存，无结果集规模上限。后台结果面板为三个 Tab：**题目分布**（含文本/日期/「其他」填空的分页浏览与关键词搜索，`GET /{id}/stats/texts`）、**交叉分析**（两道单选/多选题的联合分布，`GET /{id}/stats/cross`）、**提交趋势**（按天补齐空缺日期，`GET /{id}/stats/trend`）。
 
 ## 评论
 
 - **提交**：前台原生 form POST `/api/public/cms/comments`（静态页可用），Redis IP 限流（60s 5 次）+ 蜜罐字段 + 敏感词过滤，入库后待审核
-- **树形回复**（v1.6.0+）：支持两级回复树——回复「回复」时自动挂到顶级评论下；前台每条评论带「回复」按钮（内联 JS 定位表单并填充 parentId）
-- **点赞**（v1.6.0+）：匿名点赞 `/api/public/cms/comments/{id}/like`，同 IP 对同评论 24h 去重
-- **审核**：后台按状态 Tab 批量通过/拒绝/删除（权限 `cms:comment:audit` / `cms:comment:delete`），过审自动触发详情页静态刷新；列表展示回复对象与点赞数
+- **树形回复**：支持两级回复树——回复「回复」时自动挂到顶级评论下；前台每条评论带「回复」按钮（内联 JS 定位表单并填充 parentId）
+- **点赞**：匿名点赞 `/api/public/cms/comments/{id}/like`，同 IP 对同评论 24h 去重
+- **审核**：后台按状态 Tab 批量通过/拒绝/删除（权限 `cms:comment:list|audit|delete`），过审自动触发详情页静态刷新；列表展示回复对象与点赞数
 
 ## 自定义表单
 
-- 表单定义（字段：text/textarea/select/radio + 必填 + 选项），前台按栏目 `settings.formCode` 绑定展示，原生 form POST 提交
+- 表单定义（8 种字段类型：text/textarea/select/radio/email/mobile/url/number + 必填 + 选项 + 字段级验证规则），前台按栏目 `settings.formCode` 绑定展示，原生 form POST 提交（`POST /api/public/cms/forms/{siteCode}/{formCode}`）
 - 提交防护：IP 限流 + 蜜罐 + 敏感词 + 按字段定义校验
-- **通知邮箱**（v1.6.0+）：配置后新提交异步邮件通知（多邮箱逗号分隔）
-- **数据导出**（v1.6.0+）：提交数据抽屉支持导出中心导出（entity `cms.form-submissions`，按表单字段动态生成列）
+- **通知邮箱**：配置后新提交异步邮件通知（多邮箱逗号分隔）
+- **数据导出**：提交数据抽屉支持导出中心导出（entity `cms.form-submissions`，按表单字段动态生成列）
 
 ## 广告
 
@@ -46,7 +46,7 @@
 - `cms_ad_events` 追加记录 site/ad/slot、impression/click、发生时间、访客/IP 哈希、UA/设备/来源/路径及可选会员。曝光按广告+访客+60 秒桶、点击按 10 秒桶去重。
 - 事件插入、`cms_ads` 计数与 `cms_ad_stats` 日聚合在同一事务中按**实际插入事件**批量更新，保证三者一致；一次曝光请求最多 50 个广告，不逐事件多表重写。
 - 后台 `/cms/ads` 为「广告 / 事件明细 / 统计」页内 Tabs。事件可按完整维度和时间范围筛选，导出实体 `cms.ad-events`；原始导出另需 `cms:ad-event:export-raw`。
-- `cms_ad_event_retention_days`（默认 180）控制周期清理；人工清理和每日调度均提交任务中心 `cms-ad-events-cleanup`，支持 checkpoint/items/取消/重试。
+- 系统配置 `cms_ad_event_retention_days`（默认 180）控制保留期；人工清理与每日系统调度 `cms-ad-events-retention` 最终都提交任务中心 `cms-ad-events-cleanup` 执行，支持 checkpoint/items/取消/重试。
 
 ## 会员订阅与发布触达
 
@@ -61,7 +61,7 @@
 
 全局词库，两种处理方式：**拦截**（replaceWith 为空，命中拒绝提交）与**替换**。应用于评论与表单提交。
 
-引擎（v1.6.0+）：**Aho-Corasick 多模式匹配自动机**，单次扫描 O(文本长度) 完成全词库匹配，千级词库高频提交无 CPU 尖刺；词库 60s 内存缓存，增删改即时失效。
+引擎：**Aho-Corasick 多模式匹配自动机**，单次扫描 O(文本长度) 完成全词库匹配，千级词库高频提交无 CPU 尖刺；词库 60s 内存缓存，增删改即时失效。
 
 ## 采集中心
 
@@ -73,11 +73,11 @@
 
 ## 页面搭建
 
-区块 JSON 装配式页面（默认 `/p/{slug}/`，isHome 可接管站点首页），5 种区块：hero / richtext / image / content-list / columns。
+区块 JSON 装配式页面（默认 `/p/{slug}/`，isHome 可接管站点首页），6 种区块：hero / richtext / image / content-list / columns / **widget-ref**（引用「页面部件」，部件内容变化时定向刷新引用页面，见 [渲染与静态化](./static-and-render#页面部件与主题插槽)）。
 
 **自定义访问路径**：页面可设 `path` 覆盖默认的 `/p/{slug}/`，支持 `about`（→ `/about/`）、`about.html`、多级 `zh/about` 等形态。入库前归一为「无前后斜杠、无 `/index.html`」，使 URL 生成、静态产物路径与前台路由查表共用同一 key。保存时拦截三类冲突：系统保留首段（`p` / `tag` / `interaction` / `search` / `preview` / `api` / `assets`）与 `robots.txt`、`sitemap.xml`、`rss.xml`；站点内已被其他页面占用；与本站栏目路径相同（栏目侧有对称校验，批量建栏目时遇冲突自动改名而非报错）。改 `path` 或 `slug` 时按变更前路径删除旧产物，不留可访问的孤儿页面。
 
-搭建器（v1.6.0 增强）：
+搭建器：
 
 - 区块卡片**原生拖拽排序**（保留上移/下移按钮做键盘可达性兜底）
 - SideSheet 底部**内嵌 iframe 实时预览**，保存后自动刷新，可新窗口打开
@@ -87,11 +87,10 @@
 
 ## 友链
 
-> **碎片（`cms_fragments`）已移除。** 它是「按 `code` 引用的 HTML 字符串袋」，在 in-repo TSX + SSR 架构下属于错位抽象：模板编译期就知道自己有哪些插槽，主题的 `settingsSchema` 已能声明式表达（带类型、label、分组，后台自动生成表单且可发现），而碎片靠魔法字符串耦合、后台看不到主题需要哪些 code、也看不到自己建的碎片有没有人引用。三种类型里 `text` / `image` 与 `settingsSchema` 的 `textarea` / `image` 完全冗余，仅 `html` 独有。首页横幅改由 `themeConfig.bannerImage` 单独承担——此前两套机制渲染进同一个视觉位置，主题作者不得不写注释解释它们如何共存。需要富文本插槽时，正确的做法是给 `settingsSchema` 增加 `richtext` 字段类型，而非另起一套无类型的全局字符串表。
+名称/URL/Logo/排序，可归入**友链分组**（`cms_friend_link_groups`：名称 + 稳定标识 code + 排序 + 启停），主题按组分块渲染页脚；未分组友链归入 `code` 为空的默认组。分组删除后组内友链自动转为未分组，不会连带删除。权限 `cms:link:*`。
 
 ## 表单验证与验证码
 
 - 字段支持文本长度、RE2-compatible 规则、邮箱、手机号、URL、数字范围及字段级自定义错误提示；自定义规则由服务端 `re2js` 线性时间引擎编译执行，`(a+)+$` 等表达式不会触发回溯型 ReDoS。浏览器约束仅用于体验，服务端始终重新验证。
 - 表单验证码策略支持继承站点、关闭、算术题与 Cloudflare Turnstile。Turnstile 固定调用官方验证地址并通过统一 `http-client` 启用 SSRF 防护、禁止重定向和超时。
 - Turnstile Secret 为 write-only：API 仅返回掩码，空串/掩码保留原值，显式 `null` 清除。
-- **友情链接**：名称/URL/Logo/排序，可归入**友链分组**（`cms_friend_link_groups`：名称 + 稳定标识 code + 排序 + 启停），主题按组分块渲染页脚；未分组友链归入 `code` 为空的默认组。分组删除后组内友链自动转为未分组，不会连带删除

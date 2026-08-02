@@ -159,7 +159,6 @@ CMS 事件接入开放平台既有的 Webhook 投递管线（`app_webhook_subscr
 
 事件在**业务事务内**登记为任务中心 outbox（`cms-webhook-emit`），worker 取出后再 emit 到事件总线：
 事务提交即代表事件不会丢，worker 崩溃由任务中心的 pending 恢复扫描补投。
-这取代了原先的 fire-and-forget（失败只打日志、进程崩溃即丢）。
 
 ### 投递范围
 
@@ -169,8 +168,7 @@ CMS 事件是**站点域**事件（无 clientId），只投递给「订阅了该
 
 ### 站点级 Webhook
 
-站点设置里的「Webhook」配置界面不变，但底层托管为一条 `internal` 订阅，因此站点级回调
-同样享有重试、投递日志与自动禁用。
+站点设置里的「Webhook」配置底层托管为一条 `internal` 订阅（`clientId` 形如 `cms-site:{siteId}`，不对应真实开放应用），因此站点级回调同样享有重试、投递日志与自动禁用。事件清单、信封结构与签名头细节见 [SEO 与流量 → Webhook 事件外推](./seo#webhook-事件外推)。
 
 ## 错误约定
 

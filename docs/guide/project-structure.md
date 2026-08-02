@@ -5,10 +5,12 @@ Zenith Admin 采用 npm monorepo 结构，核心目录如下：
 ```text
 zenith-admin/
 ├── docs/                 # VitePress 文档站
+├── docker/               # Docker 部署辅助文件（entrypoint、nginx 配置）
 ├── packages/
 │   ├── server/           # Hono 后端服务
 │   ├── shared/           # 共享类型、常量、Zod schema
 │   ├── web/              # React 管理后台与会员前台
+│   ├── analytics-sdk/    # 埋点采集 SDK
 │   └── electron/         # Electron 桌面客户端
 ├── package.json          # 根脚本与工作区配置
 └── README.md
@@ -26,7 +28,7 @@ zenith-admin/
 - `packages/server/src/routes/`：API 路由（认证、用户、部门、岗位、角色、菜单、字典、通知、日志、监控、会话、定时任务、会员、支付、工作流、AI、运维等）。每个业务域在自己的 `index.ts` 中声明挂载清单，域顺序由 `routes/index.ts` 统一声明
 - `packages/server/src/services/`：Service 层（业务逻辑、数据映射 `mapXxx`、前置校验 `ensureXxx`；所有路由均已完成提取）
 - `packages/server/src/db/`：Drizzle schema、统一数据库类型别名、迁移与 seed
-- `packages/server/src/middleware/`：认证（`auth.ts`）、IP 访问控制（`ip-access.ts`）、权限守卫（`guard.ts`）、接口限流（`rate-limit.ts`）
+- `packages/server/src/middleware/`：认证（`auth.ts` / `member-auth.ts`）、权限守卫（`guard.ts`）、IP 访问控制（`ip-access.ts`）、接口限流（`rate-limit.ts`）、幂等控制（`idempotency.ts`）、开放平台网关（`open-gateway.ts`）、维护模式、请求追踪与 HTTP 日志等
 - `packages/server/src/lib/`：通用能力封装，详见下方列表
 - `packages/server/src/types/`：后端全局类型声明
 - `packages/server/drizzle/`：生成的迁移文件
@@ -35,6 +37,10 @@ zenith-admin/
 
 | 文件 | 说明 |
 | --- | --- |
+| `jwt.ts` | JWT 签发与校验（管理员 / 会员双体系统一入口） |
+| `context.ts` | 请求上下文取值（`currentUser()` / `getCtx()`） |
+| `datetime.ts` | 日期时间统一格式化（DTO 映射、导出、入参解析） |
+| `dtos/` | 响应实体 DTO（按业务域拆分） |
 | `session-manager.ts` | Redis 会话管理（在线会话 + 黑名单） |
 | `redis.ts` | ioredis 客户端单例与工具 |
 | `oauth/` | OAuth 提供方抽象（GitHub / 钉钉 / 企业微信） |
@@ -55,7 +61,7 @@ zenith-admin/
 
 ## `packages/web`
 
-前端基于 **React 19 + Vite + Semi Design**。
+前端基于 **React 19 + Vite + Semi Design**，构建三个入口：`index.html`（后台管理）、`member.html`（会员前台 SPA）、`approval.html`（移动端审批页）。
 
 关注这些目录：
 
@@ -66,6 +72,7 @@ zenith-admin/
 - `packages/web/src/hooks/queries/`：TanStack Query 域 hooks（服务端状态，按业务域拆分）
 - `packages/web/src/lib/`：前端通用库封装
 - `packages/web/src/member/`：会员前台独立 SPA
+- `packages/web/src/approval/`：移动端审批页入口
 - `packages/web/src/mocks/`：MSW Demo 模式数据与 handlers
 - `packages/web/src/utils/`：请求封装、日期处理等工具
 - `packages/web/src/providers/`：全局 Provider
@@ -111,16 +118,25 @@ import { createPaymentOrderSchema } from '@zenith/shared/payment';
 import { SEED_MENUS } from '@zenith/shared/seed';
 ```
 
+## `packages/analytics-sdk`
+
+浏览器端埋点采集 SDK：负责行为事件、页面访问与前端错误的采集上报，由根构建流程（`npm run build`）在 web 之前构建。
+
+## `packages/electron`
+
+Electron 桌面客户端封装：主进程与 preload 脚本源码在 `src/`，打包配置见 `electron-builder.config.js`，详见 [Electron 客户端](./electron)。
+
 ## `docs`
 
 文档站使用 **VitePress** 构建，当前按以下思路组织：
 
 - `index.md`：Landing Page
-- `guide/`：快速开始、开发、结构、部署、Docker、PWA、Electron、Demo
+- `guide/`：快速开始、开发、结构、部署、Docker、PWA、Electron、维护、Demo
 - `product/`：产品概览与功能模块
 - `backend/`：接口规范、数据库说明
 - `frontend/`：UI 规范、认证与请求
-- `ai/`：AI 开发辅助说明（AGENTS.md 、Zenith Skill）
+- `ai/`：AI 开发辅助说明（AGENTS.md、Zenith Skill）
+- 按业务域的专题目录：`iam/`、`member/`、`payment/`、`workflow/`、`report/`、`analytics/`、`cms/`、`chat/`、`mp/`、`notification/`、`ops/`、`storage/`、`ai-platform/` 等
 - `changelog/`：版本更新历史
 
 ## 为什么这样分层

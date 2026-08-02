@@ -4,7 +4,9 @@
 
 ## 前提条件
 
-`contextStorage()` 中间件已在 `src/index.ts` 全局挂载，所有工具函数在认证请求的生命周期内均可直接调用。
+`contextStorage()` 中间件已在 `src/app.ts` 的 `createApp()` 中全局挂载，所有工具函数在认证请求的生命周期内均可直接调用。
+
+`AppEnv` 类型别名（等价于 `AuthEnv`）也由 `context.ts` 导出，供需要显式泛型的场景使用。
 
 ---
 
@@ -22,12 +24,12 @@
 import { currentUser } from '../lib/context';
 
 const user = currentUser();
-// { userId, username, roles: string[], tenantId, viewingTenantId?, jti? }
+// { userId, username, roles: string[], tenantId, viewingTenantId?, jti?, authType?, apiTokenId? }
 ```
 
 ### `currentUserOrNull()`
 
-与 `currentUser()` 相同，但未登录时返回 `undefined`，适用于匿名可访问接口。
+与 `currentUser()` 相同，但未登录时返回 `undefined`，适用于匿名可访问接口。若处于 `runWithCurrentUser()` 作用域内，优先返回指定的用户身份。
 
 管理员 JWT Payload 来自 `packages/server/src/middleware/auth.ts`：
 
@@ -37,12 +39,35 @@ interface JwtPayload {
   username: string;
   roles: string[];
   tenantId: number | null;
+  /** 超管切换租户视角时，存放目标租户 ID */
   viewingTenantId?: number | null;
   jti?: string;
+  authType?: 'jwt' | 'apiToken';
+  apiTokenId?: number;
 }
 ```
 
 管理员 `authMiddleware` 会拒绝会员 token（`type: 'member'`），避免后台接口被会员身份访问。
+
+### `runWithCurrentUser(user, fn)`
+
+在请求上下文**之外**以指定用户身份执行逻辑，供后台 Worker / 定时任务复用依赖 `currentUser()` 的 service（如任务中心以任务创建者身份运行 handler、`db:seed` 以管理员身份写入审计字段）：
+
+```ts
+import { runWithCurrentUser } from '../lib/context';
+
+await runWithCurrentUser(creatorPayload, async () => {
+  await someService.doWork(); // 内部的 currentUser() 返回 creatorPayload
+});
+```
+
+### `currentTraceId()` / `runWithTraceId(traceId, fn)`
+
+链路关联 ID 工具，用于把一次操作的全部异步副作用（作业、事件 fan-out）串成同一条链路：
+
+- `currentTraceId()` — 返回当前操作的 traceId；由请求中间件（每个 HTTP 请求一枚）或 Worker 执行作业时（继承作业自身 traceId）建立，脱离作用域时返回 `undefined`
+- `runWithTraceId(traceId, fn)` — 在给定 traceId 作用域内执行 `fn`，其内部新入队的作业 / 发射的事件自动继承该 traceId
+- `enqueueJob` 与事件 outbox 会自动继承当前 traceId，业务代码通常无需手动调用
 
 ---
 
@@ -127,7 +152,7 @@ if (hasRole('admin', 'editor')) {
 
 ### `isSuperAdmin()`
 
-判断当前用户是否为超级管理员（拥有 `super_admin` 角色）。
+判断当前用户是否为**平台超级管理员**：同时满足拥有 `super_admin` 角色**且**归属平台（`tenantId` 为 `null`）。仅凭角色 code 判定会被租户自建同名角色伪造，因此两个条件缺一不可。
 
 ```ts
 if (isSuperAdmin()) {
@@ -270,12 +295,21 @@ if (await hasPermission('system:user:export', 'system:user:import')) {
 
 ### `setAuditBefore(data)`
 
-在 Service 层写入"操作前实体快照"，供审计日志 diff 展示使用。
+在 Service 层写入"操作前实体快照"，供审计日志 diff 展示使用。仅在请求上下文内可用（脱离请求栈调用会静默忽略）。
 
 ```ts
 const before = await getUser(id);
 setAuditBefore(before); // 路由完成后自动 diff
 await updateUser(id, body);
+```
+
+### `setAuditAfter(data)`
+
+写入"操作后实体快照"，用于响应体 `data` 为 `null` 但仍需要审计 diff 的场景（如成员分配、权限分配）：
+
+```ts
+await setUserRoles(userId, roleIds);
+setAuditAfter({ userId, roleIds }); // 响应体无 data，手动补充操作后快照
 ```
 
 ---
@@ -287,6 +321,9 @@ import {
   getCtx,
   currentUser,
   currentUserOrNull,
+  runWithCurrentUser,
+  currentTraceId,
+  runWithTraceId,
   currentUserId,
   currentUsername,
   currentUserRoles,
@@ -302,6 +339,7 @@ import {
   hasPosition,
   isInDepartment,
   setAuditBefore,
+  setAuditAfter,
 } from '../lib/context';
 
 import {

@@ -21,7 +21,7 @@ AI 模块表定义在 `packages/server/src/db/schema/ai.ts`。
 | 表 | 关键字段 | 说明 |
 | --- | --- | --- |
 | `ai_provider_configs` | `provider`、`base_url`、`api_key`（加密）、`model`、`models`、`capabilities`、`price_input_per_m`、`price_output_per_m`、`fallback_config_id`、`max_concurrent`、`is_default`、`is_enabled` | 系统级 AI 服务商配置 |
-| `ai_conversations` | `user_id`、`title`、`provider_snapshot`、`is_archived`、`is_pinned`、`system_prompt_override`、`knowledge_base_id`、`agent_id`、`tags`、`active_leaf_msg_id` | 用户 AI 对话主表 |
+| `ai_conversations` | `user_id`、`tenant_id`、`title`、`provider_snapshot`、`is_archived`、`is_pinned`、`system_prompt_override`、`knowledge_base_id`、`agent_id`、`tags`、`active_leaf_msg_id` | 用户 AI 对话主表 |
 | `ai_messages` | `conversation_id`、`parent_id`（分支树）、`role`、`content`、`reasoning`、`model`、`tokens_input/output`、`ttft_ms`、`duration_ms`、`feedback*`、`trace` | 对话消息、反馈与调用链 |
 | `user_ai_configs` | `user_id`、`provider`、`base_url`、`api_key`、`model`、`temperature`、`max_tokens`、`system_prompt`、`is_enabled` | 用户个人 AI 配置 |
 | `ai_prompt_templates` | `name`、`content`、`category`、`scope`、`user_id`、`is_builtin`、`sort`、`usage_count`、`is_enabled` | 提示词模板 |
@@ -30,9 +30,9 @@ AI 模块表定义在 `packages/server/src/db/schema/ai.ts`。
 | `ai_shared_conversations` | `token`（唯一）、`conversation_id`、`user_id`、`expires_at` | 对话分享链接 |
 | `ai_arena_votes` | `user_id`、`question`、`model_a`、`model_b`、`winner` | 模型对比投票 |
 | `ai_knowledge_bases` | `name`、`user_id`、`embedding_model` | 个人知识库 |
-| `ai_kb_documents` | `kb_id`、`name`、`source_url`、`status`、`chunk_count`、`char_count` | 知识库文档 |
-| `ai_kb_chunks` | `kb_id`、`doc_id`、`content`、`embedding`（real[]）、`embedding_vec`（pgvector，条件迁移） | 知识库分块 |
-| `ai_agents` | `user_id`、`name`、`avatar`、`system_prompt`、`config_id`、`model`、`knowledge_base_id`、`tools`、`opening_message`、`suggested_questions`、`status`、`usage_count` | 自定义智能体 |
+| `ai_kb_documents` | `kb_id`、`name`、`source_url`、`status`（processing / ready / failed）、`error`、`chunk_count`、`char_count` | 知识库文档 |
+| `ai_kb_chunks` | `kb_id`、`doc_id`、`content`、`token_count`、`embedding`（real[]）、`embedding_vec`（pgvector，条件迁移） | 知识库分块 |
+| `ai_agents` | `user_id`、`name`、`avatar`、`system_prompt`、`config_id`、`model`、`knowledge_base_id`、`tools`、`opening_message`、`suggested_questions`、`status`、`cloned_from_id`、`usage_count`、`is_enabled` | 自定义智能体 |
 | `ai_http_tools` | `name`（唯一）、`description`、`method`、`url_template`、`headers`、`params`、`is_enabled` | HTTP API 工具 |
 | `ai_eval_sets` | `name`、`items`（问题 + 期望要点） | 评测集 |
 | `ai_eval_runs` | `set_id`、`config_id`、`model`、`status`、`results`、`avg_duration_ms`、`total_tokens` | 评测运行记录 |
@@ -90,10 +90,23 @@ AI 模块表定义在 `packages/server/src/db/schema/ai.ts`。
 | `PUT` | `/api/ai/conversations/{id}/knowledge-base` | 挂载 / 取消挂载知识库 | 登录用户 |
 | `GET/POST/DELETE` | `/api/ai/conversations/{id}/share` | 查询 / 生成 / 撤销分享 | 登录用户 |
 | `GET` | `/api/ai/conversations/{id}/export` | 导出 Markdown / JSON（激活分支） | 登录用户 |
+| `DELETE` | `/api/ai/conversations/{id}/messages/{msgId}` | 删除单条消息（仅 assistant 回复） | 登录用户 |
 | `DELETE` | `/api/ai/conversations/{id}/messages/{msgId}/cascade` | 删除消息子树 | 登录用户 |
 | `PUT` | `/api/ai/conversations/{id}/messages/{msgId}/feedback` | 点赞 / 点踩反馈 | 登录用户 |
 | `GET` | `/api/ai/conversations/admin/feedback` | 管理员反馈列表 | `ai:feedback:view` |
+| `GET` | `/api/ai/conversations/admin/feedback/{msgId}/context` | 反馈消息上下文回放 | `ai:feedback:view` |
+| `GET` | `/api/ai/conversations/admin/feedback/export` | 按筛选导出 CSV（上限 10000 条） | `ai:feedback:view` |
 | `PUT` | `/api/ai/conversations/admin/feedback/{msgId}` | 管理员处理反馈 | `ai:feedback:handle` |
+
+### Arena / 审计 / 分享只读接口
+
+| 方法 | 路径 | 说明 | 权限 |
+| --- | --- | --- | --- |
+| `POST` | `/api/ai/arena/chat` | 单模型 SSE 流式对比（不落库、不带历史，受 `ai_chat_send` 限流） | 登录用户 |
+| `POST` | `/api/ai/arena/vote` | 提交对比投票 | 登录用户 |
+| `GET` | `/api/ai/audit/messages` | 跨用户消息合规检索 | `ai:audit:view` |
+| `GET` | `/api/ai/audit/messages/{msgId}/context` | 审计消息上下文回放 | `ai:audit:view` |
+| `GET` | `/api/ai/public/chat/{token}` | 分享对话只读内容（过期返回 410） | 免登录 |
 
 ---
 

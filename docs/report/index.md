@@ -8,10 +8,10 @@
 
 | 文档 | 内容 |
 |------|------|
-| [数据源接入](./datasources) | API / 内置库 / MySQL / PostgreSQL / SQL Server / 静态数据 / 文件上传；凭据加密与连接测试 |
-| [数据集与数据加工](./datasets) | 参数化查询、计算字段、结果缓存、物化快照、字段格式化与字典翻译、行级数据权限 |
-| [仪表盘设计](./dashboards) | 拖拽设计器、23 种组件、全局筛选器、点击联动、钻取、发布生命周期、版本与收藏 |
-| [数据大屏](./data-screen) | 自由画布、等比自适应缩放、深色科技皮肤、翻牌器/滚动榜单/地图、全屏与自动刷新 |
+| [数据源接入](./datasources) | API / 内置库 / MySQL / PostgreSQL / SQL Server / 静态数据 / 文件上传；凭据加密、连接测试与健康检查、克隆与批量启停 |
+| [数据集与数据加工](./datasets) | 可视化建模（含 JOIN）、参数化查询、计算字段、结果缓存、物化快照（全量/增量）、字段格式化与字典翻译、行级数据权限、血缘图谱 |
+| [仪表盘设计](./dashboards) | 拖拽设计器、23 种组件、指标绑定、全局筛选器、点击联动、维度钻取、多页轮播、发布生命周期、版本与收藏 |
+| [数据大屏](./data-screen) | 自由画布、等比自适应缩放、深色科技皮肤、翻牌器/滚动榜单/地图、多屏轮播、全屏与自动刷新 |
 | [类 Excel 打印报表](./print-reports) | Univer 单元格设计器、单元格表达式、纵向扩展、多数据集/交叉表/子报表、套打与导出 |
 
 ### 智能与监控
@@ -35,8 +35,8 @@
 
 | 文档 | 内容 |
 |------|------|
-| [分享 / 订阅 / 嵌入 / 协作](./sharing) | 公开分享链接、定时订阅推送、`<ReportEmbed>` 跨模块嵌入、Embed SDK 协议、评论批注 |
-| [取数运行时与可靠投递](./runtime-governance) | 统一批量取数、执行日志、缓存与物化、订阅/预警可靠投递、异步任务、运维要点 |
+| [分享 / 订阅 / 嵌入 / 协作](./sharing) | 公开分享链接（密码/次数/IP 白名单）、定时订阅推送、`<ReportEmbed>` 跨模块嵌入、Embed SDK 协议、评论协作 |
+| [取数运行时与可靠投递](./runtime-governance) | 统一批量取数、容量护栏、执行日志与统计、缓存与物化、订阅/预警可靠投递、异步任务、运维要点 |
 
 ## 按场景快速定位
 
@@ -101,7 +101,7 @@ flowchart TB
 | 数据质量 | `/report/quality` | `report:dq:list` / `:create` / `:update` / `:delete` / `:run` / `:export` |
 | 资源治理 | `/report/governance` | `report:folder:*`、`report:resource:*`、`report:approval:*`、`report:environment:*`、`report:materialization:*`、`report:query-quota:*`、`report:query-cost:*`、`report:sla:*`（详见[资源治理](./governance)） |
 | 资产目录 | `/report/assets` | `report:asset:list` / `:usage` / `:export`、`report:deprecation:*`、`report:asset-template:*` |
-| 智能问数 | `/report/chatbi` | `report:chatbi:list` / `:create` / `:update` / `:delete` / `:ask` / `:save` / `:audit` |
+| 智能问数 | `/report/chatbi` | `report:chatbi:list` / `:create` / `:update` / `:delete` / `:ask` / `:save` / `:audit` / `:manage` |
 | 填报模板 | `/report/fill-templates` | `report:fill:template:list` / `:create` / `:update` / `:publish` / `:clone` / `:delete` |
 | 填报记录 | `/report/fill-records` | `report:fill:record:list` / `:create` / `:update` / `:submit` / `:cancel` / `:review` / `:export` |
 
@@ -135,7 +135,7 @@ flowchart TB
 | 保存了仪表盘，别人却看不到最新内容 | 「保存」只保存草稿，需在列表点「**发布**」固化发布快照（见[发布与生命周期](./dashboards#发布与生命周期)） |
 | 数据集无法启用物化快照 | 数据集含参数、`${__*}` 系统变量或行级权限规则——物化是全局快照，会绕过这些上下文，保存时被拦截（见[物化的约束](./datasets#物化快照)） |
 | 仪表盘无法公开分享 / 定时推送 | 其中有数据集使用行级权限、系统变量或必填参数，不能进入匿名/无身份场景（见[安全防护](./sharing#公开分享链接)） |
-| 数据源 / 数据集删除失败 | 存在下游引用（数据集/组件/打印/预警），先用「血缘」定位并解除引用（见[血缘与删除保护](./datasets#血缘与删除保护)） |
+| 数据源 / 数据集删除失败 | 存在下游引用（数据集/组件/打印/预警/指标/订阅等），先用「血缘」定位并解除引用（见[血缘图谱与删除保护](./datasets#血缘图谱与删除保护)） |
 | 保存时提示修订冲突（409） | 他人已先保存，刷新获取最新修订后重做修改（仪表盘/指标/填报均带乐观锁） |
 | 外部 API / 数据库连不上内网地址 | 出站默认拒绝私网/保留地址，需运维配置 `REPORT_OUTBOUND_PRIVATE_ALLOWLIST` 白名单（见[数据源接入](./datasources)） |
 | 预警配了 Cron 却没有触发通知 | 检查规则是否启用、错过策略、静默期设置，以及「最近投递」状态与投递历史（见[投递历史与确认](./ai-and-alerts#投递历史与确认)） |

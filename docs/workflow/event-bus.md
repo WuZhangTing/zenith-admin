@@ -101,6 +101,7 @@ X-Zenith-Signature: t={timestamp},v1={hex_hmac}
 | `DELETE` | `/api/workflows/event-subscriptions/{id}` | 删除订阅 |
 | `PATCH` | `/api/workflows/event-subscriptions/{id}/toggle` | 启用 / 禁用 |
 | `GET` | `/api/workflows/event-subscriptions/deliveries/list` | 投递记录 |
+| `GET` | `/api/workflows/event-subscriptions/deliveries/{id}` | 投递记录详情 |
 | `POST` | `/api/workflows/event-subscriptions/deliveries/{id}/retry` | 重试投递 |
 | `POST` | `/api/workflows/event-subscriptions/deliveries/batch-retry` | 批量重试投递 |
 | `POST` | `/api/workflows/event-subscriptions/deliveries/replay` | 按筛选重放 |

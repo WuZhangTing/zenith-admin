@@ -18,7 +18,10 @@
 | `is_default` | 是否默认公众号；设为默认时取消同租户其它默认 |
 | `auto_create_member` | 关注即自动注册并绑定会员（详见 [粉丝与会员](./fans.md)） |
 | `content_check_enabled` | 是否对群发 / 客服消息启用内容安全校验（详见 [内容安全](./statistics.md#内容安全校验)） |
+| `remark` | 备注 |
 | `status` | `enabled` / `disabled`；`disabled` 时回调直接返回 200 不处理 |
+
+创建 / 编辑时 AppID 在全局唯一，重复会报「该 AppID 已存在」。
 
 ---
 
@@ -27,6 +30,7 @@
 - 每个业务页面顶部均有 `MpAccountSwitcher` 公众号切换器，切换后页面按 `currentId` 重新拉取数据。
 - 前端通过 `currentIdRef` 在异步请求返回后判断账号是否已切换，丢弃过期响应，避免「账号 A 的数据渲染到账号 B」。
 - 账号是各 `mp_*` 表的外键根，删除账号会级联清理其标签、粉丝、消息、菜单、客服会话等数据。
+- 更新 / 删除账号会同步清除 Redis 缓存的 `access_token`，凭证变更即时生效。
 
 ---
 
@@ -48,7 +52,7 @@
 
 | 方法 | 路由 | 权限 | 说明 |
 | --- | --- | --- | --- |
-| `GET` | `/api/mp/accounts` | `mp:account:list` | 公众号列表（分页 / 关键词 / 类型） |
+| `GET` | `/api/mp/accounts` | `mp:account:list` | 公众号列表（分页 / 关键词 / 类型 / 状态） |
 | `GET` | `/api/mp/accounts/{id}` | `mp:account:list` | 公众号详情（编辑用，`app_secret` 返回空串） |
 | `POST` | `/api/mp/accounts` | `mp:account:create` | 新增公众号 |
 | `PUT` | `/api/mp/accounts/{id}` | `mp:account:update` | 编辑公众号 |

@@ -22,9 +22,11 @@
 | `${SUM(field)}` | **聚合** | 还支持 `COUNT / AVG / MAX / MIN`，标量、不扩展 |
 | `${GROUP_SUM(field)}` | **组小计** | 还支持 `GROUP_COUNT / GROUP_AVG / GROUP_MAX / GROUP_MIN` |
 | `${PAGE_SUM(field)}` | **页小计** | 还支持 `PAGE_COUNT / PAGE_AVG / PAGE_MAX / PAGE_MIN` |
-| `${QRCODE(field)}` | **二维码单元格** | HTML / Excel / PDF 均会按图形输出 |
-| `${CODE128(field)}` | **Code128 条码单元格** | 适合单号、箱码、库位码 |
+| `${QRCODE(field)}` | **二维码单元格** | HTML / Excel / PDF / Word 均按图形输出 |
+| `${CODE128(field)}` | **Code128 条码单元格** | 适合单号、箱码、库位码；`BARCODE(...)` 为同义写法 |
 | 普通文本 | 字面量 | 支持「前缀`${field}`后缀」混合文本 |
+
+除表达式外，单元格还可声明为**图片单元格**（kind: image，配置图片 URL、宽高与填充方式 fit，套打 logo / 签章图常用）。
 
 ### 示例
 
@@ -58,8 +60,8 @@
 
 - `content.datasetBindings[]` 用唯一 `key` 绑定数据集，可将模板参数映射到目标参数，并配置 `rowLimit`；`parentKey/parentField/childField` 表达父子数据关系。
 - Sheet 可用 `datasetKey` 设置默认绑定，单元格也可覆盖；`repeatBlocks[]` 允许同一 Sheet 由不同数据集展开多个不重叠模板带。
-- `detailDirection: 'crosstab'` 使用 `rowFields`、`columnFields`、`valueFields[{ field, aggregate }]` 生成交叉表，可显示行/列总计。服务端限制动态列数、总单元格数和结果字节数，超预算直接失败，不截断成错误报表。
-- `kind: 'subreport'` 单元格通过 `templateId`、可选 `datasetKey` 和 `paramBindings` 嵌入另一个模板。服务端限制递归深度并检测循环引用；子报表仍执行目标模板和数据集权限校验。
+- `detailDirection: 'crosstab'` 使用 `rowFields`、`columnFields`、`valueFields[{ field, aggregate }]` 生成交叉表，可显示行/列总计。服务端限制动态列数（256）、总单元格数（10 万）和结果字节数（8MB），超预算直接失败，不截断成错误报表。
+- `kind: 'subreport'` 单元格通过 `templateId`、可选 `datasetKey` 和 `paramBindings` 嵌入另一个模板。服务端限制递归深度（最多 3 层）并检测循环引用；子报表仍执行目标模板和数据集权限校验。
 
 ## 预览与打印
 
@@ -68,7 +70,7 @@
 
 ## Excel / PDF / Word 导出
 
-打印报表可导出为 **Excel（.xlsx）**、**PDF** 与 **Word（.docx）**，接入项目统一**导出中心**。复杂或大体量任务默认按导出中心容量策略走 `auto/async`。
+打印报表可导出为 **Excel（.xlsx）**、**PDF** 与 **Word（.docx）**，接入项目统一**导出中心**（导出实体 `report.print`）。明细行数 ≤ 800 时同步直出，超过则按导出中心容量策略转异步任务 + 下载中心取件。
 
 - **Excel**：服务端用 ExcelJS 还原多 Sheet 网格、合并、字体/对齐/底纹/边框、行高列宽、公式、数字格式、图片/二维码/条码、纸张与页面设置。
 - **PDF**：服务端用 PDFKit 按真实分页结果绘制文本表格、页眉页脚、页码、边框，并对合并单元格做合理降级。

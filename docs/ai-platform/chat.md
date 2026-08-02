@@ -20,7 +20,6 @@
 | SSE 事件 | 说明 |
 | --- | --- |
 | `gen` | 首个事件，返回本次生成任务的 `genId`（停止生成与断线续传的凭据） |
-| `user` | 断线续传回放时返回本轮用户消息内容（发起端已本地渲染，跳过） |
 | `delta` | 返回增量文本片段，前端实时追加到当前 AI 回复 |
 | `reasoning` | 返回推理模型思维链增量（`reasoning_content` / Anthropic thinking），前端在折叠面板中实时展示 |
 | `tool_call` | function calling 执行过程（工具名 / 参数 / 结果），前端以折叠卡片展示 |
@@ -41,9 +40,9 @@
 | `configSource` | 可选，`system` / `user`，表示使用系统配置或个人配置 |
 | `configId` | 可选，指定系统服务商配置 ID 或个人配置 ID；指定已禁用的系统配置会返回 400 |
 | `model` | 可选，多模型配置下选择的具体模型（须在该配置的模型列表中） |
-| `images` | 可选，vision 图片（data URL base64，≤3 张），仅当轮上下文生效不落库；需模型声明 `capabilities.vision` |
+| `images` | 可选，vision 图片（data URL base64，≤3 张、单张 ≤4MB），仅当轮上下文生效不落库；需模型声明 `capabilities.vision` |
 
-服务端会校验会话归属，按**当前激活分支路径**读取历史消息并按 Token 预算保留最近上下文（默认最多 50 条、6000 Token）。接口按用户限流（内置规则 `ai_chat_send`，默认 15 次 / 分钟）；另受 `ai_daily_token_quota` 每用户每日 token 配额约束（Redis 按自然日计数，0 = 不限制，超限返回 429）。
+服务端会校验会话归属，按**当前激活分支路径**读取历史消息（先截取最近 50 条），再按 Token 预算裁剪上下文（默认 6000 Token、最多 20 条）。接口按用户限流（内置规则 `ai_chat_send`，默认 15 次 / 分钟）；另受 `ai_daily_token_quota` 每用户每日 token 配额约束（Redis 按自然日计数，0 = 不限制，超限返回 429）。
 
 ## 生成与连接解耦（断线续传）
 
@@ -58,17 +57,17 @@
 
 消息模型对齐 ChatGPT：`ai_messages.parent_id` 组成树、`ai_conversations.active_leaf_msg_id` 指定当前激活分支的叶子，激活路径 = 叶子的祖先链。历史线性数据（`parent_id` 为空）按时间序推导隐式父节点兼容。
 
-- **重新生成**：新回复保存为旧回复的兄弟分支（同一条 user 消息的多个回答），不再删除旧内容。
+- **重新生成**：新回复保存为旧回复的兄弟分支（同一条 user 消息的多个回答），旧回复完整保留。
 - **编辑重发**：新 user 消息挂到被编辑消息的父节点，旧分支完整保留。
 - **分支切换**：存在兄弟分支的消息标题行出现「‹ i/n ›」切换器，`PUT /api/ai/conversations/{id}/active-branch` 以目标消息为起点沿最新子分支下探到叶子并激活。
-- **消息删除**：`DELETE .../messages/{msgId}/cascade` 删除整个子树（所有后代分支）；若激活叶子位于被删子树内，自动回退到父链最新叶子。
+- **消息删除**：`DELETE .../messages/{msgId}` 删除单条消息（仅允许删除 assistant 回复）；`DELETE .../messages/{msgId}/cascade` 删除整个子树（所有后代分支），若激活叶子位于被删子树内，自动回退到父链最新叶子。
 - 导出 Markdown / JSON 仅导出当前激活分支路径。
 
 ## 消息与会话管理
 
 对话保存在 `ai_conversations`，消息保存在 `ai_messages`。助手消息会记录生成所用模型、思维链内容（`reasoning`）、输入 / 输出 Token、首字延迟（`ttft_ms`）、总耗时（`duration_ms`）与生成调用链 `trace`。上游未返回 usage 时（部分兼容网关不支持 `stream_options.include_usage`），服务端按字符数估算 Token 兜底。
 
-会话标题默认为「新对话」，首轮回答完成后由系统默认模型异步总结生成标题（不超过 15 字，失败回退为用户消息前 30 字），并通过 `title` 事件推送给前端。
+会话标题默认为「新对话」，首轮回答完成后由系统默认模型异步总结生成标题（需系统默认配置为 OpenAI 兼容类型；不超过 15 字，失败回退为用户消息前 30 字），并通过 `title` 事件推送给前端。
 
 会话支持最多 10 个自定义**标签**（`PUT /{id}/tags`），列表接口支持 `tag` 参数过滤。
 
@@ -83,8 +82,8 @@
 
 - **个人指令（Custom Instructions）**：头部「个人指令」入口维护「关于我」与「回答风格」（`/api/ai/preferences`），启用后自动追加到所有对话的 system prompt 末尾。
 - **对话角色**：头部「角色」下拉应用提示词模板为当前对话的 `systemPromptOverride`，含 `{{变量}}` 的模板会弹出填充表单，详见[提示词模板](./prompts.md)。
-- **对话分享**：会话菜单生成只读分享链接（永久 / 7 天 / 30 天，可撤销），免登录访问 `/public/ai-chat/{token}`，按 IP 限流（`ai_share_view`）。
-- **模型对比（Arena）**：头部入口打开双栏对比，同一提问并行发给两个模型流式对比，投票结果写入 `ai_arena_votes`。
+- **对话分享**：会话菜单生成只读分享链接（有效期 0–365 天，0 = 永久，前端预设永久 / 7 天 / 30 天；可随时撤销，同一会话仅保留一个有效分享），免登录访问 `/public/ai-chat/{token}`，按 IP 限流（`ai_share_view`）。
+- **模型对比（Arena）**：头部入口打开双栏对比，同一提问并行发给两个模型流式对比（`POST /api/ai/arena/chat`，单模型 SSE 流，不保存对话、不携带历史上下文，受 `ai_chat_send` 限流、敏感词过滤与每日配额约束），投票结果写入 `ai_arena_votes`（`POST /api/ai/arena/vote`）。
 
 ## 相关文档
 

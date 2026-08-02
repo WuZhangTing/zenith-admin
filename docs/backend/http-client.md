@@ -1,208 +1,80 @@
-# 统一外呼 HTTP 客户端
+# 外呼 HTTP 客户端
 
-服务端所有对外 HTTP 调用（OAuth、链接预览、第三方 API 等）统一通过 `packages/server/src/lib/http-client.ts` 发出，**禁止**在业务代码中直接使用全局 `fetch()`。
+所有出站 HTTP 请求（调第三方 API、Webhook 投递、支付渠道、AI 服务商等）**必须**走统一封装 `src/lib/http-client.ts`，禁止在业务代码中直接使用 `fetch` / `axios`。统一封装带来：超时控制、重试、熔断、代理、SSRF 防护与出站流量日志。
 
-底层基于 Node 24 原生 `fetch`（undici），在其之上提供超时、重试、代理、熔断、Header 脱敏与结构化日志等能力。
-
-## 设计目标
-
-- **可观测**：每次请求/响应/重试/错误均写入 winston 日志，敏感 Header 自动脱敏。
-- **可靠**：可选指数退避重试、按 host 维度的熔断器，防止单一故障域拖垮整个进程。
-- **可控**：超时、代理、重试次数由调用方在代码中显式声明，**不从环境变量读取**，避免隐式行为。
-- **统一错误**：网络错误、超时与熔断统一抛出 `HttpClientError`，HTTP 非 2xx 响应由调用方按业务语义处理。
-
-## API
-
-### 导出
+## 基本用法
 
 ```ts
-import {
-  httpRequest,
-  httpGet, httpPost, httpPut, httpPatch, httpDelete,
-  HttpClientError,
-  resetHttpCircuitBreakers,
-} from '@/lib/http-client';
-```
+import { httpGet, httpPost, httpRequest } from '../lib/http-client';
 
-### `httpRequest(url, options?)`
-
-```ts
-interface HttpRequestOptions extends Omit<RequestInit, 'signal' | 'body'> {
-  baseURL?: string;          // 相对路径前缀
-  body?: BodyInit | Record<string, unknown> | unknown[] | null;
-  timeout?: number;          // ms，0 / 未设置 = 无超时（默认）
-  retries?: number;          // 5xx 与网络错误重试次数，默认 0
-  retryDelay?: number;       // 指数退避基准毫秒，默认 300
-  proxy?: string;            // 仅由调用方代码传入，不读环境变量
-  signal?: AbortSignal;      // 与超时信号合并
-  logBodyLimit?: number;     // 重试/错误诊断片段截断长度，默认 2048；设 0 不记录片段
-  httpLog?: {                // 本次调用的出站 HTTP 流量日志覆盖项
-    level?: HttpLogLevel;    // off / access / headers / body / full
-    format?: HttpLogFormat;  // json / text / curl
-    logResponseBody?: boolean;
-  };
-}
-```
-
-返回 `HttpResponse`：
-
-```ts
-interface HttpResponse {
-  status: number;
-  ok: boolean;
-  headers: Headers;
-  url: string;                                  // 请求 URL（应用 baseURL 后）
-  text: () => Promise<string>;
-  json: <T = unknown>() => Promise<T>;
-  arrayBuffer: () => Promise<ArrayBuffer>;
-  raw: Response;                                // 原始 Response 对象
-}
-```
-
-### 便捷方法
-
-```ts
-httpGet(url, options?)
-httpPost(url, body?, options?)   // body 为对象时自动 JSON 序列化并补 Content-Type
-httpPut(url, body?, options?)
-httpPatch(url, body?, options?)
-httpDelete(url, options?)
-```
-
-## 使用示例
-
-### GET（含 Header）
-
-```ts
-const resp = await httpGet('https://api.github.com/user', {
-  headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+const data = await httpGet<WeatherResp>('https://api.example.com/weather', {
+  query: { city: 'beijing' },
+  timeout: 5000,
 });
-if (!resp.ok) {
-  throw new HttpClientError('GitHub 用户信息获取失败', { status: resp.status, url: resp.url });
-}
-const user = await resp.json<Record<string, unknown>>();
-```
 
-### POST JSON
-
-```ts
-const resp = await httpPost('https://github.com/login/oauth/access_token', {
-  client_id: clientId,
-  client_secret: clientSecret,
-  code,
-}, {
-  headers: { Accept: 'application/json' },
+await httpPost('https://open.example.com/webhook', payload, {
+  headers: { 'X-Sign': sign },
+  retries: 2,
 });
 ```
 
-### 超时与重试
+`httpRequest` 为底层通用入口，`httpGet` / `httpPost` / `httpPut` / `httpDelete` 是便捷封装。响应默认按 JSON 解析，非 2xx 抛 `HttpClientError`（含 `status`、`body`）。
 
-```ts
-const resp = await httpGet('https://api.example.com/users', {
-  timeout: 5000,        // 5s 超时
-  retries: 2,           // 5xx / 网络错误最多重试 2 次
-  retryDelay: 500,      // 退避基准 500ms：500 / 1000 / 2000
-});
+## 选项
+
+| 选项 | 默认 | 说明 |
+| --- | --- | --- |
+| `timeout` | 10000 | 单次请求超时（ms） |
+| `retries` | 0 | 重试次数 |
+| `retryDelay` | 1000 | 首次重试延迟（ms），指数退避 `retryDelay * 2^(attempt-1)` |
+| `headers` / `query` | — | 请求头 / query 参数 |
+| `proxy` | — | 代理地址（undici `ProxyAgent`；**不读取环境变量**，需显式传入） |
+| `circuitBreaker` | `true` | 熔断开关，可对单请求关闭 |
+| `ssrfProtection` | `false` | SSRF 防护开关 |
+| `ssrfAllowlist` | `[]` | SSRF 防护下例外放行的私网目标 |
+
+### 重试
+
+- 触发条件：**5xx 响应或网络错误**（超时 abort 不重试）
+- 日志：重试时输出 `[http] retry on 5xx`（warn）
+
+### 熔断
+
+按目标 host 独立熔断：
+
+- 连续 **5 次失败**（非 2xx 或网络错误均计失败）→ 熔断 **30 秒**
+- 冷却后半开：放行一次探测，成功则重置计数
+- 熔断期间请求立即失败（`status: 0`），不打到远端
+- 测试 / 运维可调用 `resetHttpCircuitBreakers()` 清空全部熔断状态
+
+### SSRF 防护
+
+`ssrfProtection: true` 时（处理**用户可控 URL** 的场景必须开启，如报表数据源、CMS 采集、AI 自定义端点）：
+
+1. 请求前用 `assertSafeOutboundUrl()`（`src/lib/outbound-url.ts`）校验目标：
+   - 仅允许 `http` / `https` 协议；拒绝 URL 携带用户名密码
+   - 拒绝 `localhost`、`.local` 域名
+   - 解析后 IP 命中内置 `BLOCKED_RANGES`（IPv4/IPv6 全部私网与保留段：`10/8`、`172.16/12`、`192.168/16`、`127/8`、链路本地、ULA 等）→ 拒绝
+2. 使用专用 undici Agent，**每次 DNS 解析结果都重新校验**（防 DNS rebinding）
+3. 强制 `redirect: 'error'`（防重定向绕过）
+4. **禁止与 `proxy` 同时使用**（组合会绕过 IP 校验，直接抛错）
+
+`ssrfAllowlist` 支持三种形态：精确主机名、`*.domain` 通配、CIDR / IP。各业务域的例外清单通过环境变量下发：
+
+```dotenv
+REPORT_OUTBOUND_PRIVATE_ALLOWLIST=          # 报表数据源允许的私网目标
+AI_OUTBOUND_PRIVATE_ALLOWLIST=127.0.0.1,localhost  # AI 服务商（默认放行本机 ollama 等）
+CMS_CDN_PURGE_HOST_ALLOWLIST=               # CMS CDN 刷新回调
+CMS_COLLECT_SSRF_ALLOWLIST=                 # CMS 采集
 ```
 
-### 通过代理
+## 出站日志
 
-```ts
-const resp = await httpGet('https://www.google.com', {
-  proxy: 'http://127.0.0.1:7890',   // 由调用方决定，不会自动读取 HTTPS_PROXY
-});
-```
+集成 [HTTP 流量日志](./http-logging.md)（`HTTP_LOG_OUTGOING_*` 配置）。日志行：
 
-### 取消请求
+- `[http] request`（debug）→ `[http] response`（info）/ `[http] error`（warn）
+- URL 中的敏感 query 自动脱敏为 `key=***`，覆盖：`access_token`、`secret`、`appsecret`、`app_secret`、`client_secret`、`password`、`refresh_token`、`api_key`、`apikey`、`token`、`sign`、`signature`
 
-```ts
-const ac = new AbortController();
-setTimeout(() => ac.abort(), 3000);
-await httpRequest('https://example.com/big', { signal: ac.signal });
-```
+## 何时用任务中心而非直接外呼
 
-### baseURL
-
-```ts
-await httpGet('/v1.0/users/me', {
-  baseURL: 'https://api.dingtalk.com',
-});
-```
-
-## 错误处理
-
-网络错误、超时、熔断器打开且重试耗尽时会抛出 `HttpClientError`。HTTP 非 2xx 响应不会自动抛错，而是返回 `HttpResponse`，调用方通过 `resp.ok` / `resp.status` 判断并按业务需要自行抛错。
-
-```ts
-class HttpClientError extends Error {
-  readonly status: number;          // 0 = 网络/熔断/超时；调用方自行构造时也可传 HTTP 状态码
-  readonly url: string;
-  readonly headers: Record<string, string>;
-  readonly bodySnippet: string;     // 调用方传入的响应正文片段，便于诊断
-  readonly cause?: unknown;
-}
-```
-
-业务侧建议：
-
-```ts
-try {
-  const resp = await httpGet(url);
-  if (!resp.ok) {
-    throw new HttpClientError('上游返回非 2xx', {
-      status: resp.status,
-      url: resp.url,
-      bodySnippet: (await resp.text()).slice(0, 500),
-    });
-  }
-} catch (err) {
-  if (err instanceof HttpClientError && err.status === 0) {
-    // 网络异常 / 熔断 / 超时
-  }
-  throw err;
-}
-```
-
-## 熔断器
-
-- **粒度**：按目标 URL 的 host。
-- **触发**：按 host 连续 **5 次失败**（非 2xx 响应或网络错误）。
-- **冷却**：默认 **30s**，期间所有命中该 host 的请求直接抛 `HttpClientError`（`status: 0`），不会发起真实请求。
-- **恢复**：冷却后进入半开状态，下一次成功则关闭熔断。
-
-如需手动重置（测试用）：
-
-```ts
-import { resetHttpCircuitBreakers } from '@/lib/http-client';
-resetHttpCircuitBreakers();
-```
-
-## 日志与 Header 脱敏
-
-每条请求在 winston 中产生 1–N 条结构化日志：
-
-- `[http] request` — 发起请求（debug）
-- `[http] retry on 5xx` — 5xx 响应触发重试（warn）
-- `[http] response` — 收到响应（info）
-- `[http] error` — 网络错误、超时或最终失败（warn）
-
-以下 Header 在日志中始终替换为 `***`：
-
-- 精确匹配：`authorization`、`cookie`、`set-cookie`、`proxy-authorization`、`x-auth-token`
-- 模糊匹配：包含 `token` / `secret` / `password` / `api[_-]?key`（大小写不敏感）
-
-基础 winston 日志中的 5xx 重试响应片段按 `logBodyLimit`（默认 2048 字节）截断；完整出站 HTTP 流量日志是否记录请求/响应 body、截断阈值与输出格式由 `config.httpLog.outgoing` 和单次调用的 `httpLog` 覆盖项控制。
-
-## 代理策略
-
-**调用方代码显式传入**：
-
-```ts
-httpGet(url, { proxy: 'http://127.0.0.1:7890' });
-```
-
-> 设计上不读取 `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` 环境变量。代理是否启用、对哪些目标启用，由业务代码自行决定，避免运维环境差异导致难以排查的行为漂移。
-
-如确实需要按环境切换代理，建议在调用处通过 `getSystemConfig` 等业务渠道读取后再传入。
-
-新增任何外呼请直接使用 `httpRequest` / `httpGet` / `httpPost` 等，**不要**重新引入 `fetch()`。
+外呼耗时长、允许异步、需要重试审计的（批量推送、对账拉取、采集任务），应封装为[异步任务](./task-center.md)投递任务中心执行，而不是在 HTTP 请求周期内同步外呼。

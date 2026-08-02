@@ -1,272 +1,137 @@
-# 系统内置配置
+# 系统配置
 
-系统配置模块（`system_configs` 表）用于在运行时动态调整系统行为，无需修改代码或环境变量。管理员可通过后台管理界面随时读写配置项。
+`system_configs` 表存储运行时可调的键值配置，管理端「系统设置」页面维护，后端通过 `src/lib/system-config.ts` 的辅助函数读取。种子数据定义在 `packages/shared/src/seed/platform.ts` 的 `SEED_SYSTEM_CONFIGS`。
 
----
+## 数据模型
 
-## 内置配置项参考
+| 字段 | 说明 |
+| --- | --- |
+| `configKey` | 配置键（租户内唯一） |
+| `configValue` | 字符串存储的配置值 |
+| `configType` | `string` / `number` / `boolean`（前端渲染控件用） |
+| `description` | 配置说明 |
+| `tenantId` | 归属租户；`NULL` = 平台级默认值 |
 
-以下是系统预置的 24 个配置项（由 `db:seed` 初始化，源文件：`packages/shared/src/seed/{业务域}.ts`）。
+## 读取辅助函数
 
----
+```ts
+import { getConfigValue, getConfigNumber, getConfigBoolean } from '../lib/system-config';
 
-### 站点基础
+const siteName = await getConfigValue('site_name');          // string | null
+const maxAttempts = await getConfigNumber('login_max_attempts', 10); // 带默认值
+const captchaOn = await getConfigBoolean('captcha_enabled'); // 'true' 或 '1' 视为 true
+```
 
-#### `site_name`
+**租户回退**：多租户开启时先查当前租户的配置值，未配置则回退到平台级（`tenantId IS NULL`）的值——租户可以覆盖平台默认，未覆盖时继承。
 
-| 属性 | 值 |
-|------|----|
-| 类型 | `string` |
-| 默认值 | `Zenith Admin` |
-| 说明 | 站点名称，显示在浏览器标签页标题中。可通过 `GET /api/system-configs/public/site_name` 公开读取。 |
+## API 端点
 
----
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/api/system-configs` | 分页列表 |
+| GET | `/api/system-configs/{id}` | 详情 |
+| POST | `/api/system-configs` | 新增 |
+| PUT | `/api/system-configs/{id}` | 更新 |
+| DELETE | `/api/system-configs/{id}` | 删除 |
+| GET | `/api/system-configs/public/{key}` | **公开**读取单个配置（登录页等未认证场景用，如 `captcha_enabled`、`site_name`） |
+| GET | `/api/system-configs/password-policy` | **公开**读取密码策略聚合（前端表单校验提示） |
 
-### 登录与账号安全
+## 内置配置清单
 
-#### `captcha_enabled`
+种子数据内置 43 项，按用途分组：
 
-| 属性 | 值 |
-|------|----|
-| 类型 | `boolean` |
-| 默认值 | `false` |
-| 说明 | 是否开启登录验证码。设为 `true` 后，登录页会显示图形验证码输入框，后端会校验验证码正确性。 |
+### 站点与登录安全
 
-#### `captcha_complexity`
-
-| 属性 | 值 |
-|------|----|
-| 类型 | `string` |
-| 默认值 | `medium` |
-| 说明 | 验证码复杂度，控制干扰强度与识别难度，仅在 `captcha_enabled` 开启后生效。可选值：`low`（干扰线少、运算简单，易于人眼识别）、`medium`（默认，均衡）、`high`（干扰线多、运算范围大，防机器识别能力更强）。填写其他值时按 `medium` 处理。 |
-
-#### `login_max_attempts`
-
-| 属性 | 值 |
-|------|----|
-| 类型 | `number` |
-| 默认值 | `10` |
-| 说明 | 登录失败允许的最大次数。连续失败达到此阈值后，账号将被自动锁定（锁定时长由 `login_lock_duration_minutes` 控制）。失败计数使用 Redis 持久化，服务重启后不重置。 |
-
-#### `login_lock_duration_minutes`
-
-| 属性 | 值 |
-|------|----|
-| 类型 | `number` |
-| 默认值 | `30` |
-| 说明 | 账号锁定的持续时长，单位：分钟。锁定期间用户无法登录，到期后自动解除。管理员也可通过「用户管理 → 解除锁定」手动提前解锁。 |
-
-#### `allow_registration`
-
-| 属性 | 值 |
-|------|----|
-| 类型 | `boolean` |
-| 默认值 | `false` |
-| 说明 | 是否允许新用户在登录页自助注册账号。关闭时注册入口隐藏，只有管理员可在后台创建用户。 |
-
-#### `forgot_password_enabled`
-
-| 属性 | 值 |
-|------|----|
-| 类型 | `boolean` |
-| 默认值 | `false` |
-| 说明 | 是否开启忘记密码功能。开启后登录页显示「忘记密码」链接，用户可通过邮件接收重置链接。依赖邮件配置（`系统设置 → 邮件配置`）正常可用。 |
-
----
+| 配置键 | 默认值 | 说明 |
+| --- | --- | --- |
+| `site_name` | `Zenith Admin` | 站点名称 |
+| `captcha_enabled` | `false` | 登录验证码开关 |
+| `captcha_complexity` | `medium` | 验证码复杂度：`low` / `medium` / `high` |
+| `user_default_password` | `123456` | 新增用户默认密码 |
+| `login_max_attempts` | `10` | 登录失败上限，超出锁定账号 |
+| `login_lock_duration_minutes` | `30` | 账号锁定时长（分钟） |
+| `allow_registration` | `false` | 开放注册 |
+| `forgot_password_enabled` | `false` | 忘记密码 / 邮件重置 |
 
 ### 密码策略
 
-#### `user_default_password`
+| 配置键 | 默认值 | 说明 |
+| --- | --- | --- |
+| `password_min_length` | `6` | 最小长度 |
+| `password_require_uppercase` | `false` | 必须含大写字母 |
+| `password_require_special_char` | `false` | 必须含特殊字符 |
+| `password_expiry_enabled` | `false` | 密码过期强制重置 |
+| `password_expiry_days` | `90` | 过期天数 |
 
-| 属性 | 值 |
-|------|----|
-| 类型 | `string` |
-| 默认值 | `123456` |
-| 说明 | 系统预置的默认密码配置项，可在后台配置页面维护。用户管理创建接口的密码以请求参数为准。**建议在生产环境维护为高强度密码。** |
+### MFA 与登录风险
 
-#### `password_min_length`
+| 配置键 | 默认值 | 说明 |
+| --- | --- | --- |
+| `mfa_enabled` | `false` | MFA 多因素认证总开关 |
+| `mfa_mode` | `off` | `off` / `optional` / `required` |
+| `mfa_remember_device_days` | `30` | 可信设备免 MFA 天数 |
+| `login_risk_enabled` | `false` | 登录风险策略 |
+| `login_risk_new_device_action` | `allow` | 新设备动作：`allow` / `challenge` |
 
-| 属性 | 值 |
-|------|----|
-| 类型 | `number` |
-| 默认值 | `6` |
-| 说明 | 密码的最小长度限制。后端用户管理的创建用户、管理员修改指定用户密码、批量重置密码、导入用户等场景会校验此规则；前端会读取策略并展示输入提示。 |
+### 文件上传
 
-#### `password_require_uppercase`
+| 配置键 | 默认值 | 说明 |
+| --- | --- | --- |
+| `file_upload_validate_type` | `true` | 基于 magic bytes 校验真实文件类型 |
+| `file_upload_allowed_types` | `image/*,video/*,...` | 允许的 MIME 类型（逗号分隔，支持通配符；`*/*` 放开全部） |
+| `file_upload_max_size_mb` | `0` | 单文件大小上限（MB），0 = 不限制，含分片上传 |
+| `upload_session_ttl_hours` | `24` | 分片上传会话保留时长，超时未完成由定时任务清理 |
 
-| 属性 | 值 |
-|------|----|
-| 类型 | `boolean` |
-| 默认值 | `false` |
-| 说明 | 密码是否必须包含至少一个大写字母（A–Z）。 |
+### 界面与体验
 
-#### `password_require_special_char`
+| 配置键 | 默认值 | 说明 |
+| --- | --- | --- |
+| `watermark_enabled` | `false` | 页面水印 |
+| `watermark_content` | 空 | 水印文本，留空显示当前用户名 |
+| `watermark_font_size` | `14` | 字号（px） |
+| `watermark_opacity` | `15` | 透明度（1-100） |
+| `quick_chat_enabled` | `false` | 快捷聊天按钮全局开关 |
+| `feedback_entry_enabled` | `false` | 意见反馈入口 |
 
-| 属性 | 值 |
-|------|----|
-| 类型 | `boolean` |
-| 默认值 | `false` |
-| 说明 | 密码是否必须包含至少一个特殊字符（如 `!@#$%^&*`）。 |
+### Web 终端
 
-#### `password_expiry_enabled`
+| 配置键 | 默认值 | 说明 |
+| --- | --- | --- |
+| `terminal_recording_enabled` | `false` | 终端录屏 |
+| `terminal_recording_retain_days` | `30` | 录屏保留天数（0 = 不按天清理） |
+| `terminal_recording_max_size_mb` | `500` | 录屏总容量上限（0 = 不限制） |
 
-| 属性 | 值 |
-|------|----|
-| 类型 | `boolean` |
-| 默认值 | `false` |
-| 说明 | 是否开启密码过期强制重置。开启后，当用户密码超过 `password_expiry_days` 天未修改，登录响应会携带 `requirePasswordChange: true`，前端据此弹出强制修改密码弹窗。 |
+### AI
 
-#### `password_expiry_days`
+| 配置键 | 默认值 | 说明 |
+| --- | --- | --- |
+| `ai_allow_user_custom_key` | `false` | 允许用户配置自己的 AI API Key |
+| `ai_daily_token_quota` | `0` | 每用户每日 token 配额（0 = 不限制） |
+| `ai_content_filter_enabled` | `false` | 输入侧敏感词过滤（词库在字典「AI 敏感词」） |
+| `ai_embedding_model` | 空 | 知识库 embedding 模型；留空退化为关键词检索 |
+| `ai_image_model` | 空 | 图片生成模型；留空关闭 generate_image 工具 |
 
-| 属性 | 值 |
-|------|----|
-| 类型 | `number` |
-| 默认值 | `90` |
-| 说明 | 密码有效期（天）。仅在 `password_expiry_enabled` 为 `true` 时生效。 |
+### 会员中心
 
----
+| 配置键 | 默认值 | 说明 |
+| --- | --- | --- |
+| `member_point_expire_days` | `0` | 积分不活跃过期天数（0 = 永不过期） |
+| `member_login_log_retention_days` | `180` | 会员登录日志保留天数（0 = 不清理） |
+| `member_birthday_points` | `0` | 生日礼积分（0 = 不发放） |
+| `member_birthday_coupon_id` | `0` | 生日礼优惠券模板 ID（0 = 不发放） |
+| `member_invite_reward_points` | `0` | 邀请奖励积分（0 = 不奖励） |
 
-### 页面水印
+### 其他
 
-#### `watermark_enabled`
+| 配置键 | 默认值 | 说明 |
+| --- | --- | --- |
+| `rule_publish_approval` | `false` | 决策表发布审批（四眼原则） |
+| `cms_ad_event_retention_days` | `180` | CMS 广告事件明细保留天数（0 = 不自动清理） |
 
-| 属性 | 值 |
-|------|----|
-| 类型 | `boolean` |
-| 默认值 | `false` |
-| 说明 | 是否开启页面水印。开启后，所有后台页面（AdminLayout 内）均会显示水印层，用于防截图泄漏。水印层通过 `pointer-events: none` 实现，不影响正常交互。 |
+## 新增配置项
 
-#### `watermark_content`
+1. 在 `packages/shared/src/seed/platform.ts` 的 `SEED_SYSTEM_CONFIGS` 追加条目（id 递增），供 DB seed 与 MSW mock 共用
+2. 业务代码用 `getConfigValue` / `getConfigNumber` / `getConfigBoolean` 读取并给定合理默认值——配置缺失时代码不应崩溃
+3. 需要未登录访问的键（如登录页开关），前端走 `GET /api/system-configs/public/{key}`
 
-| 属性 | 值 |
-|------|----|
-| 类型 | `string` |
-| 默认值 | `（空）` |
-| 说明 | 水印显示的文本内容。**留空时自动回退为当前登录用户的昵称（nickname）或账号（username）**，推荐留空以实现可追溯的个性化水印。 |
-
-#### `watermark_font_size`
-
-| 属性 | 值 |
-|------|----|
-| 类型 | `number` |
-| 默认值 | `14` |
-| 说明 | 水印文字的字体大小，单位 px。 |
-
-#### `watermark_opacity`
-
-| 属性 | 值 |
-|------|----|
-| 类型 | `number` |
-| 默认值 | `15` |
-| 说明 | 水印透明度，取值范围 1–100，实际 CSS opacity = 值 ÷ 100。默认 `15` 对应 `opacity: 0.15`，视觉上若隐若现不影响内容阅读。 |
-
----
-
-### 功能开关
-
-#### `quick_chat_enabled`
-
-| 属性 | 值 |
-|------|----|
-| 类型 | `boolean` |
-| 默认值 | `false` |
-| 说明 | 是否显示快捷聊天悬浮按钮（全局开关）。关闭后，用户偏好设置中的相关选项也同步隐藏，所有用户均看不到该入口。 |
-
-#### `ai_allow_user_custom_key`
-
-| 属性 | 值 |
-|------|----|
-| 类型 | `boolean` |
-| 默认值 | `false` |
-| 说明 | 是否允许用户配置自己的 AI API Key。`false`（默认）时所有用户仅能使用系统管理员在 AI 服务商配置中设置的模型，聊天页面不显示"我的 AI 配置"入口；设为 `true` 后，用户可在聊天页面点击设置按钮添加自己的 API Key 和模型，优先级高于系统配置。 |
-
----
-
-### 文件上传安全
-
-#### `file_upload_validate_type`
-
-| 属性 | 值 |
-|------|----|
-| 类型 | `boolean` |
-| 默认值 | `true` |
-| 说明 | 上传文件时是否基于 magic bytes 校验真实文件类型，防止伪造 MIME type 绕过校验。 |
-
-#### `file_upload_allowed_types`
-
-| 属性 | 值 |
-|------|----|
-| 类型 | `string` |
-| 默认值 | `image/*,video/*,audio/*,application/pdf,text/plain,application/zip,application/x-zip-compressed,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-excel,application/msword,application/vnd.ms-powerpoint` |
-| 说明 | 允许上传的文件 MIME 类型，逗号分隔，支持通配符（如 `image/*`）；设为 `*/*` 或 `*` 则允许所有类型。 |
-
----
-
-### Web 终端录屏
-
-#### `terminal_recording_enabled`
-
-| 属性 | 值 |
-|------|----|
-| 类型 | `boolean` |
-| 默认值 | `false` |
-| 说明 | 是否启用 Web 终端录屏。关闭后终端操作不再自动录制。 |
-
-#### `terminal_recording_retain_days`
-
-| 属性 | 值 |
-|------|----|
-| 类型 | `number` |
-| 默认值 | `30` |
-| 说明 | 终端录屏保留天数，超过此天数的录屏将在每日清理任务中删除；`0` 表示不按天数清理。 |
-
-#### `terminal_recording_max_size_mb`
-
-| 属性 | 值 |
-|------|----|
-| 类型 | `number` |
-| 默认值 | `500` |
-| 说明 | 终端录屏总容量上限，单位 MB。超出上限后按时间从旧到新删除；`0` 表示不限制容量。 |
-
----
-
-## 如何在代码中读取配置
-
-后端路由/服务层中通过项目封装的专用 helper 读取配置项，无需手写 Drizzle 查询：
-
-```typescript
-import { getConfigValue, getConfigBoolean, getConfigNumber } from '../lib/system-config';
-
-// string 配置
-const siteName = await getConfigValue('site_name', 'Zenith Admin');
-// boolean 配置
-const watermarkEnabled = await getConfigBoolean('watermark_enabled', false);
-// number 配置
-const maxAttempts = await getConfigNumber('login_max_attempts', 10);
-```
-
-三个 helper 均位于 `packages/server/src/lib/system-config.ts`，签名：
-
-| Helper | 返回类型 | 说明 |
-|--------|----------|------|
-| `getConfigValue(key, defaultValue, tenantId?)` | `Promise<string>` | 原始字符串值，不存在时返回 `defaultValue` |
-| `getConfigBoolean(key, defaultValue, tenantId?)` | `Promise<boolean>` | 自动将 `'true'` 转为 `true` |
-| `getConfigNumber(key, defaultValue, tenantId?)` | `Promise<number>` | 自动 `Number()` 转换，转换失败时返回 `defaultValue` |
-
-> **注意**：所有 helper 均支持可选的 `tenantId` 参数，用于多租户场景。单租户场景省略即可。
-
----
-
-## 如何新增内置配置
-
-1. 在 `packages/shared/src/seed/{业务域}.ts` 的 `SEED_SYSTEM_CONFIGS` 数组中追加记录：
-
-```typescript
-{ id: 24, configKey: 'your_key', configValue: 'default', configType: 'string', description: '配置项说明', createdAt: SEED_DATE, updatedAt: SEED_DATE },
-```
-
-2. 在后端需要读取该配置的路由/中间件中调用 `getConfigValue('your_key')`。
-
-3. 重新执行 `npm run db:seed`（种子写入已做幂等处理，仅插入缺失 key，不会覆盖已有值）。
-
-> **注意**：`id` 字段需全局唯一，沿用已有最大值 +1 递增。
+> 环境变量与系统配置的分工：连接信息、密钥、部署形态（Redis、数据库、代理、日志级别）用环境变量；业务运行时可调项（开关、阈值、文案）用系统配置。

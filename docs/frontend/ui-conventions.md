@@ -7,10 +7,7 @@
 [`.agents/skills/zenith/references/constraints.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints.md)，
 可直接复制的完整页面模板在
 [`crud-frontend.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/crud-frontend.md)。
-
-本页此前把这些规则又抄了一份，结果是重构后两处各自漂移——`SearchToolbar`、操作列、
-搜索栏按钮的写法都出现过「文档在教已被废弃的旧写法」。现在规范只有一个来源，
-本页只讲**设计取向**和**去哪查**。
+规范只有一个来源，本页只讲**设计取向**和**去哪查**。
 :::
 
 ## 规范索引
@@ -22,6 +19,7 @@
 | 弹窗表单：必须加 `labelPosition="left"` / `closeOnEsc` | `constraints.md` → 前端层（Step 8） |
 | 弹窗表单：`labelWidth` 取值与单列 / 双列怎么选 | `crud-frontend.md` → 弹窗表单布局规范 |
 | 查询 / 重置 / 新增 / 刷新按钮 | `constraints.md` → 搜索栏公共按钮；API 见 [组件文档](/frontend/components#toolbar-controls-查询-重置-新增-刷新按钮) |
+| 关键字输入 / 状态下拉 / 时间范围等筛选控件 | [组件文档 → search-filters](/frontend/components#search-filters-关键字-状态-时间范围筛选)；仅关键字的列表页可直接用 `KeywordSearchToolbar` |
 | 时间格式、分页格式、图标库 | `constraints.md` → 全局章节 |
 | 完整列表页代码模板（域 hooks、批量操作、虚拟化表格、左右分栏、左侧平铺列表） | `crud-frontend.md` |
 | mutation 失效粒度、query key 结构、能否回填详情 | `crud-frontend.md` → 缓存一致性契约 |
@@ -41,6 +39,7 @@
 
 ## 相关文档
 
-- [公共组件](/frontend/components)：`ConfigurableTable`、`SearchToolbar`、`toolbar-controls` 等组件的 Props 与用法
+- [公共组件](/frontend/components)：`ConfigurableTable`、`SearchToolbar`、`toolbar-controls`、`search-filters` 等组件的 Props 与用法
 - [数据获取与服务端状态](/frontend/data-fetching)：TanStack Query 分层、域 hooks 约定、列表页模式
-- [路由与页面注册](/frontend/routing)：动态菜单路由、新增页面的完整流程
+- [前端路由与菜单](/frontend/routing)：动态菜单路由、路由守卫、新增页面的完整流程
+- [认证与请求](/frontend/auth-request)：AuthProvider、HttpClient 三端实例、token 管理

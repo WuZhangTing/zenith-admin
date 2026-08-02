@@ -45,7 +45,12 @@
 
 ## 对话审计与 Trace
 
-「对话审计」页菜单路径为 `/ai/audit`（权限 `ai:audit:view`），跨用户全量检索消息内容（关键词 / 用户 / 角色 / 时间过滤），用于内容合规检查。
+「对话审计」页菜单路径为 `/ai/audit`（权限 `ai:audit:view`），跨用户全量检索消息内容（关键词 / 用户 / 角色 / 时间过滤），用于内容合规检查。每次检索本身也会记录操作日志。
+
+| 方法 | 路径 | 说明 | 权限 |
+| --- | --- | --- | --- |
+| `GET` | `/api/ai/audit/messages` | 消息检索（`keyword` / `userId` / `role` / `startDate` / `endDate`，分页） | `ai:audit:view` |
+| `GET` | `/api/ai/audit/messages/{msgId}/context` | 目标消息上下文回放（前 8 条 + 后 2 条） | `ai:audit:view` |
 
 assistant 消息记录生成调用链 **trace**（`ai_messages.trace` jsonb）：
 
@@ -63,8 +68,8 @@ assistant 消息记录生成调用链 **trace**（`ai_messages.trace` jsonb）�
 「模型评测」页菜单路径为 `/ai/eval`（权限 `ai:eval:list` / `ai:eval:manage`），用于发版前回归与模型选型对比：
 
 1. **评测集**：维护问题列表（每条含问题与可选期望要点，最多 50 条）。
-2. **运行评测**：选择服务商配置与模型后提交，通过[任务中心](../backend/task-center.md)异步逐题调用（非流式，单题超时 60s），支持进度展示、断点续跑与取消；任务类型 `ai-eval-run`。
-3. **结果对比**：运行记录保存逐题回答、耗时、token 与失败原因，附平均耗时与总 token；对同一评测集用不同模型分别运行即可横向对比。
+2. **运行评测**：选择服务商配置与模型后提交（**仅支持 OpenAI 兼容类型的配置**，其他类型返回 400），通过[任务中心](../backend/task-center.md)异步逐题调用（非流式，单题超时 60s，`max_tokens` 上限 2048，回答截断 8000 字符），支持进度展示、断点续跑与取消；任务类型 `ai-eval-run`。
+3. **结果对比**：运行记录保存逐题回答、耗时、token（上游未返回 usage 时按字符数估算）与失败原因，附平均耗时与总 token；对同一评测集用不同模型分别运行即可横向对比。
 
 | 方法 | 路径 | 说明 | 权限 |
 | --- | --- | --- | --- |

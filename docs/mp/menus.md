@@ -28,9 +28,10 @@
 | `scancode_waitmsg` / `scancode_push` | 扫码 |
 | `pic_sysphoto` / `pic_photo_or_album` / `pic_weixin` | 拍照 / 相册 / 发图 |
 | `location_select` | 地理位置选择 |
-| `media_id` / `view_limited` | 下发 / 跳转图文素材 |
+| `media_id` | 下发素材消息（永久素材 `media_id`） |
+| `article_id` | 下发已发布的图文消息（`article_id`） |
 
-> 父级菜单（含二级子菜单）本身无动作，`type` 留空。
+> 父级菜单（含二级子菜单）本身无动作，`type` 留空。个性化菜单编辑器仅提供常用类型子集（`view` / `click` / `miniprogram` / `scancode_waitmsg`）。
 
 ---
 

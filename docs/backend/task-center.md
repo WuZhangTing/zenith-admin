@@ -28,14 +28,13 @@ submitAsyncTask()  ──►  async_tasks 表（status=pending，快照 maxAttem
    ├─►  WS 推送 task:progress（创建者实时进度）
    └─►  system_scheduler_runs（调度中心运行日志）
 
-兜底扫描（每分钟）：回收心跳超时的卡死任务 → 重投从断点续跑
+兜底扫描（每分钟）：回收心跳超时的卡死任务重投续跑；补投长时间停留 pending 的任务
 自动清理（每天 03:30）：删除超过保留期的已结束任务（全局 30 天，类型可覆盖）
 ```
 
 核心文件：
 
-- `packages/server/src/lib/task-center/` — 框架（registry / config / runner / map）
-- `packages/server/src/lib/task-center/` — 框架（registry / config / runner / map）
+- `packages/server/src/lib/task-center/` — 框架（`types` / `registry` / `config` / `runner` / `map`，入口 `index.ts` 统一导出）
 - `packages/server/src/{routes,services}/tasks/` — 查询与操作 API、业务接入示例（演示任务类型）
 - 前端：`useAsyncTasks` Hook（实时进度）、`TaskTray` 全局任务托盘（顶栏）、管理端全局监控页 `/system/task-center`（任务列表 / 任务类型策略）、业务示例页 `/biz/task-demo`（可模拟提交）
 
@@ -46,7 +45,7 @@ submitAsyncTask()  ──►  async_tasks 表（status=pending，快照 maxAttem
 ### ① 注册任务类型（启动时执行一次）
 
 ```ts
-import { registerTaskHandler } from '../lib/task-center';
+import { registerTaskHandler } from '../../lib/task-center';
 
 registerTaskHandler({
   taskType: 'member-batch-import',   // 唯一标识
@@ -83,12 +82,12 @@ registerTaskHandler({
 });
 ```
 
-注册时机：在模块加载时调用（参考 `routes/tasks/task-demo.ts` 的 `registerTaskDemoHandlers()`，于 `index.ts` 启动流程中、任务中心 Worker 注册之前执行）。注册默认值会落库到 `async_task_type_configs`，管理员可在 **任务中心 → 任务类型** 页面覆盖（暂停提交 / 并发 / 重试 / 保留期），运行时以 DB 覆盖值为准。
+注册时机：在 `src/bootstrap/workers.ts` 的 `registerBackgroundWorkers()` 中、任务中心 Worker 与 `registerSystemTasks()` 之前调用注册函数（参考 `registerTaskDemoHandlers()` 的挂载位置）。同一 `taskType` 重复注册时以最后一次为准。注册默认值会落库到 `async_task_type_configs`，管理员可在 **任务中心 → 任务类型** 页面覆盖（暂停提交 / 并发 / 重试 / 保留期），运行时以 DB 覆盖值为准。
 
 ### ② 业务接口中提交任务
 
 ```ts
-import { submitAsyncTask, mapAsyncTask } from '../lib/task-center';
+import { submitAsyncTask, mapAsyncTask } from '../../lib/task-center';
 
 const row = await submitAsyncTask({
   taskType: 'member-batch-import',
@@ -100,6 +99,20 @@ return c.json(okBody(mapAsyncTask(row), '任务已提交'), 200);
 ```
 
 `submitAsyncTask` 必须在 HTTP 上下文中调用（依赖 `currentUser()`）。提交前检查类型策略：`enabled=false` 抛 400（暂停提交）；`allowConcurrent=false` 且存在未结束任务抛 400；`idempotencyKey` 命中已存在任务时直接返回该任务（唯一索引 + `onConflictDoNothing`，天然防重复点击）。
+
+**与外部事务一起提交（事务性 outbox）**：任务提交需要与业务写操作同事务原子化时，通过第二个参数传入事务执行器——事务内只写 pending 记录、不入队，事务提交后再调用 `enqueueAsyncTask()`：
+
+```ts
+import { submitAsyncTask, enqueueAsyncTask } from '../../lib/task-center';
+
+const task = await db.transaction(async (tx) => {
+  await tx.insert(orders).values(orderData);                       // 业务写操作
+  return submitAsyncTask({ taskType: 'order-sync', payload }, { executor: tx });
+});
+await enqueueAsyncTask(task.id);   // 事务提交后入队
+```
+
+事务回滚时任务记录一并回滚；若提交后入队失败，兜底扫描会把长时间停留 pending 的任务补投（见下）。在外部事务内传 `enqueue: true` 会直接抛 500（禁止事务内入队）。`restartAsyncTask` 同样支持 `executor` 选项。
 
 ### ③ 前端展示进度
 
@@ -117,6 +130,7 @@ const { tasks, loading, refresh } = useMyAsyncTasks({ taskTypes: ['member-batch-
 
 | 成员 | 说明 |
 | --- | --- |
+| `taskId` | 当前任务 ID |
 | `payload` | 提交时传入的任务参数 |
 | `checkpoint` | 上次中断保存的断点状态；首次执行为 `null` |
 | `attempt` | 第几次领取执行（首次 1；断点恢复/自动重试/兜底重跑递增；重新开始清零） |
@@ -125,6 +139,8 @@ const { tasks, loading, refresh } = useMyAsyncTasks({ taskTypes: ['member-batch-
 | `isCancelRequested()` | 单独查询取消标记（`progress` 返回值已包含，通常不需要） |
 
 **约定**：handler 应在每个处理批次后调用 `progress()`——它同时承担心跳职责，超过 90 秒无心跳的 running 任务会被兜底扫描判定为卡死并回收重跑；`checkpoint` 结构完全由 handler 自定义（游标 / 行号 / 阶段名 / syncToken 均可），处理逻辑需要按 checkpoint 幂等（重跑已处理的条目不产生副作用）。
+
+**主动终止不重试**：handler 判定任务已过期或无需继续时，抛出 `TaskCancelledError`（可携带 `result`）——runner 直接把任务终止为 `cancelled`，不触发自动重试。
 
 ## 自动重试
 
@@ -153,7 +169,7 @@ cancelled            │心跳超时（崩溃）                断点恢复（�
 | 删除 | 删除任务记录（进行中不可删） | 已结束 |
 | 清理 | 删除超过 30 天保留期的已结束任务（页面按钮 / 调度中心手动执行 / 每日自动） | — |
 
-**崩溃恢复**：服务重启或进程崩溃时，pg-boss 队列（存于 PostgreSQL）中未消费的任务照常消费；执行中被打断的任务心跳停止，`异步任务兜底扫描`（每分钟）将其回收为 pending 并重投，handler 从 `checkpoint` 继续——这是「任务中断或系统重启后继续之前进度」的关键路径。
+**崩溃恢复**：服务重启或进程崩溃时，pg-boss 队列（存于 PostgreSQL）中未消费的任务照常消费；执行中被打断的任务心跳停止，`异步任务兜底扫描`（每分钟，`drainAsyncTasks()`）做两件事：① 回收心跳超时（>90s）的 running 任务为 pending 并重投，handler 从 `checkpoint` 继续——这是「任务中断或系统重启后继续之前进度」的关键路径；② 重投停留 pending 超过 3 分钟且已到执行时间的任务（如队列消息丢失、outbox 提交后入队失败），退避中的重试任务不会被提前投递。
 
 ## API 一览
 

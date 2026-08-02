@@ -19,7 +19,15 @@
 
 ## 多模型与能力标签
 
-每个配置支持「附加模型」列表（同一服务商多模型，聊天下拉展开为多个条目，发送时通过 `model` 字段指定），可通过 `POST /api/ai/providers/fetch-models` 从供应商 `/models` API 自动发现。
+每个配置支持「附加模型」列表（同一服务商多模型，聊天下拉展开为多个条目，发送时通过 `model` 字段指定），可通过 `POST /api/ai/providers/fetch-models` 自动发现——按供应商类型适配发现协议：
+
+| 供应商类型 | 请求 | 认证 |
+| --- | --- | --- |
+| `openai_compatible` | `GET {baseUrl}/models` | `Authorization: Bearer` |
+| `anthropic` | `GET {baseUrl}/v1/models` | `x-api-key` + `anthropic-version` |
+| `gemini` | `GET {baseUrl}/v1beta/models` | `x-goog-api-key` |
+
+返回去重排序后的模型 ID 列表（上限 200 条）。
 
 能力标签（`capabilities`）声明 `vision` / `tools` / `contextWindow`，作为聊天页图片入口与函数调用的开关依据。
 
@@ -49,10 +57,11 @@
 
 - **主备切换（failover）**：配置了 `fallbackConfigId` 的服务商，在**首个内容 token 产出前**失败（连接错误 / 5xx / 网关异常）时自动切换到降级配置重试一次，并向前端推送 `failover` SSE 事件。降级配置自身的 fallback 不再链式生效；不允许指向自身。
 - **并发信号量**：配置了 `maxConcurrent` 的服务商，同时进行的生成流超过上限时新请求排队等待，最长 15 秒后返回「当前模型并发繁忙」错误。信号量为进程内实现（按配置 ID 隔离）。
+- **读流空闲超时**：上游流式响应超过 `AI_STREAM_IDLE_TIMEOUT_MS`（环境变量，默认 90 秒）无任何数据时按超时中断，避免生成任务被挂死。
 
 ## 连接测试
 
-`POST /api/ai/providers/test-connection`（需要 `ai:provider:edit` 权限）使用给定配置向 `{baseUrl}/chat/completions` 发送非流式测试请求，请求内容为一条 `Hi` 消息，`max_tokens` 为 10，超时时间为 15 秒。编辑已有配置时，如果 API Key 为空或为脱敏值，后端会按配置 ID 读取真实密钥进行测试。
+`POST /api/ai/providers/test-connection`（需要 `ai:provider:edit` 权限）使用给定配置向 `{baseUrl}/chat/completions` 发送非流式测试请求（OpenAI 兼容协议，对所有供应商类型一致），请求内容为一条 `Hi` 消息，`max_tokens` 为 10，超时时间为 15 秒。编辑已有配置时，如果 API Key 为空或为脱敏值，后端会按配置 ID 读取真实密钥进行测试。
 
 ## 个人 AI 配置
 

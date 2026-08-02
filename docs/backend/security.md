@@ -1,243 +1,225 @@
-# 安全体系
+# 安全防护
 
-Zenith Admin 内置了多层安全防护能力，涵盖 IP 访问控制、账号锁定、密码策略、验证码及注册开关，均可通过系统配置页面在运行时动态调整。
+本文介绍后端的整体安全设计：认证体系、请求防护中间件、IP 访问控制、接口级限流与登录安全策略。
 
----
+代码位置速查：
+
+| 模块 | 位置 |
+| --- | --- |
+| 中间件栈装配 | `packages/server/src/app.ts` |
+| JWT 签发 / 校验 | `packages/server/src/lib/jwt.ts` |
+| 认证中间件 | `packages/server/src/middleware/auth.ts` |
+| 客户端 IP 解析 | `packages/server/src/lib/request-helpers.ts` |
+| IP 访问控制 | `packages/server/src/middleware/ip-access.ts` |
+| 接口级限流 | `packages/server/src/middleware/rate-limit.ts` |
+| 密码策略 | `packages/server/src/lib/password-policy.ts` |
+| 验证码 | `packages/server/src/lib/captcha.ts` |
+| MFA / 登录风险策略 | `packages/server/src/services/identity/identity-security.service.ts` |
+
+## 认证体系
+
+### 双 Token
+
+- **Access Token**：有效期 **2 小时**，放在 `Authorization: Bearer <token>` 头
+- **Refresh Token**：有效期 **30 天**，用于 `POST /api/auth/refresh` 换取新 Access Token
+
+两者均为 HS256 JWT（基于 `hono/jwt`），密钥来自 `JWT_SECRET` 环境变量。payload 关键字段：
+
+```ts
+interface JwtPayload {
+  userId: number;
+  username: string;
+  roles: string[];      // 角色编码列表
+  tenantId?: number | null;
+  jti: string;          // token 唯一 ID，用于会话管理与黑名单
+}
+```
+
+### authMiddleware 校验流程
+
+`authMiddleware` 对每个受保护接口执行：
+
+1. 提取 Bearer token：
+   - 普通 JWT → 走 JWT 校验
+   - **个人 API Token**（`zat_` 前缀）→ 按 SHA-256 哈希查 `user_api_tokens` 表，校验有效期与用户/租户/角色状态，`lastUsedAt` 以 5 分钟节流更新
+2. **拒绝会员 token**：payload 带 `type: 'member'` 的前台会员 token 一律 401（双用户体系彻底隔离，反向由 `memberAuthMiddleware` 拒绝管理员 token）
+3. 并行执行黑名单检查与会话续期（`touchSession`）：
+   - `jti` 在 Redis 黑名单（`zenith:blacklist:{tokenId}`，TTL 2h）中 → 401，实现强制下线
+   - 会话 key `zenith:session:{tokenId}`（TTL 8h）每次请求自动续期；会话丢失时懒重注册
+   - **Redis 故障时放行**（fail-open），认证不依赖 Redis 可用性
+4. 校验通过后 `c.set('user', payload)`，业务代码通过 `currentUser()`（`src/lib/context.ts`）零参取值
+
+## 客户端 IP 与受信代理
+
+`getClientIp()`（`src/lib/request-helpers.ts`）是全系统统一的客户端 IP 来源（限流、审计、登录日志、IP 访问控制均使用）。
+
+为防止伪造 `X-Forwarded-For`，**只有当 TCP 对端地址位于 `TRUSTED_PROXY_CIDRS` 声明的受信代理网段内**，才信任代理头：
+
+- 受信时：从 `X-Forwarded-For` **从右往左**取第一个不属于受信网段的 IP（即真实客户端）；退而信任 `X-Real-IP`
+- 不受信（默认，`TRUSTED_PROXY_CIDRS` 为空）：直接使用 TCP 连接对端地址（`getConnInfo`）
+
+```dotenv
+# 反向代理部署时必须配置，否则拿到的是代理服务器 IP
+TRUSTED_PROXY_CIDRS=10.0.0.0/8,172.16.0.0/12
+```
+
+## 请求防护中间件栈
+
+`createApp()`（`src/app.ts`）按以下顺序装配全局中间件：
+
+| 顺序 | 中间件 | 说明 |
+| --- | --- | --- |
+| 1 | `requestId` | 生成请求 ID，贯穿日志与审计 |
+| 2 | `contextStorage` | AsyncLocalStorage 请求上下文 |
+| 3 | `requestTrace` | 请求级 trace 采集 |
+| 4 | `secureHeaders` | 安全响应头（CORP `cross-origin`，COOP / X-Frame-Options 关闭以兼容嵌入场景） |
+| 5 | `compress` | 响应压缩（排除流式接口前缀） |
+| 6 | `cors` | 跨域配置 |
+| 7 | `csrf` | Origin 校验（排除 `/api/auth/enterprise/saml/acs`，SAML 回调由 IdP POST） |
+| 8 | `honoLogger` + `httpLoggerMiddleware` | 访问日志与 [HTTP 流量日志](./http-logging.md) |
+| 9 | `bodyLimit` | 请求体上限（可选） |
+| 10 | `timeout` | 请求超时（可选，仅 `/api/*`） |
+| 11 | `ipAccessMiddleware` | IP 黑白名单（仅 `/api/*`） |
+| 12 | 命名限流 + `pathBoundRateLimit` | 接口级限流 |
+| 13 | `maintenanceMiddleware` | [维护模式](./maintenance-mode.md)（仅 `/api/*`） |
+
+### CSRF 防护
+
+`hono/csrf` 校验 `Origin` 请求头：
+
+- 浏览器跨站表单提交会带上非白名单 Origin → 403
+- **无 `Origin` 头的请求直接放行**（curl / Postman / 服务端调用不受影响）
+- 白名单通过 `ALLOWED_ORIGINS`（逗号分隔）配置，留空 = 开发模式不限制
+
+### 请求体大小限制
+
+```dotenv
+REQUEST_BODY_LIMIT=0   # 字节数，0 = 不限制
+```
+
+大于 0 时全局启用 `bodyLimit`，超限返回：
+
+```json
+{ "code": 413, "message": "请求体过大", "data": null }
+```
+
+### 请求超时
+
+```dotenv
+REQUEST_TIMEOUT_MS=0   # 毫秒，0 = 不启用
+```
+
+启用后仅对 `/api/*` 生效，超时返回 `{ "code": 408, ... }`。通过 `hono/combine` 的 `except()` 自动排除不适合超时控制的长连接 / 流式 / 大文件接口：
+
+- 前缀排除：`/api/ws`、`/api/files`、`/api/db-backups`、`/api/db-admin`、`/api/log-files`、`/api/monitor/stream`、`/api/ai/conversations`、`/api/ai/arena`、`/api/ai/generations`
+- 后缀排除：所有以 `/export` 结尾的导出接口
 
 ## IP 访问控制
 
-通过 `ipAccessMiddleware` 对所有 `/api/*` 请求进行 IP 过滤，支持**白名单**与**黑名单**两种模式（可同时启用，黑名单优先执行）。
+`ipAccessMiddleware`（`src/middleware/ip-access.ts`）基于数据库规则对 `/api/*` 做黑白名单过滤：
 
-### 配置项
+- **黑名单优先**：命中黑名单直接 403；存在启用的白名单规则时，未命中白名单的 IP 也拒绝
+- 规则带 30 秒内存缓存，管理端变更后调用 `invalidateIpAccessCache()` 即时生效
+- 拦截记录写入 `ip_access_logs` 表，管理端通过 `GET /api/ip-access-logs` 分页查询
+- **免检路径**：登录 / 验证码 / 注册 / 刷新 / 忘记密码 / 重置密码，以及 `/api/oauth/`、`/api/auth/oauth/` 前缀（避免把管理员自己锁在门外）
 
-在后台「系统设置 → IP 访问控制」页面配置（对应 `system_configs` 表中的以下 key）：
+## 接口级限流
 
-| 配置 Key | 类型 | 说明 |
-|----------|------|------|
-| `ip_whitelist_enabled` | `boolean` | 是否启用白名单。启用后只有名单内的 IP 可访问 |
-| `ip_whitelist` | `string` (JSON 数组) | 白名单 IP 列表，如 `["192.168.1.0/24", "10.0.0.1"]` |
-| `ip_blacklist_enabled` | `boolean` | 是否启用黑名单。启用后名单内 IP 访问将收到 403 |
-| `ip_blacklist` | `string` (JSON 数组) | 黑名单 IP 列表，支持单 IP 与 CIDR 网段 |
+基于 `hono-rate-limiter` + Redis 存储（`src/middleware/rate-limit.ts`），多进程共享计数。
 
-### 工作机制
+### 挂载方式
 
-```
-请求进入 /api/*
-  │
-  ├── 免检路径（直接放行）：
-  │   /api/auth/login、/api/auth/captcha、/api/auth/register
-  │   /api/auth/refresh、/api/auth/forgot-password、/api/auth/reset-password
-  │   /api/oauth/*、/api/auth/oauth/*
-  │
-  ├── 两者均未启用 → 直接放行
-  │
-  ├── 黑名单已启用 → 命中则 403
-  │
-  └── 白名单已启用 → 未命中则 403
-```
+- 关键认证接口挂载命名限流器：`/api/auth/login` → `auth` 规则、`/api/auth/captcha` → `captcha` 规则、`register` / `forgot-password` / `reset-password` → `sensitive` 规则
+- 其余接口由 `pathBoundRateLimit` 按规则的 `pathPatterns` 动态匹配（如 `/api/report/public/*`）
 
-- IP 来源优先从 `X-Forwarded-For` 请求头中读取（取第一个值），其次读取 `X-Real-IP`，再从 TCP 连接信息读取，兜底为 `127.0.0.1`
-- 支持 CIDR 网段匹配（如 `192.168.1.0/24`），基于 `ip-range-check` 库实现
-- 配置缓存 **30 秒**，修改后台配置后最多延迟 30 秒生效
-- 命中黑名单或未命中白名单时写入 `ip_access_logs`，可通过 `GET /api/ip-access-logs` 分页查询拦截记录
+### 内置规则
 
-> **Nginx 反代注意**：确保 Nginx 已正确设置 `X-Real-IP` 或 `X-Forwarded-For`，否则后端收到的将是内网 IP。
+种子数据内置 12 条规则（`rate_limit_rules` 表，管理端 `/api/rate-limit` 可调）：
 
----
+| 规则名 | 窗口 / 上限 | 维度 | 默认 |
+| --- | --- | --- | --- |
+| `auth` | 3 分钟 / 20 次 | IP | **启用** |
+| `captcha` | 60s / 30 次 | IP | 启用 |
+| `sensitive` | 60 分钟 / 5 次 | IP | 启用 |
+| `analytics-ingest` | 60s / 120 次 | IP | 启用 |
+| `error-report` | 60s / 60 次 | IP | 启用 |
+| `report_public_share` | 60s / 120 次 | IP+路径 | 启用 |
+| `chat_send` | 60s / 60 次 | 用户 | 启用 |
+| `chatbi_ask` | 60s / 10 次 | 用户 | 启用 |
+| `report_chatbi_write` | 60s / 30 次 | 用户 | 启用 |
+| `report_fill_write` | 60s / 30 次 | 用户 | 启用 |
+| `ai_chat_send` | 60s / 15 次 | 用户 | 启用 |
+| `ai_share_view` | 60s / 60 次 | IP | 启用 |
 
-## 账号锁定
+维度（`keyType`）支持 `ip` / `user` / `ip_path`。预定义规则名受保护不可删除，可停用或调整窗口与阈值。
 
-连续登录失败达到阈值后，账号会被自动锁定一段时间，有效防止暴力破解。
-
-### 相关配置项
-
-| 配置 Key | 类型 | 默认值 | 说明 |
-|----------|------|--------|------|
-| `login_max_attempts` | `number` | `10` | 最大失败次数，达到后自动锁定 |
-| `login_lock_duration_minutes` | `number` | `30` | 锁定持续时长（分钟） |
-
-### 工作机制
-
-- 失败计数以 `{REDIS_KEY_PREFIX}login_attempt:{username}` 为 key 存储于 **Redis**，锁定标记为 `{REDIS_KEY_PREFIX}login_lock:{username}`，服务重启后不重置
-- 锁定到期后自动解除
-- 管理员可在「用户管理」列表中点击「解除锁定」按钮，提前解除指定账号的锁定状态（调用 `POST /api/users/:id/unlock`）
-
----
-
-## 密码策略
-
-系统支持通过系统配置控制密码复杂度要求与过期策略。
-
-### 复杂度配置项
-
-| 配置 Key | 类型 | 默认值 | 说明 |
-|----------|------|--------|------|
-| `password_min_length` | `number` | `6` | 密码最小长度 |
-| `password_require_uppercase` | `boolean` | `false` | 是否必须包含大写字母 |
-| `password_require_special_char` | `boolean` | `false` | 是否必须包含特殊字符（`!@#$%^&*` 等）|
-
-密码复杂度由 `packages/server/src/lib/password-policy.ts` 读取并校验，后端在用户管理的创建用户、管理员修改指定用户密码、批量重置密码、导入用户等场景触发校验；前端通过 `GET /api/system-configs/password-policy` 读取策略并展示输入提示。
-
-### 密码过期
-
-| 配置 Key | 类型 | 默认值 | 说明 |
-|----------|------|--------|------|
-| `password_expiry_enabled` | `boolean` | `false` | 是否开启密码过期强制重置。开启后，当密码超期未更新，登录时将强制跳转修改密码页 |
-| `password_expiry_days` | `number` | `90` | 密码有效期天数，仅在 `password_expiry_enabled` 为 `true` 时生效 |
-
-**过期流程**：
-
-1. 用户登录时，若 `password_expiry_enabled = true`，后端计算 `passwordUpdatedAt + password_expiry_days` 是否早于当前时间
-2. 若已过期，登录响应中的 `requirePasswordChange` 为 `true`
-3. 前端检测到 `requirePasswordChange` 后，弹出「强制修改密码」弹窗
-4. 用户完成密码修改后，`password_updated_at` 更新，过期状态解除
-
----
-
-## 登录验证码
-
-| 配置 Key | 类型 | 默认值 |
-|----------|------|--------|
-| `captcha_enabled` | `boolean` | `false` |
-| `captcha_complexity` | `string` | `medium` |
-
-启用后，登录页自动显示图形验证码输入框。验证码通过 `GET /api/auth/captcha` 获取（返回 SVG + captchaId），登录时需同时提交 `captchaId` 和用户输入的验证码文本，后端校验后自动失效。
-
-- 验证码为数学表达式 SVG，5 分钟有效
-- 验证码存储在服务端内存 Map 中，校验后一次性删除
-- `captcha_complexity` 控制验证码复杂度（干扰强度与识别难度）：`low`（干扰线少、运算简单）/ `medium`（默认）/ `high`（干扰线多、运算范围大），非法值按 `medium` 处理
-
----
-
-## 注册开关
-
-| 配置 Key | 类型 | 默认值 |
-|----------|------|--------|
-| `allow_registration` | `boolean` | `false` |
-
-- `false`：登录页不显示「注册」入口，`POST /api/auth/register` 返回 403
-- `true`：开放注册，登录页显示「注册账号」链接
-
-> **生产建议**：如非公开注册场景，建议保持 `allow_registration = false`。
-
----
-
-## 安全相关接口速查
-
-| 接口 | 说明 |
-|------|------|
-| `GET /api/auth/captcha` | 获取验证码（返回 SVG + captchaId）|
-| `POST /api/auth/register` | 开放注册（受 `allow_registration` 控制）|
-| `POST /api/users/{id}/unlock` | 管理员解除账号锁定 |
-| `PUT /api/auth/password` | 当前用户修改密码 |
-| `POST /api/auth/forgot-password` | 发送找回密码邮件 |
-| `POST /api/auth/reset-password` | 使用重置 token 设置新密码 |
-| `PUT /api/users/{id}/password` | 管理员修改指定用户密码 |
-
----
-
-## CSRF 防护
-
-基于 `hono/csrf` 中间件校验请求的 `Origin` 头，防止第三方网站伪造表单或 AJAX 请求。
-
-### 配置
-
-通过环境变量 `ALLOWED_ORIGINS` 配置允许的来源白名单（在 `.env` 中设置）：
-
-```dotenv
-# 留空 = 开发模式，不限制来源
-ALLOWED_ORIGINS=
-
-# 生产环境示例（逗号分隔）
-ALLOWED_ORIGINS=https://admin.example.com,https://app.example.com
-```
-
-### 放行规则
-
-- 请求无 `Origin` 头（服务端调用、Postman、curl）→ ✅ 直接放行
-- `ALLOWED_ORIGINS` 为空（开发模式）→ ✅ 直接放行
-- `Origin` 在白名单中 → ✅ 放行
-- `Origin` 不在白名单中 → ❌ 403 Forbidden
-
-> **生产建议**：务必配置 `ALLOWED_ORIGINS`，否则任何来源的请求均可通过 CSRF 检查。
-
----
-
-## 请求体大小限制
-
-通过环境变量 `REQUEST_BODY_LIMIT` 配置全局请求体大小上限，单位为字节：
-
-```dotenv
-# 0 = 不启用 bodyLimit 中间件，使用运行时默认行为
-REQUEST_BODY_LIMIT=0
-```
-
-当值大于 `0` 时，所有请求都会经过 `hono/body-limit` 校验；超出限制返回：
+超限返回 **429** 并带 `Retry-After` 响应头：
 
 ```json
-{
-  "code": 413,
-  "message": "请求体超出大小限制",
-  "data": null
-}
+{ "code": 429, "message": "请求过于频繁，请稍后再试", "data": null }
 ```
 
----
+### 命中统计
 
-## 请求超时
+限流统计写入 Redis（`zenith:rlstats:*`）：命中 / 拦截计数、最近拦截记录（zset 保留 200 条）、按小时分布（hash），统计数据保留 7 天，管理端限流页面可视化展示。
 
-通过环境变量 `REQUEST_TIMEOUT_MS` 配置 `/api/*` 请求超时时间，单位为毫秒：
+## 登录安全
+
+### 验证码
+
+`captcha_enabled` 系统配置开启后，登录需携带验证码：
+
+- SVG 数学题验证码，内存存储，**5 分钟有效、一次性使用**
+- 复杂度由 `captcha_complexity` 配置：`low` / `medium`（默认）/ `high`
+
+### 账号锁定
+
+连续登录失败达到 `login_max_attempts`（默认 10 次）后锁定 `login_lock_duration_minutes`（默认 30 分钟）：
+
+- 计数器与锁定标记存 Redis：`zenith:login_attempt:{username}`、`zenith:login_lock:{username}`
+- 锁定期间登录返回 **HTTP 423 (Locked)**
+- 管理员可通过 `POST /api/users/{id}/unlock` 手动解锁
+- 登录支持用户名或手机号
+
+### 密码策略
+
+由系统配置驱动（`src/lib/password-policy.ts`），在注册、改密、重置密码时统一校验：
+
+| 配置项 | 默认 | 说明 |
+| --- | --- | --- |
+| `password_min_length` | 6 | 最小长度 |
+| `password_require_uppercase` | false | 必须包含大写字母 |
+| `password_require_special_char` | false | 必须包含特殊字符 |
+| `password_expiry_enabled` | false | 密码过期强制重置 |
+| `password_expiry_days` | 90 | 过期天数 |
+
+前端可通过公开接口 `GET /api/system-configs/password-policy` 获取策略用于表单提示。
+
+### MFA 与登录风险
+
+身份安全策略模块（`/api/identity-security`，权限 `system:identity-security:manage`）提供：
+
+- **MFA 多因素认证**：TOTP 动态口令（含恢复码），`mfa_mode` 支持 `off` / `optional` / `required`；通过 `mfa_remember_device_days` 支持可信设备免验证。登录命中 MFA 时返回 challenge（Redis 存储，5 分钟有效），前端调用 `POST /api/auth/mfa/verify` 完成第二因素验证
+- **登录风险策略**：`login_risk_enabled` 开启后按设备指纹识别新设备，`login_risk_new_device_action` 决定放行（`allow`）或强制 MFA 挑战（`challenge`）
+- 风险事件通过 `GET /api/identity-security/risk-events` 审计
+
+相关自助接口：`GET /api/auth/mfa/factors`、`POST /api/auth/mfa/totp/setup`、`POST /api/auth/mfa/totp/verify`、`GET/DELETE /api/auth/trusted-devices`。
+
+## 相关环境变量
 
 ```dotenv
-# 0 = 不启用 timeout 中间件
-REQUEST_TIMEOUT_MS=0
+JWT_SECRET=change-me                 # JWT 签名密钥（生产必改）
+TRUSTED_PROXY_CIDRS=                 # 受信反向代理网段，逗号分隔 CIDR
+ALLOWED_ORIGINS=                     # CSRF / CORS 来源白名单，留空 = 开发模式不限制
+REQUEST_BODY_LIMIT=0                 # 请求体上限（字节），0 = 不限制
+REQUEST_TIMEOUT_MS=0                 # 请求超时（毫秒），0 = 不启用
+REDIS_URL=redis://127.0.0.1:6379    # 会话 / 黑名单 / 限流存储
+REDIS_KEY_PREFIX=zenith:             # Redis key 命名空间
 ```
 
-超时返回：
+## 相关文档
 
-```json
-{
-  "code": 408,
-  "message": "请求处理超时（30000ms）",
-  "data": null
-}
-```
-
-以下长耗时路径不应用超时中间件：`/api/ws`、`/api/files`、`/api/db-backups`、`/api/db-admin`、`/api/log-files`、`/api/monitor/stream`、`/api/ai/conversations`。
-
----
-
-## 接口限流
-
-基于 `hono-rate-limiter` + Redis 对高危接口进行限流，防止暴力破解和滥用。
-
-### 当前限流策略
-
-内置三组规则，启动时从 `rate_limit_rules` 表加载到内存；数据库为空时内存使用代码默认值，后台规则列表接口会将默认规则落库：
-
-| 规则名 | 默认绑定接口 | 窗口 | 限制 | 默认启用 | keyType | 提示文案 |
-|--------|--------------|------|------|----------|---------|----------|
-| `auth` | `POST /api/auth/login` | 3 分钟 | 20 次 | `false` | `ip` | `登录尝试过于频繁，请 3 分钟后再试` |
-| `captcha` | `GET /api/auth/captcha` | 60 秒 | 30 次 | `true` | `ip` | `验证码请求过于频繁，请稍后再试` |
-| `sensitive` | `POST /api/auth/register`、`POST /api/auth/forgot-password`、`POST /api/auth/reset-password` | 60 分钟 | 5 次 | `true` | `ip` | `操作过于频繁，请 1 小时后重试` |
-
-超过限制时返回，`message` 以具体规则的 `blockedMessage` 为准：
-
-```json
-{
-  "code": 429,
-  "message": "操作过于频繁，请稍后再试",
-  "data": null
-}
-```
-
-### 实现细节
-
-- `keyType` 支持 `ip`、`user`、`ip_path`：分别按客户端 IP、登录用户（未登录回退 IP）、`IP + path` 计数
-- 计数器存储在 **Redis**（key 前缀：`{REDIS_KEY_PREFIX}rl:`），服务重启后持续计数
-- 命中与拦截统计存储在 Redis（key 前缀：`{REDIS_KEY_PREFIX}rlstats:`），保留命中数、拦截数、最近拦截记录与 24 小时小时序列
-- 后台「系统设置 → 接口限流」通过 `GET /api/rate-limit/rules`、`PATCH /api/rate-limit/rules/{id}`、`POST /api/rate-limit/rules` 动态管理规则，保存后立即热更新
-- 自定义规则可通过 `pathPatterns` 绑定路径，支持精确路径与 `/*` 前缀匹配；全局 `pathBoundRateLimit` 会自动应用匹配规则
-- 支持 `POST /api/rate-limit/unblock` 解封指定 key，以及 `POST /api/rate-limit/reset-stats` 清空指定规则统计
-
-> **反代注意**：确保 Nginx 正确透传 `X-Forwarded-For` 或 `X-Real-IP`，否则计数可能落在反向代理或连接层 IP 上，导致正常请求被误限。
+- [幂等控制](./idempotency.md) — 防重复提交
+- [HTTP 流量日志](./http-logging.md) — 请求审计与排障
+- [审计日志](./audit-log-changes.md) — 操作日志与数据快照
+- [OAuth 登录](./oauth.md) — 第三方登录与 OAuth2 授权服务

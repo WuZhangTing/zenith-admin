@@ -45,26 +45,18 @@ const columns = [
   }),
 ];
 
-// 标准分页列表
+// 标准分页列表（配合 TanStack Query 域 hooks 与 useListSearch，见数据获取文档）
 <ConfigurableTable
   bordered
   columns={columns}
-  dataSource={data?.list ?? []}
-  loading={loading}
-  onRefresh={() => void fetchList()}
-  refreshLoading={loading}
+  dataSource={listQuery.data?.list ?? []}
+  loading={listQuery.isFetching}
+  onRefresh={() => void listQuery.refetch()}
+  refreshLoading={listQuery.isFetching}
   rowKey="id"
   size="small"
   empty="暂无数据"
-  pagination={{
-    currentPage: page,
-    pageSize,
-    total: data?.total ?? 0,
-    onPageChange: (p) => { setPage(p); void fetchList(p, pageSize); },
-    onPageSizeChange: (s) => { setPageSize(s); void fetchList(1, s); },
-    showTotal: true,
-    showSizeChanger: true,
-  }}
+  pagination={buildPagination(listQuery.data?.total ?? 0)}
 />
 
 // 虚拟化大数据量列表
@@ -198,8 +190,7 @@ import { Select } from '@douyinfe/semi-ui';
 
 ## toolbar-controls（查询 / 重置 / 新增 / 刷新按钮）
 
-`@/components/toolbar-controls` 提供列表页搜索工具栏的四个标准按钮。这些按钮的 `type`、图标与图标尺寸此前在
-140+ 个页面里逐字复制，改一次视觉就要动几百处，现已收敛为组件。
+`@/components/toolbar-controls` 提供列表页搜索工具栏的四个标准按钮，统一 `type`、图标与图标尺寸——改一次视觉只需改组件本身。
 
 | 组件 | 视觉 | 默认文案 |
 | --- | --- | --- |
@@ -233,13 +224,12 @@ import { CreateButton, RefreshButton, ResetButton, SearchButton } from '@/compon
 ## search-filters（关键字 / 状态 / 时间范围筛选）
 
 `@/components/search-filters` 提供列表页搜索工具栏的三个标准筛选控件，与 `toolbar-controls`
-配套——那边收敛动作按钮，这边收敛筛选输入。放大镜前缀、`showClear`、固定宽度这些装饰性属性
-此前在 228 个关键字输入框与 42 个时间范围选择器里逐字重复。
+配套——那边收敛动作按钮，这边收敛筛选输入（放大镜前缀、`showClear`、固定宽度等装饰性属性）。
 
 | 组件 | 内置默认 | 覆盖方式 |
 | --- | --- | --- |
-| `KeywordInput` | 放大镜前缀、`showClear`、宽度 220 | `width` / `style` / 其余 props 原样穿透 |
-| `StatusSelect` | 占位「全部状态」、`showClear`、宽度 120 | `placeholder` / `width` |
+| `KeywordInput` | 放大镜前缀、`showClear`、宽度 220、回车触发 `onSearch` | `width` / `style` / 其余 props 原样穿透 |
+| `StatusSelect` | 占位「全部状态」、`showClear`、宽度 120；`items` 传字典项（通常来自 `useDictItems('common_status').items`） | `placeholder` / `width` |
 | `DateRangeFilter` | `dateTimeRange`、占位「开始时间 / 结束时间」、宽度 360 | `type="dateRange"`（宽度自动取 260）/ `placeholder` / `width` |
 
 ```tsx
@@ -265,18 +255,35 @@ import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search
 > **例外**：面板/弹窗内需要跟随容器自适应的搜索框（如 `NavListPanel` 的 List header）不套用这些控件——
 > 它们带固定默认宽度，会改变布局。
 
+### KeywordSearchToolbar（一体化关键字工具栏）
+
+仅有「关键字输入 + 查询 + 重置（+ 可选操作按钮）」的列表页可直接用 `@/components/KeywordSearchToolbar`：
+内部组合 `SearchToolbar` 结构化模式与上述控件，桌面端平铺展示，移动端露出输入框与查询按钮、重置与附加操作收进更多菜单。
+
+```tsx
+<KeywordSearchToolbar
+  placeholder="搜索名称/编码"
+  value={draftParams.keyword}
+  onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))}
+  onSearch={handleSearch}
+  onReset={handleReset}
+  actions={<CreateButton onClick={openCreate} />}
+/>
+```
+
 ---
 
 ## RegionSelect
 
-省市区三级联动选择组件，基于 Semi Design Cascader 封装，数据来源为后端行政区划接口，组件挂载后一次性拉取完整的三级地区树。
+省市区三级联动选择组件，基于 Semi Design Cascader 封装，数据来源为后端行政区划接口。
 
 ### RegionSelect 功能特点
 
 - 支持省 → 市 → 区/县三级行政区划
-- 组件挂载时请求 `GET /api/regions`，并在当前组件实例中复用已加载的地区树数据
+- 数据通过 TanStack Query 的 `useRegionLookupTree()`（`hooks/queries/regions.ts`，`GET /api/regions`）加载，全局共享缓存（`staleTime` 5 分钟），多个实例只请求一次
+- 只展示 `status === 'enabled'` 的地区节点
 - 返回所选区划的完整 code 路径（如 `['110000', '110100', '110101']`）
-- 内置搜索过滤（`filterTreeNode`）
+- 内置搜索过滤（`filterTreeNode`）；加载中自动禁用并显示"加载中..."占位
 
 ### RegionSelect Props
 
@@ -346,7 +353,7 @@ const [regionCodes, setRegionCodes] = useState<string[]>();
 
 ## DictTag
 
-根据字典编码和字典项值，自动渲染带颜色的 Semi Design `Tag`。颜色来源于字典项的 `color` 字段，内部使用 `useDictItems` hook 按需拉取字典数据（带内存缓存，同一 `dictCode` 只请求一次）。
+根据字典编码和字典项值，自动渲染带颜色的 Semi Design `Tag`。颜色来源于字典项的 `color` 字段，内部使用 `useDictItems` hook 拉取字典数据（基于 TanStack Query，同一 `dictCode` 全局共享缓存、自动去重并发请求）。
 
 ### DictTag Props
 
@@ -377,10 +384,10 @@ import DictTag from '@/components/DictTag';
 ```tsx
 import { useDictItems } from '@/hooks/useDictItems';
 
-const { items, loading, getLabel } = useDictItems('common_status');
+const { items, loading, getLabel, getColor } = useDictItems('common_status');
 
 // items: DictItem[]，每项包含 { value, label, color, ... }
-// getLabel('enabled') => '启用'
+// getLabel('enabled') => '启用'；getColor('enabled') => 字典项颜色
 ```
 
 ---
@@ -393,25 +400,35 @@ const { items, loading, getLabel } = useDictItems('common_status');
 | `AppLogo` | 应用 Logo，支持不同尺寸和样式 |
 | `AnnouncementDetailModal` | 公告详情弹窗，支持加载态和上一条/下一条导航 |
 | `ApprovalTimeline` | 审批流时间线，展示发起、审批任务和流程结束节点 |
+| `AsyncTaskProgress` | 异步任务进度单元格：确定进度显示进度条，不定进度显示 Spin + 说明 |
+| `AvatarCropperModal` | 头像裁剪弹窗（圆形裁剪框 + 旋转） |
+| `PresetAvatarPickerModal` | 预设头像选择弹窗，个人中心与用户管理共用 |
 | `ColorPickerInput` | Semi `ColorPicker` 表单封装，值统一为颜色字符串 |
 | `CronBuilderModal` | 6 字段 Cron 表达式可视化编辑弹窗 |
 | `CronBuilderPopover` | Cron 快速选择 Popover |
+| `ExportButton` | 列表导出按钮，接入导出任务（`useExportJobRunner`），默认脱敏导出 |
+| `FileNameCell` | 表格「文件名」单元格：类型图标 + 列宽内省略 + Tooltip 完整名称 |
 | `IconPicker` | lucide 图标选择器，用于菜单图标等配置 |
+| `ImageUploadField` | 单图上传字段：预览缩略图 + 悬浮删除按钮 |
+| `MonthCalendar` | 月视图日历（Semi `Calendar` 封装，内置月份切换头部） |
 | `PasswordStrengthMeter` | 密码强度与策略达标提示 |
 | `SignaturePad` | Canvas 手写签名板，输出 PNG data URL |
 | `UserAvatar` | 用户头像展示，缺省头像按名称生成稳定色块 |
+| `UserPreviewCell` | 表格「成员/用户」列单元格：头像组 + 数量 Tag，部门/角色/岗位/用户组列表共用 |
 | `Watermark` | 页面水印覆盖层 |
 
 ## 业务选择与权限组件
 
 | 组件 | 用途 |
 | --- | --- |
-| `DepartmentSelect` | 从 `GET /api/departments` 拉取启用部门树，支持单选/多选 |
+| `DepartmentSelect` | 启用部门树选择，支持单选/多选 |
 | `DictSelect` | 按 `dictCode` 拉取字典项，支持单选/多选 |
-| `UserSelect` | 从 `GET /api/users/all` 拉取用户选项，支持单选/多选 |
+| `UserSelect` | 全量用户下拉选择，支持单选/多选 |
 | `UserTransferSelect` | 用户穿梭选择器，支持按部门组织展示 |
-| `MenuPermissionPanel` | 菜单权限树面板，角色和用户授权场景复用 |
-| `DataScopePanel` | 数据权限范围面板，角色和用户数据权限场景复用 |
+| `MemberSelect` | 会员远程搜索下拉（昵称/手机号/用户名），积分调整、发券等场景使用 |
+| `MediaPickerModal` | 媒体库选择器：从文件中心挑选已有文件，支持搜索与就地上传 |
+| `permissions/MenuPermissionPanel` | 菜单权限树面板，角色和用户授权场景复用 |
+| `permissions/DataScopePanel` | 数据权限范围面板，角色和用户数据权限场景复用 |
 
 ## 布局、导航与状态组件
 
@@ -423,19 +440,24 @@ const { items, loading, getLabel } = useDictItems('common_status');
 | `MenuSearchInput` | 菜单搜索入口，配合全局快捷键使用 |
 | `MenuCommandPalette` | 菜单命令面板，支持搜索和快速跳转 |
 | `NProgress` | 顶部路由切换进度条 |
-| `PageErrorBoundary` | 页面级错误边界和路由错误边界 |
+| `PageErrorBoundary` | 页面级错误边界（chunk 加载失败时提示并整页刷新）及路由感知版 `RouteErrorBoundary` |
 | `LockScreen` | 后台锁屏界面，支持密码校验后解锁 |
 | `ForceChangePasswordModal` | 强制修改密码弹窗 |
 | `MaintenanceOverlay` | 维护模式覆盖层 |
+| `TaskTray` | 顶栏全局任务托盘：进行中/最近完成的异步任务 |
+| `FeedbackWidget` | 全局意见反馈弹层（入口在头像下拉，由系统配置控制显隐） |
 | `QuickChatButton` | 快捷聊天悬浮入口 |
 | `ElectronTitleBar` | Electron 环境自定义标题栏 |
+| `ThemedReactFlow` | 跟随应用主题的 React Flow 画布封装 |
 
 ## 文件与预览组件
 
 | 组件 | 用途 |
 | --- | --- |
 | `FileAttachment` | 附件上传/展示组件 |
-| `FilePreviewModal` | 全站统一文件预览弹窗 |
+| `FilePreviewModal` | 全站统一文件预览弹窗（详见[文件预览组件](/frontend/file-preview)） |
+| `FilePreviewLayer` + `useFilePreview` | 图集预览 + 文件预览的组合弹层与配套 hook（列表页推荐接入方式） |
+| `PDFPreviewPanel` | PDF 预览面板（`@embedpdf/react-pdf-viewer`） |
 | `DocxPreviewPanel` | Word `.docx` 只读预览 |
 | `ExcelPreviewPanel` | Excel/CSV 的 Univer 只读预览 |
 | `JsonPreviewPanel` | JSON 只读预览 |
@@ -443,15 +465,27 @@ const { items, loading, getLabel } = useDictItems('common_status');
 | `MonacoPreviewPanel` | 代码和纯文本只读预览 |
 | `ZipPreviewPanel` | ZIP 目录树预览 |
 
-## 日志与工作流组件
+## 日志、报表与工作流组件
 
 | 组件 | 用途 |
 | --- | --- |
-| `LoginLogsTable` | 登录日志表格 |
-| `OperationLogsTable` | 操作日志表格 |
-| `SavedViewsBar` | 列表筛选条件保存视图条 |
-| `WorkflowApproverPreview` | 提交前审批链路预览 |
-| `WorkflowGraphView` | 流程图只读预览 |
-| `WorkflowInstanceDetailPanel` | 流程实例详情面板 |
-| `WorkflowInstanceDetailSheet` | 流程实例详情抽屉 |
-| `WorkflowNodeListView` | 流程节点线性列表 |
+| `logs/LoginLogsTable` | 登录日志表格 |
+| `logs/OperationLogsTable` | 操作日志表格 |
+| `logs/ClearLogsControl` | 日志清理入口（按时间范围清理） |
+| `ReportEmbed` | 报表看板嵌入组件（支持受控筛选值） |
+| `ReportParamDialog` | 报表参数填写对话框 |
+| `workflow/SavedViewsBar` | 列表筛选条件保存视图条 |
+| `workflow/BusinessFormHost` | 工作流自定义业务表单宿主（按 `component` 路径挂载 pages 下的组件） |
+| `workflow/WorkflowApprovalChainPanel` | 发起态审批链路预览面板（含自选审批人） |
+| `workflow/WorkflowGraphView` | 流程图只读预览 |
+| `workflow/WorkflowInstanceDetailPanel` | 流程实例详情面板 |
+| `workflow/WorkflowInstanceDetailSheet` | 流程实例详情抽屉 |
+| `workflow/WorkflowNodeListView` | 流程节点线性列表 |
+| `workflow/WorkflowLaunchForm` | 流程发起表单（表单运行时渲染） |
+
+## 组件子目录库
+
+除单文件组件外，`components/` 下还有两个成套的子目录库：
+
+- **`charts/`**：VChart 图表构建工具集（`builders` 系列图表 spec 构建器、`EmptyChart` 空态、统一调色板），仪表盘与报表页共用
+- **`data-grid/`**：db-admin 数据浏览用的虚拟滚动可编辑表格 `DataGrid`（单元格编辑、剪贴板、本地排序、xlsx 导出等）

@@ -340,6 +340,7 @@ URL 不入库，读取时按存储配置动态解析，降级链 `public → pre
 | `GET` | `/api/files/stats` | `system:file:list` | 文件统计分析 |
 | `GET` | `/api/files/browse` | `system:file:list` | 按存储配置浏览目录 |
 | `GET` | `/api/files/{id}` | `system:file:list` | 获取文件详情 |
+| `GET` | `/api/files/{id}/access-url` | 登录态 | 按存储策略解析访问直链（presigned 每次签发新鲜 URL） |
 | `GET` | `/api/files/{id}/sheet-preview` | `system:file:list` | 获取 Excel / CSV 表格预览数据 |
 | `POST` | `/api/files/upload` | `system:file:upload` | 上传一个或多个文件 |
 | `POST` | `/api/files/upload-one` | 登录态 | 上传单个文件 |
@@ -359,6 +360,8 @@ URL 不入库，读取时按存储配置动态解析，降级链 `public → pre
 | `GET` | `/api/file-storage-configs` | `system:file:config` | 存储配置分页列表 |
 | `GET` | `/api/file-storage-configs/default` | `system:file:config` | 获取默认配置 |
 | `GET` | `/api/file-storage-configs/{id}` | `system:file:config` | 获取配置详情 |
+| `POST` | `/api/file-storage-configs/test` | `system:file:config` | 测试表单配置连接（写入并删除临时对象） |
+| `POST` | `/api/file-storage-configs/{id}/test` | `system:file:config` | 测试已保存配置连接（密钥留空沿用原值） |
 | `POST` | `/api/file-storage-configs` | `system:file:config:create` | 创建配置 |
 | `PUT` | `/api/file-storage-configs/{id}` | `system:file:config:update` | 更新配置 |
 | `PUT` | `/api/file-storage-configs/{id}/default` | `system:file:config:default` | 设为默认 |

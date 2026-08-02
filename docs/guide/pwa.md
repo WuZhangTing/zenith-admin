@@ -4,7 +4,7 @@ Zenith Admin 内置 PWA 支持（由 `vite-plugin-pwa` 提供），可让用户�
 
 ## 启用方式
 
-在 `packages/web/.env.production` 中追加以下配置后重新构建：
+创建（或编辑已有的）`packages/web/.env.production`，加入以下配置后重新构建：
 
 ```ini
 VITE_PWA_ENABLED=true
@@ -12,6 +12,8 @@ VITE_APP_SHORT_NAME=Zenith        # 主屏幕显示的短名称
 VITE_APP_DESCRIPTION=企业级后台管理系统
 VITE_APP_THEME_COLOR=#07c160      # 标题栏颜色，建议与系统主题色一致
 ```
+
+> manifest 中的应用完整名称取自 `VITE_APP_TITLE`（默认 `Zenith Admin`），短名称取自 `VITE_APP_SHORT_NAME`。
 
 ```bash
 # 重新构建前端

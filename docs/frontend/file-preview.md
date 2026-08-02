@@ -2,6 +2,8 @@
 
 `FilePreviewModal` 是全站统一的文件预览弹窗，支持图片、PDF、音频、视频、Excel/CSV 表格、Word 文档、Markdown、纯文本、JSON、SVG、代码文件和 ZIP 压缩包。调用方只需传入文件元数据，无需自行判断格式或引入额外组件。
 
+托管文件列表页推荐使用更高一层的组合：`useFilePreview` hook（`@/hooks/useFilePreview`）+ `FilePreviewLayer`（`@/components/FilePreviewLayer`），它在 `FilePreviewModal` 之上补齐了图片图集预览、不可预览文件新窗口打开与鉴权下载，见下文[使用示例](#使用示例)。
+
 **文件位置**：`packages/web/src/components/FilePreviewModal/`
 
 ---
@@ -12,7 +14,7 @@
 | --- | --- | --- | --- |
 | 普通图片 | `image/*`（除 `image/svg+xml`） | 回退给调用方的 Semi Design `ImagePreview` | 否 |
 | PDF | `application/pdf` | `@embedpdf/react-pdf-viewer`（`PDFPreviewPanel`） | 否 |
-| 音频 | `audio/*` | Semi Design `AudioPlayer` | 否 |
+| 音频 | `audio/*` | Semi Design `AudioPlayer`（页面底部播放条） | 否 |
 | 视频 | `video/*` | Semi Design `VideoPlayer` | 否 |
 | Excel | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` | Univer 开源版只读渲染（`ExcelPreviewPanel`，懒加载） | **是** |
 | CSV | `text/csv` / `application/csv` | 后端解析转为 IWorkbookData，前端 Univer 渲染（同 Excel 路径） | **是** |
@@ -51,7 +53,25 @@
 
 ## 使用示例
 
-### 基础用法
+### 托管文件列表：useFilePreview + FilePreviewLayer（推荐）
+
+文件管理、存储浏览这类展示 `ManagedFile` 列表的页面，直接使用组合方案——图片走图集预览（点击图优先加载、其余后台渐进加载），可预览的非图片打开 `FilePreviewModal`，其他类型拉取 Blob 后新窗口打开；`handleDownload` 提供鉴权下载：
+
+```tsx
+import { useFilePreview } from '@/hooks/useFilePreview';
+import { FilePreviewLayer } from '@/components/FilePreviewLayer';
+
+const preview = useFilePreview(() => data?.list ?? []); // 返回当前列表，构建图集用
+
+// 表格操作列
+<Button onClick={() => void preview.handlePreview(record)}>预览</Button>
+<Button onClick={() => void preview.handleDownload(record)}>下载</Button>
+
+// 页面尾部渲染弹层
+<FilePreviewLayer preview={preview} />
+```
+
+### 直接使用 FilePreviewModal
 
 ```tsx
 import FilePreviewModal from '@/components/FilePreviewModal';
@@ -108,9 +128,15 @@ const isPreviewable = canPreviewFile(record.mimeType);
 
 ## 各格式实现细节
 
+::: tip 文件内容如何获取与呈现
+除 Excel/CSV 走后端 `sheet-preview` 接口外，其余格式统一通过 `fetchManagedFileBlob(fileUrl)` 获取 Blob：能从 URL 解析出托管文件 ID 时，先调用 access-url 接口换取直链（public/presigned 模式直连对象存储，卸载服务器代理流量），换链失败或非托管文件 URL 时降级为携带认证头的代理读取（`fetchProtectedFile`）。
+
+预览数据的加载由弹窗内部的 TanStack Query 管理（`staleTime: 0`、`gcTime: 0`，文件内容不进缓存），加载失败 Toast 提示并关闭弹窗。弹窗标题统一为「文件类型彩色图标（vscode-icons）+ 文件名省略展示」；表格 / 文档 / 文本类弹窗右上角支持全屏切换（Excel 切换时会重建 Univer 实例）。
+:::
+
 ### PDF
 
-通过 `fetchProtectedFile(fileUrl)` 携带 Bearer Token 下载 Blob，再以 `File` 对象喂给 `PDFPreviewPanel`（基于 `@embedpdf/react-pdf-viewer`）。支持页面缩放、适合页宽/页高等模式，弹窗高度占 88vh。
+下载 Blob 后以 `File` 对象喂给 `PDFPreviewPanel`（基于 `@embedpdf/react-pdf-viewer`，懒加载）。支持页面缩放、适合页宽/页高等模式；弹窗使用面板自带的标题栏与工具条（不套 `AppModal`），宽度 `min(1100px, 92vw)`，高度 88vh。
 
 #### 本地化加载（去 CDN）
 
@@ -146,11 +172,14 @@ const pdfiumWasmAbsUrl = new URL(pdfiumWasmUrl, globalThis.location.origin).href
 
 ### 音频 / 视频
 
-同样通过 `fetchProtectedFile` 下载 Blob，创建 `Object URL` 传给 Semi Design `AudioPlayer` / `VideoPlayer`，关闭时主动调用 `URL.revokeObjectURL` 释放内存。
+同样下载 Blob 后创建 `Object URL`，关闭时主动调用 `URL.revokeObjectURL` 释放内存。
+
+- **音频**：不占用弹窗——通过 Portal 固定在页面底部以播放条形式呈现（Semi `AudioPlayer` 自动播放，右侧带关闭按钮），浏览列表时可继续播放
+- **视频**：`AppModal` 内使用 Semi `VideoPlayer` 播放，宽度 `min(960px, 92vw)`
 
 ### Markdown（.md）
 
-通过 `fetchProtectedFile(fileUrl)` 携带 Bearer Token 下载 Blob，调用 `Blob.text()` 将内容读取为 UTF-8 字符串后，**懒加载** `MarkdownPreviewPanel`，使用 `react-markdown` 渲染为 React 组件树。**无 `dangerouslySetInnerHTML`，无 XSS 风险，无需后端改动**。
+下载 Blob 并读取为 UTF-8 字符串后，**懒加载** `MarkdownPreviewPanel`，使用 `react-markdown` 渲染为 React 组件树。**无 `dangerouslySetInnerHTML`，无 XSS 风险，无需后端改动**。
 
 `MarkdownPreviewPanel`插件配置：
 
@@ -178,21 +207,21 @@ highlight.js（rehype-highlight 的 peerDep）
 
 ### 纯文本 / 代码
 
-纯文本（`text/plain`）和常见代码/配置 MIME 类型通过 `fetchProtectedFile(fileUrl)` 下载 Blob，再读取为 UTF-8 字符串，**懒加载** `MonacoPreviewPanel` 只读展示。组件会根据文件扩展名自动选择语言（如 `ts/tsx/js/jsx/json/html/css/md/py/go/rs/java/sh/yml/xml/sql` 等），支持语法高亮、折叠、行号和自动换行。
+纯文本（`text/plain`）和常见代码/配置 MIME 类型下载 Blob 并读取为 UTF-8 字符串后，**懒加载** `MonacoPreviewPanel` 只读展示。组件会根据文件扩展名自动选择语言（如 `ts/tsx/js/jsx/json/html/css/md/py/go/rs/java/sh/yml/xml/sql` 等），支持语法高亮、折叠、行号和自动换行。弹窗宽度 `min(1100px, 92vw)`，高度 90vh。
 
 `FilePreviewModal` 会将 MIME 为 `video/mp2t` 但文件名以 `.ts` / `.tsx` 结尾的文件按代码文件处理，避免 TypeScript 文件被误判为视频。
 
 ### JSON
 
-JSON 文件（`application/json` / `text/json`）通过 `JsonPreviewPanel` 使用 Semi Design `JsonViewer` 只读展示，支持折叠/展开和语法高亮。JSON 解析失败时降级为等宽原始文本。
+JSON 文件（`application/json` / `text/json`）下载并读取文本后，**懒加载** `JsonPreviewPanel`，使用 Semi Design `JsonViewer` 只读展示，支持折叠/展开和语法高亮。JSON 解析失败时降级为等宽原始文本。弹窗宽度 `min(900px, 92vw)`，高度 88vh。
 
 ### SVG
 
-SVG 文件（`image/svg+xml`）通过 `fetchProtectedFile(fileUrl)` 下载 Blob 后创建 Object URL，在 `AppModal` 内使用 `<img>` 居中展示。关闭预览时会主动释放 Object URL。
+SVG 文件（`image/svg+xml`）下载 Blob 后创建 Object URL，在 `AppModal` 内使用 `<img>` 居中展示（宽度 `min(900px, 92vw)`，高度 80vh）。关闭预览时会主动释放 Object URL。
 
 ### Word（.docx）
 
-通过 `fetchProtectedFile(fileUrl)` 携带 Bearer Token 下载 Blob，**懒加载** `DocxPreviewPanel` 后直接将 Blob 交给 `docx-preview` 的 `renderAsync()` 在浏览器端渲染为 HTML。整个过程**无需后端转换**。
+下载 Blob 后**懒加载** `DocxPreviewPanel`，直接将 Blob 交给 `docx-preview` 的 `renderAsync()` 在浏览器端渲染为 HTML。整个过程**无需后端转换**。
 
 `DocxPreviewPanel`关键配置：
 
@@ -233,20 +262,9 @@ Excel 预览分为**后端转换**和**前端渲染**两个阶段，后端零新
 - 将单元格值、基础样式（字体/颜色/对齐/边框/填充）、合并区域、行高列宽映射为 Univer `IWorkbookData` JSON
 - 返回 `{ code: 0, data: IWorkbookData }`
 
-**限制**（防止内存溢出）：
-
-| 参数 | 上限 |
-| --- | --- |
-| 文件大小 | 10 MB |
-| 工作表数量 | 20 张 |
-| 单表行数 | 2000 行 |
-| 单表列数 | 200 列 |
-| 公式 | 显示缓存计算值，不重算 |
-| 图表 / 条件格式 / 数据透视 | 不支持 |
-
 **转换器文件**：`packages/server/src/lib/xlsx-to-univer.ts`（Excel）、`packages/server/src/lib/csv-to-univer.ts`（CSV）
 
-**共同限制**：
+**限制**（防止内存溢出）：
 
 | 参数 | 上限 |
 | --- | --- |
@@ -255,7 +273,7 @@ Excel 预览分为**后端转换**和**前端渲染**两个阶段，后端零新
 | 单表行数 | 2000 行 |
 | 单表列数 | 200 列 |
 | CSV 样式 | 无（纯文本） |
-| xlsx 公式 | 显示缓存计算値 |
+| xlsx 公式 | 显示缓存计算值，不重算 |
 | xlsx 图表 / 条件格式 / 数据透视 | 不支持 |
 
 #### 前端：Univer 只读渲染
@@ -289,13 +307,13 @@ fWorkbook.setEditable(false)   // 设为只读，禁止编辑
 **依赖**（`packages/web`）：
 
 ```text
-@univerjs/presets@0.25.0
-@univerjs/preset-sheets-core@0.25.0
+@univerjs/presets ^0.25.1
+@univerjs/preset-sheets-core ^0.25.1
 ```
 
 ### ZIP
 
-通过 `fetchProtectedFile(fileUrl)` 携带 Bearer Token 下载 Blob，**懒加载** `ZipPreviewPanel`，使用 `JSZip.loadAsync(blob)` 在浏览器端解析 ZIP，将所有目录/文件条目转换为 Semi Design `Tree` 组件的 `TreeNodeData` 结构并渲染。**无需后端改动**。
+下载 Blob 后**懒加载** `ZipPreviewPanel`，使用 `JSZip.loadAsync(blob)` 在浏览器端解析 ZIP，将所有目录/文件条目转换为 Semi Design `Tree` 组件的 `TreeNodeData` 结构并渲染。**无需后端改动**。
 
 `ZipPreviewPanel`关键功能：
 
@@ -321,58 +339,59 @@ jszip@^3.10.1
 
 ---
 
-## 判断工具函数
+## 工具函数
 
-`packages/web/src/utils/file-utils.tsx` 提供以下辅助函数：
+`packages/web/src/utils/file-utils.tsx` 提供以下辅助函数，`FilePreviewModal` / `useFilePreview` 内部也复用同一套判断：
 
 ```ts
 /** 判断是否支持预览（覆盖 image / audio / video / PDF / xlsx / csv / docx / markdown / text / json / svg / code / zip） */
 canPreviewFile(mimeType: string | null | undefined): boolean
 
-/** 判断是否为可预览的表格（xlsx 或 csv） */
-isSpreadsheetFile(mimeType?: string | null): boolean
+/** 细分格式判断 */
+isSpreadsheetFile / isWordFile / isMarkdownFile / isPlainTextFile /
+isJsonFile / isSvgFile / isCodeFile / isZipFile(mimeType?: string | null): boolean
 
-/** 判断是否为 docx 文档（仅内部使用） */
-isWordFile(mimeType?: string | null): boolean
+/** 按文件名扩展（优先）与 MIME 类型返回 vscode-icons 彩色图标节点，用于列表与预览标题 */
+getFileTypeIcon(fileName?: string | null, mimeType?: string | null, size?: number): ReactNode
 
-/** 判断是否为 Markdown 文件（仅内部使用） */
-isMarkdownFile(mimeType?: string | null): boolean
+/** 按扩展名猜测 MIME 类型（上传/终端文件等缺 MIME 的场景） */
+guessMimeTypeFromName(name: string): string | null
 
-/** 判断是否为纯文本文件（仅内部使用） */
-isPlainTextFile(mimeType?: string | null): boolean
+/** 文件大小人性化格式化 */
+formatFileSize(bytes: number): string
 
-/** 判断是否为 JSON 文件（仅内部使用） */
-isJsonFile(mimeType?: string | null): boolean
+/** 获取托管文件 Blob：直链优先，失败降级代理读取（预览/下载统一入口） */
+fetchManagedFileBlob(url: string): Promise<Blob>
 
-/** 判断是否为 SVG 文件（仅内部使用） */
-isSvgFile(mimeType?: string | null): boolean
+/** 从 /api/files/{id}/content 形态的 URL 解析托管文件 ID */
+extractManagedFileId(url: string): string | null
 
-/** 判断是否为代码/配置文件（仅内部使用） */
-isCodeFile(mimeType?: string | null): boolean
-
-/** 判断是否为 ZIP 压缩包（仅内部使用） */
-isZipFile(mimeType?: string | null): boolean
+/** 携带认证头读取受保护文件（绝对 URL 直链则裸 fetch） */
+fetchProtectedFile(url: string): Promise<Blob>
 ```
 
 ---
 
 ## 已接入的页面
 
-| 页面 | 组件 | fileId 来源 |
+| 页面 | 接入方式 | fileId 来源 |
 | --- | --- | --- |
-| 文件管理 | `FilesPage` | `ManagedFile.id` |
-| 存储浏览 | `StorageFileBrowser` | `ManagedFile.id` |
-| 文件附件 | `FileAttachment` | `AttachmentItem.file.id` |
-| 消息中心 | `ChatPage` | `ChatAssetMeta.fileId`（发送时从 upload-one 响应写入） |
+| 文件管理 | `FilesPage`：`useFilePreview` + `FilePreviewLayer` | `ManagedFile.id` |
+| 存储浏览 | `StorageFileBrowser`：`useFilePreview` + `FilePreviewLayer` | `ManagedFile.id` |
+| 文件附件 | `FileAttachment`：直接渲染 `FilePreviewModal` | `AttachmentItem.file.id` |
+| 消息中心 | `ChatPage`：直接渲染 `FilePreviewModal` | `ChatAssetMeta.fileId`（发送时从 upload-one 响应写入） |
+| 服务器文件管理器 | `FileManagerPage`：直接渲染 `FilePreviewModal` | 无（宿主机文件非托管文件，Excel/CSV 预览不可用） |
 
 ---
 
 ## 新页面接入
 
-只需三步：
+**托管文件列表页**（推荐）：使用 `useFilePreview(getImageFiles)` + `<FilePreviewLayer preview={...} />`，图集预览、格式分发、新窗口回退、鉴权下载一步到位（见上文使用示例）。
+
+**其他简单场景**只需三步：
 
 1. 将文件数据存入状态，包含 `id / url / name / mimeType`
 2. 在触发预览前用 `canPreviewFile(mimeType)` 判断是否显示预览入口
 3. 渲染 `<FilePreviewModal fileId={id} fileUrl={url} fileName={name} mimeType={mime} visible={visible} onClose={onClose} />`
 
-其余逻辑（格式分发、懒加载、token 认证、资源回收）均由组件内部处理。
+其余逻辑（格式分发、懒加载、直链换取与认证、资源回收）均由组件内部处理。普通图片需自行处理 `onFallback` / 图集展示，或直接采用上面的组合方案。

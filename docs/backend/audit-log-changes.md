@@ -1,163 +1,104 @@
-# 操作日志与变更记录
+# 审计日志
 
-Zenith Admin 的操作日志不仅记录了「谁做了什么」，还支持记录**变更前后的实体快照**，在日志详情弹窗中以表格 diff 形式高亮展示差异字段。
+系统的操作审计由 `guard` 中间件统一实现：写操作声明 `audit` 配置后，自动记录操作人、请求、响应与**变更前后数据快照**（diff 展示），落 `operation_logs` 表。登录 / 登出行为单独记 `login_logs`。
 
----
+代码位置速查：
 
-## 整体架构
+| 模块 | 位置 |
+| --- | --- |
+| guard 中间件（权限 + 审计） | `packages/server/src/middleware/guard.ts` |
+| 快照辅助（零参版） | `packages/server/src/lib/context.ts` |
+| 表结构 | `packages/server/src/db/schema/logs.ts` |
+| 查询路由 | `routes/platform/operation-logs.ts`、`routes/identity/login-logs.ts` |
 
-```
-操作请求
-  │
-  ├──> guard 中间件（权限校验）
-  │
-  ├──> 路由 handler / service（写操作前）
-  │      查询当前实体 → setAuditBeforeData(c, beforeRow) / setAuditBefore(beforeRow)
-  │
-  ├──> 路由 handler
-  │      执行数据库写操作，返回 { code: 0, data: afterRow }
-  │
-  └──> guard 中间件（after next()）
-         提取响应体中的 data → afterData
-         将 beforeData + afterData + 其他字段 写入 operation_logs 表
-```
+## 声明审计
 
-| 层 | 文件 | 职责 |
-|----|------|------|
-| 数据库 | `operation_logs.before_data` / `operation_logs.after_data` | 存储 JSON 快照字符串（`text` 类型） |
-| 中间件 | `packages/server/src/middleware/guard.ts` | 权限校验、审计写入、自动提取 `afterData` 与响应体；暴露 `setAuditBeforeData()` |
-| 路由 / Service | PUT / DELETE handler 或 service | 操作前查询实体，调用 `setAuditBeforeData(c, entity)` 或 `setAuditBefore(entity)` |
-| 前端 | `OperationLogsPage.tsx` 中的 `DiffTable` 组件 | 解析 JSON、比对字段、高亮变更行（只读，不需维护） |
+在路由的 `guard` 中传 `audit`：
 
----
-
-## 字段说明
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `before_data` | `text` (JSON) | 操作前的实体快照，DELETE 后该字段有值 |
-| `after_data` | `text` (JSON) | 操作后的实体快照，来自响应体 `data`；DELETE 时通常为 `null` |
-| `request_body` | `varchar(4096)` | JSON 请求体，经 `sanitizeBody()` 脱敏后截断保存；`recordBody: false` 时不记录 |
-| `response_body` | `text` | 完整响应体文本，最长 16KB，非 JSON 响应也可记录 |
-| `duration_ms` | `integer` | 路由处理耗时 |
-
----
-
-## 前端 Diff 展示效果
-
-当操作日志记录了 `beforeData` 或 `afterData` 时，日志详情弹窗会展示 **DiffTable** 组件：
-
-- 每行代表一个字段，列出字段名、变更前的值、变更后的值
-- 有差异的行高亮显示（黄色背景）
-- 仅 `beforeData` 有值时（DELETE 操作），展示被删除前的数据快照
-- 两者都有值时（PUT 操作），展示完整的字段变更对比
-
----
-
-## 如何为新路由添加 Diff
-
-### 前提条件
-
-路由必须使用 `guard` 中间件（CRUD 路由已默认使用）。
-
-### 步骤
-
-**1. 导入 `setAuditBeforeData`**
-
-```typescript
-import { guard, setAuditBeforeData } from '../middleware/guard';
+```ts
+middleware: [authMiddleware, guard({
+  permission: 'system:user:update',
+  audit: { description: '更新用户', module: '用户管理' },
+})] as const
 ```
 
-Service 层也可使用零参版本：
+`AuditLogOptions`：
 
-```typescript
-import { setAuditBefore } from '../lib/context';
+| 选项 | 默认 | 说明 |
+| --- | --- | --- |
+| `description` | — | 操作描述（必填） |
+| `module` | — | 所属模块（列表筛选用） |
+| `recordBody` | `true` | 是否记录请求体；文件上传等场景传 `false` |
+| `recordResponseBody` | `true` | 是否记录完整响应体；返回一次性密钥等敏感响应传 `false` |
+
+## 自动采集内容
+
+每条操作日志（`operation_logs`）包含：
+
+- **操作人**：userId、username、归属租户（`getEffectiveTenantId`：租户用户记自身租户，平台超管在租户视角记该租户、平台视角记 null）
+- **请求**：method、path、requestId、请求体（`sanitizeBody` 脱敏后**截断 4096 字符**；校验失败的 400 请求也会记录原始 body，便于审计异常请求）
+- **响应**：状态码、完整响应体（**截断 16KB**）、耗时
+- **环境**：客户端 IP（走受信代理解析）、IP 归属地、User-Agent、OS、浏览器
+- **数据快照**：`beforeData` / `afterData`（见下节）
+
+写入时机：响应发出后经 `setImmediate` 异步落库，**不增加请求延迟**；日志写入失败不影响主流程。
+
+### 请求体脱敏
+
+`sanitizeBody`（`src/lib/sanitize.ts`）深度遍历 JSON，键名命中敏感词（`password`、`secret`、`token`、`accessKey`、`privateKey`、`apiKey`、`clientSecret`、`refreshToken`、`credential`、`webhook` 等）的字段替换为 `***`。
+
+## 变更前后快照（diff）
+
+### afterData 自动捕获
+
+响应体为标准信封（`code: 0` 且 `data` 非空）时，`data` 自动作为 `afterData`——大多数更新接口返回更新后实体，无需额外代码。
+
+### beforeData 手动注入
+
+更新 / 删除操作在改动前注入旧数据快照：
+
+```ts
+import { setAuditBefore } from '../../lib/context';
+
+handler: async (c) => {
+  const { id } = c.req.valid('param');
+  setAuditBefore(await getUserById(id));   // 零参上下文版，无需透传 c
+  const updated = await updateUser(id, c.req.valid('json'));
+  return c.json(okBody(updated), 200);
+},
 ```
 
-**2. 在写操作前，查询当前实体并注入快照**
+等价的 Context 版本：`setAuditBeforeData(c, data)`（`middleware/guard.ts`）。
 
-在 PUT / DELETE handler 中，通过验证后、调用 service 写方法**之前**执行：
+### afterData 手动注入
 
-```typescript
-// 推荐：service 的 ensureXxxExists 同时返回实体交给路由做快照
-import { ensureYourRecordExists } from '../services/your.service';
+删除等响应 `data` 为 null 的操作，可用 `setAuditAfter(data)` / `setAuditAfterData(c, data)` 显式提供操作后快照。
 
-const before = await ensureYourRecordExists(id);  // 不存在时抛 HTTPException(404)
-// 如有敏感字段（如 password），先排除
-const { password: _pw, ...safeBefore } = before as Record<string, unknown>;
-setAuditBeforeData(c, safeBefore);
-```
+前端操作日志详情页对 `beforeData` / `afterData` 做字段级 diff 高亮展示。
 
-若快照在 service 层生成，可调用 `setAuditBefore(safeBefore)`，无需透传 Hono `Context`。
+## 查询与管理端点
 
-**3. 返回操作后实体（afterData 由中间件自动提取）**
+操作日志（权限 `system:log:operation`）：
 
-handler 正常返回 `okBody(updatedEntity)` 即可，`guard` 中间件会自动从响应体的 `data` 字段提取 `afterData`：
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/api/operation-logs` | 分页查询（按模块 / 操作人 / 时间 / 状态码筛选） |
+| GET | `/api/operation-logs/stats` | 统计 |
+| DELETE | `/api/operation-logs/clean` | 清空 |
 
-```typescript
-import { updateYourRecord } from '../services/your.service';
+登录日志（`login_logs`，登录 / 登出各记一条，含成功与失败）：
 
-const updated = await updateYourRecord(id, updateData);
-return c.json(okBody(updated, 'success'), 200);
-```
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/api/login-logs` | 分页查询 |
+| GET | `/api/login-logs/stats` | 统计 |
+| DELETE | `/api/login-logs/clean` | 清空 |
 
-### DELETE 操作
+`login_logs` 除 IP / 归属地 / 浏览器 / OS 外，还记录前端上报的设备信息（分辨率、DPR、GPU、CPU 核数、内存）用于风控分析。
 
-DELETE 接口的 `afterData` 通常为 `null`（响应 `data` 为 `null`），这是预期行为。前端 DiffTable 会仅展示删除前的数据快照。
+## 使用建议
 
-```typescript
-// DELETE handler 示例
-import { ensureYourRecordExists, deleteYourRecord } from '../services/your.service';
-
-const before = await ensureYourRecordExists(id);
-setAuditBeforeData(c, before);
-
-await deleteYourRecord(id);
-return c.json(okBody(null, 'success'), 200);
-```
-
----
-
-## 排除敏感字段
-
-在注入 `beforeData` 前，应主动将敏感字段从快照中排除：
-
-```typescript
-// 排除 password 和其他敏感字段
-const { password: _pw, secretKey: _sk, ...safeRecord } = record as any;
-setAuditBeforeData(c, safeRecord);
-```
-
----
-
-## 查询操作日志
-
-操作日志通过 `GET /api/operation-logs` 接口查询，支持按用户名、模块、描述、操作路径、请求方法、IP 地址、状态、时间范围、耗时范围等多维度筛选。
-
-相关接口：
-
-| 接口 | 说明 |
-|------|------|
-| `GET /api/operation-logs` | 分页查询操作日志 |
-| `GET /api/operation-logs/stats` | 统计总量、成功/失败、模块、用户、方法、小时分布与耗时 |
-| `DELETE /api/operation-logs/clean?months=0` | 清理操作日志，`months=0` 表示清空全部 |
-
----
-
-## 登录日志采集字段
-
-登录日志写入 `login_logs` 表，记录登录成功 / 失败及客户端信息：
-
-| 字段 | 说明 |
-|------|------|
-| `username` / `user_id` | 登录账号与匹配到的用户 ID |
-| `status` / `message` | `success` / `fail` 与结果说明 |
-| `ip` / `location` | 客户端 IP 与 IP 归属地 |
-| `browser` / `os` / `user_agent` | 由 User-Agent 解析出的浏览器、操作系统与原始 UA |
-| `tenant_id` | 多租户模式下的租户 ID |
-| `screen_width` / `screen_height` / `device_pixel_ratio` | 前端登录时上报的屏幕信息 |
-| `gpu` / `cpu_cores` / `memory_gb` | 前端登录时上报的 GPU、CPU 核数与内存信息 |
-
-登录日志通过 `GET /api/login-logs` 查询，支持按用户名、状态、时间范围筛选；`GET /api/login-logs/stats` 提供每日趋势、用户、IP、失败 IP、浏览器、操作系统与小时分布统计。
-
-详见 [操作日志 API](/backend/swagger#接口分组)。
+- **只审计写操作**：GET 查询不声明 `audit`，避免日志膨胀
+- `description` 用「动词 + 对象」：「新增角色」「重置用户密码」
+- 涉及敏感响应（密钥、token 明文）务必 `recordResponseBody: false`
+- 与 [HTTP 流量日志](./http-logging.md) 的分工：审计日志面向合规追溯（业务视角、入库可查），流量日志面向排障（技术视角、写日志文件）

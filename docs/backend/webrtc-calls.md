@@ -1,92 +1,102 @@
 # WebRTC 音视频通话
 
-聊天模块内置 **1v1 语音 / 视频通话、屏幕共享、群语音**。信令复用现有 WebSocket（`/api/ws`），媒体走 P2P（群聊为 mesh 拓扑），服务端不转发媒体流。
+聊天模块内置一对一与群组音视频通话。媒体流走浏览器间 P2P（WebRTC），服务端只承担两件事：**信令中继**（复用 `/api/ws` WebSocket）与 **ICE 配置下发**——不经手任何音视频数据。
 
-## 架构概览
+代码位置速查：
 
+| 模块 | 位置 |
+| --- | --- |
+| 信令中继 | `packages/server/src/routes/platform/ws.ts` |
+| 群通话房间（内存） | `packages/server/src/lib/rtc-manager.ts` |
+| ICE 配置 / 通话记录 | `packages/server/src/services/chat/chat-rtc.service.ts` |
+| 前端通话状态机 | `packages/web/src/webrtc/callManager.ts` |
+| 通话 UI | `packages/web/src/webrtc/CallWindow.tsx` 等 |
+
+## 服务端
+
+### ICE 配置下发
+
+```text
+GET /api/chat/rtc/config
 ```
-┌──────────┐   rtc:* 信令(WS 中继)   ┌──────────┐
-│ 浏览器 A │ ──────────────────────▶ │  服务端  │ ──▶ 浏览器 B
-│RTCPeerCon│ ◀────────────────────── │ (仅中继) │ ◀──
-└────┬─────┘                         └──────────┘
-     │   媒体（音视频/屏幕）P2P 直连，经 STUN/TURN 协商
-     └──────────────────────────────────────────────▶ 浏览器 B
-```
 
-- **信令**：`invite` / `accept` / `offer` / `answer` / `ICE candidate` 等通过 WebSocket 中继。事件清单见 [WebSocket 事件 · rtc](./websocket-events.md#音视频通话信令-rtc)。
-- **媒体**：浏览器间 P2P。服务端**不经手媒体流**，仅做信令转发、群通话 `join` 房间登记和断线清理。
-- **关键文件**：
-  - 服务端：`routes/platform/ws.ts`（信令中继）、`lib/rtc-manager.ts`（群通话房间）、`services/chat/chat.service.ts`（`getRtcConfig` / `postCallRecord`）。
-  - 前端：`webrtc/callManager.ts`（单例通话管理器）、`webrtc/CallOverlayHost.tsx`（全局来电/通话宿主，挂载于 `AdminLayout`）、`CallWindow.tsx` / `MediaTile.tsx`。
-
-## 配置（ICE 服务器）
-
-浏览器创建 `RTCPeerConnection` 需要 ICE 服务器做 NAT 穿透。服务端通过 `GET /api/chat/rtc/config` 下发，取值来自环境变量：
-
-| 变量 | 说明 | 默认 |
-| --- | --- | --- |
-| `WEBRTC_STUN_URLS` | STUN 地址（逗号分隔），用于发现公网地址 | `stun:stun.l.google.com:19302` |
-| `WEBRTC_TURN_URLS` | TURN 中继地址（逗号分隔） | 空 |
-| `WEBRTC_TURN_USERNAME` | TURN 用户名 | 空 |
-| `WEBRTC_TURN_CREDENTIAL` | TURN 凭证 | 空 |
+返回 `{ iceServers: [...] }`，由环境变量组装：
 
 ```dotenv
-# 仅 STUN：同 LAN / 本机可连通
-WEBRTC_STUN_URLS=stun:stun.l.google.com:19302
-
-# 跨 NAT / 公网需 TURN（自建 coturn 或云服务）
-WEBRTC_TURN_URLS=turn:turn.example.com:3478,turns:turn.example.com:5349
-WEBRTC_TURN_USERNAME=zenith
-WEBRTC_TURN_CREDENTIAL=your_turn_password
+WEBRTC_STUN_URLS=stun:stun.l.google.com:19302   # 逗号分隔，默认 Google 公共 STUN
+WEBRTC_TURN_URLS=                                # TURN 服务器（可选，逗号分隔）
+WEBRTC_TURN_USERNAME=
+WEBRTC_TURN_CREDENTIAL=
 ```
 
-::: warning 必须配置 TURN 的场景
-仅配 STUN 时，若双方处于对称型 NAT / 不同公网且无法直连，通话会**协商失败**。生产环境（跨公网用户）务必部署 TURN 中继服务器。
+::: tip 生产建议
+公网 NAT 穿透成功率有限，生产环境建议自建 TURN（如 coturn）保证连通性；仅内网使用时可不配 TURN。
 :::
 
-::: tip 浏览器限制
-`getUserMedia` / `getDisplayMedia` 仅在 **HTTPS 或 `localhost`** 下可用。生产环境必须启用 HTTPS，否则无法获取麦克风/摄像头/屏幕。
-:::
+### 信令中继
 
-## 通话流程
+所有 `rtc:*` 事件经 WebSocket 转发（事件清单见 [WebSocket 事件](./websocket-events.md#音视频通话信令-rtc)）。转发规则：
 
-### 1v1（p2p）
+- payload 带 `to` → 定向发给目标用户
+- 否则按 `conversationId` 发给会话内其他成员
+- `rtc:join` 特殊处理：服务端把加入者登记进房间（`rtc-manager`），并回送 `rtc:room-participants`（当前已在房内的成员列表），加入者据此逐个建连
 
-1. 呼叫方点击「语音/视频通话」→ 获取本地媒体 → 发送 `rtc:invite`（`to` 为被叫用户）。
-2. 被叫弹出来电窗口；**接听** → 获取本地媒体 → 回 `rtc:accept`；**拒绝** → 回 `rtc:reject`；已在 1v1 通话中 → 自动回 `rtc:busy`。
-3. 呼叫方收到 `accept` 后创建 `RTCPeerConnection` 并发 `rtc:offer`，被叫 `rtc:answer`，双方交换 `rtc:ice` → 连通。
-4. 呼叫方等待接听最长 35 秒，超时发送 `rtc:cancel` 并写入未接听通话记录。
-5. 任一方挂断发 `rtc:leave`（呼叫前取消发 `rtc:cancel`）→ 前端清理 peer，并写入**通话记录系统消息**（时长 / 未接听 / 已拒绝 / 已取消）。
+### 群通话房间
 
-### 群语音（group，mesh）
+`rtc-manager.ts` 维护 `callId → 成员` 的内存映射：
 
-1. 发起者广播 `rtc:invite`（会话内其他成员）并发送 `rtc:join` 登记房间。
-2. 成员接听后发送 `rtc:join`；服务端回 `rtc:room-participants`（房间现有成员），**加入者主动向每个现有成员建连发 offer**（现有成员仅应答），因此天然无 glare。
-3. 成员离开发 `rtc:leave`，服务端按会话转发给其他成员；前端收到后移除对应 peer。
-4. WebSocket 断线时服务端调用 `leaveAllRooms()` 清理该用户所在房间，并向剩余成员发送 `rtc:leave`。
+- 用途仅两个：告知新成员现有参与者（发起 mesh 建连）、断线时自动 `leaveAllRooms` 并向剩余成员补发 `rtc:leave`
+- 单进程内存方案，多实例部署需改造为共享存储（与 ws-manager 同等约束）
 
-> 屏幕共享、纯语音添加视频轨等 renegotiation 场景，采用 **perfect-negotiation**（按 userId 决定 polite/impolite）处理协商冲突。
+### 通话记录
 
-## 通话能力
+通话结束后由客户端上报，作为**系统消息**写入会话消息流：
 
-| 能力 | 说明 |
+```text
+POST /api/chat/conversations/{id}/call-record
+```
+
+body 按 `chatCallRecordSchema`（`@zenith/shared/chat`）：通话类型（音频/视频）、状态（completed / missed / rejected / cancelled）、时长。服务端格式化为「语音通话结束 · 时长 xx:xx」等文案并广播 `chat:message`。
+
+## 前端通话流程
+
+`callManager.ts` 是单例状态机，UI 通过快照订阅渲染。
+
+### 一对一呼叫
+
+```text
+主叫                                被叫
+ │ rtc:invite ──────────────────────▶ 弹接听框
+ │        （35s 无应答自动取消，cleanup('timeout')）
+ │ ◀────────────────── rtc:accept / rtc:reject / rtc:busy
+ │ rtc:offer ───────────────────────▶
+ │ ◀─────────────────────── rtc:answer
+ │ rtc:ice ◀───────────────────────▶ （双向持续交换）
+ │ 媒体流 P2P 直连
+ │ rtc:cancel / rtc:leave ──────────▶ 任一方挂断
+```
+
+- **响铃超时**：`RING_TIMEOUT_MS = 35_000`，超时主叫自动取消
+- **忙线**：被叫已在通话中（P2P 模式）自动回 `rtc:busy`
+- 挂断 / 拒绝 / 忙线均触发本地 `cleanup` 并写通话记录
+
+### 群通话（mesh）
+
+- 每个参与者与其他所有人两两建连（适合小规模，无 SFU）
+- 加入者收到 `rtc:room-participants` 后向现有成员逐个发 offer
+- 信令冲突用 **perfect negotiation** 处理：按 `userId` 大小分配 polite / impolite 角色，`makingOffer` / `ignoreOffer` 标志避免 glare
+
+### 通话中能力
+
+- 静音 / 关摄像头（track enabled 切换）
+- **屏幕共享**：`getDisplayMedia` 获取屏幕轨，`replaceTrack` 替换视频发送轨，结束后切回摄像头
+- 通话窗口悬浮可拖拽
+
+## 排障
+
+| 现象 | 排查 |
 | --- | --- |
-| 语音 / 视频 | 单聊支持语音与视频；群聊入口提供群语音 |
-| 屏幕共享 | 通话中切换；有视频 sender 时用 `replaceTrack`，没有视频 sender 时 `addTrack` 并触发重新协商 |
-| 静音 / 关摄像头 | 切换本地轨道 `enabled` |
-| 最小化 | 通话窗口可最小化为悬浮条，**远端音频持续播放**（独立 `<audio>` 元素） |
-| 来电提示音 | WebAudio 合成，无需音频资源 |
-| 通话记录 | 1v1 结束写入会话系统消息（`POST /api/chat/conversations/:id/call-record`） |
-
-## 排错
-
-| 现象 | 可能原因 |
-| --- | --- |
-| 无法获取麦克风/摄像头 | 非 HTTPS/localhost；或浏览器权限被拒 |
-| 接通后听不到/看不到对方 | 缺少 TURN，双方无法 P2P 直连；检查 `WEBRTC_TURN_*` |
-| 来电窗口不弹 | 对方 WebSocket 未连接（未登录/断线）；通话宿主仅在登录态挂载 |
-| 群通话有人听不到新加入者 | 新加入者需向现有成员发起连接，确认 `rtc:join` 与 `rtc:room-participants` 往返正常 |
-
-::: info 部署约束
-群通话房间状态为**单进程内存**（与 WebSocket 连接管理同等约束）。多实例水平扩展时，需将 `rtc-manager` 的房间状态与 `ws-manager` 的连接路由改造为共享存储（如 Redis Pub/Sub）。
-:::
+| 呼不通（对方无弹窗） | WebSocket 是否连接、对方是否在线（`chat:presence`） |
+| 一直连接中 / 单向音频 | NAT 穿透失败——检查 `GET /api/chat/rtc/config` 返回、TURN 配置与可达性 |
+| localhost 可用、局域网不可用 | 浏览器要求 HTTPS（或 localhost）才允许 `getUserMedia` |
+| 断线后对方界面残留 | 服务端已在 WS 断连时补发 `rtc:leave`；检查前端是否处理该事件 |

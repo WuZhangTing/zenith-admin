@@ -17,7 +17,7 @@
 
 ### ACL 授权
 
-ACL 主体为**用户或角色**，权限级别为 `viewer（查看）< editor（编辑）< owner（所有者）`：
+ACL 主体支持**用户、角色、部门、用户组**四类，权限级别为 `viewer（查看）< editor（编辑）< owner（所有者）`：
 
 - 资源**所有者天然拥有 `owner`** 级别；授权操作只允许资源所有者执行；
 - ACL 可设置**失效时间**，可配置在**目录上并向下继承**；
@@ -40,35 +40,38 @@ ACL 主体为**用户或角色**，权限级别为 `viewer（查看）< editor�
 
 ## 环境与发布
 
-内置 `dev → staging → prod` 三个环境（可自定义增删），资源通过**晋级（promotion）**在环境间发布：
+内置 `dev → staging → prod` 三个环境（可自定义增删，环境类型支持 development / testing / staging / production），资源通过**晋级（promotion）**在环境间发布：
 
 ```mermaid
 stateDiagram-v2
     direction LR
     [*] --> pending: 发起晋级
-    pending --> approved: 审批通过
+    pending --> approved: 审批（approve）
     pending --> cancelled: 取消
-    approved --> succeeded: 发布成功
-    succeeded --> rolled_back: 回滚
+    approved --> cancelled: 取消
+    approved --> deploying: 部署（deploy）
+    deploying --> succeeded: 部署成功
+    deploying --> failed: 部署失败
+    succeeded --> rolled_back: 回滚（rollback）
 ```
 
 - 晋级保存**源修订与源快照**，禁止直接从开发环境覆盖生产环境的未审批版本；
-- 当前同步晋级流转为 `pending → approved → succeeded`；待处理记录可**取消**（`cancelled`）；
-- 成功发布可**回滚**（`rolled_back`），不直接改生产快照；
+- 通过 `POST /promotions/{id}/transition` 驱动状态：**审批（approve）→ 部署（deploy）→ 成功/失败**；待处理或已审批记录可**取消**（cancel）；
+- 部署时自动留存上一次成功晋级的快照为**回滚快照**；成功发布可**回滚**（rollback），不直接改生产快照；
 - 环境的 `baseUrl/config` 不存密钥，数据源凭据仍由加密字段管理。
 
 ## 配额与成本
 
 ### 查询配额
 
-按**租户或用户**限制查询资源用量：并发数、每日查询次数、返回行数、字节数与成本预算。
+按**租户或用户**限制查询资源用量：并发数、每日查询次数、返回行数、字节数与成本预算（各项 `0` = 不限制）。
 
-- 日限额 `0` 表示不限次数，但**并发上限（20）与数据源预算仍然生效**；
-- 可查看配额当前用量，或手动**重置**用量计数。
+- 配额校验在 Redis 中原子执行；即便配额全部放开，[取数运行时](./runtime-governance)的数据源并发与全局容量护栏仍然生效；
+- 可查看配额**当前用量**（按日的并发/次数/行数/字节/成本明细），或手动**重置**某日用量计数。
 
 ### 查询成本
 
-每次取数记录成本日志（数据源、耗时、行数、字节数、估算成本），提供**统计与趋势**视图定位高成本查询与数据集，支持导出（`report:query-cost:export`）。
+每次取数记录成本日志（数据源、耗时、行数、字节数、估算成本），提供**统计与趋势**视图定位高成本查询与数据集，支持导出（`report:query-cost:export`，接入导出中心）。
 
 ## SLA 与违规
 
@@ -81,7 +84,8 @@ stateDiagram-v2
 | `availability` | 取数可用性 |
 | `dq_score` | 数据质量评分（联动[数据质量](./quality)） |
 
-- 「评估」通过任务中心异步任务（`report-sla-rule-evaluate`）执行；
+- 规则可配置**通知**：通道（邮件 / 站内信 / Webhook）、收件人、Webhook 地址（加密存储）与**静默期**（分钟），违规触发时走统一[可靠投递](./runtime-governance#可靠投递)（投递目标类型 `sla`，含重试与投递历史）；
+- 「评估」通过任务中心异步任务（`report-sla-rule-evaluate`）执行，定时巡检每分钟扫描到期规则；
 - 未达标产出**违规记录**，状态 `open → acknowledged | resolved` 闭环处置。
 
 ## 权限

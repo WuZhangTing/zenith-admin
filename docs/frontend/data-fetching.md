@@ -14,7 +14,7 @@
 
 ```text
 packages/web/src/
-├── lib/query.ts            # queryClient 单例 + unwrap + toQueryString + LOOKUP_STALE_TIME
+├── lib/query.ts            # queryClient 单例 + unwrap + toQueryString + LOOKUP_STALE_TIME + createLimiter
 ├── hooks/queries/          # 域 hooks：每个业务域一个文件（users.ts、roles.ts、payment-orders.ts …）
 ├── utils/request.ts        # 传输层（不变）
 └── member/
@@ -22,7 +22,9 @@ packages/web/src/
     └── hooks/queries.ts    # 会员端域 hooks（基于 memberRequest）
 ```
 
-`QueryClientProvider` 在 `App.tsx` 顶层挂载（会员端在 `App-member.tsx`），开发模式附带 React Query Devtools。退出登录或切换用户时自动 `queryClient.clear()`，避免跨账号数据泄漏。
+`QueryClientProvider` 在 `main.tsx` 顶层挂载、包裹 `AuthProvider`（会员端在 `App-member.tsx`），开发模式附带 React Query Devtools。退出登录或切换账号时由 `AuthProvider` 清空身份相关的查询与 mutation 缓存（仅保留 `auth-public` 公开配置查询），避免跨账号数据泄漏。
+
+认证会话（`['auth', 'me']`，见 `hooks/queries/auth.ts`）与导航菜单树（`['menus', 'user-tree']`，见 `hooks/queries/menus.ts`）本身也走同一套 Query 体系——权限变更后由 `invalidateCurrentUserAccess(qc)` 统一失效两者，当前登录者的可见范围即时刷新。
 
 ## 基建（lib/query.ts）
 
@@ -33,6 +35,7 @@ packages/web/src/
 | `ApiError` | 携带 `code` 的业务错误，`mutateAsync` 抛出后可保持弹窗打开 |
 | `toQueryString(params)` | 构建查询串，自动过滤 `undefined` / `null` / 空字符串 |
 | `LOOKUP_STALE_TIME` | 5 分钟，用于低频 lookup 数据（字典、部门树、用户下拉源等） |
+| `createLimiter(max)` | 轻量并发信号量，限制同类请求最大并发数（仪表盘/设计器一屏扇出数十个数据集查询的场景） |
 
 ## 域 hooks 约定
 

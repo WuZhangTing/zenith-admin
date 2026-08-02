@@ -77,8 +77,8 @@ LOG_LEVEL=debug
 | RQB（`db.query.xxx.findMany`） | `offset: pageOffset(page, pageSize)` | `lib/pagination` |
 
 ```ts
-import { withPagination } from '../lib/where-helpers';
-import { pageOffset } from '../lib/pagination';
+import { withPagination } from '../../lib/where-helpers';
+import { pageOffset } from '../../lib/pagination';
 
 // ✅ SQL-builder：使用 withPagination + .$dynamic()
 withPagination(
@@ -95,7 +95,7 @@ db.select().from(xxxs).offset((page - 1) * pageSize);
 
 ## 关联查询优先使用 RQB
 
-`db` 实例已传入 `schema`，`schema.ts` 已为所有表声明 `xxxRelations`，可直接使用 `db.query.*`。
+`db` 实例已传入 `schema`，全部表间关联（250+ 个 `relations()`）统一声明在 `packages/server/src/db/schema/relations.ts`，可直接使用 `db.query.*`。
 
 **有关联数据时，优先用 RQB 替代手动 JOIN**：
 
@@ -136,63 +136,16 @@ const rows = await db.query.users.findMany({
 // ❌ 避免：先查 users，再写 getUserRolesMap()/getUserPositionsMap() 二次聚合
 ```
 
-**常用已声明的关联关系（可直接使用）**：
+**关联关系的唯一来源是 `packages/server/src/db/schema/relations.ts`**。使用前先在该文件中确认目标表已声明所需关联（搜索 `xxxRelations`）；若缺少，就在 `relations.ts` 中补充声明，而不是退回手动 JOIN。常用示例：
 
-| 表 | 可用 `with` 字段 |
+| 表 | 常用 `with` 字段 |
 | --- | --- |
-| `tenants` | `departments`, `positions`, `users`, `roles`, `dicts`, `userGroups`, `managedFiles`, `announcements`, `systemConfigs`, `workflowDefinitions`, `workflowInstances` |
-| `departments` | `tenant`, `users`, `leader`, `userGroups` |
-| `positions` | `tenant`, `userPositions` |
-| `userGroups` | `tenant`, `owner`, `department`, `members` |
-| `userGroupMembers` | `group`, `user` |
-| `users` | `department`, `tenant`, `userRoles`, `userPositions`, `userGroupMembers`, `ownedUserGroups`, `oauthAccounts`, `apiTokens`, `passwordResetTokens`, `leadingDepartments`, `userMenus`, `userDeptScopes` |
+| `users` | `department`, `tenant`, `userRoles`, `userPositions`, `userGroupMembers` |
 | `roles` | `tenant`, `userRoles`, `roleMenus`, `deptScopes` |
-| `menus` | `roleMenus`, `userMenus` |
-| `userRoles` | `user`, `role` |
-| `userPositions` | `user`, `position` |
-| `roleMenus` | `role`, `menu` |
-| `roleDeptScopes` | `role`, `department` |
-| `userMenus` | `user`, `menu` |
-| `userDeptScopes` | `user`, `department` |
-| `dicts` | `tenant`, `items` |
-| `dictItems` | `dict`, `parent`, `children` |
-| `fileStorageConfigs` | `files` |
 | `managedFiles` | `storageConfig`, `tenant`, `createdByUser` |
-| `dbBackups` | `file`, `createdByUser` |
-| `cronJobs` | `logs` |
-| `cronJobLogs` | `job` |
-| `announcements` | `tenant`, `reads`, `recipients`, `attachments` |
-| `businessFiles` | `file`, `tenant` |
-| `workflowCategories` | `tenant`, `definitions`, `forms` |
-| `workflowForms` | `tenant`, `createdByUser`, `category`, `definitions` |
-| `workflowDefinitions` | `tenant`, `createdByUser`, `category`, `form`, `instances`, `versions`, `automations` |
 | `workflowInstances` | `definition`, `initiator`, `tenant`, `tasks` |
-| `workflowTasks` | `instance`, `assignee`, `urges` |
-| `workflowComments` | `instance`, `task`, `user` |
-| `workflowDelegations` | `principal`, `delegate`, `definition`, `tenant` |
-| `workflowTaskConsults` | `task`, `instance`, `inviter`, `consultee` |
-| `chatConversations` | `createdByUser`, `tenant`, `members`, `messages` |
-| `chatMessages` | `conversation`, `sender`, `reactions` |
-| `emailTemplates` | `tenant`, `logs` |
-| `emailSendLogs` | `template`, `user`, `tenant` |
-| `smsConfigs` | `tenant`, `logs` |
-| `smsTemplates` | `tenant`, `logs` |
-| `smsSendLogs` | `config`, `template`, `user`, `tenant` |
-| `inAppTemplates` | `tenant`, `messages` |
-| `inAppMessages` | `template`, `user`, `sender`, `tenant` |
-| `paymentChannelConfigs` | `orders` |
+| `members` | `level`, `tenant`, `pointAccount`, `wallet`, `memberCoupons`, `checkins` |
 | `paymentOrders` | `channelConfig`, `user`, `refunds` |
-| `paymentRefunds` | `order` |
-| `aiProviderConfigs` | `createdByUser` |
-| `aiConversations` | `user`, `tenant`, `messages` |
-| `aiMessages` | `conversation` |
-| `oauth2Clients` | `owner` |
-| `memberLevels` | `members` |
-| `members` | `level`, `tenant`, `pointAccount`, `wallet`, `pointTransactions`, `walletTransactions`, `memberCoupons`, `checkins` |
-| `memberWalletTransactions` | `member`, `paymentOrder` |
-| `coupons` | `memberCoupons` |
-| `monitorAlertRules` | `events` |
-| `monitorAlertEvents` | `rule` |
 
 > **保留手动 JOIN 的场景**：聚合计数需要跨表过滤（如 `countDistinct` + 反向遍历联结表）；keyword 搜索同时过滤主表和关联表字段（WHERE 依赖 JOIN 列）。
 

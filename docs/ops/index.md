@@ -1,6 +1,6 @@
 # 系统运维
 
-Zenith Admin 提供一站式服务器运维能力，无需额外运维工具即可在页面内管理工作机。运维区覆盖 Web SSH 终端、终端录屏、文件管理、进程与端口、Docker、网络诊断、systemd 服务和日志查看等场景，统一接入后台登录态、权限码与审计能力。
+Zenith Admin 提供一站式服务器运维能力，无需额外运维工具即可在页面内管理工作机。运维区覆盖 Web SSH 终端、终端录屏、文件管理、进程与端口、Docker、网络诊断、systemd 服务、日志查看、数据库管理与备份、防火墙、Nginx 站点、SSL 证书和维护模式等场景，统一接入后台登录态、权限码与审计能力。
 
 ---
 
@@ -19,6 +19,13 @@ Zenith Admin 提供一站式服务器运维能力，无需额外运维工具即�
 | 网络诊断 | ping、traceroute、nslookup、DNS 记录、反向 DNS、HTTP(S) 探测、TCP 端口检测、本机网卡信息 |
 | systemd 服务 | systemd 可用性检查、服务列表、启停、重启、reload、enable / disable、mask / unmask、详情与 journalctl 日志 |
 | 日志查看 | 指定路径 tail -f、ANSI 渲染、级别高亮、关键词过滤、下载；服务端日志文件列表、查看、实时追踪、下载、删除 |
+| 数据库管理 | 页面内数据库工作台：表浏览与行级增删改、只读 SQL 查询与取消、EXPLAIN、查询历史与收藏、导入导出、ER 图、索引健康、Schema 漂移对照、活动连接管理、表维护 |
+| 数据库备份 | pg_dump / Drizzle 数据导出两种备份方式，异步执行，产物自动上传默认文件存储 |
+| 防火墙 | 自动探测 ufw / firewalld / iptables，状态查看、规则增删、防火墙启停 |
+| Nginx 站点 | 站点列表与详情、模板化建站、配置在线编辑、启用 / 禁用、`nginx -t` 测试与 reload |
+| SSL 证书 | 自签名证书生成、自定义证书上传、openssl 解析、到期状态跟踪、下载与删除 |
+| 维护模式 | 一键开启 / 关闭全站维护，公开状态查询与维护记录（详见[维护模式](../backend/maintenance-mode.md)） |
+| 监控告警 | 「系统运维」菜单组还包含监控告警与告警记录页面（`/system/monitor-alerts`、`/system/monitor-alert-events`），属平台监控能力 |
 
 ---
 
@@ -113,6 +120,7 @@ SSH 敏感字段由服务端加密存储，接口返回 `hasPassword`、`hasKeyC
 - 分页展示 Shell、终端尺寸、时长、命令数、操作人、录制时间；
 - xterm.js 本地回放录屏事件；
 - 提取输入事件中的命令并支持复制全部命令；
+- 导出 asciinema `.cast` 文件（`GET /api/terminal-recordings/:id/asciinema`），可在 asciinema 生态中回放或分享；
 - 删除单条录屏；
 - 按 1 / 3 / 6 / 12 个月或全部范围批量清理。
 
@@ -152,6 +160,7 @@ SFTP 功能复用 SSH 配置档案，接口前缀为 `/api/ssh-sftp/:profileId`�
 | chmod | `POST /chmod` |
 | 校验和 | `GET /checksum`，算法为 `md5` / `sha1` / `sha256` |
 | 递归搜索 | `GET /search`，广度优先搜索文件名，最多返回 200 条 |
+| 目录大小 | `GET /dir-size`，递归统计目录占用 |
 
 本机文件编辑同样限制 5 MB，并拒绝二进制文件；删除操作禁止删除系统根目录和当前用户主目录本身。
 
@@ -337,6 +346,98 @@ systemctl list-units --type=service --all --no-pager --plain --no-legend
 
 ---
 
+## 数据库管理
+
+「数据库管理」（`/system/db-admin`）是页面内的 PostgreSQL 工作台，接口前缀为 `/api/db-admin`。权限码按操作分级：
+
+| 权限码 | 说明 |
+|--------|------|
+| `system:db-admin:view` | 表结构 / 数据浏览、总览、ER 图、索引健康、对象、查询历史与收藏 |
+| `system:db-admin:query` | 执行只读 SQL、取消查询、EXPLAIN |
+| `system:db-admin:export` | 表数据与查询结果导出 |
+| `system:db-admin:write` | 行级插入 / 更新 / 删除、批量变更、导入、TRUNCATE |
+| `system:db-admin:maintain` | 活动连接取消 / 终止、表维护、物化视图刷新 |
+
+### 安全边界
+
+- 用户提交的 SQL 全部在 `BEGIN; SET LOCAL TRANSACTION READ ONLY; ... ROLLBACK;` 只读事务中执行，任何写语句直接被数据库拒绝；
+- 每次查询设置 `statement_timeout`（60 秒），防止长查询拖垮数据库；
+- 单次查询最多返回 5000 行，超出自动截断；
+- 表数据浏览接口对 schema / 表 / 列名做白名单校验，原生 WHERE 片段经额外语句拼接与注释绕过拦截；
+- 写入接口拒绝系统 schema（`pg_catalog`、`information_schema` 等）与内置敏感表。
+
+### 能力
+
+- **总览与对象**：数据库版本、大小、连接数等总览（`GET /overview`）；序列 / 函数 / 触发器 / 枚举 / 扩展清单（`GET /objects`）。
+- **表浏览与行编辑**：表列表、表结构、分页行数据（支持原生 WHERE 过滤与排序）；插入 / 更新 / 删除行；`POST /batch-mutate` 在单事务中批量插入、更新、删除；`POST /truncate` 截断表。
+- **SQL 查询台**：执行只读 SQL（分页返回）、`POST /query/cancel` 取消执行中的查询、`POST /explain` 查看执行计划（EXPLAIN ANALYZE 亦在只读事务中执行）；查询历史（列表 / 删除单条 / 清空）与 SQL 收藏夹 CRUD。
+- **导入导出**：`POST /tables/{schema}/{name}/import` 批量导入 CSV / JSON（写权限）；`GET .../export.csv`、`GET .../export.sql` 导出表数据；`POST /query/export.csv`、`POST /query/export.json` 导出查询结果——导出经底层游标分批读取，同样在只读事务内。
+- **ER 图**：`GET /er-diagram` 返回所有外键关系，`GET /er-schema` 返回表 + 列 + 外键完整模式，前端渲染交互式 ER 图。
+- **健康与维护**：`GET /index-health` 索引健康（无效 / 冗余 / 低使用率索引）；`GET /maintenance/tables` 表维护统计（死元组等）；`POST .../maintenance` 执行 VACUUM / ANALYZE / REINDEX；`POST .../refresh` 刷新物化视图。
+- **活动连接**：`GET /activity` 查看 `pg_stat_activity` 活动连接，`POST /activity/{pid}/cancel` 取消查询、`POST /activity/{pid}/terminate` 终止连接。
+- **Schema 漂移**：`GET /schema-drift` 将数据库实际结构与 Drizzle schema 对照，发现未迁移的漂移。
+
+---
+
+## 数据库备份
+
+「数据库备份」（`/system/db-backups`）接口前缀为 `/api/db-backups`，记录存储在 `db_backups` 表。
+
+| 权限码 | 说明 |
+|--------|------|
+| `system:db-backup:list` | 备份列表 |
+| `system:db-backup:create` | 创建备份 |
+| `system:db-backup:delete` | 删除备份记录 |
+
+- 备份类型两种：`pg_dump`（调用 pg_dump 生成 SQL 转储）与 `drizzle_export`（应用层数据导出）。
+- 创建后立即返回 `pending`，备份任务异步执行：置 `running` → 生成备份文件（服务端 `storage/backups/` 目录）→ 上传到默认文件存储并登记 `managed_files`（无默认存储时仅保留本地文件）→ 置 `success` / `failed` 并记录文件大小与耗时。
+- 列表支持按状态（`pending / running / success / failed`）与类型筛选，展示发起人、开始 / 完成时间、耗时、文件大小。
+
+---
+
+## 防火墙管理
+
+「防火墙管理」（`/system/firewall`）接口前缀为 `/api/firewall`，查看用 `system:firewall:view`，规则管理与启停用 `system:firewall:manage`（全部写操作记录审计）。
+
+- 服务端按 `ufw → firewalld → iptables` 顺序自动探测防火墙后端，返回类型与版本；Windows 平台返回模拟数据、写操作为空操作。
+- `GET /api/firewall` 返回防火墙状态（类型、版本、是否启用），`GET /api/firewall/rules` 返回规则列表（方向、协议、端口、来源 / 目标、备注）。
+- `POST /api/firewall/rules` 添加规则、`DELETE /api/firewall/rules/:id` 删除规则，入参端口 / 来源 / 目标经清洗与备注消毒后才拼接命令。
+- `POST /api/firewall/enable`、`POST /api/firewall/disable` 启停防火墙。
+
+---
+
+## Nginx 站点管理
+
+「Nginx 站点」（`/system/nginx-sites`）接口前缀为 `/api/nginx-sites`。权限码：`system:nginx:view`（查看）、`system:nginx:manage`（建站 / 编辑 / 删除 / 启停）、`system:nginx:reload`（重载）。
+
+- `GET /api/nginx-sites/info` 返回 Nginx 安装状态、版本、配置目录与 `systemctl is-active` 运行状态；Windows 返回模拟数据。
+- 自动适配两种目录布局：`sites-available` + `sites-enabled` 软链模式（Debian 系），或 `conf.d` / `servers` 单目录模式（启用 / 禁用通过 `.conf` ↔ `.conf.disabled` 重命名实现）。
+- 站点列表解析每个配置的 `server_name`、监听端口、根目录与是否启用 SSL；详情返回完整配置内容。
+- `POST /api/nginx-sites` 按模板生成 server 块创建站点（监听端口、server_name、SSL 证书路径、反向代理 `proxy_pass` 或静态 `root`）；`PUT /api/nginx-sites/:name` 直接保存配置文件内容。
+- `POST /api/nginx-sites/test` 执行 `nginx -t` 返回校验结果；`POST /api/nginx-sites/reload` 重载 Nginx。
+- 站点增删改与启停全部记录审计（前后配置快照）。
+
+---
+
+## SSL 证书管理
+
+「SSL 证书」（`/system/ssl-certificates`）接口前缀为 `/api/ssl-certificates`，证书元数据存储在 `ssl_certificates` 表。权限码：`system:ssl:view`（查看 / 下载）、`system:ssl:create`（生成 / 上传）、`system:ssl:delete`（删除）。
+
+- `POST /generate` 用 openssl 生成自签名证书（`cert.pem` / `key.pem` 落盘到证书目录，可指定输出目录）；`POST /upload` 上传自定义 PEM 证书与私钥。
+- 证书通过 `openssl x509` 解析签发者、主题、有效期、指纹与序列号；解析失败返回 400（Windows 无 openssl 时优雅降级）。
+- 状态按剩余有效期自动计算并回写：`valid` / `expiring`（≤ 30 天）/ `expired` / `invalid`，列表返回 `daysRemaining`。
+- 列表支持按名称 / 域名关键字与类型（`self_signed` / `uploaded` / `letsencrypt`）筛选。
+- `GET /:id/download?kind=cert|key` 下载证书或私钥文件；删除证书时连同证书目录一并删除。
+- 生成与上传接口开启审计但 `recordBody:false`，避免私钥进入审计日志。
+
+---
+
+## 维护模式
+
+`/api/maintenance` 提供全站维护模式开关（权限 `system:maintenance:manage`，页面 `/system/maintenance`）：`GET /api/maintenance/status` 为公开接口供前端探测；`PUT /api/maintenance` 开启 / 关闭并可设置公告文案与预计结束时间；`GET /api/maintenance/logs` 分页查询维护记录。详见[维护模式](../backend/maintenance-mode.md)。
+
+---
+
 ## 接口一览
 
 | 模块 | 方法与路径 | 说明 |
@@ -375,9 +476,11 @@ systemctl list-units --type=service --all --no-pager --plain --no-legend
 | 终端文件 | `POST /api/terminal-files/extract` | 解压 |
 | 终端文件 | `GET /api/terminal-files/checksum` | 文件校验和 |
 | 终端文件 | `GET /api/terminal-files/search` | 递归搜索文件名 |
+| 终端文件 | `GET /api/terminal-files/dir-size` | 递归统计目录大小 |
 | 终端录屏 | `GET /api/terminal-recordings` | 录屏分页列表 |
 | 终端录屏 | `POST /api/terminal-recordings` | 保存录屏 |
 | 终端录屏 | `GET /api/terminal-recordings/:id` | 录屏详情 |
+| 终端录屏 | `GET /api/terminal-recordings/:id/asciinema` | 导出 asciinema `.cast` 文件 |
 | 终端录屏 | `DELETE /api/terminal-recordings/:id` | 删除录屏 |
 | 终端录屏 | `DELETE /api/terminal-recordings/clean` | 清除录屏记录 |
 | 终端会话 | `GET /api/terminal-sessions` | 活动终端会话列表 |
@@ -427,6 +530,32 @@ systemctl list-units --type=service --all --no-pager --plain --no-legend
 | 日志文件 | `GET /api/log-files/:filename/tail` | SSE 实时追踪 |
 | 日志文件 | `GET /api/log-files/:filename/download` | 下载日志文件 |
 | 日志文件 | `DELETE /api/log-files/:filename` | 删除日志文件 |
+| 数据库管理 | `GET /api/db-admin/overview` / `objects` / `tables` | 总览、数据库对象、表列表 |
+| 数据库管理 | `GET /api/db-admin/tables/:schema/:name/structure` / `rows` | 表结构与分页行数据 |
+| 数据库管理 | `POST` / `PATCH` / `DELETE /api/db-admin/tables/:schema/:name/rows` | 行级插入 / 更新 / 删除 |
+| 数据库管理 | `POST /api/db-admin/tables/:schema/:name/batch-mutate` | 单事务批量变更行 |
+| 数据库管理 | `POST /api/db-admin/tables/:schema/:name/import` | 批量导入 CSV / JSON |
+| 数据库管理 | `POST /api/db-admin/tables/:schema/:name/truncate` | 截断表 |
+| 数据库管理 | `GET /api/db-admin/tables/:schema/:name/export.csv` / `export.sql` | 导出表数据 |
+| 数据库管理 | `POST /api/db-admin/query` / `query/cancel` / `explain` | 只读 SQL 执行、取消、EXPLAIN |
+| 数据库管理 | `POST /api/db-admin/query/export.csv` / `export.json` | 导出查询结果 |
+| 数据库管理 | `GET` / `DELETE /api/db-admin/query/history` | 查询历史列表与清理 |
+| 数据库管理 | `GET` / `POST` / `PUT` / `DELETE /api/db-admin/query-favorites` | SQL 收藏夹 CRUD |
+| 数据库管理 | `GET /api/db-admin/er-diagram` / `er-schema` | ER 图数据 |
+| 数据库管理 | `GET /api/db-admin/index-health` / `schema-drift` | 索引健康与 Schema 漂移对照 |
+| 数据库管理 | `GET /api/db-admin/activity`、`POST /api/db-admin/activity/:pid/cancel` / `terminate` | 活动连接管理 |
+| 数据库管理 | `GET /api/db-admin/maintenance/tables`、`POST .../maintenance`、`POST .../refresh` | 表维护与物化视图刷新 |
+| 数据库备份 | `GET` / `POST /api/db-backups`、`DELETE /api/db-backups/:id` | 备份列表、创建、删除 |
+| 防火墙 | `GET /api/firewall`、`GET` / `POST /api/firewall/rules`、`DELETE /api/firewall/rules/:id` | 状态、规则查询与增删 |
+| 防火墙 | `POST /api/firewall/enable` / `disable` | 启停防火墙 |
+| Nginx 站点 | `GET /api/nginx-sites`、`GET /api/nginx-sites/info` / `:name` | 站点列表、Nginx 信息、站点详情 |
+| Nginx 站点 | `POST` / `PUT` / `DELETE /api/nginx-sites(/:name)` | 创建、编辑、删除站点 |
+| Nginx 站点 | `POST /api/nginx-sites/:name/enable` / `disable` | 启用 / 禁用站点 |
+| Nginx 站点 | `POST /api/nginx-sites/test` / `reload` | `nginx -t` 测试与重载 |
+| SSL 证书 | `GET /api/ssl-certificates(/:id)` | 证书列表与详情 |
+| SSL 证书 | `POST /api/ssl-certificates/generate` / `upload` | 生成自签名证书 / 上传证书 |
+| SSL 证书 | `GET /api/ssl-certificates/:id/download`、`DELETE /api/ssl-certificates/:id` | 下载与删除 |
+| 维护模式 | `GET /api/maintenance/status`（公开）、`GET` / `PUT /api/maintenance`、`GET /api/maintenance/logs` | 状态查询、开关、维护记录 |
 
 ---
 
@@ -446,9 +575,19 @@ systemctl list-units --type=service --all --no-pager --plain --no-legend
 | 服务管理 | `/system/services` | `system/services/ServicesPage` | `system:process:view` |
 | 日志查看器 | `/system/log-viewer` | `system/log-viewer/LogViewerPage` | `system:process:view` |
 | 终端会话 | `/system/terminal/sessions` | `system/terminal/TerminalSessionsPage` | `system:terminal:monitor` |
+| 监控告警 | `/system/monitor-alerts` | `system/monitor-alerts/MonitorAlertsPage` | `system:monitor:alert` |
+| 告警记录 | `/system/monitor-alert-events` | `system/monitor-alert-events/MonitorAlertEventsPage` | `system:monitor:alert` |
+| 防火墙管理 | `/system/firewall` | `system/firewall/FirewallPage` | `system:firewall:view` |
+| Nginx 站点 | `/system/nginx-sites` | `system/nginx-sites/NginxSitesPage` | `system:nginx:view` |
+| SSL 证书 | `/system/ssl-certificates` | `system/ssl-certificates/SslCertificatesPage` | `system:ssl:view` |
 | 日志文件 | `/system/log-files` | `system/log-files/LogFilesPage` | `system:log:files` |
+| 数据库管理 | `/system/db-admin` | `system/db-admin/DbAdminPage` | `system:db-admin:view` |
+| 数据库备份 | `/system/db-backups` | `system/db-backups/DbBackupsPage` | `system:db-backup:list` |
+| 维护模式 | `/system/maintenance` | `system/maintenance/MaintenancePage` | `system:maintenance:manage` |
 
-按钮级权限包括 `system:process:kill`、`system:process:priority`、`system:terminal:monitor`、`system:log:files:download`、`system:log:files:delete` 等。
+以上页面中，「Web 终端」到「SSL 证书」位于「系统设置 → 系统运维」菜单组；「日志文件」位于「系统设置 → 审计日志」组；「数据库管理」「数据库备份」「维护模式」直接挂在「系统设置」下。
+
+按钮级权限包括 `system:process:kill`、`system:process:priority`、`system:terminal:monitor`、`system:log:files:download`、`system:log:files:delete`、`system:monitor:alert:manage`、`system:firewall:manage`、`system:nginx:manage`、`system:nginx:reload`、`system:ssl:create`、`system:ssl:delete`、`system:db-admin:query`、`system:db-admin:export`、`system:db-admin:write`、`system:db-admin:maintain`、`system:db-backup:create`、`system:db-backup:delete` 等。
 
 ---
 
@@ -456,6 +595,7 @@ systemctl list-units --type=service --all --no-pager --plain --no-legend
 
 - [功能模块：系统运维](../product/features.md#系统运维)
 - [WebSocket 事件](../backend/websocket-events.md)
+- [维护模式](../backend/maintenance-mode.md)
 - [安全体系](../backend/security.md)
 - [系统内置配置](../backend/system-configs.md)
 - [定时任务](../backend/cron-jobs.md)

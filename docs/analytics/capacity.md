@@ -1,17 +1,17 @@
 # 容量演进与架构触发条件
 
-行为中心阶段 2 的容量策略：默认维持 PostgreSQL 单库单表方案；只有命中明确阈值后，才进入分区或 OLAP 架构演进。
+本页是数据分析子系统的**容量演进规划**：默认维持 PostgreSQL 单库单表方案；只有命中明确阈值后，才进入分区或 OLAP 架构演进。
 
 ## 现状基线
 
 | 链路 | 当前实现 |
 |------|----------|
-| 存储 | PostgreSQL 单表存储：`user_events` 原始事件流、`analytics_sessions` 会话聚合、`error_events` 错误事件、`analytics_daily_rollup` 每日预聚合；表定义位于 `packages/server/src/db/schema/analytics.ts` |
-| 写路径 | `POST /api/analytics/events` 批量采集（单批最多 100 条）+ 服务端权威语义事件 `trackServerEvent()`；写入 `user_events` 时使用 `eventId` 唯一索引和 `ON CONFLICT DO NOTHING` 幂等 |
-| 事务边界 | HTTP 批量采集在事务中写入事件、更新 `analytics_sessions`、upsert 用户画像；服务端事件在事务中写入事件、upsert 用户画像，不创建会话 |
-| 读路径 | 行为分析接口按时间范围实时聚合；趋势查询优先读 `analytics_daily_rollup`，当天或缺失日期回退 `user_events`；报表中心通过内置主库数据源复用行为数据集 |
+| 存储 | PostgreSQL 单表存储：`user_events` 原始事件流、`analytics_sessions` 会话聚合、`analytics_user_profiles` 用户画像、`error_events` 错误事件、`analytics_daily_rollup` 每日预聚合（整体 + 维度窄表）；表定义位于 `packages/server/src/db/schema/analytics.ts` |
+| 写路径 | `POST /api/analytics/events` 批量采集（单批最多 100 条）+ 服务端权威语义事件 `trackServerEvent()`；落库前经 Tracking Plan 治理（内存缓存 60s）与站点来源白名单校验；写入 `user_events` 时使用 `eventId` 唯一索引和 `ON CONFLICT DO NOTHING` 幂等 |
+| 事务边界 | HTTP 批量采集在事务中写入事件、消费站点日配额（Redis 计数，超限回滚）、更新 `analytics_sessions`、upsert 用户画像；服务端事件在事务中写入事件、upsert 用户画像，不创建会话 |
+| 读路径 | 行为分析接口按时间范围实时聚合；趋势与维度分布查询优先读 `analytics_daily_rollup`（整体与维度聚合行），当天或缺失日期回退 `user_events`；报表中心通过内置主库数据源复用行为数据集 |
 | 保留策略 | `analyticsRetention` 每日 02:00 执行，逐租户读取 `analytics_settings.retentionDays` / `errorRetentionDays`，清理过期事件、会话、错误事件和空错误分组 |
-| 观测手段 | 系统监控 `/api/monitor` 暴露全局 HTTP QPS / P95 / 错误率；数据库监控读取 `pg_stat_statements` Top 慢查询（需启用扩展）。当前没有按单个分析接口持久化的 p95 明细表 |
+| 观测手段 | 系统监控 `/api/monitor` 暴露全局 HTTP QPS / P95 / 错误率；数据库监控读取 `pg_stat_statements` Top 慢查询（需启用扩展）；埋点质量看板暴露拒收类问题（`origin_rejected` / `quota_exceeded`）。当前没有按单个分析接口持久化的 p95 明细表 |
 
 ## 架构演进触发条件
 
@@ -86,7 +86,7 @@ LIMIT 10;
 | 分区 | 将 `user_events` 改为按月 `RANGE (created_at)` 分区；后续视规模再评估 `analytics_sessions.started_at` 分区 |
 | 索引 | 每个分区保留必要 B-tree 索引；对 `created_at` 增加 BRIN 索引，降低超大时间序列表索引体积 |
 | 分区裁剪 | 现有分析查询基本都带 `created_at` / `started_at` / `statDate` 范围条件，天然可触发分区裁剪；新增分析 SQL 必须保留时间范围条件 |
-| Rollup | `analyticsRollupDaily` 只扫描最近完整自然日，月分区后扫描范围更稳定 |
+| Rollup | `analyticsRollupDaily` 只扫描最近 2 个完整自然日，月分区后扫描范围更稳定 |
 | Retention | 保留清理从 `DELETE ... WHERE created_at < ...` 演进为 `DROP PARTITION`，避免大事务、膨胀和长时间锁表 |
 
 分区表示例：

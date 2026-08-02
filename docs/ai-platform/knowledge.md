@@ -12,9 +12,9 @@
 | --- | --- |
 | 粘贴纯文本 | 名称 + 正文（最长 50 万字符） |
 | 上传 txt / md 文件 | 前端读取文件内容填充表单（≤2MB） |
-| URL 网页抓取 | `POST /{id}/documents/import-url`：服务端抓取网页（SSRF 防护、仅 text/html 与 text/*、上限 2MB），极简正文提取（去 script / style / nav 等噪音、块级标签转行、实体解码），名称留空取网页 `<title>`；文档记录 `source_url` |
+| URL 网页抓取 | `POST /{id}/documents/import-url`：服务端抓取网页（SSRF 防护、超时 20 秒、仅 text/html 与 text/*、上限 2MB），极简正文提取（去 script / style / nav 等噪音、块级标签转行、实体解码），名称留空取网页 `<title>`（无标题时兜底为域名）；文档记录 `source_url` |
 
-入库流程：按段落分块（目标 ~500 token / 块，超长段落硬切）→ 可选向量化 → 写入 `ai_kb_chunks`。
+入库流程：按段落分块（目标 ~500 token / 块，超长段落硬切）→ 可选向量化 → 写入 `ai_kb_chunks`。文档状态流转 `processing` → `ready` / `failed`（失败原因记录在 `error` 字段）。
 
 ## 向量化与 pgvector
 

@@ -20,11 +20,15 @@
 
 审批接口使用幂等防重复提交，批量审批与转办额外通过 Redis 动作去重，避免重复点击造成多次推进。通过、拒绝、转办、委派、加签、减签、退回七类动作在服务端按节点「操作按钮」配置强制校验启用态，未启用的动作即使绕过前端也会被拒绝。
 
-### 实时提醒与角标
+### 实时提醒与列表刷新
 
-- 新待办通过 WebSocket 实时推送（`workflow:taskCreated`），前端弹出提醒并刷新待办列表。
-- 侧边栏「待我审批」菜单显示待办数量角标（`GET /api/workflows/instances/pending-mine/count`），WS 失联时每分钟轮询兜底。
-- 待办被超时自动处理、或签抢占、管理员改派时（`workflow:taskFinished`）自动刷新列表与角标。
+管理后台在 `AdminLayout` 挂载统一的 WS 消费 hook，按事件类型失效对应的 TanStack Query 缓存：
+
+- 新待办推送 `workflow:taskCreated`：右上角弹出可点击提醒（直达「待我审批」并自动展开该任务），并刷新待办列表缓存。
+- 自己的任务被超时自动通过 / 自动拒绝时推送 `workflow:taskFinished`（`decision: approved | rejected`），刷新待办列表。
+- 流程结束（通过 / 驳回 / 撤回）向发起人推送 `workflow:instanceFinished`，刷新「我的申请」、待办与流程监控缓存；刻意不做全域失效，避免设计器编辑中的画布被 refetch 覆盖。
+
+移动审批（`approval.html`）不走 WS，底部 TabBar 的待办 / 抄送未读角标由 30 秒轮询 `GET /api/workflows/instances/pending-mine/count` 与 `GET /api/workflows/instances/cc-mine/unread-count` 维持。
 
 ## 审批方式
 

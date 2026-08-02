@@ -42,6 +42,10 @@ npm run build:electron:mac
 npm run build:electron:linux
 ```
 
+::: warning Windows 下的 shell 要求
+`build:electron*` 脚本通过 Unix 的 `env` 命令注入 `VITE_ELECTRON=true`，在 Windows 默认的 cmd 中无法执行。Windows 上请在 **Git Bash**（或 WSL）中运行这些命令。
+:::
+
 构建命令会自动：
 
 1. 以 Electron 模式构建前端（注入 `VITE_ELECTRON=true`，启用 `HashRouter` 和相对路径资源）
@@ -66,11 +70,13 @@ dist/electron/
 ## 开发调试
 
 ```bash
-# 同时启动后端、前端 dev server 和 Electron 窗口
+# 启动前端 dev server、主进程 TypeScript watch 编译和 Electron 窗口
 npm run dev:electron
 ```
 
-Electron 开发模式会连接本地 `http://localhost:5373` 的 Vite dev server，支持热重载。
+Electron 开发模式会连接本地 `http://localhost:5373` 的 Vite dev server，支持热重载，并自动打开 DevTools。
+
+> 该命令**不包含后端**：需要另行执行 `npm run dev:server` 启动本地后端，或通过 `VITE_API_BASE_URL` 指向远程 API。
 
 ## 安全机制
 

@@ -25,22 +25,39 @@ npm run db:migrate
 npm run db:seed
 ```
 
+迁移入口是 `packages/server/src/db/migrate.ts`（纯 Drizzle migrator）。三条启动链路都会先跑迁移、再启动服务，因此它是唯一的 schema 收敛点：
+
+- 开发：`npm run dev` → `scripts/dev.mjs`（migrate → seed → 服务）
+- 生产：`npm start` → `node dist/db/migrate.js && node dist/index.js`
+- 容器：`docker/entrypoint.sh` → migrate → 服务
+
+**迁移失败以非零码退出并阻断服务启动**，避免带着半迁移状态对外提供服务。
+
 ## 重要约定
 
 ### 不要直接手改迁移 SQL
 
-正确方式是修改 `schema.ts`，然后生成新的迁移文件。
+正确方式是修改 `src/db/schema/` 下的域文件，然后 `npm run db:generate` 生成新的迁移文件。唯一例外是 `drizzle/0001_extensions.sql`（见下）。
 
-### 迁移基线化（Baseline）
+### 迁移基线
 
-历史迁移链（`0000..0200`，共 201 条）已在基线化时压缩为单条基线迁移 `0000_baseline.sql`（含全部表结构与表/列注释），此后的新迁移在其之上正常追加。
+当前迁移链以 v1.23.0 重建的基线为起点，`packages/server/drizzle/` 下只有两条迁移：
 
-- **全新环境**：`npm run db:migrate` 直接执行基线，一步建库。
-- **存量环境（已跑完旧链 0200）**：`src/db/migrate.ts` 中的 `adoptBaseline()` 会在启动迁移前自动「收养」——将 `drizzle.__drizzle_migrations` 中的 201 条旧记录原子替换为 1 条基线记录（不重放任何 SQL），并把 3 个历史遗留的唯一索引原地转换为同名唯一约束（`UNIQUE USING INDEX`，零重建）。该过程幂等。
-- **过旧环境（未升到旧链头）**：migrate 会直接报错拒绝启动，需先升级到 v0.79.x 跑完全部旧迁移，再升级到基线版本（**检查点规则**）。
-- 已知无害差异：部分枚举值的物理排序（`enumsortorder`）在存量库与新库间不同（旧链 `ADD VALUE` 追加所致，PostgreSQL 不支持重排）。业务代码不依赖枚举物理排序，无需处理。
+| 文件 | 内容 |
+| --- | --- |
+| `0000_baseline.sql` | 全量表结构基线（由 `drizzle-kit generate` 从 schema 生成） |
+| `0001_extensions.sql` | 手写扩展 DDL（无法由 Drizzle schema 表达，见下节） |
 
-再次基线化（如未来迁移又积累过多）时按同样流程操作：确认 `db:generate` 无漂移 → 审计数据迁移是否已被 seed 覆盖 → 删除 `drizzle/` 重新 `generate` → 更新 `migrate.ts` 中的 `LEGACY_HEAD_WHEN` / `LEGACY_HEAD_TAG` 为旧链头的 journal `when` 与 tag → 用两个空库（旧链 vs 基线）做结构化 schema diff 验证。
+基线**不保留向后数据兼容**：更早版本的存量库无法原地升级，需要重新初始化（新建库跑 `db:migrate` + `db:seed`，或自行做数据搬迁）。全新环境执行 `npm run db:migrate` 即一步建库。
+
+再次重建基线（未来迁移又积累过多时）的流程：确认 `db:generate` 无漂移 → 删除 `drizzle/` 目录重新 `generate` → **把 `0001_extensions.sql` 原样保留进新迁移链** → 用两个空库（旧链 vs 新基线）做结构化 schema diff 验证。
+
+### 手写扩展 DDL（`0001_extensions.sql`）
+
+两处 DDL 超出 Drizzle 的表达能力，单独维护在 `drizzle/0001_extensions.sql`，`drizzle-kit generate` 不会重新生成它们：
+
+- **pg_trgm**：`CREATE EXTENSION pg_trgm` + `cms_contents.title` 的 `gin_trgm_ops` GIN 索引（CMS 标题模糊检索加速）
+- **pgvector（条件启用）**：扩展可用时创建 `ai_kb_chunks.embedding_vec`（无维度 `vector` 列，兼容任意 embedding 模型），不可用时静默跳过；运行时由 `ai-knowledge.service.ts` 的 `hasPgVector()` 探测，不可用则回退 JS 余弦相似度。该列不进入 Drizzle schema，读写走原生 SQL
 
 ### 枚举需要三处保持一致
 
@@ -66,52 +83,44 @@ like(users.username, `%${keyword}%`)
 
 `escapeLike` 定义在 `packages/server/src/lib/where-helpers.ts`，同时处理 `%`、`_`、`\` 三种元字符。
 
-## 主要表
+## Schema 组织（按业务域拆分）
 
-### 多租户（可选）
+全库超过 330 张表，schema 按业务域拆分在 `packages/server/src/db/schema/` 下，由 `src/db/schema.ts` barrel 统一 re-export——**导入方式不变**：`import { users } from '../db/schema'`。表间关联（250+ 个 `relations()`）统一声明在 `schema/relations.ts`，数据库类型别名（`Db` / `DbTransaction` / `DbExecutor`）在 `src/db/types.ts`。
 
-| 表名 | 说明 |
-| --- | --- |
-| `tenants` | 租户定义（名称、唯一编码、有效期、最大用户数） |
+| Schema 文件 | 业务域 | 代表性表 |
+| --- | --- | --- |
+| `core.ts` | 租户 / 组织 / 权限 | `tenants`、`tenant_packages`、`departments`、`positions`、`users`、`menus`、`roles`、`user_roles`、`role_menus`、`user_groups` 及数据范围关联表 |
+| `auth.ts` | 认证与安全 | `user_oauth_accounts`、`oauth_configs`、`user_api_tokens`、`password_reset_tokens`、`user_mfa_factors`、`user_trusted_devices`、`login_risk_events`、`rate_limit_rules` |
+| `identity-providers.ts` | 企业 SSO | `tenant_identity_providers`、`user_identity_accounts`、`identity_provider_sync_logs` |
+| `system.ts` | 系统配置与调度 | `system_configs`、`cron_jobs`、`cron_job_logs`、`system_scheduler_*`、`regions`、`maintenance_mode`、`user_feedbacks` |
+| `dicts.ts` | 数据字典 | `dicts`、`dict_items` |
+| `files.ts` | 文件存储 | `file_storage_configs`、`managed_files`（主键 UUIDv7，应用层生成；`url` 由服务端动态拼接不入库）、`upload_sessions`、`upload_chunks`、`business_files` |
+| `logs.ts` | 审计日志 | `login_logs`、`operation_logs`（含 `before_data` / `after_data` JSON 快照）、`ip_access_logs` |
+| `announcements.ts` | 通知公告 | `announcements`、`announcement_reads`、`announcement_recipients` |
+| `messaging.ts` | 邮件 / 短信 / 站内信 | `email_configs`、`email_templates`、`email_send_logs`、`sms_*`、`in_app_*` |
+| `channels.ts` | 消息渠道 | 渠道接入与投递相关表 |
+| `tasks.ts` | 任务中心 / 导出中心 | `async_tasks`、`async_task_items`、`async_task_type_configs`、`export_jobs`、`export_job_downloads` |
+| `db-admin.ts` | 数据库运维 | `db_backups`、`db_admin_query_history`、`db_query_favorites` |
+| `monitor.ts` | 监控告警 | `system_metric_samples`、`monitor_alert_rules`、`monitor_alert_events`、`ssl_certificates` |
+| `terminal.ts` | 终端 / SSH | `terminal_recordings`、`ssh_profiles` |
+| `data-mask.ts` | 数据脱敏 | `data_mask_configs` |
+| `tags.ts` | 通用标签 | `tags` |
+| `workflow.ts` | 工作流 | 流程定义 / 版本 / 实例 / 任务 / 委托 / 自动化 / 触发器等 29 张表 |
+| `payment.ts` | 支付中心 | 应用、订单、退款、对账、分账、结算、风控等 28 张表 |
+| `member.ts` | 会员体系 | `members`、`member_levels`、积分 / 钱包账户与流水（含 `version` 乐观锁，金额单位为分）、优惠券、签到 |
+| `chat.ts` | 聊天 | 会话、成员、消息、表情反应、机器人、Webhook |
+| `ai.ts` | AI | 提供方配置、对话、消息、提示词、知识库、评测 |
+| `analytics.ts` | 埋点分析 / 前端错误 | 事件、会话、聚合、`error_groups`、`error_events`、`source_maps` |
+| `report.ts` / `report-platform.ts` | 报表中心 | 数据源、数据集、仪表盘、订阅、投递、打印等 39 张表 |
+| `cms.ts` | CMS | 站点、栏目、内容、素材、发布、采集、评论等 55 张表 |
+| `mp.ts` | 微信公众号 | 粉丝、菜单、素材、群发、模板消息、客服等 18 张表 |
+| `open-platform.ts` | 开放平台 | 开发者应用、API 授权范围、签名、调用统计 |
+| `rules.ts` | 规则引擎 | 决策表、决策流、名单库 |
+| `biz.ts` | 业务示例 | `biz_leaves`、`biz_pay_demos` |
+| `common.ts` | 公共枚举 | 无表，提供 `statusEnum` 等跨域共享枚举 |
+| `relations.ts` | 关联关系 | 无表，统一声明全部 `xxxRelations` |
 
-### 权限与用户体系
-
-| 表名 | 说明 |
-| --- | --- |
-| `users` | 用户信息（含 `tenant_id`、`passwordUpdatedAt`） |
-| `roles` | 角色定义 |
-| `menus` | 菜单与按钮权限 |
-| `user_roles` | 用户与角色多对多 |
-| `role_menus` | 角色与菜单多对多 |
-| `role_dept_scopes` | 角色自定义数据范围部门 |
-| `user_menus` | 用户额外菜单权限 |
-| `user_dept_scopes` | 用户自定义数据范围部门 |
-
-### 组织架构
-
-| 表名 | 说明 |
-| --- | --- |
-| `departments` | 部门（树形结构，含 `tenant_id`） |
-| `positions` | 岗位（含 `tenant_id`） |
-| `user_positions` | 用户与岗位多对多 |
-| `user_groups` | 用户组 |
-| `user_group_members` | 用户组成员 |
-
-### 基础配置
-
-| 表名 | 说明 |
-| --- | --- |
-| `dicts` | 字典类型 |
-| `dict_items` | 字典项 |
-| `system_configs` | 系统配置项（key-value 格式，含 configType 枚举） |
-
-### 文件存储
-
-| 表名 | 说明 |
-| --- | --- |
-| `file_storage_configs` | 存储配置（local / OSS / S3 / COS / OBS / 七牛 Kodo / 百度 BOS / Azure Blob / SFTP） |
-| `managed_files` | 已上传文件记录，主键 `id` 为 UUIDv7（应用层生成）；`url` 字段由服务端动态拼接，不存入数据库 |
-| `business_files` | 业务附件与 `managed_files` 的关联，`file_id` 为 UUID 外键 |
+> 新增表时：在对应域文件（或新建域文件）中声明 `pgTable`，关联写进 `relations.ts`，新建域文件需在 `src/db/schema.ts` barrel 中补一行 re-export。
 
 ### 通用审计字段（`created_by` / `updated_by`）
 
@@ -126,134 +135,6 @@ like(users.username, `%${keyword}%`)
   - 用户自身/临时凭证：`user_oauth_accounts`、`password_reset_tokens`、`chat_messages`
   - 工作流运行时：`workflow_tasks`
 - **种子数据**：`db/seed.ts` 主函数被 `runAsUser(adminId, ...)` 包裹，所有种子记录的创建人 / 修改人默认为 admin。
-
-### 通知与审计
-
-| 表名 | 说明 |
-| --- | --- |
-| `announcements` | 通知公告（富文本 `text` 字段） |
-| `announcement_reads` | 公告已读记录 |
-| `announcement_recipients` | 公告接收人 |
-| `login_logs` | 登录日志 |
-| `operation_logs` | 操作日志（含 `before_data` / `after_data` JSON 快照）|
-| `ip_access_logs` | IP 访问控制命中日志 |
-| `user_events` | 用户行为事件 |
-| `analytics_sessions` | 埋点会话 |
-| `analytics_daily_rollup` | 埋点日聚合 |
-| `analytics_event_meta` | 埋点事件元信息 |
-| `analytics_settings` | 埋点配置 |
-| `error_groups` | 前端错误聚合 |
-| `error_events` | 前端错误事件 |
-| `error_alert_rules` | 前端错误告警规则 |
-| `source_maps` | 前端 Source Map 记录 |
-
-### 任务调度
-
-| 表名 | 说明 |
-| --- | --- |
-| `cron_jobs` | 定时任务配置（名称、Handler、Cron 表达式、启用状态） |
-| `cron_job_logs` | 任务执行日志（开始时间、结束时间、状态、输出） |
-
-### 工作流
-
-| 表名 | 说明 |
-| --- | --- |
-| `workflow_categories` | 流程分类 |
-| `workflow_forms` | 流程表单 |
-| `workflow_definitions` | 流程定义 |
-| `workflow_definition_versions` | 流程定义版本 |
-| `workflow_instances` | 流程实例 |
-| `workflow_tasks` | 流程任务 |
-| `workflow_task_urges` | 催办记录 |
-| `workflow_comments` | 流程评论 |
-| `workflow_event_subscriptions` | 工作流事件订阅 |
-| `workflow_event_deliveries` | 工作流事件投递记录 |
-| `workflow_trigger_executions` | 工作流触发执行记录 |
-| `workflow_automations` | 工作流自动化规则 |
-| `workflow_schedules` | 工作流定时计划 |
-| `workflow_saved_views` | 工作流保存视图 |
-| `workflow_quick_phrases` | 审批快捷语 |
-| `workflow_delegations` | 委托审批 |
-| `workflow_templates` | 工作流模板 |
-| `workflow_task_consults` | 流程协办 / 咨询 |
-
-### 行政区划
-
-| 表名 | 说明 |
-| --- | --- |
-| `regions` | 行政区划数据（三级：省 / 市 / 区县，`parent_code` 树形结构） |
-
-### 安全与认证
-
-| 表名 | 说明 |
-| --- | --- |
-| `email_configs` | SMTP 邮件配置（主机、端口、加密方式、授权密码） |
-| `oauth_configs` | OAuth 提供方配置（Client ID / Secret，按 provider 区分） |
-| `user_oauth_accounts` | 用户第三方账号绑定（openId、nickname、avatar） |
-| `user_api_tokens` | 用户个人 API Token（用于第三方接口调用） |
-| `password_reset_tokens` | 密码重置 Token（含过期时间，支持找回密码流程） |
-| `db_backups` | 数据库备份记录（文件名、大小、状态、备份类型） |
-| `db_admin_query_history` | 数据库管理查询历史 |
-| `db_query_favorites` | 数据库管理收藏 SQL |
-| `rate_limit_rules` | 接口限流规则 |
-| `oauth2_clients` | OAuth2 客户端 |
-| `oauth2_authorization_codes` | OAuth2 授权码 |
-| `oauth2_tokens` | OAuth2 Token |
-| `oauth2_user_grants` | OAuth2 用户授权记录 |
-
-### 通知、聊天与支付
-
-| 表名 | 说明 |
-| --- | --- |
-| `email_templates` | 邮件模板 |
-| `email_send_logs` | 邮件发送日志 |
-| `sms_configs` | 短信通道配置 |
-| `sms_templates` | 短信模板 |
-| `sms_send_logs` | 短信发送日志 |
-| `in_app_templates` | 站内信模板 |
-| `in_app_messages` | 站内信消息 |
-| `chat_conversations` | 聊天会话 |
-| `chat_conversation_members` | 聊天会话成员 |
-| `chat_messages` | 聊天消息 |
-| `chat_message_reactions` | 消息表情反应 |
-| `chat_webhooks` | 聊天 Webhook |
-| `payment_channel_configs` | 支付渠道配置 |
-| `payment_orders` | 支付订单 |
-| `payment_refunds` | 支付退款 |
-| `payment_notify_logs` | 支付通知日志 |
-| `payment_events` | 支付事件 |
-
-### AI、终端与监控
-
-| 表名 | 说明 |
-| --- | --- |
-| `ai_provider_configs` | AI 服务提供方配置 |
-| `ai_conversations` | AI 对话 |
-| `ai_messages` | AI 消息 |
-| `user_ai_configs` | 用户 AI 偏好配置 |
-| `ai_prompt_templates` | AI 提示词模板 |
-| `terminal_recordings` | 终端录屏 |
-| `ssh_profiles` | SSH / SFTP 连接配置 |
-| `system_metric_samples` | 系统指标采样 |
-| `monitor_alert_rules` | 监控告警规则 |
-| `monitor_alert_events` | 监控告警事件 |
-| `maintenance_mode` | 维护模式配置 |
-
-### 会员体系
-
-| 表名 | 说明 |
-| --- | --- |
-| `member_levels` | 会员等级 |
-| `members` | 前台会员 |
-| `member_point_accounts` | 会员积分账户（含 `version` 乐观锁） |
-| `member_point_transactions` | 会员积分流水 |
-| `member_wallets` | 会员钱包账户（含 `version` 乐观锁） |
-| `member_wallet_transactions` | 会员钱包流水 |
-| `coupons` | 优惠券 |
-| `member_coupons` | 会员优惠券 |
-| `member_login_logs` | 会员登录日志 |
-| `checkin_rules` | 签到规则 |
-| `member_checkins` | 会员签到记录 |
 
 ## 数据库备份
 

@@ -142,6 +142,22 @@
 - `POST /api/member-wallets/adjust`：权限码 `member:wallet:adjust`，流水 `bizType = 'admin_adjust'`
 - `POST /api/member-wallets/refund`：权限码 `member:wallet:refund`，流水 `bizType = 'admin_refund'`
 
+后台「充值记录」页（`/member/recharges`，权限码 `member:recharge:list`）通过 `GET /api/member-recharges` 查询支付中心的会员充值支付单，支持按关键词、状态（`pending` / `paying` / `success` / `closed` / `refunding` / `refunded` / `failed`）、渠道（`wechat` / `alipay` / `unionpay`）与日期区间筛选，并支持导出。
+
+---
+
+## 付费会员（VIP）与自动续费
+
+会员 VIP 状态由 `members.vip_expire_at` 表达，续费记录存储在 `member_vip_renewals` 表（`order_no` 唯一约束作为幂等键）。自动续费复用支付中心的签约代扣能力：
+
+- **签约**：`POST /api/member/renewal/sign`（带 `idempotencyGuard`），`bizType = 'member_renewal'`、`bizId = 会员 ID`；sandbox 渠道签约即时生效并执行首期扣款。
+- **续费计划**：`GET /api/member/renewal/plans` 返回支付中心启用中的代扣计划公开视图。
+- **状态查询**：`GET /api/member/renewal` 返回 VIP 到期时间、当前代扣协议与续费记录。
+- **手动补扣**：`POST /api/member/renewal/deduct` 对当前协议手动扣一期（到期前手动续费）。
+- **解约**：`POST /api/member/renewal/terminate` 终止本人协议。
+
+扣款成功后由 `payment.succeeded` 事件订阅者调用 `extendVipOnRenewal()` 延长 VIP：按订单号幂等（`member_vip_renewals.order_no` 唯一约束 + 事务级咨询锁串行化并发重投）；未过期时从原到期时间顺延，已过期从当前时间起算，顺延周期取协议绑定的计划周期。前台 SPA 提供自动续费页管理签约状态。
+
 ---
 
 ## 会员软删除
@@ -278,7 +294,34 @@
 
 前台签到接口 `POST /api/member/checkin` 带 `idempotencyGuard({ ttlSeconds: 5 })`。
 
-管理端补签（`POST /api/members/{id}/checkin/makeup`）**必须提供 `reason`**（2-256 字符），原因记入 `member_checkins.remark` 与操作审计；会员自助补签消耗设置中的积分，无需原因。
+### 签到设置与自助补签
+
+签到设置为 `checkin_settings` 单行配置（get-or-create），包含补签开关（`makeup_enabled`）、补签消耗积分（`makeup_cost_points`）与补签可回溯天数（`makeup_max_days`）。查询走 `GET /api/checkin-settings`（权限码 `member:checkin:rule:list`），更新走 `PUT /api/checkin-settings`（权限码 `member:checkin:setting:update`，带审计），入口在「签到配置」页的「签到设置」按钮。
+
+- **会员自助补签**：`POST /api/member/checkin/makeup`（带幂等），开关开启时可对可回溯天数内的漏签日期补签，消耗设置中的积分，无需原因。
+- **管理端补签**：`POST /api/members/{id}/checkin/makeup`（权限码 `member:checkin:makeup`）**必须提供 `reason`**（2-256 字符），原因记入 `member_checkins.remark` 与操作审计。
+
+### 签到里程碑
+
+里程碑配置存储在 `checkin_milestones` 表：累计签到天数达标后发放奖励，`reward_type = points` 发积分、`reward_type = coupon` 发指定优惠券模板，支持启停。发放记录写入 `member_checkin_milestone_awards` 防止重复发放。
+
+- 管理端：`/api/checkin-milestones` CRUD（权限码 `member:checkin:milestone:list/create/update/delete`），页面为「里程碑配置」（`/member/checkin-milestones`）。
+- 前台：`GET /api/member/checkin/milestones` 返回里程碑达成进度，签到页展示奖励进度。
+
+---
+
+## 会员数据看板
+
+后台「会员看板」页（`/member/dashboard`，权限码 `member:dashboard:view`）提供只读聚合统计：
+
+- `GET /api/member-stats/overview`：会员总数、今日 / 本月新增、30 日活跃、积分总余额、钱包总余额、今日签到数与签到率等概览卡片
+- `GET /api/member-stats/charts`：近 30 日注册趋势、等级分布、积分收支、签到人数等图表数据
+
+---
+
+## 内容互动（CMS 自助接口）
+
+`/api/member/cms/*` 为会员提供 CMS 内容互动自助能力：内容浏览上报与浏览历史、点赞 / 收藏、评论、投稿（创建 / 编辑 / 删除 / 查询）、栏目订阅与订阅状态、互动活动提交。全部接口走 `memberAuthMiddleware` 并按 `currentMemberId()` 过滤。内容管理侧能力见 [CMS 内容管理](../cms/index.md)。
 
 ---
 
@@ -303,6 +346,9 @@
 | `/api/member` | `GET /wallet/transactions` | 我的钱包流水 |
 | `/api/member` | `POST /wallet/recharge` | 发起钱包充值 |
 | `/api/member` | `GET /levels` | 等级权益 |
+| `/api/member` | `GET /benefits` | 当前折扣、权益与升级差距 |
+| `/api/member` | `GET /renewal`、`GET /renewal/plans` | 自动续费状态与可选计划 |
+| `/api/member` | `POST /renewal/sign`、`POST /renewal/deduct`、`POST /renewal/terminate` | 签约 / 手动扣款 / 解约自动续费 |
 | `/api/member` | `GET /coupons/available` | 可领取优惠券 |
 | `/api/member` | `GET /coupons/exchangeable` | 可积分兑换优惠券 |
 | `/api/member` | `GET /coupons` | 我的优惠券 |
@@ -310,8 +356,15 @@
 | `/api/member` | `POST /coupons/exchange` | 积分兑换优惠券 |
 | `/api/member` | `GET /checkin/status` | 今日签到状态 |
 | `/api/member` | `POST /checkin` | 执行签到 |
+| `/api/member` | `POST /checkin/makeup` | 自助补签（消耗积分） |
 | `/api/member` | `GET /checkin/history` | 我的签到历史 |
+| `/api/member` | `GET /checkin/milestones` | 里程碑达成进度 |
+| `/api/member` | `GET /notifications`、`GET /notifications/unread-count` | 我的站内通知与未读数 |
+| `/api/member` | `PUT /notifications/{id}/read`、`PUT /notifications/read-all` | 标记通知已读 |
+| `/api/member` | `GET /invite/summary` | 邀请码、邀请人数与奖励汇总 |
 | `/api/member` | `GET /login-logs` | 我的登录历史 |
+| `/api/member/auth` | `POST /deactivate` | 账户自助注销（软删除） |
+| `/api/member/cms` | `GET/POST/PUT/DELETE /*` | 内容互动自助接口（浏览历史 / 点赞收藏 / 评论 / 投稿 / 订阅 / 互动活动） |
 
 ### 后台管理接口与权限码
 
@@ -321,6 +374,11 @@
 | `/api/members` | `POST /` | `member:member:create` |
 | `/api/members` | `PUT /{id}`、`PUT /{id}/status`、`POST /{id}/reset-password`、`POST /{id}/growth`、`PUT /{id}/tags`、`PUT /batch-status`、`PUT /batch-level`、`PUT /batch-tags` | `member:member:update` |
 | `/api/members` | `DELETE /{id}`（软删除） | `member:member:delete` |
+| `/api/members` | `GET /options`（会员搜索下拉） | `member:member:list` |
+| `/api/members` | `GET /login-logs`（会员登录日志） | `member:loginlog:list` |
+| `/api/members` | `POST /{id}/checkin/makeup`（管理端补签） | `member:checkin:makeup` |
+| `/api/member-stats` | `GET /overview`、`GET /charts` | `member:dashboard:view` |
+| `/api/member-recharges` | `GET /` | `member:recharge:list` |
 | `/api/member-tags` | `GET /` | `member:member:list` |
 | `/api/member-tags` | `POST /`、`PUT /{id}`、`DELETE /{id}` | `member:member:update` |
 | `/api/member-levels` | `GET /`、`GET /{id}` | `member:level:list` |
@@ -342,9 +400,15 @@
 | `/api/checkin-rules` | `POST /` | `member:checkin:rule:create` |
 | `/api/checkin-rules` | `PUT /{id}` | `member:checkin:rule:update` |
 | `/api/checkin-rules` | `DELETE /{id}` | `member:checkin:rule:delete` |
+| `/api/checkin-settings` | `GET /` | `member:checkin:rule:list` |
+| `/api/checkin-settings` | `PUT /` | `member:checkin:setting:update` |
+| `/api/checkin-milestones` | `GET /` | `member:checkin:milestone:list` |
+| `/api/checkin-milestones` | `POST /` | `member:checkin:milestone:create` |
+| `/api/checkin-milestones` | `PUT /{id}` | `member:checkin:milestone:update` |
+| `/api/checkin-milestones` | `DELETE /{id}` | `member:checkin:milestone:delete` |
 | `/api/member-checkins` | `GET /` | `member:checkin:log:list` |
 
-会员中心后台菜单种子位于 `SEED_MENUS` 的 9000 段，包括会员管理、会员等级、积分管理、钱包管理、优惠券、领券记录、签到配置与签到记录。
+会员中心后台菜单种子位于 `SEED_MENUS` 的 9000 段，包括会员看板、会员管理、会员等级、积分管理、钱包管理、优惠券、领券记录、会员签到（签到配置 / 签到记录 / 里程碑配置）、登录日志与充值记录。
 
 ---
 
@@ -358,9 +422,9 @@
 
 `member-request.ts` 自动携带 `zenith_member_token`，遇到 401 会调用 `/api/member/auth/refresh` 刷新 Access Token；刷新失败时清理会员 Token 并跳转到 `member.html#/login`。
 
-前台页面覆盖会员概览、我的积分、我的钱包、我的卡券、每日签到、等级权益、个人设置、编辑资料、修改密码与登录历史。钱包充值页将用户输入的元转换为分后提交。
+前台页面覆盖会员概览、我的积分、我的钱包、我的卡券、每日签到（含里程碑进度与自助补签）、等级权益、自动续费、消息中心、邀请有礼、内容互动（浏览历史 / 收藏 / 评论 / 投稿 / 订阅）、个人设置、编辑资料、修改密码与登录历史。钱包充值页将用户输入的元转换为分后提交。
 
-后台管理页面位于 `packages/web/src/pages/member/`，覆盖会员管理、会员等级、积分管理、钱包管理、优惠券、领券记录、签到配置与签到记录，并按对应 `member:*` 权限码控制按钮展示。
+后台管理页面位于 `packages/web/src/pages/member/`，覆盖会员看板、会员管理、会员等级、积分管理、钱包管理、优惠券、领券记录、签到配置、签到记录、里程碑配置、登录日志与充值记录，并按对应 `member:*` 权限码控制按钮展示。
 
 ---
 

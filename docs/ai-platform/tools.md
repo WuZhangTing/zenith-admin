@@ -11,7 +11,7 @@ Function Calling 让模型在回答过程中调用工具获取实时数据或执
 | `get_current_time` | 获取服务器当前日期时间与星期 |
 | `get_my_ai_usage` | 查询当前用户今日 token 用量与每日配额 |
 | `get_system_overview` | 查询系统基础运营概览（用户数 / 对话数） |
-| `generate_image` | 文生图（可选）：配置系统参数 `ai_image_model` 后注册，调用系统默认服务商的 `/images/generations` 生成图片并以 Markdown 展示；留空则不注册 |
+| `generate_image` | 文生图（可选）：配置系统参数 `ai_image_model` 后注册，调用系统默认服务商的 `/images/generations`（需为 OpenAI 兼容类型；1024×1024，超时 60 秒）生成图片并以 Markdown 展示；留空则不注册 |
 
 ## HTTP API 工具
 
@@ -19,12 +19,12 @@ Function Calling 让模型在回答过程中调用工具获取实时数据或执
 
 | 字段 | 说明 |
 | --- | --- |
-| `name` | 工具函数名（小写字母 / 数字 / 下划线，字母开头，全局唯一，与内置工具共用命名空间且不得冲突） |
-| `description` | 工具描述（告诉模型能做什么、何时调用——写清楚可显著提升调用准确率） |
+| `name` | 工具函数名（小写字母 / 数字 / 下划线，字母开头，2–60 字符，全局唯一，与内置工具共用命名空间且不得冲突） |
+| `description` | 工具描述（≤500 字符，告诉模型能做什么、何时调用——写清楚可显著提升调用准确率） |
 | `method` | GET / POST / PUT / DELETE |
-| `urlTemplate` | URL 模板，支持 `{param}` 路径占位符 |
+| `urlTemplate` | URL 模板（≤500 字符），支持 `{param}` 路径占位符 |
 | `headers` | 附加请求头（JSON 对象，如认证头） |
-| `params` | 参数定义列表：`name` / `type`（string / number / boolean）/ `description` / `required` / `location`（query / body / path） |
+| `params` | 参数定义列表（最多 20 个）：`name` / `type`（string / number / boolean）/ `description` / `required` / `location`（query / body / path） |
 
 执行时参数按 `location` 组装到 URL 路径、查询串或 JSON body；出站请求启用 **SSRF 防护**（`AI_OUTBOUND_PRIVATE_ALLOWLIST` 放行可信内网地址），超时 10 秒，响应截断 4000 字符后喂回模型。
 

@@ -17,14 +17,14 @@
 
 ### 真实二进制上传
 
-`POST /api/mp/materials/upload` 接收 `multipart/form-data` 文件，通过 `lib/wechat/material.ts` 的 `uploadWechatMaterial` 转调微信 `material/add_material`，成功后落地本地素材。
+`POST /api/mp/materials/upload` 接收 `multipart/form-data` 文件，通过 `lib/wechat/material.ts` 的 `uploadWechatMaterial` 转调微信 `material/add_material`，成功后落地本地素材。`video` 类型可附带 `title` / `introduction` 表单字段作为视频描述元数据（缺省取素材名）。
 
 > `hono/csrf` 对 form 类型请求校验 `Origin`：真实浏览器上传会携带 `Origin` 头，开发模式（`ALLOWED_ORIGINS` 为空）放行。
 
 ### 登记、同步与删除
 
 - `POST /api/mp/materials` 手动登记一条素材记录（如已有外部 URL 的素材），不调用微信接口。
-- `POST /api/mp/materials/sync` 从微信 `batchget_material` 分页拉取永久素材并 upsert 本地。
+- `POST /api/mp/materials/sync` 从微信 `batchget_material` 分页拉取永久素材（`image` / `voice` / `video` 三类）并 upsert 本地。
 - 删除素材时会**尽力删除微信端永久素材**（`del_material`），微信端删除失败不阻塞本地删除。
 
 ---

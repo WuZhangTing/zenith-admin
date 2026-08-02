@@ -20,40 +20,39 @@
 | 依赖          | 版本要求 | 说明                         |
 | ------------- | -------- | ---------------------------- |
 | Node.js       | 24.x     | 运行后端服务                 |
+| Git           | 任意     | 拉取源码                     |
 | PostgreSQL    | >= 14    | 持久化业务数据               |
 | Redis         | >= 6     | 持久化在线会话与黑名单状态   |
 | Nginx（可选） | 任意     | 托管前端静态文件 + 反向代理  |
 
----
-
-## 获取发布产物
-
-在 [GitHub Releases](https://github.com/iwangbowen/zenith-admin/releases) 页面下载对应版本的两个压缩包：
-
-- `zenith-admin-server-vX.Y.Z.zip`：后端构建产物（`dist/` + `drizzle/` + `package.json`）
-- `zenith-admin-web-vX.Y.Z.zip`：前端静态文件（直接托管即可）
+::: warning 后端以源码方式部署
+后端依赖工作区内的 `@zenith/shared` 共享包（未发布到 npm registry），因此**手动部署采用源码方式**：在服务器上 checkout 仓库、安装工作区依赖后运行。GitHub Releases 中的 `server` 压缩包仅包含构建产物，无法独立 `npm install` 后运行，见下文[发布产物说明](#github-releases-产物说明)。
+:::
 
 ---
 
 ## 部署后端
 
-### 1. 解压并安装依赖
+### 1. 获取代码并安装依赖
 
 ```bash
-unzip zenith-admin-server-vX.Y.Z.zip -d zenith-server
-cd zenith-server/server    # zip 包内含 server/ 子目录，工作目录即此
+git clone https://github.com/iwangbowen/zenith-admin.git
+cd zenith-admin
+git checkout vX.Y.Z    # 检出目标版本 tag
 
-# 仅安装生产依赖
-npm install --production
+# 安装全部工作区依赖
+npm ci
 ```
 
 ### 2. 配置环境变量
 
-在 `zenith-server/server/` 目录下创建 `.env` 文件：
+在 `packages/server/` 目录下创建 `.env` 文件（`packages/server/.env.example` 列出了全部可用变量，可复制后修改）：
 
 ```dotenv
 PORT=3300
 JWT_SECRET=your-strong-secret-key
+# 字段加密密钥（报表凭据等敏感字段加密用，建议随机 32 字节十六进制）
+# FIELD_ENCRYPTION_KEY=
 
 # PostgreSQL
 DATABASE_URL=postgresql://user:pass@localhost:5432/zenith_admin
@@ -76,7 +75,7 @@ LOG_DIR=./logs
 # OpenTelemetry tracing（可选）
 # OTEL_ENABLED=true
 # OTEL_SERVICE_NAME=zenith-admin-server
-# OTEL_SERVICE_VERSION=<current-package-version>
+# OTEL_SERVICE_VERSION=    # 未设置时自动取当前服务版本号
 # OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://127.0.0.1:4318/v1/traces
 # OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer xxx
 
@@ -94,54 +93,40 @@ ALLOWED_ORIGINS=https://your-domain.com
 
 ### 3. 初始化数据库
 
+在仓库根目录执行：
+
 ```bash
 # 执行数据库迁移
-node dist/db/migrate.js
+npm run db:migrate
 
-# 填充初始种子数据（创建 admin 账号等）
-node dist/db/seed.js
+# 填充初始种子数据（创建默认管理员 admin / 123456、菜单、字典等，可安全重复执行）
+npm run db:seed
 ```
 
 ### 4. 启动服务
 
-```bash
-# 直接启动（开发/测试）
-node dist/index.js
+后端通过 [tsx](https://tsx.is/) 直接运行 TypeScript 源码（与开发链路一致，tsx 已包含在工作区依赖中）。
 
-# 使用 PM2 管理进程（推荐生产环境）
+前台试运行：
+
+```bash
+cd packages/server
+npx tsx src/index.ts
+```
+
+生产环境推荐使用 PM2 管理进程（在仓库根目录执行）：
+
+```bash
 npm install -g pm2
-pm2 start dist/index.js --name zenith-server
+pm2 start node_modules/tsx/dist/cli.mjs --name zenith-server --cwd packages/server -- src/index.ts
 pm2 save
 pm2 startup
 ```
 
 后端服务默认监听 `http://localhost:3300`。
 
-::: tip PM2 多进程（cluster）模式
-**推荐使用单进程 fork 模式**（`instances: 1`，默认行为），无需任何额外配置。
-
-若需多进程充分利用多核 CPU，在工作目录（`zenith-server/server/`）下创建 `ecosystem.config.js`：
-
-```js
-// ecosystem.config.js（放在 zenith-server/server/ 目录下）
-module.exports = {
-  apps: [{
-    name: 'zenith-server',
-    script: 'dist/index.js',
-    instances: 'max',      // 或具体数字，如 4
-    exec_mode: 'cluster',
-  }]
-}
-```
-
-然后通过 ecosystem 文件启动：
-
-```bash
-pm2 start ecosystem.config.js
-pm2 save
-```
-
-**Zenith Admin 定时任务基于 pg-boss（PostgreSQL 队列）**：pg-boss 天然通过 `SKIP LOCKED` 实现多进程安全，任意多个进程可以同时启动而不会重复执行同一任务。工作流延迟调度器在 `NODE_APP_INSTANCE` 未设置或等于 `0` 的进程中启动。
+::: tip 多实例横向扩展
+Zenith Admin 的定时任务与后台 worker 全部基于 pg-boss（PostgreSQL 队列），通过 `SKIP LOCKED` 天然实现多进程安全——需要更高吞吐时可直接以不同端口启动多个实例（Nginx 负载均衡），任务不会被重复执行。
 :::
 
 ---
@@ -150,11 +135,18 @@ pm2 save
 
 前端为纯静态文件。**推荐同域部署**：直接托管静态文件，并通过 Nginx 将 `/api/` 反向代理到后端。
 
-### 1. 解压静态文件
+### 1. 获取静态文件
+
+同域部署时，两种来源任选其一：
 
 ```bash
+# 方式一：从 GitHub Releases 下载现成产物（默认使用相对路径 /api/*，适合同域部署）
 unzip zenith-admin-web-vX.Y.Z.zip -d zenith-web
 # 静态文件位于 zenith-web/web/dist/
+
+# 方式二：在服务器上从源码构建（后端已按源码方式部署时顺手可得）
+npm run build
+# 静态文件位于 packages/web/dist/
 ```
 
 ### 2. Nginx 配置示例
@@ -201,20 +193,20 @@ server {
 ```
 
 ::: tip
-将 `your-domain.com` 替换为实际域名，`/path/to/zenith-web/web/dist` 替换为实际路径。
+将 `your-domain.com` 替换为实际域名，`root` 指向实际的静态文件目录（如 `packages/web/dist`）。
 生产环境建议同时配置 HTTPS（可使用 Let's Encrypt）。
 :::
 
 ### 3. 前端 API 地址策略
 
-如果你直接使用 GitHub Release 中的 `zenith-admin-web-vX.Y.Z.zip`，**通常无需再修改前端环境变量**。该产物默认使用相对路径 `/api/*`，最适合同域部署：
+GitHub Releases 中的 web 产物与默认构建均使用相对路径 `/api/*`，**同域部署时无需修改任何前端环境变量**：
 
 - 浏览器访问 `https://admin.example.com`
 - Nginx 将 `https://admin.example.com/api/*` 反向代理到 `http://localhost:3300`
 
 这种模式下，前端静态文件与 API 共用同一域名，部署简单，也不需要额外处理浏览器跨域。
 
-如果你必须将前端部署在独立域名，并直接请求另一个域名下的 API（例如前端 `https://admin.example.com`，后端 `https://api.example.com`），则**不要直接使用 Release 中现成的 web 产物**，而应从源码重新构建前端：
+如果你必须将前端部署在独立域名，并直接请求另一个域名下的 API（例如前端 `https://admin.example.com`，后端 `https://api.example.com`），则**不能使用现成的 web 产物**，需创建 `packages/web/.env.production` 后从源码重新构建：
 
 ```ini
 # packages/web/.env.production
@@ -223,13 +215,11 @@ VITE_WS_BASE_URL=wss://api.example.com
 VITE_APP_TITLE=Zenith Admin
 ```
 
-然后在源码仓库中重新构建前端：
-
 ```bash
 npm run build -w @zenith/web
 ```
 
-最后使用重新生成的 `packages/web/dist/` 替换静态文件目录。此场景下，后端还应配置：
+使用重新生成的 `packages/web/dist/` 作为静态文件目录。此场景下，后端还应配置：
 
 ```dotenv
 CORS_ORIGIN=https://admin.example.com
@@ -266,7 +256,7 @@ curl http://localhost:3300/metrics
 ```dotenv
 OTEL_ENABLED=true
 OTEL_SERVICE_NAME=zenith-admin-server
-OTEL_SERVICE_VERSION=<current-package-version>
+# OTEL_SERVICE_VERSION 未设置时自动取当前服务版本号
 OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces
 ```
 
@@ -277,16 +267,35 @@ OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces
 
 ---
 
+## GitHub Releases 产物说明
+
+每个版本的 [GitHub Releases](https://github.com/iwangbowen/zenith-admin/releases) 附带两个压缩包：
+
+| 产物 | 内容 | 用途 |
+| --- | --- | --- |
+| `zenith-admin-web-vX.Y.Z.zip` | 前端静态文件（`web/dist/`） | 可直接托管，适合同域部署 |
+| `zenith-admin-server-vX.Y.Z.zip` | 后端构建产物（`dist/` + `drizzle/` + `package.json`） | 仅作产物归档 |
+
+后端压缩包依赖工作区内的 `@zenith/shared` 共享包（未发布到 npm registry），解压后无法通过 `npm install` 安装依赖并独立运行，**请按本页源码方式部署后端**。
+
+---
+
 ## 升级版本
 
-1. 在 [GitHub Releases](https://github.com/iwangbowen/zenith-admin/releases) 下载目标版本产物
-2. 停止当前后端进程（`pm2 stop zenith-server`）
-3. 替换 `dist/` 目录内容
-4. 执行数据库迁移（发布产物包含 schema 变更时会应用对应迁移）
+1. 停止当前后端进程（`pm2 stop zenith-server`）
+2. 在服务器上检出目标版本并更新依赖：
 
    ```bash
-   node dist/db/migrate.js
+   git fetch --tags
+   git checkout vX.Y.Z
+   npm ci
    ```
 
-5. 重启后端进程（`pm2 restart zenith-server`）
-6. 替换前端静态文件目录内容，Nginx 无需重启
+3. 执行数据库迁移（目标版本包含 schema 变更时会应用对应迁移）：
+
+   ```bash
+   npm run db:migrate
+   ```
+
+4. 重启后端进程（`pm2 restart zenith-server`）
+5. 重新构建并替换前端静态文件（或下载对应版本的 web 产物），Nginx 无需重启

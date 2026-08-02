@@ -108,7 +108,7 @@
 
 ## 缓存分级与协商缓存
 
-SSR 响应按页面类型分级缓存（v1.6.0+）：
+SSR 响应按页面类型分级缓存：
 
 | 页面类型 | dynamic 模式 Redis TTL / Cache-Control max-age |
 |----------|------------------------------------------------|
@@ -150,3 +150,28 @@ SSR 响应按页面类型分级缓存（v1.6.0+）：
 | 本次请求**新提交/改动**的失效模板名 | 仍抛 400 并附可用模板清单，保留对拼写错误的即时反馈 |
 
 因此任意一次站点保存（含只改无关字段的 API 局部更新）都会顺带修复该站点的存量脏引用，无需手工清库。后台站点编辑页同样会提示「已清除 N 项在主题「x」下失效的默认模板配置（保存后生效）」。全站存量扫描见 `getSiteTemplateHealth`（站点管理页健康检查 Banner）。
+
+## 页面部件与主题插槽
+
+「页面部件」（`/cms/widgets`，权限 `cms:widget:list|create|update|publish|offline|delete|bind`）是可复用的内容块：在一处维护榜单/推荐位，多个页面位置引用，内容变化时**只定向刷新引用位置**，不触发整站重建。
+
+### 数据与状态
+
+- 类型目前为 `manual-list`（手工榜单）；条目来源三种：`manual`（手填标题/链接）、`content`（引用站内已发布内容）、`channel`（引用启用中栏目的最新内容，**实时来源**——渲染时动态取数）
+- **草稿/发布双份数据**：编辑改 `draftData`（`draftRevision` 乐观锁，版本不符 409）；「发布」将草稿快照为 `publishedData`，前台只渲染发布快照。状态机 `draft → published → offline`，下线后可再发布
+- 引用校验：条目引用的内容必须已发布、栏目必须启用；反向地，**删除内容 / 停用栏目时若仍被已发布部件引用会被 409 阻断**，需先下线或调整部件
+- 展示模板（renderer）：`list-sidebar`（侧栏榜单）/ `list-grid`（网格卡片）/ `list-carousel`（轮播），部件设默认模板，引用处可覆盖
+- 表：`cms_widgets` / `cms_widget_refs`（被引用索引，`ownerType: page | theme_slot`）/ `cms_widget_source_refs`（实时来源反向索引）
+
+### 两种引用位置
+
+| 引用方式 | 说明 |
+|---|---|
+| 页面搭建 `widget-ref` 区块 | 搭建页面中插入部件（`ownerType=page`），随页面静态化输出 |
+| 主题插槽绑定 | `PUT /api/cms/widgets/slots/{slotKey}`（权限 `cms:widget:bind`），把**已发布**部件绑到主题声明的插槽上；插槽清单由主题注册表 `widgetSlots` 声明（default 主题当前提供 `home.sidebar` 首页侧栏），并校验部件类型与模板是否适用 |
+
+编辑页提供 `GET /{id}/preview`（草稿/发布态渲染预览）与 `GET /{id}/refs`（引用位置清单）；列表以 `referenceCount/impactCount` 展示引用面，达到高扇出阈值（20 个引用位置）标记 `highFanout` 提醒操作影响面。
+
+### 定向刷新
+
+部件发布/下线（含批量任务 `cms-widget-batch`）自动提交任务中心 `cms-widget-refresh`，按引用索引定向刷新：重建引用页面与相关首页的静态产物、清理对应 Redis 页面缓存（`cms:page:{siteId}:{path}`）、dynamic 站点触发 CDN purge。同站点连续操作按 **5 秒时间桶去抖合并**为一次刷新。`content`/`channel` 实时来源的部件在来源内容发布/更新/下线、栏目变更时同样经 `cms_widget_source_refs` 反查并触发刷新，保证静态页上的榜单不滞后。

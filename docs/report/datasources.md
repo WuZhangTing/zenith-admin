@@ -63,6 +63,16 @@
 
 `.xls` 旧格式当前**不支持**，请先另存为 `.xlsx` 或导出为 `.csv` 后再上传。适合无数据库的临时报表、外部导出数据的快速可视化。详见 [数据集与数据加工](./datasets#静态数据集与文件上传)。
 
+## 健康检查
+
+- **单个测试并留痕**：行操作「测试」（`POST /{id}/test`）对已保存的数据源执行连通性测试，并把结果持久化到 `lastTestStatus`（success / failed / unknown）、`lastTestAt`、`lastTestLatencyMs`，列表中直接展示健康状态与延迟。
+- **批量健康检查**：多选后点「健康检查」（`POST /health-check`）提交异步任务 `report-datasource-health-check` 到任务中心，逐个测试所选数据源并更新健康字段；**API 类型数据源会跳过**（避免对远程接口产生副作用）。任务进度、逐项结果与失败明细在任务中心查看，支持取消，按数据源集合与更新时间幂等防重复提交。
+
+## 复制与批量操作
+
+- **复制数据源**（`POST /{id}/clone`）：克隆连接配置生成新数据源（含加密凭据），名称自动加「副本」后缀（可指定新名称），健康状态重置为 unknown。
+- **批量启停**（`PUT /batch-status`）：多选后一键启用 / 停用。
+
 ## 状态与删除
 
 - 每个数据源可「启用 / 停用」。停用后不可用于新的取数。
@@ -74,7 +84,7 @@
 
 | 操作 | 权限码 |
 |------|--------|
-| 查看 / 测试连接 | `report:datasource:list` / `report:datasource:create` |
-| 新增 | `report:datasource:create` |
-| 编辑 | `report:datasource:update` |
+| 查看 | `report:datasource:list` |
+| 新增 / 保存前测试连接 / 复制 | `report:datasource:create` |
+| 编辑 / 批量启停 / 单测留痕 / 批量健康检查 | `report:datasource:update` |
 | 删除 | `report:datasource:delete` |

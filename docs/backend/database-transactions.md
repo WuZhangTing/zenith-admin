@@ -31,7 +31,7 @@ const result = await db.transaction(async (tx) => {
 最常见的场景：创建一条主记录，同时写入多张关联表，要求三者同时成功或同时回滚。
 
 ```ts
-// 来自 users.service.ts：创建用户时，同步设置角色和岗位
+// 来自 services/identity/users.service.ts：创建用户时，同步设置角色和岗位
 const created = await db.transaction(async (tx) => {
   const [u] = await tx.insert(users).values({
     ...rest,
@@ -51,7 +51,7 @@ const created = await db.transaction(async (tx) => {
 对于"覆盖式更新"关联关系，直接先删全部再重新插入，事务保证中间状态不可见：
 
 ```ts
-// 来自 roles.service.ts：保存角色的菜单权限
+// 来自 services/identity/roles.service.ts：保存角色的菜单权限
 await db.transaction(async (tx) => {
   await tx.delete(roleMenus).where(eq(roleMenus.roleId, id));
   if (menuIds.length > 0) {
@@ -63,7 +63,7 @@ await db.transaction(async (tx) => {
 同样的模式也用于"保存通知接收人"：
 
 ```ts
-// 来自 announcements.service.ts（saveRecipients 内部）
+// 来自 services/messaging/announcements.service.ts（saveRecipients 内部）
 await tx.delete(announcementRecipients).where(eq(announcementRecipients.announcementId, announcementId));
 if (recipientList.length > 0) {
   await tx.insert(announcementRecipients).values(recipientList.map((userId) => ({ announcementId, userId })));
@@ -75,7 +75,7 @@ if (recipientList.length > 0) {
 当一个写操作逻辑需要在多处调用（有时在事务内、有时独立调用）时，将 `db` 或 `tx` 抽象为 `DbExecutor` 参数：
 
 ```ts
-import type { DbExecutor } from '../db/types';
+import type { DbExecutor } from '../../db/types';
 
 // 辅助函数接受 executor，可在事务内和事务外都调用
 async function setUserRoles(executor: DbExecutor, userId: number, roleIds: number[]) {
@@ -101,7 +101,7 @@ await setUserRoles(db, userId, roleIds);
 当需要"先读取状态再修改，保证同一时刻只有一条记录满足某条件"时，整个读-写操作放入事务：
 
 ```ts
-// 来自 file-storage-configs.service.ts：切换默认存储配置
+// 来自 services/files/file-storage-configs.service.ts：切换默认存储配置
 await db.transaction(async (tx) => {
   await clearDefaultFlag(tx);                              // 先清除所有 isDefault=true
   const [row] = await tx
@@ -118,7 +118,7 @@ await db.transaction(async (tx) => {
 当删除一条记录需要先在事务内完成树形遍历，再批量删除，避免读到中间态：
 
 ```ts
-// 来自 menus.service.ts：删除菜单及其所有子菜单（BFS 遍历）
+// 来自 services/identity/menus.service.ts：删除菜单及其所有子菜单（BFS 遍历）
 await db.transaction(async (tx) => {
   const all = await tx.select({ id: menus.id, parentId: menus.parentId }).from(menus);
   const toDelete = new Set<number>();
@@ -167,7 +167,7 @@ clearUserPermissionCache(); // 事务提交后再清缓存
 事务回调内抛出 `HTTPException` 或普通 `Error`，Drizzle 都会自动 ROLLBACK。唯一约束冲突使用 `rethrowPgUniqueViolation` 统一映射：
 
 ```ts
-// 来自 users.service.ts：创建用户并捕获唯一约束冲突
+// 来自 services/identity/users.service.ts：创建用户并捕获唯一约束冲突
 try {
   const created = await db.transaction(async (tx) => {
     const [u] = await tx.insert(users).values(data).returning();
@@ -186,7 +186,7 @@ try {
 积分、钱包等资金一致性场景使用 `version` 字段做乐观锁。`member_point_accounts` 与 `member_wallets` 均带 `version` 列，更新时同时校验主键与当前版本号，成功后 `version + 1`：
 
 ```ts
-import { withOptimisticRetry, OptimisticLockError } from '../lib/optimistic';
+import { withOptimisticRetry, OptimisticLockError } from '../../lib/optimistic';
 
 return withOptimisticRetry(() =>
   db.transaction(async (tx) => {
@@ -218,7 +218,7 @@ return withOptimisticRetry(() =>
 当 helper 需要同时接受 `db` 与事务里的 `tx` 执行器时，统一从 `packages/server/src/db/types.ts` 导入类型，避免手工从 `db.transaction()` 签名反推：
 
 ```ts
-import type { Db, DbExecutor, DbTransaction } from '../db/types';
+import type { Db, DbExecutor, DbTransaction } from '../../db/types';
 
 // 三种类型的含义：
 // Db            — 顶层 db 实例（PostgresJsDatabase）

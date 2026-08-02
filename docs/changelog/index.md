@@ -4,6 +4,29 @@
 
 ---
 
+## v1.34.0 - 2026-08-02
+
+文档站全站对齐专项：112 个文档页面逐条与 v1.33.0 代码核实并刷新，消除长期漂移；文档只描述当前状态，删除历史变迁叙述；同步调整侧边栏结构。无任何应用代码改动。服务端 1595 项、前端 529 项测试全部通过，`npm run build` / `docs:build` / `build:demo` 三项构建均通过。
+
+### Changed
+
+#### 文档全站刷新（docs/）
+
+- **开发规范**：`frontend/routing.md`、`frontend/auth-request.md` 按认证集中化（AuthProvider + `['auth','me']`）与菜单 TanStack Query 化整页重写；`backend/export-center.md` 修正与代码相反的脱敏默认值描述（实际默认 `raw=false`）；`backend/database.md` 迁移基线与 31 个 schema 文件映射重写；`backend/task-center.md` 补事务性 outbox 与 `bootstrap/workers.ts` 注册时机；`backend/api-conventions.md` 路由装配改为 `defineRouteDomain` / `ROUTE_DOMAINS` 三段式并补请求防护总章
+- **安全与基础设施**：`backend/idempotency.md` 修正核心语义（成功响应缓存并回放，非一律 429）；`backend/cron-jobs.md` 调度器更正为 pg-boss 双层结构（业务 cron_jobs + 系统调度）；`backend/security.md` 补受信代理、个人 API Token、12 条限流规则；`backend/system-configs.md` 配置项 24→43 项全量重列；`backend/oauth.md` 对齐 OAuth2 服务端安全收敛（去 implicit、PKCE 仅 S256、token 家族重放检测）；`backend/websocket-events.md` 补齐 channel/mp-kf/analytics/payment 等约 10 个缺失事件
+- **业务模块**：IAM 补认证与账号安全（MFA/可信设备/企业身份源）与租户套餐整块；通知中心补频道系统；即时通讯补群治理与效率工具 10 项能力；会员补 VIP 续费/签到运营/看板；运维补数据库管理/备份/防火墙/Nginx/SSL/维护模式 6 大模块；CMS 补页面部件（widgets）模块并重写 Webhook 管线（开放平台统一托管）；支付补渠道能力矩阵（3 渠道 11 方式）、退款审批链、风控引擎，后台页面 4→20 个，并删除已不存在的导出接口描述；公众号补多客服路由治理 `enabled` 总开关语义并修正菜单按钮类型；数据分析表清单 9→19 张并补 Tracking Plan/治理配额/A/B 实验/错误告警历史；报表中心补数据源健康检查、增量物化、分享访问控制（次数上限/IP 白名单/两步会话）、异步晋级五态机与 pg-boss 统一调度；AI 能力删除虚构的 `user` SSE 事件、修正上下文预算并补 Arena/审计/分享接口参考；工作流移除已下线的侧边栏待办角标描述、修正 `taskFinished` 触发面并补抄送节点 `onlyOnApprove`
+- **产品与首页**：功能清单补齐规则中心、CMS、开放平台三个整块缺失的一级模块；首页 features 卡片 11→15 张并全部补链接；`FeatureMatrixFlow` 能力矩阵 104→129 条
+- **开始使用**：部署文档按当前可用链路重写（源码部署 + PM2/tsx）；Docker 部署补种子数据步骤；lint 覆盖更正为 4 包；Demo 模式主推 `npm run dev:demo`
+- **AI 辅助开发**：对齐 AGENTS.md「只做项目导航、规范唯一来源在 skill」的定位，重写三页职责分工
+
+#### 文档目录结构（.vitepress/config.mts）
+
+- 报表中心 15 页平铺改为「总览 / 数据接入 / 设计与消费 / 智能能力 / 平台治理 / 运行时」六段分组
+- CMS 分组补入此前缺失的「站群与内容分发」页
+- 开发规范组调序：Swagger 紧跟 API 规范、任务中心提前至导出中心之前、前端按「UI 规范→认证→路由→数据获取→组件」阅读动线排列；安全与基础设施组同步微调
+
+---
+
 ## v1.33.0 - 2026-08-01
 
 菜单路由治理专项：修复一处路由级授权缺口，导航菜单加载全面接入 TanStack Query，权限变更即时刷新当前登录者的可见范围。服务端 1595 项、前端 529 项测试全部通过，`npm run build` / `docs:build` / `build:demo` 三项构建均通过。
