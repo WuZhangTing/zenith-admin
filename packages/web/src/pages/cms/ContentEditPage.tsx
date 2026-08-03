@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Form, Spin, Toast, Row, Col, Banner, SideSheet, Timeline, Modal, Upload, Typography, useFormApi, Tag, Input, Tabs, TabPane } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
 import { ArrowLeft, Save, Send, History, ImageUp, Eye, GitCompare, Images, Paperclip, SpellCheck, ScrollText } from 'lucide-react';
-import RichTextEditor from '@/components/RichTextEditor';
 import { MediaPickerModal } from '@/components/MediaPickerModal';
 import { formatDateTimeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
@@ -23,6 +22,24 @@ import type { CmsChannel, CmsModelField, CmsEditLock, CmsTextCheckResult, CmsCon
 import { cmsPreviewUrl } from './CmsSiteSelect';
 import { useCmsLinkPicker } from './CmsLinkInput';
 import './ContentEditPage.css';
+
+// 富文本引擎（wangeditor）压缩后约 266 KB。静态导入会阻塞整个编辑页 chunk 的加载，
+// 且「链接」类型内容与已映射内容根本不渲染编辑器；改为懒加载后表单先出，编辑器再补。
+const RichTextEditor = lazy(() => import('@/components/RichTextEditor'));
+const editorLoadingFallback = (
+  <div
+    style={{
+      height: 420,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      border: '1px solid var(--semi-color-border)',
+      borderRadius: 'var(--semi-border-radius-small)',
+    }}
+  >
+    <Spin />
+  </div>
+);
 
 const AUTO_SAVE_INTERVAL_MS = 30_000;
 const EDIT_LOCK_HEARTBEAT_MS = 30_000;
@@ -727,14 +744,16 @@ export default function ContentEditPage() {
                       dangerouslySetInnerHTML={{ __html: body }}
                     />
                   ) : (
-                    <RichTextEditor
-                      value={body}
-                      onChange={(v) => { setBody(v); dirtyRef.current = true; }}
-                      height={contentType === 'article' ? 420 : 240}
-                      enablePageBreak={contentType === 'article'}
-                      placeholder={contentType === 'article' ? '请输入正文内容...' : '图文说明（可选）'}
-                      uploadServer={siteId ? `${appConfig.apiBaseUrl}/api/cms/upload-image?siteId=${siteId}` : undefined}
-                    />
+                    <Suspense fallback={editorLoadingFallback}>
+                      <RichTextEditor
+                        value={body}
+                        onChange={(v) => { setBody(v); dirtyRef.current = true; }}
+                        height={contentType === 'article' ? 420 : 240}
+                        enablePageBreak={contentType === 'article'}
+                        placeholder={contentType === 'article' ? '请输入正文内容...' : '图文说明（可选）'}
+                        uploadServer={siteId ? `${appConfig.apiBaseUrl}/api/cms/upload-image?siteId=${siteId}` : undefined}
+                      />
+                    </Suspense>
                   )}
                 </Form.Slot>
               ) : null}

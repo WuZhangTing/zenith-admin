@@ -1,13 +1,12 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Button, Dropdown, Empty, Form, Tag, Toast, Row, Col, Select, Tooltip, Tree, Typography } from '@douyinfe/semi-ui';
+import { Button, Dropdown, Empty, Form, Spin, Tag, Toast, Row, Col, Select, Tooltip, Tree, Typography } from '@douyinfe/semi-ui';
 import { IllustrationNoContent, IllustrationNoContentDark } from '@douyinfe/semi-illustrations';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
 import { Plus, ExternalLink, Merge, ListPlus, Eye, MoreHorizontal, RefreshCw } from 'lucide-react';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import AppModal from '@/components/AppModal';
-import RichTextEditor from '@/components/RichTextEditor';
 import { usePermission } from '@/hooks/usePermission';
 import {
   useCmsChannelTree, useAllCmsModels, useAllCmsSites, useSaveCmsChannel, useDeleteCmsChannel,
@@ -21,6 +20,24 @@ import { CMS_CHANNEL_DETAIL_PATH_RULE_LABELS, CMS_CHANNEL_DETAIL_PATH_RULES, CMS
 import type { CmsChannel } from '@zenith/shared/cms';
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 import { CmsWidgetSourceRefsSheet, type CmsWidgetSourceTarget } from './CmsWidgetSourceRefsSheet';
+
+// 富文本引擎（wangeditor）压缩后约 266 KB，仅「单页」类型栏目用得到。
+// 静态导入会让进入栏目管理就把它一并拉下来，故与公告页保持一致改为懒加载。
+const RichTextEditor = lazy(() => import('@/components/RichTextEditor'));
+const editorLoadingFallback = (
+  <div
+    style={{
+      height: 240,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      border: '1px solid var(--semi-color-border)',
+      borderRadius: 'var(--semi-border-radius-small)',
+    }}
+  >
+    <Spin />
+  </div>
+);
 
 function toTreeSelectData(nodes: CmsChannel[], excludeId?: number): TreeNodeData[] {
   return nodes
@@ -444,7 +461,9 @@ export default function ChannelsPage() {
       </Row>
       {channelType === 'page' ? (
         <Form.Slot label="单页内容">
-          <RichTextEditor value={pageContent} onChange={setPageContent} height={240} />
+          <Suspense fallback={editorLoadingFallback}>
+            <RichTextEditor value={pageContent} onChange={setPageContent} height={240} />
+          </Suspense>
         </Form.Slot>
       ) : null}
       {channelType === 'list' ? (
