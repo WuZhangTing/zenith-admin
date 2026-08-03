@@ -9,12 +9,12 @@
  *   适合：支付创单、工单提交等需要客户端显式保证的场景。
  *
  * **模式 2 — 服务端自动指纹（自动兜底）**
- *   服务端根据 (AppKey | userId | ip) + method + pathname + query + body-hash 计算 SHA-256 指纹。
+ *   服务端根据 actor + method + pathname + query + body-hash 计算 SHA-256 指纹。
  *   TTL 内若同一指纹再次到达，直接拒绝。
  *   适合：普通表单防重复提交，无需前端改造。
  *
- * 两种模式的 Redis key 都按**调用方身份**分命名空间：缓存的是完整响应体，
- * 不隔离就会把别人的响应回放给当前调用方。
+ * 两种模式的 Redis key 都按**调用方身份（actor）**分命名空间：缓存的是完整响应体，
+ * 不隔离就会把别人的响应回放给当前调用方。actor 的解析见 resolveActor()。
  *
  * 用法（在 createRoute 的 middleware 数组中声明）：
  *
@@ -36,7 +36,8 @@ import { createMiddleware } from 'hono/factory';
 import redis from '../lib/redis';
 import { config } from '../config';
 import { errBody } from '../lib/openapi-schemas';
-import { currentUser } from '../lib/context';
+import { currentUserOrNull } from '../lib/context';
+import { currentMemberOrNull } from '../lib/member-context';
 import logger from '../lib/logger';
 
 /** idempotency Redis key 前缀，与其他 key 命名空间隔离 */
@@ -88,6 +89,36 @@ async function hashBody(c: Context): Promise<string> {
 }
 
 /**
+ * 解析调用方身份（actor）—— 幂等缓存的隔离维度。
+ *
+ * 本系统有四类调用方，必须各自独立命名空间：命中缓存时会把此前的**完整响应体**
+ * 原样回放，身份不隔离就等于把别人的响应返回给当前调用方，既丢自己的写入又泄露对方数据。
+ *
+ * 顺序有讲究：
+ *  1. 开放应用 —— 网关请求没有管理员/会员 ALS 上下文，但已鉴权的 AppKey 就在 context 里
+ *  2. 会员（前台 C 端）—— 走 memberAuthMiddleware，身份在 c.get('member')，
+ *     **不在** c.get('user')。此前这里只试 currentUser()，会员全部退化为同一身份，
+ *     导致签到（无请求体，指纹必然相同）、同额充值等接口跨会员互相回放响应
+ *  3. 管理员 —— 编入 tenantId，防止多租户下同 userId 序列在不同租户间碰撞
+ *  4. 匿名 —— 退化到来源 IP；连 IP 都没有时才用固定兜底
+ *
+ * 全部使用 *OrNull 变体：抛异常版本会让 2/3 两步无法区分「没有」和「出错」。
+ */
+function resolveActor(c: Context): string {
+  const openAppKey = c.get('openApp')?.clientId as string | undefined;
+  if (openAppKey) return `app:${openAppKey}`;
+
+  const member = currentMemberOrNull();
+  if (member) return `m:${member.memberId}`;
+
+  const user = currentUserOrNull();
+  if (user) return `u:${user.tenantId ?? 0}:${user.userId}`;
+
+  const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
+  return ip ? `ip:${ip}` : 'anon';
+}
+
+/**
  * 幂等控制 Hono 中间件工厂函数。
  *
  * @example
@@ -110,25 +141,7 @@ export function idempotencyGuard(options: IdempotencyOptions = {}) {
     let idempotencyKey: string | null = null;
     let keySource: 'header' | 'fingerprint' = 'fingerprint';
 
-    /**
-     * 调用方身份。
-     *
-     * 开放网关请求没有管理员 ALS 上下文（`currentUser()` 会抛），但已鉴权的 AppKey 就在 context 里。
-     * 不用它的话所有开放应用会退化到同一个 `'0.0.0.0'` 身份共用命名空间，命中缓存后会把
-     * 别的应用的响应原样回放 —— 既丢自己的写入，又泄露对方数据。
-     */
-    const openAppKey = c.get('openApp')?.clientId;
-    let identity: string;
-    if (openAppKey) {
-      identity = `app:${openAppKey}`;
-    } else {
-      try {
-        const user = currentUser();
-        identity = user ? `u${user.userId}` : c.req.header('x-forwarded-for')?.split(',')[0].trim() ?? '0.0.0.0';
-      } catch {
-        identity = '0.0.0.0';
-      }
-    }
+    const identity = resolveActor(c);
 
     const clientKey = c.req.header('x-idempotency-key');
     if (clientKey) {

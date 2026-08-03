@@ -24,7 +24,11 @@ vi.mock('../lib/redis', () => ({
 }));
 
 vi.mock('../lib/context', () => ({
-  currentUser: vi.fn().mockReturnValue({ userId: 1, username: 'alice' }),
+  currentUserOrNull: vi.fn().mockReturnValue({ userId: 1, username: 'alice', tenantId: null }),
+}));
+
+vi.mock('../lib/member-context', () => ({
+  currentMemberOrNull: vi.fn().mockReturnValue(undefined),
 }));
 
 vi.mock('../lib/logger', () => ({
@@ -32,10 +36,34 @@ vi.mock('../lib/logger', () => ({
 }));
 
 import redis from '../lib/redis';
-import { currentUser } from '../lib/context';
+import { currentUserOrNull } from '../lib/context';
+import { currentMemberOrNull } from '../lib/member-context';
 import { idempotencyGuard, type IdempotencyOptions } from './idempotency';
 
 const redisMock = vi.mocked(redis);
+
+/** 以指定管理员身份发起请求（tenantId 参与身份，多租户下防跨租户碰撞） */
+function asAdmin(userId: number, tenantId: number | null = null) {
+  vi.mocked(currentUserOrNull).mockReturnValue({ userId, username: `u${userId}`, tenantId } as ReturnType<typeof currentUserOrNull>);
+  vi.mocked(currentMemberOrNull).mockReturnValue(undefined);
+}
+
+/** 以指定会员身份发起请求（会员走 c.get('member')，管理员上下文为空） */
+function asMember(memberId: number) {
+  vi.mocked(currentUserOrNull).mockReturnValue(undefined);
+  vi.mocked(currentMemberOrNull).mockReturnValue({ memberId } as ReturnType<typeof currentMemberOrNull>);
+}
+
+/** 匿名访问（既非管理员也非会员） */
+function asAnonymous() {
+  vi.mocked(currentUserOrNull).mockReturnValue(undefined);
+  vi.mocked(currentMemberOrNull).mockReturnValue(undefined);
+}
+
+/** 取本次请求写入的 Redis 占位 key（第一次 set 即 processing 占位） */
+function placeholderKey(callIndex = 0): string {
+  return redisMock.set.mock.calls[callIndex][0] as string;
+}
 
 function buildApp(opts: IdempotencyOptions = {}, status = 200, openAppKey?: string) {
   const app = new Hono();
@@ -65,7 +93,7 @@ function post(app: Hono, headers: Record<string, string> = {}, body = '{"amount"
 
 beforeEach(() => {
   vi.resetAllMocks();
-  vi.mocked(currentUser).mockReturnValue({ userId: 1, username: 'alice' } as ReturnType<typeof currentUser>);
+  asAdmin(1);
   redisMock.get.mockResolvedValue(null);
   redisMock.set.mockResolvedValue('OK');
 });
@@ -188,13 +216,29 @@ describe('idempotencyGuard - 自动指纹模式', () => {
     expect(redisMock.set.mock.calls[0][0]).not.toBe(redisMock.set.mock.calls[2][0]);
   });
 
-  it('未登录（currentUser 抛错）时退化为 IP 指纹，不抛异常', async () => {
-    vi.mocked(currentUser).mockImplementation(() => {
-      throw new Error('no context');
-    });
+  it('未登录时退化为来源 IP 指纹，且不同 IP 互不碰撞', async () => {
+    asAnonymous();
+    const { app: appA } = buildApp();
+    const resA = await post(appA, { 'X-Forwarded-For': '1.2.3.4' });
+    const keyA = placeholderKey();
+
+    redisMock.set.mockClear();
+    const { app: appB } = buildApp();
+    await post(appB, { 'X-Forwarded-For': '5.6.7.8' });
+    const keyB = placeholderKey();
+
+    expect(resA.status).toBe(200);
+    // 此前这里只断言状态码，而 IP 分支其实是死代码（currentUser() 抛异常而非返回假值），
+    // 所有匿名请求共用 '0.0.0.0'，测试却一直是绿的。
+    expect(keyA).not.toBe(keyB);
+  });
+
+  it('连 IP 都取不到时才用固定兜底身份', async () => {
+    asAnonymous();
     const { app } = buildApp();
-    const res = await post(app, { 'X-Forwarded-For': '1.2.3.4' });
+    const res = await post(app);
     expect(res.status).toBe(200);
+    expect(placeholderKey()).toMatch(HASHED_KEY);
   });
 
   it('autoFingerprint=false 且无 header → 直接放行，不触 Redis', async () => {
@@ -233,5 +277,112 @@ describe('idempotencyGuard - 并发与容错', () => {
     const { app } = buildApp();
     const res = await post(app, { 'X-Idempotency-Key': 'k1' });
     expect(res.status).toBe(429);
+  });
+});
+
+describe('idempotencyGuard - 调用方身份隔离（缓存回放安全关键）', () => {
+  /**
+   * 回归：会员身份此前完全丢失。
+   * memberAuthMiddleware 写的是 c.set('member')，而中间件只试 currentUser()（读 c.get('user')），
+   * 必然抛异常 → catch → 所有会员共用固定身份 '0.0.0.0'。
+   * 后果：签到（无请求体，指纹必然相同）、同额充值等接口在 TTL 内跨会员互相回放响应——
+   * 后到的会员操作被静默跳过，并拿到前一位会员的完整响应体（充值响应含 orderNo/payUrl）。
+   */
+  it('不同会员的同一请求指纹必须不同', async () => {
+    asMember(101);
+    const { app: appA } = buildApp();
+    await post(appA, {}, '');
+    const keyA = placeholderKey();
+
+    redisMock.set.mockClear();
+    asMember(202);
+    const { app: appB } = buildApp();
+    await post(appB, {}, '');
+    const keyB = placeholderKey();
+
+    expect(keyA).not.toBe(keyB);
+  });
+
+  it('无请求体接口（如签到）同样按会员隔离', async () => {
+    asMember(101);
+    const { app: appA } = buildApp();
+    await post(appA, {}, '');
+    const keyA = placeholderKey();
+
+    redisMock.set.mockClear();
+    asMember(102);
+    const { app: appB } = buildApp();
+    await post(appB, {}, '');
+
+    expect(keyA).not.toBe(placeholderKey());
+  });
+
+  it('同一会员的重复提交仍然命中同一 key（幂等本身不能失效）', async () => {
+    asMember(101);
+    const { app: appA } = buildApp();
+    await post(appA, {}, '');
+    const keyA = placeholderKey();
+
+    redisMock.set.mockClear();
+    const { app: appB } = buildApp();
+    await post(appB, {}, '');
+
+    expect(placeholderKey()).toBe(keyA);
+  });
+
+  it('会员与管理员即使 id 相同也不串号', async () => {
+    asMember(7);
+    const { app: appM } = buildApp();
+    await post(appM);
+    const keyMember = placeholderKey();
+
+    redisMock.set.mockClear();
+    asAdmin(7);
+    const { app: appA } = buildApp();
+    await post(appA);
+
+    expect(placeholderKey()).not.toBe(keyMember);
+  });
+
+  it('不同租户的同 id 管理员不碰撞（多租户 userId 序列可能重合）', async () => {
+    asAdmin(5, 1);
+    const { app: appT1 } = buildApp();
+    await post(appT1);
+    const keyT1 = placeholderKey();
+
+    redisMock.set.mockClear();
+    asAdmin(5, 2);
+    const { app: appT2 } = buildApp();
+    await post(appT2);
+
+    expect(placeholderKey()).not.toBe(keyT1);
+  });
+
+  it('开放应用优先于会员/管理员上下文（网关请求身份取 AppKey）', async () => {
+    asMember(101);
+    const { app } = buildApp({}, 200, 'app-x');
+    await post(app);
+    const keyWithApp = placeholderKey();
+
+    redisMock.set.mockClear();
+    asMember(101);
+    const { app: appNoKey } = buildApp();
+    await post(appNoKey);
+
+    expect(placeholderKey()).not.toBe(keyWithApp);
+  });
+
+  it('客户端 Token 模式下同样按会员隔离（同 key 不同会员不共享缓存）', async () => {
+    asMember(101);
+    const { app: appA } = buildApp();
+    await post(appA, { 'X-Idempotency-Key': 'same-key' });
+    const keyA = placeholderKey();
+
+    redisMock.set.mockClear();
+    asMember(202);
+    const { app: appB } = buildApp();
+    await post(appB, { 'X-Idempotency-Key': 'same-key' });
+
+    expect(placeholderKey()).not.toBe(keyA);
   });
 });
