@@ -1,8 +1,9 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse } from '@zenith/shared/core';
-import type { IdentityProviderConnectionTestResult, IdentityProviderSyncResult, LdapDirectoryUser, Tenant, TenantIdentityProvider } from '@zenith/shared/identity';
-import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
+import type { IdentityProviderConnectionTestResult, IdentityProviderSyncResult, LdapDirectoryUser, TenantIdentityProvider } from '@zenith/shared/identity';
+import { toQueryString, unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
+import { useAllTenants } from './tenants';
 
 export interface IdentityProviderListParams {
   page: number;
@@ -18,7 +19,6 @@ export const identityProviderKeys = {
   lists: ['identity-providers', 'list'] as const,
   list: (params: IdentityProviderListParams) => ['identity-providers', 'list', params] as const,
   detail: (id: number | undefined) => ['identity-providers', 'detail', id] as const,
-  tenants: ['identity-providers', 'tenants'] as const,
 };
 
 export function useIdentityProviderList(params: IdentityProviderListParams) {
@@ -37,12 +37,12 @@ export function useIdentityProviderDetail(id: number | undefined, enabled = true
   });
 }
 
+/**
+ * 身份源配置页的租户下拉——直接复用 tenants 域的共享 lookup，
+ * 避免同一端点在两个 key 下各存一份（租户切换器常驻 AdminLayout，会同时在线）。
+ */
 export function useIdentityProviderTenants() {
-  return useQuery({
-    queryKey: identityProviderKeys.tenants,
-    queryFn: () => request.get<Tenant[]>('/api/tenants/all', { silent: true }).then(unwrap),
-    staleTime: LOOKUP_STALE_TIME,
-  });
+  return useAllTenants();
 }
 
 export function useSaveIdentityProvider() {

@@ -68,13 +68,6 @@ export default function MaintenancePage() {
     });
   }, [status]);
 
-  // 横幅关闭维护后同步刷新页面状态
-  useEffect(() => {
-    const handler = () => void queryClient.invalidateQueries({ queryKey: maintenanceKeys.status });
-    globalThis.addEventListener('maintenance:statusChanged', handler);
-    return () => globalThis.removeEventListener('maintenance:statusChanged', handler);
-  }, [queryClient]);
-
   const handleToggle = async (enable: boolean) => {
     if (!canManage) return;
 
@@ -95,13 +88,14 @@ export default function MaintenancePage() {
     }
 
     const values = formApi.current?.getValues() as FormValues | undefined;
-    const data = await updateMutation.mutateAsync({
+    await updateMutation.mutateAsync({
       enabled: enable,
       message: values?.message || '系统维护中，请稍后重试',
       estimatedEndAt: values?.estimatedEndAt ? formatDateTimeForApi(values.estimatedEndAt) : null,
     });
+    // mutation 的 onSuccess 已按 maintenanceKeys.all 失效（含超管横幅消费的 publicStatus），
+    // 无需再手工 dispatch CustomEvent 跨组件广播。
     Toast.success(enable ? '维护模式已开启' : '维护模式已关闭');
-    globalThis.dispatchEvent(new CustomEvent('maintenance:statusChanged', { detail: data }));
     setPage(1);
     void queryClient.invalidateQueries({ queryKey: maintenanceKeys.logs });
   };

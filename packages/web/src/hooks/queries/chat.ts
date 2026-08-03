@@ -28,6 +28,8 @@ export const chatKeys = {
    * 但会话级 mutation 仍以此为约定失效目标，便于后续迁移时自动接上。
    */
   conversations: ['chat', 'conversations'] as const,
+  /** 顶栏聊天未读数聚合（初值由查询拉取，之后由 WebSocket 推送写入缓存） */
+  unreadCount: ['chat', 'unread-count'] as const,
   channels: ['chat', 'channels'] as const,
   discoverableChannels: (params: DiscoverableChannelParams) => ['chat', 'list', 'discoverable-channels', params] as const,
   users: (params: ChatUserSearchParams) => ['chat', 'list', 'users', params] as const,
@@ -355,5 +357,19 @@ export function useChannelMenus(channelId: number | undefined, enabled = true) {
     queryFn: () => request.get<ChannelMenu[]>(`/api/channels/${channelId}/menus`, { silent: true }).then(unwrap),
     enabled: enabled && channelId !== undefined,
     staleTime: LOOKUP_STALE_TIME,
+  });
+}
+
+/**
+ * 顶栏聊天未读数。仅拉取初值，后续增量由 WebSocket 推送经 setQueryData 写入
+ * （会话列表本身仍由 ChatPage 以本地 state + WS 维护，属文档白名单的流式场景）。
+ */
+export function useChatUnreadCount() {
+  return useQuery({
+    queryKey: chatKeys.unreadCount,
+    queryFn: () => request
+      .get<Array<{ unreadCount: number }>>('/api/chat/conversations', { silent: true })
+      .then(unwrap)
+      .then((list) => (list ?? []).reduce((sum, c) => sum + (c.unreadCount ?? 0), 0)),
   });
 }

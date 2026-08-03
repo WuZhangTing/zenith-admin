@@ -1779,3 +1779,53 @@ export function useCmsSubscriptionAggregates(
     enabled,
   });
 }
+
+// ═══ 图片上传 ═══════════════════════════════════════════════════════════════
+
+export interface CmsUploadedImage {
+  url: string;
+  thumbUrl: string | null;
+  watermarked?: boolean;
+}
+
+/**
+ * CMS 站点图片上传（内容封面 / 图集 / 主题配置图）。
+ * 服务端按站点配置决定是否加水印与生成缩略图，故必须带 siteId。
+ */
+export function useUploadCmsImage() {
+  return useMutation({
+    mutationFn: ({ siteId, formData, onProgress }: { siteId: number; formData: FormData; onProgress?: (percent: number) => void }) =>
+      request.postForm<CmsUploadedImage>(`/api/cms/upload-image?siteId=${siteId}`, formData, { onProgress, silent: true }).then(unwrap),
+  });
+}
+export interface CmsTitleDuplicateCheck {
+  duplicate: boolean;
+  matches: { id: number; title: string; status: string }[];
+}
+
+/** 内容标题查重探测（编辑辅助，失败静默）——一次性动作，故建模为 mutation */
+export function useCheckCmsContentTitle() {
+  return useMutation({
+    mutationFn: ({ siteId, title, excludeId }: { siteId: number; title: string; excludeId?: number }) =>
+      request
+        .get<CmsTitleDuplicateCheck>(
+          `/api/cms/contents/check-title?siteId=${siteId}&title=${encodeURIComponent(title)}${excludeId ? `&excludeId=${excludeId}` : ''}`,
+          { silent: true },
+        )
+        .then(unwrap),
+  });
+}
+/**
+ * 取栏目下第一条已发布内容——仅用于「预览详情模板」按钮，结果不入缓存，
+ * 故建模为 mutation 而非 query。
+ */
+export function useCmsChannelSampleContent() {
+  return useMutation({
+    mutationFn: ({ siteId, channelId }: { siteId: number; channelId: number }) =>
+      request
+        .get<PaginatedResponse<CmsContent>>(
+          `/api/cms/contents?siteId=${siteId}&channelId=${channelId}&status=published&page=1&pageSize=1`,
+        )
+        .then(unwrap),
+  });
+}

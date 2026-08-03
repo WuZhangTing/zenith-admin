@@ -3,7 +3,7 @@ import { Button, Descriptions, Divider, Empty, Modal, Select, SideSheet, Space, 
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Paperclip } from 'lucide-react';
 import type { WorkflowCompensation } from '@zenith/shared/workflow';
-import { request } from '@/utils/request';
+import { useUploadOneFile } from '@/hooks/queries/files';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -52,6 +52,7 @@ export default function WorkflowCompensationsView() {
   const [noteText, setNoteText] = useState('');
   const [pendingAtt, setPendingAtt] = useState<Attachment[]>([]);
   const actionMutation = useWorkflowCompensationAction();
+  const uploadOneMutation = useUploadOneFile();
   const acting = actionMutation.isPending;
 
   const openDetail = (id: number) => {
@@ -168,9 +169,9 @@ export default function WorkflowCompensationsView() {
                       try {
                         const fd = new FormData();
                         fd.append('file', file.fileInstance as File);
-                        const res = await request.post<{ id?: number; url: string; originalName?: string }>('/api/files/upload-one', fd);
-                        if (res.code === 0 && res.data?.url) {
-                          setPendingAtt((prev) => [...prev, { id: res.data!.id ?? Date.now(), name: res.data!.originalName ?? (file.name || '附件'), url: res.data!.url }]);
+                        const res = await uploadOneMutation.mutateAsync({ formData: fd });
+                        if (res?.url) {
+                          setPendingAtt((prev) => [...prev, { id: res.id ?? Date.now(), name: res.originalName ?? (file.name || '附件'), url: res.url }]);
                           onSuccess?.({}, file as never);
                         } else { onError?.({ status: 0 } as never, file as never); }
                       } catch { onError?.({ status: 0 } as never, file as never); }

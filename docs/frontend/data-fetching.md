@@ -174,3 +174,10 @@ useEffect(() => {
 - **WebSocket / SSE / 流式**：聊天消息流、进程 SSE 监控、xterm 终端、docker 日志跟随、AI 流式回复
 - **一次性动作**：`request.download` 文件下载、验密（`skipAuth`）、网络诊断类单发操作（建模为 mutation 或直接调用均可）
 - **与命令式组件深度耦合的数据流**：如 db-admin 表格浏览的 `useTableRowsInfinite`（与 DataGrid 虚拟滚动/undo-redo 耦合）
+- **本地优先 + 防抖回写的单属主存储**：`hooks/PreferencesProvider.tsx`。localStorage 必须**同步**提供初值（否则主题/布局会闪一下），服务端读取只是一次性 bootstrap，写入是 500ms 防抖的 fire-and-forget，且全站仅此一个属主（16 个消费方都走 Context 而非网络）。套用查询缓存只增加间接层，不消除任何重复数据源
+- **认证前置**：登录、重置密码、OAuth/企业回调、OAuth2 授权页——这些跑在登录态与查询缓存建立之前
+
+> 反过来说，只要是**可缓存的读**或**会影响其他视图的写**，就必须走域 hook。
+> 典型反例（均已整改）：模块级 `let cache` + `let inflight` 手写进程缓存与在途去重、
+> 同一份状态在多个组件各取一次再用 `CustomEvent` 手工广播失效——这两种写法是在
+> 重新实现 `staleTime` 与 `invalidateQueries`，且手写缓存往往永不失效。

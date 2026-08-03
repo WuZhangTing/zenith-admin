@@ -66,7 +66,6 @@
   "payment-webhooks.ts": 3,
   "ports.ts": 1,
   "processes.ts": 2,
-  "profile.ts": 1,
   "rate-limit.ts": 4,
   "report-alerts.ts": 6,
   "report-datasources.ts": 5,

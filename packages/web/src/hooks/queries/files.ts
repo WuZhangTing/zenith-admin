@@ -63,6 +63,23 @@ export function useUploadFile() {
   });
 }
 
+export interface UploadedOneFile {
+  id?: number;
+  url: string;
+  originalName?: string;
+}
+
+/**
+ * 单文件直传（/api/files/upload-one）——聊天附件、工作流补偿附件、头像等共用。
+ * 与 useUploadFile 的区别：不进文件管理列表，故不失效 fileKeys。
+ */
+export function useUploadOneFile() {
+  return useMutation({
+    mutationFn: ({ formData, onProgress }: { formData: FormData; onProgress?: (percent: number) => void }) =>
+      request.postForm<UploadedOneFile>('/api/files/upload-one', formData, { onProgress, silent: true }).then(unwrap),
+  });
+}
+
 export function useDeleteFile() {
   const qc = useQueryClient();
   return useMutation({

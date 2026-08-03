@@ -50,7 +50,28 @@ export const announcementKeys = {
   readStatsAll: ['announcements', 'read-stats'] as const,
   readStats: (params: AnnouncementStatsParams) => ['announcements', 'read-stats', params] as const,
   userSearch: (keyword: string) => ['announcements', 'user-search', keyword] as const,
+  /** 顶栏公告铃铛未读数 */
+  myUnreadCount: ['announcements', 'my', 'unread-count'] as const,
+  /** 顶栏公告气泡里的已发布公告 */
+  published: ['announcements', 'my', 'published'] as const,
 };
+
+/** 我的公告未读数（顶栏铃铛 badge） */
+export function useMyAnnouncementUnreadCount() {
+  return useQuery({
+    queryKey: announcementKeys.myUnreadCount,
+    queryFn: () => request.get<{ count: number }>('/api/announcements/unread-count', { silent: true }).then(unwrap),
+    select: (data) => data?.count ?? 0,
+  });
+}
+
+/** 顶栏气泡里的最近已发布公告（含本人已读标记） */
+export function usePublishedAnnouncements() {
+  return useQuery({
+    queryKey: announcementKeys.published,
+    queryFn: () => request.get<(Announcement & { isRead: boolean })[]>('/api/announcements/published', { silent: true }).then(unwrap),
+  });
+}
 
 export function useAnnouncementList(params: AnnouncementListParams) {
   return useQuery({

@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Typography } from '@douyinfe/semi-ui';
 import { Wrench, RefreshCw } from 'lucide-react';
-import { config } from '@/config';
+import { usePublicMaintenanceStatus } from '@/hooks/queries/maintenance';
 
 const { Title, Text } = Typography;
 
@@ -13,36 +12,12 @@ interface MaintenanceInfo {
 
 interface Props {
   info: MaintenanceInfo;
-  onResolved: () => void;
 }
 
-export default function MaintenanceOverlay({ info, onResolved }: Readonly<Props>) {
-  const [checking, setChecking] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const checkStatus = useCallback(async () => {
-    setChecking(true);
-    try {
-      const res = await fetch(`${config.apiBaseUrl}/api/maintenance/status`);
-      const data = await res.json();
-      if (data.code === 0 && !data.data?.enabled) {
-        onResolved();
-      }
-    } catch {
-      // ignore
-    } finally {
-      setChecking(false);
-    }
-  }, [onResolved]);
-
-  useEffect(() => {
-    timerRef.current = setInterval(() => {
-      void checkStatus();
-    }, 30_000);
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [checkStatus]);
+export default function MaintenanceOverlay({ info }: Readonly<Props>) {
+  // 轮询交给查询本身：本组件只在维护生效期间挂载，卸载即自动停止，
+  // 无需手写 setInterval。恢复后 App 依据同一份缓存直接停止渲染本遮罩。
+  const { isFetching, refetch } = usePublicMaintenanceStatus({ refetchInterval: 30_000 });
 
   return (
     <div
@@ -108,8 +83,8 @@ export default function MaintenanceOverlay({ info, onResolved }: Readonly<Props>
 
         <Button
           icon={<RefreshCw size={14} />}
-          loading={checking}
-          onClick={() => void checkStatus()}
+          loading={isFetching}
+          onClick={() => void refetch()}
           style={{ marginTop: 8 }}
         >
           检查是否恢复

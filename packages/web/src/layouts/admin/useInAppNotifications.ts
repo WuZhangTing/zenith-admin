@@ -1,66 +1,75 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { InAppMessage, Announcement } from '@zenith/shared/messaging';
-import { request } from '@/utils/request';
-import { markAnnouncementRead } from './utils';
+import {
+  announcementKeys,
+  useMarkMyAnnouncementRead,
+  useMyAnnouncementUnreadCount,
+  usePublishedAnnouncements,
+} from '@/hooks/queries/announcements';
+import {
+  inAppMessageKeys,
+  useMyInAppMessageUnreadCount,
+  useMyInAppMessages,
+} from '@/hooks/queries/in-app-messages';
+import { chatKeys, useChatUnreadCount } from '@/hooks/queries/chat';
 
-// ─── 公告 / 站内信 ─────────────────────────────────────────────────────────
+/**
+ * 顶栏公告 / 站内信。
+ *
+ * 数据全部由 TanStack Query 持有；对外仍暴露 setInAppMessages / setUnreadCount
+ * 这类 setter 形状，但底层改写为 setQueryData——WebSocket 推送（useLayoutWs）
+ * 因此无需改动，同时消息列表与未读数不再出现「本地 state 与缓存各存一份」。
+ */
 export function useInAppNotifications() {
-  const [inAppMessages, setInAppMessages] = useState<InAppMessage[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [announcementUnreadCount, setAnnouncementUnreadCount] = useState(0);
+  const queryClient = useQueryClient();
   const [announcementPopVisible, setAnnouncementPopVisible] = useState(false);
-  const [recentAnnouncements, setRecentAnnouncements] = useState<(Announcement & { isRead: boolean })[]>([]);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
   const [messagePopVisible, setMessagePopVisible] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<InAppMessage | null>(null);
   const recentInAppMessageRef = useRef(new Map<string, number>());
 
-  const fetchAnnouncementUnreadCount = useCallback(() => {
-    request.get<{ count: number }>('/api/announcements/unread-count', { silent: true }).then((res) => {
-      if (res.code === 0 && res.data) setAnnouncementUnreadCount(res.data.count ?? 0);
+  const { data: inAppMessages = [] } = useMyInAppMessages();
+  const { data: unreadCount = 0 } = useMyInAppMessageUnreadCount();
+  const { data: announcementUnreadCount = 0 } = useMyAnnouncementUnreadCount();
+  const { data: recentAnnouncements = [] } = usePublishedAnnouncements();
+  const markAnnouncementReadMutation = useMarkMyAnnouncementRead();
+
+  // WebSocket 推送直接写缓存，保持与既有 setState 调用形状一致
+  const setInAppMessages: Dispatch<SetStateAction<InAppMessage[]>> = useCallback((update) => {
+    queryClient.setQueryData<{ list: InAppMessage[]; total: number }>(inAppMessageKeys.mine, (prev) => {
+      const list = prev?.list ?? [];
+      const next = typeof update === 'function' ? (update as (p: InAppMessage[]) => InAppMessage[])(list) : update;
+      return { list: next, total: prev?.total ?? next.length };
     });
-  }, []);
+  }, [queryClient]);
 
-  const fetchRecentAnnouncements = useCallback(() => {
-    request.get<(Announcement & { isRead: boolean })[]>('/api/announcements/published', { silent: true }).then((res) => {
-      if (res.code === 0 && res.data) setRecentAnnouncements(res.data);
+  const setUnreadCount: Dispatch<SetStateAction<number>> = useCallback((update) => {
+    queryClient.setQueryData<{ count: number }>(inAppMessageKeys.myUnreadCount, (prev) => {
+      const count = prev?.count ?? 0;
+      return { count: typeof update === 'function' ? (update as (p: number) => number)(count) : update };
     });
-  }, []);
-
-  useEffect(() => { fetchAnnouncementUnreadCount(); }, [fetchAnnouncementUnreadCount]);
-
-  // 监听 announcement 事件同步公告未读数
-  useEffect(() => {
-    const handler = () => { fetchAnnouncementUnreadCount(); fetchRecentAnnouncements(); };
-    globalThis.addEventListener('announcement:refresh', handler);
-    return () => globalThis.removeEventListener('announcement:refresh', handler);
-  }, [fetchAnnouncementUnreadCount, fetchRecentAnnouncements]);
-
-  const markAnnouncementAsRead = (id: number) => {
-    request.post(`/api/announcements/${id}/read`, undefined, { silent: true }).then((res) => {
-      if (res.code !== 0) return;
-      setRecentAnnouncements(markAnnouncementRead(id));
-      setAnnouncementUnreadCount((c) => Math.max(0, c - 1));
-    });
-  };
+  }, [queryClient]);
 
   const fetchInAppMessages = useCallback(() => {
-    request.get<{ list: InAppMessage[]; total: number }>('/api/in-app-messages?page=1&pageSize=10', { silent: true }).then((res) => {
-      if (res.code === 0 && res.data) setInAppMessages(res.data.list ?? []);
-    });
-    request.get<{ count: number }>('/api/in-app-messages/unread-count', { silent: true }).then((res) => {
-      if (res.code === 0 && res.data) setUnreadCount(res.data.count ?? 0);
-    });
-  }, []);
+    void queryClient.invalidateQueries({ queryKey: inAppMessageKeys.mine });
+    void queryClient.invalidateQueries({ queryKey: inAppMessageKeys.myUnreadCount });
+  }, [queryClient]);
 
-  useEffect(() => { fetchInAppMessages(); }, [fetchInAppMessages]);
+  const fetchRecentAnnouncements = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: announcementKeys.published });
+    void queryClient.invalidateQueries({ queryKey: announcementKeys.myUnreadCount });
+  }, [queryClient]);
 
-  // 监听其他页面（如站内信管理）触发的刷新事件，同步顶部铃铛 badge
-  useEffect(() => {
-    const handler = () => fetchInAppMessages();
-    globalThis.addEventListener('in-app-messages:refresh', handler);
-    return () => globalThis.removeEventListener('in-app-messages:refresh', handler);
-  }, [fetchInAppMessages]);
+  const markAnnouncementAsRead = useCallback((id: number) => {
+    markAnnouncementReadMutation.mutate(id, {
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: announcementKeys.published });
+        void queryClient.invalidateQueries({ queryKey: announcementKeys.myUnreadCount });
+      },
+    });
+  }, [markAnnouncementReadMutation, queryClient]);
 
   return {
     inAppMessages, setInAppMessages,
@@ -78,14 +87,15 @@ export function useInAppNotifications() {
 
 // ─── 聊天未读数 ────────────────────────────────────────────────────────────
 export function useChatUnread() {
-  const [chatUnreadCount, setChatUnreadCount] = useState(0);
-  // 初次加载时拉取会话列表计算未读
-  useEffect(() => {
-    request.get<Array<{ unreadCount: number }>>('/api/chat/conversations', { silent: true }).then((res) => {
-      if (res.code === 0 && res.data) {
-        setChatUnreadCount(res.data.reduce((s, c) => s + (c.unreadCount ?? 0), 0));
-      }
+  const queryClient = useQueryClient();
+  const { data: chatUnreadCount = 0 } = useChatUnreadCount();
+
+  const setChatUnreadCount: Dispatch<SetStateAction<number>> = useCallback((update) => {
+    queryClient.setQueryData<number>(chatKeys.unreadCount, (prev) => {
+      const count = prev ?? 0;
+      return typeof update === 'function' ? (update as (p: number) => number)(count) : update;
     });
-  }, []);
+  }, [queryClient]);
+
   return { chatUnreadCount, setChatUnreadCount };
 }

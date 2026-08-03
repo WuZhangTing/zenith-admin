@@ -1,59 +1,42 @@
 /**
  * 用户下拉选项 hook —— 统一从 /api/users/all 拉取人员并映射为 { label, value }。
  *
- * 进程级缓存 + 在途请求去重：多处同时使用（发起抄送人、审批转办/委派/加签、监控改派等）
- * 也只会真正请求一次。支持两种取数时机：
+ * 数据源复用 `hooks/queries/users.ts` 的 `allUsersQueryOptions`，缓存/在途去重/失效联动
+ * 全部由 TanStack Query 承担（此前是模块级 `let cache` + `let inflight` 手写实现，
+ * 与 useAllUsers 打同一端点却各存一份，且手写缓存永不失效——改了昵称要刷新整页才更新）。
+ *
+ * 支持两种取数时机：
  *   - immediate: true  → 挂载即加载（如发起页抄送人需要立即可选）
  *   - 默认 lazy       → 由调用方在需要时 await ensureLoaded()（如审批动作弹窗打开时）
  */
-import { useCallback, useEffect, useState } from 'react';
-import { request } from '@/utils/request';
+import { useCallback, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { allUsersQueryOptions, useAllUsers } from '@/hooks/queries/users';
 
 export interface UserOption {
   label: string;
   value: number;
 }
 
-let cache: UserOption[] | null = null;
-let inflight: Promise<UserOption[]> | null = null;
+const EMPTY_OPTIONS: UserOption[] = [];
 
-async function fetchUserOptions(): Promise<UserOption[]> {
-  if (cache) return cache;
-  if (inflight) return inflight;
-  inflight = request
-    .get<Array<{ id: number; nickname: string; username: string }>>('/api/users/all', { silent: true })
-    .then((res) => {
-      if (res.code === 0 && res.data) {
-        cache = res.data.map((u) => ({ label: u.nickname ?? u.username, value: u.id }));
-        return cache;
-      }
-      return [];
-    })
-    .catch(() => [])
-    .finally(() => { inflight = null; });
-  return inflight;
+function toOptions(users: Array<{ id: number; nickname: string; username: string }>): UserOption[] {
+  return users.map((u) => ({ label: u.nickname ?? u.username, value: u.id }));
 }
 
 export function useUserOptions(options?: { immediate?: boolean }) {
-  const immediate = options?.immediate ?? false;
-  const [userOptions, setUserOptions] = useState<UserOption[]>(cache ?? []);
-  const [loading, setLoading] = useState(false);
+  const [enabled, setEnabled] = useState(options?.immediate ?? false);
+  const queryClient = useQueryClient();
+  const { data, isPending } = useAllUsers({ enabled });
 
-  const ensureLoaded = useCallback(async () => {
-    if (cache) {
-      setUserOptions(cache);
-      return cache;
-    }
-    setLoading(true);
-    const opts = await fetchUserOptions();
-    setUserOptions(opts);
-    setLoading(false);
-    return opts;
-  }, []);
+  const userOptions = useMemo(() => (data ? toOptions(data) : EMPTY_OPTIONS), [data]);
 
-  useEffect(() => {
-    if (immediate) void ensureLoaded();
-  }, [immediate, ensureLoaded]);
+  // 命令式取数：拉起查询并返回结果，同时打开订阅让组件在数据到达后重渲染
+  const ensureLoaded = useCallback(async (): Promise<UserOption[]> => {
+    setEnabled(true);
+    const users = await queryClient.ensureQueryData(allUsersQueryOptions());
+    return toOptions(users);
+  }, [queryClient]);
 
-  return { userOptions, loading, ensureLoaded };
+  return { userOptions, loading: enabled && isPending, ensureLoaded };
 }

@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse } from '@zenith/shared/core';
 import type { User } from '@zenith/shared/identity';
 import { request } from '@/utils/request';
@@ -52,11 +52,17 @@ export const userKeys = {
 };
 
 /** 全量用户下拉源（角色分配、岗位成员、用户组等场景全局共享缓存） */
-export function useAllUsers(options?: { enabled?: boolean }) {
-  return useQuery({
+export function allUsersQueryOptions() {
+  return queryOptions({
     queryKey: userKeys.allUsers,
     queryFn: () => request.get<User[]>('/api/users/all').then(unwrap),
     staleTime: LOOKUP_STALE_TIME,
+  });
+}
+
+export function useAllUsers(options?: { enabled?: boolean }) {
+  return useQuery({
+    ...allUsersQueryOptions(),
     enabled: options?.enabled ?? true,
   });
 }

@@ -12,16 +12,13 @@ import { usePermission } from '@/hooks/usePermission';
 import {
   useCmsChannelTree, useAllCmsModels, useAllCmsSites, useSaveCmsChannel, useDeleteCmsChannel,
   useCmsThemeTemplates, useMergeCmsChannels, useClearCmsChannel, useBatchCreateCmsChannels,
-  useCmsChannelUsers, useSetCmsChannelUsers,
+  useCmsChannelUsers, useSetCmsChannelUsers, useCmsChannelSampleContent,
 } from '@/hooks/queries/cms';
 import { useAllUsers } from '@/hooks/queries/users';
-import { request } from '@/utils/request';
 import { slugifyName } from '@/utils/slug';
-import { unwrap } from '@/lib/query';
 import { confirmDelete as confirmDeleteModal } from '@/utils/confirm';
 import { CMS_CHANNEL_DETAIL_PATH_RULE_LABELS, CMS_CHANNEL_DETAIL_PATH_RULES, CMS_CHANNEL_STATIC_MODE_LABELS, CMS_CHANNEL_STATIC_MODES, CMS_CHANNEL_TYPE_LABELS } from '@zenith/shared/cms';
-import type { CmsChannel, CmsContent } from '@zenith/shared/cms';
-import type { PaginatedResponse } from '@zenith/shared/core';
+import type { CmsChannel } from '@zenith/shared/cms';
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 import { CmsWidgetSourceRefsSheet, type CmsWidgetSourceTarget } from './CmsWidgetSourceRefsSheet';
 
@@ -45,6 +42,7 @@ export default function ChannelsPage() {
   const { hasPermission } = usePermission();
   const formApi = useRef<FormApi | null>(null);
   const [siteId, setSiteId] = useState<number | undefined>(undefined);
+  const sampleContentMutation = useCmsChannelSampleContent();
 
   const treeQuery = useCmsChannelTree(siteId);
   const tree = useMemo(() => treeQuery.data ?? [], [treeQuery.data]);
@@ -196,9 +194,7 @@ export default function ChannelsPage() {
   async function previewDetailTemplate() {
     if (!currentSite || !editingRecord) return;
     const tpl = (formApi.current?.getValue('detailTemplate') as string | undefined) ?? '';
-    const data = await request
-      .get<PaginatedResponse<CmsContent>>(`/api/cms/contents?siteId=${currentSite.id}&channelId=${editingRecord.id}&status=published&page=1&pageSize=1`)
-      .then(unwrap)
+    const data = await sampleContentMutation.mutateAsync({ siteId: currentSite.id, channelId: editingRecord.id })
       .catch(() => null);
     const content = data?.list?.[0];
     if (!content) {

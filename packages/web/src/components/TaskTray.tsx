@@ -3,7 +3,7 @@ import { Badge, Button, Empty, Popover, Tag, Toast, Typography } from '@douyinfe
 import { IllustrationIdle, IllustrationIdleDark } from '@douyinfe/semi-illustrations';
 import { ListChecks } from 'lucide-react';
 import type { AsyncTask, AsyncTaskStatus } from '@zenith/shared/tasks';
-import { request } from '@/utils/request';
+import { useAsyncTaskAction } from '@/hooks/queries/async-tasks';
 import { useMyAsyncTasks } from '@/hooks/useAsyncTasks';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
 import { formatDateTime } from '@/utils/date';
@@ -41,14 +41,14 @@ export default function TaskTray() {
   );
   const activeCount = useMemo(() => tasks.filter((task) => ACTIVE_STATUSES.has(task.status)).length, [tasks]);
 
+  const cancelMutation = useAsyncTaskAction('cancel');
+
   const handleCancel = async (task: AsyncTask) => {
     setCancelingId(task.id);
     try {
-      const res = await request.post<AsyncTask>(`/api/async-tasks/${task.id}/cancel`);
-      if (res.code === 0) {
-        Toast.success('已请求取消');
-        void refresh({ silent: true });
-      }
+      await cancelMutation.mutateAsync(task.id);
+      Toast.success('已请求取消');
+      void refresh({ silent: true });
     } finally {
       setCancelingId(null);
     }

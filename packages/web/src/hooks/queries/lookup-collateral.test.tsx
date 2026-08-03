@@ -28,7 +28,8 @@ import {
   useSaveFileStorageConfig,
   useStorageBrowse,
 } from './file-storage-configs';
-import { identityProviderKeys, useIdentityProviderList, useIdentityProviderTenants, useSaveIdentityProvider } from './identity-providers';
+import { useIdentityProviderList, useIdentityProviderTenants, useSaveIdentityProvider } from './identity-providers';
+import { tenantKeys } from './tenants';
 import {
   paymentSharingKeys,
   useCreatePaymentSharingOrder,
@@ -136,7 +137,9 @@ describe('identity-providers：租户下拉源与身份源配置无关', () => {
     await waitFor(() => expect(result.current.list.isFetching).toBe(false));
 
     expect(api.countOf('GET', '/api/tenants/all')).toBe(0);
-    expect(isFresh(qc, identityProviderKeys.tenants)).toBe(true);
+    // 租户下拉已收敛到 tenants 域的共享 lookup（原先在 identityProviderKeys.tenants
+    // 下另存一份，与 AdminLayout 常驻的租户切换器重复请求同一端点）
+    expect(isFresh(qc, tenantKeys.allTenants)).toBe(true);
   });
 });
 

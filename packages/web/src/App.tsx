@@ -12,8 +12,9 @@ import { usePreferences } from '@/hooks/usePreferences';
 import { hasPostLoginHome, clearPostLoginHome } from '@/lib/post-login';
 import { ThemeProvider } from '@/providers/ThemeProvider';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { useQueryClient } from '@tanstack/react-query';
 import MaintenanceOverlay from '@/components/MaintenanceOverlay';
-import { config } from '@/config';
+import { maintenanceKeys, usePublicMaintenanceStatus } from '@/hooks/queries/maintenance';
 import { lazyPageComponent } from '@/utils/page-registry';
 import { useCurrentUserMenuTree, useMenuTree } from '@/hooks/queries/menus';
 import type { Menu, User } from '@zenith/shared/identity';
@@ -331,43 +332,19 @@ export default function App() {
     else resetIdentity();
   }, [user?.id, user?.username]);
 
-  interface MaintenanceInfo {
-    message: string;
-    estimatedEndAt: string | null;
-    startedAt: string | null;
-  }
-  const [maintenanceInfo, setMaintenanceInfo] = useState<MaintenanceInfo | null>(null);
+  // 维护状态收敛为单一查询（与超管横幅、维护遮罩共用缓存），
+  // 不再各自裸取 + 用本地 state 保存。auth 未就绪前不发起。
+  const { data: maintenance } = usePublicMaintenanceStatus({ enabled: status !== 'checking' });
+  const queryClient = useQueryClient();
+  const showMaintenance = !!maintenance?.enabled && !isSuperAdmin;
 
-  const handleMaintenanceResolved = useCallback(() => setMaintenanceInfo(null), []);
-
-  // Poll maintenance status once auth has resolved
-  const maintenanceCheckedRef = React.useRef(false);
+  // http-client 在 React 树之外拦截 503，只能靠事件通知；事件仅作失效触发器，
+  // 真实状态始终以服务端返回为准。
   useEffect(() => {
-    if (status === 'checking') return;
-    if (maintenanceCheckedRef.current) return;
-    maintenanceCheckedRef.current = true;
-    fetch(`${config.apiBaseUrl}/api/maintenance/status`)
-      .then((r) => r.json())
-      .then((data: { code: number; data: MaintenanceInfo & { enabled: boolean } }) => {
-        if (data.code === 0 && data.data?.enabled && !isSuperAdmin) {
-          setMaintenanceInfo(data.data);
-        }
-      })
-      .catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
-
-  // Listen for 503 events dispatched by request.ts
-  useEffect(() => {
-    const handler = (e: Event) => {
-      if (!isSuperAdmin) {
-        const detail = (e as CustomEvent<MaintenanceInfo>).detail;
-        setMaintenanceInfo(detail ?? { message: '系统维护中，请稍后重试', estimatedEndAt: null, startedAt: null });
-      }
-    };
+    const handler = () => void queryClient.invalidateQueries({ queryKey: maintenanceKeys.publicStatus });
     globalThis.addEventListener('maintenance:enabled', handler);
     return () => globalThis.removeEventListener('maintenance:enabled', handler);
-  }, [isSuperAdmin]);
+  }, [queryClient]);
 
   if (status === 'checking') {
     return <PageLoadingDots />;
@@ -387,8 +364,8 @@ export default function App() {
   return (
     <>
     <PageErrorBoundary>
-    {maintenanceInfo && (
-      <MaintenanceOverlay info={maintenanceInfo} onResolved={handleMaintenanceResolved} />
+    {showMaintenance && maintenance && (
+      <MaintenanceOverlay info={maintenance} />
     )}
     {/* Electron 自定义标题栏（登录页和内容页共用） */}
     <ElectronTitleBar />

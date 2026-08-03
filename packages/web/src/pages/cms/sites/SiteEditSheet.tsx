@@ -10,12 +10,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Banner, Button, Col, Form, Input, InputNumber, Modal, Row, Select, SideSheet, Switch, Tabs, TabPane, TextArea, Toast, Typography, Upload } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { ImageUp } from 'lucide-react';
-import { request } from '@/utils/request';
-import { unwrap } from '@/lib/query';
 import { usePermission } from '@/hooks/usePermission';
 import {
   useAllCmsModels, useAllCmsSites, useCmsSiteTemplateHealth, useCmsStaticBuild,
   useCmsThemeSettingsSchema, useCmsThemeTemplates, useCmsThemes, useSaveCmsSite,
+  useUploadCmsImage,
 } from '@/hooks/queries/cms';
 import { useCmsWidgetRenderers, useCmsWidgetSlots, usePublishedCmsWidgets, useSaveCmsWidgetSlot } from '@/hooks/queries/cms-widgets';
 import { useWorkflowDefinitionList } from '@/hooks/queries/workflow-definitions';
@@ -79,6 +78,7 @@ interface SiteEditSheetProps {
 export default function SiteEditSheet({ open, site, onClose }: Readonly<SiteEditSheetProps>) {
   const { hasPermission } = usePermission();
   const formApi = useRef<FormApi | null>(null);
+  const uploadCmsImage = useUploadCmsImage();
   const [activeTab, setActiveTab] = useState('basic');
   // 模板下拉跟随表单里实时选中的主题（Form 值不具备响应性，用 state 镜像）
   const [selectedTheme, setSelectedTheme] = useState('default');
@@ -340,9 +340,7 @@ export default function SiteEditSheet({ open, site, onClose }: Readonly<SiteEdit
                   try {
                     const formData = new FormData();
                     formData.append('file', fileInstance);
-                    const res = await request.postForm<{ url: string }>(
-                      `/api/cms/upload-image?siteId=${site.id}`, formData,
-                    ).then(unwrap);
+                    const res = await uploadCmsImage.mutateAsync({ siteId: site.id, formData });
                     themeConfigPatch(field.name, res.url);
                     onSuccess?.({});
                   } catch {

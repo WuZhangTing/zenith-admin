@@ -10,14 +10,13 @@ import { formatDateTimeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { useUploadFile } from '@/hooks/queries/files';
 import { config as appConfig } from '@/config';
-import { request } from '@/utils/request';
-import { unwrap } from '@/lib/query';
 import { confirmDanger } from '@/utils/confirm';
 import {
   useCmsContentDetail, useCmsChannelTree, useAllCmsModels, useAllCmsTags,
   useSaveCmsContent, useCmsContentAction, useCmsContentVersions, useRestoreCmsContentVersion,
   useCmsVersionDiff, useCmsPreviewLink, acquireCmsEditLock, releaseCmsEditLock, useCmsContentList,
   useAllCmsSites, useCmsThemeTemplates, useCmsContentOpLogs, useCmsCheckText, useUploadCmsResource,
+  useCheckCmsContentTitle, useUploadCmsImage,
 } from '@/hooks/queries/cms';
 import { CMS_CONTENT_STATUS_LABELS, CMS_CONTENT_TYPE_LABELS, CMS_CONTENT_TYPES, CMS_TITLE_STYLE_COLORS } from '@zenith/shared/cms';
 import type { CmsChannel, CmsModelField, CmsEditLock, CmsTextCheckResult, CmsContentType, CmsAlbumImage, CmsContentAttachment } from '@zenith/shared/cms';
@@ -163,6 +162,7 @@ export default function ContentEditPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const formApi = useRef<FormApi | null>(null);
+  const uploadCmsImage = useUploadCmsImage();
 
   const id = searchParams.get('id') ? Number(searchParams.get('id')) : undefined;
   const siteIdParam = searchParams.get('siteId') ? Number(searchParams.get('siteId')) : undefined;
@@ -193,17 +193,15 @@ export default function ContentEditPage() {
 
   // P4 标题查重：失焦时同站查重提示（不阻断保存）
   const lastCheckedTitle = useRef('');
+  const checkTitleMutation = useCheckCmsContentTitle();
   async function checkTitleDuplicate() {
     const title = String(formApi.current?.getValue('title') ?? '').trim();
     if (!title || !siteId || title === lastCheckedTitle.current) return;
     lastCheckedTitle.current = title;
     try {
-      const res = await request.get<{ duplicate: boolean; matches: { id: number; title: string; status: string }[] }>(
-        `/api/cms/contents/check-title?siteId=${siteId}&title=${encodeURIComponent(title)}${id ? `&excludeId=${id}` : ''}`,
-        { silent: true },
-      );
-      if (res.code === 0 && res.data?.duplicate) {
-        Toast.warning({ content: `本站已存在 ${res.data.matches.length} 条同名内容（如 #${res.data.matches[0].id}），请确认是否重复发布`, duration: 5 });
+      const res = await checkTitleMutation.mutateAsync({ siteId, title, excludeId: id ? Number(id) : undefined });
+      if (res?.duplicate) {
+        Toast.warning({ content: `本站已存在 ${res.matches.length} 条同名内容（如 #${res.matches[0].id}），请确认是否重复发布`, duration: 5 });
       }
     } catch {
       // 查重失败静默忽略（编辑辅助功能）
@@ -663,9 +661,7 @@ export default function ContentEditPage() {
                           try {
                             const formData = new FormData();
                             formData.append('file', fileInstance);
-                            const res = await request.postForm<{ url: string; thumbUrl: string | null }>(
-                              `/api/cms/upload-image?siteId=${siteId}`, formData,
-                            ).then(unwrap);
+                            const res = await uploadCmsImage.mutateAsync({ siteId, formData });
                             setAlbumImages((list) => [...list, { url: res.url, thumb: res.thumbUrl ?? null, caption: null }]);
                             dirtyRef.current = true;
                             onSuccess?.({});
@@ -888,9 +884,7 @@ export default function ContentEditPage() {
                             try {
                               const formData = new FormData();
                               formData.append('file', fileInstance);
-                              const res = await request.postForm<{ url: string; thumbUrl: string | null; watermarked: boolean }>(
-                                `/api/cms/upload-image?siteId=${siteId}`, formData,
-                              ).then(unwrap);
+                              const res = await uploadCmsImage.mutateAsync({ siteId, formData });
                               formApi.current?.setValue('coverImage', res.url);
                               dirtyRef.current = true;
                               Toast.success(res.watermarked ? '上传成功（已加水印）' : '上传成功');

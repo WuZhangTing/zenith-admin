@@ -1,73 +1,36 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
-import { request } from '@/utils/request';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  maintenanceKeys,
+  usePublicMaintenanceStatus,
+  useUpdateMaintenanceStatus,
+} from '@/hooks/queries/maintenance';
 
 // ─── 维护模式横幅（超管提示） ─────────────────────────────────────────
 export function useMaintenanceBanner(isSuperAdmin: boolean) {
-  const [maintenanceBannerEnabled, setMaintenanceBannerEnabled] = useState(false);
-  const [maintenanceBannerMsg, setMaintenanceBannerMsg] = useState('');
-  const [disablingMaintenance, setDisablingMaintenance] = useState(false);
+  const queryClient = useQueryClient();
+  const { data: status } = usePublicMaintenanceStatus({ enabled: isSuperAdmin });
+  const updateMutation = useUpdateMaintenanceStatus();
 
+  // http-client 在 React 树之外拦截 503，只能靠事件通知；这里把事件降级为纯失效触发器，
+  // 状态本身仍由查询缓存唯一持有（此前是各自 setState，导致多处状态可能不一致）。
   useEffect(() => {
     if (!isSuperAdmin) return;
-    request.get<{ enabled: boolean; message: string }>('/api/maintenance/status', { silent: true })
-      .then((res) => {
-        if (res.code === 0 && res.data?.enabled) {
-          setMaintenanceBannerEnabled(true);
-          setMaintenanceBannerMsg(res.data.message);
-        }
-      });
-  }, [isSuperAdmin]);
-
-  useEffect(() => {
-    if (!isSuperAdmin) return;
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent<{ message?: string } | null>).detail;
-      setMaintenanceBannerEnabled(true);
-      setMaintenanceBannerMsg(detail?.message ?? '系统维护中');
-    };
+    const handler = () => void queryClient.invalidateQueries({ queryKey: maintenanceKeys.publicStatus });
     globalThis.addEventListener('maintenance:enabled', handler);
     return () => globalThis.removeEventListener('maintenance:enabled', handler);
-  }, [isSuperAdmin]);
-
-  // 监听维护状态变更（由管理页面或横幅触发）
-  useEffect(() => {
-    if (!isSuperAdmin) return;
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent<{ enabled?: boolean; message?: string } | null>).detail;
-      if (detail?.enabled === false) {
-        setMaintenanceBannerEnabled(false);
-      } else if (detail?.enabled === true) {
-        setMaintenanceBannerEnabled(true);
-        setMaintenanceBannerMsg(detail?.message ?? '系统维护中');
-      } else {
-        // no detail — re-fetch
-        request.get<{ enabled: boolean; message: string }>('/api/maintenance/status', { silent: true })
-          .then((res) => {
-            if (res.code === 0) {
-              setMaintenanceBannerEnabled(res.data?.enabled ?? false);
-              if (res.data?.message) setMaintenanceBannerMsg(res.data.message);
-            }
-          });
-      }
-    };
-    globalThis.addEventListener('maintenance:statusChanged', handler);
-    return () => globalThis.removeEventListener('maintenance:statusChanged', handler);
-  }, [isSuperAdmin]);
+  }, [isSuperAdmin, queryClient]);
 
   const handleDisableMaintenance = useCallback(async () => {
-    setDisablingMaintenance(true);
-    try {
-      const res = await request.put<{ enabled: boolean }>('/api/maintenance', { enabled: false });
-      if (res.code === 0) {
-        setMaintenanceBannerEnabled(false);
-        Toast.success('维护模式已关闭');
-        globalThis.dispatchEvent(new CustomEvent('maintenance:statusChanged'));
-      }
-    } finally {
-      setDisablingMaintenance(false);
-    }
-  }, []);
+    await updateMutation.mutateAsync({ enabled: false });
+    Toast.success('维护模式已关闭');
+  }, [updateMutation]);
 
-  return { maintenanceBannerEnabled, maintenanceBannerMsg, disablingMaintenance, handleDisableMaintenance };
+  return {
+    maintenanceBannerEnabled: (status?.enabled ?? false) && isSuperAdmin,
+    maintenanceBannerMsg: status?.message ?? '系统维护中',
+    disablingMaintenance: updateMutation.isPending,
+    handleDisableMaintenance,
+  };
 }

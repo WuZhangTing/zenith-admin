@@ -15,7 +15,7 @@ import { useTabsStore } from '@/hooks/useTabsStore';
 import { TabsMetaContext } from '@/hooks/useTabMeta';
 import KeepAliveOutlet from './KeepAliveOutlet';
 import { useWorkflowRealtime } from '@/hooks/useWorkflowNotifications';
-import { request } from '@/utils/request';
+import { useMarkMyInAppMessageRead } from '@/hooks/queries/in-app-messages';
 import { config } from '@/config';
 import { renderLucideIcon } from '@/utils/icons';
 import NProgress from '@/components/NProgress';
@@ -302,11 +302,13 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
     else setTimeout(() => { void ensurePinyin(); }, 2000);
   }, []);
 
+  const markMyMessageRead = useMarkMyInAppMessageRead();
   const markAsRead = (id: number) => {
-    request.post(`/api/in-app-messages/${id}/read`, undefined, { silent: true }).then((res) => {
-      if (res.code !== 0) return;
-      setInAppMessages(updateMessageRead(id));
-      setUnreadCount((c) => Math.max(0, c - 1));
+    markMyMessageRead.mutate(id, {
+      onSuccess: () => {
+        setInAppMessages(updateMessageRead(id));
+        setUnreadCount((c) => Math.max(0, c - 1));
+      },
     });
   };
 
@@ -362,7 +364,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
     if (location.pathname.startsWith('/chat')) {
       setChatUnreadCount(0);
     }
-  }, [location.pathname]);
+  }, [location.pathname, setChatUnreadCount]);
 
   const effectiveTopKey = manualTopKey ?? autoTopKey;
 

@@ -1,34 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import { Select } from '@douyinfe/semi-ui';
 import type { CSSProperties } from 'react';
-import type { User } from '@zenith/shared/identity';
-import { request } from '@/utils/request';
-
-interface UserOption {
-  id: number;
-  nickname: string;
-  departmentName?: string | null;
-}
-
-let cache: UserOption[] | null = null;
-let inflight: Promise<UserOption[]> | null = null;
-
-async function loadUsers(): Promise<UserOption[]> {
-  if (cache) return cache;
-  if (!inflight) {
-    inflight = request
-      .get<User[]>('/api/users/all', { silent: true })
-      .then((res) => {
-        const list = res.code === 0 && res.data
-          ? res.data.map((u) => ({ id: u.id, nickname: u.nickname, departmentName: u.departmentName ?? null }))
-          : [];
-        cache = list;
-        return list;
-      })
-      .finally(() => { inflight = null; });
-  }
-  return inflight;
-}
+import { useAllUsers } from '@/hooks/queries/users';
 
 export interface UserSelectProps {
   value?: number | number[];
@@ -41,7 +14,7 @@ export interface UserSelectProps {
 }
 
 /**
- * 用户选择器 — 与系统用户体系集成，从 /api/users/all 拉取人员列表。
+ * 用户选择器 — 与系统用户体系集成，复用 useAllUsers 域 hook（/api/users/all）。
  * 支持单选 / 多选，可直接用于 Semi Form（withField 包裹）。
  */
 export default function UserSelect({
@@ -53,18 +26,15 @@ export default function UserSelect({
   showClear = true,
   style,
 }: Readonly<UserSelectProps>) {
-  const [options, setOptions] = useState<UserOption[]>(cache ?? []);
-  const [loading, setLoading] = useState(!cache);
+  const { data: users, isPending: loading } = useAllUsers();
 
-  useEffect(() => {
-    if (cache) { setOptions(cache); setLoading(false); return; }
-    let cancelled = false;
-    setLoading(true);
-    loadUsers().then((list) => {
-      if (!cancelled) { setOptions(list); setLoading(false); }
-    });
-    return () => { cancelled = true; };
-  }, []);
+  const optionList = useMemo(
+    () => (users ?? []).map((u) => ({
+      value: u.id,
+      label: u.departmentName ? `${u.nickname}（${u.departmentName}）` : u.nickname,
+    })),
+    [users],
+  );
 
   return (
     <Select
@@ -77,10 +47,7 @@ export default function UserSelect({
       showClear={showClear}
       maxTagCount={3}
       style={{ width: '100%', ...style }}
-      optionList={options.map((u) => ({
-        value: u.id,
-        label: u.departmentName ? `${u.nickname}（${u.departmentName}）` : u.nickname,
-      }))}
+      optionList={optionList}
     />
   );
 }

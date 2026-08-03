@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import { TreeSelect } from '@douyinfe/semi-ui';
 import type { CSSProperties } from 'react';
 import type { Department } from '@zenith/shared/identity';
-import { request } from '@/utils/request';
+import { useDepartmentTree } from '@/hooks/queries/departments';
 
 interface DeptTreeNode {
   label: string;
@@ -22,24 +22,6 @@ function deptToTree(list: Department[]): DeptTreeNode[] {
     }));
 }
 
-let cache: DeptTreeNode[] | null = null;
-let inflight: Promise<DeptTreeNode[]> | null = null;
-
-async function loadDepartments(): Promise<DeptTreeNode[]> {
-  if (cache) return cache;
-  if (!inflight) {
-    inflight = request
-      .get<Department[]>('/api/departments', { silent: true })
-      .then((res) => {
-        const tree = res.code === 0 && res.data ? deptToTree(res.data) : [];
-        cache = tree;
-        return tree;
-      })
-      .finally(() => { inflight = null; });
-  }
-  return inflight;
-}
-
 export interface DepartmentSelectProps {
   value?: number | number[];
   onChange?: (value: number | number[] | undefined) => void;
@@ -51,7 +33,7 @@ export interface DepartmentSelectProps {
 }
 
 /**
- * 部门选择器 — 与系统组织架构集成，从 /api/departments 拉取部门树。
+ * 部门选择器 — 与系统组织架构集成，复用 useDepartmentTree 域 hook（/api/departments）。
  * 支持单选 / 多选，可直接用于 Semi Form（withField 包裹）。
  */
 export default function DepartmentSelect({
@@ -63,18 +45,9 @@ export default function DepartmentSelect({
   showClear = true,
   style,
 }: Readonly<DepartmentSelectProps>) {
-  const [treeData, setTreeData] = useState<DeptTreeNode[]>(cache ?? []);
-  const [loading, setLoading] = useState(!cache);
+  const { data: departments, isPending: loading } = useDepartmentTree();
 
-  useEffect(() => {
-    if (cache) { setTreeData(cache); setLoading(false); return; }
-    let cancelled = false;
-    setLoading(true);
-    loadDepartments().then((tree) => {
-      if (!cancelled) { setTreeData(tree); setLoading(false); }
-    });
-    return () => { cancelled = true; };
-  }, []);
+  const treeData = useMemo(() => deptToTree(departments ?? []), [departments]);
 
   return (
     <TreeSelect
