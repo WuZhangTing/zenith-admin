@@ -4,6 +4,52 @@
 
 ---
 
+## v1.36.0 - 2026-08-03
+
+数据获取与索引专项：前端把绕过 TanStack Query 的裸 `request()` 取数收敛回域 hook，消除三处「手写进程级缓存 + 在途去重」与一处「四处独立取数 + CustomEvent 手工广播失效」；后端为身份/权限关联表补齐反向索引，修复联合主键左前缀之外的等值查询与级联删除退化为顺序扫描的问题。服务端 1595 项、前端 564 项测试全部通过，资金链路 DB 集成测试 15 项在真实 PostgreSQL 上通过，`npm run build` / `docs:build` / `build:demo` 三项构建均通过。
+
+### Fixed
+
+#### 身份/权限关联表缺少反向索引（`0002` 迁移）
+
+- `core.ts` 的 9 张身份/权限表此前没有任何显式索引。联合主键 `PK(a, b)` 只覆盖左前缀 `a`，按右列等值查询以及父表 `ON DELETE CASCADE` 触发的子表扫描均无索引可用
+- 补齐 9 个索引：`user_group_members.user_id`（`lib/permissions.ts` 与 `lib/data-scope.ts` 的权限解析热路径按 user_id 反查用户组，主键前导列却是 group_id）、`user_roles.role_id`、`user_positions.position_id`、`users.department_id`（工作流按部门/角色/岗位解析审批人、公告按部门圈选）、`role_menus.menu_id`、`user_menus.menu_id`、`user_group_roles.role_id`、`role_dept_scopes.dept_id`、`user_dept_scopes.dept_id`
+- PostgreSQL 17 实测（40 万行，模拟 `user_group_members` 形态按 user_id 反查）：建索引前走主键 skip scan，`Index Searches=502`、1606 buffers、3.220ms；建索引后 `Index Searches=1`、4 buffers、0.033ms，且退化程度随用户组数量线性增长
+- `tenantId` 未单独建索引：`users` / `roles` / `departments` / `positions` / `user_groups` 的 `UNIQUE(tenant_id, ...)` 约束已隐式提供以 `tenant_id` 为前导列的索引
+
+> 生产库若这几张表已有大量数据，建议先手工 `CREATE INDEX CONCURRENTLY` 再执行迁移，避免写锁。
+
+#### 共享下拉源双缓存导致数据陈旧
+
+- `UserSelect` / `useUserOptions` / `DepartmentSelect` 各自持有模块级 `let cache` + `let inflight`，与 `useAllUsers`（`/api/users/all`）、`useDepartmentTree`（`/api/departments`）打同一端点却各存一份。手写缓存**永不失效**，改了用户昵称或新建部门后下拉需整页刷新才更新——现统一复用域 hook，随用户/部门管理页的 `invalidateQueries` 一并刷新
+- 租户下拉此前在 `identityProviderKeys.tenants` 下另存一份，而租户切换器常驻 `AdminLayout`，两者会同时在线重复请求 `/api/tenants/all`；现收敛到 `tenants` 域共享 lookup
+
+### Changed
+
+#### 维护状态收敛为单一查询
+
+- 维护状态此前在 `App.tsx`、`MaintenanceOverlay`、`useMaintenanceBanner` 三处各取一次（前两处为裸 `fetch`），并靠 `maintenance:enabled` / `maintenance:statusChanged` 两个 `CustomEvent` 在 5 个文件间手工同步——等同于手写了一份 `invalidateQueries`
+- 新增 `usePublicMaintenanceStatus`（公开端点 `/api/maintenance/status`，与需权限的管理端 `/api/maintenance` 区分 key）作为唯一数据源；`http-client` 在 React 树之外拦截 503，故保留事件但降级为纯失效触发器
+- `MaintenanceOverlay` 的 `setInterval` 轮询改为查询的 `refetchInterval`，组件仅在维护期挂载，恢复后随卸载自动停止
+
+#### app shell 与页面取数改域 hook
+
+- `useSystemConfigFlags`（水印配置、快捷聊天开关）、`useTenantSwitch`、`useInAppNotifications` 由 `useEffect + request + useState` 改为域 hook；通知类 setter 底层换成 `setQueryData`，对外形状不变，`useLayoutWs` 的 WebSocket 推送无需改动
+- 写操作与上传改走 mutation：任务托盘取消任务 → `useAsyncTaskAction('cancel')`；CMS 图片上传 → `useUploadCmsImage`；工作流补偿附件 → `useUploadOneFile`
+- 新增域查询/变更：公告未读数与已发布公告、我的站内信与未读数、聊天未读数聚合、CMS 标题查重与栏目样例内容
+
+#### 数据获取白名单文档化
+
+- `docs/frontend/data-fetching.md` 的「不走 TanStack Query 的场景」补充两类并说明判据：**本地优先 + 防抖回写的单属主存储**（`PreferencesProvider` —— localStorage 必须同步提供初值否则主题闪烁，全站仅一个消费方）与**认证前置**（登录、重置密码、OAuth 回调、OAuth2 授权页）
+- 同时写明反例判据：手写进程缓存与 `CustomEvent` 广播失效是在重新实现 `staleTime` 与 `invalidateQueries`
+
+### Tests
+
+- `lookup-collateral.test.tsx` 的租户下拉断言跟随 key 收敛调整为 `tenantKeys.allTenants`，「保存身份源不波及租户下拉」的原意保持不变
+- mutation 广播失效基线由 377 收紧至 376（`profile.ts` 的漂移为 `b1f9ff391` 遗留，只减不增的护栏不会报错故一直未同步）
+
+---
+
 ## v1.35.0 - 2026-08-02
 
 巨型页面拆解专项：`FileManagerPage.tsx`（2071 行）与 `SitesPage.tsx`（1697 行）两个最大的前端单体组件重构为「装配层 + 页面私有 hooks/组件」结构，行为保持不变；顺带修复跨页缓存失效缺口与命令面板体验问题，settings 表单映射与文件工具函数补上 35 项单元测试。服务端 1595 项、前端 564 项测试全部通过，`npm run build` / `docs:build` / `build:demo` 三项构建均通过。
