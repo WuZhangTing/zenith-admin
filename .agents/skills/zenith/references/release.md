@@ -72,6 +72,20 @@ MEMBER_FUNDS_DB_IT=1 npx vitest run src/services/member/member-funds.it.test.ts
 
 > 本次发布涉及积分 / 钱包 / 优惠券 / 支付相关改动时，该集成测试**必须**运行并通过；其余改动 PG 不可用时可跳过。
 
+以及任务中心幂等作用域 DB 集成测试（跨租户 / 跨用户 / 跨任务类型的隔离由两个部分唯一索引保证，mock 验证不到）：
+
+```powershell
+# PowerShell（在 packages/server 目录执行）
+$env:TASK_IDEM_DB_IT='1'; npx vitest run src/lib/task-center/task-idempotency.it.test.ts
+```
+
+```bash
+# Bash（在 packages/server 目录执行）
+TASK_IDEM_DB_IT=1 npx vitest run src/lib/task-center/task-idempotency.it.test.ts
+```
+
+> 本次发布涉及任务中心 / 幂等 / 多租户相关改动时，该集成测试**必须**运行并通过。
+
 ---
 
 ## Step 5：本地构建验证
