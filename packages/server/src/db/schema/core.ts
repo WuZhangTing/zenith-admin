@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, primaryKey, unique, text, jsonb, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, primaryKey, unique, index, text, jsonb, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { statusEnum } from './common';
 
 export const menuTypeEnum = pgEnum('menu_type', ['directory', 'menu', 'button']);
@@ -133,6 +133,9 @@ export const users = pgTable('users', {
   unique('users_tenant_username_unique').on(t.tenantId, t.username),
   unique('users_tenant_email_unique').on(t.tenantId, t.email),
   unique('users_tenant_phone_unique').on(t.tenantId, t.phone),
+  // tenantId 不单独建索引：上面三个 UNIQUE 约束以 tenant_id 为前导列，已覆盖租户过滤。
+  // departmentId 无覆盖：工作流按部门解析审批人、公告按部门圈选、部门删除的 set null 级联都扫这一列。
+  index('users_department_idx').on(t.departmentId),
 ]);
 
 export type UserRow = typeof users.$inferSelect;
@@ -187,16 +190,24 @@ export type RoleRow = typeof roles.$inferSelect;
 export type NewRole = typeof roles.$inferInsert;
 
 // ─── 用户-角色关联表 ──────────────────────────────────────────────────────────
+// 关联表统一补「反向索引」：联合主键只覆盖左前缀（user_id），按右列（role_id）等值查询
+// 与父表 ON DELETE CASCADE 触发的子表扫描都无索引可用，行数上来后是顺序扫描。
 export const userRoles = pgTable('user_roles', {
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   roleId: integer('role_id').notNull().references(() => roles.id, { onDelete: 'cascade' }),
-}, (t) => [primaryKey({ columns: [t.userId, t.roleId] })]);
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.roleId] }),
+  index('user_roles_role_idx').on(t.roleId),
+]);
 
 // ─── 用户-岗位关联表 ──────────────────────────────────────────────────────────
 export const userPositions = pgTable('user_positions', {
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   positionId: integer('position_id').notNull().references(() => positions.id, { onDelete: 'cascade' }),
-}, (t) => [primaryKey({ columns: [t.userId, t.positionId] })]);
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.positionId] }),
+  index('user_positions_position_idx').on(t.positionId),
+]);
 
 // ─── 用户组表 ─────────────────────────────────────────────────────────────────
 export const userGroups = pgTable('user_groups', {
@@ -222,20 +233,31 @@ export const userGroupMembers = pgTable('user_group_members', {
   groupId: integer('group_id').notNull().references(() => userGroups.id, { onDelete: 'cascade' }),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [primaryKey({ columns: [t.groupId, t.userId] })]);
+}, (t) => [
+  primaryKey({ columns: [t.groupId, t.userId] }),
+  // 权限解析（lib/permissions.ts）与数据权限（lib/data-scope.ts）都按 user_id 反查用户组，
+  // 是全站最热的一条反向查询——主键前导列是 group_id，此处必须单独建索引。
+  index('user_group_members_user_idx').on(t.userId),
+]);
 
 // ─── 用户组-角色关联表 ────────────────────────────────────────────────────────
 // 用户组绑定角色后，组内成员自动继承这些角色的菜单/数据权限（与直接分配角色并集）。
 export const userGroupRoles = pgTable('user_group_roles', {
   groupId: integer('group_id').notNull().references(() => userGroups.id, { onDelete: 'cascade' }),
   roleId: integer('role_id').notNull().references(() => roles.id, { onDelete: 'cascade' }),
-}, (t) => [primaryKey({ columns: [t.groupId, t.roleId] })]);
+}, (t) => [
+  primaryKey({ columns: [t.groupId, t.roleId] }),
+  index('user_group_roles_role_idx').on(t.roleId),
+]);
 
 // ─── 角色-菜单关联表 ──────────────────────────────────────────────────────────
 export const roleMenus = pgTable('role_menus', {
   roleId: integer('role_id').notNull().references(() => roles.id, { onDelete: 'cascade' }),
   menuId: integer('menu_id').notNull().references(() => menus.id, { onDelete: 'cascade' }),
-}, (t) => [primaryKey({ columns: [t.roleId, t.menuId] })]);
+}, (t) => [
+  primaryKey({ columns: [t.roleId, t.menuId] }),
+  index('role_menus_menu_idx').on(t.menuId),
+]);
 
 // ─── 角色管理范围（部门）关联表 ───────────────────────────────────────────────
 // 用于工作流"角色作为审批人"时，按提交人所在部门 ∩ 角色管理范围过滤实际成员。
@@ -243,16 +265,25 @@ export const roleMenus = pgTable('role_menus', {
 export const roleDeptScopes = pgTable('role_dept_scopes', {
   roleId: integer('role_id').notNull().references(() => roles.id, { onDelete: 'cascade' }),
   deptId: integer('dept_id').notNull().references((): AnyPgColumn => departments.id, { onDelete: 'cascade' }),
-}, (t) => [primaryKey({ columns: [t.roleId, t.deptId] })]);
+}, (t) => [
+  primaryKey({ columns: [t.roleId, t.deptId] }),
+  index('role_dept_scopes_dept_idx').on(t.deptId),
+]);
 
 // ─── 用户-菜单直接授权关联表 ──────────────────────────────────────────────────
 export const userMenus = pgTable('user_menus', {
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   menuId: integer('menu_id').notNull().references(() => menus.id, { onDelete: 'cascade' }),
-}, (t) => [primaryKey({ columns: [t.userId, t.menuId] })]);
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.menuId] }),
+  index('user_menus_menu_idx').on(t.menuId),
+]);
 
 // ─── 用户数据权限范围（部门）关联表 ───────────────────────────────────────────
 export const userDeptScopes = pgTable('user_dept_scopes', {
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   deptId: integer('dept_id').notNull().references((): AnyPgColumn => departments.id, { onDelete: 'cascade' }),
-}, (t) => [primaryKey({ columns: [t.userId, t.deptId] })]);
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.deptId] }),
+  index('user_dept_scopes_dept_idx').on(t.deptId),
+]);

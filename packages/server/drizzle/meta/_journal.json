@@ -15,6 +15,13 @@
       "when": 1785415622680,
       "tag": "0001_extensions",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785760286282,
+      "tag": "0002_nervous_the_initiative",
+      "breakpoints": true
     }
   ]
 }
