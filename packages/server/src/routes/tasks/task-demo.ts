@@ -103,7 +103,7 @@ const submitRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/submit', tags: ['TaskDemo'], summary: '提交演示异步任务',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ audit: { description: '提交演示异步任务', module: '业务示例' } })] as const,
+    middleware: [authMiddleware, guard({ permission: 'biz:task-demo:submit', audit: { description: '提交演示异步任务', module: '业务示例' } })] as const,
     request: { body: { content: jsonContent(submitDemoTaskSchema), required: true } },
     responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交') },
   }),

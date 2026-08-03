@@ -1,0 +1,3 @@
+ALTER TABLE "async_tasks" DROP CONSTRAINT "uniq_async_tasks_idempotency_key";--> statement-breakpoint
+CREATE UNIQUE INDEX "async_tasks_idem_tenant_uq" ON "async_tasks" USING btree ("tenant_id","created_by","task_type","idempotency_key") WHERE "async_tasks"."idempotency_key" is not null and "async_tasks"."tenant_id" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "async_tasks_idem_platform_uq" ON "async_tasks" USING btree ("created_by","task_type","idempotency_key") WHERE "async_tasks"."idempotency_key" is not null and "async_tasks"."tenant_id" is null;

@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, unique, text, index, jsonb, uuid as pgUuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, unique, uniqueIndex, text, index, jsonb, uuid as pgUuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { auditColumns, tenants, users } from './core';
 import { managedFiles } from './files';
@@ -86,7 +86,13 @@ export const asyncTasks = pgTable('async_tasks', {
   maxAttempts: integer('max_attempts').notNull().default(1),
   /** 下次允许执行时间（自动重试退避）；null = 立即可执行 */
   nextRunAt: timestamp('next_run_at'),
-  /** 幂等键：相同 key 的重复提交返回已存在任务 */
+  /**
+   * 幂等键：相同 key 的重复提交返回已存在任务。
+   *
+   * 作用域是 (tenant_id, created_by, task_type, idempotency_key)，见下方唯一索引——
+   * 此前是单列全局唯一，任意租户的任意用户只要撞上 key 就能拿回别人的任务行
+   * （含 payload / result）。
+   */
   idempotencyKey: varchar('idempotency_key', { length: 128 }),
   /** 执行心跳（progress 更新时刷新），兜底扫描据此回收卡死任务 */
   heartbeatAt: timestamp('heartbeat_at'),
@@ -101,7 +107,16 @@ export const asyncTasks = pgTable('async_tasks', {
   index('async_tasks_status_idx').on(t.status),
   index('async_tasks_created_by_idx').on(t.createdBy),
   index('async_tasks_created_at_idx').on(t.createdAt),
-  unique('uniq_async_tasks_idempotency_key').on(t.idempotencyKey),
+  // 幂等键限定在「租户 + 提交人 + 任务类型」内唯一。
+  // tenant_id 可空（单租户模式恒为 null，多租户下平台级任务也为 null），而 PG 唯一约束
+  // 视 NULL 互不相等，直接建复合约束会让平台级任务的幂等彻底失效；故拆成互补的两个
+  // 部分索引（与 analytics_user_segments_{tenant,global}_name_uq 同一手法）。
+  uniqueIndex('async_tasks_idem_tenant_uq')
+    .on(t.tenantId, t.createdBy, t.taskType, t.idempotencyKey)
+    .where(sql`${t.idempotencyKey} is not null and ${t.tenantId} is not null`),
+  uniqueIndex('async_tasks_idem_platform_uq')
+    .on(t.createdBy, t.taskType, t.idempotencyKey)
+    .where(sql`${t.idempotencyKey} is not null and ${t.tenantId} is null`),
 ]);
 
 export type AsyncTaskRow = typeof asyncTasks.$inferSelect;

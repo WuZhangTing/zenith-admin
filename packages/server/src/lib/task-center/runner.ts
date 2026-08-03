@@ -74,22 +74,35 @@ export async function submitAsyncTask(
     }
   }
   const idempotencyKey = input.idempotencyKey?.slice(0, 128) || null;
+  const tenantId = getCreateTenantId(user);
   const values = {
     taskType: input.taskType,
     title: input.title?.slice(0, 128) || handler.title,
     payload: input.payload ?? {},
     maxAttempts: policy.maxAttempts,
     idempotencyKey,
-    tenantId: getCreateTenantId(user),
+    tenantId,
+    // 显式写入而非依赖 db Proxy 的审计注入：createdBy 是幂等作用域的一部分，
+    // 下面的冲突回查要按它过滤，作用域不能取决于别处的副作用。
+    createdBy: user.userId,
   };
   let row: AsyncTaskRow | undefined;
   if (idempotencyKey) {
+    // 唯一性由 async_tasks_idem_{tenant,platform}_uq 两个部分索引保证（按租户是否为空二选一），
+    // 故这里用不带 target 的 onConflictDoNothing，命中哪个索引都能兜住。
     [row] = await executor.insert(asyncTasks).values(values)
-      .onConflictDoNothing({ target: asyncTasks.idempotencyKey }).returning();
+      .onConflictDoNothing().returning();
     if (!row) {
-      // 幂等命中：返回已存在的任务
+      // 幂等命中：必须按完整作用域回查。只按 key 查会把别的租户/用户/任务类型的行
+      // 连同 payload、result 一起返回给调用方。
       const [existing] = await executor.select().from(asyncTasks)
-        .where(eq(asyncTasks.idempotencyKey, idempotencyKey)).limit(1);
+        .where(and(
+          eq(asyncTasks.idempotencyKey, idempotencyKey),
+          eq(asyncTasks.taskType, input.taskType),
+          eq(asyncTasks.createdBy, user.userId),
+          tenantId === null ? isNull(asyncTasks.tenantId) : eq(asyncTasks.tenantId, tenantId),
+        ))
+        .limit(1);
       if (existing) return existing;
       throw new HTTPException(500, { message: '任务提交异常，请重试' });
     }
