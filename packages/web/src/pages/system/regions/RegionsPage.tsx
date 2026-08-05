@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Form, Modal, Select, Spin, Toast, Switch } from '@douyinfe/semi-ui';
 import type { CascaderData } from '@douyinfe/semi-ui/lib/es/cascader';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import type { Region } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -14,6 +13,7 @@ import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { regionKeys, useDeleteRegion, useFlatRegions, useRegionDetail, useRegionTree, useSaveRegion } from '@/hooks/queries/regions';
+import { useEditModal } from '@/hooks/useEditModal';
 import { useListSearch } from '@/hooks/useListSearch';
 import { REGION_LEVEL_LABELS } from '@zenith/shared/platform';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
@@ -34,14 +34,11 @@ const defaultSearchParams: SearchParams = { keyword: '', status: '', level: '' }
 
 export default function RegionsPage() {
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
 
   const {
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: regionKeys.trees });
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRegion, setEditingRegion] = useState<Region | null>(null);
   const [editingLevel, setEditingLevel] = useState<string>('province');
   const [expandedRowKeys, setExpandedRowKeys] = useState<(string | number)[]>([]);
   const [tableHeight, setTableHeight] = useState(500);
@@ -55,12 +52,30 @@ export default function RegionsPage() {
     level: submittedParams.level || undefined,
   });
   const data = useMemo(() => treeQuery.data ?? [], [treeQuery.data]);
-  const flatQuery = useFlatRegions({ enabled: modalVisible });
+  const flatQuery = useFlatRegions();
   const flatData = useMemo(() => flatQuery.data ?? [], [flatQuery.data]);
-  const detailQuery = useRegionDetail(editingRegion?.id, modalVisible && !!editingRegion);
-  const activeRegion = editingRegion ? (detailQuery.data ?? editingRegion) : null;
-  const modalDetailLoading = !!editingRegion && detailQuery.isFetching;
   const saveMutation = useSaveRegion();
+  const regionModal = useEditModal<Region, Record<string, unknown>, Record<string, unknown>>({
+    entityName: '地区',
+    save: saveMutation,
+    useDetail: useRegionDetail,
+    defaults: { level: 'province', sort: 0, status: 'enabled' },
+    toValues: (region) => ({
+      code: region.code,
+      name: region.name,
+      level: region.level,
+      parentCode: buildCascaderPath(region.parentCode),
+      sort: region.sort,
+      status: region.status,
+    }),
+    beforeSave: (values) => {
+      const parentCodeArr = Array.isArray(values.parentCode) ? values.parentCode : [];
+      return {
+        ...values,
+        parentCode: values.level === 'province' ? null : (parentCodeArr.at(-1) ?? null),
+      };
+    },
+  });
   const toggleStatusMutation = useSaveRegion();
   const deleteMutation = useDeleteRegion();
   const togglingStatusId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
@@ -81,11 +96,8 @@ export default function RegionsPage() {
   }, []);
 
   useEffect(() => {
-    const detail = detailQuery.data;
-    if (!detail || !modalVisible || !editingRegion || detail.id !== editingRegion.id) return;
-    setEditingRegion(detail);
-    setEditingLevel(detail.level);
-  }, [detailQuery.data, editingRegion, modalVisible]);
+    if (regionModal.visible && regionModal.editing) setEditingLevel(regionModal.editing.level);
+  }, [regionModal.visible, regionModal.editing]);
 
   // 递归收集所有节点 ID
   const allRowKeys = useMemo(() => {
@@ -107,21 +119,13 @@ export default function RegionsPage() {
   }
 
   function openCreate() {
-    setEditingRegion(null);
     setEditingLevel('province');
-    setModalVisible(true);
+    regionModal.openCreate();
   }
 
   function openEdit(record: Region) {
-    setEditingRegion(record);
     setEditingLevel(record.level);
-    setModalVisible(true);
-  }
-
-  function closeModal() {
-    setModalVisible(false);
-    setEditingRegion(null);
-    setEditingLevel('province');
+    regionModal.openEdit(record);
   }
 
   // 构建 Cascader 树数据：省→市 两级
@@ -153,37 +157,6 @@ export default function RegionsPage() {
     if (target.level === 'province') return [target.code];
     if (target.level === 'city' && target.parentCode) return [target.parentCode, target.code];
     return [parentCode];
-  }
-
-  const formInitValues = activeRegion
-    ? {
-        code: activeRegion.code,
-        name: activeRegion.name,
-        level: activeRegion.level,
-        parentCode: buildCascaderPath(activeRegion.parentCode),
-        sort: activeRegion.sort,
-        status: activeRegion.status,
-      }
-    : { level: 'province', sort: 0, status: 'enabled' };
-
-  async function handleModalOk() {
-    let values;
-    try {
-      values = await formApi.current?.validate();
-    } catch {
-      throw new Error('validation');
-    }
-    if (!values) throw new Error('validation');
-
-    const parentCodeArr = Array.isArray(values.parentCode) ? values.parentCode : [];
-    const payload = {
-      ...values,
-      parentCode: values.level === 'province' ? null : (parentCodeArr.at(-1) ?? null),
-    };
-
-    await saveMutation.mutateAsync({ id: editingRegion?.id, values: payload });
-    Toast.success(editingRegion ? '更新成功' : '创建成功');
-    closeModal();
   }
 
   async function handleDelete(id: number) {
@@ -400,22 +373,9 @@ export default function RegionsPage() {
       />
       </div>
 
-      <AppModal
-        title={editingRegion ? '编辑地区' : '新增地区'}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={closeModal}
-        okButtonProps={{ disabled: modalDetailLoading }}
-        width={520}
-      >
-        <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form
-          key={editingRegion?.id ?? 'new'}
-          getFormApi={(api) => { formApi.current = api; }}
-          initValues={formInitValues}
-          labelPosition="left"
-          labelWidth={90}
-        >
+      <AppModal {...regionModal.modalProps} width={520}>
+        <Spin spinning={regionModal.detailLoading} wrapperClassName="modal-spin-wrapper">
+        <Form {...regionModal.formProps}>
           <Form.Select
             field="level"
             label="级别"

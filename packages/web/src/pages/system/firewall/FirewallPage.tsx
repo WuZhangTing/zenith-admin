@@ -1,13 +1,13 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Button, Form, Space, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { RefreshCw, Shield, ShieldOff } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import {
   useAddFirewallRule,
   useDeleteFirewallRule,
@@ -48,6 +48,10 @@ const STATUS_TYPE_LABELS: Record<FirewallStatus['type'], string> = {
 };
 const EMPTY_RULES: FirewallRule[] = [];
 
+interface FirewallRuleModalRecord {
+  id: number;
+}
+
 function FieldBlock({ label, children }: Readonly<{ label: string; children: ReactNode }>) {
   return (
     <div style={{ minWidth: 140 }}>
@@ -59,11 +63,9 @@ function FieldBlock({ label, children }: Readonly<{ label: string; children: Rea
 
 export default function FirewallPage() {
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi<AddFirewallRuleFormValues> | null>(null);
   const canManage = hasPermission('system:firewall:manage');
 
   const [keyword, setKeyword] = useState('');
-  const [modalVisible, setModalVisible] = useState(false);
   const statusQuery = useFirewallStatus();
   const rulesQuery = useFirewallRules();
   const addRuleMutation = useAddFirewallRule();
@@ -74,6 +76,26 @@ export default function FirewallPage() {
   const fetchAll = async () => {
     await Promise.all([statusQuery.refetch(), rulesQuery.refetch()]);
   };
+  const ruleModal = useEditModal<FirewallRuleModalRecord, AddFirewallRuleFormValues>({
+    entityName: '防火墙规则',
+    save: {
+      mutateAsync: async ({ values }) => {
+        await addRuleMutation.mutateAsync(values);
+        return { id: 0 };
+      },
+      isPending: addRuleMutation.isPending,
+    },
+    defaults: {
+      type: 'allow',
+      protocol: 'tcp',
+      port: '',
+      from: 'any',
+      to: 'any',
+      direction: 'in',
+      comment: '',
+    },
+    successMessage: () => '规则已添加',
+  });
 
   const filteredRules = useMemo(() => {
     const lowerKeyword = keyword.trim().toLowerCase();
@@ -88,28 +110,6 @@ export default function FirewallPage() {
       || (rule.comment ?? '').toLowerCase().includes(lowerKeyword)
     ));
   }, [keyword, rules]);
-
-  function openCreate() {
-    setModalVisible(true);
-  }
-
-  function closeModal() {
-    setModalVisible(false);
-    formApi.current?.reset();
-  }
-
-  async function handleSubmit() {
-    let values: AddFirewallRuleFormValues;
-    try {
-      values = await formApi.current?.validate() as AddFirewallRuleFormValues;
-    } catch {
-      throw new Error('validation');
-    }
-
-    await addRuleMutation.mutateAsync(values);
-    Toast.success('规则已添加');
-    closeModal();
-  }
 
   async function handleDelete(id: string) {
     await deleteRuleMutation.mutateAsync(id);
@@ -227,13 +227,13 @@ export default function FirewallPage() {
             <KeywordInput placeholder="搜索端口/来源/目标/备注" value={keyword} onChange={setKeyword} width={240} />
             <ResetButton onClick={() => { setKeyword(''); void fetchAll(); }} />
             <Button icon={<RefreshCw size={14} />} loading={rulesQuery.isFetching} onClick={() => void fetchAll()}>刷新</Button>
-            {canManage && <CreateButton onClick={openCreate}>新增规则</CreateButton>}
+            {canManage && <CreateButton onClick={ruleModal.openCreate}>新增规则</CreateButton>}
           </>
         )}
         mobilePrimary={(
           <>
             <KeywordInput placeholder="搜索端口/来源/目标/备注" value={keyword} onChange={setKeyword} width={240} />
-            {canManage && <CreateButton onClick={openCreate}>新增规则</CreateButton>}
+            {canManage && <CreateButton onClick={ruleModal.openCreate}>新增规则</CreateButton>}
           </>
         )}
         mobileActions={(
@@ -258,29 +258,11 @@ export default function FirewallPage() {
       />
 
       <AppModal
-        title="新增防火墙规则"
-        visible={modalVisible}
-        onCancel={closeModal}
-        onOk={handleSubmit}
+        {...ruleModal.modalProps}
         okText="保存"
         width={620}
-        okButtonProps={{ loading: addRuleMutation.isPending }}
-        closeOnEsc
       >
-        <Form<AddFirewallRuleFormValues>
-          getFormApi={(api) => { formApi.current = api; }}
-          initValues={{
-            type: 'allow',
-            protocol: 'tcp',
-            port: '',
-            from: 'any',
-            to: 'any',
-            direction: 'in',
-            comment: '',
-          }}
-          labelPosition="left"
-          labelWidth={90}
-        >
+        <Form {...ruleModal.formProps}>
           <Form.Select
             field="type"
             label="规则类型"

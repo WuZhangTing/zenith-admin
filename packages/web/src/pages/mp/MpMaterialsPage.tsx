@@ -1,10 +1,10 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Button, Form, Input, Modal, Select, Spin, Tag, Toast, Banner, Upload, Typography } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { RefreshCw, UploadCloud } from 'lucide-react';
 import { MP_MATERIAL_TYPE_LABELS, MP_MATERIAL_TYPE_OPTIONS } from '@zenith/shared/mp';
 import type { MpMaterial, MpMaterialType } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { useListSearch } from '@/hooks/useListSearch';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
@@ -53,9 +53,6 @@ export default function MpMaterialsPage() {
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<MpMaterial | null>(null);
-  const formRef = useRef<FormApi>(null);
   const [uploadVisible, setUploadVisible] = useState(false);
   const [uploadType, setUploadType] = useState<MpMaterialType>('image');
   const [uploadName, setUploadName] = useState('');
@@ -73,17 +70,15 @@ export default function MpMaterialsPage() {
     Toast.success(`同步完成：新增 ${data.created ?? 0}，更新 ${data.updated ?? 0}`);
   };
 
-  const openCreate = () => { setEditingRecord(null); setModalVisible(true); };
-  const openEdit = (record: MpMaterial) => { setEditingRecord(record); setModalVisible(true); };
-
-  const handleSubmit = async () => {
-    let values: Awaited<ReturnType<FormApi['validate']>>;
-    try { values = (await formRef.current?.validate())!; } catch { throw new Error('validation'); }
-    if (!currentId) return;
-    await saveMutation.mutateAsync({ id: editingRecord?.id, values: editingRecord ? { name: values.name } : { ...values, accountId: currentId } });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
-  };
+  const modal = useEditModal<MpMaterial, Record<string, unknown>>({
+    save: saveMutation,
+    defaults: { type: 'image', name: '', url: '' },
+    toValues: (record) => ({ name: record.name }),
+    beforeSave: (values, { isEdit }) => {
+      if (!currentId) throw new Error('validation');
+      return isEdit ? { name: values.name } : { ...values, accountId: currentId };
+    },
+  });
 
   const handleDelete = (record: MpMaterial) => {
     confirmDelete({
@@ -114,7 +109,7 @@ export default function MpMaterialsPage() {
       desktopInlineKeys: ['rename', 'delete'],
       menuAriaLabel: '素材操作',
       actions: (record) => [
-        { key: 'rename', label: '重命名', hidden: !can('mp:material:update'), onClick: () => openEdit(record) },
+        { key: 'rename', label: '重命名', hidden: !can('mp:material:update'), onClick: () => modal.openEdit(record) },
         { key: 'delete', label: '删除', danger: true, hidden: !can('mp:material:delete'), onClick: () => handleDelete(record) },
       ],
     }),
@@ -139,7 +134,7 @@ export default function MpMaterialsPage() {
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => can('mp:material:create') ? (
-    <CreateButton onClick={openCreate} disabled={!currentId} />
+    <CreateButton onClick={modal.openCreate} disabled={!currentId} />
   ) : null;
   const renderMaterialActions = () => {
     const syncButton = can('mp:material:sync') ? (
@@ -192,21 +187,14 @@ export default function MpMaterialsPage() {
       <ConfigurableTable bordered loading={listQuery.isFetching} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} columns={columns} dataSource={list} rowKey="id"
         pagination={buildPagination(total)} scroll={{ x: 1000 }} />
 
-      <AppModal title={editingRecord ? '重命名素材' : '新增素材'} visible={modalVisible}
-        onOk={handleSubmit} onCancel={() => { setModalVisible(false); setEditingRecord(null); }}
-        confirmLoading={saveMutation.isPending} width={520}>
-        <Spin spinning={false} wrapperClassName="modal-spin-wrapper">
-          <Form
-            key={editingRecord?.id ?? 'new'}
-            getFormApi={(api) => { (formRef as { current: FormApi }).current = api; }}
-            labelPosition="left" labelWidth={90}
-            initValues={editingRecord ? { name: editingRecord.name } : { type: 'image', name: '', url: '' }}
-          >
-            {!editingRecord && (
+      <AppModal {...modal.modalProps} title={modal.isEdit ? '重命名素材' : '新增素材'} width={520}>
+        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
+          <Form {...modal.formProps}>
+            {!modal.isEdit && (
               <Form.Select field="type" label="素材类型" style={{ width: '100%' }} optionList={MP_MATERIAL_TYPE_OPTIONS} />
             )}
             <Form.Input field="name" label="素材名称" placeholder="请输入素材名称" rules={[{ required: true, message: '请输入素材名称' }]} />
-            {!editingRecord && (
+            {!modal.isEdit && (
               <Form.Input field="url" label="素材URL" placeholder="图片/媒体可访问 URL（选填）" />
             )}
           </Form>

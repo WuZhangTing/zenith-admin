@@ -1,8 +1,7 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Form, Select, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { FolderTree, Star } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -12,6 +11,7 @@ import { ShareModal, VersionModal } from './components/DashboardOpsModals';
 import { formatDateTime } from '@/utils/date';
 import { renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import type { ReportDashboard, ReportWidget } from '@zenith/shared/report';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -44,7 +44,6 @@ export default function DashboardListPage() {
   const { items: statusItems } = useDictItems('common_status');
   const { hasPermission } = usePermission();
   const navigate = useNavigate();
-  const formApi = useRef<FormApi | null>(null);
   const queryClient = useQueryClient();
 
   const {
@@ -53,13 +52,8 @@ export default function DashboardListPage() {
     handleSearch, applySearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: reportDashboardKeys.lists });
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<ReportDashboard | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
   const [categorySheetVisible, setCategorySheetVisible] = useState(false);
-  const [categoryModalVisible, setCategoryModalVisible] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<(typeof categories)[number] | null>(null);
-  const categoryFormApi = useRef<FormApi | null>(null);
   const [shareTarget, setShareTarget] = useState<number | null>(null);
   const [versionTarget, setVersionTarget] = useState<number | null>(null);
 
@@ -95,29 +89,21 @@ export default function DashboardListPage() {
   const offlineMutation = useOfflineReportDashboard();
   const favTogglingId = favoriteMutation.isPending ? favoriteMutation.variables ?? null : null;
 
-  function openCreate() { setEditing(null); setModalVisible(true); }
-  function openEdit(record: ReportDashboard) { setEditing(record); setModalVisible(true); }
-  function closeModal() { setModalVisible(false); setEditing(null); }
-  function openCategoryCreate() { setEditingCategory(null); setCategoryModalVisible(true); }
-  function openCategoryEdit(record: (typeof categories)[number]) { setEditingCategory(record); setCategoryModalVisible(true); }
-  function closeCategoryModal() { setCategoryModalVisible(false); setEditingCategory(null); }
-
-  const formInitValues = editing
-    ? {
-        name: editing.name,
-        ownerId: editing.ownerId ?? undefined,
-        folderId: editing.folderId ?? undefined,
-        status: editing.status,
-        remark: editing.remark ?? '',
-        categoryId: editing.categoryId ?? undefined,
-      }
-    : { status: 'enabled' };
-
-  async function handleModalOk() {
-    let values: Record<string, unknown>;
-    try { values = await formApi.current?.validate() as Record<string, unknown>; }
-    catch { throw new Error('validation'); }
-    const payload: Record<string, unknown> = {
+  const dashboardModal = useEditModal<ReportDashboard, Record<string, unknown>>({
+    entityName: '仪表盘',
+    save: saveMutation,
+    defaults: { status: 'enabled' },
+    labelWidth: 72,
+    toValues: (record) => ({
+      name: record.name,
+      ownerId: record.ownerId ?? undefined,
+      folderId: record.folderId ?? undefined,
+      status: record.status,
+      remark: record.remark ?? '',
+      categoryId: record.categoryId ?? undefined,
+    }),
+    beforeSave: (values, { editing }) => {
+      const payload: Record<string, unknown> = {
       name: String(values.name ?? ''),
       ownerId: values.ownerId ? Number(values.ownerId) : null,
       folderId: values.folderId ? Number(values.folderId) : null,
@@ -125,15 +111,27 @@ export default function DashboardListPage() {
       remark: values.remark ? String(values.remark) : undefined,
       categoryId: values.categoryId == null ? null : Number(values.categoryId),
       expectedRevision: editing?.revision,
-    };
-    const saved = await saveMutation.mutateAsync({
-      id: editing?.id,
-      values: editing ? payload : { ...payload, layout: [], widgets: [] },
-    });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    closeModal();
-    if (!editing) navigate(`/report/dashboards/${saved.id}/design`);
-  }
+      };
+      return editing ? payload : { ...payload, layout: [], widgets: [] };
+    },
+    onSaved: (saved, { isEdit }) => {
+      if (!isEdit) navigate(`/report/dashboards/${saved.id}/design`);
+    },
+  });
+  type DashboardCategory = (typeof categories)[number];
+  const categoryModal = useEditModal<DashboardCategory, Record<string, unknown>>({
+    entityName: '分类',
+    save: saveCategoryMutation,
+    defaults: { name: '', sort: 0, remark: '' },
+    labelWidth: 72,
+    toValues: (record) => ({ name: record.name ?? '', sort: record.sort ?? 0, remark: record.remark ?? '' }),
+    beforeSave: (values) => ({
+      name: String(values.name ?? '').trim(),
+      sort: Number(values.sort ?? 0),
+      remark: values.remark ? String(values.remark) : undefined,
+    }),
+    successMessage: ({ isEdit }) => isEdit ? '分类更新成功' : '分类创建成功',
+  });
 
   async function handleDelete(id: number) {
     await deleteMutation.mutateAsync(id);
@@ -150,22 +148,6 @@ export default function DashboardListPage() {
   async function handleClone(record: ReportDashboard) {
     const cloned = await cloneMutation.mutateAsync({ id: record.id });
     Toast.success(`已复制为「${cloned.name}」`);
-  }
-
-  async function handleCategorySave() {
-    let values: Record<string, unknown>;
-    try { values = await categoryFormApi.current?.validate() as Record<string, unknown>; }
-    catch { throw new Error('validation'); }
-    await saveCategoryMutation.mutateAsync({
-      id: editingCategory?.id,
-      values: {
-        name: String(values.name ?? '').trim(),
-        sort: Number(values.sort ?? 0),
-        remark: values.remark ? String(values.remark) : undefined,
-      },
-    });
-    Toast.success(editingCategory ? '分类更新成功' : '分类创建成功');
-    closeCategoryModal();
   }
 
   async function handleCategoryDelete(record: (typeof categories)[number]) {
@@ -228,7 +210,7 @@ export default function DashboardListPage() {
         ...(hasPermission('report:dashboard:update') && record.lifecycleStatus === 'published' ? [{ key: 'offline', label: '下线', onClick: () => void handleOffline(record) }] : []),
         ...(hasPermission('report:dashboard:update') ? [{ key: 'share', label: '分享', onClick: () => setShareTarget(record.id) }] : []),
         ...(hasPermission('report:dashboard:update') ? [{ key: 'version', label: '版本', onClick: () => setVersionTarget(record.id) }] : []),
-        ...(hasPermission('report:dashboard:update') ? [{ key: 'edit', label: '编辑', onClick: () => openEdit(record) }] : []),
+        ...(hasPermission('report:dashboard:update') ? [{ key: 'edit', label: '编辑', onClick: () => dashboardModal.openEdit(record) }] : []),
         { key: 'governance', label: '权限与转移', onClick: () => navigate(`/report/governance?resourceType=dashboard&resourceId=${record.id}`) },
         ...(hasPermission('report:dashboard:create') ? [{ key: 'clone', label: '复制', onClick: () => void handleClone(record) }] : []),
         ...(hasPermission('report:dashboard:delete') ? [{ key: 'delete', label: '删除', danger: true, onClick: () => { confirmDelete({ content: '删除后不可恢复', onOk: () => handleDelete(record.id) }); } }] : []),
@@ -270,7 +252,7 @@ export default function DashboardListPage() {
   const renderSearchBtn = () => <SearchButton onClick={handleSearch} />;
   const renderResetBtn = () => <ResetButton onClick={handleReset} />;
   const renderCreateBtn = () => hasPermission('report:dashboard:create')
-    ? <CreateButton onClick={openCreate} /> : null;
+    ? <CreateButton onClick={dashboardModal.openCreate} /> : null;
   const renderCategoryManageBtn = () => hasPermission('report:dashboard:update')
     ? <Button icon={<FolderTree size={14} />} onClick={() => setCategorySheetVisible(true)}>分类管理</Button> : null;
   const renderCategoryFilter = () => (
@@ -313,15 +295,10 @@ export default function DashboardListPage() {
       />
 
       <AppModal
-        title={editing ? '编辑仪表盘' : '新增仪表盘'}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={closeModal}
-        okButtonProps={{ loading: saveMutation.isPending }}
+        {...dashboardModal.modalProps}
         width={520}
-        closeOnEsc
       >
-        <Form key={editing?.id ?? 'new'} getFormApi={(api) => { formApi.current = api; }} initValues={formInitValues} labelPosition="left" labelWidth={72}>
+        <Form {...dashboardModal.formProps}>
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={64} showClear />
           <Form.Select field="ownerId" label="负责人" filter showClear style={{ width: '100%' }}
             optionList={users.map((u) => ({ value: u.id, label: u.nickname || u.username }))} />
@@ -348,7 +325,7 @@ export default function DashboardListPage() {
       >
         <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 12 }}>
           <Typography.Text type="tertiary">删除已引用分类时，相关仪表盘分类会自动置空。</Typography.Text>
-          {hasPermission('report:dashboard:update') ? <CreateButton onClick={openCategoryCreate}>新增分类</CreateButton> : null}
+          {hasPermission('report:dashboard:update') ? <CreateButton onClick={categoryModal.openCreate}>新增分类</CreateButton> : null}
         </Space>
         <ConfigurableTable
           bordered
@@ -366,7 +343,7 @@ export default function DashboardListPage() {
               width: 160,
               desktopInlineKeys: ['edit'],
               actions: (record) => [
-                ...(hasPermission('report:dashboard:update') ? [{ key: 'edit', label: '编辑', onClick: () => openCategoryEdit(record) }] : []),
+                ...(hasPermission('report:dashboard:update') ? [{ key: 'edit', label: '编辑', onClick: () => categoryModal.openEdit(record) }] : []),
                 ...(hasPermission('report:dashboard:update') ? [{ key: 'delete', label: '删除', danger: true, onClick: () => void handleCategoryDelete(record) }] : []),
               ],
             }),
@@ -375,20 +352,10 @@ export default function DashboardListPage() {
       </SideSheet>
 
       <AppModal
-        title={editingCategory ? '编辑分类' : '新增分类'}
-        visible={categoryModalVisible}
-        onOk={handleCategorySave}
-        onCancel={closeCategoryModal}
-        okButtonProps={{ loading: saveCategoryMutation.isPending }}
+        {...categoryModal.modalProps}
         width={520}
       >
-        <Form
-          key={editingCategory?.id ?? 'category-new'}
-          getFormApi={(api) => { categoryFormApi.current = api; }}
-          initValues={{ name: editingCategory?.name ?? '', sort: editingCategory?.sort ?? 0, remark: editingCategory?.remark ?? '' }}
-          labelPosition="left"
-          labelWidth={72}
-        >
+        <Form {...categoryModal.formProps}>
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入分类名称' }]} maxLength={64} showClear />
           <Form.InputNumber field="sort" label="排序" min={0} max={9999} />
           <Form.TextArea field="remark" label="备注" maxLength={256} autosize={{ minRows: 2, maxRows: 4 }} />

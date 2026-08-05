@@ -1,10 +1,10 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Avatar, Button, Form, Space, Spin, Tag, Toast, Banner } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { RefreshCw } from 'lucide-react';
 import type { MpKfAccount } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -42,9 +42,6 @@ export default function MpKfAccountsPage() {
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<MpKfAccount | null>(null);
-  const formRef = useRef<FormApi>(null);
   const syncMutation = useSyncMpKfAccounts();
   const saveMutation = useSaveMpKfAccount();
   const deleteMutation = useDeleteMpKfAccount();
@@ -67,20 +64,15 @@ export default function MpKfAccountsPage() {
     Toast.success('同步完成');
   };
 
-  const openCreate = () => { setEditingRecord(null); setModalVisible(true); };
-  const openEdit = (record: MpKfAccount) => { setEditingRecord(record); setModalVisible(true); };
-
-  const handleSubmit = async () => {
-    let values: Awaited<ReturnType<FormApi['validate']>>;
-    try { values = (await formRef.current?.validate())!; } catch { throw new Error('validation'); }
-    if (!currentId) return;
-    await saveMutation.mutateAsync({
-      id: editingRecord?.id,
-      values: editingRecord ? { nickname: values.nickname } : { accountId: currentId, kfAccount: values.kfAccount, nickname: values.nickname },
-    });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
-  };
+  const modal = useEditModal<MpKfAccount, { kfAccount: string; nickname: string }, Record<string, unknown>>({
+    save: saveMutation,
+    defaults: { kfAccount: '', nickname: '' },
+    toValues: (record) => ({ kfAccount: record.kfAccount, nickname: record.nickname }),
+    beforeSave: (values, { isEdit }) => {
+      if (!currentId) throw new Error('validation');
+      return isEdit ? { nickname: values.nickname } : { accountId: currentId, kfAccount: values.kfAccount, nickname: values.nickname };
+    },
+  });
 
   const handleDelete = (record: MpKfAccount) => {
     confirmDelete({
@@ -115,7 +107,7 @@ export default function MpKfAccountsPage() {
       desktopInlineKeys: ['edit', 'delete'],
       menuAriaLabel: '多客服操作',
       actions: (record) => [
-        { key: 'edit', label: '编辑', hidden: !can('mp:kf:update'), onClick: () => openEdit(record) },
+        { key: 'edit', label: '编辑', hidden: !can('mp:kf:update'), onClick: () => modal.openEdit(record) },
         { key: 'delete', label: '删除', danger: true, hidden: !can('mp:kf:delete'), onClick: () => handleDelete(record) },
       ],
     }),
@@ -130,7 +122,7 @@ export default function MpKfAccountsPage() {
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => can('mp:kf:create') ? (
-    <CreateButton onClick={openCreate} disabled={!currentId}>添加客服</CreateButton>
+    <CreateButton onClick={modal.openCreate} disabled={!currentId}>添加客服</CreateButton>
   ) : null;
   const renderSyncButton = () => can('mp:kf:sync') ? (
     <Button icon={<RefreshCw size={14} />} loading={syncMutation.isPending} disabled={!currentId} onClick={() => void handleSync()}>从微信同步</Button>
@@ -171,17 +163,10 @@ export default function MpKfAccountsPage() {
       <ConfigurableTable bordered loading={listQuery.isFetching} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} columns={columns} dataSource={list} rowKey="id"
         pagination={buildPagination(total)} scroll={{ x: 1000 }} />
 
-      <AppModal title={editingRecord ? '编辑客服' : '添加客服'} visible={modalVisible}
-        onOk={handleSubmit} onCancel={() => { setModalVisible(false); setEditingRecord(null); }}
-        confirmLoading={saveMutation.isPending} width={520}>
-        <Spin spinning={false} wrapperClassName="modal-spin-wrapper">
-          <Form
-            key={editingRecord?.id ?? 'new'}
-            getFormApi={(api) => { (formRef as { current: FormApi }).current = api; }}
-            labelPosition="left" labelWidth={90}
-            initValues={editingRecord ? { kfAccount: editingRecord.kfAccount, nickname: editingRecord.nickname } : { kfAccount: '', nickname: '' }}
-          >
-            <Form.Input field="kfAccount" label="客服账号" disabled={!!editingRecord}
+      <AppModal {...modal.modalProps} title={modal.isEdit ? '编辑客服' : '添加客服'} width={520}>
+        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
+          <Form {...modal.formProps}>
+            <Form.Input field="kfAccount" label="客服账号" disabled={modal.isEdit}
               placeholder="形如 kf2001@公众号微信号" rules={[{ required: true, message: '请输入客服账号' }]} />
             <Form.Input field="nickname" label="客服昵称" placeholder="请输入客服昵称" rules={[{ required: true, message: '请输入客服昵称' }]} />
           </Form>

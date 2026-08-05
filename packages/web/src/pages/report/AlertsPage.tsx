@@ -1,7 +1,6 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import { Button, Col, Form, Modal, Row, Select, SideSheet, Switch, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -10,6 +9,7 @@ import AppModal from '@/components/AppModal';
 import { formatDateTime } from '@/utils/date';
 import { renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import {
   useAcknowledgeReportAlertRun,
   useBatchReportAlertEnabled,
@@ -85,7 +85,6 @@ function formatRule(record: ReportAlertRule) {
 export default function AlertsPage() {
   const { items: statusItems } = useDictItems('common_status');
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
@@ -100,8 +99,6 @@ export default function AlertsPage() {
   );
   const metrics = metricsQuery.data ?? [];
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<ReportAlertRule | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
   const [historyTarget, setHistoryTarget] = useState<ReportAlertRule | null>(null);
   const [selectedDatasetId, setSelectedDatasetId] = useState<number | null>(null);
@@ -109,9 +106,6 @@ export default function AlertsPage() {
   const [selectedAggregate, setSelectedAggregate] = useState<ReportAlertAggregate>('sum');
   const [selectedChannels, setSelectedChannels] = useState<Array<'email' | 'inApp' | 'webhook'>>(['inApp']);
   const [cronExprValue, setCronExprValue] = useState('');
-  const selectedDatasetDetailQuery = useReportDatasetDetail(selectedDatasetId ?? undefined, modalVisible && !!selectedDatasetId);
-  const selectedFields = selectedDatasetDetailQuery.data?.fields ?? [];
-
   const listQuery = useReportAlertList({
     page,
     pageSize,
@@ -130,54 +124,53 @@ export default function AlertsPage() {
   const historyQuery = useReportAlertHistory(historyTarget?.id, !!historyTarget);
   const togglingId = toggleMutation.isPending ? toggleMutation.variables?.id ?? null : null;
 
+  const alertModal = useEditModal<ReportAlertRule, Record<string, unknown>, CreateReportAlertInput>({
+    entityName: '预警',
+    save: saveMutation,
+    defaults: { sourceType: 'dataset', aggregate: 'sum', op: 'gt', cron: '', timezone: 'Asia/Shanghai', misfirePolicy: 'fire_once', channels: ['inApp'], silenceMins: 60, notifyOnRecover: false, enabled: 'enabled' },
+    toValues: (record) => ({
+      name: record.name,
+      datasetId: record.datasetId,
+      metricId: record.metricId ?? undefined,
+      sourceType: record.metricId ? 'metric' : 'dataset',
+      aggregate: record.aggregate,
+      field: record.field ?? undefined,
+      groupByField: record.groupByField ?? undefined,
+      op: record.op,
+      threshold: record.threshold,
+      cron: record.cron ?? '',
+      timezone: record.timezone,
+      misfirePolicy: record.misfirePolicy,
+      channels: record.channels,
+      recipients: record.recipients ?? '',
+      webhookUrl: record.webhookUrl ?? '',
+      silenceMins: record.silenceMins ?? 60,
+      notifyOnRecover: record.notifyOnRecover ?? false,
+      enabled: record.enabled ? 'enabled' : 'disabled',
+      remark: record.remark ?? '',
+    }),
+    beforeSave: buildPayload,
+  });
+  const selectedDatasetFieldsQuery = useReportDatasetDetail(selectedDatasetId ?? undefined, alertModal.visible && !!selectedDatasetId);
+  const selectedFields = selectedDatasetFieldsQuery.data?.fields ?? [];
+
   function openCreate() {
-    setEditing(null);
     setSelectedDatasetId(null);
     setSourceType('dataset');
     setSelectedAggregate('sum');
     setSelectedChannels(['inApp']);
     setCronExprValue('');
-    setModalVisible(true);
+    alertModal.openCreate();
   }
 
   function openEdit(record: ReportAlertRule) {
-    setEditing(record);
     setSelectedDatasetId(record.datasetId);
     setSourceType(record.metricId ? 'metric' : 'dataset');
     setSelectedAggregate(record.aggregate);
     setSelectedChannels(record.channels);
     setCronExprValue(record.cron ?? '');
-    setModalVisible(true);
+    alertModal.openEdit(record);
   }
-
-  function closeModal() {
-    setModalVisible(false);
-    setEditing(null);
-  }
-
-  const initValues = editing
-    ? {
-        name: editing.name,
-        datasetId: editing.datasetId,
-        metricId: editing.metricId ?? undefined,
-        sourceType: editing.metricId ? 'metric' : 'dataset',
-        aggregate: editing.aggregate,
-        field: editing.field ?? undefined,
-        groupByField: editing.groupByField ?? undefined,
-        op: editing.op,
-        threshold: editing.threshold,
-        cron: editing.cron ?? '',
-        timezone: editing.timezone,
-        misfirePolicy: editing.misfirePolicy,
-        channels: editing.channels,
-        recipients: editing.recipients ?? '',
-        webhookUrl: editing.webhookUrl ?? '',
-        silenceMins: editing.silenceMins ?? 60,
-        notifyOnRecover: editing.notifyOnRecover ?? false,
-        enabled: editing.enabled ? 'enabled' : 'disabled',
-        remark: editing.remark ?? '',
-      }
-    : { sourceType: 'dataset', aggregate: 'sum', op: 'gt', cron: '', timezone: 'Asia/Shanghai', misfirePolicy: 'fire_once', channels: ['inApp'], silenceMins: 60, notifyOnRecover: false, enabled: 'enabled' };
 
   function buildPayload(values: Record<string, unknown>): CreateReportAlertInput {
     const aggregate = values.aggregate as ReportAlertAggregate;
@@ -204,19 +197,6 @@ export default function AlertsPage() {
     };
   }
 
-  async function handleOk() {
-    let values: Record<string, unknown>;
-    try { values = await formApi.current?.validate() as Record<string, unknown>; } catch { throw new Error('validation'); }
-    const payload = buildPayload(values);
-    try {
-      await saveMutation.mutateAsync({ id: editing?.id, values: payload });
-      Toast.success(editing ? '更新成功' : '创建成功');
-      closeModal();
-    } catch (error) {
-      Toast.error(error instanceof Error ? error.message : '保存失败');
-      throw error;
-    }
-  }
 
   function handleToggleEnabled(record: ReportAlertRule, checked: boolean) {
     const doToggle = async () => {
@@ -405,17 +385,17 @@ export default function AlertsPage() {
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} pagination={buildPagination(data?.total ?? 0)}
       />
 
-      <AppModal title={editing ? '编辑预警' : '新增预警'} visible={modalVisible} onOk={handleOk} onCancel={closeModal} okButtonProps={{ loading: saveMutation.isPending }} width={900} closeOnEsc>
-        <Form key={editing?.id ?? 'new'} getFormApi={(api) => { formApi.current = api; }} initValues={initValues} labelPosition="left" labelWidth={90}
+      <AppModal {...alertModal.modalProps} width={900}>
+        <Form {...alertModal.formProps}
           onValueChange={(values) => {
             const nextDatasetId = values.datasetId ? Number(values.datasetId) : null;
             if (nextDatasetId !== selectedDatasetId) {
               setSelectedDatasetId(nextDatasetId);
-              formApi.current?.setValue('field', undefined);
+              alertModal.formApi.current?.setValue('field', undefined);
             }
             const nextAggregate = (values.aggregate ?? 'sum') as ReportAlertAggregate;
             setSelectedAggregate(nextAggregate);
-            if (nextAggregate === 'count') formApi.current?.setValue('field', undefined);
+            if (nextAggregate === 'count') alertModal.formApi.current?.setValue('field', undefined);
             setSelectedChannels(((values.channels ?? []) as Array<'email' | 'inApp' | 'webhook'>));
             if (typeof values.cron === 'string') setCronExprValue(values.cron);
           }}
@@ -431,7 +411,7 @@ export default function AlertsPage() {
                   const next = value as 'dataset' | 'metric';
                   setSourceType(next);
                   const reset = switchAlertSource(next);
-                  Object.entries(reset).forEach(([key, item]) => formApi.current?.setValue(key, item));
+                  Object.entries(reset).forEach(([key, item]) => alertModal.formApi.current?.setValue(key, item));
                   setSelectedDatasetId(null);
                 }} />
             </Col>
@@ -479,7 +459,7 @@ export default function AlertsPage() {
                   <CronBuilderPopover
                     value={cronExprValue}
                     onApply={(expression) => {
-                      formApi.current?.setValue('cron', expression);
+                      alertModal.formApi.current?.setValue('cron', expression);
                       setCronExprValue(expression);
                     }}
                   />

@@ -23,6 +23,7 @@ import {
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete as confirmDeleteModal } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 const typeOptions = (Object.keys(COUPON_TYPE_LABELS) as CouponType[]).map((v) => ({ value: v, label: COUPON_TYPE_LABELS[v] }));
 const statusOptions = (Object.keys(COUPON_TEMPLATE_STATUS_LABELS) as CouponTemplateStatus[]).map((v) => ({ value: v, label: COUPON_TEMPLATE_STATUS_LABELS[v] }));
@@ -45,7 +46,6 @@ interface FormValues {
 
 export default function CouponsPage() {
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi<FormValues> | null>(null);
   const issueFormApi = useRef<FormApi | null>(null);
   const {
     page, pageSize, buildPagination,
@@ -53,8 +53,6 @@ export default function CouponsPage() {
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: {}, listKey: memberAdminKeys.couponLists });
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<Coupon | null>(null);
   const [formType, setFormType] = useState<CouponType>('amount');
   const [formValidType, setFormValidType] = useState<'fixed' | 'relative'>('fixed');
 
@@ -73,43 +71,27 @@ export default function CouponsPage() {
   const deleteMutation = useDeleteCoupon();
   const issueMutation = useIssueCoupon();
 
-  const openCreate = () => {
-    setEditing(null);
-    setFormType('amount');
-    setFormValidType('fixed');
-    setModalVisible(true);
-  };
-  const openEdit = (r: Coupon) => {
-    setEditing(r);
-    setFormType(r.type);
-    setFormValidType(r.validType);
-    setModalVisible(true);
-  };
-
-  const initValues = (): Partial<FormValues> => {
-    if (!editing) return { type: 'amount', validType: 'fixed', status: 'draft', threshold: 0, totalQuantity: 0, perLimit: 0, exchangePoints: 0 };
-    return {
-      name: editing.name,
-      type: editing.type,
-      faceValue: editing.type === 'amount' ? editing.faceValue / 100 : editing.faceValue,
-      threshold: editing.threshold / 100,
-      maxDiscount: editing.maxDiscount ? editing.maxDiscount / 100 : undefined,
-      totalQuantity: editing.totalQuantity,
-      perLimit: editing.perLimit,
-      exchangePoints: editing.exchangePoints ?? 0,
-      validType: editing.validType,
-      validStart: editing.validStart ?? undefined,
-      validEnd: editing.validEnd ?? undefined,
-      validDays: editing.validDays ?? undefined,
-      status: editing.status,
-      description: editing.description ?? undefined,
-    };
-  };
-
-  const handleSubmit = async () => {
-    let v: FormValues;
-    try { v = await formApi.current!.validate(); } catch { throw new Error('validation'); }
-    const payload = {
+  const couponModal = useEditModal<Coupon, FormValues, Record<string, unknown>>({
+    entityName: '优惠券',
+    save: saveMutation,
+    defaults: { type: 'amount', validType: 'fixed', status: 'draft', threshold: 0, totalQuantity: 0, perLimit: 0, exchangePoints: 0 },
+    toValues: (record) => ({
+      name: record.name,
+      type: record.type,
+      faceValue: record.type === 'amount' ? record.faceValue / 100 : record.faceValue,
+      threshold: record.threshold / 100,
+      maxDiscount: record.maxDiscount ? record.maxDiscount / 100 : undefined,
+      totalQuantity: record.totalQuantity,
+      perLimit: record.perLimit,
+      exchangePoints: record.exchangePoints ?? 0,
+      validType: record.validType,
+      validStart: record.validStart ?? undefined,
+      validEnd: record.validEnd ?? undefined,
+      validDays: record.validDays ?? undefined,
+      status: record.status,
+      description: record.description ?? undefined,
+    }),
+    beforeSave: (v) => ({
       name: v.name,
       type: v.type,
       status: v.status,
@@ -124,10 +106,19 @@ export default function CouponsPage() {
       validStart: v.validType === 'fixed' && v.validStart ? formatDateTimeForApi(v.validStart) : undefined,
       validEnd: v.validType === 'fixed' && v.validEnd ? formatDateTimeForApi(v.validEnd) : undefined,
       validDays: v.validType === 'relative' ? v.validDays ?? null : null,
-    };
-    await saveMutation.mutateAsync({ id: editing?.id, values: payload });
-    Toast.success(editing ? '已更新' : '已创建');
-    setModalVisible(false);
+    }),
+    successMessage: ({ isEdit }) => (isEdit ? '已更新' : '已创建'),
+    labelWidth: 130,
+  });
+  const openCreate = () => {
+    setFormType('amount');
+    setFormValidType('fixed');
+    couponModal.openCreate();
+  };
+  const openEdit = (r: Coupon) => {
+    setFormType(r.type);
+    setFormValidType(r.validType);
+    couponModal.openEdit(r);
   };
 
   const handleDelete = async (id: number) => {
@@ -247,11 +238,9 @@ export default function CouponsPage() {
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} rowKey="id" size="small"
         pagination={buildPagination(total)} empty="暂无优惠券" scroll={{ x: 1200 }} />
 
-      <AppModal title={editing ? '编辑优惠券' : '新增优惠券'} visible={modalVisible} width={700}
-        onCancel={() => setModalVisible(false)} onOk={handleSubmit}>
-        <Form<FormValues> key={editing?.id ?? 'new'} getFormApi={(api) => { formApi.current = api; }}
-          initValues={initValues() as FormValues} labelPosition="left" labelWidth={130}
-          onValueChange={(values) => { if (values.type) setFormType(values.type); if (values.validType) setFormValidType(values.validType); }}>
+      <AppModal {...couponModal.modalProps} width={700}>
+        <Form {...couponModal.formProps}
+          onValueChange={(values) => { if (values.type) setFormType(values.type as CouponType); if (values.validType) setFormValidType(values.validType as 'fixed' | 'relative'); }}>
           <Row gutter={16}>
             <Col span={24}>
               <Form.Input field="name" label="券名称" rules={[{ required: true, message: '请输入券名称' }]} maxLength={64} />

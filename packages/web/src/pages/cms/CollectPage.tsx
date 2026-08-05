@@ -1,14 +1,14 @@
 /** 采集中心：规则 CRUD + 任务中心执行 + 采集明细（P3 Batch5） */
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Form, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { usePagination } from '@/hooks/usePagination';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { useMyAsyncTasks } from '@/hooks/useAsyncTasks';
@@ -47,15 +47,28 @@ export default function CollectPage() {
   const [keywordDraft, setKeywordDraft] = useState('');
   const [keyword, setKeyword] = useState('');
   const { page, pageSize, buildPagination, resetPage } = usePagination();
-  const formApi = useRef<FormApi | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<CmsCollectRule | null>(null);
   const [itemsRule, setItemsRule] = useState<CmsCollectRule | null>(null);
   const [itemsPage, setItemsPage] = useState(1);
 
   const listQuery = useCmsCollectRules({ page, pageSize, siteId, ...(keyword ? { keyword } : {}) });
   const treeQuery = useCmsChannelTree(siteId);
   const saveMutation = useSaveCmsCollectRule();
+  const modal = useEditModal<CmsCollectRule, Partial<CmsCollectRule>, Record<string, unknown>>({
+    entityName: '采集规则',
+    save: saveMutation,
+    defaults: { pageStart: 1, pageEnd: 1, maxItems: 50, autoPublish: false, localizeImages: false, status: 'enabled', removeSelectors: [] },
+    labelWidth: 110,
+    toValues: (record) => ({
+      channelId: record.channelId, name: record.name, listUrl: record.listUrl, pageStart: record.pageStart, pageEnd: record.pageEnd,
+      listSelector: record.listSelector, titleSelector: record.titleSelector, bodySelector: record.bodySelector, summarySelector: record.summarySelector ?? '',
+      coverSelector: record.coverSelector ?? '', removeSelectors: record.removeSelectors, autoPublish: record.autoPublish, localizeImages: record.localizeImages,
+      maxItems: record.maxItems, status: record.status, remark: record.remark ?? '',
+    }),
+    beforeSave: (values, { isEdit }) => {
+      if (!isEdit && !siteId) throw new Error('validation');
+      return { ...values, ...(!isEdit ? { siteId } : {}) };
+    },
+  });
   const deleteMutation = useDeleteCmsCollectRule();
   const runMutation = useRunCmsCollectRule();
   const itemsQuery = useCmsCollectItems(itemsRule?.id, { page: itemsPage, pageSize: 10 });
@@ -75,55 +88,11 @@ export default function CollectPage() {
     void qc.invalidateQueries({ queryKey: cmsCollectKeys.lists });
   }
 
-  function openCreate() {
-    setEditingRecord(null);
-    setModalVisible(true);
-  }
-
-  function openEdit(record: CmsCollectRule) {
-    setEditingRecord(record);
-    setModalVisible(true);
-  }
-
-  async function handleModalOk() {
-    let values: Record<string, unknown>;
-    try {
-      values = (await formApi.current?.validate()) ?? {};
-    } catch {
-      throw new Error('validation');
-    }
-    if (!editingRecord) values.siteId = siteId;
-    await saveMutation.mutateAsync({ id: editingRecord?.id, values });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
-  }
-
   async function handleRun(record: CmsCollectRule) {
     await runMutation.mutateAsync(record.id);
     Toast.success('采集任务已提交');
     refreshTasks();
   }
-
-  const initValues = editingRecord
-    ? {
-        channelId: editingRecord.channelId,
-        name: editingRecord.name,
-        listUrl: editingRecord.listUrl,
-        pageStart: editingRecord.pageStart,
-        pageEnd: editingRecord.pageEnd,
-        listSelector: editingRecord.listSelector,
-        titleSelector: editingRecord.titleSelector,
-        bodySelector: editingRecord.bodySelector,
-        summarySelector: editingRecord.summarySelector ?? '',
-        coverSelector: editingRecord.coverSelector ?? '',
-        removeSelectors: editingRecord.removeSelectors,
-        autoPublish: editingRecord.autoPublish,
-        localizeImages: editingRecord.localizeImages,
-        maxItems: editingRecord.maxItems,
-        status: editingRecord.status,
-        remark: editingRecord.remark ?? '',
-      }
-    : { pageStart: 1, pageEnd: 1, maxItems: 50, autoPublish: false, localizeImages: false, status: 'enabled', removeSelectors: [] };
 
   const columns: ColumnProps<CmsCollectRule>[] = [
     { title: '规则名称', dataIndex: 'name', width: 160 },
@@ -171,7 +140,7 @@ export default function CollectPage() {
         ...(hasPermission('cms:collect:update') ? [{
           key: 'edit',
           label: '编辑',
-          onClick: () => openEdit(record),
+          onClick: () => modal.openEdit(record),
         }] : []),
         ...(hasPermission('cms:collect:delete') ? [{
           key: 'delete',
@@ -218,7 +187,7 @@ export default function CollectPage() {
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />
         {hasPermission('cms:collect:create') ? (
-          <CreateButton onClick={openCreate} />
+          <CreateButton onClick={modal.openCreate} />
         ) : null}
       </SearchToolbar>
 
@@ -240,16 +209,8 @@ export default function CollectPage() {
         refreshLoading={listQuery.isFetching}
       />
 
-      <AppModal
-        title={editingRecord ? '编辑采集规则' : '新增采集规则'}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={() => setModalVisible(false)}
-        okButtonProps={{ loading: saveMutation.isPending }}
-        width={640}
-        closeOnEsc
-      >
-        <Form key={editingRecord?.id ?? 'new'} getFormApi={(api) => { formApi.current = api; }} allowEmpty initValues={initValues} labelPosition="left" labelWidth={110}>
+      <AppModal {...modal.modalProps} width={640}>
+        <Form {...modal.formProps}>
           <Form.Input field="name" label="规则名称" rules={[{ required: true, message: '请输入规则名称' }]} />
           <Form.TreeSelect field="channelId" label="目标栏目" style={{ width: '100%' }}
             treeData={channelsToSelectTree(treeQuery.data ?? [])}

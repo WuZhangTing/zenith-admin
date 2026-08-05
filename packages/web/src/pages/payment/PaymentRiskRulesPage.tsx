@@ -1,9 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { useQueryClient } from '@tanstack/react-query';
 import { Form, Modal, Select, Switch, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -12,6 +11,7 @@ import { formatDateTime } from '@/utils/date';
 import { createdAtColumn } from '@/utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import {
   paymentRiskKeys,
   useApprovePaymentRiskReview,
@@ -61,7 +61,6 @@ export default function PaymentRiskRulesPage() {
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
   const canReview = hasPermission('payment:risk:review');
-  const formApi = useRef<FormApi | null>(null);
   const [activeTab, setActiveTab] = useState<'rules' | 'hits' | 'reviews'>('rules');
 
   // ── 规则 ──
@@ -70,8 +69,6 @@ export default function PaymentRiskRulesPage() {
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentRiskKeys.lists });
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<PaymentRiskRule | null>(null);
   const [scopeWatch, setScopeWatch] = useState<PaymentRiskScope>('global');
 
   // ── 拦截记录 ──
@@ -125,31 +122,25 @@ export default function PaymentRiskRulesPage() {
   function handleReviewSearch() { setRPage(1); setSubmittedReviewParams({ keyword: reviewKeyword, status: reviewStatus }); void queryClient.invalidateQueries({ queryKey: paymentRiskKeys.reviewLists }); }
   function handleReviewReset() { setReviewKeyword(''); setReviewStatus(''); setRPage(1); setSubmittedReviewParams({ keyword: '', status: '' }); void queryClient.invalidateQueries({ queryKey: paymentRiskKeys.reviewLists }); }
 
-  function openCreate() { setEditing(null); setScopeWatch('global'); setModalVisible(true); }
-  function openEdit(record: PaymentRiskRule) { setEditing(record); setScopeWatch(record.scope); setModalVisible(true); }
-  function closeModal() { setModalVisible(false); setEditing(null); }
-
-  const formInit: Partial<RiskFormValues> = editing
-    ? {
-        name: editing.name,
-        scope: editing.scope,
-        channel: editing.channel ?? undefined,
-        bizType: editing.bizType ?? undefined,
-        singleYuan: editing.singleLimit != null ? editing.singleLimit / 100 : undefined,
-        dailyYuan: editing.dailyLimit != null ? editing.dailyLimit / 100 : undefined,
-        dailyCountLimit: editing.dailyCountLimit ?? undefined,
-        blocklist: editing.blocklist ?? [],
-        allowlist: editing.allowlist ?? [],
-        action: editing.action,
-        status: editing.status,
-        remark: editing.remark ?? '',
-      }
-    : { scope: 'global', status: 'enabled', action: 'block', blocklist: [], allowlist: [] };
-
-  async function handleOk() {
-    let values: RiskFormValues;
-    try { values = (await formApi.current?.validate()) as RiskFormValues; } catch { throw new Error('validation'); }
-    const payload = {
+  const modal = useEditModal<PaymentRiskRule, RiskFormValues, Partial<PaymentRiskRule>>({
+    entityName: '风控规则',
+    save: saveMutation,
+    defaults: { scope: 'global', status: 'enabled', action: 'block', blocklist: [], allowlist: [] },
+    toValues: (record) => ({
+      name: record.name,
+      scope: record.scope,
+      channel: record.channel ?? undefined,
+      bizType: record.bizType ?? undefined,
+      singleYuan: record.singleLimit != null ? record.singleLimit / 100 : undefined,
+      dailyYuan: record.dailyLimit != null ? record.dailyLimit / 100 : undefined,
+      dailyCountLimit: record.dailyCountLimit ?? undefined,
+      blocklist: record.blocklist ?? [],
+      allowlist: record.allowlist ?? [],
+      action: record.action,
+      status: record.status,
+      remark: record.remark ?? '',
+    }),
+    beforeSave: (values) => ({
       name: values.name,
       scope: values.scope,
       channel: values.scope === 'channel' ? values.channel : undefined,
@@ -162,11 +153,12 @@ export default function PaymentRiskRulesPage() {
       action: values.action ?? 'block',
       status: values.status,
       remark: values.remark || undefined,
-    };
-    await saveMutation.mutateAsync({ id: editing?.id, values: payload });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    closeModal();
-  }
+    }),
+    labelWidth: 100,
+  });
+
+  function openCreate() { setScopeWatch('global'); modal.openCreate(); }
+  function openEdit(record: PaymentRiskRule) { setScopeWatch(record.scope); modal.openEdit(record); }
 
   async function handleToggle(record: PaymentRiskRule, checked: boolean) {
     await toggleMutation.mutateAsync({ id: record.id, values: { status: checked ? 'enabled' : 'disabled' } });
@@ -405,13 +397,9 @@ export default function PaymentRiskRulesPage() {
         </TabPane>
       </Tabs>
 
-      <AppModal title={editing ? '编辑风控规则' : '新增风控规则'} visible={modalVisible} onOk={handleOk} onCancel={closeModal} okButtonProps={{ loading: saveMutation.isPending }} width={700} closeOnEsc>
+      <AppModal {...modal.modalProps} width={700}>
         <Form
-          key={editing?.id ?? 'new'}
-          getFormApi={(api) => { formApi.current = api; }}
-          initValues={formInit}
-          labelPosition="left"
-          labelWidth={100}
+          {...modal.formProps}
           onValueChange={(v) => { if (v.scope && v.scope !== scopeWatch) setScopeWatch(v.scope as PaymentRiskScope); }}
         >
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 16 }}>

@@ -1,6 +1,5 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Banner, Button, Col, Empty, Form, Row, Tag, Toast, Typography } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportEnvironment, ReportEnvironmentPromotion, ReportPromotionStatus, ReportResourceType } from '@zenith/shared/report';
 import { Rocket } from 'lucide-react';
@@ -10,6 +9,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { useReportAssetCatalog } from '@/hooks/queries/report-assets';
 import {
   useCreateReportPromotion,
@@ -38,11 +38,7 @@ const promotionStatusColor: Record<ReportPromotionStatus, 'grey' | 'blue' | 'gre
 
 export default function GovernanceEnvironmentTab() {
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const { page, pageSize, buildPagination } = usePagination();
-  const [environmentModal, setEnvironmentModal] = useState(false);
-  const [editingEnvironment, setEditingEnvironment] = useState<ReportEnvironment | null>(null);
-  const [promotionModal, setPromotionModal] = useState(false);
   const [promotionType, setPromotionType] = useState<ReportResourceType>('dashboard');
 
   const environmentsQuery = useReportEnvironmentList();
@@ -53,45 +49,44 @@ export default function GovernanceEnvironmentTab() {
   const createPromotionMutation = useCreateReportPromotion();
   const transitionMutation = useTransitionReportPromotion();
 
+  const environmentModal = useEditModal<ReportEnvironment, Record<string, unknown>>({
+    entityName: '环境',
+    save: saveEnvironmentMutation,
+    defaults: { kind: 'development', config: '{}', status: 'enabled', isDefault: false },
+    toValues: (record) => ({ ...record, config: JSON.stringify(record.config, null, 2) }),
+    beforeSave: (values) => ({
+      ...values,
+      description: values.description || null,
+      baseUrl: values.baseUrl || null,
+      config: parseJsonObject(String(values.config ?? '{}'), '环境配置'),
+      isDefault: Boolean(values.isDefault),
+    }),
+    successMessage: ({ isEdit }) => isEdit ? '环境已更新' : '环境已创建',
+  });
   const openEnvironment = (record?: ReportEnvironment) => {
-    setEditingEnvironment(record ?? null);
-    setEnvironmentModal(true);
+    if (record) environmentModal.openEdit(record);
+    else environmentModal.openCreate();
   };
-  const saveEnvironment = async () => {
-    try {
-      const values = await formApi.current!.validate();
-      await saveEnvironmentMutation.mutateAsync({
-        id: editingEnvironment?.id,
-        values: {
-          ...values,
-          description: values.description || null,
-          baseUrl: values.baseUrl || null,
-          config: parseJsonObject(String(values.config ?? '{}'), '环境配置'),
-          isDefault: Boolean(values.isDefault),
-        },
-      });
-      Toast.success(editingEnvironment ? '环境已更新' : '环境已创建');
-      setEnvironmentModal(false);
-    } catch (error) {
-      Toast.error(error instanceof Error ? error.message : '环境保存失败');
-    }
-  };
-  const createPromotion = async () => {
-    try {
-      const values = await formApi.current!.validate();
-      await createPromotionMutation.mutateAsync({
-        resourceType: values.resourceType,
+  const promotionModal = useEditModal<ReportEnvironmentPromotion, Record<string, unknown>, Parameters<typeof createPromotionMutation.mutateAsync>[0]>({
+    save: {
+      isPending: createPromotionMutation.isPending,
+      mutateAsync: ({ values }) => createPromotionMutation.mutateAsync(values),
+    },
+    defaults: { resourceType: 'dashboard', sourceRevision: 1, sourceSnapshot: '{}' },
+    labelWidth: 100,
+    beforeSave: (values) => ({
+        resourceType: values.resourceType as ReportResourceType,
         resourceId: Number(values.resourceId),
         sourceEnvironmentId: Number(values.sourceEnvironmentId),
         targetEnvironmentId: Number(values.targetEnvironmentId),
         sourceRevision: Number(values.sourceRevision),
         sourceSnapshot: parseJsonObject(String(values.sourceSnapshot), '来源快照'),
-      });
-      Toast.success('环境发布已创建');
-      setPromotionModal(false);
-    } catch (error) {
-      Toast.error(error instanceof Error ? error.message : '环境发布创建失败');
-    }
+    }),
+    successMessage: () => '环境发布已创建',
+  });
+  const openPromotion = () => {
+    setPromotionType('dashboard');
+    promotionModal.openCreate();
   };
   const transition = (record: ReportEnvironmentPromotion, action: 'approve' | 'deploy' | 'cancel' | 'rollback') => {
     const dangerous = ['cancel', 'rollback'].includes(action);
@@ -154,7 +149,7 @@ export default function GovernanceEnvironmentTab() {
     <>
       <SearchToolbar>
         {hasPermission('report:environment:create') ? <CreateButton onClick={() => openEnvironment()}>新增环境</CreateButton> : null}
-        {hasPermission('report:environment:promote') ? <Button icon={<Rocket size={14} />} onClick={() => setPromotionModal(true)}>创建发布</Button> : null}
+        {hasPermission('report:environment:promote') ? <Button icon={<Rocket size={14} />} onClick={openPromotion}>创建发布</Button> : null}
       </SearchToolbar>
       {environmentsQuery.isError && <Banner type="danger" description="环境列表加载失败" />}
       <ConfigurableTable bordered rowKey="id" columns={environmentColumns} dataSource={environmentsQuery.data ?? []} loading={environmentsQuery.isFetching} empty={<Empty title="暂无环境" />} pagination={false} onRefresh={() => void environmentsQuery.refetch()} refreshLoading={environmentsQuery.isFetching} />
@@ -162,11 +157,11 @@ export default function GovernanceEnvironmentTab() {
       {promotionsQuery.isError && <Banner type="danger" description="环境发布历史加载失败" />}
       <ConfigurableTable bordered rowKey="id" columns={promotionColumns} dataSource={promotionsQuery.data?.list ?? []} loading={promotionsQuery.isFetching} empty={<Empty title="暂无环境发布" />} pagination={buildPagination(promotionsQuery.data?.total ?? 0)} onRefresh={() => void promotionsQuery.refetch()} refreshLoading={promotionsQuery.isFetching} />
 
-      <AppModal title={editingEnvironment ? '编辑环境' : '新增环境'} visible={environmentModal} width={650} confirmLoading={saveEnvironmentMutation.isPending} onOk={() => void saveEnvironment()} onCancel={() => setEnvironmentModal(false)} closeOnEsc>
-        <Form key={editingEnvironment?.id ?? 'create'} getFormApi={(api) => { formApi.current = api; }} labelPosition="left" labelWidth={90} initValues={editingEnvironment ? { ...editingEnvironment, config: JSON.stringify(editingEnvironment.config, null, 2) } : { kind: 'development', config: '{}', status: 'enabled', isDefault: false }}>
+      <AppModal {...environmentModal.modalProps} width={650}>
+        <Form {...environmentModal.formProps}>
           <Row gutter={16}>
             <Col xs={24} md={12}><Form.Input field="name" label="环境名称" rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.Input field="code" label="环境编码" disabled={!!editingEnvironment} rules={[{ required: true }]} /></Col>
+            <Col xs={24} md={12}><Form.Input field="code" label="环境编码" disabled={environmentModal.isEdit} rules={[{ required: true }]} /></Col>
             <Col xs={24} md={12}><Form.Select field="kind" label="环境类型" style={{ width: '100%' }} optionList={environmentKindOptions} rules={[{ required: true }]} /></Col>
             <Col xs={24} md={12}><Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={[{ value: 'enabled', label: '启用' }, { value: 'disabled', label: '停用' }]} /></Col>
           </Row>
@@ -177,8 +172,8 @@ export default function GovernanceEnvironmentTab() {
         </Form>
       </AppModal>
 
-      <AppModal title="创建环境发布" visible={promotionModal} width={680} confirmLoading={createPromotionMutation.isPending} onOk={() => void createPromotion()} onCancel={() => setPromotionModal(false)} closeOnEsc>
-        <Form getFormApi={(api) => { formApi.current = api; }} labelPosition="left" labelWidth={100} initValues={{ resourceType: 'dashboard', sourceRevision: 1, sourceSnapshot: '{}' }}>
+      <AppModal {...promotionModal.modalProps} title="创建环境发布" width={680}>
+        <Form {...promotionModal.formProps}>
           <Row gutter={16}>
             <Col xs={24} md={12}><Form.Select field="resourceType" label="资源类型" style={{ width: '100%' }} optionList={REPORT_RESOURCE_TYPE_OPTIONS} rules={[{ required: true }]} onChange={(v) => setPromotionType(v as ReportResourceType)} /></Col>
             <Col xs={24} md={12}><Form.Select field="resourceId" label="资源" filter style={{ width: '100%' }} optionList={(assetsQuery.data?.list ?? []).map((item) => ({ value: item.resourceId, label: item.name }))} rules={[{ required: true }]} /></Col>

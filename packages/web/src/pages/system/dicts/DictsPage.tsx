@@ -27,6 +27,7 @@ import ExportButton from '@/components/ExportButton';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { usePagination } from '@/hooks/usePagination';
+import { useEditModal } from '@/hooks/useEditModal';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { NavListPanel, NavListItem } from '@/components/NavListPanel';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -52,7 +53,6 @@ import { confirmDelete } from '@/utils/confirm';
 export default function DictsPage() {
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
-  const dictFormApi = useRef<FormApi | null>(null);
   const itemFormApi = useRef<FormApi | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const jsonViewerRef = useRef<any>(null);
@@ -62,9 +62,6 @@ export default function DictsPage() {
   const [keyword, setKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
   const { page, pageSize, setPage, setPageSize } = usePagination();
-  const [dictModalVisible, setDictModalVisible] = useState(false);
-  const [editingDictRecord, setEditingDictRecord] = useState<Dict | null>(null);
-
   // ─── 字典项列表 ────────────────────────────────────────────────────────────
   const [selectedDict, setSelectedDict] = useState<Dict | null>(null);
   const [itemModalVisible, setItemModalVisible] = useState(false);
@@ -87,14 +84,18 @@ export default function DictsPage() {
     keyword: submittedKeyword || undefined,
   });
   const total = dictListQuery.data?.total ?? 0;
-  const dictDetailQuery = useDictDetail(editingDictRecord?.id, dictModalVisible);
-  const editingDict = editingDictRecord ? (dictDetailQuery.data ?? editingDictRecord) : null;
   const itemsQuery = useDictItemsById(selectedDict?.id);
   const items = useMemo(() => itemsQuery.data ?? [], [itemsQuery.data]);
   const itemDetailQuery = useDictItemDetail(selectedDict?.id, editingItemRecord?.id, itemModalVisible);
   const editingItem = editingItemRecord ? (itemDetailQuery.data ?? editingItemRecord) : null;
 
   const saveDictMutation = useSaveDict();
+  const dictModal = useEditModal<Dict>({
+    entityName: '字典',
+    save: saveDictMutation,
+    useDetail: useDictDetail,
+    defaults: { status: 'enabled' },
+  });
   const toggleDictStatusMutation = useSaveDict();
   const deleteDictMutation = useDeleteDict();
   const saveItemMutation = useSaveDictItem();
@@ -233,22 +234,8 @@ export default function DictsPage() {
   }, [items, editingSubtreeIds]);
 
   // ─── 字典 CRUD ─────────────────────────────────────────────────────────────
-  const handleDictModalOk = async () => {
-    let values;
-    try {
-      values = await dictFormApi.current!.validate();
-    } catch {
-      throw new Error('validation');
-    }
-    await saveDictMutation.mutateAsync({ id: editingDictRecord?.id, values });
-    Toast.success(editingDictRecord ? '更新成功' : '创建成功');
-    setDictModalVisible(false);
-    setEditingDictRecord(null);
-  };
-
   const openEditDict = (row: Dict) => {
-    setEditingDictRecord(row);
-    setDictModalVisible(true);
+    dictModal.openEdit(row);
   };
 
   const handleDictDelete = async (id: number) => {
@@ -422,7 +409,7 @@ export default function DictsPage() {
                   </span>
                 </Dropdown.Item>
                 {hasPermission('system:dict:create') && (
-                  <Dropdown.Item onClick={() => { setEditingDictRecord(null); setDictModalVisible(true); }}>
+                  <Dropdown.Item onClick={dictModal.openCreate}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <Plus size={14} /> 新增字典
                     </span>
@@ -657,22 +644,13 @@ export default function DictsPage() {
 
       {/* 字典创建/编辑 Modal */}
       <AppModal
-        title={editingDict ? '编辑字典' : '新增字典'}
-        visible={dictModalVisible}
-        onCancel={() => { setDictModalVisible(false); setEditingDictRecord(null); }}
-        onOk={handleDictModalOk}
-        okButtonProps={{ disabled: !!editingDictRecord && dictDetailQuery.isFetching }}
+        {...dictModal.modalProps}
         width={480}
 
       >
-        <Spin spinning={!!editingDictRecord && dictDetailQuery.isFetching} wrapperClassName="modal-spin-wrapper">
+        <Spin spinning={dictModal.detailLoading} wrapperClassName="modal-spin-wrapper">
         <Form
-          getFormApi={(api) => dictFormApi.current = api}
-          key={editingDict?.id ?? 'new-dict'}
-          allowEmpty
-          initValues={editingDict ?? { status: 'enabled' }}
-          labelPosition="left"
-          labelWidth={90}
+          {...dictModal.formProps}
         >
           <Form.Input field="name" label="字典名称" placeholder="请输入字典名称" style={{ width: '100%' }} rules={[{ required: true, message: '请输入字典名称' }]} />
           <Form.Input field="code" label="字典编码" placeholder="请输入字典编码" style={{ width: '100%' }} rules={[{ required: true, message: '请输入字典编码' }]} />

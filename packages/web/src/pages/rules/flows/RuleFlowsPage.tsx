@@ -1,7 +1,6 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Input, List, Modal, Select, SideSheet, Space, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import type { RuleDecisionFlow, RuleFlowEvaluateResult, RuleFlowStep } from '@zenith/shared/rules';
@@ -26,6 +25,7 @@ import { PUBLISHABLE_STATUS_META as STATUS } from '@/lib/publishable-status';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 const { Text } = Typography;
 
@@ -44,26 +44,36 @@ export default function RuleFlowsPage() {
 
   const [draftKeyword, setDraftKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<RuleDecisionFlow | null>(null);
   const [steps, setSteps] = useState<RuleFlowStep[]>([]);
   const [testRow, setTestRow] = useState<RuleDecisionFlow | null>(null);
   const [testInput, setTestInput] = useState('{\n  "form": {}\n}');
   const [testResult, setTestResult] = useState<RuleFlowEvaluateResult | null>(null);
-  const formApi = useRef<FormApi | null>(null);
 
   const listQuery = useRuleFlowList({ page, pageSize, keyword: submittedKeyword || undefined });
   const data = listQuery.data ?? null;
-  const tableOptionsQuery = useWorkflowDesignerDecisionTableOptions(modalVisible);
-  const tableOptions = tableOptionsQuery.data ?? [];
   const saveMutation = useSaveRuleFlow();
   const publishMutation = usePublishRuleFlow();
   const toggleMutation = useToggleRuleFlow();
   const deleteMutation = useDeleteRuleFlow();
   const testMutation = useTestRuleFlow();
+  const modal = useEditModal<RuleDecisionFlow>({
+    entityName: '决策流',
+    save: saveMutation,
+    defaults: {},
+    toValues: (record) => ({ key: record.key, name: record.name, description: record.description }),
+    beforeSave: (values, { editing }) => {
+      if (steps.length === 0) { Toast.warning('请至少添加一个步骤'); throw new Error('missing_steps'); }
+      if (steps.some((s) => !s.tableKey)) { Toast.warning('存在未选择决策表的步骤'); throw new Error('missing_step_table'); }
+      const payload = { name: values.name, description: values.description ?? null, steps };
+      return editing ? { ...payload, expectedUpdatedAt: editing.updatedAt } : { ...payload, key: values.key };
+    },
+    labelWidth: 80,
+  });
+  const tableOptionsQuery = useWorkflowDesignerDecisionTableOptions(modal.visible);
+  const tableOptions = tableOptionsQuery.data ?? [];
 
-  const openCreate = () => { setEditing(null); setSteps([]); setModalVisible(true); };
-  const openEdit = (r: RuleDecisionFlow) => { setEditing(r); setSteps(r.steps); setModalVisible(true); };
+  const openCreate = () => { setSteps([]); modal.openCreate(); };
+  const openEdit = (r: RuleDecisionFlow) => { setSteps(r.steps); modal.openEdit(r); };
 
   const setStep = (i: number, patch: Partial<RuleFlowStep>) => setSteps((prev) => prev.map((s, k) => (k === i ? { ...s, ...patch } : s)));
   const addStep = () => setSteps((prev) => [...prev, { id: newStepId(), tableKey: '' }]);
@@ -75,20 +85,6 @@ export default function RuleFlowsPage() {
     [next[i], next[target]] = [next[target], next[i]];
     return next;
   });
-
-  const handleSubmit = async () => {
-    const v = await formApi.current?.validate();
-    if (!v) return;
-    if (steps.length === 0) { Toast.warning('请至少添加一个步骤'); return; }
-    if (steps.some((s) => !s.tableKey)) { Toast.warning('存在未选择决策表的步骤'); return; }
-    const payload = { name: v.name, description: v.description ?? null, steps };
-    await saveMutation.mutateAsync({
-      id: editing?.id,
-      values: editing ? { ...payload, expectedUpdatedAt: editing.updatedAt } : { ...payload, key: v.key },
-    });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    setModalVisible(false);
-  };
 
   const handlePublish = (r: RuleDecisionFlow) => { Modal.confirm({
     title: `发布「${r.name}」？`,
@@ -157,18 +153,12 @@ export default function RuleFlowsPage() {
       <ConfigurableTable bordered columns={columns} dataSource={data?.list ?? []} loading={listQuery.isFetching} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} rowKey="id" size="small" empty="暂无数据" pagination={buildPagination(data?.total ?? 0)} />
 
       <AppModal
-        title={editing ? '编辑决策流' : '新增决策流'}
-        visible={modalVisible}
-        onOk={handleSubmit}
-        onCancel={() => setModalVisible(false)}
-        okButtonProps={{ loading: saveMutation.isPending }}
+        {...modal.modalProps}
         width={880}
         bodyStyle={{ maxHeight: '72vh', overflowY: 'auto' }}
-        closeOnEsc
       >
-        <Form key={editing?.id ?? 'new'} getFormApi={(a) => { formApi.current = a; }} labelPosition="left" labelWidth={80}
-          initValues={editing ? { key: editing.key, name: editing.name, description: editing.description } : {}}>
-          <Form.Input field="key" label="Key" disabled={!!editing} rules={[{ required: true, message: 'key 必填' }]} placeholder="如 risk_decision_flow" />
+        <Form {...modal.formProps}>
+          <Form.Input field="key" label="Key" disabled={modal.isEdit} rules={[{ required: true, message: 'key 必填' }]} placeholder="如 risk_decision_flow" />
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '名称必填' }]} />
           <Form.TextArea field="description" label="描述" autosize={{ minRows: 2, maxRows: 3 }} maxCount={500} />
         </Form>

@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Form, Modal, Select, Space, Toast, SideSheet, Empty, Tag, Row, Col, Spin, Switch } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Trash2, Users } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
@@ -29,6 +28,7 @@ import {
 import { useAllUsers } from '@/hooks/queries/users';
 import { useAllRoles } from '@/hooks/queries/roles';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useEditModal } from '@/hooks/useEditModal';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
@@ -49,7 +49,6 @@ const defaultSearchParams: SearchParams = { keyword: '', status: '' };
 export default function UserGroupsPage() {
   const { items: statusItems } = useDictItems('common_status');
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
@@ -63,11 +62,6 @@ export default function UserGroupsPage() {
   });
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<UserGroup | null>(null);
-  const detailQuery = useUserGroupDetail(editingRecord?.id, modalVisible);
-  const editing = editingRecord ? (detailQuery.data ?? editingRecord) : null;
-  const modalDetailLoading = !!editingRecord && detailQuery.isFetching;
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
 
   // 选项数据
@@ -96,6 +90,20 @@ export default function UserGroupsPage() {
   const groupRolesQuery = useUserGroupRoles(roleGroup?.id, roleModalVisible);
   const allRolesQuery = useAllRoles({ enabled: roleModalVisible });
   const saveMutation = useSaveUserGroup();
+  const groupModal = useEditModal<UserGroup>({
+    entityName: '用户组',
+    save: saveMutation,
+    useDetail: useUserGroupDetail,
+    defaults: { status: 'enabled' },
+    toValues: (group) => ({
+      name: group.name,
+      code: group.code,
+      description: group.description ?? undefined,
+      ownerId: group.ownerId ?? undefined,
+      departmentId: group.departmentId ?? undefined,
+      status: group.status,
+    }),
+  });
   const toggleStatusMutation = useSaveUserGroup();
   const deleteMutation = useDeleteUserGroups();
   const assignMembersMutation = useAssignUserGroupMembers();
@@ -138,19 +146,6 @@ export default function UserGroupsPage() {
   useEffect(() => {
     if (roleModalVisible) setRoleIds((groupRolesQuery.data ?? []).map((r) => r.id));
   }, [roleModalVisible, groupRolesQuery.data]);
-
-  const handleModalOk = async () => {
-    let values;
-    try {
-      values = await formApi.current!.validate();
-    } catch {
-      throw new Error('validation');
-    }
-    await saveMutation.mutateAsync({ id: editingRecord?.id, values });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditingRecord(null);
-  };
 
   const handleDelete = async (id: number) => {
     await deleteMutation.mutateAsync([id]);
@@ -206,11 +201,6 @@ export default function UserGroupsPage() {
     Toast.success('角色已更新，组内成员即时生效');
     setRoleModalVisible(false);
     setRoleGroup(null);
-  };
-
-  const openEdit = (record: UserGroup) => {
-    setEditingRecord(record);
-    setModalVisible(true);
   };
 
   const handleSaveMembers = async () => {
@@ -281,7 +271,7 @@ export default function UserGroupsPage() {
           key: 'edit',
           label: '编辑',
           hidden: !hasPermission('system:user-groups:update'),
-          onClick: () => { void openEdit(record); },
+          onClick: () => { groupModal.openEdit(record); },
         },
         {
           key: 'delete',
@@ -298,17 +288,6 @@ export default function UserGroupsPage() {
       ],
     }),
   ];
-
-  const formInitValues = editing
-    ? {
-        name: editing.name,
-        code: editing.code,
-        description: editing.description ?? undefined,
-        ownerId: editing.ownerId ?? undefined,
-        departmentId: editing.departmentId ?? undefined,
-        status: editing.status,
-      }
-    : { status: 'enabled' };
 
   const renderKeywordSearch = () => (
     <KeywordInput placeholder="搜索名称/编码" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))} onSearch={handleSearch} width={240} />
@@ -332,7 +311,7 @@ export default function UserGroupsPage() {
     </Button>
   ) : null;
   const renderCreateButton = () => hasPermission('system:user-groups:create') ? (
-    <CreateButton onClick={() => { setEditingRecord(null); setModalVisible(true); }} />
+    <CreateButton onClick={groupModal.openCreate} />
   ) : null;
 
   return (
@@ -380,24 +359,9 @@ export default function UserGroupsPage() {
         }}
       />
 
-      <AppModal
-        title={editing ? '编辑用户组' : '新增用户组'}
-        visible={modalVisible}
-        onCancel={() => { setModalVisible(false); setEditingRecord(null); }}
-        onOk={handleModalOk}
-        okButtonProps={{ disabled: modalDetailLoading }}
-        width={660}
-
-      >
-        <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form
-          key={editing?.id ?? 'new-group'}
-          getFormApi={(api) => { formApi.current = api; }}
-          allowEmpty
-          initValues={formInitValues}
-          labelPosition="left"
-          labelWidth={90}
-        >
+      <AppModal {...groupModal.modalProps} width={660}>
+        <Spin spinning={groupModal.detailLoading} wrapperClassName="modal-spin-wrapper">
+        <Form {...groupModal.formProps}>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Input field="name" label="名称" placeholder="请输入用户组名称" rules={[{ required: true, message: '请输入用户组名称' }]} />

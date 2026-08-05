@@ -1,7 +1,6 @@
-import { useState, useRef } from 'react';
+
 import { Button, Col, Form, Modal, Row, Select, Tag, Toast } from '@douyinfe/semi-ui';
 import { AppModal } from '@/components/AppModal';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { CheckCheck, Plus } from 'lucide-react';
 import type { InAppMessage, InAppMessageType } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
@@ -11,6 +10,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import { useAllUsers } from '@/hooks/queries/users';
 import { useListSearch } from '@/hooks/useListSearch';
+import { useEditModal } from '@/hooks/useEditModal';
 import {
   inAppMessageKeys,
   useDeleteInAppMessage,
@@ -41,9 +41,6 @@ export default function InAppMessagesPage() {
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: inAppMessageKeys.lists });
 
-  const [sendVisible, setSendVisible] = useState(false);
-  const formRef = useRef<FormApi>(null);
-
   const listQuery = useInAppMessageList({
     page,
     pageSize,
@@ -53,47 +50,51 @@ export default function InAppMessagesPage() {
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
-  const templatesQuery = useEnabledInAppTemplates(sendVisible);
-  const usersQuery = useAllUsers({ enabled: sendVisible });
+  const sendMutation = useSendInAppMessage();
+  const sendModal = useEditModal<{ id: number }, Record<string, unknown>>({
+    save: {
+      isPending: sendMutation.isPending,
+      mutateAsync: async ({ values }) => {
+        await sendMutation.mutateAsync(values);
+        return { id: 0 };
+      },
+    },
+    defaults: { type: 'info' },
+    beforeSave: (values) => {
+      const payload = { ...values };
+      if (typeof payload.variables === 'string') {
+        const raw = payload.variables.trim();
+        if (raw) {
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(raw);
+          } catch {
+            Toast.error('变量 JSON 格式错误');
+            throw new Error('invalid variables json');
+          }
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            payload.variables = parsed as Record<string, string>;
+          } else {
+            Toast.error('变量必须是 JSON 对象');
+            throw new Error('invalid variables json');
+          }
+        } else {
+          delete payload.variables;
+        }
+      }
+      return payload;
+    },
+    successMessage: () => '发送成功',
+    onSaved: () => globalThis.dispatchEvent(new CustomEvent('in-app-messages:refresh')),
+    labelWidth: 120,
+  });
+  const templatesQuery = useEnabledInAppTemplates(sendModal.visible);
+  const usersQuery = useAllUsers({ enabled: sendModal.visible });
   const templates = templatesQuery.data?.list ?? [];
   const users = usersQuery.data ?? [];
-  const sendMutation = useSendInAppMessage();
   const markReadMutation = useMarkInAppMessageRead();
   const markAllReadMutation = useMarkAllInAppMessagesRead();
   const deleteMutation = useDeleteInAppMessage();
-
-  const openSend = () => {
-    setSendVisible(true);
-  };
-
-  const handleSend = async () => {
-    let values: Awaited<ReturnType<FormApi['validate']>>;
-    try { values = (await formRef.current?.validate())!; } catch { throw new Error('validation'); }
-    // 变量字段是 JSON 字符串，提交前解析为对象
-    if (typeof values.variables === 'string') {
-      const raw = values.variables.trim();
-      if (raw) {
-        try {
-          const parsed: unknown = JSON.parse(raw);
-          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-            values.variables = parsed as Record<string, string>;
-          } else {
-            Toast.error('变量必须是 JSON 对象');
-            return;
-          }
-        } catch {
-          Toast.error('变量 JSON 格式错误');
-          return;
-        }
-      } else {
-        delete values.variables;
-      }
-    }
-    await sendMutation.mutateAsync(values as Record<string, unknown>);
-    Toast.success('发送成功');
-    setSendVisible(false);
-    globalThis.dispatchEvent(new CustomEvent('in-app-messages:refresh'));
-  };
 
   const handleMarkRead = async (id: number) => {
     await markReadMutation.mutateAsync(id);
@@ -177,7 +178,7 @@ export default function InAppMessagesPage() {
               <Button type="tertiary" icon={<CheckCheck size={14} />} onClick={handleMarkAllRead}>全部已读</Button>
             )}
             {can('system:in-app-message:send') && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={openSend}>发送站内信</Button>
+              <Button type="primary" icon={<Plus size={14} />} onClick={sendModal.openCreate}>发送站内信</Button>
             )}
           </>
         )}
@@ -186,7 +187,7 @@ export default function InAppMessagesPage() {
             <KeywordInput placeholder="标题/内容关键词" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
             <SearchButton onClick={handleSearch} />
             {can('system:in-app-message:send') && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={openSend}>发送站内信</Button>
+              <Button type="primary" icon={<Plus size={14} />} onClick={sendModal.openCreate}>发送站内信</Button>
             )}
           </>
         )}
@@ -211,10 +212,8 @@ export default function InAppMessagesPage() {
         pagination={buildPagination(total)}
         scroll={{ x: 1400 }} />
 
-      <AppModal title="发送站内信" visible={sendVisible} onOk={handleSend}
-        onCancel={() => setSendVisible(false)} confirmLoading={sendMutation.isPending} width={720}>
-        <Form key="send" getFormApi={(api) => { (formRef as { current: FormApi }).current = api; }}
-          allowEmpty labelPosition="left" labelWidth={120} initValues={{ type: 'info' }}>
+      <AppModal {...sendModal.modalProps} title="发送站内信" width={720}>
+        <Form {...sendModal.formProps}>
           <Row gutter={16}>
             <Col span={24}>
               <Form.Select field="userIds" label="收件人" multiple filter style={{ width: '100%' }}

@@ -23,6 +23,7 @@ import {
 import { CreateButton, ResetButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 const { Text } = Typography;
 
@@ -36,12 +37,9 @@ const DOC_STATUS_TAGS = {
 export default function AiKnowledgePage() {
   const { hasPermission } = usePermission();
   const [search, setSearch] = useState('');
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<AiKnowledgeBase | null>(null);
   const [docsKb, setDocsKb] = useState<AiKnowledgeBase | null>(null);
   const [docModalVisible, setDocModalVisible] = useState(false);
   const [urlModalVisible, setUrlModalVisible] = useState(false);
-  const kbFormApi = useRef<FormApi | null>(null);
   const docFormApi = useRef<FormApi | null>(null);
   const urlFormApi = useRef<FormApi | null>(null);
 
@@ -56,21 +54,14 @@ export default function AiKnowledgePage() {
   const importUrlMutation = useImportAiKbUrl();
   const deleteDocMutation = useDeleteAiKbDocument();
 
-  async function handleKbOk() {
-    let values: { name: string; description?: string };
-    try {
-      values = (await kbFormApi.current?.validate()) as { name: string; description?: string };
-    } catch {
-      throw new Error('validation');
-    }
-    await saveMutation.mutateAsync({
-      id: editing?.id,
-      values: { name: values.name.trim(), description: values.description?.trim() || null },
-    });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditing(null);
-  }
+  const kbModal = useEditModal<AiKnowledgeBase, { name: string; description?: string }, { name: string; description: string | null }>({
+    entityName: '知识库',
+    save: saveMutation,
+    defaults: { name: '', description: '' },
+    toValues: (record) => ({ name: record.name, description: record.description ?? '' }),
+    beforeSave: (values) => ({ name: values.name.trim(), description: values.description?.trim() || null }),
+    labelWidth: 70,
+  });
 
   async function handleAddDoc() {
     if (!docsKb) return;
@@ -147,7 +138,7 @@ export default function AiKnowledgePage() {
           key: 'edit',
           label: '编辑',
           hidden: !hasPermission('ai:kb:edit'),
-          onClick: () => { setEditing(record); setModalVisible(true); },
+          onClick: () => { kbModal.openEdit(record); },
         },
         {
           key: 'delete',
@@ -222,7 +213,7 @@ export default function AiKnowledgePage() {
           </>
         )}
         actions={hasPermission('ai:kb:create') ? (
-          <CreateButton onClick={() => { setEditing(null); setModalVisible(true); }} />
+          <CreateButton onClick={kbModal.openCreate} />
         ) : null}
       />
       <ConfigurableTable
@@ -238,20 +229,12 @@ export default function AiKnowledgePage() {
       />
 
       <AppModal
-        title={editing ? '编辑知识库' : '新增知识库'}
-        visible={modalVisible}
-        onOk={handleKbOk}
-        onCancel={() => { setModalVisible(false); setEditing(null); }}
-        okButtonProps={{ loading: saveMutation.isPending }}
+        {...kbModal.modalProps}
         width={480}
         closeOnEsc
       >
         <Form
-          key={editing?.id ?? 'new'}
-          getFormApi={(api) => { kbFormApi.current = api; }}
-          initValues={{ name: editing?.name ?? '', description: editing?.description ?? '' }}
-          labelPosition="left"
-          labelWidth={70}
+          {...kbModal.formProps}
         >
           <Form.Input field="name" label="名称" placeholder="请输入名称" rules={[{ required: true, message: '请输入名称' }]} />
           <Form.Input field="description" label="描述" placeholder="可选" maxLength={300} />

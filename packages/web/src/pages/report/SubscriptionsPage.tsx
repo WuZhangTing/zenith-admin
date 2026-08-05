@@ -1,7 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { Button, Form, Tag, Toast, Modal, SideSheet, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -10,6 +9,7 @@ import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import { renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
+import { useEditModal } from '@/hooks/useEditModal';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useBatchReportSubscriptionEnabled,
@@ -42,13 +42,10 @@ const deliveryStatusColorMap: Record<string, 'green' | 'red' | 'orange' | 'grey'
 export default function SubscriptionsPage() {
   const { items: statusItems } = useDictItems('common_status');
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const queryClient = useQueryClient();
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [draftKeyword, setDraftKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<ReportDashboardSubscription | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
   const [historyTarget, setHistoryTarget] = useState<ReportDashboardSubscription | null>(null);
   const [cronExprValue, setCronExprValue] = useState('');
@@ -77,12 +74,12 @@ export default function SubscriptionsPage() {
     void queryClient.invalidateQueries({ queryKey: reportSubscriptionKeys.lists });
   }
 
-  function openCreate() { setEditing(null); setCronExprValue('0 0 9 * * *'); setSelectedChannels(['inApp']); setModalVisible(true); }
-  function openEdit(r: ReportDashboardSubscription) { setEditing(r); setCronExprValue(r.cron); setSelectedChannels(r.channels); setModalVisible(true); }
-  function closeModal() { setModalVisible(false); setEditing(null); }
-
-  const initValues = editing
-    ? {
+  const subscriptionModal = useEditModal<ReportDashboardSubscription, Record<string, unknown>>({
+    entityName: '订阅',
+    save: saveMutation,
+    defaults: { cron: '0 0 9 * * *', timezone: 'Asia/Shanghai', misfirePolicy: 'fire_once', channels: ['inApp'], enabled: 'enabled' },
+    labelWidth: 110,
+    toValues: (editing) => ({
       dashboardId: editing.dashboardId,
       cron: editing.cron,
       timezone: editing.timezone,
@@ -92,23 +89,19 @@ export default function SubscriptionsPage() {
       webhookUrl: editing.webhookUrl ?? '',
       enabled: editing.enabled ? 'enabled' : 'disabled',
       remark: editing.remark ?? '',
-    }
-    : { cron: '0 0 9 * * *', timezone: 'Asia/Shanghai', misfirePolicy: 'fire_once', channels: ['inApp'], enabled: 'enabled' };
-
-  async function handleOk() {
-    let v: Record<string, unknown>;
-    try { v = await formApi.current?.validate() as Record<string, unknown>; } catch { throw new Error('validation'); }
-    const channels = (v.channels ?? []) as string[];
-    const payload = {
+    }),
+    beforeSave: (v) => {
+      const channels = (v.channels ?? []) as string[];
+      return {
       dashboardId: v.dashboardId, cron: v.cron, timezone: v.timezone, misfirePolicy: v.misfirePolicy, channels: v.channels,
       recipients: v.recipients || undefined,
       webhookUrl: channels.includes('webhook') && v.webhookUrl ? String(v.webhookUrl) : null,
       enabled: v.enabled === 'enabled', remark: v.remark || undefined,
-    };
-    await saveMutation.mutateAsync({ id: editing?.id, values: payload });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    closeModal();
-  }
+      };
+    },
+  });
+  function openCreate() { setCronExprValue('0 0 9 * * *'); setSelectedChannels(['inApp']); subscriptionModal.openCreate(); }
+  function openEdit(r: ReportDashboardSubscription) { setCronExprValue(r.cron); setSelectedChannels(r.channels); subscriptionModal.openEdit(r); }
 
   async function handleRun(id: number) {
     await runMutation.mutateAsync(id);
@@ -188,8 +181,8 @@ export default function SubscriptionsPage() {
         } : undefined}
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} pagination={buildPagination(data?.total ?? 0)} />
 
-      <AppModal title={editing ? '编辑订阅' : '新增订阅'} visible={modalVisible} onOk={handleOk} onCancel={closeModal} okButtonProps={{ loading: saveMutation.isPending }} width={560}>
-        <Form key={editing?.id ?? 'new'} getFormApi={(api) => { formApi.current = api; }} initValues={initValues} labelPosition="left" labelWidth={110}
+      <AppModal {...subscriptionModal.modalProps} width={560}>
+        <Form {...subscriptionModal.formProps}
           onValueChange={(v: Record<string, unknown>) => {
             if (typeof v.cron === 'string') setCronExprValue(v.cron);
             if (Array.isArray(v.channels)) setSelectedChannels(v.channels as string[]);
@@ -197,7 +190,7 @@ export default function SubscriptionsPage() {
           <Form.Select field="dashboardId" label="仪表盘" style={{ width: '100%' }} rules={[{ required: true, message: '请选择仪表盘' }]} filter
             optionList={dashboards.map((d) => ({ value: d.id, label: d.name }))} />
           <Form.Input field="cron" label="Cron 表达式" rules={[{ required: true, message: '请输入 Cron 表达式' }]} placeholder="如 0 0 9 * * *（每天 9 点）"
-            addonAfter={<CronBuilderPopover value={cronExprValue} onApply={(expr) => { formApi.current?.setValue('cron', expr); setCronExprValue(expr); }} />} />
+            addonAfter={<CronBuilderPopover value={cronExprValue} onApply={(expr) => { subscriptionModal.formApi.current?.setValue('cron', expr); setCronExprValue(expr); }} />} />
           <Form.Input field="timezone" label="时区" placeholder="Asia/Shanghai" rules={[{ required: true, message: '请输入 IANA 时区' }]} showClear />
           <Form.Select field="misfirePolicy" label="错过策略" style={{ width: '100%' }} optionList={REPORT_MISFIRE_POLICY_OPTIONS} />
           <Form.Select field="channels" label="推送通道" multiple style={{ width: '100%' }} rules={[{ required: true, message: '至少一个通道' }]}

@@ -7,9 +7,8 @@ import { useDictItems } from '@/hooks/useDictItems';
  *   - 自动发送站内信
  *   - Webhook 回调 / 回写表单字段
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Col, Form, Input, Row, Select, Space, Spin, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag/interface';
 import { Plus, Trash2 } from 'lucide-react';
@@ -31,6 +30,7 @@ import {
 } from '@/hooks/queries/workflow-automations';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 const TRIGGER_OPTIONS: Array<{ value: WorkflowAutomationTrigger; label: string; color: TagColor }> = [
   { value: 'created',   label: '流程发起时', color: 'blue' },
@@ -236,7 +236,6 @@ function draftToAction(d: ActionDraft): WorkflowAutomationAction | { __error: st
 export default function WorkflowAutomationsPage() {
   const { items: statusItems } = useDictItems('common_status');
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi<FormValues> | null>(null);
   const canEditAutomation = hasPermission('workflow:definition:edit');
 
   interface SearchParams { definitionId: number | ''; trigger: WorkflowAutomationTrigger | ''; status: 'enabled' | 'disabled' | '' }
@@ -259,50 +258,10 @@ export default function WorkflowAutomationsPage() {
   const definitionsQuery = useWorkflowDefinitionList({ page: 1, pageSize: 200 });
   const defs: WorkflowDefinition[] = useMemo(() => definitionsQuery.data?.list ?? [], [definitionsQuery.data]);
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<WorkflowAutomation | null>(null);
   const [actions, setActions] = useState<ActionDraft[]>([]);
-  const detailQuery = useWorkflowAutomationDetail(editing?.id, modalVisible && !!editing);
   const saveMutation = useSaveWorkflowAutomation();
   const deleteMutation = useDeleteWorkflowAutomation();
 
-  useEffect(() => {
-    if (!modalVisible || !detailQuery.data) return;
-    setEditing(detailQuery.data);
-    setActions(detailQuery.data.actions.map(actionToDraft));
-    setTimeout(() => formApi.current?.setValues({
-      definitionId: detailQuery.data.definitionId,
-      name: detailQuery.data.name,
-      trigger: detailQuery.data.trigger,
-      status: detailQuery.data.status,
-      sort: detailQuery.data.sort,
-      actions: [],
-    }), 0);
-  }, [detailQuery.data, modalVisible]);
-
-  const openCreate = () => {
-    setEditing(null);
-    setActions([]);
-    setModalVisible(true);
-    setTimeout(() => formApi.current?.setValues({
-      definitionId: null, name: '', trigger: 'approved', status: 'enabled', sort: 0, actions: [],
-    }), 0);
-  };
-
-  const openEdit = (row: WorkflowAutomation) => {
-    setEditing(row);
-    const drafts = row.actions.map(actionToDraft);
-    setActions(drafts);
-    setModalVisible(true);
-    setTimeout(() => formApi.current?.setValues({
-      definitionId: row.definitionId,
-      name: row.name,
-      trigger: row.trigger,
-      status: row.status,
-      sort: row.sort,
-      actions: [],
-    }), 0);
-  };
 
   const addAction = (type: ActionDraft['type']) => {
     setActions((prev) => [...prev, createDefaultActionDraft(type)]);
@@ -320,36 +279,47 @@ export default function WorkflowAutomationsPage() {
     setActions((prev) => prev.map((a, i) => (i === idx ? { ...a, ...patch } : a)));
   };
 
-  const handleSubmit = async (vals: FormValues) => {
-    if (actions.length === 0) { Toast.error('至少配置一个动作'); return; }
-    if (actions.length > 10) { Toast.error('最多配置 10 个动作'); return; }
+  const automationModal = useEditModal<WorkflowAutomation, FormValues, Record<string, unknown>>({
+    entityName: '自动化规则',
+    save: saveMutation,
+    useDetail: useWorkflowAutomationDetail,
+    defaults: { definitionId: null, name: '', trigger: 'approved', status: 'enabled', sort: 0, actions: [] },
+    toValues: (row) => ({ definitionId: row.definitionId, name: row.name, trigger: row.trigger, status: row.status, sort: row.sort, actions: [] }),
+    beforeSave: (vals) => {
+      const sourceActions = actions;
+      if (sourceActions.length === 0) { Toast.error('至少配置一个动作'); throw new Error('validation'); }
+      if (sourceActions.length > 10) { Toast.error('最多配置 10 个动作'); throw new Error('validation'); }
     const built: WorkflowAutomationAction[] = [];
-    for (const d of actions) {
+      for (const d of sourceActions) {
       const r = draftToAction(d);
-      if ('__error' in r) { Toast.error(r.__error); return; }
+        if ('__error' in r) { Toast.error(r.__error); throw new Error('validation'); }
       built.push(r);
     }
-    const body = {
+      return {
       definitionId: vals.definitionId,
       name: vals.name,
       trigger: vals.trigger,
       status: vals.status,
       sort: vals.sort ?? 0,
       actions: built,
-    };
-    await saveMutation.mutateAsync({ id: editing?.id, values: body });
-    Toast.success(editing ? '已更新' : '已创建');
-    setModalVisible(false);
+      };
+    },
+    successMessage: ({ isEdit }) => (isEdit ? '已更新' : '已创建'),
+    labelWidth: 96,
+  });
+  useEffect(() => {
+    if (!automationModal.visible) return;
+    setActions((automationModal.editing?.actions ?? []).map(actionToDraft));
+  }, [automationModal.visible, automationModal.editing]);
+
+  const openCreate = () => {
+    setActions([]);
+    automationModal.openCreate();
   };
 
-  const handleModalOk = async () => {
-    let values: FormValues;
-    try {
-      values = await formApi.current!.validate();
-    } catch {
-      throw new Error('validation');
-    }
-    await handleSubmit(values);
+  const openEdit = (row: WorkflowAutomation) => {
+    setActions(row.actions.map(actionToDraft));
+    automationModal.openEdit(row);
   };
 
   const handleDelete = async (id: number) => {
@@ -502,17 +472,12 @@ export default function WorkflowAutomationsPage() {
       />
 
       <AppModal
-        title={editing ? '编辑自动化规则' : '新增自动化规则'}
-        visible={modalVisible}
-        onCancel={() => { setModalVisible(false); setEditing(null); }}
-        onOk={handleModalOk}
-        confirmLoading={saveMutation.isPending}
-        okButtonProps={{ disabled: detailQuery.isFetching }}
+        {...automationModal.modalProps}
         closeOnEsc
         width={780}
       >
-        <Spin spinning={detailQuery.isFetching} wrapperClassName="modal-spin-wrapper">
-        <Form<FormValues> getFormApi={(api) => (formApi.current = api)} onSubmit={handleSubmit} labelPosition="left" labelWidth={96}>
+        <Spin spinning={automationModal.detailLoading} wrapperClassName="modal-spin-wrapper">
+        <Form {...automationModal.formProps}>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Input field="name" label="规则名称" maxLength={64} rules={[{ required: true, message: '请输入规则名称' }]} />

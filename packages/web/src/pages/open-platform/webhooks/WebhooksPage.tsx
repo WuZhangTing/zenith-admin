@@ -1,6 +1,5 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { Button, Tag, Space, Modal, Form, Toast, Typography, Select, Banner, SideSheet, Descriptions } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { OPEN_WEBHOOK_DELIVERY_STATUS_LABELS, OPEN_WEBHOOK_EVENT_LABELS } from '@zenith/shared/open-platform';
 import type { AppWebhookSubscription, AppWebhookDelivery } from '@zenith/shared/open-platform';
@@ -27,6 +26,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 const { Text, Paragraph } = Typography;
 
@@ -52,7 +52,6 @@ export default function WebhooksPage() {
   const STATUS_OPTIONS = statusItems.map((i) => ({ value: i.value, label: i.label }));
   const { hasPermission } = usePermission();
   const canManage = hasPermission('open:webhook:manage');
-  const formApi = useRef<FormApi | null>(null);
 
   interface SearchParams { keyword: string; clientId?: string; status?: 'enabled' | 'disabled' }
   const defaultSearchParams: SearchParams = { keyword: '', clientId: undefined, status: undefined };
@@ -66,9 +65,6 @@ export default function WebhooksPage() {
   const eventOptionsQuery = useWebhookEvents();
   const appOptions = appOptionsQuery.data ?? [];
   const eventOptions = eventOptionsQuery.data ?? [];
-
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<AppWebhookSubscription | null>(null);
 
   const [secretModal, setSecretModal] = useState(false);
   const [oneTimeSecret, setOneTimeSecret] = useState('');
@@ -103,15 +99,10 @@ export default function WebhooksPage() {
   const testMutation = useTestWebhook();
   const retryMutation = useRetryWebhookDelivery();
   const batchRetryMutation = useBatchRetryWebhookDeliveries();
-
-  function openCreate() {
-    setEditing(null);
-    setModalVisible(true);
-  }
-  function openEdit(record: AppWebhookSubscription) {
-    setEditing(record);
-    setModalVisible(true);
-    formApi.current?.setValues({
+  const modal = useEditModal<AppWebhookSubscription, FormValues, Partial<Omit<FormValues, 'headersText'>> & { headers?: Record<string, string> }>({
+    save: saveMutation,
+    defaults: { events: [], signMode: 'hmacSha256', status: 'enabled' },
+    toValues: (record) => ({
       clientId: record.clientId,
       name: record.name,
       url: record.url,
@@ -119,57 +110,29 @@ export default function WebhooksPage() {
       signMode: record.signMode,
       headersText: record.headers ? JSON.stringify(record.headers, null, 2) : '',
       status: record.status,
-    });
-  }
-  function closeModal() {
-    setModalVisible(false);
-    setEditing(null);
-  }
-
-  const formInitValues: Partial<FormValues> = editing
-    ? {
-        clientId: editing.clientId,
-        name: editing.name,
-        url: editing.url,
-        events: editing.events,
-        signMode: editing.signMode,
-        headersText: editing.headers ? JSON.stringify(editing.headers, null, 2) : '',
-        status: editing.status,
+    }),
+    beforeSave: (values, { isEdit }) => {
+      let headers: Record<string, string> | undefined;
+      if (values.headersText && values.headersText.trim()) {
+        try {
+          headers = JSON.parse(values.headersText) as Record<string, string>;
+        } catch {
+          Toast.error('自定义请求头不是合法的 JSON');
+          throw new Error('invalid headers');
+        }
       }
-    : { events: [], signMode: 'hmacSha256', status: 'enabled' };
-
-  async function handleModalOk() {
-    let values: FormValues;
-    try {
-      values = (await formApi.current?.validate()) as FormValues;
-    } catch {
-      throw new Error('validation');
-    }
-    if (!values) throw new Error('validation');
-
-    let headers: Record<string, string> | undefined;
-    if (values.headersText && values.headersText.trim()) {
-      try {
-        headers = JSON.parse(values.headersText);
-      } catch {
-        Toast.error('自定义请求头不是合法的 JSON');
-        throw new Error('invalid headers');
-      }
-    }
-    const payload = { clientId: values.clientId, name: values.name, url: values.url, events: values.events, signMode: values.signMode, headers, status: values.status };
-
-    if (editing) {
-      const { clientId: _c, ...rest } = payload;
-      await saveMutation.mutateAsync({ id: editing.id, values: rest });
-      Toast.success('更新成功');
-      closeModal();
-      return;
-    }
-    const created = await saveMutation.mutateAsync({ values: payload });
-    closeModal();
-    const secret = 'secret' in created && typeof created.secret === 'string' ? created.secret : '';
-    if (secret) { setOneTimeSecret(secret); setSecretModal(true); }
-  }
+      const payload = { clientId: values.clientId, name: values.name, url: values.url, events: values.events, signMode: values.signMode, headers, status: values.status };
+      if (!isEdit) return payload;
+      const { clientId: _clientId, ...rest } = payload;
+      return rest;
+    },
+    onSaved: (created, { isEdit }) => {
+      if (isEdit) return;
+      const secret = 'secret' in created && typeof created.secret === 'string' ? created.secret : '';
+      if (secret) { setOneTimeSecret(secret); setSecretModal(true); }
+    },
+    labelWidth: 100,
+  });
 
   async function handleDelete(id: number) {
     await deleteMutation.mutateAsync(id);
@@ -229,7 +192,7 @@ export default function WebhooksPage() {
       desktopInlineKeys: ['deliveries', 'edit'],
       actions: (record) => [
         { key: 'deliveries', label: '投递日志', onClick: () => openDeliveries(record) },
-        { key: 'edit', label: '编辑', hidden: !canManage, onClick: () => openEdit(record) },
+        { key: 'edit', label: '编辑', hidden: !canManage, onClick: () => modal.openEdit(record) },
         { key: 'test', label: '测试', hidden: !canManage, onClick: () => void handleTest(record.id) },
         {
           key: 'regenerate', label: '重置密钥', hidden: !canManage || record.signMode !== 'hmacSha256',
@@ -276,14 +239,14 @@ export default function WebhooksPage() {
             <Select placeholder="状态" value={draftParams.status} onChange={(v) => setDraftParams({ ...draftParams, status: v as 'enabled' | 'disabled' })} optionList={STATUS_OPTIONS} showClear style={{ width: 110 }} />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
-            {canManage && <CreateButton onClick={openCreate} />}
+            {canManage && <CreateButton onClick={modal.openCreate} />}
           </>
         )}
         mobilePrimary={(
           <>
             <KeywordInput placeholder="搜索名称 / URL" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
             <SearchButton onClick={handleSearch} />
-            {canManage && <CreateButton onClick={openCreate} />}
+            {canManage && <CreateButton onClick={modal.openCreate} />}
           </>
         )}
         mobileActions={<ResetButton onClick={handleReset} />}
@@ -305,16 +268,12 @@ export default function WebhooksPage() {
 
       {/* 新增 / 编辑 */}
       <AppModal
-        title={editing ? '编辑 Webhook 订阅' : '新增 Webhook 订阅'}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={closeModal}
-        okButtonProps={{ loading: saveMutation.isPending }}
+        {...modal.modalProps}
+        title={modal.isEdit ? '编辑 Webhook 订阅' : '新增 Webhook 订阅'}
         width={600}
-        closeOnEsc
       >
-        <Form key={editing?.id ?? 'new'} getFormApi={(api) => { formApi.current = api; }} initValues={formInitValues} labelPosition="left" labelWidth={100}>
-          <Form.Select field="clientId" label="所属应用" disabled={!!editing} style={{ width: '100%' }} filter optionList={appOptions.map((a) => ({ value: a.clientId, label: a.name }))} rules={[{ required: true, message: '请选择所属应用' }]} />
+        <Form {...modal.formProps}>
+          <Form.Select field="clientId" label="所属应用" disabled={modal.isEdit} style={{ width: '100%' }} filter optionList={appOptions.map((a) => ({ value: a.clientId, label: a.name }))} rules={[{ required: true, message: '请选择所属应用' }]} />
           <Form.Input field="name" label="名称" placeholder="如 订单回调" rules={[{ required: true, message: '名称不能为空' }]} />
           <Form.Input field="url" label="回调地址" placeholder="https://your-app.com/webhook" rules={[{ required: true, message: '请输入回调地址' }]} />
           <Form.Select field="events" label="订阅事件" multiple style={{ width: '100%' }} placeholder="留空表示订阅全部事件" optionList={eventOptions.map((e) => ({ value: e.code, label: e.label }))} />

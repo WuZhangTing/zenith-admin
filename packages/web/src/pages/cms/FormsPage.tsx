@@ -1,7 +1,6 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Button, Form, Tag, Toast, ArrayField, Typography, SideSheet } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Plus, Trash2 } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -9,6 +8,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { ExportButton } from '@/components/ExportButton';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { usePagination } from '@/hooks/usePagination';
 import {
   useCmsFormList, useSaveCmsForm, useDeleteCmsForm,
@@ -98,43 +98,40 @@ function SubmissionsSheet({ form, onClose }: Readonly<{ form: CmsForm | null; on
 
 export default function FormsPage() {
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const [siteId, setSiteId] = useState<number | undefined>(undefined);
   const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<CmsForm | null>(null);
   const [viewingForm, setViewingForm] = useState<CmsForm | null>(null);
   const [previewingForm, setPreviewingForm] = useState<CmsForm | null>(null);
 
   const listQuery = useCmsFormList({ page, pageSize, siteId: siteId ?? 0 }, siteId !== undefined);
   const saveMutation = useSaveCmsForm();
+  const modal = useEditModal<CmsForm, Partial<CmsForm> & { clearTurnstileSecret?: boolean; fields?: Array<Record<string, unknown>> }, Record<string, unknown>>({
+    entityName: '表单',
+    save: saveMutation,
+    defaults: { status: 'enabled', captchaProvider: 'inherit', fields: [{ name: 'name', label: '姓名', fieldType: 'text', required: true }] },
+    toValues: (record) => ({
+      name: record.name, code: record.code, successMessage: record.successMessage ?? '', notifyEmail: record.notifyEmail ?? '',
+      captchaProvider: record.captchaProvider, turnstileSiteKey: record.turnstileSiteKey ?? '', turnstileSecret: '', clearTurnstileSecret: false,
+      status: record.status, fields: record.fields.map((f) => ({ ...f, optionsText: (f.options ?? []).map((option) => `${option.label}=${option.value}`).join('\n') })),
+    }),
+    beforeSave: (values, { isEdit }) => {
+      if (!isEdit && !siteId) throw new Error('validation');
+      const payload: Record<string, unknown> = { ...values, ...(!isEdit ? { siteId } : {}) };
+      payload.turnstileSecret = values.clearTurnstileSecret === true ? null : (values.turnstileSecret ?? '');
+      delete payload.clearTurnstileSecret;
+      payload.fields = ((values.fields as Array<Record<string, unknown>> | undefined) ?? []).map((field) => {
+        const options = String(field.optionsText ?? '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
+          const [label, value = label] = line.split('=').map((part) => part.trim());
+          return { label, value };
+        });
+        const { optionsText: _optionsText, ...rest } = field;
+        return { ...rest, options: options.length > 0 ? options : null };
+      });
+      return payload;
+    },
+  });
   const deleteMutation = useDeleteCmsForm();
   const canManage = hasPermission('cms:form:manage');
-
-  async function handleModalOk() {
-    if (!siteId) return;
-    let values: Record<string, unknown>;
-    try {
-      values = (await formApi.current?.validate()) ?? {};
-    } catch {
-      throw new Error('validation');
-    }
-    if (!editingRecord) values.siteId = siteId;
-    values.turnstileSecret = values.clearTurnstileSecret === true ? null : (values.turnstileSecret ?? '');
-    delete values.clearTurnstileSecret;
-    values.fields = ((values.fields as Array<Record<string, unknown>> | undefined) ?? []).map((field) => {
-      const options = String(field.optionsText ?? '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
-        const [label, value = label] = line.split('=').map((part) => part.trim());
-        return { label, value };
-      });
-      const { optionsText: _optionsText, ...rest } = field;
-      return { ...rest, options: options.length > 0 ? options : null };
-    });
-    await saveMutation.mutateAsync({ id: editingRecord?.id, values });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditingRecord(null);
-  }
 
   const columns: ColumnProps<CmsForm>[] = [
     { title: '表单名称', dataIndex: 'name', width: 160 },
@@ -157,7 +154,7 @@ export default function FormsPage() {
         { key: 'data', label: '提交数据', onClick: () => setViewingForm(record) },
         { key: 'preview', label: '预览', onClick: () => setPreviewingForm(record) },
         ...(canManage ? [
-          { key: 'edit', label: '编辑', onClick: () => { setEditingRecord(record); setModalVisible(true); } },
+          { key: 'edit', label: '编辑', onClick: () => modal.openEdit(record) },
           {
             key: 'delete', label: '删除', danger: true,
             onClick: () => {
@@ -180,7 +177,7 @@ export default function FormsPage() {
     <div className="page-container">
       <SearchToolbar>
         <CmsSiteSelect value={siteId} onChange={(v) => { setSiteId(v); setPage(1); }} width={200} />
-        {canManage ? <CreateButton onClick={() => { setEditingRecord(null); setModalVisible(true); }}>新增表单</CreateButton> : null}
+        {canManage ? <CreateButton onClick={modal.openCreate}>新增表单</CreateButton> : null}
       </SearchToolbar>
 
       <ConfigurableTable
@@ -196,46 +193,17 @@ export default function FormsPage() {
         pagination={buildPagination(listQuery.data?.total ?? 0)}
       />
 
-      <AppModal
-        title={editingRecord ? '编辑表单' : '新增表单'}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={() => { setModalVisible(false); setEditingRecord(null); }}
-        okButtonProps={{ loading: saveMutation.isPending }}
-        width={780}
-        closeOnEsc
-      >
-        <Form
-          key={editingRecord?.id ?? 'new'}
-          getFormApi={(api) => { formApi.current = api; }}
-          allowEmpty
-          initValues={editingRecord
-            ? {
-                name: editingRecord.name, code: editingRecord.code, successMessage: editingRecord.successMessage ?? '',
-                notifyEmail: editingRecord.notifyEmail ?? '',
-                captchaProvider: editingRecord.captchaProvider,
-                turnstileSiteKey: editingRecord.turnstileSiteKey ?? '',
-                turnstileSecret: editingRecord.turnstileSecret ?? '',
-                clearTurnstileSecret: false,
-                status: editingRecord.status,
-                fields: editingRecord.fields.map((f) => ({
-                  ...f,
-                  optionsText: (f.options ?? []).map((option) => `${option.label}=${option.value}`).join('\n'),
-                })),
-              }
-            : { status: 'enabled', captchaProvider: 'inherit', fields: [{ name: 'name', label: '姓名', fieldType: 'text', required: true }] }}
-          labelPosition="left"
-          labelWidth={90}
-        >
+      <AppModal {...modal.modalProps} width={780}>
+        <Form {...modal.formProps}>
           <Form.Input field="name" label="表单名称" rules={[{ required: true, message: '请输入表单名称' }]} />
-          <Form.Input field="code" label="表单标识" disabled={!!editingRecord} placeholder="如 contact（前台提交与栏目绑定用）" rules={[{ required: true, message: '请输入表单标识' }]} />
+          <Form.Input field="code" label="表单标识" disabled={modal.isEdit} placeholder="如 contact（前台提交与栏目绑定用）" rules={[{ required: true, message: '请输入表单标识' }]} />
           <Form.Input field="successMessage" label="成功提示" placeholder="提交成功后展示的文案" />
           <Form.Input field="notifyEmail" label="通知邮箱" placeholder="收到新提交时通知，多个邮箱用逗号分隔（留空不通知）" />
           <Form.Select field="captchaProvider" label="验证码策略" style={{ width: '100%' }}
             optionList={CMS_FORM_CAPTCHA_PROVIDERS.map((value) => ({ value, label: CMS_FORM_CAPTCHA_PROVIDER_LABELS[value] }))} />
           <Form.Input field="turnstileSiteKey" label="Turnstile Site Key" maxLength={200} />
           <Form.Input field="turnstileSecret" type="password" label="Turnstile Secret" maxLength={500} placeholder="留空或保留掩码表示不修改" />
-          {editingRecord ? <Form.Checkbox field="clearTurnstileSecret" noLabel>清除已配置的 Turnstile Secret</Form.Checkbox> : null}
+          {modal.isEdit ? <Form.Checkbox field="clearTurnstileSecret" noLabel>清除已配置的 Turnstile Secret</Form.Checkbox> : null}
           <Form.RadioGroup field="status" label="状态">
             <Form.Radio value="enabled">启用</Form.Radio>
             <Form.Radio value="disabled">停用</Form.Radio>

@@ -1,6 +1,5 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect } from 'react';
 import { Avatar, Button, Form, Modal, Select, Space, Spin, Tag, Toast, Banner } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { RefreshCw, Ban } from 'lucide-react';
 import type { MpFan, MpFanSubscribe } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
@@ -26,12 +25,14 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 const SEX_LABELS: Record<number, string> = { 0: '未知', 1: '男', 2: '女' };
 const SUBSCRIBE_OPTIONS = [
   { label: '已关注', value: 'subscribed' },
   { label: '已取关', value: 'unsubscribed' },
 ];
+interface FanFormValues { remark?: string; tagIds?: number[]; }
 
 export default function MpFansPage() {
   const { hasPermission: can } = usePermission();
@@ -48,10 +49,6 @@ export default function MpFansPage() {
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: mpFanKeys.lists(currentId) });
-
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<MpFan | null>(null);
-  const formRef = useRef<FormApi>(null);
 
   const listQuery = useMpFanList({
     accountId: currentId,
@@ -71,7 +68,20 @@ export default function MpFansPage() {
   const createMemberMutation = useCreateMpFanMember();
   const unbindMemberMutation = useUnbindMpFanMember();
   const syncing = syncFansMutation.isPending || syncBlacklistMutation.isPending;
-  const submitting = saveMutation.isPending;
+  const fanSaveMutation = {
+    mutateAsync: ({ id, values }: { id?: number; values: { remark: string; tagIds: number[] } }) => {
+      if (id == null) throw new Error('missing id');
+      return saveMutation.mutateAsync({ id, values });
+    },
+    isPending: saveMutation.isPending,
+  };
+  const fanModal = useEditModal<MpFan, FanFormValues, { remark: string; tagIds: number[] }>({
+    save: fanSaveMutation,
+    toValues: (fan) => ({ remark: fan.remark ?? '', tagIds: fan.tagIds }),
+    beforeSave: (values) => ({ remark: values.remark ?? '', tagIds: values.tagIds ?? [] }),
+    successMessage: () => '保存成功',
+    labelWidth: 72,
+  });
 
   useEffect(() => {
     setPage(1);
@@ -94,8 +104,6 @@ export default function MpFansPage() {
     const data = await syncBlacklistMutation.mutateAsync(currentId);
     Toast.success(`黑名单同步完成：共 ${data.synced ?? 0} 个`);
   };
-
-  const openEdit = (record: MpFan) => { setEditingRecord(record); setModalVisible(true); };
 
   const handleCreateMember = async (record: MpFan) => {
     await createMemberMutation.mutateAsync(record.id);
@@ -120,15 +128,6 @@ export default function MpFansPage() {
       okButtonProps: record.blacklisted ? undefined : { type: 'danger', theme: 'solid' },
       onOk: () => handleBlacklist(record),
     });
-  };
-
-  const handleSubmit = async () => {
-    let values: Awaited<ReturnType<FormApi['validate']>>;
-    try { values = (await formRef.current?.validate())!; } catch { throw new Error('validation'); }
-    if (!editingRecord) return;
-    await saveMutation.mutateAsync({ id: editingRecord.id, values: { remark: values.remark ?? '', tagIds: values.tagIds ?? [] } });
-    Toast.success('保存成功');
-    setModalVisible(false);
   };
 
   const columns = [
@@ -174,7 +173,7 @@ export default function MpFansPage() {
       desktopInlineKeys: ['edit', 'member', 'blacklist'],
       menuAriaLabel: '粉丝操作',
       actions: (record) => [
-        { key: 'edit', label: '编辑', hidden: !can('mp:fan:update'), onClick: () => openEdit(record) },
+        { key: 'edit', label: '编辑', hidden: !can('mp:fan:update'), onClick: () => fanModal.openEdit(record) },
         {
           key: 'member',
           label: record.memberId ? '解绑会员' : '创建会员',
@@ -286,16 +285,9 @@ export default function MpFansPage() {
         pagination={buildPagination(total)}
         scroll={{ x: 1320 }} />
 
-      <AppModal title="编辑粉丝" visible={modalVisible}
-        onOk={handleSubmit} onCancel={() => { setModalVisible(false); setEditingRecord(null); }}
-        confirmLoading={submitting} width={520}>
+      <AppModal {...fanModal.modalProps} title="编辑粉丝" width={520}>
         <Spin spinning={false} wrapperClassName="modal-spin-wrapper">
-          <Form
-            key={editingRecord?.id ?? 'none'}
-            getFormApi={(api) => { (formRef as { current: FormApi }).current = api; }}
-            labelPosition="left" labelWidth={72}
-            initValues={editingRecord ? { remark: editingRecord.remark ?? '', tagIds: editingRecord.tagIds } : { remark: '', tagIds: [] }}
-          >
+          <Form {...fanModal.formProps}>
             <Form.Input field="remark" label="备注" placeholder="请输入备注（最多128字）" maxLength={128} />
             <Form.Select field="tagIds" label="标签" multiple style={{ width: '100%' }}
               placeholder="为该粉丝选择标签" optionList={tags.map((t) => ({ label: t.name, value: t.id }))} />

@@ -1,8 +1,6 @@
-import { useState, useRef } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
 import { Button, Form, Modal, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -12,6 +10,7 @@ import { formatDateTime, formatDateForApi } from '@/utils/date';
 import { createdAtColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
+import { useEditModal } from '@/hooks/useEditModal';
 import {
   paymentSettlementKeys,
   useGeneratePaymentSettlement,
@@ -34,14 +33,11 @@ interface GenerateFormValues { channel: PaymentChannel; period: [Date, Date]; re
 export default function PaymentSettlementsPage() {
   const { hasPermission } = usePermission();
   const canSettle = hasPermission('payment:settlement:settle');
-  const formApi = useRef<FormApi | null>(null);
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentSettlementKeys.lists });
-
-  const [genVisible, setGenVisible] = useState(false);
 
   const listQuery = usePaymentSettlementList({
     page,
@@ -55,18 +51,21 @@ export default function PaymentSettlementsPage() {
   const transitionMutation = useUpdatePaymentSettlementStatus();
   const transitioningId = transitionMutation.isPending ? (transitionMutation.variables?.id ?? null) : null;
 
-  async function handleGenerate() {
-    let values: GenerateFormValues;
-    try { values = (await formApi.current?.validate()) as GenerateFormValues; } catch { throw new Error('validation'); }
-    await generateMutation.mutateAsync({
+  const generateSaveMutation = {
+    mutateAsync: ({ values }: { id?: number; values: { channel: string; periodStart: string; periodEnd: string; remark?: string } }) => generateMutation.mutateAsync(values),
+    isPending: generateMutation.isPending,
+  };
+  const generateModal = useEditModal<PaymentSettlementBatch, GenerateFormValues, { channel: string; periodStart: string; periodEnd: string; remark?: string }>({
+    save: generateSaveMutation,
+    defaults: { channel: 'wechat' },
+    beforeSave: (values) => ({
       channel: values.channel,
       periodStart: formatDateForApi(values.period[0]),
       periodEnd: formatDateForApi(values.period[1]),
       remark: values.remark || undefined,
-    });
-    Toast.success('生成成功');
-    setGenVisible(false);
-  }
+    }),
+    successMessage: () => '生成成功',
+  });
 
   async function handleTransition(record: PaymentSettlementBatch, status: PaymentSettlementStatus) {
     await transitionMutation.mutateAsync({ id: record.id, status });
@@ -151,7 +150,7 @@ export default function PaymentSettlementsPage() {
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderGenerateButton = () => hasPermission('payment:settlement:generate') ? (
-    <Button type="primary" icon={<Plus size={14} />} onClick={() => setGenVisible(true)}>生成结算</Button>
+    <Button type="primary" icon={<Plus size={14} />} onClick={generateModal.openCreate}>生成结算</Button>
   ) : null;
 
   return (
@@ -188,8 +187,8 @@ export default function PaymentSettlementsPage() {
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} pagination={buildPagination(total)}
       />
 
-      <AppModal title="生成结算批次" visible={genVisible} onOk={handleGenerate} onCancel={() => setGenVisible(false)} okButtonProps={{ loading: generateMutation.isPending }} width={520} closeOnEsc>
-        <Form key={genVisible ? 'gen' : 'closed'} getFormApi={(api) => { formApi.current = api; }} initValues={{ channel: 'wechat' }} labelPosition="left" labelWidth={90}>
+      <AppModal {...generateModal.modalProps} title="生成结算批次" width={520}>
+        <Form {...generateModal.formProps}>
           <Form.Select field="channel" label="渠道" style={{ width: '100%' }} optionList={channelOptions} rules={[{ required: true, message: '请选择渠道' }]} />
           <Form.DatePicker
             field="period"

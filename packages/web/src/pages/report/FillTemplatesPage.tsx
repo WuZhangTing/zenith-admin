@@ -1,7 +1,6 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Banner, Button, Col, Form, Modal, Row, Select, SideSheet, Space, Steps, TabPane, Tabs, Tag, Toast } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Copy, Eye } from 'lucide-react';
 import { REPORT_FILL_TEMPLATE_STATUS_LABELS, REPORT_FILL_TEMPLATE_STATUS_OPTIONS } from '@zenith/shared/report';
@@ -13,6 +12,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { useAllUsers } from '@/hooks/queries/users';
 import { flattenReportFolders, useReportFolderTree } from '@/hooks/queries/report-folders';
 import { usePublishedWorkflowDefinitions } from '@/hooks/queries/workflow-definitions';
@@ -60,17 +60,12 @@ export default function FillTemplatesPage() {
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [draft, setDraft] = useState<SearchState>(DEFAULT_SEARCH);
   const [submitted, setSubmitted] = useState<SearchState>(DEFAULT_SEARCH);
-  const [editorVisible, setEditorVisible] = useState(false);
-  const [editing, setEditing] = useState<ReportFillTemplate | null>(null);
   const [fields, setFields] = useState<WorkflowFormField[]>([]);
   const [settings, setSettings] = useState<WorkflowFormSettings>(DEFAULT_SCHEMA.settings);
   const [editorStep, setEditorStep] = useState(0);
   const [editorBasicValues, setEditorBasicValues] = useState<Record<string, unknown>>({ needReview: false });
   const [editorTab, setEditorTab] = useState('designer');
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
-  const [cloneTarget, setCloneTarget] = useState<ReportFillTemplate | null>(null);
-  const editorFormApi = useRef<FormApi | null>(null);
-  const cloneFormApi = useRef<FormApi | null>(null);
 
   const listQuery = useReportFillTemplateList({
     page,
@@ -89,6 +84,49 @@ export default function FillTemplatesPage() {
   const cloneMutation = useCloneReportFillTemplate();
   const deleteMutation = useDeleteReportFillTemplate();
   const templates = listQuery.data?.list ?? [];
+  const editorModal = useEditModal<ReportFillTemplate, Record<string, unknown>>({
+    entityName: '填报模板',
+    save: {
+      isPending: createMutation.isPending || updateMutation.isPending,
+      mutateAsync: async () => { throw new Error('editor-submit-is-handled-by-custom-footer'); },
+    },
+    defaults: { needReview: false },
+    toValues: (template) => ({
+      code: template.code,
+      name: template.name,
+      description: template.description,
+      ownerId: template.ownerId,
+      folderId: template.folderId,
+      needReview: template.needReview,
+      workflowDefinitionId: template.workflowDefinitionId,
+    }),
+  });
+  const editing = editorModal.editing;
+  const cloneModal = useEditModal<ReportFillTemplate, Record<string, unknown>>({
+    save: {
+      isPending: cloneMutation.isPending,
+      mutateAsync: ({ id, values }) => cloneMutation.mutateAsync({
+        id: id!,
+        values: {
+          code: String(values.code),
+          name: String(values.name),
+          folderId: values.folderId ? Number(values.folderId) : null,
+        },
+      }),
+    },
+    labelWidth: 90,
+    toValues: (template) => ({
+      name: `${template.name} 副本`,
+      code: `${template.code}_copy`,
+      folderId: template.folderId,
+    }),
+    beforeSave: (values) => ({
+      code: String(values.code).trim(),
+      name: String(values.name).trim(),
+      folderId: values.folderId ? Number(values.folderId) : null,
+    }),
+    successMessage: () => '模板克隆成功',
+  });
 
   function handleSearch() {
     setPage(1);
@@ -104,7 +142,6 @@ export default function FillTemplatesPage() {
   }
 
   function openEditor(template?: ReportFillTemplate) {
-    setEditing(template ?? null);
     setFields(template?.formSchema.fields ?? []);
     setSettings(template?.formSchema.settings ?? DEFAULT_SCHEMA.settings);
     setEditorStep(0);
@@ -119,12 +156,13 @@ export default function FillTemplatesPage() {
     } : { needReview: false });
     setConflictMessage(null);
     setEditorTab('designer');
-    setEditorVisible(true);
+    if (template) editorModal.openEdit(template);
+    else editorModal.openCreate();
   }
 
   async function goToDesignStep() {
     try {
-      const values = await editorFormApi.current?.validate() as Record<string, unknown>;
+      const values = await editorModal.formApi.current?.validate() as Record<string, unknown>;
       setEditorBasicValues(values);
       setEditorStep(1);
     } catch {
@@ -165,7 +203,7 @@ export default function FillTemplatesPage() {
         await createMutation.mutateAsync(payload);
       }
       Toast.success(editing ? '模板更新成功' : '模板创建成功');
-      setEditorVisible(false);
+      editorModal.close();
     } catch (error) {
       if (isRevisionConflict(error)) {
         setConflictMessage('模板已被其他人更新。当前设计不会自动覆盖，请关闭后刷新最新版本再继续。');
@@ -194,21 +232,6 @@ export default function FillTemplatesPage() {
       }
       throw error;
     }
-  }
-
-  async function handleClone() {
-    if (!cloneTarget) return;
-    const values = await cloneFormApi.current?.validate() as Record<string, unknown>;
-    await cloneMutation.mutateAsync({
-      id: cloneTarget.id,
-      values: {
-        code: String(values.code).trim(),
-        name: String(values.name).trim(),
-        folderId: values.folderId ? Number(values.folderId) : null,
-      },
-    });
-    Toast.success('模板克隆成功');
-    setCloneTarget(null);
   }
 
   const columns: ColumnProps<ReportFillTemplate>[] = [
@@ -268,7 +291,7 @@ export default function FillTemplatesPage() {
           key: 'clone',
           label: '克隆',
           hidden: !hasPermission('report:fill:template:clone'),
-          onClick: () => setCloneTarget(record),
+          onClick: () => cloneModal.openEdit(record),
         },
         {
           key: 'delete',
@@ -328,7 +351,7 @@ export default function FillTemplatesPage() {
   const editorSaving = createMutation.isPending || updateMutation.isPending;
   const editorFooter = (
     <Space>
-      <Button disabled={editorSaving} onClick={() => setEditorVisible(false)}>取消</Button>
+      <Button disabled={editorSaving} onClick={editorModal.close}>取消</Button>
       {editorStep === 1 && (
         <Button disabled={editorSaving} onClick={() => setEditorStep(0)}>上一步</Button>
       )}
@@ -384,7 +407,7 @@ export default function FillTemplatesPage() {
 
       <SideSheet
         title={editing ? `设计填报模板 · ${editing.name}` : '新增填报模板'}
-        visible={editorVisible}
+        visible={editorModal.visible}
         placement="right"
         width={editorStep === 0 ? 760 : 'min(1280px, 95vw)'}
         bodyStyle={{
@@ -394,7 +417,7 @@ export default function FillTemplatesPage() {
           flexDirection: 'column',
           overflow: editorStep === 0 ? 'auto' : 'hidden',
         }}
-        onCancel={() => setEditorVisible(false)}
+        onCancel={editorModal.close}
         footer={editorFooter}
         closeOnEsc
       >
@@ -406,18 +429,15 @@ export default function FillTemplatesPage() {
           {conflictMessage && <Banner type="danger" closeIcon={null} description={conflictMessage} />}
           {editorStep === 0 ? (
             <Form
-              key={editing?.id ?? 'new'}
-              labelPosition="left"
-              labelWidth={90}
+              {...editorModal.formProps}
               initValues={editorBasicValues}
-              getFormApi={(api) => { editorFormApi.current = api; }}
             >
               <Row gutter={16}>
                 <Col xs={24} md={12}>
                   <Form.Input
                     field="code"
                     label="模板编码"
-                    disabled={Boolean(editing)}
+                    disabled={editorModal.isEdit}
                     rules={[{ required: true, message: '请输入模板编码' }]}
                     placeholder="字母开头，可含数字和下划线"
                   />
@@ -500,24 +520,11 @@ export default function FillTemplatesPage() {
       </SideSheet>
 
       <AppModal
-        title={`克隆模板 · ${cloneTarget?.name ?? ''}`}
-        visible={Boolean(cloneTarget)}
+        {...cloneModal.modalProps}
+        title={`克隆模板 · ${cloneModal.editing?.name ?? ''}`}
         width={520}
-        onCancel={() => setCloneTarget(null)}
-        onOk={() => void handleClone()}
-        confirmLoading={cloneMutation.isPending}
       >
-        <Form
-          key={cloneTarget?.id}
-          labelPosition="left"
-          labelWidth={90}
-          initValues={{
-            name: cloneTarget ? `${cloneTarget.name} 副本` : '',
-            code: cloneTarget ? `${cloneTarget.code}_copy` : '',
-            folderId: cloneTarget?.folderId,
-          }}
-          getFormApi={(api) => { cloneFormApi.current = api; }}
-        >
+        <Form {...cloneModal.formProps}>
           <Form.Input field="name" label="模板名称" prefix={<Copy size={14} />} rules={[{ required: true, message: '请输入名称' }]} />
           <Form.Input field="code" label="模板编码" rules={[{ required: true, message: '请输入编码' }]} />
           <Form.Select

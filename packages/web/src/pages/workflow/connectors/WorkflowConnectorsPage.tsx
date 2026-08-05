@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import {
   Form,
   Input,
@@ -16,7 +16,6 @@ import {
   Table,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -37,6 +36,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 /** 可创建的连接器类型（与后端 workflowConnectorTypeSchema 对齐；mq/database 暂无运行时实现不开放） */
 const TYPE_OPTIONS: Array<{ value: WorkflowConnectorType; label: string }> = [
@@ -86,8 +86,6 @@ export default function WorkflowConnectorsPage() {
   const { items: statusItems } = useDictItems('common_status');
   const STATUS_OPTIONS = statusItems.map((i) => ({ value: i.value, label: i.label }));
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
-
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
@@ -102,8 +100,6 @@ export default function WorkflowConnectorsPage() {
   });
   const data = listQuery.data ?? null;
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<WorkflowConnector | null>(null);
   const saveMutation = useSaveWorkflowConnector();
   const toggleStatusMutation = useSaveWorkflowConnector();
   const deleteMutation = useDeleteWorkflowConnector();
@@ -121,32 +117,29 @@ export default function WorkflowConnectorsPage() {
   const monitorStats = monitorQuery.data?.stats ?? null;
   const monitorRows: WorkflowConnectorInvocation[] = monitorQuery.data?.invocations ?? [];
 
-  function openCreate() { setEditing(null); setModalVisible(true); }
-  function openEdit(record: WorkflowConnector) { setEditing(record); setModalVisible(true); }
-  function closeModal() { setModalVisible(false); setEditing(null); }
-
-  const editCfg = (editing?.config ?? {}) as unknown as WorkflowConnectorHttpConfig;
-  const formInitValues: ConnectorFormValues = editing
-    ? {
-        name: editing.name, code: editing.code, description: editing.description ?? '', type: editing.type,
+  const connectorModal = useEditModal<WorkflowConnector, ConnectorFormValues, Record<string, unknown>>({
+    entityName: '连接器',
+    save: saveMutation,
+    defaults: {
+      name: '', code: '', description: '', type: 'http', baseUrl: '', method: 'GET', authType: 'none', apiKeyHeader: '',
+      headersText: '', queryText: '', timeoutMs: 10000, retryMax: 0, circuitBreakerEnabled: true, failureThreshold: 5, cooldownSec: 60,
+      rateLimitEnabled: false, rateLimitWindowSec: 1, rateLimitMax: 0, status: 'enabled',
+    },
+    toValues: (record) => {
+      const editCfg = (record.config ?? {}) as unknown as WorkflowConnectorHttpConfig;
+      return {
+        name: record.name, code: record.code, description: record.description ?? '', type: record.type,
         baseUrl: editCfg.baseUrl ?? '', method: editCfg.method ?? 'GET', authType: editCfg.authType ?? 'none', apiKeyHeader: editCfg.apiKeyHeader ?? '',
         headersText: editCfg.headers && Object.keys(editCfg.headers).length ? JSON.stringify(editCfg.headers, null, 2) : '',
         queryText: editCfg.query && Object.keys(editCfg.query).length ? JSON.stringify(editCfg.query, null, 2) : '',
         clearCredentials: false,
-        timeoutMs: editing.timeoutMs, retryMax: editing.retryMax, circuitBreakerEnabled: editing.circuitBreakerEnabled,
-        failureThreshold: editing.failureThreshold, cooldownSec: editing.cooldownSec,
-        rateLimitEnabled: editing.rateLimitEnabled, rateLimitWindowSec: editing.rateLimitWindowSec, rateLimitMax: editing.rateLimitMax,
-        status: editing.status,
-      }
-    : {
-        name: '', code: '', description: '', type: 'http', baseUrl: '', method: 'GET', authType: 'none', apiKeyHeader: '',
-        headersText: '', queryText: '', timeoutMs: 10000, retryMax: 0, circuitBreakerEnabled: true, failureThreshold: 5, cooldownSec: 60,
-        rateLimitEnabled: false, rateLimitWindowSec: 1, rateLimitMax: 0, status: 'enabled',
+        timeoutMs: record.timeoutMs, retryMax: record.retryMax, circuitBreakerEnabled: record.circuitBreakerEnabled,
+        failureThreshold: record.failureThreshold, cooldownSec: record.cooldownSec,
+        rateLimitEnabled: record.rateLimitEnabled, rateLimitWindowSec: record.rateLimitWindowSec, rateLimitMax: record.rateLimitMax,
+        status: record.status,
       };
-
-  async function handleModalOk() {
-    let values: ConnectorFormValues;
-    try { values = await formApi.current?.validate() as ConnectorFormValues; } catch { throw new Error('validation'); }
+    },
+    beforeSave: (values, { isEdit }) => {
     let headers: Record<string, string> | undefined;
     let query: Record<string, string> | undefined;
     try {
@@ -172,12 +165,15 @@ export default function WorkflowConnectorsPage() {
       status: values.status,
     };
     if (hasCred) payload.credentials = credEntries;
-    if (editing && values.clearCredentials) payload.clearCredentials = true;
+    if (isEdit && values.clearCredentials) payload.clearCredentials = true;
+    return payload;
+    },
+    labelWidth: 104,
+  });
+  const editing = connectorModal.editing;
 
-    await saveMutation.mutateAsync({ id: editing?.id, values: payload });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    closeModal();
-  }
+  function openCreate() { connectorModal.openCreate(); }
+  function openEdit(record: WorkflowConnector) { connectorModal.openEdit(record); }
 
   async function handleDelete(id: number) {
     await deleteMutation.mutateAsync(id);
@@ -274,8 +270,8 @@ export default function WorkflowConnectorsPage() {
         pagination={buildPagination(data?.total ?? 0)}
       />
 
-      <AppModal title={editing ? '编辑连接器' : '新增连接器'} visible={modalVisible} onOk={handleModalOk} onCancel={closeModal} okButtonProps={{ loading: saveMutation.isPending }} width={720} closeOnEsc>
-        <Form key={editing?.id ?? 'new'} getFormApi={(api) => { formApi.current = api; }} allowEmpty initValues={formInitValues} labelPosition="left" labelWidth={104}>
+      <AppModal {...connectorModal.modalProps} width={720}>
+        <Form {...connectorModal.formProps}>
           <Row gutter={16}>
             <Col span={12}><Form.Input field="name" label="名称" placeholder="请输入名称" rules={[{ required: true, message: '名称不能为空' }]} /></Col>
             <Col span={12}><Form.Input field="code" label="编码" placeholder="如 crm_http" disabled={!!editing} rules={[{ required: true, message: '编码不能为空' }, { pattern: /^[a-zA-Z][a-zA-Z0-9_-]*$/, message: '以字母开头，仅含字母/数字/下划线/连字符' }]} /></Col>

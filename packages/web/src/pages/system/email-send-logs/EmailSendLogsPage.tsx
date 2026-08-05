@@ -1,7 +1,5 @@
-import { useRef, useState } from 'react';
 import { Button, Form, Input, Select, Tag, Toast } from '@douyinfe/semi-ui';
 import { AppModal } from '@/components/AppModal';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus } from 'lucide-react';
 import type { EmailSendLog, SendStatus } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
@@ -12,6 +10,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { renderEllipsis } from '../../../utils/table-columns';
 import { useEmailTemplateList } from '@/hooks/queries/email-templates';
 import { useListSearch } from '@/hooks/useListSearch';
+import { useEditModal } from '@/hooks/useEditModal';
 import {
   emailSendLogKeys,
   useDeleteEmailSendLog,
@@ -39,9 +38,6 @@ export default function EmailSendLogsPage() {
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: emailSendLogKeys.lists });
 
-  const [testVisible, setTestVisible] = useState(false);
-  const formRef = useRef<FormApi>(null);
-
   const listQuery = useEmailSendLogList({
     page,
     pageSize,
@@ -52,9 +48,20 @@ export default function EmailSendLogsPage() {
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
-  const templatesQuery = useEmailTemplateList({ page: 1, pageSize: 100, status: 'enabled' }, { enabled: testVisible });
-  const templates = templatesQuery.data?.list ?? [];
   const testMutation = useTestEmailSendLog();
+  const testModal = useEditModal<{ id: number }, Record<string, unknown>>({
+    save: {
+      isPending: testMutation.isPending,
+      mutateAsync: async ({ values }) => {
+        await testMutation.mutateAsync(values);
+        return { id: 0 };
+      },
+    },
+    defaults: {},
+    successMessage: () => '测试邮件已发送',
+  });
+  const templatesQuery = useEmailTemplateList({ page: 1, pageSize: 100, status: 'enabled' }, { enabled: testModal.visible });
+  const templates = templatesQuery.data?.list ?? [];
   const deleteMutation = useDeleteEmailSendLog();
 
   const buildExportQuery = () => ({
@@ -63,18 +70,6 @@ export default function EmailSendLogsPage() {
     ...(draftParams.filterStatus ? { status: draftParams.filterStatus } : {}),
     ...(draftParams.filterSource ? { source: draftParams.filterSource } : {}),
   });
-
-  const openTest = () => {
-    setTestVisible(true);
-  };
-
-  const handleTest = async () => {
-    let values: Awaited<ReturnType<FormApi['validate']>>;
-    try { values = (await formRef.current!.validate())!; } catch { throw new Error('validation'); }
-    await testMutation.mutateAsync(values);
-    Toast.success('测试邮件已发送');
-    setTestVisible(false);
-  };
 
   const handleDelete = (id: number) => {
     confirmDelete({
@@ -135,7 +130,7 @@ export default function EmailSendLogsPage() {
               <ExportButton entity="system.email-send-logs" query={buildExportQuery()} />
             )}
             {can('system:email-send-log:send') && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={openTest}>测试发送</Button>
+              <Button type="primary" icon={<Plus size={14} />} onClick={testModal.openCreate}>测试发送</Button>
             )}
           </>
         )}
@@ -144,7 +139,7 @@ export default function EmailSendLogsPage() {
             <KeywordInput placeholder="主题/内容关键词" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
             <SearchButton onClick={handleSearch} />
             {can('system:email-send-log:send') && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={openTest}>测试发送</Button>
+              <Button type="primary" icon={<Plus size={14} />} onClick={testModal.openCreate}>测试发送</Button>
             )}
           </>
         )}
@@ -171,10 +166,8 @@ export default function EmailSendLogsPage() {
         pagination={buildPagination(total)}
         scroll={{ x: 1400 }} />
 
-      <AppModal title="测试发送邮件" visible={testVisible} onOk={handleTest}
-        onCancel={() => setTestVisible(false)} confirmLoading={testMutation.isPending} width={560}>
-        <Form key="test" getFormApi={(api) => { (formRef as { current: FormApi }).current = api; }}
-          labelPosition="left" labelWidth={90} initValues={{}}>
+      <AppModal {...testModal.modalProps} title="测试发送邮件" width={560}>
+        <Form {...testModal.formProps}>
           <Form.Select field="templateId" label="模板" style={{ width: '100%' }} showClear
             optionList={templates.map((t) => ({ label: `${t.name} (${t.code})`, value: t.id }))} />
           <Form.Input field="toEmail" label="收件人" rules={[{ required: true, message: '请输入收件人邮箱' }]} />

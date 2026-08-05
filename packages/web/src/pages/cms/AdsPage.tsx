@@ -1,8 +1,7 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Tag, Toast, Tabs, TabPane, Select, SideSheet, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Trash2 } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
@@ -11,6 +10,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { formatDateTimeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { usePagination } from '@/hooks/usePagination';
 import {
   useCmsAdSlots, useSaveCmsAdSlot, useDeleteCmsAdSlot,
@@ -27,29 +27,20 @@ import { confirmDelete } from '@/utils/confirm';
 // ─── 广告位 Tab ───────────────────────────────────────────────────────────────
 function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<CmsAdSlot | null>(null);
-
   const slotsQuery = useCmsAdSlots(siteId);
   const saveMutation = useSaveCmsAdSlot();
+  const slotModal = useEditModal<CmsAdSlot, Record<string, unknown>, Record<string, unknown>>({
+    entityName: '广告位',
+    save: saveMutation,
+    labelWidth: 100,
+    toValues: (record) => ({ code: record.code, name: record.name, remark: record.remark ?? '' }),
+    beforeSave: (values, { isEdit }) => {
+      if (!isEdit && !siteId) throw new Error('validation');
+      return { ...values, ...(!isEdit ? { siteId } : {}) };
+    },
+  });
   const deleteMutation = useDeleteCmsAdSlot();
   const canManage = hasPermission('cms:ad:manage');
-
-  async function handleModalOk() {
-    if (!siteId) return;
-    let values: Record<string, unknown>;
-    try {
-      values = (await formApi.current?.validate()) ?? {};
-    } catch {
-      throw new Error('validation');
-    }
-    if (!editingRecord) values.siteId = siteId;
-    await saveMutation.mutateAsync({ id: editingRecord?.id, values });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditingRecord(null);
-  }
 
   const columns: ColumnProps<CmsAdSlot>[] = [
     { title: '广告位名称', dataIndex: 'name', width: 180 },
@@ -60,7 +51,7 @@ function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
       width: 160,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => canManage ? [
-        { key: 'edit', label: '编辑', onClick: () => { setEditingRecord(record); setModalVisible(true); } },
+        { key: 'edit', label: '编辑', onClick: () => slotModal.openEdit(record) },
         {
           key: 'delete', label: '删除', danger: true,
           onClick: () => {
@@ -81,7 +72,7 @@ function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
   return (
     <>
       <SearchToolbar>
-        {canManage ? <CreateButton onClick={() => { setEditingRecord(null); setModalVisible(true); }}>新增广告位</CreateButton> : null}
+        {canManage ? <CreateButton onClick={slotModal.openCreate}>新增广告位</CreateButton> : null}
       </SearchToolbar>
       <ConfigurableTable
         bordered
@@ -95,25 +86,10 @@ function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
         refreshLoading={slotsQuery.isFetching}
         pagination={false}
       />
-      <AppModal
-        title={editingRecord ? '编辑广告位' : '新增广告位'}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={() => { setModalVisible(false); setEditingRecord(null); }}
-        okButtonProps={{ loading: saveMutation.isPending }}
-        width={480}
-        closeOnEsc
-      >
-        <Form
-          key={editingRecord?.id ?? 'new'}
-          getFormApi={(api) => { formApi.current = api; }}
-          allowEmpty
-          initValues={editingRecord ? { code: editingRecord.code, name: editingRecord.name, remark: editingRecord.remark ?? '' } : {}}
-          labelPosition="left"
-          labelWidth={100}
-        >
+      <AppModal {...slotModal.modalProps} width={480}>
+        <Form {...slotModal.formProps}>
           <Form.Input field="name" label="广告位名称" rules={[{ required: true, message: '请输入名称' }]} />
-          <Form.Input field="code" label="引用标识" disabled={!!editingRecord} placeholder="如 home-ad（主题模板中引用）" rules={[{ required: true, message: '请输入标识' }]} />
+          <Form.Input field="code" label="引用标识" disabled={slotModal.isEdit} placeholder="如 home-ad（主题模板中引用）" rules={[{ required: true, message: '请输入标识' }]} />
           <Form.Input field="remark" label="备注" />
         </Form>
       </AppModal>
@@ -124,32 +100,33 @@ function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
 // ─── 广告投放 Tab ─────────────────────────────────────────────────────────────
 function AdsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [slotFilter, setSlotFilter] = useState<number | undefined>(undefined);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<CmsAd | null>(null);
-
   const slotsQuery = useCmsAdSlots(siteId);
   const listQuery = useCmsAdList({ page, pageSize, siteId: siteId ?? 0, slotId: slotFilter }, siteId !== undefined);
   const saveMutation = useSaveCmsAd();
+  const adModal = useEditModal<CmsAd, Record<string, unknown>, Record<string, unknown>>({
+    entityName: '广告',
+    save: saveMutation,
+    defaults: { sort: 0, status: 'enabled' },
+    toValues: (record) => ({
+      slotId: record.slotId,
+      name: record.name,
+      image: record.image ?? '',
+      linkUrl: record.linkUrl ?? '',
+      startAt: record.startAt ?? undefined,
+      endAt: record.endAt ?? undefined,
+      sort: record.sort,
+      status: record.status,
+    }),
+    beforeSave: (values) => ({
+      ...values,
+      startAt: values.startAt instanceof Date ? formatDateTimeForApi(values.startAt) : values.startAt,
+      endAt: values.endAt instanceof Date ? formatDateTimeForApi(values.endAt) : values.endAt,
+    }),
+  });
   const deleteMutation = useDeleteCmsAd();
   const canManage = hasPermission('cms:ad:manage');
-
-  async function handleModalOk() {
-    let values: Record<string, unknown>;
-    try {
-      values = (await formApi.current?.validate()) ?? {};
-    } catch {
-      throw new Error('validation');
-    }
-    if (values.startAt instanceof Date) values.startAt = formatDateTimeForApi(values.startAt);
-    if (values.endAt instanceof Date) values.endAt = formatDateTimeForApi(values.endAt);
-    await saveMutation.mutateAsync({ id: editingRecord?.id, values });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditingRecord(null);
-  }
 
   const columns: ColumnProps<CmsAd>[] = [
     { title: '广告名称', dataIndex: 'name', width: 180 },
@@ -172,7 +149,7 @@ function AdsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
       width: 160,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => canManage ? [
-        { key: 'edit', label: '编辑', onClick: () => { setEditingRecord(record); setModalVisible(true); } },
+        { key: 'edit', label: '编辑', onClick: () => adModal.openEdit(record) },
         {
           key: 'delete', label: '删除', danger: true,
           onClick: () => {
@@ -200,7 +177,7 @@ function AdsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
           style={{ width: 180 }}
           optionList={(slotsQuery.data ?? []).map((s) => ({ value: s.id, label: s.name }))}
         />
-        {canManage ? <CreateButton onClick={() => { setEditingRecord(null); setModalVisible(true); }}>新增广告</CreateButton> : null}
+        {canManage ? <CreateButton onClick={adModal.openCreate}>新增广告</CreateButton> : null}
       </SearchToolbar>
       <ConfigurableTable
         bordered
@@ -215,29 +192,8 @@ function AdsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
         refreshLoading={listQuery.isFetching}
         pagination={buildPagination(listQuery.data?.total ?? 0)}
       />
-      <AppModal
-        title={editingRecord ? '编辑广告' : '新增广告'}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={() => { setModalVisible(false); setEditingRecord(null); }}
-        okButtonProps={{ loading: saveMutation.isPending }}
-        width={560}
-        closeOnEsc
-      >
-        <Form
-          key={editingRecord?.id ?? 'new'}
-          getFormApi={(api) => { formApi.current = api; }}
-          allowEmpty
-          initValues={editingRecord
-            ? {
-                slotId: editingRecord.slotId, name: editingRecord.name, image: editingRecord.image ?? '',
-                linkUrl: editingRecord.linkUrl ?? '', startAt: editingRecord.startAt ?? undefined,
-                endAt: editingRecord.endAt ?? undefined, sort: editingRecord.sort, status: editingRecord.status,
-              }
-            : { sort: 0, status: 'enabled' }}
-          labelPosition="left"
-          labelWidth={90}
-        >
+      <AppModal {...adModal.modalProps} width={560}>
+        <Form {...adModal.formProps}>
           <Form.Select field="slotId" label="广告位" style={{ width: '100%' }} rules={[{ required: true, message: '请选择广告位' }]}
             optionList={(slotsQuery.data ?? []).map((s) => ({ value: s.id, label: s.name }))} />
           <Form.Input field="name" label="广告名称" rules={[{ required: true, message: '请输入名称' }]} />

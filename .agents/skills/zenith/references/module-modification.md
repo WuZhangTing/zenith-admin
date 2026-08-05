@@ -24,7 +24,7 @@
 - **表格列**（Step 8）：在 `XxxPage.tsx` 的 `columns` 中添加新列
 - **表单字段**（Step 8）：在 Modal 的 `<Form>` 中添加新输入组件
 - **搜索筛选**（Step 8）：如需要搜索，在 `SearchParams` 和 `SearchToolbar` 中添加
-- **回填检查**（Step 8a）：新字段可能让写接口响应与详情接口不再同源，按 [crud-frontend.md 的回填红线](./crud-frontend.md#落地要求)重新判断 `useSaveXxx` 是否还能 `setQueryData` 回填
+- **回填检查**（Step 8a）：`createCrudQueries` 生成的 `useSave` 统一失效 `detail(id)`，不做 `setQueryData` 回填，新增字段无需额外判断。仅当域内**手写**了带回填的 mutation 时，才按 [crud-frontend.md 的回填红线](./crud-frontend.md#落地要求)重新判断新字段是否让写接口响应与详情接口不再同源
 
 ### Mock（如需要）
 

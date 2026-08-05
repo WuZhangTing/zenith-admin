@@ -1,10 +1,9 @@
-import { useRef, useState } from 'react';
 import { Col, Form, Modal, Row, Select, Spin, Toast, Switch } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import type { EmailTemplate } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
+import { useEditModal } from '@/hooks/useEditModal';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -33,10 +32,6 @@ export default function EmailTemplatesPage() {
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: emailTemplateKeys.lists });
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<EmailTemplate | null>(null);
-  const formRef = useRef<FormApi>(null);
-
   const listQuery = useEmailTemplateList({
     page,
     pageSize,
@@ -45,29 +40,18 @@ export default function EmailTemplatesPage() {
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
-  const detailQuery = useEmailTemplateDetail(editingRecord?.id, modalVisible);
-  const editing = editingRecord ? (detailQuery.data ?? editingRecord) : null;
-  const modalDetailLoading = !!editingRecord && detailQuery.isFetching;
-
   const saveMutation = useSaveEmailTemplate();
+  const modal = useEditModal<EmailTemplate>({
+    entityName: '邮件模板',
+    save: saveMutation,
+    useDetail: useEmailTemplateDetail,
+    defaults: { status: 'enabled' },
+    labelWidth: 120,
+  });
+
   const toggleStatusMutation = useSaveEmailTemplate();
   const deleteMutation = useDeleteEmailTemplate();
   const togglingStatusId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
-
-  const openCreate = () => { setEditingRecord(null); setModalVisible(true); };
-  const openEdit = (record: EmailTemplate) => {
-    setEditingRecord(record);
-    setModalVisible(true);
-  };
-
-  const handleSubmit = async () => {
-    let values: Awaited<ReturnType<FormApi['validate']>>;
-    try { values = (await formRef.current!.validate())!; } catch { throw new Error('validation'); }
-    await saveMutation.mutateAsync({ id: editingRecord?.id, values });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditingRecord(null);
-  };
 
   const handleDelete = (id: number) => {
     confirmDelete({
@@ -123,7 +107,7 @@ export default function EmailTemplatesPage() {
           key: 'edit',
           label: '编辑',
           hidden: !can('system:email-template:update'),
-          onClick: () => openEdit(record),
+          onClick: () => modal.openEdit(record),
         },
         {
           key: 'delete',
@@ -147,7 +131,7 @@ export default function EmailTemplatesPage() {
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
             {can('system:email-template:create') && (
-              <CreateButton onClick={openCreate} />
+              <CreateButton onClick={modal.openCreate} />
             )}
           </>
         )}
@@ -156,7 +140,7 @@ export default function EmailTemplatesPage() {
             <KeywordInput placeholder="搜索模板名称/编码/主题" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} />
             <SearchButton onClick={handleSearch} />
             {can('system:email-template:create') && (
-              <CreateButton onClick={openCreate} />
+              <CreateButton onClick={modal.openCreate} />
             )}
           </>
         )}
@@ -173,24 +157,16 @@ export default function EmailTemplatesPage() {
         pagination={buildPagination(total)}
         scroll={{ x: 1200 }} />
 
-      <AppModal title={editingRecord ? '编辑邮件模板' : '新增邮件模板'} visible={modalVisible}
-        onOk={handleSubmit} onCancel={() => { setModalVisible(false); setEditingRecord(null); }}
-        confirmLoading={saveMutation.isPending} okButtonProps={{ disabled: modalDetailLoading }} width={720}>
-        <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form
-          key={editing?.id ?? 'new'}
-          getFormApi={(api) => { (formRef as { current: FormApi }).current = api; }}
-          allowEmpty
-          labelPosition="left" labelWidth={120}
-          initValues={editing ?? { status: 'enabled' }}
-        >
+      <AppModal {...modal.modalProps} width={720}>
+        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
+        <Form {...modal.formProps}>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Input field="name" label="模板名称" placeholder="请输入模板名称"
                 rules={[{ required: true, message: '请输入模板名称' }]} />
             </Col>
             <Col span={12}>
-              <Form.Input field="code" label="模板编码" disabled={!!editingRecord} placeholder="如：welcome_email"
+              <Form.Input field="code" label="模板编码" disabled={modal.isEdit} placeholder="如：welcome_email"
                 rules={[{ required: true, message: '请输入模板编码' }]} />
             </Col>
           </Row>

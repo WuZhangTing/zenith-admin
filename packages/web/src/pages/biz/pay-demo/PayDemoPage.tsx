@@ -31,6 +31,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { useListSearch } from '@/hooks/useListSearch';
 import { confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 type TagColor = 'grey' | 'blue' | 'green' | 'orange';
 
@@ -102,6 +103,11 @@ const DEFAULT_PAY_DEMO_SEARCH_PARAMS: PayDemoSearchParams = {
   status: '',
 };
 
+interface CreatePayDemoFormValues {
+  subject?: string;
+  amount?: number;
+}
+
 export default function PayDemoPage() {
 
   const {
@@ -109,9 +115,6 @@ export default function PayDemoPage() {
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
   } = useListSearch<PayDemoSearchParams>({ defaults: DEFAULT_PAY_DEMO_SEARCH_PARAMS, listKey: bizPayDemoKeys.lists });
-
-  const [createVisible, setCreateVisible] = useState(false);
-  const createFormApi = useRef<FormApi | null>(null);
 
   const [payTarget, setPayTarget] = useState<BizPayDemo | null>(null);
   const payFormApi = useRef<FormApi | null>(null);
@@ -131,23 +134,17 @@ export default function PayDemoPage() {
   const simulateMutation = useSimulateBizPayDemoPaid();
   const deleteMutation = useDeleteBizPayDemo();
   const simulatingId = simulateMutation.isPending ? (simulateMutation.variables ?? null) : null;
-
-  const openCreate = () => {
-    setCreateVisible(true);
-    setTimeout(() => createFormApi.current?.reset(), 0);
-  };
-
-  const handleCreate = async () => {
-    if (!createFormApi.current) return;
-    let values: Record<string, unknown>;
-    try { values = await createFormApi.current.validate() as Record<string, unknown>; } catch { throw new Error('validation'); }
-    await createMutation.mutateAsync({
+  const createModal = useEditModal<BizPayDemo, CreatePayDemoFormValues, { subject: string; amount: number }>({
+    save: {
+      mutateAsync: ({ values }) => createMutation.mutateAsync(values),
+      isPending: createMutation.isPending,
+    },
+    defaults: { amount: 99 },
+    beforeSave: (values) => ({
       subject: String(values.subject ?? ''),
       amount: Math.round(Number(values.amount) * 100),
-    });
-    Toast.success('创建成功');
-    setCreateVisible(false);
-  };
+    }),
+  });
 
   const openPay = (record: BizPayDemo) => {
     setPayTarget(record);
@@ -267,7 +264,7 @@ export default function PayDemoPage() {
 
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
-  const renderCreateButton = () => <CreateButton onClick={openCreate}>新建示例单</CreateButton>;
+  const renderCreateButton = () => <CreateButton onClick={createModal.openCreate}>新建示例单</CreateButton>;
 
   return (
     <div className="page-container">
@@ -328,15 +325,11 @@ export default function PayDemoPage() {
       </Collapse>
 
       <AppModal
+        {...createModal.modalProps}
         title="新建支付示例单"
-        visible={createVisible}
-        onCancel={() => setCreateVisible(false)}
-        onOk={handleCreate}
-        okButtonProps={{ loading: createMutation.isPending }}
-        closeOnEsc
         width={480}
       >
-        <Form getFormApi={(api) => { createFormApi.current = api; }} labelPosition="left" labelWidth={90} initValues={{ amount: 99 }}>
+        <Form {...createModal.formProps}>
           <Form.Input field="subject" label="示例事项" placeholder="如 示例商品 A / 示例服务开通" rules={[{ required: true, message: '请输入示例事项名称' }]} />
           <Form.InputNumber field="amount" label="金额(元)" min={0.01} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入金额' }]} />
         </Form>

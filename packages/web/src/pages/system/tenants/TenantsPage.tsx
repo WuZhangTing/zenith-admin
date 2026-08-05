@@ -1,6 +1,5 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Button, Select, Modal, Form, Toast, Row, Col, Spin, Switch, SideSheet, Progress, Descriptions, Tag, Divider } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { Tenant } from '@zenith/shared/identity';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
@@ -8,6 +7,7 @@ import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -33,10 +33,15 @@ interface SearchParams {
 
 const defaultSearchParams: SearchParams = { keyword: '', status: '' };
 
+/** 租户表单值：`expireAt` 在表单里是 Date，提交前由 beforeSave 转成接口格式 */
+interface TenantFormValues extends Partial<Omit<Tenant, 'expireAt'>> {
+  expireAt?: Date | string | null;
+  packageId?: number | null;
+}
+
 export default function TenantsPage() {
   const { hasPermission } = usePermission();
   const { items: statusItems } = useDictItems('common_status');
-  const formApi = useRef<FormApi | null>(null);
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
@@ -52,11 +57,24 @@ export default function TenantsPage() {
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<Tenant | null>(null);
-  const detailQuery = useTenantDetail(editingRecord?.id, modalVisible);
-  const editingTenant = editingRecord ? (detailQuery.data ?? editingRecord) : null;
-  const modalDetailLoading = !!editingRecord && detailQuery.isFetching;
+  const saveMutation = useSaveTenant();
+  const tenantModal = useEditModal<Tenant, TenantFormValues, Partial<Tenant>>({
+    entityName: '租户',
+    save: saveMutation,
+    useDetail: useTenantDetail,
+    defaults: { status: 'enabled' },
+    beforeSave: (values) => ({
+      ...values,
+      expireAt: values.expireAt ? formatDateTimeForApi(values.expireAt) : null,
+      packageId: values.packageId ?? null,
+    }),
+    onSaved: (saved, { isEdit }) => {
+      // 初始密码仅此一次可见，必须在保存成功后立刻展示
+      if (!isEdit && saved?.initialAdmin) showInitialAdminModal(saved.name, saved.initialAdmin);
+    },
+  });
+  const editingTenant = tenantModal.editing;
+
   const packageOptionsQuery = useAllTenantPackages();
   const packageOptions = (packageOptionsQuery.data ?? []).map((p) => ({ value: p.id, label: p.name }));
   const [statsVisible, setStatsVisible] = useState(false);
@@ -64,31 +82,9 @@ export default function TenantsPage() {
   const statsQuery = useTenantStats(statsTenant?.id, statsVisible);
   const stats = statsQuery.data ?? null;
 
-  const saveMutation = useSaveTenant();
   const toggleStatusMutation = useSaveTenant();
   const deleteMutation = useDeleteTenant();
   const togglingStatusId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
-
-  const handleModalOk = async () => {
-    let values;
-    try {
-      values = await formApi.current!.validate();
-    } catch {
-      throw new Error('validation');
-    }
-    const payload = {
-      ...values,
-      expireAt: values.expireAt ? formatDateTimeForApi(values.expireAt) : null,
-      packageId: values.packageId ?? null,
-    };
-    const saved = await saveMutation.mutateAsync({ id: editingRecord?.id, values: payload });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditingRecord(null);
-    if (!editingRecord && saved?.initialAdmin) {
-      showInitialAdminModal(saved.name, saved.initialAdmin);
-    }
-  };
 
   /** 展示自动初始化的管理员账号（初始密码仅此一次可见） */
   function showInitialAdminModal(tenantName: string, admin: { username: string; email: string; password: string }) {
@@ -146,11 +142,6 @@ export default function TenantsPage() {
   const openStats = (tenant: Tenant) => {
     setStatsTenant(tenant);
     setStatsVisible(true);
-  };
-
-  const openEdit = (tenant: Tenant) => {
-    setEditingRecord(tenant);
-    setModalVisible(true);
   };
 
   function renderExpiry(days: number | null, expireAt: string | null) {
@@ -216,7 +207,7 @@ export default function TenantsPage() {
           key: 'edit',
           label: '编辑',
           hidden: !hasPermission('system:tenant:update'),
-          onClick: () => { void openEdit(row); },
+          onClick: () => { tenantModal.openEdit(row); },
         },
         {
           key: 'delete',
@@ -261,7 +252,7 @@ export default function TenantsPage() {
   const renderExportButtons = () => <ExportButton entity="system.tenants" query={buildExportQuery()} />;
   const renderMobileExportActions = () => <ExportButton entity="system.tenants" query={buildExportQuery()} variant="flat" />;
   const renderCreateButton = () => hasPermission('system:tenant:create') ? (
-    <CreateButton onClick={() => { setEditingRecord(null); setModalVisible(true); }} />
+    <CreateButton onClick={tenantModal.openCreate} />
   ) : null;
 
   return (
@@ -303,23 +294,9 @@ export default function TenantsPage() {
         pagination={buildPagination(total)}
       />
 
-      <AppModal
-        title={editingTenant ? '编辑租户' : '新增租户'}
-        visible={modalVisible}
-        onCancel={() => { setModalVisible(false); setEditingRecord(null); }}
-        onOk={handleModalOk}
-        okButtonProps={{ disabled: modalDetailLoading }}
-        width={660}
-
-      >
-        <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form
-          getFormApi={(api) => (formApi.current = api)}
-          allowEmpty
-          initValues={editingTenant ?? { status: 'enabled' }}
-          labelPosition="left"
-          labelWidth={90}
-        >
+      <AppModal {...tenantModal.modalProps} width={660}>
+        <Spin spinning={tenantModal.detailLoading} wrapperClassName="modal-spin-wrapper">
+        <Form {...tenantModal.formProps}>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Input field="name" label="租户名称" placeholder="请输入租户名称" rules={[{ required: true, message: '请输入租户名称' }]} />

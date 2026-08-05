@@ -11,11 +11,11 @@ import {
   Typography,
   Switch,
 } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Tags, Trash2 } from 'lucide-react';
 import type { Tag } from '@zenith/shared/platform';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useEditModal } from '@/hooks/useEditModal';
 import { useListSearch } from '@/hooks/useListSearch';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
@@ -138,9 +138,6 @@ export default function TagsPage() {
 
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editRecord, setEditRecord] = useState<Tag | null>(null);
-  const formRef = useRef<FormApi>(null);
   const [colorValue, setColorValue] = useState('');
 
   const listQuery = useTagList({
@@ -153,42 +150,38 @@ export default function TagsPage() {
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
   const groupsQuery = useTagGroups();
-  const detailQuery = useTagDetail(editRecord?.id, modalVisible);
-  const editing = editRecord ? (detailQuery.data ?? editRecord) : null;
-  const modalDetailLoading = !!editRecord && detailQuery.isFetching;
   const saveMutation = useSaveTag();
+  const tagModal = useEditModal<Tag, Partial<Tag>, Partial<Tag> & { color?: string | null }>({
+    entityName: '标签',
+    save: saveMutation,
+    useDetail: useTagDetail,
+    defaults: { status: 'enabled', sortOrder: 0 },
+    toValues: (tag) => ({
+      name: tag.name,
+      groupName: tag.groupName ?? undefined,
+      description: tag.description ?? undefined,
+      status: tag.status,
+      sortOrder: tag.sortOrder,
+    }),
+    beforeSave: (values) => ({ ...values, color: colorValue || null }),
+  });
   const deleteMutation = useDeleteTag();
   const batchDeleteMutation = useBatchDeleteTags();
   const toggleStatusMutation = useUpdateTagStatus();
   const togglingStatusId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
 
   useEffect(() => {
-    if (modalVisible && editing) setColorValue(editing.color ?? '');
-  }, [modalVisible, editing]);
+    if (tagModal.visible && tagModal.editing) setColorValue(tagModal.editing.color ?? '');
+  }, [tagModal.visible, tagModal.editing]);
 
   const openCreate = () => {
-    setEditRecord(null);
     setColorValue('');
-    setModalVisible(true);
+    tagModal.openCreate();
   };
 
   const openEdit = (record: Tag) => {
-    setEditRecord(record);
     setColorValue(record.color ?? '');
-    setModalVisible(true);
-  };
-
-  const handleSubmit = async () => {
-    let values: Awaited<ReturnType<FormApi['validate']>>;
-    try {
-      values = (await formRef.current?.validate())!;
-    } catch {
-      throw new Error('validation');
-    }
-    const payload = { ...values, color: colorValue || null };
-    await saveMutation.mutateAsync({ id: editRecord?.id, values: payload });
-    Toast.success(editRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
+    tagModal.openEdit(record);
   };
 
   const handleDelete = (id: number) => {
@@ -399,37 +392,13 @@ export default function TagsPage() {
       />
 
       <AppModal
-        title={editing ? '编辑标签' : '新增标签'}
-        visible={modalVisible}
-        onOk={handleSubmit}
-        onCancel={() => { setModalVisible(false); setEditRecord(null); }}
-        confirmLoading={saveMutation.isPending}
-        okButtonProps={{ disabled: modalDetailLoading }}
+        {...tagModal.modalProps}
         afterClose={() => { setColorValue(''); }}
         width={520}
 
       >
-        <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form
-          key={editRecord?.id ?? 'new'}
-          getFormApi={(api) => {
-            (formRef as { current: FormApi }).current = api;
-          }}
-          allowEmpty
-          labelPosition="left"
-          labelWidth={90}
-          initValues={
-            editing
-              ? {
-                  name: editing.name,
-                  groupName: editing.groupName ?? undefined,
-                  description: editing.description ?? undefined,
-                  status: editing.status,
-                  sortOrder: editing.sortOrder,
-                }
-              : { status: 'enabled', sortOrder: 0 }
-          }
-        >
+        <Spin spinning={tagModal.detailLoading} wrapperClassName="modal-spin-wrapper">
+        <Form {...tagModal.formProps}>
           <Form.Input
             field="name"
             label="标签名称"

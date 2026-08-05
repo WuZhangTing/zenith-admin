@@ -2,7 +2,6 @@ import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Form, Modal, Select, Switch, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -13,6 +12,7 @@ import { buildReportParamInitialValues } from '@/components/report-param-utils';
 import { formatDateTime } from '@/utils/date';
 import { renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { useReportDesignerDatasets } from '@/hooks/queries/report-designer';
 import {
   useBatchReportPrintTemplateStatus,
@@ -41,7 +41,6 @@ export default function PrintTemplatesPage() {
   const { items: statusItems } = useDictItems('common_status');
   const navigate = useNavigate();
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const exportResolveRef = useRef<((value: Record<string, unknown> | null) => void) | null>(null);
 
   const {
@@ -50,8 +49,6 @@ export default function PrintTemplatesPage() {
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: reportPrintKeys.lists });
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<ReportPrintTemplate | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewResult, setPreviewResult] = useState<ReportPrintRenderResult | null>(null);
@@ -81,39 +78,31 @@ export default function PrintTemplatesPage() {
   const exportRunner = useExportJobRunner();
   const togglingId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
 
-  function openCreate() { setEditing(null); setModalVisible(true); }
-  function openEdit(record: ReportPrintTemplate) { setEditing(record); setModalVisible(true); }
-  function closeModal() { setModalVisible(false); setEditing(null); }
-
-  const formInitValues = editing
-    ? {
-        name: editing.name,
-        ownerId: editing.ownerId ?? undefined,
-        folderId: editing.folderId ?? undefined,
-        datasetId: editing.datasetId ?? undefined,
-        status: editing.status,
-        remark: editing.remark ?? '',
-      }
-    : { status: 'enabled' };
-
-  async function handleModalOk() {
-    let values: Record<string, unknown>;
-    try { values = await formApi.current?.validate() as Record<string, unknown>; }
-    catch { throw new Error('validation'); }
-
-    const basePayload = {
+  const printModal = useEditModal<ReportPrintTemplate, Record<string, unknown>, CreateReportPrintTemplateInput | UpdateReportPrintTemplateInput>({
+    entityName: '打印模板',
+    save: saveMutation,
+    defaults: { status: 'enabled' },
+    labelWidth: 72,
+    toValues: (record) => ({
+      name: record.name,
+      ownerId: record.ownerId ?? undefined,
+      folderId: record.folderId ?? undefined,
+      datasetId: record.datasetId ?? undefined,
+      status: record.status,
+      remark: record.remark ?? '',
+    }),
+    beforeSave: (values) => ({
       name: String(values.name ?? '').trim(),
       ownerId: values.ownerId ? Number(values.ownerId) : null,
       folderId: values.folderId ? Number(values.folderId) : null,
       datasetId: values.datasetId ? Number(values.datasetId) : null,
       status: values.status as ReportPrintTemplate['status'],
       remark: values.remark ? String(values.remark) : undefined,
-    };
-    const saved = await saveMutation.mutateAsync({ id: editing?.id, values: basePayload satisfies CreateReportPrintTemplateInput | UpdateReportPrintTemplateInput });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    closeModal();
-    if (!editing) navigate(`/report/print/${saved.id}/design`);
-  }
+    }),
+    onSaved: (saved, { isEdit }) => {
+      if (!isEdit) navigate(`/report/print/${saved.id}/design`);
+    },
+  });
 
   async function handleDelete(id: number) {
     await deleteMutation.mutateAsync(id);
@@ -226,7 +215,7 @@ export default function PrintTemplatesPage() {
       actions: (record) => [
         ...(hasPermission('report:print:update') ? [{ key: 'design', label: '设计', onClick: () => navigate(`/report/print/${record.id}/design`) }] : []),
         ...(hasPermission('report:print:list') ? [{ key: 'preview', label: '预览', onClick: () => void openPreview(record) }] : []),
-        ...(hasPermission('report:print:update') ? [{ key: 'edit', label: '编辑', onClick: () => openEdit(record) }] : []),
+        ...(hasPermission('report:print:update') ? [{ key: 'edit', label: '编辑', onClick: () => printModal.openEdit(record) }] : []),
         { key: 'governance', label: '权限与转移', onClick: () => navigate(`/report/governance?resourceType=print_template&resourceId=${record.id}`) },
         ...(hasPermission('report:print:create') ? [{ key: 'clone', label: '复制', onClick: () => void handleClone(record) }] : []),
         ...(hasPermission('report:print:list') ? [
@@ -262,7 +251,7 @@ export default function PrintTemplatesPage() {
   const renderSearchBtn = () => <SearchButton onClick={handleSearch} />;
   const renderResetBtn = () => <ResetButton onClick={handleReset} />;
   const renderCreateBtn = () => hasPermission('report:print:create')
-    ? <CreateButton onClick={openCreate} /> : null;
+    ? <CreateButton onClick={printModal.openCreate} /> : null;
   const renderBatchEnableBtn = () => selectedRowKeys.length > 0 && hasPermission('report:print:update')
     ? <Button onClick={() => handleBatchStatus('enabled')}>批量启用</Button> : null;
   const renderBatchDisableBtn = () => selectedRowKeys.length > 0 && hasPermission('report:print:update')
@@ -291,15 +280,10 @@ export default function PrintTemplatesPage() {
       />
 
       <AppModal
-        title={editing ? '编辑打印模板' : '新增打印模板'}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={closeModal}
-        okButtonProps={{ loading: saveMutation.isPending }}
+        {...printModal.modalProps}
         width={560}
-        closeOnEsc
       >
-        <Form key={editing?.id ?? 'new'} getFormApi={(api) => { formApi.current = api; }} initValues={formInitValues} labelPosition="left" labelWidth={72}>
+        <Form {...printModal.formProps}>
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={64} showClear placeholder="如：销售出库单" />
           <Form.Select field="ownerId" label="负责人" filter showClear style={{ width: '100%' }}
             optionList={users.map((u) => ({ value: u.id, label: u.nickname || u.username }))} />

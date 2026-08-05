@@ -1,6 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Form, Select, Space, Tag, Toast, Tooltip } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { WorkflowSchedule } from '@zenith/shared/workflow';
 import { formatDateTime } from '@/utils/date';
@@ -23,6 +22,7 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 type ScheduleStatus = WorkflowSchedule['status'];
 
@@ -81,7 +81,6 @@ function renderLastRunStatus(status: string | null, message: string | null) {
 export default function WorkflowSchedulesPage() {
   const { items: statusItems } = useDictItems('common_status');
   const STATUS_OPTIONS = statusItems.map((i) => ({ value: i.value, label: i.label }));
-  const formApi = useRef<FormApi<FormValues> | null>(null);
   const { hasPermission } = usePermission();
 
   const {
@@ -101,8 +100,6 @@ export default function WorkflowSchedulesPage() {
   const definitionsQuery = usePublishedWorkflowDefinitions();
   const usersQuery = useAllUsers();
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<WorkflowSchedule | null>(null);
   const [cronExprValue, setCronExprValue] = useState('');
   const saveMutation = useSaveWorkflowSchedule();
   const deleteMutation = useDeleteWorkflowSchedule();
@@ -120,42 +117,11 @@ export default function WorkflowSchedulesPage() {
     [usersQuery.data],
   );
 
-  const openCreate = () => {
-    setEditing(null);
-    setModalVisible(true);
-    setCronExprValue('');
-    setTimeout(() => {
-      formApi.current?.setValues({
-        definitionId: null,
-        name: '',
-        cronExpression: '',
-        timezone: null,
-        initiatorId: null,
-        titleTemplate: '',
-        status: 'enabled',
-      });
-    }, 0);
-  };
-
-  const openEdit = (row: WorkflowSchedule) => {
-    setEditing(row);
-    setModalVisible(true);
-    setCronExprValue(row.cronExpression ?? '');
-    setTimeout(() => {
-      formApi.current?.setValues({
-        definitionId: row.definitionId,
-        name: row.name,
-        cronExpression: row.cronExpression,
-        timezone: row.timezone ?? null,
-        initiatorId: row.initiatorId,
-        titleTemplate: row.titleTemplate ?? '',
-        status: row.status,
-      });
-    }, 0);
-  };
-
-  const handleSubmit = async (values: FormValues) => {
-    const body = {
+  const scheduleModal = useEditModal<WorkflowSchedule, FormValues, Record<string, unknown>>({
+    save: saveMutation,
+    defaults: { definitionId: null, name: '', cronExpression: '', timezone: null, initiatorId: null, titleTemplate: '', status: 'enabled' },
+    toValues: (row) => ({ definitionId: row.definitionId, name: row.name, cronExpression: row.cronExpression, timezone: row.timezone ?? null, initiatorId: row.initiatorId, titleTemplate: row.titleTemplate ?? '', status: row.status }),
+    beforeSave: (values) => ({
       definitionId: Number(values.definitionId),
       name: String(values.name ?? '').trim(),
       cronExpression: String(values.cronExpression ?? '').trim(),
@@ -166,23 +132,14 @@ export default function WorkflowSchedulesPage() {
           ? values.titleTemplate.trim()
           : null,
       status: values.status ?? 'enabled',
-    };
+    }),
+    successMessage: ({ isEdit }) => (isEdit ? '更新成功' : '创建成功'),
+    labelWidth: 110,
+  });
+  const editing = scheduleModal.editing;
 
-    await saveMutation.mutateAsync({ id: editing?.id, values: body });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditing(null);
-  };
-
-  const handleModalOk = async () => {
-    let values: FormValues;
-    try {
-      values = await formApi.current!.validate();
-    } catch {
-      throw new Error('validation');
-    }
-    await handleSubmit(values);
-  };
+  const openCreate = () => { setCronExprValue(''); scheduleModal.openCreate(); };
+  const openEdit = (row: WorkflowSchedule) => { setCronExprValue(row.cronExpression ?? ''); scheduleModal.openEdit(row); };
 
   const handleDelete = async (id: number) => {
     await deleteMutation.mutateAsync(id);
@@ -357,26 +314,15 @@ export default function WorkflowSchedulesPage() {
       />
 
       <AppModal
+        {...scheduleModal.modalProps}
         title={editing ? '编辑定时发起规则' : '新建定时发起规则'}
-        visible={modalVisible}
-        onCancel={() => {
-          setModalVisible(false);
-          setEditing(null);
-        }}
-        onOk={handleModalOk}
-        confirmLoading={saveMutation.isPending}
         okText={editing ? '保存' : '创建'}
         closeOnEsc
         width={620}
       >
-        <Form<FormValues>
-          getFormApi={(api) => {
-            formApi.current = api;
-          }}
-          onSubmit={handleSubmit}
+        <Form
+          {...scheduleModal.formProps}
           onValueChange={(v) => { if (typeof v.cronExpression === 'string') setCronExprValue(v.cronExpression); }}
-          labelPosition="left"
-          labelWidth={110}
         >
           <Form.Select
             field="definitionId"
@@ -403,7 +349,7 @@ export default function WorkflowSchedulesPage() {
                 value={toSixField(cronExprValue)}
                 onApply={(expr) => {
                   const five = toFiveField(expr);
-                  formApi.current?.setValue('cronExpression', five);
+                  scheduleModal.formApi.current?.setValue('cronExpression', five);
                   setCronExprValue(five);
                 }}
               />

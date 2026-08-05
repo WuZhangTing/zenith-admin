@@ -1,9 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Select, Switch, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -13,6 +12,7 @@ import { formatDateTime } from '@/utils/date';
 import { createdAtColumn } from '@/utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import {
   paymentSharingKeys,
   useCreatePaymentSharingOrder,
@@ -42,23 +42,17 @@ export default function PaymentSharingPage() {
   const queryClient = useQueryClient();
   const canManage = hasPermission('payment:sharing:manage');
   const canDispatch = hasPermission('payment:sharing:dispatch');
-  const receiverFormApi = useRef<FormApi | null>(null);
-  const dispatchFormApi = useRef<FormApi | null>(null);
   const [activeTab, setActiveTab] = useState<'receivers' | 'orders'>('receivers');
 
   // ── 接收方 ──
   const { page: rPage, pageSize: rPageSize, setPage: setRPage, buildPagination: buildRPagination } = usePagination();
   const [receiverKeyword, setReceiverKeyword] = useState('');
   const [submittedReceiverKeyword, setSubmittedReceiverKeyword] = useState('');
-  const [receiverModal, setReceiverModal] = useState(false);
-  const [editingReceiver, setEditingReceiver] = useState<PaymentSharingReceiver | null>(null);
-
   // ── 分账单 ──
   const { page: oPage, pageSize: oPageSize, setPage: setOPage, buildPagination: buildOPagination } = usePagination();
   const [orderKeyword, setOrderKeyword] = useState('');
   const [orderStatus, setOrderStatus] = useState('');
   const [submittedOrderParams, setSubmittedOrderParams] = useState({ keyword: '', status: '' });
-  const [dispatchModal, setDispatchModal] = useState(false);
 
   const receiverQuery = usePaymentSharingReceivers({
     page: rPage,
@@ -75,35 +69,61 @@ export default function PaymentSharingPage() {
   });
   const orderData = orderQuery.data?.list ?? [];
   const orderTotal = orderQuery.data?.total ?? 0;
-  const enabledReceiversQuery = useEnabledPaymentSharingReceivers(dispatchModal);
-  const enabledReceivers = enabledReceiversQuery.data ?? [];
   const saveReceiverMutation = useSavePaymentSharingReceiver();
   const toggleReceiverMutation = useSavePaymentSharingReceiver();
   const deleteReceiverMutation = useDeletePaymentSharingReceiver();
   const createOrderMutation = useCreatePaymentSharingOrder();
   const togglingId = toggleReceiverMutation.isPending ? (toggleReceiverMutation.variables?.id ?? null) : null;
 
+  const receiverModal = useEditModal<PaymentSharingReceiver, ReceiverFormValues, Partial<PaymentSharingReceiver>>({
+    entityName: '分账接收方',
+    save: saveReceiverMutation,
+    defaults: { name: '', receiverType: 'merchant', account: '', autoShare: false, status: 'enabled' },
+    toValues: (record) => ({
+      name: record.name,
+      receiverType: record.receiverType,
+      account: record.account,
+      ratioPercent: record.ratioBps != null ? record.ratioBps / 100 : undefined,
+      autoShare: record.autoShare,
+      status: record.status,
+      remark: record.remark ?? '',
+    }),
+    beforeSave: (values) => {
+      if (values.autoShare && values.ratioPercent == null) {
+        Toast.warning('开启自动分账需先设置默认比例');
+        throw new Error('validation');
+      }
+      return {
+        name: values.name,
+        receiverType: values.receiverType,
+        account: values.account,
+        ratioBps: values.ratioPercent != null ? Math.round(values.ratioPercent * 100) : undefined,
+        autoShare: values.autoShare ?? false,
+        status: values.status,
+        remark: values.remark || undefined,
+      };
+    },
+    labelWidth: 104,
+  });
+  const dispatchSaveMutation = {
+    mutateAsync: ({ values }: { id?: number; values: { orderNo: string; receiverId: number; amount?: number; remark?: string } }) => createOrderMutation.mutateAsync(values),
+    isPending: createOrderMutation.isPending,
+  };
+  const dispatchModal = useEditModal<PaymentSharingOrder, DispatchFormValues, { orderNo: string; receiverId: number; amount?: number; remark?: string }>({
+    save: dispatchSaveMutation,
+    beforeSave: (values) => ({
+      orderNo: values.orderNo,
+      receiverId: values.receiverId,
+      amount: values.amountYuan != null ? Math.round(values.amountYuan * 100) : undefined,
+      remark: values.remark || undefined,
+    }),
+    successMessage: () => '分账已发起',
+    labelWidth: 104,
+  });
+  const dispatchReceiversQuery = useEnabledPaymentSharingReceivers(dispatchModal.visible);
+  const dispatchReceivers = dispatchReceiversQuery.data ?? [];
+
   // ── 接收方处理 ──
-  function openCreateReceiver() { setEditingReceiver(null); setReceiverModal(true); }
-  function openEditReceiver(r: PaymentSharingReceiver) { setEditingReceiver(r); setReceiverModal(true); }
-  const receiverInit: ReceiverFormValues = editingReceiver
-    ? { name: editingReceiver.name, receiverType: editingReceiver.receiverType, account: editingReceiver.account, ratioPercent: editingReceiver.ratioBps != null ? editingReceiver.ratioBps / 100 : undefined, autoShare: editingReceiver.autoShare, status: editingReceiver.status, remark: editingReceiver.remark ?? '' }
-    : { name: '', receiverType: 'merchant', account: '', autoShare: false, status: 'enabled' };
-
-  async function handleReceiverOk() {
-    let values: ReceiverFormValues;
-    try { values = (await receiverFormApi.current?.validate()) as ReceiverFormValues; } catch { throw new Error('validation'); }
-    if (values.autoShare && values.ratioPercent == null) {
-      Toast.warning('开启自动分账需先设置默认比例');
-      throw new Error('validation');
-    }
-    const payload = { name: values.name, receiverType: values.receiverType, account: values.account, ratioBps: values.ratioPercent != null ? Math.round(values.ratioPercent * 100) : undefined, autoShare: values.autoShare ?? false, status: values.status, remark: values.remark || undefined };
-    await saveReceiverMutation.mutateAsync({ id: editingReceiver?.id, values: payload });
-    Toast.success(editingReceiver ? '更新成功' : '创建成功');
-    setReceiverModal(false);
-    setEditingReceiver(null);
-  }
-
   async function handleReceiverToggle(r: PaymentSharingReceiver, checked: boolean) {
     await toggleReceiverMutation.mutateAsync({ id: r.id, values: { status: checked ? 'enabled' : 'disabled' } });
     Toast.success(checked ? '已启用' : '已停用');
@@ -116,19 +136,7 @@ export default function PaymentSharingPage() {
 
   // ── 分账处理 ──
   function openDispatch() {
-    setDispatchModal(true);
-  }
-  async function handleDispatchOk() {
-    let values: DispatchFormValues;
-    try { values = (await dispatchFormApi.current?.validate()) as DispatchFormValues; } catch { throw new Error('validation'); }
-    await createOrderMutation.mutateAsync({
-      orderNo: values.orderNo,
-      receiverId: values.receiverId,
-      amount: values.amountYuan != null ? Math.round(values.amountYuan * 100) : undefined,
-      remark: values.remark || undefined,
-    });
-    Toast.success('分账已发起');
-    setDispatchModal(false);
+    dispatchModal.openCreate();
   }
 
   const receiverColumns: ColumnProps<PaymentSharingReceiver>[] = [
@@ -148,7 +156,7 @@ export default function PaymentSharingPage() {
         ...(canManage ? [{
           key: 'edit',
           label: '编辑',
-          onClick: () => openEditReceiver(r),
+          onClick: () => receiverModal.openEdit(r),
         }, {
           key: 'delete',
           label: '删除',
@@ -205,7 +213,7 @@ export default function PaymentSharingPage() {
   const renderReceiverSearchButton = () => <SearchButton onClick={handleReceiverSearch} />;
   const renderReceiverResetButton = () => <ResetButton onClick={handleReceiverReset} />;
   const renderReceiverCreateButton = () => canManage ? (
-    <CreateButton onClick={openCreateReceiver} />
+    <CreateButton onClick={receiverModal.openCreate} />
   ) : null;
 
   const renderOrderKeywordSearch = () => (
@@ -283,8 +291,8 @@ export default function PaymentSharingPage() {
         </TabPane>
       </Tabs>
 
-      <AppModal title={editingReceiver ? '编辑分账接收方' : '新增分账接收方'} visible={receiverModal} onOk={handleReceiverOk} onCancel={() => { setReceiverModal(false); setEditingReceiver(null); }} okButtonProps={{ loading: saveReceiverMutation.isPending }} width={520} closeOnEsc>
-        <Form key={editingReceiver?.id ?? 'new'} getFormApi={(api) => { receiverFormApi.current = api; }} initValues={receiverInit} labelPosition="left" labelWidth={104}>
+      <AppModal {...receiverModal.modalProps} width={520}>
+        <Form {...receiverModal.formProps}>
           <Form.Input field="name" label="名称" placeholder="如：合作商户 A" rules={[{ required: true, message: '名称不能为空' }]} />
           <Form.Select field="receiverType" label="类型" style={{ width: '100%' }} optionList={receiverTypeOptions} rules={[{ required: true, message: '请选择类型' }]} />
           <Form.Input field="account" label="账号" placeholder="商户号 / 个人 openid" rules={[{ required: true, message: '账号不能为空' }]} />
@@ -295,11 +303,11 @@ export default function PaymentSharingPage() {
         </Form>
       </AppModal>
 
-      <AppModal title="发起分账" visible={dispatchModal} onOk={handleDispatchOk} onCancel={() => setDispatchModal(false)} okButtonProps={{ loading: createOrderMutation.isPending }} width={520} closeOnEsc>
-        <Form key={dispatchModal ? 'dispatch' : 'closed'} getFormApi={(api) => { dispatchFormApi.current = api; }} labelPosition="left" labelWidth={104}>
+      <AppModal {...dispatchModal.modalProps} title="发起分账" width={520}>
+        <Form {...dispatchModal.formProps}>
           <Form.Input field="orderNo" label="订单号" placeholder="已支付成功的支付订单号" rules={[{ required: true, message: '订单号不能为空' }]} />
           <Form.Select field="receiverId" label="接收方" style={{ width: '100%' }} rules={[{ required: true, message: '请选择接收方' }]}
-            optionList={enabledReceivers.map((r) => ({ value: r.id, label: `${r.name}（${PAYMENT_SHARING_RECEIVER_TYPE_LABELS[r.receiverType]}）` }))} />
+            optionList={dispatchReceivers.map((r) => ({ value: r.id, label: `${r.name}（${PAYMENT_SHARING_RECEIVER_TYPE_LABELS[r.receiverType]}）` }))} />
           <Form.InputNumber field="amountYuan" label="分账金额(元)" min={0.01} step={0.01} precision={2} style={{ width: '100%' }} placeholder="留空=按接收方默认比例计算" />
           <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
         </Form>

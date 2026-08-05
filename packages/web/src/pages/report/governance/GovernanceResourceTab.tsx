@@ -1,7 +1,6 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Banner, Button, Col, Empty, Form, Row, Select, SideSheet, Tag, Toast } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { REPORT_RESOURCE_TYPES } from '@zenith/shared/report';
 import type { ReportAclSubjectType, ReportFolderTreeNode, ReportResourceAcl, ReportResourceType } from '@zenith/shared/report';
@@ -11,6 +10,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { useReportAssetCatalog } from '@/hooks/queries/report-assets';
 import {
   flattenReportFolders,
@@ -35,17 +35,13 @@ export default function GovernanceResourceTab() {
   const [searchParams] = useSearchParams();
   const initialType = searchParams.get('resourceType');
   const initialResourceId = Number(searchParams.get('resourceId'));
-  const formApi = useRef<FormApi | null>(null);
   const [resourceType, setResourceType] = useState<ReportResourceType>(
     REPORT_RESOURCE_TYPES.includes(initialType as ReportResourceType) ? initialType as ReportResourceType : 'dataset',
   );
   const [resourceId, setResourceId] = useState<number | undefined>(
     Number.isInteger(initialResourceId) && initialResourceId > 0 ? initialResourceId : undefined,
   );
-  const [folderModal, setFolderModal] = useState(false);
-  const [editingFolder, setEditingFolder] = useState<ReportFolderTreeNode | null>(null);
   const [aclVisible, setAclVisible] = useState(false);
-  const [aclModal, setAclModal] = useState(false);
   const [subjectType, setSubjectType] = useState<ReportAclSubjectType>('user');
 
   const foldersQuery = useReportFolderTree({ resourceType });
@@ -58,27 +54,21 @@ export default function GovernanceResourceTab() {
   const grantAclMutation = useGrantReportResourceAcl();
   const revokeAclMutation = useRevokeReportResourceAcl();
 
+  const folderModal = useEditModal<ReportFolderTreeNode, Record<string, unknown>>({
+    entityName: '资源目录',
+    save: saveFolderMutation,
+    defaults: { sort: 0, status: 'enabled' },
+    beforeSave: (values, { isEdit }) => ({
+      ...values,
+      parentId: values.parentId || null,
+      ownerId: values.ownerId || null,
+      ...(isEdit ? {} : { resourceType }),
+    }),
+    successMessage: ({ isEdit }) => isEdit ? '目录已更新' : '目录已创建',
+  });
   const openFolder = (record?: ReportFolderTreeNode) => {
-    setEditingFolder(record ?? null);
-    setFolderModal(true);
-  };
-  const saveFolder = async () => {
-    try {
-      const values = await formApi.current!.validate();
-      await saveFolderMutation.mutateAsync({
-        id: editingFolder?.id,
-        values: {
-          ...values,
-          parentId: values.parentId || null,
-          ownerId: values.ownerId || null,
-          ...(editingFolder ? {} : { resourceType }),
-        },
-      });
-      Toast.success(editingFolder ? '目录已更新' : '目录已创建');
-      setFolderModal(false);
-    } catch (error) {
-      Toast.error(error instanceof Error ? error.message : '目录保存失败');
-    }
+    if (record) folderModal.openEdit(record);
+    else folderModal.openCreate();
   };
   const openAcl = () => {
     if (!resourceId) {
@@ -87,18 +77,21 @@ export default function GovernanceResourceTab() {
     }
     setAclVisible(true);
   };
-  const grantAcl = async () => {
-    try {
-      const values = await formApi.current!.validate();
-      await grantAclMutation.mutateAsync(normalizeAclGrantValues(resourceType, resourceId!, {
+  const aclModal = useEditModal<ReportResourceAcl, Record<string, unknown>, Parameters<typeof grantAclMutation.mutateAsync>[0]>({
+    save: {
+      isPending: grantAclMutation.isPending,
+      mutateAsync: ({ values }) => grantAclMutation.mutateAsync(values),
+    },
+    defaults: { subjectType: 'user', role: 'viewer', inheritFromFolder: false },
+    beforeSave: (values) => normalizeAclGrantValues(resourceType, resourceId!, {
         ...values,
         expiresAt: values.expiresAt ? formatDateTimeForApi(values.expiresAt as Date) : null,
-      }));
-      Toast.success('资源权限已授予');
-      setAclModal(false);
-    } catch (error) {
-      Toast.error(error instanceof Error ? error.message : '授权失败');
-    }
+    }),
+    successMessage: () => '资源权限已授予',
+  });
+  const openGrantAcl = () => {
+    setSubjectType('user');
+    aclModal.openCreate();
   };
 
   const folderColumns: ColumnProps<ReportFolderTreeNode>[] = [
@@ -174,10 +167,10 @@ export default function GovernanceResourceTab() {
         refreshLoading={foldersQuery.isFetching}
       />
 
-      <AppModal title={editingFolder ? '编辑资源目录' : '新增资源目录'} visible={folderModal} width={560} confirmLoading={saveFolderMutation.isPending} onOk={() => void saveFolder()} onCancel={() => setFolderModal(false)} closeOnEsc>
-        <Form key={editingFolder?.id ?? 'create'} getFormApi={(api) => { formApi.current = api; }} labelPosition="left" labelWidth={90} initValues={editingFolder ?? { sort: 0, status: 'enabled' }}>
+      <AppModal {...folderModal.modalProps} width={560}>
+        <Form {...folderModal.formProps}>
           <Form.Input field="name" label="目录名称" rules={[{ required: true }]} />
-          <Form.Select field="parentId" label="上级目录" showClear filter style={{ width: '100%' }} optionList={folders.filter((item) => item.id !== editingFolder?.id).map((item) => ({ value: item.id, label: item.name }))} />
+          <Form.Select field="parentId" label="上级目录" showClear filter style={{ width: '100%' }} optionList={folders.filter((item) => item.id !== folderModal.editing?.id).map((item) => ({ value: item.id, label: item.name }))} />
           <Row gutter={16}>
             <Col xs={24} md={12}><Form.Select field="ownerId" label="负责人" showClear filter style={{ width: '100%' }} optionList={(usersQuery.data ?? []).map((user) => ({ value: user.id, label: user.nickname || user.username }))} /></Col>
             <Col xs={24} md={12}><Form.InputNumber field="sort" label="排序" style={{ width: '100%' }} /></Col>
@@ -187,13 +180,13 @@ export default function GovernanceResourceTab() {
       </AppModal>
 
       <SideSheet title="资源权限管理" visible={aclVisible} width={760} onCancel={() => setAclVisible(false)}>
-        {hasPermission('report:resource:acl') ? <Button type="primary" icon={<Plus size={14} />} style={{ marginBottom: 12 }} onClick={() => setAclModal(true)}>授予权限</Button> : null}
+        {hasPermission('report:resource:acl') ? <Button type="primary" icon={<Plus size={14} />} style={{ marginBottom: 12 }} onClick={openGrantAcl}>授予权限</Button> : null}
         {aclsQuery.isError && <Banner type="danger" description="资源权限加载失败" />}
         <ConfigurableTable bordered rowKey="id" columns={aclColumns} dataSource={aclsQuery.data ?? []} loading={aclsQuery.isFetching} empty={<Empty title="暂无 ACL" />} pagination={false} onRefresh={() => void aclsQuery.refetch()} refreshLoading={aclsQuery.isFetching} />
       </SideSheet>
 
-      <AppModal title="授予资源权限" visible={aclModal} width={560} confirmLoading={grantAclMutation.isPending} onOk={() => void grantAcl()} onCancel={() => setAclModal(false)} closeOnEsc>
-        <Form getFormApi={(api) => { formApi.current = api; }} labelPosition="left" labelWidth={90} initValues={{ subjectType: 'user', role: 'viewer', inheritFromFolder: false }} onValueChange={(values) => values.subjectType && setSubjectType(values.subjectType as ReportAclSubjectType)}>
+      <AppModal {...aclModal.modalProps} title="授予资源权限" width={560}>
+        <Form {...aclModal.formProps} onValueChange={(values) => values.subjectType && setSubjectType(values.subjectType as ReportAclSubjectType)}>
           <Form.Select field="subjectType" label="主体类型" style={{ width: '100%' }} optionList={[{ value: 'user', label: '用户' }, { value: 'role', label: '角色' }, { value: 'department', label: '部门' }, { value: 'user_group', label: '用户组' }]} rules={[{ required: true }]} />
           {subjectType === 'user'
             ? <Form.Select field="subjectId" label="主体" filter style={{ width: '100%' }} optionList={(usersQuery.data ?? []).map((user) => ({ value: user.id, label: user.nickname || user.username }))} rules={[{ required: true }]} />

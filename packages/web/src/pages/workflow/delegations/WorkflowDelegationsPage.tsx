@@ -1,6 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import { Form, Select, Tag, Toast } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { WorkflowDelegation } from '@zenith/shared/workflow';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
@@ -20,6 +19,7 @@ import {
 } from '@/hooks/queries/workflow-delegations';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 type Scope = 'mine' | 'all';
 
@@ -54,8 +54,6 @@ function renderDelegationStatus(record: WorkflowDelegation) {
 
 export default function WorkflowDelegationsPage() {
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi<FormValues> | null>(null);
-
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
@@ -65,8 +63,6 @@ export default function WorkflowDelegationsPage() {
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<WorkflowDelegation | null>(null);
 
   const usersQuery = useAllUsers();
   const definitionsQuery = useWorkflowDefinitionList({ page: 1, pageSize: 200 });
@@ -85,45 +81,22 @@ export default function WorkflowDelegationsPage() {
     [definitionsQuery.data],
   );
 
-  const openCreate = () => {
-    setEditing(null);
-    setModalVisible(true);
-    setTimeout(() => {
-      formApi.current?.setValues({
-        principalId: undefined,
-        delegateId: undefined,
-        definitionId: undefined,
-        startAt: null,
-        endAt: null,
-        reason: '',
-        enabled: true,
-      });
-    }, 0);
-  };
-
-  const openEdit = (row: WorkflowDelegation) => {
-    setEditing(row);
-    setModalVisible(true);
-    setTimeout(() => {
-      formApi.current?.setValues({
-        principalId: row.principalId,
-        delegateId: row.delegateId,
-        definitionId: row.definitionId ?? undefined,
-        startAt: row.startAt ? new Date(row.startAt.replace(' ', 'T')) : null,
-        endAt: row.endAt ? new Date(row.endAt.replace(' ', 'T')) : null,
-        reason: row.reason ?? '',
-        enabled: row.enabled,
-      });
-    }, 0);
-  };
-
   const handleDelete = async (id: number) => {
     await deleteMutation.mutateAsync(id);
     Toast.success('已删除');
   };
 
-  const handleSubmit = async (vals: FormValues) => {
-    const body = {
+  const delegationModal = useEditModal<WorkflowDelegation, FormValues, Record<string, unknown>>({
+    entityName: '审批代理',
+    save: saveMutation,
+    defaults: { principalId: undefined, delegateId: undefined, definitionId: undefined, startAt: null, endAt: null, reason: '', enabled: true },
+    toValues: (row) => ({
+      principalId: row.principalId, delegateId: row.delegateId, definitionId: row.definitionId ?? undefined,
+      startAt: row.startAt ? new Date(row.startAt.replace(' ', 'T')) : null,
+      endAt: row.endAt ? new Date(row.endAt.replace(' ', 'T')) : null,
+      reason: row.reason ?? '', enabled: row.enabled,
+    }),
+    beforeSave: (vals) => ({
       ...(canManage && vals.principalId != null ? { principalId: Number(vals.principalId) } : {}),
       delegateId: Number(vals.delegateId),
       definitionId: vals.definitionId != null ? Number(vals.definitionId) : null,
@@ -131,22 +104,8 @@ export default function WorkflowDelegationsPage() {
       endAt: vals.endAt ? formatDateTimeForApi(vals.endAt as Date) : null,
       reason: typeof vals.reason === 'string' && vals.reason.trim() ? vals.reason.trim() : null,
       enabled: vals.enabled ?? true,
-    };
-    await saveMutation.mutateAsync({ id: editing?.id, values: body });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditing(null);
-  };
-
-  const handleModalOk = async () => {
-    let values: FormValues;
-    try {
-      values = await formApi.current!.validate();
-    } catch {
-      throw new Error('validation');
-    }
-    await handleSubmit(values);
-  };
+    }),
+  });
 
   const columns: ColumnProps<WorkflowDelegation>[] = [
     {
@@ -199,7 +158,7 @@ export default function WorkflowDelegationsPage() {
           key: 'edit',
           label: '编辑',
           hidden: !canManage,
-          onClick: () => openEdit(record),
+          onClick: () => delegationModal.openEdit(record),
         },
         {
           key: 'delete',
@@ -241,7 +200,7 @@ export default function WorkflowDelegationsPage() {
   );
 
   const renderCreateButton = () => canManage ? (
-    <CreateButton onClick={openCreate} />
+    <CreateButton onClick={delegationModal.openCreate} />
   ) : null;
 
   return (
@@ -280,24 +239,12 @@ export default function WorkflowDelegationsPage() {
 
       {canManage && (
         <AppModal
-          title={editing ? '编辑审批代理' : '新增审批代理'}
-          visible={modalVisible}
-          onCancel={() => {
-            setModalVisible(false);
-            setEditing(null);
-          }}
-          onOk={handleModalOk}
-          confirmLoading={saveMutation.isPending}
+          {...delegationModal.modalProps}
           closeOnEsc
           width={560}
         >
-          <Form<FormValues>
-            getFormApi={(api) => {
-              formApi.current = api;
-            }}
-            onSubmit={handleSubmit}
-            labelPosition="left"
-            labelWidth={90}
+          <Form
+            {...delegationModal.formProps}
           >
             {canManage && (
               <Form.Select

@@ -1,9 +1,8 @@
-import { useState, useRef } from 'react';
+import { useRef, useState } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { downloadBlob } from '@/utils/download';
 import { Button, Form, Input, Select, Space, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { QRCodeSVG } from 'qrcode.react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -12,6 +11,7 @@ import { AppModal } from '@/components/AppModal';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { createdAtColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { PAYMENT_METHOD_LABELS, PAYMENT_LINK_STATUS_LABELS } from '@zenith/shared/payment';
 import type { PaymentLink, PaymentLinkStatus, PaymentMethod } from '@zenith/shared/payment';
 import { paymentLinkKeys, useDeletePaymentLink, usePaymentLinkDetail, usePaymentLinkList, useRotatePaymentLinkToken, useSavePaymentLink } from '@/hooks/queries/payment-links';
@@ -47,7 +47,6 @@ interface LinkFormValues {
 
 export default function PaymentLinksPage() {
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const qrContainerRef = useRef<HTMLDivElement | null>(null);
   const {
     page, pageSize, buildPagination,
@@ -55,8 +54,6 @@ export default function PaymentLinksPage() {
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentLinkKeys.lists });
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<PaymentLink | null>(null);
   const [qrLink, setQrLink] = useState<PaymentLink | null>(null);
 
   const listQuery = usePaymentLinkList({
@@ -66,35 +63,23 @@ export default function PaymentLinksPage() {
     status: submittedParams.status || undefined,
   });
   const data = listQuery.data ?? null;
-  const detailQuery = usePaymentLinkDetail(editing?.id, modalVisible);
-  const editingLink = editing ? (detailQuery.data ?? editing) : null;
   const saveMutation = useSavePaymentLink();
-  const toggleMutation = useSavePaymentLink();
-  const deleteMutation = useDeletePaymentLink();
-  const rotateTokenMutation = useRotatePaymentLinkToken();
-  const togglingId = toggleMutation.isPending ? (toggleMutation.variables?.id ?? null) : null;
-
-  function openCreate() { setEditing(null); setModalVisible(true); }
-  function openEdit(record: PaymentLink) { setEditing(record); setModalVisible(true); }
-  function closeModal() { setModalVisible(false); setEditing(null); }
-
-  const formInit: Partial<LinkFormValues> = editingLink
-    ? {
-        subject: editingLink.subject,
-        amountYuan: editingLink.amount != null ? editingLink.amount / 100 : undefined,
-        payMethod: editingLink.payMethod ?? undefined,
-        bizType: editingLink.bizType,
-        maxUses: editingLink.maxUses ?? undefined,
-        expiredAt: editingLink.expiredAt ? new Date(editingLink.expiredAt) : undefined,
-        status: editingLink.status === 'disabled' ? 'disabled' : 'active',
-        remark: editingLink.remark ?? '',
-      }
-    : { bizType: 'general', status: 'active' };
-
-  async function handleOk() {
-    let values: LinkFormValues;
-    try { values = (await formApi.current?.validate()) as LinkFormValues; } catch { throw new Error('validation'); }
-    const payload = {
+  const modal = useEditModal<PaymentLink, LinkFormValues, Partial<PaymentLink>>({
+    entityName: '支付链接',
+    save: saveMutation,
+    useDetail: usePaymentLinkDetail,
+    defaults: { bizType: 'general', status: 'active' },
+    toValues: (record) => ({
+      subject: record.subject,
+      amountYuan: record.amount != null ? record.amount / 100 : undefined,
+      payMethod: record.payMethod ?? undefined,
+      bizType: record.bizType,
+      maxUses: record.maxUses ?? undefined,
+      expiredAt: record.expiredAt ? new Date(record.expiredAt) : undefined,
+      status: record.status === 'disabled' ? 'disabled' : 'active',
+      remark: record.remark ?? '',
+    }),
+    beforeSave: (values) => ({
       subject: values.subject,
       amount: values.amountYuan != null ? Math.round(values.amountYuan * 100) : undefined,
       payMethod: values.payMethod || undefined,
@@ -103,11 +88,13 @@ export default function PaymentLinksPage() {
       expiredAt: values.expiredAt ? formatDateTimeForApi(values.expiredAt) : undefined,
       status: values.status,
       remark: values.remark || undefined,
-    };
-    await saveMutation.mutateAsync({ id: editing?.id, values: payload });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    closeModal();
-  }
+    }),
+    labelWidth: 100,
+  });
+  const toggleMutation = useSavePaymentLink();
+  const deleteMutation = useDeletePaymentLink();
+  const rotateTokenMutation = useRotatePaymentLinkToken();
+  const togglingId = toggleMutation.isPending ? (toggleMutation.variables?.id ?? null) : null;
 
   function handleToggle(record: PaymentLink, checked: boolean) {
     toggleMutation.mutate(
@@ -176,7 +163,7 @@ export default function PaymentLinksPage() {
         ...(hasPermission('payment:link:update') ? [{
           key: 'edit',
           label: '编辑',
-          onClick: () => openEdit(r),
+          onClick: () => modal.openEdit(r),
         }, {
           key: 'rotate-token',
           label: '重置链接',
@@ -222,7 +209,7 @@ export default function PaymentLinksPage() {
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => hasPermission('payment:link:create') ? (
-    <CreateButton onClick={openCreate} />
+    <CreateButton onClick={modal.openCreate} />
   ) : null;
 
   return (
@@ -255,8 +242,8 @@ export default function PaymentLinksPage() {
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} pagination={buildPagination(data?.total ?? 0)}
       />
 
-      <AppModal title={editing ? '编辑支付链接' : '新增支付链接'} visible={modalVisible} onOk={handleOk} onCancel={closeModal} okButtonProps={{ loading: saveMutation.isPending, disabled: !!editing && detailQuery.isFetching }} width={700} closeOnEsc>
-        <Form key={editing?.id ?? 'new'} getFormApi={(api) => { formApi.current = api; }} initValues={formInit} labelPosition="left" labelWidth={100}>
+      <AppModal {...modal.modalProps} width={700}>
+        <Form {...modal.formProps}>
           <Form.Input field="subject" label="标题" placeholder="如：会员年费收款" rules={[{ required: true, message: '标题不能为空' }]} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 16 }}>
             <Form.InputNumber field="amountYuan" label="金额(元)" min={0.01} step={0.01} precision={2} style={{ width: '100%' }} placeholder="留空=由用户填写" />

@@ -1,10 +1,10 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Button, Form, Toast, Typography, Tag, Space, Popconfirm,
   Select, Row, Col, Collapse, Input, Tooltip,
 } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { AppModal } from '@/components/AppModal';
+import { useEditModal } from '@/hooks/useEditModal';
 import { Plus, Pencil, Trash2, Server, ChevronUp, ChevronDown, Search, FolderOpen } from 'lucide-react';
 import {
   useDeleteSshProfile,
@@ -42,75 +42,55 @@ const UNGROUPED_KEY = '__ungrouped__';
 const EMPTY_PROFILES: SshProfile[] = [];
 
 export default function SshProfilesManager({ onConnect, onBrowseSftp }: Readonly<SshProfilesManagerProps>) {
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingProfile, setEditingProfile] = useState<SshProfile | null>(null);
   const [formAuthType, setFormAuthType] = useState<'password' | 'key_path' | 'key_content' | 'agent'>('password');
   const [keyword, setKeyword] = useState('');
   const [activeTag, setActiveTag] = useState<string | null>(null);
-  const profileFormApi = useRef<FormApi | null>(null);
 
   const profilesQuery = useSshProfiles();
   const profiles = profilesQuery.data ?? EMPTY_PROFILES;
   const loading = profilesQuery.isFetching;
   const saveMutation = useSaveSshProfile();
+  const profileModal = useEditModal<SshProfile, SshProfileFormData, Record<string, unknown>>({
+    save: saveMutation,
+    defaults: { authType: 'password', port: 22, tags: [] },
+    toValues: (profile) => getInitialValues(profile),
+    beforeSave: (values) => {
+      const envVars: Record<string, string> = {};
+      for (const line of (values.envVarsText ?? '').split('\n')) {
+        const eq = line.indexOf('=');
+        if (eq > 0) {
+          const k = line.slice(0, eq).trim();
+          const v = line.slice(eq + 1).trim();
+          if (k) envVars[k] = v;
+        }
+      }
+      return {
+        name: values.name,
+        host: values.host,
+        port: values.port ?? 22,
+        username: values.username,
+        authType: values.authType,
+        password: values.password || null,
+        keyPath: values.keyPath || null,
+        keyContent: values.keyContent || null,
+        keyPassphrase: values.keyPassphrase || null,
+        envVars,
+        groupName: values.groupName?.trim() || null,
+        tags: (values.tags ?? []).map((t) => t.trim()).filter(Boolean),
+      };
+    },
+  });
   const deleteMutation = useDeleteSshProfile();
   const reorderMutation = useUpdateSshProfileOrder();
 
   const openCreate = () => {
-    setEditingProfile(null);
     setFormAuthType('password');
-    setModalVisible(true);
+    profileModal.openCreate();
   };
 
   const openEdit = (profile: SshProfile) => {
-    setEditingProfile(profile);
     setFormAuthType(profile.authType);
-    setModalVisible(true);
-  };
-
-  const closeModal = () => {
-    setModalVisible(false);
-    profileFormApi.current = null;
-  };
-
-  const handleSave = async (values: SshProfileFormData) => {
-    const envVars: Record<string, string> = {};
-    for (const line of (values.envVarsText ?? '').split('\n')) {
-      const eq = line.indexOf('=');
-      if (eq > 0) {
-        const k = line.slice(0, eq).trim();
-        const v = line.slice(eq + 1).trim();
-        if (k) envVars[k] = v;
-      }
-    }
-    const body = {
-      name: values.name,
-      host: values.host,
-      port: values.port ?? 22,
-      username: values.username,
-      authType: values.authType,
-      password: values.password || null,
-      keyPath: values.keyPath || null,
-      keyContent: values.keyContent || null,
-      keyPassphrase: values.keyPassphrase || null,
-      envVars,
-      groupName: values.groupName?.trim() || null,
-      tags: (values.tags ?? []).map((t) => t.trim()).filter(Boolean),
-    };
-    await saveMutation.mutateAsync({ id: editingProfile?.id, values: body });
-    Toast.success(editingProfile ? '更新成功' : '创建成功');
-    closeModal();
-  };
-
-  const handleModalOk = async () => {
-    if (!profileFormApi.current) return;
-    let values: SshProfileFormData;
-    try {
-      values = await profileFormApi.current.validate() as SshProfileFormData;
-    } catch {
-      throw new Error('validation');
-    }
-    await handleSave(values);
+    profileModal.openEdit(profile);
   };
 
   const handleDelete = async (id: number) => {
@@ -128,7 +108,7 @@ export default function SshProfilesManager({ onConnect, onBrowseSftp }: Readonly
     ]);
   };
 
-  const getInitialValues = (p: SshProfile | null): Partial<SshProfileFormData> => {
+  function getInitialValues(p: SshProfile | null): Partial<SshProfileFormData> {
     if (!p) return { authType: 'password', port: 22, tags: [] };
     return {
       name: p.name,
@@ -141,7 +121,7 @@ export default function SshProfilesManager({ onConnect, onBrowseSftp }: Readonly
       groupName: p.groupName ?? '',
       tags: p.tags ?? [],
     };
-  };
+  }
 
   // 所有已用分组名与标签（供表单建议 + 标签筛选）
   const allGroups = useMemo(
@@ -328,24 +308,17 @@ export default function SshProfilesManager({ onConnect, onBrowseSftp }: Readonly
 
       {/* 新建/编辑弹窗 */}
       <AppModal
-        title={editingProfile ? '编辑 SSH 配置' : '新建 SSH 配置'}
-        visible={modalVisible}
-        onCancel={closeModal}
-        onOk={handleModalOk}
+        {...profileModal.modalProps}
+        title={profileModal.isEdit ? '编辑 SSH 配置' : '新建 SSH 配置'}
         okText="保存"
         cancelText="取消"
-        okButtonProps={{ loading: saveMutation.isPending }}
         fullscreenable={false}
         width={680}
         style={{ top: '5vh' }}
         keepDOM={false}
       >
         <Form
-          key={editingProfile?.id ?? 'new'}
-          initValues={getInitialValues(editingProfile)}
-          getFormApi={(api) => { profileFormApi.current = api; }}
-          labelPosition="left"
-          labelWidth={90}
+          {...profileModal.formProps}
           style={{ padding: '0 8px' }}
         >
           <Form.Input field="name" label="名称" placeholder="我的服务器" rules={[{ required: true, message: '请输入连接名称' }]} />
@@ -400,13 +373,13 @@ export default function SshProfilesManager({ onConnect, onBrowseSftp }: Readonly
               field="password"
               label="密码"
               type="password"
-              placeholder={editingProfile?.hasPassword ? '（已设置，留空保持不变）' : '输入 SSH 密码'}
+              placeholder={profileModal.editing?.hasPassword ? '（已设置，留空保持不变）' : '输入 SSH 密码'}
             />
           )}
           {formAuthType === 'key_path' && (
             <Row gutter={16}>
               <Col span={12}><Form.Input field="keyPath" label="私钥路径" placeholder="~/.ssh/id_rsa" /></Col>
-              <Col span={12}><Form.Input field="keyPassphrase" label="私钥口令" type="password" placeholder={editingProfile?.hasKeyPassphrase ? '（已设置）' : '无口令则留空'} /></Col>
+              <Col span={12}><Form.Input field="keyPassphrase" label="私钥口令" type="password" placeholder={profileModal.editing?.hasKeyPassphrase ? '（已设置）' : '无口令则留空'} /></Col>
             </Row>
           )}
           {formAuthType === 'key_content' && (
@@ -414,10 +387,10 @@ export default function SshProfilesManager({ onConnect, onBrowseSftp }: Readonly
               <Form.TextArea
                 field="keyContent"
                 label="私钥内容"
-                placeholder={editingProfile?.hasKeyContent ? '（已设置，留空保持不变）' : '粘贴 PEM 格式私钥'}
+                placeholder={profileModal.editing?.hasKeyContent ? '（已设置，留空保持不变）' : '粘贴 PEM 格式私钥'}
                 rows={5}
               />
-              <Form.Input field="keyPassphrase" label="私钥口令" type="password" placeholder={editingProfile?.hasKeyPassphrase ? '（已设置）' : '无口令则留空'} />
+              <Form.Input field="keyPassphrase" label="私钥口令" type="password" placeholder={profileModal.editing?.hasKeyPassphrase ? '（已设置）' : '无口令则留空'} />
             </>
           )}
           {formAuthType === 'agent' && (

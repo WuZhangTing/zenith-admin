@@ -1,7 +1,6 @@
-import { useRef, useState } from 'react';
+
 import { useQueryClient } from '@tanstack/react-query';
 import { Space, Form, Toast, Tag, Row, Col } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { MemberLevel } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
@@ -14,31 +13,24 @@ import { memberAdminKeys, useDeleteMemberLevel, useMemberLevels, useSaveMemberLe
 import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton, RefreshButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 export default function MemberLevelsPage() {
   const { items: statusItems } = useDictItems('common_status');
   const statusOptions = statusItems.map((i) => ({ value: i.value, label: i.label }));
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
-  const formApi = useRef<FormApi | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<MemberLevel | null>(null);
   const listQuery = useMemberLevels();
   const data = listQuery.data ?? [];
   const saveMutation = useSaveMemberLevel();
   const deleteMutation = useDeleteMemberLevel();
 
-  const openCreate = () => { setEditing(null); setModalVisible(true); };
-  const openEdit = (record: MemberLevel) => { setEditing(record); setModalVisible(true); };
-
-  const handleModalOk = async () => {
-    let values;
-    try { values = await formApi.current!.validate(); } catch { throw new Error('validation'); }
-    await saveMutation.mutateAsync({ id: editing?.id, values });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditing(null);
-  };
+  const levelModal = useEditModal<MemberLevel>({
+    entityName: '等级',
+    save: saveMutation,
+    defaults: { level: 0, growthThreshold: 0, discount: 100, sort: 0, status: 'enabled' as const, benefits: [] },
+    toValues: (record) => ({ name: record.name, level: record.level, growthThreshold: record.growthThreshold, discount: record.discount, benefits: record.benefits, description: record.description, sort: record.sort, status: record.status }),
+  });
 
   const handleDelete = (record: MemberLevel) => {
     confirmDelete({
@@ -50,10 +42,6 @@ export default function MemberLevelsPage() {
       },
     });
   };
-
-  const formInit = editing
-    ? { name: editing.name, level: editing.level, growthThreshold: editing.growthThreshold, discount: editing.discount, benefits: editing.benefits, description: editing.description, sort: editing.sort, status: editing.status }
-    : { level: 0, growthThreshold: 0, discount: 100, sort: 0, status: 'enabled' as const, benefits: [] };
 
   const columns: ColumnProps<MemberLevel>[] = [
     { title: '等级名称', dataIndex: 'name', width: 140, render: renderEllipsis },
@@ -70,7 +58,7 @@ export default function MemberLevelsPage() {
       width: 130,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => [
-        { key: 'edit', label: '编辑', hidden: !hasPermission('member:level:update'), onClick: () => openEdit(record) },
+        { key: 'edit', label: '编辑', hidden: !hasPermission('member:level:update'), onClick: () => levelModal.openEdit(record) },
         { key: 'delete', label: '删除', danger: true, hidden: !hasPermission('member:level:delete'), onClick: () => handleDelete(record) },
       ],
     }),
@@ -81,7 +69,7 @@ export default function MemberLevelsPage() {
   );
 
   const renderCreateButton = () => hasPermission('member:level:create') ? (
-    <CreateButton onClick={openCreate}>新增等级</CreateButton>
+    <CreateButton onClick={levelModal.openCreate}>新增等级</CreateButton>
   ) : null;
 
   return (
@@ -98,10 +86,8 @@ export default function MemberLevelsPage() {
       <ConfigurableTable bordered columns={columns} dataSource={data} loading={listQuery.isFetching}
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} rowKey="id" size="small" pagination={false} empty="暂无数据" />
 
-      <AppModal title={editing ? '编辑等级' : '新增等级'} visible={modalVisible} width={660}
-        onCancel={() => { setModalVisible(false); setEditing(null); }} onOk={handleModalOk}>
-        <Form key={editing?.id ?? 'new'} getFormApi={(api) => { formApi.current = api; }} allowEmpty
-          initValues={formInit} labelPosition="left" labelWidth={90}>
+      <AppModal {...levelModal.modalProps} width={660}>
+        <Form {...levelModal.formProps}>
           <Row gutter={16}>
             <Col span={12}><Form.Input field="name" label="等级名称" placeholder="如：黄金会员" rules={[{ required: true, message: '请输入等级名称' }]} /></Col>
             <Col span={12}><Form.InputNumber field="level" label="等级序号" min={0} style={{ width: '100%' }} rules={[{ required: true, message: '请输入序号' }]} /></Col>

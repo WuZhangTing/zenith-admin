@@ -1,9 +1,8 @@
 
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Modal, Popconfirm, Select, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Modal, Popconfirm, Select, Space, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { AnalyticsSite } from '@zenith/shared/analytics';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -18,6 +17,7 @@ import {
 import { formatDateTime } from '@/utils/date';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
+import { useEditModal } from '@/hooks/useEditModal';
 
 const PAGE_SIZE = 20;
 const STATUS_OPTIONS = [
@@ -66,9 +66,6 @@ export default function AnalyticsSitesTab() {
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [draft, setDraft] = useState<SearchState>(defaultSearch);
   const [submitted, setSubmitted] = useState<SearchState>(defaultSearch);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<AnalyticsSite | null>(null);
-  const formApi = useRef<FormApi | null>(null);
 
   const params = useMemo(() => ({ page, pageSize, name: submitted.name || undefined, status: submitted.status || undefined }), [page, pageSize, submitted]);
   const listQuery = useAnalyticsSites(params);
@@ -91,28 +88,26 @@ export default function AnalyticsSitesTab() {
     setPage(1);
     void queryClient.invalidateQueries({ queryKey: analyticsKeys.data.sitesLists });
   };
-  const openCreate = () => { setEditing(null); setModalVisible(true); };
-  const openEdit = (record: AnalyticsSite) => { setEditing(record); setModalVisible(true); };
-
-  const formInit = editing ? {
-    name: editing.name,
-    appId: editing.appId,
-    allowedOrigins: editing.allowedOrigins ?? [],
-    dailyEventQuota: editing.dailyEventQuota,
-    status: editing.status,
-    remark: editing.remark,
-  } : { appId: 'admin', status: 'enabled', allowedOrigins: [] };
-
-  const handleSubmit = async () => {
-    const values = await formApi.current?.validate() as SiteFormValues | undefined;
-    if (!values) return;
-    const payload = normalizeForm(values);
-    if (editing) await updateMutation.mutateAsync({ id: editing.id, values: payload });
-    else await createMutation.mutateAsync(payload);
-    Toast.success(editing ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditing(null);
-  };
+  const siteModal = useEditModal<AnalyticsSite, SiteFormValues, ReturnType<typeof normalizeForm>>({
+    entityName: '站点',
+    save: {
+      mutateAsync: ({ id, values }) => (
+        id ? updateMutation.mutateAsync({ id, values }) : createMutation.mutateAsync(values)
+      ),
+      isPending: createMutation.isPending || updateMutation.isPending,
+    },
+    defaults: { appId: 'admin', status: 'enabled', allowedOrigins: [] },
+    toValues: (record) => ({
+      name: record.name,
+      appId: record.appId,
+      allowedOrigins: record.allowedOrigins ?? [],
+      dailyEventQuota: record.dailyEventQuota,
+      status: record.status,
+      remark: record.remark,
+    }),
+    beforeSave: normalizeForm,
+    labelWidth: 110,
+  });
 
   const columns: ColumnProps<AnalyticsSite>[] = [
     { title: '名称', dataIndex: 'name', width: 160, fixed: 'left' },
@@ -127,7 +122,7 @@ export default function AnalyticsSitesTab() {
     {
       title: '操作', dataIndex: 'operation', width: 260, fixed: 'right', render: (_: unknown, record) => (
         <Space>
-          <Button theme="borderless" size="small" onClick={() => openEdit(record)}>编辑</Button>
+          <Button theme="borderless" size="small" onClick={() => siteModal.openEdit(record)}>编辑</Button>
           <Popconfirm title="确定重新生成 Key？旧 Key 将立即失效。" onConfirm={() => regenerateMutation.mutate(record.id)}>
             <Button theme="borderless" size="small" loading={regenerateMutation.isPending}>重新生成Key</Button>
           </Popconfirm>
@@ -146,7 +141,7 @@ export default function AnalyticsSitesTab() {
         <Select placeholder="状态" value={draft.status || undefined} optionList={STATUS_OPTIONS} onChange={(status) => setDraft((prev) => ({ ...prev, status: (status as AnalyticsSite['status']) ?? '' }))} showClear style={{ width: 120 }} />
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />
-        <CreateButton onClick={openCreate} />
+        <CreateButton onClick={siteModal.openCreate} />
       </SearchToolbar>
 
       <ConfigurableTable
@@ -169,15 +164,10 @@ export default function AnalyticsSitesTab() {
       />
 
       <Modal
-        title={editing ? '编辑站点' : '新增站点'}
-        visible={modalVisible}
-        onCancel={() => { setModalVisible(false); setEditing(null); }}
-        onOk={() => void handleSubmit()}
-        okButtonProps={{ loading: createMutation.isPending || updateMutation.isPending }}
+        {...siteModal.modalProps}
         width={620}
-        closeOnEsc
       >
-        <Form key={editing?.id ?? 'new'} getFormApi={(api) => { formApi.current = api; }} initValues={formInit} labelPosition="left" labelWidth={110} allowEmpty>
+        <Form {...siteModal.formProps}>
           <Form.Input field="name" label="站点名称" placeholder="如 管理后台" rules={[{ required: true, message: '请输入站点名称' }]} />
           <Form.Input field="appId" label="AppId" placeholder="如 admin/member" rules={[{ required: true, message: '请输入 appId' }, { pattern: /^[a-z][a-z0-9_-]*$/, message: '以小写字母开头，仅允许小写字母、数字、下划线和中划线' }]} />
           <Form.TagInput field="allowedOrigins" label="来源白名单" placeholder="输入 origin 后回车，如 https://example.com" />

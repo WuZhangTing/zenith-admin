@@ -1,10 +1,10 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Spin, Toast, Banner } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { RefreshCw } from 'lucide-react';
 import type { MpTag } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -27,10 +27,6 @@ export default function MpTagsPage() {
   const [draftKeyword, setDraftKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<MpTag | null>(null);
-  const formRef = useRef<FormApi>(null);
-
   const listQuery = useMpTagList({
     accountId: currentId,
     page,
@@ -43,8 +39,6 @@ export default function MpTagsPage() {
   const saveMutation = useSaveMpTag();
   const deleteMutation = useDeleteMpTag();
   const syncing = syncMutation.isPending;
-  const submitting = saveMutation.isPending;
-
   useEffect(() => {
     setPage(1);
   }, [currentId, setPage]);
@@ -67,17 +61,19 @@ export default function MpTagsPage() {
     Toast.success(`同步完成：新增 ${data.created ?? 0}，更新 ${data.updated ?? 0}`);
   };
 
-  const openCreate = () => { setEditingRecord(null); setModalVisible(true); };
-  const openEdit = (record: MpTag) => { setEditingRecord(record); setModalVisible(true); };
-
-  const handleSubmit = async () => {
-    let values: Awaited<ReturnType<FormApi['validate']>>;
-    try { values = (await formRef.current?.validate())!; } catch { throw new Error('validation'); }
-    if (!currentId) return;
-    await saveMutation.mutateAsync({ id: editingRecord?.id, accountId: currentId, name: values.name });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
+  const tagSaveMutation = {
+    mutateAsync: ({ id, values }: { id?: number; values: { name: string } }) => {
+      if (!currentId) throw new Error('validation');
+      return saveMutation.mutateAsync({ id, accountId: currentId, name: values.name });
+    },
+    isPending: saveMutation.isPending,
   };
+  const modal = useEditModal<MpTag, { name: string }>({
+    entityName: '标签',
+    save: tagSaveMutation,
+    defaults: { name: '' },
+    toValues: (record) => ({ name: record.name }),
+  });
 
   const handleDelete = (record: MpTag) => {
     confirmDelete({
@@ -100,7 +96,7 @@ export default function MpTagsPage() {
       desktopInlineKeys: ['edit', 'delete'],
       menuAriaLabel: '标签操作',
       actions: (record) => [
-        { key: 'edit', label: '编辑', hidden: !can('mp:tag:update'), onClick: () => openEdit(record) },
+        { key: 'edit', label: '编辑', hidden: !can('mp:tag:update'), onClick: () => modal.openEdit(record) },
         { key: 'delete', label: '删除', danger: true, hidden: !can('mp:tag:delete'), onClick: () => handleDelete(record) },
       ],
     }),
@@ -115,7 +111,7 @@ export default function MpTagsPage() {
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => can('mp:tag:create') ? (
-    <CreateButton onClick={openCreate} disabled={!currentId} />
+    <CreateButton onClick={modal.openCreate} disabled={!currentId} />
   ) : null;
   const renderSyncButton = () => can('mp:tag:sync') ? (
     <Button icon={<RefreshCw size={14} />} loading={syncing} disabled={!currentId} onClick={() => void handleSync()}>从微信同步</Button>
@@ -157,16 +153,9 @@ export default function MpTagsPage() {
         pagination={buildPagination(total)}
         scroll={{ x: 800 }} />
 
-      <AppModal title={editingRecord ? '编辑标签' : '新增标签'} visible={modalVisible}
-        onOk={handleSubmit} onCancel={() => { setModalVisible(false); setEditingRecord(null); }}
-        confirmLoading={submitting} width={480}>
-        <Spin spinning={false} wrapperClassName="modal-spin-wrapper">
-          <Form
-            key={editingRecord?.id ?? 'new'}
-            getFormApi={(api) => { (formRef as { current: FormApi }).current = api; }}
-            labelPosition="left" labelWidth={90}
-            initValues={editingRecord ? { name: editingRecord.name } : { name: '' }}
-          >
+      <AppModal {...modal.modalProps} width={480}>
+        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
+          <Form {...modal.formProps}>
             <Form.Input field="name" label="标签名称" placeholder="请输入标签名称（最多30字）"
               maxLength={30} rules={[{ required: true, message: '请输入标签名称' }]} />
           </Form>

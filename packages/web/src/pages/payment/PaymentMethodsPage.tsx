@@ -1,14 +1,13 @@
-import { useState, useRef } from 'react';
 import { PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
 import { useQueryClient } from '@tanstack/react-query';
 import { Form, Switch, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_LABELS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentMethod, PaymentMethodConfig } from '@zenith/shared/payment';
 import { paymentMethodKeys, usePaymentMethodList, useSavePaymentMethod } from '@/hooks/queries/payment-methods';
@@ -20,34 +19,30 @@ export default function PaymentMethodsPage() {
   const { hasPermission } = usePermission();
   const canUpdate = hasPermission('payment:method:update');
   const queryClient = useQueryClient();
-  const formApi = useRef<FormApi | null>(null);
-  const [editing, setEditing] = useState<PaymentMethodConfig | null>(null);
   const listQuery = usePaymentMethodList();
   const list = listQuery.data ?? [];
   const saveMutation = useSavePaymentMethod();
   const toggleMutation = useSavePaymentMethod();
   const togglingId = toggleMutation.isPending ? (toggleMutation.variables?.id ?? null) : null;
 
-  function openEdit(record: PaymentMethodConfig) { setEditing(record); }
-  function closeModal() { setEditing(null); }
+  const methodSaveMutation = {
+    mutateAsync: ({ id, values }: { id?: number; values: Partial<PaymentMethodConfig> }) => {
+      if (id == null) throw new Error('missing id');
+      return saveMutation.mutateAsync({ id, values });
+    },
+    isPending: saveMutation.isPending,
+  };
+  const methodModal = useEditModal<PaymentMethodConfig, MethodFormValues, Partial<PaymentMethodConfig>>({
+    save: methodSaveMutation,
+    toValues: (method) => ({ label: method.label, icon: method.icon ?? '', sort: method.sort }),
+    beforeSave: (values) => ({ label: values.label, icon: values.icon || undefined, sort: values.sort ?? 0 }),
+  });
 
   function handleToggle(record: PaymentMethodConfig, checked: boolean) {
     toggleMutation.mutate(
       { id: record.id, values: { enabled: checked } },
       { onSuccess: () => Toast.success(checked ? '已启用' : '已停用') },
     );
-  }
-
-  async function handleOk() {
-    let values: MethodFormValues;
-    try { values = (await formApi.current?.validate()) as MethodFormValues; } catch { throw new Error('validation'); }
-    if (!editing) return;
-    await saveMutation.mutateAsync({
-      id: editing.id,
-      values: { label: values.label, icon: values.icon || undefined, sort: values.sort ?? 0 },
-    });
-    Toast.success('更新成功');
-    closeModal();
   }
 
   const columns: ColumnProps<PaymentMethodConfig>[] = [
@@ -68,7 +63,7 @@ export default function PaymentMethodsPage() {
         ...(canUpdate ? [{
           key: 'edit',
           label: '编辑',
-          onClick: () => openEdit(r),
+          onClick: () => methodModal.openEdit(r),
         }] : []),
       ],
     }),
@@ -87,14 +82,12 @@ export default function PaymentMethodsPage() {
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} pagination={false}
       />
 
-      <AppModal title="编辑支付方式" visible={!!editing} onOk={handleOk} onCancel={closeModal} okButtonProps={{ loading: saveMutation.isPending }} width={480} closeOnEsc>
-        {editing && (
-          <Form key={editing.id} getFormApi={(api) => { formApi.current = api; }} initValues={{ label: editing.label, icon: editing.icon ?? '', sort: editing.sort }} labelPosition="left" labelWidth={90}>
-            <Form.Input field="label" label="展示名称" rules={[{ required: true, message: '名称不能为空' }]} />
-            <Form.Input field="icon" label="图标" placeholder="lucide 图标名，可选" />
-            <Form.InputNumber field="sort" label="排序" min={0} max={9999} step={1} precision={0} style={{ width: '100%' }} extraText="数值越小越靠前" />
-          </Form>
-        )}
+      <AppModal {...methodModal.modalProps} title="编辑支付方式" width={480}>
+        <Form {...methodModal.formProps}>
+          <Form.Input field="label" label="展示名称" rules={[{ required: true, message: '名称不能为空' }]} />
+          <Form.Input field="icon" label="图标" placeholder="lucide 图标名，可选" />
+          <Form.InputNumber field="sort" label="排序" min={0} max={9999} step={1} precision={0} style={{ width: '100%' }} extraText="数值越小越靠前" />
+        </Form>
       </AppModal>
     </div>
   );

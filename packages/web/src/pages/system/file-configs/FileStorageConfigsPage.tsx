@@ -1,6 +1,5 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, Col, Form, Modal, Radio, Row, Select, Spin, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { PlugZap } from 'lucide-react';
 import type { CreateFileStorageConfigInput, FileObjectAcl, FileStorageConfig, FileStorageProvider, FileUrlStrategy, UpdateFileStorageConfigInput } from '@zenith/shared/platform';
 import { FILE_OBJECT_ACL_SUPPORT, FILE_STORAGE_PROVIDER_LABELS, FILE_URL_STRATEGY_LABELS, FILE_URL_STRATEGY_OPTIONS, PRESIGNED_EXPIRY_DEFAULT_SECONDS, PRESIGNED_EXPIRY_MAX_SECONDS, PRESIGNED_EXPIRY_MIN_SECONDS } from '@zenith/shared/platform';
@@ -8,6 +7,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
+import { useEditModal } from '@/hooks/useEditModal';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
 import { AppModal } from '@/components/AppModal';
@@ -204,14 +204,11 @@ export default function FileStorageConfigsPage() {
   }
 
   const defaultSearchParams: SearchParams = { status: '', timeRange: null };
-  const formApi = useRef<FormApi | null>(null);
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: fileStorageConfigKeys.lists });
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingConfig, setEditingConfig] = useState<FileStorageConfig | null>(null);
   const [formProvider, setFormProvider] = useState<FileStorageProvider>('local');
   const [formIsDefault, setFormIsDefault] = useState(false);
   const [browsingConfig, setBrowsingConfig] = useState<FileStorageConfig | null>(null);
@@ -224,9 +221,77 @@ export default function FileStorageConfigsPage() {
   });
   const configs = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
-  const detailQuery = useFileStorageConfigDetail(editingConfig?.id, modalVisible && !!editingConfig);
-  const modalDetailLoading = !!editingConfig && detailQuery.isFetching;
   const saveMutation = useSaveFileStorageConfig();
+  const modal = useEditModal<FileStorageConfig, FileStorageConfigFormValues, CreateFileStorageConfigInput>({
+    entityName: '文件配置',
+    save: saveMutation,
+    useDetail: useFileStorageConfigDetail,
+    defaults: {
+      name: '',
+      provider: 'local',
+      status: 'enabled',
+      isDefault: false,
+      basePath: 'uploads',
+      objectAcl: 'default',
+      urlStrategy: 'proxy',
+      publicBaseUrl: '',
+      presignedExpirySeconds: PRESIGNED_EXPIRY_DEFAULT_SECONDS,
+      localRootPath: 'storage/local',
+      remark: '',
+    },
+    toValues: (config) => ({
+      ...config,
+      basePath: config.basePath ?? '',
+      objectAcl: config.objectAcl ?? 'default',
+      urlStrategy: config.urlStrategy ?? 'proxy',
+      publicBaseUrl: config.publicBaseUrl ?? '',
+      presignedExpirySeconds: config.presignedExpirySeconds ?? PRESIGNED_EXPIRY_DEFAULT_SECONDS,
+      localRootPath: config.localRootPath ?? '',
+      ossRegion: config.ossRegion ?? '',
+      ossEndpoint: config.ossEndpoint ?? '',
+      ossBucket: config.ossBucket ?? '',
+      ossAccessKeyId: config.ossAccessKeyId ?? '',
+      ossAccessKeySecret: config.ossAccessKeySecret ?? '',
+      s3Region: config.s3Region ?? '',
+      s3Endpoint: config.s3Endpoint ?? '',
+      s3Bucket: config.s3Bucket ?? '',
+      s3AccessKeyId: config.s3AccessKeyId ?? '',
+      s3SecretAccessKey: config.s3SecretAccessKey ?? '',
+      s3ForcePathStyle: config.s3ForcePathStyle ?? false,
+      cosRegion: config.cosRegion ?? '',
+      cosBucket: config.cosBucket ?? '',
+      cosSecretId: config.cosSecretId ?? '',
+      cosSecretKey: config.cosSecretKey ?? '',
+      obsEndpoint: config.obsEndpoint ?? '',
+      obsBucket: config.obsBucket ?? '',
+      obsAccessKeyId: config.obsAccessKeyId ?? '',
+      obsSecretAccessKey: config.obsSecretAccessKey ?? '',
+      kodoAccessKey: config.kodoAccessKey ?? '',
+      kodoSecretKey: config.kodoSecretKey ?? '',
+      kodoBucket: config.kodoBucket ?? '',
+      kodoRegion: config.kodoRegion ?? '',
+      kodoEndpoint: config.kodoEndpoint ?? '',
+      bosEndpoint: config.bosEndpoint ?? '',
+      bosBucket: config.bosBucket ?? '',
+      bosAccessKeyId: config.bosAccessKeyId ?? '',
+      bosSecretAccessKey: config.bosSecretAccessKey ?? '',
+      azureAccountName: config.azureAccountName ?? '',
+      azureAccountKey: config.azureAccountKey ?? '',
+      azureContainerName: config.azureContainerName ?? '',
+      azureEndpoint: config.azureEndpoint ?? '',
+      sftpHost: config.sftpHost ?? '',
+      sftpPort: config.sftpPort ?? 22,
+      sftpUsername: config.sftpUsername ?? '',
+      sftpPassword: config.sftpPassword ?? '',
+      sftpPrivateKey: config.sftpPrivateKey ?? '',
+      sftpRootPath: config.sftpRootPath ?? '',
+      sftpBaseUrl: config.sftpBaseUrl ?? '',
+      remark: config.remark ?? '',
+    }),
+    beforeSave: (values) => buildPayload(formProvider, formIsDefault, values),
+    successMessage: ({ isEdit }) => isEdit ? '文件服务配置已更新' : '文件服务配置已创建',
+    labelWidth: 140,
+  });
   const deleteMutation = useDeleteFileStorageConfig();
   const setDefaultMutation = useSetDefaultFileStorageConfig();
   const testMutation = useTestFileStorageConfig();
@@ -234,51 +299,33 @@ export default function FileStorageConfigsPage() {
   const testingConfigId = testMutation.isPending ? (testMutation.variables?.id ?? null) : null;
 
   useEffect(() => {
-    if (!detailQuery.data) return;
-    setEditingConfig(detailQuery.data);
-    setFormProvider(detailQuery.data.provider);
-    setFormIsDefault(detailQuery.data.isDefault);
-  }, [detailQuery.data]);
+    if (!modal.editing) return;
+    setFormProvider(modal.editing.provider);
+    setFormIsDefault(modal.editing.isDefault);
+  }, [modal.editing]);
 
   const openCreate = () => {
-    setEditingConfig(null);
     setFormProvider('local');
     setFormIsDefault(false);
-    setModalVisible(true);
+    modal.openCreate();
   };
 
   const openEdit = (config: FileStorageConfig) => {
-    setEditingConfig(config);
     setFormProvider(config.provider);
     setFormIsDefault(config.isDefault);
-    setModalVisible(true);
-  };
-
-  const handleModalOk = async () => {
-    let values;
-    try {
-      values = await formApi.current!.validate();
-    } catch {
-      throw new Error('validation');
-    }
-    if (!values) throw new Error('validation');
-    const payload = buildPayload(formProvider, formIsDefault, values);
-    await saveMutation.mutateAsync({ id: editingConfig?.id, values: payload });
-    Toast.success(editingConfig ? '文件服务配置已更新' : '文件服务配置已创建');
-    setModalVisible(false);
-    setEditingConfig(null);
+    modal.openEdit(config);
   };
 
   const handleModalTest = async () => {
     let values;
     try {
-      values = await formApi.current!.validate();
+      values = await modal.formApi.current!.validate();
     } catch {
       return;
     }
     if (!values) return;
     const payload = buildPayload(formProvider, formIsDefault, values);
-    await testMutation.mutateAsync({ id: editingConfig?.id, values: payload });
+    await testMutation.mutateAsync({ id: modal.editing?.id, values: payload });
     Toast.success('存储连接测试通过');
   };
 
@@ -478,69 +525,6 @@ export default function FileStorageConfigsPage() {
     }),
   ];
 
-  const initValues: FileStorageConfigFormValues = editingConfig
-    ? {
-      ...editingConfig,
-      basePath: editingConfig.basePath ?? '',
-      objectAcl: editingConfig.objectAcl ?? 'default',
-      urlStrategy: editingConfig.urlStrategy ?? 'proxy',
-      publicBaseUrl: editingConfig.publicBaseUrl ?? '',
-      presignedExpirySeconds: editingConfig.presignedExpirySeconds ?? PRESIGNED_EXPIRY_DEFAULT_SECONDS,
-      localRootPath: editingConfig.localRootPath ?? '',
-      ossRegion: editingConfig.ossRegion ?? '',
-      ossEndpoint: editingConfig.ossEndpoint ?? '',
-      ossBucket: editingConfig.ossBucket ?? '',
-      ossAccessKeyId: editingConfig.ossAccessKeyId ?? '',
-      ossAccessKeySecret: editingConfig.ossAccessKeySecret ?? '',
-      s3Region: editingConfig.s3Region ?? '',
-      s3Endpoint: editingConfig.s3Endpoint ?? '',
-      s3Bucket: editingConfig.s3Bucket ?? '',
-      s3AccessKeyId: editingConfig.s3AccessKeyId ?? '',
-      s3SecretAccessKey: editingConfig.s3SecretAccessKey ?? '',
-      s3ForcePathStyle: editingConfig.s3ForcePathStyle ?? false,
-      cosRegion: editingConfig.cosRegion ?? '',
-      cosBucket: editingConfig.cosBucket ?? '',
-      cosSecretId: editingConfig.cosSecretId ?? '',
-      cosSecretKey: editingConfig.cosSecretKey ?? '',
-      obsEndpoint: editingConfig.obsEndpoint ?? '',
-      obsBucket: editingConfig.obsBucket ?? '',
-      obsAccessKeyId: editingConfig.obsAccessKeyId ?? '',
-      obsSecretAccessKey: editingConfig.obsSecretAccessKey ?? '',
-      kodoAccessKey: editingConfig.kodoAccessKey ?? '',
-      kodoSecretKey: editingConfig.kodoSecretKey ?? '',
-      kodoBucket: editingConfig.kodoBucket ?? '',
-      kodoRegion: editingConfig.kodoRegion ?? '',
-      kodoEndpoint: editingConfig.kodoEndpoint ?? '',
-      bosEndpoint: editingConfig.bosEndpoint ?? '',
-      bosBucket: editingConfig.bosBucket ?? '',
-      bosAccessKeyId: editingConfig.bosAccessKeyId ?? '',
-      bosSecretAccessKey: editingConfig.bosSecretAccessKey ?? '',
-      azureAccountName: editingConfig.azureAccountName ?? '',
-      azureAccountKey: editingConfig.azureAccountKey ?? '',
-      azureContainerName: editingConfig.azureContainerName ?? '',
-      azureEndpoint: editingConfig.azureEndpoint ?? '',
-      sftpHost: editingConfig.sftpHost ?? '',
-      sftpPort: editingConfig.sftpPort ?? 22,
-      sftpUsername: editingConfig.sftpUsername ?? '',
-      sftpPassword: editingConfig.sftpPassword ?? '',
-      sftpPrivateKey: editingConfig.sftpPrivateKey ?? '',
-      sftpRootPath: editingConfig.sftpRootPath ?? '',
-      sftpBaseUrl: editingConfig.sftpBaseUrl ?? '',
-      remark: editingConfig.remark ?? '',
-    }
-    : {
-      name: '',
-      provider: 'local',
-      status: 'enabled',
-      isDefault: false,
-      basePath: 'uploads',
-      objectAcl: 'default',
-      urlStrategy: 'proxy',
-      publicBaseUrl: '',
-      presignedExpirySeconds: PRESIGNED_EXPIRY_DEFAULT_SECONDS,
-      localRootPath: 'storage/local',
-      remark: '',
-    };
   const buildExportQuery = () => ({
     ...(submittedParams.status ? { status: submittedParams.status } : {}),
     ...(submittedParams.timeRange
@@ -621,30 +605,18 @@ export default function FileStorageConfigsPage() {
       />
 
       <AppModal
-        title={editingConfig ? '编辑文件配置' : '新增文件配置'}
-        visible={modalVisible}
-        onCancel={() => {
-          setModalVisible(false);
-          setEditingConfig(null);
-        }}
-        onOk={handleModalOk}
-        okButtonProps={{ disabled: modalDetailLoading }}
+        {...modal.modalProps}
         width={720}
 
       >
-        <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
+        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
         <Form
-          getFormApi={(api) => formApi.current = api}
-          key={editingConfig?.id ?? 'new-file-storage-config'}
-          allowEmpty
-          initValues={initValues}
-          labelPosition="left"
-          labelWidth={140}
+          {...modal.formProps}
         >
           <div className="storage-config-form-header">
             <Text strong>配置选项</Text>
             <div className="storage-config-default-switch">
-              <Button type="primary" theme="light" icon={<PlugZap size={14} />} loading={modalTestLoading} disabled={modalDetailLoading} onClick={() => void handleModalTest()}>
+              <Button type="primary" theme="light" icon={<PlugZap size={14} />} loading={modalTestLoading} disabled={modal.detailLoading} onClick={() => void handleModalTest()}>
                 测试连接
               </Button>
               <span>设为默认服务</span>
@@ -663,9 +635,9 @@ export default function FileStorageConfigsPage() {
                 onChange={(value) => {
                   const next = value as FileStorageProvider;
                   setFormProvider(next);
-                  const currentAcl = formApi.current?.getValue('objectAcl') as FileObjectAcl | undefined;
+                  const currentAcl = modal.formApi.current?.getValue('objectAcl') as FileObjectAcl | undefined;
                   if (currentAcl && !(FILE_OBJECT_ACL_SUPPORT[next] ?? []).includes(currentAcl)) {
-                    formApi.current?.setValue('objectAcl', 'default');
+                    modal.formApi.current?.setValue('objectAcl', 'default');
                   }
                 }}
                 placeholder="请选择存储类型"
@@ -783,9 +755,9 @@ export default function FileStorageConfigsPage() {
                   <Form.Input
                     field="ossAccessKeySecret"
                     label="AccessKey Secret"
-                    placeholder={editingConfig ? '留空表示不修改' : '请输入 AccessKey Secret'}
+                    placeholder={modal.isEdit ? '留空表示不修改' : '请输入 AccessKey Secret'}
                     type="password"
-                    rules={editingConfig ? [] : [{ required: true, message: '请输入 AccessKey Secret' }]}
+                    rules={modal.isEdit ? [] : [{ required: true, message: '请输入 AccessKey Secret' }]}
                   />
                 </Col>
               </Row>
@@ -817,9 +789,9 @@ export default function FileStorageConfigsPage() {
                   <Form.Input
                     field="s3SecretAccessKey"
                     label="Secret Access Key"
-                    placeholder={editingConfig ? '留空表示不修改' : '请输入 Secret Access Key'}
+                    placeholder={modal.isEdit ? '留空表示不修改' : '请输入 Secret Access Key'}
                     type="password"
-                    rules={editingConfig ? [] : [{ required: true, message: '请输入 Secret Access Key' }]}
+                    rules={modal.isEdit ? [] : [{ required: true, message: '请输入 Secret Access Key' }]}
                   />
                 </Col>
               </Row>
@@ -847,9 +819,9 @@ export default function FileStorageConfigsPage() {
                   <Form.Input
                     field="cosSecretKey"
                     label="SecretKey"
-                    placeholder={editingConfig ? '留空表示不修改' : '请输入 SecretKey'}
+                    placeholder={modal.isEdit ? '留空表示不修改' : '请输入 SecretKey'}
                     type="password"
-                    rules={editingConfig ? [] : [{ required: true, message: '请输入 SecretKey' }]}
+                    rules={modal.isEdit ? [] : [{ required: true, message: '请输入 SecretKey' }]}
                   />
                 </Col>
               </Row>
@@ -875,7 +847,7 @@ export default function FileStorageConfigsPage() {
               </Row>
               <Row gutter={16}>
                 <Col span={24}>
-                  <Form.Input field="obsSecretAccessKey" label="Secret Access Key" placeholder={editingConfig ? '留空表示不修改' : '请输入 Secret Access Key'} type="password" rules={editingConfig ? [] : [{ required: true, message: '请输入 Secret Access Key' }]} />
+                  <Form.Input field="obsSecretAccessKey" label="Secret Access Key" placeholder={modal.isEdit ? '留空表示不修改' : '请输入 Secret Access Key'} type="password" rules={modal.isEdit ? [] : [{ required: true, message: '请输入 Secret Access Key' }]} />
                 </Col>
               </Row>
             </>
@@ -903,7 +875,7 @@ export default function FileStorageConfigsPage() {
               </Row>
               <Row gutter={16}>
                 <Col span={24}>
-                  <Form.Input field="kodoSecretKey" label="Secret Key" placeholder={editingConfig ? '留空表示不修改' : '请输入 Secret Key'} type="password" rules={editingConfig ? [] : [{ required: true, message: '请输入 Secret Key' }]} />
+                  <Form.Input field="kodoSecretKey" label="Secret Key" placeholder={modal.isEdit ? '留空表示不修改' : '请输入 Secret Key'} type="password" rules={modal.isEdit ? [] : [{ required: true, message: '请输入 Secret Key' }]} />
                 </Col>
               </Row>
             </>
@@ -928,7 +900,7 @@ export default function FileStorageConfigsPage() {
               </Row>
               <Row gutter={16}>
                 <Col span={24}>
-                  <Form.Input field="bosSecretAccessKey" label="Secret Access Key" placeholder={editingConfig ? '留空表示不修改' : '请输入 Secret Key'} type="password" rules={editingConfig ? [] : [{ required: true, message: '请输入 Secret Access Key' }]} />
+                  <Form.Input field="bosSecretAccessKey" label="Secret Access Key" placeholder={modal.isEdit ? '留空表示不修改' : '请输入 Secret Key'} type="password" rules={modal.isEdit ? [] : [{ required: true, message: '请输入 Secret Access Key' }]} />
                 </Col>
               </Row>
             </>
@@ -946,7 +918,7 @@ export default function FileStorageConfigsPage() {
               </Row>
               <Row gutter={16}>
                 <Col span={24}>
-                  <Form.Input field="azureAccountKey" label="Account Key" placeholder={editingConfig ? '留空表示不修改' : '存储账户密钥'} type="password" rules={editingConfig ? [] : [{ required: true, message: '请输入 Account Key' }]} />
+                  <Form.Input field="azureAccountKey" label="Account Key" placeholder={modal.isEdit ? '留空表示不修改' : '存储账户密钥'} type="password" rules={modal.isEdit ? [] : [{ required: true, message: '请输入 Account Key' }]} />
                 </Col>
               </Row>
               <Row gutter={16}>
@@ -972,7 +944,7 @@ export default function FileStorageConfigsPage() {
                   <Form.Input field="sftpUsername" label="用户名" placeholder="登录用户名" rules={[{ required: true, message: '请输入用户名' }]} />
                 </Col>
                 <Col span={12}>
-                  <Form.Input field="sftpPassword" label="密码" placeholder={editingConfig ? '留空表示不修改' : '密码或私钥二选一'} type="password" />
+                  <Form.Input field="sftpPassword" label="密码" placeholder={modal.isEdit ? '留空表示不修改' : '密码或私钥二选一'} type="password" />
                 </Col>
               </Row>
               <Row gutter={16}>
@@ -987,7 +959,7 @@ export default function FileStorageConfigsPage() {
               </Row>
               <Row gutter={16}>
                 <Col span={24}>
-                  <Form.TextArea field="sftpPrivateKey" label="SSH 私钥（可选）" placeholder={editingConfig ? '留空表示不修改' : '如果使用私钥登录，请将 PEM 内容粘贴至此'} rows={4} />
+                  <Form.TextArea field="sftpPrivateKey" label="SSH 私钥（可选）" placeholder={modal.isEdit ? '留空表示不修改' : '如果使用私钥登录，请将 PEM 内容粘贴至此'} rows={4} />
                 </Col>
               </Row>
             </>

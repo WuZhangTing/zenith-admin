@@ -1,6 +1,4 @@
-import { useState, useRef } from 'react';
 import { Tag, Form, Toast, Typography, Select, Row, Col, Space } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { RatePlan } from '@zenith/shared/open-platform';
 import { createdAtColumn } from '@/utils/table-columns';
@@ -9,6 +7,7 @@ import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { openPlatformKeys, useDeleteRatePlan, useRatePlanList, useSaveRatePlan } from '@/hooks/queries/open-platform';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -36,7 +35,6 @@ export default function RatePlansPage() {
   const STATUS_OPTIONS = statusItems.map((i) => ({ value: i.value, label: i.label }));
   const { hasPermission } = usePermission();
   const canManage = hasPermission('open:rate-plan:manage');
-  const formApi = useRef<FormApi | null>(null);
 
   interface SearchParams { keyword: string; status?: 'enabled' | 'disabled' }
   const defaultSearchParams: SearchParams = { keyword: '', status: undefined };
@@ -46,66 +44,30 @@ export default function RatePlansPage() {
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: openPlatformKeys.ratePlans.lists });
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<RatePlan | null>(null);
-  const listQuery = useRatePlanList({
+    const listQuery = useRatePlanList({
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
     status: submittedParams.status,
   });
   const data = listQuery.data ?? null;
-  const saveMutation = useSaveRatePlan();
   const deleteMutation = useDeleteRatePlan();
 
-  function openCreate() {
-    setEditing(null);
-    setModalVisible(true);
-  }
-  function openEdit(record: RatePlan) {
-    setEditing(record);
-    setModalVisible(true);
-    formApi.current?.setValues({
-      code: record.code,
-      name: record.name,
-      description: record.description ?? '',
-      qpsLimit: record.qpsLimit,
-      dailyQuota: record.dailyQuota,
-      monthlyQuota: record.monthlyQuota,
-      isDefault: record.isDefault,
-      status: record.status,
-    });
-  }
-  function closeModal() {
-    setModalVisible(false);
-    setEditing(null);
-  }
-
-  const formInitValues: Partial<FormValues> = editing
-    ? {
-        code: editing.code,
-        name: editing.name,
-        description: editing.description ?? '',
-        qpsLimit: editing.qpsLimit,
-        dailyQuota: editing.dailyQuota,
-        monthlyQuota: editing.monthlyQuota,
-        isDefault: editing.isDefault,
-        status: editing.status,
-      }
-    : { qpsLimit: 10, dailyQuota: 0, monthlyQuota: 0, isDefault: false, status: 'enabled' };
-
-  async function handleModalOk() {
-    let values: FormValues;
-    try {
-      values = (await formApi.current?.validate()) as FormValues;
-    } catch {
-      throw new Error('validation');
-    }
-    if (!values) throw new Error('validation');
-    await saveMutation.mutateAsync({ id: editing?.id, values });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    closeModal();
-  }
+  const modal = useEditModal<RatePlan, FormValues>({
+    entityName: '限流套餐',
+    save: useSaveRatePlan(),
+    defaults: { qpsLimit: 10, dailyQuota: 0, monthlyQuota: 0, isDefault: false, status: 'enabled' },
+    toValues: (r) => ({
+      code: r.code,
+      name: r.name,
+      description: r.description ?? '',
+      qpsLimit: r.qpsLimit,
+      dailyQuota: r.dailyQuota,
+      monthlyQuota: r.monthlyQuota,
+      isDefault: r.isDefault,
+      status: r.status,
+    }),
+  });
 
   async function handleDelete(id: number) {
     await deleteMutation.mutateAsync(id);
@@ -146,7 +108,7 @@ export default function RatePlansPage() {
     createOperationColumn<RatePlan>({
       width: 140,
       actions: (record) => [
-        { key: 'edit', label: '编辑', hidden: !canManage, onClick: () => openEdit(record) },
+        { key: 'edit', label: '编辑', hidden: !canManage, onClick: () => modal.openEdit(record) },
         {
           key: 'delete',
           label: '删除',
@@ -180,14 +142,14 @@ export default function RatePlansPage() {
             />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
-            {canManage && <CreateButton onClick={openCreate} />}
+            {canManage && <CreateButton onClick={modal.openCreate} />}
           </>
         )}
         mobilePrimary={(
           <>
             <KeywordInput placeholder="搜索套餐" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
             <SearchButton onClick={handleSearch} />
-            {canManage && <CreateButton onClick={openCreate} />}
+            {canManage && <CreateButton onClick={modal.openCreate} />}
           </>
         )}
         mobileActions={<ResetButton onClick={handleReset} />}
@@ -207,30 +169,16 @@ export default function RatePlansPage() {
         pagination={buildPagination(data?.total ?? 0)}
       />
 
-      <AppModal
-        title={editing ? '编辑限流套餐' : '新增限流套餐'}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={closeModal}
-        okButtonProps={{ loading: saveMutation.isPending }}
-        width={660}
-        closeOnEsc
-      >
-        <Form
-          key={editing?.id ?? 'new'}
-          getFormApi={(api) => { formApi.current = api; }}
-          initValues={formInitValues}
-          labelPosition="left"
-          labelWidth={90}
-        >
+      <AppModal {...modal.modalProps} width={660}>
+        <Form {...modal.formProps}>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Input
                 field="code"
                 label="套餐编码"
                 placeholder="如 free / pro"
-                disabled={!!editing}
-                extraText={editing ? '编码不可修改' : '小写字母开头'}
+                disabled={modal.isEdit}
+                extraText={modal.isEdit ? '编码不可修改' : '小写字母开头'}
                 rules={[{ required: true, message: '套餐编码不能为空' }]}
               />
             </Col>

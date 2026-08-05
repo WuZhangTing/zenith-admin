@@ -2,7 +2,6 @@ import { useState, useRef } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { Banner, Button, Form, Input, Modal, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -12,6 +11,7 @@ import { formatDateTime } from '@/utils/date';
 import { createdAtColumn } from '@/utils/table-columns';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import {
   paymentPreauthKeys,
   useCapturePaymentPreauth,
@@ -40,13 +40,12 @@ const defaultSearchParams: SearchParams = { keyword: '', status: '', channel: ''
 export default function PaymentPreauthsPage() {
   const { hasPermission } = usePermission();
   const canManage = hasPermission('payment:preauth:manage');
-  const formApi = useRef<FormApi | null>(null);
+  const latestCreateResult = useRef<PaymentPreauth | null>(null);
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
   } = useListSearch({ defaults: defaultSearchParams, listKey: paymentPreauthKeys.lists });
-  const [modalVisible, setModalVisible] = useState(false);
   const [captureTarget, setCaptureTarget] = useState<PaymentPreauth | null>(null);
   const [captureAmountYuan, setCaptureAmountYuan] = useState('');
 
@@ -63,22 +62,33 @@ export default function PaymentPreauthsPage() {
   const captureMutation = useCapturePaymentPreauth();
   const releaseMutation = useReleasePaymentPreauth();
 
-  async function handleCreate() {
-    let values: PreauthFormValues;
-    try { values = (await formApi.current?.validate()) as PreauthFormValues; } catch { throw new Error('validation'); }
-    const res = await createMutation.mutateAsync({
+  const createSaveMutation = {
+    mutateAsync: async ({ values }: { id?: number; values: { payMethod: string; payerAccount: string; subject: string; frozenAmount: number; bizType?: string; remark?: string } }) => {
+      const res = await createMutation.mutateAsync(values);
+      latestCreateResult.current = res;
+      return res;
+    },
+    isPending: createMutation.isPending,
+  };
+  const createModal = useEditModal<PaymentPreauth, PreauthFormValues, { payMethod: string; payerAccount: string; subject: string; frozenAmount: number; bizType?: string; remark?: string }>({
+    save: createSaveMutation,
+    defaults: { payMethod: 'wechat_preauth' },
+    beforeSave: (values) => ({
       payMethod: values.payMethod,
       payerAccount: values.payerAccount,
       subject: values.subject,
       frozenAmount: Math.round(values.amountYuan * 100),
       bizType: values.bizType || undefined,
       remark: values.remark || undefined,
-    });
-    if (res.status === 'frozen') Toast.success('冻结成功');
-    else if (res.status === 'failed') Toast.error(`冻结失败：${res.errorMessage ?? '未知原因'}`);
-    else Toast.info('冻结请求已受理');
-    setModalVisible(false);
-  }
+    }),
+    successMessage: () => {
+      const res = latestCreateResult.current;
+      if (res?.status === 'frozen') return '冻结成功';
+      if (res?.status === 'failed') return `冻结失败：${res.errorMessage ?? '未知原因'}`;
+      return '冻结请求已受理';
+    },
+    labelWidth: 110,
+  });
 
   function openCapture(r: PaymentPreauth) {
     setCaptureAmountYuan('');
@@ -150,7 +160,7 @@ export default function PaymentPreauthsPage() {
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => canManage ? (
-    <Button type="primary" icon={<Plus size={14} />} onClick={() => setModalVisible(true)}>发起冻结</Button>
+    <Button type="primary" icon={<Plus size={14} />} onClick={createModal.openCreate}>发起冻结</Button>
   ) : null;
 
   return (
@@ -189,10 +199,10 @@ export default function PaymentPreauthsPage() {
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} pagination={buildPagination(total)}
       />
 
-      <AppModal title="发起预授权冻结" visible={modalVisible} onOk={handleCreate} onCancel={() => setModalVisible(false)} okButtonProps={{ loading: createMutation.isPending }} width={520} closeOnEsc>
+      <AppModal {...createModal.modalProps} title="发起预授权冻结" width={520}>
         <Banner type="warning" closeIcon={null} style={{ marginBottom: 16 }}
           description="资金冻结操作（押金场景）：冻结成功计入渠道账户冻结余额，可转支付或解冻；沙箱渠道即时生效。" />
-        <Form key={modalVisible ? 'new' : 'closed'} getFormApi={(api) => { formApi.current = api; }} initValues={{ payMethod: 'wechat_preauth' }} labelPosition="left" labelWidth={110}>
+        <Form {...createModal.formProps}>
           <Form.Select field="payMethod" label="预授权方式" style={{ width: '100%' }} optionList={PREAUTH_METHOD_OPTIONS} rules={[{ required: true, message: '请选择方式' }]} />
           <Form.Input field="payerAccount" label="付款人账号" placeholder="微信 openid / 支付宝账号" rules={[{ required: true, message: '付款人账号不能为空' }]} />
           <Form.Input field="subject" label="冻结事由" placeholder="如：民宿押金" rules={[{ required: true, message: '冻结事由不能为空' }]} />

@@ -85,6 +85,35 @@
 
 ## 前端层（Step 8）
 
+- **标准 CRUD 域 hooks**（Step 8）：域文件（`packages/web/src/hooks/queries/xxx.ts`）的
+  key 工厂、列表 / 详情 / 保存 / 删除 / 下拉源五件套统一由
+  `packages/web/src/lib/crud-queries.ts` 的 `createCrudQueries` 生成，
+  **禁止**逐个域手抄 `xxxKeys` 对象、`keepPreviousData` 列表查询、
+  「无 id 走 POST、有 id 走 PUT」的保存、「单条走 `/:id`、多条走 `/batch`」的删除。
+  手抄的代价不是行数而是失效契约会被漏写：保存后忘记失效 `lists` 表现为「保存成功但列表没变」，
+  删除后忘记 `removeQueries(detail(id))` 会让已删记录在重新打开弹窗时闪出旧数据——两者都不报错。
+  域内的非标准接口（分配菜单、导入导出、状态切换…）继续在同一文件手写 `useMutation`，
+  用工厂导出的 `keys` 做失效即可；**禁止**为了套用工厂去改后端接口形状。
+  写法见 [crud-frontend.md 域 hooks 文件模板](./crud-frontend.md)
+- **编辑弹窗状态**（Step 8）：新增/编辑弹窗统一使用 `packages/web/src/hooks/useEditModal.ts`，
+  **禁止**在页面里手写 `useRef<FormApi | null>` + `editingRecord` 状态 +
+  `try { validate() } catch { throw new Error('validation') }` + `Toast` + 关闭四件套。
+  该 hook 焊死了四条**漏写不报错**的契约：校验失败必须抛出（否则确定按钮永远转圈）、
+  提示文案区分新增/编辑、保存后关闭并清空 `editing`（否则下次「新增」带出上次记录）、
+  以及**表单必须按记录重挂载**——`initValues` 只在挂载时读取一次，
+  配了 `useXxxDetail` 却没有 `key` 时，弹窗打开后才到达的详情永远进不了表单。
+  展开 `modalProps` 到 `AppModal`、展开 `formProps` 到 `Form`；
+  表单值与接口类型不一致（如 DatePicker 的 `Date` → 接口字符串）用 `beforeSave` 转换，
+  保存后的副作用（展示初始密码、跳转…）用 `onSaved`，
+  保存后另有更强反馈（跳转支付页、弹出含密钥的结果框）时用 `successMessage: () => null` 抑制默认提示。
+  标题不符合「新增X / 编辑X」时不要用 `entityName`，展开后单独覆盖 `title`。
+  只有新增或只有编辑的单模式弹窗同样适用（只调用对应的 `openCreate` / `openEdit` 即可）。
+  一个页面有多个编辑单元时多次调用即可。写法见 [crud-frontend.md 完整页面模板](./crud-frontend.md)
+- **编辑弹窗防回潮**（Step 8）：`npm run lint -w @zenith/web` 含
+  `scripts/check-edit-modal-baseline.mjs`，对 `src/pages/**` 中手写的
+  `useRef<FormApi>` 与 `throw new Error('validation')` 做只减不增校验。
+  确有正当理由自持表单实例（页面级全局配置表单、认证流程、设计器与运行时表单、
+  db-admin 行编辑器）时，执行 `--update` 更新基线；基线条目数即迁移进度条
 - **列表页搜索状态**（Step 8）：统一使用 `packages/web/src/hooks/useListSearch.ts`，它整合了 `usePagination`
   与 draft/submitted 双状态，并保证「查询 / 重置」必定 `invalidateQueries(listKey)`。
   **禁止**在页面里手写 `const [draftParams/submittedParams] = useState(...)` 与

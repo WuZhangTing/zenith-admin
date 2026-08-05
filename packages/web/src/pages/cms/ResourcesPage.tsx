@@ -1,7 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { Button, DatePicker, Dropdown, Form, Modal, Select, Space, Tag, Toast, Tooltip, Typography, Empty, Tree } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
 import { Upload, FileText, Film, Music, File as FileIcon, FolderPlus, FolderPen, FolderX, Move, ShieldCheck, MoreHorizontal } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -13,6 +12,7 @@ import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
 import { ExportButton } from '@/components/ExportButton';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { usePagination } from '@/hooks/usePagination';
 import {
   cmsResourceKeys, useCmsResourceList, useCmsResourceReferences,
@@ -244,9 +244,6 @@ export default function ResourcesPage() {
   const [renameTarget, setRenameTarget] = useState<CmsResource | null>(null);
   const [cropTarget, setCropTarget] = useState<CmsResource | null>(null);
   const [refsTarget, setRefsTarget] = useState<CmsResource | null>(null);
-  const [folderModalVisible, setFolderModalVisible] = useState(false);
-  const [editingFolder, setEditingFolder] = useState<CmsResourceFolder | null>(null);
-  const folderFormApi = useRef<FormApi | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const replaceInputRef = useRef<HTMLInputElement>(null);
   const [replaceTarget, setReplaceTarget] = useState<CmsResource | null>(null);
@@ -258,6 +255,22 @@ export default function ResourcesPage() {
   const updateMutation = useUpdateCmsResource();
   const deleteMutation = useDeleteCmsResources();
   const saveFolderMutation = useSaveCmsResourceFolder();
+  const folderModal = useEditModal<CmsResourceFolder, Partial<CmsResourceFolder>, Record<string, unknown>>({
+    entityName: '素材文件夹',
+    save: saveFolderMutation,
+    defaults: () => ({ sort: 0, parentId: folderId && folderId > 0 ? folderId : 0 }),
+    labelWidth: 80,
+    toValues: (folder) => ({ name: folder.name, sort: folder.sort, parentId: folder.parentId ?? 0 }),
+    beforeSave: (values, { isEdit }) => {
+      if (!isEdit && !siteId) throw new Error('validation');
+      return {
+        ...values,
+        parentId: Number(values.parentId) > 0 ? Number(values.parentId) : null,
+        ...(!isEdit ? { siteId } : {}),
+      };
+    },
+    successMessage: () => '文件夹已保存',
+  });
   const deleteFolderMutation = useDeleteCmsResourceFolder();
   const governanceMutation = useCmsResourceGovernance();
   const moveMutation = useMoveCmsResources();
@@ -313,23 +326,6 @@ export default function ResourcesPage() {
     await rebuildRefsMutation.mutateAsync({ siteId });
     Toast.success('引用索引重建任务已提交');
     void refreshTasks();
-  }
-
-  async function submitFolder() {
-    if (!siteId) return;
-    const values = await folderFormApi.current?.validate().catch(() => null);
-    if (!values?.name) throw new Error('validation');
-    await saveFolderMutation.mutateAsync({
-      id: editingFolder?.id,
-      values: {
-        ...values,
-        parentId: Number(values.parentId) > 0 ? Number(values.parentId) : null,
-        ...(!editingFolder ? { siteId } : {}),
-      },
-    });
-    setFolderModalVisible(false);
-    setEditingFolder(null);
-    Toast.success('文件夹已保存');
   }
 
   async function submitGovernance(operation: 'scan' | 'cleanup', dryRun: boolean) {
@@ -428,7 +424,7 @@ export default function ResourcesPage() {
                 <>
                   {canUpdate ? (
                     <Tooltip content="新建文件夹">
-                      <Button size="small" theme="borderless" icon={<FolderPlus size={15} />} onClick={() => { setEditingFolder(null); setFolderModalVisible(true); }} />
+                      <Button size="small" theme="borderless" icon={<FolderPlus size={15} />} onClick={folderModal.openCreate} />
                     </Tooltip>
                   ) : null}
                   {selectedFolder && (canUpdate || canDelete) ? (
@@ -441,7 +437,7 @@ export default function ResourcesPage() {
                           {canUpdate ? (
                             <Dropdown.Item
                               icon={<FolderPen size={14} />}
-                              onClick={() => { setEditingFolder(selectedFolder); setFolderModalVisible(true); }}
+                              onClick={() => { folderModal.openEdit(selectedFolder); }}
                             >
                               重命名文件夹
                             </Dropdown.Item>
@@ -626,22 +622,12 @@ export default function ResourcesPage() {
       </AppModal>
 
       <AppModal
-        title={editingFolder ? '编辑素材文件夹' : '新建素材文件夹'}
-        visible={folderModalVisible}
-        onOk={submitFolder}
-        onCancel={() => { setFolderModalVisible(false); setEditingFolder(null); }}
-        okButtonProps={{ loading: saveFolderMutation.isPending }}
+        {...folderModal.modalProps}
+        title={folderModal.isEdit ? '编辑素材文件夹' : '新建素材文件夹'}
         width={480}
-        closeOnEsc
       >
         <Form
-          key={editingFolder?.id ?? `new-${folderId ?? 0}`}
-          getFormApi={(api) => { folderFormApi.current = api; }}
-          initValues={editingFolder
-            ? { name: editingFolder.name, sort: editingFolder.sort, parentId: editingFolder.parentId ?? 0 }
-            : { sort: 0, parentId: folderId && folderId > 0 ? folderId : 0 }}
-          labelPosition="left"
-          labelWidth={80}
+          {...folderModal.formProps}
         >
           <Form.Input field="name" label="名称" maxLength={100} rules={[{ required: true, message: '请输入文件夹名称' }]} />
           <Form.TreeSelect

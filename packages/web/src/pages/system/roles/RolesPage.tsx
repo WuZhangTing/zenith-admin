@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Select, Space, Modal, Form, Toast, Spin, Switch, SideSheet } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { Role, Department } from '@zenith/shared/identity';
 import { UserTransferSelect } from '@/components/UserTransferSelect';
 import type { UserTransferUser } from '@/components/UserTransferSelect';
@@ -20,6 +19,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { useDepartmentTree } from '@/hooks/queries/departments';
 import { useMenuTree } from '@/hooks/queries/menus';
 import { useAllUsers } from '@/hooks/queries/users';
+import { useEditModal } from '@/hooks/useEditModal';
 import { useListSearch } from '@/hooks/useListSearch';
 import {
   roleKeys,
@@ -45,15 +45,12 @@ export default function RolesPage() {
   }
 
   const defaultSearchParams: SearchParams = { keyword: '', status: '', timeRange: null };
-  const formApi = useRef<FormApi | null>(null);
   const { items: statusItems } = useDictItems('common_status');
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: roleKeys.lists });
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<Role | null>(null);
   const [menuModalVisible, setMenuModalVisible] = useState(false);
   const [menuRole, setMenuRole] = useState<Role | null>(null);
   const [checkedMenuIds, setCheckedMenuIds] = useState<number[]>([]);
@@ -76,8 +73,6 @@ export default function RolesPage() {
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
 
-  const editDetailQuery = useRoleDetail(editingRecord?.id, modalVisible);
-  const editingRole = editingRecord ? (editDetailQuery.data ?? editingRecord) : null;
   const menuTreeQuery = useMenuTree({ enabled: menuModalVisible });
   const menuRoleDetailQuery = useRoleDetail(menuRole?.id, menuModalVisible);
   const allUsersQuery = useAllUsers({ enabled: userModalVisible });
@@ -87,6 +82,13 @@ export default function RolesPage() {
   const deptTree = useMemo(() => deptTreeQuery.data ?? [], [deptTreeQuery.data]);
 
   const saveMutation = useSaveRole();
+  const roleModal = useEditModal<Role>({
+    entityName: '角色',
+    save: saveMutation,
+    useDetail: useRoleDetail,
+    defaults: { status: 'enabled' },
+  });
+  const editingRole = roleModal.editing;
   const toggleStatusMutation = useSaveRole();
   const deleteMutation = useDeleteRole();
   const assignMenusMutation = useAssignRoleMenus();
@@ -174,24 +176,6 @@ export default function RolesPage() {
     setDataScopeModalVisible(false);
   };
 
-  const handleRoleModalOk = async () => {
-    let values;
-    try {
-      values = await formApi.current!.validate();
-    } catch {
-      throw new Error('validation');
-    }
-    await saveMutation.mutateAsync({ id: editingRecord?.id, values });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditingRecord(null);
-  };
-
-  const openEditRoleModal = (role: Role) => {
-    setEditingRecord(role);
-    setModalVisible(true);
-  };
-
   const handleDelete = async (id: number) => {
     await deleteMutation.mutateAsync(id);
     Toast.success('删除成功');
@@ -261,7 +245,7 @@ export default function RolesPage() {
           key: 'edit',
           label: '编辑',
           hidden: !hasPermission('system:role:update'),
-          onClick: () => openEditRoleModal(row),
+          onClick: () => roleModal.openEdit(row),
         },
         {
           key: 'menu',
@@ -336,7 +320,7 @@ export default function RolesPage() {
   const renderExportButtons = () => <ExportButton entity="system.roles" query={buildExportQuery()} />;
   const renderMobileExportActions = () => <ExportButton entity="system.roles" query={buildExportQuery()} variant="flat" />;
   const renderCreateButton = () => hasPermission('system:role:create') ? (
-    <CreateButton onClick={() => { setEditingRecord(null); setModalVisible(true); }} />
+    <CreateButton onClick={roleModal.openCreate} />
   ) : null;
 
   return (
@@ -385,23 +369,9 @@ export default function RolesPage() {
       />
 
       {/* 创建/编辑 Modal */}
-      <AppModal
-        title={editingRole ? '编辑角色' : '新增角色'}
-        visible={modalVisible}
-        onCancel={() => { setModalVisible(false); setEditingRecord(null); }}
-        onOk={handleRoleModalOk}
-        okButtonProps={{ disabled: !!editingRecord && editDetailQuery.isFetching }}
-        width={480}
-
-      >
-        <Form
-          getFormApi={(api) => formApi.current = api}
-          allowEmpty
-          key={editingRole?.id ?? 'new-role'}
-          initValues={editingRole ?? { status: 'enabled' }}
-          labelPosition="left"
-          labelWidth={90}
-        >
+      <AppModal {...roleModal.modalProps} width={480}>
+        <Spin spinning={roleModal.detailLoading} wrapperClassName="modal-spin-wrapper">
+        <Form {...roleModal.formProps}>
           <Form.Input field="name" label="角色名称" placeholder="请输入角色名称" rules={[{ required: true, message: '请输入角色名称' }]} />
           <Form.Input field="code" label="角色编码" placeholder="请输入角色编码" rules={[{ required: true, message: '请输入角色编码' }]} />
           <Form.Input field="description" label="描述" placeholder="请输入描述" />
@@ -420,6 +390,7 @@ export default function RolesPage() {
             placeholder="请选择状态"
           />
         </Form>
+        </Spin>
       </AppModal>
 
       {/* 菜单权限 Modal */}

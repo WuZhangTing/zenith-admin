@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Banner, Button, Col, Form, Radio, Row, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { CheckCircle, RefreshCw } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
@@ -8,6 +7,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import {
   nginxSiteKeys,
@@ -36,18 +36,20 @@ const RUNNING_STATUS_TAG: Record<NginxInfo['runningStatus'], { color: 'green' | 
 };
 const EMPTY_SITES: NginxSite[] = [];
 
+interface CreateNginxSiteModalRecord {
+  id: number;
+}
+
 export default function NginxSitesPage() {
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
   const canManage = hasPermission('system:nginx:manage');
   const canReload = hasPermission('system:nginx:reload');
   const [keyword, setKeyword] = useState('');
-  const [createVisible, setCreateVisible] = useState(false);
   const [editorVisible, setEditorVisible] = useState(false);
   const [editorName, setEditorName] = useState<string | undefined>(undefined);
   const [editorContent, setEditorContent] = useState('');
   const [testResult, setTestResult] = useState<{ success: boolean; output: string } | null>(null);
-  const createFormApi = useRef<FormApi<CreateNginxSiteValues> | null>(null);
   const overviewQuery = useNginxSitesOverview();
   const detailQuery = useNginxSiteDetail(editorName, editorVisible);
   const createMutation = useCreateNginxSite();
@@ -58,6 +60,18 @@ export default function NginxSitesPage() {
   const info = overviewQuery.data?.info ?? null;
   const sites = overviewQuery.data?.sites ?? EMPTY_SITES;
   const editorSite = detailQuery.data ?? null;
+  const createModal = useEditModal<CreateNginxSiteModalRecord, CreateNginxSiteValues>({
+    entityName: '站点',
+    save: {
+      mutateAsync: async ({ values }) => {
+        await createMutation.mutateAsync(values);
+        return { id: 0 };
+      },
+      isPending: createMutation.isPending,
+    },
+    defaults: { name: '', serverName: '', listenPort: 80, type: 'static', sslEnabled: false },
+    successMessage: () => '站点已创建',
+  });
 
   useEffect(() => {
     if (editorVisible && detailQuery.data) setEditorContent(detailQuery.data.content);
@@ -78,19 +92,6 @@ export default function NginxSitesPage() {
     setEditorVisible(true);
     setEditorName(name);
     setEditorContent('');
-  };
-
-  const handleCreate = async () => {
-    let values: CreateNginxSiteValues;
-    try {
-      values = await createFormApi.current!.validate();
-    } catch {
-      throw new Error('validation');
-    }
-    await createMutation.mutateAsync(values);
-    Toast.success('站点已创建');
-    setCreateVisible(false);
-    createFormApi.current?.reset();
   };
 
   const handleSaveEditor = async () => {
@@ -227,7 +228,7 @@ export default function NginxSitesPage() {
             <KeywordInput placeholder="搜索站点名 / 域名 / 配置路径" value={keyword} onChange={setKeyword} width={260} />
             <SearchButton onClick={() => { void queryClient.invalidateQueries({ queryKey: nginxSiteKeys.lists }); }} />
             <ResetButton onClick={handleReset} />
-            {canManage && <CreateButton onClick={() => setCreateVisible(true)}>新增站点</CreateButton>}
+            {canManage && <CreateButton onClick={createModal.openCreate}>新增站点</CreateButton>}
           </>
         )}
         actions={(
@@ -240,7 +241,7 @@ export default function NginxSitesPage() {
           <>
             <KeywordInput placeholder="搜索站点名 / 域名 / 配置路径" value={keyword} onChange={setKeyword} width={260} />
             <SearchButton onClick={() => { void queryClient.invalidateQueries({ queryKey: nginxSiteKeys.lists }); }} />
-            {canManage && <CreateButton onClick={() => setCreateVisible(true)}>新增站点</CreateButton>}
+            {canManage && <CreateButton onClick={createModal.openCreate}>新增站点</CreateButton>}
           </>
         )}
         mobileActions={(
@@ -266,19 +267,10 @@ export default function NginxSitesPage() {
       />
 
       <AppModal
-        title="新增站点"
-        visible={createVisible}
-        onCancel={() => setCreateVisible(false)}
-        onOk={handleCreate}
-        okButtonProps={{ loading: createMutation.isPending }}
+        {...createModal.modalProps}
         width={660}
       >
-        <Form<CreateNginxSiteValues>
-          labelPosition="left"
-          labelWidth={90}
-          initValues={{ name: '', serverName: '', listenPort: 80, type: 'static', sslEnabled: false }}
-          getFormApi={(api) => { createFormApi.current = api; }}
-        >
+        <Form {...createModal.formProps}>
           {({ values }) => (
             <>
               <Row gutter={16}>

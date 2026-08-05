@@ -1,14 +1,14 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Form, Space, Spin, Toast, Switch, Tag, Row, Col } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { usePagination } from '@/hooks/usePagination';
 import type { MonitorAlertRule, MonitorMetric } from '@zenith/shared/platform';
 import { BASIC_COMPARISON_OPERATOR_LABELS } from '@zenith/shared/core';
@@ -55,58 +55,38 @@ function formatThreshold(metric: MonitorMetric, value: number): string {
 export default function MonitorAlertsPage() {
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
-  const formApi = useRef<FormApi | null>(null);
 
   const [keyword, setKeyword] = useState('');
   const { page, pageSize, buildPagination } = usePagination();
   const listQuery = useMonitorAlertList({ page, pageSize });
   const data = listQuery.data ?? null;
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<MonitorAlertRule | null>(null);
-
   const canManage = hasPermission('system:monitor:alert:manage');
   const saveMutation = useSaveMonitorAlert();
+  const alertModal = useEditModal<MonitorAlertRule, Record<string, unknown>, Record<string, unknown>>({
+    entityName: '告警规则',
+    save: saveMutation,
+    defaults: { operator: 'gt', level: 'warning', channels: ['inapp'], durationMinutes: 0, silenceMinutes: 30, enabled: true, recipients: [] },
+    toValues: (rule) => ({
+      name: rule.name,
+      metric: rule.metric,
+      operator: rule.operator,
+      threshold: rule.threshold,
+      durationMinutes: rule.durationMinutes,
+      level: rule.level,
+      channels: rule.channels,
+      webhookUrl: rule.webhookUrl ?? '',
+      recipients: rule.recipients,
+      silenceMinutes: rule.silenceMinutes,
+      enabled: rule.enabled,
+    }),
+    beforeSave: (values) => ({ ...values, webhookUrl: (values.webhookUrl as string) || null }),
+  });
   const deleteMutation = useDeleteMonitorAlert();
   const toggleMutation = useToggleMonitorAlert();
   const togglingId = toggleMutation.isPending ? (toggleMutation.variables?.id ?? null) : null;
 
   const filtered = (data?.list ?? []).filter((r) => !keyword || r.name.toLowerCase().includes(keyword.toLowerCase()));
-
-  function openCreate() {
-    setEditing(null);
-    setModalVisible(true);
-  }
-  function openEdit(record: MonitorAlertRule) {
-    setEditing(record);
-    setModalVisible(true);
-  }
-  function closeModal() {
-    setModalVisible(false);
-    setEditing(null);
-  }
-
-  const formInitValues = editing
-    ? {
-        name: editing.name, metric: editing.metric, operator: editing.operator, threshold: editing.threshold,
-        durationMinutes: editing.durationMinutes, level: editing.level, channels: editing.channels,
-        webhookUrl: editing.webhookUrl ?? '', recipients: editing.recipients, silenceMinutes: editing.silenceMinutes,
-        enabled: editing.enabled,
-      }
-    : { operator: 'gt', level: 'warning', channels: ['inapp'], durationMinutes: 0, silenceMinutes: 30, enabled: true, recipients: [] };
-
-  async function handleModalOk() {
-    let values: Record<string, unknown>;
-    try {
-      values = await formApi.current?.validate() as Record<string, unknown>;
-    } catch {
-      throw new Error('validation');
-    }
-    const body = { ...values, webhookUrl: (values.webhookUrl as string) || null };
-    await saveMutation.mutateAsync({ id: editing?.id, values: body });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    closeModal();
-  }
 
   async function handleDelete(id: number) {
     await deleteMutation.mutateAsync(id);
@@ -175,7 +155,7 @@ export default function MonitorAlertsPage() {
           key: 'edit',
           label: '编辑',
           hidden: !canManage,
-          onClick: () => openEdit(record),
+          onClick: () => alertModal.openEdit(record),
         },
         {
           key: 'delete',
@@ -201,13 +181,13 @@ export default function MonitorAlertsPage() {
           <>
             <KeywordInput placeholder="搜索规则名称..." value={keyword} onChange={setKeyword} />
             <ResetButton onClick={() => { setKeyword(''); void queryClient.invalidateQueries({ queryKey: monitorAlertKeys.lists }); }} />
-            {canManage && <CreateButton onClick={openCreate}>新增规则</CreateButton>}
+            {canManage && <CreateButton onClick={alertModal.openCreate}>新增规则</CreateButton>}
           </>
         )}
         mobilePrimary={(
           <>
             <KeywordInput placeholder="搜索规则名称..." value={keyword} onChange={setKeyword} />
-            {canManage && <CreateButton onClick={openCreate}>新增规则</CreateButton>}
+            {canManage && <CreateButton onClick={alertModal.openCreate}>新增规则</CreateButton>}
           </>
         )}
         mobileActions={(
@@ -230,23 +210,11 @@ export default function MonitorAlertsPage() {
       />
 
       <AppModal
-        title={editing ? '编辑告警规则' : '新增告警规则'}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={closeModal}
-        okButtonProps={{ loading: saveMutation.isPending }}
+        {...alertModal.modalProps}
         width={660}
-        closeOnEsc
       >
-        <Spin spinning={false} wrapperClassName="modal-spin-wrapper">
-          <Form
-            key={editing?.id ?? 'new'}
-            getFormApi={(api) => { formApi.current = api; }}
-            allowEmpty
-            initValues={formInitValues}
-            labelPosition="left"
-            labelWidth={90}
-          >
+        <Spin spinning={alertModal.detailLoading} wrapperClassName="modal-spin-wrapper">
+          <Form {...alertModal.formProps}>
             <Form.Input field="name" label="规则名称" placeholder="如：CPU 使用率过高" rules={[{ required: true, message: '请输入规则名称' }]} />
             <Row gutter={16}>
               <Col span={12}>

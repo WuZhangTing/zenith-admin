@@ -1,6 +1,5 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Banner, Col, Empty, Form, InputNumber, Row, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportQueryCostLog, ReportQueryCostTrendPoint, ReportQueryQuota, ReportQuotaScope } from '@zenith/shared/report';
 import { AppModal } from '@/components/AppModal';
@@ -10,6 +9,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import {
   useDeleteReportQueryQuota,
   useReportQueryCostLogs,
@@ -29,10 +29,7 @@ import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 export default function GovernanceCapacityTab() {
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const { page, pageSize, buildPagination } = usePagination();
-  const [quotaModal, setQuotaModal] = useState(false);
-  const [editingQuota, setEditingQuota] = useState<ReportQueryQuota | null>(null);
   const [quotaScope, setQuotaScope] = useState<ReportQuotaScope>('tenant');
   const [usageQuota, setUsageQuota] = useState<ReportQueryQuota | null>(null);
   const [costDraft, setCostDraft] = useState({ datasetId: undefined as number | undefined, datasourceId: undefined as number | undefined, timeRange: null as [Date, Date] | null });
@@ -54,14 +51,12 @@ export default function GovernanceCapacityTab() {
   const deleteMutation = useDeleteReportQueryQuota();
   const resetMutation = useResetReportQueryQuota();
 
-  const openQuota = (record?: ReportQueryQuota) => {
-    setEditingQuota(record ?? null);
-    setQuotaScope(record?.scope ?? 'tenant');
-    setQuotaModal(true);
-  };
-  const saveQuota = async () => {
-    try {
-      const raw = await formApi.current!.validate();
+  const quotaModal = useEditModal<ReportQueryQuota, Record<string, unknown>>({
+    entityName: '查询配额',
+    save: saveMutation,
+    defaults: { scope: 'tenant', maxConcurrent: 5, dailyQueryLimit: 1000, dailyRowLimit: 1000000, dailyByteLimit: 1073741824, dailyCostLimit: 10000, resetTimezone: 'Asia/Shanghai', enabled: true },
+    labelWidth: 105,
+    beforeSave: (raw, { isEdit }) => {
       const values = {
         ...raw,
         userId: raw.scope === 'tenant' ? null : Number(raw.userId),
@@ -71,12 +66,14 @@ export default function GovernanceCapacityTab() {
         dailyByteLimit: Number(raw.dailyByteLimit),
         dailyCostLimit: Number(raw.dailyCostLimit),
       };
-      await saveMutation.mutateAsync({ id: editingQuota?.id, values: validateQuotaForm(values, !!editingQuota) });
-      Toast.success(editingQuota ? '配额已更新' : '配额已创建');
-      setQuotaModal(false);
-    } catch (error) {
-      Toast.error(error instanceof Error ? error.message : '配额保存失败');
-    }
+      return validateQuotaForm(values, isEdit);
+    },
+    successMessage: ({ isEdit }) => isEdit ? '配额已更新' : '配额已创建',
+  });
+  const openQuota = (record?: ReportQueryQuota) => {
+    setQuotaScope(record?.scope ?? 'tenant');
+    if (record) quotaModal.openEdit(record);
+    else quotaModal.openCreate();
   };
   const searchCosts = () => setCostSearch(costDraft);
   const resetCosts = () => {
@@ -169,8 +166,8 @@ export default function GovernanceCapacityTab() {
       <ConfigurableTable bordered rowKey="bucket" columns={trendColumns} dataSource={trendQuery.data ?? []} loading={trendQuery.isFetching} empty={<Empty title="暂无成本趋势" />} pagination={false} onRefresh={() => void trendQuery.refetch()} refreshLoading={trendQuery.isFetching} />
       <ConfigurableTable bordered rowKey="id" columns={costColumns} dataSource={costsQuery.data?.list ?? []} loading={costsQuery.isFetching} empty={<Empty title="暂无查询成本日志" />} pagination={buildPagination(costsQuery.data?.total ?? 0)} onRefresh={() => void costsQuery.refetch()} refreshLoading={costsQuery.isFetching} style={{ marginTop: 16 }} />
 
-      <AppModal title={editingQuota ? '编辑查询配额' : '新增查询配额'} visible={quotaModal} width={700} confirmLoading={saveMutation.isPending} onOk={() => void saveQuota()} onCancel={() => setQuotaModal(false)} closeOnEsc>
-        <Form key={editingQuota?.id ?? 'create'} getFormApi={(api) => { formApi.current = api; }} labelPosition="left" labelWidth={105} initValues={editingQuota ?? { scope: 'tenant', maxConcurrent: 5, dailyQueryLimit: 1000, dailyRowLimit: 1000000, dailyByteLimit: 1073741824, dailyCostLimit: 10000, resetTimezone: 'Asia/Shanghai', enabled: true }} onValueChange={(values) => values.scope && setQuotaScope(values.scope as ReportQuotaScope)}>
+      <AppModal {...quotaModal.modalProps} width={700}>
+        <Form {...quotaModal.formProps} onValueChange={(values) => values.scope && setQuotaScope(values.scope as ReportQuotaScope)}>
           <Row gutter={16}>
             <Col xs={24} md={12}><Form.Select field="scope" label="配额范围" style={{ width: '100%' }} optionList={[{ value: 'tenant', label: '租户' }, { value: 'user', label: '用户' }]} rules={[{ required: true }]} /></Col>
             {quotaScope === 'user' && <Col xs={24} md={12}><Form.Select field="userId" label="用户" filter style={{ width: '100%' }} optionList={(usersQuery.data ?? []).map((user) => ({ value: user.id, label: user.nickname || user.username }))} rules={[{ required: true }]} /></Col>}

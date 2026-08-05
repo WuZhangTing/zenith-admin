@@ -1,9 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
 import type { CSSProperties } from 'react';
 import { Banner, Button, Form, Row, Col, Select, Skeleton, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { ShieldCheck, RefreshCw, SlidersHorizontal } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -11,6 +10,7 @@ import { AppModal } from '@/components/AppModal';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
+import { useEditModal } from '@/hooks/useEditModal';
 import {
   paymentLedgerKeys,
   useAdjustPaymentAccount,
@@ -21,7 +21,7 @@ import {
   useRebuildPaymentAccounts,
 } from '@/hooks/queries/payment-ledger';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_LEDGER_DIRECTION_LABELS, PAYMENT_LEDGER_TYPE_LABELS } from '@zenith/shared/payment';
-import type { PaymentAccountCheckRow, PaymentChannel, PaymentLedgerDirection, PaymentLedgerEntry, PaymentLedgerType } from '@zenith/shared/payment';
+import type { PaymentAccount, PaymentAccountCheckRow, PaymentChannel, PaymentLedgerDirection, PaymentLedgerEntry, PaymentLedgerType } from '@zenith/shared/payment';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 
@@ -91,12 +91,26 @@ export default function PaymentLedgerPage() {
   const loading = listQuery.isFetching || summaryQuery.isFetching;
 
   const canAdjust = hasPermission('payment:account:adjust');
-  const adjustFormApi = useRef<FormApi | null>(null);
-  const [adjustVisible, setAdjustVisible] = useState(false);
   const [checkResult, setCheckResult] = useState<PaymentAccountCheckRow[] | null>(null);
   const checkMutation = useCheckPaymentAccounts();
   const rebuildMutation = useRebuildPaymentAccounts();
   const adjustMutation = useAdjustPaymentAccount();
+  const adjustSaveMutation = {
+    mutateAsync: ({ values }: { id?: number; values: { channel: string; direction: 'in' | 'out'; amount: number; remark?: string } }) => adjustMutation.mutateAsync(values),
+    isPending: adjustMutation.isPending,
+  };
+  const adjustModal = useEditModal<PaymentAccount, { channel: PaymentChannel; direction: 'in' | 'out'; amountYuan: number; remark?: string }, { channel: string; direction: 'in' | 'out'; amount: number; remark?: string }>({
+    save: adjustSaveMutation,
+    defaults: { direction: 'in' },
+    beforeSave: (values) => ({
+      channel: values.channel,
+      direction: values.direction,
+      amount: Math.round(values.amountYuan * 100),
+      remark: values.remark || undefined,
+    }),
+    successMessage: () => '调账成功',
+    labelWidth: 100,
+  });
 
   async function handleCheck() {
     const rows = await checkMutation.mutateAsync();
@@ -110,19 +124,6 @@ export default function PaymentLedgerPage() {
     const res = await rebuildMutation.mutateAsync();
     setCheckResult(null);
     Toast.success(`已从流水重建 ${res.accounts} 个账户快照`);
-  }
-
-  async function handleAdjustOk() {
-    let values: { channel: PaymentChannel; direction: 'in' | 'out'; amountYuan: number; remark?: string };
-    try { values = (await adjustFormApi.current?.validate()) as typeof values; } catch { throw new Error('validation'); }
-    await adjustMutation.mutateAsync({
-      channel: values.channel,
-      direction: values.direction,
-      amount: Math.round(values.amountYuan * 100),
-      remark: values.remark || undefined,
-    });
-    Toast.success('调账成功');
-    setAdjustVisible(false);
   }
 
   const columns: ColumnProps<PaymentLedgerEntry>[] = [
@@ -228,7 +229,7 @@ export default function PaymentLedgerPage() {
             {canAdjust && (
               <>
                 <Button icon={<RefreshCw size={14} />} loading={rebuildMutation.isPending} onClick={() => void handleRebuild()}>重建快照</Button>
-                <Button type="primary" icon={<SlidersHorizontal size={14} />} onClick={() => setAdjustVisible(true)}>人工调账</Button>
+                <Button type="primary" icon={<SlidersHorizontal size={14} />} onClick={adjustModal.openCreate}>人工调账</Button>
               </>
             )}
           </div>
@@ -310,10 +311,10 @@ export default function PaymentLedgerPage() {
         onRefresh={() => { void listQuery.refetch(); void summaryQuery.refetch(); void accountsQuery.refetch(); }} refreshLoading={loading} pagination={buildPagination(total)}
       />
 
-      <AppModal title="人工调账" visible={adjustVisible} onOk={handleAdjustOk} onCancel={() => setAdjustVisible(false)} okButtonProps={{ loading: adjustMutation.isPending }} width={480} closeOnEsc>
+      <AppModal {...adjustModal.modalProps} title="人工调账" width={480}>
         <Banner type="warning" closeIcon={null} style={{ marginBottom: 16 }}
           description="调账将记入 adjust 资金流水并同步变更该渠道账户的可用余额，操作可审计。" />
-        <Form key={adjustVisible ? 'adjust' : 'closed'} getFormApi={(api) => { adjustFormApi.current = api; }} initValues={{ direction: 'in' }} labelPosition="left" labelWidth={100}>
+        <Form {...adjustModal.formProps}>
           <Form.Select field="channel" label="渠道" style={{ width: '100%' }} optionList={PAYMENT_CHANNEL_OPTIONS} rules={[{ required: true, message: '请选择渠道' }]} />
           <Form.Select field="direction" label="方向" style={{ width: '100%' }}
             optionList={[{ value: 'in', label: '调增（入账）' }, { value: 'out', label: '调减（出账）' }]} rules={[{ required: true, message: '请选择方向' }]} />

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import {
   Banner,
   Button,
@@ -11,7 +11,6 @@ import {
   Tag,
   Toast,
 } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportApprovalStatus, ReportPublishApproval, ReportResourceTransfer, ReportResourceType, ReportTransferStatus } from '@zenith/shared/report';
 import { Plus } from 'lucide-react';
@@ -21,6 +20,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { useReportAssetCatalog } from '@/hooks/queries/report-assets';
 import {
   useCancelReportApproval,
@@ -45,34 +45,32 @@ const statusColor: Record<string, 'grey' | 'green' | 'red' | 'orange'> = {
 
 export function GovernanceApprovalTab() {
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [status, setStatus] = useState<ReportApprovalStatus | undefined>();
   const [resourceType, setResourceType] = useState<ReportResourceType | undefined>();
-  const [modalVisible, setModalVisible] = useState(false);
   const listQuery = useReportApprovalList({ page, pageSize, status, resourceType });
   const assetsQuery = useReportAssetCatalog({ page: 1, pageSize: 100, types: resourceType });
   const createMutation = useCreateReportApproval();
   const decideMutation = useDecideReportApproval();
   const cancelMutation = useCancelReportApproval();
 
-  const createApproval = async () => {
-    try {
-      const values = await formApi.current!.validate();
-      await createMutation.mutateAsync({
-        resourceType: values.resourceType,
+  const approvalModal = useEditModal<ReportPublishApproval, Record<string, unknown>, Parameters<typeof createMutation.mutateAsync>[0]>({
+    save: {
+      isPending: createMutation.isPending,
+      mutateAsync: ({ values }) => createMutation.mutateAsync(values),
+    },
+    defaults: { action: 'publish', requestedRevision: 1, snapshot: '{}' },
+    labelWidth: 95,
+    beforeSave: (values) => ({
+        resourceType: values.resourceType as ReportResourceType,
         resourceId: Number(values.resourceId),
-        action: values.action,
+        action: values.action as 'publish' | 'promote' | 'deprecate',
         requestedRevision: Number(values.requestedRevision),
         snapshot: parseJsonObject(String(values.snapshot), '发布快照'),
-        note: values.note || undefined,
-      });
-      Toast.success('发布审批已提交');
-      setModalVisible(false);
-    } catch (error) {
-      Toast.error(error instanceof Error ? error.message : '审批申请失败');
-    }
-  };
+        note: values.note ? String(values.note) : undefined,
+    }),
+    successMessage: () => '发布审批已提交',
+  });
   const decide = (record: ReportPublishApproval, decision: 'approved' | 'rejected') => {
     Modal.confirm({
       title: decision === 'approved' ? '通过该发布审批？' : '拒绝该发布审批？',
@@ -120,12 +118,12 @@ export function GovernanceApprovalTab() {
       <SearchToolbar>
         <Select placeholder="审批状态" showClear value={status} optionList={approvalStatuses.map((value) => ({ value, label: value }))} style={{ width: 140 }} onChange={(v) => { setPage(1); setStatus(v as ReportApprovalStatus | undefined); }} />
         <Select placeholder="资源类型" showClear value={resourceType} optionList={REPORT_RESOURCE_TYPE_OPTIONS} style={{ width: 150 }} onChange={(v) => { setPage(1); setResourceType(v as ReportResourceType | undefined); }} />
-        {hasPermission('report:approval:request') ? <Button type="primary" icon={<Plus size={14} />} onClick={() => setModalVisible(true)}>申请发布</Button> : null}
+        {hasPermission('report:approval:request') ? <Button type="primary" icon={<Plus size={14} />} onClick={approvalModal.openCreate}>申请发布</Button> : null}
       </SearchToolbar>
       {listQuery.isError && <Banner type="danger" description="发布审批加载失败" />}
       <ConfigurableTable bordered rowKey="id" columns={columns} dataSource={listQuery.data?.list ?? []} loading={listQuery.isFetching} empty={<Empty title="暂无发布审批" />} pagination={buildPagination(listQuery.data?.total ?? 0)} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} />
-      <AppModal title="申请发布审批" visible={modalVisible} width={640} confirmLoading={createMutation.isPending} onOk={() => void createApproval()} onCancel={() => setModalVisible(false)} closeOnEsc>
-        <Form getFormApi={(api) => { formApi.current = api; }} labelPosition="left" labelWidth={95} initValues={{ action: 'publish', requestedRevision: 1, snapshot: '{}' }}>
+      <AppModal {...approvalModal.modalProps} title="申请发布审批" width={640}>
+        <Form {...approvalModal.formProps}>
           <Row gutter={16}>
             <Col xs={24} md={12}><Form.Select field="resourceType" label="资源类型" style={{ width: '100%' }} optionList={REPORT_RESOURCE_TYPE_OPTIONS} rules={[{ required: true }]} onChange={(v) => setResourceType(v as ReportResourceType)} /></Col>
             <Col xs={24} md={12}><Form.Select field="resourceId" label="资源" filter style={{ width: '100%' }} optionList={(assetsQuery.data?.list ?? []).map((item) => ({ value: item.resourceId, label: item.name }))} rules={[{ required: true }]} /></Col>
@@ -142,11 +140,9 @@ export function GovernanceApprovalTab() {
 
 export function GovernanceTransferTab() {
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [status, setStatus] = useState<ReportTransferStatus | undefined>();
   const [resourceType, setResourceType] = useState<ReportResourceType | undefined>();
-  const [modalVisible, setModalVisible] = useState(false);
   const listQuery = useReportTransferList({ page, pageSize, status, resourceType });
   const assetsQuery = useReportAssetCatalog({ page: 1, pageSize: 100, types: resourceType });
   const usersQuery = useAllUsers();
@@ -154,21 +150,20 @@ export function GovernanceTransferTab() {
   const decideMutation = useDecideReportTransfer();
   const cancelMutation = useCancelReportTransfer();
 
-  const createTransfer = async () => {
-    try {
-      const values = await formApi.current!.validate();
-      await createMutation.mutateAsync({
-        resourceType: values.resourceType,
+  const transferModal = useEditModal<ReportResourceTransfer, Record<string, unknown>, Parameters<typeof createMutation.mutateAsync>[0]>({
+    save: {
+      isPending: createMutation.isPending,
+      mutateAsync: ({ values }) => createMutation.mutateAsync(values),
+    },
+    labelWidth: 95,
+    beforeSave: (values) => ({
+        resourceType: values.resourceType as ReportResourceType,
         resourceId: Number(values.resourceId),
         toOwnerId: Number(values.toOwnerId),
-        reason: values.reason || undefined,
-      });
-      Toast.success('所有权转移已申请');
-      setModalVisible(false);
-    } catch (error) {
-      Toast.error(error instanceof Error ? error.message : '转移申请失败');
-    }
-  };
+        reason: values.reason ? String(values.reason) : undefined,
+    }),
+    successMessage: () => '所有权转移已申请',
+  });
   const decide = (record: ReportResourceTransfer, decision: 'accepted' | 'rejected') => {
     Modal.confirm({
       title: decision === 'accepted' ? '接受该所有权转移？' : '拒绝该所有权转移？',
@@ -209,12 +204,12 @@ export function GovernanceTransferTab() {
       <SearchToolbar>
         <Select placeholder="转移状态" showClear value={status} optionList={transferStatuses.map((value) => ({ value, label: value }))} style={{ width: 140 }} onChange={(v) => { setPage(1); setStatus(v as ReportTransferStatus | undefined); }} />
         <Select placeholder="资源类型" showClear value={resourceType} optionList={REPORT_RESOURCE_TYPE_OPTIONS} style={{ width: 150 }} onChange={(v) => { setPage(1); setResourceType(v as ReportResourceType | undefined); }} />
-        {hasPermission('report:resource:transfer') ? <Button type="primary" icon={<Plus size={14} />} onClick={() => setModalVisible(true)}>申请转移</Button> : null}
+        {hasPermission('report:resource:transfer') ? <Button type="primary" icon={<Plus size={14} />} onClick={transferModal.openCreate}>申请转移</Button> : null}
       </SearchToolbar>
       {listQuery.isError && <Banner type="danger" description="所有权转移列表加载失败" />}
       <ConfigurableTable bordered rowKey="id" columns={columns} dataSource={listQuery.data?.list ?? []} loading={listQuery.isFetching} empty={<Empty title="暂无所有权转移" />} pagination={buildPagination(listQuery.data?.total ?? 0)} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} />
-      <AppModal title="申请所有权转移" visible={modalVisible} width={600} confirmLoading={createMutation.isPending} onOk={() => void createTransfer()} onCancel={() => setModalVisible(false)} closeOnEsc>
-        <Form getFormApi={(api) => { formApi.current = api; }} labelPosition="left" labelWidth={95}>
+      <AppModal {...transferModal.modalProps} title="申请所有权转移" width={600}>
+        <Form {...transferModal.formProps}>
           <Row gutter={16}>
             <Col xs={24} md={12}><Form.Select field="resourceType" label="资源类型" style={{ width: '100%' }} optionList={REPORT_RESOURCE_TYPE_OPTIONS} rules={[{ required: true }]} onChange={(v) => setResourceType(v as ReportResourceType)} /></Col>
             <Col xs={24} md={12}><Form.Select field="resourceId" label="资源" filter style={{ width: '100%' }} optionList={(assetsQuery.data?.list ?? []).map((item) => ({ value: item.resourceId, label: item.name }))} rules={[{ required: true }]} /></Col>

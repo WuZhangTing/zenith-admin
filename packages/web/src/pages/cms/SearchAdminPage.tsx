@@ -1,8 +1,7 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Button, Form, Input, Tag, Toast, Typography, Tabs, TabPane, Modal, Select, DatePicker } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { RefreshCw, SplitSquareHorizontal, Plus, Trash2 } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -10,6 +9,7 @@ import AsyncTaskProgress from '@/components/AsyncTaskProgress';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { useMyAsyncTasks } from '@/hooks/useAsyncTasks';
+import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import {
@@ -139,7 +139,6 @@ function SearchTestTab({ siteId, onSiteChange }: Readonly<{ siteId: number | und
 // ─── 自定义词典 Tab ───────────────────────────────────────────────────────────
 function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined; onSiteChange: (value: number) => void }>) {
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const {
     page, pageSize, setPage, buildPagination,
     draftParams, setDraftParams, submittedParams,
@@ -149,31 +148,24 @@ function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined
   const [groupName, setGroupName] = useState('');
   const [status, setStatus] = useState<string | undefined>(undefined);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<CmsSearchWord | null>(null);
-
   const listQuery = useCmsSearchWordList({
     page, pageSize, siteId: siteId ?? 0, keyword: submittedParams.keyword || undefined,
     type, groupName: groupName || undefined, status,
   }, siteId !== undefined);
   const saveMutation = useSaveCmsSearchWord();
+  const modal = useEditModal<CmsSearchWord, Partial<CmsSearchWord>, Record<string, unknown>>({
+    entityName: '词条',
+    save: saveMutation,
+    defaults: { type: 'extension', groupName: '默认分组', weight: 1000, status: 'enabled' },
+    toValues: (record) => ({ word: record.word, type: record.type, groupName: record.groupName, weight: record.weight, status: record.status, remark: record.remark ?? '' }),
+    beforeSave: (values, { isEdit }) => {
+      if (!isEdit && !siteId) throw new Error('validation');
+      return { ...values, ...(!isEdit ? { siteId } : {}) };
+    },
+  });
   const deleteMutation = useDeleteCmsSearchWord();
   const batchMutation = useBatchCmsSearchWords();
   const canManage = hasPermission('cms:search:manage');
-
-  async function handleModalOk() {
-    let values: Record<string, unknown>;
-    try {
-      values = (await formApi.current?.validate()) ?? {};
-    } catch {
-      throw new Error('validation');
-    }
-    if (!editingRecord) values.siteId = siteId;
-    await saveMutation.mutateAsync({ id: editingRecord?.id, values });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditingRecord(null);
-  }
 
   const columns: ColumnProps<CmsSearchWord>[] = [
     { title: '词条', dataIndex: 'word', width: 200 },
@@ -189,7 +181,7 @@ function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined
       title: '操作', width: 140, fixed: 'right',
       render: (_: unknown, record: CmsSearchWord) => canManage ? (
         <span style={{ display: 'flex', gap: 4 }}>
-          <Button theme="borderless" size="small" onClick={() => { setEditingRecord(record); setModalVisible(true); }}>编辑</Button>
+          <Button theme="borderless" size="small" onClick={() => modal.openEdit(record)}>编辑</Button>
           <Button theme="borderless" type="danger" size="small" onClick={() => {
             confirmDelete({
               title: '确定要删除该词条吗？',
@@ -217,7 +209,7 @@ function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined
         <Select placeholder="状态" showClear value={status} onChange={(value) => setStatus(value as string | undefined)} style={{ width: 110 }}
           optionList={COMMON_STATUS_OPTIONS} />
         <SearchButton onClick={handleSearch} />
-        {canManage ? <CreateButton onClick={() => { setEditingRecord(null); setModalVisible(true); }}>新增词条</CreateButton> : null}
+        {canManage ? <CreateButton onClick={modal.openCreate}>新增词条</CreateButton> : null}
         {canManage && selectedIds.length > 0 ? (
           <>
             <Button onClick={() => void batchMutation.mutateAsync({ action: 'update', body: { ids: selectedIds, status: 'enabled' } }).then(() => setSelectedIds([]))}>批量启用</Button>
@@ -250,25 +242,8 @@ function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined
         pagination={buildPagination(listQuery.data?.total ?? 0)}
         rowSelection={{ selectedRowKeys: selectedIds.map(String), onChange: (keys) => setSelectedIds((keys ?? []).map(Number)) }}
       />
-      <AppModal
-        title={editingRecord ? '编辑词条' : '新增词条'}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={() => { setModalVisible(false); setEditingRecord(null); }}
-        okButtonProps={{ loading: saveMutation.isPending }}
-        width={480}
-        closeOnEsc
-      >
-        <Form
-          key={editingRecord?.id ?? 'new'}
-          getFormApi={(api) => { formApi.current = api; }}
-          allowEmpty
-          initValues={editingRecord
-            ? { word: editingRecord.word, type: editingRecord.type, groupName: editingRecord.groupName, weight: editingRecord.weight, status: editingRecord.status, remark: editingRecord.remark ?? '' }
-            : { type: 'extension', groupName: '默认分组', weight: 1000, status: 'enabled' }}
-          labelPosition="left"
-          labelWidth={90}
-        >
+      <AppModal {...modal.modalProps} width={480}>
+        <Form {...modal.formProps}>
           <Form.Input field="word" label="词条" placeholder="如：泽尼斯系统" rules={[{ required: true, message: '请输入词条' }]} />
           <Form.Select field="type" label="类型" optionList={CMS_SEARCH_WORD_TYPES.map((value) => ({ value, label: CMS_SEARCH_WORD_TYPE_LABELS[value] }))} />
           <Form.Input field="groupName" label="分组" />

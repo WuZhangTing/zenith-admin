@@ -1,9 +1,8 @@
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Input, InputNumber, Modal, Popconfirm, Progress, Select, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Plus, Trash2 } from 'lucide-react';
 import type { AnalyticsExperiment, AnalyticsExperimentVariant } from '@zenith/shared/analytics';
 import { ANALYTICS_EXPERIMENT_STATUS_LABELS, ANALYTICS_EXPERIMENT_STATUS_OPTIONS } from '@zenith/shared/analytics';
@@ -13,6 +12,7 @@ import { analyticsKeys, useAnalyticsEventMeta, useCreateExperiment, useDeleteExp
 import { formatDateTime } from '@/utils/date';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
+import { useEditModal } from '@/hooks/useEditModal';
 
 const PAGE_SIZE = 20;
 const defaultSearch = { name: '', status: '' as '' | AnalyticsExperiment['status'] };
@@ -73,11 +73,8 @@ export default function AnalyticsExperimentsTab() {
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [draft, setDraft] = useState(defaultSearch);
   const [submitted, setSubmitted] = useState(defaultSearch);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<AnalyticsExperiment | null>(null);
   const [variants, setVariants] = useState<AnalyticsExperimentVariant[]>(defaultVariants);
   const [reporting, setReporting] = useState<AnalyticsExperiment | null>(null);
-  const formApi = useRef<FormApi | null>(null);
 
   const params = useMemo(() => ({ page, pageSize, name: submitted.name || undefined, status: submitted.status || undefined }), [page, pageSize, submitted]);
   const listQuery = useExperiments(params);
@@ -89,15 +86,41 @@ export default function AnalyticsExperimentsTab() {
   const pauseMutation = useExperimentAction('pause');
   const completeMutation = useExperimentAction('complete');
   const reportQuery = useExperimentReport(reporting?.id, {}, !!reporting);
+  const experimentModal = useEditModal<AnalyticsExperiment, ExperimentFormValues, Record<string, unknown>>({
+    save: {
+      mutateAsync: ({ id, values }) => (
+        id ? updateMutation.mutateAsync({ id, values }) : createMutation.mutateAsync(values)
+      ),
+      isPending: createMutation.isPending || updateMutation.isPending,
+    },
+    defaults: { status: 'draft', trafficAllocation: 100, metricEventName: 'order_submit' },
+    toValues: (record) => ({
+      expKey: record.expKey,
+      name: record.name,
+      description: record.description,
+      status: record.status,
+      trafficAllocation: record.trafficAllocation,
+      metricEventName: record.metricEventName,
+      startAt: record.startAt,
+      endAt: record.endAt,
+    }),
+    beforeSave: (values, { editing }) => {
+      if (variants.length < 2 || variants.length > 6) { Toast.error('变体数量必须为 2-6 个'); throw new Error('invalid_variants_count'); }
+      if (new Set(variants.map((item) => item.key)).size !== variants.length) { Toast.error('变体 key 不能重复'); throw new Error('duplicate_variant_key'); }
+      if (weightTotal !== 100) { Toast.error('变体权重总和必须等于 100'); throw new Error('invalid_variant_weight'); }
+      return normalizePayload(values, variants, editing);
+    },
+    labelWidth: 120,
+  });
 
   const list = listQuery.data?.list ?? [];
   const weightTotal = variants.reduce((sum, item) => sum + Number(item.weight || 0), 0);
   const metricOptions = (metaQuery.data?.list ?? []).map((item) => ({ label: `${item.displayName || item.eventName} (${item.eventName})`, value: item.eventName }));
 
   useEffect(() => {
-    if (!modalVisible) return;
-    setVariants(editing ? editing.variants.map((item) => ({ ...item })) : defaultVariants.map((item) => ({ ...item })));
-  }, [editing, modalVisible]);
+    if (!experimentModal.visible) return;
+    setVariants(experimentModal.editing ? experimentModal.editing.variants.map((item) => ({ ...item })) : defaultVariants.map((item) => ({ ...item })));
+  }, [experimentModal.editing, experimentModal.visible]);
 
   const handleSearch = () => {
     setPage(1);
@@ -111,36 +134,8 @@ export default function AnalyticsExperimentsTab() {
     void queryClient.invalidateQueries({ queryKey: analyticsKeys.data.experimentsLists });
   };
 
-  const openCreate = () => { setEditing(null); setModalVisible(true); };
-  const openEdit = (record: AnalyticsExperiment) => { setEditing(record); setModalVisible(true); };
-
-  const formInit: Partial<ExperimentFormValues> = editing ? {
-    expKey: editing.expKey,
-    name: editing.name,
-    description: editing.description,
-    status: editing.status,
-    trafficAllocation: editing.trafficAllocation,
-    metricEventName: editing.metricEventName,
-    startAt: editing.startAt,
-    endAt: editing.endAt,
-  } : { status: 'draft', trafficAllocation: 100, metricEventName: 'order_submit' };
-
   const updateVariant = (index: number, patch: Partial<AnalyticsExperimentVariant>) => {
     setVariants((prev) => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)));
-  };
-
-  const handleSubmit = async () => {
-    const values = await formApi.current?.validate() as ExperimentFormValues | undefined;
-    if (!values) return;
-    if (variants.length < 2 || variants.length > 6) { Toast.error('变体数量必须为 2-6 个'); return; }
-    if (new Set(variants.map((item) => item.key)).size !== variants.length) { Toast.error('变体 key 不能重复'); return; }
-    if (weightTotal !== 100) { Toast.error('变体权重总和必须等于 100'); return; }
-    const payload = normalizePayload(values, variants, editing);
-    if (editing) await updateMutation.mutateAsync({ id: editing.id, values: payload });
-    else await createMutation.mutateAsync(payload);
-    Toast.success(editing ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditing(null);
   };
 
   const actionButton = (record: AnalyticsExperiment) => {
@@ -166,7 +161,7 @@ export default function AnalyticsExperimentsTab() {
       <Space>
         <Button theme="borderless" size="small" onClick={() => setReporting(record)}>报告</Button>
         {actionButton(record)}
-        <Button theme="borderless" size="small" disabled={record.status === 'completed'} onClick={() => openEdit(record)}>编辑</Button>
+        <Button theme="borderless" size="small" disabled={record.status === 'completed'} onClick={() => experimentModal.openEdit(record)}>编辑</Button>
         {record.status === 'running' || record.status === 'completed' ? null : (
           <Popconfirm title="确定完成该实验吗？完成后不可继续启动。" onConfirm={() => completeMutation.mutate(record.id)}>
             <Button theme="borderless" size="small" loading={completeMutation.isPending}>完成</Button>
@@ -189,7 +184,7 @@ export default function AnalyticsExperimentsTab() {
         <Select placeholder="状态" value={draft.status || undefined} optionList={ANALYTICS_EXPERIMENT_STATUS_OPTIONS} onChange={(status) => setDraft((prev) => ({ ...prev, status: (status as AnalyticsExperiment['status']) ?? '' }))} showClear style={{ width: 130 }} />
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />
-        <CreateButton onClick={openCreate} />
+        <CreateButton onClick={experimentModal.openCreate} />
       </SearchToolbar>
 
       <ConfigurableTable
@@ -198,31 +193,31 @@ export default function AnalyticsExperimentsTab() {
         pagination={{ currentPage: page, pageSize, total: listQuery.data?.total ?? 0, onPageChange: setPage, onPageSizeChange: (next) => { setPage(1); setPageSize(next); } }}
       />
 
-      <Modal title={editing ? '编辑 A/B 实验' : '新增 A/B 实验'} visible={modalVisible} onCancel={() => { setModalVisible(false); setEditing(null); }} onOk={() => void handleSubmit()} okButtonProps={{ loading: createMutation.isPending || updateMutation.isPending }} width={760} closeOnEsc>
-        <Form key={editing?.id ?? 'new'} getFormApi={(api) => { formApi.current = api; }} initValues={formInit} labelPosition="left" labelWidth={120} allowEmpty>
-          <Form.Input field="expKey" label="实验标识" disabled={!!editing} placeholder="如 homepage_banner" rules={[{ required: !editing, message: '请输入实验标识' }, { pattern: /^[a-z][a-z0-9_-]*$/, message: '以小写字母开头，仅允许小写字母、数字、下划线和中划线' }]} />
+      <Modal {...experimentModal.modalProps} title={experimentModal.isEdit ? '编辑 A/B 实验' : '新增 A/B 实验'} width={760}>
+        <Form {...experimentModal.formProps}>
+          <Form.Input field="expKey" label="实验标识" disabled={experimentModal.isEdit} placeholder="如 homepage_banner" rules={[{ required: !experimentModal.isEdit, message: '请输入实验标识' }, { pattern: /^[a-z][a-z0-9_-]*$/, message: '以小写字母开头，仅允许小写字母、数字、下划线和中划线' }]} />
           <Form.Input field="name" label="名称" placeholder="实验名称" rules={[{ required: true, message: '请输入名称' }]} />
           <Form.TextArea field="description" label="描述" maxCount={500} autosize={{ minRows: 2, maxRows: 4 }} />
           <Form.Select field="status" label="状态" optionList={ANALYTICS_EXPERIMENT_STATUS_OPTIONS} style={{ width: '100%' }} />
-          <Form.InputNumber field="trafficAllocation" label="参与流量%" min={0} max={100} disabled={editing?.status === 'running'} style={{ width: '100%' }} />
-          <Form.Select field="metricEventName" label="转化事件" optionList={metricOptions} filter disabled={editing?.status === 'running'} placeholder="选择或输入事件名" style={{ width: '100%' }} />
-          <Form.Input field="startAt" label="开始时间" disabled={editing?.status === 'running'} placeholder="YYYY-MM-DD HH:mm:ss，留空手动启动" />
+          <Form.InputNumber field="trafficAllocation" label="参与流量%" min={0} max={100} disabled={experimentModal.editing?.status === 'running'} style={{ width: '100%' }} />
+          <Form.Select field="metricEventName" label="转化事件" optionList={metricOptions} filter disabled={experimentModal.editing?.status === 'running'} placeholder="选择或输入事件名" style={{ width: '100%' }} />
+          <Form.Input field="startAt" label="开始时间" disabled={experimentModal.editing?.status === 'running'} placeholder="YYYY-MM-DD HH:mm:ss，留空手动启动" />
           <Form.Input field="endAt" label="结束时间" placeholder="YYYY-MM-DD HH:mm:ss，留空不限" />
         </Form>
         <div style={{ marginTop: 12, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography.Text strong>变体配置</Typography.Text>
           <Space>
             <Tag color={weightTotal === 100 ? 'green' : 'red'}>权重合计 {weightTotal}%</Tag>
-            <Button size="small" icon={<Plus size={14} />} disabled={editing?.status === 'running' || variants.length >= 6} onClick={() => setVariants((prev) => [...prev, { key: `variant${prev.length + 1}`, name: `变体 ${prev.length + 1}`, weight: 0 }])}>添加变体</Button>
+            <Button size="small" icon={<Plus size={14} />} disabled={experimentModal.editing?.status === 'running' || variants.length >= 6} onClick={() => setVariants((prev) => [...prev, { key: `variant${prev.length + 1}`, name: `变体 ${prev.length + 1}`, weight: 0 }])}>添加变体</Button>
           </Space>
         </div>
         <Space vertical align="start" style={{ width: '100%' }}>
           {variants.map((variant, index) => (
             <Space key={`${variant.key}-${index}`} wrap>
-              <Input value={variant.key} disabled={editing?.status === 'running'} placeholder="key" onChange={(key) => updateVariant(index, { key })} style={{ width: 150 }} />
-              <Input value={variant.name} disabled={editing?.status === 'running'} placeholder="名称" onChange={(name) => updateVariant(index, { name })} style={{ width: 180 }} />
-              <InputNumber value={variant.weight} disabled={editing?.status === 'running'} min={0} max={100} onChange={(weight) => updateVariant(index, { weight: Number(weight) || 0 })} style={{ width: 120 }} />
-              <Button theme="borderless" type="danger" icon={<Trash2 size={14} />} disabled={editing?.status === 'running' || variants.length <= 2} onClick={() => setVariants((prev) => prev.filter((_, i) => i !== index))}>删除</Button>
+              <Input value={variant.key} disabled={experimentModal.editing?.status === 'running'} placeholder="key" onChange={(key) => updateVariant(index, { key })} style={{ width: 150 }} />
+              <Input value={variant.name} disabled={experimentModal.editing?.status === 'running'} placeholder="名称" onChange={(name) => updateVariant(index, { name })} style={{ width: 180 }} />
+              <InputNumber value={variant.weight} disabled={experimentModal.editing?.status === 'running'} min={0} max={100} onChange={(weight) => updateVariant(index, { weight: Number(weight) || 0 })} style={{ width: 120 }} />
+              <Button theme="borderless" type="danger" icon={<Trash2 size={14} />} disabled={experimentModal.editing?.status === 'running' || variants.length <= 2} onClick={() => setVariants((prev) => prev.filter((_, i) => i !== index))}>删除</Button>
             </Space>
           ))}
         </Space>

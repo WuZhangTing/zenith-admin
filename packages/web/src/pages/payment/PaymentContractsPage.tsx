@@ -1,10 +1,9 @@
-import { useState, useRef } from 'react';
+import { useRef, useState } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { useQueryClient } from '@tanstack/react-query';
 import { Form, Modal, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import { Tabs, TabPane } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -15,6 +14,7 @@ import { createdAtColumn } from '@/utils/table-columns';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import {
   paymentContractKeys,
   useAllDeductPlans,
@@ -45,6 +45,7 @@ const DEDUCT_METHOD_OPTIONS = [
 ];
 
 interface PlanFormValues { name: string; period: PaymentDeductPeriod; customDays?: number; amountYuan: number; maxRetries: number; status?: 'enabled' | 'disabled'; remark?: string; }
+interface PlanPayload { name: string; period: PaymentDeductPeriod; customDays: number | null; amount: number; maxRetries: number; status?: 'enabled' | 'disabled'; remark?: string; }
 interface ContractFormValues { planId: number; payMethod: string; signerAccount: string; signerName?: string; remark?: string; firstDeductNow?: boolean; }
 
 function describePlanPeriod(p: Pick<PaymentDeductPlan, 'period' | 'customDays'>): string {
@@ -59,8 +60,7 @@ export default function PaymentContractsPage() {
   const queryClient = useQueryClient();
   const canManage = hasPermission('payment:contract:manage');
   const canPlan = hasPermission('payment:contract:plan');
-  const planFormApi = useRef<FormApi | null>(null);
-  const contractFormApi = useRef<FormApi | null>(null);
+  const latestContractResult = useRef<{ firstDeduct?: { deductStatus: 'success' | 'processing' | 'failed'; failReason?: string | null } | null } | null>(null);
   const [activeTab, setActiveTab] = useState<'contracts' | 'plans'>('contracts');
 
   // ── 签约协议 ──
@@ -69,14 +69,11 @@ export default function PaymentContractsPage() {
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
   } = useListSearch({ defaults: defaultSearchParams, listKey: paymentContractKeys.lists });
-  const [contractModal, setContractModal] = useState(false);
 
   // ── 扣款计划 ──
   const { page: pPage, pageSize: pPageSize, setPage: setPPage, buildPagination: buildPPagination } = usePagination();
   const [planKeyword, setPlanKeyword] = useState('');
   const [submittedPlanKeyword, setSubmittedPlanKeyword] = useState('');
-  const [planModal, setPlanModal] = useState(false);
-  const [editingPlan, setEditingPlan] = useState<PaymentDeductPlan | null>(null);
   const [planPeriod, setPlanPeriod] = useState<PaymentDeductPeriod>('monthly');
 
   const contractQuery = usePaymentContractList({
@@ -103,23 +100,35 @@ export default function PaymentContractsPage() {
   const updatePlanMutation = useUpdateDeductPlan();
   const deletePlanMutation = useDeleteDeductPlan();
 
-  // ── 协议操作 ──
-  async function handleCreateContract() {
-    let values: ContractFormValues;
-    try { values = (await contractFormApi.current?.validate()) as ContractFormValues; } catch { throw new Error('validation'); }
-    const res = await createContractMutation.mutateAsync({
+  const contractSaveMutation = {
+    mutateAsync: async ({ values }: { id?: number; values: { planId: number; payMethod: string; signerAccount: string; signerName?: string; remark?: string; firstDeductNow: boolean } }) => {
+      const res = await createContractMutation.mutateAsync(values);
+      latestContractResult.current = res;
+      return res.contract;
+    },
+    isPending: createContractMutation.isPending,
+  };
+  const signModal = useEditModal<PaymentContract, ContractFormValues, { planId: number; payMethod: string; signerAccount: string; signerName?: string; remark?: string; firstDeductNow: boolean }>({
+    save: contractSaveMutation,
+    defaults: { firstDeductNow: true },
+    beforeSave: (values) => ({
       planId: values.planId,
       payMethod: values.payMethod,
       signerAccount: values.signerAccount,
       signerName: values.signerName || undefined,
       remark: values.remark || undefined,
       firstDeductNow: values.firstDeductNow ?? true,
-    });
-    if (res.firstDeduct?.deductStatus === 'success') Toast.success('签约成功，首期扣款已完成');
-    else if (res.firstDeduct?.deductStatus === 'failed') Toast.warning(`签约成功，但首期扣款失败：${res.firstDeduct.failReason ?? '未知原因'}`);
-    else Toast.success('签约成功');
-    setContractModal(false);
-  }
+    }),
+    successMessage: () => {
+      const firstDeduct = latestContractResult.current?.firstDeduct;
+      if (firstDeduct?.deductStatus === 'success') return '签约成功，首期扣款已完成';
+      if (firstDeduct?.deductStatus === 'failed') return `签约成功，但首期扣款失败：${firstDeduct.failReason ?? '未知原因'}`;
+      return '签约成功';
+    },
+    labelWidth: 110,
+  });
+
+  // ── 协议操作 ──
 
   async function handleTerminate(id: number) {
     await terminateMutation.mutateAsync(id);
@@ -143,35 +152,40 @@ export default function PaymentContractsPage() {
     else Toast.error(`扣款失败：${res.failReason ?? '未知原因'}`);
   }
 
-  // ── 计划操作 ──
-  function openCreatePlan() { setEditingPlan(null); setPlanPeriod('monthly'); setPlanModal(true); }
-  function openEditPlan(p: PaymentDeductPlan) { setEditingPlan(p); setPlanPeriod(p.period); setPlanModal(true); }
-  const planInit: PlanFormValues = editingPlan
-    ? { name: editingPlan.name, period: editingPlan.period, customDays: editingPlan.customDays ?? undefined, amountYuan: editingPlan.amount / 100, maxRetries: editingPlan.maxRetries, status: editingPlan.status, remark: editingPlan.remark ?? '' }
-    : { name: '', period: 'monthly', amountYuan: 15, maxRetries: 3, status: 'enabled' };
-
-  async function handlePlanOk() {
-    let values: PlanFormValues;
-    try { values = (await planFormApi.current?.validate()) as PlanFormValues; } catch { throw new Error('validation'); }
-    const payload = {
+  const planSaveMutation = {
+    mutateAsync: ({ id, values }: { id?: number; values: PlanPayload }) => (
+      id ? updatePlanMutation.mutateAsync({ id, values }) : createPlanMutation.mutateAsync(values)
+    ),
+    isPending: createPlanMutation.isPending || updatePlanMutation.isPending,
+  };
+  const planModal = useEditModal<PaymentDeductPlan, PlanFormValues, PlanPayload>({
+    entityName: '扣款计划',
+    save: planSaveMutation,
+    defaults: { name: '', period: 'monthly', amountYuan: 15, maxRetries: 3, status: 'enabled' },
+    toValues: (plan) => ({
+      name: plan.name,
+      period: plan.period,
+      customDays: plan.customDays ?? undefined,
+      amountYuan: plan.amount / 100,
+      maxRetries: plan.maxRetries,
+      status: plan.status,
+      remark: plan.remark ?? '',
+    }),
+    beforeSave: (values) => ({
       name: values.name,
       period: values.period,
-      customDays: values.period === 'custom' ? values.customDays : null,
+      customDays: values.period === 'custom' ? (values.customDays ?? null) : null,
       amount: Math.round(values.amountYuan * 100),
       maxRetries: values.maxRetries,
       status: values.status,
       remark: values.remark || undefined,
-    };
-    if (editingPlan) {
-      await updatePlanMutation.mutateAsync({ id: editingPlan.id, values: payload });
-      Toast.success('更新成功');
-    } else {
-      await createPlanMutation.mutateAsync(payload);
-      Toast.success('创建成功');
-    }
-    setPlanModal(false);
-    setEditingPlan(null);
-  }
+    }),
+    labelWidth: 110,
+  });
+
+  // ── 计划操作 ──
+  function openCreatePlan() { setPlanPeriod('monthly'); planModal.openCreate(); }
+  function openEditPlan(p: PaymentDeductPlan) { setPlanPeriod(p.period); planModal.openEdit(p); }
 
   async function handleDeletePlan(id: number) {
     await deletePlanMutation.mutateAsync(id);
@@ -287,7 +301,7 @@ export default function PaymentContractsPage() {
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateContract = () => canManage ? (
-    <CreateButton onClick={() => setContractModal(true)}>新增签约</CreateButton>
+    <CreateButton onClick={signModal.openCreate}>新增签约</CreateButton>
   ) : null;
   const renderExportButtons = () => <ExportButton entity="payment.contracts" query={exportQuery} />;
 
@@ -364,8 +378,8 @@ export default function PaymentContractsPage() {
         </TabPane>
       </Tabs>
 
-      <AppModal title={editingPlan ? '编辑扣款计划' : '新增扣款计划'} visible={planModal} onOk={handlePlanOk} onCancel={() => { setPlanModal(false); setEditingPlan(null); }} okButtonProps={{ loading: createPlanMutation.isPending || updatePlanMutation.isPending }} width={520} closeOnEsc>
-        <Form key={editingPlan?.id ?? 'new-plan'} getFormApi={(api) => { planFormApi.current = api; }} initValues={planInit} labelPosition="left" labelWidth={110}>
+      <AppModal {...planModal.modalProps} width={520}>
+        <Form {...planModal.formProps}>
           <Form.Input field="name" label="计划名称" placeholder="如：连续包月 VIP" rules={[{ required: true, message: '计划名称不能为空' }]} />
           <Form.Select field="period" label="扣款周期" style={{ width: '100%' }} optionList={PAYMENT_DEDUCT_PERIOD_OPTIONS} onChange={(v) => setPlanPeriod(v as PaymentDeductPeriod)} rules={[{ required: true, message: '请选择周期' }]} />
           {planPeriod === 'custom' && (
@@ -378,8 +392,8 @@ export default function PaymentContractsPage() {
         </Form>
       </AppModal>
 
-      <AppModal title="新增签约（演示/测试）" visible={contractModal} onOk={handleCreateContract} onCancel={() => setContractModal(false)} okButtonProps={{ loading: createContractMutation.isPending }} width={520} closeOnEsc>
-        <Form key={contractModal ? 'sign' : 'closed'} getFormApi={(api) => { contractFormApi.current = api; }} initValues={{ payMethod: 'wechat_papay', firstDeductNow: true }} labelPosition="left" labelWidth={110}>
+      <AppModal {...signModal.modalProps} title="新增签约（演示/测试）" width={520}>
+        <Form {...signModal.formProps} initValues={{ ...signModal.formProps.initValues, payMethod: 'wechat_papay' }}>
           <Form.Select field="planId" label="扣款计划" style={{ width: '100%' }} rules={[{ required: true, message: '请选择扣款计划' }]}
             optionList={allPlans.map((p) => ({ value: p.id, label: `${p.name}（${describePlanPeriod(p)} ${yuan(p.amount)}）` }))} />
           <Form.Select field="payMethod" label="代扣方式" style={{ width: '100%' }} optionList={DEDUCT_METHOD_OPTIONS} rules={[{ required: true, message: '请选择代扣方式' }]} />

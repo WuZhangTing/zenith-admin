@@ -1,10 +1,10 @@
-import { useState, useRef } from 'react';
+
 import { Tag, Select, Toast, Form } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { DbBackup, BackupType, BackupStatus } from '@zenith/shared/platform';
 import { AppModal } from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
+import { useEditModal } from '@/hooks/useEditModal';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -25,8 +25,6 @@ export default function DbBackupsPage() {
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
   } = useListSearch<{ status: string; type: string }>({ defaults: { status: '', type: '' }, listKey: dbBackupKeys.lists });
-  const [createVisible, setCreateVisible] = useState(false);
-  const createFormApi = useRef<FormApi | null>(null);
   const { hasPermission } = usePermission();
   const listQuery = useDbBackupList({
     page,
@@ -37,26 +35,16 @@ export default function DbBackupsPage() {
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
   const createMutation = useCreateDbBackup();
+  const createModal = useEditModal<DbBackup, { type: BackupType; name?: string }>({
+    save: {
+      isPending: createMutation.isPending,
+      mutateAsync: async ({ values }) => createMutation.mutateAsync(values),
+    },
+    defaults: { type: 'pg_dump' },
+    successMessage: () => '备份任务已创建',
+    onSaved: () => setPage(1),
+  });
   const deleteMutation = useDeleteDbBackup();
-
-  const closeCreateModal = () => {
-    setCreateVisible(false);
-    createFormApi.current = null;
-  };
-
-  const handleCreateOk = async () => {
-    if (!createFormApi.current) return;
-    let values: { type: BackupType; name?: string };
-    try {
-      values = await createFormApi.current.validate() as { type: BackupType; name?: string };
-    } catch {
-      throw new Error('validation');
-    }
-    await createMutation.mutateAsync(values);
-    Toast.success('备份任务已创建');
-    closeCreateModal();
-    setPage(1);
-  };
 
   const handleDelete = async (id: number) => {
     await deleteMutation.mutateAsync(id);
@@ -173,7 +161,7 @@ export default function DbBackupsPage() {
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
             {hasPermission('system:db-backup:create') && (
-              <CreateButton onClick={() => setCreateVisible(true)}>新增备份</CreateButton>
+              <CreateButton onClick={createModal.openCreate}>新增备份</CreateButton>
             )}
           </>
         )}
@@ -193,7 +181,7 @@ export default function DbBackupsPage() {
             />
             <SearchButton onClick={handleSearch} />
             {hasPermission('system:db-backup:create') && (
-              <CreateButton onClick={() => setCreateVisible(true)}>新增备份</CreateButton>
+              <CreateButton onClick={createModal.openCreate}>新增备份</CreateButton>
             )}
           </>
         )}
@@ -230,26 +218,17 @@ export default function DbBackupsPage() {
       />
 
       <AppModal
+        {...createModal.modalProps}
         title="创建备份"
-        visible={createVisible}
-        onCancel={closeCreateModal}
-        onOk={handleCreateOk}
         okText="确定"
         cancelText="取消"
-        okButtonProps={{ loading: createMutation.isPending }}
-        closeOnEsc
       >
         <Form
-          key={createVisible ? 'create-backup-open' : 'create-backup-closed'}
-          getFormApi={(api) => { createFormApi.current = api; }}
-          allowEmpty
-          labelPosition="left"
-          labelWidth={90}
+          {...createModal.formProps}
         >
           <Form.Select
             field="type"
             label="备份类型"
-            initValue="pg_dump"
             rules={[{ required: true, message: '请选择备份类型' }]}
             optionList={[
               { label: 'pg_dump (完整 SQL)', value: 'pg_dump' },

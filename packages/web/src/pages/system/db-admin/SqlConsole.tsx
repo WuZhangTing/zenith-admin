@@ -5,7 +5,6 @@ import {
   Banner, Button, Dropdown, Empty, Form, List, Popconfirm, SideSheet,
   Space, Spin, Tag, Toast, Tooltip, Typography,
 } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import {
   Play, Eye, Download, Plus, X, Bookmark, BookmarkPlus, ArrowRight, Pencil, Trash2,
   Sparkles, Copy, Code, Ban, BarChart3,
@@ -18,6 +17,7 @@ import type { DbQueryFavorite } from '@zenith/shared/ops';
 import { config } from '@/config';
 import { downloadBlob } from '@/utils/download';
 import { AppModal } from '@/components/AppModal';
+import { useEditModal } from '@/hooks/useEditModal';
 import { DataGrid, CellDetailDrawer, type CellPos, type DataGridColumn, type DataGridHandle } from '@/components/data-grid';
 import { formatDateTime } from '@/utils/date';
 import { ExplainView } from './ExplainView';
@@ -109,11 +109,7 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
 
   // 收藏夹
   const [favOpen, setFavOpen] = useState(false);
-  const [saveFavOpen, setSaveFavOpen] = useState(false);
-  const [editFav, setEditFav] = useState<DbQueryFavorite | null>(null);
-
   const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
-  const saveFavFormApi = useRef<FormApi | null>(null);
   const runQueryRef = useRef<() => void>(() => undefined);
 
   const activeTab = tabs.find((t) => t.id === activeId) ?? tabs[0];
@@ -128,7 +124,23 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
   const explainLoading = explainMutation.isPending;
   const favLoading = favoritesQuery.isFetching;
   const favorites = favoritesQuery.data ?? [];
-  const saveFavLoading = saveFavoriteMutation.isPending;
+  const saveFavoriteModal = useEditModal<DbQueryFavorite, FavoriteFormValues, { name: string; sql: string; description?: string; tags: string[] }>({
+    save: saveFavoriteMutation,
+    defaults: () => ({ name: formatDateTime(new Date()) }),
+    toValues: (favorite) => ({
+      name: favorite.name,
+      description: favorite.description ?? '',
+      tags: favorite.tags.join(', '),
+    }),
+    beforeSave: (values, { editing }) => ({
+      name: values.name,
+      sql: editing?.sql ?? editorRef.current?.getValue() ?? activeTab.sql,
+      description: values.description,
+      tags: values.tags ? values.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
+    }),
+    successMessage: ({ isEdit }) => isEdit ? '已更新' : '已收藏',
+    labelWidth: SAVE_FAVORITE_LABEL_WIDTH,
+  });
 
   useEffect(() => { completionTables = tables; }, [tables]);
   useEffect(() => { completionColumns = structureColumnsCache.current ?? new Map(); }, [structureColumnsCache, tables]);
@@ -275,40 +287,6 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
     setFavOpen(true);
     void favoritesQuery.refetch();
   }, [favoritesQuery]);
-
-  const closeSaveFavorite = useCallback(() => {
-    setSaveFavOpen(false);
-    setEditFav(null);
-    saveFavFormApi.current = null;
-  }, []);
-
-  const handleSaveFavorite = useCallback(async (values: FavoriteFormValues) => {
-    const tags = values.tags ? values.tags.split(',').map((t) => t.trim()).filter(Boolean) : [];
-    if (editFav) {
-      await saveFavoriteMutation.mutateAsync({
-        id: editFav.id,
-        values: { name: values.name, description: values.description, tags, sql: editFav.sql },
-      });
-      Toast.success('已更新');
-    } else {
-      await saveFavoriteMutation.mutateAsync({
-        values: { name: values.name, sql: editorRef.current?.getValue() ?? activeTab.sql, description: values.description, tags },
-      });
-      Toast.success('已收藏');
-    }
-    closeSaveFavorite();
-  }, [editFav, activeTab.sql, closeSaveFavorite, saveFavoriteMutation]);
-
-  const submitSaveFavorite = useCallback(async () => {
-    if (!saveFavFormApi.current) return;
-    let values: FavoriteFormValues;
-    try {
-      values = await saveFavFormApi.current.validate() as FavoriteFormValues;
-    } catch {
-      return;
-    }
-    await handleSaveFavorite(values);
-  }, [handleSaveFavorite]);
 
   const handleDeleteFavorite = useCallback(async (id: number) => {
     await deleteFavoriteMutation.mutateAsync(id);
@@ -481,7 +459,7 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
         >
           <Button icon={<Download size={14} />} disabled={!canExport} loading={exportCsvLoading || exportJsonLoading}>导出</Button>
         </Dropdown>
-        <Button icon={<BookmarkPlus size={14} />} onClick={() => { setEditFav(null); setSaveFavOpen(true); }} disabled={!canQuery}>收藏</Button>
+        <Button icon={<BookmarkPlus size={14} />} onClick={saveFavoriteModal.openCreate} disabled={!canQuery}>收藏</Button>
         <Button icon={<Bookmark size={14} />} onClick={openFavorites}>收藏夹{favorites.length > 0 ? ` (${favorites.length})` : ''}</Button>
         <Text type="tertiary" size="small">Ctrl+Enter 执行 · Ctrl+Shift+F 格式化 · SELECT 自动服务端分页</Text>
       </Space>
@@ -586,7 +564,7 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
         title={
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: 8 }}>
             <Space><Bookmark size={16} /><span>SQL 收藏夹</span></Space>
-            <Button type="primary" size="small" icon={<BookmarkPlus size={13} />} onClick={() => { setEditFav(null); setSaveFavOpen(true); }}>收藏当前 SQL</Button>
+            <Button type="primary" size="small" icon={<BookmarkPlus size={13} />} onClick={saveFavoriteModal.openCreate}>收藏当前 SQL</Button>
           </div>
         }
         visible={favOpen}
@@ -621,7 +599,7 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
                 extra={
                   <Space style={{ flexShrink: 0, marginLeft: 8 }}>
                     <Button size="small" type="primary" theme="borderless" icon={<ArrowRight size={14} />} onClick={() => loadFavoriteToEditor(fav)}>加载</Button>
-                    <Button size="small" theme="borderless" icon={<Pencil size={14} />} onClick={() => { setEditFav(fav); setSaveFavOpen(true); }} />
+                    <Button size="small" theme="borderless" icon={<Pencil size={14} />} onClick={() => saveFavoriteModal.openEdit(fav)} />
                     <Popconfirm title="确定删除这条收藏？" onConfirm={() => void handleDeleteFavorite(fav.id)}>
                       <Button size="small" theme="borderless" type="danger" icon={<Trash2 size={14} />} />
                     </Popconfirm>
@@ -635,28 +613,19 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
 
       {/* 保存 / 编辑收藏 */}
       <AppModal
-        title={editFav ? '编辑收藏' : '收藏 SQL'}
-        visible={saveFavOpen}
-        onCancel={closeSaveFavorite}
-        onOk={submitSaveFavorite}
+        {...saveFavoriteModal.modalProps}
+        title={saveFavoriteModal.isEdit ? '编辑收藏' : '收藏 SQL'}
         okText="保存"
         cancelText="取消"
-        okButtonProps={{ loading: saveFavLoading }}
         width={480}
       >
         <Form
-          key={editFav ? `edit-${editFav.id}` : `new-${saveFavOpen ? 'open' : 'closed'}`}
-          getFormApi={(api) => { saveFavFormApi.current = api; }}
-          labelPosition="left"
-          labelWidth={SAVE_FAVORITE_LABEL_WIDTH}
-          initValues={editFav
-            ? { name: editFav.name, description: editFav.description ?? '', tags: editFav.tags.join(', ') }
-            : { name: formatDateTime(new Date()) }}
+          {...saveFavoriteModal.formProps}
         >
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} placeholder="为这条 SQL 起个名字" style={{ width: '100%' }} />
           <Form.TextArea field="description" label="备注" placeholder="可选，描述这条 SQL 的用途" style={{ width: '100%' }} />
           <Form.Input field="tags" label="标签" placeholder="多个标签用逗号分隔，如：报表, 监控" style={{ width: '100%' }} />
-          {!editFav && (
+          {!saveFavoriteModal.isEdit && (
             <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginLeft: SAVE_FAVORITE_LABEL_WIDTH }}>将收藏当前编辑器中的 SQL 内容</Typography.Text>
           )}
         </Form>

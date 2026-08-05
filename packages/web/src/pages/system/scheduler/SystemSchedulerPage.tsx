@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Col, Descriptions, Form, Input, Modal, Row, Select, Space, TabPane, Tabs, Tag, Toast, Typography, withField } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { AlertTriangle, CheckCircle2, RefreshCw, Trash2 } from 'lucide-react';
 import type { SystemSchedulerAlertChannel } from '@zenith/shared/chat';
@@ -14,6 +13,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { formatDurationMs as formatDuration } from '@/utils/format';
 import { renderEllipsis } from '@/utils/table-columns';
 import {
@@ -61,6 +61,25 @@ interface TaskConfigForm {
   alertEmailsText: string;
   alertWebhookUrl: string | null;
   manualSingleton: boolean;
+}
+
+type SchedulerTaskConfigRecord = SystemSchedulerTask & { id: number };
+
+interface SaveTaskConfigPayload {
+  name: string;
+  values: {
+    enabled: boolean;
+    logRetentionDays: number;
+    logRetentionRuns: number;
+    timeoutMs: number | null;
+    failureAlertThreshold: number;
+    alertEnabled: boolean;
+    alertChannels: SystemSchedulerAlertChannel[];
+    alertUserIds: number[];
+    alertEmails: string[];
+    alertWebhookUrl: string | null;
+    manualSingleton: boolean;
+  };
 }
 
 const defaultTaskSearch: TaskSearchParams = { keyword: '', module: '', taskType: '', status: '' };
@@ -121,9 +140,7 @@ export default function SystemSchedulerPage() {
   const [taskSearch, setTaskSearch] = useState<TaskSearchParams>(defaultTaskSearch);
   const [draftRunSearch, setDraftRunSearch] = useState<RunSearchParams>(defaultRunSearch);
   const [submittedRunSearch, setSubmittedRunSearch] = useState<RunSearchParams>(defaultRunSearch);
-  const [configTask, setConfigTask] = useState<SystemSchedulerTask | null>(null);
   const [detailRun, setDetailRun] = useState<SystemSchedulerRun | null>(null);
-  const configFormApi = useRef<FormApi | null>(null);
   const { page, pageSize, setPage, buildPagination } = usePagination(20);
   const { page: nodesPage, pageSize: nodesPageSize, buildPagination: buildNodesPagination } = usePagination(10);
   const tasksQuery = useSystemSchedulerTasks();
@@ -142,6 +159,49 @@ export default function SystemSchedulerPage() {
   const detailQuery = useSystemSchedulerRunDetail(detailRun?.id, detailRun != null);
   const runTaskMutation = useRunSystemSchedulerTask();
   const saveConfigMutation = useSaveSystemSchedulerTaskConfig();
+  const configModal = useEditModal<SchedulerTaskConfigRecord, TaskConfigForm, SaveTaskConfigPayload>({
+    save: {
+      mutateAsync: ({ values }) => saveConfigMutation.mutateAsync(values) as Promise<SchedulerTaskConfigRecord>,
+      isPending: saveConfigMutation.isPending,
+    },
+    toValues: (task) => ({
+      enabled: task.enabled,
+      logRetentionDays: task.logRetentionDays,
+      logRetentionRuns: task.logRetentionRuns,
+      timeoutMs: task.timeoutMs,
+      failureAlertThreshold: task.failureAlertThreshold,
+      alertEnabled: task.alertEnabled,
+      alertChannels: task.alertChannels?.length ? task.alertChannels : ['inapp'],
+      alertUserIds: task.alertUserIds ?? [],
+      alertEmailsText: (task.alertEmails ?? []).join('\n'),
+      alertWebhookUrl: task.alertWebhookUrl,
+      manualSingleton: task.manualSingleton,
+    }),
+    beforeSave: (values, { editing }) => {
+      const alertEmails = values.alertEmailsText
+        ? values.alertEmailsText.split(/[\n,;，；]/).map((item) => item.trim()).filter(Boolean)
+        : [];
+      return {
+        name: editing?.name ?? '',
+        values: {
+          enabled: editing?.taskType === 'queue' ? true : Boolean(values.enabled),
+          logRetentionDays: Number(values.logRetentionDays),
+          logRetentionRuns: Number(values.logRetentionRuns),
+          timeoutMs: values.timeoutMs ? Number(values.timeoutMs) : null,
+          failureAlertThreshold: Number(values.failureAlertThreshold),
+          alertEnabled: Boolean(values.alertEnabled),
+          alertChannels: values.alertChannels?.length ? values.alertChannels : ['inapp'],
+          alertUserIds: values.alertUserIds ?? [],
+          alertEmails,
+          alertWebhookUrl: values.alertWebhookUrl?.trim() || null,
+          manualSingleton: editing?.allowManualRun ? Boolean(values.manualSingleton) : false,
+        },
+      };
+    },
+    successMessage: () => '策略已保存',
+    labelWidth: 130,
+  });
+  const configTask = configModal.editing;
   const ackAlertMutation = useAcknowledgeSystemSchedulerAlert();
   const cleanupRunsMutation = useCleanupSystemSchedulerRuns();
   const tasks = tasksQuery.data ?? EMPTY_TASKS;
@@ -208,43 +268,7 @@ export default function SystemSchedulerPage() {
   };
 
   const openTaskConfig = (record: SystemSchedulerTask) => {
-    setConfigTask(record);
-  };
-
-  const handleSaveConfig = async (values: TaskConfigForm) => {
-    if (!configTask) return;
-    const alertEmails = values.alertEmailsText
-      ? values.alertEmailsText.split(/[\n,;，；]/).map((item) => item.trim()).filter(Boolean)
-      : [];
-    await saveConfigMutation.mutateAsync({
-      name: configTask.name,
-      values: {
-        enabled: configTask.taskType === 'queue' ? true : Boolean(values.enabled),
-        logRetentionDays: Number(values.logRetentionDays),
-        logRetentionRuns: Number(values.logRetentionRuns),
-        timeoutMs: values.timeoutMs ? Number(values.timeoutMs) : null,
-        failureAlertThreshold: Number(values.failureAlertThreshold),
-        alertEnabled: Boolean(values.alertEnabled),
-        alertChannels: values.alertChannels?.length ? values.alertChannels : ['inapp'],
-        alertUserIds: values.alertUserIds ?? [],
-        alertEmails,
-        alertWebhookUrl: values.alertWebhookUrl?.trim() || null,
-        manualSingleton: configTask.allowManualRun ? Boolean(values.manualSingleton) : false,
-      },
-    });
-    Toast.success('策略已保存');
-    setConfigTask(null);
-  };
-
-  const handleConfigModalOk = async () => {
-    if (!configFormApi.current) return;
-    let values: TaskConfigForm;
-    try {
-      values = await configFormApi.current.validate() as unknown as TaskConfigForm;
-    } catch {
-      throw new Error('validation');
-    }
-    await handleSaveConfig(values);
+    configModal.openEdit({ ...record, id: 0 });
   };
 
   const openRunDetail = (record: SystemSchedulerRun) => {
@@ -671,37 +695,15 @@ export default function SystemSchedulerPage() {
       </Tabs>
 
       <AppModal
-        visible={!!configTask}
+        {...configModal.modalProps}
         title={configTask ? `调度策略 - ${configTask.title}` : '调度策略'}
         width={760}
-        onCancel={() => {
-          setConfigTask(null);
-          configFormApi.current = null;
-        }}
-        onOk={handleConfigModalOk}
-        confirmLoading={saveConfigMutation.isPending}
         okText="保存"
         cancelText="取消"
       >
         {configTask && (
-          <Form<TaskConfigForm>
-            key={configTask.name}
-            getFormApi={(api) => { configFormApi.current = api; }}
-            labelPosition="left"
-            labelWidth={130}
-            initValues={{
-              enabled: configTask.enabled,
-              logRetentionDays: configTask.logRetentionDays,
-              logRetentionRuns: configTask.logRetentionRuns,
-              timeoutMs: configTask.timeoutMs,
-              failureAlertThreshold: configTask.failureAlertThreshold,
-              alertEnabled: configTask.alertEnabled,
-              alertChannels: configTask.alertChannels?.length ? configTask.alertChannels : ['inapp'],
-              alertUserIds: configTask.alertUserIds ?? [],
-              alertEmailsText: (configTask.alertEmails ?? []).join('\n'),
-              alertWebhookUrl: configTask.alertWebhookUrl,
-              manualSingleton: configTask.manualSingleton,
-            }}
+          <Form
+            {...configModal.formProps}
           >
             <Row gutter={16}>
               <Col span={12}>

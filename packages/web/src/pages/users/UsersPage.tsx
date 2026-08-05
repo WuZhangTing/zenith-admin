@@ -48,6 +48,7 @@ import {
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 interface SearchParams {
   keyword: string;
@@ -55,6 +56,18 @@ interface SearchParams {
   status: string;
   timeRange: [Date, Date] | null;
   departmentId: number | null;
+}
+
+interface UserFormValues extends Partial<User> {
+  password?: string;
+  departmentId?: number | null;
+  positionIds?: number[];
+  roleIds?: number[];
+}
+
+interface ResetPasswordFormValues {
+  password: string;
+  confirmPassword: string;
 }
 
 const defaultSearchParams: SearchParams = { keyword: '', phone: '', status: '', timeRange: null, departmentId: null };
@@ -70,17 +83,11 @@ function isAdminUser(user: Pick<User, 'username'>) {
 export default function UsersPage() {
   const { hasPermission } = usePermission();
   const { updateUser } = useAuth();
-  const formApi = useRef<FormApi | null>(null);
-  const passwordFormApi = useRef<FormApi | null>(null);
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
     handleSearch, applySearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: userKeys.lists });
-  const [modalVisible, setModalVisible] = useState(false);
-  const [passwordModalVisible, setPasswordModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<User | null>(null);
-  const [passwordUser, setPasswordUser] = useState<User | null>(null);
   const [batchPasswordModalVisible, setBatchPasswordModalVisible] = useState(false);
   const batchPasswordFormApi = useRef<FormApi | null>(null);
   const [menuPermUser, setMenuPermUser] = useState<User | null>(null);
@@ -133,9 +140,6 @@ export default function UsersPage() {
   const data = listQuery.data ?? null;
   const userList = data?.list ?? EMPTY_USERS;
   const total = data?.total ?? 0;
-  const detailQuery = useUserDetail(editingRecord?.id, modalVisible);
-  const editingUser = editingRecord ? (detailQuery.data ?? editingRecord) : null;
-  const modalDetailLoading = !!editingRecord && detailQuery.isFetching;
   const saveMutation = useSaveUser();
   const resetPasswordMutation = useResetUserPassword();
   const importUsersMutation = useImportUsers();
@@ -147,6 +151,64 @@ export default function UsersPage() {
   const batchPasswordMutation = useBatchUserPassword();
   const assignRolesMutation = useAssignUserRoles();
   const kickSessionsMutation = useKickUserSessions();
+  const modal = useEditModal<User, UserFormValues, Record<string, unknown>>({
+    entityName: '用户',
+    save: saveMutation,
+    useDetail: useUserDetail,
+    defaults: {
+      positionIds: [],
+      roleIds: [],
+      status: 'enabled',
+    },
+    toValues: (user) => ({
+      username: user.username,
+      nickname: user.nickname,
+      email: user.email ?? undefined,
+      phone: user.phone ?? undefined,
+      gender: user.gender ?? undefined,
+      departmentId: user.departmentId ?? undefined,
+      positionIds: user.positionIds ?? user.positions?.map((item) => item.id) ?? [],
+      roleIds: user.roles.map((r) => r.id),
+      status: user.status,
+    }),
+    beforeSave: (values, { editing }) => {
+      const payload = {
+        ...values,
+        departmentId: values.departmentId ?? null,
+        gender: (values as { gender?: string }).gender ?? null,
+        positionIds: values.positionIds ?? [],
+        roleIds: values.roleIds ?? [],
+      };
+      const nextStatus = (values as { status?: string }).status;
+
+      if (editing && isAdminUser(editing) && nextStatus === 'disabled') {
+        Toast.warning('admin 账号不允许禁用');
+        throw new Error('admin_status_forbidden');
+      }
+      return payload as Record<string, unknown>;
+    },
+    labelWidth: 72,
+  });
+  const editingUser = modal.editing;
+  const passwordModal = useEditModal<User, ResetPasswordFormValues>({
+    save: {
+      mutateAsync: async ({ id, values }) => {
+        if (id == null) throw new Error('missing_user');
+        await resetPasswordMutation.mutateAsync({ id, password: values.password });
+        return {} as User;
+      },
+      isPending: false,
+    },
+    beforeSave: (values) => {
+      if (values.password !== values.confirmPassword) {
+        Toast.error('两次密码输入不一致');
+        throw new Error('password_not_match');
+      }
+      return values;
+    },
+    successMessage: () => '密码修改成功',
+    onSaved: () => setEditPwdVal(''),
+  });
 
   const selectedDeletableCount = useMemo(() => {
     if (!userList.length) return 0;
@@ -259,24 +321,6 @@ export default function UsersPage() {
     [allPositions]
   );
 
-  const formInitValues = editingUser
-    ? {
-        username: editingUser.username,
-        nickname: editingUser.nickname,
-        email: editingUser.email ?? undefined,
-        phone: editingUser.phone ?? undefined,
-        gender: editingUser.gender ?? undefined,
-        departmentId: editingUser.departmentId ?? undefined,
-        positionIds: editingUser.positionIds ?? editingUser.positions?.map((item) => item.id) ?? [],
-        roleIds: editingUser.roles.map((r) => r.id),
-        status: editingUser.status,
-      }
-    : {
-        positionIds: [],
-        roleIds: [],
-        status: 'enabled',
-      };
-
   const { mutate: toggleStatus } = toggleStatusMutation;
   const handleToggleStatus = useCallback(async (user: User, newStatus: 'enabled' | 'disabled') => {
     if (newStatus === 'disabled') {
@@ -312,60 +356,6 @@ export default function UsersPage() {
       : {}),
   }), [submittedParams]);
 
-  const handleModalOk = async () => {
-    let values;
-    try {
-      values = await formApi.current?.validate();
-    } catch {
-      throw new Error('validation');
-    }
-    if (!values) throw new Error('validation');
-
-    const payload = {
-      ...values,
-      departmentId: values.departmentId ?? null,
-      gender: (values as { gender?: string }).gender ?? null,
-      positionIds: values.positionIds ?? [],
-      roleIds: values.roleIds ?? [],
-    };
-    const nextStatus = (values as { status?: string }).status;
-
-    if (editingUser && isAdminUser(editingUser) && nextStatus === 'disabled') {
-      Toast.warning('admin 账号不允许禁用');
-      throw new Error('admin_status_forbidden');
-    }
-
-    await saveMutation.mutateAsync({ id: editingRecord?.id, values: payload });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditingRecord(null);
-  };
-
-  const handlePasswordModalOk = async () => {
-    let values;
-    try {
-      values = await passwordFormApi.current?.validate();
-    } catch {
-      throw new Error('validation');
-    }
-    if (!values) throw new Error('validation');
-
-    if (values.password !== values.confirmPassword) {
-      Toast.error('两次密码输入不一致');
-      throw new Error('password_not_match');
-    }
-
-    if (!passwordUser) {
-      throw new Error('missing_user');
-    }
-
-    await resetPasswordMutation.mutateAsync({ id: passwordUser.id, password: values.password });
-    Toast.success('密码修改成功');
-    setPasswordModalVisible(false);
-    setPasswordUser(null);
-    setEditPwdVal('');
-  };
-
   const handleImportTemplate = async () => {
     try {
       await request.download('/api/users/import-template', 'user_import_template.xlsx');
@@ -389,10 +379,9 @@ export default function UsersPage() {
     }
   };
 
-  const openCreate = () => {
-    setEditingRecord(null);
-    setModalVisible(true);
-  };
+  const openCreate = modal.openCreate;
+  const openEdit = modal.openEdit;
+  const openPassword = passwordModal.openEdit;
 
   const openImport = () => {
     setImportModalVisible(true);
@@ -531,8 +520,7 @@ export default function UsersPage() {
             label: '编辑',
             hidden: !hasPermission('system:user:update'),
             onClick: () => {
-              setEditingRecord(record);
-              setModalVisible(true);
+              openEdit(record);
             },
           },
           {
@@ -563,8 +551,7 @@ export default function UsersPage() {
             label: '修改密码',
             hidden: !hasPermission('system:user:update'),
             onClick: () => {
-              setPasswordUser(record);
-              setPasswordModalVisible(true);
+              openPassword(record);
             },
           },
           {
@@ -622,7 +609,7 @@ export default function UsersPage() {
         ];
       },
     }),
-  ], [hasPermission, togglingStatusId, handleToggleStatus, handleDelete, handleUnlock, kickUserSessions, refetchUserList]);
+  ], [hasPermission, togglingStatusId, handleToggleStatus, handleDelete, handleUnlock, kickUserSessions, refetchUserList, openEdit, openPassword]);
 
   const [showDeptTree, setShowDeptTree] = useState(false);
   const [isLayoutNarrow, setIsLayoutNarrow] = useState(false);
@@ -837,26 +824,14 @@ export default function UsersPage() {
       />
 
       <AppModal
-        title={editingUser ? '编辑用户' : '新增用户'}
-        visible={modalVisible}
-        onCancel={() => {
-          setModalVisible(false);
-          setEditingRecord(null);
-        }}
-        onOk={handleModalOk}
-        okButtonProps={{ disabled: modalDetailLoading }}
+        {...modal.modalProps}
+        okButtonProps={{ disabled: modal.detailLoading }}
         width={660}
-        closeOnEsc
       >
         <Form
-          key={editingUser?.id ?? 'new-user'}
-          getFormApi={(api) => { formApi.current = api; }}
-          allowEmpty
-          initValues={formInitValues}
-          labelPosition="left"
-          labelWidth={72}
+          {...modal.formProps}
         >
-          <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
+          <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
           {editingUser ? (
             <>
               <Row gutter={16}>
@@ -989,22 +964,15 @@ export default function UsersPage() {
       </AppModal>
 
       <AppModal
-        title={passwordUser ? `修改密码 - ${passwordUser.nickname}` : '修改密码'}
-        visible={passwordModalVisible}
+        {...passwordModal.modalProps}
+        title={passwordModal.editing ? `修改密码 - ${passwordModal.editing.nickname}` : '修改密码'}
         onCancel={() => {
-          setPasswordModalVisible(false);
-          setPasswordUser(null);
+          passwordModal.close();
           setEditPwdVal('');
         }}
-        onOk={handlePasswordModalOk}
         width={420}
       >
-        <Form
-          key={passwordUser?.id ?? 'password-form'}
-          getFormApi={(api) => { passwordFormApi.current = api; }}
-          labelPosition="left"
-          labelWidth={90}
-        >
+        <Form {...passwordModal.formProps}>
           <Form.Input
             field="password"
             label="新密码"

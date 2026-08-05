@@ -1,8 +1,7 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Select, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { FolderTree } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -10,6 +9,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { createdAtColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { usePagination } from '@/hooks/usePagination';
 import {
   useCmsFriendLinkList, useSaveCmsFriendLink, useDeleteCmsFriendLink, cmsFriendLinkKeys,
@@ -23,7 +23,6 @@ import { confirmDelete } from '@/utils/confirm';
 
 export default function FriendLinksPage() {
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const queryClient = useQueryClient();
 
   const [siteId, setSiteId] = useState<number | undefined>(undefined);
@@ -42,9 +41,17 @@ export default function FriendLinksPage() {
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<CmsFriendLink | null>(null);
   const saveMutation = useSaveCmsFriendLink();
+  const linkModal = useEditModal<CmsFriendLink, Partial<CmsFriendLink>, Record<string, unknown>>({
+    entityName: '友链',
+    save: saveMutation,
+    defaults: { sort: 0, status: 'enabled' },
+    toValues: (record) => ({ name: record.name, url: record.url, logo: record.logo ?? '', groupId: record.groupId ?? undefined, sort: record.sort, status: record.status, remark: record.remark ?? '' }),
+    beforeSave: (values, { isEdit }) => {
+      if (!isEdit && !siteId) throw new Error('validation');
+      return { ...values, ...(!isEdit ? { siteId } : {}) };
+    },
+  });
   const deleteMutation = useDeleteCmsFriendLink();
 
   function handleSearch() {
@@ -61,21 +68,6 @@ export default function FriendLinksPage() {
     setDraftGroupId(undefined);
     setSubmittedGroupId(undefined);
     void queryClient.invalidateQueries({ queryKey: cmsFriendLinkKeys.lists });
-  }
-
-  async function handleModalOk() {
-    if (!siteId) return;
-    let values: Record<string, unknown>;
-    try {
-      values = (await formApi.current?.validate()) ?? {};
-    } catch {
-      throw new Error('validation');
-    }
-    if (!editingRecord) values.siteId = siteId;
-    await saveMutation.mutateAsync({ id: editingRecord?.id, values });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditingRecord(null);
   }
 
   const columns: ColumnProps<CmsFriendLink>[] = [
@@ -106,7 +98,7 @@ export default function FriendLinksPage() {
         ...(hasPermission('cms:link:update') ? [{
           key: 'edit',
           label: '编辑',
-          onClick: () => { setEditingRecord(record); setModalVisible(true); },
+          onClick: () => linkModal.openEdit(record),
         }] : []),
         ...(hasPermission('cms:link:delete') ? [{
           key: 'delete',
@@ -146,7 +138,7 @@ export default function FriendLinksPage() {
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />
         {hasPermission('cms:link:create') ? (
-          <CreateButton onClick={() => { setEditingRecord(null); setModalVisible(true); }} />
+          <CreateButton onClick={linkModal.openCreate} />
         ) : null}
         <Button icon={<FolderTree size={14} />} disabled={!siteId} onClick={() => setGroupSheetVisible(true)}>分组管理</Button>
       </SearchToolbar>
@@ -164,25 +156,8 @@ export default function FriendLinksPage() {
         pagination={buildPagination(total)}
       />
 
-      <AppModal
-        title={editingRecord ? '编辑友链' : '新增友链'}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={() => { setModalVisible(false); setEditingRecord(null); }}
-        okButtonProps={{ loading: saveMutation.isPending }}
-        width={520}
-        closeOnEsc
-      >
-        <Form
-          key={editingRecord?.id ?? 'new'}
-          getFormApi={(api) => { formApi.current = api; }}
-          allowEmpty
-          initValues={editingRecord
-            ? { name: editingRecord.name, url: editingRecord.url, logo: editingRecord.logo ?? '', groupId: editingRecord.groupId ?? undefined, sort: editingRecord.sort, status: editingRecord.status, remark: editingRecord.remark ?? '' }
-            : { sort: 0, status: 'enabled' }}
-          labelPosition="left"
-          labelWidth={90}
-        >
+      <AppModal {...linkModal.modalProps} width={520}>
+        <Form {...linkModal.formProps}>
           <Form.Input field="name" label="链接名称" rules={[{ required: true, message: '请输入链接名称' }]} />
           <Form.Input field="url" label="链接地址" placeholder="https://..." rules={[{ required: true, message: '请输入链接地址' }]} />
           <Form.Select field="groupId" label="所属分组" showClear style={{ width: '100%' }} placeholder="未分组"
@@ -211,28 +186,20 @@ function FriendLinkGroupSheet({ siteId, visible, onClose }: Readonly<{
   siteId: number | undefined; visible: boolean; onClose: () => void;
 }>) {
   const { hasPermission } = usePermission();
-  const groupFormApi = useRef<FormApi | null>(null);
   const { page, pageSize, buildPagination } = usePagination();
-  const [editing, setEditing] = useState<CmsFriendLinkGroup | null>(null);
-  const [formVisible, setFormVisible] = useState(false);
   const listQuery = useCmsFriendLinkGroupList({ page, pageSize, siteId: siteId ?? 0 }, visible && siteId !== undefined);
   const saveMutation = useSaveCmsFriendLinkGroup();
+  const groupModal = useEditModal<CmsFriendLinkGroup, Partial<CmsFriendLinkGroup>, Record<string, unknown>>({
+    entityName: '分组',
+    save: saveMutation,
+    defaults: { sort: 0, status: 'enabled' },
+    toValues: (record) => ({ name: record.name, code: record.code, sort: record.sort, status: record.status, remark: record.remark ?? '' }),
+    beforeSave: (values, { isEdit }) => {
+      if (!isEdit && !siteId) throw new Error('validation');
+      return { ...values, ...(!isEdit ? { siteId } : {}) };
+    },
+  });
   const deleteMutation = useDeleteCmsFriendLinkGroup();
-
-  async function handleOk() {
-    if (!siteId) return;
-    let values: Record<string, unknown>;
-    try {
-      values = (await groupFormApi.current?.validate()) ?? {};
-    } catch {
-      throw new Error('validation');
-    }
-    if (!editing) values.siteId = siteId;
-    await saveMutation.mutateAsync({ id: editing?.id, values });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    setFormVisible(false);
-    setEditing(null);
-  }
 
   const columns: ColumnProps<CmsFriendLinkGroup>[] = [
     { title: '分组名称', dataIndex: 'name', width: 140 },
@@ -242,7 +209,7 @@ function FriendLinkGroupSheet({ siteId, visible, onClose }: Readonly<{
     createOperationColumn<CmsFriendLinkGroup>({
       width: 120,
       actions: (record) => [
-        { key: 'edit', label: '编辑', hidden: !hasPermission('cms:link:update'), onClick: () => { setEditing(record); setFormVisible(true); } },
+        { key: 'edit', label: '编辑', hidden: !hasPermission('cms:link:update'), onClick: () => groupModal.openEdit(record) },
         {
           key: 'delete',
           label: '删除',
@@ -259,7 +226,7 @@ function FriendLinkGroupSheet({ siteId, visible, onClose }: Readonly<{
     <SideSheet title="友链分组管理" visible={visible} onCancel={onClose} width={620}>
       <div style={{ marginBottom: 12 }}>
         {hasPermission('cms:link:create') ? (
-          <CreateButton onClick={() => { setEditing(null); setFormVisible(true); }}>新增分组</CreateButton>
+          <CreateButton onClick={groupModal.openCreate}>新增分组</CreateButton>
         ) : null}
       </div>
       <ConfigurableTable
@@ -274,27 +241,10 @@ function FriendLinkGroupSheet({ siteId, visible, onClose }: Readonly<{
         refreshLoading={listQuery.isFetching}
         pagination={buildPagination(listQuery.data?.total ?? 0)}
       />
-      <AppModal
-        title={editing ? '编辑分组' : '新增分组'}
-        visible={formVisible}
-        onOk={handleOk}
-        onCancel={() => { setFormVisible(false); setEditing(null); }}
-        okButtonProps={{ loading: saveMutation.isPending }}
-        width={480}
-        closeOnEsc
-      >
-        <Form
-          key={editing?.id ?? 'new'}
-          getFormApi={(api) => { groupFormApi.current = api; }}
-          allowEmpty
-          initValues={editing
-            ? { name: editing.name, code: editing.code, sort: editing.sort, status: editing.status, remark: editing.remark ?? '' }
-            : { sort: 0, status: 'enabled' }}
-          labelPosition="left"
-          labelWidth={90}
-        >
+      <AppModal {...groupModal.modalProps} width={480}>
+        <Form {...groupModal.formProps}>
           <Form.Input field="name" label="分组名称" rules={[{ required: true, message: '请输入分组名称' }]} />
-          <Form.Input field="code" label="分组标识" placeholder="如 tech" disabled={!!editing}
+          <Form.Input field="code" label="分组标识" placeholder="如 tech" disabled={groupModal.isEdit}
             extraText="主题按组取数的稳定引用，创建后不可修改"
             rules={[{ required: true, message: '请输入分组标识' }, { pattern: /^[a-z0-9-]+$/, message: '仅支持小写字母、数字、中划线' }]} />
           <Form.InputNumber field="sort" label="排序" style={{ width: 160 }} />

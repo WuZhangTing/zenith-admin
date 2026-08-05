@@ -1,7 +1,6 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Banner, Button, Checkbox, Col, Form, Modal, Progress, Row, Select, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Activity } from 'lucide-react';
 import { OAUTH2_GRANT_TYPE_LABELS, OAUTH2_GRANT_TYPES, OPEN_APP_ENVIRONMENT_LABELS, OPEN_APP_ENVIRONMENTS, OPEN_APP_REVIEW_STATUS_LABELS, OPEN_APP_REVIEW_STATUSES } from '@zenith/shared/open-platform';
@@ -26,6 +25,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 const { Paragraph, Text } = Typography;
 
@@ -66,7 +66,6 @@ function UsageLine({ label, used, limit, percentage }: Readonly<{
 export default function MyAppsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const formApi = useRef<FormApi | null>(null);
   const { page, pageSize, setPage, buildPagination } = usePagination();
   type SearchParams = {
     keyword: string;
@@ -76,8 +75,6 @@ export default function MyAppsPage() {
   const defaults: SearchParams = { keyword: '' };
   const [draft, setDraft] = useState<SearchParams>(defaults);
   const [submitted, setSubmitted] = useState<SearchParams>(defaults);
-  const [editing, setEditing] = useState<OAuth2Client | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
   const [secret, setSecret] = useState<{ clientId: string; value: string; previousValidUntil?: string } | null>(null);
   const [usageApp, setUsageApp] = useState<OAuth2Client | null>(null);
 
@@ -88,7 +85,6 @@ export default function MyAppsPage() {
     environment: submitted.environment,
     reviewStatus: submitted.reviewStatus,
   });
-  const detailQuery = useMyAppDetail(editing?.id, modalVisible && Boolean(editing));
   const scopes = useOAuth2ApiScopes().data ?? [];
   const quotaQuery = useMyAppQuota(usageApp?.id, Boolean(usageApp));
   const saveMutation = useSaveMyApp();
@@ -96,7 +92,39 @@ export default function MyAppsPage() {
   const submitMutation = useSubmitMyApp();
   const rotateMutation = useRotateMyAppSecret();
   const data = listQuery.data;
-  const editingDetail = detailQuery.data ?? editing;
+  const modal = useEditModal<OAuth2Client, FormValues, Record<string, unknown>>({
+    save: saveMutation,
+    useDetail: useMyAppDetail,
+    defaults: {
+      redirectUris: [],
+      allowedScopes: ['openid', 'profile'],
+      grantTypes: ['authorization_code', 'refresh_token'],
+      isPublic: false,
+      signEnabled: true,
+      ipAllowlist: [],
+      environment: 'sandbox',
+    },
+    toValues: (record) => ({
+      name: record.name,
+      description: record.description ?? '',
+      logoUrl: record.logoUrl ?? '',
+      redirectUris: record.redirectUris,
+      allowedScopes: record.allowedScopes,
+      grantTypes: record.grantTypes as FormValues['grantTypes'],
+      isPublic: record.isPublic,
+      signEnabled: record.signEnabled ?? false,
+      ipAllowlist: record.ipAllowlist,
+      environment: record.environment,
+    }),
+    beforeSave: (values) => ({ ...values }),
+    onSaved: (result) => {
+      if ('clientSecret' in result && typeof result.clientSecret === 'string' && result.clientSecret) {
+        setSecret({ clientId: result.clientId, value: result.clientSecret });
+      }
+    },
+    successMessage: ({ isEdit }) => (isEdit ? '应用已更新并回到草稿状态' : '创建成功'),
+    labelWidth: 110,
+  });
 
   const search = () => {
     setPage(1);
@@ -109,54 +137,6 @@ export default function MyAppsPage() {
     setPage(1);
     void queryClient.invalidateQueries({ queryKey: developerAppKeys.lists });
   };
-  const openCreate = () => {
-    setEditing(null);
-    setModalVisible(true);
-  };
-  const openEdit = (app: OAuth2Client) => {
-    setEditing(app);
-    setModalVisible(true);
-  };
-  const closeModal = () => {
-    setModalVisible(false);
-    setEditing(null);
-  };
-
-  const initialValues: Partial<FormValues> = editingDetail ? {
-    name: editingDetail.name,
-    description: editingDetail.description ?? '',
-    logoUrl: editingDetail.logoUrl ?? '',
-    redirectUris: editingDetail.redirectUris,
-    allowedScopes: editingDetail.allowedScopes,
-    grantTypes: editingDetail.grantTypes as FormValues['grantTypes'],
-    isPublic: editingDetail.isPublic,
-    signEnabled: editingDetail.signEnabled ?? false,
-    ipAllowlist: editingDetail.ipAllowlist,
-    environment: editingDetail.environment,
-  } : {
-    redirectUris: [],
-    allowedScopes: ['openid', 'profile'],
-    grantTypes: ['authorization_code', 'refresh_token'],
-    isPublic: false,
-    signEnabled: true,
-    ipAllowlist: [],
-    environment: 'sandbox',
-  };
-
-  const save = async () => {
-    const values = await formApi.current?.validate() as FormValues;
-    const result = await saveMutation.mutateAsync({
-      id: editing?.id,
-      values: { ...values },
-    });
-    closeModal();
-    if ('clientSecret' in result && typeof result.clientSecret === 'string' && result.clientSecret) {
-      setSecret({ clientId: result.clientId, value: result.clientSecret });
-    } else {
-      Toast.success('应用已更新并回到草稿状态');
-    }
-  };
-
   const rotateSecret = async (app: OAuth2Client) => {
     const result = await rotateMutation.mutateAsync(app.id);
     setSecret({
@@ -198,7 +178,7 @@ export default function MyAppsPage() {
       width: 220,
       desktopInlineKeys: ['edit', 'usage', 'submit'],
       actions: (app) => [
-        { key: 'edit', label: '编辑', hidden: app.reviewStatus === 'pending', onClick: () => openEdit(app) },
+        { key: 'edit', label: '编辑', hidden: app.reviewStatus === 'pending', onClick: () => modal.openEdit(app) },
         { key: 'usage', label: '用量', onClick: () => setUsageApp(app) },
         {
           key: 'submit',
@@ -255,7 +235,7 @@ export default function MyAppsPage() {
             <KeywordInput placeholder="搜索我的应用" value={draft.keyword} onChange={(keyword) => setDraft({ ...draft, keyword })} onSearch={search} width={210} />
             <SearchButton onClick={search} />
             <ResetButton onClick={reset} />
-            <CreateButton onClick={openCreate}>创建应用</CreateButton>
+            <CreateButton onClick={modal.openCreate}>创建应用</CreateButton>
           </>
         )}
         filters={(
@@ -268,7 +248,7 @@ export default function MyAppsPage() {
           <>
             <KeywordInput placeholder="搜索我的应用" value={draft.keyword} onChange={(keyword) => setDraft({ ...draft, keyword })} onSearch={search} width={190} />
             <SearchButton onClick={search} />
-            <CreateButton onClick={openCreate}>创建</CreateButton>
+            <CreateButton onClick={modal.openCreate}>创建</CreateButton>
           </>
         )}
         mobileFilters={(
@@ -292,8 +272,8 @@ export default function MyAppsPage() {
         pagination={buildPagination(data?.total ?? 0)}
       />
 
-      <AppModal title={editing ? '编辑我的应用' : '创建应用'} visible={modalVisible} onCancel={closeModal} onOk={save} width={700} closeOnEsc okButtonProps={{ loading: saveMutation.isPending }}>
-        <Form key={editing?.id ?? 'new'} getFormApi={(api) => { formApi.current = api; }} initValues={initialValues} labelPosition="left" labelWidth={110} allowEmpty>
+      <AppModal {...modal.modalProps} title={modal.isEdit ? '编辑我的应用' : '创建应用'} width={700}>
+        <Form {...modal.formProps}>
           <Row gutter={16}>
             <Col span={12}><Form.Input field="name" label="应用名称" rules={[{ required: true, message: '请输入应用名称' }]} /></Col>
             <Col span={12}><Form.Select field="environment" label="环境" optionList={OPEN_APP_ENVIRONMENTS.map((value) => ({ value, label: OPEN_APP_ENVIRONMENT_LABELS[value] }))} rules={[{ required: true, message: '请选择环境' }]} style={{ width: '100%' }} /></Col>

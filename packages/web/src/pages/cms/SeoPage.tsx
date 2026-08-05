@@ -1,14 +1,14 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Button, Form, Tag, Toast, Tabs, TabPane, TextArea, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, Send } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { usePagination } from '@/hooks/usePagination';
 import {
   useCmsRedirectList, useSaveCmsRedirect, useDeleteCmsRedirect, cmsRedirectKeys,
@@ -27,16 +27,22 @@ import { confirmDelete } from '@/utils/confirm';
 // ─── 301 重定向 Tab ───────────────────────────────────────────────────────────
 function RedirectsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const queryClient = useQueryClient();
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [draftKeyword, setDraftKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<CmsRedirect | null>(null);
-
   const listQuery = useCmsRedirectList({ page, pageSize, siteId: siteId ?? 0, keyword: submittedKeyword || undefined }, siteId !== undefined);
   const saveMutation = useSaveCmsRedirect();
+  const modal = useEditModal<CmsRedirect, Partial<CmsRedirect>, Record<string, unknown>>({
+    entityName: '重定向',
+    save: saveMutation,
+    defaults: { redirectType: '301' as unknown as number, status: 'enabled' },
+    toValues: (record) => ({ fromPath: record.fromPath, toUrl: record.toUrl, redirectType: String(record.redirectType) as unknown as number, status: record.status, remark: record.remark ?? '' }),
+    beforeSave: (values, { isEdit }) => {
+      if (!isEdit && !siteId) throw new Error('validation');
+      return { ...values, redirectType: Number(values.redirectType), ...(!isEdit ? { siteId } : {}) };
+    },
+  });
   const deleteMutation = useDeleteCmsRedirect();
   const canManage = hasPermission('cms:seo:manage');
 
@@ -44,22 +50,6 @@ function RedirectsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
     setPage(1);
     setSubmittedKeyword(draftKeyword);
     void queryClient.invalidateQueries({ queryKey: cmsRedirectKeys.lists });
-  }
-
-  async function handleModalOk() {
-    if (!siteId) return;
-    let values: Record<string, unknown>;
-    try {
-      values = (await formApi.current?.validate()) ?? {};
-    } catch {
-      throw new Error('validation');
-    }
-    values.redirectType = Number(values.redirectType);
-    if (!editingRecord) values.siteId = siteId;
-    await saveMutation.mutateAsync({ id: editingRecord?.id, values });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditingRecord(null);
   }
 
   const columns: ColumnProps<CmsRedirect>[] = [
@@ -75,7 +65,7 @@ function RedirectsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
       width: 160,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => canManage ? [
-        { key: 'edit', label: '编辑', onClick: () => { setEditingRecord(record); setModalVisible(true); } },
+        { key: 'edit', label: '编辑', onClick: () => modal.openEdit(record) },
         {
           key: 'delete', label: '删除', danger: true,
           onClick: () => {
@@ -97,7 +87,7 @@ function RedirectsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
       <SearchToolbar>
         <KeywordInput placeholder="搜索来源路径..." value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} />
         <SearchButton onClick={handleSearch} />
-        {canManage ? <CreateButton onClick={() => { setEditingRecord(null); setModalVisible(true); }} /> : null}
+        {canManage ? <CreateButton onClick={modal.openCreate} /> : null}
       </SearchToolbar>
       <ConfigurableTable
         bordered
@@ -111,25 +101,8 @@ function RedirectsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
         refreshLoading={listQuery.isFetching}
         pagination={buildPagination(listQuery.data?.total ?? 0)}
       />
-      <AppModal
-        title={editingRecord ? '编辑重定向' : '新增重定向'}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={() => { setModalVisible(false); setEditingRecord(null); }}
-        okButtonProps={{ loading: saveMutation.isPending }}
-        width={520}
-        closeOnEsc
-      >
-        <Form
-          key={editingRecord?.id ?? 'new'}
-          getFormApi={(api) => { formApi.current = api; }}
-          allowEmpty
-          initValues={editingRecord
-            ? { fromPath: editingRecord.fromPath, toUrl: editingRecord.toUrl, redirectType: String(editingRecord.redirectType), status: editingRecord.status, remark: editingRecord.remark ?? '' }
-            : { redirectType: '301', status: 'enabled' }}
-          labelPosition="left"
-          labelWidth={90}
-        >
+      <AppModal {...modal.modalProps} width={520}>
+        <Form {...modal.formProps}>
           <Form.Input field="fromPath" label="来源路径" placeholder="/old-page.html（须以 / 开头）" rules={[{ required: true, message: '请输入来源路径' }]} />
           <Form.Input field="toUrl" label="目标地址" placeholder="/news/ 或 https://..." rules={[{ required: true, message: '请输入目标地址' }]} />
           <Form.RadioGroup field="redirectType" label="跳转类型">
@@ -150,16 +123,23 @@ function RedirectsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
 // ─── 内链词 Tab ───────────────────────────────────────────────────────────────
 function LinkWordsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const queryClient = useQueryClient();
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [draftKeyword, setDraftKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<CmsLinkWord | null>(null);
-
   const listQuery = useCmsLinkWordList({ page, pageSize, siteId: siteId ?? 0, keyword: submittedKeyword || undefined }, siteId !== undefined);
   const saveMutation = useSaveCmsLinkWord();
+  const modal = useEditModal<CmsLinkWord, Partial<CmsLinkWord>, Record<string, unknown>>({
+    entityName: '内链词',
+    save: saveMutation,
+    defaults: { maxReplaces: 1, status: 'enabled' },
+    labelWidth: 100,
+    toValues: (record) => ({ keyword: record.keyword, url: record.url, maxReplaces: record.maxReplaces, status: record.status }),
+    beforeSave: (values, { isEdit }) => {
+      if (!isEdit && !siteId) throw new Error('validation');
+      return { ...values, ...(!isEdit ? { siteId } : {}) };
+    },
+  });
   const deleteMutation = useDeleteCmsLinkWord();
   const canManage = hasPermission('cms:seo:manage');
 
@@ -167,21 +147,6 @@ function LinkWordsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
     setPage(1);
     setSubmittedKeyword(draftKeyword);
     void queryClient.invalidateQueries({ queryKey: cmsLinkWordKeys.lists });
-  }
-
-  async function handleModalOk() {
-    if (!siteId) return;
-    let values: Record<string, unknown>;
-    try {
-      values = (await formApi.current?.validate()) ?? {};
-    } catch {
-      throw new Error('validation');
-    }
-    if (!editingRecord) values.siteId = siteId;
-    await saveMutation.mutateAsync({ id: editingRecord?.id, values });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditingRecord(null);
   }
 
   const columns: ColumnProps<CmsLinkWord>[] = [
@@ -196,7 +161,7 @@ function LinkWordsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
       width: 160,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => canManage ? [
-        { key: 'edit', label: '编辑', onClick: () => { setEditingRecord(record); setModalVisible(true); } },
+        { key: 'edit', label: '编辑', onClick: () => modal.openEdit(record) },
         {
           key: 'delete', label: '删除', danger: true,
           onClick: () => {
@@ -219,7 +184,7 @@ function LinkWordsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
       <SearchToolbar>
         <KeywordInput placeholder="搜索关键词..." value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} />
         <SearchButton onClick={handleSearch} />
-        {canManage ? <CreateButton onClick={() => { setEditingRecord(null); setModalVisible(true); }} /> : null}
+        {canManage ? <CreateButton onClick={modal.openCreate} /> : null}
       </SearchToolbar>
       <ConfigurableTable
         bordered
@@ -233,25 +198,8 @@ function LinkWordsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
         refreshLoading={listQuery.isFetching}
         pagination={buildPagination(listQuery.data?.total ?? 0)}
       />
-      <AppModal
-        title={editingRecord ? '编辑内链词' : '新增内链词'}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={() => { setModalVisible(false); setEditingRecord(null); }}
-        okButtonProps={{ loading: saveMutation.isPending }}
-        width={520}
-        closeOnEsc
-      >
-        <Form
-          key={editingRecord?.id ?? 'new'}
-          getFormApi={(api) => { formApi.current = api; }}
-          allowEmpty
-          initValues={editingRecord
-            ? { keyword: editingRecord.keyword, url: editingRecord.url, maxReplaces: editingRecord.maxReplaces, status: editingRecord.status }
-            : { maxReplaces: 1, status: 'enabled' }}
-          labelPosition="left"
-          labelWidth={100}
-        >
+      <AppModal {...modal.modalProps} width={520}>
+        <Form {...modal.formProps}>
           <Form.Input field="keyword" label="关键词" rules={[{ required: true, message: '请输入关键词' }]} />
           <Form.Input field="url" label="链接地址" placeholder="/news/1.html 或 https://..." rules={[{ required: true, message: '请输入链接地址' }]} />
           <Form.InputNumber field="maxReplaces" label="每篇最多替换" min={1} max={10} style={{ width: 160 }} />

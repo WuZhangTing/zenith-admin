@@ -1,10 +1,10 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, Col, Form, Input, Row, Select, Space, Spin, Tag, Toast, Switch, Banner, Typography } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus, Trash2, Flame } from 'lucide-react';
 import { MP_REPLY_CONTENT_TYPE_LABELS, MP_REPLY_CONTENT_TYPE_OPTIONS } from '@zenith/shared/mp';
 import type { MpAutoReply, MpAutoReplyType, MpReplyContentType, MpReplyArticle } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -66,12 +66,9 @@ export default function MpAutoRepliesPage() {
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: mpAutoReplyKeys.lists(currentId) });
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<MpAutoReply | null>(null);
   const [modalType, setModalType] = useState<MpAutoReplyType>('keyword');
   const [contentType, setContentType] = useState<MpReplyContentType>('text');
   const [articles, setArticles] = useState<MpReplyArticle[]>([emptyArticle()]);
-  const formRef = useRef<FormApi>(null);
   const listQuery = useMpAutoReplyList({
     accountId: currentId,
     page,
@@ -86,53 +83,60 @@ export default function MpAutoRepliesPage() {
   const saveMutation = useSaveMpAutoReply();
   const toggleMutation = useSaveMpAutoReply();
   const deleteMutation = useDeleteMpAutoReply();
-  const submitting = saveMutation.isPending;
   const togglingId = toggleMutation.isPending ? (toggleMutation.variables?.id ?? null) : null;
 
   useEffect(() => {
     setPage(1);
   }, [currentId, setPage]);
 
+  const modal = useEditModal<MpAutoReply, Record<string, unknown>>({
+    entityName: '自动回复',
+    save: saveMutation,
+    defaults: { matchType: 'contain', content: '', mediaId: '', status: 'enabled', sort: 0, transferToKf: false },
+    toValues: (record) => ({
+      keyword: record.keyword ?? '',
+      matchType: record.matchType,
+      content: record.content ?? '',
+      mediaId: record.mediaId ?? '',
+      status: record.status,
+      sort: record.sort,
+      transferToKf: record.transferToKf,
+    }),
+    beforeSave: (values, { isEdit }) => {
+      if (!currentId) throw new Error('validation');
+      const payload: Record<string, unknown> = {
+        contentType,
+        matchType: values.matchType,
+        keyword: values.keyword,
+        sort: values.sort,
+        status: values.status,
+        transferToKf: values.transferToKf ?? false,
+      };
+      if (contentType === 'text') {
+        payload.content = values.content;
+      } else if (contentType === 'news') {
+        const valid = articles.filter((a) => a.title.trim() && a.url.trim());
+        if (valid.length === 0) { Toast.error('图文回复至少需要一篇有标题和链接的文章'); throw new Error('validation'); }
+        payload.newsArticles = valid;
+      } else {
+        payload.mediaId = values.mediaId;
+        if (contentType === 'video') payload.content = values.content || undefined;
+      }
+      return isEdit ? payload : { ...payload, accountId: currentId, replyType: modalType };
+    },
+  });
+
   const openCreate = () => {
-    setEditingRecord(null); setModalType('keyword'); setContentType('text'); setArticles([emptyArticle()]); setModalVisible(true);
+    setModalType('keyword'); setContentType('text'); setArticles([emptyArticle()]); modal.openCreate();
   };
   const openEdit = (record: MpAutoReply) => {
-    setEditingRecord(record); setModalType(record.replyType); setContentType(record.contentType);
+    setModalType(record.replyType); setContentType(record.contentType);
     setArticles(record.newsArticles?.length ? record.newsArticles.map((a) => ({ ...a })) : [emptyArticle()]);
-    setModalVisible(true);
+    modal.openEdit(record);
   };
 
   const materialOptions = (type: MpReplyContentType) =>
     materials.filter((m) => m.type === type).map((m) => ({ label: `${m.name}（${m.wechatMediaId}）`, value: m.wechatMediaId as string }));
-
-  const handleSubmit = async () => {
-    let values: Awaited<ReturnType<FormApi['validate']>>;
-    try { values = (await formRef.current?.validate())!; } catch { throw new Error('validation'); }
-    if (!currentId) return;
-
-    const payload: Record<string, unknown> = {
-      contentType,
-      matchType: values.matchType,
-      keyword: values.keyword,
-      sort: values.sort,
-      status: values.status,
-      transferToKf: values.transferToKf ?? false,
-    };
-    if (contentType === 'text') {
-      payload.content = values.content;
-    } else if (contentType === 'news') {
-      const valid = articles.filter((a) => a.title.trim() && a.url.trim());
-      if (valid.length === 0) { Toast.error('图文回复至少需要一篇有标题和链接的文章'); return; }
-      payload.newsArticles = valid;
-    } else {
-      payload.mediaId = values.mediaId;
-      if (contentType === 'video') payload.content = values.content || undefined;
-    }
-
-    await saveMutation.mutateAsync({ id: editingRecord?.id, values: editingRecord ? payload : { ...payload, accountId: currentId, replyType: modalType } });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
-  };
 
   const handleToggle = async (record: MpAutoReply, status: 'enabled' | 'disabled') => {
     await toggleMutation.mutateAsync({ id: record.id, values: { status } });
@@ -261,23 +265,14 @@ export default function MpAutoRepliesPage() {
       <ConfigurableTable bordered loading={listQuery.isFetching} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} columns={columns} dataSource={list} rowKey="id"
         pagination={buildPagination(total)} scroll={{ x: 1100 }} />
 
-      <AppModal title={editingRecord ? '编辑自动回复' : '新增自动回复'} visible={modalVisible}
-        onOk={handleSubmit} onCancel={() => { setModalVisible(false); setEditingRecord(null); }}
-        confirmLoading={submitting} width={640}>
-        <Spin spinning={false} wrapperClassName="modal-spin-wrapper">
-          <Form
-            key={editingRecord?.id ?? `new-${modalType}`}
-            getFormApi={(api) => { (formRef as { current: FormApi }).current = api; }}
-            labelPosition="left" labelWidth={90}
-            initValues={editingRecord
-              ? { keyword: editingRecord.keyword ?? '', matchType: editingRecord.matchType, content: editingRecord.content ?? '', mediaId: editingRecord.mediaId ?? '', status: editingRecord.status, sort: editingRecord.sort, transferToKf: editingRecord.transferToKf }
-              : { matchType: 'contain', content: '', mediaId: '', status: 'enabled', sort: 0, transferToKf: false }}
-          >
+      <AppModal {...modal.modalProps} width={640}>
+        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
+          <Form {...modal.formProps}>
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Slot label="回复类型">
                   <Select style={{ width: '100%' }} optionList={REPLY_TYPE_OPTIONS} value={modalType}
-                    disabled={!!editingRecord} onChange={(v) => setModalType(v as MpAutoReplyType)} />
+                    disabled={modal.isEdit} onChange={(v) => setModalType(v as MpAutoReplyType)} />
                 </Form.Slot>
               </Col>
               {modalType === 'keyword' && (

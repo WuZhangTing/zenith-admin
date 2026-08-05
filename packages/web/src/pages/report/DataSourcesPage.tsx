@@ -1,8 +1,7 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Form, Select, Switch, Toast, Modal, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Activity } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -11,6 +10,7 @@ import AppModal from '@/components/AppModal';
 import { formatDateTime } from '@/utils/date';
 import { renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import {
   reportDatasourceKeys,
   useBatchReportDatasourceStatus,
@@ -43,7 +43,6 @@ export default function DataSourcesPage() {
   const { items: statusItems } = useDictItems('common_status');
   const { hasPermission } = usePermission();
   const navigate = useNavigate();
-  const formApi = useRef<FormApi | null>(null);
 
   const {
     page, pageSize, buildPagination,
@@ -51,8 +50,6 @@ export default function DataSourcesPage() {
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: reportDatasourceKeys.lists });
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<ReportDatasource | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
 
   const listQuery = useReportDatasourceList({
@@ -76,78 +73,73 @@ export default function DataSourcesPage() {
   const testConnectionMutation = useTestReportDatasourceConnection();
   const togglingId = toggleMutation.isPending ? toggleMutation.variables?.id ?? null : null;
 
-  function openCreate() { setEditing(null); setModalVisible(true); }
-  function openEdit(record: ReportDatasource) { setEditing(record); setModalVisible(true); }
-  function closeModal() { setModalVisible(false); setEditing(null); }
-
-  const apiConfig = (editing?.config ?? {}) as ReportApiDatasourceConfig;
-  const externalConfig = (editing?.config ?? {}) as ReportExternalDbConfig;
-  const formInitValues = editing
-    ? {
-        name: editing.name,
-        type: editing.type,
-        url: apiConfig.url ?? '',
-        method: apiConfig.method ?? 'GET',
-        headersText: apiConfig.headers ? JSON.stringify(apiConfig.headers, null, 2) : '',
-        host: externalConfig.host ?? '',
-        port: externalConfig.port ?? (editing.type === 'postgresql' ? 5432 : editing.type === 'sqlserver' ? 1433 : 3306),
-        database: externalConfig.database ?? '',
-        user: externalConfig.user ?? '',
+  const datasourceModal = useEditModal<ReportDatasource, Record<string, unknown>>({
+    entityName: '数据源',
+    save: saveMutation,
+    defaults: { type: 'api', method: 'GET', port: 3306, status: 'enabled' },
+    labelWidth: 72,
+    toValues: (record) => {
+      const api = (record.config ?? {}) as ReportApiDatasourceConfig;
+      const external = (record.config ?? {}) as ReportExternalDbConfig;
+      return {
+        name: record.name,
+        type: record.type,
+        url: api.url ?? '',
+        method: api.method ?? 'GET',
+        headersText: api.headers ? JSON.stringify(api.headers, null, 2) : '',
+        host: external.host ?? '',
+        port: external.port ?? (record.type === 'postgresql' ? 5432 : record.type === 'sqlserver' ? 1433 : 3306),
+        database: external.database ?? '',
+        user: external.user ?? '',
         password: '',
-        ssl: externalConfig.ssl ?? false,
-        ownerId: editing.ownerId ?? undefined,
-        folderId: editing.folderId ?? undefined,
-        status: editing.status,
-        remark: editing.remark ?? '',
-      }
-    : { type: 'api', method: 'GET', port: 3306, status: 'enabled' };
-
-  async function handleModalOk() {
-    let values: Record<string, unknown>;
-    try { values = await formApi.current?.validate() as Record<string, unknown>; }
-    catch { throw new Error('validation'); }
-
-    const type = values.type as ReportDatasourceType;
-    let config: Record<string, unknown> = {};
-    if (type === 'api') {
-      const url = String(values.url ?? '').trim();
-      if (!/^https?:\/\//i.test(url)) { Toast.error('请填写以 http:// 或 https:// 开头的 URL'); throw new Error('url'); }
-      let headers: Record<string, string> | undefined;
-      const headersText = String(values.headersText ?? '').trim();
-      if (headersText) {
-        try { headers = JSON.parse(headersText); }
-        catch { Toast.error('请求头不是合法 JSON'); throw new Error('headers'); }
-      }
-      config = { url, method: values.method || 'GET', headers };
-    }
-    if (isExternalDbType(type)) {
-      const password = String(values.password ?? '').trim();
-      config = {
-        host: String(values.host ?? '').trim(),
-        port: Number(values.port),
-        database: String(values.database ?? '').trim(),
-        user: String(values.user ?? '').trim(),
-        ssl: !!values.ssl,
-        ...(password ? { password } : {}),
+        ssl: external.ssl ?? false,
+        ownerId: record.ownerId ?? undefined,
+        folderId: record.folderId ?? undefined,
+        status: record.status,
+        remark: record.remark ?? '',
       };
-    }
-
-    const payload = {
-      name: values.name,
-      ownerId: values.ownerId ? Number(values.ownerId) : null,
-      folderId: values.folderId ? Number(values.folderId) : null,
-      type,
-      config,
-      status: values.status,
-      remark: values.remark || undefined,
-    };
-    await saveMutation.mutateAsync({ id: editing?.id, values: payload });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    closeModal();
-  }
+    },
+    beforeSave: (values) => {
+      const type = values.type as ReportDatasourceType;
+      let config: Record<string, unknown> = {};
+      if (type === 'api') {
+        const url = String(values.url ?? '').trim();
+        if (!/^https?:\/\//i.test(url)) { Toast.error('请填写以 http:// 或 https:// 开头的 URL'); throw new Error('url'); }
+        let headers: Record<string, string> | undefined;
+        const headersText = String(values.headersText ?? '').trim();
+        if (headersText) {
+          try { headers = JSON.parse(headersText); }
+          catch { Toast.error('请求头不是合法 JSON'); throw new Error('headers'); }
+        }
+        config = { url, method: values.method || 'GET', headers };
+      }
+      if (isExternalDbType(type)) {
+        const password = String(values.password ?? '').trim();
+        config = {
+          host: String(values.host ?? '').trim(),
+          port: Number(values.port),
+          database: String(values.database ?? '').trim(),
+          user: String(values.user ?? '').trim(),
+          ssl: !!values.ssl,
+          ...(password ? { password } : {}),
+        };
+      }
+      return {
+        name: values.name,
+        ownerId: values.ownerId ? Number(values.ownerId) : null,
+        folderId: values.folderId ? Number(values.folderId) : null,
+        type,
+        config,
+        status: values.status,
+        remark: values.remark || undefined,
+      };
+    },
+  });
+  const editing = datasourceModal.editing;
+  const externalConfig = (editing?.config ?? {}) as ReportExternalDbConfig;
 
   async function handleTestConnection() {
-    const values = formApi.current?.getValues() as Record<string, unknown> | undefined;
+    const values = datasourceModal.formApi.current?.getValues() as Record<string, unknown> | undefined;
     const type = values?.type as ReportDatasourceType | undefined;
     if (!values || !isExternalDbType(type)) return;
     const host = String(values.host ?? '').trim();
@@ -266,7 +258,7 @@ export default function DataSourcesPage() {
       desktopInlineKeys: ['health', 'edit'],
       actions: (record) => [
         ...(hasPermission('report:datasource:update') ? [{ key: 'health', label: '检测', onClick: () => void handleHealthCheck([record.id], record.name) }] : []),
-        ...(hasPermission('report:datasource:update') ? [{ key: 'edit', label: '编辑', onClick: () => openEdit(record) }] : []),
+        ...(hasPermission('report:datasource:update') ? [{ key: 'edit', label: '编辑', onClick: () => datasourceModal.openEdit(record) }] : []),
         { key: 'governance', label: '权限与转移', onClick: () => navigate(`/report/governance?resourceType=datasource&resourceId=${record.id}`) },
         ...(hasPermission('report:datasource:create') ? [{ key: 'clone', label: '复制', onClick: () => void handleClone(record) }] : []),
         ...(hasPermission('report:datasource:delete') ? [{
@@ -301,7 +293,7 @@ export default function DataSourcesPage() {
   const renderSearchBtn = () => <SearchButton onClick={handleSearch} />;
   const renderResetBtn = () => <ResetButton onClick={handleReset} />;
   const renderCreateBtn = () => hasPermission('report:datasource:create')
-    ? <CreateButton onClick={openCreate} /> : null;
+    ? <CreateButton onClick={datasourceModal.openCreate} /> : null;
   const renderBatchHealthBtn = () => selectedRowKeys.length > 0 && hasPermission('report:datasource:update')
     ? <Button icon={<Activity size={14} />} onClick={() => void handleHealthCheck(selectedRowKeys)}>批量检测</Button> : null;
   const renderBatchEnableBtn = () => selectedRowKeys.length > 0 && hasPermission('report:datasource:update')
@@ -332,15 +324,10 @@ export default function DataSourcesPage() {
       />
 
       <AppModal
-        title={editing ? '编辑数据源' : '新增数据源'}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={closeModal}
-        okButtonProps={{ loading: saveMutation.isPending }}
+        {...datasourceModal.modalProps}
         width={560}
-        closeOnEsc
       >
-        <Form key={editing?.id ?? 'new'} getFormApi={(api) => { formApi.current = api; }} initValues={formInitValues} labelPosition="left" labelWidth={72}>
+        <Form {...datasourceModal.formProps}>
           {({ values }) => (
             <>
               <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={64} showClear placeholder="如：订单库" />
@@ -351,9 +338,9 @@ export default function DataSourcesPage() {
                 style={{ width: '100%' }}
                 rules={[{ required: true }]}
                 onChange={(v) => {
-                  if (v === 'mysql') formApi.current?.setValue('port', 3306);
-                  if (v === 'postgresql') formApi.current?.setValue('port', 5432);
-                  if (v === 'sqlserver') formApi.current?.setValue('port', 1433);
+                  if (v === 'mysql') datasourceModal.formApi.current?.setValue('port', 3306);
+                  if (v === 'postgresql') datasourceModal.formApi.current?.setValue('port', 5432);
+                  if (v === 'sqlserver') datasourceModal.formApi.current?.setValue('port', 1433);
                 }}
               />
               <Form.Select field="ownerId" label="负责人" filter showClear style={{ width: '100%' }}

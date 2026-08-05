@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Col, Form, Modal, Row, Select, Spin, Switch, Toast } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import { ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
 import type { PaginatedResponse } from '@zenith/shared/core';
@@ -13,6 +12,7 @@ import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
+import { useEditModal } from '@/hooks/useEditModal';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { UserPreviewCell } from '@/components/UserPreviewCell';
 import ExportButton from '@/components/ExportButton';
@@ -109,13 +109,10 @@ function buildDepartmentTreeData(items: Department[], excludedIds: Set<number>):
 
 export default function DepartmentsPage() {
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const {
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: departmentKeys.tree });
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
   const { items: statusItems } = useDictItems('common_status');
   const { items: categoryItems } = useDictItems('department_category');
 
@@ -126,10 +123,24 @@ export default function DepartmentsPage() {
   const data = useMemo(() => treeQuery.data ?? [], [treeQuery.data]);
   const flatDepartmentsQuery = useFlatDepartments();
   const allDepartments = useMemo(() => flatDepartmentsQuery.data ?? [], [flatDepartmentsQuery.data]);
-  const detailQuery = useDepartmentDetail(editingDepartment?.id, modalVisible && !!editingDepartment);
-  const activeDepartment = editingDepartment ? (detailQuery.data ?? editingDepartment) : null;
-  const modalDetailLoading = !!editingDepartment && detailQuery.isFetching;
   const saveMutation = useSaveDepartment();
+  const modal = useEditModal<Department>({
+    entityName: '部门',
+    save: saveMutation,
+    useDetail: useDepartmentDetail,
+    defaults: { parentId: 0, category: 'department', sort: 0, status: 'enabled' },
+    toValues: (department) => ({
+      parentId: department.parentId,
+      name: department.name,
+      code: department.code,
+      category: department.category ?? 'department',
+      leaderId: department.leaderId ?? undefined,
+      phone: department.phone,
+      email: department.email,
+      sort: department.sort,
+      status: department.status,
+    }),
+  });
   const toggleStatusMutation = useSaveDepartment();
   const deleteMutation = useDeleteDepartment();
   const [leaderKeyword, setLeaderKeyword] = useState('');
@@ -139,7 +150,7 @@ export default function DepartmentsPage() {
       request
         .get<PaginatedResponse<User>>(`/api/users${toQueryString({ pageSize: 50, keyword: leaderKeyword || undefined })}`)
         .then(unwrap),
-    enabled: modalVisible,
+    enabled: modal.visible,
     staleTime: 30_000,
   });
   const leaderOptions = (leaderOptionsQuery.data?.list ?? []).map((u) => ({
@@ -167,15 +178,9 @@ export default function DepartmentsPage() {
     setExpandedRowKeys(isAllExpanded ? [] : allRowKeys);
   }
 
-  useEffect(() => {
-    const detail = detailQuery.data;
-    if (!detail || !modalVisible || !editingDepartment || detail.id !== editingDepartment.id) return;
-    setEditingDepartment(detail);
-  }, [detailQuery.data, editingDepartment, modalVisible]);
-
   const parentTreeData = useMemo(() => {
-    const excludedIds = editingDepartment
-      ? new Set([editingDepartment.id, ...collectDescendantIds(allDepartments, editingDepartment.id)])
+    const excludedIds = modal.editing
+      ? new Set([modal.editing.id, ...collectDescendantIds(allDepartments, modal.editing.id)])
       : new Set<number>();
 
     return [
@@ -186,45 +191,15 @@ export default function DepartmentsPage() {
         children: buildDepartmentTreeData(allDepartments, excludedIds),
       },
     ];
-  }, [allDepartments, editingDepartment]);
+  }, [allDepartments, modal.editing]);
 
-  const formInitValues = activeDepartment
-    ? {
-        parentId: activeDepartment.parentId,
-        name: activeDepartment.name,
-        code: activeDepartment.code,
-        category: activeDepartment.category ?? 'department',
-        leaderId: activeDepartment.leaderId ?? undefined,
-        phone: activeDepartment.phone,
-        email: activeDepartment.email,
-        sort: activeDepartment.sort,
-        status: activeDepartment.status,
-      }
-    : {
-        parentId: 0,
-        category: 'department',
-        sort: 0,
-        status: 'enabled',
-      };
-
-  const openEdit = (record: Department) => {
-    setEditingDepartment(record);
-    setModalVisible(true);
+  const openCreate = () => {
+    setLeaderKeyword('');
+    modal.openCreate();
   };
 
-  const handleModalOk = async () => {
-    let values;
-    try {
-      values = await formApi.current?.validate();
-    } catch {
-      throw new Error('validation');
-    }
-    if (!values) throw new Error('validation');
-
-    await saveMutation.mutateAsync({ id: editingDepartment?.id, values });
-    Toast.success(editingDepartment ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditingDepartment(null);
+  const openEdit = (record: Department) => {
+    modal.openEdit(record);
   };
 
   const handleDelete = async (id: number) => {
@@ -344,11 +319,7 @@ export default function DepartmentsPage() {
   const renderExportButtons = () => <ExportButton entity="system.departments" query={buildExportQuery()} />;
   const renderMobileExportActions = () => <ExportButton entity="system.departments" query={buildExportQuery()} variant="flat" />;
   const renderCreateButton = () => hasPermission('system:department:create') ? (
-    <CreateButton onClick={() => {
-        setEditingDepartment(null);
-        setModalVisible(true);
-        setLeaderKeyword('');
-      }} />
+    <CreateButton onClick={openCreate} />
   ) : null;
 
   return (
@@ -400,25 +371,13 @@ export default function DepartmentsPage() {
       />
 
       <AppModal
-        title={editingDepartment ? '编辑部门' : '新增部门'}
-        visible={modalVisible}
-        onCancel={() => {
-          setModalVisible(false);
-          setEditingDepartment(null);
-        }}
-        onOk={handleModalOk}
-        okButtonProps={{ disabled: modalDetailLoading }}
+        {...modal.modalProps}
         width={660}
 
       >
-        <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
+        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
         <Form
-          key={editingDepartment?.id ?? 'new-department'}
-          getFormApi={(api) => { formApi.current = api; }}
-          allowEmpty
-          initValues={formInitValues}
-          labelPosition="left"
-          labelWidth={90}
+          {...modal.formProps}
         >
           <Form.TreeSelect
             field="parentId"

@@ -1,8 +1,7 @@
-import { useState, useRef } from 'react';
+import { useRef } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
 import { Banner, Button, Form, Modal, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { SendHorizontal } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -12,6 +11,7 @@ import { formatDateTime } from '@/utils/date';
 import { createdAtColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
+import { useEditModal } from '@/hooks/useEditModal';
 import {
   paymentTransferKeys,
   useCreatePaymentTransfer,
@@ -42,13 +42,12 @@ interface TransferFormValues {
 export default function PaymentTransfersPage() {
   const { hasPermission } = usePermission();
   const canCreate = hasPermission('payment:transfer:create');
-  const formApi = useRef<FormApi | null>(null);
+  const latestTransfer = useRef<PaymentTransfer | null>(null);
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentTransferKeys.lists });
-  const [modalVisible, setModalVisible] = useState(false);
 
   const listQuery = usePaymentTransferList({
     page,
@@ -65,28 +64,31 @@ export default function PaymentTransfersPage() {
   const queryMutation = useQueryPaymentTransfer();
   const retryMutation = useRetryPaymentTransfer();
 
-  async function handleOk() {
-    let values: TransferFormValues;
-    try {
-      values = (await formApi.current?.validate()) as TransferFormValues;
-    } catch {
-      throw new Error('validation');
-    }
-    const transfer = await createMutation.mutateAsync({
+  const transferSaveMutation = {
+    mutateAsync: async ({ values }: { id?: number; values: { channel: string; receiverAccount: string; receiverName?: string; amount: number; remark?: string } }) => {
+      const transfer = await createMutation.mutateAsync(values);
+      latestTransfer.current = transfer;
+      return transfer;
+    },
+    isPending: createMutation.isPending,
+  };
+  const transferModal = useEditModal<PaymentTransfer, TransferFormValues, { channel: string; receiverAccount: string; receiverName?: string; amount: number; remark?: string }>({
+    save: transferSaveMutation,
+    defaults: { channel: 'wechat' },
+    beforeSave: (values) => ({
       channel: values.channel,
       receiverAccount: values.receiverAccount,
       receiverName: values.receiverName || undefined,
       amount: Math.round(values.amountYuan * 100),
       remark: values.remark || undefined,
-    });
-    if (transfer.status === 'failed') {
-      Toast.error(`渠道转账失败：${transfer.failReason ?? '未知原因'}，可在列表中重试`);
-    } else {
-      Toast.success(transfer.status === 'success' ? '转账成功' : '转账已受理，处理中');
-    }
-    setModalVisible(false);
-    formApi.current = null;
-  }
+    }),
+    successMessage: () => {
+      const transfer = latestTransfer.current;
+      if (transfer?.status === 'failed') return `渠道转账失败：${transfer.failReason ?? '未知原因'}，可在列表中重试`;
+      return transfer?.status === 'success' ? '转账成功' : '转账已受理，处理中';
+    },
+    labelWidth: 110,
+  });
 
   async function handleQuery(id: number) {
     const t = await queryMutation.mutateAsync(id);
@@ -150,7 +152,7 @@ export default function PaymentTransfersPage() {
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => canCreate ? (
-    <Button type="primary" icon={<SendHorizontal size={14} />} onClick={() => setModalVisible(true)}>发起转账</Button>
+    <Button type="primary" icon={<SendHorizontal size={14} />} onClick={transferModal.openCreate}>发起转账</Button>
   ) : null;
 
   const summaryText = summary
@@ -199,10 +201,10 @@ export default function PaymentTransfersPage() {
         onRefresh={() => { void listQuery.refetch(); void summaryQuery.refetch(); }} refreshLoading={listQuery.isFetching} pagination={buildPagination(total)}
       />
 
-      <AppModal title="发起转账" visible={modalVisible} onOk={handleOk} onCancel={() => { setModalVisible(false); formApi.current = null; }} okButtonProps={{ loading: createMutation.isPending }} width={560} closeOnEsc>
+      <AppModal {...transferModal.modalProps} title="发起转账" width={560}>
         <Banner type="warning" closeIcon={null} style={{ marginBottom: 16 }}
           description="资金流出操作：微信渠道收款账号为用户 openid（转入零钱），支付宝渠道为登录账号。沙箱渠道为模拟转账。" />
-        <Form key={modalVisible ? 'new' : 'closed'} getFormApi={(api) => { formApi.current = api; }} initValues={{ channel: 'wechat' }} labelPosition="left" labelWidth={110}>
+        <Form {...transferModal.formProps}>
           <Form.Select field="channel" label="渠道" style={{ width: '100%' }}
             optionList={[{ value: 'wechat', label: '微信支付（零钱）' }, { value: 'alipay', label: '支付宝（账户）' }]} rules={[{ required: true, message: '请选择渠道' }]} />
           <Form.Input field="receiverAccount" label="收款账号" placeholder="微信 openid / 支付宝登录账号" rules={[{ required: true, message: '收款账号不能为空' }]} />

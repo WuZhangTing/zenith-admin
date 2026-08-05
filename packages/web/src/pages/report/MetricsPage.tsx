@@ -1,7 +1,6 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Button, Col, Empty, Form, Modal, Row, Select, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportMetric, ReportMetricType } from '@zenith/shared/report';
 import { AppModal } from '@/components/AppModal';
@@ -10,6 +9,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { flattenReportFolders, useReportFolderTree } from '@/hooks/queries/report-folders';
 import {
   reportMetricKeys,
@@ -56,12 +56,9 @@ const statusColor = { draft: 'grey', published: 'green', deprecated: 'red' } as 
 export default function MetricsPage() {
   const qc = useQueryClient();
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [draft, setDraft] = useState<MetricSearch>(defaultSearch);
   const [submitted, setSubmitted] = useState<MetricSearch>(defaultSearch);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<ReportMetric | null>(null);
   const [conflict, setConflict] = useState('');
   const [sheetMetric, setSheetMetric] = useState<ReportMetric | null>(null);
   const [sheetMode, setSheetMode] = useState<'preview' | 'refs'>('preview');
@@ -76,8 +73,6 @@ export default function MetricsPage() {
     folderId: submitted.folderId,
     ownerId: submitted.ownerId,
   });
-  const detailQuery = useReportMetricDetail(editing?.id, modalVisible && !!editing);
-  const formMetric = detailQuery.data ?? editing;
   const evaluateMutation = useEvaluateReportMetric();
   const refsQuery = useReportMetricRefs(sheetMetric?.id, !!sheetMetric && sheetMode === 'refs');
   const saveMutation = useSaveReportMetric();
@@ -103,33 +98,42 @@ export default function MetricsPage() {
     void qc.invalidateQueries({ queryKey: reportMetricKeys.lists });
   };
 
-  const openCreate = () => {
-    setEditing(null);
-    setConflict('');
-    setModalVisible(true);
-  };
-  const openEdit = (record: ReportMetric) => {
-    setEditing(record);
-    setConflict('');
-    setModalVisible(true);
-  };
-
-  const save = async () => {
-    let values: Record<string, unknown>;
-    try {
-      values = await formApi.current!.validate();
-      const input = normalizeMetricFormValues(values, formMetric);
-      await saveMutation.mutateAsync({ id: editing?.id, values: input });
-      Toast.success(editing ? '指标已更新' : '指标已创建');
-      setModalVisible(false);
-      setEditing(null);
-    } catch (error) {
+  const metricSave = {
+    ...saveMutation,
+    mutateAsync: async (vars: { id?: number; values: ReturnType<typeof normalizeMetricFormValues> }) => {
+      try {
+        return await saveMutation.mutateAsync(vars);
+      } catch (error) {
       if (isRevisionConflict(error)) {
         setConflict('指标已被其他人更新。请加载最新版本后重新编辑，当前输入不会自动覆盖。');
-        return;
+      } else {
+        Toast.error(error instanceof Error ? error.message : '指标保存失败');
       }
-      Toast.error(error instanceof Error ? error.message : '指标保存失败');
-    }
+      throw error;
+      }
+    },
+  };
+  const metricModal = useEditModal<ReportMetric, Record<string, unknown>, ReturnType<typeof normalizeMetricFormValues>>({
+    entityName: '指标',
+    save: metricSave,
+    useDetail: useReportMetricDetail,
+    defaults: { type: 'simple', aggregate: 'sum', dimensions: '' },
+    labelWidth: 92,
+    toValues: (record) => ({
+      ...record,
+      dimensions: record.dimensions.join(', '),
+    }),
+    beforeSave: (values, { editing }) => normalizeMetricFormValues(values, editing),
+    successMessage: ({ isEdit }) => isEdit ? '指标已更新' : '指标已创建',
+  });
+  const detailQuery = useReportMetricDetail(metricModal.editing?.id, metricModal.visible && metricModal.isEdit);
+  const openCreate = () => {
+    setConflict('');
+    metricModal.openCreate();
+  };
+  const openEdit = (record: ReportMetric) => {
+    setConflict('');
+    metricModal.openEdit(record);
   };
 
   const lifecycle = (record: ReportMetric, action: 'publish' | 'deprecate') => {
@@ -236,13 +240,8 @@ export default function MetricsPage() {
       />
 
       <AppModal
-        title={editing ? '编辑指标' : '新增指标'}
-        visible={modalVisible}
+        {...metricModal.modalProps}
         width={720}
-        confirmLoading={saveMutation.isPending}
-        onOk={() => void save()}
-        onCancel={() => setModalVisible(false)}
-        closeOnEsc
       >
         {conflict && (
           <Banner
@@ -251,25 +250,18 @@ export default function MetricsPage() {
             closeIcon={null}
             style={{ marginBottom: 12 }}
           >
-            <Button size="small" onClick={async () => { const result = await detailQuery.refetch(); if (result.data) setEditing(result.data); setConflict(''); }}>
+            <Button size="small" onClick={async () => { const result = await detailQuery.refetch(); if (result.data) metricModal.openEdit(result.data); setConflict(''); }}>
               加载最新版本
             </Button>
           </Banner>
         )}
         {detailQuery.isError && <Banner type="danger" description="指标详情加载失败，请关闭后重试" />}
         <Form
-          key={`${formMetric?.id ?? 'create'}-${formMetric?.revision ?? 0}`}
-          getFormApi={(api) => { formApi.current = api; }}
-          labelPosition="left"
-          labelWidth={92}
-          initValues={formMetric ? {
-            ...formMetric,
-            dimensions: formMetric.dimensions.join(', '),
-          } : { type: 'simple', aggregate: 'sum', dimensions: '' }}
+          {...metricModal.formProps}
         >
           <Row gutter={16}>
             <Col xs={24} md={12}><Form.Input field="name" label="指标名称" rules={[{ required: true, message: '请输入指标名称' }]} /></Col>
-            <Col xs={24} md={12}><Form.Input field="code" label="指标编码" disabled={!!editing} rules={[{ required: true, message: '请输入指标编码' }]} /></Col>
+            <Col xs={24} md={12}><Form.Input field="code" label="指标编码" disabled={metricModal.isEdit} rules={[{ required: true, message: '请输入指标编码' }]} /></Col>
             <Col xs={24} md={12}><Form.Select field="type" label="指标类型" style={{ width: '100%' }} optionList={typeOptions} rules={[{ required: true }]} /></Col>
             <Col xs={24} md={12}><Form.Select field="datasetId" label="数据集" filter style={{ width: '100%' }} optionList={datasets.map((item) => ({ value: item.id, label: item.name }))} rules={[{ required: true, message: '请选择数据集' }]} /></Col>
             <Col xs={24} md={12}><Form.Input field="sourceField" label="来源字段" placeholder="简单指标必填" /></Col>

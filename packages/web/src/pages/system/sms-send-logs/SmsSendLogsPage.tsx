@@ -1,11 +1,10 @@
-import { useRef, useState } from 'react';
 import { Button, Form, Input, Select, Tag, Toast } from '@douyinfe/semi-ui';
 import { AppModal } from '@/components/AppModal';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus } from 'lucide-react';
 import { SMS_PROVIDER_OPTIONS } from '@zenith/shared/messaging';
 import type { SendStatus, SmsSendLog } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -40,9 +39,6 @@ export default function SmsSendLogsPage() {
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: smsSendLogKeys.lists });
 
-  const [testVisible, setTestVisible] = useState(false);
-  const formRef = useRef<FormApi>(null);
-
   const listQuery = useSmsSendLogList({
     page,
     pageSize,
@@ -53,9 +49,19 @@ export default function SmsSendLogsPage() {
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
-  const templatesQuery = useSmsTemplateList({ page: 1, pageSize: 100, status: 'enabled' }, { enabled: testVisible });
-  const templates = templatesQuery.data?.list ?? [];
   const testMutation = useTestSmsSendLog();
+  const testModal = useEditModal<{ id: number }, Record<string, unknown>>({
+    save: {
+      mutateAsync: async ({ values }) => {
+        await testMutation.mutateAsync(values);
+        return { id: 0 };
+      },
+      isPending: testMutation.isPending,
+    },
+    successMessage: () => '测试短信已发送',
+  });
+  const templatesQuery = useSmsTemplateList({ page: 1, pageSize: 100, status: 'enabled' }, { enabled: testModal.visible });
+  const templates = templatesQuery.data?.list ?? [];
   const deleteMutation = useDeleteSmsSendLog();
 
   const buildExportQuery = () => ({
@@ -64,18 +70,6 @@ export default function SmsSendLogsPage() {
     ...(draftParams.filterStatus ? { status: draftParams.filterStatus } : {}),
     ...(draftParams.filterSource ? { source: draftParams.filterSource } : {}),
   });
-
-  const openTest = () => {
-    setTestVisible(true);
-  };
-
-  const handleTest = async () => {
-    let values: Awaited<ReturnType<FormApi['validate']>>;
-    try { values = (await formRef.current!.validate())!; } catch { throw new Error('validation'); }
-    await testMutation.mutateAsync(values);
-    Toast.success('测试短信已发送');
-    setTestVisible(false);
-  };
 
   const handleDelete = (id: number) => {
     confirmDelete({
@@ -139,7 +133,7 @@ export default function SmsSendLogsPage() {
               <ExportButton entity="system.sms-send-logs" query={buildExportQuery()} />
             )}
             {can('system:sms-send-log:send') && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={openTest}>测试发送</Button>
+              <Button type="primary" icon={<Plus size={14} />} onClick={testModal.openCreate}>测试发送</Button>
             )}
           </>
         )}
@@ -148,7 +142,7 @@ export default function SmsSendLogsPage() {
             <KeywordInput placeholder="内容关键词" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={180} />
             <SearchButton onClick={handleSearch} />
             {can('system:sms-send-log:send') && (
-              <Button type="primary" icon={<Plus size={14} />} onClick={openTest}>测试发送</Button>
+              <Button type="primary" icon={<Plus size={14} />} onClick={testModal.openCreate}>测试发送</Button>
             )}
           </>
         )}
@@ -175,10 +169,8 @@ export default function SmsSendLogsPage() {
         pagination={buildPagination(total)}
         scroll={{ x: 1400 }} />
 
-      <AppModal title="测试发送短信" visible={testVisible} onOk={handleTest}
-        onCancel={() => setTestVisible(false)} confirmLoading={testMutation.isPending} width={520}>
-        <Form key="test" getFormApi={(api) => { (formRef as { current: FormApi }).current = api; }}
-          labelPosition="left" labelWidth={90} initValues={{}}>
+      <AppModal {...testModal.modalProps} title="测试发送短信" width={520}>
+        <Form {...testModal.formProps}>
           <Form.Select field="templateId" label="模板" style={{ width: '100%' }}
             optionList={templates.map((t) => ({ label: `${t.name} (${t.code})`, value: t.id }))}
             rules={[{ required: true, message: '请选择模板' }]} />

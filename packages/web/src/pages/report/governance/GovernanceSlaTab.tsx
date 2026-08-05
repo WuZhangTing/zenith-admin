@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import {
   Banner,
   Col,
@@ -11,7 +11,6 @@ import {
   Toast,
   Typography,
 } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportSlaRule, ReportSlaType, ReportSlaViolation, ReportSlaViolationStatus } from '@zenith/shared/report';
 import { AppModal } from '@/components/AppModal';
@@ -20,6 +19,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { useEnabledReportDatasets } from '@/hooks/queries/report-datasets';
 import {
   useDeleteReportSlaRule,
@@ -48,13 +48,10 @@ const severityOptions = [
 
 export default function GovernanceSlaTab() {
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [datasetId, setDatasetId] = useState<number | undefined>();
   const [type, setType] = useState<ReportSlaType | undefined>();
   const [violationStatus, setViolationStatus] = useState<ReportSlaViolationStatus | undefined>();
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<ReportSlaRule | null>(null);
 
   const datasetsQuery = useEnabledReportDatasets();
   const datasetOptions = (datasetsQuery.data ?? []).map((item) => ({ value: item.id, label: item.name }));
@@ -65,29 +62,24 @@ export default function GovernanceSlaTab() {
   const evaluateMutation = useEvaluateReportSlaRule();
   const violationMutation = useUpdateReportSlaViolation();
 
+  const ruleModal = useEditModal<ReportSlaRule, Record<string, unknown>>({
+    entityName: 'SLA 规则',
+    save: saveMutation,
+    defaults: { type: 'freshness', targetValue: 60, windowMinutes: 60, timezone: 'Asia/Shanghai', severity: 'high', channels: [], silenceMins: 60, enabled: true },
+    labelWidth: 100,
+    beforeSave: (values) => ({
+      ...values,
+      warningValue: values.warningValue ?? null,
+      cron: values.cron || null,
+      recipients: values.recipients || null,
+      webhookUrl: values.webhookUrl || null,
+      channels: values.channels ?? [],
+    }),
+    successMessage: ({ isEdit }) => isEdit ? 'SLA 规则已更新' : 'SLA 规则已创建',
+  });
   const openRule = (record?: ReportSlaRule) => {
-    setEditing(record ?? null);
-    setModalVisible(true);
-  };
-  const saveRule = async () => {
-    try {
-      const values = await formApi.current!.validate();
-      await saveMutation.mutateAsync({
-        id: editing?.id,
-        values: {
-          ...values,
-          warningValue: values.warningValue ?? null,
-          cron: values.cron || null,
-          recipients: values.recipients || null,
-          webhookUrl: values.webhookUrl || null,
-          channels: values.channels ?? [],
-        },
-      });
-      Toast.success(editing ? 'SLA 规则已更新' : 'SLA 规则已创建');
-      setModalVisible(false);
-    } catch (error) {
-      Toast.error(error instanceof Error ? error.message : 'SLA 规则保存失败');
-    }
+    if (record) ruleModal.openEdit(record);
+    else ruleModal.openCreate();
   };
   const evaluate = async (record: ReportSlaRule) => {
     try {
@@ -169,8 +161,8 @@ export default function GovernanceSlaTab() {
       {violationsQuery.isError && <Banner type="danger" description="SLA 违规加载失败" />}
       <ConfigurableTable bordered rowKey="id" columns={violationColumns} dataSource={violationsQuery.data?.list ?? []} loading={violationsQuery.isFetching} empty={<Empty title="暂无 SLA 违规" />} pagination={buildPagination(violationsQuery.data?.total ?? 0)} onRefresh={() => void violationsQuery.refetch()} refreshLoading={violationsQuery.isFetching} />
 
-      <AppModal title={editing ? '编辑 SLA 规则' : '新增 SLA 规则'} visible={modalVisible} width={720} confirmLoading={saveMutation.isPending} onOk={() => void saveRule()} onCancel={() => setModalVisible(false)} closeOnEsc>
-        <Form key={editing?.id ?? 'create'} getFormApi={(api) => { formApi.current = api; }} labelPosition="left" labelWidth={100} initValues={editing ?? { type: 'freshness', targetValue: 60, windowMinutes: 60, timezone: 'Asia/Shanghai', severity: 'high', channels: [], silenceMins: 60, enabled: true }}>
+      <AppModal {...ruleModal.modalProps} width={720}>
+        <Form {...ruleModal.formProps}>
           <Row gutter={16}>
             <Col xs={24} md={12}><Form.Input field="name" label="规则名称" rules={[{ required: true }]} /></Col>
             <Col xs={24} md={12}><Form.Select field="datasetId" label="数据集" filter style={{ width: '100%' }} optionList={datasetOptions} rules={[{ required: true }]} /></Col>

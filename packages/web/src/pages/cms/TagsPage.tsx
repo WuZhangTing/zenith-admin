@@ -1,14 +1,14 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Form, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { createdAtColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { usePagination } from '@/hooks/usePagination';
 import { useCmsTagList, useSaveCmsTag, useDeleteCmsTag, cmsTagKeys } from '@/hooks/queries/cms';
 import type { CmsTag } from '@zenith/shared/cms';
@@ -19,7 +19,6 @@ import { confirmDelete } from '@/utils/confirm';
 
 export default function TagsPage() {
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const queryClient = useQueryClient();
 
   const [siteId, setSiteId] = useState<number | undefined>(undefined);
@@ -33,9 +32,20 @@ export default function TagsPage() {
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<CmsTag | null>(null);
   const saveMutation = useSaveCmsTag();
+  const modal = useEditModal<CmsTag, Partial<CmsTag>, Record<string, unknown>>({
+    entityName: '标签',
+    save: saveMutation,
+    toValues: (record) => ({ name: record.name, slug: record.slug, groupName: record.groupName ?? '' }),
+    beforeSave: (values, { isEdit }) => {
+      if (!isEdit && !siteId) throw new Error('validation');
+      return {
+        ...values,
+        ...(!isEdit ? { siteId } : {}),
+        groupName: typeof values.groupName === 'string' && values.groupName.trim() === '' ? null : values.groupName,
+      };
+    },
+  });
   const deleteMutation = useDeleteCmsTag();
 
   function handleSearch() {
@@ -51,32 +61,6 @@ export default function TagsPage() {
     void queryClient.invalidateQueries({ queryKey: cmsTagKeys.lists });
   }
 
-  function openCreate() {
-    setEditingRecord(null);
-    setModalVisible(true);
-  }
-
-  function openEdit(record: CmsTag) {
-    setEditingRecord(record);
-    setModalVisible(true);
-  }
-
-  async function handleModalOk() {
-    if (!siteId) return;
-    let values: Record<string, unknown>;
-    try {
-      values = (await formApi.current?.validate()) ?? {};
-    } catch {
-      throw new Error('validation');
-    }
-    if (!editingRecord) values.siteId = siteId;
-    if (typeof values.groupName === 'string' && values.groupName.trim() === '') values.groupName = null;
-    await saveMutation.mutateAsync({ id: editingRecord?.id, values });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditingRecord(null);
-  }
-
   const columns: ColumnProps<CmsTag>[] = [
     { title: '标签名称', dataIndex: 'name', width: 180 },
     { title: 'URL 标识', dataIndex: 'slug', width: 160 },
@@ -90,7 +74,7 @@ export default function TagsPage() {
         ...(hasPermission('cms:tag:update') ? [{
           key: 'edit',
           label: '编辑',
-          onClick: () => openEdit(record),
+          onClick: () => modal.openEdit(record),
         }] : []),
         ...(hasPermission('cms:tag:delete') ? [{
           key: 'delete',
@@ -119,7 +103,7 @@ export default function TagsPage() {
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />
         {hasPermission('cms:tag:create') ? (
-          <CreateButton onClick={openCreate} />
+          <CreateButton onClick={modal.openCreate} />
         ) : null}
       </SearchToolbar>
 
@@ -136,23 +120,8 @@ export default function TagsPage() {
         pagination={buildPagination(total)}
       />
 
-      <AppModal
-        title={editingRecord ? '编辑标签' : '新增标签'}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={() => { setModalVisible(false); setEditingRecord(null); }}
-        okButtonProps={{ loading: saveMutation.isPending }}
-        width={480}
-        closeOnEsc
-      >
-        <Form
-          key={editingRecord?.id ?? 'new'}
-          getFormApi={(api) => { formApi.current = api; }}
-          allowEmpty
-          initValues={editingRecord ? { name: editingRecord.name, slug: editingRecord.slug, groupName: editingRecord.groupName ?? '' } : {}}
-          labelPosition="left"
-          labelWidth={90}
-        >
+      <AppModal {...modal.modalProps} width={480}>
+        <Form {...modal.formProps}>
           <Form.Input field="name" label="标签名称" rules={[{ required: true, message: '请输入标签名称' }]} />
           <Form.Input field="slug" label="URL 标识" placeholder="小写字母/数字/中划线" rules={[{ required: true, message: '请输入 URL 标识' }]} />
           <Form.Input field="groupName" label="分组" placeholder="可选，如「产品」「行业」，便于归类管理" maxLength={50} />

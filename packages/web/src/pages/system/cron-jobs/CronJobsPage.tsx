@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, Col, Dropdown, SplitButtonGroup, Row, SideSheet, Form, Modal, Popover, Select, Spin, Switch, Table, Tabs, Tag, Toast, Tooltip } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { ScrollText, Trash2, ChevronDown, HelpCircle } from 'lucide-react';
 import type { CronJob } from '@zenith/shared/platform';
 import { CRON_RUN_STATUS_LABELS } from '@zenith/shared/platform';
@@ -33,6 +32,7 @@ import {
 } from '@/hooks/queries/cron-jobs';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
+import { useEditModal } from '@/hooks/useEditModal';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
@@ -98,14 +98,11 @@ const buildRunLogColumns = (outputWidth: number) => [
 export default function CronJobsPage() {
   const { items: statusItems } = useDictItems('common_status');
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: cronJobKeys.lists });
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingJob, setEditingJob] = useState<CronJob | null>(null);
   const [cronExprValue, setCronExprValue] = useState('');
   const [logsDrawerVisible, setLogsDrawerVisible] = useState(false);
   const [logsJobName, setLogsJobName] = useState('');
@@ -134,8 +131,6 @@ export default function CronJobsPage() {
   const total = listQuery.data?.total ?? 0;
   const handlersQuery = useCronJobHandlers();
   const handlers = handlersQuery.data ?? [];
-  const detailQuery = useCronJobDetail(editingJob?.id, modalVisible && !!editingJob);
-  const modalDetailLoading = !!editingJob && detailQuery.isFetching;
   const jobLogsQuery = useCronJobLogs({ jobId: logsJobId ?? 0, page: logsPage, pageSize: logsPageSize }, logsDrawerVisible && logsJobId != null);
   const allLogsQuery = useCronJobAllLogs({
     page: allLogsPage,
@@ -144,6 +139,25 @@ export default function CronJobsPage() {
   }, allLogsDrawerVisible);
 
   const saveMutation = useSaveCronJob();
+  const modal = useEditModal<CronJob>({
+    entityName: '定时任务',
+    save: saveMutation,
+    useDetail: useCronJobDetail,
+    defaults: { status: 'enabled', retryCount: 0, retryInterval: 0, retryBackoff: false },
+    toValues: (job) => ({
+      name: job.name,
+      cronExpression: job.cronExpression,
+      handler: job.handler,
+      params: job.params,
+      status: job.status,
+      description: job.description,
+      retryCount: job.retryCount,
+      retryInterval: job.retryInterval,
+      retryBackoff: job.retryBackoff,
+      monitorTimeout: job.monitorTimeout,
+    }),
+    labelWidth: 110,
+  });
   const deleteMutation = useDeleteCronJob();
   const runMutation = useRunCronJob();
   const toggleStatusMutation = useUpdateCronJobStatus();
@@ -151,10 +165,8 @@ export default function CronJobsPage() {
   const switchLoadingId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
 
   useEffect(() => {
-    if (!modalVisible || !detailQuery.data) return;
-    setEditingJob(detailQuery.data);
-    setCronExprValue(detailQuery.data.cronExpression ?? '');
-  }, [detailQuery.data, modalVisible]);
+    if (modal.visible && modal.editing) setCronExprValue(modal.editing.cronExpression ?? '');
+  }, [modal.visible, modal.editing]);
 
   const buildExportQuery = () => ({
     ...(submittedParams.keyword ? { keyword: submittedParams.keyword } : {}),
@@ -172,26 +184,19 @@ export default function CronJobsPage() {
     });
   };
 
-  const handleModalOk = async () => {
-    let values;
-    try { values = await formApi.current?.validate(); } catch { throw new Error('validation'); }
-
-    await saveMutation.mutateAsync({ id: editingJob?.id, values: values as Partial<CronJob> });
-    Toast.success(editingJob ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditingJob(null);
-    setCronExprValue('');
-  };
-
   const handleDelete = async (id: number) => {
     await deleteMutation.mutateAsync(id);
     Toast.success('删除成功');
   };
 
+  const openCreate = () => {
+    setCronExprValue('');
+    modal.openCreate();
+  };
+
   const openEdit = (record: CronJob) => {
-    setEditingJob(record);
     setCronExprValue(record.cronExpression ?? '');
-    setModalVisible(true);
+    modal.openEdit(record);
   };
 
   const handleToggleStatus = (id: number, currentStatus: string, name: string) => {
@@ -236,21 +241,6 @@ export default function CronJobsPage() {
       },
     });
   };
-
-  const formInitValues = editingJob
-    ? {
-        name: editingJob.name,
-        cronExpression: editingJob.cronExpression,
-        handler: editingJob.handler,
-        params: editingJob.params,
-        status: editingJob.status,
-        description: editingJob.description,
-        retryCount: editingJob.retryCount,
-        retryInterval: editingJob.retryInterval,
-        retryBackoff: editingJob.retryBackoff,
-        monitorTimeout: editingJob.monitorTimeout,
-      }
-    : { status: 'enabled', retryCount: 0, retryInterval: 0, retryBackoff: false };
 
   const columns: ColumnProps<CronJob>[] = [
     { title: '任务名称', dataIndex: 'name', width: 180, render: renderEllipsis },
@@ -419,7 +409,7 @@ export default function CronJobsPage() {
                 <Button icon={<ScrollText size={14} />} onClick={() => { setAllLogsPage(1); setAllLogsJobFilter(null); setAllLogsDrawerVisible(true); }}>全部执行日志</Button>
                 <ExportButton entity="system.cron-jobs" query={buildExportQuery()} />
                 {hasPermission('system:cronjob:create') && (
-                  <CreateButton onClick={() => { setEditingJob(null); setCronExprValue(''); setModalVisible(true); }} />
+                  <CreateButton onClick={openCreate} />
                 )}
               </>
             )}
@@ -428,7 +418,7 @@ export default function CronJobsPage() {
                 <KeywordInput placeholder="搜索任务名称/处理器" value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} width={240} />
                 <SearchButton onClick={handleSearch} />
                 {hasPermission('system:cronjob:create') && (
-                  <CreateButton onClick={() => { setEditingJob(null); setCronExprValue(''); setModalVisible(true); }} />
+                  <CreateButton onClick={openCreate} />
                 )}
               </>
             )}
@@ -471,21 +461,12 @@ export default function CronJobsPage() {
       </Tabs>
 
       <AppModal
-        title={editingJob ? '编辑定时任务' : '新增定时任务'}
-        visible={modalVisible}
-        onCancel={() => { setModalVisible(false); setEditingJob(null); setCronExprValue(''); }}
-        onOk={handleModalOk}
-        okButtonProps={{ disabled: modalDetailLoading }}
+        {...modal.modalProps}
         width={720}
       >
-        <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
+        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
         <Form
-          key={editingJob?.id ?? 'new-job'}
-          getFormApi={(api) => { formApi.current = api; }}
-          allowEmpty
-          initValues={formInitValues}
-          labelPosition="left"
-          labelWidth={110}
+          {...modal.formProps}
           onValueChange={(v: Record<string, unknown>) => {
             if (typeof v.cronExpression === 'string') setCronExprValue(v.cronExpression);
           }}
@@ -512,7 +493,7 @@ export default function CronJobsPage() {
               <CronBuilderPopover
                 value={cronExprValue}
                 onApply={(expr) => {
-                  formApi.current?.setValue('cronExpression', expr);
+                  modal.formApi.current?.setValue('cronExpression', expr);
                   setCronExprValue(expr);
                 }}
               />

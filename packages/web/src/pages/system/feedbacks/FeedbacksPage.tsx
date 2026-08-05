@@ -1,8 +1,7 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Banner, Button, Descriptions, Form, Rating, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Trash2 } from 'lucide-react';
 import type { UserFeedback, UserFeedbackCategory, UserFeedbackStatus } from '@zenith/shared/identity';
 import { USER_FEEDBACK_CATEGORY_LABELS, USER_FEEDBACK_STATUS_LABELS } from '@zenith/shared/identity';
@@ -17,6 +16,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { usePublicConfig } from '@/hooks/queries/system-configs';
 import { useDeleteFeedbacks, useHandleFeedback, useUserFeedbackList, userFeedbackKeys } from '@/hooks/queries/user-feedbacks';
 import { useListSearch } from '@/hooks/useListSearch';
+import { useEditModal } from '@/hooks/useEditModal';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
@@ -56,8 +56,6 @@ const defaultSearchParams: SearchParams = {
 export default function FeedbacksPage() {
   const { hasPermission } = usePermission();
   const navigate = useNavigate();
-  const formApi = useRef<FormApi | null>(null);
-
   // ─── 反馈入口配置状态（关闭时 Banner 提示）──────────────────────────────
   const entryConfigQuery = usePublicConfig('feedback_entry_enabled');
   const entryEnabled = entryConfigQuery.data?.configValue === 'true';
@@ -86,8 +84,25 @@ export default function FeedbacksPage() {
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
 
   // ─── 处理弹窗 ──────────────────────────────────────────────────────────
-  const [handlingRecord, setHandlingRecord] = useState<UserFeedback | null>(null);
   const handleMutation = useHandleFeedback();
+  const handleModal = useEditModal<UserFeedback, { status: UserFeedbackStatus; handleRemark?: string }, { status: UserFeedbackStatus; handleRemark: string | null }>({
+    save: {
+      isPending: handleMutation.isPending,
+      mutateAsync: ({ id, values }) => {
+        if (id === undefined) throw new Error('missing feedback id');
+        return handleMutation.mutateAsync({ id, values });
+      },
+    },
+    toValues: (record) => ({
+      status: record.status === 'pending' ? 'processing' : record.status,
+      handleRemark: record.handleRemark ?? '',
+    }),
+    beforeSave: (values) => ({
+      status: values.status,
+      handleRemark: values.handleRemark?.trim() || null,
+    }),
+    successMessage: () => '处理成功',
+  });
   const deleteMutation = useDeleteFeedbacks();
 
   function buildExportQuery(): Record<string, unknown> {
@@ -112,25 +127,6 @@ export default function FeedbacksPage() {
       content: '删除后不可恢复',
       onOk: () => handleDelete(selectedRowKeys),
     });
-  }
-
-  async function handleModalOk() {
-    let values: Record<string, unknown>;
-    try {
-      values = (await formApi.current?.validate()) ?? {};
-    } catch {
-      throw new Error('validation');
-    }
-    if (!handlingRecord) return;
-    await handleMutation.mutateAsync({
-      id: handlingRecord.id,
-      values: {
-        status: values.status as UserFeedbackStatus,
-        handleRemark: (values.handleRemark as string | undefined)?.trim() || null,
-      },
-    });
-    Toast.success('处理成功');
-    setHandlingRecord(null);
   }
 
   // ─── 表格列 ────────────────────────────────────────────────────────────
@@ -166,7 +162,7 @@ export default function FeedbacksPage() {
         ...(hasPermission('system:feedback:handle') ? [{
           key: 'handle',
           label: '处理',
-          onClick: () => setHandlingRecord(record),
+          onClick: () => handleModal.openEdit(record),
         }] : []),
         ...(hasPermission('system:feedback:delete') ? [{
           key: 'delete',
@@ -234,9 +230,7 @@ export default function FeedbacksPage() {
     <ExportButton entity="system.userFeedbacks" query={buildExportQuery()} variant={variant} />
   ) : null;
 
-  const handleFormInitValues = handlingRecord
-    ? { status: handlingRecord.status === 'pending' ? 'processing' : handlingRecord.status, handleRemark: handlingRecord.handleRemark ?? '' }
-    : {};
+
 
   return (
     <div className="page-container">
@@ -318,36 +312,28 @@ export default function FeedbacksPage() {
       />
 
       <AppModal
+        {...handleModal.modalProps}
         title="处理反馈"
-        visible={handlingRecord !== null}
-        onOk={handleModalOk}
-        onCancel={() => setHandlingRecord(null)}
-        okButtonProps={{ loading: handleMutation.isPending }}
         width={520}
         closeOnEsc
       >
-        {handlingRecord && (
+        {handleModal.editing && (
           <>
             <Descriptions
               size="small"
               align="left"
               style={{ marginBottom: 16 }}
               data={[
-                { key: '提交人', value: handlingRecord.userNickname || `#${handlingRecord.userId}` },
-                { key: '评分', value: handlingRecord.score ? <Rating value={handlingRecord.score} disabled size="small" /> : '—' },
-                { key: '分类', value: categoryMap.get(handlingRecord.category)?.label ?? handlingRecord.category },
-                { key: '反馈内容', value: handlingRecord.content ?? '—' },
-                { key: '来源页面', value: handlingRecord.pagePath ?? '—' },
-                { key: '提交时间', value: handlingRecord.createdAt },
+                { key: '提交人', value: handleModal.editing.userNickname || `#${handleModal.editing.userId}` },
+                { key: '评分', value: handleModal.editing.score ? <Rating value={handleModal.editing.score} disabled size="small" /> : '—' },
+                { key: '分类', value: categoryMap.get(handleModal.editing.category)?.label ?? handleModal.editing.category },
+                { key: '反馈内容', value: handleModal.editing.content ?? '—' },
+                { key: '来源页面', value: handleModal.editing.pagePath ?? '—' },
+                { key: '提交时间', value: handleModal.editing.createdAt },
               ]}
             />
             <Form
-              key={handlingRecord.id}
-              getFormApi={(api) => { formApi.current = api; }}
-              allowEmpty
-              initValues={handleFormInitValues}
-              labelPosition="left"
-              labelWidth={90}
+              {...handleModal.formProps}
             >
               <Form.Select
                 field="status"

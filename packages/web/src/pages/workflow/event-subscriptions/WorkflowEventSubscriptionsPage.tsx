@@ -3,7 +3,7 @@
  *
  * 提供事件订阅 CRUD + 启用/禁用 + 投递记录查看与重试。
  */
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import {
   Button,
   Col,
@@ -21,7 +21,7 @@ import {
   Toast,
   Typography,
 } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
+
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { RotateCcw, Search } from 'lucide-react';
 import type { WorkflowDefinition, WorkflowEventDelivery, WorkflowEventSubscription, WorkflowEventType } from '@zenith/shared/workflow';
@@ -49,6 +49,7 @@ import { useWorkflowConnectorList } from '@/hooks/queries/workflow-connectors';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 const EVENT_OPTIONS: Array<{ value: WorkflowEventType; label: string }> = [
   { value: 'instance.created',   label: '实例创建' },
@@ -95,7 +96,6 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 
 export default function WorkflowEventSubscriptionsPage() {
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const canManageEventSubscription = hasPermission('workflow:event-subscription:view');
   interface SearchParams { keyword: string; definitionId: number | ''; enabled: '' | 'true' | 'false' }
   const defaultSearchParams: SearchParams = { keyword: '', definitionId: '', enabled: '' };
@@ -120,9 +120,6 @@ export default function WorkflowEventSubscriptionsPage() {
   const connectorOptions = (connectorsQuery.data?.list ?? []).map((cn) => ({ value: cn.id, label: `${cn.name}（${cn.type}）` }));
 
   // 编辑弹窗
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<WorkflowEventSubscription | null>(null);
-  const detailQuery = useWorkflowEventSubscriptionDetail(editing?.id, modalVisible && !!editing);
   const saveMutation = useSaveWorkflowEventSubscription();
   const toggleMutation = useToggleWorkflowEventSubscription();
   const deleteMutation = useDeleteWorkflowEventSubscription();
@@ -142,62 +139,27 @@ export default function WorkflowEventSubscriptionsPage() {
   const retryDeliveryMutation = useRetryWorkflowEventDelivery();
   const replayDeliveriesMutation = useReplayWorkflowEventDeliveries();
 
-  useEffect(() => {
-    if (!modalVisible || !detailQuery.data) return;
-    setEditing(detailQuery.data);
-    setTimeout(() => formApi.current?.setValues({
-      name: detailQuery.data.name,
-      description: detailQuery.data.description ?? '',
-      definitionId: detailQuery.data.definitionId,
-      events: detailQuery.data.events,
-      url: detailQuery.data.url,
-      secret: '',
-      signMode: detailQuery.data.signMode,
-      headers: detailQuery.data.headers ? JSON.stringify(detailQuery.data.headers, null, 2) : '',
-      connectorId: detailQuery.data.connectorId,
-      enabled: detailQuery.data.enabled,
-    }), 0);
-  }, [detailQuery.data, modalVisible]);
-
-  const openCreate = () => {
-    setEditing(null);
-    setModalVisible(true);
-    setTimeout(() => formApi.current?.setValues({
-      name: '', description: '', definitionId: null, events: [], url: '', secret: '',
-      signMode: 'hmacSha256', headers: '', connectorId: null, enabled: true,
-    }), 0);
-  };
-
-  const openEdit = (row: WorkflowEventSubscription) => {
-    setEditing(row);
-    setModalVisible(true);
-    setTimeout(() => formApi.current?.setValues({
-      name: row.name,
-      description: row.description ?? '',
-      definitionId: row.definitionId,
-      events: row.events,
-      url: row.url,
-      secret: '',
-      signMode: row.signMode,
-      headers: row.headers ? JSON.stringify(row.headers, null, 2) : '',
-      connectorId: row.connectorId,
-      enabled: row.enabled,
-    }), 0);
-  };
-
-  const handleSubmit = async (vals: FormValues) => {
+  const eventSubscriptionModal = useEditModal<WorkflowEventSubscription, FormValues, Record<string, unknown>>({
+    entityName: '订阅',
+    save: saveMutation,
+    useDetail: useWorkflowEventSubscriptionDetail,
+    defaults: { name: '', description: '', definitionId: null, events: [], url: '', secret: '', signMode: 'hmacSha256', headers: '', connectorId: null, enabled: true },
+    toValues: (row) => ({
+      name: row.name, description: row.description ?? '', definitionId: row.definitionId, events: row.events, url: row.url, secret: '',
+      signMode: row.signMode, headers: row.headers ? JSON.stringify(row.headers, null, 2) : '', connectorId: row.connectorId, enabled: row.enabled,
+    }),
+    beforeSave: (vals) => {
     let headers: Record<string, string> | null = null;
     if (vals.headers?.trim()) {
       try {
         const parsed: unknown = JSON.parse(vals.headers);
         if (!isPlainRecord(parsed) || Object.entries(parsed).some(([key, value]) => !key.trim() || typeof value !== 'string')) {
-          Toast.error('请输入合法的 JSON 对象');
-          return;
+          throw new Error('invalid headers');
         }
         headers = parsed as Record<string, string>;
-      } catch { Toast.error('请输入合法的 JSON 对象'); return; }
+      } catch { Toast.error('请输入合法的 JSON 对象'); throw new Error('validation'); }
     }
-    const body = {
+      return {
       name: vals.name,
       description: vals.description ?? null,
       definitionId: vals.definitionId ?? null,
@@ -208,21 +170,15 @@ export default function WorkflowEventSubscriptionsPage() {
       headers,
       connectorId: vals.connectorId ?? null,
       enabled: vals.enabled ?? true,
-    };
-    await saveMutation.mutateAsync({ id: editing?.id, values: body });
-    Toast.success(editing ? '已更新' : '已创建');
-    setModalVisible(false);
-  };
+      };
+    },
+    successMessage: ({ isEdit }) => (isEdit ? '已更新' : '已创建'),
+    labelWidth: 110,
+  });
+  const editing = eventSubscriptionModal.editing;
 
-  const handleModalOk = async () => {
-    let values: FormValues;
-    try {
-      values = await formApi.current!.validate();
-    } catch {
-      throw new Error('validation');
-    }
-    await handleSubmit(values);
-  };
+  const openCreate = eventSubscriptionModal.openCreate;
+  const openEdit = eventSubscriptionModal.openEdit;
 
   const handleToggle = async (row: WorkflowEventSubscription) => {
     await toggleMutation.mutateAsync({ id: row.id, enabled: !row.enabled });
@@ -459,17 +415,12 @@ export default function WorkflowEventSubscriptionsPage() {
       />
 
       <AppModal
-        title={editing ? '编辑订阅' : '新增订阅'}
-        visible={modalVisible}
-        onCancel={() => { setModalVisible(false); setEditing(null); }}
-        onOk={handleModalOk}
-        confirmLoading={saveMutation.isPending}
-        okButtonProps={{ disabled: detailQuery.isFetching }}
+        {...eventSubscriptionModal.modalProps}
         closeOnEsc
         width={680}
       >
-        <Spin spinning={detailQuery.isFetching} wrapperClassName="modal-spin-wrapper">
-        <Form<FormValues> getFormApi={(api) => (formApi.current = api)} onSubmit={handleSubmit} allowEmpty labelPosition="left" labelWidth={110}>
+        <Spin spinning={eventSubscriptionModal.detailLoading} wrapperClassName="modal-spin-wrapper">
+        <Form {...eventSubscriptionModal.formProps}>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Input field="name" label="名称" maxLength={64} rules={[{ required: true, message: '请输入名称' }]} />

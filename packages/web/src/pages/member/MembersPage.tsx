@@ -34,6 +34,7 @@ import {
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 const STATUS_COLORS: Record<string, 'green' | 'grey' | 'red'> = { active: 'green', inactive: 'grey', banned: 'red' };
 const statusOptions = (['active', 'inactive', 'banned'] as const).map((v) => ({ value: v, label: MEMBER_STATUS_LABELS[v] }));
@@ -45,15 +46,12 @@ const defaultSearch: SearchParams = { keyword: '', status: '', levelId: undefine
 export default function MembersPage() {
   const { hasPermission } = usePermission();
   const { items: genderItems } = useDictItems('user_gender');
-  const formApi = useRef<FormApi | null>(null);
   const pwdFormApi = useRef<FormApi | null>(null);
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: memberAdminKeys.memberLists });
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<Member | null>(null);
   const [pwdVisible, setPwdVisible] = useState(false);
   const [pwdMember, setPwdMember] = useState<Member | null>(null);
   const [growthVisible, setGrowthVisible] = useState(false);
@@ -107,17 +105,13 @@ export default function MembersPage() {
     };
   };
 
-  const openCreate = () => { setEditing(null); setModalVisible(true); };
-  const openEdit = (record: Member) => { setEditing(record); setModalVisible(true); };
-
-  const handleModalOk = async () => {
-    let values;
-    try { values = await formApi.current!.validate(); } catch { throw new Error('validation'); }
-    await saveMutation.mutateAsync({ id: editing?.id, values });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditing(null);
-  };
+  const memberModal = useEditModal<Member>({
+    entityName: '会员',
+    save: saveMutation,
+    defaults: { status: 'active' as const },
+    toValues: (record) => ({ nickname: record.nickname, phone: record.phone, email: record.email, gender: record.gender, levelId: record.levelId, status: record.status, remark: record.remark }),
+  });
+  const editing = memberModal.editing;
 
   const handleDelete = (record: Member) => {
     confirmDelete({
@@ -190,10 +184,6 @@ export default function MembersPage() {
     setSelectedRowKeys([]);
   };
 
-  const formInit = editing
-    ? { nickname: editing.nickname, phone: editing.phone, email: editing.email, gender: editing.gender, levelId: editing.levelId, status: editing.status, remark: editing.remark }
-    : { status: 'active' as const };
-
   const columns: ColumnProps<Member>[] = [
     {
       title: '昵称', dataIndex: 'nickname', width: 180,
@@ -229,7 +219,7 @@ export default function MembersPage() {
       desktopInlineKeys: ['detail', 'edit'],
       actions: (record) => [
         { key: 'detail', label: '详情', onClick: () => setDetailMemberId(record.id) },
-        { key: 'edit', label: '编辑', hidden: !hasPermission('member:member:update'), onClick: () => openEdit(record) },
+        { key: 'edit', label: '编辑', hidden: !hasPermission('member:member:update'), onClick: () => memberModal.openEdit(record) },
         { key: 'set-tags', label: '设置标签', hidden: !hasPermission('member:member:update'), onClick: () => openSetTags(record) },
         { key: 'adjust-growth', label: '调整成长值', hidden: !hasPermission('member:member:update'), onClick: () => openAdjustGrowth(record) },
         { key: 'reset-password', label: '重置密码', hidden: !hasPermission('member:member:update'), onClick: () => openResetPwd(record) },
@@ -277,7 +267,7 @@ export default function MembersPage() {
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => hasPermission('member:member:create') ? (
-    <CreateButton onClick={openCreate} />
+    <CreateButton onClick={memberModal.openCreate} />
   ) : null;
   const renderTagsManageButton = () => hasPermission('member:member:update') ? (
     <Button type="tertiary" icon={<Tags size={14} />} onClick={() => setTagsManageVisible(true)}>标签管理</Button>
@@ -357,10 +347,8 @@ export default function MembersPage() {
         pagination={buildPagination(total)} empty="暂无数据" />
 
       {/* 编辑 / 新增 Modal */}
-      <AppModal title={editing ? '编辑会员' : '新增会员'} visible={modalVisible} width={660}
-        onCancel={() => { setModalVisible(false); setEditing(null); }} onOk={handleModalOk}>
-        <Form key={editing?.id ?? 'new'} getFormApi={(api) => { formApi.current = api; }} allowEmpty
-          initValues={formInit} labelPosition="left" labelWidth={90}>
+      <AppModal {...memberModal.modalProps} width={660}>
+        <Form {...memberModal.formProps}>
           <Row gutter={16}>
             <Col span={12}><Form.Input field="nickname" label="昵称" placeholder="请输入昵称" rules={[{ required: true, message: '请输入昵称' }]} /></Col>
             <Col span={12}><Form.Input field="username" label="用户名" placeholder="选填" disabled={!!editing} /></Col>

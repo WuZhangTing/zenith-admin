@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, Select, Form, Toast, Spin, Switch } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Trash2 } from 'lucide-react';
 import type { TenantPackage } from '@zenith/shared/identity';
@@ -9,6 +8,7 @@ import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { MenuPermissionPanel } from '@/components/permissions/MenuPermissionPanel';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useMenuTree } from '@/hooks/queries/menus';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -36,7 +36,6 @@ const defaultSearchParams: SearchParams = { keyword: '', status: '' };
 export default function TenantPackagesPage() {
   const { hasPermission } = usePermission();
   const { items: statusItems } = useDictItems('common_status');
-  const formApi = useRef<FormApi | null>(null);
 
   // draft：搜索区输入中的条件；submitted：点击查询后实际生效的条件（进入 query key）
   const {
@@ -55,12 +54,15 @@ export default function TenantPackagesPage() {
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
 
-  // 新增/编辑弹窗
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<TenantPackage | null>(null);
-  const detailQuery = useTenantPackageDetail(editingRecord?.id, modalVisible);
-  const editing = editingRecord ? (detailQuery.data ?? editingRecord) : null;
-  const modalDetailLoading = !!editingRecord && detailQuery.isFetching;
+  // 新增/编辑弹窗：详情到达时由 useEditModal 自动重挂载表单
+  const saveMutation = useSaveTenantPackage();
+  const modal = useEditModal<TenantPackage>({
+    entityName: '套餐',
+    save: saveMutation,
+    useDetail: useTenantPackageDetail,
+    defaults: { status: 'enabled' },
+    labelWidth: 72,
+  });
 
   // 分配菜单弹窗
   const [menuModalVisible, setMenuModalVisible] = useState(false);
@@ -73,35 +75,11 @@ export default function TenantPackagesPage() {
     if (menuModalVisible) setCheckedMenuIds(menuDetailQuery.data?.menuIds ?? []);
   }, [menuModalVisible, menuDetailQuery.data]);
 
-  const saveMutation = useSaveTenantPackage();
   const toggleStatusMutation = useSaveTenantPackage();
   const deleteMutation = useDeleteTenantPackages();
   const assignMenusMutation = useAssignTenantPackageMenus();
 
   const togglingStatusId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
-
-  function openCreate() {
-    setEditingRecord(null);
-    setModalVisible(true);
-  }
-
-  function openEdit(record: TenantPackage) {
-    setEditingRecord(record);
-    setModalVisible(true);
-  }
-
-  const handleModalOk = async () => {
-    let values;
-    try {
-      values = await formApi.current!.validate();
-    } catch {
-      throw new Error('validation');
-    }
-    await saveMutation.mutateAsync({ id: editingRecord?.id, values });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditingRecord(null);
-  };
 
   const handleDelete = async (id: number) => {
     await deleteMutation.mutateAsync([id]);
@@ -168,7 +146,7 @@ export default function TenantPackagesPage() {
           key: 'edit',
           label: '编辑',
           hidden: !hasPermission('system:tenant-package:update'),
-          onClick: () => openEdit(row),
+          onClick: () => modal.openEdit(row),
         },
         {
           key: 'menus',
@@ -218,7 +196,7 @@ export default function TenantPackagesPage() {
     </Button>
   ) : null;
   const renderCreateButton = () => hasPermission('system:tenant-package:create') ? (
-    <CreateButton onClick={openCreate} />
+    <CreateButton onClick={modal.openCreate} />
   ) : null;
 
   return (
@@ -264,22 +242,9 @@ export default function TenantPackagesPage() {
         pagination={buildPagination(total)}
       />
 
-      <AppModal
-        title={editing ? '编辑套餐' : '新增套餐'}
-        visible={modalVisible}
-        onCancel={() => { setModalVisible(false); setEditingRecord(null); }}
-        onOk={handleModalOk}
-        okButtonProps={{ disabled: modalDetailLoading }}
-        width={520}
-      >
-        <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form
-            getFormApi={(api) => (formApi.current = api)}
-            allowEmpty
-            initValues={editing ?? { status: 'enabled' }}
-            labelPosition="left"
-            labelWidth={72}
-          >
+      <AppModal {...modal.modalProps} width={520}>
+        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
+          <Form {...modal.formProps}>
             <Form.Input field="name" label="套餐名称" placeholder="请输入套餐名称" rules={[{ required: true, message: '请输入套餐名称' }]} />
             <Form.Select
               field="status"

@@ -1,7 +1,6 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { Banner, Col, DatePicker, Form, Row, Select, SideSheet, TabPane, Tabs, Tag, Toast } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { CMS_CONTENT_TYPES, CMS_CONTENT_TYPE_LABELS, CMS_DISTRIBUTION_CONFLICT_STRATEGIES, CMS_DISTRIBUTION_CONFLICT_STRATEGY_LABELS, CMS_DISTRIBUTION_MODES, CMS_DISTRIBUTION_MODE_LABELS, CMS_DISTRIBUTION_RUN_OUTCOME_LABELS, CMS_DISTRIBUTION_TASK_STATUSES, CMS_DISTRIBUTION_TASK_STATUS_LABELS } from '@zenith/shared/cms';
 import type { CmsChannel, CmsDistributionRule, CmsDistributionRun } from '@zenith/shared/cms';
@@ -14,6 +13,7 @@ import { createOperationColumn, type ResponsiveTableAction } from '@/components/
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { formatDateTimeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { usePagination } from '@/hooks/usePagination';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useAllCmsSites, useCmsChannelTree } from '@/hooks/queries/cms';
@@ -59,15 +59,12 @@ export default function DistributionPage() {
   const queryClient = useQueryClient();
   const rulePagination = usePagination();
   const runPagination = usePagination();
-  const formApi = useRef<FormApi | null>(null);
   const { items: commonStatuses } = useDictItems('common_status');
   const { data: sites } = useAllCmsSites();
   const [ruleDraft, setRuleDraft] = useState<RuleSearch>(EMPTY_RULE_SEARCH);
   const [ruleSubmitted, setRuleSubmitted] = useState<RuleSearch>(EMPTY_RULE_SEARCH);
   const [runDraft, setRunDraft] = useState<RunSearch>(EMPTY_RUN_SEARCH);
   const [runSubmitted, setRunSubmitted] = useState<RunSearch>(EMPTY_RUN_SEARCH);
-  const [editingRule, setEditingRule] = useState<CmsDistributionRule | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
   const [formSourceSiteId, setFormSourceSiteId] = useState<number>();
   const [formTargetSiteId, setFormTargetSiteId] = useState<number>();
   const [formMode, setFormMode] = useState<string>('copy');
@@ -93,6 +90,48 @@ export default function DistributionPage() {
   });
   const runDetailQuery = useCmsDistributionRunDetail(detailRunId, detailRunId !== undefined);
   const saveMutation = useSaveCmsDistributionRule();
+  const ruleModal = useEditModal<CmsDistributionRule, Record<string, unknown>, Record<string, unknown>>({
+    entityName: '分发规则',
+    save: saveMutation,
+    defaults: { mode: 'copy', conflictStrategy: 'skip', contentTypes: [], status: 'enabled' },
+    labelWidth: 100,
+    toValues: (rule) => ({
+      name: rule.name,
+      sourceSiteId: rule.sourceSiteId,
+      sourceChannelId: rule.sourceChannelId ?? undefined,
+      targetSiteId: rule.targetSiteId,
+      targetChannelId: rule.targetChannelId,
+      mode: rule.mode,
+      conflictStrategy: rule.conflictStrategy,
+      contentTypes: rule.filters.contentTypes,
+      keyword: rule.filters.keyword ?? '',
+      publishedFrom: rule.filters.publishedFrom ? dayjs(rule.filters.publishedFrom).toDate() : undefined,
+      publishedTo: rule.filters.publishedTo ? dayjs(rule.filters.publishedTo).toDate() : undefined,
+      scheduleCron: rule.scheduleCron ?? '',
+      status: rule.status,
+      remark: rule.remark ?? '',
+    }),
+    beforeSave: (values) => ({
+      name: values.name,
+      sourceSiteId: values.sourceSiteId,
+      sourceChannelId: values.sourceChannelId ?? null,
+      targetSiteId: values.targetSiteId,
+      targetChannelId: values.targetChannelId,
+      mode: values.mode,
+      conflictStrategy: values.conflictStrategy,
+      filters: {
+        statuses: ['published'],
+        contentTypes: values.contentTypes ?? [],
+        keyword: String(values.keyword ?? '').trim() || null,
+        publishedFrom: values.publishedFrom instanceof Date ? formatDateTimeForApi(values.publishedFrom) : null,
+        publishedTo: values.publishedTo instanceof Date ? formatDateTimeForApi(values.publishedTo) : null,
+      },
+      scheduleCron: values.mode === 'scheduled' ? String(values.scheduleCron ?? '').trim() : null,
+      status: values.status,
+      remark: String(values.remark ?? '').trim() || null,
+    }),
+    successMessage: ({ isEdit }) => isEdit ? '分发规则已更新' : '分发规则已创建',
+  });
   const deleteMutation = useDeleteCmsDistributionRule();
   const runMutation = useRunCmsDistributionRule();
   const cancelRunMutation = useAsyncTaskAction('cancel');
@@ -102,6 +141,20 @@ export default function DistributionPage() {
   const targetChannelsQuery = useCmsChannelTree(formTargetSiteId);
   const sourceChannels = useMemo(() => flattenChannels(sourceChannelsQuery.data ?? []), [sourceChannelsQuery.data]);
   const targetChannels = useMemo(() => flattenChannels(targetChannelsQuery.data ?? []), [targetChannelsQuery.data]);
+
+  const openCreate = () => {
+    setFormSourceSiteId(undefined);
+    setFormTargetSiteId(undefined);
+    setFormMode('copy');
+    ruleModal.openCreate();
+  };
+
+  const openEdit = (rule: CmsDistributionRule) => {
+    setFormSourceSiteId(rule.sourceSiteId);
+    setFormTargetSiteId(rule.targetSiteId);
+    setFormMode(rule.mode);
+    ruleModal.openEdit(rule);
+  };
 
   function searchRules() {
     rulePagination.setPage(1);
@@ -127,59 +180,6 @@ export default function DistributionPage() {
     setRunDraft(EMPTY_RUN_SEARCH);
     setRunSubmitted(EMPTY_RUN_SEARCH);
     void queryClient.invalidateQueries({ queryKey: cmsDistributionKeys.runs });
-  }
-
-  function openCreate() {
-    setEditingRule(null);
-    setFormSourceSiteId(undefined);
-    setFormTargetSiteId(undefined);
-    setFormMode('copy');
-    setModalVisible(true);
-  }
-
-  function openEdit(rule: CmsDistributionRule) {
-    setEditingRule(rule);
-    setFormSourceSiteId(rule.sourceSiteId);
-    setFormTargetSiteId(rule.targetSiteId);
-    setFormMode(rule.mode);
-    setModalVisible(true);
-  }
-
-  async function saveRule() {
-    let values: Record<string, unknown>;
-    try {
-      values = (await formApi.current?.validate()) ?? {};
-    } catch {
-      return;
-    }
-    const publishedFrom = values.publishedFrom instanceof Date
-      ? formatDateTimeForApi(values.publishedFrom)
-      : null;
-    const publishedTo = values.publishedTo instanceof Date
-      ? formatDateTimeForApi(values.publishedTo)
-      : null;
-    const payload = {
-      name: values.name,
-      sourceSiteId: values.sourceSiteId,
-      sourceChannelId: values.sourceChannelId ?? null,
-      targetSiteId: values.targetSiteId,
-      targetChannelId: values.targetChannelId,
-      mode: values.mode,
-      conflictStrategy: values.conflictStrategy,
-      filters: {
-        statuses: ['published'],
-        contentTypes: values.contentTypes ?? [],
-        keyword: String(values.keyword ?? '').trim() || null,
-        publishedFrom,
-        publishedTo,
-      },
-      scheduleCron: values.mode === 'scheduled' ? String(values.scheduleCron ?? '').trim() : null,
-      status: values.status,
-      remark: String(values.remark ?? '').trim() || null,
-    };
-    await saveMutation.mutateAsync({ id: editingRule?.id, values: payload });
-    Toast.success(editingRule ? '分发规则已更新' : '分发规则已创建');
-    setModalVisible(false);
   }
 
   async function runRule(rule: CmsDistributionRule) {
@@ -371,28 +371,6 @@ export default function DistributionPage() {
 
   const siteOptions = (sites ?? []).map((site) => ({ value: site.id, label: site.name }));
   const ruleOptions = (ruleQuery.data?.list ?? []).map((rule) => ({ value: rule.id, label: rule.name }));
-  const formInitialValues = editingRule ? {
-    name: editingRule.name,
-    sourceSiteId: editingRule.sourceSiteId,
-    sourceChannelId: editingRule.sourceChannelId ?? undefined,
-    targetSiteId: editingRule.targetSiteId,
-    targetChannelId: editingRule.targetChannelId,
-    mode: editingRule.mode,
-    conflictStrategy: editingRule.conflictStrategy,
-    contentTypes: editingRule.filters.contentTypes,
-    keyword: editingRule.filters.keyword ?? '',
-    publishedFrom: editingRule.filters.publishedFrom ? dayjs(editingRule.filters.publishedFrom).toDate() : undefined,
-    publishedTo: editingRule.filters.publishedTo ? dayjs(editingRule.filters.publishedTo).toDate() : undefined,
-    scheduleCron: editingRule.scheduleCron ?? '',
-    status: editingRule.status,
-    remark: editingRule.remark ?? '',
-  } : {
-    mode: 'copy',
-    conflictStrategy: 'skip',
-    contentTypes: [],
-    status: 'enabled',
-  };
-
   return (
     <div className="page-container page-tabs-page">
       <Tabs type="line">
@@ -574,20 +552,11 @@ export default function DistributionPage() {
       </Tabs>
 
       <AppModal
-        title={editingRule ? '编辑分发规则' : '新增分发规则'}
-        visible={modalVisible}
-        onOk={saveRule}
-        onCancel={() => setModalVisible(false)}
-        okButtonProps={{ loading: saveMutation.isPending }}
+        {...ruleModal.modalProps}
         width={760}
-        closeOnEsc
       >
         <Form
-          key={editingRule?.id ?? 'new'}
-          getFormApi={(api) => { formApi.current = api; }}
-          initValues={formInitialValues}
-          labelPosition="left"
-          labelWidth={100}
+          {...ruleModal.formProps}
           onValueChange={(values) => {
             const sourceSiteId = Number(values.sourceSiteId) || undefined;
             const targetSiteId = Number(values.targetSiteId) || undefined;

@@ -1,7 +1,6 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Form, Tag, Toast } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { CheckinMilestone, CheckinMilestoneRewardType } from '@zenith/shared/member';
 import { CHECKIN_MILESTONE_REWARD_TYPE_LABELS } from '@zenith/shared/member';
@@ -20,6 +19,7 @@ import {
 } from '@/hooks/queries/member-admin';
 import { CreateButton, RefreshButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 interface CouponOption {
   value: number;
@@ -29,9 +29,6 @@ interface CouponOption {
 export default function CheckinMilestonesPage() {
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
-  const formApi = useRef<FormApi | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<CheckinMilestone | null>(null);
   const [rewardType, setRewardType] = useState<CheckinMilestoneRewardType>('points');
   const listQuery = useCheckinMilestones();
   const couponsQuery = useCouponList({ page: 1, pageSize: 100 });
@@ -39,29 +36,22 @@ export default function CheckinMilestonesPage() {
   const coupons: CouponOption[] = (couponsQuery.data?.list ?? []).map((c) => ({ value: c.id, label: c.name }));
   const saveMutation = useSaveCheckinMilestone();
   const deleteMutation = useDeleteCheckinMilestone();
+  const modal = useEditModal<CheckinMilestone, Record<string, unknown>>({
+    entityName: '里程碑',
+    save: saveMutation,
+    defaults: { title: '', cumulativeDays: 7, rewardType: 'points', rewardPoints: 0, couponId: undefined, enabled: true, remark: '' },
+    beforeSave: (values) => ({
+      ...values,
+      couponId: values.rewardType === 'coupon' ? values.couponId : null,
+      rewardPoints: values.rewardType === 'points' ? values.rewardPoints : 0,
+    }),
+    onSaved: () => setRewardType('points'),
+  });
 
   const openModal = (record: CheckinMilestone | null) => {
-    setEditing(record);
     setRewardType(record?.rewardType ?? 'points');
-    setModalVisible(true);
-  };
-
-  const handleOk = async () => {
-    let values: Record<string, unknown> | undefined;
-    try {
-      values = await formApi.current!.validate();
-    } catch {
-      throw new Error('validation');
-    }
-    const payload = {
-      ...values,
-      couponId: values?.rewardType === 'coupon' ? values.couponId : null,
-      rewardPoints: values?.rewardType === 'points' ? values.rewardPoints : 0,
-    };
-    await saveMutation.mutateAsync({ id: editing?.id, values: payload });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditing(null);
+    if (record) modal.openEdit(record);
+    else modal.openCreate();
   };
 
   const handleDelete = (record: CheckinMilestone) => {
@@ -146,19 +136,11 @@ export default function CheckinMilestonesPage() {
       />
 
       <AppModal
-        title={editing ? '编辑里程碑' : '新增里程碑'}
-        visible={modalVisible}
+        {...modal.modalProps}
         width={560}
-        closeOnEsc
-        onCancel={() => { setModalVisible(false); setEditing(null); }}
-        onOk={handleOk}
       >
         <Form
-          key={editing?.id ?? 'new'}
-          getFormApi={(api) => { formApi.current = api; }}
-          initValues={editing ?? { title: '', cumulativeDays: 7, rewardType: 'points', rewardPoints: 0, couponId: undefined, enabled: true, remark: '' }}
-          labelPosition="left"
-          labelWidth={90}
+          {...modal.formProps}
           onValueChange={(values) => setRewardType(values.rewardType as CheckinMilestoneRewardType)}
         >
           <Form.Input field="title" label="名称" maxLength={64} rules={[{ required: true, message: '请输入名称' }]} />

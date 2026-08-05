@@ -1,9 +1,8 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Form, Input, InputNumber, Select, Tabs, TabPane, Toast, Tag, Timeline, Typography, Modal, Descriptions } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Plus } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -32,6 +31,7 @@ import { usePaymentStats } from '@/hooks/queries/payment-stats';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
+import { useEditModal } from '@/hooks/useEditModal';
 
 const STATUS_COLOR = {
   pending: 'grey', paying: 'blue', success: 'green', closed: 'grey', refunding: 'amber', refunded: 'orange', failed: 'red',
@@ -50,6 +50,9 @@ interface SearchParams {
   timeRange: [Date, Date] | null;
 }
 const defaultSearch: SearchParams = { keyword: '', channel: '', status: '', payMethod: '', bizType: '', minAmount: null, maxAmount: null, timeRange: null };
+interface ManualOrderFormValues { subject: string; amount: number; bizType: string; bizId: string; payMethod: PaymentMethod; openId?: string; }
+interface ManualOrderRecord { id: number; orderNo: string; payParams: CreatePaymentResult; }
+interface RefundFormValues { amountYuan: number; reason?: string; }
 
 function StatCard({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
@@ -64,7 +67,6 @@ export default function PaymentOrdersPage() {
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
   const canViewRefunds = hasPermission('payment:refund:list') || hasPermission('payment:order:refund');
-  const refundFormApi = useRef<FormApi | null>(null);
 
   const [activeTab, setActiveTab] = useState<'list' | 'stats'>('list');
   const {
@@ -74,12 +76,9 @@ export default function PaymentOrdersPage() {
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentOrderKeys.lists });
 
   const [detail, setDetail] = useState<PaymentOrder | null>(null);
-  const [refundTarget, setRefundTarget] = useState<PaymentOrder | null>(null);
   const [refundCheckTarget, setRefundCheckTarget] = useState<PaymentOrder | null>(null);
   const [refundedAmount, setRefundedAmount] = useState(0); // 已锁定退款总额（分）
-  const [createVisible, setCreateVisible] = useState(false);
   const [payResult, setPayResult] = useState<CreatePaymentResult | null>(null);
-  const createFormApi = useRef<FormApi | null>(null);
 
   function buildQuery(active: SearchParams): Record<string, string | number> {
     const q: Record<string, string | number> = {};
@@ -112,6 +111,54 @@ export default function PaymentOrdersPage() {
   const closeMutation = useClosePaymentOrder();
   const createRefundMutation = useCreatePaymentRefund();
   const payStatusQuery = usePaymentOrderByNo(payResult?.orderNo, !!payResult?.orderNo);
+  const refundSaveMutation = {
+    mutateAsync: async ({ values }: { id?: number; values: { orderNo: string; refundAmount: number; reason?: string } }) => {
+      await createRefundMutation.mutateAsync(values);
+      return { id: 0 } as PaymentOrder;
+    },
+    isPending: createRefundMutation.isPending,
+  };
+  const refundModal = useEditModal<PaymentOrder, RefundFormValues, { orderNo: string; refundAmount: number; reason?: string }>({
+    save: refundSaveMutation,
+    toValues: (order) => ({ amountYuan: (order.amount - refundedAmount) / 100 }),
+    beforeSave: (values, { editing }) => {
+      if (!editing) throw new Error('validation');
+      return {
+        orderNo: editing.orderNo,
+        refundAmount: Math.round(values.amountYuan * 100),
+        reason: values.reason,
+      };
+    },
+    successMessage: () => '退款已发起',
+  });
+  const openRefundEdit = refundModal.openEdit;
+  const orderSaveMutation = {
+    mutateAsync: async ({ values }: { id?: number; values: { bizType: string; bizId: string; subject: string; amount: number; payMethod: PaymentMethod; openId?: string } }) => {
+      const res = await createOrderMutation.mutateAsync(values);
+      return { id: 0, orderNo: res.orderNo, payParams: res.payParams };
+    },
+    isPending: createOrderMutation.isPending,
+  };
+  const createOrderModal = useEditModal<ManualOrderRecord, ManualOrderFormValues, { bizType: string; bizId: string; subject: string; amount: number; payMethod: PaymentMethod; openId?: string }>({
+    save: orderSaveMutation,
+    defaults: { payMethod: 'wechat_native', amount: 1 },
+    beforeSave: (values) => {
+      if (values.payMethod === 'wechat_jsapi' && !values.openId?.trim()) {
+        Toast.error('微信 JSAPI 支付需要填写 OpenID');
+        throw new Error('validation');
+      }
+      return {
+        bizType: values.bizType,
+        bizId: values.bizId,
+        subject: values.subject,
+        amount: Math.round(values.amount * 100),
+        payMethod: values.payMethod,
+        openId: values.openId?.trim() || undefined,
+      };
+    },
+    onSaved: (saved) => setPayResult(saved.payParams),
+    successMessage: () => '下单成功',
+  });
 
   // ─── 支付状态轮询（QR 展示时每 3s 查单，付款成功/失败自动关闭）────────────────
   useEffect(() => {
@@ -136,14 +183,13 @@ export default function PaymentOrdersPage() {
       .reduce((s, r) => s + r.refundAmount, 0);
     if (refundCheckTarget.amount - locked <= 0) {
       Toast.warning('该订单暂无可退余额');
-      setRefundTarget(null);
       setRefundCheckTarget(null);
       return;
     }
     setRefundedAmount(locked);
-    setRefundTarget(refundCheckTarget);
+    openRefundEdit(refundCheckTarget);
     setRefundCheckTarget(null);
-  }, [canViewRefunds, refundCheckQuery.data, refundCheckQuery.isFetching, refundCheckTarget]);
+  }, [canViewRefunds, refundCheckQuery.data, refundCheckQuery.isFetching, refundCheckTarget, openRefundEdit]);
 
   function openDetail(order: PaymentOrder) {
     setDetail(order);
@@ -169,41 +215,7 @@ export default function PaymentOrdersPage() {
 
   function openRefundModal(order: PaymentOrder) {
     setRefundedAmount(0);
-    setRefundTarget(null);
     setRefundCheckTarget(order);
-  }
-
-  async function submitRefund() {
-    if (!refundTarget) return;
-    const api = refundFormApi.current;
-    if (!api) return;
-    let values: { amountYuan: number; reason?: string };
-    try { values = await api.validate(); } catch { throw new Error('validation'); }
-    await createRefundMutation.mutateAsync({
-      orderNo: refundTarget.orderNo,
-      refundAmount: Math.round(values.amountYuan * 100),
-      reason: values.reason,
-    });
-    Toast.success('退款已发起');
-    setRefundTarget(null);
-  }
-
-  async function submitCreate() {
-    const api = createFormApi.current;
-    if (!api) return;
-    let values: { subject: string; amount: number; bizType: string; bizId: string; payMethod: PaymentMethod; openId?: string };
-    try { values = await api.validate(); } catch { throw new Error('validation'); }
-    if (values.payMethod === 'wechat_jsapi' && !values.openId?.trim()) {
-      Toast.error('微信 JSAPI 支付需要填写 OpenID');
-      return;
-    }
-    const res = await createOrderMutation.mutateAsync({
-      bizType: values.bizType, bizId: values.bizId, subject: values.subject,
-      amount: Math.round(values.amount * 100), payMethod: values.payMethod, openId: values.openId?.trim() || undefined,
-    });
-    Toast.success('下单成功');
-    setCreateVisible(false);
-    setPayResult(res.payParams);
   }
 
   const columns: ColumnProps<PaymentOrder>[] = [
@@ -337,7 +349,7 @@ export default function PaymentOrdersPage() {
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => hasPermission('payment:order:create') ? (
-    <Button type="primary" icon={<Plus size={14} />} onClick={() => setCreateVisible(true)}>手动下单</Button>
+    <Button type="primary" icon={<Plus size={14} />} onClick={createOrderModal.openCreate}>手动下单</Button>
   ) : null;
   const renderExportButtons = () => <ExportButton entity="payment.orders" query={buildQuery(submittedParams)} />;
   const renderMobileExportActions = () => <ExportButton entity="payment.orders" query={buildQuery(submittedParams)} variant="flat" />;
@@ -469,21 +481,21 @@ export default function PaymentOrdersPage() {
         )}
       </AppModal>
 
-      <AppModal title="发起退款" visible={!!refundTarget} onOk={submitRefund} onCancel={() => setRefundTarget(null)} okButtonProps={{ loading: createRefundMutation.isPending, type: 'danger' }} width={480} closeOnEsc>
-        {refundTarget && (
-          <Form key={refundTarget.id} getFormApi={(api) => { refundFormApi.current = api; }} labelPosition="left" labelWidth={90} initValues={{ amountYuan: (refundTarget.amount - refundedAmount) / 100 }}>
-            <Form.Slot label="订单号">{refundTarget.orderNo}</Form.Slot>
-            <Form.Slot label="订单金额">{yuan(refundTarget.amount)}</Form.Slot>
+      <AppModal {...refundModal.modalProps} title="发起退款" okButtonProps={{ ...refundModal.modalProps.okButtonProps, type: 'danger' }} width={480}>
+        {refundModal.editing && (
+          <Form {...refundModal.formProps}>
+            <Form.Slot label="订单号">{refundModal.editing.orderNo}</Form.Slot>
+            <Form.Slot label="订单金额">{yuan(refundModal.editing.amount)}</Form.Slot>
             {refundedAmount > 0 && <Form.Slot label="已退金额"><Typography.Text type="warning">{yuan(refundedAmount)}</Typography.Text></Form.Slot>}
-            <Form.Slot label="剩余可退"><Typography.Text type="success">{yuan(refundTarget.amount - refundedAmount)}</Typography.Text></Form.Slot>
-            <Form.InputNumber field="amountYuan" label="退款金额(元)" min={0.01} max={(refundTarget.amount - refundedAmount) / 100} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入退款金额' }]} />
+            <Form.Slot label="剩余可退"><Typography.Text type="success">{yuan(refundModal.editing.amount - refundedAmount)}</Typography.Text></Form.Slot>
+            <Form.InputNumber field="amountYuan" label="退款金额(元)" min={0.01} max={(refundModal.editing.amount - refundedAmount) / 100} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入退款金额' }]} />
             <Form.TextArea field="reason" label="退款原因" autosize rows={2} maxCount={256} placeholder="可选" />
           </Form>
         )}
       </AppModal>
 
-      <AppModal title="手动下单" visible={createVisible} onOk={submitCreate} onCancel={() => setCreateVisible(false)} okButtonProps={{ loading: createOrderMutation.isPending }} width={520} closeOnEsc>
-        <Form key={createVisible ? 'c' : 'x'} getFormApi={(api) => { createFormApi.current = api; }} labelPosition="left" labelWidth={90} initValues={{ payMethod: 'wechat_native', amount: 1 }}>
+      <AppModal {...createOrderModal.modalProps} title="手动下单" width={520}>
+        <Form {...createOrderModal.formProps}>
           <Form.Input field="subject" label="商品标题" placeholder="如 会员充值" rules={[{ required: true, message: '请输入标题' }]} />
           <Form.InputNumber field="amount" label="金额(元)" min={0.01} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入金额' }]} />
           <Form.Select field="payMethod" label="支付方式" style={{ width: '100%' }} optionList={Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => ({ value, label }))} rules={[{ required: true }]} />

@@ -43,6 +43,7 @@ import { WidgetRenderer } from './widgets/WidgetRenderer';
 import { formatDateTime } from '@/utils/date';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import {
   reportChatbiKeys,
   useArchiveReportChatbiSession,
@@ -161,8 +162,6 @@ export default function ChatBiPage() {
   const [submittedKeyword, setSubmittedKeyword] = useState('');
   const [status, setStatus] = useState<'active' | 'archived'>('active');
   const [activeSessionId, setActiveSessionId] = useState<number>();
-  const [createVisible, setCreateVisible] = useState(false);
-  const [renameTarget, setRenameTarget] = useState<ReportChatbiSession | null>(null);
   const [saveTarget, setSaveTarget] = useState<ReportChatbiMessage | null>(null);
   const [contextType, setContextType] = useState<'dataset' | 'datasource'>('dataset');
   const [question, setQuestion] = useState('');
@@ -173,8 +172,6 @@ export default function ChatBiPage() {
   const [saveResourceType, setSaveResourceType] = useState<'dataset' | 'dashboard'>('dataset');
   const [saveMode, setSaveMode] = useState<'new' | 'existing'>('new');
   const abortRef = useRef<AbortController | null>(null);
-  const createFormApi = useRef<FormApi | null>(null);
-  const renameFormApi = useRef<FormApi | null>(null);
   const saveFormApi = useRef<FormApi | null>(null);
 
   const listQuery = useReportChatbiSessionList({
@@ -185,15 +182,40 @@ export default function ChatBiPage() {
   });
   const detailQuery = useReportChatbiSessionDetail(activeSessionId);
   const quotaQuery = useReportChatbiQuota();
-  const datasourceQuery = useEnabledReportDatasources(undefined, createVisible && contextType === 'datasource');
-  const datasetQuery = useEnabledReportDatasets(undefined, createVisible && contextType === 'dataset');
+  const createMutation = useCreateReportChatbiSession();
+  const updateMutation = useUpdateReportChatbiSession();
+  const createModal = useEditModal<ReportChatbiSession, Record<string, unknown>>({
+    save: {
+      isPending: createMutation.isPending,
+      mutateAsync: ({ values }) => {
+        const selectedId = Number(values.contextId);
+        return createMutation.mutateAsync({
+          title: String(values.title),
+          ...(contextType === 'dataset' ? { datasetId: selectedId } : { datasourceId: selectedId }),
+          allowedTables: [],
+        });
+      },
+    },
+    labelWidth: 90,
+    successMessage: () => '会话创建成功',
+    onSaved: (session) => setActiveSessionId(session.id),
+  });
+  const renameModal = useEditModal<ReportChatbiSession, { title: string }>({
+    save: {
+      isPending: updateMutation.isPending,
+      mutateAsync: ({ id, values }) => updateMutation.mutateAsync({ id: id!, values }),
+    },
+    toValues: (session) => ({ title: session.title }),
+    labelWidth: 72,
+    successMessage: () => '会话名称已更新',
+  });
+  const datasourceQuery = useEnabledReportDatasources(undefined, createModal.visible && contextType === 'datasource');
+  const datasetQuery = useEnabledReportDatasets(undefined, createModal.visible && contextType === 'dataset');
   const dashboardLookupQuery = useReportDashboardLookup(
     { status: 'enabled', limit: 100 },
     Boolean(saveTarget),
   );
   const dashboardDetailQuery = useReportDashboardDetail(targetDashboardId, Boolean(saveTarget && targetDashboardId), 'draft');
-  const createMutation = useCreateReportChatbiSession();
-  const updateMutation = useUpdateReportChatbiSession();
   const archiveMutation = useArchiveReportChatbiSession();
   const deleteMutation = useDeleteReportChatbiSession();
   const askMutation = useAskReportChatbi();
@@ -207,27 +229,6 @@ export default function ChatBiPage() {
     setAskError(null);
     setLastSaved(null);
   };
-
-  async function handleCreate() {
-    const values = await createFormApi.current?.validate() as Record<string, unknown>;
-    const selectedId = Number(values.contextId);
-    const session = await createMutation.mutateAsync({
-      title: String(values.title),
-      ...(contextType === 'dataset' ? { datasetId: selectedId } : { datasourceId: selectedId }),
-      allowedTables: [],
-    });
-    Toast.success('会话创建成功');
-    setCreateVisible(false);
-    setActiveSessionId(session.id);
-  }
-
-  async function handleRename() {
-    if (!renameTarget) return;
-    const values = await renameFormApi.current?.validate() as { title: string };
-    await updateMutation.mutateAsync({ id: renameTarget.id, values: { title: values.title } });
-    Toast.success('会话名称已更新');
-    setRenameTarget(null);
-  }
 
   async function handleAsk() {
     const content = question.trim();
@@ -306,7 +307,7 @@ export default function ChatBiPage() {
             theme="borderless"
             size="small"
             icon={<Plus size={15} />}
-            onClick={() => setCreateVisible(true)}
+            onClick={createModal.openCreate}
             aria-label="新建会话"
           />
         ) : undefined}
@@ -340,7 +341,7 @@ export default function ChatBiPage() {
                 render={(
                   <Dropdown.Menu>
                     {hasPermission('report:chatbi:update') && (
-                      <Dropdown.Item icon={<Pencil size={14} />} onClick={() => setRenameTarget(session)}>重命名</Dropdown.Item>
+                      <Dropdown.Item icon={<Pencil size={14} />} onClick={() => renameModal.openEdit(session)}>重命名</Dropdown.Item>
                     )}
                     {hasPermission('report:chatbi:update') && session.status === 'active' && (
                       <Dropdown.Item icon={<Archive size={14} />} onClick={() => void archiveMutation.mutateAsync(session.id)}>
@@ -539,13 +540,14 @@ export default function ChatBiPage() {
 
       <AppModal
         title="新建智能问数会话"
-        visible={createVisible}
+       visible={createModal.visible}
         width={560}
-        onCancel={() => setCreateVisible(false)}
-        onOk={() => void handleCreate()}
-        confirmLoading={createMutation.isPending}
+       onCancel={createModal.close}
+       onOk={createModal.modalProps.onOk}
+       okButtonProps={createModal.modalProps.okButtonProps}
+       closeOnEsc
       >
-        <Form labelPosition="left" labelWidth={90} getFormApi={(api) => { createFormApi.current = api; }}>
+       <Form {...createModal.formProps}>
           <Form.Input field="title" label="会话名称" rules={[{ required: true, message: '请输入会话名称' }]} maxLength={128} />
           <Form.Slot label="上下文类型">
             <RadioGroup type="button" value={contextType} onChange={(event) => setContextType(event.target.value as typeof contextType)}>
@@ -574,19 +576,14 @@ export default function ChatBiPage() {
 
       <AppModal
         title="重命名会话"
-        visible={Boolean(renameTarget)}
+        visible={renameModal.visible}
         width={480}
-        onCancel={() => setRenameTarget(null)}
-        onOk={() => void handleRename()}
-        confirmLoading={updateMutation.isPending}
+        onCancel={renameModal.close}
+        onOk={renameModal.modalProps.onOk}
+        okButtonProps={renameModal.modalProps.okButtonProps}
+        closeOnEsc
       >
-        <Form
-          key={renameTarget?.id}
-          labelPosition="left"
-          labelWidth={72}
-          initValues={{ title: renameTarget?.title }}
-          getFormApi={(api) => { renameFormApi.current = api; }}
-        >
+        <Form {...renameModal.formProps}>
           <Form.Input field="title" label="名称" rules={[{ required: true, message: '请输入会话名称' }]} maxLength={128} />
         </Form>
       </AppModal>

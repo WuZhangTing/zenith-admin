@@ -21,14 +21,12 @@ import {
 } from '@/hooks/queries/member-admin';
 import { CreateButton, RefreshButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 export default function CheckinRulesPage() {
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
-  const formApi = useRef<FormApi | null>(null);
   const settingsFormApi = useRef<FormApi | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<CheckinRule | null>(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const listQuery = useCheckinRules();
   const settingsQuery = useCheckinSettings(settingsVisible);
@@ -52,18 +50,11 @@ export default function CheckinRulesPage() {
     setSettingsVisible(false);
   };
 
-  const handleOk = async () => {
-    let values: Record<string, unknown> | undefined;
-    try {
-      values = await formApi.current!.validate();
-    } catch {
-      throw new Error('validation');
-    }
-    await saveRuleMutation.mutateAsync({ id: editing?.id, values: values ?? {} });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditing(null);
-  };
+  const ruleModal = useEditModal<CheckinRule, Record<string, unknown>>({
+    entityName: '签到规则',
+    save: saveRuleMutation,
+    defaults: { dayNumber: 1, points: 0, experience: 0, remark: '' },
+  });
 
   const handleDelete = (record: CheckinRule) => {
     confirmDelete({
@@ -90,7 +81,7 @@ export default function CheckinRulesPage() {
           key: 'edit',
           label: '编辑',
           hidden: !hasPermission('member:checkin:rule:update'),
-          onClick: () => { setEditing(record); setModalVisible(true); },
+          onClick: () => { ruleModal.openEdit(record); },
         },
         {
           key: 'delete',
@@ -114,7 +105,7 @@ export default function CheckinRulesPage() {
   ) : null;
 
   const renderCreateButton = () => hasPermission('member:checkin:rule:create') ? (
-    <CreateButton onClick={() => { setEditing(null); setModalVisible(true); }} />
+    <CreateButton onClick={ruleModal.openCreate} />
   ) : null;
 
   return (
@@ -150,19 +141,11 @@ export default function CheckinRulesPage() {
       />
 
       <AppModal
-        title={editing ? '编辑签到规则' : '新增签到规则'}
-        visible={modalVisible}
+        {...ruleModal.modalProps}
         width={520}
-        closeOnEsc
-        onCancel={() => { setModalVisible(false); setEditing(null); }}
-        onOk={handleOk}
       >
         <Form
-          key={editing?.id ?? 'new'}
-          getFormApi={(api) => { formApi.current = api; }}
-          initValues={editing ?? { dayNumber: 1, points: 0, experience: 0, remark: '' }}
-          labelPosition="left"
-          labelWidth={90}
+          {...ruleModal.formProps}
         >
           <Form.InputNumber field="dayNumber" label="天数" min={1} style={{ width: '100%' }} rules={[{ required: true, message: '请输入天数' }]} />
           <Form.InputNumber field="points" label="积分奖励" min={0} style={{ width: '100%' }} rules={[{ required: true, message: '请输入积分奖励' }]} />

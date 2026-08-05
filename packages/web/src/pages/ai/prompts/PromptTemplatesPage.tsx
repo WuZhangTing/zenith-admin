@@ -1,7 +1,6 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Button, Col, Form, Modal, Row, Select, SideSheet, Space, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { useQueryClient } from '@tanstack/react-query';
 import type { AiPromptTemplate, AiPromptScope, CreateAiPromptTemplateInput } from '@zenith/shared/ai';
 import { AppModal } from '@/components/AppModal';
@@ -22,6 +21,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 interface SearchParams {
   keyword: string;
@@ -67,7 +67,6 @@ function normalizeNullable(value: unknown) {
 export default function PromptTemplatesPage() {
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
-  const formApi = useRef<FormApi | null>(null);
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
@@ -76,8 +75,6 @@ export default function PromptTemplatesPage() {
   const [versionTemplate, setVersionTemplate] = useState<AiPromptTemplate | null>(null);
   const versionsQuery = useAiPromptVersions(versionTemplate?.id ?? null);
   const restoreVersionMutation = useRestoreAiPromptVersion();
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<AiPromptTemplate | null>(null);
   const listQuery = useAiPromptList({
     page,
     pageSize,
@@ -85,56 +82,19 @@ export default function PromptTemplatesPage() {
     scope: submittedParams.scope || undefined,
   });
   const data = listQuery.data ?? null;
-  const detailQuery = useAiPromptDetail(editingTemplate?.id, modalVisible);
-  const editing = editingTemplate ? (detailQuery.data ?? editingTemplate) : null;
-  const modalDetailLoading = !!editingTemplate && detailQuery.isFetching;
   const saveMutation = useSaveAiPrompt();
   const deleteMutation = useDeleteAiPrompt();
 
-  function openCreate() {
-    setEditingTemplate(null);
-    setModalVisible(true);
-  }
-
-  function openEdit(record: AiPromptTemplate) {
-    setEditingTemplate(record);
-    setModalVisible(true);
-  }
-
-  function closeModal() {
-    setModalVisible(false);
-    setEditingTemplate(null);
-  }
-
-  const formInitValues: PromptTemplateFormValues = editing
-    ? {
-        name: editing.name,
-        content: editing.content,
-        description: editing.description ?? '',
-        category: editing.category ?? '',
-        scope: editing.scope,
-        sort: editing.sort,
-        isEnabled: editing.isEnabled,
-      }
-    : {
-        name: '',
-        content: '',
-        description: '',
-        category: '',
-        scope: 'system',
-        sort: 0,
-        isEnabled: true,
-      };
-
-  async function handleModalOk() {
-    let values: PromptTemplateFormValues;
-    try {
-      values = (await formApi.current?.validate()) as PromptTemplateFormValues;
-    } catch {
-      throw new Error('validation');
-    }
-
-    const payload: CreateAiPromptTemplateInput = {
+  const promptModal = useEditModal<AiPromptTemplate, PromptTemplateFormValues, CreateAiPromptTemplateInput>({
+    entityName: '提示词模板',
+    save: saveMutation,
+    useDetail: useAiPromptDetail,
+    defaults: { name: '', content: '', description: '', category: '', scope: 'system', sort: 0, isEnabled: true },
+    toValues: (record) => ({
+      name: record.name, content: record.content, description: record.description ?? '', category: record.category ?? '',
+      scope: record.scope, sort: record.sort, isEnabled: record.isEnabled,
+    }),
+    beforeSave: (values) => ({
       name: values.name.trim(),
       content: values.content.trim(),
       description: normalizeNullable(values.description),
@@ -142,12 +102,9 @@ export default function PromptTemplatesPage() {
       scope: values.scope ?? 'system',
       sort: Number(values.sort ?? 0),
       isEnabled: Boolean(values.isEnabled),
-    };
-
-    await saveMutation.mutateAsync({ id: editingTemplate?.id, values: payload });
-    Toast.success(editingTemplate ? '更新成功' : '创建成功');
-    closeModal();
-  }
+    }),
+  });
+  const openEdit = promptModal.openEdit;
 
   async function handleDelete(id: number) {
     await deleteMutation.mutateAsync(id);
@@ -224,7 +181,7 @@ export default function PromptTemplatesPage() {
   );
 
   const renderCreateButton = () => hasPermission('ai:prompt:create') ? (
-    <CreateButton onClick={openCreate} />
+    <CreateButton onClick={promptModal.openCreate} />
   ) : null;
 
   return (
@@ -266,23 +223,13 @@ export default function PromptTemplatesPage() {
       />
 
       <AppModal
-        title={editing ? '编辑提示词模板' : '新增提示词模板'}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={closeModal}
-        okButtonProps={{ loading: saveMutation.isPending, disabled: modalDetailLoading }}
+        {...promptModal.modalProps}
         width={660}
         closeOnEsc
       >
-        <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
+        <Spin spinning={promptModal.detailLoading} wrapperClassName="modal-spin-wrapper">
           <Form
-            key={editing?.id ?? 'new'}
-            getFormApi={(api) => {
-              formApi.current = api;
-            }}
-            initValues={formInitValues}
-            labelPosition="left"
-            labelWidth={90}
+            {...promptModal.formProps}
           >
             <Row gutter={16}>
               <Col span={12}>

@@ -1,10 +1,10 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Form, Modal, Select, Spin, Tag, Toast, Banner, Typography, Tooltip, Input, Descriptions } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { MP_BROADCAST_TYPE_LABELS, MP_BROADCAST_TYPE_OPTIONS } from '@zenith/shared/mp';
 import type { MpBroadcast, MpBroadcastType, MpBroadcastTarget, MpBroadcastStatus } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { formatDateTimeForApi } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
@@ -55,11 +55,8 @@ export default function MpBroadcastsPage() {
   const drafts = auxQuery.data?.drafts ?? [];
   const tagMap = new Map(tags.map((t) => [t.id, t.name]));
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<MpBroadcast | null>(null);
   const [modalType, setModalType] = useState<MpBroadcastType>('text');
   const [modalTarget, setModalTarget] = useState<MpBroadcastTarget>('all');
-  const formRef = useRef<FormApi>(null);
 
   const [previewState, setPreviewState] = useState<{ visible: boolean; id: number | null }>({ visible: false, id: null });
   const [previewOpenid, setPreviewOpenid] = useState('');
@@ -84,22 +81,29 @@ export default function MpBroadcastsPage() {
     void queryClient.invalidateQueries({ queryKey: mpBroadcastKeys.lists(currentId) });
   };
 
-  const openCreate = () => { setEditingRecord(null); setModalType('text'); setModalTarget('all'); setModalVisible(true); };
-  const openEdit = (record: MpBroadcast) => { setEditingRecord(record); setModalType(record.msgType); setModalTarget(record.target); setModalVisible(true); };
+  const modal = useEditModal<MpBroadcast, Record<string, unknown>>({
+    save: saveMutation,
+    defaults: { content: '', mediaId: '', tagId: undefined, scheduledAt: undefined },
+    toValues: (record) => ({
+      content: record.content ?? '',
+      mediaId: record.mediaId ?? '',
+      tagId: record.tagId ?? undefined,
+      scheduledAt: record.scheduledAt ? new Date(record.scheduledAt) : undefined,
+    }),
+    beforeSave: (values, { isEdit }) => {
+      if (!currentId) throw new Error('validation');
+      const payload: Record<string, unknown> = { msgType: modalType, target: modalTarget };
+      if (modalType === 'text') payload.content = values.content;
+      else payload.mediaId = values.mediaId;
+      if (modalTarget === 'tag') payload.tagId = values.tagId;
+      payload.scheduledAt = values.scheduledAt ? formatDateTimeForApi(values.scheduledAt as Date) : null;
+      return isEdit ? payload : { ...payload, accountId: currentId };
+    },
+    successMessage: ({ isEdit }) => (isEdit ? '更新成功' : '已创建群发草稿'),
+  });
 
-  const handleSubmit = async () => {
-    let values: Awaited<ReturnType<FormApi['validate']>>;
-    try { values = (await formRef.current?.validate())!; } catch { throw new Error('validation'); }
-    if (!currentId) return;
-    const payload: Record<string, unknown> = { msgType: modalType, target: modalTarget };
-    if (modalType === 'text') payload.content = values.content;
-    else payload.mediaId = values.mediaId;
-    if (modalTarget === 'tag') payload.tagId = values.tagId;
-    payload.scheduledAt = values.scheduledAt ? formatDateTimeForApi(values.scheduledAt as Date) : null;
-    await saveMutation.mutateAsync({ id: editingRecord?.id, values: editingRecord ? payload : { ...payload, accountId: currentId } });
-    Toast.success(editingRecord ? '更新成功' : '已创建群发草稿');
-    setModalVisible(false);
-  };
+  const openCreate = () => { setModalType('text'); setModalTarget('all'); modal.openCreate(); };
+  const openEdit = (record: MpBroadcast) => { setModalType(record.msgType); setModalTarget(record.target); modal.openEdit(record); };
 
   const handleSend = (record: MpBroadcast) => {
     Modal.confirm({
@@ -241,18 +245,9 @@ export default function MpBroadcastsPage() {
       <ConfigurableTable bordered loading={listQuery.isFetching} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} columns={columns} dataSource={list} rowKey="id"
         pagination={buildPagination(total)} scroll={{ x: 1100 }} />
 
-      <AppModal title={editingRecord ? '编辑群发草稿' : '新增群发'} visible={modalVisible}
-        onOk={handleSubmit} onCancel={() => { setModalVisible(false); setEditingRecord(null); }}
-        confirmLoading={saveMutation.isPending} width={600}>
-        <Spin spinning={false} wrapperClassName="modal-spin-wrapper">
-          <Form
-            key={editingRecord?.id ?? `new-${modalType}-${modalTarget}`}
-            getFormApi={(api) => { (formRef as { current: FormApi }).current = api; }}
-            labelPosition="left" labelWidth={90}
-            initValues={editingRecord
-              ? { content: editingRecord.content ?? '', mediaId: editingRecord.mediaId ?? '', tagId: editingRecord.tagId ?? undefined, scheduledAt: editingRecord.scheduledAt ? new Date(editingRecord.scheduledAt) : undefined }
-              : { content: '', mediaId: '', tagId: undefined, scheduledAt: undefined }}
-          >
+      <AppModal {...modal.modalProps} title={modal.isEdit ? '编辑群发草稿' : '新增群发'} width={600}>
+        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
+          <Form {...modal.formProps}>
             <Form.Slot label="内容类型">
               <Select style={{ width: '100%' }} optionList={MP_BROADCAST_TYPE_OPTIONS} value={modalType} onChange={(v) => setModalType(v as MpBroadcastType)} />
             </Form.Slot>

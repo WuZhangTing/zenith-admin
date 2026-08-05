@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Tabs, TabPane, Select, Button, Toast, Form, Switch, Slider, InputNumber, TagInput, Tag, Typography, SplitButtonGroup, Dropdown, DatePicker, SideSheet, Descriptions, Card } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import { Trash2, ChevronDown } from 'lucide-react';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
@@ -35,6 +34,7 @@ import AnalyticsSitesTab from './AnalyticsSitesTab';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 const PAGE_SIZE = 20;
 
@@ -221,9 +221,6 @@ export default function AnalyticsDataPage() {
   const [metaPageSize, setMetaPageSize] = useState(PAGE_SIZE);
   const [metaSearch, setMetaSearch] = useState<MetaSearchParams>(defaultMetaSearch);
   const [submittedMetaSearch, setSubmittedMetaSearch] = useState<MetaSearchParams>(defaultMetaSearch);
-  const [metaModalVisible, setMetaModalVisible] = useState(false);
-  const [editingMeta, setEditingMeta] = useState<AnalyticsEventMeta | null>(null);
-  const metaFormApi = useRef<FormApi | null>(null);
 
   const [rollupDays, setRollupDays] = useState(30);
 
@@ -267,9 +264,6 @@ export default function AnalyticsDataPage() {
   const metaList = metaQuery.data?.list ?? [];
   const metaTotal = metaQuery.data?.total ?? 0;
 
-  const ownerUsersQuery = useFrontendAdminUsers(activeTab === 'meta' && metaModalVisible);
-  const ownerOptions = (ownerUsersQuery.data?.list ?? []).map((u) => ({ value: u.id, label: u.nickname || u.username }));
-
   const rollupQuery = useAnalyticsRollup(rollupDays, activeTab === 'rollup');
   const rollupItems = rollupQuery.data?.items ?? [];
   const settingsQuery = useAnalyticsSettings(activeTab === 'settings');
@@ -284,6 +278,52 @@ export default function AnalyticsDataPage() {
   const deleteMetaMutation = useDeleteAnalyticsEventMeta();
   const rebuildRollupMutation = useRebuildAnalyticsRollup();
   const saveSettingsMutation = useSaveAnalyticsSettings();
+  const metaModal = useEditModal<AnalyticsEventMeta, EventMetaFormValues, EventMetaPayload>({
+    entityName: '事件字典',
+    save: saveMetaMutation,
+    defaults: {
+      eventName: '',
+      displayName: null,
+      category: null,
+      description: null,
+      status: 'active',
+      propertySchemaText: '[]',
+      ownerId: null,
+      strictMode: false,
+    },
+    toValues: (record) => ({
+      eventName: record.eventName,
+      displayName: record.displayName,
+      category: record.category,
+      description: record.description,
+      status: record.status,
+      propertySchemaText: JSON.stringify(record.propertySchema ?? [], null, 2),
+      ownerId: record.ownerId,
+      strictMode: record.strictMode,
+    }),
+    beforeSave: (values) => {
+      let propertySchema: AnalyticsEventMeta['propertySchema'];
+      try {
+        propertySchema = parsePropertySchema(values.propertySchemaText);
+      } catch (error) {
+        Toast.error(error instanceof Error ? error.message : '属性 Schema 格式错误');
+        throw error;
+      }
+      return {
+        eventName: values.eventName.trim(),
+        displayName: trimToNull(values.displayName),
+        category: trimToNull(values.category),
+        description: trimToNull(values.description),
+        status: values.status,
+        propertySchema,
+        ownerId: values.ownerId ?? null,
+        strictMode: !!values.strictMode,
+      };
+    },
+    labelWidth: 110,
+  });
+  const ownerUsersQuery = useFrontendAdminUsers(activeTab === 'meta' && metaModal.visible);
+  const ownerOptions = (ownerUsersQuery.data?.list ?? []).map((u) => ({ value: u.id, label: u.nickname || u.username }));
 
   const handleEventSearch = () => {
     setEventsPage(1);
@@ -346,51 +386,6 @@ export default function AnalyticsDataPage() {
     void queryClient.invalidateQueries({ queryKey: analyticsKeys.data.metaLists });
   };
 
-  const openCreateMeta = () => {
-    setEditingMeta(null);
-    setMetaModalVisible(true);
-  };
-
-  const openEditMeta = (record: AnalyticsEventMeta) => {
-    setEditingMeta(record);
-    setMetaModalVisible(true);
-  };
-
-  const handleMetaSubmit = async () => {
-    const api = metaFormApi.current;
-    if (!api) return;
-    let values: EventMetaFormValues;
-    try {
-      values = await api.validate() as EventMetaFormValues;
-    } catch {
-      throw new Error('validation');
-    }
-
-    let propertySchema: AnalyticsEventMeta['propertySchema'];
-    try {
-      propertySchema = parsePropertySchema(values.propertySchemaText);
-    } catch (error) {
-      Toast.error(error instanceof Error ? error.message : '属性 Schema 格式错误');
-      throw error;
-    }
-
-    const payload: EventMetaPayload = {
-      eventName: values.eventName.trim(),
-      displayName: trimToNull(values.displayName),
-      category: trimToNull(values.category),
-      description: trimToNull(values.description),
-      status: values.status,
-      propertySchema,
-      ownerId: values.ownerId ?? null,
-      strictMode: !!values.strictMode,
-    };
-
-    await saveMetaMutation.mutateAsync({ id: editingMeta?.id, values: payload });
-    Toast.success(editingMeta ? '更新成功' : '创建成功');
-    setMetaModalVisible(false);
-    setEditingMeta(null);
-  };
-
   const handleMetaDelete = async (record: AnalyticsEventMeta) => {
     await deleteMetaMutation.mutateAsync(record.id);
     Toast.success('删除成功');
@@ -418,28 +413,6 @@ export default function AnalyticsDataPage() {
     setSettingsDraft(next);
     Toast.success('保存成功');
   };
-
-  const metaFormInit: EventMetaFormValues = editingMeta
-    ? {
-        eventName: editingMeta.eventName,
-        displayName: editingMeta.displayName,
-        category: editingMeta.category,
-        description: editingMeta.description,
-        status: editingMeta.status,
-        propertySchemaText: JSON.stringify(editingMeta.propertySchema ?? [], null, 2),
-        ownerId: editingMeta.ownerId,
-        strictMode: editingMeta.strictMode,
-      }
-    : {
-        eventName: '',
-        displayName: null,
-        category: null,
-        description: null,
-        status: 'active',
-        propertySchemaText: '[]',
-        ownerId: null,
-        strictMode: false,
-      };
 
   const eventColumns: ColumnProps<EventListItem>[] = [
     {
@@ -549,7 +522,7 @@ export default function AnalyticsDataPage() {
         {
           key: 'edit',
           label: '编辑',
-          onClick: () => openEditMeta(record),
+          onClick: () => metaModal.openEdit(record),
         },
         {
           key: 'delete',
@@ -824,7 +797,7 @@ export default function AnalyticsDataPage() {
   );
   const renderMetaSearchButton = () => <SearchButton onClick={handleMetaSearch} />;
   const renderMetaResetButton = () => <ResetButton onClick={handleMetaReset} />;
-  const renderMetaCreateButton = () => <CreateButton onClick={openCreateMeta} />;
+  const renderMetaCreateButton = () => <CreateButton onClick={metaModal.openCreate} />;
   const renderRollupDaysFilter = () => (
     <Select value={rollupDays} onChange={handleRollupDaysChange} optionList={ROLLUP_DAY_OPTIONS} style={{ width: 130 }} />
   );
@@ -960,23 +933,8 @@ export default function AnalyticsDataPage() {
             empty="暂无数据"
           />
 
-          <AppModal
-            title={editingMeta ? '编辑事件字典' : '新增事件字典'}
-            visible={metaModalVisible}
-            onCancel={() => { setMetaModalVisible(false); setEditingMeta(null); }}
-            onOk={handleMetaSubmit}
-            okButtonProps={{ loading: saveMetaMutation.isPending }}
-            width={640}
-            closeOnEsc
-          >
-            <Form
-              key={editingMeta?.id ?? 'new'}
-              getFormApi={(api) => { metaFormApi.current = api; }}
-              allowEmpty
-              initValues={metaFormInit}
-              labelPosition="left"
-              labelWidth={110}
-            >
+          <AppModal {...metaModal.modalProps} width={640}>
+            <Form {...metaModal.formProps}>
               <Form.Input field="eventName" label="事件名" placeholder="如 page_view" rules={[{ required: true, message: '请输入事件名' }]} />
               <Form.Input field="displayName" label="显示名" placeholder="可选，如 页面进入" />
               <Form.Input field="category" label="分类" placeholder="可选，如 页面行为" />

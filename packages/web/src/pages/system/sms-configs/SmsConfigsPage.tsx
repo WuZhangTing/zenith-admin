@@ -1,10 +1,9 @@
-import { useRef, useState } from 'react';
 import { Col, Form, Modal, Row, Select, Spin, Tag, Toast, Switch } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { SMS_PROVIDER_OPTIONS } from '@zenith/shared/messaging';
 import type { SmsConfig, SmsProvider } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useEditModal } from '@/hooks/useEditModal';
 import { useListSearch } from '@/hooks/useListSearch';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
@@ -35,10 +34,6 @@ export default function SmsConfigsPage() {
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: smsConfigKeys.lists });
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<SmsConfig | null>(null);
-  const formRef = useRef<FormApi>(null);
-
   const listQuery = useSmsConfigList({
     page,
     pageSize,
@@ -48,32 +43,25 @@ export default function SmsConfigsPage() {
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
-  const detailQuery = useSmsConfigDetail(editingRecord?.id, modalVisible);
-  const editing = editingRecord ? (detailQuery.data ?? editingRecord) : null;
-  const modalDetailLoading = !!editingRecord && detailQuery.isFetching;
 
   const saveMutation = useSaveSmsConfig();
+  const configModal = useEditModal<SmsConfig, Partial<SmsConfig>, Partial<SmsConfig>>({
+    entityName: '短信配置',
+    save: saveMutation,
+    useDetail: useSmsConfigDetail,
+    defaults: { status: 'enabled', isDefault: false, provider: 'aliyun' },
+    toValues: (config) => ({ ...config, accessKeySecret: '' }),
+    beforeSave: (values, { isEdit }) => {
+      const payload = { ...values };
+      if (isEdit && !payload.accessKeySecret) delete payload.accessKeySecret;
+      return payload;
+    },
+    labelWidth: 120,
+  });
   const toggleStatusMutation = useSaveSmsConfig();
   const setDefaultMutation = useSetDefaultSmsConfig();
   const deleteMutation = useDeleteSmsConfig();
   const togglingStatusId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
-
-  const openCreate = () => { setEditingRecord(null); setModalVisible(true); };
-  const openEdit = (record: SmsConfig) => {
-    setEditingRecord(record);
-    setModalVisible(true);
-  };
-
-  const handleSubmit = async () => {
-    let values: Awaited<ReturnType<FormApi['validate']>>;
-    try { values = (await formRef.current!.validate())!; } catch { throw new Error('validation'); }
-    const payload = { ...values } as Partial<SmsConfig>;
-    if (editingRecord && !payload.accessKeySecret) delete payload.accessKeySecret;
-    await saveMutation.mutateAsync({ id: editingRecord?.id, values: payload });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditingRecord(null);
-  };
 
   const handleSetDefault = async (record: SmsConfig) => {
     await setDefaultMutation.mutateAsync(record.id);
@@ -151,7 +139,7 @@ export default function SmsConfigsPage() {
           key: 'edit',
           label: '编辑',
           hidden: !can('system:sms-config:update'),
-          onClick: () => openEdit(record),
+          onClick: () => configModal.openEdit(record),
         },
         {
           key: 'delete',
@@ -177,7 +165,7 @@ export default function SmsConfigsPage() {
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
             {can('system:sms-config:create') && (
-              <CreateButton onClick={openCreate} />
+              <CreateButton onClick={configModal.openCreate} />
             )}
           </>
         )}
@@ -186,7 +174,7 @@ export default function SmsConfigsPage() {
             <KeywordInput placeholder="搜索名称/签名" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
             <SearchButton onClick={handleSearch} />
             {can('system:sms-config:create') && (
-              <CreateButton onClick={openCreate} />
+              <CreateButton onClick={configModal.openCreate} />
             )}
           </>
         )}
@@ -207,19 +195,9 @@ export default function SmsConfigsPage() {
         pagination={buildPagination(total)}
         scroll={{ x: 1300 }} />
 
-      <AppModal title={editingRecord ? '编辑短信配置' : '新增短信配置'} visible={modalVisible}
-        onOk={handleSubmit} onCancel={() => { setModalVisible(false); setEditingRecord(null); }}
-        confirmLoading={saveMutation.isPending} okButtonProps={{ disabled: modalDetailLoading }} width={720}>
-        <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form
-          key={editing?.id ?? 'new'}
-          getFormApi={(api) => { (formRef as { current: FormApi }).current = api; }}
-          allowEmpty
-          labelPosition="left" labelWidth={120}
-          initValues={editing
-            ? { ...editing, accessKeySecret: '' }
-            : { status: 'enabled', isDefault: false, provider: 'aliyun' }}
-        >
+      <AppModal {...configModal.modalProps} width={720}>
+        <Spin spinning={configModal.detailLoading} wrapperClassName="modal-spin-wrapper">
+        <Form {...configModal.formProps}>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Input field="name" label="名称" placeholder="请输入名称"
@@ -246,8 +224,8 @@ export default function SmsConfigsPage() {
             </Col>
             <Col span={12}>
               <Form.Input field="accessKeySecret" label="AccessKeySecret" mode="password"
-                placeholder={editingRecord ? '不修改请留空' : '请输入 AccessKeySecret'}
-                rules={editingRecord ? [] : [{ required: true, message: '请输入 AccessKeySecret' }]} />
+                placeholder={configModal.isEdit ? '不修改请留空' : '请输入 AccessKeySecret'}
+                rules={configModal.isEdit ? [] : [{ required: true, message: '请输入 AccessKeySecret' }]} />
             </Col>
           </Row>
           <Row gutter={16}>

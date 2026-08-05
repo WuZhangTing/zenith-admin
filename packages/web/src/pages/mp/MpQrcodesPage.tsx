@@ -1,6 +1,5 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, Form, Image, Select, Spin, Tag, Toast, Banner, Typography } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus } from 'lucide-react';
 import type { MpQrcode, MpQrcodeType } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
@@ -16,6 +15,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 const TYPE_OPTIONS = [
   { label: '永久二维码', value: 'permanent' },
@@ -25,6 +25,7 @@ const TYPE_META: Record<MpQrcodeType, { label: string; color: 'green' | 'orange'
   permanent: { label: '永久', color: 'green' },
   temporary: { label: '临时', color: 'orange' },
 };
+interface QrcodeFormValues { sceneStr: string; name: string; expireSeconds?: number; rewardPoints?: number; }
 
 export default function MpQrcodesPage() {
   const { hasPermission: can } = usePermission();
@@ -38,9 +39,7 @@ export default function MpQrcodesPage() {
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: mpQrcodeKeys.lists(currentId) });
 
-  const [modalVisible, setModalVisible] = useState(false);
   const [modalType, setModalType] = useState<MpQrcodeType>('permanent');
-  const formRef = useRef<FormApi>(null);
 
   const listQuery = useMpQrcodeList({
     accountId: currentId,
@@ -53,31 +52,33 @@ export default function MpQrcodesPage() {
   const total = listQuery.data?.total ?? 0;
   const createMutation = useCreateMpQrcode();
   const deleteMutation = useDeleteMpQrcode();
-  const submitting = createMutation.isPending;
+  const createSaveMutation = {
+    mutateAsync: ({ values }: { id?: number; values: Record<string, unknown> }) => createMutation.mutateAsync(values),
+    isPending: createMutation.isPending,
+  };
+  const createModal = useEditModal<MpQrcode, QrcodeFormValues, Record<string, unknown>>({
+    save: createSaveMutation,
+    defaults: { sceneStr: '', name: '', expireSeconds: 604800, rewardPoints: 0 },
+    beforeSave: (values) => {
+      if (!currentId) throw new Error('validation');
+      const payload: Record<string, unknown> = {
+        accountId: currentId,
+        type: modalType,
+        sceneStr: values.sceneStr,
+        name: values.name,
+      };
+      if (modalType === 'temporary') payload.expireSeconds = values.expireSeconds;
+      payload.rewardPoints = values.rewardPoints ?? 0;
+      return payload;
+    },
+    successMessage: () => '生成成功',
+  });
 
   useEffect(() => {
     setPage(1);
   }, [currentId, setPage]);
 
-  const openCreate = () => { setModalType('permanent'); setModalVisible(true); };
-
-  const handleSubmit = async () => {
-    let values: Awaited<ReturnType<FormApi['validate']>>;
-    try { values = (await formRef.current?.validate())!; } catch { throw new Error('validation'); }
-    if (!currentId) return;
-    const payload: Record<string, unknown> = {
-      accountId: currentId,
-      type: modalType,
-      sceneStr: values.sceneStr,
-      name: values.name,
-    };
-    if (modalType === 'temporary') payload.expireSeconds = values.expireSeconds;
-    payload.rewardPoints = values.rewardPoints ?? 0;
-
-    await createMutation.mutateAsync(payload);
-    Toast.success('生成成功');
-    setModalVisible(false);
-  };
+  const openCreate = () => { setModalType('permanent'); createModal.openCreate(); };
 
   const handleDelete = (record: MpQrcode) => {
     confirmDelete({
@@ -173,14 +174,11 @@ export default function MpQrcodesPage() {
       <ConfigurableTable bordered loading={listQuery.isFetching} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} columns={columns} dataSource={list} rowKey="id"
         pagination={buildPagination(total)} scroll={{ x: 1000 }} />
 
-      <AppModal title="生成带参二维码" visible={modalVisible}
-        onOk={handleSubmit} onCancel={() => setModalVisible(false)} confirmLoading={submitting} width={560}>
+      <AppModal {...createModal.modalProps} title="生成带参二维码" width={560}>
         <Spin spinning={false} wrapperClassName="modal-spin-wrapper">
           <Form
-            key={`new-${modalType}`}
-            getFormApi={(api) => { (formRef as { current: FormApi }).current = api; }}
-            labelPosition="left" labelWidth={90}
-            initValues={{ sceneStr: '', name: '', expireSeconds: 604800, rewardPoints: 0 }}
+            {...createModal.formProps}
+            key={`${createModal.formProps.key}-${modalType}`}
           >
             <Form.Slot label="二维码类型">
               <Select style={{ width: '100%' }} optionList={TYPE_OPTIONS} value={modalType} onChange={(v) => setModalType(v as MpQrcodeType)} />

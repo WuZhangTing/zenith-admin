@@ -1,14 +1,14 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Form, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { createdAtColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { usePagination } from '@/hooks/usePagination';
 import { useCmsErrorProneWordList, useSaveCmsErrorProneWord, useDeleteCmsErrorProneWord, cmsErrorProneWordKeys } from '@/hooks/queries/cms';
 import type { CmsErrorProneWord } from '@zenith/shared/cms';
@@ -18,16 +18,19 @@ import { confirmDelete } from '@/utils/confirm';
 
 export default function ErrorProneWordsPage() {
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const queryClient = useQueryClient();
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [draftKeyword, setDraftKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<CmsErrorProneWord | null>(null);
-
   const listQuery = useCmsErrorProneWordList({ page, pageSize, keyword: submittedKeyword || undefined });
   const saveMutation = useSaveCmsErrorProneWord();
+  const modal = useEditModal<CmsErrorProneWord, Partial<CmsErrorProneWord>, Record<string, unknown>>({
+    entityName: '易错词',
+    save: saveMutation,
+    defaults: { status: 'enabled' },
+    toValues: (record) => ({ word: record.word, correction: record.correction, remark: record.remark ?? '', status: record.status }),
+    beforeSave: (values) => ({ ...values, remark: values.remark || null }),
+  });
   const deleteMutation = useDeleteCmsErrorProneWord();
   const canManage = hasPermission('cms:word:manage');
 
@@ -42,20 +45,6 @@ export default function ErrorProneWordsPage() {
     setDraftKeyword('');
     setSubmittedKeyword('');
     void queryClient.invalidateQueries({ queryKey: cmsErrorProneWordKeys.lists });
-  }
-
-  async function handleModalOk() {
-    let values: Record<string, unknown>;
-    try {
-      values = (await formApi.current?.validate()) ?? {};
-    } catch {
-      throw new Error('validation');
-    }
-    if (!values.remark) values.remark = null;
-    await saveMutation.mutateAsync({ id: editingRecord?.id, values });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditingRecord(null);
   }
 
   const columns: ColumnProps<CmsErrorProneWord>[] = [
@@ -76,7 +65,7 @@ export default function ErrorProneWordsPage() {
       width: 160,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => canManage ? [
-        { key: 'edit', label: '编辑', onClick: () => { setEditingRecord(record); setModalVisible(true); } },
+        { key: 'edit', label: '编辑', onClick: () => modal.openEdit(record) },
         {
           key: 'delete', label: '删除', danger: true,
           onClick: () => {
@@ -100,7 +89,7 @@ export default function ErrorProneWordsPage() {
         <KeywordInput placeholder="搜索易错词/正确写法..." value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} />
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />
-        {canManage ? <CreateButton onClick={() => { setEditingRecord(null); setModalVisible(true); }} /> : null}
+        {canManage ? <CreateButton onClick={modal.openCreate} /> : null}
       </SearchToolbar>
 
       <ConfigurableTable
@@ -116,25 +105,8 @@ export default function ErrorProneWordsPage() {
         pagination={buildPagination(listQuery.data?.total ?? 0)}
       />
 
-      <AppModal
-        title={editingRecord ? '编辑易错词' : '新增易错词'}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={() => { setModalVisible(false); setEditingRecord(null); }}
-        okButtonProps={{ loading: saveMutation.isPending }}
-        width={480}
-        closeOnEsc
-      >
-        <Form
-          key={editingRecord?.id ?? 'new'}
-          getFormApi={(api) => { formApi.current = api; }}
-          allowEmpty
-          initValues={editingRecord
-            ? { word: editingRecord.word, correction: editingRecord.correction, remark: editingRecord.remark ?? '', status: editingRecord.status }
-            : { status: 'enabled' }}
-          labelPosition="left"
-          labelWidth={90}
-        >
+      <AppModal {...modal.modalProps} width={480}>
+        <Form {...modal.formProps}>
           <Form.Input field="word" label="易错词" rules={[{ required: true, message: '请输入易错词' }]} />
           <Form.Input field="correction" label="正确写法" rules={[{ required: true, message: '请输入正确写法' }]} />
           <Form.Input field="remark" label="备注" placeholder="可选" />

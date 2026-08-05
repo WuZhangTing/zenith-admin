@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Form, JsonViewer, Select, Spin, Toast } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { SystemConfig } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { formatDateTime } from '@/utils/date';
@@ -8,6 +7,7 @@ import DictTag from '@/components/DictTag';
 import { useDictItems } from '@/hooks/useDictItems';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
+import { useEditModal } from '@/hooks/useEditModal';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
 import { AppModal } from '@/components/AppModal';
@@ -46,14 +46,11 @@ function prettyJson(raw: string): string {
 export default function SystemConfigsPage() {
   const { hasPermission } = usePermission();
   const { items: configTypeItems, loading: configTypeLoading } = useDictItems('system_config_type');
-  const formApi = useRef<FormApi | null>(null);
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: systemConfigKeys.lists });
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingConfig, setEditingConfig] = useState<SystemConfig | null>(null);
   // json 类型改用 JsonViewer 编辑：jsonSeed 是非受控初始值兼 remount key，jsonText 由 onChange 实时同步供提交读取
   const [configType, setConfigType] = useState<string>('string');
   const [jsonSeed, setJsonSeed] = useState<string>('{}');
@@ -73,26 +70,47 @@ export default function SystemConfigsPage() {
   });
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
-  const detailQuery = useSystemConfigDetail(editingConfig?.id, modalVisible);
-  const editing = editingConfig ? (detailQuery.data ?? editingConfig) : null;
-  const modalDetailLoading = !!editingConfig && detailQuery.isFetching;
   const saveMutation = useSaveSystemConfig();
+  const modal = useEditModal<SystemConfig>({
+    entityName: '配置',
+    save: saveMutation,
+    useDetail: useSystemConfigDetail,
+    defaults: { configType: 'string' },
+    toValues: (config) => ({
+      configKey: config.configKey,
+      configValue: config.configValue,
+      configType: config.configType,
+      description: config.description,
+    }),
+    beforeSave: (values) => {
+      if (values.configType === 'json') {
+        const raw = jsonText.trim();
+        if (!raw) {
+          Toast.error('请输入配置值');
+          throw new Error('empty json');
+        }
+        try {
+          JSON.parse(raw);
+        } catch {
+          Toast.error('配置值 JSON 格式有误，请检查后重试');
+          throw new Error('invalid json');
+        }
+        return { ...values, configValue: raw };
+      }
+      return values;
+    },
+  });
   const deleteMutation = useDeleteSystemConfig();
 
   // 弹窗打开（或详情回填）时同步编辑器状态：类型决定用哪种控件，json 需要美化后的初始文本
-  const editingKey = editing ? `${editing.id}:${editing.updatedAt}` : 'new';
+  const editingKey = modal.editing ? `${modal.editing.id}:${modal.editing.updatedAt}` : 'new';
   useEffect(() => {
-    if (!modalVisible) return;
-    setConfigType(editing?.configType ?? 'string');
-    seedJsonEditor(editing?.configType === 'json' ? editing.configValue : '{}');
+    if (!modal.visible) return;
+    setConfigType(modal.editing?.configType ?? 'string');
+    seedJsonEditor(modal.editing?.configType === 'json' ? modal.editing.configValue : '{}');
     // editingKey 已覆盖 editing 的身份变化，避免对象引用抖动导致重复重置
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modalVisible, editingKey]);
-
-  const closeModal = () => {
-    setModalVisible(false);
-    setEditingConfig(null);
-  };
+  }, [modal.visible, editingKey]);
 
   /** 类型切换时在 Input 与 JsonViewer 之间搬运当前值，避免切来切去把内容丢掉 */
   const handleTypeChange = (values: Record<string, unknown>) => {
@@ -101,53 +119,19 @@ export default function SystemConfigsPage() {
     if (next === 'json') {
       seedJsonEditor((values.configValue as string) ?? '');
     } else if (configType === 'json') {
-      formApi.current?.setValue('configValue', jsonText);
+      modal.formApi.current?.setValue('configValue', jsonText);
     }
     setConfigType(next);
   };
 
-  const handleModalOk = async () => {
-    let values;
-    try { values = await formApi.current!.validate(); } catch { throw new Error('validation'); }
-
-    if (values.configType === 'json') {
-      const raw = jsonText.trim();
-      if (!raw) {
-        Toast.error('请输入配置值');
-        throw new Error('empty json');
-      }
-      try {
-        JSON.parse(raw);
-      } catch {
-        Toast.error('配置值 JSON 格式有误，请检查后重试');
-        throw new Error('invalid json');
-      }
-      values.configValue = raw;
-    }
-
-    await saveMutation.mutateAsync({ id: editingConfig?.id, values });
-    Toast.success(editingConfig ? '更新成功' : '创建成功');
-    closeModal();
-  };
-
   const openEdit = (record: SystemConfig) => {
-    setEditingConfig(record);
-    setModalVisible(true);
+    modal.openEdit(record);
   };
 
   const handleDelete = async (id: number) => {
     await deleteMutation.mutateAsync(id);
     Toast.success('删除成功');
   };
-
-  const formInitValues = editing
-    ? {
-        configKey: editing.configKey,
-        configValue: editing.configValue,
-        configType: editing.configType,
-        description: editing.description,
-      }
-    : { configType: 'string' };
 
   const configTypeFilterOptions = [
     { value: '', label: '全部类型' },
@@ -221,7 +205,7 @@ export default function SystemConfigsPage() {
           <>
           <ExportButton entity="system.configs" query={buildExportQuery()} />
           {hasPermission('system:config:create') && (
-            <CreateButton onClick={() => { setEditingConfig(null); setModalVisible(true); }} />
+            <CreateButton onClick={modal.openCreate} />
           )}
           </>
         )}
@@ -230,7 +214,7 @@ export default function SystemConfigsPage() {
             <KeywordInput placeholder="搜索配置键/描述" value={draftParams.keyword} onChange={(value) => setDraftParams((p) => ({ ...p, keyword: value }))} onSearch={handleSearch} width={240} />
             <SearchButton onClick={handleSearch} />
             {hasPermission('system:config:create') && (
-              <CreateButton onClick={() => { setEditingConfig(null); setModalVisible(true); }} />
+              <CreateButton onClick={modal.openCreate} />
             )}
           </>
         )}
@@ -266,28 +250,19 @@ export default function SystemConfigsPage() {
       />
 
       <AppModal
-        title={editing ? '编辑配置' : '新增配置'}
-        visible={modalVisible}
-        onCancel={closeModal}
-        onOk={handleModalOk}
-        okButtonProps={{ disabled: modalDetailLoading }}
+        {...modal.modalProps}
         width={configType === 'json' ? 720 : 520}
       >
-        <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
+        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
         <Form
-          key={editingConfig?.id ?? 'new-config'}
-          getFormApi={(api) => { formApi.current = api; }}
-          allowEmpty
-          initValues={formInitValues}
-          labelPosition="left"
-          labelWidth={90}
+          {...modal.formProps}
           onValueChange={handleTypeChange}
         >
           <Form.Input
             field="configKey"
             label="配置键"
             rules={[{ required: true, message: '请输入配置键' }]}
-            disabled={!!editing}
+            disabled={modal.isEdit}
           />
           {configType === 'json' ? (
             <Form.Slot label={{ text: '配置值' }}>

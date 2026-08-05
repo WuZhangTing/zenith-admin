@@ -1,10 +1,10 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { Col, Form, Row, Select, Spin, Tag, Toast, Switch, Typography, Banner } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import type { MpAccount, MpAccountType } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
+import { useEditModal } from '@/hooks/useEditModal';
 import { config } from '@/config';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
@@ -61,10 +61,6 @@ export default function MpAccountsPage() {
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: mpAccountKeys.lists });
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<MpAccount | null>(null);
-  const formRef = useRef<FormApi>(null);
-
   const [configRecord, setConfigRecord] = useState<MpAccount | null>(null);
   const listQuery = useMpAccountList({
     page,
@@ -75,33 +71,26 @@ export default function MpAccountsPage() {
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
-  const detailQuery = useMpAccountDetail(editingRecord?.id, modalVisible);
-  const editing = editingRecord ? (detailQuery.data ?? editingRecord) : null;
-  const modalDetailLoading = !!editingRecord && detailQuery.isFetching;
   const saveMutation = useSaveMpAccount();
+  const modal = useEditModal<MpAccount, Record<string, unknown>>({
+    entityName: '公众号',
+    save: saveMutation,
+    useDetail: useMpAccountDetail,
+    defaults: { status: 'enabled', isDefault: false, type: 'service', encryptMode: 'plaintext' },
+    toValues: (record) => ({ ...record, appSecret: '' }),
+    beforeSave: (values, { isEdit }) => {
+      const payload: Record<string, unknown> = { ...values };
+      if (isEdit && !payload.appSecret) delete payload.appSecret;
+      return payload;
+    },
+    labelWidth: 120,
+  });
   const setDefaultMutation = useSetDefaultMpAccount();
   const testMutation = useTestMpAccount();
   const deleteMutation = useDeleteMpAccount();
   const toggleStatusMutation = useSaveMpAccount();
-  const submitting = saveMutation.isPending;
   const testingId = testMutation.isPending ? (testMutation.variables ?? null) : null;
   const togglingStatusId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
-
-  const openCreate = () => { setEditingRecord(null); setModalVisible(true); };
-  const openEdit = (record: MpAccount) => {
-    setEditingRecord(record);
-    setModalVisible(true);
-  };
-
-  const handleSubmit = async () => {
-    let values: Awaited<ReturnType<FormApi['validate']>>;
-    try { values = (await formRef.current?.validate())!; } catch { throw new Error('validation'); }
-    const payload: Record<string, unknown> = { ...values };
-    if (editingRecord && !payload.appSecret) delete payload.appSecret;
-    await saveMutation.mutateAsync({ id: editingRecord?.id, values: payload });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
-  };
 
   const handleSetDefault = async (record: MpAccount) => {
     await setDefaultMutation.mutateAsync(record.id);
@@ -172,7 +161,7 @@ export default function MpAccountsPage() {
           hidden: !can('mp:account:default'),
           onClick: () => void handleSetDefault(record),
         },
-        { key: 'edit', label: '编辑', hidden: !can('mp:account:update'), onClick: () => openEdit(record) },
+        { key: 'edit', label: '编辑', hidden: !can('mp:account:update'), onClick: () => modal.openEdit(record) },
         {
           key: 'test',
           label: testingId === record.id ? '测试中...' : '测试连接',
@@ -211,7 +200,7 @@ export default function MpAccountsPage() {
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => can('mp:account:create') ? (
-    <CreateButton onClick={openCreate} />
+    <CreateButton onClick={modal.openCreate} />
   ) : null;
 
   return (
@@ -249,19 +238,9 @@ export default function MpAccountsPage() {
         pagination={buildPagination(total)}
       />
 
-      <AppModal title={editingRecord ? '编辑公众号' : '新增公众号'} visible={modalVisible}
-        onOk={handleSubmit} onCancel={() => { setModalVisible(false); setEditingRecord(null); }}
-        confirmLoading={submitting} okButtonProps={{ disabled: modalDetailLoading }} width={720}>
-        <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form
-            key={editing?.id ?? 'new'}
-            getFormApi={(api) => { (formRef as { current: FormApi }).current = api; }}
-            allowEmpty
-            labelPosition="left" labelWidth={120}
-            initValues={editing
-              ? { ...editing, appSecret: '' }
-              : { status: 'enabled', isDefault: false, type: 'service', encryptMode: 'plaintext' }}
-          >
+      <AppModal {...modal.modalProps} width={720}>
+        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
+          <Form {...modal.formProps}>
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Input field="name" label="公众号名称" placeholder="请输入公众号名称"
@@ -284,8 +263,8 @@ export default function MpAccountsPage() {
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Input field="appSecret" label="AppSecret" mode="password"
-                  placeholder={editing ? '不修改请留空' : '请输入 AppSecret'}
-                  rules={editing ? [] : [{ required: true, message: '请输入 AppSecret' }]} />
+                  placeholder={modal.isEdit ? '不修改请留空' : '请输入 AppSecret'}
+                  rules={modal.isEdit ? [] : [{ required: true, message: '请输入 AppSecret' }]} />
               </Col>
               <Col span={12}>
                 <Form.Input field="token" label="Token" placeholder="服务器配置 Token，仅限字母数字"

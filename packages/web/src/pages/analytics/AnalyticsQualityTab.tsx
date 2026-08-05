@@ -1,11 +1,10 @@
 /**
  * 行为中心阶段 1：数据质量看板 —— 埋点质量日聚合明细 + 租户级事件启停覆盖管理。
  */
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, Form, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { AlertTriangle, ShieldAlert } from 'lucide-react';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -25,6 +24,7 @@ import { ANALYTICS_EVENT_OVERRIDE_STATUS_OPTIONS, ANALYTICS_QUALITY_ISSUE_TYPE_L
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 const PAGE_SIZE = 20;
 const DAY_OPTIONS = [7, 30, 90].map((value) => ({ value, label: `${value} 天` }));
@@ -65,9 +65,6 @@ export default function AnalyticsQualityTab() {
   const [submittedOverrideFilter, setSubmittedOverrideFilter] = useState<OverrideFilter>(defaultOverrideFilter);
   const [overridePage, setOverridePage] = useState(1);
   const [overridePageSize, setOverridePageSize] = useState(PAGE_SIZE);
-  const [overrideModalVisible, setOverrideModalVisible] = useState(false);
-  const [editingOverride, setEditingOverride] = useState<AnalyticsEventOverride | null>(null);
-  const overrideFormApi = useRef<FormApi | null>(null);
 
   const qualityQuery = useAnalyticsQuality({
     days: submittedFilter.days,
@@ -92,6 +89,13 @@ export default function AnalyticsQualityTab() {
 
   const saveOverrideMutation = useSaveAnalyticsEventOverride();
   const deleteOverrideMutation = useDeleteAnalyticsEventOverride();
+  const overrideModal = useEditModal<AnalyticsEventOverride, OverrideFormValues, { eventName: string; status: AnalyticsEventOverride['status']; reason: string | null }>({
+    entityName: '事件覆盖',
+    save: saveOverrideMutation,
+    defaults: { eventName: '', status: 'disabled', reason: null },
+    toValues: (record) => ({ eventName: record.eventName, status: record.status, reason: record.reason }),
+    beforeSave: (values) => ({ eventName: values.eventName.trim(), status: values.status, reason: values.reason?.trim() || null }),
+  });
 
   const handleSearch = () => {
     setPage(1);
@@ -115,20 +119,6 @@ export default function AnalyticsQualityTab() {
     setSubmittedOverrideFilter(defaultOverrideFilter);
     setOverridePage(1);
     void queryClient.invalidateQueries({ queryKey: analyticsKeys.data.all });
-  };
-
-  const openCreateOverride = () => { setEditingOverride(null); setOverrideModalVisible(true); };
-  const openEditOverride = (record: AnalyticsEventOverride) => { setEditingOverride(record); setOverrideModalVisible(true); };
-
-  const handleOverrideSubmit = async () => {
-    const api = overrideFormApi.current;
-    if (!api) return;
-    const values = await api.validate() as OverrideFormValues;
-    const payload = { eventName: values.eventName.trim(), status: values.status, reason: values.reason?.trim() || null };
-    await saveOverrideMutation.mutateAsync({ id: editingOverride?.id, values: payload });
-    Toast.success(editingOverride ? '更新成功' : '创建成功');
-    setOverrideModalVisible(false);
-    setEditingOverride(null);
   };
 
   const handleOverrideDelete = async (record: AnalyticsEventOverride) => {
@@ -176,7 +166,7 @@ export default function AnalyticsQualityTab() {
       width: 130,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => [
-        { key: 'edit', label: '编辑', onClick: () => openEditOverride(record) },
+        { key: 'edit', label: '编辑', onClick: () => overrideModal.openEdit(record) },
         {
           key: 'delete',
           label: '删除',
@@ -192,10 +182,6 @@ export default function AnalyticsQualityTab() {
       ],
     }),
   ];
-
-  const overrideFormInit: OverrideFormValues = editingOverride
-    ? { eventName: editingOverride.eventName, status: editingOverride.status, reason: editingOverride.reason }
-    : { eventName: '', status: 'disabled', reason: null };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -265,7 +251,7 @@ export default function AnalyticsQualityTab() {
           />
           <SearchButton onClick={handleOverrideSearch} disabled={!config.multiTenantMode} />
           <ResetButton onClick={handleOverrideReset} disabled={!config.multiTenantMode} />
-          <CreateButton onClick={openCreateOverride} disabled={!config.multiTenantMode}>新增覆盖</CreateButton>
+          <CreateButton onClick={overrideModal.openCreate} disabled={!config.multiTenantMode}>新增覆盖</CreateButton>
         </SearchToolbar>
         <ConfigurableTable
           bordered
@@ -288,23 +274,11 @@ export default function AnalyticsQualityTab() {
       </div>
 
       <AppModal
-        title={editingOverride ? '编辑事件覆盖' : '新增事件覆盖'}
-        visible={overrideModalVisible}
-        onCancel={() => { setOverrideModalVisible(false); setEditingOverride(null); }}
-        onOk={handleOverrideSubmit}
-        okButtonProps={{ loading: saveOverrideMutation.isPending }}
+        {...overrideModal.modalProps}
         width={480}
-        closeOnEsc
       >
-        <Form
-          key={editingOverride?.id ?? 'new'}
-          getFormApi={(api) => { overrideFormApi.current = api; }}
-          allowEmpty
-          initValues={overrideFormInit}
-          labelPosition="left"
-          labelWidth={90}
-        >
-          <Form.Input field="eventName" label="事件名" placeholder="如 order_submit" disabled={!!editingOverride} rules={[{ required: true, message: '请输入事件名' }]} />
+        <Form {...overrideModal.formProps}>
+          <Form.Input field="eventName" label="事件名" placeholder="如 order_submit" disabled={overrideModal.isEdit} rules={[{ required: true, message: '请输入事件名' }]} />
           <Form.Select field="status" label="状态" optionList={ANALYTICS_EVENT_OVERRIDE_STATUS_OPTIONS} style={{ width: '100%' }} />
           <Form.TextArea field="reason" label="原因" placeholder="启停原因（可选，便于审计追溯）" maxCount={256} />
         </Form>

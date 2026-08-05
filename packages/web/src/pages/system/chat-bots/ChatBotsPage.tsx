@@ -1,7 +1,6 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Copy } from 'lucide-react';
 import type { ChatWebhook } from '@zenith/shared/chat';
@@ -10,6 +9,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { AppModal } from '@/components/AppModal';
+import { useEditModal } from '@/hooks/useEditModal';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { formatDateTime } from '@/utils/date';
@@ -77,12 +77,9 @@ async function copyText(text: string) {
 export default function ChatBotsPage() {
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
-  const formApi = useRef<FormApi<BotFormValues> | null>(null);
   const [draftKeyword, setDraftKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
   const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingBot, setEditingBot] = useState<ChatWebhook | null>(null);
   const [secretInfo, setSecretInfo] = useState<ChatWebhook | null>(null);
 
   const listQuery = useChatBotList({
@@ -91,9 +88,46 @@ export default function ChatBotsPage() {
     keyword: submittedKeyword.trim() || undefined,
   });
   const data = listQuery.data ?? null;
-  const groupConversationsQuery = useChatBotGroupConversations(modalVisible);
-  const groupConversations = useMemo(() => groupConversationsQuery.data ?? [], [groupConversationsQuery.data]);
   const saveMutation = useSaveChatBot();
+  const botModal = useEditModal<ChatWebhook, BotFormValues, Record<string, unknown>>({
+    entityName: ' Webhook 机器人',
+    save: saveMutation,
+    defaults: { name: '', avatar: null, description: null, enabled: true },
+    toValues: (bot) => ({
+      name: bot.name,
+      avatar: bot.avatar,
+      description: bot.description,
+      conversationId: bot.conversationId,
+      enabled: bot.enabled,
+    }),
+    beforeSave: (values, { isEdit }) => {
+      const name = values.name.trim();
+      const commonPayload = {
+        name,
+        avatar: optionalText(values.avatar),
+        description: optionalText(values.description),
+        enabled: values.enabled ?? true,
+      };
+
+      if (!isEdit && !values.conversationId) {
+        Toast.warning('请选择目标会话');
+        throw new Error('validation');
+      }
+
+      return isEdit
+        ? commonPayload
+        : {
+            ...commonPayload,
+            conversationId: Number(values.conversationId),
+          };
+    },
+    onSaved: (saved, { isEdit }) => {
+      if (!isEdit) setSecretInfo(saved);
+    },
+  });
+  const editingBot = botModal.editing;
+  const groupConversationsQuery = useChatBotGroupConversations(botModal.visible);
+  const groupConversations = useMemo(() => groupConversationsQuery.data ?? [], [groupConversationsQuery.data]);
   const regenerateMutation = useRegenerateChatBotToken();
   const deleteMutation = useDeleteChatBot();
 
@@ -111,16 +145,6 @@ export default function ChatBotsPage() {
     return options;
   }, [editingBot, groupConversations]);
 
-  const formInitValues: BotFormValues = editingBot
-    ? {
-        name: editingBot.name,
-        avatar: editingBot.avatar,
-        description: editingBot.description,
-        conversationId: editingBot.conversationId,
-        enabled: editingBot.enabled,
-      }
-    : { name: '', avatar: null, description: null, enabled: true };
-
   function handleSearch() {
     setPage(1);
     setSubmittedKeyword(draftKeyword);
@@ -132,58 +156,6 @@ export default function ChatBotsPage() {
     setSubmittedKeyword('');
     setPage(1);
     void queryClient.invalidateQueries({ queryKey: chatBotKeys.lists });
-  }
-
-  function openCreateModal() {
-    setEditingBot(null);
-    setModalVisible(true);
-  }
-
-  function openEditModal(row: ChatWebhook) {
-    setEditingBot(row);
-    setModalVisible(true);
-  }
-
-  function closeFormModal() {
-    setModalVisible(false);
-    setEditingBot(null);
-    formApi.current = null;
-  }
-
-  async function handleSubmit() {
-    if (!formApi.current) return;
-    let values: BotFormValues;
-    try {
-      values = await formApi.current.validate();
-    } catch {
-      throw new Error('validation');
-    }
-
-    const name = values.name.trim();
-    const commonPayload = {
-      name,
-      avatar: optionalText(values.avatar),
-      description: optionalText(values.description),
-      enabled: values.enabled ?? true,
-    };
-
-    if (!editingBot && !values.conversationId) {
-      Toast.warning('请选择目标会话');
-      return;
-    }
-
-    const result = await saveMutation.mutateAsync({
-      id: editingBot?.id,
-      values: editingBot
-        ? commonPayload
-        : {
-            ...commonPayload,
-            conversationId: Number(values.conversationId),
-          },
-    });
-    Toast.success(editingBot ? '更新成功' : '创建成功');
-    closeFormModal();
-    if (!editingBot) setSecretInfo(result);
   }
 
   async function handleRegenerate(row: ChatWebhook) {
@@ -268,7 +240,7 @@ export default function ChatBotsPage() {
           key: 'edit',
           label: '编辑',
           hidden: !hasPermission('chat:bot:update'),
-          onClick: () => openEditModal(row),
+          onClick: () => botModal.openEdit(row),
         },
         {
           key: 'regenerate',
@@ -306,7 +278,7 @@ export default function ChatBotsPage() {
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
             {hasPermission('chat:bot:create') && (
-              <CreateButton onClick={openCreateModal} />
+              <CreateButton onClick={botModal.openCreate} />
             )}
           </>
         )}
@@ -315,7 +287,7 @@ export default function ChatBotsPage() {
             <KeywordInput placeholder="搜索机器人名称" value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} width={260} />
             <SearchButton onClick={handleSearch} />
             {hasPermission('chat:bot:create') && (
-              <CreateButton onClick={openCreateModal} />
+              <CreateButton onClick={botModal.openCreate} />
             )}
           </>
         )}
@@ -337,22 +309,10 @@ export default function ChatBotsPage() {
       />
 
       <AppModal
-        title={editingBot ? '编辑 Webhook 机器人' : '新增 Webhook 机器人'}
-        visible={modalVisible}
-        onCancel={closeFormModal}
-        onOk={handleSubmit}
-        okButtonProps={{ loading: saveMutation.isPending }}
+        {...botModal.modalProps}
         width={520}
-        closeOnEsc
       >
-        <Form<BotFormValues>
-          key={editingBot?.id ?? 'new-chat-bot'}
-          getFormApi={(api) => { formApi.current = api; }}
-          allowEmpty
-          initValues={formInitValues}
-          labelPosition="left"
-          labelWidth={90}
-        >
+        <Form {...botModal.formProps}>
           <Form.Input field="name" label="名称" placeholder="请输入机器人名称" rules={[{ required: true, message: '请输入机器人名称' }]} />
           <Form.Select
             field="conversationId"
@@ -361,7 +321,7 @@ export default function ChatBotsPage() {
             rules={[{ required: true, message: '请选择目标会话' }]}
             optionList={conversationOptions}
             loading={groupConversationsQuery.isFetching}
-            disabled={!!editingBot}
+            disabled={botModal.isEdit}
             filter
             style={{ width: '100%' }}
           />

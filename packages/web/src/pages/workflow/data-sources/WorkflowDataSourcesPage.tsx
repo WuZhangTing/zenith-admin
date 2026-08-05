@@ -1,7 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { Button, Form, Select, Spin, Toast, Switch, Modal, Row, Col, Typography, Tag, Empty } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -21,6 +20,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 interface SearchParams { keyword: string; status: string }
 const defaultSearchParams: SearchParams = { keyword: '', status: '' };
@@ -42,8 +42,6 @@ export default function WorkflowDataSourcesPage() {
   const { items: statusItems } = useDictItems('common_status');
   const STATUS_OPTIONS = statusItems.map((i) => ({ value: i.value, label: i.label }));
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
-
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
@@ -57,8 +55,6 @@ export default function WorkflowDataSourcesPage() {
   });
   const data = listQuery.data ?? null;
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<WorkflowDataSource | null>(null);
   const saveMutation = useSaveWorkflowDataSource();
   const toggleStatusMutation = useSaveWorkflowDataSource();
   const deleteMutation = useDeleteWorkflowDataSource();
@@ -70,32 +66,17 @@ export default function WorkflowDataSourcesPage() {
   const [testOptions, setTestOptions] = useState<WorkflowDataSourceOption[]>([]);
   const [testError, setTestError] = useState('');
 
-  function openCreate() { setEditing(null); setModalVisible(true); }
-  function openEdit(record: WorkflowDataSource) { setEditing(record); setModalVisible(true); }
-  function closeModal() { setModalVisible(false); setEditing(null); }
-
-  const formInitValues: DataSourceFormValues = editing
-    ? {
-        name: editing.name,
-        method: editing.method,
-        url: editing.url,
-        valueField: editing.valueField,
-        labelField: editing.labelField,
-        itemsPath: editing.itemsPath ?? '',
-        keywordParam: editing.keywordParam ?? '',
-        status: editing.status,
-        headersText: editing.headers && Object.keys(editing.headers).length > 0 ? JSON.stringify(editing.headers, null, 2) : '',
-        remark: editing.remark ?? '',
-      }
-    : { name: '', method: 'GET', url: '', valueField: '', labelField: '', status: 'enabled' };
-
-  async function handleModalOk() {
-    let values: DataSourceFormValues;
-    try {
-      values = await formApi.current?.validate() as DataSourceFormValues;
-    } catch {
-      throw new Error('validation');
-    }
+  const dataSourceModal = useEditModal<WorkflowDataSource, DataSourceFormValues, Record<string, unknown>>({
+    entityName: '数据源',
+    save: saveMutation,
+    defaults: { name: '', method: 'GET', url: '', valueField: '', labelField: '', status: 'enabled' },
+    toValues: (record) => ({
+      name: record.name, method: record.method, url: record.url, valueField: record.valueField, labelField: record.labelField,
+      itemsPath: record.itemsPath ?? '', keywordParam: record.keywordParam ?? '', status: record.status,
+      headersText: record.headers && Object.keys(record.headers).length > 0 ? JSON.stringify(record.headers, null, 2) : '',
+      remark: record.remark ?? '',
+    }),
+    beforeSave: (values) => {
     let headers: Record<string, string> | undefined;
     if (values.headersText?.trim()) {
       try {
@@ -119,10 +100,13 @@ export default function WorkflowDataSourcesPage() {
       headers,
       remark: values.remark?.trim() || undefined,
     };
-    await saveMutation.mutateAsync({ id: editing?.id, values: payload });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    closeModal();
-  }
+    return payload;
+    },
+    labelWidth: 96,
+  });
+
+  function openCreate() { dataSourceModal.openCreate(); }
+  function openEdit(record: WorkflowDataSource) { dataSourceModal.openEdit(record); }
 
   async function handleDelete(id: number) {
     await deleteMutation.mutateAsync(id);
@@ -263,21 +247,12 @@ export default function WorkflowDataSourcesPage() {
       />
 
       <AppModal
-        title={editing ? '编辑数据源' : '新增数据源'}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={closeModal}
-        okButtonProps={{ loading: saveMutation.isPending }}
+        {...dataSourceModal.modalProps}
         width={660}
         closeOnEsc
       >
         <Form
-          key={editing?.id ?? 'new'}
-          getFormApi={(api) => { formApi.current = api; }}
-          allowEmpty
-          initValues={formInitValues}
-          labelPosition="left"
-          labelWidth={96}
+          {...dataSourceModal.formProps}
         >
           <Row gutter={16}>
             <Col span={12}>

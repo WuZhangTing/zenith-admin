@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, Form, Modal, Select, Space, Spin, Switch, Toast, SideSheet, Empty } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Trash2, Users } from 'lucide-react';
 import type { Position } from '@zenith/shared/identity';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -27,6 +26,7 @@ import {
   useSavePosition,
 } from '@/hooks/queries/positions';
 import { useAllUsers } from '@/hooks/queries/users';
+import { useEditModal } from '@/hooks/useEditModal';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
@@ -46,7 +46,6 @@ const defaultSearchParams: SearchParams = {
 
 export default function PositionsPage() {
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
@@ -62,11 +61,6 @@ export default function PositionsPage() {
   });
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<Position | null>(null);
-  const detailQuery = usePositionDetail(editingRecord?.id, modalVisible);
-  const editingPosition = editingRecord ? (detailQuery.data ?? editingRecord) : null;
-  const modalDetailLoading = !!editingRecord && detailQuery.isFetching;
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
   const { items: statusItems } = useDictItems('common_status');
 
@@ -80,6 +74,19 @@ export default function PositionsPage() {
   const [memberIds, setMemberIds] = useState<number[]>([]);
   const membersQuery = usePositionMembers(memberPosition?.id, memberSheetVisible);
   const saveMutation = useSavePosition();
+  const positionModal = useEditModal<Position>({
+    entityName: '岗位',
+    save: saveMutation,
+    useDetail: usePositionDetail,
+    defaults: { sort: 0, status: 'enabled' },
+    toValues: (position) => ({
+      name: position.name,
+      code: position.code,
+      sort: position.sort,
+      status: position.status,
+      remark: position.remark,
+    }),
+  });
   const toggleStatusMutation = useSavePosition();
   const deleteMutation = useDeletePositions();
   const assignMembersMutation = useAssignPositionMembers();
@@ -88,43 +95,6 @@ export default function PositionsPage() {
   useEffect(() => {
     if (memberSheetVisible) setMemberIds((membersQuery.data ?? []).map((m) => m.id));
   }, [memberSheetVisible, membersQuery.data]);
-
-  const formInitValues = editingPosition
-    ? {
-        name: editingPosition.name,
-        code: editingPosition.code,
-        sort: editingPosition.sort,
-        status: editingPosition.status,
-        remark: editingPosition.remark,
-      }
-    : {
-        sort: 0,
-        status: 'enabled',
-      };
-
-  const openCreate = () => {
-    setEditingRecord(null);
-    setModalVisible(true);
-  };
-
-  const handleModalOk = async () => {
-    let values;
-    try {
-      values = await formApi.current!.validate();
-    } catch {
-      throw new Error('validation');
-    }
-
-    await saveMutation.mutateAsync({ id: editingRecord?.id, values });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditingRecord(null);
-  };
-
-  const openEdit = (record: Position) => {
-    setEditingRecord(record);
-    setModalVisible(true);
-  };
 
   const handleDelete = async (id: number) => {
     await deleteMutation.mutateAsync([id]);
@@ -213,7 +183,7 @@ export default function PositionsPage() {
           key: 'edit',
           label: '编辑',
           hidden: !hasPermission('system:position:update'),
-          onClick: () => { void openEdit(record); },
+          onClick: () => { positionModal.openEdit(record); },
         },
         {
           key: 'members',
@@ -261,7 +231,7 @@ export default function PositionsPage() {
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => hasPermission('system:position:create') ? (
-    <CreateButton onClick={openCreate} />
+    <CreateButton onClick={positionModal.openCreate} />
   ) : null;
 
   const buildExportQuery = () => ({
@@ -345,27 +315,9 @@ export default function PositionsPage() {
         }}
       />
 
-      <AppModal
-        title={editingPosition ? '编辑岗位' : '新增岗位'}
-        visible={modalVisible}
-        onCancel={() => {
-          setModalVisible(false);
-          setEditingRecord(null);
-        }}
-        onOk={handleModalOk}
-        okButtonProps={{ disabled: modalDetailLoading }}
-        width={520}
-
-      >
-        <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form
-          key={editingPosition?.id ?? 'new-position'}
-          getFormApi={(api) => { formApi.current = api; }}
-          allowEmpty
-          initValues={formInitValues}
-          labelPosition="left"
-          labelWidth={90}
-        >
+      <AppModal {...positionModal.modalProps} width={520}>
+        <Spin spinning={positionModal.detailLoading} wrapperClassName="modal-spin-wrapper">
+        <Form {...positionModal.formProps}>
           <Form.Input field="name" label="岗位名称" placeholder="请输入岗位名称" rules={[{ required: true, message: '请输入岗位名称' }]} />
           <Form.Input field="code" label="岗位编码" placeholder="请输入岗位编码" rules={[{ required: true, message: '请输入岗位编码' }]} />
           <Form.InputNumber field="sort" label="排序" placeholder="请输入排序" min={0} style={{ width: '100%' }} />

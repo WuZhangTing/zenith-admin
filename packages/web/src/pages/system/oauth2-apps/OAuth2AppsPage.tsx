@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Tag, Space, Modal, Form, Toast, Typography, Checkbox, Spin, Banner, Row, Col, Switch, Select } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { OAUTH2_GRANT_TYPE_LABELS, OAUTH2_GRANT_TYPES, OAUTH2_SCOPES, OPEN_APP_ENVIRONMENT_LABELS, OPEN_APP_ENVIRONMENTS, OPEN_APP_REVIEW_STATUS_LABELS, OPEN_APP_REVIEW_STATUSES } from '@zenith/shared/open-platform';
 import type { OAuth2Client } from '@zenith/shared/open-platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -11,6 +10,7 @@ import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import {
   oauth2AppKeys,
   useDeleteOAuth2App,
@@ -52,6 +52,10 @@ type FormValues = {
   status?: 'enabled' | 'disabled';
 };
 
+type OAuth2ClientSaved = OAuth2Client & {
+  clientSecret?: string;
+};
+
 export default function OAuth2AppsPage() {
   const navigate = useNavigate();
   const { items: statusItems } = useDictItems('common_status');
@@ -75,8 +79,6 @@ export default function OAuth2AppsPage() {
       });
     }
   };
-  const formApi = useRef<FormApi | null>(null);
-
   // ─── 状态 ──────────────────────────────────────────────────────────────
   interface SearchParams {
     keyword: string;
@@ -89,10 +91,6 @@ export default function OAuth2AppsPage() {
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: oauth2AppKeys.lists });
-
-  // 弹窗状态
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<OAuth2Client | null>(null);
 
   // 一次性 Secret 展示
   const [secretModal, setSecretModal] = useState(false);
@@ -111,100 +109,49 @@ export default function OAuth2AppsPage() {
   const data = listQuery.data ?? null;
   const ratePlans = useOAuth2RatePlans().data ?? [];
   const scopeOptions = useOAuth2ApiScopes().data ?? [];
-  const detailQuery = useOAuth2AppDetail(editing?.id, modalVisible);
-  const editingDetail = editing ? (detailQuery.data ?? editing) : null;
-  const modalDetailLoading = !!editing && detailQuery.isFetching;
   const saveMutation = useSaveOAuth2App();
+  const appModal = useEditModal<OAuth2ClientSaved, FormValues, Record<string, unknown>>({
+    entityName: ' OAuth2 应用',
+    save: saveMutation,
+    useDetail: useOAuth2AppDetail,
+    defaults: {
+      isPublic: false,
+      signEnabled: false,
+      ipAllowlist: [],
+      environment: 'production',
+      allowedScopes: ['openid', 'profile'],
+      grantTypes: ['authorization_code', 'refresh_token'],
+    },
+    toValues: (app) => ({
+      name: app.name,
+      description: app.description ?? '',
+      logoUrl: app.logoUrl ?? '',
+      redirectUris: app.redirectUris,
+      allowedScopes: app.allowedScopes,
+      grantTypes: app.grantTypes,
+      isPublic: app.isPublic,
+      ratePlanId: app.ratePlanId ?? undefined,
+      signEnabled: app.signEnabled ?? false,
+      ipAllowlist: app.ipAllowlist,
+      environment: app.environment,
+      status: app.status,
+    }),
+    beforeSave: (values) => ({ ...values, ratePlanId: values.ratePlanId ?? null, signEnabled: values.signEnabled ?? false }),
+    onSaved: (saved, { isEdit }) => {
+      if (!isEdit && saved.clientSecret) {
+        setOneTimeClientId(String(saved.clientId));
+        setOneTimeSecret(saved.clientSecret);
+        setPreviousValidUntil('');
+        setSecretModal(true);
+      }
+    },
+    labelWidth: 120,
+  });
+  const editing = appModal.editing;
   const deleteMutation = useDeleteOAuth2App();
   const regenerateMutation = useRegenerateOAuth2AppSecret();
   const reviewMutation = useReviewOAuth2App();
   const togglingId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
-
-  useEffect(() => {
-    if (!detailQuery.data) return;
-    formApi.current?.setValues({
-      name: detailQuery.data.name,
-      description: detailQuery.data.description ?? '',
-      logoUrl: detailQuery.data.logoUrl ?? '',
-      redirectUris: detailQuery.data.redirectUris,
-      allowedScopes: detailQuery.data.allowedScopes,
-      grantTypes: detailQuery.data.grantTypes,
-      isPublic: detailQuery.data.isPublic,
-      ratePlanId: detailQuery.data.ratePlanId ?? undefined,
-      signEnabled: detailQuery.data.signEnabled ?? false,
-      ipAllowlist: detailQuery.data.ipAllowlist,
-      environment: detailQuery.data.environment,
-      status: detailQuery.data.status,
-    });
-  }, [detailQuery.data]);
-
-  // ─── 搜索 / 重置 ────────────────────────────────────────────────────────
-
-  // ─── 新增 ──────────────────────────────────────────────────────────────
-  function openCreate() {
-    setEditing(null);
-    setModalVisible(true);
-  }
-
-  // ─── 编辑：先弹窗再异步回填 ──────────────────────────────────────────────
-  function openEdit(record: OAuth2Client) {
-    setEditing(record);
-    setModalVisible(true);
-  }
-
-  function closeModal() {
-    setModalVisible(false);
-    setEditing(null);
-  }
-
-  const formInitValues: Partial<FormValues> = editingDetail
-    ? {
-        name: editingDetail.name,
-        description: editingDetail.description ?? '',
-        logoUrl: editingDetail.logoUrl ?? '',
-        redirectUris: editingDetail.redirectUris,
-        allowedScopes: editingDetail.allowedScopes,
-        grantTypes: editingDetail.grantTypes,
-        isPublic: editingDetail.isPublic,
-        ratePlanId: editingDetail.ratePlanId ?? undefined,
-        signEnabled: editingDetail.signEnabled ?? false,
-        ipAllowlist: editingDetail.ipAllowlist,
-        environment: editingDetail.environment,
-        status: editingDetail.status,
-      }
-    : {
-        isPublic: false,
-        signEnabled: false,
-        ipAllowlist: [],
-        environment: 'production',
-        allowedScopes: ['openid', 'profile'],
-        grantTypes: ['authorization_code', 'refresh_token'],
-      };
-
-  async function handleModalOk() {
-    let values: FormValues;
-    try {
-      values = (await formApi.current?.validate()) as FormValues;
-    } catch {
-      throw new Error('validation');
-    }
-    if (!values) throw new Error('validation');
-    // 未选套餐时显式置 null，便于解绑
-    const payload: FormValues = { ...values, ratePlanId: values.ratePlanId ?? null, signEnabled: values.signEnabled ?? false };
-    const result = await saveMutation.mutateAsync({ id: editing?.id, values: payload as Record<string, unknown> });
-    if (editing) {
-      Toast.success('更新成功');
-      closeModal();
-    } else {
-      closeModal();
-      if ('clientSecret' in result && typeof result.clientSecret === 'string' && result.clientSecret) {
-        setOneTimeClientId(String(result.clientId));
-        setOneTimeSecret(result.clientSecret);
-        setPreviousValidUntil('');
-        setSecretModal(true);
-      }
-    }
-  }
 
   // ─── 删除 ──────────────────────────────────────────────────────────────
   async function handleDelete(id: number) {
@@ -332,7 +279,7 @@ export default function OAuth2AppsPage() {
         {
           key: 'edit',
           label: '编辑',
-          onClick: () => openEdit(record),
+          onClick: () => appModal.openEdit(record),
         },
         {
           key: 'approve',
@@ -384,7 +331,7 @@ export default function OAuth2AppsPage() {
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
             {canManage && (
-              <CreateButton onClick={openCreate} />
+              <CreateButton onClick={appModal.openCreate} />
             )}
           </>
         )}
@@ -413,7 +360,7 @@ export default function OAuth2AppsPage() {
             <KeywordInput placeholder="搜索应用名称" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} />
             <SearchButton onClick={handleSearch} />
             {canManage && (
-              <CreateButton onClick={openCreate} />
+              <CreateButton onClick={appModal.openCreate} />
             )}
             mobileFilters={(
               <>
@@ -456,23 +403,11 @@ export default function OAuth2AppsPage() {
 
       {/* 新增 / 编辑弹窗 */}
       <AppModal
-        title={editing ? '编辑 OAuth2 应用' : '新增 OAuth2 应用'}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={closeModal}
-        okButtonProps={{ loading: saveMutation.isPending, disabled: modalDetailLoading }}
+        {...appModal.modalProps}
         width={660}
-        closeOnEsc
       >
-        <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form
-            key={editing?.id ?? 'new'}
-            getFormApi={(api) => { formApi.current = api; }}
-            allowEmpty
-            initValues={formInitValues}
-            labelPosition="left"
-            labelWidth={120}
-          >
+        <Spin spinning={appModal.detailLoading} wrapperClassName="modal-spin-wrapper">
+          <Form {...appModal.formProps}>
             {/* 必填：应用名称（全宽） */}
             <Row gutter={16}>
               <Col span={24}>

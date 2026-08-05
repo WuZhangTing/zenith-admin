@@ -1,10 +1,9 @@
-import { useState, useRef } from 'react';
 import { Col, Form, Modal, Row, Select, Spin, Tag, Toast, Switch } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import type { InAppMessageType, InAppTemplate } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
+import { useEditModal } from '@/hooks/useEditModal';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -34,10 +33,6 @@ export default function InAppTemplatesPage() {
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: inAppTemplateKeys.lists });
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<InAppTemplate | null>(null);
-  const formRef = useRef<FormApi>(null);
-
   const listQuery = useInAppTemplateList({
     page,
     pageSize,
@@ -47,28 +42,17 @@ export default function InAppTemplatesPage() {
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
-  const detailQuery = useInAppTemplateDetail(editingRecord?.id, modalVisible);
-  const editing = editingRecord ? (detailQuery.data ?? editingRecord) : null;
-  const modalDetailLoading = !!editingRecord && detailQuery.isFetching;
   const saveMutation = useSaveInAppTemplate();
+  const modal = useEditModal<InAppTemplate>({
+    entityName: '站内信模板',
+    save: saveMutation,
+    useDetail: useInAppTemplateDetail,
+    defaults: { status: 'enabled', type: 'info' },
+    labelWidth: 120,
+  });
   const toggleStatusMutation = useSaveInAppTemplate();
   const deleteMutation = useDeleteInAppTemplate();
   const togglingStatusId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
-
-  const openCreate = () => { setEditingRecord(null); setModalVisible(true); };
-  const openEdit = (record: InAppTemplate) => {
-    setEditingRecord(record);
-    setModalVisible(true);
-  };
-
-  const handleSubmit = async () => {
-    let values: Awaited<ReturnType<FormApi['validate']>>;
-    try { values = (await formRef.current?.validate())!; } catch { throw new Error('validation'); }
-    await saveMutation.mutateAsync({ id: editingRecord?.id, values: values as Record<string, unknown> });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditingRecord(null);
-  };
 
   const handleDelete = (id: number) => {
     confirmDelete({
@@ -129,7 +113,7 @@ export default function InAppTemplatesPage() {
           key: 'edit',
           label: '编辑',
           hidden: !can('system:in-app-template:update'),
-          onClick: () => openEdit(record),
+          onClick: () => modal.openEdit(record),
         },
         {
           key: 'delete',
@@ -155,7 +139,7 @@ export default function InAppTemplatesPage() {
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
             {can('system:in-app-template:create') && (
-              <CreateButton onClick={openCreate} />
+              <CreateButton onClick={modal.openCreate} />
             )}
           </>
         )}
@@ -164,7 +148,7 @@ export default function InAppTemplatesPage() {
             <KeywordInput placeholder="搜索模板名称/编码/标题" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={240} />
             <SearchButton onClick={handleSearch} />
             {can('system:in-app-template:create') && (
-              <CreateButton onClick={openCreate} />
+              <CreateButton onClick={modal.openCreate} />
             )}
           </>
         )}
@@ -185,24 +169,16 @@ export default function InAppTemplatesPage() {
         pagination={buildPagination(total)}
         scroll={{ x: 1100 }} />
 
-      <AppModal title={editingRecord ? '编辑站内信模板' : '新增站内信模板'} visible={modalVisible}
-        onOk={handleSubmit} onCancel={() => { setModalVisible(false); setEditingRecord(null); }}
-        confirmLoading={saveMutation.isPending} okButtonProps={{ disabled: modalDetailLoading }} width={720}>
-        <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form
-          key={editing?.id ?? 'new'}
-          getFormApi={(api) => { (formRef as { current: FormApi }).current = api; }}
-          allowEmpty
-          labelPosition="left" labelWidth={120}
-          initValues={editing ?? { status: 'enabled', type: 'info' }}
-        >
+      <AppModal {...modal.modalProps} width={720}>
+        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
+        <Form {...modal.formProps}>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Input field="name" label="模板名称" placeholder="请输入模板名称"
                 rules={[{ required: true, message: '请输入模板名称' }]} />
             </Col>
             <Col span={12}>
-              <Form.Input field="code" label="模板编码" disabled={!!editing} placeholder="请输入模板编码"
+              <Form.Input field="code" label="模板编码" disabled={modal.isEdit} placeholder="请输入模板编码"
                 rules={[{ required: true, message: '请输入模板编码' }]} />
             </Col>
           </Row>

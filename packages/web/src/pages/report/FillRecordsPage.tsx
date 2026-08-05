@@ -16,6 +16,7 @@ import AppModal from '@/components/AppModal';
 import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowFormRenderer';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { useMyAsyncTasks } from '@/hooks/useAsyncTasks';
 import { useAllUsers } from '@/hooks/queries/users';
 import {
@@ -83,10 +84,8 @@ export default function FillRecordsPage() {
   const [adminDraft, setAdminDraft] = useState<AdminFilters>(DEFAULT_ADMIN);
   const [adminSubmitted, setAdminSubmitted] = useState<AdminFilters>(DEFAULT_ADMIN);
   const [detailId, setDetailId] = useState<number>();
-  const [reviewTarget, setReviewTarget] = useState<ReportFillRecord | null>(null);
   const [reviewDecision, setReviewDecision] = useState<'approved' | 'rejected'>('approved');
   const [entryVisible, setEntryVisible] = useState(false);
-  const reviewFormApi = useRef<FormApi | null>(null);
   const entryFormApi = useRef<FormApi | null>(null);
 
   const templateLookupQuery = useReportFillTemplateLookup(canCreate);
@@ -146,36 +145,38 @@ export default function FillRecordsPage() {
     }
   }
 
-  async function handleReview() {
-    if (!reviewTarget) return;
-    const values = await reviewFormApi.current?.validate() as { comment?: string };
-    try {
-      await reviewMutation.mutateAsync({
-        id: reviewTarget.id,
-        values: {
-          decision: reviewDecision,
-          expectedRevision: reviewTarget.revision,
-          comment: values.comment?.trim() || undefined,
-        },
-      });
-      Toast.success(reviewDecision === 'approved' ? '审核已通过' : '记录已拒绝');
-      setReviewTarget(null);
-      if (detailId === reviewTarget.id) void detailQuery.refetch();
-    } catch (error) {
-      if (isRevisionConflict(error)) {
-        Modal.warning({
-          title: '审核冲突',
-          content: '该记录已被其他审核人处理，请刷新最新状态。',
-          onOk: () => {
-            setReviewTarget(null);
-            void adminQuery.refetch();
-          },
-        });
-        return;
+  const reviewSave = {
+    isPending: reviewMutation.isPending,
+    mutateAsync: async (vars: { id?: number; values: { decision: typeof reviewDecision; expectedRevision: number; comment?: string } }) => {
+      try {
+        return await reviewMutation.mutateAsync(vars as { id: number; values: { decision: typeof reviewDecision; expectedRevision: number; comment?: string } });
+      } catch (error) {
+        if (isRevisionConflict(error)) {
+          Modal.warning({
+            title: '审核冲突',
+            content: '该记录已被其他审核人处理，请刷新最新状态。',
+            onOk: () => {
+              reviewModal.close();
+              void adminQuery.refetch();
+            },
+          });
+        }
+        throw error;
       }
-      throw error;
-    }
-  }
+    },
+  };
+  const reviewModal = useEditModal<ReportFillRecord, { comment?: string }, { decision: typeof reviewDecision; expectedRevision: number; comment?: string }>({
+    save: reviewSave,
+    beforeSave: (values, { editing }) => ({
+      decision: reviewDecision,
+      expectedRevision: editing?.revision ?? 0,
+      comment: values.comment?.trim() || undefined,
+    }),
+    successMessage: () => reviewDecision === 'approved' ? '审核已通过' : '记录已拒绝',
+    onSaved: (_saved, { editing }) => {
+      if (detailId === editing?.id) void detailQuery.refetch();
+    },
+  });
 
   const createColumns = (admin: boolean): ColumnProps<ReportFillRecord>[] => [
     { title: '记录号', dataIndex: 'id', width: 90, render: (value: number) => `#${value}` },
@@ -258,7 +259,7 @@ export default function FillRecordsPage() {
           hidden: !canRunFillRecordAction(record, 'review', canReview),
           onClick: () => {
             setReviewDecision('approved');
-            setReviewTarget(record);
+            reviewModal.openEdit(record);
           },
         }]),
       ],
@@ -461,11 +462,11 @@ export default function FillRecordsPage() {
               <>
                 <Button type="danger" onClick={() => {
                   setReviewDecision('rejected');
-                  setReviewTarget(detail);
+                  reviewModal.openEdit(detail);
                 }}>拒绝</Button>
                 <Button type="primary" onClick={() => {
                   setReviewDecision('approved');
-                  setReviewTarget(detail);
+                  reviewModal.openEdit(detail);
                 }}>通过</Button>
               </>
             )}
@@ -520,18 +521,16 @@ export default function FillRecordsPage() {
 
       <AppModal
         title={reviewDecision === 'approved' ? '通过填报' : '拒绝填报'}
-        visible={Boolean(reviewTarget)}
+        visible={reviewModal.visible}
         width={500}
-        onCancel={() => setReviewTarget(null)}
-        onOk={() => void handleReview()}
-        confirmLoading={reviewMutation.isPending}
-        okButtonProps={{ type: reviewDecision === 'approved' ? 'primary' : 'danger' }}
+        onCancel={reviewModal.close}
+        onOk={reviewModal.modalProps.onOk}
+        okButtonProps={{ ...reviewModal.modalProps.okButtonProps, type: reviewDecision === 'approved' ? 'primary' : 'danger' }}
+        closeOnEsc
       >
         <Form
-          key={`${reviewTarget?.id}-${reviewDecision}`}
-          labelPosition="left"
-          labelWidth={90}
-          getFormApi={(api) => { reviewFormApi.current = api; }}
+          {...reviewModal.formProps}
+          key={`${reviewModal.editing?.id}-${reviewDecision}`}
         >
           <Form.TextArea
             field="comment"

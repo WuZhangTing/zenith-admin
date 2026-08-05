@@ -1,9 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Form, Select, Space, Spin, Switch, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -11,6 +10,7 @@ import { AppModal } from '@/components/AppModal';
 import { formatDateTime } from '@/utils/date';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import {
   paymentWebhookKeys,
   useDeletePaymentWebhookEndpoint,
@@ -66,7 +66,6 @@ export default function PaymentWebhooksPage() {
   const { items: statusItems } = useDictItems('common_status');
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
-  const endpointFormApi = useRef<FormApi | null>(null);
   const [activeTab, setActiveTab] = useState<'endpoints' | 'deliveries'>('endpoints');
 
   const {
@@ -87,8 +86,6 @@ export default function PaymentWebhooksPage() {
   const [deliverySearch, setDeliverySearch] = useState<DeliverySearchParams>(defaultDeliverySearch);
   const [submittedDeliverySearch, setSubmittedDeliverySearch] = useState<DeliverySearchParams>(defaultDeliverySearch);
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<PaymentWebhookEndpoint | null>(null);
   const [detailDelivery, setDetailDelivery] = useState<PaymentWebhookDelivery | null>(null);
 
   const endpointQuery = usePaymentWebhookEndpoints({
@@ -107,10 +104,30 @@ export default function PaymentWebhooksPage() {
   });
   const deliveryData = deliveryQuery.data?.list ?? [];
   const deliveryTotal = deliveryQuery.data?.total ?? 0;
-  const detailQuery = usePaymentWebhookEndpointDetail(editing?.id, modalVisible && !!editing);
-  const editingDetail = editing ? (detailQuery.data ?? editing) : null;
-  const detailLoading = !!editing && detailQuery.isFetching;
   const saveEndpointMutation = useSavePaymentWebhookEndpoint();
+  const endpointModal = useEditModal<PaymentWebhookEndpoint, EndpointFormValues, Partial<PaymentWebhookEndpoint>>({
+    entityName: 'Webhook 端点',
+    save: saveEndpointMutation,
+    useDetail: usePaymentWebhookEndpointDetail,
+    defaults: { status: 'enabled', events: [] },
+    toValues: (record) => ({
+      name: record.name,
+      url: record.url,
+      bizType: record.bizType ?? '',
+      events: record.events ?? [],
+      status: record.status,
+      secret: '',
+      remark: record.remark ?? '',
+    }),
+    beforeSave: (values) => ({
+      ...values,
+      bizType: values.bizType || undefined,
+      events: values.events ?? [],
+      secret: values.secret || undefined,
+      remark: values.remark || undefined,
+    }),
+    labelWidth: 96,
+  });
   const toggleEndpointMutation = useSavePaymentWebhookEndpoint();
   const deleteEndpointMutation = useDeletePaymentWebhookEndpoint();
   const redeliverMutation = useRedeliverPaymentWebhookDelivery();
@@ -121,50 +138,6 @@ export default function PaymentWebhooksPage() {
   function handleEndpointReset() { setEndpointSearch(defaultEndpointSearch); setEndpointPage(1); setSubmittedEndpointSearch(defaultEndpointSearch); void queryClient.invalidateQueries({ queryKey: paymentWebhookKeys.endpointLists }); }
   function handleDeliverySearch() { setDeliveryPage(1); setSubmittedDeliverySearch(deliverySearch); void queryClient.invalidateQueries({ queryKey: paymentWebhookKeys.deliveryLists }); }
   function handleDeliveryReset() { setDeliverySearch(defaultDeliverySearch); setDeliveryPage(1); setSubmittedDeliverySearch(defaultDeliverySearch); void queryClient.invalidateQueries({ queryKey: paymentWebhookKeys.deliveryLists }); }
-
-  function openCreate() {
-    setEditing(null);
-    setModalVisible(true);
-  }
-  function openEdit(record: PaymentWebhookEndpoint) {
-    setEditing(record);
-    setModalVisible(true);
-  }
-  function closeModal() {
-    setModalVisible(false);
-    setEditing(null);
-  }
-
-  const formInit = editingDetail
-    ? {
-        name: editingDetail.name,
-        url: editingDetail.url,
-        bizType: editingDetail.bizType ?? '',
-        events: editingDetail.events ?? [],
-        status: editingDetail.status,
-        secret: '',
-        remark: editingDetail.remark ?? '',
-      }
-    : { status: 'enabled', events: [] };
-
-  async function handleEndpointOk() {
-    let values: EndpointFormValues;
-    try {
-      values = (await endpointFormApi.current?.validate()) as EndpointFormValues;
-    } catch {
-      throw new Error('validation');
-    }
-    const payload = {
-      ...values,
-      bizType: values.bizType || undefined,
-      events: values.events ?? [],
-      secret: values.secret || undefined,
-      remark: values.remark || undefined,
-    };
-    await saveEndpointMutation.mutateAsync({ id: editing?.id, values: payload });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    closeModal();
-  }
 
   async function handleToggle(record: PaymentWebhookEndpoint, checked: boolean) {
     await toggleEndpointMutation.mutateAsync({ id: record.id, values: { status: checked ? 'enabled' : 'disabled' } });
@@ -200,7 +173,7 @@ export default function PaymentWebhooksPage() {
         ...(hasPermission('payment:webhook:update') ? [{
           key: 'edit',
           label: '编辑',
-          onClick: () => openEdit(r),
+          onClick: () => endpointModal.openEdit(r),
         }] : []),
         ...(hasPermission('payment:webhook:delete') ? [{
           key: 'delete',
@@ -260,7 +233,7 @@ export default function PaymentWebhooksPage() {
   const renderEndpointSearchButton = () => <SearchButton onClick={handleEndpointSearch} />;
   const renderEndpointResetButton = () => <ResetButton onClick={handleEndpointReset} />;
   const renderEndpointCreateButton = () => hasPermission('payment:webhook:create') ? (
-    <CreateButton onClick={openCreate} />
+    <CreateButton onClick={endpointModal.openCreate} />
   ) : null;
 
   const renderDeliveryKeywordSearch = () => (
@@ -338,15 +311,15 @@ export default function PaymentWebhooksPage() {
         </TabPane>
       </Tabs>
 
-      <AppModal title={editing ? '编辑 Webhook 端点' : '新增 Webhook 端点'} visible={modalVisible} onOk={handleEndpointOk} onCancel={closeModal} okButtonProps={{ loading: saveEndpointMutation.isPending, disabled: detailLoading }} width={680} closeOnEsc>
-        <Spin spinning={detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={editing?.id ?? 'new'} getFormApi={(api) => { endpointFormApi.current = api; }} allowEmpty initValues={formInit} labelPosition="left" labelWidth={96}>
+      <AppModal {...endpointModal.modalProps} width={680}>
+        <Spin spinning={endpointModal.detailLoading} wrapperClassName="modal-spin-wrapper">
+          <Form {...endpointModal.formProps}>
             <Form.Input field="name" label="名称" placeholder="如：订单系统回调" rules={[{ required: true, message: '名称不能为空' }]} />
             <Form.Input field="url" label="URL" placeholder="https://example.com/payment/webhook" rules={[{ required: true, message: 'URL 不能为空' }]} />
             <Form.Input field="bizType" label="业务类型" placeholder="留空=全部" />
             <Form.Select field="events" label="事件" multiple maxTagCount={3} style={{ width: '100%' }} optionList={EVENT_OPTIONS} placeholder="留空=全部事件" />
             <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))} />
-            <Form.Input field="secret" label="密钥" mode="password" placeholder={editing?.hasSecret ? '已配置，留空则不修改' : '请输入'} />
+            <Form.Input field="secret" label="密钥" mode="password" placeholder={endpointModal.editing?.hasSecret ? '已配置，留空则不修改' : '请输入'} />
             <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
           </Form>
         </Spin>

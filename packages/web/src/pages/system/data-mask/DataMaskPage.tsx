@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import {
   Button,
   Input,
@@ -15,7 +15,6 @@ import {
   Switch,
   Table,
 } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Database } from 'lucide-react';
 import type { DataMaskConfig, MaskType, SensitiveField } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -25,6 +24,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
+import { useEditModal } from '@/hooks/useEditModal';
 import {
   dataMaskKeys,
   useBatchCreateDataMask,
@@ -77,6 +77,21 @@ type FormValues = {
   maskChar?: string;
 };
 
+function buildDataMaskPayload(values: FormValues) {
+  return {
+    entity:          values.entity.trim(),
+    field:           values.field.trim(),
+    label:           values.label.trim(),
+    maskType:        values.maskType,
+    exemptRoleCodes: values.exemptRoleCodes ?? [],
+    enabled:         values.enabled,
+    remark:          values.remark?.trim() || undefined,
+    customRule: values.maskType === 'custom'
+      ? { prefixKeep: values.prefixKeep ?? 3, suffixKeep: values.suffixKeep ?? 4, maskChar: values.maskChar || '*' }
+      : undefined,
+  };
+}
+
 interface SearchParams {
   keyword: string;
   maskType: string;
@@ -92,10 +107,7 @@ export default function DataMaskPage() {
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: dataMaskKeys.lists });
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<DataMaskConfig | null>(null);
   const [maskTypePreview, setMaskTypePreview] = useState<MaskType>('phone');
-  const formRef = useRef<FormApi>(null);
 
   // ─── 扫描状态 ─────────────────────────────────────────────────────────────────
   const [scanVisible, setScanVisible] = useState(false);
@@ -113,11 +125,27 @@ export default function DataMaskPage() {
   });
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
-  const detailQuery = useDataMaskDetail(editing?.id, modalVisible);
-  const editingDetail = editing ? (detailQuery.data ?? editing) : null;
-  const modalDetailLoading = !!editing && detailQuery.isFetching;
   const roleOptions = useDataMaskRoleOptions().data ?? [];
   const saveMutation = useSaveDataMask();
+  const modal = useEditModal<DataMaskConfig, FormValues, ReturnType<typeof buildDataMaskPayload>>({
+    entityName: '脱敏规则',
+    save: saveMutation,
+    useDetail: useDataMaskDetail,
+    defaults: { enabled: true, exemptRoleCodes: [], maskType: 'phone', prefixKeep: 3, suffixKeep: 4, maskChar: '*' },
+    toValues: (record) => ({
+      entity: record.entity,
+      field: record.field,
+      label: record.label,
+      maskType: record.maskType,
+      exemptRoleCodes: record.exemptRoleCodes,
+      enabled: record.enabled,
+      remark: record.remark ?? undefined,
+      prefixKeep: record.customRule?.prefixKeep ?? 3,
+      suffixKeep: record.customRule?.suffixKeep ?? 4,
+      maskChar: record.customRule?.maskChar ?? '*',
+    }),
+    beforeSave: buildDataMaskPayload,
+  });
   const toggleStatusMutation = useSaveDataMask();
   const deleteMutation = useDeleteDataMask();
   const scanMutation = useScanDataMaskFields();
@@ -140,21 +168,14 @@ export default function DataMaskPage() {
     }
   };
 
-  const closeModal = () => {
-    setModalVisible(false);
-    setEditing(null);
-  };
-
   const openCreate = () => {
-    setEditing(null);
     setMaskTypePreview('phone');
-    setModalVisible(true);
+    modal.openCreate();
   };
 
   const openEdit = (row: DataMaskConfig) => {
-    setEditing(row);
     setMaskTypePreview(row.maskType);
-    setModalVisible(true);
+    modal.openEdit(row);
   };
 
   const handleDelete = async (id: number) => {
@@ -228,41 +249,6 @@ export default function DataMaskPage() {
     }
   };
 
-  const handleSubmit = async () => {
-    let values: FormValues;
-    try { values = (await formRef.current?.validate())!; } catch { throw new Error('validation'); }
-    const body = {
-      entity:          values.entity.trim(),
-      field:           values.field.trim(),
-      label:           values.label.trim(),
-      maskType:        values.maskType,
-      exemptRoleCodes: values.exemptRoleCodes ?? [],
-      enabled:         values.enabled,
-      remark:          values.remark?.trim() || undefined,
-      customRule: values.maskType === 'custom'
-        ? { prefixKeep: values.prefixKeep ?? 3, suffixKeep: values.suffixKeep ?? 4, maskChar: values.maskChar || '*' }
-        : undefined,
-    };
-    await saveMutation.mutateAsync({ id: editing?.id, values: body });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    closeModal();
-  };
-
-  const getInitValues = (): Partial<FormValues> => {
-    if (!editingDetail) return { enabled: true, exemptRoleCodes: [], maskType: 'phone', prefixKeep: 3, suffixKeep: 4, maskChar: '*' };
-    return {
-      entity:          editingDetail.entity,
-      field:           editingDetail.field,
-      label:           editingDetail.label,
-      maskType:        editingDetail.maskType,
-      exemptRoleCodes: editingDetail.exemptRoleCodes,
-      enabled:         editingDetail.enabled,
-      remark:          editingDetail.remark ?? undefined,
-      prefixKeep:      editingDetail.customRule?.prefixKeep ?? 3,
-      suffixKeep:      editingDetail.customRule?.suffixKeep ?? 4,
-      maskChar:        editingDetail.customRule?.maskChar ?? '*',
-    };
-  };
 
   const columns: ColumnProps<DataMaskConfig>[] = [
     { title: '实体', dataIndex: 'entity', width: 100 },
@@ -418,21 +404,14 @@ export default function DataMaskPage() {
       />
 
       <AppModal
-        title={editing ? '编辑脱敏规则' : '新增脱敏规则'}        visible={modalVisible}
-        onCancel={closeModal}
-        onOk={handleSubmit}
-        okText={editing ? '保存' : '创建'}
-        okButtonProps={{ loading: saveMutation.isPending, disabled: modalDetailLoading }}
+        {...modal.modalProps}
+        okText={modal.isEdit ? '保存' : '创建'}
         width={660}
       >
-        <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form<FormValues>
-          key={editing?.id ?? 'new'}
-          getFormApi={(api) => { formRef.current = api; }}
-          initValues={getInitValues() as FormValues}
-          labelPosition="left"
-          labelWidth={90}
-          onValueChange={(vals) => {
+        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
+        <Form
+          {...modal.formProps}
+          onValueChange={(vals: Record<string, unknown>) => {
             if (vals.maskType) setMaskTypePreview(vals.maskType as unknown as MaskType);
           }}
         >

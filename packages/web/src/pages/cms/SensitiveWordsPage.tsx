@@ -1,14 +1,14 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Form, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { createdAtColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { usePagination } from '@/hooks/usePagination';
 import { useCmsSensitiveWordList, useSaveCmsSensitiveWord, useDeleteCmsSensitiveWord, cmsSensitiveWordKeys } from '@/hooks/queries/cms';
 import type { CmsSensitiveWord } from '@zenith/shared/cms';
@@ -18,16 +18,19 @@ import { confirmDelete } from '@/utils/confirm';
 
 export default function SensitiveWordsPage() {
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const queryClient = useQueryClient();
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [draftKeyword, setDraftKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<CmsSensitiveWord | null>(null);
-
   const listQuery = useCmsSensitiveWordList({ page, pageSize, keyword: submittedKeyword || undefined });
   const saveMutation = useSaveCmsSensitiveWord();
+  const modal = useEditModal<CmsSensitiveWord, Partial<CmsSensitiveWord>, Record<string, unknown>>({
+    entityName: '敏感词',
+    save: saveMutation,
+    defaults: { status: 'enabled' },
+    toValues: (record) => ({ word: record.word, replaceWith: record.replaceWith ?? '', status: record.status }),
+    beforeSave: (values) => ({ ...values, replaceWith: values.replaceWith || null }),
+  });
   const deleteMutation = useDeleteCmsSensitiveWord();
   const canManage = hasPermission('cms:sensitive:manage');
 
@@ -42,20 +45,6 @@ export default function SensitiveWordsPage() {
     setDraftKeyword('');
     setSubmittedKeyword('');
     void queryClient.invalidateQueries({ queryKey: cmsSensitiveWordKeys.lists });
-  }
-
-  async function handleModalOk() {
-    let values: Record<string, unknown>;
-    try {
-      values = (await formApi.current?.validate()) ?? {};
-    } catch {
-      throw new Error('validation');
-    }
-    if (!values.replaceWith) values.replaceWith = null;
-    await saveMutation.mutateAsync({ id: editingRecord?.id, values });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditingRecord(null);
   }
 
   const columns: ColumnProps<CmsSensitiveWord>[] = [
@@ -77,7 +66,7 @@ export default function SensitiveWordsPage() {
       width: 160,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => canManage ? [
-        { key: 'edit', label: '编辑', onClick: () => { setEditingRecord(record); setModalVisible(true); } },
+        { key: 'edit', label: '编辑', onClick: () => modal.openEdit(record) },
         {
           key: 'delete', label: '删除', danger: true,
           onClick: () => {
@@ -101,7 +90,7 @@ export default function SensitiveWordsPage() {
         <KeywordInput placeholder="搜索敏感词..." value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} />
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />
-        {canManage ? <CreateButton onClick={() => { setEditingRecord(null); setModalVisible(true); }} /> : null}
+        {canManage ? <CreateButton onClick={modal.openCreate} /> : null}
       </SearchToolbar>
 
       <ConfigurableTable
@@ -117,25 +106,8 @@ export default function SensitiveWordsPage() {
         pagination={buildPagination(listQuery.data?.total ?? 0)}
       />
 
-      <AppModal
-        title={editingRecord ? '编辑敏感词' : '新增敏感词'}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={() => { setModalVisible(false); setEditingRecord(null); }}
-        okButtonProps={{ loading: saveMutation.isPending }}
-        width={480}
-        closeOnEsc
-      >
-        <Form
-          key={editingRecord?.id ?? 'new'}
-          getFormApi={(api) => { formApi.current = api; }}
-          allowEmpty
-          initValues={editingRecord
-            ? { word: editingRecord.word, replaceWith: editingRecord.replaceWith ?? '', status: editingRecord.status }
-            : { status: 'enabled' }}
-          labelPosition="left"
-          labelWidth={90}
-        >
+      <AppModal {...modal.modalProps} width={480}>
+        <Form {...modal.formProps}>
           <Form.Input field="word" label="敏感词" rules={[{ required: true, message: '请输入敏感词' }]} />
           <Form.Input field="replaceWith" label="替换为" placeholder="留空 = 拦截模式（命中直接拒绝提交）" />
           <Form.RadioGroup field="status" label="状态">

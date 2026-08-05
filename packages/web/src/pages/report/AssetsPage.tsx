@@ -1,7 +1,6 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Col, Empty, Form, Input, Modal, Row, Select, SideSheet, Space, TabPane, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportAssetCatalogItem, ReportAssetTemplate, ReportAssetTemplateType, ReportAssetUsageSummary, ReportAssetUsageTrendPoint, ReportDeprecationNotice, ReportResourceType } from '@zenith/shared/report';
 import { AppModal } from '@/components/AppModal';
@@ -11,6 +10,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import {
   reportAssetKeys,
   useApplyReportAssetTemplate,
@@ -49,7 +49,6 @@ const templateTypeOptions = [
 export default function AssetsPage() {
   const qc = useQueryClient();
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [activeTab, setActiveTab] = useState('catalog');
   const [catalogDraft, setCatalogDraft] = useState({
@@ -61,11 +60,7 @@ export default function AssetsPage() {
   const [templateKeyword, setTemplateKeyword] = useState('');
   const [templateType, setTemplateType] = useState<ReportAssetTemplateType | undefined>();
   const [templateSearch, setTemplateSearch] = useState({ keyword: '', type: undefined as ReportAssetTemplateType | undefined });
-  const [templateModal, setTemplateModal] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<ReportAssetTemplate | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState<ReportAssetTemplate | null>(null);
-  const [deprecationModal, setDeprecationModal] = useState(false);
-  const [editingNotice, setEditingNotice] = useState<ReportDeprecationNotice | null>(null);
   const [usageDays, setUsageDays] = useState(30);
 
   const usersQuery = useAllUsers();
@@ -124,31 +119,29 @@ export default function AssetsPage() {
     void qc.invalidateQueries({ queryKey: reportAssetKeys.templateLists });
   };
 
-  const openTemplate = (record?: ReportAssetTemplate) => {
-    setEditingTemplate(record ?? null);
-    setTemplateModal(true);
-  };
-  const saveTemplate = async () => {
-    try {
-      const values = await formApi.current!.validate();
+  const templateModal = useEditModal<ReportAssetTemplate, Record<string, unknown>>({
+    entityName: '资产模板',
+    save: saveTemplateMutation,
+    defaults: { type: 'dashboard', content: '{}', status: 'enabled' },
+    labelWidth: 92,
+    toValues: (record) => ({ ...record, content: JSON.stringify(record.content, null, 2) }),
+    beforeSave: (values) => {
       const content = parseJsonObject(String(values.content ?? '{}'), '模板内容');
-      await saveTemplateMutation.mutateAsync({
-        id: editingTemplate?.id,
-        values: {
-          ...values,
-          code: values.code,
-          folderId: values.folderId || null,
-          ownerId: values.ownerId || null,
-          description: values.description || null,
-          content,
-          previewFileId: null,
-        },
-      });
-      Toast.success(editingTemplate ? '模板已更新' : '模板已创建');
-      setTemplateModal(false);
-    } catch (error) {
-      Toast.error(error instanceof Error ? error.message : '模板保存失败');
-    }
+      return {
+        ...values,
+        code: values.code,
+        folderId: values.folderId || null,
+        ownerId: values.ownerId || null,
+        description: values.description || null,
+        content,
+        previewFileId: null,
+      };
+    },
+    successMessage: ({ isEdit }) => isEdit ? '模板已更新' : '模板已创建',
+  });
+  const openTemplate = (record?: ReportAssetTemplate) => {
+    if (record) templateModal.openEdit(record);
+    else templateModal.openCreate();
   };
   const cloneTemplate = (record: ReportAssetTemplate) => {
     Modal.confirm({
@@ -173,13 +166,12 @@ export default function AssetsPage() {
     });
   };
 
-  const openNotice = (record?: ReportDeprecationNotice) => {
-    setEditingNotice(record ?? null);
-    setDeprecationModal(true);
-  };
-  const saveNotice = async () => {
-    try {
-      const values = await formApi.current!.validate();
+  const deprecationModal = useEditModal<ReportDeprecationNotice, Record<string, unknown>>({
+    entityName: '弃用公告',
+    save: saveNoticeMutation,
+    defaults: {},
+    labelWidth: 105,
+    beforeSave: (values, { isEdit }) => {
       const common = {
         title: values.title,
         message: values.message,
@@ -188,15 +180,13 @@ export default function AssetsPage() {
         effectiveAt: formatDateTimeForApi(values.effectiveAt as Date),
         expiresAt: values.expiresAt ? formatDateTimeForApi(values.expiresAt as Date) : null,
       };
-      await saveNoticeMutation.mutateAsync({
-        id: editingNotice?.id,
-        values: editingNotice ? common : { ...common, resourceType: values.resourceType, resourceId: Number(values.resourceId) },
-      });
-      Toast.success(editingNotice ? '弃用公告已更新' : '弃用公告已创建');
-      setDeprecationModal(false);
-    } catch (error) {
-      Toast.error(error instanceof Error ? error.message : '弃用公告保存失败');
-    }
+      return isEdit ? common : { ...common, resourceType: values.resourceType, resourceId: Number(values.resourceId) };
+    },
+    successMessage: ({ isEdit }) => isEdit ? '弃用公告已更新' : '弃用公告已创建',
+  });
+  const openNotice = (record?: ReportDeprecationNotice) => {
+    if (record) deprecationModal.openEdit(record);
+    else deprecationModal.openCreate();
   };
 
   const catalogColumns: ColumnProps<ReportAssetCatalogItem>[] = [
@@ -218,9 +208,8 @@ export default function AssetsPage() {
         {
           key: 'deprecate', label: '发布弃用', danger: true, hidden: !hasPermission('report:deprecation:create'),
           onClick: () => {
-            setEditingNotice(null);
-            setDeprecationModal(true);
-            setTimeout(() => formApi.current?.setValues({ resourceType: record.resourceType, resourceId: record.resourceId }), 0);
+            deprecationModal.openCreate();
+            setTimeout(() => deprecationModal.formApi.current?.setValues({ resourceType: record.resourceType, resourceId: record.resourceId }), 0);
           },
         },
       ],
@@ -374,11 +363,11 @@ export default function AssetsPage() {
         )}
       </SideSheet>
 
-      <AppModal title={editingTemplate ? '编辑资产模板' : '新增资产模板'} visible={templateModal} width={680} confirmLoading={saveTemplateMutation.isPending} onOk={() => void saveTemplate()} onCancel={() => setTemplateModal(false)} closeOnEsc>
-        <Form key={editingTemplate?.id ?? 'create'} getFormApi={(api) => { formApi.current = api; }} labelPosition="left" labelWidth={92} initValues={editingTemplate ? { ...editingTemplate, content: JSON.stringify(editingTemplate.content, null, 2) } : { type: 'dashboard', content: '{}', status: 'enabled' }}>
+      <AppModal {...templateModal.modalProps} width={680}>
+        <Form {...templateModal.formProps}>
           <Row gutter={16}>
             <Col xs={24} md={12}><Form.Input field="name" label="模板名称" rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.Input field="code" label="模板编码" disabled={!!editingTemplate} rules={[{ required: true }]} /></Col>
+            <Col xs={24} md={12}><Form.Input field="code" label="模板编码" disabled={templateModal.isEdit} rules={[{ required: true }]} /></Col>
             <Col xs={24} md={12}><Form.Select field="type" label="模板类型" style={{ width: '100%' }} optionList={templateTypeOptions} rules={[{ required: true }]} /></Col>
             <Col xs={24} md={12}><Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={[{ value: 'enabled', label: '启用' }, { value: 'disabled', label: '停用' }]} /></Col>
             <Col xs={24} md={12}><Form.Select field="ownerId" label="负责人" filter showClear style={{ width: '100%' }} optionList={users.map((u) => ({ value: u.id, label: u.nickname || u.username }))} /></Col>
@@ -389,11 +378,11 @@ export default function AssetsPage() {
         </Form>
       </AppModal>
 
-      <AppModal title={editingNotice ? '编辑弃用公告' : '新增弃用公告'} visible={deprecationModal} width={680} confirmLoading={saveNoticeMutation.isPending} onOk={() => void saveNotice()} onCancel={() => setDeprecationModal(false)} closeOnEsc>
-        <Form key={editingNotice?.id ?? 'create'} getFormApi={(api) => { formApi.current = api; }} labelPosition="left" labelWidth={105} initValues={editingNotice ?? {}}>
+      <AppModal {...deprecationModal.modalProps} width={680}>
+        <Form {...deprecationModal.formProps}>
           <Row gutter={16}>
-            <Col xs={24} md={12}><Form.Select field="resourceType" label="资源类型" disabled={!!editingNotice} style={{ width: '100%' }} optionList={resourceTypeOptions} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.InputNumber field="resourceId" label="资源 ID" disabled={!!editingNotice} min={1} style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
+            <Col xs={24} md={12}><Form.Select field="resourceType" label="资源类型" disabled={deprecationModal.isEdit} style={{ width: '100%' }} optionList={resourceTypeOptions} rules={[{ required: true }]} /></Col>
+            <Col xs={24} md={12}><Form.InputNumber field="resourceId" label="资源 ID" disabled={deprecationModal.isEdit} min={1} style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
             <Col xs={24} md={12}><Form.DatePicker field="effectiveAt" label="生效时间" type="dateTime" style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
             <Col xs={24} md={12}><Form.DatePicker field="expiresAt" label="到期时间" type="dateTime" style={{ width: '100%' }} /></Col>
             <Col xs={24} md={12}><Form.Select field="replacementResourceType" label="替代资源类型" showClear style={{ width: '100%' }} optionList={resourceTypeOptions} /></Col>

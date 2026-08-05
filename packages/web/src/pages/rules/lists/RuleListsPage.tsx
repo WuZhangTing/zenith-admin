@@ -1,7 +1,6 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, DatePicker, Form, Input, Modal, Select, SideSheet, Space, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search } from 'lucide-react';
 import type { RuleList, RuleListItem } from '@zenith/shared/rules';
@@ -28,6 +27,7 @@ import {
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 const { Text } = Typography;
 
@@ -56,8 +56,6 @@ export default function RuleListsPage() {
   const [submittedKeyword, setSubmittedKeyword] = useState('');
   const [draftType, setDraftType] = useState<string | undefined>(undefined);
   const [submittedType, setSubmittedType] = useState<string | undefined>(undefined);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<RuleList | null>(null);
   const [itemsRow, setItemsRow] = useState<RuleList | null>(null);
   const [itemsPage, setItemsPage] = useState(1);
   const [itemKeyword, setItemKeyword] = useState('');
@@ -65,7 +63,6 @@ export default function RuleListsPage() {
   const [importText, setImportText] = useState('');
   const [checkValue, setCheckValue] = useState('');
   const [checkResult, setCheckResult] = useState<{ hit: boolean; listType?: string } | null>(null);
-  const formApi = useRef<FormApi | null>(null);
 
   const listQuery = useRuleListList({ page, pageSize, keyword: submittedKeyword || undefined, type: submittedType as 'black' | 'white' | 'grey' | undefined });
   const data = listQuery.data ?? null;
@@ -78,9 +75,19 @@ export default function RuleListsPage() {
   const deleteItemMutation = useDeleteRuleListItem();
   const purgeMutation = usePurgeExpiredRuleListItems();
   const checkMutation = useCheckRuleList();
+  const modal = useEditModal<RuleList>({
+    entityName: '名单',
+    save: saveMutation,
+    defaults: { type: 'black' },
+    toValues: (record) => ({ key: record.key, name: record.name, type: record.type, description: record.description }),
+    beforeSave: (values, { isEdit }) => (
+      isEdit
+        ? { name: values.name, type: values.type, description: values.description ?? null }
+        : { key: values.key, name: values.name, type: values.type, description: values.description ?? null }
+    ),
+    labelWidth: 80,
+  });
 
-  const openCreate = () => { setEditing(null); setModalVisible(true); };
-  const openEdit = (r: RuleList) => { setEditing(r); setModalVisible(true); };
   const openItems = (r: RuleList) => {
     setItemsRow(r);
     setItemsPage(1);
@@ -89,17 +96,6 @@ export default function RuleListsPage() {
     setImportText('');
     setCheckValue('');
     setCheckResult(null);
-  };
-
-  const handleSubmit = async () => {
-    const v = await formApi.current?.validate();
-    if (!v) return;
-    const payload = editing
-      ? { name: v.name, type: v.type, description: v.description ?? null }
-      : { key: v.key, name: v.name, type: v.type, description: v.description ?? null };
-    await saveMutation.mutateAsync({ id: editing?.id, values: payload });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    setModalVisible(false);
   };
 
   const handleToggle = (r: RuleList) => { Modal.confirm({
@@ -149,7 +145,7 @@ export default function RuleListsPage() {
       desktopInlineKeys: ['items', 'edit'],
       actions: (r) => [
         { key: 'items', label: '条目', hidden: !canManageItems, onClick: () => openItems(r) },
-        { key: 'edit', label: '编辑', hidden: !canEdit, onClick: () => openEdit(r) },
+        { key: 'edit', label: '编辑', hidden: !canEdit, onClick: () => modal.openEdit(r) },
         { key: 'toggle', label: r.status === 'enabled' ? '停用' : '启用', danger: r.status === 'enabled', hidden: !canEdit, onClick: () => handleToggle(r) },
         { key: 'delete', label: '删除', danger: true, hidden: !canDelete, onClick: () => handleDelete(r) },
       ],
@@ -165,24 +161,18 @@ export default function RuleListsPage() {
             <Select placeholder="类型" value={draftType} onChange={(v) => setDraftType(v as string | undefined)} optionList={TYPE_OPTIONS} showClear style={{ width: 120 }} />
             <SearchButton onClick={() => { setPage(1); setSubmittedKeyword(draftKeyword); setSubmittedType(draftType); void queryClient.invalidateQueries({ queryKey: ruleKeys.ruleLists.lists }); }} />
             <ResetButton onClick={() => { setDraftKeyword(''); setSubmittedKeyword(''); setDraftType(undefined); setSubmittedType(undefined); setPage(1); void queryClient.invalidateQueries({ queryKey: ruleKeys.ruleLists.lists }); }} />
-            {canCreate && <CreateButton onClick={openCreate} />}
+            {canCreate && <CreateButton onClick={modal.openCreate} />}
           </>
         )}
       />
       <ConfigurableTable bordered columns={columns} dataSource={data?.list ?? []} loading={listQuery.isFetching} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} rowKey="id" size="small" empty="暂无数据" pagination={buildPagination(data?.total ?? 0)} />
 
       <AppModal
-        title={editing ? '编辑名单' : '新增名单'}
-        visible={modalVisible}
-        onOk={handleSubmit}
-        onCancel={() => setModalVisible(false)}
-        okButtonProps={{ loading: saveMutation.isPending }}
+        {...modal.modalProps}
         width={560}
-        closeOnEsc
       >
-        <Form key={editing?.id ?? 'new'} getFormApi={(a) => { formApi.current = a; }} labelPosition="left" labelWidth={80}
-          initValues={editing ? { key: editing.key, name: editing.name, type: editing.type, description: editing.description } : { type: 'black' }}>
-          <Form.Input field="key" label="Key" disabled={!!editing} rules={[{ required: true, message: 'key 必填' }]} placeholder="如 risk_blacklist" />
+        <Form {...modal.formProps}>
+          <Form.Input field="key" label="Key" disabled={modal.isEdit} rules={[{ required: true, message: 'key 必填' }]} placeholder="如 risk_blacklist" />
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '名称必填' }]} />
           <Form.Select field="type" label="类型" optionList={TYPE_OPTIONS} style={{ width: '100%' }} />
           <Form.TextArea field="description" label="描述" autosize={{ minRows: 2, maxRows: 3 }} maxCount={500} />

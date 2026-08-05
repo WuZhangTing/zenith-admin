@@ -4,7 +4,6 @@ import {
   Select, Spin, Tag, Toast, Typography,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import {
   Activity, RefreshCw, Search, X,
 } from 'lucide-react';
@@ -18,6 +17,7 @@ import { formatDateTime } from '@/utils/date';
 import { formatBytesGb as formatBytes } from '@/utils/format';
 import { TOKEN_KEY } from '@zenith/shared/core';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import type { ProcessInfo, ProcessListResponse } from '@zenith/shared/ops';
 import { useKillProcess, useProcessDetail, useSetProcessPriority } from '@/hooks/queries/processes';
 
@@ -60,12 +60,19 @@ const SSE_STATUS_META: Record<SseStatus, { color: string; text: string }> = {
   error:      { color: 'var(--semi-color-danger)', text: '连接断开' },
 };
 
+interface PriorityRecord {
+  id: number;
+  pid: number;
+  name: string;
+  nice?: number | null;
+  priorityClass?: string | null;
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // 主组件
 // ════════════════════════════════════════════════════════════════════════════
 export default function ProcessesPage() {
   const { hasPermission } = usePermission();
-  const priorityFormApi = useRef<FormApi | null>(null);
   const sseAbortRef = useRef<AbortController | null>(null);
 
   // ─── 数据状态 ──────────────────────────────────────────────────────────
@@ -88,12 +95,23 @@ export default function ProcessesPage() {
   const [killTarget, setKillTarget] = useState<ProcessInfo | null>(null);
   const [killSignal, setKillSignal] = useState('SIGTERM');
 
-  // ─── 优先级调整弹窗 ────────────────────────────────────────────────────
-  const [priorityVisible, setPriorityVisible] = useState(false);
-  const [priorityTarget, setPriorityTarget] = useState<ProcessInfo | null>(null);
   const detailQuery = useProcessDetail(detailProcess?.pid, detailVisible);
   const killMutation = useKillProcess();
   const priorityMutation = useSetProcessPriority();
+  const priorityModal = useEditModal<PriorityRecord, Record<string, unknown>>({
+    save: {
+      mutateAsync: async ({ id, values }) => {
+        await priorityMutation.mutateAsync({ pid: id ?? 0, values });
+        return { id: id ?? 0, pid: id ?? 0, name: '' };
+      },
+      isPending: priorityMutation.isPending,
+    },
+    toValues: (record) => platform === 'win32'
+      ? { priorityClass: record.priorityClass ?? 'Normal' }
+      : { nice: record.nice ?? 0 },
+    successMessage: () => '优先级已调整',
+    labelWidth: 100,
+  });
 
   // ─── 虚拟表格高度（Semi UI 要求数字型 scroll.y）──────────────────────────
   const containerRef = useRef<HTMLDivElement>(null);
@@ -217,19 +235,6 @@ export default function ProcessesPage() {
     setKillTarget(null);
   }
 
-  // ─── 调整优先级 ────────────────────────────────────────────────────────
-  async function confirmPriority() {
-    if (!priorityTarget) return;
-    let values: Record<string, unknown>;
-    try { values = await priorityFormApi.current?.validate() ?? {}; }
-    catch { throw new Error('validation'); }
-
-    await priorityMutation.mutateAsync({ pid: priorityTarget.pid, values });
-    Toast.success('优先级已调整');
-    setPriorityVisible(false);
-    setPriorityTarget(null);
-  }
-
   // ─── 表格列定义 ────────────────────────────────────────────────────────
   // 固定列宽总和（不含进程名）
   const FIXED_COLS_WIDTH = 80 + 100 + 90 + 80 + 110 + 90
@@ -350,7 +355,7 @@ export default function ProcessesPage() {
           key: 'priority',
           label: '优先级',
           hidden: !hasPermission('system:process:priority'),
-          onClick: () => { setPriorityTarget(record); setPriorityVisible(true); },
+          onClick: () => { priorityModal.openEdit({ ...record, id: record.pid }); },
         },
       ],
     }),
@@ -654,26 +659,14 @@ export default function ProcessesPage() {
 
       {/* ── 调整优先级弹窗 ── */}
       <AppModal
-        title={`调整优先级：${priorityTarget?.name ?? ''}（PID: ${priorityTarget?.pid ?? ''}）`}
-        visible={priorityVisible}
-        onOk={confirmPriority}
-        onCancel={() => { setPriorityVisible(false); setPriorityTarget(null); }}
-        okButtonProps={{ loading: priorityMutation.isPending }}
+        {...priorityModal.modalProps}
+        title={`调整优先级：${priorityModal.editing?.name ?? ''}（PID: ${priorityModal.editing?.pid ?? ''}）`}
         okText="确认调整"
         width={420}
-        closeOnEsc
       >
-        {priorityTarget && (
+        {priorityModal.editing && (
           <Form
-            key={priorityTarget.pid}
-            getFormApi={(api) => { priorityFormApi.current = api; }}
-            labelPosition="left"
-            labelWidth={100}
-            initValues={
-              platform === 'win32'
-                ? { priorityClass: priorityTarget.priorityClass ?? 'Normal' }
-                : { nice: priorityTarget.nice ?? 0 }
-            }
+            {...priorityModal.formProps}
           >
             {platform === 'win32' ? (
               <Form.Select
@@ -687,11 +680,11 @@ export default function ProcessesPage() {
               <>
                 <Form.Slot label="Nice 值">
                   <InputNumber
-                    defaultValue={priorityTarget.nice ?? 0}
+                    defaultValue={priorityModal.editing.nice ?? 0}
                     min={-20}
                     max={19}
                     style={{ width: '100%' }}
-                    onChange={(v) => priorityFormApi.current?.setValue('nice', v)}
+                    onChange={(v) => priorityModal.formApi.current?.setValue('nice', v)}
                   />
                 </Form.Slot>
                 <div style={{ fontSize: 12, color: 'var(--semi-color-text-3)', marginTop: 4, paddingLeft: 104 }}>

@@ -1,6 +1,5 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { Button, Tag, Form, Toast, Typography, Select, Row, Col } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Trash2 } from 'lucide-react';
 import { API_SCOPE_GROUPS, API_SCOPE_GROUP_LABELS } from '@zenith/shared/open-platform';
@@ -11,6 +10,7 @@ import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import {
   openPlatformKeys,
   useApiScopeList,
@@ -41,7 +41,6 @@ export default function ApiScopesPage() {
   const STATUS_OPTIONS = statusItems.map((i) => ({ value: i.value, label: i.label }));
   const { hasPermission } = usePermission();
   const canManage = hasPermission('open:scope:manage');
-  const formApi = useRef<FormApi | null>(null);
 
   interface SearchParams { keyword: string; scopeGroup?: string; status?: 'enabled' | 'disabled' }
   const defaultSearchParams: SearchParams = { keyword: '', scopeGroup: undefined, status: undefined };
@@ -51,8 +50,6 @@ export default function ApiScopesPage() {
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: openPlatformKeys.apiScopes.lists });
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<ApiScope | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
 
   const listQuery = useApiScopeList({
@@ -63,46 +60,21 @@ export default function ApiScopesPage() {
     status: submittedParams.status,
   });
   const data = listQuery.data ?? null;
-  const saveMutation = useSaveApiScope();
   const deleteMutation = useDeleteApiScope();
   const batchDeleteMutation = useBatchDeleteApiScopes();
 
-  function openCreate() {
-    setEditing(null);
-    setModalVisible(true);
-  }
-  function openEdit(record: ApiScope) {
-    setEditing(record);
-    setModalVisible(true);
-    formApi.current?.setValues({
-      code: record.code,
-      name: record.name,
-      scopeGroup: record.scopeGroup,
-      description: record.description ?? '',
-      status: record.status,
-    });
-  }
-  function closeModal() {
-    setModalVisible(false);
-    setEditing(null);
-  }
-
-  const formInitValues: Partial<FormValues> = editing
-    ? { code: editing.code, name: editing.name, scopeGroup: editing.scopeGroup, description: editing.description ?? '', status: editing.status }
-    : { scopeGroup: 'general', status: 'enabled' };
-
-  async function handleModalOk() {
-    let values: FormValues;
-    try {
-      values = (await formApi.current?.validate()) as FormValues;
-    } catch {
-      throw new Error('validation');
-    }
-    if (!values) throw new Error('validation');
-    await saveMutation.mutateAsync({ id: editing?.id, values });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    closeModal();
-  }
+  const modal = useEditModal<ApiScope, FormValues>({
+    save: useSaveApiScope(),
+    defaults: { scopeGroup: 'general', status: 'enabled' },
+    toValues: (r) => ({
+      code: r.code,
+      name: r.name,
+      scopeGroup: r.scopeGroup,
+      description: r.description ?? '',
+      status: r.status,
+    }),
+    labelWidth: 110,
+  });
 
   async function handleDelete(id: number) {
     await deleteMutation.mutateAsync(id);
@@ -143,7 +115,7 @@ export default function ApiScopesPage() {
     createOperationColumn<ApiScope>({
       width: 140,
       actions: (record) => [
-        { key: 'edit', label: '编辑', hidden: !canManage, onClick: () => openEdit(record) },
+        { key: 'edit', label: '编辑', hidden: !canManage, onClick: () => modal.openEdit(record) },
         {
           key: 'delete',
           label: '删除',
@@ -185,7 +157,7 @@ export default function ApiScopesPage() {
             />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
-            {canManage && <CreateButton onClick={openCreate} />}
+            {canManage && <CreateButton onClick={modal.openCreate} />}
             {canManage && selectedRowKeys.length > 0 && (
               <Button type="danger" icon={<Trash2 size={14} />} onClick={handleBatchDelete}>批量删除（{selectedRowKeys.length}）</Button>
             )}
@@ -195,7 +167,7 @@ export default function ApiScopesPage() {
           <>
             <KeywordInput placeholder="搜索编码 / 名称" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
             <SearchButton onClick={handleSearch} />
-            {canManage && <CreateButton onClick={openCreate} />}
+            {canManage && <CreateButton onClick={modal.openCreate} />}
           </>
         )}
         mobileActions={<ResetButton onClick={handleReset} />}
@@ -217,27 +189,17 @@ export default function ApiScopesPage() {
       />
 
       <AppModal
-        title={editing ? '编辑 API Scope' : '新增 API Scope'}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={closeModal}
-        okButtonProps={{ loading: saveMutation.isPending }}
+        {...modal.modalProps}
+        title={modal.isEdit ? '编辑 API Scope' : '新增 API Scope'}
         width={520}
-        closeOnEsc
       >
-        <Form
-          key={editing?.id ?? 'new'}
-          getFormApi={(api) => { formApi.current = api; }}
-          initValues={formInitValues}
-          labelPosition="left"
-          labelWidth={110}
-        >
+        <Form {...modal.formProps}>
           <Form.Input
             field="code"
             label="Scope 编码"
             placeholder="如 user:read"
-            disabled={!!editing}
-            extraText={editing ? '编码创建后不可修改' : '小写字母开头，可含 : . _ -'}
+            disabled={modal.isEdit}
+            extraText={modal.isEdit ? '编码创建后不可修改' : '小写字母开头，可含 : . _ -'}
             rules={[{ required: true, message: 'Scope 编码不能为空' }]}
           />
           <Form.Input field="name" label="名称" placeholder="如 读取用户信息" rules={[{ required: true, message: '名称不能为空' }]} />

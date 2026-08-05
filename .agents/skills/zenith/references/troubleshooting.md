@@ -220,8 +220,7 @@
 
 **解决**：
 
-1. 默认做法是**改代码**：按真实副作用列出受影响的 key（`lists` / `detail(id)` / 子键 / 前缀键），而不是广播整域。规范见 [crud-frontend.md 缓存一致性契约](./crud-frontend.md)
-2. 确属合法广播：在 `onSuccess` 注释写明理由，再执行 `node packages/web/scripts/check-invalidation-baseline.mjs --update`
+1. 默认做法是**改代码**：按真实副作用列出受影响的 key（`lists` / `detail(id)` / 子键 / 前缀键），而不是广播整域。规范见 [crud-frontend.md 缓存一致性契约](./crud-frontend.md)2. 确属合法广播：在 `onSuccess` 注释写明理由，再执行 `node packages/web/scripts/check-invalidation-baseline.mjs --update`
 
 ### 问题：操作成功后页面数据没刷新
 
@@ -232,6 +231,21 @@
 - 下拉源以本域 key 请求了别域资源（藏键），所有者域改动时无人失效它
 
 **解决**：按「有没有已挂载的查询读了这次被改动的状态」逐一补齐失效；藏键改为复用所有者域的共享 lookup hook。失效**未挂载**的缓存代价接近零，宁可多列几个 key，也不要漏。
+
+### 问题：`npm run lint`（web）报「编辑弹窗样板回退」
+
+**原因**：`scripts/check-edit-modal-baseline.mjs` 在 `src/pages/**` 里发现了超出基线数量的
+手写 `useRef<FormApi>` 或 `throw new Error('validation')`。
+
+**解决**：
+
+1. 默认做法是**改代码**：新增/编辑弹窗改用 `@/hooks/useEditModal`，展开 `modalProps` 到 `AppModal`、
+   `formProps` 到 `Form`。参考 `pages/system/tenant-packages/TenantPackagesPage.tsx`（简单场景）
+   与 `pages/system/tenants/TenantsPage.tsx`（含 `beforeSave` + `onSaved`）。
+   只有新增或只有编辑的单模式弹窗同样适用。
+2. 确有正当理由自持表单实例（页面级全局配置表单、登录/找回密码等认证流程、
+   工作流设计器与运行时表单、db-admin 行编辑器）——先写注释说明理由，
+   再执行 `node scripts/check-edit-modal-baseline.mjs --update` 更新基线。
 
 ### 问题：改一条数据，整屏查询全部重拉
 
@@ -244,3 +258,16 @@
 **原因**：`setQueryData(detail(id), saved)` 回填了与详情接口**形状或可见性不一致**的写接口响应。
 
 **解决**：改为 `invalidateQueries({ queryKey: xxxKeys.detail(id) })`。可回填的判定条件与四种禁止回填的情形见 [crud-frontend.md 回填红线](./crud-frontend.md#落地要求)。
+
+### 问题：编辑弹窗里详情数据不显示（只有列表已有的字段有值）
+
+**原因**：Semi 的 `initValues` 只在 `Form` **挂载时**读取一次。弹窗打开的瞬间详情请求还没返回，
+表单先拿列表行占位；详情到达后 `initValues` 表达式虽然变了，但 Form 已经挂载，不会重新读取。
+典型写法是 `initValues={editing ?? {...}}` 且 `<Form>` 上没有 `key`。
+
+危害具有延迟性：列表与详情返回同一组字段时完全看不出异常（只是白白多发一次详情请求），
+一旦详情新增一个列表没有的字段，编辑就会把它静默提交为空。
+
+**解决**：改用 `useEditModal`（`packages/web/src/hooks/useEditModal.ts`）并展开 `formProps`——
+它的 `key` 由 `${id}:${详情是否已到达}` 派生，详情到达时强制重挂载。
+确需手写时，必须自行给 `<Form>` 加上随详情变化的 `key`，或在详情到达后 `formApi.setValues(...)`。

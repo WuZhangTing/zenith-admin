@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Select, Modal, Form, Radio, Toast, TreeSelect, Row, Col, Spin, Switch, Tooltip, Banner } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import type { Menu } from '@zenith/shared/identity';
@@ -11,6 +10,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { renderLucideIcon } from '@/utils/icons';
 import IconPicker from '@/components/IconPicker';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import DictTag from '@/components/DictTag';
 import { useDictItems } from '@/hooks/useDictItems';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -24,9 +24,7 @@ import { confirmDelete } from '@/utils/confirm';
 export default function MenusPage() {
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
-  const formApi = useRef<FormApi | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingMenu, setEditingMenu] = useState<Menu | null>(null);
+  const createParentIdRef = useRef<number>(0);
   const [parentId, setParentId] = useState<number | null>(null);
   const [iconValue, setIconValue] = useState('');
   const [menuType, setMenuType] = useState<string>('menu');
@@ -47,9 +45,36 @@ export default function MenusPage() {
 
   const menuTreeQuery = useMenuTree();
   const data = useMemo(() => menuTreeQuery.data ?? [], [menuTreeQuery.data]);
-  const detailQuery = useMenuDetail(editingMenu?.id, modalVisible && !!editingMenu);
-  const modalDetailLoading = !!editingMenu && detailQuery.isFetching;
   const saveMutation = useSaveMenu();
+  const menuModal = useEditModal<Menu, Record<string, unknown>, Record<string, unknown>>({
+    entityName: '菜单',
+    save: saveMutation,
+    useDetail: useMenuDetail,
+    defaults: () => ({
+      type: 'menu',
+      status: 'enabled',
+      visible: 'show',
+      sort: 0,
+      parentId: createParentIdRef.current,
+      isExternal: false,
+      embed: false,
+      keepAlive: false,
+    }),
+    toValues: (menu) => ({
+      ...menu,
+      visible: menu.visible ? 'show' : 'hidden',
+      isExternal: menu.isExternal ?? false,
+      embed: menu.embed ?? false,
+      keepAlive: menu.keepAlive ?? false,
+    }),
+    beforeSave: (values) => ({
+      ...values,
+      parentId: parentId ?? 0,
+      icon: iconValue || undefined,
+      visible: values.visible === undefined ? true : values.visible === 'show',
+      embed: values.isExternal ? (values.embed ?? false) : false,
+    }),
+  });
   const toggleStatusMutation = useSaveMenu();
   const deleteMutation = useDeleteMenu();
 
@@ -69,14 +94,13 @@ export default function MenusPage() {
   }, []);
 
   useEffect(() => {
-    const detail = detailQuery.data;
-    if (!detail || !modalVisible || !editingMenu || detail.id !== editingMenu.id) return;
-    setEditingMenu(detail);
+    const detail = menuModal.editing;
+    if (!detail || !menuModal.visible) return;
     setParentId(detail.parentId ?? 0);
     setIconValue(detail.icon ?? '');
     setMenuType(detail.type);
     setIsExternalVal(detail.isExternal ?? false);
-  }, [detailQuery.data, editingMenu, modalVisible]);
+  }, [menuModal.editing, menuModal.visible]);
 
   // 递归收集所有节点 ID
   const allRowKeys = useMemo(() => {
@@ -176,42 +200,21 @@ export default function MenusPage() {
   ];
 
   const openCreate = (pid?: number) => {
-    setEditingMenu(null);
-    setParentId(pid ?? 0);
+    const nextParentId = pid ?? 0;
+    createParentIdRef.current = nextParentId;
+    setParentId(nextParentId);
     setIconValue('');
     setMenuType('menu');
     setIsExternalVal(false);
-    setModalVisible(true);
+    menuModal.openCreate();
   };
 
   const openEdit = (menu: Menu) => {
-    setEditingMenu(menu);
     setParentId(menu.parentId ?? 0);
     setIconValue(menu.icon ?? '');
     setMenuType(menu.type);
     setIsExternalVal(menu.isExternal ?? false);
-    setModalVisible(true);
-  };
-
-  const handleMenuModalOk = async () => {
-    let values;
-    try {
-      values = await formApi.current!.validate();
-    } catch {
-      throw new Error('validation');
-    }
-    const payload = {
-      ...values,
-      parentId: parentId ?? 0,
-      icon: iconValue || undefined,
-      visible: values.visible === undefined ? true : values.visible === 'show',
-      // 内嵌仅对外链有意义，非外链时强制归位
-      embed: values.isExternal ? (values.embed ?? false) : false,
-    };
-    await saveMutation.mutateAsync({ id: editingMenu?.id, values: payload });
-    Toast.success(editingMenu ? '更新成功' : '创建成功');
-    setModalVisible(false);
-    setEditingMenu(null);
+    menuModal.openEdit(menu);
   };
 
   const handleDelete = async (id: number) => {
@@ -456,27 +459,12 @@ export default function MenusPage() {
       </div>
 
       <AppModal
-        title={editingMenu ? '编辑菜单' : '新增菜单'}
-        visible={modalVisible}
-        onCancel={() => { setModalVisible(false); setEditingMenu(null); }}
-        onOk={handleMenuModalOk}
-        okButtonProps={{ disabled: modalDetailLoading }}
+        {...menuModal.modalProps}
         width={680}
 
       >
-        <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form
-          getFormApi={(api) => formApi.current = api}
-          allowEmpty
-          key={editingMenu ? `edit-${editingMenu.id}` : 'create'}
-          initValues={
-            editingMenu
-              ? { ...editingMenu, visible: editingMenu.visible ? 'show' : 'hidden', isExternal: editingMenu.isExternal ?? false, embed: editingMenu.embed ?? false, keepAlive: editingMenu.keepAlive ?? false }
-                : { type: 'menu', status: 'enabled', visible: 'show', sort: 0, parentId: parentId ?? 0, isExternal: false, embed: false, keepAlive: false }
-          }
-          labelPosition="left"
-          labelWidth={90}
-        >
+        <Spin spinning={menuModal.detailLoading} wrapperClassName="modal-spin-wrapper">
+        <Form {...menuModal.formProps}>
           <Form.RadioGroup
             field="type"
             label="菜单类型"

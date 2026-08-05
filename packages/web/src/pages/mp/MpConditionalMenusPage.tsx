@@ -1,11 +1,11 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import {
   Button, Form, Input, Modal, Space, Tag, Toast, Banner, Typography, Empty, Select, Divider,
 } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus, Trash2, FlaskConical } from 'lucide-react';
 import type { MpConditionalMenu, MpMenuButton, MpMenuMatchRule } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -98,11 +98,7 @@ export default function MpConditionalMenusPage() {
   const listQuery = useMpConditionalMenus(currentId);
   const list = listQuery.data ?? [];
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<MpConditionalMenu | null>(null);
   const [buttons, setButtons] = useState<EditableButton[]>([]);
-  const formRef = useRef<FormApi>(null);
-
   const [matchVisible, setMatchVisible] = useState(false);
   const [matchUserId, setMatchUserId] = useState('');
   const [matchResult, setMatchResult] = useState<MpMenuButton[] | null>(null);
@@ -110,31 +106,41 @@ export default function MpConditionalMenusPage() {
   const publishMutation = usePublishMpConditionalMenu();
   const deleteMutation = useDeleteMpConditionalMenu();
   const tryMatchMutation = useTryMatchMpConditionalMenu();
-  const submitting = saveMutation.isPending;
   const matching = tryMatchMutation.isPending;
 
-  const openCreate = () => { setEditing(null); setButtons([{ name: '菜单', type: 'view', url: '' }]); setModalVisible(true); };
-  const openEdit = (r: MpConditionalMenu) => { setEditing(r); setButtons((r.buttons as EditableButton[]) ?? []); setModalVisible(true); };
-
-  const handleSubmit = async () => {
-    let values: Record<string, unknown>;
-    try { values = (await formRef.current?.validate())!; } catch { throw new Error('validation'); }
-    if (!currentId) return;
-    if (buttons.length === 0) { Toast.warning('请至少添加一个一级菜单'); return; }
-    const matchRule: MpMenuMatchRule = {
-      tagId: (values.tagId as string) || undefined,
-      sex: (values.sex as string) || undefined,
-      country: (values.country as string) || undefined,
-      province: (values.province as string) || undefined,
-      city: (values.city as string) || undefined,
-      clientPlatformType: (values.clientPlatformType as string) || undefined,
-      language: (values.language as string) || undefined,
-    };
-    if (!Object.values(matchRule).some(Boolean)) { Toast.warning('请至少设置一个匹配条件'); return; }
-    await saveMutation.mutateAsync({ id: editing?.id, accountId: currentId, name: values.name, buttons, matchRule });
-    Toast.success(editing ? '已保存' : '已创建');
-    setModalVisible(false);
+  const menuSaveMutation = {
+    mutateAsync: ({ id, values }: { id?: number; values: Record<string, unknown> }) => {
+      if (!currentId) throw new Error('validation');
+      return saveMutation.mutateAsync({ id, accountId: currentId, name: values.name as string, buttons, matchRule: values.matchRule as MpMenuMatchRule });
+    },
+    isPending: saveMutation.isPending,
   };
+  const modal = useEditModal<MpConditionalMenu, Record<string, unknown>>({
+    entityName: '个性化菜单',
+    save: menuSaveMutation,
+    defaults: { name: '' },
+    toValues: (record) => ({ name: record.name, ...record.matchRule }),
+    beforeSave: (values) => {
+      if (!currentId) throw new Error('validation');
+      if (buttons.length === 0) { Toast.warning('请至少添加一个一级菜单'); throw new Error('validation'); }
+      const matchRule: MpMenuMatchRule = {
+        tagId: (values.tagId as string) || undefined,
+        sex: (values.sex as string) || undefined,
+        country: (values.country as string) || undefined,
+        province: (values.province as string) || undefined,
+        city: (values.city as string) || undefined,
+        clientPlatformType: (values.clientPlatformType as string) || undefined,
+        language: (values.language as string) || undefined,
+      };
+      if (!Object.values(matchRule).some(Boolean)) { Toast.warning('请至少设置一个匹配条件'); throw new Error('validation'); }
+      return { name: values.name, matchRule };
+    },
+    successMessage: ({ isEdit }) => (isEdit ? '已保存' : '已创建'),
+    labelWidth: 110,
+  });
+
+  const openCreate = () => { setButtons([{ name: '菜单', type: 'view', url: '' }]); modal.openCreate(); };
+  const openEdit = (r: MpConditionalMenu) => { setButtons((r.buttons as EditableButton[]) ?? []); modal.openEdit(r); };
 
   const handlePublish = (r: MpConditionalMenu) => {
     Modal.confirm({
@@ -218,11 +224,8 @@ export default function MpConditionalMenusPage() {
       <ConfigurableTable bordered loading={listQuery.isFetching} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching}
         columns={columns} dataSource={list} rowKey="id" pagination={buildPagination(list.length)} scroll={{ x: 900 }} />
 
-      <AppModal title={editing ? '编辑个性化菜单' : '新增个性化菜单'} visible={modalVisible}
-        onOk={handleSubmit} onCancel={() => setModalVisible(false)} confirmLoading={submitting} width={680}>
-        <Form key={editing?.id ?? 'new'} getFormApi={(api) => { (formRef as { current: FormApi }).current = api; }}
-          labelPosition="left" labelWidth={110}
-          initValues={editing ? { name: editing.name, ...editing.matchRule } : { name: '' }}>
+      <AppModal {...modal.modalProps} width={680}>
+        <Form {...modal.formProps}>
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} placeholder="便于识别，如：女性用户菜单" />
           <Divider margin="8px" align="left"><Text type="tertiary" size="small">匹配规则（至少一项）</Text></Divider>
           <Form.Input field="tagId" label="标签ID" placeholder="微信标签 id（可在标签管理查看）" />

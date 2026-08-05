@@ -1,12 +1,12 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import { Banner, Form, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { AppModal } from '@/components/AppModal';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { useAllPaymentChannelConfigsLookup } from '@/hooks/queries/payment-channels';
 import { paymentAppKeys, useDeletePaymentApp, usePaymentAppList, useSavePaymentApp } from '@/hooks/queries/payment-apps';
 import { createdAtColumn } from '@/utils/table-columns';
@@ -43,23 +43,43 @@ export default function PaymentAppsPage() {
   const STATUS_OPTIONS = statusItems.map((i) => ({ value: i.value, label: i.label }));
   const { hasPermission } = usePermission();
   const canManage = hasPermission('payment:app:manage');
-  const formApi = useRef<FormApi | null>(null);
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentAppKeys.lists });
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<PaymentApp | null>(null);
-
   const listQuery = usePaymentAppList({
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
     status: submittedParams.status || undefined,
   });
-  const channelLookupQuery = useAllPaymentChannelConfigsLookup(modalVisible);
   const saveMutation = useSavePaymentApp();
+  const modal = useEditModal<PaymentApp, AppFormValues, Partial<PaymentApp>>({
+    entityName: '支付应用',
+    save: saveMutation,
+    defaults: { status: 'enabled' },
+    toValues: (record) => ({
+      name: record.name,
+      appKey: record.appKey,
+      status: record.status,
+      wechatConfigId: record.wechatConfigId ?? null,
+      alipayConfigId: record.alipayConfigId ?? null,
+      unionpayConfigId: record.unionpayConfigId ?? null,
+      remark: record.remark ?? '',
+    }),
+    beforeSave: (values) => ({
+      name: values.name,
+      appKey: values.appKey,
+      status: values.status,
+      wechatConfigId: values.wechatConfigId ?? null,
+      alipayConfigId: values.alipayConfigId ?? null,
+      unionpayConfigId: values.unionpayConfigId ?? null,
+      remark: values.remark || undefined,
+    }),
+    labelWidth: 110,
+  });
+  const channelLookupQuery = useAllPaymentChannelConfigsLookup(modal.visible);
   const deleteMutation = useDeletePaymentApp();
   const channelSelectOptions = useMemo(() => {
     const configs = channelLookupQuery.data ?? [];
@@ -70,49 +90,10 @@ export default function PaymentAppsPage() {
     };
   }, [channelLookupQuery.data]);
 
-  function openCreate() { setEditing(null); setModalVisible(true); }
-  function openEdit(record: PaymentApp) { setEditing(record); setModalVisible(true); }
-  function closeModal() { setModalVisible(false); setEditing(null); formApi.current = null; }
-
-  async function handleOk() {
-    let values: AppFormValues;
-    try {
-      values = (await formApi.current?.validate()) as AppFormValues;
-    } catch {
-      throw new Error('validation');
-    }
-    await saveMutation.mutateAsync({
-      id: editing?.id,
-      values: {
-        name: values.name,
-        appKey: values.appKey,
-        status: values.status,
-        wechatConfigId: values.wechatConfigId ?? null,
-        alipayConfigId: values.alipayConfigId ?? null,
-        unionpayConfigId: values.unionpayConfigId ?? null,
-        remark: values.remark || undefined,
-      },
-    });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    closeModal();
-  }
-
   async function handleDelete(id: number) {
     await deleteMutation.mutateAsync(id);
     Toast.success('删除成功');
   }
-
-  const formInit: Partial<AppFormValues> = editing
-    ? {
-        name: editing.name,
-        appKey: editing.appKey,
-        status: editing.status,
-        wechatConfigId: editing.wechatConfigId ?? null,
-        alipayConfigId: editing.alipayConfigId ?? null,
-        unionpayConfigId: editing.unionpayConfigId ?? null,
-        remark: editing.remark ?? '',
-      }
-    : { status: 'enabled' };
 
   const columns: ColumnProps<PaymentApp>[] = [
     { title: '应用名称', dataIndex: 'name', width: 180 },
@@ -126,7 +107,7 @@ export default function PaymentAppsPage() {
     createOperationColumn<PaymentApp>({
       width: 120,
       actions: (r) => canManage ? [
-        { key: 'edit', label: '编辑', onClick: () => openEdit(r) },
+        { key: 'edit', label: '编辑', onClick: () => modal.openEdit(r) },
         {
           key: 'delete',
           label: '删除',
@@ -151,7 +132,7 @@ export default function PaymentAppsPage() {
   );
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
-  const renderCreateButton = () => canManage ? <CreateButton onClick={openCreate} /> : null;
+  const renderCreateButton = () => canManage ? <CreateButton onClick={modal.openCreate} /> : null;
 
   return (
     <div className="page-container">
@@ -185,11 +166,10 @@ export default function PaymentAppsPage() {
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} pagination={buildPagination(listQuery.data?.total ?? 0)}
       />
 
-      <AppModal title={editing ? '编辑支付应用' : '新增支付应用'} visible={modalVisible} onOk={handleOk} onCancel={closeModal}
-        okButtonProps={{ loading: saveMutation.isPending }} width={620} closeOnEsc>
-        <Form key={editing?.id ?? 'new'} getFormApi={(api) => { formApi.current = api; }} initValues={formInit} labelPosition="left" labelWidth={110}>
+      <AppModal {...modal.modalProps} width={620}>
+        <Form {...modal.formProps}>
           <Form.Input field="name" label="应用名称" placeholder="如：官网商城" rules={[{ required: true, message: '应用名称不能为空' }]} />
-          <Form.Input field="appKey" label="appKey" placeholder="如：web-mall" disabled={!!editing} rules={[{ required: true, message: 'appKey 不能为空' }]} />
+          <Form.Input field="appKey" label="appKey" placeholder="如：web-mall" disabled={modal.isEdit} rules={[{ required: true, message: 'appKey 不能为空' }]} />
           <Form.Select field="wechatConfigId" label="微信配置" style={{ width: '100%' }} optionList={channelSelectOptions.wechat} showClear placeholder="可选" />
           <Form.Select field="alipayConfigId" label="支付宝配置" style={{ width: '100%' }} optionList={channelSelectOptions.alipay} showClear placeholder="可选" />
           <Form.Select field="unionpayConfigId" label="云闪付配置" style={{ width: '100%' }} optionList={channelSelectOptions.unionpay} showClear placeholder="可选" />

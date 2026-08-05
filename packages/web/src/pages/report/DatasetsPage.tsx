@@ -2,7 +2,6 @@ import { useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Form, Input, Select, Table, Tag, Toast, Modal, Space, Typography, Empty, Switch, InputNumber, TextArea } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Play, Upload as UploadIcon, Sparkles, Blocks } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -11,6 +10,7 @@ import AppModal from '@/components/AppModal';
 import { useExportJobRunner } from '@/hooks/useExportJobRunner';
 import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import {
   useBatchReportDatasetStatus,
   useCloneReportDataset,
@@ -81,7 +81,6 @@ export default function DatasetsPage() {
   const { items: statusItems } = useDictItems('common_status');
   const { hasPermission } = usePermission();
   const navigate = useNavigate();
-  const formApi = useRef<FormApi | null>(null);
   const staticFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const {
@@ -100,8 +99,6 @@ export default function DatasetsPage() {
     return m;
   }, [datasources]);
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<ReportDataset | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
   const [selectedDsId, setSelectedDsId] = useState<number | null>(null);
   const [fields, setFields] = useState<ReportField[]>([]);
@@ -118,11 +115,6 @@ export default function DatasetsPage() {
   const [preview, setPreview] = useState<ReportDataResult | null>(null);
   const [aiAskVisible, setAiAskVisible] = useState(false);
   const [aiQuestion, setAiQuestion] = useState('');
-
-  const selectedType: ReportDatasourceType | null = selectedDsId ? (dsTypeMap.get(selectedDsId) ?? editing?.type ?? null) : null;
-
-  const rolesQuery = useAllRoles({ enabled: modalVisible });
-  const roleOptions = (rolesQuery.data ?? []).map((role) => ({ value: role.code, label: role.name }));
 
   const listQuery = useReportDatasetList({
     page,
@@ -191,26 +183,62 @@ export default function DatasetsPage() {
     setStaticColumns([]);
     setPreview(null);
   }
-  function openCreate() { setEditing(null); resetModalExtra(null); setModalVisible(true); }
-  function openEdit(record: ReportDataset) { setEditing(record); resetModalExtra(record); setModalVisible(true); }
-  function closeModal() { setModalVisible(false); setEditing(null); setPreview(null); }
-
-  const sqlContent = (editing?.content ?? {}) as ReportSqlDatasetContent;
-  const apiContent = (editing?.content ?? {}) as ReportApiDatasetContent;
-  const formInitValues = editing
-    ? {
-        name: editing.name,
-        ownerId: editing.ownerId ?? undefined,
-        folderId: editing.folderId ?? undefined,
-        datasourceId: editing.datasourceId,
+  const datasetModal = useEditModal<ReportDataset, Record<string, unknown>>({
+    entityName: '数据集',
+    save: saveMutation,
+    defaults: { status: 'enabled', cacheTtl: 0 },
+    labelWidth: 72,
+    toValues: (record) => {
+      const sqlContent = (record.content ?? {}) as ReportSqlDatasetContent;
+      const apiContent = (record.content ?? {}) as ReportApiDatasetContent;
+      return {
+        name: record.name,
+        ownerId: record.ownerId ?? undefined,
+        folderId: record.folderId ?? undefined,
+        datasourceId: record.datasourceId,
         sql: sqlContent.sql ?? '',
         itemsPath: apiContent.itemsPath ?? '',
         paramsText: apiContent.params ? JSON.stringify(apiContent.params, null, 2) : '',
-        cacheTtl: editing.cacheTtl ?? 0,
-        status: editing.status,
-        remark: editing.remark ?? '',
-      }
-    : { status: 'enabled', cacheTtl: 0 };
+        cacheTtl: record.cacheTtl ?? 0,
+        status: record.status,
+        remark: record.remark ?? '',
+      };
+    },
+    beforeSave: (values) => {
+      if (!selectedDsId) { Toast.error('请选择数据源'); throw new Error('ds'); }
+      const content = buildContent(values);
+      if (content === null) throw new Error('content');
+      const normalizedComputedFields = normalizeComputedFields();
+      if (normalizedComputedFields === null) throw new Error('computedFields');
+      const normalizedParams = normalizeParamDefs();
+      if (normalizedParams === null) throw new Error('params');
+      const normalizedRowRules = isSqlAuthoringType(selectedType) ? normalizeRowRules() : [];
+      if (normalizedRowRules === null) throw new Error('rowRules');
+      return {
+        name: values.name,
+        ownerId: values.ownerId ? Number(values.ownerId) : null,
+        folderId: values.folderId ? Number(values.folderId) : null,
+        datasourceId: selectedDsId,
+        content,
+        fields: normalizeFields(),
+        params: normalizedParams,
+        computedFields: normalizedComputedFields,
+        rowRules: normalizedRowRules,
+        cacheTtl: Number(values.cacheTtl) || 0,
+        materialize: {
+          enabled: materialize.enabled,
+          ...(materialize.cron?.trim() ? { cron: materialize.cron.trim() } : {}),
+        },
+        status: values.status,
+        remark: values.remark || undefined,
+      };
+    },
+  });
+  function openCreate() { resetModalExtra(null); datasetModal.openCreate(); }
+  function openEdit(record: ReportDataset) { resetModalExtra(record); datasetModal.openEdit(record); }
+  const selectedType: ReportDatasourceType | null = selectedDsId ? (dsTypeMap.get(selectedDsId) ?? datasetModal.editing?.type ?? null) : null;
+  const rolesQuery = useAllRoles({ enabled: datasetModal.visible });
+  const roleOptions = (rolesQuery.data ?? []).map((role) => ({ value: role.code, label: role.name }));
 
   function parseStaticRows(showToast = true): Record<string, unknown>[] | null {
     try {
@@ -354,7 +382,7 @@ export default function DatasetsPage() {
   }
 
   async function handlePreview() {
-    const values = formApi.current?.getValues() as Record<string, unknown>;
+    const values = datasetModal.formApi.current?.getValues() as Record<string, unknown>;
     if (!selectedDsId) { Toast.warning('请先选择数据源'); return; }
     if (selectedType === 'static') {
       const rows = parseStaticRows(true);
@@ -387,8 +415,8 @@ export default function DatasetsPage() {
     const question = aiQuestion.trim();
     if (!question) { Toast.warning('请先输入问题'); return; }
     try {
-      const res = await generateSqlMutation.mutateAsync({ question, datasetId: editing?.id });
-      formApi.current?.setValue('sql', res.sql);
+      const res = await generateSqlMutation.mutateAsync({ question, datasetId: datasetModal.editing?.id });
+      datasetModal.formApi.current?.setValue('sql', res.sql);
       Toast.success('SQL 已生成');
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : '生成失败');
@@ -399,43 +427,6 @@ export default function DatasetsPage() {
     if (!preview) return;
     setFields(fieldsFromColumns(preview.columns, preview.rows));
     Toast.success(`已生成 ${preview.columns.length} 个字段`);
-  }
-
-  async function handleModalOk() {
-    let values: Record<string, unknown>;
-    try { values = await formApi.current?.validate() as Record<string, unknown>; }
-    catch { throw new Error('validation'); }
-    if (!selectedDsId) { Toast.error('请选择数据源'); throw new Error('ds'); }
-    const content = buildContent(values);
-    if (content === null) throw new Error('content');
-    const normalizedComputedFields = normalizeComputedFields();
-    if (normalizedComputedFields === null) throw new Error('computedFields');
-    const normalizedParams = normalizeParamDefs();
-    if (normalizedParams === null) throw new Error('params');
-    const normalizedRowRules = isSqlAuthoringType(selectedType) ? normalizeRowRules() : [];
-    if (normalizedRowRules === null) throw new Error('rowRules');
-
-    const payload = {
-      name: values.name,
-      ownerId: values.ownerId ? Number(values.ownerId) : null,
-      folderId: values.folderId ? Number(values.folderId) : null,
-      datasourceId: selectedDsId,
-      content,
-      fields: normalizeFields(),
-      params: normalizedParams,
-      computedFields: normalizedComputedFields,
-      rowRules: normalizedRowRules,
-      cacheTtl: Number(values.cacheTtl) || 0,
-      materialize: {
-        enabled: materialize.enabled,
-        ...(materialize.cron?.trim() ? { cron: materialize.cron.trim() } : {}),
-      },
-      status: values.status,
-      remark: values.remark || undefined,
-    };
-    await saveMutation.mutateAsync({ id: editing?.id, values: payload });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    closeModal();
   }
 
   async function handleDelete(id: number) {
@@ -611,16 +602,10 @@ export default function DatasetsPage() {
       />
 
       <AppModal
-        title={editing ? '编辑数据集' : '新增数据集'}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={closeModal}
-        okButtonProps={{ loading: saveMutation.isPending }}
+        {...datasetModal.modalProps}
         width={760}
-        closeOnEsc
       >
-        <Form key={editing?.id ?? 'new'} getFormApi={(api) => { formApi.current = api; }} initValues={formInitValues}
-          labelPosition="left" labelWidth={72} onValueChange={(v) => {
+        <Form {...datasetModal.formProps} onValueChange={(v) => {
             if (v.datasourceId === undefined) return;
             setSelectedDsId((prev) => {
               const next = v.datasourceId as number;
@@ -667,7 +652,7 @@ export default function DatasetsPage() {
                     <VisualModelBuilder
                       initial={visualModel}
                       onGenerate={(sql, model) => {
-                        formApi.current?.setValue('sql', sql);
+                        datasetModal.formApi.current?.setValue('sql', sql);
                         setVisualModel(model);
                       }}
                     />

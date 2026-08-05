@@ -116,16 +116,18 @@ packages/web/src/pages/xxx/XxxPage.tsx     # 页面组件
 
 ## 域 hooks 文件模板（hooks/queries/xxxs.ts）
 
+标准五件套（key 工厂 / 列表 / 详情 / 保存 / 删除 / 下拉源）一律由 `createCrudQueries` 生成，
+**不要**手抄下面这些形状——手抄漏掉的往往不是行数而是失效契约（保存后没失效 `lists`、
+删除后没 `removeQueries(detail)`），这两种缺陷都不报错。
+
 ```ts
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse } from '@zenith/shared/core';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Xxx } from '@zenith/shared/{业务域}';
 import { request } from '@/utils/request';
-import { toQueryString, unwrap } from '@/lib/query';
+import { unwrap } from '@/lib/query';
+import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
 
-export interface XxxListParams {
-  page: number;
-  pageSize: number;
+export interface XxxListParams extends CrudListParams {
   keyword?: string;
   status?: string;
   // 时间范围筛选：只放已转换的字符串（formatDateTimeForApi），禁止 Date 对象进 params
@@ -133,80 +135,61 @@ export interface XxxListParams {
   // endTime?: string;
 }
 
-export const xxxKeys = {
-  all: ['xxxs'] as const,
-  lists: ['xxxs', 'list'] as const,
-  list: (params: XxxListParams) => ['xxxs', 'list', params] as const,
-  detail: (id: number | undefined) => ['xxxs', 'detail', id] as const,
-};
-
-export function useXxxList(params: XxxListParams) {
-  return useQuery({
-    queryKey: xxxKeys.list(params),
-    queryFn: () => request.get<PaginatedResponse<Xxx>>(`/api/xxxs${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
+/** 下拉源通常只返回精简字段，与实体类型分开声明 */
+export interface XxxOption {
+  id: number;
+  name: string;
 }
 
-export function useXxxDetail(id: number | undefined, enabled = true) {
-  return useQuery({
-    queryKey: xxxKeys.detail(id),
-    queryFn: () => request.get<Xxx>(`/api/xxxs/${id}`).then(unwrap),
-    enabled: enabled && id !== undefined,
-  });
-}
+export const {
+  keys: xxxKeys,
+  useList: useXxxList,
+  useDetail: useXxxDetail,
+  useSave: useSaveXxx,
+  useDelete: useDeleteXxxs,
+  useLookup: useAllXxxs,
+} = createCrudQueries<Xxx, XxxListParams, Partial<Xxx>, XxxOption>({
+  resource: 'xxxs',          // 同时作为 query key 前缀与默认路径 /api/xxxs
+  lookup: true,              // 需要 /api/xxxs/all 下拉源时开启；子路径不同时传字符串
+  // path: '/api/cms/links', // 接口路径与资源名不一致时覆盖
+  // onSaved: (qc) => invalidateCurrentUserAccess(qc), // 跨域联动的额外失效
+});
+```
 
-/** 新增（无 id）或更新（有 id） */
-export function useSaveXxx() {
+工厂已覆盖的失效契约：保存后失效 `detail(id)` + `lists` +（若启用）`lookup`；
+删除后 `removeQueries(detail(id))` + 失效 `lists` +（若启用）`lookup`。
+
+**非标准接口继续手写**，用工厂导出的 `keys` 做失效，并注释说明为何只失效这些：
+
+```ts
+/** 分配菜单：menuIds 只存在于详情，列表与下拉源都不含，故不失效它们 */
+export function useAssignXxxMenus() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
-      (id === undefined
-        ? request.post<Xxx>('/api/xxxs', values)
-        : request.put<Xxx>(`/api/xxxs/${id}`, values)
-      ).then(unwrap),
-    onSuccess: (saved) => {
-      // 写接口与详情接口同源（服务端同为 mapXxx）时可直接回填，省掉一次详情回源；
-      // 若写接口返回 okBody(null, ...)，改为 invalidateQueries({ queryKey: xxxKeys.detail(id) })
-      qc.setQueryData(xxxKeys.detail(saved.id), saved);
-      void qc.invalidateQueries({ queryKey: xxxKeys.lists });
-    },
-  });
-}
-
-/** 删除：单个（length===1 走单删接口）或批量 */
-export function useDeleteXxxs() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (ids: number[]) =>
-      (ids.length === 1
-        ? request.delete<null>(`/api/xxxs/${ids[0]}`)
-        : request.delete<null>('/api/xxxs/batch', { ids })
-      ).then(unwrap),
-    onSuccess: (_data, ids) => {
-      // 实体已不存在：移除缓存而非失效，否则仍缓存的详情会去请求必然 404 的资源
-      for (const id of ids) qc.removeQueries({ queryKey: xxxKeys.detail(id) });
-      void qc.invalidateQueries({ queryKey: xxxKeys.lists });
+    mutationFn: ({ id, menuIds }: { id: number; menuIds: number[] }) =>
+      request.put<null>(`/api/xxxs/${id}/menus`, { menuIds }).then(unwrap),
+    onSuccess: (_data, { id }) => {
+      void qc.invalidateQueries({ queryKey: xxxKeys.detail(id) });
     },
   });
 }
 ```
 
-> 如页面存在关联下拉源（如全量 Yyy 列表），在 Yyy 的域文件中定义 `useAllYyys()`（key `['yyys','all']`，`staleTime: LOOKUP_STALE_TIME`，可选 `{ enabled }` 参数），供跨页共享。
+> 关联下拉源属于**所有者域**：需要全量 Yyy 列表时，在 Yyy 的域文件里开 `lookup: true` 并导出 `useAllYyys`，
+> 不要在本域用本域 key 去请求 Yyy——Yyy 增删改时没有任何来源会失效它。
 
 ---
 
 ## 完整页面模板
 
 ```tsx
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Form, Input, Select, Spin,
   Toast, Modal, Switch, Row, Col,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
@@ -217,6 +200,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import AppModal from '@/components/AppModal';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import { confirmDelete } from '@/utils/confirm';
@@ -241,7 +225,6 @@ const defaultSearchParams: SearchParams = {
 // ════════════════════════════════════════════════════════════════════════════
 export default function XxxPage() {
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
 
   // ─── 搜索状态：draft 绑输入框，submitted 进 query key ────────────────────
   // useListSearch 内部整合了 usePagination，并保证「查询 / 重置」必定失效 listKey，
@@ -265,15 +248,32 @@ export default function XxxPage() {
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
 
-  // ─── 弹窗状态（编辑详情懒加载：enabled 门控 + 行数据回退）───────────────
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<Xxx | null>(null);  // null=新增
-  const detailQuery = useXxxDetail(editingRecord?.id, modalVisible);
-  const editingXxx = editingRecord ? (detailQuery.data ?? editingRecord) : null;
-  const modalDetailLoading = !!editingRecord && detailQuery.isFetching;
+  // ─── 弹窗状态由 useEditModal 托管（见下方）───────────────────────────────
+  // ─── 新增/编辑弹窗 ─────────────────────────────────────────────────────
+  // useEditModal 焊死四条漏写不报错的契约：校验失败必须抛出、提示文案区分新增/编辑、
+  // 保存后关闭并清空 editing、以及**详情到达时按 key 重挂载表单**
+  // （initValues 只在挂载时读一次，没有 key 时异步详情永远进不了表单）。
+  // 禁止再手写 useRef<FormApi> + editingRecord + validate/try-catch 四件套。
+  const modal = useEditModal<Xxx>({
+    entityName: '示例',              // 自动生成标题「新增示例 / 编辑示例」
+    save: useSaveXxx(),
+    useDetail: useXxxDetail,         // 编辑时懒加载详情，必须是模块级稳定函数
+    defaults: { status: 'enabled' }, // 仅新增时使用
+    toValues: (r) => ({              // 可选：裁剪回填字段
+      name: r.name,
+      description: r.description,
+      status: r.status,
+      // 多对多字段示例：yyyIds: r.yyyIds ?? [],
+    }),
+    // 表单值与接口类型不一致时转换（如 DatePicker 的 Date → 接口字符串）：
+    // beforeSave: (values) => ({ ...values, expireAt: formatDateTimeForApi(values.expireAt) }),
+    // 保存后的副作用（展示初始密码、跳转…）：
+    // onSaved: (saved, { isEdit }) => { ... },
+    // 保存后另有更强反馈时抑制默认提示：
+    // successMessage: () => null,
+  });
 
-  // ─── 变更 hooks ────────────────────────────────────────────────────────
-  const saveMutation = useSaveXxx();
+  // ─── 其余变更 hooks ────────────────────────────────────────────────────
   const toggleStatusMutation = useSaveXxx();  // 行级 Switch 专用实例，便于按行显示 pending
   const deleteMutation = useDeleteXxxs();
   const togglingId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
@@ -287,45 +287,6 @@ export default function XxxPage() {
       keyword: submittedParams.keyword || undefined,
       status: submittedParams.status || undefined,
     };
-  }
-
-  // ─── 新增 / 编辑 ──────────────────────────────────────────────────────
-  function openCreate() {
-    setEditingRecord(null);
-    setModalVisible(true);
-  }
-
-  function openEdit(record: Xxx) {
-    setEditingRecord(record);   // 详情由 detailQuery 自动加载（30s 内缓存命中则秒开）
-    setModalVisible(true);
-  }
-
-  function closeModal() {
-    setModalVisible(false);
-    setEditingRecord(null);
-  }
-
-  // Form 初始值（编辑时回填，新增时清空）
-  const formInitValues = editingXxx
-    ? {
-        name: editingXxx.name,
-        description: editingXxx.description,
-        status: editingXxx.status,
-        // 多对多字段示例：yyyIds: editingXxx.yyyIds ?? [],
-      }
-    : { status: 'enabled' };
-
-  async function handleModalOk() {
-    let values: Record<string, unknown>;
-    try {
-      values = (await formApi.current?.validate()) ?? {};
-    } catch {
-      throw new Error('validation');  // 阻止 Modal 关闭
-    }
-    // mutateAsync 失败时抛 ApiError → Modal 保持打开（错误 Toast 由 request 层弹出）
-    await saveMutation.mutateAsync({ id: editingRecord?.id, values });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    closeModal();
   }
 
   // ─── 删除 ──────────────────────────────────────────────────────────────
@@ -391,7 +352,7 @@ export default function XxxPage() {
         ...(hasPermission('system:xxx:update') ? [{
           key: 'edit',
           label: '编辑',
-          onClick: () => openEdit(record),
+          onClick: () => modal.openEdit(record),
         }] : []),
         ...(hasPermission('system:xxx:delete') ? [{
           key: 'delete',
@@ -441,7 +402,7 @@ export default function XxxPage() {
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
 
   const renderCreateButton = () => hasPermission('system:xxx:create')
-    ? <CreateButton onClick={openCreate} /> : null;
+    ? <CreateButton onClick={modal.openCreate} /> : null;
 
   const renderExportButtons = () => hasPermission('system:xxx:export') ? (
     <ExportButton entity="system.xxxs" query={buildExportQuery()} />
@@ -513,26 +474,14 @@ export default function XxxPage() {
         - 有 3 对以上可并排的普通字段 → width={660}，双列布局
         - 字段较少或含 TreeSelect/TextArea 等宽字段 → width 480-520，单列布局
       */}
-      <AppModal
-        title={editingRecord ? '编辑XXX' : '新增XXX'}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={closeModal}
-        okButtonProps={{ loading: saveMutation.isPending, disabled: modalDetailLoading }}
-        width={660}
-        closeOnEsc
-      >
-        <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form
-            key={editingRecord?.id ?? 'new'}  // key 变化时强制重置 Form 内部状态
-            getFormApi={(api) => {
-              formApi.current = api;
-            }}
-            allowEmpty
-            initValues={formInitValues}
-            labelPosition="left"
-            labelWidth={90}  {/* 3字标签→ 72，4-5字→ 90，6字+→ 110+ */}
-          >
+      <AppModal {...modal.modalProps} width={660}>
+        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
+          {/*
+            formProps 已包含 key（含详情到达时的重挂载）、getFormApi、allowEmpty、
+            initValues、labelPosition 与 labelWidth。labelWidth 需要覆盖时在
+            useEditModal 的 labelWidth 选项里传：3字标签→72，4-5字→90，6字+→110+
+          */}
+          <Form {...modal.formProps}>
             {/* 全宽字段（跨两列，如树形选择、长文本）：直接写，不包裹 Col */}
             <Form.TreeSelect
               field="parentId"
@@ -629,14 +578,17 @@ return (
 
 ### 弹窗表单布局规范
 
-**必须在 Form 中加 `labelPosition="left"` 以实现 label 与输入框同行。**
+**`labelPosition="left"`（label 与输入框同行）、`closeOnEsc` 与表单重挂载 `key` 均已由
+`useEditModal` 的 `formProps` / `modalProps` 提供，不要在页面里重复书写。**
+`labelWidth` 需要偏离默认值 90 时，在 `useEditModal({ labelWidth })` 里传：
+3 字标签→ 72，4-5 字→ 90，6 字以上→ 110+。
 
-**Modal 宽度与表单列数：**
+**Modal 宽度与表单列数**（`width` 仍由页面按内容决定，展开 `modalProps` 后单独传）：
 
 - 有 **3 对及以上可并排的普通字段**（Input / Select / InputNumber 等）→ 使用双列布局，`width={660}`
 - 字段较少，或主要是 TreeSelect / TextArea 等不适合并排的字段 → 使用单列布局，`width` 在 480–520 之间酌情选取
 
-所有 Modal 必须加 `closeOnEsc`。
+不经 `useEditModal` 的弹窗（纯展示、确认类）仍需自行加 `closeOnEsc`。
 
 **双列布局规则（用 `Row` + `Col`，来自 `@douyinfe/semi-ui`）：**
 
@@ -701,7 +653,7 @@ createOperationColumn<Xxx>({
   width: 160,
   desktopInlineKeys: ['edit', 'delete'],
   actions: (record) => [
-    { key: 'edit', label: '编辑', onClick: () => openEdit(record) },
+    { key: 'edit', label: '编辑', onClick: () => modal.openEdit(record) },
     { key: 'delete', label: '删除', danger: true, onClick: () => handleDelete(record.id) },
   ],
 })
@@ -882,7 +834,7 @@ const columns: ColumnProps<Region>[] = [
   createOperationColumn<Region>({
     width: 160,
     actions: (record) => [
-      { key: 'edit', label: '编辑', onClick: () => openEdit(record) },
+      { key: 'edit', label: '编辑', onClick: () => modal.openEdit(record) },
     ],
   }),
 ];

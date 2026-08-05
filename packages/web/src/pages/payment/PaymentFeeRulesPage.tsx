@@ -1,14 +1,13 @@
-import { useState, useRef } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
 import { Form, Select, Spin, Switch, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import { createdAtColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import {
   paymentFeeKeys,
   useDeletePaymentFeeRule,
@@ -45,15 +44,11 @@ interface FeeFormValues {
 export default function PaymentFeeRulesPage() {
   const { items: statusItems } = useDictItems('common_status');
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentFeeKeys.lists });
-
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<PaymentFeeRule | null>(null);
 
   const listQuery = usePaymentFeeRuleList({
     page,
@@ -68,29 +63,23 @@ export default function PaymentFeeRulesPage() {
   const deleteMutation = useDeletePaymentFeeRule();
   const togglingId = toggleMutation.isPending ? (toggleMutation.variables?.id ?? null) : null;
 
-  function openCreate() { setEditing(null); setModalVisible(true); }
-  function openEdit(record: PaymentFeeRule) { setEditing(record); setModalVisible(true); }
-  function closeModal() { setModalVisible(false); setEditing(null); }
-
-  const formInit: Partial<FeeFormValues> = editing
-    ? {
-        name: editing.name,
-        channel: editing.channel,
-        payMethod: editing.payMethod ?? undefined,
-        ratePercent: editing.rateBps / 100,
-        fixedYuan: editing.fixedFee / 100,
-        minYuan: editing.minFee != null ? editing.minFee / 100 : undefined,
-        maxYuan: editing.maxFee != null ? editing.maxFee / 100 : undefined,
-        priority: editing.priority,
-        status: editing.status,
-        remark: editing.remark ?? '',
-      }
-    : { channel: 'wechat', status: 'enabled', priority: 0, ratePercent: 0.6, fixedYuan: 0 };
-
-  async function handleOk() {
-    let values: FeeFormValues;
-    try { values = (await formApi.current?.validate()) as FeeFormValues; } catch { throw new Error('validation'); }
-    const payload = {
+  const modal = useEditModal<PaymentFeeRule, FeeFormValues, Partial<PaymentFeeRule>>({
+    entityName: '费率规则',
+    save: saveMutation,
+    defaults: { channel: 'wechat', status: 'enabled', priority: 0, ratePercent: 0.6, fixedYuan: 0 },
+    toValues: (record) => ({
+      name: record.name,
+      channel: record.channel,
+      payMethod: record.payMethod ?? undefined,
+      ratePercent: record.rateBps / 100,
+      fixedYuan: record.fixedFee / 100,
+      minYuan: record.minFee != null ? record.minFee / 100 : undefined,
+      maxYuan: record.maxFee != null ? record.maxFee / 100 : undefined,
+      priority: record.priority,
+      status: record.status,
+      remark: record.remark ?? '',
+    }),
+    beforeSave: (values) => ({
       name: values.name,
       channel: values.channel,
       payMethod: values.payMethod || undefined,
@@ -101,11 +90,9 @@ export default function PaymentFeeRulesPage() {
       priority: values.priority ?? 0,
       status: values.status,
       remark: values.remark || undefined,
-    };
-    await saveMutation.mutateAsync({ id: editing?.id, values: payload });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    closeModal();
-  }
+    }),
+    labelWidth: 124,
+  });
 
   async function handleToggle(record: PaymentFeeRule, checked: boolean) {
     await toggleMutation.mutateAsync({ id: record.id, values: { status: checked ? 'enabled' : 'disabled' } });
@@ -138,7 +125,7 @@ export default function PaymentFeeRulesPage() {
         ...(hasPermission('payment:fee:update') ? [{
           key: 'edit',
           label: '编辑',
-          onClick: () => openEdit(r),
+          onClick: () => modal.openEdit(r),
         }] : []),
         ...(hasPermission('payment:fee:delete') ? [{
           key: 'delete',
@@ -180,7 +167,7 @@ export default function PaymentFeeRulesPage() {
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => hasPermission('payment:fee:create') ? (
-    <CreateButton onClick={openCreate} />
+    <CreateButton onClick={modal.openCreate} />
   ) : null;
 
   return (
@@ -217,9 +204,9 @@ export default function PaymentFeeRulesPage() {
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} pagination={buildPagination(total)}
       />
 
-      <AppModal title={editing ? '编辑费率规则' : '新增费率规则'} visible={modalVisible} onOk={handleOk} onCancel={closeModal} okButtonProps={{ loading: saveMutation.isPending }} width={700} closeOnEsc>
-        <Spin spinning={false} wrapperClassName="modal-spin-wrapper">
-          <Form key={editing?.id ?? 'new'} getFormApi={(api) => { formApi.current = api; }} initValues={formInit} labelPosition="left" labelWidth={124}>
+      <AppModal {...modal.modalProps} width={700}>
+        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
+          <Form {...modal.formProps}>
             <Form.Input field="name" label="名称" placeholder="如：微信标准费率" rules={[{ required: true, message: '名称不能为空' }]} />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 16 }}>
               <Form.Select field="channel" label="渠道" style={{ width: '100%' }} optionList={channelOptions} rules={[{ required: true, message: '请选择渠道' }]} />

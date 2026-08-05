@@ -1,6 +1,5 @@
-import { useRef, useState } from 'react';
-import { Button, Select, Form, Toast, Tag } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
+import { useMemo } from 'react';
+import { Button, Select, Form, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Coins } from 'lucide-react';
 import type { MemberPointTransaction } from '@zenith/shared/member';
@@ -13,6 +12,7 @@ import ExportButton from '@/components/ExportButton';
 import { MemberSelect } from '@/components/MemberSelect';
 import { createdAtColumn, renderEllipsis } from '../../utils/table-columns';
 import { memberAdminKeys, useAdjustMemberPoints, useMemberPointTransactions } from '@/hooks/queries/member-admin';
+import { useEditModal } from '@/hooks/useEditModal';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
@@ -22,15 +22,23 @@ const TYPE_COLORS: Record<string, string> = { earn: 'green', redeem: 'orange', e
 
 interface SearchParams { memberKeyword?: string; type?: string }
 
+interface AdjustPointFormValues extends Record<string, unknown> {
+  memberId: number;
+  delta: number;
+  remark?: string;
+}
+
+interface AdjustPointModalRecord {
+  id: number;
+}
+
 export default function MemberPointsPage() {
   const { hasPermission } = usePermission();
-  const adjustFormApi = useRef<FormApi | null>(null);
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: {}, listKey: memberAdminKeys.pointLists });
-  const [adjustVisible, setAdjustVisible] = useState(false);
   const listQuery = useMemberPointTransactions({
     page,
     pageSize,
@@ -40,14 +48,17 @@ export default function MemberPointsPage() {
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
   const adjustMutation = useAdjustMemberPoints();
-
-  const handleAdjust = async () => {
-    let values;
-    try { values = await adjustFormApi.current!.validate(); } catch { throw new Error('validation'); }
-    await adjustMutation.mutateAsync(values);
-    Toast.success('调整成功');
-    setAdjustVisible(false);
-  };
+  const adjustSave = useMemo(() => ({
+    mutateAsync: async ({ values }: { id?: number; values: AdjustPointFormValues }) => {
+      await adjustMutation.mutateAsync(values);
+      return { id: 0 };
+    },
+    isPending: adjustMutation.isPending,
+  }), [adjustMutation]);
+  const adjustModal = useEditModal<AdjustPointModalRecord, AdjustPointFormValues>({
+    save: adjustSave,
+    successMessage: () => '调整成功',
+  });
 
   const columns: ColumnProps<MemberPointTransaction>[] = [
     { title: '会员', dataIndex: 'memberName', width: 140, render: (v?: string, r?: MemberPointTransaction) => v || `#${r?.memberId}` },
@@ -84,7 +95,7 @@ export default function MemberPointsPage() {
     <ExportButton entity="member.point-transactions" query={buildExportQuery()} variant={variant} />
   ) : null;
   const renderAdjustButton = () => hasPermission('member:point:adjust') ? (
-    <Button type="primary" icon={<Coins size={14} />} onClick={() => setAdjustVisible(true)}>调整积分</Button>
+    <Button type="primary" icon={<Coins size={14} />} onClick={adjustModal.openCreate}>调整积分</Button>
   ) : null;
 
   return (
@@ -118,8 +129,8 @@ export default function MemberPointsPage() {
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} rowKey="id" size="small"
         pagination={buildPagination(total)} empty="暂无积分流水" />
 
-      <AppModal title="调整会员积分" visible={adjustVisible} width={480} onCancel={() => setAdjustVisible(false)} onOk={handleAdjust}>
-        <Form getFormApi={(api) => { adjustFormApi.current = api; }} labelPosition="left" labelWidth={90}>
+      <AppModal {...adjustModal.modalProps} title="调整会员积分" width={480}>
+        <Form {...adjustModal.formProps}>
           <MemberSelect field="memberId" required />
           <Form.InputNumber field="delta" label="变动量" style={{ width: '100%' }} placeholder="正数增加，负数扣减"
             rules={[{ required: true, message: '请输入变动量' }]} />

@@ -193,8 +193,8 @@ describe('tenant-packages：分配菜单只影响详情', () => {
     await result.current.assignMenus.mutateAsync({ id: 1, menuIds: [1, 2] });
     await waitFor(() => expect(fetches.countOf(tenantPackageKeys.detail(1))).toBe(1));
 
-    expect(fetches.countOf(tenantPackageKeys.allPackages)).toBe(0);
-    expect(isFresh(qc, tenantPackageKeys.allPackages)).toBe(true);
+    expect(fetches.countOf(tenantPackageKeys.lookup)).toBe(0);
+    expect(isFresh(qc, tenantPackageKeys.lookup)).toBe(true);
 
     fetches.stop();
   });

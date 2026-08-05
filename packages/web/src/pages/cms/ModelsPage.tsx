@@ -1,8 +1,7 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Tag, Toast, ArrayField, Row, Col, Typography, useFormApi } from '@douyinfe/semi-ui';
+import { Button, Form, Tag, Toast, ArrayField, Row, Col, Typography, useFormApi, Spin } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Plus, Trash2 } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -10,6 +9,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { usePagination } from '@/hooks/usePagination';
 import { useCmsModelList, useCmsModelDetail, useSaveCmsModel, useDeleteCmsModel, cmsModelKeys } from '@/hooks/queries/cms';
 import { useDictList } from '@/hooks/queries/dicts';
@@ -60,7 +60,6 @@ function FieldOptionSource({ field }: { field: string }) {
 
 export default function ModelsPage() {
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const queryClient = useQueryClient();
 
   const { page, pageSize, setPage, buildPagination } = usePagination();
@@ -71,11 +70,24 @@ export default function ModelsPage() {
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<CmsModel | null>(null);
-  const detailQuery = useCmsModelDetail(editingRecord?.id, modalVisible);
-  const editingModel = editingRecord ? (detailQuery.data ?? editingRecord) : null;
   const saveMutation = useSaveCmsModel();
+  const modal = useEditModal<CmsModel, Record<string, unknown>, Record<string, unknown>>({
+    entityName: '模型',
+    save: saveMutation,
+    useDetail: useCmsModelDetail,
+    defaults: { status: 'enabled', fields: [] },
+    toValues: (record) => ({
+      name: record.name,
+      code: record.code,
+      description: record.description ?? '',
+      status: record.status,
+      fields: (record.fields ?? []).map((f) => ({
+        name: f.name, label: f.label, fieldType: f.fieldType, required: f.required, searchable: f.searchable, showInList: f.showInList,
+        placeholder: f.placeholder ?? '', optionSource: f.optionSource ?? 'manual', dictCode: f.dictCode ?? '', options: f.options ?? null,
+      })),
+    }),
+    beforeSave: (values) => ({ ...values, fields: (((values.fields as unknown) as Record<string, unknown>[]) ?? []).map((f, i) => ({ ...f, sort: i })) }),
+  });
   const deleteMutation = useDeleteCmsModel();
 
   function handleSearch() {
@@ -89,55 +101,6 @@ export default function ModelsPage() {
     setDraftKeyword('');
     setSubmittedKeyword('');
     void queryClient.invalidateQueries({ queryKey: cmsModelKeys.lists });
-  }
-
-  function openCreate() {
-    setEditingRecord(null);
-    setModalVisible(true);
-  }
-
-  function openEdit(record: CmsModel) {
-    setEditingRecord(record);
-    setModalVisible(true);
-  }
-
-  function closeModal() {
-    setModalVisible(false);
-    setEditingRecord(null);
-  }
-
-  const formInitValues = editingModel
-    ? {
-        name: editingModel.name,
-        code: editingModel.code,
-        description: editingModel.description ?? '',
-        status: editingModel.status,
-        fields: (editingModel.fields ?? []).map((f) => ({
-          name: f.name,
-          label: f.label,
-          fieldType: f.fieldType,
-          required: f.required,
-          searchable: f.searchable,
-          showInList: f.showInList,
-          placeholder: f.placeholder ?? '',
-          optionSource: f.optionSource ?? 'manual',
-          dictCode: f.dictCode ?? '',
-          options: f.options ?? null,
-        })),
-      }
-    : { status: 'enabled', fields: [] };
-
-  async function handleModalOk() {
-    let values: Record<string, unknown>;
-    try {
-      values = (await formApi.current?.validate()) ?? {};
-    } catch {
-      throw new Error('validation');
-    }
-    const fields = ((values.fields as Record<string, unknown>[]) ?? []).map((f, i) => ({ ...f, sort: i }));
-    await saveMutation.mutateAsync({ id: editingRecord?.id, values: { ...values, fields } });
-    Toast.success(editingRecord ? '更新成功' : '创建成功');
-    closeModal();
   }
 
   async function handleDelete(id: number) {
@@ -182,7 +145,7 @@ export default function ModelsPage() {
         ...(hasPermission('cms:model:update') ? [{
           key: 'edit',
           label: '编辑',
-          onClick: () => openEdit(record),
+          onClick: () => modal.openEdit(record),
         }] : []),
         ...(hasPermission('cms:model:delete') && !record.isSystem ? [{
           key: 'delete',
@@ -203,7 +166,7 @@ export default function ModelsPage() {
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />
         {hasPermission('cms:model:create') ? (
-          <CreateButton onClick={openCreate} />
+          <CreateButton onClick={modal.openCreate} />
         ) : null}
       </SearchToolbar>
 
@@ -221,29 +184,15 @@ export default function ModelsPage() {
         pagination={buildPagination(total)}
       />
 
-      <AppModal
-        title={editingRecord ? '编辑模型' : '新增模型'}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={closeModal}
-        okButtonProps={{ loading: saveMutation.isPending, disabled: !!editingRecord && detailQuery.isFetching }}
-        width={860}
-        closeOnEsc
-      >
-        <Form
-          key={editingRecord?.id ?? 'new'}
-          getFormApi={(api) => { formApi.current = api; }}
-          allowEmpty
-          initValues={formInitValues}
-          labelPosition="left"
-          labelWidth={90}
-        >
+      <AppModal {...modal.modalProps} width={860}>
+        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
+        <Form {...modal.formProps}>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Input field="name" label="模型名称" rules={[{ required: true, message: '请输入模型名称' }]} />
             </Col>
             <Col span={12}>
-              <Form.Input field="code" label="模型标识" disabled={!!editingRecord} placeholder="如 article" rules={[{ required: true, message: '请输入模型标识' }]} />
+              <Form.Input field="code" label="模型标识" disabled={modal.isEdit} placeholder="如 article" rules={[{ required: true, message: '请输入模型标识' }]} />
             </Col>
             <Col span={12}>
               <Form.Input field="description" label="描述" />
@@ -280,6 +229,7 @@ export default function ModelsPage() {
             </ArrayField>
           </Form.Section>
         </Form>
+        </Spin>
       </AppModal>
     </div>
   );

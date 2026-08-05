@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col, Form, Modal, Row, Select, Switch, Table, Tag, Toast } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { IdentityProviderType, TenantIdentityProvider } from '@zenith/shared/identity';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -23,6 +22,7 @@ import {
 } from '@/hooks/queries/identity-providers';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
+import { useEditModal } from '@/hooks/useEditModal';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
@@ -106,9 +106,6 @@ export default function IdentityProvidersPage() {
   const { items: statusItems } = useDictItems('common_status');
   const statusOptions = statusItems.map((i) => ({ value: i.value, label: i.label }));
   const queryClient = useQueryClient();
-  const formApi = useRef<FormApi | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<TenantIdentityProvider | null>(null);
   const [providerType, setProviderType] = useState<IdentityProviderType>('oidc');
   const [ldapSearchVisible, setLdapSearchVisible] = useState(false);
   const [ldapSearchProvider, setLdapSearchProvider] = useState<TenantIdentityProvider | null>(null);
@@ -128,13 +125,62 @@ export default function IdentityProvidersPage() {
   });
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
-  const detailQuery = useIdentityProviderDetail(editing?.id, modalVisible);
-  const editingDetail = editing ? (detailQuery.data ?? editing) : null;
   const tenantsQuery = useIdentityProviderTenants();
   const rolesQuery = useAllRoles();
   const tenantOptions = (tenantsQuery.data ?? []).map((item) => ({ value: item.id, label: `${item.name}（${item.code}）` }));
   const roleOptions = (rolesQuery.data ?? []).map((item) => ({ value: item.id, label: item.name }));
   const saveMutation = useSaveIdentityProvider();
+  const modal = useEditModal<TenantIdentityProvider, Record<string, unknown>, Record<string, unknown>>({
+    entityName: '企业身份源',
+    save: saveMutation,
+    useDetail: useIdentityProviderDetail,
+    defaults: {
+      type: 'oidc',
+      status: 'disabled',
+      scopes: 'openid profile email',
+      ldapStartTls: false,
+      ldapSkipTlsVerify: false,
+      ldapTimeoutMs: 5000,
+      ldapUserFilter: '(&(objectClass=person)(|(uid={{username}})(sAMAccountName={{username}})(mail={{username}})))',
+      ldapUserSearchFilter: '(&(objectClass=person)(|(cn=*{{keyword}}*)(displayName=*{{keyword}}*)(uid=*{{keyword}}*)(sAMAccountName=*{{keyword}}*)(mail=*{{keyword}}*)))',
+      ldapSyncFilter: '(&(objectClass=person)(|(uid=*)(sAMAccountName=*)(mail=*)))',
+      jitEnabled: false,
+      defaultRoleIds: [],
+      ...Object.fromEntries(Object.entries(defaultMapping).map(([key, value]) => [`attributeMapping.${key}`, value])),
+    },
+    toValues: (provider) => {
+      const initMapping = mappingForType(provider.type);
+      return {
+        ...provider,
+        tenantId: provider.tenantId ?? undefined,
+        defaultRoleIds: provider.defaultRoleIds ?? [],
+        'attributeMapping.subject': provider.attributeMapping?.subject || initMapping.subject,
+        'attributeMapping.email': provider.attributeMapping?.email || initMapping.email,
+        'attributeMapping.username': provider.attributeMapping?.username || initMapping.username,
+        'attributeMapping.nickname': provider.attributeMapping?.nickname || initMapping.nickname,
+        'attributeMapping.phone': provider.attributeMapping?.phone || initMapping.phone,
+        'attributeMapping.department': provider.attributeMapping?.department || initMapping.department,
+      };
+    },
+    beforeSave: (values) => {
+      const activeMapping = mappingForType(providerType);
+      return {
+        ...values,
+        tenantId: values.tenantId ?? null,
+        type: providerType,
+        attributeMapping: {
+          subject: values['attributeMapping.subject'] || activeMapping.subject,
+          email: values['attributeMapping.email'] || activeMapping.email,
+          username: values['attributeMapping.username'] || activeMapping.username,
+          nickname: values['attributeMapping.nickname'] || activeMapping.nickname,
+          phone: values['attributeMapping.phone'] || activeMapping.phone,
+          department: values['attributeMapping.department'] || activeMapping.department,
+        },
+        defaultRoleIds: Array.isArray(values.defaultRoleIds) ? values.defaultRoleIds : [],
+      };
+    },
+    labelWidth: 110,
+  });
   const toggleStatusMutation = useSaveIdentityProvider();
   const deleteMutation = useDeleteIdentityProvider();
   const testConnectionMutation = useTestIdentityProviderConnection();
@@ -143,20 +189,19 @@ export default function IdentityProvidersPage() {
   const ldapSearchUsers = ldapSearchMutation.data ?? [];
 
   useEffect(() => {
-    if (detailQuery.data) setProviderType(detailQuery.data.type);
-  }, [detailQuery.data]);
+    if (modal.editing) setProviderType(modal.editing.type);
+  }, [modal.editing]);
 
   function openCreate() {
-    setEditing(null);
     setProviderType('oidc');
-    setModalVisible(true);
+    modal.openCreate();
   }
 
   function handleProviderTypeChange(value: unknown) {
     const nextType = (value === 'saml' || value === 'ldap' || value === 'ad') ? value : 'oidc';
     setProviderType(nextType);
     const nextMapping = mappingForType(nextType);
-    formApi.current?.setValues({
+    modal.formApi.current?.setValues({
       'attributeMapping.subject': nextMapping.subject,
       'attributeMapping.email': nextMapping.email,
       'attributeMapping.username': nextMapping.username,
@@ -167,36 +212,8 @@ export default function IdentityProvidersPage() {
   }
 
   function openEdit(row: TenantIdentityProvider) {
-    setEditing(row);
     setProviderType(row.type);
-    setModalVisible(true);
-  }
-
-  async function handleModalOk() {
-    let values: Record<string, unknown>;
-    try {
-      values = await formApi.current!.validate();
-    } catch {
-      throw new Error('validation');
-    }
-    const activeMapping = mappingForType(providerType);
-    const payload = {
-      ...values,
-      tenantId: values.tenantId ?? null,
-      type: providerType,
-      attributeMapping: {
-        subject: values['attributeMapping.subject'] || activeMapping.subject,
-        email: values['attributeMapping.email'] || activeMapping.email,
-        username: values['attributeMapping.username'] || activeMapping.username,
-        nickname: values['attributeMapping.nickname'] || activeMapping.nickname,
-        phone: values['attributeMapping.phone'] || activeMapping.phone,
-        department: values['attributeMapping.department'] || activeMapping.department,
-      },
-      defaultRoleIds: Array.isArray(values.defaultRoleIds) ? values.defaultRoleIds : [],
-    };
-    await saveMutation.mutateAsync({ id: editing?.id, values: payload });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    setModalVisible(false);
+    modal.openEdit(row);
   }
 
   function handleToggleStatus(row: TenantIdentityProvider, checked: boolean) {
@@ -328,31 +345,7 @@ export default function IdentityProvidersPage() {
     />
   );
 
-  const initMapping = mappingForType(editingDetail?.type ?? 'oidc');
-  const initValues = editingDetail ? {
-    ...editingDetail,
-    tenantId: editingDetail.tenantId ?? undefined,
-    defaultRoleIds: editingDetail.defaultRoleIds ?? [],
-    'attributeMapping.subject': editingDetail.attributeMapping?.subject || initMapping.subject,
-    'attributeMapping.email': editingDetail.attributeMapping?.email || initMapping.email,
-    'attributeMapping.username': editingDetail.attributeMapping?.username || initMapping.username,
-    'attributeMapping.nickname': editingDetail.attributeMapping?.nickname || initMapping.nickname,
-    'attributeMapping.phone': editingDetail.attributeMapping?.phone || initMapping.phone,
-    'attributeMapping.department': editingDetail.attributeMapping?.department || initMapping.department,
-  } : {
-    type: 'oidc',
-    status: 'disabled',
-    scopes: 'openid profile email',
-    ldapStartTls: false,
-    ldapSkipTlsVerify: false,
-    ldapTimeoutMs: 5000,
-    ldapUserFilter: '(&(objectClass=person)(|(uid={{username}})(sAMAccountName={{username}})(mail={{username}})))',
-    ldapUserSearchFilter: '(&(objectClass=person)(|(cn=*{{keyword}}*)(displayName=*{{keyword}}*)(uid=*{{keyword}}*)(sAMAccountName=*{{keyword}}*)(mail=*{{keyword}}*)))',
-    ldapSyncFilter: '(&(objectClass=person)(|(uid=*)(sAMAccountName=*)(mail=*)))',
-    jitEnabled: false,
-    defaultRoleIds: [],
-    ...Object.fromEntries(Object.entries(defaultMapping).map(([key, value]) => [`attributeMapping.${key}`, value])),
-  };
+
 
   return (
     <div className="page-container">
@@ -392,23 +385,11 @@ export default function IdentityProvidersPage() {
       />
 
       <AppModal
-        title={editing ? '编辑企业身份源' : '新增企业身份源'}
-        visible={modalVisible}
-        onCancel={() => {
-          setModalVisible(false);
-          setEditing(null);
-        }}
-        onOk={handleModalOk}
-        closeOnEsc
+        {...modal.modalProps}
         width={760}
       >
         <Form
-          key={editingDetail?.id ?? 'new'}
-          getFormApi={(api) => { formApi.current = api; }}
-          allowEmpty
-          initValues={initValues}
-          labelPosition="left"
-          labelWidth={110}
+          {...modal.formProps}
         >
           <Row gutter={16}>
             <Col span={12}><Form.Input field="name" label="名称" placeholder="Azure AD / Okta" rules={[{ required: true, message: '请输入名称' }]} /></Col>

@@ -1,7 +1,6 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, DatePicker, Input, InputNumber, Select, Space, Tag, Modal, Form, Toast, Typography, SideSheet, List, Empty } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Save, Upload } from 'lucide-react';
 import type { RuleDecisionTable, RuleEvaluateResult, RuleTestRunResult, RuleHitPolicy, RuleTestCase, RuleUsageItem, RuleDecisionTableSettings, RuleShadowRunResult } from '@zenith/shared/rules';
@@ -43,6 +42,7 @@ import { PUBLISHABLE_STATUS_META as STATUS } from '@/lib/publishable-status';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 const { Text } = Typography;
 
@@ -74,6 +74,15 @@ interface DecisionTableExport {
   outputs: RuleDecisionTable['outputs'];
   rules: RuleDecisionTable['rules'];
   cases?: Array<{ name: string; input: Record<string, unknown>; expected: Record<string, unknown> }>;
+}
+
+interface DecisionTableFormValues {
+  key?: string;
+  name?: string;
+  description?: string | null;
+  hitPolicy?: RuleHitPolicy;
+  collectAggregate?: RuleDecisionTableSettings['collectAggregate'];
+  fallbackToDefaults?: boolean;
 }
 
 function downloadFile(filename: string, content: string, mime: string): void {
@@ -135,10 +144,8 @@ export default function RuleTablesPage() {
   const [submittedKeyword, setSubmittedKeyword] = useState('');
   const [draftStatus, setDraftStatus] = useState<string | undefined>(undefined);
   const [submittedStatus, setSubmittedStatus] = useState<string | undefined>(undefined);
-  const [modalVisible, setModalVisible] = useState(false);
   const [editorFullscreen, setEditorFullscreen] = useState(false);
   const [editorHitPolicy, setEditorHitPolicy] = useState<RuleHitPolicy>('first');
-  const [editing, setEditing] = useState<RuleDecisionTable | null>(null);
   const [importSeed, setImportSeed] = useState<Partial<DecisionTableExport> | null>(null);
   const [testRow, setTestRow] = useState<RuleDecisionTable | null>(null);
   const [testForm, setTestForm] = useState<Record<string, unknown>>({});
@@ -158,7 +165,6 @@ export default function RuleTablesPage() {
   const [runRes, setRunRes] = useState<RuleTestRunResult | null>(null);
   const [execRow, setExecRow] = useState<RuleDecisionTable | null>(null);
   const [draft, setDraft] = useState<{ inputs: RuleDecisionTable['inputs']; outputs: RuleDecisionTable['outputs']; rules: RuleDecisionTable['rules'] }>({ inputs: [], outputs: [], rules: [] });
-  const formApi = useRef<FormApi | null>(null);
 
   const listQuery = useRuleDecisionTableList({ page, pageSize, keyword: submittedKeyword || undefined, status: submittedStatus as 'draft' | 'published' | 'disabled' | undefined });
   const data = listQuery.data ?? null;
@@ -189,6 +195,28 @@ export default function RuleTablesPage() {
   const approvalEnabledQuery = useRulePublishApprovalEnabled();
   const approvalEnabled = approvalEnabledQuery.data ?? false;
   const canApprove = hasPermission('rule:table:approve');
+  const modal = useEditModal<RuleDecisionTable, DecisionTableFormValues, Record<string, unknown>>({
+    entityName: '决策表',
+    save: saveMutation,
+    beforeSave: (v, { editing }) => {
+      const hitPolicy = (v.hitPolicy ?? editorHitPolicy) as RuleHitPolicy;
+      const issues = inspectDecisionDraft(draft, hitPolicy);
+      const errors = issues.filter((issue) => issue.severity === 'error');
+      if (errors.length > 0) {
+        Toast.error(`规则体检存在 ${errors.length} 个错误，请修正后再保存`);
+        throw new Error('decision_table_draft_invalid');
+      }
+      const settings: RuleDecisionTableSettings = {
+        ...(hitPolicy === 'collect' && v.collectAggregate && v.collectAggregate !== 'list' ? { collectAggregate: v.collectAggregate as RuleDecisionTableSettings['collectAggregate'] } : {}),
+        ...(v.fallbackToDefaults ? { fallbackToDefaults: true } : {}),
+      };
+      const payload = { name: v.name, description: v.description ?? null, hitPolicy, settings, ...draft };
+      return (editing
+        ? { ...payload, expectedUpdatedAt: editing.updatedAt }
+        : { ...payload, key: v.key }) as Record<string, unknown>;
+    },
+    onSaved: () => setEditorFullscreen(false),
+  });
 
   const draftIssues = useMemo(() => inspectDecisionDraft(draft, editorHitPolicy), [draft, editorHitPolicy]);
   const draftErrors = draftIssues.filter((issue) => issue.severity === 'error');
@@ -206,29 +234,26 @@ export default function RuleTablesPage() {
   );
 
   const openCreate = () => {
-    setEditing(null);
     setImportSeed(null);
     setEditorHitPolicy('first');
     setDraft({ inputs: [], outputs: [], rules: [] });
     setEditorFullscreen(true);
-    setModalVisible(true);
+    modal.openCreate();
   };
   /** 从导入文件或整表复制预填新建弹窗 */
   const openCreateFrom = (seed: Partial<DecisionTableExport>) => {
-    setEditing(null);
     setImportSeed(seed);
     setEditorHitPolicy(seed.hitPolicy ?? 'first');
     setDraft({ inputs: seed.inputs ?? [], outputs: seed.outputs ?? [], rules: seed.rules ?? [] });
     setEditorFullscreen(true);
-    setModalVisible(true);
+    modal.openCreate();
   };
   const openEdit = (r: RuleDecisionTable) => {
-    setEditing(r);
     setImportSeed(null);
     setEditorHitPolicy(r.hitPolicy);
     setDraft({ inputs: r.inputs, outputs: r.outputs, rules: r.rules });
     setEditorFullscreen(true);
-    setModalVisible(true);
+    modal.openEdit(r);
   };
 
   const duplicateTable = (r: RuleDecisionTable) => {
@@ -293,31 +318,6 @@ export default function RuleTablesPage() {
         Toast.error('JSON 解析失败');
       }
     });
-  };
-
-  const handleSubmit = async () => {
-    const v = await formApi.current?.validate();
-    if (!v) return;
-    const hitPolicy = (v.hitPolicy ?? editorHitPolicy) as RuleHitPolicy;
-    const issues = inspectDecisionDraft(draft, hitPolicy);
-    const errors = issues.filter((issue) => issue.severity === 'error');
-    if (errors.length > 0) {
-      Toast.error(`规则体检存在 ${errors.length} 个错误，请修正后再保存`);
-      return;
-    }
-    const settings: RuleDecisionTableSettings = {
-      ...(hitPolicy === 'collect' && v.collectAggregate && v.collectAggregate !== 'list' ? { collectAggregate: v.collectAggregate as RuleDecisionTableSettings['collectAggregate'] } : {}),
-      ...(v.fallbackToDefaults ? { fallbackToDefaults: true } : {}),
-    };
-    const payload = { name: v.name, description: v.description ?? null, hitPolicy, settings, ...draft };
-    await saveMutation.mutateAsync({
-      id: editing?.id,
-      values: editing
-        ? { ...payload, expectedUpdatedAt: editing.updatedAt }
-        : { ...payload, key: v.key },
-    });
-    Toast.success(editing ? '更新成功' : '创建成功');
-    setModalVisible(false); setEditorFullscreen(false);
   };
 
   const handlePublish = (r: RuleDecisionTable) => {
@@ -728,22 +728,20 @@ export default function RuleTablesPage() {
       <ConfigurableTable bordered columns={columns} dataSource={data?.list ?? []} loading={listQuery.isFetching} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} rowKey="id" size="small" empty="暂无数据" pagination={buildPagination(data?.total ?? 0)} />
 
       <AppModal
-        title={editing ? '编辑决策表' : '新增决策表'}
-        visible={modalVisible}
-        onOk={handleSubmit}
-        onCancel={() => { setModalVisible(false); setEditorFullscreen(false); }}
-        okButtonProps={{ loading: saveMutation.isPending, disabled: draftErrors.length > 0 }}
+        {...modal.modalProps}
+        onCancel={() => { modal.close(); setEditorFullscreen(false); }}
+        okButtonProps={{ ...modal.modalProps.okButtonProps, disabled: draftErrors.length > 0 }}
         width={1180}
         fullscreen={editorFullscreen}
         onToggleFullscreen={() => setEditorFullscreen((v) => !v)}
         bodyStyle={{ maxHeight: editorFullscreen ? 'calc(100vh - 132px)' : '78vh', overflowY: 'auto' }}
-        closeOnEsc
       >
-        <Form key={editing?.id ?? (importSeed ? `import-${importSeed.key ?? 'new'}` : 'new')} getFormApi={(a) => { formApi.current = a; }} labelPosition="left" labelWidth={90}
-          initValues={editing
-            ? { key: editing.key, name: editing.name, description: editing.description, hitPolicy: editing.hitPolicy, collectAggregate: editing.settings?.collectAggregate ?? 'list', fallbackToDefaults: !!editing.settings?.fallbackToDefaults }
+        <Form {...modal.formProps}
+          key={modal.editing?.id ?? (importSeed ? `import-${importSeed.key ?? 'new'}` : 'new')}
+          initValues={modal.editing
+            ? { key: modal.editing.key, name: modal.editing.name, description: modal.editing.description, hitPolicy: modal.editing.hitPolicy, collectAggregate: modal.editing.settings?.collectAggregate ?? 'list', fallbackToDefaults: !!modal.editing.settings?.fallbackToDefaults }
             : { key: importSeed?.key, name: importSeed?.name, description: importSeed?.description, hitPolicy: importSeed?.hitPolicy ?? 'first', collectAggregate: importSeed?.settings?.collectAggregate ?? 'list', fallbackToDefaults: !!importSeed?.settings?.fallbackToDefaults }}>
-          <Form.Input field="key" label="Key" disabled={!!editing} rules={[{ required: true, message: 'key 必填' }]} placeholder="如 member_level" />
+          <Form.Input field="key" label="Key" disabled={modal.isEdit} rules={[{ required: true, message: 'key 必填' }]} placeholder="如 member_level" />
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '名称必填' }]} />
           <Form.Select field="hitPolicy" label="命中策略" optionList={HIT_POLICIES} onChange={(v) => setEditorHitPolicy(v as RuleHitPolicy)} style={{ width: '100%' }} />
           {editorHitPolicy === 'collect' && (

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Banner,
@@ -18,7 +18,6 @@ import {
   Toast,
   Typography,
 } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportDqAnomaly, ReportDqAnomalyStatus, ReportDqRule, ReportDqRuleType, ReportDqRun, ReportDqRunStatus, ReportDqScore } from '@zenith/shared/report';
 import { AppModal } from '@/components/AppModal';
@@ -29,6 +28,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import {
   reportDqKeys,
   useCurrentReportDqScore,
@@ -96,7 +96,6 @@ function RuleConfigFields({ type }: Readonly<{ type: ReportDqRuleType }>) {
 export default function QualityPage() {
   const qc = useQueryClient();
   const { hasPermission } = usePermission();
-  const formApi = useRef<FormApi | null>(null);
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [activeTab, setActiveTab] = useState('rules');
   const [datasetId, setDatasetId] = useState<number | undefined>();
@@ -109,8 +108,6 @@ export default function QualityPage() {
     anomalyStatus: undefined as ReportDqAnomalyStatus | undefined,
     runStatus: undefined as ReportDqRunStatus | undefined,
   });
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<ReportDqRule | null>(null);
   const [formRuleType, setFormRuleType] = useState<ReportDqRuleType>('not_null');
   const [cronExprValue, setCronExprValue] = useState('');
   const [historyRule, setHistoryRule] = useState<ReportDqRule | null>(null);
@@ -147,27 +144,27 @@ export default function QualityPage() {
     void qc.invalidateQueries({ queryKey: reportDqKeys.lists });
   };
 
+  const ruleModal = useEditModal<ReportDqRule, Record<string, unknown>>({
+    entityName: '质量规则',
+    save: saveMutation,
+    defaults: { type: 'not_null', severity: 'medium', timezone: 'Asia/Shanghai', enabled: true },
+    labelWidth: 92,
+    toValues: (record) => ({
+      ...record,
+      ...record.config,
+    }),
+    beforeSave: (values, { isEdit }) => normalizeDqRuleFormValues(values, isEdit),
+    successMessage: ({ isEdit }) => isEdit ? '质量规则已更新' : '质量规则已创建',
+  });
   const openCreate = () => {
-    setEditing(null);
     setFormRuleType('not_null');
     setCronExprValue('');
-    setModalVisible(true);
+    ruleModal.openCreate();
   };
   const openEdit = (record: ReportDqRule) => {
-    setEditing(record);
     setFormRuleType(record.type);
     setCronExprValue(record.cron ?? '');
-    setModalVisible(true);
-  };
-  const saveRule = async () => {
-    try {
-      const values = await formApi.current!.validate();
-      await saveMutation.mutateAsync({ id: editing?.id, values: normalizeDqRuleFormValues(values, !!editing) });
-      Toast.success(editing ? '质量规则已更新' : '质量规则已创建');
-      setModalVisible(false);
-    } catch (error) {
-      Toast.error(error instanceof Error ? error.message : '质量规则保存失败');
-    }
+    ruleModal.openEdit(record);
   };
   const runRule = async (record: ReportDqRule) => {
     try {
@@ -308,16 +305,9 @@ export default function QualityPage() {
         </TabPane>
       </Tabs>
 
-      <AppModal title={editing ? '编辑质量规则' : '新增质量规则'} visible={modalVisible} width={680} confirmLoading={saveMutation.isPending} onOk={() => void saveRule()} onCancel={() => setModalVisible(false)} closeOnEsc>
+      <AppModal {...ruleModal.modalProps} width={680}>
         <Form
-          key={editing?.id ?? 'create'}
-          getFormApi={(api) => { formApi.current = api; }}
-          labelPosition="left"
-          labelWidth={92}
-          initValues={editing ? {
-            ...editing,
-            ...editing.config,
-          } : { type: 'not_null', severity: 'medium', timezone: 'Asia/Shanghai', enabled: true }}
+          {...ruleModal.formProps}
           onValueChange={(values: Record<string, unknown>) => {
             if (values.type) setFormRuleType(values.type as ReportDqRuleType);
             if (typeof values.cron === 'string') setCronExprValue(values.cron);
@@ -340,7 +330,7 @@ export default function QualityPage() {
                   <CronBuilderPopover
                     value={cronExprValue}
                     onApply={(expression) => {
-                      formApi.current?.setValue('cron', expression);
+                      ruleModal.formApi.current?.setValue('cron', expression);
                       setCronExprValue(expression);
                     }}
                   />

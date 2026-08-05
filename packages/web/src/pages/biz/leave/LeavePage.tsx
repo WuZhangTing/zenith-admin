@@ -4,10 +4,8 @@
  * 演示「业务模块自存数据 + 工作流编排」：请假数据存 biz_leaves，提交审批时由后端
  * 通过 workflow-biz-bridge 发起并关联工作流；列表展示业务状态，详情跳转到流程实例整页。
  */
-import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Form, Modal, Select, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Send } from 'lucide-react';
 import dayjs from 'dayjs';
@@ -31,6 +29,7 @@ import {
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 type TagColor = 'grey' | 'blue' | 'green' | 'red' | 'orange';
 
@@ -61,10 +60,6 @@ export default function LeavePage() {
     handleSearch, handleReset,
   } = useListSearch<LeaveSearchParams>({ defaults: DEFAULT_LEAVE_SEARCH_PARAMS, listKey: bizLeaveKeys.lists });
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<BizLeave | null>(null);
-  const formApi = useRef<FormApi | null>(null);
-
   const listQuery = useBizLeaveList({
     page,
     pageSize,
@@ -81,25 +76,27 @@ export default function LeavePage() {
   const reopenMutation = useReopenBizLeave();
   const saving = saveMutation.isPending;
   const submittingApproval = saveForApprovalMutation.isPending || submitApprovalMutation.isPending;
+  const modal = useEditModal<BizLeave, Record<string, unknown>, SaveBizLeavePayload>({
+    save: saveMutation,
+    defaults: {},
+    toValues: (record) => ({
+      leaveType: record.leaveType,
+      dateRange: [dayjs(record.startDate).toDate(), dayjs(record.endDate).toDate()],
+      days: record.days,
+      reason: record.reason ?? '',
+    }),
+    beforeSave: (values) => {
+      const payload = payloadFromValues(values);
+      if (!payload) throw new Error('validation');
+      return payload;
+    },
+    successMessage: () => '保存成功',
+  });
 
-  const openCreate = () => { setEditing(null); setModalVisible(true); setTimeout(() => formApi.current?.reset(), 0); };
-  const openEdit = (record: BizLeave) => {
-    setEditing(record);
-    setModalVisible(true);
-    setTimeout(() => {
-      formApi.current?.setValues({
-        leaveType: record.leaveType,
-        dateRange: [dayjs(record.startDate).toDate(), dayjs(record.endDate).toDate()],
-        days: record.days,
-        reason: record.reason ?? '',
-      });
-    }, 0);
-  };
+  const openCreate = modal.openCreate;
+  const openEdit = modal.openEdit;
 
-  const collectPayload = async () => {
-    if (!formApi.current) return null;
-    let values: Record<string, unknown>;
-    try { values = await formApi.current.validate() as Record<string, unknown>; } catch { return; }
+  const payloadFromValues = (values: Record<string, unknown>) => {
     const range = values.dateRange as [Date, Date] | undefined;
     if (!range || range.length !== 2) { Toast.error('请选择请假日期'); return null; }
     return {
@@ -111,19 +108,26 @@ export default function LeavePage() {
     };
   };
 
+  const collectPayload = async () => {
+    if (!modal.formApi.current) return null;
+    let values: Record<string, unknown>;
+    try { values = await modal.formApi.current.validate() as Record<string, unknown>; } catch { return; }
+    return payloadFromValues(values);
+  };
+
   const saveLeave = async (
     payload: Awaited<ReturnType<typeof collectPayload>>,
     mutation: typeof saveMutation,
   ) => {
     if (!payload) return null;
-    return mutation.mutateAsync({ id: editing?.id, values: payload as SaveBizLeavePayload });
+    return mutation.mutateAsync({ id: modal.editing?.id, values: payload as SaveBizLeavePayload });
   };
 
   const handleSubmit = async () => {
     const payload = await collectPayload();
     if (!payload) return;
     const saved = await saveLeave(payload, saveMutation);
-    if (saved) { Toast.success('保存成功'); setModalVisible(false); }
+    if (saved) { Toast.success('保存成功'); modal.close(); }
   };
 
   const handleSubmitFromModal = async () => {
@@ -133,7 +137,7 @@ export default function LeavePage() {
     if (!saved) return;
     await submitApprovalMutation.mutateAsync(saved.id);
     Toast.success('已提交审批');
-    setModalVisible(false);
+    modal.close();
   };
 
   const handleDelete = async (id: number) => {
@@ -280,12 +284,12 @@ export default function LeavePage() {
       />
 
       <Modal
-        title={editing ? '编辑请假单' : '新建请假单'}
-        visible={modalVisible}
-        onCancel={() => setModalVisible(false)}
+        title={modal.isEdit ? '编辑请假单' : '新建请假单'}
+        visible={modal.visible}
+        onCancel={modal.close}
         footer={(
           <Space>
-            <Button onClick={() => setModalVisible(false)}>取消</Button>
+            <Button onClick={modal.close}>取消</Button>
             <Button loading={saving} disabled={submittingApproval} onClick={() => void handleSubmit()}>保存草稿</Button>
             <Button type="primary" loading={submittingApproval} disabled={saving} onClick={() => void handleSubmitFromModal()}>提交审批</Button>
           </Space>
@@ -293,7 +297,7 @@ export default function LeavePage() {
         closeOnEsc
         width={520}
       >
-        <Form getFormApi={(api) => { formApi.current = api; }} labelPosition="left" labelWidth={90}>
+        <Form {...modal.formProps}>
           <Form.Select field="leaveType" label="请假类型" optionList={leaveTypeItems.map((i) => ({ value: i.value, label: i.label }))} rules={[{ required: true, message: '请选择请假类型' }]} style={{ width: '100%' }} />
           <Form.DatePicker field="dateRange" label="请假日期" type="dateRange" style={{ width: '100%' }} rules={[{ required: true, message: '请选择请假日期' }]} />
           <Form.InputNumber field="days" label="天数" min={0.5} step={0.5} style={{ width: '100%' }} rules={[{ required: true, message: '请输入天数' }]} />

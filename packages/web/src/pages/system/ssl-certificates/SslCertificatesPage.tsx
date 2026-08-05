@@ -1,13 +1,13 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Button, Descriptions, Form, Select, SideSheet, Space, Spin, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Lock, Upload } from 'lucide-react';
 import AppModal from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { useListSearch } from '@/hooks/useListSearch';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
@@ -60,15 +60,11 @@ function renderDaysRemaining(daysRemaining: number | null) {
 
 export default function SslCertificatesPage() {
   const { hasPermission } = usePermission();
-  const generateFormApi = useRef<FormApi | null>(null);
-  const uploadFormApi = useRef<FormApi | null>(null);
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: sslCertificateKeys.lists });
-  const [generateVisible, setGenerateVisible] = useState(false);
-  const [uploadVisible, setUploadVisible] = useState(false);
   const [detailVisible, setDetailVisible] = useState(false);
   const [detail, setDetail] = useState<SslCertificateRecord | null>(null);
   const listQuery = useSslCertificateList({
@@ -83,6 +79,27 @@ export default function SslCertificatesPage() {
   const displayDetail = detail ? (detailQuery.data ?? detail) : null;
   const generateMutation = useGenerateSslCertificate();
   const uploadMutation = useUploadSslCertificate();
+  const generateModal = useEditModal<{ id: number }, Record<string, unknown>>({
+    save: {
+      mutateAsync: async ({ values }) => {
+        await generateMutation.mutateAsync(values);
+        return { id: 0 };
+      },
+      isPending: generateMutation.isPending,
+    },
+    defaults: { days: 365, country: 'CN', organization: 'Organization' },
+    successMessage: () => '证书已生成',
+  });
+  const uploadModal = useEditModal<{ id: number }, Record<string, unknown>>({
+    save: {
+      mutateAsync: async ({ values }) => {
+        await uploadMutation.mutateAsync(values);
+        return { id: 0 };
+      },
+      isPending: uploadMutation.isPending,
+    },
+    successMessage: () => '证书已上传',
+  });
   const deleteMutation = useDeleteSslCertificate();
 
   const canCreate = hasPermission('system:ssl:create');
@@ -91,32 +108,6 @@ export default function SslCertificatesPage() {
   const openDetail = (record: SslCertificateRecord) => {
     setDetailVisible(true);
     setDetail(record);
-  };
-
-  const handleGenerate = async () => {
-    let values: Record<string, unknown>;
-    try {
-      values = await generateFormApi.current?.validate() as Record<string, unknown>;
-    } catch {
-      throw new Error('validation');
-    }
-    await generateMutation.mutateAsync(values);
-    Toast.success('证书已生成');
-    setGenerateVisible(false);
-    generateFormApi.current?.reset();
-  };
-
-  const handleUpload = async () => {
-    let values: Record<string, unknown>;
-    try {
-      values = await uploadFormApi.current?.validate() as Record<string, unknown>;
-    } catch {
-      throw new Error('validation');
-    }
-    await uploadMutation.mutateAsync(values);
-    Toast.success('证书已上传');
-    setUploadVisible(false);
-    uploadFormApi.current?.reset();
   };
 
   const handleDelete = async (id: number) => {
@@ -215,16 +206,16 @@ export default function SslCertificatesPage() {
             />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
-            {canCreate && <Button type="primary" icon={<Lock size={14} />} onClick={() => setGenerateVisible(true)}>生成自签名证书</Button>}
-            {canCreate && <Button type="primary" icon={<Upload size={14} />} onClick={() => setUploadVisible(true)}>上传证书</Button>}
+            {canCreate && <Button type="primary" icon={<Lock size={14} />} onClick={generateModal.openCreate}>生成自签名证书</Button>}
+            {canCreate && <Button type="primary" icon={<Upload size={14} />} onClick={uploadModal.openCreate}>上传证书</Button>}
           </>
         )}
         mobilePrimary={(
           <>
             <KeywordInput placeholder="搜索名称或域名" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))} onSearch={handleSearch} width={240} />
             <SearchButton onClick={handleSearch} />
-            {canCreate && <Button type="primary" icon={<Lock size={14} />} onClick={() => setGenerateVisible(true)}>生成</Button>}
-            {canCreate && <Button type="primary" icon={<Upload size={14} />} onClick={() => setUploadVisible(true)}>上传</Button>}
+            {canCreate && <Button type="primary" icon={<Lock size={14} />} onClick={generateModal.openCreate}>生成</Button>}
+            {canCreate && <Button type="primary" icon={<Upload size={14} />} onClick={uploadModal.openCreate}>上传</Button>}
           </>
         )}
         mobileFilters={(
@@ -259,20 +250,11 @@ export default function SslCertificatesPage() {
       />
 
       <AppModal
+        {...generateModal.modalProps}
         title="生成自签名证书"
-        visible={generateVisible}
-        onCancel={() => setGenerateVisible(false)}
-        onOk={handleGenerate}
-        okButtonProps={{ loading: generateMutation.isPending }}
         width={520}
-        closeOnEsc
       >
-        <Form
-          getFormApi={(api) => { generateFormApi.current = api; }}
-          initValues={{ days: 365, country: 'CN', organization: 'Organization' }}
-          labelPosition="left"
-          labelWidth={90}
-        >
+        <Form {...generateModal.formProps}>
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} />
           <Form.Input field="domain" label="域名" rules={[{ required: true, message: '请输入域名' }]} />
           <Form.InputNumber field="days" label="有效期" min={1} max={3650} suffix="天" style={{ width: '100%' }} />
@@ -282,19 +264,11 @@ export default function SslCertificatesPage() {
       </AppModal>
 
       <AppModal
+        {...uploadModal.modalProps}
         title="上传证书"
-        visible={uploadVisible}
-        onCancel={() => setUploadVisible(false)}
-        onOk={handleUpload}
-        okButtonProps={{ loading: uploadMutation.isPending }}
         width={660}
-        closeOnEsc
       >
-        <Form
-          getFormApi={(api) => { uploadFormApi.current = api; }}
-          labelPosition="left"
-          labelWidth={90}
-        >
+        <Form {...uploadModal.formProps}>
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} />
           <Form.Input field="domain" label="域名" rules={[{ required: true, message: '请输入域名' }]} />
           <Form.TextArea field="certContent" label="证书内容" rows={8} rules={[{ required: true, message: '请输入证书内容' }]} />
