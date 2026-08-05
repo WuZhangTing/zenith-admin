@@ -86,7 +86,7 @@ function parseDockerExecShell(type: string | undefined): DockerExecShell | null 
  * shell 列表由 listShells() 按当前平台动态探测；前端传入的 id 必须在白名单内，
  * 否则回退到平台默认 shell，避免任意可执行文件注入。
  */
-function resolveShell(type: string | undefined): { file: string; args: string[] } {
+async function resolveShell(type: string | undefined): Promise<{ file: string; args: string[] }> {
   // docker exec 进容器 — 不在 shell 白名单内，提前处理
   if (type?.startsWith('docker-exec:')) {
     const dockerShell = parseDockerExecShell(type);
@@ -103,7 +103,7 @@ function resolveShell(type: string | undefined): { file: string; args: string[] 
       ],
     };
   }
-  const { shells, defaultShell } = listShells();
+  const { shells, defaultShell } = await listShells();
   const id = type && shells.some((s) => s.id === type) ? type : defaultShell;
   const shell = shells.find((s) => s.id === id) ?? shells[0];
   if (os.platform() === 'win32' && shell.id.startsWith('wsl:')) {
@@ -317,7 +317,7 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
               label = ssh.label;
             } else {
               // ── 本地 PTY / Docker exec ──
-              const { file: shellFile, args: shellArgs } = resolveShell(shellType);
+              const { file: shellFile, args: shellArgs } = await resolveShell(shellType);
               const isWsl = shellType?.startsWith('wsl:');
               if (isDocker) {
                 const dockerShell = parseDockerExecShell(shellType);
@@ -325,7 +325,7 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
                   ? `docker:${dockerShell.containerId.slice(0, 12)}:${dockerShell.shellName}`
                   : 'docker';
               } else {
-                const { shells } = listShells();
+                const { shells } = await listShells();
                 label = shells.find((s) => s.id === shellType)?.label ?? shellType ?? 'shell';
               }
 

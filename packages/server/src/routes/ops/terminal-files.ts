@@ -124,7 +124,7 @@ const shellsRoute = defineOpenAPIRoute({
     middleware: [authMiddleware, guard({ permission: TERMINAL_PERM })] as const,
     responses: { ...commonErrorResponses, ...ok(TerminalShellsDTO, '可用 shell 列表') },
   }),
-  handler: (c) => c.json(okBody(listShells()), 200),
+  handler: async (c) => c.json(okBody(await listShells()), 200),
 });
 
 const readContentRoute = defineOpenAPIRoute({

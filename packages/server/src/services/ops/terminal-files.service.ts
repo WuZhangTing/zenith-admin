@@ -1,5 +1,5 @@
 import { promises as fs, createReadStream, createWriteStream, existsSync, readFileSync } from 'node:fs';
-import { execFileSync, execFile } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { Readable } from 'node:stream';
 import * as os from 'node:os';
@@ -149,23 +149,35 @@ function existsSyncSafe(p: string): boolean {
  * 通过 `wsl.exe -l -q` 获取已安装的 WSL 发行版列表。
  * wsl.exe 输出 UTF-16 LE，需要手动解码。
  */
-function detectWslDistros(): string[] {
+async function detectWslDistros(): Promise<string[]> {
   try {
-    const buf = execFileSync('wsl.exe', ['-l', '-q'], { timeout: 3000 });
+    const { stdout } = await execFileAsync('wsl.exe', ['-l', '-q'], { timeout: 3000, encoding: 'buffer' });
     // wsl.exe -l -q 输出 UTF-16 LE（有 BOM），需转换为 UTF-8
-    const text = buf.toString('utf16le').replaceAll(/[\ufffd\0]/g, '').replaceAll('\r', '');
+    const text = stdout.toString('utf16le').replaceAll(/[\ufffd\0]/g, '').replaceAll('\r', '');
     return text.split('\n').map((l) => l.trim()).filter(Boolean);
   } catch {
     return [];
   }
 }
 
+// 进程生命周期缓存：shell 清单只随软件安装变化。缓存 Promise 而非结果，
+// 让并发的首批调用共享同一次探测；探测意外失败时清缓存，避免错误被永久钉死。
+let shellListingPromise: Promise<TerminalShellListing> | null = null;
+
 /**
- * 探测当前运行平台可用的 shell 列表与默认 shell。
- * - Windows：PowerShell / CMD / Git Bash（探测安装路径）
+ * 探测当前运行平台可用的 shell 列表与默认 shell（结果按进程生命周期缓存）。
+ * - Windows：PowerShell / CMD / Git Bash（探测安装路径）+ WSL 发行版
  * - POSIX（Linux/macOS/WSL）：读取 /etc/shells 并探测 bash/zsh/fish/sh 常见路径，$SHELL 优先作为默认
  */
-export function listShells(): TerminalShellListing {
+export function listShells(): Promise<TerminalShellListing> {
+  shellListingPromise ??= detectShellListing().catch((err: unknown) => {
+    shellListingPromise = null;
+    throw err;
+  });
+  return shellListingPromise;
+}
+
+async function detectShellListing(): Promise<TerminalShellListing> {
   const platform = os.platform();
 
   if (platform === 'win32') {
@@ -182,7 +194,7 @@ export function listShells(): TerminalShellListing {
       .find((p) => existsSyncSafe(p));
     if (gitBash) shells.push({ id: 'bash', label: 'Git Bash', path: gitBash });
     // WSL 发行版
-    const wslDistros = detectWslDistros();
+    const wslDistros = await detectWslDistros();
     for (const distro of wslDistros) {
       // --cd ~ 确保 WSL 从 Linux 用户主目录启动，--exec bash -l 避免默认 shell 异常
       shells.push({ id: `wsl:${distro}`, label: `WSL: ${distro}`, path: 'wsl.exe', args: ['-d', distro, '--cd', '~', '--exec', 'bash', '-l'] });
