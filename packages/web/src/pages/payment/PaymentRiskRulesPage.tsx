@@ -15,7 +15,7 @@ import { useEditModal } from '@/hooks/useEditModal';
 import {
   paymentRiskKeys,
   useApprovePaymentRiskReview,
-  useDeletePaymentRiskRule,
+  useDeletePaymentRiskRules,
   usePaymentRiskHitList,
   usePaymentRiskReviewList,
   usePaymentRiskRuleList,
@@ -112,7 +112,7 @@ export default function PaymentRiskRulesPage() {
 
   const saveMutation = useSavePaymentRiskRule();
   const toggleMutation = useSavePaymentRiskRule();
-  const deleteMutation = useDeletePaymentRiskRule();
+  const deleteMutation = useDeletePaymentRiskRules();
   const approveMutation = useApprovePaymentRiskReview();
   const rejectMutation = useRejectPaymentRiskReview();
   const togglingId = toggleMutation.isPending ? (toggleMutation.variables?.id ?? null) : null;
@@ -166,7 +166,7 @@ export default function PaymentRiskRulesPage() {
   }
 
   async function handleDelete(id: number) {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync([id]);
     Toast.success('删除成功');
   }
 

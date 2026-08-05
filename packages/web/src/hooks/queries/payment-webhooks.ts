@@ -3,10 +3,9 @@ import type { PaginatedResponse } from '@zenith/shared/core';
 import type { PaymentWebhookDelivery, PaymentWebhookEndpoint } from '@zenith/shared/payment';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
+import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
 
-export interface PaymentWebhookEndpointListParams {
-  page: number;
-  pageSize: number;
+export interface PaymentWebhookEndpointListParams extends CrudListParams {
   keyword?: string;
   status?: string;
 }
@@ -18,57 +17,40 @@ export interface PaymentWebhookDeliveryListParams {
   status?: string;
 }
 
+/** 投递记录随端点增删改一并失效（沿用原 .all 粗失效的覆盖面） */
+const DELIVERY_LISTS_KEY = ['payment-webhooks', 'deliveries', 'list'] as const;
+
+const crud = createCrudQueries<PaymentWebhookEndpoint, PaymentWebhookEndpointListParams, Partial<PaymentWebhookEndpoint> & { secret?: string }>({
+  resource: 'payment-webhook-endpoints',
+  keyPrefix: ['payment-webhooks', 'endpoints'],
+  path: '/api/payment/webhooks/endpoints',
+  // 服务端未提供 DELETE /batch
+  deleteMode: 'single',
+  onSaved: (qc) => void qc.invalidateQueries({ queryKey: DELIVERY_LISTS_KEY }),
+  onDeleted: (qc) => void qc.invalidateQueries({ queryKey: DELIVERY_LISTS_KEY }),
+});
+
 export const paymentWebhookKeys = {
+  ...crud.keys,
+  // 端点与投递记录共享 ['payment-webhooks'] 根命名空间（重投等命令按根广播）
   all: ['payment-webhooks'] as const,
-  endpointLists: ['payment-webhooks', 'endpoints', 'list'] as const,
-  endpointList: (params: PaymentWebhookEndpointListParams) => ['payment-webhooks', 'endpoints', 'list', params] as const,
-  deliveryLists: ['payment-webhooks', 'deliveries', 'list'] as const,
+  endpointLists: crud.keys.lists,
+  endpointList: crud.keys.list,
+  endpointDetail: crud.keys.detail,
+  deliveryLists: DELIVERY_LISTS_KEY,
   deliveryList: (params: PaymentWebhookDeliveryListParams) => ['payment-webhooks', 'deliveries', 'list', params] as const,
-  endpointDetail: (id: number | undefined) => ['payment-webhooks', 'endpoints', 'detail', id] as const,
-  detail: (id: number | undefined) => ['payment-webhooks', 'detail', id] as const,
 };
 
-export function usePaymentWebhookEndpoints(params: PaymentWebhookEndpointListParams) {
-  return useQuery({
-    queryKey: paymentWebhookKeys.endpointList(params),
-    queryFn: () => request.get<PaginatedResponse<PaymentWebhookEndpoint>>(`/api/payment/webhooks/endpoints${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
-}
+export const usePaymentWebhookEndpoints = crud.useList;
+export const usePaymentWebhookEndpointDetail = crud.useDetail;
+export const useSavePaymentWebhookEndpoint = crud.useSave;
+export const useDeletePaymentWebhookEndpoints = crud.useDelete;
 
 export function usePaymentWebhookDeliveries(params: PaymentWebhookDeliveryListParams) {
   return useQuery({
     queryKey: paymentWebhookKeys.deliveryList(params),
     queryFn: () => request.get<PaginatedResponse<PaymentWebhookDelivery>>(`/api/payment/webhooks/deliveries${toQueryString(params)}`).then(unwrap),
     placeholderData: keepPreviousData,
-  });
-}
-
-export function usePaymentWebhookEndpointDetail(id: number | undefined, enabled = true) {
-  return useQuery({
-    queryKey: paymentWebhookKeys.endpointDetail(id),
-    queryFn: () => request.get<PaymentWebhookEndpoint>(`/api/payment/webhooks/endpoints/${id}`).then(unwrap),
-    enabled: enabled && id !== undefined,
-  });
-}
-
-export function useSavePaymentWebhookEndpoint() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: Partial<PaymentWebhookEndpoint> & { secret?: string } }) =>
-      (id === undefined
-        ? request.post<PaymentWebhookEndpoint>('/api/payment/webhooks/endpoints', values)
-        : request.put<PaymentWebhookEndpoint>(`/api/payment/webhooks/endpoints/${id}`, values)
-      ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: paymentWebhookKeys.all }),
-  });
-}
-
-export function useDeletePaymentWebhookEndpoint() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/payment/webhooks/endpoints/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: paymentWebhookKeys.all }),
   });
 }
 

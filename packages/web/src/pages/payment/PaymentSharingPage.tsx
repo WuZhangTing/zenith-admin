@@ -16,7 +16,7 @@ import { useEditModal } from '@/hooks/useEditModal';
 import {
   paymentSharingKeys,
   useCreatePaymentSharingOrder,
-  useDeletePaymentSharingReceiver,
+  useDeletePaymentSharingReceivers,
   useEnabledPaymentSharingReceivers,
   usePaymentSharingOrders,
   usePaymentSharingReceivers,
@@ -71,7 +71,7 @@ export default function PaymentSharingPage() {
   const orderTotal = orderQuery.data?.total ?? 0;
   const saveReceiverMutation = useSavePaymentSharingReceiver();
   const toggleReceiverMutation = useSavePaymentSharingReceiver();
-  const deleteReceiverMutation = useDeletePaymentSharingReceiver();
+  const deleteReceiverMutation = useDeletePaymentSharingReceivers();
   const createOrderMutation = useCreatePaymentSharingOrder();
   const togglingId = toggleReceiverMutation.isPending ? (toggleReceiverMutation.variables?.id ?? null) : null;
 
@@ -130,7 +130,7 @@ export default function PaymentSharingPage() {
   }
 
   async function handleDeleteReceiver(id: number) {
-    await deleteReceiverMutation.mutateAsync(id);
+    await deleteReceiverMutation.mutateAsync([id]);
     Toast.success('删除成功');
   }
 

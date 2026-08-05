@@ -11,7 +11,7 @@ import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { useAllRoles } from '@/hooks/queries/roles';
 import {
   identityProviderKeys,
-  useDeleteIdentityProvider,
+  useDeleteIdentityProviders,
   useIdentityProviderDetail,
   useIdentityProviderList,
   useIdentityProviderTenants,
@@ -182,7 +182,7 @@ export default function IdentityProvidersPage() {
     labelWidth: 110,
   });
   const toggleStatusMutation = useSaveIdentityProvider();
-  const deleteMutation = useDeleteIdentityProvider();
+  const deleteMutation = useDeleteIdentityProviders();
   const testConnectionMutation = useTestIdentityProviderConnection();
   const ldapSearchMutation = useSearchLdapDirectoryUsers();
   const syncDirectoryMutation = useSyncIdentityProviderDirectory();
@@ -228,7 +228,7 @@ export default function IdentityProvidersPage() {
       title: `确认删除身份源「${row.name}」？`,
       content: '删除后，已绑定的企业身份账号关系也会被移除。',
       onOk: async () => {
-        await deleteMutation.mutateAsync(row.id);
+        await deleteMutation.mutateAsync([row.id]);
         Toast.success('删除成功');
       },
     });

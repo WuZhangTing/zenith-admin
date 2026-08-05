@@ -1,73 +1,43 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse } from '@zenith/shared/core';
+import { useQuery } from '@tanstack/react-query';
 import type { SystemConfig } from '@zenith/shared/platform';
-import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
+import { LOOKUP_STALE_TIME, unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
+import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
 import type { PasswordPolicy } from '@/utils/password-policy';
 
-export interface SystemConfigListParams {
-  page: number;
-  pageSize: number;
+export interface SystemConfigListParams extends CrudListParams {
   keyword?: string;
   configType?: string;
 }
 
+/** 密码策略与公开配置都是配置表派生的读视图，任一条配置增删改都可能影响它们 */
+const PASSWORD_POLICY_KEY = ['system-configs', 'password-policy'] as const;
+const PUBLIC_PREFIX = ['system-configs', 'public'] as const;
+
+function invalidateDerivedViews(qc: import('@tanstack/react-query').QueryClient) {
+  void qc.invalidateQueries({ queryKey: PASSWORD_POLICY_KEY });
+  void qc.invalidateQueries({ queryKey: PUBLIC_PREFIX });
+}
+
+const crud = createCrudQueries<SystemConfig, SystemConfigListParams>({
+  resource: 'system-configs',
+  // 服务端未提供 DELETE /batch
+  deleteMode: 'single',
+  onSaved: (qc) => invalidateDerivedViews(qc),
+  onDeleted: (qc) => invalidateDerivedViews(qc),
+});
+
 export const systemConfigKeys = {
-  all: ['system-configs'] as const,
-  lists: ['system-configs', 'list'] as const,
-  list: (params: SystemConfigListParams) => ['system-configs', 'list', params] as const,
-  detail: (id: number | undefined) => ['system-configs', 'detail', id] as const,
-  passwordPolicy: ['system-configs', 'password-policy'] as const,
-  publicPrefix: ['system-configs', 'public'] as const,
+  ...crud.keys,
+  passwordPolicy: PASSWORD_POLICY_KEY,
+  publicPrefix: PUBLIC_PREFIX,
   publicConfig: (key: string) => ['system-configs', 'public', key] as const,
 };
 
-export function useSystemConfigList(params: SystemConfigListParams) {
-  return useQuery({
-    queryKey: systemConfigKeys.list(params),
-    queryFn: () => request.get<PaginatedResponse<SystemConfig>>(`/api/system-configs${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
-}
-
-export function useSystemConfigDetail(id: number | undefined, enabled = true) {
-  return useQuery({
-    queryKey: systemConfigKeys.detail(id),
-    queryFn: () => request.get<SystemConfig>(`/api/system-configs/${id}`).then(unwrap),
-    enabled: enabled && id !== undefined,
-  });
-}
-
-export function useSaveSystemConfig() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: Partial<SystemConfig> }) =>
-      (id === undefined
-        ? request.post<SystemConfig>('/api/system-configs', values)
-        : request.put<SystemConfig>(`/api/system-configs/${id}`, values)
-      ).then(unwrap),
-    onSuccess: (saved) => {
-      void qc.invalidateQueries({ queryKey: systemConfigKeys.detail(saved.id) });
-      void qc.invalidateQueries({ queryKey: systemConfigKeys.lists });
-      // 密码策略与公开配置都是从同一张配置表派生出来的读视图，改任一条配置都可能影响它们
-      void qc.invalidateQueries({ queryKey: systemConfigKeys.passwordPolicy });
-      void qc.invalidateQueries({ queryKey: systemConfigKeys.publicPrefix });
-    },
-  });
-}
-
-export function useDeleteSystemConfig() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/system-configs/${id}`).then(unwrap),
-    onSuccess: (_data, id) => {
-      qc.removeQueries({ queryKey: systemConfigKeys.detail(id) });
-      void qc.invalidateQueries({ queryKey: systemConfigKeys.lists });
-      void qc.invalidateQueries({ queryKey: systemConfigKeys.passwordPolicy });
-      void qc.invalidateQueries({ queryKey: systemConfigKeys.publicPrefix });
-    },
-  });
-}
+export const useSystemConfigList = crud.useList;
+export const useSystemConfigDetail = crud.useDetail;
+export const useSaveSystemConfig = crud.useSave;
+export const useDeleteSystemConfigs = crud.useDelete;
 
 export function useSystemPasswordPolicy() {
   return useQuery({

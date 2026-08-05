@@ -3,10 +3,9 @@ import type { PaginatedResponse } from '@zenith/shared/core';
 import type { PaymentSharingOrder, PaymentSharingReceiver } from '@zenith/shared/payment';
 import { request } from '@/utils/request';
 import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
+import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
 
-export interface PaymentSharingReceiverListParams {
-  page: number;
-  pageSize: number;
+export interface PaymentSharingReceiverListParams extends CrudListParams {
   keyword?: string;
   status?: string;
 }
@@ -18,23 +17,33 @@ export interface PaymentSharingOrderListParams {
   status?: string;
 }
 
+/** 启用中的分账方下拉源随分账方增删改一并失效；分账单列表不受影响 */
+const ENABLED_RECEIVERS_KEY = ['payment-sharing', 'receivers', 'enabled'] as const;
+
+const crud = createCrudQueries<PaymentSharingReceiver, PaymentSharingReceiverListParams>({
+  resource: 'payment-sharing-receivers',
+  keyPrefix: ['payment-sharing', 'receivers'],
+  path: '/api/payment/sharing/receivers',
+  // 服务端未提供 DELETE /batch
+  deleteMode: 'single',
+  onSaved: (qc) => void qc.invalidateQueries({ queryKey: ENABLED_RECEIVERS_KEY }),
+  onDeleted: (qc) => void qc.invalidateQueries({ queryKey: ENABLED_RECEIVERS_KEY }),
+});
+
 export const paymentSharingKeys = {
+  ...crud.keys,
+  // 分账单与分账方共享 ['payment-sharing'] 根命名空间
   all: ['payment-sharing'] as const,
-  receiverLists: ['payment-sharing', 'receivers', 'list'] as const,
-  receiverList: (params: PaymentSharingReceiverListParams) => ['payment-sharing', 'receivers', 'list', params] as const,
+  receiverLists: crud.keys.lists,
+  receiverList: crud.keys.list,
   orderLists: ['payment-sharing', 'orders', 'list'] as const,
   orderList: (params: PaymentSharingOrderListParams) => ['payment-sharing', 'orders', 'list', params] as const,
-  enabledReceivers: ['payment-sharing', 'receivers', 'enabled'] as const,
-  detail: (id: number | undefined) => ['payment-sharing', 'detail', id] as const,
+  enabledReceivers: ENABLED_RECEIVERS_KEY,
 };
 
-export function usePaymentSharingReceivers(params: PaymentSharingReceiverListParams) {
-  return useQuery({
-    queryKey: paymentSharingKeys.receiverList(params),
-    queryFn: () => request.get<PaginatedResponse<PaymentSharingReceiver>>(`/api/payment/sharing/receivers${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
-}
+export const usePaymentSharingReceivers = crud.useList;
+export const useSavePaymentSharingReceiver = crud.useSave;
+export const useDeletePaymentSharingReceivers = crud.useDelete;
 
 export function usePaymentSharingOrders(params: PaymentSharingOrderListParams) {
   return useQuery({
@@ -54,35 +63,6 @@ export function useEnabledPaymentSharingReceivers(enabled = true) {
         .then((data) => data.list.filter((r) => r.status === 'enabled')),
     staleTime: LOOKUP_STALE_TIME,
     enabled,
-  });
-}
-
-export function useSavePaymentSharingReceiver() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: Partial<PaymentSharingReceiver> }) =>
-      (id === undefined
-        ? request.post<PaymentSharingReceiver>('/api/payment/sharing/receivers', values)
-        : request.put<PaymentSharingReceiver>(`/api/payment/sharing/receivers/${id}`, values)
-      ).then(unwrap),
-    onSuccess: (saved) => {
-      void qc.invalidateQueries({ queryKey: paymentSharingKeys.detail(saved.id) });
-      void qc.invalidateQueries({ queryKey: paymentSharingKeys.receiverLists });
-      // 启用中的分账方下拉源随之变化；分账单列表不受影响
-      void qc.invalidateQueries({ queryKey: paymentSharingKeys.enabledReceivers });
-    },
-  });
-}
-
-export function useDeletePaymentSharingReceiver() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/payment/sharing/receivers/${id}`).then(unwrap),
-    onSuccess: (_data, id) => {
-      qc.removeQueries({ queryKey: paymentSharingKeys.detail(id) });
-      void qc.invalidateQueries({ queryKey: paymentSharingKeys.receiverLists });
-      void qc.invalidateQueries({ queryKey: paymentSharingKeys.enabledReceivers });
-    },
   });
 }
 

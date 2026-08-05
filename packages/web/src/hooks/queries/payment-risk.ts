@@ -3,10 +3,9 @@ import type { PaginatedResponse } from '@zenith/shared/core';
 import type { PaymentRiskHit, PaymentRiskReview, PaymentRiskRule } from '@zenith/shared/payment';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
+import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
 
-export interface PaymentRiskRuleListParams {
-  page: number;
-  pageSize: number;
+export interface PaymentRiskRuleListParams extends CrudListParams {
   scope?: string;
   status?: string;
 }
@@ -28,44 +27,36 @@ export interface PaymentRiskReviewListParams {
   channel?: string;
 }
 
+/** 命中记录与人工复核清单随规则增删改一并失效（沿用原 .all 粗失效的覆盖面） */
+const HIT_LISTS_KEY = ['payment-risk', 'hits'] as const;
+const REVIEW_LISTS_KEY = ['payment-risk', 'reviews'] as const;
+
+const crud = createCrudQueries<PaymentRiskRule, PaymentRiskRuleListParams>({
+  resource: 'payment-risk',
+  path: '/api/payment/risk-rules',
+  // 服务端未提供 DELETE /batch
+  deleteMode: 'single',
+  onSaved: (qc) => {
+    void qc.invalidateQueries({ queryKey: HIT_LISTS_KEY });
+    void qc.invalidateQueries({ queryKey: REVIEW_LISTS_KEY });
+  },
+  onDeleted: (qc) => {
+    void qc.invalidateQueries({ queryKey: HIT_LISTS_KEY });
+    void qc.invalidateQueries({ queryKey: REVIEW_LISTS_KEY });
+  },
+});
+
 export const paymentRiskKeys = {
-  all: ['payment-risk'] as const,
-  lists: ['payment-risk', 'list'] as const,
-  list: (params: PaymentRiskRuleListParams) => ['payment-risk', 'list', params] as const,
-  detail: (id: number | undefined) => ['payment-risk', 'detail', id] as const,
-  hitLists: ['payment-risk', 'hits'] as const,
+  ...crud.keys,
+  hitLists: HIT_LISTS_KEY,
   hitList: (params: PaymentRiskHitListParams) => ['payment-risk', 'hits', params] as const,
-  reviewLists: ['payment-risk', 'reviews'] as const,
+  reviewLists: REVIEW_LISTS_KEY,
   reviewList: (params: PaymentRiskReviewListParams) => ['payment-risk', 'reviews', params] as const,
 };
 
-export function usePaymentRiskRuleList(params: PaymentRiskRuleListParams) {
-  return useQuery({
-    queryKey: paymentRiskKeys.list(params),
-    queryFn: () => request.get<PaginatedResponse<PaymentRiskRule>>(`/api/payment/risk-rules${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
-}
-
-export function useSavePaymentRiskRule() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: Partial<PaymentRiskRule> }) =>
-      (id === undefined
-        ? request.post<PaymentRiskRule>('/api/payment/risk-rules', values)
-        : request.put<PaymentRiskRule>(`/api/payment/risk-rules/${id}`, values)
-      ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: paymentRiskKeys.all }),
-  });
-}
-
-export function useDeletePaymentRiskRule() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/payment/risk-rules/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: paymentRiskKeys.all }),
-  });
-}
+export const usePaymentRiskRuleList = crud.useList;
+export const useSavePaymentRiskRule = crud.useSave;
+export const useDeletePaymentRiskRules = crud.useDelete;
 
 export function usePaymentRiskHitList(params: PaymentRiskHitListParams) {
   return useQuery({

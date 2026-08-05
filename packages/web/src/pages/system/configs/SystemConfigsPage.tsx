@@ -16,7 +16,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { renderEllipsis } from '../../../utils/table-columns';
 import {
   systemConfigKeys,
-  useDeleteSystemConfig,
+  useDeleteSystemConfigs,
   useSaveSystemConfig,
   useSystemConfigDetail,
   useSystemConfigList,
@@ -101,7 +101,7 @@ export default function SystemConfigsPage() {
       return values;
     },
   });
-  const deleteMutation = useDeleteSystemConfig();
+  const deleteMutation = useDeleteSystemConfigs();
 
   // 弹窗打开（或详情回填）时同步编辑器状态：类型决定用哪种控件，json 需要美化后的初始文本
   const editingKey = modal.editing ? `${modal.editing.id}:${modal.editing.updatedAt}` : 'new';
@@ -130,7 +130,7 @@ export default function SystemConfigsPage() {
   };
 
   const handleDelete = async (id: number) => {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync([id]);
     Toast.success('删除成功');
   };
 

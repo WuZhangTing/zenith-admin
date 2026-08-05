@@ -17,7 +17,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import StorageFileBrowser from './StorageFileBrowser';
 import {
   fileStorageConfigKeys,
-  useDeleteFileStorageConfig,
+  useDeleteFileStorageConfigs,
   useFileStorageConfigDetail,
   useFileStorageConfigList,
   useSaveFileStorageConfig,
@@ -292,7 +292,7 @@ export default function FileStorageConfigsPage() {
     successMessage: ({ isEdit }) => isEdit ? '文件服务配置已更新' : '文件服务配置已创建',
     labelWidth: 140,
   });
-  const deleteMutation = useDeleteFileStorageConfig();
+  const deleteMutation = useDeleteFileStorageConfigs();
   const setDefaultMutation = useSetDefaultFileStorageConfig();
   const testMutation = useTestFileStorageConfig();
   const modalTestLoading = testMutation.isPending && !testMutation.variables?.id;
@@ -330,7 +330,7 @@ export default function FileStorageConfigsPage() {
   };
 
   const handleDelete = async (config: FileStorageConfig) => {
-    await deleteMutation.mutateAsync(config.id);
+    await deleteMutation.mutateAsync([config.id]);
     Toast.success('文件服务配置已删除');
   };
 

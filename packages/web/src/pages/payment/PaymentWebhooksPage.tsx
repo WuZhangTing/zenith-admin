@@ -13,7 +13,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
   paymentWebhookKeys,
-  useDeletePaymentWebhookEndpoint,
+  useDeletePaymentWebhookEndpoints,
   usePaymentWebhookDeliveries,
   usePaymentWebhookEndpointDetail,
   usePaymentWebhookEndpoints,
@@ -129,7 +129,7 @@ export default function PaymentWebhooksPage() {
     labelWidth: 96,
   });
   const toggleEndpointMutation = useSavePaymentWebhookEndpoint();
-  const deleteEndpointMutation = useDeletePaymentWebhookEndpoint();
+  const deleteEndpointMutation = useDeletePaymentWebhookEndpoints();
   const redeliverMutation = useRedeliverPaymentWebhookDelivery();
   const togglingId = toggleEndpointMutation.isPending ? (toggleEndpointMutation.variables?.id ?? null) : null;
   const redeliveringId = redeliverMutation.isPending ? (redeliverMutation.variables ?? null) : null;
@@ -145,7 +145,7 @@ export default function PaymentWebhooksPage() {
   }
 
   async function handleDelete(id: number) {
-    await deleteEndpointMutation.mutateAsync(id);
+    await deleteEndpointMutation.mutateAsync([id]);
     Toast.success('删除成功');
   }
 
