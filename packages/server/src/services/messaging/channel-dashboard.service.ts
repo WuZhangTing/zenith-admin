@@ -119,19 +119,34 @@ async function buildTopReplies(): Promise<ChannelDashboardTopReply[]> {
 async function buildChannelRank(): Promise<ChannelDashboardChannelRank[]> {
   const bizChannels = await db.select({ id: channels.id, name: channels.name })
     .from(channels).where(eq(channels.type, 'business'));
-  const ranked = await Promise.all(bizChannels.map(async (ch) => {
-    const [messageCount, subscriberCount] = await Promise.all([
-      db.$count(channelMessages, and(
-        eq(channelMessages.channelId, ch.id),
+  if (bizChannels.length === 0) return [];
+
+  // 两条 GROUP BY 聚合一次取齐全部频道计数（此前每频道各发 2 条 COUNT，查询数随频道数线性增长）
+  const [msgRows, subRows] = await Promise.all([
+    db.select({ channelId: channelMessages.channelId, count: sql<number>`count(*)::int` })
+      .from(channelMessages)
+      .where(and(
         eq(channelMessages.direction, 'out'),
         eq(channelMessages.status, 'sent'),
         isNull(channelMessages.retractedAt),
-      )),
-      db.$count(channelSubscriptions, eq(channelSubscriptions.channelId, ch.id)),
-    ]);
-    return { channelId: ch.id, channelName: ch.name, messageCount, subscriberCount };
-  }));
-  return ranked.sort((a, b) => b.messageCount - a.messageCount).slice(0, 5);
+      ))
+      .groupBy(channelMessages.channelId),
+    db.select({ channelId: channelSubscriptions.channelId, count: sql<number>`count(*)::int` })
+      .from(channelSubscriptions)
+      .groupBy(channelSubscriptions.channelId),
+  ]);
+  const msgCounts = new Map(msgRows.map((r) => [r.channelId, Number(r.count)]));
+  const subCounts = new Map(subRows.map((r) => [r.channelId, Number(r.count)]));
+
+  return bizChannels
+    .map((ch) => ({
+      channelId: ch.id,
+      channelName: ch.name,
+      messageCount: msgCounts.get(ch.id) ?? 0,
+      subscriberCount: subCounts.get(ch.id) ?? 0,
+    }))
+    .sort((a, b) => b.messageCount - a.messageCount)
+    .slice(0, 5);
 }
 
 export async function getChannelDashboard(): Promise<ChannelDashboard> {

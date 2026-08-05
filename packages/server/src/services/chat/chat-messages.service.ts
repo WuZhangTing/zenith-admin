@@ -627,16 +627,20 @@ export async function deleteMessagesForUser(messageIds: number[]): Promise<void>
     throw new HTTPException(403, { message: '无权操作该会话的消息' });
   }
 
-  // 批量更新 extra.hiddenFor，追加当前用户 ID
-  await Promise.all(msgs.map(async (msg) => {
-    const extra = normalizeMessageExtra(msg.extra);
-    const hiddenFor = extra.hiddenFor ?? [];
-    if (hiddenFor.includes(me.userId)) return;
-    const nextExtra: ChatMessageExtra = { ...extra, hiddenFor: [...hiddenFor, me.userId] };
-    await db.update(chatMessages)
-      .set({ extra: nextExtra, updatedAt: new Date() })
-      .where(eq(chatMessages.id, msg.id));
-  }));
+  // 单条原子 UPDATE 批量追加 extra.hiddenFor（写入形状与读取侧 notHiddenFor 一致）：
+  // 逐条读改写不仅是 N 次往返，整体覆写 extra 还会与并发写（表情回应、他人删除）互相丢失更新
+  await db.update(chatMessages)
+    .set({
+      extra: sql`jsonb_set(
+        COALESCE(${chatMessages.extra}, '{}'::jsonb),
+        '{hiddenFor}',
+        COALESCE(${chatMessages.extra}->'hiddenFor', '[]'::jsonb) || to_jsonb(CAST(${me.userId} AS integer))
+      )`,
+    })
+    .where(and(
+      inArray(chatMessages.id, msgs.map((m) => m.id)),
+      notHiddenFor(me.userId),
+    ));
 }
 
 // ─── 撤回消息 ─────────────────────────────────────────────────────────────────
