@@ -18,7 +18,7 @@ import {
   useBatchReportPrintTemplateStatus,
   useCloneReportPrintTemplate,
   reportPrintKeys,
-  useDeleteReportPrintTemplate,
+  useDeleteReportPrintTemplates,
   useRenderReportPrintTemplate,
   useReportPrintTemplateList,
   useSaveReportPrintTemplate,
@@ -73,7 +73,7 @@ export default function PrintTemplatesPage() {
   const toggleStatusMutation = useSaveReportPrintTemplate();
   const batchStatusMutation = useBatchReportPrintTemplateStatus();
   const cloneMutation = useCloneReportPrintTemplate();
-  const deleteMutation = useDeleteReportPrintTemplate();
+  const deleteMutation = useDeleteReportPrintTemplates();
   const renderMutation = useRenderReportPrintTemplate();
   const exportRunner = useExportJobRunner();
   const togglingId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
@@ -105,7 +105,7 @@ export default function PrintTemplatesPage() {
   });
 
   async function handleDelete(id: number) {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync([id]);
     Toast.success('删除成功');
   }
 

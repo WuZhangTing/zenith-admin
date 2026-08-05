@@ -1,47 +1,27 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse } from '@zenith/shared/core';
+import { useMutation } from '@tanstack/react-query';
 import type { WorkflowDataSource, WorkflowDataSourceOption } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
-import { toQueryString, unwrap } from '@/lib/query';
+import { unwrap } from '@/lib/query';
+import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
 
-export interface WorkflowDataSourceListParams {
-  page: number;
-  pageSize: number;
+export interface WorkflowDataSourceListParams extends CrudListParams {
   keyword?: string;
   status?: string;
 }
 
-export const workflowDataSourceKeys = {
-  all: ['workflow', 'data-sources'] as const,
-  lists: ['workflow', 'data-sources', 'list'] as const,
-  list: (params: WorkflowDataSourceListParams) => ['workflow', 'data-sources', 'list', params] as const,
-};
-
-export function useWorkflowDataSourceList(params: WorkflowDataSourceListParams) {
-  return useQuery({
-    queryKey: workflowDataSourceKeys.list(params),
-    queryFn: () =>
-      request.get<PaginatedResponse<WorkflowDataSource>>(`/api/workflows/data-sources${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
-}
-
-export function useSaveWorkflowDataSource() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
-      (id ? request.put<WorkflowDataSource>(`/api/workflows/data-sources/${id}`, values) : request.post<WorkflowDataSource>('/api/workflows/data-sources', values)).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: workflowDataSourceKeys.all }),
-  });
-}
-
-export function useDeleteWorkflowDataSource() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/workflows/data-sources/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: workflowDataSourceKeys.all }),
-  });
-}
+export const {
+  keys: workflowDataSourceKeys,
+  useList: useWorkflowDataSourceList,
+  useSave: useSaveWorkflowDataSource,
+  useDelete: useDeleteWorkflowDataSources,
+} = createCrudQueries<WorkflowDataSource, WorkflowDataSourceListParams, Record<string, unknown>>({
+  resource: 'workflow-data-sources',
+  // 保留原有嵌套 key：运行时流程用 invalidateQueries({ queryKey: ['workflow'] }) 广播失效
+  keyPrefix: ['workflow', 'data-sources'],
+  path: '/api/workflows/data-sources',
+  // 服务端未提供 DELETE /batch
+  deleteMode: 'single',
+});
 
 export function useTestWorkflowDataSource() {
   return useMutation({

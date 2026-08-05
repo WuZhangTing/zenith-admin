@@ -24,7 +24,7 @@ import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import type { WorkflowConnector, WorkflowConnectorType, WorkflowConnectorBreakerState, WorkflowConnectorInvokeResult, WorkflowConnectorHttpConfig, WorkflowConnectorInvocation } from '@zenith/shared/workflow';
 import {
-  useDeleteWorkflowConnector,
+  useDeleteWorkflowConnectors,
   useSaveWorkflowConnector,
   useTestWorkflowConnector,
   useWorkflowConnectorList,
@@ -102,7 +102,7 @@ export default function WorkflowConnectorsPage() {
 
   const saveMutation = useSaveWorkflowConnector();
   const toggleStatusMutation = useSaveWorkflowConnector();
-  const deleteMutation = useDeleteWorkflowConnector();
+  const deleteMutation = useDeleteWorkflowConnectors();
   const testMutation = useTestWorkflowConnector();
 
   const [testVisible, setTestVisible] = useState(false);
@@ -176,7 +176,7 @@ export default function WorkflowConnectorsPage() {
   function openEdit(record: WorkflowConnector) { connectorModal.openEdit(record); }
 
   async function handleDelete(id: number) {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync([id]);
     Toast.success('删除成功');
   }
 

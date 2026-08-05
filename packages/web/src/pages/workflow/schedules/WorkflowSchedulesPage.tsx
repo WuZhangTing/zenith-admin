@@ -12,7 +12,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { usePublishedWorkflowDefinitions } from '@/hooks/queries/workflow-definitions';
 import { useAllUsers } from '@/hooks/queries/users';
 import {
-  useDeleteWorkflowSchedule,
+  useDeleteWorkflowSchedules,
   useRunWorkflowSchedule,
   useSaveWorkflowSchedule,
   useWorkflowScheduleList,
@@ -102,7 +102,7 @@ export default function WorkflowSchedulesPage() {
 
   const [cronExprValue, setCronExprValue] = useState('');
   const saveMutation = useSaveWorkflowSchedule();
-  const deleteMutation = useDeleteWorkflowSchedule();
+  const deleteMutation = useDeleteWorkflowSchedules();
   const runMutation = useRunWorkflowSchedule();
   const canCreate = hasPermission('workflow:schedule:create');
   const canEdit = hasPermission('workflow:schedule:edit');
@@ -142,7 +142,7 @@ export default function WorkflowSchedulesPage() {
   const openEdit = (row: WorkflowSchedule) => { setCronExprValue(row.cronExpression ?? ''); scheduleModal.openEdit(row); };
 
   const handleDelete = async (id: number) => {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync([id]);
     Toast.success('已删除');
   };
 

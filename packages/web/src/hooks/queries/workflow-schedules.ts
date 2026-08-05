@@ -1,47 +1,27 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse } from '@zenith/shared/core';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { WorkflowSchedule } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
-import { toQueryString, unwrap } from '@/lib/query';
+import { unwrap } from '@/lib/query';
+import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
 
-export interface WorkflowScheduleListParams {
-  page: number;
-  pageSize: number;
+export interface WorkflowScheduleListParams extends CrudListParams {
   definitionId?: number;
   status?: string;
 }
 
-export const workflowScheduleKeys = {
-  all: ['workflow', 'schedules'] as const,
-  lists: ['workflow', 'schedules', 'list'] as const,
-  list: (params: WorkflowScheduleListParams) => ['workflow', 'schedules', 'list', params] as const,
-};
-
-export function useWorkflowScheduleList(params: WorkflowScheduleListParams) {
-  return useQuery({
-    queryKey: workflowScheduleKeys.list(params),
-    queryFn: () =>
-      request.get<PaginatedResponse<WorkflowSchedule>>(`/api/workflows/schedules${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
-}
-
-export function useSaveWorkflowSchedule() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
-      (id ? request.put<WorkflowSchedule>(`/api/workflows/schedules/${id}`, values) : request.post<WorkflowSchedule>('/api/workflows/schedules', values)).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: workflowScheduleKeys.all }),
-  });
-}
-
-export function useDeleteWorkflowSchedule() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/workflows/schedules/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: workflowScheduleKeys.all }),
-  });
-}
+export const {
+  keys: workflowScheduleKeys,
+  useList: useWorkflowScheduleList,
+  useSave: useSaveWorkflowSchedule,
+  useDelete: useDeleteWorkflowSchedules,
+} = createCrudQueries<WorkflowSchedule, WorkflowScheduleListParams, Record<string, unknown>>({
+  resource: 'workflow-schedules',
+  // 保留原有嵌套 key：运行时流程用 invalidateQueries({ queryKey: ['workflow'] }) 广播失效
+  keyPrefix: ['workflow', 'schedules'],
+  path: '/api/workflows/schedules',
+  // 服务端未提供 DELETE /batch
+  deleteMode: 'single',
+});
 
 export function useRunWorkflowSchedule() {
   const qc = useQueryClient();

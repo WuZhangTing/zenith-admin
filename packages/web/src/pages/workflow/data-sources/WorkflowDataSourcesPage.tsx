@@ -9,7 +9,7 @@ import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import type { WorkflowDataSource, WorkflowDataSourceOption } from '@zenith/shared/workflow';
 import {
-  useDeleteWorkflowDataSource,
+  useDeleteWorkflowDataSources,
   useSaveWorkflowDataSource,
   useTestWorkflowDataSource,
   useWorkflowDataSourceList,
@@ -57,7 +57,7 @@ export default function WorkflowDataSourcesPage() {
 
   const saveMutation = useSaveWorkflowDataSource();
   const toggleStatusMutation = useSaveWorkflowDataSource();
-  const deleteMutation = useDeleteWorkflowDataSource();
+  const deleteMutation = useDeleteWorkflowDataSources();
   const testMutation = useTestWorkflowDataSource();
 
   // 测试拉取结果
@@ -109,7 +109,7 @@ export default function WorkflowDataSourcesPage() {
   function openEdit(record: WorkflowDataSource) { dataSourceModal.openEdit(record); }
 
   async function handleDelete(id: number) {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync([id]);
     Toast.success('删除成功');
   }
 

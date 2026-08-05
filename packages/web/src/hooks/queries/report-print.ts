@@ -1,62 +1,34 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse } from '@zenith/shared/core';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { CreateReportPrintTemplateInput, ReportPrintRenderResult, ReportPrintTemplate, UpdateReportPrintTemplateInput } from '@zenith/shared/report';
 import { request } from '@/utils/request';
-import { toQueryString, unwrap } from '@/lib/query';
+import { unwrap } from '@/lib/query';
+import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
 import { useReportLookup } from './report-lookups';
 
-export interface ReportPrintTemplateListParams {
-  page: number;
-  pageSize: number;
+export interface ReportPrintTemplateListParams extends CrudListParams {
   keyword?: string;
   status?: string;
   ownerId?: number;
   folderId?: number;
 }
 
-export const reportPrintKeys = {
-  all: ['report', 'print'] as const,
-  lists: ['report', 'print', 'list'] as const,
-  list: (params: ReportPrintTemplateListParams) => ['report', 'print', 'list', params] as const,
-  detail: (id: number | undefined) => ['report', 'print', 'detail', id] as const,
-  lookup: (params: { keyword?: string; status?: 'enabled' | 'disabled'; limit?: number }) => ['report', 'print', 'lookup', params] as const,
-};
-
-export function useReportPrintTemplateList(params: ReportPrintTemplateListParams) {
-  return useQuery({
-    queryKey: reportPrintKeys.list(params),
-    queryFn: () => request.get<PaginatedResponse<ReportPrintTemplate>>(`/api/report/print${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
-}
-
-export function useReportPrintTemplateDetail(id: number | undefined, enabled = true) {
-  return useQuery({
-    queryKey: reportPrintKeys.detail(id),
-    queryFn: () => request.get<ReportPrintTemplate>(`/api/report/print/${id}`).then(unwrap),
-    enabled: enabled && !!id,
-  });
-}
+export const {
+  keys: reportPrintKeys,
+  useList: useReportPrintTemplateList,
+  useDetail: useReportPrintTemplateDetail,
+  useSave: useSaveReportPrintTemplate,
+  useDelete: useDeleteReportPrintTemplates,
+} = createCrudQueries<ReportPrintTemplate, ReportPrintTemplateListParams, CreateReportPrintTemplateInput | UpdateReportPrintTemplateInput>({
+  resource: 'report-print',
+  // 保留原有嵌套 key：报表域用 ['report'] 前缀组织所有资源
+  keyPrefix: ['report', 'print'],
+  path: '/api/report/print',
+  // 服务端未提供 DELETE /batch
+  deleteMode: 'single',
+});
 
 export function useReportPrintTemplateLookup(params: { keyword?: string; status?: 'enabled' | 'disabled'; limit?: number } = {}, enabled = true) {
   return useReportLookup('print', params, enabled);
-}
-
-export function useSaveReportPrintTemplate() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: CreateReportPrintTemplateInput | UpdateReportPrintTemplateInput }) =>
-      (id ? request.put<ReportPrintTemplate>(`/api/report/print/${id}`, values) : request.post<ReportPrintTemplate>('/api/report/print', values)).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportPrintKeys.all }),
-  });
-}
-
-export function useDeleteReportPrintTemplate() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/report/print/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportPrintKeys.all }),
-  });
 }
 
 export function useRenderReportPrintTemplate() {

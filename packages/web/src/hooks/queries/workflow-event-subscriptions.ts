@@ -3,10 +3,9 @@ import type { PaginatedResponse } from '@zenith/shared/core';
 import type { WorkflowEventDelivery, WorkflowEventSubscription, WorkflowEventType } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
+import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
 
-export interface WorkflowEventSubscriptionListParams {
-  page: number;
-  pageSize: number;
+export interface WorkflowEventSubscriptionListParams extends CrudListParams {
   keyword?: string;
   definitionId?: number;
   enabled?: 'true' | 'false';
@@ -26,31 +25,30 @@ export interface WorkflowEventDeliveryReplayPayload {
   endAt?: string;
 }
 
+/** 投递记录随订阅增删一并失效（删除订阅级联清理投递） */
+const DELIVERIES_KEY = ['workflow', 'event-subscriptions', 'deliveries'] as const;
+
+const crud = createCrudQueries<WorkflowEventSubscription, WorkflowEventSubscriptionListParams, Record<string, unknown>>({
+  resource: 'workflow-event-subscriptions',
+  // 保留原有嵌套 key：运行时流程用 invalidateQueries({ queryKey: ['workflow'] }) 广播失效
+  keyPrefix: ['workflow', 'event-subscriptions'],
+  path: '/api/workflows/event-subscriptions',
+  // 服务端未提供 DELETE /batch
+  deleteMode: 'single',
+  onSaved: (qc) => void qc.invalidateQueries({ queryKey: DELIVERIES_KEY }),
+  onDeleted: (qc) => void qc.invalidateQueries({ queryKey: DELIVERIES_KEY }),
+});
+
 export const workflowEventSubscriptionKeys = {
-  all: ['workflow', 'event-subscriptions'] as const,
-  lists: ['workflow', 'event-subscriptions', 'list'] as const,
-  list: (params: WorkflowEventSubscriptionListParams) => ['workflow', 'event-subscriptions', 'list', params] as const,
-  detail: (id: number | null | undefined) => ['workflow', 'event-subscriptions', 'detail', id ?? null] as const,
-  deliveries: ['workflow', 'event-subscriptions', 'deliveries'] as const,
+  ...crud.keys,
+  deliveries: DELIVERIES_KEY,
   deliveryList: (params: WorkflowEventDeliveryListParams) => ['workflow', 'event-subscriptions', 'deliveries', params] as const,
 };
 
-export function useWorkflowEventSubscriptionList(params: WorkflowEventSubscriptionListParams) {
-  return useQuery({
-    queryKey: workflowEventSubscriptionKeys.list(params),
-    queryFn: () =>
-      request.get<PaginatedResponse<WorkflowEventSubscription>>(`/api/workflows/event-subscriptions${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
-}
-
-export function useWorkflowEventSubscriptionDetail(id: number | null | undefined, enabled = true) {
-  return useQuery({
-    queryKey: workflowEventSubscriptionKeys.detail(id),
-    queryFn: () => request.get<WorkflowEventSubscription>(`/api/workflows/event-subscriptions/${id}`).then(unwrap),
-    enabled: enabled && !!id,
-  });
-}
+export const useWorkflowEventSubscriptionList = crud.useList;
+export const useWorkflowEventSubscriptionDetail = crud.useDetail;
+export const useSaveWorkflowEventSubscription = crud.useSave;
+export const useDeleteWorkflowEventSubscriptions = crud.useDelete;
 
 export function useWorkflowEventDeliveries(params: WorkflowEventDeliveryListParams, enabled = true) {
   return useQuery({
@@ -64,28 +62,11 @@ export function useWorkflowEventDeliveries(params: WorkflowEventDeliveryListPara
   });
 }
 
-export function useSaveWorkflowEventSubscription() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
-      (id ? request.put<WorkflowEventSubscription>(`/api/workflows/event-subscriptions/${id}`, values) : request.post<WorkflowEventSubscription>('/api/workflows/event-subscriptions', values)).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: workflowEventSubscriptionKeys.all }),
-  });
-}
-
 export function useToggleWorkflowEventSubscription() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) =>
       request.patch<WorkflowEventSubscription>(`/api/workflows/event-subscriptions/${id}/toggle`, { enabled }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: workflowEventSubscriptionKeys.all }),
-  });
-}
-
-export function useDeleteWorkflowEventSubscription() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/workflows/event-subscriptions/${id}`).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: workflowEventSubscriptionKeys.all }),
   });
 }

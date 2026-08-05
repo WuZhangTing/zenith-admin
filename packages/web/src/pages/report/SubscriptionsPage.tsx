@@ -14,7 +14,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   useBatchReportSubscriptionEnabled,
   reportSubscriptionKeys,
-  useDeleteReportSubscription,
+  useDeleteReportSubscriptions,
   useReportSubscriptionDashboardOptions,
   useReportSubscriptionHistory,
   useReportSubscriptionList,
@@ -58,7 +58,7 @@ export default function SubscriptionsPage() {
   const saveMutation = useSaveReportSubscription();
   const batchEnabledMutation = useBatchReportSubscriptionEnabled();
   const runMutation = useRunReportSubscription();
-  const deleteMutation = useDeleteReportSubscription();
+  const deleteMutation = useDeleteReportSubscriptions();
   const historyQuery = useReportSubscriptionHistory(historyTarget?.id, !!historyTarget);
 
   function handleSearch() {
@@ -108,7 +108,7 @@ export default function SubscriptionsPage() {
     Toast.success('任务已提交，可在任务中心查看进度');
   }
   async function handleDelete(id: number) {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync([id]);
     Toast.success('删除成功');
   }
 

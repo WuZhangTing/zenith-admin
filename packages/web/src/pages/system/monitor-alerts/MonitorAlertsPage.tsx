@@ -15,7 +15,7 @@ import { BASIC_COMPARISON_OPERATOR_LABELS } from '@zenith/shared/core';
 import { NOTIFY_CHANNEL_LABELS } from '@zenith/shared/messaging';
 import {
   monitorAlertKeys,
-  useDeleteMonitorAlert,
+  useDeleteMonitorAlerts,
   useMonitorAlertList,
   useSaveMonitorAlert,
   useToggleMonitorAlert,
@@ -82,14 +82,14 @@ export default function MonitorAlertsPage() {
     }),
     beforeSave: (values) => ({ ...values, webhookUrl: (values.webhookUrl as string) || null }),
   });
-  const deleteMutation = useDeleteMonitorAlert();
+  const deleteMutation = useDeleteMonitorAlerts();
   const toggleMutation = useToggleMonitorAlert();
   const togglingId = toggleMutation.isPending ? (toggleMutation.variables?.id ?? null) : null;
 
   const filtered = (data?.list ?? []).filter((r) => !keyword || r.name.toLowerCase().includes(keyword.toLowerCase()));
 
   async function handleDelete(id: number) {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync([id]);
     Toast.success('删除成功');
   }
 

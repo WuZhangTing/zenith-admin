@@ -15,7 +15,7 @@ import {
   reportDatasourceKeys,
   useBatchReportDatasourceStatus,
   useCloneReportDatasource,
-  useDeleteReportDatasource,
+  useDeleteReportDatasources,
   useRunReportDatasourceHealthCheck,
   useReportDatasourceList,
   useSaveReportDatasource,
@@ -69,7 +69,7 @@ export default function DataSourcesPage() {
   const batchStatusMutation = useBatchReportDatasourceStatus();
   const cloneMutation = useCloneReportDatasource();
   const healthTaskMutation = useRunReportDatasourceHealthCheck();
-  const deleteMutation = useDeleteReportDatasource();
+  const deleteMutation = useDeleteReportDatasources();
   const testConnectionMutation = useTestReportDatasourceConnection();
   const togglingId = toggleMutation.isPending ? toggleMutation.variables?.id ?? null : null;
 
@@ -162,7 +162,7 @@ export default function DataSourcesPage() {
   }
 
   async function handleDelete(id: number) {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync([id]);
     Toast.success('删除成功');
   }
 

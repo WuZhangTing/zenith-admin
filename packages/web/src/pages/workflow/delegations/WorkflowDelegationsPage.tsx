@@ -12,7 +12,7 @@ import { useWorkflowDefinitionList } from '@/hooks/queries/workflow-definitions'
 import { useAllUsers } from '@/hooks/queries/users';
 import { useListSearch } from '@/hooks/useListSearch';
 import {
-  useDeleteWorkflowDelegation,
+  useDeleteWorkflowDelegations,
   useSaveWorkflowDelegation,
   useWorkflowDelegationList,
   workflowDelegationKeys,
@@ -67,7 +67,7 @@ export default function WorkflowDelegationsPage() {
   const usersQuery = useAllUsers();
   const definitionsQuery = useWorkflowDefinitionList({ page: 1, pageSize: 200 });
   const saveMutation = useSaveWorkflowDelegation();
-  const deleteMutation = useDeleteWorkflowDelegation();
+  const deleteMutation = useDeleteWorkflowDelegations();
 
   const canManage = hasPermission('workflow:delegation:manage');
 
@@ -82,7 +82,7 @@ export default function WorkflowDelegationsPage() {
   );
 
   const handleDelete = async (id: number) => {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync([id]);
     Toast.success('已删除');
   };
 

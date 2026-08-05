@@ -34,7 +34,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { useWorkflowDefinitionList } from '@/hooks/queries/workflow-definitions';
 import {
-  useDeleteWorkflowEventSubscription,
+  useDeleteWorkflowEventSubscriptions,
   useReplayWorkflowEventDeliveries,
   useRetryWorkflowEventDelivery,
   useSaveWorkflowEventSubscription,
@@ -122,7 +122,7 @@ export default function WorkflowEventSubscriptionsPage() {
   // 编辑弹窗
   const saveMutation = useSaveWorkflowEventSubscription();
   const toggleMutation = useToggleWorkflowEventSubscription();
-  const deleteMutation = useDeleteWorkflowEventSubscription();
+  const deleteMutation = useDeleteWorkflowEventSubscriptions();
   const secretMutation = useWorkflowEventSubscriptionSecret();
 
   // 投递抽屉
@@ -186,7 +186,7 @@ export default function WorkflowEventSubscriptionsPage() {
   };
 
   const handleDelete = async (id: number) => {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync([id]);
     Toast.success('已删除');
   };
 

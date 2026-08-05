@@ -3,11 +3,9 @@ import type { PaginatedResponse } from '@zenith/shared/core';
 import type { MonitorAlertEvent, MonitorAlertRule } from '@zenith/shared/platform';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
+import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
 
-export interface MonitorAlertListParams {
-  page: number;
-  pageSize: number;
-}
+export type MonitorAlertListParams = CrudListParams;
 
 export interface MonitorAlertEventListParams {
   page: number;
@@ -17,41 +15,26 @@ export interface MonitorAlertEventListParams {
   status?: string;
 }
 
+/** 告警事件由规则触发产生，规则增删改后一并失效（沿用原 .all 粗失效的覆盖面） */
+const EVENT_LISTS_KEY = ['monitor-alerts', 'events', 'list'] as const;
+
+const crud = createCrudQueries<MonitorAlertRule, MonitorAlertListParams, Record<string, unknown>>({
+  resource: 'monitor-alerts',
+  // 服务端未提供 DELETE /batch
+  deleteMode: 'single',
+  onSaved: (qc) => void qc.invalidateQueries({ queryKey: EVENT_LISTS_KEY }),
+  onDeleted: (qc) => void qc.invalidateQueries({ queryKey: EVENT_LISTS_KEY }),
+});
+
 export const monitorAlertKeys = {
-  all: ['monitor-alerts'] as const,
-  lists: ['monitor-alerts', 'list'] as const,
-  list: (params: MonitorAlertListParams) => ['monitor-alerts', 'list', params] as const,
-  eventLists: ['monitor-alerts', 'events', 'list'] as const,
+  ...crud.keys,
+  eventLists: EVENT_LISTS_KEY,
   eventList: (params: MonitorAlertEventListParams) => ['monitor-alerts', 'events', 'list', params] as const,
 };
 
-export function useMonitorAlertList(params: MonitorAlertListParams) {
-  return useQuery({
-    queryKey: monitorAlertKeys.list(params),
-    queryFn: () => request.get<PaginatedResponse<MonitorAlertRule>>(`/api/monitor-alerts${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
-}
-
-export function useSaveMonitorAlert() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
-      (id === undefined
-        ? request.post<MonitorAlertRule>('/api/monitor-alerts', values)
-        : request.put<MonitorAlertRule>(`/api/monitor-alerts/${id}`, values)
-      ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: monitorAlertKeys.all }),
-  });
-}
-
-export function useDeleteMonitorAlert() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/monitor-alerts/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: monitorAlertKeys.all }),
-  });
-}
+export const useMonitorAlertList = crud.useList;
+export const useSaveMonitorAlert = crud.useSave;
+export const useDeleteMonitorAlerts = crud.useDelete;
 
 export function useToggleMonitorAlert() {
   const qc = useQueryClient();

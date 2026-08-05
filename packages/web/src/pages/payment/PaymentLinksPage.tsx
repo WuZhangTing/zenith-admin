@@ -14,7 +14,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { PAYMENT_METHOD_LABELS, PAYMENT_LINK_STATUS_LABELS } from '@zenith/shared/payment';
 import type { PaymentLink, PaymentLinkStatus, PaymentMethod } from '@zenith/shared/payment';
-import { paymentLinkKeys, useDeletePaymentLink, usePaymentLinkDetail, usePaymentLinkList, useRotatePaymentLinkToken, useSavePaymentLink } from '@/hooks/queries/payment-links';
+import { paymentLinkKeys, useDeletePaymentLinks, usePaymentLinkDetail, usePaymentLinkList, useRotatePaymentLinkToken, useSavePaymentLink } from '@/hooks/queries/payment-links';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
@@ -92,7 +92,7 @@ export default function PaymentLinksPage() {
     labelWidth: 100,
   });
   const toggleMutation = useSavePaymentLink();
-  const deleteMutation = useDeletePaymentLink();
+  const deleteMutation = useDeletePaymentLinks();
   const rotateTokenMutation = useRotatePaymentLinkToken();
   const togglingId = toggleMutation.isPending ? (toggleMutation.variables?.id ?? null) : null;
 
@@ -104,7 +104,7 @@ export default function PaymentLinksPage() {
   }
 
   async function handleDelete(id: number) {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync([id]);
     Toast.success('删除成功');
   }
 

@@ -1,14 +1,12 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse } from '@zenith/shared/core';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ReportDatasource } from '@zenith/shared/report';
 import type { AsyncTask } from '@zenith/shared/tasks';
 import { request } from '@/utils/request';
-import { toQueryString, unwrap } from '@/lib/query';
+import { unwrap } from '@/lib/query';
+import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
 import { useReportLookup } from './report-lookups';
 
-export interface ReportDatasourceListParams {
-  page: number;
-  pageSize: number;
+export interface ReportDatasourceListParams extends CrudListParams {
   keyword?: string;
   type?: string;
   status?: string;
@@ -22,49 +20,23 @@ export interface TestReportDatasourceConnectionInput {
   config: Record<string, unknown>;
 }
 
-export const reportDatasourceKeys = {
-  all: ['report', 'datasources'] as const,
-  lists: ['report', 'datasources', 'list'] as const,
-  list: (params: ReportDatasourceListParams) => ['report', 'datasources', 'list', params] as const,
-  detail: (id: number | undefined) => ['report', 'datasources', 'detail', id] as const,
-  lookup: (params: { keyword?: string; status?: 'enabled' | 'disabled'; limit?: number }) => ['report', 'datasources', 'lookup', params] as const,
-};
-
-export function useReportDatasourceList(params: ReportDatasourceListParams) {
-  return useQuery({
-    queryKey: reportDatasourceKeys.list(params),
-    queryFn: () => request.get<PaginatedResponse<ReportDatasource>>(`/api/report/datasources${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
-}
-
-export function useReportDatasourceDetail(id: number | undefined, enabled = true) {
-  return useQuery({
-    queryKey: reportDatasourceKeys.detail(id),
-    queryFn: () => request.get<ReportDatasource>(`/api/report/datasources/${id}`).then(unwrap),
-    enabled: enabled && !!id,
-  });
-}
+export const {
+  keys: reportDatasourceKeys,
+  useList: useReportDatasourceList,
+  useDetail: useReportDatasourceDetail,
+  useSave: useSaveReportDatasource,
+  useDelete: useDeleteReportDatasources,
+} = createCrudQueries<ReportDatasource, ReportDatasourceListParams, Record<string, unknown>>({
+  resource: 'report-datasources',
+  // 保留原有嵌套 key：报表域用 ['report'] 前缀组织所有资源
+  keyPrefix: ['report', 'datasources'],
+  path: '/api/report/datasources',
+  // 服务端未提供 DELETE /batch
+  deleteMode: 'single',
+});
 
 export function useReportDatasourceLookup(params: { keyword?: string; status?: 'enabled' | 'disabled'; limit?: number } = {}, enabled = true) {
   return useReportLookup('datasources', params, enabled);
-}
-
-export function useSaveReportDatasource() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
-      (id ? request.put<ReportDatasource>(`/api/report/datasources/${id}`, values) : request.post<ReportDatasource>('/api/report/datasources', values)).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportDatasourceKeys.all }),
-  });
-}
-
-export function useDeleteReportDatasource() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/report/datasources/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportDatasourceKeys.all }),
-  });
 }
 
 export function useTestReportDatasourceConnection() {

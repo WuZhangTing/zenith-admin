@@ -1,13 +1,12 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse } from '@zenith/shared/core';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { UserGroup } from '@zenith/shared/identity';
 import { request } from '@/utils/request';
-import { toQueryString, unwrap } from '@/lib/query';
+import { unwrap } from '@/lib/query';
+import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
 import { invalidateCurrentUserAccess } from './menus';
+import { userKeys } from './users';
 
-export interface UserGroupListParams {
-  page: number;
-  pageSize: number;
+export interface UserGroupListParams extends CrudListParams {
   keyword?: string;
   status?: string;
 }
@@ -23,54 +22,40 @@ export interface GroupMember {
   joinedAt: string;
 }
 
+/** 组的成员与角色子查询随组增删一并失效（删除组级联清理关联） */
+const MEMBERS_PREFIX = ['user-groups', 'members'] as const;
+const ROLES_PREFIX = ['user-groups', 'roles'] as const;
+
+const crud = createCrudQueries<UserGroup, UserGroupListParams>({
+  resource: 'user-groups',
+  onSaved: (qc) => {
+    void qc.invalidateQueries({ queryKey: MEMBERS_PREFIX });
+    void qc.invalidateQueries({ queryKey: ROLES_PREFIX });
+  },
+  onDeleted: (qc, ids) => {
+    for (const id of ids) {
+      qc.removeQueries({ queryKey: ['user-groups', 'members', id] });
+      qc.removeQueries({ queryKey: ['user-groups', 'roles', id] });
+    }
+  },
+});
+
 export const userGroupKeys = {
-  all: ['user-groups'] as const,
-  lists: ['user-groups', 'list'] as const,
-  list: (params: UserGroupListParams) => ['user-groups', 'list', params] as const,
-  detail: (id: number | undefined) => ['user-groups', 'detail', id] as const,
+  ...crud.keys,
   members: (id: number | undefined) => ['user-groups', 'members', id] as const,
   roles: (id: number | undefined) => ['user-groups', 'roles', id] as const,
 };
 
-export function useUserGroupList(params: UserGroupListParams) {
-  return useQuery({
-    queryKey: userGroupKeys.list(params),
-    queryFn: () => request.get<PaginatedResponse<UserGroup>>(`/api/user-groups${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
-}
-
-export function useUserGroupDetail(id: number | undefined, enabled = true) {
-  return useQuery({
-    queryKey: userGroupKeys.detail(id),
-    queryFn: () => request.get<UserGroup>(`/api/user-groups/${id}`).then(unwrap),
-    enabled: enabled && id !== undefined,
-  });
-}
+export const useUserGroupList = crud.useList;
+export const useUserGroupDetail = crud.useDetail;
+export const useSaveUserGroup = crud.useSave;
+export const useDeleteUserGroups = crud.useDelete;
 
 export function useUserGroupMembers(id: number | undefined, enabled = true) {
   return useQuery({
     queryKey: userGroupKeys.members(id),
     queryFn: () => request.get<GroupMember[]>(`/api/user-groups/${id}/members`).then(unwrap),
     enabled: enabled && id !== undefined,
-  });
-}
-
-export function useSaveUserGroup() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: Partial<UserGroup> }) =>
-      (id === undefined ? request.post<UserGroup>('/api/user-groups', values) : request.put<UserGroup>(`/api/user-groups/${id}`, values)).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: userGroupKeys.all }),
-  });
-}
-
-export function useDeleteUserGroups() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (ids: number[]) =>
-      (ids.length === 1 ? request.delete<null>(`/api/user-groups/${ids[0]}`) : request.delete<null>('/api/user-groups/batch', { ids })).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: userGroupKeys.all }),
   });
 }
 
@@ -106,7 +91,7 @@ export function useAssignUserGroupRoles() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: userGroupKeys.all });
       // 组角色变化影响成员的继承权限展示，也可能覆盖当前登录者
-      void qc.invalidateQueries({ queryKey: ['users'] });
+      void qc.invalidateQueries({ queryKey: userKeys.all });
       invalidateCurrentUserAccess(qc);
     },
   });

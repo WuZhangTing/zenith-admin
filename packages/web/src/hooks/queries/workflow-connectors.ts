@@ -1,32 +1,37 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse } from '@zenith/shared/core';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type { WorkflowConnector, WorkflowConnectorInvocation, WorkflowConnectorInvokeResult, WorkflowConnectorStats } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
+import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
 
-export interface WorkflowConnectorListParams {
-  page: number;
-  pageSize: number;
+export interface WorkflowConnectorListParams extends CrudListParams {
   keyword?: string;
   type?: string;
   status?: string;
 }
 
+/** 连接器监控（stats + 调用记录）随连接器增删改一并失效 */
+const CONNECTOR_MONITOR_PREFIX = ['workflow', 'connectors', 'monitor'] as const;
+
+const crud = createCrudQueries<WorkflowConnector, WorkflowConnectorListParams, Record<string, unknown>>({
+  resource: 'workflow-connectors',
+  // 保留原有嵌套 key：运行时流程用 invalidateQueries({ queryKey: ['workflow'] }) 广播失效
+  keyPrefix: ['workflow', 'connectors'],
+  path: '/api/workflows/connectors',
+  // 服务端未提供 DELETE /batch
+  deleteMode: 'single',
+  onSaved: (qc) => void qc.invalidateQueries({ queryKey: CONNECTOR_MONITOR_PREFIX }),
+  onDeleted: (qc) => void qc.invalidateQueries({ queryKey: CONNECTOR_MONITOR_PREFIX }),
+});
+
 export const workflowConnectorKeys = {
-  all: ['workflow', 'connectors'] as const,
-  lists: ['workflow', 'connectors', 'list'] as const,
-  list: (params: WorkflowConnectorListParams) => ['workflow', 'connectors', 'list', params] as const,
+  ...crud.keys,
   monitor: (id: number | null | undefined, days: number) => ['workflow', 'connectors', 'monitor', id ?? null, days] as const,
 };
 
-export function useWorkflowConnectorList(params: WorkflowConnectorListParams) {
-  return useQuery({
-    queryKey: workflowConnectorKeys.list(params),
-    queryFn: () =>
-      request.get<PaginatedResponse<WorkflowConnector>>(`/api/workflows/connectors${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
-}
+export const useWorkflowConnectorList = crud.useList;
+export const useSaveWorkflowConnector = crud.useSave;
+export const useDeleteWorkflowConnectors = crud.useDelete;
 
 export function useWorkflowConnectorMonitor(id: number | null | undefined, days: number, enabled = true) {
   return useQuery({
@@ -39,23 +44,6 @@ export function useWorkflowConnectorMonitor(id: number | null | undefined, days:
       return { stats, invocations };
     },
     enabled: enabled && !!id,
-  });
-}
-
-export function useSaveWorkflowConnector() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
-      (id ? request.put<WorkflowConnector>(`/api/workflows/connectors/${id}`, values) : request.post<WorkflowConnector>('/api/workflows/connectors', values)).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: workflowConnectorKeys.all }),
-  });
-}
-
-export function useDeleteWorkflowConnector() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/workflows/connectors/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: workflowConnectorKeys.all }),
   });
 }
 

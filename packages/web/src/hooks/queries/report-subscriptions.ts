@@ -1,52 +1,41 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse } from '@zenith/shared/core';
 import type { ReportDashboardSubscription, ReportDeliveryRun } from '@zenith/shared/report';
 import type { AsyncTask } from '@zenith/shared/tasks';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
+import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
 import { useReportLookup } from './report-lookups';
 
-export interface ReportSubscriptionListParams {
-  page: number;
-  pageSize: number;
+export interface ReportSubscriptionListParams extends CrudListParams {
   keyword?: string;
 }
 
+/** 投递历史随订阅增删一并失效（沿用原 .all 粗失效的覆盖面） */
+const HISTORY_PREFIX = ['report', 'subscriptions', 'history'] as const;
+
+const crud = createCrudQueries<ReportDashboardSubscription, ReportSubscriptionListParams, Record<string, unknown>>({
+  resource: 'report-subscriptions',
+  // 保留原有嵌套 key：报表域用 ['report'] 前缀组织所有资源
+  keyPrefix: ['report', 'subscriptions'],
+  path: '/api/report/subscriptions',
+  // 服务端未提供 DELETE /batch
+  deleteMode: 'single',
+  onSaved: (qc) => void qc.invalidateQueries({ queryKey: HISTORY_PREFIX }),
+  onDeleted: (qc) => void qc.invalidateQueries({ queryKey: HISTORY_PREFIX }),
+});
+
 export const reportSubscriptionKeys = {
-  all: ['report', 'subscriptions'] as const,
-  lists: ['report', 'subscriptions', 'list'] as const,
-  list: (params: ReportSubscriptionListParams) => ['report', 'subscriptions', 'list', params] as const,
-  dashboardOptions: ['report', 'subscriptions', 'dashboard-options'] as const,
+  ...crud.keys,
   history: (id: number | undefined) => ['report', 'subscriptions', 'history', id] as const,
 };
 
-export function useReportSubscriptionList(params: ReportSubscriptionListParams) {
-  return useQuery({
-    queryKey: reportSubscriptionKeys.list(params),
-    queryFn: () => request.get<PaginatedResponse<ReportDashboardSubscription>>(`/api/report/subscriptions${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
-}
+export const useReportSubscriptionList = crud.useList;
+export const useSaveReportSubscription = crud.useSave;
+export const useDeleteReportSubscriptions = crud.useDelete;
 
 export function useReportSubscriptionDashboardOptions() {
   return useReportLookup('dashboards', { status: 'enabled', limit: 50 });
-}
-
-export function useSaveReportSubscription() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
-      (id ? request.put<ReportDashboardSubscription>(`/api/report/subscriptions/${id}`, values) : request.post<ReportDashboardSubscription>('/api/report/subscriptions', values)).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportSubscriptionKeys.all }),
-  });
-}
-
-export function useDeleteReportSubscription() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/report/subscriptions/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reportSubscriptionKeys.all }),
-  });
 }
 
 export function useRunReportSubscription() {
