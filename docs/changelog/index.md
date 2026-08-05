@@ -4,6 +4,55 @@
 
 ---
 
+## v1.38.0 - 2026-08-05
+
+服务端性能收尾与前端查询工厂迁移收官。全库排查「循环内逐行查询 / 写扇出 / 同步阻塞」后修掉最后四处真实热点；`createCrudQueries` 工厂经三批补迁覆盖全部 21 个标准形状域；提交中断从「猜消息形状」换成类型判据。server 与 web 依赖例行升级并经全量测试验证。
+
+### Fixed
+
+#### 中断提交的裸 Error 穿透全局兜底
+
+- `useGlobalErrorHandler` 靠消息形状（`/^\w+$/`）区分「用户校验没过」与「真的出错了」，判据只写在兜底 hook 的注释里。`useEditModal` 迁移期间写下的多词 `throw new Error(...)` 成批穿透：用户在业务提示之外再吃一个「操作失败」Toast，同时向 `/api/frontend-errors` 灌入由正常操作产生的假告警
+- 新增 `lib/abort-submit.ts`（`SubmitAborted` + `abortSubmit()`），判据从消息形状换成类型判断，调用点自我说明；兜底保留启发式向后兼容
+- 20 处调用点按语义分四类处理：已有提示的静默中断；此前全靠兜底 Toast 顶着的三处先补 `Toast.error` 再中断；真实不变量违反（4 处 missing id）刻意保留为真错误继续上报，只把文案改中文
+
+#### CmsPagesPage 表单不随详情重挂载
+
+- 搭建器写 `key={editablePage?.id ?? 'new'}`，详情到达前后 id 不变、key 不变，Semi 不重挂载，详情数据永远进不了表单——正是 `useEditModal` 契约四要消除的缺陷
+- key 公式（`${id}:${详情是否已到达}`）提为共用函数，页面与 hook 共用同一实现
+
+### Changed
+
+#### createCrudQueries 工厂迁移收官（21 个标准域）
+
+- 三批补迁：`tags` / `data-mask` / `ai-prompts` / `payment-channels` 四域先行；二次全量排查确认首轮对「嵌套 key / `.all` 粗失效」的排除过于保守，补迁 workflow 系列 5 域等 11 个；4 个并行子代理对剩余 134 个手写域文件穷尽比对、人工复核后再迁 6 个（`identity-providers` / `system-configs` / `file-storage-configs` 等）
+- 派生视图与子键（分组键、密码策略、默认项标记、monitor / deliveries）经 `onSaved` / `onDeleted` 回调保留原失效覆盖面；`keyPrefix` 保留 `['workflow', *]` 嵌套键
+- 净删约 400 行手抄失效样板；剩余手写域均为形状不同构的合法保留
+
+#### 移除两个基线护栏
+
+- 删除 `check-edit-modal-baseline` / `check-invalidation-baseline` 脚本、基线清单与 `npm run lint` 接线；规范正文全部保留，被移除的只是迁移期的自动执行层
+
+#### 依赖升级
+
+- server：hono 4.13、@hono/node-server 2.1、pg-boss 12.27、cron-parser 5.7、AWS SDK 等；`@types/css-tree` 2→3 为修正与运行时（3.2.1）的类型错配
+- web：semi-ui 2.102、embedpdf 2.15、dompurify 3.4.13、jsdom 29→30（仅测试环境）等
+- 两侧升级后全量构建、测试、lint 均通过
+
+### Performance
+
+#### shell 探测改异步并按进程生命周期缓存
+
+- `listShells()` 此前每次调用同步 `execFileSync('wsl.exe')`（timeout 3s）探测 WSL 发行版，Windows 上阻塞整个事件循环最多 3 秒，且每次 WS 连接实际触发两次，期间所有请求停摆
+- 改用异步 `execFileAsync`，结果按进程生命周期缓存（shell 清单只随软件安装变化）
+
+#### 消除四处按行查询扇出 / 逐条写
+
+- `buildChannelRank`：1+2N 条 COUNT 改为 2 条 GROUP BY 聚合 + 内存合并，查询数恒定为 3，排名行为不变
+- `deleteMessagesForUser`：上限 100 条的逐条读改写 UPDATE（默认连接池仅 10，一次请求即挤占整池）改为单条原子 UPDATE
+- `listChannelsAdmin` 与报表治理列表：每页 2×pageSize 条 COUNT 改为 `inArray` + GROUP BY 聚合，口径不变
+- 全库排查确认其余循环均为定时任务、事务内逐行账本或管理员罕用同步，属合理形态不动
+
 ## v1.37.0 - 2026-08-05
 
 前端 CRUD 抽象专项，外加两项幂等作用域安全修复。页面层此前把「新增/编辑弹窗」的编排样板手抄了 335 处，其中四条契约漏写不会报错、测试也不会变红，只能靠人工逐页 review；新增 `useEditModal` 把它们焊死在一处，124 个页面完成迁移。服务端 1603 项、前端 588 项测试全部通过，任务中心幂等（7 项）与资金链路（15 项）DB 集成测试在真实 PostgreSQL 上通过，`npm run build` / `docs:build` / `build:demo` 三项构建均通过。
