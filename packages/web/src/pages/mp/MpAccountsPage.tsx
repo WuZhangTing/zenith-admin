@@ -106,7 +106,7 @@ export default function MpAccountsPage() {
     confirmDelete({
       title: `确定要删除公众号「${record.name}」吗？`,
       onOk: async () => {
-        await deleteMutation.mutateAsync(record.id);
+        await deleteMutation.mutateAsync([record.id]);
         Toast.success('删除成功');
       },
     });

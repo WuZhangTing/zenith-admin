@@ -60,7 +60,7 @@ export default function EmailSendLogsPage() {
     defaults: {},
     successMessage: () => '测试邮件已发送',
   });
-  const templatesQuery = useEmailTemplateList({ page: 1, pageSize: 100, status: 'enabled' }, { enabled: testModal.visible });
+  const templatesQuery = useEmailTemplateList({ page: 1, pageSize: 100, status: 'enabled' }, testModal.visible);
   const templates = templatesQuery.data?.list ?? [];
   const deleteMutation = useDeleteEmailSendLog();
 

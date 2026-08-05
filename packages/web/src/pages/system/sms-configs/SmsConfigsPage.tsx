@@ -72,7 +72,7 @@ export default function SmsConfigsPage() {
     confirmDelete({
       title: '确定要删除该短信配置吗？',
       onOk: async () => {
-        await deleteMutation.mutateAsync(id);
+        await deleteMutation.mutateAsync([id]);
         Toast.success('删除成功');
       },
     });

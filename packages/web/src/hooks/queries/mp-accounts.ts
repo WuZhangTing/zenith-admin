@@ -1,56 +1,33 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse } from '@zenith/shared/core';
 import type { MpAccount } from '@zenith/shared/mp';
 import { request } from '@/utils/request';
-import { toQueryString, unwrap } from '@/lib/query';
+import { unwrap } from '@/lib/query';
+import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
 
-export interface MpAccountListParams {
-  page: number;
-  pageSize: number;
+export interface MpAccountListParams extends CrudListParams {
   keyword?: string;
   type?: string;
   status?: string;
 }
 
-export const mpAccountKeys = {
-  all: ['mp', 'accounts'] as const,
-  lists: ['mp', 'accounts', 'list'] as const,
-  list: (params: MpAccountListParams) => ['mp', 'accounts', 'list', params] as const,
-  detail: (id: number | undefined) => ['mp', 'accounts', 'detail', id] as const,
-};
+export const {
+  keys: mpAccountKeys,
+  useList: useMpAccountList,
+  useDetail: useMpAccountDetail,
+  useSave: useSaveMpAccount,
+  useDelete: useDeleteMpAccount,
+} = createCrudQueries<MpAccount, MpAccountListParams, Record<string, unknown>>({
+  resource: 'mp-accounts',
+  path: '/api/mp/accounts',
+  lookup: true,
+  deleteMode: 'single',
+});
 
 export function useMpAccountOptions() {
   return useQuery({
-    queryKey: mpAccountKeys.all,
+    queryKey: mpAccountKeys.lookup,
     queryFn: () => request.get<PaginatedResponse<MpAccount>>('/api/mp/accounts?page=1&pageSize=100').then(unwrap),
-  });
-}
-
-export function useMpAccountList(params: MpAccountListParams) {
-  return useQuery({
-    queryKey: mpAccountKeys.list(params),
-    queryFn: () => request.get<PaginatedResponse<MpAccount>>(`/api/mp/accounts${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
-}
-
-export function useMpAccountDetail(id: number | undefined, enabled = true) {
-  return useQuery({
-    queryKey: mpAccountKeys.detail(id),
-    queryFn: () => request.get<MpAccount>(`/api/mp/accounts/${id}`).then(unwrap),
-    enabled: enabled && id !== undefined,
-  });
-}
-
-export function useSaveMpAccount() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
-      (id === undefined
-        ? request.post<MpAccount>('/api/mp/accounts', values)
-        : request.put<MpAccount>(`/api/mp/accounts/${id}`, values)
-      ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: mpAccountKeys.all }),
   });
 }
 
@@ -58,20 +35,17 @@ export function useSetDefaultMpAccount() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.post<null>(`/api/mp/accounts/${id}/default`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: mpAccountKeys.all }),
+    onSuccess: () => {
+      // 默认公众号会改变当前与原默认账号详情、列表中的 isDefault，并影响公众号下拉源。
+      void qc.invalidateQueries({ queryKey: ['mp-accounts', 'detail'] });
+      void qc.invalidateQueries({ queryKey: mpAccountKeys.lists });
+      void qc.invalidateQueries({ queryKey: mpAccountKeys.lookup });
+    },
   });
 }
 
 export function useTestMpAccount() {
   return useMutation({
     mutationFn: (id: number) => request.post<{ success: boolean; message: string }>(`/api/mp/accounts/${id}/test`).then(unwrap),
-  });
-}
-
-export function useDeleteMpAccount() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/mp/accounts/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: mpAccountKeys.all }),
   });
 }

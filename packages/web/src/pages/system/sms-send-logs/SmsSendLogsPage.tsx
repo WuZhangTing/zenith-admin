@@ -60,7 +60,7 @@ export default function SmsSendLogsPage() {
     },
     successMessage: () => '测试短信已发送',
   });
-  const templatesQuery = useSmsTemplateList({ page: 1, pageSize: 100, status: 'enabled' }, { enabled: testModal.visible });
+  const templatesQuery = useSmsTemplateList({ page: 1, pageSize: 100, status: 'enabled' }, testModal.visible);
   const templates = templatesQuery.data?.list ?? [];
   const deleteMutation = useDeleteSmsSendLog();
 

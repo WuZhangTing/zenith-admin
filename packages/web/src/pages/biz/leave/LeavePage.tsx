@@ -141,7 +141,7 @@ export default function LeavePage() {
   };
 
   const handleDelete = async (id: number) => {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync([id]);
     Toast.success('已删除');
   };
 

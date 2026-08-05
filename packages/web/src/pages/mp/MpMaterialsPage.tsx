@@ -42,7 +42,7 @@ export default function MpMaterialsPage() {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: mpMaterialKeys.lists(currentId) });
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: mpMaterialKeys.lists });
 
   const listQuery = useMpMaterialList(currentId, {
     page,
@@ -84,7 +84,7 @@ export default function MpMaterialsPage() {
     confirmDelete({
       title: `确定要删除素材「${record.name}」吗？`,
       onOk: async () => {
-        await deleteMutation.mutateAsync(record.id);
+        await deleteMutation.mutateAsync([record.id]);
         Toast.success('删除成功');
       },
     });

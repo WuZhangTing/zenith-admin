@@ -91,7 +91,7 @@ export default function PaymentAppsPage() {
   }, [channelLookupQuery.data]);
 
   async function handleDelete(id: number) {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync([id]);
     Toast.success('删除成功');
   }
 

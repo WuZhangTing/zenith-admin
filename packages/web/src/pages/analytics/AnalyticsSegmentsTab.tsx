@@ -141,7 +141,7 @@ function CampaignDrawer({ segment, onClose }: { segment: AnalyticsUserSegment; o
   const [templateId, setTemplateId] = useState<number | undefined>();
   const [webhookUrl, setWebhookUrl] = useState('');
   const campaignsQuery = useCampaigns({ page: 1, pageSize: 50, segmentId: segment.id }, true, 3000);
-  const emailTemplatesQuery = useEmailTemplateList({ page: 1, pageSize: 100, status: 'enabled' }, { enabled: channel === 'email' });
+  const emailTemplatesQuery = useEmailTemplateList({ page: 1, pageSize: 100, status: 'enabled' }, channel === 'email');
   const inAppTemplatesQuery = useInAppTemplateList({ page: 1, pageSize: 100, status: 'enabled' });
   const createCampaign = useCreateCampaign();
   const deleteCampaign = useDeleteCampaign();

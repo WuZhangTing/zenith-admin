@@ -58,7 +58,7 @@ export default function InAppTemplatesPage() {
     confirmDelete({
       title: '确定要删除该站内信模板吗？',
       onOk: async () => {
-        await deleteMutation.mutateAsync(id);
+        await deleteMutation.mutateAsync([id]);
         Toast.success('删除成功');
       },
     });

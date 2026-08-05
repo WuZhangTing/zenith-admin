@@ -57,7 +57,7 @@ export default function EmailTemplatesPage() {
     confirmDelete({
       title: '确定要删除该邮件模板吗？',
       onOk: async () => {
-        await deleteMutation.mutateAsync(id);
+        await deleteMutation.mutateAsync([id]);
         Toast.success('删除成功');
       },
     });

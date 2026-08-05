@@ -1,12 +1,10 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { BizLeave } from '@zenith/shared/biz';
-import type { PaginatedResponse } from '@zenith/shared/core';
 import { request } from '@/utils/request';
-import { toQueryString, unwrap } from '@/lib/query';
+import { unwrap } from '@/lib/query';
+import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
 
-export interface BizLeaveListParams {
-  page: number;
-  pageSize: number;
+export interface BizLeaveListParams extends CrudListParams {
   keyword?: string;
   status?: BizLeave['status'];
 }
@@ -19,38 +17,25 @@ export interface SaveBizLeavePayload {
   reason: string | null;
 }
 
-export const bizLeaveKeys = {
-  all: ['biz-leave'] as const,
-  lists: ['biz-leave', 'list'] as const,
-  list: (params: BizLeaveListParams) => ['biz-leave', 'list', params] as const,
-  detail: (id: string | null | undefined) => ['biz-leave', 'detail', id] as const,
-};
+const {
+  keys: bizLeaveKeys,
+  useList: useBizLeaveList,
+  useSave: useSaveBizLeave,
+  useDelete: useDeleteBizLeave,
+} = createCrudQueries<BizLeave, BizLeaveListParams, SaveBizLeavePayload>({
+  resource: 'biz-leave',
+  path: '/api/biz/leaves',
+  deleteMode: 'single',
+});
 
-export function useBizLeaveList(params: BizLeaveListParams) {
-  return useQuery({
-    queryKey: bizLeaveKeys.list(params),
-    queryFn: () => request.get<PaginatedResponse<BizLeave>>(`/api/biz/leaves${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
-}
+export { bizLeaveKeys, useBizLeaveList, useSaveBizLeave, useDeleteBizLeave };
 
 export function useBizLeaveDetail(id: string | null | undefined, enabled = true) {
+  const numericId = id ? Number(id) : undefined;
   return useQuery({
-    queryKey: bizLeaveKeys.detail(id),
+    queryKey: bizLeaveKeys.detail(numericId),
     queryFn: () => request.get<BizLeave>(`/api/biz/leaves/${id}/detail`, { silent: true }).then(unwrap),
     enabled: enabled && !!id,
-  });
-}
-
-export function useSaveBizLeave() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: SaveBizLeavePayload }) =>
-      (id === undefined
-        ? request.post<BizLeave>('/api/biz/leaves', values)
-        : request.put<BizLeave>(`/api/biz/leaves/${id}`, values)
-      ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: bizLeaveKeys.all }),
   });
 }
 
@@ -58,7 +43,11 @@ export function useSubmitBizLeave() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.post<BizLeave>(`/api/biz/leaves/${id}/submit`, {}).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: bizLeaveKeys.all }),
+    onSuccess: (saved) => {
+      // 提交审批会改变列表状态与当前记录详情，不影响其他请假记录详情。
+      void qc.invalidateQueries({ queryKey: bizLeaveKeys.detail(saved.id) });
+      void qc.invalidateQueries({ queryKey: bizLeaveKeys.lists });
+    },
   });
 }
 
@@ -66,14 +55,10 @@ export function useReopenBizLeave() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.post<BizLeave>(`/api/biz/leaves/${id}/reopen`, {}).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: bizLeaveKeys.all }),
-  });
-}
-
-export function useDeleteBizLeave() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/biz/leaves/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: bizLeaveKeys.all }),
+    onSuccess: (saved) => {
+      // 重新打开只影响该申请的状态与列表展示。
+      void qc.invalidateQueries({ queryKey: bizLeaveKeys.detail(saved.id) });
+      void qc.invalidateQueries({ queryKey: bizLeaveKeys.lists });
+    },
   });
 }

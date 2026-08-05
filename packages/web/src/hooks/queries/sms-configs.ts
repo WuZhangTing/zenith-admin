@@ -1,64 +1,34 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse } from '@zenith/shared/core';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { SmsConfig, SmsProvider } from '@zenith/shared/messaging';
 import { request } from '@/utils/request';
-import { toQueryString, unwrap } from '@/lib/query';
+import { unwrap } from '@/lib/query';
+import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
 
-export interface SmsConfigListParams {
-  page: number;
-  pageSize: number;
+export interface SmsConfigListParams extends CrudListParams {
   keyword?: string;
   provider?: SmsProvider;
   status?: string;
 }
 
-export const smsConfigKeys = {
-  all: ['sms-configs'] as const,
-  lists: ['sms-configs', 'list'] as const,
-  list: (params: SmsConfigListParams) => ['sms-configs', 'list', params] as const,
-  detail: (id: number | undefined) => ['sms-configs', 'detail', id] as const,
-};
-
-export function useSmsConfigList(params: SmsConfigListParams) {
-  return useQuery({
-    queryKey: smsConfigKeys.list(params),
-    queryFn: () => request.get<PaginatedResponse<SmsConfig>>(`/api/sms-configs${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
-}
-
-export function useSmsConfigDetail(id: number | undefined, enabled = true) {
-  return useQuery({
-    queryKey: smsConfigKeys.detail(id),
-    queryFn: () => request.get<SmsConfig>(`/api/sms-configs/${id}`).then(unwrap),
-    enabled: enabled && id !== undefined,
-  });
-}
-
-export function useSaveSmsConfig() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: Partial<SmsConfig> }) =>
-      (id === undefined
-        ? request.post<SmsConfig>('/api/sms-configs', values)
-        : request.put<SmsConfig>(`/api/sms-configs/${id}`, values)
-      ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: smsConfigKeys.all }),
-  });
-}
+export const {
+  keys: smsConfigKeys,
+  useList: useSmsConfigList,
+  useDetail: useSmsConfigDetail,
+  useSave: useSaveSmsConfig,
+  useDelete: useDeleteSmsConfig,
+} = createCrudQueries<SmsConfig, SmsConfigListParams>({
+  resource: 'sms-configs',
+  deleteMode: 'single',
+});
 
 export function useSetDefaultSmsConfig() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.post<null>(`/api/sms-configs/${id}/default`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: smsConfigKeys.all }),
-  });
-}
-
-export function useDeleteSmsConfig() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/sms-configs/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: smsConfigKeys.all }),
+    onSuccess: () => {
+      // 默认短信配置会改变当前与原默认配置详情、列表中的 isDefault。
+      void qc.invalidateQueries({ queryKey: ['sms-configs', 'detail'] });
+      void qc.invalidateQueries({ queryKey: smsConfigKeys.lists });
+    },
   });
 }
