@@ -1,5 +1,5 @@
 import { HTTPException } from 'hono/http-exception';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import type { ReportResourceType } from '@zenith/shared/report';
 import { config } from '../../config';
 import { db } from '../../db';
@@ -159,6 +159,55 @@ export async function resolveReportResource(
     }
   }
   throw new HTTPException(404, { message: '报表资源不存在' });
+}
+
+async function fetchResourceNames(resourceType: ReportResourceType, ids: number[]): Promise<Array<{ id: number; name: string }>> {
+  switch (resourceType) {
+    case 'datasource':
+      return db.select({ id: reportDatasources.id, name: reportDatasources.name }).from(reportDatasources)
+        .where(reportScopedWhere(reportDatasources, inArray(reportDatasources.id, ids)));
+    case 'dataset':
+      return db.select({ id: reportDatasets.id, name: reportDatasets.name }).from(reportDatasets)
+        .where(reportScopedWhere(reportDatasets, inArray(reportDatasets.id, ids)));
+    case 'dashboard':
+      return db.select({ id: reportDashboards.id, name: reportDashboards.name }).from(reportDashboards)
+        .where(reportScopedWhere(reportDashboards, inArray(reportDashboards.id, ids)));
+    case 'metric':
+      return db.select({ id: reportMetrics.id, name: reportMetrics.name }).from(reportMetrics)
+        .where(reportScopedWhere(reportMetrics, inArray(reportMetrics.id, ids)));
+    case 'print_template':
+      return db.select({ id: reportPrintTemplates.id, name: reportPrintTemplates.name }).from(reportPrintTemplates)
+        .where(reportScopedWhere(reportPrintTemplates, inArray(reportPrintTemplates.id, ids)));
+    case 'fill_template':
+      return db.select({ id: reportFillTemplates.id, name: reportFillTemplates.name }).from(reportFillTemplates)
+        .where(reportScopedWhere(reportFillTemplates, inArray(reportFillTemplates.id, ids)));
+    case 'asset_template':
+      return db.select({ id: reportAssetTemplates.id, name: reportAssetTemplates.name }).from(reportAssetTemplates)
+        .where(reportScopedWhere(reportAssetTemplates, inArray(reportAssetTemplates.id, ids)));
+  }
+}
+
+/**
+ * 批量解析资源名称（治理列表用）：按类型分组 inArray 查询、仅取 id/name 两列，
+ * 查询数恒定 ≤ 资源类型数。与 resolveReportResource 不同，引用的资源已被删除时
+ * 不抛 404（结果中缺席，调用方回退 null），避免单条脏引用炸掉整个列表接口。
+ * @returns key 为 `${resourceType}:${id}` 的名称映射
+ */
+export async function resolveReportResourceNames(
+  refs: Array<{ resourceType: ReportResourceType; resourceId: number }>,
+): Promise<Map<string, string>> {
+  const idsByType = new Map<ReportResourceType, Set<number>>();
+  for (const ref of refs) {
+    const set = idsByType.get(ref.resourceType) ?? new Set<number>();
+    set.add(ref.resourceId);
+    idsByType.set(ref.resourceType, set);
+  }
+  const names = new Map<string, string>();
+  await Promise.all([...idsByType].map(async ([resourceType, ids]) => {
+    const rows = await fetchResourceNames(resourceType, [...ids]);
+    for (const row of rows) names.set(`${resourceType}:${row.id}`, row.name);
+  }));
+  return names;
 }
 
 function sameTenant(left: number | null, right: number | null): boolean {

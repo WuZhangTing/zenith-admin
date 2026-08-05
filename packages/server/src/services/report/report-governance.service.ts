@@ -19,6 +19,7 @@ import { ensureReportResourceAccess } from './report-resource-acl.service';
 import {
   ensureReportOwner,
   resolveReportResource,
+  resolveReportResourceNames,
   setReportResourceOwner,
 } from './report-resource.service';
 
@@ -173,10 +174,8 @@ export async function listReportResourceTransfers(query: {
       offset: pageOffset(page, pageSize),
     }),
   ]);
-  const list = await Promise.all(rows.map(async (row) => {
-    const resource = await resolveReportResource(row.resourceType, row.resourceId);
-    return mapReportResourceTransfer(row, resource.name);
-  }));
+  const names = await resolveReportResourceNames(rows);
+  const list = rows.map((row) => mapReportResourceTransfer(row, names.get(`${row.resourceType}:${row.resourceId}`) ?? null));
   return { list, total, page, pageSize };
 }
 
@@ -324,10 +323,8 @@ export async function listReportPublishApprovals(query: {
       offset: pageOffset(page, pageSize),
     }),
   ]);
-  const list = await Promise.all(rows.map(async (row) => {
-    const resource = await resolveReportResource(row.resourceType, row.resourceId);
-    return mapReportPublishApproval(row, resource.name);
-  }));
+  const names = await resolveReportResourceNames(rows);
+  const list = rows.map((row) => mapReportPublishApproval(row, names.get(`${row.resourceType}:${row.resourceId}`) ?? null));
   return { list, total, page, pageSize };
 }
 
@@ -657,10 +654,8 @@ export async function listReportEnvironmentPromotions(query: {
       offset: pageOffset(page, pageSize),
     }),
   ]);
-  const list = await Promise.all(rows.map(async (row) => {
-    const resource = await resolveReportResource(row.resourceType, row.resourceId);
-    return mapReportEnvironmentPromotion(row, resource.name);
-  }));
+  const names = await resolveReportResourceNames(rows);
+  const list = rows.map((row) => mapReportEnvironmentPromotion(row, names.get(`${row.resourceType}:${row.resourceId}`) ?? null));
   return { list, total, page, pageSize };
 }
 

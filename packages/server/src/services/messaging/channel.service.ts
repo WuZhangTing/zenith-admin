@@ -326,13 +326,26 @@ export async function listChannelsAdmin(page: number, pageSize: number, keyword?
       .limit(pageSize).offset(pageOffset(page, pageSize)),
     db.$count(users),
   ]);
-  const list = await Promise.all(rows.map(async (ch) => {
-    const [subscriberCount, messageCount] = await Promise.all([
-      countSubscribers(ch, userCount),
-      db.$count(channelMessages, eq(channelMessages.channelId, ch.id)),
-    ]);
-    return mapChannelAdmin(ch, subscriberCount, messageCount);
-  }));
+  // 两条 GROUP BY 聚合取齐本页全部频道计数（此前每频道各发 2 条 COUNT，查询数随页大小线性增长）
+  const ids = rows.map((ch) => ch.id);
+  const [subRows, msgRows] = ids.length === 0 ? [[], []] : await Promise.all([
+    db.select({ channelId: channelSubscriptions.channelId, count: sql<number>`count(*)::int` })
+      .from(channelSubscriptions)
+      .where(inArray(channelSubscriptions.channelId, ids))
+      .groupBy(channelSubscriptions.channelId),
+    db.select({ channelId: channelMessages.channelId, count: sql<number>`count(*)::int` })
+      .from(channelMessages)
+      .where(inArray(channelMessages.channelId, ids))
+      .groupBy(channelMessages.channelId),
+  ]);
+  const subCounts = new Map(subRows.map((r) => [r.channelId, Number(r.count)]));
+  const msgCounts = new Map(msgRows.map((r) => [r.channelId, Number(r.count)]));
+  const list = rows.map((ch) => mapChannelAdmin(
+    ch,
+    // 与 countSubscribers 同一口径：系统号订阅数按全员计（懒创建订阅行不可靠）
+    ch.type === 'system' ? userCount : (subCounts.get(ch.id) ?? 0),
+    msgCounts.get(ch.id) ?? 0,
+  ));
   return { list, total, page, pageSize };
 }
 
