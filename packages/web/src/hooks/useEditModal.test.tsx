@@ -19,7 +19,7 @@ vi.mock('@douyinfe/semi-ui', () => ({
   },
 }));
 
-import { useEditModal, type DetailHook } from './useEditModal';
+import { useEditModal, formRemountKey, type DetailHook } from './useEditModal';
 import { SubmitAborted } from '@/lib/abort-submit';
 
 interface Row {
@@ -125,6 +125,22 @@ describe('异步详情：到达后必须重挂载表单', () => {
     act(() => result.current.openEdit({ id: 3, name: 'a' }));
     expect(result.current.detailLoading).toBe(false);
     expect(result.current.formProps.key).toBe('3:row');
+  });
+});
+
+describe('formRemountKey（自持表单实例的正当场景直接调用）', () => {
+  it('同一条记录在详情到达前后必须产出不同的 key', () => {
+    // 只含 id 的写法（key={record.id}）在这两步之间不变，详情因此永远进不了表单
+    expect(formRemountKey(12, undefined)).not.toBe(formRemountKey(12, { id: 12 }));
+  });
+
+  it('新增态与编辑态区分开', () => {
+    expect(formRemountKey(undefined, undefined)).toBe('new:row');
+    expect(formRemountKey(null, undefined)).toBe('new:row');
+  });
+
+  it('不同记录产出不同 key', () => {
+    expect(formRemountKey(1, undefined)).not.toBe(formRemountKey(2, undefined));
   });
 });
 

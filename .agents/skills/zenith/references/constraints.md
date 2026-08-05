@@ -110,7 +110,10 @@
   只有新增或只有编辑的单模式弹窗同样适用（只调用对应的 `openCreate` / `openEdit` 即可）。
   一个页面有多个编辑单元时多次调用即可。写法见 [crud-frontend.md 完整页面模板](./crud-frontend.md)
   确有正当理由自持表单实例的少数场景（页面级全局配置表单、登录/找回密码等认证流程、
-  工作流设计器与运行时表单、db-admin 行编辑器）不适用本条，但需写注释说明理由
+  工作流设计器与运行时表单、db-admin 行编辑器、保存后不关闭的搭建器工作区）不适用本条，
+  但需写注释说明理由；且若该表单同时配了详情查询，
+  `<Form>` 的 `key` **必须**用 `formRemountKey(id, detail)`（从 `@/hooks/useEditModal` 导出）——
+  `key={record.id}` 在详情到达前后不变，表单不会重挂载，详情永远进不了表单
 - **中断提交用 `abortSubmit()`**（Step 8）：`beforeSave` 或自定义提交里需要中断时，
   **先给出面向用户的提示，再调用 `@/lib/abort-submit` 的 `abortSubmit()`**。
   不要 `return`（Semi 的确定按钮会一直转圈），也**禁止**抛裸 `Error`：

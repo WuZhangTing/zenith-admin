@@ -12,6 +12,7 @@ import AppModal from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { useIsMobile } from '@/hooks/useMediaQuery';
+import { formRemountKey } from '@/hooks/useEditModal';
 import {
   useCmsSiteList, useCmsPageList, useSaveCmsPage, useDeleteCmsPage, useCmsChannelTree,
   cmsPageKeys, useCmsPageDetail, useCmsPageBlockAcls, useSetCmsPageBlockAcls,
@@ -73,6 +74,12 @@ export default function PagesPage() {
   const deleteMutation = useDeleteCmsPage();
 
   // 搭建器状态
+  //
+  // 本页刻意**不**用 useEditModal：它是搭建器工作区而非 CRUD 编辑弹窗，
+  // 保存后的行为是分叉的（编辑留在原地刷新预览、新增才关闭），
+  // 与该 hook「保存后必须关闭」的契约冲突；载荷也非标准
+  // （siteId 仅新增注入、无 cms:page:update 权限时裁掉 base 字段）。
+  // 但「详情到达必须重挂载表单」这条契约同样适用，故 key 直接复用 formRemountKey。
   const [builderVisible, setBuilderVisible] = useState(false);
   const [editingPage, setEditingPage] = useState<CmsPage | null>(null);
   const [blocks, setBlocks] = useState<CmsPageBlock[]>([]);
@@ -341,7 +348,7 @@ export default function PagesPage() {
         )}
       >
         <Form
-          key={editablePage?.id ?? 'new'}
+          key={formRemountKey(editablePage?.id, detailQuery.data)}
           getFormApi={(api) => { baseFormApi.current = api; }}
           allowEmpty
           labelPosition="left"

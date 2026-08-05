@@ -134,6 +134,22 @@ export interface UseEditModalReturn<TRecord extends { id: number }> {
 /** 未传 useDetail 时的占位：形状一致且不调用任何 hook，保证 hook 调用顺序恒定 */
 const NO_DETAIL: DetailHook<never> = () => ({ data: undefined, isFetching: false });
 
+/**
+ * 表单重挂载 key。
+ *
+ * Semi 的 `initValues` 只在 `Form` **挂载时**读取一次。弹窗打开瞬间详情还没回来，
+ * 表单先拿列表行占位；详情到达后 id **不变**，因此 `key={record.id}` 这种只含 id 的写法
+ * 不会触发重挂载——详情数据永远进不了表单，且不报错、测试不变红。
+ *
+ * key 必须同时含「是哪条」与「详情到没到」，即 `12:row` → `12:detail`。
+ *
+ * `useEditModal` 内部用它；**少数正当自持表单实例的场景**（搭建器、设计器等保存后
+ * 不关闭的工作区）请直接调用本函数，不要手写模板串——手写的版本会被"简化"回只含 id。
+ */
+export function formRemountKey(id: number | null | undefined, detail: unknown): string {
+  return `${id ?? 'new'}:${detail ? 'detail' : 'row'}`;
+}
+
 export function useEditModal<TRecord extends { id: number }, TValues = Partial<TRecord>, TPayload = TValues>(
   options: UseEditModalOptions<TRecord, TValues, TPayload>,
 ): UseEditModalReturn<TRecord> {
@@ -203,7 +219,7 @@ export function useEditModal<TRecord extends { id: number }, TValues = Partial<T
    * 详情到达会让 key 从 `12:row` 变成 `12:detail`，强制 Semi 重新读取 initValues——
    * 这正是手写版本最容易漏掉的一环。
    */
-  const formKey = `${editingRecord?.id ?? 'new'}:${detail.data ? 'detail' : 'row'}`;
+  const formKey = formRemountKey(editingRecord?.id, detail.data);
 
   const submit = useCallback(async () => {
     let values: TValues;
