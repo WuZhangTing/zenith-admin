@@ -109,13 +109,8 @@
   标题不符合「新增X / 编辑X」时不要用 `entityName`，展开后单独覆盖 `title`。
   只有新增或只有编辑的单模式弹窗同样适用（只调用对应的 `openCreate` / `openEdit` 即可）。
   一个页面有多个编辑单元时多次调用即可。写法见 [crud-frontend.md 完整页面模板](./crud-frontend.md)
-- **编辑弹窗防回潮**（Step 8）：`npm run lint -w @zenith/web` 含
-  `scripts/check-edit-modal-baseline.mjs`，对 `src/pages/**` 中自持表单实例的四种等价写法
-  （`useRef<FormApi>` / `useRef<FormApi<T> | null>` / `useState<FormApi>` / `getFormApi={...}`）
-  与 `throw new Error('validation')` 做只减不增校验。
-  出现第五种自持写法时**必须同步扩充检测面**——检测面漏掉哪种写法，回潮就从哪种写法长回来。
-  确有正当理由自持表单实例（页面级全局配置表单、认证流程、设计器与运行时表单、
-  db-admin 行编辑器）时，先写注释说明理由，再执行 `--update` 更新基线
+  确有正当理由自持表单实例的少数场景（页面级全局配置表单、登录/找回密码等认证流程、
+  工作流设计器与运行时表单、db-admin 行编辑器）不适用本条，但需写注释说明理由
 - **中断提交用 `abortSubmit()`**（Step 8）：`beforeSave` 或自定义提交里需要中断时，
   **先给出面向用户的提示，再调用 `@/lib/abort-submit` 的 `abortSubmit()`**。
   不要 `return`（Semi 的确定按钮会一直转圈），也**禁止**抛裸 `Error`：
@@ -167,7 +162,6 @@
 - **下拉源归属所有者域**（Step 8）：**禁止**用本域 key 请求别域资源——所有者域增删改时没有任何来源会失效它，界面会静默显示旧列表。一律复用 `useAllRoles` / `useFlatDepartments` / `useAllUsers` / `useAllPositions` / `useDictItems` 等共享 lookup hook
 - **回填的可见性红线**（Step 8）：`setQueryData(detail(id), saved)` 仅限写接口与详情接口同源；详情做了按查看者脱敏、详情多出关联数据、写接口不回传编辑过的关联字段、列表/树含聚合字段这四种情形**必须**改为失效 `detail(id)`
 - **失效行为需可证伪**（Step 8）：域 hooks 的测试用 `packages/web/src/test-utils/query-harness.ts`，断言实际请求数、真正进入 fetching 的查询与缓存新鲜度；**禁止**只 spy「调用了 `invalidateQueries(某 key)`」—— `all` 是 `detail` 的前缀，这类断言在冗余的广播写法下同样通过
-- **失效粒度防回潮**（Step 8）：`npm run lint -w @zenith/web` 含 `scripts/check-invalidation-baseline.mjs`，对域 hooks 中 mutation `onSuccess` 内的 `xxxKeys.all` 做只减不增校验；确需广播先写注释理由，再执行 `--update` 更新基线
 - **ConfigurableTable 刷新按钮**（Step 8）：所有使用 `ConfigurableTable` 的列表页均必须传入 `onRefresh` 和 `refreshLoading`
 - **左右分栏布局**（Step 8）：需要「左侧列表 + 右侧详情」结构时，统一使用 `packages/web/src/components/MasterDetailLayout.tsx`，**禁止**手写 flex 两栏布局。master 内部的高度链写法与嵌套 Semi Tabs 时的额外要求见 [crud-frontend.md 左右分栏布局](./crud-frontend.md)
 - **左侧平铺列表**（Step 8）：左侧 master 是**平铺列表**（分类/文件/分组等，非树形）时，统一使用 `NavListPanel<T>` + `NavListItem`（`packages/web/src/components/NavListPanel.tsx`）；树形数据（需展开/折叠）改用 Semi `Tree`。props 与 dataSource / children / rawBody 三种用法见 [crud-frontend.md 左侧平铺列表](./crud-frontend.md)

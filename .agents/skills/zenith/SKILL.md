@@ -111,7 +111,7 @@ MSW Mock 的详细代码模板见 [crud-mock.md](./references/crud-mock.md)。
 - [ ] `npm run db:generate && npm run db:migrate` 已执行，迁移文件已提交
 - [ ] `npm run build` 无报错
 - [ ] `npm run dev:server` 冒烟通过，新接口在 `/api/docs` 中可见且可调用
-- [ ] `npm run lint -w @zenith/web` 通过（含 ESLint、stylelint 与 mutation 广播失效基线校验）
+- [ ] `npm run lint -w @zenith/web` 通过（含 ESLint 与 stylelint）
 - [ ] `npm run test -w @zenith/web` 通过；域 hooks 的失效行为测试已补充
 - [ ] 页面实测一遍：查询 / 重置 / 新增 / 编辑 / 删除 / 导出，确认操作后相关列、统计与面板都刷新
       （欠失效比多失效更危险），移动端窄屏同样走一遍

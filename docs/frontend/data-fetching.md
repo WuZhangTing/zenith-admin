@@ -85,7 +85,7 @@ export const {
 规则：
 
 - **params 只放可序列化的 string / number**：`Date` 先用 `formatDateTimeForApi` 转字符串，空字符串筛选项映射为 `undefined`
-- **失效与 key 设计遵循[缓存一致性契约](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/crud-frontend.md)**（规范正文见 skill，本页不复制）：mutation 在域 hooks 的 `onSuccess` 中按真实副作用失效、key 树按连坐面设计、回填前核对数据形状与可见性、失效行为用 `test-utils/query-harness.ts` 写可证伪的测试。web 包 `npm run lint` 内含 `scripts/check-invalidation-baseline.mjs`，对 mutation `onSuccess` 中的域根广播做只减不增校验
+- **失效与 key 设计遵循[缓存一致性契约](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/crud-frontend.md)**（规范正文见 skill，本页不复制）：mutation 在域 hooks 的 `onSuccess` 中按真实副作用失效、key 树按连坐面设计、回填前核对数据形状与可见性、失效行为用 `test-utils/query-harness.ts` 写可证伪的测试
 - **Toast 归属**：成功 `Toast.success` 由 `useEditModal` 统一发出（见下方「列表页模式」）；不要额外加错误 Toast（request 层已统一弹出）
 - 共享 lookup（`useAllUsers`、`useFlatDepartments`、`useDepartmentTree`、`useMenuTree`、`useAllRoles`、`useAllPositions`、`useDictItems` 等）已存在，直接 import 复用；禁止在页面或新域文件中重复定义同一数据源，也禁止用本域 key 去请求别域资源
 - **官方 ESLint 插件已启用**（`@tanstack/eslint-plugin-query`，见 `packages/web/eslint.config.js`）：自动检查不稳定依赖（useQuery/useQueries/useMutation 结果对象不得直接进 deps 数组）等问题；多查询聚合场景用 `useQueries` 的 `combine` 选项产出稳定引用。其中 `exhaustive-deps` 规则因误报较多（如 `silent` 等仅影响行为不影响数据的选项）已关闭——**queryFn 引用的会影响响应数据的变量必须进 queryKey**，这一点靠约定与评审保证

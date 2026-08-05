@@ -30,7 +30,7 @@ npm run lint                   # shared + server + analytics-sdk + web 四包检
 npm run lint:fix               # 自动修复
 ```
 
-> 前端 `lint` 除 eslint 外还包含 stylelint（CSS）与 TanStack Query 缓存失效基线校验。
+> 前端 `lint` 除 eslint 外还包含 stylelint（CSS）。
 
 ### 数据库相关
 

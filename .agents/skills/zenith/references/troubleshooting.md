@@ -214,14 +214,6 @@
 
 ## 缓存与失效问题
 
-### 问题：`npm run lint`（web）报「mutation 失效粒度回退」
-
-**原因**：`scripts/check-invalidation-baseline.mjs` 在某个域 hooks 文件的 mutation `onSuccess` 里发现了超出基线数量的 `xxxKeys.all` 广播失效。
-
-**解决**：
-
-1. 默认做法是**改代码**：按真实副作用列出受影响的 key（`lists` / `detail(id)` / 子键 / 前缀键），而不是广播整域。规范见 [crud-frontend.md 缓存一致性契约](./crud-frontend.md)2. 确属合法广播：在 `onSuccess` 注释写明理由，再执行 `node packages/web/scripts/check-invalidation-baseline.mjs --update`
-
 ### 问题：操作成功后页面数据没刷新
 
 **原因**：欠失效 —— 被改动的状态有已挂载的查询在读，但 `onSuccess` 没覆盖到它。典型场景：
@@ -231,22 +223,6 @@
 - 下拉源以本域 key 请求了别域资源（藏键），所有者域改动时无人失效它
 
 **解决**：按「有没有已挂载的查询读了这次被改动的状态」逐一补齐失效；藏键改为复用所有者域的共享 lookup hook。失效**未挂载**的缓存代价接近零，宁可多列几个 key，也不要漏。
-
-### 问题：`npm run lint`（web）报「编辑弹窗样板回退」
-
-**原因**：`scripts/check-edit-modal-baseline.mjs` 在 `src/pages/**` 里发现了超出基线数量的
-自持表单实例（`useRef<FormApi>` / `useRef<FormApi<T> | null>` / `useState<FormApi>` /
-`getFormApi={...}`）或 `throw new Error('validation')`。
-
-**解决**：
-
-1. 默认做法是**改代码**：新增/编辑弹窗改用 `@/hooks/useEditModal`，展开 `modalProps` 到 `AppModal`、
-   `formProps` 到 `Form`。参考 `pages/system/tenant-packages/TenantPackagesPage.tsx`（简单场景）
-   与 `pages/system/tenants/TenantsPage.tsx`（含 `beforeSave` + `onSaved`）。
-   只有新增或只有编辑的单模式弹窗同样适用。
-2. 确有正当理由自持表单实例（页面级全局配置表单、登录/找回密码等认证流程、
-   工作流设计器与运行时表单、db-admin 行编辑器）——先写注释说明理由，
-   再执行 `node scripts/check-edit-modal-baseline.mjs --update` 更新基线。
 
 ### 问题：校验没过时弹出两个提示，其中一个是英文「操作失败：xxx」
 

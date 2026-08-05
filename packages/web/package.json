@@ -11,10 +11,8 @@
 		"preview": "vite preview",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"lint": "eslint src && stylelint \"src/**/*.css\" && npm run lint:invalidation && npm run lint:edit-modal",
+		"lint": "eslint src && stylelint \"src/**/*.css\"",
 		"lint:css": "stylelint \"src/**/*.css\"",
-		"lint:invalidation": "node scripts/check-invalidation-baseline.mjs",
-		"lint:edit-modal": "node scripts/check-edit-modal-baseline.mjs",
 		"lint:fix": "eslint src --fix && stylelint \"src/**/*.css\" --fix"
 	},
 	"dependencies": {

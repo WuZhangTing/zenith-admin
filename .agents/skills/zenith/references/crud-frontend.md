@@ -91,18 +91,6 @@ key 的树形结构直接决定失效的连坐面，按「哪些数据应当被�
 参考实现：`hooks/queries/positions.ts`（回填 + 子资源）与 `hooks/queries/cron-jobs.ts`
 （命令型副作用 + 静态 lookup 保护），对应测试同名 `.test.tsx`。
 
-### 防回潮护栏
-
-web 包的 `npm run lint` 会执行 `scripts/check-invalidation-baseline.mjs`：扫描 `hooks/queries/*.ts` 中
-**mutation `onSuccess` 作用域内**的 `xxxKeys.all`，与 `scripts/invalidation-baseline.json` 比对，**只减不增**
-（任何文件的广播数量超过基线额度即 lint 失败，基线额度为 0 的域出现广播同样失败）。
-
-- 扫描只认域 hooks 文件里 `onSuccess` 回调体内的 `.all`：keys 定义本身、页面 `handleSearch` / `handleReset`
-  失效 `lists` 均不在范围内，不会误伤。
-- 确需全域失效（批量覆盖、切租户、全量导入）：先在 `onSuccess` 注释写明理由，再执行
-  `node scripts/check-invalidation-baseline.mjs --update` 更新基线。
-- 把某个域的广播改成精确失效后，同样执行 `--update` 把额度降下来，锁住结果。
-
 ---
 
 ## 文件位置
