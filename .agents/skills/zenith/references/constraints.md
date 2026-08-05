@@ -220,3 +220,18 @@
 - RQB 分页统一使用 `offset: pageOffset(page, pageSize)`
 - MSW Mock 分页统一使用 `paginate(list, url)` / `pageResult(list, page, pageSize)`
 - 禁止手写 `(page - 1) * pageSize`
+
+---
+
+## 重型依赖懒加载（Server 全局）
+
+> 背景：server 启动时加载全部路由/服务模块图，任何模块顶层静态 import 的依赖都会计入**每次**冷启动。
+> v1.38 曾因重 SDK 全部随启动加载，导致 dev/prod 冷启动多耗约 20s（27.1s → 懒加载后 8.2s），勿回退。
+
+- **禁止**在 server 模块顶层静态 import 重型 SDK（首次 import 数百 ms 以上、且仅特定功能使用），已知清单：
+  `exceljs`、`pdfkit`、`sharp`、`cheerio`、`dockerode`、`mssql`、`mysql2`、`@opentelemetry/sdk-node`、
+  `@alicloud/*`、`tencentcloud-sdk-*`、云存储 SDK（`ali-oss` / `@aws-sdk/*` / `cos-nodejs-sdk-v5` / `qiniu` / `@baiducloud/sdk` / `@azure/storage-blob` / `esdk-obs-nodejs`）
+- **必须**改为首次使用时经 `createRequire` 惰性加载；类型引用一律 `import type`（编译期擦除，不产生运行时加载）。写法模板见 [crud-backend.md → 重型依赖懒加载](./crud-backend.md#重型依赖懒加载重-sdk)
+- 新引入第三方依赖时先评估加载成本（`node -e "console.time('t');require('pkg');console.timeEnd('t')"`）；仅启动即需要的依赖（如 `hono`、`drizzle-orm`、`winston`、`pg-boss`、`ioredis`、`zod`）可静态 import
+- **禁止**在 ESM 模块中使用裸 `require()`（运行时 `require is not defined`）；必须 `createRequire(import.meta.url)`
+- 懒加载 CJS 包时注意导出形状与类型声明一致（named vs default），用 `as typeof import('pkg')` 收敛类型；不确定时 `node -e` 探测运行时形状

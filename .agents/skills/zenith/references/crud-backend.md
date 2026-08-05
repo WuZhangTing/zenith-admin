@@ -813,6 +813,36 @@ try {
 
 ---
 
+## 重型依赖懒加载（重 SDK）
+
+约束与禁用清单见 [constraints.md → 重型依赖懒加载](./constraints.md#重型依赖懒加载server-全局)。写法模板：
+
+```ts
+import { createRequire } from 'node:module';
+import type ExcelJS from 'exceljs';              // 类型引用：import type，编译期擦除
+
+// 惰性加载：exceljs 模块图大（实测 ~2.4s），仅在首次导出 Excel 时加载。
+// require() 返回 CJS module.exports 原对象，dev(tsx) 与 prod(node dist) 语义一致
+const require = createRequire(import.meta.url);
+const loadExcelJS = () => require('exceljs') as typeof import('exceljs');
+
+export async function exportXxx(): Promise<ArrayBuffer> {
+  const workbook = new (loadExcelJS().Workbook)();   // 使用时才触发加载（Node 有模块缓存，无需自建缓存）
+  // ...
+}
+```
+
+要点：
+
+- 类型位置照常 `ExcelJS.Row` / `ExcelJS.Worksheet`（走 `import type`），值位置一律经 `loadXxx()`
+- 命名导出解构取用：`const { GetObjectCommand } = loadS3();`（参考 `lib/file-storage.ts`）
+- 双格式包（如 `sharp`）`typeof import('pkg')` 可能解析到 ESM 声明（default 导出）而 require 拿到 CJS 可调用对象，
+  需 `as unknown as typeof import('pkg')['default']` 匹配运行时形状（参考 `services/cms/cms-image.service.ts`）
+- 已就绪的参考实现：`lib/file-storage.ts`（7 个云 SDK）、`lib/sms-sender.ts`、`lib/report-external-db.ts`、
+  `lib/telemetry.ts`（async 场景用动态 `import()`）、`services/ops/docker.service.ts`
+
+---
+
 ## 附件功能（业务模块文件关联）
 
 如果某个业务模块需要支持上传附件（如公告、通知、工单等），使用系统统一的 `business_files` 表进行多态关联。

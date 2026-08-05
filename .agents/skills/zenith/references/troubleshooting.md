@@ -212,6 +212,24 @@
 
 ---
 
+## 启动缓慢
+
+### 问题：`npm run dev:server` seed 完成后长时间无输出才打印首行日志 / 服务冷启动明显变慢
+
+**原因**：某模块把重型 SDK（exceljs、sharp、cheerio、云厂商 SDK 等）写成了顶层静态 import，被计入每次启动的模块图加载。
+
+**定位**：`cd packages/server && npx tsx -e` 计时 `import('./src/app')`，或对可疑包运行 `node -e "console.time('t');require('pkg');console.timeEnd('t')"`。
+
+**解决**：改为 `createRequire` 惰性加载 + `import type`。约束与禁用清单见 [constraints.md → 重型依赖懒加载](./constraints.md#重型依赖懒加载server-全局)，写法模板见 [crud-backend.md → 重型依赖懒加载](./crud-backend.md#重型依赖懒加载重-sdk)。
+
+### 问题：某功能首次调用报 `require is not defined`
+
+**原因**：ESM 模块中使用了裸 `require()`（多见于照抄旧代码的懒加载写法）。
+
+**解决**：文件顶部 `const require = createRequire(import.meta.url)`（来自 `node:module`）后再调用。
+
+---
+
 ## 缓存与失效问题
 
 ### 问题：操作成功后页面数据没刷新
