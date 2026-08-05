@@ -4,6 +4,29 @@
 
 ---
 
+## v1.39.0 - 2026-08-06
+
+服务端冷启动性能专项。实测定位 `dev`/生产启动的主要耗时在「启动即加载全部重型 SDK」：将 OTel、云厂商短信/存储、报表外部库驱动、Excel/PDF/图像处理等重依赖改为首次使用时惰性加载，`createApp` 前的模块图加载中位耗时 27.1s → 8.2s（-70%）。相应规范沉淀进 zenith skill，防止后续开发回退。
+
+### Performance
+
+#### 重型 SDK 懒加载，冷启动提速约 70%
+
+- 启动模块图静态加载了 `@opentelemetry/sdk-node`（~6.8s）、`mssql`（~3.8s）、`@alicloud/dysmsapi`（~3.5s）、`cheerio`（~3s）、`exceljs`（~2.4s）、`@azure/storage-blob`（~2.3s）、`dockerode`、`ali-oss`、`sharp`、`pdfkit`、`mysql2` 等仅特定功能使用的重依赖，seed 完成到首行日志之间长时间无输出
+- 16 个文件改为 `createRequire` 惰性加载 + `import type`（编译期擦除）：telemetry（启用 OTel 时才动态 `import()`）、file-storage（7 个云存储 SDK）、sms-sender、report-external-db、docker.service、cms 采集/死链/图像/资源、excel-export、export-center writer、xlsx-to-univer、report-file-parse、report-print-export、users.service
+- 基准（`import('./src/app')` + `createApp()`，3 轮取中位）：27.1s → 8.2s；dev 与生产 `node dist` 冷启动同等受益；`createApp()` 本身仅 ~50ms
+
+### Fixed
+
+- file-storage 华为云 OBS 路径使用裸 `require()`，ESM 运行时会抛 `require is not defined`（改为 `createRequire`）
+- `@baiducloud/sdk` 本地类型声明写成 default 导出，运行时实为命名导出 `BosClient`，`new BosClient()` 会在运行时崩溃（声明与取用改为命名导出）
+
+### Docs
+
+- zenith skill 新增「重型依赖懒加载」规范：constraints.md 硬约束与禁用清单、crud-backend.md 写法模板（含双格式包类型收敛技巧）、troubleshooting.md 启动缓慢与 `require is not defined` 排查条目
+
+---
+
 ## v1.38.0 - 2026-08-05
 
 服务端性能收尾与前端查询工厂迁移收官。全库排查「循环内逐行查询 / 写扇出 / 同步阻塞」后修掉最后四处真实热点；`createCrudQueries` 工厂经三批补迁覆盖全部 21 个标准形状域；提交中断从「猜消息形状」换成类型判据。server 与 web 依赖例行升级并经全量测试验证。
