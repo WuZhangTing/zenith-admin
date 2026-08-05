@@ -24,6 +24,7 @@ import { usePermission } from '@/hooks/usePermission';
 import type { AiEvalSet, AiEvalRun, AiEvalItem } from '@zenith/shared/ai';
 import { CreateButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 const { Text, Paragraph } = Typography;
 
@@ -47,9 +48,21 @@ export default function AiEvalPage() {
   const deleteRunMutation = useDeleteAiEvalRun();
   const modelsQuery = useAiChatModels();
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<AiEvalSet | null>(null);
-  const [formApi, setFormApi] = useState<{ validate: () => Promise<SetFormValues> } | null>(null);
+  const modal = useEditModal<AiEvalSet, SetFormValues, { name: string; description: string | null; items: AiEvalItem[] }>({
+    save: saveMutation,
+    defaults: { items: [{ question: '' }] },
+    toValues: (set) => ({ name: set.name, description: set.description ?? '', items: set.items }),
+    beforeSave: (values) => {
+      const items = (values.items ?? []).filter((it) => it?.question?.trim());
+      if (items.length === 0) {
+        Toast.error('至少添加一条评测问题');
+        throw new Error('empty eval items');
+      }
+      return { name: values.name, description: values.description || null, items };
+    },
+    successMessage: ({ isEdit }) => (isEdit ? '评测集已更新' : '评测集已创建'),
+    labelWidth: 80,
+  });
   const [runModalSet, setRunModalSet] = useState<AiEvalSet | null>(null);
   const [runModelValue, setRunModelValue] = useState('');
   const [detailRunId, setDetailRunId] = useState<number | null>(null);
@@ -62,29 +75,6 @@ export default function AiEvalPage() {
       ...models.map((m) => ({ value: `${m.id}:${m.model}`, label: `${m.name} / ${m.model}${m.isDefault ? '（默认）' : ''}` })),
     ];
   }, [modelsQuery.data]);
-
-  const openCreate = () => { setEditing(null); setModalVisible(true); };
-  const openEdit = (set: AiEvalSet) => { setEditing(set); setModalVisible(true); };
-
-  const handleSubmit = async () => {
-    if (!formApi) return;
-    let values: SetFormValues;
-    try {
-      values = await formApi.validate();
-    } catch {
-      return;
-    }
-    const items = (values.items ?? []).filter((it) => it?.question?.trim());
-    if (items.length === 0) {
-      Toast.error('至少添加一条评测问题');
-      return;
-    }
-    try {
-      await saveMutation.mutateAsync({ id: editing?.id, values: { name: values.name, description: values.description || null, items } });
-      Toast.success(editing ? '评测集已更新' : '评测集已创建');
-      setModalVisible(false);
-    } catch { /* 请求层已提示 */ }
-  };
 
   const handleRun = async () => {
     if (!runModalSet) return;
@@ -110,7 +100,7 @@ export default function AiEvalPage() {
       desktopInlineKeys: ['run', 'edit'],
       actions: (record) => [
         { key: 'run', label: '运行评测', type: 'primary', hidden: !canManage, onClick: () => { setRunModalSet(record); setRunModelValue(''); } },
-        { key: 'edit', label: '编辑', hidden: !canManage, onClick: () => openEdit(record) },
+        { key: 'edit', label: '编辑', hidden: !canManage, onClick: () => modal.openEdit(record) },
         {
           key: 'delete',
           label: '删除',
@@ -211,7 +201,7 @@ export default function AiEvalPage() {
     <div className="page-container page-tabs-page">
       <Tabs
         type="line"
-        tabBarExtraContent={canManage ? <CreateButton onClick={openCreate}>新建评测集</CreateButton> : undefined}
+        tabBarExtraContent={canManage ? <CreateButton onClick={modal.openCreate}>新建评测集</CreateButton> : undefined}
       >
         <TabPane tab="评测集" itemKey="sets">
           <div style={{ padding: '12px 0' }}>
@@ -247,20 +237,12 @@ export default function AiEvalPage() {
 
       {/* 评测集编辑 */}
       <Modal
-        title={editing ? '编辑评测集' : '新建评测集'}
-        visible={modalVisible}
-        onCancel={() => setModalVisible(false)}
-        onOk={handleSubmit}
-        confirmLoading={saveMutation.isPending}
+        {...modal.modalProps}
+        title={modal.isEdit ? '编辑评测集' : '新建评测集'}
         width={720}
-        closeOnEsc
       >
         <Form
-          labelPosition="left"
-          labelWidth={80}
-          getFormApi={(api) => setFormApi(api as unknown as { validate: () => Promise<SetFormValues> })}
-          key={editing?.id ?? 'new'}
-          initValues={editing ? { name: editing.name, description: editing.description ?? '', items: editing.items } : { items: [{ question: '' }] }}
+          {...modal.formProps}
         >
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={100} />
           <Form.Input field="description" label="描述" maxLength={300} />

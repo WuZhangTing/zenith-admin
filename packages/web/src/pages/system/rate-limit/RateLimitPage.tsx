@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   Button,
   Card,
@@ -9,7 +8,6 @@ import {
   Toast,
   Typography,
 } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Gauge, RotateCcw, ShieldOff, Zap } from 'lucide-react';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -34,6 +32,7 @@ import {
   useUnblockRateLimitKey,
 } from '@/hooks/queries/rate-limit';
 import { CreateButton } from '@/components/toolbar-controls';
+import { useEditModal } from '@/hooks/useEditModal';
 
 const { Title, Text } = Typography;
 
@@ -79,10 +78,6 @@ export default function RateLimitPage() {
   const { hasPermission } = usePermission();
   const canManage = hasPermission('system:rate-limit:manage');
   const palette = useChartPalette();
-  const [editing, setEditing] = useState<RateLimitRule | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [formApi, setFormApi] = useState<FormApi<UpdateForm> | null>(null);
-  const [createFormApi, setCreateFormApi] = useState<FormApi<CreateForm> | null>(null);
   const dashboardQuery = useRateLimitDashboard();
   const apiPathsQuery = useRateLimitApiPaths();
   const saveMutation = useSaveRateLimitRule();
@@ -93,23 +88,25 @@ export default function RateLimitPage() {
   const stats: RateLimitStats = dashboardQuery.data?.stats ?? { items: [] };
   const apiPaths = apiPathsQuery.data ?? [];
 
-  const handleSave = async () => {
-    if (!editing || !formApi) return;
-    let values;
-    try { values = await formApi.validate(); } catch { throw new Error('validation'); }
-    await saveMutation.mutateAsync({ id: editing.id, values });
-    Toast.success('规则已更新');
-    setEditing(null);
-  };
-
-  const handleCreate = async () => {
-    if (!createFormApi) return;
-    let values;
-    try { values = await createFormApi.validate(); } catch { throw new Error('validation'); }
-    await saveMutation.mutateAsync({ values });
-    Toast.success('规则已创建');
-    setCreating(false);
-  };
+  const createModal = useEditModal<RateLimitRule, CreateForm>({
+    save: saveMutation,
+    defaults: { name: '', description: null, keyType: 'ip', enabled: true, windowMs: 60000, limit: 30, blockedMessage: null, pathPatterns: [] },
+    successMessage: () => '规则已创建',
+    labelWidth: 130,
+  });
+  const editModal = useEditModal<RateLimitRule, UpdateForm>({
+    save: saveMutation,
+    toValues: (rule) => ({
+      windowMs: rule.windowMs,
+      limit: rule.limit,
+      keyType: rule.keyType,
+      enabled: rule.enabled,
+      blockedMessage: rule.blockedMessage,
+      pathPatterns: rule.pathPatterns ?? [],
+    }),
+    successMessage: () => '规则已更新',
+    labelWidth: 130,
+  });
 
   const handleDelete = async (id: number) => {
     await deleteMutation.mutateAsync(id);
@@ -137,7 +134,7 @@ export default function RateLimitPage() {
               管理 API 接口限流规则，保存后立即热更新到运行中的服务，无需重启。统计每 30 秒自动刷新。
             </Text>
             {canManage && (
-              <CreateButton onClick={() => setCreating(true)}>新增规则</CreateButton>
+              <CreateButton onClick={createModal.openCreate}>新增规则</CreateButton>
             )}
             <Button type="primary" icon={<RotateCcw size={14} />} onClick={() => void dashboardQuery.refetch()} loading={dashboardQuery.isFetching}>
               刷新
@@ -147,7 +144,7 @@ export default function RateLimitPage() {
         mobilePrimary={(
           <>
             {canManage && (
-              <CreateButton onClick={() => setCreating(true)}>新增规则</CreateButton>
+              <CreateButton onClick={createModal.openCreate}>新增规则</CreateButton>
             )}
             <Button type="primary" icon={<RotateCcw size={14} />} onClick={() => void dashboardQuery.refetch()} loading={dashboardQuery.isFetching}>
               刷新
@@ -178,7 +175,7 @@ export default function RateLimitPage() {
               headerExtraContent={
                 canManage && (
                   <Space>
-                    <Button size="small" theme="borderless" onClick={() => setEditing(rule)}>编辑</Button>
+                    <Button size="small" theme="borderless" onClick={() => editModal.openEdit(rule)}>编辑</Button>
                     {!PREDEFINED_NAMES.has(rule.name) && (
                       <Popconfirm title="确定删除该自定义规则？" onConfirm={() => handleDelete(rule.id)}>
                         <Button size="small" theme="borderless" type="danger">删除</Button>
@@ -282,20 +279,14 @@ export default function RateLimitPage() {
       />
 
       <AppModal
+        {...createModal.modalProps}
         title="新增限流规则"
-        visible={creating}
-        onCancel={() => setCreating(false)}
-        onOk={handleCreate}
         okText="创建（立即生效）"
         cancelText="取消"
         width={520}
       >
-        <Form<CreateForm>
-          getFormApi={setCreateFormApi}
-          allowEmpty
-          initValues={{ name: '', description: null, keyType: 'ip', enabled: true, windowMs: 60000, limit: 30, blockedMessage: null, pathPatterns: [] }}
-          labelPosition="left"
-          labelWidth={130}
+        <Form
+          {...createModal.formProps}
         >
           <Form.Input
             field="name"
@@ -334,28 +325,15 @@ export default function RateLimitPage() {
       </AppModal>
 
       <AppModal
-        title={editing ? `编辑限流规则：${editing.name}` : ''}
-        visible={editing !== null}
-        onCancel={() => setEditing(null)}
-        onOk={handleSave}
+        {...editModal.modalProps}
+        title={editModal.editing ? `编辑限流规则：${editModal.editing.name}` : ''}
         okText="保存（立即生效）"
         cancelText="取消"
         width={520}
       >
-        {editing && (
-          <Form<UpdateForm>
-            getFormApi={setFormApi}
-            allowEmpty
-            initValues={{
-              windowMs: editing.windowMs,
-              limit: editing.limit,
-              keyType: editing.keyType,
-              enabled: editing.enabled,
-              blockedMessage: editing.blockedMessage,
-              pathPatterns: editing.pathPatterns ?? [],
-            }}
-            labelPosition="left"
-            labelWidth={130}
+        {editModal.editing && (
+          <Form
+            {...editModal.formProps}
           >
             <Form.Select
               field="pathPatterns"

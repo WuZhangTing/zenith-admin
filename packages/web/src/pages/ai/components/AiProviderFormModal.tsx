@@ -1,10 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect } from 'react';
 import { Button, Col, Form, Row, Spin, Toast } from '@douyinfe/semi-ui';
 import type { AiProvider, AiProviderConfig } from '@zenith/shared/ai';
 import type { UserAiConfig } from '@zenith/shared/identity';
 import { AppModal } from '@/components/AppModal';
 import { useAiProviderDetail, useSaveAiProvider, useTestAiProviderConnection, useFetchAiProviderModels, useAiProviderList } from '@/hooks/queries/ai-providers';
 import { useSaveAiUserConfig } from '@/hooks/queries/ai-user-config';
+import { useEditModal } from '@/hooks/useEditModal';
 
 const PROVIDER_OPTIONS: { value: AiProvider; label: string; disabled?: boolean }[] = [
   { value: 'openai_compatible', label: 'OpenAI Compatible' },
@@ -55,6 +56,44 @@ const SYSTEM_DEFAULTS: FormValues = {
   isEnabled: true,
 };
 
+function providerToFormValues(config: AiProviderConfig): FormValues {
+  return {
+    name: config.name,
+    provider: config.provider,
+    baseUrl: config.baseUrl,
+    apiKey: config.apiKey,
+    model: config.model,
+    models: config.models ?? [],
+    capVision: config.capabilities?.vision ?? false,
+    capTools: config.capabilities?.tools ?? false,
+    contextWindow: config.capabilities?.contextWindow ?? null,
+    systemPrompt: config.systemPrompt,
+    maxTokens: config.maxTokens,
+    temperature: config.temperature,
+    priceInputPerM: config.priceInputPerM,
+    priceOutputPerM: config.priceOutputPerM,
+    fallbackConfigId: config.fallbackConfigId,
+    maxConcurrent: config.maxConcurrent,
+    isDefault: config.isDefault,
+    isEnabled: config.isEnabled,
+  };
+}
+
+function userConfigToFormValues(config: UserAiConfig): FormValues {
+  return {
+    ...SYSTEM_DEFAULTS,
+    name: config.name ?? '',
+    provider: config.provider ?? 'openai_compatible',
+    baseUrl: config.baseUrl ?? '',
+    apiKey: config.apiKey ?? '',
+    model: config.model ?? '',
+    temperature: config.temperature ?? '0.7',
+    maxTokens: config.maxTokens ?? 4096,
+    systemPrompt: config.systemPrompt ?? null,
+    isEnabled: config.isEnabled,
+  };
+}
+
 interface BaseProps {
   visible: boolean;
   onClose: () => void;
@@ -79,126 +118,80 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
   const isUser = props.mode === 'user';
   const editTarget = isUser ? undefined : props.editTarget;
   const existingUserConfig = isUser ? (props as { mode: 'user'; userConfig?: UserAiConfig | null }).userConfig ?? null : null;
-  const detailQuery = useAiProviderDetail(editTarget?.id, visible && !isUser && !!editTarget);
   const allProvidersQuery = useAiProviderList({}, { enabled: visible && !isUser });
   const saveProviderMutation = useSaveAiProvider();
   const saveUserConfigMutation = useSaveAiUserConfig();
   const testConnectionMutation = useTestAiProviderConnection();
   const fetchModelsMutation = useFetchAiProviderModels();
-  const [formKey, setFormKey] = useState(0);
-  const [initValues, setInitValues] = useState<FormValues>(SYSTEM_DEFAULTS);
-  const formApiRef = useRef<{ getValues: () => FormValues; validate: () => Promise<FormValues> } | null>(null);
+  const systemModal = useEditModal<AiProviderConfig, FormValues, Partial<AiProviderConfig>>({
+    save: saveProviderMutation,
+    useDetail: useAiProviderDetail,
+    defaults: SYSTEM_DEFAULTS,
+    toValues: providerToFormValues,
+    beforeSave: (values) => {
+      const { capVision, capTools, contextWindow, models, ...rest } = values;
+      return {
+        ...rest,
+        models: models?.filter((m) => m.trim()) ?? null,
+        capabilities: {
+          vision: capVision ?? false,
+          tools: capTools ?? false,
+          ...(contextWindow ? { contextWindow } : {}),
+        },
+        priceInputPerM: values.priceInputPerM ?? null,
+        priceOutputPerM: values.priceOutputPerM ?? null,
+        fallbackConfigId: values.fallbackConfigId || null,
+        maxConcurrent: values.maxConcurrent || null,
+      };
+    },
+    successMessage: ({ isEdit }) => (isEdit ? '修改成功' : '创建成功'),
+    onSaved: () => {
+      if (props.mode !== 'user') props.onSaved();
+      onClose();
+    },
+  });
+  const userModal = useEditModal<UserAiConfig, FormValues, Partial<UserAiConfig>>({
+    save: saveUserConfigMutation,
+    defaults: SYSTEM_DEFAULTS,
+    toValues: userConfigToFormValues,
+    beforeSave: (values) => ({
+      name: values.name || null,
+      provider: values.provider,
+      baseUrl: values.baseUrl || null,
+      apiKey: values.apiKey || null,
+      model: values.model || null,
+      temperature: values.temperature || null,
+      maxTokens: values.maxTokens || null,
+      systemPrompt: values.systemPrompt || null,
+      isEnabled: values.isEnabled,
+    }),
+    successMessage: () => '保存成功',
+    onSaved: (saved) => {
+      if (props.mode === 'user') props.onSaved(saved);
+      onClose();
+    },
+  });
 
   useEffect(() => {
-    if (!visible) return;
-    if (isUser) {
-      const uc = existingUserConfig;
-      setInitValues(
-        uc
-          ? {
-              ...SYSTEM_DEFAULTS,
-              name: uc.name ?? '',
-              provider: uc.provider ?? 'openai_compatible',
-              baseUrl: uc.baseUrl ?? '',
-              apiKey: uc.apiKey ?? '',
-              model: uc.model ?? '',
-              temperature: uc.temperature ?? '0.7',
-              maxTokens: uc.maxTokens ?? 4096,
-              systemPrompt: uc.systemPrompt ?? null,
-              isEnabled: uc.isEnabled,
-            }
-          : SYSTEM_DEFAULTS,
-      );
-      setFormKey((k) => k + 1);
-    } else {
-      const et = detailQuery.data ?? editTarget;
-      if (et) {
-        setInitValues({
-          name: et.name,
-          provider: et.provider,
-          baseUrl: et.baseUrl,
-          apiKey: et.apiKey,
-          model: et.model,
-          models: et.models ?? [],
-          capVision: et.capabilities?.vision ?? false,
-          capTools: et.capabilities?.tools ?? false,
-          contextWindow: et.capabilities?.contextWindow ?? null,
-          systemPrompt: et.systemPrompt,
-          maxTokens: et.maxTokens,
-          temperature: et.temperature,
-          priceInputPerM: et.priceInputPerM,
-          priceOutputPerM: et.priceOutputPerM,
-          fallbackConfigId: et.fallbackConfigId,
-          maxConcurrent: et.maxConcurrent,
-          isDefault: et.isDefault,
-          isEnabled: et.isEnabled,
-        });
-        setFormKey((k) => k + 1);
-      } else {
-        setInitValues(SYSTEM_DEFAULTS);
-        setFormKey((k) => k + 1);
-      }
-    }
-  }, [detailQuery.data, editTarget, existingUserConfig, isUser, visible]);
-
-  const handleOk = async () => {
-    if (!formApiRef.current) return;
-    let values: FormValues;
-    try {
-      values = await formApiRef.current.validate();
-    } catch {
-      // validation failed, semi design will show field errors
+    if (!visible) {
+      systemModal.close();
+      userModal.close();
       return;
     }
-    try {
-      if (isUser) {
-        const saved = await saveUserConfigMutation.mutateAsync({
-          id: existingUserConfig?.id,
-          values: {
-            name: values.name || null,
-            provider: values.provider,
-            baseUrl: values.baseUrl || null,
-            apiKey: values.apiKey || null,
-            model: values.model || null,
-            temperature: values.temperature || null,
-            maxTokens: values.maxTokens || null,
-            systemPrompt: values.systemPrompt || null,
-            isEnabled: values.isEnabled,
-          },
-        });
-        Toast.success('保存成功');
-        props.onSaved(saved);
-        onClose();
-      } else {
-        const { capVision, capTools, contextWindow, models, ...rest } = values;
-        await saveProviderMutation.mutateAsync({
-          id: editTarget?.id,
-          values: {
-            ...rest,
-            models: models?.filter((m) => m.trim()) ?? null,
-            capabilities: {
-              vision: capVision ?? false,
-              tools: capTools ?? false,
-              ...(contextWindow ? { contextWindow } : {}),
-            },
-            priceInputPerM: values.priceInputPerM ?? null,
-            priceOutputPerM: values.priceOutputPerM ?? null,
-            fallbackConfigId: values.fallbackConfigId || null,
-            maxConcurrent: values.maxConcurrent || null,
-          },
-        });
-        Toast.success(editTarget ? '修改成功' : '创建成功');
-        props.onSaved();
-        onClose();
-      }
-    } catch {
-      // handled by request interceptor
+    if (isUser) {
+      if (existingUserConfig) userModal.openEdit(existingUserConfig);
+      else userModal.openCreate();
+    } else if (editTarget) {
+      systemModal.openEdit(editTarget);
+    } else {
+      systemModal.openCreate();
     }
-  };
+  }, [visible, isUser, existingUserConfig, editTarget, systemModal.openCreate, systemModal.openEdit, systemModal.close, userModal.openCreate, userModal.openEdit, userModal.close]);
 
-  const isEditing = isUser ? !!existingUserConfig : !!editTarget;
+  const activeModal = isUser ? userModal : systemModal;
+  const isEditing = activeModal.isEdit;
   const submitLoading = saveProviderMutation.isPending || saveUserConfigMutation.isPending;
-  const detailLoading = !isUser && !!editTarget && detailQuery.isFetching;
+  const detailLoading = !isUser && systemModal.detailLoading;
   const testLoading = testConnectionMutation.isPending;
   let title = '新增服务商';
   if (isUser) title = '我的 AI 配置';
@@ -206,8 +199,9 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
 
   /** 从供应商 API 自动发现模型列表，填充附加模型字段 */
   const handleFetchModels = async () => {
-    if (!formApiRef.current) return;
-    const values = formApiRef.current.getValues();
+    const formApi = activeModal.formApi.current as ({ getValues: () => FormValues; setValue: (field: string, value: unknown) => void } | null);
+    if (!formApi) return;
+    const values = formApi.getValues();
     if (!values.baseUrl) {
       Toast.warning('请先填写 API 地址');
       return;
@@ -228,7 +222,7 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
         Toast.info('未发现可用模型');
         return;
       }
-      (formApiRef.current as unknown as { setValue: (f: string, v: unknown) => void }).setValue('models', models);
+      formApi.setValue('models', models);
       Toast.success(`已获取 ${models.length} 个模型`);
     } catch {
       // handled by request interceptor
@@ -236,8 +230,9 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
   };
 
   const handleTestConnection = async () => {
-    if (!formApiRef.current) return;
-    const values = formApiRef.current.getValues();
+    const formApi = activeModal.formApi.current as ({ getValues: () => FormValues } | null);
+    if (!formApi) return;
+    const values = formApi.getValues();
     if (!values.baseUrl || !values.model) {
       Toast.warning('请先填写 API 地址和模型名称');
       return;
@@ -277,32 +272,27 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
   return (
     <AppModal
       title={title}
-      visible={visible}
-      onCancel={onClose}
+      visible={activeModal.visible}
+      onCancel={() => { activeModal.close(); onClose(); }}
       footer={
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <Button loading={testLoading} disabled={detailLoading} onClick={() => void handleTestConnection()}>
               测试连接
             </Button>
-          <Button disabled={submitLoading || testLoading} onClick={onClose}>取消</Button>
-          <Button type="primary" loading={submitLoading} disabled={detailLoading || testLoading} onClick={() => void handleOk()}>确定</Button>
+          <Button disabled={submitLoading || testLoading} onClick={() => { activeModal.close(); onClose(); }}>取消</Button>
+          <Button type="primary" loading={submitLoading} disabled={detailLoading || testLoading} onClick={() => void activeModal.modalProps.onOk()}>确定</Button>
         </div>
       }
       width={720}
+      closeOnEsc
     >
       {detailLoading ? (
         <div style={{ textAlign: 'center', padding: '32px 0' }}>
           <Spin />
         </div>
       ) : (
-        <Form<FormValues>
-          key={formKey}
-          labelPosition="left"
-          labelWidth={90}
-          initValues={initValues}
-          getFormApi={(api) => {
-            formApiRef.current = api;
-          }}
+        <Form
+          {...activeModal.formProps}
         >
           {/* 行1：名称 + 供应商类型 */}
           <Row gutter={16}>

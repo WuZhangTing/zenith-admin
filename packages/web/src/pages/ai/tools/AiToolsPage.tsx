@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   ArrayField,
   Button,
@@ -16,6 +15,7 @@ import { useAiHttpTools, useSaveAiHttpTool, useDeleteAiHttpTool } from '@/hooks/
 import type { AiHttpTool, AiHttpToolParam, CreateAiHttpToolInput } from '@zenith/shared/ai';
 import { CreateButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 const { Text } = Typography;
 
@@ -34,31 +34,29 @@ export default function AiToolsPage() {
   const saveMutation = useSaveAiHttpTool();
   const deleteMutation = useDeleteAiHttpTool();
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<AiHttpTool | null>(null);
-  const [formApi, setFormApi] = useState<{ validate: () => Promise<ToolFormValues> } | null>(null);
-
-  const openCreate = () => { setEditing(null); setModalVisible(true); };
-  const openEdit = (tool: AiHttpTool) => { setEditing(tool); setModalVisible(true); };
-
-  const handleSubmit = async () => {
-    if (!formApi) return;
-    let values: ToolFormValues;
-    try {
-      values = await formApi.validate();
-    } catch {
-      return;
-    }
+  const modal = useEditModal<AiHttpTool, ToolFormValues, CreateAiHttpToolInput>({
+    save: saveMutation,
+    defaults: { method: 'GET', isEnabled: true, params: [] },
+    toValues: (tool) => ({
+      name: tool.name,
+      description: tool.description,
+      method: tool.method,
+      urlTemplate: tool.urlTemplate,
+      headersText: tool.headers ? JSON.stringify(tool.headers, null, 2) : '',
+      params: tool.params,
+      isEnabled: tool.isEnabled,
+    }),
+    beforeSave: (values) => {
     let headers: Record<string, string> | null = null;
     if (values.headersText?.trim()) {
       try {
         headers = JSON.parse(values.headersText) as Record<string, string>;
       } catch {
         Toast.error('请求头必须是合法 JSON 对象');
-        return;
+        throw new Error('invalid headers');
       }
     }
-    const payload: CreateAiHttpToolInput = {
+      return {
       name: values.name,
       description: values.description,
       method: values.method as CreateAiHttpToolInput['method'],
@@ -67,12 +65,9 @@ export default function AiToolsPage() {
       params: (values.params ?? []).filter((p) => p?.name),
       isEnabled: values.isEnabled ?? true,
     };
-    try {
-      await saveMutation.mutateAsync({ id: editing?.id, values: payload });
-      Toast.success(editing ? '工具已更新' : '工具已创建');
-      setModalVisible(false);
-    } catch { /* 请求层已提示 */ }
-  };
+    },
+    successMessage: ({ isEdit }) => (isEdit ? '工具已更新' : '工具已创建'),
+  });
 
   const columns = [
     {
@@ -106,7 +101,7 @@ export default function AiToolsPage() {
       width: 140,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => [
-        { key: 'edit', label: '编辑', onClick: () => openEdit(record) },
+        { key: 'edit', label: '编辑', onClick: () => modal.openEdit(record) },
         {
           key: 'delete',
           label: '删除',
@@ -131,7 +126,7 @@ export default function AiToolsPage() {
         <Text type="tertiary" style={{ fontSize: 13 }}>
           将企业内部 / 第三方 HTTP API 注册为 Function Calling 工具，智能体与对话可勾选调用（出站默认启用 SSRF 防护）
         </Text>
-        <CreateButton onClick={openCreate}>新增工具</CreateButton>
+        <CreateButton onClick={modal.openCreate}>新增工具</CreateButton>
       </div>
       <ConfigurableTable
         bordered
@@ -146,28 +141,12 @@ export default function AiToolsPage() {
       />
 
       <Modal
-        title={editing ? '编辑工具' : '新增工具'}
-        visible={modalVisible}
-        onCancel={() => setModalVisible(false)}
-        onOk={handleSubmit}
-        confirmLoading={saveMutation.isPending}
+        {...modal.modalProps}
+        title={modal.isEdit ? '编辑工具' : '新增工具'}
         width={720}
-        closeOnEsc
       >
         <Form
-          labelPosition="left"
-          labelWidth={90}
-          getFormApi={(api) => setFormApi(api as unknown as { validate: () => Promise<ToolFormValues> })}
-          key={editing?.id ?? 'new'}
-          initValues={editing ? {
-            name: editing.name,
-            description: editing.description,
-            method: editing.method,
-            urlTemplate: editing.urlTemplate,
-            headersText: editing.headers ? JSON.stringify(editing.headers, null, 2) : '',
-            params: editing.params,
-            isEnabled: editing.isEnabled,
-          } : { method: 'GET', isEnabled: true, params: [] }}
+          {...modal.formProps}
         >
           <Form.Input
             field="name"

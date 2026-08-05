@@ -4,13 +4,13 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Button, Dropdown, Toast, Form } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { MoreHorizontal, Plus, Layers, LayoutGrid, Pencil, Trash2 } from 'lucide-react';
 import type { WorkflowCategory } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
 import AppModal from '@/components/AppModal';
 import { NavListPanel, NavListItem } from '@/components/NavListPanel';
 import { confirmDelete } from '@/utils/confirm';
+import { useEditModal } from '@/hooks/useEditModal';
 
 interface Props {
   categories: WorkflowCategory[];
@@ -23,10 +23,6 @@ interface Props {
 const PRESET_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#64748b'];
 
 export default function CategorySidebar({ categories, selectedId, onSelect, onChanged, canManage }: Readonly<Props>) {
-  const [editVisible, setEditVisible] = useState(false);
-  const [editing, setEditing] = useState<WorkflowCategory | null>(null);
-  const [editKey, setEditKey] = useState(0);
-  const [formApi, setFormApi] = useState<FormApi | null>(null);
   const [selectedColor, setSelectedColor] = useState<string>('');
   const saveCategoryMutation = useMutation({
     mutationFn: ({ id, payload }: { id?: number; payload: Record<string, unknown> }) =>
@@ -37,42 +33,43 @@ export default function CategorySidebar({ categories, selectedId, onSelect, onCh
   const deleteCategoryMutation = useMutation({
     mutationFn: (id: number) => request.delete(`/api/workflows/categories/${id}`),
   });
+  const modal = useEditModal<WorkflowCategory, Record<string, unknown>, Record<string, unknown>>({
+    save: {
+      mutateAsync: async ({ id, values }) => {
+        const res = await saveCategoryMutation.mutateAsync({ id, payload: values });
+        if (res.code !== 0) throw new Error('save failed');
+        return { id: id ?? 0, ...values } as WorkflowCategory;
+      },
+      isPending: saveCategoryMutation.isPending,
+    },
+    defaults: { name: '', code: '', icon: '', sort: 0, description: '' },
+    toValues: (category) => ({
+      name: category.name,
+      code: category.code ?? '',
+      icon: category.icon ?? '',
+      sort: category.sort ?? 0,
+      description: category.description ?? '',
+    }),
+    beforeSave: (values) => ({
+      name: values.name,
+      code: values.code || null,
+      icon: values.icon || null,
+      color: selectedColor || null,
+      sort: typeof values.sort === 'number' ? values.sort : Number(values.sort) || 0,
+      description: values.description || null,
+    }),
+    successMessage: ({ isEdit }) => (isEdit ? '已更新' : '已新增'),
+    onSaved: onChanged,
+  });
 
   const openNew = () => {
-    setEditing(null);
     setSelectedColor('');
-    setEditKey(k => k + 1);
-    setEditVisible(true);
+    modal.openCreate();
   };
 
   const openEdit = (c: WorkflowCategory) => {
-    setEditing(c);
     setSelectedColor(c.color ?? '');
-    setEditKey(k => k + 1);
-    setEditVisible(true);
-  };
-
-  const handleSubmit = async () => {
-    if (!formApi) return;
-    try {
-      const values = await formApi.validate() as Record<string, unknown>;
-      const payload = {
-        name: values.name,
-        code: values.code || null,
-        icon: values.icon || null,
-        color: selectedColor || null,
-        sort: typeof values.sort === 'number' ? values.sort : Number(values.sort) || 0,
-        description: values.description || null,
-      };
-      const res = await saveCategoryMutation.mutateAsync({ id: editing?.id, payload });
-      if (res.code === 0) {
-        Toast.success(editing ? '已更新' : '已新增');
-        setEditVisible(false);
-        onChanged();
-      }
-    } catch {
-      // validation failed
-    }
+    modal.openEdit(c);
   };
 
   const handleDelete = async (c: WorkflowCategory) => {
@@ -156,28 +153,14 @@ export default function CategorySidebar({ categories, selectedId, onSelect, onCh
       />
 
       <AppModal
-        title={editing ? '编辑分类' : '新增分类'}
-        visible={editVisible}
-        onCancel={() => setEditVisible(false)}
-        onOk={() => void handleSubmit()}
-        confirmLoading={saveCategoryMutation.isPending}
+        {...modal.modalProps}
+        title={modal.isEdit ? '编辑分类' : '新增分类'}
         okText="保存"
         width={520}
 
       >
         <Form
-          key={editKey}
-          getFormApi={api => setFormApi(api)}
-          allowEmpty
-          initValues={{
-            name: editing?.name ?? '',
-            code: editing?.code ?? '',
-            icon: editing?.icon ?? '',
-            sort: editing?.sort ?? 0,
-            description: editing?.description ?? '',
-          }}
-          labelPosition="left"
-          labelWidth={90}
+          {...modal.formProps}
         >
           <Form.Input
             field="name" label="名称"

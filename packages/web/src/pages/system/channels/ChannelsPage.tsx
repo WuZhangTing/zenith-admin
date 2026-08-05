@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Space, Tag, Toast, Typography, Upload } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ImagePlus, Trash2 } from 'lucide-react';
 import type { ChannelAdmin } from '@zenith/shared/messaging';
@@ -15,6 +14,7 @@ import { AppModal } from '@/components/AppModal';
 import { UserAvatar } from '@/components/UserAvatar';
 import { usePagination } from '@/hooks/usePagination';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useEditModal } from '@/hooks/useEditModal';
 import { ChannelMenuDrawer } from './ChannelMenuDrawer';
 import { ChannelAutoReplyDrawer } from './ChannelAutoReplyDrawer';
 import { ChannelPublishModal } from './ChannelPublishModal';
@@ -43,9 +43,6 @@ export default function ChannelsPage() {
   const [draftKeyword, setDraftKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
 
-  const [editVisible, setEditVisible] = useState(false);
-  const [editing, setEditing] = useState<ChannelAdmin | null>(null);
-  const [formApi, setFormApi] = useState<FormApi | null>(null);
   const [avatarUrl, setAvatarUrl] = useState('');
 
   const [publishVisible, setPublishVisible] = useState(false);
@@ -77,31 +74,30 @@ export default function ChannelsPage() {
     void queryClient.invalidateQueries({ queryKey: channelKeys.lists });
   };
 
-  const openCreate = () => { setEditing(null); setAvatarUrl(''); setEditVisible(true); };
-  const openEdit = (ch: ChannelAdmin) => { setEditing(ch); setAvatarUrl(ch.avatar ?? ''); setEditVisible(true); };
+  const modal = useEditModal<ChannelAdmin, Record<string, unknown>>({
+    save: saveMutation,
+    defaults: { code: '', name: '', description: '', status: 'enabled' },
+    toValues: (ch) => ({
+      code: ch.code,
+      name: ch.name,
+      description: ch.description ?? '',
+      status: ch.status,
+    }),
+    beforeSave: (values, { isEdit }) => (
+      isEdit
+        ? { name: values.name, avatar: avatarUrl || null, description: values.description || null, status: values.status }
+        : { code: values.code, name: values.name, avatar: avatarUrl || null, description: values.description || null }
+    ),
+    successMessage: ({ isEdit }) => (isEdit ? '已更新' : '已创建'),
+  });
+
+  const openCreate = () => { setAvatarUrl(''); modal.openCreate(); };
+  const openEdit = (ch: ChannelAdmin) => { setAvatarUrl(ch.avatar ?? ''); modal.openEdit(ch); };
 
   const handleAvatarUpload = (res: unknown) => {
     const r = res as { code?: number; data?: { url?: string } };
     if (r?.code === 0 && r.data?.url) { setAvatarUrl(r.data.url); Toast.success('头像已上传'); }
     else Toast.error('头像上传失败');
-  };
-
-  const handleSubmit = async () => {
-    if (!formApi) return;
-    let values: Record<string, unknown>;
-    try {
-      values = await formApi.validate() as Record<string, unknown>;
-    } catch {
-      throw new Error('validation');
-    }
-    await saveMutation.mutateAsync({
-      id: editing?.id,
-      values: editing
-        ? { name: values.name, avatar: avatarUrl || null, description: values.description || null, status: values.status }
-        : { code: values.code, name: values.name, avatar: avatarUrl || null, description: values.description || null },
-    });
-    Toast.success(editing ? '已更新' : '已创建');
-    setEditVisible(false);
   };
 
   const handleDelete = (ch: ChannelAdmin) => {
@@ -217,32 +213,20 @@ export default function ChannelsPage() {
       />
 
       <AppModal
-        title={editing ? '编辑频道' : '新建运营号'}
-        visible={editVisible}
-        onCancel={() => setEditVisible(false)}
-        onOk={handleSubmit}
-        confirmLoading={saveMutation.isPending}
+        {...modal.modalProps}
+        title={modal.isEdit ? '编辑频道' : '新建运营号'}
         okText="保存"
         width={520}
       >
         <Form
-          key={editing?.id ?? 'new'}
-          getFormApi={setFormApi}
-          labelPosition="left"
-          labelWidth={90}
-          initValues={{
-            code: editing?.code ?? '',
-            name: editing?.name ?? '',
-            description: editing?.description ?? '',
-            status: editing?.status ?? 'enabled',
-          }}
+          {...modal.formProps}
         >
           <Form.Input
             field="code"
             label="编码"
             placeholder="小写字母 / 数字 / 连字符"
-            disabled={!!editing}
-            rules={editing ? undefined : [{ required: true, message: '请填写编码' }]}
+            disabled={modal.isEdit}
+            rules={modal.isEdit ? undefined : [{ required: true, message: '请填写编码' }]}
           />
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '请填写名称' }]} />
           <Form.Slot label="头像">
@@ -274,7 +258,7 @@ export default function ChannelsPage() {
             </Space>
           </Form.Slot>
           <Form.TextArea field="description" label="简介" autosize={{ minRows: 2, maxRows: 4 }} />
-          {editing && (
+          {modal.isEdit && (
             <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusItems.map((item) => ({ value: item.value, label: item.label }))} />
           )}
         </Form>

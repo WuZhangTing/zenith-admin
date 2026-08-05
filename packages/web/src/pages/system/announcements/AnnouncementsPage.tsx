@@ -1,7 +1,6 @@
 import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Table, Button, Tag, Space, Modal, SideSheet, Form, Spin, Toast, Select, RadioGroup, Radio, Tabs, TabPane, Progress, Typography } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Trash2 } from 'lucide-react';
 import type { Announcement, AnnouncementTargetType, AnnouncementReadStats, AnnouncementAttachment } from '@zenith/shared/messaging';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -15,6 +14,7 @@ import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { useDictItems } from '@/hooks/useDictItems';
 import DictTag from '@/components/DictTag';
 import { usePermission } from '@/hooks/usePermission';
+import { useEditModal } from '@/hooks/useEditModal';
 import { TABLE_PAGE_SIZE_OPTIONS } from '@/hooks/usePagination';
 import { useListSearch } from '@/hooks/useListSearch';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
@@ -75,9 +75,6 @@ export default function AnnouncementsPage() {
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: announcementKeys.lists });
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingNotice, setEditingNotice] = useState<Announcement | null>(null);
-  const [formApi, setFormApi] = useState<FormApi | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
   const [contentHtml, setContentHtml] = useState('');
   const [editorKey, setEditorKey] = useState(0);
@@ -101,9 +98,6 @@ export default function AnnouncementsPage() {
 
   // ─── 查看详情 ─────────────────────────────────────────────────────────────────────────────
   const [viewOnly, setViewOnly] = useState(false);
-  let sideSheetTitle = '新增公告';
-  if (viewOnly) sideSheetTitle = '查看公告';
-  else if (editingNotice) sideSheetTitle = '编辑公告';
 
   // ─── 已读统计 ─────────────────────────────────────────────────────────────────────────────
   const [statsDrawerVisible, setStatsDrawerVisible] = useState(false);
@@ -123,8 +117,65 @@ export default function AnnouncementsPage() {
   });
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
-  const detailQuery = useAnnouncementDetail(editingNotice?.id, modalVisible && !!editingNotice);
-  const modalDetailLoading = !!editingNotice && detailQuery.isFetching;
+  const saveMutation = useSaveAnnouncement();
+  const modal = useEditModal<Announcement, Record<string, unknown>, Record<string, unknown>>({
+    save: saveMutation,
+    useDetail: useAnnouncementDetail,
+    defaults: { type: 'notice', publishStatus: 'draft', priority: 'medium' },
+    toValues: (notice) => ({
+      title: notice.title,
+      type: notice.type,
+      publishStatus: notice.publishStatus === 'scheduled' ? 'draft' : notice.publishStatus,
+      priority: notice.priority,
+      scheduledPublishTime: notice.publishStatus === 'scheduled' && notice.publishTime
+        ? new Date(notice.publishTime.replace(' ', 'T'))
+        : undefined,
+    }),
+    beforeSave: (values) => {
+      const isContentEmpty = !contentHtml || contentHtml === '<p><br></p>';
+      if (isContentEmpty) {
+        Toast.warning('请输入公告内容');
+        throw new Error('empty content');
+      }
+      const recipients =
+        targetType === 'specific'
+          ? [
+              ...selectedUserIds.map((id) => ({ recipientType: 'user' as const, recipientId: id })),
+              ...selectedRoleIds.map((id) => ({ recipientType: 'role' as const, recipientId: id })),
+              ...selectedDeptIds.map((id) => ({ recipientType: 'dept' as const, recipientId: id })),
+            ]
+          : [];
+      const scheduledDate = values.scheduledPublishTime as Date | undefined | null;
+      let finalPublishStatus = (values.publishStatus as string) || 'draft';
+      let finalPublishTime: string | null = null;
+      if (scheduledDate) {
+        if (scheduledDate <= new Date()) {
+          Toast.warning('定时发布时间必须是未来时间');
+          throw new Error('invalid schedule time');
+        }
+        finalPublishStatus = 'scheduled';
+        finalPublishTime = formatDateTimeForApi(scheduledDate);
+      }
+      return {
+        title: values.title,
+        content: contentHtml,
+        type: values.type || 'notice',
+        publishStatus: finalPublishStatus,
+        priority: values.priority || 'medium',
+        targetType,
+        recipients,
+        publishTime: finalPublishTime,
+        fileIds: attachmentFileIds,
+      };
+    },
+    labelPosition: 'top',
+  });
+  const modalVisible = modal.visible;
+  const editingNotice = modal.editing;
+  const modalDetailLoading = modal.detailLoading;
+  let sideSheetTitle = '新增公告';
+  if (viewOnly) sideSheetTitle = '查看公告';
+  else if (modal.isEdit) sideSheetTitle = '编辑公告';
   const recipientOptionsQuery = useAnnouncementRecipientOptions(modalVisible);
   const roleOptions = recipientOptionsQuery.data?.roles ?? [];
   const deptOptions = recipientOptionsQuery.data?.departments ?? [];
@@ -135,7 +186,6 @@ export default function AnnouncementsPage() {
   );
   const statsData = statsQuery.data ?? null;
   const statsLoading = statsQuery.isFetching;
-  const saveMutation = useSaveAnnouncement();
   const deleteMutation = useDeleteAnnouncement();
   const batchDeleteMutation = useBatchDeleteAnnouncements();
   const updateStatusMutation = useUpdateAnnouncementStatus();
@@ -147,8 +197,9 @@ export default function AnnouncementsPage() {
   }, [queryClient]);
 
   useEffect(() => {
-    if (!modalVisible || !detailQuery.data) return;
-    const { targetType: t, recipients = [], attachments = [] } = detailQuery.data;
+    if (!modalVisible || !editingNotice) return;
+    const { targetType: t, recipients = [], attachments = [], content } = editingNotice;
+    setContentHtml(content ?? '');
     setUploadedAttachments(attachments);
     setAttachmentFileIds(attachments.map((a) => a.fileId));
     setTargetType(t ?? 'all');
@@ -165,7 +216,7 @@ export default function AnnouncementsPage() {
         return [...prev, ...newOpts];
       });
     }
-  }, [modalVisible, detailQuery.data]);
+  }, [modalVisible, editingNotice]);
 
   useEffect(() => {
     if (!userSearchQuery.data) return;
@@ -203,7 +254,6 @@ export default function AnnouncementsPage() {
 
   const openCreateModal = () => {
     setViewOnly(false);
-    setEditingNotice(null);
     setContentHtml('');
     setEditorKey((k) => k + 1);
     setTargetType('all');
@@ -213,14 +263,13 @@ export default function AnnouncementsPage() {
     setUserOptions([]);
     setAttachmentFileIds([]);
     setUploadedAttachments([]);
-    setModalVisible(true);
+    modal.openCreate();
   };
 
   const openEditModal = async (record: Announcement, readOnly = false) => {
     setViewOnly(readOnly);
     setContentHtml(record.content ?? '');
     setEditorKey((k) => k + 1);
-    setEditingNotice(record);
     setTargetType('all');
     setSelectedUserIds([]);
     setSelectedRoleIds([]);
@@ -228,7 +277,7 @@ export default function AnnouncementsPage() {
     setUserOptions([]);
     setAttachmentFileIds([]);
     setUploadedAttachments([]);
-    setModalVisible(true);
+    modal.openEdit(record);
 
   };
 
@@ -266,54 +315,6 @@ export default function AnnouncementsPage() {
         setSelectedRowKeys([]);
       },
     });
-  };
-
-  const handleSubmit = async () => {
-    if (!formApi) return;
-    let values: Record<string, unknown>;
-    try {
-      values = await formApi.validate();
-    } catch {
-      throw new Error('validation');
-    }
-    const isContentEmpty = !contentHtml || contentHtml === '<p><br></p>';
-    if (isContentEmpty) {
-      Toast.warning('请输入公告内容');
-      return;
-    }
-    const recipients =
-      targetType === 'specific'
-        ? [
-            ...selectedUserIds.map((id) => ({ recipientType: 'user' as const, recipientId: id })),
-            ...selectedRoleIds.map((id) => ({ recipientType: 'role' as const, recipientId: id })),
-            ...selectedDeptIds.map((id) => ({ recipientType: 'dept' as const, recipientId: id })),
-          ]
-        : [];
-    const scheduledDate = values.scheduledPublishTime as Date | undefined | null;
-    let finalPublishStatus = (values.publishStatus as string) || 'draft';
-    let finalPublishTime: string | null = null;
-    if (scheduledDate) {
-      if (scheduledDate <= new Date()) {
-        Toast.warning('定时发布时间必须是未来时间');
-        return;
-      }
-      finalPublishStatus = 'scheduled';
-      finalPublishTime = formatDateTimeForApi(scheduledDate);
-    }
-    const payload = {
-      title: values.title,
-      content: contentHtml,
-      type: values.type || 'notice',
-      publishStatus: finalPublishStatus,
-      priority: values.priority || 'medium',
-      targetType,
-      recipients,
-      publishTime: finalPublishTime,
-      fileIds: attachmentFileIds,
-    };
-    await saveMutation.mutateAsync({ id: editingNotice?.id, values: payload });
-    Toast.success(editingNotice ? '更新成功' : '创建成功');
-    setModalVisible(false);
   };
 
   /** 渲染已读统计 SideSheet 内容 */
@@ -703,18 +704,22 @@ export default function AnnouncementsPage() {
       <SideSheet
         title={sideSheetTitle}
         visible={modalVisible}
-        onCancel={() => setModalVisible(false)}
+        onCancel={modal.close}
         width={860}
-        afterVisibleChange={(visible) => { if (!visible) { formApi?.reset(); } }}
         footer={
           viewOnly ? (
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <Button onClick={() => setModalVisible(false)}>关闭</Button>
+              <Button onClick={modal.close}>关闭</Button>
             </div>
           ) : (
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <Button onClick={() => setModalVisible(false)}>取消</Button>
-              <Button type="primary" loading={saveMutation.isPending} disabled={modalDetailLoading} onClick={handleSubmit}>
+              <Button onClick={modal.close}>取消</Button>
+              <Button
+                type="primary"
+                loading={modal.modalProps.okButtonProps.loading}
+                disabled={modal.modalProps.okButtonProps.disabled}
+                onClick={() => void modal.modalProps.onOk()}
+              >
                 {editingNotice ? '保存' : '创建'}
               </Button>
             </div>
@@ -723,21 +728,8 @@ export default function AnnouncementsPage() {
       >
         <Spin spinning={modalDetailLoading} tip="加载中..." size="small">
         <Form
-          getFormApi={(api) => setFormApi(api)}
+          {...modal.formProps}
           layout="vertical"
-          initValues={
-            editingNotice
-              ? {
-                title: editingNotice.title,
-                type: editingNotice.type,
-                publishStatus: editingNotice.publishStatus === 'scheduled' ? 'draft' : editingNotice.publishStatus,
-                priority: editingNotice.priority,
-                scheduledPublishTime: editingNotice.publishStatus === 'scheduled' && editingNotice.publishTime
-                  ? new Date(editingNotice.publishTime.replace(' ', 'T'))
-                  : undefined,
-              }
-              : { type: 'notice', publishStatus: 'draft', priority: 'medium' }
-          }
         >
           <Form.Input
             field="title"

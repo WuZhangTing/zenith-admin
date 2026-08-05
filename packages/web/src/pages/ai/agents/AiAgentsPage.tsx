@@ -33,6 +33,7 @@ import { useAiChatModels } from '@/hooks/queries/ai-providers';
 import { AI_AGENT_STATUS_LABELS } from '@zenith/shared/ai';
 import type { AiAgent, CreateAiAgentInput } from '@zenith/shared/ai';
 import { CreateButton } from '@/components/toolbar-controls';
+import { useEditModal } from '@/hooks/useEditModal';
 
 const { Text, Paragraph } = Typography;
 
@@ -103,12 +104,43 @@ export default function AiAgentsPage() {
   const reviewMutation = useReviewAiAgent();
   const cloneMutation = useCloneAiAgent();
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<AiAgent | null>(null);
-  const [formApi, setFormApi] = useState<{ validate: () => Promise<AgentFormValues> } | null>(null);
+  const modal = useEditModal<AiAgent, AgentFormValues, CreateAiAgentInput>({
+    save: saveMutation,
+    defaults: { avatar: '🤖' },
+    toValues: (agent) => ({
+      name: agent.name,
+      avatar: agent.avatar,
+      description: agent.description ?? '',
+      systemPrompt: agent.systemPrompt,
+      modelValue: agent.configId ? `${agent.configId}:${agent.model ?? ''}` : '',
+      knowledgeBaseId: agent.knowledgeBaseId ?? undefined,
+      tools: agent.tools,
+      openingMessage: agent.openingMessage ?? '',
+      suggestedQuestions: agent.suggestedQuestions,
+    }),
+    beforeSave: (values) => {
+      const [cfgStr, ...modelParts] = (values.modelValue ?? '').split(':');
+      const configId = cfgStr ? Number(cfgStr) : null;
+      const model = modelParts.join(':') || null;
+      return {
+        name: values.name,
+        avatar: values.avatar || '🤖',
+        description: values.description || null,
+        systemPrompt: values.systemPrompt,
+        configId: configId || null,
+        model,
+        knowledgeBaseId: values.knowledgeBaseId || null,
+        tools: values.tools ?? [],
+        openingMessage: values.openingMessage || null,
+        suggestedQuestions: (values.suggestedQuestions ?? []).filter(Boolean).slice(0, 6),
+      };
+    },
+    successMessage: ({ isEdit }) => (isEdit ? '智能体已更新' : '智能体已创建'),
+    labelWidth: 100,
+  });
 
-  const toolsQuery = useAvailableAiTools(modalVisible);
-  const kbQuery = useAvailableKnowledgeBases(modalVisible);
+  const toolsQuery = useAvailableAiTools(modal.visible);
+  const kbQuery = useAvailableKnowledgeBases(modal.visible);
   const modelsQuery = useAiChatModels();
 
   /** configId+model 复合选项："configId:model"，空 = 跟随系统默认 */
@@ -119,46 +151,6 @@ export default function AiAgentsPage() {
       ...models.map((m) => ({ value: `${m.id}:${m.model}`, label: `${m.name} / ${m.model}${m.isDefault ? '（默认）' : ''}` })),
     ];
   }, [modelsQuery.data]);
-
-  const openCreate = () => {
-    setEditing(null);
-    setModalVisible(true);
-  };
-
-  const openEdit = (agent: AiAgent) => {
-    setEditing(agent);
-    setModalVisible(true);
-  };
-
-  const handleSubmit = async () => {
-    if (!formApi) return;
-    let values: AgentFormValues;
-    try {
-      values = await formApi.validate();
-    } catch {
-      return;
-    }
-    const [cfgStr, ...modelParts] = (values.modelValue ?? '').split(':');
-    const configId = cfgStr ? Number(cfgStr) : null;
-    const model = modelParts.join(':') || null;
-    const payload: CreateAiAgentInput = {
-      name: values.name,
-      avatar: values.avatar || '🤖',
-      description: values.description || null,
-      systemPrompt: values.systemPrompt,
-      configId: configId || null,
-      model,
-      knowledgeBaseId: values.knowledgeBaseId || null,
-      tools: values.tools ?? [],
-      openingMessage: values.openingMessage || null,
-      suggestedQuestions: (values.suggestedQuestions ?? []).filter(Boolean).slice(0, 6),
-    };
-    try {
-      await saveMutation.mutateAsync({ id: editing?.id, values: payload });
-      Toast.success(editing ? '智能体已更新' : '智能体已创建');
-      setModalVisible(false);
-    } catch { /* 错误 Toast 已由请求层处理 */ }
-  };
 
   const startChat = (agent: AiAgent) => {
     navigate(`/ai/chat?agentId=${agent.id}`);
@@ -179,7 +171,7 @@ export default function AiAgentsPage() {
             footer={
               <Space>
                 <Button theme="borderless" size="small" icon={<MessageSquare size={13} />} onClick={() => startChat(agent)}>对话</Button>
-                <Button theme="borderless" size="small" onClick={() => openEdit(agent)}>编辑</Button>
+                <Button theme="borderless" size="small" onClick={() => modal.openEdit(agent)}>编辑</Button>
                 {(agent.status === 'private' || agent.status === 'rejected') && (
                   <Button
                     theme="borderless"
@@ -258,8 +250,6 @@ export default function AiAgentsPage() {
     );
   };
 
-  const editingModelValue = editing?.configId ? `${editing.configId}:${editing.model ?? ''}` : '';
-
   return (
     <div className="page-container page-tabs-page">
       <Tabs
@@ -267,7 +257,7 @@ export default function AiAgentsPage() {
         activeKey={activeTab}
         onChange={setActiveTab}
         tabBarExtraContent={
-          <CreateButton onClick={openCreate}>新建智能体</CreateButton>
+          <CreateButton onClick={modal.openCreate}>新建智能体</CreateButton>
         }
       >
         <TabPane tab={<span><Bot size={14} style={{ verticalAlign: -2, marginRight: 4 }} />我的智能体</span>} itemKey="mine">
@@ -284,30 +274,12 @@ export default function AiAgentsPage() {
       </Tabs>
 
       <Modal
-        title={editing ? '编辑智能体' : '新建智能体'}
-        visible={modalVisible}
-        onCancel={() => setModalVisible(false)}
-        onOk={handleSubmit}
-        confirmLoading={saveMutation.isPending}
+        {...modal.modalProps}
+        title={modal.isEdit ? '编辑智能体' : '新建智能体'}
         width={640}
-        closeOnEsc
       >
         <Form
-          labelPosition="left"
-          labelWidth={100}
-          getFormApi={(api) => setFormApi(api as unknown as { validate: () => Promise<AgentFormValues> })}
-          key={editing?.id ?? 'new'}
-          initValues={editing ? {
-            name: editing.name,
-            avatar: editing.avatar,
-            description: editing.description ?? '',
-            systemPrompt: editing.systemPrompt,
-            modelValue: editingModelValue,
-            knowledgeBaseId: editing.knowledgeBaseId ?? undefined,
-            tools: editing.tools,
-            openingMessage: editing.openingMessage ?? '',
-            suggestedQuestions: editing.suggestedQuestions,
-          } : { avatar: '🤖' }}
+          {...modal.formProps}
         >
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={100} placeholder="如：合同审阅助手" />
           <Form.Select field="avatar" label="头像" style={{ width: 120 }}>
