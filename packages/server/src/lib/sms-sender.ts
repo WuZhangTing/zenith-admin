@@ -7,11 +7,16 @@
  *
  * 不在此文件中查询数据库 / 写日志。日志由 sms-send-logs.service 负责。
  */
-import Dysmsapi20170525, * as $Dysmsapi from '@alicloud/dysmsapi20170525';
-import * as $OpenApi from '@alicloud/openapi-client';
-import * as tencentcloud from 'tencentcloud-sdk-nodejs-sms';
+import { createRequire } from 'node:module';
 
 import type { SmsConfigRow, SmsTemplateRow } from '../db/schema';
+
+// 惰性加载：云厂商短信 SDK 模块图大（阿里云实测 ~3.5s），仅在首次发送对应渠道短信时加载。
+// require() 返回 CJS module.exports 原对象，dev(tsx) 与 prod(node dist) 语义一致。
+const require = createRequire(import.meta.url);
+const loadDysmsapi = () => require('@alicloud/dysmsapi20170525') as typeof import('@alicloud/dysmsapi20170525');
+const loadAliyunOpenApi = () => require('@alicloud/openapi-client') as typeof import('@alicloud/openapi-client');
+const loadTencentSms = () => require('tencentcloud-sdk-nodejs-sms') as typeof import('tencentcloud-sdk-nodejs-sms');
 
 export interface SendSmsParams {
   config: SmsConfigRow;
@@ -30,7 +35,9 @@ export interface SendSmsResult {
 
 /** 阿里云短信发送 */
 async function sendAliyunSms(p: SendSmsParams): Promise<SendSmsResult> {
-  const client = new Dysmsapi20170525(
+  const $Dysmsapi = loadDysmsapi();
+  const $OpenApi = loadAliyunOpenApi();
+  const client = new $Dysmsapi.default(
     new $OpenApi.Config({
       accessKeyId: p.config.accessKeyId,
       accessKeySecret: p.config.accessKeySecret,
@@ -58,7 +65,7 @@ async function sendAliyunSms(p: SendSmsParams): Promise<SendSmsResult> {
 
 /** 腾讯云短信发送 */
 async function sendTencentSms(p: SendSmsParams): Promise<SendSmsResult> {
-  const SmsClient = tencentcloud.sms.v20210111.Client;
+  const SmsClient = loadTencentSms().sms.v20210111.Client;
   const client = new SmsClient({
     credential: {
       secretId: p.config.accessKeyId,

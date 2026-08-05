@@ -3,9 +3,13 @@
  * - Excel：exceljs 读首个工作表，首行为表头。
  * - CSV：轻量解析（支持双引号转义 + 逗号分隔），首行为表头。
  */
-import ExcelJS from 'exceljs';
+import { createRequire } from 'node:module';
 import { HTTPException } from 'hono/http-exception';
 import type { ReportDataResult } from '@zenith/shared/report';
+
+// 惰性加载：exceljs 模块图大（实测 ~2.4s），仅在解析上传文件时加载
+const require = createRequire(import.meta.url);
+const loadExcelJS = () => require('exceljs') as typeof import('exceljs');
 
 const MAX_ROWS = 5000;
 
@@ -48,7 +52,7 @@ function parseCsv(text: string): ReportDataResult {
 }
 
 async function parseExcel(buffer: Buffer): Promise<ReportDataResult> {
-  const wb = new ExcelJS.Workbook();
+  const wb = new (loadExcelJS().Workbook)();
   await wb.xlsx.load(buffer as unknown as ArrayBuffer);
   const ws = wb.worksheets[0];
   if (!ws) return { columns: [], fields: [], rows: [], total: 0 };

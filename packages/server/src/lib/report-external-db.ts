@@ -1,6 +1,7 @@
 import postgres from 'postgres';
-import mysql from 'mysql2/promise';
-import mssql from 'mssql';
+import type mysql from 'mysql2/promise';
+import type mssql from 'mssql';
+import { createRequire } from 'node:module';
 import { HTTPException } from 'hono/http-exception';
 import { decryptField } from './encryption';
 import { createHash } from 'node:crypto';
@@ -8,6 +9,11 @@ import { resolveSafeOutboundHost } from './outbound-url';
 import { normalizeReadonlyReportSql } from './report-sql-safety';
 import { isSensitiveTable, SENSITIVE_COLUMN_RE } from './report-schema-meta';
 import type { ReportDatasourceType, ReportExternalDbConfig, ReportDataResult, ReportDatasetQueryOptions, ReportMetaColumn } from '@zenith/shared/report';
+
+// 惰性加载：mysql2/mssql 驱动模块图大（mssql 实测 ~3.8s），仅在首次连接对应外部库时加载
+const require = createRequire(import.meta.url);
+const loadMysql = () => require('mysql2/promise') as typeof import('mysql2/promise');
+const loadMssql = () => require('mssql') as typeof import('mssql');
 
 const QUERY_TIMEOUT_MS = 15_000;
 const MAX_ROWS = 5000;
@@ -82,7 +88,7 @@ function getMyPool(config: ReportExternalDbConfig, tlsServerName?: string): mysq
   if (existing && existing.kind === 'mysql') { existing.expire = Date.now() + IDLE_TTL_MS; return existing.pool; }
   const c = resolveConfig(config);
   const ssl = c.ssl ? { rejectUnauthorized: true, servername: tlsServerName } : undefined;
-  const pool = mysql.createPool({
+  const pool = loadMysql().createPool({
     host: c.host, port: c.port || 3306, database: c.database, user: c.user, password: c.password,
     ssl,
     connectionLimit: 3, connectTimeout: 10_000, waitForConnections: true,
@@ -101,7 +107,7 @@ async function getMssqlPool(config: ReportExternalDbConfig, tlsServerName?: stri
     pools.delete(key);
   }
   const c = resolveConfig(config);
-  const pool = new mssql.ConnectionPool({
+  const pool = new (loadMssql().ConnectionPool)({
     server: c.host, port: c.port || 1433, database: c.database, user: c.user, password: c.password,
     options: {
       encrypt: c.ssl,

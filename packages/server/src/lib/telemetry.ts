@@ -1,5 +1,4 @@
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { NodeSDK } from '@opentelemetry/sdk-node';
+import type { NodeSDK } from '@opentelemetry/sdk-node';
 import { config } from '../config';
 import logger from './logger';
 
@@ -16,6 +15,11 @@ export const initTelemetry = async (): Promise<boolean> => {
   }
 
   try {
+    // 惰性加载：@opentelemetry/sdk-node 模块图很大（实测数秒），仅在启用 OTel 时才引入
+    const [{ NodeSDK }, { OTLPTraceExporter }] = await Promise.all([
+      import('@opentelemetry/sdk-node'),
+      import('@opentelemetry/exporter-trace-otlp-http'),
+    ]);
     telemetrySdk = new NodeSDK({
       serviceName: config.otel.serviceName,
       traceExporter: new OTLPTraceExporter(),

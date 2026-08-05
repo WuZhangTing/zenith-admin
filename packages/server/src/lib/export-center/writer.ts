@@ -1,8 +1,13 @@
-import ExcelJS from 'exceljs';
+import { createRequire } from 'node:module';
+import type ExcelJS from 'exceljs';
 import { csvEscapeCell } from '../excel-export';
 import { formatDateTime } from '../datetime';
 import { formatExportCell } from './formatter';
 import type { AnyExportDefinition, ExportColumn, ExportRuntimeContext, ExportStyleSet } from './types';
+
+// 惰性加载：exceljs 模块图大（实测 ~2.4s），仅在执行导出任务时加载
+const require = createRequire(import.meta.url);
+const loadExcelJS = () => require('exceljs') as typeof import('exceljs');
 
 interface HeaderCell<TRow extends Record<string, unknown>> {
   column: ExportColumn<TRow>;
@@ -206,7 +211,7 @@ export async function renderExportWorkbook(
   rows: AsyncIterable<Record<string, unknown>> | Iterable<Record<string, unknown>>,
   ctx: ExportRuntimeContext,
 ): Promise<Buffer> {
-  const workbook = new ExcelJS.Workbook();
+  const workbook = new (loadExcelJS().Workbook)();
   workbook.creator = 'Zenith Admin';
   workbook.created = ctx.exportedAt;
   if (definition.renderMode === 'custom' && definition.renderWorkbook) {

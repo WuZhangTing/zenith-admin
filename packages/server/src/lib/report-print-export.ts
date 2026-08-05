@@ -1,6 +1,6 @@
 import fs from 'node:fs';
-import ExcelJS from 'exceljs';
-import PDFDocument from 'pdfkit';
+import { createRequire } from 'node:module';
+import type ExcelJS from 'exceljs';
 import bwipjs from 'bwip-js';
 import QRCode from 'qrcode';
 import {
@@ -27,6 +27,11 @@ import type { IBorderOptions, ISectionOptions, ITableCellBorders } from 'docx';
 import { config } from '../config';
 import { findPrintMerge, isPrintCellCoveredByMerge } from '@zenith/shared/report';
 import type { ReportPrintBorder, ReportPrintCell, ReportPrintCellStyle, ReportPrintGrid, ReportPrintPageConfig, ReportPrintRenderPage, ReportPrintRenderResult } from '@zenith/shared/report';
+
+// 惰性加载：exceljs / pdfkit 模块图大（实测约 2.4s / 0.7s），仅在导出打印文件时加载
+const require = createRequire(import.meta.url);
+const loadExcelJS = () => require('exceljs') as typeof import('exceljs');
+const loadPdfDocument = () => require('pdfkit') as typeof import('pdfkit');
 
 const PAPER_SIZE: Record<NonNullable<ReportPrintPageConfig['paper']>, number> = { A4: 9, A3: 8, A5: 11, Letter: 1 };
 const PDF_PAPER_SIZE: Record<NonNullable<ReportPrintPageConfig['paper']>, string> = { A4: 'A4', A3: 'A3', A5: 'A5', Letter: 'LETTER' };
@@ -678,6 +683,7 @@ async function drawPdfGrid(doc: PDFKit.PDFDocument, pageResult: ReportPrintRende
 }
 
 export async function renderPrintResultToPdf(result: ReportPrintRenderResult): Promise<Buffer> {
+  const PDFDocument = loadPdfDocument();
   const doc = new PDFDocument({ autoFirstPage: false, margin: 0 });
   const chunks: Uint8Array[] = [];
   const imageCache = new Map<string, RenderedGraphic>();
@@ -722,7 +728,7 @@ export async function renderPrintExportFile(result: ReportPrintRenderResult, for
       rowCount,
     };
   }
-  const workbook = new ExcelJS.Workbook();
+  const workbook = new (loadExcelJS().Workbook)();
   workbook.creator = 'Zenith Admin';
   await renderPrintResultToWorkbook(workbook, result);
   const buffer = await workbook.xlsx.writeBuffer();

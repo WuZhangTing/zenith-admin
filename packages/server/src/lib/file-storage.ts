@@ -1,11 +1,7 @@
-import OSS from 'ali-oss';
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import COS from 'cos-nodejs-sdk-v5';
-import * as qiniu from 'qiniu';
-import BosClient from '@baiducloud/sdk';
-import { BlobServiceClient, BlobSASPermissions, StorageSharedKeyCredential } from '@azure/storage-blob';
+import type OSS from 'ali-oss';
+import type * as QiniuTypes from 'qiniu';
 import SftpClient from 'ssh2-sftp-client';
+import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
 import { promises as fs, createWriteStream, createReadStream } from 'node:fs';
 import { Readable, PassThrough } from 'node:stream';
@@ -16,6 +12,17 @@ import { FILE_OBJECT_ACL_SUPPORT } from '@zenith/shared/platform';
 import { HTTPException } from 'hono/http-exception';
 import { formatDate } from './datetime';
 import logger from './logger';
+
+// 惰性加载：各云存储 SDK 模块图大（Azure/ali-oss 实测 1.5-2.3s），仅在首次使用对应存储类型时加载。
+// require() 返回 CJS module.exports 原对象，dev(tsx) 与 prod(node dist) 语义一致。
+const require = createRequire(import.meta.url);
+const loadOss = () => require('ali-oss') as typeof import('ali-oss');
+const loadS3 = () => require('@aws-sdk/client-s3') as typeof import('@aws-sdk/client-s3');
+const loadS3Presigner = () => require('@aws-sdk/s3-request-presigner') as typeof import('@aws-sdk/s3-request-presigner');
+const loadCos = () => require('cos-nodejs-sdk-v5') as typeof import('cos-nodejs-sdk-v5');
+const loadQiniu = () => require('qiniu') as typeof import('qiniu');
+const loadBaiduBce = () => require('@baiducloud/sdk') as typeof import('@baiducloud/sdk');
+const loadAzureBlob = () => require('@azure/storage-blob') as typeof import('@azure/storage-blob');
 
 // esdk-obs-nodejs 是 CJS 模块，无官方类型声明，运行时通过 require 加载
 type ObsClientConstructor = new (opts: Record<string, string>) => ObsClientType;
@@ -91,7 +98,7 @@ function createOssClient(config: FileStorageConfigRow) {
   if (!config.ossRegion || !config.ossEndpoint || !config.ossBucket || !config.ossAccessKeyId || !config.ossAccessKeySecret) {
     throw new Error('OSS 配置不完整');
   }
-  return new OSS({
+  return new (loadOss())({
     region: config.ossRegion,
     endpoint: config.ossEndpoint,
     bucket: config.ossBucket,
@@ -107,7 +114,7 @@ function createS3Client(config: FileStorageConfigRow) {
   if (!config.s3Region || !config.s3Bucket || !config.s3AccessKeyId || !config.s3SecretAccessKey) {
     throw new Error('S3 配置不完整');
   }
-  return new S3Client({
+  return new (loadS3().S3Client)({
     region: config.s3Region,
     ...(config.s3Endpoint ? { endpoint: config.s3Endpoint } : {}),
     credentials: {
@@ -122,7 +129,7 @@ function createCosClient(config: FileStorageConfigRow) {
   if (!config.cosRegion || !config.cosBucket || !config.cosSecretId || !config.cosSecretKey) {
     throw new Error('腾讯云 COS 配置不完整');
   }
-  return new COS({
+  return new (loadCos())({
     SecretId: config.cosSecretId,
     SecretKey: config.cosSecretKey,
   });
@@ -132,7 +139,6 @@ function createObsClient(config: FileStorageConfigRow): ObsClientType {
   if (!config.obsEndpoint || !config.obsBucket || !config.obsAccessKeyId || !config.obsSecretAccessKey) {
     throw new Error('华为云 OBS 配置不完整');
   }
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const ObsClientCtor = require('esdk-obs-nodejs') as ObsClientConstructor;
   return new ObsClientCtor({
     access_key_id: config.obsAccessKeyId,
@@ -145,11 +151,12 @@ function createKodoUploader(config: FileStorageConfigRow) {
   if (!config.kodoAccessKey || !config.kodoSecretKey || !config.kodoBucket) {
     throw new Error('七牛云 Kodo 配置不完整');
   }
+  const qiniu = loadQiniu();
   const mac = new qiniu.auth.digest.Mac(config.kodoAccessKey, config.kodoSecretKey);
   const putPolicy = new qiniu.rs.PutPolicy({ scope: config.kodoBucket });
   const uploadToken = putPolicy.uploadToken(mac);
   const zone = config.kodoRegion
-    ? (qiniu.zone as Record<string, unknown>)[config.kodoRegion] as qiniu.conf.Zone | undefined
+    ? (qiniu.zone as Record<string, unknown>)[config.kodoRegion] as QiniuTypes.conf.Zone | undefined
     : undefined;
   const conf = new qiniu.conf.Config({ zone });
   return { uploadToken, formUploader: new qiniu.form_up.FormUploader(conf), mac, conf };
@@ -166,6 +173,7 @@ function createBosClient(config: FileStorageConfigRow) {
     credentials: { ak: config.bosAccessKeyId, sk: config.bosSecretAccessKey },
     protocol: config.bosEndpoint.startsWith('http://') ? 'http' : 'https',
   };
+  const { BosClient } = loadBaiduBce();
   return new BosClient(options as unknown as ConstructorParameters<typeof BosClient>[0]);
 }
 
@@ -173,6 +181,7 @@ function createAzureBlobClient(config: FileStorageConfigRow) {
   if (!config.azureAccountName || !config.azureAccountKey || !config.azureContainerName) {
     throw new Error('Azure Blob 配置不完整');
   }
+  const { BlobServiceClient, StorageSharedKeyCredential } = loadAzureBlob();
   const credential = new StorageSharedKeyCredential(config.azureAccountName, config.azureAccountKey);
   const url = config.azureEndpoint || `https://${config.azureAccountName}.blob.core.windows.net`;
   const service = new BlobServiceClient(url, credential);
@@ -320,6 +329,8 @@ async function presignObjectUrl(
     }
     case 's3': {
       const client = createS3Client(config);
+      const { GetObjectCommand } = loadS3();
+      const { getSignedUrl } = loadS3Presigner();
       return getSignedUrl(client, new GetObjectCommand({
         Bucket: config.s3Bucket!,
         Key: objectKey,
@@ -345,7 +356,7 @@ async function presignObjectUrl(
       const domain = config.publicBaseUrl || config.kodoEndpoint;
       if (!domain) return null;
       const { mac, conf } = createKodoUploader(config);
-      const bucketManager = new qiniu.rs.BucketManager(mac, conf);
+      const bucketManager = new (loadQiniu().rs.BucketManager)(mac, conf);
       const { scheme, host } = splitEndpoint(domain);
       return bucketManager.privateDownloadUrl(`${scheme}://${host}`, objectKey, Math.floor(Date.now() / 1000) + expirySeconds);
     }
@@ -357,7 +368,7 @@ async function presignObjectUrl(
       const containerClient = createAzureBlobClient(config);
       const blockBlobClient = containerClient.getBlockBlobClient(objectKey);
       return blockBlobClient.generateSasUrl({
-        permissions: BlobSASPermissions.parse('r'),
+        permissions: loadAzureBlob().BlobSASPermissions.parse('r'),
         expiresOn: new Date(Date.now() + expirySeconds * 1000),
         ...(contentDisposition ? { contentDisposition } : {}),
       });
@@ -495,6 +506,7 @@ async function doUploadObjectByConfig(config: FileStorageConfigRow, input: Uploa
     } as unknown as OSS.PutStreamOptions);
   } else if (config.provider === 's3') {
     const client = createS3Client(config);
+    const { PutObjectCommand } = loadS3();
     await client.send(new PutObjectCommand({
       Bucket: config.s3Bucket!,
       Key: objectKey,
@@ -539,7 +551,7 @@ async function doUploadObjectByConfig(config: FileStorageConfigRow, input: Uploa
   } else if (config.provider === 'kodo') {
     const { uploadToken, formUploader } = createKodoUploader(config);
     await new Promise<void>((resolve, reject) => {
-      formUploader.putStream(uploadToken, objectKey, stream, new qiniu.form_up.PutExtra(), (err) => {
+      formUploader.putStream(uploadToken, objectKey, stream, new (loadQiniu().form_up.PutExtra)(), (err) => {
         if (err) reject(err);
         else resolve();
       });
@@ -616,6 +628,7 @@ const s3MultipartDriver: MultipartDriver = {
   async init(config, objectKey, mimeType) {
     const client = createS3Client(config);
     const objectAcl = resolveObjectAcl(config);
+    const { CreateMultipartUploadCommand } = loadS3();
     const res = await client.send(new CreateMultipartUploadCommand({
       Bucket: config.s3Bucket!,
       Key: objectKey,
@@ -627,6 +640,7 @@ const s3MultipartDriver: MultipartDriver = {
   },
   async uploadPart(config, objectKey, uploadId, partNumber, body) {
     const client = createS3Client(config);
+    const { UploadPartCommand } = loadS3();
     const res = await client.send(new UploadPartCommand({
       Bucket: config.s3Bucket!,
       Key: objectKey,
@@ -640,6 +654,7 @@ const s3MultipartDriver: MultipartDriver = {
   },
   async complete(config, objectKey, uploadId, parts) {
     const client = createS3Client(config);
+    const { CompleteMultipartUploadCommand } = loadS3();
     await client.send(new CompleteMultipartUploadCommand({
       Bucket: config.s3Bucket!,
       Key: objectKey,
@@ -649,6 +664,7 @@ const s3MultipartDriver: MultipartDriver = {
   },
   async abort(config, objectKey, uploadId) {
     const client = createS3Client(config);
+    const { AbortMultipartUploadCommand } = loadS3();
     await client.send(new AbortMultipartUploadCommand({
       Bucket: config.s3Bucket!,
       Key: objectKey,
@@ -913,6 +929,7 @@ export async function readStoredFile(file: ManagedFileRow, config: FileStorageCo
 
   if (effectiveConfig.provider === 's3') {
     const client = createS3Client(effectiveConfig);
+    const { GetObjectCommand } = loadS3();
     const response = await client.send(new GetObjectCommand({
       Bucket: effectiveConfig.s3Bucket!,
       Key: file.objectKey,
@@ -952,7 +969,7 @@ export async function readStoredFile(file: ManagedFileRow, config: FileStorageCo
   if (effectiveConfig.provider === 'kodo') {
     const { mac, conf } = createKodoUploader(effectiveConfig);
     const domain = effectiveConfig.kodoEndpoint ?? '';
-    const bucketManager = new qiniu.rs.BucketManager(mac, conf);
+    const bucketManager = new (loadQiniu().rs.BucketManager)(mac, conf);
     const privateUrl = bucketManager.privateDownloadUrl(domain, file.objectKey, Math.floor(Date.now() / 1000) + 3600);
     const response = await fetch(privateUrl);
     const stream = response.body!;
@@ -1021,6 +1038,7 @@ export async function deleteObjectByConfig(config: FileStorageConfigRow, objectK
 
   if (effectiveConfig.provider === 's3') {
     const client = createS3Client(effectiveConfig);
+    const { DeleteObjectCommand } = loadS3();
     await client.send(new DeleteObjectCommand({
       Bucket: effectiveConfig.s3Bucket!,
       Key: objectKey,
@@ -1056,7 +1074,7 @@ export async function deleteObjectByConfig(config: FileStorageConfigRow, objectK
 
   if (effectiveConfig.provider === 'kodo') {
     const { mac, conf } = createKodoUploader(effectiveConfig);
-    const bucketManager = new qiniu.rs.BucketManager(mac, conf);
+    const bucketManager = new (loadQiniu().rs.BucketManager)(mac, conf);
     await new Promise<void>((resolve, reject) => {
       bucketManager.delete(effectiveConfig.kodoBucket!, objectKey, (err) => {
         if (err) reject(err);

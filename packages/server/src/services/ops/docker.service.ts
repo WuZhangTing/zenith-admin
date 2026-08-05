@@ -1,10 +1,15 @@
-import Dockerode from 'dockerode';
+import { createRequire } from 'node:module';
+import type Dockerode from 'dockerode';
+
+// 惰性加载：dockerode 模块图大（实测 ~1.8s），仅在首次访问 Docker 管理功能时加载
+const require = createRequire(import.meta.url);
 
 let _docker: Dockerode | null = null;
 
 function getDocker(): Dockerode {
   if (!_docker) {
-    _docker = new Dockerode();
+    const DockerodeCtor = require('dockerode') as typeof import('dockerode');
+    _docker = new DockerodeCtor();
   }
   return _docker;
 }

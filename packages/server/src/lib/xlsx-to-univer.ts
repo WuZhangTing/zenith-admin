@@ -8,7 +8,12 @@
  * 合并单元格、行高列宽。公式以缓存结果值显示并保留公式串；图表、条件格式、
  * 数据透视等高级特性不在覆盖范围内。
  */
-import ExcelJS from 'exceljs';
+import { createRequire } from 'node:module';
+import type ExcelJS from 'exceljs';
+
+// 惰性加载：exceljs 模块图大（实测 ~2.4s），仅在首次预览 xlsx 时加载
+const require = createRequire(import.meta.url);
+const loadExcelJS = () => require('exceljs') as typeof import('exceljs');
 
 // ─── 与 @univerjs/core 对齐的枚举常量（避免后端依赖 Univer 包）────────────────
 const CELL_TYPE = { STRING: 1, NUMBER: 2, BOOLEAN: 3 } as const;
@@ -162,7 +167,7 @@ function buildCellStyle(cell: ExcelJS.Cell): Record<string, unknown> | undefined
 
 /** 从单元格提取 Univer 值（v / t）与公式（f） */
 function mapCellValue(cell: ExcelJS.Cell): { v?: string | number | boolean; t?: number; f?: string } {
-  const { ValueType } = ExcelJS;
+  const { ValueType } = loadExcelJS();
   const type = cell.type;
 
   if (type === ValueType.Formula) {
@@ -195,7 +200,7 @@ export async function xlsxBufferToWorkbookData(
   const maxRows = options.maxRows ?? DEFAULTS.maxRows;
   const maxColumns = options.maxColumns ?? DEFAULTS.maxColumns;
 
-  const workbook = new ExcelJS.Workbook();
+  const workbook = new (loadExcelJS().Workbook)();
   // exceljs 自带的 Buffer 类型定义与 @types/node 的泛型 Buffer 存在已知摩擦（仅类型层面，运行时正常）
   // @ts-expect-error exceljs 的 xlsx.load 参数类型过时，与当前 @types/node 的 Buffer 不兼容
   await workbook.xlsx.load(Buffer.from(data));

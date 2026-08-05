@@ -1,6 +1,7 @@
 import { eq, and, ne, isNull, inArray, like, type SQL } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
-import ExcelJS from 'exceljs';
+import { createRequire } from 'node:module';
+import type ExcelJS from 'exceljs';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
 import { users, userRoles, roles, departments, positions, userPositions, userMenus, userDeptScopes } from '../../db/schema';
@@ -23,6 +24,10 @@ import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { applyEntityMasking } from '../platform/data-mask.service';
 import logger from '../../lib/logger';
+
+// 惰性加载：exceljs 模块图大（实测 ~2.4s），仅在用户导入/模板下载时加载
+const require = createRequire(import.meta.url);
+const loadExcelJS = () => require('exceljs') as typeof import('exceljs');
 
 // ─── 关联查询配置 ─────────────────────────────────────────────────────────────
 
@@ -596,7 +601,7 @@ export async function exportUsersAsCsv(): Promise<{ stream: ReadableStream; file
 }
 
 export async function getUserImportTemplate(): Promise<ArrayBuffer> {
-  const workbook = new ExcelJS.Workbook();
+  const workbook = new (loadExcelJS().Workbook)();
   const sheet = workbook.addWorksheet('用户导入模板');
   sheet.columns = [
     { header: '用户名*', key: 'username', width: 16 },
@@ -637,7 +642,7 @@ export async function importUsersFromFormData(formData: FormData): Promise<Impor
 export async function importUsers(file: File): Promise<ImportUsersResult> {
   const user = currentUser();
   const arrayBuffer = await file.arrayBuffer();
-  const workbook = new ExcelJS.Workbook();
+  const workbook = new (loadExcelJS().Workbook)();
   await workbook.xlsx.load(arrayBuffer);
   const sheet = workbook.worksheets[0];
   if (!sheet) throw new HTTPException(400, { message: '文件格式无效或工作表为空' });

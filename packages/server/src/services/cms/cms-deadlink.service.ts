@@ -1,4 +1,4 @@
-import { load } from 'cheerio';
+import { createRequire } from 'node:module';
 import { eq, and, isNull } from 'drizzle-orm';
 import { db } from '../../db';
 import { cmsContents, cmsFriendLinks } from '../../db/schema';
@@ -21,6 +21,11 @@ interface LinkItem {
 }
 
 const EXTERNAL_LINK_CAP = 200;
+
+// 惰性加载：cheerio 模块图大（实测 ~3s），仅在执行死链检测任务时加载
+const require = createRequire(import.meta.url);
+const load: typeof import('cheerio')['load'] = (...args: Parameters<typeof import('cheerio')['load']>) =>
+  (require('cheerio') as typeof import('cheerio')).load(...args);
 
 async function collectSiteLinks(siteId: number): Promise<LinkItem[]> {
   const links: LinkItem[] = [];

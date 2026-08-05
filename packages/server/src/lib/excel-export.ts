@@ -1,5 +1,9 @@
-import ExcelJS from 'exceljs';
+import { createRequire } from 'node:module';
 import { formatDateTime } from './datetime';
+
+// 惰性加载：exceljs 模块图大（实测 ~2.4s），仅在首次导出/解析 Excel 时加载
+const require = createRequire(import.meta.url);
+const loadExcelJS = () => require('exceljs') as typeof import('exceljs');
 
 /** Format a date to 'YYYY-MM-DD HH:mm:ss'. Returns '' for null/undefined. */
 export function formatDateTimeForExcel(date: Date | string | null | undefined): string {
@@ -103,7 +107,7 @@ export async function exportToExcel(
   data: Record<string, unknown>[],
   sheetName = 'Sheet1'
 ): Promise<ArrayBuffer> {
-  const workbook = new ExcelJS.Workbook();
+  const workbook = new (loadExcelJS().Workbook)();
   const sheet = workbook.addWorksheet(sheetName);
 
   sheet.columns = columns.map((col) => ({
@@ -186,7 +190,7 @@ export function streamToExcel(
       streamRowCounts.set(webStream, counter);
       resolve(webStream);
 
-      const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({ stream: passThrough });
+      const workbook = new (loadExcelJS().stream.xlsx.WorkbookWriter)({ stream: passThrough });
       const sheet = workbook.addWorksheet(sheetName);
 
       sheet.columns = columns.map((col) => ({

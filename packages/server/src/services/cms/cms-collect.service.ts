@@ -2,7 +2,7 @@
  * 采集中心：列表页翻页 + CSS 选择器抽取 → 清洗 → 可选图片本地化 → 入库（草稿或直接发布）。
  * 执行走任务中心（进度/取消/行级明细）；URL 级去重防重复采集；全程 http-client SSRF 防护。
  */
-import { load } from 'cheerio';
+import { createRequire } from 'node:module';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
@@ -18,6 +18,11 @@ import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
 import { assertChannelAccess, getAccessibleChannelIds } from './cms-channels.service';
 import { hasPermission } from '../../lib/context';
 import { sanitizeCmsHtml } from './cms-html-sanitizer';
+
+// 惰性加载：cheerio 模块图大（实测 ~3s），仅在执行采集任务时加载
+const require = createRequire(import.meta.url);
+const load: typeof import('cheerio')['load'] = (...args: Parameters<typeof import('cheerio')['load']>) =>
+  (require('cheerio') as typeof import('cheerio')).load(...args);
 import { canonicalizeCmsResourceFields, syncCmsResourceRefs } from './cms-resource-refs.service';
 import { publishCmsContent } from './cms-contents.service';
 import { requireCmsCollectPublishPermission } from './cms-collect-policy';
