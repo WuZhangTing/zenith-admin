@@ -4,6 +4,65 @@
 
 ---
 
+## v1.37.0 - 2026-08-05
+
+前端 CRUD 抽象专项，外加两项幂等作用域安全修复。页面层此前把「新增/编辑弹窗」的编排样板手抄了 335 处，其中四条契约漏写不会报错、测试也不会变红，只能靠人工逐页 review；新增 `useEditModal` 把它们焊死在一处，124 个页面完成迁移。服务端 1603 项、前端 588 项测试全部通过，任务中心幂等（7 项）与资金链路（15 项）DB 集成测试在真实 PostgreSQL 上通过，`npm run build` / `docs:build` / `build:demo` 三项构建均通过。
+
+### Fixed
+
+#### 任务中心幂等键跨租户/跨用户泄漏
+
+- `async_tasks.idempotency_key` 此前是单列全局唯一，冲突后仅按 key 回查一行并整行返回。runner 不校验 user / tenant / taskType，而 `mapAsyncTask` 会输出 `payload` / `result` / `errorMessage` / `createdBy` / `tenantId`——撞上 key 即可拿到他人的任务内容
+- 现成攻击面在 `POST /api/task-demo/submit`：请求体直接接收任意 `idempotencyKey`，且该路由的 `guard` 只配了 `audit` 没配 `permission`，任意登录用户可达；analytics 的 key 格式可预测，枚举即可跨租户拖取任务的输入与产出
+- 唯一性改为 `(tenant_id, created_by, task_type, idempotency_key)`。因 PG 唯一约束视 NULL 互不相等（单租户模式与平台级任务的 `tenant_id` 恒为 null），拆成互补的两个部分索引，与 `analytics_user_segments_{tenant,global}_name_uq` 同一手法
+- runner 冲突回查改为按完整作用域过滤，查不到则报错而非退回单 key 命中；`createdBy` 改为显式写入
+
+#### 幂等中间件把所有会员归并为同一身份，导致响应互相回放
+
+- `memberAuthMiddleware` 写的是 `c.set('member')`，而幂等中间件只试 `currentUser()`（读 `c.get('user')`），对会员请求必然抛异常并落入 catch，把**所有会员**归并为固定身份 `'0.0.0.0'`。命中缓存时会回放此前的完整响应体，于是 TTL 窗口内后到会员的写入被静默跳过、且拿到前一位会员的响应
+- 受影响会员端点 12 个。最严重两处：`POST /checkin` 无请求体，`bodyHash` 恒为 `'nobody'`，签到高峰期指纹必然相同是常态而非竞态；`POST /wallet/recharge` 响应含 `orderNo` / `payUrl` / `codeUrl` / `formHtml`，两名会员短时间内充值同一档位会导致后者拿到前者的支付链接，付款后资金入前者钱包
+- 现按管理员 / 会员 / 开放平台 / 匿名四类调用方分别取身份；顺带修掉一处死代码：原 `x-forwarded-for` 兜底永远不可达（`currentUser()` 无上下文时抛异常而非返回假值），匿名请求同样退化为 `'0.0.0.0'`，原测试只断言状态码故一直是绿的
+
+#### 编辑弹窗详情数据进不了表单
+
+- Semi 的 `initValues` 只在 `Form` **挂载时**读取一次。弹窗打开瞬间详情请求未返回，表单先拿列表行占位；详情到达后若没有变化的 `key` 强制重挂载，详情数据永远进不了表单
+- `TenantsPage` / `TenantPackagesPage` 已处于该状态，只因两者的列表与详情恰好经同一个 `mapTenant` 返回相同字段集而未暴露——一旦详情新增一个列表没有的字段，编辑就会把它静默提交为空。另有若干页面在 `openEdit` 里用 `formApi.setValues()` 打补丁绕过，而该写法在首次打开时因表单尚未挂载而失效
+- `useEditModal` 的 `formProps.key` 由 `${id}:${详情是否已到达}` 派生，按构造消除该缺陷。全站复扫确认此类缺陷已归零
+
+### Changed
+
+#### 新增/编辑弹窗编排收敛到 `useEditModal`
+
+- 新增 `packages/web/src/hooks/useEditModal.ts`，焊死四条漏写不报错的契约：校验失败必须 `throw`（否则确定按钮永远转圈）、Toast 文案区分新增/编辑、保存后关闭并清空 `editing`（否则下次「新增」带出上次记录）、表单按记录重挂载
+- 做成 hook 而非页面级模板组件：全站 39 个页面存在 ≥2 个编辑单元（如 `FriendLinksPage` 的友链 + 分组），模板组件无法承载
+- 支持单模式弹窗（只有新增或只有编辑）、`beforeSave` 转换提交载荷、`onSaved` 处理保存后副作用、`successMessage: () => null` 抑制默认提示
+- 迁移 124 个页面；手写样板 335 处 → 115 处，涉及文件 151 → 63
+- 保留手写的均为合法自持表单实例：页面级全局配置表单、登录/找回密码等认证流程、工作流设计器与运行时表单、db-admin 行编辑器
+
+#### 9 个标准域 hooks 改用 `createCrudQueries`
+
+- 新增 `packages/web/src/lib/crud-queries.ts`，生成标准 CRUD 域的 key 工厂与列表/详情/保存/删除/下拉源，并固定保存与删除的失效契约
+- 选取判据是三条同时成立：key 工厂只有 `all/lists/list/detail`、保存是标准 POST/PUT 分支、且 `onSuccess` 当前在广播 `xxxKeys.all`。第三条是主要收益来源——域根广播 376 处 → 352 处
+- 刻意**不**迁移两类：已有刻意精确失效的标准域（`data-mask`、`identity-providers`），以及非同构域（`cms.ts` 有 21 个 list / 22 个 save；`positions`、`roles`、`cron-jobs`、`oauth2-apps` 的 `onSuccess` 是逐条带注释论证过的决策）。工厂定位是「标准域与新建域的正确性下限」，不是全域去重
+- 调用方同步：单条删除签名由 `(id)` 变为 `(ids[])`，列表 `enabled` 参数由对象变为 boolean；导出名保持不变
+
+### Performance
+
+#### CMS 两页改懒加载富文本编辑器
+
+- `ChannelsPage` 与 `ContentEditPage` 静态 `import RichTextEditor`，构建产物形成到 `vendor-editor-core`（778 KB）的静态链；Vite 的 preload helper 会在进入页面时一并拉取，属「进页面即下载」而非按需。而编辑器本身是条件渲染（前者仅单页栏目、后者仅非外链且未映射时才渲染）
+- 改为 `lazy()` + `Suspense`，与 `AnnouncementsPage`、`WorkflowFormRenderer` 既有写法一致
+- 传递静态闭包实测（gzip）：`ChannelsPage` 867.2 → 602.7 KB（-30.5%），`ContentEditPage` 762.4 → 497.9 KB（-34.7%）
+
+### Tests
+
+- 新增 `useEditModal.test.tsx`（13 项）与 `crud-queries.test.ts`（11 项）。后者断言全部落在可观测行为上（实际请求、真正进入 fetching 的查询、缓存条目存亡），不 spy `invalidateQueries` 调用参数
+- 新增防回潮护栏 `scripts/check-edit-modal-baseline.mjs`（基线清单 + 只减不增，机制对齐 `check-invalidation-baseline.mjs`），已挂进 `npm run lint`
+- 该护栏最初与迁移清单带着相同盲区——只检测 `useRef<FormApi>`，对 `useState<FormApi>`、带泛型的 `useRef<FormApi<T>>` 与 `getFormApi={...}` 三种变体形同虚设，共漏掉 15 个页面；现已扩展覆盖全部写法
+- mutation 广播失效基线由 376 收紧至 352
+
+---
+
 ## v1.36.0 - 2026-08-03
 
 数据获取与索引专项：前端把绕过 TanStack Query 的裸 `request()` 取数收敛回域 hook，消除三处「手写进程级缓存 + 在途去重」与一处「四处独立取数 + CustomEvent 手工广播失效」；后端为身份/权限关联表补齐反向索引，修复联合主键左前缀之外的等值查询与级联删除退化为顺序扫描的问题。服务端 1595 项、前端 564 项测试全部通过，资金链路 DB 集成测试 15 项在真实 PostgreSQL 上通过，`npm run build` / `docs:build` / `build:demo` 三项构建均通过。
