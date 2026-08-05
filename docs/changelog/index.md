@@ -58,7 +58,8 @@
 
 - 新增 `useEditModal.test.tsx`（13 项）与 `crud-queries.test.ts`（11 项）。后者断言全部落在可观测行为上（实际请求、真正进入 fetching 的查询、缓存条目存亡），不 spy `invalidateQueries` 调用参数
 - 新增防回潮护栏 `scripts/check-edit-modal-baseline.mjs`（基线清单 + 只减不增，机制对齐 `check-invalidation-baseline.mjs`），已挂进 `npm run lint`
-- 该护栏最初与迁移清单带着相同盲区——只检测 `useRef<FormApi>`，对 `useState<FormApi>`、带泛型的 `useRef<FormApi<T>>` 与 `getFormApi={...}` 三种变体形同虚设，共漏掉 15 个页面；现已扩展覆盖全部写法
+- 迁移清单最初只认 `useRef<FormApi>` 一种写法，漏掉了 `useState<FormApi>` 与只通过 `getFormApi={...}` 拿实例的页面，本版补迁 8 个（其中 `AnnouncementsPage`、`AiProviderFormModal` 带详情查询，正属「详情到达后表单不重挂载」的高危形态）
+- **本版护栏自身仍带同一盲区**：只检测 `useRef<FormApi>`，对 `useState<FormApi>` 与 `getFormApi={...}` 形同虚设，回潮时不会报警。上述统计（115 处 / 63 文件）即在这个较窄的检测面下得出
 - mutation 广播失效基线由 376 收紧至 352
 
 ---

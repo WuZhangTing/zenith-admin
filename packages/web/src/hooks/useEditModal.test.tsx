@@ -20,6 +20,7 @@ vi.mock('@douyinfe/semi-ui', () => ({
 }));
 
 import { useEditModal, type DetailHook } from './useEditModal';
+import { SubmitAborted } from '@/lib/abort-submit';
 
 interface Row {
   id: number;
@@ -128,14 +129,16 @@ describe('异步详情：到达后必须重挂载表单', () => {
 });
 
 describe('提交编排', () => {
-  it('校验失败时抛出以中断，且不调用保存、不关闭弹窗', async () => {
+  it('校验失败时抛出 SubmitAborted 以中断，且不调用保存、不关闭弹窗', async () => {
     const save = makeSave();
     const { result } = renderHook(() => useEditModal<Row>({ entityName: '角色', save }));
 
     act(() => result.current.openCreate());
     act(() => result.current.formProps.getFormApi(makeFormApi({}, true) as never));
 
-    await expect(result.current.modalProps.onOk()).rejects.toThrow('validation');
+    // 必须是 SubmitAborted 而非裸 Error：全局兜底靠类型放行，
+    // 裸 Error 一旦带多词消息就会穿透，用户会额外收到「操作失败：xxx」并误报错误监控
+    await expect(result.current.modalProps.onOk()).rejects.toBeInstanceOf(SubmitAborted);
 
     expect(save.mutateAsync).not.toHaveBeenCalled();
     expect(result.current.visible).toBe(true);

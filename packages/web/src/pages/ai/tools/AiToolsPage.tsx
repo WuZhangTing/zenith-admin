@@ -16,6 +16,7 @@ import type { AiHttpTool, AiHttpToolParam, CreateAiHttpToolInput } from '@zenith
 import { CreateButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const { Text } = Typography;
 
@@ -53,7 +54,7 @@ export default function AiToolsPage() {
         headers = JSON.parse(values.headersText) as Record<string, string>;
       } catch {
         Toast.error('请求头必须是合法 JSON 对象');
-        throw new Error('invalid headers');
+        abortSubmit();
       }
     }
       return {

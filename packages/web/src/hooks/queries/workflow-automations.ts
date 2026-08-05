@@ -1,54 +1,23 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse } from '@zenith/shared/core';
 import type { WorkflowAutomation } from '@zenith/shared/workflow';
-import { request } from '@/utils/request';
-import { toQueryString, unwrap } from '@/lib/query';
+import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
 
-export interface WorkflowAutomationListParams {
-  page: number;
-  pageSize: number;
+export interface WorkflowAutomationListParams extends CrudListParams {
   definitionId?: number;
   trigger?: string;
   status?: string;
 }
 
-export const workflowAutomationKeys = {
-  all: ['workflow', 'automations'] as const,
-  lists: ['workflow', 'automations', 'list'] as const,
-  list: (params: WorkflowAutomationListParams) => ['workflow', 'automations', 'list', params] as const,
-  detail: (id: number | null | undefined) => ['workflow', 'automations', 'detail', id ?? null] as const,
-};
-
-export function useWorkflowAutomationList(params: WorkflowAutomationListParams) {
-  return useQuery({
-    queryKey: workflowAutomationKeys.list(params),
-    queryFn: () =>
-      request.get<PaginatedResponse<WorkflowAutomation>>(`/api/workflows/automations${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
-}
-
-export function useWorkflowAutomationDetail(id: number | null | undefined, enabled = true) {
-  return useQuery({
-    queryKey: workflowAutomationKeys.detail(id),
-    queryFn: () => request.get<WorkflowAutomation>(`/api/workflows/automations/${id}`).then(unwrap),
-    enabled: enabled && !!id,
-  });
-}
-
-export function useSaveWorkflowAutomation() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
-      (id ? request.put<WorkflowAutomation>(`/api/workflows/automations/${id}`, values) : request.post<WorkflowAutomation>('/api/workflows/automations', values)).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: workflowAutomationKeys.all }),
-  });
-}
-
-export function useDeleteWorkflowAutomation() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/workflows/automations/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: workflowAutomationKeys.all }),
-  });
-}
+export const {
+  keys: workflowAutomationKeys,
+  useList: useWorkflowAutomationList,
+  useDetail: useWorkflowAutomationDetail,
+  useSave: useSaveWorkflowAutomation,
+  useDelete: useDeleteWorkflowAutomations,
+} = createCrudQueries<WorkflowAutomation, WorkflowAutomationListParams, Record<string, unknown>>({
+  resource: 'workflow-automations',
+  // 保留原有嵌套 key：多处运行时流程用 invalidateQueries({ queryKey: ['workflow'] }) 广播，
+  // 改成扁平的 ['workflow-automations'] 会让本域悄悄脱离该失效范围
+  keyPrefix: ['workflow', 'automations'],
+  path: '/api/workflows/automations',
+  deleteMode: 'single',
+});

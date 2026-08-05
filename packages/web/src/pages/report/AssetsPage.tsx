@@ -37,6 +37,7 @@ import { REPORT_RESOURCE_TYPE_OPTIONS } from './report-platform-options';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const resourceTypeOptions = REPORT_RESOURCE_TYPE_OPTIONS;
 const templateTypeOptions = [
@@ -149,7 +150,7 @@ export default function AssetsPage() {
       content: <Input id="asset-template-clone-name" defaultValue={`${record.name} 副本`} />,
       onOk: async () => {
         const name = (document.querySelector('#asset-template-clone-name') as HTMLInputElement | null)?.value.trim();
-        if (!name) throw new Error('请输入副本名称');
+        if (!name) { Toast.error('请输入副本名称'); abortSubmit(); }
         await cloneTemplateMutation.mutateAsync({ id: record.id, name, folderId: record.folderId });
         Toast.success('模板已克隆');
       },

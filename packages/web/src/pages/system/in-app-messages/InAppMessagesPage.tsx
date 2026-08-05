@@ -24,6 +24,7 @@ import { IN_APP_MESSAGE_TYPE_OPTIONS_WITH_COLOR as TYPE_OPTIONS } from '../in-ap
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const READ_OPTIONS = [
   { label: '未读', value: 'false' },
@@ -70,13 +71,13 @@ export default function InAppMessagesPage() {
             parsed = JSON.parse(raw);
           } catch {
             Toast.error('变量 JSON 格式错误');
-            throw new Error('invalid variables json');
+            abortSubmit();
           }
           if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
             payload.variables = parsed as Record<string, string>;
           } else {
             Toast.error('变量必须是 JSON 对象');
-            throw new Error('invalid variables json');
+            abortSubmit();
           }
         } else {
           delete payload.variables;

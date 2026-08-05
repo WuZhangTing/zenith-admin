@@ -11,6 +11,7 @@ import AppModal from '@/components/AppModal';
 import { NavListPanel, NavListItem } from '@/components/NavListPanel';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
+import { abortSubmit } from '@/lib/abort-submit';
 
 interface Props {
   categories: WorkflowCategory[];
@@ -37,7 +38,7 @@ export default function CategorySidebar({ categories, selectedId, onSelect, onCh
     save: {
       mutateAsync: async ({ id, values }) => {
         const res = await saveCategoryMutation.mutateAsync({ id, payload: values });
-        if (res.code !== 0) throw new Error('save failed');
+        if (res.code !== 0) abortSubmit('save failed');
         return { id: id ?? 0, ...values } as WorkflowCategory;
       },
       isPending: saveCategoryMutation.isPending,

@@ -27,6 +27,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const { Text, Paragraph } = Typography;
 
@@ -118,7 +119,7 @@ export default function WebhooksPage() {
           headers = JSON.parse(values.headersText) as Record<string, string>;
         } catch {
           Toast.error('自定义请求头不是合法的 JSON');
-          throw new Error('invalid headers');
+          abortSubmit();
         }
       }
       const payload = { clientId: values.clientId, name: values.name, url: values.url, events: values.events, signMode: values.signMode, headers, status: values.status };

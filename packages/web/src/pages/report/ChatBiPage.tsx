@@ -64,6 +64,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { ApiError } from '@/lib/query';
 import { confirmDelete } from '@/utils/confirm';
+import { abortSubmit } from '@/lib/abort-submit';
 import {
   buildChatbiDataResult,
   buildSafeChatbiWidget,
@@ -260,7 +261,8 @@ export default function ChatBiPage() {
       ? Number(values.targetDashboardId)
       : undefined;
     if (existingDashboardId && !dashboardDetailQuery.data) {
-      throw new Error('目标仪表盘尚未加载，请稍后重试');
+      Toast.error('目标仪表盘尚未加载，请稍后重试');
+      abortSubmit();
     }
     try {
       const resource = await saveMutation.mutateAsync({

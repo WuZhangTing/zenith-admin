@@ -254,6 +254,7 @@ export default function XxxPage() {
   // 保存后关闭并清空 editing、以及**详情到达时按 key 重挂载表单**
   // （initValues 只在挂载时读一次，没有 key 时异步详情永远进不了表单）。
   // 禁止再手写 useRef<FormApi> + editingRecord + validate/try-catch 四件套。
+  // beforeSave 中需要中断提交时用 abortSubmit()，不要 return、也不要抛裸 Error。
   const modal = useEditModal<Xxx>({
     entityName: '示例',              // 自动生成标题「新增示例 / 编辑示例」
     save: useSaveXxx(),

@@ -70,7 +70,7 @@ export default function MpFansPage() {
   const syncing = syncFansMutation.isPending || syncBlacklistMutation.isPending;
   const fanSaveMutation = {
     mutateAsync: ({ id, values }: { id?: number; values: { remark: string; tagIds: number[] } }) => {
-      if (id == null) throw new Error('missing id');
+      if (id == null) throw new Error('缺少记录 ID，请刷新后重试');
       return saveMutation.mutateAsync({ id, values });
     },
     isPending: saveMutation.isPending,

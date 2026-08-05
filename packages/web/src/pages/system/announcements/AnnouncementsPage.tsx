@@ -33,6 +33,7 @@ import {
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const RichTextEditor = lazy(() => import('@/components/RichTextEditor'));
 const editorLoadingFallback = (
@@ -135,7 +136,7 @@ export default function AnnouncementsPage() {
       const isContentEmpty = !contentHtml || contentHtml === '<p><br></p>';
       if (isContentEmpty) {
         Toast.warning('请输入公告内容');
-        throw new Error('empty content');
+        abortSubmit();
       }
       const recipients =
         targetType === 'specific'
@@ -151,7 +152,7 @@ export default function AnnouncementsPage() {
       if (scheduledDate) {
         if (scheduledDate <= new Date()) {
           Toast.warning('定时发布时间必须是未来时间');
-          throw new Error('invalid schedule time');
+          abortSubmit();
         }
         finalPublishStatus = 'scheduled';
         finalPublishTime = formatDateTimeForApi(scheduledDate);

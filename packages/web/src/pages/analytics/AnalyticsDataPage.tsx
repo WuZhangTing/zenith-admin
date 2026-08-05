@@ -35,6 +35,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const PAGE_SIZE = 20;
 
@@ -307,7 +308,7 @@ export default function AnalyticsDataPage() {
         propertySchema = parsePropertySchema(values.propertySchemaText);
       } catch (error) {
         Toast.error(error instanceof Error ? error.message : '属性 Schema 格式错误');
-        throw error;
+        abortSubmit();
       }
       return {
         eventName: values.eventName.trim(),

@@ -2,13 +2,20 @@
 /**
  * 编辑弹窗样板基线检查（useEditModal 迁移防回潮护栏）
  *
- * 检查页面层手写的两处样板：
- *  1. `useRef<FormApi>` / `useRef<FormApi<T> | null>` —— 编辑弹窗自持表单实例
+ * 检查页面层手写的两类样板：
+ *  1. **自持表单实例**——编辑弹窗自己拿着 FormApi。覆盖四种等价写法：
+ *     `useRef<FormApi>` / `useRef<FormApi<T> | null>` / `useState<FormApi>` / `getFormApi={...}`
  *  2. `throw new Error('validation')` —— 校验失败中断提交
  *
  * 两者都应由 `@/hooks/useEditModal` 承担。手写它们不会报错、不会让测试变红
  * （详见 hooks/useEditModal.ts 文件头列出的四条契约），只能靠人工逐页 review 发现，
  * 因此在这里拦住。
+ *
+ * ## 为什么必须覆盖全部四种写法
+ * 本护栏最初只认 `useRef<FormApi>`，于是对 `useState<FormApi>`（AnnouncementsPage）、
+ * 无类型 `useRef(null)` + `getFormApi={...}`、以及 `as` 断言写法形同虚设——
+ * 恰恰是「详情到达后表单不重挂载」最高危的那几种形态在防线之外。
+ * 检测面只要漏一种写法，回潮就会从那一种写法长回来。
  *
  * 为什么不做全仓禁令：
  *  - 页面级全局配置表单（无 record 概念）、登录/找回密码等认证流程、
@@ -32,8 +39,16 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PAGES_DIR = join(ROOT, 'src', 'pages');
 const BASELINE_PATH = join(ROOT, 'scripts', 'edit-modal-baseline.json');
 
-/** 自持表单实例：覆盖 `useRef<FormApi>`、`useRef<FormApi | null>`、`useRef<FormApi<T> | null>` */
-const FORM_API_REF = /useRef<\s*FormApi(<[^>]*>)?(\s*\|\s*null)?\s*>/g;
+/**
+ * 自持表单实例的四种等价写法。
+ * 前两条按类型标注识别，`getFormApi={` 则兜住无类型 ref 与 `as` 断言等「看不出类型」的写法
+ * ——用 useEditModal 的页面是 `{...modal.formProps}` 展开，不会命中。
+ */
+const FORM_API_PATTERNS = [
+  /useRef<\s*FormApi(<[^>]*>)?(\s*\|\s*null)?\s*>/g,
+  /useState<\s*FormApi(<[^>]*>)?(\s*\|\s*null)?\s*>/g,
+  /getFormApi=\{/g,
+];
 /** 校验失败中断提交 */
 const VALIDATION_THROW = /throw new Error\('validation'\)/g;
 
@@ -50,7 +65,7 @@ function collect() {
   const result = {};
   for (const file of walk(PAGES_DIR)) {
     const text = readFileSync(file, 'utf8');
-    const refs = (text.match(FORM_API_REF) ?? []).length;
+    const refs = FORM_API_PATTERNS.reduce((sum, re) => sum + (text.match(re) ?? []).length, 0);
     const throws = (text.match(VALIDATION_THROW) ?? []).length;
     const total = refs + throws;
     if (total > 0) {
@@ -96,8 +111,9 @@ if (problems.length > 0) {
   console.error(
     [
       '',
-      '新增/编辑弹窗请使用 @/hooks/useEditModal，不要手写 useRef<FormApi> 与',
-      "throw new Error('validation')。该 hook 焊死了四条漏写不报错的契约：",
+      '新增/编辑弹窗请使用 @/hooks/useEditModal，不要自持 FormApi',
+      "（useRef<FormApi> / useState<FormApi> / getFormApi={...}）或手写 throw new Error('validation')。",
+      '该 hook 焊死了四条漏写不报错的契约：',
       '校验失败必须抛出、提示文案区分新增/编辑、保存后关闭并清空 editing、',
       '以及详情到达时按 key 重挂载表单。',
       '',

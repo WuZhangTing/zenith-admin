@@ -25,6 +25,7 @@ import type { AiEvalSet, AiEvalRun, AiEvalItem } from '@zenith/shared/ai';
 import { CreateButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const { Text, Paragraph } = Typography;
 
@@ -56,7 +57,7 @@ export default function AiEvalPage() {
       const items = (values.items ?? []).filter((it) => it?.question?.trim());
       if (items.length === 0) {
         Toast.error('至少添加一条评测问题');
-        throw new Error('empty eval items');
+        abortSubmit();
       }
       return { name: values.name, description: values.description || null, items };
     },

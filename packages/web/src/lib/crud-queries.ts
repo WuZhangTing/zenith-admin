@@ -61,6 +61,14 @@ export interface CrudQueryKeys<TListParams> {
 export interface CreateCrudQueriesOptions<TEntity, TListParams> {
   /** 资源名，同时用作 query key 前缀与默认接口路径，例：`tenant-packages` */
   readonly resource: string;
+  /**
+   * 覆盖 query key 前缀，默认 `[resource]`。
+   *
+   * 仅用于**迁移存量域**：当该域原本用嵌套 key（如 `['workflow', 'automations']`）且已有
+   * 跨域广播依赖这个前缀（如 `invalidateQueries({ queryKey: ['workflow'] })`）时，
+   * 改成扁平的 `[resource]` 会让它悄悄脱离原有失效范围。新建域直接用默认值即可。
+   */
+  readonly keyPrefix?: readonly string[];
   /** 接口基础路径，默认 `/api/{resource}` */
   readonly path?: string;
   /** 是否提供下拉源 hook；传 string 时作为子路径，默认子路径 `all` */
@@ -100,7 +108,7 @@ export function createCrudQueries<
   options: CreateCrudQueriesOptions<TEntity, TListParams>,
 ): CrudQueries<TEntity, TListParams, TValues, TLookup> {
   const {
-    resource,
+    keyPrefix = [options.resource],
     path = `/api/${options.resource}`,
     lookup = false,
     deleteMode = 'batch',
@@ -111,13 +119,14 @@ export function createCrudQueries<
   } = options;
 
   const lookupPath = typeof lookup === 'string' ? lookup : 'all';
+  const prefix = [...keyPrefix];
 
   const keys: CrudQueryKeys<TListParams> = {
-    all: [resource],
-    lists: [resource, 'list'],
-    list: (params) => [resource, 'list', params] as const,
-    detail: (id) => [resource, 'detail', id] as const,
-    lookup: [resource, 'all'],
+    all: prefix,
+    lists: [...prefix, 'list'],
+    list: (params) => [...prefix, 'list', params] as const,
+    detail: (id) => [...prefix, 'detail', id] as const,
+    lookup: [...prefix, 'all'],
   };
 
   /** 保存/删除后的标准失效：列表一定失效，详情按 id 精确失效，下拉源可能含名称 */

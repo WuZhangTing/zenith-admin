@@ -24,6 +24,7 @@ import {
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { abortSubmit } from '@/lib/abort-submit';
 
 interface SearchParams {
   keyword: string;
@@ -87,13 +88,13 @@ export default function SystemConfigsPage() {
         const raw = jsonText.trim();
         if (!raw) {
           Toast.error('请输入配置值');
-          throw new Error('empty json');
+          abortSubmit();
         }
         try {
           JSON.parse(raw);
         } catch {
           Toast.error('配置值 JSON 格式有误，请检查后重试');
-          throw new Error('invalid json');
+          abortSubmit();
         }
         return { ...values, configValue: raw };
       }

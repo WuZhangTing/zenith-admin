@@ -22,7 +22,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { useWorkflowDefinitionList } from '@/hooks/queries/workflow-definitions';
 import { useListSearch } from '@/hooks/useListSearch';
 import {
-  useDeleteWorkflowAutomation,
+  useDeleteWorkflowAutomations,
   useSaveWorkflowAutomation,
   useWorkflowAutomationDetail,
   useWorkflowAutomationList,
@@ -260,7 +260,7 @@ export default function WorkflowAutomationsPage() {
 
   const [actions, setActions] = useState<ActionDraft[]>([]);
   const saveMutation = useSaveWorkflowAutomation();
-  const deleteMutation = useDeleteWorkflowAutomation();
+  const deleteMutation = useDeleteWorkflowAutomations();
 
 
   const addAction = (type: ActionDraft['type']) => {
@@ -323,7 +323,7 @@ export default function WorkflowAutomationsPage() {
   };
 
   const handleDelete = async (id: number) => {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync([id]);
     Toast.success('已删除');
   };
 

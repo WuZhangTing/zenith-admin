@@ -110,10 +110,19 @@
   只有新增或只有编辑的单模式弹窗同样适用（只调用对应的 `openCreate` / `openEdit` 即可）。
   一个页面有多个编辑单元时多次调用即可。写法见 [crud-frontend.md 完整页面模板](./crud-frontend.md)
 - **编辑弹窗防回潮**（Step 8）：`npm run lint -w @zenith/web` 含
-  `scripts/check-edit-modal-baseline.mjs`，对 `src/pages/**` 中手写的
-  `useRef<FormApi>` 与 `throw new Error('validation')` 做只减不增校验。
+  `scripts/check-edit-modal-baseline.mjs`，对 `src/pages/**` 中自持表单实例的四种等价写法
+  （`useRef<FormApi>` / `useRef<FormApi<T> | null>` / `useState<FormApi>` / `getFormApi={...}`）
+  与 `throw new Error('validation')` 做只减不增校验。检测面必须覆盖全部写法——
+  只认其中一种时，回潮就会从没被认出的那种写法长回来。
   确有正当理由自持表单实例（页面级全局配置表单、认证流程、设计器与运行时表单、
   db-admin 行编辑器）时，执行 `--update` 更新基线；基线条目数即迁移进度条
+- **中断提交用 `abortSubmit()`**（Step 8）：`beforeSave` 或自定义提交里需要中断时，
+  **先给出面向用户的提示，再调用 `@/lib/abort-submit` 的 `abortSubmit()`**。
+  不要 `return`（Semi 的确定按钮会一直转圈），也**禁止**抛裸 `Error`：
+  `useGlobalErrorHandler` 只放行 `ApiError`、`SubmitAborted` 与单词消息的裸 `Error`，
+  `throw new Error('empty content')` 这类多词消息会穿透兜底——
+  用户在自己的中文提示之外再吃一个「操作失败：empty content」，
+  同时给 `/api/frontend-errors` 灌进一条由正常操作产生的假告警
 - **列表页搜索状态**（Step 8）：统一使用 `packages/web/src/hooks/useListSearch.ts`，它整合了 `usePagination`
   与 draft/submitted 双状态，并保证「查询 / 重置」必定 `invalidateQueries(listKey)`。
   **禁止**在页面里手写 `const [draftParams/submittedParams] = useState(...)` 与

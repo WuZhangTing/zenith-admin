@@ -27,7 +27,7 @@ export default function PaymentMethodsPage() {
 
   const methodSaveMutation = {
     mutateAsync: ({ id, values }: { id?: number; values: Partial<PaymentMethodConfig> }) => {
-      if (id == null) throw new Error('missing id');
+      if (id == null) throw new Error('缺少记录 ID，请刷新后重试');
       return saveMutation.mutateAsync({ id, values });
     },
     isPending: saveMutation.isPending,

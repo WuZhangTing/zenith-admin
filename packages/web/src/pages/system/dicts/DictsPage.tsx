@@ -49,6 +49,7 @@ import {
 } from '@/hooks/queries/dicts';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
+import { abortSubmit } from '@/lib/abort-submit';
 
 export default function DictsPage() {
   const { hasPermission } = usePermission();
@@ -262,7 +263,7 @@ export default function DictsPage() {
         metadata = JSON.parse(currentJson) as Record<string, unknown>;
       } catch {
         Toast.error('元数据 JSON 格式有误，请检查后重试');
-        throw new Error('invalid metadata json');
+        abortSubmit();
       }
     }
     const payload = { ...values, parentId: itemParentId ?? undefined, color: itemColor ?? null, metadata };

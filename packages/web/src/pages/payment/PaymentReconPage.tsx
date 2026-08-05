@@ -128,7 +128,7 @@ export default function PaymentReconPage() {
   });
   const handleSaveMutation = {
     mutateAsync: ({ id, values }: { id?: number; values: HandleFormValues }) => {
-      if (id == null) throw new Error('missing id');
+      if (id == null) throw new Error('缺少记录 ID，请刷新后重试');
       return handleItemMutation.mutateAsync({ id, values: { action: values.action, remark: values.remark || undefined } });
     },
     isPending: handleItemMutation.isPending,

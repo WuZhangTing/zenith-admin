@@ -33,6 +33,7 @@ import { formatDateTime } from '@/utils/date';
 import { canRunFillRecordAction, isRevisionConflict, shouldShowFillReviewTab } from './report-p2-utils';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
+import { abortSubmit } from '@/lib/abort-submit';
 
 interface MineFilters {
   keyword: string;
@@ -550,7 +551,7 @@ export default function FillRecordsPage() {
         onOk={async () => {
           const values = await entryFormApi.current?.validate() as { templateId: number };
           const template = templates.find((item) => item.id === Number(values.templateId));
-          if (!template) throw new Error('模板不存在或已下线');
+          if (!template) { Toast.error('模板不存在或已下线'); abortSubmit(); }
           setEntryVisible(false);
           navigate(`/report/fill/${encodeURIComponent(template.code)}`);
         }}

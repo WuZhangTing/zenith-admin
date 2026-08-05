@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
+import { abortSubmit } from '@/lib/abort-submit';
 
 /**
  * 新增/编辑弹窗的状态与提交编排。
@@ -81,6 +82,10 @@ export interface UseEditModalOptions<TRecord extends { id: number }, TValues, TP
    * 表单值 → 提交载荷。用于注入页面级上下文（如所属站点 siteId），
    * 或把表单控件类型转成接口类型（如 DatePicker 的 Date → 接口的字符串）。
    * 不提供时表单值直接作为载荷，此时 `TPayload` 必须与 `TValues` 一致。
+   *
+   * 需要在此做跨字段校验并中断提交时，**先给出面向用户的提示，再调用 `abortSubmit()`**。
+   * 不要 `return`（弹窗会卡在 loading），也不要抛裸 `Error`
+   * ——多词消息会穿透全局兜底，用户会额外收到一个「操作失败：xxx」并污染错误监控。
    */
   readonly beforeSave?: (values: TValues, ctx: EditContext<TRecord>) => TPayload | Promise<TPayload>;
   /** 保存成功后的副作用（清空选中行、跳转等）。失效已由 mutation 负责，此处无需再写 */
@@ -206,7 +211,7 @@ export function useEditModal<TRecord extends { id: number }, TValues = Partial<T
       values = (await formApi.current?.validate()) as TValues;
     } catch {
       // 抛出以阻止 Semi 把确定按钮留在 loading 态，同时保持弹窗打开
-      throw new Error('validation');
+      abortSubmit();
     }
     const ctx: EditContext<TRecord> = { editing, isEdit };
     const payload = beforeSave ? await beforeSave(values, ctx) : (values as unknown as TPayload);

@@ -34,6 +34,7 @@ import { isRevisionConflict, validateFillTemplateInput } from './report-p2-utils
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { abortSubmit } from '@/lib/abort-submit';
 
 interface SearchState {
   keyword: string;
@@ -88,7 +89,7 @@ export default function FillTemplatesPage() {
     entityName: '填报模板',
     save: {
       isPending: createMutation.isPending || updateMutation.isPending,
-      mutateAsync: async () => { throw new Error('editor-submit-is-handled-by-custom-footer'); },
+      mutateAsync: async () => { abortSubmit('editor-submit-is-handled-by-custom-footer'); },
     },
     defaults: { needReview: false },
     toValues: (template) => ({
