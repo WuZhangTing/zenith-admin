@@ -13,7 +13,7 @@ import {
   aiPromptKeys,
   useAiPromptDetail,
   useAiPromptList,
-  useDeleteAiPrompt,
+  useDeleteAiPrompts,
   useSaveAiPrompt,
 } from '@/hooks/queries/ai-prompts';
 import { useAiPromptVersions, useRestoreAiPromptVersion } from '@/hooks/queries/ai-extras';
@@ -83,7 +83,7 @@ export default function PromptTemplatesPage() {
   });
   const data = listQuery.data ?? null;
   const saveMutation = useSaveAiPrompt();
-  const deleteMutation = useDeleteAiPrompt();
+  const deleteMutation = useDeleteAiPrompts();
 
   const promptModal = useEditModal<AiPromptTemplate, PromptTemplateFormValues, CreateAiPromptTemplateInput>({
     entityName: '提示词模板',
@@ -107,7 +107,7 @@ export default function PromptTemplatesPage() {
   const openEdit = promptModal.openEdit;
 
   async function handleDelete(id: number) {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync([id]);
     Toast.success('删除成功');
   }
 

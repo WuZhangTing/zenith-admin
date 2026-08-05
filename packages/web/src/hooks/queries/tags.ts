@@ -1,32 +1,31 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse } from '@zenith/shared/core';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Tag } from '@zenith/shared/platform';
 import { request } from '@/utils/request';
-import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
+import { LOOKUP_STALE_TIME, unwrap } from '@/lib/query';
+import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
 
-export interface TagListParams {
-  page: number;
-  pageSize: number;
+export interface TagListParams extends CrudListParams {
   keyword?: string;
   status?: string;
   groupName?: string;
 }
 
-export const tagKeys = {
-  all: ['tags'] as const,
-  lists: ['tags', 'list'] as const,
-  list: (params: TagListParams) => ['tags', 'list', params] as const,
-  detail: (id: number | undefined) => ['tags', 'detail', id] as const,
-  groups: ['tags', 'groups'] as const,
-};
+/** 分组选项由标签聚合而来（/api/tags/groups），新建、改组、删除都可能改变集合 */
+const TAG_GROUPS_KEY = ['tags', 'groups'] as const;
 
-export function useTagList(params: TagListParams) {
-  return useQuery({
-    queryKey: tagKeys.list(params),
-    queryFn: () => request.get<PaginatedResponse<Tag>>(`/api/tags${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
-}
+const crud = createCrudQueries<Tag, TagListParams>({
+  resource: 'tags',
+  onSaved: (qc) => void qc.invalidateQueries({ queryKey: TAG_GROUPS_KEY }),
+  onDeleted: (qc) => void qc.invalidateQueries({ queryKey: TAG_GROUPS_KEY }),
+});
+
+export const tagKeys = { ...crud.keys, groups: TAG_GROUPS_KEY };
+
+export const useTagList = crud.useList;
+export const useTagDetail = crud.useDetail;
+export const useSaveTag = crud.useSave;
+/** 删除：单条走 DELETE /:id，多条走 DELETE /batch（合并原 useDeleteTag / useBatchDeleteTags） */
+export const useDeleteTags = crud.useDelete;
 
 export function useTagGroups() {
   return useQuery({
@@ -36,58 +35,12 @@ export function useTagGroups() {
   });
 }
 
-export function useTagDetail(id: number | undefined, enabled = true) {
-  return useQuery({
-    queryKey: tagKeys.detail(id),
-    queryFn: () => request.get<Tag>(`/api/tags/${id}`).then(unwrap),
-    enabled: enabled && id !== undefined,
-  });
-}
-
-export function useSaveTag() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: Partial<Tag> }) =>
-      (id === undefined ? request.post<Tag>('/api/tags', values) : request.put<Tag>(`/api/tags/${id}`, values)).then(unwrap),
-    onSuccess: (saved) => {
-      void qc.invalidateQueries({ queryKey: tagKeys.detail(saved.id) });
-      void qc.invalidateQueries({ queryKey: tagKeys.lists });
-      // 分组选项由标签聚合而来（/api/tags/groups），新建或改组都可能改变集合
-      void qc.invalidateQueries({ queryKey: tagKeys.groups });
-    },
-  });
-}
-
-export function useDeleteTag() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/tags/${id}`).then(unwrap),
-    onSuccess: (_data, id) => {
-      qc.removeQueries({ queryKey: tagKeys.detail(id) });
-      void qc.invalidateQueries({ queryKey: tagKeys.lists });
-      void qc.invalidateQueries({ queryKey: tagKeys.groups });
-    },
-  });
-}
-
-export function useBatchDeleteTags() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (ids: number[]) => request.delete<null>('/api/tags/batch', { ids }).then(unwrap),
-    onSuccess: (_data, ids) => {
-      for (const id of ids) qc.removeQueries({ queryKey: tagKeys.detail(id) });
-      void qc.invalidateQueries({ queryKey: tagKeys.lists });
-      void qc.invalidateQueries({ queryKey: tagKeys.groups });
-    },
-  });
-}
-
 export function useUpdateTagStatus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, status }: { id: number; status: 'enabled' | 'disabled' }) =>
       request.put<Tag>(`/api/tags/${id}`, { status }).then(unwrap),
-    // 停启用不改变分组集合
+    // 停启用不改变分组集合，只刷详情与列表
     onSuccess: (_data, { id }) => {
       void qc.invalidateQueries({ queryKey: tagKeys.detail(id) });
       void qc.invalidateQueries({ queryKey: tagKeys.lists });

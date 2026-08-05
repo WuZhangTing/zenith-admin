@@ -31,7 +31,7 @@ import {
   useDataMaskDetail,
   useDataMaskList,
   useDataMaskRoleOptions,
-  useDeleteDataMask,
+  useDeleteDataMasks,
   useSaveDataMask,
   useScanDataMaskFields,
 } from '@/hooks/queries/data-mask';
@@ -147,7 +147,7 @@ export default function DataMaskPage() {
     beforeSave: buildDataMaskPayload,
   });
   const toggleStatusMutation = useSaveDataMask();
-  const deleteMutation = useDeleteDataMask();
+  const deleteMutation = useDeleteDataMasks();
   const scanMutation = useScanDataMaskFields();
   const batchCreateMutation = useBatchCreateDataMask();
   const togglingStatusId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
@@ -179,7 +179,7 @@ export default function DataMaskPage() {
   };
 
   const handleDelete = async (id: number) => {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync([id]);
     Toast.success('删除成功');
   };
 

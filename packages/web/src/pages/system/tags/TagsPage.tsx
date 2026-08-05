@@ -24,8 +24,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn } from '../../../utils/table-columns';
 import {
   tagKeys,
-  useBatchDeleteTags,
-  useDeleteTag,
+  useDeleteTags,
   useSaveTag,
   useTagDetail,
   useTagGroups,
@@ -165,8 +164,7 @@ export default function TagsPage() {
     }),
     beforeSave: (values) => ({ ...values, color: colorValue || null }),
   });
-  const deleteMutation = useDeleteTag();
-  const batchDeleteMutation = useBatchDeleteTags();
+  const deleteMutation = useDeleteTags();
   const toggleStatusMutation = useUpdateTagStatus();
   const togglingStatusId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
 
@@ -188,7 +186,7 @@ export default function TagsPage() {
     confirmDelete({
       title: '确定要删除该标签吗？',
       onOk: async () => {
-        await deleteMutation.mutateAsync(id);
+        await deleteMutation.mutateAsync([id]);
         Toast.success('删除成功');
         setSelectedRowKeys(selectedRowKeys.filter((k) => k !== id));
       },
@@ -201,7 +199,7 @@ export default function TagsPage() {
       title: `确认删除选中的 ${selectedRowKeys.length} 条标签？`,
       content: '删除后无法恢复，请谨慎操作。',
       onOk: async () => {
-        await batchDeleteMutation.mutateAsync(selectedRowKeys);
+        await deleteMutation.mutateAsync(selectedRowKeys);
         Toast.success(`已删除 ${selectedRowKeys.length} 条标签`);
         setSelectedRowKeys([]);
       },

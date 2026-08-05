@@ -1,41 +1,30 @@
 import { useMemo } from 'react';
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse } from '@zenith/shared/core';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { DataMaskConfig, SensitiveField } from '@zenith/shared/platform';
 import { request } from '@/utils/request';
-import { toQueryString, unwrap } from '@/lib/query';
+import { unwrap } from '@/lib/query';
+import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
 import { useAllRoles } from './roles';
 
-export interface DataMaskListParams {
-  page: number;
-  pageSize: number;
+export interface DataMaskListParams extends CrudListParams {
   keyword?: string;
   maskType?: string;
   enabled?: string;
 }
 
-export const dataMaskKeys = {
-  all: ['data-mask'] as const,
-  lists: ['data-mask', 'list'] as const,
-  list: (params: DataMaskListParams) => ['data-mask', 'list', params] as const,
-  detail: (id: number | undefined) => ['data-mask', 'detail', id] as const,
-};
+const crud = createCrudQueries<DataMaskConfig, DataMaskListParams>({
+  resource: 'data-mask',
+  path: '/api/data-mask-configs',
+  // 服务端未提供 DELETE /batch
+  deleteMode: 'single',
+});
 
-export function useDataMaskList(params: DataMaskListParams) {
-  return useQuery({
-    queryKey: dataMaskKeys.list(params),
-    queryFn: () => request.get<PaginatedResponse<DataMaskConfig>>(`/api/data-mask-configs${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
-}
+export const dataMaskKeys = crud.keys;
 
-export function useDataMaskDetail(id: number | undefined, enabled = true) {
-  return useQuery({
-    queryKey: dataMaskKeys.detail(id),
-    queryFn: () => request.get<DataMaskConfig>(`/api/data-mask-configs/${id}`).then(unwrap),
-    enabled: enabled && id !== undefined,
-  });
-}
+export const useDataMaskList = crud.useList;
+export const useDataMaskDetail = crud.useDetail;
+export const useSaveDataMask = crud.useSave;
+export const useDeleteDataMasks = crud.useDelete;
 
 /**
  * 角色选项。数据实际归属 roles 域，复用其共享 lookup，
@@ -48,32 +37,6 @@ export function useDataMaskRoleOptions() {
     [rolesQuery.data],
   );
   return { data, isFetching: rolesQuery.isFetching, isSuccess: rolesQuery.isSuccess };
-}
-
-export function useSaveDataMask() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: Partial<DataMaskConfig> }) =>
-      (id === undefined
-        ? request.post<DataMaskConfig>('/api/data-mask-configs', values)
-        : request.put<DataMaskConfig>(`/api/data-mask-configs/${id}`, values)
-      ).then(unwrap),
-    onSuccess: (saved) => {
-      void qc.invalidateQueries({ queryKey: dataMaskKeys.detail(saved.id) });
-      void qc.invalidateQueries({ queryKey: dataMaskKeys.lists });
-    },
-  });
-}
-
-export function useDeleteDataMask() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/data-mask-configs/${id}`).then(unwrap),
-    onSuccess: (_data, id) => {
-      qc.removeQueries({ queryKey: dataMaskKeys.detail(id) });
-      void qc.invalidateQueries({ queryKey: dataMaskKeys.lists });
-    },
-  });
 }
 
 export function useScanDataMaskFields() {

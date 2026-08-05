@@ -1,78 +1,28 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AiPromptScope, AiPromptTemplate, CreateAiPromptTemplateInput } from '@zenith/shared/ai';
-import type { PaginatedResponse } from '@zenith/shared/core';
 import { request } from '@/utils/request';
-import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
+import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
 
-export interface AiPromptListParams {
-  page: number;
-  pageSize: number;
+export interface AiPromptListParams extends CrudListParams {
   keyword?: string;
   scope?: AiPromptScope;
 }
 
-export const aiPromptKeys = {
-  all: ['ai-prompts'] as const,
-  lists: ['ai-prompts', 'list'] as const,
-  list: (params: AiPromptListParams) => ['ai-prompts', 'list', params] as const,
-  detail: (id: number | undefined) => ['ai-prompts', 'detail', id] as const,
-  available: ['ai-prompts', 'available'] as const,
-};
+const crud = createCrudQueries<AiPromptTemplate, AiPromptListParams, CreateAiPromptTemplateInput>({
+  resource: 'ai-prompts',
+  path: '/api/ai/prompt-templates',
+  // 可用模板列表（对话角色选择器用）由模板集合派生，保存/删除后一并失效
+  lookup: 'available',
+  // 服务端未提供 DELETE /batch
+  deleteMode: 'single',
+});
 
-export function useAiPromptList(params: AiPromptListParams) {
-  return useQuery({
-    queryKey: aiPromptKeys.list(params),
-    queryFn: () =>
-      request.get<PaginatedResponse<AiPromptTemplate>>(`/api/ai/prompt-templates${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
-}
+export const aiPromptKeys = { ...crud.keys, available: crud.keys.lookup };
 
-export function useAiPromptDetail(id: number | undefined, enabled = true) {
-  return useQuery({
-    queryKey: aiPromptKeys.detail(id),
-    queryFn: () => request.get<AiPromptTemplate>(`/api/ai/prompt-templates/${id}`).then(unwrap),
-    enabled: enabled && id !== undefined,
-  });
-}
-
-export function useAvailableAiPrompts(enabled = true) {
-  return useQuery({
-    queryKey: aiPromptKeys.available,
-    queryFn: () => request.get<AiPromptTemplate[]>('/api/ai/prompt-templates/available').then(unwrap),
-    enabled,
-    staleTime: LOOKUP_STALE_TIME,
-  });
-}
-
-export function useSaveAiPrompt() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: CreateAiPromptTemplateInput }) =>
-      (id === undefined
-        ? request.post<AiPromptTemplate>('/api/ai/prompt-templates', values)
-        : request.put<AiPromptTemplate>(`/api/ai/prompt-templates/${id}`, values)
-      ).then(unwrap),
-    onSuccess: (saved) => {
-      void qc.invalidateQueries({ queryKey: aiPromptKeys.detail(saved.id) });
-      void qc.invalidateQueries({ queryKey: aiPromptKeys.lists });
-      // 可用模板列表由模板集合派生
-      void qc.invalidateQueries({ queryKey: aiPromptKeys.available });
-    },
-  });
-}
-
-export function useDeleteAiPrompt() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/ai/prompt-templates/${id}`).then(unwrap),
-    onSuccess: (_data, id) => {
-      qc.removeQueries({ queryKey: aiPromptKeys.detail(id) });
-      void qc.invalidateQueries({ queryKey: aiPromptKeys.lists });
-      void qc.invalidateQueries({ queryKey: aiPromptKeys.available });
-    },
-  });
-}
+export const useAiPromptList = crud.useList;
+export const useAiPromptDetail = crud.useDetail;
+export const useSaveAiPrompt = crud.useSave;
+export const useDeleteAiPrompts = crud.useDelete;
+export const useAvailableAiPrompts = crud.useLookup;
 
 /** 记录模板被应用为对话角色一次（使用统计，fire-and-forget 场景静默失败） */
 export function recordAiPromptUse(id: number) {

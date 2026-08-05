@@ -13,7 +13,7 @@ import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS } from '@zenith/shared/
 import type { PaymentChannel, PaymentChannelConfig } from '@zenith/shared/payment';
 import {
   paymentChannelKeys,
-  useDeletePaymentChannel,
+  useDeletePaymentChannels,
   usePaymentChannelDetail,
   usePaymentChannelList,
   useSavePaymentChannel,
@@ -82,7 +82,7 @@ export default function PaymentChannelsPage() {
     labelWidth: 96,
   });
   const editingDetail = modal.editing;
-  const deleteMutation = useDeletePaymentChannel();
+  const deleteMutation = useDeletePaymentChannels();
   const toggleMutation = useSavePaymentChannel();
   const testMutation = useTestPaymentChannel();
   const defaultMutation = useSetDefaultPaymentChannel();
@@ -106,7 +106,7 @@ export default function PaymentChannelsPage() {
   const secretPlaceholder = (has?: boolean) => (modal.isEdit && has ? '已配置，留空则不修改' : '请输入');
 
   async function handleDelete(id: number) {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync([id]);
     Toast.success('删除成功');
   }
 
