@@ -97,7 +97,7 @@
   写法见 [crud-frontend.md 域 hooks 文件模板](./crud-frontend.md)
 - **编辑弹窗状态**（Step 8）：新增/编辑弹窗统一使用 `packages/web/src/hooks/useEditModal.ts`，
   **禁止**在页面里手写 `useRef<FormApi | null>` + `editingRecord` 状态 +
-  `try { validate() } catch { throw new Error('validation') }` + `Toast` + 关闭四件套。
+  `try { validate() } catch { … }` + `Toast` + 关闭四件套。
   该 hook 焊死了四条**漏写不报错**的契约：校验失败必须抛出（否则确定按钮永远转圈）、
   提示文案区分新增/编辑、保存后关闭并清空 `editing`（否则下次「新增」带出上次记录）、
   以及**表单必须按记录重挂载**——`initValues` 只在挂载时读取一次，
@@ -112,10 +112,10 @@
 - **编辑弹窗防回潮**（Step 8）：`npm run lint -w @zenith/web` 含
   `scripts/check-edit-modal-baseline.mjs`，对 `src/pages/**` 中自持表单实例的四种等价写法
   （`useRef<FormApi>` / `useRef<FormApi<T> | null>` / `useState<FormApi>` / `getFormApi={...}`）
-  与 `throw new Error('validation')` 做只减不增校验。检测面必须覆盖全部写法——
-  只认其中一种时，回潮就会从没被认出的那种写法长回来。
+  与 `throw new Error('validation')` 做只减不增校验。
+  出现第五种自持写法时**必须同步扩充检测面**——检测面漏掉哪种写法，回潮就从哪种写法长回来。
   确有正当理由自持表单实例（页面级全局配置表单、认证流程、设计器与运行时表单、
-  db-admin 行编辑器）时，执行 `--update` 更新基线；基线条目数即迁移进度条
+  db-admin 行编辑器）时，先写注释说明理由，再执行 `--update` 更新基线
 - **中断提交用 `abortSubmit()`**（Step 8）：`beforeSave` 或自定义提交里需要中断时，
   **先给出面向用户的提示，再调用 `@/lib/abort-submit` 的 `abortSubmit()`**。
   不要 `return`（Semi 的确定按钮会一直转圈），也**禁止**抛裸 `Error`：

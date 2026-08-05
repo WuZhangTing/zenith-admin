@@ -152,6 +152,10 @@ export const {
   resource: 'xxxs',          // 同时作为 query key 前缀与默认路径 /api/xxxs
   lookup: true,              // 需要 /api/xxxs/all 下拉源时开启；子路径不同时传字符串
   // path: '/api/cms/links', // 接口路径与资源名不一致时覆盖
+  // deleteMode: 'single',   // 后端没有 /batch 时；多条删除退化为并发单条
+  // keyPrefix: ['workflow', 'automations'], // 仅迁移存量域：原本用嵌套 key 且有跨域
+  //                                         // invalidateQueries({ queryKey: ['workflow'] })
+  //                                         // 依赖该前缀时，保留它，否则本域会悄悄脱离原失效范围
   // onSaved: (qc) => invalidateCurrentUserAccess(qc), // 跨域联动的额外失效
 });
 ```
@@ -204,6 +208,8 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import { confirmDelete } from '@/utils/confirm';
+// 仅在 beforeSave 需要中断提交时引入：
+// import { abortSubmit } from '@/lib/abort-submit';
 import { useDeleteXxxs, useSaveXxx, useXxxDetail, useXxxList, xxxKeys } from '@/hooks/queries/xxxs';
 import type { Xxx } from '@zenith/shared/{业务域}';
 
@@ -266,8 +272,11 @@ export default function XxxPage() {
       status: r.status,
       // 多对多字段示例：yyyIds: r.yyyIds ?? [],
     }),
-    // 表单值与接口类型不一致时转换（如 DatePicker 的 Date → 接口字符串）：
-    // beforeSave: (values) => ({ ...values, expireAt: formatDateTimeForApi(values.expireAt) }),
+    // 表单值 → 提交载荷；也是做跨字段校验的地方
+    // beforeSave: (values) => {
+    //   if (!values.expireAt) { Toast.warning('请选择过期时间'); abortSubmit(); }
+    //   return { ...values, expireAt: formatDateTimeForApi(values.expireAt) };
+    // },
     // 保存后的副作用（展示初始密码、跳转…）：
     // onSaved: (saved, { isEdit }) => { ... },
     // 保存后另有更强反馈时抑制默认提示：

@@ -235,7 +235,8 @@
 ### 问题：`npm run lint`（web）报「编辑弹窗样板回退」
 
 **原因**：`scripts/check-edit-modal-baseline.mjs` 在 `src/pages/**` 里发现了超出基线数量的
-手写 `useRef<FormApi>` 或 `throw new Error('validation')`。
+自持表单实例（`useRef<FormApi>` / `useRef<FormApi<T> | null>` / `useState<FormApi>` /
+`getFormApi={...}`）或 `throw new Error('validation')`。
 
 **解决**：
 
@@ -246,6 +247,34 @@
 2. 确有正当理由自持表单实例（页面级全局配置表单、登录/找回密码等认证流程、
    工作流设计器与运行时表单、db-admin 行编辑器）——先写注释说明理由，
    再执行 `node scripts/check-edit-modal-baseline.mjs --update` 更新基线。
+
+### 问题：校验没过时弹出两个提示，其中一个是英文「操作失败：xxx」
+
+**现象**：表单校验失败，除了自己写的中文提示，还多出一个 `操作失败：empty content`
+之类的英文提示；同时 `/api/frontend-errors` 里堆积由用户正常操作产生的假告警。
+
+**原因**：用抛裸 `Error` 的方式中断提交。`useGlobalErrorHandler` 只放行三类拒绝——
+`ApiError`、`SubmitAborted`、以及**单词消息**的裸 `Error`（历史写法，向后兼容）。
+`throw new Error('empty content')`（带空格）、`'save-failed'`（带连字符）都不满足单词判据，
+会被当成真实故障：弹兜底 Toast + 上报错误监控。Semi 的 Modal 不吞 `onOk` 的拒绝，
+自定义 footer 里 `void modal.modalProps.onOk()` 更是直接落到 window。
+
+**解决**：先给出面向用户的提示，再调用 `@/lib/abort-submit` 的 `abortSubmit()`。
+不要改成 `return`——那样 Semi 的确定按钮会一直转圈。
+
+```ts
+beforeSave: (values) => {
+  if (!contentHtml) {
+    Toast.warning('请输入公告内容');  // 面向用户的提示由调用方负责
+    abortSubmit();                    // 中断提交，不弹兜底 Toast、不上报
+  }
+  return { ...values, content: contentHtml };
+}
+```
+
+> 反过来也要留意：**真实的不变量违反不要用 `abortSubmit()` 吞掉**。
+> 「编辑态却没有 id」这类本不该发生的情况应当继续抛 `Error` 并被上报，
+> 只需把消息写成用户看得懂的中文。
 
 ### 问题：改一条数据，整屏查询全部重拉
 
