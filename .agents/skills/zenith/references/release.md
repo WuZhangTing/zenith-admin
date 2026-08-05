@@ -40,25 +40,33 @@ npm install --package-lock-only
 
 ---
 
-## Step 4：运行 Lint 与测试
+## Step 4：并行验证（Lint + 测试 + 构建 + 文档站）
 
-提交前必须先通过 Lint（与 CI 的 `Lint / Test / Build` 流水线保持一致，CI 会在 lint error 时直接失败）：
-
-```bash
-npm run lint
-```
-
-该命令依次运行 server 与 web 两个包的 eslint，**0 error** 方可继续（warning 不阻塞）。如有 error 须先修复再继续。
-
-随后确认全部测试通过：
+Lint、测试、构建、文档站四类验证**互相独立**（只读源码、产物互不干扰），统一并行执行（项目已内置 `concurrently`）：
 
 ```bash
-npm test
+npx concurrently --group --timings --kill-others-on-fail -n lint,test,build,docs \
+  "npm run lint" \
+  "npm test" \
+  "npm run build && npm run build:demo" \
+  "npm run docs:build"
 ```
 
-该命令依次运行 server 与 web 两个包的全部 vitest 测试，全部通过（退出码 0）后再进行下一步。如有失败须先修复再继续。
+四路全部 `exit code 0` 方可继续（实测并行墙钟约 3 分钟，串行约 7-9 分钟）。任一路失败会立即终止其余任务，修复后可只重跑失败的那条命令。
 
-同时建议运行核心资金链路 DB 集成测试（积分 / 钱包 / 优惠券的「事务 + 乐观锁」并发正确性，默认跳过，需本地 PostgreSQL 可用）：
+各路的通过标准：
+
+- **lint**：`npm run lint` 依次跑 shared / server / analytics-sdk / web 四包 eslint，**0 error**（warning 不阻塞）
+- **test**：`npm test` 依次跑 server 与 web 全部 vitest，全部通过
+- **build**：`npm run build`（shared → analytics-sdk → server → web，依赖链**必须**串行）成功后接 `npm run build:demo`。
+  ⚠️ `build` 与 `build:demo` 都写 `packages/web/dist` 与 tsbuildinfo，**两者之间禁止并行**，只能如上串联在同一路里
+- **docs**：`npm run docs:build` 输出 `build complete`
+
+> Step 5 写入 changelog 后**无需**重跑整套验证：changelog 只影响文档站，单独重跑 `npm run docs:build` 确认即可。
+
+### DB 集成测试（按需，独立于上面四路）
+
+核心资金链路 DB 集成测试（积分 / 钱包 / 优惠券的「事务 + 乐观锁」并发正确性，默认跳过，需本地 PostgreSQL 可用）：
 
 ```powershell
 # PowerShell（在 packages/server 目录执行）
@@ -85,38 +93,12 @@ TASK_IDEM_DB_IT=1 npx vitest run src/lib/task-center/task-idempotency.it.test.ts
 ```
 
 > 本次发布涉及任务中心 / 幂等 / 多租户相关改动时，该集成测试**必须**运行并通过。
+> 两个集成测试连接同一本地 PG，可与四路并行验证同时进行，也可一条命令合跑：
+> `$env:MEMBER_FUNDS_DB_IT='1'; $env:TASK_IDEM_DB_IT='1'; npx vitest run src/services/member/member-funds.it.test.ts src/lib/task-center/task-idempotency.it.test.ts`
 
 ---
 
-## Step 5：本地构建验证
-
-提交前必须确认本地构建通过，避免 CI 失败：
-
-```bash
-npm run build
-```
-
-构建成功（无错误输出，退出码 0）后再进行下一步。如有错误须先修复再继续。
-
-同时验证文档站构建：
-
-```bash
-npm run docs:build
-```
-
-文档站构建成功（`build complete`）后方可继续。如有错误须先修复。
-
-同时验证 Demo 构建：
-
-```bash
-npm run build:demo
-```
-
-Demo 构建成功后方可继续。如有错误须先修复（Demo 构建使用 MSW Mock 模式，可能因 `.env.demo` 变量差异暴露额外问题）。
-
----
-
-## Step 6：更新 `docs/changelog/index.md`
+## Step 5：更新 `docs/changelog/index.md`
 
 在文件顶部（第一个 `---` 分隔符之后，上一版本记录之前）**追加**当前版本的变更记录：
 
@@ -141,7 +123,7 @@ Demo 构建成功后方可继续。如有错误须先修复（Demo 构建使用 
 
 ---
 
-## Step 7：提交并推送 tag
+## Step 6：提交并推送 tag
 
 ```bash
 # 将变更提交到 master
@@ -156,7 +138,7 @@ git push origin vX.Y.Z
 
 ---
 
-## Step 8：等待 GitHub Actions 完成
+## Step 7：等待 GitHub Actions 完成
 
 - `release.yml` 触发后会自动：构建产物 → 打包 zip → 提取 Changelog → 发布 GitHub Release
 - 发布产物包含：`zenith-admin-server-vX.Y.Z.zip`（后端）和 `zenith-admin-web-vX.Y.Z.zip`（前端静态文件）
