@@ -17,3 +17,5 @@ docs/.vitepress/dist/
 
 logs/
 packages/web/public/file-viewer/
+
+.playwright-cli/
