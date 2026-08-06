@@ -1,5 +1,6 @@
 import { http } from 'msw';
 import { ok, badRequest, notFound, paginate } from '@/mocks/utils/handlers';
+import { removeWhere } from '@/mocks/utils/array';
 import { mockTags, getNextTagId, getTagGroups } from '@/mocks/data/tags';
 import { mockDateTime } from '@/mocks/utils/date';
 import type { Tag } from '@zenith/shared/platform';
@@ -80,13 +81,7 @@ export const tagsHandlers = [
   http.delete('/api/tags/batch', async ({ request }) => {
     const body = await request.json() as { ids: number[] };
     const ids = new Set(body.ids ?? []);
-    let count = 0;
-    for (let i = mockTags.length - 1; i >= 0; i--) {
-      if (ids.has(mockTags[i].id)) {
-        mockTags.splice(i, 1);
-        count++;
-      }
-    }
+    const count = removeWhere(mockTags, (tag) => ids.has(tag.id));
     return ok(null, `已删除 ${count} 条标签`);
   }),
 ];

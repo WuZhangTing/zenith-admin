@@ -1,5 +1,6 @@
 import { http } from 'msw';
 import { ok, notFound, pageParams, paginate } from '@/mocks/utils/handlers';
+import { removeWhere } from '@/mocks/utils/array';
 import { mockInAppMessages, getNextInAppMessageId } from '@/mocks/data/in-app-messages';
 import { mockInAppTemplates } from '@/mocks/data/in-app-templates';
 import { mockUsers } from '@/mocks/data/users';
@@ -149,13 +150,7 @@ export const inAppMessagesHandlers = [
   http.delete('/api/in-app-messages/batch', async ({ request }) => {
     const body = await request.json() as { ids: number[] };
     const ids = new Set(body.ids ?? []);
-    let count = 0;
-    for (let i = mockInAppMessages.length - 1; i >= 0; i--) {
-      if (ids.has(mockInAppMessages[i].id)) {
-        mockInAppMessages.splice(i, 1);
-        count++;
-      }
-    }
+    const count = removeWhere(mockInAppMessages, (message) => ids.has(message.id));
     return ok(null, `已删除 ${count} 条记录`);
   }),
 

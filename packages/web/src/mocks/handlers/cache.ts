@@ -1,5 +1,6 @@
 import { http } from 'msw';
 import { ok, badRequest, notFound } from '@/mocks/utils/handlers';
+import { removeWhere } from '@/mocks/utils/array';
 import { mockDate } from '../utils/date';
 
 interface MockCacheItem {
@@ -248,13 +249,7 @@ export const cacheHandlers = [
     if (!segment) {
       return badRequest('参数错误：缺少 segment', { status: 400 });
     }
-    let count = 0;
-    for (let i = mockCacheItems.length - 1; i >= 0; i--) {
-      if (mockCacheItems[i].segment === segment) {
-        mockCacheItems.splice(i, 1);
-        count++;
-      }
-    }
+    const count = removeWhere(mockCacheItems, (item) => item.segment === segment);
     return ok({ count }, `已删除 ${count} 条缓存`);
   }),
 

@@ -13,6 +13,7 @@ import {
   nextReportP2Id,
 } from '@/mocks/data/report-p2';
 import { mockDateTime } from '@/mocks/utils/date';
+import { removeWhere } from '@/mocks/utils/array';
 import {
   DEMO_TENANT_ID,
   DEMO_USER_ID,
@@ -148,9 +149,7 @@ export const reportChatbiHandlers = [
     const index = mockReportChatbiSessions.findIndex((item) => item.id === id && item.userId === DEMO_USER_ID);
     if (index < 0) return reportError(404, 'ChatBI 会话不存在');
     mockReportChatbiSessions.splice(index, 1);
-    for (let i = mockReportChatbiMessages.length - 1; i >= 0; i--) {
-      if (mockReportChatbiMessages[i].sessionId === id) mockReportChatbiMessages.splice(i, 1);
-    }
+    removeWhere(mockReportChatbiMessages, (message) => message.sessionId === id);
     return reportOk(null, '删除成功');
   }),
 

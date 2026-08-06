@@ -1,3 +1,5 @@
+import { createLabelOptions } from '../core/enum-options';
+
 // ─── 支付中心 ────────────────────────────────────────────────────────
 export const PAYMENT_CHANNELS = ['wechat', 'alipay', 'unionpay'] as const;
 
@@ -44,7 +46,7 @@ export const PAYMENT_CHANNEL_LABELS: Record<PaymentChannel, string> = {
 
 /** 支付渠道下拉选项（筛选/表单统一复用，与 PAYMENT_CHANNEL_LABELS 自动同步） */
 export const PAYMENT_CHANNEL_OPTIONS: Array<{ value: PaymentChannel; label: string }> =
-  PAYMENT_CHANNELS.map((value) => ({ value, label: PAYMENT_CHANNEL_LABELS[value] }));
+  createLabelOptions(PAYMENT_CHANNELS, PAYMENT_CHANNEL_LABELS);
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   wechat_native: '微信扫码',
@@ -225,7 +227,7 @@ export const PAYMENT_DEDUCT_PERIOD_LABELS: Record<PaymentDeductPeriod, string> =
 };
 
 export const PAYMENT_DEDUCT_PERIOD_OPTIONS: Array<{ value: PaymentDeductPeriod; label: string }> =
-  PAYMENT_DEDUCT_PERIODS.map((value) => ({ value, label: PAYMENT_DEDUCT_PERIOD_LABELS[value] }));
+  createLabelOptions(PAYMENT_DEDUCT_PERIODS, PAYMENT_DEDUCT_PERIOD_LABELS);
 
 export const PAYMENT_CONTRACT_STATUSES = ['pending', 'signed', 'paused', 'terminated'] as const;
 
@@ -259,7 +261,7 @@ export const PAYMENT_DISPUTE_TYPE_LABELS: Record<PaymentDisputeType, string> = {
 };
 
 export const PAYMENT_DISPUTE_TYPE_OPTIONS: Array<{ value: PaymentDisputeType; label: string }> =
-  PAYMENT_DISPUTE_TYPES.map((value) => ({ value, label: PAYMENT_DISPUTE_TYPE_LABELS[value] }));
+  createLabelOptions(PAYMENT_DISPUTE_TYPES, PAYMENT_DISPUTE_TYPE_LABELS);
 
 export const PAYMENT_DISPUTE_STATUSES = ['pending', 'processing', 'resolved', 'refunded'] as const;
 
@@ -270,7 +272,7 @@ export const PAYMENT_DISPUTE_STATUS_LABELS: Record<PaymentDisputeStatus, string>
 };
 
 export const PAYMENT_DISPUTE_STATUS_OPTIONS: Array<{ value: PaymentDisputeStatus; label: string }> =
-  PAYMENT_DISPUTE_STATUSES.map((value) => ({ value, label: PAYMENT_DISPUTE_STATUS_LABELS[value] }));
+  createLabelOptions(PAYMENT_DISPUTE_STATUSES, PAYMENT_DISPUTE_STATUS_LABELS);
 
 // ─── 支付中心扩展 · 预授权（资金冻结/解冻/转支付）────────────────────
 export const PAYMENT_PREAUTH_STATUSES = ['pending', 'frozen', 'captured', 'released', 'failed'] as const;
@@ -282,7 +284,7 @@ export const PAYMENT_PREAUTH_STATUS_LABELS: Record<PaymentPreauthStatus, string>
 };
 
 export const PAYMENT_PREAUTH_STATUS_OPTIONS: Array<{ value: PaymentPreauthStatus; label: string }> =
-  PAYMENT_PREAUTH_STATUSES.map((value) => ({ value, label: PAYMENT_PREAUTH_STATUS_LABELS[value] }));
+  createLabelOptions(PAYMENT_PREAUTH_STATUSES, PAYMENT_PREAUTH_STATUS_LABELS);
 
 /** 预授权支持的支付方式（渠道映射用） */
 export const PAYMENT_PREAUTH_METHODS = ['wechat_preauth', 'alipay_preauth'] as const satisfies readonly PaymentMethod[];

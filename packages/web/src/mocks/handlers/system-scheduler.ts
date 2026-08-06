@@ -1,5 +1,6 @@
 import { http } from 'msw';
 import { ok, badRequest, notFound, pageParams } from '@/mocks/utils/handlers';
+import { removeWhere } from '@/mocks/utils/array';
 import type { SystemSchedulerNode, SystemSchedulerRun, SystemSchedulerTask } from '@zenith/shared/platform';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 
@@ -410,9 +411,7 @@ export const systemSchedulerHandlers = [
     const before = runs.length;
     if (taskName) {
       const keep = runs.filter((item) => item.taskName === taskName).slice(0, 10);
-      for (let i = runs.length - 1; i >= 0; i -= 1) {
-        if (runs[i].taskName === taskName && !keep.includes(runs[i])) runs.splice(i, 1);
-      }
+      removeWhere(runs, (run) => run.taskName === taskName && !keep.includes(run));
     }
     return ok({
       message: `清理完成：按时间删除 ${before - runs.length} 条，按数量删除 0 条`,

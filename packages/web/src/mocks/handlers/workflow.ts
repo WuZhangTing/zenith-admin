@@ -16,6 +16,7 @@ import { mockWorkflowForms } from '@/mocks/data/workflow-forms';
 import { mockUsers } from '@/mocks/data/users';
 import { mockWorkflowJobs, mockWorkflowJobExecutions } from '@/mocks/data/workflow-jobs';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
+import { removeWhere } from '@/mocks/utils/array';
 import dayjs from 'dayjs';
 import { DATE_TIME_FORMAT } from '@/utils/date';
 import { mockWorkflowTriggerExecutions } from './workflow-trigger-executions';
@@ -2308,9 +2309,7 @@ export const workflowHandlers = [
       return err('请先取消进行中的流程再删除');
     }
     mockWorkflowInstances.splice(idx, 1);
-    for (let i = mockWorkflowTasks.length - 1; i >= 0; i--) {
-      if (mockWorkflowTasks[i].instanceId === id) mockWorkflowTasks.splice(i, 1);
-    }
+    removeWhere(mockWorkflowTasks, (task) => task.instanceId === id);
     return ok(null);
   }),
 

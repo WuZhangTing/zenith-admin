@@ -1,3 +1,4 @@
+import { createLabelOptionsFromMap } from '../core/enum-options';
 import type { ReportAlertAggregate, ReportChatbiSessionStatus, ReportDatasourceType, ReportDeliveryStatus, ReportDeliveryTriggerType, ReportFieldType, ReportFillRecordStatus, ReportFillSyncStatus, ReportFillTemplateStatus, ReportScheduleMisfirePolicy } from './types';
 
 export const REPORT_DASHBOARD_LIFECYCLE_STATUSES = ['draft', 'published', 'offline'] as const;
@@ -26,8 +27,7 @@ export const REPORT_AGGREGATE_LABELS: Record<ReportAlertAggregate, string> = {
 };
 
 export const REPORT_AGGREGATE_OPTIONS: Array<{ value: ReportAlertAggregate; label: string }> =
-  (Object.keys(REPORT_AGGREGATE_LABELS) as ReportAlertAggregate[])
-    .map((value) => ({ value, label: REPORT_AGGREGATE_LABELS[value] }));
+  createLabelOptionsFromMap(REPORT_AGGREGATE_LABELS);
 
 export const REPORT_VISUAL_AGGREGATE_OPTIONS = REPORT_AGGREGATE_OPTIONS
   .filter((option) => option.value !== 'first');
@@ -42,8 +42,7 @@ export const REPORT_DELIVERY_STATUS_LABELS: Record<ReportDeliveryStatus, string>
 };
 
 export const REPORT_DELIVERY_STATUS_OPTIONS: Array<{ value: ReportDeliveryStatus; label: string }> =
-  (Object.keys(REPORT_DELIVERY_STATUS_LABELS) as ReportDeliveryStatus[])
-    .map((value) => ({ value, label: REPORT_DELIVERY_STATUS_LABELS[value] }));
+  createLabelOptionsFromMap(REPORT_DELIVERY_STATUS_LABELS);
 
 export const REPORT_DELIVERY_TRIGGER_LABELS: Record<ReportDeliveryTriggerType, string> = {
   manual: '手动',
@@ -58,8 +57,7 @@ export const REPORT_MISFIRE_POLICY_LABELS: Record<ReportScheduleMisfirePolicy, s
 };
 
 export const REPORT_MISFIRE_POLICY_OPTIONS: Array<{ value: ReportScheduleMisfirePolicy; label: string }> =
-  (Object.keys(REPORT_MISFIRE_POLICY_LABELS) as ReportScheduleMisfirePolicy[])
-    .map((value) => ({ value, label: REPORT_MISFIRE_POLICY_LABELS[value] }));
+  createLabelOptionsFromMap(REPORT_MISFIRE_POLICY_LABELS);
 
 export const REPORT_FIELD_TYPE_LABELS: Record<ReportFieldType, string> = {
   string: '字符串',
@@ -69,8 +67,7 @@ export const REPORT_FIELD_TYPE_LABELS: Record<ReportFieldType, string> = {
 };
 
 export const REPORT_FIELD_TYPE_OPTIONS: Array<{ value: ReportFieldType; label: string }> =
-  (Object.keys(REPORT_FIELD_TYPE_LABELS) as ReportFieldType[])
-    .map((value) => ({ value, label: REPORT_FIELD_TYPE_LABELS[value] }));
+  createLabelOptionsFromMap(REPORT_FIELD_TYPE_LABELS);
 
 export const REPORT_DATASOURCE_TYPE_LABELS: Record<ReportDatasourceType, string> = {
   api: 'API',
@@ -103,8 +100,7 @@ export const REPORT_CHATBI_SESSION_STATUS_LABELS: Record<ReportChatbiSessionStat
 };
 
 export const REPORT_CHATBI_SESSION_STATUS_OPTIONS =
-  (Object.keys(REPORT_CHATBI_SESSION_STATUS_LABELS) as ReportChatbiSessionStatus[])
-    .map((value) => ({ value, label: REPORT_CHATBI_SESSION_STATUS_LABELS[value] }));
+  createLabelOptionsFromMap(REPORT_CHATBI_SESSION_STATUS_LABELS);
 
 export const REPORT_FILL_TEMPLATE_STATUS_LABELS: Record<ReportFillTemplateStatus, string> = {
   draft: '草稿',
@@ -113,8 +109,7 @@ export const REPORT_FILL_TEMPLATE_STATUS_LABELS: Record<ReportFillTemplateStatus
 };
 
 export const REPORT_FILL_TEMPLATE_STATUS_OPTIONS =
-  (Object.keys(REPORT_FILL_TEMPLATE_STATUS_LABELS) as ReportFillTemplateStatus[])
-    .map((value) => ({ value, label: REPORT_FILL_TEMPLATE_STATUS_LABELS[value] }));
+  createLabelOptionsFromMap(REPORT_FILL_TEMPLATE_STATUS_LABELS);
 
 export const REPORT_FILL_RECORD_STATUS_LABELS: Record<ReportFillRecordStatus, string> = {
   draft: '草稿',
@@ -126,8 +121,7 @@ export const REPORT_FILL_RECORD_STATUS_LABELS: Record<ReportFillRecordStatus, st
 };
 
 export const REPORT_FILL_RECORD_STATUS_OPTIONS =
-  (Object.keys(REPORT_FILL_RECORD_STATUS_LABELS) as ReportFillRecordStatus[])
-    .map((value) => ({ value, label: REPORT_FILL_RECORD_STATUS_LABELS[value] }));
+  createLabelOptionsFromMap(REPORT_FILL_RECORD_STATUS_LABELS);
 
 export const REPORT_FILL_SYNC_STATUS_LABELS: Record<ReportFillSyncStatus, string> = {
   pending: '待同步',

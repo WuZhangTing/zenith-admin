@@ -1,3 +1,5 @@
+import { createLabelOptions } from '../core/enum-options';
+
 export const FILE_STORAGE_PROVIDERS = ['local', 'oss', 's3', 'cos', 'obs', 'kodo', 'bos', 'azure', 'sftp'] as const;
 
 export const FILE_OBJECT_ACLS = ['default', 'private', 'public-read', 'public-read-write'] as const;
@@ -25,7 +27,7 @@ export const FILE_URL_STRATEGY_LABELS: Record<(typeof FILE_URL_STRATEGIES)[numbe
 };
 
 export const FILE_URL_STRATEGY_OPTIONS: Array<{ value: (typeof FILE_URL_STRATEGIES)[number]; label: string }> =
-  FILE_URL_STRATEGIES.map((value) => ({ value, label: FILE_URL_STRATEGY_LABELS[value] }));
+  createLabelOptions(FILE_URL_STRATEGIES, FILE_URL_STRATEGY_LABELS);
 
 /** 临时签名有效期（秒）：默认 30 分钟，限制在 1 分钟 ~ 7 天（S3 SigV4 上限） */
 export const PRESIGNED_EXPIRY_DEFAULT_SECONDS = 1800;
@@ -49,7 +51,7 @@ export const FILE_STORAGE_PROVIDER_LABELS: Record<(typeof FILE_STORAGE_PROVIDERS
 
 /** 存储提供方下拉选项（与 FILE_STORAGE_PROVIDER_LABELS 自动同步） */
 export const FILE_STORAGE_PROVIDER_OPTIONS: Array<{ value: (typeof FILE_STORAGE_PROVIDERS)[number]; label: string }> =
-  FILE_STORAGE_PROVIDERS.map((value) => ({ value, label: FILE_STORAGE_PROVIDER_LABELS[value] }));
+  createLabelOptions(FILE_STORAGE_PROVIDERS, FILE_STORAGE_PROVIDER_LABELS);
 
 export const CONFIG_TYPES = ['string', 'number', 'boolean', 'json'] as const;
 

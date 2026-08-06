@@ -13,6 +13,7 @@
 ```text
 packages/web/src/mocks/
 ├── utils/
+│   ├── array.ts             # 内存数组的共享原地变更工具
 │   ├── handlers.ts          # 共享响应构造与分页（现有文件，直接用，勿另起炉灶）
 │   └── date.ts              # mockDateTime() 等时间工具
 ├── data/
@@ -39,6 +40,9 @@ packages/web/src/mocks/
 | `paginate(list, url, defaultPageSize?)` | 切片并返回 `{ list, total, page, pageSize }` |
 | `pageResult(list, page, pageSize)` | 页码来自 query 之外时用这个 |
 | `nextIdFrom(list)` | 由现有列表推下一个自增 ID，空列表返回 1 |
+
+批量删除或级联清理内存数组时，用 `mocks/utils/array.ts` 的
+`removeWhere(list, predicate)`；它保持原数组引用并返回实际移除数量。
 
 **关于 HTTP 状态码**：所有构造函数的末位参数是原样透传的 `ResponseInit`。
 默认只在响应体里写 `code`（HTTP 仍是 200）；需要同时设置 HTTP 状态码时显式写

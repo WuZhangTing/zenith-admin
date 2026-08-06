@@ -1,3 +1,4 @@
+import { createLabelOptionsFromMap } from '../core/enum-options';
 import type { WorkflowApproveMethod, WorkflowApproverDedupMode } from './types';
 
 export const WORKFLOW_DEFINITION_STATUSES = ['draft', 'published', 'disabled'] as const;
@@ -65,8 +66,7 @@ export const WORKFLOW_APPROVE_METHOD_LABELS: Record<WorkflowApproveMethod, strin
 export const WORKFLOW_APPROVE_METHOD_OPTIONS: Array<{
   value: WorkflowApproveMethod;
   label: string;
-}> = (Object.keys(WORKFLOW_APPROVE_METHOD_LABELS) as WorkflowApproveMethod[])
-  .map((value) => ({ value, label: WORKFLOW_APPROVE_METHOD_LABELS[value] }));
+}> = createLabelOptionsFromMap<WorkflowApproveMethod>(WORKFLOW_APPROVE_METHOD_LABELS);
 
 /** 流程实例状态标签（web 各视图 / server 分析导出统一复用；Tag 颜色见 web workflow-runtime.ts） */
 export const WORKFLOW_INSTANCE_STATUS_LABELS = {

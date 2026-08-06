@@ -1,5 +1,6 @@
 import { http } from 'msw';
 import { ok, pageParams } from '@/mocks/utils/handlers';
+import { removeWhere } from '@/mocks/utils/array';
 import { mockLoginLogs } from '@/mocks/data/logs';
 
 /** 从登录日志派生统计数据，避免硬编码与列表数据脱节 */
@@ -82,13 +83,10 @@ export const loginLogsHandlers = [
     const url = new URL(request.url);
     const months = Number(url.searchParams.get('months')) || 0;
     const cutoff = months === 0 ? null : new Date(Date.now() - months * 30 * 24 * 3600 * 1000);
-    let deleted = 0;
-    for (let i = mockLoginLogs.length - 1; i >= 0; i--) {
-      if (cutoff === null || new Date(mockLoginLogs[i].createdAt) < cutoff) {
-        mockLoginLogs.splice(i, 1);
-        deleted++;
-      }
-    }
+    const deleted = removeWhere(
+      mockLoginLogs,
+      (log) => cutoff === null || new Date(log.createdAt) < cutoff,
+    );
     return ok(null, `共删除 ${deleted} 条登录日志`);
   }),
 ];

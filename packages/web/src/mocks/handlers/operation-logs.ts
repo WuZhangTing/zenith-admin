@@ -1,5 +1,6 @@
 import { http } from 'msw';
 import { ok, pageParams } from '@/mocks/utils/handlers';
+import { removeWhere } from '@/mocks/utils/array';
 import { mockOperationLogs } from '@/mocks/data/logs';
 import { mockDate } from '@/mocks/utils/date';
 import dayjs from 'dayjs';
@@ -132,13 +133,10 @@ export const operationLogsHandlers = [
     const url = new URL(request.url);
     const months = Number(url.searchParams.get('months')) || 0;
     const cutoff = months === 0 ? null : new Date(Date.now() - months * 30 * 24 * 3600 * 1000);
-    let deleted = 0;
-    for (let i = mockOperationLogs.length - 1; i >= 0; i--) {
-      if (cutoff === null || new Date(mockOperationLogs[i].createdAt) < cutoff) {
-        mockOperationLogs.splice(i, 1);
-        deleted++;
-      }
-    }
+    const deleted = removeWhere(
+      mockOperationLogs,
+      (log) => cutoff === null || new Date(log.createdAt) < cutoff,
+    );
     return ok(null, `共删除 ${deleted} 条操作日志`);
   }),
 ];

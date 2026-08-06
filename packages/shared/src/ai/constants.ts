@@ -1,3 +1,5 @@
+import { createLabelOptions } from '../core/enum-options';
+
 export const AI_PROVIDER_TYPES = ['openai_compatible', 'anthropic', 'gemini', 'baidu'] as const;
 
 export type AiProvider = (typeof AI_PROVIDER_TYPES)[number];
@@ -10,7 +12,7 @@ export const AI_PROVIDER_LABELS: Record<AiProvider, string> = {
 };
 
 export const AI_PROVIDER_OPTIONS: Array<{ value: AiProvider; label: string }> =
-  AI_PROVIDER_TYPES.map((value) => ({ value, label: AI_PROVIDER_LABELS[value] }));
+  createLabelOptions(AI_PROVIDER_TYPES, AI_PROVIDER_LABELS);
 
 export const AI_AGENT_STATUSES = ['private', 'pending', 'published', 'rejected'] as const;
 

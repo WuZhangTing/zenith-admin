@@ -1,3 +1,4 @@
+import { createLabelOptionsFromMap } from '../core/enum-options';
 import type { MpBroadcastType, MpMaterialType, MpMessageType, MpReplyContentType } from './types';
 
 // ─── 公众号媒体类型 ────────────────────────────────────────────────────
@@ -10,8 +11,7 @@ export const MP_REPLY_CONTENT_TYPE_LABELS: Record<MpReplyContentType, string> = 
 };
 
 export const MP_REPLY_CONTENT_TYPE_OPTIONS: Array<{ value: MpReplyContentType; label: string }> =
-  (Object.keys(MP_REPLY_CONTENT_TYPE_LABELS) as MpReplyContentType[])
-    .map((value) => ({ value, label: MP_REPLY_CONTENT_TYPE_LABELS[value] }));
+  createLabelOptionsFromMap(MP_REPLY_CONTENT_TYPE_LABELS);
 
 export const MP_BROADCAST_TYPE_LABELS: Record<MpBroadcastType, string> = {
   text: '文本',
@@ -20,8 +20,7 @@ export const MP_BROADCAST_TYPE_LABELS: Record<MpBroadcastType, string> = {
 };
 
 export const MP_BROADCAST_TYPE_OPTIONS: Array<{ value: MpBroadcastType; label: string }> =
-  (Object.keys(MP_BROADCAST_TYPE_LABELS) as MpBroadcastType[])
-    .map((value) => ({ value, label: MP_BROADCAST_TYPE_LABELS[value] }));
+  createLabelOptionsFromMap(MP_BROADCAST_TYPE_LABELS);
 
 export const MP_MATERIAL_TYPE_LABELS: Record<MpMaterialType, string> = {
   image: '图片',
@@ -31,8 +30,7 @@ export const MP_MATERIAL_TYPE_LABELS: Record<MpMaterialType, string> = {
 };
 
 export const MP_MATERIAL_TYPE_OPTIONS: Array<{ value: MpMaterialType; label: string }> =
-  (Object.keys(MP_MATERIAL_TYPE_LABELS) as MpMaterialType[])
-    .map((value) => ({ value, label: MP_MATERIAL_TYPE_LABELS[value] }));
+  createLabelOptionsFromMap(MP_MATERIAL_TYPE_LABELS);
 
 export const MP_MESSAGE_TYPE_LABELS: Record<MpMessageType, string> = {
   text: '文本',

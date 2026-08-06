@@ -5,6 +5,7 @@
  * 注意：本入口刻意不导出种子数据，seed 请走 '@zenith/shared/seed'。
  */
 export * from './constants';
+export * from './enum-options';
 export * from './json-shape';
 export * from './types';
 export * from './validation';

@@ -1,4 +1,5 @@
 import { COMMON_STATUS_LABELS, COMMON_STATUS_OPTIONS } from '../core/constants';
+import { createLabelOptions, createLabelOptionsFromMap } from '../core/enum-options';
 import type { AnalyticsCampaignChannel, AnalyticsCampaignStatus, AnalyticsDeviceType, AnalyticsEnvironment, AnalyticsEventOverrideStatus, AnalyticsEventSource, AnalyticsExperimentStatus, AnalyticsIdentityType } from './types';
 
 export const SOURCE_MAP_MAX_BYTES = 20 * 1024 * 1024;
@@ -26,8 +27,7 @@ export const ANALYTICS_DEVICE_TYPE_LABELS: Record<AnalyticsDeviceType, string> =
 };
 
 export const ANALYTICS_DEVICE_TYPE_OPTIONS: Array<{ value: AnalyticsDeviceType; label: string }> =
-  (Object.keys(ANALYTICS_DEVICE_TYPE_LABELS) as AnalyticsDeviceType[])
-    .map((value) => ({ value, label: ANALYTICS_DEVICE_TYPE_LABELS[value] }));
+  createLabelOptionsFromMap(ANALYTICS_DEVICE_TYPE_LABELS);
 
 // ─── 行为中心阶段 1：多端来源 / 环境 / 身份归属 ────────────────────────────────
 export const ANALYTICS_EVENT_SOURCES: readonly AnalyticsEventSource[] = ['web_admin', 'web_member', 'server'] as const;
@@ -39,7 +39,7 @@ export const ANALYTICS_EVENT_SOURCE_LABELS: Record<AnalyticsEventSource, string>
 };
 
 export const ANALYTICS_EVENT_SOURCE_OPTIONS: Array<{ value: AnalyticsEventSource; label: string }> =
-  ANALYTICS_EVENT_SOURCES.map((value) => ({ value, label: ANALYTICS_EVENT_SOURCE_LABELS[value] }));
+  createLabelOptions(ANALYTICS_EVENT_SOURCES, ANALYTICS_EVENT_SOURCE_LABELS);
 
 export const ANALYTICS_ENVIRONMENTS: readonly AnalyticsEnvironment[] = ['production', 'staging', 'development'] as const;
 
@@ -50,7 +50,7 @@ export const ANALYTICS_ENVIRONMENT_LABELS: Record<AnalyticsEnvironment, string> 
 };
 
 export const ANALYTICS_ENVIRONMENT_OPTIONS: Array<{ value: AnalyticsEnvironment; label: string }> =
-  ANALYTICS_ENVIRONMENTS.map((value) => ({ value, label: ANALYTICS_ENVIRONMENT_LABELS[value] }));
+  createLabelOptions(ANALYTICS_ENVIRONMENTS, ANALYTICS_ENVIRONMENT_LABELS);
 
 export const ANALYTICS_IDENTITY_TYPES: readonly AnalyticsIdentityType[] = ['admin', 'member', 'anonymous'] as const;
 
@@ -61,7 +61,7 @@ export const ANALYTICS_IDENTITY_TYPE_LABELS: Record<AnalyticsIdentityType, strin
 };
 
 export const ANALYTICS_IDENTITY_TYPE_OPTIONS: Array<{ value: AnalyticsIdentityType; label: string }> =
-  ANALYTICS_IDENTITY_TYPES.map((value) => ({ value, label: ANALYTICS_IDENTITY_TYPE_LABELS[value] }));
+  createLabelOptions(ANALYTICS_IDENTITY_TYPES, ANALYTICS_IDENTITY_TYPE_LABELS);
 
 /** 事件覆盖 / 分群状态标签（enabled|disabled，与 COMMON_STATUS_LABELS 同源） */
 export const ANALYTICS_EVENT_OVERRIDE_STATUS_LABELS: Record<AnalyticsEventOverrideStatus, string> = COMMON_STATUS_LABELS;
@@ -81,7 +81,7 @@ export const ANALYTICS_QUALITY_ISSUE_TYPE_LABELS: Record<(typeof ANALYTICS_QUALI
 };
 
 export const ANALYTICS_QUALITY_ISSUE_TYPE_OPTIONS: Array<{ value: (typeof ANALYTICS_QUALITY_ISSUE_TYPES)[number]; label: string }> =
-  ANALYTICS_QUALITY_ISSUE_TYPES.map((value) => ({ value, label: ANALYTICS_QUALITY_ISSUE_TYPE_LABELS[value] }));
+  createLabelOptions(ANALYTICS_QUALITY_ISSUE_TYPES, ANALYTICS_QUALITY_ISSUE_TYPE_LABELS);
 
 export const ANALYTICS_EVENT_PROPERTY_TYPES = ['string', 'number', 'boolean', 'datetime', 'object', 'array'] as const;
 
@@ -95,7 +95,7 @@ export const ANALYTICS_EVENT_PROPERTY_TYPE_LABELS: Record<(typeof ANALYTICS_EVEN
 };
 
 export const ANALYTICS_EVENT_PROPERTY_TYPE_OPTIONS: Array<{ value: (typeof ANALYTICS_EVENT_PROPERTY_TYPES)[number]; label: string }> =
-  ANALYTICS_EVENT_PROPERTY_TYPES.map((value) => ({ value, label: ANALYTICS_EVENT_PROPERTY_TYPE_LABELS[value] }));
+  createLabelOptions(ANALYTICS_EVENT_PROPERTY_TYPES, ANALYTICS_EVENT_PROPERTY_TYPE_LABELS);
 
 export const ANALYTICS_SEGMENT_COMPARE_OPS = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in'] as const;
 
@@ -110,7 +110,7 @@ export const ANALYTICS_SEGMENT_COMPARE_OP_LABELS: Record<(typeof ANALYTICS_SEGME
 };
 
 export const ANALYTICS_SEGMENT_COMPARE_OP_OPTIONS: Array<{ value: (typeof ANALYTICS_SEGMENT_COMPARE_OPS)[number]; label: string }> =
-  ANALYTICS_SEGMENT_COMPARE_OPS.map((value) => ({ value, label: ANALYTICS_SEGMENT_COMPARE_OP_LABELS[value] }));
+  createLabelOptions(ANALYTICS_SEGMENT_COMPARE_OPS, ANALYTICS_SEGMENT_COMPARE_OP_LABELS);
 
 export const ANALYTICS_EXPERIMENT_STATUSES: readonly AnalyticsExperimentStatus[] = ['draft', 'running', 'paused', 'completed'] as const;
 
@@ -122,7 +122,7 @@ export const ANALYTICS_EXPERIMENT_STATUS_LABELS: Record<AnalyticsExperimentStatu
 };
 
 export const ANALYTICS_EXPERIMENT_STATUS_OPTIONS: Array<{ value: AnalyticsExperimentStatus; label: string }> =
-  ANALYTICS_EXPERIMENT_STATUSES.map((value) => ({ value, label: ANALYTICS_EXPERIMENT_STATUS_LABELS[value] }));
+  createLabelOptions(ANALYTICS_EXPERIMENT_STATUSES, ANALYTICS_EXPERIMENT_STATUS_LABELS);
 
 export const ANALYTICS_CAMPAIGN_CHANNELS: readonly AnalyticsCampaignChannel[] = ['email', 'in_app', 'webhook'] as const;
 
@@ -133,7 +133,7 @@ export const ANALYTICS_CAMPAIGN_CHANNEL_LABELS: Record<AnalyticsCampaignChannel,
 };
 
 export const ANALYTICS_CAMPAIGN_CHANNEL_OPTIONS: Array<{ value: AnalyticsCampaignChannel; label: string }> =
-  ANALYTICS_CAMPAIGN_CHANNELS.map((value) => ({ value, label: ANALYTICS_CAMPAIGN_CHANNEL_LABELS[value] }));
+  createLabelOptions(ANALYTICS_CAMPAIGN_CHANNELS, ANALYTICS_CAMPAIGN_CHANNEL_LABELS);
 
 export const ANALYTICS_CAMPAIGN_STATUSES: readonly AnalyticsCampaignStatus[] = ['draft', 'running', 'completed', 'failed'] as const;
 
@@ -145,7 +145,7 @@ export const ANALYTICS_CAMPAIGN_STATUS_LABELS: Record<AnalyticsCampaignStatus, s
 };
 
 export const ANALYTICS_CAMPAIGN_STATUS_OPTIONS: Array<{ value: AnalyticsCampaignStatus; label: string }> =
-  ANALYTICS_CAMPAIGN_STATUSES.map((value) => ({ value, label: ANALYTICS_CAMPAIGN_STATUS_LABELS[value] }));
+  createLabelOptions(ANALYTICS_CAMPAIGN_STATUSES, ANALYTICS_CAMPAIGN_STATUS_LABELS);
 
 // ─── 行为中心阶段 1：通用事件分析工作台 ────────────────────────────────────────
 export const ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS = [
@@ -166,7 +166,7 @@ export const ANALYTICS_EVENT_QUERY_GROUP_BY_LABELS: Record<(typeof ANALYTICS_EVE
 };
 
 export const ANALYTICS_EVENT_QUERY_GROUP_BY_OPTIONS: Array<{ value: (typeof ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS)[number]; label: string }> =
-  ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS.map((value) => ({ value, label: ANALYTICS_EVENT_QUERY_GROUP_BY_LABELS[value] }));
+  createLabelOptions(ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS, ANALYTICS_EVENT_QUERY_GROUP_BY_LABELS);
 
 export const ANALYTICS_EVENT_QUERY_METRICS = ['events', 'uv'] as const;
 
@@ -176,7 +176,7 @@ export const ANALYTICS_EVENT_QUERY_METRIC_LABELS: Record<(typeof ANALYTICS_EVENT
 };
 
 export const ANALYTICS_EVENT_QUERY_METRIC_OPTIONS: Array<{ value: (typeof ANALYTICS_EVENT_QUERY_METRICS)[number]; label: string }> =
-  ANALYTICS_EVENT_QUERY_METRICS.map((value) => ({ value, label: ANALYTICS_EVENT_QUERY_METRIC_LABELS[value] }));
+  createLabelOptions(ANALYTICS_EVENT_QUERY_METRICS, ANALYTICS_EVENT_QUERY_METRIC_LABELS);
 
 // ─── 行为中心阶段 1：留存双口径 ────────────────────────────────────────────────
 export const ANALYTICS_RETENTION_MODES = ['first_seen', 'window_first'] as const;
@@ -187,7 +187,7 @@ export const ANALYTICS_RETENTION_MODE_LABELS: Record<(typeof ANALYTICS_RETENTION
 };
 
 export const ANALYTICS_RETENTION_MODE_OPTIONS: Array<{ value: (typeof ANALYTICS_RETENTION_MODES)[number]; label: string }> =
-  ANALYTICS_RETENTION_MODES.map((value) => ({ value, label: ANALYTICS_RETENTION_MODE_LABELS[value] }));
+  createLabelOptions(ANALYTICS_RETENTION_MODES, ANALYTICS_RETENTION_MODE_LABELS);
 
 // ─── 行为中心阶段 1：服务端权威语义事件（首批：支付 / 工作流 / 会员关键操作）──────
 // 命名约定：与来源事件总线类型同名（支付）或加 `workflow.` 前缀（工作流），会员业务事件用 `member.<域>.<动作>`。

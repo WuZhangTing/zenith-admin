@@ -1,5 +1,6 @@
 import { http } from 'msw';
 import { ok, notFound, paginate } from '@/mocks/utils/handlers';
+import { removeWhere } from '@/mocks/utils/array';
 import { mockEmailSendLogs, getNextEmailSendLogId } from '@/mocks/data/email-send-logs';
 import { mockEmailTemplates } from '@/mocks/data/email-templates';
 import { mockDateTime } from '@/mocks/utils/date';
@@ -38,13 +39,7 @@ export const emailSendLogsHandlers = [
   http.delete('/api/email-send-logs/batch', async ({ request }) => {
     const body = await request.json() as { ids: number[] };
     const ids = new Set(body.ids ?? []);
-    let count = 0;
-    for (let i = mockEmailSendLogs.length - 1; i >= 0; i--) {
-      if (ids.has(mockEmailSendLogs[i].id)) {
-        mockEmailSendLogs.splice(i, 1);
-        count++;
-      }
-    }
+    const count = removeWhere(mockEmailSendLogs, (log) => ids.has(log.id));
     return ok(null, `已删除 ${count} 条记录`);
   }),
 

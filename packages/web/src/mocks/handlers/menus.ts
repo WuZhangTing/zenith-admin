@@ -1,5 +1,6 @@
 import { http } from 'msw';
 import { ok, notFound, conflict } from '@/mocks/utils/handlers';
+import { removeWhere } from '@/mocks/utils/array';
 import { mockMenus, buildMenuTree, getNextMenuId } from '@/mocks/data/menus';
 import { mockRoles } from '@/mocks/data/roles';
 import { mockDateTime } from '@/mocks/utils/date';
@@ -84,9 +85,7 @@ export const menusHandlers = [
     if (refRoles.length > 0) {
       return conflict(`该菜单（含子菜单）仍被 ${refRoles.length} 个角色授权引用，请先解除授权后再删除`, { status: 409 });
     }
-    for (let i = mockMenus.length - 1; i >= 0; i--) {
-      if (toDelete.has(mockMenus[i].id)) mockMenus.splice(i, 1);
-    }
+    removeWhere(mockMenus, (menu) => toDelete.has(menu.id));
     return ok(null, '删除成功');
   }),
 ];

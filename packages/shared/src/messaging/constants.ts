@@ -1,3 +1,4 @@
+import { createLabelOptionsFromMap } from '../core/enum-options';
 import type { InAppMessageType, SendSource, SendStatus, SmsProvider } from './types';
 
 export const BUSINESS_TYPES = ['announcement'] as const;
@@ -20,7 +21,7 @@ export type NotifyChannel = keyof typeof NOTIFY_CHANNEL_LABELS;
 
 /** 通知渠道下拉选项（与 NOTIFY_CHANNEL_LABELS 自动同步） */
 export const NOTIFY_CHANNEL_OPTIONS: Array<{ value: NotifyChannel; label: string }> =
-  (Object.keys(NOTIFY_CHANNEL_LABELS) as NotifyChannel[]).map((value) => ({ value, label: NOTIFY_CHANNEL_LABELS[value] }));
+  createLabelOptionsFromMap(NOTIFY_CHANNEL_LABELS);
 
 // ─── Channel（站内公众号 / 系统号）────────────────────────────────────────────
 export const CHANNEL_TYPES = ['system', 'business'] as const;
@@ -100,8 +101,7 @@ export const SMS_PROVIDER_LABELS: Record<SmsProvider, string> = {
 };
 
 export const SMS_PROVIDER_OPTIONS: Array<{ value: SmsProvider; label: string }> =
-  (Object.keys(SMS_PROVIDER_LABELS) as SmsProvider[])
-    .map((value) => ({ value, label: SMS_PROVIDER_LABELS[value] }));
+  createLabelOptionsFromMap(SMS_PROVIDER_LABELS);
 
 export const SEND_STATUS_LABELS: Record<SendStatus, string> = {
   pending: '待发送',
@@ -110,8 +110,7 @@ export const SEND_STATUS_LABELS: Record<SendStatus, string> = {
 };
 
 export const SEND_STATUS_OPTIONS: Array<{ value: SendStatus; label: string }> =
-  (Object.keys(SEND_STATUS_LABELS) as SendStatus[])
-    .map((value) => ({ value, label: SEND_STATUS_LABELS[value] }));
+  createLabelOptionsFromMap(SEND_STATUS_LABELS);
 
 export const SEND_SOURCE_LABELS: Record<SendSource, string> = {
   manual: '手动',
@@ -121,8 +120,7 @@ export const SEND_SOURCE_LABELS: Record<SendSource, string> = {
 };
 
 export const SEND_SOURCE_OPTIONS: Array<{ value: SendSource; label: string }> =
-  (Object.keys(SEND_SOURCE_LABELS) as SendSource[])
-    .map((value) => ({ value, label: SEND_SOURCE_LABELS[value] }));
+  createLabelOptionsFromMap(SEND_SOURCE_LABELS);
 
 export const IN_APP_MESSAGE_TYPE_LABELS: Record<InAppMessageType, string> = {
   info: '通知',
@@ -132,5 +130,4 @@ export const IN_APP_MESSAGE_TYPE_LABELS: Record<InAppMessageType, string> = {
 };
 
 export const IN_APP_MESSAGE_TYPE_OPTIONS: Array<{ value: InAppMessageType; label: string }> =
-  (Object.keys(IN_APP_MESSAGE_TYPE_LABELS) as InAppMessageType[])
-    .map((value) => ({ value, label: IN_APP_MESSAGE_TYPE_LABELS[value] }));
+  createLabelOptionsFromMap(IN_APP_MESSAGE_TYPE_LABELS);

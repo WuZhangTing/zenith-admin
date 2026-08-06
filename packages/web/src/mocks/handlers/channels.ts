@@ -1,5 +1,6 @@
 import { http } from 'msw';
 import { ok, badRequest, notFound, pageParams, paginate, nextIdFrom } from '@/mocks/utils/handlers';
+import { removeWhere } from '@/mocks/utils/array';
 import type { ChatMessageExtra } from '@zenith/shared/chat';
 import type { Channel, ChannelMessage, ChannelMenu, ChannelAutoReply, ChannelConversation, ChannelQuickReply, ChannelMessageStatus, ChannelSubscriber, ChannelMessageTemplate, ChannelCsPerformance } from '@zenith/shared/messaging';
 import {
@@ -411,9 +412,7 @@ export const channelsHandlers = [
     const channelId = Number(params.id);
     const body = await request.json() as { menus: { name: string; type: 'click' | 'view'; value?: string | null; children?: { name: string; type: 'click' | 'view'; value?: string | null }[] }[] };
     // 移除旧菜单
-    for (let i = mockChannelMenus.length - 1; i >= 0; i--) {
-      if (mockChannelMenus[i].channelId === channelId) mockChannelMenus.splice(i, 1);
-    }
+    removeWhere(mockChannelMenus, (menu) => menu.channelId === channelId);
     body.menus.forEach((m, i) => {
       const topId = nextMenuId++;
       const children = (m.children ?? []).map((c, j) => ({
