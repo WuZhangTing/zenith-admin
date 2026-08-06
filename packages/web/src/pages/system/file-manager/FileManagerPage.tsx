@@ -312,8 +312,22 @@ export default function FileManagerPage() {
       }
       detail={
         <>
-          <MasterDetailLayout.Header
-            extra={
+          <MasterDetailLayout.Header>
+            <div className="fm-toolbar">
+              <FmToolbarNav
+                canBack={nav.canBack}
+                canForward={nav.canForward}
+                onBack={() => void nav.goBack()}
+                onForward={() => void nav.goForward()}
+                pathEditing={nav.pathEditing}
+                pathDraft={nav.pathDraft}
+                onPathDraftChange={nav.setPathDraft}
+                onPathEditingChange={nav.setPathEditing}
+                onStartPathEdit={nav.startPathEdit}
+                currentPath={currentPath}
+                breadcrumbs={nav.breadcrumbs}
+                onNavigate={(p) => void nav.navigateTo(p)}
+              />
               <FmToolbarActions
                 keyword={keyword}
                 onKeywordChange={setKeyword}
@@ -346,22 +360,7 @@ export default function FileManagerPage() {
                 viewMode={viewMode}
                 onViewModeChange={setViewMode}
               />
-            }
-          >
-            <FmToolbarNav
-              canBack={nav.canBack}
-              canForward={nav.canForward}
-              onBack={() => void nav.goBack()}
-              onForward={() => void nav.goForward()}
-              pathEditing={nav.pathEditing}
-              pathDraft={nav.pathDraft}
-              onPathDraftChange={nav.setPathDraft}
-              onPathEditingChange={nav.setPathEditing}
-              onStartPathEdit={nav.startPathEdit}
-              currentPath={currentPath}
-              breadcrumbs={nav.breadcrumbs}
-              onNavigate={(p) => void nav.navigateTo(p)}
-            />
+            </div>
           </MasterDetailLayout.Header>
 
           <MasterDetailLayout.Body scroll="hidden" style={{ display: 'flex', flexDirection: 'column' }}>

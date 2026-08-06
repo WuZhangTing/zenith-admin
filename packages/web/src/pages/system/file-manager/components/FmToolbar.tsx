@@ -44,7 +44,7 @@ export function FmToolbarActions({
   onBatchCompress, onBatchDelete, deleteLoading, showHidden, onToggleHidden, viewMode, onViewModeChange,
 }: Readonly<FmToolbarActionsProps>) {
   return (
-    <Space spacing={6} style={{ flexShrink: 0 }}>
+    <Space className="fm-toolbar__actions" spacing={6} style={{ flexShrink: 0 }}>
       <Input
         prefix={<Search size={13} />}
         placeholder="过滤文件名"
@@ -161,7 +161,7 @@ export function FmToolbarNav({
   onPathEditingChange, onStartPathEdit, currentPath, breadcrumbs, onNavigate,
 }: Readonly<FmToolbarNavProps>) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1, minWidth: 0, overflow: 'hidden' }}>
+    <div className="fm-toolbar__nav">
       <Tooltip content="后退">
         <Button size="small" theme="borderless" type="tertiary" icon={<ChevronLeft size={14} />} disabled={!canBack} onClick={onBack} />
       </Tooltip>
