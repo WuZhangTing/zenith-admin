@@ -14,6 +14,7 @@ import {
   writeClipboard,
 } from '@/components/data-grid';
 import { buildXlsx, downloadBlob } from '@/components/data-grid/xlsx-write';
+import { CursorContextDropdown } from '@/components/CursorContextDropdown';
 import { buildInsertSql, buildUpdateSql } from './sql-format';
 
 export interface GridMenuState {
@@ -144,7 +145,7 @@ export function GridContextMenu(props: GridContextMenuProps) {
     };
 
     return (
-      <Dropdown.Menu style={{ maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' }}>
+      <Dropdown.Menu>
         <Dropdown.Item onClick={() => { void copyAndToast(copyValue(cellValue, kind), '已复制值'); onClose(); }}>
           复制值
         </Dropdown.Item>
@@ -259,22 +260,14 @@ export function GridContextMenu(props: GridContextMenuProps) {
     );
   }, [menu, rows, schema, table, primaryKey, canEditRows, onFilterByValue, onOpenDetail, onEditRow, onDeleteRows, onCloneRows, onSetNull, onClose]);
 
-  if (!menu) return null;
+  if (!menu || !menuContent) return null;
 
   return (
-    <Dropdown
-      visible
-      trigger="custom"
-      position="bottomLeft"
-      autoAdjustOverflow
-      rePosKey={`${menu.pos.row}:${menu.pos.col}:${menu.snapshot.cellCount}:${menu.x}:${menu.y}`}
+    <CursorContextDropdown
+      point={menu}
+      contextKey={`${menu.pos.row}:${menu.pos.col}:${menu.snapshot.cellCount}`}
       render={menuContent}
-      onClickOutSide={onClose}
-      getPopupContainer={() => document.body}
-      clickToHide
-      onVisibleChange={(v) => { if (!v) onClose(); }}
-    >
-      <div style={{ position: 'fixed', left: menu.x, top: menu.y, width: 1, height: 1, pointerEvents: 'none' }} />
-    </Dropdown>
+      onClose={onClose}
+    />
   );
 }

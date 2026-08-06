@@ -15,6 +15,7 @@ import FormOutline from './FormOutline';
 import FieldConfigPanel from './FieldConfigPanel';
 import './FormDesigner.css';
 import { confirmDelete } from '@/utils/confirm';
+import { CursorContextDropdown } from '@/components/CursorContextDropdown';
 
 interface FormDesignerProps {
   fields: WorkflowFormField[];
@@ -860,18 +861,12 @@ export default function FormDesigner({ fields, onChange, settings, onSettingsCha
 
       {/* 画布右键菜单 */}
       {menu && menuField && (
-        <Dropdown
-          visible
-          trigger="custom"
-          position="bottomLeft"
-          autoAdjustOverflow
-          rePosKey={`${menu.key}:${menu.x}:${menu.y}`}
-          getPopupContainer={() => document.body}
-          clickToHide
-          onClickOutSide={() => setMenu(null)}
-          onVisibleChange={(visible) => { if (!visible) setMenu(null); }}
+        <CursorContextDropdown
+          point={menu}
+          contextKey={menu.key}
+          onClose={() => setMenu(null)}
           render={(
-            <Dropdown.Menu style={{ minWidth: 176, maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' }}>
+            <Dropdown.Menu style={{ minWidth: 176 }}>
               <Dropdown.Item icon={<ArrowUp size={13} />} onClick={() => { handleMoveSibling(menu.key, -1); setMenu(null); }}>
                 上移
               </Dropdown.Item>
@@ -916,18 +911,7 @@ export default function FormDesigner({ fields, onChange, settings, onSettingsCha
               </Dropdown.Item>
             </Dropdown.Menu>
           )}
-        >
-          <span
-            style={{
-              position: 'fixed',
-              left: menu.x,
-              top: menu.y,
-              width: 1,
-              height: 1,
-              pointerEvents: 'none',
-            }}
-          />
-        </Dropdown>
+        />
       )}
 
       {/* 存为我的模板 */}

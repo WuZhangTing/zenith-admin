@@ -12,6 +12,7 @@ import { useTerminalPreferences } from './useTerminalPreferences';
 import { request } from '@/utils/request';
 import { TOKEN_KEY } from '@zenith/shared/core';
 import { getFileIcon, getShellIcon } from '@/utils/fileIcons';
+import { CursorContextDropdown } from '@/components/CursorContextDropdown';
 import { terminalSessionStore } from './terminalSessionStore';
 import {
   closePane,
@@ -828,26 +829,19 @@ export default function TerminalPage() {
       <TerminalSettings visible={showSettings} onClose={() => setShowSettings(false)} shells={shells} />
 
       {ctxMenu && (
-        <Dropdown
-          trigger="click"
-          visible
-          clickToHide
-          position="bottomLeft"
-          autoAdjustOverflow
-          rePosKey={`${ctxMenu.id}:${ctxMenu.x}:${ctxMenu.y}`}
-          getPopupContainer={() => document.body}
-          onVisibleChange={(v) => { if (!v) setCtxMenu(null); }}
+        <CursorContextDropdown
+          point={ctxMenu}
+          contextKey={ctxMenu.id}
+          onClose={() => setCtxMenu(null)}
           render={(
-            <Dropdown.Menu style={{ maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' }}>
+            <Dropdown.Menu>
               <Dropdown.Item onClick={() => { removeSession(ctxMenu.id); setCtxMenu(null); }}>关闭</Dropdown.Item>
               <Dropdown.Item onClick={() => { closeOthers(ctxMenu.id); setCtxMenu(null); }}>关闭其他</Dropdown.Item>
               <Dropdown.Item onClick={() => { closeRight(ctxMenu.id); setCtxMenu(null); }}>关闭右侧</Dropdown.Item>
               <Dropdown.Item onClick={() => { closeAll(); setCtxMenu(null); }}>全部关闭</Dropdown.Item>
             </Dropdown.Menu>
           )}
-        >
-          <span style={{ position: 'fixed', left: ctxMenu.x, top: ctxMenu.y, width: 1, height: 1, pointerEvents: 'none' }} />
-        </Dropdown>
+        />
       )}
     </div>
   );

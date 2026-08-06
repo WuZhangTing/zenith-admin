@@ -17,6 +17,7 @@ import {
   Monitor,
 } from 'lucide-react';
 import { useThemeController } from '@/providers/theme-controller';
+import { CursorContextDropdown } from '@/components/CursorContextDropdown';
 import { useTerminalPreferences } from './useTerminalPreferences';
 import { resolveTheme } from './themes';
 import { terminalSessionStore, type TerminalStatusSnapshot } from './terminalSessionStore';
@@ -313,17 +314,12 @@ export default function TerminalTab({ sessionId, active, shell, label, cwd, onTi
       }}
     >
       {contextMenu && (
-        <Dropdown
-          trigger="click"
-          visible
-          clickToHide
-          position="bottomLeft"
-          autoAdjustOverflow
-          rePosKey={`${sessionId}:${contextMenu.x}:${contextMenu.y}`}
-          getPopupContainer={() => document.body}
-          onVisibleChange={(v) => { if (!v) setContextMenu(null); }}
+        <CursorContextDropdown
+          point={contextMenu}
+          contextKey={sessionId}
+          onClose={() => setContextMenu(null)}
           render={(
-            <Dropdown.Menu style={{ maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' }}>
+            <Dropdown.Menu>
               <Dropdown.Item icon={<Copy size={14} />} onClick={() => void copySelection()}>
                 复制
               </Dropdown.Item>
@@ -359,9 +355,7 @@ export default function TerminalTab({ sessionId, active, shell, label, cwd, onTi
               </Dropdown.Item>
             </Dropdown.Menu>
           )}
-        >
-          <span style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, width: 1, height: 1, pointerEvents: 'none' }} />
-        </Dropdown>
+        />
       )}
       {/* 搜索栏（Ctrl+F 唤出，Escape 关闭） */}
       {searchVisible && (

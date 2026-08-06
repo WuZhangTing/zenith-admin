@@ -8,6 +8,7 @@ import { downloadBlob } from '@/utils/download';
 import type { ChatMessage, ChatMessageExtra, ChatCardAction } from '@zenith/shared/chat';
 import { getAssetMeta } from '../utils';
 import { UserAvatar } from '@/components/UserAvatar';
+import { CursorContextDropdown } from '@/components/CursorContextDropdown';
 import { MessageContent } from './MessageContent';
 import type { MessageReadReceipt } from '../types';
 
@@ -549,19 +550,12 @@ export function MessageBubble({
           {fullTimeStr}{msg.isEdited && <span style={{ marginLeft: 4, color: 'var(--semi-color-text-3)', fontStyle: 'italic' }}>已编辑</span>}
         </Text>
         {contextMenuPos && (
-          <Dropdown
-            trigger="click"
-            visible
-            clickToHide
-            position="bottomLeft"
-            autoAdjustOverflow
-            rePosKey={`${msg.id}:${contextMenuPos.x}:${contextMenuPos.y}`}
-            getPopupContainer={() => document.body}
-            onVisibleChange={(visible) => {
-              if (!visible) setContextMenuPos(null);
-            }}
+          <CursorContextDropdown
+            point={contextMenuPos}
+            contextKey={msg.id}
+            onClose={() => setContextMenuPos(null)}
             render={(
-              <Dropdown.Menu style={{ maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' }}>
+              <Dropdown.Menu>
                 {!msg.isRecalled && (
                   <div style={{ display: 'flex', gap: 4, padding: '4px 8px', borderBottom: '1px solid var(--semi-color-border)' }}>
                     {['👍', '❤️', '😂', '😮', '😢', '👎'].map((emoji) => (
@@ -687,18 +681,7 @@ export function MessageBubble({
                 )}
               </Dropdown.Menu>
             )}
-          >
-            <span
-              style={{
-                position: 'fixed',
-                left: contextMenuPos.x,
-                top: contextMenuPos.y,
-                width: 1,
-                height: 1,
-                pointerEvents: 'none',
-              }}
-            />
-          </Dropdown>
+          />
         )}
         {deleteConfirmPos && (
           <Popconfirm

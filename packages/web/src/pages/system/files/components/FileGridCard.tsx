@@ -3,6 +3,7 @@ import { Checkbox, Dropdown, Spin, Tooltip } from '@douyinfe/semi-ui';
 import type { ManagedFile } from '@zenith/shared/platform';
 import { formatFileSize, getFileTypeIcon, canPreviewFile } from '@/utils/file-utils';
 import { confirmDelete } from '@/utils/confirm';
+import { CursorContextDropdown } from '@/components/CursorContextDropdown';
 import '../FilesPage.css';
 
 export interface FileGridCardProps {
@@ -80,17 +81,12 @@ export function FileGridCard({
         </div>
       </div>
       {ctxPos && (
-        <Dropdown
-          trigger="click"
-          visible
-          clickToHide
-          position="bottomLeft"
-          autoAdjustOverflow
-          rePosKey={`${file.id}:${ctxPos.x}:${ctxPos.y}`}
-          getPopupContainer={() => document.body}
-          onVisibleChange={(v) => { if (!v) setCtxPos(null); }}
-          render={
-            <Dropdown.Menu style={{ maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' }}>
+        <CursorContextDropdown
+          point={ctxPos}
+          contextKey={file.id}
+          onClose={() => setCtxPos(null)}
+          render={(
+            <Dropdown.Menu>
               {isPreviewable && <Dropdown.Item onClick={() => onPreview(file)}>预览</Dropdown.Item>}
               <Dropdown.Item onClick={() => onDownload(file)}>下载</Dropdown.Item>
               <Dropdown.Item onClick={() => onDetail(file)}>详情</Dropdown.Item>
@@ -111,10 +107,8 @@ export function FileGridCard({
                 </>
               )}
             </Dropdown.Menu>
-          }
-        >
-          <span style={{ position: 'fixed', left: ctxPos.x, top: ctxPos.y, width: 1, height: 1, pointerEvents: 'none' }} />
-        </Dropdown>
+          )}
+        />
       )}
     </>
   );

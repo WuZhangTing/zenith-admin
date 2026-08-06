@@ -1,5 +1,6 @@
 /** 右键菜单：由 Dropdown 负责视口边界碰撞与自动翻转 */
 import { Dropdown } from '@douyinfe/semi-ui';
+import { CursorContextDropdown } from '@/components/CursorContextDropdown';
 import { isArchive, isEditableFile } from '../fs-utils';
 import type { EntryActions } from '../entry-actions';
 import type { FsEntry } from '../types';
@@ -37,7 +38,7 @@ export default function FmContextMenu({ ctx, isWindows, actions, onClose }: Read
   ];
 
   const menuContent = (
-    <Dropdown.Menu style={{ maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' }}>
+    <Dropdown.Menu>
       {items.map((item) => (
         <Dropdown.Item
           key={item.label}
@@ -51,28 +52,11 @@ export default function FmContextMenu({ ctx, isWindows, actions, onClose }: Read
   );
 
   return (
-    <Dropdown
-      visible
-      trigger="custom"
-      position="bottomLeft"
-      autoAdjustOverflow
-      rePosKey={`${entry.path}:${ctx.x}:${ctx.y}`}
+    <CursorContextDropdown
+      point={ctx}
+      contextKey={entry.path}
       render={menuContent}
-      getPopupContainer={() => document.body}
-      clickToHide
-      onClickOutSide={onClose}
-      onVisibleChange={(visible) => { if (!visible) onClose(); }}
-    >
-      <span
-        style={{
-          position: 'fixed',
-          left: ctx.x,
-          top: ctx.y,
-          width: 1,
-          height: 1,
-          pointerEvents: 'none',
-        }}
-      />
-    </Dropdown>
+      onClose={onClose}
+    />
   );
 }

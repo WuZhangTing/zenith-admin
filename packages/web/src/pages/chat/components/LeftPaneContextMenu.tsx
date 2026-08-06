@@ -2,6 +2,7 @@ import { Dropdown, Toast } from '@douyinfe/semi-ui';
 import { Archive, ArchiveRestore, BellOff, Bookmark, Pin, Search, Star } from 'lucide-react';
 import { request } from '@/utils/request';
 import { confirmDelete } from '@/utils/confirm';
+import { CursorContextDropdown } from '@/components/CursorContextDropdown';
 import type { ChatConversation, ChatMessage } from '@zenith/shared/chat';
 import { removeConversationById, toggleConvMuted, toggleConvStarred, togglePinAndSort } from '../utils-state';
 import type { LeftPaneContextMenuState, Setter } from '../types';
@@ -28,19 +29,12 @@ export function LeftPaneContextMenu({
     : leftPaneContextMenu.msg.id;
 
   return (
-              <Dropdown
-                trigger="click"
-                visible
-                clickToHide
-                position="bottomLeft"
-                autoAdjustOverflow
-                rePosKey={`${leftPaneContextMenu.type}:${targetId}:${leftPaneContextMenu.x}:${leftPaneContextMenu.y}`}
-                getPopupContainer={() => document.body}
-                onVisibleChange={(visible) => {
-                  if (!visible) setLeftPaneContextMenu(null);
-                }}
+              <CursorContextDropdown
+                point={leftPaneContextMenu}
+                contextKey={`${leftPaneContextMenu.type}:${targetId}`}
+                onClose={() => setLeftPaneContextMenu(null)}
                 render={leftPaneContextMenu.type === 'conversation' ? (
-                  <Dropdown.Menu style={{ maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' }}>
+                  <Dropdown.Menu>
                     <Dropdown.Item
                       icon={<Pin size={13} />}
                       onClick={() => {
@@ -133,7 +127,7 @@ export function LeftPaneContextMenu({
                     </Dropdown.Item>
                   </Dropdown.Menu>
                 ) : (
-                  <Dropdown.Menu style={{ maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' }}>
+                  <Dropdown.Menu>
                     <Dropdown.Item
                       icon={<Search size={12} />}
                       onClick={() => {
@@ -164,17 +158,6 @@ export function LeftPaneContextMenu({
                     </Dropdown.Item>
                   </Dropdown.Menu>
                 )}
-              >
-                <span
-                  style={{
-                    position: 'fixed',
-                    left: leftPaneContextMenu.x,
-                    top: leftPaneContextMenu.y,
-                    width: 1,
-                    height: 1,
-                    pointerEvents: 'none',
-                  }}
-                />
-              </Dropdown>
+              />
   );
 }

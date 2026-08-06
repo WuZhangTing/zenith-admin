@@ -39,7 +39,7 @@ vi.mock('@douyinfe/semi-ui', async (importOriginal) => {
   const React = await import('react');
 
   const MockDropdown = (props: MockDropdownProps) => {
-    if (props.trigger === 'custom') dropdownState.calls.push(props);
+    if (props.rePosKey !== undefined) dropdownState.calls.push(props);
     const content = typeof props.render === 'function' ? props.render() : props.render;
     return React.createElement(React.Fragment, null, props.children, props.visible ? content : null);
   };
@@ -84,7 +84,7 @@ describe('FormDesigner context menu', () => {
     const firstProps = latestContextMenuProps();
     expect(firstProps).toMatchObject({
       visible: true,
-      trigger: 'custom',
+      trigger: 'click',
       position: 'bottomLeft',
       autoAdjustOverflow: true,
       clickToHide: true,
