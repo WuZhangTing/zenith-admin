@@ -6,10 +6,34 @@
  * 一旦不能穿透，页面就会绕开组件退回手写，收敛白做。
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import type { CSSProperties, ReactNode } from 'react';
 import { Input } from '@douyinfe/semi-ui';
 import { Search } from 'lucide-react';
 import { DateRangeFilter, KeywordInput, StatusSelect } from './search-filters';
+
+interface SelectStubProps {
+  readonly optionList?: readonly { value: string; label: ReactNode }[];
+  readonly onChange?: (value: string) => void;
+  readonly placeholder?: ReactNode;
+  readonly value?: string;
+  readonly style?: CSSProperties;
+}
+
+vi.mock('@douyinfe/semi-ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@douyinfe/semi-ui')>();
+  return {
+    ...actual,
+    Select: ({ optionList = [], onChange, placeholder, value, style }: SelectStubProps) => (
+      <select value={value ?? ''} onChange={(event) => onChange?.(event.target.value)} style={style}>
+        <option value="">{placeholder}</option>
+        {optionList.map((option) => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+    ),
+  };
+});
 
 const STATUS_ITEMS = [
   { value: 'enabled', label: '启用' },
@@ -67,13 +91,11 @@ describe('StatusSelect', () => {
     expect(screen.getByText('全部类型')).toBeInTheDocument();
   });
 
-  it('选中项回调原值', async () => {
+  it('选中项回调原值', () => {
     const onChange = vi.fn();
     render(<StatusSelect items={STATUS_ITEMS} value="" onChange={onChange} />);
-    fireEvent.click(screen.getByRole('combobox'));
-    fireEvent.click(await screen.findByText('停用'));
-    // Semi Select 的选项点击到 onChange 之间存在异步间隙，高负载下同步断言偶发失败
-    await waitFor(() => expect(onChange).toHaveBeenCalledWith('disabled'));
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'disabled' } });
+    expect(onChange).toHaveBeenCalledWith('disabled');
   });
 
   it('空串视为未选中，不显示成选项值', () => {

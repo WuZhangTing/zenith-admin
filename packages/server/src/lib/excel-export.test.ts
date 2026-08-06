@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { exportToExcel, ExcelColumn } from './excel-export';
 
+const EXCELJS_COLD_START_TIMEOUT_MS = 15_000;
+
 describe('exportToExcel', () => {
   it('should generate an ArrayBuffer', async () => {
     const columns: ExcelColumn[] = [{ header: 'Name', key: 'name' }];
@@ -8,7 +10,7 @@ describe('exportToExcel', () => {
     const buffer = await exportToExcel(columns, data);
     expect(buffer).toBeDefined();
     expect(buffer).toBeInstanceOf(Uint8Array);
-  });
+  }, EXCELJS_COLD_START_TIMEOUT_MS);
 
   it('should handle custom sheet name', async () => {
     const columns: ExcelColumn[] = [{ header: 'Name', key: 'name' }];

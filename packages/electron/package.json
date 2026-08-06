@@ -4,6 +4,10 @@
   "private": true,
   "description": "Zenith Admin Electron Client",
   "author": "Zenith Admin",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iwangbowen/zenith-admin.git"
+  },
   "main": "dist/main.js",
   "scripts": {
     "dev": "tsc && concurrently \"npm run dev -w @zenith/web\" \"tsc --watch --preserveWatchOutput\" \"wait-on http://localhost:5373 && electron .\"",
@@ -16,7 +20,7 @@
     "appId": "com.zenith.admin",
     "productName": "Zenith Admin",
     "copyright": "Copyright © 2024",
-    "electronVersion": "43.2.0",
+    "electronVersion": "43.3.0",
     "icon": "../web/public/icons/icon-512.png",
     "directories": {
       "output": "../../dist/electron",
@@ -82,7 +86,7 @@
   "devDependencies": {
     "@typescript/native": "npm:typescript@^7.0.2",
     "concurrently": "^10.0.4",
-    "electron": "43.2.0",
+    "electron": "43.3.0",
     "electron-builder": "^26.15.3",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "wait-on": "^9.1.0"
