@@ -116,6 +116,7 @@ export function canPreviewFile(mimeType: string | null | undefined): boolean {
     mimeType === 'application/pdf' ||
     isSpreadsheetFile(mimeType) ||
     isWordFile(mimeType) ||
+    isPresentationFile(mimeType) ||
     isMarkdownFile(mimeType) ||
     isPlainTextFile(mimeType) ||
     isZipFile(mimeType) ||
@@ -132,9 +133,24 @@ export function isSpreadsheetFile(mimeType?: string | null): boolean {
   return mime.includes('spreadsheetml') || mime === 'text/csv' || mime === 'application/csv';
 }
 
-/** 判断是否为可预览的 Word(.docx) 文档（仅 OOXML 格式，不含旧版 .doc） */
+/** 判断是否为可预览的 Word 文档（.doc / .docx） */
 export function isWordFile(mimeType?: string | null): boolean {
-  return mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  if (!mimeType) return false;
+  const mime = mimeType.toLowerCase();
+  return (
+    mime === 'application/msword' ||
+    mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  );
+}
+
+/** 判断是否为可预览的 PowerPoint 演示文稿（.ppt / .pptx） */
+export function isPresentationFile(mimeType?: string | null): boolean {
+  if (!mimeType) return false;
+  const mime = mimeType.toLowerCase();
+  return (
+    mime === 'application/vnd.ms-powerpoint' ||
+    mime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+  );
 }
 
 /** 判断是否为可预览的 Markdown 文件 */

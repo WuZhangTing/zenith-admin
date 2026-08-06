@@ -1,6 +1,7 @@
 import { fileURLToPath, URL } from 'node:url';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import { fileViewerRenderers } from '@file-viewer/vite-plugin';
 import { VitePWA } from 'vite-plugin-pwa';
 
 function sanitizeChunkName(name: string) {
@@ -42,6 +43,13 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
     },
     plugins: [
+      fileViewerRenderers({
+        formats: ['doc', 'docx', 'ppt', 'pptx'],
+        inject: false,
+        copyAssets: { baseDir: 'file-viewer', mode: 'both' },
+        chunkStrategy: 'none',
+        stabilizeInteropChunks: false,
+      }),
       react(),
       ...(pwaEnabled ? [VitePWA({
         registerType: 'autoUpdate',

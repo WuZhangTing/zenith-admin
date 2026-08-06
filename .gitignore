@@ -16,3 +16,4 @@ docs/.vitepress/dist/
 .claude/settings.local.json
 
 logs/
+packages/web/public/file-viewer/

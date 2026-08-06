@@ -116,6 +116,7 @@ const EXT_TO_MIME: Record<string, string> = {
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   xls: 'application/vnd.ms-excel', csv: 'text/csv',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', doc: 'application/msword',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', ppt: 'application/vnd.ms-powerpoint',
   md: 'text/markdown', markdown: 'text/markdown',
   json: 'application/json',
   zip: 'application/zip', gz: 'application/x-gzip', tar: 'application/x-tar',

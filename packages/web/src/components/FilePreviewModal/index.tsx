@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Modal, Spin, Toast, AudioPlayer, VideoPlayer, Typography } from '@douyinfe/semi-ui';
 import { X } from 'lucide-react';
 import { useThemeController } from '@/providers/theme-controller';
-import { fetchManagedFileBlob, isSpreadsheetFile, isWordFile, isMarkdownFile, isPlainTextFile, isZipFile, isJsonFile, isSvgFile, isCodeFile, getFileTypeIcon } from '@/utils/file-utils';
+import { fetchManagedFileBlob, isSpreadsheetFile, isWordFile, isPresentationFile, isMarkdownFile, isPlainTextFile, isZipFile, isJsonFile, isSvgFile, isCodeFile, getFileTypeIcon } from '@/utils/file-utils';
 import { request } from '@/utils/request';
 import AppModal from '@/components/AppModal';
 import { unwrap } from '@/lib/query';
@@ -18,8 +18,8 @@ const ExcelPreviewPanel = lazy(() => import('@/components/ExcelPreviewPanel'));
 const PDFPreviewPanel = lazy(() =>
   import('@/components/PDFPreviewPanel').then((m) => ({ default: m.PDFPreviewPanel })),
 );
-// docx-preview 懒加载，避免影响首屏
-const DocxPreviewPanel = lazy(() => import('@/components/DocxPreviewPanel'));
+// File Viewer 及 Word/PPT 渲染器懒加载，避免影响首屏
+const OfficePreviewPanel = lazy(() => import('@/components/OfficePreviewPanel'));
 // react-markdown 懒加载
 const MarkdownPreviewPanel = lazy(() => import('@/components/MarkdownPreviewPanel'));
 // jszip + Semi Tree 懒加载
@@ -42,11 +42,11 @@ interface FilePreviewModalProps {
   style?: CSSProperties;
 }
 
-type PreviewKind = 'spreadsheet' | 'word' | 'markdown' | 'plainText' | 'zip' | 'json' | 'svg' | 'code' | 'pdf' | 'audio' | 'video';
+type PreviewKind = 'spreadsheet' | 'word' | 'presentation' | 'markdown' | 'plainText' | 'zip' | 'json' | 'svg' | 'code' | 'pdf' | 'audio' | 'video';
 
 type PreviewData =
   | { kind: 'spreadsheet'; data: IWorkbookData }
-  | { kind: 'word'; blob: Blob }
+  | { kind: 'word' | 'presentation'; file: File }
   | { kind: 'markdown'; text: string }
   | { kind: 'plainText'; text: string }
   | { kind: 'zip'; blob: Blob }
@@ -131,6 +131,7 @@ export default function FilePreviewModal({
     const isMpegTsAsCode = mimeType === 'video/mp2t' && tsExtPattern.test(fileName);
     if (isSpreadsheetFile(mimeType)) return 'spreadsheet';
     if (isWordFile(mimeType)) return 'word';
+    if (isPresentationFile(mimeType)) return 'presentation';
     if (isMarkdownFile(mimeType)) return 'markdown';
     if (isPlainTextFile(mimeType)) return 'plainText';
     if (isZipFile(mimeType)) return 'zip';
@@ -153,7 +154,12 @@ export default function FilePreviewModal({
         return { kind: 'spreadsheet', data };
       }
       const blob = await fetchManagedFileBlob(fileUrl);
-      if (previewKind === 'word') return { kind: 'word', blob };
+      if (previewKind === 'word' || previewKind === 'presentation') {
+        return {
+          kind: previewKind,
+          file: new File([blob], fileName, { type: mimeType || blob.type }),
+        };
+      }
       if (previewKind === 'markdown') return { kind: 'markdown', text: await blob.text() };
       if (previewKind === 'plainText') return { kind: 'plainText', text: await blob.text() };
       if (previewKind === 'zip') return { kind: 'zip', blob };
@@ -290,11 +296,12 @@ export default function FilePreviewModal({
     );
   }
 
-  if (previewData?.kind === 'word') {
+  if (previewData?.kind === 'word' || previewData?.kind === 'presentation') {
+    const isPresentation = previewData.kind === 'presentation';
     return (
       <PreviewModalShell title={previewTitle} onCancel={handleClose} fullscreen={fullscreen} onToggleFullscreen={toggleFullscreen}
-        width="min(960px, 92vw)" top="3vh" viewportHeight="90vh">
-        <DocxPreviewPanel blob={previewData.blob} style={{ flex: 1, minHeight: 0 }} />
+        width={isPresentation ? 'min(1200px, 94vw)' : 'min(960px, 92vw)'} top="3vh" viewportHeight="90vh">
+        <OfficePreviewPanel file={previewData.file} style={{ flex: 1 }} />
       </PreviewModalShell>
     );
   }

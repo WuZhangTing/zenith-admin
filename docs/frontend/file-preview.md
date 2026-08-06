@@ -1,6 +1,6 @@
 # 文件预览组件
 
-`FilePreviewModal` 是全站统一的文件预览弹窗，支持图片、PDF、音频、视频、Excel/CSV 表格、Word 文档、Markdown、纯文本、JSON、SVG、代码文件和 ZIP 压缩包。调用方只需传入文件元数据，无需自行判断格式或引入额外组件。
+`FilePreviewModal` 是全站统一的文件预览弹窗，支持图片、PDF、音频、视频、Excel/CSV 表格、Word 文档、PowerPoint 演示文稿、Markdown、纯文本、JSON、SVG、代码文件和 ZIP 压缩包。调用方只需传入文件元数据，无需自行判断格式或引入额外组件。
 
 托管文件列表页推荐使用更高一层的组合：`useFilePreview` hook（`@/hooks/useFilePreview`）+ `FilePreviewLayer`（`@/components/FilePreviewLayer`），它在 `FilePreviewModal` 之上补齐了图片图集预览、不可预览文件新窗口打开与鉴权下载，见下文[使用示例](#使用示例)。
 
@@ -18,7 +18,8 @@
 | 视频 | `video/*` | Semi Design `VideoPlayer` | 否 |
 | Excel | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` | Univer 开源版只读渲染（`ExcelPreviewPanel`，懒加载） | **是** |
 | CSV | `text/csv` / `application/csv` | 后端解析转为 IWorkbookData，前端 Univer 渲染（同 Excel 路径） | **是** |
-| Word | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` | `docx-preview` 渲染为 HTML（`DocxPreviewPanel`，懒加载） | 否 |
+| Word | `application/msword` / `application/vnd.openxmlformats-officedocument.wordprocessingml.document` | File Viewer Word renderer（`OfficePreviewPanel`，懒加载） | 否 |
+| PowerPoint | `application/vnd.ms-powerpoint` / `application/vnd.openxmlformats-officedocument.presentationml.presentation` | File Viewer Presentation renderer（`OfficePreviewPanel`，懒加载） | 否 |
 | Markdown | `text/markdown` / `text/x-markdown` | `react-markdown` 渲染（`MarkdownPreviewPanel`，懒加载） | 否 |
 | 纯文本 | `text/plain` | Monaco Editor 只读展示（`MonacoPreviewPanel`，懒加载） | 否 |
 | JSON | `application/json` / `text/json` | Semi Design `JsonViewer` 只读展示（`JsonPreviewPanel`，懒加载） | 否 |
@@ -28,7 +29,9 @@
 
 > **普通图片**不在 `FilePreviewModal` 内部渲染。遇到非 SVG 的 `image/*` 时组件会立即调用 `onClose` 并回退，由调用方自行打开 `ImagePreview`。
 >
-> **Word** 仅支持 `.docx`（OOXML 格式），旧版 `.doc`（二进制格式）不支持预览。
+> **Office 文档**支持 `.doc`、`.docx`、`.ppt`、`.pptx`，全部在浏览器本地解析，不调用外部预览或文档转换服务。
+>
+> **旧版 `.ppt`** 使用 File Viewer 独立的二进制 PPT 引擎，公开版运行时会显示水印；移除水印需要取得该引擎的商业授权。`.pptx` 不受此项限制。
 >
 > **Markdown** 支持 `text/markdown`（`.md`）和 `text/x-markdown`（`.markdown`）两种 MIME 类型。
 >
@@ -122,7 +125,7 @@ const isPreviewable = canPreviewFile(record.mimeType);
 </Button>
 ```
 
-`canPreviewFile` 覆盖全部可预览格式（image / audio / video / PDF / xlsx / csv / docx / markdown / text / json / svg / code / zip），调用方无需手动枚举 MIME 类型。
+`canPreviewFile` 覆盖全部可预览格式（image / audio / video / PDF / xlsx / csv / doc / docx / ppt / pptx / markdown / text / json / svg / code / zip），调用方无需手动枚举 MIME 类型。
 
 ---
 
@@ -219,35 +222,31 @@ JSON 文件（`application/json` / `text/json`）下载并读取文本后，**�
 
 SVG 文件（`image/svg+xml`）下载 Blob 后创建 Object URL，在 `AppModal` 内使用 `<img>` 居中展示（宽度 `min(900px, 92vw)`，高度 80vh）。关闭预览时会主动释放 Object URL。
 
-### Word（.docx）
+### Word / PowerPoint
 
-下载 Blob 后**懒加载** `DocxPreviewPanel`，直接将 Blob 交给 `docx-preview` 的 `renderAsync()` 在浏览器端渲染为 HTML。整个过程**无需后端转换**。
-
-`DocxPreviewPanel`关键配置：
+下载 Blob 后包装为保留原始文件名和 MIME 类型的 `File`，再**懒加载** `OfficePreviewPanel`。面板使用 File Viewer 的模块化 React 组件，仅注册 Word 与 Presentation 两个 renderer；不会把 PDF、Excel、Markdown 等现有格式切换到 File Viewer。
 
 ```text
-renderAsync(blob, container, undefined, {
-  inWrapper: true,       // 每页包裹独立容器
-  breakPages: true,      // 显示分页
-  renderHeaders: true,   // 渲染页眉
-  renderFooters: true,   // 渲染页脚
-  renderFootnotes: true, // 渲染脚注
-  renderEndnotes: true,  // 渲染尾注
-})
+@file-viewer/react
+@file-viewer/renderer-word
+@file-viewer/renderer-presentation
 ```
+
+关键配置：
+
+- `rendererMode: 'replace'` + `autoRenderers: false`：能力范围只包含显式装配的 Word/PPT renderer
+- `styleIsolation: 'shadow'`：隔离渲染器样式与后台全局样式
+- `docx.worker: true` + `visualPagination: true`：Word 使用本地 Worker 并保留分页阅读
+- 工具栏保留缩放、搜索、打印，关闭重复的下载和主题切换入口
+- Word 弹窗宽度 `min(960px, 92vw)`，PowerPoint 为 `min(1200px, 94vw)`，高度均为 `90vh`
+
+**离线资源**：`@file-viewer/vite-plugin` 仅按 `doc/docx/ppt/pptx` 复制需要的 Worker、WASM 和字体到 `file-viewer/`。开发时生成到 `packages/web/public/file-viewer/`（已忽略版本控制），生产构建生成到 `dist/file-viewer/`；运行时不访问外部 CDN 或预览服务。
 
 **限制**：
 
-- 仅支持 `.docx`（OOXML），不支持旧版 `.doc`
-- 字体若本地无对应字体，降级到系统默认字体
-- 宏、嵌入对象、复杂 VBA 不渲染
-- 弹窗宽度 `min(960px, 92vw)`，高度 `90vh`，内容区独立滚动
-
-**依赖**（`packages/web`）：
-
-```text
-docx-preview（最新版）
-```
+- Office 复杂排版、SmartArt、动画、嵌入对象、宏等与 Microsoft Office 原生渲染可能存在差异
+- 文档引用的本机字体不存在时会降级到可用字体
+- 旧版 `.ppt` 公开运行时带水印，去水印需要该引擎商业授权；`.pptx` 无此限制
 
 ### Excel（.xlsx）
 
@@ -344,11 +343,11 @@ jszip@^3.10.1
 `packages/web/src/utils/file-utils.tsx` 提供以下辅助函数，`FilePreviewModal` / `useFilePreview` 内部也复用同一套判断：
 
 ```ts
-/** 判断是否支持预览（覆盖 image / audio / video / PDF / xlsx / csv / docx / markdown / text / json / svg / code / zip） */
+/** 判断是否支持预览（覆盖 image / audio / video / PDF / xlsx / csv / doc / docx / ppt / pptx / markdown / text / json / svg / code / zip） */
 canPreviewFile(mimeType: string | null | undefined): boolean
 
 /** 细分格式判断 */
-isSpreadsheetFile / isWordFile / isMarkdownFile / isPlainTextFile /
+isSpreadsheetFile / isWordFile / isPresentationFile / isMarkdownFile / isPlainTextFile /
 isJsonFile / isSvgFile / isCodeFile / isZipFile(mimeType?: string | null): boolean
 
 /** 按文件名扩展（优先）与 MIME 类型返回 vscode-icons 彩色图标节点，用于列表与预览标题 */

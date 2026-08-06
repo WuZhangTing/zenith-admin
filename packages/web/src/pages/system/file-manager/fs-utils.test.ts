@@ -120,6 +120,8 @@ describe('file classification', () => {
 
   it('maps extensions to mime types with null fallback', () => {
     expect(getFileMimeType('doc.PDF')).toBe('application/pdf');
+    expect(getFileMimeType('slides.PPT')).toBe('application/vnd.ms-powerpoint');
+    expect(getFileMimeType('slides.pptx')).toBe('application/vnd.openxmlformats-officedocument.presentationml.presentation');
     expect(getFileMimeType('unknown.xyz')).toBeNull();
   });
 });
