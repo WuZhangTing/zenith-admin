@@ -129,13 +129,16 @@ export async function assertSiteAccess(siteId: number): Promise<void> {
 }
 
 /** 完整批量 ACL：任一目标不可见即整体拒绝，禁止站群操作静默裁剪。 */
-export async function assertSitesAccess(siteIds: readonly number[]): Promise<void> {
+export async function assertSitesAccess(
+  siteIds: readonly number[],
+  deniedMessage = '站群操作要求对全部目标站点具有显式权限',
+): Promise<void> {
   const unique = [...new Set(siteIds)];
   const accessible = await getAccessibleSiteIds();
   if (accessible === null) return;
   const allowed = new Set(accessible);
   if (unique.some((id) => !allowed.has(id))) {
-    throw new HTTPException(403, { message: '站群操作要求对全部目标站点具有显式权限' });
+    throw new HTTPException(403, { message: deniedMessage });
   }
 }
 

@@ -14,4 +14,10 @@ describe('page registry', () => {
     expect(hasPageComponent('missing/UnknownPage')).toBe(false);
     expect(lazyPageComponent('missing/UnknownPage')).toBeNull();
   });
+
+  it('excludes tests and loading skeletons', () => {
+    expect(hasPageComponent('analytics/AnalyticsDebugTab.test')).toBe(false);
+    expect(hasPageComponent('workflow/designer/components/FormDesigner.test')).toBe(false);
+    expect(hasPageComponent('dashboard/DashboardSkeleton')).toBe(false);
+  });
 });

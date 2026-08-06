@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Avatar, Button, Dropdown } from '@douyinfe/semi-ui';
 import { Crown, House, Coins, Wallet, Ticket, LogOut } from 'lucide-react';
 import { useMemberAuth } from '../hooks/useMemberAuth';
-import { AuthModal } from '../components/AuthModal';
+
+const AuthModal = lazy(() => import('../components/AuthModal').then((module) => ({
+  default: module.AuthModal,
+})));
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const PUBLIC_NAV = [
@@ -23,10 +26,11 @@ export default function PublicLayout() {
   const location = useLocation();
   const { member, logout } = useMemberAuth();
   const [authVisible, setAuthVisible] = useState(false);
+  const [authMounted, setAuthMounted] = useState(false);
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
 
-  const openLogin = () => { setAuthTab('login'); setAuthVisible(true); };
-  const openRegister = () => { setAuthTab('register'); setAuthVisible(true); };
+  const openLogin = () => { setAuthTab('login'); setAuthMounted(true); setAuthVisible(true); };
+  const openRegister = () => { setAuthTab('register'); setAuthMounted(true); setAuthVisible(true); };
 
   const avatarMenu = (
     <Dropdown.Menu>
@@ -109,11 +113,15 @@ export default function PublicLayout() {
         <span>© 2026 会员中心. All rights reserved.</span>
       </footer>
 
-      <AuthModal
-        visible={authVisible}
-        onClose={() => setAuthVisible(false)}
-        defaultTab={authTab}
-      />
+      {authMounted && (
+        <Suspense fallback={null}>
+          <AuthModal
+            visible={authVisible}
+            onClose={() => setAuthVisible(false)}
+            defaultTab={authTab}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

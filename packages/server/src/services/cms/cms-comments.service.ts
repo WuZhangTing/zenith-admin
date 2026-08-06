@@ -9,12 +9,11 @@ import { mergeWhere, withPagination } from '../../lib/where-helpers';
 import { config } from '../../config';
 import redis from '../../lib/redis';
 import { sanitizeUserText } from './cms-sensitive-words.service';
-import { assertSiteAccess } from './cms-sites.service';
+import { assertSiteAccess, assertSitesAccess, ensureCmsSiteExists } from './cms-sites.service';
 import type { CmsCommentStatus } from '@zenith/shared/cms';
 import { alias } from 'drizzle-orm/pg-core';
 import { assertCompleteCmsBatch } from './cms-access';
 import { assertChannelsAccess, getAccessibleChannelIds } from './cms-channels.service';
-import { ensureCmsSiteExists } from './cms-sites.service';
 
 const SUBMIT_RL_PREFIX = `${config.redis.keyPrefix}cms:submit:`;
 const SUBMIT_RL_WINDOW_SECONDS = 60;
@@ -192,9 +191,7 @@ export async function auditCmsComments(ids: number[], status: 'approved' | 'reje
   if (ids.length === 0) return [];
   const rows = await db.select().from(cmsComments).where(inArray(cmsComments.id, ids));
   assertCompleteCmsBatch(ids, rows.map((row) => row.id), '评论');
-  for (const siteId of new Set(rows.map((r) => r.siteId))) {
-    await assertSiteAccess(siteId);
-  }
+  await assertSitesAccess(rows.map((row) => row.siteId), '无权管理该站点');
   const contents = await db.select({ id: cmsContents.id, channelId: cmsContents.channelId }).from(cmsContents).where(and(
     inArray(cmsContents.id, rows.map((row) => row.contentId)),
   ));
@@ -208,9 +205,7 @@ export async function deleteCmsComments(ids: number[]): Promise<number[]> {
   if (ids.length === 0) return [];
   const rows = await db.select().from(cmsComments).where(inArray(cmsComments.id, ids));
   assertCompleteCmsBatch(ids, rows.map((row) => row.id), '评论');
-  for (const siteId of new Set(rows.map((r) => r.siteId))) {
-    await assertSiteAccess(siteId);
-  }
+  await assertSitesAccess(rows.map((row) => row.siteId), '无权管理该站点');
   const contents = await db.select({ channelId: cmsContents.channelId }).from(cmsContents).where(inArray(
     cmsContents.id,
     rows.map((row) => row.contentId),

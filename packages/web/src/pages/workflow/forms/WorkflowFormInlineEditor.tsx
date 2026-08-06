@@ -3,7 +3,7 @@
  * 同时用于：表单库独立设计页 与 流程设计器第二步「内联新建/编辑表单」。
  * 顶部为紧凑工具栏（含撤销/重做），主体内嵌 FormDesigner，支持 PC/移动双预览。
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Spin, Toast, Typography, Input, Select, TextArea, RadioGroup, Radio, InputNumber, SideSheet, Divider, Tooltip, Dropdown, Banner, Switch, Tag } from '@douyinfe/semi-ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, X, Eye, Save, Settings, Monitor, Smartphone, Undo2, Redo2, Braces, Copy, Stethoscope, LayoutTemplate, SlidersHorizontal, AlertTriangle, CircleAlert, Share2, History as HistoryIcon, GitCompareArrows } from 'lucide-react';
@@ -17,12 +17,13 @@ import { diffFormFields } from '../designer/form-diff';
 import { loadFormDraft, clearFormDraft, useFormDraftAutosave, type FormDraftPayload } from '../designer/use-draft-autosave';
 import { formatDateTime } from '@/utils/date';
 import AppModal from '@/components/AppModal';
-import FieldDependencyGraph from '../designer/components/FieldDependencyGraph';
 import FormDesigner, { type FormHistoryControls } from '../designer/components/FormDesigner';
 import FormTemplateGallery from '../designer/components/FormTemplateGallery';
 import WorkflowFormRenderer from '../designer/components/WorkflowFormRenderer';
 import { useSaveWorkflowForm, useWorkflowFormDetail, workflowFormKeys } from '@/hooks/queries/workflow-forms';
 import { confirmDanger } from '@/utils/confirm';
+
+const FieldDependencyGraph = lazy(() => import('../designer/components/FieldDependencyGraph'));
 
 type PreviewState = 'fill' | 'readonly' | 'approval';
 
@@ -755,7 +756,11 @@ export default function WorkflowFormInlineEditor({
         width={920}
         closeOnEsc
       >
-        {graphVisible && <FieldDependencyGraph fields={fields} />}
+        {graphVisible && (
+          <Suspense fallback={<div style={{ padding: 48, textAlign: 'center' }}><Spin /></div>}>
+            <FieldDependencyGraph fields={fields} />
+          </Suspense>
+        )}
       </AppModal>
 
       {/* 表单模板库 */}

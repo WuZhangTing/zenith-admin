@@ -12,6 +12,7 @@ vi.mock('../../lib/redis', () => ({
 import redis from '../../lib/redis';
 import {
   consumeCmsAdEventToken,
+  consumeCmsAdEventTokens,
   signCmsAdEventToken,
   type CmsAdEventTokenPayload,
 } from './cms-ad-event-token.service';
@@ -25,7 +26,7 @@ import {
 const ip = '203.0.113.20';
 const userAgent = 'Stage4 Browser';
 
-function token(): string {
+function token(overrides: Partial<CmsAdEventTokenPayload> = {}): string {
   const payload: CmsAdEventTokenPayload = {
     version: 1,
     nonce: 'one-time-nonce',
@@ -37,6 +38,7 @@ function token(): string {
     memberId: null,
     visitorHash: hashCmsVisitor(ip, userAgent),
     expiresAt: Math.floor(Date.now() / 1000) + 60,
+    ...overrides,
   };
   return signCmsAdEventToken(payload);
 }
@@ -45,6 +47,7 @@ describe('CMS ad event signed tokens', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(redis.set).mockResolvedValue('OK');
+    vi.mocked(redis.del).mockResolvedValue(1);
   });
 
   it('binds the token to ad/page/site and the issuing visitor fingerprint', async () => {
@@ -104,5 +107,45 @@ describe('CMS ad event signed tokens', () => {
       ip,
       userAgent,
     })).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('consumes impression token batches concurrently', async () => {
+    let active = 0;
+    let maxActive = 0;
+    vi.mocked(redis.set).mockImplementation(async () => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await Promise.resolve();
+      active -= 1;
+      return 'OK';
+    });
+
+    const accepted = await consumeCmsAdEventTokens([
+      token({ nonce: 'batch-a', adId: 9 }),
+      token({ nonce: 'batch-b', adId: 10 }),
+    ], {
+      eventType: 'impression',
+      ip,
+      userAgent,
+    });
+
+    expect(accepted.map((payload) => payload.adId)).toEqual([9, 10]);
+    expect(maxActive).toBe(2);
+  });
+
+  it('releases accepted tokens when any batch token is rejected', async () => {
+    vi.mocked(redis.set).mockResolvedValueOnce('OK').mockResolvedValueOnce(null);
+
+    await expect(consumeCmsAdEventTokens([
+      token({ nonce: 'accepted-nonce', adId: 9 }),
+      token({ nonce: 'rejected-nonce', adId: 10 }),
+    ], {
+      eventType: 'impression',
+      ip,
+      userAgent,
+    })).rejects.toMatchObject({ status: 409 });
+
+    expect(redis.del).toHaveBeenCalledWith(expect.stringContaining('accepted-nonce'));
+    expect(redis.del).not.toHaveBeenCalledWith(expect.stringContaining('rejected-nonce'));
   });
 });

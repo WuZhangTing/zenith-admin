@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Badge,
@@ -52,11 +52,9 @@ import { NavListPanel, NavListItem } from '@/components/NavListPanel';
 import { formatDateTime } from '@/utils/date';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { RowEditModal } from './RowEditModal';
-import { ErDiagram } from './ErDiagram';
-import MonacoEditor from '@monaco-editor/react';
 import { buildDeleteSql, buildInsertSql, buildUpdateSql, generateCreateTableDdl } from './sql-format';
 import { OverviewPanel, KindTag } from './OverviewPanel';
-import { SqlConsole, type SqlConsoleHandle } from './SqlConsole';
+import type { SqlConsoleHandle } from './SqlConsole';
 import { OpsPanel } from './OpsPanel';
 import { ObjectsPanel } from './ObjectsPanel';
 import { ImportModal } from './ImportModal';
@@ -92,6 +90,19 @@ import {
 } from '@/hooks/queries/db-admin';
 import './db-admin.css';
 
+const ErDiagram = lazy(() => import('./ErDiagram').then((module) => ({
+  default: module.ErDiagram,
+})));
+const MonacoEditor = lazy(() => import('@monaco-editor/react'));
+const SqlConsole = lazy(() => import('./SqlConsole').then((module) => ({
+  default: module.SqlConsole,
+})));
+const lazyPanelFallback = (
+  <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <Spin />
+  </div>
+);
+
 const { Title, Text } = Typography;
 
 
@@ -121,8 +132,37 @@ export default function DbAdminPage() {
   const monacoTheme = isDark ? 'vs-dark' : 'light';
 
   const [activeTab, setActiveTab] = useState<string>('overview');
+  const [visitedTabs, setVisitedTabs] = useState<ReadonlySet<string>>(() => new Set(['overview']));
   const sqlConsoleRef = useRef<SqlConsoleHandle | null>(null);
+  const pendingConsoleSqlRef = useRef<string | null>(null);
   const [quickOpenVisible, setQuickOpenVisible] = useState(false);
+
+  useEffect(() => {
+    setVisitedTabs((current) => {
+      if (current.has(activeTab)) return current;
+      const next = new Set(current);
+      next.add(activeTab);
+      return next;
+    });
+  }, [activeTab]);
+
+  const handleSqlConsoleRef = useCallback((instance: SqlConsoleHandle | null) => {
+    sqlConsoleRef.current = instance;
+    if (instance && pendingConsoleSqlRef.current !== null) {
+      const sql = pendingConsoleSqlRef.current;
+      pendingConsoleSqlRef.current = null;
+      instance.loadSql(sql, { newTab: true });
+    }
+  }, []);
+
+  const openSqlInConsole = useCallback((sql: string) => {
+    setActiveTab('console');
+    if (sqlConsoleRef.current) {
+      sqlConsoleRef.current.loadSql(sql, { newTab: true });
+    } else {
+      pendingConsoleSqlRef.current = sql;
+    }
+  }, []);
 
   // 表浏览
   const [tableFilter, setTableFilter] = useState('');
@@ -304,8 +344,7 @@ export default function DbAdminPage() {
   const handleCopySelect = (t: TableItem) =>
     copyToClipboard(`SELECT * FROM ${fullName(t)} LIMIT 50;`, '已复制 SELECT 语句');
   const handleOpenInConsole = (t: TableItem) => {
-    setActiveTab('console');
-    sqlConsoleRef.current?.loadSql(`SELECT * FROM ${fullName(t)} LIMIT 50;`, { newTab: true });
+    openSqlInConsole(`SELECT * FROM ${fullName(t)} LIMIT 50;`);
   };
 
   // ─── 表右键上下文菜单操作 ────────────────────────────────────────────────────
@@ -459,8 +498,7 @@ export default function DbAdminPage() {
 
   // ─── 查询历史 ────────────────────────────────────────────────────────────────
   const applyHistorySql = (text: string) => {
-    setActiveTab('console');
-    sqlConsoleRef.current?.loadSql(text, { newTab: true });
+    openSqlInConsole(text);
   };
 
   const deleteHistoryItem = async (id: number) => {
@@ -1155,14 +1193,18 @@ export default function DbAdminPage() {
 
         <TabPane tab={<span><Play size={14} style={{ verticalAlign: -2, marginRight: 4 }} />SQL 控制台</span>} itemKey="console" style={{ height: '100%' }}>
           <div style={{ height: '100%', padding: 4 }}>
-            <SqlConsole
-              ref={sqlConsoleRef}
-              tables={tables}
-              structureColumnsCache={structureColumnsCacheRef}
-              canQuery={canQuery}
-              canExport={canExport}
-              monacoTheme={monacoTheme}
-            />
+            {(activeTab === 'console' || visitedTabs.has('console')) && (
+              <Suspense fallback={lazyPanelFallback}>
+                <SqlConsole
+                  ref={handleSqlConsoleRef}
+                  tables={tables}
+                  structureColumnsCache={structureColumnsCacheRef}
+                  canQuery={canQuery}
+                  canExport={canExport}
+                  monacoTheme={monacoTheme}
+                />
+              </Suspense>
+            )}
           </div>
         </TabPane>
 
@@ -1209,19 +1251,21 @@ export default function DbAdminPage() {
               if (erLoading && !erSchema) return <div style={{ padding: 24, textAlign: 'center' }}><Spin /></div>;
               if (!erSchema) return <Empty title="暂无数据" />;
               if (erSchema.tables.length === 0) return <Empty title="数据库内没有用户表" />;
-              return (
-                <ErDiagram
-                  schema={erSchema}
-                  onNodeDoubleClick={(full) => {
-                    const [s, n] = full.split('.');
-                    const t = tables.find((x) => x.schema === s && x.name === n);
-                    if (t) {
-                      setActiveTab('browse');
-                      handleSelectTable(t);
-                    }
-                  }}
-                />
-              );
+              return (activeTab === 'er' || visitedTabs.has('er')) ? (
+                <Suspense fallback={lazyPanelFallback}>
+                  <ErDiagram
+                    schema={erSchema}
+                    onNodeDoubleClick={(full) => {
+                      const [s, n] = full.split('.');
+                      const t = tables.find((x) => x.schema === s && x.name === n);
+                      if (t) {
+                        setActiveTab('browse');
+                        handleSelectTable(t);
+                      }
+                    }}
+                  />
+                </Suspense>
+              ) : null;
             })()}
           </Space>
         </TabPane>
@@ -1310,19 +1354,23 @@ export default function DbAdminPage() {
         }
       >
         <div style={{ height: 360, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-small)', overflow: 'hidden' }}>
-          <MonacoEditor
-            value={sqlPreview ?? ''}
-            language="sql"
-            theme={monacoTheme}
-            options={{
-              readOnly: true,
-              minimap: { enabled: false },
-              wordWrap: 'on',
-              fontSize: 12,
-              scrollBeyondLastLine: false,
-              automaticLayout: true,
-            }}
-          />
+          {sqlPreview !== null && (
+            <Suspense fallback={lazyPanelFallback}>
+              <MonacoEditor
+                value={sqlPreview}
+                language="sql"
+                theme={monacoTheme}
+                options={{
+                  readOnly: true,
+                  minimap: { enabled: false },
+                  wordWrap: 'on',
+                  fontSize: 12,
+                  scrollBeyondLastLine: false,
+                  automaticLayout: true,
+                }}
+              />
+            </Suspense>
+          )}
         </div>
         <Text type="tertiary" size="small" style={{ display: 'block', marginTop: 8 }}>
           以上语句将在同一事务中执行，任意一条失败即整体回滚。

@@ -171,12 +171,7 @@ export async function issueCmsAdEventTokens(input: {
 
 export async function consumeCmsAdEventToken(
   token: string,
-  expected: {
-    eventType: CmsAdEventType;
-    adId?: number;
-    ip: string;
-    userAgent: string | null;
-  },
+  expected: CmsAdEventTokenExpectation,
 ): Promise<CmsAdEventTokenPayload> {
   const payload = parseSignedToken(token);
   const now = Math.floor(Date.now() / 1000);
@@ -202,6 +197,29 @@ export async function consumeCmsAdEventToken(
   }
   if (accepted !== 'OK') throw new HTTPException(409, { message: '广告事件令牌已使用' });
   return payload;
+}
+
+interface CmsAdEventTokenExpectation {
+  eventType: CmsAdEventType;
+  adId?: number;
+  ip: string;
+  userAgent: string | null;
+}
+
+export async function consumeCmsAdEventTokens(
+  tokens: readonly string[],
+  expected: CmsAdEventTokenExpectation,
+): Promise<CmsAdEventTokenPayload[]> {
+  const results = await Promise.allSettled(
+    tokens.map((token) => consumeCmsAdEventToken(token, expected)),
+  );
+  const payloads = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : []);
+  const failed = results.find((result) => result.status === 'rejected');
+  if (failed?.status === 'rejected') {
+    await Promise.all(payloads.map(releaseCmsAdEventToken));
+    throw failed.reason;
+  }
+  return payloads;
 }
 
 export async function releaseCmsAdEventToken(payload: Pick<CmsAdEventTokenPayload, 'nonce'>): Promise<void> {

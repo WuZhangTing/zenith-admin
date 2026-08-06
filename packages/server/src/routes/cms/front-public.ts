@@ -11,6 +11,7 @@ import {
 } from '../../services/cms/cms-ad-events.service';
 import {
   consumeCmsAdEventToken,
+  consumeCmsAdEventTokens,
   issueCmsAdEventTokens,
   releaseCmsAdEventToken,
   throttleCmsAdTokenIssue,
@@ -287,11 +288,9 @@ export function createCmsFrontPublicRoutes(): Hono {
     if (tokens.length === 0) return c.json({ code: 403, message: '缺少广告曝光令牌', data: null }, 403);
     const ip = getClientIp(c);
     const userAgent = c.req.header('user-agent') ?? null;
-    const payloads: CmsAdEventTokenPayload[] = [];
+    let payloads: CmsAdEventTokenPayload[] = [];
     try {
-      for (const token of tokens) {
-        payloads.push(await consumeCmsAdEventToken(token, { eventType: 'impression', ip, userAgent }));
-      }
+      payloads = await consumeCmsAdEventTokens(tokens, { eventType: 'impression', ip, userAgent });
       const first = payloads[0];
       if (payloads.some((item) =>
         item.siteId !== first.siteId

@@ -1,6 +1,6 @@
-import { useState, useRef, useMemo } from 'react';
+import { lazy, Suspense, useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Form, Input, Select, Table, Tag, Toast, Modal, Space, Typography, Empty, Switch, InputNumber, TextArea } from '@douyinfe/semi-ui';
+import { Button, Form, Input, Select, Table, Tag, Toast, Modal, Space, Spin, Typography, Empty, Switch, InputNumber, TextArea } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Play, Upload as UploadIcon, Sparkles, Blocks } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -28,7 +28,6 @@ import { REPORT_DATASOURCE_TYPE_LABELS, REPORT_FIELD_TYPE_OPTIONS } from '@zenit
 import type { ReportDataset, ReportDatasourceType, ReportField, ReportDataResult, ReportApiDatasetContent, ReportSqlDatasetContent, ReportComputedField, ReportStaticDatasetContent, ReportFieldFormat, ReportDatasetParam, ReportLookupOption, ReportRowRule, ReportVisualModel } from '@zenith/shared/report';
 import { useAllRoles } from '@/hooks/queries/roles';
 import VisualModelBuilder from './components/VisualModelBuilder';
-import DatasetRefsModal from './components/DatasetRefsModal';
 import { useDictItems } from '@/hooks/useDictItems';
 import { renderReportDatasourceTypeTag } from './report-datasource-ui';
 import { flattenReportFolders, useReportFolderTree } from '@/hooks/queries/report-folders';
@@ -39,6 +38,10 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+
+const DatasetRefsModal = lazy(() => import('./components/DatasetRefsModal').then((module) => ({
+  default: module.DatasetRefsModal,
+})));
 
 interface SearchParams { keyword: string; status: string; ownerId?: number; folderId?: number }
 const defaultSearchParams: SearchParams = { keyword: '', status: '', ownerId: undefined, folderId: undefined };
@@ -109,6 +112,7 @@ export default function DatasetsPage() {
   const [visualVisible, setVisualVisible] = useState(false);
   const [visualModel, setVisualModel] = useState<ReportVisualModel | null>(null);
   const [refsTarget, setRefsTarget] = useState<ReportDataset | null>(null);
+  const [refsMounted, setRefsMounted] = useState(false);
   const [materialize, setMaterialize] = useState<{ enabled: boolean; cron?: string }>({ enabled: false, cron: '' });
   const [staticJsonText, setStaticJsonText] = useState('[]');
   const [staticColumns, setStaticColumns] = useState<string[]>([]);
@@ -523,7 +527,14 @@ export default function DatasetsPage() {
       actions: (record) => [
         ...(record.materialize?.enabled && hasPermission('report:dataset:update') ? [{ key: 'refreshMaterialize', label: '刷新物化', onClick: () => void handleRefreshMaterialize(record) }] : []),
         ...(hasPermission('report:dataset:update') ? [{ key: 'edit', label: '编辑', onClick: () => openEdit(record) }] : []),
-        { key: 'refs', label: '血缘', onClick: () => setRefsTarget(record) },
+        {
+          key: 'refs',
+          label: '血缘',
+          onClick: () => {
+            setRefsMounted(true);
+            setRefsTarget(record);
+          },
+        },
         { key: 'quality', label: '质量详情', onClick: () => navigate(`/report/quality?datasetId=${record.id}`) },
         { key: 'governance', label: '权限与转移', onClick: () => navigate(`/report/governance?resourceType=dataset&resourceId=${record.id}`) },
         ...(hasPermission('report:dataset:create') ? [{ key: 'clone', label: '复制', onClick: () => void handleClone(record) }] : []),
@@ -926,7 +937,11 @@ export default function DatasetsPage() {
         </div>
       </AppModal>
 
-      <DatasetRefsModal dataset={refsTarget} onClose={() => setRefsTarget(null)} />
+      {refsMounted && (
+        <Suspense fallback={<div style={{ padding: 48, textAlign: 'center' }}><Spin /></div>}>
+          <DatasetRefsModal dataset={refsTarget} onClose={() => setRefsTarget(null)} />
+        </Suspense>
+      )}
     </div>
   );
 }

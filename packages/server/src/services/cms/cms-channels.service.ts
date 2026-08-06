@@ -15,7 +15,7 @@ import { assertChannelTemplatesBySite } from './cms-template-refs.service';
 import {
   assertCompleteCmsBatch, isCmsPlatformAdmin,
 } from './cms-access';
-import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
+import { assertSiteAccess, assertSitesAccess, ensureCmsSiteExists } from './cms-sites.service';
 import { assertCmsContentsUnlocked } from './cms-content-lock.service';
 import { bumpCmsTemplateRefsRevision, lockCmsSiteForMutation } from './cms-site-publish-lock.service';
 import { enqueueCmsPublishOutboxes, insertCmsSiteRefsRebuildOutbox } from './cms-publish-outbox.service';
@@ -582,7 +582,7 @@ export async function assertChannelsAccess(channelIds: number[]): Promise<void> 
     siteId: cmsChannels.siteId,
   }).from(cmsChannels).where(inArray(cmsChannels.id, unique));
   assertCompleteCmsBatch(unique, rows.map((row) => row.id), '栏目');
-  for (const siteId of new Set(rows.map((row) => row.siteId))) await assertSiteAccess(siteId);
+  await assertSitesAccess(rows.map((row) => row.siteId), '无权管理该站点');
   const ids = await getAccessibleChannelIds();
   if (ids === null) return;
   const denied = unique.filter((id) => !ids.includes(id));

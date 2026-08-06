@@ -16,7 +16,11 @@ import React from 'react';
 type PageModuleLoader = () => Promise<{ default: React.ComponentType<unknown> }>;
 
 // glob 相对当前文件（src/utils），故使用 ../pages
-const pageModules = import.meta.glob(['../pages/**/*.tsx', '!../pages/**/**Skeleton.tsx']);
+const pageModules = import.meta.glob([
+  '../pages/**/*.tsx',
+  '!../pages/**/*Skeleton.tsx',
+  '!../pages/**/*.test.tsx',
+]);
 const lazyPageComponents = new Map<string, React.LazyExoticComponent<React.ComponentType<unknown>>>();
 
 /** 归一化组件路径：去除前导斜杠与 .tsx 后缀 */
