@@ -546,8 +546,7 @@ export default function FormDesigner({ fields, onChange, settings, onSettingsCha
 
   const openMenu = useCallback((key: string, x: number, y: number) => {
     setSelectedKeys((prev) => (prev.includes(key) ? prev : [key]));
-    // 贴边裁剪，避免菜单溢出视口
-    setMenu({ key, x: Math.min(x, window.innerWidth - 190), y: Math.min(y, window.innerHeight - 320) });
+    setMenu({ key, x, y });
   }, []);
 
   // 「存为我的模板」弹窗（保存字段配置到 localStorage，供控件面板复用）
@@ -573,18 +572,6 @@ export default function FormDesigner({ fields, onChange, settings, onSettingsCha
     selectOnly(cloned.key);
     scrollToField(cloned.key);
   }, [fields, commit, scrollToField, selectOnly]);
-
-  // 点击任意处 / 失焦关闭右键菜单
-  useEffect(() => {
-    if (!menu) return;
-    const close = () => setMenu(null);
-    window.addEventListener('mousedown', close);
-    window.addEventListener('blur', close);
-    return () => {
-      window.removeEventListener('mousedown', close);
-      window.removeEventListener('blur', close);
-    };
-  }, [menu]);
 
   const menuField = menu ? findField(fields, menu.key) : null;
 
@@ -873,58 +860,74 @@ export default function FormDesigner({ fields, onChange, settings, onSettingsCha
 
       {/* 画布右键菜单 */}
       {menu && menuField && (
-        <div
-          className="fd-form-menu"
-          style={{ left: menu.x, top: menu.y }}
-          role="menu"
-          onMouseDown={(e) => e.stopPropagation()}
-          onContextMenu={(e) => e.preventDefault()}
-        >
-          <button type="button" className="fd-form-menu__item" onClick={() => { handleMoveSibling(menu.key, -1); setMenu(null); }}>
-            <ArrowUp size={13} /> 上移
-          </button>
-          <button type="button" className="fd-form-menu__item" onClick={() => { handleMoveSibling(menu.key, 1); setMenu(null); }}>
-            <ArrowDown size={13} /> 下移
-          </button>
-          <div className="fd-form-menu__divider" />
-          <button type="button" className="fd-form-menu__item" onClick={() => { copyToClipboard(menu.key); setMenu(null); }}>
-            <CopyIcon size={13} /> 复制 <span className="fd-form-menu__hint">Ctrl+C</span>
-          </button>
-          <button
-            type="button"
-            className="fd-form-menu__item"
-            disabled={!hasClipboard}
-            onClick={() => { pasteFromClipboard(menu.key); setMenu(null); }}
-          >
-            <ClipboardPaste size={13} /> 粘贴到其后 <span className="fd-form-menu__hint">Ctrl+V</span>
-          </button>
-          <button type="button" className="fd-form-menu__item" onClick={() => { handleCopy(menu.key); setMenu(null); }}>
-            <CopyPlus size={13} /> 创建副本
-          </button>
-          <button
-            type="button"
-            className="fd-form-menu__item"
-            onClick={() => { setTplDraft({ key: menu.key, name: menuField.label || '' }); setMenu(null); }}
-          >
-            <BookmarkPlus size={13} /> 存为我的模板
-          </button>
-          {canToggleRequired(menuField.type) && (
-            <>
-              <div className="fd-form-menu__divider" />
-              <button type="button" className="fd-form-menu__item" onClick={() => { toggleRequired(menu.key); setMenu(null); }}>
-                <Asterisk size={13} /> {menuField.required ? '取消必填' : '设为必填'}
-              </button>
-            </>
+        <Dropdown
+          visible
+          trigger="custom"
+          position="bottomLeft"
+          autoAdjustOverflow
+          rePosKey={`${menu.key}:${menu.x}:${menu.y}`}
+          getPopupContainer={() => document.body}
+          clickToHide
+          onClickOutSide={() => setMenu(null)}
+          onVisibleChange={(visible) => { if (!visible) setMenu(null); }}
+          render={(
+            <Dropdown.Menu style={{ minWidth: 176, maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' }}>
+              <Dropdown.Item icon={<ArrowUp size={13} />} onClick={() => { handleMoveSibling(menu.key, -1); setMenu(null); }}>
+                上移
+              </Dropdown.Item>
+              <Dropdown.Item icon={<ArrowDown size={13} />} onClick={() => { handleMoveSibling(menu.key, 1); setMenu(null); }}>
+                下移
+              </Dropdown.Item>
+              <Dropdown.Divider />
+              <Dropdown.Item icon={<CopyIcon size={13} />} onClick={() => { copyToClipboard(menu.key); setMenu(null); }}>
+                <span className="fd-form-menu__content">复制 <span className="fd-form-menu__hint">Ctrl+C</span></span>
+              </Dropdown.Item>
+              <Dropdown.Item
+                icon={<ClipboardPaste size={13} />}
+                disabled={!hasClipboard}
+                onClick={() => { pasteFromClipboard(menu.key); setMenu(null); }}
+              >
+                <span className="fd-form-menu__content">粘贴到其后 <span className="fd-form-menu__hint">Ctrl+V</span></span>
+              </Dropdown.Item>
+              <Dropdown.Item icon={<CopyPlus size={13} />} onClick={() => { handleCopy(menu.key); setMenu(null); }}>
+                创建副本
+              </Dropdown.Item>
+              <Dropdown.Item
+                icon={<BookmarkPlus size={13} />}
+                onClick={() => { setTplDraft({ key: menu.key, name: menuField.label || '' }); setMenu(null); }}
+              >
+                存为我的模板
+              </Dropdown.Item>
+              {canToggleRequired(menuField.type) && (
+                <>
+                  <Dropdown.Divider />
+                  <Dropdown.Item icon={<Asterisk size={13} />} onClick={() => { toggleRequired(menu.key); setMenu(null); }}>
+                    {menuField.required ? '取消必填' : '设为必填'}
+                  </Dropdown.Item>
+                </>
+              )}
+              <Dropdown.Divider />
+              <Dropdown.Item
+                type="danger"
+                icon={<Trash2 size={13} />}
+                onClick={() => { handleRemove(menu.key); setMenu(null); }}
+              >
+                <span className="fd-form-menu__content">删除 <span className="fd-form-menu__hint">Del</span></span>
+              </Dropdown.Item>
+            </Dropdown.Menu>
           )}
-          <div className="fd-form-menu__divider" />
-          <button
-            type="button"
-            className="fd-form-menu__item fd-form-menu__item--danger"
-            onClick={() => { handleRemove(menu.key); setMenu(null); }}
-          >
-            <Trash2 size={13} /> 删除 <span className="fd-form-menu__hint">Del</span>
-          </button>
-        </div>
+        >
+          <span
+            style={{
+              position: 'fixed',
+              left: menu.x,
+              top: menu.y,
+              width: 1,
+              height: 1,
+              pointerEvents: 'none',
+            }}
+          />
+        </Dropdown>
       )}
 
       {/* 存为我的模板 */}
