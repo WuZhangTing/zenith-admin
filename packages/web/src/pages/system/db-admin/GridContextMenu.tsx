@@ -144,7 +144,7 @@ export function GridContextMenu(props: GridContextMenuProps) {
     };
 
     return (
-      <Dropdown.Menu>
+      <Dropdown.Menu style={{ maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' }}>
         <Dropdown.Item onClick={() => { void copyAndToast(copyValue(cellValue, kind), '已复制值'); onClose(); }}>
           复制值
         </Dropdown.Item>
@@ -266,6 +266,8 @@ export function GridContextMenu(props: GridContextMenuProps) {
       visible
       trigger="custom"
       position="bottomLeft"
+      autoAdjustOverflow
+      rePosKey={`${menu.pos.row}:${menu.pos.col}:${menu.snapshot.cellCount}:${menu.x}:${menu.y}`}
       render={menuContent}
       onClickOutSide={onClose}
       getPopupContainer={() => document.body}

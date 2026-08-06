@@ -554,11 +554,14 @@ export function MessageBubble({
             visible
             clickToHide
             position="bottomLeft"
+            autoAdjustOverflow
+            rePosKey={`${msg.id}:${contextMenuPos.x}:${contextMenuPos.y}`}
+            getPopupContainer={() => document.body}
             onVisibleChange={(visible) => {
               if (!visible) setContextMenuPos(null);
             }}
             render={(
-              <Dropdown.Menu>
+              <Dropdown.Menu style={{ maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' }}>
                 {!msg.isRecalled && (
                   <div style={{ display: 'flex', gap: 4, padding: '4px 8px', borderBottom: '1px solid var(--semi-color-border)' }}>
                     {['👍', '❤️', '😂', '😮', '😢', '👎'].map((emoji) => (
@@ -692,6 +695,7 @@ export function MessageBubble({
                 top: contextMenuPos.y,
                 width: 1,
                 height: 1,
+                pointerEvents: 'none',
               }}
             />
           </Dropdown>

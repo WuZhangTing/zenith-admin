@@ -318,9 +318,12 @@ export default function TerminalTab({ sessionId, active, shell, label, cwd, onTi
           visible
           clickToHide
           position="bottomLeft"
+          autoAdjustOverflow
+          rePosKey={`${sessionId}:${contextMenu.x}:${contextMenu.y}`}
+          getPopupContainer={() => document.body}
           onVisibleChange={(v) => { if (!v) setContextMenu(null); }}
           render={(
-            <Dropdown.Menu>
+            <Dropdown.Menu style={{ maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' }}>
               <Dropdown.Item icon={<Copy size={14} />} onClick={() => void copySelection()}>
                 复制
               </Dropdown.Item>
@@ -357,7 +360,7 @@ export default function TerminalTab({ sessionId, active, shell, label, cwd, onTi
             </Dropdown.Menu>
           )}
         >
-          <span style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, width: 1, height: 1 }} />
+          <span style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, width: 1, height: 1, pointerEvents: 'none' }} />
         </Dropdown>
       )}
       {/* 搜索栏（Ctrl+F 唤出，Escape 关闭） */}

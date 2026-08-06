@@ -23,18 +23,24 @@ export function LeftPaneContextMenu({
   handleToggleFavorite: (msg: ChatMessage) => Promise<void>;
   handleTogglePinMessage: (msg: ChatMessage) => Promise<void>;
 }>) {
+  const targetId = leftPaneContextMenu.type === 'conversation'
+    ? leftPaneContextMenu.conv.id
+    : leftPaneContextMenu.msg.id;
+
   return (
               <Dropdown
                 trigger="click"
                 visible
                 clickToHide
                 position="bottomLeft"
+                autoAdjustOverflow
+                rePosKey={`${leftPaneContextMenu.type}:${targetId}:${leftPaneContextMenu.x}:${leftPaneContextMenu.y}`}
                 getPopupContainer={() => document.body}
                 onVisibleChange={(visible) => {
                   if (!visible) setLeftPaneContextMenu(null);
                 }}
                 render={leftPaneContextMenu.type === 'conversation' ? (
-                  <Dropdown.Menu>
+                  <Dropdown.Menu style={{ maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' }}>
                     <Dropdown.Item
                       icon={<Pin size={13} />}
                       onClick={() => {
@@ -127,7 +133,7 @@ export function LeftPaneContextMenu({
                     </Dropdown.Item>
                   </Dropdown.Menu>
                 ) : (
-                  <Dropdown.Menu>
+                  <Dropdown.Menu style={{ maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' }}>
                     <Dropdown.Item
                       icon={<Search size={12} />}
                       onClick={() => {
@@ -166,6 +172,7 @@ export function LeftPaneContextMenu({
                     top: leftPaneContextMenu.y,
                     width: 1,
                     height: 1,
+                    pointerEvents: 'none',
                   }}
                 />
               </Dropdown>

@@ -833,9 +833,12 @@ export default function TerminalPage() {
           visible
           clickToHide
           position="bottomLeft"
+          autoAdjustOverflow
+          rePosKey={`${ctxMenu.id}:${ctxMenu.x}:${ctxMenu.y}`}
+          getPopupContainer={() => document.body}
           onVisibleChange={(v) => { if (!v) setCtxMenu(null); }}
           render={(
-            <Dropdown.Menu>
+            <Dropdown.Menu style={{ maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' }}>
               <Dropdown.Item onClick={() => { removeSession(ctxMenu.id); setCtxMenu(null); }}>关闭</Dropdown.Item>
               <Dropdown.Item onClick={() => { closeOthers(ctxMenu.id); setCtxMenu(null); }}>关闭其他</Dropdown.Item>
               <Dropdown.Item onClick={() => { closeRight(ctxMenu.id); setCtxMenu(null); }}>关闭右侧</Dropdown.Item>
@@ -843,7 +846,7 @@ export default function TerminalPage() {
             </Dropdown.Menu>
           )}
         >
-          <span style={{ position: 'fixed', left: ctxMenu.x, top: ctxMenu.y, width: 1, height: 1 }} />
+          <span style={{ position: 'fixed', left: ctxMenu.x, top: ctxMenu.y, width: 1, height: 1, pointerEvents: 'none' }} />
         </Dropdown>
       )}
     </div>

@@ -85,9 +85,12 @@ export function FileGridCard({
           visible
           clickToHide
           position="bottomLeft"
+          autoAdjustOverflow
+          rePosKey={`${file.id}:${ctxPos.x}:${ctxPos.y}`}
+          getPopupContainer={() => document.body}
           onVisibleChange={(v) => { if (!v) setCtxPos(null); }}
           render={
-            <Dropdown.Menu>
+            <Dropdown.Menu style={{ maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' }}>
               {isPreviewable && <Dropdown.Item onClick={() => onPreview(file)}>预览</Dropdown.Item>}
               <Dropdown.Item onClick={() => onDownload(file)}>下载</Dropdown.Item>
               <Dropdown.Item onClick={() => onDetail(file)}>详情</Dropdown.Item>
@@ -110,7 +113,7 @@ export function FileGridCard({
             </Dropdown.Menu>
           }
         >
-          <span style={{ position: 'fixed', left: ctxPos.x, top: ctxPos.y, width: 1, height: 1 }} />
+          <span style={{ position: 'fixed', left: ctxPos.x, top: ctxPos.y, width: 1, height: 1, pointerEvents: 'none' }} />
         </Dropdown>
       )}
     </>
