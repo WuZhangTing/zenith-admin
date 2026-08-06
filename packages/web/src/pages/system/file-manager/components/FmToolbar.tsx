@@ -45,49 +45,63 @@ export function FmToolbarActions({
 }: Readonly<FmToolbarActionsProps>) {
   return (
     <Space className="fm-toolbar__actions" spacing={6} style={{ flexShrink: 0 }}>
-      <Input
-        prefix={<Search size={13} />}
-        placeholder="过滤文件名"
-        value={keyword}
-        onChange={onKeywordChange}
-        showClear
-        size="small"
-        style={{ width: 160 }}
-      />
-      <Input
-        prefix={<Search size={13} />}
-        placeholder="深度搜索(回车)"
-        value={searchKw}
-        onChange={onSearchKwChange}
-        onEnterPress={onRunSearch}
-        showClear
-        size="small"
-        style={{ width: 150 }}
-      />
-      <Tooltip content="刷新">
-        <Button size="small" theme="borderless" type="tertiary" icon={<RotateCcw size={13} />} loading={loading} onClick={onRefresh} />
-      </Tooltip>
-      <Tooltip content="新建文件夹">
-        <Button size="small" theme="borderless" type="tertiary" icon={<FolderPlus size={13} />} onClick={onNewDir} />
-      </Tooltip>
-      <Tooltip content="新建文件">
-        <Button size="small" theme="borderless" type="tertiary" icon={<FilePlus size={13} />} onClick={onNewFile} />
-      </Tooltip>
-      <Tooltip content="上传文件">
-        <Button size="small" theme="borderless" type="tertiary" icon={<UploadIcon size={13} />} onClick={onUploadFiles} />
-      </Tooltip>
-      <Tooltip content="上传文件夹">
-        <Button size="small" theme="borderless" type="tertiary" icon={<FolderUp size={13} />} onClick={onUploadDir} />
-      </Tooltip>
-      <Tooltip content={isBookmarked ? '取消收藏当前目录' : '收藏当前目录'}>
-        <Button
-          size="small"
-          theme="borderless"
-          type={isBookmarked ? 'warning' : 'tertiary'}
-          icon={<Star size={13} fill={isBookmarked ? 'currentColor' : 'none'} />}
-          onClick={onToggleBookmark}
-        />
-      </Tooltip>
+      {selectedCount > 0 ? (
+        <>
+          <Button size="small" theme="borderless" type="tertiary" icon={<Download size={13} />} onClick={onBatchDownload}>下载</Button>
+          <Button size="small" theme="borderless" type="tertiary" icon={<Copy size={13} />} onClick={onBatchCopy}>复制</Button>
+          <Button size="small" theme="borderless" type="tertiary" icon={<Scissors size={13} />} onClick={onBatchCut}>剪切</Button>
+          <Button size="small" theme="borderless" type="tertiary" icon={<Archive size={13} />} onClick={onBatchCompress}>压缩</Button>
+          <Popconfirm title={`确定删除选中的 ${selectedCount} 项吗？`} okType="danger" onConfirm={onBatchDelete}>
+            <Button size="small" theme="borderless" type="danger" icon={<Trash2 size={13} />} loading={deleteLoading}>删除</Button>
+          </Popconfirm>
+        </>
+      ) : (
+        <>
+          <Input
+            prefix={<Search size={13} />}
+            placeholder="过滤文件名"
+            value={keyword}
+            onChange={onKeywordChange}
+            showClear
+            size="small"
+            style={{ width: 160 }}
+          />
+          <Input
+            prefix={<Search size={13} />}
+            placeholder="深度搜索(回车)"
+            value={searchKw}
+            onChange={onSearchKwChange}
+            onEnterPress={onRunSearch}
+            showClear
+            size="small"
+            style={{ width: 150 }}
+          />
+          <Tooltip content="刷新">
+            <Button size="small" theme="borderless" type="tertiary" icon={<RotateCcw size={13} />} loading={loading} onClick={onRefresh} />
+          </Tooltip>
+          <Tooltip content="新建文件夹">
+            <Button size="small" theme="borderless" type="tertiary" icon={<FolderPlus size={13} />} onClick={onNewDir} />
+          </Tooltip>
+          <Tooltip content="新建文件">
+            <Button size="small" theme="borderless" type="tertiary" icon={<FilePlus size={13} />} onClick={onNewFile} />
+          </Tooltip>
+          <Tooltip content="上传文件">
+            <Button size="small" theme="borderless" type="tertiary" icon={<UploadIcon size={13} />} onClick={onUploadFiles} />
+          </Tooltip>
+          <Tooltip content="上传文件夹">
+            <Button size="small" theme="borderless" type="tertiary" icon={<FolderUp size={13} />} onClick={onUploadDir} />
+          </Tooltip>
+          <Tooltip content={isBookmarked ? '取消收藏当前目录' : '收藏当前目录'}>
+            <Button
+              size="small"
+              theme="borderless"
+              type={isBookmarked ? 'warning' : 'tertiary'}
+              icon={<Star size={13} fill={isBookmarked ? 'currentColor' : 'none'} />}
+              onClick={onToggleBookmark}
+            />
+          </Tooltip>
+        </>
+      )}
       {clipboard && (
         <Tooltip content={`粘贴（${clipboard.op === 'copy' ? '复制' : '移动'} ${clipboard.paths.length} 项）`}>
           <Button
@@ -100,17 +114,6 @@ export function FmToolbarActions({
             粘贴
           </Button>
         </Tooltip>
-      )}
-      {selectedCount > 0 && (
-        <>
-          <Button size="small" theme="borderless" type="tertiary" icon={<Download size={13} />} onClick={onBatchDownload}>下载</Button>
-          <Button size="small" theme="borderless" type="tertiary" icon={<Copy size={13} />} onClick={onBatchCopy}>复制</Button>
-          <Button size="small" theme="borderless" type="tertiary" icon={<Scissors size={13} />} onClick={onBatchCut}>剪切</Button>
-          <Button size="small" theme="borderless" type="tertiary" icon={<Archive size={13} />} onClick={onBatchCompress}>压缩</Button>
-          <Popconfirm title={`确定删除选中的 ${selectedCount} 项吗？`} okType="danger" onConfirm={onBatchDelete}>
-            <Button size="small" theme="borderless" type="danger" icon={<Trash2 size={13} />} loading={deleteLoading}>删除</Button>
-          </Popconfirm>
-        </>
       )}
       <Tooltip content={showHidden ? '隐藏点文件' : '显示隐藏文件'}>
         <Button
