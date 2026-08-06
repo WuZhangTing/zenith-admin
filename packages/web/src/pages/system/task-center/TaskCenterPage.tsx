@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Descriptions, InputNumber, Modal, Select, SideSheet, Switch, TabPane, Tabs, Tag, Toast, Typography, Input } from '@douyinfe/semi-ui';
+import { Button, Descriptions, InputNumber, Modal, Select, SideSheet, Spin, Switch, TabPane, Tabs, Tag, Toast, Typography, Input } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Eraser, RefreshCw, Trash2, XCircle } from 'lucide-react';
 import type { PaginatedResponse } from '@zenith/shared/core';
@@ -63,7 +63,14 @@ const itemStatusOptions: Array<{ value: AsyncTaskItemStatus | ''; label: string 
   { value: 'pending', label: '待处理' },
 ];
 
-const AUTO_REFRESH_MS = 5000;
+const refreshIntervalOptions = [
+  { value: 0, label: '关闭' },
+  { value: 5000, label: '5 秒' },
+  { value: 10000, label: '10 秒' },
+  { value: 30000, label: '30 秒' },
+  { value: 60000, label: '60 秒' },
+];
+
 const EMPTY_TASKS: AsyncTask[] = [];
 const EMPTY_TYPES: AsyncTaskTypeMeta[] = [];
 const EMPTY_ITEMS: AsyncTaskItem[] = [];
@@ -129,7 +136,8 @@ export default function TaskCenterPage() {
   const canConfig = hasPermission('system:async-task:config');
 
   const [activeTab, setActiveTab] = useState<TabKey>('tasks');
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [refreshInterval, setRefreshInterval] = useState(0);
+  const [manualRefreshing, setManualRefreshing] = useState(false);
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
@@ -145,7 +153,7 @@ export default function TaskCenterPage() {
   // 类型策略弹窗
   const [configType, setConfigType] = useState<AsyncTaskTypeMeta | null>(null);
   const [configDraft, setConfigDraft] = useState({ enabled: true, allowConcurrent: true, maxAttempts: 1, retryDelayMs: 5000, retentionDays: null as number | null });
-  const refetchInterval = autoRefresh && activeTab === 'tasks' ? AUTO_REFRESH_MS : false;
+  const refetchInterval = refreshInterval > 0 && activeTab === 'tasks' ? refreshInterval : false;
   const listQuery = useAsyncTaskList({
     page,
     pageSize,
@@ -182,6 +190,13 @@ export default function TaskCenterPage() {
     ?? (restartMutation.isPending ? restartMutation.variables : null)
     ?? (deleteMutation.isPending ? deleteMutation.variables : null);
   const batchLoading = batchCancelMutation.isPending || batchDeleteMutation.isPending;
+  // 后台轮询不接管表格 loading，否则每次自动刷新都会闪一次遮罩；仅首屏与查询条件/页码变化时展示
+  const tableLoading = listQuery.isLoading || (listQuery.isPlaceholderData && listQuery.isFetching);
+
+  const handleRefresh = () => {
+    setManualRefreshing(true);
+    void Promise.all([listQuery.refetch(), statsQuery.refetch()]).finally(() => setManualRefreshing(false));
+  };
 
   const typeOptions = useMemo(
     () => [
@@ -298,19 +313,10 @@ export default function TaskCenterPage() {
 
   const columns: ColumnProps<AsyncTask>[] = [
     { title: '任务ID', dataIndex: 'id', width: 90 },
-    {
-      title: '任务',
-      dataIndex: 'title',
-      width: 240,
-      render: (_: string, record: AsyncTask) => (
-        <div>
-          <Typography.Text strong>{record.title}</Typography.Text>
-          <div><Typography.Text type="tertiary" size="small">{record.taskType}</Typography.Text></div>
-        </div>
-      ),
-    },
-    { title: '模块', dataIndex: 'module', width: 110, render: (value: string | null) => value ?? '-' },
-    { title: '进度', dataIndex: 'processedCount', width: 210, render: (_: number, record: AsyncTask) => <AsyncTaskProgress task={record} /> },
+    { title: '任务名称', dataIndex: 'title', width: 220, render: renderEllipsis },
+    { title: '任务类型', dataIndex: 'taskType', width: 200, render: renderEllipsis },
+    { title: '模块', dataIndex: 'module', width: 160, render: renderEllipsis },
+    { title: '进度', dataIndex: 'processedCount', width: 190, render: (_: number, record: AsyncTask) => <AsyncTaskProgress task={record} noteDisplay="tooltip" /> },
     {
       title: '数量',
       dataIndex: 'totalCount',
@@ -492,7 +498,27 @@ export default function TaskCenterPage() {
             />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
-            <Button icon={<RefreshCw size={14} />} onClick={() => { void listQuery.refetch(); void statsQuery.refetch(); }} loading={listQuery.isFetching}>刷新</Button>
+            <Button icon={<RefreshCw size={14} />} onClick={handleRefresh} loading={manualRefreshing}>刷新</Button>
+            <Select
+              prefix="自动刷新"
+              value={refreshInterval}
+              optionList={refreshIntervalOptions}
+              onChange={(value) => setRefreshInterval(value as number)}
+              style={{ width: 150 }}
+            />
+            {refreshInterval > 0 && (
+              // 固定宽度占位，轮询指示的出现/消失不会挤动后面的按钮
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, width: 84 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 16 }}>
+                  {listQuery.isFetching
+                    ? <Spin size="small" />
+                    : <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--semi-color-success)' }} />}
+                </span>
+                <Typography.Text type="tertiary" size="small">
+                  {listQuery.isFetching ? '刷新中…' : '已开启'}
+                </Typography.Text>
+              </span>
+            )}
             {canCleanup && (
               <Button icon={<Eraser size={14} />} loading={cleanupMutation.isPending} onClick={handleCleanup}>清理过期记录</Button>
             )}
@@ -506,19 +532,15 @@ export default function TaskCenterPage() {
                 </Button>
               </>
             )}
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <Switch size="small" checked={autoRefresh} onChange={setAutoRefresh} />
-              <Typography.Text type="tertiary" size="small">自动刷新</Typography.Text>
-            </span>
           </SearchToolbar>
 
           <ConfigurableTable
             bordered
             columns={columns}
             dataSource={data}
-            loading={listQuery.isFetching}
-            onRefresh={() => { void listQuery.refetch(); void statsQuery.refetch(); }}
-            refreshLoading={listQuery.isFetching}
+            loading={tableLoading}
+            onRefresh={handleRefresh}
+            refreshLoading={manualRefreshing}
             pagination={buildPagination(total)}
             rowKey="id"
             rowSelection={canManage ? {
@@ -528,7 +550,7 @@ export default function TaskCenterPage() {
             size="small"
             empty="暂无异步任务"
             columnSettingsKey="task-center-tasks"
-            scroll={{ x: 1870 }}
+            scroll={{ x: 2080 }}
           />
         </TabPane>
 

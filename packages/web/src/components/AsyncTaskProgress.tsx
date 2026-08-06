@@ -1,31 +1,67 @@
-import { Progress, Spin, Typography } from '@douyinfe/semi-ui';
+import { Progress, Spin, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { HelpCircle } from 'lucide-react';
 import type { AsyncTask } from '@zenith/shared/tasks';
 
+interface AsyncTaskProgressProps {
+  task: AsyncTask;
+  /** 说明文案展示方式：inline 常驻进度条下方（默认）；tooltip 收进问号图标悬浮查看，适合不允许换行的表格列 */
+  noteDisplay?: 'inline' | 'tooltip';
+}
+
+/** 说明文案的问号悬浮入口，无文案时不渲染 */
+function NoteHint({ note }: { note: string | null }) {
+  if (!note) return null;
+  return (
+    <Tooltip content={note} position="top">
+      <HelpCircle size={13} style={{ color: 'var(--semi-color-text-2)', flexShrink: 0, cursor: 'help' }} />
+    </Tooltip>
+  );
+}
+
 /** 通用异步任务进度单元格：确定进度显示进度条，不定进度显示 Spin + 说明文案 */
-export default function AsyncTaskProgress({ task }: { task: AsyncTask }) {
+export default function AsyncTaskProgress({ task, noteDisplay = 'inline' }: Readonly<AsyncTaskProgressProps>) {
   const percent = task.totalCount
     ? Math.min(100, Math.round((task.processedCount / Math.max(task.totalCount, 1)) * 100))
     : null;
+  const asTooltip = noteDisplay === 'tooltip';
 
   if (task.status === 'pending') {
-    const resumed = task.processedCount > 0;
+    const detail = task.processedCount > 0
+      ? `已处理 ${task.processedCount}${task.totalCount ? `/${task.totalCount}` : ''}，等待续跑`
+      : null;
+    if (asTooltip) {
+      return (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <Typography.Text type="tertiary" size="small">排队中</Typography.Text>
+          <NoteHint note={detail} />
+        </span>
+      );
+    }
     return (
       <Typography.Text type="tertiary" size="small">
-        {resumed ? `排队中（已处理 ${task.processedCount}${task.totalCount ? `/${task.totalCount}` : ''}，等待续跑）` : '排队中'}
+        {detail ? `排队中（${detail}）` : '排队中'}
       </Typography.Text>
     );
   }
 
   if (task.status === 'running') {
+    const note = task.progressNote ?? '执行中…';
+    const bar = percent != null
+      ? <Progress percent={percent} showInfo size="small" style={{ width: 150 }} />
+      : <Spin size="small" />;
+    if (asTooltip) {
+      return (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {bar}
+          <NoteHint note={note} />
+        </span>
+      );
+    }
     return (
       <div>
-        {percent != null ? (
-          <Progress percent={percent} showInfo size="small" style={{ width: 150 }} />
-        ) : (
-          <Spin size="small" />
-        )}
+        {bar}
         <div>
-          <Typography.Text type="tertiary" size="small">{task.progressNote ?? '执行中…'}</Typography.Text>
+          <Typography.Text type="tertiary" size="small">{note}</Typography.Text>
         </div>
       </div>
     );
@@ -36,12 +72,24 @@ export default function AsyncTaskProgress({ task }: { task: AsyncTask }) {
     : task.status === 'failed'
       ? 'var(--semi-color-danger)'
       : 'var(--semi-color-text-3)';
+  const bar = percent != null
+    ? <Progress percent={percent} showInfo size="small" stroke={stroke} style={{ width: 150 }} />
+    : null;
+  if (asTooltip) {
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        {bar ?? <Typography.Text type="tertiary" size="small">—</Typography.Text>}
+        <NoteHint note={task.progressNote} />
+      </span>
+    );
+  }
   return (
     <div>
-      {percent != null && <Progress percent={percent} showInfo size="small" stroke={stroke} style={{ width: 150 }} />}
+      {bar}
       <div>
         <Typography.Text type="tertiary" size="small">{task.progressNote ?? '-'}</Typography.Text>
       </div>
     </div>
   );
 }
+
