@@ -239,7 +239,12 @@ SVG 文件（`image/svg+xml`）下载 Blob 后创建 Object URL，在 `AppModal`
 - 工具栏保留缩放、搜索、打印，关闭重复的下载和主题切换入口
 - Word 弹窗宽度 `min(960px, 92vw)`，Excel/CSV/PowerPoint 为 `min(1200px, 94vw)`，高度均为 `90vh`
 
-**离线资源**：`@file-viewer/vite-plugin` 按 `doc/docx/xls/xlsx/csv/ppt/pptx` 复制需要的 Worker、WASM 和字体到 `file-viewer/`。开发时生成到 `packages/web/public/file-viewer/`（已忽略版本控制），生产构建生成到 `dist/file-viewer/`；运行时不访问外部 CDN 或预览服务。
+**离线资源**：`@file-viewer/vite-plugin` 只按 `doc/docx/xls/xlsx/csv` 复制 Word、Spreadsheet
+所需的 Worker 到 `file-viewer/`。Presentation renderer 在 `FileViewerPreviewPanel` 中显式注册，
+其 `.ppt/.pptx` Worker、WASM 和字体由 Vite 输出到 `assets/`；不要同时把 `ppt/pptx` 加回插件的
+`formats`，否则同一套 Presentation 资源会再复制到 `file-viewer/`。开发时插件资源生成到
+`packages/web/public/file-viewer/`（已忽略版本控制），生产构建生成到 `dist/file-viewer/`；
+运行时不访问外部 CDN 或预览服务。
 
 **限制**：
 

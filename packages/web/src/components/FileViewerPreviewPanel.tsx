@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import FileViewer from '@file-viewer/react';
+import { presentationRenderer } from '@file-viewer/renderer-presentation';
 import { configuredFileViewerRenderers } from 'virtual:file-viewer-renderers';
 import { useThemeController } from '@/providers/theme-controller';
 import type { CSSProperties } from 'react';
@@ -10,6 +11,13 @@ interface FileViewerPreviewPanelProps {
   readonly style?: CSSProperties;
 }
 
+const officeRenderers = [
+  ...(Array.isArray(configuredFileViewerRenderers)
+    ? configuredFileViewerRenderers
+    : [configuredFileViewerRenderers]),
+  presentationRenderer,
+] as ViewerOptions['renderers'];
+
 /** Office 文件浏览器端只读预览，不依赖文档转换服务。 */
 export default function FileViewerPreviewPanel({ file, style }: FileViewerPreviewPanelProps) {
   const { isDark } = useThemeController();
@@ -19,7 +27,7 @@ export default function FileViewerPreviewPanel({ file, style }: FileViewerPrevie
     styleIsolation: 'shadow',
     rendererMode: 'replace',
     autoRenderers: false,
-    renderers: configuredFileViewerRenderers as ViewerOptions['renderers'],
+    renderers: officeRenderers,
     ui: { density: 'compact' },
     toolbar: {
       position: 'top-center',
