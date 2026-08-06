@@ -280,8 +280,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  gap: 6px;
-  padding: 10px 8px;
+  gap: 4px;
+  padding: 6px 4px;
   border-radius: var(--semi-border-radius-medium);
   cursor: pointer;
   user-select: none;
@@ -295,8 +295,8 @@
   font: inherit;
   text-align: inherit;
   width: 100%;
-  /* 固定高度：与 FileManagerPage.tsx 中 VG_CARD_H 必须保持一致 */
-  height: 110px;
+  /* 固定高度：与 VirtualGrid.tsx 中 VG_CARD_H 必须保持一致 */
+  height: 96px;
   overflow: hidden;
 }
 
