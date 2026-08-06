@@ -1,5 +1,5 @@
-/** 右键菜单：固定定位浮层 + 全屏透明遮罩关闭 */
-import React from 'react';
+/** 右键菜单：由 Dropdown 负责视口边界碰撞与自动翻转 */
+import { Dropdown } from '@douyinfe/semi-ui';
 import { isArchive, isEditableFile } from '../fs-utils';
 import type { EntryActions } from '../entry-actions';
 import type { FsEntry } from '../types';
@@ -36,27 +36,43 @@ export default function FmContextMenu({ ctx, isWindows, actions, onClose }: Read
     { label: '删除', fn: run(() => actions.onDelete([entry.path])), danger: true },
   ];
 
+  const menuContent = (
+    <Dropdown.Menu style={{ maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' }}>
+      {items.map((item) => (
+        <Dropdown.Item
+          key={item.label}
+          type={item.danger ? 'danger' : undefined}
+          onClick={item.fn}
+        >
+          {item.label}
+        </Dropdown.Item>
+      ))}
+    </Dropdown.Menu>
+  );
+
   return (
-    <>
-      <button
-        type="button"
-        aria-label="关闭菜单"
-        style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'transparent', border: 'none', padding: 0, cursor: 'default' }}
-        onClick={onClose}
-        onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); onClose(); }}
+    <Dropdown
+      visible
+      trigger="custom"
+      position="bottomLeft"
+      autoAdjustOverflow
+      rePosKey={`${entry.path}:${ctx.x}:${ctx.y}`}
+      render={menuContent}
+      getPopupContainer={() => document.body}
+      clickToHide
+      onClickOutSide={onClose}
+      onVisibleChange={(visible) => { if (!visible) onClose(); }}
+    >
+      <span
+        style={{
+          position: 'fixed',
+          left: ctx.x,
+          top: ctx.y,
+          width: 1,
+          height: 1,
+          pointerEvents: 'none',
+        }}
       />
-      <div style={{ position: 'fixed', left: ctx.x, top: ctx.y, zIndex: 1001, minWidth: 150, background: 'var(--semi-color-bg-3)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', boxShadow: 'var(--semi-shadow-elevated)', padding: '4px 0' }}>
-        {items.map((item) => (
-          <button
-            key={item.label}
-            type="button"
-            onClick={item.fn}
-            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 14px', background: 'none', border: 'none', cursor: 'pointer', color: item.danger ? 'var(--semi-color-danger)' : 'var(--semi-color-text-0)', font: 'inherit', fontSize: 13 }}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-    </>
+    </Dropdown>
   );
 }
