@@ -4,6 +4,32 @@
 
 ---
 
+## v1.41.0 - 2026-08-06
+
+Office 文件预览进一步统一到 File Viewer：Excel、CSV、Word、PowerPoint 均在浏览器本地解析；同时消除 Presentation 运行时资源的重复打包，保持离线预览能力并缩小 Web 发布产物。
+
+### Changed
+
+#### 统一 Office 文件预览
+
+- Excel、CSV 改用 File Viewer Spreadsheet renderer，与 Word、PowerPoint 共用 `FileViewerPreviewPanel`
+- 文件列表、文件管理器、附件与聊天文件预览统一通过同一套格式识别和预览入口处理 `.xls`、`.xlsx`、`.csv`、`.doc`、`.docx`、`.ppt`、`.pptx`
+- 移除原 `ExcelPreviewPanel`、`/api/files/{id}/sheet-preview` 接口及服务端 XLSX/CSV 转 Univer 转换器，前端直接读取鉴权文件 Blob 进行只读预览
+
+### Performance
+
+#### 消除 Presentation 资源重复打包
+
+- Presentation renderer 改为组件显式注册，Vite 插件仅复制 Word、Spreadsheet 所需的 3 个 Worker 资源
+- 删除 PPT 字体、WASM、PPTX Worker 在 `assets/` 与 `file-viewer/` 各生成一份的重复链路；哈希扫描确认最终正式版与 Demo 版产物均无 Presentation 重复文件
+- 正式版 Web 解压产物由约 72 MiB 降至 54.16 MiB，减少约 18 MiB；`.ppt`、`.pptx` 离线预览能力保持不变
+
+### Docs
+
+- 更新文件预览组件、格式矩阵、离线资源装配和依赖保留说明，明确 Presentation 资源不得再次加入插件复制清单
+
+---
+
 ## v1.40.0 - 2026-08-06
 
 文件预览能力扩展到 Word 与 PowerPoint，并统一由 File Viewer 在浏览器本地解析；同时优化任务中心列表信息密度和自动刷新交互。
