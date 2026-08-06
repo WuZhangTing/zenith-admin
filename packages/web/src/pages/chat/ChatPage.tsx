@@ -1109,7 +1109,6 @@ export default function ChatPage({
 
           <FilePreviewModal
             fileUrl={filePreview?.url ?? ''}
-            fileId={filePreview?.fileId}
             fileName={filePreview?.name}
             mimeType={filePreview?.mimeType}
             visible={!!filePreview}

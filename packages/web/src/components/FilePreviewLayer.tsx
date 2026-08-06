@@ -18,7 +18,6 @@ export function FilePreviewLayer({ preview }: { readonly preview: FilePreviewCon
       />
       <FilePreviewModal
         fileUrl={preview.filePreview?.url ?? ''}
-        fileId={preview.filePreview?.id}
         fileName={preview.filePreview?.name}
         mimeType={preview.filePreview?.mimeType}
         visible={!!preview.filePreview}

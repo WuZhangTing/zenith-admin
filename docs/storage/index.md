@@ -341,7 +341,6 @@ URL 不入库，读取时按存储配置动态解析，降级链 `public → pre
 | `GET` | `/api/files/browse` | `system:file:list` | 按存储配置浏览目录 |
 | `GET` | `/api/files/{id}` | `system:file:list` | 获取文件详情 |
 | `GET` | `/api/files/{id}/access-url` | 登录态 | 按存储策略解析访问直链（presigned 每次签发新鲜 URL） |
-| `GET` | `/api/files/{id}/sheet-preview` | `system:file:list` | 获取 Excel / CSV 表格预览数据 |
 | `POST` | `/api/files/upload` | `system:file:upload` | 上传一个或多个文件 |
 | `POST` | `/api/files/upload-one` | 登录态 | 上传单个文件 |
 | `POST` | `/api/files/upload/init` | 登录态 | 初始化分片上传 |

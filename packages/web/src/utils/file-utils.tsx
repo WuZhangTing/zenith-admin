@@ -126,11 +126,16 @@ export function canPreviewFile(mimeType: string | null | undefined): boolean {
   );
 }
 
-/** 判断是否为可预览的表格（Excel .xlsx 或 CSV） */
+/** 判断是否为可预览的表格（Excel .xls/.xlsx 或 CSV） */
 export function isSpreadsheetFile(mimeType?: string | null): boolean {
   if (!mimeType) return false;
   const mime = mimeType.toLowerCase();
-  return mime.includes('spreadsheetml') || mime === 'text/csv' || mime === 'application/csv';
+  return (
+    mime === 'application/vnd.ms-excel' ||
+    mime.includes('spreadsheetml') ||
+    mime === 'text/csv' ||
+    mime === 'application/csv'
+  );
 }
 
 /** 判断是否为可预览的 Word 文档（.doc / .docx） */

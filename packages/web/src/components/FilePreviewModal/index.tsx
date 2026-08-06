@@ -5,21 +5,16 @@ import { Modal, Spin, Toast, AudioPlayer, VideoPlayer, Typography } from '@douyi
 import { X } from 'lucide-react';
 import { useThemeController } from '@/providers/theme-controller';
 import { fetchManagedFileBlob, isSpreadsheetFile, isWordFile, isPresentationFile, isMarkdownFile, isPlainTextFile, isZipFile, isJsonFile, isSvgFile, isCodeFile, getFileTypeIcon } from '@/utils/file-utils';
-import { request } from '@/utils/request';
 import AppModal from '@/components/AppModal';
-import { unwrap } from '@/lib/query';
-import type { IWorkbookData } from '@univerjs/presets';
 import type { CSSProperties, ReactNode } from 'react';
 import './filePreview.css';
 
-// Univer 体积较大，懒加载，避免进入文件管理页即拉取
-const ExcelPreviewPanel = lazy(() => import('@/components/ExcelPreviewPanel'));
 // @embedpdf 引擎 ~1MB，懒加载，避免经 FileAttachment 链进入首屏
 const PDFPreviewPanel = lazy(() =>
   import('@/components/PDFPreviewPanel').then((m) => ({ default: m.PDFPreviewPanel })),
 );
-// File Viewer 及 Word/PPT 渲染器懒加载，避免影响首屏
-const OfficePreviewPanel = lazy(() => import('@/components/OfficePreviewPanel'));
+// File Viewer 及 Office 渲染器懒加载，避免影响首屏
+const FileViewerPreviewPanel = lazy(() => import('@/components/FileViewerPreviewPanel'));
 // react-markdown 懒加载
 const MarkdownPreviewPanel = lazy(() => import('@/components/MarkdownPreviewPanel'));
 // jszip + Semi Tree 懒加载
@@ -31,8 +26,6 @@ const MonacoPreviewPanel = lazy(() => import('@/components/MonacoPreviewPanel'))
 
 interface FilePreviewModalProps {
   fileUrl: string;
-  /** 文件 ID。预览 Excel 表格时必须传入，其他类型可不传 */
-  fileId?: string;
   fileName?: string;
   mimeType?: string | null;
   visible: boolean;
@@ -45,8 +38,7 @@ interface FilePreviewModalProps {
 type PreviewKind = 'spreadsheet' | 'word' | 'presentation' | 'markdown' | 'plainText' | 'zip' | 'json' | 'svg' | 'code' | 'pdf' | 'audio' | 'video';
 
 type PreviewData =
-  | { kind: 'spreadsheet'; data: IWorkbookData }
-  | { kind: 'word' | 'presentation'; file: File }
+  | { kind: 'spreadsheet' | 'word' | 'presentation'; file: File }
   | { kind: 'markdown'; text: string }
   | { kind: 'plainText'; text: string }
   | { kind: 'zip'; blob: Blob }
@@ -103,7 +95,6 @@ function PreviewModalShell({ title, onCancel, fullscreen, onToggleFullscreen, wi
 
 export default function FilePreviewModal({
   fileUrl,
-  fileId,
   fileName = '文件',
   mimeType,
   visible,
@@ -111,16 +102,8 @@ export default function FilePreviewModal({
   onFallback,
 }: Readonly<FilePreviewModalProps>) {
   const [fullscreen, setFullscreen] = useState(false);
-  // sheetKey 用于全屏切换时重建 Univer，sheetTransitioning 显示过渡 spinner
-  const [sheetKey, setSheetKey] = useState(0);
-  const [sheetTransitioning, setSheetTransitioning] = useState(false);
   const toggleFullscreen = useCallback(() => {
     setFullscreen(f => !f);
-    setSheetTransitioning(true);
-    setTimeout(() => {
-      setSheetKey(k => k + 1);
-      setSheetTransitioning(false);
-    }, 360);
   }, []);
   const { isDark } = useThemeController();
 
@@ -146,15 +129,10 @@ export default function FilePreviewModal({
   }, [fileName, mimeType]);
 
   const previewQuery = useQuery({
-    queryKey: ['files', 'preview', visible, fileUrl, fileId ?? null, fileName, mimeType ?? null, previewKind],
+    queryKey: ['files', 'preview', visible, fileUrl, fileName, mimeType ?? null, previewKind],
     queryFn: async (): Promise<PreviewData> => {
-      if (previewKind === 'spreadsheet') {
-        if (!fileId) throw new Error('预览 Excel 表格需要传入 fileId');
-        const data = await request.get<IWorkbookData>(`/api/files/${fileId}/sheet-preview`, { silent: true }).then(unwrap);
-        return { kind: 'spreadsheet', data };
-      }
       const blob = await fetchManagedFileBlob(fileUrl);
-      if (previewKind === 'word' || previewKind === 'presentation') {
+      if (previewKind === 'spreadsheet' || previewKind === 'word' || previewKind === 'presentation') {
         return {
           kind: previewKind,
           file: new File([blob], fileName, { type: mimeType || blob.type }),
@@ -184,8 +162,6 @@ export default function FilePreviewModal({
   useEffect(() => {
     if (!visible) {
       setFullscreen(false);
-      setSheetKey(0);
-      setSheetTransitioning(false);
       return;
     }
     if (!mimeType) {
@@ -281,27 +257,13 @@ export default function FilePreviewModal({
     );
   }
 
-  if (previewData?.kind === 'spreadsheet') {
-    return (
-      <PreviewModalShell title={previewTitle} onCancel={handleClose} fullscreen={fullscreen} onToggleFullscreen={toggleFullscreen}
-        width="min(1200px, 94vw)" top="3vh" viewportHeight="90vh">
-        {sheetTransitioning ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
-            <Spin size="large" tip="切换中..." />
-          </div>
-        ) : (
-          <ExcelPreviewPanel key={sheetKey} data={previewData.data} style={{ flex: 1, minHeight: 0 }} />
-        )}
-      </PreviewModalShell>
-    );
-  }
-
-  if (previewData?.kind === 'word' || previewData?.kind === 'presentation') {
+  if (previewData?.kind === 'spreadsheet' || previewData?.kind === 'word' || previewData?.kind === 'presentation') {
     const isPresentation = previewData.kind === 'presentation';
+    const isWide = previewData.kind === 'spreadsheet' || isPresentation;
     return (
       <PreviewModalShell title={previewTitle} onCancel={handleClose} fullscreen={fullscreen} onToggleFullscreen={toggleFullscreen}
-        width={isPresentation ? 'min(1200px, 94vw)' : 'min(960px, 92vw)'} top="3vh" viewportHeight="90vh">
-        <OfficePreviewPanel file={previewData.file} style={{ flex: 1 }} />
+        width={isWide ? 'min(1200px, 94vw)' : 'min(960px, 92vw)'} top="3vh" viewportHeight="90vh">
+        <FileViewerPreviewPanel file={previewData.file} style={{ flex: 1 }} />
       </PreviewModalShell>
     );
   }

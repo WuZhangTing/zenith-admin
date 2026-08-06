@@ -2,10 +2,10 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { ErrorResponse, PaginationQuery, commonErrorResponses, dateRangeBound, errBody, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
-import { ManagedFileDTO, StorageBrowseResultDTO, FileStatsDTO, SheetPreviewDTO, UploadSessionInitDTO, UploadChunkResultDTO, UploadSessionStatusDTO, FileAccessUrlDTO } from '../../lib/openapi-dtos';
+import { ManagedFileDTO, StorageBrowseResultDTO, FileStatsDTO, UploadSessionInitDTO, UploadChunkResultDTO, UploadSessionStatusDTO, FileAccessUrlDTO } from '../../lib/openapi-dtos';
 import { initChunkUploadSchema, completeChunkUploadSchema } from '@zenith/shared/platform';
 import {
-  getStoredFileForRead, listManagedFiles, getManagedFile, uploadManagedFileFromBody, deleteManagedFile, batchDeleteFiles, getManagedFileBeforeAudit, getManagedFilesBeforeAudit, batchDownloadFilesAsZip, browseStorageFiles, getFileStats, getSheetPreview, getFileAccessUrl,
+  getStoredFileForRead, listManagedFiles, getManagedFile, uploadManagedFileFromBody, deleteManagedFile, batchDeleteFiles, getManagedFileBeforeAudit, getManagedFilesBeforeAudit, batchDownloadFilesAsZip, browseStorageFiles, getFileStats, getFileAccessUrl,
 } from '../../services/files/files.service';
 import { initChunkUpload, uploadChunk, completeChunkUpload, getUploadStatus, abortChunkUpload } from '../../services/files/upload-sessions.service';
 import { readStoredFile } from '../../lib/file-storage';
@@ -176,22 +176,6 @@ const getOneRoute = defineOpenAPIRoute({
     },
   }),
   handler: async (c) => c.json(okBody(await getManagedFile(c.req.valid('param').id)), 200),
-});
-
-const sheetPreviewRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/{id}/sheet-preview', tags: ['Files'], summary: '获取 Excel 表格预览数据',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:file:list' })] as const,
-    request: { params: FileIdParam },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(SheetPreviewDTO, 'Excel 预览数据'),
-      400: { content: jsonContent(ErrorResponse), description: '非表格文件或解析失败' },
-      404: { content: jsonContent(ErrorResponse), description: '文件不存在' },
-    },
-  }),
-  handler: async (c) => c.json(okBody(await getSheetPreview(c.req.valid('param').id)), 200),
 });
 
 const statsRoute = defineOpenAPIRoute({
@@ -426,7 +410,7 @@ const uploadAbortRoute = defineOpenAPIRoute({
   },
 });
 
-filesRouter.openapiRoutes([contentRoute, accessUrlRoute, sheetPreviewRoute, statsRoute, listRoute, browseRoute, uploadInitRoute, uploadChunkRoute, uploadCompleteRoute, uploadStatusRoute, uploadAbortRoute, getOneRoute, uploadRoute, uploadOneRoute, batchDeleteRoute, deleteRoute] as const);
+filesRouter.openapiRoutes([contentRoute, accessUrlRoute, statsRoute, listRoute, browseRoute, uploadInitRoute, uploadChunkRoute, uploadCompleteRoute, uploadStatusRoute, uploadAbortRoute, getOneRoute, uploadRoute, uploadOneRoute, batchDeleteRoute, deleteRoute] as const);
 
 // 非 OpenAPI 路由：批量下载打包为 zip 流式响应
 filesRouter.post('/batch-download', authMiddleware, guard({ permission: 'system:file:list' }), async (c) => {

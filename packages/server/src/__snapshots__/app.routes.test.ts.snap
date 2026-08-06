@@ -540,7 +540,6 @@ exports[`路由表快照 > 完整路由表保持不变 1`] = `
   "GET /api/files/:id",
   "GET /api/files/:id/access-url",
   "GET /api/files/:id/content",
-  "GET /api/files/:id/sheet-preview",
   "GET /api/files/browse",
   "GET /api/files/stats",
   "GET /api/files/upload/:uploadId/status",

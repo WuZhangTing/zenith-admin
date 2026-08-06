@@ -5,13 +5,13 @@ import { useThemeController } from '@/providers/theme-controller';
 import type { CSSProperties } from 'react';
 import type { ViewerOptions } from '@file-viewer/react';
 
-interface OfficePreviewPanelProps {
+interface FileViewerPreviewPanelProps {
   readonly file: File;
   readonly style?: CSSProperties;
 }
 
-/** Word / PowerPoint 浏览器端只读预览，不依赖文档转换服务。 */
-export default function OfficePreviewPanel({ file, style }: OfficePreviewPanelProps) {
+/** Office 文件浏览器端只读预览，不依赖文档转换服务。 */
+export default function FileViewerPreviewPanel({ file, style }: FileViewerPreviewPanelProps) {
   const { isDark } = useThemeController();
   const options = useMemo<ViewerOptions>(() => ({
     theme: isDark ? 'dark' : 'light',
@@ -33,6 +33,12 @@ export default function OfficePreviewPanel({ file, style }: OfficePreviewPanelPr
     docx: {
       worker: true,
       visualPagination: true,
+    },
+    spreadsheet: {
+      worker: 'auto',
+      textEncoding: 'auto',
+      resizableColumns: true,
+      resizableRows: true,
     },
   }), [isDark]);
 

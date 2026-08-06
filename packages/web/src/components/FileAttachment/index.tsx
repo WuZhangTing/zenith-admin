@@ -586,7 +586,6 @@ export default function FileAttachment({
         <FilePreviewModal
           visible={previewVisible}
           fileUrl={previewFile.url}
-          fileId={previewFile.id}
           fileName={previewFile.name}
           mimeType={previewFile.mimeType}
           onClose={() => {

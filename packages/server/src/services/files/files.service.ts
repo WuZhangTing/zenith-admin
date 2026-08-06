@@ -31,27 +31,12 @@ import { streamToExcel, formatDateTimeForExcel } from '../../lib/excel-export';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
-import { xlsxBufferToWorkbookData } from '../../lib/xlsx-to-univer';
-import { csvTextToWorkbookData } from '../../lib/csv-to-univer';
 import { runAsUser } from '../../lib/audit-context';
-
-const SPREADSHEET_PREVIEW_MAX_BYTES = 10 * 1024 * 1024;
 
 /** 全量存储配置 id→row 映射（配置表行数极少），供列表映射直链使用 */
 export async function getStorageConfigMap(): Promise<Map<number, FileStorageConfigRow>> {
   const rows = await db.select().from(fileStorageConfigs);
   return new Map(rows.map((r) => [r.id, r]));
-}
-
-/** 校验文件为可预览的表格（.xlsx 或 .csv） */
-function ensureSpreadsheetPreviewable(mimeType: string | null, extension: string | null) {
-  const mime = (mimeType ?? '').toLowerCase();
-  const ext = (extension ?? '').toLowerCase();
-  const isXlsx = mime.includes('spreadsheetml') || ext === 'xlsx';
-  const isCsv = mime === 'text/csv' || mime === 'application/csv' || ext === 'csv';
-  if (!isXlsx && !isCsv) {
-    throw new HTTPException(400, { message: '该文件不是可预览的 Excel(.xlsx) 或 CSV 表格' });
-  }
 }
 
 export async function getStoredFileForRead(id: string) {
@@ -96,45 +81,6 @@ export async function readGeneratedManagedFile(id: string, tenantId: number | nu
     .limit(1);
   if (!storageConfig) throw new HTTPException(404, { message: '文件存储配置不存在' });
   return readStoredFile(file, storageConfig);
-}
-
-/** 读取 .xlsx 文件并转换为 Univer 只读预览数据 */
-export async function getSheetPreview(id: string) {
-  const user = currentUser();
-  const tc = tenantCondition(managedFiles, user);
-  const where = tc ? and(eq(managedFiles.id, id), tc) : eq(managedFiles.id, id);
-  const [file] = await db.select().from(managedFiles).where(where).limit(1);
-  if (!file) throw new HTTPException(404, { message: '文件不存在' });
-
-  ensureSpreadsheetPreviewable(file.mimeType, file.extension);
-  if (file.size > SPREADSHEET_PREVIEW_MAX_BYTES) {
-    throw new HTTPException(400, { message: 'Excel 文件过大，暂不支持在线预览' });
-  }
-
-  const [storageConfig] = await db
-    .select()
-    .from(fileStorageConfigs)
-    .where(eq(fileStorageConfigs.id, file.storageConfigId))
-    .limit(1);
-  if (!storageConfig) throw new HTTPException(404, { message: '文件存储配置不存在' });
-
-  const stored = await readStoredFile(file, storageConfig);
-  const arrayBuffer = await new Response(stored.stream).arrayBuffer();
-
-  // CSV 与 xlsx 走不同处理分支
-  const mime = (file.mimeType ?? '').toLowerCase();
-  const ext = (file.extension ?? '').toLowerCase();
-  const isCsv = mime === 'text/csv' || mime === 'application/csv' || ext === 'csv';
-
-  try {
-    if (isCsv) {
-      const text = Buffer.from(arrayBuffer).toString('utf-8');
-      return csvTextToWorkbookData(text, { fileName: file.originalName });
-    }
-    return await xlsxBufferToWorkbookData(arrayBuffer, { fileName: file.originalName });
-  } catch {
-    throw new HTTPException(400, { message: isCsv ? 'CSV 文件解析失败' : 'Excel 文件解析失败，可能已损坏或格式不受支持' });
-  }
 }
 
 export async function listManagedFiles(query: {

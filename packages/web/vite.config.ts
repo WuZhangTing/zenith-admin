@@ -44,7 +44,7 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       fileViewerRenderers({
-        formats: ['doc', 'docx', 'ppt', 'pptx'],
+        formats: ['doc', 'docx', 'xls', 'xlsx', 'csv', 'ppt', 'pptx'],
         inject: false,
         copyAssets: { baseDir: 'file-viewer', mode: 'both' },
         chunkStrategy: 'none',
