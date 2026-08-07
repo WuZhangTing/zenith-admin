@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
 import type { ManagedFile } from '@zenith/shared/platform';
-import { canPreviewFile, fetchManagedFileBlob } from '@/utils/file-utils';
+import { canPreviewFile, fetchManagedFileBlob, resolveFileMimeType } from '@/utils/file-utils';
 
 interface FilePreviewTarget {
   id: string;
@@ -39,8 +39,9 @@ export function useFilePreview(getImageFiles: () => ManagedFile[]) {
   };
 
   const handlePreview = async (file: ManagedFile) => {
-    const isImage = file.mimeType?.startsWith('image/');
-    const isPreviewable = canPreviewFile(file.mimeType);
+    const resolvedMimeType = resolveFileMimeType(file.mimeType, file.originalName);
+    const isImage = resolvedMimeType?.startsWith('image/') ?? false;
+    const isPreviewable = canPreviewFile(file.mimeType, file.originalName);
 
     if (!isPreviewable && !isImage) {
       try {
@@ -61,7 +62,7 @@ export function useFilePreview(getImageFiles: () => ManagedFile[]) {
           id: file.id,
           url: file.url,
           name: file.originalName,
-          mimeType: file.mimeType ?? 'application/octet-stream',
+          mimeType: resolvedMimeType ?? 'application/octet-stream',
         });
       } catch (error) {
         Toast.error(error instanceof Error ? error.message : '预览文件失败');
@@ -71,7 +72,9 @@ export function useFilePreview(getImageFiles: () => ManagedFile[]) {
       return;
     }
 
-    const imageFiles = getImageFiles().filter((f) => f.mimeType?.startsWith('image/'));
+    const imageFiles = getImageFiles().filter((f) =>
+      resolveFileMimeType(f.mimeType, f.originalName)?.startsWith('image/'),
+    );
     const clickedIndex = imageFiles.findIndex((f) => f.id === file.id);
 
     setPreviewLoadingId(file.id);

@@ -17,7 +17,7 @@ export function buildManagedFileActions(
   record: ManagedFile,
   { preview, onDetail, onCopyUrl, onDelete, canDelete }: ManagedFileActionsOptions,
 ): ResponsiveTableAction[] {
-  const isPreviewable = canPreviewFile(record.mimeType);
+  const isPreviewable = canPreviewFile(record.mimeType, record.originalName);
   return [
     {
       key: 'preview',

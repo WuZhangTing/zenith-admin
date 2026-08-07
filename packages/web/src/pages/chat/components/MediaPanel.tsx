@@ -101,7 +101,7 @@ export function MediaPanel({
                                   </Text>
                                 </div>
                                 <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
-                                  {canPreviewFile(asset?.mimeType) && (
+                                  {canPreviewFile(asset?.mimeType, asset?.name) && (
                                     <Button
                                       size="small"
                                       theme="borderless"

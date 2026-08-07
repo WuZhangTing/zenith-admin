@@ -116,7 +116,7 @@ export function MessageContent({
   }
 
   if (msg.type === 'file') {
-    const isPreviewable = canPreviewFile(asset?.mimeType);
+    const isPreviewable = canPreviewFile(asset?.mimeType, asset?.name);
     return (
       <div
         style={{

@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Modal, Spin, Toast, AudioPlayer, VideoPlayer, Typography } from '@douyinfe/semi-ui';
 import { X } from 'lucide-react';
 import { useThemeController } from '@/providers/theme-controller';
-import { fetchManagedFileBlob, isSpreadsheetFile, isWordFile, isPresentationFile, isMarkdownFile, isPlainTextFile, isZipFile, isJsonFile, isSvgFile, isCodeFile, getFileTypeIcon } from '@/utils/file-utils';
+import { fetchManagedFileBlob, resolveFileMimeType, isSpreadsheetFile, isWordFile, isPresentationFile, isMarkdownFile, isPlainTextFile, isZipFile, isJsonFile, isSvgFile, isCodeFile, getFileTypeIcon } from '@/utils/file-utils';
 import AppModal from '@/components/AppModal';
 import type { CSSProperties, ReactNode } from 'react';
 import './filePreview.css';
@@ -105,36 +105,40 @@ export default function FilePreviewModal({
     setFullscreen(f => !f);
   }, []);
   const { isDark } = useThemeController();
+  const resolvedMimeType = useMemo(
+    () => resolveFileMimeType(mimeType, fileName),
+    [fileName, mimeType],
+  );
 
   const previewKind = useMemo<PreviewKind | 'unsupported' | 'image' | null>(() => {
-    if (!mimeType) return null;
-    const isImage = mimeType.startsWith('image/');
+    if (!resolvedMimeType) return null;
+    const isImage = resolvedMimeType.startsWith('image/');
     const tsExtPattern = /\.(ts|tsx)$/i;
-    const isMpegTsAsCode = mimeType === 'video/mp2t' && tsExtPattern.test(fileName);
-    if (isSpreadsheetFile(mimeType)) return 'spreadsheet';
-    if (isWordFile(mimeType)) return 'word';
-    if (isPresentationFile(mimeType)) return 'presentation';
-    if (isMarkdownFile(mimeType)) return 'markdown';
-    if (isPlainTextFile(mimeType)) return 'plainText';
-    if (isZipFile(mimeType)) return 'zip';
-    if (isJsonFile(mimeType)) return 'json';
-    if (isSvgFile(mimeType)) return 'svg';
-    if (isCodeFile(mimeType) || isMpegTsAsCode) return 'code';
-    if (mimeType === 'application/pdf') return 'pdf';
-    if (mimeType.startsWith('audio/')) return 'audio';
-    if (mimeType.startsWith('video/') && !isMpegTsAsCode) return 'video';
+    const isMpegTsAsCode = resolvedMimeType === 'video/mp2t' && tsExtPattern.test(fileName);
+    if (isSpreadsheetFile(resolvedMimeType)) return 'spreadsheet';
+    if (isWordFile(resolvedMimeType)) return 'word';
+    if (isPresentationFile(resolvedMimeType)) return 'presentation';
+    if (isMarkdownFile(resolvedMimeType)) return 'markdown';
+    if (isPlainTextFile(resolvedMimeType)) return 'plainText';
+    if (isZipFile(resolvedMimeType)) return 'zip';
+    if (isJsonFile(resolvedMimeType)) return 'json';
+    if (isSvgFile(resolvedMimeType)) return 'svg';
+    if (isCodeFile(resolvedMimeType) || isMpegTsAsCode) return 'code';
+    if (resolvedMimeType === 'application/pdf') return 'pdf';
+    if (resolvedMimeType.startsWith('audio/')) return 'audio';
+    if (resolvedMimeType.startsWith('video/') && !isMpegTsAsCode) return 'video';
     if (isImage) return 'image';
     return 'unsupported';
-  }, [fileName, mimeType]);
+  }, [fileName, resolvedMimeType]);
 
   const previewQuery = useQuery({
-    queryKey: ['files', 'preview', visible, fileUrl, fileName, mimeType ?? null, previewKind],
+    queryKey: ['files', 'preview', visible, fileUrl, fileName, resolvedMimeType, previewKind],
     queryFn: async (): Promise<PreviewData> => {
       const blob = await fetchManagedFileBlob(fileUrl);
       if (previewKind === 'spreadsheet' || previewKind === 'word' || previewKind === 'presentation') {
         return {
           kind: previewKind,
-          file: new File([blob], fileName, { type: mimeType || blob.type }),
+          file: new File([blob], fileName, { type: resolvedMimeType || blob.type }),
         };
       }
       if (previewKind === 'markdown') return { kind: 'markdown', text: await blob.text() };
@@ -163,19 +167,19 @@ export default function FilePreviewModal({
       setFullscreen(false);
       return;
     }
-    if (!mimeType) {
+    if (!resolvedMimeType) {
       onClose();
       return;
     }
     if (previewKind === 'unsupported') {
-      onFallback?.(fileUrl, fileName, mimeType);
+      onFallback?.(fileUrl, fileName, resolvedMimeType);
       onClose();
       return;
     }
     if (previewKind === 'image') {
       onClose();
     }
-  }, [fileName, fileUrl, mimeType, onClose, onFallback, previewKind, visible]);
+  }, [fileName, fileUrl, onClose, onFallback, previewKind, resolvedMimeType, visible]);
 
   useEffect(() => {
     if (previewQuery.error) {

@@ -3,6 +3,7 @@
  * 从 FileManagerPage 抽出以便单测覆盖：路径拼接、副本命名、名称校验、
  * 权限转换、MIME 判定等都是行为敏感、回归成本高的逻辑。
  */
+import { guessMimeTypeFromName } from '@/utils/file-mime';
 import type { FsEntry } from './types';
 
 /** 可在线编辑的文本类扩展名（无扩展名文件如 Dockerfile/.env 亦允许） */
@@ -105,31 +106,8 @@ export function dialogTitle(mode: string | undefined): string {
 /** 非 SVG 图片扩展名（直接内联显示，不进 FilePreviewModal）*/
 export const NON_SVG_IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico', 'tiff', 'tif', 'avif']);
 
-/** 文件扩展名 → MIME 类型映射 */
-const EXT_TO_MIME: Record<string, string> = {
-  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
-  webp: 'image/webp', bmp: 'image/bmp', ico: 'image/x-icon', tiff: 'image/tiff', tif: 'image/tiff', avif: 'image/avif',
-  svg: 'image/svg+xml',
-  pdf: 'application/pdf',
-  mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', oga: 'audio/ogg', flac: 'audio/flac', aac: 'audio/aac', m4a: 'audio/m4a', opus: 'audio/opus',
-  mp4: 'video/mp4', webm: 'video/webm', ogv: 'video/ogg', mov: 'video/quicktime', mkv: 'video/x-matroska', avi: 'video/x-msvideo',
-  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  xls: 'application/vnd.ms-excel', csv: 'text/csv',
-  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', doc: 'application/msword',
-  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', ppt: 'application/vnd.ms-powerpoint',
-  md: 'text/markdown', markdown: 'text/markdown',
-  json: 'application/json',
-  zip: 'application/zip', gz: 'application/x-gzip', tar: 'application/x-tar',
-  ts: 'text/typescript', tsx: 'text/typescript', js: 'text/javascript', jsx: 'text/javascript',
-  html: 'text/html', htm: 'text/html', css: 'text/css', xml: 'text/xml',
-  yaml: 'text/yaml', yml: 'text/yaml', sh: 'application/x-sh', bash: 'application/x-sh', zsh: 'application/x-sh',
-  sql: 'text/x-sql', py: 'text/x-python', rs: 'text/x-rust', rb: 'text/plain',
-  txt: 'text/plain', log: 'text/plain', conf: 'text/plain', ini: 'text/plain', env: 'text/plain', toml: 'text/plain',
-};
-
 export function getFileMimeType(name: string): string | null {
-  const ext = (name.split('.').pop() ?? '').toLowerCase();
-  return EXT_TO_MIME[ext] ?? null;
+  return guessMimeTypeFromName(name);
 }
 
 // ── 权限转换 ─────────────────────────────────────────────────────────────────

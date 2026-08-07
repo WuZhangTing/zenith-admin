@@ -8,7 +8,7 @@ import { Search, MessageSquarePlus, Send, CornerDownLeft, Smile, ImagePlus, More
 import { useAuth } from '@/hooks/useAuth';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { request } from '@/utils/request';
-import { fetchManagedFileBlob, canPreviewFile, isSpreadsheetFile } from '@/utils/file-utils';
+import { fetchManagedFileBlob, canPreviewFile, isSpreadsheetFile, resolveFileMimeType } from '@/utils/file-utils';
 import FilePreviewModal from '@/components/FilePreviewModal';
 import type { ChatConversation, ChatMessage, ChatMessageExtra, ChatGroupMember, ChatMessageSearchItem, ChatMessageContext, ChatReadState } from '@zenith/shared/chat';
 import type { Channel } from '@zenith/shared/messaging';
@@ -201,8 +201,8 @@ export default function ChatPage({
 
   const handleMediaFilePreview = useCallback((item: ChatMessage) => {
     const asset = item.extra?.asset;
-    if (!asset || !canPreviewFile(asset.mimeType)) return;
-    if (isSpreadsheetFile(asset.mimeType) && !asset.fileId) {
+    if (!asset || !canPreviewFile(asset.mimeType, asset.name)) return;
+    if (isSpreadsheetFile(resolveFileMimeType(asset.mimeType, asset.name)) && !asset.fileId) {
       void fetchManagedFileBlob(item.content).then((blob) => {
         const objectUrl = globalThis.URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -1006,9 +1006,9 @@ export default function ChatPage({
                           onSaveAsEmoji={handleSaveAsEmoji}
                           onOpenFilePreview={(fileMsg) => {
                             const asset = fileMsg.extra?.asset;
-                            if (!asset || !canPreviewFile(asset.mimeType)) return;
+                            if (!asset || !canPreviewFile(asset.mimeType, asset.name)) return;
                             // xlsx 历史消息无 fileId，退化为下载避免报错
-                            if (isSpreadsheetFile(asset.mimeType) && !asset.fileId) {
+                            if (isSpreadsheetFile(resolveFileMimeType(asset.mimeType, asset.name)) && !asset.fileId) {
                               void fetchManagedFileBlob(fileMsg.content).then((blob) => {
                                 const objectUrl = globalThis.URL.createObjectURL(blob);
                                 const link = document.createElement('a');

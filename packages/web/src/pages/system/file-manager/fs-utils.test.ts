@@ -122,6 +122,9 @@ describe('file classification', () => {
     expect(getFileMimeType('doc.PDF')).toBe('application/pdf');
     expect(getFileMimeType('slides.PPT')).toBe('application/vnd.ms-powerpoint');
     expect(getFileMimeType('slides.pptx')).toBe('application/vnd.openxmlformats-officedocument.presentationml.presentation');
+    expect(getFileMimeType('slides.ppsm')).toBe('application/vnd.ms-powerpoint.slideshow.macroenabled.12');
+    expect(getFileMimeType('report.xlsb')).toBe('application/vnd.ms-excel.sheet.binary.macroenabled.12');
+    expect(getFileMimeType('document.odt')).toBe('application/vnd.oasis.opendocument.text');
     expect(getFileMimeType('unknown.xyz')).toBeNull();
   });
 });

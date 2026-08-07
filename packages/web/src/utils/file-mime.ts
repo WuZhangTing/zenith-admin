@@ -1,0 +1,72 @@
+const EXT_MIME_MAP: Readonly<Record<string, string>> = {
+  pdf: 'application/pdf',
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+  webp: 'image/webp', bmp: 'image/bmp', ico: 'image/x-icon',
+  tiff: 'image/tiff', tif: 'image/tiff', avif: 'image/avif', svg: 'image/svg+xml',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  docm: 'application/vnd.ms-word.document.macroenabled.12',
+  dot: 'application/msword',
+  dotx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.template',
+  dotm: 'application/vnd.ms-word.template.macroenabled.12',
+  odt: 'application/vnd.oasis.opendocument.text',
+  rtf: 'application/rtf',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  xlt: 'application/vnd.ms-excel',
+  xltx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.template',
+  xlsm: 'application/vnd.ms-excel.sheet.macroenabled.12',
+  xlsb: 'application/vnd.ms-excel.sheet.binary.macroenabled.12',
+  xltm: 'application/vnd.ms-excel.template.macroenabled.12',
+  ods: 'application/vnd.oasis.opendocument.spreadsheet',
+  fods: 'application/vnd.oasis.opendocument.spreadsheet-flat-xml',
+  numbers: 'application/vnd.apple.numbers',
+  ppt: 'application/vnd.ms-powerpoint',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  pptm: 'application/vnd.ms-powerpoint.presentation.macroenabled.12',
+  potx: 'application/vnd.openxmlformats-officedocument.presentationml.template',
+  potm: 'application/vnd.ms-powerpoint.template.macroenabled.12',
+  ppsx: 'application/vnd.openxmlformats-officedocument.presentationml.slideshow',
+  ppsm: 'application/vnd.ms-powerpoint.slideshow.macroenabled.12',
+  odp: 'application/vnd.oasis.opendocument.presentation',
+  txt: 'text/plain', md: 'text/markdown', markdown: 'text/markdown',
+  csv: 'text/csv', tsv: 'text/tab-separated-values',
+  json: 'application/json', xml: 'application/xml',
+  zip: 'application/zip', rar: 'application/vnd.rar', '7z': 'application/x-7z-compressed',
+  gz: 'application/gzip', tar: 'application/x-tar',
+  mp4: 'video/mp4', mov: 'video/quicktime', avi: 'video/x-msvideo', webm: 'video/webm',
+  ogv: 'video/ogg', mkv: 'video/x-matroska',
+  mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', oga: 'audio/ogg',
+  flac: 'audio/flac', aac: 'audio/aac', m4a: 'audio/m4a', opus: 'audio/opus',
+  ts: 'text/typescript', tsx: 'text/typescript', js: 'text/javascript', jsx: 'text/javascript',
+  html: 'text/html', htm: 'text/html', css: 'text/css',
+  yaml: 'text/yaml', yml: 'text/yaml', sh: 'application/x-sh',
+  bash: 'application/x-sh', zsh: 'application/x-sh', sql: 'text/x-sql',
+  py: 'text/x-python', rs: 'text/x-rust', rb: 'text/plain',
+  log: 'text/plain', conf: 'text/plain', ini: 'text/plain', env: 'text/plain', toml: 'text/plain',
+};
+
+const GENERIC_BINARY_MIME_TYPES = new Set([
+  'application/octet-stream',
+  'binary/octet-stream',
+]);
+
+/** 根据文件名扩展名推断常见 MIME 类型（无法识别时返回 null）。 */
+export function guessMimeTypeFromName(name: string | null | undefined): string | null {
+  if (!name) return null;
+  const dot = name.lastIndexOf('.');
+  if (dot < 0) return null;
+  return EXT_MIME_MAP[name.slice(dot + 1).toLowerCase()] ?? null;
+}
+
+/** 优先使用明确 MIME；缺失或为通用二进制类型时，按文件名扩展名回退。 */
+export function resolveFileMimeType(
+  mimeType: string | null | undefined,
+  fileName?: string | null,
+): string | null {
+  const normalizedMime = mimeType?.split(';', 1)[0]?.trim().toLowerCase() ?? '';
+  if (normalizedMime && !GENERIC_BINARY_MIME_TYPES.has(normalizedMime)) {
+    return normalizedMime;
+  }
+  return guessMimeTypeFromName(fileName);
+}

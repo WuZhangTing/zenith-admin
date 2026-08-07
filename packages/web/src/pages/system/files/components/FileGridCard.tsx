@@ -26,7 +26,7 @@ export function FileGridCard({
   canDelete, previewLoading,
 }: Readonly<FileGridCardProps>) {
   const [ctxPos, setCtxPos] = useState<{ x: number; y: number } | null>(null);
-  const isPreviewable = canPreviewFile(file.mimeType);
+  const isPreviewable = canPreviewFile(file.mimeType, file.originalName);
   const ext = file.originalName.includes('.') ? file.originalName.split('.').pop()?.toUpperCase() : '';
   return (
     <>

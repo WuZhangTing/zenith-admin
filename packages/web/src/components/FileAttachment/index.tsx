@@ -19,6 +19,7 @@ import {
   canPreviewFile,
   fetchManagedFileBlob,
   formatFileSize,
+  resolveFileMimeType,
 } from '@/utils/file-utils';
 import FilePreviewModal from '@/components/FilePreviewModal';
 
@@ -230,7 +231,7 @@ export default function FileAttachment({
   /** 预览文件 */
   const handlePreviewFile = useCallback(
     async (item: AttachmentItem) => {
-      const mimeType = item.file.mimeType;
+      const mimeType = resolveFileMimeType(item.file.mimeType, item.file.originalName);
 
       if (!mimeType) {
         // 无 MIME 类型，直接下载
@@ -250,7 +251,7 @@ export default function FileAttachment({
         return;
       }
 
-      if (canPreviewFile(mimeType)) {
+      if (canPreviewFile(mimeType, item.file.originalName)) {
         // PDF/音频/视频：用 FilePreviewModal
         setPreviewFile({
           id: item.file.id,

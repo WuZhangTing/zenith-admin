@@ -2,6 +2,9 @@ import { Icon } from '@iconify/react';
 import { TOKEN_KEY } from '@zenith/shared/core';
 import { config } from '@/config';
 import { getFileIcon } from '@/utils/fileIcons';
+import { resolveFileMimeType } from '@/utils/file-mime';
+
+export { guessMimeTypeFromName, resolveFileMimeType } from '@/utils/file-mime';
 
 /** 将字节数格式化为可读字符串（B / KB / MB / GB）*/
 export function formatFileSize(size: number): string {
@@ -18,32 +21,6 @@ export function getFileFullUrl(url: string): string {
   return `${base}${url}`;
 }
 
-const EXT_MIME_MAP: Record<string, string> = {
-  pdf: 'application/pdf',
-  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
-  webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml',
-  doc: 'application/msword',
-  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  xls: 'application/vnd.ms-excel',
-  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  ppt: 'application/vnd.ms-powerpoint',
-  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  txt: 'text/plain', md: 'text/markdown', csv: 'text/csv',
-  json: 'application/json', xml: 'application/xml',
-  zip: 'application/zip', rar: 'application/vnd.rar', '7z': 'application/x-7z-compressed',
-  gz: 'application/gzip', tar: 'application/x-tar',
-  mp4: 'video/mp4', mov: 'video/quicktime', avi: 'video/x-msvideo', webm: 'video/webm',
-  mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg',
-};
-
-/** 根据文件名扩展名推断常见 MIME 类型（无法识别时返回 null） */
-export function guessMimeTypeFromName(name: string | null | undefined): string | null {
-  if (!name) return null;
-  const dot = name.lastIndexOf('.');
-  if (dot < 0) return null;
-  return EXT_MIME_MAP[name.slice(dot + 1).toLowerCase()] ?? null;
-}
-
 /** MIME 类型 → vscode-icons 图标 ID（无法识别时返回 null，由调用方兜底） */
 function getIconIdForMime(mimeType: string): string | null {
   const mime = mimeType.toLowerCase();
@@ -52,10 +29,20 @@ function getIconIdForMime(mimeType: string): string | null {
   if (mime.startsWith('video/')) return 'vscode-icons:file-type-video';
   if (mime.startsWith('audio/')) return 'vscode-icons:file-type-audio';
   if (mime === 'application/pdf') return 'vscode-icons:file-type-pdf2';
-  if (mime.includes('msword') || mime.includes('wordprocessingml')) return 'vscode-icons:file-type-word';
-  if (mime.includes('presentationml') || mime.includes('powerpoint')) return 'vscode-icons:file-type-powerpoint';
-  if (mime === 'text/csv' || mime === 'application/csv') return 'vscode-icons:file-type-excel2';
-  if (mime.includes('spreadsheetml') || mime.includes('excel')) return 'vscode-icons:file-type-excel';
+  if (
+    mime.includes('msword') || mime.includes('wordprocessingml') ||
+    mime.includes('vnd.ms-word') || mime.includes('opendocument.text') || mime.includes('rtf')
+  ) return 'vscode-icons:file-type-word';
+  if (
+    mime.includes('presentationml') || mime.includes('powerpoint') ||
+    mime.includes('opendocument.presentation')
+  ) return 'vscode-icons:file-type-powerpoint';
+  if (mime === 'text/csv' || mime === 'application/csv' || mime === 'text/tab-separated-values') return 'vscode-icons:file-type-excel2';
+  if (
+    mime.includes('spreadsheetml') || mime.includes('excel') ||
+    mime.includes('opendocument.spreadsheet') || mime.includes('apple.numbers') ||
+    mime.includes('iwork-numbers')
+  ) return 'vscode-icons:file-type-excel';
   if (
     mime.includes('zip') || mime.includes('archive') ||
     mime.includes('gzip') || mime.includes('tar') ||
@@ -106,55 +93,72 @@ export function getFileTypeIcon(mimeType?: string | null, iconSize = 15, fileNam
   );
 }
 
-/** 判断文件是否支持预览 */
-export function canPreviewFile(mimeType: string | null | undefined): boolean {
-  if (!mimeType) return false;
+/** 判断文件是否支持预览；MIME 缺失或为通用二进制类型时可按文件名回退。 */
+export function canPreviewFile(
+  mimeType: string | null | undefined,
+  fileName?: string | null,
+): boolean {
+  const resolvedMimeType = resolveFileMimeType(mimeType, fileName);
+  if (!resolvedMimeType) return false;
   return (
-    mimeType.startsWith('image/') ||
-    mimeType.startsWith('audio/') ||
-    mimeType.startsWith('video/') ||
-    mimeType === 'application/pdf' ||
-    isSpreadsheetFile(mimeType) ||
-    isWordFile(mimeType) ||
-    isPresentationFile(mimeType) ||
-    isMarkdownFile(mimeType) ||
-    isPlainTextFile(mimeType) ||
-    isZipFile(mimeType) ||
-    isJsonFile(mimeType) ||
-    isSvgFile(mimeType) ||
-    isCodeFile(mimeType)
+    resolvedMimeType.startsWith('image/') ||
+    resolvedMimeType.startsWith('audio/') ||
+    resolvedMimeType.startsWith('video/') ||
+    resolvedMimeType === 'application/pdf' ||
+    isSpreadsheetFile(resolvedMimeType) ||
+    isWordFile(resolvedMimeType) ||
+    isPresentationFile(resolvedMimeType) ||
+    isMarkdownFile(resolvedMimeType) ||
+    isPlainTextFile(resolvedMimeType) ||
+    isZipFile(resolvedMimeType) ||
+    isJsonFile(resolvedMimeType) ||
+    isSvgFile(resolvedMimeType) ||
+    isCodeFile(resolvedMimeType)
   );
 }
 
-/** 判断是否为可预览的表格（Excel .xls/.xlsx 或 CSV） */
+/** 判断是否为 File Viewer Spreadsheet renderer 支持的表格。 */
 export function isSpreadsheetFile(mimeType?: string | null): boolean {
   if (!mimeType) return false;
   const mime = mimeType.toLowerCase();
   return (
     mime === 'application/vnd.ms-excel' ||
+    mime.startsWith('application/vnd.ms-excel.') ||
     mime.includes('spreadsheetml') ||
     mime === 'text/csv' ||
-    mime === 'application/csv'
+    mime === 'application/csv' ||
+    mime === 'text/tab-separated-values' ||
+    mime === 'application/vnd.oasis.opendocument.spreadsheet' ||
+    mime === 'application/vnd.oasis.opendocument.spreadsheet-flat-xml' ||
+    mime === 'application/vnd.apple.numbers' ||
+    mime === 'application/x-iwork-numbers-sffnumbers'
   );
 }
 
-/** 判断是否为可预览的 Word 文档（.doc / .docx） */
+/** 判断是否为 File Viewer Word renderer 支持的文本文档。 */
 export function isWordFile(mimeType?: string | null): boolean {
   if (!mimeType) return false;
   const mime = mimeType.toLowerCase();
   return (
     mime === 'application/msword' ||
-    mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    mime.startsWith('application/vnd.ms-word.') ||
+    mime.includes('wordprocessingml') ||
+    mime === 'application/vnd.oasis.opendocument.text' ||
+    mime === 'application/rtf' ||
+    mime === 'application/x-rtf' ||
+    mime === 'text/rtf'
   );
 }
 
-/** 判断是否为可预览的 PowerPoint 演示文稿（.ppt / .pptx） */
+/** 判断是否为 File Viewer Presentation/OpenDocument renderer 支持的演示文稿。 */
 export function isPresentationFile(mimeType?: string | null): boolean {
   if (!mimeType) return false;
   const mime = mimeType.toLowerCase();
   return (
     mime === 'application/vnd.ms-powerpoint' ||
-    mime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    mime.startsWith('application/vnd.ms-powerpoint.') ||
+    mime.includes('presentationml') ||
+    mime === 'application/vnd.oasis.opendocument.presentation'
   );
 }
 

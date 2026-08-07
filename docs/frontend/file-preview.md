@@ -16,10 +16,9 @@
 | PDF | `application/pdf` | `@embedpdf/react-pdf-viewer`（`PDFPreviewPanel`） |
 | 音频 | `audio/*` | Semi Design `AudioPlayer`（页面底部播放条） |
 | 视频 | `video/*` | Semi Design `VideoPlayer` |
-| Excel | `application/vnd.ms-excel` / `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` | File Viewer Spreadsheet renderer（`FileViewerPreviewPanel`，懒加载） |
-| CSV | `text/csv` / `application/csv` | File Viewer Spreadsheet renderer（同 Excel 路径） |
-| Word | `application/msword` / `application/vnd.openxmlformats-officedocument.wordprocessingml.document` | File Viewer Word renderer（`FileViewerPreviewPanel`，懒加载） |
-| PowerPoint | `application/vnd.ms-powerpoint` / `application/vnd.openxmlformats-officedocument.presentationml.presentation` | File Viewer Presentation renderer（`FileViewerPreviewPanel`，懒加载） |
+| 表格 | `.xls/.xlsx/.xlt/.xltx/.xlsm/.xlsb/.xltm/.csv/.tsv/.ods/.fods/.numbers` 对应 MIME | File Viewer Spreadsheet renderer（`FileViewerPreviewPanel`，懒加载） |
+| 文本文档 | `.doc/.docx/.docm/.dot/.dotx/.dotm/.odt/.rtf` 对应 MIME | File Viewer Word renderer（`FileViewerPreviewPanel`，懒加载） |
+| 演示文稿 | `.ppt/.pptx/.pptm/.potx/.potm/.ppsx/.ppsm/.odp` 对应 MIME | File Viewer Presentation/OpenDocument renderer（`FileViewerPreviewPanel`，懒加载） |
 | Markdown | `text/markdown` / `text/x-markdown` | `react-markdown` 渲染（`MarkdownPreviewPanel`，懒加载） |
 | 纯文本 | `text/plain` | Monaco Editor 只读展示（`MonacoPreviewPanel`，懒加载） |
 | JSON | `application/json` / `text/json` | Semi Design `JsonViewer` 只读展示（`JsonPreviewPanel`，懒加载） |
@@ -29,7 +28,7 @@
 
 > **普通图片**不在 `FilePreviewModal` 内部渲染。遇到非 SVG 的 `image/*` 时组件会立即调用 `onClose` 并回退，由调用方自行打开 `ImagePreview`。
 >
-> **Office 文件**支持 `.xls`、`.xlsx`、`.csv`、`.doc`、`.docx`、`.ppt`、`.pptx`，全部在浏览器本地解析，不调用外部预览或文档转换服务。
+> **Office 文件**已开放当前三个 File Viewer renderer 的全部真实扩展名：Word/OpenDocument 文本为 `.doc/.docx/.docm/.dot/.dotx/.dotm/.odt/.rtf`，Spreadsheet 为 `.xls/.xlsx/.xlt/.xltx/.xlsm/.xlsb/.xltm/.csv/.tsv/.ods/.fods/.numbers`，Presentation/OpenDocument 演示为 `.ppt/.pptx/.pptm/.potx/.potm/.ppsx/.ppsm/.odp`。全部在浏览器本地解析，不调用外部预览或文档转换服务。
 >
 > **旧版 `.ppt`** 使用 File Viewer 独立的二进制 PPT 引擎，公开版运行时会显示水印；移除水印需要取得该引擎的商业授权。`.pptx` 不受此项限制。
 >
@@ -45,7 +44,7 @@
 | --- | --- | --- | --- |
 | `fileUrl` | `string` | ✅ | 文件访问 URL，通常为 `/api/files/{id}/content` |
 | `fileName` | `string` | 否 | 文件名，显示在标题栏；默认 `'文件'` |
-| `mimeType` | `string \| null` | 否 | MIME 类型，决定走哪个渲染分支；为空时直接关闭 |
+| `mimeType` | `string \| null` | 否 | MIME 类型，决定走哪个渲染分支；缺失或为通用二进制类型时按 `fileName` 扩展名回退 |
 | `visible` | `boolean` | ✅ | 控制弹窗显示/隐藏 |
 | `onClose` | `() => void` | ✅ | 关闭回调 |
 | `onFallback` | `(url, name, mime) => void` | 否 | 遇到不支持格式时触发；不传则静默关闭 |
@@ -109,7 +108,7 @@ const handlePreview = (file: ManagedFile) => {
 import { canPreviewFile } from '@/utils/file-utils';
 
 // 在表格操作列中：
-const isPreviewable = canPreviewFile(record.mimeType);
+const isPreviewable = canPreviewFile(record.mimeType, record.originalName);
 
 <Button
   theme="borderless"
@@ -121,7 +120,7 @@ const isPreviewable = canPreviewFile(record.mimeType);
 </Button>
 ```
 
-`canPreviewFile` 覆盖全部可预览格式（image / audio / video / PDF / xls / xlsx / csv / doc / docx / ppt / pptx / markdown / text / json / svg / code / zip），调用方无需手动枚举 MIME 类型。
+`canPreviewFile` 覆盖全部可预览格式（image / audio / video / PDF / Office / OpenDocument / markdown / text / json / svg / code / zip），调用方无需手动枚举 MIME 类型。
 
 ---
 
@@ -239,9 +238,9 @@ SVG 文件（`image/svg+xml`）下载 Blob 后创建 Object URL，在 `AppModal`
 - 工具栏保留缩放、搜索、打印，关闭重复的下载和主题切换入口
 - Word 弹窗宽度 `min(960px, 92vw)`，Excel/CSV/PowerPoint 为 `min(1200px, 94vw)`，高度均为 `90vh`
 
-**离线资源**：`@file-viewer/vite-plugin` 只按 `doc/docx/xls/xlsx/csv` 复制 Word、Spreadsheet
+**离线资源**：`@file-viewer/vite-plugin` 只按 `word/spreadsheet` renderer 分组复制 Word、Spreadsheet
 所需的 Worker 到 `file-viewer/`。Presentation renderer 在 `FileViewerPreviewPanel` 中显式注册，
-其 `.ppt/.pptx` Worker、WASM 和字体由 Vite 输出到 `assets/`；不要同时把 `ppt/pptx` 加回插件的
+其 Presentation Worker、WASM 和字体由 Vite 输出到 `assets/`；不要同时把 Presentation 扩展名加回插件的
 `formats`，否则同一套 Presentation 资源会再复制到 `file-viewer/`。开发时插件资源生成到
 `packages/web/public/file-viewer/`（已忽略版本控制），生产构建生成到 `dist/file-viewer/`；
 运行时不访问外部 CDN 或预览服务。
@@ -288,8 +287,8 @@ jszip@^3.10.1
 `packages/web/src/utils/file-utils.tsx` 提供以下辅助函数，`FilePreviewModal` / `useFilePreview` 内部也复用同一套判断：
 
 ```ts
-/** 判断是否支持预览（覆盖 image / audio / video / PDF / xls / xlsx / csv / doc / docx / ppt / pptx / markdown / text / json / svg / code / zip） */
-canPreviewFile(mimeType: string | null | undefined): boolean
+/** 判断是否支持预览；MIME 缺失/通用时可按文件名扩展回退 */
+canPreviewFile(mimeType: string | null | undefined, fileName?: string | null): boolean
 
 /** 细分格式判断 */
 isSpreadsheetFile / isWordFile / isPresentationFile / isMarkdownFile / isPlainTextFile /
@@ -300,6 +299,9 @@ getFileTypeIcon(fileName?: string | null, mimeType?: string | null, size?: numbe
 
 /** 按扩展名猜测 MIME 类型（上传/终端文件等缺 MIME 的场景） */
 guessMimeTypeFromName(name: string): string | null
+
+/** 优先明确 MIME，缺失或通用二进制 MIME 时按文件名回退 */
+resolveFileMimeType(mimeType: string | null | undefined, fileName?: string | null): string | null
 
 /** 文件大小人性化格式化 */
 formatFileSize(bytes: number): string
@@ -335,7 +337,7 @@ fetchProtectedFile(url: string): Promise<Blob>
 **其他简单场景**只需三步：
 
 1. 将文件数据存入状态，包含 `url / name / mimeType`
-2. 在触发预览前用 `canPreviewFile(mimeType)` 判断是否显示预览入口
+2. 在触发预览前用 `canPreviewFile(mimeType, fileName)` 判断是否显示预览入口
 3. 渲染 `<FilePreviewModal fileUrl={url} fileName={name} mimeType={mime} visible={visible} onClose={onClose} />`
 
 其余逻辑（格式分发、懒加载、直链换取与认证、资源回收）均由组件内部处理。普通图片需自行处理 `onFallback` / 图集展示，或直接采用上面的组合方案。
