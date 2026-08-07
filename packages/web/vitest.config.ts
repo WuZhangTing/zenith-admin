@@ -11,6 +11,9 @@ export default defineConfig({
   },
   test: {
     globals: true,
+    // jsdom 声明在 workspace 根 package.json：vitest 被提升到根 node_modules，
+    // 它是从自身目录发起 import('jsdom') 的，向上查找进不到 packages/web/node_modules。
+    // 若在本包重复声明，两处版本一旦不一致就无法去重，web 那份会被嵌套且永远加载不到。
     environment: 'jsdom',
     include: ['src/**/*.test.{ts,tsx}'],
     setupFiles: ['src/test-setup.ts'],

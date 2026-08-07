@@ -74,11 +74,9 @@ describe('CursorContextDropdown', () => {
     expect(props.getPopupContainer?.()).toBe(document.body);
 
     const menu = container.querySelector<HTMLElement>('[role="menu"]');
-    expect(menu).toHaveStyle({
-      minWidth: '176px',
-      maxHeight: 'calc(100vh - 16px)',
-      overflowY: 'auto',
-    });
+    expect(menu).toHaveStyle({ minWidth: '176px', overflowY: 'auto' });
+    // jsdom 30 起 getComputedStyle 会对 calc() 求值，断言内联声明以免耦合默认视口高度
+    expect(menu?.style.maxHeight).toBe('calc(100vh - 16px)');
 
     const anchor = container.querySelector<HTMLElement>('span[aria-hidden="true"]');
     expect(anchor).not.toHaveAttribute('tabindex');
@@ -107,9 +105,11 @@ describe('CursorContextDropdown', () => {
     );
 
     expect(container.querySelector<HTMLElement>('[role="menu"]')).toHaveStyle({
-      maxHeight: 'calc(100vh - 16px)',
       overflowY: 'auto',
     });
+    expect(
+      container.querySelector<HTMLElement>('[role="menu"]')?.style.maxHeight,
+    ).toBe('calc(100vh - 16px)');
   });
 
   it('repositions the same anchor when the context or coordinates change', () => {

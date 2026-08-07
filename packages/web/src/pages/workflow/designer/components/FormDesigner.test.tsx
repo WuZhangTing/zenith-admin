@@ -93,7 +93,9 @@ describe('FormDesigner context menu', () => {
     expect(firstProps.getPopupContainer?.()).toBe(document.body);
 
     const menu = screen.getByRole('menu');
-    expect(menu).toHaveStyle({ maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' });
+    expect(menu).toHaveStyle({ overflowY: 'auto' });
+    // jsdom 30 起 getComputedStyle 会对 calc() 求值，断言内联声明以免耦合默认视口高度
+    expect(menu.style.maxHeight).toBe('calc(100vh - 16px)');
     const menuQueries = within(menu);
     expect(menuQueries.getByRole('button', { name: '上移' })).toBeInTheDocument();
     expect(menuQueries.getByRole('button', { name: '下移' })).toBeInTheDocument();
