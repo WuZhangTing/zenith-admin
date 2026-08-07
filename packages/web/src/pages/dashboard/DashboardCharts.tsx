@@ -1,12 +1,12 @@
 /**
- * 首页仪表盘图表区（仅管理员可见的三张 VChart 卡片）。
+ * 首页仪表盘图表区（仅管理员可见的三组 VChart 数据视图）。
  *
  * 独立成懒加载 chunk：'@/components/charts' 模块求值即接入 VChart 主题，
  * 会拖入 ~1.9MB 的 @visactor 依赖树。拆出后 DashboardPage 主体
- * （欢迎横幅/统计卡/公告/日历）先渲染，图表随本 chunk 就绪后流式补齐。
+ * （欢迎区/统计概览/公告/日历）先渲染，图表随本 chunk 就绪后流式补齐。
  */
 import { useMemo } from 'react';
-import { Card, Typography, Skeleton, Empty } from '@douyinfe/semi-ui';
+import { Typography, Skeleton, Empty } from '@douyinfe/semi-ui';
 import {
   AreaChart,
   LineChart,
@@ -30,7 +30,7 @@ function shortDate(dateStr: string) {
   return dateStr.slice(5); // MM-DD
 }
 
-const chartCardSkeleton = (
+const chartSkeleton = (
   <div className="dashboard-chart-placeholder">
     <Skeleton active loading placeholder={
       <div style={{ width: '100%', height: 200, padding: '12px 0' }}>
@@ -105,42 +105,39 @@ export default function DashboardChartsRow({ charts, chartsLoading }: DashboardC
 
   return (
     <div className="dashboard-charts-row">
-      {/* 7 天登录趋势 */}
-      <Card
-        title={<Text strong style={{ fontSize: 14 }}>7 天登录趋势</Text>}
-        className="dashboard-card dashboard-chart-card"
-        bodyStyle={{ padding: '12px 16px 8px' }}
-      >
+      <section className="dashboard-chart-section">
+        <header className="dashboard-section-header">
+          <Text strong>7 天登录趋势</Text>
+          <span className="dashboard-section-meta">成功 / 失败</span>
+        </header>
         {chartsLoading
-          ? chartCardSkeleton
+          ? chartSkeleton
           : (
             <LineChart {...loginTrendSpec} options={chartOptions} height={200} />
           )
         }
-      </Card>
+      </section>
 
-      {/* 今日操作类型分布 */}
-      <Card
-        title={<Text strong style={{ fontSize: 14 }}>今日操作分布</Text>}
-        className="dashboard-card dashboard-chart-card"
-        bodyStyle={{ padding: '12px 16px 8px' }}
-      >
+      <section className="dashboard-chart-section">
+        <header className="dashboard-section-header">
+          <Text strong>今日操作分布</Text>
+          <span className="dashboard-section-meta">按模块</span>
+        </header>
         {renderOperationPie()}
-      </Card>
+      </section>
 
-      {/* 用户活跃度曲线 */}
-      <Card
-        title={<Text strong style={{ fontSize: 14 }}>7 天用户活跃度</Text>}
-        className="dashboard-card dashboard-chart-card"
-        bodyStyle={{ padding: '12px 16px 8px' }}
-      >
+      <section className="dashboard-chart-section">
+        <header className="dashboard-section-header">
+          <Text strong>7 天用户活跃度</Text>
+          <span className="dashboard-section-meta">日活用户</span>
+        </header>
         {chartsLoading
-          ? chartCardSkeleton
+          ? chartSkeleton
           : (
             <AreaChart {...userActivitySpec} options={chartOptions} height={200} />
           )
         }
-      </Card>
+      </section>
     </div>
   );
 }

@@ -1,12 +1,12 @@
 import { lazy, Suspense, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Card, Typography, Tag, Space, Skeleton, Empty, List, Avatar, Descriptions } from '@douyinfe/semi-ui';
+import { Button, Typography, Tag, Skeleton, Empty, List, Avatar, Descriptions } from '@douyinfe/semi-ui';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import { Bell, BookOpen, MonitorPlay, Users, UserCheck, Wifi, LogIn, Activity, MapPin, Clock } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 // 图表区懒加载：'@/components/charts' 拖 ~1.9MB 的 @visactor 依赖树，
-// 首页主体（欢迎横幅/统计卡/公告/日历）先渲染，图表 chunk 就绪后补齐
+// 首页主体（欢迎区/统计概览/公告/日历）先渲染，图表 chunk 就绪后补齐
 const DashboardChartsRow = lazy(() => import('./DashboardCharts'));
 
 const GithubIcon = ({ size = 18 }: { size?: number }) => (
@@ -39,13 +39,12 @@ const STAT_ITEMS: Array<{
   key: keyof DashboardStats;
   label: string;
   icon: React.ReactNode;
-  color: string;
 }> = [
-  { key: 'totalUsers',      label: '系统用户总数', icon: <Users size={20} />,      color: '#4A90E2' },
-  { key: 'activeUsers',     label: '活跃用户',     icon: <UserCheck size={20} />,  color: '#52C41A' },
-  { key: 'onlineUsers',     label: '当前在线',     icon: <Wifi size={20} />,       color: '#13C2C2' },
-  { key: 'todayLogins',     label: '今日登录',     icon: <LogIn size={20} />,      color: '#722ED1' },
-  { key: 'todayOperations', label: '今日操作',     icon: <Activity size={20} />,   color: '#FA8C16' },
+  { key: 'totalUsers',      label: '系统用户总数', icon: <Users size={16} /> },
+  { key: 'activeUsers',     label: '活跃用户',     icon: <UserCheck size={16} /> },
+  { key: 'onlineUsers',     label: '当前在线',     icon: <Wifi size={16} /> },
+  { key: 'todayLogins',     label: '今日登录',     icon: <LogIn size={16} /> },
+  { key: 'todayOperations', label: '今日操作',     icon: <Activity size={16} /> },
 ];
 
 function stripHtml(html: string): string {
@@ -102,7 +101,7 @@ export default function DashboardPage() {
 
   function renderNotices() {
     if (loading) return (
-      <div style={{ padding: '8px 16px' }}>
+      <div className="dashboard-notice-skeleton">
         <Skeleton active loading placeholder={
           <>
             {[1, 2, 3, 4].map((k) => (
@@ -136,29 +135,26 @@ export default function DashboardPage() {
           };
           return (
             <List.Item
-              className="notice-item notice-item--clickable"
-              style={{ cursor: 'pointer' }}
-              onClick={() => void openNotice(n)}
+              className="notice-item"
               header={n.isRead ? <div className="notice-read-placeholder" /> : <div className="unread-dot" />}
               main={(
-                <div className="notice-content">
-                  <div className="notice-item-header">
+                <button
+                  type="button"
+                  className="notice-content notice-content--button"
+                  onClick={() => void openNotice(n)}
+                >
+                  <span className="notice-item-header">
                     <Text strong style={{ fontSize: 13 }} className="notice-title">{n.title}</Text>
                     <Tag color={typeInfo.color} size="small">{typeInfo.label}</Tag>
                     <Tag color={priInfo.color} size="small">{priInfo.label}</Tag>
-                  </div>
-                  <div
-                    className="notice-summary"
-                    style={{ maxHeight: 40, overflow: 'hidden', lineHeight: 1.5 }}
-                  >
-                    {stripHtml(n.content || '')}
-                  </div>
-                  <div className="notice-item-footer">
+                  </span>
+                  <span className="notice-summary">{stripHtml(n.content || '')}</span>
+                  <span className="notice-item-footer">
                     <Text type="tertiary" size="small">
                       {n.createByName ?? '-'} · {formatDateTime(n.publishTime)}
                     </Text>
-                  </div>
-                </div>
+                  </span>
+                </button>
               )}
             />
           );
@@ -169,11 +165,10 @@ export default function DashboardPage() {
 
   return (
     <div className="page-container dashboard-page">
-      {/* ===== 欢迎横幅 ===== */}
-      <Card bodyStyle={{ padding: '16px 20px' }} className="dashboard-welcome-card">
+      <section className="dashboard-welcome-section" aria-label="欢迎信息">
         <Skeleton active loading={!user} placeholder={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <Skeleton.Avatar style={{ width: 52, height: 52, borderRadius: '50%', flexShrink: 0 }} />
+          <div className="dashboard-welcome-skeleton">
+            <Skeleton.Avatar style={{ width: 48, height: 48, borderRadius: '50%', flexShrink: 0 }} />
             <div style={{ flex: 1 }}>
               <Skeleton.Title style={{ width: 180, height: 18, marginBottom: 8 }} />
               <Skeleton.Paragraph rows={1} style={{ width: 260 }} />
@@ -186,8 +181,7 @@ export default function DashboardPage() {
                 src={user?.avatar || undefined}
                 color="blue"
                 size="large"
-                style={{ width: 52, height: 52, fontSize: 20, flexShrink: 0, cursor: 'pointer' }}
-                onClick={() => navigate('/profile')}
+                className="dashboard-welcome__avatar"
               >
                 {user?.nickname?.charAt(0).toUpperCase() ?? 'U'}
               </Avatar>
@@ -224,60 +218,49 @@ export default function DashboardPage() {
             </div>
           </div>
         </Skeleton>
-      </Card>
+      </section>
+
       {isAdmin && (
-        <div className="dashboard-stats-row">
+        <section className="dashboard-stats-row" aria-label="系统概览">
           {statsLoading
             ? STAT_ITEMS.map((item) => (
-              <Card key={item.key} className="dashboard-stat-card" bodyStyle={{ padding: '16px 20px' }}>
+              <div key={item.key} className="dashboard-stat-item">
                 <Skeleton active loading placeholder={
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                    <Skeleton.Avatar style={{ width: 44, height: 44, borderRadius: 'var(--semi-border-radius-large)' }} />
+                  <div className="dashboard-stat-skeleton">
+                    <Skeleton.Avatar style={{ width: 16, height: 16, borderRadius: '50%' }} />
                     <div style={{ flex: 1 }}>
                       <Skeleton.Title style={{ width: 60, height: 22, marginBottom: 6 }} />
                       <Skeleton.Paragraph rows={1} style={{ width: 80 }} />
                     </div>
                   </div>
                 } />
-              </Card>
+              </div>
             ))
             : STAT_ITEMS.map((item) => (
-              <Card key={item.key} className="dashboard-stat-card" bodyStyle={{ padding: '16px 20px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div style={{
-                    width: 44, height: 44, borderRadius: 'var(--semi-border-radius-large)',
-                    background: `${item.color}18`,
-                    color: item.color,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0,
-                  }}>
-                    {item.icon}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 22, fontWeight: 600, lineHeight: 1.2, color: 'var(--semi-color-text-0)' }}>
-                      {stats?.[item.key] ?? '—'}
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--semi-color-text-2)', marginTop: 2 }}>
-                      {item.label}
-                    </div>
-                  </div>
+              <div key={item.key} className="dashboard-stat-item">
+                <div className="dashboard-stat-item__value">
+                  {stats?.[item.key] ?? '—'}
                 </div>
-              </Card>
+                <div className="dashboard-stat-item__label">
+                  <span className="dashboard-stat-item__icon">{item.icon}</span>
+                  {item.label}
+                </div>
+              </div>
             ))
           }
-        </div>
+        </section>
       )}
+
       {isAdmin && (
         <Suspense
           fallback={
             <div className="dashboard-charts-row">
               {['7 天登录趋势', '今日操作分布', '7 天用户活跃度'].map((title) => (
-                <Card
-                  key={title}
-                  title={<Text strong style={{ fontSize: 14 }}>{title}</Text>}
-                  className="dashboard-card dashboard-chart-card"
-                  bodyStyle={{ padding: '12px 16px 8px' }}
-                >
+                <section key={title} className="dashboard-chart-section">
+                  <header className="dashboard-section-header">
+                    <Text strong>{title}</Text>
+                    <span className="dashboard-section-meta">{title.startsWith('今日') ? '今日' : '近 7 天'}</span>
+                  </header>
                   <div className="dashboard-chart-placeholder">
                     <Skeleton active loading placeholder={
                       <div style={{ width: '100%', height: 200, padding: '12px 0' }}>
@@ -285,7 +268,7 @@ export default function DashboardPage() {
                       </div>
                     } />
                   </div>
-                </Card>
+                </section>
               ))}
             </div>
           }
@@ -296,73 +279,65 @@ export default function DashboardPage() {
 
       <div className="dashboard-top-grid">
         <div className="dashboard-column dashboard-column--notice">
-          <Card
-            title={
-              <div className="dashboard-card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                <Space spacing={6}>
-                  <Bell size={14} />
-                  <Text strong style={{ fontSize: 14 }}>通知公告</Text>
-                </Space>
-                <Button theme="borderless" size="small" type="tertiary" onClick={() => navigate('/announcements')}>查看更多</Button>
+          <section className="dashboard-section dashboard-section--notice">
+            <header className="dashboard-section-header">
+              <div className="dashboard-section-heading">
+                <Bell size={15} />
+                <Text strong>通知公告</Text>
               </div>
-            }
-            className="dashboard-card dashboard-card--notice"
-            bodyStyle={{ padding: 0 }}
-          >
+              <Button theme="borderless" size="small" type="tertiary" onClick={() => navigate('/announcements')}>查看全部</Button>
+            </header>
             {renderNotices()}
-          </Card>
+          </section>
 
-          <Card
-            title={<Text strong style={{ fontSize: 14 }}>日历</Text>}
-            className="dashboard-card dashboard-card--calendar"
-            style={{ marginTop: 16 }}
-            bodyStyle={{ padding: '8px 0 4px' }}
-          >
+          <section className="dashboard-section dashboard-section--calendar">
+            <header className="dashboard-section-header">
+              <Text strong>日历</Text>
+            </header>
             <MonthCalendar />
-          </Card>
+          </section>
         </div>
 
-        <div className="dashboard-column">
-          <Card
-            title={<Text strong style={{ fontSize: 14 }}>项目链接</Text>}
-            className="dashboard-card dashboard-card--links"
-          >
+        <aside className="dashboard-column dashboard-column--details">
+          <section className="dashboard-section dashboard-section--links">
+            <header className="dashboard-section-header">
+              <Text strong>项目链接</Text>
+            </header>
             <div className="project-links">
               <a href="https://github.com/iwangbowen/zenith-admin" target="_blank" rel="noreferrer" className="project-link-item" title="GitHub 仓库">
                 <GithubIcon size={18} />
+                <span>GitHub</span>
               </a>
               <a href="https://iwangbowen.github.io/zenith-admin/" target="_blank" rel="noreferrer" className="project-link-item" title="文档站点">
                 <BookOpen size={18} />
+                <span>文档</span>
               </a>
               <a href="https://iwangbowen.github.io/zenith-admin/demo/" target="_blank" rel="noreferrer" className="project-link-item" title="在线演示">
                 <MonitorPlay size={18} />
+                <span>演示</span>
               </a>
             </div>
-          </Card>
+          </section>
 
-          <Card
-            title={<Text strong style={{ fontSize: 14 }}>技术架构</Text>}
-            className="dashboard-card dashboard-card--architecture"
-            style={{ marginTop: 16 }}
-            bodyStyle={{ padding: '4px 0 8px' }}
-          >
+          <section className="dashboard-section dashboard-section--architecture">
+            <header className="dashboard-section-header">
+              <Text strong>技术架构</Text>
+            </header>
             <Descriptions
               data={architectureItems}
               align="plain"
-              style={{ padding: '4px 16px 4px' }}
+              className="dashboard-architecture"
             />
             <div className="architecture-tags">
-              <Space wrap spacing={6}>
-                <Tag color="blue" size="small">TypeScript</Tag>
-                <Tag color="cyan" size="small">Vite</Tag>
-                <Tag color="green" size="small">Drizzle</Tag>
-                <Tag color="violet" size="small">Monorepo</Tag>
-                <Tag color="indigo" size="small">Zod</Tag>
-                <Tag color="orange" size="small">JWT</Tag>
-              </Space>
+              <Tag color="blue" size="small">TypeScript</Tag>
+              <Tag color="cyan" size="small">Vite</Tag>
+              <Tag color="green" size="small">Drizzle</Tag>
+              <Tag color="violet" size="small">Monorepo</Tag>
+              <Tag color="indigo" size="small">Zod</Tag>
+              <Tag color="orange" size="small">JWT</Tag>
             </div>
-          </Card>
-        </div>
+          </section>
+        </aside>
       </div>
 
       {/* ===== 通知详情 Modal ===== */}
