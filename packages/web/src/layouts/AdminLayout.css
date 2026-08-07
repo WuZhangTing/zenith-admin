@@ -1043,6 +1043,81 @@
   color: var(--semi-color-primary);
   font-weight: 500;
 }
+
+/* ===== Loading style picker (inside Preferences SideSheet) ===== */
+.loading-style-picker__heading {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 12px;
+  color: var(--semi-color-text-0);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.loading-style-picker__heading svg {
+  color: var(--semi-color-text-2);
+  cursor: help;
+}
+
+.loading-style-picker {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.loading-style-picker__option {
+  min-width: 0;
+  padding: 8px 2px 6px;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  border: 0;
+  border-radius: var(--semi-border-radius-medium);
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.loading-style-picker__option:hover {
+  background: var(--semi-color-fill-0);
+}
+
+.loading-style-picker__option:focus-visible {
+  outline: 2px solid var(--semi-color-focus-border);
+  outline-offset: 2px;
+}
+
+.loading-style-picker__option--active {
+  background: var(--semi-color-primary-light-default);
+}
+
+.loading-style-picker__preview {
+  display: grid;
+  place-items: center;
+  height: 32px;
+  overflow: hidden;
+}
+
+.loading-style-picker__preview .page-loading-indicator {
+  transform: scale(0.62);
+}
+
+.loading-style-picker__label {
+  display: block;
+  padding-top: 4px;
+  overflow: hidden;
+  color: var(--semi-color-text-1);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.loading-style-picker__option--active .loading-style-picker__label {
+  color: var(--semi-color-primary);
+  font-weight: 500;
+}
+
 .admin-tabs-bar {
   display: flex;
   align-items: stretch;

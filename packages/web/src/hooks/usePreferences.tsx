@@ -7,6 +7,22 @@ export type TabStyle = 'line' | 'pill' | 'card' | 'chrome';
 export type TableSizePreference = 'small' | 'default' | 'middle';
 export type RouteAnimation = 'none' | 'fade' | 'slide-up' | 'slide-left';
 export type BorderRadiusPreference = 'none' | 'small' | 'medium' | 'large';
+export const LOADING_STYLES = ['dots', 'ring', 'pulse', 'bars'] as const;
+export type LoadingStyle = (typeof LOADING_STYLES)[number];
+export const LOADING_STYLE_OPTIONS: readonly {
+  value: LoadingStyle;
+  label: string;
+  isDefault: boolean;
+}[] = [
+  { value: 'dots', label: '跳动圆点', isDefault: true },
+  { value: 'ring', label: '旋转圆环', isDefault: false },
+  { value: 'pulse', label: '呼吸光环', isDefault: false },
+  { value: 'bars', label: '律动条', isDefault: false },
+];
+
+export function isLoadingStyle(value: unknown): value is LoadingStyle {
+  return typeof value === 'string' && LOADING_STYLES.includes(value as LoadingStyle);
+}
 
 /** Web 终端文件夹收藏项 */
 export interface TerminalFavorite {
@@ -129,6 +145,8 @@ export interface UserPreferences {
   showBackTop: boolean;
   /** 页面切换时顶部显示加载进度条 */
   showProgressBar: boolean;
+  /** 首次进入、菜单首载与页面懒加载时使用的加载动画 */
+  loadingStyle: LoadingStyle;
   /** 全局键盘快捷键（Alt+L 锁屏 / Alt+S 侧边栏 / Alt+C 内容全屏 / Ctrl+K 搜索菜单） */
   enableShortcuts: boolean;
   /** 登录后默认进入的页面路径，'/' 表示首页仪表盘 */
@@ -191,6 +209,7 @@ export const defaultPreferences: UserPreferences = {
   borderRadius: 'medium',
   showBackTop: true,
   showProgressBar: true,
+  loadingStyle: 'dots',
   enableShortcuts: true,
   homePath: '/',
   autoLockMinutes: 0,
@@ -243,6 +262,7 @@ const PREF_ENUM_VALUES: Partial<Record<keyof UserPreferences, readonly string[]>
   tabEvictPolicy: ['fifo', 'lru'],
   filesViewMode: ['list', 'grid'],
   borderRadius: ['none', 'small', 'medium', 'large'],
+  loadingStyle: LOADING_STYLES,
 };
 
 /**

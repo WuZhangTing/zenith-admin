@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react';
 import { Button, ColorPicker, InputNumber, Popover, Radio, RadioGroup, Select, Switch, Tooltip } from '@douyinfe/semi-ui';
 import { Check, ClipboardPaste, Copy, Info, Palette } from 'lucide-react';
+import { LOADING_STYLE_OPTIONS } from '@/hooks/usePreferences';
 import type { NavLayout, TableSizePreference, RouteAnimation, BorderRadiusPreference, TabStyle, UserPreferences } from '@/hooks/usePreferences';
 import type { ThemeMode } from '@/hooks/useTheme';
 import { THEME_COLOR_PRESETS } from '@/lib/theme-color';
 import { confirmDanger } from '@/utils/confirm';
+import { LoadingIndicator } from '@/components/PageLoading';
 
 // 偏好设置面板各分区。所有分区组件都返回 Fragment，
 // 使设置块保持为外层 flex 容器的直接子节点（gap 布局不变）。
@@ -198,6 +200,40 @@ export function PrefsAppearanceSection({
           <Radio value="medium">默认</Radio>
           <Radio value="large">大</Radio>
         </RadioGroup>
+      </div>
+      )}
+
+      {/* ── 加载动画 ── */}
+      {matchesPref(['加载动画', '加载效果', 'Loading', '圆点', '圆环', '光环', '律动条']) && (
+      <div>
+        <div className="loading-style-picker__heading">
+          <span>加载动画</span>
+          <Tooltip content="用于首次进入系统、菜单首载和页面懒加载" position="right">
+            <Info size={13} />
+          </Tooltip>
+        </div>
+        <div className="loading-style-picker">
+          {LOADING_STYLE_OPTIONS.map((option) => {
+            const isActive = preferences.loadingStyle === option.value;
+            return (
+              <button
+                type="button"
+                key={option.value}
+                className={`loading-style-picker__option${isActive ? ' loading-style-picker__option--active' : ''}`}
+                aria-pressed={isActive}
+                title={option.isDefault ? `${option.label}（默认）` : option.label}
+                onClick={() => setPreferences({ loadingStyle: option.value })}
+              >
+                <span className="loading-style-picker__preview">
+                  <LoadingIndicator variant={option.value} />
+                </span>
+                <span className="loading-style-picker__label">
+                  {option.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
       )}
 

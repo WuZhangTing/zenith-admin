@@ -2,14 +2,25 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { PREFERENCES_KEY } from '@zenith/shared/core';
 import { request } from '@/utils/request';
-import { defaultPreferences, PreferencesContext } from './usePreferences';
+import { defaultPreferences, isLoadingStyle, PreferencesContext } from './usePreferences';
 import type { UserPreferences } from './usePreferences';
+
+function mergePreferences(raw: unknown): UserPreferences {
+  const source = raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? raw as Partial<UserPreferences>
+    : {};
+  const merged = { ...defaultPreferences, ...source };
+  if (!isLoadingStyle(merged.loadingStyle)) {
+    merged.loadingStyle = defaultPreferences.loadingStyle;
+  }
+  return merged;
+}
 
 function loadPreferences(): UserPreferences {
   try {
     const raw = localStorage.getItem(PREFERENCES_KEY);
     if (raw) {
-      return { ...defaultPreferences, ...JSON.parse(raw) };
+      return mergePreferences(JSON.parse(raw));
     }
   } catch { /* ignore */ }
   return { ...defaultPreferences };
@@ -64,7 +75,7 @@ export function PreferencesProvider({ children }: Readonly<{ children: ReactNode
       .then((res) => {
         if (cancelled || res.code !== 0) return;
         if (res.code === 0 && res.data) {
-          const merged = { ...defaultPreferences, ...(res.data as Partial<UserPreferences>) };
+          const merged = mergePreferences(res.data);
           applyLocalPreferences(merged);
           return;
         }

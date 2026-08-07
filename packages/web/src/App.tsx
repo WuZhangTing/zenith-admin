@@ -18,6 +18,7 @@ import { maintenanceKeys, usePublicMaintenanceStatus } from '@/hooks/queries/mai
 import { lazyPageComponent } from '@/utils/page-registry';
 import { useCurrentUserMenuTree, useMenuTree } from '@/hooks/queries/menus';
 import type { Menu, User } from '@zenith/shared/identity';
+import PageLoading from '@/components/PageLoading';
 
 // AdminLayout 懒加载：后台布局静态依赖图很重（通知/文件预览/偏好面板/dnd-kit/DatePicker 等），
 // 登录页与公开页（支付链接、公开报表、OAuth 授权）不应预载它
@@ -50,17 +51,7 @@ const DashboardViewPage = React.lazy(() => import('@/pages/report/DashboardViewP
 const FillEntryPage = React.lazy(() => import('@/pages/report/FillEntryPage'));
 const OAuth2AppDetailPage = React.lazy(() => import('@/pages/open-platform/apps/OAuth2AppDetailPage'));
 
-const routeFallback = <div style={{ padding: 24 }}><span className="page-loading__dot" style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'var(--semi-color-primary)' }} /></div>;
-
-const PageLoadingDots = () => (
-  <div className="page-loading">
-    <div className="page-loading__dots">
-      <span className="page-loading__dot" />
-      <span className="page-loading__dot" />
-      <span className="page-loading__dot" />
-    </div>
-  </div>
-);
+const routeFallback = <PageLoading inline />;
 
 /** 固定路由路径，不通过菜单动态加载（导出供路由策略回归测试使用） */
 export const FIXED_ROUTES = new Set(['/profile', '/announcements', '/inbox', '/system/firewall', '/system/nginx-sites']);
@@ -206,7 +197,7 @@ function AdminRouteLoader({ user, logout }: Readonly<AdminRouteLoaderProps>) {
 
   // 首载 gate：两棵树并行加载；后台 refetch 保留旧数据，不会重新进入此分支
   if (userMenusQuery.isPending || allMenusQuery.isPending) {
-    return <PageLoadingDots />;
+    return <PageLoading />;
   }
   // 导航树失败必须显式可重试——空菜单渲染会把故障伪装成「全部页面 404」。
   // 管理树失败不阻塞：仅降级 403→404 判别。
@@ -232,7 +223,7 @@ function AdminRouteLoader({ user, logout }: Readonly<AdminRouteLoaderProps>) {
         {/* 已登录用户访问认证页 → 重定向，避免落入 AdminLayout catch-all 404 并作为标签页出现 */}
         <Route path="/login" element={<RedirectFromLogin />} />
         <Route path="/reset-password" element={<Navigate to="/" replace />} />
-        <Route path="/" element={<Suspense fallback={<PageLoadingDots />}><AdminLayout user={user} onLogout={logout} menus={menus} /></Suspense>}>
+        <Route path="/" element={<Suspense fallback={<PageLoading />}><AdminLayout user={user} onLogout={logout} menus={menus} /></Suspense>}>
         {/* 固定路由 */}
         <Route index element={<HomeEntry />} />
         <Route path="profile" element={<Suspense fallback={routeFallback}><ProfilePage user={user} /></Suspense>} />
@@ -347,7 +338,7 @@ export default function App() {
   }, [queryClient]);
 
   if (status === 'checking') {
-    return <PageLoadingDots />;
+    return <PageLoading />;
   }
   if (status === 'unavailable') {
     return (
