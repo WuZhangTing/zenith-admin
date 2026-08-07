@@ -5,7 +5,7 @@ import { resolveRuntimeApproveMethod, type TaskAction } from '../../../lib/workf
 import { advanceTokens, type AdvanceTrigger, type BranchPath } from '../../../lib/workflow-token-engine';
 import type { WorkflowResolvedApproveMethod, WorkflowFlowData, WorkflowStarterContext } from '@zenith/shared/workflow';
 import { HTTPException } from 'hono/http-exception';
-import { resolveAssigneeIds } from '../workflow-assignee-resolver.service';
+import { createDeptTree, resolveAssigneeIds } from '../workflow-assignee-resolver.service';
 import { getDecisionOutputs } from '../../platform/rules.service';
 import type { DbExecutor } from '../../../db/types';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -34,6 +34,10 @@ async function expandTasksToRows(
   const rows: Array<typeof workflowTasks.$inferInsert> = [];
   const autoApprovedNodeKeys: string[] = [];
   let autoRejectedNodeKey: string | null = null;
+
+  // 本次物化内所有节点共享一棵惰性部门树：不涉及部门的节点不触发查询，
+  // 涉及的多个节点也只拉取一次部门表
+  const deptTree = createDeptTree(ctx.executor);
 
   // 审批代理（离岗委托）：按需懒加载本实例的 definitionId，将待办自动转交给代理人
   let cachedDefinitionId: number | null = null;
@@ -134,6 +138,7 @@ async function expandTasksToRows(
         executor: ctx.executor,
         formData: ctx.formData,
         instanceId: ctx.instanceId,
+        deptTree,
       });
       for (const uid of ccUserIds) {
         rows.push({
@@ -183,6 +188,7 @@ async function expandTasksToRows(
       formData: ctx.formData,
       instanceId: ctx.instanceId,
       selectedNextApprovers: ctx.selectedNextApprovers?.[t.nodeKey],
+      deptTree,
     });
 
     const userIds = await applyAssigneeRuntimeStrategies(t, resolvedUserIds, ctx);

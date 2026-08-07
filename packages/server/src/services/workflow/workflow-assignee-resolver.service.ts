@@ -32,6 +32,12 @@ export interface ResolveAssigneeContext {
   instanceId?: number;
   /** 上一节点审批人在审批时为本次创建的 approverSelect 节点选择的用户 ID 列表 */
   selectedNextApprovers?: number[];
+  /**
+   * 可跨多次解析共享的惰性部门树。批量场景（一次实例化里逐节点解析审批人）
+   * 应由调用方创建并传入，避免每个节点各拉一次部门表；未传入时按次创建，
+   * 且只有真正走到部门相关分支才会触发查询。
+   */
+  deptTree?: DeptTree;
 }
 
 export interface WorkflowSelectableUser {
@@ -39,85 +45,141 @@ export interface WorkflowSelectableUser {
   name: string;
 }
 
-// ─── 部门树内存缓存：将多次单点查询合并为一次全量拉取，消除 N+1 ────────────────
+// ─── 部门访问：单跳走索引查询，多跳/展开走惰性部门树 ─────────────────────────
+//
+// 取舍依据：单跳（取某个部门的负责人 / 上级）是主键等值查询，成本远低于全表拉取；
+// 而「逐级向上直到顶层」「递归展开子部门」这类循环才是真正的 N+1，值得用一次
+// 全量拉取换掉 O(深度) 次往返。因此两种策略并存，按调用形态选择。
 
 interface DeptNode {
-  id: number;
   parentId: number | null;
   leaderId: number | null;
 }
 
+/** 单点查部门负责人（单跳路径专用；多跳请走 DeptTree） */
+async function fetchDeptLeader(exec: DbExecutor, deptId: number): Promise<number | null> {
+  const [row] = await exec.select({ leaderId: departments.leaderId })
+    .from(departments).where(eq(departments.id, deptId)).limit(1);
+  return row?.leaderId ?? null;
+}
+
+/** 批量查多个部门的负责人（一次 IN 查询替代逐部门查询） */
+async function fetchDeptLeaders(exec: DbExecutor, deptIds: readonly number[]): Promise<number[]> {
+  const uniq = uniquePositiveIds(deptIds);
+  if (uniq.length === 0) return [];
+  const rows = await exec.select({ leaderId: departments.leaderId })
+    .from(departments).where(inArray(departments.id, uniq));
+  return rows.map((r) => r.leaderId).filter((id): id is number => id !== null);
+}
+
+/** 单点查上级部门 ID；已到顶层（parentId 为 0/null）或部门不存在时返回 null */
+async function fetchDeptParent(exec: DbExecutor, deptId: number): Promise<number | null> {
+  const [row] = await exec.select({ parentId: departments.parentId })
+    .from(departments).where(eq(departments.id, deptId)).limit(1);
+  const parentId = row?.parentId ?? null;
+  return parentId === 0 ? null : parentId;
+}
+
 /**
- * 一次性拉取并缓存部门树（按执行器隔离，避免跨事务脏读）。
- * 后续 walkDeptUp / collectDeptWithChildren / getDeptAncestors 全部走内存。
+ * 惰性部门树：首次访问时拉取一次全量部门，之后在同一实例内复用。
+ *
+ * 关键在「惰性」——未命中部门相关分支的审批人类型（user / initiator / formUser /
+ * post / userGroup / expression 等）不会产生任何查询。批量场景（如一次实例化里
+ * 解析多个节点）可通过 ResolveAssigneeContext.deptTree 复用同一实例，避免逐节点重复拉取。
  */
-async function getDeptTree(exec: DbExecutor): Promise<Map<number, DeptNode>> {
-  const rows = await exec
-    .select({ id: departments.id, parentId: departments.parentId, leaderId: departments.leaderId })
-    .from(departments);
-  const map = new Map<number, DeptNode>();
-  for (const r of rows) {
-    map.set(r.id, { id: r.id, parentId: r.parentId, leaderId: r.leaderId });
+export function createDeptTree(exec: DbExecutor) {
+  let nodesPromise: Promise<Map<number, DeptNode>> | null = null;
+  let childrenIndex: Map<number, number[]> | null = null;
+
+  function nodes(): Promise<Map<number, DeptNode>> {
+    nodesPromise ??= (async () => {
+      const rows = await exec
+        .select({ id: departments.id, parentId: departments.parentId, leaderId: departments.leaderId })
+        .from(departments);
+      const map = new Map<number, DeptNode>();
+      for (const r of rows) map.set(r.id, { parentId: r.parentId, leaderId: r.leaderId });
+      return map;
+    })();
+    return nodesPromise;
   }
-  return map;
-}
 
-/** 从给定部门开始向上走 levels 层，返回最终所在的部门 ID（找不到则返回 null） */
-function walkDeptUpWithTree(tree: Map<number, DeptNode>, startDeptId: number, levels: number): number | null {
-  let current: number | null = startDeptId;
-  for (let i = 0; i < levels && current !== null; i++) {
-    const node = tree.get(current);
-    if (!node || node.parentId === 0 || node.parentId === null) return null;
-    current = node.parentId;
-  }
-  return current;
-}
-
-/** 取部门负责人 */
-function getDeptLeaderFromTree(tree: Map<number, DeptNode>, deptId: number): number | null {
-  return tree.get(deptId)?.leaderId ?? null;
-}
-
-/** 递归收集部门及其所有子部门 ID（含起始部门）。 */
-function collectDeptWithChildrenFromTree(tree: Map<number, DeptNode>, rootIds: number[]): number[] {
-  const all = new Set<number>(rootIds);
-  // 构建 parentId -> children 的反向索引，避免每次全表扫描
-  const childrenMap = new Map<number, number[]>();
-  for (const node of tree.values()) {
-    if (node.parentId !== null && node.parentId !== 0) {
-      const arr = childrenMap.get(node.parentId) ?? [];
-      arr.push(node.id);
-      childrenMap.set(node.parentId, arr);
+  /** parentId → 子部门 ID 列表；只在首次展开子树时构建一次 */
+  async function children(): Promise<Map<number, number[]>> {
+    if (childrenIndex) return childrenIndex;
+    const map = await nodes();
+    const index = new Map<number, number[]>();
+    for (const [id, node] of map) {
+      const pid = node.parentId;
+      if (pid === null || pid === 0) continue;
+      const siblings = index.get(pid);
+      if (siblings) siblings.push(id);
+      else index.set(pid, [id]);
     }
+    childrenIndex = index;
+    return index;
   }
-  let frontier = [...rootIds];
-  while (frontier.length > 0) {
-    const next: number[] = [];
-    for (const pid of frontier) {
-      for (const childId of childrenMap.get(pid) ?? []) {
-        if (!all.has(childId)) {
-          all.add(childId);
-          next.push(childId);
-        }
+
+  return {
+    /** 部门负责人；部门不存在或未设置负责人返回 null */
+    async leaderOf(deptId: number): Promise<number | null> {
+      return (await nodes()).get(deptId)?.leaderId ?? null;
+    },
+
+    /** 上级部门 ID；已到顶层或部门不存在返回 null */
+    async parentOf(deptId: number): Promise<number | null> {
+      const parentId = (await nodes()).get(deptId)?.parentId ?? null;
+      return parentId === 0 ? null : parentId;
+    },
+
+    /** 从给定部门向上走 levels 层；中途到顶或断链返回 null */
+    async walkUp(startDeptId: number, levels: number): Promise<number | null> {
+      const map = await nodes();
+      let current: number | null = startDeptId;
+      for (let i = 0; i < levels && current !== null; i++) {
+        const parentId: number | null = map.get(current)?.parentId ?? null;
+        if (parentId === null || parentId === 0) return null;
+        current = parentId;
       }
-    }
-    frontier = next;
-  }
-  return [...all];
+      return current;
+    },
+
+    /** 部门及其所有上级部门 ID（含自身）；用于发起人维度条件「选父部门覆盖子部门」语义 */
+    async ancestors(deptId: number): Promise<number[]> {
+      const map = await nodes();
+      const chain: number[] = [];
+      const seen = new Set<number>();
+      let current: number | null = deptId;
+      while (current !== null && current !== 0 && !seen.has(current)) {
+        seen.add(current);
+        chain.push(current);
+        current = map.get(current)?.parentId ?? null;
+      }
+      return chain;
+    },
+
+    /** 部门及其所有子部门 ID（含起始部门） */
+    async withChildren(rootIds: readonly number[]): Promise<number[]> {
+      const index = await children();
+      const all = new Set<number>(rootIds);
+      let frontier = [...rootIds];
+      while (frontier.length > 0) {
+        const next: number[] = [];
+        for (const parentId of frontier) {
+          for (const childId of index.get(parentId) ?? []) {
+            if (!all.has(childId)) {
+              all.add(childId);
+              next.push(childId);
+            }
+          }
+        }
+        frontier = next;
+      }
+      return [...all];
+    },
+  };
 }
 
-/** 收集部门及其所有上级部门 ID（含自身）；用于发起人维度条件「选父部门覆盖子部门」语义 */
-function getDeptAncestorsFromTree(tree: Map<number, DeptNode>, deptId: number): number[] {
-  const chain: number[] = [];
-  const seen = new Set<number>();
-  let current: number | null = deptId;
-  while (current !== null && current !== 0 && !seen.has(current)) {
-    seen.add(current);
-    chain.push(current);
-    current = tree.get(current)?.parentId ?? null;
-  }
-  return chain;
-}
+export type DeptTree = ReturnType<typeof createDeptTree>;
 
 /** 取得用户所在部门 */
 async function getUserDept(exec: DbExecutor, userId: number): Promise<number | null> {
@@ -233,10 +295,11 @@ export async function buildStarterContext(
   executor?: DbExecutor,
 ): Promise<WorkflowStarterContext> {
   const exec = executor ?? db;
+  const deptTree = createDeptTree(exec);
   const deptId = await getUserDept(exec, initiatorId);
-  const deptTree = await getDeptTree(exec);
+  // 祖先链与角色/岗位三路并行；发起人无部门时完全不触碰部门表
   const [deptIds, roleRows, postRows] = await Promise.all([
-    deptId ? Promise.resolve(getDeptAncestorsFromTree(deptTree, deptId)) : Promise.resolve<number[]>([]),
+    deptId ? deptTree.ancestors(deptId) : Promise.resolve<number[]>([]),
     exec.select({ roleId: userRoles.roleId }).from(userRoles).where(eq(userRoles.userId, initiatorId)),
     exec.select({ positionId: userPositions.positionId }).from(userPositions).where(eq(userPositions.userId, initiatorId)),
   ]);
@@ -261,10 +324,12 @@ export async function resolveUserManagerId(
   const startDeptId = await getUserDept(exec, userId);
   if (!startDeptId) return null;
   const lv = Math.max(1, level);
-  const deptTree = await getDeptTree(exec);
-  const targetDeptId = lv === 1 ? startDeptId : walkDeptUpWithTree(deptTree, startDeptId, lv - 1);
-  if (!targetDeptId) return null;
-  return getDeptLeaderFromTree(deptTree, targetDeptId);
+  // level=1（超时升级的默认配置）只需一次索引查询；更深才值得走部门树
+  if (lv === 1) return fetchDeptLeader(exec, startDeptId);
+  const deptTree = createDeptTree(exec);
+  const targetDeptId = await deptTree.walkUp(startDeptId, lv - 1);
+  if (targetDeptId === null) return null;
+  return deptTree.leaderOf(targetDeptId);
 }
 
 export async function resolveUserDeptHeadId(
@@ -274,8 +339,7 @@ export async function resolveUserDeptHeadId(
   const exec = executor ?? db;
   const deptId = await getUserDept(exec, userId);
   if (!deptId) return null;
-  const deptTree = await getDeptTree(exec);
-  const leaderId = getDeptLeaderFromTree(deptTree, deptId);
+  const leaderId = await fetchDeptLeader(exec, deptId);
   if (!leaderId || leaderId === userId) return null;
   const [leader] = await exec.select({ id: users.id }).from(users)
     .where(and(eq(users.id, leaderId), eq(users.status, 'enabled')))
@@ -341,8 +405,8 @@ export async function resolveAssigneeIds(
   }
 
   const result = new Set<number>();
-  // 预加载部门树：walkDeptUp / collectDeptWithChildren / getDeptAncestors 全部走内存，消除 N+1
-  const deptTree = await getDeptTree(exec);
+  // 惰性部门树：仅在走到部门相关分支时才真正查询；批量解析可由调用方通过 ctx 复用
+  const deptTree = ctx.deptTree ?? createDeptTree(exec);
 
   switch (type) {
     case 'user':
@@ -390,14 +454,12 @@ export async function resolveAssigneeIds(
             rows.forEach((r) => userDeptMap.set(r.id, r.deptId));
           }
         }
-        // 4) 展开每个角色的范围部门（含子部门），缓存
+        // 4) 展开每个角色的范围部门（含子部门）
+        //    子部门索引在 deptTree 内只构建一次，逐角色展开是纯内存 BFS
         const expandedScopeByRole = new Map<number, Set<number>>();
-        await Promise.all(
-          [...scopeByRole.entries()].map(async ([roleId, deptIds]) => {
-            const all = collectDeptWithChildrenFromTree(deptTree, deptIds);
-            expandedScopeByRole.set(roleId, new Set(all));
-          }),
-        );
+        for (const [roleId, deptIds] of scopeByRole) {
+          expandedScopeByRole.set(roleId, new Set(await deptTree.withChildren(deptIds)));
+        }
         // 5) 按角色判定成员
         for (const m of memberRows) {
           const scopeSet = expandedScopeByRole.get(m.roleId);
@@ -425,10 +487,10 @@ export async function resolveAssigneeIds(
         rows.forEach((r) => result.add(r.id));
         break;
       }
-      // 未指定：取发起人部门的负责人
+      // 未指定：取发起人部门的负责人（单跳，走索引查询）
       const deptId = await getUserDept(exec, ctx.initiatorId);
       if (deptId) {
-        const leader = getDeptLeaderFromTree(deptTree, deptId);
+        const leader = await fetchDeptLeader(exec, deptId);
         if (leader) result.add(leader);
       }
       break;
@@ -454,11 +516,15 @@ export async function resolveAssigneeIds(
       const startDeptId = await getUserDept(exec, ctx.initiatorId);
       if (!startDeptId) break;
       const level = Math.max(1, node.managerLevel ?? 1);
-      const targetDeptId = level === 1
-        ? startDeptId
-        : walkDeptUpWithTree(deptTree, startDeptId, level - 1);
-      if (targetDeptId) {
-        const leader = getDeptLeaderFromTree(deptTree, targetDeptId);
+      if (level === 1) {
+        // 单跳：一次索引查询即可，不值得拉整棵树
+        const leader = await fetchDeptLeader(exec, startDeptId);
+        if (leader) result.add(leader);
+        break;
+      }
+      const targetDeptId = await deptTree.walkUp(startDeptId, level - 1);
+      if (targetDeptId !== null) {
+        const leader = await deptTree.leaderOf(targetDeptId);
         if (leader) result.add(leader);
       }
       break;
@@ -495,7 +561,7 @@ export async function resolveAssigneeIds(
       for (let i = 0; i < 50 && currentDept !== null; i++) {
         if (visited.has(currentDept)) break;
         visited.add(currentDept);
-        const leader = getDeptLeaderFromTree(deptTree, currentDept);
+        const leader = await deptTree.leaderOf(currentDept);
         if (leader) {
           result.add(leader);
           if (endType === 'role' && endRoleId) {
@@ -506,8 +572,7 @@ export async function resolveAssigneeIds(
           }
         }
         if (endType === 'level' && i + 1 >= endLevel) break;
-        currentDept = deptTree.get(currentDept)?.parentId ?? null;
-        if (currentDept === 0) break;
+        currentDept = await deptTree.parentOf(currentDept);
       }
       break;
     }
@@ -528,12 +593,15 @@ export async function resolveAssigneeIds(
       else if (Array.isArray(v)) v.forEach((x) => typeof x === 'number' && deptIds.push(x));
       if (deptIds.length === 0) break;
       const level = Math.max(1, node.formDeptHeadLevel ?? 1);
+      if (level === 1) {
+        // 单跳：一次 IN 查询批量取负责人，替代逐部门查询
+        (await fetchDeptLeaders(exec, deptIds)).forEach((id) => result.add(id));
+        break;
+      }
       for (const startDeptId of deptIds) {
-        const targetDeptId = level === 1
-          ? startDeptId
-          : walkDeptUpWithTree(deptTree, startDeptId, level - 1);
-        if (targetDeptId) {
-          const leader = getDeptLeaderFromTree(deptTree, targetDeptId);
+        const targetDeptId = await deptTree.walkUp(startDeptId, level - 1);
+        if (targetDeptId !== null) {
+          const leader = await deptTree.leaderOf(targetDeptId);
           if (leader) result.add(leader);
         }
       }
@@ -569,7 +637,7 @@ export async function resolveAssigneeIds(
       const seedIds = node.deptMemberDeptIds ?? [];
       if (seedIds.length === 0) break;
       const deptIds = node.deptMemberIncludeChildren
-        ? collectDeptWithChildrenFromTree(deptTree, seedIds)
+        ? await deptTree.withChildren(seedIds)
         : seedIds;
       const rows = await exec
         .select({ id: users.id })
@@ -582,12 +650,12 @@ export async function resolveAssigneeIds(
       break;
     }
     case 'startUserDeptResponsible': {
-      // 发起人部门的分管领导 → 取上一级部门的负责人
+      // 发起人部门的分管领导 → 取上一级部门的负责人（两次单跳索引查询）
       const startDeptId = await getUserDept(exec, ctx.initiatorId);
       if (!startDeptId) break;
-      const parentDeptId = deptTree.get(startDeptId)?.parentId;
-      if (!parentDeptId || parentDeptId === 0) break;
-      const leader = getDeptLeaderFromTree(deptTree, parentDeptId);
+      const parentDeptId = await fetchDeptParent(exec, startDeptId);
+      if (parentDeptId === null) break;
+      const leader = await fetchDeptLeader(exec, parentDeptId);
       if (leader) result.add(leader);
       break;
     }
