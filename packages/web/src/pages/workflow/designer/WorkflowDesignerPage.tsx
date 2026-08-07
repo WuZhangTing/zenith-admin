@@ -151,20 +151,19 @@ export default function WorkflowDesignerPage({
   const definitionId = id && id !== 'new' ? Number(id) : null;
   const definitionQuery = useWorkflowDefinitionDetail(definitionId, !presetDefinition && !isNew);
 
-  // 懒加载 lookup 数据：仅当对应抽屉/编辑器/步骤激活时才拉取，避免设计器首屏并发 6 个全量查询
-  const needUsers = currentStep === 1 || drawerVisible || conditionEditorVisible || routeEditorVisible || simulationVisible;
-  const needRoles = currentStep === 1 || drawerVisible || conditionEditorVisible || routeEditorVisible;
-  const needDepartments = currentStep === 1 || drawerVisible || conditionEditorVisible || routeEditorVisible;
-  const needUserGroups = drawerVisible;
-  const needPositions = drawerVisible || conditionEditorVisible || routeEditorVisible;
-  const needPublishedDefinitions = drawerVisible;
+  // Lookup 数据按「消费方何时就绪」加载，而非按抽屉开合：
+  // - 步骤 ①「基础信息」仅在发起范围不是「全体人员」时才渲染人员/部门/角色选择器
+  // - 节点配置抽屉、条件/路由编辑器、仿真抽屉都只能从步骤 ③ 画布进入，
+  //   因此在进入画布时就预热，避免首次打开抽屉时下拉列表空白闪烁
+  const inFlowDesign = currentStep === 3;
+  const needScopePickers = currentStep === 1 && metaInitiatorScopeType !== 'all';
 
-  const allUsersQuery = useAllUsers({ enabled: needUsers });
-  const allRolesQuery = useAllRoles({ enabled: needRoles });
-  const flatDepartmentsQuery = useFlatDepartments({ enabled: needDepartments });
-  const userGroupsQuery = useWorkflowDesignerUserGroupOptions({ enabled: needUserGroups });
-  const positionsQuery = useWorkflowDesignerPositionOptions({ enabled: needPositions });
-  const publishedDefinitionsQuery = usePublishedWorkflowDefinitions({ enabled: needPublishedDefinitions });
+  const allUsersQuery = useAllUsers({ enabled: inFlowDesign || needScopePickers });
+  const allRolesQuery = useAllRoles({ enabled: inFlowDesign || needScopePickers });
+  const flatDepartmentsQuery = useFlatDepartments({ enabled: inFlowDesign || needScopePickers });
+  const userGroupsQuery = useWorkflowDesignerUserGroupOptions({ enabled: inFlowDesign });
+  const positionsQuery = useWorkflowDesignerPositionOptions({ enabled: inFlowDesign });
+  const publishedDefinitionsQuery = usePublishedWorkflowDefinitions({ enabled: inFlowDesign });
   const saveMutation = useSaveWorkflowDesignerDefinition();
   const publishMutation = usePublishWorkflowDesignerDefinition();
   const healthCheckMutation = useWorkflowDesignerHealthCheck();
