@@ -7,7 +7,7 @@ export type TabStyle = 'line' | 'pill' | 'card' | 'chrome';
 export type TableSizePreference = 'small' | 'default' | 'middle';
 export type RouteAnimation = 'none' | 'fade' | 'slide-up' | 'slide-left';
 export type BorderRadiusPreference = 'none' | 'small' | 'medium' | 'large';
-export const LOADING_STYLES = ['dots', 'ring', 'pulse', 'bars'] as const;
+export const LOADING_STYLES = ['dots', 'ring', 'flip', 'bars'] as const;
 export type LoadingStyle = (typeof LOADING_STYLES)[number];
 export const LOADING_STYLE_OPTIONS: readonly {
   value: LoadingStyle;
@@ -16,12 +16,17 @@ export const LOADING_STYLE_OPTIONS: readonly {
 }[] = [
   { value: 'dots', label: '跳动圆点', isDefault: true },
   { value: 'ring', label: '旋转圆环', isDefault: false },
-  { value: 'pulse', label: '呼吸光环', isDefault: false },
+  { value: 'flip', label: '翻转方块', isDefault: false },
   { value: 'bars', label: '律动条', isDefault: false },
 ];
 
 export function isLoadingStyle(value: unknown): value is LoadingStyle {
   return typeof value === 'string' && LOADING_STYLES.includes(value as LoadingStyle);
+}
+
+export function normalizeLoadingStyle(value: unknown): LoadingStyle | undefined {
+  if (value === 'pulse') return 'flip';
+  return isLoadingStyle(value) ? value : undefined;
 }
 
 /** Web 终端文件夹收藏项 */
@@ -284,6 +289,11 @@ export function sanitizeImportedPreferences(raw: unknown): Partial<UserPreferenc
       continue;
     }
     if (typeof val !== typeof defVal) continue;
+    if (key === 'loadingStyle') {
+      const normalized = normalizeLoadingStyle(val);
+      if (normalized) result[key] = normalized;
+      continue;
+    }
     const allowed = PREF_ENUM_VALUES[key];
     if (allowed && !allowed.includes(val as string)) continue;
     result[key] = val;

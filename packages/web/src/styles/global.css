@@ -655,31 +655,19 @@ body[theme-mode='dark'] .semi-json-viewer-view-line {
   animation: page-loading-ring-spin 0.85s linear infinite;
 }
 
-.page-loading-indicator--pulse {
+.page-loading-indicator--flip {
   align-items: center;
+  perspective: 80px;
 }
 
-.page-loading__pulse-core {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
+.page-loading__flip {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--semi-border-radius-medium);
   background: currentColor;
-  box-shadow: 0 0 0 5px var(--semi-color-primary-light-default);
-  animation: page-loading-pulse-core 1.6s ease-in-out infinite;
-}
-
-.page-loading__pulse-ring {
-  position: absolute;
-  width: 14px;
-  height: 14px;
-  border: 2px solid currentColor;
-  border-radius: 50%;
-  opacity: 0;
-  animation: page-loading-pulse-ring 1.6s ease-out infinite;
-}
-
-.page-loading__pulse-ring--delayed {
-  animation-delay: 0.8s;
+  transform-origin: center;
+  animation: page-loading-square-flip 1.35s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  will-change: transform;
 }
 
 .page-loading-indicator--bars {
@@ -731,25 +719,21 @@ body[theme-mode='dark'] .semi-json-viewer-view-line {
   }
 }
 
-@keyframes page-loading-pulse-core {
-  0%, 100% {
-    transform: scale(0.85);
-    opacity: 0.65;
+@keyframes page-loading-square-flip {
+  0% {
+    border-radius: var(--semi-border-radius-medium);
+    transform: rotateX(0deg) rotateY(0deg);
+    opacity: 0.55;
   }
   50% {
-    transform: scale(1.15);
+    border-radius: var(--semi-border-radius-small);
+    transform: rotateX(180deg) rotateY(0deg);
     opacity: 1;
   }
-}
-
-@keyframes page-loading-pulse-ring {
-  0% {
-    transform: scale(0.5);
-    opacity: 0.65;
-  }
-  75%, 100% {
-    transform: scale(2.2);
-    opacity: 0;
+  100% {
+    border-radius: var(--semi-border-radius-medium);
+    transform: rotateX(180deg) rotateY(180deg);
+    opacity: 0.55;
   }
 }
 
@@ -776,8 +760,7 @@ body[theme-mode='dark'] .semi-json-viewer-view-line {
 @media (prefers-reduced-motion: reduce) {
   .page-loading__dot,
   .page-loading__ring,
-  .page-loading__pulse-core,
-  .page-loading__pulse-ring,
+  .page-loading__flip,
   .page-loading__bar {
     transform: none;
     animation-name: page-loading-soft-pulse;

@@ -204,7 +204,7 @@ export function PrefsAppearanceSection({
       )}
 
       {/* ── 加载动画 ── */}
-      {matchesPref(['加载动画', '加载效果', 'Loading', '圆点', '圆环', '光环', '律动条']) && (
+      {matchesPref(['加载动画', '加载效果', 'Loading', '圆点', '圆环', '方块', '律动条']) && (
       <div>
         <div className="loading-style-picker__heading">
           <span>加载动画</span>

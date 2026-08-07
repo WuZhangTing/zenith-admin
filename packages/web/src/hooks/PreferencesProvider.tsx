@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { PREFERENCES_KEY } from '@zenith/shared/core';
 import { request } from '@/utils/request';
-import { defaultPreferences, isLoadingStyle, PreferencesContext } from './usePreferences';
+import { defaultPreferences, normalizeLoadingStyle, PreferencesContext } from './usePreferences';
 import type { UserPreferences } from './usePreferences';
 
 function mergePreferences(raw: unknown): UserPreferences {
@@ -10,9 +10,7 @@ function mergePreferences(raw: unknown): UserPreferences {
     ? raw as Partial<UserPreferences>
     : {};
   const merged = { ...defaultPreferences, ...source };
-  if (!isLoadingStyle(merged.loadingStyle)) {
-    merged.loadingStyle = defaultPreferences.loadingStyle;
-  }
+  merged.loadingStyle = normalizeLoadingStyle(merged.loadingStyle) ?? defaultPreferences.loadingStyle;
   return merged;
 }
 

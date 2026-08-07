@@ -1,7 +1,7 @@
 import { PREFERENCES_KEY } from '@zenith/shared/core';
 import {
   defaultPreferences,
-  isLoadingStyle,
+  normalizeLoadingStyle,
   useOptionalPreferences,
 } from '@/hooks/usePreferences';
 import type { LoadingStyle } from '@/hooks/usePreferences';
@@ -16,7 +16,7 @@ function readCachedLoadingStyle(): LoadingStyle {
       return defaultPreferences.loadingStyle;
     }
     const value = (parsed as Record<string, unknown>).loadingStyle;
-    return isLoadingStyle(value) ? value : defaultPreferences.loadingStyle;
+    return normalizeLoadingStyle(value) ?? defaultPreferences.loadingStyle;
   } catch {
     return defaultPreferences.loadingStyle;
   }
@@ -37,13 +37,7 @@ export function LoadingIndicator({ variant }: Readonly<{ variant: LoadingStyle }
         </>
       )}
       {variant === 'ring' && <span className="page-loading__ring" />}
-      {variant === 'pulse' && (
-        <>
-          <span className="page-loading__pulse-core" />
-          <span className="page-loading__pulse-ring" />
-          <span className="page-loading__pulse-ring page-loading__pulse-ring--delayed" />
-        </>
-      )}
+      {variant === 'flip' && <span className="page-loading__flip" />}
       {variant === 'bars' && (
         <>
           <span className="page-loading__bar" />
@@ -69,9 +63,7 @@ export default function PageLoading({
   const preferredStyle = variant
     ?? preferencesContext?.preferences.loadingStyle
     ?? readCachedLoadingStyle();
-  const resolvedStyle = isLoadingStyle(preferredStyle)
-    ? preferredStyle
-    : defaultPreferences.loadingStyle;
+  const resolvedStyle = normalizeLoadingStyle(preferredStyle) ?? defaultPreferences.loadingStyle;
 
   return (
     <div

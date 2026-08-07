@@ -10,8 +10,14 @@ describe('loading style preference', () => {
   });
 
   it('accepts known loading styles when importing preferences', () => {
+    expect(sanitizeImportedPreferences({ loadingStyle: 'flip' })).toEqual({
+      loadingStyle: 'flip',
+    });
+  });
+
+  it('migrates the removed pulse style when importing preferences', () => {
     expect(sanitizeImportedPreferences({ loadingStyle: 'pulse' })).toEqual({
-      loadingStyle: 'pulse',
+      loadingStyle: 'flip',
     });
   });
 
