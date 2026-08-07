@@ -150,12 +150,21 @@ export default function WorkflowDesignerPage({
   const [metaCategoryId, setMetaCategoryId] = useState<number | null>(initialCategoryId);
   const definitionId = id && id !== 'new' ? Number(id) : null;
   const definitionQuery = useWorkflowDefinitionDetail(definitionId, !presetDefinition && !isNew);
-  const allUsersQuery = useAllUsers();
-  const allRolesQuery = useAllRoles();
-  const flatDepartmentsQuery = useFlatDepartments();
-  const userGroupsQuery = useWorkflowDesignerUserGroupOptions();
-  const positionsQuery = useWorkflowDesignerPositionOptions();
-  const publishedDefinitionsQuery = usePublishedWorkflowDefinitions();
+
+  // 懒加载 lookup 数据：仅当对应抽屉/编辑器/步骤激活时才拉取，避免设计器首屏并发 6 个全量查询
+  const needUsers = currentStep === 1 || drawerVisible || conditionEditorVisible || routeEditorVisible || simulationVisible;
+  const needRoles = currentStep === 1 || drawerVisible || conditionEditorVisible || routeEditorVisible;
+  const needDepartments = currentStep === 1 || drawerVisible || conditionEditorVisible || routeEditorVisible;
+  const needUserGroups = drawerVisible;
+  const needPositions = drawerVisible || conditionEditorVisible || routeEditorVisible;
+  const needPublishedDefinitions = drawerVisible;
+
+  const allUsersQuery = useAllUsers({ enabled: needUsers });
+  const allRolesQuery = useAllRoles({ enabled: needRoles });
+  const flatDepartmentsQuery = useFlatDepartments({ enabled: needDepartments });
+  const userGroupsQuery = useWorkflowDesignerUserGroupOptions({ enabled: needUserGroups });
+  const positionsQuery = useWorkflowDesignerPositionOptions({ enabled: needPositions });
+  const publishedDefinitionsQuery = usePublishedWorkflowDefinitions({ enabled: needPublishedDefinitions });
   const saveMutation = useSaveWorkflowDesignerDefinition();
   const publishMutation = usePublishWorkflowDesignerDefinition();
   const healthCheckMutation = useWorkflowDesignerHealthCheck();
