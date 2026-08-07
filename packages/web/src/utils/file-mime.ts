@@ -1,5 +1,6 @@
 const EXT_MIME_MAP: Readonly<Record<string, string>> = {
   pdf: 'application/pdf',
+  ofd: 'application/ofd',
   png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
   webp: 'image/webp', bmp: 'image/bmp', ico: 'image/x-icon',
   tiff: 'image/tiff', tif: 'image/tiff', avif: 'image/avif', svg: 'image/svg+xml',

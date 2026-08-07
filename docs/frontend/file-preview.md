@@ -1,6 +1,6 @@
 # 文件预览组件
 
-`FilePreviewModal` 是全站统一的文件预览弹窗，支持图片、PDF、音频、视频、Excel/CSV 表格、Word 文档、PowerPoint 演示文稿、压缩包、Markdown、纯文本、JSON、SVG 和代码文件。调用方只需传入文件元数据，无需自行判断格式或引入额外组件。
+`FilePreviewModal` 是全站统一的文件预览弹窗，支持图片、PDF、OFD、音频、视频、Excel/CSV 表格、Word 文档、PowerPoint 演示文稿、压缩包、Markdown、纯文本、JSON、SVG 和代码文件。调用方只需传入文件元数据，无需自行判断格式或引入额外组件。
 
 托管文件列表页推荐使用更高一层的组合：`useFilePreview` hook（`@/hooks/useFilePreview`）+ `FilePreviewLayer`（`@/components/FilePreviewLayer`），它在 `FilePreviewModal` 之上补齐了图片图集预览、不可预览文件新窗口打开与鉴权下载，见下文[使用示例](#使用示例)。
 
@@ -14,6 +14,7 @@
 | --- | --- | --- |
 | 普通图片 | `image/*`（除 `image/svg+xml`） | 回退给调用方的 Semi Design `ImagePreview` |
 | PDF | `application/pdf` | `@embedpdf/react-pdf-viewer`（`PDFPreviewPanel`） |
+| OFD | `.ofd` / `application/ofd` / `application/vnd.ofd` | File Viewer OFD renderer（`FileViewerPreviewPanel`，懒加载） |
 | 音频 | `audio/*` | Semi Design `AudioPlayer`（页面底部播放条） |
 | 视频 | `video/*` | Semi Design `VideoPlayer` |
 | 表格 | `.xls/.xlsx/.xlt/.xltx/.xlsm/.xlsb/.xltm/.csv/.tsv/.ods/.fods/.numbers` 对应 MIME | File Viewer Spreadsheet renderer（`FileViewerPreviewPanel`，懒加载） |
@@ -31,6 +32,8 @@
 > **Office 文件**已开放当前三个 File Viewer renderer 的全部真实扩展名：Word/OpenDocument 文本为 `.doc/.docx/.docm/.dot/.dotx/.dotm/.odt/.rtf`，Spreadsheet 为 `.xls/.xlsx/.xlt/.xltx/.xlsm/.xlsb/.xltm/.csv/.tsv/.ods/.fods/.numbers`，Presentation/OpenDocument 演示为 `.ppt/.pptx/.pptm/.potx/.potm/.ppsx/.ppsm/.odp`。全部在浏览器本地解析，不调用外部预览或文档转换服务。
 >
 > **旧版 `.ppt`** 使用 File Viewer 独立的二进制 PPT 引擎，公开版运行时会显示水印；移除水印需要取得该引擎的商业授权。`.pptx` 不受此项限制。
+>
+> **OFD 文件**使用纯前端 `ofd.js` 解析，支持电子签章外观预览，但不执行国密验签；不调用外部预览或转换服务。
 >
 > **Markdown** 支持 `text/markdown`（`.md`）和 `text/x-markdown`（`.markdown`）两种 MIME 类型。
 >
@@ -120,7 +123,7 @@ const isPreviewable = canPreviewFile(record.mimeType, record.originalName);
 </Button>
 ```
 
-`canPreviewFile` 覆盖全部可预览格式（image / audio / video / PDF / Office / OpenDocument / markdown / text / json / svg / code / zip），调用方无需手动枚举 MIME 类型。
+`canPreviewFile` 覆盖全部可预览格式（image / audio / video / PDF / OFD / Office / OpenDocument / markdown / text / json / svg / code / archive），调用方无需手动枚举 MIME 类型。
 
 ---
 
@@ -217,13 +220,14 @@ JSON 文件（`application/json` / `text/json`）下载并读取文本后，**�
 
 SVG 文件（`image/svg+xml`）下载 Blob 后创建 Object URL，在 `AppModal` 内使用 `<img>` 居中展示（宽度 `min(900px, 92vw)`，高度 80vh）。关闭预览时会主动释放 Object URL。
 
-### Office / 压缩包
+### Office / OFD / 压缩包
 
-下载 Blob 后包装为保留原始文件名和 MIME 类型的 `File`，再**懒加载** `FileViewerPreviewPanel`。面板使用 File Viewer 的模块化 React 组件，按需注册 Spreadsheet、Word、Presentation 与 Archive 四个 renderer；PDF、Markdown 等格式仍沿用各自的现有实现。
+下载 Blob 后包装为保留原始文件名和 MIME 类型的 `File`，再**懒加载** `FileViewerPreviewPanel`。面板使用 File Viewer 的模块化 React 组件，按需注册 Spreadsheet、Word、Presentation、OFD 与 Archive 五个 renderer；PDF、Markdown 等格式仍沿用各自的现有实现。
 
 ```text
 @file-viewer/react
 @file-viewer/renderer-archive
+@file-viewer/renderer-ofd
 @file-viewer/renderer-spreadsheet
 @file-viewer/renderer-word
 @file-viewer/renderer-presentation
@@ -231,17 +235,18 @@ SVG 文件（`image/svg+xml`）下载 Blob 后创建 Object URL，在 `AppModal`
 
 关键配置：
 
-- `rendererMode: 'replace'` + `autoRenderers: false`：能力范围只包含显式装配的 Spreadsheet/Word/Presentation/Archive renderer
+- `rendererMode: 'replace'` + `autoRenderers: false`：能力范围只包含装配的 Spreadsheet/Word/Presentation/OFD/Archive renderer
 - `styleIsolation: 'shadow'`：隔离渲染器样式与后台全局样式
 - `spreadsheet.worker: 'auto'`：大文件自动使用本地 Worker；CSV 编码自动识别 UTF-8、GBK 与 GB18030
 - `spreadsheet.resizableColumns/resizableRows: true`：预览时允许拖拽调整列宽和行高
 - `docx.worker: true` + `visualPagination: true`：Word 使用本地 Worker 并保留分页阅读
 - Archive 使用本地 `libarchive.js` Worker + WASM，支持目录搜索、加密包密码输入、内部文件按需解压与嵌套预览
+- OFD 使用纯前端 `ofd.js`、本地 XML 与 ZIP 解析链路，支持页面缩放、打印和电子签章外观预览
 - 工具栏保留缩放、搜索、打印，关闭重复的下载和主题切换入口
-- Word 弹窗宽度 `min(960px, 92vw)`，Excel/CSV/PowerPoint/Archive 为 `min(1200px, 94vw)`，高度均为 `90vh`
+- Word/OFD 弹窗宽度 `min(960px, 92vw)`，Excel/CSV/PowerPoint/Archive 为 `min(1200px, 94vw)`，高度均为 `90vh`
 
-**离线资源**：`@file-viewer/vite-plugin` 只按 `word/spreadsheet` renderer 分组复制 Word、Spreadsheet
-所需 Worker 到 `file-viewer/`。Presentation 与 Archive renderer 在 `FileViewerPreviewPanel` 中显式注册，
+**离线资源**：`@file-viewer/vite-plugin` 按 `word/spreadsheet/ofd` renderer 装配 Word、Spreadsheet 与 OFD；
+Word、Spreadsheet 所需 Worker 复制到 `file-viewer/`，OFD 的纯 JS vendor 由 Vite 按需打包。Presentation 与 Archive renderer 在 `FileViewerPreviewPanel` 中显式注册，
 其 Worker/WASM/字体由 Vite 输出到 `assets/`；不要同时把 Presentation 或 Archive 扩展名加回插件的
 `formats`，否则同一资源会再复制到 `file-viewer/`。开发时插件资源生成到
 `packages/web/public/file-viewer/`（已忽略版本控制），生产构建生成到 `dist/file-viewer/`；
@@ -253,6 +258,7 @@ SVG 文件（`image/svg+xml`）下载 Blob 后创建 Object URL，在 `AppModal`
 - Office 复杂排版、SmartArt、动画、嵌入对象、宏等与 Microsoft Office 原生渲染可能存在差异
 - 文档引用的本机字体不存在时会降级到可用字体
 - 旧版 `.ppt` 公开运行时带水印，去水印需要该引擎商业授权；`.pptx` 无此限制
+- OFD 电子签章仅渲染外观，不提供签名有效性或国密算法验签结论
 - 压缩包内部文件只有在对应 renderer 已装配时才能嵌套预览；其他条目仍可查看目录或下载
 
 > `@univerjs/presets`、`@univerjs/preset-sheets-core`、`jszip` 与服务端 `exceljs` 未随预览链路删除：前两个仍服务于打印报表设计器和数据库 Excel 粘贴导入，`jszip` 仍由 `data-grid/xlsx-write.ts` 生成 XLSX，`exceljs` 仍服务于用户导入导出、导出中心和报表文件处理。
@@ -268,7 +274,7 @@ SVG 文件（`image/svg+xml`）下载 Blob 后创建 Object URL，在 `AppModal`
 canPreviewFile(mimeType: string | null | undefined, fileName?: string | null): boolean
 
 /** 细分格式判断 */
-isSpreadsheetFile / isWordFile / isPresentationFile / isMarkdownFile / isPlainTextFile /
+isSpreadsheetFile / isWordFile / isPresentationFile / isOfdFile / isMarkdownFile / isPlainTextFile /
 isJsonFile / isSvgFile / isCodeFile / isArchiveFile / isZipFile(mimeType?: string | null): boolean
 
 /** 按文件名扩展（优先）与 MIME 类型返回 vscode-icons 彩色图标节点，用于列表与预览标题 */

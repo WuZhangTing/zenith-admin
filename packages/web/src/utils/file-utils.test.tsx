@@ -3,6 +3,7 @@ import {
   canPreviewFile,
   guessMimeTypeFromName,
   isArchiveFile,
+  isOfdFile,
   isPresentationFile,
   isSpreadsheetFile,
   isWordFile,
@@ -150,5 +151,24 @@ describe('archive file preview detection', () => {
   it('does not classify unrelated MIME types as archives', () => {
     expect(isArchiveFile('application/pdf')).toBe(false);
     expect(isArchiveFile(null)).toBe(false);
+  });
+});
+
+describe('OFD file preview detection', () => {
+  it('recognizes the .ofd extension and canonical MIME type', () => {
+    expect(guessMimeTypeFromName('invoice.OFD')).toBe('application/ofd');
+    expect(isOfdFile('application/ofd')).toBe(true);
+    expect(canPreviewFile('application/ofd', 'invoice.ofd')).toBe(true);
+    expect(canPreviewFile('application/octet-stream', 'invoice.ofd')).toBe(true);
+  });
+
+  it('recognizes the alternate OFD MIME type', () => {
+    expect(isOfdFile('application/vnd.ofd')).toBe(true);
+    expect(canPreviewFile('application/vnd.ofd', 'invoice.ofd')).toBe(true);
+  });
+
+  it('does not classify unrelated MIME types as OFD', () => {
+    expect(isOfdFile('application/pdf')).toBe(false);
+    expect(isOfdFile(null)).toBe(false);
   });
 });

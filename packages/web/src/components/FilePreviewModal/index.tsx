@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Modal, Spin, Toast, AudioPlayer, VideoPlayer, Typography } from '@douyinfe/semi-ui';
 import { X } from 'lucide-react';
 import { useThemeController } from '@/providers/theme-controller';
-import { fetchManagedFileBlob, resolveFileMimeType, isSpreadsheetFile, isWordFile, isPresentationFile, isMarkdownFile, isPlainTextFile, isArchiveFile, isJsonFile, isSvgFile, isCodeFile, getFileTypeIcon } from '@/utils/file-utils';
+import { fetchManagedFileBlob, resolveFileMimeType, isSpreadsheetFile, isWordFile, isPresentationFile, isOfdFile, isMarkdownFile, isPlainTextFile, isArchiveFile, isJsonFile, isSvgFile, isCodeFile, getFileTypeIcon } from '@/utils/file-utils';
 import AppModal from '@/components/AppModal';
 import type { CSSProperties, ReactNode } from 'react';
 import './filePreview.css';
@@ -13,7 +13,7 @@ import './filePreview.css';
 const PDFPreviewPanel = lazy(() =>
   import('@/components/PDFPreviewPanel').then((m) => ({ default: m.PDFPreviewPanel })),
 );
-// File Viewer 及 Office 渲染器懒加载，避免影响首屏
+// File Viewer 重型渲染器懒加载，避免影响首屏
 const FileViewerPreviewPanel = lazy(() => import('@/components/FileViewerPreviewPanel'));
 // react-markdown 懒加载
 const MarkdownPreviewPanel = lazy(() => import('@/components/MarkdownPreviewPanel'));
@@ -33,10 +33,10 @@ interface FilePreviewModalProps {
   style?: CSSProperties;
 }
 
-type PreviewKind = 'spreadsheet' | 'word' | 'presentation' | 'archive' | 'markdown' | 'plainText' | 'json' | 'svg' | 'code' | 'pdf' | 'audio' | 'video';
+type PreviewKind = 'spreadsheet' | 'word' | 'presentation' | 'ofd' | 'archive' | 'markdown' | 'plainText' | 'json' | 'svg' | 'code' | 'pdf' | 'audio' | 'video';
 
 type PreviewData =
-  | { kind: 'spreadsheet' | 'word' | 'presentation' | 'archive'; file: File }
+  | { kind: 'spreadsheet' | 'word' | 'presentation' | 'ofd' | 'archive'; file: File }
   | { kind: 'markdown'; text: string }
   | { kind: 'plainText'; text: string }
   | { kind: 'json'; text: string }
@@ -115,6 +115,7 @@ export default function FilePreviewModal({
     if (isSpreadsheetFile(resolvedMimeType)) return 'spreadsheet';
     if (isWordFile(resolvedMimeType)) return 'word';
     if (isPresentationFile(resolvedMimeType)) return 'presentation';
+    if (isOfdFile(resolvedMimeType)) return 'ofd';
     if (isMarkdownFile(resolvedMimeType)) return 'markdown';
     if (isPlainTextFile(resolvedMimeType)) return 'plainText';
     if (isArchiveFile(resolvedMimeType)) return 'archive';
@@ -132,7 +133,7 @@ export default function FilePreviewModal({
     queryKey: ['files', 'preview', visible, fileUrl, fileName, resolvedMimeType, previewKind],
     queryFn: async (): Promise<PreviewData> => {
       const blob = await fetchManagedFileBlob(fileUrl);
-      if (previewKind === 'spreadsheet' || previewKind === 'word' || previewKind === 'presentation' || previewKind === 'archive') {
+      if (previewKind === 'spreadsheet' || previewKind === 'word' || previewKind === 'presentation' || previewKind === 'ofd' || previewKind === 'archive') {
         return {
           kind: previewKind,
           file: new File([blob], fileName, { type: resolvedMimeType || blob.type }),
@@ -257,7 +258,7 @@ export default function FilePreviewModal({
     );
   }
 
-  if (previewData?.kind === 'spreadsheet' || previewData?.kind === 'word' || previewData?.kind === 'presentation' || previewData?.kind === 'archive') {
+  if (previewData?.kind === 'spreadsheet' || previewData?.kind === 'word' || previewData?.kind === 'presentation' || previewData?.kind === 'ofd' || previewData?.kind === 'archive') {
     const isPresentation = previewData.kind === 'presentation';
     const isWide = previewData.kind === 'spreadsheet' || previewData.kind === 'archive' || isPresentation;
     return (

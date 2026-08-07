@@ -29,6 +29,7 @@ function getIconIdForMime(mimeType: string): string | null {
   if (mime.startsWith('video/')) return 'vscode-icons:file-type-video';
   if (mime.startsWith('audio/')) return 'vscode-icons:file-type-audio';
   if (mime === 'application/pdf') return 'vscode-icons:file-type-pdf2';
+  if (isOfdFile(mime)) return 'vscode-icons:file-type-pdf2';
   if (
     mime.includes('msword') || mime.includes('wordprocessingml') ||
     mime.includes('vnd.ms-word') || mime.includes('opendocument.text') || mime.includes('rtf')
@@ -100,6 +101,7 @@ export function canPreviewFile(
     resolvedMimeType.startsWith('audio/') ||
     resolvedMimeType.startsWith('video/') ||
     resolvedMimeType === 'application/pdf' ||
+    isOfdFile(resolvedMimeType) ||
     isSpreadsheetFile(resolvedMimeType) ||
     isWordFile(resolvedMimeType) ||
     isPresentationFile(resolvedMimeType) ||
@@ -155,6 +157,13 @@ export function isPresentationFile(mimeType?: string | null): boolean {
     mime.includes('presentationml') ||
     mime === 'application/vnd.oasis.opendocument.presentation'
   );
+}
+
+/** 判断是否为 File Viewer OFD renderer 支持的国产版式文档。 */
+export function isOfdFile(mimeType?: string | null): boolean {
+  if (!mimeType) return false;
+  const mime = mimeType.toLowerCase();
+  return mime === 'application/ofd' || mime === 'application/vnd.ofd';
 }
 
 /** 判断是否为可预览的 Markdown 文件 */

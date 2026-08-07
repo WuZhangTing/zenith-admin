@@ -47,7 +47,7 @@ export default defineConfig(({ mode }) => {
         // Presentation and Archive are registered explicitly in FileViewerPreviewPanel.
         // Keeping them out prevents copyAssets from duplicating resources that
         // Vite already emits under assets/.
-        formats: ['word', 'spreadsheet'],
+        formats: ['word', 'spreadsheet', 'ofd'],
         inject: false,
         copyAssets: { baseDir: 'file-viewer', mode: 'both' },
         chunkStrategy: 'none',
