@@ -4,6 +4,25 @@
 
 ---
 
+## v1.44.0 - 2026-08-07
+
+文件预览能力扩展到邮件、XMind 脑图与 Mermaid 图表，并继续沿用 File Viewer 的浏览器本地解析链路；同时补齐格式识别、预览入口、离线资源装配与回归测试。
+
+### Added
+
+#### 邮件、XMind 与 Mermaid 本地预览
+
+- `FilePreviewModal` 新增 `.eml`、`.msg`、`.mbox`、`.xmind`、`.mermaid` 与 `.mmd` 文件预览，并将宽屏格式统一接入 `FileViewerPreviewPanel`
+- File Viewer 新增 Email、Mind Map 与 Drawing renderer：邮件支持正文、头信息和附件只读展示，XMind 支持多 sheet 与节点画布，Mermaid 支持安全渲染、平移、缩放和打印
+- 新增对应扩展名与 MIME 类型推断、可预览性判断及回归测试，文件管理器和全站统一预览入口可直接识别新增格式
+
+### Changed
+
+- Vite 的 File Viewer 资源装配新增 `email`、`xmind` 与 `mermaid`，相关解析器和运行时资源随 Web 产物本地部署，不依赖外部预览服务
+- 更新文件预览组件文档与格式矩阵，明确邮件、XMind、Mermaid 的渲染方式、安全边界和 MBOX 当前行为
+
+---
+
 ## v1.43.0 - 2026-08-07
 
 文件预览进一步统一到 File Viewer：开放完整 Office 扩展名识别，新增 30 种压缩包与 OFD 本地预览，并统一文件列表和服务器文件管理器的 MIME 推断；同时优化 CMS 与前端加载路径，抽取共享枚举和 Mock 数组工具以减少重复实现。
