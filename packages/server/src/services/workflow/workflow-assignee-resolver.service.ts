@@ -39,44 +39,66 @@ export interface WorkflowSelectableUser {
   name: string;
 }
 
+// ─── 部门树内存缓存：将多次单点查询合并为一次全量拉取，消除 N+1 ────────────────
+
+interface DeptNode {
+  id: number;
+  parentId: number | null;
+  leaderId: number | null;
+}
+
+/**
+ * 一次性拉取并缓存部门树（按执行器隔离，避免跨事务脏读）。
+ * 后续 walkDeptUp / collectDeptWithChildren / getDeptAncestors 全部走内存。
+ */
+async function getDeptTree(exec: DbExecutor): Promise<Map<number, DeptNode>> {
+  const rows = await exec
+    .select({ id: departments.id, parentId: departments.parentId, leaderId: departments.leaderId })
+    .from(departments);
+  const map = new Map<number, DeptNode>();
+  for (const r of rows) {
+    map.set(r.id, { id: r.id, parentId: r.parentId, leaderId: r.leaderId });
+  }
+  return map;
+}
+
 /** 从给定部门开始向上走 levels 层，返回最终所在的部门 ID（找不到则返回 null） */
-async function walkDeptUp(exec: DbExecutor, startDeptId: number, levels: number): Promise<number | null> {
+function walkDeptUpWithTree(tree: Map<number, DeptNode>, startDeptId: number, levels: number): number | null {
   let current: number | null = startDeptId;
   for (let i = 0; i < levels && current !== null; i++) {
-    const [parent] = await exec.select({ parentId: departments.parentId })
-      .from(departments).where(eq(departments.id, current)).limit(1);
-    if (!parent || parent.parentId === 0 || parent.parentId === null) return null;
-    current = parent.parentId;
+    const node = tree.get(current);
+    if (!node || node.parentId === 0 || node.parentId === null) return null;
+    current = node.parentId;
   }
   return current;
 }
 
-/** 取得用户所在部门 */
-async function getUserDept(exec: DbExecutor, userId: number): Promise<number | null> {
-  const [row] = await exec.select({ deptId: users.departmentId })
-    .from(users).where(eq(users.id, userId)).limit(1);
-  return row?.deptId ?? null;
-}
-
 /** 取部门负责人 */
-async function getDeptLeader(exec: DbExecutor, deptId: number): Promise<number | null> {
-  const [row] = await exec.select({ leaderId: departments.leaderId })
-    .from(departments).where(eq(departments.id, deptId)).limit(1);
-  return row?.leaderId ?? null;
+function getDeptLeaderFromTree(tree: Map<number, DeptNode>, deptId: number): number | null {
+  return tree.get(deptId)?.leaderId ?? null;
 }
 
 /** 递归收集部门及其所有子部门 ID（含起始部门）。 */
-async function collectDeptWithChildren(exec: DbExecutor, rootIds: number[]): Promise<number[]> {
+function collectDeptWithChildrenFromTree(tree: Map<number, DeptNode>, rootIds: number[]): number[] {
   const all = new Set<number>(rootIds);
+  // 构建 parentId -> children 的反向索引，避免每次全表扫描
+  const childrenMap = new Map<number, number[]>();
+  for (const node of tree.values()) {
+    if (node.parentId !== null && node.parentId !== 0) {
+      const arr = childrenMap.get(node.parentId) ?? [];
+      arr.push(node.id);
+      childrenMap.set(node.parentId, arr);
+    }
+  }
   let frontier = [...rootIds];
   while (frontier.length > 0) {
-    const rows = await exec.select({ id: departments.id })
-      .from(departments).where(inArray(departments.parentId, frontier));
     const next: number[] = [];
-    for (const r of rows) {
-      if (!all.has(r.id)) {
-        all.add(r.id);
-        next.push(r.id);
+    for (const pid of frontier) {
+      for (const childId of childrenMap.get(pid) ?? []) {
+        if (!all.has(childId)) {
+          all.add(childId);
+          next.push(childId);
+        }
       }
     }
     frontier = next;
@@ -85,18 +107,23 @@ async function collectDeptWithChildren(exec: DbExecutor, rootIds: number[]): Pro
 }
 
 /** 收集部门及其所有上级部门 ID（含自身）；用于发起人维度条件「选父部门覆盖子部门」语义 */
-async function getDeptAncestors(exec: DbExecutor, deptId: number): Promise<number[]> {
+function getDeptAncestorsFromTree(tree: Map<number, DeptNode>, deptId: number): number[] {
   const chain: number[] = [];
   const seen = new Set<number>();
   let current: number | null = deptId;
   while (current !== null && current !== 0 && !seen.has(current)) {
     seen.add(current);
     chain.push(current);
-    const [row] = await exec.select({ parentId: departments.parentId })
-      .from(departments).where(eq(departments.id, current)).limit(1);
-    current = row?.parentId ?? null;
+    current = tree.get(current)?.parentId ?? null;
   }
   return chain;
+}
+
+/** 取得用户所在部门 */
+async function getUserDept(exec: DbExecutor, userId: number): Promise<number | null> {
+  const [row] = await exec.select({ deptId: users.departmentId })
+    .from(users).where(eq(users.id, userId)).limit(1);
+  return row?.deptId ?? null;
 }
 
 function uniquePositiveIds(ids: readonly number[] | null | undefined): number[] {
@@ -207,8 +234,9 @@ export async function buildStarterContext(
 ): Promise<WorkflowStarterContext> {
   const exec = executor ?? db;
   const deptId = await getUserDept(exec, initiatorId);
+  const deptTree = await getDeptTree(exec);
   const [deptIds, roleRows, postRows] = await Promise.all([
-    deptId ? getDeptAncestors(exec, deptId) : Promise.resolve<number[]>([]),
+    deptId ? Promise.resolve(getDeptAncestorsFromTree(deptTree, deptId)) : Promise.resolve<number[]>([]),
     exec.select({ roleId: userRoles.roleId }).from(userRoles).where(eq(userRoles.userId, initiatorId)),
     exec.select({ positionId: userPositions.positionId }).from(userPositions).where(eq(userPositions.userId, initiatorId)),
   ]);
@@ -233,9 +261,10 @@ export async function resolveUserManagerId(
   const startDeptId = await getUserDept(exec, userId);
   if (!startDeptId) return null;
   const lv = Math.max(1, level);
-  const targetDeptId = lv === 1 ? startDeptId : await walkDeptUp(exec, startDeptId, lv - 1);
+  const deptTree = await getDeptTree(exec);
+  const targetDeptId = lv === 1 ? startDeptId : walkDeptUpWithTree(deptTree, startDeptId, lv - 1);
   if (!targetDeptId) return null;
-  return getDeptLeader(exec, targetDeptId);
+  return getDeptLeaderFromTree(deptTree, targetDeptId);
 }
 
 export async function resolveUserDeptHeadId(
@@ -245,7 +274,8 @@ export async function resolveUserDeptHeadId(
   const exec = executor ?? db;
   const deptId = await getUserDept(exec, userId);
   if (!deptId) return null;
-  const leaderId = await getDeptLeader(exec, deptId);
+  const deptTree = await getDeptTree(exec);
+  const leaderId = getDeptLeaderFromTree(deptTree, deptId);
   if (!leaderId || leaderId === userId) return null;
   const [leader] = await exec.select({ id: users.id }).from(users)
     .where(and(eq(users.id, leaderId), eq(users.status, 'enabled')))
@@ -311,6 +341,8 @@ export async function resolveAssigneeIds(
   }
 
   const result = new Set<number>();
+  // 预加载部门树：walkDeptUp / collectDeptWithChildren / getDeptAncestors 全部走内存，消除 N+1
+  const deptTree = await getDeptTree(exec);
 
   switch (type) {
     case 'user':
@@ -360,10 +392,12 @@ export async function resolveAssigneeIds(
         }
         // 4) 展开每个角色的范围部门（含子部门），缓存
         const expandedScopeByRole = new Map<number, Set<number>>();
-        for (const [roleId, deptIds] of scopeByRole) {
-          const all = await collectDeptWithChildren(exec, deptIds);
-          expandedScopeByRole.set(roleId, new Set(all));
-        }
+        await Promise.all(
+          [...scopeByRole.entries()].map(async ([roleId, deptIds]) => {
+            const all = collectDeptWithChildrenFromTree(deptTree, deptIds);
+            expandedScopeByRole.set(roleId, new Set(all));
+          }),
+        );
         // 5) 按角色判定成员
         for (const m of memberRows) {
           const scopeSet = expandedScopeByRole.get(m.roleId);
@@ -394,7 +428,7 @@ export async function resolveAssigneeIds(
       // 未指定：取发起人部门的负责人
       const deptId = await getUserDept(exec, ctx.initiatorId);
       if (deptId) {
-        const leader = await getDeptLeader(exec, deptId);
+        const leader = getDeptLeaderFromTree(deptTree, deptId);
         if (leader) result.add(leader);
       }
       break;
@@ -422,9 +456,9 @@ export async function resolveAssigneeIds(
       const level = Math.max(1, node.managerLevel ?? 1);
       const targetDeptId = level === 1
         ? startDeptId
-        : await walkDeptUp(exec, startDeptId, level - 1);
+        : walkDeptUpWithTree(deptTree, startDeptId, level - 1);
       if (targetDeptId) {
-        const leader = await getDeptLeader(exec, targetDeptId);
+        const leader = getDeptLeaderFromTree(deptTree, targetDeptId);
         if (leader) result.add(leader);
       }
       break;
@@ -461,7 +495,7 @@ export async function resolveAssigneeIds(
       for (let i = 0; i < 50 && currentDept !== null; i++) {
         if (visited.has(currentDept)) break;
         visited.add(currentDept);
-        const leader = await getDeptLeader(exec, currentDept);
+        const leader = getDeptLeaderFromTree(deptTree, currentDept);
         if (leader) {
           result.add(leader);
           if (endType === 'role' && endRoleId) {
@@ -472,10 +506,8 @@ export async function resolveAssigneeIds(
           }
         }
         if (endType === 'level' && i + 1 >= endLevel) break;
-        const [parent] = await exec.select({ parentId: departments.parentId })
-          .from(departments).where(eq(departments.id, currentDept)).limit(1);
-        if (!parent?.parentId || parent.parentId === 0) break;
-        currentDept = parent.parentId;
+        currentDept = deptTree.get(currentDept)?.parentId ?? null;
+        if (currentDept === 0) break;
       }
       break;
     }
@@ -499,9 +531,9 @@ export async function resolveAssigneeIds(
       for (const startDeptId of deptIds) {
         const targetDeptId = level === 1
           ? startDeptId
-          : await walkDeptUp(exec, startDeptId, level - 1);
+          : walkDeptUpWithTree(deptTree, startDeptId, level - 1);
         if (targetDeptId) {
-          const leader = await getDeptLeader(exec, targetDeptId);
+          const leader = getDeptLeaderFromTree(deptTree, targetDeptId);
           if (leader) result.add(leader);
         }
       }
@@ -537,7 +569,7 @@ export async function resolveAssigneeIds(
       const seedIds = node.deptMemberDeptIds ?? [];
       if (seedIds.length === 0) break;
       const deptIds = node.deptMemberIncludeChildren
-        ? await collectDeptWithChildren(exec, seedIds)
+        ? collectDeptWithChildrenFromTree(deptTree, seedIds)
         : seedIds;
       const rows = await exec
         .select({ id: users.id })
@@ -553,11 +585,9 @@ export async function resolveAssigneeIds(
       // 发起人部门的分管领导 → 取上一级部门的负责人
       const startDeptId = await getUserDept(exec, ctx.initiatorId);
       if (!startDeptId) break;
-      const [parent] = await exec.select({ parentId: departments.parentId })
-        .from(departments).where(eq(departments.id, startDeptId)).limit(1);
-      const parentDeptId = parent?.parentId;
+      const parentDeptId = deptTree.get(startDeptId)?.parentId;
       if (!parentDeptId || parentDeptId === 0) break;
-      const leader = await getDeptLeader(exec, parentDeptId);
+      const leader = getDeptLeaderFromTree(deptTree, parentDeptId);
       if (leader) result.add(leader);
       break;
     }
