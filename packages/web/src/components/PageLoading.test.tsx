@@ -26,14 +26,6 @@ describe('PageLoading', () => {
     expect(screen.getByRole('status')).toHaveAttribute('data-loading-style', 'ring');
   });
 
-  it('migrates a cached pulse preference to the flip animation', () => {
-    localStorage.setItem(PREFERENCES_KEY, JSON.stringify({ loadingStyle: 'pulse' }));
-
-    render(<PageLoading />);
-
-    expect(screen.getByRole('status')).toHaveAttribute('data-loading-style', 'flip');
-  });
-
   it('uses the live provider preference for route loading', () => {
     render(
       <PreferencesContext.Provider

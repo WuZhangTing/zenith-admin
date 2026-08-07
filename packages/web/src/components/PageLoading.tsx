@@ -1,7 +1,7 @@
 import { PREFERENCES_KEY } from '@zenith/shared/core';
 import {
   defaultPreferences,
-  normalizeLoadingStyle,
+  isLoadingStyle,
   useOptionalPreferences,
 } from '@/hooks/usePreferences';
 import type { LoadingStyle } from '@/hooks/usePreferences';
@@ -16,7 +16,7 @@ function readCachedLoadingStyle(): LoadingStyle {
       return defaultPreferences.loadingStyle;
     }
     const value = (parsed as Record<string, unknown>).loadingStyle;
-    return normalizeLoadingStyle(value) ?? defaultPreferences.loadingStyle;
+    return isLoadingStyle(value) ? value : defaultPreferences.loadingStyle;
   } catch {
     return defaultPreferences.loadingStyle;
   }
@@ -63,7 +63,9 @@ export default function PageLoading({
   const preferredStyle = variant
     ?? preferencesContext?.preferences.loadingStyle
     ?? readCachedLoadingStyle();
-  const resolvedStyle = normalizeLoadingStyle(preferredStyle) ?? defaultPreferences.loadingStyle;
+  const resolvedStyle = isLoadingStyle(preferredStyle)
+    ? preferredStyle
+    : defaultPreferences.loadingStyle;
 
   return (
     <div

@@ -24,11 +24,6 @@ export function isLoadingStyle(value: unknown): value is LoadingStyle {
   return typeof value === 'string' && LOADING_STYLES.includes(value as LoadingStyle);
 }
 
-export function normalizeLoadingStyle(value: unknown): LoadingStyle | undefined {
-  if (value === 'pulse') return 'flip';
-  return isLoadingStyle(value) ? value : undefined;
-}
-
 /** Web 终端文件夹收藏项 */
 export interface TerminalFavorite {
   /** 目录绝对路径 */
@@ -289,11 +284,6 @@ export function sanitizeImportedPreferences(raw: unknown): Partial<UserPreferenc
       continue;
     }
     if (typeof val !== typeof defVal) continue;
-    if (key === 'loadingStyle') {
-      const normalized = normalizeLoadingStyle(val);
-      if (normalized) result[key] = normalized;
-      continue;
-    }
     const allowed = PREF_ENUM_VALUES[key];
     if (allowed && !allowed.includes(val as string)) continue;
     result[key] = val;
