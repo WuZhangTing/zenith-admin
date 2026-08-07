@@ -212,6 +212,27 @@
 
 ---
 
+## 测试超时
+
+### 问题：`npm test` 报 `Test timed out in 120000ms` / `Hook timed out in 300000ms`，但单独跑那几个文件却能通过
+
+**原因**：vitest 默认 worker 数 = 核数−1，而每个 worker 都要独立转译整套 app（267 个路由文件）。核数越多，重复转译的开销越是反超并行收益；装配整个 app 的重用例（`app.contract.test.ts` 建 app + 1800 次进程内请求、`app.routes.test.ts` 建 app 取路由表）本就贴近超时线，被饿死后直接撞破。
+
+**特征**（据此与真 bug 区分）：失败全是**超时**而非断言失败；单独跑同样的文件能过；`Duration` 里 transform 累计远大于墙钟（16 核实测默认档 transform 1432s / 墙钟 307s，限到 8 后为 231s / 121s）。
+
+**解决**：按症状出现的场景调对应旋钮，二者缺一都会复发：
+
+| 场景 | 旋钮 | 实测 |
+| --- | --- | --- |
+| 单独跑 `npm test` 就超时 | 调低 `packages/server/vitest.config.ts` 的 `maxWorkers`（现为 `8`，16 核实测最优，12 已开始劣化） | 307s ❌ → 113s ✅ |
+| 只在发布流程的四路并行下超时 | 放宽该用例超时——它与 lint / build / docs 争抢同一种（转译）资源，如 `src/app.routes.test.ts` 的 `300_000` | 120s 撞线 ❌ → 全绿 ✅ |
+
+`maxWorkers` 是**上限**不是目标值，核数少的机器（如 CI 的 4 核 runner）不受影响。放宽超时前先确认它属于「慢但有效」——独占跑能过、且失败是超时而非断言失败；真卡死（如顶层 await 死锁）仍应快速失败。
+
+> ⚠️ 不要因此把发布流程的四路并行改回串行——单独跑 `npm test`（零外层并发）同样会超时，外层并行不是根因。详见 [release.md → Step 4](./release.md)。
+
+---
+
 ## 启动缓慢
 
 ### 问题：`npm run dev:server` seed 完成后长时间无输出才打印首行日志 / 服务冷启动明显变慢

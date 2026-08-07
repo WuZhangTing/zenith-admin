@@ -35,5 +35,10 @@ describe('路由表快照', () => {
 
     expect(table.length).toBeGreaterThan(1500);
     expect(table).toMatchSnapshot();
-  }, 120_000);
+    // 断言本身是纯内存排序，耗时几乎全在 await import('./app') 转译 267 个路由文件。
+    // 独占机器约 74s，而发布流程会让 lint / build / docs 三路构建与本套件同时抢 CPU
+    // （同为转译密集），实测该情形下需 90s+，原先 120s 的余量（1.6x）不足以覆盖。
+    // 按项目既有做法给足余量（参见 web 侧 FilterBar 与 openapi-doc 的 30s）：
+    // 4x 独占耗时。真正卡死（如顶层 await 死锁）仍会在 5 分钟内失败。
+  }, 300_000);
 });
