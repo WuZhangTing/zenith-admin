@@ -145,20 +145,23 @@ function makeNamed(name: RateLimitName): MiddlewareHandler {
   return async (c, next) => {
     const rule = ruleCache.get(name);
     if (!rule?.enabled) return next();
-    try {
-      const k = `${STATS_PREFIX}${name}:hit`;
-      const hk = currentHourKey();
-      const hourlyHitsKey = `${STATS_PREFIX}${name}:hourly:hits`;
-      await redis
-        .multi()
-        .incr(k)
-        .expire(k, STATS_TTL)
-        .hincrby(hourlyHitsKey, hk, 1)
-        .expire(hourlyHitsKey, HOURLY_TTL)
-        .exec();
-    } catch {
-      /* ignore stats failure */
-    }
+    // 命中统计异步化：不阻塞请求路径，失败仅日志，不影响限流判定
+    void (async () => {
+      try {
+        const k = `${STATS_PREFIX}${name}:hit`;
+        const hk = currentHourKey();
+        const hourlyHitsKey = `${STATS_PREFIX}${name}:hourly:hits`;
+        await redis
+          .multi()
+          .incr(k)
+          .expire(k, STATS_TTL)
+          .hincrby(hourlyHitsKey, hk, 1)
+          .expire(hourlyHitsKey, HOURLY_TTL)
+          .exec();
+      } catch (err) {
+        logger.warn('[rate-limit] hit stats failed', err);
+      }
+    })();
     const limiter = compiledLimiters.get(name);
     if (!limiter) return next();
     return limiter(c, next);
