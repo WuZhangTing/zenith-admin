@@ -4,7 +4,54 @@
 
 ---
 
-## v1.44.0 - 2026-08-07
+## v1.45.0 - 2026-08-07
+
+本版本以性能优化为主：消除工作流指派人解析的 N+1 查询、工作流设计器的 lookup 请求改为按消费方就绪懒加载、限流命中统计移出请求路径、AdminLayout 页签栏重渲染成本大幅下降。另修正了测试依赖 jsdom 因重复声明导致上一版升级从未生效的问题。
+
+### Performance
+
+#### 工作流指派人解析消除 N+1 查询
+
+- `walkDeptUp` / `collectDeptWithChildren` / `getDeptAncestors` 此前逐层发起数据库往返，`getDeptLeader` 更是每轮迭代查一次；改为按访问形态分别选型，而非一刀切预加载
+- 单跳查询（1 级 manager、部门兜底、`startUserDeptResponsible`、`resolveUserManagerId` / `resolveUserDeptHeadId`）保留走索引的单行查询
+- 1 级 `formDepartment` 由「每部门一次查询」改为一次 `IN` 批量取 leader
+- 真正无界的遍历（`multiLevelManager` / `multiLevelDeptHead`、角色范围展开、`deptMember` 子级展开）走 `createDeptTree()`：首次使用时才查询，并同时记忆节点表与 parent→children 索引
+- `ResolveAssigneeContext` 接受共享的 `deptTree`，`expandTasksToRows` 每次物化最多加载一次，而非每个节点一次；`buildStarterContext` 在发起人无部门时完全不碰部门表
+
+#### 工作流设计器 lookup 懒加载
+
+- 设计器挂载时曾一次性发起 6 个全量 lookup 请求（全部用户、角色、扁平部门、用户组、岗位、已发布定义），而这些数据仅被基础信息步骤、节点配置抽屉、条件/路由编辑器与模拟抽屉消费
+- 改为按**消费方的实际前置条件**触发，而非抽屉开合：节点配置抽屉与条件/路由、模拟抽屉均只能从第 3 步进入，故在进入流程设计画布时预热；第 1 步仅在发起人范围不为「全部」时才渲染范围选择器，此时才加载人员/部门/角色数据
+- 默认落地状态（第 1 步、范围「全部」）不发出任何 lookup 请求，同时打开节点不再出现下拉框空白后再弹出的回退
+
+#### 限流命中统计移出请求路径
+
+- 命中统计此前让每个经过具名限流器的请求都 `await` 一次 Redis MULTI/EXEC 往返（INCR + HINCRBY + EXPIRE ×2）；改为即发即忘，登录、验证码、AI 对话、ChatBI 等受保护接口不再为看板统计付出延迟
+- 限流判定本身仍同步完成，统计失败只记录、绝不阻断请求
+
+#### AdminLayout 页签栏重渲染优化
+
+- 页签栏原内联在 `AdminLayout` 中，并为每个页签急切构建完整右键菜单（14 个 `Dropdown.Item` + 图标）。默认 `maxCount=20` 时每次渲染凭空创建 600+ 个几乎从不展示的 React 元素，并对每个页签重复 slice/some 扫描（O(n²)）与 `flatMenus.find`
+- 而 `AdminLayout` 重渲染极频繁：WebSocket 未读数、锁屏、偏好面板、移动端浮层等任意 state 变化都会触发；业务页面因 `useOutlet` 内部的 `useMemo` 得以 bailout，页签栏却无此保护
+- 抽出 memo 化的 `TabBarItem`，无关 state 变化时整体跳过 reconciliation；右键菜单改为首次 `contextMenu` 时才构建，与 Semi 的显示逻辑同批次执行，弹层挂载时菜单已就位不会闪空
+- 新增 `useEventCallback` 保证页签操作集合引用恒定，避免父组件重建内联函数导致 memo 全部落空；关闭左侧/右侧/其他/全部的可用性改为一次 O(n) 前缀扫描（`computeTabClosableFlags`），收藏态按 path 建索引
+- `useNavItems` 拆为深层转换 + 浅层徽标，聊天未读数变化不再重建整棵导航树
+- 行为保持不变，补充 16 个测试覆盖 memo 生效、菜单懒构建不闪空、菜单项禁用/切换语义，以及前缀扫描与原 O(n²) 实现的等价性
+
+### Fixed
+
+- **限流统计失败日志刷屏**：统计移出请求路径时把原先刻意的静默吞异常换成了无条件 `logger.warn`，Redis 故障期间每个经过受保护接口的请求都会输出一条告警，恰在最需要日志诊断时将其淹没。改为每分钟最多一条并携带被抑制的发生次数，blocked 侧统计写入同样处理以保持两侧行为一致
+
+### Changed
+
+#### 依赖
+
+- mermaid 11.16.0 → 11.16.1
+- jsdom 29 → 30（仅测试环境）。上一版记录的同名升级实际从未生效：根与 `packages/web` 各声明一份且版本不一致（`^29.1.1` / `^30.0.1`），npm 无法去重而把 web 那份嵌套到 `packages/web/node_modules`；被提升到根 `node_modules` 的 vitest 是从自身目录发起 `import('jsdom')` 的，向上查找进不到该目录，因此实际加载的一直是根上的 29.1.1。现收敛为根单一声明 `^30.0.1`，磁盘副本由 2 份变为 1 份，从结构上杜绝两处声明的版本漂移
+- 伴随 jsdom 30 的行为变化：`getComputedStyle` 开始对 `calc()` 求值（默认视口下 `calc(100vh - 16px)` 解析为 `752px`），`CursorContextDropdown` 与 `FormDesigner` 共 3 处 `toHaveStyle` 断言改为核对内联声明，避免耦合 jsdom 默认视口高度
+
+---
+
 
 文件预览能力扩展到邮件、XMind 脑图与 Mermaid 图表，并继续沿用 File Viewer 的浏览器本地解析链路；同时补齐格式识别、预览入口、离线资源装配与回归测试。
 
