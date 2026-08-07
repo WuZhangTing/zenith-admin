@@ -59,17 +59,26 @@ export function useBreadcrumbData(menuTree: Menu[], pathname: string, breadcrumb
 
 export function useNavItems(menuTree: Menu[], chatUnreadCount: number) {
   const iconsReady = useLucideIconsReady();
-  const navItems = useMemo(
-    () => menuTree.map(menuToNavItem).filter((item): item is NavItem => item !== null).map((item) => {
-      if (item.itemKey === '/chat' && chatUnreadCount > 0) {
-        return { ...item, badge: { count: chatUnreadCount, overflowCount: 99 } };
-      }
-      return item;
-    }),
+  // 深层转换（递归遍历整棵菜单树 + 为每个节点创建图标元素）只依赖菜单本身。
+  // 聊天未读数每来一条消息就变，若与此处合并会导致整棵导航树被重建。
+  const baseNavItems = useMemo(
+    () => menuTree.map(menuToNavItem).filter((item): item is NavItem => item !== null),
     // iconsReady: 图标注册表异步加载完成后重建 nav 项以补齐菜单图标
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [menuTree, chatUnreadCount, iconsReady]
+    [menuTree, iconsReady]
   );
+
+  // 未读徽标只影响顶层 /chat 一项，浅层重建即可；无未读时直接透传保持引用不变
+  const navItems = useMemo(() => {
+    if (chatUnreadCount <= 0) return baseNavItems;
+    if (!baseNavItems.some((item) => item.itemKey === '/chat')) return baseNavItems;
+    return baseNavItems.map((item) => (
+      item.itemKey === '/chat'
+        ? { ...item, badge: { count: chatUnreadCount, overflowCount: 99 } }
+        : item
+    ));
+  }, [baseNavItems, chatUnreadCount]);
+
   return navItems;
 }
 

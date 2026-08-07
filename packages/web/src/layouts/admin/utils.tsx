@@ -19,6 +19,42 @@ export const removeMessageById = (id: number) => (prev: InAppMessage[]) =>
 export const markAnnouncementRead = (id: number) => (prev: (Announcement & { isRead: boolean })[]) =>
   prev.map((a) => (a.id === id ? { ...a, isRead: true } : a));
 
+export interface TabClosableFlags {
+  hasClosableLeft: boolean;
+  hasClosableRight: boolean;
+  hasClosableOthers: boolean;
+  hasAnyClosable: boolean;
+}
+
+/**
+ * 计算每个页签的「关闭左侧 / 右侧 / 其他 / 全部」可用性。
+ *
+ * 一次 O(n) 前缀扫描得出全部结果，替代在渲染循环里对每个页签重复
+ * `slice().some()` 的 O(n²) 写法。
+ */
+export function computeTabClosableFlags<T extends { closable: boolean }>(
+  tabs: readonly T[],
+): TabClosableFlags[] {
+  // closableBefore[i] = 下标 i 之前可关闭页签的数量
+  const closableBefore: number[] = [];
+  let seen = 0;
+  for (const tab of tabs) {
+    closableBefore.push(seen);
+    if (tab.closable) seen += 1;
+  }
+  const total = seen;
+  return tabs.map((tab, i) => {
+    const left = closableBefore[i];
+    const self = tab.closable ? 1 : 0;
+    return {
+      hasClosableLeft: left > 0,
+      hasClosableRight: total - left - self > 0,
+      hasClosableOthers: total - self > 0,
+      hasAnyClosable: total > 0,
+    };
+  });
+}
+
 export type NavItem = {
   itemKey: string;
   text: React.ReactNode;

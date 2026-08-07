@@ -1,8 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { RouteErrorBoundary } from '@/components/PageErrorBoundary';
-import { BackTop, Dropdown, SideSheet, Toast } from '@douyinfe/semi-ui';
-import { Expand, Shrink, X, Pin, RotateCcw, PinOff, XCircle, ChevronLeft, ChevronRight, Trash2, Copy, Route, Star, ExternalLink, Link2 } from 'lucide-react';
+import { BackTop, SideSheet, Toast } from '@douyinfe/semi-ui';
+import { Expand, Shrink } from 'lucide-react';
 import { ensurePinyin } from '@/utils/pinyin';
 import MenuSearchInput, { type FlatMenuItem } from '@/components/MenuSearchInput';
 import type { User, Menu } from '@zenith/shared/identity';
@@ -11,13 +11,13 @@ import { usePreferences, type NavLayout } from '@/hooks/usePreferences';
 import { getThemeColorVars } from '@/lib/theme-color';
 import { applyBorderRadius } from '@/lib/border-radius';
 import { useThemeController } from '@/providers/theme-controller';
-import { useTabsStore } from '@/hooks/useTabsStore';
+import { useTabsStore, type TabItem } from '@/hooks/useTabsStore';
+import { useEventCallback } from '@/hooks/useEventCallback';
 import { TabsMetaContext } from '@/hooks/useTabMeta';
 import KeepAliveOutlet from './KeepAliveOutlet';
 import { useWorkflowRealtime } from '@/hooks/useWorkflowNotifications';
 import { useMarkMyInAppMessageRead } from '@/hooks/queries/in-app-messages';
 import { config } from '@/config';
-import { renderLucideIcon } from '@/utils/icons';
 import NProgress from '@/components/NProgress';
 import Watermark from '@/components/Watermark';
 import { FeedbackWidget } from '@/components/FeedbackWidget';
@@ -32,13 +32,14 @@ const AnnouncementDetailModal = lazy(() => import('@/components/AnnouncementDeta
 import TaskTray from '@/components/TaskTray';
 import { KeywordInput } from '@/components/search-filters';
 import { TabSwitcher } from './TabSwitcher';
+import { TabBarItem, type TabBarItemActions } from './admin/TabBarItem';
 import { useLockScreen } from '@/hooks/useLockScreen';
 import { useFavoriteMenus } from '@/hooks/useFavoriteMenus';
 import { useRecentMenus } from '@/hooks/useRecentMenus';
 import { usePageTracker } from '@/hooks/usePageTracker';
 import { useMediaQuery, useIsMobile } from '@/hooks/useMediaQuery';
 import { mediaDown } from '@/lib/breakpoints';
-import { findBreadcrumbs, findNavItemAncestorKeys, updateMessageRead } from './admin/utils';
+import { findBreadcrumbs, findNavItemAncestorKeys, updateMessageRead, computeTabClosableFlags } from './admin/utils';
 import { useWatermarkConfig, useQuickChatEnabled } from './admin/useSystemConfigFlags';
 import { useFullscreen } from './admin/useFullscreen';
 import { usePreferencesPanel } from './admin/usePreferencesPanel';
@@ -426,12 +427,12 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
     }
   };
 
-  const handleTabChange = (key: string) => {
+  const handleTabChange = useEventCallback((key: string) => {
     setActiveKey(key);
     navigate(key);
-  };
+  });
 
-  const handleTabClose = (key: string) => {
+  const handleTabClose = useEventCallback((key: string) => {
     if (preferences.tabAnimation === 'none') {
       doRemoveTab(key);
       return;
@@ -441,9 +442,9 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
       setExitingTabKeys((s) => { const n = new Set(s); n.delete(key); return n; });
       doRemoveTab(key);
     }, 280);
-  };
+  });
 
-  const handleTabRefresh = (key: string) => {
+  const handleTabRefresh = useEventCallback((key: string) => {
     if (location.pathname !== key) {
       navigate(key);
     }
@@ -451,13 +452,116 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
       ...prev,
       [key]: (prev[key] ?? 0) + 1,
     }));
-  };
+  });
+
+  // ─── 页签操作 ──────────────────────────────────────────────────────────────
+  const handleTabDoubleClick = useEventCallback((tab: TabItem) => {
+    const action = preferences.tabDoubleClickAction ?? 'refresh';
+    if (action === 'refresh') handleTabRefresh(tab.key);
+    else if (action === 'close' && tab.closable) handleTabClose(tab.key);
+  });
+
+  const handleTabPinToggle = useEventCallback((tab: TabItem) => {
+    if (tab.pinned) unpinTab(tab.key);
+    else pinTab(tab.key);
+  });
+
+  const handleToggleContentFullscreen = useEventCallback(() => {
+    setIsContentFullscreen((v) => !v);
+  });
+
+  const toggleFavoriteById = useEventCallback((menuId: number) => {
+    toggleFavorite(menuId);
+  });
+
+  const handleCopyTabName = useEventCallback((tab: TabItem) => {
+    void navigator.clipboard.writeText(tab.title);
+  });
+
+  const handleCopyTabLink = useEventCallback((tab: TabItem) => {
+    void navigator.clipboard.writeText(`${window.location.origin}${tab.key}`);
+  });
+
+  const handleCopyTabBreadcrumb = useEventCallback((tab: TabItem) => {
+    const crumbs = findBreadcrumbs(menuTree, tab.key);
+    const path = crumbs.length > 0 ? crumbs.map((c) => c.title).join(' / ') : tab.title;
+    void navigator.clipboard.writeText(path);
+  });
+
+  const handleOpenTabInNewWindow = useEventCallback((tab: TabItem) => {
+    window.open(tab.key, '_blank');
+  });
+
+  const handleCloseOthers = useEventCallback((key: string) => {
+    navigate(closeOthers(key));
+  });
+
+  const handleCloseLeft = useEventCallback((key: string) => {
+    navigate(closeLeft(key));
+  });
+
+  const handleCloseRight = useEventCallback((key: string) => {
+    navigate(closeRight(key));
+  });
+
+  const handleCloseAll = useEventCallback(() => {
+    closeAll();
+    navigate('/');
+  });
+
+  const handleDragLeave = useEventCallback(() => {
+    setDragOverKey(null);
+  });
+
+  // 操作集合经 useEventCallback 全部稳定化，此 useMemo 因而只计算一次；
+  // 这是 memo 化的 TabBarItem 能在 AdminLayout 无关重渲染时整体跳过的前提。
+  const tabActions = useMemo<TabBarItemActions>(() => ({
+    onSelect: handleTabChange,
+    onClose: handleTabClose,
+    onRefresh: handleTabRefresh,
+    onDoubleClick: handleTabDoubleClick,
+    onMiddleClick: (tab) => handleTabClose(tab.key),
+    onPinToggle: handleTabPinToggle,
+    onToggleFullscreen: handleToggleContentFullscreen,
+    onToggleFavorite: toggleFavoriteById,
+    onCopyName: handleCopyTabName,
+    onCopyLink: handleCopyTabLink,
+    onCopyBreadcrumb: handleCopyTabBreadcrumb,
+    onOpenInNewWindow: handleOpenTabInNewWindow,
+    onCloseOthers: handleCloseOthers,
+    onCloseLeft: handleCloseLeft,
+    onCloseRight: handleCloseRight,
+    onCloseAll: handleCloseAll,
+    onDragStart: handleDragStart,
+    onDragOver: handleDragOver,
+    onDrop: handleDrop,
+    onDragEnd: handleDragEnd,
+    onDragLeave: handleDragLeave,
+  }), [
+    handleTabChange, handleTabClose, handleTabRefresh, handleTabDoubleClick,
+    handleTabPinToggle, handleToggleContentFullscreen, toggleFavoriteById,
+    handleCopyTabName, handleCopyTabLink, handleCopyTabBreadcrumb, handleOpenTabInNewWindow,
+    handleCloseOthers, handleCloseLeft, handleCloseRight, handleCloseAll,
+    handleDragStart, handleDragOver, handleDrop, handleDragEnd, handleDragLeave,
+  ]);
 
   const outletRefreshKey = `${location.pathname}:${tabRefreshVersion[location.pathname] ?? 0}`;
 
   // 页面缓存白名单：菜单开启 keepAlive 的路径（外链内嵌菜单取内部路由 /embed/{id}）
   const keepAlivePaths = useKeepAlivePaths(menuTree);
   const openTabPaths = useMemo(() => new Set(tabs.map((t) => t.key)), [tabs]);
+
+  // 「关闭左侧/右侧/其他/全部」的可用性：一次 O(n) 前缀扫描得出，
+  // 替代此前在 tabs.map 内部对每个页签重复 slice/some 的 O(n²) 写法。
+  const tabClosableFlags = useMemo(() => computeTabClosableFlags(tabs), [tabs]);
+
+  // 收藏态：仅在开启收藏功能时按 path 建索引，避免每个页签各做一次 flatMenus.find
+  const showTabFavorites = preferences.showFavorites ?? false;
+  const tabFavMenuIds = useMemo(() => {
+    if (!showTabFavorites) return null;
+    const byPath = new Map(flatMenus.map((m) => [m.path, m.id]));
+    return tabs.map((t) => byPath.get(t.key) ?? null);
+  }, [showTabFavorites, flatMenus, tabs]);
   const pageCacheEnabled = preferences.enableTabs && (preferences.enablePageCache ?? true) && keepAlivePaths.size > 0;
 
   const recentMenus = recents
@@ -758,104 +862,28 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
             <div ref={tabsBarRef} className={`admin-tabs-bar${preferences.showBreadcrumb ? ' admin-tabs-bar--with-breadcrumb' : ''}`} data-tab-animation={reduceMotion ? 'none' : preferences.tabAnimation} data-tab-style={preferences.tabStyle ?? 'line'}>
               <div ref={tabsScrollRef} className="admin-tabs-bar__scroll">
               {tabs.map((tab, tabIndex) => {
-                  const isEntering = enteringTabKeys.has(tab.key);
-                  const isExiting = exitingTabKeys.has(tab.key);
-                  const tabClass = [
-                    'admin-tab-item',
-                    tab.key === activeKey ? 'admin-tab-item--active' : '',
-                    isEntering ? 'admin-tab-item--entering' : '',
-                    isExiting ? 'admin-tab-item--exiting' : '',
-                    dragSrcKey.current === tab.key ? 'admin-tab-item--dragging' : '',
-                    dragOverKey === tab.key ? 'admin-tab-item--drag-over' : '',
-                  ].filter(Boolean).join(' ');
-                  const hasClosableLeft = tabIndex > 0 && tabs.slice(0, tabIndex).some((t) => t.closable);
-                  const hasClosableRight = tabs.slice(tabIndex + 1).some((t) => t.closable);
-                  const hasClosableOthers = tabs.some((t) => t.closable && t.key !== tab.key);
-                  const hasAnyClosable = tabs.some((t) => t.closable);
-                  // 收藏相关（提前计算，避免 JSX 内 IIFE）
-                  const tabFavMenu = (preferences.showFavorites ?? false) ? flatMenus.find((m) => m.path === tab.key) : null;
-                  const tabFaved = tabFavMenu ? isFavorite(tabFavMenu.id) : false;
+                  const favMenuId = tabFavMenuIds?.[tabIndex] ?? null;
                   return (
-                  <Dropdown
-                    key={tab.key}
-                    trigger="contextMenu"
-                    position="bottomLeft"
-                    clickToHide
-                    render={
-                      <Dropdown.Menu>
-                        <Dropdown.Item icon={<RotateCcw size={14} />} onClick={() => handleTabRefresh(tab.key)}>刷新页面</Dropdown.Item>
-                        <Dropdown.Item icon={<ExternalLink size={14} />} onClick={() => window.open(tab.key, '_blank')}>在新标签页中打开</Dropdown.Item>
-                        <Dropdown.Item icon={<Copy size={14} />} onClick={() => void navigator.clipboard.writeText(tab.title)}>复制名称</Dropdown.Item>
-                        <Dropdown.Item icon={<Link2 size={14} />} onClick={() => void navigator.clipboard.writeText(`${window.location.origin}${tab.key}`)}>复制链接</Dropdown.Item>
-                        <Dropdown.Item icon={<Route size={14} />} onClick={() => {
-                          const crumbs = findBreadcrumbs(menuTree, tab.key);
-                          const path = crumbs.length > 0
-                            ? crumbs.map((c) => c.title).join(' / ')
-                            : tab.title;
-                          void navigator.clipboard.writeText(path);
-                        }}>复制面包屑路径</Dropdown.Item>
-                        {/* 收藏 */}
-                        {tabFavMenu && (
-                          <Dropdown.Item
-                            icon={<Star size={14} fill={tabFaved ? 'currentColor' : 'none'} strokeWidth={tabFaved ? 0 : 1.8} style={{ color: tabFaved ? 'var(--semi-color-warning)' : undefined }} />}
-                            onClick={() => toggleFavorite(tabFavMenu.id)}
-                          >
-                            {tabFaved ? '取消收藏' : '收藏此页'}
-                          </Dropdown.Item>
-                        )}
-                        {tab.key !== '/' && (
-                          tab.pinned
-                            ? <Dropdown.Item icon={<PinOff size={14} />} onClick={() => unpinTab(tab.key)}>取消固定</Dropdown.Item>
-                            : <Dropdown.Item icon={<Pin size={14} />} onClick={() => pinTab(tab.key)}>固定标签页</Dropdown.Item>
-                        )}
-                        <Dropdown.Item icon={isContentFullscreen ? <Shrink size={14} /> : <Expand size={14} />} onClick={() => setIsContentFullscreen((v) => !v)}>{isContentFullscreen ? '退出全屏' : '全屏显示'}</Dropdown.Item>
-                        <Dropdown.Divider />
-                        <Dropdown.Item icon={<X size={14} />} disabled={!tab.closable} onClick={() => handleTabClose(tab.key)}>关闭当前</Dropdown.Item>
-                        <Dropdown.Item icon={<XCircle size={14} />} disabled={!hasClosableOthers} onClick={() => { const nextKey = closeOthers(tab.key); navigate(nextKey); }}>关闭其他</Dropdown.Item>
-                        <Dropdown.Item icon={<ChevronLeft size={14} />} disabled={!hasClosableLeft} onClick={() => { const nextKey = closeLeft(tab.key); navigate(nextKey); }}>关闭左侧</Dropdown.Item>
-                        <Dropdown.Item icon={<ChevronRight size={14} />} disabled={!hasClosableRight} onClick={() => { const nextKey = closeRight(tab.key); navigate(nextKey); }}>关闭右侧</Dropdown.Item>
-                        <Dropdown.Item icon={<Trash2 size={14} />} disabled={!hasAnyClosable} onClick={() => { closeAll(); navigate('/'); }}>关闭全部</Dropdown.Item>
-                      </Dropdown.Menu>
-                    }
-                  >
-                    <div
-                      ref={tab.key === activeKey ? activeTabRef : null}
-                      role="tab"
-                      tabIndex={0}
-                      className={tabClass}
-                      draggable
-                      onDragStart={() => handleDragStart(tab.key)}
-                      onDragOver={(e) => handleDragOver(e, tab.key)}
-                      onDrop={() => handleDrop(tab.key)}
-                      onDragEnd={handleDragEnd}
-                      onDragLeave={() => setDragOverKey(null)}
-                      onClick={() => handleTabChange(tab.key)}
-                      onDoubleClick={() => {
-                        const action = preferences.tabDoubleClickAction ?? 'refresh';
-                        if (action === 'refresh') handleTabRefresh(tab.key);
-                        else if (action === 'close' && tab.closable) handleTabClose(tab.key);
-                      }}
-                      onMouseDown={(e) => { if (e.button === 1 && tab.closable) { e.preventDefault(); handleTabClose(tab.key); } }}
-                      onKeyDown={(e) => { if (e.key === 'Enter') handleTabChange(tab.key); }}
-                    >
-                      {preferences.showTabIcon && (tab.icon ?? pathIconMap[tab.key]) && (
-                        <span className="admin-tab-item__icon">{renderLucideIcon((tab.icon ?? pathIconMap[tab.key])!, 14)}</span>
-                      )}
-                      <span className="admin-tab-item__text" title={tab.title}>{tab.title}</span>
-                      {tab.pinned && (
-                        <span className="admin-tab-item__pin"><Pin size={10} /></span>
-                      )}
-                      {tab.closable && (
-                        <button
-                          type="button"
-                          className="admin-tab-item__close"
-                          onClick={(e) => { e.stopPropagation(); handleTabClose(tab.key); }}
-                        >
-                          <X size={12} />
-                        </button>
-                      )}
-                    </div>
-                  </Dropdown>
+                    <TabBarItem
+                      key={tab.key}
+                      tab={tab}
+                      actions={tabActions}
+                      isActive={tab.key === activeKey}
+                      isEntering={enteringTabKeys.has(tab.key)}
+                      isExiting={exitingTabKeys.has(tab.key)}
+                      isDragging={dragSrcKey.current === tab.key}
+                      isDragOver={dragOverKey === tab.key}
+                      hasClosableLeft={tabClosableFlags[tabIndex].hasClosableLeft}
+                      hasClosableRight={tabClosableFlags[tabIndex].hasClosableRight}
+                      hasClosableOthers={tabClosableFlags[tabIndex].hasClosableOthers}
+                      hasAnyClosable={tabClosableFlags[tabIndex].hasAnyClosable}
+                      favMenuId={favMenuId}
+                      faved={favMenuId !== null && isFavorite(favMenuId)}
+                      showIcon={!!preferences.showTabIcon}
+                      iconName={tab.icon ?? pathIconMap[tab.key]}
+                      isContentFullscreen={isContentFullscreen}
+                      innerRef={tab.key === activeKey ? activeTabRef : undefined}
+                    />
                   );
               })}
               </div>
