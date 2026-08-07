@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { exportToExcel, ExcelColumn } from './excel-export';
 
-const EXCELJS_COLD_START_TIMEOUT_MS = 15_000;
+// 四路发布验证并行时，ExcelJS 冷加载会与 lint/build/docs 争抢转译资源。
+// 独占运行约 2s；保留 60s 上限只覆盖资源饥饿，真卡死仍会及时失败。
+const EXCELJS_COLD_START_TIMEOUT_MS = 60_000;
 
 describe('exportToExcel', () => {
   it('should generate an ArrayBuffer', async () => {
