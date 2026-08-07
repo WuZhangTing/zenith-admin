@@ -1,7 +1,7 @@
 # Zenith Admin — 项目架构导航
 
 Zenith Admin 是一个基于 **Hono + React + Drizzle ORM** 的模块化全栈后台系统，采用 npm monorepo 管理。
-后端是模块化单体，前端提供多个应用入口，共享层统一前后端契约。
+后端是模块化单体，提供 API、后台运行时和 CMS 前台渲染；前端提供多个应用入口，共享层统一前后端契约。
 
 ## 文档定位
 
@@ -23,6 +23,8 @@ flowchart LR
         Admin["管理后台"]
         Member["会员前台"]
         Approval["移动审批"]
+        Public["公开 / 嵌入页"]
+        CmsSite["CMS 前台站点"]
         Desktop["Electron"]
     end
 
@@ -32,6 +34,7 @@ flowchart LR
 
     subgraph Backend["@zenith/server · 模块化单体"]
         API["Hono API"]
+        CmsFrontend["CMS SSR / 静态化"]
         Runtime["Worker / Subscriber"]
     end
 
@@ -43,6 +46,8 @@ flowchart LR
     Admin --> Web
     Member --> Web
     Approval --> Web
+    Public --> Web
+    CmsSite --> CmsFrontend
     Desktop -->|"承载 Web 产物"| Web
     Web -->|"HTTP / WebSocket"| API
     Web --> SDK
@@ -53,29 +58,34 @@ flowchart LR
     API --> Storage
     API --> External
     Runtime --> DB
+    Runtime --> Storage
+    Runtime --> External
+    CmsFrontend --> DB
+    CmsFrontend --> Redis
+    CmsFrontend --> Storage
 
-    Shared -. "类型、校验、常量" .-> Web
-    Shared -. "类型、校验、常量" .-> API
+    Shared -. "类型、校验、运行时契约" .-> Web
+    Shared -. "类型、校验、运行时契约" .-> API
     Shared -. "事件契约" .-> SDK
 ```
 
 ### 核心边界
 
 - **Web 是交互边界**：负责界面、路由、客户端状态和 API 调用，不直接访问基础设施。
-- **Server 是业务权威边界**：负责认证授权、业务规则、事务、任务编排和外部集成。
-- **Shared 是契约边界**：提供跨运行时共享的类型、校验、常量和纯函数，不承载应用副作用。
+- **Server 是业务权威边界**：负责认证授权、业务规则、事务、任务编排、CMS 渲染和外部集成。
+- **Shared 是契约边界**：提供跨运行时共享的类型、校验、常量和无基础设施依赖的工具，不承载应用级 I/O。
 - **PostgreSQL 是主数据源**；Redis 承载会话、限流等运行时状态；文件存储保存二进制对象。
 - **Worker 与 Subscriber 是后端运行时的一部分**：处理异步、可重试、调度和跨域副作用。
 
 ---
 
-## 工作区职责与依赖
+## 主要目录职责与依赖
 
-| 工作区 | 架构职责 |
+| 目录 | 架构职责 |
 | --- | --- |
-| `packages/server` | Hono API、领域服务、持久化、后台任务、事件订阅与基础设施适配 |
+| `packages/server` | Hono API、CMS SSR/静态化、领域服务、持久化、后台任务、事件订阅与基础设施适配 |
 | `packages/web` | React 多入口应用、页面与组件、查询缓存、请求适配和 Demo 模式 |
-| `packages/shared` | 领域类型、Zod schema、常量、纯运行时能力和 seed |
+| `packages/shared` | 领域类型、Zod schema、常量、跨运行时工具和 seed |
 | `packages/analytics-sdk` | 浏览器行为、性能与错误采集 |
 | `packages/electron` | 桌面容器、主进程与 preload，封装 Web 构建产物 |
 | `docs` | 架构、产品、开发与部署文档 |
@@ -123,12 +133,12 @@ packages/web/src/mocks/                 # 可选的 Demo API 替身
 | 层次 | 主要位置 | 职责 |
 | --- | --- | --- |
 | 进程编排 | `src/index.ts`、`src/bootstrap/` | 服务监听、worker、subscriber、遥测与优雅停机 |
-| 应用装配 | `src/app.ts`、`src/middleware/` | 中间件、领域路由、OpenAPI 与全局错误处理 |
-| 协议边界 | `src/routes/` | 输入输出协议、参数校验和服务编排 |
+| 应用装配 | `src/app.ts`、`src/middleware/` | 中间件、领域路由、CMS 兜底路由、OpenAPI 与全局错误处理 |
+| 协议边界 | `src/routes/` | 输入输出协议与参数校验；常规业务委托 Service |
 | 业务层 | `src/services/` | 业务规则、数据映射、事务和前置校验 |
-| 基础设施 | `src/db/`、`src/lib/` | 数据库、缓存、存储、消息与第三方平台适配 |
+| 共享内核与基础设施 | `src/db/`、`src/lib/`、领域适配器 | DTO、上下文、数据库、缓存、任务、存储与第三方平台适配 |
 
-同步请求按以下方向流动：
+常规业务 API 的主链路按以下方向流动：
 
 ```text
 Client → Middleware → Route → Service → Database / Adapter → DTO
@@ -141,16 +151,17 @@ Client → Middleware → Route → Service → Database / Adapter → DTO
 
 ## 前端运行时
 
-`packages/web` 构建管理后台、会员前台和移动审批三个入口；Electron 复用其构建产物。
-页面访问服务端数据的标准链路是：
+`packages/web` 构建管理后台、会员前台和移动审批三个入口；主入口同时承载公开与嵌入页面，
+Electron 复用 Web 构建产物。可缓存服务端状态的主链路是：
 
 ```text
 Page / Feature → Domain Query Hooks → Request Adapter → Server API
 ```
 
-TanStack Query 管理服务端状态，页面只保留交互状态。管理员与会员使用独立的认证上下文、
-请求实例和会话语义，不能互换。Demo 模式通过 MSW 替换 API 边界，但继续复用真实接口契约，
-不是第二套业务模型。
+TanStack Query 主要管理可缓存的服务端状态；页面保留交互状态以及流式会话、设计器等非缓存本地状态。
+流式请求、上传下载、终端和部分命令式操作会直接使用 Request Adapter 或专用传输。
+管理员与会员使用独立的认证上下文、请求实例和会话语义，不能互换。
+Demo 模式通过 MSW 替换 API 边界，但继续复用真实接口契约，不是第二套业务模型。
 
 ---
 
@@ -158,11 +169,11 @@ TanStack Query 管理服务端状态，页面只保留交互状态。管理员�
 
 | 关注点 | 架构策略 |
 | --- | --- |
-| 契约一致性 | 类型、校验和枚举在 `shared` 定义，由 Server、Web、SDK 和 Mock 消费 |
+| 契约一致性 | 跨运行时共享的领域类型、输入校验和枚举在 `shared` 定义，由 Server、Web、SDK 和 Mock 按需消费 |
 | 身份与隔离 | 管理员和会员认证隔离；租户与数据范围在服务端执行 |
-| 数据一致性 | Service 持有事务边界，数据库约束提供最终保护 |
+| 数据一致性 | 多步业务写入的事务边界主要位于 Service，数据库约束提供最终保护 |
 | 异步处理 | 任务中心与 worker 负责调度、重试、进度和批量处理 |
-| 跨域协作 | 领域事件驱动 subscriber，避免业务模块间的内部 HTTP 调用 |
+| 跨域协作 | 同步协作复用服务函数，需解耦的后续副作用使用领域事件与 subscriber，不走内部 HTTP |
 | 外部集成 | 文件、消息、OAuth、支付、AI 等能力通过服务端适配层接入 |
 | 可观测性 | 浏览器采集、请求追踪、日志、指标和审计共同构成观测面 |
 
@@ -185,7 +196,7 @@ TanStack Query 管理服务端状态，页面只保留交互状态。管理员�
 ```bash
 npm run dev          # 启动 Server 与 Web
 npm run build        # 构建核心工作区
-npm run lint         # 检查全部工作区
+npm run lint         # 检查 Shared、Server、SDK 与 Web
 npm test             # 运行 Server 与 Web 测试
 npm run db:generate  # 生成数据库迁移
 npm run db:migrate   # 执行数据库迁移
