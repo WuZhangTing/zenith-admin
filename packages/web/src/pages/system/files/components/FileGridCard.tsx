@@ -32,6 +32,10 @@ export function FileGridCard({
     <>
       <div
         className={`files-grid-card${selected ? ' files-grid-card--selected' : ''}`}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setCtxPos({ x: e.clientX, y: e.clientY });
+        }}
       >
         <button
           type="button"
@@ -44,10 +48,6 @@ export function FileGridCard({
               return;
             }
             if (isPreviewable) onPreview(file);
-          }}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            setCtxPos({ x: e.clientX, y: e.clientY });
           }}
         />
         {canSelect && (
