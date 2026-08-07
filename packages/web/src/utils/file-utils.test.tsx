@@ -3,6 +3,9 @@ import {
   canPreviewFile,
   guessMimeTypeFromName,
   isArchiveFile,
+  isEmailFile,
+  isMermaidFile,
+  isMindMapFile,
   isOfdFile,
   isPresentationFile,
   isSpreadsheetFile,
@@ -80,6 +83,21 @@ const OFFICE_DETECTORS = {
   presentation: isPresentationFile,
 };
 
+const FILE_VIEWER_EXTENSION_CASES = [
+  ['eml', 'message/rfc822', 'email'],
+  ['msg', 'application/vnd.ms-outlook', 'email'],
+  ['mbox', 'application/mbox', 'email'],
+  ['xmind', 'application/vnd.xmind.workbook', 'mindmap'],
+  ['mermaid', 'text/x-mermaid', 'mermaid'],
+  ['mmd', 'text/x-mermaid', 'mermaid'],
+] as const;
+
+const FILE_VIEWER_DETECTORS = {
+  email: isEmailFile,
+  mindmap: isMindMapFile,
+  mermaid: isMermaidFile,
+};
+
 describe('Office file preview detection', () => {
   it.each(OFFICE_EXTENSION_CASES)(
     'recognizes .%s as %s (%s)',
@@ -151,6 +169,38 @@ describe('archive file preview detection', () => {
   it('does not classify unrelated MIME types as archives', () => {
     expect(isArchiveFile('application/pdf')).toBe(false);
     expect(isArchiveFile(null)).toBe(false);
+  });
+});
+
+describe('email, XMind and Mermaid preview detection', () => {
+  it.each(FILE_VIEWER_EXTENSION_CASES)(
+    'recognizes .%s as %s (%s)',
+    (extension, mimeType, kind) => {
+      const fileName = `sample.${extension.toUpperCase()}`;
+      expect(guessMimeTypeFromName(fileName)).toBe(mimeType);
+      expect(FILE_VIEWER_DETECTORS[kind](mimeType)).toBe(true);
+      expect(canPreviewFile(mimeType, fileName)).toBe(true);
+      expect(canPreviewFile('application/octet-stream', fileName)).toBe(true);
+    },
+  );
+
+  it.each([
+    ['application/x-mbox', isEmailFile],
+    ['application/x-xmind', isMindMapFile],
+    ['text/vnd.mermaid', isMermaidFile],
+    ['application/vnd.mermaid', isMermaidFile],
+  ] as const)('recognizes alternate MIME type %s', (mimeType, detector) => {
+    expect(detector(mimeType)).toBe(true);
+    expect(canPreviewFile(mimeType)).toBe(true);
+  });
+
+  it('does not classify unrelated MIME types as these formats', () => {
+    expect(isEmailFile('application/pdf')).toBe(false);
+    expect(isMindMapFile('application/pdf')).toBe(false);
+    expect(isMermaidFile('application/pdf')).toBe(false);
+    expect(isEmailFile(null)).toBe(false);
+    expect(isMindMapFile(undefined)).toBe(false);
+    expect(isMermaidFile(null)).toBe(false);
   });
 });
 

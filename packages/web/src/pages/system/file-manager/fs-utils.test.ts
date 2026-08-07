@@ -126,6 +126,12 @@ describe('file classification', () => {
     expect(getFileMimeType('report.xlsb')).toBe('application/vnd.ms-excel.sheet.binary.macroenabled.12');
     expect(getFileMimeType('document.odt')).toBe('application/vnd.oasis.opendocument.text');
     expect(getFileMimeType('invoice.ofd')).toBe('application/ofd');
+    expect(getFileMimeType('mail.eml')).toBe('message/rfc822');
+    expect(getFileMimeType('outlook.msg')).toBe('application/vnd.ms-outlook');
+    expect(getFileMimeType('archive.mbox')).toBe('application/mbox');
+    expect(getFileMimeType('brainstorm.xmind')).toBe('application/vnd.xmind.workbook');
+    expect(getFileMimeType('architecture.mermaid')).toBe('text/x-mermaid');
+    expect(getFileMimeType('flow.MMD')).toBe('text/x-mermaid');
     expect(getFileMimeType('backup.7z')).toBe('application/x-7z-compressed');
     expect(getFileMimeType('package.tar.gz')).toBe('application/gzip');
     expect(getFileMimeType('unknown.xyz')).toBeNull();

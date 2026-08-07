@@ -102,6 +102,9 @@ export function canPreviewFile(
     resolvedMimeType.startsWith('video/') ||
     resolvedMimeType === 'application/pdf' ||
     isOfdFile(resolvedMimeType) ||
+    isEmailFile(resolvedMimeType) ||
+    isMindMapFile(resolvedMimeType) ||
+    isMermaidFile(resolvedMimeType) ||
     isSpreadsheetFile(resolvedMimeType) ||
     isWordFile(resolvedMimeType) ||
     isPresentationFile(resolvedMimeType) ||
@@ -164,6 +167,38 @@ export function isOfdFile(mimeType?: string | null): boolean {
   if (!mimeType) return false;
   const mime = mimeType.toLowerCase();
   return mime === 'application/ofd' || mime === 'application/vnd.ofd';
+}
+
+const EMAIL_MIME_TYPES = new Set([
+  'message/rfc822',
+  'application/vnd.ms-outlook',
+  'application/mbox',
+  'application/x-mbox',
+]);
+
+/** 判断是否为 File Viewer Email renderer 支持的邮件文件。 */
+export function isEmailFile(mimeType?: string | null): boolean {
+  return !!mimeType && EMAIL_MIME_TYPES.has(mimeType.toLowerCase());
+}
+
+/** 判断是否为 File Viewer Mind Map renderer 支持的 XMind 文件。 */
+export function isMindMapFile(mimeType?: string | null): boolean {
+  if (!mimeType) return false;
+  const mime = mimeType.toLowerCase();
+  return mime === 'application/vnd.xmind.workbook' || mime === 'application/x-xmind';
+}
+
+const MERMAID_MIME_TYPES = new Set([
+  'text/x-mermaid',
+  'text/mermaid',
+  'text/vnd.mermaid',
+  'application/x-mermaid',
+  'application/vnd.mermaid',
+]);
+
+/** 判断是否为 File Viewer Drawing renderer 支持的 Mermaid 文件。 */
+export function isMermaidFile(mimeType?: string | null): boolean {
+  return !!mimeType && MERMAID_MIME_TYPES.has(mimeType.toLowerCase());
 }
 
 /** 判断是否为可预览的 Markdown 文件 */
