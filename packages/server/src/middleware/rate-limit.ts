@@ -80,6 +80,24 @@ const rateLimitStore = new RedisStore({
   prefix: RL_PREFIX,
 });
 
+/**
+ * 统计写入失败的日志节流：Redis 故障时命中统计会对每个请求都失败，
+ * 逐条 warn 会在故障期间淹没日志。每分钟最多报一次，并带上累计失败数。
+ */
+const STATS_LOG_INTERVAL_MS = 60_000;
+let statsFailureCount = 0;
+let statsFailureLoggedAt = 0;
+
+function reportStatsFailure(scope: string, err: unknown): void {
+  statsFailureCount += 1;
+  const now = Date.now();
+  if (now - statsFailureLoggedAt < STATS_LOG_INTERVAL_MS) return;
+  statsFailureLoggedAt = now;
+  const suppressed = statsFailureCount;
+  statsFailureCount = 0;
+  logger.warn(`[rate-limit] ${scope} stats write failed (${suppressed} occurrence(s) in the last minute)`, err);
+}
+
 function makeKeyGen(rule: RuleConfig): (c: Context) => string {
   if (rule.keyType === 'user') {
     return (c) => {
@@ -123,7 +141,7 @@ function buildLimiter(rule: RuleConfig): MiddlewareHandler {
           .expire(hourlyBlockedKey, HOURLY_TTL)
           .exec();
       } catch (err) {
-        logger.warn('[rate-limit] stats record failed', err);
+        reportStatsFailure('blocked', err);
       }
       const retryAfterSec = Math.ceil(rule.windowMs / 1000);
       return c.json(errBody(rule.blockedMessage ?? '请求过于频繁，请稍后再试', 429), 429, {
@@ -145,7 +163,8 @@ function makeNamed(name: RateLimitName): MiddlewareHandler {
   return async (c, next) => {
     const rule = ruleCache.get(name);
     if (!rule?.enabled) return next();
-    // 命中统计异步化：不阻塞请求路径，失败仅日志，不影响限流判定
+    // 命中统计不阻塞请求：统计只服务于限流看板，其失败不应拖慢或中断被保护的接口。
+    // 限流判定本身仍由下方 limiter 同步完成，不受影响。
     void (async () => {
       try {
         const k = `${STATS_PREFIX}${name}:hit`;
@@ -159,7 +178,7 @@ function makeNamed(name: RateLimitName): MiddlewareHandler {
           .expire(hourlyHitsKey, HOURLY_TTL)
           .exec();
       } catch (err) {
-        logger.warn('[rate-limit] hit stats failed', err);
+        reportStatsFailure('hit', err);
       }
     })();
     const limiter = compiledLimiters.get(name);
