@@ -1,6 +1,9 @@
 import { useMemo } from 'react';
 import FileViewer from '@file-viewer/react';
+import { archiveRenderer } from '@file-viewer/renderer-archive';
 import { presentationRenderer } from '@file-viewer/renderer-presentation';
+import archiveWorkerUrl from 'libarchive.js/dist/worker-bundle.js?url';
+import archiveWasmUrl from 'libarchive.js/dist/libarchive.wasm?url';
 import { configuredFileViewerRenderers } from 'virtual:file-viewer-renderers';
 import { useThemeController } from '@/providers/theme-controller';
 import type { CSSProperties } from 'react';
@@ -11,14 +14,15 @@ interface FileViewerPreviewPanelProps {
   readonly style?: CSSProperties;
 }
 
-const officeRenderers = [
+const fileViewerRenderers = [
   ...(Array.isArray(configuredFileViewerRenderers)
     ? configuredFileViewerRenderers
     : [configuredFileViewerRenderers]),
+  archiveRenderer,
   presentationRenderer,
 ] as ViewerOptions['renderers'];
 
-/** Office 文件浏览器端只读预览，不依赖文档转换服务。 */
+/** 文件浏览器端只读预览，不依赖外部预览或转换服务。 */
 export default function FileViewerPreviewPanel({ file, style }: FileViewerPreviewPanelProps) {
   const { isDark } = useThemeController();
   const options = useMemo<ViewerOptions>(() => ({
@@ -27,7 +31,7 @@ export default function FileViewerPreviewPanel({ file, style }: FileViewerPrevie
     styleIsolation: 'shadow',
     rendererMode: 'replace',
     autoRenderers: false,
-    renderers: officeRenderers,
+    renderers: fileViewerRenderers,
     ui: { density: 'compact' },
     toolbar: {
       position: 'top-center',
@@ -47,6 +51,10 @@ export default function FileViewerPreviewPanel({ file, style }: FileViewerPrevie
       textEncoding: 'auto',
       resizableColumns: true,
       resizableRows: true,
+    },
+    archive: {
+      workerUrl: archiveWorkerUrl,
+      wasmUrl: archiveWasmUrl,
     },
   }), [isDark]);
 

@@ -43,12 +43,7 @@ function getIconIdForMime(mimeType: string): string | null {
     mime.includes('opendocument.spreadsheet') || mime.includes('apple.numbers') ||
     mime.includes('iwork-numbers')
   ) return 'vscode-icons:file-type-excel';
-  if (
-    mime.includes('zip') || mime.includes('archive') ||
-    mime.includes('gzip') || mime.includes('tar') ||
-    mime.includes('x-rar') || mime.includes('x-7z') ||
-    mime.includes('x-bzip')
-  ) return 'vscode-icons:file-type-zip';
+  if (isArchiveFile(mime)) return 'vscode-icons:file-type-zip';
   if (mime.startsWith('font/') || mime.includes('ttf') || mime.includes('woff') || mime.includes('opentype')) return 'vscode-icons:file-type-font';
   if (mime.includes('json')) return 'vscode-icons:file-type-json';
   if (mime.includes('javascript')) return 'vscode-icons:file-type-js-official';
@@ -110,7 +105,7 @@ export function canPreviewFile(
     isPresentationFile(resolvedMimeType) ||
     isMarkdownFile(resolvedMimeType) ||
     isPlainTextFile(resolvedMimeType) ||
-    isZipFile(resolvedMimeType) ||
+    isArchiveFile(resolvedMimeType) ||
     isJsonFile(resolvedMimeType) ||
     isSvgFile(resolvedMimeType) ||
     isCodeFile(resolvedMimeType)
@@ -218,6 +213,40 @@ export function isZipFile(mimeType?: string | null): boolean {
     mime === 'application/x-zip-compressed' ||
     mime === 'application/x-zip'
   );
+}
+
+const ARCHIVE_MIME_TYPES = new Set([
+  'application/vnd.rar',
+  'application/x-rar-compressed',
+  'application/x-7z-compressed',
+  'application/x-tar',
+  'application/x-gtar',
+  'application/gzip',
+  'application/x-gzip',
+  'application/x-bzip2',
+  'application/x-bzip-compressed-tar',
+  'application/x-xz',
+  'application/x-xz-compressed-tar',
+  'application/x-lzma',
+  'application/zstd',
+  'application/x-zstd-compressed-tar',
+  'application/vnd.ms-cab-compressed',
+  'application/x-archive',
+  'application/x-cpio',
+  'application/x-iso9660-image',
+  'application/x-xar',
+  'application/x-lzh-compressed',
+  'application/java-archive',
+  'application/vnd.android.package-archive',
+  'application/vnd.comicbook+zip',
+  'application/vnd.comicbook-rar',
+]);
+
+/** 判断是否为 File Viewer Archive renderer 支持的压缩包。 */
+export function isArchiveFile(mimeType?: string | null): boolean {
+  if (!mimeType) return false;
+  const mime = mimeType.toLowerCase();
+  return isZipFile(mime) || ARCHIVE_MIME_TYPES.has(mime);
 }
 /** 使用当前登录 token 获取受保护的文件内容，返回 Blob；绝对 URL（云存储直链）直接裸 fetch，不携带 token */
 export async function fetchProtectedFile(url: string): Promise<Blob> {

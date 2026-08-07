@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Modal, Spin, Toast, AudioPlayer, VideoPlayer, Typography } from '@douyinfe/semi-ui';
 import { X } from 'lucide-react';
 import { useThemeController } from '@/providers/theme-controller';
-import { fetchManagedFileBlob, resolveFileMimeType, isSpreadsheetFile, isWordFile, isPresentationFile, isMarkdownFile, isPlainTextFile, isZipFile, isJsonFile, isSvgFile, isCodeFile, getFileTypeIcon } from '@/utils/file-utils';
+import { fetchManagedFileBlob, resolveFileMimeType, isSpreadsheetFile, isWordFile, isPresentationFile, isMarkdownFile, isPlainTextFile, isArchiveFile, isJsonFile, isSvgFile, isCodeFile, getFileTypeIcon } from '@/utils/file-utils';
 import AppModal from '@/components/AppModal';
 import type { CSSProperties, ReactNode } from 'react';
 import './filePreview.css';
@@ -17,8 +17,6 @@ const PDFPreviewPanel = lazy(() =>
 const FileViewerPreviewPanel = lazy(() => import('@/components/FileViewerPreviewPanel'));
 // react-markdown 懒加载
 const MarkdownPreviewPanel = lazy(() => import('@/components/MarkdownPreviewPanel'));
-// jszip + Semi Tree 懒加载
-const ZipPreviewPanel = lazy(() => import('@/components/ZipPreviewPanel'));
 // Semi JsonViewer 懒加载
 const JsonPreviewPanel = lazy(() => import('@/components/JsonPreviewPanel'));
 // Monaco Editor 懒加载（代码/纯文本文件预览）
@@ -35,13 +33,12 @@ interface FilePreviewModalProps {
   style?: CSSProperties;
 }
 
-type PreviewKind = 'spreadsheet' | 'word' | 'presentation' | 'markdown' | 'plainText' | 'zip' | 'json' | 'svg' | 'code' | 'pdf' | 'audio' | 'video';
+type PreviewKind = 'spreadsheet' | 'word' | 'presentation' | 'archive' | 'markdown' | 'plainText' | 'json' | 'svg' | 'code' | 'pdf' | 'audio' | 'video';
 
 type PreviewData =
-  | { kind: 'spreadsheet' | 'word' | 'presentation'; file: File }
+  | { kind: 'spreadsheet' | 'word' | 'presentation' | 'archive'; file: File }
   | { kind: 'markdown'; text: string }
   | { kind: 'plainText'; text: string }
-  | { kind: 'zip'; blob: Blob }
   | { kind: 'json'; text: string }
   | { kind: 'svg'; url: string }
   | { kind: 'code'; text: string }
@@ -120,7 +117,7 @@ export default function FilePreviewModal({
     if (isPresentationFile(resolvedMimeType)) return 'presentation';
     if (isMarkdownFile(resolvedMimeType)) return 'markdown';
     if (isPlainTextFile(resolvedMimeType)) return 'plainText';
-    if (isZipFile(resolvedMimeType)) return 'zip';
+    if (isArchiveFile(resolvedMimeType)) return 'archive';
     if (isJsonFile(resolvedMimeType)) return 'json';
     if (isSvgFile(resolvedMimeType)) return 'svg';
     if (isCodeFile(resolvedMimeType) || isMpegTsAsCode) return 'code';
@@ -135,7 +132,7 @@ export default function FilePreviewModal({
     queryKey: ['files', 'preview', visible, fileUrl, fileName, resolvedMimeType, previewKind],
     queryFn: async (): Promise<PreviewData> => {
       const blob = await fetchManagedFileBlob(fileUrl);
-      if (previewKind === 'spreadsheet' || previewKind === 'word' || previewKind === 'presentation') {
+      if (previewKind === 'spreadsheet' || previewKind === 'word' || previewKind === 'presentation' || previewKind === 'archive') {
         return {
           kind: previewKind,
           file: new File([blob], fileName, { type: resolvedMimeType || blob.type }),
@@ -143,7 +140,6 @@ export default function FilePreviewModal({
       }
       if (previewKind === 'markdown') return { kind: 'markdown', text: await blob.text() };
       if (previewKind === 'plainText') return { kind: 'plainText', text: await blob.text() };
-      if (previewKind === 'zip') return { kind: 'zip', blob };
       if (previewKind === 'json') return { kind: 'json', text: await blob.text() };
       if (previewKind === 'svg') return { kind: 'svg', url: URL.createObjectURL(blob) };
       if (previewKind === 'code') return { kind: 'code', text: await blob.text() };
@@ -261,9 +257,9 @@ export default function FilePreviewModal({
     );
   }
 
-  if (previewData?.kind === 'spreadsheet' || previewData?.kind === 'word' || previewData?.kind === 'presentation') {
+  if (previewData?.kind === 'spreadsheet' || previewData?.kind === 'word' || previewData?.kind === 'presentation' || previewData?.kind === 'archive') {
     const isPresentation = previewData.kind === 'presentation';
-    const isWide = previewData.kind === 'spreadsheet' || isPresentation;
+    const isWide = previewData.kind === 'spreadsheet' || previewData.kind === 'archive' || isPresentation;
     return (
       <PreviewModalShell title={previewTitle} onCancel={handleClose} fullscreen={fullscreen} onToggleFullscreen={toggleFullscreen}
         width={isWide ? 'min(1200px, 94vw)' : 'min(960px, 92vw)'} viewportHeight="90vh">
@@ -283,15 +279,6 @@ export default function FilePreviewModal({
           rawText={isRawText}
           style={{ flex: 1, minHeight: 0 }}
         />
-      </PreviewModalShell>
-    );
-  }
-
-  if (previewData?.kind === 'zip') {
-    return (
-      <PreviewModalShell title={previewTitle} onCancel={handleClose} fullscreen={fullscreen} onToggleFullscreen={toggleFullscreen}
-        width="min(700px, 92vw)" viewportHeight="85vh">
-        <ZipPreviewPanel blob={previewData.blob} style={{ flex: 1, minHeight: 0 }} />
       </PreviewModalShell>
     );
   }

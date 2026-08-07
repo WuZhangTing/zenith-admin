@@ -1,6 +1,6 @@
 # 文件预览组件
 
-`FilePreviewModal` 是全站统一的文件预览弹窗，支持图片、PDF、音频、视频、Excel/CSV 表格、Word 文档、PowerPoint 演示文稿、Markdown、纯文本、JSON、SVG、代码文件和 ZIP 压缩包。调用方只需传入文件元数据，无需自行判断格式或引入额外组件。
+`FilePreviewModal` 是全站统一的文件预览弹窗，支持图片、PDF、音频、视频、Excel/CSV 表格、Word 文档、PowerPoint 演示文稿、压缩包、Markdown、纯文本、JSON、SVG 和代码文件。调用方只需传入文件元数据，无需自行判断格式或引入额外组件。
 
 托管文件列表页推荐使用更高一层的组合：`useFilePreview` hook（`@/hooks/useFilePreview`）+ `FilePreviewLayer`（`@/components/FilePreviewLayer`），它在 `FilePreviewModal` 之上补齐了图片图集预览、不可预览文件新窗口打开与鉴权下载，见下文[使用示例](#使用示例)。
 
@@ -24,7 +24,7 @@
 | JSON | `application/json` / `text/json` | Semi Design `JsonViewer` 只读展示（`JsonPreviewPanel`，懒加载） |
 | SVG | `image/svg+xml` | 鉴权下载 Blob 后创建 Object URL，用 `<img>` 居中展示 |
 | 代码/配置 | JavaScript、TypeScript、Python、CSS、HTML、XML、YAML、Shell、SQL 等 MIME 类型 | Monaco Editor 语法高亮只读展示（`MonacoPreviewPanel`，懒加载） |
-| ZIP | `application/zip` / `application/x-zip-compressed` / `application/x-zip` | JSZip 解析 + Semi Design `Tree` 目录树（`ZipPreviewPanel`，懒加载） |
+| 压缩包 | Archive renderer 支持的 ZIP、7z、RAR、TAR、GZIP、ISO、JAR、APK、CBZ/CBR 等 MIME | File Viewer Archive renderer（`FileViewerPreviewPanel`，懒加载） |
 
 > **普通图片**不在 `FilePreviewModal` 内部渲染。遇到非 SVG 的 `image/*` 时组件会立即调用 `onClose` 并回退，由调用方自行打开 `ImagePreview`。
 >
@@ -34,7 +34,7 @@
 >
 > **Markdown** 支持 `text/markdown`（`.md`）和 `text/x-markdown`（`.markdown`）两种 MIME 类型。
 >
-> **ZIP** 展示文件树结构和大小统计，不解压内容。仅支持标准 ZIP，不支持 RAR/7z。
+> **压缩包**已开放 File Viewer Archive renderer 的全部 30 个真实扩展名：`.zip/.zipx/.7z/.rar/.tar/.gz/.gzip/.tgz/.bz2/.bzip2/.tbz/.tbz2/.xz/.txz/.lzma/.zst/.tzst/.cab/.ar/.cpio/.iso/.xar/.lha/.lzh/.jar/.war/.ear/.apk/.cbz/.cbr`。使用本地 Worker + WASM 解析，不调用外部服务。
 
 ---
 
@@ -217,12 +217,13 @@ JSON 文件（`application/json` / `text/json`）下载并读取文本后，**�
 
 SVG 文件（`image/svg+xml`）下载 Blob 后创建 Object URL，在 `AppModal` 内使用 `<img>` 居中展示（宽度 `min(900px, 92vw)`，高度 80vh）。关闭预览时会主动释放 Object URL。
 
-### Excel / CSV / Word / PowerPoint
+### Office / 压缩包
 
-下载 Blob 后包装为保留原始文件名和 MIME 类型的 `File`，再**懒加载** `FileViewerPreviewPanel`。面板使用 File Viewer 的模块化 React 组件，按需注册 Spreadsheet、Word 与 Presentation 三个 renderer；PDF、Markdown 等格式仍沿用各自的现有实现。
+下载 Blob 后包装为保留原始文件名和 MIME 类型的 `File`，再**懒加载** `FileViewerPreviewPanel`。面板使用 File Viewer 的模块化 React 组件，按需注册 Spreadsheet、Word、Presentation 与 Archive 四个 renderer；PDF、Markdown 等格式仍沿用各自的现有实现。
 
 ```text
 @file-viewer/react
+@file-viewer/renderer-archive
 @file-viewer/renderer-spreadsheet
 @file-viewer/renderer-word
 @file-viewer/renderer-presentation
@@ -230,18 +231,19 @@ SVG 文件（`image/svg+xml`）下载 Blob 后创建 Object URL，在 `AppModal`
 
 关键配置：
 
-- `rendererMode: 'replace'` + `autoRenderers: false`：能力范围只包含显式装配的 Spreadsheet/Word/Presentation renderer
+- `rendererMode: 'replace'` + `autoRenderers: false`：能力范围只包含显式装配的 Spreadsheet/Word/Presentation/Archive renderer
 - `styleIsolation: 'shadow'`：隔离渲染器样式与后台全局样式
 - `spreadsheet.worker: 'auto'`：大文件自动使用本地 Worker；CSV 编码自动识别 UTF-8、GBK 与 GB18030
 - `spreadsheet.resizableColumns/resizableRows: true`：预览时允许拖拽调整列宽和行高
 - `docx.worker: true` + `visualPagination: true`：Word 使用本地 Worker 并保留分页阅读
+- Archive 使用本地 `libarchive.js` Worker + WASM，支持目录搜索、加密包密码输入、内部文件按需解压与嵌套预览
 - 工具栏保留缩放、搜索、打印，关闭重复的下载和主题切换入口
-- Word 弹窗宽度 `min(960px, 92vw)`，Excel/CSV/PowerPoint 为 `min(1200px, 94vw)`，高度均为 `90vh`
+- Word 弹窗宽度 `min(960px, 92vw)`，Excel/CSV/PowerPoint/Archive 为 `min(1200px, 94vw)`，高度均为 `90vh`
 
 **离线资源**：`@file-viewer/vite-plugin` 只按 `word/spreadsheet` renderer 分组复制 Word、Spreadsheet
-所需的 Worker 到 `file-viewer/`。Presentation renderer 在 `FileViewerPreviewPanel` 中显式注册，
-其 Presentation Worker、WASM 和字体由 Vite 输出到 `assets/`；不要同时把 Presentation 扩展名加回插件的
-`formats`，否则同一套 Presentation 资源会再复制到 `file-viewer/`。开发时插件资源生成到
+所需 Worker 到 `file-viewer/`。Presentation 与 Archive renderer 在 `FileViewerPreviewPanel` 中显式注册，
+其 Worker/WASM/字体由 Vite 输出到 `assets/`；不要同时把 Presentation 或 Archive 扩展名加回插件的
+`formats`，否则同一资源会再复制到 `file-viewer/`。开发时插件资源生成到
 `packages/web/public/file-viewer/`（已忽略版本控制），生产构建生成到 `dist/file-viewer/`；
 运行时不访问外部 CDN 或预览服务。
 
@@ -251,34 +253,9 @@ SVG 文件（`image/svg+xml`）下载 Blob 后创建 Object URL，在 `AppModal`
 - Office 复杂排版、SmartArt、动画、嵌入对象、宏等与 Microsoft Office 原生渲染可能存在差异
 - 文档引用的本机字体不存在时会降级到可用字体
 - 旧版 `.ppt` 公开运行时带水印，去水印需要该引擎商业授权；`.pptx` 无此限制
+- 压缩包内部文件只有在对应 renderer 已装配时才能嵌套预览；其他条目仍可查看目录或下载
 
-> `@univerjs/presets`、`@univerjs/preset-sheets-core` 与服务端 `exceljs` 未随预览链路删除：前两个仍服务于打印报表设计器和数据库 Excel 粘贴导入，`exceljs` 仍服务于用户导入导出、导出中心和报表文件处理。
-
-### ZIP
-
-下载 Blob 后**懒加载** `ZipPreviewPanel`，使用 `JSZip.loadAsync(blob)` 在浏览器端解析 ZIP，将所有目录/文件条目转换为 Semi Design `Tree` 组件的 `TreeNodeData` 结构并渲染。**无需后端改动**。
-
-`ZipPreviewPanel`关键功能：
-
-```text
-JSZip.loadAsync(blob)解析所有条目
-路径树构建：目录在前，文件在后，同类型按名称字母排序
-<Tree directory filterTreeNode expandAll>  目录模式 + 文件搜索 + 默认全展开
-顶格显示文件总数 + 解压前总大小
-renderLabel 自定义节点：展示文件路径名 + 单个文件大小
-```
-
-**限制**：
-
-- 仅支持标准 ZIP，不支持 RAR/7z/tar.gz
-- 只展示文件树，不支持单文件预览/提取
-- 加密压缩包需用户先解压再上传
-
-**依赖**（`packages/web`）：
-
-```text
-jszip@^3.10.1
-```
+> `@univerjs/presets`、`@univerjs/preset-sheets-core`、`jszip` 与服务端 `exceljs` 未随预览链路删除：前两个仍服务于打印报表设计器和数据库 Excel 粘贴导入，`jszip` 仍由 `data-grid/xlsx-write.ts` 生成 XLSX，`exceljs` 仍服务于用户导入导出、导出中心和报表文件处理。
 
 ---
 
@@ -292,7 +269,7 @@ canPreviewFile(mimeType: string | null | undefined, fileName?: string | null): b
 
 /** 细分格式判断 */
 isSpreadsheetFile / isWordFile / isPresentationFile / isMarkdownFile / isPlainTextFile /
-isJsonFile / isSvgFile / isCodeFile / isZipFile(mimeType?: string | null): boolean
+isJsonFile / isSvgFile / isCodeFile / isArchiveFile / isZipFile(mimeType?: string | null): boolean
 
 /** 按文件名扩展（优先）与 MIME 类型返回 vscode-icons 彩色图标节点，用于列表与预览标题 */
 getFileTypeIcon(fileName?: string | null, mimeType?: string | null, size?: number): ReactNode

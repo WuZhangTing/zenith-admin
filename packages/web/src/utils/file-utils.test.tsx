@@ -2,11 +2,45 @@ import { describe, expect, it } from 'vitest';
 import {
   canPreviewFile,
   guessMimeTypeFromName,
+  isArchiveFile,
   isPresentationFile,
   isSpreadsheetFile,
   isWordFile,
   resolveFileMimeType,
 } from './file-utils';
+
+const ARCHIVE_EXTENSION_CASES = [
+  ['zip', 'application/zip'],
+  ['zipx', 'application/x-zip-compressed'],
+  ['7z', 'application/x-7z-compressed'],
+  ['rar', 'application/vnd.rar'],
+  ['tar', 'application/x-tar'],
+  ['gz', 'application/gzip'],
+  ['gzip', 'application/gzip'],
+  ['tgz', 'application/gzip'],
+  ['bz2', 'application/x-bzip2'],
+  ['bzip2', 'application/x-bzip2'],
+  ['tbz', 'application/x-bzip2'],
+  ['tbz2', 'application/x-bzip2'],
+  ['xz', 'application/x-xz'],
+  ['txz', 'application/x-xz'],
+  ['lzma', 'application/x-lzma'],
+  ['zst', 'application/zstd'],
+  ['tzst', 'application/zstd'],
+  ['cab', 'application/vnd.ms-cab-compressed'],
+  ['ar', 'application/x-archive'],
+  ['cpio', 'application/x-cpio'],
+  ['iso', 'application/x-iso9660-image'],
+  ['xar', 'application/x-xar'],
+  ['lha', 'application/x-lzh-compressed'],
+  ['lzh', 'application/x-lzh-compressed'],
+  ['jar', 'application/java-archive'],
+  ['war', 'application/java-archive'],
+  ['ear', 'application/java-archive'],
+  ['apk', 'application/vnd.android.package-archive'],
+  ['cbz', 'application/vnd.comicbook+zip'],
+  ['cbr', 'application/vnd.comicbook-rar'],
+] as const;
 
 const OFFICE_EXTENSION_CASES = [
   ['doc', 'application/msword', 'word'],
@@ -86,5 +120,35 @@ describe('Office file preview detection', () => {
     expect(isWordFile(null)).toBe(false);
     expect(isPresentationFile(undefined)).toBe(false);
     expect(isSpreadsheetFile(undefined)).toBe(false);
+  });
+});
+
+describe('archive file preview detection', () => {
+  it.each(ARCHIVE_EXTENSION_CASES)(
+    'recognizes .%s as %s',
+    (extension, mimeType) => {
+      const fileName = `sample.${extension.toUpperCase()}`;
+      expect(guessMimeTypeFromName(fileName)).toBe(mimeType);
+      expect(isArchiveFile(mimeType)).toBe(true);
+      expect(canPreviewFile(mimeType, fileName)).toBe(true);
+      expect(canPreviewFile('application/octet-stream', fileName)).toBe(true);
+    },
+  );
+
+  it.each([
+    'application/x-rar-compressed',
+    'application/x-gtar',
+    'application/x-gzip',
+    'application/x-bzip-compressed-tar',
+    'application/x-xz-compressed-tar',
+    'application/x-zstd-compressed-tar',
+  ])('recognizes alternate archive MIME type %s', (mimeType) => {
+    expect(isArchiveFile(mimeType)).toBe(true);
+    expect(canPreviewFile(mimeType)).toBe(true);
+  });
+
+  it('does not classify unrelated MIME types as archives', () => {
+    expect(isArchiveFile('application/pdf')).toBe(false);
+    expect(isArchiveFile(null)).toBe(false);
   });
 });

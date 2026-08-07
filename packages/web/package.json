@@ -23,6 +23,7 @@
 		"@emoji-mart/data": "^1.2.1",
 		"@emoji-mart/react": "^1.1.1",
 		"@file-viewer/react": "^2.2.5",
+		"@file-viewer/renderer-archive": "^2.2.5",
 		"@file-viewer/renderer-presentation": "^2.2.5",
 		"@file-viewer/renderer-spreadsheet": "^2.2.5",
 		"@file-viewer/renderer-word": "^2.2.5",

@@ -125,6 +125,8 @@ describe('file classification', () => {
     expect(getFileMimeType('slides.ppsm')).toBe('application/vnd.ms-powerpoint.slideshow.macroenabled.12');
     expect(getFileMimeType('report.xlsb')).toBe('application/vnd.ms-excel.sheet.binary.macroenabled.12');
     expect(getFileMimeType('document.odt')).toBe('application/vnd.oasis.opendocument.text');
+    expect(getFileMimeType('backup.7z')).toBe('application/x-7z-compressed');
+    expect(getFileMimeType('package.tar.gz')).toBe('application/gzip');
     expect(getFileMimeType('unknown.xyz')).toBeNull();
   });
 });

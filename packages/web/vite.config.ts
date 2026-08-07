@@ -44,9 +44,9 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       fileViewerRenderers({
-        // Presentation renderer is registered explicitly in FileViewerPreviewPanel.
-        // Keeping it out of this list prevents copyAssets from duplicating its
-        // fallback font/WASM/worker files that Vite already emits under assets/.
+        // Presentation and Archive are registered explicitly in FileViewerPreviewPanel.
+        // Keeping them out prevents copyAssets from duplicating resources that
+        // Vite already emits under assets/.
         formats: ['word', 'spreadsheet'],
         inject: false,
         copyAssets: { baseDir: 'file-viewer', mode: 'both' },
