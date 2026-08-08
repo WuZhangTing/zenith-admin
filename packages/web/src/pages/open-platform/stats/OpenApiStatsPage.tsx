@@ -149,7 +149,7 @@ export default function OpenApiStatsPage() {
   ];
 
   return (
-    <div className="page-container">
+    <div className="page-container zx-flat-panels">
       <SearchToolbar
         primary={(
           <>

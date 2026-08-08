@@ -18,7 +18,7 @@ import { DateRangeFilter } from '@/components/search-filters';
 const yuan = formatYuan;
 const groupByOptions = Object.entries(PAYMENT_REPORT_GROUP_BY_LABELS).map(([value, label]) => ({ value, label }));
 
-const sectionStyle: CSSProperties = { background: 'var(--semi-color-bg-1)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: '16px 20px' };
+const sectionStyle: CSSProperties = { paddingTop: 16, borderTop: '1px solid var(--semi-color-border)' };
 
 /** 环比增幅：上一周期为 0 时不显示 */
 function calcDelta(cur: number, prev: number | undefined | null): number | null {

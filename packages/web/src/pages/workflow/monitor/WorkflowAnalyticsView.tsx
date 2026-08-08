@@ -132,7 +132,7 @@ export default function WorkflowAnalyticsView({ definitions }: Readonly<{ defini
   if (!data) return <Empty title="暂无分析数据" style={{ padding: 60 }} />;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div className="zx-flat-panels" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <Select
           placeholder="全部流程"

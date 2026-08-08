@@ -331,7 +331,7 @@ export default function CronJobDashboard({ jobs }: Readonly<Props>) {
   }
 
   return (
-    <Spin spinning={loading}>
+    <Spin spinning={loading} wrapperClassName="zx-flat-panels">
       <StatGrid minItemWidth={150} gap={16} style={{ marginBottom: 16 }}>
         {statItems.map((s) => (
           <StatCard key={s.label} title={s.label} value={String(s.value)} sub={s.sub} accent={s.color} />

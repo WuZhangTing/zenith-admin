@@ -11,12 +11,10 @@ export const chartOptions = {
   dpr: typeof window === 'undefined' ? 1 : window.devicePixelRatio,
 };
 
-/** 通用区块样式（卡片容器） */
+/** 通用区块样式：无卡片，仅顶部一条细线起头（与首页 .dashboard-section 一致） */
 export const sectionStyle: React.CSSProperties = {
-  background: 'var(--semi-color-bg-1)',
-  border: '1px solid var(--semi-color-border)',
-  borderRadius: 'var(--semi-border-radius-medium)',
-  padding: '16px 20px',
+  paddingTop: 16,
+  borderTop: '1px solid var(--semi-color-border)',
 };
 
 /** 通用区块标题样式 */

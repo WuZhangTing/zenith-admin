@@ -31,10 +31,8 @@ const FILE_TYPE_CONFIG = [
 ] as const;
 
 const sectionStyle: React.CSSProperties = {
-  background: 'var(--semi-color-bg-1)',
-  border: '1px solid var(--semi-color-border)',
-  borderRadius: 'var(--semi-border-radius-medium)',
-  padding: '16px 20px',
+  paddingTop: 16,
+  borderTop: '1px solid var(--semi-color-border)',
 };
 
 const sectionTitleStyle: React.CSSProperties = {

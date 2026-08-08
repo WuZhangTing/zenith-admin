@@ -45,7 +45,7 @@ export default function CmsDashboardPage() {
   ];
 
   return (
-    <div className="page-container">
+    <div className="page-container zx-flat-panels">
       <SearchToolbar>
         <CmsSiteSelect value={siteId} onChange={setSiteId} width={200} />
       </SearchToolbar>

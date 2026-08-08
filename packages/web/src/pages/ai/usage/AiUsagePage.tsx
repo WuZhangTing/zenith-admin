@@ -140,7 +140,7 @@ export default function AiUsagePage() {
   );
 
   return (
-    <div className="page-container">
+    <div className="page-container zx-flat-panels">
       <SearchToolbar
         primary={(
           <>

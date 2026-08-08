@@ -164,7 +164,7 @@ export default function StatsPage() {
   const [days, setDays] = useState(30);
 
   return (
-    <div className="page-container page-tabs-page">
+    <div className="page-container page-tabs-page zx-flat-panels">
       <SearchToolbar>
         <CmsSiteSelect value={siteId} onChange={setSiteId} width={200} />
         <RadioGroup type="button" buttonSize="small" value={days} onChange={(e) => setDays(e.target.value as number)}>

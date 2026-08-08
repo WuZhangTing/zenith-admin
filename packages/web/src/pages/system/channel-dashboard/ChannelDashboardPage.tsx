@@ -137,7 +137,7 @@ export default function ChannelDashboardPage() {
   );
 
   return (
-    <div className="page-container channel-dashboard-page">
+    <div className="page-container channel-dashboard-page zx-flat-panels">
       {/* ===== 顶部标题 + 刷新 ===== */}
       <div className="channel-dashboard-header">
         <div className="channel-dashboard-header__title">

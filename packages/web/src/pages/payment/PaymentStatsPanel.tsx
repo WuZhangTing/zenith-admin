@@ -32,10 +32,8 @@ const DAYS_OPTIONS = [
 ];
 
 const sectionStyle: React.CSSProperties = {
-  background: 'var(--semi-color-bg-1)',
-  border: '1px solid var(--semi-color-border)',
-  borderRadius: 'var(--semi-border-radius-medium)',
-  padding: '16px 20px',
+  paddingTop: 16,
+  borderTop: '1px solid var(--semi-color-border)',
 };
 const sectionTitleStyle: React.CSSProperties = {
   fontSize: 14, fontWeight: 600, color: 'var(--semi-color-text-0)', marginBottom: 12,

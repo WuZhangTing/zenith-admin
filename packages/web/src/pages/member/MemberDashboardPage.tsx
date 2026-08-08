@@ -117,7 +117,7 @@ export default function MemberDashboardPage() {
 
   if (loading) {
     const skeletonPlaceholder = (
-      <div className="page-container">
+      <div className="page-container zx-flat-panels">
         {/* 统计卡片骨架 */}
         <StatGrid minItemWidth={200} style={{ marginBottom: 16 }}>
           {Array.from({ length: 8 }).map((_, i) => (
@@ -142,7 +142,7 @@ export default function MemberDashboardPage() {
   }
 
   return (
-    <div className="page-container">
+    <div className="page-container zx-flat-panels">
       {/* 概览卡片 */}
       <StatGrid minItemWidth={200} style={{ marginBottom: 16 }}>
         {overview && STAT_ITEMS.map((item) => {

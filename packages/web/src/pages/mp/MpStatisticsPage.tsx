@@ -70,7 +70,7 @@ export default function MpStatisticsPage() {
   });
 
   return (
-    <div className="page-container">
+    <div className="page-container zx-flat-panels">
       <div style={{ marginBottom: 16 }}>
         <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
       </div>
