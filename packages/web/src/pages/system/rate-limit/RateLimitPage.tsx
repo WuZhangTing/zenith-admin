@@ -154,7 +154,7 @@ export default function RateLimitPage() {
         )}
       />
 
-      <StatGrid minItemWidth={360} gap={16} style={{ marginTop: 16 }}>
+      <StatGrid minItemWidth={360} gap={20} style={{ marginTop: 16 }}>
         {rules.map((rule) => {
           const stat = statsByName.get(rule.name);
           const hit = stat?.hitCount ?? 0;
@@ -196,7 +196,7 @@ export default function RateLimitPage() {
                 <InfoBlock label="计数维度" value={KEY_TYPE_OPTIONS.find((o) => o.value === rule.keyType)?.label ?? rule.keyType} />
                 <InfoBlock label="拦截率" value={`${rate}%`} />
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 24, paddingTop: 8, borderTop: '1px solid var(--semi-color-border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 24, paddingTop: 12 }}>
                 <Stat icon={<Zap size={14} />} label="命中" value={hit} />
                 <Stat icon={<ShieldOff size={14} />} label="拦截" value={blocked} danger={blocked > 0} />
                 <span style={{ marginLeft: 'auto' }}>
