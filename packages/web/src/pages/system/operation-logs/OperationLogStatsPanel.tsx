@@ -35,11 +35,6 @@ const DEFAULT_METHOD_COLOR = '#6b7280';
 const SUCCESS_COLOR = '#10b981';
 const FAIL_COLOR = '#ef4444';
 
-const sectionStyle: React.CSSProperties = {
-  paddingTop: 16,
-  borderTop: '1px solid var(--semi-color-border)',
-};
-
 const sectionTitleStyle: React.CSSProperties = {
   fontSize: 14,
   fontWeight: 600,
@@ -201,7 +196,7 @@ export default function OperationLogStatsPanel() {
 
         {/* ── 模块 Top 10 + 用户 Top 10 ── */}
         <div className="chart-grid" style={{ marginBottom: 16 }}>
-          <div style={sectionStyle}>
+          <div className="zx-panel">
             <div style={sectionTitleStyle}>按模块操作统计（Top 10）</div>
             {moduleChartData.length === 0 ? (
               <div style={EMPTY_PLACEHOLDER_STYLE}>暂无数据</div>
@@ -209,7 +204,7 @@ export default function OperationLogStatsPanel() {
               <BarChart {...moduleSpec} options={chartOptions} height={260} />
             )}
           </div>
-          <div style={sectionStyle}>
+          <div className="zx-panel">
             <div style={sectionTitleStyle}>Top 10 操作用户</div>
             {userChartData.length === 0 ? (
               <div style={EMPTY_PLACEHOLDER_STYLE}>暂无数据</div>
@@ -220,7 +215,7 @@ export default function OperationLogStatsPanel() {
         </div>
 
         {/* ── 各模块接口耗时统计 ── */}
-        <div style={{ ...sectionStyle, marginBottom: 16 }}>
+        <div className="zx-panel" style={{ marginBottom: 16 }}>
           <div style={sectionTitleStyle}>各模块平均响应时间（取有耗时记录的请求，Top 10）</div>
           {moduleTimingChartData.length === 0 ? (
             <div style={EMPTY_PLACEHOLDER_STYLE}>暂无耗时数据</div>
@@ -231,7 +226,7 @@ export default function OperationLogStatsPanel() {
 
         {/* ── HTTP 方法分布 + 小时分布 ── */}
         <div className="chart-grid" style={{ marginBottom: 16 }}>
-          <div style={sectionStyle}>
+          <div className="zx-panel">
             <div style={sectionTitleStyle}>HTTP 方法分布</div>
             {methodChartData.length === 0 ? (
               <div style={{ ...EMPTY_PLACEHOLDER_STYLE, height: 240 }}>暂无数据</div>
@@ -239,20 +234,20 @@ export default function OperationLogStatsPanel() {
               <PieChart {...methodSpec} options={chartOptions} height={240} />
             )}
           </div>
-          <div style={sectionStyle}>
+          <div className="zx-panel">
             <div style={sectionTitleStyle}>按小时操作分布</div>
             <BarChart {...hourlySpec} options={chartOptions} height={240} />
           </div>
         </div>
 
         {/* ── 每日操作趋势（成功/失败面积） ── */}
-        <div style={{ ...sectionStyle, marginBottom: 16 }}>
+        <div className="zx-panel" style={{ marginBottom: 16 }}>
           <div style={sectionTitleStyle}>每日操作趋势（成功 / 失败）</div>
           <AreaChart {...dailySpec} options={chartOptions} height={210} />
         </div>
 
         {/* ── 按星期分布 ── */}
-        <div style={sectionStyle}>
+        <div className="zx-panel">
           <div style={sectionTitleStyle}>按星期操作分布（近 {days} 天）</div>
           {!stats ? (
             <EmptyChart height={220} />

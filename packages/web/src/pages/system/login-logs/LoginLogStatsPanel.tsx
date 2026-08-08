@@ -8,7 +8,6 @@ import {
   EmptyChart,
   useChartPalette,
   chartOptions,
-  sectionStyle,
   sectionTitleStyle,
   makeAreaSpec,
   makeBarSpec,
@@ -42,7 +41,7 @@ interface PieDatum {
 
 function ChartShell({ title, children, danger }: Readonly<{ title: React.ReactNode; children: React.ReactNode; danger?: boolean }>) {
   return (
-    <div style={{ ...sectionStyle, border: danger ? `1px solid color-mix(in srgb, ${FAIL_COLOR} 44%, var(--semi-color-border))` : sectionStyle.border }}>
+    <div className="zx-panel">
       <div style={{ ...sectionTitleStyle, color: danger ? FAIL_COLOR : sectionTitleStyle.color }}>{title}</div>
       {children}
     </div>

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
-import type { CSSProperties } from 'react';
 import { Banner, Button, Form, Row, Col, Select, Skeleton, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ShieldCheck, RefreshCw, SlidersHorizontal } from 'lucide-react';
@@ -28,11 +27,6 @@ import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 
 const yuan = formatYuan;
-const sectionStyle: CSSProperties = {
-  paddingTop: 16,
-  borderTop: '1px solid var(--semi-color-border)',
-};
-
 interface SearchParams {
   keyword: string;
   direction: string;
@@ -195,7 +189,7 @@ export default function PaymentLedgerPage() {
       </div>
 
       {/* 渠道资金账户（待结算/可用/冻结快照，随台账流水联动） */}
-      <div style={{ ...sectionStyle, marginBottom: 16 }}>
+      <div className="zx-panel" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: accounts.length > 0 ? 12 : 0 }}>
           <Typography.Title heading={6} style={{ margin: 0 }}>渠道资金账户</Typography.Title>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

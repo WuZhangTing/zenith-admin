@@ -199,7 +199,7 @@ export default function WorkflowAnalyticsView({ definitions }: Readonly<{ defini
       </ChartCard>
 
       {/* 趋势 + 状态分布 */}
-      <div className="chart-grid" style={{ ['--chart-grid-min' as string]: '420px', ['--chart-grid-gap' as string]: '12px' }}>
+      <div className="chart-grid">
         <ChartCard title="近 14 天发起 / 完结 / 积压趋势">
           <LineChart {...trendSpec} options={chartOptions} height={260} />
         </ChartCard>
@@ -211,7 +211,7 @@ export default function WorkflowAnalyticsView({ definitions }: Readonly<{ defini
       </div>
 
       {/* 各流程量 + 节点瓶颈 */}
-      <div className="chart-grid" style={{ ['--chart-grid-min' as string]: '420px', ['--chart-grid-gap' as string]: '12px' }}>
+      <div className="chart-grid">
         <ChartCard title="各流程实例量（Top 12）">
           {defBar.length === 0 ? <Empty title="暂无数据" style={{ padding: 40 }} /> : (
             <BarChart {...defBarSpec} options={chartOptions} height={Math.max(220, defBar.length * 34)} />

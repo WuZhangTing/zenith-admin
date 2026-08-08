@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import { formatYuan } from '@/utils/payment';
-import type { CSSProperties } from 'react';
 import { Banner, Checkbox, Select, Spin } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { BarChart, chartOptions, makeBarSpec, useChartPalette, StatCard, StatGrid } from '@/components/charts';
@@ -18,7 +17,6 @@ import { DateRangeFilter } from '@/components/search-filters';
 const yuan = formatYuan;
 const groupByOptions = Object.entries(PAYMENT_REPORT_GROUP_BY_LABELS).map(([value, label]) => ({ value, label }));
 
-const sectionStyle: CSSProperties = { paddingTop: 16, borderTop: '1px solid var(--semi-color-border)' };
 
 /** 环比增幅：上一周期为 0 时不显示 */
 function calcDelta(cur: number, prev: number | undefined | null): number | null {
@@ -148,7 +146,7 @@ export default function PaymentReportsPage() {
             <StatCard title="成功笔数" value={summary?.totalCount ?? '—'} deltaLabel="环比" deltaFormat="ratio" delta={summary && prev ? calcDelta(summary.totalCount, prev.totalCount) : null} />
           </StatGrid>
 
-          <div style={sectionStyle}>
+          <div className="zx-panel">
             <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>收款 / 净额分布</div>
             <BarChart {...barSpec} options={chartOptions} height={300} />
           </div>

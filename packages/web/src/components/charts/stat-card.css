@@ -41,22 +41,50 @@
   border-left: 1px solid var(--semi-color-border);
 }
 
-/* 图表分栏栅格：图表比统计卡需要更大的最小可读宽度，窄屏收敛为单列。
-   上限设为两列——图表三列以上横轴会密到不可读。 */
+/* 图表分栏栅格 —— 同时是「面板行」：
+   整行一条通栏横线起头，行内各面板之间用竖线分隔，与首页 .dashboard-charts-row 一致。
+   列数走确定的 2 / 1 而非 auto-fit：只有列数确定，:nth-child 才能准确重置行首竖线；
+   auto-fit 的列数是布局时算出来的，选择器无从判断哪一项是行首。 */
 .chart-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(var(--chart-grid-min, 380px), 100%), 1fr));
-  gap: var(--chart-grid-gap, 16px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--semi-color-border);
 }
 
-@media (--xl-up) {
+.chart-grid > * {
+  min-width: 0;
+  padding: 16px var(--chart-grid-pad, 24px) 0;
+  border-left: 1px solid var(--semi-color-border);
+}
+
+/* 行首那一项不画竖线，末列不留右内边距，让内容与页面两侧对齐 */
+.chart-grid > :nth-child(2n + 1) {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.chart-grid > :nth-child(2n) {
+  padding-right: 0;
+}
+
+/* 单列后竖线换成横线：面板之间靠各自的顶线分隔 */
+@media (--lg-down) {
   .chart-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .chart-grid > * {
+    padding-inline: 0;
+    border-left: 0;
+  }
+
+  /* 首项已由行的通栏横线起头，其余各项自带一条 */
+  .chart-grid > * + * {
+    border-top: 1px solid var(--semi-color-border);
   }
 }
 
 /* 主图 + 侧栏变体：宽屏主图占更大比重，窄屏收敛单列。
-   须置于 --xl-up 规则之后，靠源码顺序覆盖等特异性的两列规则。
    比例可用 --chart-aside-main / --chart-aside-side 覆盖，以保留各页原有的分栏权重。 */
 .chart-grid--aside {
   grid-template-columns:
@@ -64,11 +92,32 @@
     minmax(var(--chart-aside-min, 320px), var(--chart-aside-side, 0.9fr));
 }
 
+/* 面板行内的面板不再自画顶线（行已有通栏横线），否则会与竖线交叉成分叉。
+   竖线要重新声明：.zx-flat-panels .semi-card 的 border:0 特异性高于
+   .chart-grid > *，会把栅格画的竖线一并清掉。 */
+.chart-grid > .zx-panel,
+.zx-flat-panels .chart-grid > .semi-card {
+  border-top: 0;
+  border-left: 1px solid var(--semi-color-border);
+}
+
+.chart-grid > .zx-panel:nth-child(2n + 1),
+.zx-flat-panels .chart-grid > .semi-card:nth-child(2n + 1) {
+  border-left: 0;
+}
+
 @media (--lg-down) {
-  .chart-grid--aside {
-    grid-template-columns: minmax(0, 1fr);
+  .chart-grid > .zx-panel,
+  .zx-flat-panels .chart-grid > .semi-card {
+    border-left: 0;
+  }
+
+  .chart-grid > .zx-panel + .zx-panel,
+  .zx-flat-panels .chart-grid > .semi-card + .semi-card {
+    border-top: 1px solid var(--semi-color-border);
   }
 }
+
 
 /* ── 无卡片面板 ──────────────────────────────────────────────────
    与首页 .dashboard-section 同一套语言：顶部一条细线起头 + 标题，
@@ -94,6 +143,11 @@
 .zx-flat-panels .semi-card .semi-card-header {
   padding: 16px 0 0;
   border-bottom: 0;
+}
+
+/* 面板行内的 Card 由行统一起头，自身不再留上内边距（否则标题被推低一截） */
+.zx-flat-panels .chart-grid > .semi-card .semi-card-header {
+  padding-top: 0;
 }
 
 /* Semi 的 card-body 内边距来自组件自带样式表，加载顺序在本文件之后，

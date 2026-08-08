@@ -31,10 +31,6 @@ const DAYS_OPTIONS = [
   { label: '最近 90 天', value: 90 },
 ];
 
-const sectionStyle: React.CSSProperties = {
-  paddingTop: 16,
-  borderTop: '1px solid var(--semi-color-border)',
-};
 const sectionTitleStyle: React.CSSProperties = {
   fontSize: 14, fontWeight: 600, color: 'var(--semi-color-text-0)', marginBottom: 12,
 };
@@ -114,7 +110,7 @@ export default function PaymentStatsPanel() {
         </StatGrid>
 
         {/* 收款趋势 */}
-        <div style={sectionStyle}>
+        <div className="zx-panel">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <div style={{ ...sectionTitleStyle, marginBottom: 0 }}>收款趋势</div>
             <Select size="small" value={days} onChange={(v) => handleDaysChange(v as number)} optionList={DAYS_OPTIONS} style={{ width: 130 }} />
@@ -125,13 +121,13 @@ export default function PaymentStatsPanel() {
         {/* 渠道金额分布 + 订单状态分布 */}
         <Row gutter={[16, 16]}>
           <Col xs={24} md={12}>
-            <div style={sectionStyle}>
+            <div className="zx-panel">
               <div style={sectionTitleStyle}>渠道成功金额分布</div>
               <BarChart {...channelSpec} options={chartOptions} height={240} />
             </div>
           </Col>
           <Col xs={24} md={12}>
-            <div style={sectionStyle}>
+            <div className="zx-panel">
               <div style={sectionTitleStyle}>订单状态分布</div>
               <PieChart {...statusSpec} options={chartOptions} height={240} />
             </div>

@@ -128,7 +128,7 @@ export default function MemberDashboardPage() {
           ))}
         </StatGrid>
         {/* 图表卡片骨架 */}
-        <div className="chart-grid" style={{ ['--chart-grid-min' as string]: '460px' }}>
+        <div className="chart-grid">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} style={{ background: 'var(--semi-color-bg-2)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-large)', padding: 16 }}>
               <Skeleton.Title style={{ width: 140, marginBottom: 16 }} />
@@ -154,7 +154,7 @@ export default function MemberDashboardPage() {
       </StatGrid>
 
       {/* 图表区 */}
-      <div className="chart-grid" style={{ ['--chart-grid-min' as string]: '460px' }}>
+      <div className="chart-grid">
         <ChartCard title="近30天注册趋势">
           <AreaChart {...registerSpec} options={chartOptions} height={260} />
         </ChartCard>
