@@ -699,23 +699,6 @@ body[theme-mode='dark'] .semi-json-viewer-view-line {
   font-weight: 600;
   color: var(--color-text);
 }
-.stat-card {
-  background: var(--color-surface);
-  border-radius: var(--radius);
-  padding: 16px 20px;
-  border: 1px solid var(--color-border);
-}
-.stat-card .stat-value {
-  font-size: 28px;
-  font-weight: 600;
-  color: var(--color-text);
-  line-height: 1.2;
-}
-.stat-card .stat-label {
-  font-size: 13px;
-  color: var(--color-text-secondary);
-  margin-top: 4px;
-}
 
 /* ===== 页面 Loading ===== */
 .page-loading {

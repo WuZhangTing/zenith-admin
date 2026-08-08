@@ -20,26 +20,26 @@ import './stat-card.css';
 export function StatGrid({
   children,
   minItemWidth = 180,
-  gap = 20,
+  gap = 14,
   className,
   style,
 }: Readonly<{
   children: ReactNode;
   /** 单列轨道最小宽度，低于此值即减少列数 */
   minItemWidth?: number;
-  /** 换行后行与行之间的间距 */
+  /** 每栏的上下内边距。换行时行距由它撑开——不用 row-gap，否则竖线会被切断 */
   gap?: number;
   className?: string;
   style?: CSSProperties;
 }>) {
   return (
-    <div className={['stat-grid-wrap', className].filter(Boolean).join(' ')} style={style}>
+    <div className={['zx-stat-wrap', className].filter(Boolean).join(' ')} style={style}>
       <div
-        className="stat-grid"
+        className="zx-stat-grid"
         style={{
           // 自定义属性交给 CSS 计算列宽，避免把 grid-template-columns 写成内联样式
-          ['--stat-grid-min' as string]: `${minItemWidth}px`,
-          ['--stat-grid-row-gap' as string]: `${gap}px`,
+          ['--zx-stat-min' as string]: `${minItemWidth}px`,
+          ['--zx-stat-row-pad' as string]: `${gap}px`,
         }}
       >
         {children}
@@ -91,16 +91,16 @@ export function StatCard({
 
   const body = (
     <>
-      <span className="stat-card__value" style={accent ? { color: accent } : undefined}>{value}</span>
-      <span className="stat-card__title">
-        {icon && <span className="stat-card__icon" style={accent ? { color: accent } : undefined}>{icon}</span>}
+      <span className="zx-stat__value" style={accent ? { color: accent } : undefined}>{value}</span>
+      <span className="zx-stat__title">
+        {icon && <span className="zx-stat__icon" style={accent ? { color: accent } : undefined}>{icon}</span>}
         {title}
       </span>
       {sub !== undefined && sub !== null && sub !== '' && (
-        <span className="stat-card__sub">{sub}</span>
+        <span className="zx-stat__sub">{sub}</span>
       )}
       {delta !== undefined && delta !== null && Number.isFinite(delta) && (
-        <span className={`stat-card__delta stat-card__delta--${delta >= 0 ? 'up' : 'down'}`}>
+        <span className={`zx-stat__delta zx-stat__delta--${delta >= 0 ? 'up' : 'down'}`}>
           {deltaLabel} {delta >= 0 ? '+' : ''}
           {deltaFormat === 'ratio' ? `${(delta * 100).toFixed(1)}%` : delta}
         </span>
@@ -109,9 +109,9 @@ export function StatCard({
   );
 
   const classes = [
-    'stat-card',
-    interactive && 'stat-card--interactive',
-    interactive && active && 'stat-card--active',
+    'zx-stat',
+    interactive && 'zx-stat--interactive',
+    interactive && active && 'zx-stat--active',
     className,
   ].filter(Boolean).join(' ');
 
