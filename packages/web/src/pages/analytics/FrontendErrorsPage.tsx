@@ -38,6 +38,8 @@ import {
   makeLineSpec,
   makePieSpec,
   useChartPalette,
+  StatCard,
+  StatGrid,
 } from '@/components/charts';
 import AppModal from '@/components/AppModal';
 import { formatBytesMb as formatBytes } from '@/utils/format';
@@ -46,6 +48,7 @@ import { SOURCE_MAP_MAX_BYTES } from '@zenith/shared/analytics';
 import { NOTIFY_CHANNEL_OPTIONS } from '@zenith/shared/messaging';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePagination } from '@/hooks/usePagination';
 import { formatDateTime } from '@/utils/date';
@@ -241,43 +244,6 @@ function TypeIcon({ type }: { readonly type: FrontendErrorType }) {
   return <Bug {...common} />;
 }
 
-function KpiCard({
-  color,
-  icon,
-  label,
-  value,
-}: {
-  readonly color: string;
-  readonly icon: ReactNode;
-  readonly label: string;
-  readonly value: number;
-}) {
-  return (
-    <Card bodyStyle={{ padding: 18 }} style={{ borderRadius: 'var(--semi-border-radius-large)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-        <div>
-          <Text type="tertiary">{label}</Text>
-          <div style={{ color, fontSize: 26, fontWeight: 700, lineHeight: '36px', marginTop: 6 }}>{value.toLocaleString()}</div>
-        </div>
-        <div
-          style={{
-            alignItems: 'center',
-            background: `${color}1a`,
-            borderRadius: 'var(--semi-border-radius-large)',
-            color,
-            display: 'flex',
-            height: 42,
-            justifyContent: 'center',
-            width: 42,
-          }}
-        >
-          {icon}
-        </div>
-      </div>
-    </Card>
-  );
-}
-
 function SmallDistribution({ data }: { readonly data: { name: string; value: number }[] }) {
   const palette = useChartPalette();
   if (data.length === 0) return <Empty title="暂无分布数据" style={{ padding: 16 }} />;
@@ -373,6 +339,7 @@ export default function FrontendErrorsPage() {
   } = usePagination(20);
 
   const [alertModalVisible, setAlertModalVisible] = useState(false);
+  const isMobile = useIsMobile();
   const [editingAlert, setEditingAlert] = useState<ErrorAlertRule | null>(null);
   const [alertForm, setAlertForm] = useState<AlertFormState>(defaultAlertForm);
   const {
@@ -995,13 +962,13 @@ export default function FrontendErrorsPage() {
 
           {overview ? (
             <Space vertical align="start" style={{ width: '100%' }}>
-              <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', width: '100%' }}>
-                <KpiCard color="#f93920" icon={<Bug size={22} />} label="错误种类" value={overview.totalGroups} />
-                <KpiCard color="#ff8800" icon={<AlertTriangle size={22} />} label="未解决" value={overview.unresolved} />
-                <KpiCard color="#6a5af9" icon={<Zap size={22} />} label="总发生次数" value={overview.totalOccurrences} />
-                <KpiCard color="#14c9c9" icon={<MessageSquare size={22} />} label="影响用户" value={overview.affectedUsers} />
-                <KpiCard color="#00b42a" icon={<CheckCircle2 size={22} />} label="今日新增" value={overview.newToday} />
-              </div>
+              <StatGrid minItemWidth={180} gap={16} style={{ width: '100%' }}>
+                <StatCard accent="#f93920" icon={<Bug size={22} />} title="错误种类" value={overview.totalGroups.toLocaleString()} />
+                <StatCard accent="#ff8800" icon={<AlertTriangle size={22} />} title="未解决" value={overview.unresolved.toLocaleString()} />
+                <StatCard accent="#6a5af9" icon={<Zap size={22} />} title="总发生次数" value={overview.totalOccurrences.toLocaleString()} />
+                <StatCard accent="#14c9c9" icon={<MessageSquare size={22} />} title="影响用户" value={overview.affectedUsers.toLocaleString()} />
+                <StatCard accent="#00b42a" icon={<CheckCircle2 size={22} />} title="今日新增" value={overview.newToday.toLocaleString()} />
+              </StatGrid>
 
               <Card title="趋势分析" style={{ width: '100%' }}>
                 <div style={{ height: 320 }}>
@@ -1009,7 +976,7 @@ export default function FrontendErrorsPage() {
                 </div>
               </Card>
 
-              <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', width: '100%' }}>
+              <div className="chart-grid" style={{ width: '100%' }}>
                 <Card title="错误类型分布">
                   <div style={{ height: 260 }}>
                     {overviewTypeData.length > 0 ? (
@@ -1201,7 +1168,7 @@ export default function FrontendErrorsPage() {
         title={detail ? `Issue #${detail.group.id}` : '错误详情'}
         visible={detailVisible}
         onCancel={() => setDetailVisible(false)}
-        width={720}
+        width={isMobile ? '100%' : 720}
       >
         {detail && !detailQuery.isFetching ? (
           <Space vertical align="start" style={{ width: '100%' }}>
@@ -1239,10 +1206,10 @@ export default function FrontendErrorsPage() {
               </div>
             </Card>
 
-            <div style={{ display: 'grid', gap: 16, gridTemplateColumns: '1fr 1fr', width: '100%' }}>
+            <StatGrid minItemWidth={260} gap={16} style={{ width: '100%' }}>
               <Card title="浏览器分布"><SmallDistribution data={detail.browsers} /></Card>
               <Card title="系统分布"><SmallDistribution data={detail.os} /></Card>
-            </div>
+            </StatGrid>
 
             <Card title="处理" style={{ width: '100%' }}>
               <Form labelPosition="left" labelWidth={90}>
