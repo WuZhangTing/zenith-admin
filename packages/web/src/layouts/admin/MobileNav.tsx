@@ -1,6 +1,6 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import { Nav, SideSheet } from '@douyinfe/semi-ui';
-import { Menu as MenuIcon } from 'lucide-react';
+import { Menu as MenuIcon, Search } from 'lucide-react';
 import AppLogo from '@/components/AppLogo';
 import { config } from '@/config';
 import type { NavItem } from './utils';
@@ -54,6 +54,7 @@ export function MobileNavSheet({
   openKeys,
   handleSidebarOpenChange,
   renderMobileWrapper,
+  showMenuSearch = true,
 }: Readonly<{
   mobileNavVisible: boolean;
   setMobileNavVisible: Dispatch<SetStateAction<boolean>>;
@@ -64,6 +65,7 @@ export function MobileNavSheet({
   openKeys: string[];
   handleSidebarOpenChange: (data: { openKeys?: (string | number)[] }) => void;
   renderMobileWrapper: (args: { itemElement: React.ReactNode; props: { itemKey?: string | number } }) => React.ReactNode;
+  showMenuSearch?: boolean;
 }>) {
   return (
     <SideSheet
@@ -88,6 +90,21 @@ export function MobileNavSheet({
       width="min(86vw, 320px)"
       bodyStyle={{ padding: 0 }}
     >
+      {/* 菜单搜索入口：移动端菜单为长手风琴列表，逐级展开查找成本高；
+          这里复用桌面端的命令面板（Modal 走 portal，不受抽屉关闭影响） */}
+      {showMenuSearch && (
+        <button
+          type="button"
+          className="admin-mobile-nav-sheet__search"
+          onClick={() => {
+            setMobileNavVisible(false);
+            globalThis.dispatchEvent(new CustomEvent('open-menu-palette'));
+          }}
+        >
+          <Search size={15} strokeWidth={1.8} />
+          <span>搜索菜单</span>
+        </button>
+      )}
       <Nav
         className="admin-mobile-nav"
         mode="vertical"

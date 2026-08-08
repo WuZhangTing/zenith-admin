@@ -724,6 +724,30 @@
   font-weight: 600;
 }
 
+.admin-mobile-nav-sheet__search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% - 24px);
+  /* 44px 满足触控目标下限，避免与下方菜单项误触 */
+  min-height: 44px;
+  margin: 10px 12px 4px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--semi-border-radius-medium);
+  background: var(--semi-color-fill-0);
+  color: var(--semi-color-text-2);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.admin-mobile-nav-sheet__search:active {
+  background: var(--semi-color-fill-1);
+  border-color: var(--semi-color-primary);
+}
+
 .admin-mobile-nav {
   width: 100%;
   height: calc(100vh - var(--header-height));

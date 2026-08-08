@@ -772,6 +772,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
           openKeys={openKeys}
           handleSidebarOpenChange={handleSidebarOpenChange}
           renderMobileWrapper={renderMobileWrapper}
+          showMenuSearch={preferences.showMenuSearch ?? true}
         />
       )}
 

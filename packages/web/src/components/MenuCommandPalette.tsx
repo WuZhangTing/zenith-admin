@@ -5,6 +5,7 @@ import { pinyinMatch } from '@/utils/pinyin';
 import { Search, Clock, Hash } from 'lucide-react';
 import { renderLucideIcon } from '@/utils/icons';
 import { useOptionalPreferences } from '@/hooks/usePreferences';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 import type { FlatMenuItem } from './MenuSearchInput';
 
 const RECENT_KEY = 'zenith_menu_search_recent';
@@ -54,6 +55,8 @@ export default function MenuCommandPalette({ menus, open, onClose }: Props) {
   const navigate = useNavigate();
   // 全局快捷键偏好：关闭后 Ctrl+K 不再唤起（组件可能在 Provider 外使用，做可选兜底）
   const shortcutsEnabled = useOptionalPreferences()?.preferences.enableShortcuts ?? true;
+  // 触屏设备上键盘操作提示（↑↓ / ↵ / ESC / Ctrl+K）不可用，纯属占用纵向空间
+  const isMobile = useIsMobile();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [recentItems, setRecentItems] = useState<FlatMenuItem[]>([]);
@@ -229,20 +232,23 @@ export default function MenuCommandPalette({ menus, open, onClose }: Props) {
               <span style={{ fontSize: 12, lineHeight: 1 }}>✕</span>
             </button>
           )}
-          <kbd
-            style={{
-              fontSize: 11,
-              color: 'var(--semi-color-text-2)',
-              background: 'var(--semi-color-fill-0)',
-              border: '1px solid var(--semi-color-border)',
-              borderRadius: 'var(--semi-border-radius-small)',
-              padding: '1px 5px',
-              fontFamily: 'monospace',
-              flexShrink: 0,
-            }}
-          >
-            ESC
-          </kbd>
+          {!isMobile && (
+            <kbd
+              className="cmd-palette-esc"
+              style={{
+                fontSize: 11,
+                color: 'var(--semi-color-text-2)',
+                background: 'var(--semi-color-fill-0)',
+                border: '1px solid var(--semi-color-border)',
+                borderRadius: 'var(--semi-border-radius-small)',
+                padding: '1px 5px',
+                fontFamily: 'monospace',
+                flexShrink: 0,
+              }}
+            >
+              ESC
+            </kbd>
+          )}
         </div>
 
         {/* List Area */}
@@ -410,25 +416,28 @@ export default function MenuCommandPalette({ menus, open, onClose }: Props) {
           </div>
         </div>
 
-        {/* Footer */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            padding: '7px 16px',
-            borderTop: '1px solid var(--semi-color-border)',
-            fontSize: 11,
-            color: 'var(--semi-color-text-2)',
-          }}
-        >
-          <span><kbd style={{ fontFamily: 'monospace', fontSize: 10, padding: '0 3px', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-small)' }}>↑↓</kbd> 导航</span>
-          <span><kbd style={{ fontFamily: 'monospace', fontSize: 10, padding: '0 3px', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-small)' }}>↵</kbd> 跳转</span>
-          <span><kbd style={{ fontFamily: 'monospace', fontSize: 10, padding: '0 3px', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-small)' }}>ESC</kbd> 关闭</span>
-          <span style={{ marginLeft: 'auto' }}>
-            <kbd style={{ fontFamily: 'monospace', fontSize: 10, padding: '0 3px', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-small)' }}>Ctrl K</kbd> 快速打开
-          </span>
-        </div>
+        {/* Footer：仅桌面端展示键盘操作提示 */}
+        {!isMobile && (
+          <div
+            className="cmd-palette-footer"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: '7px 16px',
+              borderTop: '1px solid var(--semi-color-border)',
+              fontSize: 11,
+              color: 'var(--semi-color-text-2)',
+            }}
+          >
+            <span><kbd style={{ fontFamily: 'monospace', fontSize: 10, padding: '0 3px', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-small)' }}>↑↓</kbd> 导航</span>
+            <span><kbd style={{ fontFamily: 'monospace', fontSize: 10, padding: '0 3px', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-small)' }}>↵</kbd> 跳转</span>
+            <span><kbd style={{ fontFamily: 'monospace', fontSize: 10, padding: '0 3px', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-small)' }}>ESC</kbd> 关闭</span>
+            <span style={{ marginLeft: 'auto' }}>
+              <kbd style={{ fontFamily: 'monospace', fontSize: 10, padding: '0 3px', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-small)' }}>Ctrl K</kbd> 快速打开
+            </span>
+          </div>
+        )}
       </div>
     </Modal>
   );
