@@ -91,24 +91,24 @@
   overflow-wrap: anywhere;
 }
 
-/* 分隔线由每个卡片自身的 outline 绘制，而非「容器铺边框色 + gap 露底」。
-   后者依赖网格被填满：统计项为 5 个，窄屏 2 列（3 列时同理）会空出一格，
-   该格没有卡片覆盖便整块露出边框色，深色模式下尤其明显。
-   outline 画在 1px 缝隙内且不参与布局，相邻卡片的 outline 重叠成一条线；
-   容器 overflow hidden 裁掉外缘 outline，避免最外侧多出边框。 */
+/* 指标区：报表式竖线分栏。
+   同级指标之间只用 1px 竖线分隔，不画横线也不给每项底色——
+   竖线高度即内容高度，天然随内容对齐，且线条总量比「四面细线」更少。
+   多行换行时（窄屏降列）由 :nth-child 重置行首竖线并补一条横线，见下方响应式段。 */
 .dashboard-stats-row {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 1px;
-  border-block: 1px solid var(--color-border);
-  overflow: hidden;
 }
 
 .dashboard-stat-item {
   min-width: 0;
-  padding: 21px 20px;
-  background: var(--color-layout-bg);
-  outline: 1px solid var(--color-border);
+  padding: 6px 22px 8px;
+  border-left: 1px solid var(--color-border);
+}
+
+.dashboard-stat-item:first-child {
+  padding-left: 0;
+  border-left: 0;
 }
 
 .dashboard-stat-item__value {
@@ -139,15 +139,29 @@
   gap: 10px;
 }
 
+/* 图表区：整行一条横线起头，行内各图表之间用竖线分隔。
+   gap 归零改由左右 padding 撑开，竖线才能落在两栏内容的正中间。 */
 .dashboard-charts-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 32px;
   margin-top: 34px;
+  padding-top: 24px;
+  border-top: 1px solid var(--color-border);
 }
 
 .dashboard-chart-section {
   min-width: 0;
+  padding: 0 26px;
+  border-left: 1px solid var(--color-border);
+}
+
+.dashboard-chart-section:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.dashboard-chart-section:last-child {
+  padding-right: 0;
 }
 
 .dashboard-section-header {
@@ -179,12 +193,17 @@
   justify-content: center;
 }
 
+/* 下方内容区：同样是「一条横线起头 + 栏间竖线」。
+   align-items 必须是 stretch（而非 start）：两栏内容高度差很大，
+   start 会让栏盒收缩到各自内容高度，右栏竖线只有半截，看起来像断线。
+   stretch 只是把栏盒拉到行高，栏内 flex-column 的内容仍从顶部排列，位置不变。 */
 .dashboard-top-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.7fr) minmax(300px, 0.8fr);
-  gap: 48px;
-  align-items: start;
-  margin-top: 42px;
+  align-items: stretch;
+  margin-top: 40px;
+  padding-top: 24px;
+  border-top: 1px solid var(--color-border);
 }
 
 .dashboard-column {
@@ -192,12 +211,26 @@
   min-width: 0;
   flex-direction: column;
   gap: 38px;
+  padding-left: 40px;
+  border-left: 1px solid var(--color-border);
+}
+
+.dashboard-column:first-child {
+  padding-right: 40px;
+  padding-left: 0;
+  border-left: 0;
 }
 
 .dashboard-section {
   min-width: 0;
   padding-top: 17px;
   border-top: 1px solid var(--color-border);
+}
+
+/* 每栏首个区块紧贴行首横线，不再自带横线，避免与之叠成双线 */
+.dashboard-column > .dashboard-section:first-child {
+  padding-top: 0;
+  border-top: 0;
 }
 
 .dashboard-section--notice {
@@ -390,18 +423,59 @@
   border-radius: var(--semi-border-radius-small);
 }
 
+/* 窄屏：栏数下降后竖线必须退化成横线，否则会出现「行首悬空竖线」。
+   规则有二：① 行首那一项重置 border-left；② 第二行起补 border-top 代替竖线。 */
 @media (--xl-down) {
   .dashboard-stats-row {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: 22px;
+  }
+
+  .dashboard-stat-item:nth-child(3n + 1) {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .dashboard-stat-item:nth-child(n + 4) {
+    padding-top: 20px;
+    border-top: 1px solid var(--color-border);
   }
 
   .dashboard-charts-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 26px;
+  }
+
+  .dashboard-chart-section:nth-child(2n + 1) {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .dashboard-chart-section:nth-child(2n) {
+    padding-right: 0;
+  }
+
+  .dashboard-chart-section:nth-child(n + 3) {
+    padding-top: 22px;
+    border-top: 1px solid var(--color-border);
   }
 
   .dashboard-top-grid {
     grid-template-columns: 1fr;
-    gap: 38px;
+  }
+
+  /* 单栏后两栏上下相接：竖线换成横线 */
+  .dashboard-column,
+  .dashboard-column:first-child {
+    padding-right: 0;
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .dashboard-column + .dashboard-column {
+    margin-top: 38px;
+    padding-top: 24px;
+    border-top: 1px solid var(--color-border);
   }
 }
 
@@ -414,9 +488,34 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  /* 2 列时行首改为奇数项，且第 3 项起就要补横线 */
+  .dashboard-stat-item:nth-child(3n + 1) {
+    padding-left: 22px;
+    border-left: 1px solid var(--color-border);
+  }
+
+  .dashboard-stat-item:nth-child(2n + 1) {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .dashboard-stat-item:nth-child(n + 3) {
+    padding-top: 20px;
+    border-top: 1px solid var(--color-border);
+  }
+
   .dashboard-charts-row {
     grid-template-columns: 1fr;
-    gap: 30px;
+  }
+
+  .dashboard-chart-section {
+    padding: 0;
+    border-left: 0;
+  }
+
+  .dashboard-chart-section + .dashboard-chart-section {
+    padding-top: 22px;
+    border-top: 1px solid var(--color-border);
   }
 }
 
@@ -450,7 +549,15 @@
   }
 
   .dashboard-stat-item {
-    padding: 17px 14px;
+    padding: 6px 14px 8px;
+  }
+
+  .dashboard-stat-item:nth-child(2n + 1) {
+    padding-left: 0;
+  }
+
+  .dashboard-stat-item:nth-child(n + 3) {
+    padding-top: 18px;
   }
 
   .dashboard-stat-item__value {
