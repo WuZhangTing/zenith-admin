@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import { formatYuan } from '@/utils/payment';
 import type { CSSProperties } from 'react';
-import { Banner, Checkbox, Row, Col, Select, Spin, Typography } from '@douyinfe/semi-ui';
+import { Banner, Checkbox, Select, Spin } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { BarChart, chartOptions, makeBarSpec, useChartPalette } from '@/components/charts';
+import { BarChart, chartOptions, makeBarSpec, useChartPalette, StatCard, StatGrid } from '@/components/charts';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { formatDateTimeForApi } from '@/utils/date';
@@ -19,23 +19,6 @@ const yuan = formatYuan;
 const groupByOptions = Object.entries(PAYMENT_REPORT_GROUP_BY_LABELS).map(([value, label]) => ({ value, label }));
 
 const sectionStyle: CSSProperties = { background: 'var(--semi-color-bg-1)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: '16px 20px' };
-
-interface StatCardProps { readonly title: string; readonly value: string | number; readonly accent?: string; readonly delta?: number | null; }
-function StatCard({ title, value, accent, delta }: StatCardProps) {
-  return (
-    <div style={{ ...sectionStyle, display: 'flex', flexDirection: 'column', gap: 4, height: '100%', minHeight: 84, boxSizing: 'border-box' }}>
-      <div style={{ fontSize: 22, fontWeight: 700, color: accent ?? 'var(--semi-color-text-0)', lineHeight: 1.2 }}>{String(value)}</div>
-      <div style={{ fontSize: 13, color: 'var(--semi-color-text-1)', marginTop: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-        <span>{title}</span>
-        {delta != null && Number.isFinite(delta) && (
-          <Typography.Text size="small" type={delta >= 0 ? 'success' : 'danger'}>
-            环比 {delta >= 0 ? '+' : ''}{(delta * 100).toFixed(1)}%
-          </Typography.Text>
-        )}
-      </div>
-    </div>
-  );
-}
 
 /** 环比增幅：上一周期为 0 时不显示 */
 function calcDelta(cur: number, prev: number | undefined | null): number | null {
@@ -157,13 +140,13 @@ export default function PaymentReportsPage() {
 
       <Spin spinning={loading}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <Row gutter={[16, 16]} type="flex">
-            <Col xs={24} sm={12} xl={5}><StatCard title="收款总额" value={summary ? yuan(summary.totalGross) : '—'} accent="#10b981" delta={summary && prev ? calcDelta(summary.totalGross, prev.totalGross) : null} /></Col>
-            <Col xs={24} sm={12} xl={5}><StatCard title="手续费总额" value={summary ? yuan(summary.totalFee) : '—'} accent="#f59e0b" delta={summary && prev ? calcDelta(summary.totalFee, prev.totalFee) : null} /></Col>
-            <Col xs={24} sm={12} xl={5}><StatCard title="退款总额" value={summary ? yuan(summary.totalRefund) : '—'} accent="#f97316" delta={summary && prev ? calcDelta(summary.totalRefund, prev.totalRefund) : null} /></Col>
-            <Col xs={24} sm={12} xl={5}><StatCard title="净额" value={summary ? yuan(summary.totalNet) : '—'} accent="#3b82f6" delta={summary && prev ? calcDelta(summary.totalNet, prev.totalNet) : null} /></Col>
-            <Col xs={24} sm={12} xl={4}><StatCard title="成功笔数" value={summary?.totalCount ?? '—'} delta={summary && prev ? calcDelta(summary.totalCount, prev.totalCount) : null} /></Col>
-          </Row>
+          <StatGrid minItemWidth={168}>
+            <StatCard title="收款总额" value={summary ? yuan(summary.totalGross) : '—'} accent="var(--semi-color-success)" deltaLabel="环比" deltaFormat="ratio" delta={summary && prev ? calcDelta(summary.totalGross, prev.totalGross) : null} />
+            <StatCard title="手续费总额" value={summary ? yuan(summary.totalFee) : '—'} accent="var(--semi-color-warning)" deltaLabel="环比" deltaFormat="ratio" delta={summary && prev ? calcDelta(summary.totalFee, prev.totalFee) : null} />
+            <StatCard title="退款总额" value={summary ? yuan(summary.totalRefund) : '—'} accent="var(--semi-color-warning)" deltaLabel="环比" deltaFormat="ratio" delta={summary && prev ? calcDelta(summary.totalRefund, prev.totalRefund) : null} />
+            <StatCard title="净额" value={summary ? yuan(summary.totalNet) : '—'} accent="var(--semi-color-primary)" deltaLabel="环比" deltaFormat="ratio" delta={summary && prev ? calcDelta(summary.totalNet, prev.totalNet) : null} />
+            <StatCard title="成功笔数" value={summary?.totalCount ?? '—'} deltaLabel="环比" deltaFormat="ratio" delta={summary && prev ? calcDelta(summary.totalCount, prev.totalCount) : null} />
+          </StatGrid>
 
           <div style={sectionStyle}>
             <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>收款 / 净额分布</div>

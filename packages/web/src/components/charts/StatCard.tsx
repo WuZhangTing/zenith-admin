@@ -54,6 +54,7 @@ export function StatCard({
   accent,
   delta,
   deltaLabel = '较昨日',
+  deltaFormat = 'absolute',
   onClick,
   active = false,
   className,
@@ -68,6 +69,8 @@ export function StatCard({
   /** 环比增量，正负分别显示为成功/危险色；null 或 undefined 时不渲染 */
   delta?: number | null;
   deltaLabel?: string;
+  /** `absolute` 直接展示数值；`ratio` 按比率渲染为百分比（0.12 → +12.0%） */
+  deltaFormat?: 'absolute' | 'ratio';
   /** 传入后卡片变为可点击（用于按状态筛选列表） */
   onClick?: () => void;
   /** 可点击卡片的选中态 */
@@ -95,9 +98,10 @@ export function StatCard({
         {sub !== undefined && sub !== null && sub !== '' && (
           <span className="stat-card__sub">{sub}</span>
         )}
-        {delta !== undefined && delta !== null && (
+        {delta !== undefined && delta !== null && Number.isFinite(delta) && (
           <span className={`stat-card__delta stat-card__delta--${delta >= 0 ? 'up' : 'down'}`}>
-            {deltaLabel} {delta >= 0 ? '+' : ''}{delta}
+            {deltaLabel} {delta >= 0 ? '+' : ''}
+            {deltaFormat === 'ratio' ? `${(delta * 100).toFixed(1)}%` : delta}
           </span>
         )}
       </span>

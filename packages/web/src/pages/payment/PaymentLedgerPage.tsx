@@ -5,6 +5,8 @@ import { Banner, Button, Form, Row, Col, Select, Skeleton, Tag, Toast, Typograph
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ShieldCheck, RefreshCw, SlidersHorizontal } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
+// 直接引组件文件而非 charts 桶文件：后者会连带引入 ~2MB 的 vchart，本页无图表
+import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
@@ -32,22 +34,6 @@ const sectionStyle: CSSProperties = {
   borderRadius: 'var(--semi-border-radius-medium)',
   padding: '16px 20px',
 };
-
-interface StatCardProps {
-  readonly title: string;
-  readonly value: string | number;
-  readonly sub?: string;
-  readonly accent?: string;
-}
-function StatCard({ title, value, sub, accent }: StatCardProps) {
-  return (
-    <div style={{ ...sectionStyle, display: 'flex', flexDirection: 'column', gap: 2, height: '100%', minHeight: 92, boxSizing: 'border-box' }}>
-      <div style={{ fontSize: 26, fontWeight: 700, color: accent ?? 'var(--semi-color-text-0)', lineHeight: 1.2 }}>{String(value)}</div>
-      <div style={{ fontSize: 11, color: 'var(--semi-color-text-2)', minHeight: 16 }}>{sub ?? ''}</div>
-      <div style={{ fontSize: 13, color: 'var(--semi-color-text-1)', marginTop: 'auto' }}>{title}</div>
-    </div>
-  );
-}
 
 interface SearchParams {
   keyword: string;
@@ -190,33 +176,23 @@ export default function PaymentLedgerPage() {
             loading
             active
             placeholder={
-              <Row gutter={[16, 16]} type="flex">
+              <StatGrid>
                 {Array.from({ length: 4 }, (_, i) => `sk-ledger-${i}`).map((key) => (
-                  <Col key={key} xs={24} sm={12} xl={6}>
-                    <div style={{ ...sectionStyle, minHeight: 92, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <Skeleton.Title style={{ width: '60%', marginBottom: 4 }} />
-                      <Skeleton.Paragraph rows={1} style={{ width: '40%', marginBottom: 0 }} />
-                    </div>
-                  </Col>
+                  <div key={key} style={{ ...sectionStyle, minHeight: 92, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <Skeleton.Title style={{ width: '60%', marginBottom: 4 }} />
+                    <Skeleton.Paragraph rows={1} style={{ width: '40%', marginBottom: 0 }} />
+                  </div>
                 ))}
-              </Row>
+              </StatGrid>
             }
           >{null}</Skeleton>
         ) : (
-          <Row gutter={[16, 16]} type="flex">
-            <Col xs={24} sm={12} xl={6}>
-              <StatCard title="收入" value={summary ? yuan(summary.inAmount) : '—'} accent="#10b981" />
-            </Col>
-            <Col xs={24} sm={12} xl={6}>
-              <StatCard title="支出" value={summary ? yuan(summary.outAmount) : '—'} accent="#f97316" />
-            </Col>
-            <Col xs={24} sm={12} xl={6}>
-              <StatCard title="净额" value={summary ? yuan(summary.netAmount) : '—'} accent={summary && summary.netAmount < 0 ? '#ef4444' : '#3b82f6'} />
-            </Col>
-            <Col xs={24} sm={12} xl={6}>
-              <StatCard title="笔数" value={summary?.count ?? '—'} />
-            </Col>
-          </Row>
+          <StatGrid>
+            <StatCard title="收入" value={summary ? yuan(summary.inAmount) : '—'} accent="var(--semi-color-success)" />
+            <StatCard title="支出" value={summary ? yuan(summary.outAmount) : '—'} accent="var(--semi-color-warning)" />
+            <StatCard title="净额" value={summary ? yuan(summary.netAmount) : '—'} accent={summary && summary.netAmount < 0 ? 'var(--semi-color-danger)' : 'var(--semi-color-primary)'} />
+            <StatCard title="笔数" value={summary?.count ?? '—'} />
+          </StatGrid>
         )}
       </div>
 
