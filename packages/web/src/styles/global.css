@@ -496,24 +496,54 @@ body[theme-mode='dark'] .semi-json-viewer-view-line {
   .responsive-toolbar__mobile-primary .semi-button {
     flex-shrink: 0;
   }
-}
 
-@media (--xs-down) {
+  /* 主从布局（如用户管理的部门树）会把工具栏容器压到 350px 以内，
+     此时应让筛选/更多换行，而不是把搜索输入框无限压缩到不可用宽度 */
   .responsive-toolbar--structured .responsive-toolbar__mobile {
-    flex-direction: column;
-    /* 列方向下交叉轴变为水平：沿用 flex-start 会让子项按内容宽度收缩而溢出视口，
-       必须 stretch 才能被容器宽度约束 */
-    align-items: stretch;
+    flex-wrap: wrap;
+    row-gap: 8px;
   }
 
   .responsive-toolbar__mobile-primary {
-    width: 100%;
+    min-width: 260px;
+  }
+}
+
+@media (--xs-down) {
+  /* 按钮已收敛为图标，剩余宽度足以让主操作区与筛选/更多共处一行，
+     避免工具栏在窄屏占用两行（72px→32px），同时保持搜索框常驻可见 */
+  .responsive-toolbar--structured .responsive-toolbar__mobile {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* 仅解除 md-down 的最小宽度限制；flex 沿用基础规则的 `flex: 1`（基准 0），
+     基准若为 auto 会让主区按内容宽度撑开而强制换行 */
+  .responsive-toolbar__mobile-primary {
+    min-width: 0;
   }
 
   .responsive-toolbar__mobile-extra {
     display: flex;
+    flex: 0 0 auto;
     justify-content: flex-end;
-    width: 100%;
+    width: auto;
+  }
+
+  /* 工具栏按钮收敛为纯图标，把宽度让给搜索框。
+     仅作用于带图标的按钮：无图标按钮若隐藏文案会变成空白方块。
+     文案用 visually-hidden 而非 display:none，读屏软件仍能播报按钮名称。 */
+  .responsive-toolbar__mobile-primary .semi-button-with-icon .semi-button-content-right,
+  .responsive-toolbar__mobile-extra .semi-button-with-icon .semi-button-content-right {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    clip-path: inset(50%);
   }
 }
 
