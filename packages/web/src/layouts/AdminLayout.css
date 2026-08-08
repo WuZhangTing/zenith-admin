@@ -3,7 +3,11 @@
 .admin-layout {
   display: flex;
   flex-direction: column;
+  /* iOS Safari 的 100vh 等于工具栏隐藏时的大视口高度：工具栏可见时外壳底部会被顶出
+     可视区，而外壳定高 + overflow hidden 使这段内容滚不到（分页器等被截断）。
+     dvh 跟随动态视口，100vh 仅作旧浏览器兜底。与移动审批端 .ap-page 保持一致。 */
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -724,10 +728,20 @@
   font-weight: 600;
 }
 
+/* 抽屉 body 改为纵向弹性容器：搜索入口固定，菜单列表占满剩余高度。
+   此前菜单用 `calc(100vh - header)` 按视口硬算高度，会超出 body 实际可用高度，
+   形成 body 与菜单列表两层嵌套滚动，且底部菜单项滚不到。 */
+.admin-mobile-nav-sheet .semi-sidesheet-body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .admin-mobile-nav-sheet__search {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
   width: calc(100% - 24px);
   /* 44px 满足触控目标下限，避免与下方菜单项误触 */
   min-height: 44px;
@@ -750,7 +764,9 @@
 
 .admin-mobile-nav {
   width: 100%;
-  height: calc(100vh - var(--header-height));
+  /* 由抽屉 body 的弹性布局分配高度，不再按视口推算（见上方 body 规则） */
+  flex: 1;
+  min-height: 0;
   background: var(--color-sidebar-bg);
   border-right: 0;
 }

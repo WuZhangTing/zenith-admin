@@ -643,6 +643,7 @@ body[theme-mode='dark'] .semi-json-viewer-view-line {
   justify-content: center;
   width: 100%;
   height: 100vh;
+  height: 100dvh;
   flex-direction: column;
   gap: 24px;
 }
