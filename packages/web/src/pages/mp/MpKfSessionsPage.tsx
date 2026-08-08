@@ -28,8 +28,10 @@ import {
 } from '@/hooks/queries/mp-kf';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
+import { StatCard, StatGrid } from '@/components/charts/StatCard';
+import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 const STATUS_TAG: Record<MpKfSessionStatus, { label: string; color: 'orange' | 'green' | 'grey' }> = {
   waiting: { label: '排队中', color: 'orange' },
@@ -234,13 +236,15 @@ export default function MpKfSessionsPage() {
       )}
 
       {stats && (
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
-          <StatCard label="排队待接入" value={stats.waiting} color="#fa8c16" />
-          <StatCard label="进行中" value={stats.active} color="#52c41a" />
-          <StatCard label="今日已结束" value={stats.closedToday} color="#8c8c8c" />
-          <StatCard label="今日平均等待(秒)" value={stats.avgWaitSeconds} color="#1677ff" />
-          <StatCard label="今日满意度" value={stats.avgRating} color="#eb2f96" />
-          <div style={{ flex: 1, minWidth: 220, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <>
+          <StatGrid minItemWidth={150} style={{ marginBottom: 12 }}>
+            <StatCard title="排队待接入" value={stats.waiting} accent="#fa8c16" />
+            <StatCard title="进行中" value={stats.active} accent="#52c41a" />
+            <StatCard title="今日已结束" value={stats.closedToday} accent="#8c8c8c" />
+            <StatCard title="今日平均等待(秒)" value={stats.avgWaitSeconds} accent="#1677ff" />
+            <StatCard title="今日满意度" value={stats.avgRating} accent="#eb2f96" />
+          </StatGrid>
+          <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
             <Text type="tertiary" size="small">客服负载：</Text>
             {stats.agents.length === 0 && <Text type="tertiary" size="small">暂无客服</Text>}
             {stats.agents.map((a) => (
@@ -249,56 +253,65 @@ export default function MpKfSessionsPage() {
               </Tag>
             ))}
           </div>
-        </div>
+        </>
       )}
 
-      <div style={{ display: 'flex', gap: 12, height: 'calc(100vh - 280px)', minHeight: 420 }}>
-        <div style={{ width: 340, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <Tabs type="line" activeKey={tab} onChange={handleTabChange} style={{ padding: '0 8px' }}>
-            <TabPane tab="待接入" itemKey="waiting" />
-            <TabPane tab="进行中" itemKey="active" />
-            <TabPane tab="已结束" itemKey="closed" />
-          </Tabs>
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            <Spin spinning={listQuery.isFetching}>
-              {sessions.length === 0 ? (
-                <Empty description="暂无会话" style={{ padding: 32 }} />
-              ) : sessions.map((s) => (
-                <div key={s.id} onClick={() => selectSession(s.id)}
-                  style={{
-                    display: 'flex', gap: 10, padding: '10px 12px', cursor: 'pointer',
-                    borderBottom: '1px solid var(--semi-color-fill-0)',
-                    background: selectedId === s.id ? 'var(--semi-color-primary-light-default)' : 'transparent',
-                  }}>
-                  <Badge count={s.unreadCount} overflowCount={99} type="danger">
-                    <Avatar size="small" src={s.fanAvatar ?? undefined} color="light-blue">{(s.fanNickname ?? s.openid).slice(0, 1)}</Avatar>
-                  </Badge>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
-                      <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 150, fontWeight: 500 }}>{s.fanNickname || s.openid}</Text>
-                      <Tag size="small" color={STATUS_TAG[s.status].color} type="light">{STATUS_TAG[s.status].label}</Tag>
+      <div style={{ display: 'flex', height: 'calc(100dvh - 280px)', minHeight: 420 }}>
+        <MasterDetailLayout
+          bordered
+          gap={12}
+          defaultSize={340}
+          minSize={260}
+          maxSize={480}
+          persistKey="mpKfSessions"
+          showDetail={selectedId != null}
+          onBack={() => setSelectedId(null)}
+          master={(
+            <>
+              <Tabs type="line" activeKey={tab} onChange={handleTabChange} style={{ padding: '0 8px', flexShrink: 0 }}>
+                <TabPane tab="待接入" itemKey="waiting" />
+                <TabPane tab="进行中" itemKey="active" />
+                <TabPane tab="已结束" itemKey="closed" />
+              </Tabs>
+              <MasterDetailLayout.Body>
+                <Spin spinning={listQuery.isFetching}>
+                  {sessions.length === 0 ? (
+                    <Empty description="暂无会话" style={{ padding: 32 }} />
+                  ) : sessions.map((s) => (
+                    <div key={s.id} onClick={() => selectSession(s.id)}
+                      style={{
+                        display: 'flex', gap: 10, padding: '10px 12px', cursor: 'pointer',
+                        borderBottom: '1px solid var(--semi-color-fill-0)',
+                        background: selectedId === s.id ? 'var(--semi-color-primary-light-default)' : 'transparent',
+                      }}>
+                      <Badge count={s.unreadCount} overflowCount={99} type="danger">
+                        <Avatar size="small" src={s.fanAvatar ?? undefined} color="light-blue">{(s.fanNickname ?? s.openid).slice(0, 1)}</Avatar>
+                      </Badge>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
+                          <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 150, fontWeight: 500 }}>{s.fanNickname || s.openid}</Text>
+                          <Tag size="small" color={STATUS_TAG[s.status].color} type="light">{STATUS_TAG[s.status].label}</Tag>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, marginTop: 2 }}>
+                          <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 150 }}>
+                            {s.kfNickname ? `客服：${s.kfNickname}` : '等待分配'}
+                          </Text>
+                          <Text type="tertiary" size="small">
+                            {s.status === 'waiting' && s.waitSeconds != null ? `已等待 ${s.waitSeconds}s` : (s.lastMsgAt?.slice(11, 16) ?? '')}
+                          </Text>
+                        </div>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, marginTop: 2 }}>
-                      <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 150 }}>
-                        {s.kfNickname ? `客服：${s.kfNickname}` : '等待分配'}
-                      </Text>
-                      <Text type="tertiary" size="small">
-                        {s.status === 'waiting' && s.waitSeconds != null ? `已等待 ${s.waitSeconds}s` : (s.lastMsgAt?.slice(11, 16) ?? '')}
-                      </Text>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </Spin>
-          </div>
-        </div>
-
-        <div style={{ flex: 1, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {!detail ? (
+                  ))}
+                </Spin>
+              </MasterDetailLayout.Body>
+            </>
+          )}
+          detail={!detail ? (
             <Empty image={<MessageSquare size={48} color="var(--semi-color-text-2)" />} description="请选择左侧会话" style={{ margin: 'auto' }} />
           ) : (
             <>
-              <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--semi-color-border)', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--semi-color-border)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', flexShrink: 0 }}>
                 <Avatar size="small" src={detail.fanAvatar ?? undefined} color="light-blue">{(detail.fanNickname ?? detail.openid).slice(0, 1)}</Avatar>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <Space spacing={6}>
@@ -306,7 +319,7 @@ export default function MpKfSessionsPage() {
                     <Tag size="small" color={STATUS_TAG[detail.status].color} type="light">{STATUS_TAG[detail.status].label}</Tag>
                     {detail.closeReason && <Tag size="small" color="grey" type="light">{CLOSE_REASON_LABEL[detail.closeReason]}</Tag>}
                   </Space>
-                  <div><Text type="tertiary" size="small">{detail.kfNickname ? `承接客服：${detail.kfNickname}` : '未分配'} · {detail.openid}</Text></div>
+                  <div><Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ display: 'block' }}>{detail.kfNickname ? `承接客服：${detail.kfNickname}` : '未分配'} · {detail.openid}</Text></div>
                 </div>
                 <Space>
                   {detail.status === 'waiting' && can('mp:kf:session:accept') && (
@@ -370,7 +383,7 @@ export default function MpKfSessionsPage() {
               </Spin>
             </>
           )}
-        </div>
+        />
       </div>
 
       <AppModal title={pickModal.mode === 'accept' ? '接入会话' : '转接会话'} visible={pickModal.visible}
@@ -424,11 +437,4 @@ export default function MpKfSessionsPage() {
   );
 }
 
-function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
-  return (
-    <div style={{ minWidth: 130, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: '8px 16px' }}>
-      <Title heading={3} style={{ margin: 0, color }}>{value}</Title>
-      <Text type="tertiary" size="small">{label}</Text>
-    </div>
-  );
-}
+

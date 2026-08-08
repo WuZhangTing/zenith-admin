@@ -6,7 +6,7 @@ import type { MpStats } from '@zenith/shared/mp';
 import { formatDateForApi } from '@/utils/date';
 import { useMpAccounts } from './useMpAccounts';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
-import { BarChart, chartOptions, makeBarSpec, useChartPalette } from '@/components/charts';
+import { BarChart, chartOptions, makeBarSpec, useChartPalette, StatCard, StatGrid } from '@/components/charts';
 import { mpStatsKeys, useMpDatacube, useMpStats, type MpDatacubeParams } from '@/hooks/queries/mp-stats';
 
 const CARD_DEFS: { key: keyof MpStats; label: string; icon: React.ReactNode; color: string }[] = [
@@ -86,7 +86,7 @@ export default function MpStatisticsPage() {
             active
             placeholder={
               <>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
+                <StatGrid>
                   {Array.from({ length: 8 }, (_, i) => `sk-stat-${i}`).map((key) => (
                     <div key={key} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 16, background: 'var(--semi-color-bg-1)', display: 'flex', alignItems: 'center', gap: 12 }}>
                       <Skeleton.Avatar style={{ width: 40, height: 40, borderRadius: 'var(--semi-border-radius-medium)', flexShrink: 0 }} />
@@ -96,8 +96,8 @@ export default function MpStatisticsPage() {
                       </div>
                     </div>
                   ))}
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
+                </StatGrid>
+                <div className="chart-grid" style={{ marginTop: 16 }}>
                   {Array.from({ length: 2 }, (_, i) => `sk-trend-${i}`).map((key) => (
                     <Card key={key} style={{ borderRadius: 'var(--semi-border-radius-medium)' }} bodyStyle={{ padding: 16 }}>
                       <Skeleton.Title style={{ width: '40%', marginBottom: 12 }} />
@@ -110,19 +110,19 @@ export default function MpStatisticsPage() {
           >{null}</Skeleton>
         ) : (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
+            <StatGrid>
               {CARD_DEFS.map((c) => (
-                <div key={c.key} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 16, background: 'var(--semi-color-bg-1)', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 'var(--semi-border-radius-medium)', background: `${c.color}1a`, color: c.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{c.icon}</div>
-                  <div>
-                    <div style={{ fontSize: 22, fontWeight: 600, lineHeight: 1.1 }}>{(stats?.[c.key] as number) ?? 0}</div>
-                    <div style={{ fontSize: 12, color: 'var(--semi-color-text-2)' }}>{c.label}</div>
-                  </div>
-                </div>
+                <StatCard
+                  key={c.key}
+                  title={c.label}
+                  value={(stats?.[c.key] as number) ?? 0}
+                  icon={c.icon}
+                  accent={c.color}
+                />
               ))}
-            </div>
+            </StatGrid>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
+            <div className="chart-grid" style={{ marginTop: 16 }}>
               <TrendCard title="近 7 日粉丝增长">
                 <BarChart {...fanSpec} options={chartOptions} height={160} />
               </TrendCard>
@@ -144,7 +144,7 @@ export default function MpStatisticsPage() {
         </div>
 
         {datacube ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
+          <StatGrid minItemWidth={260}>
             <DatacubeTable title="用户增减" head={['日期', '新增', '取关']}
               rows={datacube.userSummary.map((r) => [r.refDate.slice(5), String(r.newUser), String(r.cancelUser)])} />
             <DatacubeTable title="累计用户" head={['日期', '累计关注']}
@@ -157,7 +157,7 @@ export default function MpStatisticsPage() {
               rows={datacube.userShare.map((r) => [r.refDate.slice(5), String(r.shareCount), String(r.shareUser)])} />
             <DatacubeTable title="接口分析" head={['日期', '调用', '失败', '最大耗时ms']}
               rows={datacube.interfaceSummary.map((r) => [r.refDate.slice(5), String(r.callbackCount), String(r.failCount), String(r.maxTimeCost)])} />
-          </div>
+          </StatGrid>
         ) : (
           <Typography.Text type="tertiary">点击「查询」拉取微信侧真实统计数据。</Typography.Text>
         )}
