@@ -105,13 +105,19 @@ export default function DictsPage() {
   const togglingItemStatusId = toggleItemStatusMutation.isPending ? (toggleItemStatusMutation.variables?.itemId ?? null) : null;
   const togglingDictStatusId = toggleDictStatusMutation.isPending ? (toggleDictStatusMutation.variables?.id ?? null) : null;
 
+  // 单栏（窄屏）下 showDetail 由 selectedDict 驱动，若沿用桌面端「默认选中第一项」
+  // 会直接落到字典项详情，字典列表反而要点返回才能看到。用 ref 保存布局形态，
+  // 使本 effect 只依赖数据、不因布局变化重跑。
+  const isNarrowLayoutRef = useRef(false);
+
   useEffect(() => {
     const nextList = dictListQuery.data?.list ?? [];
     setDicts(nextList);
     setSelectedDict((prev) => {
       if (nextList.length === 0) return null;
       const current = prev ? nextList.find((d) => d.id === prev.id) : null;
-      return current ?? nextList[0];
+      if (current) return current;
+      return isNarrowLayoutRef.current ? null : nextList[0];
     });
   }, [dictListQuery.data]);
 
@@ -640,6 +646,11 @@ export default function DictsPage() {
         persistKey="dicts"
         showDetail={!!selectedDict}
         onBack={() => setSelectedDict(null)}
+        onResponsiveChange={(narrow) => {
+          isNarrowLayoutRef.current = narrow;
+          // 由窄屏转回双栏时补选第一项，避免右侧空白
+          if (!narrow) setSelectedDict((prev) => prev ?? dicts[0] ?? null);
+        }}
         style={{ flex: 1, overflow: 'hidden' }}
       />
 

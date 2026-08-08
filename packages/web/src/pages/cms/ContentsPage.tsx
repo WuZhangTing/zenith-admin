@@ -5,7 +5,7 @@ import { Button, Input, Tag, Toast, Modal, Tabs, TabPane, Tree, TreeSelect, Typo
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
-import { ChevronDown, FileUp, Image as ImageIcon, Film, Paperclip, ArrowLeft, FolderTree } from 'lucide-react';
+import { ChevronDown, FileUp, Image as ImageIcon, Film, Paperclip, FolderTree } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -745,20 +745,6 @@ export default function ContentsPage() {
   // ─── 栏目树侧栏（MasterDetailLayout：可拖宽/持久化/窄屏单栏切换，与用户管理一致）──
   const masterContent = (
     <>
-      {showChannelTree && (
-        <button
-          type="button"
-          onClick={() => setShowChannelTree(false)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', border: 0,
-            borderBottom: '1px solid var(--semi-color-border)', background: 'transparent', cursor: 'pointer',
-            color: 'var(--semi-color-text-2)', fontSize: 13, width: '100%', flexShrink: 0,
-          }}
-        >
-          <ArrowLeft size={14} />
-          返回内容列表
-        </button>
-      )}
       <MasterDetailLayout.Header>
         <CmsSiteSelect value={siteId} onChange={handleSiteChange} width="100%" />
       </MasterDetailLayout.Header>
@@ -800,6 +786,8 @@ export default function ContentsPage() {
         minSize={160}
         maxSize={400}
         showDetail={!showChannelTree}
+        onMasterBack={() => setShowChannelTree(false)}
+        masterBackLabel="返回内容列表"
         onResponsiveChange={setIsLayoutNarrow}
         persistKey="cms-contents"
         style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}

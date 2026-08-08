@@ -377,12 +377,18 @@ export default function AIChatPage() {
     return () => clearTimeout(t);
   }, [searchKeyword]);
 
+  // 单栏（窄屏）下 showDetail 由 activeConvId 驱动，若沿用桌面端「默认打开首个会话」
+  // 会直接落到对话详情，会话列表反而要点返回才能看到。
+  const isNarrowLayoutRef = useRef(false);
+
   useEffect(() => {
     const pages = conversationsQuery.data?.pages;
     if (!pages) return;
     const list = pages.flat();
     setConversations(list);
-    if (!didInitConvRef.current && list.length > 0) setActiveConvId(list[0].id);
+    if (!didInitConvRef.current && list.length > 0 && !isNarrowLayoutRef.current) {
+      setActiveConvId(list[0].id);
+    }
     didInitConvRef.current = true;
   }, [conversationsQuery.data]);
 
@@ -1157,6 +1163,11 @@ export default function AIChatPage() {
       persistKey="ai-chat"
       showDetail={activeConvId !== null}
       onBack={() => setActiveConvId(null)}
+      onResponsiveChange={(narrow) => {
+        isNarrowLayoutRef.current = narrow;
+        // 由窄屏转回双栏时补选首个会话，避免右侧空白
+        if (!narrow) setActiveConvId((prev) => prev ?? conversations[0]?.id ?? null);
+      }}
       master={(
         <NavListPanel
           headerExtra={

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Table, Button, Select, Space, Modal, Form, Toast, Tag, Upload, Typography, Row, Col, Tree, Spin, Switch } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Download, Trash2, FileUp, ChevronsUpDown, ChevronsDownUp, Building2, ArrowLeft, KeyRound, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Download, Trash2, FileUp, ChevronsUpDown, ChevronsDownUp, Building2, KeyRound, ToggleLeft, ToggleRight } from 'lucide-react';
 import type { User, Role, Department, Position } from '@zenith/shared/identity';
 import { request } from '@/utils/request';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -616,12 +616,6 @@ export default function UsersPage() {
 
   const masterContent = (
     <div className="users-dept-sidebar">
-      {showDeptTree && (
-        <button type="button" className="users-dept-back" onClick={() => setShowDeptTree(false)}>
-          <ArrowLeft size={14} />
-          返回用户列表
-        </button>
-      )}
       <div className="users-dept-sidebar-title">
         <span className="users-dept-sidebar-title-text">组织架构</span>
         <div className="users-dept-sidebar-actions">
@@ -818,6 +812,8 @@ export default function UsersPage() {
         minSize={160}
         maxSize={400}
         showDetail={!showDeptTree}
+        onMasterBack={() => setShowDeptTree(false)}
+        masterBackLabel="返回用户列表"
         onResponsiveChange={setIsLayoutNarrow}
         persistKey="users"
         style={{ flex: 1, overflow: 'hidden' }}

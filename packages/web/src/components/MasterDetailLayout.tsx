@@ -3,6 +3,39 @@ import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from
 
 type Side = 'left' | 'right';
 
+/** 响应式单栏模式下的返回条，master / detail 两侧共用 */
+function ResponsiveBackBar({ onClick, label }: Readonly<{ onClick: () => void; label: ReactNode }>) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        flexShrink: 0,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '8px 12px',
+        background: 'transparent',
+        border: 0,
+        borderBottomColor: 'var(--semi-color-border)',
+        borderBottomStyle: 'solid',
+        borderBottomWidth: 1,
+        cursor: 'pointer',
+        color: 'var(--semi-color-text-2)',
+        fontSize: 13,
+        minHeight: 40,
+        boxSizing: 'border-box',
+        width: '100%',
+      }}
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <polyline points="15 18 9 12 15 6" />
+      </svg>
+      {label}
+    </button>
+  );
+}
+
 interface MasterDetailLayoutProps {
   readonly master: ReactNode;
   detail: ReactNode;
@@ -50,6 +83,16 @@ interface MasterDetailLayoutProps {
    * 点击时调用此回调，组件本身不管理状态。
    */
   onBack?: () => void;
+  /**
+   * 响应式 master 模式下的返回回调（master → detail）。
+   *
+   * 适用于「侧栏是筛选树、detail 才是页面主体」的场景（如用户管理的部门树）：
+   * 此类页面窄屏默认展示 detail，用户主动切到 master 后需要退回主体内容。
+   * 与 onBack 分开是因为「列表 → 详情」型页面的 master 是根视图，不应出现返回。
+   */
+  onMasterBack?: () => void;
+  /** onMasterBack 返回条的文案，默认「返回」 */
+  masterBackLabel?: ReactNode;
   /**
    * 建议改用 showDetail。单栏模式下当前激活的面板（'master' | 'detail'），默认 'master'。
    */
@@ -109,6 +152,8 @@ function MasterDetailLayoutImpl(props: Readonly<MasterDetailLayoutProps>) {
     responsiveBreakpoint = 720,
     showDetail,
     onBack,
+    onMasterBack,
+    masterBackLabel = '返回',
     responsiveActive,
     className,
     style,
@@ -255,39 +300,13 @@ function MasterDetailLayoutImpl(props: Readonly<MasterDetailLayoutProps>) {
     return (
       <div ref={rootRef} className={className} style={rootStyle}>
         <div style={{ ...masterBaseStyle, width: '100%', display: detailVisible ? 'none' : 'flex' }}>
+          {!detailVisible && onMasterBack && (
+            <ResponsiveBackBar onClick={onMasterBack} label={masterBackLabel} />
+          )}
           {master}
         </div>
         <div style={{ ...detailBaseStyle, display: detailVisible ? 'flex' : 'none' }}>
-          {detailVisible && onBack && (
-            <button
-              type="button"
-              onClick={onBack}
-              style={{
-                flexShrink: 0,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '8px 12px',
-                borderBottom: '1px solid var(--semi-color-border)',
-                background: 'transparent',
-                border: 0,
-                borderBottomColor: 'var(--semi-color-border)',
-                borderBottomStyle: 'solid',
-                borderBottomWidth: 1,
-                cursor: 'pointer',
-                color: 'var(--semi-color-text-2)',
-                fontSize: 13,
-                minHeight: 40,
-                boxSizing: 'border-box',
-                width: '100%',
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-              返回
-            </button>
-          )}
+          {detailVisible && onBack && <ResponsiveBackBar onClick={onBack} label="返回" />}
           {detail}
         </div>
       </div>

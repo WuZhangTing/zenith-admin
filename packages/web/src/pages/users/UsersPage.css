@@ -52,23 +52,3 @@
   flex-direction: column;
   gap: 12px;
 }
-
-.users-dept-back {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border: 0;
-  border-bottom: 1px solid var(--semi-color-border);
-  background: transparent;
-  cursor: pointer;
-  color: var(--semi-color-text-2);
-  font-size: 13px;
-  width: 100%;
-  box-sizing: border-box;
-  flex-shrink: 0;
-}
-
-.users-dept-back:hover {
-  color: var(--semi-color-primary);
-}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppModal } from '@/components/AppModal';
 import { Badge, Button, Dropdown, InputNumber, JsonViewer, Radio, RadioGroup, Space, Tag, TextArea, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
@@ -179,7 +179,11 @@ export default function CacheManagePage() {
     return [...map.values()].sort((a, b) => a.category.localeCompare(b.category));
   })();
 
-  // 默认选中第一个分类
+  // 默认选中第一个分类。单栏（窄屏）下 showDetail 由 selectedCategory 驱动，
+  // 若沿用该默认会直接落到缓存条目详情，分类列表反而要点返回才能看到。
+  // 用 ref 保存布局形态，使本 effect 只依赖数据、不因布局变化重跑。
+  const isNarrowLayoutRef = useRef(false);
+
   useEffect(() => {
     if (!loading && data.length > 0) {
       setSelectedCategory((prev) => {
@@ -187,6 +191,7 @@ export default function CacheManagePage() {
           const stillExists = categoryRows.find((r) => r.category === prev.category);
           if (stillExists) return stillExists;
         }
+        if (isNarrowLayoutRef.current) return null;
         return categoryRows.length > 0 ? categoryRows[0] : null;
       });
     }
@@ -565,6 +570,11 @@ export default function CacheManagePage() {
         persistKey="cache"
         showDetail={!!selectedCategory}
         onBack={() => setSelectedCategory(null)}
+        onResponsiveChange={(narrow) => {
+          isNarrowLayoutRef.current = narrow;
+          // 由窄屏转回双栏时补选第一项，避免右侧空白
+          if (!narrow) setSelectedCategory((prev) => prev ?? categoryRows[0] ?? null);
+        }}
         style={{ flex: 1, overflow: 'hidden' }}
       />
 

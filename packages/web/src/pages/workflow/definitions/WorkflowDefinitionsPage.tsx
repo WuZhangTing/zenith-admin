@@ -515,6 +515,8 @@ export default function WorkflowDefinitionsPage() {
       maxSize={360}
       persistKey="workflow-definitions"
       showDetail={!showCategorySidebar}
+      onMasterBack={() => setShowCategorySidebar(false)}
+      masterBackLabel="返回流程列表"
       onResponsiveChange={setIsLayoutNarrow}
       master={
         <CategorySidebar
