@@ -18,39 +18,15 @@
   gap: 8px;
 }
 
-.channel-dashboard-charts-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
-  gap: 12px;
-}
-
-.channel-dashboard-lists-row {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.channel-dashboard-card.semi-card,
-.channel-dashboard-stat-card.semi-card {
-  background: var(--color-layout-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--semi-border-radius-large) !important;
-  box-shadow: none;
-}
-
-.channel-dashboard-card.semi-card .semi-card-header,
-.channel-dashboard-stat-card.semi-card .semi-card-header {
-  background: transparent;
-  border-bottom-color: var(--color-border);
-}
-
-.channel-dashboard-stat-card {
-  transition: transform 0.2s ease, border-color 0.2s ease;
-}
-
-.channel-dashboard-stat-card:hover {
-  transform: translateY(-1px);
-  border-color: var(--semi-color-primary-light-active);
+/* 图表行：三栏且主图更宽。分隔交给公共 .chart-grid 语言，这里只覆盖列比例。
+   必须限定在 lg 以上：本规则与 .chart-grid 同权重（0,1,0）且顺序在后，
+   不限定的话窄屏会把它的单列覆盖回三栏。
+   原先的卡片外壳样式已删除——其特异性 0,3,0 且 border-radius 带 !important，
+   会压过 .zx-flat-panels 的扁平化规则，使本页卡片仍有边框圆角。 */
+@media (--lg-up) {
+  .channel-dashboard-charts-row {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
 }
 
 .channel-dashboard-chart-placeholder {
@@ -72,13 +48,4 @@
 .channel-dashboard-readrate__hint {
   font-size: 12px;
   color: var(--semi-color-text-2);
-}
-
-@media (--xl-down) {
-  .channel-dashboard-charts-row {
-    grid-template-columns: 1fr;
-  }
-  .channel-dashboard-lists-row {
-    grid-template-columns: 1fr;
-  }
 }

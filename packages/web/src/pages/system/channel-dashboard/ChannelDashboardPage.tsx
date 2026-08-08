@@ -179,11 +179,10 @@ export default function ChannelDashboardPage() {
       </StatGrid>
 
       {/* ===== 图表区 ===== */}
-      <div className="channel-dashboard-charts-row">
+      <div className="chart-grid chart-grid--3 channel-dashboard-charts-row">
         {/* 消息趋势 */}
         <Card
           title={<Text strong style={{ fontSize: 14 }}>消息趋势（近 7 天）</Text>}
-          className="channel-dashboard-card"
           bodyStyle={{ padding: '12px 16px 8px' }}
         >
           {loading ? chartSkeleton : (
@@ -194,7 +193,6 @@ export default function ChannelDashboardPage() {
         {/* 会话状态分布 */}
         <Card
           title={<Text strong style={{ fontSize: 14 }}>会话状态分布</Text>}
-          className="channel-dashboard-card"
           bodyStyle={{ padding: '12px 16px 8px' }}
         >
           {loading ? chartSkeleton : statusTotal === 0 ? (
@@ -207,7 +205,6 @@ export default function ChannelDashboardPage() {
         {/* 群发已读率 */}
         <Card
           title={<Text strong style={{ fontSize: 14 }}>群发已读率</Text>}
-          className="channel-dashboard-card"
           bodyStyle={{ padding: '12px 16px 8px' }}
         >
           {loading ? chartSkeleton : (
@@ -226,7 +223,7 @@ export default function ChannelDashboardPage() {
       </div>
 
       {/* ===== 列表区 ===== */}
-      <div className="channel-dashboard-lists-row">
+      <div className="chart-grid">
         {/* 热门自动回复 */}
         <Card
           title={
@@ -235,7 +232,6 @@ export default function ChannelDashboardPage() {
               <Text strong style={{ fontSize: 14 }}>热门自动回复</Text>
             </div>
           }
-          className="channel-dashboard-card"
           bodyStyle={{ padding: '4px 8px 8px' }}
         >
           <Table<ChannelDashboardTopReply>
@@ -257,7 +253,6 @@ export default function ChannelDashboardPage() {
               <Text strong style={{ fontSize: 14 }}>运营号消息排行</Text>
             </div>
           }
-          className="channel-dashboard-card"
           bodyStyle={{ padding: '4px 8px 8px' }}
         >
           <Table<ChannelDashboardChannelRank>

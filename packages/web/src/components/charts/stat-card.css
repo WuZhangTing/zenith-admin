@@ -47,7 +47,7 @@
    auto-fit 的列数是布局时算出来的，选择器无从判断哪一项是行首。 */
 .chart-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--chart-grid-cols, 2), minmax(0, 1fr));
   border-top: 1px solid var(--semi-color-border);
 }
 
@@ -57,13 +57,29 @@
   border-left: 1px solid var(--semi-color-border);
 }
 
-/* 行首那一项不画竖线，末列不留右内边距，让内容与页面两侧对齐 */
-.chart-grid > :nth-child(2n + 1) {
+/* 行首那一项不画竖线，末列不留右内边距，让内容与页面两侧对齐。
+   限定 :not(.chart-grid--3)，避免 2 列的取模规则与三栏变体互相打架
+   （第 3 项既命中 2n 又命中 3n，谁后写谁赢，结果左右内边距被清成 0）。 */
+.chart-grid:not(.chart-grid--3) > :nth-child(2n + 1) {
   padding-left: 0;
   border-left: 0;
 }
 
-.chart-grid > :nth-child(2n) {
+.chart-grid:not(.chart-grid--3) > :nth-child(2n) {
+  padding-right: 0;
+}
+
+/* 三栏变体：行首/末列按 3 取模 */
+.chart-grid--3 {
+  --chart-grid-cols: 3;
+}
+
+.chart-grid--3 > :nth-child(3n + 1) {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.chart-grid--3 > :nth-child(3n) {
   padding-right: 0;
 }
 
@@ -73,7 +89,13 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .chart-grid > * {
+  /* 单列后三栏变体也要归位，否则 --chart-grid-cols 仍为 3 */
+  .chart-grid--3 {
+    --chart-grid-cols: 1;
+  }
+
+  .chart-grid > *,
+  .chart-grid--3 > * {
     padding-inline: 0;
     border-left: 0;
   }
@@ -101,14 +123,22 @@
   border-left: 1px solid var(--semi-color-border);
 }
 
-.chart-grid > .zx-panel:nth-child(2n + 1),
-.zx-flat-panels .chart-grid > .semi-card:nth-child(2n + 1) {
+.chart-grid:not(.chart-grid--3) > .zx-panel:nth-child(2n + 1),
+.zx-flat-panels .chart-grid:not(.chart-grid--3) > .semi-card:nth-child(2n + 1) {
+  border-left: 0;
+}
+
+/* 三栏时行首按 3 取模 */
+.chart-grid--3 > .zx-panel:nth-child(3n + 1),
+.zx-flat-panels .chart-grid--3 > .semi-card:nth-child(3n + 1) {
   border-left: 0;
 }
 
 @media (--lg-down) {
   .chart-grid > .zx-panel,
-  .zx-flat-panels .chart-grid > .semi-card {
+  .chart-grid--3 > .zx-panel,
+  .zx-flat-panels .chart-grid > .semi-card,
+  .zx-flat-panels .chart-grid--3 > .semi-card {
     border-left: 0;
   }
 
