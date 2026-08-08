@@ -1,5 +1,5 @@
 import { Button, Empty, Spin, Typography, Tag, Space } from '@douyinfe/semi-ui';
-import { BarChart, chartOptions, makeBarSpec, useChartPalette, datumNumber, datumText } from '@/components/charts';
+import { BarChart, chartOptions, makeBarSpec, useChartPalette, datumNumber, datumText, StatCard, StatGrid } from '@/components/charts';
 import { RefreshCw, Database, Table as TableIcon, Eye, KeyRound, Network, Activity, HardDrive, Server } from 'lucide-react';
 import { useDbAdminOverview } from '@/hooks/queries/db-admin';
 
@@ -44,39 +44,7 @@ function formatUptime(seconds: number): string {
   return parts.join(' ') || '< 1 分';
 }
 
-interface StatCardProps {
-  icon: React.ReactNode;
-  label: string;
-  value: string | number;
-  sub?: string;
-  accent?: string;
-}
 
-function StatCard({ icon, label, value, sub, accent }: Readonly<StatCardProps>) {
-  return (
-    <div
-      style={{
-        background: 'var(--semi-color-bg-1)',
-        border: '1px solid var(--semi-color-border)',
-        borderRadius: 'var(--semi-border-radius-medium)',
-        padding: '14px 16px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 6,
-        minHeight: 92,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: accent ?? 'var(--semi-color-primary)' }}>
-        {icon}
-        <Text type="tertiary" size="small">{label}</Text>
-      </div>
-      <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--semi-color-text-0)', lineHeight: 1.2 }}>
-        {value}
-      </div>
-      <div style={{ fontSize: 12, color: 'var(--semi-color-text-2)', minHeight: 16 }}>{sub ?? ''}</div>
-    </div>
-  );
-}
 
 export function OverviewPanel({ onSelectTable }: Readonly<{ onSelectTable?: (schema: string, name: string) => void }>) {
   const overviewQuery = useDbAdminOverview();
@@ -134,20 +102,20 @@ export function OverviewPanel({ onSelectTable }: Readonly<{ onSelectTable?: (sch
 
       {data && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 12, marginBottom: 16 }}>
-            <StatCard icon={<HardDrive size={15} />} label="数据库大小" value={data.databaseSizeText} accent="#3b82f6" />
-            <StatCard icon={<TableIcon size={15} />} label="表" value={data.tableCount} sub={`约 ${data.totalRowEstimate.toLocaleString()} 行`} accent="#10b981" />
-            <StatCard icon={<Eye size={15} />} label="视图 / 物化视图" value={data.viewCount} accent="#8b5cf6" />
-            <StatCard icon={<KeyRound size={15} />} label="索引" value={data.indexCount} accent="#f59e0b" />
-            <StatCard icon={<Network size={15} />} label="Schema" value={data.schemaCount} accent="#06b6d4" />
+          <StatGrid minItemWidth={170} style={{ marginBottom: 16 }}>
+            <StatCard icon={<HardDrive size={15} />} title="数据库大小" value={data.databaseSizeText} accent="#3b82f6" />
+            <StatCard icon={<TableIcon size={15} />} title="表" value={data.tableCount} sub={`约 ${data.totalRowEstimate.toLocaleString()} 行`} accent="#10b981" />
+            <StatCard icon={<Eye size={15} />} title="视图 / 物化视图" value={data.viewCount} accent="#8b5cf6" />
+            <StatCard icon={<KeyRound size={15} />} title="索引" value={data.indexCount} accent="#f59e0b" />
+            <StatCard icon={<Network size={15} />} title="Schema" value={data.schemaCount} accent="#06b6d4" />
             <StatCard
               icon={<Activity size={15} />}
-              label="活动连接"
+              title="活动连接"
               value={`${data.activeConnections} / ${data.maxConnections}`}
               sub={`占用 ${connPercent}%`}
               accent={connPercent > 80 ? '#ef4444' : '#14b8a6'}
             />
-          </div>
+          </StatGrid>
 
           <div
             style={{

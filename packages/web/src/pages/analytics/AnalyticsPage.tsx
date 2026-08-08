@@ -20,6 +20,8 @@ import {
   makeTreemapSpec,
   datumNumber,
   useChartPalette,
+  StatCard,
+  StatGrid,
   type ChartDatum,
   type TreemapNode,
 } from '@/components/charts';
@@ -94,8 +96,6 @@ const DIMENSION_OPTIONS = [
 const ACCENT_COLORS = ['#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#64748b'];
 
 const sectionStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 16 };
-const gridStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12 };
-const chartGridStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(320px, 0.9fr)', gap: 16 };
 
 function numberText(value: number): string {
   return String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -113,29 +113,6 @@ function DeltaText({ value, suffix = '%' }: Readonly<{ value: number; suffix?: s
     <span style={{ color: positive ? 'var(--semi-color-success)' : 'var(--semi-color-danger)', fontWeight: 600 }}>
       {positive ? '▲' : '▼'} {Math.abs(value).toFixed(1)}{suffix}
     </span>
-  );
-}
-
-function StatCard({
-  icon,
-  label,
-  value,
-  sub,
-  color = 'var(--semi-color-primary)',
-}: Readonly<{ icon: ReactNode; label: string; value: ReactNode; sub?: ReactNode; color?: string }>) {
-  return (
-    <Card bodyStyle={{ padding: 16 }} style={{ borderRadius: 'var(--semi-border-radius-large)' }}>
-      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-        <div style={{ width: 38, height: 38, borderRadius: 'var(--semi-border-radius-large)', display: 'grid', placeItems: 'center', color, background: `color-mix(in srgb, ${color} 10%, transparent)` }}>
-          {icon}
-        </div>
-        <div style={{ minWidth: 0 }}>
-          <Typography.Text type="tertiary" size="small">{label}</Typography.Text>
-          <div style={{ fontSize: 25, lineHeight: '32px', fontWeight: 700, color: 'var(--semi-color-text-0)' }}>{value}</div>
-          {sub ? <div style={{ marginTop: 4, fontSize: 12 }}>{sub}</div> : null}
-        </div>
-      </div>
-    </Card>
   );
 }
 
@@ -215,15 +192,15 @@ function OverviewTab() {
   }, [chartData, palette, trends?.series, trends?.compare]);
 
   const cards = overview ? [
-    { label: '浏览量 PV', value: numberText(overview.pv), icon: <Eye size={19} />, color: palette.primary, sub: <DeltaText value={overview.pvDelta} /> },
-    { label: '访客 UV', value: numberText(overview.uv), icon: <Users size={19} />, color: '#22c55e', sub: <DeltaText value={overview.uvDelta} /> },
-    { label: '会话', value: numberText(overview.sessions), icon: <Activity size={19} />, color: '#8b5cf6', sub: <DeltaText value={overview.sessionsDelta} /> },
-    { label: '事件', value: numberText(overview.events), icon: <Flame size={19} />, color: '#f59e0b' },
-    { label: '新增用户', value: numberText(overview.newUsers), icon: <TrendingUp size={19} />, color: '#ef4444' },
-    { label: '平均会话时长', value: msToReadable(overview.avgSessionMs), icon: <Clock size={19} />, color: '#06b6d4' },
-    { label: '跳出率', value: percentText(overview.bounceRate), icon: <Target size={19} />, color: '#f97316', sub: <DeltaText value={overview.bounceRateDelta} suffix=" pts" /> },
-    { label: '人均页数', value: overview.avgPagesPerSession.toFixed(2), icon: <BarChart3 size={19} />, color: '#84cc16' },
-    { label: '实时在线', value: numberText(overview.activeNow), icon: <Zap size={19} />, color: '#ec4899' },
+    { title: '浏览量 PV', value: numberText(overview.pv), icon: <Eye size={19} />, accent: palette.primary, sub: <DeltaText value={overview.pvDelta} /> },
+    { title: '访客 UV', value: numberText(overview.uv), icon: <Users size={19} />, accent: '#22c55e', sub: <DeltaText value={overview.uvDelta} /> },
+    { title: '会话', value: numberText(overview.sessions), icon: <Activity size={19} />, accent: '#8b5cf6', sub: <DeltaText value={overview.sessionsDelta} /> },
+    { title: '事件', value: numberText(overview.events), icon: <Flame size={19} />, accent: '#f59e0b' },
+    { title: '新增用户', value: numberText(overview.newUsers), icon: <TrendingUp size={19} />, accent: '#ef4444' },
+    { title: '平均会话时长', value: msToReadable(overview.avgSessionMs), icon: <Clock size={19} />, accent: '#06b6d4' },
+    { title: '跳出率', value: percentText(overview.bounceRate), icon: <Target size={19} />, accent: '#f97316', sub: <DeltaText value={overview.bounceRateDelta} suffix=" pts" /> },
+    { title: '人均页数', value: overview.avgPagesPerSession.toFixed(2), icon: <BarChart3 size={19} />, accent: '#84cc16' },
+    { title: '实时在线', value: numberText(overview.activeNow), icon: <Zap size={19} />, accent: '#ec4899' },
   ] : [];
 
   return (
@@ -256,7 +233,7 @@ function OverviewTab() {
           loading
           active
           placeholder={
-            <div style={gridStyle}>
+            <StatGrid minItemWidth={190}>
               {Array.from({ length: 9 }, (_, i) => `sk-stat-${i}`).map((key) => (
                 <Card key={key} bodyStyle={{ padding: 16 }} style={{ borderRadius: 'var(--semi-border-radius-large)' }}>
                   <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
@@ -268,10 +245,10 @@ function OverviewTab() {
                   </div>
                 </Card>
               ))}
-            </div>
+            </StatGrid>
           }
         >{null}</Skeleton>
-      ) : <div style={gridStyle}>{cards.map((card) => <StatCard key={card.label} {...card} />)}</div>}
+      ) : <StatGrid minItemWidth={190}>{cards.map((card) => <StatCard key={String(card.title)} {...card} />)}</StatGrid>}
       <Card title="访问趋势" bodyStyle={{ padding: 16 }}>
         {chartData.length === 0 ? emptyOrSpin(loading) : (
           <LineChart {...trendSpec} options={chartOptions} height={300} />
@@ -303,12 +280,12 @@ function RealtimeTab() {
   return (
     <div style={sectionStyle}>
       <SectionHeader title="实时看板" description="事件推送即时刷新 · 每 10 秒轮询兜底" extra={<Button icon={<RefreshCcw size={14} />} onClick={() => void realtimeQuery.refetch()} loading={loading}>刷新</Button>} />
-      <div style={gridStyle}>
-        <StatCard label="实时在线" value={numberText(data?.activeUsers ?? 0)} icon={<Users size={19} />} color="#22c55e" />
-        <StatCard label="近30分钟浏览" value={numberText(data?.pageViewsLast30Min ?? 0)} icon={<Eye size={19} />} color={palette.primary} />
-        <StatCard label="近1分钟事件" value={numberText(data?.eventsLastMinute ?? 0)} icon={<Zap size={19} />} color="#f59e0b" />
-      </div>
-      <div style={chartGridStyle}>
+      <StatGrid minItemWidth={190}>
+        <StatCard title="实时在线" value={numberText(data?.activeUsers ?? 0)} icon={<Users size={19} />} accent="#22c55e" />
+        <StatCard title="近30分钟浏览" value={numberText(data?.pageViewsLast30Min ?? 0)} icon={<Eye size={19} />} accent={palette.primary} />
+        <StatCard title="近1分钟事件" value={numberText(data?.eventsLastMinute ?? 0)} icon={<Zap size={19} />} accent="#f59e0b" />
+      </StatGrid>
+      <div className="chart-grid chart-grid--aside">
         <Card title="事件脉冲" bodyStyle={{ padding: 16 }}>
           {!data?.perMinute.length ? emptyOrSpin(loading) : (
             <AreaChart {...realtimeAreaSpec} options={chartOptions} height={300} />
@@ -464,11 +441,11 @@ function DwellTab() {
         description="页面访问深度与停留分布"
         extra={<Select value={days} optionList={DAYS_OPTIONS} onChange={(v) => setDays(Number(v))} style={{ width: 120 }} />}
       />
-      <div style={gridStyle}>
-        <StatCard label="总访问" value={numberText(data?.totalVisits ?? 0)} icon={<Eye size={19} />} color={palette.primary} />
-        <StatCard label="统计页面" value={numberText(rows.length)} icon={<BarChart3 size={19} />} color="#8b5cf6" />
-        <StatCard label="平均停留" value={msToReadable(avgDwell)} icon={<Clock size={19} />} color="#06b6d4" />
-      </div>
+      <StatGrid minItemWidth={190}>
+        <StatCard title="总访问" value={numberText(data?.totalVisits ?? 0)} icon={<Eye size={19} />} accent={palette.primary} />
+        <StatCard title="统计页面" value={numberText(rows.length)} icon={<BarChart3 size={19} />} accent="#8b5cf6" />
+        <StatCard title="平均停留" value={msToReadable(avgDwell)} icon={<Clock size={19} />} accent="#06b6d4" />
+      </StatGrid>
       <Card title="页面停留热区" bodyStyle={{ padding: 16 }}>
         {!rows.length ? emptyOrSpin(loading, '暂无页面停留数据') : (
           <TreemapChart {...dwellTreemapSpec} options={chartOptions} height={360} />
@@ -1373,7 +1350,7 @@ function DimensionTab() {
           )}
         </Card>
       )}
-      <div style={chartGridStyle}>
+      <div className="chart-grid chart-grid--aside">
         <Card title="占比" bodyStyle={{ padding: 16 }}>
           {!rows.length ? emptyOrSpin(loading) : (
             <PieChart {...dimensionPieSpec} options={chartOptions} height={300} />
