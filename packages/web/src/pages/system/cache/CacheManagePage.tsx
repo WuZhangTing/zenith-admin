@@ -27,6 +27,7 @@ import {
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { StatCard, StatGrid } from '@/components/charts/StatCard';
 
 interface CategoryRow {
   category: string;
@@ -98,19 +99,6 @@ function formatUptime(seconds: number): string {
   if (days > 0) return `${days}天 ${hours}小时`;
   if (hours > 0) return `${hours}小时 ${minutes}分`;
   return `${minutes}分`;
-}
-
-function OverviewStat({ label, value, tone }: Readonly<{ label: string; value: string; tone?: 'normal' | 'success' | 'warning' }>) {
-  const color =
-    tone === 'success' ? 'var(--semi-color-success)' :
-    tone === 'warning' ? 'var(--semi-color-warning)' :
-    'var(--semi-color-text-0)';
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 88 }}>
-      <span style={{ fontSize: 12, color: 'var(--semi-color-text-2)' }}>{label}</span>
-      <span style={{ fontSize: 15, fontWeight: 600, color }}>{value}</span>
-    </div>
-  );
 }
 
 export default function CacheManagePage() {
@@ -514,17 +502,14 @@ export default function CacheManagePage() {
   return (
     <div className="page-container">
       {overview && (
-        <div
-          style={{
-            display: 'flex', alignItems: 'center', gap: 22, padding: '10px 16px', flexWrap: 'wrap',
-            background: 'var(--semi-color-bg-1)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 132 }}>
-            <span style={{
-              width: 8, height: 8, borderRadius: '50%', display: 'inline-block',
-              background: overview.connected ? 'var(--semi-color-success)' : 'var(--semi-color-danger)',
-            }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingBottom: 4, borderBottom: '1px solid var(--semi-color-border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+            <span
+              style={{
+                width: 8, height: 8, borderRadius: '50%', display: 'inline-block',
+                background: overview.connected ? 'var(--semi-color-success)' : 'var(--semi-color-danger)',
+              }}
+            />
             <Typography.Text strong>Redis</Typography.Text>
             <Tag color={overview.connected ? 'green' : 'red'} size="small">
               {overview.connected ? '已连接' : '未连接'}
@@ -532,32 +517,35 @@ export default function CacheManagePage() {
             {overview.version && (
               <Typography.Text type="tertiary" size="small">v{overview.version}</Typography.Text>
             )}
+            <Button
+              style={{ marginLeft: 'auto' }}
+              type="tertiary"
+              theme="borderless"
+              icon={<RefreshCw size={14} className={overviewLoading ? 'spin' : ''} />}
+              aria-label="刷新概览"
+              title="刷新概览"
+              disabled={overviewLoading}
+              onClick={() => void overviewQuery.refetch()}
+            />
           </div>
-          <OverviewStat label="命名空间 Key" value={String(data.length)} />
-          <OverviewStat label="Redis 总 Key" value={String(overview.totalKeys)} />
-          <OverviewStat label="内存占用" value={overview.usedMemoryHuman || `${overview.usedMemory} B`} />
-          <OverviewStat
-            label="命中率"
-            value={`${overview.hitRate}%`}
-            tone={overview.hitRate >= 90 ? 'success' : overview.hitRate < 70 ? 'warning' : 'normal'}
-          />
-          <OverviewStat label="客户端连接" value={String(overview.connectedClients)} />
-          <OverviewStat label="运行时长" value={formatUptime(overview.uptimeSeconds)} />
-          <OverviewStat
-            label="内存碎片率"
-            value={overview.memFragmentationRatio ? overview.memFragmentationRatio.toFixed(2) : '—'}
-            tone={overview.memFragmentationRatio > 1.5 ? 'warning' : 'normal'}
-          />
-          <Button
-            type="tertiary"
-            theme="borderless"
-            style={{ marginLeft: 'auto' }}
-            icon={<RefreshCw size={14} className={overviewLoading ? 'spin' : ''} />}
-            aria-label="刷新概览"
-            title="刷新概览"
-            disabled={overviewLoading}
-            onClick={() => void overviewQuery.refetch()}
-          />
+
+          <StatGrid minItemWidth={150} gap={12}>
+            <StatCard title="命名空间 Key" value={String(data.length)} />
+            <StatCard title="Redis 总 Key" value={String(overview.totalKeys)} />
+            <StatCard title="内存占用" value={overview.usedMemoryHuman || `${overview.usedMemory} B`} />
+            <StatCard
+              title="命中率"
+              value={`${overview.hitRate}%`}
+              accent={overview.hitRate >= 90 ? 'var(--semi-color-success)' : overview.hitRate < 70 ? 'var(--semi-color-warning)' : undefined}
+            />
+            <StatCard title="客户端连接" value={String(overview.connectedClients)} />
+            <StatCard title="运行时长" value={formatUptime(overview.uptimeSeconds)} />
+            <StatCard
+              title="内存碎片率"
+              value={overview.memFragmentationRatio ? overview.memFragmentationRatio.toFixed(2) : '—'}
+              accent={overview.memFragmentationRatio > 1.5 ? 'var(--semi-color-warning)' : undefined}
+            />
+          </StatGrid>
         </div>
       )}
 
