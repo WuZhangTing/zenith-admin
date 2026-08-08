@@ -91,18 +91,24 @@
   overflow-wrap: anywhere;
 }
 
+/* 分隔线由每个卡片自身的 outline 绘制，而非「容器铺边框色 + gap 露底」。
+   后者依赖网格被填满：统计项为 5 个，窄屏 2 列（3 列时同理）会空出一格，
+   该格没有卡片覆盖便整块露出边框色，深色模式下尤其明显。
+   outline 画在 1px 缝隙内且不参与布局，相邻卡片的 outline 重叠成一条线；
+   容器 overflow hidden 裁掉外缘 outline，避免最外侧多出边框。 */
 .dashboard-stats-row {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 1px;
   border-block: 1px solid var(--color-border);
-  background: var(--color-border);
+  overflow: hidden;
 }
 
 .dashboard-stat-item {
   min-width: 0;
   padding: 21px 20px;
   background: var(--color-layout-bg);
+  outline: 1px solid var(--color-border);
 }
 
 .dashboard-stat-item__value {
