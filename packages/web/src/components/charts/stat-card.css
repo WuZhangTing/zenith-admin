@@ -205,6 +205,12 @@
   padding-top: 0;
 }
 
+/* 标题行里的状态/计数标签不参与压缩：Semi Tag 默认 flex-shrink 为 1，
+   窄卡片里会被压出省略号（实测「启用中」被截成「启...」），标签本身没有可截的冗余。 */
+.zx-flat-panels .semi-card-header .semi-tag {
+  flex-shrink: 0;
+}
+
 /* Semi 的 card-body 内边距来自组件自带样式表，加载顺序在本文件之后，
    提高特异性无效（实测 0,4,0 仍被覆盖），只能用 !important。
    与 global.css 覆盖 .semi-sidesheet-inner 的做法一致。

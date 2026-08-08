@@ -167,9 +167,6 @@ export default function RateLimitPage() {
                 <Space>
                   <Gauge size={16} />
                   <span style={{ fontWeight: 600 }}>{rule.name}</span>
-                  {rule.enabled
-                    ? <Tag size="small" color="green">启用中</Tag>
-                    : <Tag size="small" color="grey">已禁用</Tag>}
                 </Space>
               }
               headerExtraContent={
@@ -199,9 +196,14 @@ export default function RateLimitPage() {
                 <InfoBlock label="计数维度" value={KEY_TYPE_OPTIONS.find((o) => o.value === rule.keyType)?.label ?? rule.keyType} />
                 <InfoBlock label="拦截率" value={`${rate}%`} />
               </div>
-              <div style={{ display: 'flex', gap: 24, paddingTop: 8, borderTop: '1px solid var(--semi-color-border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 24, paddingTop: 8, borderTop: '1px solid var(--semi-color-border)' }}>
                 <Stat icon={<Zap size={14} />} label="命中" value={hit} />
                 <Stat icon={<ShieldOff size={14} />} label="拦截" value={blocked} danger={blocked > 0} />
+                <span style={{ marginLeft: 'auto' }}>
+                  {rule.enabled
+                    ? <Tag size="small" color="green">启用中</Tag>
+                    : <Tag size="small" color="grey">已禁用</Tag>}
+                </span>
               </div>
             </Card>
           );
