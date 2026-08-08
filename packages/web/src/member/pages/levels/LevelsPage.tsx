@@ -72,7 +72,7 @@ export default function LevelsPage() {
             <h2 className="mc-section-title">会员等级一览</h2>
             <p className="mc-section-sub">累计消费自动升级，权益永久有效</p>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20 }}>
+          <div className="auto-grid" style={{ ['--auto-grid-min' as string]: '220px', ['--auto-grid-cols' as string]: 4, ['--auto-grid-gap' as string]: '20px' }}>
             {LEVELS.map((level) => (
               <div key={level.name} style={{ border: `2px solid ${level.color}40`, borderRadius: 12, overflow: 'hidden' }}>
                 <div style={{ background: level.bg, padding: '24px 20px', textAlign: 'center' }}>

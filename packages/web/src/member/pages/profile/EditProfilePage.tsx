@@ -127,7 +127,7 @@ export default function EditProfilePage() {
       >
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 13, color: 'var(--m-text-secondary)', marginBottom: 12 }}>预设头像</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10 }}>
+          <div className="auto-grid" style={{ ['--auto-grid-min' as string]: '56px', ['--auto-grid-cols' as string]: 6, ['--auto-grid-gap' as string]: '10px' }}>
             {PRESET_AVATARS.map((url) => (
               <div
                 key={url}

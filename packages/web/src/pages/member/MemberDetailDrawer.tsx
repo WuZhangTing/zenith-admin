@@ -3,7 +3,6 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { MemberPointTransaction, MemberWalletTransaction, MemberLoginLog } from '@zenith/shared/member';
 import { MEMBER_STATUS_LABELS, POINT_TX_TYPE_LABELS, WALLET_TX_TYPE_LABELS } from '@zenith/shared/member';
 import { useMemberOverview } from '@/hooks/queries/member-admin';
-import { useIsMobile } from '@/hooks/useMediaQuery';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 
 const { Text } = Typography;
@@ -49,14 +48,13 @@ export function MemberDetailDrawer({ memberId, onClose }: Readonly<Props>) {
   const overviewQuery = useMemberOverview(memberId, !!memberId);
   const overview = overviewQuery.data ?? null;
   const m = overview?.member;
-  const isMobile = useIsMobile();
 
   return (
     <SideSheet
       title={m ? `会员详情 · ${m.nickname}` : '会员详情'}
       visible={!!memberId}
       onCancel={onClose}
-      width={isMobile ? '100%' : 680}
+      width={680}
       bodyStyle={{ padding: 0, overflow: 'auto' }}
     >
       <Spin spinning={overviewQuery.isFetching}>

@@ -618,6 +618,36 @@ body[theme-mode='dark'] .semi-json-viewer-view-line {
 }
 
 /* utility */
+
+/*
+ * 自适应卡片栅格：列数随容器宽度收敛，同时保留设计上限。
+ *
+ * 纯 auto-fit 会在宽屏把栅格拆出比设计更多的列（如 3 列设计在 1440px 变 4 列），
+ * 因此轨道下限取「内容最小宽」与「N 等分宽」的较大者：
+ *   - 宽屏时 N 等分宽占优 → 恰好 N 列，与原固定列数一致；
+ *   - 窄屏时 N 等分宽小于内容最小宽 → 由 --auto-grid-min 接管，自动降列。
+ * min(…, 100%) 兜底：容器比单列最小宽还窄时不溢出。
+ *
+ * 用法：<div className="auto-grid" style={{ '--auto-grid-min': '260px', '--auto-grid-cols': 3 }}>
+ */
+.auto-grid {
+  display: grid;
+  gap: var(--auto-grid-gap, 16px);
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(
+      max(
+        min(var(--auto-grid-min, 220px), 100%),
+        calc(
+          (100% - (var(--auto-grid-cols, 4) - 1) * var(--auto-grid-gap, 16px)) /
+            var(--auto-grid-cols, 4)
+        )
+      ),
+      1fr
+    )
+  );
+}
+
 .page-container {
   padding: 12px;
   display: flex;

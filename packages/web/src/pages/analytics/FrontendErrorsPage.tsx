@@ -48,7 +48,6 @@ import { SOURCE_MAP_MAX_BYTES } from '@zenith/shared/analytics';
 import { NOTIFY_CHANNEL_OPTIONS } from '@zenith/shared/messaging';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { useIsMobile } from '@/hooks/useMediaQuery';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePagination } from '@/hooks/usePagination';
 import { formatDateTime } from '@/utils/date';
@@ -339,7 +338,6 @@ export default function FrontendErrorsPage() {
   } = usePagination(20);
 
   const [alertModalVisible, setAlertModalVisible] = useState(false);
-  const isMobile = useIsMobile();
   const [editingAlert, setEditingAlert] = useState<ErrorAlertRule | null>(null);
   const [alertForm, setAlertForm] = useState<AlertFormState>(defaultAlertForm);
   const {
@@ -1168,7 +1166,7 @@ export default function FrontendErrorsPage() {
         title={detail ? `Issue #${detail.group.id}` : '错误详情'}
         visible={detailVisible}
         onCancel={() => setDetailVisible(false)}
-        width={isMobile ? '100%' : 720}
+        width={720}
       >
         {detail && !detailQuery.isFetching ? (
           <Space vertical align="start" style={{ width: '100%' }}>

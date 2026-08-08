@@ -93,7 +93,7 @@ export default function PromotionsPage() {
             <h2 className="mc-section-title">当前优惠活动</h2>
             <p className="mc-section-sub">多重优惠叠加享用，注册会员即可参与</p>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
+          <div className="auto-grid" style={{ ['--auto-grid-min' as string]: '260px', ['--auto-grid-cols' as string]: 3, ['--auto-grid-gap' as string]: '20px' }}>
             {PROMOTIONS.map((promo) => {
               const Icon = promo.icon;
               return (

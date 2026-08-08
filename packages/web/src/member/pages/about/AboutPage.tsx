@@ -45,7 +45,7 @@ export default function AboutPage() {
       {/* Content */}
       <section className="mc-features-section">
         <div className="mc-section-container">
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 60, alignItems: 'center', marginBottom: 64 }}>
+          <div className="auto-grid" style={{ ['--auto-grid-min' as string]: '320px', ['--auto-grid-cols' as string]: 2, ['--auto-grid-gap' as string]: '60px', alignItems: 'center', marginBottom: 64 }}>
             <div>
               <h2 className="mc-section-title" style={{ textAlign: 'left', marginBottom: 16 }}>我们的故事</h2>
               <p style={{ fontSize: 15, color: 'var(--m-text-secondary)', lineHeight: 1.8, marginBottom: 16 }}>
@@ -55,7 +55,7 @@ export default function AboutPage() {
                 通过不断迭代的积分体系、等级权益和专属活动，我们已帮助超过 10 万名会员获得了超预期的消费体验。未来，我们将持续在技术与服务上深耕，让每一位会员都感受到真正的价值回馈。
               </p>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            <div className="auto-grid" style={{ ['--auto-grid-min' as string]: '140px', ['--auto-grid-cols' as string]: 2, ['--auto-grid-gap' as string]: '20px' }}>
               {STATS.map((stat) => {
                 const Icon = stat.icon;
                 return (
@@ -74,7 +74,7 @@ export default function AboutPage() {
           {/* Contact */}
           <div>
             <h2 className="mc-section-title" style={{ textAlign: 'left', marginBottom: 24 }}>联系我们</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
+            <div className="auto-grid" style={{ ['--auto-grid-min' as string]: '250px', ['--auto-grid-cols' as string]: 3, ['--auto-grid-gap' as string]: '20px' }}>
               {CONTACTS.map((contact) => {
                 const Icon = contact.icon;
                 return (

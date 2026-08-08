@@ -111,7 +111,7 @@ export default function CheckinPage() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16, marginBottom: 20 }}>
+      <div className="auto-grid" style={{ ['--auto-grid-min' as string]: '150px', ['--auto-grid-cols' as string]: 2, marginBottom: 20 }}>
         <div style={{ background: '#fff', border: '1px solid var(--m-border)', borderRadius: 12, padding: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--m-text-secondary)' }}>
             <Trophy size={16} color="var(--m-primary)" />

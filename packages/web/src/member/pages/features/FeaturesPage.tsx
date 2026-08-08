@@ -82,7 +82,7 @@ export default function FeaturesPage() {
             <h2 className="mc-section-title">全部权益一览</h2>
             <p className="mc-section-sub">不同等级解锁不同特权，持续成长，持续获益</p>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
+          <div className="auto-grid" style={{ ['--auto-grid-min' as string]: '260px', ['--auto-grid-cols' as string]: 3, ['--auto-grid-gap' as string]: '24px' }}>
             {PRIVILEGES.map((p) => {
               const Icon = p.icon;
               return (
