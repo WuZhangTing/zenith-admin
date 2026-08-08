@@ -2,7 +2,6 @@ import { lazy, Suspense, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Button,
-  Card,
   Form,
   Input,
   JsonViewer,
@@ -38,6 +37,7 @@ import SavedViewsBar from '@/components/workflow/SavedViewsBar';
 import WorkflowPriorityTag, { WORKFLOW_PRIORITY_OPTIONS } from '@/components/workflow/WorkflowPriorityTag';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
+import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
 import WorkflowInstanceDetailPanel from '@/components/workflow/WorkflowInstanceDetailPanel';
@@ -387,47 +387,6 @@ function buildFocusDiagnosis(diagnostics: WorkflowRuntimeDiagnostics, diagNodes:
 }
 
 /** 状态统计卡片 */
-function StatCard({
-  label,
-  value,
-  color,
-  onClick,
-  active,
-}: Readonly<{
-  label: string;
-  value: number;
-  color: string;
-  onClick: () => void;
-  active: boolean;
-}>) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        cursor: 'pointer',
-        flex: 1,
-        minWidth: 120,
-        border: 'none',
-        background: 'none',
-        padding: 0,
-        textAlign: 'left',
-      }}
-    >
-      <Card
-        style={{
-          border: active ? `2px solid ${color}` : '2px solid transparent',
-          transition: 'border-color 0.2s',
-        }}
-        bodyStyle={{ padding: '16px 20px' }}
-      >
-        <Typography.Text type="tertiary" size="small">{label}</Typography.Text>
-        <div style={{ fontSize: 28, fontWeight: 700, color, marginTop: 4, lineHeight: 1 }}>{value}</div>
-      </Card>
-    </button>
-  );
-}
-
 export default function WorkflowMonitorPage() {
   const queryClient = useQueryClient();
   interface SearchParams { keyword: string; initiator: string; status: string; categoryId: number | ''; definitionId: number | ''; priority: string }
@@ -828,7 +787,7 @@ export default function WorkflowMonitorPage() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))', gap: 12 }}>
             <div><Typography.Text type="tertiary" size="small">流程名称</Typography.Text><div>{inst.definitionName || '—'}</div></div>
             <div><Typography.Text type="tertiary" size="small">状态</Typography.Text><div><Tag color={statusMeta.color}>{statusMeta.text}</Tag></div></div>
             <div><Typography.Text type="tertiary" size="small">当前节点</Typography.Text><div>{currentNodeText}</div></div>
@@ -874,7 +833,7 @@ export default function WorkflowMonitorPage() {
           </Space>
           <Typography.Text type="tertiary" size="small">{focusDiagnosis.description}</Typography.Text>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginTop: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))', gap: 10, marginTop: 12 }}>
             {focusDiagnosis.metrics.map((metric) => (
               <div
                 key={metric.label}
@@ -1233,14 +1192,14 @@ export default function WorkflowMonitorPage() {
       <Tabs type="line">
         <TabPane tab="实例监控" itemKey="list">
       {/* 统计卡片 */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-        <StatCard label="全部" value={stats.total}     color="var(--semi-color-text-0)" onClick={() => handleStatCardClick('')}          active={draftParams.status === ''} />
-        <StatCard label="审批中" value={stats.running}  color="var(--semi-color-primary)"        onClick={() => handleStatCardClick('running')}   active={draftParams.status === 'running'} />
-        <StatCard label="已通过" value={stats.approved} color="#0dc87c"                          onClick={() => handleStatCardClick('approved')}  active={draftParams.status === 'approved'} />
-        <StatCard label="已驳回" value={stats.rejected} color="#ff4d4f"                          onClick={() => handleStatCardClick('rejected')}  active={draftParams.status === 'rejected'} />
-        <StatCard label="已撤回" value={stats.withdrawn ?? 0} color="var(--semi-color-warning)"  onClick={() => handleStatCardClick('withdrawn')} active={draftParams.status === 'withdrawn'} />
-        <StatCard label="已取消" value={stats.cancelled ?? 0} color="#8b5cf6"                   onClick={() => handleStatCardClick('cancelled')} active={draftParams.status === 'cancelled'} />
-      </div>
+      <StatGrid minItemWidth={120} style={{ marginBottom: 16 }}>
+        <StatCard title="全部" value={stats.total} accent="var(--semi-color-text-0)" onClick={() => handleStatCardClick('')} active={draftParams.status === ''} />
+        <StatCard title="审批中" value={stats.running} accent="var(--semi-color-primary)" onClick={() => handleStatCardClick('running')} active={draftParams.status === 'running'} />
+        <StatCard title="已通过" value={stats.approved} accent="#0dc87c" onClick={() => handleStatCardClick('approved')} active={draftParams.status === 'approved'} />
+        <StatCard title="已驳回" value={stats.rejected} accent="#ff4d4f" onClick={() => handleStatCardClick('rejected')} active={draftParams.status === 'rejected'} />
+        <StatCard title="已撤回" value={stats.withdrawn ?? 0} accent="var(--semi-color-warning)" onClick={() => handleStatCardClick('withdrawn')} active={draftParams.status === 'withdrawn'} />
+        <StatCard title="已取消" value={stats.cancelled ?? 0} accent="#8b5cf6" onClick={() => handleStatCardClick('cancelled')} active={draftParams.status === 'cancelled'} />
+      </StatGrid>
 
       {/* 搜索栏 */}
       <SavedViewsBar

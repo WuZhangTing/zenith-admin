@@ -3,15 +3,17 @@ import { Coins } from 'lucide-react';
 import { MemberPage } from '../../components/MemberPage';
 import { TransactionList } from '../../components/TransactionList';
 import { useMemberPointAccount } from '../../hooks/queries';
+import { StatGrid } from '@/components/charts/StatCard';
 
+/** 会员前台自有视觉令牌（--m-*），仅复用 StatGrid 的自适应栅格，不套用后台卡片皮肤 */
 function StatCard({ label, value, accent }: Readonly<{ label: React.ReactNode; value: React.ReactNode; accent?: boolean }>) {
   return (
     <div style={{
-      flex: 1,
       background: '#fff',
       borderRadius: 10,
       border: '1px solid var(--m-border)',
       padding: '16px 20px',
+      minWidth: 0,
     }}>
       <div style={{ fontSize: 13, color: 'var(--m-text-secondary)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
         {label}
@@ -28,7 +30,7 @@ export default function PointsPage() {
 
   return (
     <MemberPage title="我的积分" showBack noTabbar>
-      <div style={{ display: 'flex', gap: 16, marginBottom: 20 }}>
+      <StatGrid minItemWidth={150} gap={16} style={{ marginBottom: 20 }}>
         <StatCard
           label={<><Coins size={13} color="var(--m-primary)" />当前积分</>}
           value={account?.balance ?? '—'}
@@ -36,7 +38,7 @@ export default function PointsPage() {
         />
         <StatCard label="累计获得" value={account?.totalEarned ?? '—'} />
         <StatCard label="累计消耗" value={account?.totalSpent ?? '—'} />
-      </div>
+      </StatGrid>
 
       <div className="mc-card-title">积分明细</div>
       <TransactionList
