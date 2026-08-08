@@ -166,7 +166,7 @@
 - **回填的可见性红线**（Step 8）：`setQueryData(detail(id), saved)` 仅限写接口与详情接口同源；详情做了按查看者脱敏、详情多出关联数据、写接口不回传编辑过的关联字段、列表/树含聚合字段这四种情形**必须**改为失效 `detail(id)`
 - **失效行为需可证伪**（Step 8）：域 hooks 的测试用 `packages/web/src/test-utils/query-harness.ts`，断言实际请求数、真正进入 fetching 的查询与缓存新鲜度；**禁止**只 spy「调用了 `invalidateQueries(某 key)`」—— `all` 是 `detail` 的前缀，这类断言在冗余的广播写法下同样通过
 - **ConfigurableTable 刷新按钮**（Step 8）：所有使用 `ConfigurableTable` 的列表页均必须传入 `onRefresh` 和 `refreshLoading`
-- **左右分栏布局**（Step 8）：需要「左侧列表 + 右侧详情」结构时，统一使用 `packages/web/src/components/MasterDetailLayout.tsx`，**禁止**手写 flex 两栏布局。master 内部的高度链写法与嵌套 Semi Tabs 时的额外要求见 [crud-frontend.md 左右分栏布局](./crud-frontend.md)
+- **左右分栏布局**（Step 8）：需要「左侧列表 + 右侧详情」结构时，统一使用 `packages/web/src/components/MasterDetailLayout.tsx`，**禁止**手写 flex 两栏布局。窄屏（容器宽度 < `responsiveBreakpoint`，默认 720）自动转单栏，必须提供返回入口：master 为列表时传 `onBack`，master 为筛选树、detail 才是主体时传 `onMasterBack`；且**禁止**在单栏下自动选中首项（否则根视图落在详情，列表要点返回才能抵达），用 `onResponsiveChange` 区分。master 内部的高度链写法、嵌套 Semi Tabs 与窄屏单栏的完整写法见 [crud-frontend.md 左右分栏布局](./crud-frontend.md)
 - **左侧平铺列表**（Step 8）：左侧 master 是**平铺列表**（分类/文件/分组等，非树形）时，统一使用 `NavListPanel<T>` + `NavListItem`（`packages/web/src/components/NavListPanel.tsx`）；树形数据（需展开/折叠）改用 Semi `Tree`。props 与 dataSource / children / rawBody 三种用法见 [crud-frontend.md 左侧平铺列表](./crud-frontend.md)
 
 ---

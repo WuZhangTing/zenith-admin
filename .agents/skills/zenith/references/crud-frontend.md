@@ -1009,12 +1009,74 @@ export default function XxxPage() {
 />
 ```
 
+### 窄屏单栏（响应式）
+
+容器宽度小于 `responsiveBreakpoint`（默认 `720`）时自动切换为单栏，一次只渲染一侧。
+**该断点比较的是容器宽度而非视口宽度**——后台内容区还要扣除侧边栏，勿按视口断点估算。
+
+按语义选择哪一侧是根视图，两类各有固定写法：
+
+**A 类「列表 → 详情」**：master 是列表（根视图），detail 是选中项详情。窄屏先显示 master，
+选中后进入 detail，返回条由组件渲染在 detail 侧。
+
+```tsx
+<MasterDetailLayout
+  showDetail={selected !== null}
+  onBack={() => setSelected(null)}
+  master={<List onSelect={setSelected} />}
+  detail={<Detail record={selected} />}
+/>
+```
+
+**B 类「筛选树 + 主体内容」**：master 是分类/部门等筛选器，detail 才是页面主体（表格）。
+窄屏先显示 detail，返回条由组件渲染在 master 侧；进入 master 的入口由页面自己放进工具栏。
+
+```tsx
+<MasterDetailLayout
+  showDetail={!showTree}
+  onMasterBack={() => setShowTree(false)}
+  masterBackLabel="返回用户列表"        // 缺省为「返回」
+  master={<DeptTree />}
+  detail={<ConfigurableTable ... />}
+/>
+```
+
+**禁止在窄屏自动选中首项。** 双栏下默认选中首项可避免右侧空白，但单栏会直接落到详情，
+根视图反而要点返回才能看到列表。用 `onResponsiveChange` 记录布局形态，仅双栏时自动选中，
+并在由窄屏切回双栏时补选：
+
+```tsx
+const isNarrowLayoutRef = useRef(false);
+
+useEffect(() => {
+  setSelected((prev) => {
+    if (list.length === 0) return null;
+    const current = prev ? list.find((x) => x.id === prev.id) : null;
+    if (current) return current;
+    return isNarrowLayoutRef.current ? null : list[0];
+  });
+}, [list]);
+
+<MasterDetailLayout
+  showDetail={!!selected}
+  onBack={() => setSelected(null)}
+  onResponsiveChange={(narrow) => {
+    isNarrowLayoutRef.current = narrow;
+    if (!narrow) setSelected((prev) => prev ?? list[0] ?? null);
+  }}
+/>
+```
+
+用 ref 而非 state 保存布局形态，使自动选中的 effect 只依赖数据、不因布局变化重跑。
+
 ### 常见陷阱
 
 - **master 内需要头部 + 滚动列表**：必须在 master 内用 flex column 容器包裹，搜索头固定（`flexShrink: 0`），列表 flex: 1 + overflow: auto + minHeight: 0
 - **不要把 master 的 div 写成 Fragment（`<>`）**：Fragment 无法接受 `height: '100%'`，列表将无高度约束
 - **Tabs 嵌套时不加 `className="tabs-fill-height"`**：会导致 Semi Design 的动画层破坏高度链，列表内容撑满后无滚动
 - **MasterDetailLayout 的 `gap` 默认为 0**：如不需要间距且无边框，保持默认即可
+- **B 类页面漏传 `onMasterBack`**：窄屏切到 master 后无返回入口，用户只能靠浏览器后退退出
+- **窄屏自动选中首项**：根视图变成详情，列表需点返回才能抵达
 
 ---
 
