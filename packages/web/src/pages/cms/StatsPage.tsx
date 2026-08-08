@@ -7,22 +7,9 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { useCmsVisitStats, useCmsSearchAnalytics } from '@/hooks/queries/cms';
 import type { CmsVisitStats, CmsSearchAnalytics } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
+import { StatCard, StatGrid } from '@/components/charts/StatCard';
 
 const DEVICE_LABELS: Record<string, string> = { pc: 'PC', mobile: '移动端', bot: '爬虫' };
-
-function MetricCard({ label, value, delta }: { label: string; value: number; delta?: number | null }) {
-  return (
-    <Card bodyStyle={{ padding: '16px 20px' }}>
-      <div style={{ fontSize: 13, color: 'var(--semi-color-text-2)' }}>{label}</div>
-      <div style={{ fontSize: 26, fontWeight: 600, marginTop: 4 }}>{value}</div>
-      {delta !== undefined && delta !== null ? (
-        <div style={{ fontSize: 12, marginTop: 2, color: delta >= 0 ? 'var(--semi-color-success)' : 'var(--semi-color-danger)' }}>
-          较昨日 {delta >= 0 ? '+' : ''}{delta}
-        </div>
-      ) : null}
-    </Card>
-  );
-}
 
 /** 双指标趋势柱状（PV 主柱 + UV 覆盖柱，纯 CSS 与 Dashboard 同风格） */
 function TrendChart({ trend }: { trend: CmsVisitStats['trend'] }) {
@@ -93,12 +80,12 @@ function VisitsTab({ siteId, days }: { siteId: number | undefined; days: number 
 
   return (
     <Spin spinning={statsQuery.isFetching && !stats}>
-      <Row gutter={[12, 12]}>
-        <Col xs={12} md={6}><MetricCard label="今日 PV" value={stats?.today.pv ?? 0} delta={stats ? stats.today.pv - stats.yesterday.pv : null} /></Col>
-        <Col xs={12} md={6}><MetricCard label="今日 UV" value={stats?.today.uv ?? 0} delta={stats ? stats.today.uv - stats.yesterday.uv : null} /></Col>
-        <Col xs={12} md={6}><MetricCard label="今日独立 IP" value={stats?.today.ips ?? 0} delta={stats ? stats.today.ips - stats.yesterday.ips : null} /></Col>
-        <Col xs={12} md={6}><MetricCard label={`近 ${days} 天累计 PV`} value={stats?.totalPv ?? 0} /></Col>
-      </Row>
+      <StatGrid minItemWidth={170}>
+        <StatCard title="今日 PV" value={stats?.today.pv ?? 0} delta={stats ? stats.today.pv - stats.yesterday.pv : null} />
+        <StatCard title="今日 UV" value={stats?.today.uv ?? 0} delta={stats ? stats.today.uv - stats.yesterday.uv : null} />
+        <StatCard title="今日独立 IP" value={stats?.today.ips ?? 0} delta={stats ? stats.today.ips - stats.yesterday.ips : null} />
+        <StatCard title={`近 ${days} 天累计 PV`} value={stats?.totalPv ?? 0} />
+      </StatGrid>
 
       <Card title={`访问趋势（近 ${days} 天，不含爬虫）`} style={{ marginTop: 12 }} bodyStyle={{ padding: '16px 20px' }}>
         {stats ? <TrendChart trend={stats.trend} /> : null}
@@ -140,10 +127,10 @@ function SearchTab({ siteId, days }: { siteId: number | undefined; days: number 
 
   return (
     <Spin spinning={query.isFetching && !data}>
-      <Row gutter={[12, 12]}>
-        <Col xs={12} md={6}><MetricCard label={`近 ${days} 天搜索量`} value={data?.total ?? 0} /></Col>
-        <Col xs={12} md={6}><MetricCard label="无结果关键词数" value={data?.noResultKeywords.length ?? 0} /></Col>
-      </Row>
+      <StatGrid minItemWidth={170}>
+        <StatCard title={`近 ${days} 天搜索量`} value={data?.total ?? 0} />
+        <StatCard title="无结果关键词数" value={data?.noResultKeywords.length ?? 0} />
+      </StatGrid>
       <Card title={`搜索量趋势（近 ${days} 天）`} style={{ marginTop: 12 }} bodyStyle={{ padding: '16px 20px' }}>
         {data && data.trend.some((t) => t.count > 0) ? (
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 120 }}>

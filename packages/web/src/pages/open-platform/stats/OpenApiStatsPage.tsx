@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { DatePicker, InputNumber, Select, Typography, Tag, Space, Row, Col, Card } from '@douyinfe/semi-ui';
+import { DatePicker, InputNumber, Select, Typography, Tag, Space, Card } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import dayjs from 'dayjs';
 import type { OpenApiCallLog } from '@zenith/shared/open-platform';
@@ -8,7 +8,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { ExportButton } from '@/components/ExportButton';
 import { useListSearch } from '@/hooks/useListSearch';
-import { AreaChart, BarChart, chartOptions, makeAreaSpec, makeBarSpec, useChartPalette, EmptyChart } from '@/components/charts';
+import { AreaChart, BarChart, chartOptions, makeAreaSpec, makeBarSpec, useChartPalette, EmptyChart, StatCard, StatGrid } from '@/components/charts';
 import {
   openPlatformKeys,
   useOpenApiCallLogs,
@@ -22,16 +22,6 @@ import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 
 const { Text, Title } = Typography;
-
-function StatCard({ label, value, hint, color }: { label: string; value: string | number; hint?: string; color?: string }) {
-  return (
-    <Card style={{ flex: '1 1 150px', minWidth: 150 }} bodyStyle={{ padding: 16 }}>
-      <Text type="tertiary" size="small">{label}</Text>
-      <div style={{ fontSize: 26, fontWeight: 600, margin: '4px 0 2px', color }}>{value}</div>
-      <Text type="tertiary" size="small">{hint ?? '\u00A0'}</Text>
-    </Card>
-  );
-}
 
 export default function OpenApiStatsPage() {
   const palette = useChartPalette();
@@ -275,40 +265,36 @@ export default function OpenApiStatsPage() {
         actionTitle="统计操作"
       />
 
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-        <StatCard label="调用总数" value={(overview?.totalCalls ?? 0).toLocaleString()} hint={`今日 ${overview?.todayCalls ?? 0}`} />
-        <StatCard label="成功率" value={`${overview?.successRate ?? 0}%`} color="#16a34a" hint={`成功 ${overview?.successCalls ?? 0}`} />
-        <StatCard label="失败数" value={(overview?.failedCalls ?? 0).toLocaleString()} color="#dc2626" />
-        <StatCard label="平均耗时" value={`${overview?.avgDurationMs ?? 0} ms`} />
+      <StatGrid minItemWidth={150} style={{ marginBottom: 16 }}>
+        <StatCard title="调用总数" value={(overview?.totalCalls ?? 0).toLocaleString()} sub={`今日 ${overview?.todayCalls ?? 0}`} />
+        <StatCard title="成功率" value={`${overview?.successRate ?? 0}%`} accent="#16a34a" sub={`成功 ${overview?.successCalls ?? 0}`} />
+        <StatCard title="失败数" value={(overview?.failedCalls ?? 0).toLocaleString()} accent="#dc2626" />
+        <StatCard title="平均耗时" value={`${overview?.avgDurationMs ?? 0} ms`} />
         <StatCard
-          label="P95 耗时"
+          title="P95 耗时"
           value={`${overview?.p95DurationMs ?? 0} ms`}
-          hint={overview?.percentilesPartial ? `仅基于近 ${overview.percentileRetentionDays} 天原始日志` : '95% 请求低于该值'}
+          sub={overview?.percentilesPartial ? `仅基于近 ${overview.percentileRetentionDays} 天原始日志` : '95% 请求低于该值'}
         />
         <StatCard
-          label="P99 耗时"
+          title="P99 耗时"
           value={`${overview?.p99DurationMs ?? 0} ms`}
-          hint={overview?.percentilesPartial ? `仅基于近 ${overview.percentileRetentionDays} 天原始日志` : '99% 请求低于该值'}
+          sub={overview?.percentilesPartial ? `仅基于近 ${overview.percentileRetentionDays} 天原始日志` : '99% 请求低于该值'}
         />
-        <StatCard label="活跃应用" value={overview?.activeApps ?? 0} />
-      </div>
+        <StatCard title="活跃应用" value={overview?.activeApps ?? 0} />
+      </StatGrid>
 
       <Card style={{ marginBottom: 16 }} title={<Title heading={6} style={{ margin: 0 }}>调用趋势</Title>} loading={statLoading}>
         {trend.length ? <AreaChart {...trendSpec} options={chartOptions} height={280} /> : <EmptyChart height={280} />}
       </Card>
 
-      <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={12}>
-          <Card title={<Title heading={6} style={{ margin: 0 }}>应用调用 Top</Title>} loading={statLoading}>
-            {byApp.length ? <BarChart {...appSpec} options={chartOptions} height={300} /> : <EmptyChart height={300} />}
-          </Card>
-        </Col>
-        <Col span={12}>
-          <Card title={<Title heading={6} style={{ margin: 0 }}>端点调用 Top</Title>} loading={statLoading}>
-            {byEndpoint.length ? <BarChart {...endpointSpec} options={chartOptions} height={300} /> : <EmptyChart height={300} />}
-          </Card>
-        </Col>
-      </Row>
+      <div className="chart-grid" style={{ marginBottom: 16 }}>
+        <Card title={<Title heading={6} style={{ margin: 0 }}>应用调用 Top</Title>} loading={statLoading}>
+          {byApp.length ? <BarChart {...appSpec} options={chartOptions} height={300} /> : <EmptyChart height={300} />}
+        </Card>
+        <Card title={<Title heading={6} style={{ margin: 0 }}>端点调用 Top</Title>} loading={statLoading}>
+          {byEndpoint.length ? <BarChart {...endpointSpec} options={chartOptions} height={300} /> : <EmptyChart height={300} />}
+        </Card>
+      </div>
 
       <Card title={<Title heading={6} style={{ margin: 0 }}>调用日志</Title>}>
         <ConfigurableTable
