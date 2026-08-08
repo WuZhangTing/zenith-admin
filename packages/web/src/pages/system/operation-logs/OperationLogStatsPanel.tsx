@@ -10,6 +10,8 @@ import {
   makeAreaSpec,
   makeBarSpec,
   makePieSpec,
+  StatCard,
+  StatGrid,
 } from '@/components/charts';
 import dayjs from 'dayjs';
 import { useOperationLogStats } from '@/hooks/queries/operation-logs';
@@ -47,37 +49,9 @@ const sectionTitleStyle: React.CSSProperties = {
   marginBottom: 12,
 };
 
-interface StatCardProps {
-  readonly title: string;
-  readonly value: string | number;
-  readonly sub?: string;
-  readonly color: string;
-}
-
 function formatAvgDuration(ms: number): string {
   if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
   return `${ms}ms`;
-}
-
-function StatCard({ title, value, sub, color: _color }: StatCardProps) {
-  return (
-    <div
-      style={{
-        ...sectionStyle,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 4,
-      }}
-    >
-      <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--semi-color-text-0)', lineHeight: 1.2 }}>
-        {value}
-      </div>
-      {sub && (
-        <div style={{ fontSize: 11, color: 'var(--semi-color-text-2)' }}>{sub}</div>
-      )}
-      <div style={{ fontSize: 13, color: 'var(--semi-color-text-1)', marginTop: 2 }}>{title}</div>
-    </div>
-  );
 }
 
 const EMPTY_PLACEHOLDER_STYLE: React.CSSProperties = {
@@ -215,20 +189,20 @@ export default function OperationLogStatsPanel() {
 
       <Spin spinning={statsQuery.isFetching}>
         {/* ── 汇总指标卡 ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
-          <StatCard title="总请求数" value={summary ? summary.total.toLocaleString() : '—'} sub={`近 ${days} 天累计`} color="#3b82f6" />
+        <StatGrid style={{ marginBottom: 16 }}>
+          <StatCard title="总请求数" value={summary ? summary.total.toLocaleString() : '—'} sub={`近 ${days} 天累计`} accent="var(--semi-color-primary)" />
           <StatCard
             title="请求成功率"
             value={successRate == null ? '—' : `${successRate}%`}
             sub={summary ? `成功 ${summary.successCount.toLocaleString()} · 失败 ${summary.failCount.toLocaleString()}` : undefined}
-            color="#10b981"
+            accent="var(--semi-color-success)"
           />
-          <StatCard title="平均响应时间" value={avgDuration ?? '—'} sub="基于有记录的请求" color="#f59e0b" />
-          <StatCard title="活跃用户数" value={summary ? summary.uniqueUsers.toLocaleString() : '—'} sub="不重复用户账号" color="#8b5cf6" />
-        </div>
+          <StatCard title="平均响应时间" value={avgDuration ?? '—'} sub="基于有记录的请求" accent="var(--semi-color-warning)" />
+          <StatCard title="活跃用户数" value={summary ? summary.uniqueUsers.toLocaleString() : '—'} sub="不重复用户账号" accent="var(--semi-color-data-2)" />
+        </StatGrid>
 
         {/* ── 模块 Top 10 + 用户 Top 10 ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+        <div className="chart-grid" style={{ marginBottom: 16 }}>
           <div style={sectionStyle}>
             <div style={sectionTitleStyle}>按模块操作统计（Top 10）</div>
             {moduleChartData.length === 0 ? (
@@ -258,7 +232,7 @@ export default function OperationLogStatsPanel() {
         </div>
 
         {/* ── HTTP 方法分布 + 小时分布 ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+        <div className="chart-grid" style={{ marginBottom: 16 }}>
           <div style={sectionStyle}>
             <div style={sectionTitleStyle}>HTTP 方法分布</div>
             {methodChartData.length === 0 ? (

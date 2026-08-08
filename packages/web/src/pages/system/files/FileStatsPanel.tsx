@@ -7,6 +7,8 @@ import {
   makeBarSpec,
   makeLineSpec,
   useChartPalette,
+  StatCard,
+  StatGrid,
 } from '@/components/charts';
 import { FileImage, Video, Music, FileText, File } from 'lucide-react';
 import { formatFileSize } from '@/utils/file-utils';
@@ -41,24 +43,6 @@ const sectionTitleStyle: React.CSSProperties = {
   color: 'var(--semi-color-text-0)',
   marginBottom: 12,
 };
-
-interface StatCardProps {
-  readonly title: string;
-  readonly value: string | number;
-  readonly sub?: string;
-}
-
-function StatCard({ title, value, sub }: StatCardProps) {
-  return (
-    <div style={{ ...sectionStyle, display: 'flex', flexDirection: 'column', gap: 2, height: '100%', minHeight: 96, boxSizing: 'border-box' }}>
-      <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--semi-color-text-0)', lineHeight: 1.2 }}>
-        {String(value)}
-      </div>
-      <div style={{ fontSize: 11, color: 'var(--semi-color-text-2)', minHeight: 18 }}>{sub ?? ''}</div>
-      <div style={{ fontSize: 13, color: 'var(--semi-color-text-1)', marginTop: 'auto' }}>{title}</div>
-    </div>
-  );
-}
 
 export default function FileStatsPanel() {
   const palette = useChartPalette();
@@ -119,28 +103,20 @@ export default function FileStatsPanel() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
         {/* 汇总卡片 */}
-        <Row gutter={[16, 16]} type="flex">
-          <Col xs={24} sm={12} xl={6}>
-            <StatCard title="文件总数" value={totalFiles > 0 ? totalFiles.toLocaleString() : '—'} />
-          </Col>
-          <Col xs={24} sm={12} xl={6}>
-            <StatCard title="占用空间" value={summary ? formatFileSize(summary.totalSize) : '—'} />
-          </Col>
-          <Col xs={24} sm={12} xl={6}>
-            <StatCard
-              title="今日新增"
-              value={summary?.todayCount == null ? '—' : summary.todayCount.toLocaleString()}
-              sub="今日共上传"
-            />
-          </Col>
-          <Col xs={24} sm={12} xl={6}>
-            <StatCard
-              title="本月新增"
-              value={summary?.thisMonthCount == null ? '—' : summary.thisMonthCount.toLocaleString()}
-              sub="本月共上传"
-            />
-          </Col>
-        </Row>
+        <StatGrid>
+          <StatCard title="文件总数" value={totalFiles > 0 ? totalFiles.toLocaleString() : '—'} />
+          <StatCard title="占用空间" value={summary ? formatFileSize(summary.totalSize) : '—'} />
+          <StatCard
+            title="今日新增"
+            value={summary?.todayCount == null ? '—' : summary.todayCount.toLocaleString()}
+            sub="今日共上传"
+          />
+          <StatCard
+            title="本月新增"
+            value={summary?.thisMonthCount == null ? '—' : summary.thisMonthCount.toLocaleString()}
+            sub="本月共上传"
+          />
+        </StatGrid>
 
         {/* 文件类型卡片 */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>

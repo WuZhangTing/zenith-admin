@@ -10,6 +10,8 @@ import {
   makeBarSpec,
   makePieSpec,
   useChartPalette,
+  StatCard,
+  StatGrid,
 } from '@/components/charts';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_ORDER_STATUS_LABELS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentOrderStatus } from '@zenith/shared/payment';
@@ -38,22 +40,6 @@ const sectionStyle: React.CSSProperties = {
 const sectionTitleStyle: React.CSSProperties = {
   fontSize: 14, fontWeight: 600, color: 'var(--semi-color-text-0)', marginBottom: 12,
 };
-
-interface StatCardProps {
-  readonly title: string;
-  readonly value: string | number;
-  readonly sub?: string;
-  readonly accent?: string;
-}
-function StatCard({ title, value, sub, accent }: StatCardProps) {
-  return (
-    <div style={{ ...sectionStyle, display: 'flex', flexDirection: 'column', gap: 2, height: '100%', minHeight: 92, boxSizing: 'border-box' }}>
-      <div style={{ fontSize: 26, fontWeight: 700, color: accent ?? 'var(--semi-color-text-0)', lineHeight: 1.2 }}>{String(value)}</div>
-      <div style={{ fontSize: 11, color: 'var(--semi-color-text-2)', minHeight: 16 }}>{sub ?? ''}</div>
-      <div style={{ fontSize: 13, color: 'var(--semi-color-text-1)', marginTop: 'auto' }}>{title}</div>
-    </div>
-  );
-}
 
 export default function PaymentStatsPanel() {
   const palette = useChartPalette();
@@ -120,26 +106,14 @@ export default function PaymentStatsPanel() {
     <Spin spinning={statsQuery.isFetching || trendQuery.isFetching}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {/* 汇总卡片 */}
-        <Row gutter={[16, 16]} type="flex">
-          <Col xs={24} sm={12} xl={4}>
-            <StatCard title="累计成功金额" value={stats ? yuan(stats.totalAmount) : '—'} accent="#10b981" />
-          </Col>
-          <Col xs={24} sm={12} xl={4}>
-            <StatCard title="今日成功金额" value={stats ? yuan(stats.todayAmount) : '—'} sub={stats ? `${stats.todayCount} 笔` : ''} />
-          </Col>
-          <Col xs={24} sm={12} xl={4}>
-            <StatCard title="支付成功率" value={stats ? `${stats.successRate}%` : '—'} sub={stats ? `${stats.successCount}/${stats.orderCount} 单` : ''} accent="#3b82f6" />
-          </Col>
-          <Col xs={24} sm={12} xl={4}>
-            <StatCard title="累计退款" value={stats ? yuan(stats.refundAmount) : '—'} sub={stats ? `${stats.refundCount} 笔` : ''} accent="#f97316" />
-          </Col>
-          <Col xs={24} sm={12} xl={4}>
-            <StatCard title="退款率" value={stats ? `${stats.refundRate}%` : '—'} accent={stats && stats.refundRate > 20 ? '#ef4444' : undefined} />
-          </Col>
-          <Col xs={24} sm={12} xl={4}>
-            <StatCard title="成功笔均" value={stats ? yuan(stats.avgAmount) : '—'} />
-          </Col>
-        </Row>
+        <StatGrid minItemWidth={168}>
+          <StatCard title="累计成功金额" value={stats ? yuan(stats.totalAmount) : '—'} accent="var(--semi-color-success)" />
+          <StatCard title="今日成功金额" value={stats ? yuan(stats.todayAmount) : '—'} sub={stats ? `${stats.todayCount} 笔` : ''} />
+          <StatCard title="支付成功率" value={stats ? `${stats.successRate}%` : '—'} sub={stats ? `${stats.successCount}/${stats.orderCount} 单` : ''} accent="var(--semi-color-primary)" />
+          <StatCard title="累计退款" value={stats ? yuan(stats.refundAmount) : '—'} sub={stats ? `${stats.refundCount} 笔` : ''} accent="var(--semi-color-warning)" />
+          <StatCard title="退款率" value={stats ? `${stats.refundRate}%` : '—'} accent={stats && stats.refundRate > 20 ? 'var(--semi-color-danger)' : undefined} />
+          <StatCard title="成功笔均" value={stats ? yuan(stats.avgAmount) : '—'} />
+        </StatGrid>
 
         {/* 收款趋势 */}
         <div style={sectionStyle}>
