@@ -472,21 +472,24 @@ body[theme-mode='dark'] .semi-json-viewer-view-line {
     width: 100%;
   }
 
-  .responsive-toolbar__mobile-primary .semi-space-item {
+  /* Semi 的 <Space> 直接渲染子元素，不生成 .semi-space-item 包裹层，
+     因此这里按直接子元素排布：首项吸收剩余宽度，其余（查询/新增等按钮）保持固有宽度。 */
+  .responsive-toolbar__mobile-primary .semi-space > * {
     flex: 0 0 auto;
     min-width: 0;
   }
 
-  .responsive-toolbar__mobile-primary .semi-space-item:first-child {
+  .responsive-toolbar__mobile-primary .semi-space > *:first-child {
     flex: 1 1 auto;
   }
 
-  .responsive-toolbar__mobile-primary .semi-space-item:first-child .semi-input-wrapper {
-    width: 100% !important;
-  }
-
-  .responsive-toolbar__mobile-primary .semi-space-item:first-child .semi-select,
-  .responsive-toolbar__mobile-primary .semi-space-item:first-child .semi-input-number {
+  /* 首项本身即为输入类控件（如 .semi-input-wrapper）或其外层容器，两种结构都需撑满 */
+  .responsive-toolbar__mobile-primary .semi-space > .semi-input-wrapper:first-child,
+  .responsive-toolbar__mobile-primary .semi-space > .semi-select:first-child,
+  .responsive-toolbar__mobile-primary .semi-space > .semi-input-number:first-child,
+  .responsive-toolbar__mobile-primary .semi-space > *:first-child .semi-input-wrapper,
+  .responsive-toolbar__mobile-primary .semi-space > *:first-child .semi-select,
+  .responsive-toolbar__mobile-primary .semi-space > *:first-child .semi-input-number {
     width: 100% !important;
   }
 
@@ -498,6 +501,13 @@ body[theme-mode='dark'] .semi-json-viewer-view-line {
 @media (--xs-down) {
   .responsive-toolbar--structured .responsive-toolbar__mobile {
     flex-direction: column;
+    /* 列方向下交叉轴变为水平：沿用 flex-start 会让子项按内容宽度收缩而溢出视口，
+       必须 stretch 才能被容器宽度约束 */
+    align-items: stretch;
+  }
+
+  .responsive-toolbar__mobile-primary {
+    width: 100%;
   }
 
   .responsive-toolbar__mobile-extra {
