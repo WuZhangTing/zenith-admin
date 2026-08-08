@@ -3,6 +3,8 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { MemberPointTransaction, MemberWalletTransaction, MemberLoginLog } from '@zenith/shared/member';
 import { MEMBER_STATUS_LABELS, POINT_TX_TYPE_LABELS, WALLET_TX_TYPE_LABELS } from '@zenith/shared/member';
 import { useMemberOverview } from '@/hooks/queries/member-admin';
+import { useIsMobile } from '@/hooks/useMediaQuery';
+import { StatCard, StatGrid } from '@/components/charts/StatCard';
 
 const { Text } = Typography;
 
@@ -43,27 +45,18 @@ const loginLogCols: ColumnProps<MemberLoginLog>[] = [
   { title: '时间', dataIndex: 'createdAt', width: 180 },
 ];
 
-function StatCard({ label, value, sub }: Readonly<{ label: string; value: React.ReactNode; sub?: string }>) {
-  return (
-    <div style={{ flex: 1, background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)', padding: '12px 16px', minWidth: 0 }}>
-      <div style={{ fontSize: 12, color: 'var(--semi-color-text-2)', marginBottom: 6 }}>{label}</div>
-      <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--semi-color-text-0)', lineHeight: 1.2 }}>{value}</div>
-      {sub && <div style={{ fontSize: 11, color: 'var(--semi-color-text-3)', marginTop: 4 }}>{sub}</div>}
-    </div>
-  );
-}
-
 export function MemberDetailDrawer({ memberId, onClose }: Readonly<Props>) {
   const overviewQuery = useMemberOverview(memberId, !!memberId);
   const overview = overviewQuery.data ?? null;
   const m = overview?.member;
+  const isMobile = useIsMobile();
 
   return (
     <SideSheet
       title={m ? `会员详情 · ${m.nickname}` : '会员详情'}
       visible={!!memberId}
       onCancel={onClose}
-      width={680}
+      width={isMobile ? '100%' : 680}
       bodyStyle={{ padding: 0, overflow: 'auto' }}
     >
       <Spin spinning={overviewQuery.isFetching}>
@@ -104,12 +97,12 @@ export function MemberDetailDrawer({ memberId, onClose }: Readonly<Props>) {
             </div>
 
             {/* 核心数据卡片 */}
-            <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-              <StatCard label="积分余额" value={overview.points.balance} sub={`累计 ${overview.points.totalEarned}`} />
-              <StatCard label="钱包余额(元)" value={(overview.wallet.balance / 100).toFixed(2)} sub={`累计充值 ${(overview.wallet.totalRecharge / 100).toFixed(2)} 元`} />
-              <StatCard label="可用卡券" value={overview.activeCouponCount} />
-              <StatCard label="累计签到" value={overview.checkinTotal} sub={`登录 ${overview.loginLogCount} 次`} />
-            </div>
+            <StatGrid minItemWidth={150} style={{ marginBottom: 20 }}>
+              <StatCard title="积分余额" value={overview.points.balance} sub={`累计 ${overview.points.totalEarned}`} />
+              <StatCard title="钱包余额(元)" value={(overview.wallet.balance / 100).toFixed(2)} sub={`累计充值 ${(overview.wallet.totalRecharge / 100).toFixed(2)} 元`} />
+              <StatCard title="可用卡券" value={overview.activeCouponCount} />
+              <StatCard title="累计签到" value={overview.checkinTotal} sub={`登录 ${overview.loginLogCount} 次`} />
+            </StatGrid>
 
             {/* 最近积分流水 */}
             <div style={{ marginBottom: 20 }}>

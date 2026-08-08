@@ -12,6 +12,8 @@ import {
   makeLineSpec,
   makePieSpec,
   useChartPalette,
+  StatCard,
+  StatGrid,
 } from '@/components/charts';
 import { Users, UserPlus, CalendarPlus, Activity, Coins, Wallet, CalendarCheck, Ticket } from 'lucide-react';
 import type { MemberStatsOverview } from '@zenith/shared/member';
@@ -44,24 +46,9 @@ const STAT_ITEMS: StatItem[] = [
   { key: 'availableCoupons', label: '可用券数', icon: <Ticket size={20} />, color: '#F5222D' },
 ];
 
-function StatCard({ item, value, sub }: Readonly<{ item: StatItem; value: number; sub?: string }>) {
-  return (
-    <div style={{ flex: '1 1 200px', minWidth: 180, background: 'var(--semi-color-bg-2)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-large)', padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
-      <div style={{ width: 44, height: 44, borderRadius: 'var(--semi-border-radius-large)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${item.color}1a`, color: item.color, flexShrink: 0 }}>
-        {item.icon}
-      </div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.2, color: 'var(--semi-color-text-0)' }}>{value}</div>
-        <div style={{ fontSize: 12, color: 'var(--semi-color-text-2)', marginTop: 2 }}>{item.label}</div>
-        {sub && <div style={{ fontSize: 11, color: 'var(--semi-color-text-3)', marginTop: 2 }}>{sub}</div>}
-      </div>
-    </div>
-  );
-}
-
 function ChartCard({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {
   return (
-    <Card style={{ flex: '1 1 460px', minWidth: 360 }} bodyStyle={{ padding: 16 }}>
+    <Card bodyStyle={{ padding: 16 }}>
       <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: 'var(--semi-color-text-0)' }}>{title}</div>
       {children}
     </Card>
@@ -132,9 +119,9 @@ export default function MemberDashboardPage() {
     const skeletonPlaceholder = (
       <div className="page-container">
         {/* 统计卡片骨架 */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+        <StatGrid minItemWidth={200} style={{ marginBottom: 16 }}>
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} style={{ flex: '1 1 200px', minWidth: 180, background: 'var(--semi-color-bg-2)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-large)', padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div key={i} style={{ background: 'var(--semi-color-bg-2)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-large)', padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
               <Skeleton.Avatar style={{ width: 44, height: 44, borderRadius: 'var(--semi-border-radius-large)', flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <Skeleton.Title style={{ width: '60%', marginBottom: 8 }} />
@@ -142,11 +129,11 @@ export default function MemberDashboardPage() {
               </div>
             </div>
           ))}
-        </div>
+        </StatGrid>
         {/* 图表卡片骨架 */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+        <div className="chart-grid" style={{ ['--chart-grid-min' as string]: '460px' }}>
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} style={{ flex: '1 1 460px', minWidth: 360, background: 'var(--semi-color-bg-2)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-large)', padding: 16 }}>
+            <div key={i} style={{ background: 'var(--semi-color-bg-2)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-large)', padding: 16 }}>
               <Skeleton.Title style={{ width: 140, marginBottom: 16 }} />
               <Skeleton.Image style={{ width: '100%', height: 260, borderRadius: 'var(--semi-border-radius-medium)' }} />
             </div>
@@ -160,17 +147,17 @@ export default function MemberDashboardPage() {
   return (
     <div className="page-container">
       {/* 概览卡片 */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+      <StatGrid minItemWidth={200} style={{ marginBottom: 16 }}>
         {overview && STAT_ITEMS.map((item) => {
           const raw = overview[item.key];
           const value = item.format ? item.format(raw) : raw;
           const sub = item.key === 'todayCheckins' ? `签到率 ${overview.todayCheckinRate}%` : undefined;
-          return <StatCard key={item.key} item={item} value={value as number} sub={sub} />;
+          return <StatCard key={item.key} title={item.label} value={value} icon={item.icon} accent={item.color} sub={sub} />;
         })}
-      </div>
+      </StatGrid>
 
       {/* 图表区 */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+      <div className="chart-grid" style={{ ['--chart-grid-min' as string]: '460px' }}>
         <ChartCard title="近30天注册趋势">
           <AreaChart {...registerSpec} options={chartOptions} height={260} />
         </ChartCard>
