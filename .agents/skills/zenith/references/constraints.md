@@ -168,6 +168,31 @@
 - **ConfigurableTable 刷新按钮**（Step 8）：所有使用 `ConfigurableTable` 的列表页均必须传入 `onRefresh` 和 `refreshLoading`
 - **左右分栏布局**（Step 8）：需要「左侧列表 + 右侧详情」结构时，统一使用 `packages/web/src/components/MasterDetailLayout.tsx`，**禁止**手写 flex 两栏布局。窄屏（容器宽度 < `responsiveBreakpoint`，默认 720）自动转单栏，必须提供返回入口：master 为列表时传 `onBack`，master 为筛选树、detail 才是主体时传 `onMasterBack`；且**禁止**在单栏下自动选中首项（否则根视图落在详情，列表要点返回才能抵达），用 `onResponsiveChange` 区分。master 内部的高度链写法、嵌套 Semi Tabs 与窄屏单栏的完整写法见 [crud-frontend.md 左右分栏布局](./crud-frontend.md)
 - **左侧平铺列表**（Step 8）：左侧 master 是**平铺列表**（分类/文件/分组等，非树形）时，统一使用 `NavListPanel<T>` + `NavListItem`（`packages/web/src/components/NavListPanel.tsx`）；树形数据（需展开/折叠）改用 Semi `Tree`。props 与 dataSource / children / rawBody 三种用法见 [crud-frontend.md 左侧平铺列表](./crud-frontend.md)
+- **统计卡片**（Step 8）：指标卡（数值 + 标题，可带图标/副文案/环比/可点击筛选）统一使用
+  `packages/web/src/components/charts/StatCard.tsx` 的 `StatCard` + `StatGrid`，
+  **禁止**在页面里再写一遍 `<Card>` + 大字号数值 + tertiary 标签的组合。
+  页面无图表时从 `@/components/charts/StatCard` 直接导入——桶文件 `@/components/charts`
+  会连带引入约 2MB 的 vchart。
+  环比用 `delta`，`deltaFormat` 区分 `absolute`（差值）与 `ratio`（比率，0.12 → +12.0%）；
+  按状态筛选列表的卡片传 `onClick` + `active`，组件会渲染成 `button` 并带 `aria-pressed`
+- **栅格禁止内联写死列数**（Step 8）：**禁止**写
+  `style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}` 或 `'1fr 1fr'` 这类固定列数——
+  内联样式无法被媒体查询覆盖，窄屏会把内容压到竖排（实测：4 列会员等级卡在 390px 只剩 75px 宽，
+  弹窗内两列表单只剩 152px）。按场景选择：
+  ① 统计卡片 → `StatGrid`（`minItemWidth` 控制降列阈值）；
+  ② 图表分栏 → `.chart-grid`（主图 + 侧栏的非对称布局加 `.chart-grid--aside`）；
+  ③ 其余固定列数的卡片栅格 / 表单多列 / 选择器 → `global.css` 的 `.auto-grid`，
+  用 `--auto-grid-min`（内容最小宽）、`--auto-grid-cols`（**设计列数上限**）、
+  `--auto-grid-gap`（必须是单个长度，参与列数计算；行距另用 `--auto-grid-row-gap`）。
+  `--auto-grid-cols` 不可省：纯 `auto-fit` 会在宽屏多拆一列（3 列设计在 1440px 变 4 列）。
+  确需保留的 `repeat(auto-*, minmax(Npx, 1fr))` 必须写成 `minmax(min(Npx, 100%), 1fr)`，
+  否则容器比单列还窄时会横向溢出。
+  **不适用**：固定像素列（`'110px minmax(0,1fr)'`、`'150px 1fr 56px'` 等标签/值布局）、
+  等分小方块缩略图（表情、聊天媒体）、以及本身处于固定宽容器内的微指标——这些窄屏不会破碎
+- **抽屉/弹窗宽度**（Step 8）：`SideSheet` / `Modal` 的窄屏适配已由 `global.css` 全局兜底
+  （Modal 在 `--sm-down` 取 95vw；SideSheet 在 `--lg-down` 取 `max-width: 95vw`、
+  在 `--xs-down` 取 `width: 100vw`），**无需**再在页面里写 `width={isMobile ? '100%' : 720}`——
+  这类判断在所有区间都被全局规则覆盖，是无效代码
 
 ---
 

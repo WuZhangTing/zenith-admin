@@ -1096,6 +1096,98 @@ useEffect(() => {
 
 ---
 
+## 统计卡片与自适应栅格
+
+指标卡与卡片栅格统一走公共组件，**禁止**内联写死列数——内联样式无法被媒体查询覆盖。
+
+### StatCard / StatGrid（`packages/web/src/components/charts/StatCard.tsx`）
+
+```tsx
+// 无图表的页面直接引具体文件，避免桶文件带入约 2MB 的 vchart
+import { StatCard, StatGrid } from '@/components/charts/StatCard';
+// 页面本来就有图表时，从桶文件一起引即可
+// import { LineChart, chartOptions, StatCard, StatGrid } from '@/components/charts';
+
+<StatGrid minItemWidth={180}>
+  <StatCard title="今日 PV" value={stats.pv} icon={<Eye size={19} />} accent="#3b82f6" />
+  {/* 环比：absolute 展示差值，ratio 按比率渲染成百分比（0.12 → +12.0%） */}
+  <StatCard title="今日 UV" value={stats.uv} delta={stats.uvDelta} deltaFormat="absolute" />
+  {/* 可点击筛选卡：渲染为 button，自动带 aria-pressed 与选中边框 */}
+  <StatCard
+    title="审批中"
+    value={stats.running}
+    accent="var(--semi-color-primary)"
+    onClick={() => applySearch({ status: 'running' })}
+    active={draftParams.status === 'running'}
+  />
+</StatGrid>
+```
+
+`StatGrid` 用 `auto-fit` + `minmax(min(minItemWidth, 100%), 1fr)`，容器变窄自动降列，
+`min()` 保证容器比单列还窄时也不溢出。
+
+### 图表分栏（`.chart-grid`）
+
+```tsx
+{/* 等宽多图：最小 380px，xl 以上锁两列（三列以上横轴过密） */}
+<div className="chart-grid">
+  <Card title="趋势"><LineChart {...spec} /></Card>
+  <Card title="分布"><PieChart {...spec} /></Card>
+</div>
+
+{/* 主图 + 侧栏的非对称布局：宽屏 1.6fr / 0.9fr，lg 以下收敛单列 */}
+<div className="chart-grid chart-grid--aside">
+  <Card title="事件脉冲"><AreaChart {...spec} /></Card>
+  <Card title="热门页面">…</Card>
+</div>
+```
+
+`.chart-grid` 的两列锁定走的是**视口**断点。若栅格位于抽屉、弹窗或分栏面板等
+**比视口窄得多的容器**内，改用 `StatGrid`（纯容器自适应，不看视口）。
+
+### 通用自适应栅格（`.auto-grid`，`global.css`）
+
+固定列数的卡片栅格、表单多列、选择器画廊用它。轨道下限取「内容最小宽」与「N 等分宽」
+的较大者：宽屏由 N 等分宽占优，恰好 N 列；窄屏由 `--auto-grid-min` 接管，自动降列。
+
+```tsx
+{/* 弹窗内两列表单：宽屏 2 列，窄到放不下 220px 时收敛单列 */}
+<div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
+  <Form.Select field="channel" label="渠道" style={{ width: '100%' }} optionList={channelOptions} />
+  <Form.Select field="payMethod" label="支付方式" style={{ width: '100%' }} optionList={methodOptions} />
+</div>
+```
+
+| 变量 | 含义 |
+| --- | --- |
+| `--auto-grid-min` | 单列内容最小宽，低于此值即降列（默认 220px） |
+| `--auto-grid-cols` | **设计列数上限**（默认 4）。不可省——纯 `auto-fit` 会在宽屏多拆一列 |
+| `--auto-grid-gap` | 列间距，**必须是单个长度**（同时参与列数计算），默认 16px |
+| `--auto-grid-row-gap` | 行间距，省略时跟随 `--auto-grid-gap` |
+
+**不适用 `.auto-grid` 的场景**（保持原写法）：
+
+- 固定像素列的标签/值布局：`'110px minmax(0, 1fr)'`、`'150px 1fr 56px'`
+- 等分小方块缩略图：表情面板、聊天媒体网格
+- 本身就在固定宽容器内的微指标（父容器写死 `width: 188` 时任何视口都不会破碎）
+
+确需保留 `repeat(auto-*, minmax(Npx, 1fr))` 时，必须写成 `minmax(min(Npx, 100%), 1fr)`，
+否则容器比单列还窄时会横向溢出。
+
+### 抽屉 / 弹窗宽度
+
+窄屏适配已由 `global.css` 全局兜底，页面**无需**再写 `width={isMobile ? '100%' : 720}`：
+
+| 断点 | 规则 |
+| --- | --- |
+| `--sm-down` | `.semi-modal` → `width/max-width: 95vw` |
+| `--lg-down` | `.semi-sidesheet-inner` → `max-width: 95vw` |
+| `--xs-down` | `.semi-sidesheet-inner` → `width: 100vw` |
+
+因此固定 `width={860}` 的 SideSheet 在 390px 下同样满宽，加 `isMobile` 判断是无效代码。
+
+---
+
 ## 导出规范（导出中心）
 
 - 若模块需要导出，后端统一在 `packages/server/src/lib/export-center/definitions/` 中新增 `defineExport` 实体定义，并在 `definitions/index.ts` 注册。
