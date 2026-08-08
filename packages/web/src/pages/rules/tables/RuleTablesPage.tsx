@@ -621,7 +621,7 @@ export default function RuleTablesPage() {
             <Button size="small" theme="borderless" onClick={() => resetCaseEditor()}>清空</Button>
           </Space>
           <Input size="small" value={caseForm.name} onChange={(v) => setCaseForm((prev) => ({ ...prev, name: v }))} placeholder="用例名称" style={{ width: '100%' }} />
-          <div style={{ width: '100%', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="auto-grid" style={{ width: '100%', ['--auto-grid-min' as string]: '260px', ['--auto-grid-cols' as string]: 2, ['--auto-grid-gap' as string]: '12px' }}>
             <div>
               <Text strong size="small">输入</Text>
               <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>

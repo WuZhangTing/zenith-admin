@@ -223,7 +223,11 @@ export function RowEditModal(props: Readonly<Props>): JSX.Element {
         allowEmpty
         initValues={initialValues}
         getFormApi={(api) => { formRef.current = api; }}
-        style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 16 }}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))',
+          columnGap: 16,
+        }}
       >
         {pkCols.map(renderField)}
         {restCols.map(renderField)}

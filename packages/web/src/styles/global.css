@@ -632,7 +632,9 @@ body[theme-mode='dark'] .semi-json-viewer-view-line {
  */
 .auto-grid {
   display: grid;
-  gap: var(--auto-grid-gap, 16px);
+  /* --auto-grid-gap 必须是单个长度：它同时参与下方列数计算 */
+  column-gap: var(--auto-grid-gap, 16px);
+  row-gap: var(--auto-grid-row-gap, var(--auto-grid-gap, 16px));
   grid-template-columns: repeat(
     auto-fit,
     minmax(

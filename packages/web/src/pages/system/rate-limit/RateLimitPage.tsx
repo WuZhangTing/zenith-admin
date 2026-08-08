@@ -193,7 +193,7 @@ export default function RateLimitPage() {
                   {rule.description}
                 </Text>
               )}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div className="auto-grid" style={{ ['--auto-grid-min' as string]: '130px', ['--auto-grid-cols' as string]: 2, ['--auto-grid-gap' as string]: '12px', marginBottom: 12 }}>
                 <InfoBlock label="时间窗口" value={formatWindow(rule.windowMs)} />
                 <InfoBlock label="窗口内上限" value={`${rule.limit} 次`} />
                 <InfoBlock label="计数维度" value={KEY_TYPE_OPTIONS.find((o) => o.value === rule.keyType)?.label ?? rule.keyType} />

@@ -714,7 +714,7 @@ export default function WorkflowDefinitionsPage() {
                   <div style={{ marginBottom: 16, color: 'var(--semi-color-success)' }}>两个版本的流程结构一致，未检测到节点/连线变化。</div>
                 )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div className="auto-grid" style={{ ['--auto-grid-min' as string]: '280px', ['--auto-grid-cols' as string]: 2 }}>
                 {[
                   { key: 'left', side: diffData.left },
                   { key: 'right', side: diffData.right },

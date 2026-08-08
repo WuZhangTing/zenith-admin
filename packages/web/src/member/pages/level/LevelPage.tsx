@@ -57,7 +57,7 @@ export default function LevelPage() {
       {levelsQuery.isFetching ? (
         <div className="m-loading-wrap"><Spin /></div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(260px, 100%), 1fr))', gap: 16 }}>
           {levels.map((lv) => {
             const current = member?.levelId === lv.id;
             return (

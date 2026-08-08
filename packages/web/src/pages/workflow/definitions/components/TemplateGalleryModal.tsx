@@ -87,10 +87,11 @@ export function TemplateGalleryModal({ visible, onCancel, categoryId = null, onC
             </div>
           )}
           <div
+            className="auto-grid"
             style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: 12,
+              ['--auto-grid-min' as string]: '200px',
+              ['--auto-grid-cols' as string]: 3,
+              ['--auto-grid-gap' as string]: '12px',
               maxHeight: 480,
               overflowY: 'auto',
               paddingRight: 4,

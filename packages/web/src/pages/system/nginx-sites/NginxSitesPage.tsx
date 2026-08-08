@@ -192,7 +192,7 @@ export default function NginxSitesPage() {
         />
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap: 12, marginBottom: 16 }}>
         <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 16, background: 'var(--semi-color-bg-1)' }}>
           <Text type="secondary" size="small">安装状态</Text>
           <div style={{ marginTop: 8 }}><Tag color={info?.installed ? 'green' : 'grey'}>{info?.installed ? '已安装' : '未安装'}</Tag></div>
@@ -211,7 +211,7 @@ export default function NginxSitesPage() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(260px, 100%), 1fr))', gap: 12, marginBottom: 16 }}>
         <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 16, background: 'var(--semi-color-bg-1)' }}>
           <Text type="secondary" size="small">sites-available / conf.d</Text>
           <div style={{ marginTop: 8 }}><Typography.Text style={{ wordBreak: 'break-all' }}>{info?.sitesAvailable ?? '—'}</Typography.Text></div>

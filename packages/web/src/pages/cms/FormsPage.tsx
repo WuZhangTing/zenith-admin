@@ -223,7 +223,7 @@ export default function FormsPage() {
                         <Form.Checkbox field={`${field}[required]`} noLabel>必填</Form.Checkbox>
                         <Button type="danger" theme="borderless" icon={<Trash2 size={14} />} onClick={() => remove()} style={{ marginTop: 4 }} />
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 8 }}>
+                      <div className="auto-grid" style={{ ['--auto-grid-min' as string]: '150px', ['--auto-grid-cols' as string]: 3, ['--auto-grid-gap' as string]: '8px' }}>
                         <Form.InputNumber field={`${field}[minLength]`} noLabel placeholder="最小长度" min={0} max={2000} />
                         <Form.InputNumber field={`${field}[maxLength]`} noLabel placeholder="最大长度" min={1} max={2000} />
                         <Form.Input field={`${field}[pattern]`} noLabel placeholder="RE2 规则，如 ^[A-Z]{2}-\\d{4}$" />

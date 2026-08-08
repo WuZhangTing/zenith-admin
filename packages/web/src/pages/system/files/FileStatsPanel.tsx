@@ -119,7 +119,7 @@ export default function FileStatsPanel() {
         </StatGrid>
 
         {/* 文件类型卡片 */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(160px, 100%), 1fr))', gap: 12 }}>
           {FILE_TYPE_CONFIG.map(({ type, label, Icon, color, bgColor }) => {
             const stat = stats?.typeStats.find(t => t.type === type);
             const count = stat?.count ?? 0;

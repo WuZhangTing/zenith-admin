@@ -423,7 +423,7 @@ export default function AnalyticsSegmentsTab() {
         closeOnEsc
       >
         <div style={{ display: 'grid', gap: 12 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="auto-grid" style={{ ['--auto-grid-min' as string]: '220px', ['--auto-grid-cols' as string]: 2, ['--auto-grid-gap' as string]: '12px' }}>
             <div>
               <Typography.Text type="tertiary" size="small">名称</Typography.Text>
               <Input value={name} onChange={setName} placeholder="如「近 7 天活跃用户」" />

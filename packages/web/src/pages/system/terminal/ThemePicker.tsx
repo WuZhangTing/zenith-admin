@@ -185,7 +185,7 @@ export default function ThemePicker({ themes, value, onChange }: ThemePickerProp
         marginRight: -2,
       }}
     >
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+      <div className="auto-grid" style={{ ['--auto-grid-min' as string]: '140px', ['--auto-grid-cols' as string]: 2, ['--auto-grid-gap' as string]: '8px' }}>
         {themes.map((theme) => (
           <ThemeCard
             key={theme.id}

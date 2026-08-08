@@ -33,7 +33,7 @@ export function PrefsLayoutSection({
       {matchesPref(['导航布局', '布局', '左侧菜单', '顶部菜单', '混合菜单', '双列菜单']) && (
       <div>
         <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 500, color: 'var(--semi-color-text-0)' }}>导航布局</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+        <div className="auto-grid" style={{ ['--auto-grid-min' as string]: '150px', ['--auto-grid-cols' as string]: 3, ['--auto-grid-gap' as string]: '10px' }}>
           {([
             { value: 'vertical' as NavLayout, label: '左侧菜单' },
             { value: 'horizontal' as NavLayout, label: '顶部菜单' },

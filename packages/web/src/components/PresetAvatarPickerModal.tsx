@@ -22,7 +22,7 @@ export function PresetAvatarPickerModal({ visible, currentAvatar, onCancel, onSe
       width={460}
       centered
     >
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, padding: '8px 0 16px' }}>
+      <div className="auto-grid" style={{ ['--auto-grid-min' as string]: '80px', ['--auto-grid-cols' as string]: 4, ['--auto-grid-gap' as string]: '12px', padding: '8px 0 16px' }}>
         {PRESET_AVATARS.map((url) => (
           <button
             key={url}

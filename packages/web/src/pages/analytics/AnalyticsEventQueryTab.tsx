@@ -116,7 +116,7 @@ export default function AnalyticsEventQueryTab() {
         自由组合事件、维度与指标进行探索性分析；支持最多 2 个分组维度、10 个属性过滤条件（属性过滤暂通过分群/漏斗页配置，工作台先支持核心维度）。
       </Typography.Text>
       <Card bodyStyle={{ padding: 16 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: 12 }}>
           <div>
             <Typography.Text type="tertiary" size="small">事件（最多 20 个，留空表示全部）</Typography.Text>
             <Select

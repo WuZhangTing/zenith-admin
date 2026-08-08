@@ -59,7 +59,7 @@ export function ShortcutsModal({
       ] as { group: string; items: { keys: string[]; desc: string }[] }[]).map(({ group, items }, index, arr) => (
         <div key={group}>
           <Divider align="left" style={{ margin: '0 0 8px', fontSize: 11, color: 'var(--semi-color-text-2)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{group}</Divider>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 16px', marginBottom: index < arr.length - 1 ? 12 : 0 }}>
+          <div className="auto-grid" style={{ ['--auto-grid-min' as string]: '240px', ['--auto-grid-cols' as string]: 2, ['--auto-grid-row-gap' as string]: '2px', marginBottom: index < arr.length - 1 ? 12 : 0 }}>
             {items.map(({ keys, desc }) => (
               <div key={desc} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
                 <span style={{ color: 'var(--semi-color-text-1)', fontSize: 12, marginRight: 8 }}>{desc}</span>

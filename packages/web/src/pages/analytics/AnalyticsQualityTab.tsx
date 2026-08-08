@@ -185,7 +185,7 @@ export default function AnalyticsQualityTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+      <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))' }}>
         {ANALYTICS_QUALITY_ISSUE_TYPE_OPTIONS.map((option) => (
           <Card key={option.value} bodyStyle={{ padding: 16 }} style={{ borderRadius: 'var(--semi-border-radius-large)' }}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>

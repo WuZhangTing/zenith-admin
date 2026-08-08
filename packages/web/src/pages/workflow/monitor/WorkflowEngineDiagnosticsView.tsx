@@ -1117,7 +1117,7 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
           </div>
         </TabPane>
         <TabPane tab="事件与调度" itemKey="scheduler">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))', gap: 12 }}>
             <ConfigurableTable
               bordered
               columnSettings={false}

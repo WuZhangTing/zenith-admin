@@ -739,7 +739,7 @@ export default function AnnouncementsPage() {
             rules={[{ required: true, message: '标题不能为空' }]}
             disabled={viewOnly}
           />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
+          <div className="auto-grid" style={{ ['--auto-grid-min' as string]: '200px', ['--auto-grid-cols' as string]: 3, marginBottom: 16 }}>
             <Form.Select
               field="type"
               label="公告类型"

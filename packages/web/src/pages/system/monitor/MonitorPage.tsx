@@ -485,7 +485,7 @@ export default function MonitorPage() {
               <Skeleton.Button key={k} style={{ width: 64, height: 32, borderRadius: 'var(--semi-border-radius-small)' }} />
             ))}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
+          <div className="monitor-overview-sys">
             {SKELETON_ROW_KEYS.map((k) => (
               <div key={k} style={{ padding: '10px 12px 10px 0', borderBottom: '1px solid var(--color-border)' }}>
                 <Skeleton.Title style={{ width: '40%', height: 12, margin: '0 0 8px' }} />
