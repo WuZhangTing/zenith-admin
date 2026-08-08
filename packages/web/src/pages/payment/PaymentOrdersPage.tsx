@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Form, Input, InputNumber, Select, Tabs, TabPane, Toast, Tag, Timeline, Typography, Modal, Descriptions } from '@douyinfe/semi-ui';
+import { Button, Form, Input, InputNumber, Select, Tabs, TabPane, Toast, Tag, Timeline, Typography, Modal, Descriptions } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import ConfigurableTable from '@/components/ConfigurableTable';
+// 本页无图表：直接引组件文件，避免经桶文件带入 ~2MB 的 vchart
+import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
@@ -53,15 +55,6 @@ const defaultSearch: SearchParams = { keyword: '', channel: '', status: '', payM
 interface ManualOrderFormValues { subject: string; amount: number; bizType: string; bizId: string; payMethod: PaymentMethod; openId?: string; }
 interface ManualOrderRecord { id: number; orderNo: string; payParams: CreatePaymentResult; }
 interface RefundFormValues { amountYuan: number; reason?: string; }
-
-function StatCard({ label, value }: Readonly<{ label: string; value: string }>) {
-  return (
-    <Card style={{ flex: '1 1 150px', minWidth: 130 }} bodyStyle={{ padding: '10px 14px' }}>
-      <Typography.Text type="tertiary" size="small">{label}</Typography.Text>
-      <div style={{ fontSize: 20, fontWeight: 600, marginTop: 4 }}>{value}</div>
-    </Card>
-  );
-}
 
 export default function PaymentOrdersPage() {
   const { hasPermission } = usePermission();
@@ -359,13 +352,13 @@ export default function PaymentOrdersPage() {
       <Tabs activeKey={activeTab} onChange={(k) => setActiveTab(k as 'list' | 'stats')} type="line" lazyRender keepDOM={false}>
         <TabPane tab="支付订单" itemKey="list">
           {stats && (
-            <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
-              <StatCard label="累计成功金额" value={yuan(stats.totalAmount)} />
-              <StatCard label="今日成功金额" value={yuan(stats.todayAmount)} />
-              <StatCard label="订单总数" value={String(stats.orderCount)} />
-              <StatCard label="成功订单" value={String(stats.successCount)} />
-              <StatCard label="累计退款" value={yuan(stats.refundAmount)} />
-            </div>
+            <StatGrid minItemWidth={150} style={{ marginBottom: 12 }}>
+              <StatCard title="累计成功金额" value={yuan(stats.totalAmount)} />
+              <StatCard title="今日成功金额" value={yuan(stats.todayAmount)} />
+              <StatCard title="订单总数" value={String(stats.orderCount)} />
+              <StatCard title="成功订单" value={String(stats.successCount)} />
+              <StatCard title="累计退款" value={yuan(stats.refundAmount)} />
+            </StatGrid>
           )}
           <SearchToolbar
             primary={(

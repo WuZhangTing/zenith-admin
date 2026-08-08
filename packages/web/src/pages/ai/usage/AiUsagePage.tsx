@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Card, Row, Col, Spin, Typography } from '@douyinfe/semi-ui';
+import { Card, Spin, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { CommonChart, chartOptions, makeMixedBarLineSpec, useChartPalette } from '@/components/charts';
+import { CommonChart, chartOptions, makeMixedBarLineSpec, useChartPalette, StatCard, StatGrid } from '@/components/charts';
 import { Bot, CircleCheck, Coins, Gauge, MessageCircle, Users, Wallet } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
@@ -39,51 +39,6 @@ function formatMs(ms: number | null | undefined) {
 
 function shortDate(date: string) {
   return date.slice(5);
-}
-
-interface StatCardProps {
-  title: string;
-  value: string;
-  icon: React.ReactNode;
-  color: string;
-  secondary?: string;
-}
-
-function StatCard({ title, value, icon, color, secondary }: StatCardProps) {
-  return (
-    <Card style={{ height: '100%' }} bodyStyle={{ padding: '16px 20px', height: '100%', display: 'flex', alignItems: 'center', boxSizing: 'border-box' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
-        <div style={{
-          width: 44,
-          height: 44,
-          borderRadius: 'var(--semi-border-radius-large)',
-          background: `${color}18`,
-          color,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-        }}>
-          {icon}
-        </div>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 22, fontWeight: 600, lineHeight: 1.2, color: 'var(--semi-color-text-0)' }}>
-            {value}
-          </div>
-          <Text type="tertiary" size="small">{title}</Text>
-          {/* secondary 恒定占位一行，保证所有卡片等高 */}
-          <Text
-            type="tertiary"
-            size="small"
-            ellipsis={{ showTooltip: true }}
-            style={{ display: 'block', marginTop: 2, visibility: secondary ? 'visible' : 'hidden' }}
-          >
-            {secondary || '\u00A0'}
-          </Text>
-        </div>
-      </div>
-    </Card>
-  );
 }
 
 export default function AiUsagePage() {
@@ -203,90 +158,80 @@ export default function AiUsagePage() {
 
       <Spin spinning={statsQuery.isFetching}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <Row gutter={[16, 16]} type="flex">
-            <Col xs={24} sm={12} xl={6}>
-              <StatCard title="对话总数" value={formatNumber(stats?.overview.totalConversations ?? 0)} icon={<MessageCircle size={20} />} color="#4A90E2" />
-            </Col>
-            <Col xs={24} sm={12} xl={6}>
-              <StatCard title="回复消息数" value={formatNumber(stats?.overview.totalMessages ?? 0)} icon={<Bot size={20} />} color="#52C41A" />
-            </Col>
-            <Col xs={24} sm={12} xl={6}>
+          <StatGrid>
+              <StatCard title="对话总数" value={formatNumber(stats?.overview.totalConversations ?? 0)} icon={<MessageCircle size={20} />} accent="var(--semi-color-primary)" />
+
+              <StatCard title="回复消息数" value={formatNumber(stats?.overview.totalMessages ?? 0)} icon={<Bot size={20} />} accent="var(--semi-color-success)" />
+
               <StatCard
                 title="Token 总数"
                 value={formatNumber(stats?.overview.totalTokens ?? 0)}
                 icon={<Coins size={20} />}
-                color="#FA8C16"
-                secondary={`输入 ${formatNumber(stats?.overview.tokensInput)} / 输出 ${formatNumber(stats?.overview.tokensOutput)}`}
+                accent="var(--semi-color-warning)"
+                sub={`输入 ${formatNumber(stats?.overview.tokensInput)} / 输出 ${formatNumber(stats?.overview.tokensOutput)}`}
               />
-            </Col>
-            <Col xs={24} sm={12} xl={6}>
-              <StatCard title="活跃用户数" value={formatNumber(stats?.overview.activeUsers ?? 0)} icon={<Users size={20} />} color="#722ED1" />
-            </Col>
-            <Col xs={24} sm={12} xl={8}>
+
+              <StatCard title="活跃用户数" value={formatNumber(stats?.overview.activeUsers ?? 0)} icon={<Users size={20} />} accent="var(--semi-color-data-2)" />
+
               <StatCard
                 title="预估成本"
                 value={formatCostYuan(stats?.overview.totalCostFen ?? 0)}
                 icon={<Wallet size={20} />}
-                color="#EB2F96"
-                secondary="未配置单价的模型不计入"
+                accent="var(--semi-color-data-3)"
+                sub="未配置单价的模型不计入"
               />
-            </Col>
-            <Col xs={24} sm={12} xl={8}>
+
               <StatCard
                 title="平均首字延迟"
                 value={formatMs(stats?.overview.avgTtftMs)}
                 icon={<Gauge size={20} />}
-                color="#13C2C2"
+                accent="var(--semi-color-data-4)"
               />
-            </Col>
-            <Col xs={24} sm={12} xl={8}>
+
               <StatCard
                 title="请求成功率"
                 value={stats?.overview.successRate == null ? '—' : `${stats.overview.successRate}%`}
                 icon={<CircleCheck size={20} />}
-                color="#2FBF71"
+                accent="var(--semi-color-success)"
               />
-            </Col>
-          </Row>
+            
+          </StatGrid>
 
           <Card title={<Text strong>每日趋势</Text>} bodyStyle={{ padding: '12px 16px 8px' }}>
             <CommonChart {...trendSpec} options={chartOptions} height={280} />
           </Card>
 
-          <Row gutter={[16, 16]} type="flex">
-            <Col xs={24} xl={12}>
-              <Card title={<Text strong>按模型用量</Text>} bodyStyle={{ padding: 12 }}>
-                <ConfigurableTable
-                  bordered
-                  columns={modelColumns}
-                  dataSource={modelData}
-                  loading={statsQuery.isFetching}
-                  rowKey="model"
-                  size="small"
-                  pagination={false}
-                  empty="暂无模型用量"
-                  onRefresh={() => void statsQuery.refetch()}
-                  refreshLoading={statsQuery.isFetching}
-                />
-              </Card>
-            </Col>
-            <Col xs={24} xl={12}>
-              <Card title={<Text strong>用量 Top 10 用户</Text>} bodyStyle={{ padding: 12 }}>
-                <ConfigurableTable
-                  bordered
-                  columns={userColumns}
-                  dataSource={userData}
-                  loading={statsQuery.isFetching}
-                  rowKey="userId"
-                  size="small"
-                  pagination={false}
-                  empty="暂无用户用量"
-                  onRefresh={() => void statsQuery.refetch()}
-                  refreshLoading={statsQuery.isFetching}
-                />
-              </Card>
-            </Col>
-          </Row>
+          <div className="chart-grid">
+            <Card title={<Text strong>按模型用量</Text>} bodyStyle={{ padding: 12 }}>
+              <ConfigurableTable
+                bordered
+                columns={modelColumns}
+                dataSource={modelData}
+                loading={statsQuery.isFetching}
+                rowKey="model"
+                size="small"
+                pagination={false}
+                empty="暂无模型用量"
+                onRefresh={() => void statsQuery.refetch()}
+                refreshLoading={statsQuery.isFetching}
+              />
+            </Card>
+
+            <Card title={<Text strong>用量 Top 10 用户</Text>} bodyStyle={{ padding: 12 }}>
+              <ConfigurableTable
+                bordered
+                columns={userColumns}
+                dataSource={userData}
+                loading={statsQuery.isFetching}
+                rowKey="userId"
+                size="small"
+                pagination={false}
+                empty="暂无用户用量"
+                onRefresh={() => void statsQuery.refetch()}
+                refreshLoading={statsQuery.isFetching}
+              />
+            </Card>
+          </div>
         </div>
       </Spin>
     </div>
