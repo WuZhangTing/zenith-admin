@@ -242,6 +242,55 @@ body[theme-mode='dark'] .semi-json-viewer-view-line {
   min-height: 28px;
 }
 
+/* ===== 移动端触控目标 =====
+   窄屏下勾选框 16×20、开关 26×16、行操作 24×24 均远低于 44×44 的触控下限。
+   统一用伪元素向外扩展点击热区：视觉尺寸、行高与表格布局均不变，
+   仅放大可点区域。桌面端使用鼠标，无需扩展，故限定在 --md-down。 */
+@media (--md-down) {
+  .semi-table-tbody .semi-checkbox,
+  .semi-table-thead .semi-checkbox,
+  .semi-table .semi-switch,
+  .responsive-table-actions .semi-button,
+  .configurable-table-actions .semi-button,
+  .semi-page .semi-page-item {
+    position: relative;
+  }
+
+  .semi-table-tbody .semi-checkbox::after,
+  .semi-table-thead .semi-checkbox::after,
+  .semi-table .semi-switch::after,
+  .responsive-table-actions .semi-button::after,
+  .configurable-table-actions .semi-button::after,
+  .semi-page .semi-page-item::after {
+    content: '';
+    position: absolute;
+    /* 居中扩展热区：44 = 元素尺寸 + 2 × 外扩量 */
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+
+  /* 表格行高约 41px，纵向扩到 44px 会越界到相邻行，造成跨行误触
+     （实测热区外沿命中的是下一行的同类控件）。纵向收到行内，横向保持 44px。 */
+  .semi-table-tbody .semi-checkbox::after,
+  .semi-table-thead .semi-checkbox::after,
+  .semi-table .semi-switch::after,
+  .responsive-table-actions .semi-button::after {
+    height: 38px;
+  }
+
+  /* 工具栏图标原本零间距、分页项仅 4px 间距，扩展热区后相邻项会互相侵占 */
+  .configurable-table-actions {
+    gap: 12px;
+  }
+
+  .semi-page {
+    gap: 12px;
+  }
+}
+
 .column-settings-popover {
   width: 220px;
   padding: 10px;
