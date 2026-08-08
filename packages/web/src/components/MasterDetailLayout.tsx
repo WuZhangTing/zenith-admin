@@ -32,8 +32,12 @@ interface MasterDetailLayoutProps {
    */
   collapsible?: boolean;
   /**
-   * 容器宽度小于此值时切换到单栏模式（移动端样式），默认 560。
+   * 容器宽度小于此值时切换到单栏模式（移动端样式），默认 720。
    * 传 0 或 undefined 可禁用响应式，传极大值（如 99999）可强制单栏。
+   *
+   * 取 720 而非 768：断点比较的是容器宽度而非视口宽度，后台内容区还要
+   * 扣除侧边栏。实测 992px 视口下容器仅 776px，若阈值取 768 只剩 8px 余量，
+   * 用户略微缩窄窗口就会让桌面端意外掉入单栏；720 保留约 56px 余量。
    */
   responsiveBreakpoint?: number;
   /**
@@ -102,7 +106,7 @@ function MasterDetailLayoutImpl(props: Readonly<MasterDetailLayoutProps>) {
     collapsed: collapsedProp,
     onCollapseChange,
     collapsible = true,
-    responsiveBreakpoint = 560,
+    responsiveBreakpoint = 720,
     showDetail,
     onBack,
     responsiveActive,

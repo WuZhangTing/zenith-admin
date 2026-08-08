@@ -535,7 +535,6 @@ export default function ChatBiPage() {
         minSize={240}
         maxSize={420}
         persistKey="report-chatbi"
-        responsiveBreakpoint={720}
         showDetail={Boolean(activeSessionId)}
         onBack={() => setActiveSessionId(undefined)}
       />
