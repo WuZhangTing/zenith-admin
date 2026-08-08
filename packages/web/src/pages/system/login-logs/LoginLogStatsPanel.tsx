@@ -14,6 +14,8 @@ import {
   makeBarSpec,
   makePieSpec,
   isEmptyValues,
+  StatCard,
+  StatGrid,
 } from '@/components/charts';
 import dayjs from 'dayjs';
 import { useLoginLogStats } from '@/hooks/queries/login-logs';
@@ -36,43 +38,6 @@ interface BarDatum {
 interface PieDatum {
   readonly name: string;
   readonly value: number;
-}
-
-interface StatCardProps {
-  readonly title: string;
-  readonly value: string | number;
-  readonly sub?: string;
-  readonly icon: React.ReactNode;
-  readonly accent?: string;
-}
-
-function StatCard({ title, value, sub, icon, accent }: StatCardProps) {
-  return (
-    <div style={{ ...sectionStyle, display: 'flex', alignItems: 'center', gap: 14 }}>
-      <div
-        style={{
-          width: 44,
-          height: 44,
-          borderRadius: 'var(--semi-border-radius-large)',
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: accent ? `color-mix(in srgb, ${accent} 14%, transparent)` : 'var(--semi-color-fill-1)',
-          color: accent ?? 'var(--semi-color-text-2)',
-        }}
-      >
-        {icon}
-      </div>
-      <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <div style={{ fontSize: 26, fontWeight: 700, color: accent ?? 'var(--semi-color-text-0)', lineHeight: 1.2 }}>
-          {value}
-        </div>
-        {sub && <div style={{ fontSize: 11, color: 'var(--semi-color-text-2)' }}>{sub}</div>}
-        <div style={{ fontSize: 13, color: 'var(--semi-color-text-1)' }}>{title}</div>
-      </div>
-    </div>
-  );
 }
 
 function ChartShell({ title, children, danger }: Readonly<{ title: React.ReactNode; children: React.ReactNode; danger?: boolean }>) {
@@ -268,7 +233,7 @@ export default function LoginLogStatsPanel() {
       </div>
 
       <Spin spinning={statsQuery.isFetching}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
+        <StatGrid style={{ marginBottom: 16 }}>
           <StatCard title="总登录次数" value={summary ? summary.total.toLocaleString() : '—'} sub={`近 ${days} 天累计`} icon={<LogIn size={22} />} accent="var(--semi-color-primary)" />
           <StatCard
             title="登录成功率"
@@ -285,7 +250,7 @@ export default function LoginLogStatsPanel() {
             accent={summary && summary.failCount > 0 ? 'var(--semi-color-danger)' : undefined}
           />
           <StatCard title="活跃用户数" value={summary ? summary.uniqueUsers.toLocaleString() : '—'} sub="不重复用户账号" icon={<Users size={22} />} accent="var(--semi-color-data-2)" />
-        </div>
+        </StatGrid>
 
         <ChartShell title="每日登录趋势（成功 / 失败）">
           {isEmptyValues(filledDailyStats) ? <EmptyChart height={230} /> : (
@@ -293,7 +258,7 @@ export default function LoginLogStatsPanel() {
           )}
         </ChartShell>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 16, marginTop: 16, marginBottom: 16 }}>
+        <div className="chart-grid" style={{ marginTop: 16, marginBottom: 16 }}>
           <ChartShell title="Top 10 登录用户">
             {userChartData.length === 0 ? <EmptyChart /> : (
               <BarChart {...userBarSpec} options={chartOptions} height={260} />
@@ -314,7 +279,7 @@ export default function LoginLogStatsPanel() {
           </ChartShell>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 16, marginBottom: 16 }}>
+        <div className="chart-grid" style={{ marginBottom: 16 }}>
           <ChartShell title="按小时登录分布">
             {isEmptyValues(hourlyChartData) ? <EmptyChart height={240} /> : (
               <BarChart {...hourlySpec} options={chartOptions} height={240} />
@@ -327,7 +292,7 @@ export default function LoginLogStatsPanel() {
           </ChartShell>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 16, marginBottom: 16 }}>
+        <div className="chart-grid" style={{ marginBottom: 16 }}>
           <ChartShell title="浏览器分布">
             {browserData.length === 0 ? <EmptyChart height={260} /> : (
               <PieChart {...browserSpec} options={chartOptions} height={260} />
