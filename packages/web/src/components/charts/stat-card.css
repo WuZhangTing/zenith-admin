@@ -57,6 +57,14 @@
   border-left: 1px solid var(--semi-color-border);
 }
 
+/* 面板行换行到第二行起补一条横线：行内竖线只分隔同一行，
+   跨行时没有任何分隔，多行会糊成一片（实测 13 个图表排 7 行）。
+   横线画在项上而非行上，因此不会与竖线交叉成分叉。 */
+.chart-grid:not(.chart-grid--3) > :nth-child(n + 3),
+.chart-grid--3 > :nth-child(n + 4) {
+  border-top: 1px solid var(--semi-color-border);
+}
+
 /* 行首那一项不画竖线，末列不留右内边距，让内容与页面两侧对齐。
    限定 :not(.chart-grid--3)，避免 2 列的取模规则与三栏变体互相打架
    （第 3 项既命中 2n 又命中 3n，谁后写谁赢，结果左右内边距被清成 0）。 */
@@ -100,18 +108,25 @@
     border-left: 0;
   }
 
-  /* 首项已由行的通栏横线起头，其余各项自带一条 */
-  .chart-grid > * + * {
+  /* 首项已由行的通栏横线起头，其余各项自带一条。
+     必须用 :nth-child 而非 `+ *`：上面按 2/3 列取模的换行横线规则特异性更高，
+     单列时会把第 2 项的横线压掉，第 1、2 项之间就没有分隔了。 */
+  .chart-grid:not(.chart-grid--3) > :nth-child(n + 2),
+  .chart-grid--3 > :nth-child(n + 2) {
     border-top: 1px solid var(--semi-color-border);
   }
 }
 
 /* 主图 + 侧栏变体：宽屏主图占更大比重，窄屏收敛单列。
-   比例可用 --chart-aside-main / --chart-aside-side 覆盖，以保留各页原有的分栏权重。 */
-.chart-grid--aside {
-  grid-template-columns:
-    minmax(0, var(--chart-aside-main, 1.6fr))
-    minmax(var(--chart-aside-min, 320px), var(--chart-aside-side, 0.9fr));
+   比例可用 --chart-aside-main / --chart-aside-side 覆盖，以保留各页原有的分栏权重。
+   列定义必须限定在宽屏：本规则与 --lg-down 里的 .chart-grid 同特异性且顺序在后，
+   不限定的话窄屏仍是两列，主图会被侧栏的 min 宽挤到几十像素（实测 390px 下只剩 48px）。 */
+@media (--lg-up) {
+  .chart-grid--aside {
+    grid-template-columns:
+      minmax(0, var(--chart-aside-main, 1.6fr))
+      minmax(var(--chart-aside-min, 320px), var(--chart-aside-side, 0.9fr));
+  }
 }
 
 /* 面板行内的面板不再自画顶线（行已有通栏横线），否则会与竖线交叉成分叉。
@@ -121,6 +136,14 @@
 .zx-flat-panels .chart-grid > .semi-card {
   border-top: 0;
   border-left: 1px solid var(--semi-color-border);
+}
+
+/* 换行后第二行起仍要横线（上面的 border-top:0 会把它一起清掉） */
+.chart-grid:not(.chart-grid--3) > .zx-panel:nth-child(n + 3),
+.zx-flat-panels .chart-grid:not(.chart-grid--3) > .semi-card:nth-child(n + 3),
+.chart-grid--3 > .zx-panel:nth-child(n + 4),
+.zx-flat-panels .chart-grid--3 > .semi-card:nth-child(n + 4) {
+  border-top: 1px solid var(--semi-color-border);
 }
 
 .chart-grid:not(.chart-grid--3) > .zx-panel:nth-child(2n + 1),
@@ -142,8 +165,10 @@
     border-left: 0;
   }
 
-  .chart-grid > .zx-panel + .zx-panel,
-  .zx-flat-panels .chart-grid > .semi-card + .semi-card {
+  .chart-grid:not(.chart-grid--3) > .zx-panel:nth-child(n + 2),
+  .zx-flat-panels .chart-grid:not(.chart-grid--3) > .semi-card:nth-child(n + 2),
+  .chart-grid--3 > .zx-panel:nth-child(n + 2),
+  .zx-flat-panels .chart-grid--3 > .semi-card:nth-child(n + 2) {
     border-top: 1px solid var(--semi-color-border);
   }
 }
@@ -188,9 +213,26 @@
   padding: 12px 0 0 !important;
 }
 
-/* 卡片区之间靠留白拉开，不再依赖卡片边框形成分组 */
+/* 卡片区之间靠留白拉开，不再依赖卡片边框形成分组。
+   限定为相邻的普通兄弟：在栅格里 margin 会让同一行的卡片错位
+   （实测 chart-grid 内第 1、2 项 y 差 20px），栅格靠 padding 撑距即可。 */
 .zx-flat-panels .semi-card + .semi-card {
   margin-top: 20px;
+}
+
+.zx-flat-panels .chart-grid > .semi-card + .semi-card,
+.zx-flat-panels .zx-stat-grid > .semi-card + .semi-card {
+  margin-top: 0;
+}
+
+/* Semi Card 放进 StatGrid（数量不定的内容块）时：
+   .zx-flat-panels .semi-card 的 border:0 会吃掉栅格画的竖线，需重新声明；
+   行首竖线仍由 wrap 的裁切自动消除，无需 :nth-child。
+   同时取消卡片间的上边距——栅格靠 padding 撑开行距，margin 会让竖线断开。 */
+.zx-flat-panels .zx-stat-grid > .semi-card {
+  border-top: 0;
+  border-left: 1px solid var(--semi-color-border);
+  margin-top: 0;
 }
 
 

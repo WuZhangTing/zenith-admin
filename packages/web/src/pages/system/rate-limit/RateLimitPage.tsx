@@ -19,6 +19,7 @@ import {
   chartOptions,
   makeLineSpec,
   useChartPalette,
+  StatGrid,
 } from '@/components/charts';
 import {
   type RateLimitKeyType,
@@ -126,7 +127,7 @@ export default function RateLimitPage() {
   const statsByName = new Map(stats.items.map((s) => [s.name, s]));
 
   return (
-    <div className="page-container">
+    <div className="page-container zx-flat-panels">
       <SearchToolbar
         primary={(
           <>
@@ -153,7 +154,7 @@ export default function RateLimitPage() {
         )}
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(360px, 100%), 1fr))', gap: 16, marginTop: 16 }}>
+      <StatGrid minItemWidth={360} gap={16} style={{ marginTop: 16 }}>
         {rules.map((rule) => {
           const stat = statsByName.get(rule.name);
           const hit = stat?.hitCount ?? 0;
@@ -162,7 +163,6 @@ export default function RateLimitPage() {
           return (
             <Card
               key={rule.id}
-              style={{ borderTop: `3px solid ${rule.enabled ? 'var(--semi-color-success)' : 'var(--semi-color-disabled-text)'}` }}
               title={
                 <Space>
                   <Gauge size={16} />
@@ -206,10 +206,10 @@ export default function RateLimitPage() {
             </Card>
           );
         })}
-      </div>
+      </StatGrid>
 
       <Title heading={5} style={{ marginTop: 32, marginBottom: 12 }}>近 24 小时拦截趋势</Title>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))', gap: 16 }}>
+      <div className="chart-grid">
         {stats.items.map((item) => {
           const totalHits = item.hourlySeries.reduce((acc, p) => acc + p.hits, 0);
           const totalBlocked = item.hourlySeries.reduce((acc, p) => acc + p.blocked, 0);
