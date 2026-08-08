@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Col, Row, Spin, Table, Typography, Empty } from '@douyinfe/semi-ui';
+import { Card, Spin, Table, Typography, Empty } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { useCmsDashboardStats } from '@/hooks/queries/cms';
@@ -93,21 +93,18 @@ export default function CmsDashboardPage() {
           )}
         </Card>
 
-        <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
-          <Col xs={24} lg={14}>
-            <Card title="热门内容 TOP10（按浏览量）" bodyStyle={{ padding: 0 }}>
-              <Table
-                columns={topColumns}
-                dataSource={stats?.topViewed ?? []}
-                rowKey="id"
-                size="small"
-                pagination={false}
-                empty="暂无已发布内容"
-              />
-            </Card>
-          </Col>
-          <Col xs={24} lg={10}>
-            <Card title="栏目内容分布 TOP10" bodyStyle={{ padding: '16px 20px' }}>
+        <div className="chart-grid chart-grid--aside" style={{ ['--chart-aside-main' as string]: '1.4fr', ['--chart-aside-side' as string]: '1fr', marginTop: 12 }}>
+          <Card title="热门内容 TOP10（按浏览量）" bodyStyle={{ padding: 0 }}>
+            <Table
+              columns={topColumns}
+              dataSource={stats?.topViewed ?? []}
+              rowKey="id"
+              size="small"
+              pagination={false}
+              empty="暂无已发布内容"
+            />
+          </Card>
+          <Card title="栏目内容分布 TOP10" bodyStyle={{ padding: '16px 20px' }}>
               {stats && stats.channelDistribution.length > 0 ? (
                 stats.channelDistribution.map((ch) => (
                   <div key={ch.channelId} style={{ marginBottom: 10 }}>
@@ -123,9 +120,8 @@ export default function CmsDashboardPage() {
               ) : (
                 <Empty description="暂无内容" style={{ padding: '24px 0' }} />
               )}
-            </Card>
-          </Col>
-        </Row>
+          </Card>
+        </div>
       </Spin>
     </div>
   );

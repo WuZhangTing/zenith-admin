@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Spin, Row, Col } from '@douyinfe/semi-ui';
+import { Spin } from '@douyinfe/semi-ui';
 import {
   BarChart,
   LineChart,
@@ -150,38 +150,30 @@ export default function FileStatsPanel() {
         </div>
 
         {/* 存储类型分布 + 月度上传趋势 */}
-        <Row gutter={[16, 16]}>
-          <Col xs={24} md={12}>
-            <div className="zx-panel">
-              <div style={sectionTitleStyle}>存储类型分布</div>
-              <BarChart {...providerSpec} options={chartOptions} height={220} />
-            </div>
-          </Col>
-          <Col xs={24} md={12}>
-            <div className="zx-panel">
-              <div style={sectionTitleStyle}>月度上传趋势（近 12 个月）</div>
-              <LineChart {...monthlySpec} options={chartOptions} height={220} />
-            </div>
-          </Col>
-        </Row>
+        <div className="chart-grid">
+          <div className="zx-panel">
+            <div style={sectionTitleStyle}>存储类型分布</div>
+            <BarChart {...providerSpec} options={chartOptions} height={220} />
+          </div>
+          <div className="zx-panel">
+            <div style={sectionTitleStyle}>月度上传趋势（近 12 个月）</div>
+            <LineChart {...monthlySpec} options={chartOptions} height={220} />
+          </div>
+        </div>
 
         {/* 文件大小分布 + Top 上传人 */}
-        <Row gutter={[16, 16]}>
-          <Col xs={24} md={12}>
-            <div className="zx-panel">
-              <div style={sectionTitleStyle}>文件大小分布</div>
-              <BarChart {...sizeRangeSpec} options={chartOptions} height={220} />
-            </div>
-          </Col>
+        <div className="chart-grid">
+          <div className="zx-panel">
+            <div style={sectionTitleStyle}>文件大小分布</div>
+            <BarChart {...sizeRangeSpec} options={chartOptions} height={220} />
+          </div>
           {stats && stats.uploaderStats.length > 0 && (
-            <Col xs={24} md={12}>
-              <div className="zx-panel">
-                <div style={sectionTitleStyle}>Top 上传人（按文件数）</div>
-                <BarChart {...uploaderSpec} options={chartOptions} height={220} />
-              </div>
-            </Col>
+            <div className="zx-panel">
+              <div style={sectionTitleStyle}>Top 上传人（按文件数）</div>
+              <BarChart {...uploaderSpec} options={chartOptions} height={220} />
+            </div>
           )}
-        </Row>
+        </div>
 
       </div>
     </Spin>

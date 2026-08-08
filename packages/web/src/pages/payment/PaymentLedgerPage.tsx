@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
-import { Banner, Button, Form, Row, Col, Select, Skeleton, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Form, Select, Skeleton, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ShieldCheck, RefreshCw, SlidersHorizontal } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -205,12 +205,11 @@ export default function PaymentLedgerPage() {
         {accounts.length === 0 ? (
           <Typography.Text type="tertiary">暂无账户（发生首笔资金流水后自动建账，或点击「重建快照」从存量流水初始化）</Typography.Text>
         ) : (
-          <Row gutter={[16, 16]} type="flex">
+          <div className="auto-grid" style={{ ['--auto-grid-min' as string]: '260px', ['--auto-grid-cols' as string]: 3 }}>
             {accounts.map((a) => {
               const check = checkResult?.find((c) => c.channel === a.channel);
               return (
-                <Col key={a.id} xs={24} sm={12} xl={8}>
-                  <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: '12px 16px' }}>
+                <div key={a.id} className="zx-panel">
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                       <Tag color={PAYMENT_CHANNEL_TAG_COLOR[a.channel]}>{PAYMENT_CHANNEL_LABELS[a.channel]}</Tag>
                       {check && (check.match ? <Tag color="green">核对一致</Tag> : <Tag color="red">快照不符</Tag>)}
@@ -225,11 +224,10 @@ export default function PaymentLedgerPage() {
                         流水口径：待结算 {yuan(check.pendingSettleComputed)} / 可用 {yuan(check.availableComputed)}
                       </Typography.Text>
                     )}
-                  </div>
-                </Col>
+                </div>
               );
             })}
-          </Row>
+          </div>
         )}
       </div>
 

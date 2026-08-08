@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { formatYuan } from '@/utils/payment';
-import { Spin, Row, Col, Select } from '@douyinfe/semi-ui';
+import { Spin, Select } from '@douyinfe/semi-ui';
 import {
   AreaChart,
   BarChart,
@@ -119,20 +119,16 @@ export default function PaymentStatsPanel() {
         </div>
 
         {/* 渠道金额分布 + 订单状态分布 */}
-        <Row gutter={[16, 16]}>
-          <Col xs={24} md={12}>
-            <div className="zx-panel">
-              <div style={sectionTitleStyle}>渠道成功金额分布</div>
-              <BarChart {...channelSpec} options={chartOptions} height={240} />
-            </div>
-          </Col>
-          <Col xs={24} md={12}>
-            <div className="zx-panel">
-              <div style={sectionTitleStyle}>订单状态分布</div>
-              <PieChart {...statusSpec} options={chartOptions} height={240} />
-            </div>
-          </Col>
-        </Row>
+        <div className="chart-grid">
+          <div className="zx-panel">
+            <div style={sectionTitleStyle}>渠道成功金额分布</div>
+            <BarChart {...channelSpec} options={chartOptions} height={240} />
+          </div>
+          <div className="zx-panel">
+            <div style={sectionTitleStyle}>订单状态分布</div>
+            <PieChart {...statusSpec} options={chartOptions} height={240} />
+          </div>
+        </div>
       </div>
     </Spin>
   );

@@ -1,7 +1,7 @@
 /** 访问统计（P4）：PV/UV 趋势、内容 TOP、来源/设备/通道分布 + 搜索分析（无结果词榜） */
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Col, Row, Spin, Table, Typography, Empty, Tabs, TabPane, RadioGroup, Radio, Tag } from '@douyinfe/semi-ui';
+import { Card, Spin, Table, Typography, Empty, Tabs, TabPane, RadioGroup, Radio, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { useCmsVisitStats, useCmsSearchAnalytics } from '@/hooks/queries/cms';
@@ -91,21 +91,19 @@ function VisitsTab({ siteId, days }: { siteId: number | undefined; days: number 
         {stats ? <TrendChart trend={stats.trend} /> : null}
       </Card>
 
-      <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
-        <Col xs={24} lg={14}>
-          <Card title="内容访问 TOP20" bodyStyle={{ padding: 0 }}>
-            <Table columns={topColumns} dataSource={stats?.topContents ?? []} rowKey="contentId" size="small" pagination={false} empty="暂无详情页访问" />
-          </Card>
-        </Col>
-        <Col xs={24} lg={10}>
+      <div className="chart-grid chart-grid--aside" style={{ ['--chart-aside-main' as string]: '1.4fr', ['--chart-aside-side' as string]: '1fr', marginTop: 12 }}>
+        <Card title="内容访问 TOP20" bodyStyle={{ padding: 0 }}>
+          <Table columns={topColumns} dataSource={stats?.topContents ?? []} rowKey="contentId" size="small" pagination={false} empty="暂无详情页访问" />
+        </Card>
+        <div>
           <Card title="来源域名 TOP10（外部引荐）" bodyStyle={{ padding: '16px 20px' }}>
             <DistBars items={(stats?.referrers ?? []).map((r) => ({ key: r.host, pv: r.pv }))} />
           </Card>
           <Card title="设备分布（含爬虫）" style={{ marginTop: 12 }} bodyStyle={{ padding: '16px 20px' }}>
             <DistBars items={(stats?.devices ?? []).map((d) => ({ key: d.deviceType, pv: d.pv }))} labelOf={(k) => DEVICE_LABELS[k] ?? k} />
           </Card>
-        </Col>
-      </Row>
+        </div>
+      </div>
     </Spin>
   );
 }
@@ -143,18 +141,14 @@ function SearchTab({ siteId, days }: { siteId: number | undefined; days: number 
           <Empty description="统计区间暂无搜索" style={{ padding: '24px 0' }} />
         )}
       </Card>
-      <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
-        <Col xs={24} lg={12}>
-          <Card title="热搜词 TOP20" bodyStyle={{ padding: 0 }}>
-            <Table columns={topColumns} dataSource={data?.topKeywords ?? []} rowKey="keyword" size="small" pagination={false} empty="暂无搜索记录" />
-          </Card>
-        </Col>
-        <Col xs={24} lg={12}>
-          <Card title="无结果搜索词榜（内容选题参考）" bodyStyle={{ padding: 0 }}>
-            <Table columns={noResultColumns} dataSource={data?.noResultKeywords ?? []} rowKey="keyword" size="small" pagination={false} empty="暂无无结果搜索" />
-          </Card>
-        </Col>
-      </Row>
+      <div className="chart-grid" style={{ marginTop: 12 }}>
+        <Card title="热搜词 TOP20" bodyStyle={{ padding: 0 }}>
+          <Table columns={topColumns} dataSource={data?.topKeywords ?? []} rowKey="keyword" size="small" pagination={false} empty="暂无搜索记录" />
+        </Card>
+        <Card title="无结果搜索词榜（内容选题参考）" bodyStyle={{ padding: 0 }}>
+          <Table columns={noResultColumns} dataSource={data?.noResultKeywords ?? []} rowKey="keyword" size="small" pagination={false} empty="暂无无结果搜索" />
+        </Card>
+      </div>
     </Spin>
   );
 }
