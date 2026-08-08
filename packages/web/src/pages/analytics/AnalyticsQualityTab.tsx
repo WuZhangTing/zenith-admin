@@ -3,7 +3,7 @@
  */
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Card, Form, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Form, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { AlertTriangle, ShieldAlert } from 'lucide-react';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
@@ -23,6 +23,7 @@ import type { AnalyticsEventOverride, AnalyticsQualityDaily, AnalyticsQualityIss
 import { ANALYTICS_EVENT_OVERRIDE_STATUS_OPTIONS, ANALYTICS_QUALITY_ISSUE_TYPE_LABELS, ANALYTICS_QUALITY_ISSUE_TYPE_OPTIONS } from '@zenith/shared/analytics';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
+import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 
@@ -185,17 +186,17 @@ export default function AnalyticsQualityTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))' }}>
+      <StatGrid minItemWidth={180}>
         {ANALYTICS_QUALITY_ISSUE_TYPE_OPTIONS.map((option) => (
-          <Card key={option.value} bodyStyle={{ padding: 16 }} style={{ borderRadius: 'var(--semi-border-radius-large)' }}>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <AlertTriangle size={16} color="var(--semi-color-warning)" />
-              <Typography.Text type="tertiary" size="small">{option.label}</Typography.Text>
-            </div>
-            <div style={{ fontSize: 24, fontWeight: 700, marginTop: 6 }}>{totalsByType.get(option.value) ?? 0}</div>
-          </Card>
+          <StatCard
+            key={option.value}
+            title={option.label}
+            value={totalsByType.get(option.value) ?? 0}
+            icon={<AlertTriangle size={16} />}
+            accent="var(--semi-color-warning)"
+          />
         ))}
-      </div>
+      </StatGrid>
 
       <div>
         <Typography.Title heading={6} style={{ marginBottom: 12 }}>质量明细（按日 / 事件 / 问题类型）</Typography.Title>

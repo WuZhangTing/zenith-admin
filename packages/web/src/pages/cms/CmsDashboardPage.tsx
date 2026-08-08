@@ -5,6 +5,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { useCmsDashboardStats } from '@/hooks/queries/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
+import { StatCard, StatGrid } from '@/components/charts/StatCard';
 
 const STAT_CARDS: { key: 'published' | 'draft' | 'pending' | 'offline' | 'rejected' | 'recycled'; label: string; color: string }[] = [
   { key: 'published', label: '已发布', color: 'var(--semi-color-success)' },
@@ -51,41 +52,21 @@ export default function CmsDashboardPage() {
 
       <Spin spinning={statsQuery.isFetching && !stats}>
         {/* 状态统计卡片 */}
-        <Row gutter={[12, 12]}>
+        <StatGrid minItemWidth={160}>
           {STAT_CARDS.map((card) => (
-            <Col key={card.key} xs={12} md={8} xl={4}>
-              <Card bodyStyle={{ padding: '16px 20px' }}>
-                <div style={{ fontSize: 13, color: 'var(--semi-color-text-2)' }}>{card.label}</div>
-                <div style={{ fontSize: 26, fontWeight: 600, color: card.color, marginTop: 4 }}>
-                  {stats?.totals[card.key] ?? 0}
-                </div>
-              </Card>
-            </Col>
+            <StatCard key={card.key} title={card.label} value={stats?.totals[card.key] ?? 0} accent={card.color} />
           ))}
-        </Row>
+        </StatGrid>
 
-        <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
-          <Col xs={12} md={8}>
-            <Card bodyStyle={{ padding: '16px 20px' }}>
-              <div style={{ fontSize: 13, color: 'var(--semi-color-text-2)' }}>今日发布</div>
-              <div style={{ fontSize: 26, fontWeight: 600, marginTop: 4 }}>{stats?.todayPublished ?? 0}</div>
-            </Card>
-          </Col>
-          <Col xs={12} md={8}>
-            <Card bodyStyle={{ padding: '16px 20px' }}>
-              <div style={{ fontSize: 13, color: 'var(--semi-color-text-2)' }}>累计浏览量</div>
-              <div style={{ fontSize: 26, fontWeight: 600, marginTop: 4 }}>{stats?.totalViews ?? 0}</div>
-            </Card>
-          </Col>
-          <Col xs={12} md={8}>
-            <Card bodyStyle={{ padding: '16px 20px' }}>
-              <div style={{ fontSize: 13, color: 'var(--semi-color-text-2)' }}>待审核评论</div>
-              <div style={{ fontSize: 26, fontWeight: 600, color: stats?.pendingComments ? 'var(--semi-color-warning)' : undefined, marginTop: 4 }}>
-                {stats?.pendingComments ?? 0}
-              </div>
-            </Card>
-          </Col>
-        </Row>
+        <StatGrid minItemWidth={160} style={{ marginTop: 12 }}>
+          <StatCard title="今日发布" value={stats?.todayPublished ?? 0} />
+          <StatCard title="累计浏览量" value={stats?.totalViews ?? 0} />
+          <StatCard
+            title="待审核评论"
+            value={stats?.pendingComments ?? 0}
+            accent={stats?.pendingComments ? 'var(--semi-color-warning)' : undefined}
+          />
+        </StatGrid>
 
         {/* 发布趋势（近 14 天） */}
         <Card title="发布趋势（近 14 天）" style={{ marginTop: 12 }} bodyStyle={{ padding: '16px 20px' }}>

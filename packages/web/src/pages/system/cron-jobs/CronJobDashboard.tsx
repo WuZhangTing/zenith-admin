@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Row, Col, Card, Table, Typography, Tag, Empty, Spin, Tooltip } from '@douyinfe/semi-ui';
+import { Card, Table, Typography, Tag, Empty, Spin, Tooltip } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import {
   BarChart,
@@ -10,6 +10,8 @@ import {
   makeMixedBarLineSpec,
   makePieSpec,
   useChartPalette,
+  StatCard,
+  StatGrid,
 } from '@/components/charts';
 import { CronExpressionParser } from 'cron-parser';
 import type { CronJob, CronJobStatsPerJob, CronJobRecentLog, CronRunStatus } from '@zenith/shared/platform';
@@ -330,19 +332,11 @@ export default function CronJobDashboard({ jobs }: Readonly<Props>) {
 
   return (
     <Spin spinning={loading}>
-      <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
+      <StatGrid minItemWidth={150} gap={16} style={{ marginBottom: 16 }}>
         {statItems.map((s) => (
-          <div key={s.label} style={{ flex: 1, minWidth: 150 }}>
-            <Card bodyStyle={{ textAlign: 'center', padding: '16px 12px 12px' }}>
-              <Typography.Text type="tertiary" size="small">{s.label}</Typography.Text>
-              <div style={{ fontSize: 30, fontWeight: 700, lineHeight: 1.3, marginTop: 6, color: s.color }}>
-                {String(s.value)}
-              </div>
-              <Typography.Text type="tertiary" size="small">{s.sub ?? '\u00A0'}</Typography.Text>
-            </Card>
-          </div>
+          <StatCard key={s.label} title={s.label} value={String(s.value)} sub={s.sub} accent={s.color} />
         ))}
-      </div>
+      </StatGrid>
 
       {healthIssues.length > 0 && (
         <Card title="任务健康提醒" style={{ marginBottom: 16 }} bodyStyle={{ padding: '8px 16px 12px' }}>
@@ -355,34 +349,27 @@ export default function CronJobDashboard({ jobs }: Readonly<Props>) {
         </Card>
       )}
 
-      <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={14}>
-          <Card title={`近 ${TREND_DAYS} 天执行次数与平均耗时`}>
-            <CommonChart {...trendSpec} options={chartOptions} height={260} />
-          </Card>
-        </Col>
-        <Col span={10}>
-          <Card title="今日执行状态分布">
-            {!stats || stats.todayRuns === 0 ? (
-              <div style={{ height: 260, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Empty description="今日暂无执行" />
-              </div>
-            ) : (
-              <PieChart {...donutSpec} options={chartOptions} height={260} />
-            )}
-          </Card>
-        </Col>
-      </Row>
+      <div className="chart-grid chart-grid--aside" style={{ ['--chart-aside-main' as string]: '1.4fr', ['--chart-aside-side' as string]: '1fr', marginBottom: 16 }}>
+        <Card title={`近 ${TREND_DAYS} 天执行次数与平均耗时`}>
+          <CommonChart {...trendSpec} options={chartOptions} height={260} />
+        </Card>
+        <Card title="今日执行状态分布">
+          {!stats || stats.todayRuns === 0 ? (
+            <div style={{ height: 260, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Empty description="今日暂无执行" />
+            </div>
+          ) : (
+            <PieChart {...donutSpec} options={chartOptions} height={260} />
+          )}
+        </Card>
+      </div>
 
-      <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={14}>
-          <Card title="近 7 天 24 小时执行分布">
-            <BarChart {...hourlySpec} options={chartOptions} height={PANEL_PREVIEW_HEIGHT} />
-          </Card>
-        </Col>
-        <Col span={10}>
-          <Card title={`调度预览（接下来 ${upcoming.length} 次执行）`}>
-            <div style={{ height: PANEL_PREVIEW_HEIGHT, overflowY: 'auto' }}>
+      <div className="chart-grid chart-grid--aside" style={{ ['--chart-aside-main' as string]: '1.4fr', ['--chart-aside-side' as string]: '1fr', marginBottom: 16 }}>
+        <Card title="近 7 天 24 小时执行分布">
+          <BarChart {...hourlySpec} options={chartOptions} height={PANEL_PREVIEW_HEIGHT} />
+        </Card>
+        <Card title={`调度预览（接下来 ${upcoming.length} 次执行）`}>
+          <div style={{ height: PANEL_PREVIEW_HEIGHT, overflowY: 'auto' }}>
               {upcoming.length === 0 ? (
                 <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Empty description="无启用中的任务" />
@@ -422,9 +409,8 @@ export default function CronJobDashboard({ jobs }: Readonly<Props>) {
                 </>
               )}
             </div>
-          </Card>
-        </Col>
-      </Row>
+        </Card>
+      </div>
 
       <Card title="任务执行统计" style={{ marginBottom: 16 }}>
         <Table

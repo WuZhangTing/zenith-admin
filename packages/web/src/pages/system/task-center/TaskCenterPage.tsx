@@ -33,6 +33,7 @@ import {
 } from '@/hooks/queries/async-tasks';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
+import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { confirmDelete } from '@/utils/confirm';
 
 type TabKey = 'tasks' | 'types';
@@ -99,18 +100,13 @@ function StatsCards({ stats }: { stats: AsyncTaskStats | null }) {
   ];
   const maxDaily = Math.max(1, ...(stats?.daily.map((d) => d.submitted) ?? [1]));
   return (
-    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+    <StatGrid minItemWidth={140} style={{ marginBottom: 12 }}>
       {items.map((item) => (
-        <div key={item.label} style={{
-          flex: '1 1 140px', minWidth: 140, padding: '10px 16px', borderRadius: 'var(--semi-border-radius-medium)',
-          background: 'var(--semi-color-fill-0)', border: '1px solid var(--semi-color-border)',
-        }}>
-          <Typography.Text type="tertiary" size="small">{item.label}</Typography.Text>
-          <div style={{ fontSize: 20, fontWeight: 600, color: item.color, lineHeight: 1.5 }}>{item.value}</div>
-        </div>
+        <StatCard key={item.label} title={item.label} value={item.value} accent={item.color} />
       ))}
+      {/* 趋势块占两格，对应原 flex: '2 1 260px' 的双倍权重 */}
       <div style={{
-        flex: '2 1 260px', minWidth: 260, padding: '10px 16px', borderRadius: 'var(--semi-border-radius-medium)',
+        gridColumn: 'span 2', minWidth: 0, padding: '10px 16px', borderRadius: 'var(--semi-border-radius-medium)',
         background: 'var(--semi-color-fill-0)', border: '1px solid var(--semi-color-border)',
       }}>
         <Typography.Text type="tertiary" size="small">近 7 天提交趋势（红色为失败）</Typography.Text>
@@ -124,7 +120,7 @@ function StatsCards({ stats }: { stats: AsyncTaskStats | null }) {
           {(!stats || stats.daily.length === 0) && <Typography.Text type="tertiary" size="small">暂无数据</Typography.Text>}
         </div>
       </div>
-    </div>
+    </StatGrid>
   );
 }
 

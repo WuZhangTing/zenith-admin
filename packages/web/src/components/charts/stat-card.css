@@ -23,9 +23,12 @@
 }
 
 /* 主图 + 侧栏变体：宽屏主图占更大比重，窄屏收敛单列。
-   须置于 --xl-up 规则之后，靠源码顺序覆盖等特异性的两列规则。 */
+   须置于 --xl-up 规则之后，靠源码顺序覆盖等特异性的两列规则。
+   比例可用 --chart-aside-main / --chart-aside-side 覆盖，以保留各页原有的分栏权重。 */
 .chart-grid--aside {
-  grid-template-columns: minmax(0, 1.6fr) minmax(320px, 0.9fr);
+  grid-template-columns:
+    minmax(0, var(--chart-aside-main, 1.6fr))
+    minmax(var(--chart-aside-min, 320px), var(--chart-aside-side, 0.9fr));
 }
 
 @media (--lg-down) {

@@ -9,6 +9,8 @@ import {
   makeLineSpec,
   makePieSpec,
   useChartPalette,
+  StatCard,
+  StatGrid,
 } from '@/components/charts';
 import type { WorkflowDefinition } from '@zenith/shared/workflow';
 import { useWorkflowAnalytics, useWorkflowOverdueTasks } from '@/hooks/queries/workflow-monitor';
@@ -43,17 +45,12 @@ function fmtPercent(rate: number | null): string {
 
 function Kpi({ label, value, danger, warn }: Readonly<{ label: string; value: string | number; danger?: boolean; warn?: boolean }>) {
   const color = danger ? 'var(--semi-color-danger)' : warn ? 'var(--semi-color-warning)' : undefined;
-  return (
-    <Card style={{ flex: '1 1 150px', minWidth: 140 }} bodyStyle={{ padding: '14px 16px' }}>
-      <Typography.Text type="tertiary" size="small">{label}</Typography.Text>
-      <div style={{ fontSize: 24, fontWeight: 600, marginTop: 4, color }}>{value}</div>
-    </Card>
-  );
+  return <StatCard title={label} value={value} accent={color} />;
 }
 
 function ChartCard({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {
   return (
-    <Card style={{ flex: '1 1 420px', minWidth: 320 }} bodyStyle={{ padding: '12px 16px' }}>
+    <Card bodyStyle={{ padding: '12px 16px' }}>
       <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>{title}</Typography.Text>
       {children}
     </Card>
@@ -148,7 +145,7 @@ export default function WorkflowAnalyticsView({ definitions }: Readonly<{ defini
       </div>
 
       {/* KPI */}
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+      <StatGrid minItemWidth={150}>
         <Kpi label="流程实例总数" value={data.total} />
         <Kpi label="平均审批耗时" value={fmtDuration(data.avgDurationSec)} />
         <Kpi label="当前待办总数" value={data.pendingTaskCount} />
@@ -160,7 +157,7 @@ export default function WorkflowAnalyticsView({ definitions }: Readonly<{ defini
         <Kpi label="自动化失败率" value={fmtPercent(data.automation?.jobFailRate)} danger={(data.automation?.jobFailRate ?? 0) >= 0.1} />
         <Kpi label="Webhook成功率" value={fmtPercent(data.automation?.webhookSuccessRate)} warn={(data.automation?.webhookSuccessRate ?? 1) < 0.9} />
         <Kpi label="子流程失败率" value={fmtPercent(data.automation?.subprocessFailRate)} warn={(data.automation?.subprocessFailRate ?? 0) >= 0.2} />
-      </div>
+      </StatGrid>
       <div style={{ color: 'var(--semi-color-text-2)', fontSize: 12, marginTop: -6 }}>
         作业死信 {data.automation?.jobsDead ?? 0} · 失败 {data.automation?.jobsFailed ?? 0} / 总 {data.automation?.jobsTotal ?? 0}
       </div>
@@ -202,7 +199,7 @@ export default function WorkflowAnalyticsView({ definitions }: Readonly<{ defini
       </ChartCard>
 
       {/* 趋势 + 状态分布 */}
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+      <div className="chart-grid" style={{ ['--chart-grid-min' as string]: '420px', ['--chart-grid-gap' as string]: '12px' }}>
         <ChartCard title="近 14 天发起 / 完结 / 积压趋势">
           <LineChart {...trendSpec} options={chartOptions} height={260} />
         </ChartCard>
@@ -214,7 +211,7 @@ export default function WorkflowAnalyticsView({ definitions }: Readonly<{ defini
       </div>
 
       {/* 各流程量 + 节点瓶颈 */}
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+      <div className="chart-grid" style={{ ['--chart-grid-min' as string]: '420px', ['--chart-grid-gap' as string]: '12px' }}>
         <ChartCard title="各流程实例量（Top 12）">
           {defBar.length === 0 ? <Empty title="暂无数据" style={{ padding: 40 }} /> : (
             <BarChart {...defBarSpec} options={chartOptions} height={Math.max(220, defBar.length * 34)} />

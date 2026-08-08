@@ -7,6 +7,8 @@ import {
   makeLineSpec,
   makePieSpec,
   useChartPalette,
+  StatCard,
+  StatGrid,
 } from '@/components/charts';
 import { Radio, Users, MessageSquare, Send, Inbox, Clock, RotateCcw, Reply, BarChart3 } from 'lucide-react';
 import { CHANNEL_CONVERSATION_STATUS_LABELS, CHANNEL_AUTO_REPLY_MATCH_LABELS } from '@zenith/shared/messaging';
@@ -153,10 +155,10 @@ export default function ChannelDashboardPage() {
       </div>
 
       {/* ===== 概览统计卡 ===== */}
-      <div className="channel-dashboard-stats-row">
+      <StatGrid minItemWidth={170}>
         {statItems.map((item) => (
-          <Card key={item.key} className="channel-dashboard-stat-card" bodyStyle={{ padding: '16px 20px' }}>
-            {loading ? (
+          loading ? (
+            <Card key={item.key} className="channel-dashboard-stat-card" bodyStyle={{ padding: '16px 20px' }}>
               <Skeleton active loading placeholder={
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                   <Skeleton.Avatar style={{ width: 44, height: 44, borderRadius: 'var(--semi-border-radius-large)' }} />
@@ -166,23 +168,18 @@ export default function ChannelDashboardPage() {
                   </div>
                 </div>
               } />
-            ) : (
-              <div className="channel-dashboard-stat">
-                <div
-                  className="channel-dashboard-stat__icon"
-                  style={{ background: `${item.color}18`, color: item.color }}
-                >
-                  {item.icon}
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div className="channel-dashboard-stat__value">{item.value}</div>
-                  <div className="channel-dashboard-stat__label">{item.label}</div>
-                </div>
-              </div>
-            )}
-          </Card>
+            </Card>
+          ) : (
+            <StatCard
+              key={item.key}
+              title={item.label}
+              value={item.value}
+              icon={item.icon}
+              accent={item.color}
+            />
+          )
         ))}
-      </div>
+      </StatGrid>
 
       {/* ===== 图表区 ===== */}
       <div className="channel-dashboard-charts-row">

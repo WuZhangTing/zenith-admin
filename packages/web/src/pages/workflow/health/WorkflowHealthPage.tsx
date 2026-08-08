@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Select, Space, Tag, Typography } from '@douyinfe/semi-ui';
+import { Select, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { WorkflowHealthIssue, WorkflowHealthSummary } from '@zenith/shared/workflow';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { useWorkflowHealthSummary, workflowHealthKeys } from '@/hooks/queries/workflow-health';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { StatCard, StatGrid } from '@/components/charts/StatCard';
 
 const ISSUE_LABELS: Record<WorkflowHealthIssue['type'], string> = {
   external_dispatch_failed: '外部审批失败',
@@ -37,15 +38,6 @@ const ISSUE_TYPE_OPTIONS = [
   { value: '', label: '全部问题类型' },
   ...Object.entries(ISSUE_LABELS).map(([value, label]) => ({ value, label })),
 ];
-
-function SummaryItem({ label, value, danger }: Readonly<{ label: string; value: number; danger?: boolean }>) {
-  return (
-    <div style={{ minWidth: 120, padding: '10px 12px', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)' }}>
-      <Typography.Text type="tertiary" size="small">{label}</Typography.Text>
-      <div style={{ fontSize: 22, fontWeight: 600, color: danger ? 'var(--semi-color-danger)' : 'var(--semi-color-text-0)' }}>{value}</div>
-    </div>
-  );
-}
 
 export default function WorkflowHealthPage() {
   const queryClient = useQueryClient();
@@ -164,14 +156,14 @@ export default function WorkflowHealthPage() {
         onFilterReset={handleReset}
       />
 
-      <Space wrap style={{ marginBottom: 12 }}>
-        <SummaryItem label="问题总数" value={data?.stats.total ?? 0} danger={(data?.stats.total ?? 0) > 0} />
-        <SummaryItem label="严重" value={data?.stats.critical ?? 0} danger={(data?.stats.critical ?? 0) > 0} />
-        <SummaryItem label="警告" value={data?.stats.warning ?? 0} />
-        <SummaryItem label="外部审批失败" value={data?.stats.externalFailed ?? 0} danger={(data?.stats.externalFailed ?? 0) > 0} />
-        <SummaryItem label="触发器卡住" value={data?.stats.triggerStuck ?? 0} danger={(data?.stats.triggerStuck ?? 0) > 0} />
-        <SummaryItem label="事件派发失败" value={data?.stats.outboxFailed ?? 0} danger={(data?.stats.outboxFailed ?? 0) > 0} />
-      </Space>
+      <StatGrid minItemWidth={150} style={{ marginBottom: 12 }}>
+        <StatCard title="问题总数" value={data?.stats.total ?? 0} accent={(data?.stats.total ?? 0) > 0 ? 'var(--semi-color-danger)' : undefined} />
+        <StatCard title="严重" value={data?.stats.critical ?? 0} accent={(data?.stats.critical ?? 0) > 0 ? 'var(--semi-color-danger)' : undefined} />
+        <StatCard title="警告" value={data?.stats.warning ?? 0} />
+        <StatCard title="外部审批失败" value={data?.stats.externalFailed ?? 0} accent={(data?.stats.externalFailed ?? 0) > 0 ? 'var(--semi-color-danger)' : undefined} />
+        <StatCard title="触发器卡住" value={data?.stats.triggerStuck ?? 0} accent={(data?.stats.triggerStuck ?? 0) > 0 ? 'var(--semi-color-danger)' : undefined} />
+        <StatCard title="事件派发失败" value={data?.stats.outboxFailed ?? 0} accent={(data?.stats.outboxFailed ?? 0) > 0 ? 'var(--semi-color-danger)' : undefined} />
+      </StatGrid>
 
       <ConfigurableTable
         bordered
