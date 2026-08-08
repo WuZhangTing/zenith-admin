@@ -5,21 +5,15 @@ import { TransactionList } from '../../components/TransactionList';
 import { useMemberPointAccount } from '../../hooks/queries';
 import { StatGrid } from '@/components/charts/StatCard';
 
-/** 会员前台自有视觉令牌（--m-*），仅复用 StatGrid 的自适应栅格，不套用后台卡片皮肤 */
+/** 会员前台自有视觉令牌（--m-*）；与后台一致改为分栏细线，不再画卡片盒子 */
 function StatCard({ label, value, accent }: Readonly<{ label: React.ReactNode; value: React.ReactNode; accent?: boolean }>) {
   return (
-    <div style={{
-      background: '#fff',
-      borderRadius: 10,
-      border: '1px solid var(--m-border)',
-      padding: '16px 20px',
-      minWidth: 0,
-    }}>
-      <div style={{ fontSize: 13, color: 'var(--m-text-secondary)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-        {label}
-      </div>
-      <div style={{ fontSize: 28, fontWeight: 700, color: accent ? 'var(--m-primary)' : 'var(--m-text)' }}>
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 26, fontWeight: 700, color: accent ? 'var(--m-primary)' : 'var(--m-text)', letterSpacing: '-0.03em' }}>
         {value}
+      </div>
+      <div style={{ fontSize: 13, color: 'var(--m-text-secondary)', marginTop: 9, display: 'flex', alignItems: 'center', gap: 6 }}>
+        {label}
       </div>
     </div>
   );

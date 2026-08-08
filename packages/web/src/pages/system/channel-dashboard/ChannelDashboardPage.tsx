@@ -158,17 +158,14 @@ export default function ChannelDashboardPage() {
       <StatGrid minItemWidth={170}>
         {statItems.map((item) => (
           loading ? (
-            <Card key={item.key} className="channel-dashboard-stat-card" bodyStyle={{ padding: '16px 20px' }}>
+            <div key={item.key}>
               <Skeleton active loading placeholder={
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <Skeleton.Avatar style={{ width: 44, height: 44, borderRadius: 'var(--semi-border-radius-large)' }} />
-                  <div style={{ flex: 1 }}>
-                    <Skeleton.Title style={{ width: 60, height: 22, marginBottom: 6 }} />
-                    <Skeleton.Paragraph rows={1} style={{ width: 80 }} />
-                  </div>
+                <div>
+                  <Skeleton.Title style={{ width: 64, height: 26, marginBottom: 10 }} />
+                  <Skeleton.Paragraph rows={1} style={{ width: 80, marginBottom: 0 }} />
                 </div>
               } />
-            </Card>
+            </div>
           ) : (
             <StatCard
               key={item.key}

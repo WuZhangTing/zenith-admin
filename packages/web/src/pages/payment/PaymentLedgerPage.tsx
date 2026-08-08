@@ -178,9 +178,9 @@ export default function PaymentLedgerPage() {
             placeholder={
               <StatGrid>
                 {Array.from({ length: 4 }, (_, i) => `sk-ledger-${i}`).map((key) => (
-                  <div key={key} style={{ ...sectionStyle, minHeight: 92, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <Skeleton.Title style={{ width: '60%', marginBottom: 4 }} />
-                    <Skeleton.Paragraph rows={1} style={{ width: '40%', marginBottom: 0 }} />
+                  <div key={key} style={{ minHeight: 62, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <Skeleton.Title style={{ width: 64, height: 26, marginBottom: 4 }} />
+                    <Skeleton.Paragraph rows={1} style={{ width: 80, marginBottom: 0 }} />
                   </div>
                 ))}
               </StatGrid>

@@ -235,15 +235,10 @@ function OverviewTab() {
           placeholder={
             <StatGrid minItemWidth={190}>
               {Array.from({ length: 9 }, (_, i) => `sk-stat-${i}`).map((key) => (
-                <Card key={key} bodyStyle={{ padding: 16 }} style={{ borderRadius: 'var(--semi-border-radius-large)' }}>
-                  <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                    <Skeleton.Avatar style={{ width: 38, height: 38, borderRadius: 'var(--semi-border-radius-large)', flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <Skeleton.Paragraph rows={1} style={{ width: '50%', marginBottom: 8 }} />
-                      <Skeleton.Title style={{ width: '70%', marginBottom: 6 }} />
-                    </div>
-                  </div>
-                </Card>
+                <div key={key}>
+                  <Skeleton.Title style={{ width: 64, height: 26, marginBottom: 10 }} />
+                  <Skeleton.Paragraph rows={1} style={{ width: 80, marginBottom: 0 }} />
+                </div>
               ))}
             </StatGrid>
           }

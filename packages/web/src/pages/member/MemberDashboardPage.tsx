@@ -121,12 +121,9 @@ export default function MemberDashboardPage() {
         {/* 统计卡片骨架 */}
         <StatGrid minItemWidth={200} style={{ marginBottom: 16 }}>
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} style={{ background: 'var(--semi-color-bg-2)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-large)', padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
-              <Skeleton.Avatar style={{ width: 44, height: 44, borderRadius: 'var(--semi-border-radius-large)', flexShrink: 0 }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <Skeleton.Title style={{ width: '60%', marginBottom: 8 }} />
-                <Skeleton.Paragraph rows={1} style={{ width: '80%', marginBottom: 0 }} />
-              </div>
+            <div key={i}>
+              <Skeleton.Title style={{ width: 64, height: 26, marginBottom: 10 }} />
+              <Skeleton.Paragraph rows={1} style={{ width: 80, marginBottom: 0 }} />
             </div>
           ))}
         </StatGrid>

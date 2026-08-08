@@ -88,12 +88,9 @@ export default function MpStatisticsPage() {
               <>
                 <StatGrid>
                   {Array.from({ length: 8 }, (_, i) => `sk-stat-${i}`).map((key) => (
-                    <div key={key} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 16, background: 'var(--semi-color-bg-1)', display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <Skeleton.Avatar style={{ width: 40, height: 40, borderRadius: 'var(--semi-border-radius-medium)', flexShrink: 0 }} />
-                      <div style={{ flex: 1 }}>
-                        <Skeleton.Title style={{ width: '60%', marginBottom: 8 }} />
-                        <Skeleton.Paragraph rows={1} style={{ width: '40%' }} />
-                      </div>
+                    <div key={key}>
+                      <Skeleton.Title style={{ width: 64, height: 26, marginBottom: 10 }} />
+                      <Skeleton.Paragraph rows={1} style={{ width: 80, marginBottom: 0 }} />
                     </div>
                   ))}
                 </StatGrid>
@@ -144,7 +141,7 @@ export default function MpStatisticsPage() {
         </div>
 
         {datacube ? (
-          <StatGrid minItemWidth={260}>
+          <div className="auto-grid" style={{ ['--auto-grid-min' as string]: '260px', ['--auto-grid-cols' as string]: 3, ['--auto-grid-gap' as string]: '12px' }}>
             <DatacubeTable title="用户增减" head={['日期', '新增', '取关']}
               rows={datacube.userSummary.map((r) => [r.refDate.slice(5), String(r.newUser), String(r.cancelUser)])} />
             <DatacubeTable title="累计用户" head={['日期', '累计关注']}
@@ -157,7 +154,7 @@ export default function MpStatisticsPage() {
               rows={datacube.userShare.map((r) => [r.refDate.slice(5), String(r.shareCount), String(r.shareUser)])} />
             <DatacubeTable title="接口分析" head={['日期', '调用', '失败', '最大耗时ms']}
               rows={datacube.interfaceSummary.map((r) => [r.refDate.slice(5), String(r.callbackCount), String(r.failCount), String(r.maxTimeCost)])} />
-          </StatGrid>
+          </div>
         ) : (
           <Typography.Text type="tertiary">点击「查询」拉取微信侧真实统计数据。</Typography.Text>
         )}

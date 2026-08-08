@@ -1,50 +1,59 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { sectionStyle } from './helpers';
 import './stat-card.css';
 
 /**
- * 统计卡片栅格。
+ * 统计卡片栅格（报表式分栏细线）。
  *
  * 列数由容器可用宽度决定（`auto-fit` + `minmax`），窄屏自动降列，无需媒体查询。
  * **禁止**在页面里内联写死 `gridTemplateColumns: 'repeat(4, 1fr)'` 这类固定列数——
  * 内联样式无法被媒体查询覆盖，窄屏会把卡片压到内容竖排。
  *
- * `min(minItemWidth, 100%)` 保证容器比单列还窄时不会溢出。
+ * ## 为什么要包一层 wrap
+ *
+ * 同级指标之间用 1px 竖线分隔，**每行第一项不能有竖线**，否则行首会悬着一条线。
+ * `auto-fit` 的列数是布局时算出来的，CSS 选择器无法识别「第几项是行首」
+ * （`:nth-child(4n+1)` 只在列数固定时成立），因此改用几何裁切：
+ * 内层栅格左右各外扩一个 padding（负 margin），行首那一项的竖线正好落在
+ * wrap 之外，被 `overflow: hidden` 裁掉；其余竖线都在可视区内。
+ * 这样无论 auto-fit 排成几列、换几行，行首竖线都自动消失。
  */
 export function StatGrid({
   children,
   minItemWidth = 180,
-  gap = 12,
+  gap = 20,
   className,
   style,
 }: Readonly<{
   children: ReactNode;
-  /** 单卡最小宽度，低于此值即减少列数 */
+  /** 单列轨道最小宽度，低于此值即减少列数 */
   minItemWidth?: number;
+  /** 换行后行与行之间的间距 */
   gap?: number;
   className?: string;
   style?: CSSProperties;
 }>) {
   return (
-    <div
-      className={['stat-grid', className].filter(Boolean).join(' ')}
-      style={{
-        ...style,
-        // 自定义属性交给 CSS 计算列宽，避免把 grid-template-columns 写成内联样式
-        ['--stat-grid-min' as string]: `${minItemWidth}px`,
-        ['--stat-grid-gap' as string]: `${gap}px`,
-      }}
-    >
-      {children}
+    <div className={['stat-grid-wrap', className].filter(Boolean).join(' ')} style={style}>
+      <div
+        className="stat-grid"
+        style={{
+          // 自定义属性交给 CSS 计算列宽，避免把 grid-template-columns 写成内联样式
+          ['--stat-grid-min' as string]: `${minItemWidth}px`,
+          ['--stat-grid-row-gap' as string]: `${gap}px`,
+        }}
+      >
+        {children}
+      </div>
     </div>
   );
 }
 
 /**
- * 统一统计卡片：图标（可选）+ 数值 + 标题 + 副文案（可选）。
+ * 统一统计卡片：数值 + 标题（可带图标）+ 副文案 / 环比。
  *
+ * 视觉上不是「卡片」而是分栏细线中的一栏：无底色、无边框、无圆角，
+ * 分隔完全交给 StatGrid 的竖线，与首页 `.dashboard-stat-item` 保持同一套语言。
  * 覆盖既有各页自定义卡片的能力并集：`delta` 环比、`onClick`/`active` 可筛选态。
- * 需要图标时传 `icon` 与 `accent`，两者共同决定图标底色。
  */
 export function StatCard({
   title,
@@ -63,8 +72,9 @@ export function StatCard({
   value: ReactNode;
   /** 副文案（如「成功 13 · 失败 0」） */
   sub?: ReactNode;
+  /** 标题前的小图标，尺寸由 CSS 统一收敛，页面传多大都一样 */
   icon?: ReactNode;
-  /** 强调色：作用于数值与图标底色 */
+  /** 强调色：作用于数值与图标 */
   accent?: string;
   /** 环比增量，正负分别显示为成功/危险色；null 或 undefined 时不渲染 */
   delta?: number | null;
@@ -81,30 +91,20 @@ export function StatCard({
 
   const body = (
     <>
-      {icon && (
-        <span
-          className="stat-card__icon"
-          style={{
-            background: accent ? `color-mix(in srgb, ${accent} 14%, transparent)` : undefined,
-            color: accent,
-          }}
-        >
-          {icon}
+      <span className="stat-card__value" style={accent ? { color: accent } : undefined}>{value}</span>
+      <span className="stat-card__title">
+        {icon && <span className="stat-card__icon" style={accent ? { color: accent } : undefined}>{icon}</span>}
+        {title}
+      </span>
+      {sub !== undefined && sub !== null && sub !== '' && (
+        <span className="stat-card__sub">{sub}</span>
+      )}
+      {delta !== undefined && delta !== null && Number.isFinite(delta) && (
+        <span className={`stat-card__delta stat-card__delta--${delta >= 0 ? 'up' : 'down'}`}>
+          {deltaLabel} {delta >= 0 ? '+' : ''}
+          {deltaFormat === 'ratio' ? `${(delta * 100).toFixed(1)}%` : delta}
         </span>
       )}
-      <span className="stat-card__body">
-        <span className="stat-card__value" style={accent ? { color: accent } : undefined}>{value}</span>
-        <span className="stat-card__title">{title}</span>
-        {sub !== undefined && sub !== null && sub !== '' && (
-          <span className="stat-card__sub">{sub}</span>
-        )}
-        {delta !== undefined && delta !== null && Number.isFinite(delta) && (
-          <span className={`stat-card__delta stat-card__delta--${delta >= 0 ? 'up' : 'down'}`}>
-            {deltaLabel} {delta >= 0 ? '+' : ''}
-            {deltaFormat === 'ratio' ? `${(delta * 100).toFixed(1)}%` : delta}
-          </span>
-        )}
-      </span>
     </>
   );
 
@@ -115,18 +115,20 @@ export function StatCard({
     className,
   ].filter(Boolean).join(' ');
 
-  const cardStyle: CSSProperties = {
-    ...sectionStyle,
-    ...(interactive && active && accent ? { borderColor: accent } : null),
-  };
-
   if (interactive) {
     return (
-      <button type="button" className={classes} style={cardStyle} onClick={onClick} aria-pressed={active}>
+      <button
+        type="button"
+        className={classes}
+        onClick={onClick}
+        aria-pressed={active}
+        // 选中态不再靠边框（已无边框），改用底部 2px 强调条
+        style={active && accent ? { boxShadow: `inset 0 -2px 0 ${accent}` } : undefined}
+      >
         {body}
       </button>
     );
   }
 
-  return <div className={classes} style={cardStyle}>{body}</div>;
+  return <div className={classes}>{body}</div>;
 }

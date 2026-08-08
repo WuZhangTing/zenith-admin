@@ -1204,10 +1204,10 @@ export default function FrontendErrorsPage() {
               </div>
             </Card>
 
-            <StatGrid minItemWidth={260} gap={16} style={{ width: '100%' }}>
+            <div className="auto-grid" style={{ ['--auto-grid-min' as string]: '260px', ['--auto-grid-cols' as string]: 2, width: '100%' }}>
               <Card title="浏览器分布"><SmallDistribution data={detail.browsers} /></Card>
               <Card title="系统分布"><SmallDistribution data={detail.os} /></Card>
-            </StatGrid>
+            </div>
 
             <Card title="处理" style={{ width: '100%' }}>
               <Form labelPosition="left" labelWidth={90}>
