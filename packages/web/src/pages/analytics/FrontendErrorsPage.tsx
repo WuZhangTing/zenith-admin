@@ -647,8 +647,8 @@ export default function FrontendErrorsPage() {
       render: (_value, record) => <StatusTag status={record.status} />,
     },
     createOperationColumn<ErrorGroup>({
-      width: 300,
-      desktopInlineKeys: ['detail', 'resolve', 'ignore', 'delete'],
+      width: 200,
+      desktopInlineKeys: ['detail', 'resolve'],
       actions: (record) => [
         {
           key: 'detail',
@@ -689,7 +689,7 @@ export default function FrontendErrorsPage() {
     {
       title: '浏览器/系统',
       dataIndex: 'browser',
-      width: 180,
+      width: 260,
       render: (_value, record) => `${record.browser || '未知'} ${record.browserVersion || ''} / ${record.os || '未知'}`,
     },
     {
@@ -1099,7 +1099,7 @@ export default function FrontendErrorsPage() {
               selectedRowKeys,
               onChange: (keys) => setSelectedRowKeys(keys as number[]),
             }}
-            scroll={{ x: 1800 }}
+            scroll={{ x: 1700 }}
             empty="暂无错误 Issue"
           />
         </TabPane>
