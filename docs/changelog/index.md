@@ -4,6 +4,70 @@
 
 ---
 
+## v1.50.0 - 2026-08-09
+
+本版本聚焦**文件预览**：把已装但只用了四分之一的 File Viewer Drawing renderer 打通，补齐 draw.io / Excalidraw / PlantUML；修掉 HEIC 与 TIFF「点了预览却是裂图」的既有缺陷；再接入 Data 与 Geo renderer，让字体、PSD、SQLite、Parquet 与地理数据从「只能下载」变为可在线查看。可预览格式由 16 类增至 22 类，且全部在浏览器本地解析，不新增任何外部预览或转换服务。
+
+### Added
+
+#### 图形文件预览：draw.io / Excalidraw / PlantUML
+
+- `@file-viewer/renderer-drawing` 早已在依赖树中，但只接了 Mermaid，其余三类图形一直闲置。本次打通 `.drawio/.dio`、`.excalidraw`、`.plantuml/.puml`，**未引入任何新依赖**
+- 四类格式共用同一个 renderer，追加扩展名不产生新的 renderer 包或离线资源
+- draw.io 使用 renderer 内置的离线 SVG 渲染：`@file-viewer/vite-plugin` 的 `copyAssets` 并不分发 `vendor/drawio/viewer-static.min.js`（仅 `*-full` 包自带），保留默认值只会先 404、再等超时才回退，故显式配置 `drawing.preferOfficial: false`
+- Excalidraw 使用 renderer 自带的 `roughjs` 生成只读 SVG；PlantUML 默认离线展示源码，可通过 `drawing.plantumlServerUrl` 指向内网自托管服务出图
+
+#### 数据资产预览：字体 / PSD / SQLite / Parquet
+
+- 接入 `@file-viewer/renderer-data`，补上一批此前完全不可预览的格式：字体 `.ttf/.otf/.woff/.woff2`（FontFace 样张）、`.psd`（`ag-psd` 解析画布与图层，支持图层显隐重绘）、`.sqlite`（`sql.js` 展示表结构与样例数据）、`.parquet`（`hyparquet`）、`.wasm`（导入导出表）
+- `sql.js` 的 WASM 由插件复制到 `file-viewer/wasm/data/sql-wasm.wasm`，运行时不访问外部服务
+
+#### 地理数据预览：GeoJSON / KML / GPX / SHP
+
+- 接入 `@file-viewer/renderer-geo`，与报表地图组件形成闭环——此前用户要在 `mapGeojsonUrl` 里配置 geojson，却无法先在文件管理中确认文件内容
+- 显式配置 `geo.basemap: 'offline'` 使用离线空底图。renderer 内置的 OpenFreeMap / OSM / 天地图 瓦片源均需显式配置才启用，默认本就不外联，显式声明是为防止将来默认值变化后悄悄请求外部服务
+- 首屏增量为 0：`maplibre-gl` 等四个重依赖都是命中格式时才动态 `import()`。打开一个 WGS84 的 `.geojson` 实际下载约 275KB（gzip）
+
+#### 成员列可点击查看完整名单
+
+- 部门 / 角色 / 岗位 / 用户组四个列表页的「成员」列此前只能看到最多 4 个头像和一个总数，想知道具体是谁必须去用户管理页反查筛选；现在可点击弹出带搜索的分页名单
+- 采用 4 条各挂自身 `:list` 权限的独立端点而非 1 条通用端点：`guard({ permission: [...] })` 是 OR 语义，通用端点挂四权限并集会让只有 `role:list` 的人读到部门成员，形成横向越权
+
+### Fixed
+
+#### HEIC / HEIF 与 TIFF 预览为裂图
+
+- Chrome / Edge / Firefox 均无法原生解码 HEIC/HEIF 与 TIFF。`tiff` 早已映射为 `image/tiff`、浏览器给 `.heic` 设的也是 `image/heic`，两者都会通过 `image/*` 前缀判断进入 Semi `ImagePreview` 图集，直接渲染成裂图
+- 新增 `utils/image-decode.ts`，在创建 Object URL **之前**转成 PNG（HEIC 走 `heic2any` 的 Web Worker，TIFF 走 `utif2` + canvas），使其与普通图片共用同一套图集交互，**不为个别格式引入第二套预览机制**
+- 统一收口四处图集加载点：托管文件、服务器文件管理器、消息图片与文件附件；解码器均懒加载、独立异步 chunk，解码失败回退原始 Blob，单张异常不会中断整个图集
+
+#### PSD 被当作普通图片
+
+- PSD 的规范 MIME 是 `image/vnd.adobe.photoshop`，**以 `image/` 开头**，会被 `startsWith('image/')` 判断吞进图集。新增 `isGalleryImageFile` 明确「交给 `ImagePreview` 的图片」语义（`image/*` 且非 data-asset），并替换相关判断
+
+#### 独立 Spin 的 tip 文案逐字换行
+
+- Semi 的 `.semi-spin` 根节点宽高被写死为 spinner 尺寸（large 32px），而 `.semi-spin-wrapper` 是 `position:absolute` + `width:100%`，tip 渲染在其中被挤成逐字换行——「加载预览组件...」在 32px 内被拆成 4 行，`ChatBiPage` 的长句更是拆成 12 行
+- 带 `children` 的 Spin 由 Semi 自身的 `.semi-spin-block` 设为 `width:auto`，不受影响；故在 `global.css` 中限定 `:not(.semi-spin-block)` 放开 wrapper 宽度，共修复 4 处
+
+#### 表格在宽容器下铺满整行
+
+- 表格的 `scroll.x` 是固定宽度而非最小宽度，容器比它更宽时表格不跟着拉伸（告警历史在 1900px 容器上空掉约 800px）。在 `ConfigurableTable` 作用域内统一兜底 `min-width: 100%`，容器更窄时横向滚动照旧保留
+
+#### 收敛数据分析弹窗高度与维度分布表格宽度
+
+- A/B 实验与告警规则新增弹窗由单列改双列（约 780px → 594px / 426px）；告警规则按所选渠道显示 Webhook / 收件人字段，`new_error` 条件下隐藏不生效的阈值
+- 维度分布从窄侧栏移出，改为图表全宽在上、分页表格全宽在下，与同类 Tab 一致
+- A/B 实验起止时间由手输文本框改为 `DatePicker`，并补充 `toApiDateTime` 单测——漏做 `Date` → 字符串转换不会报错，却会让后端按本地时区解析产生数小时偏移
+
+### Changed
+
+- 文件预览可用格式由 16 类增至 22 类，`canPreviewFile` 同步覆盖 drawing / data-asset / geo 三类
+- 新增前端依赖：`@file-viewer/renderer-data`、`@file-viewer/renderer-geo`、`heic2any`、`utif2`；全部为按需加载的独立异步 chunk，`dist/index.html` 无相关 modulepreload，首屏体积不受影响
+- **不提供 Avro 预览**：`avsc` 的浏览器入口是为 browserify 编写的，模块加载期即执行 `util.inherits(BlobReader, stream.Readable)`，而 Vite 会将 `stream` / `util` 外部化为空模块，`import` 阶段直接抛错；要支持须为整个 web 包引入 Node 内置 polyfill，代价与收益不匹配
+
+---
+
 ## v1.49.0 - 2026-08-09
 
 本版本聚焦**数据分析模块**：先修掉三处「看起来能用、实际不可用」的能力（留存硬编码 8 列、属性过滤全表逐行求值、A/B 实验只给转化率不给置信度），再把分析补成「能拆分、能对比、能定位到人」——漏斗与留存新增统一对比轴与图表下钻，事件工作台扩展到 10 种指标，并新增获客与归因报表。行为分析页由 13 个 Tab 增至 14 个。
