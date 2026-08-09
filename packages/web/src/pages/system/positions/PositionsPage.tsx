@@ -152,7 +152,7 @@ export default function PositionsPage() {
     { title: '排序', dataIndex: 'sort', width: 90 },
     {
       title: '成员', dataIndex: 'userPreview', width: 150,
-      render: (_: unknown, record: Position) => <UserPreviewCell preview={record.userPreview} count={record.userCount} />,
+      render: (_: unknown, record: Position) => <UserPreviewCell preview={record.userPreview} count={record.userCount} scope={{ type: 'position', id: record.id, name: record.name }} />,
     },
     {
       title: '备注',

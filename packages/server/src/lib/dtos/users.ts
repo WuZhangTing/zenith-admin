@@ -6,11 +6,23 @@ import { PositionDTO } from './positions';
 import { RoleDTO } from './roles';
 import { auditFields } from './_audit';
 
+/**
+ * 成员预览项：部门 / 角色 / 岗位 / 用户组「成员」列查看弹窗共用。
+ * 刻意只取四个来源都具备的最小公共字段，前端因此只需一套渲染，不按来源分支。
+ */
+export const ScopeMemberDTO = z
+  .object({
+    id: z.number().int(),
+    username: z.string(),
+    nickname: z.string(),
+    avatar: z.string().nullable(),
+  })
+  .openapi('ScopeMember');
+
 export const UserDTO = z
   .object({
     id: z.number().int().openapi({ example: 1 }),
-    username: z.string().openapi({ example: 'admin' }),
-    nickname: z.string().openapi({ example: '系统管理员' }),
+    username: z.string().openapi({ example: 'admin' }),    nickname: z.string().openapi({ example: '系统管理员' }),
     email: z.string().nullable().openapi({ example: 'admin@example.com' }),
     phone: z.string().nullable().optional(),
     gender: z.string().nullable().optional(),

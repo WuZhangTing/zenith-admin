@@ -240,7 +240,7 @@ export default function DepartmentsPage() {
     { title: '排序', dataIndex: 'sort', width: 90 },
     {
       title: '成员', dataIndex: 'userPreview', width: 150,
-      render: (_: unknown, record: Department) => <UserPreviewCell preview={record.userPreview} count={record.userCount} />,
+      render: (_: unknown, record: Department) => <UserPreviewCell preview={record.userPreview} count={record.userCount} scope={{ type: 'department', id: record.id, name: record.name }} />,
     },
     createdAtColumn,
     {

@@ -4,6 +4,7 @@ import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { createRoleSchema, updateRoleSchema, assignRoleMenusSchema, assignRoleUsersSchema } from '@zenith/shared/identity';
 import { IdParam, PaginationQuery, commonErrorResponses, conflictResponse, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { RoleDTO, UserDTO } from '../../lib/openapi-dtos';
+import { defineScopeMembersRoute } from './_scope-members';
 import {
   listAllRoles,
   listRoles,
@@ -16,6 +17,13 @@ import {
   assignRoleUsers,
   getRoleBeforeAudit,
 } from '../../services/identity/roles.service';
+
+const memberPreviewRoute = defineScopeMembersRoute({
+  scopeType: 'role',
+  tag: 'Roles',
+  permission: 'system:role:list',
+  summary: '角色成员分页预览',
+});
 
 const rolesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -156,6 +164,6 @@ const assignUsersRoute = defineOpenAPIRoute({
   },
 });
 
-rolesRouter.openapiRoutes([allRoute, listRouteDef, getOneRoute, createRoleRoute, updateRoleRoute, deleteRouteDef, assignMenusRoute, getUsersRoute, assignUsersRoute] as const);
+rolesRouter.openapiRoutes([allRoute, listRouteDef, getOneRoute, createRoleRoute, updateRoleRoute, deleteRouteDef, assignMenusRoute, getUsersRoute, assignUsersRoute, memberPreviewRoute] as const);
 
 export default rolesRouter;

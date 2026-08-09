@@ -218,7 +218,7 @@ export default function RolesPage() {
       title: '用户',
       dataIndex: 'userPreview',
       width: 180,
-      render: (_: unknown, record: Role) => <UserPreviewCell preview={record.userPreview} count={record.userCount} />,
+      render: (_: unknown, record: Role) => <UserPreviewCell preview={record.userPreview} count={record.userCount} scope={{ type: 'role', id: record.id, name: record.name }} />,
     },
     createdAtColumn,
     {

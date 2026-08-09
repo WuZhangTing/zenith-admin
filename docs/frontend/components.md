@@ -414,7 +414,7 @@ const { items, loading, getLabel, getColor } = useDictItems('common_status');
 | `PasswordStrengthMeter` | 密码强度与策略达标提示 |
 | `SignaturePad` | Canvas 手写签名板，输出 PNG data URL |
 | `UserAvatar` | 用户头像展示，缺省头像按名称生成稳定色块 |
-| `UserPreviewCell` | 表格「成员/用户」列单元格：头像组 + 数量 Tag，部门/角色/岗位/用户组列表共用 |
+| `UserPreviewCell` | 表格「成员/用户」列单元格：头像组 + 数量 Tag，部门/角色/岗位/用户组列表共用；传入 `scope` 后可点击弹出成员名单（支持搜索与分页） |
 | `Watermark` | 页面水印覆盖层 |
 
 ## 业务选择与权限组件

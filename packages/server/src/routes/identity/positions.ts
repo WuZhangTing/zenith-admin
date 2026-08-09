@@ -3,6 +3,7 @@ import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { PositionDTO, PositionUserPreviewDTO } from '../../lib/openapi-dtos';
+import { defineScopeMembersRoute } from './_scope-members';
 import {
   listAllPositions,
   listPositions,
@@ -146,9 +147,15 @@ const listMembersRoute = defineOpenAPIRoute({
   handler: async (c) => c.json(okBody(await listPositionMembers(c.req.valid('param').id)), 200),
 });
 
+const memberPreviewRoute = defineScopeMembersRoute({
+  scopeType: 'position',
+  tag: 'Positions',
+  permission: 'system:position:list',
+  summary: '岗位成员分页预览',
+});
+
 const setMembersRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'put', path: '/{id}/members', tags: ['Positions'], summary: '设置岗位成员（全量覆盖）',
+  route: createRoute({    method: 'put', path: '/{id}/members', tags: ['Positions'], summary: '设置岗位成员（全量覆盖）',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'system:position:update', audit: { description: '设置岗位成员', module: '岗位管理' } })] as const,
     request: { params: IdParam, body: { content: jsonContent(MembersBody), required: true } },
@@ -166,6 +173,6 @@ const setMembersRoute = defineOpenAPIRoute({
   },
 });
 
-positionsRouter.openapiRoutes([allRoute, listRoute, getOneRoute, createPositionRoute, updatePositionRoute, batchDeleteRoute, deleteRoute, listMembersRoute, setMembersRoute] as const);
+positionsRouter.openapiRoutes([allRoute, listRoute, getOneRoute, createPositionRoute, updatePositionRoute, batchDeleteRoute, deleteRoute, listMembersRoute, memberPreviewRoute, setMembersRoute] as const);
 
 export default positionsRouter;

@@ -3,6 +3,7 @@ import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, conflictResponse, ok, okPaginated, okMsg, IdParam, okBody } from '../../lib/openapi-schemas';
 import { UserGroupDTO, UserGroupMemberDTO, UserGroupRoleDTO } from '../../lib/openapi-dtos';
+import { defineScopeMembersRoute } from './_scope-members';
 import {
   listAllUserGroups,
   listUserGroups,
@@ -22,6 +23,13 @@ import {
   setGroupRoles,
   getUserGroupRolesBeforeAudit,
 } from '../../services/identity/user-groups.service';
+
+const memberPreviewRoute = defineScopeMembersRoute({
+  scopeType: 'userGroup',
+  tag: 'UserGroups',
+  permission: 'system:user-groups:list',
+  summary: '用户组成员分页预览',
+});
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -243,6 +251,7 @@ router.openapiRoutes([
   allRoute,
   listRoute,
   listMembersRoute,
+  memberPreviewRoute,
   setMembersRoute,
   addMembersRoute,
   removeMembersRoute,

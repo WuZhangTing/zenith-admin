@@ -227,7 +227,7 @@ export default function UserGroupsPage() {
     },
     {
       title: '成员', dataIndex: 'memberPreview', width: 150,
-      render: (_: unknown, record: UserGroup) => <UserPreviewCell preview={record.memberPreview} count={record.memberCount} />,
+      render: (_: unknown, record: UserGroup) => <UserPreviewCell preview={record.memberPreview} count={record.memberCount} scope={{ type: 'userGroup', id: record.id, name: record.name }} />,
     },
     {
       title: '角色', dataIndex: 'roleCount', width: 80,

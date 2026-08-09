@@ -4,6 +4,7 @@ import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { createDepartmentSchema, updateDepartmentSchema } from '@zenith/shared/identity';
 import { jsonContent, validationHook, commonErrorResponses, ok, okMsg, IdParam, okBody } from '../../lib/openapi-schemas';
 import { DepartmentDTO } from '../../lib/openapi-dtos';
+import { defineScopeMembersRoute } from './_scope-members';
 import {
   listDepartmentTree,
   listDepartmentsFlat,
@@ -13,6 +14,13 @@ import {
   getDepartmentBeforeAudit,
   getDepartment,
 } from '../../services/identity/departments.service';
+
+const memberPreviewRoute = defineScopeMembersRoute({
+  scopeType: 'department',
+  tag: 'Departments',
+  permission: 'system:department:list',
+  summary: '部门成员分页预览',
+});
 
 const departmentsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -133,6 +141,6 @@ const deleteRouteDef = defineOpenAPIRoute({
   },
 });
 
-departmentsRouter.openapiRoutes([listRoute, flatRoute, getOneRoute, createRouteDef, updateRouteDef, deleteRouteDef] as const);
+departmentsRouter.openapiRoutes([listRoute, flatRoute, getOneRoute, createRouteDef, updateRouteDef, deleteRouteDef, memberPreviewRoute] as const);
 
 export default departmentsRouter;

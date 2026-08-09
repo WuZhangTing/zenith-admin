@@ -5,6 +5,7 @@ import { menusHandlers } from './menus';
 import { departmentsHandlers } from './departments';
 import { positionsHandlers } from './positions';
 import { userGroupsHandlers } from './user-groups';
+import { scopeMembersHandlers } from './scope-members';
 import { dictsHandlers } from './dicts';
 import { systemConfigsHandlers } from './system-configs';
 import { identitySecurityHandlers } from './identity-security';
@@ -131,6 +132,7 @@ export const handlers = [
   ...menusHandlers,
   ...departmentsHandlers,
   ...positionsHandlers,
+  ...scopeMembersHandlers,
   ...userGroupsHandlers,
   ...dictsHandlers,
   ...systemConfigsHandlers,
