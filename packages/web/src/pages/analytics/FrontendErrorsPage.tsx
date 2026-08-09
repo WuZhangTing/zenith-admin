@@ -577,14 +577,19 @@ export default function FrontendErrorsPage() {
       dataIndex: 'message',
       width: 420,
       render: (_value, record) => (
-        <div>
-          <Button theme="borderless" size="small" style={{ padding: 0, maxWidth: 380 }} onClick={() => void openGroupDetail(record.id)}>
-            <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 360 }}>{record.message}</Text>
-          </Button>
-          <div>
-            <Text type="tertiary" size="small">{record.release ? `release: ${record.release}` : '未关联 release'}</Text>
-          </div>
-        </div>
+        <Button theme="borderless" size="small" style={{ padding: 0, maxWidth: 380 }} onClick={() => void openGroupDetail(record.id)}>
+          <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 360 }}>{record.message}</Text>
+        </Button>
+      ),
+    },
+    {
+      title: 'Release',
+      dataIndex: 'release',
+      width: 140,
+      render: (_value, record) => (
+        record.release
+          ? <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 120 }}>{record.release}</Text>
+          : <Text type="tertiary">未关联</Text>
       ),
     },
     {
@@ -1073,7 +1078,7 @@ export default function FrontendErrorsPage() {
               selectedRowKeys,
               onChange: (keys) => setSelectedRowKeys(keys as number[]),
             }}
-            scroll={{ x: 1600 }}
+            scroll={{ x: 1740 }}
             empty="暂无错误 Issue"
           />
         </TabPane>
