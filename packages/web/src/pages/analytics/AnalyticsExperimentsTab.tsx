@@ -1,7 +1,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Banner, Button, Form, Input, InputNumber, Modal, Popconfirm, Progress, Select, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Col, Form, Input, InputNumber, Modal, Popconfirm, Progress, Row, Select, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, Trash2 } from 'lucide-react';
 import type { AnalyticsExperiment, AnalyticsExperimentReportVariant, AnalyticsExperimentVariant } from '@zenith/shared/analytics';
@@ -9,7 +9,7 @@ import { ANALYTICS_EXPERIMENT_STATUS_LABELS, ANALYTICS_EXPERIMENT_STATUS_OPTIONS
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { analyticsKeys, useAnalyticsEventMeta, useCreateExperiment, useDeleteExperiment, useExperimentAction, useExperimentReport, useExperiments, useUpdateExperiment } from '@/hooks/queries/analytics';
-import { formatDateTime } from '@/utils/date';
+import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -59,13 +59,25 @@ type ExperimentFormValues = {
   status?: AnalyticsExperiment['status'];
   trafficAllocation: number;
   metricEventName: string;
-  startAt?: string | null;
-  endAt?: string | null;
+  /** DatePicker 产出 Date，编辑回填时是接口返回的字符串，提交前统一归一 */
+  startAt?: Date | string | null;
+  endAt?: Date | string | null;
 };
 
 function trimToNull(value: string | null | undefined) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
+}
+
+/**
+ * 表单时间值 → 接口的 `YYYY-MM-DD HH:mm:ss`；留空表示不限，需明确传 null。
+ *
+ * 导出供单测：漏掉 `instanceof Date` 分支不会报错，Date 会被 JSON 序列化成带 `Z` 的
+ * ISO 串，后端按本地时区解析后产生数小时偏移——构建、类型检查、页面渲染全都正常。
+ */
+export function toApiDateTime(value: Date | string | null | undefined): string | null {
+  if (value instanceof Date) return formatDateTimeForApi(value);
+  return trimToNull(value);
 }
 
 function windowText(record: AnalyticsExperiment) {
@@ -82,8 +94,8 @@ function normalizePayload(values: ExperimentFormValues, variants: AnalyticsExper
     trafficAllocation: values.trafficAllocation ?? 100,
     variants,
     metricEventName: values.metricEventName?.trim(),
-    startAt: trimToNull(values.startAt),
-    endAt: trimToNull(values.endAt),
+    startAt: toApiDateTime(values.startAt),
+    endAt: toApiDateTime(values.endAt),
   };
   if (editing?.status === 'running') {
     delete payload.expKey;
@@ -138,7 +150,7 @@ export default function AnalyticsExperimentsTab() {
       if (weightTotal !== 100) { Toast.error('变体权重总和必须等于 100'); throw new Error('invalid_variant_weight'); }
       return normalizePayload(values, variants, editing);
     },
-    labelWidth: 120,
+    labelWidth: 90,
   });
 
   const list = listQuery.data?.list ?? [];
@@ -227,16 +239,35 @@ export default function AnalyticsExperimentsTab() {
         pagination={{ currentPage: page, pageSize, total: listQuery.data?.total ?? 0, onPageChange: setPage, onPageSizeChange: (next) => { setPage(1); setPageSize(next); } }}
       />
 
-      <Modal {...experimentModal.modalProps} title={experimentModal.isEdit ? '编辑 A/B 实验' : '新增 A/B 实验'} width={760}>
+      <Modal {...experimentModal.modalProps} title={experimentModal.isEdit ? '编辑 A/B 实验' : '新增 A/B 实验'} width={660}>
         <Form {...experimentModal.formProps}>
-          <Form.Input field="expKey" label="实验标识" disabled={experimentModal.isEdit} placeholder="如 homepage_banner" rules={[{ required: !experimentModal.isEdit, message: '请输入实验标识' }, { pattern: /^[a-z][a-z0-9_-]*$/, message: '以小写字母开头，仅允许小写字母、数字、下划线和中划线' }]} />
-          <Form.Input field="name" label="名称" placeholder="实验名称" rules={[{ required: true, message: '请输入名称' }]} />
-          <Form.TextArea field="description" label="描述" maxCount={500} autosize={{ minRows: 2, maxRows: 4 }} />
-          <Form.Select field="status" label="状态" optionList={ANALYTICS_EXPERIMENT_STATUS_OPTIONS} style={{ width: '100%' }} />
-          <Form.InputNumber field="trafficAllocation" label="参与流量%" min={0} max={100} disabled={experimentModal.editing?.status === 'running'} style={{ width: '100%' }} />
-          <Form.Select field="metricEventName" label="转化事件" optionList={metricOptions} filter disabled={experimentModal.editing?.status === 'running'} placeholder="选择或输入事件名" style={{ width: '100%' }} />
-          <Form.Input field="startAt" label="开始时间" disabled={experimentModal.editing?.status === 'running'} placeholder="YYYY-MM-DD HH:mm:ss，留空手动启动" />
-          <Form.Input field="endAt" label="结束时间" placeholder="YYYY-MM-DD HH:mm:ss，留空不限" />
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Input field="expKey" label="实验标识" disabled={experimentModal.isEdit} placeholder="如 homepage_banner" style={{ width: '100%' }} rules={[{ required: !experimentModal.isEdit, message: '请输入实验标识' }, { pattern: /^[a-z][a-z0-9_-]*$/, message: '以小写字母开头，仅允许小写字母、数字、下划线和中划线' }]} />
+            </Col>
+            <Col span={12}>
+              <Form.Input field="name" label="名称" placeholder="实验名称" style={{ width: '100%' }} rules={[{ required: true, message: '请输入名称' }]} />
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Select field="status" label="状态" optionList={ANALYTICS_EXPERIMENT_STATUS_OPTIONS} style={{ width: '100%' }} />
+            </Col>
+            <Col span={12}>
+              <Form.InputNumber field="trafficAllocation" label="参与流量" suffix="%" min={0} max={100} disabled={experimentModal.editing?.status === 'running'} style={{ width: '100%' }} />
+            </Col>
+          </Row>
+          {/* 事件名可能很长（如 member.points.expired），并排会被截断，故独占整行 */}
+          <Form.Select field="metricEventName" label="转化事件" optionList={metricOptions} filter allowCreate disabled={experimentModal.editing?.status === 'running'} placeholder="选择或输入事件名" style={{ width: '100%' }} />
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.DatePicker field="startAt" label="开始时间" type="dateTime" disabled={experimentModal.editing?.status === 'running'} placeholder="留空手动启动" style={{ width: '100%' }} />
+            </Col>
+            <Col span={12}>
+              <Form.DatePicker field="endAt" label="结束时间" type="dateTime" placeholder="留空不限" style={{ width: '100%' }} />
+            </Col>
+          </Row>
+          <Form.TextArea field="description" label="描述" maxCount={500} autosize={{ minRows: 2, maxRows: 3 }} />
         </Form>
         <div style={{ marginTop: 12, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography.Text strong>变体配置</Typography.Text>
@@ -245,16 +276,24 @@ export default function AnalyticsExperimentsTab() {
             <Button size="small" icon={<Plus size={14} />} disabled={experimentModal.editing?.status === 'running' || variants.length >= 6} onClick={() => setVariants((prev) => [...prev, { key: `variant${prev.length + 1}`, name: `变体 ${prev.length + 1}`, weight: 0 }])}>添加变体</Button>
           </Space>
         </div>
-        <Space vertical align="start" style={{ width: '100%' }}>
+        {/* 变体最多 6 个：超过 4 个时区域内部滚动，锁住弹窗高度上限，避免确定按钮被顶出视口 */}
+        <div style={{ display: 'grid', gap: 8, ...(variants.length > 4 ? { maxHeight: 200, overflowY: 'auto', paddingRight: 4 } : null) }}>
           {variants.map((variant, index) => (
-            <Space key={`${variant.key}-${index}`} wrap>
-              <Input value={variant.key} disabled={experimentModal.editing?.status === 'running'} placeholder="key" onChange={(key) => updateVariant(index, { key })} style={{ width: 150 }} />
-              <Input value={variant.name} disabled={experimentModal.editing?.status === 'running'} placeholder="名称" onChange={(name) => updateVariant(index, { name })} style={{ width: 180 }} />
-              <InputNumber value={variant.weight} disabled={experimentModal.editing?.status === 'running'} min={0} max={100} onChange={(weight) => updateVariant(index, { weight: Number(weight) || 0 })} style={{ width: 120 }} />
-              <Button theme="borderless" type="danger" icon={<Trash2 size={14} />} disabled={experimentModal.editing?.status === 'running' || variants.length <= 2} onClick={() => setVariants((prev) => prev.filter((_, i) => i !== index))}>删除</Button>
-            </Space>
+            <div key={`${variant.key}-${index}`} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.2fr) 96px 32px', gap: 8, alignItems: 'center' }}>
+              <Input value={variant.key} disabled={experimentModal.editing?.status === 'running'} placeholder="key" onChange={(key) => updateVariant(index, { key })} />
+              <Input value={variant.name} disabled={experimentModal.editing?.status === 'running'} placeholder="名称" onChange={(name) => updateVariant(index, { name })} />
+              <InputNumber value={variant.weight} suffix="%" disabled={experimentModal.editing?.status === 'running'} min={0} max={100} onChange={(weight) => updateVariant(index, { weight: Number(weight) || 0 })} style={{ width: '100%' }} />
+              <Button
+                theme="borderless"
+                type="danger"
+                icon={<Trash2 size={14} />}
+                aria-label={`删除变体 ${variant.name || variant.key}`}
+                disabled={experimentModal.editing?.status === 'running' || variants.length <= 2}
+                onClick={() => setVariants((prev) => prev.filter((_, i) => i !== index))}
+              />
+            </div>
           ))}
-        </Space>
+        </div>
       </Modal>
 
       <SideSheet title={reporting ? `实验报告：${reporting.name}` : '实验报告'} visible={!!reporting} onCancel={() => setReporting(null)} width={860}>

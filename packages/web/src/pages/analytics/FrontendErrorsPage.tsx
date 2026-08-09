@@ -25,6 +25,8 @@ import {
   Timeline,
   Empty,
   Space,
+  Row,
+  Col,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag/interface';
@@ -1393,69 +1395,107 @@ export default function FrontendErrorsPage() {
         onCancel={() => setAlertModalVisible(false)}
         onOk={() => void saveAlert()}
         confirmLoading={saveAlertMutation.isPending}
-        width={680}
+        width={660}
         closeOnEsc
       >
-        <Form labelPosition="left" labelWidth={110}>
-          <Form.Slot label="名称">
-            <Input value={alertForm.name} placeholder="请输入规则名称" maxLength={128} onChange={(value) => setAlertForm((prev) => ({ ...prev, name: value }))} />
-          </Form.Slot>
-          <Form.Slot label="类型">
-            <Select
-              showClear
-              placeholder="全部"
-              value={alertForm.errorType ?? undefined}
-              optionList={typeOptions}
-              style={{ width: '100%' }}
-              onChange={(value) => setAlertForm((prev) => ({ ...prev, errorType: (value as FrontendErrorType | undefined) ?? null }))}
-            />
-          </Form.Slot>
-          <Form.Slot label="级别">
-            <Select
-              showClear
-              placeholder="全部"
-              value={alertForm.level ?? undefined}
-              optionList={levelOptions}
-              style={{ width: '100%' }}
-              onChange={(value) => setAlertForm((prev) => ({ ...prev, level: (value as ErrorLevel | undefined) ?? null }))}
-            />
-          </Form.Slot>
-          <Form.Slot label="条件">
-            <Select
-              value={alertForm.condition}
-              style={{ width: '100%' }}
-              optionList={Object.entries(CONDITION_CONFIG).map(([value, label]) => ({ value, label }))}
-              onChange={(value) => setAlertForm((prev) => ({ ...prev, condition: value as ErrorAlertCondition }))}
-            />
-          </Form.Slot>
-          <Form.Slot label="阈值">
-            <InputNumber min={1} max={100000} value={alertForm.thresholdCount} onChange={(value) => setAlertForm((prev) => ({ ...prev, thresholdCount: Number(value) || 1 }))} style={{ width: '100%' }} />
-          </Form.Slot>
-          <Form.Slot label="窗口">
-            <InputNumber min={1} max={10080} value={alertForm.windowMinutes} suffix="分钟" onChange={(value) => setAlertForm((prev) => ({ ...prev, windowMinutes: Number(value) || 1 }))} style={{ width: '100%' }} />
-          </Form.Slot>
-          <Form.Slot label="渠道">
-            <Select
-              multiple
-              value={alertForm.channels}
-              style={{ width: '100%' }}
-              optionList={[...NOTIFY_CHANNEL_OPTIONS]}
-              onChange={(value) => setAlertForm((prev) => ({ ...prev, channels: toStringArray(value) }))}
-            />
-          </Form.Slot>
-          <Form.Slot label="Webhook">
-            <Input value={alertForm.webhookUrl} placeholder="https://example.com/webhook" onChange={(value) => setAlertForm((prev) => ({ ...prev, webhookUrl: value }))} />
-          </Form.Slot>
-          <Form.Slot label="收件人">
-            <TagInput
-              value={alertForm.recipients}
-              placeholder="输入邮箱后回车"
-              onChange={(value) => setAlertForm((prev) => ({ ...prev, recipients: value }))}
-            />
-          </Form.Slot>
-          <Form.Slot label="启用">
-            <Switch checked={alertForm.enabled} onChange={(checked) => setAlertForm((prev) => ({ ...prev, enabled: checked }))} />
-          </Form.Slot>
+        <Form labelPosition="left" labelWidth={80}>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Slot label="名称">
+                <Input value={alertForm.name} placeholder="请输入规则名称" maxLength={128} onChange={(value) => setAlertForm((prev) => ({ ...prev, name: value }))} />
+              </Form.Slot>
+            </Col>
+            <Col span={12}>
+              <Form.Slot label="启用">
+                <Switch checked={alertForm.enabled} onChange={(checked) => setAlertForm((prev) => ({ ...prev, enabled: checked }))} />
+              </Form.Slot>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Slot label="类型">
+                <Select
+                  showClear
+                  placeholder="全部"
+                  value={alertForm.errorType ?? undefined}
+                  optionList={typeOptions}
+                  style={{ width: '100%' }}
+                  onChange={(value) => setAlertForm((prev) => ({ ...prev, errorType: (value as FrontendErrorType | undefined) ?? null }))}
+                />
+              </Form.Slot>
+            </Col>
+            <Col span={12}>
+              <Form.Slot label="级别">
+                <Select
+                  showClear
+                  placeholder="全部"
+                  value={alertForm.level ?? undefined}
+                  optionList={levelOptions}
+                  style={{ width: '100%' }}
+                  onChange={(value) => setAlertForm((prev) => ({ ...prev, level: (value as ErrorLevel | undefined) ?? null }))}
+                />
+              </Form.Slot>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Slot label="条件">
+                <Select
+                  value={alertForm.condition}
+                  style={{ width: '100%' }}
+                  optionList={Object.entries(CONDITION_CONFIG).map(([value, label]) => ({ value, label }))}
+                  onChange={(value) => setAlertForm((prev) => ({ ...prev, condition: value as ErrorAlertCondition }))}
+                />
+              </Form.Slot>
+            </Col>
+            {/* new_error 只判断「窗口内是否出现新分组」，不读阈值；一直摆着会让人以为调它有用 */}
+            {alertForm.condition !== 'new_error' && (
+              <Col span={12}>
+                <Form.Slot label="阈值">
+                  <InputNumber min={1} max={100000} value={alertForm.thresholdCount} onChange={(value) => setAlertForm((prev) => ({ ...prev, thresholdCount: Number(value) || 1 }))} style={{ width: '100%' }} />
+                </Form.Slot>
+              </Col>
+            )}
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Slot label="窗口">
+                <InputNumber min={1} max={10080} value={alertForm.windowMinutes} suffix="分钟" onChange={(value) => setAlertForm((prev) => ({ ...prev, windowMinutes: Number(value) || 1 }))} style={{ width: '100%' }} />
+              </Form.Slot>
+            </Col>
+            <Col span={12}>
+              <Form.Slot label="渠道">
+                <Select
+                  multiple
+                  maxTagCount={2}
+                  value={alertForm.channels}
+                  style={{ width: '100%' }}
+                  optionList={[...NOTIFY_CHANNEL_OPTIONS]}
+                  onChange={(value) => setAlertForm((prev) => ({ ...prev, channels: toStringArray(value) }))}
+                />
+              </Form.Slot>
+            </Col>
+          </Row>
+          {/*
+            Webhook 与收件人按所选渠道显示：服务端在启用时强校验
+            （含 webhook 渠道 → URL 必填；含邮件/站内信 → 收件人必填，见 validateAlertDelivery）。
+            无条件铺开这两项，既看不出哪个是必填，填了不相关的那个也不会生效。
+            切换渠道不清空已填值——重新勾回来时还在，比丢掉用户输入更可取。
+          */}
+          {alertForm.channels.includes('webhook') && (
+            <Form.Slot label="Webhook">
+              <Input value={alertForm.webhookUrl} placeholder="https://example.com/webhook" onChange={(value) => setAlertForm((prev) => ({ ...prev, webhookUrl: value }))} />
+            </Form.Slot>
+          )}
+          {(alertForm.channels.includes('email') || alertForm.channels.includes('inapp')) && (
+            <Form.Slot label="收件人">
+              <TagInput
+                value={alertForm.recipients}
+                placeholder="输入邮箱后回车"
+                onChange={(value) => setAlertForm((prev) => ({ ...prev, recipients: value }))}
+              />
+            </Form.Slot>
+          )}
         </Form>
       </AppModal>
     </div>

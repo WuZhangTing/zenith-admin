@@ -1632,23 +1632,28 @@ function DimensionTab() {
           )}
         </Card>
       )}
-      <div className="chart-grid chart-grid--aside">
-        <Card title={`占比 TOP ${DIMENSION_CHART_TOP_N}`} bodyStyle={{ padding: 16 }}>
-          {!chartRows.length ? emptyOrSpin(chartQuery.isFetching) : (
-            <PieChart {...dimensionPieSpec} options={chartOptions} height={300} />
-          )}
-        </Card>
-        <ConfigurableTable<DimensionRow>
-          bordered
-          columns={columns}
-          dataSource={rows}
-          loading={loading}
-          rowKey="id"
-          onRefresh={() => void dimensionQuery.refetch()}
-          refreshLoading={loading}
-          pagination={buildPagination(data?.total ?? 0)}
-        />
-      </div>
+      {/*
+        图表全宽在上、分页表格全宽在下，与「页面停留 / 功能使用 / 用户分析」三个同类 Tab 一致。
+        此前把表格塞进 .chart-grid--aside 的侧栏：该侧栏在宽屏只有 minmax(320px, 0.9fr)，
+        而这是一张带「共 N 条 / 总页数 / 页码 / 每页条数」的完整分页表，分页器在 320px 里
+        会折成三行，名称列也被压得只能省略。--aside 的侧栏本意是放紧凑的无分页列表
+        （如实时看板的「热门在线页面」），不是完整表格。
+      */}
+      <Card title={`占比 TOP ${DIMENSION_CHART_TOP_N}`} bodyStyle={{ padding: 16 }}>
+        {!chartRows.length ? emptyOrSpin(chartQuery.isFetching) : (
+          <PieChart {...dimensionPieSpec} options={chartOptions} height={300} />
+        )}
+      </Card>
+      <ConfigurableTable<DimensionRow>
+        bordered
+        columns={columns}
+        dataSource={rows}
+        loading={loading}
+        rowKey="id"
+        onRefresh={() => void dimensionQuery.refetch()}
+        refreshLoading={loading}
+        pagination={buildPagination(data?.total ?? 0)}
+      />
     </div>
   );
 }
