@@ -151,12 +151,13 @@ export default function AnalyticsExperimentsTab() {
   const columns: ColumnProps<AnalyticsExperiment>[] = [
     { title: '实验标识', dataIndex: 'expKey', width: 150, fixed: 'left', render: (value: string) => <Typography.Text code>{value}</Typography.Text> },
     { title: '名称', dataIndex: 'name', width: 180 },
-    { title: '状态', dataIndex: 'status', width: 110, fixed: 'right', render: (value: AnalyticsExperiment['status']) => <Tag color={STATUS_COLOR[value]} size="small">{ANALYTICS_EXPERIMENT_STATUS_LABELS[value]}</Tag> },
     { title: '流量%', dataIndex: 'trafficAllocation', width: 90, render: (value: number) => `${value}%` },
     { title: '变体数', dataIndex: 'variants', width: 90, render: (items: AnalyticsExperimentVariant[]) => items.length },
     { title: '指标事件', dataIndex: 'metricEventName', width: 170, render: (value: string) => <Typography.Text code>{value}</Typography.Text> },
     { title: '运行窗口', dataIndex: 'window', width: 280, render: (_: unknown, record) => windowText(record) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 170, render: (value: string) => formatDateTime(value) },
+    // 固定列必须连续贴在两端：状态若夹在中间，会被抽到右侧固定层，原位留下空洞，表头表体错位
+    { title: '状态', dataIndex: 'status', width: 110, fixed: 'right', render: (value: AnalyticsExperiment['status']) => <Tag color={STATUS_COLOR[value]} size="small">{ANALYTICS_EXPERIMENT_STATUS_LABELS[value]}</Tag> },
     { title: '操作', dataIndex: 'operation', width: 260, fixed: 'right', render: (_: unknown, record) => (
       <Space>
         <Button theme="borderless" size="small" onClick={() => setReporting(record)}>报告</Button>
@@ -189,7 +190,7 @@ export default function AnalyticsExperimentsTab() {
 
       <ConfigurableTable
         bordered rowKey="id" loading={listQuery.isFetching} columns={columns} dataSource={list}
-        onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} scroll={{ x: 1580 }} empty="暂无实验"
+        onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} scroll={{ x: 1500 }} empty="暂无实验"
         pagination={{ currentPage: page, pageSize, total: listQuery.data?.total ?? 0, onPageChange: setPage, onPageSizeChange: (next) => { setPage(1); setPageSize(next); } }}
       />
 

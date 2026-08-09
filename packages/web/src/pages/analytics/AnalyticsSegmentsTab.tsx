@@ -163,9 +163,10 @@ function CampaignDrawer({ segment, onClose }: { segment: AnalyticsUserSegment; o
   const columns: ColumnProps<AnalyticsSegmentCampaign>[] = [
     { title: '名称', dataIndex: 'name', width: 160 },
     { title: '渠道', dataIndex: 'channel', width: 90, render: (v: AnalyticsSegmentCampaign['channel']) => ANALYTICS_CAMPAIGN_CHANNEL_OPTIONS.find((o) => o.value === v)?.label ?? v },
-    { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: AnalyticsSegmentCampaign['status']) => <Tag color={v === 'completed' ? 'green' : v === 'failed' ? 'red' : v === 'running' ? 'orange' : 'grey'} size="small">{ANALYTICS_CAMPAIGN_STATUS_LABELS[v]}</Tag> },
     { title: '计数', width: 140, render: (_: unknown, r: AnalyticsSegmentCampaign) => `${r.sentCount}/${r.totalCount}（失败 ${r.failedCount}）` },
     { title: '最近执行', dataIndex: 'lastRunAt', width: 160, render: (v: string | null) => (v ? formatDateTime(v) : '–') },
+    // 固定列必须连续贴在两端：状态若夹在中间，会被抽到右侧固定层，原位留下空洞，表头表体错位
+    { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: AnalyticsSegmentCampaign['status']) => <Tag color={v === 'completed' ? 'green' : v === 'failed' ? 'red' : v === 'running' ? 'orange' : 'grey'} size="small">{ANALYTICS_CAMPAIGN_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<AnalyticsSegmentCampaign>({
       width: 150,
       desktopInlineKeys: ['execute'],
