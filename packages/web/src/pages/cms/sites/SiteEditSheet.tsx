@@ -26,6 +26,7 @@ import {
 } from './site-form-mapping';
 import type { TemplateDefaultsState } from './site-form-mapping';
 import { siteIndentOptions } from './site-tree-utils';
+import { FormSliderInput } from '@/components/SliderInput';
 
 /** 失效模板引用的人类可读描述（健康检查 Banner 用） */
 function describeInvalidRef(ref: CmsInvalidTemplateRef): string {
@@ -701,7 +702,18 @@ export default function SiteEditSheet({ open, site, onClose }: Readonly<SiteEdit
                       ]} />
                   </Col>
                   <Col span={12}>
-                    <Form.InputNumber field="watermarkOpacity" label="水印不透明度(%)" labelWidth={140} min={0} max={100} style={{ width: '100%' }} />
+                    <FormSliderInput
+                      field="watermarkOpacity"
+                      label="水印不透明度(%)"
+                      labelWidth={140}
+                      min={0}
+                      max={100}
+                      step={1}
+                      suffix="%"
+                      showBoundary
+                      aria-label="水印不透明度"
+                      getAriaValueText={(value) => `${value}%`}
+                    />
                   </Col>
                 </Row>
               </Form.Section>

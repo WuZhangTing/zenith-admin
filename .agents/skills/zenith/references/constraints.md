@@ -181,6 +181,10 @@
   `@/components/data-viz/DataBar`，且必须有相邻可见数值文本。前三类**禁止**在页面里手写
   `width: '${percent}%'` / `scaleX(percent)` 的轨道与填充。无确定百分比的加载用 `Spin`，
   路由顶部不定加载继续用 `NProgress`；分段构成、时间轴、漏斗等本身承载结构的数据可视化不套用本条
+- **滑块与精确输入联动**（Step 8）：有明确上下界、适合拖动预览且仍需精确输入的数值字段，
+  统一使用 `@/components/SliderInput` 的 `FormSliderInput`（表单内）或 `SliderInput`（受控场景），
+  **禁止**页面自行拼接 Slider + InputNumber 双状态。金额、ID、配额、Cron、重试次数、保留天数及
+  需要 0.01 精度的费率/分账比例继续使用 `InputNumber`
 - **栅格禁止内联写死列数**（Step 8）：**禁止**写
   `style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}` 或 `'1fr 1fr'` 这类固定列数——
   内联样式无法被媒体查询覆盖，窄屏会把内容压到竖排（实测：4 列会员等级卡在 390px 只剩 75px 宽，

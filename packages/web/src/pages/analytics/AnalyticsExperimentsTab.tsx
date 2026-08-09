@@ -14,6 +14,7 @@ import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
+import { FormSliderInput } from '@/components/SliderInput';
 
 const PAGE_SIZE = 20;
 const defaultSearch = { name: '', status: '' as '' | AnalyticsExperiment['status'] };
@@ -254,10 +255,19 @@ export default function AnalyticsExperimentsTab() {
             <Col span={12}>
               <Form.Select field="status" label="状态" optionList={ANALYTICS_EXPERIMENT_STATUS_OPTIONS} style={{ width: '100%' }} />
             </Col>
-            <Col span={12}>
-              <Form.InputNumber field="trafficAllocation" label="参与流量" suffix="%" min={0} max={100} disabled={experimentModal.editing?.status === 'running'} style={{ width: '100%' }} />
-            </Col>
           </Row>
+          <FormSliderInput
+            field="trafficAllocation"
+            label="参与流量"
+            suffix="%"
+            min={0}
+            max={100}
+            step={1}
+            disabled={experimentModal.editing?.status === 'running'}
+            showBoundary
+            aria-label="实验参与流量"
+            getAriaValueText={(value) => `${value}%`}
+          />
           {/* 事件名可能很长（如 member.points.expired），并排会被截断，故独占整行 */}
           <Form.Select field="metricEventName" label="转化事件" optionList={metricOptions} filter allowCreate disabled={experimentModal.editing?.status === 'running'} placeholder="选择或输入事件名" style={{ width: '100%' }} />
           <Row gutter={16}>
