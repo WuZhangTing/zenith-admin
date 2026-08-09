@@ -1,11 +1,11 @@
 import { http } from 'msw';
 import { ok, badRequest, notFound, pageParams, pageResult, paginate, nextIdFrom } from '@/mocks/utils/handlers';
-import type { PageStats, FeatureStats, HeatmapData, HeatmapPageListItem, AnalyticsOverview, TrendSeries, RealtimeStats, FunnelResult, RetentionResult, PathResult, DimensionBreakdown, DimensionCross, PerfStats, EventListItem, EventDetail, AnalyticsEventMeta, AnalyticsSettings, AnalyticsPublicConfig, AnalyticsRollupItem, AnalyticsSavedReport, AnalyticsEventOverride, AnalyticsQualityDaily, AnalyticsQualityIssueType, AnalyticsQualityQueryResult, AnalyticsDebugEvent, AnalyticsUserSegment, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSite, AnalyticsExperiment, AnalyticsExperimentAssignment, AnalyticsExperimentReport, AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsEventQueryRow, AnalyticsEventQueryGroupByField, AnalyticsEventQueryMetric, AnalyticsRetentionPeriodType } from '@zenith/shared/analytics';
+import type { PageStats, FeatureStats, HeatmapData, HeatmapPageListItem, AnalyticsOverview, TrendSeries, RealtimeStats, FunnelResult, RetentionResult, PathResult, DimensionBreakdown, DimensionCross, PerfStats, EventListItem, EventDetail, AnalyticsEventMeta, AnalyticsSettings, AnalyticsPublicConfig, AnalyticsRollupItem, AnalyticsSavedReport, AnalyticsEventOverride, AnalyticsQualityDaily, AnalyticsQualityIssueType, AnalyticsQualityQueryResult, AnalyticsDebugEvent, AnalyticsUserSegment, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSite, AnalyticsExperiment, AnalyticsExperimentAssignment, AnalyticsExperimentReport, AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsEventQueryRow, AnalyticsEventQueryGroupByField, AnalyticsEventQueryMetric, AnalyticsRetentionPeriodType, AnalyticsComparison, AnalyticsDrillUser, AnalyticsDrillUsersResult, AnalyticsAcquisitionResult, AnalyticsAcquisitionDimension, AnalyticsAttributionModel } from '@zenith/shared/analytics';
 import type { PaginatedResponse } from '@zenith/shared/core';
 import type { UserStats, UserTimeline, UserBehaviorEventType } from '@zenith/shared/identity';
 import type { SessionListItem, SessionTimeline } from '@zenith/shared/platform';
 import type { AsyncTask } from '@zenith/shared/tasks';
-import { ANALYTICS_SITE_KEY_HEADER, ANALYTICS_QUALITY_ISSUE_TYPES, ANALYTICS_PATH_EXIT_PAGE, ANALYTICS_RETENTION_PERIOD_LIMITS } from '@zenith/shared/analytics';
+import { ANALYTICS_SITE_KEY_HEADER, ANALYTICS_QUALITY_ISSUE_TYPES, ANALYTICS_PATH_EXIT_PAGE, ANALYTICS_RETENTION_PERIOD_LIMITS, ANALYTICS_SERIES_OVERALL_KEY, ANALYTICS_ACQUISITION_CHANNELS, ANALYTICS_ACQUISITION_CHANNEL_LABELS } from '@zenith/shared/analytics';
 import { SEED_ANALYTICS_EVENT_META, SEED_ANALYTICS_SITES } from '@zenith/shared/seed';
 import { mockDateTime, mockDateTimeOffset, mockDateOffset } from '../utils/date';
 import { createProgressingMockTask } from './async-tasks';
@@ -564,42 +564,133 @@ export const analyticsHandlers = [
   }),
 
   http.post('/api/analytics/funnel', async ({ request }) => {
-    const body = (await request.json()) as { steps: { label: string }[] };
+    const body = (await request.json()) as { steps: { label: string }[]; comparison?: AnalyticsComparison };
     const steps = body.steps ?? [];
-    const total = 1000;
-    let prev = total;
-    const out = steps.map((s, i) => {
-      const users = i === 0 ? total : Math.floor(prev * (0.55 + Math.random() * 0.3));
-      const r = {
-        label: s.label,
-        users,
-        conversionRate: Math.round((users / total) * 1000) / 10,
-        stepConversionRate: Math.round((users / prev) * 1000) / 10,
-        dropoff: prev - users,
-        averageConversionMs: i === 0 ? null : rand(30_000, 3_600_000),
+    const comparison: AnalyticsComparison = body.comparison ?? { type: 'none' };
+    // Demo 模式按对比轴造出对应数量的序列，前端多序列渲染路径才有数据可验
+    const seriesMeta = comparison.type === 'dimension'
+      ? ['Chrome', 'Safari', 'Edge'].map((v) => ({ key: v, label: v }))
+      : comparison.type === 'segments'
+        ? comparison.segmentIds.map((id) => ({ key: `segment:${id}`, label: mockSegments.find((s) => s.id === id)?.name ?? `分群 ${id}` }))
+        : [{ key: ANALYTICS_SERIES_OVERALL_KEY, label: '全部用户' }];
+
+    const series = seriesMeta.map((meta, seriesIndex) => {
+      const total = 1000 - seriesIndex * 120;
+      let prev = total;
+      const out = steps.map((s, i) => {
+        const users = i === 0 ? total : Math.floor(prev * (0.55 + Math.random() * 0.3));
+        const r = {
+          label: s.label,
+          users,
+          conversionRate: Math.round((users / total) * 1000) / 10,
+          stepConversionRate: Math.round((users / prev) * 1000) / 10,
+          dropoff: prev - users,
+          averageConversionMs: i === 0 ? null : rand(30_000, 3_600_000),
+        };
+        prev = users;
+        return r;
+      });
+      return {
+        ...meta,
+        steps: out,
+        totalUsers: total,
+        overallConversionRate: out.length ? out[out.length - 1].conversionRate : 0,
       };
-      prev = users;
-      return r;
     });
-    return ok<FunnelResult>({ steps: out, totalUsers: total, overallConversionRate: out.length ? out[out.length - 1].conversionRate : 0 });
+    return ok<FunnelResult>({ series, comparison });
   }),
 
-  http.get('/api/analytics/retention', ({ request }) => {
-    const url = new URL(request.url);
-    const periodType = (url.searchParams.get('periodType') as AnalyticsRetentionPeriodType) || 'day';
+  http.post('/api/analytics/retention', async ({ request }) => {
+    const body = (await request.json()) as {
+      days?: number; mode?: 'first_seen' | 'window_first';
+      periodType?: AnalyticsRetentionPeriodType; maxPeriods?: number; comparison?: AnalyticsComparison;
+    };
+    const periodType = body.periodType ?? 'day';
     const limits = ANALYTICS_RETENTION_PERIOD_LIMITS[periodType] ?? ANALYTICS_RETENTION_PERIOD_LIMITS.day;
-    const days = Number(url.searchParams.get('days')) || limits.defaultDays;
-    const mode = (url.searchParams.get('mode') as 'first_seen' | 'window_first') || 'first_seen';
-    const maxPeriods = Number(url.searchParams.get('maxPeriods')) || limits.defaultPeriods;
+    const days = body.days || limits.defaultDays;
+    const mode = body.mode ?? 'first_seen';
+    const maxPeriods = body.maxPeriods || limits.defaultPeriods;
+    const comparison: AnalyticsComparison = body.comparison ?? { type: 'none' };
     // 队列轴按粒度收敛：日=按天，周=每 7 天一个队列，月=每 30 天一个队列
     const step = periodType === 'month' ? 30 : periodType === 'week' ? 7 : 1;
     const axis = daysAxis(days).filter((_, i) => i % step === 0);
     const periods = Array.from({ length: Math.min(maxPeriods, axis.length) }, (_, i) => i);
-    const cohorts = axis.map((cohortDate, ci) => ({
-      cohortDate, cohortSize: rand(20, 120),
-      values: periods.map((p) => (ci + p >= axis.length ? null : Math.round((100 * Math.exp(-p / 4)) * 10) / 10)),
-    }));
-    return ok<RetentionResult>({ cohorts, periods, mode, periodType, days });
+
+    const seriesMeta = comparison.type === 'dimension'
+      ? ['desktop', 'mobile'].map((v) => ({ key: v, label: v }))
+      : comparison.type === 'segments'
+        ? comparison.segmentIds.map((id) => ({ key: `segment:${id}`, label: mockSegments.find((s) => s.id === id)?.name ?? `分群 ${id}` }))
+        : [{ key: ANALYTICS_SERIES_OVERALL_KEY, label: '全部用户' }];
+
+    const series = seriesMeta.map((meta, seriesIndex) => {
+      const cohorts = axis.map((cohortDate, ci) => ({
+        cohortDate,
+        cohortSize: rand(20, 120),
+        values: periods.map((p) => (ci + p >= axis.length ? null : Math.round((100 * Math.exp(-p / (4 + seriesIndex))) * 10) / 10)),
+      }));
+      const averages = periods.map((_, p) => {
+        const vals = cohorts.map((c) => c.values[p]).filter((v): v is number => v != null);
+        return vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 : null;
+      });
+      return { ...meta, cohorts, averages, totalUsers: cohorts.reduce((sum, c) => sum + c.cohortSize, 0) };
+    });
+
+    return ok<RetentionResult>({ series, periods, mode, periodType, days, comparison });
+  }),
+
+  http.post('/api/analytics/drill-users', async ({ request }) => {
+    const body = (await request.json()) as { page?: number; pageSize?: number };
+    const page = body.page ?? 1;
+    const pageSize = body.pageSize ?? 20;
+    const matched = rand(12, 260);
+    const list = Array.from({ length: Math.min(pageSize, Math.max(0, matched - (page - 1) * pageSize)) }, (_, i) => {
+      const seq = (page - 1) * pageSize + i + 1;
+      return {
+        distinctId: seq % 3 === 0 ? `anon-${seq}` : `u:${seq}`,
+        identityType: (seq % 3 === 0 ? 'anonymous' : 'admin') as AnalyticsDrillUser['identityType'],
+        userId: seq % 3 === 0 ? null : seq,
+        memberId: null,
+        displayName: seq % 3 === 0 ? null : `用户 ${seq}`,
+        firstSeenAt: mockDateTime(),
+        lastSeenAt: mockDateTime(),
+      };
+    });
+    return ok<AnalyticsDrillUsersResult>({ list, total: matched, page, pageSize, matchedUsers: matched });
+  }),
+
+  http.get('/api/analytics/acquisition', ({ request }) => {
+    const url = new URL(request.url);
+    const dimension = (url.searchParams.get('dimension') as AnalyticsAcquisitionDimension) || 'channel';
+    const model = (url.searchParams.get('model') as AnalyticsAttributionModel) || 'last_touch';
+    const conversionEvent = url.searchParams.get('conversionEvent');
+    const keys = dimension === 'channel'
+      ? ANALYTICS_ACQUISITION_CHANNELS.slice(0, 5)
+      : ['baidu', 'google', 'weibo', 'newsletter', ''];
+    const rows = keys.map((key, i) => {
+      const users = 900 - i * 140;
+      const conversions = conversionEvent ? Math.floor(users * (0.08 + i * 0.02)) : 0;
+      return {
+        key,
+        label: dimension === 'channel'
+          ? ANALYTICS_ACQUISITION_CHANNEL_LABELS[key as keyof typeof ANALYTICS_ACQUISITION_CHANNEL_LABELS] ?? key
+          : (key || '直接访问'),
+        users,
+        newUsers: Math.floor(users * 0.4),
+        sessions: Math.floor(users * 1.7),
+        conversions,
+        conversionRate: users > 0 ? Math.round((conversions / users) * 1000) / 10 : 0,
+      };
+    });
+    return ok<AnalyticsAcquisitionResult>({
+      rows,
+      dimension,
+      model,
+      conversionEvent,
+      totalUsers: rows.reduce((sum, r) => sum + r.users, 0),
+      totalConversions: rows.reduce((sum, r) => sum + r.conversions, 0),
+      startDate: mockDateTime().slice(0, 10),
+      endDate: mockDateTime().slice(0, 10),
+    });
   }),
 
   http.get('/api/analytics/path', ({ request }) => {
@@ -960,13 +1051,30 @@ export const analyticsHandlers = [
       bucket.set(key, entry);
     });
 
+    // Demo 模式下数值指标没有真实 properties 可算，用事件数派生一个量级合理的值，
+    // 保证前端多指标渲染路径可验；口径差异不影响 Mock 的用途
+    const valueOf = (entry: { count: number; users: Set<number> }): number => {
+      switch (metric) {
+        case 'uv': return entry.users.size;
+        case 'eventsPerUser': return entry.users.size ? Math.round((entry.count / entry.users.size) * 100) / 100 : 0;
+        case 'sum': return entry.count * 128;
+        case 'avg': return 128;
+        case 'min': return 12;
+        case 'max': return 980;
+        case 'p50': return 110;
+        case 'p90': return 420;
+        case 'p95': return 660;
+        default: return entry.count;
+      }
+    };
+
     const allRows: AnalyticsEventQueryRow[] = Array.from(bucket.values())
-      .map((entry) => ({ dimensions: entry.dimensions, value: metric === 'uv' ? entry.users.size : entry.count }))
+      .map((entry) => ({ dimensions: entry.dimensions, value: valueOf(entry) }))
       .sort((a, b) => b.value - a.value);
 
     return ok<AnalyticsEventQueryResult>({
       ...pageResult(allRows, page, pageSize),
-      queryMeta: { metric, groupBy, startDate, endDate },
+      queryMeta: { metric, metricProperty: body.metricProperty ?? null, groupBy, startDate, endDate },
     });
   }),
 

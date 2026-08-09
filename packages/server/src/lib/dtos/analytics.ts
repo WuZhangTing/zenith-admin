@@ -3,7 +3,7 @@
  */
 import { z } from '@hono/zod-openapi';
 import { jsonByteLength, jsonDepth } from '@zenith/shared/core';
-import { ANALYTICS_PROPERTIES_MAX_BYTES, ANALYTICS_ENVIRONMENTS, ANALYTICS_EVENT_PROPERTY_TYPES, ANALYTICS_EVENT_SOURCES, ANALYTICS_IDENTITY_TYPES, ANALYTICS_QUALITY_ISSUE_TYPES, ANALYTICS_SEGMENT_COMPARE_OPS, ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS, ANALYTICS_EVENT_QUERY_METRICS, ANALYTICS_RETENTION_MODES, ANALYTICS_RETENTION_PERIOD_TYPES, ANALYTICS_CAMPAIGN_CHANNELS, ANALYTICS_CAMPAIGN_STATUSES, ANALYTICS_EXPERIMENT_STATUSES } from '@zenith/shared/analytics';
+import { ANALYTICS_PROPERTIES_MAX_BYTES, ANALYTICS_ACQUISITION_DIMENSIONS, ANALYTICS_ATTRIBUTION_MODELS, ANALYTICS_BREAKDOWN_DIMENSIONS, ANALYTICS_DRILL_FUNNEL_OUTCOMES, ANALYTICS_DRILL_PAGE_SIZE_MAX, ANALYTICS_DRILL_RETENTION_OUTCOMES, ANALYTICS_ENVIRONMENTS, ANALYTICS_EVENT_PROPERTY_TYPES, ANALYTICS_EVENT_SOURCES, ANALYTICS_IDENTITY_TYPES, ANALYTICS_PROPERTY_KEY_PATTERN, ANALYTICS_QUALITY_ISSUE_TYPES, ANALYTICS_RETENTION_MAX_DAYS, ANALYTICS_RETENTION_MAX_PERIODS, ANALYTICS_SEGMENT_COMPARE_OPS, ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS, ANALYTICS_EVENT_QUERY_METRICS, ANALYTICS_RETENTION_MODES, ANALYTICS_RETENTION_PERIOD_TYPES, ANALYTICS_CAMPAIGN_CHANNELS, ANALYTICS_CAMPAIGN_STATUSES, ANALYTICS_EXPERIMENT_STATUSES } from '@zenith/shared/analytics';
 
 const eventTypeEnum = z.enum([
   'page_view', 'page_leave', 'feature_use', 'area_click', 'custom', 'perf', 'api_request', 'identify',
@@ -283,40 +283,108 @@ export const SessionListItemDTO = z
   })
   .openapi('SessionListItem');
 
+// ─── 阶段 2：统一对比轴 ───────────────────────────────────────────────────────
+const breakdownDimensionEnum = z.enum(ANALYTICS_BREAKDOWN_DIMENSIONS);
+
+export const AnalyticsComparisonDTO = z
+  .discriminatedUnion('type', [
+    z.object({ type: z.literal('none') }),
+    z.object({ type: z.literal('dimension'), dimension: breakdownDimensionEnum }),
+    z.object({ type: z.literal('segments'), segmentIds: z.array(z.number().int()) }),
+  ])
+  .openapi('AnalyticsComparison');
+
 // ─── 漏斗 ─────────────────────────────────────────────────────────────────────
+const FunnelStepResultDTO = z.object({
+  label: z.string(),
+  users: z.number().int(),
+  conversionRate: z.number(),
+  stepConversionRate: z.number(),
+  dropoff: z.number().int(),
+  averageConversionMs: z.number().nullable(),
+});
+
 export const FunnelResultDTO = z
   .object({
-    steps: z.array(
-      z.object({
-        label: z.string(),
-        users: z.number().int(),
-        conversionRate: z.number(),
-        stepConversionRate: z.number(),
-        dropoff: z.number().int(),
-        averageConversionMs: z.number().nullable(),
-      }),
-    ),
-    totalUsers: z.number().int(),
-    overallConversionRate: z.number(),
+    series: z.array(z.object({
+      key: z.string(),
+      label: z.string(),
+      steps: z.array(FunnelStepResultDTO),
+      totalUsers: z.number().int(),
+      overallConversionRate: z.number(),
+    })),
+    comparison: AnalyticsComparisonDTO,
   })
   .openapi('FunnelResult');
 
 // ─── 留存 ─────────────────────────────────────────────────────────────────────
 export const RetentionResultDTO = z
   .object({
-    cohorts: z.array(
-      z.object({
-        cohortDate: z.string(),
-        cohortSize: z.number().int(),
-        values: z.array(z.number().nullable()),
-      }),
-    ),
+    series: z.array(z.object({
+      key: z.string(),
+      label: z.string(),
+      cohorts: z.array(
+        z.object({
+          cohortDate: z.string(),
+          cohortSize: z.number().int(),
+          values: z.array(z.number().nullable()),
+        }),
+      ),
+      averages: z.array(z.number().nullable()),
+      totalUsers: z.number().int(),
+    })),
     periods: z.array(z.number().int()),
     mode: retentionModeEnum,
     periodType: retentionPeriodTypeEnum,
     days: z.number().int(),
+    comparison: AnalyticsComparisonDTO,
   })
   .openapi('RetentionResult');
+
+// ─── 阶段 2：获客与归因 ───────────────────────────────────────────────────────
+export const AnalyticsAcquisitionResultDTO = z
+  .object({
+    rows: z.array(z.object({
+      key: z.string(),
+      label: z.string(),
+      users: z.number().int(),
+      newUsers: z.number().int(),
+      sessions: z.number().int(),
+      conversions: z.number().int(),
+      conversionRate: z.number(),
+    })),
+    dimension: z.enum(ANALYTICS_ACQUISITION_DIMENSIONS),
+    model: z.enum(ANALYTICS_ATTRIBUTION_MODELS),
+    conversionEvent: z.string().nullable(),
+    totalUsers: z.number().int(),
+    totalConversions: z.number().int(),
+    startDate: z.string(),
+    endDate: z.string(),
+  })
+  .openapi('AnalyticsAcquisitionResult');
+
+// ─── 阶段 2：图表下钻用户 ─────────────────────────────────────────────────────
+export const AnalyticsDrillUserDTO = z
+  .object({
+    distinctId: z.string(),
+    identityType: identityTypeEnum,
+    userId: z.number().int().nullable(),
+    memberId: z.number().int().nullable(),
+    displayName: z.string().nullable(),
+    firstSeenAt: z.string().nullable(),
+    lastSeenAt: z.string().nullable(),
+  })
+  .openapi('AnalyticsDrillUser');
+
+export const AnalyticsDrillUsersResultDTO = z
+  .object({
+    list: z.array(AnalyticsDrillUserDTO),
+    total: z.number().int(),
+    page: z.number().int(),
+    pageSize: z.number().int(),
+    matchedUsers: z.number().int(),
+  })
+  .openapi('AnalyticsDrillUsersResult');
 
 // ─── 路径 ─────────────────────────────────────────────────────────────────────
 export const PathResultDTO = z
@@ -648,26 +716,65 @@ export const AnalyticsRollupItemDTO = z
 export const AnalyticsRollupSummaryDTO = z.object({ items: z.array(AnalyticsRollupItemDTO) }).openapi('AnalyticsRollupSummary');
 
 // ─── 漏斗查询体 ───────────────────────────────────────────────────────────────
+const funnelStepBodyDTO = z.object({
+  eventType: eventTypeEnum.optional(),
+  eventName: z.string().max(128).optional(),
+  pagePath: z.string().max(256).optional(),
+  elementKey: z.string().max(128).optional(),
+  label: z.string().max(64),
+  properties: z.array(analyticsSegmentPropertyFilterDTO).max(5).optional(),
+});
+
 export const FunnelQueryBodyDTO = z
   .object({
     days: z.number().int().min(1).max(365).default(30),
-    steps: z
-      .array(
-        z.object({
-          eventType: eventTypeEnum.optional(),
-          eventName: z.string().max(128).optional(),
-          pagePath: z.string().max(256).optional(),
-          elementKey: z.string().max(128).optional(),
-          label: z.string().max(64),
-          properties: z.array(analyticsSegmentPropertyFilterDTO).max(5).optional(),
-        }),
-      )
-      .min(2)
-      .max(10),
+    steps: z.array(funnelStepBodyDTO).min(2).max(10),
     conversionWindowHours: z.number().int().min(1).max(720).default(72),
-    segmentId: z.number().int().positive().optional(),
+    comparison: AnalyticsComparisonDTO.default({ type: 'none' }),
   })
   .openapi('FunnelQueryBody');
+
+// ─── 留存查询体（含对比轴，故用 POST 而非 query string）──────────────────────
+export const RetentionQueryBodyDTO = z
+  .object({
+    days: z.number().int().min(1).max(ANALYTICS_RETENTION_MAX_DAYS).optional(),
+    mode: retentionModeEnum.default('first_seen'),
+    periodType: retentionPeriodTypeEnum.default('day'),
+    maxPeriods: z.number().int().min(1).max(ANALYTICS_RETENTION_MAX_PERIODS).optional(),
+    comparison: AnalyticsComparisonDTO.default({ type: 'none' }),
+  })
+  .openapi('RetentionQueryBody');
+
+// ─── 图表下钻查询体 ───────────────────────────────────────────────────────────
+export const AnalyticsDrillUsersBodyDTO = z
+  .object({
+    context: z.discriminatedUnion('type', [
+      z.object({
+        type: z.literal('funnel'),
+        days: z.number().int().min(1).max(365).default(30),
+        steps: z.array(funnelStepBodyDTO).min(2).max(10),
+        conversionWindowHours: z.number().int().min(1).max(720).default(72),
+        comparison: AnalyticsComparisonDTO.default({ type: 'none' }),
+        seriesKey: z.string().max(256).optional(),
+        stepIndex: z.number().int().min(0).max(9),
+        outcome: z.enum(ANALYTICS_DRILL_FUNNEL_OUTCOMES),
+      }),
+      z.object({
+        type: z.literal('retention'),
+        days: z.number().int().min(1).max(ANALYTICS_RETENTION_MAX_DAYS).optional(),
+        mode: retentionModeEnum.default('first_seen'),
+        periodType: retentionPeriodTypeEnum.default('day'),
+        comparison: AnalyticsComparisonDTO.default({ type: 'none' }),
+        seriesKey: z.string().max(256).optional(),
+        cohortDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        periodIndex: z.number().int().min(0).max(ANALYTICS_RETENTION_MAX_PERIODS - 1),
+        outcome: z.enum(ANALYTICS_DRILL_RETENTION_OUTCOMES),
+      }),
+    ]),
+    page: z.number().int().min(1).default(1),
+    pageSize: z.number().int().min(1).max(ANALYTICS_DRILL_PAGE_SIZE_MAX).default(20),
+  })
+  .openapi('AnalyticsDrillUsersBody');
 
 // ─── 通用事件分析工作台查询体 ─────────────────────────────────────────────────
 export const AnalyticsEventQueryBodyDTO = z
@@ -684,6 +791,7 @@ export const AnalyticsEventQueryBodyDTO = z
     segmentId: z.number().int().positive().optional(),
     groupBy: z.array(eventQueryGroupByEnum).min(1).max(2).default(['date']),
     metric: eventQueryMetricEnum.default('events'),
+    metricProperty: z.string().regex(ANALYTICS_PROPERTY_KEY_PATTERN).optional(),
     page: z.number().int().min(1).default(1),
     pageSize: z.number().int().min(1).max(200).default(20),
   })
@@ -695,6 +803,7 @@ export const AnalyticsEventQueryResultDTO = z
     list: z.array(z.object({ dimensions: z.record(z.string(), z.string()), value: z.number() })),
     queryMeta: z.object({
       metric: eventQueryMetricEnum,
+      metricProperty: z.string().nullable(),
       groupBy: z.array(eventQueryGroupByEnum),
       startDate: z.string(),
       endDate: z.string(),

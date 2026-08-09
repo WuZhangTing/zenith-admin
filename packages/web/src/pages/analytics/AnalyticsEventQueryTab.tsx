@@ -2,7 +2,7 @@
  * 行为中心阶段 1：通用事件分析工作台 —— 自定义事件 + 维度 + 指标查询，展示图表 + 明细表格。
  */
 import { useMemo, useState } from 'react';
-import { Button, Card, DatePicker, Empty, Input, Select, Typography } from '@douyinfe/semi-ui';
+import { Button, Card, DatePicker, Empty, Input, Select, Toast, Typography } from '@douyinfe/semi-ui';
 import { Plus, Trash2 } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { BarChart, chartOptions, makeBarSpec, useChartPalette } from '@/components/charts';
@@ -11,7 +11,7 @@ import { formatDateForApi } from '@/utils/date';
 import { useAnalyticsEventMeta, useAnalyticsEventQuery, useAnalyticsSegments } from '@/hooks/queries/analytics';
 import { usePagination } from '@/hooks/usePagination';
 import type { AnalyticsEventQueryGroupByField, AnalyticsEventQueryInput, AnalyticsEventQueryMetric, AnalyticsEventQueryRow, AnalyticsSegmentPropertyFilter } from '@zenith/shared/analytics';
-import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_ENVIRONMENT_OPTIONS, ANALYTICS_EVENT_QUERY_GROUP_BY_LABELS, ANALYTICS_EVENT_QUERY_GROUP_BY_OPTIONS, ANALYTICS_EVENT_QUERY_METRIC_OPTIONS, ANALYTICS_EVENT_SOURCE_OPTIONS, ANALYTICS_SEGMENT_COMPARE_OP_OPTIONS } from '@zenith/shared/analytics';
+import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_ENVIRONMENT_OPTIONS, ANALYTICS_EVENT_QUERY_GROUP_BY_LABELS, ANALYTICS_EVENT_QUERY_GROUP_BY_OPTIONS, ANALYTICS_EVENT_QUERY_METRIC_OPTIONS, ANALYTICS_EVENT_SOURCE_OPTIONS, ANALYTICS_SEGMENT_COMPARE_OP_OPTIONS, analyticsMetricRequiresProperty } from '@zenith/shared/analytics';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const DAY_OPTIONS = [7, 14, 30, 90].map((value) => ({ value, label: `近 ${value} 天` }));
@@ -38,6 +38,7 @@ interface EventQueryDraft {
   propertyFilters: PropertyFilterDraft[];
   groupBy: AnalyticsEventQueryGroupByField[];
   metric: AnalyticsEventQueryMetric;
+  metricProperty?: string;
 }
 
 const defaultDraft: EventQueryDraft = {
@@ -128,6 +129,12 @@ export default function AnalyticsEventQueryTab() {
     const propertyFilters = draft.propertyFilters
       .map(toPropertyFilter)
       .filter((f): f is AnalyticsSegmentPropertyFilter => f != null);
+    const metricProperty = draft.metricProperty?.trim() || undefined;
+    // 服务端 schema 会拒绝缺 key 的数值指标；前端先拦一道，给出比 400 更明确的提示
+    if (analyticsMetricRequiresProperty(draft.metric) && !metricProperty) {
+      Toast.warning('该指标需要填写数值属性 key');
+      return;
+    }
     const body: AnalyticsEventQueryInput = {
       eventNames: draft.eventNames.length ? draft.eventNames.slice(0, 20) : undefined,
       source: (draft.source as AnalyticsEventQueryInput['source']) || undefined,
@@ -138,6 +145,7 @@ export default function AnalyticsEventQueryTab() {
       propertyFilters: propertyFilters.length ? propertyFilters : undefined,
       groupBy: draft.groupBy.length ? draft.groupBy : ['date'],
       metric: draft.metric,
+      metricProperty,
     };
     if (draft.dateRange) {
       body.startDate = formatDateForApi(draft.dateRange[0]);
@@ -216,6 +224,17 @@ export default function AnalyticsEventQueryTab() {
             <Typography.Text type="tertiary" size="small">指标</Typography.Text>
             <Select value={draft.metric} optionList={ANALYTICS_EVENT_QUERY_METRIC_OPTIONS} onChange={(v) => updateDraft('metric', v as AnalyticsEventQueryMetric)} style={{ width: '100%' }} />
           </div>
+          {analyticsMetricRequiresProperty(draft.metric) && (
+            <div>
+              <Typography.Text type="tertiary" size="small">数值属性 key（必填）</Typography.Text>
+              <Input
+                placeholder="如 amount"
+                value={draft.metricProperty ?? ''}
+                onChange={(value) => updateDraft('metricProperty', value)}
+                style={{ width: '100%' }}
+              />
+            </div>
+          )}
           <div>
             <Typography.Text type="tertiary" size="small">来源</Typography.Text>
             <Select placeholder="全部来源" value={draft.source} optionList={ANALYTICS_EVENT_SOURCE_OPTIONS} onChange={(v) => updateDraft('source', v as string)} showClear style={{ width: '100%' }} />

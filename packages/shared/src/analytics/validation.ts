@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { boundedJsonRecord, dateTimeStringSchema, partialForUpdate, validateAlertDelivery, webhookUrlSchema } from '../core/validation';
 import { userBehaviorEventTypeEnum } from '../identity/validation';
-import { ANALYTICS_BREADCRUMB_DATA_MAX_BYTES, ANALYTICS_CAMPAIGN_CHANNELS, ANALYTICS_ENVIRONMENTS, ANALYTICS_EVENT_PROPERTY_TYPES, ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS, ANALYTICS_EVENT_QUERY_METRICS, ANALYTICS_EVENT_SOURCES, ANALYTICS_EXPERIMENT_STATUSES, ANALYTICS_PROPERTIES_MAX_BYTES, ANALYTICS_RETENTION_MAX_DAYS, ANALYTICS_RETENTION_MAX_PERIODS, ANALYTICS_RETENTION_MODES, ANALYTICS_RETENTION_PERIOD_TYPES, ANALYTICS_SEGMENT_COMPARE_OPS, SOURCE_MAP_MAX_BYTES } from './constants';
+import { ANALYTICS_ACQUISITION_DIMENSIONS, ANALYTICS_ATTRIBUTION_MODELS, ANALYTICS_BREAKDOWN_DIMENSIONS, ANALYTICS_BREADCRUMB_DATA_MAX_BYTES, ANALYTICS_CAMPAIGN_CHANNELS, ANALYTICS_COMPARE_MAX_SEGMENTS, ANALYTICS_DRILL_FUNNEL_OUTCOMES, ANALYTICS_DRILL_PAGE_SIZE_MAX, ANALYTICS_DRILL_RETENTION_OUTCOMES, ANALYTICS_ENVIRONMENTS, ANALYTICS_EVENT_PROPERTY_TYPES, ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS, ANALYTICS_EVENT_QUERY_METRICS, ANALYTICS_EVENT_SOURCES, ANALYTICS_EXPERIMENT_STATUSES, ANALYTICS_PROPERTIES_MAX_BYTES, ANALYTICS_PROPERTY_KEY_PATTERN, ANALYTICS_RETENTION_MAX_DAYS, ANALYTICS_RETENTION_MAX_PERIODS, ANALYTICS_RETENTION_MODES, ANALYTICS_RETENTION_PERIOD_TYPES, ANALYTICS_SEGMENT_COMPARE_OPS, SOURCE_MAP_MAX_BYTES, analyticsMetricRequiresProperty } from './constants';
 
 const trackEventBaseSchema = z.object({
   eventId: z.uuid().optional(),
@@ -310,6 +310,23 @@ export const updateAnalyticsSettingsSchema = z.object({
   sessionTimeoutMinutes: z.number().int().min(1).max(1440).optional(),
 });
 
+// ─── 阶段 2：统一对比轴（breakdown 维度 / 群组对比）──────────────────────────
+export const analyticsBreakdownDimensionSchema = z.enum(ANALYTICS_BREAKDOWN_DIMENSIONS);
+
+/**
+ * 判别联合而非可选字段组合：`{ dimension?, segmentIds? }` 这类写法允许两者同时出现，
+ * 服务端就必须在运行时再决定优先级，前后端极易理解不一致。判别联合把「二选一」
+ * 焊死在类型层。
+ */
+export const analyticsComparisonSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('none') }),
+  z.object({ type: z.literal('dimension'), dimension: analyticsBreakdownDimensionSchema }),
+  z.object({
+    type: z.literal('segments'),
+    segmentIds: z.array(z.number().int().positive()).min(1).max(ANALYTICS_COMPARE_MAX_SEGMENTS),
+  }),
+]);
+
 // ─── 漏斗 / 路径分析查询 ──────────────────────────────────────────────────────
 export const funnelStepSchema = z.object({
   eventType: userBehaviorEventTypeEnum.optional(),
@@ -329,8 +346,7 @@ export const funnelQuerySchema = z.object({
   steps: z.array(funnelStepSchema).min(2).max(10),
   /** 转化窗口（小时）：首步到末步必须在该窗口内完成，默认 72 */
   conversionWindowHours: z.number().int().min(1).max(720).default(72),
-  /** 仅统计指定分群内成员 */
-  segmentId: z.number().int().positive().optional(),
+  comparison: analyticsComparisonSchema.default({ type: 'none' }),
 });
 
 // ─── 留存分析查询 ─────────────────────────────────────────────────────────────
@@ -344,6 +360,53 @@ export const retentionQuerySchema = z.object({
   mode: analyticsRetentionModeSchema.default('first_seen'),
   periodType: analyticsRetentionPeriodTypeSchema.default('day'),
   maxPeriods: z.number().int().min(1).max(ANALYTICS_RETENTION_MAX_PERIODS).optional(),
+  comparison: analyticsComparisonSchema.default({ type: 'none' }),
+});
+
+// ─── 阶段 2：获客与归因报表 ───────────────────────────────────────────────────
+export const analyticsAttributionModelSchema = z.enum(ANALYTICS_ATTRIBUTION_MODELS);
+
+export const analyticsAcquisitionDimensionSchema = z.enum(ANALYTICS_ACQUISITION_DIMENSIONS);
+
+export const analyticsAcquisitionQuerySchema = z.object({
+  days: z.number().int().min(1).max(365).default(30),
+  dimension: analyticsAcquisitionDimensionSchema.default('channel'),
+  model: analyticsAttributionModelSchema.default('last_touch'),
+  /** 转化事件名；留空则只看流量结构，不算转化 */
+  conversionEvent: z.string().min(1).max(128).optional(),
+  limit: z.number().int().min(1).max(50).default(20),
+});
+
+// ─── 阶段 2：图表下钻用户列表 ─────────────────────────────────────────────────
+const analyticsDrillFunnelContextSchema = z.object({
+  type: z.literal('funnel'),
+  days: z.number().int().min(1).max(365).default(30),
+  steps: z.array(funnelStepSchema).min(2).max(10),
+  conversionWindowHours: z.number().int().min(1).max(720).default(72),
+  comparison: analyticsComparisonSchema.default({ type: 'none' }),
+  seriesKey: z.string().max(256).optional(),
+  stepIndex: z.number().int().min(0).max(9),
+  outcome: z.enum(ANALYTICS_DRILL_FUNNEL_OUTCOMES),
+}).refine((ctx) => ctx.stepIndex < ctx.steps.length, { message: 'stepIndex 超出漏斗步骤范围' })
+  // 首步没有「上一步」，流失口径无从定义；放行会静默返回空列表，用户以为没人流失
+  .refine((ctx) => !(ctx.outcome === 'dropped' && ctx.stepIndex === 0), { message: '首步不存在流失用户' });
+
+const analyticsDrillRetentionContextSchema = z.object({
+  type: z.literal('retention'),
+  days: z.number().int().min(1).max(ANALYTICS_RETENTION_MAX_DAYS).optional(),
+  mode: analyticsRetentionModeSchema.default('first_seen'),
+  periodType: analyticsRetentionPeriodTypeSchema.default('day'),
+  comparison: analyticsComparisonSchema.default({ type: 'none' }),
+  seriesKey: z.string().max(256).optional(),
+  cohortDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  periodIndex: z.number().int().min(0).max(ANALYTICS_RETENTION_MAX_PERIODS - 1),
+  outcome: z.enum(ANALYTICS_DRILL_RETENTION_OUTCOMES),
+});
+
+export const analyticsDrillUsersSchema = z.object({
+  context: z.discriminatedUnion('type', [analyticsDrillFunnelContextSchema, analyticsDrillRetentionContextSchema]),
+  page: z.number().int().min(1).default(1),
+  pageSize: z.number().int().min(1).max(ANALYTICS_DRILL_PAGE_SIZE_MAX).default(20),
 });
 
 // ─── 行为中心阶段 1：通用事件分析工作台 ────────────────────────────────────────
@@ -362,9 +425,15 @@ export const analyticsEventQuerySchema = z.object({
   segmentId: z.number().int().positive().optional(),
   groupBy: z.array(z.enum(ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS)).min(1).max(2).default(['date']),
   metric: z.enum(ANALYTICS_EVENT_QUERY_METRICS).default('events'),
+  /** 数值属性 key，与属性过滤共用白名单正则，杜绝 jsonb 路径注入 */
+  metricProperty: z.string().regex(ANALYTICS_PROPERTY_KEY_PATTERN, '属性 key 只允许字母数字下划线点横线，长度 1~64').optional(),
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(1).max(200).default(20),
-});
+}).refine(
+  // 缺 metricProperty 时若静默退化成事件计数，用户会拿着「事件次数」当成「金额求和」读
+  (input) => !analyticsMetricRequiresProperty(input.metric) || !!input.metricProperty,
+  { message: '该指标需要指定数值属性字段', path: ['metricProperty'] },
+);
 
 export const sourceMapUploadSchema = z.object({
   release: z.string().min(1).max(64),

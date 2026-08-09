@@ -1,6 +1,6 @@
 # 行为分析
 
-行为分析页面（`/analytics/behavior`，权限 `analytics:view`）提供 13 个 Tab：**概览 / 实时 / 事件分析 / A/B 实验 / 页面停留 / 功能使用 / 会话 / 漏斗 / 留存 / 路径 / 用户分析 / 维度分布 / 点击分布**，以折线、面积、柱状、饼图、热力矩阵等图表呈现。多数统计接口支持 `days`（1–365）/ `limit` 查询，页面提供近 7 / 30 / 90 天切换；会话列表支持用户名与设备筛选，维度分布支持浏览器、操作系统、设备、地域、来源、引荐与页面维度。
+行为分析页面（`/analytics/behavior`，权限 `analytics:view`）提供 14 个 Tab：**概览 / 实时 / 事件分析 / A/B 实验 / 页面停留 / 功能使用 / 会话 / 漏斗 / 留存 / 路径 / 获客归因 / 用户分析 / 维度分布 / 点击分布**，以折线、面积、柱状、饼图、热力矩阵等图表呈现。多数统计接口支持 `days`（1–365）/ `limit` 查询，页面提供近 7 / 30 / 90 天切换；会话列表支持用户名与设备筛选，维度分布支持浏览器、操作系统、设备、地域、来源、引荐与页面维度。漏斗与留存支持统一的**对比轴**（维度拆分 / 群组对比）与**图表下钻**（点击到具体用户名单）。
 
 ## 概览
 
@@ -43,23 +43,56 @@
 
 - `days`：分析窗口天数，1–365，默认 30。
 - `conversionWindowHours`：转化窗口小时数，1–720，默认 72。
-- `segmentId`：可选，限定分群成员参与统计（仅作用于漏斗起点，即第 1 步的候选用户集合）。
+- `comparison`：对比轴（见下方「对比轴」），默认 `{ "type": "none" }`。
 
 ```jsonc
 // 请求体示例
-{ "days": 30, "conversionWindowHours": 72, "segmentId": null, "steps": [
-  { "label": "进入首页", "pagePath": "/" },
-  { "label": "浏览列表", "eventName": "$pageview" },
-  { "label": "提交订单", "eventName": "order_submit",
-    "properties": [{ "key": "amount", "op": "gte", "value": 100 }] }
-] }
+{ "days": 30, "conversionWindowHours": 72,
+  "comparison": { "type": "dimension", "dimension": "channel" },
+  "steps": [
+    { "label": "进入首页", "pagePath": "/" },
+    { "label": "浏览列表", "eventName": "$pageview" },
+    { "label": "提交订单", "eventName": "order_submit",
+      "properties": [{ "key": "amount", "op": "gte", "value": 100 }] }
+  ] }
 ```
 
-**保存报表**：配置好的漏斗可保存复用——`GET /api/analytics/reports?type=funnel` 列表、`POST /api/analytics/reports` 保存、`DELETE /api/analytics/reports/{id}` 删除（均 `analytics:view` 权限，按创建人隔离，落 `analytics_saved_reports` 表）。
+响应结构统一为 `{ series: [...], comparison }`，无对比时 `series` 长度为 1（key 为 `__overall__`），
+前端只需一条渲染路径。
+
+**对比轴只作用于漏斗起点**：漏斗语义是「从同一批人出发」，若每一步都按维度过滤，
+用户中途换设备/换渠道就会被算作流失，转化率被系统性低估。
+
+**保存报表**：配置好的漏斗可保存复用——`GET /api/analytics/reports?type=funnel` 列表、`POST /api/analytics/reports` 保存、`DELETE /api/analytics/reports/{id}` 删除（均 `analytics:view` 权限，按创建人隔离，落 `analytics_saved_reports` 表）。保存的配置包含对比轴。
+
+## 对比轴（breakdown 维度 / 群组对比）
+
+漏斗与留存共用同一条对比轴，来源二选一，**不做「维度 × 分群」组合**——
+两者叠加会产生笛卡尔积序列，图表无法阅读，且每条序列的样本量被摊薄到失去统计意义。
+
+| `comparison` | 说明 |
+|--------------|------|
+| `{ "type": "none" }` | 不对比，返回单条 `__overall__` 序列 |
+| `{ "type": "dimension", "dimension": "channel" }` | 按维度拆分，保留 Top 6，长尾合并为 `__other__`「其他」 |
+| `{ "type": "segments", "segmentIds": [1, 2] }` | 按分群对比，最多 3 个 |
+
+可用维度：`browser` / `os` / `deviceType` / `region` / `country` / `source` / `appId` /
+`environment` / `channel` / `utmSource` / `utmMedium` / `utmCampaign` / `referrerHost`。
+
+维度拆分保留长尾「其他」序列，是为了让各序列之和等于总量——不合并的话看图的人会以为数据丢了。
+来源类维度（UTM / referrer）的空值语义是「没有来源」，展示为「直接访问」而非「未知」。
 
 ## 留存分析
 
-`GET /api/analytics/retention?days=N&mode=first_seen|window_first&periodType=day|week|month&maxPeriods=N` —— cohort 留存矩阵，前端以热力矩阵呈现，行=同期群、列=第 N 个周期，单元格颜色深浅表示留存率。
+`POST /api/analytics/retention` —— cohort 留存矩阵，前端以热力矩阵呈现，行=同期群、列=第 N 个周期，单元格颜色深浅表示留存率。请求体含 `days` / `mode` / `periodType` / `maxPeriods` / `comparison`。
+
+> 留存用 POST 而非 GET：对比轴是判别联合对象，query string 无法自然承载。
+
+响应同样是 `{ series, periods, mode, periodType, days, comparison }`。每条序列除 `cohorts` 外还带
+`averages`（各周期的**加权平均**留存率，按队列规模加权）与 `totalUsers`。
+加权而非算术平均：算术平均会让一个 3 人的小队列和一个 3 万人的大队列等权，
+多序列对比时结论会被噪音主导；尚未走到该周期的队列（值为 `null`）不参与平均，
+否则新队列会把留存率稀释成 0。
 
 **周期粒度（`periodType`）** 决定队列与回访的分桶方式，队列起点与 PostgreSQL `date_trunc` 对齐（周从周一起算，月从 1 日起算）。各粒度的回溯窗口（`days`）与列数（`maxPeriods`）默认值与上限如下（定义于 `ANALYTICS_RETENTION_PERIOD_LIMITS`）：
 
@@ -96,8 +129,24 @@
 | `propertyFilters` | 属性过滤，最多 10 条，`{ key, op, value }` |
 | `segmentId` | 可选，仅统计分群成员 |
 | `groupBy` | 分组维度白名单，1–2 维：`date` / `eventName` / `pagePath` / `source` / `appId` / `environment` / `browser` / `os` / `deviceType` / `region` |
-| `metric` | `events`（事件数，默认）或 `uv`（去重访客数） |
+| `metric` | 见下方「指标」 |
+| `metricProperty` | 数值属性 key，`sum`/`avg`/`min`/`max`/`p50`/`p90`/`p95` 必填 |
 | `limit` | 结果行数上限，最多 200，默认 100 |
+
+**指标**：
+
+| 指标 | 说明 |
+|------|------|
+| `events` | 事件次数（默认） |
+| `uv` | 去重访客数 |
+| `eventsPerUser` | 人均次数（事件数 / 去重访客数） |
+| `sum` / `avg` / `min` / `max` | 数值属性的求和 / 均值 / 极值 |
+| `p50` / `p90` / `p95` | 数值属性的中位数 / P90 / P95 |
+
+数值指标作用于 `properties->>key`。**jsonb 里同名属性的类型不受控**——同一个 `amount`
+可能既有 `12.5` 也有 `"N/A"`，直接 `::numeric` 会让一行脏数据把整条查询打崩。
+因此服务端先用正则筛出合法数值再转换，非数值行按「不参与计算」处理（与 SQL 聚合忽略 NULL 一致）；
+同时附加 `properties ? key` 条件，把没有该属性的事件排除在分母外，避免 `avg` 被无关事件稀释。
 
 分组维度与属性 key 均通过白名单 / 参数化绑定，禁止任意列名或原始 SQL 片段，防止注入。响应结构：`{ rows: [{ dimensions, value }], total, queryMeta }`。
 
@@ -107,6 +156,66 @@
 > 该条件被除 `neq` 外的所有运算符逻辑蕴含（结果集不变），但能命中 `user_events.properties`
 > 上的 GIN 索引（默认 `jsonb_ops`），把「时间窗内逐行求值 jsonb 表达式」降级为位图索引扫描 + 精确重查。
 > `neq` 语义上包含「该 key 不存在」的行，故不附加该条件。
+
+## 图表下钻用户列表
+
+`POST /api/analytics/drill-users` —— 把图表坐标翻译成具体的用户名单。
+
+漏斗告诉你「第 3 步流失了 3000 人」、留存告诉你「第 2 周掉了 60%」，但看不到「是谁」，
+分析结论就无法转化为运营动作。下钻接口补上这一环。
+
+请求体为 `{ context, page, pageSize }`，`context` 是判别联合：
+
+| `context.type` | 定位坐标 | `outcome` |
+|----------------|----------|-----------|
+| `funnel` | `stepIndex`（0 基）+ 漏斗完整配置 | `converted`（到达该步）/ `dropped`（到达上一步但没到该步） |
+| `retention` | `cohortDate` + `periodIndex`（0 基）+ 留存配置 | `retained`（该周期仍活跃）/ `churned`（属于该队列但该周期未活跃） |
+
+两种 context 都可带 `comparison` + `seriesKey`，用于在多序列图表上定位到具体那条线。
+
+**一致性要求**：下钻复用产生该图表的同一套 SQL 构造（漏斗 CTE、留存分桶、对比轴条件），
+所以 `context` 里的分析参数必须与图表查询一致；否则「图上 3000 人」和「下钻出 2874 人」
+这种对不上的数字会直接摧毁使用者对数据的信任。
+
+约束与设计取舍：
+
+- 首步不存在「流失」（没有上一步），schema 层直接拒绝该组合——放行只会静默返回空列表，
+  让人误以为「没有人流失」。
+- 单页最多 100 条：下钻用于定位问题用户，不是全量导出。
+- 画像用 `LEFT JOIN LATERAL ... LIMIT 1` 而非普通 JOIN：平台视角下无租户过滤，
+  同一 `distinctId` 可能在多个租户各有一条画像，普通 JOIN 会把一个用户放大成多行，
+  分页与「命中人数」立刻对不上。缺画像的用户仍会列出（下钻的意义正是找出这些人）。
+
+> **为什么没有「一键存为分群」**：分群规则 schema 只支持 event / attribute 两类原子条件，
+> 无法表达「漏斗第 N 步流失」「留存第 D 周期未回访」这类跨步序的集合语义。
+> 硬塞会得到一个与下钻结果不等价的分群，比没有更危险。
+
+## 获客与归因报表
+
+`GET /api/analytics/acquisition?days=N&dimension=...&model=...&conversionEvent=...&limit=N`
+
+与「维度分布」的关键区别：维度分布按**事件**计数，同一用户多次访问会重复计入；
+本报表按**用户**归因——每个用户只归属于一条触点，因此各行用户数之和等于总用户数，
+可以直接用来比较渠道贡献。
+
+**归因模型**决定把转化算给哪一次触点。一个用户往往有多次触点（先自然搜索进来、
+几天后点广告回来再下单），算给谁结论完全不同，因此报表必须显式声明模型：
+
+| `model` | 口径 | 回答的问题 |
+|---------|------|-----------|
+| `first_touch` | 窗口内最早一次触点 | 谁把用户带来的（拉新贡献） |
+| `last_touch` | 窗口内最后一次触点（默认） | 谁临门一脚（促单贡献） |
+
+`dimension` 可选 `channel` / `utmSource` / `utmMedium` / `utmCampaign` / `referrerHost`。
+
+**渠道（channel）派生规则**（优先级自上而下）：`utm_medium` 显式声明付费/邮件/社交 →
+以声明为准；有 `utm_source` 但 medium 未声明 → 按 source 域名特征归类；
+无 UTM 但有 referrer → 按 referrer 域名特征归类；两者都无 → 直接访问。
+渠道枚举：`direct` / `organic_search` / `paid_search` / `social` / `email` / `referral` / `other`。
+
+返回每行的 `users` / `newUsers` / `sessions` / `conversions` / `conversionRate`。
+`newUsers` 按**全历史首见时间**判定，而不是「窗口内首次出现」——后者会把老用户的回访误计为新用户。
+`conversionEvent` 留空时只看流量结构，不算转化。
 
 ## 路径分析
 

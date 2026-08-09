@@ -128,30 +128,82 @@ describe('通用事件分析工作台 handler smoke', () => {
   });
 });
 
-describe('漏斗 handler — 新增 conversionWindowHours/segmentId 参数 + averageConversionMs', () => {
-  it('返回结果每步含 averageConversionMs（首步为 null）', async () => {
+describe('漏斗 handler — 转化窗口 / 对比轴 / averageConversionMs', () => {
+  it('无对比时返回单条 __overall__ 序列，每步含 averageConversionMs（首步为 null）', async () => {
     const j = await call('POST', '/api/analytics/funnel', {
       steps: [{ label: '浏览', eventName: 'view' }, { label: '下单', eventName: 'order' }],
       conversionWindowHours: 48,
       days: 30,
     });
     expect(j.code).toBe(0);
-    expect(j.data.steps[0]).toHaveProperty('averageConversionMs');
-    expect(j.data.steps[0].averageConversionMs).toBeNull();
-    expect(j.data.steps[1]).toHaveProperty('averageConversionMs');
+    expect(j.data.series).toHaveLength(1);
+    expect(j.data.series[0].key).toBe('__overall__');
+    expect(j.data.series[0].steps[0].averageConversionMs).toBeNull();
+    expect(j.data.series[0].steps[1]).toHaveProperty('averageConversionMs');
+  });
+
+  it('分群对比时按分群数返回多条序列并回显对比轴', async () => {
+    const comparison = { type: 'segments', segmentIds: [1, 2] };
+    const j = await call('POST', '/api/analytics/funnel', {
+      steps: [{ label: '浏览', eventName: 'view' }, { label: '下单', eventName: 'order' }],
+      comparison,
+      days: 30,
+    });
+    expect(j.code).toBe(0);
+    expect(j.data.series).toHaveLength(2);
+    expect(j.data.series.map((s: { key: string }) => s.key)).toEqual(['segment:1', 'segment:2']);
+    expect(j.data.comparison).toEqual(comparison);
   });
 });
 
-describe('留存 handler — mode 双口径回显', () => {
-  it('默认 mode=first_seen', async () => {
-    const j = await call('GET', '/api/analytics/retention?days=14');
+describe('留存 handler — POST 查询体 + 双口径回显', () => {
+  it('默认 mode=first_seen，返回 series 结构', async () => {
+    const j = await call('POST', '/api/analytics/retention', { days: 14, periodType: 'day' });
     expect(j.code).toBe(0);
     expect(j.data.mode).toBe('first_seen');
+    expect(Array.isArray(j.data.series)).toBe(true);
+    expect(j.data.series[0]).toHaveProperty('averages');
   });
 
   it('显式传入 mode=window_first 时回显对应口径', async () => {
-    const j = await call('GET', '/api/analytics/retention?days=14&mode=window_first');
+    const j = await call('POST', '/api/analytics/retention', { days: 14, mode: 'window_first' });
     expect(j.code).toBe(0);
     expect(j.data.mode).toBe('window_first');
+  });
+
+  it('维度拆分时返回多条序列', async () => {
+    const j = await call('POST', '/api/analytics/retention', {
+      days: 14,
+      comparison: { type: 'dimension', dimension: 'deviceType' },
+    });
+    expect(j.code).toBe(0);
+    expect(j.data.series.length).toBeGreaterThan(1);
+  });
+});
+
+describe('下钻 / 获客 handler', () => {
+  it('下钻返回分页用户列表与命中人数', async () => {
+    const j = await call('POST', '/api/analytics/drill-users', {
+      context: {
+        type: 'funnel',
+        days: 7,
+        steps: [{ label: 'A', pagePath: '/' }, { label: 'B', pagePath: '/b' }],
+        stepIndex: 1,
+        outcome: 'dropped',
+      },
+      page: 1,
+      pageSize: 20,
+    });
+    expect(j.code).toBe(0);
+    expect(j.data).toHaveProperty('matchedUsers');
+    expect(Array.isArray(j.data.list)).toBe(true);
+  });
+
+  it('获客报表回显归因模型与维度', async () => {
+    const j = await call('GET', '/api/analytics/acquisition?dimension=channel&model=first_touch&days=30');
+    expect(j.code).toBe(0);
+    expect(j.data.model).toBe('first_touch');
+    expect(j.data.dimension).toBe('channel');
+    expect(j.data.rows.length).toBeGreaterThan(0);
   });
 });

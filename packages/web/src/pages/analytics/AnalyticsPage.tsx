@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { CSSProperties, ReactNode } from 'react';
-import { Avatar, Button, Card, DatePicker, Dropdown, Empty, Input, InputNumber, Modal, Progress, Select, SideSheet, Skeleton, Spin, Switch, TabPane, Tabs, Tag, Timeline, Toast, Typography } from '@douyinfe/semi-ui';
+import { Avatar, Button, Card, DatePicker, Dropdown, Empty, Input, InputNumber, Modal, Progress, Select, SideSheet, Skeleton, Space, Spin, Switch, TabPane, Tabs, Tag, Timeline, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Activity, BarChart3, Bookmark, Clock, Eye, Flame, Plus, RefreshCcw, Search, Target, Trash2, TrendingUp, Users, Zap } from 'lucide-react';
 import {
@@ -48,7 +48,6 @@ import {
   useAnalyticsPath,
   useAnalyticsRealtime,
   useAnalyticsRetention,
-  useAnalyticsSegments,
   useAnalyticsSessions,
   useAnalyticsTrends,
   useAnalyticsUserStats,
@@ -58,12 +57,14 @@ import {
   useSaveFunnelReport,
   useDeleteFunnelReport,
 } from '@/hooks/queries/analytics';
-import type { AnalyticsRetentionMode, AnalyticsRetentionPeriodType, AnalyticsSavedReport, AnalyticsSegmentPropertyFilter, DimensionBreakdown, FeatureStats, HeatmapData, HeatmapElementItem, HeatmapPageListItem, HeatmapRageClickItem, PageStats, PathLink } from '@zenith/shared/analytics';
+import type { AnalyticsComparison, AnalyticsRetentionMode, AnalyticsRetentionPeriodType, AnalyticsSavedReport, AnalyticsSegmentPropertyFilter, DimensionBreakdown, FeatureStats, HeatmapData, HeatmapElementItem, HeatmapPageListItem, HeatmapRageClickItem, PageStats, PathLink } from '@zenith/shared/analytics';
 import type { UserStats } from '@zenith/shared/identity';
 import type { SessionListItem } from '@zenith/shared/platform';
 import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_EVENT_SOURCE_OPTIONS, ANALYTICS_PATH_EXIT_PAGE, ANALYTICS_RETENTION_MODE_OPTIONS, ANALYTICS_RETENTION_PERIOD_LIMITS, ANALYTICS_RETENTION_PERIOD_TYPE_OPTIONS, ANALYTICS_RETENTION_PERIOD_UNIT_LABELS, ANALYTICS_SEGMENT_COMPARE_OP_OPTIONS } from '@zenith/shared/analytics';
 import AnalyticsEventQueryTab from './AnalyticsEventQueryTab';
 import AnalyticsExperimentsTab from './AnalyticsExperimentsTab';
+import AnalyticsAcquisitionTab from './AnalyticsAcquisitionTab';
+import { ComparisonPicker, DrillUsersSheet, isComparisonReady, useDrillSheet } from './AnalyticsComparison';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
 
@@ -864,7 +865,8 @@ function FunnelTab() {
   const palette = useChartPalette();
   const [days, setDays] = useState(7);
   const [conversionWindowHours, setConversionWindowHours] = useState(72);
-  const [segmentId, setSegmentId] = useState<number | undefined>(undefined);
+  const [comparison, setComparison] = useState<AnalyticsComparison>({ type: 'none' });
+  const drill = useDrillSheet();
   const [steps, setSteps] = useState<FunnelStepDraft[]>([
     { id: 'step-1', label: '进入首页', pagePath: '/' },
     { id: 'step-2', label: '进入仪表盘', pagePath: '/dashboard' },
@@ -878,11 +880,6 @@ function FunnelTab() {
   const deleteReportMutation = useDeleteFunnelReport();
   const [saveName, setSaveName] = useState('');
   const [saveVisible, setSaveVisible] = useState(false);
-  const segmentsQuery = useAnalyticsSegments({ page: 1, pageSize: 100, status: 'enabled' });
-  const segmentOptions = useMemo(
-    () => (segmentsQuery.data?.list ?? []).map((s) => ({ label: s.name, value: s.id })),
-    [segmentsQuery.data?.list],
-  );
 
   const saveReport = async () => {
     const name = saveName.trim();
@@ -892,7 +889,7 @@ function FunnelTab() {
       config: {
         days,
         conversionWindowHours,
-        segmentId,
+        comparison,
         steps: steps.map(({ label, pagePath, eventName, propKey, propOp, propValue }) => ({ label, pagePath, eventName, propKey, propOp, propValue })),
       },
     });
@@ -905,12 +902,12 @@ function FunnelTab() {
     const config = report.config as {
       days?: number;
       conversionWindowHours?: number;
-      segmentId?: number;
+      comparison?: AnalyticsComparison;
       steps?: Array<{ label?: string; pagePath?: string; eventName?: string; propKey?: string; propOp?: AnalyticsSegmentPropertyFilter['op']; propValue?: string }>;
     };
     if (config.days) setDays(config.days);
     setConversionWindowHours(config.conversionWindowHours ?? 72);
-    setSegmentId(config.segmentId);
+    setComparison(config.comparison ?? { type: 'none' });
     if (Array.isArray(config.steps) && config.steps.length >= 2) {
       setSteps(config.steps.map((s, i) => ({
         id: `step-${Date.now()}-${i}`,
@@ -937,35 +934,57 @@ function FunnelTab() {
     setSteps((prev) => (prev.length <= 2 ? prev : prev.filter((item) => item.id !== id)));
   };
 
-  const funnelChartData = useMemo(() => (result?.steps ?? []).map((step, index) => ({
-    ...step,
-    __fill: chartColor(index, palette.primary),
-  })), [palette.primary, result?.steps]);
+  // 多序列时图表按序列分组展示各步转化率；单序列沿用原有的横向条形
+  const funnelChartData = useMemo(() => {
+    const series = result?.series ?? [];
+    if (series.length === 0) return [];
+    if (series.length === 1) {
+      return (series[0].steps ?? []).map((step, index) => ({ ...step, __fill: chartColor(index, palette.primary) }));
+    }
+    return (series[0].steps ?? []).map((step, stepIndex) => {
+      const row: Record<string, unknown> = { label: step.label };
+      series.forEach((s) => { row[s.key] = s.steps[stepIndex]?.conversionRate ?? 0; });
+      return row;
+    });
+  }, [palette.primary, result?.series]);
 
-  const funnelBarSpec = useMemo(() => makeBarSpec({
-    data: funnelChartData,
-    xField: 'label',
-    series: [{ field: 'conversionRate', name: '总转化率', color: palette.primary }],
-    palette,
-    horizontal: true,
-    categoryAxisWidth: 96,
-    colorByDatum: (datum) => String(datum?.__fill ?? palette.primary),
-    tooltip: { value: (value) => `${Number(value).toFixed(1)}%` },
-    axis: { yLabel: (value) => `${value}%` },
-  }), [funnelChartData, palette]);
+  const funnelBarSpec = useMemo(() => {
+    const series = result?.series ?? [];
+    const multi = series.length > 1;
+    return makeBarSpec({
+      data: funnelChartData,
+      xField: 'label',
+      series: multi
+        ? series.map((s, i) => ({ field: s.key, name: s.label, color: chartColor(i, palette.primary) }))
+        : [{ field: 'conversionRate', name: '总转化率', color: palette.primary }],
+      palette,
+      horizontal: !multi,
+      categoryAxisWidth: multi ? undefined : 96,
+      colorByDatum: multi ? undefined : (datum) => String(datum?.__fill ?? palette.primary),
+      tooltip: { value: (value) => `${Number(value).toFixed(1)}%` },
+      axis: { yLabel: (value) => `${value}%` },
+    });
+  }, [funnelChartData, palette, result?.series]);
+
+  const funnelSteps = useMemo(() => steps.map((step) => ({
+    label: step.label.trim(),
+    pagePath: step.pagePath?.trim() || undefined,
+    eventName: step.eventName?.trim() || undefined,
+    properties: buildStepProperties(step),
+  })), [steps]);
 
   const analyze = async () => {
-    await analyzeMutation.mutateAsync({
-      days,
-      conversionWindowHours,
-      segmentId,
-      steps: steps.map((step) => ({
-        label: step.label.trim(),
-        pagePath: step.pagePath?.trim() || undefined,
-        eventName: step.eventName?.trim() || undefined,
-        properties: buildStepProperties(step),
-      })),
-    });
+    if (!isComparisonReady(comparison)) { Toast.warning('请至少选择一个对比分群'); return; }
+    await analyzeMutation.mutateAsync({ days, conversionWindowHours, comparison, steps: funnelSteps });
+  };
+
+  /** 点击某序列某步的「已转化 / 已流失」→ 下钻出具体用户 */
+  const openDrill = (seriesKey: string, seriesLabel: string, stepIndex: number, outcome: 'converted' | 'dropped', stepLabel: string) => {
+    drill.open(
+      { type: 'funnel', days, steps: funnelSteps, conversionWindowHours, comparison, seriesKey, stepIndex, outcome },
+      `${stepLabel} · ${outcome === 'converted' ? '已转化用户' : '流失用户'}`,
+      comparison.type === 'none' ? undefined : `对比序列：${seriesLabel}`,
+    );
   };
 
   return (
@@ -982,16 +1001,8 @@ function FunnelTab() {
             <InputNumber value={conversionWindowHours} min={1} max={720} onChange={(v) => setConversionWindowHours(Number(v) || 72)} style={{ width: 120 }} />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Typography.Text type="tertiary" size="small">仅统计分群</Typography.Text>
-            <Select
-              placeholder="全部用户"
-              value={segmentId}
-              optionList={segmentOptions}
-              onChange={(v) => setSegmentId(v == null ? undefined : Number(v))}
-              showClear
-              style={{ width: 180 }}
-              loading={segmentsQuery.isFetching}
-            />
+            <Typography.Text type="tertiary" size="small">对比</Typography.Text>
+            <ComparisonPicker value={comparison} onChange={setComparison} />
           </div>
         </div>
         <div style={{ display: 'grid', gap: 10 }}>
@@ -1060,30 +1071,50 @@ function FunnelTab() {
         </Modal>
       </Card>
       <Card title="漏斗结果" bodyStyle={{ padding: 16 }}>
-        {!result ? emptyOrSpin(loading, '请配置步骤后点击分析') : (
-          <div style={{ display: 'grid', gap: 14 }}>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <Tag color="blue">总用户 {numberText(result.totalUsers)}</Tag>
-              <Tag color="green">整体转化 {percentText(result.overallConversionRate)}</Tag>
-            </div>
+        {!result || result.series.length === 0 ? emptyOrSpin(loading, '请配置步骤后点击分析') : (
+          <div style={{ display: 'grid', gap: 18 }}>
             <BarChart {...funnelBarSpec} options={chartOptions} height={300} />
-            {result.steps.map((step, index) => (
-              <div key={`${step.label}-${index}`}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
-                  <Typography.Text strong>{step.label}</Typography.Text>
-                  <Typography.Text>
-                    {numberText(step.users)} 人 · 总转化 {percentText(step.conversionRate)} · 上步转化 {percentText(step.stepConversionRate)} · 流失 {numberText(step.dropoff)}
-                    {step.averageConversionMs != null ? ` · 平均耗时 ${msToReadable(step.averageConversionMs)}` : ''}
-                  </Typography.Text>
+            {result.series.map((series, seriesIndex) => (
+              <div key={series.key} style={{ display: 'grid', gap: 12 }}>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {result.series.length > 1 && (
+                    <Space spacing={6} align="center">
+                      <span
+                        aria-hidden
+                        style={{ width: 8, height: 8, borderRadius: '50%', background: chartColor(seriesIndex, palette.primary), display: 'inline-block' }}
+                      />
+                      <Typography.Text strong>{series.label}</Typography.Text>
+                    </Space>
+                  )}
+                  <Tag color="blue">总用户 {numberText(series.totalUsers)}</Tag>
+                  <Tag color="green">整体转化 {percentText(series.overallConversionRate)}</Tag>
                 </div>
-                <div style={{ height: 20, borderRadius: 999, background: 'var(--semi-color-fill-0)', overflow: 'hidden' }}>
-                  <div style={{ width: `${Math.max(2, Math.min(100, step.conversionRate))}%`, height: '100%', borderRadius: 999, background: chartColor(index, palette.primary) }} />
-                </div>
+                {series.steps.map((step, index) => (
+                  <div key={`${series.key}-${step.label}-${index}`}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 6, flexWrap: 'wrap' }}>
+                      <Typography.Text strong>{step.label}</Typography.Text>
+                      <Space spacing={8} wrap>
+                        <Typography.Text>
+                          {numberText(step.users)} 人 · 总转化 {percentText(step.conversionRate)} · 上步转化 {percentText(step.stepConversionRate)} · 流失 {numberText(step.dropoff)}
+                          {step.averageConversionMs != null ? ` · 平均耗时 ${msToReadable(step.averageConversionMs)}` : ''}
+                        </Typography.Text>
+                        <Button theme="borderless" size="small" disabled={step.users === 0} onClick={() => openDrill(series.key, series.label, index, 'converted', step.label)}>看用户</Button>
+                        {index > 0 && (
+                          <Button theme="borderless" size="small" disabled={step.dropoff === 0} onClick={() => openDrill(series.key, series.label, index, 'dropped', step.label)}>看流失</Button>
+                        )}
+                      </Space>
+                    </div>
+                    <div style={{ height: 20, borderRadius: 999, background: 'var(--semi-color-fill-0)', overflow: 'hidden' }}>
+                      <div style={{ width: `${Math.max(2, Math.min(100, step.conversionRate))}%`, height: '100%', borderRadius: 999, background: chartColor(index, palette.primary) }} />
+                    </div>
+                  </div>
+                ))}
               </div>
             ))}
           </div>
         )}
       </Card>
+      <DrillUsersSheet context={drill.context} title={drill.title} description={drill.description} onClose={drill.close} />
     </div>
   );
 }
@@ -1093,7 +1124,11 @@ function RetentionTab() {
   const [days, setDays] = useState(ANALYTICS_RETENTION_PERIOD_LIMITS.day.defaultDays);
   const [maxPeriods, setMaxPeriods] = useState(ANALYTICS_RETENTION_PERIOD_LIMITS.day.defaultPeriods);
   const [mode, setMode] = useState<AnalyticsRetentionMode>('first_seen');
-  const retentionQuery = useAnalyticsRetention(days, mode, periodType, maxPeriods);
+  const [comparison, setComparison] = useState<AnalyticsComparison>({ type: 'none' });
+  const drill = useDrillSheet();
+  // 分群对比未选分群时不发请求：请求体过不了 schema 校验，只会白白拿一个 400
+  const effectiveComparison = isComparisonReady(comparison) ? comparison : { type: 'none' as const };
+  const retentionQuery = useAnalyticsRetention({ days, mode, periodType, maxPeriods, comparison: effectiveComparison });
   const data = retentionQuery.data ?? null;
   const loading = retentionQuery.isFetching;
 
@@ -1105,13 +1140,25 @@ function RetentionTab() {
   };
 
   const periodUnit = ANALYTICS_RETENTION_PERIOD_UNIT_LABELS[periodType];
-  const periodMax = data ? Math.max(1, ...data.cohorts.flatMap((c) => c.values.filter((v): v is number => v != null))) : 100;
+  const series = data?.series ?? [];
+  // 色阶基准取全部序列的最大值，多序列之间颜色深浅才可直接横向比较
+  const periodMax = series.length
+    ? Math.max(1, ...series.flatMap((s) => s.cohorts.flatMap((c) => c.values.filter((v): v is number => v != null))))
+    : 100;
+
+  const openDrill = (seriesKey: string, seriesLabel: string, cohortDate: string, periodIndex: number, outcome: 'retained' | 'churned') => {
+    drill.open(
+      { type: 'retention', days, mode, periodType, comparison: effectiveComparison, seriesKey, cohortDate, periodIndex, outcome },
+      `${cohortDate} 队列 · 第 ${periodIndex} ${periodUnit} · ${outcome === 'retained' ? '回访用户' : '未回访用户'}`,
+      effectiveComparison.type === 'none' ? undefined : `对比序列：${seriesLabel}`,
+    );
+  };
 
   return (
     <div style={sectionStyle}>
       <SectionHeader
         title="用户留存"
-        description="按首访周期形成 cohort，单元格颜色越深表示留存率越高"
+        description="按首访周期形成 cohort，单元格颜色越深表示留存率越高；点击单元格可下钻到具体用户"
         extra={(
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <Select
@@ -1128,6 +1175,7 @@ function RetentionTab() {
             />
             <Select value={days} optionList={RETENTION_DAYS_OPTIONS[periodType]} onChange={(v) => setDays(Number(v))} style={{ width: 130 }} />
             <Select value={maxPeriods} optionList={retentionPeriodOptions(periodType)} onChange={(v) => setMaxPeriods(Number(v))} style={{ width: 140 }} />
+            <ComparisonPicker value={comparison} onChange={setComparison} />
           </div>
         )}
       />
@@ -1136,48 +1184,79 @@ function RetentionTab() {
           ? '真实首访口径：按用户全历史首次出现周期分组，仅展示首访周期落在统计区间内的 cohort'
           : '窗口首现口径：按当前统计窗口内首次出现周期分组（与旧版行为一致）'}
       </Typography.Text>
-      <Card bodyStyle={{ padding: 16, overflowX: 'auto' }}>
-        {loading && !data ? emptyOrSpin(true) : !data?.cohorts.length ? <Empty description="暂无留存数据" /> : (
-          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 4, minWidth: 720 }}>
-            <thead>
-              <tr>
-                <th style={{ textAlign: 'left', padding: '8px 12px 8px 10px', fontSize: 12, color: 'var(--semi-color-text-2)', fontWeight: 500, width: '1%', whiteSpace: 'nowrap' }}>同期群</th>
-                <th style={{ textAlign: 'right', padding: '8px 14px 8px 10px', fontSize: 12, color: 'var(--semi-color-text-2)', fontWeight: 500, width: '1%', whiteSpace: 'nowrap' }}>人数</th>
-                {data.periods.map((period) => <th key={period} style={{ textAlign: 'center', padding: '8px 6px', fontSize: 12, color: 'var(--semi-color-text-2)', fontWeight: 500, whiteSpace: 'nowrap' }}>{`第 ${period} ${periodUnit}`}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {data.cohorts.map((cohort) => (
-                <tr key={cohort.cohortDate}>
-                  <td style={{ padding: '8px 12px 8px 10px', fontWeight: 600, whiteSpace: 'nowrap', width: '1%' }}>{cohort.cohortDate}</td>
-                  <td style={{ padding: '8px 14px 8px 10px', textAlign: 'right', color: 'var(--semi-color-text-1)', whiteSpace: 'nowrap', width: '1%' }}>{numberText(cohort.cohortSize)}</td>
-                  {data.periods.map((period, index) => {
-                    const value = cohort.values[index];
-                    const ratio = value == null ? 0 : Math.min(1, value / periodMax);
-                    const opacity = value == null ? 0 : 0.12 + ratio * 0.73;
-                    return (
-                      <td
-                        key={period}
-                        style={{
-                          textAlign: 'center',
-                          padding: '8px 6px',
-                          borderRadius: 'var(--semi-border-radius-medium)',
-                          fontSize: 12,
-                          fontVariantNumeric: 'tabular-nums',
-                          background: value == null ? 'transparent' : `color-mix(in srgb, var(--semi-color-primary) ${Math.round(opacity * 100)}%, transparent)`,
-                          color: value == null ? 'var(--semi-color-text-3)' : ratio > 0.55 ? '#ffffff' : 'var(--semi-color-text-0)',
-                        }}
-                      >
+      {loading && !data ? <Card bodyStyle={{ padding: 16 }}>{emptyOrSpin(true)}</Card>
+        : series.length === 0 ? <Card bodyStyle={{ padding: 16 }}><Empty description="暂无留存数据" /></Card>
+          : series.map((s) => (
+            <Card
+              key={s.key}
+              title={series.length > 1 ? `${s.label}（${numberText(s.totalUsers)} 人）` : undefined}
+              bodyStyle={{ padding: 16, overflowX: 'auto' }}
+            >
+              <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 4, minWidth: 720 }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', padding: '8px 12px 8px 10px', fontSize: 12, color: 'var(--semi-color-text-2)', fontWeight: 500, width: '1%', whiteSpace: 'nowrap' }}>同期群</th>
+                    <th style={{ textAlign: 'right', padding: '8px 14px 8px 10px', fontSize: 12, color: 'var(--semi-color-text-2)', fontWeight: 500, width: '1%', whiteSpace: 'nowrap' }}>人数</th>
+                    {(data?.periods ?? []).map((period) => <th key={period} style={{ textAlign: 'center', padding: '8px 6px', fontSize: 12, color: 'var(--semi-color-text-2)', fontWeight: 500, whiteSpace: 'nowrap' }}>{`第 ${period} ${periodUnit}`}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style={{ padding: '8px 12px 8px 10px', fontWeight: 600, whiteSpace: 'nowrap', width: '1%', color: 'var(--semi-color-text-2)' }}>加权平均</td>
+                    <td style={{ padding: '8px 14px 8px 10px', textAlign: 'right', color: 'var(--semi-color-text-2)', whiteSpace: 'nowrap', width: '1%' }}>–</td>
+                    {s.averages.map((value, index) => (
+                      <td key={index} style={{ textAlign: 'center', padding: '8px 6px', fontSize: 12, fontVariantNumeric: 'tabular-nums', color: 'var(--semi-color-text-2)', fontWeight: 600 }}>
                         {value == null ? '·' : `${value.toFixed(1)}%`}
                       </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
+                    ))}
+                  </tr>
+                  {s.cohorts.map((cohort) => (
+                    <tr key={cohort.cohortDate}>
+                      <td style={{ padding: '8px 12px 8px 10px', fontWeight: 600, whiteSpace: 'nowrap', width: '1%' }}>{cohort.cohortDate}</td>
+                      <td style={{ padding: '8px 14px 8px 10px', textAlign: 'right', color: 'var(--semi-color-text-1)', whiteSpace: 'nowrap', width: '1%' }}>{numberText(cohort.cohortSize)}</td>
+                      {(data?.periods ?? []).map((period, index) => {
+                        const value = cohort.values[index];
+                        const ratio = value == null ? 0 : Math.min(1, value / periodMax);
+                        const opacity = value == null ? 0 : 0.12 + ratio * 0.73;
+                        const drillable = value != null && cohort.cohortSize > 0;
+                        return (
+                          <td
+                            key={period}
+                            title={drillable ? '点击查看该周期回访的用户' : undefined}
+                            style={{
+                              textAlign: 'center',
+                              padding: 0,
+                              borderRadius: 'var(--semi-border-radius-medium)',
+                              fontSize: 12,
+                              fontVariantNumeric: 'tabular-nums',
+                              background: value == null ? 'transparent' : `color-mix(in srgb, var(--semi-color-primary) ${Math.round(opacity * 100)}%, transparent)`,
+                              color: value == null ? 'var(--semi-color-text-3)' : ratio > 0.55 ? '#ffffff' : 'var(--semi-color-text-0)',
+                            }}
+                          >
+                            {drillable ? (
+                              <button
+                                type="button"
+                                onClick={() => openDrill(s.key, s.label, cohort.cohortDate, index, 'retained')}
+                                style={{
+                                  width: '100%', padding: '8px 6px', border: 'none', background: 'transparent',
+                                  color: 'inherit', font: 'inherit', cursor: 'pointer', borderRadius: 'inherit',
+                                }}
+                              >
+                                {`${value.toFixed(1)}%`}
+                              </button>
+                            ) : (
+                              <span style={{ display: 'inline-block', padding: '8px 6px' }}>{value == null ? '·' : `${value.toFixed(1)}%`}</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          ))}
+      <DrillUsersSheet context={drill.context} title={drill.title} description={drill.description} onClose={drill.close} />
     </div>
   );
 }
@@ -1818,6 +1897,7 @@ export default function AnalyticsPage() {
         <TabPane tab="漏斗" itemKey="funnel"><FunnelTab /></TabPane>
         <TabPane tab="留存" itemKey="retention"><RetentionTab /></TabPane>
         <TabPane tab="路径" itemKey="path"><PathTab /></TabPane>
+        <TabPane tab="获客归因" itemKey="acquisition"><AnalyticsAcquisitionTab /></TabPane>
         <TabPane tab="用户分析" itemKey="users"><UsersTab /></TabPane>
         <TabPane tab="维度分布" itemKey="dimension"><DimensionTab /></TabPane>
         <TabPane tab="点击分布" itemKey="heatmap"><HeatmapTab /></TabPane>

@@ -105,6 +105,13 @@ export const ANALYTICS_EVENT_PROPERTY_TYPE_OPTIONS: Array<{ value: (typeof ANALY
 
 export const ANALYTICS_SEGMENT_COMPARE_OPS = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in'] as const;
 
+/**
+ * 事件/画像属性 key 的白名单正则（字母数字下划线点横线，1~64 位）。
+ * 前后端唯一来源：属性 key 会被拼进 jsonb 路径表达式，两处各写一份正则一旦漂移，
+ * 就会出现「前端放行、服务端 400」或更糟的「服务端放行了本该拒绝的 key」。
+ */
+export const ANALYTICS_PROPERTY_KEY_PATTERN = /^[a-zA-Z0-9_.-]{1,64}$/;
+
 export const ANALYTICS_SEGMENT_COMPARE_OP_LABELS: Record<(typeof ANALYTICS_SEGMENT_COMPARE_OPS)[number], string> = {
   eq: '等于',
   neq: '不等于',
@@ -174,15 +181,36 @@ export const ANALYTICS_EVENT_QUERY_GROUP_BY_LABELS: Record<(typeof ANALYTICS_EVE
 export const ANALYTICS_EVENT_QUERY_GROUP_BY_OPTIONS: Array<{ value: (typeof ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS)[number]; label: string }> =
   createLabelOptions(ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS, ANALYTICS_EVENT_QUERY_GROUP_BY_LABELS);
 
-export const ANALYTICS_EVENT_QUERY_METRICS = ['events', 'uv'] as const;
+export const ANALYTICS_EVENT_QUERY_METRICS = [
+  'events', 'uv', 'eventsPerUser', 'sum', 'avg', 'min', 'max', 'p50', 'p90', 'p95',
+] as const;
 
 export const ANALYTICS_EVENT_QUERY_METRIC_LABELS: Record<(typeof ANALYTICS_EVENT_QUERY_METRICS)[number], string> = {
   events: '事件次数',
   uv: '去重用户数',
+  eventsPerUser: '人均次数',
+  sum: '属性求和',
+  avg: '属性均值',
+  min: '属性最小值',
+  max: '属性最大值',
+  p50: '属性中位数',
+  p90: '属性 P90',
+  p95: '属性 P95',
 };
 
 export const ANALYTICS_EVENT_QUERY_METRIC_OPTIONS: Array<{ value: (typeof ANALYTICS_EVENT_QUERY_METRICS)[number]; label: string }> =
   createLabelOptions(ANALYTICS_EVENT_QUERY_METRICS, ANALYTICS_EVENT_QUERY_METRIC_LABELS);
+
+/**
+ * 需要指定数值属性字段的指标。
+ * 这些指标作用于 `properties->>key` 的数值转换结果，未指定 key 时无法计算，
+ * 由 shared 校验层直接拒绝，避免服务端拿到 undefined 后静默退化成事件计数。
+ */
+export const ANALYTICS_EVENT_QUERY_PROPERTY_METRICS = ['sum', 'avg', 'min', 'max', 'p50', 'p90', 'p95'] as const;
+
+export function analyticsMetricRequiresProperty(metric: string): boolean {
+  return (ANALYTICS_EVENT_QUERY_PROPERTY_METRICS as readonly string[]).includes(metric);
+}
 
 // ─── 行为中心阶段 1：留存双口径 ────────────────────────────────────────────────
 export const ANALYTICS_RETENTION_MODES = ['first_seen', 'window_first'] as const;
@@ -233,6 +261,110 @@ export const ANALYTICS_RETENTION_MAX_DAYS = 730;
 
 /** 留存周期列数的全局上限（各粒度再按 ANALYTICS_RETENTION_PERIOD_LIMITS 收敛） */
 export const ANALYTICS_RETENTION_MAX_PERIODS = 30;
+
+// ─── 阶段 2：统一对比轴（breakdown 维度 / 群组对比）──────────────────────────
+/**
+ * 漏斗、留存共用同一条「对比轴」，来源二选一：按维度拆分，或按分群对比。
+ * 不做「维度 × 分群」的组合：两者叠加会产生笛卡尔积序列，图表无法阅读，
+ * 且每条序列的样本量被摊薄到失去统计意义。
+ */
+export const ANALYTICS_BREAKDOWN_DIMENSIONS = [
+  'browser', 'os', 'deviceType', 'region', 'country',
+  'source', 'appId', 'environment',
+  'channel', 'utmSource', 'utmMedium', 'utmCampaign', 'referrerHost',
+] as const;
+
+export const ANALYTICS_BREAKDOWN_DIMENSION_LABELS: Record<(typeof ANALYTICS_BREAKDOWN_DIMENSIONS)[number], string> = {
+  browser: '浏览器',
+  os: '操作系统',
+  deviceType: '设备类型',
+  region: '地区',
+  country: '国家',
+  source: '来源端',
+  appId: '应用',
+  environment: '环境',
+  channel: '获客渠道',
+  utmSource: 'UTM 来源',
+  utmMedium: 'UTM 媒介',
+  utmCampaign: 'UTM 活动',
+  referrerHost: '引荐域名',
+};
+
+export const ANALYTICS_BREAKDOWN_DIMENSION_OPTIONS: Array<{ value: (typeof ANALYTICS_BREAKDOWN_DIMENSIONS)[number]; label: string }> =
+  createLabelOptions(ANALYTICS_BREAKDOWN_DIMENSIONS, ANALYTICS_BREAKDOWN_DIMENSION_LABELS);
+
+/** 维度拆分保留的序列数上限：超出部分归入「其他」，避免图表被长尾淹没 */
+export const ANALYTICS_BREAKDOWN_MAX_SERIES = 6;
+
+/** 群组对比的分群数上限 */
+export const ANALYTICS_COMPARE_MAX_SEGMENTS = 3;
+
+/** 维度拆分中「空值」与「长尾合并」的统一展示名 */
+export const ANALYTICS_BREAKDOWN_UNKNOWN_LABEL = '未知';
+export const ANALYTICS_BREAKDOWN_OTHER_LABEL = '其他';
+
+/** 无对比时的单序列 key，前端据此判断是否渲染图例 */
+export const ANALYTICS_SERIES_OVERALL_KEY = '__overall__';
+export const ANALYTICS_SERIES_OVERALL_LABEL = '全部用户';
+
+// ─── 阶段 2：获客渠道与归因 ───────────────────────────────────────────────────
+export const ANALYTICS_ACQUISITION_CHANNELS = [
+  'direct', 'organic_search', 'paid_search', 'social', 'email', 'referral', 'other',
+] as const;
+
+export const ANALYTICS_ACQUISITION_CHANNEL_LABELS: Record<(typeof ANALYTICS_ACQUISITION_CHANNELS)[number], string> = {
+  direct: '直接访问',
+  organic_search: '自然搜索',
+  paid_search: '付费搜索',
+  social: '社交媒体',
+  email: '邮件',
+  referral: '外部引荐',
+  other: '其他',
+};
+
+export const ANALYTICS_ACQUISITION_CHANNEL_OPTIONS: Array<{ value: (typeof ANALYTICS_ACQUISITION_CHANNELS)[number]; label: string }> =
+  createLabelOptions(ANALYTICS_ACQUISITION_CHANNELS, ANALYTICS_ACQUISITION_CHANNEL_LABELS);
+
+/**
+ * 归因模型：把转化「归功于」用户的哪一次触点。
+ * 首次触点回答「谁把人带来的」，末次触点回答「谁临门一脚」，两者结论常常相反，
+ * 因此报表必须显式声明模型，不能只给一个含糊的「渠道转化数」。
+ */
+export const ANALYTICS_ATTRIBUTION_MODELS = ['first_touch', 'last_touch'] as const;
+
+export const ANALYTICS_ATTRIBUTION_MODEL_LABELS: Record<(typeof ANALYTICS_ATTRIBUTION_MODELS)[number], string> = {
+  first_touch: '首次触点',
+  last_touch: '末次触点',
+};
+
+export const ANALYTICS_ATTRIBUTION_MODEL_OPTIONS: Array<{ value: (typeof ANALYTICS_ATTRIBUTION_MODELS)[number]; label: string }> =
+  createLabelOptions(ANALYTICS_ATTRIBUTION_MODELS, ANALYTICS_ATTRIBUTION_MODEL_LABELS);
+
+/** 获客报表的拆分维度（对比轴维度的来源侧子集） */
+export const ANALYTICS_ACQUISITION_DIMENSIONS = ['channel', 'utmSource', 'utmMedium', 'utmCampaign', 'referrerHost'] as const;
+
+export const ANALYTICS_ACQUISITION_DIMENSION_OPTIONS: Array<{ value: (typeof ANALYTICS_ACQUISITION_DIMENSIONS)[number]; label: string }> =
+  ANALYTICS_ACQUISITION_DIMENSIONS.map((value) => ({ value, label: ANALYTICS_BREAKDOWN_DIMENSION_LABELS[value] }));
+
+// ─── 阶段 2：图表下钻 ─────────────────────────────────────────────────────────
+/** 漏斗下钻口径：转化 = 到达该步；流失 = 到达上一步但没到该步 */
+export const ANALYTICS_DRILL_FUNNEL_OUTCOMES = ['converted', 'dropped'] as const;
+
+export const ANALYTICS_DRILL_FUNNEL_OUTCOME_LABELS: Record<(typeof ANALYTICS_DRILL_FUNNEL_OUTCOMES)[number], string> = {
+  converted: '已转化',
+  dropped: '已流失',
+};
+
+/** 留存下钻口径：回访 = 该周期仍活跃；流失 = 属于该队列但该周期未活跃 */
+export const ANALYTICS_DRILL_RETENTION_OUTCOMES = ['retained', 'churned'] as const;
+
+export const ANALYTICS_DRILL_RETENTION_OUTCOME_LABELS: Record<(typeof ANALYTICS_DRILL_RETENTION_OUTCOMES)[number], string> = {
+  retained: '已回访',
+  churned: '未回访',
+};
+
+/** 下钻结果单页最大条数（下钻用于定位问题用户，不是全量导出，故上限较小） */
+export const ANALYTICS_DRILL_PAGE_SIZE_MAX = 100;
 
 // ─── 行为中心阶段 1：服务端权威语义事件（首批：支付 / 工作流 / 会员关键操作）──────
 // 命名约定：与来源事件总线类型同名（支付）或加 `workflow.` 前缀（工作流），会员业务事件用 `member.<域>.<动作>`。

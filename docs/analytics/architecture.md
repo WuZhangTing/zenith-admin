@@ -49,7 +49,7 @@
 
 | 文件 | 挂载点 | 职责 |
 |------|--------|------|
-| `analytics.ts` | `/api/analytics` | 采集、公开配置、全部分析查询、事件明细、字典、覆盖、质量、调试、设置、聚合、分群 |
+| `analytics.ts` | `/api/analytics` | 采集、公开配置、全部分析查询（含对比轴、下钻、获客归因）、事件明细、字典、覆盖、质量、调试、设置、聚合、分群 |
 | `analytics-sites.ts` | `/api/analytics` | 站点 CRUD 与 `siteKey` 重新生成 |
 | `analytics-experiments.ts` | `/api/analytics` | A/B 实验 CRUD、状态流转、报告、公开分流端点 |
 | `analytics-campaigns.ts` | `/api/analytics` | 分群触达活动 CRUD 与执行 |
@@ -61,7 +61,10 @@
 | 文件 | 职责 |
 |------|------|
 | `analytics.service.ts` | 采集主流程（治理 → 事务写入 → 会话/画像 upsert）与大部分统计查询 |
-| `analytics-conversion.service.ts` | 漏斗（有序转化）与留存（双口径 + 日/周/月粒度） |
+| `analytics-conversion.service.ts` | 漏斗（有序转化）与留存（双口径 + 日/周/月粒度 + 对比轴） |
+| `analytics-breakdown.ts` | 统一对比轴：维度 → SQL 表达式白名单、渠道派生、序列解析（漏斗/留存/下钻共用） |
+| `analytics-drill.service.ts` | 图表下钻：漏斗步骤 / 留存周期坐标 → 用户名单 |
+| `analytics-acquisition.service.ts` | 获客渠道与首次/末次触点归因报表 |
 | `analytics-event-query.service.ts` | 通用事件分析查询（白名单维度 + 参数化属性过滤） |
 | `analytics-property-filter.ts` | `properties` 属性过滤的 SQL 构造（漏斗 / 事件分析 / 分群共用） |
 | `analytics-governance.service.ts` | Tracking Plan 采集治理（屏蔽 / 租户覆盖 / 严格模式 / 质量记录） |

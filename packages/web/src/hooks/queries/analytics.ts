@@ -1,10 +1,17 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AnalyticsDebugEvent, AnalyticsExperiment, AnalyticsExperimentReport, AnalyticsEventMeta, AnalyticsEventOverride, AnalyticsEventOverrideStatus, AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsOverview, AnalyticsQualityIssueType, AnalyticsQualityQueryResult, AnalyticsRetentionMode, AnalyticsRetentionPeriodType, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSettings, AnalyticsUserSegment, AnalyticsSite, ErrorAlertRule, ErrorAlertLog, ErrorEvent, ErrorGroup, ErrorOverview, FunnelQuery, FunnelResult, HeatmapData, HeatmapPageListItem, PageStats, PathResult, RealtimeStats, RetentionResult, AnalyticsSavedReport, DimensionBreakdown, DimensionCross, TrendSeries, FeatureStats } from '@zenith/shared/analytics';
+import type { AnalyticsAcquisitionDimension, AnalyticsAcquisitionResult, AnalyticsAttributionModel, AnalyticsComparison, AnalyticsDebugEvent, AnalyticsDrillContext, AnalyticsDrillUsersResult, AnalyticsExperiment, AnalyticsExperimentReport, AnalyticsEventMeta, AnalyticsEventOverride, AnalyticsEventOverrideStatus, AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsOverview, AnalyticsQualityIssueType, AnalyticsQualityQueryResult, AnalyticsRetentionMode, AnalyticsRetentionPeriodType, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSettings, AnalyticsUserSegment, AnalyticsSite, ErrorAlertRule, ErrorAlertLog, ErrorEvent, ErrorGroup, ErrorOverview, FunnelQuery, FunnelResult, HeatmapData, HeatmapPageListItem, PageStats, PathResult, RealtimeStats, RetentionResult, AnalyticsSavedReport, DimensionBreakdown, DimensionCross, TrendSeries, FeatureStats } from '@zenith/shared/analytics';
+
+/** 下钻请求体：分析上下文 + 图表坐标 + 分页 */
+export interface AnalyticsDrillUsersInput {
+  context: AnalyticsDrillContext;
+  page: number;
+  pageSize: number;
+}
 import type { PaginatedResponse } from '@zenith/shared/core';
 import type { UserStats, UserTimeline } from '@zenith/shared/identity';
 import type { SessionListItem, SessionTimeline } from '@zenith/shared/platform';
 import type { AsyncTask } from '@zenith/shared/tasks';
-import { ANALYTICS_CONFIG_VERSION_KEY, ANALYTICS_RETENTION_PERIOD_LIMITS } from '@zenith/shared/analytics';
+import { ANALYTICS_CONFIG_VERSION_KEY } from '@zenith/shared/analytics';
 import { toQueryString, unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
 import { reloadTrackerConfig } from '@/utils/tracker';
@@ -140,8 +147,9 @@ export const analyticsKeys = {
   sessionsLists: ['analytics', 'sessions', 'list'] as const,
   sessions: (params: AnalyticsSessionsParams) => ['analytics', 'sessions', 'list', params] as const,
   funnel: ['analytics', 'funnel'] as const,
-  retention: (days: number, mode: AnalyticsRetentionMode, periodType: AnalyticsRetentionPeriodType, maxPeriods: number) =>
-    ['analytics', 'retention', days, mode, periodType, maxPeriods] as const,
+  retention: (params: AnalyticsRetentionParams) => ['analytics', 'retention', params] as const,
+  drillUsers: ['analytics', 'drill-users'] as const,
+  acquisition: (params: AnalyticsAcquisitionParams) => ['analytics', 'acquisition', params] as const,
   eventQuery: ['analytics', 'event-query'] as const,
   path: ['analytics', 'path'] as const,
   pathOf: (days: number, startPage: string, limit: number) => ['analytics', 'path', days, startPage, limit] as const,
@@ -253,16 +261,49 @@ export function useAnalyzeFunnel() {
   });
 }
 
-export function useAnalyticsRetention(
-  days: number,
-  mode: AnalyticsRetentionMode = 'first_seen',
-  periodType: AnalyticsRetentionPeriodType = 'day',
-  maxPeriods: number = ANALYTICS_RETENTION_PERIOD_LIMITS[periodType].defaultPeriods,
-) {
+export interface AnalyticsRetentionParams {
+  days: number;
+  mode: AnalyticsRetentionMode;
+  periodType: AnalyticsRetentionPeriodType;
+  maxPeriods: number;
+  comparison: AnalyticsComparison;
+}
+
+/**
+ * 留存改为 POST：对比轴是判别联合对象，query string 无法自然承载。
+ * 仍用 useQuery 而非 useMutation —— 它是读操作，切换筛选只需换 key 就能复用缓存。
+ */
+export function useAnalyticsRetention(params: AnalyticsRetentionParams) {
   return useQuery({
-    queryKey: analyticsKeys.retention(days, mode, periodType, maxPeriods),
-    queryFn: () =>
-      request.get<RetentionResult>(`/api/analytics/retention${toQueryString({ days, mode, periodType, maxPeriods })}`).then(unwrap),
+    queryKey: analyticsKeys.retention(params),
+    queryFn: () => request.post<RetentionResult>('/api/analytics/retention', params).then(unwrap),
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** 图表下钻用户列表：漏斗某步流失 / 留存某周期未回访 → 具体是谁 */
+export function useAnalyticsDrillUsers(input: AnalyticsDrillUsersInput | null) {
+  return useQuery({
+    queryKey: [...analyticsKeys.drillUsers, input] as const,
+    queryFn: () => request.post<AnalyticsDrillUsersResult>('/api/analytics/drill-users', input!).then(unwrap),
+    enabled: !!input,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export interface AnalyticsAcquisitionParams {
+  days: number;
+  dimension: AnalyticsAcquisitionDimension;
+  model: AnalyticsAttributionModel;
+  conversionEvent?: string;
+  limit?: number;
+}
+
+export function useAnalyticsAcquisition(params: AnalyticsAcquisitionParams) {
+  return useQuery({
+    queryKey: analyticsKeys.acquisition(params),
+    queryFn: () => request.get<AnalyticsAcquisitionResult>(`/api/analytics/acquisition${toQueryString(params)}`).then(unwrap),
+    placeholderData: keepPreviousData,
   });
 }
 

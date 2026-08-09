@@ -10,9 +10,10 @@ import { sql, type SQL } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { HTTPException } from 'hono/http-exception';
 import type { AnalyticsSegmentPropertyFilter, AnalyticsSegmentCompareOp } from '@zenith/shared/analytics';
+import { ANALYTICS_PROPERTY_KEY_PATTERN } from '@zenith/shared/analytics';
 
-/** 属性 key 白名单：字母数字下划线点横线，1~64 位，禁止任意字符（杜绝 jsonb 路径注入） */
-export const PROPERTY_KEY_RE = /^[a-zA-Z0-9_.-]{1,64}$/;
+/** 属性 key 白名单：与 shared 层同源，禁止各写一份（漂移会造成前端放行、服务端 400） */
+export const PROPERTY_KEY_RE = ANALYTICS_PROPERTY_KEY_PATTERN;
 
 function ensureInArrayValues(value: unknown): unknown[] {
   const values = Array.isArray(value) ? value : [value];

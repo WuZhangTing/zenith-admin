@@ -395,10 +395,39 @@ export interface FunnelStepResult {
   averageConversionMs: number | null;
 }
 
-export interface FunnelResult {
+// ─── 阶段 2：统一对比轴 ───────────────────────────────────────────────────────
+export type AnalyticsBreakdownDimension =
+  | 'browser' | 'os' | 'deviceType' | 'region' | 'country'
+  | 'source' | 'appId' | 'environment'
+  | 'channel' | 'utmSource' | 'utmMedium' | 'utmCampaign' | 'referrerHost';
+
+/**
+ * 对比轴：漏斗/留存/事件分析共用。
+ * `dimension` 按事件维度拆分，`segments` 按分群对比，两者互斥（不做笛卡尔积）。
+ */
+export type AnalyticsComparison =
+  | { type: 'none' }
+  | { type: 'dimension'; dimension: AnalyticsBreakdownDimension }
+  | { type: 'segments'; segmentIds: number[] };
+
+/** 序列元信息：无对比时为单条 `__overall__` 序列 */
+export interface AnalyticsSeriesMeta {
+  /** 序列稳定标识：维度原始值 / `segment:{id}` / `__overall__` */
+  key: string;
+  /** 展示名：维度值（空值为「未知」）/ 分群名 / 「全部用户」 */
+  label: string;
+}
+
+export interface FunnelSeries extends AnalyticsSeriesMeta {
   steps: FunnelStepResult[];
   totalUsers: number;
   overallConversionRate: number;
+}
+
+export interface FunnelResult {
+  /** 始终为数组：无对比时长度为 1，前端只需一条渲染路径 */
+  series: FunnelSeries[];
+  comparison: AnalyticsComparison;
 }
 
 /** 漏斗查询：有序转化（严格步骤先后顺序 + 转化窗口） */
@@ -407,8 +436,8 @@ export interface FunnelQuery {
   steps: FunnelStepInput[];
   /** 转化窗口（小时），首步到末步必须在该窗口内完成，默认 72，范围 1~720 */
   conversionWindowHours?: number;
-  /** 仅统计指定分群内成员（先按分群成员过滤 distinctId 再计算漏斗） */
-  segmentId?: number;
+  /** 对比轴，缺省为 `{ type: 'none' }` */
+  comparison?: AnalyticsComparison;
 }
 
 /** 留存计算口径：first_seen = 全历史真实首访；window_first = 当前统计窗口内首次出现 */
@@ -417,18 +446,28 @@ export type AnalyticsRetentionMode = 'first_seen' | 'window_first';
 /** 留存周期粒度：day = 日留存，week = 周留存，month = 月留存 */
 export type AnalyticsRetentionPeriodType = 'day' | 'week' | 'month';
 
+export interface RetentionCohort {
+  cohortDate: string;
+  cohortSize: number;
+  values: (number | null)[];
+}
+
+export interface RetentionSeries extends AnalyticsSeriesMeta {
+  cohorts: RetentionCohort[];
+  /** 该序列全部队列的加权平均留存率，便于多序列直接比较 */
+  averages: (number | null)[];
+  totalUsers: number;
+}
+
 export interface RetentionResult {
-  cohorts: {
-    cohortDate: string;
-    cohortSize: number;
-    values: (number | null)[];
-  }[];
+  series: RetentionSeries[];
   periods: number[];
   mode: AnalyticsRetentionMode;
-  /** 本次结果的周期粒度，前端据此渲染「Day N / Week N / Month N」列头 */
+  /** 本次结果的周期粒度，前端据此渲染「第 N 日/周/月」列头 */
   periodType: AnalyticsRetentionPeriodType;
   /** 实际回溯天数（服务端按粒度收敛后的值） */
   days: number;
+  comparison: AnalyticsComparison;
 }
 
 export interface PathNode { id: string; label: string; value: number }
@@ -824,8 +863,14 @@ export type AnalyticsEventQueryGroupByField =
   | 'date' | 'eventName' | 'pagePath' | 'source' | 'appId' | 'environment'
   | 'browser' | 'os' | 'deviceType' | 'region';
 
-/** 统计指标：事件次数 / 去重用户数（distinctId） */
-export type AnalyticsEventQueryMetric = 'events' | 'uv';
+/**
+ * 统计指标。
+ * `events`/`uv`/`eventsPerUser` 直接作用于事件流；
+ * 其余作用于 `metricProperty` 指定的数值属性（非数值行不参与计算）。
+ */
+export type AnalyticsEventQueryMetric =
+  | 'events' | 'uv' | 'eventsPerUser'
+  | 'sum' | 'avg' | 'min' | 'max' | 'p50' | 'p90' | 'p95';
 
 export interface AnalyticsEventQueryInput {
   /** 自定义区间起止日（YYYY-MM-DD），优先于 days */
@@ -846,6 +891,8 @@ export interface AnalyticsEventQueryInput {
   /** 分组维度（1~2 维，来自白名单） */
   groupBy?: AnalyticsEventQueryGroupByField[];
   metric?: AnalyticsEventQueryMetric;
+  /** 数值属性 key，`sum`/`avg`/`min`/`max`/`pXX` 必填 */
+  metricProperty?: string;
   /** 页码（从 1 开始），默认 1 */
   page?: number;
   /** 每页行数，默认 20，最大 200 */
@@ -860,8 +907,93 @@ export interface AnalyticsEventQueryRow {
 export interface AnalyticsEventQueryResult extends PaginatedResponse<AnalyticsEventQueryRow> {
   queryMeta: {
     metric: AnalyticsEventQueryMetric;
+    metricProperty: string | null;
     groupBy: AnalyticsEventQueryGroupByField[];
     startDate: string;
     endDate: string;
   };
+}
+
+// ─── 阶段 2：获客与归因报表 ───────────────────────────────────────────────────
+export type AnalyticsAcquisitionChannel =
+  | 'direct' | 'organic_search' | 'paid_search' | 'social' | 'email' | 'referral' | 'other';
+
+export type AnalyticsAttributionModel = 'first_touch' | 'last_touch';
+
+export type AnalyticsAcquisitionDimension = 'channel' | 'utmSource' | 'utmMedium' | 'utmCampaign' | 'referrerHost';
+
+export interface AnalyticsAcquisitionRow {
+  /** 维度原始值（空值归一为 ''） */
+  key: string;
+  label: string;
+  /** 归因到该来源的用户数 */
+  users: number;
+  /** 其中新用户数（首次出现即在本区间内） */
+  newUsers: number;
+  sessions: number;
+  /** 完成转化事件的用户数（未指定转化事件时为 0） */
+  conversions: number;
+  /** conversions / users，百分比 */
+  conversionRate: number;
+}
+
+export interface AnalyticsAcquisitionResult {
+  rows: AnalyticsAcquisitionRow[];
+  dimension: AnalyticsAcquisitionDimension;
+  model: AnalyticsAttributionModel;
+  conversionEvent: string | null;
+  totalUsers: number;
+  totalConversions: number;
+  startDate: string;
+  endDate: string;
+}
+
+// ─── 阶段 2：图表下钻用户列表 ─────────────────────────────────────────────────
+export type AnalyticsDrillFunnelOutcome = 'converted' | 'dropped';
+export type AnalyticsDrillRetentionOutcome = 'retained' | 'churned';
+
+/**
+ * 下钻定位坐标：由「分析上下文」+「图表坐标」共同确定一个用户集合。
+ * 上下文字段必须与产生该图表的查询一致，否则下钻出的人群与图上数字对不上。
+ */
+export type AnalyticsDrillContext =
+  | {
+    type: 'funnel';
+    days: number;
+    steps: FunnelStepInput[];
+    conversionWindowHours?: number;
+    comparison?: AnalyticsComparison;
+    /** 序列 key，多序列时定位到具体那条线 */
+    seriesKey?: string;
+    /** 第几步（0 基） */
+    stepIndex: number;
+    outcome: AnalyticsDrillFunnelOutcome;
+  }
+  | {
+    type: 'retention';
+    days?: number;
+    mode?: AnalyticsRetentionMode;
+    periodType?: AnalyticsRetentionPeriodType;
+    comparison?: AnalyticsComparison;
+    seriesKey?: string;
+    /** 队列起始日（YYYY-MM-DD），与矩阵行一一对应 */
+    cohortDate: string;
+    /** 第几个周期（0 基），与矩阵列一一对应 */
+    periodIndex: number;
+    outcome: AnalyticsDrillRetentionOutcome;
+  };
+
+export interface AnalyticsDrillUser {
+  distinctId: string;
+  identityType: AnalyticsIdentityType;
+  userId: number | null;
+  memberId: number | null;
+  displayName: string | null;
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
+}
+
+export interface AnalyticsDrillUsersResult extends PaginatedResponse<AnalyticsDrillUser> {
+  /** 命中的用户总数，可能大于可翻页范围 */
+  matchedUsers: number;
 }

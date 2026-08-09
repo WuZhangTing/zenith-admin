@@ -51,7 +51,7 @@ function makeResult(overrides: Partial<AnalyticsEventQueryResult> = {}): Analyti
     total: 2,
     page: 1,
     pageSize: 20,
-    queryMeta: { startDate: '2026-01-01', endDate: '2026-01-02', groupBy: ['date'], metric: 'events' },
+    queryMeta: { startDate: '2026-01-01', endDate: '2026-01-02', groupBy: ['date'], metric: 'events', metricProperty: null },
     ...overrides,
   };
 }

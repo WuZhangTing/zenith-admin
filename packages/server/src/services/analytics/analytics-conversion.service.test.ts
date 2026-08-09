@@ -43,7 +43,7 @@ describe('getFunnel — 有序转化漏斗', () => {
 
   it('short-circuits without querying when steps is empty', async () => {
     const result = await getFunnel({ steps: [], days: 30 } as never);
-    expect(result).toEqual({ steps: [], totalUsers: 0, overallConversionRate: 0 });
+    expect(result).toEqual({ series: [], comparison: { type: 'none' } });
     expect(execute).not.toHaveBeenCalled();
   });
 
@@ -97,34 +97,49 @@ describe('getFunnel — 有序转化漏斗', () => {
     expect(sqlText).toMatch(/\bs1\s+AS\s*\(/);
   });
 
-  it('applies segmentId only to the first step and validates tenant ownership via ensureSegmentAccessible', async () => {
+  it('applies a segment comparison only to the first step and validates tenant ownership via ensureSegmentAccessible', async () => {
     await getFunnel({
       steps: [{ label: '浏览', eventName: 'view' }, { label: '下单', eventName: 'order' }],
-      segmentId: 42,
+      comparison: { type: 'segments', segmentIds: [42] },
     } as never);
     expect(ensureSegmentAccessible).toHaveBeenCalledWith(42);
     expect(segmentMemberDistinctIdSubquery).toHaveBeenCalledWith(42);
     const { sqlText } = renderLastExecuteCall();
-    // segment 子查询只应出现一次（仅首步 CTE 引用）
+    // segment 子查询只应出现一次（仅首步 CTE 引用）：漏斗语义是「从同一批人出发」，
+    // 每步都过滤会把中途换设备/换端的用户误判为流失
     const occurrences = sqlText.split('analytics_segment_members').length - 1;
     expect(occurrences).toBe(1);
   });
 
-  it('does not touch segment helpers when no segmentId is provided', async () => {
+  it('runs one funnel per segment when comparing multiple segments', async () => {
+    await getFunnel({
+      steps: [{ label: '浏览', eventName: 'view' }, { label: '下单', eventName: 'order' }],
+      comparison: { type: 'segments', segmentIds: [1, 2, 3] },
+    } as never);
+    expect(ensureSegmentAccessible).toHaveBeenCalledWith(1);
+    expect(ensureSegmentAccessible).toHaveBeenCalledWith(3);
+    // 3 条序列 = 3 次漏斗查询（候选取值查询不涉及分群对比）
+    expect(execute).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not touch segment helpers when the comparison axis is none', async () => {
     await getFunnel({ steps: [{ label: '浏览', eventName: 'view' }, { label: '下单', eventName: 'order' }] } as never);
     expect(ensureSegmentAccessible).not.toHaveBeenCalled();
     expect(segmentMemberDistinctIdSubquery).not.toHaveBeenCalled();
   });
 
-  it('maps counts/averages back into step results with conversion + dropoff rates', async () => {
+  it('maps counts/averages back into a single overall series when no comparison is requested', async () => {
     execute.mockResolvedValue([{ c0: 100, c1: 40, a0: null, a1: 125000 }]);
     const result = await getFunnel({
       steps: [{ label: '浏览', eventName: 'view' }, { label: '下单', eventName: 'order' }],
     } as never);
-    expect(result.totalUsers).toBe(100);
-    expect(result.steps[0]).toMatchObject({ users: 100, conversionRate: 100, averageConversionMs: null });
-    expect(result.steps[1]).toMatchObject({ users: 40, conversionRate: 40, stepConversionRate: 40, dropoff: 60, averageConversionMs: 125000 });
-    expect(result.overallConversionRate).toBe(40);
+    expect(result.series).toHaveLength(1);
+    const series = result.series[0];
+    expect(series.key).toBe('__overall__');
+    expect(series.totalUsers).toBe(100);
+    expect(series.steps[0]).toMatchObject({ users: 100, conversionRate: 100, averageConversionMs: null });
+    expect(series.steps[1]).toMatchObject({ users: 40, conversionRate: 40, stepConversionRate: 40, dropoff: 60, averageConversionMs: 125000 });
+    expect(series.overallConversionRate).toBe(40);
   });
 });
 

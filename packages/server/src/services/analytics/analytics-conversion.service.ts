@@ -9,17 +9,18 @@
  *  - 漏斗 segmentId 仅作用于首步，调用前经 ensureSegmentAccessible 校验分群 tenant 归属
  *  - 漏斗步骤属性过滤复用 analytics-property-filter 的白名单 key 正则 + 绑定参数比较
  */
-import { and, eq, gte, inArray, isNotNull, sql, type SQL } from 'drizzle-orm';
+import { and, eq, gte, isNotNull, sql, type SQL } from 'drizzle-orm';
 import { db } from '../../db';
 import { userEvents } from '../../db/schema';
-import type { FunnelQuery, FunnelResult, RetentionResult, AnalyticsRetentionMode, AnalyticsRetentionPeriodType } from '@zenith/shared/analytics';
+import type { AnalyticsBreakdownDimension, AnalyticsComparison, FunnelQuery, FunnelResult, FunnelStepResult, RetentionCohort, RetentionResult, AnalyticsRetentionMode, AnalyticsRetentionPeriodType } from '@zenith/shared/analytics';
 import { ANALYTICS_RETENTION_PERIOD_LIMITS, ANALYTICS_RETENTION_PERIOD_TYPES } from '@zenith/shared/analytics';
 import { tenantScope } from '../../lib/tenant';
 import { mergeWhere } from '../../lib/where-helpers';
 import { clampDays, startOfDaysAgo } from '../../lib/analytics-helpers';
 import { APP_TIME_ZONE, formatDate, parseDateRangeStart } from '../../lib/datetime';
 import { buildJsonPropertyCondition } from './analytics-property-filter';
-import { ensureSegmentAccessible, segmentMemberDistinctIdSubquery } from './analytics-segments.service';
+import { breakdownValueSql, resolveComparisonSeries } from './analytics-breakdown';
+import { ensureSegmentAccessible } from './analytics-segments.service';
 
 const DAY_MS = 86_400_000;
 
@@ -47,21 +48,83 @@ function buildStepConditions(step: FunnelQuery['steps'][number]): SQL[] {
  *  - s0：每用户完成首步的最早事件时间（first_at = step_at）
  *  - sN（N>0）：针对 sN-1 每用户，取时间 >= 上一步事件时间 且 <= 首步时间 + 转化窗口 的下一步最早事件，
  *    从而保证严格的步骤先后顺序（允许同一时刻发生）
- *  - segmentId 仅作用于首步（先圈定分群成员，再在该子集内计算漏斗转化）
+ *  - 对比轴（维度拆分 / 群组对比）只作用于首步：漏斗的语义是「从同一批人出发」，
+ *    若每步都按维度过滤，用户中途换设备就会被算作流失，转化率被系统性低估
  */
 export async function getFunnel(input: FunnelQuery): Promise<FunnelResult> {
   const days = clampDays(input.days, 30);
   const start = startOfDaysAgo(days);
   const windowHours = clampConversionWindowHours(input.conversionWindowHours);
-  if (!input.steps || input.steps.length === 0) return { steps: [], totalUsers: 0, overallConversionRate: 0 };
+  const comparison: AnalyticsComparison = input.comparison ?? { type: 'none' };
+  if (!input.steps || input.steps.length === 0) return { series: [], comparison };
 
-  if (input.segmentId) await ensureSegmentAccessible(input.segmentId);
+  const series = await resolveComparisonSeries(
+    comparison,
+    (dimension) => topBreakdownValues(dimension, start),
+    (segmentId) => segmentDisplayName(segmentId),
+  );
 
-  const ctes: SQL[] = input.steps.map((step, i) => {
+  const results = await Promise.all(
+    series.map(async (s) => ({ meta: s, data: await runFunnel(input, start, windowHours, s.condition) })),
+  );
+
+  return {
+    series: results.map(({ meta, data }) => ({ key: meta.key, label: meta.label, ...data })),
+    comparison,
+  };
+}
+
+/** 单条序列的漏斗计算；`seriesCondition` 仅约束首步人群 */
+async function runFunnel(
+  input: FunnelQuery,
+  start: Date,
+  windowHours: number,
+  seriesCondition?: SQL,
+): Promise<{ steps: FunnelStepResult[]; totalUsers: number; overallConversionRate: number }> {
+  const ctes = buildFunnelCtes(input, start, windowHours, seriesCondition);
+  const countSelects = input.steps.map((_, i) => sql`(SELECT COUNT(*) FROM ${sql.raw(`s${i}`)})::int AS ${sql.raw(`c${i}`)}`);
+  const avgSelects = input.steps.map((_, i) => (i === 0
+    ? sql`NULL::float AS ${sql.raw(`a${i}`)}`
+    : sql`(SELECT AVG(step_delta_ms) FROM ${sql.raw(`s${i}`)})::float AS ${sql.raw(`a${i}`)}`));
+
+  const rows = (await db.execute(
+    sql`WITH ${sql.join(ctes, sql`, `)} SELECT ${sql.join([...countSelects, ...avgSelects], sql`, `)}`,
+  )) as unknown as Array<Record<string, number | null>>;
+  const countRow = rows[0] ?? {};
+
+  const totalUsers = Number(countRow.c0 ?? 0);
+  let prevUsers = totalUsers;
+  const steps = input.steps.map((step, i) => {
+    const users = Number(countRow[`c${i}`] ?? 0);
+    const avgRaw = countRow[`a${i}`];
+    const result: FunnelStepResult = {
+      label: step.label,
+      users,
+      conversionRate: totalUsers > 0 ? Math.round((users / totalUsers) * 1000) / 10 : 0,
+      stepConversionRate: prevUsers > 0 ? Math.round((users / prevUsers) * 1000) / 10 : 0,
+      dropoff: Math.max(0, prevUsers - users),
+      averageConversionMs: i === 0 || avgRaw == null ? null : Math.round(Number(avgRaw)),
+    };
+    prevUsers = users;
+    return result;
+  });
+
+  const finalUsers = steps.at(-1)?.users ?? 0;
+  return { steps, totalUsers, overallConversionRate: totalUsers > 0 ? Math.round((finalUsers / totalUsers) * 1000) / 10 : 0 };
+}
+
+/** 漏斗各步 CTE；下钻复用同一构造，保证「图上的数」与「下钻的人」同源 */
+export function buildFunnelCtes(
+  input: Pick<FunnelQuery, 'steps'>,
+  start: Date,
+  windowHours: number,
+  seriesCondition?: SQL,
+): SQL[] {
+  return input.steps.map((step, i) => {
     const stepConditions = buildStepConditions(step);
     if (i === 0) {
       const conditions: SQL[] = [gte(userEvents.createdAt, start), isNotNull(userEvents.distinctId), ...stepConditions];
-      if (input.segmentId) conditions.push(inArray(userEvents.distinctId, segmentMemberDistinctIdSubquery(input.segmentId)));
+      if (seriesCondition) conditions.push(seriesCondition);
       const where = mergeWhere(and(...conditions), tenantScope(userEvents))!;
       return sql`${sql.raw(`s${i}`)} AS (
         SELECT ${userEvents.distinctId} AS distinct_id,
@@ -89,36 +152,32 @@ export async function getFunnel(input: FunnelQuery): Promise<FunnelResult> {
       GROUP BY prev.distinct_id, prev.first_at, prev.step_at
     )`;
   });
+}
 
-  const countSelects = input.steps.map((_, i) => sql`(SELECT COUNT(*) FROM ${sql.raw(`s${i}`)})::int AS ${sql.raw(`c${i}`)}`);
-  const avgSelects = input.steps.map((_, i) => (i === 0
-    ? sql`NULL::float AS ${sql.raw(`a${i}`)}`
-    : sql`(SELECT AVG(step_delta_ms) FROM ${sql.raw(`s${i}`)})::float AS ${sql.raw(`a${i}`)}`));
+/**
+ * 维度拆分的候选取值：按覆盖用户数降序。
+ * 与后续统计共用同一时间窗与 tenantScope，避免出现「图例里有但没有数据」的空序列。
+ */
+export async function topBreakdownValues(dimension: AnalyticsBreakdownDimension, start: Date): Promise<string[]> {
+  const expr = breakdownValueSql(dimension);
+  const where = mergeWhere(and(gte(userEvents.createdAt, start), isNotNull(userEvents.distinctId)), tenantScope(userEvents))!;
+  const rows = (await db.execute(sql`
+    SELECT COALESCE(${expr}, '') AS value, COUNT(DISTINCT ${userEvents.distinctId})::int AS users
+    FROM ${userEvents}
+    WHERE ${where}
+    GROUP BY 1
+    ORDER BY users DESC
+    LIMIT ${BREAKDOWN_CANDIDATE_LIMIT}
+  `)) as unknown as Array<{ value: string; users: number }>;
+  return rows.map((r) => r.value);
+}
 
-  const rows = (await db.execute(
-    sql`WITH ${sql.join(ctes, sql`, `)} SELECT ${sql.join([...countSelects, ...avgSelects], sql`, `)}`,
-  )) as unknown as Array<Record<string, number | null>>;
-  const countRow = rows[0] ?? {};
+/** 候选取值扫描上限：只需判断「有没有长尾」，无需取回全部高基数取值 */
+const BREAKDOWN_CANDIDATE_LIMIT = 50;
 
-  const totalUsers = Number(countRow.c0 ?? 0);
-  let prevUsers = totalUsers;
-  const steps = input.steps.map((step, i) => {
-    const users = Number(countRow[`c${i}`] ?? 0);
-    const avgRaw = countRow[`a${i}`];
-    const result = {
-      label: step.label,
-      users,
-      conversionRate: totalUsers > 0 ? Math.round((users / totalUsers) * 1000) / 10 : 0,
-      stepConversionRate: prevUsers > 0 ? Math.round((users / prevUsers) * 1000) / 10 : 0,
-      dropoff: Math.max(0, prevUsers - users),
-      averageConversionMs: i === 0 || avgRaw == null ? null : Math.round(Number(avgRaw)),
-    };
-    prevUsers = users;
-    return result;
-  });
-
-  const finalUsers = steps.at(-1)?.users ?? 0;
-  return { steps, totalUsers, overallConversionRate: totalUsers > 0 ? Math.round((finalUsers / totalUsers) * 1000) / 10 : 0 };
+async function segmentDisplayName(segmentId: number): Promise<string> {
+  const row = await ensureSegmentAccessible(segmentId);
+  return row.name;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -130,6 +189,7 @@ export interface RetentionQuery {
   mode?: AnalyticsRetentionMode;
   periodType?: AnalyticsRetentionPeriodType;
   maxPeriods?: unknown;
+  comparison?: AnalyticsComparison;
 }
 
 /** PG `date_trunc` 的周起点是周一，月起点是 1 日；轴生成必须与之完全一致，否则矩阵会整体错位 */
@@ -182,18 +242,53 @@ export async function getRetention(input: RetentionQuery): Promise<RetentionResu
   const days = clampDays(input.days, limits.defaultDays, limits.maxDays);
   const maxPeriods = Math.min(Math.max(Number(input.maxPeriods) || limits.defaultPeriods, 1), limits.maxPeriods);
   const mode: AnalyticsRetentionMode = input.mode === 'first_seen' ? 'first_seen' : 'window_first';
+  const comparison: AnalyticsComparison = input.comparison ?? { type: 'none' };
   const start = startOfDaysAgo(days);
   const axis = retentionPeriodAxis(periodType, days);
+  // 列数不能超过轴长度：否则最早队列之外的列对所有队列都是 null，只会撑宽表格
+  const periods = Array.from({ length: Math.min(maxPeriods, axis.length) }, (_, i) => i);
+
+  const resolved = await resolveComparisonSeries(
+    comparison,
+    (dimension) => topBreakdownValues(dimension, start),
+    (segmentId) => segmentDisplayName(segmentId),
+  );
+
+  const series = await Promise.all(resolved.map(async (s) => {
+    const matrix = await loadRetentionMatrix({ mode, periodType, start, axis, seriesCondition: s.condition });
+    const cohorts = buildRetentionCohorts(axis, periods, matrix);
+    return { key: s.key, label: s.label, cohorts, ...summarizeRetention(cohorts, periods) };
+  }));
+
+  return { series, periods, mode, periodType, days, comparison };
+}
+
+interface RetentionMatrixInput {
+  mode: AnalyticsRetentionMode;
+  periodType: AnalyticsRetentionPeriodType;
+  start: Date;
+  axis: string[];
+  seriesCondition?: SQL;
+}
+
+/** 队列 × 活跃周期 → 活跃人数矩阵；key 为 `cohort\u0001period` */
+async function loadRetentionMatrix(input: RetentionMatrixInput): Promise<Map<string, number>> {
+  const { mode, periodType, start, axis, seriesCondition } = input;
   const axisStart = axis[0];
   const axisEnd = axis[axis.length - 1];
-  const activityWhere = mergeWhere(and(gte(userEvents.createdAt, start), isNotNull(userEvents.distinctId)), tenantScope(userEvents))!;
+  const activityConditions: SQL[] = [gte(userEvents.createdAt, start), isNotNull(userEvents.distinctId)];
+  if (seriesCondition) activityConditions.push(seriesCondition);
+  const activityWhere = mergeWhere(and(...activityConditions), tenantScope(userEvents))!;
   // periodType 来自白名单枚举，仍以绑定参数传入（date_trunc 首参为 text），不做字符串拼接
   const activityPeriod = sql`to_char(date_trunc(${periodType}, timezone(${APP_TIME_ZONE}, ${userEvents.createdAt})), 'YYYY-MM-DD')`;
 
   let rows: Array<{ cohort_date: string; day: string; active: number }>;
   if (mode === 'first_seen') {
-    // 全历史（仅 tenantScope，无日期过滤）计算真实首访日，避免把窗口起点误当作全局首访起点
-    const historyWhere = mergeWhere(isNotNull(userEvents.distinctId), tenantScope(userEvents))!;
+    // 全历史（仅 tenantScope + 序列条件，无日期过滤）计算真实首访日，
+    // 避免把窗口起点误当作全局首访起点
+    const historyConditions: SQL[] = [isNotNull(userEvents.distinctId)];
+    if (seriesCondition) historyConditions.push(seriesCondition);
+    const historyWhere = mergeWhere(and(...historyConditions), tenantScope(userEvents))!;
     rows = (await db.execute(sql`
       WITH activity AS (
         SELECT DISTINCT ${userEvents.distinctId} AS distinct_id,
@@ -234,11 +329,11 @@ export async function getRetention(input: RetentionQuery): Promise<RetentionResu
 
   const matrix = new Map<string, number>();
   for (const r of rows) matrix.set(`${r.cohort_date}\u0001${r.day}`, Number(r.active));
+  return matrix;
+}
 
-  // 列数不能超过轴长度：否则最早队列之外的列对所有队列都是 null，只会撑宽表格
-  const periods = Array.from({ length: Math.min(maxPeriods, axis.length) }, (_, i) => i);
-
-  const cohorts = axis.map((cohortDate, ci) => {
+function buildRetentionCohorts(axis: string[], periods: number[], matrix: Map<string, number>): RetentionCohort[] {
+  return axis.map((cohortDate, ci) => {
     // 队列用户首个周期必然活跃：矩阵对角线即队列规模
     const size = matrix.get(`${cohortDate}\u0001${cohortDate}`) ?? 0;
     const values = periods.map((p) => {
@@ -250,6 +345,24 @@ export async function getRetention(input: RetentionQuery): Promise<RetentionResu
     });
     return { cohortDate, cohortSize: size, values };
   });
+}
 
-  return { cohorts, periods, mode, periodType, days };
+/**
+ * 各周期的加权平均留存率（按队列规模加权，而非各队列留存率的算术平均）。
+ * 算术平均会让一个 3 人的小队列和一个 3 万人的大队列等权，多序列对比时结论会被噪音主导。
+ */
+function summarizeRetention(cohorts: RetentionCohort[], periods: number[]): { averages: (number | null)[]; totalUsers: number } {
+  const averages = periods.map((_, p) => {
+    let activeSum = 0;
+    let sizeSum = 0;
+    for (const cohort of cohorts) {
+      const value = cohort.values[p];
+      // null = 该队列尚未走到这一周期，不参与平均（否则新队列会把留存率稀释成 0）
+      if (value == null || cohort.cohortSize === 0) continue;
+      activeSum += (value / 100) * cohort.cohortSize;
+      sizeSum += cohort.cohortSize;
+    }
+    return sizeSum > 0 ? Math.round((activeSum / sizeSum) * 1000) / 10 : null;
+  });
+  return { averages, totalUsers: cohorts.reduce((sum, c) => sum + c.cohortSize, 0) };
 }

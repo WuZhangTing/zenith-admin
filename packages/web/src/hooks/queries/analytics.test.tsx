@@ -20,7 +20,7 @@ const post = vi.fn();
 
 vi.mock('@/utils/request', () => ({ request: { get: (...a: unknown[]) => get(...a), post: (...a: unknown[]) => post(...a) } }));
 
-import { analyticsKeys, useAnalyticsRetention, useAnalyticsEventQuery, useAnalyzeFunnel } from './analytics';
+import { analyticsKeys, useAnalyticsRetention, useAnalyticsAcquisition, useAnalyticsDrillUsers, useAnalyticsEventQuery, useAnalyzeFunnel } from './analytics';
 
 function wrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -29,40 +29,87 @@ function wrapper() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  get.mockResolvedValue({ code: 0, message: 'success', data: { cohorts: [], periods: [], mode: 'first_seen' } });
-  post.mockResolvedValue({ code: 0, message: 'success', data: {} });
+  get.mockResolvedValue({ code: 0, message: 'success', data: { rows: [] } });
+  post.mockResolvedValue({ code: 0, message: 'success', data: { series: [], periods: [], mode: 'first_seen' } });
 });
 
-describe('analyticsKeys.retention — mode 纳入 query key', () => {
+const retentionParams = {
+  days: 14,
+  mode: 'first_seen' as const,
+  periodType: 'day' as const,
+  maxPeriods: 8,
+  comparison: { type: 'none' as const },
+};
+
+describe('analyticsKeys.retention — 全部查询条件纳入 query key', () => {
   it('produces distinct keys for first_seen vs window_first so switching the caliber refetches instead of reusing stale cache', () => {
-    const keyFirstSeen = analyticsKeys.retention(14, 'first_seen', 'day', 8);
-    const keyWindowFirst = analyticsKeys.retention(14, 'window_first', 'day', 8);
+    const keyFirstSeen = analyticsKeys.retention(retentionParams);
+    const keyWindowFirst = analyticsKeys.retention({ ...retentionParams, mode: 'window_first' });
     expect(keyFirstSeen).not.toEqual(keyWindowFirst);
-    expect(keyFirstSeen).toContain('first_seen');
-    expect(keyWindowFirst).toContain('window_first');
   });
 
-  // 周期粒度与列数不进 key 时，切「日留存 → 周留存」会命中上一份缓存，页面看起来没反应
-  it('produces distinct keys for different period types and column counts', () => {
-    const day = analyticsKeys.retention(14, 'first_seen', 'day', 8);
-    const week = analyticsKeys.retention(14, 'first_seen', 'week', 8);
-    const moreColumns = analyticsKeys.retention(14, 'first_seen', 'day', 12);
-    expect(day).not.toEqual(week);
-    expect(day).not.toEqual(moreColumns);
+  // 周期粒度、列数、对比轴不进 key 时，切换条件会命中上一份缓存，页面看起来没反应
+  it('produces distinct keys for different period types, column counts and comparison axes', () => {
+    const base = analyticsKeys.retention(retentionParams);
+    expect(base).not.toEqual(analyticsKeys.retention({ ...retentionParams, periodType: 'week' }));
+    expect(base).not.toEqual(analyticsKeys.retention({ ...retentionParams, maxPeriods: 12 }));
+    expect(base).not.toEqual(analyticsKeys.retention({ ...retentionParams, comparison: { type: 'dimension', dimension: 'browser' } }));
+    expect(base).not.toEqual(analyticsKeys.retention({ ...retentionParams, comparison: { type: 'segments', segmentIds: [1] } }));
   });
 });
 
 describe('useAnalyticsRetention', () => {
-  it('defaults to mode=first_seen and includes it in both the query key and the request URL', async () => {
-    const { result } = renderHook(() => useAnalyticsRetention(14), { wrapper: wrapper() });
+  // 留存改 POST：对比轴是判别联合对象，query string 承载不了
+  it('POSTs the full query body to /api/analytics/retention', async () => {
+    const { result } = renderHook(() => useAnalyticsRetention(retentionParams), { wrapper: wrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(get).toHaveBeenCalledWith(expect.stringContaining('mode=first_seen'));
+    expect(post).toHaveBeenCalledWith('/api/analytics/retention', retentionParams);
+    expect(get).not.toHaveBeenCalled();
   });
 
-  it('switches to mode=window_first when explicitly requested', async () => {
-    const { result } = renderHook(() => useAnalyticsRetention(14, 'window_first'), { wrapper: wrapper() });
+  it('passes the segment comparison axis through verbatim', async () => {
+    const params = { ...retentionParams, comparison: { type: 'segments' as const, segmentIds: [3, 5] } };
+    const { result } = renderHook(() => useAnalyticsRetention(params), { wrapper: wrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(get).toHaveBeenCalledWith(expect.stringContaining('mode=window_first'));
+    expect(post).toHaveBeenCalledWith('/api/analytics/retention', params);
+  });
+});
+
+describe('useAnalyticsDrillUsers — 图表下钻', () => {
+  const context = {
+    type: 'funnel' as const,
+    days: 7,
+    steps: [{ label: 'A', pagePath: '/' }, { label: 'B', pagePath: '/b' }],
+    conversionWindowHours: 72,
+    comparison: { type: 'none' as const },
+    stepIndex: 1,
+    outcome: 'dropped' as const,
+  };
+
+  // 未打开抽屉时不应发请求：下钻是按需查询，进入页面就打一发是纯浪费
+  it('stays idle when no context is provided', () => {
+    renderHook(() => useAnalyticsDrillUsers(null), { wrapper: wrapper() });
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('POSTs the context and pagination to /api/analytics/drill-users', async () => {
+    post.mockResolvedValue({ code: 0, message: 'success', data: { list: [], total: 0, page: 1, pageSize: 20, matchedUsers: 0 } });
+    const input = { context, page: 1, pageSize: 20 };
+    const { result } = renderHook(() => useAnalyticsDrillUsers(input), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(post).toHaveBeenCalledWith('/api/analytics/drill-users', input);
+  });
+});
+
+describe('useAnalyticsAcquisition — 获客归因', () => {
+  it('includes the attribution model and dimension in the request URL', async () => {
+    const { result } = renderHook(
+      () => useAnalyticsAcquisition({ days: 30, dimension: 'channel', model: 'first_touch' }),
+      { wrapper: wrapper() },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(get).toHaveBeenCalledWith(expect.stringContaining('model=first_touch'));
+    expect(get).toHaveBeenCalledWith(expect.stringContaining('dimension=channel'));
   });
 });
 
@@ -91,13 +138,24 @@ describe('useAnalyticsEventQuery — 通用事件分析工作台', () => {
   });
 });
 
-describe('useAnalyzeFunnel — 有序转化漏斗 mutation（新增 conversionWindowHours/segmentId 透传）', () => {
-  it('POSTs the full funnel query including the new conversionWindowHours and segmentId fields', async () => {
+describe('useAnalyzeFunnel — 有序转化漏斗 mutation（转化窗口 + 对比轴透传）', () => {
+  it('POSTs the full funnel query including conversionWindowHours and the comparison axis', async () => {
     const { result } = renderHook(() => useAnalyzeFunnel(), { wrapper: wrapper() });
     const body = {
       steps: [{ label: '浏览', eventName: 'view' }, { label: '下单', eventName: 'order' }],
       conversionWindowHours: 24,
-      segmentId: 7,
+      comparison: { type: 'segments' as const, segmentIds: [7] },
+    };
+    await result.current.mutateAsync(body as never);
+    expect(post).toHaveBeenCalledWith('/api/analytics/funnel', body);
+  });
+
+  it('passes a dimension breakdown axis through unchanged', async () => {
+    const { result } = renderHook(() => useAnalyzeFunnel(), { wrapper: wrapper() });
+    const body = {
+      steps: [{ label: '浏览', eventName: 'view' }, { label: '下单', eventName: 'order' }],
+      conversionWindowHours: 72,
+      comparison: { type: 'dimension' as const, dimension: 'channel' as const },
     };
     await result.current.mutateAsync(body as never);
     expect(post).toHaveBeenCalledWith('/api/analytics/funnel', body);

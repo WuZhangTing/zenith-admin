@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
-import { ANALYTICS_QUALITY_ISSUE_TYPES, ANALYTICS_RETENTION_MAX_DAYS, ANALYTICS_RETENTION_MAX_PERIODS, ANALYTICS_RETENTION_MODES, ANALYTICS_RETENTION_PERIOD_TYPES, ANALYTICS_SITE_KEY_HEADER } from '@zenith/shared/analytics';
+import { ANALYTICS_ACQUISITION_DIMENSIONS, ANALYTICS_ATTRIBUTION_MODELS, ANALYTICS_QUALITY_ISSUE_TYPES, ANALYTICS_SITE_KEY_HEADER } from '@zenith/shared/analytics';
 import { authMiddleware } from '../../middleware/auth';
 import { optionalAuthMiddleware } from '../../middleware/optional-auth';
 import { guard } from '../../middleware/guard';
@@ -17,6 +17,7 @@ import {
   AnalyticsEventOverrideDTO, CreateAnalyticsEventOverrideDTO, UpdateAnalyticsEventOverrideDTO,
   AnalyticsQualityQueryResultDTO, AnalyticsDebugEventDTO,
   AnalyticsEventQueryBodyDTO, AnalyticsEventQueryResultDTO,
+  RetentionQueryBodyDTO, AnalyticsAcquisitionResultDTO, AnalyticsDrillUsersBodyDTO, AnalyticsDrillUsersResultDTO,
   AnalyticsUserSegmentDTO, CreateAnalyticsUserSegmentDTO, UpdateAnalyticsUserSegmentDTO, AnalyticsSegmentMemberDTO,
 } from '../../lib/openapi-dtos';
 import { getClientIp } from '../../lib/request-helpers';
@@ -28,6 +29,8 @@ import {
   getEventDetail, cleanAnalyticsEvents, getSessionTimeline,
 } from '../../services/analytics/analytics.service';
 import { getFunnel, getRetention } from '../../services/analytics/analytics-conversion.service';
+import { getAcquisitionReport } from '../../services/analytics/analytics-acquisition.service';
+import { drillUsers } from '../../services/analytics/analytics-drill.service';
 import { queryEvents } from '../../services/analytics/analytics-event-query.service';
 import {
   listSegments, getSegmentDetail, ensureSegmentExists, createSegment, updateSegment, deleteSegment, listSegmentMembers,
@@ -197,19 +200,43 @@ const funnelRoute = defineOpenAPIRoute({
 
 const retentionRoute = defineOpenAPIRoute({
   route: createRoute({
-    method: 'get', path: '/retention', tags: ['Analytics'], summary: '留存分析', security: [{ BearerAuth: [] }],
+    // 含对比轴（判别联合对象），query string 无法自然承载，故用 POST 传查询体
+    method: 'post', path: '/retention', tags: ['Analytics'], summary: '留存分析', security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
+    request: { body: { content: { 'application/json': { schema: RetentionQueryBodyDTO } }, required: true } },
+    responses: { ...ok(RetentionResultDTO, '留存'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await getRetention(c.req.valid('json'))), 200),
+});
+
+// ─── 阶段 2：获客与归因报表 ───────────────────────────────────────────────────
+const acquisitionRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/acquisition', tags: ['Analytics'], summary: '获客渠道与归因报表', security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
     request: {
       query: z.object({
-        days: z.coerce.number().int().min(1).max(ANALYTICS_RETENTION_MAX_DAYS).optional(),
-        mode: z.enum(ANALYTICS_RETENTION_MODES).optional().default('first_seen'),
-        periodType: z.enum(ANALYTICS_RETENTION_PERIOD_TYPES).optional().default('day'),
-        maxPeriods: z.coerce.number().int().min(1).max(ANALYTICS_RETENTION_MAX_PERIODS).optional(),
+        days: z.coerce.number().int().min(1).max(365).optional().default(30),
+        dimension: z.enum(ANALYTICS_ACQUISITION_DIMENSIONS).optional().default('channel'),
+        model: z.enum(ANALYTICS_ATTRIBUTION_MODELS).optional().default('last_touch'),
+        conversionEvent: z.string().max(128).optional(),
+        limit: z.coerce.number().int().min(1).max(50).optional().default(20),
       }),
     },
-    responses: { ...ok(RetentionResultDTO, '留存'), ...commonErrorResponses },
+    responses: { ...ok(AnalyticsAcquisitionResultDTO, '获客报表'), ...commonErrorResponses },
   }),
-  handler: async (c) => c.json(okBody(await getRetention(c.req.valid('query'))), 200),
+  handler: async (c) => c.json(okBody(await getAcquisitionReport(c.req.valid('query'))), 200),
+});
+
+// ─── 阶段 2：图表下钻用户列表 ─────────────────────────────────────────────────
+const drillUsersRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/drill-users', tags: ['Analytics'], summary: '图表下钻用户列表', security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
+    request: { body: { content: { 'application/json': { schema: AnalyticsDrillUsersBodyDTO } }, required: true } },
+    responses: { ...ok(AnalyticsDrillUsersResultDTO, '下钻用户列表'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await drillUsers(c.req.valid('json'))), 200),
 });
 
 // ─── 通用事件分析工作台（行为中心阶段 1）──────────────────────────────────────
@@ -635,7 +662,7 @@ r.openapiRoutes([
   ingestRoute, configRoute,
   overviewRoute, trendsRoute, realtimeRoute,
   pageStatsRoute, featureStatsRoute, heatmapRoute, heatmapPagesRoute, userStatsRoute,
-  sessionsRoute, funnelRoute, retentionRoute, eventQueryRoute, pathRoute, userTimelineRoute, sessionTimelineRoute, dimensionRoute, dimensionCrossRoute, perfRoute,
+  sessionsRoute, funnelRoute, retentionRoute, acquisitionRoute, drillUsersRoute, eventQueryRoute, pathRoute, userTimelineRoute, sessionTimelineRoute, dimensionRoute, dimensionCrossRoute, perfRoute,
   reportListRoute, reportCreateRoute, reportDeleteRoute,
   eventListRoute, eventDetailRoute, cleanRoute,
   metaListRoute, metaCreateRoute, metaUpdateRoute, metaDeleteRoute,
