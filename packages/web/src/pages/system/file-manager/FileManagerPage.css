@@ -344,20 +344,3 @@
   box-shadow: var(--semi-shadow-elevated);
   z-index: 10;
 }
-
-.fm-upload-bar {
-  height: 4px;
-  background: var(--semi-color-fill-1);
-  border-radius: var(--semi-border-radius-small);
-  overflow: hidden;
-  margin-top: 3px;
-}
-
-.fm-upload-bar__fill {
-  height: 100%;
-  width: 100%;
-  background: var(--semi-color-primary);
-  border-radius: var(--semi-border-radius-small);
-  transform-origin: left;
-  transition: transform 0.2s ease;
-}

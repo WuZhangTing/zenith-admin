@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { Table } from '@douyinfe/semi-ui';
+import { Progress, Table } from '@douyinfe/semi-ui';
 import VChartCore from '@visactor/vchart';
 import type { ISpec } from '@visactor/vchart';
 import { HeatmapChart, LiquidChart, SankeyChart, VChart as VChartReact, WordCloudChart } from '@visactor/react-vchart';
@@ -247,9 +247,13 @@ export function WidgetRenderer({
           )}
           {progress != null && (
             <div style={{ marginTop: 2 }}>
-              <div style={{ height: 6, borderRadius: 'var(--semi-border-radius-small)', background: 'var(--semi-color-fill-1)', overflow: 'hidden' }}>
-                <div style={{ width: `${progress}%`, height: '100%', background: 'var(--semi-color-primary)' }} />
-              </div>
+              <Progress
+                percent={progress}
+                showInfo={false}
+                size="small"
+                strokeWidth={6}
+                aria-label="目标完成进度"
+              />
               <div style={{ fontSize: 11, color: 'var(--semi-color-text-2)', marginTop: 2 }}>目标 {fmtNumber(target ?? 0, o.decimals)}（{progress.toFixed(0)}%）</div>
             </div>
           )}

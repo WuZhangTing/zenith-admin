@@ -19,7 +19,7 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, ImagePreview, Spin, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, ImagePreview, Progress, Spin, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { FolderOpen, Home, UploadCloud } from 'lucide-react';
 import { useTerminalFileOperation, useTerminalSearch } from '@/hooks/queries/terminal-files';
 import FilePreviewModal from '@/components/FilePreviewModal';
@@ -390,9 +390,14 @@ export default function FileManagerPage() {
                   {upload.uploading.map((u) => (
                     <div key={u.name} style={{ marginTop: 4 }}>
                       <Typography.Text size="small" ellipsis style={{ display: 'block' }}>{u.name}</Typography.Text>
-                      <div className="fm-upload-bar">
-                        <div className="fm-upload-bar__fill" style={{ transform: `scaleX(${Math.min(100, u.progress) / 100})` }} />
-                      </div>
+                      <Progress
+                        percent={Math.min(100, u.progress)}
+                        size="small"
+                        showInfo={false}
+                        strokeWidth={4}
+                        style={{ marginTop: 3 }}
+                        aria-label={`${u.name} 上传进度`}
+                      />
                     </div>
                   ))}
                 </div>
