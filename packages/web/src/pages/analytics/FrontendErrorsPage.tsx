@@ -438,6 +438,22 @@ export default function FrontendErrorsPage() {
     });
   }, [batchDeleteMutation, selectedRowKeys]);
 
+  const deleteGroup = useCallback((record: ErrorGroup) => {
+    confirmDelete({
+      title: '确认删除该错误 Issue？',
+      content: `即将删除「${record.message}」，删除后无法恢复。`,
+      onOk: async () => {
+        await batchDeleteMutation.mutateAsync([record.id]);
+        Toast.success('删除成功');
+        setSelectedRowKeys((prev) => prev.filter((key) => key !== record.id));
+        if (detailGroupId === record.id) {
+          setDetailVisible(false);
+          setDetailGroupId(undefined);
+        }
+      },
+    });
+  }, [batchDeleteMutation, detailGroupId]);
+
   const saveGroupHandle = useCallback(async () => {
     if (!detail) return;
     await updateGroupMutation.mutateAsync({
@@ -631,8 +647,8 @@ export default function FrontendErrorsPage() {
       render: (_value, record) => <StatusTag status={record.status} />,
     },
     createOperationColumn<ErrorGroup>({
-      width: 240,
-      desktopInlineKeys: ['detail', 'resolve', 'ignore'],
+      width: 300,
+      desktopInlineKeys: ['detail', 'resolve', 'ignore', 'delete'],
       actions: (record) => [
         {
           key: 'detail',
@@ -648,12 +664,17 @@ export default function FrontendErrorsPage() {
         {
           key: 'ignore',
           label: '忽略',
-          danger: true,
           onClick: () => { void updateGroupStatus(record.id, 'ignored'); },
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          onClick: () => deleteGroup(record),
         },
       ],
     }),
-  ], [openGroupDetail, updateGroupStatus]);
+  ], [deleteGroup, openGroupDetail, updateGroupStatus]);
 
   const eventColumns = useMemo<ColumnProps<ErrorEvent>[]>(() => [
     { title: '类型', dataIndex: 'errorType', width: 140, render: (_value, record) => <TypeTag type={record.errorType} /> },
@@ -1078,7 +1099,7 @@ export default function FrontendErrorsPage() {
               selectedRowKeys,
               onChange: (keys) => setSelectedRowKeys(keys as number[]),
             }}
-            scroll={{ x: 1740 }}
+            scroll={{ x: 1800 }}
             empty="暂无错误 Issue"
           />
         </TabPane>
