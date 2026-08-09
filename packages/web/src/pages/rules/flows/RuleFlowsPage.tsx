@@ -119,13 +119,14 @@ export default function RuleFlowsPage() {
       </Text>
     ) },
     { title: '版本', dataIndex: 'version', width: 70 },
+    createdAtColumn,
+    // 固定列必须连续贴在末尾：createdAtColumn 不带 fixed，夹在状态与操作列之间会撕开右侧固定层
     { title: '状态', dataIndex: 'status', width: 132, fixed: 'right', render: (s: string, r: RuleDecisionFlow) => (
       <Space spacing={4} wrap>
         <Tag color={STATUS[s]?.color as never}>{STATUS[s]?.text ?? s}</Tag>
         {r.dirty && s === 'published' && <Tag size="small" color="orange">改动未发布</Tag>}
       </Space>
     ) },
-    createdAtColumn,
     createOperationColumn<RuleDecisionFlow>({
       desktopInlineKeys: ['edit', 'publish'],
       actions: (r) => [

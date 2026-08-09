@@ -64,7 +64,6 @@ export default function WorkflowHealthPage() {
       title: '级别',
       dataIndex: 'severity',
       width: 90,
-      fixed: 'right',
       render: (v: WorkflowHealthIssue['severity']) => (
         <Tag color={v === 'critical' ? 'red' : 'orange'} size="small">{v === 'critical' ? '严重' : '警告'}</Tag>
       ),

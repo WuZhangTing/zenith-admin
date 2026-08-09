@@ -681,6 +681,8 @@ export default function RuleTablesPage() {
     { title: '命中策略', dataIndex: 'hitPolicy', width: 110, render: (p: string) => HIT_POLICIES.find((x) => x.value === p)?.label ?? p },
     { title: '规模', width: 120, render: (_: unknown, r: RuleDecisionTable) => <Text type="tertiary" size="small">{r.inputs.length}入/{r.outputs.length}出/{r.rules.length}行</Text> },
     { title: '版本', dataIndex: 'version', width: 70 },
+    createdAtColumn,
+    // 固定列必须连续贴在末尾：createdAtColumn 不带 fixed，夹在状态与操作列之间会撕开右侧固定层
     { title: '状态', dataIndex: 'status', width: 132, fixed: 'right', render: (s: string, r: RuleDecisionTable) => (
       <Space spacing={4} wrap>
         <Tag color={STATUS[s]?.color as never}>{STATUS[s]?.text ?? s}</Tag>
@@ -688,7 +690,6 @@ export default function RuleTablesPage() {
         {r.dirty && s === 'published' && r.reviewStatus !== 'pending' && <Tag size="small" color="orange">改动未发布</Tag>}
       </Space>
     ) },
-    createdAtColumn,
     createOperationColumn<RuleDecisionTable>({
       desktopInlineKeys: ['edit', 'publish'],
       actions: (r) => [

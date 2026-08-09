@@ -99,8 +99,9 @@ export default function WorkflowCompensationsView() {
     { title: '错误', dataIndex: 'errorMessage', render: renderEllipsis },
     { title: '处理动作', dataIndex: 'action', width: 90, render: (a: string) => ACTION_LABEL[a] ?? a },
     { title: '自动动作', dataIndex: 'compensationActionStatus', width: 90, render: (s: string) => (s && s !== 'none' ? <Tag color={ACTION_STATUS[s]?.color as never}>{ACTION_STATUS[s]?.text ?? s}</Tag> : <Typography.Text type="tertiary">—</Typography.Text>) },
-    { title: '状态', dataIndex: 'status', width: 84, fixed: 'right', render: (s: string) => <Tag color={STATUS[s]?.color as never}>{STATUS[s]?.text ?? s}</Tag> },
     createdAtColumn,
+    // 固定列必须连续贴在末尾：createdAtColumn 不带 fixed，夹在状态与操作列之间会撕开右侧固定层
+    { title: '状态', dataIndex: 'status', width: 84, fixed: 'right', render: (s: string) => <Tag color={STATUS[s]?.color as never}>{STATUS[s]?.text ?? s}</Tag> },
     createOperationColumn<WorkflowCompensation>({
       actions: (r) => [
         { key: 'detail', label: '详情', onClick: () => openDetail(r.id) },

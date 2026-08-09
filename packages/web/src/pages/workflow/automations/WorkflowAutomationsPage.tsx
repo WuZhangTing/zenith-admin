@@ -352,12 +352,13 @@ export default function WorkflowAutomationsPage() {
       title: '动作数', dataIndex: 'actions', width: 90,
       render: (v: WorkflowAutomationAction[]) => v?.length ?? 0,
     },
+    { title: '排序', dataIndex: 'sort', width: 70 },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 160, render: (v: string) => formatDateTime(v) },
+    // 固定列必须连续贴在两端：状态若夹在中间，会被抽到右侧固定层，原位留下空洞，表头表体错位
     {
       title: '状态', dataIndex: 'status', width: 90, fixed: 'right',
       render: (v: string) => v === 'enabled' ? <Tag color="green">启用</Tag> : <Tag color="grey">禁用</Tag>,
     },
-    { title: '排序', dataIndex: 'sort', width: 70 },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 160, render: (v: string) => formatDateTime(v) },
     createOperationColumn<WorkflowAutomation>({
       width: 160,
       desktopInlineKeys: ['edit', 'delete'],

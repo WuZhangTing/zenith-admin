@@ -139,8 +139,9 @@ export default function RuleListsPage() {
     { title: '类型', dataIndex: 'type', width: 90, render: (t: string) => <Tag size="small" color={TYPE_META[t]?.color}>{TYPE_META[t]?.text ?? t}</Tag> },
     { title: '条目数', dataIndex: 'itemCount', width: 90 },
     { title: '描述', dataIndex: 'description', render: renderEllipsis },
-    { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (s: string) => <Tag color={s === 'enabled' ? 'green' : 'red'}>{s === 'enabled' ? '启用' : '停用'}</Tag> },
     createdAtColumn,
+    // 固定列必须连续贴在末尾：createdAtColumn 不带 fixed，夹在状态与操作列之间会撕开右侧固定层
+    { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (s: string) => <Tag color={s === 'enabled' ? 'green' : 'red'}>{s === 'enabled' ? '启用' : '停用'}</Tag> },
     createOperationColumn<RuleList>({
       desktopInlineKeys: ['items', 'edit'],
       actions: (r) => [

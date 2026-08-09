@@ -93,16 +93,6 @@ export default function WorkflowTriggerExecutionsPage() {
       width: 110,
       render: (v: WorkflowTriggerType) => TRIGGER_TYPE_LABEL[v] ?? v,
     },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      width: 100,
-      fixed: 'right',
-      render: (v: WorkflowTriggerExecutionStatus) => {
-        const meta = STATUS_MAP[v];
-        return <Tag color={meta?.color ?? 'grey'} size="small">{meta?.label ?? v}</Tag>;
-      },
-    },
     { title: '尝试次数', dataIndex: 'attempt', width: 90 },
     {
       title: '响应码',
@@ -124,6 +114,17 @@ export default function WorkflowTriggerExecutionsPage() {
         v ? <Typography.Text type="danger" ellipsis={{ rows: 1, showTooltip: true }}>{v}</Typography.Text> : '-',
     },
     createdAtColumn,
+    // 固定列必须连续贴在两端：状态若夹在中间，会被抽到右侧固定层，原位留下空洞，表头表体错位
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 100,
+      fixed: 'right',
+      render: (v: WorkflowTriggerExecutionStatus) => {
+        const meta = STATUS_MAP[v];
+        return <Tag color={meta?.color ?? 'grey'} size="small">{meta?.label ?? v}</Tag>;
+      },
+    },
     createOperationColumn<WorkflowTriggerExecution>({
       width: 90,
       desktopInlineKeys: ['detail'],
