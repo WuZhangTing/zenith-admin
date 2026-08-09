@@ -14,7 +14,7 @@ import { db } from '../../db';
 import { userEvents } from '../../db/schema';
 import type { AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsEventQueryGroupByField } from '@zenith/shared/analytics';
 import { tenantScope } from '../../lib/tenant';
-import { mergeWhere } from '../../lib/where-helpers';
+import { mergeWhere, withPagination } from '../../lib/where-helpers';
 import { APP_TIME_ZONE, formatDate, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
 import { clampDays } from '../../lib/analytics-helpers';
 import { buildJsonPropertyCondition } from './analytics-property-filter';
@@ -66,7 +66,7 @@ function resolveDateRange(input: { startDate?: string; endDate?: string; days?: 
 export async function queryEvents(input: AnalyticsEventQueryInput): Promise<AnalyticsEventQueryResult> {
   const groupBy = (input.groupBy && input.groupBy.length > 0 ? input.groupBy : (['date'] as AnalyticsEventQueryGroupByField[])).slice(0, 2);
   const metric = input.metric === 'uv' ? 'uv' : 'events';
-  const limit = Math.min(Math.max(Number(input.limit) || 100, 1), 200);
+  const { page, pageSize } = normalizeEventQueryPage(input);
   const { start, end, startLabel, endLabel } = resolveDateRange(input);
 
   const conditions: SQL[] = [gte(userEvents.createdAt, start), lte(userEvents.createdAt, end), isNotNull(userEvents.distinctId)];
@@ -107,22 +107,38 @@ export async function queryEvents(input: AnalyticsEventQueryInput): Promise<Anal
   selectShape.value = valueExpr;
   selectShape.__total = sql<number>`COUNT(*) OVER()::int`;
 
-  const rows = (await db
-    .select(selectShape)
-    .from(userEvents)
-    .where(where)
-    .groupBy(...groupByPositions)
-    .orderBy(...orderByExprs)
-    .limit(limit)) as unknown as Array<Record<string, unknown>>;
+  const rows = (await withPagination(
+    db
+      .select(selectShape)
+      .from(userEvents)
+      .where(where)
+      .groupBy(...groupByPositions)
+      .orderBy(...orderByExprs)
+      .$dynamic(),
+    page,
+    pageSize,
+  )) as unknown as Array<Record<string, unknown>>;
 
-  const total = rows.length > 0 ? Number(rows[0].__total ?? rows.length) : 0;
+  // COUNT(*) OVER() 是分组后的窗口计数，即分组总行数；翻到空页时窗口没有行可读，
+  // 只能退回「已翻过的行数」，此时前端也不会再往后翻
+  const total = rows.length > 0 ? Number(rows[0].__total ?? rows.length) : (page - 1) * pageSize;
 
   return {
-    rows: rows.map((r) => ({
+    list: rows.map((r) => ({
       dimensions: Object.fromEntries(groupBy.map((g, i) => [g, String(r[`d${i}`] ?? '')])),
       value: Number(r.value ?? 0),
     })),
     total,
+    page,
+    pageSize,
     queryMeta: { metric, groupBy, startDate: startLabel, endDate: endLabel },
   };
+}
+
+const EVENT_QUERY_PAGE_SIZE_MAX = 200;
+
+function normalizeEventQueryPage(input: { page?: number; pageSize?: number }): { page: number; pageSize: number } {
+  const page = Math.max(1, Math.trunc(Number(input.page) || 1));
+  const pageSize = Math.min(Math.max(1, Math.trunc(Number(input.pageSize) || 20)), EVENT_QUERY_PAGE_SIZE_MAX);
+  return { page, pageSize };
 }

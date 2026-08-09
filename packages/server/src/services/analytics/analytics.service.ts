@@ -1,4 +1,4 @@
-import { and, eq, gte, lt, lte, isNotNull, sql, countDistinct, desc, like, notExists, inArray } from 'drizzle-orm';
+import { and, eq, gte, lt, lte, isNotNull, sql, countDistinct, desc, like, notExists, inArray, type SQL } from 'drizzle-orm';
 import { alias, type PgColumn } from 'drizzle-orm/pg-core';
 import { randomUUID } from 'node:crypto';
 import { db } from '../../db';
@@ -10,7 +10,7 @@ import type { UserBehaviorEventType } from '@zenith/shared/identity';
 import { currentUserOrNull } from '../../lib/context';
 import { currentMemberOrNull } from '../../lib/member-context';
 import { tenantScope, getCreateTenantId } from '../../lib/tenant';
-import { mergeWhere, escapeLike } from '../../lib/where-helpers';
+import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatNullableDateTime, formatDateTime, formatDate, APP_TIME_ZONE, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
 import { parseClientEnv, lookupIpGeo, clampDays, clampLimit, startOfDaysAgo, anonymizeIpAddr, resolveIngestPlatformFields } from '../../lib/analytics-helpers';
@@ -614,31 +614,61 @@ export async function getTrends(input: TrendsInput) {
 // 页面停留 / 功能使用 / 热力图 / 用户统计
 // ════════════════════════════════════════════════════════════════════════════
 
-export interface PageStatsQuery { days?: number; limit?: number }
+const ANALYTICS_PAGE_SIZE_MAX = 200;
+
+/** 分页入参归一：页码/页长兜底并夹紧上界，避免 pageSize=100000 打穿一次查询 */
+function normalizePageQuery(q: { page?: number; pageSize?: number }): { page: number; pageSize: number } {
+  const page = Math.max(1, Math.trunc(Number(q.page) || 1));
+  const pageSize = Math.min(Math.max(1, Math.trunc(Number(q.pageSize) || 20)), ANALYTICS_PAGE_SIZE_MAX);
+  return { page, pageSize };
+}
+
+/**
+ * 分组总数：分页列表的 total 必须是**分组后的行数**，而不是 db.$count 的原始事件数。
+ * 直接用事件数会让页码算多出十几倍，翻到后面全是空页。
+ */
+async function countGroups(groupExpr: SQL, where?: SQL): Promise<number> {
+  const rows = (await db.execute(sql`
+    SELECT COUNT(*)::int AS n FROM (
+      SELECT 1 FROM ${userEvents} ${where ? sql`WHERE ${where}` : sql``} GROUP BY ${groupExpr}
+    ) g
+  `)) as unknown as Array<{ n: number }>;
+  return Number(rows[0]?.n ?? 0);
+}
+
+function countDistinctGroups(column: PgColumn, where?: SQL): Promise<number> {
+  return countGroups(sql`${column}`, where);
+}
+
+export interface PageStatsQuery { days?: number; page?: number; pageSize?: number }
 export async function getPageStats(q: PageStatsQuery) {
   const days = clampDays(q.days, 30);
-  const limit = clampLimit(q.limit, 20);
+  const { page, pageSize } = normalizePageQuery(q);
   const start = startOfDaysAgo(days);
   const where = mergeWhere(
     and(eq(userEvents.eventType, 'page_leave'), isNotNull(userEvents.durationMs), gte(userEvents.createdAt, start)),
     tenantScope(userEvents),
   );
 
-  const [rows, totals] = await Promise.all([
-    db
-      .select({
-        pagePath: userEvents.pagePath,
-        pageTitle: sql<string | null>`MAX(${userEvents.pageTitle})`,
-        visits: sql<number>`COUNT(*)::integer`,
-        avgMs: sql<number | null>`ROUND(AVG(${userEvents.durationMs}))::integer`,
-        medianMs: sql<number | null>`(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ${userEvents.durationMs}))::integer`,
-        p90Ms: sql<number | null>`(PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY ${userEvents.durationMs}))::integer`,
-      })
-      .from(userEvents)
-      .where(where)
-      .groupBy(userEvents.pagePath)
-      .orderBy(sql`COUNT(*) DESC`)
-      .limit(limit),
+  const [rows, totals, total] = await Promise.all([
+    withPagination(
+      db
+        .select({
+          pagePath: userEvents.pagePath,
+          pageTitle: sql<string | null>`MAX(${userEvents.pageTitle})`,
+          visits: sql<number>`COUNT(*)::integer`,
+          avgMs: sql<number | null>`ROUND(AVG(${userEvents.durationMs}))::integer`,
+          medianMs: sql<number | null>`(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ${userEvents.durationMs}))::integer`,
+          p90Ms: sql<number | null>`(PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY ${userEvents.durationMs}))::integer`,
+        })
+        .from(userEvents)
+        .where(where)
+        .groupBy(userEvents.pagePath)
+        .orderBy(sql`COUNT(*) DESC`, userEvents.pagePath)
+        .$dynamic(),
+      page,
+      pageSize,
+    ),
     db
       .select({
         totalVisits: sql<number>`COUNT(*)::int`,
@@ -646,9 +676,10 @@ export async function getPageStats(q: PageStatsQuery) {
       })
       .from(userEvents)
       .where(where),
+    countDistinctGroups(userEvents.pagePath, where),
   ]);
 
-  const items = rows.map((r) => ({
+  const list = rows.map((r) => ({
     pagePath: r.pagePath,
     pageTitle: r.pageTitle,
     visits: Number(r.visits),
@@ -657,46 +688,54 @@ export async function getPageStats(q: PageStatsQuery) {
     p90Ms: r.p90Ms == null ? null : Number(r.p90Ms),
   }));
   return {
-    items,
+    list,
+    total,
+    page,
+    pageSize,
     totalVisits: Number(totals[0]?.totalVisits ?? 0),
     avgDwellMs: totals[0]?.avgDwellMs == null ? null : Number(totals[0].avgDwellMs),
   };
 }
 
-export interface FeatureStatsQuery { days?: number; limit?: number; pagePath?: string }
+export interface FeatureStatsQuery { days?: number; page?: number; pageSize?: number; pagePath?: string }
 export async function getFeatureStats(q: FeatureStatsQuery) {
   const days = clampDays(q.days, 30);
-  const limit = clampLimit(q.limit, 30);
+  const { page, pageSize } = normalizePageQuery(q);
   const start = startOfDaysAgo(days);
   const conditions = [eq(userEvents.eventType, 'feature_use'), isNotNull(userEvents.elementKey), gte(userEvents.createdAt, start)];
   if (q.pagePath) conditions.push(eq(userEvents.pagePath, q.pagePath));
   const where = mergeWhere(and(...conditions), tenantScope(userEvents));
 
-  const [rows, totalEvents] = await Promise.all([
-    db
-      .select({
-        pagePath: userEvents.pagePath,
-        elementKey: sql<string>`MAX(${userEvents.elementKey})`,
-        elementLabel: sql<string | null>`MAX(${userEvents.elementLabel})`,
-        componentArea: sql<string | null>`MAX(${userEvents.componentArea})`,
-        count: sql<number>`COUNT(*)::integer`,
-      })
-      .from(userEvents)
-      .where(where)
-      .groupBy(userEvents.pagePath, userEvents.elementKey)
-      .orderBy(sql`COUNT(*) DESC`)
-      .limit(limit),
+  const [rows, totalEvents, total] = await Promise.all([
+    withPagination(
+      db
+        .select({
+          pagePath: userEvents.pagePath,
+          elementKey: sql<string>`MAX(${userEvents.elementKey})`,
+          elementLabel: sql<string | null>`MAX(${userEvents.elementLabel})`,
+          componentArea: sql<string | null>`MAX(${userEvents.componentArea})`,
+          count: sql<number>`COUNT(*)::integer`,
+        })
+        .from(userEvents)
+        .where(where)
+        .groupBy(userEvents.pagePath, userEvents.elementKey)
+        .orderBy(sql`COUNT(*) DESC`, userEvents.pagePath)
+        .$dynamic(),
+      page,
+      pageSize,
+    ),
     db.$count(userEvents, where),
+    countGroups(sql`${userEvents.pagePath}, ${userEvents.elementKey}`, where),
   ]);
 
-  const items = rows.map((r) => ({
+  const list = rows.map((r) => ({
     pagePath: r.pagePath,
     elementKey: r.elementKey,
     elementLabel: r.elementLabel,
     componentArea: r.componentArea,
     count: Number(r.count),
   }));
-  return { items, totalEvents };
+  return { list, total, page, pageSize, totalEvents };
 }
 
 const HEATMAP_EVENT_TYPES = ['area_click', 'feature_use'] as const;
@@ -873,30 +912,34 @@ export async function getHeatmapPageList(q: HeatmapPageListQuery) {
   return { pages: Array.from(pageMap.values()).map((p) => ({ pagePath: p.pagePath, pageTitle: p.pageTitle, areas: Array.from(p.areas) })) };
 }
 
-export interface UserStatsQuery { days?: number; limit?: number }
+export interface UserStatsQuery { days?: number; page?: number; pageSize?: number }
 export async function getUserStats(q: UserStatsQuery) {
   const days = clampDays(q.days, 30);
-  const limit = clampLimit(q.limit, 20);
+  const { page, pageSize } = normalizePageQuery(q);
   const start = startOfDaysAgo(days);
   const where = mergeWhere(gte(userEvents.createdAt, start), tenantScope(userEvents));
 
   const [rows, totalRows] = await Promise.all([
-    db
-      .select({
-        userId: userEvents.userId,
-        username: userEvents.username,
-        totalEvents: sql<number>`COUNT(*)::integer`,
-        pageViews: sql<number>`SUM(CASE WHEN ${userEvents.eventType} = 'page_view' THEN 1 ELSE 0 END)::integer`,
-        uniquePages: countDistinct(userEvents.pagePath),
-        featureUses: sql<number>`SUM(CASE WHEN ${userEvents.eventType} = 'feature_use' THEN 1 ELSE 0 END)::integer`,
-        totalDwellMs: sql<number | null>`SUM(CASE WHEN ${userEvents.eventType} = 'page_leave' THEN ${userEvents.durationMs} ELSE NULL END)::bigint`,
-        lastActiveAt: sql<Date | null>`MAX(${userEvents.createdAt})`,
-      })
-      .from(userEvents)
-      .where(where)
-      .groupBy(userEvents.userId, userEvents.username)
-      .orderBy(sql`COUNT(*) DESC`)
-      .limit(limit),
+    withPagination(
+      db
+        .select({
+          userId: userEvents.userId,
+          username: userEvents.username,
+          totalEvents: sql<number>`COUNT(*)::integer`,
+          pageViews: sql<number>`SUM(CASE WHEN ${userEvents.eventType} = 'page_view' THEN 1 ELSE 0 END)::integer`,
+          uniquePages: countDistinct(userEvents.pagePath),
+          featureUses: sql<number>`SUM(CASE WHEN ${userEvents.eventType} = 'feature_use' THEN 1 ELSE 0 END)::integer`,
+          totalDwellMs: sql<number | null>`SUM(CASE WHEN ${userEvents.eventType} = 'page_leave' THEN ${userEvents.durationMs} ELSE NULL END)::bigint`,
+          lastActiveAt: sql<Date | null>`MAX(${userEvents.createdAt})`,
+        })
+        .from(userEvents)
+        .where(where)
+        .groupBy(userEvents.userId, userEvents.username)
+        .orderBy(sql`COUNT(*) DESC`, userEvents.userId)
+        .$dynamic(),
+      page,
+      pageSize,
+    ),
     db
       .select({
         total: sql<number>`COUNT(DISTINCT (COALESCE(${userEvents.userId}::text, 'anonymous') || ':' || COALESCE(${userEvents.username}, '')))::int`,
@@ -905,7 +948,7 @@ export async function getUserStats(q: UserStatsQuery) {
       .where(where),
   ]);
 
-  const items = rows.map((r) => ({
+  const list = rows.map((r) => ({
     userId: r.userId,
     username: r.username,
     totalEvents: Number(r.totalEvents),
@@ -915,7 +958,7 @@ export async function getUserStats(q: UserStatsQuery) {
     totalDwellMs: r.totalDwellMs == null ? null : Number(r.totalDwellMs),
     lastActiveAt: formatNullableDateTime(r.lastActiveAt),
   }));
-  return { items, totalUsers: Number(totalRows[0]?.total ?? 0) };
+  return { list, total: Number(totalRows[0]?.total ?? 0), page, pageSize };
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -978,28 +1021,26 @@ export async function listSessions(q: SessionListQuery) {
 // 路径分析（页面跳转 Sankey）
 // ════════════════════════════════════════════════════════════════════════════
 
-const PATH_MAX_STEPS_DEFAULT = 5;
+const PATH_LINK_LIMIT_DEFAULT = 30;
 
 /**
- * 路径分析：按会话内**步序**聚合相邻跳转。
+ * 路径分析：聚合会话内**全部相邻跳转**（页面级节点）。
  *
- * 节点身份是「步序 × 页面」而非单纯页面，因此链路只会从第 N 步流向第 N+1 步，
- * 天然无环 —— 页面互跳（`/ ⇄ /profile`）在按页面建模时会形成环，桑基图无法渲染。
+ * 不做会话步序锚定 —— 后台 SPA 一个会话常有几十次跳转，按「会话第 N 步」截断会让
+ * 除开头几步之外的所有跳转永远不可见。
+ *
+ * 代价是跳转图天然带环（`/ ⇄ /profile` 互跳），而桑基布局无法表达回边，
+ * 因此这里用 DFS 挑出一组反馈弧标记 `cyclic`：图只渲染非回边，明细表仍是完整数据。
  */
-export async function getPathAnalysis(input: { days?: number; limit?: number; startPage?: string; maxSteps?: number }) {
+export async function getPathAnalysis(input: { days?: number; limit?: number; startPage?: string }) {
   const days = clampDays(input.days, 30);
-  const perStepLimit = clampLimit(input.limit, 8, 30);
-  const maxSteps = Math.min(Math.max(Math.trunc(input.maxSteps ?? PATH_MAX_STEPS_DEFAULT), 2), 10);
+  const limit = clampLimit(input.limit, PATH_LINK_LIMIT_DEFAULT, 100);
   const start = startOfDaysAgo(days);
   // sessionId 为空的事件无法还原会话内顺序，纳入会把不相关访问串成假路径
   const where = mergeWhere(
     and(eq(userEvents.eventType, 'page_view'), gte(userEvents.createdAt, start), isNotNull(userEvents.sessionId)),
     tenantScope(userEvents),
   )!;
-  // 指定起点时，以该页面在会话中首次出现的位置作为第 1 步重新编号；未指定则整段会话从第 1 步开始
-  const anchorExpr = input.startPage
-    ? sql`MIN(step) FILTER (WHERE page_path = ${input.startPage}) OVER (PARTITION BY session_id)`
-    : sql`1`;
 
   const rows = (await db.execute(sql`
     WITH seq AS (
@@ -1011,73 +1052,160 @@ export async function getPathAnalysis(input: { days?: number; limit?: number; st
       WHERE ${where}
     ),
     cleaned AS (
-      SELECT session_id, page_path,
-             ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY rn) AS step
+      -- 折叠连续重复页面（刷新、局部跳转），否则会产生自环
+      SELECT session_id, page_path, rn
       FROM seq
       WHERE prev_page IS NULL OR prev_page <> page_path
     ),
-    anchored AS (
-      SELECT session_id, page_path, step, ${anchorExpr} AS anchor
-      FROM cleaned
-    ),
-    based AS (
-      SELECT session_id, page_path, (step - anchor + 1)::int AS step
-      FROM anchored
-      WHERE anchor IS NOT NULL AND step >= anchor
-    ),
     pairs AS (
-      SELECT step, page_path AS source,
-             LEAD(page_path) OVER (PARTITION BY session_id ORDER BY step) AS next_page
-      FROM based
-    ),
-    agg AS (
-      -- 会话在此结束（next_page 为空）归入退出节点：丢掉这部分流量会让桑基图凭空变细，
-      -- 看不出每一步流失了多少
-      SELECT step, source, COALESCE(next_page, ${ANALYTICS_PATH_EXIT_PAGE}) AS target, COUNT(*)::int AS value
-      FROM pairs
-      WHERE step < ${maxSteps}
-      GROUP BY 1, 2, 3
-    ),
-    ranked AS (
-      SELECT step, source, target, value,
-             ROW_NUMBER() OVER (PARTITION BY step ORDER BY value DESC, source, target) AS rk
-      FROM agg
+      SELECT page_path AS source,
+             LEAD(page_path) OVER (PARTITION BY session_id ORDER BY rn) AS next_page
+      FROM cleaned
     )
-    SELECT step, source, target, value
-    FROM ranked
-    WHERE rk <= ${perStepLimit}
-    ORDER BY step, value DESC
-  `)) as unknown as Array<{ step: number; source: string; target: string; value: number }>;
+    -- 会话在此结束（next_page 为空）归入退出节点：丢掉这部分流量会让桑基图凭空变细
+    SELECT source, COALESCE(next_page, ${ANALYTICS_PATH_EXIT_PAGE}) AS target, COUNT(*)::int AS value
+    FROM pairs
+    GROUP BY 1, 2
+    ORDER BY value DESC, source, target
+  `)) as unknown as Array<{ source: string; target: string; value: number }>;
 
-  const nodeId = (step: number, page: string) => `s${step}:${page}`;
-  const nodeMap = new Map<string, PathNodeAcc>();
-  const touchNode = (step: number, page: string) => {
-    const id = nodeId(step, page);
-    let node = nodeMap.get(id);
+  const allLinks = rows.map((r) => ({ source: r.source, target: r.target, value: Number(r.value) }));
+  const totalTransitions = allLinks.reduce((sum, l) => sum + l.value, 0);
+
+  const scoped = input.startPage ? reachableFrom(allLinks, input.startPage) : allLinks;
+  const kept = scoped.slice(0, limit);
+  const cyclicSet = findFeedbackArcs(kept);
+
+  const nodeAcc = new Map<string, { id: string; out: number; in: number }>();
+  const touch = (id: string) => {
+    let node = nodeAcc.get(id);
     if (!node) {
-      node = { id, label: page, step, out: 0, in: 0 };
-      nodeMap.set(id, node);
+      node = { id, out: 0, in: 0 };
+      nodeAcc.set(id, node);
     }
     return node;
   };
-
-  const links = rows.map((r) => {
-    const step = Number(r.step);
-    const value = Number(r.value);
-    touchNode(step, r.source).out += value;
-    touchNode(step + 1, r.target).in += value;
-    return { source: nodeId(step, r.source), target: nodeId(step + 1, r.target), value, step };
+  const links = kept.map((l) => {
+    touch(l.source).out += l.value;
+    touch(l.target).in += l.value;
+    return { ...l, cyclic: cyclicSet.has(linkKey(l)) };
   });
 
-  const nodes = [...nodeMap.values()]
-    .sort((a, b) => a.step - b.step || b.out + b.in - (a.out + a.in))
-    // 节点体量取进出流量的较大值：首层没有入流、末层没有出流，取和会让两端偏小
-    .map((n) => ({ id: n.id, label: n.label, step: n.step, value: Math.max(n.out, n.in) }));
+  const nodes = [...nodeAcc.values()]
+    // 节点体量取进出流量的较大值：入口没有入流、退出没有出流，取和会让两端偏小
+    .map((n) => ({ id: n.id, label: n.id, value: Math.max(n.out, n.in) }))
+    .sort((a, b) => b.value - a.value || a.id.localeCompare(b.id));
 
-  return { nodes, links, maxStep: nodes.reduce((max, n) => Math.max(max, n.step), 0) };
+  return {
+    nodes,
+    links,
+    totalTransitions,
+    cyclicValue: links.filter((l) => l.cyclic).reduce((sum, l) => sum + l.value, 0),
+  };
 }
 
-interface PathNodeAcc { id: string; label: string; step: number; out: number; in: number }
+interface RawPathLink { source: string; target: string; value: number }
+
+function linkKey(l: RawPathLink): string {
+  return `${l.source}\u0000${l.target}`;
+}
+
+/** 从起点页出发按前向边可达的子图（含起点自身的出边） */
+function reachableFrom(links: readonly RawPathLink[], startPage: string): RawPathLink[] {
+  const outgoing = new Map<string, RawPathLink[]>();
+  for (const l of links) {
+    const bucket = outgoing.get(l.source);
+    if (bucket) bucket.push(l);
+    else outgoing.set(l.source, [l]);
+  }
+  const seen = new Set<string>([startPage]);
+  const queue = [startPage];
+  const picked: RawPathLink[] = [];
+  while (queue.length > 0) {
+    for (const l of outgoing.get(queue.shift()!) ?? []) {
+      picked.push(l);
+      if (!seen.has(l.target)) {
+        seen.add(l.target);
+        queue.push(l.target);
+      }
+    }
+  }
+  return picked;
+}
+
+/**
+ * 挑一组反馈弧（回边），移除后剩余图必然无环。
+ *
+ * 用 Eades–Lin–Smyth 贪心：反复摘掉汇点（排到队尾）与源点（排到队头），
+ * 都没有时取「出流 − 入流」最大的节点排到队头；最后按该线性序，凡是从后指向前的边即回边。
+ *
+ * 不用朴素 DFS：像 /analytics/behavior 这种进出都很重的枢纽页会被 DFS 最先访问，
+ * 于是所有回指它的边统统变成回边（实测 55 次跳转里被判掉 13 次，近四分之一流量凭空消失）。
+ * 贪心序会把枢纽排在中间，两侧的边各自成为前向边。
+ */
+function findFeedbackArcs(links: readonly RawPathLink[]): Set<string> {
+  const remaining = new Set<string>();
+  for (const l of links) {
+    remaining.add(l.source);
+    remaining.add(l.target);
+  }
+
+  const outW = new Map<string, number>();
+  const inW = new Map<string, number>();
+  const recompute = () => {
+    outW.clear();
+    inW.clear();
+    for (const id of remaining) {
+      outW.set(id, 0);
+      inW.set(id, 0);
+    }
+    for (const l of links) {
+      if (!remaining.has(l.source) || !remaining.has(l.target)) continue;
+      outW.set(l.source, (outW.get(l.source) ?? 0) + l.value);
+      inW.set(l.target, (inW.get(l.target) ?? 0) + l.value);
+    }
+  };
+
+  const head: string[] = [];
+  const tail: string[] = [];
+  while (remaining.size > 0) {
+    recompute();
+    const sinks = [...remaining].filter((id) => (outW.get(id) ?? 0) === 0);
+    if (sinks.length > 0) {
+      for (const id of sinks) {
+        tail.unshift(id);
+        remaining.delete(id);
+      }
+      continue;
+    }
+    const sources = [...remaining].filter((id) => (inW.get(id) ?? 0) === 0);
+    if (sources.length > 0) {
+      for (const id of sources) {
+        head.push(id);
+        remaining.delete(id);
+      }
+      continue;
+    }
+    let best = '';
+    let bestScore = Number.NEGATIVE_INFINITY;
+    for (const id of remaining) {
+      const score = (outW.get(id) ?? 0) - (inW.get(id) ?? 0);
+      if (score > bestScore) {
+        bestScore = score;
+        best = id;
+      }
+    }
+    head.push(best);
+    remaining.delete(best);
+  }
+
+  const order = new Map([...head, ...tail].map((id, index) => [id, index]));
+  const back = new Set<string>();
+  for (const l of links) {
+    if ((order.get(l.source) ?? 0) >= (order.get(l.target) ?? 0)) back.add(linkKey(l));
+  }
+  return back;
+}
 
 // ════════════════════════════════════════════════════════════════════════════
 // 用户行为时间线
@@ -1212,9 +1340,9 @@ const DIMENSION_COLUMN: Record<string, PgColumn> = {
   page: userEvents.pagePath,
 };
 
-export async function getDimensionBreakdown(input: { days?: number; dimension: string; limit?: number }) {
+export async function getDimensionBreakdown(input: { days?: number; dimension: string; page?: number; pageSize?: number }) {
   const days = clampDays(input.days, 30);
-  const limit = clampLimit(input.limit, 12, 50);
+  const { page, pageSize } = normalizePageQuery(input);
   const dimension = input.dimension in DIMENSION_COLUMN ? input.dimension : 'browser';
   const col = DIMENSION_COLUMN[dimension];
   const onlyPv = dimension === 'page';
@@ -1272,15 +1400,16 @@ export async function getDimensionBreakdown(input: { days?: number; dimension: s
     }
   }
 
-  const items = [...counts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit)
+  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const list = sorted
+    .slice(pageOffset(page, pageSize), pageOffset(page, pageSize) + pageSize)
     .map(([name, value]) => ({
       name: name || unknownLabel,
       value,
+      // percent 分母始终是全量样本量，翻页不会让占比重新归一
       percent: total > 0 ? Math.round((value / total) * 1000) / 10 : 0,
     }));
-  return { dimension, total, items };
+  return { dimension, totalValue: total, list, total: sorted.length, page, pageSize };
 }
 
 /** 双维交叉分布：dim1 取 Top N 行，dim2 取全局 Top 8 列（其余归入「其他」）。 */

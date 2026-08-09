@@ -30,7 +30,9 @@ function makeChain(rows: unknown[]): any {
   chain.where = vi.fn(() => chain);
   chain.groupBy = vi.fn(() => chain);
   chain.orderBy = vi.fn(() => chain);
-  chain.limit = vi.fn(async () => rows);
+  chain.limit = vi.fn(() => chain);
+  chain.offset = vi.fn(async () => rows);
+  chain.$dynamic = vi.fn(() => chain);
   return chain;
 }
 
@@ -59,7 +61,7 @@ describe('queryEvents — groupBy 白名单 + 属性注入防护 + tenantScope +
     const result = await queryEvents({});
     expect(result.queryMeta.groupBy).toEqual(['date']);
     expect(result.queryMeta.metric).toBe('events');
-    expect(result.rows).toEqual([{ dimensions: { date: '2026-01-01' }, value: 5 }]);
+    expect(result.list).toEqual([{ dimensions: { date: '2026-01-01' }, value: 5 }]);
     expect(result.total).toBe(1);
   });
 
@@ -93,11 +95,19 @@ describe('queryEvents — groupBy 白名单 + 属性注入防护 + tenantScope +
     expect(tenantScope).toHaveBeenCalledTimes(1);
   });
 
-  it('clamps limit to the [1, 200] range', async () => {
+  it('clamps pageSize to the [1, 200] range', async () => {
     const chain = makeChain([]);
     select.mockReturnValue(chain);
-    await queryEvents({ limit: 5000 });
+    await queryEvents({ pageSize: 5000 });
     expect(chain.limit).toHaveBeenCalledWith(200);
+  });
+
+  it('translates page into an offset so paging actually skips rows', async () => {
+    const chain = makeChain([]);
+    select.mockReturnValue(chain);
+    await queryEvents({ page: 3, pageSize: 20 });
+    expect(chain.limit).toHaveBeenCalledWith(20);
+    expect(chain.offset).toHaveBeenCalledWith(40);
   });
 
   it('switches to UV metric (distinct distinctId count) when metric=uv is requested', async () => {

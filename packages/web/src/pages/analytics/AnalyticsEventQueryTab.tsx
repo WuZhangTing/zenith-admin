@@ -2,12 +2,13 @@
  * 行为中心阶段 1：通用事件分析工作台 —— 自定义事件 + 维度 + 指标查询，展示图表 + 明细表格。
  */
 import { useMemo, useState } from 'react';
-import { Card, DatePicker, Empty, InputNumber, Select, Typography } from '@douyinfe/semi-ui';
+import { Card, DatePicker, Empty, Select, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { BarChart, chartOptions, makeBarSpec, useChartPalette } from '@/components/charts';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { formatDateForApi } from '@/utils/date';
 import { useAnalyticsEventMeta, useAnalyticsEventQuery } from '@/hooks/queries/analytics';
+import { usePagination } from '@/hooks/usePagination';
 import type { AnalyticsEventQueryGroupByField, AnalyticsEventQueryInput, AnalyticsEventQueryMetric, AnalyticsEventQueryRow } from '@zenith/shared/analytics';
 import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_ENVIRONMENT_OPTIONS, ANALYTICS_EVENT_QUERY_GROUP_BY_LABELS, ANALYTICS_EVENT_QUERY_GROUP_BY_OPTIONS, ANALYTICS_EVENT_QUERY_METRIC_OPTIONS, ANALYTICS_EVENT_SOURCE_OPTIONS } from '@zenith/shared/analytics';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
@@ -24,7 +25,6 @@ interface EventQueryDraft {
   deviceType?: string;
   groupBy: AnalyticsEventQueryGroupByField[];
   metric: AnalyticsEventQueryMetric;
-  limit: number;
 }
 
 const defaultDraft: EventQueryDraft = {
@@ -32,7 +32,6 @@ const defaultDraft: EventQueryDraft = {
   eventNames: [],
   groupBy: ['date'],
   metric: 'events',
-  limit: 100,
 };
 
 function rowKey(row?: AnalyticsEventQueryRow, index?: number): string {
@@ -42,10 +41,17 @@ function rowKey(row?: AnalyticsEventQueryRow, index?: number): string {
 
 export default function AnalyticsEventQueryTab() {
   const [draft, setDraft] = useState<EventQueryDraft>(defaultDraft);
+  const [submitted, setSubmitted] = useState<AnalyticsEventQueryInput | null>(null);
   const palette = useChartPalette();
-  const queryMutation = useAnalyticsEventQuery();
-  const result = queryMutation.data ?? null;
-  const loading = queryMutation.isPending;
+  const { page, pageSize, resetPage, buildPagination } = usePagination();
+  // 分页参数不进 submitted：翻页只改 page/pageSize，不应算作一次新的查询提交
+  const queryInput = useMemo<AnalyticsEventQueryInput | null>(
+    () => (submitted ? { ...submitted, page, pageSize } : null),
+    [submitted, page, pageSize],
+  );
+  const eventQuery = useAnalyticsEventQuery(queryInput);
+  const result = eventQuery.data ?? null;
+  const loading = eventQuery.isFetching;
 
   // 事件名 lookup：从事件字典拉取，供多选下拉使用（最多展示 200 条，业务量级下足够覆盖）
   const eventMetaQuery = useAnalyticsEventMeta({ page: 1, pageSize: 200 });
@@ -58,9 +64,13 @@ export default function AnalyticsEventQueryTab() {
     setDraft((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleReset = () => setDraft(defaultDraft);
+  const handleReset = () => {
+    setDraft(defaultDraft);
+    setSubmitted(null);
+    resetPage();
+  };
 
-  const handleQuery = async () => {
+  const handleQuery = () => {
     const body: AnalyticsEventQueryInput = {
       eventNames: draft.eventNames.length ? draft.eventNames.slice(0, 20) : undefined,
       source: (draft.source as AnalyticsEventQueryInput['source']) || undefined,
@@ -69,7 +79,6 @@ export default function AnalyticsEventQueryTab() {
       deviceType: (draft.deviceType as AnalyticsEventQueryInput['deviceType']) || undefined,
       groupBy: draft.groupBy.length ? draft.groupBy : ['date'],
       metric: draft.metric,
-      limit: draft.limit,
     };
     if (draft.dateRange) {
       body.startDate = formatDateForApi(draft.dateRange[0]);
@@ -77,15 +86,16 @@ export default function AnalyticsEventQueryTab() {
     } else {
       body.days = draft.days;
     }
-    await queryMutation.mutateAsync(body);
+    resetPage();
+    setSubmitted(body);
   };
 
   const primaryDim = result?.queryMeta.groupBy[0];
   const metricLabel = ANALYTICS_EVENT_QUERY_METRIC_OPTIONS.find((o) => o.value === (result?.queryMeta.metric ?? draft.metric))?.label ?? '指标值';
 
   const chartData = useMemo(
-    () => (result?.rows ?? []).map((row) => ({ __label: primaryDim ? row.dimensions[primaryDim] ?? '–' : '–', value: row.value })),
-    [result?.rows, primaryDim],
+    () => (result?.list ?? []).map((row) => ({ __label: primaryDim ? row.dimensions[primaryDim] ?? '–' : '–', value: row.value })),
+    [result?.list, primaryDim],
   );
 
   const barSpec = useMemo(() => makeBarSpec({
@@ -178,21 +188,17 @@ export default function AnalyticsEventQueryTab() {
               />
             </div>
           </div>
-          <div>
-            <Typography.Text type="tertiary" size="small">结果行数上限</Typography.Text>
-            <InputNumber value={draft.limit} min={1} max={200} onChange={(v) => updateDraft('limit', Number(v) || 100)} style={{ width: '100%' }} />
-          </div>
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-          <SearchButton onClick={() => void handleQuery()} loading={loading} />
+          <SearchButton onClick={handleQuery} loading={loading} />
           <ResetButton onClick={handleReset} />
         </div>
       </Card>
 
       <Card title="分析结果" bodyStyle={{ padding: 16 }}>
         {!result ? (
-          <Empty description={queryMutation.isError ? '查询失败，请检查筛选条件后重试' : '请配置筛选条件后点击查询'} />
-        ) : result.rows.length === 0 ? (
+          <Empty description={eventQuery.isError ? '查询失败，请检查筛选条件后重试' : '请配置筛选条件后点击查询'} />
+        ) : result.list.length === 0 ? (
           <Empty description="暂无匹配数据" />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -206,9 +212,9 @@ export default function AnalyticsEventQueryTab() {
               bordered
               rowKey={rowKey}
               columns={columns}
-              dataSource={result.rows}
-              pagination={false}
-              scroll={{ y: 420 }}
+              dataSource={result.list}
+              loading={loading}
+              pagination={buildPagination(result.total)}
               empty="暂无数据"
             />
           </div>

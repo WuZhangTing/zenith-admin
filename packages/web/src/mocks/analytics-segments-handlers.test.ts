@@ -98,7 +98,7 @@ describe('通用事件分析工作台 handler smoke', () => {
   it('按 eventName 分组返回聚合行，且 queryMeta 回显 groupBy/metric/区间', async () => {
     const j = await call('POST', '/api/analytics/events/query', { groupBy: ['eventName'], metric: 'events', days: 30 });
     expect(j.code).toBe(0);
-    expect(Array.isArray(j.data.rows)).toBe(true);
+    expect(Array.isArray(j.data.list)).toBe(true);
     expect(j.data.queryMeta.groupBy).toEqual(['eventName']);
     expect(j.data.queryMeta.metric).toBe('events');
     expect(typeof j.data.total).toBe('number');
@@ -110,9 +110,21 @@ describe('通用事件分析工作台 handler smoke', () => {
     expect(j.data.queryMeta.metric).toBe('uv');
   });
 
-  it('限制结果行数 limit', async () => {
-    const j = await call('POST', '/api/analytics/events/query', { groupBy: ['eventName'], metric: 'events', days: 30, limit: 2 });
-    expect(j.data.rows.length).toBeLessThanOrEqual(2);
+  it('按 page/pageSize 分页：单页行数不超过 pageSize，total 仍是全量分组数', async () => {
+    const j = await call('POST', '/api/analytics/events/query', { groupBy: ['eventName'], metric: 'events', days: 30, page: 1, pageSize: 2 });
+    expect(j.data.list.length).toBeLessThanOrEqual(2);
+    expect(j.data.page).toBe(1);
+    expect(j.data.pageSize).toBe(2);
+    expect(j.data.total).toBeGreaterThanOrEqual(j.data.list.length);
+  });
+
+  it('第 2 页返回与第 1 页不同的行（分页真的生效，而不是每页都给同一批）', async () => {
+    const body = { groupBy: ['eventName'], metric: 'events', days: 30, pageSize: 1 };
+    const p1 = await call('POST', '/api/analytics/events/query', { ...body, page: 1 });
+    const p2 = await call('POST', '/api/analytics/events/query', { ...body, page: 2 });
+    if (p1.data.total > 1) {
+      expect(p2.data.list[0]).not.toEqual(p1.data.list[0]);
+    }
   });
 });
 

@@ -18,6 +18,16 @@ const qualityIssueTypeEnum = z.enum(ANALYTICS_QUALITY_ISSUE_TYPES);
 const segmentCompareOpEnum = z.enum(ANALYTICS_SEGMENT_COMPARE_OPS);
 const eventQueryGroupByEnum = z.enum(ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS);
 const eventQueryMetricEnum = z.enum(ANALYTICS_EVENT_QUERY_METRICS);
+
+/**
+ * 分页公共字段。这些统计接口除列表外还要带全量汇总（totalVisits / totalEvents / totalValue…），
+ * 无法直接套 okPaginated（它只产出 list/total/page/pageSize），故在 DTO 里显式展开。
+ */
+const pagedFields = {
+  total: z.number().int(),
+  page: z.number().int(),
+  pageSize: z.number().int(),
+};
 const retentionModeEnum = z.enum(ANALYTICS_RETENTION_MODES);
 const campaignChannelEnum = z.enum(ANALYTICS_CAMPAIGN_CHANNELS);
 const campaignStatusEnum = z.enum(ANALYTICS_CAMPAIGN_STATUSES);
@@ -151,7 +161,12 @@ export const PageStatItemDTO = z
   .openapi('PageStatItem');
 
 export const PageStatsDTO = z
-  .object({ items: z.array(PageStatItemDTO), totalVisits: z.number().int(), avgDwellMs: z.number().int().nullable() })
+  .object({
+    ...pagedFields,
+    list: z.array(PageStatItemDTO),
+    totalVisits: z.number().int(),
+    avgDwellMs: z.number().int().nullable(),
+  })
   .openapi('PageStats');
 
 // ─── 功能使用 ─────────────────────────────────────────────────────────────────
@@ -166,7 +181,7 @@ export const FeatureStatItemDTO = z
   .openapi('FeatureStatItem');
 
 export const FeatureStatsDTO = z
-  .object({ items: z.array(FeatureStatItemDTO), totalEvents: z.number().int() })
+  .object({ ...pagedFields, list: z.array(FeatureStatItemDTO), totalEvents: z.number().int() })
   .openapi('FeatureStats');
 
 // ─── 热力图 ───────────────────────────────────────────────────────────────────
@@ -236,7 +251,7 @@ export const UserStatItemDTO = z
   })
   .openapi('UserStatItem');
 export const UserStatsDTO = z
-  .object({ items: z.array(UserStatItemDTO), totalUsers: z.number().int() })
+  .object({ ...pagedFields, list: z.array(UserStatItemDTO) })
   .openapi('UserStats');
 
 // ─── 会话 ─────────────────────────────────────────────────────────────────────
@@ -302,9 +317,10 @@ export const RetentionResultDTO = z
 // ─── 路径 ─────────────────────────────────────────────────────────────────────
 export const PathResultDTO = z
   .object({
-    nodes: z.array(z.object({ id: z.string(), label: z.string(), value: z.number().int(), step: z.number().int() })),
-    links: z.array(z.object({ source: z.string(), target: z.string(), value: z.number().int(), step: z.number().int() })),
-    maxStep: z.number().int(),
+    nodes: z.array(z.object({ id: z.string(), label: z.string(), value: z.number().int() })),
+    links: z.array(z.object({ source: z.string(), target: z.string(), value: z.number().int(), cyclic: z.boolean() })),
+    totalTransitions: z.number().int(),
+    cyclicValue: z.number().int(),
   })
   .openapi('PathResult');
 
@@ -388,9 +404,10 @@ export const CreateAnalyticsSavedReportDTO = z
 // ─── 维度分布 ─────────────────────────────────────────────────────────────────
 export const DimensionBreakdownDTO = z
   .object({
+    ...pagedFields,
     dimension: z.string(),
-    total: z.number().int(),
-    items: z.array(z.object({ name: z.string(), value: z.number().int(), percent: z.number() })),
+    totalValue: z.number().int(),
+    list: z.array(z.object({ name: z.string(), value: z.number().int(), percent: z.number() })),
   })
   .openapi('DimensionBreakdown');
 
@@ -663,14 +680,15 @@ export const AnalyticsEventQueryBodyDTO = z
     segmentId: z.number().int().positive().optional(),
     groupBy: z.array(eventQueryGroupByEnum).min(1).max(2).default(['date']),
     metric: eventQueryMetricEnum.default('events'),
-    limit: z.number().int().min(1).max(200).default(100),
+    page: z.number().int().min(1).default(1),
+    pageSize: z.number().int().min(1).max(200).default(20),
   })
   .openapi('AnalyticsEventQueryBody');
 
 export const AnalyticsEventQueryResultDTO = z
   .object({
-    rows: z.array(z.object({ dimensions: z.record(z.string(), z.string()), value: z.number() })),
-    total: z.number().int(),
+    ...pagedFields,
+    list: z.array(z.object({ dimensions: z.record(z.string(), z.string()), value: z.number() })),
     queryMeta: z.object({
       metric: eventQueryMetricEnum,
       groupBy: z.array(eventQueryGroupByEnum),

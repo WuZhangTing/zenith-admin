@@ -6,7 +6,8 @@
  *     而不是复用另一口径的缓存）
  *  2. useAnalyticsRetention 默认 mode='first_seen'，且请求 URL 携带 mode 参数
  *  3. useAnalyticsRetention 显式传入 mode='window_first' 时请求 URL 与 query key 均切换
- *  4. useAnalyticsEventQuery 是 mutation，POST 到 /api/analytics/events/query 并透传 body
+ *  4. useAnalyticsEventQuery 是 query（非 mutation），POST 到 /api/analytics/events/query 并透传 body，
+ *     未提交时保持 idle，翻页产生不同 query key
  *  5. useAnalyzeFunnel 是 mutation，POST 到 /api/analytics/funnel 并透传 body（含新增的 conversionWindowHours/segmentId）
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -56,12 +57,28 @@ describe('useAnalyticsRetention', () => {
   });
 });
 
-describe('useAnalyticsEventQuery — 通用事件分析工作台 mutation', () => {
+describe('useAnalyticsEventQuery — 通用事件分析工作台', () => {
   it('POSTs the query body verbatim to /api/analytics/events/query', async () => {
-    const { result } = renderHook(() => useAnalyticsEventQuery(), { wrapper: wrapper() });
-    const body = { groupBy: ['eventName' as const], metric: 'uv' as const, days: 7 };
-    await result.current.mutateAsync(body);
+    const body = { groupBy: ['eventName' as const], metric: 'uv' as const, days: 7, page: 2, pageSize: 20 };
+    const { result } = renderHook(() => useAnalyticsEventQuery(body), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(post).toHaveBeenCalledWith('/api/analytics/events/query', body);
+  });
+
+  it('stays idle until a query has been submitted, so opening the tab does not fire a request', () => {
+    const { result } = renderHook(() => useAnalyticsEventQuery(null), { wrapper: wrapper() });
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('gives different pages distinct query keys so paging refetches instead of reusing page 1', async () => {
+    const base = { groupBy: ['date' as const], metric: 'events' as const, days: 7, pageSize: 20 };
+    const { result: p1 } = renderHook(() => useAnalyticsEventQuery({ ...base, page: 1 }), { wrapper: wrapper() });
+    await waitFor(() => expect(p1.current.isSuccess).toBe(true));
+    const { result: p2 } = renderHook(() => useAnalyticsEventQuery({ ...base, page: 2 }), { wrapper: wrapper() });
+    await waitFor(() => expect(p2.current.isSuccess).toBe(true));
+    expect(post).toHaveBeenCalledTimes(2);
+    expect(post).toHaveBeenLastCalledWith('/api/analytics/events/query', { ...base, page: 2 });
   });
 });
 

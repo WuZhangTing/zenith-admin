@@ -34,6 +34,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { formatDateTime, formatDateForApi } from '@/utils/date';
 import { renderEllipsis } from '@/utils/table-columns';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { usePagination } from '@/hooks/usePagination';
 import {
   analyticsKeys,
   useAnalyzeFunnel,
@@ -92,6 +93,10 @@ const HEATMAP_SOURCE_OPTIONS = [
 ];
 
 const EMPTY_HEATMAP_PAGES: HeatmapPageListItem[] = [];
+
+/** 图表只做 TOP N 概览：treemap 叶子过多、饼图切片过多都读不出信息，因此与分页表格分开取数 */
+const CHART_TOP_N = 20;
+const DIMENSION_CHART_TOP_N = 12;
 
 const DIMENSION_OPTIONS = [
   { label: '浏览器', value: 'browser' },
@@ -330,7 +335,7 @@ function RealtimeTab() {
   );
 }
 
-type PageStatsRow = PageStats['items'][number] & { id: string };
+type PageStatsRow = PageStats['list'][number] & { id: string };
 type MutableTreemapNode = {
   name: string;
   value?: number;
@@ -392,14 +397,24 @@ function buildDwellTreemap(rows: readonly PageStatsRow[]): TreemapNode {
 function DwellTab() {
   const palette = useChartPalette();
   const [days, setDays] = useState(7);
-  const pageStatsQuery = useAnalyticsPageStats(days);
+  const { page, pageSize, resetPage, buildPagination } = usePagination();
+  // 图表固定订阅第 1 页：它是 TOP N 概览，不能跟着表格翻页；
+  // 表格停在第 1 页且页长相同时，TanStack 会把两个查询去重成一个请求
+  const chartQuery = useAnalyticsPageStats(days, 1, CHART_TOP_N);
+  const pageStatsQuery = useAnalyticsPageStats(days, page, pageSize);
   const data = pageStatsQuery.data ?? null;
   const loading = pageStatsQuery.isFetching;
 
-  const rows = useMemo<PageStatsRow[]>(() => (data?.items ?? []).map((item) => ({ ...item, id: item.pagePath })), [data]);
+  useEffect(() => { resetPage(); }, [days, resetPage]);
+
+  const rows = useMemo<PageStatsRow[]>(() => (data?.list ?? []).map((item) => ({ ...item, id: item.pagePath })), [data]);
+  const chartRows = useMemo<PageStatsRow[]>(
+    () => (chartQuery.data?.list ?? []).map((item) => ({ ...item, id: item.pagePath })),
+    [chartQuery.data],
+  );
   const maxAvg = useMemo(() => Math.max(1, ...rows.map((item) => item.avgMs ?? 0)), [rows]);
   const avgDwell = data?.avgDwellMs ?? null;
-  const dwellTreemapData = useMemo(() => buildDwellTreemap(rows), [rows]);
+  const dwellTreemapData = useMemo(() => buildDwellTreemap(chartRows), [chartRows]);
   const dwellTreemapSpec = useMemo(() => makeTreemapSpec({
     data: dwellTreemapData,
     palette,
@@ -448,11 +463,11 @@ function DwellTab() {
       />
       <StatGrid minItemWidth={190}>
         <StatCard title="总访问" value={numberText(data?.totalVisits ?? 0)} icon={<Eye size={19} />} accent={palette.primary} />
-        <StatCard title="统计页面" value={numberText(rows.length)} icon={<BarChart3 size={19} />} accent="#8b5cf6" />
+        <StatCard title="统计页面" value={numberText(data?.total ?? 0)} icon={<BarChart3 size={19} />} accent="#8b5cf6" />
         <StatCard title="平均停留" value={msToReadable(avgDwell)} icon={<Clock size={19} />} accent="#06b6d4" />
       </StatGrid>
-      <Card title="页面停留热区" bodyStyle={{ padding: 16 }}>
-        {!rows.length ? emptyOrSpin(loading, '暂无页面停留数据') : (
+      <Card title={`页面停留热区 TOP ${CHART_TOP_N}`} bodyStyle={{ padding: 16 }}>
+        {!chartRows.length ? emptyOrSpin(chartQuery.isFetching, '暂无页面停留数据') : (
           <TreemapChart {...dwellTreemapSpec} options={chartOptions} height={360} />
         )}
       </Card>
@@ -464,13 +479,13 @@ function DwellTab() {
         rowKey="id"
         onRefresh={() => void pageStatsQuery.refetch()}
         refreshLoading={loading}
-        pagination={false}
+        pagination={buildPagination(data?.total ?? 0)}
       />
     </div>
   );
 }
 
-type FeatureStatsRow = FeatureStats['items'][number] & { id: string; rank: number };
+type FeatureStatsRow = FeatureStats['list'][number] & { id: string; rank: number };
 
 function getFeaturePageLabel(pagePath: string): string {
   if (pagePath === '/') return '首页';
@@ -522,17 +537,27 @@ function buildFeatureTreemap(rows: readonly FeatureStatsRow[]): TreemapNode {
 function FeatureTab() {
   const palette = useChartPalette();
   const [days, setDays] = useState(7);
-  const featureStatsQuery = useAnalyticsFeatureStats(days);
+  const { page, pageSize, resetPage, buildPagination } = usePagination();
+  const chartQuery = useAnalyticsFeatureStats(days, 1, CHART_TOP_N);
+  const featureStatsQuery = useAnalyticsFeatureStats(days, page, pageSize);
   const data = featureStatsQuery.data ?? null;
   const loading = featureStatsQuery.isFetching;
 
-  const rows = useMemo<FeatureStatsRow[]>(() => (data?.items ?? []).map((item, index) => ({
+  useEffect(() => { resetPage(); }, [days, resetPage]);
+
+  // 排名是全局序号，不能用当前页下标，否则第 2 页又从 #1 开始
+  const rows = useMemo<FeatureStatsRow[]>(() => (data?.list ?? []).map((item, index) => ({
+    ...item,
+    id: `${item.pagePath}:${item.elementKey}:${index}`,
+    rank: (page - 1) * pageSize + index + 1,
+  })), [data, page, pageSize]);
+  const chartRows = useMemo<FeatureStatsRow[]>(() => (chartQuery.data?.list ?? []).map((item, index) => ({
     ...item,
     id: `${item.pagePath}:${item.elementKey}:${index}`,
     rank: index + 1,
-  })), [data]);
+  })), [chartQuery.data]);
   const maxCount = useMemo(() => Math.max(1, ...rows.map((item) => item.count)), [rows]);
-  const treemapData = useMemo(() => buildFeatureTreemap(rows), [rows]);
+  const treemapData = useMemo(() => buildFeatureTreemap(chartRows), [chartRows]);
   const treemapSpec = useMemo(() => makeTreemapSpec({
     data: treemapData,
     palette,
@@ -574,8 +599,8 @@ function FeatureTab() {
         description={`总事件 ${numberText(data?.totalEvents ?? 0)}`}
         extra={<Select value={days} optionList={DAYS_OPTIONS} onChange={(v) => setDays(Number(v))} style={{ width: 120 }} />}
       />
-      <Card title="功能热点" bodyStyle={{ padding: 16 }}>
-        {!rows.length ? emptyOrSpin(loading, '暂无功能使用数据') : (
+      <Card title={`功能热点 TOP ${CHART_TOP_N}`} bodyStyle={{ padding: 16 }}>
+        {!chartRows.length ? emptyOrSpin(chartQuery.isFetching, '暂无功能使用数据') : (
           <TreemapChart {...treemapSpec} options={chartOptions} height={360} />
         )}
       </Card>
@@ -587,7 +612,7 @@ function FeatureTab() {
         rowKey="id"
         onRefresh={() => void featureStatsQuery.refetch()}
         refreshLoading={loading}
-        pagination={false}
+        pagination={buildPagination(data?.total ?? 0)}
       />
     </div>
   );
@@ -1117,13 +1142,6 @@ function RetentionTab() {
   );
 }
 
-const PATH_STEP_OPTIONS = [
-  { label: '3 步', value: 3 },
-  { label: '4 步', value: 4 },
-  { label: '5 步', value: 5 },
-  { label: '6 步', value: 6 },
-];
-
 const PATH_EXIT_COLOR = '#94a3b8';
 
 function pathNodeText(label: string): string {
@@ -1147,38 +1165,47 @@ function buildPageColorIndex(labels: readonly string[]): Map<string, number> {
   return map;
 }
 
+const PATH_LINK_LIMIT_OPTIONS = [
+  { label: 'Top 20 链路', value: 20 },
+  { label: 'Top 30 链路', value: 30 },
+  { label: 'Top 50 链路', value: 50 },
+  { label: 'Top 100 链路', value: 100 },
+];
+
 type PathLinkRow = PathLink & { id: string; sourceLabel: string; targetLabel: string };
 
 function PathTab() {
   const palette = useChartPalette();
   const [days, setDays] = useState(7);
-  const [maxSteps, setMaxSteps] = useState(5);
+  const [linkLimit, setLinkLimit] = useState(30);
   const [startPageInput, setStartPageInput] = useState('');
   const [startPage, setStartPage] = useState('');
-  const pathQuery = useAnalyticsPath(days, startPage || undefined, maxSteps);
+  const { page, pageSize, resetPage, buildPagination } = usePagination();
+  const pathQuery = useAnalyticsPath(days, startPage || undefined, linkLimit);
   const data = pathQuery.data ?? null;
   const loading = pathQuery.isFetching;
 
+  useEffect(() => { resetPage(); }, [days, linkLimit, startPage, resetPage]);
+
   const nodes = useMemo(() => data?.nodes ?? [], [data]);
   const links = useMemo(() => data?.links ?? [], [data]);
+  // 桑基布局无法表达回边，只喂非回边；被排除的部分在图下方与明细表如实标出
+  const acyclicLinks = useMemo(() => links.filter((link) => !link.cyclic), [links]);
   const nodeLabelMap = useMemo(() => new Map(nodes.map((node) => [node.id, node.label])), [nodes]);
   const pageColorIndex = useMemo(() => buildPageColorIndex(nodes.map((node) => node.label)), [nodes]);
 
   const sankeySpec = useMemo(() => makeSankeySpec({
     nodes: nodes.map((node) => ({ ...node })),
-    links: links.map((link) => ({ ...link })),
+    links: acyclicLinks.map((link) => ({ ...link })),
     palette,
     nodeColor: (node) => (node.label === ANALYTICS_PATH_EXIT_PAGE
       ? PATH_EXIT_COLOR
       : chartColor(pageColorIndex.get(String(node.label)) ?? 0, palette.primary)),
-    // 步序即层级：退出节点没有出边，不锁层会被布局推到最右列，看起来像是最后一步才流失
-    nodeLayer: (node) => Number(node.step) - 1,
     nodeLabel: (node) => pathNodeShortText(String(node.label)),
     valueFormatter: numberText,
     tooltip: {
       nodeTitle: (datum) => pathNodeText(datumText(datum, 'label')),
       nodeItems: [
-        { key: '步序', value: (datum) => `第 ${datumNumber(datum, 'step')} 步` },
         { key: '流量', value: (datum) => `${numberText(datumNumber(datum, 'value'))} 次` },
       ],
       linkTitle: (datum) => {
@@ -1188,10 +1215,9 @@ function PathTab() {
       },
       linkItems: [
         { key: '跳转', value: (datum) => `${numberText(datumNumber(datum, 'value'))} 次` },
-        { key: '步序', value: (datum) => `第 ${datumNumber(datum, 'step')} → ${datumNumber(datum, 'step') + 1} 步` },
       ],
     },
-  }), [links, nodeLabelMap, nodes, pageColorIndex, palette]);
+  }), [acyclicLinks, nodeLabelMap, nodes, pageColorIndex, palette]);
 
   const rows = useMemo<PathLinkRow[]>(() => [...links]
     .sort((a, b) => b.value - a.value)
@@ -1202,9 +1228,10 @@ function PathTab() {
       targetLabel: pathNodeText(nodeLabelMap.get(link.target) ?? link.target),
     })), [links, nodeLabelMap]);
   const maxValue = useMemo(() => Math.max(1, ...rows.map((row) => row.value)), [rows]);
+  // 图与表同源（都来自这一次查询的 links），表格在本地切页即可，不需要再发一次请求
+  const pagedRows = useMemo(() => rows.slice((page - 1) * pageSize, page * pageSize), [rows, page, pageSize]);
 
   const columns: ColumnProps<PathLinkRow>[] = [
-    { title: '步序', dataIndex: 'step', width: 110, render: (value) => <Tag color="blue">第 {String(value)} 步</Tag> },
     { title: '来源页面', dataIndex: 'sourceLabel', render: (value) => renderEllipsis(String(value)) },
     {
       title: '去向页面',
@@ -1224,13 +1251,21 @@ function PathTab() {
         </div>
       ),
     },
+    {
+      title: '图中展示',
+      dataIndex: 'cyclic',
+      width: 130,
+      render: (_value, record) => (record.cyclic
+        ? <Tag color="orange">回流·未入图</Tag>
+        : <Tag color="green">已入图</Tag>),
+    },
   ];
 
   return (
     <div style={sectionStyle}>
       <SectionHeader
         title="页面跳转路径"
-        description="按会话内步序展开的路径流"
+        description="会话内全部相邻跳转"
         extra={(
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <Input
@@ -1244,18 +1279,26 @@ function PathTab() {
               style={{ width: 220 }}
             />
             <SearchButton onClick={() => setStartPage(startPageInput.trim())} />
-            <Select prefix="深度" value={maxSteps} optionList={PATH_STEP_OPTIONS} onChange={(v) => setMaxSteps(Number(v))} style={{ width: 130 }} />
+            <Select value={linkLimit} optionList={PATH_LINK_LIMIT_OPTIONS} onChange={(v) => setLinkLimit(Number(v))} style={{ width: 150 }} />
             <Select value={days} optionList={DAYS_OPTIONS} onChange={(v) => setDays(Number(v))} style={{ width: 120 }} />
           </div>
         )}
       />
+      <StatGrid minItemWidth={190}>
+        <StatCard title="跳转总次数" value={numberText(data?.totalTransitions ?? 0)} icon={<Activity size={19} />} accent={palette.primary} />
+        <StatCard title="展示链路" value={numberText(links.length)} icon={<BarChart3 size={19} />} accent="#8b5cf6" />
+        <StatCard title="回流未入图" value={numberText(data?.cyclicValue ?? 0)} icon={<RefreshCcw size={19} />} accent="#f59e0b" />
+      </StatGrid>
       <Card title="路径流" bodyStyle={{ padding: 16 }}>
-        {!links.length ? emptyOrSpin(loading, '暂无路径数据') : (
+        {!acyclicLinks.length ? emptyOrSpin(loading, '暂无路径数据') : (
           <div>
             <SankeyChart {...sankeySpec} options={chartOptions} height={420} />
             <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 10 }}>
-              节点按「步序 × 页面」展开，同一页面在不同步序上同色；灰色为该步流失（会话结束）；每步只保留跳转量最高的 8 条链路
-              {startPage ? `；以 ${startPage} 首次出现处作为第 1 步` : ''}
+              节点是页面，灰色为退出（会话结束）；按跳转量取前 {linkLimit} 条链路
+              {links.length > acyclicLinks.length
+                ? `；其中 ${links.length - acyclicLinks.length} 条回流链路（页面互跳）无法在桑基图中表达，已在下方明细表标出`
+                : ''}
+              {startPage ? `；仅显示从 ${startPage} 可达的部分` : ''}
             </Typography.Text>
           </div>
         )}
@@ -1265,12 +1308,12 @@ function PathTab() {
           <ConfigurableTable<PathLinkRow>
             bordered
             columns={columns}
-            dataSource={rows}
+            dataSource={pagedRows}
             loading={loading}
             rowKey="id"
             onRefresh={() => void pathQuery.refetch()}
             refreshLoading={loading}
-            pagination={{ pageSize: 10, showSizeChanger: true, pageSizeOpts: [10, 20, 50] }}
+            pagination={buildPagination(rows.length)}
           />
         )}
       </Card>
@@ -1278,24 +1321,27 @@ function PathTab() {
   );
 }
 
-type UserStatsRow = UserStats['items'][number] & { id: string; rank: number };
+type UserStatsRow = UserStats['list'][number] & { id: string; rank: number };
 
 function UsersTab() {
   const [days, setDays] = useState(7);
   const [timelineVisible, setTimelineVisible] = useState(false);
   const [timelineUserId, setTimelineUserId] = useState<number | null>(null);
-  const userStatsQuery = useAnalyticsUserStats(days);
+  const { page, pageSize, resetPage, buildPagination } = usePagination();
+  const userStatsQuery = useAnalyticsUserStats(days, page, pageSize);
   const timelineQuery = useAnalyticsUserTimeline(timelineUserId, timelineVisible);
   const data = userStatsQuery.data ?? null;
   const loading = userStatsQuery.isFetching;
   const timeline = timelineQuery.data ?? null;
   const timelineLoading = timelineQuery.isFetching;
 
-  const rows = useMemo<UserStatsRow[]>(() => (data?.items ?? []).map((item, index) => ({
+  useEffect(() => { resetPage(); }, [days, resetPage]);
+
+  const rows = useMemo<UserStatsRow[]>(() => (data?.list ?? []).map((item, index) => ({
     ...item,
     id: item.userId == null ? `anonymous-${index}` : String(item.userId),
-    rank: index + 1,
-  })), [data]);
+    rank: (page - 1) * pageSize + index + 1,
+  })), [data, page, pageSize]);
   const maxEvents = Math.max(1, ...rows.map((item) => item.totalEvents));
 
   const openTimeline = (record: UserStatsRow) => {
@@ -1341,7 +1387,7 @@ function UsersTab() {
     <div style={sectionStyle}>
       <SectionHeader
         title="用户分析"
-        description={`覆盖用户 ${numberText(data?.totalUsers ?? 0)}`}
+        description={`覆盖用户 ${numberText(data?.total ?? 0)}`}
         extra={<Select value={days} optionList={DAYS_OPTIONS} onChange={(v) => setDays(Number(v))} style={{ width: 120 }} />}
       />
       <ConfigurableTable<UserStatsRow>
@@ -1352,7 +1398,7 @@ function UsersTab() {
         rowKey="id"
         onRefresh={() => void userStatsQuery.refetch()}
         refreshLoading={loading}
-        pagination={false}
+        pagination={buildPagination(data?.total ?? 0)}
         onRow={(record) => ({
           onClick: () => { if (record) openTimeline(record); },
           style: { cursor: record?.userId == null ? 'default' : 'pointer' },
@@ -1391,28 +1437,37 @@ function UsersTab() {
   );
 }
 
-type DimensionRow = DimensionBreakdown['items'][number] & { id: string };
+type DimensionRow = DimensionBreakdown['list'][number] & { id: string };
 
 function DimensionTab() {
   const palette = useChartPalette();
   const [days, setDays] = useState(7);
   const [dimension, setDimension] = useState('browser');
   const [crossDim, setCrossDim] = useState('');
-  const dimensionQuery = useAnalyticsDimension(dimension, days);
+  const { page, pageSize, resetPage, buildPagination } = usePagination();
+  // 饼图超过十几片就没法读，固定订阅第 1 页作为 TOP N 概览
+  const chartQuery = useAnalyticsDimension(dimension, days, 1, DIMENSION_CHART_TOP_N);
+  const dimensionQuery = useAnalyticsDimension(dimension, days, page, pageSize);
   const crossQuery = useAnalyticsDimensionCross(dimension, crossDim, days, !!crossDim);
   const data = dimensionQuery.data ?? null;
   const cross = crossQuery.data ?? null;
   const loading = dimensionQuery.isFetching;
 
-  const rows = useMemo<DimensionRow[]>(() => (data?.items ?? []).map((item) => ({ ...item, id: item.name })), [data]);
+  useEffect(() => { resetPage(); }, [days, dimension, resetPage]);
+
+  const rows = useMemo<DimensionRow[]>(() => (data?.list ?? []).map((item) => ({ ...item, id: item.name })), [data]);
+  const chartRows = useMemo<DimensionRow[]>(
+    () => (chartQuery.data?.list ?? []).map((item) => ({ ...item, id: item.name })),
+    [chartQuery.data],
+  );
   const dimensionPieSpec = useMemo(() => makePieSpec({
-    data: rows,
+    data: chartRows,
     categoryField: 'name',
     valueField: 'value',
     donut: true,
-    colors: rows.map((_, index) => chartColor(index, palette.primary)),
+    colors: chartRows.map((_, index) => chartColor(index, palette.primary)),
     palette,
-  }), [palette, rows]);
+  }), [palette, chartRows]);
 
   const crossOptions = useMemo(() => [
     { label: '不交叉', value: '' },
@@ -1442,7 +1497,7 @@ function DimensionTab() {
     <div style={sectionStyle}>
       <SectionHeader
         title="维度分布"
-        description={`总计 ${numberText(data?.total ?? 0)}`}
+        description={`总计 ${numberText(data?.totalValue ?? 0)} · ${numberText(data?.total ?? 0)} 个取值`}
         extra={(
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <Select value={dimension} optionList={DIMENSION_OPTIONS} onChange={(v) => setDimension(String(v))} style={{ width: 130 }} />
@@ -1459,8 +1514,8 @@ function DimensionTab() {
         </Card>
       )}
       <div className="chart-grid chart-grid--aside">
-        <Card title="占比" bodyStyle={{ padding: 16 }}>
-          {!rows.length ? emptyOrSpin(loading) : (
+        <Card title={`占比 TOP ${DIMENSION_CHART_TOP_N}`} bodyStyle={{ padding: 16 }}>
+          {!chartRows.length ? emptyOrSpin(chartQuery.isFetching) : (
             <PieChart {...dimensionPieSpec} options={chartOptions} height={300} />
           )}
         </Card>
@@ -1472,7 +1527,7 @@ function DimensionTab() {
           rowKey="id"
           onRefresh={() => void dimensionQuery.refetch()}
           refreshLoading={loading}
-          pagination={false}
+          pagination={buildPagination(data?.total ?? 0)}
         />
       </div>
     </div>

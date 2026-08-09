@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AnalyticsDebugEvent, AnalyticsExperiment, AnalyticsExperimentReport, AnalyticsEventMeta, AnalyticsEventOverride, AnalyticsEventOverrideStatus, AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsOverview, AnalyticsQualityIssueType, AnalyticsQualityQueryResult, AnalyticsRetentionMode, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSettings, AnalyticsUserSegment, AnalyticsSite, ErrorAlertRule, ErrorAlertLog, ErrorEvent, ErrorGroup, ErrorOverview, FunnelQuery, FunnelResult, HeatmapData, HeatmapPageListItem, PageStats, PathResult, RealtimeStats, RetentionResult, AnalyticsSavedReport, DimensionCross, TrendSeries, FeatureStats } from '@zenith/shared/analytics';
+import type { AnalyticsDebugEvent, AnalyticsExperiment, AnalyticsExperimentReport, AnalyticsEventMeta, AnalyticsEventOverride, AnalyticsEventOverrideStatus, AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsOverview, AnalyticsQualityIssueType, AnalyticsQualityQueryResult, AnalyticsRetentionMode, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSettings, AnalyticsUserSegment, AnalyticsSite, ErrorAlertRule, ErrorAlertLog, ErrorEvent, ErrorGroup, ErrorOverview, FunnelQuery, FunnelResult, HeatmapData, HeatmapPageListItem, PageStats, PathResult, RealtimeStats, RetentionResult, AnalyticsSavedReport, DimensionBreakdown, DimensionCross, TrendSeries, FeatureStats } from '@zenith/shared/analytics';
 import type { PaginatedResponse } from '@zenith/shared/core';
 import type { UserStats, UserTimeline } from '@zenith/shared/identity';
 import type { SessionListItem, SessionTimeline } from '@zenith/shared/platform';
@@ -135,18 +135,18 @@ export const analyticsKeys = {
   overview: (range: AnalyticsRangeParams) => ['analytics', 'overview', range] as const,
   trends: (range: AnalyticsRangeParams, compare: boolean) => ['analytics', 'trends', range, compare] as const,
   realtime: ['analytics', 'realtime'] as const,
-  pageStats: (days: number) => ['analytics', 'page-stats', days] as const,
-  featureStats: (days: number) => ['analytics', 'feature-stats', days] as const,
+  pageStats: (days: number, page: number, pageSize: number) => ['analytics', 'page-stats', days, page, pageSize] as const,
+  featureStats: (days: number, page: number, pageSize: number) => ['analytics', 'feature-stats', days, page, pageSize] as const,
   sessionsLists: ['analytics', 'sessions', 'list'] as const,
   sessions: (params: AnalyticsSessionsParams) => ['analytics', 'sessions', 'list', params] as const,
   funnel: ['analytics', 'funnel'] as const,
   retention: (days: number, mode: AnalyticsRetentionMode) => ['analytics', 'retention', days, mode] as const,
   eventQuery: ['analytics', 'event-query'] as const,
   path: ['analytics', 'path'] as const,
-  pathOf: (days: number, startPage: string, maxSteps: number) => ['analytics', 'path', days, startPage, maxSteps] as const,
-  userStats: (days: number) => ['analytics', 'user-stats', days] as const,
+  pathOf: (days: number, startPage: string, limit: number) => ['analytics', 'path', days, startPage, limit] as const,
+  userStats: (days: number, page: number, pageSize: number) => ['analytics', 'user-stats', days, page, pageSize] as const,
   userTimeline: (userId: number | null) => ['analytics', 'user-timeline', userId] as const,
-  dimension: (dimension: string, days: number) => ['analytics', 'dimension', dimension, days] as const,
+  dimension: (dimension: string, days: number, page: number, pageSize: number) => ['analytics', 'dimension', dimension, days, page, pageSize] as const,
   heatmapPages: (days: number) => ['analytics', 'heatmap-pages', days] as const,
   heatmap: (pagePath: string, componentArea: string, days: number, deviceType: string, source: string) =>
     ['analytics', 'heatmap', pagePath, componentArea, days, deviceType, source] as const,
@@ -221,17 +221,19 @@ export function useAnalyticsRealtime() {
   });
 }
 
-export function useAnalyticsPageStats(days: number) {
+export function useAnalyticsPageStats(days: number, page = 1, pageSize = 20) {
   return useQuery({
-    queryKey: analyticsKeys.pageStats(days),
-    queryFn: () => request.get<PageStats>(`/api/analytics/page-stats?days=${days}&limit=20`).then(unwrap),
+    queryKey: analyticsKeys.pageStats(days, page, pageSize),
+    queryFn: () => request.get<PageStats>(`/api/analytics/page-stats${toQueryString({ days, page, pageSize })}`).then(unwrap),
+    placeholderData: keepPreviousData,
   });
 }
 
-export function useAnalyticsFeatureStats(days: number) {
+export function useAnalyticsFeatureStats(days: number, page = 1, pageSize = 20) {
   return useQuery({
-    queryKey: analyticsKeys.featureStats(days),
-    queryFn: () => request.get<FeatureStats>(`/api/analytics/feature-stats?days=${days}&limit=30`).then(unwrap),
+    queryKey: analyticsKeys.featureStats(days, page, pageSize),
+    queryFn: () => request.get<FeatureStats>(`/api/analytics/feature-stats${toQueryString({ days, page, pageSize })}`).then(unwrap),
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -257,24 +259,29 @@ export function useAnalyticsRetention(days: number, mode: AnalyticsRetentionMode
   });
 }
 
-export function useAnalyticsEventQuery() {
-  return useMutation({
-    mutationFn: (values: AnalyticsEventQueryInput) =>
-      request.post<AnalyticsEventQueryResult>('/api/analytics/events/query', values).then(unwrap),
+export function useAnalyticsEventQuery(input: AnalyticsEventQueryInput | null) {
+  return useQuery({
+    // 事件分析是读操作，用 query 而非 mutation：翻页只需改 key，不必手动重放提交
+    queryKey: [...analyticsKeys.eventQuery, input] as const,
+    queryFn: () => request.post<AnalyticsEventQueryResult>('/api/analytics/events/query', input!).then(unwrap),
+    enabled: !!input,
+    placeholderData: keepPreviousData,
   });
 }
 
-export function useAnalyticsPath(days: number, startPage?: string, maxSteps = 5) {
+export function useAnalyticsPath(days: number, startPage?: string, limit = 30) {
   return useQuery({
-    queryKey: analyticsKeys.pathOf(days, startPage ?? '', maxSteps),
-    queryFn: () => request.get<PathResult>(`/api/analytics/path${toQueryString({ days, limit: 8, maxSteps, startPage: startPage || undefined })}`).then(unwrap),
+    queryKey: analyticsKeys.pathOf(days, startPage ?? '', limit),
+    queryFn: () => request.get<PathResult>(`/api/analytics/path${toQueryString({ days, limit, startPage: startPage || undefined })}`).then(unwrap),
+    placeholderData: keepPreviousData,
   });
 }
 
-export function useAnalyticsUserStats(days: number) {
+export function useAnalyticsUserStats(days: number, page = 1, pageSize = 20) {
   return useQuery({
-    queryKey: analyticsKeys.userStats(days),
-    queryFn: () => request.get<UserStats>(`/api/analytics/user-stats?days=${days}&limit=20`).then(unwrap),
+    queryKey: analyticsKeys.userStats(days, page, pageSize),
+    queryFn: () => request.get<UserStats>(`/api/analytics/user-stats${toQueryString({ days, page, pageSize })}`).then(unwrap),
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -319,10 +326,11 @@ export function useDeleteFunnelReport() {
   });
 }
 
-export function useAnalyticsDimension(dimension: string, days: number) {
+export function useAnalyticsDimension(dimension: string, days: number, page = 1, pageSize = 20) {
   return useQuery({
-    queryKey: analyticsKeys.dimension(dimension, days),
-    queryFn: () => request.get<{ items: Array<{ name: string; value: number; percent: number }>; total: number }>(`/api/analytics/dimension?dimension=${dimension}&days=${days}&limit=12`).then(unwrap),
+    queryKey: analyticsKeys.dimension(dimension, days, page, pageSize),
+    queryFn: () => request.get<DimensionBreakdown>(`/api/analytics/dimension${toQueryString({ dimension, days, page, pageSize })}`).then(unwrap),
+    placeholderData: keepPreviousData,
   });
 }
 

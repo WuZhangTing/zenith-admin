@@ -1,5 +1,5 @@
 import { http } from 'msw';
-import { ok, badRequest, notFound, pageParams, paginate, nextIdFrom } from '@/mocks/utils/handlers';
+import { ok, badRequest, notFound, pageParams, pageResult, paginate, nextIdFrom } from '@/mocks/utils/handlers';
 import type { PageStats, FeatureStats, HeatmapData, HeatmapPageListItem, AnalyticsOverview, TrendSeries, RealtimeStats, FunnelResult, RetentionResult, PathResult, DimensionBreakdown, DimensionCross, PerfStats, EventListItem, EventDetail, AnalyticsEventMeta, AnalyticsSettings, AnalyticsPublicConfig, AnalyticsRollupItem, AnalyticsSavedReport, AnalyticsEventOverride, AnalyticsQualityDaily, AnalyticsQualityIssueType, AnalyticsQualityQueryResult, AnalyticsDebugEvent, AnalyticsUserSegment, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSite, AnalyticsExperiment, AnalyticsExperimentAssignment, AnalyticsExperimentReport, AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsEventQueryRow, AnalyticsEventQueryGroupByField, AnalyticsEventQueryMetric } from '@zenith/shared/analytics';
 import type { PaginatedResponse } from '@zenith/shared/core';
 import type { UserStats, UserTimeline, UserBehaviorEventType } from '@zenith/shared/identity';
@@ -31,34 +31,27 @@ let mockSavedReports: AnalyticsSavedReport[] = [
 let nextReportId = 2;
 
 // ─── 静态基础数据 ─────────────────────────────────────────────────────────────
-const MOCK_PAGES: PageStats = {
-  totalVisits: 2847,
-  avgDwellMs: 58400,
-  items: [
-    { pagePath: '/users', pageTitle: '用户管理', visits: 532, avgMs: 68400, medianMs: 45200, p90Ms: 142000 },
-    { pagePath: '/roles', pageTitle: '角色管理', visits: 384, avgMs: 52100, medianMs: 38700, p90Ms: 118000 },
-    { pagePath: '/workflow/definitions', pageTitle: '流程定义', visits: 298, avgMs: 124500, medianMs: 89300, p90Ms: 286000 },
-    { pagePath: '/system/dicts', pageTitle: '字典管理', visits: 245, avgMs: 31200, medianMs: 22400, p90Ms: 72000 },
-    { pagePath: '/departments', pageTitle: '部门管理', visits: 213, avgMs: 44700, medianMs: 33100, p90Ms: 98000 },
-    { pagePath: '/', pageTitle: '首页', visits: 189, avgMs: 28900, medianMs: 19800, p90Ms: 65000 },
-    { pagePath: '/system/menus', pageTitle: '菜单管理', visits: 156, avgMs: 87300, medianMs: 61200, p90Ms: 198000 },
-    { pagePath: '/system/configs', pageTitle: '系统配置', visits: 134, avgMs: 39200, medianMs: 27600, p90Ms: 84000 },
-  ],
-};
+const MOCK_PAGE_ITEMS: PageStats['list'] = [
+  { pagePath: '/users', pageTitle: '用户管理', visits: 532, avgMs: 68400, medianMs: 45200, p90Ms: 142000 },
+  { pagePath: '/roles', pageTitle: '角色管理', visits: 384, avgMs: 52100, medianMs: 38700, p90Ms: 118000 },
+  { pagePath: '/workflow/definitions', pageTitle: '流程定义', visits: 298, avgMs: 124500, medianMs: 89300, p90Ms: 286000 },
+  { pagePath: '/system/dicts', pageTitle: '字典管理', visits: 245, avgMs: 31200, medianMs: 22400, p90Ms: 72000 },
+  { pagePath: '/departments', pageTitle: '部门管理', visits: 213, avgMs: 44700, medianMs: 33100, p90Ms: 98000 },
+  { pagePath: '/', pageTitle: '首页', visits: 189, avgMs: 28900, medianMs: 19800, p90Ms: 65000 },
+  { pagePath: '/system/menus', pageTitle: '菜单管理', visits: 156, avgMs: 87300, medianMs: 61200, p90Ms: 198000 },
+  { pagePath: '/system/configs', pageTitle: '系统配置', visits: 134, avgMs: 39200, medianMs: 27600, p90Ms: 84000 },
+];
 
-const MOCK_FEATURES: FeatureStats = {
-  totalEvents: 8924,
-  items: [
-    { pagePath: '/users', elementKey: 'search-btn', elementLabel: '查询', componentArea: 'search-toolbar', count: 1243 },
-    { pagePath: '/users', elementKey: 'create-btn', elementLabel: '新增', componentArea: 'search-toolbar', count: 892 },
-    { pagePath: '/users', elementKey: 'export-btn', elementLabel: '导出', componentArea: 'search-toolbar', count: 567 },
-    { pagePath: '/roles', elementKey: 'search-btn', elementLabel: '查询', componentArea: 'search-toolbar', count: 498 },
-    { pagePath: '/users', elementKey: 'edit-btn', elementLabel: '编辑', componentArea: 'table-actions', count: 423 },
-    { pagePath: '/users', elementKey: 'reset-btn', elementLabel: '重置', componentArea: 'search-toolbar', count: 387 },
-    { pagePath: '/workflow/definitions', elementKey: 'create-btn', elementLabel: '新建流程', componentArea: 'search-toolbar', count: 312 },
-    { pagePath: '/roles', elementKey: 'create-btn', elementLabel: '新增', componentArea: 'search-toolbar', count: 287 },
-  ],
-};
+const MOCK_FEATURE_ITEMS: FeatureStats['list'] = [
+  { pagePath: '/users', elementKey: 'search-btn', elementLabel: '查询', componentArea: 'search-toolbar', count: 1243 },
+  { pagePath: '/users', elementKey: 'create-btn', elementLabel: '新增', componentArea: 'search-toolbar', count: 892 },
+  { pagePath: '/users', elementKey: 'export-btn', elementLabel: '导出', componentArea: 'search-toolbar', count: 567 },
+  { pagePath: '/roles', elementKey: 'search-btn', elementLabel: '查询', componentArea: 'search-toolbar', count: 498 },
+  { pagePath: '/users', elementKey: 'edit-btn', elementLabel: '编辑', componentArea: 'table-actions', count: 423 },
+  { pagePath: '/users', elementKey: 'reset-btn', elementLabel: '重置', componentArea: 'search-toolbar', count: 387 },
+  { pagePath: '/workflow/definitions', elementKey: 'create-btn', elementLabel: '新建流程', componentArea: 'search-toolbar', count: 312 },
+  { pagePath: '/roles', elementKey: 'create-btn', elementLabel: '新增', componentArea: 'search-toolbar', count: 287 },
+];
 
 const MOCK_HEATMAP_PAGES: HeatmapPageListItem[] = [
   { pagePath: '/users', pageTitle: '用户管理', areas: ['search-toolbar', 'table'] },
@@ -172,8 +165,8 @@ function buildEvents(count: number): EventListItem[] {
     username: USERNAMES[i % USERNAMES.length],
     eventType: types[i % types.length],
     eventName: ['$pageview', '$autocapture', '$pageleave', '$areaclick', 'order_submit', '$web_vitals', '$api'][i % 7],
-    pagePath: MOCK_PAGES.items[i % MOCK_PAGES.items.length].pagePath,
-    pageTitle: MOCK_PAGES.items[i % MOCK_PAGES.items.length].pageTitle,
+    pagePath: MOCK_PAGE_ITEMS[i % MOCK_PAGE_ITEMS.length].pagePath,
+    pageTitle: MOCK_PAGE_ITEMS[i % MOCK_PAGE_ITEMS.length].pageTitle,
     elementKey: i % 3 === 0 ? 'search-btn' : null,
     elementLabel: i % 3 === 0 ? '查询' : null,
     componentArea: i % 3 === 0 ? 'search-toolbar' : null,
@@ -504,31 +497,38 @@ export const analyticsHandlers = [
     });
     return ok<RealtimeStats>({
       activeUsers: rand(8, 40), pageViewsLast30Min: rand(120, 480), eventsLastMinute: rand(2, 30),
-      topPages: MOCK_PAGES.items.slice(0, 6).map((p) => ({ pagePath: p.pagePath, pageTitle: p.pageTitle, active: rand(1, 20) })),
+      topPages: MOCK_PAGE_ITEMS.slice(0, 6).map((p) => ({ pagePath: p.pagePath, pageTitle: p.pageTitle, active: rand(1, 20) })),
       recentEvents: MOCK_EVENTS.slice(0, 20).map((e) => ({ eventType: e.eventType, eventName: e.eventName, pagePath: e.pagePath, username: e.username, createdAt: e.createdAt })),
       perMinute,
     });
   }),
 
-  http.get('/api/analytics/page-stats', () => ok<PageStats>(MOCK_PAGES)),
-  http.get('/api/analytics/feature-stats', () => ok<FeatureStats>(MOCK_FEATURES)),
+  http.get('/api/analytics/page-stats', ({ request }) => {
+    const u = new URL(request.url);
+    return ok<PageStats>({ ...paginate(MOCK_PAGE_ITEMS, u, 20), totalVisits: 2847, avgDwellMs: 58400 });
+  }),
+  http.get('/api/analytics/feature-stats', ({ request }) => {
+    const u = new URL(request.url);
+    return ok<FeatureStats>({ ...paginate(MOCK_FEATURE_ITEMS, u, 20), totalEvents: 8924 });
+  }),
   http.get('/api/analytics/heatmap-pages', () => ok({ pages: MOCK_HEATMAP_PAGES })),
   http.get('/api/analytics/heatmap', ({ request }) => {
     const u = new URL(request.url);
     return ok<HeatmapData>(buildMockHeatmapData(u.searchParams.get('pagePath') ?? '/users', u.searchParams.get('componentArea') ?? 'table'));
   }),
 
-  http.get('/api/analytics/user-stats', () => ok<UserStats>({
-    totalUsers: 5,
-    items: USERNAMES.map((u, i) => ({ userId: i + 1, username: u, totalEvents: rand(200, 2000), pageViews: rand(80, 600), uniquePages: rand(5, 30), featureUses: rand(40, 400), totalDwellMs: rand(600000, 6000000), lastActiveAt: mockDateTime() })),
-  })),
+  http.get('/api/analytics/user-stats', ({ request }) => {
+    const u = new URL(request.url);
+    const all = USERNAMES.map((name, i) => ({ userId: i + 1, username: name, totalEvents: rand(200, 2000), pageViews: rand(80, 600), uniquePages: rand(5, 30), featureUses: rand(40, 400), totalDwellMs: rand(600000, 6000000), lastActiveAt: mockDateTime() }));
+    return ok<UserStats>(paginate(all, u, 20));
+  }),
 
   http.get('/api/analytics/sessions', ({ request }) => {
     const u = new URL(request.url);
     const all: SessionListItem[] = Array.from({ length: 86 }, (_, i) => ({
       id: 5000 - i, sessionId: `sess-${1000 + i}`, userId: rand(1, 6), username: USERNAMES[i % USERNAMES.length],
       startedAt: mockDateTime(), endedAt: mockDateTime(), durationMs: rand(20000, 900000), pageCount: rand(1, 18), eventCount: rand(2, 90),
-      entryPage: MOCK_PAGES.items[i % MOCK_PAGES.items.length].pagePath, exitPage: MOCK_PAGES.items[(i + 2) % MOCK_PAGES.items.length].pagePath,
+      entryPage: MOCK_PAGE_ITEMS[i % MOCK_PAGE_ITEMS.length].pagePath, exitPage: MOCK_PAGE_ITEMS[(i + 2) % MOCK_PAGE_ITEMS.length].pagePath,
       referrer: i % 3 === 0 ? 'https://www.google.com' : null, browser: BROWSERS[i % BROWSERS.length], os: OSES[i % OSES.length],
       deviceType: DEVICES[i % DEVICES.length], region: ['广东 深圳', '北京', '上海'][i % 3], isBounce: i % 4 === 0,
       memberId: null, source: 'web_admin', appId: 'admin', environment: 'production',
@@ -571,44 +571,47 @@ export const analyticsHandlers = [
   }),
 
   http.get('/api/analytics/path', ({ request }) => {
-    const maxSteps = Number(new URL(request.url).searchParams.get('maxSteps')) || 5;
-    const pages = MOCK_PAGES.items.map((p) => p.pagePath);
-    const nodeId = (step: number, page: string) => `s${step}:${page}`;
-    const nodeAcc = new Map<string, { id: string; label: string; step: number; out: number; in: number }>();
-    const touch = (step: number, page: string) => {
-      const id = nodeId(step, page);
-      let node = nodeAcc.get(id);
-      if (!node) { node = { id, label: page, step, out: 0, in: 0 }; nodeAcc.set(id, node); }
-      return node;
-    };
-
-    const links: PathResult['links'] = [];
-    // 逐层展开：每步从上一层页面分流到下一层若干页面，并留一条退出链路
-    let sources = [pages[0]];
-    for (let step = 1; step < maxSteps; step++) {
-      const nextSources: string[] = [];
-      for (const [si, source] of sources.entries()) {
-        const fanOut = Math.max(1, 3 - step + 1);
-        for (let k = 0; k < fanOut; k++) {
-          const target = pages[(si + step + k + 1) % pages.length];
-          const value = rand(20, 200 - step * 20);
-          touch(step, source).out += value;
-          touch(step + 1, target).in += value;
-          links.push({ source: nodeId(step, source), target: nodeId(step + 1, target), value, step });
-          if (!nextSources.includes(target)) nextSources.push(target);
-        }
-        const exitValue = rand(10, 80);
-        touch(step, source).out += exitValue;
-        touch(step + 1, ANALYTICS_PATH_EXIT_PAGE).in += exitValue;
-        links.push({ source: nodeId(step, source), target: nodeId(step + 1, ANALYTICS_PATH_EXIT_PAGE), value: exitValue, step });
-      }
-      sources = nextSources.slice(0, 3);
+    const limit = Number(new URL(request.url).searchParams.get('limit')) || 30;
+    const pages = MOCK_PAGE_ITEMS.map((p) => p.pagePath);
+    const raw: Array<{ source: string; target: string; value: number }> = [];
+    // 顺向链路
+    for (let i = 0; i < pages.length - 1; i++) {
+      raw.push({ source: pages[i], target: pages[i + 1], value: rand(40, 200) });
+    }
+    // 互跳（回流）：真实后台里 /a ⇄ /b 很常见，mock 必须覆盖，否则破环逻辑无从验证
+    raw.push({ source: pages[1], target: pages[0], value: rand(20, 90) });
+    raw.push({ source: pages[3], target: pages[2], value: rand(10, 60) });
+    // 退出
+    for (const page of pages.slice(0, 4)) {
+      raw.push({ source: page, target: ANALYTICS_PATH_EXIT_PAGE, value: rand(15, 70) });
     }
 
-    const nodes = [...nodeAcc.values()]
-      .sort((a, b) => a.step - b.step || b.out + b.in - (a.out + a.in))
-      .map((n) => ({ id: n.id, label: n.label, step: n.step, value: Math.max(n.out, n.in) }));
-    return ok<PathResult>({ nodes, links, maxStep: nodes.reduce((max, n) => Math.max(max, n.step), 0) });
+    const sorted = raw.sort((a, b) => b.value - a.value).slice(0, limit);
+    const seen = new Set<string>();
+    const cyclic = new Set<string>();
+    // 与服务端一致：指向已在链上的节点视为回边
+    for (const l of sorted) {
+      if (seen.has(`${l.target}>${l.source}`)) cyclic.add(`${l.source}>${l.target}`);
+      seen.add(`${l.source}>${l.target}`);
+    }
+    const links = sorted.map((l) => ({ ...l, cyclic: cyclic.has(`${l.source}>${l.target}`) }));
+
+    const acc = new Map<string, { out: number; in: number }>();
+    const touch = (id: string) => acc.get(id) ?? (acc.set(id, { out: 0, in: 0 }), acc.get(id)!);
+    for (const l of links) {
+      touch(l.source).out += l.value;
+      touch(l.target).in += l.value;
+    }
+    const nodes = [...acc.entries()]
+      .map(([id, v]) => ({ id, label: id, value: Math.max(v.out, v.in) }))
+      .sort((a, b) => b.value - a.value);
+
+    return ok<PathResult>({
+      nodes,
+      links,
+      totalTransitions: raw.reduce((s, l) => s + l.value, 0),
+      cyclicValue: links.filter((l) => l.cyclic).reduce((s, l) => s + l.value, 0),
+    });
   }),
 
   http.get('/api/analytics/user-timeline', ({ request }) => {
@@ -648,19 +651,21 @@ export const analyticsHandlers = [
   }),
 
   http.get('/api/analytics/dimension', ({ request }) => {
-    const dim = new URL(request.url).searchParams.get('dimension') ?? 'browser';
-    const sets: Record<string, string[]> = { browser: BROWSERS, os: OSES, device: ['desktop', 'mobile', 'tablet'], region: ['广东', '北京', '上海', '浙江', '江苏'], source: ['google', 'direct', 'baidu', 'bing'], referrer: ['直接访问', 'google.com', 'baidu.com'], page: MOCK_PAGES.items.map((p) => p.pagePath) };
+    const u = new URL(request.url);
+    const dim = u.searchParams.get('dimension') ?? 'browser';
+    const sets: Record<string, string[]> = { browser: BROWSERS, os: OSES, device: ['desktop', 'mobile', 'tablet'], region: ['广东', '北京', '上海', '浙江', '江苏'], source: ['google', 'direct', 'baidu', 'bing'], referrer: ['直接访问', 'google.com', 'baidu.com'], page: MOCK_PAGE_ITEMS.map((p) => p.pagePath) };
     const names = sets[dim] ?? BROWSERS;
     const raw = names.map((n) => ({ name: n, value: rand(50, 800) }));
-    const total = raw.reduce((s, r) => s + r.value, 0);
-    return ok<DimensionBreakdown>({ dimension: dim, total, items: raw.map((r) => ({ ...r, percent: Math.round((r.value / total) * 1000) / 10 })) });
+    const totalValue = raw.reduce((s, r) => s + r.value, 0);
+    const all = raw.map((r) => ({ ...r, percent: Math.round((r.value / totalValue) * 1000) / 10 }));
+    return ok<DimensionBreakdown>({ ...paginate(all, u, 20), dimension: dim, totalValue });
   }),
 
   http.get('/api/analytics/dimension-cross', ({ request }) => {
     const u = new URL(request.url);
     const dim1 = u.searchParams.get('dim1') ?? 'browser';
     const dim2 = u.searchParams.get('dim2') ?? 'os';
-    const sets: Record<string, string[]> = { browser: BROWSERS, os: OSES, device: ['desktop', 'mobile', 'tablet'], region: ['广东', '北京', '上海', '浙江', '江苏'], source: ['google', 'direct', 'baidu'], referrer: ['直接访问', 'google.com'], page: MOCK_PAGES.items.slice(0, 5).map((p) => p.pagePath) };
+    const sets: Record<string, string[]> = { browser: BROWSERS, os: OSES, device: ['desktop', 'mobile', 'tablet'], region: ['广东', '北京', '上海', '浙江', '江苏'], source: ['google', 'direct', 'baidu'], referrer: ['直接访问', 'google.com'], page: MOCK_PAGE_ITEMS.slice(0, 5).map((p) => p.pagePath) };
     const rowNames = sets[dim1] ?? BROWSERS;
     const columns = sets[dim2] ?? OSES;
     return ok<DimensionCross>({
@@ -883,7 +888,8 @@ export const analyticsHandlers = [
     const startDate = body.startDate ?? shiftDate(endDate, -(days - 1));
     const groupBy: AnalyticsEventQueryGroupByField[] = body.groupBy && body.groupBy.length ? body.groupBy.slice(0, 2) : ['date'];
     const metric: AnalyticsEventQueryMetric = body.metric ?? 'events';
-    const limit = Math.min(200, Math.max(1, body.limit ?? 100));
+    const page = Math.max(1, body.page ?? 1);
+    const pageSize = Math.min(200, Math.max(1, body.pageSize ?? 20));
 
     let filtered = MOCK_EVENTS.filter((e) => {
       if (body.eventNames && body.eventNames.length && !body.eventNames.includes(e.eventName ?? '')) return false;
@@ -922,14 +928,12 @@ export const analyticsHandlers = [
       bucket.set(key, entry);
     });
 
-    const rows: AnalyticsEventQueryRow[] = Array.from(bucket.values())
+    const allRows: AnalyticsEventQueryRow[] = Array.from(bucket.values())
       .map((entry) => ({ dimensions: entry.dimensions, value: metric === 'uv' ? entry.users.size : entry.count }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, limit);
+      .sort((a, b) => b.value - a.value);
 
     return ok<AnalyticsEventQueryResult>({
-      rows,
-      total: rows.length,
+      ...pageResult(allRows, page, pageSize),
       queryMeta: { metric, groupBy, startDate, endDate },
     });
   }),

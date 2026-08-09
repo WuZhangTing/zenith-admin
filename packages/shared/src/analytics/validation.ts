@@ -357,7 +357,8 @@ export const analyticsEventQuerySchema = z.object({
   segmentId: z.number().int().positive().optional(),
   groupBy: z.array(z.enum(ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS)).min(1).max(2).default(['date']),
   metric: z.enum(ANALYTICS_EVENT_QUERY_METRICS).default('events'),
-  limit: z.number().int().min(1).max(200).default(100),
+  page: z.number().int().min(1).default(1),
+  pageSize: z.number().int().min(1).max(200).default(20),
 });
 
 export const sourceMapUploadSchema = z.object({

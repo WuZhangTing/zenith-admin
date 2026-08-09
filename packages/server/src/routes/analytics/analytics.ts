@@ -118,7 +118,7 @@ const pageStatsRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/page-stats', tags: ['Analytics'], summary: '页面停留统计', security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { query: z.object({ days: z.coerce.number().int().min(1).max(365).optional().default(30), limit: z.coerce.number().int().min(1).max(100).optional().default(20) }) },
+    request: { query: PaginationQuery.extend({ days: z.coerce.number().int().min(1).max(365).optional().default(30) }) },
     responses: { ...ok(PageStatsDTO, '页面停留'), ...commonErrorResponses },
   }),
   handler: async (c) => c.json(okBody(await getPageStats(c.req.valid('query'))), 200),
@@ -128,7 +128,7 @@ const featureStatsRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/feature-stats', tags: ['Analytics'], summary: '功能使用统计', security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { query: z.object({ days: z.coerce.number().int().min(1).max(365).optional().default(30), limit: z.coerce.number().int().min(1).max(100).optional().default(30), pagePath: z.string().optional() }) },
+    request: { query: PaginationQuery.extend({ days: z.coerce.number().int().min(1).max(365).optional().default(30), pagePath: z.string().optional() }) },
     responses: { ...ok(FeatureStatsDTO, '功能使用'), ...commonErrorResponses },
   }),
   handler: async (c) => c.json(okBody(await getFeatureStats(c.req.valid('query'))), 200),
@@ -168,7 +168,7 @@ const userStatsRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/user-stats', tags: ['Analytics'], summary: '用户行为统计', security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { query: z.object({ days: z.coerce.number().int().min(1).max(365).optional().default(30), limit: z.coerce.number().int().min(1).max(100).optional().default(20) }) },
+    request: { query: PaginationQuery.extend({ days: z.coerce.number().int().min(1).max(365).optional().default(30) }) },
     responses: { ...ok(UserStatsDTO, '用户统计'), ...commonErrorResponses },
   }),
   handler: async (c) => c.json(okBody(await getUserStats(c.req.valid('query'))), 200),
@@ -228,8 +228,7 @@ const pathRoute = defineOpenAPIRoute({
     request: {
       query: z.object({
         days: z.coerce.number().int().min(1).max(365).optional().default(30),
-        limit: z.coerce.number().int().min(1).max(30).optional().default(8),
-        maxSteps: z.coerce.number().int().min(2).max(10).optional().default(5),
+        limit: z.coerce.number().int().min(1).max(100).optional().default(30),
         startPage: z.string().max(256).optional(),
       }),
     },
@@ -298,7 +297,7 @@ const dimensionRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/dimension', tags: ['Analytics'], summary: '维度分布', security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { query: z.object({ dimension: z.string().default('browser'), days: z.coerce.number().int().min(1).max(365).optional().default(30), limit: z.coerce.number().int().min(1).max(50).optional().default(12) }) },
+    request: { query: PaginationQuery.extend({ dimension: z.string().default('browser'), days: z.coerce.number().int().min(1).max(365).optional().default(30) }) },
     responses: { ...ok(DimensionBreakdownDTO, '维度分布'), ...commonErrorResponses },
   }),
   handler: async (c) => c.json(okBody(await getDimensionBreakdown(c.req.valid('query'))), 200),

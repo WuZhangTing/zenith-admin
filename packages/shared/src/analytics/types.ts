@@ -1,4 +1,5 @@
 import type { UserBehaviorEventType } from '../identity/types';
+import type { PaginatedResponse } from '../core/types';
 
 export interface PageStatItem {
   pagePath: string;
@@ -9,9 +10,10 @@ export interface PageStatItem {
   p90Ms: number | null;
 }
 
-export interface PageStats {
-  items: PageStatItem[];
+export interface PageStats extends PaginatedResponse<PageStatItem> {
+  /** 全量访问次数（不受分页影响） */
   totalVisits: number;
+  /** 全量平均停留时长（不受分页影响） */
   avgDwellMs: number | null;
 }
 
@@ -23,8 +25,8 @@ export interface FeatureStatItem {
   count: number;
 }
 
-export interface FeatureStats {
-  items: FeatureStatItem[];
+export interface FeatureStats extends PaginatedResponse<FeatureStatItem> {
+  /** 全量事件数（不受分页影响） */
   totalEvents: number;
 }
 
@@ -422,11 +424,27 @@ export interface RetentionResult {
   mode: AnalyticsRetentionMode;
 }
 
-export interface PathNode { id: string; label: string; value: number; step: number }
+export interface PathNode { id: string; label: string; value: number }
 
-export interface PathLink { source: string; target: string; value: number; step: number }
+export interface PathLink {
+  source: string;
+  target: string;
+  value: number;
+  /**
+   * 回边标记。页面互跳（`/ ⇄ /profile`）让跳转图天然带环，而桑基布局无法表达回边，
+   * 服务端按 DFS 挑出一组反馈弧标记为 true —— 图只渲染非回边，明细表仍完整展示。
+   */
+  cyclic: boolean;
+}
 
-export interface PathResult { nodes: PathNode[]; links: PathLink[]; maxStep: number }
+export interface PathResult {
+  nodes: PathNode[];
+  links: PathLink[];
+  /** 全部相邻跳转次数（含被 limit 截断与回边的部分） */
+  totalTransitions: number;
+  /** 因破环而未进入桑基图的跳转次数 */
+  cyclicValue: number;
+}
 
 export interface AnalyticsSavedReport {
   id: number;
@@ -440,10 +458,10 @@ export interface AnalyticsSavedReport {
 
 export interface DimensionBreakdownItem { name: string; value: number; percent: number }
 
-export interface DimensionBreakdown {
+export interface DimensionBreakdown extends PaginatedResponse<DimensionBreakdownItem> {
   dimension: string;
-  total: number;
-  items: DimensionBreakdownItem[];
+  /** 全量样本量（percent 的分母，不受分页影响） */
+  totalValue: number;
 }
 
 export interface DimensionCross {
@@ -795,8 +813,10 @@ export interface AnalyticsEventQueryInput {
   /** 分组维度（1~2 维，来自白名单） */
   groupBy?: AnalyticsEventQueryGroupByField[];
   metric?: AnalyticsEventQueryMetric;
-  /** 结果行数上限，默认 100，最大 200 */
-  limit?: number;
+  /** 页码（从 1 开始），默认 1 */
+  page?: number;
+  /** 每页行数，默认 20，最大 200 */
+  pageSize?: number;
 }
 
 export interface AnalyticsEventQueryRow {
@@ -804,9 +824,7 @@ export interface AnalyticsEventQueryRow {
   value: number;
 }
 
-export interface AnalyticsEventQueryResult {
-  rows: AnalyticsEventQueryRow[];
-  total: number;
+export interface AnalyticsEventQueryResult extends PaginatedResponse<AnalyticsEventQueryRow> {
   queryMeta: {
     metric: AnalyticsEventQueryMetric;
     groupBy: AnalyticsEventQueryGroupByField[];

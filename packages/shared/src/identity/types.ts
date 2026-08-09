@@ -1,5 +1,5 @@
 import type { AiProvider } from '../ai/constants';
-import type { EntityStatus } from '../core/types';
+import type { EntityStatus, PaginatedResponse } from '../core/types';
 import type { OAuthProviderType } from './constants';
 
 // ─── 租户 ─────────────────────────────────────────────────────────────────────
@@ -269,10 +269,7 @@ export interface UserStatItem {
   lastActiveAt: string | null;
 }
 
-export interface UserStats {
-  items: UserStatItem[];
-  totalUsers: number;
-}
+export type UserStats = PaginatedResponse<UserStatItem>;
 
 export interface UserTimelineEvent {
   id: number;
