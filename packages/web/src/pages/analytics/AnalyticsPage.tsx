@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { CSSProperties, ReactNode } from 'react';
-import { Avatar, Button, Card, DatePicker, Dropdown, Empty, Input, InputNumber, Modal, Progress, Select, SideSheet, Skeleton, Space, Spin, Switch, TabPane, Tabs, Tag, Timeline, Toast, Typography } from '@douyinfe/semi-ui';
+import { Avatar, Button, Card, DatePicker, Dropdown, Empty, Input, InputNumber, Modal, Select, SideSheet, Skeleton, Space, Spin, Switch, TabPane, Tabs, Tag, Timeline, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Activity, BarChart3, Bookmark, Clock, Eye, Flame, Plus, RefreshCcw, Search, Target, Trash2, TrendingUp, Users, Zap } from 'lucide-react';
+import { DataBar } from '@/components/data-viz/DataBar';
 import {
   AreaChart,
   BarChart,
@@ -470,7 +471,7 @@ function DwellTab() {
       render: (_value, record) => (
         <div>
           <Typography.Text strong>{msToReadable(record.avgMs)}</Typography.Text>
-          <Progress percent={Math.min(100, ((record.avgMs ?? 0) / maxAvg) * 100)} showInfo={false} style={{ marginTop: 6 }} />
+          <DataBar value={record.avgMs ?? 0} max={maxAvg} style={{ marginTop: 6 }} />
         </div>
       ),
     },
@@ -610,7 +611,7 @@ function FeatureTab() {
       render: (_value, record) => (
         <div>
           <Typography.Text strong>{numberText(record.count)}</Typography.Text>
-          <Progress percent={(record.count / maxCount) * 100} showInfo={false} style={{ marginTop: 6 }} />
+          <DataBar value={record.count} max={maxCount} style={{ marginTop: 6 }} />
         </div>
       ),
     },
@@ -1104,9 +1105,15 @@ function FunnelTab() {
                         )}
                       </Space>
                     </div>
-                    <div style={{ height: 20, borderRadius: 999, background: 'var(--semi-color-fill-0)', overflow: 'hidden' }}>
-                      <div style={{ width: `${Math.max(2, Math.min(100, step.conversionRate))}%`, height: '100%', borderRadius: 999, background: chartColor(index, palette.primary) }} />
-                    </div>
+                    <DataBar
+                      value={step.conversionRate}
+                      max={100}
+                      minPercent={2}
+                      color={chartColor(index, palette.primary)}
+                      track="var(--semi-color-fill-0)"
+                      height={20}
+                      radius={999}
+                    />
                   </div>
                 ))}
               </div>
@@ -1366,7 +1373,7 @@ function PathTab() {
       render: (_value, record) => (
         <div>
           <Typography.Text strong>{numberText(record.value)}</Typography.Text>
-          <Progress percent={(record.value / maxValue) * 100} showInfo={false} style={{ marginTop: 6 }} />
+          <DataBar value={record.value} max={maxValue} style={{ marginTop: 6 }} />
         </div>
       ),
     },
@@ -1491,7 +1498,7 @@ function UsersTab() {
       render: (_value, record) => (
         <div>
           <Typography.Text strong>{numberText(record.totalEvents)}</Typography.Text>
-          <Progress percent={(record.totalEvents / maxEvents) * 100} showInfo={false} style={{ marginTop: 6 }} />
+          <DataBar value={record.totalEvents} max={maxEvents} style={{ marginTop: 6 }} />
         </div>
       ),
     },
@@ -1802,7 +1809,7 @@ function HeatmapTab() {
       render: (_value, record) => (
         <div>
           <Typography.Text strong>{numberText(record.count)}</Typography.Text>
-          <Progress percent={(record.count / maxElementCount) * 100} showInfo={false} style={{ marginTop: 6 }} />
+          <DataBar value={record.count} max={maxElementCount} style={{ marginTop: 6 }} />
         </div>
       ),
     },

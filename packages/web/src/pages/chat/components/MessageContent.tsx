@@ -5,6 +5,7 @@ import type { ChatMessage, ChatMessageExtra, ChatCardAction } from '@zenith/shar
 import { VoiceMessage } from './VoiceMessage';
 import { VideoMessage } from './VideoMessage';
 import { CardMessage } from './CardMessage';
+import { DataBar } from '@/components/data-viz/DataBar';
 
 const { Text } = Typography;
 
@@ -256,25 +257,15 @@ export function MessageContent({
                   <span>{option.label}</span>
                   <span style={{ color: 'var(--semi-color-text-2)' }}>{count} 票</span>
                 </div>
-                <div
-                  style={{
-                    marginTop: 6,
-                    height: 6,
-                    width: '100%',
-                    borderRadius: 999,
-                    background: 'var(--semi-color-fill-2)',
-                    overflow: 'hidden',
-                  }}
-                >
-                  <div
-                    style={{
-                      width: `${ratio}%`,
-                      height: '100%',
-                      background: selected ? 'var(--semi-color-primary)' : 'var(--semi-color-primary-light-active)',
-                      transition: 'width 0.2s ease',
-                    }}
-                  />
-                </div>
+                <DataBar
+                  value={ratio}
+                  max={100}
+                  color={selected ? 'var(--semi-color-primary)' : 'var(--semi-color-primary-light-active)'}
+                  track="var(--semi-color-fill-2)"
+                  height={6}
+                  radius={999}
+                  style={{ marginTop: 6 }}
+                />
               </button>
             );
           })}

@@ -15,6 +15,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { formatDateTimeForApi } from '@/utils/date';
+import { DataBar } from '@/components/data-viz/DataBar';
 import {
   fetchRuleUsages,
   ruleKeys,
@@ -946,9 +947,7 @@ export default function RuleTablesPage() {
                     return (
                       <div key={h.rowId} style={{ display: 'grid', gridTemplateColumns: '150px 1fr 56px', gap: 8, alignItems: 'center' }}>
                         <Text size="small" ellipsis={{ showTooltip: true }}>{rowLabel || h.rowId}</Text>
-                        <div style={{ height: 10, background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-small)', overflow: 'hidden' }}>
-                          <div style={{ width: `${Math.max(4, Math.round((h.count / max) * 100))}%`, height: '100%', background: 'var(--semi-color-primary)' }} />
-                        </div>
+                        <DataBar value={h.count} max={max} minPercent={4} height={10} track="var(--semi-color-fill-0)" />
                         <Text type="tertiary" size="small">{h.count}</Text>
                       </div>
                     );
@@ -972,9 +971,7 @@ export default function RuleTablesPage() {
                     return (
                       <div key={d.date} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 90px', gap: 8, alignItems: 'center' }}>
                         <Text type="tertiary" size="small">{d.date}</Text>
-                        <div style={{ height: 8, background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-small)', overflow: 'hidden' }}>
-                          <div style={{ width: `${Math.round((d.total / max) * 100)}%`, height: '100%', background: 'var(--semi-color-success)' }} />
-                        </div>
+                        <DataBar value={d.total} max={max} color="var(--semi-color-success)" track="var(--semi-color-fill-0)" />
                         <Text type="tertiary" size="small">{d.matched}/{d.total} 命中</Text>
                       </div>
                     );

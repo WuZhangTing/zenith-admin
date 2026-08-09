@@ -8,6 +8,7 @@ import { useCmsVisitStats, useCmsSearchAnalytics } from '@/hooks/queries/cms';
 import type { CmsVisitStats, CmsSearchAnalytics } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
+import { DataBar } from '@/components/data-viz/DataBar';
 
 const DEVICE_LABELS: Record<string, string> = { pc: 'PC', mobile: '移动端', bot: '爬虫' };
 
@@ -50,9 +51,7 @@ function DistBars({ items, labelOf }: { items: { key: string; pv: number }[]; la
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{labelOf?.(i.key) ?? i.key}</span>
             <span style={{ color: 'var(--semi-color-text-2)', flexShrink: 0 }}>{i.pv}</span>
           </div>
-          <div style={{ height: 8, background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-small)', overflow: 'hidden' }}>
-            <div style={{ width: `${Math.round((i.pv / max) * 100)}%`, height: '100%', background: 'var(--semi-color-primary)', borderRadius: 'var(--semi-border-radius-small)' }} />
-          </div>
+          <DataBar value={i.pv} max={max} track="var(--semi-color-fill-0)" />
         </div>
       ))}
     </div>

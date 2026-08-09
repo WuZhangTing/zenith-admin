@@ -1,10 +1,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Banner, Button, Col, Form, Input, InputNumber, Modal, Popconfirm, Progress, Row, Select, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Col, Form, Input, InputNumber, Modal, Popconfirm, Row, Select, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, Trash2 } from 'lucide-react';
 import type { AnalyticsExperiment, AnalyticsExperimentReportVariant, AnalyticsExperimentVariant } from '@zenith/shared/analytics';
+import { DataBar } from '@/components/data-viz/DataBar';
 import { ANALYTICS_EXPERIMENT_STATUS_LABELS, ANALYTICS_EXPERIMENT_STATUS_OPTIONS } from '@zenith/shared/analytics';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -326,7 +327,7 @@ export default function AnalyticsExperimentsTab() {
             ) },
             { title: '曝光用户', dataIndex: 'exposures', width: 100, render: (value: number) => value.toLocaleString() },
             { title: '转化用户', dataIndex: 'conversions', width: 100, render: (value: number) => value.toLocaleString() },
-            { title: '转化率', dataIndex: 'conversionRate', width: 220, render: (value: number) => <Space style={{ width: '100%' }}><Typography.Text style={{ width: 56 }}>{value.toFixed(1)}%</Typography.Text><Progress percent={Math.round((value / maxRate) * 100)} showInfo={false} style={{ width: 140 }} /></Space> },
+            { title: '转化率', dataIndex: 'conversionRate', width: 220, render: (value: number) => <Space style={{ width: '100%' }}><Typography.Text style={{ width: 56 }}>{value.toFixed(1)}%</Typography.Text><DataBar value={value} max={maxRate} style={{ width: 140 }} /></Space> },
             { title: '相对提升', dataIndex: 'relativeUplift', width: 110, render: (value: number | null, record) => (
               record.isControl ? <Typography.Text type="tertiary">基准</Typography.Text>
                 : value == null ? '–'

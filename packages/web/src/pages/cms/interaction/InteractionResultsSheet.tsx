@@ -3,7 +3,6 @@ import {
   Button,
   Empty,
   Input,
-  Progress,
   Select,
   SideSheet,
   Spin,
@@ -24,6 +23,7 @@ import {
   useCmsInteractionTrend,
 } from '@/hooks/queries/cms';
 import './interaction-editor.css';
+import { DataBar } from '@/components/data-viz/DataBar';
 
 const TEXT_PAGE_SIZE = 10;
 const TREND_OPTIONS = [7, 14, 30, 90].map((days) => ({ value: days, label: `近 ${days} 天` }));
@@ -40,7 +40,7 @@ function OptionBars({ options }: Readonly<{ options: CmsInteractionQuestionStats
             <span>{option.label}</span>
             <span>{option.count} · {option.percent}%</span>
           </div>
-          <Progress percent={option.percent} showInfo={false} />
+          <DataBar value={option.percent} max={100} />
         </div>
       ))}
     </div>
@@ -222,7 +222,7 @@ function TrendView({ interactionId }: Readonly<{ interactionId: number }>) {
     {
       title: '分布',
       dataIndex: 'count',
-      render: (count: number) => <Progress percent={Math.round((count / max) * 100)} showInfo={false} />,
+      render: (count: number) => <DataBar value={count} max={max} />,
     },
   ];
   return (

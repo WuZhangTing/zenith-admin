@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Select, Modal, Form, Toast, Row, Col, Spin, Switch, SideSheet, Progress, Descriptions, Tag, Divider } from '@douyinfe/semi-ui';
+import { Button, Select, Modal, Form, Toast, Row, Col, Spin, Switch, SideSheet, Descriptions, Tag, Divider } from '@douyinfe/semi-ui';
 import type { Tenant } from '@zenith/shared/identity';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
@@ -12,6 +12,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import { useDictItems } from '@/hooks/useDictItems';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
+import { MetricMeter, type MetricMeterTone } from '@/components/data-viz/MetricMeter';
 import { useAllTenantPackages } from '@/hooks/queries/tenant-packages';
 import { useListSearch } from '@/hooks/useListSearch';
 import {
@@ -81,6 +82,9 @@ export default function TenantsPage() {
   const [statsTenant, setStatsTenant] = useState<Tenant | null>(null);
   const statsQuery = useTenantStats(statsTenant?.id, statsVisible);
   const stats = statsQuery.data ?? null;
+  const statsUserPercent = stats?.maxUsers && stats.maxUsers > 0
+    ? Math.min(100, Math.round((stats.userCount / stats.maxUsers) * 100))
+    : 0;
 
   const toggleStatusMutation = useSaveTenant();
   const deleteMutation = useDeleteTenant();
@@ -161,11 +165,11 @@ export default function TenantsPage() {
         const max = record.maxUsers;
         if (max == null) return <span>{used} / 不限</span>;
         const percent = max > 0 ? Math.min(100, Math.round((used / max) * 100)) : 0;
-        const stroke = percent >= 100 ? 'var(--semi-color-danger)' : percent >= 80 ? 'var(--semi-color-warning)' : undefined;
+        const tone: MetricMeterTone = percent >= 100 ? 'danger' : percent >= 80 ? 'warning' : 'primary';
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <span style={{ fontSize: 12 }}>{used} / {max}</span>
-            <Progress percent={percent} stroke={stroke} size="small" aria-label="用户数占用" />
+            <MetricMeter value={percent} label="用户数占用" valueText={`${used} / ${max}，${percent}%`} tone={tone} height={6} />
           </div>
         );
       },
@@ -391,13 +395,13 @@ export default function TenantsPage() {
                   </div>
                 ) : (
                   <>
-                    <Progress
-                      percent={stats.maxUsers > 0 ? Math.min(100, Math.round((stats.userCount / stats.maxUsers) * 100)) : 0}
-                      stroke={stats.userCount >= stats.maxUsers ? 'var(--semi-color-danger)' : stats.userCount / stats.maxUsers >= 0.8 ? 'var(--semi-color-warning)' : undefined}
-                      showInfo
-                      aria-label="用户用量"
+                    <MetricMeter
+                      value={statsUserPercent}
+                      label="用户用量"
+                      valueText={`${stats.userCount} / ${stats.maxUsers}，${statsUserPercent}%`}
+                      tone={statsUserPercent >= 100 ? 'danger' : statsUserPercent >= 80 ? 'warning' : 'primary'}
                     />
-                    <div style={{ marginTop: 4, fontSize: 13 }}>{stats.userCount} / {stats.maxUsers}</div>
+                    <div style={{ marginTop: 4, fontSize: 13 }}>{stats.userCount} / {stats.maxUsers} · {statsUserPercent}%</div>
                   </>
                 )}
               </div>

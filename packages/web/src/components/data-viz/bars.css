@@ -1,0 +1,45 @@
+.zx-meter,
+.zx-data-bar {
+  position: relative;
+  width: 100%;
+  height: var(--zx-bar-height, 8px);
+  overflow: hidden;
+  border-radius: var(--zx-bar-radius, var(--semi-border-radius-small));
+  background: var(--zx-bar-track, var(--semi-color-fill-1));
+}
+
+.zx-meter__fill,
+.zx-data-bar__fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  transform: scaleX(var(--zx-bar-scale, 0));
+  transform-origin: left;
+  background: var(--zx-bar-stroke, var(--semi-color-primary));
+  opacity: var(--zx-bar-opacity, 1);
+  transition: transform 0.2s ease;
+}
+
+.zx-meter--success {
+  --zx-bar-stroke: var(--semi-color-success);
+}
+
+.zx-meter--warning {
+  --zx-bar-stroke: var(--semi-color-warning);
+}
+
+.zx-meter--danger {
+  --zx-bar-stroke: var(--semi-color-danger);
+}
+
+.zx-meter--neutral {
+  --zx-bar-stroke: var(--semi-color-text-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zx-meter__fill,
+  .zx-data-bar__fill {
+    transition: none;
+  }
+}

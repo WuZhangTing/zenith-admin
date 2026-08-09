@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { Button, Descriptions, Progress, Skeleton, Tabs, TabPane, Toast, Typography, Select, Tag, Table, RadioGroup, Tooltip } from '@douyinfe/semi-ui';
+import { Button, Descriptions, Skeleton, Tabs, TabPane, Toast, Typography, Select, Tag, Table, RadioGroup, Tooltip } from '@douyinfe/semi-ui';
 import { LineChart, chartOptions, makeLineSpec, useChartPalette } from '@/components/charts';
 import { RefreshCw, Cpu, HardDrive, Database, Server, MemoryStick, Layers, Activity, Network, Wifi, History, Thermometer, ListTree, Download, Copy as CopyIcon, ExternalLink } from 'lucide-react';
 import { formatDateTime } from '@/utils/date';
@@ -10,6 +10,7 @@ import { config } from '@/config';
 import { TOKEN_KEY } from '@zenith/shared/core';
 import { TABLE_PAGE_SIZE_OPTIONS, usePagination } from '@/hooks/usePagination';
 import { useMonitorHistory, useMonitorSnapshot } from '@/hooks/queries/monitor';
+import { MetricMeter, type MetricMeterTone } from '@/components/data-viz/MetricMeter';
 import './MonitorPage.css';
 
 const { Text } = Typography;
@@ -183,6 +184,12 @@ function getProgressClass(percent: number): string {
   if (percent >= 90) return 'monitor-progress-danger';
   if (percent >= 70) return 'monitor-progress-warning';
   return '';
+}
+
+function getMeterTone(percent: number): MetricMeterTone {
+  if (percent >= 90) return 'danger';
+  if (percent >= 70) return 'warning';
+  return 'primary';
 }
 
 function formatTimestamp(ms: number): string {
@@ -799,8 +806,15 @@ export default function MonitorPage() {
                 <td>{formatBytes(it.used)}</td>
                 <td>{formatBytes(it.free)}</td>
                 <td style={{ minWidth: 140 }}>
-                  <div className={getProgressClass(it.usagePercent)}>
-                    <Progress percent={it.usagePercent} showInfo />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <MetricMeter
+                      value={it.usagePercent}
+                      label={`${it.mount} 磁盘使用率`}
+                      valueText={`${it.usagePercent}%`}
+                      tone={getMeterTone(it.usagePercent)}
+                      style={{ flex: 1 }}
+                    />
+                    <Text size="small">{it.usagePercent}%</Text>
                   </div>
                 </td>
               </tr>
@@ -851,7 +865,7 @@ export default function MonitorPage() {
               <div className="monitor-overview-metric">
                 <div className="monitor-overview-metric__header"><Cpu size={15} /><Text strong>CPU</Text></div>
                 <div className={`monitor-overview-metric__value ${getProgressClass(data.cpu.usage)}`}>{data.cpu.usage}%</div>
-                <div className={getProgressClass(data.cpu.usage)}><Progress percent={data.cpu.usage} showInfo={false} /></div>
+                <MetricMeter value={data.cpu.usage} label="CPU 使用率" valueText={`${data.cpu.usage}%`} tone={getMeterTone(data.cpu.usage)} />
                 <div className="monitor-overview-metric__info">
                   <Text type="tertiary" size="small">{data.cpu.cores} 核 · {data.cpu.speed} MHz</Text>
                   <Text type="tertiary" size="small">负载 {data.cpu.loadAvg.map((v) => v.toFixed(2)).join(' / ')}</Text>
@@ -860,7 +874,7 @@ export default function MonitorPage() {
               <div className="monitor-overview-metric">
                 <div className="monitor-overview-metric__header"><MemoryStick size={15} /><Text strong>内存</Text></div>
                 <div className={`monitor-overview-metric__value ${getProgressClass(data.memory.usagePercent)}`}>{data.memory.usagePercent}%</div>
-                <div className={getProgressClass(data.memory.usagePercent)}><Progress percent={data.memory.usagePercent} showInfo={false} /></div>
+                <MetricMeter value={data.memory.usagePercent} label="内存使用率" valueText={`${data.memory.usagePercent}%`} tone={getMeterTone(data.memory.usagePercent)} />
                 <div className="monitor-overview-metric__info">
                   <Text type="tertiary" size="small">已用 {formatBytes(data.memory.used)}</Text>
                   <Text type="tertiary" size="small">共 {formatBytes(data.memory.total)}</Text>
@@ -870,7 +884,7 @@ export default function MonitorPage() {
                 <div className="monitor-overview-metric__header"><HardDrive size={15} /><Text strong>磁盘</Text></div>
                 {data.disk ? (<>
                   <div className={`monitor-overview-metric__value ${getProgressClass(data.disk.usagePercent)}`}>{data.disk.usagePercent}%</div>
-                  <div className={getProgressClass(data.disk.usagePercent)}><Progress percent={data.disk.usagePercent} showInfo={false} /></div>
+                  <MetricMeter value={data.disk.usagePercent} label="磁盘使用率" valueText={`${data.disk.usagePercent}%`} tone={getMeterTone(data.disk.usagePercent)} />
                   <div className="monitor-overview-metric__info">
                     <Text type="tertiary" size="small">已用 {formatBytes(data.disk.used)}</Text>
                     <Text type="tertiary" size="small">共 {formatBytes(data.disk.total)}</Text>
@@ -880,7 +894,7 @@ export default function MonitorPage() {
               <div className="monitor-overview-metric">
                 <div className="monitor-overview-metric__header"><Server size={15} /><Text strong>Node 堆内存</Text></div>
                 <div className={`monitor-overview-metric__value ${getProgressClass(heapPercent)}`}>{heapPercent}%</div>
-                <div className={getProgressClass(heapPercent)}><Progress percent={heapPercent} showInfo={false} /></div>
+                <MetricMeter value={heapPercent} label="Node 堆内存使用率" valueText={`${heapPercent}%`} tone={getMeterTone(heapPercent)} />
                 <div className="monitor-overview-metric__info">
                   <Text type="tertiary" size="small">已用 {formatBytes(data.node.memoryUsage.heapUsed)}</Text>
                   <Text type="tertiary" size="small">共 {formatBytes(data.node.memoryUsage.heapTotal)}</Text>
@@ -998,9 +1012,7 @@ export default function MonitorPage() {
                       <Text strong size="small">CPU{core.index}</Text>
                       <Text type="tertiary" size="small">{core.usage}%</Text>
                     </div>
-                    <div className={getProgressClass(core.usage)}>
-                      <Progress percent={core.usage} showInfo={false} stroke="var(--semi-color-primary)" />
-                    </div>
+                    <MetricMeter value={core.usage} label={`CPU${core.index} 使用率`} valueText={`${core.usage}%`} />
                     <div className="monitor-percore-item__legend">
                       <span><i style={{ background: 'var(--semi-color-primary)' }} />user {core.user}%</span>
                       <span><i style={{ background: 'var(--semi-color-warning)' }} />sys {core.system}%</span>

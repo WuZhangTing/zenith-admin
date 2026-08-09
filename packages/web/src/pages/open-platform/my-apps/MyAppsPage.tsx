@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Banner, Button, Checkbox, Col, Form, Modal, Progress, Row, Select, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Checkbox, Col, Form, Modal, Row, Select, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Activity } from 'lucide-react';
 import { OAUTH2_GRANT_TYPE_LABELS, OAUTH2_GRANT_TYPES, OPEN_APP_ENVIRONMENT_LABELS, OPEN_APP_ENVIRONMENTS, OPEN_APP_REVIEW_STATUS_LABELS, OPEN_APP_REVIEW_STATUSES } from '@zenith/shared/open-platform';
@@ -26,6 +26,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
+import { MetricMeter, type MetricMeterTone } from '@/components/data-viz/MetricMeter';
 
 const { Paragraph, Text } = Typography;
 
@@ -48,17 +49,21 @@ function UsageLine({ label, used, limit, percentage }: Readonly<{
   limit: number;
   percentage: number;
 }>) {
+  const tone: MetricMeterTone = percentage >= 95 ? 'danger' : percentage >= 80 ? 'warning' : 'primary';
   return (
     <div style={{ marginBottom: 20 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
         <Text strong>{label}</Text>
-        <Text type="tertiary">{limit > 0 ? `${used.toLocaleString()} / ${limit.toLocaleString()}` : '不限'}</Text>
+        <Text type="tertiary">{limit > 0 ? `${used.toLocaleString()} / ${limit.toLocaleString()} · ${Math.round(percentage)}%` : '不限'}</Text>
       </div>
-      <Progress
-        percent={limit > 0 ? percentage : 0}
-        showInfo
-        stroke={percentage >= 95 ? 'var(--semi-color-danger)' : percentage >= 80 ? 'var(--semi-color-warning)' : 'var(--semi-color-primary)'}
-      />
+      {limit > 0 && (
+        <MetricMeter
+          value={percentage}
+          label={`${label}用量`}
+          valueText={`${used} / ${limit}，${Math.round(percentage)}%`}
+          tone={tone}
+        />
+      )}
     </div>
   );
 }

@@ -8,7 +8,6 @@ import {
   Typography,
   Tooltip,
   Dropdown,
-  Progress,
   Modal,
   Empty,
   Form,
@@ -23,6 +22,7 @@ import { FileText, RefreshCw, ChevronDown, ChevronUp, Activity, Info, Download, 
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { MetricMeter } from '@/components/data-viz/MetricMeter';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { formatDateTime } from '@/utils/date';
 import AppModal from '@/components/AppModal';
@@ -434,7 +434,12 @@ function ContainersTab() {
                 <Typography.Text strong>CPU 使用率</Typography.Text>
                 <Typography.Text>{stats.cpuPercent.toFixed(2)}%</Typography.Text>
               </div>
-              <Progress percent={Math.min(stats.cpuPercent, 100)} showInfo={false} stroke={stats.cpuPercent > 80 ? 'var(--semi-color-danger)' : undefined} />
+              <MetricMeter
+                value={stats.cpuPercent}
+                label="容器 CPU 使用率"
+                valueText={`${stats.cpuPercent.toFixed(2)}%`}
+                tone={stats.cpuPercent > 80 ? 'danger' : 'primary'}
+              />
             </div>
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -446,8 +451,12 @@ function ContainersTab() {
                   </Typography.Text>
                 </Typography.Text>
               </div>
-              <Progress percent={stats.memLimit > 0 ? (stats.memUsage / stats.memLimit) * 100 : 0} showInfo={false}
-                stroke={stats.memLimit > 0 && stats.memUsage / stats.memLimit > 0.8 ? 'var(--semi-color-danger)' : undefined} />
+              <MetricMeter
+                value={stats.memLimit > 0 ? (stats.memUsage / stats.memLimit) * 100 : 0}
+                label="容器内存使用率"
+                valueText={`${formatBytes(stats.memUsage)} / ${formatBytes(stats.memLimit)}`}
+                tone={stats.memLimit > 0 && stats.memUsage / stats.memLimit > 0.8 ? 'danger' : 'primary'}
+              />
             </div>
           </div>
         )}

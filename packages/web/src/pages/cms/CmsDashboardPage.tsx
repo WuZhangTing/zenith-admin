@@ -6,6 +6,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { useCmsDashboardStats } from '@/hooks/queries/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
+import { DataBar } from '@/components/data-viz/DataBar';
 
 const STAT_CARDS: { key: 'published' | 'draft' | 'pending' | 'offline' | 'rejected' | 'recycled'; label: string; color: string }[] = [
   { key: 'published', label: '已发布', color: 'var(--semi-color-success)' },
@@ -112,9 +113,7 @@ export default function CmsDashboardPage() {
                       <span>{ch.channelName}</span>
                       <span style={{ color: 'var(--semi-color-text-2)' }}>{ch.count}</span>
                     </div>
-                    <div style={{ height: 8, background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-small)', overflow: 'hidden' }}>
-                      <div style={{ width: `${Math.round((ch.count / maxChannel) * 100)}%`, height: '100%', background: 'var(--semi-color-primary)', borderRadius: 'var(--semi-border-radius-small)' }} />
-                    </div>
+                    <DataBar value={ch.count} max={maxChannel} track="var(--semi-color-fill-0)" />
                   </div>
                 ))
               ) : (

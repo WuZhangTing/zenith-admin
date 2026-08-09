@@ -6,7 +6,6 @@ import {
   Empty,
   Form,
   Modal,
-  Progress,
   Row,
   Select,
   SideSheet,
@@ -20,6 +19,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportDqAnomaly, ReportDqAnomalyStatus, ReportDqRule, ReportDqRuleType, ReportDqRun, ReportDqRunStatus, ReportDqScore } from '@zenith/shared/report';
+import { MetricMeter } from '@/components/data-viz/MetricMeter';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
@@ -242,7 +242,15 @@ export default function QualityPage() {
     }),
   ];
   const scoreColumns: ColumnProps<ReportDqScore>[] = [
-    { title: '评分', dataIndex: 'score', width: 120, render: (v) => <Progress percent={Number(v)} showInfo type="line" /> },
+    { title: '评分', dataIndex: 'score', width: 160, render: (v) => {
+      const score = Number(v);
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ minWidth: 28 }}>{score}</span>
+          <MetricMeter value={score} label="数据质量评分" valueText={`${score} 分`} tone={score >= 80 ? 'success' : score >= 60 ? 'warning' : 'danger'} style={{ flex: 1 }} />
+        </div>
+      );
+    } },
     { title: '规则总数', dataIndex: 'totalRules', width: 100 },
     { title: '通过', dataIndex: 'passedRules', width: 90 },
     { title: '失败', dataIndex: 'failedRules', width: 90 },

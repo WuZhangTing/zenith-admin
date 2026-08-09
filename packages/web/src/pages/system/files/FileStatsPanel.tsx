@@ -14,6 +14,7 @@ import { FileImage, Video, Music, FileText, File } from 'lucide-react';
 import { formatFileSize } from '@/utils/file-utils';
 import { useFileStats } from '@/hooks/queries/files';
 import { FILE_STORAGE_PROVIDER_LABELS } from '@zenith/shared/platform';
+import { DataBar } from '@/components/data-viz/DataBar';
 
 const PROVIDER_LABELS: Record<string, string> = FILE_STORAGE_PROVIDER_LABELS;
 
@@ -140,9 +141,7 @@ export default function FileStatsPanel() {
                     <span style={{ fontSize: 11, color: 'var(--semi-color-text-2)' }}>占比</span>
                     <span style={{ fontSize: 11, fontWeight: 600, color }}>{percent.toFixed(1)}%</span>
                   </div>
-                  <div style={{ height: 5, background: 'var(--semi-color-fill-1)', borderRadius: 'var(--semi-border-radius-small)', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${Math.min(percent, 100)}%`, background: color, borderRadius: 'var(--semi-border-radius-small)', transition: 'width 0.6s ease' }} />
-                  </div>
+                  <DataBar value={percent} max={100} color={color} height={5} />
                 </div>
               </div>
             );

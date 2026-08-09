@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Table, Button, Tag, Space, Modal, SideSheet, Form, Spin, Toast, Select, RadioGroup, Radio, Tabs, TabPane, Progress, Typography } from '@douyinfe/semi-ui';
+import { Table, Button, Tag, Space, Modal, SideSheet, Form, Spin, Toast, Select, RadioGroup, Radio, Tabs, TabPane, Typography } from '@douyinfe/semi-ui';
 import { Trash2 } from 'lucide-react';
 import type { Announcement, AnnouncementTargetType, AnnouncementReadStats, AnnouncementAttachment } from '@zenith/shared/messaging';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -10,6 +10,7 @@ import ExportButton from '@/components/ExportButton';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn, type ResponsiveTableAction } from '@/components/ResponsiveTableActions';
 import FileAttachment from '@/components/FileAttachment';
+import { MetricMeter } from '@/components/data-viz/MetricMeter';
 import { formatDateTime, formatDateTimeForApi, formatDateTimeRangeForApi } from '@/utils/date';
 import { useDictItems } from '@/hooks/useDictItems';
 import DictTag from '@/components/DictTag';
@@ -352,7 +353,7 @@ export default function AnnouncementsPage() {
               <Typography.Text size="small">阅读率</Typography.Text>
               <Typography.Text size="small" strong>{readRatePercent}%</Typography.Text>
             </div>
-            <Progress percent={readRatePercent} size="large" />
+            <MetricMeter value={readRatePercent} label="公告阅读率" valueText={`${readRatePercent}%`} height={12} tone={readRatePercent >= 80 ? 'success' : 'primary'} />
           </div>
         </div>
 

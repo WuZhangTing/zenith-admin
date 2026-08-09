@@ -13,6 +13,7 @@ import { aggregateReportRows, formatReportFieldValue } from '@zenith/shared/repo
 import type { ReportWidget, ReportField, ReportDataResult, ReportConditionalFormat, ReportWidgetOptions, ReportDatasetQueryOptions, ReportResultField } from '@zenith/shared/report';
 import { useReportWidgetDictMaps } from '@/hooks/queries/report-designer';
 import { TABLE_PAGE_SIZE_OPTIONS } from '@/hooks/usePagination';
+import { DataBar } from '@/components/data-viz/DataBar';
 
 // ─── 工具 ────────────────────────────────────────────────────────────────────
 function toNumber(v: unknown): number {
@@ -825,9 +826,14 @@ function ScrollList({ rows, cat, val, speed, showRank, onClick }: { readonly row
               <span style={{ flex: 1, minWidth: 0, color: 'var(--semi-color-text-0)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
               <span style={{ color: 'var(--semi-color-text-1)', fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{fmtNumber(value)}</span>
             </div>
-            <div style={{ height: 3, marginTop: 6, borderRadius: 999, background: 'var(--semi-color-fill-1)', overflow: 'hidden' }}>
-              <div style={{ width: `${pct}%`, height: '100%', borderRadius: 999, background: 'linear-gradient(90deg, var(--semi-color-primary), #5ad8ff)' }} />
-            </div>
+            <DataBar
+              value={pct}
+              max={100}
+              color="linear-gradient(90deg, var(--semi-color-primary), #5ad8ff)"
+              height={3}
+              radius={999}
+              style={{ marginTop: 6 }}
+            />
           </div>
         );
       })}

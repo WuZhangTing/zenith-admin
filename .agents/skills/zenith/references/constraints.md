@@ -175,6 +175,12 @@
   会连带引入约 2MB 的 vchart。
   环比用 `delta`，`deltaFormat` 区分 `absolute`（差值）与 `ratio`（比率，0.12 → +12.0%）；
   按状态筛选列表的卡片传 `onClick` + `active`，组件会渲染成 `button` 并带 `aria-pressed`
+- **进度与度量条语义**（Step 8）：任务上传、异步执行、目标完成等真实进度用 Semi `Progress`
+  （任务中心优先 `AsyncTaskProgress`）；CPU / 内存 / 配额 / 质量评分等有界测量用
+  `@/components/data-viz/MetricMeter`（内置 `role="meter"`）；排行、占比、分布等相对数据条用
+  `@/components/data-viz/DataBar`，且必须有相邻可见数值文本。前三类**禁止**在页面里手写
+  `width: '${percent}%'` / `scaleX(percent)` 的轨道与填充。无确定百分比的加载用 `Spin`，
+  路由顶部不定加载继续用 `NProgress`；分段构成、时间轴、漏斗等本身承载结构的数据可视化不套用本条
 - **栅格禁止内联写死列数**（Step 8）：**禁止**写
   `style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}` 或 `'1fr 1fr'` 这类固定列数——
   内联样式无法被媒体查询覆盖，窄屏会把内容压到竖排（实测：4 列会员等级卡在 390px 只剩 75px 宽，

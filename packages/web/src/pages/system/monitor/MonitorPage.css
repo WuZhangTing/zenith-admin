@@ -146,15 +146,7 @@
   border-left: 1px solid var(--color-border);
 }
 
-/* ===== 进度条颜色 ===== */
-.monitor-progress-warning .semi-progress-stroke {
-  background: var(--semi-color-warning) !important;
-}
-
-.monitor-progress-danger .semi-progress-stroke {
-  background: var(--semi-color-danger) !important;
-}
-
+/* ===== 高占用数值颜色 ===== */
 .monitor-progress-warning.monitor-overview-metric__value {
   color: var(--semi-color-warning);
 }

@@ -17,6 +17,7 @@ import {
   useWorkflowEngineActionPreview,
   useWorkflowEngineDiagnostics,
 } from '@/hooks/queries/workflow-monitor';
+import { DataBar } from '@/components/data-viz/DataBar';
 
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'indigo' | 'light-blue' | 'light-green' | 'lime' | 'orange' | 'pink' | 'purple' | 'red' | 'teal' | 'violet' | 'yellow' | 'white';
 
@@ -308,9 +309,15 @@ function HistogramBars({ buckets, color }: Readonly<{ buckets: WorkflowEngineHis
       {buckets.map((b) => (
         <div key={b.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Typography.Text type="tertiary" size="small" style={{ width: 64, minWidth: 64, textAlign: 'right' }}>{b.label}</Typography.Text>
-          <div style={{ flex: 1, minWidth: 0, height: 12, background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-small)', overflow: 'hidden' }}>
-            <div style={{ width: `${(b.count / max) * 100}%`, height: '100%', background: color, opacity: 0.85 }} />
-          </div>
+          <DataBar
+            value={b.count}
+            max={max}
+            color={color}
+            fillOpacity={0.85}
+            height={12}
+            track="var(--semi-color-fill-0)"
+            style={{ flex: 1, minWidth: 0 }}
+          />
           <Typography.Text size="small" style={{ width: 64, minWidth: 64 }}>
             {b.count}
             <Typography.Text type="tertiary" size="small">{total > 0 ? ` ${Math.round((b.count / total) * 100)}%` : ''}</Typography.Text>

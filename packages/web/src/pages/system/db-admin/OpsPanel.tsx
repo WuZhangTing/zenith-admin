@@ -8,6 +8,7 @@ import { RefreshCw, Activity, Wrench, KeyRound, GitCompare } from 'lucide-react'
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { confirmDanger } from '@/utils/confirm';
+import { MetricMeter } from '@/components/data-viz/MetricMeter';
 import { copyToClipboard } from './sql-format';
 import {
   useDbAdminActivity,
@@ -174,9 +175,14 @@ function MaintenancePanel({ canMaintain }: Readonly<{ canMaintain: boolean }>) {
     { title: '死元组', dataIndex: 'deadTuples', width: 160, render: (v: number, r) => (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ minWidth: 56 }}>{v.toLocaleString()}</span>
-        <div style={{ flex: 1, height: 6, background: 'var(--semi-color-fill-1)', borderRadius: 'var(--semi-border-radius-small)', overflow: 'hidden', minWidth: 40 }}>
-          <div style={{ height: '100%', width: `${Math.min(r.deadRatio, 100)}%`, background: r.deadRatio > 20 ? 'var(--semi-color-danger)' : r.deadRatio > 10 ? 'var(--semi-color-warning)' : 'var(--semi-color-success)' }} />
-        </div>
+        <MetricMeter
+          value={r.deadRatio}
+          label={`${r.schema}.${r.name} 死元组率`}
+          valueText={`${r.deadRatio}%`}
+          tone={r.deadRatio > 20 ? 'danger' : r.deadRatio > 10 ? 'warning' : 'success'}
+          height={6}
+          style={{ flex: 1, minWidth: 40 }}
+        />
         <Text type={r.deadRatio > 20 ? 'danger' : undefined} size="small">{r.deadRatio}%</Text>
       </div>
     )},

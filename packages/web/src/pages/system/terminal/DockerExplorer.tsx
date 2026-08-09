@@ -29,6 +29,7 @@ import { request } from '@/utils/request';
 import { getFileIcon } from '@/utils/fileIcons';
 import { fetchDockerDir, useDockerExplorerAction } from '@/hooks/queries/terminal-files';
 import { useDockerContainers, useDockerFetchStats } from '@/hooks/queries/docker';
+import { MetricMeter } from '@/components/data-viz/MetricMeter';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -551,17 +552,6 @@ export default function DockerExplorer({ active, onOpenFile, onAttachShell }: Do
           gap: 10px;
           margin-bottom: 14px;
         }
-        .docker-stats-meter {
-          height: 8px;
-          border-radius: 999px;
-          background: var(--semi-color-fill-0);
-          overflow: hidden;
-        }
-        .docker-stats-meter__bar {
-          height: 100%;
-          border-radius: inherit;
-          background: var(--semi-color-primary);
-        }
       `}</style>
 
       <Modal
@@ -627,23 +617,16 @@ export default function DockerExplorer({ active, onOpenFile, onAttachShell }: Do
           <div>
             <div className="docker-stats-row">
               <Typography.Text size="small" type="secondary">CPU</Typography.Text>
-              <div className="docker-stats-meter">
-                <div className="docker-stats-meter__bar" style={{ width: `${Math.min(statsModal.stats.cpuPercent, 100)}%` }} />
-              </div>
+              <MetricMeter value={statsModal.stats.cpuPercent} label="容器 CPU 使用率" valueText={formatPercent(statsModal.stats.cpuPercent)} />
               <Typography.Text size="small" strong>{formatPercent(statsModal.stats.cpuPercent)}</Typography.Text>
             </div>
             <div className="docker-stats-row">
               <Typography.Text size="small" type="secondary">内存</Typography.Text>
-              <div className="docker-stats-meter">
-                <div
-                  className="docker-stats-meter__bar"
-                  style={{
-                    width: `${statsModal.stats.memLimit > 0
-                      ? Math.min((statsModal.stats.memUsage / statsModal.stats.memLimit) * 100, 100)
-                      : 0}%`,
-                  }}
-                />
-              </div>
+              <MetricMeter
+                value={statsModal.stats.memLimit > 0 ? (statsModal.stats.memUsage / statsModal.stats.memLimit) * 100 : 0}
+                label="容器内存使用率"
+                valueText={`${formatBytes(statsModal.stats.memUsage)} / ${formatBytes(statsModal.stats.memLimit)}`}
+              />
               <Typography.Text size="small" strong>
                 {formatBytes(statsModal.stats.memUsage)} / {formatBytes(statsModal.stats.memLimit)}
               </Typography.Text>
