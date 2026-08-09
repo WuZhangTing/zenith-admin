@@ -519,6 +519,37 @@ async function getDatasetDataExecutionCore(
   let resolvedParams: Record<string, unknown> | undefined;
   let cacheHit = false;
 
+  const projectMaterializedSnapshot = async (
+    snapshot: ReportDataResult,
+    snapshotCacheHit: boolean,
+  ): Promise<DatasetExecutionResult> => {
+    const projected = applyDatasetGovernance(withFieldMetadata(
+      applyInMemoryQuery(
+        snapshot.rows,
+        snapshot.columns,
+        queryOptions,
+        snapshot.rows.length,
+      ),
+      declaredFields,
+      computed,
+    ));
+    await recordDatasetExecutionLog({
+      row,
+      durationMs: Date.now() - startedAt,
+      rowCount: projected.rows.length,
+      bytes: projected.bytes ?? null,
+      truncated: projected.truncated ?? false,
+      cacheHit: snapshotCacheHit,
+      success: true,
+      runtime,
+    });
+    return {
+      data: projected,
+      durationMs: Date.now() - startedAt,
+      cacheHit: snapshotCacheHit,
+    };
+  };
+
   try {
     if (row.status !== 'enabled') throw new HTTPException(400, { message: '数据集已停用' });
     if (!row.datasource) throw new HTTPException(400, { message: '数据源不存在' });
@@ -532,23 +563,7 @@ async function getDatasetDataExecutionCore(
         if (snap) {
           cacheHit = true;
           const raw = JSON.parse(snap) as ReportDataResult;
-          const snapshotTotal = raw.rows.length;
-          const projected = applyDatasetGovernance(withFieldMetadata(
-            applyInMemoryQuery(raw.rows, raw.columns, queryOptions, snapshotTotal),
-            declaredFields,
-            computed,
-          ));
-          await recordDatasetExecutionLog({
-            row,
-            durationMs: Date.now() - startedAt,
-            rowCount: projected.rows.length,
-            bytes: projected.bytes ?? null,
-            truncated: projected.truncated ?? false,
-            cacheHit,
-            success: true,
-            runtime,
-          });
-          return { data: projected, durationMs: Date.now() - startedAt, cacheHit };
+          return projectMaterializedSnapshot(raw, cacheHit);
         }
       } catch (err) {
         logger.warn('读取报表物化快照失败', { datasetId: id, err: err instanceof Error ? err.message : String(err) });
@@ -561,22 +576,7 @@ async function getDatasetDataExecutionCore(
         } catch (err) {
           logger.warn('回温报表物化快照失败', { datasetId: id, err: err instanceof Error ? err.message : String(err) });
         }
-        const projected = applyDatasetGovernance(withFieldMetadata(
-          applyInMemoryQuery(snapshot.rows, snapshot.columns, queryOptions, snapshot.rows.length),
-          declaredFields,
-          computed,
-        ));
-        await recordDatasetExecutionLog({
-          row,
-          durationMs: Date.now() - startedAt,
-          rowCount: projected.rows.length,
-          bytes: projected.bytes ?? null,
-          truncated: projected.truncated ?? false,
-          cacheHit: true,
-          success: true,
-          runtime,
-        });
-        return { data: projected, durationMs: Date.now() - startedAt, cacheHit: true };
+        return projectMaterializedSnapshot(snapshot, true);
       }
       const live = await runReportData(row.type, config, rawContent, {}, MAX_LIMIT, declaredFields, computed);
       const snapshot = { ...live, total: live.rows.length };
@@ -585,22 +585,7 @@ async function getDatasetDataExecutionCore(
       } catch (err) {
         logger.warn('写入报表物化快照失败', { datasetId: id, err: err instanceof Error ? err.message : String(err) });
       }
-      const projected = applyDatasetGovernance(withFieldMetadata(
-        applyInMemoryQuery(snapshot.rows, snapshot.columns, queryOptions, snapshot.rows.length),
-        declaredFields,
-        computed,
-      ));
-      await recordDatasetExecutionLog({
-        row,
-        durationMs: Date.now() - startedAt,
-        rowCount: projected.rows.length,
-        bytes: projected.bytes ?? null,
-        truncated: projected.truncated ?? false,
-        cacheHit: false,
-        success: true,
-        runtime,
-      });
-      return { data: projected, durationMs: Date.now() - startedAt, cacheHit: false };
+      return projectMaterializedSnapshot(snapshot, false);
     }
 
     // 行级权限：命中规则以 OR 包裹原查询；无上下文拒绝，未命中注入恒假条件，超管不受限

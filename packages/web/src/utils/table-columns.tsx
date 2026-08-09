@@ -3,7 +3,7 @@
  *
  * 提供常用的预置列对象和 render 辅助函数，避免在每个页面重复手写。
  */
-import { Typography } from '@douyinfe/semi-ui';
+import { Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { formatDateTime } from './date';
 
@@ -18,6 +18,14 @@ export function renderEllipsis(v: string | null | undefined): React.ReactNode {
     <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>
       {v || '—'}
     </Typography.Text>
+  );
+}
+
+export function renderEnabledStatusTag(value: string): React.ReactNode {
+  return (
+    <Tag color={value === 'enabled' ? 'green' : 'red'} size="small">
+      {value === 'enabled' ? '启用' : '停用'}
+    </Tag>
   );
 }
 

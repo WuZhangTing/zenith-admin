@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Button, Form, Tag, Toast, Tabs, TabPane, TextArea, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search, Send } from 'lucide-react';
@@ -10,6 +9,7 @@ import AppModal from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePagination } from '@/hooks/usePagination';
+import { useListSearch } from '@/hooks/useListSearch';
 import {
   useCmsRedirectList, useSaveCmsRedirect, useDeleteCmsRedirect, cmsRedirectKeys,
   useCmsLinkWordList, useSaveCmsLinkWord, useDeleteCmsLinkWord, cmsLinkWordKeys,
@@ -23,15 +23,20 @@ import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { renderEnabledStatusTag } from '@/utils/table-columns';
+
+interface KeywordSearch { keyword: string }
+const defaultKeywordSearch: KeywordSearch = { keyword: '' };
 
 // ─── 301 重定向 Tab ───────────────────────────────────────────────────────────
 function RedirectsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftKeyword, setDraftKeyword] = useState('');
-  const [submittedKeyword, setSubmittedKeyword] = useState('');
-  const listQuery = useCmsRedirectList({ page, pageSize, siteId: siteId ?? 0, keyword: submittedKeyword || undefined }, siteId !== undefined);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch,
+  } = useListSearch<KeywordSearch>({ defaults: defaultKeywordSearch, listKey: cmsRedirectKeys.lists });
+  const listQuery = useCmsRedirectList({ page, pageSize, siteId: siteId ?? 0, keyword: submittedParams.keyword || undefined }, siteId !== undefined);
   const saveMutation = useSaveCmsRedirect();
   const modal = useEditModal<CmsRedirect, Partial<CmsRedirect>, Record<string, unknown>>({
     entityName: '重定向',
@@ -46,12 +51,6 @@ function RedirectsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
   const deleteMutation = useDeleteCmsRedirect();
   const canManage = hasPermission('cms:seo:manage');
 
-  function handleSearch() {
-    setPage(1);
-    setSubmittedKeyword(draftKeyword);
-    void queryClient.invalidateQueries({ queryKey: cmsRedirectKeys.lists });
-  }
-
   const columns: ColumnProps<CmsRedirect>[] = [
     { title: '来源路径', dataIndex: 'fromPath', width: 240 },
     { title: '目标地址', dataIndex: 'toUrl', width: 260 },
@@ -59,7 +58,7 @@ function RedirectsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
     { title: '备注', dataIndex: 'remark', width: 160, render: (v: string | null) => v ?? '-' },
     {
       title: '状态', dataIndex: 'status', width: 80, fixed: 'right',
-      render: (v: string) => (v === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag color="red" size="small">停用</Tag>),
+      render: renderEnabledStatusTag,
     },
     createOperationColumn<CmsRedirect>({
       width: 160,
@@ -85,7 +84,7 @@ function RedirectsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
   return (
     <>
       <SearchToolbar>
-        <KeywordInput placeholder="搜索来源路径..." value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} />
+        <KeywordInput placeholder="搜索来源路径..." value={draftParams.keyword} onChange={(keyword) => setDraftParams({ keyword })} onSearch={handleSearch} />
         <SearchButton onClick={handleSearch} />
         {canManage ? <CreateButton onClick={modal.openCreate} /> : null}
       </SearchToolbar>
@@ -123,11 +122,12 @@ function RedirectsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
 // ─── 内链词 Tab ───────────────────────────────────────────────────────────────
 function LinkWordsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftKeyword, setDraftKeyword] = useState('');
-  const [submittedKeyword, setSubmittedKeyword] = useState('');
-  const listQuery = useCmsLinkWordList({ page, pageSize, siteId: siteId ?? 0, keyword: submittedKeyword || undefined }, siteId !== undefined);
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch,
+  } = useListSearch<KeywordSearch>({ defaults: defaultKeywordSearch, listKey: cmsLinkWordKeys.lists });
+  const listQuery = useCmsLinkWordList({ page, pageSize, siteId: siteId ?? 0, keyword: submittedParams.keyword || undefined }, siteId !== undefined);
   const saveMutation = useSaveCmsLinkWord();
   const modal = useEditModal<CmsLinkWord, Partial<CmsLinkWord>, Record<string, unknown>>({
     entityName: '内链词',
@@ -143,19 +143,13 @@ function LinkWordsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
   const deleteMutation = useDeleteCmsLinkWord();
   const canManage = hasPermission('cms:seo:manage');
 
-  function handleSearch() {
-    setPage(1);
-    setSubmittedKeyword(draftKeyword);
-    void queryClient.invalidateQueries({ queryKey: cmsLinkWordKeys.lists });
-  }
-
   const columns: ColumnProps<CmsLinkWord>[] = [
     { title: '关键词', dataIndex: 'keyword', width: 160 },
     { title: '链接地址', dataIndex: 'url', width: 280 },
     { title: '每篇最多替换', dataIndex: 'maxReplaces', width: 120 },
     {
       title: '状态', dataIndex: 'status', width: 80, fixed: 'right',
-      render: (v: string) => (v === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag color="red" size="small">停用</Tag>),
+      render: renderEnabledStatusTag,
     },
     createOperationColumn<CmsLinkWord>({
       width: 160,
@@ -182,7 +176,7 @@ function LinkWordsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
     <>
       <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }} description="内容详情页渲染时自动将正文中的关键词替换为站内链接（跳过已有链接区域），提升 SEO 内链密度。修改后新访问/重新生成的页面生效。" />
       <SearchToolbar>
-        <KeywordInput placeholder="搜索关键词..." value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} />
+        <KeywordInput placeholder="搜索关键词..." value={draftParams.keyword} onChange={(keyword) => setDraftParams({ keyword })} onSearch={handleSearch} />
         <SearchButton onClick={handleSearch} />
         {canManage ? <CreateButton onClick={modal.openCreate} /> : null}
       </SearchToolbar>

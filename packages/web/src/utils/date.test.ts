@@ -5,6 +5,7 @@ import {
   formatDateTime,
   formatDateTimeForApi,
   formatDateTimeRangeForApi,
+  formatDateTimeRangeValuesForApi,
   stripHtml,
 } from './date';
 
@@ -55,6 +56,20 @@ describe('formatDateTime', () => {
     expect(formatDateTimeRangeForApi(null)).toEqual({
       startTime: undefined,
       endTime: undefined,
+    });
+  });
+
+  it('should support partial ranges and custom empty values', () => {
+    const start = new Date(2026, 2, 22, 20, 9, 37);
+
+    expect(formatDateTimeRangeValuesForApi([start])).toEqual([
+      '2026-03-22 20:09:37',
+      undefined,
+    ]);
+    expect(formatDateTimeRangeValuesForApi(null, '')).toEqual(['', '']);
+    expect(formatDateTimeRangeForApi([start])).toEqual({
+      startTime: '2026-03-22 20:09:37',
+      endTime: '',
     });
   });
 

@@ -26,7 +26,7 @@ import { recordLedgerEntry } from './payment-ledger.service';
 import { getAdapter } from '../../lib/payment/registry';
 import logger from '../../lib/logger';
 import type { CreatePaymentTransferInput, PaymentChannel, PaymentTransfer, PaymentTransferStatus } from '@zenith/shared/payment';
-import { PAYMENT_CHANNEL_LABELS } from '@zenith/shared/payment';
+import { resolvePaymentChannelConfig } from './payment-channel-config-resolver';
 
 const MAX_TRANSFER_ATTEMPTS = 3;
 
@@ -55,22 +55,6 @@ export function mapTransfer(row: PaymentTransferRow & { operatorName?: string | 
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
   };
-}
-
-async function resolveTransferConfig(channel: PaymentChannel, channelConfigId?: number): Promise<PaymentChannelConfigRow> {
-  const tc = tenantCondition(paymentChannelConfigs, currentUser());
-  if (channelConfigId) {
-    const [row] = await db.select().from(paymentChannelConfigs).where(and(eq(paymentChannelConfigs.id, channelConfigId), tc)).limit(1);
-    if (!row) throw new HTTPException(404, { message: '支付渠道配置不存在' });
-    return row;
-  }
-  const [row] = await db
-    .select()
-    .from(paymentChannelConfigs)
-    .where(and(eq(paymentChannelConfigs.channel, channel), eq(paymentChannelConfigs.isDefault, true), eq(paymentChannelConfigs.status, 'enabled'), tc))
-    .limit(1);
-  if (!row) throw new HTTPException(400, { message: `未配置默认${PAYMENT_CHANNEL_LABELS[channel]}支付渠道` });
-  return row;
 }
 
 async function ensureTransfer(id: number): Promise<PaymentTransferRow> {
@@ -138,8 +122,12 @@ async function recordTransferLedger(row: PaymentTransferRow): Promise<void> {
 
 /** 发起转账：落单（pending）→ 调渠道 → 状态落地。渠道失败不抛错，返回 failed 单据供列表重试。 */
 export async function createTransfer(input: CreatePaymentTransferInput & { operatorId?: number }): Promise<PaymentTransfer> {
-  const config = await resolveTransferConfig(input.channel, input.channelConfigId);
   const user = currentUser();
+  const config = await resolvePaymentChannelConfig({
+    channel: input.channel,
+    channelConfigId: input.channelConfigId,
+    scope: tenantCondition(paymentChannelConfigs, user),
+  });
   const transferNo = genNo();
   const [created] = await db
     .insert(paymentTransfers)

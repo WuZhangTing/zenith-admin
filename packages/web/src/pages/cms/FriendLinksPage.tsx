@@ -1,15 +1,15 @@
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Select, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Select, SideSheet, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { FolderTree } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
-import { createdAtColumn } from '@/utils/table-columns';
+import { createdAtColumn, renderEnabledStatusTag } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
+import { useListSearch } from '@/hooks/useListSearch';
 import { usePagination } from '@/hooks/usePagination';
 import {
   useCmsFriendLinkList, useSaveCmsFriendLink, useDeleteCmsFriendLink, cmsFriendLinkKeys,
@@ -21,22 +21,24 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
+interface SearchParams { keyword: string; groupId?: number }
+const defaultSearch: SearchParams = { keyword: '', groupId: undefined };
+
 export default function FriendLinksPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
-
   const [siteId, setSiteId] = useState<number | undefined>(undefined);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftKeyword, setDraftKeyword] = useState('');
-  const [submittedKeyword, setSubmittedKeyword] = useState('');
+  const {
+    page, pageSize, setPage, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: cmsFriendLinkKeys.lists });
   const [groupSheetVisible, setGroupSheetVisible] = useState(false);
-
-  const [draftGroupId, setDraftGroupId] = useState<number | undefined>(undefined);
-  const [submittedGroupId, setSubmittedGroupId] = useState<number | undefined>(undefined);
   const groupOptions = useAllCmsFriendLinkGroups(siteId).data ?? [];
 
   const listQuery = useCmsFriendLinkList({
-    page, pageSize, siteId: siteId ?? 0, keyword: submittedKeyword || undefined, groupId: submittedGroupId,
+    page, pageSize, siteId: siteId ?? 0,
+    keyword: submittedParams.keyword || undefined,
+    groupId: submittedParams.groupId,
   }, siteId !== undefined);
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
@@ -53,22 +55,6 @@ export default function FriendLinksPage() {
     },
   });
   const deleteMutation = useDeleteCmsFriendLink();
-
-  function handleSearch() {
-    setPage(1);
-    setSubmittedKeyword(draftKeyword);
-    setSubmittedGroupId(draftGroupId);
-    void queryClient.invalidateQueries({ queryKey: cmsFriendLinkKeys.lists });
-  }
-
-  function handleReset() {
-    setPage(1);
-    setDraftKeyword('');
-    setSubmittedKeyword('');
-    setDraftGroupId(undefined);
-    setSubmittedGroupId(undefined);
-    void queryClient.invalidateQueries({ queryKey: cmsFriendLinkKeys.lists });
-  }
 
   const columns: ColumnProps<CmsFriendLink>[] = [
     { title: '链接名称', dataIndex: 'name', width: 180 },
@@ -89,7 +75,7 @@ export default function FriendLinksPage() {
       dataIndex: 'status',
       width: 80,
       fixed: 'right',
-      render: (v: string) => (v === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag color="red" size="small">停用</Tag>),
+      render: renderEnabledStatusTag,
     },
     createOperationColumn<CmsFriendLink>({
       width: 160,
@@ -122,14 +108,14 @@ export default function FriendLinksPage() {
     <div className="page-container">
       <SearchToolbar>
         <CmsSiteSelect value={siteId} onChange={(v) => { setSiteId(v); setPage(1); }} width={180} />
-        <KeywordInput placeholder="搜索名称..." value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} width={200} />
+        <KeywordInput placeholder="搜索名称..." value={draftParams.keyword} onChange={(keyword) => setDraftParams((current) => ({ ...current, keyword }))} onSearch={handleSearch} width={200} />
         <Select
           placeholder="全部分组"
           showClear
           disabled={!siteId}
           style={{ width: 160 }}
-          value={draftGroupId}
-          onChange={(v) => setDraftGroupId(v == null ? undefined : Number(v))}
+          value={draftParams.groupId}
+          onChange={(v) => setDraftParams((current) => ({ ...current, groupId: v == null ? undefined : Number(v) }))}
           optionList={[
             { value: 0, label: '未分组' },
             ...groupOptions.map((g) => ({ value: g.id, label: g.name })),

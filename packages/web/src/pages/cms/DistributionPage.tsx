@@ -11,7 +11,7 @@ import ExportButton from '@/components/ExportButton';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { createOperationColumn, type ResponsiveTableAction } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
-import { formatDateTimeForApi } from '@/utils/date';
+import { formatDateTimeForApi, formatDateTimeRangeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePagination } from '@/hooks/usePagination';
@@ -85,8 +85,7 @@ export default function DistributionPage() {
     ruleId: runSubmitted.ruleId,
     siteId: runSubmitted.siteId,
     status: runSubmitted.status,
-    startTime: runSubmitted.range[0] ? formatDateTimeForApi(runSubmitted.range[0]) : undefined,
-    endTime: runSubmitted.range[1] ? formatDateTimeForApi(runSubmitted.range[1]) : undefined,
+    ...formatDateTimeRangeForApi(runSubmitted.range),
   });
   const runDetailQuery = useCmsDistributionRunDetail(detailRunId, detailRunId !== undefined);
   const saveMutation = useSaveCmsDistributionRule();
@@ -505,8 +504,7 @@ export default function DistributionPage() {
                       ruleId: runSubmitted.ruleId,
                       siteId: runSubmitted.siteId,
                       status: runSubmitted.status,
-                      startTime: runSubmitted.range[0] ? formatDateTimeForApi(runSubmitted.range[0]) : undefined,
-                      endTime: runSubmitted.range[1] ? formatDateTimeForApi(runSubmitted.range[1]) : undefined,
+                      ...formatDateTimeRangeForApi(runSubmitted.range),
                     }}
                   />
                 ) : null}
@@ -530,8 +528,7 @@ export default function DistributionPage() {
                 ruleId: runSubmitted.ruleId,
                 siteId: runSubmitted.siteId,
                 status: runSubmitted.status,
-                startTime: runSubmitted.range[0] ? formatDateTimeForApi(runSubmitted.range[0]) : undefined,
-                endTime: runSubmitted.range[1] ? formatDateTimeForApi(runSubmitted.range[1]) : undefined,
+                ...formatDateTimeRangeForApi(runSubmitted.range),
               }} variant="flat" />
             ) : null}
             onFilterApply={searchRuns}

@@ -9,7 +9,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
 import AppModal from '@/components/AppModal';
-import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
+import { formatDateTime, formatDateTimeRangeValuesForApi } from '@/utils/date';
 import {
   analyticsKeys,
   useAnalyticsEventDetail,
@@ -341,11 +341,12 @@ export default function AnalyticsDataPage() {
 
   const handleEventRangeChange = (value: unknown) => {
     const range = parseDateRange(value);
+    const [startTime, endTime] = formatDateTimeRangeValuesForApi(range, '');
     setEventSearch((prev) => ({
       ...prev,
       timeRange: range,
-      startTime: range ? formatDateTimeForApi(range[0]) : '',
-      endTime: range ? formatDateTimeForApi(range[1]) : '',
+      startTime,
+      endTime,
     }));
   };
 

@@ -10,6 +10,19 @@ import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../../lib/context';
 import { mapInstance, mapTask } from './mapping';
 
+async function instanceDiagnosticWhere(id: number) {
+  const user = currentUser();
+  return and(
+    eq(workflowInstances.id, id),
+    tenantCondition(workflowInstances, user),
+    await getDataScopeCondition({
+      currentUserId: user.userId,
+      deptColumn: users.departmentId,
+      ownerColumn: workflowInstances.initiatorId,
+    }),
+  );
+}
+
 function mapRuntimeOutboxEvent(row: typeof workflowJobs.$inferSelect): WorkflowRuntimeOutboxEvent {
   const event = (row.payload as { event?: { eventId?: string; type?: string } } | null)?.event;
   return {
@@ -205,18 +218,8 @@ function buildTokenView(instanceId: number, tokens: WorkflowExecutionToken[]): W
 
 /** 实例的显式执行 Token 列表（活动路径 + 血缘，用于运行态可观测/重放） */
 export async function getInstanceExecutionTokens(id: number): Promise<WorkflowExecutionTokenView> {
-  const user = currentUser();
-  const tc = tenantCondition(workflowInstances, user);
-  const conditions = [eq(workflowInstances.id, id)];
-  if (tc) conditions.push(tc);
-  const scopeCond = await getDataScopeCondition({
-    currentUserId: user.userId,
-    deptColumn: users.departmentId,
-    ownerColumn: workflowInstances.initiatorId,
-  });
-  if (scopeCond) conditions.push(scopeCond);
   const [inst] = await db.select({ id: workflowInstances.id, definitionSnapshot: workflowInstances.definitionSnapshot })
-    .from(workflowInstances).where(and(...conditions)).limit(1);
+    .from(workflowInstances).where(await instanceDiagnosticWhere(id)).limit(1);
   if (!inst) throw new HTTPException(404, { message: '流程实例不存在或无权查看' });
   const nodeMeta = buildNodeMetaFromSnapshot(inst.definitionSnapshot);
   const rows = await db.select().from(workflowTokens).where(eq(workflowTokens.instanceId, id)).orderBy(workflowTokens.id);
@@ -224,19 +227,8 @@ export async function getInstanceExecutionTokens(id: number): Promise<WorkflowEx
 }
 
 export async function getInstanceRuntimeDiagnostics(id: number): Promise<WorkflowRuntimeDiagnostics> {
-  const user = currentUser();
-  const tc = tenantCondition(workflowInstances, user);
-  const conditions = [eq(workflowInstances.id, id)];
-  if (tc) conditions.push(tc);
-  const scopeCond = await getDataScopeCondition({
-    currentUserId: user.userId,
-    deptColumn: users.departmentId,
-    ownerColumn: workflowInstances.initiatorId,
-  });
-  if (scopeCond) conditions.push(scopeCond);
-
   const row = await db.query.workflowInstances.findFirst({
-    where: and(...conditions),
+    where: await instanceDiagnosticWhere(id),
     with: {
       definition: { columns: { name: true, categoryId: true }, with: { category: { columns: { name: true } } } },
       initiator: { columns: { nickname: true, avatar: true } },
@@ -406,19 +398,8 @@ function buildEngineExplanation(
  * workflow_job_executions）按时间合并，回答"为什么停这儿、在等谁、等什么、下次何时重试"。
  */
 export async function getInstanceTrace(id: number): Promise<WorkflowInstanceTrace> {
-  const user = currentUser();
-  const tc = tenantCondition(workflowInstances, user);
-  const conditions = [eq(workflowInstances.id, id)];
-  if (tc) conditions.push(tc);
-  const scopeCond = await getDataScopeCondition({
-    currentUserId: user.userId,
-    deptColumn: users.departmentId,
-    ownerColumn: workflowInstances.initiatorId,
-  });
-  if (scopeCond) conditions.push(scopeCond);
-
   const row = await db.query.workflowInstances.findFirst({
-    where: and(...conditions),
+    where: await instanceDiagnosticWhere(id),
     columns: { id: true, title: true, status: true, definitionSnapshot: true },
     with: {
       tasks: { with: { assignee: { columns: { nickname: true } } }, orderBy: workflowTasks.id },

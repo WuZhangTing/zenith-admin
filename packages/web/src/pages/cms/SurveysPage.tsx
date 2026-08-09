@@ -21,7 +21,7 @@ import {
   useDeleteCmsInteraction,
   useSetCmsInteractionStatus,
 } from '@/hooks/queries/cms';
-import { formatDateTimeForApi } from '@/utils/date';
+import { formatDateTimeRangeForApi } from '@/utils/date';
 import { renderEllipsis } from '@/utils/table-columns';
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 import InteractionEditorModal from './interaction/InteractionEditorModal';
@@ -80,8 +80,7 @@ export default function SurveysPage() {
     siteId: siteId ?? 0,
     interactionId: responseInteractionId,
     kind: submitted.kind,
-    startTime: responseTimeRange ? formatDateTimeForApi(responseTimeRange[0]) : undefined,
-    endTime: responseTimeRange ? formatDateTimeForApi(responseTimeRange[1]) : undefined,
+    ...formatDateTimeRangeForApi(responseTimeRange),
   }, !!siteId);
 
   const canManage = hasPermission('cms:interaction:manage');
@@ -244,8 +243,7 @@ export default function SurveysPage() {
     siteId,
     interactionId: responseInteractionId,
     kind: submitted.kind,
-    startTime: responseTimeRange ? formatDateTimeForApi(responseTimeRange[0]) : undefined,
-    endTime: responseTimeRange ? formatDateTimeForApi(responseTimeRange[1]) : undefined,
+    ...formatDateTimeRangeForApi(responseTimeRange),
   };
 
   return (
@@ -372,4 +370,3 @@ export default function SurveysPage() {
     </div>
   );
 }
-

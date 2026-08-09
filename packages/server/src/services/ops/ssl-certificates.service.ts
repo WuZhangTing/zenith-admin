@@ -29,6 +29,13 @@ interface ParsedCertInfo {
   serialNumber: string | null;
 }
 
+interface StoredCertificate {
+  certPath: string;
+  keyPath: string;
+  certContent: string;
+  keyContent: string;
+}
+
 export interface ListSslCertificatesQuery {
   keyword?: string;
   type?: SslCertType;
@@ -45,6 +52,23 @@ function emptyCertInfo(): ParsedCertInfo {
     fingerprint: null,
     serialNumber: null,
   };
+}
+
+async function updateStoredCertificate(
+  id: number,
+  stored: StoredCertificate,
+  parsed: ParsedCertInfo,
+) {
+  await db.update(sslCertificates).set({
+    ...stored,
+    issuer: parsed.issuer,
+    subject: parsed.subject,
+    validFrom: parsed.validFrom,
+    validTo: parsed.validTo,
+    fingerprint: parsed.fingerprint,
+    serialNumber: parsed.serialNumber,
+    status: calculateStatus(parsed.validTo),
+  }).where(eq(sslCertificates.id, id));
 }
 
 function getPreferredStorageRoot(overrideRoot?: string) {
@@ -286,19 +310,12 @@ export async function generateSelfSignedCert(input: GenerateSelfSignedCertInput)
       parsed = await parseCertInfo(certPath);
     }
 
-    await db.update(sslCertificates).set({
+    await updateStoredCertificate(row.id, {
       certPath,
       keyPath,
       certContent,
       keyContent,
-      issuer: parsed.issuer,
-      subject: parsed.subject,
-      validFrom: parsed.validFrom,
-      validTo: parsed.validTo,
-      fingerprint: parsed.fingerprint,
-      serialNumber: parsed.serialNumber,
-      status: calculateStatus(parsed.validTo),
-    }).where(eq(sslCertificates.id, row.id));
+    }, parsed);
 
     return { id: row.id };
   } catch (error) {
@@ -335,19 +352,12 @@ export async function uploadCert(input: UploadCertInput): Promise<{ id: number }
     const { certPath, keyPath } = await persistCertFiles(row.id, certContent, keyContent);
     const parsed = await parseCertInfo(certPath);
 
-    await db.update(sslCertificates).set({
+    await updateStoredCertificate(row.id, {
       certPath,
       keyPath,
       certContent,
       keyContent,
-      issuer: parsed.issuer,
-      subject: parsed.subject,
-      validFrom: parsed.validFrom,
-      validTo: parsed.validTo,
-      fingerprint: parsed.fingerprint,
-      serialNumber: parsed.serialNumber,
-      status: calculateStatus(parsed.validTo),
-    }).where(eq(sslCertificates.id, row.id));
+    }, parsed);
 
     return { id: row.id };
   } catch (error) {

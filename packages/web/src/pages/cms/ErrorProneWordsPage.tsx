@@ -1,28 +1,30 @@
-import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Form, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
-import { createdAtColumn } from '@/utils/table-columns';
+import { createdAtColumn, renderEnabledStatusTag } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { usePagination } from '@/hooks/usePagination';
+import { useListSearch } from '@/hooks/useListSearch';
 import { useCmsErrorProneWordList, useSaveCmsErrorProneWord, useDeleteCmsErrorProneWord, cmsErrorProneWordKeys } from '@/hooks/queries/cms';
 import type { CmsErrorProneWord } from '@zenith/shared/cms';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
+interface SearchParams { keyword: string }
+const defaultSearch: SearchParams = { keyword: '' };
+
 export default function ErrorProneWordsPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftKeyword, setDraftKeyword] = useState('');
-  const [submittedKeyword, setSubmittedKeyword] = useState('');
-  const listQuery = useCmsErrorProneWordList({ page, pageSize, keyword: submittedKeyword || undefined });
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: cmsErrorProneWordKeys.lists });
+  const listQuery = useCmsErrorProneWordList({ page, pageSize, keyword: submittedParams.keyword || undefined });
   const saveMutation = useSaveCmsErrorProneWord();
   const modal = useEditModal<CmsErrorProneWord, Partial<CmsErrorProneWord>, Record<string, unknown>>({
     entityName: '易错词',
@@ -33,19 +35,6 @@ export default function ErrorProneWordsPage() {
   });
   const deleteMutation = useDeleteCmsErrorProneWord();
   const canManage = hasPermission('cms:word:manage');
-
-  function handleSearch() {
-    setPage(1);
-    setSubmittedKeyword(draftKeyword);
-    void queryClient.invalidateQueries({ queryKey: cmsErrorProneWordKeys.lists });
-  }
-
-  function handleReset() {
-    setPage(1);
-    setDraftKeyword('');
-    setSubmittedKeyword('');
-    void queryClient.invalidateQueries({ queryKey: cmsErrorProneWordKeys.lists });
-  }
 
   const columns: ColumnProps<CmsErrorProneWord>[] = [
     { title: '易错词', dataIndex: 'word', width: 180 },
@@ -59,7 +48,7 @@ export default function ErrorProneWordsPage() {
     createdAtColumn,
     {
       title: '状态', dataIndex: 'status', width: 80, fixed: 'right',
-      render: (v: string) => (v === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag color="red" size="small">停用</Tag>),
+      render: renderEnabledStatusTag,
     },
     createOperationColumn<CmsErrorProneWord>({
       width: 160,
@@ -86,7 +75,7 @@ export default function ErrorProneWordsPage() {
     <div className="page-container">
       <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }} description="易错词库用于内容编辑辅助：在内容编辑页点击「内容检查」可标出正文中的易错词，并支持一键替换为正确写法。" />
       <SearchToolbar>
-        <KeywordInput placeholder="搜索易错词/正确写法..." value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} />
+        <KeywordInput placeholder="搜索易错词/正确写法..." value={draftParams.keyword} onChange={(keyword) => setDraftParams({ keyword })} onSearch={handleSearch} />
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />
         {canManage ? <CreateButton onClick={modal.openCreate} /> : null}

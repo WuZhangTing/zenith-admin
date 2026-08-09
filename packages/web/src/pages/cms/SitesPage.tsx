@@ -17,7 +17,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
-import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
+import { createdAtColumn, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
 import { confirmDelete } from '@/utils/confirm';
 import { request } from '@/utils/request';
 import { usePermission } from '@/hooks/usePermission';
@@ -187,7 +187,7 @@ export default function SitesPage() {
       dataIndex: 'status',
       width: 80,
       fixed: 'right',
-      render: (v: string) => (v === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag color="red" size="small">停用</Tag>),
+      render: renderEnabledStatusTag,
     },
     createOperationColumn<CmsSite>({
       width: 240,

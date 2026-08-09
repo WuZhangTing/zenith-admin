@@ -30,7 +30,7 @@ import {
 } from '@/hooks/queries/report-assets';
 import { flattenReportFolders, useReportFolderTree } from '@/hooks/queries/report-folders';
 import { useAllUsers } from '@/hooks/queries/users';
-import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
+import { formatDateTime, formatDateTimeForApi, formatDateTimeRangeForApi } from '@/utils/date';
 import { renderEllipsis } from '@/utils/table-columns';
 import { normalizeTemplateApplyValues, parseJsonObject } from './report-platform-utils';
 import { REPORT_RESOURCE_TYPE_OPTIONS } from './report-platform-options';
@@ -70,6 +70,10 @@ export default function AssetsPage() {
   const users = usersQuery.data ?? [];
   const folders = flattenReportFolders(foldersQuery.data ?? []);
   const templateFolders = flattenReportFolders(templateFoldersQuery.data ?? []);
+  const {
+    startTime: updatedStart,
+    endTime: updatedEnd,
+  } = formatDateTimeRangeForApi(catalogSearch.timeRange);
   const catalogQueryParams = {
     page, pageSize,
     keyword: catalogSearch.keyword || undefined,
@@ -77,8 +81,8 @@ export default function AssetsPage() {
     ownerId: catalogSearch.ownerId,
     folderId: catalogSearch.folderId,
     lifecycle: catalogSearch.lifecycle || undefined,
-    updatedStart: catalogSearch.timeRange ? formatDateTimeForApi(catalogSearch.timeRange[0]) : undefined,
-    updatedEnd: catalogSearch.timeRange ? formatDateTimeForApi(catalogSearch.timeRange[1]) : undefined,
+    updatedStart,
+    updatedEnd,
   };
   const catalogQuery = useReportAssetCatalog(catalogQueryParams);
   const usageQuery = useReportAssetUsage(usageTarget?.resourceType, usageTarget?.resourceId, usageDays, !!usageTarget);

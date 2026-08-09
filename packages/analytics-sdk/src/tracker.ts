@@ -6,12 +6,14 @@
  * - 远程配置（开关/采样/黑名单/DNT）
  */
 import { onCLS, onINP, onLCP, onFCP, onTTFB, type Metric } from 'web-vitals';
-import { ANALYTICS_CONFIG_VERSION_KEY, ANALYTICS_SITE_KEY_HEADER, ANALYTICS_EXPERIMENT_EXPOSURE_EVENT, ANALYTICS_RAGE_CLICK_EVENT } from '@zenith/shared/analytics';
+import { ANALYTICS_CONFIG_VERSION_KEY, ANALYTICS_EXPERIMENT_EXPOSURE_EVENT, ANALYTICS_RAGE_CLICK_EVENT } from '@zenith/shared/analytics';
 import { TOKEN_KEY } from '@zenith/shared/core';
-import type { TrackEventInput, AnalyticsPublicConfig, AnalyticsEventSource, AnalyticsEnvironment, AnalyticsExperimentAssignment } from '@zenith/shared/analytics';
+import type { TrackEventInput, AnalyticsPublicConfig, AnalyticsExperimentAssignment } from '@zenith/shared/analytics';
 import type { UserBehaviorEventType } from '@zenith/shared/identity';
 import { addBreadcrumb } from './breadcrumbs';
 import { configureErrorReporting, configureErrorReporterRuntime, reportError } from './error-reporter';
+import { analyticsRequestHeaders } from './http';
+import type { AnalyticsRuntimeBaseConfig } from './runtime-config';
 
 const FLUSH_INTERVAL_MS = 15_000;
 const MAX_BUFFER_SIZE = 50;
@@ -69,25 +71,11 @@ const DEFAULT_CONFIG: AnalyticsPublicConfig = {
 type PendingEvent = Omit<TrackEventInput, 'sessionId' | 'anonymousId' | 'distinctId'>;
 
 // ─── 运行时参数化（多端 SDK 接入：后台 admin / 会员 member 共用同一份 tracker）───
-export interface TrackerRuntimeConfig {
-  /** API 基础路径，默认 /api */
-  apiBase: string;
-  /** localStorage 中存放访问令牌的 key（admin/member 各自独立） */
-  tokenKey: string;
-  /** 事件来源平台，不允许业务方伪造为 'server' */
-  source: AnalyticsEventSource;
-  /** 应用标识 */
-  appId: string;
-  /** 采集环境 */
-  environment: AnalyticsEnvironment;
+export interface TrackerRuntimeConfig extends AnalyticsRuntimeBaseConfig {
   /** 采集 SDK 版本 */
   sdkVersion: string;
   /** 白屏检测根节点选择器 */
   rootSelector: string;
-  /** 是否已获得采集同意；admin 端恒为 true，member 端由用户隐私同意状态驱动 */
-  consentProvider: () => boolean;
-  /** 匿名站点 Key；有值时配置拉取与上报携带请求头 */
-  siteKey?: string;
 }
 
 let runtime: TrackerRuntimeConfig = {
@@ -130,11 +118,7 @@ export function configureTracker(next: Partial<TrackerRuntimeConfig>): void {
 
 
 function analyticsHeaders(token: string | null, includeJson = true): Record<string, string> {
-  return {
-    ...(includeJson ? { 'Content-Type': 'application/json' } : {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...(runtime.siteKey ? { [ANALYTICS_SITE_KEY_HEADER]: runtime.siteKey } : {}),
-  };
+  return analyticsRequestHeaders({ token, siteKey: runtime.siteKey, includeJson });
 }
 
 function uuid(): string {

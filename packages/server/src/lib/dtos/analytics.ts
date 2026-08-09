@@ -4,6 +4,7 @@
 import { z } from '@hono/zod-openapi';
 import { jsonByteLength, jsonDepth } from '@zenith/shared/core';
 import { ANALYTICS_PROPERTIES_MAX_BYTES, ANALYTICS_ACQUISITION_DIMENSIONS, ANALYTICS_ATTRIBUTION_MODELS, ANALYTICS_BREAKDOWN_DIMENSIONS, ANALYTICS_DRILL_FUNNEL_OUTCOMES, ANALYTICS_DRILL_PAGE_SIZE_MAX, ANALYTICS_DRILL_RETENTION_OUTCOMES, ANALYTICS_ENVIRONMENTS, ANALYTICS_EVENT_PROPERTY_TYPES, ANALYTICS_EVENT_SOURCES, ANALYTICS_IDENTITY_TYPES, ANALYTICS_PROPERTY_KEY_PATTERN, ANALYTICS_QUALITY_ISSUE_TYPES, ANALYTICS_RETENTION_MAX_DAYS, ANALYTICS_RETENTION_MAX_PERIODS, ANALYTICS_SEGMENT_COMPARE_OPS, ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS, ANALYTICS_EVENT_QUERY_METRICS, ANALYTICS_RETENTION_MODES, ANALYTICS_RETENTION_PERIOD_TYPES, ANALYTICS_CAMPAIGN_CHANNELS, ANALYTICS_CAMPAIGN_STATUSES, ANALYTICS_EXPERIMENT_STATUSES } from '@zenith/shared/analytics';
+import { updateAnalyticsSettingsSchema } from '@zenith/shared/analytics';
 
 const eventTypeEnum = z.enum([
   'page_view', 'page_leave', 'feature_use', 'area_click', 'custom', 'perf', 'api_request', 'identify',
@@ -682,23 +683,7 @@ export const AnalyticsSettingsDTO = z
   })
   .openapi('AnalyticsSettings');
 
-export const UpdateAnalyticsSettingsDTO = z
-  .object({
-    enabled: z.boolean().optional(),
-    sampleRate: z.number().min(0).max(1).optional(),
-    trackPageviews: z.boolean().optional(),
-    trackClicks: z.boolean().optional(),
-    trackPerformance: z.boolean().optional(),
-    trackErrors: z.boolean().optional(),
-    trackApi: z.boolean().optional(),
-    maskInputs: z.boolean().optional(),
-    respectDnt: z.boolean().optional(),
-    anonymizeIp: z.boolean().optional(),
-    blacklistPaths: z.array(z.string().max(256)).optional(),
-    retentionDays: z.number().int().min(1).max(3650).optional(),
-    errorRetentionDays: z.number().int().min(1).max(3650).optional(),
-    sessionTimeoutMinutes: z.number().int().min(1).max(1440).optional(),
-  })
+export const UpdateAnalyticsSettingsDTO = updateAnalyticsSettingsSchema
   .openapi('UpdateAnalyticsSettings');
 
 // ─── 每日聚合（数据管理）──────────────────────────────────────────────────────

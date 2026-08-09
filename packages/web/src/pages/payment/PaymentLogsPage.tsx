@@ -6,13 +6,14 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
+import { formatDateTime, formatDateTimeRangeForApi } from '@/utils/date';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentNotifyLog } from '@zenith/shared/payment';
 import { paymentLogKeys, usePaymentLogList } from '@/hooks/queries/payment-logs';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
+import { compactQuery } from '@/lib/query';
 
 interface SearchParams { keyword: string; channel: string; scene: string; signatureValid: string; timeRange: [Date, Date] | null; }
 const defaultSearch: SearchParams = { keyword: '', channel: '', scene: '', signatureValid: '', timeRange: null };
@@ -36,16 +37,13 @@ export default function PaymentLogsPage() {
   const [detailLog, setDetailLog] = useState<PaymentNotifyLog | null>(null);
 
   function buildQuery(active: SearchParams): Record<string, string> {
-    const query: Record<string, string> = {};
-    if (active.keyword) query.keyword = active.keyword;
-    if (active.channel) query.channel = active.channel;
-    if (active.scene) query.scene = active.scene;
-    if (active.signatureValid) query.signatureValid = active.signatureValid;
-    if (active.timeRange) {
-      query.startTime = formatDateTimeForApi(active.timeRange[0]);
-      query.endTime = formatDateTimeForApi(active.timeRange[1]);
-    }
-    return query;
+    return compactQuery({
+      keyword: active.keyword,
+      channel: active.channel,
+      scene: active.scene,
+      signatureValid: active.signatureValid,
+      ...formatDateTimeRangeForApi(active.timeRange),
+    });
   }
 
   const listQuery = usePaymentLogList({ page, pageSize, ...buildQuery(submittedParams) });

@@ -28,6 +28,7 @@ import {
 } from './report-secrets';
 import { currentUserOrNull } from '../../lib/context';
 import { config as appConfig } from '../../config';
+import { buildReportCopyName } from './report-copy-name';
 import {
   ensureReportResourceAccess,
   listAccessibleReportResourceIds,
@@ -112,18 +113,6 @@ export function mapDatasource(row: DatasourceRowExt): ReportDatasource {
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
   };
-}
-
-function buildCopyName(baseName: string, existingNames: Set<string>): string {
-  const normalized = new Set(Array.from(existingNames).map((name) => name.trim().toLowerCase()));
-  const base = baseName.trim() || '未命名副本';
-  const direct = `${base} 副本`;
-  if (!normalized.has(direct.toLowerCase())) return direct;
-  for (let index = 2; index <= 200; index += 1) {
-    const candidate = `${base} 副本 ${index}`;
-    if (!normalized.has(candidate.toLowerCase())) return candidate;
-  }
-  return `${base} 副本 ${Date.now()}`;
 }
 
 export async function updateDatasourceHealth(id: number, input: {
@@ -390,7 +379,7 @@ export async function cloneDatasource(id: number, input?: { name?: string | null
     tenantId: current.tenantId ?? reportCreateTenantId(),
   });
   const rows = await db.select({ name: reportDatasources.name }).from(reportDatasources).where(reportTenantScope(reportDatasources));
-  const name = input?.name?.trim() || buildCopyName(current.name, new Set(rows.map((row) => row.name)));
+  const name = input?.name?.trim() || buildReportCopyName(current.name, new Set(rows.map((row) => row.name)));
   try {
     const [row] = await db.insert(reportDatasources).values({
       tenantId: current.tenantId ?? reportCreateTenantId(),

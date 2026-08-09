@@ -15,7 +15,7 @@ import {
   useCmsSubscriptionAggregates,
   useCmsSubscriptionList,
 } from '@/hooks/queries/cms';
-import { formatDateTimeForApi } from '@/utils/date';
+import { formatDateTimeRangeForApi } from '@/utils/date';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
@@ -40,8 +40,7 @@ export default function SubscriptionsPage() {
     siteId: siteId ?? 0,
     subjectType: submitted.subjectType,
     subjectKeyword: submitted.subjectKeyword || undefined,
-    startTime: submitted.timeRange ? formatDateTimeForApi(submitted.timeRange[0]) : undefined,
-    endTime: submitted.timeRange ? formatDateTimeForApi(submitted.timeRange[1]) : undefined,
+    ...formatDateTimeRangeForApi(submitted.timeRange),
   };
   const listQuery = useCmsSubscriptionList({ ...query, page, pageSize }, !!siteId);
   const aggregateQuery = useCmsSubscriptionAggregates(query, !!siteId);

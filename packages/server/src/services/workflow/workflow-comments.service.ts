@@ -1,6 +1,6 @@
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { db } from '../../db';
-import { workflowComments, workflowInstances, workflowTasks, inAppMessages, users } from '../../db/schema';
+import { workflowComments, workflowInstances, workflowTasks, inAppMessages } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { isSuperAdmin } from '../../lib/permissions';
@@ -9,6 +9,7 @@ import { formatDateTime } from '../../lib/datetime';
 import { scheduleSendToUsers } from '../../lib/ws-manager';
 import logger from '../../lib/logger';
 import type { WorkflowComment, CreateWorkflowCommentInput } from '@zenith/shared/workflow';
+import { loadWorkflowUserDisplays } from './workflow-user-helpers';
 
 type CommentRow = typeof workflowComments.$inferSelect;
 
@@ -50,19 +51,6 @@ async function assertParticipant(instanceId: number): Promise<typeof workflowIns
   return inst;
 }
 
-/** 批量加载用户名映射 */
-async function loadUserNames(ids: number[]): Promise<Map<number, { name: string; avatar: string | null }>> {
-  const map = new Map<number, { name: string; avatar: string | null }>();
-  const unique = [...new Set(ids)].filter((v) => v > 0);
-  if (unique.length === 0) return map;
-  const rows = await db
-    .select({ id: users.id, nickname: users.nickname, username: users.username, avatar: users.avatar })
-    .from(users)
-    .where(inArray(users.id, unique));
-  for (const r of rows) map.set(r.id, { name: r.nickname ?? r.username, avatar: r.avatar ?? null });
-  return map;
-}
-
 /** 详情场景：加载实例评论（调用方已完成访问控制） */
 export async function loadInstanceCommentsForDetail(instanceId: number): Promise<WorkflowComment[]> {
   const rows = await db
@@ -72,7 +60,7 @@ export async function loadInstanceCommentsForDetail(instanceId: number): Promise
     .orderBy(asc(workflowComments.id));
   if (rows.length === 0) return [];
   const nameIds = rows.flatMap((r) => [r.userId, ...(Array.isArray(r.mentions) ? r.mentions : [])]);
-  const names = await loadUserNames(nameIds);
+  const names = await loadWorkflowUserDisplays(nameIds);
   // 回复引用：同实例内自查父评论构建摘要（作者 + 截断内容）
   const byId = new Map(rows.map((r) => [r.id, r]));
   const parentSummaryOf = (r: CommentRow) => {
@@ -167,7 +155,7 @@ export async function addInstanceComment(instanceId: number, input: CreateWorkfl
     }
   }
 
-  const names = await loadUserNames([user.userId, ...mentions, ...(parentRow ? [parentRow.userId] : [])]);
+  const names = await loadWorkflowUserDisplays([user.userId, ...mentions, ...(parentRow ? [parentRow.userId] : [])]);
   return mapComment(row, {
     userName: names.get(user.userId)?.name ?? user.username,
     userAvatar: names.get(user.userId)?.avatar ?? null,

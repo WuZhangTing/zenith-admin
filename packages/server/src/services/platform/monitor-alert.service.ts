@@ -17,6 +17,7 @@ import { sendMail } from '../../lib/email';
 import { httpPost } from '../../lib/http-client';
 import logger from '../../lib/logger';
 import { getCurrentMetricSnapshot } from './monitor-history.service';
+import { validateAlertDelivery } from '../../lib/alert-validation';
 
 // ─── 指标元信息（标签 + 单位格式化）─────────────────────────────────────
 const METRIC_LABELS: Record<MonitorMetric, string> = {
@@ -141,22 +142,8 @@ export async function getMonitorAlertRuleBeforeAudit(id: number) {
   return mapRule(await ensureRuleExists(id));
 }
 
-function ensureAlertDelivery(input: {
-  enabled: boolean;
-  channels: string[];
-  webhookUrl: string | null;
-  recipients: string[];
-}): void {
-  if (!input.enabled) return;
-  if (input.channels.length === 0) throw new HTTPException(400, { message: '启用告警时至少选择一个通知渠道' });
-  if (input.channels.includes('webhook') && !input.webhookUrl) throw new HTTPException(400, { message: 'Webhook 渠道必须配置有效 URL' });
-  if ((input.channels.includes('email') || input.channels.includes('inapp')) && input.recipients.length === 0) {
-    throw new HTTPException(400, { message: '邮件或站内通知渠道必须配置接收人' });
-  }
-}
-
 export async function createRule(input: CreateMonitorAlertRuleInput) {
-  ensureAlertDelivery({
+  validateAlertDelivery({
     enabled: input.enabled ?? true,
     channels: input.channels ?? [],
     webhookUrl: input.webhookUrl ?? null,
@@ -184,7 +171,7 @@ export async function createRule(input: CreateMonitorAlertRuleInput) {
 
 export async function updateRule(id: number, input: UpdateMonitorAlertRuleInput) {
   const current = await ensureRuleExists(id);
-  ensureAlertDelivery({
+  validateAlertDelivery({
     enabled: input.enabled ?? current.enabled,
     channels: input.channels ?? current.channels ?? [],
     webhookUrl: input.webhookUrl === undefined ? current.webhookUrl : input.webhookUrl,
@@ -217,7 +204,7 @@ export async function deleteRule(id: number) {
 
 export async function setRuleEnabled(id: number, enabled: boolean) {
   const current = await ensureRuleExists(id);
-  ensureAlertDelivery({
+  validateAlertDelivery({
     enabled,
     channels: current.channels ?? [],
     webhookUrl: current.webhookUrl,

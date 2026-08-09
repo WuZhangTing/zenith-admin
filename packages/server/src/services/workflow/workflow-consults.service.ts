@@ -1,6 +1,6 @@
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq } from 'drizzle-orm';
 import { db } from '../../db';
-import { workflowTaskConsults, workflowTasks, workflowInstances, inAppMessages, users } from '../../db/schema';
+import { workflowTaskConsults, workflowTasks, workflowInstances, inAppMessages } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
@@ -8,6 +8,7 @@ import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import logger from '../../lib/logger';
 import type { WorkflowTaskConsult, CreateWorkflowConsultInput, ReplyWorkflowConsultInput } from '@zenith/shared/workflow';
+import { loadWorkflowUserDisplays } from './workflow-user-helpers';
 
 type ConsultRow = typeof workflowTaskConsults.$inferSelect;
 
@@ -33,16 +34,6 @@ export function mapConsult(
   };
 }
 
-async function loadNames(ids: number[]): Promise<Map<number, { name: string; avatar: string | null }>> {
-  const map = new Map<number, { name: string; avatar: string | null }>();
-  const unique = [...new Set(ids)].filter((v) => v > 0);
-  if (unique.length === 0) return map;
-  const rows = await db.select({ id: users.id, nickname: users.nickname, username: users.username, avatar: users.avatar })
-    .from(users).where(inArray(users.id, unique));
-  for (const r of rows) map.set(r.id, { name: r.nickname ?? r.username, avatar: r.avatar ?? null });
-  return map;
-}
-
 /** 详情场景：加载实例的协办记录（调用方已完成访问控制） */
 export async function loadInstanceConsultsForDetail(instanceId: number): Promise<WorkflowTaskConsult[]> {
   const rows = await db.select({ consult: workflowTaskConsults, nodeName: workflowTasks.nodeName })
@@ -51,7 +42,7 @@ export async function loadInstanceConsultsForDetail(instanceId: number): Promise
     .where(eq(workflowTaskConsults.instanceId, instanceId))
     .orderBy(asc(workflowTaskConsults.id));
   if (rows.length === 0) return [];
-  const names = await loadNames(rows.flatMap((r) => [r.consult.inviterId, r.consult.consulteeId]));
+  const names = await loadWorkflowUserDisplays(rows.flatMap((r) => [r.consult.inviterId, r.consult.consulteeId]));
   return rows.map((r) => mapConsult(r.consult, {
     nodeName: r.nodeName,
     inviterName: names.get(r.consult.inviterId)?.name ?? null,
@@ -98,7 +89,7 @@ export async function createConsult(taskId: number, input: CreateWorkflowConsult
     logger.error('[workflow consult] notify failed', { err, taskId });
   }
 
-  const names = await loadNames([user.userId, ...consulteeIds]);
+  const names = await loadWorkflowUserDisplays([user.userId, ...consulteeIds]);
   return inserted.map((row) => mapConsult(row, {
     nodeName: task.nodeName,
     inviterName: names.get(user.userId)?.name ?? user.username,
@@ -135,7 +126,7 @@ export async function replyConsult(consultId: number, input: ReplyWorkflowConsul
     logger.error('[workflow consult] reply notify failed', { err, consultId });
   }
 
-  const names = await loadNames([updated.inviterId, updated.consulteeId]);
+  const names = await loadWorkflowUserDisplays([updated.inviterId, updated.consulteeId]);
   return mapConsult(updated, {
     inviterName: names.get(updated.inviterId)?.name ?? null,
     consulteeName: names.get(updated.consulteeId)?.name ?? user.username,
@@ -172,7 +163,7 @@ export async function listMyConsults(query: { page?: number; pageSize?: number; 
       .orderBy(desc(workflowTaskConsults.id))
       .limit(pageSize).offset(pageOffset(page, pageSize)),
   ]);
-  const names = await loadNames(rows.map((r) => r.consult.inviterId));
+  const names = await loadWorkflowUserDisplays(rows.map((r) => r.consult.inviterId));
   const list = rows.map((r) => ({
     ...mapConsult(r.consult, { nodeName: r.nodeName, inviterName: names.get(r.consult.inviterId)?.name ?? null }),
     instanceTitle: r.instanceTitle ?? '',

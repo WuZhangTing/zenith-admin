@@ -13,7 +13,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
 import { AppModal } from '@/components/AppModal';
 import PaymentStatsPanel from './PaymentStatsPanel';
-import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
+import { formatDateTime, formatDateTimeRangeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_METHOD_LABELS, PAYMENT_ORDER_STATUS_LABELS, PAYMENT_REFUND_STATUS_LABELS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentMethod, PaymentOrder, PaymentOrderStatus, PaymentRefund, PaymentRefundStatus, CreatePaymentResult, PaymentStats } from '@zenith/shared/payment';
@@ -34,6 +34,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
+import { compactQuery } from '@/lib/query';
 
 const STATUS_COLOR = {
   pending: 'grey', paying: 'blue', success: 'green', closed: 'grey', refunding: 'amber', refunded: 'orange', failed: 'red',
@@ -74,19 +75,16 @@ export default function PaymentOrdersPage() {
   const [payResult, setPayResult] = useState<CreatePaymentResult | null>(null);
 
   function buildQuery(active: SearchParams): Record<string, string | number> {
-    const q: Record<string, string | number> = {};
-    if (active.keyword) q.keyword = active.keyword;
-    if (active.channel) q.channel = active.channel;
-    if (active.status) q.status = active.status;
-    if (active.payMethod) q.payMethod = active.payMethod;
-    if (active.bizType) q.bizType = active.bizType;
-    if (active.minAmount != null) q.minAmount = Math.round(active.minAmount * 100);
-    if (active.maxAmount != null) q.maxAmount = Math.round(active.maxAmount * 100);
-    if (active.timeRange) {
-      q.startTime = formatDateTimeForApi(active.timeRange[0]);
-      q.endTime = formatDateTimeForApi(active.timeRange[1]);
-    }
-    return q;
+    return compactQuery({
+      keyword: active.keyword,
+      channel: active.channel,
+      status: active.status,
+      payMethod: active.payMethod,
+      bizType: active.bizType,
+      minAmount: active.minAmount == null ? undefined : Math.round(active.minAmount * 100),
+      maxAmount: active.maxAmount == null ? undefined : Math.round(active.maxAmount * 100),
+      ...formatDateTimeRangeForApi(active.timeRange),
+    });
   }
 
   const listQuery = usePaymentOrderList({ page, pageSize, ...buildQuery(submittedParams) });

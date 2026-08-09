@@ -7,30 +7,9 @@
  * - 日期区间工具
  */
 import { createHash } from 'node:crypto';
-import { createRequire } from 'node:module';
 import { UAParser } from 'ua-parser-js';
 import type { AnalyticsDeviceType, AnalyticsEventSource, AnalyticsEnvironment } from '@zenith/shared/analytics';
-
-const require = createRequire(import.meta.url);
-const Ip2Region = require('node-ip2region') as {
-  create: () => { btreeSearchSync: (ip: string) => { city: number; region: string } | null };
-};
-let searcher: ReturnType<typeof Ip2Region.create> | null = null;
-function getSearcher() {
-  searcher ??= Ip2Region.create();
-  return searcher;
-}
-
-const LOCALHOST_IPS = new Set(['127.0.0.1', '::1', 'localhost']);
-function isPrivateIp(ip: string): boolean {
-  return (
-    LOCALHOST_IPS.has(ip) ||
-    ip.startsWith('::ffff:127.') ||
-    ip.startsWith('192.168.') ||
-    ip.startsWith('10.') ||
-    ip.startsWith('172.')
-  );
-}
+import { lookupIpRegion } from './ip-region';
 
 export interface ClientGeo {
   country: string | null;
@@ -41,22 +20,14 @@ export interface ClientGeo {
 /** 将 IP 解析为结构化地理位置 {country, region, city} */
 export function lookupIpGeo(ip: string | null | undefined): ClientGeo {
   const empty: ClientGeo = { country: null, region: null, city: null };
-  if (!ip) return empty;
-  const cleaned = ip.split(',')[0].trim();
-  if (isPrivateIp(cleaned)) return { country: '内网', region: null, city: null };
-  try {
-    const result = getSearcher().btreeSearchSync(cleaned);
-    if (!result?.region) return empty;
-    // ip2region 格式：国家|区域|省份|城市|ISP
-    const parts = result.region.split('|').map((p) => (p === '0' ? '' : p));
-    return {
-      country: parts[0] || null,
-      region: parts[2] || null,
-      city: parts[3] || null,
-    };
-  } catch {
-    return empty;
-  }
+  const region = lookupIpRegion(ip);
+  if (!region) return empty;
+  if (region.isPrivate) return { country: '内网', region: null, city: null };
+  return {
+    country: region.country || null,
+    region: region.province || null,
+    city: region.city || null,
+  };
 }
 
 export interface ClientEnv {

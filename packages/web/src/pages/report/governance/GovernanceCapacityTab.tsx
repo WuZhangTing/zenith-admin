@@ -21,7 +21,7 @@ import {
   useSaveReportQueryQuota,
 } from '@/hooks/queries/report-query-capacity';
 import { useAllUsers } from '@/hooks/queries/users';
-import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
+import { formatDateTime, formatDateTimeRangeForApi } from '@/utils/date';
 import { validateQuotaForm } from '../report-platform-utils';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter } from '@/components/search-filters';
@@ -37,11 +37,15 @@ export default function GovernanceCapacityTab() {
 
   const quotasQuery = useReportQueryQuotaList({ page, pageSize });
   const usageQuery = useReportQueryQuotaUsage(usageQuota?.id, undefined, !!usageQuota);
+  const {
+    startTime: costStart,
+    endTime: costEnd,
+  } = formatDateTimeRangeForApi(costSearch.timeRange);
   const costParams = {
     datasetId: costSearch.datasetId,
     datasourceId: costSearch.datasourceId,
-    start: costSearch.timeRange ? formatDateTimeForApi(costSearch.timeRange[0]) : undefined,
-    end: costSearch.timeRange ? formatDateTimeForApi(costSearch.timeRange[1]) : undefined,
+    start: costStart,
+    end: costEnd,
   };
   const costsQuery = useReportQueryCostLogs({ ...costParams, page, pageSize });
   const statsQuery = useReportQueryCostStats(costParams);

@@ -29,6 +29,17 @@ export function toQueryString(params: object): string {
   return qs ? `?${qs}` : '';
 }
 
+export function compactQuery<T extends string | number | boolean>(
+  params: Record<string, T | null | undefined>,
+): Record<string, T> {
+  const result: Record<string, T> = {};
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null || value === '') continue;
+    result[key] = value;
+  }
+  return result;
+}
+
 /** 变化频率低的 lookup 数据（字典项、部门树、用户下拉源等）的默认 staleTime */
 export const LOOKUP_STALE_TIME = 5 * 60 * 1000;
 

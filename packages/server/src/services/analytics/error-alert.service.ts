@@ -11,6 +11,7 @@ import { pageOffset } from '../../lib/pagination';
 import { sendMail } from '../../lib/email';
 import { httpPost } from '../../lib/http-client';
 import logger from '../../lib/logger';
+import { validateAlertDelivery } from '../../lib/alert-validation';
 
 export function mapRule(row: ErrorAlertRuleRow) {
   return {
@@ -49,22 +50,8 @@ export async function ensureRuleExists(id: number) {
   return row;
 }
 
-function ensureAlertDelivery(input: {
-  enabled: boolean;
-  channels: string[];
-  webhookUrl: string | null;
-  recipients: string[];
-}): void {
-  if (!input.enabled) return;
-  if (input.channels.length === 0) throw new HTTPException(400, { message: '启用告警时至少选择一个通知渠道' });
-  if (input.channels.includes('webhook') && !input.webhookUrl) throw new HTTPException(400, { message: 'Webhook 渠道必须配置有效 URL' });
-  if ((input.channels.includes('email') || input.channels.includes('inapp')) && input.recipients.length === 0) {
-    throw new HTTPException(400, { message: '邮件或站内通知渠道必须配置接收人' });
-  }
-}
-
 export async function createAlertRule(input: CreateErrorAlertRuleInput) {
-  ensureAlertDelivery({
+  validateAlertDelivery({
     enabled: input.enabled ?? true,
     channels: input.channels ?? [],
     webhookUrl: input.webhookUrl ?? null,
@@ -91,7 +78,7 @@ export async function createAlertRule(input: CreateErrorAlertRuleInput) {
 
 export async function updateAlertRule(id: number, input: UpdateErrorAlertRuleInput) {
   const current = await ensureRuleExists(id);
-  ensureAlertDelivery({
+  validateAlertDelivery({
     enabled: input.enabled ?? current.enabled,
     channels: input.channels ?? current.channels ?? [],
     webhookUrl: input.webhookUrl === undefined ? current.webhookUrl : input.webhookUrl,

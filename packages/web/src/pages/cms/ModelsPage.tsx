@@ -1,5 +1,3 @@
-import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Tag, Toast, ArrayField, Row, Col, Typography, useFormApi, Spin } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, Trash2 } from 'lucide-react';
@@ -7,10 +5,10 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
-import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
+import { createdAtColumn, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { usePagination } from '@/hooks/usePagination';
+import { useListSearch } from '@/hooks/useListSearch';
 import { useCmsModelList, useCmsModelDetail, useSaveCmsModel, useDeleteCmsModel, cmsModelKeys } from '@/hooks/queries/cms';
 import { useDictList } from '@/hooks/queries/dicts';
 import { CMS_FIELD_OPTION_SOURCE_LABELS, CMS_FIELD_OPTION_SOURCES, CMS_FIELD_TYPES, CMS_FIELD_TYPES_WITH_OPTIONS, CMS_FIELD_TYPE_LABELS } from '@zenith/shared/cms';
@@ -21,6 +19,8 @@ import { confirmDelete } from '@/utils/confirm';
 
 const FIELD_TYPE_OPTIONS = CMS_FIELD_TYPES.map((t) => ({ value: t, label: CMS_FIELD_TYPE_LABELS[t] }));
 const OPTION_SOURCE_OPTIONS = CMS_FIELD_OPTION_SOURCES.map((s) => ({ value: s, label: CMS_FIELD_OPTION_SOURCE_LABELS[s] }));
+interface SearchParams { keyword: string }
+const defaultSearch: SearchParams = { keyword: '' };
 
 /**
  * 选项来源配置行：仅 select/radio/checkbox 需要，其余类型不渲染避免干扰。
@@ -60,13 +60,13 @@ function FieldOptionSource({ field }: { field: string }) {
 
 export default function ModelsPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: cmsModelKeys.lists });
 
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftKeyword, setDraftKeyword] = useState('');
-  const [submittedKeyword, setSubmittedKeyword] = useState('');
-
-  const listQuery = useCmsModelList({ page, pageSize, keyword: submittedKeyword || undefined });
+  const listQuery = useCmsModelList({ page, pageSize, keyword: submittedParams.keyword || undefined });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
 
@@ -89,19 +89,6 @@ export default function ModelsPage() {
     beforeSave: (values) => ({ ...values, fields: (((values.fields as unknown) as Record<string, unknown>[]) ?? []).map((f, i) => ({ ...f, sort: i })) }),
   });
   const deleteMutation = useDeleteCmsModel();
-
-  function handleSearch() {
-    setPage(1);
-    setSubmittedKeyword(draftKeyword);
-    void queryClient.invalidateQueries({ queryKey: cmsModelKeys.lists });
-  }
-
-  function handleReset() {
-    setPage(1);
-    setDraftKeyword('');
-    setSubmittedKeyword('');
-    void queryClient.invalidateQueries({ queryKey: cmsModelKeys.lists });
-  }
 
   async function handleDelete(id: number) {
     await deleteMutation.mutateAsync(id);
@@ -136,7 +123,7 @@ export default function ModelsPage() {
       dataIndex: 'status',
       width: 80,
       fixed: 'right',
-      render: (v: string) => (v === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag color="red" size="small">停用</Tag>),
+      render: renderEnabledStatusTag,
     },
     createOperationColumn<CmsModel>({
       width: 160,
@@ -162,7 +149,7 @@ export default function ModelsPage() {
   return (
     <div className="page-container">
       <SearchToolbar>
-        <KeywordInput placeholder="搜索模型名称/标识..." value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} />
+        <KeywordInput placeholder="搜索模型名称/标识..." value={draftParams.keyword} onChange={(keyword) => setDraftParams({ keyword })} onSearch={handleSearch} />
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />
         {hasPermission('cms:model:create') ? (

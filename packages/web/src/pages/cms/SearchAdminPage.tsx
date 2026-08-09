@@ -28,6 +28,7 @@ import { formatDateTimeForApi } from '@/utils/date';
 import { CreateButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { renderEnabledStatusTag } from '@/utils/table-columns';
 
 // ─── 检索测试 Tab ─────────────────────────────────────────────────────────────
 function SearchTestTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined; onSiteChange: (v: number) => void }>) {
@@ -175,7 +176,7 @@ function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined
     { title: '备注', dataIndex: 'remark', width: 220, render: (v: string | null) => v ?? '-' },
     {
       title: '状态', dataIndex: 'status', width: 80, fixed: 'right',
-      render: (v: string) => (v === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag color="red" size="small">停用</Tag>),
+      render: renderEnabledStatusTag,
     },
     {
       title: '操作', width: 140, fixed: 'right',

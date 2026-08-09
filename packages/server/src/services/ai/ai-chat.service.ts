@@ -26,6 +26,8 @@ type ResolvedStreamConfig = {
   maxConcurrent?: number | null;
 };
 
+type SystemProviderConfig = Awaited<ReturnType<typeof getRawProviderConfig>>;
+
 /** 校验 modelOverride 属于该配置声明的模型集合，返回最终生效模型 */
 function applyModelOverride(cfg: { model: string; models?: string[] | null }, modelOverride?: string): string {
   if (!modelOverride || modelOverride === cfg.model) return cfg.model;
@@ -36,6 +38,32 @@ function applyModelOverride(cfg: { model: string; models?: string[] | null }, mo
   return modelOverride;
 }
 
+function mapSystemStreamConfig(
+  systemConfig: SystemProviderConfig,
+  modelOverride?: string,
+): ResolvedStreamConfig {
+  const model = applyModelOverride(systemConfig, modelOverride);
+  return {
+    provider: systemConfig.provider,
+    capabilities: systemConfig.capabilities ?? null,
+    fallbackConfigId: systemConfig.fallbackConfigId,
+    maxConcurrent: systemConfig.maxConcurrent,
+    config: {
+      baseUrl: systemConfig.baseUrl,
+      apiKey: systemConfig.apiKey,
+      model,
+      maxTokens: systemConfig.maxTokens,
+      temperature: systemConfig.temperature,
+      systemPrompt: systemConfig.systemPrompt,
+    },
+    snapshot: {
+      provider: systemConfig.provider,
+      model,
+      configId: systemConfig.id,
+    },
+  };
+}
+
 /**
  * 解析当前请求应使用的 AI 配置（未指定时使用系统默认配置）
  */
@@ -43,22 +71,7 @@ async function resolveStreamConfig(modelOverride?: string): Promise<ResolvedStre
   // 使用系统默认配置
   const sysCfg = await getRawDefaultProviderConfig();
   if (!sysCfg) throw new HTTPException(503, { message: '系统未配置 AI 服务商，请联系管理员' });
-  const model = applyModelOverride(sysCfg, modelOverride);
-  return {
-    provider: sysCfg.provider,
-    capabilities: sysCfg.capabilities ?? null,
-    fallbackConfigId: sysCfg.fallbackConfigId,
-    maxConcurrent: sysCfg.maxConcurrent,
-    config: {
-      baseUrl: sysCfg.baseUrl,
-      apiKey: sysCfg.apiKey,
-      model,
-      maxTokens: sysCfg.maxTokens,
-      temperature: sysCfg.temperature,
-      systemPrompt: sysCfg.systemPrompt,
-    },
-    snapshot: { provider: sysCfg.provider, model, configId: sysCfg.id },
-  };
+  return mapSystemStreamConfig(sysCfg, modelOverride);
 }
 
 /**
@@ -67,22 +80,7 @@ async function resolveStreamConfig(modelOverride?: string): Promise<ResolvedStre
 async function resolveStreamConfigById(configId: number, modelOverride?: string): Promise<ResolvedStreamConfig> {
   const sysCfg = await getRawProviderConfig(configId);
   if (!sysCfg.isEnabled) throw new HTTPException(400, { message: '该 AI 配置已禁用，请选择其他模型' });
-  const model = applyModelOverride(sysCfg, modelOverride);
-  return {
-    provider: sysCfg.provider,
-    capabilities: sysCfg.capabilities ?? null,
-    fallbackConfigId: sysCfg.fallbackConfigId,
-    maxConcurrent: sysCfg.maxConcurrent,
-    config: {
-      baseUrl: sysCfg.baseUrl,
-      apiKey: sysCfg.apiKey,
-      model,
-      maxTokens: sysCfg.maxTokens,
-      temperature: sysCfg.temperature,
-      systemPrompt: sysCfg.systemPrompt,
-    },
-    snapshot: { provider: sysCfg.provider, model, configId: sysCfg.id },
-  };
+  return mapSystemStreamConfig(sysCfg, modelOverride);
 }
 
 async function resolveStreamConfigForUser(userConfigId: number): Promise<ResolvedStreamConfig> {

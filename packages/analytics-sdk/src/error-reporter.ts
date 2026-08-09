@@ -2,32 +2,19 @@
  * 前端错误上报：统一构造 payload 并发送到 /api/frontend-errors。
  * 携带行为面包屑、会话 ID、发布版本，附带去重与限流保护。
  */
-import { ANALYTICS_SITE_KEY_HEADER } from '@zenith/shared/analytics';
 import { TOKEN_KEY } from '@zenith/shared/core';
-import type { FrontendErrorType, ErrorLevel, AnalyticsEventSource, AnalyticsEnvironment } from '@zenith/shared/analytics';
+import type { FrontendErrorType, ErrorLevel } from '@zenith/shared/analytics';
 import { getBreadcrumbs } from './breadcrumbs';
+import { analyticsRequestHeaders } from './http';
+import type { AnalyticsRuntimeBaseConfig } from './runtime-config';
 
 const SESSION_KEY = 'zenith_tracker_sid';
 let reportingPolicy = { ready: false, enabled: true, trackErrors: true, respectDnt: false };
 
 // ─── 运行时参数化（与 tracker.ts 的 configureTracker 单向同步，避免循环依赖）───
-export interface ErrorReporterRuntimeConfig {
-  /** API 基础路径，默认 /api */
-  apiBase: string;
-  /** localStorage 中存放访问令牌的 key（admin/member 各自独立） */
-  tokenKey: string;
-  /** 事件来源平台，不允许业务方伪造为 'server' */
-  source: AnalyticsEventSource;
-  /** 应用标识 */
-  appId: string;
-  /** 采集环境 */
-  environment: AnalyticsEnvironment;
+export interface ErrorReporterRuntimeConfig extends AnalyticsRuntimeBaseConfig {
   /** 发布版本 / SDK 版本 */
   sdkVersion?: string;
-  /** 是否已获得采集同意；admin 端恒为 true，member 端由用户隐私同意状态驱动 */
-  consentProvider: () => boolean;
-  /** 匿名站点 Key；有值时错误上报携带请求头 */
-  siteKey?: string;
 }
 
 let runtime: ErrorReporterRuntimeConfig = {
@@ -122,7 +109,7 @@ export function reportError(errorType: FrontendErrorType, message: string, optio
 
     fetch(`${runtime.apiBase}/frontend-errors`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(runtime.siteKey ? { [ANALYTICS_SITE_KEY_HEADER]: runtime.siteKey } : {}) },
+      headers: analyticsRequestHeaders({ token, siteKey: runtime.siteKey }),
       body: JSON.stringify(payload),
       keepalive: true,
     }).catch(() => { /* 监控自身错误不应影响应用 */ });

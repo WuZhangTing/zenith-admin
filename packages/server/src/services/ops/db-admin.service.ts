@@ -747,16 +747,12 @@ export async function updateTableRow(
   assertIdent(name, 'table');
   assertWritable(schema, name);
 
-  const struct = await getTableStructure(schema, name);
-  if (struct.primaryKey.length === 0) {
-    throw new HTTPException(400, { message: '该表没有主键，无法编辑' });
-  }
-  const colMap = new Map(struct.columns.map((c) => [c.name, c]));
-  const pkCols = struct.primaryKey;
-  for (const pk of pkCols) {
-    if (!(pk in pkValues)) throw new HTTPException(400, { message: `缺少主键值：${pk}` });
-    assertIdent(pk, '主键列');
-  }
+  const {
+    columnMap: colMap,
+    primaryKeyColumns: pkCols,
+    whereClauses: wheres,
+    tableSql: full,
+  } = await preparePrimaryKeyTarget(schema, name, pkValues, '该表没有主键，无法编辑');
   const changeEntries = Object.entries(changes).filter(
     ([col]) => colMap.has(col) && !pkCols.includes(col),
   );
@@ -768,11 +764,6 @@ export async function updateTableRow(
   const sets = changeEntries.map(
     ([c, v]) => sql`${sql.raw(quoteIdent(c))} = ${toBoundSql(v, colMap.get(c)!.dataType)}`,
   );
-  const wheres = pkCols.map(
-    (c) => sql`${sql.raw(quoteIdent(c))} = ${toBoundSql(pkValues[c], colMap.get(c)!.dataType)}`,
-  );
-  const full = sql.raw(`${quoteIdent(schema)}.${quoteIdent(name)}`);
-
   try {
     const updated = await db.execute(sql`
       UPDATE ${full} SET ${sql.join(sets, sql.raw(', '))}
@@ -789,6 +780,36 @@ export async function updateTableRow(
   }
 }
 
+async function preparePrimaryKeyTarget(
+  schema: string,
+  name: string,
+  primaryKeyValues: Record<string, unknown>,
+  missingPrimaryKeyMessage: string,
+) {
+  const structure = await getTableStructure(schema, name);
+  if (structure.primaryKey.length === 0) {
+    throw new HTTPException(400, { message: missingPrimaryKeyMessage });
+  }
+
+  const columnMap = new Map(structure.columns.map((column) => [column.name, column]));
+  const primaryKeyColumns = structure.primaryKey;
+  for (const column of primaryKeyColumns) {
+    if (!(column in primaryKeyValues)) {
+      throw new HTTPException(400, { message: `缺少主键值：${column}` });
+    }
+    assertIdent(column, '主键列');
+  }
+
+  return {
+    columnMap,
+    primaryKeyColumns,
+    whereClauses: primaryKeyColumns.map(
+      (column) => sql`${sql.raw(quoteIdent(column))} = ${toBoundSql(primaryKeyValues[column], columnMap.get(column)!.dataType)}`,
+    ),
+    tableSql: sql.raw(`${quoteIdent(schema)}.${quoteIdent(name)}`),
+  };
+}
+
 export async function getTableRowBeforeAudit(
   schema: string,
   name: string,
@@ -797,20 +818,12 @@ export async function getTableRowBeforeAudit(
   assertIdent(schema, 'schema');
   assertIdent(name, 'table');
 
-  const struct = await getTableStructure(schema, name);
-  if (struct.primaryKey.length === 0) {
-    throw new HTTPException(400, { message: '该表没有主键，无法定位记录' });
-  }
-  const colMap = new Map(struct.columns.map((c) => [c.name, c]));
-  const pkCols = struct.primaryKey;
-  for (const pk of pkCols) {
-    if (!(pk in pkValues)) throw new HTTPException(400, { message: `缺少主键值：${pk}` });
-    assertIdent(pk, '主键列');
-  }
-  const wheres = pkCols.map(
-    (c) => sql`${sql.raw(quoteIdent(c))} = ${toBoundSql(pkValues[c], colMap.get(c)!.dataType)}`,
+  const { whereClauses: wheres, tableSql: full } = await preparePrimaryKeyTarget(
+    schema,
+    name,
+    pkValues,
+    '该表没有主键，无法定位记录',
   );
-  const full = sql.raw(`${quoteIdent(schema)}.${quoteIdent(name)}`);
   const rows = await db.execute(sql`
     SELECT * FROM ${full}
     WHERE ${sql.join(wheres, sql.raw(' AND '))}
@@ -955,20 +968,12 @@ export async function deleteTableRow(
   assertIdent(name, 'table');
   assertWritable(schema, name);
 
-  const struct = await getTableStructure(schema, name);
-  if (struct.primaryKey.length === 0) {
-    throw new HTTPException(400, { message: '该表没有主键，无法删除' });
-  }
-  const colMap = new Map(struct.columns.map((c) => [c.name, c]));
-  const pkCols = struct.primaryKey;
-  for (const pk of pkCols) {
-    if (!(pk in pkValues)) throw new HTTPException(400, { message: `缺少主键值：${pk}` });
-    assertIdent(pk, '主键列');
-  }
-  const wheres = pkCols.map(
-    (c) => sql`${sql.raw(quoteIdent(c))} = ${toBoundSql(pkValues[c], colMap.get(c)!.dataType)}`,
+  const { whereClauses: wheres, tableSql: full } = await preparePrimaryKeyTarget(
+    schema,
+    name,
+    pkValues,
+    '该表没有主键，无法删除',
   );
-  const full = sql.raw(`${quoteIdent(schema)}.${quoteIdent(name)}`);
 
   try {
     const deleted = await db.execute(sql`

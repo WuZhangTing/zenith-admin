@@ -12,6 +12,7 @@ import { keywordCondition } from '../../lib/where-helpers';
 import { currentDateTime, formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUserOrNull } from '../../lib/context';
+import { buildReportCopyName } from './report-copy-name';
 import { ensureDatasetExists, getDatasetData, resolveDatasetParams } from './report-dataset.service';
 import { reportCreateTenantId, reportScopedWhere, reportTenantScope } from './report-access';
 import {
@@ -143,18 +144,6 @@ export async function listPrintTemplateLookup(query: {
   }));
 }
 
-function buildCopyName(baseName: string, existingNames: Set<string>): string {
-  const normalized = new Set(Array.from(existingNames).map((name) => name.trim().toLowerCase()));
-  const base = baseName.trim() || '未命名副本';
-  const direct = `${base} 副本`;
-  if (!normalized.has(direct.toLowerCase())) return direct;
-  for (let index = 2; index <= 200; index += 1) {
-    const candidate = `${base} 副本 ${index}`;
-    if (!normalized.has(candidate.toLowerCase())) return candidate;
-  }
-  return `${base} 副本 ${Date.now()}`;
-}
-
 export async function batchSetPrintTemplateStatus(ids: number[], status: 'enabled' | 'disabled'): Promise<number> {
   if (ids.length === 0) return 0;
   const accessible = await listAccessibleReportResourceIds('print_template', 'editor');
@@ -174,7 +163,7 @@ export async function clonePrintTemplate(id: number, input?: { name?: string | n
     tenantId: current.tenantId ?? reportCreateTenantId(),
   });
   const rows = await db.select({ name: reportPrintTemplates.name }).from(reportPrintTemplates).where(reportTenantScope(reportPrintTemplates));
-  const name = input?.name?.trim() || buildCopyName(current.name, new Set(rows.map((row) => row.name)));
+  const name = input?.name?.trim() || buildReportCopyName(current.name, new Set(rows.map((row) => row.name)));
   try {
     const [row] = await db.insert(reportPrintTemplates).values({
       tenantId: current.tenantId ?? reportCreateTenantId(),

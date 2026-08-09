@@ -8,7 +8,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
-import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
+import { formatDateTime, formatDateTimeRangeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -25,6 +25,7 @@ import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_LEDGER_DIRECTI
 import type { PaymentAccount, PaymentAccountCheckRow, PaymentChannel, PaymentLedgerDirection, PaymentLedgerEntry, PaymentLedgerType } from '@zenith/shared/payment';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
+import { compactQuery } from '@/lib/query';
 
 const yuan = formatYuan;
 interface SearchParams {
@@ -46,16 +47,13 @@ export default function PaymentLedgerPage() {
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentLedgerKeys.all });
 
   function buildQuery(active: SearchParams): Record<string, string> {
-    const q: Record<string, string> = {};
-    if (active.keyword) q.keyword = active.keyword;
-    if (active.direction) q.direction = active.direction;
-    if (active.type) q.type = active.type;
-    if (active.channel) q.channel = active.channel;
-    if (active.timeRange) {
-      q.startTime = formatDateTimeForApi(active.timeRange[0]);
-      q.endTime = formatDateTimeForApi(active.timeRange[1]);
-    }
-    return q;
+    return compactQuery({
+      keyword: active.keyword,
+      direction: active.direction,
+      type: active.type,
+      channel: active.channel,
+      ...formatDateTimeRangeForApi(active.timeRange),
+    });
   }
 
   const filters = buildQuery(submittedParams);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ApiError, LOOKUP_STALE_TIME, toQueryString, unwrap } from './query';
+import { ApiError, compactQuery, LOOKUP_STALE_TIME, toQueryString, unwrap } from './query';
 
 describe('unwrap', () => {
   it('code 为 0 时返回 data', () => {
@@ -30,6 +30,22 @@ describe('unwrap', () => {
 describe('toQueryString', () => {
   it('拼接普通参数并带 ? 前缀', () => {
     expect(toQueryString({ page: 1, pageSize: 10 })).toBe('?page=1&pageSize=10');
+  });
+
+  describe('compactQuery', () => {
+    it('drops empty values while preserving zero and false', () => {
+      expect(compactQuery({
+        keyword: '',
+        status: undefined,
+        page: 0,
+        enabled: false,
+        channel: 'wechat',
+      })).toEqual({
+        page: 0,
+        enabled: false,
+        channel: 'wechat',
+      });
+    });
   });
 
   it('过滤 undefined / null / 空字符串', () => {

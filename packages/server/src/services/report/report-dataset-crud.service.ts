@@ -21,6 +21,7 @@ import { keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUserOrNull } from '../../lib/context';
+import { buildReportCopyName } from './report-copy-name';
 import { ensureDatasourceExists } from './report-datasource.service';
 import {
   reportCreateTenantId,
@@ -240,18 +241,6 @@ export async function listDatasetLookup(query: {
   }));
 }
 
-function buildCopyName(baseName: string, existingNames: Set<string>): string {
-  const normalized = new Set(Array.from(existingNames).map((name) => name.trim().toLowerCase()));
-  const base = baseName.trim() || '未命名副本';
-  const direct = `${base} 副本`;
-  if (!normalized.has(direct.toLowerCase())) return direct;
-  for (let index = 2; index <= 200; index += 1) {
-    const candidate = `${base} 副本 ${index}`;
-    if (!normalized.has(candidate.toLowerCase())) return candidate;
-  }
-  return `${base} 副本 ${Date.now()}`;
-}
-
 export async function batchSetDatasetStatus(ids: number[], status: 'enabled' | 'disabled'): Promise<number> {
   if (ids.length === 0) return 0;
   const accessible = await listAccessibleReportResourceIds('dataset', 'editor');
@@ -271,7 +260,7 @@ export async function cloneDataset(id: number, input?: { name?: string | null })
     tenantId: current.tenantId ?? reportCreateTenantId(),
   });
   const rows = await db.select({ name: reportDatasets.name }).from(reportDatasets).where(reportTenantScope(reportDatasets));
-  const name = input?.name?.trim() || buildCopyName(current.name, new Set(rows.map((row) => row.name)));
+  const name = input?.name?.trim() || buildReportCopyName(current.name, new Set(rows.map((row) => row.name)));
   try {
     const [row] = await db.insert(reportDatasets).values({
       tenantId: current.tenantId ?? reportCreateTenantId(),

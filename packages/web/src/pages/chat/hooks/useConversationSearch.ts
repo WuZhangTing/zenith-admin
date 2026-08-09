@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
 import { request } from '@/utils/request';
-import { formatDateTimeForApi } from '@/utils/date';
+import { formatDateTimeRangeValuesForApi } from '@/utils/date';
 import type { ChatConversation, ChatMessage, ChatMessageContext, ChatMessageSearchItem, ChatMessageSearchResult, ChatGroupMember } from '@zenith/shared/chat';
 import type { SearchDatePreset, Setter } from '../types';
 
@@ -127,8 +127,9 @@ export function useConversationSearch({
     if (searchTypeFilters.length > 0) qs.set('types', searchTypeFilters.join(','));
     if (searchSenderId) qs.set('senderId', String(searchSenderId));
     if (searchTimeRange) {
-      qs.set('startAt', formatDateTimeForApi(searchTimeRange[0]));
-      qs.set('endAt', formatDateTimeForApi(searchTimeRange[1]));
+      const [startAt, endAt] = formatDateTimeRangeValuesForApi(searchTimeRange, '');
+      qs.set('startAt', startAt);
+      qs.set('endAt', endAt);
     }
     qs.set('page', String(targetPage));
     qs.set('pageSize', '20');

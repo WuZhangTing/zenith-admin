@@ -8,6 +8,8 @@ export const DATE_FORMAT = 'YYYY-MM-DD';
 
 const DATE_TIME_PATTERN = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
 type DateInput = Date | string | number | null | undefined;
+type DefinedDateInput = Exclude<DateInput, null | undefined>;
+type DateRangeInput = readonly DateInput[] | null | undefined;
 
 /**
  * 格式化日期时间为 YYYY-MM-DD HH:mm:ss
@@ -35,13 +37,37 @@ export function formatDateTimeForApi(date: DateInput): string {
   return formatDateTime(date);
 }
 
+export function formatDateTimeRangeValuesForApi(
+  range: readonly [DefinedDateInput, DefinedDateInput],
+): [string, string];
+export function formatDateTimeRangeValuesForApi(
+  range: DateRangeInput,
+  emptyValue: string,
+): [string, string];
+export function formatDateTimeRangeValuesForApi(
+  range: DateRangeInput,
+): [string | undefined, string | undefined];
+export function formatDateTimeRangeValuesForApi(
+  range: DateRangeInput,
+  emptyValue?: string,
+): [string | undefined, string | undefined] {
+  const formatBound = (value: DateInput) =>
+    value == null ? emptyValue : formatDateTimeForApi(value);
+  return [formatBound(range?.[0]), formatBound(range?.[1])];
+}
+
 export function formatDateTimeRangeForApi(
-  range: readonly [Date | string | number, Date | string | number] | null | undefined,
+  range: readonly [DefinedDateInput, DefinedDateInput],
+): { startTime: string; endTime: string };
+export function formatDateTimeRangeForApi(
+  range: DateRangeInput,
+): { startTime: string | undefined; endTime: string | undefined };
+export function formatDateTimeRangeForApi(
+  range: DateRangeInput,
 ): { startTime: string | undefined; endTime: string | undefined } {
-  return {
-    startTime: range ? formatDateTimeForApi(range[0]) : undefined,
-    endTime: range ? formatDateTimeForApi(range[1]) : undefined,
-  };
+  if (!range) return { startTime: undefined, endTime: undefined };
+  const [startTime, endTime] = formatDateTimeRangeValuesForApi(range, '');
+  return { startTime, endTime };
 }
 
 /**

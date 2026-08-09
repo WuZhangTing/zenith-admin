@@ -13,6 +13,7 @@ import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
 import { pageOffset } from '../../lib/pagination';
 import { assertAllCmsSiteChannelsAccess, getAccessibleChannelIds } from './cms-channels.service';
 import { loadCmsExtensionWords, normalizeCmsSearchDictionaryWord } from './cms-search-dictionary';
+import { escapeHtml } from '../../lib/text-utils';
 
 // ─── 分词器（进程级单例，加载默认词典 + DB 自定义词典）─────────────────────────
 const jiebaBySite = new Map<number, Jieba>();
@@ -192,10 +193,6 @@ export function buildSearchVector(input: SearchVectorInput): SQL {
   const b = stripHtml([input.seoKeywords ?? '', input.summary ?? ''].join(' '));
   const c = stripHtml([input.body ?? '', ...(input.extendTexts ?? [])].join(' ')).slice(0, 20000);
   return sql`setweight(to_tsvector(${cfg}::regconfig, ${a}), 'A') || setweight(to_tsvector(${cfg}::regconfig, ${b}), 'B') || setweight(to_tsvector(${cfg}::regconfig, ${c}), 'C')`;
-}
-
-function escapeHtml(s: string): string {
-  return s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 }
 
 /** Node 侧高亮：将命中 token 用 <mark> 包裹（先 HTML 转义再高亮，防注入） */

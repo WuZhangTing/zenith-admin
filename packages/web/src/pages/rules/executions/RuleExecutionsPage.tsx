@@ -8,7 +8,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import { ruleKeys, useRuleExecutions } from '@/hooks/queries/rules';
-import { formatDateTimeForApi } from '@/utils/date';
+import { formatDateTimeRangeValuesForApi } from '@/utils/date';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 
@@ -78,10 +78,11 @@ export default function RuleExecutionsPage() {
               value={draft.dateStart && draft.dateEnd ? [draft.dateStart, draft.dateEnd] : undefined}
               onChange={(dates) => {
                 const range = dates as Date[] | undefined;
+                const [dateStart, dateEnd] = formatDateTimeRangeValuesForApi(range);
                 setDraft((p) => ({
                   ...p,
-                  dateStart: range?.[0] ? formatDateTimeForApi(range[0]) : undefined,
-                  dateEnd: range?.[1] ? formatDateTimeForApi(range[1]) : undefined,
+                  dateStart,
+                  dateEnd,
                 }));
               }}
               style={{ width: 360 }}

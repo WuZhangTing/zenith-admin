@@ -8,6 +8,7 @@ import { keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUserOrNull } from '../../lib/context';
+import { escapeHtml, trimNullableText } from '../../lib/text-utils';
 import { assertDatasetEvaluableGlobally, ensureDatasetExists, getDatasetData } from './report-dataset.service';
 import { ensureReportMetricExists, evaluateReportMetric } from './report-metric.service';
 import {
@@ -32,6 +33,10 @@ import { reportCreateTenantId, reportScopedWhere, reportTenantScope } from './re
 import { maskReportSecret, prepareReportSecret } from './report-secrets';
 import type { ReportAlertRuleRow, ReportDeliveryRunRow } from '../../db/schema';
 import type { CreateReportAlertInput, ReportAlertAggregate, ReportAlertEvalHit, ReportAlertEvalResult, ReportAlertOp, ReportAlertRule, ReportDeliveryStatus, ReportNotifyChannel, UpdateReportAlertInput } from '@zenith/shared/report';
+import {
+  buildReportFieldMetadataMap,
+  isNumericReportField,
+} from './report-field-metadata';
 
 type AlertRowExt = ReportAlertRuleRow & {
   dataset?: { name: string } | null;
@@ -43,31 +48,6 @@ type AlertEventType = 'trigger' | 'recover' | 'manual' | 'scheduled';
 
 const OP_LABEL: Record<ReportAlertOp, string> = { gt: '>', gte: '≥', lt: '<', lte: '≤', eq: '=', neq: '≠' };
 const SCHEDULE_MAX_ATTEMPTS = 3;
-
-function trimText(value: unknown, maxLength = 512): string | null {
-  if (value == null) return null;
-  const text = String(value).trim();
-  return text ? text.slice(0, maxLength) : null;
-}
-
-function escapeHtml(text: string): string {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-function datasetFieldSet(
-  fields: Array<{ name: string; type?: string; format?: { kind?: string } }> | undefined,
-  computedFields: Array<{ name: string; type?: string; format?: { kind?: string } }> | undefined,
-): Map<string, { type?: string; format?: { kind?: string } }> {
-  const map = new Map<string, { type?: string; format?: { kind?: string } }>();
-  for (const field of fields ?? []) map.set(field.name, field);
-  for (const field of computedFields ?? []) map.set(field.name, field);
-  return map;
-}
-
-function isNumericField(field: { type?: string; format?: { kind?: string } } | undefined): boolean {
-  if (!field) return false;
-  return field.type === 'number' || ['number', 'percent', 'currency'].includes(String(field.format?.kind ?? ''));
-}
 
 async function validateAlertDefinition(
   datasetId: number | null | undefined,
@@ -85,7 +65,7 @@ async function validateAlertDefinition(
   if (!datasetId) throw new HTTPException(400, { message: '数据集或指标必须选择一个' });
   await assertDatasetEvaluableGlobally(datasetId);
   const dataset = await ensureDatasetExists(datasetId);
-  const fieldMap = datasetFieldSet(
+  const fieldMap = buildReportFieldMetadataMap(
     (dataset.fields ?? []) as Array<{ name: string; type?: string; format?: { kind?: string } }>,
     (dataset.computedFields ?? []) as Array<{ name: string; type?: string; format?: { kind?: string } }>,
   );
@@ -96,7 +76,7 @@ async function validateAlertDefinition(
     if (!field) throw new HTTPException(400, { message: '非 count 聚合必须指定字段' });
     const meta = fieldMap.get(field);
     if (!meta) throw new HTTPException(400, { message: `聚合字段不存在：${field}` });
-    if (!isNumericField(meta)) throw new HTTPException(400, { message: '非 count 聚合字段必须可数值化' });
+    if (!isNumericReportField(meta)) throw new HTTPException(400, { message: '非 count 聚合字段必须可数值化' });
   }
 }
 
@@ -702,7 +682,7 @@ export async function runAlertTask(
       await db.update(reportAlertRules).set({
         lastDeliveryAt: new Date(),
         lastDeliveryStatus: retryRow.status,
-        lastDeliveryError: trimText(error) ?? '预警评估失败',
+        lastDeliveryError: trimNullableText(error) ?? '预警评估失败',
       }).where(eq(reportAlertRules.id, row.id));
     }
     throw error;
@@ -746,7 +726,7 @@ async function processScheduledAlert(row: ReportAlertRuleRow, scheduledFor: Date
     await db.update(reportAlertRules).set({
       lastDeliveryAt: new Date(),
       lastDeliveryStatus: retryRow?.status ?? 'failed',
-      lastDeliveryError: trimText(error) ?? '预警评估失败',
+      lastDeliveryError: trimNullableText(error) ?? '预警评估失败',
     }).where(eq(reportAlertRules.id, row.id));
     return false;
   }

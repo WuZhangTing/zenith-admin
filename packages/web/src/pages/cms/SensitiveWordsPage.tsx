@@ -1,28 +1,30 @@
-import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Form, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
-import { createdAtColumn } from '@/utils/table-columns';
+import { createdAtColumn, renderEnabledStatusTag } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { usePagination } from '@/hooks/usePagination';
+import { useListSearch } from '@/hooks/useListSearch';
 import { useCmsSensitiveWordList, useSaveCmsSensitiveWord, useDeleteCmsSensitiveWord, cmsSensitiveWordKeys } from '@/hooks/queries/cms';
 import type { CmsSensitiveWord } from '@zenith/shared/cms';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
+interface SearchParams { keyword: string }
+const defaultSearch: SearchParams = { keyword: '' };
+
 export default function SensitiveWordsPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftKeyword, setDraftKeyword] = useState('');
-  const [submittedKeyword, setSubmittedKeyword] = useState('');
-  const listQuery = useCmsSensitiveWordList({ page, pageSize, keyword: submittedKeyword || undefined });
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: cmsSensitiveWordKeys.lists });
+  const listQuery = useCmsSensitiveWordList({ page, pageSize, keyword: submittedParams.keyword || undefined });
   const saveMutation = useSaveCmsSensitiveWord();
   const modal = useEditModal<CmsSensitiveWord, Partial<CmsSensitiveWord>, Record<string, unknown>>({
     entityName: '敏感词',
@@ -33,19 +35,6 @@ export default function SensitiveWordsPage() {
   });
   const deleteMutation = useDeleteCmsSensitiveWord();
   const canManage = hasPermission('cms:sensitive:manage');
-
-  function handleSearch() {
-    setPage(1);
-    setSubmittedKeyword(draftKeyword);
-    void queryClient.invalidateQueries({ queryKey: cmsSensitiveWordKeys.lists });
-  }
-
-  function handleReset() {
-    setPage(1);
-    setDraftKeyword('');
-    setSubmittedKeyword('');
-    void queryClient.invalidateQueries({ queryKey: cmsSensitiveWordKeys.lists });
-  }
 
   const columns: ColumnProps<CmsSensitiveWord>[] = [
     { title: '敏感词', dataIndex: 'word', width: 180 },
@@ -60,7 +49,7 @@ export default function SensitiveWordsPage() {
     createdAtColumn,
     {
       title: '状态', dataIndex: 'status', width: 80, fixed: 'right',
-      render: (v: string) => (v === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag color="red" size="small">停用</Tag>),
+      render: renderEnabledStatusTag,
     },
     createOperationColumn<CmsSensitiveWord>({
       width: 160,
@@ -87,7 +76,7 @@ export default function SensitiveWordsPage() {
     <div className="page-container">
       <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }} description="敏感词库全局生效，作用于前台评论与自定义表单提交：拦截模式命中直接拒绝提交，替换模式命中替换为指定文本。" />
       <SearchToolbar>
-        <KeywordInput placeholder="搜索敏感词..." value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} />
+        <KeywordInput placeholder="搜索敏感词..." value={draftParams.keyword} onChange={(keyword) => setDraftParams({ keyword })} onSearch={handleSearch} />
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />
         {canManage ? <CreateButton onClick={modal.openCreate} /> : null}

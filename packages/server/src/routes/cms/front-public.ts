@@ -28,16 +28,13 @@ import redis from '../../lib/redis';
 import { optionalMemberSessionMiddleware } from '../../middleware/optional-member-session';
 import { getClientIp } from '../../lib/request-helpers';
 import { hashCmsIp } from '../../services/cms/cms-visitor';
+import { escapeHtml } from '../../lib/text-utils';
 
 /**
  * CMS 前台公开提交接口（评论 / 自定义表单）。
  * 面向静态页的原生 HTML form POST（零 JS），处理后返回轻量提示页并跳回来源页。
  * 防护：Redis IP 限流 + 蜜罐字段 + 敏感词过滤（service 层）。
  */
-
-function escapeHtml(s: string): string {
-  return s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
-}
 
 /** 轻量提示页：2 秒后 meta refresh 跳回来源页 */
 function messagePage(title: string, text: string, backUrl: string): string {

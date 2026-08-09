@@ -29,7 +29,7 @@ import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { decryptField } from '../../lib/encryption';
 import { isPgUniqueViolation } from '../../lib/db-errors';
 import logger from '../../lib/logger';
-import { PAYMENT_METHOD_CHANNEL, PAYMENT_CHANNEL_LABELS } from '@zenith/shared/payment';
+import { PAYMENT_METHOD_CHANNEL } from '@zenith/shared/payment';
 import type { CreatePaymentInput, CreatePaymentResult, CreateRefundInput, PaymentChannel, PaymentNotifyLog, PaymentOrder, PaymentOrderStatus, PaymentRefund } from '@zenith/shared/payment';
 import { getAdapter } from '../../lib/payment';
 import type { AdapterContext, DecryptedSecrets, NotifyResult } from '../../lib/payment';
@@ -39,6 +39,7 @@ import { assertMethodEnabled } from './payment-method.service';
 import { assertNoPendingRiskReview, evaluateRisk, recordRiskHit, suspendOrderForReview, type RiskCheckInput } from './payment-risk.service';
 import { lockCouponForPayment, releaseCouponForPayment, type CouponLockResult } from './payment-coupon.service';
 import { resolveAppChannelConfig } from './payment-apps.service';
+import { resolvePaymentChannelConfig } from './payment-channel-config-resolver';
 
 // ─── 工具 ─────────────────────────────────────────────────────────────────────
 
@@ -77,18 +78,7 @@ export function buildAdapterContext(config: PaymentChannelConfigRow): AdapterCon
 
 async function resolveChannelConfig(channel: PaymentChannel, channelConfigId?: number, tenantId?: number | null): Promise<PaymentChannelConfigRow> {
   const tc = channelConfigTenantCondition(tenantId) ?? (currentUserOrNull() ? tenantCondition(paymentChannelConfigs, currentUser()) : undefined);
-  if (channelConfigId) {
-    const [row] = await db.select().from(paymentChannelConfigs).where(and(eq(paymentChannelConfigs.id, channelConfigId), tc)).limit(1);
-    if (!row) throw new HTTPException(404, { message: '支付渠道配置不存在' });
-    return row;
-  }
-  const [row] = await db
-    .select()
-    .from(paymentChannelConfigs)
-    .where(and(eq(paymentChannelConfigs.channel, channel), eq(paymentChannelConfigs.isDefault, true), eq(paymentChannelConfigs.status, 'enabled'), tc))
-    .limit(1);
-  if (!row) throw new HTTPException(400, { message: `未配置默认${PAYMENT_CHANNEL_LABELS[channel]}支付渠道` });
-  return row;
+  return resolvePaymentChannelConfig({ channel, channelConfigId, scope: tc });
 }
 
 /** 根据订单加载其渠道配置（不做租户过滤，供 cron/回调使用） */

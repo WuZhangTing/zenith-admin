@@ -19,6 +19,7 @@ import type { CmsForm, CmsFormSubmission } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
+import { renderEnabledStatusTag } from '@/utils/table-columns';
 
 const FIELD_TYPE_OPTIONS = CMS_FORM_FIELD_TYPES.map((t) => ({ value: t, label: CMS_FORM_FIELD_TYPE_LABELS[t] }));
 
@@ -145,7 +146,7 @@ export default function FormsPage() {
     { title: '提交数', dataIndex: 'submissionCount', width: 90 },
     {
       title: '状态', dataIndex: 'status', width: 80, fixed: 'right',
-      render: (v: string) => (v === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag color="red" size="small">停用</Tag>),
+      render: renderEnabledStatusTag,
     },
     createOperationColumn<CmsForm>({
       width: 210,

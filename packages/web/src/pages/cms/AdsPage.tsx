@@ -8,7 +8,7 @@ import ExportButton from '@/components/ExportButton';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
-import { formatDateTimeForApi } from '@/utils/date';
+import { formatDateTimeForApi, formatDateTimeRangeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePagination } from '@/hooks/usePagination';
@@ -23,6 +23,7 @@ import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { renderEnabledStatusTag } from '@/utils/table-columns';
 
 // ─── 广告位 Tab ───────────────────────────────────────────────────────────────
 function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
@@ -143,7 +144,7 @@ function AdsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
     { title: '排序', dataIndex: 'sort', width: 70 },
     {
       title: '状态', dataIndex: 'status', width: 80, fixed: 'right',
-      render: (v: string) => (v === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag color="red" size="small">停用</Tag>),
+      render: renderEnabledStatusTag,
     },
     createOperationColumn<CmsAd>({
       width: 160,
@@ -238,8 +239,7 @@ function EventsTab({ siteId, setSiteId }: Readonly<{
     siteId: siteId ?? 0,
     ...submitted,
     timeRange: undefined,
-    startTime: submitted.timeRange ? formatDateTimeForApi(submitted.timeRange[0]) : undefined,
-    endTime: submitted.timeRange ? formatDateTimeForApi(submitted.timeRange[1]) : undefined,
+    ...formatDateTimeRangeForApi(submitted.timeRange),
   };
   const listQuery = useCmsAdEventList(params, !!siteId);
   const cleanupMutation = useCleanupCmsAdEvents();
@@ -299,8 +299,7 @@ function EventsTab({ siteId, setSiteId }: Readonly<{
     siteId,
     ...submitted,
     timeRange: undefined,
-    startTime: submitted.timeRange ? formatDateTimeForApi(submitted.timeRange[0]) : undefined,
-    endTime: submitted.timeRange ? formatDateTimeForApi(submitted.timeRange[1]) : undefined,
+    ...formatDateTimeRangeForApi(submitted.timeRange),
   };
 
   return (
@@ -395,8 +394,7 @@ function StatsTab({ siteId, setSiteId }: Readonly<{
     siteId: siteId ?? 0,
     ...submitted,
     timeRange: undefined,
-    startTime: submitted.timeRange ? formatDateTimeForApi(submitted.timeRange[0]) : undefined,
-    endTime: submitted.timeRange ? formatDateTimeForApi(submitted.timeRange[1]) : undefined,
+    ...formatDateTimeRangeForApi(submitted.timeRange),
   };
   const statsQuery = useCmsAdEventStats(params, !!siteId);
   const columns: ColumnProps<NonNullable<typeof statsQuery.data>['trend'][number]>[] = [

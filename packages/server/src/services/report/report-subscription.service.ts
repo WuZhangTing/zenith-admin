@@ -7,6 +7,7 @@ import { pageOffset } from '../../lib/pagination';
 import { keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { currentUserOrNull } from '../../lib/context';
+import { escapeHtml, trimNullableText } from '../../lib/text-utils';
 import { assertDashboardEvaluableGlobally, ensureDashboardExists, getDashboardData } from './report-dashboard.service';
 import { ensureDatasetExists } from './report-dataset.service';
 import {
@@ -34,6 +35,10 @@ import {
 } from './report-secrets';
 import type { ReportDashboardSubscriptionRow, ReportDeliveryRunRow } from '../../db/schema';
 import type { ReportDashboardSubscription, ReportWidget, ReportNotifyChannel, CreateReportSubscriptionInput, UpdateReportSubscriptionInput, ReportDeliveryStatus } from '@zenith/shared/report';
+import {
+  buildReportFieldMetadataMap,
+  isNumericReportField,
+} from './report-field-metadata';
 
 type SubRowExt = ReportDashboardSubscriptionRow & {
   dashboard?: { name: string } | null;
@@ -49,21 +54,6 @@ interface SummaryLine {
 
 const SCHEDULE_MAX_ATTEMPTS = 3;
 
-function trimText(value: unknown, maxLength = 512): string | null {
-  if (value == null) return null;
-  const text = String(value).trim();
-  return text ? text.slice(0, maxLength) : null;
-}
-
-function widgetFieldSet(fields: Array<{ name: string }> | undefined, computed: Array<{ name: string }> | undefined): Set<string> {
-  return new Set([...(fields ?? []), ...(computed ?? [])].map((item) => item.name));
-}
-
-function isNumericWidgetField(field: { type?: string; format?: { kind?: string } } | undefined): boolean {
-  if (!field) return false;
-  return field.type === 'number' || ['number', 'percent', 'currency'].includes(String(field.format?.kind ?? ''));
-}
-
 async function validateSubscriptionRuntimeConfig(dashboardId: number): Promise<void> {
   const dashboard = await ensureDashboardExists(dashboardId);
   await assertDashboardEvaluableGlobally(dashboardId);
@@ -78,18 +68,17 @@ async function validateSubscriptionRuntimeConfig(dashboardId: number): Promise<v
     if (widget.type !== 'kpi' || !widget.datasetId) continue;
     const dataset = datasetMap.get(widget.datasetId);
     if (!dataset) throw new HTTPException(400, { message: `订阅组件「${widget.title || widget.i}」绑定的数据集不存在` });
-    const fieldNames = widgetFieldSet(dataset.fields as Array<{ name: string }> | undefined, dataset.computedFields as Array<{ name: string }> | undefined);
-    const findField = (name: string | undefined) => [
-      ...((dataset.fields ?? []) as Array<{ name: string; type?: string; format?: { kind?: string } }>),
-      ...((dataset.computedFields ?? []) as Array<{ name: string; type?: string; format?: { kind?: string } }>),
-    ].find((item) => item.name === name);
+    const fieldMap = buildReportFieldMetadataMap(
+      dataset.fields as Array<{ name: string; type?: string; format?: { kind?: string } }> | undefined,
+      dataset.computedFields as Array<{ name: string; type?: string; format?: { kind?: string } }> | undefined,
+    );
     const aggregate = String(widget.options?.aggregate ?? 'sum');
     const validateField = (fieldName: string | undefined, label: string) => {
       if (aggregate === 'count' || !fieldName) return;
-      if (!fieldNames.has(fieldName)) {
+      if (!fieldMap.has(fieldName)) {
         throw new HTTPException(400, { message: `订阅组件「${widget.title || widget.i}」的${label}不存在：${fieldName}` });
       }
-      if (!isNumericWidgetField(findField(fieldName))) {
+      if (!isNumericReportField(fieldMap.get(fieldName))) {
         throw new HTTPException(400, { message: `订阅组件「${widget.title || widget.i}」的${label}必须是可数值化字段` });
       }
     };
@@ -238,10 +227,6 @@ function trendHtml(deltaPct: number | null): string {
   if (deltaPct > 0) return ` <span style="color:#f5222d">▲ ${deltaPct.toFixed(1)}%</span>`;
   if (deltaPct < 0) return ` <span style="color:#52c41a">▼ ${Math.abs(deltaPct).toFixed(1)}%</span>`;
   return ' <span style="color:#8c8c8c">— 持平</span>';
-}
-
-function escapeHtml(text: string): string {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function runtimeHasNumericValue(rows: Record<string, unknown>[], field: string): boolean {
@@ -435,7 +420,7 @@ export async function runSubscriptionTask(
     await db.update(reportDashboardSubscriptions).set({
       lastDeliveryAt: new Date(),
       lastDeliveryStatus: retryRow.status,
-      lastDeliveryError: trimText(error) ?? '订阅推送失败',
+      lastDeliveryError: trimNullableText(error) ?? '订阅推送失败',
     }).where(eq(reportDashboardSubscriptions.id, row.id));
     throw error;
   }
@@ -520,7 +505,7 @@ async function processScheduledRun(runId: number, row: ReportDashboardSubscripti
     await db.update(reportDashboardSubscriptions).set({
       lastDeliveryAt: new Date(),
       lastDeliveryStatus: runningRun.attempt >= runningRun.maxAttempts ? 'failed' : 'pending',
-      lastDeliveryError: trimText(error) ?? '订阅推送失败',
+      lastDeliveryError: trimNullableText(error) ?? '订阅推送失败',
     }).where(eq(reportDashboardSubscriptions.id, row.id));
     return false;
   }

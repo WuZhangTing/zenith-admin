@@ -7,7 +7,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
 import { AppModal } from '@/components/AppModal';
-import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
+import { formatDateTime, formatDateTimeRangeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_REFUND_STATUS_LABELS, PAYMENT_REFUND_APPROVAL_STATUS_LABELS } from '@zenith/shared/payment';
@@ -22,6 +22,7 @@ import {
 } from '@/hooks/queries/payment-refunds';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
+import { compactQuery } from '@/lib/query';
 
 const STATUS_COLOR = { pending: 'grey', processing: 'blue', success: 'green', failed: 'red' } as const satisfies Record<PaymentRefundStatus, string>;
 const APPROVAL_COLOR = { none: 'grey', pending: 'amber', approved: 'green', rejected: 'red' } as const satisfies Record<PaymentRefundApprovalStatus, string>;
@@ -42,16 +43,13 @@ export default function PaymentRefundsPage() {
   const [rejectRemark, setRejectRemark] = useState('');
 
   function buildQuery(active: SearchParams): Record<string, string> {
-    const q: Record<string, string> = {};
-    if (active.keyword) q.keyword = active.keyword;
-    if (active.channel) q.channel = active.channel;
-    if (active.status) q.status = active.status;
-    if (active.approvalStatus) q.approvalStatus = active.approvalStatus;
-    if (active.timeRange) {
-      q.startTime = formatDateTimeForApi(active.timeRange[0]);
-      q.endTime = formatDateTimeForApi(active.timeRange[1]);
-    }
-    return q;
+    return compactQuery({
+      keyword: active.keyword,
+      channel: active.channel,
+      status: active.status,
+      approvalStatus: active.approvalStatus,
+      ...formatDateTimeRangeForApi(active.timeRange),
+    });
   }
 
   const listQuery = usePaymentRefundList({ page, pageSize, ...buildQuery(submittedParams) });

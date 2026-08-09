@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Form, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -9,7 +8,7 @@ import AppModal from '@/components/AppModal';
 import { createdAtColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { usePagination } from '@/hooks/usePagination';
+import { useListSearch } from '@/hooks/useListSearch';
 import { useCmsTagList, useSaveCmsTag, useDeleteCmsTag, cmsTagKeys } from '@/hooks/queries/cms';
 import type { CmsTag } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
@@ -17,17 +16,20 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
+interface SearchParams { keyword: string }
+const defaultSearch: SearchParams = { keyword: '' };
+
 export default function TagsPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
-
   const [siteId, setSiteId] = useState<number | undefined>(undefined);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [draftKeyword, setDraftKeyword] = useState('');
-  const [submittedKeyword, setSubmittedKeyword] = useState('');
+  const {
+    page, pageSize, setPage, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: cmsTagKeys.lists });
 
   const listQuery = useCmsTagList({
-    page, pageSize, siteId: siteId ?? 0, keyword: submittedKeyword || undefined,
+    page, pageSize, siteId: siteId ?? 0, keyword: submittedParams.keyword || undefined,
   }, siteId !== undefined);
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
@@ -47,19 +49,6 @@ export default function TagsPage() {
     },
   });
   const deleteMutation = useDeleteCmsTag();
-
-  function handleSearch() {
-    setPage(1);
-    setSubmittedKeyword(draftKeyword);
-    void queryClient.invalidateQueries({ queryKey: cmsTagKeys.lists });
-  }
-
-  function handleReset() {
-    setPage(1);
-    setDraftKeyword('');
-    setSubmittedKeyword('');
-    void queryClient.invalidateQueries({ queryKey: cmsTagKeys.lists });
-  }
 
   const columns: ColumnProps<CmsTag>[] = [
     { title: '标签名称', dataIndex: 'name', width: 180 },
@@ -99,7 +88,7 @@ export default function TagsPage() {
     <div className="page-container">
       <SearchToolbar>
         <CmsSiteSelect value={siteId} onChange={(v) => { setSiteId(v); setPage(1); }} width={180} />
-        <KeywordInput placeholder="搜索标签名称/标识..." value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} width={200} />
+        <KeywordInput placeholder="搜索标签名称/标识..." value={draftParams.keyword} onChange={(keyword) => setDraftParams({ keyword })} onSearch={handleSearch} width={200} />
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />
         {hasPermission('cms:tag:create') ? (

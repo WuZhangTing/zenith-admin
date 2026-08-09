@@ -26,7 +26,7 @@ import {
   useSubmitCmsPublish,
 } from '@/hooks/queries/cms-stage3';
 import { ASYNC_TASK_STATUS_TAG_MAP } from '@/utils/async-task';
-import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
+import { formatDateTime, formatDateTimeRangeForApi } from '@/utils/date';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
@@ -249,8 +249,7 @@ export default function PublishingPage() {
           const range = Array.isArray(value) ? value : [];
           setDraft((prev) => ({
             ...prev,
-            startTime: range[0] ? formatDateTimeForApi(range[0]) : undefined,
-            endTime: range[1] ? formatDateTimeForApi(range[1]) : undefined,
+            ...formatDateTimeRangeForApi(range),
           }));
         }} width={340} />
     </>

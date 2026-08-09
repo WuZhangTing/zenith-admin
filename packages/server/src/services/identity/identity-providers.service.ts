@@ -690,6 +690,41 @@ function normalizeExternalProfile(provider: typeof tenantIdentityProviders.$infe
   return { subject: resolvedSubject, email, username, nickname, phone, department };
 }
 
+type NormalizedExternalProfile = ReturnType<typeof normalizeExternalProfile>;
+
+function identityUserMatchWhere(
+  provider: typeof tenantIdentityProviders.$inferSelect,
+  external: NormalizedExternalProfile,
+) {
+  const tenant = provider.tenantId == null
+    ? isNull(users.tenantId)
+    : eq(users.tenantId, provider.tenantId);
+  const conditions = [and(eq(users.username, external.username), tenant)];
+  if (external.email) {
+    conditions.push(and(eq(users.email, external.email), tenant));
+  }
+  return or(...conditions);
+}
+
+function identityAccountValues(input: {
+  providerId: number;
+  userId: number;
+  external: NormalizedExternalProfile;
+  profile: Record<string, unknown>;
+  lastLoginAt?: Date;
+}) {
+  return {
+    userId: input.userId,
+    providerId: input.providerId,
+    subject: input.external.subject,
+    email: input.external.email,
+    username: input.external.username,
+    displayName: input.external.nickname,
+    rawProfile: input.profile,
+    ...(input.lastLoginAt ? { lastLoginAt: input.lastLoginAt } : {}),
+  };
+}
+
 function assignStringAlias(target: Record<string, unknown>, key: string, value: unknown) {
   if (target[key] !== undefined) return;
   if (typeof value === 'string' && value.trim()) target[key] = value.trim();
@@ -731,23 +766,17 @@ async function findOrCreateUserForProvider(provider: typeof tenantIdentityProvid
     return user;
   }
 
-  const conditions = [];
-  conditions.push(and(eq(users.username, external.username), provider.tenantId == null ? isNull(users.tenantId) : eq(users.tenantId, provider.tenantId)));
-  if (external.email) {
-    conditions.push(and(eq(users.email, external.email), provider.tenantId == null ? isNull(users.tenantId) : eq(users.tenantId, provider.tenantId)));
-  }
-  const [matchedUser] = await db.select().from(users).where(or(...conditions)).limit(1);
+  const [matchedUser] = await db.select().from(users)
+    .where(identityUserMatchWhere(provider, external))
+    .limit(1);
   if (matchedUser) {
-    await db.insert(userIdentityAccounts).values({
-      userId: matchedUser.id,
+    await db.insert(userIdentityAccounts).values(identityAccountValues({
       providerId: provider.id,
-      subject: external.subject,
-      email: external.email,
-      username: external.username,
-      displayName: external.nickname,
-      rawProfile: profile,
+      userId: matchedUser.id,
+      external,
+      profile,
       lastLoginAt: now,
-    });
+    }));
     return matchedUser;
   }
 
@@ -810,23 +839,16 @@ async function syncUserForProvider(provider: typeof tenantIdentityProviders.$inf
     return 'updated';
   }
 
-  const conditions = [
-    and(eq(users.username, external.username), provider.tenantId == null ? isNull(users.tenantId) : eq(users.tenantId, provider.tenantId)),
-  ];
-  if (external.email) {
-    conditions.push(and(eq(users.email, external.email), provider.tenantId == null ? isNull(users.tenantId) : eq(users.tenantId, provider.tenantId)));
-  }
-  const [matchedUser] = await db.select().from(users).where(or(...conditions)).limit(1);
+  const [matchedUser] = await db.select().from(users)
+    .where(identityUserMatchWhere(provider, external))
+    .limit(1);
   if (matchedUser) {
-    await db.insert(userIdentityAccounts).values({
-      userId: matchedUser.id,
+    await db.insert(userIdentityAccounts).values(identityAccountValues({
       providerId: provider.id,
-      subject: external.subject,
-      email: external.email,
-      username: external.username,
-      displayName: external.nickname,
-      rawProfile: profile,
-    });
+      userId: matchedUser.id,
+      external,
+      profile,
+    }));
     return 'linked';
   }
 
