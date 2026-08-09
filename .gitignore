@@ -9,6 +9,7 @@ packages/server/logs/
 *.tsbuildinfo
 docs/.vitepress/cache/
 docs/.vitepress/dist/
+**/.cache/
 **/storage/local/
 **/storage/tmp/
 **/storage/cms-static/
