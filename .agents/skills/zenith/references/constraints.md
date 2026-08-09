@@ -222,7 +222,11 @@
 ## 时间格式（全局）
 
 - **统一格式**：API 响应、入参、前端显示、MSW Mock 统一使用 `YYYY-MM-DD HH:mm:ss`
-- **前端**：用 `formatDateTime()` / `formatDateTimeForApi()`（来自 `@/utils/date`）
+- **前端**：单点时间用 `formatDateTime()` / `formatDateTimeForApi()`；标准
+  `startTime` / `endTime` 日期时间范围用 `formatDateTimeRangeForApi()`，非标准字段名
+  （如 `startAt` / `endAt`）用 `formatDateTimeRangeValuesForApi()` 后显式赋值
+  （均来自 `@/utils/date`）。**禁止**在页面中重复手写 `[0]` / `[1]` 两端转换。
+  仅接收 `YYYY-MM-DD` 的纯日期端点继续逐端使用 `formatDateForApi()`，不要套日期时间范围 helper
 - **后端格式化**：用 `packages/server/src/lib/datetime.ts` 的 `formatDateTime()` / `formatNullableDateTime()`
 - **后端解析**：按用途二选一，**不要混用**
   - 时间范围端点（筛选用）→ `parseDateRangeStart()` / `parseDateRangeEnd()`，或直接用 `dateRangeConditions()`

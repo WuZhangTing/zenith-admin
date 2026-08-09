@@ -118,7 +118,7 @@ import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
 export interface XxxListParams extends CrudListParams {
   keyword?: string;
   status?: string;
-  // 时间范围筛选：只放已转换的字符串（formatDateTimeForApi），禁止 Date 对象进 params
+  // 时间范围筛选：只放 formatDateTimeRangeForApi 转换后的字符串，禁止 Date 对象进 params
   // startTime?: string;
   // endTime?: string;
 }
@@ -196,6 +196,8 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import { confirmDelete } from '@/utils/confirm';
+// 有日期时间范围筛选时引入：
+// import { formatDateTimeRangeForApi } from '@/utils/date';
 // 仅在 beforeSave 需要中断提交时引入：
 // import { abortSubmit } from '@/lib/abort-submit';
 import { useDeleteXxxs, useSaveXxx, useXxxDetail, useXxxList, xxxKeys } from '@/hooks/queries/xxxs';
@@ -235,9 +237,8 @@ export default function XxxPage() {
     pageSize,
     keyword: submittedParams.keyword || undefined,
     status: submittedParams.status || undefined,
-    // 如有时间范围（Date → 字符串后再进 params）：
-    // startTime: submittedParams.timeRange ? formatDateTimeForApi(submittedParams.timeRange[0]) : undefined,
-    // endTime: submittedParams.timeRange ? formatDateTimeForApi(submittedParams.timeRange[1]) : undefined,
+    // 如有标准 startTime / endTime 日期时间范围（Date → 字符串后再进 params）：
+    // ...formatDateTimeRangeForApi(submittedParams.timeRange),
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
