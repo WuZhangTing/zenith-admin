@@ -9,16 +9,8 @@
 // `npm run dev` 是运行模式，本不应被调试器附加；需要调试后端时请使用 VS Code 的
 // "Debug: Server" 启动配置（此时 Web 终端会被 ws-terminal.ts 的兜底检测自动禁用并提示）。
 import { spawn, spawnSync } from 'node:child_process';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const serverRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const env = { ...process.env };
-// 持久化 V8 编译缓存（Node ≥22.1；旧版本静默忽略）。migrate/seed/server 三个 tsx 进程
-// 及 tsx watch 的每次重启共享此缓存，显著缓解启动期模块图加载（ESM 解析 + 编译）耗时。
-// Node 按源码内容哈希校验，代码变更后条目自动失效，不会吃到过期缓存。
-env.NODE_COMPILE_CACHE ??= path.join(serverRoot, '.cache', 'node-compile-cache');
 // node-pty 与 Node Inspector 的死锁是 Windows ConPTY 特有问题（microsoft/node-pty#640）；
 // 仅在 Windows 剥离 auto-attach 注入的调试器变量（NODE_OPTIONS 含 --require .../bootloader.js）。
 // Linux/macOS 使用 forkpty，不受该死锁影响，保留 `npm run dev` 的可调试性。
