@@ -20,6 +20,9 @@ export const ANALYTICS_EXPERIMENT_EXPOSURE_EVENT = '$experiment_exposure';
 /** 挫败点击（同元素短时间连点）事件名，SDK 上报与服务端聚合共用 */
 export const ANALYTICS_RAGE_CLICK_EVENT = '$rage_click';
 
+/** 路径分析中代表「会话在此结束」的终点节点标识，服务端产出、前端渲染为「退出」 */
+export const ANALYTICS_PATH_EXIT_PAGE = '$exit';
+
 // ─── 数据分析与报表 ────────────────────────────────────────────────────
 export const ANALYTICS_DEVICE_TYPE_LABELS: Record<AnalyticsDeviceType, string> = {
   desktop: '桌面端',

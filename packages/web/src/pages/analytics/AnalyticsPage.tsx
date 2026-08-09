@@ -9,6 +9,7 @@ import {
   BarChart,
   LineChart,
   PieChart,
+  SankeyChart,
   ScatterChart,
   TreemapChart,
   chartOptions,
@@ -16,6 +17,7 @@ import {
   makeBarSpec,
   makeLineSpec,
   makePieSpec,
+  makeSankeySpec,
   makeScatterSpec,
   makeTreemapSpec,
   datumNumber,
@@ -30,6 +32,7 @@ import {
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { formatDateTime, formatDateForApi } from '@/utils/date';
+import { renderEllipsis } from '@/utils/table-columns';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import {
   analyticsKeys,
@@ -54,10 +57,10 @@ import {
   useSaveFunnelReport,
   useDeleteFunnelReport,
 } from '@/hooks/queries/analytics';
-import type { AnalyticsRetentionMode, AnalyticsSavedReport, AnalyticsSegmentPropertyFilter, DimensionBreakdown, FeatureStats, HeatmapData, HeatmapElementItem, HeatmapPageListItem, HeatmapRageClickItem, PageStats } from '@zenith/shared/analytics';
+import type { AnalyticsRetentionMode, AnalyticsSavedReport, AnalyticsSegmentPropertyFilter, DimensionBreakdown, FeatureStats, HeatmapData, HeatmapElementItem, HeatmapPageListItem, HeatmapRageClickItem, PageStats, PathLink } from '@zenith/shared/analytics';
 import type { UserStats } from '@zenith/shared/identity';
 import type { SessionListItem } from '@zenith/shared/platform';
-import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_EVENT_SOURCE_OPTIONS, ANALYTICS_RETENTION_MODE_OPTIONS, ANALYTICS_SEGMENT_COMPARE_OP_OPTIONS } from '@zenith/shared/analytics';
+import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_EVENT_SOURCE_OPTIONS, ANALYTICS_PATH_EXIT_PAGE, ANALYTICS_RETENTION_MODE_OPTIONS, ANALYTICS_SEGMENT_COMPARE_OP_OPTIONS } from '@zenith/shared/analytics';
 import AnalyticsEventQueryTab from './AnalyticsEventQueryTab';
 import AnalyticsExperimentsTab from './AnalyticsExperimentsTab';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
@@ -1114,24 +1117,120 @@ function RetentionTab() {
   );
 }
 
+const PATH_STEP_OPTIONS = [
+  { label: '3 步', value: 3 },
+  { label: '4 步', value: 4 },
+  { label: '5 步', value: 5 },
+  { label: '6 步', value: 6 },
+];
+
+const PATH_EXIT_COLOR = '#94a3b8';
+
+function pathNodeText(label: string): string {
+  if (label === ANALYTICS_PATH_EXIT_PAGE) return '退出';
+  return label === '/' ? '首页' : label;
+}
+
+function pathNodeShortText(label: string): string {
+  if (label === ANALYTICS_PATH_EXIT_PAGE) return '退出';
+  const segments = getRouteSegments(label);
+  return segments[segments.length - 1];
+}
+
+/** 页面 → 稳定色号：同一页面出现在不同步序上必须同色，否则看不出它在路径中反复出现 */
+function buildPageColorIndex(labels: readonly string[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const label of labels) {
+    if (label === ANALYTICS_PATH_EXIT_PAGE || map.has(label)) continue;
+    map.set(label, map.size);
+  }
+  return map;
+}
+
+type PathLinkRow = PathLink & { id: string; sourceLabel: string; targetLabel: string };
+
 function PathTab() {
   const palette = useChartPalette();
   const [days, setDays] = useState(7);
+  const [maxSteps, setMaxSteps] = useState(5);
   const [startPageInput, setStartPageInput] = useState('');
   const [startPage, setStartPage] = useState('');
-  const pathQuery = useAnalyticsPath(days, startPage || undefined);
+  const pathQuery = useAnalyticsPath(days, startPage || undefined, maxSteps);
   const data = pathQuery.data ?? null;
   const loading = pathQuery.isFetching;
 
-  const nodeLabelMap = useMemo(() => new Map((data?.nodes ?? []).map((node) => [node.id, node.label])), [data]);
-  const links = useMemo(() => [...(data?.links ?? [])].sort((a, b) => b.value - a.value), [data]);
-  const maxValue = Math.max(1, ...links.map((link) => link.value));
+  const nodes = useMemo(() => data?.nodes ?? [], [data]);
+  const links = useMemo(() => data?.links ?? [], [data]);
+  const nodeLabelMap = useMemo(() => new Map(nodes.map((node) => [node.id, node.label])), [nodes]);
+  const pageColorIndex = useMemo(() => buildPageColorIndex(nodes.map((node) => node.label)), [nodes]);
+
+  const sankeySpec = useMemo(() => makeSankeySpec({
+    nodes: nodes.map((node) => ({ ...node })),
+    links: links.map((link) => ({ ...link })),
+    palette,
+    nodeColor: (node) => (node.label === ANALYTICS_PATH_EXIT_PAGE
+      ? PATH_EXIT_COLOR
+      : chartColor(pageColorIndex.get(String(node.label)) ?? 0, palette.primary)),
+    // 步序即层级：退出节点没有出边，不锁层会被布局推到最右列，看起来像是最后一步才流失
+    nodeLayer: (node) => Number(node.step) - 1,
+    nodeLabel: (node) => pathNodeShortText(String(node.label)),
+    valueFormatter: numberText,
+    tooltip: {
+      nodeTitle: (datum) => pathNodeText(datumText(datum, 'label')),
+      nodeItems: [
+        { key: '步序', value: (datum) => `第 ${datumNumber(datum, 'step')} 步` },
+        { key: '流量', value: (datum) => `${numberText(datumNumber(datum, 'value'))} 次` },
+      ],
+      linkTitle: (datum) => {
+        const source = pathNodeText(nodeLabelMap.get(datumText(datum, 'source')) ?? '');
+        const target = pathNodeText(nodeLabelMap.get(datumText(datum, 'target')) ?? '');
+        return `${source} → ${target}`;
+      },
+      linkItems: [
+        { key: '跳转', value: (datum) => `${numberText(datumNumber(datum, 'value'))} 次` },
+        { key: '步序', value: (datum) => `第 ${datumNumber(datum, 'step')} → ${datumNumber(datum, 'step') + 1} 步` },
+      ],
+    },
+  }), [links, nodeLabelMap, nodes, pageColorIndex, palette]);
+
+  const rows = useMemo<PathLinkRow[]>(() => [...links]
+    .sort((a, b) => b.value - a.value)
+    .map((link, index) => ({
+      ...link,
+      id: `${link.source}-${link.target}-${index}`,
+      sourceLabel: pathNodeText(nodeLabelMap.get(link.source) ?? link.source),
+      targetLabel: pathNodeText(nodeLabelMap.get(link.target) ?? link.target),
+    })), [links, nodeLabelMap]);
+  const maxValue = useMemo(() => Math.max(1, ...rows.map((row) => row.value)), [rows]);
+
+  const columns: ColumnProps<PathLinkRow>[] = [
+    { title: '步序', dataIndex: 'step', width: 110, render: (value) => <Tag color="blue">第 {String(value)} 步</Tag> },
+    { title: '来源页面', dataIndex: 'sourceLabel', render: (value) => renderEllipsis(String(value)) },
+    {
+      title: '去向页面',
+      dataIndex: 'targetLabel',
+      render: (_value, record) => (record.targetLabel === '退出'
+        ? <Tag color="grey">退出</Tag>
+        : renderEllipsis(record.targetLabel)),
+    },
+    {
+      title: '跳转次数',
+      dataIndex: 'value',
+      width: 220,
+      render: (_value, record) => (
+        <div>
+          <Typography.Text strong>{numberText(record.value)}</Typography.Text>
+          <Progress percent={(record.value / maxValue) * 100} showInfo={false} style={{ marginTop: 6 }} />
+        </div>
+      ),
+    },
+  ];
 
   return (
     <div style={sectionStyle}>
       <SectionHeader
         title="页面跳转路径"
-        description="按跳转次数排序的路径流"
+        description="按会话内步序展开的路径流"
         extra={(
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <Input
@@ -1145,27 +1244,34 @@ function PathTab() {
               style={{ width: 220 }}
             />
             <SearchButton onClick={() => setStartPage(startPageInput.trim())} />
+            <Select prefix="深度" value={maxSteps} optionList={PATH_STEP_OPTIONS} onChange={(v) => setMaxSteps(Number(v))} style={{ width: 130 }} />
             <Select value={days} optionList={DAYS_OPTIONS} onChange={(v) => setDays(Number(v))} style={{ width: 120 }} />
           </div>
         )}
       />
-      <Card bodyStyle={{ padding: 16 }}>
+      <Card title="路径流" bodyStyle={{ padding: 16 }}>
         {!links.length ? emptyOrSpin(loading, '暂无路径数据') : (
-          <div style={{ display: 'grid', gap: 14 }}>
-            {links.map((link, index) => (
-              <div key={`${link.source}-${link.target}-${index}`}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
-                  <Typography.Text strong ellipsis={{ showTooltip: true }}>
-                    {nodeLabelMap.get(link.source) ?? link.source} → {nodeLabelMap.get(link.target) ?? link.target}
-                  </Typography.Text>
-                  <Typography.Text>{numberText(link.value)} 次</Typography.Text>
-                </div>
-                <div style={{ height: 12, borderRadius: 999, background: 'var(--semi-color-fill-0)', overflow: 'hidden' }}>
-                  <div style={{ width: `${Math.max(3, (link.value / maxValue) * 100)}%`, height: '100%', borderRadius: 999, background: chartColor(index, palette.primary) }} />
-                </div>
-              </div>
-            ))}
+          <div>
+            <SankeyChart {...sankeySpec} options={chartOptions} height={420} />
+            <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 10 }}>
+              节点按「步序 × 页面」展开，同一页面在不同步序上同色；灰色为该步流失（会话结束）；每步只保留跳转量最高的 8 条链路
+              {startPage ? `；以 ${startPage} 首次出现处作为第 1 步` : ''}
+            </Typography.Text>
           </div>
+        )}
+      </Card>
+      <Card title="跳转明细" bodyStyle={{ padding: 16 }}>
+        {!rows.length ? emptyOrSpin(loading, '暂无路径数据') : (
+          <ConfigurableTable<PathLinkRow>
+            bordered
+            columns={columns}
+            dataSource={rows}
+            loading={loading}
+            rowKey="id"
+            onRefresh={() => void pathQuery.refetch()}
+            refreshLoading={loading}
+            pagination={{ pageSize: 10, showSizeChanger: true, pageSizeOpts: [10, 20, 50] }}
+          />
         )}
       </Card>
     </div>

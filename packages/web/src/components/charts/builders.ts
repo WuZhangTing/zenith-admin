@@ -4,10 +4,12 @@ import type {
   ICommonChartSpec,
   ILineChartSpec,
   IPieChartSpec,
+  ISankeyChartSpec,
   IScatterChartSpec,
   ITreemapChartSpec,
 } from '@visactor/react-vchart';
 import type { ChartPalette } from './palette';
+import type { SankeyNodeDatum } from '@visactor/vchart';
 import {
   axisNumber,
   axisText,
@@ -496,6 +498,149 @@ export function makeTreemapSpec(o: TreemapOptions): Partial<ITreemapChartSpec> {
       },
     },
   };
+}
+
+// ────────────────────────── 桑基图 / 流向图 ──────────────────────────
+
+export interface SankeyNodeInput {
+  readonly id: string;
+  readonly label: string;
+  readonly value: number;
+  readonly [key: string]: unknown;
+}
+
+export interface SankeyLinkInput {
+  readonly source: string;
+  readonly target: string;
+  readonly value: number;
+  readonly [key: string]: unknown;
+}
+
+export interface SankeyOptions {
+  readonly nodes: readonly SankeyNodeInput[];
+  readonly links: readonly SankeyLinkInput[];
+  readonly palette: ChartPalette;
+  readonly colors?: readonly string[];
+  /** 节点色：按节点数据返回颜色，未提供时按 colors 轮转 */
+  readonly nodeColor?: (node: SankeyNodeInput, index: number) => string;
+  readonly nodeGap?: number;
+  readonly nodeWidth?: number;
+  /** 强制节点所在层级（0 起）。图里有终点节点时必须指定，否则布局会把无出边的节点推到最右列 */
+  readonly nodeLayer?: (node: SankeyNodeInput) => number;
+  readonly labelLimit?: number;
+  readonly nodeLabel?: (node: SankeyNodeInput) => string;
+  readonly valueFormatter?: (value: number) => string;
+  readonly tooltip?: {
+    readonly nodeTitle?: (datum: ChartDatum) => string;
+    readonly nodeItems?: readonly { key: string; value: (datum: ChartDatum) => string }[];
+    readonly linkTitle?: (datum: ChartDatum) => string;
+    readonly linkItems?: readonly { key: string; value: (datum: ChartDatum) => string }[];
+  };
+}
+
+/**
+ * 桑基图 spec。
+ *
+ * 传入的 links 必须是**无环**的（source/target 组成 DAG）——桑基布局无法表达回边，
+ * 存在环时布局会失败或渲染错乱。互相跳转的场景需先把节点身份拆成「层级 × 实体」。
+ */
+export function makeSankeySpec(o: SankeyOptions): Partial<ISankeyChartSpec> {
+  const valueFmt = o.valueFormatter ?? ((value: number) => compactCount(value));
+  const colors = o.colors ?? o.palette.dataColors;
+  const colorOf = (node: SankeyNodeInput, index: number) =>
+    o.nodeColor ? o.nodeColor(node, index) : colors[index % colors.length];
+  // VChart 按 nodeKey 关联 link 的 source/target，因此节点值里保留 id 作为 key
+  const nodes = o.nodes.map((node, index) => ({ ...node, name: node.label, fill: colorOf(node, index) }));
+  const colorById = new Map(nodes.map((node) => [node.id, node.fill]));
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+
+  /**
+   * label / tooltip 回调收到的是**布局元素**（SankeyNodeElement / SankeyLinkElement），
+   * 只有 key / source / target / value 这些布局字段，业务字段在 element.datum 上。
+   * 直接读 `datum.step` / `datum.label` 会得到 undefined，因此统一在这里摊平。
+   */
+  const flatten = (datum?: ChartDatum): ChartDatum => {
+    if (!datum) return {};
+    const raw = (datum as { datum?: unknown }).datum;
+    const base = Array.isArray(raw) ? raw[0] : raw;
+    const merged: ChartDatum = base && typeof base === 'object' ? { ...(base as ChartDatum), ...datum } : { ...datum };
+    // 节点元素的 key 即 nodeKey('id')，据此补回原始节点上的业务字段
+    const key = merged.key ?? merged.id;
+    const node = typeof key === 'string' ? nodeById.get(key) : undefined;
+    return node ? { ...node, ...merged } : merged;
+  };
+
+  const linkColor = (datum: ChartDatum) => colorById.get(datumText(datum, 'source')) ?? o.palette.primary;
+  const wrapItems = (
+    items: readonly { key: string; value: (datum: ChartDatum) => string }[],
+    forLink: boolean,
+  ) => items.map((item) => ({
+    key: item.key,
+    value: (datum?: ChartDatum) => item.value(flatten(datum)),
+    visible: (datum?: ChartDatum) => isSankeyLink(datum) === forLink,
+  }));
+  const defaultItems = [{ key: '流量', value: (datum: ChartDatum) => valueFmt(datumNumber(datum, 'value')) }];
+
+  const spec: Partial<ISankeyChartSpec> = {
+    type: 'sankey',
+    background: 'transparent',
+    animation: true,
+    data: [{ id: 'sankey', values: [{ nodes, links: [...o.links] }] }] as ISankeyChartSpec['data'],
+    categoryField: 'id',
+    valueField: 'value',
+    sourceField: 'source',
+    targetField: 'target',
+    nodeKey: 'id',
+    nodeAlign: 'justify',
+    ...(o.nodeLayer ? { setNodeLayer: (datum: SankeyNodeDatum) => o.nodeLayer!(flatten(datum as ChartDatum) as unknown as SankeyNodeInput) } : {}),
+    nodeGap: o.nodeGap ?? 8,
+    nodeWidth: o.nodeWidth ?? 12,
+    minLinkHeight: 1,
+    dropIsolatedNode: false,
+    node: { style: { fill: (datum: ChartDatum) => datumText(flatten(datum), 'fill') || o.palette.primary } },
+    link: { style: { fill: linkColor, fillOpacity: 0.28 } },
+    label: {
+      visible: true,
+      limit: o.labelLimit ?? 140,
+      style: {
+        fill: o.palette.text1,
+        fontSize: 11,
+        text: (datum: ChartDatum) => {
+          const node = flatten(datum);
+          return o.nodeLabel ? o.nodeLabel(node as unknown as SankeyNodeInput) : datumText(node, 'name');
+        },
+      },
+    },
+    emphasis: { enable: true, trigger: 'hover', effect: 'adjacency' },
+    tooltip: {
+      ...makeCommonTooltip(o.palette),
+      // 桑基的 tooltip 只有一个 mark 通道，节点与链路共用；靠 datum 上有没有 target 区分，
+      // 每行再用 visible 谓词挑出属于自己的那一组
+      mark: {
+        title: {
+          value: (datum?: ChartDatum) => {
+            const flat = flatten(datum);
+            return isSankeyLink(datum)
+              ? o.tooltip?.linkTitle?.(flat) ?? sankeyLinkFallbackTitle(flat)
+              : o.tooltip?.nodeTitle?.(flat) ?? datumText(flat, 'name');
+          },
+        },
+        content: [
+          ...wrapItems(o.tooltip?.nodeItems ?? defaultItems, false),
+          ...wrapItems(o.tooltip?.linkItems ?? defaultItems, true),
+        ],
+      },
+    },
+  };
+  return spec;
+}
+
+function isSankeyLink(datum?: ChartDatum): boolean {
+  return !!datumText(datum, 'source') && !!datumText(datum, 'target');
+}
+
+function sankeyLinkFallbackTitle(datum?: ChartDatum): string {
+  return `${datumText(datum, 'source')} → ${datumText(datum, 'target')}`;
 }
 
 // ────────────────────────── 组合图：柱 + 线 + 双 Y 轴 ──────────────────────────

@@ -142,7 +142,8 @@ export const analyticsKeys = {
   funnel: ['analytics', 'funnel'] as const,
   retention: (days: number, mode: AnalyticsRetentionMode) => ['analytics', 'retention', days, mode] as const,
   eventQuery: ['analytics', 'event-query'] as const,
-  path: (days: number) => ['analytics', 'path', days] as const,
+  path: ['analytics', 'path'] as const,
+  pathOf: (days: number, startPage: string, maxSteps: number) => ['analytics', 'path', days, startPage, maxSteps] as const,
   userStats: (days: number) => ['analytics', 'user-stats', days] as const,
   userTimeline: (userId: number | null) => ['analytics', 'user-timeline', userId] as const,
   dimension: (dimension: string, days: number) => ['analytics', 'dimension', dimension, days] as const,
@@ -263,10 +264,10 @@ export function useAnalyticsEventQuery() {
   });
 }
 
-export function useAnalyticsPath(days: number, startPage?: string) {
+export function useAnalyticsPath(days: number, startPage?: string, maxSteps = 5) {
   return useQuery({
-    queryKey: [...analyticsKeys.path(days), startPage ?? ''] as const,
-    queryFn: () => request.get<PathResult>(`/api/analytics/path${toQueryString({ days, limit: 12, startPage: startPage || undefined })}`).then(unwrap),
+    queryKey: analyticsKeys.pathOf(days, startPage ?? '', maxSteps),
+    queryFn: () => request.get<PathResult>(`/api/analytics/path${toQueryString({ days, limit: 8, maxSteps, startPage: startPage || undefined })}`).then(unwrap),
   });
 }
 

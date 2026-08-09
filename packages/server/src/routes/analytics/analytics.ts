@@ -225,7 +225,14 @@ const pathRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/path', tags: ['Analytics'], summary: '路径分析', security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { query: z.object({ days: z.coerce.number().int().min(1).max(365).optional().default(30), limit: z.coerce.number().int().min(1).max(30).optional().default(12), startPage: z.string().max(256).optional() }) },
+    request: {
+      query: z.object({
+        days: z.coerce.number().int().min(1).max(365).optional().default(30),
+        limit: z.coerce.number().int().min(1).max(30).optional().default(8),
+        maxSteps: z.coerce.number().int().min(2).max(10).optional().default(5),
+        startPage: z.string().max(256).optional(),
+      }),
+    },
     responses: { ...ok(PathResultDTO, '路径'), ...commonErrorResponses },
   }),
   handler: async (c) => c.json(okBody(await getPathAnalysis(c.req.valid('query'))), 200),

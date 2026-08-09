@@ -5,7 +5,7 @@ import { db } from '../../db';
 import { userEvents, analyticsSessions, analyticsDailyRollup } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
 import type { TrackEventInput, AnalyticsEventSource, AnalyticsEnvironment, AnalyticsIdentityType, AnalyticsDeviceType } from '@zenith/shared/analytics';
-import { ANALYTICS_RAGE_CLICK_EVENT } from '@zenith/shared/analytics';
+import { ANALYTICS_RAGE_CLICK_EVENT, ANALYTICS_PATH_EXIT_PAGE } from '@zenith/shared/analytics';
 import type { UserBehaviorEventType } from '@zenith/shared/identity';
 import { currentUserOrNull } from '../../lib/context';
 import { currentMemberOrNull } from '../../lib/member-context';
@@ -978,41 +978,106 @@ export async function listSessions(q: SessionListQuery) {
 // 路径分析（页面跳转 Sankey）
 // ════════════════════════════════════════════════════════════════════════════
 
-export async function getPathAnalysis(input: { days?: number; limit?: number; startPage?: string }) {
-  const days = clampDays(input.days, 30);
-  const limit = clampLimit(input.limit, 12, 30);
-  const start = startOfDaysAgo(days);
-  const where = mergeWhere(and(eq(userEvents.eventType, 'page_view'), gte(userEvents.createdAt, start)), tenantScope(userEvents))!;
-  const startFilter = input.startPage ? sql` AND seq.page_path = ${input.startPage}` : sql``;
+const PATH_MAX_STEPS_DEFAULT = 5;
 
-  // LEAD 窗口函数在库内构造相邻跳转，替代全量拉取内存扫描
+/**
+ * 路径分析：按会话内**步序**聚合相邻跳转。
+ *
+ * 节点身份是「步序 × 页面」而非单纯页面，因此链路只会从第 N 步流向第 N+1 步，
+ * 天然无环 —— 页面互跳（`/ ⇄ /profile`）在按页面建模时会形成环，桑基图无法渲染。
+ */
+export async function getPathAnalysis(input: { days?: number; limit?: number; startPage?: string; maxSteps?: number }) {
+  const days = clampDays(input.days, 30);
+  const perStepLimit = clampLimit(input.limit, 8, 30);
+  const maxSteps = Math.min(Math.max(Math.trunc(input.maxSteps ?? PATH_MAX_STEPS_DEFAULT), 2), 10);
+  const start = startOfDaysAgo(days);
+  // sessionId 为空的事件无法还原会话内顺序，纳入会把不相关访问串成假路径
+  const where = mergeWhere(
+    and(eq(userEvents.eventType, 'page_view'), gte(userEvents.createdAt, start), isNotNull(userEvents.sessionId)),
+    tenantScope(userEvents),
+  )!;
+  // 指定起点时，以该页面在会话中首次出现的位置作为第 1 步重新编号；未指定则整段会话从第 1 步开始
+  const anchorExpr = input.startPage
+    ? sql`MIN(step) FILTER (WHERE page_path = ${input.startPage}) OVER (PARTITION BY session_id)`
+    : sql`1`;
+
   const rows = (await db.execute(sql`
     WITH seq AS (
       SELECT ${userEvents.sessionId} AS session_id,
              ${userEvents.pagePath} AS page_path,
-             LEAD(${userEvents.pagePath}) OVER (PARTITION BY ${userEvents.sessionId} ORDER BY ${userEvents.createdAt}, ${userEvents.id}) AS next_page
+             ROW_NUMBER() OVER (PARTITION BY ${userEvents.sessionId} ORDER BY ${userEvents.createdAt}, ${userEvents.id}) AS rn,
+             LAG(${userEvents.pagePath}) OVER (PARTITION BY ${userEvents.sessionId} ORDER BY ${userEvents.createdAt}, ${userEvents.id}) AS prev_page
       FROM ${userEvents}
       WHERE ${where}
+    ),
+    cleaned AS (
+      SELECT session_id, page_path,
+             ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY rn) AS step
+      FROM seq
+      WHERE prev_page IS NULL OR prev_page <> page_path
+    ),
+    anchored AS (
+      SELECT session_id, page_path, step, ${anchorExpr} AS anchor
+      FROM cleaned
+    ),
+    based AS (
+      SELECT session_id, page_path, (step - anchor + 1)::int AS step
+      FROM anchored
+      WHERE anchor IS NOT NULL AND step >= anchor
+    ),
+    pairs AS (
+      SELECT step, page_path AS source,
+             LEAD(page_path) OVER (PARTITION BY session_id ORDER BY step) AS next_page
+      FROM based
+    ),
+    agg AS (
+      -- 会话在此结束（next_page 为空）归入退出节点：丢掉这部分流量会让桑基图凭空变细，
+      -- 看不出每一步流失了多少
+      SELECT step, source, COALESCE(next_page, ${ANALYTICS_PATH_EXIT_PAGE}) AS target, COUNT(*)::int AS value
+      FROM pairs
+      WHERE step < ${maxSteps}
+      GROUP BY 1, 2, 3
+    ),
+    ranked AS (
+      SELECT step, source, target, value,
+             ROW_NUMBER() OVER (PARTITION BY step ORDER BY value DESC, source, target) AS rk
+      FROM agg
     )
-    SELECT seq.page_path AS source, seq.next_page AS target, COUNT(*)::int AS value
-    FROM seq
-    WHERE seq.next_page IS NOT NULL AND seq.next_page <> seq.page_path${startFilter}
-    GROUP BY 1, 2
-    ORDER BY 3 DESC
-    LIMIT ${limit}
-  `)) as unknown as Array<{ source: string; target: string; value: number }>;
+    SELECT step, source, target, value
+    FROM ranked
+    WHERE rk <= ${perStepLimit}
+    ORDER BY step, value DESC
+  `)) as unknown as Array<{ step: number; source: string; target: string; value: number }>;
 
-  const nodeSet = new Set<string>();
+  const nodeId = (step: number, page: string) => `s${step}:${page}`;
+  const nodeMap = new Map<string, PathNodeAcc>();
+  const touchNode = (step: number, page: string) => {
+    const id = nodeId(step, page);
+    let node = nodeMap.get(id);
+    if (!node) {
+      node = { id, label: page, step, out: 0, in: 0 };
+      nodeMap.set(id, node);
+    }
+    return node;
+  };
+
   const links = rows.map((r) => {
-    nodeSet.add(r.source);
-    nodeSet.add(r.target);
-    return { source: r.source, target: r.target, value: Number(r.value) };
+    const step = Number(r.step);
+    const value = Number(r.value);
+    touchNode(step, r.source).out += value;
+    touchNode(step + 1, r.target).in += value;
+    return { source: nodeId(step, r.source), target: nodeId(step + 1, r.target), value, step };
   });
-  const nodeValue = new Map<string, number>();
-  for (const l of links) nodeValue.set(l.source, (nodeValue.get(l.source) ?? 0) + l.value);
-  const nodes = [...nodeSet].map((id) => ({ id, label: id, value: nodeValue.get(id) ?? 0 }));
-  return { nodes, links };
+
+  const nodes = [...nodeMap.values()]
+    .sort((a, b) => a.step - b.step || b.out + b.in - (a.out + a.in))
+    // 节点体量取进出流量的较大值：首层没有入流、末层没有出流，取和会让两端偏小
+    .map((n) => ({ id: n.id, label: n.label, step: n.step, value: Math.max(n.out, n.in) }));
+
+  return { nodes, links, maxStep: nodes.reduce((max, n) => Math.max(max, n.step), 0) };
 }
+
+interface PathNodeAcc { id: string; label: string; step: number; out: number; in: number }
 
 // ════════════════════════════════════════════════════════════════════════════
 // 用户行为时间线

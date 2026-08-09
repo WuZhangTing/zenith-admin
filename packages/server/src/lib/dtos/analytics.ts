@@ -302,8 +302,9 @@ export const RetentionResultDTO = z
 // ─── 路径 ─────────────────────────────────────────────────────────────────────
 export const PathResultDTO = z
   .object({
-    nodes: z.array(z.object({ id: z.string(), label: z.string(), value: z.number().int() })),
-    links: z.array(z.object({ source: z.string(), target: z.string(), value: z.number().int() })),
+    nodes: z.array(z.object({ id: z.string(), label: z.string(), value: z.number().int(), step: z.number().int() })),
+    links: z.array(z.object({ source: z.string(), target: z.string(), value: z.number().int(), step: z.number().int() })),
+    maxStep: z.number().int(),
   })
   .openapi('PathResult');
 

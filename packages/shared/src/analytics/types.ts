@@ -422,11 +422,11 @@ export interface RetentionResult {
   mode: AnalyticsRetentionMode;
 }
 
-export interface PathNode { id: string; label: string; value: number }
+export interface PathNode { id: string; label: string; value: number; step: number }
 
-export interface PathLink { source: string; target: string; value: number }
+export interface PathLink { source: string; target: string; value: number; step: number }
 
-export interface PathResult { nodes: PathNode[]; links: PathLink[] }
+export interface PathResult { nodes: PathNode[]; links: PathLink[]; maxStep: number }
 
 export interface AnalyticsSavedReport {
   id: number;

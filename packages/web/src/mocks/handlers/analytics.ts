@@ -5,7 +5,7 @@ import type { PaginatedResponse } from '@zenith/shared/core';
 import type { UserStats, UserTimeline, UserBehaviorEventType } from '@zenith/shared/identity';
 import type { SessionListItem, SessionTimeline } from '@zenith/shared/platform';
 import type { AsyncTask } from '@zenith/shared/tasks';
-import { ANALYTICS_SITE_KEY_HEADER, ANALYTICS_QUALITY_ISSUE_TYPES } from '@zenith/shared/analytics';
+import { ANALYTICS_SITE_KEY_HEADER, ANALYTICS_QUALITY_ISSUE_TYPES, ANALYTICS_PATH_EXIT_PAGE } from '@zenith/shared/analytics';
 import { SEED_ANALYTICS_EVENT_META, SEED_ANALYTICS_SITES } from '@zenith/shared/seed';
 import { mockDateTime, mockDateTimeOffset, mockDateOffset } from '../utils/date';
 import { createProgressingMockTask } from './async-tasks';
@@ -570,12 +570,45 @@ export const analyticsHandlers = [
     return ok<RetentionResult>({ cohorts, periods, mode });
   }),
 
-  http.get('/api/analytics/path', () => {
+  http.get('/api/analytics/path', ({ request }) => {
+    const maxSteps = Number(new URL(request.url).searchParams.get('maxSteps')) || 5;
     const pages = MOCK_PAGES.items.map((p) => p.pagePath);
-    const links = Array.from({ length: 12 }, (_, i) => ({ source: pages[i % pages.length], target: pages[(i + 1) % pages.length], value: rand(20, 200) }));
-    const nodeSet = new Set<string>();
-    links.forEach((l) => { nodeSet.add(l.source); nodeSet.add(l.target); });
-    return ok<PathResult>({ nodes: [...nodeSet].map((id) => ({ id, label: id, value: rand(50, 400) })), links });
+    const nodeId = (step: number, page: string) => `s${step}:${page}`;
+    const nodeAcc = new Map<string, { id: string; label: string; step: number; out: number; in: number }>();
+    const touch = (step: number, page: string) => {
+      const id = nodeId(step, page);
+      let node = nodeAcc.get(id);
+      if (!node) { node = { id, label: page, step, out: 0, in: 0 }; nodeAcc.set(id, node); }
+      return node;
+    };
+
+    const links: PathResult['links'] = [];
+    // 逐层展开：每步从上一层页面分流到下一层若干页面，并留一条退出链路
+    let sources = [pages[0]];
+    for (let step = 1; step < maxSteps; step++) {
+      const nextSources: string[] = [];
+      for (const [si, source] of sources.entries()) {
+        const fanOut = Math.max(1, 3 - step + 1);
+        for (let k = 0; k < fanOut; k++) {
+          const target = pages[(si + step + k + 1) % pages.length];
+          const value = rand(20, 200 - step * 20);
+          touch(step, source).out += value;
+          touch(step + 1, target).in += value;
+          links.push({ source: nodeId(step, source), target: nodeId(step + 1, target), value, step });
+          if (!nextSources.includes(target)) nextSources.push(target);
+        }
+        const exitValue = rand(10, 80);
+        touch(step, source).out += exitValue;
+        touch(step + 1, ANALYTICS_PATH_EXIT_PAGE).in += exitValue;
+        links.push({ source: nodeId(step, source), target: nodeId(step + 1, ANALYTICS_PATH_EXIT_PAGE), value: exitValue, step });
+      }
+      sources = nextSources.slice(0, 3);
+    }
+
+    const nodes = [...nodeAcc.values()]
+      .sort((a, b) => a.step - b.step || b.out + b.in - (a.out + a.in))
+      .map((n) => ({ id: n.id, label: n.label, step: n.step, value: Math.max(n.out, n.in) }));
+    return ok<PathResult>({ nodes, links, maxStep: nodes.reduce((max, n) => Math.max(max, n.step), 0) });
   }),
 
   http.get('/api/analytics/user-timeline', ({ request }) => {
