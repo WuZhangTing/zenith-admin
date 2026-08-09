@@ -104,7 +104,7 @@ export function canPreviewFile(
     isOfdFile(resolvedMimeType) ||
     isEmailFile(resolvedMimeType) ||
     isMindMapFile(resolvedMimeType) ||
-    isMermaidFile(resolvedMimeType) ||
+    isDrawingFile(resolvedMimeType) ||
     isSpreadsheetFile(resolvedMimeType) ||
     isWordFile(resolvedMimeType) ||
     isPresentationFile(resolvedMimeType) ||
@@ -188,17 +188,25 @@ export function isMindMapFile(mimeType?: string | null): boolean {
   return mime === 'application/vnd.xmind.workbook' || mime === 'application/x-xmind';
 }
 
-const MERMAID_MIME_TYPES = new Set([
+const DRAWING_MIME_TYPES = new Set([
   'text/x-mermaid',
   'text/mermaid',
   'text/vnd.mermaid',
   'application/x-mermaid',
   'application/vnd.mermaid',
+  'application/vnd.jgraph.mxfile',
+  'application/x-drawio',
+  'application/vnd.excalidraw+json',
+  'text/vnd.plantuml',
+  'text/x-plantuml',
 ]);
 
-/** 判断是否为 File Viewer Drawing renderer 支持的 Mermaid 文件。 */
-export function isMermaidFile(mimeType?: string | null): boolean {
-  return !!mimeType && MERMAID_MIME_TYPES.has(mimeType.toLowerCase());
+/**
+ * 判断是否为 File Viewer Drawing renderer 支持的图形文件。
+ * 覆盖 Mermaid、draw.io、Excalidraw 与 PlantUML 四类，均在浏览器本地解析。
+ */
+export function isDrawingFile(mimeType?: string | null): boolean {
+  return !!mimeType && DRAWING_MIME_TYPES.has(mimeType.toLowerCase());
 }
 
 /** 判断是否为可预览的 Markdown 文件 */

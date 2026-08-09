@@ -1,6 +1,6 @@
 # 文件预览组件
 
-`FilePreviewModal` 是全站统一的文件预览弹窗，支持图片、PDF、OFD、音频、视频、Excel/CSV 表格、Word 文档、PowerPoint 演示文稿、压缩包、邮件、XMind 脑图、Mermaid、Markdown、纯文本、JSON、SVG 和代码文件。调用方只需传入文件元数据，无需自行判断格式或引入额外组件。
+`FilePreviewModal` 是全站统一的文件预览弹窗，支持图片、PDF、OFD、音频、视频、Excel/CSV 表格、Word 文档、PowerPoint 演示文稿、压缩包、邮件、XMind 脑图、draw.io / Excalidraw / Mermaid / PlantUML 图形、Markdown、纯文本、JSON、SVG 和代码文件。调用方只需传入文件元数据，无需自行判断格式或引入额外组件。
 
 托管文件列表页推荐使用更高一层的组合：`useFilePreview` hook（`@/hooks/useFilePreview`）+ `FilePreviewLayer`（`@/components/FilePreviewLayer`），它在 `FilePreviewModal` 之上补齐了图片图集预览、不可预览文件新窗口打开与鉴权下载，见下文[使用示例](#使用示例)。
 
@@ -22,7 +22,7 @@
 | 演示文稿 | `.ppt/.pptx/.pptm/.potx/.potm/.ppsx/.ppsm/.odp` 对应 MIME | File Viewer Presentation/OpenDocument renderer（`FileViewerPreviewPanel`，懒加载） |
 | 邮件 | `.eml/.msg/.mbox` 对应 MIME | File Viewer Email renderer（`FileViewerPreviewPanel`，懒加载） |
 | XMind 脑图 | `.xmind` / `application/vnd.xmind.workbook` | File Viewer Mind Map renderer（`FileViewerPreviewPanel`，懒加载） |
-| Mermaid | `.mermaid/.mmd` / `text/x-mermaid` | File Viewer Drawing renderer（`FileViewerPreviewPanel`，懒加载） |
+| 图形 | `.drawio/.dio` / `.excalidraw` / `.mermaid/.mmd` / `.plantuml/.puml` 对应 MIME | File Viewer Drawing renderer（`FileViewerPreviewPanel`，懒加载） |
 | Markdown | `text/markdown` / `text/x-markdown` | `react-markdown` 渲染（`MarkdownPreviewPanel`，懒加载） |
 | 纯文本 | `text/plain` | Monaco Editor 只读展示（`MonacoPreviewPanel`，懒加载） |
 | JSON | `application/json` / `text/json` | Semi Design `JsonViewer` 只读展示（`JsonPreviewPanel`，懒加载） |
@@ -42,7 +42,7 @@
 >
 > **压缩包**已开放 File Viewer Archive renderer 的全部 30 个真实扩展名：`.zip/.zipx/.7z/.rar/.tar/.gz/.gzip/.tgz/.bz2/.bzip2/.tbz/.tbz2/.xz/.txz/.lzma/.zst/.tzst/.cab/.ar/.cpio/.iso/.xar/.lha/.lzh/.jar/.war/.ear/.apk/.cbz/.cbr`。使用本地 Worker + WASM 解析，不调用外部服务。
 >
-> **邮件、XMind 与 Mermaid**均在浏览器本地解析。邮件 HTML 在无权限 sandbox iframe 中展示；Mermaid 使用 strict 安全级别生成并清理 SVG；不配置外部预览、CDN 或图表服务。
+> **邮件、XMind 与图形文件**均在浏览器本地解析。邮件 HTML 在无权限 sandbox iframe 中展示；Mermaid 使用 strict 安全级别生成并清理 SVG；draw.io 使用内置离线 SVG 渲染；Excalidraw 使用 `roughjs` 生成只读 SVG；PlantUML 默认离线展示源码；不配置外部预览、CDN 或图表服务。
 
 ---
 
@@ -128,7 +128,7 @@ const isPreviewable = canPreviewFile(record.mimeType, record.originalName);
 </Button>
 ```
 
-`canPreviewFile` 覆盖全部可预览格式（image / audio / video / PDF / OFD / Office / OpenDocument / email / XMind / Mermaid / markdown / text / json / svg / code / archive），调用方无需手动枚举 MIME 类型。
+`canPreviewFile` 覆盖全部可预览格式（image / audio / video / PDF / OFD / Office / OpenDocument / email / XMind / drawing / markdown / text / json / svg / code / archive），调用方无需手动枚举 MIME 类型。
 
 ---
 
@@ -225,7 +225,7 @@ JSON 文件（`application/json` / `text/json`）下载并读取文本后，**�
 
 SVG 文件（`image/svg+xml`）下载 Blob 后创建 Object URL，在 `AppModal` 内使用 `<img>` 居中展示（宽度 `min(900px, 92vw)`，高度 80vh）。关闭预览时会主动释放 Object URL。
 
-### Office / OFD / 压缩包 / 邮件 / XMind / Mermaid
+### Office / OFD / 压缩包 / 邮件 / XMind / 图形
 
 下载 Blob 后包装为保留原始文件名和 MIME 类型的 `File`，再**懒加载** `FileViewerPreviewPanel`。面板使用 File Viewer 的模块化 React 组件，按需注册 Spreadsheet、Word、Presentation、OFD、Archive、Email、Mind Map 与 Drawing renderer；PDF、Markdown 等格式仍沿用各自的现有实现。
 
@@ -253,10 +253,14 @@ SVG 文件（`image/svg+xml`）下载 Blob 后创建 Object URL，在 `AppModal`
 - Email 使用 `postal-mime` / `msgreader` 本地解析 EML、MSG、MBOX，HTML 正文使用无权限 sandbox iframe，只读展示正文、头信息与附件
 - XMind 使用本地 parser 解析 2020+ `content.json` 与 XMind 8 `content.xml`，支持多 sheet、节点层级和 Panzoom 画布
 - Mermaid 使用本地 `mermaid` 且固定 strict 安全级别，生成并清理 SVG 后提供平移、缩放与打印
+- `drawing.preferOfficial: false`：draw.io 直接使用 renderer 内置的离线 SVG 渲染（解析 `mxGraphModel` 输出节点、连线与箭头），不加载官方 diagrams.net `viewer-static.min.js`——`@file-viewer/vite-plugin` 的 `copyAssets` 不分发该 vendor 脚本（仅 `*-full` 包自带），保留默认值只会先 404、再等超时才回退
+- Excalidraw 使用 renderer 自带的 `roughjs` 生成只读 SVG；未安装官方 `@excalidraw/excalidraw` 时不会尝试联网加载
+- PlantUML 默认完全离线，展示 SVG 源码预览；需要成图时可给 `drawing.plantumlServerUrl` 指向**内网自托管**的 PlantUML SVG 服务
 - 工具栏保留缩放、搜索、打印，关闭重复的下载和主题切换入口
-- Word/OFD 弹窗宽度 `min(960px, 92vw)`，Excel/CSV/PowerPoint/Archive/Email/XMind/Mermaid 为 `min(1200px, 94vw)`，高度均为 `90vh`
+- Word/OFD 弹窗宽度 `min(960px, 92vw)`，Excel/CSV/PowerPoint/Archive/Email/XMind/图形 为 `min(1200px, 94vw)`，高度均为 `90vh`
 
-**离线资源**：`@file-viewer/vite-plugin` 按 `word/spreadsheet/ofd/email/xmind/mermaid` renderer 装配 Word、Spreadsheet、OFD、Email、Mind Map 与 Drawing；
+**离线资源**：`@file-viewer/vite-plugin` 按 `word/spreadsheet/ofd/email/xmind/mermaid/drawio/dio/excalidraw/plantuml/puml` 格式装配 Word、Spreadsheet、OFD、Email、Mind Map 与 Drawing；
+Drawing 的四类格式（Mermaid / draw.io / Excalidraw / PlantUML）共用同一个 renderer，追加扩展名不会引入新的 renderer 包或额外资源。
 Word、Spreadsheet 所需 Worker 复制到 `file-viewer/`，OFD 的纯 JS vendor 由 Vite 按需打包。Presentation 与 Archive renderer 在 `FileViewerPreviewPanel` 中显式注册，
 其 Worker/WASM/字体由 Vite 输出到 `assets/`；不要同时把 Presentation 或 Archive 扩展名加回插件的
 `formats`，否则同一资源会再复制到 `file-viewer/`。开发时插件资源生成到
@@ -272,6 +276,8 @@ Word、Spreadsheet 所需 Worker 复制到 `file-viewer/`，OFD 的纯 JS vendor
 - OFD 电子签章仅渲染外观，不提供签名有效性或国密算法验签结论
 - 压缩包内部文件只有在对应 renderer 已装配时才能嵌套预览；其他条目仍可查看目录或下载
 - MBOX 当前展示解析出的第一封邮件，并提示识别到的邮件总数
+- draw.io 走内置离线渲染，复杂样式、自定义图形库（stencils）与容器嵌套的还原度低于官方 viewer；需要高保真时自行托管 `viewer-static.min.js` 并配置 `drawing.viewerScriptUrl` + `preferOfficial: true`
+- PlantUML 未配置 `plantumlServerUrl` 时只展示源码，不出图
 
 > `@univerjs/presets`、`@univerjs/preset-sheets-core`、`jszip` 与服务端 `exceljs` 未随预览链路删除：前两个仍服务于打印报表设计器和数据库 Excel 粘贴导入，`jszip` 仍由 `data-grid/xlsx-write.ts` 生成 XLSX，`exceljs` 仍服务于用户导入导出、导出中心和报表文件处理。
 
@@ -286,7 +292,7 @@ Word、Spreadsheet 所需 Worker 复制到 `file-viewer/`，OFD 的纯 JS vendor
 canPreviewFile(mimeType: string | null | undefined, fileName?: string | null): boolean
 
 /** 细分格式判断 */
-isSpreadsheetFile / isWordFile / isPresentationFile / isOfdFile / isEmailFile / isMindMapFile / isMermaidFile / isMarkdownFile / isPlainTextFile /
+isSpreadsheetFile / isWordFile / isPresentationFile / isOfdFile / isEmailFile / isMindMapFile / isDrawingFile / isMarkdownFile / isPlainTextFile /
 isJsonFile / isSvgFile / isCodeFile / isArchiveFile / isZipFile(mimeType?: string | null): boolean
 
 /** 按文件名扩展（优先）与 MIME 类型返回 vscode-icons 彩色图标节点，用于列表与预览标题 */

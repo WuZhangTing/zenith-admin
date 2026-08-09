@@ -3,8 +3,8 @@ import {
   canPreviewFile,
   guessMimeTypeFromName,
   isArchiveFile,
+  isDrawingFile,
   isEmailFile,
-  isMermaidFile,
   isMindMapFile,
   isOfdFile,
   isPresentationFile,
@@ -88,14 +88,19 @@ const FILE_VIEWER_EXTENSION_CASES = [
   ['msg', 'application/vnd.ms-outlook', 'email'],
   ['mbox', 'application/mbox', 'email'],
   ['xmind', 'application/vnd.xmind.workbook', 'mindmap'],
-  ['mermaid', 'text/x-mermaid', 'mermaid'],
-  ['mmd', 'text/x-mermaid', 'mermaid'],
+  ['mermaid', 'text/x-mermaid', 'drawing'],
+  ['mmd', 'text/x-mermaid', 'drawing'],
+  ['drawio', 'application/vnd.jgraph.mxfile', 'drawing'],
+  ['dio', 'application/vnd.jgraph.mxfile', 'drawing'],
+  ['excalidraw', 'application/vnd.excalidraw+json', 'drawing'],
+  ['plantuml', 'text/vnd.plantuml', 'drawing'],
+  ['puml', 'text/vnd.plantuml', 'drawing'],
 ] as const;
 
 const FILE_VIEWER_DETECTORS = {
   email: isEmailFile,
   mindmap: isMindMapFile,
-  mermaid: isMermaidFile,
+  drawing: isDrawingFile,
 };
 
 describe('Office file preview detection', () => {
@@ -172,7 +177,7 @@ describe('archive file preview detection', () => {
   });
 });
 
-describe('email, XMind and Mermaid preview detection', () => {
+describe('email, XMind and drawing preview detection', () => {
   it.each(FILE_VIEWER_EXTENSION_CASES)(
     'recognizes .%s as %s (%s)',
     (extension, mimeType, kind) => {
@@ -187,8 +192,10 @@ describe('email, XMind and Mermaid preview detection', () => {
   it.each([
     ['application/x-mbox', isEmailFile],
     ['application/x-xmind', isMindMapFile],
-    ['text/vnd.mermaid', isMermaidFile],
-    ['application/vnd.mermaid', isMermaidFile],
+    ['text/vnd.mermaid', isDrawingFile],
+    ['application/vnd.mermaid', isDrawingFile],
+    ['application/x-drawio', isDrawingFile],
+    ['text/x-plantuml', isDrawingFile],
   ] as const)('recognizes alternate MIME type %s', (mimeType, detector) => {
     expect(detector(mimeType)).toBe(true);
     expect(canPreviewFile(mimeType)).toBe(true);
@@ -197,10 +204,10 @@ describe('email, XMind and Mermaid preview detection', () => {
   it('does not classify unrelated MIME types as these formats', () => {
     expect(isEmailFile('application/pdf')).toBe(false);
     expect(isMindMapFile('application/pdf')).toBe(false);
-    expect(isMermaidFile('application/pdf')).toBe(false);
+    expect(isDrawingFile('application/pdf')).toBe(false);
     expect(isEmailFile(null)).toBe(false);
     expect(isMindMapFile(undefined)).toBe(false);
-    expect(isMermaidFile(null)).toBe(false);
+    expect(isDrawingFile(null)).toBe(false);
   });
 });
 
