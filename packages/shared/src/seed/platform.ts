@@ -667,6 +667,24 @@ export const SEED_CRON_JOBS: CronJob[] = [
     createdAt: SEED_DATE,
     updatedAt: SEED_DATE,
   },
+  {
+    id: 30,
+    name: '用户分群定时刷新',
+    cronExpression: '0 30 3 * * *',
+    handler: 'analyticsSegmentRefresh',
+    params: null,
+    status: 'enabled',
+    description: '每天凌晨 3:30 重算全部启用中的用户分群成员快照，避免分群人群与触达名单静默过期',
+    retryCount: 1,
+    retryInterval: 300,
+    retryBackoff: false,
+    monitorTimeout: null,
+    lastRunAt: null,
+    lastRunStatus: null,
+    lastRunMessage: null,
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
 ];
 
 // ─── 标签 ─────────────────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import { and, gte, lt, sql, eq, isNull } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { db } from '../../db';
-import { userEvents, analyticsSessions, analyticsDailyRollup, analyticsSettings, errorEvents, errorGroups } from '../../db/schema';
+import { userEvents, analyticsSessions, analyticsDailyRollup, analyticsEventQualityDaily, analyticsSettings, errorEvents, errorGroups } from '../../db/schema';
 import { clampDays } from '../../lib/analytics-helpers';
 import { APP_TIME_ZONE, formatDate, parseDateRangeStart } from '../../lib/datetime';
 import { config } from '../../config';
@@ -156,8 +156,14 @@ export async function getRollupSummary(daysRaw: unknown): Promise<RollupSummaryI
   return [...byDate.values()].sort((a, b) => b.statDate.localeCompare(a.statDate));
 }
 
-/** 按保留策略清理过期埋点/会话/错误数据（cron）。 */
-export async function runAnalyticsRetention(): Promise<{ events: number; sessions: number; errors: number }> {
+/**
+ * 按保留策略清理过期埋点/会话/错误/质量聚合数据（cron）。
+ *
+ * `analytics_event_quality_daily` 是随事件采集持续写入的派生聚合，
+ * 不纳入保留策略会无限增长；它跟随事件保留天数（eventDays），
+ * 且 tenantId 用 0 作为「平台/无租户」哨兵（与 analytics_daily_rollup 约定一致）。
+ */
+export async function runAnalyticsRetention(): Promise<{ events: number; sessions: number; errors: number; qualityDaily: number }> {
   const rc = (r: unknown) => (r as { rowCount?: number }).rowCount ?? 0;
   const [policies, eventTenants, sessionTenants, errorEventTenants, errorGroupTenants] = await Promise.all([
     db.select({
@@ -182,6 +188,7 @@ export async function runAnalyticsRetention(): Promise<{ events: number; session
   let deletedEvents = 0;
   let deletedSessions = 0;
   let deletedErrors = 0;
+  let deletedQualityDaily = 0;
   for (const tenantId of tenantIds) {
     const policy = policyByTenant.get(tenantId);
     const eventDays = policy?.eventDays ?? 180;
@@ -190,10 +197,14 @@ export async function runAnalyticsRetention(): Promise<{ events: number; session
     const sessionTenant = tenantId === null ? isNull(analyticsSessions.tenantId) : eq(analyticsSessions.tenantId, tenantId);
     const errorEventTenant = tenantId === null ? isNull(errorEvents.tenantId) : eq(errorEvents.tenantId, tenantId);
     const errorGroupTenant = tenantId === null ? isNull(errorGroups.tenantId) : eq(errorGroups.tenantId, tenantId);
-    const [evRes, sessRes, errEvRes] = await Promise.all([
+    const [evRes, sessRes, errEvRes, qualityRes] = await Promise.all([
       db.delete(userEvents).where(and(eventTenant, sql`${userEvents.createdAt} < NOW() - (${eventDays} * INTERVAL '1 day')`)),
       db.delete(analyticsSessions).where(and(sessionTenant, sql`${analyticsSessions.startedAt} < NOW() - (${eventDays} * INTERVAL '1 day')`)),
       db.delete(errorEvents).where(and(errorEventTenant, sql`${errorEvents.createdAt} < NOW() - (${errorDays} * INTERVAL '1 day')`)),
+      db.delete(analyticsEventQualityDaily).where(and(
+        eq(analyticsEventQualityDaily.tenantId, tenantId ?? 0),
+        sql`${analyticsEventQualityDaily.statDate} < (NOW() - (${eventDays} * INTERVAL '1 day'))::date`,
+      )),
     ]);
     await db.delete(errorGroups).where(and(
       errorGroupTenant,
@@ -203,6 +214,7 @@ export async function runAnalyticsRetention(): Promise<{ events: number; session
     deletedEvents += rc(evRes);
     deletedSessions += rc(sessRes);
     deletedErrors += rc(errEvRes);
+    deletedQualityDaily += rc(qualityRes);
   }
-  return { events: deletedEvents, sessions: deletedSessions, errors: deletedErrors };
+  return { events: deletedEvents, sessions: deletedSessions, errors: deletedErrors, qualityDaily: deletedQualityDaily };
 }

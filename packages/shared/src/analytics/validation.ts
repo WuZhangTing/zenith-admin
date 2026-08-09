@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { boundedJsonRecord, dateTimeStringSchema, partialForUpdate, validateAlertDelivery, webhookUrlSchema } from '../core/validation';
 import { userBehaviorEventTypeEnum } from '../identity/validation';
-import { ANALYTICS_BREADCRUMB_DATA_MAX_BYTES, ANALYTICS_CAMPAIGN_CHANNELS, ANALYTICS_ENVIRONMENTS, ANALYTICS_EVENT_PROPERTY_TYPES, ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS, ANALYTICS_EVENT_QUERY_METRICS, ANALYTICS_EVENT_SOURCES, ANALYTICS_EXPERIMENT_STATUSES, ANALYTICS_PROPERTIES_MAX_BYTES, ANALYTICS_RETENTION_MODES, ANALYTICS_SEGMENT_COMPARE_OPS, SOURCE_MAP_MAX_BYTES } from './constants';
+import { ANALYTICS_BREADCRUMB_DATA_MAX_BYTES, ANALYTICS_CAMPAIGN_CHANNELS, ANALYTICS_ENVIRONMENTS, ANALYTICS_EVENT_PROPERTY_TYPES, ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS, ANALYTICS_EVENT_QUERY_METRICS, ANALYTICS_EVENT_SOURCES, ANALYTICS_EXPERIMENT_STATUSES, ANALYTICS_PROPERTIES_MAX_BYTES, ANALYTICS_RETENTION_MAX_DAYS, ANALYTICS_RETENTION_MAX_PERIODS, ANALYTICS_RETENTION_MODES, ANALYTICS_RETENTION_PERIOD_TYPES, ANALYTICS_SEGMENT_COMPARE_OPS, SOURCE_MAP_MAX_BYTES } from './constants';
 
 const trackEventBaseSchema = z.object({
   eventId: z.uuid().optional(),
@@ -336,9 +336,14 @@ export const funnelQuerySchema = z.object({
 // ─── 留存分析查询 ─────────────────────────────────────────────────────────────
 export const analyticsRetentionModeSchema = z.enum(ANALYTICS_RETENTION_MODES);
 
+export const analyticsRetentionPeriodTypeSchema = z.enum(ANALYTICS_RETENTION_PERIOD_TYPES);
+
 export const retentionQuerySchema = z.object({
-  days: z.number().int().min(1).max(60).default(14),
+  // 上限按 periodType 在服务端二次收敛：周/月留存需要远超 60 天的回溯窗口
+  days: z.number().int().min(1).max(ANALYTICS_RETENTION_MAX_DAYS).optional(),
   mode: analyticsRetentionModeSchema.default('first_seen'),
+  periodType: analyticsRetentionPeriodTypeSchema.default('day'),
+  maxPeriods: z.number().int().min(1).max(ANALYTICS_RETENTION_MAX_PERIODS).optional(),
 });
 
 // ─── 行为中心阶段 1：通用事件分析工作台 ────────────────────────────────────────

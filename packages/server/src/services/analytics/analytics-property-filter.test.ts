@@ -60,7 +60,7 @@ describe('buildJsonPropertyCondition — jsonb ->> key 安全比较', () => {
     const cond = buildJsonPropertyCondition(userEvents.properties, { key: 'amount', op: 'gte', value: 100 });
     const { sql, params } = render(cond);
     expect(sql).toContain('::numeric >=');
-    expect(params).toEqual(['amount', 100]);
+    expect(params).toEqual(['amount', 'amount', 100]);
   });
 
   it('neq allows for a missing key (IS NULL) OR an unequal value, value still bound', () => {
@@ -75,7 +75,7 @@ describe('buildJsonPropertyCondition — jsonb ->> key 安全比较', () => {
     const cond = buildJsonPropertyCondition(userEvents.properties, { key: 'tier', op: 'in', value: ['gold', 'platinum'] });
     const { sql, params } = render(cond);
     expect(sql).toMatch(/IN \(\$\d+, \$\d+\)/);
-    expect(params).toEqual(['tier', 'gold', 'platinum']);
+    expect(params).toEqual(['tier', 'tier', 'gold', 'platinum']);
   });
 
   it('rejects an empty in-array', () => {
@@ -92,6 +92,27 @@ describe('buildJsonPropertyCondition — jsonb ->> key 安全比较', () => {
   it('rejects an unsupported compare operator', () => {
     expect(() => buildJsonPropertyCondition(userEvents.properties, { key: 'tier', op: 'contains' as never, value: 'x' }))
       .toThrow(HTTPException);
+  });
+
+  // GIN 索引可用性：属性过滤的实际瓶颈是「时间窗内逐行求值 jsonb 表达式」。
+  // `properties ? 'key'` 被除 neq 外的所有运算符蕴含，加进来不改变结果集但能走 GIN 索引。
+  it('prepends an index-usable `properties ? key` conjunct for every operator that implies key existence', () => {
+    for (const op of ['eq', 'gt', 'gte', 'lt', 'lte'] as const) {
+      const { sql } = render(buildJsonPropertyCondition(userEvents.properties, { key: 'tier', op, value: 1 }));
+      expect(sql, `op=${op}`).toMatch(/"properties" \? \$\d+::text/);
+    }
+    const { sql: inSql } = render(buildJsonPropertyCondition(userEvents.properties, { key: 'tier', op: 'in', value: ['a'] }));
+    expect(inSql).toMatch(/"properties" \? \$\d+::text/);
+  });
+
+  it('omits the key-existence conjunct for neq — neq deliberately matches rows where the key is absent', () => {
+    const { sql } = render(buildJsonPropertyCondition(userEvents.properties, { key: 'tier', op: 'neq', value: 'gold' }));
+    expect(sql).not.toMatch(/"properties" \? \$\d+::text/);
+  });
+
+  it('applies the same key-existence optimisation to the user-profile properties column', () => {
+    const { sql } = render(buildJsonPropertyCondition(analyticsUserProfiles.properties, { key: 'city', op: 'eq', value: 'sh' }));
+    expect(sql).toMatch(/"properties" \? \$\d+::text/);
   });
 });
 

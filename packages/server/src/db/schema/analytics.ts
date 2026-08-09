@@ -102,6 +102,11 @@ export const userEvents = pgTable('user_events', {
   index('user_events_source_created_idx').on(t.source, t.createdAt),
   // Web Vitals 性能统计（perf 事件占比小，部分索引降低维护成本）
   index('user_events_perf_metric_idx').on(t.metricName, t.createdAt).where(sql`${t.eventType} = 'perf'`),
+  // 自定义属性过滤（漏斗步骤 / 分群圈选 / 事件分析工作台）：默认 jsonb_ops 操作符类，
+  // 支持 `properties ? 'key'` 键存在判断。属性过滤统一带该键存在前置条件（见
+  // services/analytics/analytics-property-filter.ts），使高基数属性 key 可走位图索引扫描，
+  // 而不是对时间窗内每一行求值 `properties ->> 'key'`
+  index('user_events_properties_gin_idx').using('gin', t.properties),
 ]);
 
 export type UserEventRow = typeof userEvents.$inferSelect;
@@ -514,6 +519,8 @@ export const analyticsUserProfiles = pgTable('analytics_user_profiles', {
   index('analytics_user_profiles_user_idx').on(t.userId),
   index('analytics_user_profiles_member_idx').on(t.memberId),
   index('analytics_user_profiles_last_seen_idx').on(t.lastSeenAt),
+  // 画像属性圈选（分群 attribute 条件 `property.<key>`）：与 user_events.properties 同口径
+  index('analytics_user_profiles_properties_gin_idx').using('gin', t.properties),
 ]);
 
 export type AnalyticsUserProfileRow = typeof analyticsUserProfiles.$inferSelect;

@@ -1,10 +1,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, InputNumber, Modal, Popconfirm, Progress, Select, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Form, Input, InputNumber, Modal, Popconfirm, Progress, Select, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, Trash2 } from 'lucide-react';
-import type { AnalyticsExperiment, AnalyticsExperimentVariant } from '@zenith/shared/analytics';
+import type { AnalyticsExperiment, AnalyticsExperimentReportVariant, AnalyticsExperimentVariant } from '@zenith/shared/analytics';
 import { ANALYTICS_EXPERIMENT_STATUS_LABELS, ANALYTICS_EXPERIMENT_STATUS_OPTIONS } from '@zenith/shared/analytics';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -23,6 +23,34 @@ const defaultVariants: AnalyticsExperimentVariant[] = [
 const STATUS_COLOR: Record<AnalyticsExperiment['status'], 'grey' | 'green' | 'orange' | 'blue'> = {
   draft: 'grey', running: 'green', paused: 'orange', completed: 'blue',
 };
+
+/** 极小 p 值不展示为 0.0000——那会被误读为「精确等于 0」 */
+function formatPValue(value: number): string {
+  return value < 0.0001 ? '<0.0001' : value.toFixed(4);
+}
+
+/**
+ * 显著性结论必须区分三种状态，不能只有「显著 / 不显著」二元：
+ * 正态近似不成立时 p 值本身不可信，此时报「不显著」会误导使用者停止实验。
+ */
+function significanceTag(record: AnalyticsExperimentReportVariant) {
+  if (record.isControl) return <Typography.Text type="tertiary">基准</Typography.Text>;
+  if (record.pValue == null) return <Typography.Text type="tertiary">数据不足</Typography.Text>;
+  if (!record.normalApproxValid) {
+    return (
+      <Space spacing={4}>
+        <Tag size="small" color="orange">样本过少</Tag>
+        <Typography.Text type="tertiary" size="small">p 值不可信</Typography.Text>
+      </Space>
+    );
+  }
+  return (
+    <Space spacing={4}>
+      <Tag size="small" color={record.significant ? 'green' : 'grey'}>{record.significant ? '显著' : '不显著'}</Tag>
+      <Typography.Text type="tertiary" size="small">p={formatPValue(record.pValue)}</Typography.Text>
+    </Space>
+  );
+}
 
 type ExperimentFormValues = {
   expKey: string;
@@ -177,6 +205,11 @@ export default function AnalyticsExperimentsTab() {
 
   const reportRows = reportQuery.data?.variants ?? [];
   const maxRate = Math.max(...reportRows.map((item) => item.conversionRate), 1);
+  const report = reportQuery.data ?? null;
+  const controlRow = reportRows.find((row) => row.isControl) ?? null;
+  // 曝光量未达估算样本量时，「不显著」只说明样本不够，不能解读为「没有效果」
+  const underPowered = report?.requiredSamplePerVariant != null
+    && reportRows.some((row) => row.exposures < report.requiredSamplePerVariant!);
 
   return (
     <>
@@ -224,17 +257,57 @@ export default function AnalyticsExperimentsTab() {
         </Space>
       </Modal>
 
-      <SideSheet title={reporting ? `实验报告：${reporting.name}` : '实验报告'} visible={!!reporting} onCancel={() => setReporting(null)} width={720}>
+      <SideSheet title={reporting ? `实验报告：${reporting.name}` : '实验报告'} visible={!!reporting} onCancel={() => setReporting(null)} width={860}>
+        {report?.srm?.mismatch && (
+          <Banner
+            type="danger"
+            closeIcon={null}
+            title="分流异常（SRM）"
+            description={`实际曝光分布与配置权重显著不符（χ²=${report.srm.chiSquare}，p=${formatPValue(report.srm.pValue)}）。请先排查分流逻辑，本次转化率对比结果不可信。`}
+            style={{ marginBottom: 12 }}
+          />
+        )}
+        {underPowered && (
+          <Banner
+            type="warning"
+            closeIcon={null}
+            title="样本量不足"
+            description={`按对照组当前转化率估算，检测 10% 相对提升需每组约 ${report!.requiredSamplePerVariant!.toLocaleString()} 次曝光。当前未达该量级时，"不显著"只代表证据不足，不代表没有效果。`}
+            style={{ marginBottom: 12 }}
+          />
+        )}
         <ConfigurableTable
-          bordered rowKey="variantKey" loading={reportQuery.isFetching} dataSource={reportRows}
+          bordered rowKey="variantKey" loading={reportQuery.isFetching} dataSource={reportRows} scroll={{ x: 1080 }}
           columns={[
-            { title: '变体', dataIndex: 'variantKey', render: (value: string) => <Typography.Text code>{value}</Typography.Text> },
-            { title: '曝光用户', dataIndex: 'exposures' },
-            { title: '转化用户', dataIndex: 'conversions' },
-            { title: '转化率', dataIndex: 'conversionRate', render: (value: number) => <Space style={{ width: '100%' }}><Typography.Text style={{ width: 56 }}>{value.toFixed(1)}%</Typography.Text><Progress percent={Math.round((value / maxRate) * 100)} showInfo={false} style={{ width: 160 }} /></Space> },
+            { title: '变体', dataIndex: 'variantKey', width: 150, render: (value: string, record) => (
+              <Space spacing={4}>
+                <Typography.Text code>{value}</Typography.Text>
+                {record.isControl && <Tag size="small" color="grey">对照组</Tag>}
+              </Space>
+            ) },
+            { title: '曝光用户', dataIndex: 'exposures', width: 100, render: (value: number) => value.toLocaleString() },
+            { title: '转化用户', dataIndex: 'conversions', width: 100, render: (value: number) => value.toLocaleString() },
+            { title: '转化率', dataIndex: 'conversionRate', width: 220, render: (value: number) => <Space style={{ width: '100%' }}><Typography.Text style={{ width: 56 }}>{value.toFixed(1)}%</Typography.Text><Progress percent={Math.round((value / maxRate) * 100)} showInfo={false} style={{ width: 140 }} /></Space> },
+            { title: '相对提升', dataIndex: 'relativeUplift', width: 110, render: (value: number | null, record) => (
+              record.isControl ? <Typography.Text type="tertiary">基准</Typography.Text>
+                : value == null ? '–'
+                  : <Typography.Text type={value > 0 ? 'success' : value < 0 ? 'danger' : undefined}>{value > 0 ? '+' : ''}{value.toFixed(1)}%</Typography.Text>
+            ) },
+            { title: '95% 置信区间', dataIndex: 'confidenceLow', width: 190, render: (_: unknown, record) => (
+              record.isControl || record.confidenceLow == null || record.confidenceHigh == null
+                ? <Typography.Text type="tertiary">–</Typography.Text>
+                : <Typography.Text size="small">{`[${record.confidenceLow.toFixed(2)}, ${record.confidenceHigh.toFixed(2)}] pp`}</Typography.Text>
+            ) },
+            { title: '显著性', dataIndex: 'pValue', width: 210, render: (_: unknown, record) => significanceTag(record) },
           ]}
           onRefresh={() => void reportQuery.refetch()} refreshLoading={reportQuery.isFetching} empty="暂无报告数据"
         />
+        {controlRow && (
+          <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 10 }}>
+            对照组为变体列表首项（{controlRow.variantKey}）。显著性基于双比例 Z 检验（双尾，α=0.05）；
+            置信区间为与对照组转化率差值的区间，单位为百分点（pp），跨 0 表示差异不显著。
+          </Typography.Text>
+        )}
       </SideSheet>
     </>
   );

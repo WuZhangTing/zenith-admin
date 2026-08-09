@@ -61,7 +61,7 @@
 | 文件 | 职责 |
 |------|------|
 | `analytics.service.ts` | 采集主流程（治理 → 事务写入 → 会话/画像 upsert）与大部分统计查询 |
-| `analytics-conversion.service.ts` | 漏斗（有序转化）与留存（双口径） |
+| `analytics-conversion.service.ts` | 漏斗（有序转化）与留存（双口径 + 日/周/月粒度） |
 | `analytics-event-query.service.ts` | 通用事件分析查询（白名单维度 + 参数化属性过滤） |
 | `analytics-property-filter.ts` | `properties` 属性过滤的 SQL 构造（漏斗 / 事件分析 / 分群共用） |
 | `analytics-governance.service.ts` | Tracking Plan 采集治理（屏蔽 / 租户覆盖 / 严格模式 / 质量记录） |
@@ -74,6 +74,7 @@
 | `analytics-rollup.service.ts` | 每日聚合重建（整体 + 维度）与聚合查询 |
 | `analytics-segments.service.ts` | 用户分群 CRUD、规则编译（INTERSECT/UNION）、成员物化 |
 | `analytics-experiments.service.ts` | A/B 实验 CRUD、SHA-256 确定性分流、实验报告 |
+| `analytics-experiment-stats.ts` | 实验统计推断：双比例 Z 检验、SRM 卡方检验、样本量估算（纯函数） |
 | `analytics-campaigns.service.ts` | 分群触达活动 CRUD 与提交执行 |
 | `analytics-tasks.ts` | 任务中心 handler：聚合重建 / 分群物化 / 触达执行 |
 | `analytics-profile.service.ts` | 用户画像 upsert 公共 helper |
@@ -134,7 +135,8 @@ user_events（source='server'，不创建 analytics_sessions）
 | Handler | 频率 | 作用 |
 |---------|------|------|
 | `analyticsRollupDaily` | 每日 01:00 | 重建最近 2 个完整自然日的每日聚合（整体 + 维度） |
-| `analyticsRetention` | 每日 02:00 | 按每个租户各自的保留策略清理过期埋点 / 会话 / 错误 |
+| `analyticsRetention` | 每日 02:00 | 按每个租户各自的保留策略清理过期埋点 / 会话 / 错误 / 埋点质量日聚合 |
+| `analyticsSegmentRefresh` | 每日 03:30 | 重算全部启用中的用户分群成员快照（单个分群失败不阻塞整批） |
 | `evaluateErrorAlerts` | 每 5 分钟 | 评估错误告警规则并通知（`new_error` 条件另有错误上报时的实时评估） |
 
 注册于 `lib/pg-boss-scheduler.ts`，种子数据见 `packages/shared/src/seed/platform.ts` 的 `SEED_CRON_JOBS`。

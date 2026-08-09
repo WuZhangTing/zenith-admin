@@ -35,11 +35,20 @@ beforeEach(() => {
 
 describe('analyticsKeys.retention — mode 纳入 query key', () => {
   it('produces distinct keys for first_seen vs window_first so switching the caliber refetches instead of reusing stale cache', () => {
-    const keyFirstSeen = analyticsKeys.retention(14, 'first_seen');
-    const keyWindowFirst = analyticsKeys.retention(14, 'window_first');
+    const keyFirstSeen = analyticsKeys.retention(14, 'first_seen', 'day', 8);
+    const keyWindowFirst = analyticsKeys.retention(14, 'window_first', 'day', 8);
     expect(keyFirstSeen).not.toEqual(keyWindowFirst);
     expect(keyFirstSeen).toContain('first_seen');
     expect(keyWindowFirst).toContain('window_first');
+  });
+
+  // 周期粒度与列数不进 key 时，切「日留存 → 周留存」会命中上一份缓存，页面看起来没反应
+  it('produces distinct keys for different period types and column counts', () => {
+    const day = analyticsKeys.retention(14, 'first_seen', 'day', 8);
+    const week = analyticsKeys.retention(14, 'first_seen', 'week', 8);
+    const moreColumns = analyticsKeys.retention(14, 'first_seen', 'day', 12);
+    expect(day).not.toEqual(week);
+    expect(day).not.toEqual(moreColumns);
   });
 });
 

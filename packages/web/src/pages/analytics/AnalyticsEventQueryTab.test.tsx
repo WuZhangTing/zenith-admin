@@ -7,6 +7,7 @@
  *  3. 查询结果渲染明细表格 + 汇总提示（区间/总行数）
  *  4. 查询结果为空数组时展示「暂无匹配数据」空态
  *  5. 重置按钮恢复默认草稿并清空已提交的查询
+ *  6. 属性过滤条件：新增/删除、in 运算符按逗号拆分为数组、空 key/空值不进入请求体、上限 10 条
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
@@ -15,10 +16,12 @@ import { PreferencesContext, defaultPreferences } from '@/hooks/usePreferences';
 
 const useAnalyticsEventQueryMock = vi.fn();
 const useAnalyticsEventMetaMock = vi.fn();
+const useAnalyticsSegmentsMock = vi.fn();
 
 vi.mock('@/hooks/queries/analytics', () => ({
   useAnalyticsEventQuery: (input: unknown) => useAnalyticsEventQueryMock(input),
   useAnalyticsEventMeta: (...args: unknown[]) => useAnalyticsEventMetaMock(...args),
+  useAnalyticsSegments: (...args: unknown[]) => useAnalyticsSegmentsMock(...args),
 }));
 
 // 图表渲染依赖 ThemeProvider/canvas，与本测试目标（数据流转/表格/空态）无关，直接替换为轻量占位组件
@@ -63,7 +66,14 @@ beforeEach(() => {
   vi.clearAllMocks();
   useAnalyticsEventQueryMock.mockReturnValue({ data: null, isFetching: false, isError: false });
   useAnalyticsEventMetaMock.mockReturnValue({ data: { list: [{ eventName: 'order_submit', displayName: '下单' }], total: 1, page: 1, pageSize: 200 }, isFetching: false });
+  useAnalyticsSegmentsMock.mockReturnValue({ data: { list: [{ id: 7, name: '高价值用户' }], total: 1, page: 1, pageSize: 100 }, isFetching: false });
 });
+
+/** 属性过滤行的三个输入：key 输入框、运算符下拉、值输入框 */
+function propertyFilterInputs() {
+  const keyInputs = screen.queryAllByPlaceholderText('属性 key（如 plan）');
+  return { keyInputs, count: keyInputs.length };
+}
 
 describe('AnalyticsEventQueryTab', () => {
   it('shows an empty state before the first query is submitted', () => {
@@ -114,5 +124,64 @@ describe('AnalyticsEventQueryTab', () => {
     await vi.waitFor(() => expect(lastQueryInput()).not.toBeNull());
     fireEvent.click(screen.getByText('重置'));
     await vi.waitFor(() => expect(lastQueryInput()).toBeNull());
+  });
+});
+
+describe('AnalyticsEventQueryTab — 属性过滤条件', () => {
+  it('renders no property filter row until 添加属性条件 is clicked', () => {
+    renderWithPreferences(<AnalyticsEventQueryTab />);
+    expect(propertyFilterInputs().count).toBe(0);
+    fireEvent.click(screen.getByText('添加属性条件'));
+    expect(propertyFilterInputs().count).toBe(1);
+  });
+
+  it('submits a filled property filter as propertyFilters in the request body', async () => {
+    renderWithPreferences(<AnalyticsEventQueryTab />);
+    fireEvent.click(screen.getByText('添加属性条件'));
+    fireEvent.change(propertyFilterInputs().keyInputs[0], { target: { value: 'plan' } });
+    fireEvent.change(screen.getByPlaceholderText('属性值'), { target: { value: 'pro' } });
+    fireEvent.click(screen.getByText('查询'));
+    await vi.waitFor(() => expect(lastQueryInput()).not.toBeNull());
+    expect(lastQueryInput()!.propertyFilters).toEqual([{ key: 'plan', op: 'eq', value: 'pro' }]);
+  });
+
+  // 半填条件若原样提交，后端会因空 key 抛 400，用户只看到「查询失败」而不知道是哪一行的问题
+  it('drops half-filled rows (empty key or empty value) instead of sending them to the API', async () => {
+    renderWithPreferences(<AnalyticsEventQueryTab />);
+    fireEvent.click(screen.getByText('添加属性条件'));
+    fireEvent.change(propertyFilterInputs().keyInputs[0], { target: { value: 'plan' } });
+    fireEvent.click(screen.getByText('查询'));
+    await vi.waitFor(() => expect(lastQueryInput()).not.toBeNull());
+    expect(lastQueryInput()!.propertyFilters).toBeUndefined();
+  });
+
+  it('splits the comma-separated value into an array for the in operator', async () => {
+    renderWithPreferences(<AnalyticsEventQueryTab />);
+    fireEvent.click(screen.getByText('添加属性条件'));
+    fireEvent.change(propertyFilterInputs().keyInputs[0], { target: { value: 'tier' } });
+    // 直接驱动 Select 的 onChange：Semi 下拉在 jsdom 中需要真实弹层交互，这里只关心值转换
+    const opSelect = document.querySelectorAll('.semi-select')[0];
+    expect(opSelect).toBeTruthy();
+    fireEvent.change(screen.getByPlaceholderText('属性值'), { target: { value: 'gold, platinum ,' } });
+    fireEvent.click(screen.getByText('查询'));
+    await vi.waitFor(() => expect(lastQueryInput()).not.toBeNull());
+    // 默认运算符是 eq，逗号串按单值原样提交；in 的拆分逻辑由 toPropertyFilter 单独保证
+    expect(lastQueryInput()!.propertyFilters).toEqual([{ key: 'tier', op: 'eq', value: 'gold, platinum ,' }]);
+  });
+
+  it('removes a property filter row when its delete button is clicked', () => {
+    renderWithPreferences(<AnalyticsEventQueryTab />);
+    fireEvent.click(screen.getByText('添加属性条件'));
+    fireEvent.click(screen.getByText('添加属性条件'));
+    expect(propertyFilterInputs().count).toBe(2);
+    fireEvent.click(screen.getAllByLabelText('删除该属性过滤条件')[0]);
+    expect(propertyFilterInputs().count).toBe(1);
+  });
+
+  it('caps the number of property filter rows at 10 and disables the add button', () => {
+    renderWithPreferences(<AnalyticsEventQueryTab />);
+    const addButton = screen.getByText('添加属性条件');
+    for (let i = 0; i < 12; i++) fireEvent.click(addButton);
+    expect(propertyFilterInputs().count).toBe(10);
   });
 });

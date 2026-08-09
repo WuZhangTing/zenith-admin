@@ -10,7 +10,7 @@
 | 写路径 | `POST /api/analytics/events` 批量采集（单批最多 100 条）+ 服务端权威语义事件 `trackServerEvent()`；落库前经 Tracking Plan 治理（内存缓存 60s）与站点来源白名单校验；写入 `user_events` 时使用 `eventId` 唯一索引和 `ON CONFLICT DO NOTHING` 幂等 |
 | 事务边界 | HTTP 批量采集在事务中写入事件、消费站点日配额（Redis 计数，超限回滚）、更新 `analytics_sessions`、upsert 用户画像；服务端事件在事务中写入事件、upsert 用户画像，不创建会话 |
 | 读路径 | 行为分析接口按时间范围实时聚合；趋势与维度分布查询优先读 `analytics_daily_rollup`（整体与维度聚合行），当天或缺失日期回退 `user_events`；报表中心通过内置主库数据源复用行为数据集 |
-| 保留策略 | `analyticsRetention` 每日 02:00 执行，逐租户读取 `analytics_settings.retentionDays` / `errorRetentionDays`，清理过期事件、会话、错误事件和空错误分组 |
+| 保留策略 | `analyticsRetention` 每日 02:00 执行，逐租户读取 `analytics_settings.retentionDays` / `errorRetentionDays`，清理过期事件、会话、错误事件、埋点质量日聚合和空错误分组 |
 | 观测手段 | 系统监控 `/api/monitor` 暴露全局 HTTP QPS / P95 / 错误率；数据库监控读取 `pg_stat_statements` Top 慢查询（需启用扩展）；埋点质量看板暴露拒收类问题（`origin_rejected` / `quota_exceeded`）。当前没有按单个分析接口持久化的 p95 明细表 |
 
 ## 架构演进触发条件

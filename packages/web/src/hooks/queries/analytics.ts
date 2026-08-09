@@ -1,10 +1,10 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AnalyticsDebugEvent, AnalyticsExperiment, AnalyticsExperimentReport, AnalyticsEventMeta, AnalyticsEventOverride, AnalyticsEventOverrideStatus, AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsOverview, AnalyticsQualityIssueType, AnalyticsQualityQueryResult, AnalyticsRetentionMode, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSettings, AnalyticsUserSegment, AnalyticsSite, ErrorAlertRule, ErrorAlertLog, ErrorEvent, ErrorGroup, ErrorOverview, FunnelQuery, FunnelResult, HeatmapData, HeatmapPageListItem, PageStats, PathResult, RealtimeStats, RetentionResult, AnalyticsSavedReport, DimensionBreakdown, DimensionCross, TrendSeries, FeatureStats } from '@zenith/shared/analytics';
+import type { AnalyticsDebugEvent, AnalyticsExperiment, AnalyticsExperimentReport, AnalyticsEventMeta, AnalyticsEventOverride, AnalyticsEventOverrideStatus, AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsOverview, AnalyticsQualityIssueType, AnalyticsQualityQueryResult, AnalyticsRetentionMode, AnalyticsRetentionPeriodType, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSettings, AnalyticsUserSegment, AnalyticsSite, ErrorAlertRule, ErrorAlertLog, ErrorEvent, ErrorGroup, ErrorOverview, FunnelQuery, FunnelResult, HeatmapData, HeatmapPageListItem, PageStats, PathResult, RealtimeStats, RetentionResult, AnalyticsSavedReport, DimensionBreakdown, DimensionCross, TrendSeries, FeatureStats } from '@zenith/shared/analytics';
 import type { PaginatedResponse } from '@zenith/shared/core';
 import type { UserStats, UserTimeline } from '@zenith/shared/identity';
 import type { SessionListItem, SessionTimeline } from '@zenith/shared/platform';
 import type { AsyncTask } from '@zenith/shared/tasks';
-import { ANALYTICS_CONFIG_VERSION_KEY } from '@zenith/shared/analytics';
+import { ANALYTICS_CONFIG_VERSION_KEY, ANALYTICS_RETENTION_PERIOD_LIMITS } from '@zenith/shared/analytics';
 import { toQueryString, unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
 import { reloadTrackerConfig } from '@/utils/tracker';
@@ -140,7 +140,8 @@ export const analyticsKeys = {
   sessionsLists: ['analytics', 'sessions', 'list'] as const,
   sessions: (params: AnalyticsSessionsParams) => ['analytics', 'sessions', 'list', params] as const,
   funnel: ['analytics', 'funnel'] as const,
-  retention: (days: number, mode: AnalyticsRetentionMode) => ['analytics', 'retention', days, mode] as const,
+  retention: (days: number, mode: AnalyticsRetentionMode, periodType: AnalyticsRetentionPeriodType, maxPeriods: number) =>
+    ['analytics', 'retention', days, mode, periodType, maxPeriods] as const,
   eventQuery: ['analytics', 'event-query'] as const,
   path: ['analytics', 'path'] as const,
   pathOf: (days: number, startPage: string, limit: number) => ['analytics', 'path', days, startPage, limit] as const,
@@ -252,10 +253,16 @@ export function useAnalyzeFunnel() {
   });
 }
 
-export function useAnalyticsRetention(days: number, mode: AnalyticsRetentionMode = 'first_seen') {
+export function useAnalyticsRetention(
+  days: number,
+  mode: AnalyticsRetentionMode = 'first_seen',
+  periodType: AnalyticsRetentionPeriodType = 'day',
+  maxPeriods: number = ANALYTICS_RETENTION_PERIOD_LIMITS[periodType].defaultPeriods,
+) {
   return useQuery({
-    queryKey: analyticsKeys.retention(days, mode),
-    queryFn: () => request.get<RetentionResult>(`/api/analytics/retention${toQueryString({ days, mode })}`).then(unwrap),
+    queryKey: analyticsKeys.retention(days, mode, periodType, maxPeriods),
+    queryFn: () =>
+      request.get<RetentionResult>(`/api/analytics/retention${toQueryString({ days, mode, periodType, maxPeriods })}`).then(unwrap),
   });
 }
 

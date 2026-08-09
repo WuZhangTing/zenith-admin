@@ -37,10 +37,18 @@ describe('analytics retention isolation', () => {
       events: 2,
       sessions: 2,
       errors: 2,
+      qualityDaily: 2,
     });
     expect(select).toHaveBeenCalledTimes(1);
     expect(selectDistinct).toHaveBeenCalledTimes(4);
-    expect(deleteFrom).toHaveBeenCalledTimes(8);
-    expect(deleteWhere).toHaveBeenCalledTimes(8);
+    // 每租户 5 条 DELETE：events / sessions / error_events / quality_daily / error_groups
+    expect(deleteFrom).toHaveBeenCalledTimes(10);
+    expect(deleteWhere).toHaveBeenCalledTimes(10);
+  });
+
+  // 质量日聚合随事件采集持续写入，漏掉它会让该表无限增长（本次修复前即如此）
+  it('includes analytics_event_quality_daily in the retention sweep', async () => {
+    const result = await runAnalyticsRetention();
+    expect(result.qualityDaily).toBe(2);
   });
 });

@@ -2,18 +2,29 @@
  * 行为中心阶段 1：通用事件分析工作台 —— 自定义事件 + 维度 + 指标查询，展示图表 + 明细表格。
  */
 import { useMemo, useState } from 'react';
-import { Card, DatePicker, Empty, Select, Typography } from '@douyinfe/semi-ui';
+import { Button, Card, DatePicker, Empty, Input, Select, Typography } from '@douyinfe/semi-ui';
+import { Plus, Trash2 } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { BarChart, chartOptions, makeBarSpec, useChartPalette } from '@/components/charts';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { formatDateForApi } from '@/utils/date';
-import { useAnalyticsEventMeta, useAnalyticsEventQuery } from '@/hooks/queries/analytics';
+import { useAnalyticsEventMeta, useAnalyticsEventQuery, useAnalyticsSegments } from '@/hooks/queries/analytics';
 import { usePagination } from '@/hooks/usePagination';
-import type { AnalyticsEventQueryGroupByField, AnalyticsEventQueryInput, AnalyticsEventQueryMetric, AnalyticsEventQueryRow } from '@zenith/shared/analytics';
-import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_ENVIRONMENT_OPTIONS, ANALYTICS_EVENT_QUERY_GROUP_BY_LABELS, ANALYTICS_EVENT_QUERY_GROUP_BY_OPTIONS, ANALYTICS_EVENT_QUERY_METRIC_OPTIONS, ANALYTICS_EVENT_SOURCE_OPTIONS } from '@zenith/shared/analytics';
+import type { AnalyticsEventQueryGroupByField, AnalyticsEventQueryInput, AnalyticsEventQueryMetric, AnalyticsEventQueryRow, AnalyticsSegmentPropertyFilter } from '@zenith/shared/analytics';
+import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_ENVIRONMENT_OPTIONS, ANALYTICS_EVENT_QUERY_GROUP_BY_LABELS, ANALYTICS_EVENT_QUERY_GROUP_BY_OPTIONS, ANALYTICS_EVENT_QUERY_METRIC_OPTIONS, ANALYTICS_EVENT_SOURCE_OPTIONS, ANALYTICS_SEGMENT_COMPARE_OP_OPTIONS } from '@zenith/shared/analytics';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const DAY_OPTIONS = [7, 14, 30, 90].map((value) => ({ value, label: `近 ${value} 天` }));
+
+/** 与后端 analyticsEventQuerySchema 的 propertyFilters.max(10) 对齐 */
+const MAX_PROPERTY_FILTERS = 10;
+
+interface PropertyFilterDraft {
+  id: string;
+  key: string;
+  op: AnalyticsSegmentPropertyFilter['op'];
+  value: string;
+}
 
 interface EventQueryDraft {
   days: number;
@@ -23,6 +34,8 @@ interface EventQueryDraft {
   appId?: string;
   environment?: string;
   deviceType?: string;
+  segmentId?: number;
+  propertyFilters: PropertyFilterDraft[];
   groupBy: AnalyticsEventQueryGroupByField[];
   metric: AnalyticsEventQueryMetric;
 }
@@ -30,9 +43,26 @@ interface EventQueryDraft {
 const defaultDraft: EventQueryDraft = {
   days: 30,
   eventNames: [],
+  propertyFilters: [],
   groupBy: ['date'],
   metric: 'events',
 };
+
+/**
+ * `in` 接收逗号分隔的多值；其余运算符按单值提交。
+ * 数值型运算符（gt/gte/lt/lte）交由后端 `::numeric` 转换，此处不做前端类型推断，
+ * 避免与后端比较口径产生两套语义。
+ */
+function toPropertyFilter(draft: PropertyFilterDraft): AnalyticsSegmentPropertyFilter | null {
+  const key = draft.key.trim();
+  if (!key) return null;
+  if (draft.op === 'in') {
+    const values = draft.value.split(',').map((v) => v.trim()).filter(Boolean);
+    return values.length ? { key, op: 'in', value: values } : null;
+  }
+  const value = draft.value.trim();
+  return value ? { key, op: draft.op, value } : null;
+}
 
 function rowKey(row?: AnalyticsEventQueryRow, index?: number): string {
   if (!row) return String(index ?? 0);
@@ -60,8 +90,32 @@ export default function AnalyticsEventQueryTab() {
     [eventMetaQuery.data?.list],
   );
 
+  const segmentsQuery = useAnalyticsSegments({ page: 1, pageSize: 100, status: 'enabled' });
+  const segmentOptions = useMemo(
+    () => (segmentsQuery.data?.list ?? []).map((s) => ({ value: s.id, label: s.name })),
+    [segmentsQuery.data?.list],
+  );
+
   const updateDraft = <K extends keyof EventQueryDraft>(key: K, value: EventQueryDraft[K]) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const addPropertyFilter = () => {
+    setDraft((prev) => (prev.propertyFilters.length >= MAX_PROPERTY_FILTERS ? prev : {
+      ...prev,
+      propertyFilters: [...prev.propertyFilters, { id: `pf-${Date.now()}-${prev.propertyFilters.length}`, key: '', op: 'eq', value: '' }],
+    }));
+  };
+
+  const updatePropertyFilter = (id: string, patch: Partial<Omit<PropertyFilterDraft, 'id'>>) => {
+    setDraft((prev) => ({
+      ...prev,
+      propertyFilters: prev.propertyFilters.map((f) => (f.id === id ? { ...f, ...patch } : f)),
+    }));
+  };
+
+  const removePropertyFilter = (id: string) => {
+    setDraft((prev) => ({ ...prev, propertyFilters: prev.propertyFilters.filter((f) => f.id !== id) }));
   };
 
   const handleReset = () => {
@@ -71,12 +125,17 @@ export default function AnalyticsEventQueryTab() {
   };
 
   const handleQuery = () => {
+    const propertyFilters = draft.propertyFilters
+      .map(toPropertyFilter)
+      .filter((f): f is AnalyticsSegmentPropertyFilter => f != null);
     const body: AnalyticsEventQueryInput = {
       eventNames: draft.eventNames.length ? draft.eventNames.slice(0, 20) : undefined,
       source: (draft.source as AnalyticsEventQueryInput['source']) || undefined,
       appId: draft.appId?.trim() || undefined,
       environment: (draft.environment as AnalyticsEventQueryInput['environment']) || undefined,
       deviceType: (draft.deviceType as AnalyticsEventQueryInput['deviceType']) || undefined,
+      segmentId: draft.segmentId,
+      propertyFilters: propertyFilters.length ? propertyFilters : undefined,
       groupBy: draft.groupBy.length ? draft.groupBy : ['date'],
       metric: draft.metric,
     };
@@ -123,7 +182,7 @@ export default function AnalyticsEventQueryTab() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <Typography.Title heading={6}>事件分析</Typography.Title>
       <Typography.Text type="tertiary" size="small">
-        自由组合事件、维度与指标进行探索性分析；支持最多 2 个分组维度、10 个属性过滤条件（属性过滤暂通过分群/漏斗页配置，工作台先支持核心维度）。
+        自由组合事件、维度、属性与指标进行探索性分析；支持最多 2 个分组维度、{MAX_PROPERTY_FILTERS} 个属性过滤条件。
       </Typography.Text>
       <Card bodyStyle={{ padding: 16 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: 12 }}>
@@ -170,6 +229,18 @@ export default function AnalyticsEventQueryTab() {
             <Select placeholder="全部设备" value={draft.deviceType} optionList={ANALYTICS_DEVICE_TYPE_OPTIONS} onChange={(v) => updateDraft('deviceType', v as string)} showClear style={{ width: '100%' }} />
           </div>
           <div>
+            <Typography.Text type="tertiary" size="small">仅统计分群</Typography.Text>
+            <Select
+              placeholder="全部用户"
+              value={draft.segmentId}
+              optionList={segmentOptions}
+              onChange={(v) => updateDraft('segmentId', v == null ? undefined : Number(v))}
+              loading={segmentsQuery.isFetching}
+              showClear
+              style={{ width: '100%' }}
+            />
+          </div>
+          <div>
             <Typography.Text type="tertiary" size="small">日期</Typography.Text>
             <div style={{ display: 'flex', gap: 8 }}>
               <Select
@@ -188,6 +259,51 @@ export default function AnalyticsEventQueryTab() {
               />
             </div>
           </div>
+        </div>
+        <div style={{ marginTop: 16 }}>
+          <Typography.Text type="tertiary" size="small">
+            属性过滤（可选，最多 {MAX_PROPERTY_FILTERS} 条，条件之间为「且」关系）
+          </Typography.Text>
+          <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+            {draft.propertyFilters.map((filter) => (
+              <div
+                key={filter.id}
+                style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 1fr) 110px minmax(120px, 1.4fr) 36px', gap: 8, alignItems: 'center' }}
+              >
+                <Input
+                  placeholder="属性 key（如 plan）"
+                  value={filter.key}
+                  onChange={(value) => updatePropertyFilter(filter.id, { key: value })}
+                />
+                <Select
+                  value={filter.op}
+                  optionList={ANALYTICS_SEGMENT_COMPARE_OP_OPTIONS}
+                  onChange={(v) => updatePropertyFilter(filter.id, { op: v as AnalyticsSegmentPropertyFilter['op'] })}
+                />
+                <Input
+                  placeholder={filter.op === 'in' ? '多个值用英文逗号分隔' : '属性值'}
+                  value={filter.value}
+                  onChange={(value) => updatePropertyFilter(filter.id, { value })}
+                />
+                <Button
+                  icon={<Trash2 size={14} />}
+                  type="danger"
+                  theme="borderless"
+                  aria-label="删除该属性过滤条件"
+                  onClick={() => removePropertyFilter(filter.id)}
+                />
+              </div>
+            ))}
+          </div>
+          <Button
+            icon={<Plus size={14} />}
+            theme="borderless"
+            style={{ marginTop: draft.propertyFilters.length ? 8 : 4 }}
+            disabled={draft.propertyFilters.length >= MAX_PROPERTY_FILTERS}
+            onClick={addPropertyFilter}
+          >
+            添加属性条件
+          </Button>
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
           <SearchButton onClick={handleQuery} loading={loading} />

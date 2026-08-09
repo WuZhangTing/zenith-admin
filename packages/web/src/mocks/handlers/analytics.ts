@@ -1,11 +1,11 @@
 import { http } from 'msw';
 import { ok, badRequest, notFound, pageParams, pageResult, paginate, nextIdFrom } from '@/mocks/utils/handlers';
-import type { PageStats, FeatureStats, HeatmapData, HeatmapPageListItem, AnalyticsOverview, TrendSeries, RealtimeStats, FunnelResult, RetentionResult, PathResult, DimensionBreakdown, DimensionCross, PerfStats, EventListItem, EventDetail, AnalyticsEventMeta, AnalyticsSettings, AnalyticsPublicConfig, AnalyticsRollupItem, AnalyticsSavedReport, AnalyticsEventOverride, AnalyticsQualityDaily, AnalyticsQualityIssueType, AnalyticsQualityQueryResult, AnalyticsDebugEvent, AnalyticsUserSegment, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSite, AnalyticsExperiment, AnalyticsExperimentAssignment, AnalyticsExperimentReport, AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsEventQueryRow, AnalyticsEventQueryGroupByField, AnalyticsEventQueryMetric } from '@zenith/shared/analytics';
+import type { PageStats, FeatureStats, HeatmapData, HeatmapPageListItem, AnalyticsOverview, TrendSeries, RealtimeStats, FunnelResult, RetentionResult, PathResult, DimensionBreakdown, DimensionCross, PerfStats, EventListItem, EventDetail, AnalyticsEventMeta, AnalyticsSettings, AnalyticsPublicConfig, AnalyticsRollupItem, AnalyticsSavedReport, AnalyticsEventOverride, AnalyticsQualityDaily, AnalyticsQualityIssueType, AnalyticsQualityQueryResult, AnalyticsDebugEvent, AnalyticsUserSegment, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSite, AnalyticsExperiment, AnalyticsExperimentAssignment, AnalyticsExperimentReport, AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsEventQueryRow, AnalyticsEventQueryGroupByField, AnalyticsEventQueryMetric, AnalyticsRetentionPeriodType } from '@zenith/shared/analytics';
 import type { PaginatedResponse } from '@zenith/shared/core';
 import type { UserStats, UserTimeline, UserBehaviorEventType } from '@zenith/shared/identity';
 import type { SessionListItem, SessionTimeline } from '@zenith/shared/platform';
 import type { AsyncTask } from '@zenith/shared/tasks';
-import { ANALYTICS_SITE_KEY_HEADER, ANALYTICS_QUALITY_ISSUE_TYPES, ANALYTICS_PATH_EXIT_PAGE } from '@zenith/shared/analytics';
+import { ANALYTICS_SITE_KEY_HEADER, ANALYTICS_QUALITY_ISSUE_TYPES, ANALYTICS_PATH_EXIT_PAGE, ANALYTICS_RETENTION_PERIOD_LIMITS } from '@zenith/shared/analytics';
 import { SEED_ANALYTICS_EVENT_META, SEED_ANALYTICS_SITES } from '@zenith/shared/seed';
 import { mockDateTime, mockDateTimeOffset, mockDateOffset } from '../utils/date';
 import { createProgressingMockTask } from './async-tasks';
@@ -440,14 +440,41 @@ export const analyticsHandlers = [
   http.get('/api/analytics/experiments/:id/report', ({ params }) => {
     const exp = mockExperiments.find((item) => item.id === Number(params.id));
     if (!exp) return notFound('实验不存在', { status: 404 });
+    const rows = exp.variants.map((variant, index) => {
+      const exposures = 4200 + index * 130;
+      const conversions = Math.floor(exposures * (0.08 + index * 0.012));
+      return { variantKey: variant.key, exposures, conversions, rate: conversions / exposures, weight: variant.weight };
+    });
+    const control = rows[0];
     const report: AnalyticsExperimentReport = {
       experimentId: exp.id,
       expKey: exp.expKey,
       metricEventName: exp.metricEventName,
-      variants: exp.variants.map((variant, index) => {
-        const exposures = 420 + index * 83;
-        const conversions = Math.floor(exposures * (0.08 + index * 0.025));
-        return { variantKey: variant.key, exposures, conversions, conversionRate: Math.round((conversions / exposures) * 1000) / 10 };
+      totalExposures: rows.reduce((sum, r) => sum + r.exposures, 0),
+      // Demo 模式不复刻统计引擎，给出形状正确、量级合理的静态结论即可
+      srm: { chiSquare: 0.42, pValue: 0.5171, mismatch: false },
+      requiredSamplePerVariant: 15_700,
+      variants: rows.map((row, index) => {
+        const conversionRate = Math.round(row.rate * 1000) / 10;
+        if (index === 0) {
+          return {
+            variantKey: row.variantKey, exposures: row.exposures, conversions: row.conversions, conversionRate,
+            isControl: true, absoluteUplift: null, relativeUplift: null, pValue: null,
+            confidenceLow: null, confidenceHigh: null, significant: false, normalApproxValid: false,
+          };
+        }
+        const absoluteUplift = Math.round((row.rate - control.rate) * 10_000) / 100;
+        return {
+          variantKey: row.variantKey, exposures: row.exposures, conversions: row.conversions, conversionRate,
+          isControl: false,
+          absoluteUplift,
+          relativeUplift: Math.round(((row.rate - control.rate) / control.rate) * 1000) / 10,
+          pValue: index === 1 ? 0.0312 : 0.2418,
+          confidenceLow: Math.round((absoluteUplift - 0.9) * 100) / 100,
+          confidenceHigh: Math.round((absoluteUplift + 0.9) * 100) / 100,
+          significant: index === 1,
+          normalApproxValid: true,
+        };
       }),
     };
     return ok(report);
@@ -559,15 +586,20 @@ export const analyticsHandlers = [
 
   http.get('/api/analytics/retention', ({ request }) => {
     const url = new URL(request.url);
-    const days = Number(url.searchParams.get('days')) || 14;
+    const periodType = (url.searchParams.get('periodType') as AnalyticsRetentionPeriodType) || 'day';
+    const limits = ANALYTICS_RETENTION_PERIOD_LIMITS[periodType] ?? ANALYTICS_RETENTION_PERIOD_LIMITS.day;
+    const days = Number(url.searchParams.get('days')) || limits.defaultDays;
     const mode = (url.searchParams.get('mode') as 'first_seen' | 'window_first') || 'first_seen';
-    const axis = daysAxis(days);
-    const periods = Array.from({ length: Math.min(days, 8) }, (_, i) => i);
+    const maxPeriods = Number(url.searchParams.get('maxPeriods')) || limits.defaultPeriods;
+    // 队列轴按粒度收敛：日=按天，周=每 7 天一个队列，月=每 30 天一个队列
+    const step = periodType === 'month' ? 30 : periodType === 'week' ? 7 : 1;
+    const axis = daysAxis(days).filter((_, i) => i % step === 0);
+    const periods = Array.from({ length: Math.min(maxPeriods, axis.length) }, (_, i) => i);
     const cohorts = axis.map((cohortDate, ci) => ({
       cohortDate, cohortSize: rand(20, 120),
       values: periods.map((p) => (ci + p >= axis.length ? null : Math.round((100 * Math.exp(-p / 4)) * 10) / 10)),
     }));
-    return ok<RetentionResult>({ cohorts, periods, mode });
+    return ok<RetentionResult>({ cohorts, periods, mode, periodType, days });
   }),
 
   http.get('/api/analytics/path', ({ request }) => {

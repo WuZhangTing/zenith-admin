@@ -52,7 +52,7 @@ Handler 是预置在代码里的执行单元，注册在 `src/lib/pg-boss-schedu
 - **系统**：`cleanExpiredCaptchas`、`cleanExpiredSessions`、`databaseBackup`（params 选 `pg_dump` / `drizzle_export`）、`cleanupTerminalRecordings`、`cleanupUploadSessions`、`sampleSystemMetrics`、`evaluateMonitorAlerts`、`cleanupSystemMetrics`、`cleanupRuleExecutions`、`echo`（调试）
 - **消息**：`publishScheduledAnnouncements`
 - **支付**：`closeExpiredPaymentOrders`、`executeDueDeductions`、`syncPaymentDisputes`、`paymentReconciliation`、`dispatchPaymentEvents`、`retryPaymentWebhooks`、`retryFailedSharing`、`generateDailySettlements`、`syncPaymentTransfers`、`autoPaymentRecon`、`rebuildPaymentReportDaily`
-- **数据分析**：`analyticsRollupDaily`、`analyticsRetention`、`evaluateErrorAlerts`
+- **数据分析**：`analyticsRollupDaily`、`analyticsRetention`、`analyticsSegmentRefresh`、`evaluateErrorAlerts`
 - **报表**：`dispatchReportSubscriptions`、`refreshReportMaterializations`、`dispatchReportAlerts`
 
 新增 handler：在 `handlerRegistry.set('name', async (params) => '结果消息')` 登记后即可在页面绑定。handler 返回的字符串会写入执行日志。

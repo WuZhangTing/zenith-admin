@@ -2,7 +2,7 @@
 import { createHash } from 'node:crypto';
 import { and, desc, eq, gte, isNull, lte, or, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type { AnalyticsExperimentAssignment, AnalyticsExperimentVariant, CreateAnalyticsExperimentInput, UpdateAnalyticsExperimentInput } from '@zenith/shared/analytics';
+import type { AnalyticsExperimentAssignment, AnalyticsExperimentReport, AnalyticsExperimentReportVariant, AnalyticsExperimentVariant, CreateAnalyticsExperimentInput, UpdateAnalyticsExperimentInput } from '@zenith/shared/analytics';
 import { ANALYTICS_EXPERIMENT_EXPOSURE_EVENT } from '@zenith/shared/analytics';
 import { db } from '../../db';
 import { analyticsExperiments, userEvents } from '../../db/schema';
@@ -12,6 +12,14 @@ import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { currentCreateTenantId, tenantScope } from '../../lib/tenant';
 import { escapeLike, mergeWhere } from '../../lib/where-helpers';
+import { EXPERIMENT_ALPHA, requiredSamplePerVariant, srmTest, twoProportionZTest } from './analytics-experiment-stats';
+
+/** 比例 → 百分比 */
+const pct = (ratio: number): number => ratio * 100;
+const round1 = (value: number): number => Math.round(value * 10) / 10;
+const round2 = (value: number): number => Math.round(value * 100) / 100;
+/** p 值保留 4 位：0.05 附近的判定需要足够精度，同时避免透出无意义的浮点尾数 */
+const roundP = (value: number): number => Math.round(value * 10_000) / 10_000;
 
 const ASSIGNMENT_CACHE_TTL_MS = 60_000;
 type ExperimentStatus = AnalyticsExperimentRow['status'];
@@ -228,7 +236,7 @@ export async function getAssignments(distinctId: string, tenantId: number | null
   return result;
 }
 
-export async function getExperimentReport(id: number, q: ExperimentReportQuery) {
+export async function getExperimentReport(id: number, q: ExperimentReportQuery): Promise<AnalyticsExperimentReport> {
   const experiment = await ensureExperimentExists(id);
   const start = parseDateRangeStart(q.startDate ?? undefined);
   const end = parseDateRangeEnd(q.endDate ?? undefined);
@@ -276,16 +284,52 @@ export async function getExperimentReport(id: number, q: ExperimentReportQuery) 
     LEFT JOIN conversions c ON c.variant_key = ec.variant_key
   `)) as unknown as Array<{ variant_key: string; exposures: number; conversions: number }>;
   const byVariant = new Map(rows.map((row) => [row.variant_key, row]));
+  // 对照组固定取变体列表首项：与创建实验时「第一个变体是对照组」的约定一致
+  const counts = experiment.variants.map((variant) => {
+    const row = byVariant.get(variant.key);
+    return { key: variant.key, weight: variant.weight, exposures: Number(row?.exposures ?? 0), conversions: Number(row?.conversions ?? 0) };
+  });
+  const control = counts[0];
+  const controlRate = control && control.exposures > 0 ? control.conversions / control.exposures : 0;
+
+  const variants: AnalyticsExperimentReportVariant[] = counts.map((item, index) => {
+    const conversionRate = item.exposures > 0 ? round1(pct(item.conversions / item.exposures)) : 0;
+    const base = {
+      variantKey: item.key,
+      exposures: item.exposures,
+      conversions: item.conversions,
+      conversionRate,
+      isControl: index === 0,
+    };
+    if (index === 0 || !control) {
+      return { ...base, absoluteUplift: null, relativeUplift: null, pValue: null, confidenceLow: null, confidenceHigh: null, significant: false, normalApproxValid: false };
+    }
+    const test = twoProportionZTest(control.conversions, control.exposures, item.conversions, item.exposures);
+    if (!test) {
+      return { ...base, absoluteUplift: null, relativeUplift: null, pValue: null, confidenceLow: null, confidenceHigh: null, significant: false, normalApproxValid: false };
+    }
+    const variantRate = item.exposures > 0 ? item.conversions / item.exposures : 0;
+    return {
+      ...base,
+      absoluteUplift: round2(pct(test.absoluteDiff)),
+      relativeUplift: controlRate > 0 ? round1(pct((variantRate - controlRate) / controlRate)) : null,
+      pValue: roundP(test.pValue),
+      confidenceLow: round2(pct(test.confidenceLow)),
+      confidenceHigh: round2(pct(test.confidenceHigh)),
+      significant: test.normalApproxValid && test.pValue < EXPERIMENT_ALPHA,
+      normalApproxValid: test.normalApproxValid,
+    };
+  });
+
+  const srm = srmTest(counts.map((c) => c.exposures), counts.map((c) => c.weight));
   return {
     experimentId: experiment.id,
     expKey: experiment.expKey,
     metricEventName: experiment.metricEventName,
-    variants: experiment.variants.map((variant) => {
-      const row = byVariant.get(variant.key);
-      const exposures = Number(row?.exposures ?? 0);
-      const conversions = Number(row?.conversions ?? 0);
-      return { variantKey: variant.key, exposures, conversions, conversionRate: exposures > 0 ? Math.round((conversions / exposures) * 1000) / 10 : 0 };
-    }),
+    variants,
+    totalExposures: counts.reduce((sum, c) => sum + c.exposures, 0),
+    srm: srm ? { chiSquare: round2(srm.chiSquare), pValue: roundP(srm.pValue), mismatch: srm.mismatch } : null,
+    requiredSamplePerVariant: requiredSamplePerVariant(controlRate),
   };
 }
 

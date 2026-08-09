@@ -195,6 +195,45 @@ export const ANALYTICS_RETENTION_MODE_LABELS: Record<(typeof ANALYTICS_RETENTION
 export const ANALYTICS_RETENTION_MODE_OPTIONS: Array<{ value: (typeof ANALYTICS_RETENTION_MODES)[number]; label: string }> =
   createLabelOptions(ANALYTICS_RETENTION_MODES, ANALYTICS_RETENTION_MODE_LABELS);
 
+// ─── 留存周期粒度（日 / 周 / 月留存）──────────────────────────────────────────
+export const ANALYTICS_RETENTION_PERIOD_TYPES = ['day', 'week', 'month'] as const;
+
+export const ANALYTICS_RETENTION_PERIOD_TYPE_LABELS: Record<(typeof ANALYTICS_RETENTION_PERIOD_TYPES)[number], string> = {
+  day: '日留存',
+  week: '周留存',
+  month: '月留存',
+};
+
+export const ANALYTICS_RETENTION_PERIOD_TYPE_OPTIONS: Array<{ value: (typeof ANALYTICS_RETENTION_PERIOD_TYPES)[number]; label: string }> =
+  createLabelOptions(ANALYTICS_RETENTION_PERIOD_TYPES, ANALYTICS_RETENTION_PERIOD_TYPE_LABELS);
+
+/** 留存矩阵列标题前缀（day → Day 1、week → Week 1、month → Month 1） */
+export const ANALYTICS_RETENTION_PERIOD_UNIT_LABELS: Record<(typeof ANALYTICS_RETENTION_PERIOD_TYPES)[number], string> = {
+  day: '日',
+  week: '周',
+  month: '月',
+};
+
+/**
+ * 各粒度的回溯窗口与周期列数上限。
+ * 周/月留存必须能回溯足够长的窗口，否则矩阵右下角永远是空的：
+ * 12 周留存至少需要 84 天原始数据，12 个月留存至少需要 365 天。
+ */
+export const ANALYTICS_RETENTION_PERIOD_LIMITS: Record<
+  (typeof ANALYTICS_RETENTION_PERIOD_TYPES)[number],
+  { defaultDays: number; maxDays: number; defaultPeriods: number; maxPeriods: number }
+> = {
+  day: { defaultDays: 14, maxDays: 90, defaultPeriods: 8, maxPeriods: 30 },
+  week: { defaultDays: 84, maxDays: 365, defaultPeriods: 8, maxPeriods: 26 },
+  month: { defaultDays: 365, maxDays: 730, defaultPeriods: 6, maxPeriods: 24 },
+};
+
+/** 留存回溯窗口的全局上限（各粒度再按 ANALYTICS_RETENTION_PERIOD_LIMITS 收敛） */
+export const ANALYTICS_RETENTION_MAX_DAYS = 730;
+
+/** 留存周期列数的全局上限（各粒度再按 ANALYTICS_RETENTION_PERIOD_LIMITS 收敛） */
+export const ANALYTICS_RETENTION_MAX_PERIODS = 30;
+
 // ─── 行为中心阶段 1：服务端权威语义事件（首批：支付 / 工作流 / 会员关键操作）──────
 // 命名约定：与来源事件总线类型同名（支付）或加 `workflow.` 前缀（工作流），会员业务事件用 `member.<域>.<动作>`。
 // 业务域只应引用这些常量拼装 eventName，禁止裸字符串拼写，避免事件字典与实际上报口径漂移。

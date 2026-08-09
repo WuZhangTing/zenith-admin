@@ -1,0 +1,2 @@
+CREATE INDEX "analytics_user_profiles_properties_gin_idx" ON "analytics_user_profiles" USING gin ("properties");--> statement-breakpoint
+CREATE INDEX "user_events_properties_gin_idx" ON "user_events" USING gin ("properties");

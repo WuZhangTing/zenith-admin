@@ -12,14 +12,16 @@
 import { and, eq, gte, inArray, isNotNull, sql, type SQL } from 'drizzle-orm';
 import { db } from '../../db';
 import { userEvents } from '../../db/schema';
-import type { FunnelQuery, FunnelResult, RetentionResult, AnalyticsRetentionMode } from '@zenith/shared/analytics';
+import type { FunnelQuery, FunnelResult, RetentionResult, AnalyticsRetentionMode, AnalyticsRetentionPeriodType } from '@zenith/shared/analytics';
+import { ANALYTICS_RETENTION_PERIOD_LIMITS, ANALYTICS_RETENTION_PERIOD_TYPES } from '@zenith/shared/analytics';
 import { tenantScope } from '../../lib/tenant';
 import { mergeWhere } from '../../lib/where-helpers';
 import { clampDays, startOfDaysAgo } from '../../lib/analytics-helpers';
-import { APP_TIME_ZONE } from '../../lib/datetime';
-import { dateAxis } from './analytics.service';
+import { APP_TIME_ZONE, formatDate, parseDateRangeStart } from '../../lib/datetime';
 import { buildJsonPropertyCondition } from './analytics-property-filter';
 import { ensureSegmentAccessible, segmentMemberDistinctIdSubquery } from './analytics-segments.service';
+
+const DAY_MS = 86_400_000;
 
 // ════════════════════════════════════════════════════════════════════════════
 // 漏斗分析（有序转化：严格步骤先后顺序 + 转化窗口）
@@ -123,22 +125,70 @@ export async function getFunnel(input: FunnelQuery): Promise<FunnelResult> {
 // 留存分析（双口径：first_seen 全历史真实首访 / window_first 当前窗口首现）
 // ════════════════════════════════════════════════════════════════════════════
 
-export interface RetentionQuery { days: unknown; mode?: AnalyticsRetentionMode }
+export interface RetentionQuery {
+  days?: unknown;
+  mode?: AnalyticsRetentionMode;
+  periodType?: AnalyticsRetentionPeriodType;
+  maxPeriods?: unknown;
+}
+
+/** PG `date_trunc` 的周起点是周一，月起点是 1 日；轴生成必须与之完全一致，否则矩阵会整体错位 */
+function truncPeriodStart(date: Date, periodType: AnalyticsRetentionPeriodType): Date {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  if (periodType === 'week') {
+    // getDay(): 0=周日，转换为「距本周一的天数」
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  } else if (periodType === 'month') {
+    d.setDate(1);
+  }
+  return d;
+}
+
+function nextPeriodStart(date: Date, periodType: AnalyticsRetentionPeriodType): Date {
+  const d = new Date(date);
+  if (periodType === 'month') d.setMonth(d.getMonth() + 1);
+  else d.setDate(d.getDate() + (periodType === 'week' ? 7 : 1));
+  return d;
+}
 
 /**
- * - window_first（默认口径不变）：队列 = 用户在本次查询窗口内首次出现的日期（原有实现）
- * - first_seen：队列 = 用户在全部历史（不受本次查询窗口限制）中真正首次出现的日期，
- *   仅保留首次日落在本次分析轴内的队列；真实首访日的 MIN() 计算不能提前做日期过滤，
+ * 生成与 PG `date_trunc(periodType, ...)` 对齐的周期起点轴，覆盖 [今天 - (days-1), 今天]。
+ * 返回值即矩阵的队列轴，`axis[ci + p]` 表示队列 ci 之后的第 p 个周期。
+ */
+export function retentionPeriodAxis(periodType: AnalyticsRetentionPeriodType, days: number): string[] {
+  const todayStart = parseDateRangeStart(formatDate(new Date())) ?? new Date();
+  const windowStart = new Date(todayStart.getTime() - (days - 1) * DAY_MS);
+  const lastPeriod = truncPeriodStart(todayStart, periodType);
+  const axis: string[] = [];
+  for (let cursor = truncPeriodStart(windowStart, periodType); cursor <= lastPeriod; cursor = nextPeriodStart(cursor, periodType)) {
+    axis.push(formatDate(cursor));
+  }
+  return axis;
+}
+
+/**
+ * - window_first（默认口径不变）：队列 = 用户在本次查询窗口内首次出现的周期
+ * - first_seen：队列 = 用户在全部历史（不受本次查询窗口限制）中真正首次出现的周期，
+ *   仅保留首次周期落在本次分析轴内的队列；真实首访日的 MIN() 计算不能提前做日期过滤，
  *   否则会把"窗口内首次出现"误判为"全局首次出现"
+ *
+ * periodType 决定队列与回访的分桶粒度（日 / 周 / 月留存），maxPeriods 决定矩阵列数。
  */
 export async function getRetention(input: RetentionQuery): Promise<RetentionResult> {
-  const days = clampDays(input.days, 14, 60);
+  const periodType: AnalyticsRetentionPeriodType = ANALYTICS_RETENTION_PERIOD_TYPES.includes(input.periodType as AnalyticsRetentionPeriodType)
+    ? (input.periodType as AnalyticsRetentionPeriodType)
+    : 'day';
+  const limits = ANALYTICS_RETENTION_PERIOD_LIMITS[periodType];
+  const days = clampDays(input.days, limits.defaultDays, limits.maxDays);
+  const maxPeriods = Math.min(Math.max(Number(input.maxPeriods) || limits.defaultPeriods, 1), limits.maxPeriods);
   const mode: AnalyticsRetentionMode = input.mode === 'first_seen' ? 'first_seen' : 'window_first';
   const start = startOfDaysAgo(days);
-  const axis = dateAxis(days);
+  const axis = retentionPeriodAxis(periodType, days);
   const axisStart = axis[0];
   const axisEnd = axis[axis.length - 1];
   const activityWhere = mergeWhere(and(gte(userEvents.createdAt, start), isNotNull(userEvents.distinctId)), tenantScope(userEvents))!;
+  // periodType 来自白名单枚举，仍以绑定参数传入（date_trunc 首参为 text），不做字符串拼接
+  const activityPeriod = sql`to_char(date_trunc(${periodType}, timezone(${APP_TIME_ZONE}, ${userEvents.createdAt})), 'YYYY-MM-DD')`;
 
   let rows: Array<{ cohort_date: string; day: string; active: number }>;
   if (mode === 'first_seen') {
@@ -147,13 +197,13 @@ export async function getRetention(input: RetentionQuery): Promise<RetentionResu
     rows = (await db.execute(sql`
       WITH activity AS (
         SELECT DISTINCT ${userEvents.distinctId} AS distinct_id,
-               to_char(timezone(${APP_TIME_ZONE}, ${userEvents.createdAt}), 'YYYY-MM-DD') AS day
+               ${activityPeriod} AS day
         FROM ${userEvents}
         WHERE ${activityWhere}
       ),
       true_first_seen AS (
         SELECT ${userEvents.distinctId} AS distinct_id,
-               to_char(timezone(${APP_TIME_ZONE}, MIN(${userEvents.createdAt})), 'YYYY-MM-DD') AS cohort_date
+               to_char(date_trunc(${periodType}, timezone(${APP_TIME_ZONE}, MIN(${userEvents.createdAt}))), 'YYYY-MM-DD') AS cohort_date
         FROM ${userEvents}
         WHERE ${historyWhere}
         GROUP BY ${userEvents.distinctId}
@@ -168,7 +218,7 @@ export async function getRetention(input: RetentionQuery): Promise<RetentionResu
     rows = (await db.execute(sql`
       WITH user_days AS (
         SELECT DISTINCT ${userEvents.distinctId} AS distinct_id,
-               to_char(timezone(${APP_TIME_ZONE}, ${userEvents.createdAt}), 'YYYY-MM-DD') AS day
+               ${activityPeriod} AS day
         FROM ${userEvents}
         WHERE ${activityWhere}
       ),
@@ -185,11 +235,11 @@ export async function getRetention(input: RetentionQuery): Promise<RetentionResu
   const matrix = new Map<string, number>();
   for (const r of rows) matrix.set(`${r.cohort_date}\u0001${r.day}`, Number(r.active));
 
-  const maxPeriods = Math.min(days, 8);
-  const periods = Array.from({ length: maxPeriods }, (_, i) => i);
+  // 列数不能超过轴长度：否则最早队列之外的列对所有队列都是 null，只会撑宽表格
+  const periods = Array.from({ length: Math.min(maxPeriods, axis.length) }, (_, i) => i);
 
   const cohorts = axis.map((cohortDate, ci) => {
-    // 队列用户首日必然活跃：矩阵对角线即队列规模
+    // 队列用户首个周期必然活跃：矩阵对角线即队列规模
     const size = matrix.get(`${cohortDate}\u0001${cohortDate}`) ?? 0;
     const values = periods.map((p) => {
       const targetStr = axis[ci + p];
@@ -201,5 +251,5 @@ export async function getRetention(input: RetentionQuery): Promise<RetentionResu
     return { cohortDate, cohortSize: size, values };
   });
 
-  return { cohorts, periods, mode };
+  return { cohorts, periods, mode, periodType, days };
 }

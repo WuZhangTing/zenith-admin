@@ -414,6 +414,9 @@ export interface FunnelQuery {
 /** 留存计算口径：first_seen = 全历史真实首访；window_first = 当前统计窗口内首次出现 */
 export type AnalyticsRetentionMode = 'first_seen' | 'window_first';
 
+/** 留存周期粒度：day = 日留存，week = 周留存，month = 月留存 */
+export type AnalyticsRetentionPeriodType = 'day' | 'week' | 'month';
+
 export interface RetentionResult {
   cohorts: {
     cohortDate: string;
@@ -422,6 +425,10 @@ export interface RetentionResult {
   }[];
   periods: number[];
   mode: AnalyticsRetentionMode;
+  /** 本次结果的周期粒度，前端据此渲染「Day N / Week N / Month N」列头 */
+  periodType: AnalyticsRetentionPeriodType;
+  /** 实际回溯天数（服务端按粒度收敛后的值） */
+  days: number;
 }
 
 export interface PathNode { id: string; label: string; value: number }
@@ -750,6 +757,28 @@ export interface AnalyticsExperimentReportVariant {
   exposures: number;
   conversions: number;
   conversionRate: number;
+  /** 是否为对照组（变体列表首项）；对照组的所有对比字段均为 null */
+  isControl: boolean;
+  /** 相对对照组的绝对提升（百分点） */
+  absoluteUplift: number | null;
+  /** 相对对照组的相对提升（%） */
+  relativeUplift: number | null;
+  /** 双比例 Z 检验双尾 p 值 */
+  pValue: number | null;
+  /** 绝对提升的 95% 置信区间（百分点） */
+  confidenceLow: number | null;
+  confidenceHigh: number | null;
+  /** p < 0.05 且正态近似成立时才为 true */
+  significant: boolean;
+  /** 正态近似是否成立（各组成功/失败数均 >= 5）；false 时 p 值不可信 */
+  normalApproxValid: boolean;
+}
+
+/** 样本比例失衡检验：命中表示分流异常，转化率对比不可信 */
+export interface AnalyticsExperimentSrm {
+  chiSquare: number;
+  pValue: number;
+  mismatch: boolean;
 }
 
 export interface AnalyticsExperimentReport {
@@ -757,6 +786,10 @@ export interface AnalyticsExperimentReport {
   expKey: string;
   metricEventName: string;
   variants: AnalyticsExperimentReportVariant[];
+  totalExposures: number;
+  srm: AnalyticsExperimentSrm | null;
+  /** 检测 10% 相对提升、80% 功效所需的每组曝光量（基于对照组当前转化率） */
+  requiredSamplePerVariant: number | null;
 }
 
 // ─── 行为中心阶段 2：分群触达 ──────────────────────────────────────────────────

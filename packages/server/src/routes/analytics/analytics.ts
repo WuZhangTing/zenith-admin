@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
-import { ANALYTICS_QUALITY_ISSUE_TYPES, ANALYTICS_SITE_KEY_HEADER } from '@zenith/shared/analytics';
+import { ANALYTICS_QUALITY_ISSUE_TYPES, ANALYTICS_RETENTION_MAX_DAYS, ANALYTICS_RETENTION_MAX_PERIODS, ANALYTICS_RETENTION_MODES, ANALYTICS_RETENTION_PERIOD_TYPES, ANALYTICS_SITE_KEY_HEADER } from '@zenith/shared/analytics';
 import { authMiddleware } from '../../middleware/auth';
 import { optionalAuthMiddleware } from '../../middleware/optional-auth';
 import { guard } from '../../middleware/guard';
@@ -201,8 +201,10 @@ const retentionRoute = defineOpenAPIRoute({
     middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
     request: {
       query: z.object({
-        days: z.coerce.number().int().min(1).max(60).optional().default(14),
-        mode: z.enum(['first_seen', 'window_first']).optional().default('first_seen'),
+        days: z.coerce.number().int().min(1).max(ANALYTICS_RETENTION_MAX_DAYS).optional(),
+        mode: z.enum(ANALYTICS_RETENTION_MODES).optional().default('first_seen'),
+        periodType: z.enum(ANALYTICS_RETENTION_PERIOD_TYPES).optional().default('day'),
+        maxPeriods: z.coerce.number().int().min(1).max(ANALYTICS_RETENTION_MAX_PERIODS).optional(),
       }),
     },
     responses: { ...ok(RetentionResultDTO, '留存'), ...commonErrorResponses },

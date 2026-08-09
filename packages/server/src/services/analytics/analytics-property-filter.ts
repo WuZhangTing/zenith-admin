@@ -47,6 +47,19 @@ function compareExpr(expr: SQL, op: AnalyticsSegmentCompareOp, value: unknown): 
 }
 
 /**
+ * 除 `neq` 外，所有运算符都要求 `properties ->> key` 非空，即该 key 必然存在，
+ * 因此可以安全地前置一个 `properties ? key` 合取项：它被原条件蕴含，不改变结果集，
+ * 但能命中 `properties` 上的 GIN 索引（默认 jsonb_ops 支持 `?`），把「时间窗内逐行求值
+ * jsonb 表达式」降级为位图索引扫描 + 精确重查。
+ *
+ * `neq` 语义上包含「该 key 不存在」的行（`IS NULL OR != value`），键存在并不被蕴含，
+ * 加上该合取项会漏掉这些行，故必须排除。
+ */
+function keyExistenceIsImplied(op: AnalyticsSegmentCompareOp): boolean {
+  return op !== 'neq';
+}
+
+/**
  * jsonb 属性过滤条件（`properties ->> key`）→ 安全 SQL；key 需匹配 {@link PROPERTY_KEY_RE}。
  * `column` 必须是 jsonb 类型列（如 userEvents.properties / analyticsUserProfiles.properties）。
  */
@@ -55,7 +68,10 @@ export function buildJsonPropertyCondition(column: PgColumn, filter: AnalyticsSe
     throw new HTTPException(400, { message: `非法的属性 key：${filter.key}` });
   }
   const expr = sql`(${column} ->> ${filter.key})`;
-  return compareExpr(expr, filter.op, filter.value);
+  const compare = compareExpr(expr, filter.op, filter.value);
+  if (!keyExistenceIsImplied(filter.op)) return compare;
+  // key 显式 ::text：`?` 的右操作数若是未定型参数，PG 会在运算符解析阶段报 "operator is not unique"
+  return sql`(${column} ? ${filter.key}::text) AND ${compare}`;
 }
 
 /** 直接列比较（枚举/数值列，如 identityType / userId / memberId），文本化比较以统一处理枚举与数值。 */

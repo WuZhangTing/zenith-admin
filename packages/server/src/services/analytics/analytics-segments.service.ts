@@ -20,6 +20,7 @@ import { mergeWhere, escapeLike } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentCreateTenantId, tenantScope } from '../../lib/tenant';
 import { startOfDaysAgo } from '../../lib/analytics-helpers';
+import logger from '../../lib/logger';
 import { buildJsonPropertyCondition, buildColumnCompareCondition, PROPERTY_KEY_RE } from './analytics-property-filter';
 
 export function mapSegment(row: AnalyticsUserSegmentRow) {
@@ -222,6 +223,16 @@ export function buildSegmentDistinctIdSql(rules: AnalyticsSegmentRule, tenantId:
  */
 export async function materializeSegment(segmentId: number, executor?: DbExecutor): Promise<{ estimatedSize: number }> {
   const segment = await ensureSegmentExists(segmentId);
+  return materializeSegmentRow(segment, executor);
+}
+
+/**
+ * 物化核心：不做归属校验，调用方负责。
+ * 定时刷新是平台级作业（无登录用户上下文），无法走 `ensureSegmentExists` 的 tenantScope，
+ * 因此拆出本函数供 cron 逐个租户的分群复用。
+ */
+async function materializeSegmentRow(segment: AnalyticsUserSegmentRow, executor?: DbExecutor): Promise<{ estimatedSize: number }> {
+  const segmentId = segment.id;
   const distinctIdSql = buildSegmentDistinctIdSql(segment.rules, segment.tenantId);
 
   const run = async (tx: DbExecutor) => {
@@ -243,4 +254,33 @@ export async function materializeSegment(segmentId: number, executor?: DbExecuto
 
   if (executor) return run(executor);
   return db.transaction((tx) => run(tx));
+}
+
+/**
+ * 定时重算全部启用中的分群（cron）。
+ *
+ * 分群快照不自动刷新时会静默过期——触达活动会按几天前的成员名单发送，
+ * 且分析页的 segmentId 过滤结果与实际人群不符，两者都不报错，极难发现。
+ *
+ * 单个分群失败不影响其余分群：规则可能引用了已删除的属性 key，
+ * 一个坏分群不应阻塞整批刷新。
+ */
+export async function refreshAllSegments(): Promise<{ total: number; succeeded: number; failed: number }> {
+  const segments = await db
+    .select()
+    .from(analyticsUserSegments)
+    .where(eq(analyticsUserSegments.status, 'enabled'));
+
+  let succeeded = 0;
+  let failed = 0;
+  for (const segment of segments) {
+    try {
+      await materializeSegmentRow(segment);
+      succeeded++;
+    } catch (err) {
+      failed++;
+      logger.error('[analytics-segments] 分群定时刷新失败', { segmentId: segment.id, name: segment.name, err });
+    }
+  }
+  return { total: segments.length, succeeded, failed };
 }

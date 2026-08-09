@@ -3,7 +3,7 @@
  */
 import { z } from '@hono/zod-openapi';
 import { jsonByteLength, jsonDepth } from '@zenith/shared/core';
-import { ANALYTICS_PROPERTIES_MAX_BYTES, ANALYTICS_ENVIRONMENTS, ANALYTICS_EVENT_PROPERTY_TYPES, ANALYTICS_EVENT_SOURCES, ANALYTICS_IDENTITY_TYPES, ANALYTICS_QUALITY_ISSUE_TYPES, ANALYTICS_SEGMENT_COMPARE_OPS, ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS, ANALYTICS_EVENT_QUERY_METRICS, ANALYTICS_RETENTION_MODES, ANALYTICS_CAMPAIGN_CHANNELS, ANALYTICS_CAMPAIGN_STATUSES, ANALYTICS_EXPERIMENT_STATUSES } from '@zenith/shared/analytics';
+import { ANALYTICS_PROPERTIES_MAX_BYTES, ANALYTICS_ENVIRONMENTS, ANALYTICS_EVENT_PROPERTY_TYPES, ANALYTICS_EVENT_SOURCES, ANALYTICS_IDENTITY_TYPES, ANALYTICS_QUALITY_ISSUE_TYPES, ANALYTICS_SEGMENT_COMPARE_OPS, ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS, ANALYTICS_EVENT_QUERY_METRICS, ANALYTICS_RETENTION_MODES, ANALYTICS_RETENTION_PERIOD_TYPES, ANALYTICS_CAMPAIGN_CHANNELS, ANALYTICS_CAMPAIGN_STATUSES, ANALYTICS_EXPERIMENT_STATUSES } from '@zenith/shared/analytics';
 
 const eventTypeEnum = z.enum([
   'page_view', 'page_leave', 'feature_use', 'area_click', 'custom', 'perf', 'api_request', 'identify',
@@ -29,6 +29,8 @@ const pagedFields = {
   pageSize: z.number().int(),
 };
 const retentionModeEnum = z.enum(ANALYTICS_RETENTION_MODES);
+
+const retentionPeriodTypeEnum = z.enum(ANALYTICS_RETENTION_PERIOD_TYPES);
 const campaignChannelEnum = z.enum(ANALYTICS_CAMPAIGN_CHANNELS);
 const campaignStatusEnum = z.enum(ANALYTICS_CAMPAIGN_STATUSES);
 const experimentStatusEnum = z.enum(ANALYTICS_EXPERIMENT_STATUSES);
@@ -311,6 +313,8 @@ export const RetentionResultDTO = z
     ),
     periods: z.array(z.number().int()),
     mode: retentionModeEnum,
+    periodType: retentionPeriodTypeEnum,
+    days: z.number().int(),
   })
   .openapi('RetentionResult');
 
@@ -1004,7 +1008,22 @@ export const AnalyticsExperimentReportDTO = z
       exposures: z.number().int(),
       conversions: z.number().int(),
       conversionRate: z.number(),
+      isControl: z.boolean(),
+      absoluteUplift: z.number().nullable(),
+      relativeUplift: z.number().nullable(),
+      pValue: z.number().nullable(),
+      confidenceLow: z.number().nullable(),
+      confidenceHigh: z.number().nullable(),
+      significant: z.boolean(),
+      normalApproxValid: z.boolean(),
     })),
+    totalExposures: z.number().int(),
+    srm: z.object({
+      chiSquare: z.number(),
+      pValue: z.number(),
+      mismatch: z.boolean(),
+    }).nullable(),
+    requiredSamplePerVariant: z.number().int().nullable(),
   })
   .openapi('AnalyticsExperimentReport');
 

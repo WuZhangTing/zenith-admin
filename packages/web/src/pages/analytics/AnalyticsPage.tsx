@@ -58,10 +58,10 @@ import {
   useSaveFunnelReport,
   useDeleteFunnelReport,
 } from '@/hooks/queries/analytics';
-import type { AnalyticsRetentionMode, AnalyticsSavedReport, AnalyticsSegmentPropertyFilter, DimensionBreakdown, FeatureStats, HeatmapData, HeatmapElementItem, HeatmapPageListItem, HeatmapRageClickItem, PageStats, PathLink } from '@zenith/shared/analytics';
+import type { AnalyticsRetentionMode, AnalyticsRetentionPeriodType, AnalyticsSavedReport, AnalyticsSegmentPropertyFilter, DimensionBreakdown, FeatureStats, HeatmapData, HeatmapElementItem, HeatmapPageListItem, HeatmapRageClickItem, PageStats, PathLink } from '@zenith/shared/analytics';
 import type { UserStats } from '@zenith/shared/identity';
 import type { SessionListItem } from '@zenith/shared/platform';
-import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_EVENT_SOURCE_OPTIONS, ANALYTICS_PATH_EXIT_PAGE, ANALYTICS_RETENTION_MODE_OPTIONS, ANALYTICS_SEGMENT_COMPARE_OP_OPTIONS } from '@zenith/shared/analytics';
+import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_EVENT_SOURCE_OPTIONS, ANALYTICS_PATH_EXIT_PAGE, ANALYTICS_RETENTION_MODE_OPTIONS, ANALYTICS_RETENTION_PERIOD_LIMITS, ANALYTICS_RETENTION_PERIOD_TYPE_OPTIONS, ANALYTICS_RETENTION_PERIOD_UNIT_LABELS, ANALYTICS_SEGMENT_COMPARE_OP_OPTIONS } from '@zenith/shared/analytics';
 import AnalyticsEventQueryTab from './AnalyticsEventQueryTab';
 import AnalyticsExperimentsTab from './AnalyticsExperimentsTab';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
@@ -75,12 +75,35 @@ function msToReadable(ms: number | null): string {
 }
 const DAYS_OPTIONS = [{ label: '近 7 天', value: 7 }, { label: '近 30 天', value: 30 }, { label: '近 90 天', value: 90 }];
 
-const RETENTION_DAYS_OPTIONS = [
-  { label: '近 7 天', value: 7 },
-  { label: '近 14 天', value: 14 },
-  { label: '近 30 天', value: 30 },
-  { label: '近 60 天', value: 60 },
-];
+const RETENTION_DAYS_OPTIONS: Record<AnalyticsRetentionPeriodType, Array<{ label: string; value: number }>> = {
+  day: [
+    { label: '近 7 天', value: 7 },
+    { label: '近 14 天', value: 14 },
+    { label: '近 30 天', value: 30 },
+    { label: '近 60 天', value: 60 },
+    { label: '近 90 天', value: 90 },
+  ],
+  week: [
+    { label: '近 8 周', value: 56 },
+    { label: '近 12 周', value: 84 },
+    { label: '近 26 周', value: 182 },
+    { label: '近 52 周', value: 365 },
+  ],
+  month: [
+    { label: '近 6 个月', value: 183 },
+    { label: '近 12 个月', value: 365 },
+    { label: '近 24 个月', value: 730 },
+  ],
+};
+
+/** 周期列数候选：上限随粒度收敛，避免月留存出现 30 列空白 */
+function retentionPeriodOptions(periodType: AnalyticsRetentionPeriodType): Array<{ label: string; value: number }> {
+  const unit = ANALYTICS_RETENTION_PERIOD_UNIT_LABELS[periodType];
+  const { maxPeriods } = ANALYTICS_RETENTION_PERIOD_LIMITS[periodType];
+  return [4, 6, 8, 12, 16, 24, 30]
+    .filter((n) => n <= maxPeriods)
+    .map((n) => ({ label: `${n} 个${unit}周期`, value: n }));
+}
 
 const DEVICE_OPTIONS = [
   { label: '全部设备', value: '' },
@@ -1066,35 +1089,52 @@ function FunnelTab() {
 }
 
 function RetentionTab() {
-  const [days, setDays] = useState(14);
+  const [periodType, setPeriodType] = useState<AnalyticsRetentionPeriodType>('day');
+  const [days, setDays] = useState(ANALYTICS_RETENTION_PERIOD_LIMITS.day.defaultDays);
+  const [maxPeriods, setMaxPeriods] = useState(ANALYTICS_RETENTION_PERIOD_LIMITS.day.defaultPeriods);
   const [mode, setMode] = useState<AnalyticsRetentionMode>('first_seen');
-  const retentionQuery = useAnalyticsRetention(days, mode);
+  const retentionQuery = useAnalyticsRetention(days, mode, periodType, maxPeriods);
   const data = retentionQuery.data ?? null;
   const loading = retentionQuery.isFetching;
 
+  // 切换粒度时回溯窗口与列数必须一起改：60 天窗口配月留存只有 2 个队列，12 列全是空的
+  const handlePeriodTypeChange = (next: AnalyticsRetentionPeriodType) => {
+    setPeriodType(next);
+    setDays(ANALYTICS_RETENTION_PERIOD_LIMITS[next].defaultDays);
+    setMaxPeriods(ANALYTICS_RETENTION_PERIOD_LIMITS[next].defaultPeriods);
+  };
+
+  const periodUnit = ANALYTICS_RETENTION_PERIOD_UNIT_LABELS[periodType];
   const periodMax = data ? Math.max(1, ...data.cohorts.flatMap((c) => c.values.filter((v): v is number => v != null))) : 100;
 
   return (
     <div style={sectionStyle}>
       <SectionHeader
         title="用户留存"
-        description="按首访日期形成 cohort，单元格颜色越深表示留存率越高"
+        description="按首访周期形成 cohort，单元格颜色越深表示留存率越高"
         extra={(
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Select
+              value={periodType}
+              optionList={ANALYTICS_RETENTION_PERIOD_TYPE_OPTIONS}
+              onChange={(v) => handlePeriodTypeChange(v as AnalyticsRetentionPeriodType)}
+              style={{ width: 120 }}
+            />
             <Select
               value={mode}
               optionList={ANALYTICS_RETENTION_MODE_OPTIONS}
               onChange={(v) => setMode(v as AnalyticsRetentionMode)}
               style={{ width: 160 }}
             />
-            <Select value={days} optionList={RETENTION_DAYS_OPTIONS} onChange={(v) => setDays(Number(v))} style={{ width: 120 }} />
+            <Select value={days} optionList={RETENTION_DAYS_OPTIONS[periodType]} onChange={(v) => setDays(Number(v))} style={{ width: 130 }} />
+            <Select value={maxPeriods} optionList={retentionPeriodOptions(periodType)} onChange={(v) => setMaxPeriods(Number(v))} style={{ width: 140 }} />
           </div>
         )}
       />
       <Typography.Text type="tertiary" size="small">
         {mode === 'first_seen'
-          ? '真实首访口径：按用户全历史首次出现日期分组，仅展示首访日落在统计区间内的 cohort'
-          : '窗口首现口径：按当前统计窗口内首次出现日期分组（与旧版行为一致）'}
+          ? '真实首访口径：按用户全历史首次出现周期分组，仅展示首访周期落在统计区间内的 cohort'
+          : '窗口首现口径：按当前统计窗口内首次出现周期分组（与旧版行为一致）'}
       </Typography.Text>
       <Card bodyStyle={{ padding: 16, overflowX: 'auto' }}>
         {loading && !data ? emptyOrSpin(true) : !data?.cohorts.length ? <Empty description="暂无留存数据" /> : (
@@ -1103,7 +1143,7 @@ function RetentionTab() {
               <tr>
                 <th style={{ textAlign: 'left', padding: '8px 12px 8px 10px', fontSize: 12, color: 'var(--semi-color-text-2)', fontWeight: 500, width: '1%', whiteSpace: 'nowrap' }}>同期群</th>
                 <th style={{ textAlign: 'right', padding: '8px 14px 8px 10px', fontSize: 12, color: 'var(--semi-color-text-2)', fontWeight: 500, width: '1%', whiteSpace: 'nowrap' }}>人数</th>
-                {data.periods.map((period) => <th key={period} style={{ textAlign: 'center', padding: '8px 6px', fontSize: 12, color: 'var(--semi-color-text-2)', fontWeight: 500 }}>Day{period}</th>)}
+                {data.periods.map((period) => <th key={period} style={{ textAlign: 'center', padding: '8px 6px', fontSize: 12, color: 'var(--semi-color-text-2)', fontWeight: 500, whiteSpace: 'nowrap' }}>{`第 ${period} ${periodUnit}`}</th>)}
               </tr>
             </thead>
             <tbody>

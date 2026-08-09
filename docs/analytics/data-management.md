@@ -85,7 +85,7 @@
 
 ## 数据保留策略
 
-定时任务 `analyticsRetention`（每日 02:00）逐租户读取 `retentionDays` / `errorRetentionDays`，分别清理各租户过期埋点、会话与错误数据，并删除已无事件的空错误分组。没有配置记录的租户使用 180 / 90 天默认值。
+定时任务 `analyticsRetention`（每日 02:00）逐租户读取 `retentionDays` / `errorRetentionDays`，分别清理各租户过期埋点、会话、错误数据与埋点质量日聚合（`analytics_event_quality_daily`，跟随 `retentionDays`），并删除已无事件的空错误分组。没有配置记录的租户使用 180 / 90 天默认值。
 
 ## 用户分群
 

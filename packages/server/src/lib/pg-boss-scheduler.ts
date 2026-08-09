@@ -686,7 +686,13 @@ handlerRegistry.set('analyticsRollupDaily', async (params) => {
 handlerRegistry.set('analyticsRetention', async () => {
   const { runAnalyticsRetention } = await import('../services/analytics/analytics-rollup.service');
   const r = await runAnalyticsRetention();
-  return `数据保留清理：埋点 ${r.events} 条、会话 ${r.sessions} 条、错误 ${r.errors} 条`;
+  return `数据保留清理：埋点 ${r.events} 条、会话 ${r.sessions} 条、错误 ${r.errors} 条、质量聚合 ${r.qualityDaily} 条`;
+});
+
+handlerRegistry.set('analyticsSegmentRefresh', async () => {
+  const { refreshAllSegments } = await import('../services/analytics/analytics-segments.service');
+  const r = await refreshAllSegments();
+  return `分群定时刷新：共 ${r.total} 个，成功 ${r.succeeded} 个，失败 ${r.failed} 个`;
 });
 
 handlerRegistry.set('evaluateErrorAlerts', async () => {
