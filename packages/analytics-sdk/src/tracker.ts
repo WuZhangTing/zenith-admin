@@ -6,7 +6,7 @@
  * - 远程配置（开关/采样/黑名单/DNT）
  */
 import { onCLS, onINP, onLCP, onFCP, onTTFB, type Metric } from 'web-vitals';
-import { ANALYTICS_CONFIG_VERSION_KEY, ANALYTICS_SITE_KEY_HEADER, ANALYTICS_EXPERIMENT_EXPOSURE_EVENT } from '@zenith/shared/analytics';
+import { ANALYTICS_CONFIG_VERSION_KEY, ANALYTICS_SITE_KEY_HEADER, ANALYTICS_EXPERIMENT_EXPOSURE_EVENT, ANALYTICS_RAGE_CLICK_EVENT } from '@zenith/shared/analytics';
 import { TOKEN_KEY } from '@zenith/shared/core';
 import type { TrackEventInput, AnalyticsPublicConfig, AnalyticsEventSource, AnalyticsEnvironment, AnalyticsExperimentAssignment } from '@zenith/shared/analytics';
 import type { UserBehaviorEventType } from '@zenith/shared/identity';
@@ -628,7 +628,7 @@ class Tracker {
       this.rageState.lastTs = now;
       if (this.rageState.count === RAGE_CLICK_THRESHOLD) {
         this.track({
-          eventType: 'custom', eventName: '$rage_click', pagePath: globalThis.location.pathname,
+          eventType: 'custom', eventName: ANALYTICS_RAGE_CLICK_EVENT, pagePath: globalThis.location.pathname,
           elementKey: key.slice(0, 128), elementLabel: label.slice(0, 128),
           properties: { clicks: RAGE_CLICK_THRESHOLD, windowMs: RAGE_CLICK_WINDOW_MS },
         });

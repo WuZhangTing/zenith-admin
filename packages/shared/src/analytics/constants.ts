@@ -17,6 +17,9 @@ export const ANALYTICS_SITE_KEY_HEADER = 'X-Analytics-Site-Key';
 
 export const ANALYTICS_EXPERIMENT_EXPOSURE_EVENT = '$experiment_exposure';
 
+/** 挫败点击（同元素短时间连点）事件名，SDK 上报与服务端聚合共用 */
+export const ANALYTICS_RAGE_CLICK_EVENT = '$rage_click';
+
 // ─── 数据分析与报表 ────────────────────────────────────────────────────
 export const ANALYTICS_DEVICE_TYPE_LABELS: Record<AnalyticsDeviceType, string> = {
   desktop: '桌面端',

@@ -114,11 +114,32 @@
 
 ## 点击分布
 
-- `GET /api/analytics/heatmap-pages` 列出有区域点击数据的页面与区域；
-- `GET /api/analytics/heatmap?pagePath=&componentArea=` 返回归一化坐标点；
-- 前端以散点图展示点击落点分布（点大小 / 颜色随点击次数变化）。
+- `GET /api/analytics/heatmap-pages` 列出有点击坐标数据的页面与区域；
+- `GET /api/analytics/heatmap?pagePath=&componentArea=&days=&deviceType=&source=` 返回归一化坐标点与聚合指标；
+- 前端以散点图展示点击落点分布（点大小 / 颜色随点击次数变化），并配套指标卡与两张榜单。
 
-> 点击分布依赖手动接入 `trackAreaClick`（见 [埋点采集 SDK](./tracking#手动埋点-api)）。
+返回内容：
+
+| 字段 | 说明 |
+|------|------|
+| `points` | 50×50 分箱后的落点（坐标为分箱中心百分比）。每个分箱附带 `topLabel` / `topElementKey` / `topArea`（箱内出现最多的元素文案、key 与 UI 区域）、`uniqueUsers`（落点访客数）、`repeatRate`（人均重复点击 = `value / uniqueUsers`）与 `rage`（主元素是否命中挫败点击） |
+| `total` / `uniqueUsers` / `uniqueSessions` / `avgClicksPerUser` | 点击次数、点击访客数、点击会话数与人均点击 |
+| `topElements` | 热点元素 TOP 10：元素 key / 文案 / UI 区域、点击次数、点击人数与平均落点 |
+| `rageClicks` | 该页面的挫败点击（`$rage_click`）热点元素、发生次数、影响人数与最近发生时间 |
+
+散点图的两个视觉通道各承载一个指标，不再冗余：**点大小 = 点击次数**，**颜色 = 人均重复点击**
+（<1.5 绿 / 1.5–2.5 黄 / 2.5–4 橙 / ≥4 红）。1 次/人是正常点击，越高说明少数人在同一处反复点，
+通常是交互失效信号。挫败点击事件本身不带坐标，按主元素 key 关联回落点，命中的分箱加深色描边，
+使 `rageClicks` 榜单与图联动。
+
+**分箱在 SQL 侧完成**（`GROUP BY` 落点分箱），不再按行采样后在内存聚合，数据量大时不会静默丢点。
+
+> **按设备分开看**：落点坐标是视口百分比，桌面端与移动端的分布不可直接比较，混算会让热区失真。
+> `deviceType`（`desktop` / `mobile` / `tablet` / `bot` / `unknown`）与 `source`（`web_admin` / `web_member` / `server`）用于分端与分来源查看，传空字符串表示不筛选，传非法值返回 400。
+
+> 区域维度（`componentArea`）依赖手动接入 `trackAreaClick`（见 [埋点采集 SDK](./tracking#手动埋点-api)）；
+> 不选区域时为全页模式，聚合 autocapture 自动采集的视口坐标，无需任何埋点代码。
+> 挫败点击事件不带坐标与区域，因此 `rageClicks` 只受页面、时间与设备/来源筛选影响。
 
 ## A/B 实验最小闭环
 

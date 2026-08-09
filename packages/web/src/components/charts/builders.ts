@@ -663,7 +663,7 @@ interface ScatterPointOptions {
   readonly fill?: string | ((datum: ChartDatum) => string);
   readonly fillOpacity?: number;
   readonly stroke?: string | ((datum: ChartDatum) => string);
-  readonly lineWidth?: number;
+  readonly lineWidth?: number | ((datum: ChartDatum) => number);
 }
 
 export interface ScatterOptions {

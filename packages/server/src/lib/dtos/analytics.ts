@@ -170,9 +170,51 @@ export const FeatureStatsDTO = z
   .openapi('FeatureStats');
 
 // ─── 热力图 ───────────────────────────────────────────────────────────────────
-export const HeatmapPointDTO = z.object({ x: z.number(), y: z.number(), value: z.number() }).openapi('HeatmapPoint');
+export const HeatmapPointDTO = z
+  .object({
+    x: z.number(),
+    y: z.number(),
+    value: z.number(),
+    topLabel: z.string().nullable(),
+    topElementKey: z.string().nullable(),
+    topArea: z.string().nullable(),
+    uniqueUsers: z.number().int(),
+    repeatRate: z.number(),
+    rage: z.boolean(),
+  })
+  .openapi('HeatmapPoint');
+export const HeatmapElementItemDTO = z
+  .object({
+    elementKey: z.string(),
+    elementLabel: z.string().nullable(),
+    componentArea: z.string().nullable(),
+    count: z.number().int(),
+    uniqueUsers: z.number().int(),
+    avgX: z.number(),
+    avgY: z.number(),
+  })
+  .openapi('HeatmapElementItem');
+export const HeatmapRageClickItemDTO = z
+  .object({
+    elementKey: z.string().nullable(),
+    elementLabel: z.string().nullable(),
+    count: z.number().int(),
+    uniqueUsers: z.number().int(),
+    lastAt: z.string().nullable(),
+  })
+  .openapi('HeatmapRageClickItem');
 export const HeatmapDataDTO = z
-  .object({ pagePath: z.string(), componentArea: z.string(), points: z.array(HeatmapPointDTO), total: z.number().int() })
+  .object({
+    pagePath: z.string(),
+    componentArea: z.string(),
+    points: z.array(HeatmapPointDTO),
+    total: z.number().int(),
+    uniqueUsers: z.number().int(),
+    uniqueSessions: z.number().int(),
+    avgClicksPerUser: z.number(),
+    topElements: z.array(HeatmapElementItemDTO),
+    rageClicks: z.array(HeatmapRageClickItemDTO),
+  })
   .openapi('HeatmapData');
 export const HeatmapPageListDTO = z
   .object({

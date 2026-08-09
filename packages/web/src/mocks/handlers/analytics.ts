@@ -67,16 +67,55 @@ const MOCK_HEATMAP_PAGES: HeatmapPageListItem[] = [
 ];
 
 function buildMockHeatmapData(pagePath: string, area: string): HeatmapData {
-  const points: { x: number; y: number; value: number }[] = [];
+  const labels = ['查询', '新增', '编辑', '删除', '导出', '重置'];
+  const rageKeys = ['导出-btn', '提交-btn'];
+  const points: HeatmapData['points'] = [];
   const seed = pagePath.length + area.length;
   for (let i = 0; i < 120; i++) {
     const clusterX = [20, 45, 70, 85][(i + seed) % 4];
     const clusterY = [25, 55, 75][(i + seed) % 3];
     const x = clusterX + ((((i * 1237 + seed * 31) % 200) - 100) / 100) * 20;
     const y = clusterY + ((((i * 971 + seed * 17) % 200) - 100) / 100) * 18;
-    points.push({ x: Math.max(1, Math.min(99, x)), y: Math.max(1, Math.min(99, y)), value: Math.max(1, Math.floor(20 - i * 0.15)) });
+    const value = Math.max(1, Math.floor(20 - i * 0.15));
+    const label = i % 5 === 0 ? null : labels[(i + seed) % labels.length];
+    const uniqueUsers = Math.max(1, Math.round(value / (1 + ((i + seed) % 5) * 0.7)));
+    const elementKey = label ? `${label}-btn` : null;
+    points.push({
+      x: Math.max(1, Math.min(99, x)),
+      y: Math.max(1, Math.min(99, y)),
+      value,
+      topLabel: label,
+      topElementKey: elementKey,
+      topArea: area || (i % 2 === 0 ? 'search-toolbar' : 'table-actions'),
+      uniqueUsers,
+      repeatRate: Math.round((value / uniqueUsers) * 10) / 10,
+      rage: !!elementKey && rageKeys.includes(elementKey),
+    });
   }
-  return { pagePath, componentArea: area, points, total: 1847 };
+  const total = 1847;
+  const uniqueUsers = 214;
+  return {
+    pagePath,
+    componentArea: area,
+    points,
+    total,
+    uniqueUsers,
+    uniqueSessions: 386,
+    avgClicksPerUser: Math.round((total / uniqueUsers) * 10) / 10,
+    topElements: labels.map((label, i) => ({
+      elementKey: `${label}-btn`,
+      elementLabel: label,
+      componentArea: area || (i % 2 === 0 ? 'search-toolbar' : 'table-actions'),
+      count: 420 - i * 55,
+      uniqueUsers: 160 - i * 18,
+      avgX: 20 + i * 9,
+      avgY: 22 + i * 7,
+    })),
+    rageClicks: [
+      { elementKey: '导出-btn', elementLabel: '导出', count: 27, uniqueUsers: 9, lastAt: mockDateTime() },
+      { elementKey: '提交-btn', elementLabel: '提交', count: 14, uniqueUsers: 6, lastAt: mockDateTime() },
+    ],
+  };
 }
 
 const DEVICES = ['desktop', 'mobile', 'tablet'] as const;

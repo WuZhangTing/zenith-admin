@@ -4,7 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { db } from '../../db';
 import { userEvents, analyticsSessions, analyticsDailyRollup } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
-import type { TrackEventInput, AnalyticsEventSource, AnalyticsEnvironment, AnalyticsIdentityType } from '@zenith/shared/analytics';
+import type { TrackEventInput, AnalyticsEventSource, AnalyticsEnvironment, AnalyticsIdentityType, AnalyticsDeviceType } from '@zenith/shared/analytics';
+import { ANALYTICS_RAGE_CLICK_EVENT } from '@zenith/shared/analytics';
 import type { UserBehaviorEventType } from '@zenith/shared/identity';
 import { currentUserOrNull } from '../../lib/context';
 import { currentMemberOrNull } from '../../lib/member-context';
@@ -699,37 +700,154 @@ export async function getFeatureStats(q: FeatureStatsQuery) {
 }
 
 const HEATMAP_EVENT_TYPES = ['area_click', 'feature_use'] as const;
+const HEATMAP_BINS = 50;
+const HEATMAP_BIN_SIZE = 100 / HEATMAP_BINS;
+const HEATMAP_TOP_ELEMENT_LIMIT = 10;
+const HEATMAP_RAGE_CLICK_LIMIT = 10;
 
-export interface HeatmapQuery { pagePath: string; componentArea?: string; days?: number }
+export interface HeatmapQuery {
+  pagePath: string;
+  componentArea?: string;
+  days?: number;
+  deviceType?: AnalyticsDeviceType;
+  source?: AnalyticsEventSource;
+}
+
 export async function getHeatmapData(q: HeatmapQuery) {
   const days = clampDays(q.days, 30);
   const start = startOfDaysAgo(days);
+  // 页面级基础条件：设备/来源筛选同时作用于点击落点与挫败点击。
+  // 落点坐标是视口百分比，桌面与移动端混算会让分布失真，因此设备筛选是正确性需求而非装饰。
+  const pageConditions = [eq(userEvents.pagePath, q.pagePath), gte(userEvents.createdAt, start)];
+  if (q.deviceType) pageConditions.push(eq(userEvents.deviceType, q.deviceType));
+  if (q.source) pageConditions.push(eq(userEvents.source, q.source));
+
   // componentArea 为空 = 全页模式：聚合该页所有带坐标的点击（含 autocapture 视口坐标）
-  const conditions = [
+  const clickConditions = [
+    ...pageConditions,
     inArray(userEvents.eventType, [...HEATMAP_EVENT_TYPES]),
-    eq(userEvents.pagePath, q.pagePath),
     isNotNull(userEvents.clickX),
     isNotNull(userEvents.clickY),
-    gte(userEvents.createdAt, start),
   ];
-  if (q.componentArea) conditions.push(eq(userEvents.componentArea, q.componentArea));
-  const where = mergeWhere(and(...conditions), tenantScope(userEvents));
-  const rows = await db.select({ x: userEvents.clickX, y: userEvents.clickY }).from(userEvents).where(where).limit(5000);
+  if (q.componentArea) clickConditions.push(eq(userEvents.componentArea, q.componentArea));
+  const clickWhere = mergeWhere(and(...clickConditions), tenantScope(userEvents));
 
-  const BINS = 50;
-  const cellMap = new Map<string, number>();
-  for (const r of rows) {
-    if (r.x == null || r.y == null) continue;
-    const cx = Math.min(Math.floor((r.x / 100) * BINS), BINS - 1);
-    const cy = Math.min(Math.floor((r.y / 100) * BINS), BINS - 1);
-    const key = `${cx},${cy}`;
-    cellMap.set(key, (cellMap.get(key) ?? 0) + 1);
-  }
-  const points = Array.from(cellMap.entries()).map(([key, value]) => {
-    const [cx, cy] = key.split(',').map(Number);
-    return { x: (cx / BINS) * 100 + 100 / BINS / 2, y: (cy / BINS) * 100 + 100 / BINS / 2, value };
+  const binX = sql<number>`LEAST(FLOOR(${userEvents.clickX} / ${HEATMAP_BIN_SIZE}), ${HEATMAP_BINS - 1})::int`;
+  const binY = sql<number>`LEAST(FLOOR(${userEvents.clickY} / ${HEATMAP_BIN_SIZE}), ${HEATMAP_BINS - 1})::int`;
+  // 分组内出现最多的取值；MODE 对 NULL 的处理依版本而异，显式 FILTER 保证只统计非空行
+  const dominant = (col: PgColumn) =>
+    sql<string | null>`MODE() WITHIN GROUP (ORDER BY ${col}) FILTER (WHERE ${col} IS NOT NULL)`;
+  const dominantLabel = dominant(userEvents.elementLabel);
+
+  const [binRows, totalRows, elementRows, rageRows] = await Promise.all([
+    // 分箱在 SQL 侧完成：旧实现取前 5000 行再内存分箱，数据量大时会静默丢点。
+    // GROUP BY 用序号引用 select 列：drizzle 在 select 与 groupBy 中渲染的列限定不一致，
+    // 重复表达式会被 PG 判为「未出现在 GROUP BY 中」（42803）
+    db
+      .select({
+        cx: binX,
+        cy: binY,
+        value: sql<number>`COUNT(*)::int`,
+        uniqueUsers: countDistinct(userEvents.distinctId),
+        topLabel: dominantLabel,
+        topElementKey: dominant(userEvents.elementKey),
+        topArea: dominant(userEvents.componentArea),
+      })
+      .from(userEvents)
+      .where(clickWhere)
+      .groupBy(sql`1, 2`),
+    db
+      .select({
+        total: sql<number>`COUNT(*)::int`,
+        uniqueUsers: countDistinct(userEvents.distinctId),
+        uniqueSessions: countDistinct(userEvents.sessionId),
+      })
+      .from(userEvents)
+      .where(clickWhere),
+    db
+      .select({
+        elementKey: userEvents.elementKey,
+        elementLabel: dominantLabel,
+        componentArea: sql<string | null>`MAX(${userEvents.componentArea})`,
+        count: sql<number>`COUNT(*)::int`,
+        uniqueUsers: countDistinct(userEvents.distinctId),
+        avgX: sql<number>`ROUND(AVG(${userEvents.clickX})::numeric, 1)::float8`,
+        avgY: sql<number>`ROUND(AVG(${userEvents.clickY})::numeric, 1)::float8`,
+      })
+      .from(userEvents)
+      .where(mergeWhere(clickWhere, isNotNull(userEvents.elementKey)))
+      .groupBy(userEvents.elementKey)
+      .orderBy(sql`COUNT(*) DESC`)
+      .limit(HEATMAP_TOP_ELEMENT_LIMIT),
+    // 挫败点击事件不带坐标与区域，只按页面 + 设备/来源筛选
+    db
+      .select({
+        elementKey: userEvents.elementKey,
+        elementLabel: dominantLabel,
+        count: sql<number>`COUNT(*)::int`,
+        uniqueUsers: countDistinct(userEvents.distinctId),
+        lastAt: sql<Date | null>`MAX(${userEvents.createdAt})`,
+      })
+      .from(userEvents)
+      .where(
+        mergeWhere(
+          and(...pageConditions, eq(userEvents.eventType, 'custom'), eq(userEvents.eventName, ANALYTICS_RAGE_CLICK_EVENT)),
+          tenantScope(userEvents),
+        ),
+      )
+      .groupBy(userEvents.elementKey)
+      .orderBy(sql`COUNT(*) DESC`)
+      .limit(HEATMAP_RAGE_CLICK_LIMIT),
+  ]);
+
+  // rage click 事件不带坐标，无法直接落到分箱；按主元素 key 关联，把榜单与落点图对上
+  const rageElementKeys = new Set(rageRows.map((r) => r.elementKey).filter((key): key is string => !!key));
+
+  const points = binRows.map((r) => {
+    const value = Number(r.value);
+    const binUsers = Number(r.uniqueUsers);
+    return {
+      x: Number(r.cx) * HEATMAP_BIN_SIZE + HEATMAP_BIN_SIZE / 2,
+      y: Number(r.cy) * HEATMAP_BIN_SIZE + HEATMAP_BIN_SIZE / 2,
+      value,
+      topLabel: r.topLabel,
+      topElementKey: r.topElementKey,
+      topArea: r.topArea,
+      uniqueUsers: binUsers,
+      repeatRate: binUsers > 0 ? Math.round((value / binUsers) * 10) / 10 : 0,
+      rage: !!r.topElementKey && rageElementKeys.has(r.topElementKey),
+    };
   });
-  return { pagePath: q.pagePath, componentArea: q.componentArea ?? '', points, total: rows.length };
+
+  const total = Number(totalRows[0]?.total ?? 0);
+  const uniqueUsers = Number(totalRows[0]?.uniqueUsers ?? 0);
+  const uniqueSessions = Number(totalRows[0]?.uniqueSessions ?? 0);
+
+  return {
+    pagePath: q.pagePath,
+    componentArea: q.componentArea ?? '',
+    points,
+    total,
+    uniqueUsers,
+    uniqueSessions,
+    avgClicksPerUser: uniqueUsers > 0 ? Math.round((total / uniqueUsers) * 10) / 10 : 0,
+    topElements: elementRows.map((r) => ({
+      elementKey: r.elementKey ?? '',
+      elementLabel: r.elementLabel,
+      componentArea: r.componentArea,
+      count: Number(r.count),
+      uniqueUsers: Number(r.uniqueUsers),
+      avgX: Number(r.avgX ?? 0),
+      avgY: Number(r.avgY ?? 0),
+    })),
+    rageClicks: rageRows.map((r) => ({
+      elementKey: r.elementKey,
+      elementLabel: r.elementLabel,
+      count: Number(r.count),
+      uniqueUsers: Number(r.uniqueUsers),
+      lastAt: formatNullableDateTime(r.lastAt),
+    })),
+  };
 }
 
 export interface HeatmapPageListQuery { days?: number }

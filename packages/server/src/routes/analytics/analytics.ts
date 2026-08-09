@@ -138,10 +138,21 @@ const heatmapRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/heatmap', tags: ['Analytics'], summary: '点击热力图', security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { query: z.object({ pagePath: z.string().min(1), componentArea: z.string().optional(), days: z.coerce.number().int().min(1).max(365).optional().default(30) }) },
+    request: {
+      query: z.object({
+        pagePath: z.string().min(1),
+        componentArea: z.string().optional(),
+        days: z.coerce.number().int().min(1).max(365).optional().default(30),
+        deviceType: z.enum(['desktop', 'mobile', 'tablet', 'bot', 'unknown']).or(z.literal('')).optional(),
+        source: z.enum(['web_admin', 'web_member', 'server']).or(z.literal('')).optional(),
+      }),
+    },
     responses: { ...ok(HeatmapDataDTO, '热力图'), ...commonErrorResponses },
   }),
-  handler: async (c) => c.json(okBody(await getHeatmapData(c.req.valid('query'))), 200),
+  handler: async (c) => {
+    const q = c.req.valid('query');
+    return c.json(okBody(await getHeatmapData({ ...q, deviceType: q.deviceType || undefined, source: q.source || undefined })), 200);
+  },
 });
 
 const heatmapPagesRoute = defineOpenAPIRoute({

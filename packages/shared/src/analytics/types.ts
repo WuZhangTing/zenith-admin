@@ -1,5 +1,4 @@
 import type { UserBehaviorEventType } from '../identity/types';
-import type { HeatmapPoint } from '../member/types';
 
 export interface PageStatItem {
   pagePath: string;
@@ -29,11 +28,62 @@ export interface FeatureStats {
   totalEvents: number;
 }
 
+/** 落点分箱：坐标为分箱中心的视口/容器百分比 */
+export interface AnalyticsHeatmapPoint {
+  x: number;
+  y: number;
+  value: number;
+  /** 该分箱内出现次数最多的元素文案，用于回答「这一片点的是什么」 */
+  topLabel: string | null;
+  /** 该分箱内出现次数最多的元素 key，用于与挫败点击榜单关联 */
+  topElementKey: string | null;
+  /** 该分箱内出现次数最多的 UI 区域 */
+  topArea: string | null;
+  /** 落在该分箱的独立访客数 */
+  uniqueUsers: number;
+  /** 人均重复点击 = value / uniqueUsers；显著大于 1 说明少数人在反复点同一处 */
+  repeatRate: number;
+  /** 该分箱的主元素是否出现在挫败点击榜单中 */
+  rage: boolean;
+}
+
+/** 点击热点元素（按 elementKey 聚合） */
+export interface HeatmapElementItem {
+  elementKey: string;
+  elementLabel: string | null;
+  componentArea: string | null;
+  count: number;
+  /** 点击过该元素的独立访客数 */
+  uniqueUsers: number;
+  /** 平均落点，便于把榜单条目对应回散点图位置 */
+  avgX: number;
+  avgY: number;
+}
+
+/** 挫败点击（rage click）热点元素 */
+export interface HeatmapRageClickItem {
+  elementKey: string | null;
+  elementLabel: string | null;
+  count: number;
+  uniqueUsers: number;
+  lastAt: string | null;
+}
+
 export interface HeatmapData {
   pagePath: string;
   componentArea: string;
-  points: HeatmapPoint[];
+  points: AnalyticsHeatmapPoint[];
   total: number;
+  /** 产生点击的独立访客数（distinctId 去重） */
+  uniqueUsers: number;
+  /** 产生点击的会话数 */
+  uniqueSessions: number;
+  /** 人均点击次数 */
+  avgClicksPerUser: number;
+  /** 点击热点元素 TOP 榜 */
+  topElements: HeatmapElementItem[];
+  /** 该页面的挫败点击热点（不受区域筛选影响，rage click 事件不带区域） */
+  rageClicks: HeatmapRageClickItem[];
 }
 
 export interface HeatmapPageListItem {

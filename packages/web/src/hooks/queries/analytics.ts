@@ -147,7 +147,8 @@ export const analyticsKeys = {
   userTimeline: (userId: number | null) => ['analytics', 'user-timeline', userId] as const,
   dimension: (dimension: string, days: number) => ['analytics', 'dimension', dimension, days] as const,
   heatmapPages: (days: number) => ['analytics', 'heatmap-pages', days] as const,
-  heatmap: (pagePath: string, componentArea: string, days: number) => ['analytics', 'heatmap', pagePath, componentArea, days] as const,
+  heatmap: (pagePath: string, componentArea: string, days: number, deviceType: string, source: string) =>
+    ['analytics', 'heatmap', pagePath, componentArea, days, deviceType, source] as const,
   data: {
     all: ['analytics', 'data'] as const,
     eventsLists: ['analytics', 'data', 'events'] as const,
@@ -339,10 +340,10 @@ export function useAnalyticsHeatmapPages(days: number) {
   });
 }
 
-export function useAnalyticsHeatmap(pagePath: string, componentArea: string, days: number) {
+export function useAnalyticsHeatmap(pagePath: string, componentArea: string, days: number, deviceType = '', source = '') {
   return useQuery({
-    queryKey: analyticsKeys.heatmap(pagePath, componentArea, days),
-    queryFn: () => request.get<HeatmapData>(`/api/analytics/heatmap${toQueryString({ pagePath, componentArea: componentArea || undefined, days })}`).then(unwrap),
+    queryKey: analyticsKeys.heatmap(pagePath, componentArea, days, deviceType, source),
+    queryFn: () => request.get<HeatmapData>(`/api/analytics/heatmap${toQueryString({ pagePath, componentArea: componentArea || undefined, days, deviceType: deviceType || undefined, source: source || undefined })}`).then(unwrap),
     enabled: !!pagePath,
   });
 }
