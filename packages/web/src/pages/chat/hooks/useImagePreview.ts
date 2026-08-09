@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
 import { fetchManagedFileBlob } from '@/utils/file-utils';
+import { createDisplayableImageUrl } from '@/utils/image-decode';
 import type { ChatMessage } from '@zenith/shared/chat';
 import type { Setter } from '../types';
 
@@ -27,7 +28,12 @@ export function useImagePreview({
     try {
       const clickedBlob = await fetchManagedFileBlob(clickedMsg.content);
       if (previewSessionRef.current !== session) return;
-      const clickedUrl = URL.createObjectURL(clickedBlob);
+      const clickedAsset = clickedMsg.extra?.asset;
+      const clickedUrl = await createDisplayableImageUrl(clickedBlob, clickedAsset?.mimeType, clickedAsset?.name);
+      if (previewSessionRef.current !== session) {
+        URL.revokeObjectURL(clickedUrl);
+        return;
+      }
       previewBlobUrlsRef.current[clickedIndex] = clickedUrl;
       const initialUrls = allImgs.map((_, i) => (i === clickedIndex ? clickedUrl : ''));
       setPreviewSrcList([...initialUrls]);
@@ -39,7 +45,12 @@ export function useImagePreview({
         try {
           const blob = await fetchManagedFileBlob(imgMsg.content);
           if (previewSessionRef.current !== session) break;
-          const url = URL.createObjectURL(blob);
+          const asset = imgMsg.extra?.asset;
+          const url = await createDisplayableImageUrl(blob, asset?.mimeType, asset?.name);
+          if (previewSessionRef.current !== session) {
+            URL.revokeObjectURL(url);
+            break;
+          }
           previewBlobUrlsRef.current[i] = url;
           setPreviewSrcList((prev) => { const copy = [...prev]; copy[i] = url; return copy; });
         } catch { /* skip failed */ }

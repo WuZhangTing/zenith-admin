@@ -103,8 +103,8 @@ export function dialogTitle(mode: string | undefined): string {
 
 // ── 文件预览辅助 ──────────────────────────────────────────────────────────────
 
-/** 非 SVG 图片扩展名（直接内联显示，不进 FilePreviewModal）*/
-export const NON_SVG_IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico', 'tiff', 'tif', 'avif']);
+/** 非 SVG 图片扩展名（直接内联显示，不进 FilePreviewModal）；heic/heif/tiff 由 image-decode 转码后展示 */
+export const NON_SVG_IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico', 'tiff', 'tif', 'avif', 'heic', 'heif']);
 
 export function getFileMimeType(name: string): string | null {
   return guessMimeTypeFromName(name);

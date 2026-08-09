@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
 import type { ManagedFile } from '@zenith/shared/platform';
 import { canPreviewFile, fetchManagedFileBlob, resolveFileMimeType } from '@/utils/file-utils';
+import { createDisplayableImageUrl } from '@/utils/image-decode';
 
 interface FilePreviewTarget {
   id: string;
@@ -88,9 +89,18 @@ export function useFilePreview(getImageFiles: () => ManagedFile[]) {
       previewBlobUrlsRef.current = [...initialUrls];
 
       // 优先加载被点击的图片 → 立即展示预览
-      const clickedBlob = await fetchManagedFileBlob(imageFiles[clickedIndex].url);
+      const clickedFile = imageFiles[clickedIndex];
+      const clickedBlob = await fetchManagedFileBlob(clickedFile.url);
       if (previewSessionRef.current !== mySession) return; // 用户在加载完成前已关闭预览
-      const clickedUrl = globalThis.URL.createObjectURL(clickedBlob);
+      const clickedUrl = await createDisplayableImageUrl(
+        clickedBlob,
+        clickedFile.mimeType,
+        clickedFile.originalName,
+      );
+      if (previewSessionRef.current !== mySession) {
+        globalThis.URL.revokeObjectURL(clickedUrl);
+        return;
+      }
       initialUrls[clickedIndex] = clickedUrl;
       previewBlobUrlsRef.current[clickedIndex] = clickedUrl;
 
@@ -104,7 +114,11 @@ export function useFilePreview(getImageFiles: () => ManagedFile[]) {
         try {
           const blob = await fetchManagedFileBlob(imgFile.url);
           if (previewSessionRef.current !== mySession) return;
-          const url = globalThis.URL.createObjectURL(blob);
+          const url = await createDisplayableImageUrl(blob, imgFile.mimeType, imgFile.originalName);
+          if (previewSessionRef.current !== mySession) {
+            globalThis.URL.revokeObjectURL(url);
+            return;
+          }
           previewBlobUrlsRef.current[i] = url;
           setPreviewSrcList((prev) => {
             const updated = [...prev];

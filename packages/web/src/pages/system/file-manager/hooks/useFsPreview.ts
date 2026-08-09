@@ -10,6 +10,7 @@ import { Toast } from '@douyinfe/semi-ui';
 import { TOKEN_KEY } from '@zenith/shared/core';
 import { config as appConfig } from '@/config';
 import { NON_SVG_IMAGE_EXTS, getFileMimeType } from '../fs-utils';
+import { createDisplayableImageUrl } from '@/utils/image-decode';
 import type { FsEntry } from '../types';
 
 export function useFsPreview(filteredEntries: FsEntry[]) {
@@ -44,7 +45,11 @@ export function useFsPreview(filteredEntries: FsEntry[]) {
       if (previewSessionRef.current !== session) return;
       const blob = await resp.blob();
       if (previewSessionRef.current !== session) return;
-      const url = URL.createObjectURL(blob);
+      const url = await createDisplayableImageUrl(blob, null, entries[idx].name);
+      if (previewSessionRef.current !== session) {
+        URL.revokeObjectURL(url);
+        return;
+      }
       previewBlobUrlsRef.current[idx] = url;
       setPreviewSrcList((prev) => { const u = [...prev]; u[idx] = url; return u; });
     } catch {

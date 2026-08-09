@@ -13,6 +13,7 @@
 | 格式 | MIME 类型 | 渲染方式 |
 | --- | --- | --- |
 | 普通图片 | `image/*`（除 `image/svg+xml`） | 回退给调用方的 Semi Design `ImagePreview` |
+| HEIC / HEIF / TIFF | `image/heic` / `image/heif` / `image/tiff` | 由 `image-decode` 转码为 PNG 后，同样走 Semi `ImagePreview` 图集 |
 | PDF | `application/pdf` | `@embedpdf/react-pdf-viewer`（`PDFPreviewPanel`） |
 | OFD | `.ofd` / `application/ofd` / `application/vnd.ofd` | File Viewer OFD renderer（`FileViewerPreviewPanel`，懒加载） |
 | 音频 | `audio/*` | Semi Design `AudioPlayer`（页面底部播放条） |
@@ -31,6 +32,8 @@
 | 压缩包 | Archive renderer 支持的 ZIP、7z、RAR、TAR、GZIP、ISO、JAR、APK、CBZ/CBR 等 MIME | File Viewer Archive renderer（`FileViewerPreviewPanel`，懒加载） |
 
 > **普通图片**不在 `FilePreviewModal` 内部渲染。遇到非 SVG 的 `image/*` 时组件会立即调用 `onClose` 并回退，由调用方自行打开 `ImagePreview`。
+>
+> **HEIC / HEIF / TIFF** 浏览器无法原生解码，直接渲染会得到裂图。这三类在**创建 Object URL 之前**由 `@/utils/image-decode` 转成 PNG，因此仍然走 `ImagePreview` 图集，与普通图片享有完全相同的交互（左右切换、渐进加载、缩放）。**图片只有一套预览机制**，不为个别格式引入第二套弹窗，详见[图片解码层](#图片解码层-heic-heif-tiff)。
 >
 > **Office 文件**已开放当前三个 File Viewer renderer 的全部真实扩展名：Word/OpenDocument 文本为 `.doc/.docx/.docm/.dot/.dotx/.dotm/.odt/.rtf`，Spreadsheet 为 `.xls/.xlsx/.xlt/.xltx/.xlsm/.xlsb/.xltm/.csv/.tsv/.ods/.fods/.numbers`，Presentation/OpenDocument 演示为 `.ppt/.pptx/.pptm/.potx/.potm/.ppsx/.ppsm/.odp`。全部在浏览器本地解析，不调用外部预览或文档转换服务。
 >
@@ -225,6 +228,51 @@ JSON 文件（`application/json` / `text/json`）下载并读取文本后，**�
 
 SVG 文件（`image/svg+xml`）下载 Blob 后创建 Object URL，在 `AppModal` 内使用 `<img>` 居中展示（宽度 `min(900px, 92vw)`，高度 80vh）。关闭预览时会主动释放 Object URL。
 
+### 图片解码层（HEIC / HEIF / TIFF）
+
+`packages/web/src/utils/image-decode.ts`
+
+Chrome / Edge / Firefox 都无法原生解码 HEIC/HEIF（iPhone 默认相机格式）与 TIFF（扫描件、传真件），
+把它们直接交给 `<img>` 只会得到裂图。本层在 **`URL.createObjectURL` 之前**把这类 Blob 转成 PNG：
+
+| 格式 | 解码器 | 说明 |
+| --- | --- | --- |
+| `.heic` / `.heif` | `heic2any` | 内部使用 Web Worker，不阻塞主线程 |
+| `.tiff` / `.tif` | `utif2` + canvas | `decode` → `decodeImage` → `toRGBA8` → `putImageData` → `toBlob('image/png')` |
+
+两个解码器都拆成独立异步 chunk，只有真正遇到对应格式时才下载，不进入首屏（`dist/index.html` 无相关 modulepreload）：
+`vendor-heic2any` 约 1.35MB（gzip 345KB）、`vendor-utif2` 约 61KB、`vendor-pako`（utif2 的解压依赖）约 45KB。
+
+```ts
+import { createDisplayableImageUrl } from '@/utils/image-decode';
+
+const blob = await fetchManagedFileBlob(file.url);
+const url = await createDisplayableImageUrl(blob, file.mimeType, file.originalName);
+```
+
+**为什么不用 `@file-viewer/renderer-image`**：该 renderer 只对 HEIC/HEIF 真正调用 `heic2any` 解码，
+TIFF/JXL 仍然原样丢给 `<img>`（解不出就报 `The browser could not decode this image format.`），
+并不能解决 TIFF；而且它渲染在自己的弹窗里，会让图片分裂成「图集」和「单文件弹窗」两套交互。
+本层只做格式转换、不接管展示，因此 HEIC/TIFF 能直接进入既有图集。
+
+**约定与边界**：
+
+- **所有图集加载点统一调用 `createDisplayableImageUrl`**，新增图片预览入口时不要直接 `URL.createObjectURL(blob)`，
+  否则该入口的 HEIC/TIFF 会退回裂图。当前接入点：
+  `hooks/useFilePreview.ts`（托管文件）、`pages/system/file-manager/hooks/useFsPreview.ts`（服务器文件）、
+  `pages/chat/hooks/useImagePreview.ts`（消息图片）
+- 返回的 Object URL 生命周期仍由调用方管理（`revokeObjectURL`）；转码是 `await`，
+  调用方在 `await` 之后要重新校验会话令牌，避免过期加载写入并泄漏 URL
+- **解码失败不抛出**，回退原始 Blob——表现退化为「该图裂图」，不会让整个图集中断
+- **多页 TIFF 只展示第一页**：图集按「一个文件一张图」组织，展开多页会打乱索引对齐
+- 两个解码器都是 `import()` 懒加载，未遇到对应格式时不进入首屏包
+- `heic2any` 与 `utif2` 均为 CJS/UMD 包，统一经 `interopDefault`（`mod.default ?? mod`）取模块对象。
+  `utif2` 的导出在 IIFE 内动态挂载，打包器的命名导出静态分析对它不可靠，
+  而包内自带的 `UTIF.d.ts` 会让 TypeScript 通过检查——这条契约由 `image-decode.interop.test.ts` 用真实
+  TIFF 文件守住
+
+---
+
 ### Office / OFD / 压缩包 / 邮件 / XMind / 图形
 
 下载 Blob 后包装为保留原始文件名和 MIME 类型的 `File`，再**懒加载** `FileViewerPreviewPanel`。面板使用 File Viewer 的模块化 React 组件，按需注册 Spreadsheet、Word、Presentation、OFD、Archive、Email、Mind Map 与 Drawing renderer；PDF、Markdown 等格式仍沿用各自的现有实现。
@@ -315,6 +363,19 @@ extractManagedFileId(url: string): string | null
 
 /** 携带认证头读取受保护文件（绝对 URL 直链则裸 fetch） */
 fetchProtectedFile(url: string): Promise<Blob>
+```
+
+`packages/web/src/utils/image-decode.ts` 提供图片展示前的规范化解码：
+
+```ts
+/** 是否为浏览器无法原生解码、需要前端转码的图片格式（HEIC / HEIF / TIFF） */
+needsImageTranscode(mimeType?: string | null, fileName?: string | null): boolean
+
+/** 转成浏览器可直接渲染的 Blob；无需转码或解码失败时返回原 Blob */
+toDisplayableImageBlob(blob: Blob, mimeType?: string | null, fileName?: string | null): Promise<Blob>
+
+/** 转码后创建 Object URL —— 所有图集加载点的统一入口 */
+createDisplayableImageUrl(blob: Blob, mimeType?: string | null, fileName?: string | null): Promise<string>
 ```
 
 ---
