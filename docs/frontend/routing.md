@@ -20,9 +20,12 @@
 | status | 渲染结果 |
 | --- | --- |
 | `checking` | 全屏加载点（本地有 token，正在请求 `/api/auth/me` 确认会话） |
-| `unavailable` | 「暂时无法连接服务器」重试页——凭证保留，点击重试重新拉取会话，不误清登录态 |
+| `unavailable` | `FullPageRetry` 重试页——凭证保留，不误清登录态；按离线/连接失败/服务端异常/维护中区分文案，离线感知 + 指数退避自动重试，并提供「重新登录」出口。已失败过的会话查询在重试期间保持本状态（不回落 `checking`），避免整页闪回加载点 |
 | `anonymous` | 匿名路由表：登录页、重置密码页、OAuth 回调等 |
 | `authenticated` | `AdminRouteLoader`：加载菜单并装配后台路由 |
+
+`checking` 与 `unavailable` 在 Router 之前就返回，二者统一由 `AppChrome` 包裹（`ThemeProvider` + `ElectronTitleBar`），
+否则深色模式用户会先看到一屏纯白，Electron 窗口也会缺掉标题栏而无法拖动关闭。
 
 ### 匿名可访问的路由
 

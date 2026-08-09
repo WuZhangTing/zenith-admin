@@ -10,6 +10,8 @@ export interface AuthContextValue {
   permissions: string[];
   status: AuthStatus;
   loading: boolean;
+  /** 会话正在（重新）校验：unavailable 页据此显示重试进度而不整页切回加载态 */
+  refreshing: boolean;
   error: Error | null;
   login: (
     username: string,

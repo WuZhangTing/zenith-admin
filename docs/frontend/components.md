@@ -441,6 +441,7 @@ const { items, loading, getLabel, getColor } = useDictItems('common_status');
 | `MenuCommandPalette` | 菜单命令面板，支持搜索和快速跳转 |
 | `NProgress` | 顶部路由切换进度条 |
 | `PageErrorBoundary` | 页面级错误边界（chunk 加载失败时提示并整页刷新）及路由感知版 `RouteErrorBoundary` |
+| `FullPageRetry` | 全屏失败重试页（会话校验、导航菜单等首载失败）：按离线/连接失败/服务端异常/维护中区分文案，离线感知 + 指数退避自动重试，并提供次要出口 |
 | `LockScreen` | 后台锁屏界面，支持密码校验后解锁 |
 | `ForceChangePasswordModal` | 强制修改密码弹窗 |
 | `MaintenanceOverlay` | 维护模式覆盖层 |

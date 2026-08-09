@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, Suspense, useMemo } from 'react';
 import { BrowserRouter, HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { Button } from '@douyinfe/semi-ui';
 import { useAuth } from '@/hooks/useAuth';
 import { PageErrorBoundary } from '@/components/PageErrorBoundary';
+import FullPageRetry from '@/components/FullPageRetry';
 import { useGlobalErrorHandler } from '@/hooks/useGlobalErrorHandler';
 import { initTracker, identify, prepareTrackerLogout, resetIdentity } from '@/utils/tracker';
 import ElectronTitleBar from '@/components/ElectronTitleBar';
@@ -206,8 +206,11 @@ function AdminRouteLoader({ user, logout }: Readonly<AdminRouteLoaderProps>) {
       <FullPageRetry
         title="导航菜单加载失败"
         description="网络异常或服务暂不可用，请稍后重试。"
+        offlineDescription="设备当前处于离线状态，恢复网络后会自动重新加载菜单。"
+        error={userMenusQuery.error}
         retrying={userMenusQuery.isFetching}
         onRetry={() => void userMenusQuery.refetch()}
+        secondaryAction={{ label: '退出登录', onClick: logout }}
       />
     );
   }
@@ -288,26 +291,27 @@ function AdminRouteLoader({ user, logout }: Readonly<AdminRouteLoaderProps>) {
   );
 }
 
-function FullPageRetry({ title, description, onRetry, retrying }: Readonly<{
-  title: string;
-  description: string;
-  onRetry: () => void;
-  retrying?: boolean;
-}>) {
+/**
+ * 分流前的应用外壳
+ *
+ * checking / unavailable 分支在 Router 之前就 return，若不带上 ThemeProvider，
+ * body[theme-mode] 永远不会被设置——深色用户会先吃一屏纯白；
+ * Electron 下还会缺掉自定义标题栏，窗口无法拖动与关闭。
+ */
+function AppChrome({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <div className="page-loading">
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-        <strong>{title}</strong>
-        <span style={{ color: 'var(--semi-color-text-2)' }}>{description}</span>
-        <Button type="primary" loading={retrying} onClick={onRetry}>重试</Button>
+    <ThemeProvider>
+      <div className="app-chrome">
+        <ElectronTitleBar />
+        {children}
       </div>
-    </div>
+    </ThemeProvider>
   );
 }
 
 export default function App() {
   useGlobalErrorHandler();
-  const { user, status, login, verifyMfaLogin, register, logout, refresh } = useAuth();
+  const { user, status, refreshing, error, login, verifyMfaLogin, register, logout, refresh } = useAuth();
   const handleLogout = useCallback(() => {
     prepareTrackerLogout();
     logout();
@@ -338,15 +342,21 @@ export default function App() {
   }, [queryClient]);
 
   if (status === 'checking') {
-    return <PageLoading />;
+    return <AppChrome><PageLoading /></AppChrome>;
   }
   if (status === 'unavailable') {
     return (
-      <FullPageRetry
-        title="暂时无法连接服务器"
-        description="登录凭证已保留，请检查网络后重试。"
-        onRetry={() => void refresh()}
-      />
+      <AppChrome>
+        <FullPageRetry
+          title="暂时无法连接服务器"
+          description="登录凭证已保留，请检查网络后重试。"
+          offlineDescription="设备当前处于离线状态，登录凭证已保留，恢复网络后会自动重试。"
+          error={error}
+          retrying={refreshing}
+          onRetry={() => void refresh()}
+          secondaryAction={{ label: '重新登录', onClick: handleLogout }}
+        />
+      </AppChrome>
     );
   }
 

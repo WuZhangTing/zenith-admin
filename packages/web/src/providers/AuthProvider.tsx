@@ -224,6 +224,12 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   let status: AuthStatus;
   if (!hasCredentials) status = 'anonymous';
   else if (session) status = 'authenticated';
+  // 401 由上面的 effect 立即切到 anonymous，这一帧继续显示加载态，避免闪一下「连不上服务器」
+  else if (sessionQuery.error instanceof AuthRejectedError) status = 'checking';
+  // 失败过就停在 unavailable：无数据的查询重新 fetch 时，TanStack Query 会把 status 重置回 pending
+  // 并清空 error，若据此判为 checking，点「重试」会整页闪回加载点再弹回错误页；
+  // errorUpdatedAt 不参与这次重置，是「曾经失败」的稳定信号
+  else if (sessionQuery.errorUpdatedAt > 0) status = 'unavailable';
   else if (sessionQuery.isFetching || sessionQuery.isPending) status = 'checking';
   else status = 'unavailable';
 
@@ -232,6 +238,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     permissions: session?.permissions ?? [],
     status,
     loading: status === 'checking',
+    refreshing: sessionQuery.isFetching,
     error: sessionQuery.error,
     login,
     verifyMfaLogin,
@@ -246,6 +253,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     register,
     session,
     sessionQuery.error,
+    sessionQuery.isFetching,
     status,
     updateUser,
     verifyMfaLogin,

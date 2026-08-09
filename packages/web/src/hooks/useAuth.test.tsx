@@ -115,6 +115,27 @@ describe('AuthProvider initialization', () => {
     expect(localStorage.getItem(TOKEN_KEY)).toBe('valid-token');
   });
 
+  it('stays on the unavailable page while a retry is in flight', async () => {
+    localStorage.setItem(TOKEN_KEY, 'valid-token');
+    mockRequest.get.mockResolvedValueOnce({ code: -1, message: '网络请求失败', data: null });
+    const { result } = renderAuthHook();
+    await waitFor(() => expect(result.current.status).toBe('unavailable'));
+
+    let resolveRetry: (value: ReturnType<typeof makeMeResponse>) => void = () => {};
+    mockRequest.get.mockReturnValueOnce(
+      new Promise<ReturnType<typeof makeMeResponse>>((resolve) => { resolveRetry = resolve; }),
+    );
+
+    act(() => { void result.current.refresh(); });
+
+    // 重试期间若回落到 checking，整页会闪回加载点再弹回错误页
+    await waitFor(() => expect(result.current.refreshing).toBe(true));
+    expect(result.current.status).toBe('unavailable');
+
+    await act(async () => { resolveRetry(makeMeResponse()); });
+    await waitFor(() => expect(result.current.status).toBe('authenticated'));
+  });
+
   it('clears credentials when the session is rejected', async () => {
     localStorage.setItem(TOKEN_KEY, 'expired-token');
     localStorage.setItem(REFRESH_TOKEN_KEY, 'expired-refresh');

@@ -874,6 +874,56 @@ body[theme-mode='dark'] .semi-json-viewer-view-line {
   }
 }
 
+/* ===== 全屏状态页（会话/导航首载失败） ===== */
+/* 与 Electron 自定义标题栏共存：标题栏占固定高度，状态页吃掉剩余空间 */
+.app-chrome {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.app-chrome > .page-loading,
+.app-chrome > .page-status {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+
+.page-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  padding: 24px;
+  text-align: center;
+}
+
+.page-status__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-status__desc {
+  display: block;
+  max-width: 360px;
+  line-height: 1.6;
+}
+
+.page-status__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 /* ===== 深浅色切换 View Transition ===== */
 /* 禁用浏览器默认的交叉淡入淡出，由 theme-transition.ts 的圆形扩散 clip-path 动画接管 */
 ::view-transition-old(root),
