@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { formatDate, formatDateForApi, formatDateTime, formatDateTimeForApi, stripHtml } from './date';
+import {
+  formatDate,
+  formatDateForApi,
+  formatDateTime,
+  formatDateTimeForApi,
+  formatDateTimeRangeForApi,
+  stripHtml,
+} from './date';
 
 describe('formatDateTime', () => {
   it('should return empty string for null/undefined', () => {
@@ -30,6 +37,25 @@ describe('formatDateTime', () => {
   it('should format API date-time without timezone conversion', () => {
     const date = new Date(2026, 2, 22, 20, 9, 37);
     expect(formatDateTimeForApi(date)).toBe('2026-03-22 20:09:37');
+  });
+
+  it('should format an API date-time range without timezone conversion', () => {
+    const range = [
+      new Date(2026, 2, 22, 20, 9, 37),
+      new Date(2026, 2, 23, 8, 5, 2),
+    ] as const;
+
+    expect(formatDateTimeRangeForApi(range)).toEqual({
+      startTime: '2026-03-22 20:09:37',
+      endTime: '2026-03-23 08:05:02',
+    });
+  });
+
+  it('should preserve undefined API range bounds when no range is selected', () => {
+    expect(formatDateTimeRangeForApi(null)).toEqual({
+      startTime: undefined,
+      endTime: undefined,
+    });
   });
 
   it('should format API date without timezone conversion', () => {

@@ -5,7 +5,7 @@ import { Download, Trash2, FileUp, ChevronsUpDown, ChevronsDownUp, Building2, Ke
 import type { User, Role, Department, Position } from '@zenith/shared/identity';
 import { request } from '@/utils/request';
 import { UserAvatar } from '@/components/UserAvatar';
-import { formatDateTimeForApi } from '@/utils/date';
+import { formatDateTimeRangeForApi } from '@/utils/date';
 import { formatPasswordPolicyHint, type PasswordPolicy } from '@/utils/password-policy';
 import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
 import DictTag from '@/components/DictTag';
@@ -134,8 +134,7 @@ export default function UsersPage() {
     phone: submittedParams.phone || undefined,
     departmentId: submittedParams.departmentId ?? undefined,
     status: submittedParams.status || undefined,
-    startTime: submittedParams.timeRange ? formatDateTimeForApi(submittedParams.timeRange[0]) : undefined,
-    endTime: submittedParams.timeRange ? formatDateTimeForApi(submittedParams.timeRange[1]) : undefined,
+    ...formatDateTimeRangeForApi(submittedParams.timeRange),
   });
   const data = listQuery.data ?? null;
   const userList = data?.list ?? EMPTY_USERS;
@@ -349,10 +348,7 @@ export default function UsersPage() {
     ...(params.departmentId ? { departmentId: params.departmentId } : {}),
     ...(params.status ? { status: params.status } : {}),
     ...(params.timeRange
-      ? {
-          startTime: formatDateTimeForApi(params.timeRange[0]),
-          endTime: formatDateTimeForApi(params.timeRange[1]),
-        }
+      ? formatDateTimeRangeForApi(params.timeRange)
       : {}),
   }), [submittedParams]);
 

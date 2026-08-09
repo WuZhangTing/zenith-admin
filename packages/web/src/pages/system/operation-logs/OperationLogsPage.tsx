@@ -5,7 +5,7 @@ import ExportButton from '@/components/ExportButton';
 import { OperationLogsTable } from '@/components/logs/OperationLogsTable';
 import { ClearLogsButtons, ClearLogsMobileButtons, ClearLogsModal } from '@/components/logs/ClearLogsControl';
 import { useClearLogs } from '@/hooks/useClearLogs';
-import { formatDateTimeForApi } from '@/utils/date';
+import { formatDateTimeRangeForApi } from '@/utils/date';
 import OperationLogStatsPanel from './OperationLogStatsPanel';
 import { operationLogKeys, useCleanOperationLogs, useOperationLogList } from '@/hooks/queries/operation-logs';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -44,8 +44,7 @@ export default function OperationLogsPage() {
     method: submittedParams.method || undefined,
     path: submittedParams.path || undefined,
     status: submittedParams.status || undefined,
-    startTime: submittedParams.timeRange ? formatDateTimeForApi(submittedParams.timeRange[0]) : undefined,
-    endTime: submittedParams.timeRange ? formatDateTimeForApi(submittedParams.timeRange[1]) : undefined,
+    ...formatDateTimeRangeForApi(submittedParams.timeRange),
     minDurationMs: submittedParams.minDurationMs ?? undefined,
     maxDurationMs: submittedParams.maxDurationMs ?? undefined,
   });
@@ -68,7 +67,7 @@ export default function OperationLogsPage() {
       ...(p.method ? { method: p.method } : {}),
       ...(p.path ? { path: p.path } : {}),
       ...(p.status ? { status: p.status } : {}),
-      ...(p.timeRange ? { startTime: formatDateTimeForApi(p.timeRange[0]), endTime: formatDateTimeForApi(p.timeRange[1]) } : {}),
+      ...(p.timeRange ? formatDateTimeRangeForApi(p.timeRange) : {}),
       ...(p.minDurationMs === null ? {} : { minDurationMs: String(p.minDurationMs) }),
       ...(p.maxDurationMs === null ? {} : { maxDurationMs: String(p.maxDurationMs) }),
     };

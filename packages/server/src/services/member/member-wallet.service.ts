@@ -5,20 +5,21 @@
  * - rechargeWallet() 发起充值：调用支付中心 createPayment（bizType='member_recharge'）
  * - creditWalletOnRecharge() 由支付成功事件触发入账，按支付单号幂等
  */
-import { and, desc, eq, ilike, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { members, memberWallets, memberWalletTransactions, paymentOrders } from '../../db/schema';
+import { memberWallets, memberWalletTransactions, paymentOrders } from '../../db/schema';
 import type { MemberWalletRow, MemberWalletTransactionRow } from '../../db/schema';
 import type { DbTransaction } from '../../db/types';
 import { formatDateTime } from '../../lib/datetime';
 import { currentMemberId } from '../../lib/member-context';
 import { withOptimisticRetry, OptimisticLockError } from '../../lib/optimistic';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike } from '../../lib/where-helpers';
+import { buildWhere } from '../../lib/where-helpers';
 import logger from '../../lib/logger';
 import { createPayment } from '../payment/payment.service';
 import { ensureMemberExists } from './member-auth.service';
+import { memberReferenceCondition } from './member-query-helpers';
 import type { WalletTxType } from '@zenith/shared/member';
 import type { PaymentCashierMethod } from '@zenith/shared/payment';
 
@@ -258,22 +259,10 @@ export interface ListWalletTxQuery {
 }
 
 export function buildWalletTxWhere(q: { memberId?: number; memberKeyword?: string; type?: WalletTxType }): SQL | undefined {
-  const conds: SQL[] = [];
-  if (q.memberId) {
-    conds.push(eq(memberWalletTransactions.memberId, q.memberId));
-  } else if (q.memberKeyword) {
-    const numId = /^\d+$/.test(q.memberKeyword) ? parseInt(q.memberKeyword, 10) : null;
-    if (numId) {
-      conds.push(eq(memberWalletTransactions.memberId, numId));
-    } else {
-      conds.push(inArray(
-        memberWalletTransactions.memberId,
-        db.select({ id: members.id }).from(members).where(ilike(members.nickname, `%${escapeLike(q.memberKeyword)}%`)),
-      ));
-    }
-  }
-  if (q.type) conds.push(eq(memberWalletTransactions.type, q.type));
-  return conds.length ? and(...conds) : undefined;
+  return buildWhere(
+    memberReferenceCondition(memberWalletTransactions.memberId, q),
+    q.type ? eq(memberWalletTransactions.type, q.type) : undefined,
+  );
 }
 
 export async function listWalletTransactions(q: ListWalletTxQuery) {

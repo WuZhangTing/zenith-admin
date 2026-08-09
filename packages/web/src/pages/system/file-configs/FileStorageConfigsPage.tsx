@@ -4,7 +4,7 @@ import { PlugZap } from 'lucide-react';
 import type { CreateFileStorageConfigInput, FileObjectAcl, FileStorageConfig, FileStorageProvider, FileUrlStrategy, UpdateFileStorageConfigInput } from '@zenith/shared/platform';
 import { FILE_OBJECT_ACL_SUPPORT, FILE_STORAGE_PROVIDER_LABELS, FILE_URL_STRATEGY_LABELS, FILE_URL_STRATEGY_OPTIONS, PRESIGNED_EXPIRY_DEFAULT_SECONDS, PRESIGNED_EXPIRY_MAX_SECONDS, PRESIGNED_EXPIRY_MIN_SECONDS } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
+import { formatDateTime, formatDateTimeRangeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -216,8 +216,7 @@ export default function FileStorageConfigsPage() {
     page,
     pageSize,
     status: submittedParams.status || undefined,
-    startTime: submittedParams.timeRange ? formatDateTimeForApi(submittedParams.timeRange[0]) : undefined,
-    endTime: submittedParams.timeRange ? formatDateTimeForApi(submittedParams.timeRange[1]) : undefined,
+    ...formatDateTimeRangeForApi(submittedParams.timeRange),
   });
   const configs = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
@@ -528,10 +527,7 @@ export default function FileStorageConfigsPage() {
   const buildExportQuery = () => ({
     ...(submittedParams.status ? { status: submittedParams.status } : {}),
     ...(submittedParams.timeRange
-      ? {
-          startTime: formatDateTimeForApi(submittedParams.timeRange[0]),
-          endTime: formatDateTimeForApi(submittedParams.timeRange[1]),
-        }
+      ? formatDateTimeRangeForApi(submittedParams.timeRange)
       : {}),
   });
 

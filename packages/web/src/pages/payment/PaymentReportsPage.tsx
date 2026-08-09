@@ -5,7 +5,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { BarChart, chartOptions, makeBarSpec, useChartPalette, StatCard, StatGrid } from '@/components/charts';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { formatDateTimeForApi } from '@/utils/date';
+import { formatDateTimeRangeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { paymentReportKeys, usePaymentReportSummary } from '@/hooks/queries/payment-reports';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -37,8 +37,7 @@ export default function PaymentReportsPage() {
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentReportKeys.lists });
   const summaryQuery = usePaymentReportSummary({
     groupBy: submittedParams.groupBy,
-    startTime: submittedParams.timeRange ? formatDateTimeForApi(submittedParams.timeRange[0]) : undefined,
-    endTime: submittedParams.timeRange ? formatDateTimeForApi(submittedParams.timeRange[1]) : undefined,
+    ...formatDateTimeRangeForApi(submittedParams.timeRange),
     compare: submittedParams.compare && submittedParams.timeRange ? 'true' : undefined,
   }, canView);
   const summary = summaryQuery.data ?? null;

@@ -10,7 +10,7 @@ import ExportButton from '@/components/ExportButton';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn, type ResponsiveTableAction } from '@/components/ResponsiveTableActions';
 import FileAttachment from '@/components/FileAttachment';
-import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
+import { formatDateTime, formatDateTimeForApi, formatDateTimeRangeForApi } from '@/utils/date';
 import { useDictItems } from '@/hooks/useDictItems';
 import DictTag from '@/components/DictTag';
 import { usePermission } from '@/hooks/usePermission';
@@ -113,8 +113,7 @@ export default function AnnouncementsPage() {
     title: submittedParams.title || undefined,
     type: submittedParams.type || undefined,
     publishStatus: submittedParams.publishStatus || undefined,
-    startTime: submittedParams.timeRange ? formatDateTimeForApi(submittedParams.timeRange[0]) : undefined,
-    endTime: submittedParams.timeRange ? formatDateTimeForApi(submittedParams.timeRange[1]) : undefined,
+    ...formatDateTimeRangeForApi(submittedParams.timeRange),
   });
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
@@ -230,10 +229,7 @@ export default function AnnouncementsPage() {
     ...(submittedParams.type ? { type: submittedParams.type } : {}),
     ...(submittedParams.publishStatus ? { publishStatus: submittedParams.publishStatus } : {}),
     ...(submittedParams.timeRange
-      ? {
-          startTime: formatDateTimeForApi(submittedParams.timeRange[0]),
-          endTime: formatDateTimeForApi(submittedParams.timeRange[1]),
-        }
+      ? formatDateTimeRangeForApi(submittedParams.timeRange)
       : {}),
   });
 

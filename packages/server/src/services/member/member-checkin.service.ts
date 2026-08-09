@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { and, asc, desc, eq, gte, ilike, inArray, isNull, lte, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, isNull, lte, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import {
@@ -16,7 +16,7 @@ import type { DbTransaction } from '../../db/types';
 import { formatDateTime } from '../../lib/datetime';
 import { currentMemberId } from '../../lib/member-context';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { getCheckinSettingsRow } from './checkin-settings.service';
 import { grantCouponInTx } from './coupons.service';
@@ -25,6 +25,7 @@ import { getMemberDetail } from './admin-members.service';
 import { getPointAccountBeforeAudit } from './member-points.service';
 import { trackServerEvent } from '../analytics/analytics-server-events.service';
 import { ANALYTICS_EVENT_NAMES } from '@zenith/shared/analytics';
+import { memberReferenceCondition } from './member-query-helpers';
 
 function mapMemberCheckin(row: MemberCheckinRow, memberNickname?: string | null) {
   return {
@@ -42,21 +43,11 @@ function mapMemberCheckin(row: MemberCheckinRow, memberNickname?: string | null)
 }
 
 export function buildCheckinWhere(params: { memberId?: number; memberKeyword?: string; dateStart?: string; dateEnd?: string }): SQL | undefined {
-  const conditions: SQL[] = [];
-  if (params.memberId) {
-    conditions.push(eq(memberCheckins.memberId, params.memberId));
-  } else if (params.memberKeyword) {
-    const numId = /^\d+$/.test(params.memberKeyword) ? parseInt(params.memberKeyword, 10) : null;
-    if (numId) {
-      conditions.push(eq(memberCheckins.memberId, numId));
-    } else {
-      const subq = db.select({ id: members.id }).from(members).where(ilike(members.nickname, `%${escapeLike(params.memberKeyword)}%`));
-      conditions.push(inArray(memberCheckins.memberId, subq));
-    }
-  }
-  if (params.dateStart) conditions.push(gte(memberCheckins.checkinDate, params.dateStart));
-  if (params.dateEnd) conditions.push(lte(memberCheckins.checkinDate, params.dateEnd));
-  return conditions.length > 0 ? and(...conditions) : undefined;
+  return buildWhere(
+    memberReferenceCondition(memberCheckins.memberId, params),
+    params.dateStart ? gte(memberCheckins.checkinDate, params.dateStart) : undefined,
+    params.dateEnd ? lte(memberCheckins.checkinDate, params.dateEnd) : undefined,
+  );
 }
 
 export async function listMemberCheckins(params: {

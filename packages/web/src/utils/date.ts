@@ -35,6 +35,15 @@ export function formatDateTimeForApi(date: DateInput): string {
   return formatDateTime(date);
 }
 
+export function formatDateTimeRangeForApi(
+  range: readonly [Date | string | number, Date | string | number] | null | undefined,
+): { startTime: string | undefined; endTime: string | undefined } {
+  return {
+    startTime: range ? formatDateTimeForApi(range[0]) : undefined,
+    endTime: range ? formatDateTimeForApi(range[1]) : undefined,
+  };
+}
+
 /**
  * 格式化接口提交用日期，禁止 toISOString().slice(0, 10) 造成日期偏移。
  */

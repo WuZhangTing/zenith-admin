@@ -4,17 +4,18 @@
  * 核心：changePoints() 为统一记账入口（事务 + 乐观锁 version + 原子写流水），
  * 预留给未来订单系统调用。earn/redeem/adjust/refund 均封装自它。
  */
-import { and, desc, eq, ilike, inArray, type SQL } from 'drizzle-orm';
+import { and, desc, eq, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { members, memberPointAccounts, memberPointTransactions } from '../../db/schema';
+import { memberPointAccounts, memberPointTransactions } from '../../db/schema';
 import type { MemberPointAccountRow, MemberPointTransactionRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
 import { currentMemberId } from '../../lib/member-context';
 import { withOptimisticRetry, OptimisticLockError } from '../../lib/optimistic';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike } from '../../lib/where-helpers';
+import { buildWhere } from '../../lib/where-helpers';
 import { ensureMemberExists } from './member-auth.service';
+import { memberReferenceCondition } from './member-query-helpers';
 import { trackServerEvent } from '../analytics/analytics-server-events.service';
 import type { PointTxType } from '@zenith/shared/member';
 import { ANALYTICS_MEMBER_POINTS_EVENT_BY_TX_TYPE } from '@zenith/shared/analytics';
@@ -205,22 +206,10 @@ export interface ListPointTxQuery {
 }
 
 export function buildPointTxWhere(q: { memberId?: number; memberKeyword?: string; type?: PointTxType }): SQL | undefined {
-  const conds: SQL[] = [];
-  if (q.memberId) {
-    conds.push(eq(memberPointTransactions.memberId, q.memberId));
-  } else if (q.memberKeyword) {
-    const numId = /^\d+$/.test(q.memberKeyword) ? parseInt(q.memberKeyword, 10) : null;
-    if (numId) {
-      conds.push(eq(memberPointTransactions.memberId, numId));
-    } else {
-      conds.push(inArray(
-        memberPointTransactions.memberId,
-        db.select({ id: members.id }).from(members).where(ilike(members.nickname, `%${escapeLike(q.memberKeyword)}%`)),
-      ));
-    }
-  }
-  if (q.type) conds.push(eq(memberPointTransactions.type, q.type));
-  return conds.length ? and(...conds) : undefined;
+  return buildWhere(
+    memberReferenceCondition(memberPointTransactions.memberId, q),
+    q.type ? eq(memberPointTransactions.type, q.type) : undefined,
+  );
 }
 
 export async function listPointTransactions(q: ListPointTxQuery) {

@@ -9,7 +9,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useUserOptions } from '@/hooks/useUserOptions';
-import { formatDateTimeForApi } from '@/utils/date';
+import { formatDateTimeRangeForApi } from '@/utils/date';
 import RecordingPlayer from './RecordingPlayer';
 import {
   terminalKeys,
@@ -130,8 +130,7 @@ export default function TerminalRecordingsPage() {
     pageSize,
     keyword: submittedParams.keyword || undefined,
     operatorUserId: submittedParams.operatorUserId ?? undefined,
-    startTime: submittedParams.timeRange ? formatDateTimeForApi(submittedParams.timeRange[0]) : undefined,
-    endTime: submittedParams.timeRange ? formatDateTimeForApi(submittedParams.timeRange[1]) : undefined,
+    ...formatDateTimeRangeForApi(submittedParams.timeRange),
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;

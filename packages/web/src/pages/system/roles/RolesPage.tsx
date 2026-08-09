@@ -8,7 +8,7 @@ import { UserPreviewCell } from '@/components/UserPreviewCell';
 import ExportButton from '@/components/ExportButton';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { formatDateTimeForApi } from '@/utils/date';
+import { formatDateTimeRangeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -67,8 +67,7 @@ export default function RolesPage() {
     pageSize,
     keyword: submittedParams.keyword || undefined,
     status: submittedParams.status || undefined,
-    startTime: submittedParams.timeRange ? formatDateTimeForApi(submittedParams.timeRange[0]) : undefined,
-    endTime: submittedParams.timeRange ? formatDateTimeForApi(submittedParams.timeRange[1]) : undefined,
+    ...formatDateTimeRangeForApi(submittedParams.timeRange),
   });
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
@@ -308,10 +307,7 @@ export default function RolesPage() {
     ...(submittedParams.keyword ? { keyword: submittedParams.keyword } : {}),
     ...(submittedParams.status ? { status: submittedParams.status } : {}),
     ...(submittedParams.timeRange
-      ? {
-          startTime: formatDateTimeForApi(submittedParams.timeRange[0]),
-          endTime: formatDateTimeForApi(submittedParams.timeRange[1]),
-        }
+      ? formatDateTimeRangeForApi(submittedParams.timeRange)
       : {}),
   });
 

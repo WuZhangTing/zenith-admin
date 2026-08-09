@@ -4,7 +4,7 @@ import ExportButton from '@/components/ExportButton';
 import { LoginLogsTable } from '@/components/logs/LoginLogsTable';
 import { ClearLogsButtons, ClearLogsMobileButtons, ClearLogsModal } from '@/components/logs/ClearLogsControl';
 import { useClearLogs } from '@/hooks/useClearLogs';
-import { formatDateTimeForApi } from '@/utils/date';
+import { formatDateTimeRangeForApi } from '@/utils/date';
 import LoginLogStatsPanel from './LoginLogStatsPanel';
 import { loginLogKeys, useCleanLoginLogs, useLoginLogList } from '@/hooks/queries/login-logs';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -32,8 +32,7 @@ export default function LoginLogsPage() {
     username: submittedParams.username || undefined,
     eventType: submittedParams.eventType || undefined,
     status: submittedParams.status || undefined,
-    startTime: submittedParams.timeRange ? formatDateTimeForApi(submittedParams.timeRange[0]) : undefined,
-    endTime: submittedParams.timeRange ? formatDateTimeForApi(submittedParams.timeRange[1]) : undefined,
+    ...formatDateTimeRangeForApi(submittedParams.timeRange),
   });
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
@@ -83,10 +82,7 @@ export default function LoginLogsPage() {
     ...(draftParams.eventType ? { eventType: draftParams.eventType } : {}),
     ...(draftParams.status ? { status: draftParams.status } : {}),
     ...(draftParams.timeRange
-      ? {
-          startTime: formatDateTimeForApi(draftParams.timeRange[0]),
-          endTime: formatDateTimeForApi(draftParams.timeRange[1]),
-        }
+      ? formatDateTimeRangeForApi(draftParams.timeRange)
       : {}),
   });
 

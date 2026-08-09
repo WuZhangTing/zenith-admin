@@ -6,7 +6,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useDictItems } from '@/hooks/useDictItems';
 import { UserTransferSelect } from '@/components/UserTransferSelect';
 import type { UserTransferUser } from '@/components/UserTransferSelect';
-import { formatDateTimeForApi } from '@/utils/date';
+import { formatDateTimeRangeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { UserPreviewCell } from '@/components/UserPreviewCell';
@@ -56,8 +56,7 @@ export default function PositionsPage() {
     pageSize,
     keyword: submittedParams.keyword || undefined,
     status: submittedParams.status || undefined,
-    startTime: submittedParams.timeRange ? formatDateTimeForApi(submittedParams.timeRange[0]) : undefined,
-    endTime: submittedParams.timeRange ? formatDateTimeForApi(submittedParams.timeRange[1]) : undefined,
+    ...formatDateTimeRangeForApi(submittedParams.timeRange),
   });
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
@@ -238,10 +237,7 @@ export default function PositionsPage() {
     ...(submittedParams.keyword ? { keyword: submittedParams.keyword } : {}),
     ...(submittedParams.status ? { status: submittedParams.status } : {}),
     ...(submittedParams.timeRange
-      ? {
-          startTime: formatDateTimeForApi(submittedParams.timeRange[0]),
-          endTime: formatDateTimeForApi(submittedParams.timeRange[1]),
-        }
+      ? formatDateTimeRangeForApi(submittedParams.timeRange)
       : {}),
   });
 

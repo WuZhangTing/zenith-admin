@@ -7,7 +7,7 @@ import type { ManagedFile } from '@zenith/shared/platform';
 import { TOKEN_KEY } from '@zenith/shared/core';
 import { FILE_STORAGE_PROVIDER_OPTIONS } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
+import { formatDateTime, formatDateTimeRangeForApi } from '@/utils/date';
 import { downloadBlob } from '@/utils/download';
 import { formatFileSize, getFileTypeIcon, fetchManagedFileBlob, getFileFullUrl } from '@/utils/file-utils';
 import { buildManagedFileActions } from '@/utils/managed-file-actions';
@@ -137,8 +137,7 @@ export default function FilesPage() {
     keyword: submittedParams.keyword || undefined,
     provider: submittedParams.provider || undefined,
     fileType: submittedParams.fileType || undefined,
-    startTime: submittedParams.timeRange ? formatDateTimeForApi(submittedParams.timeRange[0]) : undefined,
-    endTime: submittedParams.timeRange ? formatDateTimeForApi(submittedParams.timeRange[1]) : undefined,
+    ...formatDateTimeRangeForApi(submittedParams.timeRange),
   });
   const data = listQuery.data ?? null;
   const preview = useFilePreview(() => data?.list ?? []);

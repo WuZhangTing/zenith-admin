@@ -5,7 +5,7 @@
  * - 核销 redeemCoupon() 预留统一入口，供未来订单系统接入
  */
 import crypto from 'node:crypto';
-import { and, desc, eq, gt, gte, ilike, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gt, gte, ilike, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { coupons, memberCoupons, memberPointAccounts, memberPointTransactions, members } from '../../db/schema';
@@ -14,12 +14,13 @@ import type { DbTransaction } from '../../db/types';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { currentMemberId } from '../../lib/member-context';
 import { getDecisionOutputs } from '../platform/rules.service';
-import { escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { trackServerEvent } from '../analytics/analytics-server-events.service';
 import type { CouponType, CouponValidType, CouponTemplateStatus } from '@zenith/shared/member';
 import { ANALYTICS_EVENT_NAMES } from '@zenith/shared/analytics';
+import { memberReferenceCondition } from './member-query-helpers';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapCoupon(row: CouponRow) {
@@ -424,23 +425,11 @@ export interface ListMemberCouponsQuery {
 
 /** 后台：领券记录分页 */
 export function buildMemberCouponWhere(q: { memberId?: number; memberKeyword?: string; couponId?: number; status?: MemberCouponRow['status'] }): SQL | undefined {
-  const conds: SQL[] = [];
-  if (q.memberId) {
-    conds.push(eq(memberCoupons.memberId, q.memberId));
-  } else if (q.memberKeyword) {
-    const numId = /^\d+$/.test(q.memberKeyword) ? parseInt(q.memberKeyword, 10) : null;
-    if (numId) {
-      conds.push(eq(memberCoupons.memberId, numId));
-    } else {
-      conds.push(inArray(
-        memberCoupons.memberId,
-        db.select({ id: members.id }).from(members).where(ilike(members.nickname, `%${escapeLike(q.memberKeyword)}%`)),
-      ));
-    }
-  }
-  if (q.couponId) conds.push(eq(memberCoupons.couponId, q.couponId));
-  if (q.status) conds.push(eq(memberCoupons.status, q.status));
-  return conds.length ? and(...conds) : undefined;
+  return buildWhere(
+    memberReferenceCondition(memberCoupons.memberId, q),
+    q.couponId ? eq(memberCoupons.couponId, q.couponId) : undefined,
+    q.status ? eq(memberCoupons.status, q.status) : undefined,
+  );
 }
 
 export async function listMemberCoupons(q: ListMemberCouponsQuery) {
