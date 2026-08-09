@@ -459,7 +459,7 @@ const { items, loading, getLabel, getColor } = useDictItems('common_status');
 | `FilePreviewModal` | 全站统一文件预览弹窗（详见[文件预览组件](/frontend/file-preview)） |
 | `FilePreviewLayer` + `useFilePreview` | 图集预览 + 文件预览的组合弹层与配套 hook（列表页推荐接入方式） |
 | `PDFPreviewPanel` | PDF 预览面板（`@embedpdf/react-pdf-viewer`） |
-| `FileViewerPreviewPanel` | File Viewer 驱动的 Office、OFD、压缩包、邮件、XMind、图形（draw.io / Excalidraw / Mermaid / PlantUML）与数据资产（字体 / PSD / SQLite / Parquet）只读预览 |
+| `FileViewerPreviewPanel` | File Viewer 驱动的 Office、OFD、压缩包、邮件、XMind、图形（draw.io / Excalidraw / Mermaid / PlantUML）、数据资产（字体 / PSD / SQLite / Parquet）与地理数据（GeoJSON / KML / GPX / SHP）只读预览 |
 | `JsonPreviewPanel` | JSON 只读预览 |
 | `MarkdownPreviewPanel` | Markdown 只读预览 |
 | `MonacoPreviewPanel` | 代码和纯文本只读预览 |

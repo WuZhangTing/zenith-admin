@@ -33,6 +33,7 @@
 | 字体 | `.ttf/.otf/.woff/.woff2` 对应 MIME | File Viewer Data renderer（`FileViewerPreviewPanel`，懒加载） |
 | 设计稿 | `.psd` / `image/vnd.adobe.photoshop` | File Viewer Data renderer（`FileViewerPreviewPanel`，懒加载） |
 | 结构化数据 | `.sqlite` / `.parquet` / `.wasm` 对应 MIME | File Viewer Data renderer（`FileViewerPreviewPanel`，懒加载） |
+| 地理数据 | `.geojson` / `.kml` / `.gpx` / `.shp` 对应 MIME | File Viewer Geo renderer（`FileViewerPreviewPanel`，懒加载） |
 
 > **普通图片**不在 `FilePreviewModal` 内部渲染。遇到非 SVG 的 `image/*` 时组件会立即调用 `onClose` 并回退，由调用方自行打开 `ImagePreview`。
 >
@@ -134,7 +135,7 @@ const isPreviewable = canPreviewFile(record.mimeType, record.originalName);
 </Button>
 ```
 
-`canPreviewFile` 覆盖全部可预览格式（image / audio / video / PDF / OFD / Office / OpenDocument / email / XMind / drawing / data-asset / markdown / text / json / svg / code / archive），调用方无需手动枚举 MIME 类型。
+`canPreviewFile` 覆盖全部可预览格式（image / audio / video / PDF / OFD / Office / OpenDocument / email / XMind / drawing / data-asset / geo / markdown / text / json / svg / code / archive），调用方无需手动枚举 MIME 类型。
 
 ---
 
@@ -276,9 +277,14 @@ TIFF/JXL 仍然原样丢给 `<img>`（解不出就报 `The browser could not dec
 
 ---
 
-### Office / OFD / 压缩包 / 邮件 / XMind / 图形 / 数据资产
+### Office / OFD / 压缩包 / 邮件 / XMind / 图形 / 数据资产 / 地理数据
 
-下载 Blob 后包装为保留原始文件名和 MIME 类型的 `File`，再**懒加载** `FileViewerPreviewPanel`。面板使用 File Viewer 的模块化 React 组件，按需注册 Spreadsheet、Word、Presentation、OFD、Archive、Email、Mind Map、Drawing 与 Data renderer；PDF、Markdown 等格式仍沿用各自的现有实现。
+下载 Blob 后包装为保留原始文件名和 MIME 类型的 `File`，再**懒加载** `FileViewerPreviewPanel`。面板使用 File Viewer 的模块化 React 组件，按需注册 Spreadsheet、Word、Presentation、OFD、Archive、Email、Mind Map、Drawing、Data 与 Geo renderer；PDF、Markdown 等格式仍沿用各自的现有实现。
+
+各 renderer 的重依赖都是命中格式时才动态 `import()`，不进首屏。以 Geo 为例（实测 gzip）：
+`maplibre-gl` 266.6KB（渲染地图时）、`proj4` 35.2KB + `wkt-parser` 5.1KB + `mgrs` 2.3KB（需要投影转换时）、
+`renderer-geo` 8.8KB、`@tmcw/togeojson` 4.9KB（仅 KML/GPX）；`shpjs` 复用已有的 `jszip` 与 `turf`。
+打开一个 WGS84 的 `.geojson` 实际下载约 275KB gzip，整条 geo 链路合计约 323KB gzip。
 
 ```text
 @file-viewer/react
@@ -291,6 +297,7 @@ TIFF/JXL 仍然原样丢给 `<img>`（解不出就报 `The browser could not dec
 @file-viewer/renderer-word
 @file-viewer/renderer-presentation
 @file-viewer/renderer-data
+@file-viewer/renderer-geo
 ```
 
 关键配置：
@@ -309,10 +316,11 @@ TIFF/JXL 仍然原样丢给 `<img>`（解不出就报 `The browser could not dec
 - Excalidraw 使用 renderer 自带的 `roughjs` 生成只读 SVG；未安装官方 `@excalidraw/excalidraw` 时不会尝试联网加载
 - PlantUML 默认完全离线，展示 SVG 源码预览；需要成图时可给 `drawing.plantumlServerUrl` 指向**内网自托管**的 PlantUML SVG 服务
 - Data renderer 覆盖字体样张（FontFace）、PSD 图层（`ag-psd`，支持图层显隐与重绘）、SQLite 表结构与样例数据（`sql.js`，WASM 由插件复制到 `file-viewer/wasm/data/sql-wasm.wasm`）、Parquet 记录（`hyparquet`）与 WASM 导入导出表
+- `geo.basemap: 'offline'`：地理数据使用**离线空底图**，只绘制要素本身。renderer 内置的 OpenFreeMap / OSM / 天地图 瓦片源均需显式配置才会启用，默认不发起任何外部请求；显式声明是为了防止将来默认值变化后悄悄外联。需要底图时用 `geo.tileUrl` 指向内网自托管瓦片服务
 - 工具栏保留缩放、搜索、打印，关闭重复的下载和主题切换入口
-- Word/OFD 弹窗宽度 `min(960px, 92vw)`，Excel/CSV/PowerPoint/Archive/Email/XMind/图形/数据资产 为 `min(1200px, 94vw)`，高度均为 `90vh`
+- Word/OFD 弹窗宽度 `min(960px, 92vw)`，Excel/CSV/PowerPoint/Archive/Email/XMind/图形/数据资产/地理数据 为 `min(1200px, 94vw)`，高度均为 `90vh`
 
-**离线资源**：`@file-viewer/vite-plugin` 按 `word/spreadsheet/ofd/email/xmind/mermaid/drawio/dio/excalidraw/plantuml/puml/data` 格式装配 Word、Spreadsheet、OFD、Email、Mind Map、Drawing 与 Data；
+**离线资源**：`@file-viewer/vite-plugin` 按 `word/spreadsheet/ofd/email/xmind/mermaid/drawio/dio/excalidraw/plantuml/puml/data/geo` 格式装配 Word、Spreadsheet、OFD、Email、Mind Map、Drawing、Data 与 Geo；
 Drawing 的四类格式（Mermaid / draw.io / Excalidraw / PlantUML）共用同一个 renderer，追加扩展名不会引入新的 renderer 包或额外资源。
 Word、Spreadsheet 所需 Worker 与 Data 的 `sql.js` WASM 复制到 `file-viewer/`（分别是 `vendor/docx`、`vendor/xlsx`、`wasm/data`），OFD 的纯 JS vendor 由 Vite 按需打包。Presentation 与 Archive renderer 在 `FileViewerPreviewPanel` 中显式注册，
 其 Worker/WASM/字体由 Vite 输出到 `assets/`；不要同时把 Presentation 或 Archive 扩展名加回插件的
@@ -338,6 +346,8 @@ Word、Spreadsheet 所需 Worker 与 Data 的 `sql.js` WASM 复制到 `file-view
 - Data renderer 对 `.ai` / `.eps` / `.webarchive` 只给结构摘要（魔数、大小、可提取文本），未接入预览分发；
   `.ai` 多为 PDF 封装，服务端识别出 `application/pdf` 时会走 `PDFPreviewPanel` 正常渲染
 - SQLite 仅识别 `.sqlite` 扩展名（core 的扩展名表不含 `.db` / `.sqlite3`）
+- 地理数据默认无底图，只有要素轮廓；`.geojson` 若被服务端标成 `application/json` 会落到 JSON 查看器而非地图（明确 MIME 优先于扩展名回退）
+- `.shp` 单文件只能读出几何，属性表在 `.dbf` 里；需要完整属性请打包成 zip 后由压缩包预览进入
 
 > `@univerjs/presets`、`@univerjs/preset-sheets-core`、`jszip` 与服务端 `exceljs` 未随预览链路删除：前两个仍服务于打印报表设计器和数据库 Excel 粘贴导入，`jszip` 仍由 `data-grid/xlsx-write.ts` 生成 XLSX，`exceljs` 仍服务于用户导入导出、导出中心和报表文件处理。
 
@@ -352,7 +362,7 @@ Word、Spreadsheet 所需 Worker 与 Data 的 `sql.js` WASM 复制到 `file-view
 canPreviewFile(mimeType: string | null | undefined, fileName?: string | null): boolean
 
 /** 细分格式判断 */
-isSpreadsheetFile / isWordFile / isPresentationFile / isOfdFile / isEmailFile / isMindMapFile / isDrawingFile / isDataAssetFile / isMarkdownFile / isPlainTextFile /
+isSpreadsheetFile / isWordFile / isPresentationFile / isOfdFile / isEmailFile / isMindMapFile / isDrawingFile / isDataAssetFile / isGeoFile / isMarkdownFile / isPlainTextFile /
 isJsonFile / isSvgFile / isCodeFile / isArchiveFile / isZipFile(mimeType?: string | null): boolean
 
 /** 是否为交给 Semi ImagePreview 展示的图片（image/* 中排除 PSD）；PSD 需要 Data renderer 解析图层 */

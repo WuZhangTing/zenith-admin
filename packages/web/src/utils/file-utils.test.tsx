@@ -7,6 +7,8 @@ import {
   isDrawingFile,
   isEmailFile,
   isGalleryImageFile,
+  isGeoFile,
+  isJsonFile,
   isMindMapFile,
   isOfdFile,
   isPresentationFile,
@@ -278,6 +280,42 @@ describe('data asset preview detection', () => {
   it('is false for non-images in the gallery predicate', () => {
     expect(isGalleryImageFile('application/pdf', 'a.pdf')).toBe(false);
     expect(isGalleryImageFile(null, null)).toBe(false);
+  });
+});
+
+describe('geo file preview detection', () => {
+  it.each([
+    ['geojson', 'application/geo+json'],
+    ['kml', 'application/vnd.google-earth.kml+xml'],
+    ['gpx', 'application/gpx+xml'],
+    ['shp', 'application/vnd.shp'],
+  ] as const)('recognizes .%s as %s', (extension, mimeType) => {
+    const fileName = `layer.${extension.toUpperCase()}`;
+    expect(guessMimeTypeFromName(fileName)).toBe(mimeType);
+    expect(isGeoFile(mimeType)).toBe(true);
+    expect(canPreviewFile(mimeType, fileName)).toBe(true);
+    expect(canPreviewFile('application/octet-stream', fileName)).toBe(true);
+  });
+
+  it.each([
+    'application/vnd.geo+json',
+    'application/x-gpx+xml',
+    'application/x-esri-shape',
+  ])('recognizes alternate geo MIME type %s', (mimeType) => {
+    expect(isGeoFile(mimeType)).toBe(true);
+    expect(canPreviewFile(mimeType)).toBe(true);
+  });
+
+  it('keeps GeoJSON out of the plain JSON viewer', () => {
+    // .geojson 走地图渲染；只有显式 application/json 才落到 JsonPreviewPanel
+    expect(isGeoFile('application/geo+json')).toBe(true);
+    expect(isJsonFile('application/geo+json')).toBe(false);
+    expect(isGeoFile('application/json')).toBe(false);
+  });
+
+  it('does not classify unrelated MIME types as geo data', () => {
+    expect(isGeoFile('application/pdf')).toBe(false);
+    expect(isGeoFile(null)).toBe(false);
   });
 });
 

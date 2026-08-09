@@ -106,6 +106,7 @@ export function canPreviewFile(
     isMindMapFile(resolvedMimeType) ||
     isDrawingFile(resolvedMimeType) ||
     isDataAssetFile(resolvedMimeType) ||
+    isGeoFile(resolvedMimeType) ||
     isSpreadsheetFile(resolvedMimeType) ||
     isWordFile(resolvedMimeType) ||
     isPresentationFile(resolvedMimeType) ||
@@ -247,6 +248,24 @@ export function isGalleryImageFile(
 ): boolean {
   const mime = resolveFileMimeType(mimeType, fileName);
   return !!mime && mime.startsWith('image/') && !isDataAssetFile(mime);
+}
+
+const GEO_MIME_TYPES = new Set([
+  'application/geo+json',
+  'application/vnd.geo+json',
+  'application/vnd.google-earth.kml+xml',
+  'application/gpx+xml',
+  'application/x-gpx+xml',
+  'application/vnd.shp',
+  'application/x-esri-shape',
+]);
+
+/**
+ * 判断是否为 File Viewer Geo renderer 支持的地理数据文件。
+ * 覆盖 GeoJSON、KML、GPX 与 Shapefile，使用离线空底图渲染，不请求外部瓦片服务。
+ */
+export function isGeoFile(mimeType?: string | null): boolean {
+  return !!mimeType && GEO_MIME_TYPES.has(mimeType.toLowerCase());
 }
 
 /** 判断是否为可预览的 Markdown 文件 */

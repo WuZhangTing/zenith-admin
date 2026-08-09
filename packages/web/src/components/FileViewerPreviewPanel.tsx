@@ -61,6 +61,11 @@ export default function FileViewerPreviewPanel({ file, style }: FileViewerPrevie
       // 走官方 diagrams.net viewer 只会 404 后等超时再回退，这里直接使用内置离线 SVG 渲染。
       preferOfficial: false,
     },
+    geo: {
+      // 默认即离线空底图；显式声明避免将来默认值变化后悄悄请求外部瓦片服务
+      // （OpenFreeMap / OSM / 天地图 均需显式配置才会启用）。
+      basemap: 'offline',
+    },
   }), [isDark]);
 
   return (
