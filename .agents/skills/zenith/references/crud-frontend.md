@@ -902,6 +902,11 @@ const columns: ColumnProps<Region>[] = [
 
 适用于消息中心、智能对话、AI 侧边栏、数据库管理表浏览、日志文件等具有「左侧列表 + 右侧详情」结构的页面。统一使用 `MasterDetailLayout` 组件，路径：`packages/web/src/components/MasterDetailLayout.tsx`。
 
+桌面端默认允许调换 master 左右位置：master 使用 `MasterDetailLayout.Header` 或 `NavListPanel`
+时切换按钮自动位于操作区最右侧，业务页面无需也不得重复渲染按钮。`persistKey` 会同时记住宽度
+与左右位置；窄屏单栏不显示该按钮。只有新增另一种公共 master 标题组件时，才在该公共组件内部
+接入 `MasterDetailLayout.SideToggle`。
+
 ### 标准模式：页面直接作为 Outlet 根节点
 
 页面直接从 `admin-content`（flex 容器，分配了确定高度）继承高度，**直接返回 MasterDetailLayout**，无需外层 wrapper：

@@ -3,6 +3,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { Input, List, Spin } from '@douyinfe/semi-ui';
 import { Search } from 'lucide-react';
 import './NavListPanel.css';
+import { MasterDetailLayout } from './MasterDetailLayout';
 
 /* ─────────────────────────── NavListPanel ──────────────────────────────── */
 
@@ -87,9 +88,12 @@ export function NavListPanel<T = unknown>({
           {title !== undefined && (
             <span className="nav-list-panel__title">{title}</span>
           )}
-          {headerExtra !== undefined && (
-            <div className="nav-list-panel__header-extra">{headerExtra}</div>
-          )}
+          <div className={`nav-list-panel__header-extra${title === undefined ? ' nav-list-panel__header-extra--full' : ''}`}>
+            {headerExtra}
+            <span className="nav-list-panel__side-toggle">
+              <MasterDetailLayout.SideToggle />
+            </span>
+          </div>
         </div>
       )}
 

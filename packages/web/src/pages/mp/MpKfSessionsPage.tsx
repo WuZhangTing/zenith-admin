@@ -268,11 +268,13 @@ export default function MpKfSessionsPage() {
           onBack={() => setSelectedId(null)}
           master={(
             <>
-              <Tabs type="line" activeKey={tab} onChange={handleTabChange} style={{ padding: '0 8px', flexShrink: 0 }}>
-                <TabPane tab="待接入" itemKey="waiting" />
-                <TabPane tab="进行中" itemKey="active" />
-                <TabPane tab="已结束" itemKey="closed" />
-              </Tabs>
+              <MasterDetailLayout.Header style={{ padding: '0 8px' }}>
+                <Tabs type="line" activeKey={tab} onChange={handleTabChange} style={{ flex: 1, minWidth: 0 }}>
+                  <TabPane tab="待接入" itemKey="waiting" />
+                  <TabPane tab="进行中" itemKey="active" />
+                  <TabPane tab="已结束" itemKey="closed" />
+                </Tabs>
+              </MasterDetailLayout.Header>
               <MasterDetailLayout.Body>
                 <Spin spinning={listQuery.isFetching}>
                   {sessions.length === 0 ? (
@@ -436,5 +438,3 @@ export default function MpKfSessionsPage() {
     </div>
   );
 }
-
-

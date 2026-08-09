@@ -50,20 +50,25 @@ export default function WorkflowProcessLayout({
 
   const sidebar = (stacked: boolean) => (
     <div className={`wf-process-sidebar${stacked ? ' wf-process-sidebar--stacked' : ''}`}>
-      <div className="wf-process-sidebar__bar">
+      <MasterDetailLayout.Header
+        className="wf-process-sidebar__bar"
+        style={{ minHeight: 40 }}
+        extra={(
+          <Space spacing={4}>
+            {headerExtra}
+            <Button
+              size="small"
+              theme="borderless"
+              icon={<Workflow size={14} />}
+              onClick={() => setGraphVisible(true)}
+            >
+              流程图
+            </Button>
+          </Space>
+        )}
+      >
         <Typography.Text strong className="wf-process-sidebar__title">审批流程</Typography.Text>
-        <Space spacing={4}>
-          {headerExtra}
-          <Button
-            size="small"
-            theme="borderless"
-            icon={<Workflow size={14} />}
-            onClick={() => setGraphVisible(true)}
-          >
-            流程图
-          </Button>
-        </Space>
-      </div>
+      </MasterDetailLayout.Header>
       <div className="wf-process-sidebar__body">{chain}</div>
     </div>
   );

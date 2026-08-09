@@ -1,7 +1,19 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
+import { Button, Tooltip } from '@douyinfe/semi-ui';
+import { PanelLeft, PanelRight } from 'lucide-react';
 
 type Side = 'left' | 'right';
+
+interface PaneContextValue {
+  pane: 'master' | 'detail';
+  side: Side;
+  sideSwitchable: boolean;
+  isResponsive: boolean;
+  toggleSide: () => void;
+}
+
+const PaneContext = createContext<PaneContextValue | null>(null);
 
 /** 响应式单栏模式下的返回条，master / detail 两侧共用 */
 function ResponsiveBackBar({ onClick, label }: Readonly<{ onClick: () => void; label: ReactNode }>) {
@@ -39,8 +51,12 @@ function ResponsiveBackBar({ onClick, label }: Readonly<{ onClick: () => void; l
 interface MasterDetailLayoutProps {
   readonly master: ReactNode;
   detail: ReactNode;
-  /** 主侧位置，默认 'left' */
+  /** 主侧位置，默认 'left'；配合 onSideChange 时作为受控值 */
   side?: Side;
+  /** 是否允许用户在桌面端调换主侧位置，默认 true */
+  sideSwitchable?: boolean;
+  /** 主侧位置变化回调；提供后由调用方更新 side */
+  onSideChange?: (side: Side) => void;
   /** 主侧默认宽（px） */
   defaultSize?: number;
   minSize?: number;
@@ -133,11 +149,32 @@ function writePersisted(key: string | undefined, value: number) {
   }
 }
 
+function readPersistedSide(key: string | undefined): Side | null {
+  if (!key) return null;
+  try {
+    const value = localStorage.getItem(`${STORAGE_PREFIX}${key}.side`);
+    return value === 'left' || value === 'right' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function writePersistedSide(key: string | undefined, side: Side) {
+  if (!key) return;
+  try {
+    localStorage.setItem(`${STORAGE_PREFIX}${key}.side`, side);
+  } catch {
+    /* ignore */
+  }
+}
+
 function MasterDetailLayoutImpl(props: Readonly<MasterDetailLayoutProps>) {
   const {
     master,
     detail,
-    side = 'left',
+    side: sideProp,
+    sideSwitchable = true,
+    onSideChange,
     defaultSize = 260,
     minSize = 180,
     maxSize = 600,
@@ -159,6 +196,11 @@ function MasterDetailLayoutImpl(props: Readonly<MasterDetailLayoutProps>) {
     style,
   } = props;
   const rootRef = useRef<HTMLDivElement>(null);
+  const [internalSide, setInternalSide] = useState<Side>(
+    () => readPersistedSide(persistKey) ?? sideProp ?? 'left',
+  );
+  const previousSidePropRef = useRef(sideProp);
+  const side = onSideChange ? (sideProp ?? internalSide) : internalSide;
   const [size, setSize] = useState<number>(() => {
     const persisted = readPersisted(persistKey);
     return clamp(persisted ?? defaultSize, minSize, maxSize);
@@ -177,6 +219,19 @@ function MasterDetailLayoutImpl(props: Readonly<MasterDetailLayoutProps>) {
     }
   }, [onCollapseChange]);
   const showCollapseToggle = (collapsible || !!onCollapseChange) && divider;
+
+  useEffect(() => {
+    if (previousSidePropRef.current === sideProp) return;
+    previousSidePropRef.current = sideProp;
+    if (sideProp !== undefined && !onSideChange) setInternalSide(sideProp);
+  }, [onSideChange, sideProp]);
+
+  const handleSideToggle = useCallback(() => {
+    const next = side === 'left' ? 'right' : 'left';
+    if (onSideChange) onSideChange(next);
+    else setInternalSide(next);
+    writePersistedSide(persistKey, next);
+  }, [onSideChange, persistKey, side]);
 
   useLayoutEffect(() => {
     const el = rootRef.current;
@@ -253,13 +308,35 @@ function MasterDetailLayoutImpl(props: Readonly<MasterDetailLayoutProps>) {
 
   const rootStyle: CSSProperties = {
     display: 'flex',
-    flexDirection: 'row',
+    flexDirection: side === 'left' ? 'row' : 'row-reverse',
     height: '100%',
     width: '100%',
     overflow: 'hidden',
     gap: gap > 0 ? gap : undefined,
     ...style,
   };
+  const masterContent = (
+    <PaneContext.Provider value={{
+      pane: 'master',
+      side,
+      sideSwitchable,
+      isResponsive,
+      toggleSide: handleSideToggle,
+    }}>
+      {master}
+    </PaneContext.Provider>
+  );
+  const detailContent = (
+    <PaneContext.Provider value={{
+      pane: 'detail',
+      side,
+      sideSwitchable,
+      isResponsive,
+      toggleSide: handleSideToggle,
+    }}>
+      {detail}
+    </PaneContext.Provider>
+  );
 
   const masterBaseStyle: CSSProperties = {
     flexShrink: 0,
@@ -303,11 +380,11 @@ function MasterDetailLayoutImpl(props: Readonly<MasterDetailLayoutProps>) {
           {!detailVisible && onMasterBack && (
             <ResponsiveBackBar onClick={onMasterBack} label={masterBackLabel} />
           )}
-          {master}
+          {masterContent}
         </div>
         <div style={{ ...detailBaseStyle, display: detailVisible ? 'flex' : 'none' }}>
           {detailVisible && onBack && <ResponsiveBackBar onClick={onBack} label="返回" />}
-          {detail}
+          {detailContent}
         </div>
       </div>
     );
@@ -323,7 +400,8 @@ function MasterDetailLayoutImpl(props: Readonly<MasterDetailLayoutProps>) {
       type="button"
       onClick={(e) => { e.stopPropagation(); handleCollapseToggle(!collapsed); }}
       onPointerDown={(e) => e.stopPropagation()}
-      title={collapsed ? '展开左侧面板' : '收起左侧面板'}
+      title={`${collapsed ? '展开' : '收起'}${side === 'left' ? '左侧' : '右侧'}面板`}
+      aria-label={`${collapsed ? '展开' : '收起'}${side === 'left' ? '左侧' : '右侧'}面板`}
       style={{
         position: 'absolute',
         top: '50%',
@@ -462,26 +540,15 @@ function MasterDetailLayoutImpl(props: Readonly<MasterDetailLayoutProps>) {
     />
   ) : null;
 
-  const masterEl = <div style={masterStyle}>{master}</div>;
-  const detailEl = <div style={detailBaseStyle}>{detail}</div>;
+  const masterEl = <div style={masterStyle}>{masterContent}</div>;
+  const detailEl = <div style={detailBaseStyle}>{detailContent}</div>;
 
   return (
     <div ref={rootRef} className={className} style={rootStyle}>
-      {side === 'left' ? (
-        <>
-          {masterEl}
-          {handleEl}
-          {handleElBordered}
-          {detailEl}
-        </>
-      ) : (
-        <>
-          {detailEl}
-          {handleEl}
-          {handleElBordered}
-          {masterEl}
-        </>
-      )}
+      {masterEl}
+      {handleEl}
+      {handleElBordered}
+      {detailEl}
     </div>
   );
 }
@@ -493,7 +560,30 @@ interface HeaderProps {
   readonly style?: CSSProperties;
 }
 
+function SideToggle() {
+  const context = useContext(PaneContext);
+  if (!context || context.pane !== 'master' || !context.sideSwitchable || context.isResponsive) return null;
+  const target = context.side === 'left' ? '右侧' : '左侧';
+  const label = `将侧栏移到${target}`;
+  return (
+    <Tooltip content={label} position="bottom">
+      <Button
+        size="small"
+        theme="borderless"
+        type="tertiary"
+        icon={context.side === 'left' ? <PanelRight size={14} /> : <PanelLeft size={14} />}
+        aria-label={label}
+        onClick={context.toggleSide}
+      />
+    </Tooltip>
+  );
+}
+
 function Header({ children, extra, className, style }: HeaderProps) {
+  const paneContext = useContext(PaneContext);
+  const showSideToggle = paneContext?.pane === 'master'
+    && paneContext.sideSwitchable
+    && !paneContext.isResponsive;
   return (
     <div
       className={className ? `msdl-header ${className}` : 'msdl-header'}
@@ -511,7 +601,12 @@ function Header({ children, extra, className, style }: HeaderProps) {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>{children}</div>
-      {extra ? <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>{extra}</div> : null}
+      {extra || showSideToggle ? (
+        <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+          {extra}
+          {showSideToggle ? <SideToggle /> : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -550,6 +645,7 @@ function Body({ children, scroll = 'auto', padding, className, style }: BodyProp
 export const MasterDetailLayout = Object.assign(MasterDetailLayoutImpl, {
   Header,
   Body,
+  SideToggle,
 });
 
 export type { MasterDetailLayoutProps };

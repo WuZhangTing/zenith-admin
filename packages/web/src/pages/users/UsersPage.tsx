@@ -612,9 +612,10 @@ export default function UsersPage() {
 
   const masterContent = (
     <div className="users-dept-sidebar">
-      <div className="users-dept-sidebar-title">
-        <span className="users-dept-sidebar-title-text">组织架构</span>
-        <div className="users-dept-sidebar-actions">
+      <MasterDetailLayout.Header
+        className="users-dept-sidebar-title"
+        style={{ padding: '10px 12px', minHeight: 44, marginBottom: 4 }}
+        extra={(
           <Button
             className="users-dept-tree-action"
             theme="borderless"
@@ -624,8 +625,10 @@ export default function UsersPage() {
           >
             {isAllDeptExpanded ? '全部折叠' : '全部展开'}
           </Button>
-        </div>
-      </div>
+        )}
+      >
+        <span className="users-dept-sidebar-title-text">组织架构</span>
+      </MasterDetailLayout.Header>
       <Tree
         treeData={deptTreeData}
         expandedKeys={deptTreeExpandedKeys}

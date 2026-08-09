@@ -167,6 +167,11 @@
 - **失效行为需可证伪**（Step 8）：域 hooks 的测试用 `packages/web/src/test-utils/query-harness.ts`，断言实际请求数、真正进入 fetching 的查询与缓存新鲜度；**禁止**只 spy「调用了 `invalidateQueries(某 key)`」—— `all` 是 `detail` 的前缀，这类断言在冗余的广播写法下同样通过
 - **ConfigurableTable 刷新按钮**（Step 8）：所有使用 `ConfigurableTable` 的列表页均必须传入 `onRefresh` 和 `refreshLoading`
 - **左右分栏布局**（Step 8）：需要「左侧列表 + 右侧详情」结构时，统一使用 `packages/web/src/components/MasterDetailLayout.tsx`，**禁止**手写 flex 两栏布局。窄屏（容器宽度 < `responsiveBreakpoint`，默认 720）自动转单栏，必须提供返回入口：master 为列表时传 `onBack`，master 为筛选树、detail 才是主体时传 `onMasterBack`；且**禁止**在单栏下自动选中首项（否则根视图落在详情，列表要点返回才能抵达），用 `onResponsiveChange` 区分。master 内部的高度链写法、嵌套 Semi Tabs 与窄屏单栏的完整写法见 [crud-frontend.md 左右分栏布局](./crud-frontend.md)
+- **左右分栏位置切换**（Step 8）：桌面端默认允许用户调换 master 左右位置；master 使用
+  `MasterDetailLayout.Header` 或 `NavListPanel` 时按钮自动出现在操作区最右侧，业务页面**禁止**
+  重复渲染 `SideToggle`；仅封装新型公共 master 标题组件时才在公共组件内部接入。
+  窄屏自动隐藏；传 `persistKey` 时宽度与位置一并持久化；明确不允许调换的业务页面传
+  `sideSwitchable={false}`
 - **左侧平铺列表**（Step 8）：左侧 master 是**平铺列表**（分类/文件/分组等，非树形）时，统一使用 `NavListPanel<T>` + `NavListItem`（`packages/web/src/components/NavListPanel.tsx`）；树形数据（需展开/折叠）改用 Semi `Tree`。props 与 dataSource / children / rawBody 三种用法见 [crud-frontend.md 左侧平铺列表](./crud-frontend.md)
 - **统计卡片**（Step 8）：指标卡（数值 + 标题，可带图标/副文案/环比/可点击筛选）统一使用
   `packages/web/src/components/charts/StatCard.tsx` 的 `StatCard` + `StatGrid`，

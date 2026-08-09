@@ -34,6 +34,19 @@
 
 .nav-list-panel__header-extra {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nav-list-panel__header-extra--full {
+  flex: 1;
+  min-width: 0;
+}
+
+.nav-list-panel__side-toggle {
+  display: inline-flex;
+  margin-left: auto;
 }
 
 .nav-list-panel__search {

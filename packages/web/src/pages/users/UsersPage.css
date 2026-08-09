@@ -34,11 +34,6 @@
   white-space: nowrap;
 }
 
-.users-dept-sidebar-actions {
-  display: flex;
-  align-items: center;
-}
-
 .users-dept-tree-action {
   color: var(--semi-color-text-2);
   font-size: 12px;
