@@ -3,8 +3,10 @@ import {
   canPreviewFile,
   guessMimeTypeFromName,
   isArchiveFile,
+  isDataAssetFile,
   isDrawingFile,
   isEmailFile,
+  isGalleryImageFile,
   isMindMapFile,
   isOfdFile,
   isPresentationFile,
@@ -208,6 +210,74 @@ describe('email, XMind and drawing preview detection', () => {
     expect(isEmailFile(null)).toBe(false);
     expect(isMindMapFile(undefined)).toBe(false);
     expect(isDrawingFile(null)).toBe(false);
+  });
+});
+
+const DATA_ASSET_EXTENSION_CASES = [
+  ['ttf', 'font/ttf'],
+  ['otf', 'font/otf'],
+  ['woff', 'font/woff'],
+  ['woff2', 'font/woff2'],
+  ['psd', 'image/vnd.adobe.photoshop'],
+  ['sqlite', 'application/vnd.sqlite3'],
+  ['parquet', 'application/vnd.apache.parquet'],
+  ['wasm', 'application/wasm'],
+] as const;
+
+describe('data asset preview detection', () => {
+  it.each(DATA_ASSET_EXTENSION_CASES)('recognizes .%s as %s', (extension, mimeType) => {
+    const fileName = `sample.${extension.toUpperCase()}`;
+    expect(guessMimeTypeFromName(fileName)).toBe(mimeType);
+    expect(isDataAssetFile(mimeType)).toBe(true);
+    expect(canPreviewFile(mimeType, fileName)).toBe(true);
+    expect(canPreviewFile('application/octet-stream', fileName)).toBe(true);
+  });
+
+  it.each([
+    'application/x-sqlite3',
+    'application/x-parquet',
+    'application/x-font-ttf',
+    'application/font-woff',
+    'image/x-photoshop',
+    'application/x-photoshop',
+  ])('recognizes alternate data asset MIME type %s', (mimeType) => {
+    expect(isDataAssetFile(mimeType)).toBe(true);
+    expect(canPreviewFile(mimeType)).toBe(true);
+  });
+
+  it('does not offer Avro preview: avsc cannot load under Vite without Node polyfills', () => {
+    expect(guessMimeTypeFromName('events.avro')).toBeNull();
+    expect(isDataAssetFile('application/vnd.apache.avro')).toBe(false);
+    expect(canPreviewFile('application/octet-stream', 'events.avro')).toBe(false);
+  });
+
+  it('does not classify unrelated MIME types as data assets', () => {
+    expect(isDataAssetFile('application/pdf')).toBe(false);
+    expect(isDataAssetFile('image/png')).toBe(false);
+    expect(isDataAssetFile(null)).toBe(false);
+  });
+
+  it('keeps PSD out of the browser image gallery despite its image/* MIME', () => {
+    // image/vnd.adobe.photoshop 以 image/ 开头，用前缀判断会把 PSD 塞进 ImagePreview 变成裂图
+    expect('image/vnd.adobe.photoshop'.startsWith('image/')).toBe(true);
+    expect(isGalleryImageFile('image/vnd.adobe.photoshop', 'design.psd')).toBe(false);
+    expect(isGalleryImageFile('application/octet-stream', 'design.psd')).toBe(false);
+  });
+
+  it.each([
+    ['image/png', 'a.png'],
+    ['image/jpeg', 'a.jpg'],
+    ['image/svg+xml', 'a.svg'],
+    // HEIC/TIFF 经 image-decode 转码后照常进图集，仍属于图片链路
+    ['image/heic', 'a.heic'],
+    ['image/tiff', 'a.tiff'],
+  ])('keeps %s in the image gallery', (mimeType, fileName) => {
+    expect(isGalleryImageFile(mimeType, fileName)).toBe(true);
+  });
+
+  it('is false for non-images in the gallery predicate', () => {
+    expect(isGalleryImageFile('application/pdf', 'a.pdf')).toBe(false);
+    expect(isGalleryImageFile(null, null)).toBe(false);
   });
 });
 

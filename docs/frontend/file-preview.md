@@ -30,6 +30,9 @@
 | SVG | `image/svg+xml` | 鉴权下载 Blob 后创建 Object URL，用 `<img>` 居中展示 |
 | 代码/配置 | JavaScript、TypeScript、Python、CSS、HTML、XML、YAML、Shell、SQL 等 MIME 类型 | Monaco Editor 语法高亮只读展示（`MonacoPreviewPanel`，懒加载） |
 | 压缩包 | Archive renderer 支持的 ZIP、7z、RAR、TAR、GZIP、ISO、JAR、APK、CBZ/CBR 等 MIME | File Viewer Archive renderer（`FileViewerPreviewPanel`，懒加载） |
+| 字体 | `.ttf/.otf/.woff/.woff2` 对应 MIME | File Viewer Data renderer（`FileViewerPreviewPanel`，懒加载） |
+| 设计稿 | `.psd` / `image/vnd.adobe.photoshop` | File Viewer Data renderer（`FileViewerPreviewPanel`，懒加载） |
+| 结构化数据 | `.sqlite` / `.parquet` / `.wasm` 对应 MIME | File Viewer Data renderer（`FileViewerPreviewPanel`，懒加载） |
 
 > **普通图片**不在 `FilePreviewModal` 内部渲染。遇到非 SVG 的 `image/*` 时组件会立即调用 `onClose` 并回退，由调用方自行打开 `ImagePreview`。
 >
@@ -131,7 +134,7 @@ const isPreviewable = canPreviewFile(record.mimeType, record.originalName);
 </Button>
 ```
 
-`canPreviewFile` 覆盖全部可预览格式（image / audio / video / PDF / OFD / Office / OpenDocument / email / XMind / drawing / markdown / text / json / svg / code / archive），调用方无需手动枚举 MIME 类型。
+`canPreviewFile` 覆盖全部可预览格式（image / audio / video / PDF / OFD / Office / OpenDocument / email / XMind / drawing / data-asset / markdown / text / json / svg / code / archive），调用方无需手动枚举 MIME 类型。
 
 ---
 
@@ -273,9 +276,9 @@ TIFF/JXL 仍然原样丢给 `<img>`（解不出就报 `The browser could not dec
 
 ---
 
-### Office / OFD / 压缩包 / 邮件 / XMind / 图形
+### Office / OFD / 压缩包 / 邮件 / XMind / 图形 / 数据资产
 
-下载 Blob 后包装为保留原始文件名和 MIME 类型的 `File`，再**懒加载** `FileViewerPreviewPanel`。面板使用 File Viewer 的模块化 React 组件，按需注册 Spreadsheet、Word、Presentation、OFD、Archive、Email、Mind Map 与 Drawing renderer；PDF、Markdown 等格式仍沿用各自的现有实现。
+下载 Blob 后包装为保留原始文件名和 MIME 类型的 `File`，再**懒加载** `FileViewerPreviewPanel`。面板使用 File Viewer 的模块化 React 组件，按需注册 Spreadsheet、Word、Presentation、OFD、Archive、Email、Mind Map、Drawing 与 Data renderer；PDF、Markdown 等格式仍沿用各自的现有实现。
 
 ```text
 @file-viewer/react
@@ -287,6 +290,7 @@ TIFF/JXL 仍然原样丢给 `<img>`（解不出就报 `The browser could not dec
 @file-viewer/renderer-spreadsheet
 @file-viewer/renderer-word
 @file-viewer/renderer-presentation
+@file-viewer/renderer-data
 ```
 
 关键配置：
@@ -304,12 +308,13 @@ TIFF/JXL 仍然原样丢给 `<img>`（解不出就报 `The browser could not dec
 - `drawing.preferOfficial: false`：draw.io 直接使用 renderer 内置的离线 SVG 渲染（解析 `mxGraphModel` 输出节点、连线与箭头），不加载官方 diagrams.net `viewer-static.min.js`——`@file-viewer/vite-plugin` 的 `copyAssets` 不分发该 vendor 脚本（仅 `*-full` 包自带），保留默认值只会先 404、再等超时才回退
 - Excalidraw 使用 renderer 自带的 `roughjs` 生成只读 SVG；未安装官方 `@excalidraw/excalidraw` 时不会尝试联网加载
 - PlantUML 默认完全离线，展示 SVG 源码预览；需要成图时可给 `drawing.plantumlServerUrl` 指向**内网自托管**的 PlantUML SVG 服务
+- Data renderer 覆盖字体样张（FontFace）、PSD 图层（`ag-psd`，支持图层显隐与重绘）、SQLite 表结构与样例数据（`sql.js`，WASM 由插件复制到 `file-viewer/wasm/data/sql-wasm.wasm`）、Parquet 记录（`hyparquet`）与 WASM 导入导出表
 - 工具栏保留缩放、搜索、打印，关闭重复的下载和主题切换入口
-- Word/OFD 弹窗宽度 `min(960px, 92vw)`，Excel/CSV/PowerPoint/Archive/Email/XMind/图形 为 `min(1200px, 94vw)`，高度均为 `90vh`
+- Word/OFD 弹窗宽度 `min(960px, 92vw)`，Excel/CSV/PowerPoint/Archive/Email/XMind/图形/数据资产 为 `min(1200px, 94vw)`，高度均为 `90vh`
 
-**离线资源**：`@file-viewer/vite-plugin` 按 `word/spreadsheet/ofd/email/xmind/mermaid/drawio/dio/excalidraw/plantuml/puml` 格式装配 Word、Spreadsheet、OFD、Email、Mind Map 与 Drawing；
+**离线资源**：`@file-viewer/vite-plugin` 按 `word/spreadsheet/ofd/email/xmind/mermaid/drawio/dio/excalidraw/plantuml/puml/data` 格式装配 Word、Spreadsheet、OFD、Email、Mind Map、Drawing 与 Data；
 Drawing 的四类格式（Mermaid / draw.io / Excalidraw / PlantUML）共用同一个 renderer，追加扩展名不会引入新的 renderer 包或额外资源。
-Word、Spreadsheet 所需 Worker 复制到 `file-viewer/`，OFD 的纯 JS vendor 由 Vite 按需打包。Presentation 与 Archive renderer 在 `FileViewerPreviewPanel` 中显式注册，
+Word、Spreadsheet 所需 Worker 与 Data 的 `sql.js` WASM 复制到 `file-viewer/`（分别是 `vendor/docx`、`vendor/xlsx`、`wasm/data`），OFD 的纯 JS vendor 由 Vite 按需打包。Presentation 与 Archive renderer 在 `FileViewerPreviewPanel` 中显式注册，
 其 Worker/WASM/字体由 Vite 输出到 `assets/`；不要同时把 Presentation 或 Archive 扩展名加回插件的
 `formats`，否则同一资源会再复制到 `file-viewer/`。开发时插件资源生成到
 `packages/web/public/file-viewer/`（已忽略版本控制），生产构建生成到 `dist/file-viewer/`；
@@ -326,6 +331,13 @@ Word、Spreadsheet 所需 Worker 复制到 `file-viewer/`，OFD 的纯 JS vendor
 - MBOX 当前展示解析出的第一封邮件，并提示识别到的邮件总数
 - draw.io 走内置离线渲染，复杂样式、自定义图形库（stencils）与容器嵌套的还原度低于官方 viewer；需要高保真时自行托管 `viewer-static.min.js` 并配置 `drawing.viewerScriptUrl` + `preferOfficial: true`
 - PlantUML 未配置 `plantumlServerUrl` 时只展示源码，不出图
+- **PSD 的规范 MIME 是 `image/vnd.adobe.photoshop`，以 `image/` 开头**。判断「是不是能直接给 `ImagePreview` 的图片」必须用 `isGalleryImageFile`，**禁止**写 `mimeType.startsWith('image/')`——否则 PSD 会被塞进图集渲染成裂图
+- **不提供 Avro 预览**：`avsc` 的浏览器入口是为 browserify 编写的，模块加载期就执行
+  `util.inherits(BlobReader, stream.Readable)`，而 Vite 会把 `stream` / `util` 外部化为空模块，
+  `import` 阶段即抛错。要支持须为整个 web 包引入 Node 内置 polyfill，代价与收益不匹配
+- Data renderer 对 `.ai` / `.eps` / `.webarchive` 只给结构摘要（魔数、大小、可提取文本），未接入预览分发；
+  `.ai` 多为 PDF 封装，服务端识别出 `application/pdf` 时会走 `PDFPreviewPanel` 正常渲染
+- SQLite 仅识别 `.sqlite` 扩展名（core 的扩展名表不含 `.db` / `.sqlite3`）
 
 > `@univerjs/presets`、`@univerjs/preset-sheets-core`、`jszip` 与服务端 `exceljs` 未随预览链路删除：前两个仍服务于打印报表设计器和数据库 Excel 粘贴导入，`jszip` 仍由 `data-grid/xlsx-write.ts` 生成 XLSX，`exceljs` 仍服务于用户导入导出、导出中心和报表文件处理。
 
@@ -340,8 +352,11 @@ Word、Spreadsheet 所需 Worker 复制到 `file-viewer/`，OFD 的纯 JS vendor
 canPreviewFile(mimeType: string | null | undefined, fileName?: string | null): boolean
 
 /** 细分格式判断 */
-isSpreadsheetFile / isWordFile / isPresentationFile / isOfdFile / isEmailFile / isMindMapFile / isDrawingFile / isMarkdownFile / isPlainTextFile /
+isSpreadsheetFile / isWordFile / isPresentationFile / isOfdFile / isEmailFile / isMindMapFile / isDrawingFile / isDataAssetFile / isMarkdownFile / isPlainTextFile /
 isJsonFile / isSvgFile / isCodeFile / isArchiveFile / isZipFile(mimeType?: string | null): boolean
+
+/** 是否为交给 Semi ImagePreview 展示的图片（image/* 中排除 PSD）；PSD 需要 Data renderer 解析图层 */
+isGalleryImageFile(mimeType?: string | null, fileName?: string | null): boolean
 
 /** 按文件名扩展（优先）与 MIME 类型返回 vscode-icons 彩色图标节点，用于列表与预览标题 */
 getFileTypeIcon(fileName?: string | null, mimeType?: string | null, size?: number): ReactNode

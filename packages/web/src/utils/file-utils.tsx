@@ -105,6 +105,7 @@ export function canPreviewFile(
     isEmailFile(resolvedMimeType) ||
     isMindMapFile(resolvedMimeType) ||
     isDrawingFile(resolvedMimeType) ||
+    isDataAssetFile(resolvedMimeType) ||
     isSpreadsheetFile(resolvedMimeType) ||
     isWordFile(resolvedMimeType) ||
     isPresentationFile(resolvedMimeType) ||
@@ -207,6 +208,45 @@ const DRAWING_MIME_TYPES = new Set([
  */
 export function isDrawingFile(mimeType?: string | null): boolean {
   return !!mimeType && DRAWING_MIME_TYPES.has(mimeType.toLowerCase());
+}
+
+const DATA_ASSET_MIME_TYPES = new Set([
+  // 字体
+  'font/ttf', 'font/otf', 'font/woff', 'font/woff2',
+  'application/x-font-ttf', 'application/x-font-otf', 'application/font-woff',
+  'application/font-woff2', 'application/vnd.ms-opentype',
+  // 设计资产（PSD 的规范 MIME 以 image/ 开头，必须显式识别，否则会被当成普通图片）
+  'image/vnd.adobe.photoshop', 'image/x-photoshop', 'application/x-photoshop', 'application/photoshop',
+  // 结构化数据
+  // 不含 Avro：avsc 的浏览器入口是为 browserify 写的，模块加载期就执行
+  // util.inherits(BlobReader, stream.Readable)，而 Vite 会把 stream / util 外部化为空模块，
+  // 导致 import 阶段直接抛错。要支持需给整个 web 包引入 Node 内置 polyfill，代价与收益不匹配。
+  'application/vnd.sqlite3', 'application/x-sqlite3',
+  'application/vnd.apache.parquet', 'application/x-parquet',
+  'application/wasm',
+]);
+
+/**
+ * 判断是否为 File Viewer Data renderer 支持的数据 / 设计 / 字体资产。
+ * 覆盖字体样张、PSD 图层、SQLite 表结构、Parquet / Avro 记录与 WASM 导入导出表。
+ */
+export function isDataAssetFile(mimeType?: string | null): boolean {
+  return !!mimeType && DATA_ASSET_MIME_TYPES.has(mimeType.toLowerCase());
+}
+
+/**
+ * 判断是否为「交给 Semi `ImagePreview` 展示」的图片。
+ *
+ * 不能直接用 `image/*` 前缀：PSD 的规范 MIME 是 `image/vnd.adobe.photoshop`，
+ * 但它需要 Data renderer 解析图层，塞进 `<img>` 只会得到裂图。
+ * HEIC/HEIF/TIFF 仍属于本类——它们由 `@/utils/image-decode` 转码后照常进图集。
+ */
+export function isGalleryImageFile(
+  mimeType?: string | null,
+  fileName?: string | null,
+): boolean {
+  const mime = resolveFileMimeType(mimeType, fileName);
+  return !!mime && mime.startsWith('image/') && !isDataAssetFile(mime);
 }
 
 /** 判断是否为可预览的 Markdown 文件 */

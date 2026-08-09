@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Modal, Spin, Toast, AudioPlayer, VideoPlayer, Typography } from '@douyinfe/semi-ui';
 import { X } from 'lucide-react';
 import { useThemeController } from '@/providers/theme-controller';
-import { fetchManagedFileBlob, resolveFileMimeType, isSpreadsheetFile, isWordFile, isPresentationFile, isOfdFile, isEmailFile, isMindMapFile, isDrawingFile, isMarkdownFile, isPlainTextFile, isArchiveFile, isJsonFile, isSvgFile, isCodeFile, getFileTypeIcon } from '@/utils/file-utils';
+import { fetchManagedFileBlob, resolveFileMimeType, isSpreadsheetFile, isWordFile, isPresentationFile, isOfdFile, isEmailFile, isMindMapFile, isDrawingFile, isDataAssetFile, isMarkdownFile, isPlainTextFile, isArchiveFile, isJsonFile, isSvgFile, isCodeFile, getFileTypeIcon } from '@/utils/file-utils';
 import AppModal from '@/components/AppModal';
 import type { CSSProperties, ReactNode } from 'react';
 import './filePreview.css';
@@ -33,10 +33,10 @@ interface FilePreviewModalProps {
   style?: CSSProperties;
 }
 
-type PreviewKind = 'spreadsheet' | 'word' | 'presentation' | 'ofd' | 'email' | 'mindmap' | 'drawing' | 'archive' | 'markdown' | 'plainText' | 'json' | 'svg' | 'code' | 'pdf' | 'audio' | 'video';
+type PreviewKind = 'spreadsheet' | 'word' | 'presentation' | 'ofd' | 'email' | 'mindmap' | 'drawing' | 'dataAsset' | 'archive' | 'markdown' | 'plainText' | 'json' | 'svg' | 'code' | 'pdf' | 'audio' | 'video';
 
 type PreviewData =
-  | { kind: 'spreadsheet' | 'word' | 'presentation' | 'ofd' | 'email' | 'mindmap' | 'drawing' | 'archive'; file: File }
+  | { kind: 'spreadsheet' | 'word' | 'presentation' | 'ofd' | 'email' | 'mindmap' | 'drawing' | 'dataAsset' | 'archive'; file: File }
   | { kind: 'markdown'; text: string }
   | { kind: 'plainText'; text: string }
   | { kind: 'json'; text: string }
@@ -119,6 +119,8 @@ export default function FilePreviewModal({
     if (isEmailFile(resolvedMimeType)) return 'email';
     if (isMindMapFile(resolvedMimeType)) return 'mindmap';
     if (isDrawingFile(resolvedMimeType)) return 'drawing';
+    // 必须早于下方的 image/* 判定：PSD 的规范 MIME 是 image/vnd.adobe.photoshop
+    if (isDataAssetFile(resolvedMimeType)) return 'dataAsset';
     if (isMarkdownFile(resolvedMimeType)) return 'markdown';
     if (isPlainTextFile(resolvedMimeType)) return 'plainText';
     if (isArchiveFile(resolvedMimeType)) return 'archive';
@@ -136,7 +138,7 @@ export default function FilePreviewModal({
     queryKey: ['files', 'preview', visible, fileUrl, fileName, resolvedMimeType, previewKind],
     queryFn: async (): Promise<PreviewData> => {
       const blob = await fetchManagedFileBlob(fileUrl);
-      if (previewKind === 'spreadsheet' || previewKind === 'word' || previewKind === 'presentation' || previewKind === 'ofd' || previewKind === 'email' || previewKind === 'mindmap' || previewKind === 'drawing' || previewKind === 'archive') {
+      if (previewKind === 'spreadsheet' || previewKind === 'word' || previewKind === 'presentation' || previewKind === 'ofd' || previewKind === 'email' || previewKind === 'mindmap' || previewKind === 'drawing' || previewKind === 'dataAsset' || previewKind === 'archive') {
         return {
           kind: previewKind,
           file: new File([blob], fileName, { type: resolvedMimeType || blob.type }),
@@ -261,9 +263,9 @@ export default function FilePreviewModal({
     );
   }
 
-  if (previewData?.kind === 'spreadsheet' || previewData?.kind === 'word' || previewData?.kind === 'presentation' || previewData?.kind === 'ofd' || previewData?.kind === 'email' || previewData?.kind === 'mindmap' || previewData?.kind === 'drawing' || previewData?.kind === 'archive') {
+  if (previewData?.kind === 'spreadsheet' || previewData?.kind === 'word' || previewData?.kind === 'presentation' || previewData?.kind === 'ofd' || previewData?.kind === 'email' || previewData?.kind === 'mindmap' || previewData?.kind === 'drawing' || previewData?.kind === 'dataAsset' || previewData?.kind === 'archive') {
     const isPresentation = previewData.kind === 'presentation';
-    const isWide = previewData.kind === 'spreadsheet' || previewData.kind === 'archive' || previewData.kind === 'email' || previewData.kind === 'mindmap' || previewData.kind === 'drawing' || isPresentation;
+    const isWide = previewData.kind === 'spreadsheet' || previewData.kind === 'archive' || previewData.kind === 'email' || previewData.kind === 'mindmap' || previewData.kind === 'drawing' || previewData.kind === 'dataAsset' || isPresentation;
     return (
       <PreviewModalShell title={previewTitle} onCancel={handleClose} fullscreen={fullscreen} onToggleFullscreen={toggleFullscreen}
         width={isWide ? 'min(1200px, 94vw)' : 'min(960px, 92vw)'} viewportHeight="90vh">

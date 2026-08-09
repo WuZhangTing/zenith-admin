@@ -19,8 +19,10 @@ import {
   canPreviewFile,
   fetchManagedFileBlob,
   formatFileSize,
+  isGalleryImageFile,
   resolveFileMimeType,
 } from '@/utils/file-utils';
+import { createDisplayableImageUrl } from '@/utils/image-decode';
 import FilePreviewModal from '@/components/FilePreviewModal';
 
 const { Text } = Typography;
@@ -239,11 +241,11 @@ export default function FileAttachment({
         return;
       }
 
-      if (mimeType.startsWith('image/')) {
-        // 图片：fetch blob → object URL → ImagePreview
+      if (isGalleryImageFile(mimeType, item.file.originalName)) {
+        // 图片：fetch blob → 规范化解码（HEIC/TIFF）→ object URL → ImagePreview
         try {
           const blob = await fetchManagedFileBlob(item.file.url);
-          const objectUrl = globalThis.URL.createObjectURL(blob);
+          const objectUrl = await createDisplayableImageUrl(blob, mimeType, item.file.originalName);
           setImagePreviewUrl(objectUrl);
         } catch {
           Toast.error('加载图片失败');

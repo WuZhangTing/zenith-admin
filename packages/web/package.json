@@ -24,6 +24,7 @@
 		"@emoji-mart/react": "^1.1.1",
 		"@file-viewer/react": "^2.2.5",
 		"@file-viewer/renderer-archive": "^2.2.5",
+		"@file-viewer/renderer-data": "^2.2.5",
 		"@file-viewer/renderer-drawing": "^2.2.5",
 		"@file-viewer/renderer-email": "^2.2.5",
 		"@file-viewer/renderer-mindmap": "^2.2.5",

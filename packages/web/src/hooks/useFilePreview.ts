@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
 import type { ManagedFile } from '@zenith/shared/platform';
-import { canPreviewFile, fetchManagedFileBlob, resolveFileMimeType } from '@/utils/file-utils';
+import { canPreviewFile, fetchManagedFileBlob, isGalleryImageFile, resolveFileMimeType } from '@/utils/file-utils';
 import { createDisplayableImageUrl } from '@/utils/image-decode';
 
 interface FilePreviewTarget {
@@ -41,7 +41,7 @@ export function useFilePreview(getImageFiles: () => ManagedFile[]) {
 
   const handlePreview = async (file: ManagedFile) => {
     const resolvedMimeType = resolveFileMimeType(file.mimeType, file.originalName);
-    const isImage = resolvedMimeType?.startsWith('image/') ?? false;
+    const isImage = isGalleryImageFile(file.mimeType, file.originalName);
     const isPreviewable = canPreviewFile(file.mimeType, file.originalName);
 
     if (!isPreviewable && !isImage) {
@@ -74,7 +74,7 @@ export function useFilePreview(getImageFiles: () => ManagedFile[]) {
     }
 
     const imageFiles = getImageFiles().filter((f) =>
-      resolveFileMimeType(f.mimeType, f.originalName)?.startsWith('image/'),
+      isGalleryImageFile(f.mimeType, f.originalName),
     );
     const clickedIndex = imageFiles.findIndex((f) => f.id === file.id);
 
