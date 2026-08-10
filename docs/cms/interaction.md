@@ -46,7 +46,7 @@
 - `cms_ad_events` 追加记录 site/ad/slot、impression/click、发生时间、访客/IP 哈希、UA/设备/来源/路径及可选会员。曝光按广告+访客+60 秒桶、点击按 10 秒桶去重。
 - 事件插入、`cms_ads` 计数与 `cms_ad_stats` 日聚合在同一事务中按**实际插入事件**批量更新，保证三者一致；一次曝光请求最多 50 个广告，不逐事件多表重写。
 - 后台 `/cms/ads` 为「广告 / 事件明细 / 统计」页内 Tabs。事件可按完整维度和时间范围筛选，导出实体 `cms.ad-events`；原始导出另需 `cms:ad-event:export-raw`。
-- 系统配置 `cms_ad_event_retention_days`（默认 180）控制保留期；人工清理与每日系统调度 `cms-ad-events-retention` 最终都提交任务中心 `cms-ad-events-cleanup` 执行，支持 checkpoint/items/取消/重试。
+- 保留期由「数据保留」中的 `cms_ad_events` 策略统一控制（默认 180 天）；每日 `data-retention` 系统任务按该策略清理，人工按站点清理仍走任务中心 `cms-ad-events-cleanup`，支持 checkpoint/items/取消/重试。
 
 ## 会员订阅与发布触达
 

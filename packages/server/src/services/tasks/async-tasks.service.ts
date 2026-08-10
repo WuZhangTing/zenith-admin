@@ -246,7 +246,7 @@ export async function getAsyncTaskStats(): Promise<AsyncTaskStats> {
   const dayMs = 24 * 60 * 60 * 1000;
   const since24h = new Date(Date.now() - dayMs);
   const since7d = new Date(Date.now() - 7 * dayMs);
-  const [statusRows, [duration], dailyRows] = await Promise.all([
+  const [statusRows, [duration], dailyRows, [backlogRow], [retriedRow], typeRows] = await Promise.all([
     db.select({ status: asyncTasks.status, count: sql<number>`count(*)::int` })
       .from(asyncTasks).groupBy(asyncTasks.status),
     db.select({
@@ -261,17 +261,67 @@ export async function getAsyncTaskStats(): Promise<AsyncTaskStats> {
       .where(gte(asyncTasks.createdAt, since7d))
       .groupBy(sql`to_char(${asyncTasks.createdAt}, 'YYYY-MM-DD')`)
       .orderBy(sql`to_char(${asyncTasks.createdAt}, 'YYYY-MM-DD')`),
+    db.select({
+      oldestMinutes: sql<number | null>`
+        extract(epoch from (now() - min(${asyncTasks.createdAt}))) / 60
+      `,
+    }).from(asyncTasks).where(eq(asyncTasks.status, 'pending')),
+    db.select({ count: sql<number>`count(*)::int` })
+      .from(asyncTasks).where(sql`${asyncTasks.attempts} > 1`),
+    db.select({
+      taskType: asyncTasks.taskType,
+      total: sql<number>`count(*)::int`,
+      running: sql<number>`count(*) filter (where ${asyncTasks.status} = 'running')::int`,
+      success: sql<number>`count(*) filter (where ${asyncTasks.status} = 'success')::int`,
+      failed: sql<number>`count(*) filter (where ${asyncTasks.status} = 'failed')::int`,
+      avgMs: sql<number | null>`
+        avg(extract(epoch from (${asyncTasks.completedAt} - ${asyncTasks.startedAt})) * 1000)
+          filter (where ${asyncTasks.status} = 'success')
+      `,
+    }).from(asyncTasks)
+      .groupBy(asyncTasks.taskType)
+      .orderBy(sql`count(*) desc`),
   ]);
   const counts: Record<string, number> = {};
   for (const row of statusRows) counts[row.status] = row.count;
+  const success = counts.success ?? 0;
+  const failed = counts.failed ?? 0;
+  const settled = success + failed;
+
+  // 类型元数据来自内存注册表；已下线的类型仍可能留有历史记录，回落展示 taskType
+  const metaByType = new Map(listTaskHandlers().map((handler) => [handler.taskType, handler]));
+
   return {
     total: statusRows.reduce((sum, row) => sum + row.count, 0),
     pending: counts.pending ?? 0,
     running: counts.running ?? 0,
-    success: counts.success ?? 0,
-    failed: counts.failed ?? 0,
+    success,
+    failed,
     cancelled: counts.cancelled ?? 0,
     avgDurationMs: duration?.avgMs != null ? Math.round(Number(duration.avgMs)) : null,
     daily: dailyRows.map((row) => ({ date: row.date, submitted: row.submitted, failed: row.failed })),
+    successRate: settled > 0 ? Math.round((success / settled) * 1000) / 10 : null,
+    backlog: {
+      pending: counts.pending ?? 0,
+      oldestPendingMinutes: backlogRow?.oldestMinutes != null
+        ? Math.round(Number(backlogRow.oldestMinutes))
+        : null,
+    },
+    retried: retriedRow?.count ?? 0,
+    byType: typeRows.map((row) => {
+      const settledOfType = row.success + row.failed;
+      const meta = metaByType.get(row.taskType);
+      return {
+        taskType: row.taskType,
+        title: meta?.title ?? row.taskType,
+        module: meta?.module ?? null,
+        total: row.total,
+        running: row.running,
+        success: row.success,
+        failed: row.failed,
+        successRate: settledOfType > 0 ? Math.round((row.success / settledOfType) * 1000) / 10 : null,
+        avgDurationMs: row.avgMs != null ? Math.round(Number(row.avgMs)) : null,
+      };
+    }),
   };
 }

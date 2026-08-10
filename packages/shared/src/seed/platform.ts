@@ -108,7 +108,6 @@ export const SEED_SYSTEM_CONFIGS: SystemConfig[] = [
   { id: 29, configKey: 'login_risk_enabled',             configValue: 'false', configType: 'boolean', description: '是否启用登录风险策略',                    createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 30, configKey: 'login_risk_new_device_action',   configValue: 'allow', configType: 'string',  description: '新设备登录动作：allow/challenge',        createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 31, configKey: 'member_point_expire_days',       configValue: '0',     configType: 'number',  description: '会员积分不活跃过期天数：账户超过 N 天无任何积分变动时余额自动过期清零（expire 流水可审计），0 表示积分永不过期', createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 32, configKey: 'member_login_log_retention_days', configValue: '180',  configType: 'number',  description: '会员登录日志保留天数，超期日志由每日例行维护任务删除，0 表示不清理', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 33, configKey: 'member_birthday_points',         configValue: '0',     configType: 'number',  description: '会员生日礼积分：生日当天自动发放的积分数量（每年一次，流水 bizType=birthday），0 表示不发放', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 34, configKey: 'member_birthday_coupon_id',      configValue: '0',     configType: 'number',  description: '会员生日礼优惠券模板 ID：生日当天自动发放该券（每年一次），0 表示不发放', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 35, configKey: 'member_invite_reward_points',    configValue: '0',     configType: 'number',  description: '邀请奖励积分：新会员通过邀请码注册成功后发给邀请人的积分（流水 bizType=invite），0 表示不奖励', createdAt: SEED_DATE, updatedAt: SEED_DATE },
@@ -119,7 +118,6 @@ export const SEED_SYSTEM_CONFIGS: SystemConfig[] = [
   { id: 40, configKey: 'ai_embedding_model',             configValue: '',      configType: 'string',  description: '知识库向量化 embedding 模型名称（使用系统默认 AI 服务商的 /embeddings 接口）；留空则知识库退化为关键词检索', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 41, configKey: 'ai_image_model',                 configValue: '',      configType: 'string',  description: '图片生成模型名称（使用系统默认 AI 服务商的 /images/generations 接口）；留空则关闭 generate_image 工具', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 42, configKey: 'rule_publish_approval',          configValue: 'false', configType: 'boolean', description: '决策表发布审批（四眼原则）：开启后发布需先提交申请，由具有「审批发布」权限的其他用户批准后生效', createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 43, configKey: 'cms_ad_event_retention_days',    configValue: '180',   configType: 'number',  description: 'CMS 广告事件明细保留天数；每日周期任务按该策略分批清理，0 表示不自动清理', createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];
 
 // ─── 限流规则 ─────────────────────────────────────────────────────────────────

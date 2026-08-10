@@ -4,7 +4,7 @@ import { Button, Descriptions, InputNumber, Modal, Select, SideSheet, Spin, Swit
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Eraser, RefreshCw, Trash2, XCircle } from 'lucide-react';
 import type { PaginatedResponse } from '@zenith/shared/core';
-import type { AsyncTask, AsyncTaskItem, AsyncTaskItemStatus, AsyncTaskStats, AsyncTaskStatus, AsyncTaskTypeMeta } from '@zenith/shared/tasks';
+import type { AsyncTask, AsyncTaskItem, AsyncTaskItemStatus, AsyncTaskStats, AsyncTaskStatus, AsyncTaskTypeMeta, AsyncTaskTypeStat } from '@zenith/shared/tasks';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
@@ -36,7 +36,7 @@ import { KeywordInput } from '@/components/search-filters';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { confirmDelete } from '@/utils/confirm';
 
-type TabKey = 'tasks' | 'types';
+type TabKey = 'tasks' | 'types' | 'stats';
 
 interface SearchParams {
   taskType: string;
@@ -121,6 +121,113 @@ function StatsCards({ stats }: { stats: AsyncTaskStats | null }) {
         </div>
       </div>
     </StatGrid>
+  );
+}
+
+/** 积压等待时长展示：超过一小时按小时计 */
+function formatWaiting(minutes: number | null): string {
+  if (minutes === null) return '无积压';
+  if (minutes < 60) return `${minutes} 分钟`;
+  return `${Math.round((minutes / 60) * 10) / 10} 小时`;
+}
+
+/** 成功率着色：低于 90% 视为需要关注 */
+function rateColor(rate: number | null): string {
+  if (rate === null) return 'var(--semi-color-text-2)';
+  if (rate >= 99) return 'var(--semi-color-success)';
+  if (rate >= 90) return 'var(--semi-color-warning)';
+  return 'var(--semi-color-danger)';
+}
+
+/** 任务统计页签：整体健康度 + 按类型的执行质量 */
+function TaskStatsTab({ stats, loading }: { stats: AsyncTaskStats | null; loading: boolean }) {
+  const typeColumns: ColumnProps<AsyncTaskTypeStat & { _rowId: string }>[] = [
+    {
+      title: '任务类型',
+      dataIndex: 'title',
+      width: 220,
+      render: (title: string, row) => (
+        <div>
+          <div>{title}</div>
+          <Typography.Text type="tertiary" size="small">{row.taskType}</Typography.Text>
+        </div>
+      ),
+    },
+    {
+      title: '模块',
+      dataIndex: 'module',
+      width: 130,
+      render: (module: string | null) => module ?? <Tag size="small" color="grey">已下线</Tag>,
+    },
+    { title: '总数', dataIndex: 'total', width: 90 },
+    {
+      title: '执行中',
+      dataIndex: 'running',
+      width: 90,
+      render: (n: number) => (n > 0 ? <Typography.Text style={{ color: 'var(--semi-color-info)' }}>{n}</Typography.Text> : n),
+    },
+    { title: '成功', dataIndex: 'success', width: 90 },
+    {
+      title: '失败',
+      dataIndex: 'failed',
+      width: 90,
+      render: (n: number) => (n > 0 ? <Typography.Text style={{ color: 'var(--semi-color-danger)' }}>{n}</Typography.Text> : n),
+    },
+    {
+      title: '成功率',
+      dataIndex: 'successRate',
+      width: 110,
+      render: (rate: number | null) => (rate === null
+        ? <Typography.Text type="tertiary">—</Typography.Text>
+        : <Typography.Text style={{ color: rateColor(rate) }}>{rate}%</Typography.Text>),
+    },
+    {
+      title: '平均耗时',
+      dataIndex: 'avgDurationMs',
+      width: 120,
+      render: (ms: number | null) => formatDuration(ms),
+    },
+  ];
+
+  return (
+    <>
+      <StatsCards stats={stats} />
+      <StatGrid minItemWidth={140} style={{ marginBottom: 12 }}>
+        <StatCard
+          title="成功率"
+          value={stats?.successRate === null || stats?.successRate === undefined ? '-' : `${stats.successRate}%`}
+          accent={rateColor(stats?.successRate ?? null)}
+        />
+        <StatCard
+          title="待执行积压"
+          value={stats?.backlog.pending ?? '-'}
+          accent={stats && stats.backlog.pending > 0 ? 'var(--semi-color-warning)' : 'var(--semi-color-text-0)'}
+        />
+        <StatCard
+          title="最久等待"
+          value={stats ? formatWaiting(stats.backlog.oldestPendingMinutes) : '-'}
+          accent="var(--semi-color-text-0)"
+        />
+        <StatCard
+          title="发生过重试"
+          value={stats?.retried ?? '-'}
+          accent={stats && stats.retried > 0 ? 'var(--semi-color-warning)' : 'var(--semi-color-text-0)'}
+        />
+        <StatCard title="已取消" value={stats?.cancelled ?? '-'} accent="var(--semi-color-text-2)" />
+      </StatGrid>
+
+      <ConfigurableTable<AsyncTaskTypeStat & { _rowId: string }>
+        rowKey="taskType"
+        loading={loading}
+        columns={typeColumns}
+        dataSource={(stats?.byType ?? []).map((item) => ({ ...item, _rowId: item.taskType }))}
+        pagination={false}
+        size="small"
+        empty="暂无任务执行记录"
+        columnSettingsKey="task-center-type-stats"
+        scroll={{ x: 940 }}
+      />
+    </>
   );
 }
 
@@ -467,7 +574,6 @@ export default function TaskCenterPage() {
     <div className="page-container page-tabs-page">
       <Tabs type="line" activeKey={activeTab} onChange={(key) => setActiveTab(key as TabKey)} lazyRender>
         <TabPane tab="任务列表" itemKey="tasks">
-          <StatsCards stats={stats} />
           <SearchToolbar>
             <Select
               placeholder="任务类型"
@@ -568,6 +674,20 @@ export default function TaskCenterPage() {
             columnSettingsKey="task-center-types"
             scroll={{ x: 1180 }}
           />
+        </TabPane>
+
+        <TabPane tab="任务统计" itemKey="stats">
+          <SearchToolbar>
+            <Button
+              type="primary"
+              icon={<RefreshCw size={14} />}
+              onClick={() => void statsQuery.refetch()}
+              loading={statsQuery.isFetching}
+            >
+              刷新
+            </Button>
+          </SearchToolbar>
+          <TaskStatsTab stats={stats} loading={statsQuery.isFetching} />
         </TabPane>
       </Tabs>
 

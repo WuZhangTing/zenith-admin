@@ -73,6 +73,24 @@ export const AsyncTaskStatsDTO = z
       submitted: z.number().int(),
       failed: z.number().int(),
     })),
+    /** 已结束任务中的成功占比（百分比，保留一位小数） */
+    successRate: z.number().nullable(),
+    backlog: z.object({
+      pending: z.number().int(),
+      oldestPendingMinutes: z.number().int().nullable(),
+    }),
+    retried: z.number().int(),
+    byType: z.array(z.object({
+      taskType: z.string(),
+      title: z.string(),
+      module: z.string().nullable(),
+      total: z.number().int(),
+      running: z.number().int(),
+      success: z.number().int(),
+      failed: z.number().int(),
+      successRate: z.number().nullable(),
+      avgDurationMs: z.number().int().nullable(),
+    })),
   })
   .openapi('AsyncTaskStats');
 

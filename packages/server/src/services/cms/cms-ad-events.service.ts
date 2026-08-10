@@ -12,14 +12,12 @@ import {
 import type { CmsAdEventRow } from '../../db/schema';
 import type { DbTransaction } from '../../db/types';
 import { formatDate, formatDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
-import { getConfigNumber } from '../../lib/system-config';
 import { withPagination } from '../../lib/where-helpers';
 import { streamByDescendingId } from '../../lib/export-center/cursor-stream';
 import { detectDeviceType } from './cms-stats.service';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
 import { hashCmsRequestKey, hashCmsVisitor, hashCmsIp } from './cms-visitor';
 
-export const CMS_AD_EVENT_DEFAULT_RETENTION_DAYS = 180;
 const EVENT_DEDUPE_SECONDS: Record<CmsAdEventType, number> = {
   impression: 60,
   click: 10,
@@ -322,8 +320,10 @@ export async function getCmsAdEventStats(q: Omit<ListCmsAdEventsQuery, 'page' | 
   };
 }
 
+/** 广告事件保留天数：与 `data-retention` 的清理口径共用同一配置，避免手动与定时清理不一致 */
 export async function getCmsAdEventRetentionDays(): Promise<number> {
-  return getConfigNumber('cms_ad_event_retention_days', CMS_AD_EVENT_DEFAULT_RETENTION_DAYS);
+  const { getPolicyRetentionDays } = await import('../../lib/retention');
+  return getPolicyRetentionDays('cms_ad_events');
 }
 
 export async function cleanupCmsAdEventsBatch(input: {

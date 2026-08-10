@@ -612,6 +612,16 @@ export const asyncTasksHandlers = [
     tickAll();
     const counts: Record<string, number> = { pending: 0, running: 0, success: 0, failed: 0, cancelled: 0 };
     for (const task of tasks) counts[task.status] = (counts[task.status] ?? 0) + 1;
+    const settled = counts.success + counts.failed;
+    const byTypeMap = new Map<string, { total: number; running: number; success: number; failed: number }>();
+    for (const task of tasks) {
+      const row = byTypeMap.get(task.taskType) ?? { total: 0, running: 0, success: 0, failed: 0 };
+      row.total += 1;
+      if (task.status === 'running') row.running += 1;
+      if (task.status === 'success') row.success += 1;
+      if (task.status === 'failed') row.failed += 1;
+      byTypeMap.set(task.taskType, row);
+    }
     const stats: AsyncTaskStats = {
       total: tasks.length,
       pending: counts.pending,
@@ -625,6 +635,29 @@ export const asyncTasksHandlers = [
         submitted: [3, 5, 2, 6, 4, 7, tasks.length][i] ?? 3,
         failed: [0, 1, 0, 1, 0, 2, counts.failed][i] ?? 0,
       })),
+      successRate: settled > 0 ? Math.round((counts.success / settled) * 1000) / 10 : null,
+      backlog: {
+        pending: counts.pending,
+        oldestPendingMinutes: counts.pending > 0 ? 12 : null,
+      },
+      retried: tasks.filter((task) => task.attempts > 1).length,
+      byType: [...byTypeMap.entries()]
+        .map(([taskType, row]) => {
+          const meta = taskTypes.find((item) => item.taskType === taskType);
+          const settledOfType = row.success + row.failed;
+          return {
+            taskType,
+            title: meta?.title ?? taskType,
+            module: meta?.module ?? null,
+            total: row.total,
+            running: row.running,
+            success: row.success,
+            failed: row.failed,
+            successRate: settledOfType > 0 ? Math.round((row.success / settledOfType) * 1000) / 10 : null,
+            avgDurationMs: row.success > 0 ? 9800 : null,
+          };
+        })
+        .sort((a, b) => b.total - a.total),
     };
     return ok(stats);
   }),

@@ -162,7 +162,7 @@ export default function RetentionPage() {
             title: '待清理',
             width: 110,
             render: (_: unknown, row: RetentionPolicy) => (pending[row.key] === undefined
-              ? <Text type="tertiary">未试算</Text>
+              ? <Text type="tertiary">未查看</Text>
               : <Text strong={pending[row.key] > 0}>{pending[row.key]} 行</Text>),
           },
           {
@@ -175,7 +175,7 @@ export default function RetentionPage() {
             width: 150,
             desktopInlineKeys: ['preview'],
             actions: (row) => [
-              { key: 'preview', label: '试算待清理', onClick: () => handlePreview(row) },
+              { key: 'preview', label: '查看待清理量', onClick: () => handlePreview(row) },
               { key: 'edit', label: '编辑策略', hidden: !canEdit, onClick: () => openEdit(row) },
               {
                 key: 'run',

@@ -5,7 +5,7 @@ import { openApiCallLogs, openApiCallStatsDaily } from '../../db/schema';
 import { APP_TIME_ZONE, formatDate, formatDateTime, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
 import { escapeLike } from '../../lib/where-helpers';
-import { config } from '../../config';
+import { getPolicyRetentionDays } from '../../lib/retention';
 import { HTTPException } from 'hono/http-exception';
 
 const APP_TIME_ZONE_SQL = sql.raw(`'${APP_TIME_ZONE.replaceAll("'", "''")}'`);
@@ -122,8 +122,9 @@ export async function getOpenApiStatsOverview(opts: OpenApiStatsRangeInput) {
   const success = Number(rawAgg[0]?.success ?? 0) + Number(dailyAgg[0]?.success ?? 0);
   const durationSum = Number(rawAgg[0]?.durationSum ?? 0) + Number(dailyAgg[0]?.durationSum ?? 0);
   const failed = total - success;
+  const logRetentionDays = await getPolicyRetentionDays('open_api_call_logs');
   const percentileCutoff = dayjs().tz(APP_TIME_ZONE)
-    .subtract(config.openPlatform.apiLogRetentionDays, 'day')
+    .subtract(logRetentionDays, 'day')
     .startOf('day')
     .toDate();
   const requestedStart = parseDateRangeStart(opts.startTime);
@@ -136,7 +137,7 @@ export async function getOpenApiStatsOverview(opts: OpenApiStatsRangeInput) {
     p95DurationMs: Math.round(Number(percentileAgg[0]?.p95 ?? 0)),
     p99DurationMs: Math.round(Number(percentileAgg[0]?.p99 ?? 0)),
     percentilesPartial: !requestedStart || requestedStart < percentileCutoff,
-    percentileRetentionDays: config.openPlatform.apiLogRetentionDays,
+    percentileRetentionDays: logRetentionDays,
     activeApps: new Set([...rawApps, ...dailyApps].map((row) => row.clientId)).size,
     todayCalls: Number(todayCalls),
   };
@@ -181,13 +182,14 @@ export async function getOpenApiStatsTrend(opts: OpenApiStatsRangeInput & { gran
     })].sort((a, b) => a.time.localeCompare(b.time));
   }
   const requestedStart = parseDateRangeStart(opts.startTime);
+  const logRetentionDays = await getPolicyRetentionDays('open_api_call_logs');
   const hourlyCutoff = dayjs().tz(APP_TIME_ZONE)
-    .subtract(config.openPlatform.apiLogRetentionDays, 'day')
+    .subtract(logRetentionDays, 'day')
     .startOf('day')
     .toDate();
   if (requestedStart && requestedStart < hourlyCutoff) {
     throw new HTTPException(400, {
-      message: `按小时统计仅支持最近 ${config.openPlatform.apiLogRetentionDays} 天`,
+      message: `按小时统计仅支持最近 ${logRetentionDays} 天`,
     });
   }
   const bucket =

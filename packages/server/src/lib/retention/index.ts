@@ -5,5 +5,6 @@ export {
   runAllPolicies,
   previewPolicy,
   listRetentionPolicies,
+  getPolicyRetentionDays,
 } from './runner';
 export type { RetentionPolicyDefinition, TenantRetentionDays } from './types';

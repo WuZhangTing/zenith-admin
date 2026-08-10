@@ -46,7 +46,6 @@ const envSchema = z.object({
   REDIS_DB: z.coerce.number().int().min(0).default(0),
   REDIS_KEY_PREFIX: z.string().default('zenith:'),
   OPEN_RATE_LIMIT_FAIL_CLOSED: boolStr('true'),
-  OPEN_API_LOG_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(90),
   OPEN_WEBHOOK_AUTO_DISABLE_FAILURES: z.coerce.number().int().min(1).max(100).default(5),
   OPEN_SECRET_ROTATION_GRACE_HOURS: z.coerce.number().int().min(1).max(720).default(24),
   OPEN_GATEWAY_REQUIRE_APPROVAL: boolStr('true'),
@@ -188,7 +187,6 @@ export const config = {
   },
   openPlatform: {
     rateLimitFailClosed: env.OPEN_RATE_LIMIT_FAIL_CLOSED,
-    apiLogRetentionDays: env.OPEN_API_LOG_RETENTION_DAYS,
     webhookAutoDisableFailures: env.OPEN_WEBHOOK_AUTO_DISABLE_FAILURES,
     secretRotationGraceHours: env.OPEN_SECRET_ROTATION_GRACE_HOURS,
     gatewayRequireApproval: env.OPEN_GATEWAY_REQUIRE_APPROVAL,

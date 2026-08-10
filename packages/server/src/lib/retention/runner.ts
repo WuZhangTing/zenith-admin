@@ -213,6 +213,13 @@ export async function runAllPolicies(): Promise<RetentionRunResult[]> {
   return results;
 }
 
+/** 读取某策略当前生效的保留天数；0 表示不清理。供需要与清理口径保持一致的业务查询使用。 */
+export async function getPolicyRetentionDays(key: string): Promise<number> {
+  const config = await loadConfig(key);
+  if (config) return config.enabled ? config.retentionDays : 0;
+  return findPolicy(key)?.defaultDays ?? 0;
+}
+
 /** 后台列表：合并代码声明与库中运行期配置。 */
 export async function listRetentionPolicies(): Promise<RetentionPolicy[]> {
   const rows = await db.select().from(retentionPolicies).orderBy(asc(retentionPolicies.policyKey));

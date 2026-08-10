@@ -163,4 +163,33 @@ export interface AsyncTaskStats {
   avgDurationMs: number | null;
   /** 近 7 天每日提交/失败数（date: YYYY-MM-DD） */
   daily: Array<{ date: string; submitted: number; failed: number }>;
+  /** 已结束任务（成功 + 失败）中的成功占比；无已结束任务为 null */
+  successRate: number | null;
+  /** 等待执行的积压情况 */
+  backlog: {
+    pending: number;
+    /** 最早一条待执行任务已等待的分钟数；无积压为 null */
+    oldestPendingMinutes: number | null;
+  };
+  /** 发生过重试的任务数（attempts > 1） */
+  retried: number;
+  /** 按任务类型聚合（按总数降序，仅含有记录的类型） */
+  byType: AsyncTaskTypeStat[];
+}
+
+/** 单个任务类型的执行统计 */
+export interface AsyncTaskTypeStat {
+  taskType: string;
+  /** 注册表中的展示名；类型已下线时回落为 taskType */
+  title: string;
+  /** 注册表中的归属模块；类型已下线时为 null */
+  module: string | null;
+  total: number;
+  running: number;
+  success: number;
+  failed: number;
+  /** 已结束任务中的成功占比；无已结束任务为 null */
+  successRate: number | null;
+  /** 成功任务的平均耗时（毫秒）；无数据为 null */
+  avgDurationMs: number | null;
 }

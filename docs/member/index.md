@@ -176,7 +176,7 @@
 1. **优惠券过期**：`member_coupons` 中已过 `expire_at` 的未使用券批量置为 `expired`，保证统计与展示口径准确。
 2. **积分不活跃过期**：由 system_config `member_point_expire_days` 控制（默认 `0` 不启用）；账户超过 N 天无任何积分变动时，余额通过 `changePoints(type='expire')` 清零并写 `bizType = 'points_inactive_expire'` 流水，可审计可对账。
 3. **生日礼发放**：见「生日礼自动发放」章节。
-4. **登录日志清理**：由 system_config `member_login_log_retention_days` 控制（默认 `180`，`0` 不清理），删除超期的 `member_login_logs`（表带 `(member_id, created_at)` 复合索引）。
+4. **登录日志清理**：由「数据保留」中的 `member_login_logs` 策略控制（默认 `180` 天，`0` 表示永久保留），每日 `data-retention` 任务分批删除超期记录（表带 `(member_id, created_at)` 复合索引）。
 
 会员域已注册 6 个导出中心实体（execution 为 `auto`，大数据量自动转异步任务）：
 
