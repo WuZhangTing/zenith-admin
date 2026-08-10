@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { AsyncTask } from '@zenith/shared/tasks';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 import { dockerKeys } from './docker';
@@ -59,6 +60,14 @@ export interface FileContent {
   path: string;
   content: string;
   size: number;
+  /** 版本标识；保存时回传，服务端据此拒绝覆盖他人的修改 */
+  etag: string;
+}
+
+/** 递归搜索结果；truncated 表示触顶提前结束，结果不完整 */
+export interface FileSearchResult {
+  entries: FsEntry[];
+  truncated: boolean;
 }
 
 export const terminalFileKeys = {
@@ -170,7 +179,7 @@ export function useTerminalDirSize(path: string | undefined, enabled = true) {
 export function useTerminalSearch(dir: string, keyword: string, enabled = true) {
   return useQuery({
     queryKey: terminalFileKeys.search(dir, keyword),
-    queryFn: () => request.get<FsEntry[]>(`/api/terminal-files/search${toQueryString({ dir, keyword })}`).then(unwrap),
+    queryFn: () => request.get<FileSearchResult>(`/api/terminal-files/search${toQueryString({ dir, keyword })}`).then(unwrap),
     enabled: enabled && keyword.trim() !== '',
     staleTime: 0,
   });
@@ -222,6 +231,29 @@ export function useSaveFileContent(filePath: string) {
     mutationFn: ({ url, body }: { url: string; body: Record<string, string> }) => request.put<FileContent>(url, body).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['terminal-files', 'content', filePath] }),
   });
+}
+
+/**
+ * 压缩 / 解压：服务端改为提交异步任务，返回任务记录。
+ * 任务进度与取消由任务托盘统一承载，页面只需提示「已提交」。
+ */
+export function useTerminalArchiveTask(kind: 'compress' | 'extract') {
+  return useMutation({
+    mutationFn: (values: Record<string, unknown>) =>
+      request.post<AsyncTask>(`/api/terminal-files/${kind}`, values).then(unwrap),
+  });
+}
+
+/** 轮询等待任务进入终态；用于「打包后立即下载」这类必须等结果的串联流程 */
+export async function waitForAsyncTask(taskId: number, options: { intervalMs?: number; timeoutMs?: number } = {}) {
+  const intervalMs = options.intervalMs ?? 1000;
+  const deadline = Date.now() + (options.timeoutMs ?? 10 * 60_000);
+  for (;;) {
+    const task = await request.get<AsyncTask>(`/api/async-tasks/${taskId}`, { silent: true }).then(unwrap);
+    if (task.status !== 'pending' && task.status !== 'running') return task;
+    if (Date.now() > deadline) throw new Error('任务执行超时');
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
 }
 
 export function useLocalFileMutation() {

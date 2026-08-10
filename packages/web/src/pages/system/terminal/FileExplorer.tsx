@@ -25,53 +25,22 @@ import { getFileIcon, getFolderIcon } from '@/utils/fileIcons';
 import AppModal from '@/components/AppModal';
 import { confirmDelete as confirmDeleteModal } from '@/utils/confirm';
 import {
+  entryToTreeNode,
+  setTreeChildren,
+  joinNativePath,
+  parentNativePath,
+  type FsTreeNode,
+} from './fileTree';
+import {
   fetchLocalDir,
   rootInfoQueryOptions,
   useLocalFileMutation,
   useLocalFileUpload,
-  type FileEntry,
   type RootInfo,
 } from '@/hooks/queries/terminal-files';
 
-
-/** Semi Tree 节点（附带 fileType 自定义字段） */
-interface FileNode {
-  label: string;
-  value: string;
-  key: string;
-  isLeaf: boolean;
-  fileType: 'dir' | 'file';
-  children?: FileNode[];
-}
-
-function entryToNode(e: FileEntry): FileNode {
-  return {
-    label: e.name,
-    value: e.path,
-    key: e.path,
-    isLeaf: e.type === 'file',
-    fileType: e.type,
-  };
-}
-
-/** 递归为指定 key 的节点设置子节点 */
-function setChildren(nodes: FileNode[], key: string, children: FileNode[]): FileNode[] {
-  return nodes.map((n) => {
-    if (n.key === key) return { ...n, children };
-    if (n.children) return { ...n, children: setChildren(n.children, key, children) };
-    return n;
-  });
-}
-
-function parentOf(p: string): string {
-  const idx = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
-  return idx > 0 ? p.slice(0, idx) : p;
-}
-
-function joinPath(dir: string, name: string): string {
-  const sep = dir.includes('\\') && !dir.includes('/') ? '\\' : '/';
-  return `${dir.replace(/[/\\]+$/, '')}${sep}${name}`;
-}
+/** 本机文件树节点等价于共享的文件树节点，仅为可读性保留别名 */
+type FileNode = FsTreeNode;
 
 type DialogState =
   | { mode: 'createFile' | 'createDir'; baseDir: string; value: string }
@@ -189,7 +158,7 @@ export default function FileExplorer({ active, onOpenFile, onOpenTerminalAt }: F
       const res = await fetchLocalDir(queryClient, treeRoot);
       setRootPath(res.path);
       setSelectedDir(res.path);
-      setTreeData(res.entries.map(entryToNode));
+      setTreeData(res.entries.map(entryToTreeNode));
       setExpandedKeys([]);
       setSelectedKey('');
       // 定位到 home 目录，传入当前根路径避免依赖 state
@@ -207,7 +176,7 @@ export default function FileExplorer({ active, onOpenFile, onOpenTerminalAt }: F
       const res = await fetchLocalDir(queryClient, dir);
       setRootPath(res.path);
       setSelectedDir(res.path);
-      setTreeData(res.entries.map(entryToNode));
+      setTreeData(res.entries.map(entryToTreeNode));
       setExpandedKeys([]);
       setSelectedKey('');
     } finally {
@@ -229,7 +198,7 @@ export default function FileExplorer({ active, onOpenFile, onOpenTerminalAt }: F
     const dir = String(node.value);
     const key = String(node.key);
     return fetchLocalDir(queryClient, dir).then((res) => {
-      setTreeData((prev) => setChildren(prev, key, res.entries.map(entryToNode)));
+      setTreeData((prev) => setTreeChildren(prev, key, res.entries.map(entryToTreeNode)));
     });
   }, [queryClient]);
 
@@ -241,7 +210,7 @@ export default function FileExplorer({ active, onOpenFile, onOpenTerminalAt }: F
         return;
       }
       void fetchLocalDir(queryClient, dirPath).then((res) => {
-        setTreeData((prev) => setChildren(prev, dirPath, res.entries.map(entryToNode)));
+        setTreeData((prev) => setTreeChildren(prev, dirPath, res.entries.map(entryToTreeNode)));
       });
     },
     [rootPath, loadRoot, queryClient],
@@ -280,13 +249,13 @@ export default function FileExplorer({ active, onOpenFile, onOpenTerminalAt }: F
         const results: { dir: string; entries: FileNode[] }[] = [];
         for (const dir of ancestors) {
           const res = await fetchLocalDir(queryClient, dir, { silent: true });
-          results.push({ dir, entries: res.entries.map(entryToNode) });
+          results.push({ dir, entries: res.entries.map(entryToTreeNode) });
         }
         if (results.length > 0) {
           setTreeData((prev) => {
             let tree = prev;
             for (const { dir, entries } of results) {
-              tree = setChildren(tree, dir, entries);
+              tree = setTreeChildren(tree, dir, entries);
             }
             return tree;
           });
@@ -397,7 +366,7 @@ export default function FileExplorer({ active, onOpenFile, onOpenTerminalAt }: F
         await fileMutation.mutateAsync({ kind: 'delete', path: node.value });
         Toast.success('已删除');
         if (isFavorite(node.value)) toggleFavorite(node.value, node.label);
-        refreshDir(parentOf(node.value));
+        refreshDir(parentNativePath(node.value));
       },
     });
   };
@@ -430,7 +399,7 @@ export default function FileExplorer({ active, onOpenFile, onOpenTerminalAt }: F
       Toast.warning('请输入名称');
       return;
     }
-    const target = joinPath(dialog.baseDir, name);
+    const target = joinNativePath(dialog.baseDir, name);
     if (dialog.mode === 'rename') {
       await fileMutation.mutateAsync({ kind: 'rename', from: dialog.oldPath, to: target });
       Toast.success('已重命名');
@@ -484,7 +453,7 @@ export default function FileExplorer({ active, onOpenFile, onOpenTerminalAt }: F
         <Dropdown.Menu>
           <Dropdown.Item icon={<FilePlus size={14} />} onClick={() => onOpenFile(node.value)}>打开编辑</Dropdown.Item>
           <Dropdown.Item icon={<Download size={14} />} onClick={() => downloadFile(node.value)}>下载</Dropdown.Item>
-          <Dropdown.Item icon={<Pencil size={14} />} onClick={() => setDialog({ mode: 'rename', baseDir: parentOf(node.value), oldPath: node.value, value: node.label })}>重命名</Dropdown.Item>
+          <Dropdown.Item icon={<Pencil size={14} />} onClick={() => setDialog({ mode: 'rename', baseDir: parentNativePath(node.value), oldPath: node.value, value: node.label })}>重命名</Dropdown.Item>
           <Dropdown.Divider />
           <Dropdown.Item type="danger" icon={<Trash2 size={14} />} onClick={() => confirmDelete(node)}>删除</Dropdown.Item>
         </Dropdown.Menu>
@@ -502,7 +471,7 @@ export default function FileExplorer({ active, onOpenFile, onOpenTerminalAt }: F
         }}>上传文件</Dropdown.Item>
         <Dropdown.Item icon={<FilePlus size={14} />} onClick={() => setDialog({ mode: 'createFile', baseDir: node.value, value: '' })}>新建文件</Dropdown.Item>
         <Dropdown.Item icon={<FolderPlus size={14} />} onClick={() => setDialog({ mode: 'createDir', baseDir: node.value, value: '' })}>新建文件夹</Dropdown.Item>
-        <Dropdown.Item icon={<Pencil size={14} />} onClick={() => setDialog({ mode: 'rename', baseDir: parentOf(node.value), oldPath: node.value, value: node.label })}>重命名</Dropdown.Item>
+        <Dropdown.Item icon={<Pencil size={14} />} onClick={() => setDialog({ mode: 'rename', baseDir: parentNativePath(node.value), oldPath: node.value, value: node.label })}>重命名</Dropdown.Item>
         <Dropdown.Divider />
         <Dropdown.Item type="danger" icon={<Trash2 size={14} />} onClick={() => confirmDelete(node)}>删除</Dropdown.Item>
       </Dropdown.Menu>
@@ -520,7 +489,7 @@ export default function FileExplorer({ active, onOpenFile, onOpenTerminalAt }: F
     const isDropTarget = isDragOver && dropTargetDir === node.value;
     return (
       <div
-        data-node-path={node.fileType === 'dir' ? node.value : parentOf(node.value)}
+        data-node-path={node.fileType === 'dir' ? node.value : parentNativePath(node.value)}
         style={{
           display: 'flex',
           alignItems: 'center',

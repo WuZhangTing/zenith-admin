@@ -183,14 +183,29 @@ SFTP 功能复用 SSH 配置档案，接口前缀为 `/api/ssh-sftp/:profileId`�
 | 文本读取 / 保存 | `GET` / `PUT /api/terminal-files/content` |
 | 新建 / 重命名 / 删除 | `POST /create`、`POST /rename`、`DELETE /entry` |
 | 移动 / 复制 | `POST /move`、`POST /copy` |
-| ZIP 压缩 | `POST /compress` |
-| 解压 | `POST /extract`，支持 `zip`、`tar`、`tar.gz`、`tgz`、`tar.bz2`、`tar.xz`、单文件 `gz` |
+| ZIP 压缩 | `POST /compress`，提交异步任务 |
+| 解压 | `POST /extract`，提交异步任务，支持 `zip`、`tar`、`tar.gz`、`tgz`、`tar.bz2`、`tar.xz`、单文件 `gz` |
 | chmod | `POST /chmod` |
 | 校验和 | `GET /checksum`，算法为 `md5` / `sha1` / `sha256` |
-| 递归搜索 | `GET /search`，广度优先搜索文件名，最多返回 200 条 |
-| 目录大小 | `GET /dir-size`，递归统计目录占用 |
+| 递归搜索 | `GET /search`，广度优先搜索文件名，最多返回 200 条，触顶返回 `truncated` |
+| 目录大小 | `GET /dir-size`，递归统计目录占用，触顶返回 `truncated` |
 
 本机文件编辑同样限制 5 MB，并拒绝二进制文件；删除操作禁止删除系统根目录和当前用户主目录本身。
+
+### 文件写入与并发编辑
+
+本机与 SFTP 的文本保存共用 `lib/fs-text.ts` 的约束与写入策略：
+
+- **原子写**：先写同目录临时文件、还原权限位，再 `rename` 覆盖。直接覆盖写在中途崩溃或磁盘写满时会留下被截断的文件——对正在线上编辑的 `nginx.conf` 之类配置足以直接造成故障。SFTP 侧优先使用 OpenSSH 的 `posix-rename` 扩展，不支持时回退为先删后改。
+- **冲突检测**：读取接口返回 `etag`（mtime + 大小），保存时回传 `baseEtag`；服务端发现版本已变化即返回 **409**，前端提示重新加载，而不是静默覆盖他人的修改。不传 `baseEtag` 表示强制覆盖。
+
+### 上传大小上限
+
+`terminal_upload_max_size_mb`（默认 200，0 表示不限制）同时约束文件管理器与 SFTP 上传。路由层先按 `Content-Length` 预检，服务层再以实际文件大小为准。该链路当前仍会把上传体读入内存，因此该上限即内存占用的封顶值。
+
+### 长耗时操作
+
+压缩与解压在 GB 级归档上可运行数分钟，已接入任务中心（任务类型 `terminal-file-compress` / `terminal-file-extract`）：可查看进度、随时取消、事后追溯。目录统计与文件名搜索仍是同步接口——它们是详情面板与搜索框里的即时查询，改为「提交任务再回来看结果」反而更难用；其无界延迟由节点数与时间预算（10 秒）约束，触顶时通过 `truncated` 明确告知结果不完整。
 
 ---
 

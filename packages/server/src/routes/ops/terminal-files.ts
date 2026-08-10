@@ -4,11 +4,14 @@ import { HTTPException } from 'hono/http-exception';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
 import { validationHook, commonErrorResponses, ok, okMsg, okBody, jsonContent, ErrorResponse } from '../../lib/openapi-schemas';
-import { TerminalDirListingDTO, TerminalFileEntryDTO, TerminalShellsDTO, TerminalFileContentDTO, TerminalRootInfoDTO } from '../../lib/openapi-dtos';
+import { TerminalDirListingDTO, TerminalFileEntryDTO, TerminalShellsDTO, TerminalFileContentDTO, TerminalRootInfoDTO, AsyncTaskDTO } from '../../lib/openapi-dtos';
+import { mapAsyncTask, submitAsyncTask } from '../../lib/task-center';
+import { COMPRESS_TASK_TYPE, EXTRACT_TASK_TYPE } from '../../services/ops/terminal-file-tasks';
 import {
   listDirectory,
   openDownloadStream,
   saveUploadedFile,
+  assertContentLengthWithinLimit,
   listShells,
   readTextFile,
   writeTextFile,
@@ -18,9 +21,7 @@ import {
   getRootInfo,
   moveEntry,
   copyEntry,
-  compressToZip,
   chmodEntry,
-  extractArchive,
   computeChecksum,
   computeDirSize,
   searchFiles,
@@ -106,6 +107,8 @@ const uploadRoute = defineOpenAPIRoute({
     },
   }),
   handler: async (c) => {
+    // 预检放在 parseBody 之前：Hono 会把整个请求体读入内存后才交给业务代码
+    await assertContentLengthWithinLimit(c.req.header('content-length'));
     const body = await c.req.parseBody();
     const dirPath = typeof body.path === 'string' ? body.path : '';
     const file = body.file;
@@ -143,12 +146,26 @@ const writeContentRoute = defineOpenAPIRoute({
     method: 'put', path: '/content', tags: ['TerminalFiles'], summary: '保存文本文件内容',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: TERMINAL_PERM, audit: { description: '终端保存文件', module: 'Web 终端', recordBody: false } })] as const,
-    request: { body: { content: jsonContent(z.object({ path: z.string().min(1), content: z.string() })), required: true } },
-    responses: { ...commonErrorResponses, ...ok(TerminalFileEntryDTO, '保存成功') },
+    request: {
+      body: {
+        content: jsonContent(z.object({
+          path: z.string().min(1),
+          content: z.string(),
+          /** 读取时拿到的版本；不传表示强制覆盖 */
+          baseEtag: z.string().optional(),
+        })),
+        required: true,
+      },
+    },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(TerminalFileEntryDTO, '保存成功'),
+      409: { content: jsonContent(ErrorResponse), description: '文件已被他人修改' },
+    },
   }),
   handler: async (c) => {
-    const { path: filePath, content } = c.req.valid('json');
-    return c.json(okBody(await writeTextFile(filePath, content), '保存成功'), 200);
+    const { path: filePath, content, baseEtag } = c.req.valid('json');
+    return c.json(okBody(await writeTextFile(filePath, content, baseEtag), '保存成功'), 200);
   },
 });
 
@@ -224,18 +241,23 @@ const copyEntryRoute = defineOpenAPIRoute({
 
 const compressRoute = defineOpenAPIRoute({
   route: createRoute({
-    method: 'post', path: '/compress', tags: ['TerminalFiles'], summary: '压缩文件/目录为 ZIP',
+    method: 'post', path: '/compress', tags: ['TerminalFiles'], summary: '压缩文件/目录为 ZIP（异步任务）',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: TERMINAL_PERM, audit: { description: '文件管理器压缩', module: '文件管理' } })] as const,
     request: { body: { content: jsonContent(z.object({
       paths: z.array(z.string().min(1)).min(1),
       destPath: z.string().min(1),
     })), required: true } },
-    responses: { ...commonErrorResponses, ...ok(TerminalFileEntryDTO, '压缩成功') },
+    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '压缩任务已提交') },
   }),
   handler: async (c) => {
     const { paths, destPath } = c.req.valid('json');
-    return c.json(okBody(await compressToZip(paths, destPath), '压缩成功'), 200);
+    const task = await submitAsyncTask({
+      taskType: COMPRESS_TASK_TYPE,
+      title: `压缩 ${paths.length} 项到 ${destPath.split(/[\\/]/).pop() ?? destPath}`,
+      payload: { paths, destPath },
+    });
+    return c.json(okBody(mapAsyncTask(task), '压缩任务已提交'), 200);
   },
 });
 
@@ -259,18 +281,23 @@ const chmodRoute = defineOpenAPIRoute({
 
 const extractRoute = defineOpenAPIRoute({
   route: createRoute({
-    method: 'post', path: '/extract', tags: ['TerminalFiles'], summary: '解压压缩包（zip/tar/gz 等）',
+    method: 'post', path: '/extract', tags: ['TerminalFiles'], summary: '解压压缩包（异步任务）',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: TERMINAL_PERM, audit: { description: '文件管理器解压', module: '文件管理' } })] as const,
     request: { body: { content: jsonContent(z.object({
       path: z.string().min(1),
       destPath: z.string().optional(),
     })), required: true } },
-    responses: { ...commonErrorResponses, ...ok(TerminalFileEntryDTO, '解压成功') },
+    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '解压任务已提交') },
   }),
   handler: async (c) => {
     const { path: archivePath, destPath } = c.req.valid('json');
-    return c.json(okBody(await extractArchive(archivePath, destPath), '解压成功'), 200);
+    const task = await submitAsyncTask({
+      taskType: EXTRACT_TASK_TYPE,
+      title: `解压 ${archivePath.split(/[\\/]/).pop() ?? archivePath}`,
+      payload: { path: archivePath, destDir: destPath },
+    });
+    return c.json(okBody(mapAsyncTask(task), '解压任务已提交'), 200);
   },
 });
 
@@ -294,7 +321,10 @@ const searchRoute = defineOpenAPIRoute({
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: TERMINAL_PERM })] as const,
     request: { query: z.object({ dir: z.string().min(1), keyword: z.string().min(1).max(128) }) },
-    responses: { ...commonErrorResponses, ...ok(z.array(TerminalFileEntryDTO), '搜索结果') },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(z.object({ entries: z.array(TerminalFileEntryDTO), truncated: z.boolean() }), '搜索结果'),
+    },
   }),
   handler: async (c) => {
     const { dir, keyword } = c.req.valid('query');

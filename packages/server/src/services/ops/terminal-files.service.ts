@@ -1,13 +1,53 @@
+import { randomUUID } from 'node:crypto';
 import { promises as fs, createReadStream, createWriteStream, existsSync, readFileSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import * as os from 'node:os';
 import path from 'node:path';
 import { HTTPException } from 'hono/http-exception';
 import { formatDateTime } from '../../lib/datetime';
+import { MAX_EDIT_SIZE, assertNotStale, atomicWriteFile, fileEtag, isBinaryBuffer } from '../../lib/fs-text';
+import { getConfigNumber } from '../../lib/system-config';
 
 const execFileAsync = promisify(execFile);
+
+/**
+ * 上传大小上限校验。
+ *
+ * 分两道：路由层用 Content-Length 预检（在 Hono 的 parseBody 缓冲整个请求体之前
+ * 拒掉，这才是真正防内存耗尽的一道）；服务层再用 `File.size` 做权威校验，
+ * 兜住缺少 Content-Length 的场景。
+ *
+ * 注：端到端流式上传需要用流式 multipart 解析替换 parseBody；在那之前，
+ * 该上限就是内存占用的封顶值。
+ */
+export async function getUploadLimitBytes(): Promise<number> {
+  const mb = await getConfigNumber('terminal_upload_max_size_mb', 200);
+  return mb > 0 ? mb * 1024 * 1024 : 0;
+}
+
+function uploadTooLarge(limit: number): HTTPException {
+  return new HTTPException(413, {
+    message: `文件超过上传大小上限（${Math.floor(limit / 1024 / 1024)} MB），可在系统配置中调整 terminal_upload_max_size_mb`,
+  });
+}
+
+/** 路由层预检：读请求头，避免超大请求体被完整读入内存 */
+export async function assertContentLengthWithinLimit(contentLength: string | null | undefined): Promise<void> {
+  const limit = await getUploadLimitBytes();
+  if (limit <= 0) return;
+  const declared = Number(contentLength ?? 0);
+  if (!Number.isFinite(declared) || declared <= 0) return; // 无 Content-Length：留给服务层按 File.size 兜底
+  if (declared > limit) throw uploadTooLarge(limit);
+}
+
+/** 服务层权威校验：以实际文件大小为准 */
+export async function assertUploadSizeWithinLimit(size: number): Promise<void> {
+  const limit = await getUploadLimitBytes();
+  if (limit > 0 && size > limit) throw uploadTooLarge(limit);
+}
 
 /** 将 fs.stat().mode 转为 rwxr-xr-x 格式的权限字符串 */
 function modeToPermissionString(mode: number): string {
@@ -100,7 +140,12 @@ export async function openDownloadStream(
   return { stream: createReadStream(resolved), fileName: path.basename(resolved) };
 }
 
-/** 保存上传的文件到指定目录。 */
+/**
+ * 保存上传的文件到指定目录。
+ *
+ * 流式落盘：先前把整个 `File` 读成 Buffer，上传 1 GB 文件就要占 1 GB 常驻内存，
+ * 并发几个即可打爆进程。先写同目录临时文件再 rename，避免上传中断留下半截文件。
+ */
 export async function saveUploadedFile(dirPath: string, file: File): Promise<TerminalFileEntry> {
   const resolved = path.resolve(dirPath?.trim() ? dirPath : os.homedir());
   let stat;
@@ -112,13 +157,19 @@ export async function saveUploadedFile(dirPath: string, file: File): Promise<Ter
   if (!stat.isDirectory()) {
     throw new HTTPException(400, { message: '目标不是目录' });
   }
+  await assertUploadSizeWithinLimit(file.size);
 
-  const dest = path.join(resolved, file.name);
-  const buffer = Buffer.from(await file.arrayBuffer());
-  await fs.writeFile(dest, buffer);
+  const dest = path.join(resolved, path.basename(file.name));
+  const tmp = `${dest}.uploading-${randomUUID().slice(0, 8)}`;
+  try {
+    await pipeline(Readable.fromWeb(file.stream() as never), createWriteStream(tmp));
+    await fs.rename(tmp, dest);
+  } catch (err) {
+    await fs.rm(tmp, { force: true }).catch(() => undefined);
+    throw err;
+  }
 
-  const s = await fs.stat(dest);
-  return { name: file.name, path: dest, type: 'file', size: s.size, mtime: formatDateTime(s.mtime) };
+  return buildEntry(dest);
 }
 
 // ---------- Shell 检测 ----------
@@ -242,20 +293,12 @@ async function detectShellListing(): Promise<TerminalShellListing> {
 
 // ---------- 文本文件读写 / 增删改 ----------
 
-const MAX_EDIT_SIZE = 5 * 1024 * 1024; // 5MB
-
 export interface TerminalFileContent {
   path: string;
   content: string;
   size: number;
-}
-
-function isBinaryBuffer(buf: Buffer): boolean {
-  const len = Math.min(buf.length, 8000);
-  for (let i = 0; i < len; i += 1) {
-    if (buf[i] === 0) return true;
-  }
-  return false;
+  /** 版本标识，保存时回传以检测并发编辑冲突 */
+  etag: string;
 }
 
 /** 读取文本文件内容（校验存在、非目录、大小、非二进制）。 */
@@ -272,11 +315,19 @@ export async function readTextFile(filePath: string): Promise<TerminalFileConten
   if (stat.size > MAX_EDIT_SIZE) throw new HTTPException(400, { message: '文件过大，无法在线编辑（上限 5MB）' });
   const buffer = await fs.readFile(resolved);
   if (isBinaryBuffer(buffer)) throw new HTTPException(400, { message: '二进制文件无法在线编辑' });
-  return { path: resolved, content: buffer.toString('utf-8'), size: stat.size };
+  return { path: resolved, content: buffer.toString('utf-8'), size: stat.size, etag: fileEtag(stat) };
 }
 
-/** 写入文本文件内容（父目录须存在，不能覆盖目录）。 */
-export async function writeTextFile(filePath: string, content: string): Promise<TerminalFileEntry> {
+/**
+ * 写入文本文件内容（父目录须存在，不能覆盖目录）。
+ *
+ * 带 baseEtag 时先校验文件未被他人修改，再原子替换；不带则视为强制覆盖。
+ */
+export async function writeTextFile(
+  filePath: string,
+  content: string,
+  baseEtag?: string | null,
+): Promise<TerminalFileEntry> {
   if (!filePath?.trim()) throw new HTTPException(400, { message: '缺少文件路径' });
   const resolved = path.resolve(filePath);
   const dir = path.dirname(resolved);
@@ -290,13 +341,13 @@ export async function writeTextFile(filePath: string, content: string): Promise<
   try {
     const stat = await fs.stat(resolved);
     if (stat.isDirectory()) throw new HTTPException(400, { message: '目标是目录，无法写入' });
+    assertNotStale(fileEtag(stat), baseEtag);
   } catch (err) {
     if (err instanceof HTTPException) throw err;
     // 文件不存在 → 视为新建
   }
-  await fs.writeFile(resolved, content, 'utf-8');
-  const s = await fs.stat(resolved);
-  return { name: path.basename(resolved), path: resolved, type: 'file', size: s.size, mtime: formatDateTime(s.mtime) };
+  await atomicWriteFile(resolved, content);
+  return buildEntry(resolved);
 }
 
 /** 新建文件或目录（同名已存在则拒绝）。 */
@@ -418,30 +469,83 @@ export async function copyEntry(from: string, to: string): Promise<TerminalFileE
   return buildEntry(dst);
 }
 
+/** 长耗时归档操作的进度回调；返回 true 表示调用方请求取消 */
+export type ArchiveProgress = (processed: number, total: number) => Promise<boolean>;
+
+export interface ArchiveOptions {
+  onProgress?: ArchiveProgress;
+  /** 周期性检查是否被取消（解压走外部命令，无法按条目回调） */
+  isCancelled?: () => Promise<boolean>;
+}
+
+/** 取消归档操作时抛出，由任务处理器识别为「已取消」而非失败 */
+export class ArchiveCancelledError extends Error {
+  constructor() {
+    super('操作已取消');
+    this.name = 'ArchiveCancelledError';
+  }
+}
+
 /**
  * 将多个文件/目录压缩为 ZIP。
+ *
+ * 目录用 `archive.directory()` 递归加入——此前一律走 `archive.file()`，
+ * 而该 API 只接受单个文件，选中目录压缩会得到一个缺内容的包。
+ *
  * @param paths 要压缩的绝对路径列表
  * @param destPath 输出 ZIP 文件的绝对路径（含 .zip 扩展名）
  */
-export async function compressToZip(paths: string[], destPath: string): Promise<TerminalFileEntry> {
+export async function compressToZip(
+  paths: string[],
+  destPath: string,
+  options: ArchiveOptions = {},
+): Promise<TerminalFileEntry> {
   const { ZipArchive } = await import('archiver');
 
   const dst = path.resolve(destPath);
   await fs.mkdir(path.dirname(dst), { recursive: true });
 
-  await new Promise<void>((resolve, reject) => {
-    const outStream = createWriteStream(dst);
-    const archive = new ZipArchive({ zlib: { level: 6 } });
-    outStream.on('close', resolve);
-    archive.on('error', reject);
-    archive.pipe(outStream);
-    for (const p of paths) {
-      const resolved = path.resolve(p);
-      const name = path.basename(resolved);
-      archive.file(resolved, { name });
-    }
-    void archive.finalize().catch(reject);
-  });
+  // 先探明每个入口是文件还是目录：Promise 执行器内无法 await
+  const sources = await Promise.all(paths.map(async (p) => {
+    const resolved = path.resolve(p);
+    const st = await fs.stat(resolved).catch(() => null);
+    if (!st) throw new HTTPException(404, { message: `路径不存在: ${resolved}` });
+    return { resolved, name: path.basename(resolved), isDir: st.isDirectory() };
+  }));
+
+  let cancelled = false;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const outStream = createWriteStream(dst);
+      const archive = new ZipArchive({ zlib: { level: 6 } });
+      outStream.on('close', resolve);
+      outStream.on('error', reject);
+      archive.on('error', reject);
+      if (options.onProgress) {
+        archive.on('progress', (p: { entries: { total: number; processed: number } }) => {
+          void options.onProgress?.(p.entries.processed, p.entries.total)
+            .then((cancelRequested) => {
+              if (!cancelRequested || cancelled) return;
+              cancelled = true;
+              // 销毁输出流即可中断归档，不依赖 archiver 版本是否提供 abort()
+              outStream.destroy(new ArchiveCancelledError());
+            })
+            .catch(() => undefined);
+        });
+      }
+      archive.pipe(outStream);
+      for (const s of sources) {
+        if (s.isDir) archive.directory(s.resolved, s.name);
+        else archive.file(s.resolved, { name: s.name });
+      }
+      void archive.finalize().catch(reject);
+    });
+  } catch (err) {
+    // 失败或取消都不留下半截压缩包
+    await fs.rm(dst, { force: true }).catch(() => undefined);
+    if (cancelled) throw new ArchiveCancelledError();
+    throw err;
+  }
   return buildEntry(dst);
 }
 
@@ -464,12 +568,52 @@ export async function chmodEntry(filePath: string, mode: number): Promise<void> 
 const EXEC_OPTS = { timeout: 180_000, maxBuffer: 64 * 1024 * 1024 } as const;
 
 /**
+ * 执行解压命令，支持协作式取消。
+ *
+ * 用 execFile 拿到子进程句柄后周期性询问是否已请求取消，取消时 kill 子进程；
+ * `execFileAsync` 一旦发出就无法中止，用户点了取消也只能干等。
+ */
+async function runArchiveCommand(file: string, args: string[], isCancelled?: () => Promise<boolean>): Promise<void> {
+  const child = execFile(file, args, EXEC_OPTS);
+  let cancelled = false;
+  let timer: ReturnType<typeof setInterval> | null = null;
+  if (isCancelled) {
+    timer = setInterval(() => {
+      void isCancelled()
+        .then((requested) => {
+          if (!requested || cancelled) return;
+          cancelled = true;
+          child.kill('SIGTERM');
+        })
+        .catch(() => undefined);
+    }, 2000);
+    timer.unref();
+  }
+  try {
+    await new Promise<void>((resolve, reject) => {
+      child.on('error', reject);
+      child.on('close', (code) => {
+        if (cancelled) { reject(new ArchiveCancelledError()); return; }
+        if (code === 0) { resolve(); return; }
+        reject(new Error(`命令退出码 ${code}`));
+      });
+    });
+  } finally {
+    if (timer) clearInterval(timer);
+  }
+}
+
+/**
  * 解压压缩包。支持 zip / tar / tar.gz / tgz / tar.bz2 / tar.xz / 单文件 gz。
  * 优先使用系统 tar（Windows bsdtar 同时支持 zip），Unix 下 zip 回退到 unzip。
  * @param archivePath 压缩包路径
  * @param destDir 解压目标目录（默认压缩包所在目录）
  */
-export async function extractArchive(archivePath: string, destDir?: string): Promise<TerminalFileEntry> {
+export async function extractArchive(
+  archivePath: string,
+  destDir?: string,
+  options: ArchiveOptions = {},
+): Promise<TerminalFileEntry> {
   const src = path.resolve(archivePath);
   const stat = await fs.stat(src).catch(() => null);
   if (!stat || !stat.isFile()) throw new HTTPException(404, { message: '压缩文件不存在' });
@@ -477,29 +621,36 @@ export async function extractArchive(archivePath: string, destDir?: string): Pro
   const dst = destDir?.trim() ? path.resolve(destDir) : path.dirname(src);
   await fs.mkdir(dst, { recursive: true });
   const isWin = os.platform() === 'win32';
+  const { isCancelled } = options;
 
   try {
     if (lower.endsWith('.zip')) {
       if (isWin) {
-        await execFileAsync('tar', ['-xf', src, '-C', dst], EXEC_OPTS);
+        await runArchiveCommand('tar', ['-xf', src, '-C', dst], isCancelled);
       } else {
         try {
-          await execFileAsync('unzip', ['-o', src, '-d', dst], EXEC_OPTS);
-        } catch {
-          await execFileAsync('tar', ['-xf', src, '-C', dst], EXEC_OPTS);
+          await runArchiveCommand('unzip', ['-o', src, '-d', dst], isCancelled);
+        } catch (err) {
+          if (err instanceof ArchiveCancelledError) throw err;
+          await runArchiveCommand('tar', ['-xf', src, '-C', dst], isCancelled);
         }
       }
     } else if (lower.endsWith('.gz') && !lower.endsWith('.tar.gz') && !lower.endsWith('.tgz')) {
       const zlib = await import('node:zlib');
-      const data = await fs.readFile(src);
-      const out = zlib.gunzipSync(data);
       const outName = path.basename(src).replace(/\.gz$/i, '') || 'extracted';
-      await fs.writeFile(path.join(dst, outName), out);
+      // 流式解压：gunzipSync 会在解压期间完全占住事件循环，
+      // 一个几百 MB 的 .gz 足以让整个服务在数秒内不响应任何请求。
+      await pipeline(
+        createReadStream(src),
+        zlib.createGunzip(),
+        createWriteStream(path.join(dst, outName)),
+      );
     } else {
       // tar / tar.gz / tgz / tar.bz2 / tar.xz：tar 自动识别压缩格式
-      await execFileAsync('tar', ['-xf', src, '-C', dst], EXEC_OPTS);
+      await runArchiveCommand('tar', ['-xf', src, '-C', dst], isCancelled);
     }
   } catch (err) {
+    if (err instanceof ArchiveCancelledError) throw err;
     const msg = err instanceof Error ? err.message : String(err);
     throw new HTTPException(400, { message: `解压失败: ${msg.slice(0, 200)}` });
   }
@@ -522,16 +673,36 @@ export async function computeChecksum(filePath: string, algo: 'md5' | 'sha1' | '
   return { algo, hash: hash.digest('hex'), size: stat.size };
 }
 
-/** 递归搜索文件名（广度优先，限制访问节点数与结果数防止过载） */
-export async function searchFiles(dir: string, keyword: string, maxResults = 200): Promise<TerminalFileEntry[]> {
+/** 遍历类操作的时间预算：超时即返回已有结果并标记截断，避免请求无限期挂起 */
+const WALK_TIME_BUDGET_MS = 10_000;
+
+export interface FileSearchResult {
+  entries: TerminalFileEntry[];
+  /** 因结果数 / 节点数 / 时间预算触顶而提前结束——调用方必须据此提示用户结果不完整 */
+  truncated: boolean;
+}
+
+/**
+ * 递归搜索文件名（广度优先）。
+ *
+ * 三个上限（结果数 / 访问节点数 / 时间预算）任一触顶即停止，并通过 `truncated`
+ * 明确告知调用方。此前只是静默停在 200 条，用户无从判断「没有更多」还是「没搜完」。
+ */
+export async function searchFiles(dir: string, keyword: string, maxResults = 200): Promise<FileSearchResult> {
   const root = path.resolve(dir);
   const kw = keyword.trim().toLowerCase();
-  if (!kw) return [];
+  if (!kw) return { entries: [], truncated: false };
   const results: TerminalFileEntry[] = [];
   const queue: string[] = [root];
+  const deadline = Date.now() + WALK_TIME_BUDGET_MS;
   let visited = 0;
+  let truncated = false;
   const MAX_VISITED = 60_000;
-  while (queue.length > 0 && results.length < maxResults && visited < MAX_VISITED) {
+  while (queue.length > 0) {
+    if (results.length >= maxResults || visited >= MAX_VISITED || Date.now() > deadline) {
+      truncated = true;
+      break;
+    }
     const cur = queue.shift() as string;
     let dirents;
     try { dirents = await fs.readdir(cur, { withFileTypes: true }); } catch { continue; }
@@ -540,27 +711,30 @@ export async function searchFiles(dir: string, keyword: string, maxResults = 200
       const full = path.join(cur, d.name);
       if (d.name.toLowerCase().includes(kw)) {
         try { results.push(await buildEntry(full)); } catch { /* skip */ }
-        if (results.length >= maxResults) break;
+        if (results.length >= maxResults) { truncated = true; break; }
       }
       if (d.isDirectory()) queue.push(full);
     }
   }
-  return results;
+  return { entries: results, truncated };
 }
 
-/** 递归统计目录大小（限制访问节点数防止超大目录拖垮） */
+/** 递归统计目录大小（节点数与时间双上限，`truncated` 表示结果不完整） */
 export async function computeDirSize(dir: string): Promise<{ size: number; files: number; dirs: number; truncated: boolean }> {
   const root = path.resolve(dir);
   const stat = await fs.stat(root).catch(() => null);
   if (!stat) throw new HTTPException(404, { message: '目录不存在' });
   if (!stat.isDirectory()) return { size: stat.size, files: 1, dirs: 0, truncated: false };
+  const deadline = Date.now() + WALK_TIME_BUDGET_MS;
   let size = 0;
   let files = 0;
   let dirs = 0;
   let visited = 0;
   const MAX_VISITED = 200_000;
   const queue: string[] = [root];
+  let timedOut = false;
   while (queue.length > 0 && visited < MAX_VISITED) {
+    if (Date.now() > deadline) { timedOut = true; break; }
     const cur = queue.shift() as string;
     let dirents;
     try { dirents = await fs.readdir(cur, { withFileTypes: true }); } catch { continue; }
@@ -580,7 +754,7 @@ export async function computeDirSize(dir: string): Promise<{ size: number; files
       }
     }
   }
-  return { size, files, dirs, truncated: visited >= MAX_VISITED };
+  return { size, files, dirs, truncated: timedOut || visited >= MAX_VISITED };
 }
 
 /** 构建单个条目的 TerminalFileEntry（含权限信息） */

@@ -5,6 +5,7 @@
 import { Input, Toast, Typography } from '@douyinfe/semi-ui';
 import type { UseMutationResult } from '@tanstack/react-query';
 import AppModal from '@/components/AppModal';
+import { useTerminalArchiveTask } from '@/hooks/queries/terminal-files';
 import { dialogTitle, validateEntryName } from '../fs-utils';
 import type { FmDialogState } from '../types';
 import ChmodEditor from './ChmodEditor';
@@ -18,6 +19,7 @@ interface FmDialogsProps {
 }
 
 export default function FmDialogs({ dialog, setDialog, currentPath, isWindows, fileOperationMutation }: Readonly<FmDialogsProps>) {
+  const compressTask = useTerminalArchiveTask('compress');
   const confirmDialog = async () => {
     if (!dialog) return;
     const val = dialog.value.trim();
@@ -48,8 +50,9 @@ export default function FmDialogs({ dialog, setDialog, currentPath, isWindows, f
     } else if (dialog.mode === 'compress') {
       const paths = dialog.selEntries.map((e) => e.path);
       const dest = `${currentPath.replace(/[/\\]+$/, '')}${sep}${val}`;
-      await fileOperationMutation.mutateAsync({ endpoint: '/api/terminal-files/compress', values: { paths, destPath: dest } });
-      Toast.success('压缩成功'); setDialog(null);
+      await compressTask.mutateAsync({ paths, destPath: dest });
+      // 压缩已转为后台任务：进度与取消由任务托盘承载，页面只确认已受理
+      Toast.success('压缩任务已提交，可在任务中心查看进度'); setDialog(null);
     } else if (dialog.mode === 'chmod') {
       const mode = Number.parseInt(val, 8);
       if (Number.isNaN(mode)) { Toast.error('请输入有效的八进制权限值，如 755'); return; }

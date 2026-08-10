@@ -48,8 +48,14 @@ class Request extends HttpClient {
     });
   }
 
-  /** Download a file (binary response) - used for Excel export */
-  async download(url: string, filename: string): Promise<void> {
+  /**
+   * 拉取二进制响应，复用统一的 token 注入 / 401 刷新重试 / 错误提示。
+   *
+   * 页面里裸用 `fetch` 手拼 Authorization 会绕过这些能力：token 过期不会自动刷新、
+   * 失败不会走统一提示与上报、Demo 模式也拦不住。
+   * 返回 null 表示失败已被处理（含跳转登录），调用方无需再提示。
+   */
+  async getBlob(url: string): Promise<Blob | null> {
     const token = localStorage.getItem(TOKEN_KEY);
     const headers: HeadersInit = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -59,43 +65,47 @@ class Request extends HttpClient {
       res = await fetch(`${this.baseUrl}${url}`, { headers });
     } catch {
       showRequestErrorToast('网络请求失败，请检查网络连接');
-      return;
+      return null;
     }
 
     if (res.status === 401) {
       const refreshed = await this.tryRefreshToken();
-      if (refreshed) {
-        const retryHeaders: HeadersInit = {};
-        const newToken = localStorage.getItem(TOKEN_KEY);
-        if (newToken) retryHeaders['Authorization'] = `Bearer ${newToken}`;
-        try {
-          res = await fetch(`${this.baseUrl}${url}`, { headers: retryHeaders });
-        } catch {
-          showRequestErrorToast('网络请求失败，请检查网络连接');
-          return;
-        }
-        if (res.status === 401) {
-          this.clearAuthAndRedirect();
-          return;
-        }
-      } else {
+      if (!refreshed) {
         this.clearAuthAndRedirect();
-        return;
+        return null;
+      }
+      const retryHeaders: HeadersInit = {};
+      const newToken = localStorage.getItem(TOKEN_KEY);
+      if (newToken) retryHeaders['Authorization'] = `Bearer ${newToken}`;
+      try {
+        res = await fetch(`${this.baseUrl}${url}`, { headers: retryHeaders });
+      } catch {
+        showRequestErrorToast('网络请求失败，请检查网络连接');
+        return null;
+      }
+      if (res.status === 401) {
+        this.clearAuthAndRedirect();
+        return null;
       }
     }
 
     if (!res.ok) {
       try {
-        const data = await res.json();
-        showRequestErrorToast(data?.message || '下载失败');
+        const data = await res.json() as { message?: string };
+        showRequestErrorToast(data?.message || '请求失败');
       } catch {
-        showRequestErrorToast('下载失败');
+        showRequestErrorToast('请求失败');
       }
-      return;
+      return null;
     }
 
-    const blob = await res.blob();
-    downloadBlob(blob, filename);
+    return res.blob();
+  }
+
+  /** Download a file (binary response) - used for Excel export */
+  async download(url: string, filename: string): Promise<void> {
+    const blob = await this.getBlob(url);
+    if (blob) downloadBlob(blob, filename);
   }
 }
 

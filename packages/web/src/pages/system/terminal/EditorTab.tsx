@@ -3,8 +3,7 @@ import Editor, { type OnMount } from '@monaco-editor/react';
 import { Button, Toast, Spin, Typography } from '@douyinfe/semi-ui';
 import { Save } from 'lucide-react';
 import type { editor } from 'monaco-editor';
-import { TOKEN_KEY } from '@zenith/shared/core';
-import { config } from '@/config';
+import { request } from '@/utils/request';
 import { useThemeController } from '@/providers/theme-controller';
 import { useTerminalPreferences } from './useTerminalPreferences';
 import { resolveTheme, toMonacoTheme, monacoThemeName } from './themes';
@@ -34,12 +33,9 @@ function isImageFile(filePath: string): boolean {
 
 /** 带鉴权获取图片 blob URL */
 async function fetchImageBlobUrl(downloadUrl: string): Promise<string> {
-  const token = localStorage.getItem(TOKEN_KEY) ?? '';
-  const base = config.apiBaseUrl || '';
-  const url = `${base}${downloadUrl}`;
-  const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const blob = await res.blob();
+  // 走统一 request：裸 fetch 会绕过 401 刷新、错误上报与 Demo 模式
+  const blob = await request.getBlob(downloadUrl);
+  if (!blob) throw new Error('image load failed');
   return URL.createObjectURL(blob);
 }
 
@@ -170,6 +166,8 @@ export default function EditorTab({ filePath, active, onDirtyChange }: EditorTab
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Parameters<OnMount>[1] | null>(null);
   const savedRef = useRef('');
+  /** 读取时拿到的文件版本，保存时回传用于并发冲突检测 */
+  const etagRef = useRef<string | undefined>(undefined);
   const onDirtyChangeRef = useRef(onDirtyChange);
   onDirtyChangeRef.current = onDirtyChange;
 
@@ -187,6 +185,7 @@ export default function EditorTab({ filePath, active, onDirtyChange }: EditorTab
   useEffect(() => {
     if (isImg || !contentQuery.data || dirty) return;
     const text = 'content' in contentQuery.data ? contentQuery.data.content ?? '' : '';
+    etagRef.current = 'etag' in contentQuery.data ? contentQuery.data.etag : undefined;
     savedRef.current = text;
     setContent(text);
     setDirty(false);
@@ -213,7 +212,12 @@ export default function EditorTab({ filePath, active, onDirtyChange }: EditorTab
     const ed = editorRef.current;
     if (!ed || !fileRef.writeUrl) return;
     const value = ed.getValue();
-    await saveMutation.mutateAsync({ url: fileRef.writeUrl, body: fileRef.buildWriteBody(value) });
+    // 带上读取时的版本：服务端据此拒绝覆盖他人在此期间的修改
+    const res = await saveMutation.mutateAsync({
+      url: fileRef.writeUrl,
+      body: { ...fileRef.buildWriteBody(value), ...(etagRef.current ? { baseEtag: etagRef.current } : {}) },
+    });
+    etagRef.current = res?.etag;
     savedRef.current = value;
     setDirty(false);
     onDirtyChangeRef.current?.(false);

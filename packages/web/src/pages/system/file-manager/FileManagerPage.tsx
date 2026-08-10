@@ -21,7 +21,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, ImagePreview, Progress, Spin, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { FolderOpen, Home, UploadCloud } from 'lucide-react';
-import { useTerminalFileOperation, useTerminalSearch } from '@/hooks/queries/terminal-files';
+import { useTerminalArchiveTask, useTerminalFileOperation, useTerminalSearch } from '@/hooks/queries/terminal-files';
 import FilePreviewModal from '@/components/FilePreviewModal';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { confirmDelete } from '@/utils/confirm';
@@ -80,6 +80,7 @@ export default function FileManagerPage() {
   const upload = useFsUpload(currentPath);
   const bookmarks = useBookmarks(currentPath);
   const fileOperationMutation = useTerminalFileOperation();
+  const extractTask = useTerminalArchiveTask('extract');
 
   // ── 过滤 + 排序 + 侧栏 ────────────────────────────────────────────────────
   const filteredEntries = useMemo(() => {
@@ -114,7 +115,9 @@ export default function FileManagerPage() {
 
   // ── 深度搜索（enabled 由 searchTerm 驱动） ────────────────────────────────
   const searchQuery = useTerminalSearch(searchTerm?.dir ?? '', searchTerm?.keyword ?? '', !!searchTerm);
-  const searchResults = searchTerm ? searchQuery.data ?? [] : null;
+  const searchResults = searchTerm ? searchQuery.data?.entries ?? [] : null;
+  // 触顶截断时结果不完整，必须让用户知道，否则会把「没搜到」误当成「不存在」
+  const searchTruncated = !!searchQuery.data?.truncated;
   const searching = searchQuery.isFetching;
 
   const runSearch = () => {
@@ -158,9 +161,9 @@ export default function FileManagerPage() {
   };
 
   const handleExtract = async (entry: FsEntry) => {
-    Toast.info({ content: '正在解压…', duration: 1 });
-    await fileOperationMutation.mutateAsync({ endpoint: '/api/terminal-files/extract', values: { path: entry.path } });
-    Toast.success('解压成功');
+    await extractTask.mutateAsync({ path: entry.path });
+    // 解压已转为后台任务：进度与取消由任务托盘承载，页面只确认已受理
+    Toast.success('解压任务已提交，可在任务中心查看进度');
   };
 
   const openEntry = (entry: FsEntry) => {
@@ -467,6 +470,7 @@ export default function FileManagerPage() {
             keyword={searchTerm?.keyword ?? ''}
             searching={searching}
             results={searchResults}
+            truncated={searchTruncated}
             onClose={() => setSearchTerm(null)}
             onGoto={(r) => {
               setSearchTerm(null);

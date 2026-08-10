@@ -31,6 +31,8 @@ export const SftpFileContentDTO = z
     path: z.string(),
     content: z.string(),
     size: z.number(),
+    /** 版本标识，保存时回传以检测并发编辑冲突 */
+    etag: z.string(),
   })
   .openapi('SftpFileContent');
 

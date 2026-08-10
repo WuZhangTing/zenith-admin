@@ -1,8 +1,11 @@
 import { posix as posixPath } from 'node:path';
 import { Readable } from 'node:stream';
+import { randomUUID } from 'node:crypto';
 import SftpClient from 'ssh2-sftp-client';
 import { HTTPException } from 'hono/http-exception';
 import { formatDateTime } from '../../lib/datetime';
+import { MAX_EDIT_SIZE, assertNotStale, fileEtag, isBinaryBuffer } from '../../lib/fs-text';
+import { assertUploadSizeWithinLimit } from './terminal-files.service';
 import { getSshConnectParams } from './ssh-profiles.service';
 
 /**
@@ -16,7 +19,6 @@ import { getSshConnectParams } from './ssh-profiles.service';
  */
 
 const SFTP_IDLE_MS = 2 * 60 * 1000;
-const MAX_EDIT_SIZE = 5 * 1024 * 1024; // 5MB
 
 export interface SftpFileEntry {
   name: string;
@@ -123,14 +125,6 @@ function rightsToString(rights?: { user?: string; group?: string; other?: string
   return `${pad(rights.user)}${pad(rights.group)}${pad(rights.other)}`;
 }
 
-function isBinaryBuffer(buf: Buffer): boolean {
-  const len = Math.min(buf.length, 8000);
-  for (let i = 0; i < len; i += 1) {
-    if (buf[i] === 0) return true;
-  }
-  return false;
-}
-
 /** 远程 home 目录（realpath('.')） */
 export async function sftpHome(userId: number, profileId: number): Promise<{ home: string }> {
   const home = await withSftp(userId, profileId, (c) => c.realPath('.'));
@@ -174,7 +168,7 @@ export async function sftpReadText(
   userId: number,
   profileId: number,
   filePath: string,
-): Promise<{ path: string; content: string; size: number }> {
+): Promise<{ path: string; content: string; size: number; etag: string }> {
   if (!filePath?.trim()) throw new HTTPException(400, { message: '缺少文件路径' });
   const resolved = posixPath.resolve('/', filePath);
   return withSftp(userId, profileId, async (c) => {
@@ -184,23 +178,64 @@ export async function sftpReadText(
     if (st.size > MAX_EDIT_SIZE) throw new HTTPException(400, { message: '文件过大，无法在线编辑（上限 5MB）' });
     const buf = (await c.get(resolved)) as Buffer;
     if (isBinaryBuffer(buf)) throw new HTTPException(400, { message: '二进制文件无法在线编辑' });
-    return { path: resolved, content: buf.toString('utf-8'), size: st.size };
+    return {
+      path: resolved,
+      content: buf.toString('utf-8'),
+      size: st.size,
+      etag: fileEtag({ mtimeMs: st.modifyTime, size: st.size }),
+    };
   });
 }
 
-/** 写入远程文本文件 */
+/**
+ * 写入远程文本文件。
+ *
+ * 与本机编辑同样的两条保证：带 baseEtag 时先检测并发修改；写入走临时文件 + rename，
+ * 避免网络中断在远端留下被截断的配置文件。SFTP v3 的 rename 不覆盖已存在目标，
+ * 因此优先用 OpenSSH 的 posix-rename 扩展，不支持时回退为先删后改。
+ */
 export async function sftpWriteText(
   userId: number,
   profileId: number,
   filePath: string,
   content: string,
+  baseEtag?: string | null,
 ): Promise<SftpFileEntry> {
   if (!filePath?.trim()) throw new HTTPException(400, { message: '缺少文件路径' });
   const resolved = posixPath.resolve('/', filePath);
+  const tmp = posixPath.join(
+    posixPath.dirname(resolved),
+    `.${posixPath.basename(resolved)}.tmp-${randomUUID().slice(0, 8)}`,
+  );
   return withSftp(userId, profileId, async (c) => {
-    await c.put(Buffer.from(content, 'utf-8'), resolved);
+    const existing = await c.stat(resolved).catch(() => null);
+    if (existing) {
+      if (existing.isDirectory) throw new HTTPException(400, { message: '目标是目录，无法写入' });
+      assertNotStale(fileEtag({ mtimeMs: existing.modifyTime, size: existing.size }), baseEtag);
+    }
+    try {
+      await c.put(Buffer.from(content, 'utf-8'), tmp);
+      if (existing) await c.chmod(tmp, existing.mode & 0o777);
+      await renameOverwrite(c, tmp, resolved);
+    } catch (err) {
+      await c.delete(tmp, true).catch(() => undefined);
+      throw err;
+    }
     return statEntry(c, resolved);
   });
+}
+
+/** 覆盖式重命名：优先 posix-rename 扩展，回退为先删后改 */
+async function renameOverwrite(c: SftpClient, from: string, to: string): Promise<void> {
+  const client = c as SftpClient & { posixRename?: (a: string, b: string) => Promise<string> };
+  if (typeof client.posixRename === 'function') {
+    try {
+      await client.posixRename(from, to);
+      return;
+    } catch { /* 服务端不支持该扩展，走回退分支 */ }
+  }
+  await c.delete(to, true).catch(() => undefined);
+  await c.rename(from, to);
 }
 
 /** 新建远程文件或目录 */
@@ -288,13 +323,14 @@ export async function sftpUpload(
   dirPath: string,
   file: File,
 ): Promise<SftpFileEntry> {
+  await assertUploadSizeWithinLimit(file.size);
   const dir = posixPath.resolve('/', dirPath?.trim() ? dirPath : '/');
-  const dest = posixPath.join(dir, file.name);
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const dest = posixPath.join(dir, posixPath.basename(file.name));
   return withSftp(userId, profileId, async (c) => {
     const kind = await c.exists(dir);
     if (kind !== 'd') throw new HTTPException(404, { message: '目标目录不存在' });
-    await c.put(buffer, dest);
+    // 直接把 File 的可读流交给 ssh2-sftp-client，不再先整份读成 Buffer
+    await c.put(Readable.fromWeb(file.stream() as never), dest);
     return statEntry(c, dest);
   });
 }

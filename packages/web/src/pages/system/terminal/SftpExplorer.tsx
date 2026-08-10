@@ -15,12 +15,19 @@ import { Icon } from '@iconify/react';
 import {
   RefreshCw, Home, FilePlus, FolderPlus, Upload as UploadIcon, Folder, File as FileIcon,
 } from 'lucide-react';
-import { TOKEN_KEY } from '@zenith/shared/core';
-import { config } from '@/config';
-import { downloadBlob } from '@/utils/download';
 import { getFileIcon } from '@/utils/fileIcons';
+import { request } from '@/utils/request';
 import type { SshProfile } from './SshProfilesManager';
 import AppModal from '@/components/AppModal';
+import {
+  entryToTreeNode,
+  setTreeChildren,
+  joinPosix,
+  parentPosix,
+  fsDialogTitle,
+  type FsDialogState,
+  type FsTreeNode,
+} from './fileTree';
 import {
   fetchSftpDir,
   sftpHomeQueryOptions,
@@ -28,49 +35,13 @@ import {
   type SftpEntry,
 } from '@/hooks/queries/terminal-files';
 
-interface SftpNode extends TreeNodeData {
-  fileType: 'dir' | 'file';
-  fullPath: string;
-}
+/** SFTP 树节点等价于共享的文件树节点，仅为可读性保留别名 */
+type SftpNode = FsTreeNode;
 
 interface SftpExplorerProps {
   readonly profile: SshProfile;
   readonly onOpenFile: (sftpUrl: string) => void;
 }
-
-function entryToNode(e: SftpEntry): SftpNode {
-  return {
-    key: e.path,
-    value: e.path,
-    label: e.name,
-    isLeaf: e.type === 'file',
-    children: e.type === 'dir' ? undefined : [],
-    fileType: e.type,
-    fullPath: e.path,
-  };
-}
-
-function setChildren(nodes: SftpNode[], key: string, children: SftpNode[]): SftpNode[] {
-  return nodes.map((n) => {
-    if (n.key === key) return { ...n, children };
-    if (n.children) return { ...n, children: setChildren(n.children as SftpNode[], key, children) };
-    return n;
-  });
-}
-
-function joinPosix(dir: string, name: string): string {
-  return `${dir.replace(/\/+$/, '')}/${name}`;
-}
-
-function parentPosix(p: string): string {
-  const idx = p.lastIndexOf('/');
-  return idx > 0 ? p.slice(0, idx) : '/';
-}
-
-type DialogState =
-  | { mode: 'createFile' | 'createDir'; baseDir: string; value: string }
-  | { mode: 'rename'; baseDir: string; oldPath: string; value: string }
-  | { mode: 'chmod'; targetPath: string; value: string };
 
 export default function SftpExplorer({ profile, onOpenFile }: SftpExplorerProps) {
   const queryClient = useQueryClient();
@@ -80,7 +51,7 @@ export default function SftpExplorer({ profile, onOpenFile }: SftpExplorerProps)
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
-  const [dialog, setDialog] = useState<DialogState | null>(null);
+  const [dialog, setDialog] = useState<FsDialogState | null>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const uploadDirRef = useRef('/');
 
@@ -110,7 +81,7 @@ export default function SftpExplorer({ profile, onOpenFile }: SftpExplorerProps)
     try {
       const res = await fetchSftpDir(queryClient, profile.id, home, { silent: true });
       setRootPath(res.path);
-      setTreeData(res.entries.map(entryToNode));
+      setTreeData(res.entries.map(entryToTreeNode));
       setExpandedKeys([]);
     } catch {
       setError('加载远程目录失败');
@@ -126,7 +97,7 @@ export default function SftpExplorer({ profile, onOpenFile }: SftpExplorerProps)
     if (!n || n.fileType === 'file') return Promise.resolve();
     const dir = n.fullPath;
     return listDir(dir).then((entries) => {
-      setTreeData((prev) => setChildren(prev, dir, (entries ?? []).map(entryToNode)));
+      setTreeData((prev) => setTreeChildren(prev, dir, (entries ?? []).map(entryToTreeNode)));
     });
   }, [listDir]);
 
@@ -135,9 +106,9 @@ export default function SftpExplorer({ profile, onOpenFile }: SftpExplorerProps)
     const entries = await listDir(dir);
     if (!entries) return;
     if (dir === rootPath) {
-      setTreeData(entries.map(entryToNode));
+      setTreeData(entries.map(entryToTreeNode));
     } else {
-      setTreeData((prev) => setChildren(prev, dir, entries.map(entryToNode)));
+      setTreeData((prev) => setTreeChildren(prev, dir, entries.map(entryToTreeNode)));
       setExpandedKeys((prev) => (prev.includes(dir) ? prev : [...prev, dir]));
     }
   }, [listDir, rootPath]);
@@ -175,17 +146,8 @@ export default function SftpExplorer({ profile, onOpenFile }: SftpExplorerProps)
   }, [fileMutation, reloadDir]);
 
   const handleDownload = useCallback(async (node: SftpNode) => {
-    const token = localStorage.getItem(TOKEN_KEY) ?? '';
-    const base = config.apiBaseUrl || '';
-    const url = `${base}${api}/download?path=${encodeURIComponent(node.fullPath)}`;
-    try {
-      const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
-      downloadBlob(blob, node.label as string);
-    } catch {
-      Toast.error('下载失败');
-    }
+    // 走统一 request：裸 fetch 会绕过 401 刷新、错误上报与 Demo 模式
+    await request.download(`${api}/download?path=${encodeURIComponent(node.fullPath)}`, node.label as string);
   }, [api]);
 
   const triggerUpload = useCallback((dir: string) => {
@@ -194,24 +156,14 @@ export default function SftpExplorer({ profile, onOpenFile }: SftpExplorerProps)
   }, []);
 
   const handleUploadFiles = useCallback(async (files: FileList) => {
-    const token = localStorage.getItem(TOKEN_KEY) ?? '';
-    const base = config.apiBaseUrl || '';
     const dir = uploadDirRef.current;
     for (const file of Array.from(files)) {
       const fd = new FormData();
       fd.append('path', dir);
       fd.append('file', file);
-      try {
-        const res = await fetch(`${base}${api}/upload`, {
-          method: 'POST',
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-          body: fd,
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        Toast.success(`已上传 ${file.name}`);
-      } catch {
-        Toast.error(`上传失败：${file.name}`);
-      }
+      // 走统一 request：超限（413）等错误由全局提示统一呈现
+      const res = await request.postForm(`${api}/upload`, fd);
+      if (res.code === 0) Toast.success(`已上传 ${file.name}`);
     }
     void reloadDir(dir);
   }, [api, reloadDir]);
@@ -298,7 +250,7 @@ export default function SftpExplorer({ profile, onOpenFile }: SftpExplorerProps)
 
       {/* 新建 / 重命名对话框 */}
       <AppModal
-        title={dialog?.mode === 'rename' ? '重命名' : dialog?.mode === 'chmod' ? '修改权限（八进制）' : dialog?.mode === 'createDir' ? '新建文件夹' : '新建文件'}
+        title={fsDialogTitle(dialog?.mode)}
         visible={!!dialog}
         onCancel={() => setDialog(null)}
         onOk={() => void submitDialog()}

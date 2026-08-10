@@ -26,6 +26,7 @@ import {
   sftpDownload,
   sftpUpload,
 } from '../../services/ops/ssh-sftp.service';
+import { assertContentLengthWithinLimit } from '../../services/ops/terminal-files.service';
 
 /**
  * SSH 远程文件（SFTP）路由
@@ -88,13 +89,28 @@ const writeContentRoute = defineOpenAPIRoute({
     method: 'put', path: '/:profileId/content', tags: ['SshSftp'], summary: '保存远程文本文件内容',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: PERM, audit: { description: 'SFTP 保存文件', module: 'Web 终端', recordBody: false } })] as const,
-    request: { params: ProfileIdParam, body: { content: jsonContent(z.object({ path: z.string().min(1), content: z.string() })), required: true } },
-    responses: { ...commonErrorResponses, ...ok(SftpFileEntryDTO, '保存成功') },
+    request: {
+      params: ProfileIdParam,
+      body: {
+        content: jsonContent(z.object({
+          path: z.string().min(1),
+          content: z.string(),
+          /** 读取时拿到的版本；不传表示强制覆盖 */
+          baseEtag: z.string().optional(),
+        })),
+        required: true,
+      },
+    },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(SftpFileEntryDTO, '保存成功'),
+      409: { content: jsonContent(ErrorResponse), description: '文件已被他人修改' },
+    },
   }),
   handler: async (c) => {
     const user = currentUser();
-    const { path: filePath, content } = c.req.valid('json');
-    return c.json(okBody(await sftpWriteText(user.userId, Number(c.req.valid('param').profileId), filePath, content), '保存成功'), 200);
+    const { path: filePath, content, baseEtag } = c.req.valid('json');
+    return c.json(okBody(await sftpWriteText(user.userId, Number(c.req.valid('param').profileId), filePath, content, baseEtag), '保存成功'), 200);
   },
 });
 
@@ -212,6 +228,7 @@ const uploadRoute = defineOpenAPIRoute({
   handler: async (c) => {
     const user = currentUser();
     const profileId = Number(c.req.valid('param').profileId);
+    await assertContentLengthWithinLimit(c.req.header('content-length'));
     const body = await c.req.parseBody();
     const dirPath = typeof body.path === 'string' ? body.path : '/';
     const file = body.file;

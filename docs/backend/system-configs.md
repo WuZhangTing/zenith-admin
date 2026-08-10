@@ -100,6 +100,7 @@ const captchaOn = await getConfigBoolean('captcha_enabled'); // 'true' 或 '1' �
 | `terminal_recording_enabled` | `false` | 终端录屏 |
 | `terminal_recording_retain_days` | `30` | 录屏保留天数（0 = 不按天清理） |
 | `terminal_recording_max_size_mb` | `500` | 录屏总容量上限（0 = 不限制） |
+| `terminal_upload_max_size_mb` | `200` | 文件管理器 / SFTP 单个上传大小上限（0 = 不限制） |
 
 ### AI
 
