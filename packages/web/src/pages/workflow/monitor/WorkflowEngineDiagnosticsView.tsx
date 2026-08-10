@@ -8,7 +8,7 @@ import {
   WORKFLOW_JOB_STATUS_META as JOB_STATUS_META,
 } from './constants';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { AreaChart, LineChart, chartOptions, makeAreaSpec, makeLineSpec, useChartPalette, type ChartPalette } from '@/components/charts';
+import { AreaChart, LineChart, StatGrid, chartOptions, makeAreaSpec, makeLineSpec, useChartPalette, type ChartPalette } from '@/components/charts';
 import { formatDateTime } from '@/utils/date';
 import { downloadBlob } from '@/utils/download';
 import WorkflowBatchRecoveryModal from './WorkflowBatchRecoveryModal';
@@ -250,18 +250,10 @@ function DeltaChip({ current, prev, invert, palette, suffix }: Readonly<{ curren
   );
 }
 
+/** 黄金信号指标：外层 StatGrid 提供竖线分隔与内边距，这里不画外壳 */
 function GoldenTile({ icon, label, value, accent, sub, delta }: Readonly<{ icon: React.ReactNode; label: string; value: React.ReactNode; accent?: string; sub: React.ReactNode; delta?: React.ReactNode }>) {
   return (
-    <div
-      style={{
-        flex: '1 1 170px',
-        minWidth: 150,
-        padding: '12px 14px',
-        borderRadius: 'var(--semi-border-radius-medium)',
-        background: 'var(--semi-color-fill-0)',
-        border: '1px solid var(--semi-color-border)',
-      }}
-    >
+    <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         {icon}
         <Typography.Text type="tertiary" size="small">{label}</Typography.Text>
@@ -939,35 +931,37 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
               </div>
             </div>
           </Popover>
-          <div style={{ flex: '1 1 520px', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <GoldenTile
-              icon={<TrendingUp size={15} color="var(--semi-color-primary)" />}
-              label="吞吐 · Traffic"
-              value={t.events.last24h.total}
-              delta={<DeltaChip current={t.events.last24h.total} prev={t.events.prev24h.total} palette={palette} />}
-              sub={`近 1h ${t.events.last1h.total} · 实例发起 ${t.instances.createdLast24h}`}
-            />
-            <GoldenTile
-              icon={<AlertTriangle size={15} color={errorAccent ?? 'var(--semi-color-text-2)'} />}
-              label="错误 · Errors"
-              value={`${errorRate.toFixed(1)}%`}
-              accent={errorAccent}
-              delta={<DeltaChip current={errorRate} prev={prevErrorRate} invert palette={palette} suffix="pp" />}
-              sub={`事件失败 ${t.events.last24h.failed} · 触发失败 ${t.triggers.last24h.failed} · 重试 ${t.triggers.last24h.retrying}`}
-            />
-            <GoldenTile
-              icon={<Timer size={15} color="var(--semi-color-primary)" />}
-              label="延迟 · Latency"
-              value={formatMs(t.events.avgLatencyMs)}
-              sub={`P95 ${formatMs(t.events.p95LatencyMs)} · P99 ${formatMs(t.events.p99LatencyMs)} · Apdex ${t.apdex.score != null ? t.apdex.score.toFixed(2) : '—'}`}
-            />
-            <GoldenTile
-              icon={<Layers size={15} color={saturationAccent ?? 'var(--semi-color-text-2)'} />}
-              label="饱和度 · Saturation"
-              value={backlog}
-              accent={saturationAccent}
-              sub={`最老 ${formatAge(oldestBacklog)} · 待重放 ${t.events.pendingRetry} · 无任务实例 ${stuckInstances}`}
-            />
+          <div style={{ flex: '1 1 520px', minWidth: 0 }}>
+            <StatGrid minItemWidth={160} gap={12}>
+              <GoldenTile
+                icon={<TrendingUp size={15} color="var(--semi-color-primary)" />}
+                label="吞吐 · Traffic"
+                value={t.events.last24h.total}
+                delta={<DeltaChip current={t.events.last24h.total} prev={t.events.prev24h.total} palette={palette} />}
+                sub={`近 1h ${t.events.last1h.total} · 实例发起 ${t.instances.createdLast24h}`}
+              />
+              <GoldenTile
+                icon={<AlertTriangle size={15} color={errorAccent ?? 'var(--semi-color-text-2)'} />}
+                label="错误 · Errors"
+                value={`${errorRate.toFixed(1)}%`}
+                accent={errorAccent}
+                delta={<DeltaChip current={errorRate} prev={prevErrorRate} invert palette={palette} suffix="pp" />}
+                sub={`事件失败 ${t.events.last24h.failed} · 触发失败 ${t.triggers.last24h.failed} · 重试 ${t.triggers.last24h.retrying}`}
+              />
+              <GoldenTile
+                icon={<Timer size={15} color="var(--semi-color-primary)" />}
+                label="延迟 · Latency"
+                value={formatMs(t.events.avgLatencyMs)}
+                sub={`P95 ${formatMs(t.events.p95LatencyMs)} · P99 ${formatMs(t.events.p99LatencyMs)} · Apdex ${t.apdex.score != null ? t.apdex.score.toFixed(2) : '—'}`}
+              />
+              <GoldenTile
+                icon={<Layers size={15} color={saturationAccent ?? 'var(--semi-color-text-2)'} />}
+                label="饱和度 · Saturation"
+                value={backlog}
+                accent={saturationAccent}
+                sub={`最老 ${formatAge(oldestBacklog)} · 待重放 ${t.events.pendingRetry} · 无任务实例 ${stuckInstances}`}
+              />
+            </StatGrid>
           </div>
         </div>
       </div>
