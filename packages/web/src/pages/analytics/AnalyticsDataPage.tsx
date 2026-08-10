@@ -608,14 +608,14 @@ export default function AnalyticsDataPage() {
   const renderSettings = () => {
     if (!settings) {
       return (
-        <Card bodyStyle={{ padding: 24 }}>
+        <Card>
           <Typography.Text type="tertiary">{settingsQuery.isFetching ? '加载中...' : '暂无设置'}</Typography.Text>
         </Card>
       );
     }
 
     return (
-      <Card bodyStyle={{ padding: 20 }}>
+      <Card>
         <Form labelPosition="left" labelWidth={150}>
           <Form.Slot label="启用采集">
             <Switch checked={settings.enabled} onChange={(checked) => updateSettings('enabled', checked)} />
@@ -808,7 +808,7 @@ export default function AnalyticsDataPage() {
   );
 
   return (
-    <div className="page-container page-tabs-page">
+    <div className="page-container page-tabs-page zx-flat-panels">
       <Tabs activeKey={activeTab} onChange={(key) => setActiveTab(key as typeof activeTab)} type="line" lazyRender keepDOM={false}>
         <TabPane tab="事件明细" itemKey="events">
           <SearchToolbar

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Card, Col, Dropdown, Empty, Form, JsonViewer, List, Modal, Popover, Row, Select, Skeleton, Space, Tabs, TabPane, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, Col, Dropdown, Empty, Form, JsonViewer, List, Modal, Popover, Row, Select, Skeleton, Space, Tabs, TabPane, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, CheckCircle2, DatabaseZap, Download, GaugeCircle, GitBranch, Layers, LifeBuoy, Minus, RefreshCw, Stethoscope, Timer, TimerReset, TrendingUp, Wrench, Workflow, Zap } from 'lucide-react';
 import type { WorkflowEngineActionKey, WorkflowEngineActionPreview, WorkflowEngineActionSampleJob, WorkflowEngineComponent, WorkflowEngineComponentStatus, WorkflowEngineDefinitionValidationItem, WorkflowEngineHistogramBucket, WorkflowEngineIntrospection, WorkflowEngineOutboxEvent, WorkflowEngineQueueKey, WorkflowEngineQueueSnapshot, WorkflowEngineRuntimeIssue, WorkflowEngineRuntimeTask, WorkflowEngineTriggerExecution } from '@zenith/shared/workflow';
@@ -757,12 +757,12 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <Skeleton loading placeholder={<Skeleton.Paragraph rows={2} style={{ width: '100%' }} />} active />
-        <Card bordered bodyStyle={{ padding: 16 }} style={{ borderRadius: 'var(--semi-border-radius-medium)' }}>
+        <div className="zx-panel">
           <Skeleton loading placeholder={<Skeleton.Paragraph rows={4} style={{ width: '100%' }} />} active />
-        </Card>
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          <Card bordered style={{ borderRadius: 'var(--semi-border-radius-medium)', flex: '1 1 380px' }}><Skeleton loading placeholder={<Skeleton.Image style={{ width: '100%', height: 150 }} />} active /></Card>
-          <Card bordered style={{ borderRadius: 'var(--semi-border-radius-medium)', flex: '1 1 380px' }}><Skeleton loading placeholder={<Skeleton.Image style={{ width: '100%', height: 150 }} />} active /></Card>
+        </div>
+        <div className="chart-grid">
+          <div className="zx-panel"><Skeleton loading placeholder={<Skeleton.Image style={{ width: '100%', height: 150 }} />} active /></div>
+          <div className="zx-panel"><Skeleton loading placeholder={<Skeleton.Image style={{ width: '100%', height: 150 }} />} active /></div>
         </div>
       </div>
     );
@@ -926,7 +926,7 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
       )}
 
       {/* 概览 Hero：健康分 + 黄金信号 */}
-      <Card bordered bodyStyle={{ padding: 16 }} style={{ borderRadius: 'var(--semi-border-radius-medium)' }}>
+      <div className="zx-panel">
         <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
           <Popover content={<ScoreBreakdown data={data} palette={palette} />} position="rightTop" showArrow>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, width: 188, cursor: 'help' }}>
@@ -970,22 +970,22 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
             />
           </div>
         </div>
-      </Card>
+      </div>
 
       {/* 趋势：事件吞吐 + 实例生命周期 */}
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-        <Card bordered bodyStyle={{ padding: 14 }} style={{ borderRadius: 'var(--semi-border-radius-medium)', flex: '1 1 380px', minWidth: 300 }}>
+      <div className="chart-grid">
+        <div className="zx-panel">
           <SectionTitle icon={<Zap size={16} color="var(--semi-color-primary)" />} title="事件吞吐趋势" desc="近 24h 成功 / 失败（按小时）" />
           <AreaChart {...eventTrendSpec} options={chartOptions} height={150} />
-        </Card>
-        <Card bordered bodyStyle={{ padding: 14 }} style={{ borderRadius: 'var(--semi-border-radius-medium)', flex: '1 1 380px', minWidth: 300 }}>
+        </div>
+        <div className="zx-panel">
           <SectionTitle icon={<Workflow size={16} color="var(--semi-color-primary)" />} title="实例生命周期趋势" desc="近 24h 发起 / 完结（按小时）" />
           <LineChart {...instanceTrendSpec} options={chartOptions} height={150} />
-        </Card>
+        </div>
       </div>
 
       {/* 健康趋势历史 */}
-      <Card bordered bodyStyle={{ padding: 14 }} style={{ borderRadius: 'var(--semi-border-radius-medium)' }}>
+      <div className="zx-panel">
         <SectionTitle
           icon={<GaugeCircle size={16} color="var(--semi-color-primary)" />}
           title="健康趋势"
@@ -1006,10 +1006,10 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
         ) : (
           <Empty description="暂无健康历史，定时采集任务运行后将逐步生成趋势" style={{ padding: 24 }} />
         )}
-      </Card>
+      </div>
 
       {/* 活动问题 */}
-      <Card bordered bodyStyle={{ padding: 14 }} style={{ borderRadius: 'var(--semi-border-radius-medium)' }}>
+      <div className="zx-panel">
         <SectionTitle
           icon={<AlertTriangle size={16} color={data.issues.length > 0 ? 'var(--semi-color-warning)' : 'var(--semi-color-success)'} />}
           title="活动问题"
@@ -1017,31 +1017,31 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
           extra={<Tag color={criticalCount > 0 ? 'red' : warningCount > 0 ? 'orange' : 'green'}>{data.issues.length}</Tag>}
         />
         <IssuesPanel issues={data.issues} components={data.components} onOpenInstanceDiagnostics={onOpenInstanceDiagnostics} />
-      </Card>
+      </div>
 
       {/* 队列饱和度 */}
-      <Card bordered bodyStyle={{ padding: 14 }} style={{ borderRadius: 'var(--semi-border-radius-medium)' }}>
+      <div className="zx-panel">
         <SectionTitle icon={<Layers size={16} color="var(--semi-color-primary)" />} title="队列饱和度" desc="各内部队列积压构成与最老等待" extra={<Typography.Text type="tertiary" size="small">总积压 {backlog} · 阈值 {data.thresholds.backlogWarn}/{data.thresholds.backlogCritical}</Typography.Text>} />
         <QueueSaturation queues={data.queues} palette={palette} />
-      </Card>
+      </div>
 
       {/* 延迟分布 + Apdex */}
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-        <Card bordered bodyStyle={{ padding: 14 }} style={{ borderRadius: 'var(--semi-border-radius-medium)', flex: '1 1 360px', minWidth: 300 }}>
+      <div className="chart-grid">
+        <div className="zx-panel">
           <SectionTitle icon={<Timer size={16} color="var(--semi-color-primary)" />} title="事件处理延迟分布" desc={`P95 ${formatMs(t.events.p95LatencyMs)} · P99 ${formatMs(t.events.p99LatencyMs)}`} />
           <HistogramBars buckets={t.events.latencyHistogram} color={palette.primary} />
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--semi-color-border)' }}>
             <ApdexBar data={data} palette={palette} />
           </div>
-        </Card>
-        <Card bordered bodyStyle={{ padding: 14 }} style={{ borderRadius: 'var(--semi-border-radius-medium)', flex: '1 1 360px', minWidth: 300 }}>
+        </div>
+        <div className="zx-panel">
           <SectionTitle icon={<Zap size={16} color="var(--semi-color-primary)" />} title="触发器耗时分布" desc={`均值 ${formatMs(t.triggers.avgDurationMs)} · P95 ${formatMs(t.triggers.p95DurationMs)} · P99 ${formatMs(t.triggers.p99DurationMs)}`} />
           <HistogramBars buckets={t.triggers.durationHistogram} color={palette.active} />
-        </Card>
+        </div>
       </div>
 
       {/* 组件健康矩阵 */}
-      <Card bordered bodyStyle={{ padding: 14 }} style={{ borderRadius: 'var(--semi-border-radius-medium)' }}>
+      <div className="zx-panel">
         <SectionTitle
           icon={<GaugeCircle size={16} color="var(--semi-color-primary)" />}
           title="组件健康矩阵"
@@ -1059,7 +1059,7 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
           size="small"
           renderItem={(component) => componentHealthItem(component, palette)}
         />
-      </Card>
+      </div>
 
       {/* 运行时明细 */}
       <Tabs type="line">
