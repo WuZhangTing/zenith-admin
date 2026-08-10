@@ -1,7 +1,10 @@
 /**
  * 系统监控告警：规则 CRUD + 阈值评估器 + 多通道派发。
- * 评估器由 pg-boss 定时任务（默认每分钟）调用，针对采样器即时指标判定阈值，
+ * 评估器由 pg-boss 定时任务（默认每 30 秒）调用，针对指标即时值判定阈值，
  * 支持「持续 N 分钟超阈才触发」抑制毛刺，并在指标恢复后自动解除告警。
+ *
+ * 指标全集与标签/单位/租户口径由 `@zenith/shared/platform` 的 MONITOR_METRIC_META 单点定义，
+ * 取值由 `monitor-history.service` 汇总各域的告警指标源；新增指标不需要改动本文件。
  */
 import { and, eq, desc } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
@@ -9,64 +12,19 @@ import { db } from '../../db';
 import { monitorAlertRules, monitorAlertEvents } from '../../db/schema';
 import type { MonitorAlertRuleRow, MonitorAlertEventRow } from '../../db/schema';
 import type { CreateMonitorAlertRuleInput, UpdateMonitorAlertRuleInput, MonitorAlertEventQuery, MonitorMetric, MonitorAlertOperator } from '@zenith/shared/platform';
+import { MONITOR_METRIC_META, formatMonitorMetricValue } from '@zenith/shared/platform';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { mergeWhere } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
-import { sendMail } from '../../lib/email';
-import { httpPost } from '../../lib/http-client';
-import logger from '../../lib/logger';
-import { getCurrentMetricSnapshot } from './monitor-history.service';
+import { getMetricSnapshotsByTenant } from './monitor-history.service';
 import { validateAlertDelivery } from '../../lib/alert-validation';
-
-// ─── 指标元信息（标签 + 单位格式化）─────────────────────────────────────
-const METRIC_LABELS: Record<MonitorMetric, string> = {
-  cpu: 'CPU 使用率',
-  memory: '内存使用率',
-  disk: '磁盘使用率',
-  swap: 'Swap 使用率',
-  load1: '系统负载(1m)',
-  procCpu: '进程 CPU',
-  heap: '堆内存使用率',
-  loopLag: '事件循环延迟',
-  qps: '请求 QPS',
-  errorRate: 'HTTP 错误率',
-  netRxBps: '网络下行',
-  netTxBps: '网络上行',
-  diskReadBps: '磁盘读取',
-  diskWriteBps: '磁盘写入',
-  workflowHealth: '流程引擎健康分',
-  workflowBacklog: '流程引擎队列积压',
-  workflowDeadLetter: '流程作业死信数',
-  workflowFailureRate: '流程作业失败率',
-  workflowStuckRunning: '流程作业卡死数',
-};
+import { dispatchAlertChannels } from '../../lib/alert-dispatch';
 
 const OPERATOR_SYMBOL: Record<MonitorAlertOperator, string> = { gt: '>', gte: '≥', lt: '<', lte: '≤' };
 
-function formatMetricValue(metric: MonitorMetric, value: number): string {
-  switch (metric) {
-    case 'cpu': case 'memory': case 'disk': case 'swap': case 'heap': case 'procCpu': case 'errorRate': case 'workflowFailureRate':
-      return `${Math.round(value * 10) / 10}%`;
-    case 'load1':
-      return `${Math.round(value * 100) / 100}`;
-    case 'workflowHealth':
-      return `${Math.round(value)} 分`;
-    case 'workflowBacklog': case 'workflowDeadLetter': case 'workflowStuckRunning':
-      return `${Math.round(value)} 项`;
-    case 'loopLag':
-      return `${Math.round(value * 100) / 100}ms`;
-    case 'qps':
-      return `${Math.round(value * 100) / 100}`;
-    case 'netRxBps': case 'netTxBps': case 'diskReadBps': case 'diskWriteBps': {
-      const units = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
-      let v = value; let i = 0;
-      while (v >= 1024 && i < units.length - 1) { v /= 1024; i += 1; }
-      return `${Math.round(v * 10) / 10} ${units[i]}`;
-    }
-    default:
-      return `${value}`;
-  }
+function metricLabel(metric: MonitorMetric): string {
+  return MONITOR_METRIC_META[metric]?.label ?? metric;
 }
 
 function compare(value: number, op: MonitorAlertOperator, threshold: number): boolean {
@@ -232,29 +190,33 @@ export async function listEvents(q: MonitorAlertEventQuery) {
 }
 
 // ─── 派发 ────────────────────────────────────────────────────────────────
-async function dispatchAlert(rule: MonitorAlertRuleRow, message: string, recovered: boolean): Promise<void> {
+async function dispatchAlert(rule: MonitorAlertRuleRow, message: string, recovered: boolean, triggeredAt: number): Promise<void> {
   const tag = recovered ? '已恢复' : '告警';
-  const subject = `[监控${tag}] ${rule.name}`;
-  const html = `<h3>系统监控${tag}</h3><p><b>规则：</b>${rule.name}</p><p><b>详情：</b>${message}</p><p>请前往后台「监控告警 / 告警记录」查看处理。</p>`;
-  const channels = rule.channels ?? [];
-  await Promise.allSettled([
-    ...(channels.includes('webhook') && rule.webhookUrl
-      ? [httpPost(rule.webhookUrl, {
-          type: recovered ? 'monitor_recovered' : 'monitor_alert',
-          rule: rule.name,
-          metric: rule.metric,
-          level: rule.level,
-          message,
-          timestamp: formatDateTime(new Date()),
-        }, { timeout: 8000, ssrfProtection: true })]
-      : []),
-    ...(channels.includes('email')
-      ? (rule.recipients ?? []).filter((r) => r.includes('@')).map((to) => sendMail(to, subject, html))
-      : []),
-  ]);
-  if (channels.includes('inapp')) {
-    logger.info(`[MonitorAlert] in-app notify (rule=${rule.name}): ${message}`);
-  }
+  await dispatchAlertChannels(
+    {
+      channels: rule.channels ?? [],
+      webhookUrl: rule.webhookUrl,
+      recipients: rule.recipients ?? [],
+      tenantId: rule.tenantId,
+    },
+    {
+      subject: `[监控${tag}] ${rule.name}`,
+      html: `<h3>系统监控${tag}</h3><p><b>规则：</b>${rule.name}</p><p><b>详情：</b>${message}</p><p>请前往后台「监控告警 / 告警记录」查看处理。</p>`,
+      title: `[监控${tag}] ${rule.name}`,
+      content: message,
+      inAppType: recovered ? 'success' : rule.level === 'critical' ? 'error' : rule.level === 'info' ? 'info' : 'warning',
+      dedupeKey: `monitor-alert:${rule.id}:${recovered ? 'resolved' : 'firing'}:${triggeredAt}`,
+      webhookBody: {
+        type: recovered ? 'monitor_recovered' : 'monitor_alert',
+        rule: rule.name,
+        metric: rule.metric,
+        level: rule.level,
+        message,
+        timestamp: formatDateTime(new Date(triggeredAt)),
+      },
+      logTag: 'MonitorAlert',
+    },
+  );
 }
 
 // ─── 评估器（cron）─────────────────────────────────────────────────────────
@@ -262,16 +224,23 @@ export async function evaluateMonitorAlerts(): Promise<{ evaluated: number; fire
   const rules = await db.select().from(monitorAlertRules).where(eq(monitorAlertRules.enabled, true));
   if (rules.length === 0) return { evaluated: 0, fired: 0, resolved: 0 };
 
-  const snapshot = await getCurrentMetricSnapshot();
+  // 按规则所属租户取快照：业务指标按租户过滤，宿主机 / 平台级指标共享同一次取数
+  const snapshots = await getMetricSnapshotsByTenant(rules.map((rule) => rule.tenantId));
   const now = Date.now();
+  let evaluated = 0;
   let fired = 0;
   let resolved = 0;
 
   for (const rule of rules) {
+    const snapshot = snapshots.get(rule.tenantId);
+    // 该租户本轮取数失败：跳过而不是按 0 处理，避免把采集故障误判成「指标已恢复」
+    if (!snapshot) continue;
+    evaluated += 1;
+
     const metric = rule.metric as MonitorMetric;
     const value = snapshot[metric] ?? 0;
     const breaching = compare(value, rule.operator as MonitorAlertOperator, rule.threshold);
-    const label = METRIC_LABELS[metric] ?? metric;
+    const label = metricLabel(metric);
     const sym = OPERATOR_SYMBOL[rule.operator as MonitorAlertOperator];
 
     if (breaching) {
@@ -281,7 +250,7 @@ export async function evaluateMonitorAlerts(): Promise<{ evaluated: number; fire
 
       if (rule.state !== 'firing' && durationOk) {
         // 触发新告警
-        const message = `${label} 当前 ${formatMetricValue(metric, value)}，已满足条件 ${sym} ${formatMetricValue(metric, rule.threshold)}`
+        const message = `${label} 当前 ${formatMonitorMetricValue(metric, value)}，已满足条件 ${sym} ${formatMonitorMetricValue(metric, rule.threshold)}`
           + (rule.durationMinutes > 0 ? `（持续 ${rule.durationMinutes} 分钟）` : '');
         await db.insert(monitorAlertEvents).values({
           tenantId: rule.tenantId,
@@ -299,16 +268,16 @@ export async function evaluateMonitorAlerts(): Promise<{ evaluated: number; fire
         await db.update(monitorAlertRules)
           .set({ state: 'firing', breachingSince, lastTriggeredAt: new Date(now), lastValue: value })
           .where(eq(monitorAlertRules.id, rule.id));
-        await dispatchAlert(rule, message, false);
+        await dispatchAlert(rule, message, false, now);
         fired += 1;
       } else if (rule.state === 'firing') {
         // 已在告警中：静默期后重复通知
         const silenceMs = rule.silenceMinutes * 60_000;
         const shouldRenotify = rule.silenceMinutes > 0 && rule.lastTriggeredAt && now - rule.lastTriggeredAt.getTime() >= silenceMs;
         if (shouldRenotify) {
-          const message = `${label} 持续告警，当前 ${formatMetricValue(metric, value)}（阈值 ${sym} ${formatMetricValue(metric, rule.threshold)}）`;
+          const message = `${label} 持续告警，当前 ${formatMonitorMetricValue(metric, value)}（阈值 ${sym} ${formatMonitorMetricValue(metric, rule.threshold)}）`;
           await db.update(monitorAlertRules).set({ lastTriggeredAt: new Date(now), lastValue: value }).where(eq(monitorAlertRules.id, rule.id));
-          await dispatchAlert(rule, message, false);
+          await dispatchAlert(rule, message, false, now);
         } else {
           await db.update(monitorAlertRules).set({ lastValue: value }).where(eq(monitorAlertRules.id, rule.id));
         }
@@ -319,7 +288,7 @@ export async function evaluateMonitorAlerts(): Promise<{ evaluated: number; fire
     } else {
       // 未超阈
       if (rule.state === 'firing') {
-        const message = `${label} 已恢复，当前 ${formatMetricValue(metric, value)}`;
+        const message = `${label} 已恢复，当前 ${formatMonitorMetricValue(metric, value)}`;
         // 关闭该规则所有未恢复事件
         await db.update(monitorAlertEvents)
           .set({ status: 'resolved', resolvedAt: new Date(now) })
@@ -327,7 +296,7 @@ export async function evaluateMonitorAlerts(): Promise<{ evaluated: number; fire
         await db.update(monitorAlertRules)
           .set({ state: 'ok', breachingSince: null, lastValue: value })
           .where(eq(monitorAlertRules.id, rule.id));
-        await dispatchAlert(rule, message, true);
+        await dispatchAlert(rule, message, true, now);
         resolved += 1;
       } else if (rule.breachingSince !== null) {
         await db.update(monitorAlertRules).set({ breachingSince: null, lastValue: value }).where(eq(monitorAlertRules.id, rule.id));
@@ -337,5 +306,5 @@ export async function evaluateMonitorAlerts(): Promise<{ evaluated: number; fire
     }
   }
 
-  return { evaluated: rules.length, fired, resolved };
+  return { evaluated, fired, resolved };
 }

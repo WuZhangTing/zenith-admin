@@ -2,7 +2,7 @@
  * 服务器监控相关 DTO
  */
 import { z } from '@hono/zod-openapi';
-import { monitorMetricValues } from '@zenith/shared/platform';
+import { MONITOR_METRICS } from '@zenith/shared/platform';
 
 export const MonitorDTO = z
   .object({
@@ -305,7 +305,7 @@ export const MonitorAlertEventDTO = z
   .openapi('MonitorAlertEvent');
 
 // ─── 请求体 DTO（与 shared validation 保持一致）─────────────────────────
-const monitorMetricEnumDTO = z.enum(monitorMetricValues);
+const monitorMetricEnumDTO = z.enum(MONITOR_METRICS);
 const monitorWebhookUrlDTO = z.url().max(512).refine(
   (value) => ['http:', 'https:'].includes(new URL(value).protocol),
   'Webhook URL 仅支持 HTTP/HTTPS',

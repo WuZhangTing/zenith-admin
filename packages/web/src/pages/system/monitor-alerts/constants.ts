@@ -1,37 +1,23 @@
 import type { MonitorAlertLevel, MonitorMetric } from '@zenith/shared/platform';
+import { MONITOR_METRIC_META } from '@zenith/shared/platform';
 
-export const MONITOR_METRIC_LABELS: Record<MonitorMetric, string> = {
-  cpu: 'CPU 使用率',
-  memory: '内存使用率',
-  disk: '磁盘使用率',
-  swap: 'Swap 使用率',
-  load1: '系统负载(1m)',
-  procCpu: '进程 CPU',
-  heap: '堆内存使用率',
-  loopLag: '事件循环延迟',
-  qps: '请求 QPS',
-  errorRate: 'HTTP 错误率',
-  netRxBps: '网络下行',
-  netTxBps: '网络上行',
-  diskReadBps: '磁盘读取',
-  diskWriteBps: '磁盘写入',
-  workflowHealth: '流程引擎健康分',
-  workflowBacklog: '流程引擎队列积压',
-  workflowDeadLetter: '流程作业死信数',
-  workflowFailureRate: '流程作业失败率',
-  workflowStuckRunning: '流程作业卡死数',
-};
+// 指标标签 / 分组 / 单位的唯一来源是 `@zenith/shared/platform` 的 MONITOR_METRIC_META，
+// 本文件只做展示层的派生（单位归类、级别配色），不再复制一份中文映射。
+export {
+  MONITOR_METRIC_LABELS,
+  MONITOR_METRIC_OPTIONS,
+  MONITOR_METRIC_GROUPED_OPTIONS,
+  MONITOR_METRIC_META,
+  formatMonitorMetricValue,
+} from '@zenith/shared/platform';
 
-export const MONITOR_METRIC_OPTIONS = (Object.keys(MONITOR_METRIC_LABELS) as MonitorMetric[])
-  .map((value) => ({ value, label: MONITOR_METRIC_LABELS[value] }));
+export const MONITOR_PERCENT_METRICS = new Set<MonitorMetric>(
+  (Object.keys(MONITOR_METRIC_META) as MonitorMetric[]).filter((m) => MONITOR_METRIC_META[m].unit === 'percent'),
+);
 
-export const MONITOR_PERCENT_METRICS = new Set<MonitorMetric>([
-  'cpu', 'memory', 'disk', 'swap', 'heap', 'procCpu', 'errorRate', 'workflowFailureRate',
-]);
-
-export const MONITOR_BYTES_METRICS = new Set<MonitorMetric>([
-  'netRxBps', 'netTxBps', 'diskReadBps', 'diskWriteBps',
-]);
+export const MONITOR_BYTES_METRICS = new Set<MonitorMetric>(
+  (Object.keys(MONITOR_METRIC_META) as MonitorMetric[]).filter((m) => MONITOR_METRIC_META[m].unit === 'bps'),
+);
 
 export const MONITOR_ALERT_LEVEL_CONFIG: Record<
   MonitorAlertLevel,

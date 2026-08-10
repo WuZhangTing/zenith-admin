@@ -16,25 +16,34 @@ import logger from '../../lib/logger';
 import { getDisks, getLinuxMemInfo } from './monitor.service';
 import { getLatestEngineHealthMetrics } from '../workflow/workflow-engine-ops.service';
 import { getWorkflowJobAlertMetrics } from '../workflow/workflow-jobs.service';
+import { getPaymentAlertMetrics, type PaymentAlertMetrics } from '../payment/payment-alert-metrics.service';
+import { getOpenPlatformAlertMetrics } from '../open-platform/open-platform-alert-metrics.service';
 import type { MonitorMetric } from '@zenith/shared/platform';
 
 export type MetricSnapshot = Record<MonitorMetric, number>;
 
+/** 基础设施指标（宿主机 / 进程级），全部来自本地采样器，不查数据库。 */
+type InfraMetricSnapshot = Pick<
+  MetricSnapshot,
+  'cpu' | 'memory' | 'disk' | 'swap' | 'load1' | 'procCpu' | 'heap' | 'loopLag'
+  | 'qps' | 'errorRate' | 'netRxBps' | 'netTxBps' | 'diskReadBps' | 'diskWriteBps'
+>;
+
 /**
- * 采集当前各监控指标的即时值。磁盘使用率取所有挂载点中的最大值（最易触发容量告警）。
+ * 采集基础设施指标即时值。磁盘使用率取所有挂载点中的最大值（最易触发容量告警）。
+ * 落库的 `system_metric_samples` 只有这部分列，因此定时采样任务只需要这一半。
  */
-export async function getCurrentMetricSnapshot(): Promise<MetricSnapshot> {
+async function getInfraMetricSnapshot(): Promise<InfraMetricSnapshot> {
   const sample = metricsSampler.getLatest();
   const diskIo = metricsSampler.getDiskIo();
-  const [disks, memInfo, engineHealth, jobMetrics] = await Promise.all([getDisks(), getLinuxMemInfo(), getLatestEngineHealthMetrics(), getWorkflowJobAlertMetrics()]);
+  const [disks, memInfo] = await Promise.all([getDisks(), getLinuxMemInfo()]);
   const disk = disks && disks.length > 0 ? Math.max(...disks.map((d) => d.usagePercent)) : 0;
-  const swap = memInfo?.swapUsagePercent ?? 0;
   const load1 = os.loadavg()[0] ?? 0;
   return {
     cpu: sample?.cpu ?? 0,
     memory: sample?.mem ?? 0,
     disk,
-    swap,
+    swap: memInfo?.swapUsagePercent ?? 0,
     load1: Math.round(load1 * 100) / 100,
     procCpu: sample?.procCpu ?? 0,
     heap: sample?.heap ?? 0,
@@ -45,18 +54,74 @@ export async function getCurrentMetricSnapshot(): Promise<MetricSnapshot> {
     netTxBps: sample?.netTxBps ?? 0,
     diskReadBps: diskIo.readBps,
     diskWriteBps: diskIo.writeBps,
+  };
+}
+
+/** 与租户无关的指标：宿主机采样 + 流程引擎 + 开放平台，多租户下只需取一次 */
+type GlobalMetricSnapshot = Omit<MetricSnapshot, keyof PaymentAlertMetrics>;
+
+/** 采集全部 scope 为 'global' 的指标。 */
+async function getGlobalMetricSnapshot(): Promise<GlobalMetricSnapshot> {
+  const [infra, engineHealth, jobMetrics, openMetrics] = await Promise.all([
+    getInfraMetricSnapshot(),
+    getLatestEngineHealthMetrics(),
+    getWorkflowJobAlertMetrics(),
+    getOpenPlatformAlertMetrics(),
+  ]);
+  return {
+    ...infra,
     workflowHealth: engineHealth.workflowHealth,
     workflowBacklog: engineHealth.workflowBacklog,
     workflowDeadLetter: jobMetrics.workflowDeadLetter,
     workflowFailureRate: jobMetrics.workflowFailureRate,
     workflowStuckRunning: jobMetrics.workflowStuckRunning,
+    ...openMetrics,
   };
+}
+
+/**
+ * 为一批租户各取一份完整指标快照，供告警评估器按规则所属租户比对阈值。
+ *
+ * 与租户无关的指标（`MONITOR_METRIC_META` 中 scope 为 'global'）只查一次后共享，
+ * 只有业务指标按租户重算——否则多租户下每多一个租户就要重跑一遍宿主机采样与开放平台聚合。
+ * 单个租户的业务指标取数失败时该租户没有快照，由调用方跳过其规则，不影响其他租户。
+ */
+export async function getMetricSnapshotsByTenant(
+  tenantIds: readonly (number | null)[],
+): Promise<Map<number | null, MetricSnapshot>> {
+  const uniqueTenantIds = [...new Set(tenantIds)];
+  const snapshots = new Map<number | null, MetricSnapshot>();
+  if (uniqueTenantIds.length === 0) return snapshots;
+
+  const global = await getGlobalMetricSnapshot();
+  const payments = await Promise.allSettled(uniqueTenantIds.map((tenantId) => getPaymentAlertMetrics(tenantId)));
+  payments.forEach((result, index) => {
+    if (result.status === 'fulfilled') snapshots.set(uniqueTenantIds[index], { ...global, ...result.value });
+    else logger.error('[monitor] 支付域告警指标采集失败，跳过该租户', { tenantId: uniqueTenantIds[index], err: result.reason });
+  });
+  return snapshots;
+}
+
+/**
+ * 采集当前全部监控指标的即时值（基础设施 + 各业务域派生指标）。
+ *
+ * `tenantId` 只影响 scope 为 'tenant' 的业务指标（当前为支付域）；
+ * 基础设施、流程引擎与开放平台指标是宿主机 / 平台级口径，与租户无关。
+ * 传 null（默认）即平台级全量口径，也是单租户部署下的唯一口径。
+ */
+export async function getCurrentMetricSnapshot(tenantId: number | null = null): Promise<MetricSnapshot> {
+  const [global, paymentMetrics] = await Promise.all([
+    getGlobalMetricSnapshot(),
+    getPaymentAlertMetrics(tenantId),
+  ]);
+  return { ...global, ...paymentMetrics };
 }
 
 /** 落库一条指标采样（pg-boss 定时调用）。采样器未预热则跳过。 */
 export async function persistMetricSample(): Promise<boolean> {
   if (!metricsSampler.getLatest()) return false;
-  const s = await getCurrentMetricSnapshot();
+  // 采样表只存基础设施列，无需为此触发各业务域的派生指标查询
+  const s = await getInfraMetricSnapshot();
   await db.insert(systemMetricSamples).values({
     cpu: s.cpu,
     memory: s.memory,

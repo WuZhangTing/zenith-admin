@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { partialForUpdate, validateAlertDelivery, webhookUrlSchema } from '../core/validation';
-import { FILE_OBJECT_ACL_SUPPORT, PRESIGNED_EXPIRY_DEFAULT_SECONDS, PRESIGNED_EXPIRY_MAX_SECONDS, PRESIGNED_EXPIRY_MIN_SECONDS } from './constants';
+import { FILE_OBJECT_ACL_SUPPORT, MONITOR_METRICS, PRESIGNED_EXPIRY_DEFAULT_SECONDS, PRESIGNED_EXPIRY_MAX_SECONDS, PRESIGNED_EXPIRY_MIN_SECONDS } from './constants';
 
 // ─── 字典 Schema ──────────────────────────────────────────────────────────────
 export const createDictSchema = z.object({
@@ -331,14 +331,11 @@ export type CreateDataMaskConfigInput = z.infer<typeof createDataMaskConfigSchem
 export type UpdateDataMaskConfigInput = z.infer<typeof updateDataMaskConfigSchema>;
 
 // ─── 系统监控告警规则 ─────────────────────────────────────────────────────────
-export const monitorMetricValues = [
-  'cpu', 'memory', 'disk', 'swap', 'load1', 'procCpu', 'heap', 'loopLag', 'qps', 'errorRate', 'netRxBps', 'netTxBps', 'diskReadBps', 'diskWriteBps',
-  'workflowHealth', 'workflowBacklog', 'workflowDeadLetter', 'workflowFailureRate', 'workflowStuckRunning',
-] as const;
+// 指标全集是 constants.ts 的 MONITOR_METRICS（枚举 SSOT），此处只做引用
 
 const monitorAlertRuleBaseSchema = z.object({
   name: z.string().min(1, '名称不能为空').max(128),
-  metric: z.enum(monitorMetricValues),
+  metric: z.enum(MONITOR_METRICS),
   operator: z.enum(['gt', 'gte', 'lt', 'lte']).default('gt'),
   threshold: z.number(),
   durationMinutes: z.number().int().min(0).max(1440).default(0),
@@ -359,7 +356,7 @@ export const updateMonitorAlertRuleSchema = partialForUpdate(monitorAlertRuleBas
 export const monitorAlertEventQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
-  metric: z.enum(monitorMetricValues).optional(),
+  metric: z.enum(MONITOR_METRICS).optional(),
   level: z.enum(['info', 'warning', 'critical']).optional(),
   status: z.enum(['firing', 'resolved']).optional(),
   ruleId: z.coerce.number().int().positive().optional(),

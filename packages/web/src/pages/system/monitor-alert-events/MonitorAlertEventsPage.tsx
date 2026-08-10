@@ -7,31 +7,40 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { formatDateTime } from '@/utils/date';
 import { renderEllipsis } from '@/utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
-import type { MonitorAlertEvent, MonitorMetric } from '@zenith/shared/platform';
+import type { MonitorAlertEvent } from '@zenith/shared/platform';
 import { monitorAlertKeys, useMonitorAlertEventList } from '@/hooks/queries/monitor-alerts';
 import {
   MONITOR_ALERT_LEVEL_CONFIG as LEVEL_CONFIG,
-  MONITOR_BYTES_METRICS as BYTES_METRICS,
+  MONITOR_METRIC_GROUPED_OPTIONS as METRIC_GROUPS,
   MONITOR_METRIC_LABELS as METRIC_LABELS,
-  MONITOR_METRIC_OPTIONS as METRIC_OPTIONS,
-  MONITOR_PERCENT_METRICS as PERCENT_METRICS,
+  formatMonitorMetricValue,
 } from '../monitor-alerts/constants';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 const OP_SYMBOL: Record<string, string> = { gt: '>', gte: '≥', lt: '<', lte: '≤' };
 
-function fmt(metric: MonitorMetric, value: number): string {
-  if (BYTES_METRICS.has(metric)) {
-    const units = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
-    let v = value; let i = 0;
-    while (v >= 1024 && i < units.length - 1) { v /= 1024; i += 1; }
-    return `${Math.round(v * 10) / 10} ${units[i]}`;
-  }
-  if (PERCENT_METRICS.has(metric)) return `${value}%`;
-  if (metric === 'loopLag') return `${value} ms`;
-  return `${value}`;
-}
-
 interface Filters { metric?: string; level?: string; status?: string; }
+
+/** 指标筛选下拉：桌面与移动端共用，按业务域分组并支持搜索（指标已接近 30 个，平铺难以定位） */
+function MetricFilterSelect({ value, onChange }: { value?: string; onChange: (v: string | undefined) => void }) {
+  return (
+    <Select
+      placeholder="全部指标"
+      value={value}
+      onChange={(v) => onChange(v as string | undefined)}
+      showClear
+      filter
+      style={{ width: 170 }}
+    >
+      {METRIC_GROUPS.map((group) => (
+        <Select.OptGroup key={group.group} label={group.label}>
+          {group.children.map((option) => (
+            <Select.Option key={option.value} value={option.value}>{option.label}</Select.Option>
+          ))}
+        </Select.OptGroup>
+      ))}
+    </Select>
+  );
+}
 
 export default function MonitorAlertEventsPage() {
   const queryClient = useQueryClient();
@@ -68,11 +77,11 @@ export default function MonitorAlertEventsPage() {
       render: (_: unknown, r: MonitorAlertEvent) => (
         <span>
           <Tag size="small" type="ghost">{METRIC_LABELS[r.metric] ?? r.metric}</Tag>
-          {' '}{OP_SYMBOL[r.operator] ?? r.operator} {fmt(r.metric, r.threshold)}
+          {' '}{OP_SYMBOL[r.operator] ?? r.operator} {formatMonitorMetricValue(r.metric, r.threshold)}
         </span>
       ),
     },
-    { title: '实际值', dataIndex: 'value', width: 110, render: (v: number, r: MonitorAlertEvent) => <b>{fmt(r.metric, v)}</b> },
+    { title: '实际值', dataIndex: 'value', width: 110, render: (v: number, r: MonitorAlertEvent) => <b>{formatMonitorMetricValue(r.metric, v)}</b> },
     { title: '级别', dataIndex: 'level', width: 80, render: (v: string) => <Tag color={LEVEL_CONFIG[v]?.color ?? 'grey'} size="small">{LEVEL_CONFIG[v]?.label ?? v}</Tag> },
     { title: '描述', dataIndex: 'message', width: 280, render: renderEllipsis },
     { title: '恢复时间', dataIndex: 'resolvedAt', width: 165, render: (t: string | null) => t ? formatDateTime(t) : <span style={{ color: 'var(--semi-color-text-2)' }}>—</span> },
@@ -87,14 +96,7 @@ export default function MonitorAlertEventsPage() {
       <SearchToolbar
         primary={(
           <>
-            <Select
-              placeholder="全部指标"
-              value={draftFilters.metric}
-              onChange={(v) => setDraftFilters((p) => ({ ...p, metric: v as string }))}
-              showClear
-              style={{ width: 150 }}
-              optionList={METRIC_OPTIONS}
-            />
+            <MetricFilterSelect value={draftFilters.metric} onChange={(v) => setDraftFilters((p) => ({ ...p, metric: v }))} />
             <Select
               placeholder="全部级别"
               value={draftFilters.level}
@@ -117,14 +119,7 @@ export default function MonitorAlertEventsPage() {
         )}
         mobilePrimary={(
           <>
-            <Select
-              placeholder="全部指标"
-              value={draftFilters.metric}
-              onChange={(v) => setDraftFilters((p) => ({ ...p, metric: v as string }))}
-              showClear
-              style={{ width: 150 }}
-              optionList={METRIC_OPTIONS}
-            />
+            <MetricFilterSelect value={draftFilters.metric} onChange={(v) => setDraftFilters((p) => ({ ...p, metric: v }))} />
             <SearchButton onClick={handleSearch} />
           </>
         )}

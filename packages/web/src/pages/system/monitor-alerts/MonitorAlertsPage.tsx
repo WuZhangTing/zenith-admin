@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Form, Space, Spin, Toast, Switch, Tag, Row, Col } from '@douyinfe/semi-ui';
+import { Form, Space, Spin, Toast, Switch, Tag, Row, Col, Select } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -22,10 +22,10 @@ import {
 } from '@/hooks/queries/monitor-alerts';
 import {
   MONITOR_ALERT_LEVEL_CONFIG as LEVEL_CONFIG,
-  MONITOR_BYTES_METRICS as BYTES_METRICS,
+  MONITOR_METRIC_GROUPED_OPTIONS as METRIC_GROUPS,
   MONITOR_METRIC_LABELS as METRIC_LABELS,
-  MONITOR_METRIC_OPTIONS as METRIC_OPTIONS,
-  MONITOR_PERCENT_METRICS as PERCENT_METRICS,
+  MONITOR_METRIC_META as METRIC_META,
+  formatMonitorMetricValue,
 } from './constants';
 import { CreateButton, ResetButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
@@ -36,20 +36,16 @@ const OP_OPTIONS = (['gt', 'gte', 'lt', 'lte'] as const)
   .map((value) => ({ value, label: BASIC_COMPARISON_OPERATOR_LABELS[value] }));
 const CHANNEL_LABELS: Record<string, string> = NOTIFY_CHANNEL_LABELS;
 
-function metricUnit(metric: MonitorMetric): string {
-  if (PERCENT_METRICS.has(metric)) return '%';
-  if (metric === 'loopLag') return ' ms';
-  return '';
-}
-
-function formatThreshold(metric: MonitorMetric, value: number): string {
-  if (BYTES_METRICS.has(metric)) {
-    const units = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
-    let v = value; let i = 0;
-    while (v >= 1024 && i < units.length - 1) { v /= 1024; i += 1; }
-    return `${Math.round(v * 10) / 10} ${units[i]}`;
+/** 阈值输入提示随指标单位变化：百分比与吞吐的量级差了 7 个数量级，统一文案必然误导 */
+function thresholdHint(metric: MonitorMetric | undefined): string {
+  switch (metric ? METRIC_META[metric]?.unit : undefined) {
+    case 'percent': return '填 0-100 的百分比数值';
+    case 'bps': return '填字节/秒，如 10485760 = 10 MB/s';
+    case 'ms': return '填毫秒数';
+    case 'count': return '填条目数量';
+    case 'score': return '填 0-100 的评分（通常搭配 < 使用）';
+    default: return '填数值阈值';
   }
-  return `${value}${metricUnit(metric)}`;
 }
 
 export default function MonitorAlertsPage() {
@@ -110,7 +106,7 @@ export default function MonitorAlertsPage() {
         <span>
           <Tag size="small" type="ghost">{METRIC_LABELS[r.metric] ?? r.metric}</Tag>
           {' '}{OP_SYMBOL[r.operator] ?? r.operator}{' '}
-          <b>{formatThreshold(r.metric, r.threshold)}</b>
+          <b>{formatMonitorMetricValue(r.metric, r.threshold)}</b>
           {r.durationMinutes > 0 ? <span style={{ color: 'var(--semi-color-text-2)' }}> · 持续{r.durationMinutes}分</span> : null}
         </span>
       ),
@@ -125,7 +121,7 @@ export default function MonitorAlertsPage() {
     },
     {
       title: '当前值', dataIndex: 'lastValue', width: 100,
-      render: (v: number | null, r: MonitorAlertRule) => v === null ? '—' : formatThreshold(r.metric, v),
+      render: (v: number | null, r: MonitorAlertRule) => v === null ? '—' : formatMonitorMetricValue(r.metric, v),
     },
     {
       title: '最近触发', dataIndex: 'lastTriggeredAt', width: 160,
@@ -215,35 +211,63 @@ export default function MonitorAlertsPage() {
       >
         <Spin spinning={alertModal.detailLoading} wrapperClassName="modal-spin-wrapper">
           <Form {...alertModal.formProps}>
-            <Form.Input field="name" label="规则名称" placeholder="如：CPU 使用率过高" rules={[{ required: true, message: '请输入规则名称' }]} />
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Select field="metric" label="监控指标" style={{ width: '100%' }} optionList={METRIC_OPTIONS} rules={[{ required: true, message: '请选择指标' }]} />
-              </Col>
-              <Col span={12}>
-                <Form.Select field="operator" label="比较符" style={{ width: '100%' }} optionList={OP_OPTIONS} rules={[{ required: true }]} />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.InputNumber field="threshold" label="阈值" style={{ width: '100%' }} placeholder="百分比填 0-100，吞吐填字节/秒" rules={[{ required: true, message: '请输入阈值' }]} />
-              </Col>
-              <Col span={12}>
-                <Form.InputNumber field="durationMinutes" label="持续达标" min={0} max={1440} suffix="分钟" style={{ width: '100%' }} />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Select field="level" label="告警级别" style={{ width: '100%' }} optionList={Object.entries(LEVEL_CONFIG).map(([v, c]) => ({ value: v, label: c.label }))} />
-              </Col>
-              <Col span={12}>
-                <Form.InputNumber field="silenceMinutes" label="静默期" min={0} max={10080} suffix="分钟" style={{ width: '100%' }} />
-              </Col>
-            </Row>
-            <Form.Select field="channels" label="通知渠道" multiple style={{ width: '100%' }} optionList={Object.entries(CHANNEL_LABELS).map(([v, l]) => ({ value: v, label: l }))} />
-            <Form.Input field="webhookUrl" label="Webhook" placeholder="https://example.com/webhook（选 Webhook 渠道时必填）" />
-            <Form.TagInput field="recipients" label="收件邮箱" placeholder="输入邮箱后回车，可多个" style={{ width: '100%' }} />
-            <Form.Switch field="enabled" label="启用" />
+            {({ values }) => {
+              const selectedMetric = values.metric as MonitorMetric | undefined;
+              return (
+                <>
+                  <Form.Input field="name" label="规则名称" placeholder="如：CPU 使用率过高" rules={[{ required: true, message: '请输入规则名称' }]} />
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Select
+                        field="metric"
+                        label="监控指标"
+                        style={{ width: '100%' }}
+                        filter
+                        extraText={selectedMetric ? METRIC_META[selectedMetric]?.description : undefined}
+                        rules={[{ required: true, message: '请选择指标' }]}
+                      >
+                        {METRIC_GROUPS.map((group) => (
+                          <Select.OptGroup key={group.group} label={group.label}>
+                            {group.children.map((option) => (
+                              <Select.Option key={option.value} value={option.value}>{option.label}</Select.Option>
+                            ))}
+                          </Select.OptGroup>
+                        ))}
+                      </Form.Select>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Select field="operator" label="比较符" style={{ width: '100%' }} optionList={OP_OPTIONS} rules={[{ required: true }]} />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.InputNumber field="threshold" label="阈值" style={{ width: '100%' }} placeholder={thresholdHint(selectedMetric)} rules={[{ required: true, message: '请输入阈值' }]} />
+                    </Col>
+                    <Col span={12}>
+                      <Form.InputNumber field="durationMinutes" label="持续达标" min={0} max={1440} suffix="分钟" style={{ width: '100%' }} />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Select field="level" label="告警级别" style={{ width: '100%' }} optionList={Object.entries(LEVEL_CONFIG).map(([v, c]) => ({ value: v, label: c.label }))} />
+                    </Col>
+                    <Col span={12}>
+                      <Form.InputNumber field="silenceMinutes" label="静默期" min={0} max={10080} suffix="分钟" style={{ width: '100%' }} />
+                    </Col>
+                  </Row>
+                  <Form.Select field="channels" label="通知渠道" multiple style={{ width: '100%' }} optionList={Object.entries(CHANNEL_LABELS).map(([v, l]) => ({ value: v, label: l }))} />
+                  <Form.Input field="webhookUrl" label="Webhook" placeholder="https://example.com/webhook（选 Webhook 渠道时必填）" />
+                  <Form.TagInput
+                    field="recipients"
+                    label="接收人"
+                    placeholder="邮箱或用户名，回车添加，可多个"
+                    extraText="邮件渠道按邮箱投递；站内信渠道按邮箱或用户名匹配启用中的用户"
+                    style={{ width: '100%' }}
+                  />
+                  <Form.Switch field="enabled" label="启用" />
+                </>
+              );
+            }}
           </Form>
         </Spin>
       </AppModal>

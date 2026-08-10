@@ -25,7 +25,7 @@ Zenith Admin 提供一站式服务器运维能力，无需额外运维工具即�
 | Nginx 站点 | 站点列表与详情、模板化建站、配置在线编辑、启用 / 禁用、`nginx -t` 测试与 reload |
 | SSL 证书 | 自签名证书生成、自定义证书上传、openssl 解析、到期状态跟踪、下载与删除 |
 | 维护模式 | 一键开启 / 关闭全站维护，公开状态查询与维护记录（详见[维护模式](../backend/maintenance-mode.md)） |
-| 监控告警 | 「系统运维」菜单组还包含监控告警与告警记录页面（`/system/monitor-alerts`、`/system/monitor-alert-events`），属平台监控能力 |
+| 监控告警 | 「系统运维」菜单组还包含监控告警与告警记录页面（`/system/monitor-alerts`、`/system/monitor-alert-events`），覆盖基础设施、流程引擎、支付与开放平台四类指标，详见下文[监控告警](#监控告警) |
 
 ---
 
@@ -435,6 +435,36 @@ systemctl list-units --type=service --all --no-pager --plain --no-legend
 ## 维护模式
 
 `/api/maintenance` 提供全站维护模式开关（权限 `system:maintenance:manage`，页面 `/system/maintenance`）：`GET /api/maintenance/status` 为公开接口供前端探测；`PUT /api/maintenance` 开启 / 关闭并可设置公告文案与预计结束时间；`GET /api/maintenance/logs` 分页查询维护记录。详见[维护模式](../backend/maintenance-mode.md)。
+
+---
+
+## 监控告警
+
+告警引擎（`monitor-alert.service.ts`）由定时任务每 30 秒评估一次启用规则：达阈触发、指标恢复后自动解除，支持「持续 N 分钟超阈才触发」抑制毛刺、静默期抑制重复通知，并按邮件 / Webhook / 站内信三渠道派发。
+
+指标全集是 `@zenith/shared/platform` 的 `MONITOR_METRICS`（枚举 SSOT）——pgEnum、Zod 校验、告警消息格式化与前端下拉全部由它派生，新增指标只需在此登记一项并在快照采集处补一个取数：
+
+| 分组 | 指标 | 口径 | 单位 |
+| --- | --- | --- | --- |
+| 基础设施 | CPU / 内存 / 磁盘 / Swap / 负载 / 进程 CPU / 堆内存 / 事件循环延迟 / QPS / HTTP 错误率 / 网络上下行 / 磁盘读写 | 宿主机与进程采样器即时值 | % · 字节/秒 · ms |
+| 流程引擎 | 健康分 / 队列积压 / 死信数 / 失败率 / 卡死数 | 见[工作流监控与运维](../workflow/monitoring-operations.md) | 分 · 项 · % |
+| 支付 | 支付失败率 | 近 60 分钟到达终态订单中失败占比（分母为成功 + 失败，不含用户放弃的关单） | % |
+| 支付 | 支付卡单数 | 进入「支付中」超过 30 分钟仍无终态的订单数，通常意味着渠道回调链路异常 | 项 |
+| 支付 | 对账差异待处理 | 对账明细中 `handle_status = pending` 的差异条目数 | 项 |
+| 支付 | 支付事件积压 | 待派发超过 5 分钟 + 重试耗尽已置失败的支付事件数 | 项 |
+| 支付 | 支付回调失败率 | 近 60 分钟商户 Webhook 投递失败占比 | % |
+| 开放平台 | 开放 API 错误率 | 近 60 分钟全部开放 API 调用失败占比 | % |
+| 开放平台 | 单应用最高错误率 | 近 60 分钟按应用统计的最高错误率，仅统计调用量 ≥ 20 次的应用 | % |
+| 开放平台 | 应用 Webhook 失败率 | 近 60 分钟应用事件 Webhook 投递失败占比 | % |
+| 开放平台 | 自动停用订阅数 | 因连续投递失败被自动停用的订阅数 | 项 |
+
+指标取值统一由 `monitor-history.service.ts` 的 `getCurrentMetricSnapshot(tenantId)` 汇总，各业务域只提供自己的「告警指标源」函数（如 `payment-alert-metrics.service.ts`）。
+
+**租户口径**：`MONITOR_METRIC_META` 的 `scope` 声明每个指标是 `global`（宿主机 / 平台级，所有规则同值）还是 `tenant`（业务指标，按规则所属租户过滤）。评估器按规则涉及的租户集合分组取快照，因此租户级规则不会拿到全平台的业务数据；`tenantId` 为空的平台级规则统计全平台汇总。
+
+**通知渠道**：`recipients` 既可填邮箱也可填用户名——邮件渠道按邮箱投递，站内信渠道按邮箱或用户名匹配启用中的用户后经 `sendSystemInApp` 送达。三渠道的实际派发统一收口在 `lib/alert-dispatch.ts`，错误告警（`error-alert.service.ts`）复用同一实现。
+
+`SEED_MONITOR_ALERT_RULES` 预置了 14 条开箱规则，覆盖基础设施容量兜底与支付、开放平台、流程引擎的关键失效信号，默认全部走站内信发给 `admin`，部署方按需在页面上调整阈值与渠道。
 
 ---
 

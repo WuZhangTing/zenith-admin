@@ -1,4 +1,5 @@
 import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, text, index, jsonb, real, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { MONITOR_METRICS } from '@zenith/shared/platform';
 import { auditColumns, tenants } from './core';
 
 // ─── 系统监控指标采样（时序持久化，追加型）──────────────────────────────────────
@@ -30,11 +31,10 @@ export type SystemMetricSampleRow = typeof systemMetricSamples.$inferSelect;
 export type NewSystemMetricSample = typeof systemMetricSamples.$inferInsert;
 
 // ─── 监控告警规则 ──────────────────────────────────────────────────────────────
-// 可监控的指标维度（与 system_metric_samples 字段对应；workflow* 为流程引擎健康指标，由引擎健康快照提供）
-export const monitorMetricEnum = pgEnum('monitor_metric', [
-  'cpu', 'memory', 'disk', 'swap', 'load1', 'procCpu', 'heap', 'loopLag', 'qps', 'errorRate', 'netRxBps', 'netTxBps', 'diskReadBps', 'diskWriteBps',
-  'workflowHealth', 'workflowBacklog', 'workflowDeadLetter', 'workflowFailureRate', 'workflowStuckRunning',
-]);
+// 指标维度直接取 shared 的 MONITOR_METRICS（枚举 SSOT），保证 pgEnum / Zod / TS union 三端不会漂移。
+// infra 指标对应 system_metric_samples 字段；workflow* / payment* / open* 为业务派生指标，
+// 由各域的告警指标源函数在评估时实时计算，不落 system_metric_samples。
+export const monitorMetricEnum = pgEnum('monitor_metric', MONITOR_METRICS);
 
 export const monitorAlertOperatorEnum = pgEnum('monitor_alert_operator', ['gt', 'gte', 'lt', 'lte']);
 

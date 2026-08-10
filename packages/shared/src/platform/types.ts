@@ -6,6 +6,7 @@ import type { Announcement, ChannelMessage, InAppMessage } from '../messaging/ty
 import type { MpKfSession, MpMessageDirection, MpMessageType } from '../mp/types';
 import type { AsyncTask } from '../tasks/types';
 import type { WorkflowInstanceStatus } from '../workflow/types';
+import type { MonitorMetric } from './constants';
 
 // ─── 字典 ─────────────────────────────────────────────────────────────────────
 export interface Dict {
@@ -237,10 +238,7 @@ export interface OperationLogStats {
 }
 
 // ─── 系统监控告警 ─────────────────────────────────────────────────────────────
-export type MonitorMetric =
-  | 'cpu' | 'memory' | 'disk' | 'swap' | 'load1' | 'procCpu' | 'heap'
-  | 'loopLag' | 'qps' | 'errorRate' | 'netRxBps' | 'netTxBps' | 'diskReadBps' | 'diskWriteBps'
-  | 'workflowHealth' | 'workflowBacklog' | 'workflowDeadLetter' | 'workflowFailureRate' | 'workflowStuckRunning';
+// MonitorMetric 及其标签/分组/单位元信息统一定义在 ./constants.ts（枚举 SSOT）
 
 export type MonitorAlertOperator = 'gt' | 'gte' | 'lt' | 'lte';
 

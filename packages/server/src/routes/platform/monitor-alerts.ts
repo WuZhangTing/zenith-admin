@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { monitorMetricValues } from '@zenith/shared/platform';
+import { MONITOR_METRICS } from '@zenith/shared/platform';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
@@ -18,7 +18,7 @@ const MANAGE_PERM = 'system:monitor:alert:manage';
 const VIEW_PERM = 'system:monitor:alert';
 
 const EventQuery = PaginationQuery.extend({
-  metric: z.enum(monitorMetricValues).optional(),
+  metric: z.enum(MONITOR_METRICS).optional(),
   level: z.enum(['info', 'warning', 'critical']).optional(),
   status: z.enum(['firing', 'resolved']).optional(),
   ruleId: z.coerce.number().int().positive().optional(),

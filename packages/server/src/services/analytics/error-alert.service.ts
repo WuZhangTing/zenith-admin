@@ -8,10 +8,8 @@ import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { mergeWhere } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
-import { sendMail } from '../../lib/email';
-import { httpPost } from '../../lib/http-client';
-import logger from '../../lib/logger';
 import { validateAlertDelivery } from '../../lib/alert-validation';
+import { dispatchAlertChannels } from '../../lib/alert-dispatch';
 
 export function mapRule(row: ErrorAlertRuleRow) {
   return {
@@ -114,20 +112,23 @@ function tenantFilter(tenantId: number | null) {
 }
 
 async function dispatchAlert(rule: ErrorAlertRuleRow, detail: string): Promise<void> {
-  const subject = `[错误告警] ${rule.name}`;
-  const html = `<h3>错误监控告警</h3><p><b>规则：</b>${rule.name}</p><p><b>详情：</b>${detail}</p><p>请前往后台「错误监控」查看处理。</p>`;
-  const channels = rule.channels ?? [];
-  await Promise.allSettled([
-    ...(channels.includes('webhook') && rule.webhookUrl
-      ? [httpPost(rule.webhookUrl, { type: 'error_alert', rule: rule.name, detail, condition: rule.condition, timestamp: formatDateTime(new Date()) }, { timeout: 8000, ssrfProtection: true })]
-      : []),
-    ...(channels.includes('email')
-      ? (rule.recipients ?? []).filter((r) => r.includes('@')).map((to) => sendMail(to, subject, html))
-      : []),
-  ]);
-  if (channels.includes('inapp')) {
-    logger.info(`[ErrorAlert] in-app notify (rule=${rule.name}): ${detail}`);
-  }
+  await dispatchAlertChannels(
+    {
+      channels: rule.channels ?? [],
+      webhookUrl: rule.webhookUrl,
+      recipients: rule.recipients ?? [],
+      tenantId: rule.tenantId,
+    },
+    {
+      subject: `[错误告警] ${rule.name}`,
+      html: `<h3>错误监控告警</h3><p><b>规则：</b>${rule.name}</p><p><b>详情：</b>${detail}</p><p>请前往后台「错误监控」查看处理。</p>`,
+      title: `[错误告警] ${rule.name}`,
+      content: detail,
+      inAppType: 'error',
+      webhookBody: { type: 'error_alert', rule: rule.name, detail, condition: rule.condition, timestamp: formatDateTime(new Date()) },
+      logTag: 'ErrorAlert',
+    },
+  );
 }
 
 /**
