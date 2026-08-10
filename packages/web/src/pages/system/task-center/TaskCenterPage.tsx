@@ -38,6 +38,12 @@ import { confirmDelete } from '@/utils/confirm';
 
 type TabKey = 'tasks' | 'types' | 'stats';
 
+/** 任务类型行：注册表配置 + 执行统计；retired 表示类型已下线但仍有历史记录 */
+type TaskTypeRow = AsyncTaskTypeMeta & {
+  retired: boolean;
+  stat: AsyncTaskTypeStat | null;
+};
+
 interface SearchParams {
   taskType: string;
   status: string;
@@ -98,29 +104,45 @@ function StatsCards({ stats }: { stats: AsyncTaskStats | null }) {
     { label: '失败', value: stats?.failed ?? '-', color: 'var(--semi-color-danger)' },
     { label: '近24h平均耗时', value: stats ? formatDuration(stats.avgDurationMs) : '-', color: 'var(--semi-color-text-0)' },
   ];
-  const maxDaily = Math.max(1, ...(stats?.daily.map((d) => d.submitted) ?? [1]));
   return (
     <StatGrid minItemWidth={140} style={{ marginBottom: 12 }}>
       {items.map((item) => (
         <StatCard key={item.label} title={item.label} value={item.value} accent={item.color} />
       ))}
-      {/* 趋势块占两格，对应原 flex: '2 1 260px' 的双倍权重 */}
-      <div style={{
-        gridColumn: 'span 2', minWidth: 0, padding: '10px 16px', borderRadius: 'var(--semi-border-radius-medium)',
-        background: 'var(--semi-color-fill-0)', border: '1px solid var(--semi-color-border)',
-      }}>
-        <Typography.Text type="tertiary" size="small">近 7 天提交趋势（红色为失败）</Typography.Text>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 34, marginTop: 4 }}>
-          {(stats?.daily ?? []).map((day) => (
-            <div key={day.date} title={`${day.date}：提交 ${day.submitted}，失败 ${day.failed}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height: '100%', gap: 1 }}>
+    </StatGrid>
+  );
+}
+
+/** 近 7 天提交趋势：独占一行，与上方数值卡片区分开 */
+function DailyTrend({ stats }: { stats: AsyncTaskStats | null }) {
+  const daily = stats?.daily ?? [];
+  const maxDaily = Math.max(1, ...daily.map((d) => d.submitted));
+  return (
+    <div style={{
+      padding: '12px 16px', marginBottom: 12,
+      borderRadius: 'var(--semi-border-radius-medium)',
+      background: 'var(--semi-color-fill-0)', border: '1px solid var(--semi-color-border)',
+    }}>
+      <Typography.Text type="tertiary" size="small">近 7 天提交趋势（红色为失败）</Typography.Text>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, height: 72, marginTop: 10 }}>
+        {daily.map((day) => (
+          <div
+            key={day.date}
+            title={`${day.date}：提交 ${day.submitted}，失败 ${day.failed}`}
+            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 4 }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height: 48, gap: 1 }}>
               <div style={{ height: `${Math.max((day.failed / maxDaily) * 100, day.failed > 0 ? 8 : 0)}%`, background: 'var(--semi-color-danger)', borderRadius: 'var(--semi-border-radius-small)' }} />
               <div style={{ height: `${Math.max(((day.submitted - day.failed) / maxDaily) * 100, day.submitted - day.failed > 0 ? 8 : 2)}%`, background: 'var(--semi-color-primary)', borderRadius: 'var(--semi-border-radius-small)', opacity: 0.75 }} />
             </div>
-          ))}
-          {(!stats || stats.daily.length === 0) && <Typography.Text type="tertiary" size="small">暂无数据</Typography.Text>}
-        </div>
+            <Typography.Text type="tertiary" size="small" style={{ textAlign: 'center' }}>
+              {day.date.slice(5)}
+            </Typography.Text>
+          </div>
+        ))}
+        {daily.length === 0 && <Typography.Text type="tertiary" size="small">暂无数据</Typography.Text>}
       </div>
-    </StatGrid>
+    </div>
   );
 }
 
@@ -139,56 +161,8 @@ function rateColor(rate: number | null): string {
   return 'var(--semi-color-danger)';
 }
 
-/** 任务统计页签：整体健康度 + 按类型的执行质量 */
-function TaskStatsTab({ stats, loading }: { stats: AsyncTaskStats | null; loading: boolean }) {
-  const typeColumns: ColumnProps<AsyncTaskTypeStat & { _rowId: string }>[] = [
-    {
-      title: '任务类型',
-      dataIndex: 'title',
-      width: 220,
-      render: (title: string, row) => (
-        <div>
-          <div>{title}</div>
-          <Typography.Text type="tertiary" size="small">{row.taskType}</Typography.Text>
-        </div>
-      ),
-    },
-    {
-      title: '模块',
-      dataIndex: 'module',
-      width: 130,
-      render: (module: string | null) => module ?? <Tag size="small" color="grey">已下线</Tag>,
-    },
-    { title: '总数', dataIndex: 'total', width: 90 },
-    {
-      title: '执行中',
-      dataIndex: 'running',
-      width: 90,
-      render: (n: number) => (n > 0 ? <Typography.Text style={{ color: 'var(--semi-color-info)' }}>{n}</Typography.Text> : n),
-    },
-    { title: '成功', dataIndex: 'success', width: 90 },
-    {
-      title: '失败',
-      dataIndex: 'failed',
-      width: 90,
-      render: (n: number) => (n > 0 ? <Typography.Text style={{ color: 'var(--semi-color-danger)' }}>{n}</Typography.Text> : n),
-    },
-    {
-      title: '成功率',
-      dataIndex: 'successRate',
-      width: 110,
-      render: (rate: number | null) => (rate === null
-        ? <Typography.Text type="tertiary">—</Typography.Text>
-        : <Typography.Text style={{ color: rateColor(rate) }}>{rate}%</Typography.Text>),
-    },
-    {
-      title: '平均耗时',
-      dataIndex: 'avgDurationMs',
-      width: 120,
-      render: (ms: number | null) => formatDuration(ms),
-    },
-  ];
-
+/** 任务统计页签：整体健康度概览。按类型的执行质量并入「任务类型」页签，与其配置同屏对照 */
+function TaskStatsTab({ stats }: { stats: AsyncTaskStats | null }) {
   return (
     <>
       <StatsCards stats={stats} />
@@ -215,18 +189,7 @@ function TaskStatsTab({ stats, loading }: { stats: AsyncTaskStats | null; loadin
         />
         <StatCard title="已取消" value={stats?.cancelled ?? '-'} accent="var(--semi-color-text-2)" />
       </StatGrid>
-
-      <ConfigurableTable<AsyncTaskTypeStat & { _rowId: string }>
-        rowKey="taskType"
-        loading={loading}
-        columns={typeColumns}
-        dataSource={(stats?.byType ?? []).map((item) => ({ ...item, _rowId: item.taskType }))}
-        pagination={false}
-        size="small"
-        empty="暂无任务执行记录"
-        columnSettingsKey="task-center-type-stats"
-        scroll={{ x: 940 }}
-      />
+      <DailyTrend stats={stats} />
     </>
   );
 }
@@ -277,6 +240,43 @@ export default function TaskCenterPage() {
   const total = listQuery.data?.total ?? 0;
   const stats = statsQuery.data ?? null;
   const types = typesQuery.data ?? EMPTY_TYPES;
+  /**
+   * 任务类型行 = 注册表配置 + 执行统计。
+   * 两者本就是同一主键的两个侧面（配得对不对 / 跑得好不好），并排看才能直接决策；
+   * 已下线但仍有历史记录的类型补在末尾，避免统计口径缺失。
+   */
+  const typeRows = useMemo<TaskTypeRow[]>(() => {
+    const statByType = new Map((stats?.byType ?? []).map((item) => [item.taskType, item]));
+    const registered: TaskTypeRow[] = types.map((meta) => ({
+      ...meta,
+      retired: false,
+      stat: statByType.get(meta.taskType) ?? null,
+    }));
+    const registeredKeys = new Set(types.map((meta) => meta.taskType));
+    const retired: TaskTypeRow[] = (stats?.byType ?? [])
+      .filter((item) => !registeredKeys.has(item.taskType))
+      .map((item) => ({
+        taskType: item.taskType,
+        title: item.title,
+        module: item.module ?? '',
+        description: null,
+        allowConcurrent: false,
+        enabled: false,
+        maxAttempts: 1,
+        retryDelayMs: 0,
+        retentionDays: null,
+        retired: true,
+        stat: item,
+      }));
+    return [...registered, ...retired];
+  }, [types, stats]);
+
+  // 类型页签同时依赖注册表与统计，刷新需一并拉取
+  const typesLoading = typesQuery.isFetching || statsQuery.isFetching;
+  const handleRefreshTypes = useCallback(() => {
+    void typesQuery.refetch();
+    void statsQuery.refetch();
+  }, [typesQuery, statsQuery]);
   const items = itemsQuery.data?.list ?? EMPTY_ITEMS;
   const itemsTotal = itemsQuery.data?.total ?? 0;
   const cancelMutation = useAsyncTaskAction('cancel');
@@ -522,48 +522,98 @@ export default function TaskCenterPage() {
     { title: '执行轮次', dataIndex: 'attempt', width: 90 },
   ];
 
-  const typeColumns: ColumnProps<AsyncTaskTypeMeta>[] = [
-    { title: '任务类型', dataIndex: 'taskType', width: 170, render: (value: string) => <Typography.Text code>{value}</Typography.Text> },
-    { title: '名称', dataIndex: 'title', width: 150 },
-    { title: '模块', dataIndex: 'module', width: 110 },
-    { title: '说明', dataIndex: 'description', width: 300, render: renderEllipsis },
+  const typeColumns: ColumnProps<TaskTypeRow>[] = [
+    {
+      title: '任务类型',
+      dataIndex: 'title',
+      width: 200,
+      render: (title: string, record: TaskTypeRow) => (
+        <div>
+          <div>
+            {title}
+            {record.retired && <Tag size="small" color="grey" style={{ marginLeft: 6 }}>已下线</Tag>}
+          </div>
+          <Typography.Text type="tertiary" size="small">{record.taskType}</Typography.Text>
+        </div>
+      ),
+    },
+    { title: '模块', dataIndex: 'module', width: 110, render: (value: string) => value || '—' },
+    { title: '说明', dataIndex: 'description', width: 260, render: renderEllipsis },
+    {
+      title: '累计执行',
+      dataIndex: 'stat',
+      width: 100,
+      render: (stat: AsyncTaskTypeStat | null) => (stat ? stat.total : <Typography.Text type="tertiary">—</Typography.Text>),
+    },
+    {
+      title: '成功率',
+      key: 'successRate',
+      width: 110,
+      render: (_: unknown, record: TaskTypeRow) => {
+        const rate = record.stat?.successRate ?? null;
+        if (rate === null) return <Typography.Text type="tertiary">—</Typography.Text>;
+        return (
+          <Typography.Text style={{ color: rateColor(rate) }}>
+            {rate}%
+            {record.stat!.failed > 0 && (
+              <Typography.Text type="tertiary" size="small">（失败 {record.stat!.failed}）</Typography.Text>
+            )}
+          </Typography.Text>
+        );
+      },
+    },
+    {
+      title: '平均耗时',
+      key: 'avgDurationMs',
+      width: 110,
+      render: (_: unknown, record: TaskTypeRow) => formatDuration(record.stat?.avgDurationMs ?? null),
+    },
     {
       title: '重复提交',
       dataIndex: 'allowConcurrent',
       width: 100,
-      render: (value: boolean) => (value ? <Tag color="green">允许</Tag> : <Tag color="orange">禁止</Tag>),
+      render: (value: boolean, record: TaskTypeRow) => (record.retired
+        ? <Typography.Text type="tertiary">—</Typography.Text>
+        : (value ? <Tag color="green">允许</Tag> : <Tag color="orange">禁止</Tag>)),
     },
     {
       title: '自动重试',
       dataIndex: 'maxAttempts',
       width: 150,
-      render: (value: number, record: AsyncTaskTypeMeta) => (
-        <Typography.Text size="small">
-          {value > 1 ? `最多 ${value} 次 / 退避 ${Math.round(record.retryDelayMs / 1000)}s` : '不重试'}
-        </Typography.Text>
-      ),
+      render: (value: number, record: TaskTypeRow) => (record.retired
+        ? <Typography.Text type="tertiary">—</Typography.Text>
+        : (
+          <Typography.Text size="small">
+            {value > 1 ? `最多 ${value} 次 / 退避 ${Math.round(record.retryDelayMs / 1000)}s` : '不重试'}
+          </Typography.Text>
+        )),
     },
     {
       title: '保留天数',
       dataIndex: 'retentionDays',
       width: 100,
-      render: (value: number | null) => (value != null ? `${value} 天` : '跟随全局'),
+      render: (value: number | null, record: TaskTypeRow) => (record.retired
+        ? <Typography.Text type="tertiary">—</Typography.Text>
+        : (value != null ? `${value} 天` : '跟随全局')),
     },
     {
       title: '状态',
       dataIndex: 'enabled',
       width: 100,
       fixed: 'right',
-      render: (value: boolean) => (value ? <Tag color="green">开放提交</Tag> : <Tag color="red">暂停提交</Tag>),
+      render: (value: boolean, record: TaskTypeRow) => {
+        if (record.retired) return <Tag color="grey">已下线</Tag>;
+        return value ? <Tag color="green">开放提交</Tag> : <Tag color="red">暂停提交</Tag>;
+      },
     },
-    createOperationColumn<AsyncTaskTypeMeta>({
+    createOperationColumn<TaskTypeRow>({
       width: 100,
       desktopInlineKeys: ['config'],
       actions: (record) => [
         {
           key: 'config',
           label: '策略',
-          hidden: !canConfig,
+          hidden: !canConfig || record.retired,
           onClick: () => openConfig(record),
         },
       ],
@@ -658,21 +708,28 @@ export default function TaskCenterPage() {
 
         <TabPane tab="任务类型" itemKey="types">
           <SearchToolbar>
-            <Button type="primary" icon={<RefreshCw size={14} />} onClick={() => void typesQuery.refetch()} loading={typesQuery.isFetching}>刷新</Button>
+            <Button
+              type="primary"
+              icon={<RefreshCw size={14} />}
+              onClick={handleRefreshTypes}
+              loading={typesLoading}
+            >
+              刷新
+            </Button>
           </SearchToolbar>
           <ConfigurableTable
             bordered
             columns={typeColumns}
-            dataSource={types}
-            loading={typesQuery.isFetching}
-            onRefresh={() => void typesQuery.refetch()}
-            refreshLoading={typesQuery.isFetching}
+            dataSource={typeRows}
+            loading={typesLoading}
+            onRefresh={handleRefreshTypes}
+            refreshLoading={typesLoading}
             pagination={false}
             rowKey="taskType"
             size="small"
             empty="暂无注册的任务类型"
             columnSettingsKey="task-center-types"
-            scroll={{ x: 1180 }}
+            scroll={{ x: 1440 }}
           />
         </TabPane>
 
@@ -687,7 +744,7 @@ export default function TaskCenterPage() {
               刷新
             </Button>
           </SearchToolbar>
-          <TaskStatsTab stats={stats} loading={statsQuery.isFetching} />
+          <TaskStatsTab stats={stats} />
         </TabPane>
       </Tabs>
 

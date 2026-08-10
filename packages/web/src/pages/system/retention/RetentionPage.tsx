@@ -172,7 +172,7 @@ export default function RetentionPage() {
             ellipsis: true,
           },
           createOperationColumn<RetentionPolicy & { _rowId: string }>({
-            width: 150,
+            width: 200,
             desktopInlineKeys: ['preview'],
             actions: (row) => [
               { key: 'preview', label: '查看待清理量', onClick: () => handlePreview(row) },
