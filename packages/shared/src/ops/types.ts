@@ -6,7 +6,11 @@ export type TerminalMessage =
   | { type: 'terminal:resize'; cols: number; rows: number }
   | { type: 'terminal:close' }
   | { type: 'terminal:exit' }
-  | { type: 'terminal:error'; message: string };
+  | { type: 'terminal:error'; message: string }
+  /** 服务端下发本次会话的权威标识；客户端保存后用于断线重连 */
+  | { type: 'terminal:session'; sessionId: string }
+  /** 重连成功，后续按输出缓冲回放 */
+  | { type: 'terminal:reconnected' };
 
 // ─── 进程管理 ───────────────────────────────────────────────────────────────
 export interface ProcessNetConn {

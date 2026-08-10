@@ -50,6 +50,13 @@
       "when": 1786338306579,
       "tag": "0006_chief_scourge",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786367820751,
+      "tag": "0007_organic_loa",
+      "breakpoints": true
     }
   ]
 }

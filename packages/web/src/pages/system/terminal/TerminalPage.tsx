@@ -24,6 +24,7 @@ import {
   firstLeaf,
   splitPane,
   updateLeafTitle,
+  updateLeafServerSessionId,
   type PaneLeaf,
   type PaneNode,
   type SplitDirection,
@@ -300,6 +301,13 @@ export default function TerminalPage() {
       prev.map((s) => (s.id === tabId ? { ...s, root: updateLeafTitle(s.root, paneId, newTitle) } : s)),
     );
   };
+
+  /** 记录服务端分配的会话标识，随布局持久化，刷新后可重连到存活进程 */
+  const handleServerSessionId = useCallback((tabId: string, paneId: string, serverSessionId: string) => {
+    setSessions((prev) =>
+      prev.map((s) => (s.id === tabId ? { ...s, root: updateLeafServerSessionId(s.root, paneId, serverSessionId) } : s)),
+    );
+  }, []);
 
   const handleSshConnect = (profile: SshProfile) => {
     const shellId = `ssh:${profile.id}`;
@@ -792,6 +800,7 @@ export default function TerminalPage() {
               onClosePane={(pid) => handleClosePane(s.id, pid)}
               onDirtyChange={setDirty}
               onTitleChange={(pid, title) => handleTitleChange(s.id, pid, title)}
+              onServerSessionId={(pid, sid) => handleServerSessionId(s.id, pid, sid)}
               onOpenTerminalAt={openTerminalAt}
             />
           </div>

@@ -29,13 +29,17 @@ interface TerminalTabProps {
   readonly shell: string;
   readonly label?: string;
   readonly cwd?: string;
+  /** 服务端此前分配的会话标识；有值表示刷新后重连该会话 */
+  readonly serverSessionId?: string;
+  /** 服务端下发会话标识时回调，用于持久化进布局 */
+  readonly onServerSessionId?: (serverSessionId: string) => void;
   /** CWD 变化时回调（OSC 7），用于更新 Tab 标题 */
   readonly onTitleChange?: (newTitle: string) => void;
   /** 在当前目录打开新终端（仅本地终端使用） */
   readonly onOpenTerminalAt?: (cwd: string) => void;
 }
 
-export default function TerminalTab({ sessionId, active, shell, label, cwd, onTitleChange, onOpenTerminalAt }: TerminalTabProps) {
+export default function TerminalTab({ sessionId, active, shell, label, cwd, serverSessionId, onServerSessionId, onTitleChange, onOpenTerminalAt }: TerminalTabProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const { isDark } = useThemeController();
@@ -51,6 +55,9 @@ export default function TerminalTab({ sessionId, active, shell, label, cwd, onTi
   const contextCwd = contextMenu ? (terminalSessionStore.getCwd(sessionId) ?? cwd) : undefined;
   const canOpenLocalTerminalAt = !!contextCwd && !shell.startsWith('ssh:') && !shell.startsWith('docker-exec:');
   const showStatusBar = terminal.showStatusBar ?? true;
+  // 会话创建 effect 只在 sessionId 变化时执行，用 ref 读取最新的重连标识
+  const serverSessionIdRef = useRef(serverSessionId);
+  serverSessionIdRef.current = serverSessionId;
 
   const currentTheme = useMemo(
     () => resolveTheme(isDark ? terminal.themeDark : terminal.themeLight, isDark ? 'dark' : 'light'),
@@ -188,7 +195,12 @@ export default function TerminalTab({ sessionId, active, shell, label, cwd, onTi
     let cancelled = false;
     const setupSession = async () => {
       if (!terminalSessionStore.has(sessionId)) {
-        await terminalSessionStore.create(sessionId, { shell, cwd, ...initCfgRef.current });
+        await terminalSessionStore.create(sessionId, {
+          shell,
+          cwd,
+          serverSessionId: serverSessionIdRef.current,
+          ...initCfgRef.current,
+        });
       }
       if (!cancelled) {
         terminalSessionStore.attach(sessionId, container);
@@ -216,6 +228,13 @@ export default function TerminalTab({ sessionId, active, shell, label, cwd, onTi
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
+
+  // 服务端下发会话标识 → 冒泡给页面持久化进布局，刷新后据此重连
+  useEffect(() => {
+    if (!onServerSessionId) return;
+    terminalSessionStore.onSessionIdAssigned(sessionId, onServerSessionId);
+    return () => terminalSessionStore.offSessionIdAssigned(sessionId);
+  }, [sessionId, onServerSessionId]);
 
   // OSC 7：CWD 变化 → 更新 Tab 标题
   useEffect(() => {

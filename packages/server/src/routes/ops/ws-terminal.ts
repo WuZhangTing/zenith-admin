@@ -17,19 +17,26 @@ import {
   type TerminalSession,
   type TerminalKind,
   type ClientConn,
-  getSession,
-  setSession,
-  clearIdleTimer,
+  acquireOwnedSession,
+  registerSession,
+  reattachClient,
+  detachClient,
   appendOutput,
   touchActivity,
   setSize,
-  destroySession,
+  endSession,
   attachObserver,
   detachObserver,
   writeToSession,
-  getSessionMeta,
+  toSessionMeta,
 } from '../../lib/terminal-session-registry';
-import { canAccessTerminalSession } from '../../services/ops/terminal-sessions.service';
+import {
+  acquireSessionForMonitor,
+  checkSessionQuota,
+  newTerminalSessionId,
+  persistNewTerminalSession,
+  recordTerminalSessionFailure,
+} from '../../services/ops/terminal-sessions.service';
 
 /** 终端会话监控权限码 */
 const MONITOR_PERMISSION = 'system:terminal:monitor';
@@ -128,16 +135,16 @@ async function resolveShell(type: string | undefined): Promise<{ file: string; a
 }
 
 /**
-/**
  * Web 终端 WebSocket 路由
  *
- * 端点：GET /api/ws/terminal?token=<accessToken>&sessionId=<id>
+ * 端点：GET /api/ws/terminal?token=<accessToken>[&sessionId=<id>]
  *
- * 支持断线重连（Session Persistence）：
- * - 客户端每个终端拥有唯一 sessionId，首次连接时携带该 id。
- * - WS 断开后 PTY 进程保活 PTY_IDLE_TIMEOUT_MS 毫秒，等待重连。
- * - 重连时携带相同 sessionId，服务端将新 WS 附接到存活的 PTY，并回放输出缓冲区。
- * - 若客户端发送 terminal:close 消息，或 PTY 进程自行退出，则立即清理会话。
+ * 会话标识由服务端生成：
+ * - 不带 sessionId ⇒ 新建会话，服务端下发 `terminal:session` 告知权威 ID。
+ * - 带 sessionId ⇒ 重连，仅当该会话存在且归属本人时接入；否则一律拒绝，
+ *   绝不按客户端给定的 ID 创建会话——ID 因此不是可自选的凭证。
+ * - WS 断开后进程保活 PTY_IDLE_TIMEOUT_MS 毫秒等待重连，超时回收。
+ * - 客户端发送 terminal:close，或进程自行退出，则立即清理会话。
  */
 
 /** PTY 进程无客户端连接时的最大保活时长（毫秒） */
@@ -145,26 +152,22 @@ const PTY_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
 type SshShellParams = {
   getSession: () => TerminalSession | null;
+  /** 输出投递：登记完成前先缓存，避免首屏丢字 */
+  emit: (data: string) => void;
   envVars?: Record<string, string>;
 };
 
 function handleSshShell(
   stream: import('ssh2').ClientChannel,
   conn: import('ssh2').Client,
-  { getSession: getSess, envVars }: SshShellParams,
+  { getSession: getSess, emit, envVars }: SshShellParams,
   resolve: (t: TerminalProcess) => void,
   _reject: (e: Error) => void,
 ): void {
   for (const [k, v] of Object.entries(envVars ?? {})) {
     stream.write(`export ${k}=${JSON.stringify(v)}\r`);
   }
-  const onData = (data: Buffer) => {
-    const text = data.toString('utf8');
-    const s = getSess();
-    if (!s) return;
-    appendOutput(s, text);
-    try { s.currentWs?.send(JSON.stringify({ type: 'terminal:output', data: text })); } catch { /* ignore */ }
-  };
+  const onData = (data: Buffer) => { emit(data.toString('utf8')); };
   stream.on('data', onData);
   stream.stderr.on('data', onData);
   stream.on('close', () => {
@@ -175,8 +178,8 @@ function handleSshShell(
       s.currentWs?.send(JSON.stringify({ type: 'terminal:exit' }));
       s.currentWs?.close(1000, 'SSH session closed');
     } catch { /* ignore */ }
-    // 用本连接持有的会话 ID 销毁，避免误杀同名的他人会话
-    destroySession(s.sessionId);
+    // 用本连接持有的会话 ID 结束，避免误杀同名的他人会话
+    endSession(s.sessionId, 'process_exited');
   });
   resolve({
     write: (d) => { try { stream.write(d); } catch { /* ignore */ } },
@@ -193,6 +196,7 @@ async function createSshProcess(
   profileId: number,
   userId: number,
   getSess: () => TerminalSession | null,
+  emit: (data: string) => void,
 ): Promise<{ process: TerminalProcess; label: string }> {
   const params = await getSshConnectParams(profileId, userId);
   const label = `${params.username}@${params.host}:${params.port}`;
@@ -201,7 +205,7 @@ async function createSshProcess(
     conn.on('ready', () => {
       conn.shell({ term: 'xterm-256color', cols: 80, rows: 24 }, (err, stream) => {
         if (err) { conn.end(); reject(err); return; }
-        handleSshShell(stream, conn, { getSession: getSess, envVars: params.envVars }, resolve, reject);
+        handleSshShell(stream, conn, { getSession: getSess, emit, envVars: params.envVars }, resolve, reject);
       });
     });
     conn.on('error', reject);
@@ -293,27 +297,32 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
           }
 
           if (!sessionId) {
-            ws.close(4000, 'Missing sessionId');
-            return;
-          }
-
-          // ── 尝试重连已有会话 ──
-          const existing = getSession(sessionId);
-          if (existing) {
-            if (existing.userId !== payload.userId) {
-              // 会话 ID 已被他人占用：拒绝接入，且绝不覆盖或触碰对方会话
-              ws.close(4003, 'Forbidden');
+            // 新建会话：不接受客户端指定标识，落到下方创建流程
+          } else {
+            // ── 重连已有会话 ──
+            // acquireOwnedSession 是取得句柄的唯一入口，归属不符直接返回 null，
+            // 因此这里既不可能接到他人会话，也不会按客户端给的 ID 凭空创建。
+            const existing = acquireOwnedSession(sessionId, payload.userId);
+            if (!existing) {
+              ws.send(JSON.stringify({ type: 'terminal:error', message: '会话不存在或已结束，请重新打开终端' }));
+              ws.close(4004, 'Session not found');
               return;
             }
-            // 合法重连：附接到已有 PTY，回放缓冲区
-            clearIdleTimer(existing);
-            existing.currentWs = ws;
+            reattachClient(existing, ws);
             ownedSession.current = existing;
             ownWs = ws;
+            ws.send(JSON.stringify({ type: 'terminal:session', sessionId: existing.sessionId }));
             ws.send(JSON.stringify({ type: 'terminal:reconnected' }));
             if (existing.outputBuffer) {
               ws.send(JSON.stringify({ type: 'terminal:output', data: existing.outputBuffer }));
             }
+            return;
+          }
+
+          const quotaError = checkSessionQuota(payload.userId);
+          if (quotaError) {
+            ws.send(JSON.stringify({ type: 'terminal:error', message: quotaError }));
+            ws.close(4008, 'Session quota exceeded');
             return;
           }
 
@@ -326,12 +335,24 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
           let termProcess: TerminalProcess;
           let label: string;
           let initialCwd: string | undefined;
+          // 进程可能在登记完成前就吐出 shell 提示符；先缓存，登记后补发，
+          // 避免首屏丢字。
+          let pendingOutput = '';
+          const emitOutput = (data: string) => {
+            const currentSession = ownedSession.current;
+            if (!currentSession) {
+              pendingOutput += data;
+              return;
+            }
+            appendOutput(currentSession, data);
+            try { currentSession.currentWs?.send(JSON.stringify({ type: 'terminal:output', data })); } catch { /* ignore */ }
+          };
           try {
             if (isSsh) {
               // ── SSH 连接 ──
               const profileId = Number(shellType!.slice(4));
               if (!profileId) throw new Error('无效的 SSH 配置 ID');
-              const ssh = await createSshProcess(profileId, payload.userId, () => ownedSession.current);
+              const ssh = await createSshProcess(profileId, payload.userId, () => ownedSession.current, emitOutput);
               termProcess = ssh.process;
               label = ssh.label;
             } else {
@@ -368,12 +389,7 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
                 env: process.env,
               });
 
-              ptyProcess.onData((data) => {
-                const currentSession = ownedSession.current;
-                if (!currentSession) return;
-                appendOutput(currentSession, data);
-                try { currentSession.currentWs?.send(JSON.stringify({ type: 'terminal:output', data })); } catch { /* ignore */ }
-              });
+              ptyProcess.onData((data) => { emitOutput(data); });
               ptyProcess.onExit(() => {
                 const currentSession = ownedSession.current;
                 if (!currentSession) return;
@@ -381,52 +397,68 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
                   currentSession.currentWs?.send(JSON.stringify({ type: 'terminal:exit' }));
                   currentSession.currentWs?.close(1000, 'Process exited');
                 } catch { /* ignore */ }
-                // 用本连接持有的会话 ID 销毁，避免误杀同名的他人会话
-                destroySession(currentSession.sessionId);
+                // 用本连接持有的会话 ID 结束，避免误杀同名的他人会话
+                endSession(currentSession.sessionId, 'process_exited');
               });
 
               termProcess = {
                 write: (d) => ptyProcess.write(d),
                 resize: (cols, rows) => ptyProcess.resize(Math.max(1, cols), Math.max(1, rows)),
                 kill: () => { try { ptyProcess.kill(); } catch { /* ignore */ } },
+                pid: ptyProcess.pid,
               };
             }
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
+            recordTerminalSessionFailure({
+              userId: payload.userId,
+              tenantId: payload.tenantId ?? null,
+              kind,
+              target: shellType ?? '',
+              label: shellType ?? '',
+              clientIp,
+            });
             ws.send(JSON.stringify({ type: 'terminal:error', message: `启动终端失败: ${msg}` }));
             ws.close(1011, 'Failed to start terminal');
             return;
           }
 
-          const now = Date.now();
-          const session: TerminalSession = {
-            sessionId,
+          const newSessionId = newTerminalSessionId();
+          const session = registerSession({
+            sessionId: newSessionId,
             process: termProcess,
             currentWs: ws,
-            outputBuffer: '',
-            idleTimer: null,
             userId: payload.userId,
             username: payload.username,
             tenantId: payload.tenantId ?? null,
             kind,
             label,
             clientIp,
-            startedAt: now,
-            lastActivityAt: now,
-            cols: 80,
-            rows: 24,
-            observers: new Set(),
-            takenOverBy: null,
-          };
-          ownedSession.current = session;
-          if (!setSession(sessionId, session)) {
-            // 并发同 ID 创建：放弃本次会话而非覆盖，否则已登记会话的 PTY 会脱管泄漏
-            ownedSession.current = null;
+          });
+          if (!session) {
+            // UUIDv7 撞号只可能是程序错误；宁可放弃本次会话也不覆盖已登记会话
             try { termProcess.kill(); } catch { /* ignore */ }
-            ws.close(4003, 'Session id already in use');
+            ws.close(1011, 'Failed to register session');
             return;
           }
+          ownedSession.current = session;
           ownWs = ws;
+          persistNewTerminalSession(newSessionId, {
+            userId: payload.userId,
+            tenantId: payload.tenantId ?? null,
+            kind,
+            target: shellType ?? '',
+            label,
+            clientIp,
+          });
+
+          // 下发权威会话标识，客户端据此重连
+          ws.send(JSON.stringify({ type: 'terminal:session', sessionId: newSessionId }));
+          if (pendingOutput) {
+            const buffered = pendingOutput;
+            pendingOutput = '';
+            emitOutput(buffered);
+          }
           if (initialCwd) {
             try { ws.send(JSON.stringify({ type: 'terminal:cwd', cwd: initialCwd })); } catch { /* ignore */ }
           }
@@ -448,24 +480,18 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
               session.process.resize(Math.max(1, msg.cols), Math.max(1, msg.rows));
               setSize(session, Math.max(1, msg.cols), Math.max(1, msg.rows));
             } else if (msg.type === 'terminal:close') {
-              // 客户端明确要求关闭：立即销毁
-              destroySession(session.sessionId);
+              // 客户端明确要求关闭：立即结束
+              endSession(session.sessionId, 'client_closed');
             }
           } catch { /* ignore malformed */ }
         },
 
         onClose() {
           const session = ownedSession.current;
-          if (!session) return;
-          // 会话已被本用户的新连接接管时，旧连接不得清空 currentWs 或安排销毁，
-          // 否则未授权连接的关闭、以及合法重连的时序竞态都会掐掉存活会话。
-          if (session.currentWs !== ownWs) return;
-
-          // WS 断开时不立即 kill PTY：保活等待重连
-          session.currentWs = null;
-          session.idleTimer = setTimeout(() => {
-            destroySession(session.sessionId);
-          }, PTY_IDLE_TIMEOUT_MS);
+          if (!session || !ownWs) return;
+          // detachClient 内部比对当前连接：会话被本用户的新连接接管后，
+          // 旧连接的关闭事件不得掐断存活会话。
+          detachClient(session, ownWs, PTY_IDLE_TIMEOUT_MS);
         },
       };
     }),
@@ -504,9 +530,9 @@ export function createWsTerminalMonitorRoute(upgradeWebSocket: UpgradeWebSocket)
       }
 
       let observer: { send: (data: string) => void } | null = null;
-      // 通过租户与权限校验后才置位；onMessage 的接管写入以此为准，
+      // 通过租户与权限校验后取得的会话句柄；接管写入以此为准，
       // 避免仅凭 sessionId 就能向他租户会话注入输入。
-      let monitorAuthorized = false;
+      let monitored: TerminalSession | null = null;
 
       return {
         async onOpen(_evt, ws) {
@@ -537,35 +563,36 @@ export function createWsTerminalMonitorRoute(upgradeWebSocket: UpgradeWebSocket)
             }
           }
 
-          const meta = getSessionMeta(sessionId);
-          // 跨租户按「不存在」处理，避免暴露他租户会话的存在性
-          if (!meta || !canAccessTerminalSession(payload, meta.tenantId)) {
+          // acquireSessionForMonitor 内含租户判定；跨租户按「不存在」处理，
+          // 避免暴露他租户会话的存在性
+          const watched = acquireSessionForMonitor(sessionId, payload);
+          if (!watched) {
             ws.send(JSON.stringify({ type: 'monitor:not-found', message: '会话不存在或已结束' }));
             ws.close(1000, 'Session not found');
             return;
           }
 
-          monitorAuthorized = true;
+          monitored = watched;
           observer = { send: (data: string) => { try { ws.send(data); } catch { /* ignore */ } } };
-          const buffer = attachObserver(sessionId, observer);
-          ws.send(JSON.stringify({ type: 'monitor:attached', meta, takeover: allowTakeover }));
+          const buffer = attachObserver(watched, observer);
+          ws.send(JSON.stringify({ type: 'monitor:attached', meta: toSessionMeta(watched), takeover: allowTakeover }));
           if (buffer) ws.send(JSON.stringify({ type: 'terminal:output', data: buffer }));
         },
 
         onMessage(evt, _ws) {
-          if (!payload || !allowTakeover || !monitorAuthorized) return;
+          if (!payload || !allowTakeover || !monitored) return;
           try {
             const raw: unknown = typeof evt.data === 'string' ? JSON.parse(evt.data) : null;
             if (!raw || typeof raw !== 'object') return;
             const msg = raw as { type: string; data?: string };
             if (msg.type === 'terminal:input' && typeof msg.data === 'string') {
-              writeToSession(sessionId, msg.data, payload.userId);
+              writeToSession(monitored, msg.data, payload.userId);
             }
           } catch { /* ignore malformed */ }
         },
 
         onClose() {
-          if (observer) detachObserver(sessionId, observer);
+          if (monitored && observer) detachObserver(monitored, observer);
         },
       };
     }),

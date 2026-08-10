@@ -54,6 +54,11 @@ async function shutdown(signal: NodeJS.Signals) {
   try {
     metricsSampler.stop();
     stopAllJobs();
+    // 结束全部终端会话：避免留下孤儿 PTY 进程与永远停留在 active 的记录
+    const { endAllSessions } = await import('./lib/terminal-session-registry');
+    const { stopTerminalSessionReaper } = await import('./services/ops/terminal-sessions.service');
+    stopTerminalSessionReaper();
+    endAllSessions('server_shutdown');
     await closeDb();
     await closeRedis();
     logger.info('Server shutdown complete');

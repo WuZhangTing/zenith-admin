@@ -24,6 +24,8 @@ import { type TerminalThemeDef, toXtermTheme } from './themes';
 export interface SessionCreateOptions {
   shell: string;
   cwd?: string;
+  /** 服务端此前下发的会话标识；有值表示尝试重连该会话 */
+  serverSessionId?: string;
   theme: TerminalThemeDef;
   fontSize: number;
   fontFamily: string;
@@ -84,6 +86,8 @@ interface SessionState {
   searchAddon: SearchAddon;
   shell: string;
   cwd?: string;
+  /** 服务端下发的权威会话标识；断线重连时携带 */
+  serverSessionId?: string;
   /** OSC 7 追踪到的当前工作目录 */
   currentCwd?: string;
   /** 选中文字自动复制（xterm v6 无内置选项，手动监听）*/
@@ -111,7 +115,13 @@ interface SessionState {
   };
 }
 
-function buildWsUrl(sessionId: string, shell: string, cwd?: string): string {
+/**
+ * 构建终端 WebSocket 地址。
+ *
+ * `serverSessionId` 只在重连时携带：新建会话的标识由服务端生成并通过
+ * `terminal:session` 下发，客户端无法自选，因此也无法凭 ID 抢占他人会话。
+ */
+function buildWsUrl(shell: string, cwd?: string, serverSessionId?: string): string {
   const token = localStorage.getItem(TOKEN_KEY) ?? '';
   let wsBase = config.wsBaseUrl;
   if (!wsBase) {
@@ -119,7 +129,8 @@ function buildWsUrl(sessionId: string, shell: string, cwd?: string): string {
     wsBase = base.replace(/^http/, 'ws');
   }
   const cwdPart = cwd ? `&cwd=${encodeURIComponent(cwd)}` : '';
-  return `${wsBase}/api/ws/terminal?token=${encodeURIComponent(token)}&shell=${encodeURIComponent(shell)}${cwdPart}&sessionId=${encodeURIComponent(sessionId)}`;
+  const sessionPart = serverSessionId ? `&sessionId=${encodeURIComponent(serverSessionId)}` : '';
+  return `${wsBase}/api/ws/terminal?token=${encodeURIComponent(token)}&shell=${encodeURIComponent(shell)}${cwdPart}${sessionPart}`;
 }
 
 function parseOsc7Cwd(data: string): string | null {
@@ -149,8 +160,11 @@ function loadWebglRenderer(term: Terminal, rendererType?: 'canvas' | 'webgl'): v
 }
 
 class TerminalSessionStore {
+  /** 键为前端面板句柄（paneId），与服务端会话标识无关 */
   private readonly sessions = new Map<string, SessionState>();
   private readonly cwdCallbacks = new Map<string, (cwd: string) => void>();
+  /** 服务端下发会话标识时的回调，用于把标识持久化进布局以便刷新后重连 */
+  private readonly sessionIdCallbacks = new Map<string, (serverSessionId: string) => void>();
   private readonly statusListeners = new Map<string, Set<TerminalStatusListener>>();
   private readonly pendingDestroy = new Set<string>();
   private hiddenRoot: HTMLDivElement | null = null;
@@ -260,7 +274,7 @@ class TerminalSessionStore {
     term.open(container);
     loadWebglRenderer(term, options.rendererType);
 
-    const ws = new WebSocket(buildWsUrl(sessionId, options.shell, options.cwd));
+    const ws = new WebSocket(buildWsUrl(options.shell, options.cwd, options.serverSessionId));
     const { shell, cwd } = options;
 
     const session: SessionState = {
@@ -270,6 +284,7 @@ class TerminalSessionStore {
       ws,
       shell,
       cwd,
+      serverSessionId: options.serverSessionId,
       container,
       resizeObserver: null,
       recording: null,
@@ -346,8 +361,13 @@ class TerminalSessionStore {
           data?: string;
           cwd?: string;
           message?: string;
+          sessionId?: string;
         };
-        if (msg.type === 'terminal:reconnected') {
+        if (msg.type === 'terminal:session' && msg.sessionId) {
+          // 服务端下发权威会话标识：记下来用于断线重连与刷新恢复
+          session.serverSessionId = msg.sessionId;
+          this.sessionIdCallbacks.get(sessionId)?.(msg.sessionId);
+        } else if (msg.type === 'terminal:reconnected') {
           session.connectionState = 'connected';
           session.statusMessage = undefined;
           this.notifyStatus(sessionId);
@@ -412,6 +432,19 @@ class TerminalSessionStore {
         session.statusMessage = '无权限访问终端';
         session.reconnect.stopped = true;
         this.notifyStatus(sessionId);
+      } else if (evt.code === 4004) {
+        // 目标会话已在服务端结束（空闲回收 / 服务重启 / 被管理员终止）：
+        // 清除标识后按新会话重连，否则面板会永久停在"会话已结束"，只能手动关掉重开。
+        session.serverSessionId = undefined;
+        term.write('\r\n\x1b[33m[原会话已结束，正在开启新会话]\x1b[0m\r\n');
+        session.reconnect.attempts = 0;
+        this.scheduleReconnect(sessionId);
+      } else if (evt.code === 4008) {
+        term.write('\r\n\x1b[33m[已达终端会话数量上限]\x1b[0m\r\n');
+        session.connectionState = 'error';
+        session.statusMessage = '已达会话数量上限';
+        session.reconnect.stopped = true;
+        this.notifyStatus(sessionId);
       } else if (evt.code === 1000) {
         // 正常关闭（进程退出 / 明确关闭），不重连
         session.connectionState = 'exited';
@@ -460,7 +493,7 @@ class TerminalSessionStore {
       s.connectionState = 'reconnecting';
       s.statusMessage = '正在重新连接';
       this.notifyStatus(sessionId);
-      const newWs = new WebSocket(buildWsUrl(sessionId, s.shell, s.cwd));
+      const newWs = new WebSocket(buildWsUrl(s.shell, s.cwd, s.serverSessionId));
       s.ws = newWs;
       this.setupWsHandlers(sessionId, newWs, s, s.shell);
     }, delay);
@@ -680,6 +713,23 @@ class TerminalSessionStore {
   /** 取消 CWD 变化回调 */
   offCwdChange(sessionId: string): void {
     this.cwdCallbacks.delete(sessionId);
+  }
+
+  // ── 服务端会话标识 ────────────────────────────────────────────────────────
+
+  /**
+   * 注册「服务端下发会话标识」回调。
+   * 标识需被持久化进布局，刷新后才能重连到同一个存活进程。
+   */
+  onSessionIdAssigned(sessionId: string, cb: (serverSessionId: string) => void): void {
+    this.sessionIdCallbacks.set(sessionId, cb);
+    // 会话可能在组件挂载前就已收到标识，补发一次避免丢失
+    const current = this.sessions.get(sessionId)?.serverSessionId;
+    if (current) cb(current);
+  }
+
+  offSessionIdAssigned(sessionId: string): void {
+    this.sessionIdCallbacks.delete(sessionId);
   }
 
   /**

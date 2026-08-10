@@ -21,6 +21,8 @@ interface PaneTreeViewProps {
   readonly onClosePane: (id: string) => void;
   readonly onDirtyChange: (id: string, dirty: boolean) => void;
   readonly onTitleChange?: (paneId: string, newTitle: string) => void;
+  /** 服务端为某面板分配会话标识时回调，用于持久化进布局 */
+  readonly onServerSessionId?: (paneId: string, serverSessionId: string) => void;
   readonly onOpenTerminalAt?: (cwd: string) => void;
 }
 
@@ -33,6 +35,7 @@ export default function PaneTreeView({
   onClosePane,
   onDirtyChange,
   onTitleChange,
+  onServerSessionId,
   onOpenTerminalAt,
 }: PaneTreeViewProps) {
   const leafCount = collectLeaves(root).length;
@@ -90,6 +93,8 @@ export default function PaneTreeView({
               shell={leaf.shell ?? ''}
               label={leaf.title}
               cwd={leaf.cwd}
+              serverSessionId={leaf.serverSessionId}
+              onServerSessionId={onServerSessionId ? (sid) => onServerSessionId(leaf.id, sid) : undefined}
               onTitleChange={onTitleChange ? (t) => onTitleChange(leaf.id, t) : undefined}
               onOpenTerminalAt={onOpenTerminalAt}
             />

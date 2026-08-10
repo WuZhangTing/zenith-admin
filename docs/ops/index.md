@@ -33,10 +33,16 @@ Zenith Admin 提供一站式服务器运维能力，无需额外运维工具即�
 
 Web 终端入口为「系统运维 → Web 终端」（`/system/terminal`），后端 WebSocket 挂载在：
 
-- `GET /api/ws/terminal?token=<accessToken>&shell=<shell>&cwd=<cwd>&sessionId=<id>`
+- `GET /api/ws/terminal?token=<accessToken>&shell=<shell>&cwd=<cwd>[&sessionId=<id>]`
 - `GET /api/ws/terminal-monitor?token=<accessToken>&sessionId=<id>&takeover=1`
 
-终端会话由 `terminal-session-registry.ts` 维护为进程内注册表，类型包括：
+会话标识由服务端生成（UUIDv7），客户端无法自选：
+
+- 不带 `sessionId` 连接表示新建会话，服务端通过 `terminal:session` 消息下发权威标识；
+- 带 `sessionId` 连接表示重连，仅当该会话存在且归属本人时接入，否则一律拒绝（关闭码 `4004`），绝不按客户端给定的标识创建会话；
+- 单用户活动会话数上限为 20，超限时以关闭码 `4008` 拒绝。
+
+活动会话的运行态由 `terminal-session-registry.ts` 维护为进程内注册表，元数据落库在 `terminal_sessions` 表（见下文[会话记录](#会话记录)）。会话类型包括：
 
 | 类型 | 说明 |
 |------|------|
@@ -50,8 +56,30 @@ Web 终端入口为「系统运维 → Web 终端」（`/system/terminal`），�
 - 终端输入通过 `terminal:input` 消息写入后端进程，输出通过 `terminal:output` 回写前端。
 - 窗口尺寸变化通过 `terminal:resize` 同步列数与行数。
 - 客户端发送 `terminal:close` 时立即销毁会话。
-- WebSocket 意外断开后，服务端保留 PTY 进程 5 分钟，使用相同 `sessionId` 重连时回放输出缓冲。
+- WebSocket 意外断开后，服务端保留进程 5 分钟，使用相同 `sessionId` 重连时回放输出缓冲区；超时未重连则回收进程并把记录标记为结束。
 - 输出缓冲上限为 50 KB，用于断线重连和监控接入时回放。
+
+### 会话记录
+
+`terminal_sessions` 表是活动与历史会话的权威元数据，用于事后追溯「谁、何时、连到哪、怎么结束的」：
+
+| 字段 | 说明 |
+|------|------|
+| `id` | 服务端生成的 UUIDv7 会话标识 |
+| `user_id` / `tenant_id` | 归属用户与租户，监控 / 接管 / 终止均按此隔离 |
+| `kind` / `target` / `label` | 会话类型、连接目标与展示标签 |
+| `client_ip` | 发起连接的客户端 IP |
+| `node_id` | 承载该会话进程的服务实例（`hostname:port`） |
+| `state` | `active` / `detached` / `terminated` / `failed` |
+| `cols` / `rows` | 终端字符网格 |
+| `started_at` / `last_activity_at` / `ended_at` | 开始、最近活跃与结束时间 |
+| `end_reason` | 结束原因，如 `client_closed`、`process_exited`、`idle_timeout`、`terminated_by_admin`、`server_shutdown`、`start_failed` |
+
+会话进程只存活在创建它的 Node 实例内存中：
+
+- 服务启动时会结算本实例上一轮遗留的 `active` / `detached` 记录（标记为 `failed` + `server_shutdown`），避免出现永远「连接中」的幽灵会话；
+- 运行期每 30 秒回写一次活跃时间与终端尺寸；
+- 优雅停机时结束全部会话，连带回收进程组，防止 shell 子进程残留。
 
 ### 多分屏与工作区
 

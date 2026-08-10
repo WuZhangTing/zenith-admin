@@ -18,6 +18,18 @@ import { registerReportFillTasks } from '../services/report/report-fill-task.ser
 import { registerReportSlaTaskHandlers } from '../services/report/report-sla-tasks';
 
 export async function registerBackgroundWorkers(): Promise<void> {
+  // 终端会话持久化：先接生命周期回调，再结算上一轮遗留记录，最后启动活跃时间回写。
+  // 与 pg-boss 无关，独立 try/catch 以免任一失败牵连另一方。
+  try {
+    const { registerTerminalSessionPersistence, reconcileTerminalSessionsOnStartup, startTerminalSessionReaper } =
+      await import('../services/ops/terminal-sessions.service');
+    registerTerminalSessionPersistence();
+    await reconcileTerminalSessionsOnStartup();
+    startTerminalSessionReaper();
+  } catch (err) {
+    logger.error('Failed to initialize terminal session persistence', err);
+  }
+
   try {
     await initCronScheduler();
     const { registerExportJobWorker } = await import('../services/tasks/export-jobs.service');

@@ -14,8 +14,13 @@ export type SplitDirection = 'horizontal' | 'vertical';
 export interface PaneLeaf {
   type: 'leaf';
   id: string;
-  /** 不可变的 session 标识（UUID），跨 split/collapse 操作保持稳定 */
+  /** 不可变的前端面板句柄（UUID），跨 split/collapse 操作保持稳定 */
   stableSessionId: string;
+  /**
+   * 服务端下发的权威会话标识；刷新后据此重连到存活进程。
+   * 首次连接前为空——客户端不能自选，只能由服务端分配。
+   */
+  serverSessionId?: string;
   kind: PaneKind;
   title: string;
   shell?: string;
@@ -52,13 +57,15 @@ export function collectAllIds(node: PaneNode): string[] {
 }
 
 /** 创建一个叶子节点（未指定 id 时自动生成） */
-export function createLeaf(init: Omit<PaneLeaf, 'type' | 'id' | 'stableSessionId'> & { id?: string }): PaneLeaf {
+export function createLeaf(
+  init: Omit<PaneLeaf, 'type' | 'id' | 'stableSessionId' | 'serverSessionId'> & { id?: string },
+): PaneLeaf {
   const id = init.id ?? nextPaneId();
   return {
     type: 'leaf',
     id,
-    // 会话标识必须全局唯一：pane-N 自增计数器在刷新后从 0 重来，
-    // 不同用户几乎必然撞号，而服务端按此标识路由终端进程。
+    // 面板句柄必须全局唯一：pane-N 自增计数器在刷新后从 0 重来，会跨面板撞号。
+    // 它只在前端使用，服务端会话标识由服务端另行分配。
     stableSessionId: crypto.randomUUID(),
     kind: init.kind,
     title: init.title,
@@ -97,6 +104,17 @@ export function updateLeafTitle(root: PaneNode, paneId: string, newTitle: string
     return root.id === paneId ? { ...root, title: newTitle } : root;
   }
   return { ...root, children: root.children.map((c) => updateLeafTitle(c, paneId, newTitle)) };
+}
+
+/** 记录服务端分配的会话标识，返回新树；持久化后刷新可重连到存活进程。 */
+export function updateLeafServerSessionId(root: PaneNode, paneId: string, serverSessionId: string): PaneNode {
+  if (root.type === 'leaf') {
+    return root.id === paneId ? { ...root, serverSessionId } : root;
+  }
+  return {
+    ...root,
+    children: root.children.map((c) => updateLeafServerSessionId(c, paneId, serverSessionId)),
+  };
 }
 
 /**

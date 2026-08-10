@@ -1,9 +1,12 @@
 /**
  * Web 终端 WebSocket 会话归属回归测试。
  *
- * 锁定的不变式：handler 只能操作「本连接在 onOpen 中取得的会话引用」。
- * 历史实现按客户端传入的 sessionId 反查注册表，导致：
- *  - 同名 ID 被覆盖登记 → 原 PTY 脱管泄漏，且原连接的输入被写入他人进程；
+ * 锁定的不变式：
+ *  1. 会话标识由服务端生成——客户端带一个自选 ID 连接不会创建会话，只会被拒；
+ *  2. handler 只操作「本连接在 onOpen 中取得的会话引用」，不按 ID 反查注册表。
+ *
+ * 历史实现按客户端传入的 sessionId 反查并允许覆盖登记，导致：
+ *  - 同名 ID 被覆盖 → 原 PTY 脱管泄漏，且原连接的输入被写入他人进程；
  *  - 被拒连接的 onClose 仍能清空受害者 currentWs 并安排销毁；
  *  - 任何知道 ID 的人发一帧 terminal:close 即可销毁他人会话。
  */
@@ -26,20 +29,26 @@ vi.mock('../../lib/permissions', () => ({
 vi.mock('../../lib/request-helpers', () => ({ getClientIp: () => '127.0.0.1' }));
 vi.mock('../../services/ops/terminal-files.service', () => ({ listShells: vi.fn() }));
 vi.mock('../../services/ops/ssh-profiles.service', () => ({ getSshConnectParams: vi.fn() }));
-vi.mock('../../services/ops/terminal-sessions.service', () => ({ canAccessTerminalSession: () => true }));
+vi.mock('../../services/ops/terminal-sessions.service', () => ({
+  acquireSessionForMonitor: vi.fn(() => null),
+  checkSessionQuota: vi.fn(() => null),
+  newTerminalSessionId: vi.fn(() => 'server-generated-id'),
+  persistNewTerminalSession: vi.fn(),
+  recordTerminalSessionFailure: vi.fn(),
+}));
 
 import type { UpgradeWebSocket } from 'hono/ws';
 import {
-  getSession,
-  setSession,
-  destroySession,
+  acquireOwnedSession,
+  registerSession,
+  endSession,
+  type ClientConn,
+  type TerminalProcess,
   type TerminalSession,
 } from '../../lib/terminal-session-registry';
 import { createWsTerminalRoute } from './ws-terminal';
 
-interface FakeWs {
-  send: (data: string) => void;
-  close: (code?: number, reason?: string) => void;
+interface FakeWs extends ClientConn {
   readonly sent: string[];
   readonly closed: { code?: number }[];
 }
@@ -56,8 +65,8 @@ function makeWs(): FakeWs {
   return {
     sent,
     closed,
-    send: (data) => { sent.push(data); },
-    close: (code) => { closed.push({ code }); },
+    send: (data: string) => { sent.push(data); },
+    close: (code?: number) => { closed.push({ code }); },
   };
 }
 
@@ -77,100 +86,110 @@ async function connect(query: Record<string, string>): Promise<{ handlers: WsHan
   return { handlers, ws };
 }
 
-function makeVictimSession(sessionId: string, victimWs: FakeWs): TerminalSession {
-  const session: TerminalSession = {
-    sessionId,
-    process: { write: vi.fn(), resize: vi.fn(), kill: vi.fn() },
+const VICTIM_SESSION_ID = 'victim-session-id';
+
+function makeVictimSession(victimWs: FakeWs): { session: TerminalSession; process: TerminalProcess } {
+  const proc: TerminalProcess = { write: vi.fn(), resize: vi.fn(), kill: vi.fn() };
+  const session = registerSession({
+    sessionId: VICTIM_SESSION_ID,
+    process: proc,
     currentWs: victimWs,
-    outputBuffer: '',
-    idleTimer: null,
     userId: 1,
     username: 'victim',
     tenantId: null,
     kind: 'local',
     label: 'bash',
     clientIp: '127.0.0.1',
-    startedAt: Date.now(),
-    lastActivityAt: Date.now(),
-    cols: 80,
-    rows: 24,
-    observers: new Set(),
-    takenOverBy: null,
-  };
-  setSession(sessionId, session);
-  return session;
+  });
+  if (!session) throw new Error('failed to register victim session');
+  return { session, process: proc };
 }
 
 describe('terminal websocket session ownership', () => {
-  const SID = 'session-under-attack';
-
   beforeEach(() => {
-    destroySession(SID);
+    endSession(VICTIM_SESSION_ID, 'client_closed');
     handlerFactory = null;
   });
 
   it('refuses to register over an existing session id', () => {
-    const victim = makeVictimSession(SID, makeWs());
-    const intruder = { ...victim, userId: 2, username: 'intruder' };
+    const { session } = makeVictimSession(makeWs());
+    const duplicate = registerSession({
+      sessionId: VICTIM_SESSION_ID,
+      process: { write: vi.fn(), resize: vi.fn(), kill: vi.fn() },
+      currentWs: makeWs(),
+      userId: 2,
+      username: 'intruder',
+      tenantId: null,
+      kind: 'local',
+      label: 'bash',
+      clientIp: '127.0.0.1',
+    });
 
-    expect(setSession(SID, intruder)).toBe(false);
-    expect(getSession(SID)).toBe(victim);
+    expect(duplicate).toBeNull();
+    expect(acquireOwnedSession(VICTIM_SESSION_ID, 1)).toBe(session);
+  });
+
+  it('only hands out a session handle to its owner', () => {
+    const { session } = makeVictimSession(makeWs());
+    expect(acquireOwnedSession(VICTIM_SESSION_ID, 1)).toBe(session);
+    expect(acquireOwnedSession(VICTIM_SESSION_ID, 2)).toBeNull();
   });
 
   it('rejects another user reusing a live session id without touching that session', async () => {
     const victimWs = makeWs();
-    const victim = makeVictimSession(SID, victimWs);
+    const { session } = makeVictimSession(victimWs);
 
-    const { ws } = await connect({ token: 'user-2', sessionId: SID, shell: 'bash' });
+    const { ws } = await connect({ token: 'user-2', sessionId: VICTIM_SESSION_ID, shell: 'bash' });
 
-    expect(ws.closed).toEqual([{ code: 4003 }]);
-    // 注册表条目仍是受害者的会话，PTY 未被顶替
-    expect(getSession(SID)).toBe(victim);
-    expect(victim.currentWs).toBe(victimWs);
+    expect(ws.closed).toEqual([{ code: 4004 }]);
+    // 会话仍属于受害者，PTY 未被顶替
+    expect(acquireOwnedSession(VICTIM_SESSION_ID, 1)).toBe(session);
+    expect(session.currentWs).toBe(victimWs);
   });
 
   it('keeps the victim session alive when the rejected connection closes', async () => {
     const victimWs = makeWs();
-    const victim = makeVictimSession(SID, victimWs);
+    const { session } = makeVictimSession(victimWs);
 
-    const { handlers } = await connect({ token: 'user-2', sessionId: SID, shell: 'bash' });
+    const { handlers } = await connect({ token: 'user-2', sessionId: VICTIM_SESSION_ID, shell: 'bash' });
     handlers.onClose?.();
 
     // 被拒连接的 onClose 不得掐断受害者输出，也不得安排销毁
-    expect(victim.currentWs).toBe(victimWs);
-    expect(victim.idleTimer).toBeNull();
-    expect(getSession(SID)).toBe(victim);
+    expect(session.currentWs).toBe(victimWs);
+    expect(session.idleTimer).toBeNull();
+    expect(acquireOwnedSession(VICTIM_SESSION_ID, 1)).toBe(session);
   });
 
   it('ignores terminal:close sent from a rejected connection', async () => {
-    const victim = makeVictimSession(SID, makeWs());
+    const { session, process: proc } = makeVictimSession(makeWs());
 
-    const { handlers, ws } = await connect({ token: 'user-2', sessionId: SID, shell: 'bash' });
+    const { handlers, ws } = await connect({ token: 'user-2', sessionId: VICTIM_SESSION_ID, shell: 'bash' });
     handlers.onMessage?.({ data: JSON.stringify({ type: 'terminal:close' }) }, ws);
 
-    expect(getSession(SID)).toBe(victim);
-    expect(victim.process.kill).not.toHaveBeenCalled();
+    expect(acquireOwnedSession(VICTIM_SESSION_ID, 1)).toBe(session);
+    expect(proc.kill).not.toHaveBeenCalled();
   });
 
   it('lets the owner reconnect and does not let the stale connection detach it', async () => {
-    const firstWs = makeWs();
-    const victim = makeVictimSession(SID, firstWs);
-    // 首个连接：模拟其已持有该会话
-    const first = await connect({ token: 'user-1', sessionId: SID, shell: 'bash' });
+    const { session } = makeVictimSession(makeWs());
+
+    const first = await connect({ token: 'user-1', sessionId: VICTIM_SESSION_ID, shell: 'bash' });
     expect(first.ws.sent.some((m) => m.includes('terminal:reconnected'))).toBe(true);
+    expect(session.currentWs).toBe(first.ws);
 
     // 同一用户的新连接接管会话
-    const second = await connect({ token: 'user-1', sessionId: SID, shell: 'bash' });
-    expect(victim.currentWs).toBe(second.ws);
+    const second = await connect({ token: 'user-1', sessionId: VICTIM_SESSION_ID, shell: 'bash' });
+    expect(session.currentWs).toBe(second.ws);
 
     // 旧连接随后关闭：不得清空已被接管的 currentWs
     first.handlers.onClose?.();
-    expect(victim.currentWs).toBe(second.ws);
-    expect(victim.idleTimer).toBeNull();
+    expect(session.currentWs).toBe(second.ws);
+    expect(session.idleTimer).toBeNull();
   });
 
-  it('rejects a connection without a session id', async () => {
-    const { ws } = await connect({ token: 'user-2', shell: 'bash' });
-    expect(ws.closed).toEqual([{ code: 4000 }]);
+  it('rejects an unknown session id instead of creating one under it', async () => {
+    const { ws } = await connect({ token: 'user-2', sessionId: 'id-i-made-up', shell: 'bash' });
+    expect(ws.closed).toEqual([{ code: 4004 }]);
+    expect(acquireOwnedSession('id-i-made-up', 2)).toBeNull();
   });
 });
