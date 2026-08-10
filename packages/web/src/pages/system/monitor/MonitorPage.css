@@ -26,31 +26,93 @@
   gap: 6px;
 }
 
-/* ===== 总览 Tab ===== */
-.monitor-overview-grid {
+/* ===== 总览 Tab =====
+   报表式分栏细线，与首页 .dashboard-stat-item / .zx-stat 同一套语言：
+   指标不画底色、边框和圆角，仅靠竖线分隔，换行处补一条横线。
+   列数是确定的 4 / 2 / 1，因此可以用 :nth-child 精确抹掉每行行首的竖线
+   并给次行起头补横线（auto-fit 的列数在布局时才确定，选择器做不到这点）。
+   CPU 每核栅格复用同一套规则，保持两处观感一致。 */
+.monitor-overview-grid,
+.monitor-percore-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
+  /* row-gap 必须为 0：一旦有行间距，竖线会被切成几段而不是一条直线，
+     行距改由子项的 padding-block 撑开 */
+  gap: 0;
   margin-bottom: 20px;
 }
 
+.monitor-overview-grid > *,
+.monitor-percore-grid > * {
+  min-width: 0;
+  padding-inline: 20px;
+  border-left: 1px solid var(--semi-color-border);
+}
+
+/* 行首不画竖线；第二行起补横线，否则多行会糊成一片 */
+.monitor-overview-grid > :nth-child(4n + 1),
+.monitor-percore-grid > :nth-child(4n + 1) {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.monitor-overview-grid > :nth-child(n + 5),
+.monitor-percore-grid > :nth-child(n + 5) {
+  border-top: 1px solid var(--semi-color-border);
+}
+
 @media (--xl-down) {
-  .monitor-overview-grid {
+  .monitor-overview-grid,
+  .monitor-percore-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* 列数变了，行首与换行规则都要按 2 取模重置：
+     先把 4 列下的规则恢复成默认态，再按 2 列重新指定 */
+  .monitor-overview-grid > :nth-child(4n + 1),
+  .monitor-percore-grid > :nth-child(4n + 1) {
+    padding-left: 20px;
+    border-left: 1px solid var(--semi-color-border);
+  }
+
+  .monitor-overview-grid > :nth-child(n + 5),
+  .monitor-percore-grid > :nth-child(n + 5) {
+    border-top: 0;
+  }
+
+  .monitor-overview-grid > :nth-child(2n + 1),
+  .monitor-percore-grid > :nth-child(2n + 1) {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .monitor-overview-grid > :nth-child(n + 3),
+  .monitor-percore-grid > :nth-child(n + 3) {
+    border-top: 1px solid var(--semi-color-border);
   }
 }
 
 @media (--sm-down) {
-  .monitor-overview-grid {
+  .monitor-overview-grid,
+  .monitor-percore-grid {
     grid-template-columns: 1fr;
+  }
+
+  /* 单列后竖线无意义，改由每项自带顶线分隔 */
+  .monitor-overview-grid > *,
+  .monitor-percore-grid > * {
+    padding-inline: 0;
+    border-left: 0;
+  }
+
+  .monitor-overview-grid > :nth-child(n + 2),
+  .monitor-percore-grid > :nth-child(n + 2) {
+    border-top: 1px solid var(--semi-color-border);
   }
 }
 
 .monitor-overview-metric {
-  background: var(--semi-color-fill-0);
-  border: 1px solid var(--color-border);
-  border-radius: var(--semi-border-radius-medium);
-  padding: 14px 16px;
+  padding-block: 14px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -156,12 +218,17 @@
 }
 
 /* ===== 趋势折线图 ===== */
+/* 图表面板：与 .zx-panel 同一套语言——顶部一条细线起头 + 标题，
+   不画背景、边框、圆角和阴影。 */
 .monitor-chart-card {
-  background: var(--semi-color-fill-0);
-  border: 1px solid var(--color-border);
-  border-radius: var(--semi-border-radius-medium);
-  padding: 14px 16px 8px;
-  margin-top: 4px;
+  padding-top: 16px;
+  margin-top: 20px;
+  border-top: 1px solid var(--semi-color-border);
+}
+
+/* 栅格内的面板由栅格 gap 撑距：grid 项自带 margin 会让同一行的面板错位 */
+.monitor-history-grid > .monitor-chart-card {
+  margin-top: 0;
 }
 
 .monitor-chart-card__header {
@@ -237,18 +304,9 @@
 }
 
 /* ===== 每核 CPU 网格 ===== */
-.monitor-percore-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
+/* 每核心 CPU：栅格分栏规则见文件上方与总览合并的定义，此处只管内部排布 */
 .monitor-percore-item {
-  padding: 10px 12px;
-  border: 1px solid var(--semi-color-border);
-  border-radius: var(--semi-border-radius-medium);
-  background: var(--semi-color-bg-1);
+  padding-block: 10px;
 }
 
 .monitor-percore-item__head {
@@ -316,33 +374,76 @@
 }
 
 /* ─── 历史趋势 / Top 进程 / 磁盘 IO ─────────────────────────────── */
-.monitor-history-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
+/* 两栏面板行：整行一条通栏横线起头，行内两栏之间用竖线分隔，
+   与 .chart-grid 一致。gap 必须为 0，否则竖线会被行间距切断。 */
+.monitor-history-grid,
 .monitor-topproc-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: 0;
+  border-top: 1px solid var(--semi-color-border);
 }
+
+.monitor-history-grid > *,
+.monitor-topproc-grid > * {
+  min-width: 0;
+  padding: 16px 20px 0;
+  border-left: 1px solid var(--semi-color-border);
+}
+
+/* 栅格内的面板不再自画顶线（行已统一起头），也不用 margin 撑距：
+   grid 项自带 margin 会让同一行的面板错位。 */
+.monitor-history-grid > .monitor-chart-card {
+  margin-top: 0;
+  padding-top: 16px;
+  border-top: 0;
+}
+
+/* 行首不画竖线，末列不留右内边距，让内容与页面两侧对齐 */
+.monitor-history-grid > :nth-child(2n + 1),
+.monitor-topproc-grid > :nth-child(2n + 1) {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.monitor-history-grid > :nth-child(2n),
+.monitor-topproc-grid > :nth-child(2n) {
+  padding-right: 0;
+}
+
+/* 第二行起补横线：行内竖线只分隔同一行，跨行时多行会糊成一片。
+   选择器带上类名以压过上面 .monitor-chart-card 的 border-top: 0。 */
+.monitor-history-grid > .monitor-chart-card:nth-child(n + 3),
+.monitor-topproc-grid > :nth-child(n + 3) {
+  border-top: 1px solid var(--semi-color-border);
+}
+
 .monitor-diskio-row {
   display: flex;
-  gap: 24px;
+  gap: 32px;
   margin-bottom: 12px;
 }
 .monitor-diskio-item {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 8px 16px;
-  border: 1px solid var(--color-border, var(--semi-color-border));
-  border-radius: var(--semi-border-radius-medium);
   min-width: 140px;
 }
 @media (--xl-down) {
   .monitor-history-grid,
   .monitor-topproc-grid {
     grid-template-columns: 1fr;
+  }
+
+  /* 单列后竖线无意义；首项已由行的通栏横线起头，其余各项自带一条 */
+  .monitor-history-grid > *,
+  .monitor-topproc-grid > * {
+    padding-inline: 0;
+    border-left: 0;
+  }
+
+  .monitor-history-grid > .monitor-chart-card:nth-child(n + 2),
+  .monitor-topproc-grid > :nth-child(n + 2) {
+    border-top: 1px solid var(--semi-color-border);
   }
 }
