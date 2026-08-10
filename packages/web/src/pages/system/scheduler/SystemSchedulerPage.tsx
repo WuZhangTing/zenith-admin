@@ -767,33 +767,42 @@ export default function SystemSchedulerPage() {
         )}
       >
         {detailRun && (
-          <Space vertical style={{ width: '100%' }}>
+          <Space vertical align="start" spacing={16} style={{ width: '100%' }}>
             <Descriptions
-              row
+              align="plain"
+              layout="horizontal"
+              column={2}
               size="small"
+              style={{ width: '100%' }}
               data={[
                 { key: '任务', value: `${detailRun.taskTitle} (${detailRun.taskName})` },
                 { key: '模块', value: detailRun.module },
                 { key: '类型', value: taskTypeMap[detailRun.taskType].label },
                 { key: '触发', value: triggerTypeMap[detailRun.triggerType].label },
                 { key: '状态', value: statusTag(detailRun.status) },
-                { key: 'Job ID', value: detailRun.jobId ? <Typography.Text copyable={{ content: detailRun.jobId }}>{detailRun.jobId}</Typography.Text> : '-' },
                 { key: '执行节点', value: renderNode(detailRun.nodeHostname, detailRun.nodePid) },
                 { key: '开始时间', value: detailRun.startedAt },
                 { key: '结束时间', value: detailRun.endedAt ?? '-' },
                 { key: '耗时', value: formatDuration(detailRun.durationMs) },
                 { key: '告警时间', value: detailRun.alertedAt ?? '-' },
                 { key: '确认状态', value: detailRun.alertMessage ? (detailRun.alertAckAt ? `已确认：${detailRun.alertAckByName ?? detailRun.alertAckBy ?? '-'}` : '未确认') : '无告警' },
+                {
+                  key: 'Job ID',
+                  value: detailRun.jobId
+                    ? <Typography.Text copyable={{ content: detailRun.jobId }}>{detailRun.jobId}</Typography.Text>
+                    : '-',
+                  span: 2,
+                },
               ]}
             />
             {detailRun.alertMessage && (
-              <div>
+              <div style={{ width: '100%' }}>
                 <Typography.Title heading={6}>告警信息</Typography.Title>
                 <Typography.Paragraph copyable={{ content: detailRun.alertMessage }} style={{ whiteSpace: 'pre-wrap' }}>{detailRun.alertMessage}</Typography.Paragraph>
               </div>
             )}
             {(detailRun.errorMessage || detailRun.resultMessage) && (
-              <div>
+              <div style={{ width: '100%' }}>
                 <Typography.Title heading={6}>{detailRun.errorMessage ? '错误信息' : '执行输出'}</Typography.Title>
                 <Typography.Paragraph copyable={{ content: detailRun.errorMessage ?? detailRun.resultMessage ?? '' }} style={{ whiteSpace: 'pre-wrap' }}>
                   {detailRun.errorMessage ?? detailRun.resultMessage}
