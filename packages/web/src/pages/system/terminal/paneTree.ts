@@ -14,7 +14,7 @@ export type SplitDirection = 'horizontal' | 'vertical';
 export interface PaneLeaf {
   type: 'leaf';
   id: string;
-  /** 不可变的 session 标识，始终等于叶子首次创建时的 id，跨 split/collapse 操作保持稳定 */
+  /** 不可变的 session 标识（UUID），跨 split/collapse 操作保持稳定 */
   stableSessionId: string;
   kind: PaneKind;
   title: string;
@@ -57,7 +57,9 @@ export function createLeaf(init: Omit<PaneLeaf, 'type' | 'id' | 'stableSessionId
   return {
     type: 'leaf',
     id,
-    stableSessionId: id,  // 不可变，后续 spread 操作会自动保留
+    // 会话标识必须全局唯一：pane-N 自增计数器在刷新后从 0 重来，
+    // 不同用户几乎必然撞号，而服务端按此标识路由终端进程。
+    stableSessionId: crypto.randomUUID(),
     kind: init.kind,
     title: init.title,
     shell: init.shell,

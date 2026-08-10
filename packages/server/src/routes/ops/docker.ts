@@ -366,7 +366,8 @@ const createVolumeRoute = defineOpenAPIRoute({
 const listContainerFilesRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/:id/files', summary: '列出容器内目录', tags: ['Docker'],
-    middleware: [authMiddleware] as const,
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: PERM })] as const,
     request: {
       params: z.object({ id: z.string() }),
       query: z.object({ path: z.string().optional() }),
@@ -391,7 +392,8 @@ const listContainerFilesRoute = defineOpenAPIRoute({
 const readContainerFileRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/:id/files/content', summary: '读取容器内文件', tags: ['Docker'],
-    middleware: [authMiddleware] as const,
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: PERM })] as const,
     request: {
       params: z.object({ id: z.string() }),
       query: z.object({ path: z.string() }),

@@ -51,7 +51,9 @@ function nextTabId(): string {
 
 // ─── 刷新恢复：将 Tab/分屏布局持久化到 localStorage ──────────────────────────────
 
-const LAYOUT_STORAGE_KEY = 'zenith_terminal_layout';
+// 键名带版本：v1 布局里的 stableSessionId 是会跨用户撞号的 pane-N 计数器，
+// 必须整体作废而不是继续恢复。
+const LAYOUT_STORAGE_KEY = 'zenith_terminal_layout_v2';
 
 interface PersistedLayout {
   sessions: Session[];

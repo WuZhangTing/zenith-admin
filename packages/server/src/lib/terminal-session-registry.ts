@@ -42,6 +42,8 @@ export interface TerminalSession {
   /** 会话归属用户，防止越权重连 */
   userId: number;
   username: string;
+  /** 会话归属租户，监控 / 接管 / 终止均按此隔离 */
+  tenantId: number | null;
   kind: TerminalKind;
   /** 展示标签：本地为 shell 名，SSH 为 user@host，Docker 为容器名 */
   label: string;
@@ -69,8 +71,16 @@ export function hasSession(sessionId: string): boolean {
   return sessions.has(sessionId);
 }
 
-export function setSession(sessionId: string, session: TerminalSession): void {
+/**
+ * 登记新会话；ID 已被占用时返回 false，调用方须放弃本次会话。
+ *
+ * 覆盖登记会造成双重损害：原会话的 PTY 脱离注册表后永远不会被回收，
+ * 而原连接后续按 ID 路由的输入会被投递到新进程——即跨用户命令注入。
+ */
+export function setSession(sessionId: string, session: TerminalSession): boolean {
+  if (sessions.has(sessionId)) return false;
   sessions.set(sessionId, session);
+  return true;
 }
 
 export function clearIdleTimer(session: TerminalSession): void {
@@ -170,6 +180,7 @@ export interface TerminalSessionMeta {
   sessionId: string;
   userId: number;
   username: string;
+  tenantId: number | null;
   kind: TerminalKind;
   label: string;
   clientIp: string;
@@ -187,6 +198,7 @@ function toMeta(s: TerminalSession): TerminalSessionMeta {
     sessionId: s.sessionId,
     userId: s.userId,
     username: s.username,
+    tenantId: s.tenantId,
     kind: s.kind,
     label: s.label,
     clientIp: s.clientIp,
