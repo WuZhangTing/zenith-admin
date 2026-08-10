@@ -530,9 +530,11 @@ export default function ProcessesPage() {
           {detailProcess && (
             <>
             <Descriptions
-              align="center"
+              align="plain"
+              layout="horizontal"
+              column={2}
               size="small"
-              row
+              style={{ width: '100%' }}
               data={[
                 { key: 'PID', value: detailProcess.pid },
                 { key: '父进程 PID', value: detailProcess.ppid || '—' },
@@ -557,9 +559,10 @@ export default function ProcessesPage() {
                     : (detailProcess.nice ?? '—'),
                 },
                 { key: '端口', value: detailProcess.ports ?? '—' },
-                { key: '启动时间', value: detailProcess.startTime ?? '—' },
+                { key: '启动时间', value: detailProcess.startTime ?? '—', span: 2 },
                 {
                   key: '命令行',
+                  span: 2,
                   value: (
                     <Typography.Text
                       copyable
@@ -572,6 +575,7 @@ export default function ProcessesPage() {
                 },
                 ...(detailProcess.cwd ? [{
                   key: '工作目录',
+                  span: 2,
                   value: <Typography.Text copyable style={{ wordBreak: 'break-all' }}>{detailProcess.cwd}</Typography.Text>,
                 }] : []),
               ]}

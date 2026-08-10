@@ -290,25 +290,28 @@ export default function SslCertificatesPage() {
                 <Button onClick={() => void handleDownload('key')}>下载私钥</Button>
               </Space>
               <Descriptions
-                row
+                align="plain"
+                layout="horizontal"
+                column={2}
                 size="small"
+                style={{ width: '100%' }}
                 data={[
                   { key: '名称', value: displayDetail.name },
                   { key: '域名', value: displayDetail.domain },
                   { key: '类型', value: TYPE_LABELS[displayDetail.type] },
                   { key: '状态', value: <Tag color={STATUS_CONFIG[displayDetail.status].color} size="small">{STATUS_CONFIG[displayDetail.status].label}</Tag> },
-                  { key: '颁发者', value: displayDetail.issuer ?? '—' },
-                  { key: '主题', value: displayDetail.subject ?? '—' },
                   { key: '生效时间', value: displayDetail.validFrom ? formatDateTime(displayDetail.validFrom) : '—' },
                   { key: '失效时间', value: displayDetail.validTo ? formatDateTime(displayDetail.validTo) : '—' },
                   { key: '剩余天数', value: renderDaysRemaining(displayDetail.daysRemaining) },
-                  { key: '序列号', value: displayDetail.serialNumber ?? '—' },
-                  { key: '指纹', value: displayDetail.fingerprint ?? '—' },
-                  { key: '证书路径', value: displayDetail.certPath ?? '—' },
-                  { key: '私钥路径', value: displayDetail.keyPath ?? '—' },
                   { key: '自动续期', value: displayDetail.autoRenew ? '是' : '否' },
                   { key: '创建时间', value: formatDateTime(displayDetail.createdAt) },
                   { key: '更新时间', value: formatDateTime(displayDetail.updatedAt) },
+                  { key: '颁发者', value: displayDetail.issuer ?? '—', span: 2 },
+                  { key: '主题', value: displayDetail.subject ?? '—', span: 2 },
+                  { key: '序列号', value: displayDetail.serialNumber ?? '—', span: 2 },
+                  { key: '指纹', value: displayDetail.fingerprint ?? '—', span: 2 },
+                  { key: '证书路径', value: displayDetail.certPath ?? '—', span: 2 },
+                  { key: '私钥路径', value: displayDetail.keyPath ?? '—', span: 2 },
                 ]}
               />
             </div>

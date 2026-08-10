@@ -356,17 +356,20 @@ export default function WebhooksPage() {
       <Modal title="投递详情" visible={!!detailDelivery} onCancel={() => setDetailDelivery(null)} footer={null} width={620}>
         {detailDelivery && (
           <Descriptions
-            row
+            align="plain"
+            layout="horizontal"
+            column={2}
+            style={{ width: '100%' }}
             data={[
               { key: '事件', value: OPEN_WEBHOOK_EVENT_LABELS[detailDelivery.eventType] ?? detailDelivery.eventType },
-              { key: '事件 ID', value: detailDelivery.eventId },
               { key: '状态', value: OPEN_WEBHOOK_DELIVERY_STATUS_LABELS[detailDelivery.status] },
               { key: '尝试次数', value: String(detailDelivery.attempt) },
               { key: '响应码', value: detailDelivery.responseStatus ?? '—' },
               { key: '耗时', value: detailDelivery.durationMs != null ? `${detailDelivery.durationMs}ms` : '—' },
               { key: '下次重试', value: detailDelivery.nextRetryAt ?? '—' },
-              { key: '错误信息', value: detailDelivery.errorMessage ?? '—' },
-              { key: '响应内容', value: <Paragraph style={{ maxHeight: 200, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0 }}>{detailDelivery.responseBody || '—'}</Paragraph> },
+              { key: '事件 ID', value: detailDelivery.eventId, span: 2 },
+              { key: '错误信息', value: detailDelivery.errorMessage ?? '—', span: 2 },
+              { key: '响应内容', span: 2, value: <Paragraph style={{ maxHeight: 200, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0 }}>{detailDelivery.responseBody || '—'}</Paragraph> },
             ]}
           />
         )}

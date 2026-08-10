@@ -213,22 +213,25 @@ export default function PaymentRefundsPage() {
       <AppModal title="退款详情" visible={!!detail} onCancel={() => setDetail(null)} footer={null} width={560} closeOnEsc>
         {refundDetail && (
           <Descriptions
-            row
+            align="plain"
+            layout="horizontal"
+            column={2}
+            style={{ width: '100%' }}
             data={[
               { key: '退款单号', value: refundDetail.refundNo },
               { key: '渠道退款号', value: refundDetail.channelRefundNo ?? '-' },
               { key: '原订单号', value: refundDetail.orderNo },
+              { key: '渠道', value: PAYMENT_CHANNEL_LABELS[refundDetail.channel] },
               { key: '退款金额', value: yuan(refundDetail.refundAmount) },
               { key: '原单金额', value: yuan(refundDetail.totalAmount) },
-              { key: '渠道', value: PAYMENT_CHANNEL_LABELS[refundDetail.channel] },
               { key: '状态', value: <Tag color={STATUS_COLOR[refundDetail.status]}>{PAYMENT_REFUND_STATUS_LABELS[refundDetail.status]}</Tag> },
-              { key: '退款原因', value: refundDetail.reason ?? '-' },
               { key: '审批状态', value: <Tag color={APPROVAL_COLOR[refundDetail.approvalStatus]}>{PAYMENT_REFUND_APPROVAL_STATUS_LABELS[refundDetail.approvalStatus]}</Tag> },
-              { key: '审批意见', value: refundDetail.approvalRemark ?? '-' },
               { key: '审批时间', value: refundDetail.approvedAt ? formatDateTime(refundDetail.approvedAt) : '-' },
               { key: '退款时间', value: refundDetail.refundedAt ? formatDateTime(refundDetail.refundedAt) : '-' },
               { key: '创建时间', value: formatDateTime(refundDetail.createdAt) },
-              { key: '错误信息', value: refundDetail.errorMessage ?? '-' },
+              { key: '退款原因', value: refundDetail.reason ?? '-', span: 2 },
+              { key: '审批意见', value: refundDetail.approvalRemark ?? '-', span: 2 },
+              { key: '错误信息', value: refundDetail.errorMessage ?? '-', span: 2 },
             ]}
           />
         )}

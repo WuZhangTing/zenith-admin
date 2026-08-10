@@ -417,12 +417,15 @@ export default function PaymentOrdersPage() {
         {detailOrder && (
           <>
             <Descriptions
-              row
+              align="plain"
+              layout="horizontal"
+              column={2}
+              style={{ width: '100%' }}
               data={[
-                { key: '订单号', value: <Typography.Text copyable={{ content: detailOrder.orderNo }}>{detailOrder.orderNo}</Typography.Text> },
-                { key: '商户单号', value: <Typography.Text copyable={{ content: detailOrder.outTradeNo }}>{detailOrder.outTradeNo}</Typography.Text> },
-                { key: '渠道交易号', value: detailOrder.channelTradeNo ? <Typography.Text copyable={{ content: detailOrder.channelTradeNo }}>{detailOrder.channelTradeNo}</Typography.Text> : '-' },
-                { key: '标题', value: detailOrder.subject },
+                { key: '订单号', value: <Typography.Text copyable={{ content: detailOrder.orderNo }}>{detailOrder.orderNo}</Typography.Text>, span: 2 },
+                { key: '商户单号', value: <Typography.Text copyable={{ content: detailOrder.outTradeNo }}>{detailOrder.outTradeNo}</Typography.Text>, span: 2 },
+                { key: '渠道交易号', value: detailOrder.channelTradeNo ? <Typography.Text copyable={{ content: detailOrder.channelTradeNo }}>{detailOrder.channelTradeNo}</Typography.Text> : '-', span: 2 },
+                { key: '标题', value: detailOrder.subject, span: 2 },
                 { key: '金额', value: yuan(detailOrder.amount) },
                 { key: '实付', value: detailOrder.paidAmount == null ? '-' : yuan(detailOrder.paidAmount) },
                 { key: '手续费', value: detailOrder.feeAmount == null ? '-' : yuan(detailOrder.feeAmount) },
@@ -435,7 +438,7 @@ export default function PaymentOrdersPage() {
                 { key: '支付时间', value: detailOrder.paidAt ? formatDateTime(detailOrder.paidAt) : '-' },
                 { key: '过期时间', value: detailOrder.expiredAt ? formatDateTime(detailOrder.expiredAt) : '-' },
                 { key: '创建时间', value: formatDateTime(detailOrder.createdAt) },
-                { key: '错误信息', value: detailOrder.errorMessage ?? '-' },
+                { key: '错误信息', value: detailOrder.errorMessage ?? '-', span: 2 },
               ]}
             />
 
