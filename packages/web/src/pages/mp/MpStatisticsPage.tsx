@@ -96,7 +96,7 @@ export default function MpStatisticsPage() {
                 </StatGrid>
                 <div className="chart-grid" style={{ marginTop: 16 }}>
                   {Array.from({ length: 2 }, (_, i) => `sk-trend-${i}`).map((key) => (
-                    <Card key={key} style={{ borderRadius: 'var(--semi-border-radius-medium)' }} bodyStyle={{ padding: 16 }}>
+                    <Card key={key} bodyStyle={{ padding: 16 }}>
                       <Skeleton.Title style={{ width: '40%', marginBottom: 12 }} />
                       <Skeleton.Image style={{ width: '100%', height: 180 }} />
                     </Card>
@@ -163,9 +163,10 @@ export default function MpStatisticsPage() {
   );
 }
 
+/** 数据立方小表：与 .zx-panel 同一语言，顶部一条细线起头 + 标题，不画外壳 */
 function DatacubeTable({ title, head, rows }: Readonly<{ title: string; head: string[]; rows: string[][] }>) {
   return (
-    <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 12, background: 'var(--semi-color-bg-1)' }}>
+    <div className="zx-panel">
       <Typography.Text strong style={{ fontSize: 13 }}>{title}</Typography.Text>
       <table style={{ width: '100%', marginTop: 8, fontSize: 12, borderCollapse: 'collapse' }}>
         <thead>
@@ -181,9 +182,10 @@ function DatacubeTable({ title, head, rows }: Readonly<{ title: string; head: st
   );
 }
 
+/** 趋势图容器：外层 .chart-grid 已负责分隔与内边距，这里只出标题 */
 function TrendCard({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {
   return (
-    <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 16, background: 'var(--semi-color-bg-1)' }}>
+    <div>
       <Typography.Text strong>{title}</Typography.Text>
       {children}
     </div>

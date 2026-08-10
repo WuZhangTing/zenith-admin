@@ -127,10 +127,11 @@ export default function MemberDashboardPage() {
             </div>
           ))}
         </StatGrid>
-        {/* 图表卡片骨架 */}
+        {/* 图表骨架：外层 .chart-grid 已提供分隔与内边距，骨架不画外壳，
+            否则加载前后观感会跳变 */}
         <div className="chart-grid">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} style={{ background: 'var(--semi-color-bg-2)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-large)', padding: 16 }}>
+            <div key={i}>
               <Skeleton.Title style={{ width: 140, marginBottom: 16 }} />
               <Skeleton.Image style={{ width: '100%', height: 260, borderRadius: 'var(--semi-border-radius-medium)' }} />
             </div>

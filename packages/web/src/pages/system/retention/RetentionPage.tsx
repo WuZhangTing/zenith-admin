@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
   Button,
-  Card,
   Form,
   InputNumber,
   Switch,
@@ -88,8 +87,8 @@ export default function RetentionPage() {
   };
 
   return (
-    <div style={{ padding: 16 }}>
-      <Card style={{ marginBottom: 16 }}>
+    <div className="page-container">
+      <div>
         <Title heading={5} style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
           <Archive size={18} />
           数据保留策略
@@ -100,7 +99,7 @@ export default function RetentionPage() {
           保留天数设为 0 表示永久保留，该策略会被跳过。
           共 {policies.length} 条策略，其中 {disabledCount} 条不参与清理。
         </Text>
-      </Card>
+      </div>
 
       <ConfigurableTable<RetentionPolicy & { _rowId: string }>
         rowKey="key"
