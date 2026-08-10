@@ -15,6 +15,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
+import { confirmDanger } from '@/utils/confirm';
 import {
   useRetentionPolicies,
   useRetentionPreview,
@@ -35,14 +36,13 @@ export default function RetentionPage() {
   const canEdit = hasPermission('system:retention:edit');
   const canRun = hasPermission('system:retention:run');
 
-  const { data: policies = [], isLoading } = useRetentionPolicies();
+  const { data: policies = [], isLoading, isFetching, refetch } = useRetentionPolicies();
   const updateMutation = useUpdateRetentionPolicy();
   const previewMutation = useRetentionPreview();
   const runMutation = useRunRetentionPolicy();
 
   const [editing, setEditing] = useState<RetentionPolicy | null>(null);
   const [form, setForm] = useState<EditForm>({ enabled: true, retentionDays: 180, batchSize: 5000 });
-  const [pending, setPending] = useState<Record<string, number>>({});
 
   const disabledCount = useMemo(
     () => policies.filter((item) => !item.enabled || item.retentionDays === 0).length,
@@ -65,19 +65,26 @@ export default function RetentionPage() {
     setEditing(null);
   };
 
-  const handlePreview = async (policy: RetentionPolicy) => {
-    const result = await previewMutation.mutateAsync(policy.key);
-    setPending((prev) => ({ ...prev, [policy.key]: result.pending }));
-    Toast.info(
-      result.cutoff
-        ? `「${policy.title}」当前有 ${result.pending} 行早于 ${result.cutoff}`
-        : `「${policy.title}」保留天数为 0，不会清理`,
-    );
-  };
+  /**
+   * 清理是不可逆的批量删除，先试算再确认：
+   * 待清理量是随时间变化的瞬时值，只在这一刻有意义，因此不入表格列。
+   */
   const handleRun = async (policy: RetentionPolicy) => {
-    const result = await runMutation.mutateAsync(policy.key);
-    setPending((prev) => ({ ...prev, [policy.key]: 0 }));
-    Toast.success(`「${policy.title}」已清理 ${result.deleted} 行`);
+    const preview = await previewMutation.mutateAsync(policy.key);
+    if (preview.pending === 0) {
+      Toast.info(`「${policy.title}」当前没有超期数据`);
+      return;
+    }
+    confirmDanger({
+      title: `清理「${policy.title}」`,
+      content: `将删除 ${preview.pending} 行早于 ${preview.cutoff} 的数据（保留 ${policy.retentionDays} 天），此操作不可恢复。`,
+      okText: '确认清理',
+      cancelText: '取消',
+      onOk: async () => {
+        const result = await runMutation.mutateAsync(policy.key);
+        Toast.success(`「${policy.title}」已清理 ${result.deleted} 行`);
+      },
+    });
   };
 
   return (
@@ -98,6 +105,8 @@ export default function RetentionPage() {
       <ConfigurableTable<RetentionPolicy & { _rowId: string }>
         rowKey="key"
         loading={isLoading}
+        onRefresh={() => void refetch()}
+        refreshLoading={isFetching}
         dataSource={policies.map((item) => ({ ...item, _rowId: item.key }))}
         pagination={false}
         columns={[
@@ -158,31 +167,23 @@ export default function RetentionPage() {
               : <Text type="tertiary">从未执行</Text>),
           },
           {
-            key: 'pending',
-            title: '待清理',
-            width: 110,
-            render: (_: unknown, row: RetentionPolicy) => (pending[row.key] === undefined
-              ? <Text type="tertiary">未查看</Text>
-              : <Text strong={pending[row.key] > 0}>{pending[row.key]} 行</Text>),
-          },
-          {
             key: 'description',
             title: '说明',
             dataIndex: 'description',
             ellipsis: true,
           },
           createOperationColumn<RetentionPolicy & { _rowId: string }>({
-            width: 200,
-            desktopInlineKeys: ['preview'],
+            width: 170,
+            desktopInlineKeys: ['edit'],
             actions: (row) => [
-              { key: 'preview', label: '查看待清理量', onClick: () => handlePreview(row) },
               { key: 'edit', label: '编辑策略', hidden: !canEdit, onClick: () => openEdit(row) },
               {
                 key: 'run',
                 label: '立即清理',
                 danger: true,
+                loading: previewMutation.isPending || runMutation.isPending,
                 hidden: !canRun || row.retentionDays === 0,
-                onClick: () => handleRun(row),
+                onClick: () => void handleRun(row),
               },
             ],
           }),
