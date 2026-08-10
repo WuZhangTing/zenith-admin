@@ -160,7 +160,12 @@ export default function TerminalSessionsPage() {
     },
     { title: '标签 / 主机', dataIndex: 'label', width: 200, render: renderEllipsis },
     { title: '客户端 IP', dataIndex: 'clientIp', width: 140, render: (v: string) => v || '-' },
-    { title: '尺寸', dataIndex: 'cols', width: 90, render: (_: number, r) => `${r.cols}×${r.rows}` },
+    {
+      title: '字符网格',
+      dataIndex: 'cols',
+      width: 140,
+      render: (_: number, r) => `${r.cols} 列 × ${r.rows} 行`,
+    },
     {
       title: '开始时间', dataIndex: 'startedAt', width: 190,
     },

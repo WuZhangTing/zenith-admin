@@ -214,9 +214,9 @@ export default function TerminalRecordingsPage() {
       render: (v: string | null) => (v ? <Tag color="blue" size="small">{v}</Tag> : '-'),
     },
     {
-      title: '尺寸',
-      width: 100,
-      render: (_: unknown, r: Recording) => `${r.cols}×${r.rows}`,
+      title: '字符网格',
+      width: 140,
+      render: (_: unknown, r: Recording) => `${r.cols} 列 × ${r.rows} 行`,
     },
     {
       title: '时长',
