@@ -50,7 +50,7 @@ export function useOperationLogStats(params: OperationLogStatsParams) {
 export function useCleanOperationLogs() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (months: number) => request.delete<null>(`/api/operation-logs/clean${toQueryString({ months })}`).then(unwrap),
+    mutationFn: (days: number) => request.delete<null>(`/api/operation-logs/clean${toQueryString({ days })}`).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: operationLogKeys.all }),
   });
 }

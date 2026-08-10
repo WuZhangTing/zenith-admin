@@ -131,11 +131,11 @@ export const operationLogsHandlers = [
 
   http.delete('/api/operation-logs/clean', ({ request }) => {
     const url = new URL(request.url);
-    const months = Number(url.searchParams.get('months')) || 0;
-    const cutoff = months === 0 ? null : new Date(Date.now() - months * 30 * 24 * 3600 * 1000);
+    const days = Number(url.searchParams.get('days')) || 180;
+    const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000);
     const deleted = removeWhere(
       mockOperationLogs,
-      (log) => cutoff === null || new Date(log.createdAt) < cutoff,
+      (log) => new Date(log.createdAt) < cutoff,
     );
     return ok(null, `共删除 ${deleted} 条操作日志`);
   }),

@@ -86,3 +86,53 @@ export interface SslCertificate {
   createdAt: string;
   updatedAt: string;
 }
+
+// ─── 数据保留策略 ────────────────────────────────────────────────────────────
+/**
+ * 清理模式：
+ * - `age`       按时间列裁剪超期行
+ * - `ageAndCap` 在 `age` 之上，再按分组保留最近 N 行
+ * - `expiresAt` 按行内到期列裁剪（到期时间在写入时确定）
+ */
+export type RetentionMode = 'age' | 'ageAndCap' | 'expiresAt';
+
+export interface RetentionPolicy {
+  /** 策略唯一键，等于目标物理表名 */
+  key: string;
+  title: string;
+  module: string;
+  /** 目标物理表名 */
+  tableName: string;
+  /** 裁剪依据的时间列（物理列名） */
+  timeColumn: string;
+  mode: RetentionMode;
+  enabled: boolean;
+  /** 保留天数；0 表示不清理 */
+  retentionDays: number;
+  /** 代码声明的默认保留天数，用于「恢复默认」 */
+  defaultRetentionDays: number;
+  batchSize: number;
+  /** 是否按租户各自的保留策略执行 */
+  perTenant: boolean;
+  /** `ageAndCap` 模式下的分组列与保留条数 */
+  capColumn: string | null;
+  capLimit: number | null;
+  description: string;
+  lastRunAt: string | null;
+  lastDeleted: number;
+}
+
+export interface RetentionPreview {
+  key: string;
+  /** 预计待删除行数 */
+  pending: number;
+  /** 裁剪时间点；`0 天 = 不清理` 时为 null */
+  cutoff: string | null;
+}
+
+export interface RetentionRunResult {
+  key: string;
+  title: string;
+  deleted: number;
+}
+

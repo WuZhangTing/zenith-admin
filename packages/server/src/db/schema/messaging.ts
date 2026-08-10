@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, text, unique } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, text, unique, index } from 'drizzle-orm/pg-core';
 import { statusEnum } from './common';
 import { auditColumns, tenants, users } from './core';
 
@@ -69,7 +69,10 @@ export const emailSendLogs = pgTable('email_send_logs', {
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   sentAt: timestamp('sent_at', { withTimezone: true }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (t) => [
+  index('email_send_logs_created_at_idx').on(t.createdAt),
+  index('email_send_logs_status_idx').on(t.status),
+]);
 
 export type EmailSendLogRow = typeof emailSendLogs.$inferSelect;
 
@@ -138,7 +141,10 @@ export const smsSendLogs = pgTable('sms_send_logs', {
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   sentAt: timestamp('sent_at', { withTimezone: true }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (t) => [
+  index('sms_send_logs_created_at_idx').on(t.createdAt),
+  index('sms_send_logs_status_idx').on(t.status),
+]);
 
 export type SmsSendLogRow = typeof smsSendLogs.$inferSelect;
 
@@ -185,6 +191,8 @@ export const inAppMessages = pgTable('in_app_messages', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   unique('in_app_messages_dedupe_key_unique').on(t.dedupeKey),
+  index('in_app_messages_user_created_idx').on(t.userId, t.createdAt),
+  index('in_app_messages_created_at_idx').on(t.createdAt),
 ]);
 
 export type InAppMessageRow = typeof inAppMessages.$inferSelect;

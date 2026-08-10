@@ -24,6 +24,7 @@ import {
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
+import { CLEAR_LOGS_LABELS } from '@/hooks/useClearLogs';
 
 interface SearchParams {
   keyword: string;
@@ -167,17 +168,15 @@ export default function TerminalRecordingsPage() {
     Toast.success('已删除');
   };
 
-  const clearLabels: Record<number, string> = { 0: '全部', 1: '一个月', 3: '三个月', 6: '六个月', 12: '一年' };
-
-  const handleClear = (months: number) => {
-    const label = months === 0 ? '全部录屏' : `${clearLabels[months]}前的录屏`;
+  const handleClear = (days: number) => {
+    const label = `${CLEAR_LOGS_LABELS[days] ?? `${days} 天前`}的录屏`;
     confirmDanger({
       title: `确认清除${label}？`,
       content: `此操作将永久删除${label}，不可恢复。`,
       okText: '确认清除',
       cancelText: '取消',
       onOk: async () => {
-        const message = await cleanMutation.mutateAsync(months);
+        const message = await cleanMutation.mutateAsync(days);
         Toast.success(message ?? '清除成功');
         resetPage();
       },
@@ -307,7 +306,7 @@ export default function TerminalRecordingsPage() {
               theme="light"
               icon={<Trash2 size={14} />}
               loading={cleanMutation.isPending}
-              onClick={() => handleClear(12)}
+              onClick={() => handleClear(365)}
             >
               清除录屏
             </Button>
@@ -317,13 +316,11 @@ export default function TerminalRecordingsPage() {
               clickToHide
               render={(
                 <Dropdown.Menu>
-                  {([12, 6, 3, 1] as const).map((m) => (
+                  {([365, 180, 90, 30] as const).map((m) => (
                     <Dropdown.Item key={m} onClick={() => handleClear(m)}>
-                      清除{clearLabels[m]}前的录屏
+                      清除{CLEAR_LOGS_LABELS[m]}的录屏
                     </Dropdown.Item>
                   ))}
-                  <Dropdown.Divider />
-                  <Dropdown.Item type="danger" onClick={() => handleClear(0)}>清除全部录屏</Dropdown.Item>
                 </Dropdown.Menu>
               )}
             >
@@ -352,7 +349,7 @@ export default function TerminalRecordingsPage() {
             />
             <DateRangeFilter value={draftParams.timeRange ?? undefined} onChange={(v) => setDraftParams({ ...draftParams, timeRange: v ? (v as [Date, Date]) : null })} width={260} />
             <ResetButton onClick={handleReset} />
-            {([12, 6, 3, 1] as const).map((m) => (
+            {([365, 180, 90, 30] as const).map((m) => (
               <Button
                 key={m}
                 type="danger"
@@ -361,12 +358,9 @@ export default function TerminalRecordingsPage() {
                 loading={cleanMutation.isPending}
                 onClick={() => handleClear(m)}
               >
-                清除{clearLabels[m]}前的录屏
+                清除{CLEAR_LOGS_LABELS[m]}的录屏
               </Button>
             ))}
-            <Button type="danger" theme="light" icon={<Trash2 size={14} />} loading={cleanMutation.isPending} onClick={() => handleClear(0)}>
-              清除全部录屏
-            </Button>
           </>
         )}
         actionTitle="录屏操作"

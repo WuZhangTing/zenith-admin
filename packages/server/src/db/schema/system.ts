@@ -67,7 +67,10 @@ export const cronJobLogs = pgTable('cron_job_logs', {
   durationMs:     integer('duration_ms'),
   status:         cronRunStatusEnum('status').notNull().default('running'),
   output:         text('output'),
-});
+}, (t) => [
+  index('cron_job_logs_started_at_idx').on(t.startedAt),
+  index('cron_job_logs_job_idx').on(t.jobId),
+]);
 
 export type CronJobLogRow = typeof cronJobLogs.$inferSelect;
 
@@ -156,6 +159,27 @@ export const systemSchedulerNodes = pgTable('system_scheduler_nodes', {
 export type SystemSchedulerNodeRow = typeof systemSchedulerNodes.$inferSelect;
 
 export type NewSystemSchedulerNode = typeof systemSchedulerNodes.$inferInsert;
+
+// ─── 数据保留策略表 ───────────────────────────────────────────────────────────
+// 策略清单由 `lib/retention/policies.ts` 以代码声明为准（SSOT）；本表只存放
+// 管理员可调的运行期覆盖值与上次执行结果。启动注册时对已存在行不回写默认值，
+// 因此管理员在后台改过的配置不会被重启覆盖。
+export const retentionPolicies = pgTable('retention_policies', {
+  policyKey: varchar('policy_key', { length: 128 }).primaryKey(),
+  enabled: boolean('enabled').notNull().default(true),
+  /** 保留天数；0 表示不清理 */
+  retentionDays: integer('retention_days').notNull(),
+  /** 单批删除行数上限 */
+  batchSize: integer('batch_size').notNull().default(5000),
+  lastRunAt: timestamp('last_run_at', { withTimezone: true }),
+  lastDeleted: integer('last_deleted').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().$onUpdate(() => new Date()).notNull(),
+});
+
+export type RetentionPolicyRow = typeof retentionPolicies.$inferSelect;
+
+export type NewRetentionPolicy = typeof retentionPolicies.$inferInsert;
 
 // ─── 地区表 ──────────────────────────────────────────────────────────────────
 export const regionLevelEnum = pgEnum('region_level', ['province', 'city', 'county']);

@@ -116,7 +116,6 @@ const captchaOn = await getConfigBoolean('captcha_enabled'); // 'true' 或 '1' �
 | 配置键 | 默认值 | 说明 |
 | --- | --- | --- |
 | `member_point_expire_days` | `0` | 积分不活跃过期天数（0 = 永不过期） |
-| `member_login_log_retention_days` | `180` | 会员登录日志保留天数（0 = 不清理） |
 | `member_birthday_points` | `0` | 生日礼积分（0 = 不发放） |
 | `member_birthday_coupon_id` | `0` | 生日礼优惠券模板 ID（0 = 不发放） |
 | `member_invite_reward_points` | `0` | 邀请奖励积分（0 = 不奖励） |
@@ -126,7 +125,6 @@ const captchaOn = await getConfigBoolean('captcha_enabled'); // 'true' 或 '1' �
 | 配置键 | 默认值 | 说明 |
 | --- | --- | --- |
 | `rule_publish_approval` | `false` | 决策表发布审批（四眼原则） |
-| `cms_ad_event_retention_days` | `180` | CMS 广告事件明细保留天数（0 = 不自动清理） |
 
 ## 新增配置项
 

@@ -58,6 +58,7 @@ import { chatBotsHandlers } from './chat-bots';
 import { channelsHandlers } from './channels';
 import { tagsHandlers } from './tags';
 import { rateLimitHandlers } from './rate-limit';
+import { retentionHandlers } from './retention';
 import { emailTemplatesHandlers } from './email-templates';
 import { emailSendLogsHandlers } from './email-send-logs';
 import { smsConfigsHandlers } from './sms-configs';
@@ -178,6 +179,7 @@ export const handlers = [
   ...channelsHandlers,
   ...tagsHandlers,
   ...rateLimitHandlers,
+  ...retentionHandlers,
   ...emailTemplatesHandlers,
   ...emailSendLogsHandlers,
   ...smsConfigsHandlers,

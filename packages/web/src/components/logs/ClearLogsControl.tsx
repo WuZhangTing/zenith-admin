@@ -37,14 +37,11 @@ export function ClearLogsButtons({ loading, onClear }: Readonly<ClearLogsButtons
 export function ClearLogsMobileButtons({ loading, onClear }: Readonly<ClearLogsButtonsProps>) {
   return (
     <>
-      {([12, 6, 3, 1] as const).map((m) => (
+      {([365, 180, 90, 30] as const).map((m) => (
         <Button key={m} type="danger" theme="light" icon={<Trash2 size={14} />} loading={loading} onClick={() => onClear(m)}>
-          清除{CLEAR_LOGS_LABELS[m]}前的日志
+          清除{CLEAR_LOGS_LABELS[m]}的日志
         </Button>
       ))}
-      <Button type="danger" theme="light" icon={<Trash2 size={14} />} loading={loading} onClick={() => onClear(0)}>
-        清除全部日志
-      </Button>
     </>
   );
 }
@@ -59,7 +56,7 @@ interface ClearLogsModalProps {
 export function ClearLogsModal({ logName, control }: Readonly<ClearLogsModalProps>) {
   return (
     <AppModal
-      title={`清除${control.months === 0 ? '全部' : CLEAR_LOGS_LABELS[control.months] + '前的'}${logName}`}
+      title={`清除${CLEAR_LOGS_LABELS[control.days] ?? `${control.days} 天前`}的${logName}`}
       visible={control.modalVisible}
       onCancel={control.closeModal}
       okText="确认清除"
@@ -68,7 +65,7 @@ export function ClearLogsModal({ logName, control }: Readonly<ClearLogsModalProp
       maskClosable={false}
     >
       <p style={{ marginBottom: 12 }}>
-        此操作将永久删除{control.months === 0 ? '所有' : CLEAR_LOGS_LABELS[control.months] + '前的'}{logName}，不可恢复。
+        此操作将永久删除{CLEAR_LOGS_LABELS[control.days] ?? `${control.days} 天前`}的{logName}，不可恢复。
         <br />请输入您的管理员密码以确认：
       </p>
       <Input

@@ -36,6 +36,13 @@
       "when": 1786243389250,
       "tag": "0004_amused_bastion",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786328742467,
+      "tag": "0005_secret_bullseye",
+      "breakpoints": true
     }
   ]
 }

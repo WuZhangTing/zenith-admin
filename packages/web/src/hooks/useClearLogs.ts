@@ -2,37 +2,37 @@ import { useState } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
 import { request } from '@/utils/request';
 
-export const CLEAR_LOGS_LABELS: Record<number, string> = { 0: '全部', 1: '一个月', 3: '三个月', 6: '六个月', 12: '一年' };
+export const CLEAR_LOGS_LABELS: Record<number, string> = { 30: '一个月前', 90: '三个月前', 180: '六个月前', 365: '一年前' };
 
 interface UseClearLogsOptions {
   /** 执行清除（通常为 mutation 的 mutateAsync） */
-  clean: (months: number) => Promise<unknown>;
+  clean: (days: number) => Promise<unknown>;
   /** 清除成功后的回调（如重置分页） */
   onCleared?: () => void;
 }
 
 export interface ClearLogsControl {
   modalVisible: boolean;
-  months: number;
+  days: number;
   password: string;
   passwordError: string;
   verifying: boolean;
-  openClearModal: (months: number) => void;
+  openClearModal: (days: number) => void;
   closeModal: () => void;
   changePassword: (v: string) => void;
   confirmClear: () => Promise<void>;
 }
 
-/** 日志清除共享逻辑：月份选择 + 管理员密码二次确认 */
+/** 日志清除共享逻辑：保留天数选择 + 管理员密码二次确认 */
 export function useClearLogs({ clean, onCleared }: UseClearLogsOptions): ClearLogsControl {
   const [modalVisible, setModalVisible] = useState(false);
-  const [months, setMonths] = useState(0);
+  const [days, setDays] = useState(180);
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [verifying, setVerifying] = useState(false);
 
-  const openClearModal = (m: number) => {
-    setMonths(m);
+  const openClearModal = (d: number) => {
+    setDays(d);
     setPassword('');
     setPasswordError('');
     setModalVisible(true);
@@ -50,14 +50,14 @@ export function useClearLogs({ clean, onCleared }: UseClearLogsOptions): ClearLo
       setVerifying(false);
     }
     setModalVisible(false);
-    await clean(months);
+    await clean(days);
     Toast.success('清除成功');
     onCleared?.();
   };
 
   return {
     modalVisible,
-    months,
+    days,
     password,
     passwordError,
     verifying,

@@ -203,19 +203,12 @@ export async function deleteRecording(id: number) {
   }
 }
 
-/** 清除录屏记录。months=0 删除全部，否则删除 N 个月前的记录。 */
-export async function cleanRecordings(months: number) {
-  if (months === 0) {
-    const result = await db.delete(terminalRecordings).returning({ id: terminalRecordings.id });
-    return result.length;
-  }
-  const cutoff = new Date();
-  cutoff.setMonth(cutoff.getMonth() - months);
+/** 手动清除指定天数之前的录屏记录。 */
+export async function cleanRecordings(days: number) {
   const result = await db
     .delete(terminalRecordings)
-    .where(lt(terminalRecordings.createdAt, cutoff))
-    .returning({ id: terminalRecordings.id });
-  return result.length;
+    .where(lt(terminalRecordings.createdAt, new Date(Date.now() - days * 86_400_000)));
+  return (result as unknown as { rowCount?: number }).rowCount ?? 0;
 }
 
 /** 全局录屏统计（管理员审计）。 */

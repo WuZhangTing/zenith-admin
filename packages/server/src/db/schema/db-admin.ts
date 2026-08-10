@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, text, uuid as pgUuid } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, text, uuid as pgUuid, index } from 'drizzle-orm/pg-core';
 import { auditColumns, users } from './core';
 import { managedFiles } from './files';
 
@@ -38,7 +38,10 @@ export const dbAdminQueryHistory = pgTable('db_admin_query_history', {
   success: boolean('success').notNull().default(true),
   errorMessage: text('error_message'),
   executedAt: timestamp('executed_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (t) => [
+  index('db_admin_query_history_executed_at_idx').on(t.executedAt),
+  index('db_admin_query_history_user_idx').on(t.userId),
+]);
 
 export type DbAdminQueryHistoryRow = typeof dbAdminQueryHistory.$inferSelect;
 

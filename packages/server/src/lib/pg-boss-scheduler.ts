@@ -6,7 +6,7 @@
  */
 import os from 'node:os';
 import { PgBoss, type QueueOptions, type SendOptions, type WorkHandler } from 'pg-boss';
-import { eq, and, isNull, desc, sql } from 'drizzle-orm';
+import { eq, and, isNull, desc, notInArray, sql } from 'drizzle-orm';
 import { db } from '../db';
 import { cronJobs, cronJobLogs, dbBackups, systemSchedulerNodes, systemSchedulerRuns, systemSchedulerTaskConfigs, users } from '../db/schema';
 import logger from './logger';
@@ -683,12 +683,6 @@ handlerRegistry.set('analyticsRollupDaily', async (params) => {
   return `重建每日聚合 ${n} 条`;
 });
 
-handlerRegistry.set('analyticsRetention', async () => {
-  const { runAnalyticsRetention } = await import('../services/analytics/analytics-rollup.service');
-  const r = await runAnalyticsRetention();
-  return `数据保留清理：埋点 ${r.events} 条、会话 ${r.sessions} 条、错误 ${r.errors} 条、质量聚合 ${r.qualityDaily} 条`;
-});
-
 handlerRegistry.set('analyticsSegmentRefresh', async () => {
   const { refreshAllSegments } = await import('../services/analytics/analytics-segments.service');
   const r = await refreshAllSegments();
@@ -711,20 +705,6 @@ handlerRegistry.set('evaluateMonitorAlerts', async () => {
   const { evaluateMonitorAlerts } = await import('../services/platform/monitor-alert.service');
   const r = await evaluateMonitorAlerts();
   return `监控告警评估：规则 ${r.evaluated} 条，触发 ${r.fired} 条，恢复 ${r.resolved} 条`;
-});
-
-handlerRegistry.set('cleanupSystemMetrics', async (params) => {
-  const { cleanupMetricSamples } = await import('../services/platform/monitor-history.service');
-  const days = Number(params) || 30;
-  const n = await cleanupMetricSamples(days);
-  return `清理系统指标采样：删除 ${n} 条（保留 ${days} 天）`;
-});
-
-handlerRegistry.set('cleanupRuleExecutions', async (params) => {
-  const { cleanupRuleExecutions } = await import('../services/platform/rules.service');
-  const days = Number(params) || 90;
-  const n = await cleanupRuleExecutions(days);
-  return `清理决策执行记录：删除 ${n} 条（保留 ${days} 天）`;
 });
 
 handlerRegistry.set('cleanupUploadSessions', async () => {
@@ -833,11 +813,36 @@ export async function initCronScheduler(): Promise<void> {
   logger.info('pg-boss started');
   startSchedulerHeartbeat();
 
+  await purgeOrphanCronJobs();
+
   const jobs = await db.select().from(cronJobs).where(eq(cronJobs.status, 'enabled'));
   for (const job of jobs) {
     await _scheduleOne(job);
   }
   logger.info(`pg-boss: ${jobs.length} enabled job(s) scheduled`);
+}
+
+/**
+ * 清理 handler 已从代码中移除的业务定时任务。
+ *
+ * 这类任务留在库里会按 cron 持续触发，每次都以 `Handler "xxx" not found` 失败并推送告警。
+ * 启动时对账删除，保证「代码里的 handler 注册表」是任务存在与否的唯一依据。
+ */
+async function purgeOrphanCronJobs(): Promise<void> {
+  const known = [...handlerRegistry.keys()];
+  // 注册表为空说明 handler 模块尚未加载完成，此时对账会误删全部任务
+  if (known.length === 0) return;
+  const orphans = await db.delete(cronJobs)
+    .where(notInArray(cronJobs.handler, known))
+    .returning({ id: cronJobs.id, name: cronJobs.name, handler: cronJobs.handler });
+  if (orphans.length === 0) return;
+  for (const job of orphans) {
+    await getBoss().unschedule(queueName(job.id)).catch(() => undefined);
+  }
+  logger.warn(
+    `pg-boss: 已清理 ${orphans.length} 个 handler 失效的定时任务：`
+    + orphans.map((job) => `${job.name}(${job.handler})`).join('、'),
+  );
 }
 
 async function _scheduleOne(job: typeof cronJobs.$inferSelect): Promise<boolean> {
@@ -1210,6 +1215,31 @@ export async function registerSystemQueueWorker<T extends object>(registration: 
   systemQueueWorkers.set(registration.name, info);
   logger.info(`pg-boss: system queue worker "${registration.name}" registered`);
   await heartbeatSystemSchedulerNode(true).catch((err) => logger.warn('[system-scheduler] 节点心跳上报失败', err));
+}
+
+/**
+ * 清理代码中已移除的系统周期任务。
+ *
+ * 残留的 pg-boss 调度会继续投递作业但无 worker 承接，同时配置行会在「系统调度」
+ * 页面上显示为幽灵任务。全部系统任务注册完成后调用一次即可。
+ */
+export async function purgeOrphanSystemTasks(): Promise<void> {
+  const known = [...systemRecurringJobs.keys(), ...systemQueueWorkers.keys()];
+  // 一个任务都没注册说明注册流程异常中断，此时对账会误删全部配置
+  if (known.length === 0) return;
+  const orphans = await db.delete(systemSchedulerTaskConfigs)
+    .where(notInArray(systemSchedulerTaskConfigs.taskName, known))
+    .returning({ taskName: systemSchedulerTaskConfigs.taskName });
+  if (orphans.length === 0) return;
+  const b = getBoss();
+  for (const task of orphans) {
+    await b.unschedule(task.taskName).catch(() => undefined);
+  }
+  await db.delete(systemSchedulerRuns).where(notInArray(systemSchedulerRuns.taskName, known));
+  logger.warn(
+    `[system-scheduler] 已清理 ${orphans.length} 个代码中已移除的系统任务：`
+    + orphans.map((task) => task.taskName).join('、'),
+  );
 }
 
 export async function sendSystemJobAfter<T extends object>(

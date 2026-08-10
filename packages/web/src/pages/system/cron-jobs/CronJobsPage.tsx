@@ -36,6 +36,7 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
+import { CLEAR_LOGS_LABELS } from '@/hooks/useClearLogs';
 
 interface SearchParams {
   keyword: string;
@@ -226,15 +227,14 @@ export default function CronJobsPage() {
     setLogsDrawerVisible(true);
   };
 
-  const clearLogsLabels: Record<number, string> = { 0: '全部', 1: '一个月', 3: '三个月', 6: '六个月', 12: '一年' };
 
-  const handleClearLogs = (months: number, jobId?: number | null) => {
-    const label = months === 0 ? '全部' : `${clearLogsLabels[months]}前`;
+  const handleClearLogs = (days: number, jobId?: number | null) => {
+    const label = CLEAR_LOGS_LABELS[days] ?? `${days} 天前`;
     confirmDanger({
       title: '确认清除日志',
       content: `将删除${label}的执行日志，此操作不可恢复，确认继续吗？`,
       onOk: async () => {
-        await clearLogsMutation.mutateAsync({ months, jobId });
+        await clearLogsMutation.mutateAsync({ days, jobId });
         Toast.success('清除成功');
         if (jobId !== null && jobId !== undefined) setLogsPage(1);
         else setAllLogsPage(1);
@@ -572,20 +572,18 @@ export default function CronJobsPage() {
           />
           {hasPermission('system:cronjob:delete') && (
             <SplitButtonGroup>
-              <Button icon={<Trash2 size={14} />} type="danger" theme="light" loading={clearLogsMutation.isPending} onClick={() => handleClearLogs(12, null)}>清除日志</Button>
+              <Button icon={<Trash2 size={14} />} type="danger" theme="light" loading={clearLogsMutation.isPending} onClick={() => handleClearLogs(365, null)}>清除日志</Button>
               <Dropdown
                 trigger="click"
                 position="bottomRight"
                 clickToHide
                 render={
                   <Dropdown.Menu>
-                    {([12, 6, 3, 1] as const).map((m) => (
+                    {([365, 180, 90, 30] as const).map((m) => (
                       <Dropdown.Item key={m} onClick={() => handleClearLogs(m, null)}>
-                        清除{clearLogsLabels[m]}前的日志
+                        清除{CLEAR_LOGS_LABELS[m]}的日志
                       </Dropdown.Item>
                     ))}
-                    <Dropdown.Divider />
-                    <Dropdown.Item type="danger" onClick={() => handleClearLogs(0, null)}>清除全部日志</Dropdown.Item>
                   </Dropdown.Menu>
                 }
               >
@@ -630,20 +628,18 @@ export default function CronJobsPage() {
         {hasPermission('system:cronjob:delete') && (
           <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'flex-end' }}>
             <SplitButtonGroup>
-              <Button icon={<Trash2 size={14} />} type="danger" theme="light" loading={clearLogsMutation.isPending} onClick={() => handleClearLogs(12, logsJobId)}>清除日志</Button>
+              <Button icon={<Trash2 size={14} />} type="danger" theme="light" loading={clearLogsMutation.isPending} onClick={() => handleClearLogs(365, logsJobId)}>清除日志</Button>
               <Dropdown
                 trigger="click"
                 position="bottomRight"
                 clickToHide
                 render={
                   <Dropdown.Menu>
-                    {([12, 6, 3, 1] as const).map((m) => (
+                    {([365, 180, 90, 30] as const).map((m) => (
                       <Dropdown.Item key={m} onClick={() => handleClearLogs(m, logsJobId)}>
-                        清除{clearLogsLabels[m]}前的日志
+                        清除{CLEAR_LOGS_LABELS[m]}的日志
                       </Dropdown.Item>
                     ))}
-                    <Dropdown.Divider />
-                    <Dropdown.Item type="danger" onClick={() => handleClearLogs(0, logsJobId)}>清除全部日志</Dropdown.Item>
                   </Dropdown.Menu>
                 }
               >

@@ -4,7 +4,7 @@
  * - 告警指标源（getLatestEngineHealthMetrics）被 monitor-alert 评估器读取（workflowHealth / workflowBacklog）。
  * - 运维动作复用现有恢复函数，全部为幂等恢复扫描。
  */
-import { desc, gte, lt, sql } from 'drizzle-orm';
+import { desc, gte, sql } from 'drizzle-orm';
 import { db } from '../../db';
 import { workflowEngineHealthSnapshots } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
@@ -45,18 +45,9 @@ export async function captureWorkflowEngineHealthSnapshot(): Promise<{ healthSco
   return { healthScore: t.healthScore, severity, backlog };
 }
 
-/** 按保留小时数清理旧快照，默认 7 天。返回删除行数。 */
-export async function cleanupWorkflowEngineHealthSnapshots(retentionHours = 24 * 7): Promise<number> {
-  const cutoff = new Date(Date.now() - retentionHours * 60 * 60_000);
-  const deleted = await db.delete(workflowEngineHealthSnapshots).where(lt(workflowEngineHealthSnapshots.createdAt, cutoff)).returning({ id: workflowEngineHealthSnapshots.id });
-  return deleted.length;
-}
-
-/** 定时任务入口：采集 + 周期性清理。 */
+/** 定时任务入口：采集引擎健康快照。快照保留由 `data-retention` 任务统一清理。 */
 export async function runWorkflowEngineHealthCapture(): Promise<string> {
   const { healthScore, severity, backlog } = await captureWorkflowEngineHealthSnapshot();
-  // 每次采集顺带做一次轻量清理（删除超期行，量很小）。
-  await cleanupWorkflowEngineHealthSnapshots();
   return `引擎健康采集完成：健康分 ${healthScore} / ${severity} / 积压 ${backlog}`;
 }
 

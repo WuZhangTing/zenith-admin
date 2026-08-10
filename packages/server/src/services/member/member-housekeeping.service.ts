@@ -5,14 +5,14 @@
  * - expireInactivePoints()：按 system_config `member_point_expire_days`（0=关闭）
  *   清零长期无积分变动账户的余额，走 changePoints(type='expire') 记流水，可审计可对账
  * - grantBirthdayGifts()：生日当天自动发放积分/优惠券（system_configs 控制，按年幂等防重发）
- * - cleanupMemberLoginLogs()：按 system_config `member_login_log_retention_days`（0=不清理）
- *   删除超期登录日志，防止无限增长
+ *
+ * 会员登录日志的保留由 `data-retention` 任务按 `member_login_logs` 策略统一清理。
  */
 import dayjs from 'dayjs';
-import { and, eq, gt, gte, isNull, like, lt, lte } from 'drizzle-orm';
+import { and, eq, gt, gte, isNull, like, lte } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { coupons, memberCoupons, memberLoginLogs, memberPointAccounts, memberPointTransactions, members } from '../../db/schema';
+import { coupons, memberCoupons, memberPointAccounts, memberPointTransactions, members } from '../../db/schema';
 import { getConfigNumber } from '../../lib/system-config';
 import logger from '../../lib/logger';
 import { changePoints, earnPoints, ensurePointAccount } from './member-points.service';
@@ -63,18 +63,6 @@ export async function expireInactivePoints(): Promise<{ expired: number; skipped
     }
   }
   return { expired, skipped };
-}
-
-/** 删除超过保留期的会员登录日志，返回删除数量 */
-export async function cleanupMemberLoginLogs(): Promise<number> {
-  const days = await getConfigNumber('member_login_log_retention_days', 180);
-  if (days <= 0) return 0;
-  const cutoff = new Date(Date.now() - days * 86_400_000);
-  // 每日增量清理，returning 行数可控
-  const deleted = await db.delete(memberLoginLogs)
-    .where(lt(memberLoginLogs.createdAt, cutoff))
-    .returning({ id: memberLoginLogs.id });
-  return deleted.length;
 }
 
 /**
@@ -191,6 +179,5 @@ export async function runMemberHousekeeping(): Promise<string> {
   const points = await expireInactivePoints();
   const birthday = await grantBirthdayGifts();
   const expiring = await notifyExpiringCoupons();
-  const logs = await cleanupMemberLoginLogs();
-  return `券过期 ${coupons_} 张；积分过期 ${points.expired} 户（跳过 ${points.skipped}）；生日礼积分 ${birthday.points} 人/发券 ${birthday.coupons} 人（跳过 ${birthday.skipped}）；到期提醒 ${expiring} 条；清理登录日志 ${logs} 条`;
+  return `券过期 ${coupons_} 张；积分过期 ${points.expired} 户（跳过 ${points.skipped}）；生日礼积分 ${birthday.points} 人/发券 ${birthday.coupons} 人（跳过 ${birthday.skipped}）；到期提醒 ${expiring} 条`;
 }

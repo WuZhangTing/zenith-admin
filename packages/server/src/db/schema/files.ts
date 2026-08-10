@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, timestamp, pgEnum, integer, bigint, boolean, unique, text, smallint, uuid as pgUuid } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, timestamp, pgEnum, integer, bigint, boolean, unique, text, smallint, uuid as pgUuid, index } from 'drizzle-orm/pg-core';
 import { v7 as uuidv7 } from 'uuid';
 import { statusEnum } from './common';
 import { auditColumns, tenants } from './core';
@@ -132,7 +132,10 @@ export const uploadSessions = pgTable('upload_sessions', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [
+  index('upload_sessions_created_at_idx').on(t.createdAt),
+  index('upload_sessions_status_idx').on(t.status),
+]);
 
 export type UploadSessionRow = typeof uploadSessions.$inferSelect;
 

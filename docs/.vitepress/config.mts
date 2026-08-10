@@ -70,6 +70,7 @@ export default withMermaid(defineConfig({
           { text: '系统运维', link: '/ops/' },
           { text: '安全体系', link: '/backend/security' },
           { text: '定时任务', link: '/backend/cron-jobs' },
+          { text: '数据保留', link: '/backend/data-retention' },
           { text: '多租户指南', link: '/backend/multi-tenant' },
         ],
       },
@@ -307,6 +308,7 @@ export default withMermaid(defineConfig({
         items: [
           { text: '系统运维', link: '/ops/' },
           { text: '定时任务', link: '/backend/cron-jobs' },
+          { text: '数据保留', link: '/backend/data-retention' },
           { text: '维护模式', link: '/backend/maintenance-mode' },
           { text: '操作日志与变更记录', link: '/backend/audit-log-changes' },
         ],

@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, timestamp, pgEnum, integer, text, smallint } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, timestamp, pgEnum, integer, text, smallint, index } from 'drizzle-orm/pg-core';
 import { tenants } from './core';
 
 // ─── 登录日志表 ─────────────────────────────────────────────────────────────────
@@ -27,7 +27,11 @@ export const loginLogs = pgTable('login_logs', {
   cpuCores: smallint('cpu_cores'),
   memoryGb: varchar('memory_gb', { length: 8 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index('login_logs_created_at_idx').on(t.createdAt),
+  index('login_logs_user_idx').on(t.userId),
+  index('login_logs_status_idx').on(t.status),
+]);
 
 // ─── 操作日志表 ─────────────────────────────────────────────────────────────────
 export const operationLogs = pgTable('operation_logs', {
@@ -52,7 +56,11 @@ export const operationLogs = pgTable('operation_logs', {
   browser: varchar('browser', { length: 64 }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index('operation_logs_created_at_idx').on(t.createdAt),
+  index('operation_logs_user_idx').on(t.userId),
+  index('operation_logs_module_idx').on(t.module),
+]);
 
 export type OperationLogRow = typeof operationLogs.$inferSelect;
 
@@ -67,7 +75,10 @@ export const ipAccessLogs = pgTable('ip_access_logs', {
   blockType: varchar('block_type', { length: 16 }).notNull(), // 'blacklist' | 'whitelist'
   userAgent: varchar('user_agent', { length: 512 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index('ip_access_logs_created_at_idx').on(t.createdAt),
+  index('ip_access_logs_ip_idx').on(t.ip),
+]);
 
 export type IpAccessLogRow = typeof ipAccessLogs.$inferSelect;
 

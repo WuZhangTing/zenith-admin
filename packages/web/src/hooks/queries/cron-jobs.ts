@@ -162,10 +162,10 @@ export function useUpdateCronJobStatus() {
 export function useClearCronJobLogs() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ months, jobId }: { months: number; jobId?: number | null }) => {
+    mutationFn: ({ days, jobId }: { days: number; jobId?: number | null }) => {
       const url = jobId !== null && jobId !== undefined
-        ? `/api/cron-jobs/${jobId}/logs/clean?months=${months}`
-        : `/api/cron-jobs/logs/clean?months=${months}`;
+        ? `/api/cron-jobs/${jobId}/logs/clean?days=${days}`
+        : `/api/cron-jobs/logs/clean?days=${days}`;
       return request.delete<null>(url).then(unwrap);
     },
     onSuccess: () => {

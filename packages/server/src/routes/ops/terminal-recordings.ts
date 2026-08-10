@@ -129,13 +129,13 @@ const cleanRoute = defineOpenAPIRoute({
     method: 'delete', path: '/clean', tags: ['TerminalRecordings'], summary: '清除录屏记录',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: PERM, audit: { description: '清除终端录屏', module: 'Web 终端' } })] as const,
-    request: { query: z.object({ months: z.coerce.number().int().min(0).default(0) }) },
+    request: { query: z.object({ days: z.coerce.number().int().min(1).max(3650).default(180) }) },
     responses: { ...commonErrorResponses, ...okMsg('清除成功') },
   }),
   handler: async (c) => {
-    const { months } = c.req.valid('query');
-    const deleted = await cleanRecordings(months);
-    setAuditAfterData(c, { months, deleted });
+    const { days } = c.req.valid('query');
+    const deleted = await cleanRecordings(days);
+    setAuditAfterData(c, { days, deleted });
     return c.json(okBody(null, `共删除 ${deleted} 条录屏记录`), 200);
   },
 });

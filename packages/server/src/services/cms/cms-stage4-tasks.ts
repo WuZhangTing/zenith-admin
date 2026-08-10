@@ -287,21 +287,3 @@ export async function enqueueCmsSubscriptionNotification(task: AsyncTask | null)
     logger.error(`[cms-subscription] 通知任务 #${task.id} 入队失败，等待 pending 恢复扫描补投`, error);
   });
 }
-
-export async function enqueueCmsAdRetentionSystemTask(): Promise<string> {
-  const retentionDays = await getCmsAdEventRetentionDays();
-  if (retentionDays <= 0) return '广告事件保留期清理已关闭';
-  const row = await runWithCurrentUser({
-    userId: 1,
-    username: 'admin',
-    roles: ['super_admin'],
-    tenantId: null,
-  }, () => submitAsyncTask({
-    taskType: 'cms-ad-events-cleanup',
-    title: `CMS 广告事件周期清理（保留 ${retentionDays} 天）`,
-    payload: { retentionDays, systemTriggered: true },
-    idempotencyKey: `cms-ad-cleanup:system:${retentionDays}:${formatDate(new Date())}`,
-  }));
-  await enqueueAsyncTask(row.id);
-  return `已提交广告事件保留期清理任务 #${row.id}`;
-}

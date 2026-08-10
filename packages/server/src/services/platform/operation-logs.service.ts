@@ -123,11 +123,8 @@ export async function operationLogStats(daysRaw?: number) {
   };
 }
 
-function buildCleanOperationLogsWhere(months: number) {
-  if (months === 0) return undefined;
-  const cutoff = new Date();
-  cutoff.setMonth(cutoff.getMonth() - months);
-  return lte(operationLogs.createdAt, cutoff);
+function buildCleanOperationLogsWhere(days: number) {
+  return lte(operationLogs.createdAt, new Date(Date.now() - days * 86_400_000));
 }
 
 function mapOperationLogForAudit(row: typeof operationLogs.$inferSelect) {
@@ -145,19 +142,20 @@ function mapOperationLogForAudit(row: typeof operationLogs.$inferSelect) {
   };
 }
 
-export async function getCleanOperationLogsBeforeAudit(months: number) {
-  const where = buildCleanOperationLogsWhere(months);
+export async function getCleanOperationLogsBeforeAudit(days: number) {
+  const where = buildCleanOperationLogsWhere(days);
   const [total, sample] = await Promise.all([
     db.$count(operationLogs, where),
     db.select().from(operationLogs).where(where).orderBy(desc(operationLogs.createdAt)).limit(20),
   ]);
-  return { months, total, sample: sample.map(mapOperationLogForAudit) };
+  return { days, total, sample: sample.map(mapOperationLogForAudit) };
 }
 
-export async function cleanOperationLogs(months: number) {
-  const where = buildCleanOperationLogsWhere(months);
-  const result = where
-    ? await db.delete(operationLogs).where(where).returning({ id: operationLogs.id })
-    : await db.delete(operationLogs).returning({ id: operationLogs.id });
-  return result.length;
+/**
+ * 手动清除指定天数之前的操作日志。
+ * 复用统一保留框架的分批删除实现，避免一次性把待删主键载入内存。
+ */
+export async function cleanOperationLogs(days: number) {
+  const { runPolicy } = await import('../../lib/retention');
+  return runPolicy('operation_logs', { days });
 }

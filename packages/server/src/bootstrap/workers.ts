@@ -36,6 +36,9 @@ export async function registerBackgroundWorkers(): Promise<void> {
     registerAnalyticsTaskHandlers();
     await registerExportJobWorker();
     await registerSystemTasks();
+    // 全部系统任务注册完毕后对账：清理代码中已移除任务的残留调度与配置
+    const { purgeOrphanSystemTasks } = await import('../lib/pg-boss-scheduler');
+    await purgeOrphanSystemTasks();
     // 主题代码指纹检测：变更自动重建受影响站点静态页（零维护，详见 cms-theme-watch.service）
     const { checkThemeChangesAndRebuild } = await import('../services/cms/cms-theme-watch.service');
     void checkThemeChangesAndRebuild();

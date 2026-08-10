@@ -44,7 +44,7 @@ export function useLoginLogStats(params: LoginLogStatsParams) {
 export function useCleanLoginLogs() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (months: number) => request.delete<null>(`/api/login-logs/clean${toQueryString({ months })}`).then(unwrap),
+    mutationFn: (days: number) => request.delete<null>(`/api/login-logs/clean${toQueryString({ days })}`).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: loginLogKeys.all }),
   });
 }

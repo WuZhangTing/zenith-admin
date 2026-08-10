@@ -30,3 +30,20 @@ export const updateDbQueryFavoriteSchema = partialForUpdate(createDbQueryFavorit
 export type CreateDbQueryFavoriteInput = z.infer<typeof createDbQueryFavoriteSchema>;
 
 export type UpdateDbQueryFavoriteInput = z.infer<typeof updateDbQueryFavoriteSchema>;
+
+// ─── 数据保留策略 ────────────────────────────────────────────────────────────
+/** 保留天数上限 10 年，足够覆盖等保与审计留存要求 */
+export const RETENTION_MAX_DAYS = 3650;
+
+export const RETENTION_MIN_BATCH_SIZE = 100;
+
+export const RETENTION_MAX_BATCH_SIZE = 50_000;
+
+export const updateRetentionPolicySchema = z.object({
+  enabled: z.boolean().optional(),
+  retentionDays: z.number().int().min(0, '保留天数不能为负').max(RETENTION_MAX_DAYS).optional(),
+  batchSize: z.number().int().min(RETENTION_MIN_BATCH_SIZE).max(RETENTION_MAX_BATCH_SIZE).optional(),
+});
+
+export type UpdateRetentionPolicyInput = z.infer<typeof updateRetentionPolicySchema>;
+

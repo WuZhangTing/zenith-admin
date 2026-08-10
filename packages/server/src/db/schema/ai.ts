@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, text, jsonb, real, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, text, jsonb, real, uniqueIndex, index } from 'drizzle-orm/pg-core';
 import { AI_PROVIDER_TYPES } from '@zenith/shared/ai';
 import { auditColumns, tenants, users } from './core';
 
@@ -111,7 +111,10 @@ export const aiMessages = pgTable('ai_messages', {
   /** 生成调用链 trace（assistant 消息：检索/工具/LLM 轮次耗时明细） */
   trace: jsonb('trace').$type<AiTraceStep[]>(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (t) => [
+  index('ai_messages_conversation_idx').on(t.conversationId, t.createdAt),
+  index('ai_messages_created_at_idx').on(t.createdAt),
+]);
 
 export type AiMessageRow = typeof aiMessages.$inferSelect;
 
@@ -375,6 +378,9 @@ export const aiEvalRuns = pgTable('ai_eval_runs', {
   totalTokens: integer('total_tokens'),
   createdBy: integer('created_by').references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (t) => [
+  index('ai_eval_runs_created_at_idx').on(t.createdAt),
+  index('ai_eval_runs_set_idx').on(t.setId),
+]);
 
 export type AiEvalRunRow = typeof aiEvalRuns.$inferSelect;

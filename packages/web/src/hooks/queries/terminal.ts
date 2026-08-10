@@ -158,8 +158,8 @@ export function useDeleteTerminalRecording() {
 export function useCleanTerminalRecordings() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (months: number) => {
-      const res = await request.delete<null>(`/api/terminal-recordings/clean${toQueryString({ months })}`);
+    mutationFn: async (days: number) => {
+      const res = await request.delete<null>(`/api/terminal-recordings/clean${toQueryString({ days })}`);
       unwrap(res);
       return res.message;
     },

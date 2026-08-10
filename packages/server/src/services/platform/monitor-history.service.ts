@@ -2,11 +2,12 @@
  * 监控指标持久化与历史查询。
  * - persistMetricSample：由 pg-boss 定时任务（默认每分钟）将采样器最新快照落库
  * - getMonitorHistory：按时间范围分桶聚合查询历史趋势
- * - cleanupMetricSamples：按保留天数清理旧数据
  * - getCurrentMetricSnapshot：返回当前各指标即时值（持久化 / 告警评估共用）
+ *
+ * 采样数据的保留由 `data-retention` 任务按 `system_metric_samples` 策略统一清理。
  */
 import os from 'node:os';
-import { sql, gte, lt, type AnyColumn } from 'drizzle-orm';
+import { sql, gte, type AnyColumn } from 'drizzle-orm';
 import { db } from '../../db';
 import { systemMetricSamples } from '../../db/schema';
 import { metricsSampler } from '../../lib/metrics-sampler';
@@ -73,13 +74,6 @@ export async function persistMetricSample(): Promise<boolean> {
     diskWriteBps: s.diskWriteBps,
   });
   return true;
-}
-
-/** 删除保留期之前的采样数据，返回删除行数。 */
-export async function cleanupMetricSamples(retentionDays = 30): Promise<number> {
-  const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
-  const deleted = await db.delete(systemMetricSamples).where(lt(systemMetricSamples.sampledAt, cutoff)).returning({ id: systemMetricSamples.id });
-  return deleted.length;
 }
 
 const RANGE_CONFIG: Record<string, { windowSec: number; bucketSec: number }> = {

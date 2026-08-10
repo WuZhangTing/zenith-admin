@@ -1,4 +1,4 @@
-import { and, desc, eq, like, inArray, lt, gte, lte, sql } from 'drizzle-orm';
+import { and, desc, eq, like, inArray, gte, lte, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { RuleDecisionInput, RuleDecisionOutput, RuleDecisionRow, RuleHitPolicy, RuleEvaluateResult, RuleTestRunResult, RuleCaseResult, RuleDecisionTableSettings, RuleUsageItem, RuleTableStats, RuleShadowRunResult, RuleShadowDiffSample } from '@zenith/shared/rules';
 import { db } from '../../db';
@@ -709,14 +709,6 @@ export async function listDecisionExecutions(q: ListDecisionExecutionsQuery) {
   ]);
   const list = rows.map((r) => ({ id: r.id, ruleKey: r.ruleKey, tableId: r.tableId, instanceId: r.instanceId, nodeKey: r.nodeKey, source: r.source as 'runtime' | 'manual' | 'test', matched: r.matched, hitPolicy: r.hitPolicy, input: (r.input ?? {}) as Record<string, unknown>, outputs: (r.outputs ?? {}) as Record<string, unknown>, matchedRowIds: (r.matchedRowIds ?? []) as string[], createdAt: formatDateTime(r.createdAt) }));
   return { list, total, page, pageSize };
-}
-
-/** 清理过期执行记录（供 cron 调用），返回删除条数 */
-export async function cleanupRuleExecutions(retentionDays: number): Promise<number> {
-  const days = Number.isFinite(retentionDays) && retentionDays > 0 ? retentionDays : 90;
-  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-  const deleted = await db.delete(ruleDecisionExecutions).where(lt(ruleDecisionExecutions.createdAt, cutoff)).returning({ id: ruleDecisionExecutions.id });
-  return deleted.length;
 }
 
 /** 测试用例 CRUD + 批跑 + 覆盖率 */

@@ -2,15 +2,15 @@ import dayjs from 'dayjs';
 import { and, eq, lt, sql } from 'drizzle-orm';
 import { db } from '../../db';
 import { oauth2Clients, openApiCallLogs, openApiCallStatsDaily, openQuotaAlerts } from '../../db/schema';
-import { config } from '../../config';
 import { APP_TIME_ZONE } from '../../lib/datetime';
 
 const APP_TIME_ZONE_SQL = sql.raw(`'${APP_TIME_ZONE.replaceAll("'", "''")}'`);
 
-export async function rollupAndCleanupOpenApiCallLogs(): Promise<{
-  statDate: string;
-  retentionDays: number;
-}> {
+/**
+ * 按日聚合开放 API 调用统计，并回收过期的客户端旧密钥与已发送配额告警。
+ * 原始调用日志的保留由 `data-retention` 任务按 `open_api_call_logs` 策略统一清理。
+ */
+export async function rollupOpenApiCallLogs(): Promise<{ statDate: string }> {
   const now = dayjs().tz(APP_TIME_ZONE);
   const statDate = now.subtract(1, 'day').format('YYYY-MM-DD');
   const todayStart = now.startOf('day').toDate();
@@ -67,9 +67,6 @@ export async function rollupAndCleanupOpenApiCallLogs(): Promise<{
       updated_at = now()
   `);
 
-  const retentionDays = config.openPlatform.apiLogRetentionDays;
-  const cutoff = now.subtract(retentionDays, 'day').startOf('day').toDate();
-  await db.delete(openApiCallLogs).where(lt(openApiCallLogs.createdAt, cutoff));
   await db.update(oauth2Clients).set({
     previousClientSecretHash: null,
     previousClientSecretEncrypted: null,
@@ -80,5 +77,5 @@ export async function rollupAndCleanupOpenApiCallLogs(): Promise<{
     lt(openQuotaAlerts.createdAt, now.subtract(180, 'day').toDate()),
   ));
 
-  return { statDate, retentionDays };
+  return { statDate };
 }

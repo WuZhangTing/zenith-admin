@@ -1,7 +1,7 @@
-import { and, gte, lt, sql, eq, isNull } from 'drizzle-orm';
+import { and, gte, lt, sql, eq } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { db } from '../../db';
-import { userEvents, analyticsSessions, analyticsDailyRollup, analyticsEventQualityDaily, analyticsSettings, errorEvents, errorGroups } from '../../db/schema';
+import { userEvents, analyticsSessions, analyticsDailyRollup } from '../../db/schema';
 import { clampDays } from '../../lib/analytics-helpers';
 import { APP_TIME_ZONE, formatDate, parseDateRangeStart } from '../../lib/datetime';
 import { config } from '../../config';
@@ -157,64 +157,13 @@ export async function getRollupSummary(daysRaw: unknown): Promise<RollupSummaryI
 }
 
 /**
- * 按保留策略清理过期埋点/会话/错误/质量聚合数据（cron）。
- *
- * `analytics_event_quality_daily` 是随事件采集持续写入的派生聚合，
- * 不纳入保留策略会无限增长；它跟随事件保留天数（eventDays），
- * 且 tenantId 用 0 作为「平台/无租户」哨兵（与 analytics_daily_rollup 约定一致）。
+ * 清理不再被任何错误事件引用的错误分组。
+ * 由 `error_events` 保留策略在删除后触发，避免分组表随事件裁剪产生孤儿行。
  */
-export async function runAnalyticsRetention(): Promise<{ events: number; sessions: number; errors: number; qualityDaily: number }> {
-  const rc = (r: unknown) => (r as { rowCount?: number }).rowCount ?? 0;
-  const [policies, eventTenants, sessionTenants, errorEventTenants, errorGroupTenants] = await Promise.all([
-    db.select({
-      tenantId: analyticsSettings.tenantId,
-      eventDays: analyticsSettings.retentionDays,
-      errorDays: analyticsSettings.errorRetentionDays,
-    }).from(analyticsSettings),
-    db.selectDistinct({ tenantId: userEvents.tenantId }).from(userEvents),
-    db.selectDistinct({ tenantId: analyticsSessions.tenantId }).from(analyticsSessions),
-    db.selectDistinct({ tenantId: errorEvents.tenantId }).from(errorEvents),
-    db.selectDistinct({ tenantId: errorGroups.tenantId }).from(errorGroups),
-  ]);
-  const policyByTenant = new Map(policies.map((policy) => [policy.tenantId, policy]));
-  const tenantIds = new Set<number | null>([
-    ...policies.map((row) => row.tenantId),
-    ...eventTenants.map((row) => row.tenantId),
-    ...sessionTenants.map((row) => row.tenantId),
-    ...errorEventTenants.map((row) => row.tenantId),
-    ...errorGroupTenants.map((row) => row.tenantId),
-  ]);
-
-  let deletedEvents = 0;
-  let deletedSessions = 0;
-  let deletedErrors = 0;
-  let deletedQualityDaily = 0;
-  for (const tenantId of tenantIds) {
-    const policy = policyByTenant.get(tenantId);
-    const eventDays = policy?.eventDays ?? 180;
-    const errorDays = policy?.errorDays ?? 90;
-    const eventTenant = tenantId === null ? isNull(userEvents.tenantId) : eq(userEvents.tenantId, tenantId);
-    const sessionTenant = tenantId === null ? isNull(analyticsSessions.tenantId) : eq(analyticsSessions.tenantId, tenantId);
-    const errorEventTenant = tenantId === null ? isNull(errorEvents.tenantId) : eq(errorEvents.tenantId, tenantId);
-    const errorGroupTenant = tenantId === null ? isNull(errorGroups.tenantId) : eq(errorGroups.tenantId, tenantId);
-    const [evRes, sessRes, errEvRes, qualityRes] = await Promise.all([
-      db.delete(userEvents).where(and(eventTenant, sql`${userEvents.createdAt} < NOW() - (${eventDays} * INTERVAL '1 day')`)),
-      db.delete(analyticsSessions).where(and(sessionTenant, sql`${analyticsSessions.startedAt} < NOW() - (${eventDays} * INTERVAL '1 day')`)),
-      db.delete(errorEvents).where(and(errorEventTenant, sql`${errorEvents.createdAt} < NOW() - (${errorDays} * INTERVAL '1 day')`)),
-      db.delete(analyticsEventQualityDaily).where(and(
-        eq(analyticsEventQualityDaily.tenantId, tenantId ?? 0),
-        sql`${analyticsEventQualityDaily.statDate} < (NOW() - (${eventDays} * INTERVAL '1 day'))::date`,
-      )),
-    ]);
-    await db.delete(errorGroups).where(and(
-      errorGroupTenant,
-      sql`${errorGroups.lastSeenAt} < NOW() - (${errorDays} * INTERVAL '1 day')`,
-      sql`NOT EXISTS (SELECT 1 FROM error_events ee WHERE ee.group_id = ${errorGroups.id})`,
-    ));
-    deletedEvents += rc(evRes);
-    deletedSessions += rc(sessRes);
-    deletedErrors += rc(errEvRes);
-    deletedQualityDaily += rc(qualityRes);
-  }
-  return { events: deletedEvents, sessions: deletedSessions, errors: deletedErrors, qualityDaily: deletedQualityDaily };
+export async function purgeOrphanErrorGroups(): Promise<number> {
+  const res = await db.execute(sql`
+    DELETE FROM error_groups
+    WHERE NOT EXISTS (SELECT 1 FROM error_events ee WHERE ee.group_id = error_groups.id)
+  `);
+  return (res as unknown as { rowCount?: number }).rowCount ?? 0;
 }

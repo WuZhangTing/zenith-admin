@@ -51,15 +51,15 @@ const cleanRoute = defineOpenAPIRoute({
       permission: 'system:log:operation',
       audit: { description: '清除操作日志', module: '操作日志' },
     })] as const,
-    request: { query: z.object({ months: z.coerce.number().int().min(0).default(0) }) },
+    request: { query: z.object({ days: z.coerce.number().int().min(1).max(3650).default(180) }) },
     responses: { ...okMsg('清除成功'), ...commonErrorResponses },
   }),
   handler: async (c) => {
-    const { months } = c.req.valid('query');
-    const before = await getCleanOperationLogsBeforeAudit(months);
+    const { days } = c.req.valid('query');
+    const before = await getCleanOperationLogsBeforeAudit(days);
     setAuditBeforeData(c, before);
-    const deleted = await cleanOperationLogs(months);
-    setAuditAfterData(c, { months, deleted });
+    const deleted = await cleanOperationLogs(days);
+    setAuditAfterData(c, { days, deleted });
     return c.json(okBody(null, `共删除 ${deleted} 条操作日志`), 200);
   },
 });

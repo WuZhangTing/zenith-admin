@@ -10,6 +10,7 @@ import networkDiagRoutes from './network-diag';
 import nginxSitesRoutes from './nginx-sites';
 import portsRoutes from './ports';
 import processesRoutes from './processes';
+import retentionRoutes from './retention';
 import sshProfilesRoutes from './ssh-profiles';
 import sshSftpRoutes from './ssh-sftp';
 import sslCertificatesRoutes from './ssl-certificates';
@@ -42,5 +43,6 @@ export default defineRouteDomain({
     ['/api/log-viewer', logViewerRoutes],
     ['/api/nginx-sites', nginxSitesRoutes],
     ['/api/log-files', logFilesRoutes],
+    ['/api/retention-policies', retentionRoutes],
   ],
 });

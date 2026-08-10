@@ -1,0 +1,122 @@
+/**
+ * 数据保留策略声明的静态校验。
+ *
+ * 与 `permission-audit.test.ts` 同一思路：把「新增 append-only 表必须登记保留策略」
+ * 这条约定变成可执行断言，避免新表悄悄逃过清理。
+ */
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { describe, it, expect } from 'vitest';
+import { RETENTION_POLICIES } from './policies';
+
+const SCHEMA_DIR = join(import.meta.dirname, '../../db/schema');
+
+/** 表名后缀命中即视为 append-only（一次写入、随业务量线性增长） */
+const APPEND_ONLY_SUFFIX = /_(logs|records|events|runs|history|snapshots|deliveries|hits|samples)$/;
+
+/**
+ * 豁免清单：命中后缀但不应由保留框架清理的表，必须写明理由。
+ * 新增豁免需要 reviewer 明确确认。
+ */
+const EXEMPT: Record<string, string> = {
+  system_scheduler_nodes: '节点心跳表，行数等于进程数，不随时间增长',
+  cms_content_tombstones: '内容删除墓碑，供站群增量同步比对，删除会导致下游漏同步',
+  workflow_jobs: '待执行作业队列，终态行由工作流引擎自身回收',
+  payment_settlement_records: '资金结算凭证，属于财务档案而非日志',
+  member_point_transactions: '积分流水，用户可查全部历史，属于账务数据',
+  member_wallet_transactions: '钱包流水，属于账务数据',
+  report_fill_records: '填报业务数据，非日志',
+  export_jobs: '导出任务记录，文件与记录由导出中心按 expires_at 一并回收',
+  async_tasks: '异步任务记录，由任务中心按类型策略回收（含级联子项）',
+  monitor_alert_rules: '告警规则配置表，非日志',
+  terminal_recordings: '终端录屏，按天数与容量双策略回收，含对象存储副作用',
+  report_materialization_snapshots: '物化快照，按行内 expires_at 与托管文件一并回收',
+  oauth2_tokens: '令牌表，按自身 expires_at 回收',
+  password_reset_tokens: '一次性凭证，按自身 expires_at 回收',
+  upload_sessions: '分片上传会话，按 TTL 连同临时文件一并回收',
+  cms_publish_artifacts: '发布产物索引，随内容生命周期回收',
+  cms_publish_logs: '发布日志，随发布产物级联回收',
+  cms_distribution_runs: '分发运行记录，随分发规则级联回收',
+  cms_interaction_responses: '互动应答数据，属于业务数据',
+  cms_form_submissions: '表单提交，属于业务数据',
+  open_quota_alerts: '配额告警，由开放平台聚合任务按状态回收',
+  analytics_daily_rollup: '按日聚合结果，体积远小于原始事件，是原始数据裁剪后的留存载体',
+  identity_provider_sync_records: '身份源同步明细，随同步日志级联回收',
+};
+
+function collectTables(): Array<{ table: string; file: string }> {
+  const found: Array<{ table: string; file: string }> = [];
+  for (const entry of readdirSync(SCHEMA_DIR, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith('.ts')) continue;
+    const content = readFileSync(join(SCHEMA_DIR, entry.name), 'utf8');
+    for (const match of content.matchAll(/pgTable\('([a-z0-9_]+)'/g)) {
+      found.push({ table: match[1], file: entry.name });
+    }
+  }
+  return found;
+}
+
+describe('数据保留策略声明', () => {
+  it('策略 key 唯一且与目标表名一致', () => {
+    const keys = RETENTION_POLICIES.map((policy) => policy.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    for (const policy of RETENTION_POLICIES) {
+      expect(policy.key).toBe(policy.tableName);
+    }
+  });
+
+  it('保留天数与批大小取值合法', () => {
+    for (const policy of RETENTION_POLICIES) {
+      expect(policy.defaultDays, `${policy.key} 默认保留天数`).toBeGreaterThan(0);
+      expect(policy.defaultDays).toBeLessThanOrEqual(3650);
+      if (policy.batchSize !== undefined) {
+        expect(policy.batchSize).toBeGreaterThanOrEqual(100);
+      }
+    }
+  });
+
+  it('ageAndCap 模式必须同时声明分组列与保留条数', () => {
+    for (const policy of RETENTION_POLICIES) {
+      if (policy.mode !== 'ageAndCap') continue;
+      expect(policy.capColumn, `${policy.key} 缺少 capColumn`).toBeTruthy();
+      expect(policy.capLimit, `${policy.key} 缺少 capLimit`).toBeGreaterThan(0);
+    }
+  });
+
+  it('声明的表与时间列在 schema 中真实存在', () => {
+    const tables = collectTables();
+    const tableNames = new Set(tables.map((item) => item.table));
+    const missing = RETENTION_POLICIES
+      .filter((policy) => !tableNames.has(policy.tableName))
+      .map((policy) => policy.tableName);
+    expect(missing, `以下策略引用了不存在的表：${missing.join(', ')}`).toEqual([]);
+
+    const schemaText = readdirSync(SCHEMA_DIR, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.ts'))
+      .map((entry) => readFileSync(join(SCHEMA_DIR, entry.name), 'utf8'))
+      .join('\n');
+    const badColumns = RETENTION_POLICIES
+      .filter((policy) => !schemaText.includes(`'${policy.timeColumn}'`))
+      .map((policy) => `${policy.key}.${policy.timeColumn}`);
+    expect(badColumns, `以下策略的时间列在 schema 中不存在：${badColumns.join(', ')}`).toEqual([]);
+  });
+
+  it('所有 append-only 表都已登记保留策略或列入豁免', () => {
+    const covered = new Set(RETENTION_POLICIES.map((policy) => policy.tableName));
+    const uncovered = collectTables()
+      .filter((item) => APPEND_ONLY_SUFFIX.test(item.table))
+      .filter((item) => !covered.has(item.table) && !(item.table in EXEMPT))
+      .map((item) => `${item.table} (${item.file})`);
+    expect(
+      uncovered,
+      `以下 append-only 表未登记保留策略：\n${uncovered.join('\n')}\n`
+      + '请在 lib/retention/policies.ts 中登记，或在本测试的 EXEMPT 中写明豁免理由。',
+    ).toEqual([]);
+  });
+
+  it('豁免清单不包含已登记策略的表（避免重复声明）', () => {
+    const covered = new Set(RETENTION_POLICIES.map((policy) => policy.tableName));
+    const conflict = Object.keys(EXEMPT).filter((table) => covered.has(table));
+    expect(conflict, `以下表既登记了策略又被豁免：${conflict.join(', ')}`).toEqual([]);
+  });
+});

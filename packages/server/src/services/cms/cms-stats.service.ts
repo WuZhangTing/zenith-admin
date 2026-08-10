@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { and, eq, gte, sql, desc, isNotNull, lt } from 'drizzle-orm';
+import { and, eq, gte, sql, desc, isNotNull } from 'drizzle-orm';
 import { db } from '../../db';
 import { cmsVisitLogs, cmsSearchLogs, cmsContents } from '../../db/schema';
 import logger from '../../lib/logger';
@@ -7,9 +7,6 @@ import { formatDate } from '../../lib/datetime';
 import { assertSiteAccess } from './cms-sites.service';
 import { ensureCmsSiteExists } from './cms-sites.service';
 import { assertAllCmsSiteChannelsAccess } from './cms-channels.service';
-
-/** 原始统计日志保留天数（访问 / 搜索） */
-const LOG_RETENTION_DAYS = 90;
 
 export type CmsDeviceType = 'pc' | 'mobile' | 'bot';
 
@@ -224,14 +221,4 @@ export async function getCmsSearchAnalytics(siteId: number, days = 30) {
     topKeywords: topRows,
     noResultKeywords: noResultRows,
   };
-}
-
-/** 清理过期统计原始日志（系统周期任务，访问 + 搜索各保留 90 天） */
-export async function cleanupCmsStatLogs(retentionDays = LOG_RETENTION_DAYS): Promise<string> {
-  const threshold = new Date(Date.now() - retentionDays * 24 * 3600 * 1000);
-  const [visits, searches] = await Promise.all([
-    db.delete(cmsVisitLogs).where(lt(cmsVisitLogs.createdAt, threshold)).returning({ id: cmsVisitLogs.id }),
-    db.delete(cmsSearchLogs).where(lt(cmsSearchLogs.createdAt, threshold)).returning({ id: cmsSearchLogs.id }),
-  ]);
-  return `清理访问日志 ${visits.length} 条，搜索日志 ${searches.length} 条`;
 }

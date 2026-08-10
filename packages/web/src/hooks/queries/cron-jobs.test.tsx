@@ -117,7 +117,7 @@ describe('handlers 静态 lookup 不再被任何写操作波及', () => {
     await hook.result.current.run.mutateAsync(1);
     await hook.result.current.save.mutateAsync({ id: 1, values: { name: '对账（改）' } });
     await hook.result.current.status.mutateAsync({ id: 1, status: 'disabled' });
-    await hook.result.current.clearLogs.mutateAsync({ months: 3 });
+    await hook.result.current.clearLogs.mutateAsync({ days: 90 });
     await hook.result.current.remove.mutateAsync(1);
     await waitFor(() => expect(hook.result.current.list.isFetching).toBe(false));
 
@@ -171,7 +171,7 @@ describe('useClearCronJobLogs —— 只影响日志与由日志聚合的概览'
     const fetches = observeFetches(qc);
     api.resetCalls();
 
-    await hook.result.current.clearLogs.mutateAsync({ months: 3 });
+    await hook.result.current.clearLogs.mutateAsync({ days: 90 });
     await waitFor(() => expect(fetches.countOf(cronJobKeys.stats)).toBe(1));
 
     expect(fetches.countOf(cronJobKeys.lists)).toBe(0);

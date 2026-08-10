@@ -173,8 +173,8 @@ const idLogsRoute = defineOpenAPIRoute({
   },
 });
 
-const clearLogsMonthsQuery = z.object({
-  months: z.coerce.number().int().refine((v) => [0, 1, 3, 6, 12].includes(v), { message: 'months 必须为 0（全部）、1、3、6 或 12' }),
+const clearLogsDaysQuery = z.object({
+  days: z.coerce.number().int().min(1).max(3650).default(180),
 }).openapi('ClearLogsQuery');
 
 const clearAllLogsRoute = defineOpenAPIRoute({
@@ -182,15 +182,15 @@ const clearAllLogsRoute = defineOpenAPIRoute({
     method: 'delete', path: '/logs/clean', tags: ['CronJobs'], summary: '清除所有执行日志',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'system:cronjob:delete', audit: { module: '定时任务', description: '清除所有执行日志' } })] as const,
-    request: { query: clearLogsMonthsQuery },
+    request: { query: clearLogsDaysQuery },
     responses: { ...commonErrorResponses, ...okMsg('清除成功') },
   }),
   handler: async (c) => {
-    const { months } = c.req.valid('query');
-    const before = await getClearCronJobLogsBeforeAudit(months);
+    const { days } = c.req.valid('query');
+    const before = await getClearCronJobLogsBeforeAudit(days);
     setAuditBeforeData(c, before);
-    const count = await clearCronJobLogs(months);
-    setAuditAfterData(c, { months, deleted: count });
+    const count = await clearCronJobLogs(days);
+    setAuditAfterData(c, { days, deleted: count });
     return c.json(okBody(null, `已清除 ${count} 条日志`), 200);
   },
 });
@@ -200,16 +200,16 @@ const clearJobLogsRoute = defineOpenAPIRoute({
     method: 'delete', path: '/{id}/logs/clean', tags: ['CronJobs'], summary: '清除单任务执行日志',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'system:cronjob:delete', audit: { module: '定时任务', description: '清除单任务执行日志' } })] as const,
-    request: { params: IdParam, query: clearLogsMonthsQuery },
+    request: { params: IdParam, query: clearLogsDaysQuery },
     responses: { ...commonErrorResponses, ...okMsg('清除成功') },
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
-    const { months } = c.req.valid('query');
-    const before = await getClearCronJobLogsBeforeAudit(months, id);
+    const { days } = c.req.valid('query');
+    const before = await getClearCronJobLogsBeforeAudit(days, id);
     setAuditBeforeData(c, before);
-    const count = await clearCronJobLogs(months, id);
-    setAuditAfterData(c, { jobId: id, months, deleted: count });
+    const count = await clearCronJobLogs(days, id);
+    setAuditAfterData(c, { jobId: id, days, deleted: count });
     return c.json(okBody(null, `已清除 ${count} 条日志`), 200);
   },
 });

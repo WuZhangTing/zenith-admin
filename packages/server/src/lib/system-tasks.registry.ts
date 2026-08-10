@@ -1,12 +1,31 @@
 import { registerSystemRecurringJob } from './pg-boss-scheduler';
-import { cleanupSystemSchedulerRuns } from '../services/tasks/system-scheduler.service';
 
 /**
  * 启动时注册的系统级周期任务入口。
  *
  * 新增系统后台任务时优先放在这里，页面会自动从 pg-boss-scheduler 的注册表读取。
+ * 数据保留类清理统一由 `data-retention` 任务驱动，策略声明见 `lib/retention/policies.ts`，
+ * 不要为单张日志表新增独立清理任务。
  */
 export async function registerSystemTasks(): Promise<void> {
+  const { registerRetentionPolicies, runAllPolicies } = await import('./retention');
+  await registerRetentionPolicies();
+  await registerSystemRecurringJob({
+    name: 'data-retention',
+    title: '数据保留清理',
+    module: '系统管理',
+    cronExpression: '0 3 * * *',
+    description: '每天按「数据保留策略」逐表分批清理超期数据；保留天数为 0 的策略跳过。',
+    allowManualRun: true,
+    run: async () => {
+      const results = await runAllPolicies();
+      if (results.length === 0) return '无超期数据';
+      const total = results.reduce((sum, item) => sum + item.deleted, 0);
+      const detail = results.map((item) => `${item.title} ${item.deleted}`).join('、');
+      return `清理 ${total} 行：${detail}`;
+    },
+  });
+
   const { cleanupExpiredExportFiles } = await import('../services/tasks/export-jobs.service');
   await registerSystemRecurringJob({
     name: 'export-file-cleanup',
@@ -30,18 +49,6 @@ export async function registerSystemTasks(): Promise<void> {
     description: '补偿因进程退出或临时故障而未完成的配额告警与 Webhook 事件。',
     allowManualRun: true,
     run: retryPendingQuotaAlerts,
-  });
-
-  await registerSystemRecurringJob({
-    name: 'system-scheduler-log-cleanup',
-    title: '系统调度日志清理',
-    module: '系统调度',
-    cronExpression: '15 3 * * *',
-    description: '按任务策略清理系统调度运行日志，避免运行记录无限增长。',
-    allowManualRun: true,
-    logRetentionDays: 30,
-    logRetentionRuns: 1000,
-    run: cleanupSystemSchedulerRuns,
   });
 
   const { runDueWorkflowSchedules } = await import('../services/workflow/workflow-schedules.service');
@@ -98,17 +105,17 @@ export async function registerSystemTasks(): Promise<void> {
     run: retryAppWebhookDeliveries,
   });
 
-  const { rollupAndCleanupOpenApiCallLogs } = await import('../services/open-platform/open-api-maintenance.service');
+  const { rollupOpenApiCallLogs } = await import('../services/open-platform/open-api-maintenance.service');
   await registerSystemRecurringJob({
-    name: 'open-api-call-log-maintenance',
-    title: '开放 API 调用日志聚合与清理',
+    name: 'open-api-call-log-rollup',
+    title: '开放 API 调用日志聚合',
     module: '开放平台',
     cronExpression: '20 1 * * *',
-    description: '补齐全部未清理完整日期的开放 API 聚合统计，并按保留策略清理已聚合原始日志。',
+    description: '补齐全部未聚合完整日期的开放 API 统计，并回收过期客户端旧密钥与已发送配额告警。',
     allowManualRun: true,
     run: async () => {
-      const result = await rollupAndCleanupOpenApiCallLogs();
-      return `已补齐至 ${result.statDate}，原始日志保留 ${result.retentionDays} 天`;
+      const result = await rollupOpenApiCallLogs();
+      return `已补齐至 ${result.statDate}`;
     },
   });
 
@@ -168,7 +175,7 @@ export async function registerSystemTasks(): Promise<void> {
     title: '流程引擎健康采集',
     module: '工作流',
     cronExpression: '*/5 * * * *',
-    description: '每 5 分钟采集平台级流程引擎健康快照，驱动健康趋势图与引擎健康告警指标，并清理超期快照。',
+    description: '每 5 分钟采集平台级流程引擎健康快照，驱动健康趋势图与引擎健康告警指标。',
     allowManualRun: true,
     run: runWorkflowEngineHealthCapture,
   });
@@ -227,7 +234,7 @@ export async function registerSystemTasks(): Promise<void> {
     title: '会员数据例行维护',
     module: '会员中心',
     cronExpression: '10 2 * * *',
-    description: '每天将到期未使用的优惠券置为已过期；按 member_point_expire_days 清零长期不活跃账户的积分（expire 流水可审计）；按 member_login_log_retention_days 清理超期会员登录日志。',
+    description: '每天将到期未使用的优惠券置为已过期；按 member_point_expire_days 清零长期不活跃账户的积分（expire 流水可审计）；发放生日礼与到期提醒。',
     allowManualRun: true,
     run: runMemberHousekeeping,
   });
@@ -322,27 +329,5 @@ export async function registerSystemTasks(): Promise<void> {
       const count = await cleanupCmsRecycleBin();
       return `清理了 ${count} 条回收站内容`;
     },
-  });
-
-  const { cleanupCmsStatLogs } = await import('../services/cms/cms-stats.service');
-  await registerSystemRecurringJob({
-    name: 'cms-stat-logs-cleanup',
-    title: 'CMS 统计日志清理',
-    module: 'CMS内容管理',
-    cronExpression: '20 4 * * *',
-    description: '每天清理超过 90 天的前台访问日志与搜索日志（报表基于原始日志实时聚合）。',
-    allowManualRun: true,
-    run: () => cleanupCmsStatLogs(90),
-  });
-
-  const { enqueueCmsAdRetentionSystemTask } = await import('../services/cms/cms-stage4-tasks');
-  await registerSystemRecurringJob({
-    name: 'cms-ad-events-retention',
-    title: 'CMS 广告事件保留期清理',
-    module: 'CMS内容管理',
-    cronExpression: '40 4 * * *',
-    description: '每天按 cms_ad_event_retention_days 配置向任务中心提交分批清理任务。',
-    allowManualRun: true,
-    run: enqueueCmsAdRetentionSystemTask,
   });
 }

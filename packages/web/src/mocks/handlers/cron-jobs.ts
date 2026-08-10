@@ -203,19 +203,17 @@ export const cronJobsHandlers = [
   // 清除所有执行日志（必须在 DELETE /:id 之前声明）
   http.delete('/api/cron-jobs/logs/clean', ({ request }) => {
     const url = new URL(request.url);
-    const months = Number(url.searchParams.get('months')) || 1;
-    const labels: Record<number, string> = { 1: '一个月', 3: '三个月', 6: '六个月', 12: '一年' };
-    return ok(null, `已清除 ${labels[months] ?? months + '个月'} 前的日志`);
+    const days = Number(url.searchParams.get('days')) || 180;
+    return ok(null, `已清除 ${days} 天前的日志`);
   }),
 
   // 清除单任务执行日志（必须在 DELETE /:id 之前声明）
   http.delete('/api/cron-jobs/:id/logs/clean', ({ params, request }) => {
     const url = new URL(request.url);
-    const months = Number(url.searchParams.get('months')) || 1;
+    const days = Number(url.searchParams.get('days')) || 180;
     const job = mockCronJobs.find((j) => j.id === Number(params.id));
     if (!job) return notFound('任务不存在');
-    const labels: Record<number, string> = { 1: '一个月', 3: '三个月', 6: '六个月', 12: '一年' };
-    return ok(null, `已清除「${job.name}」${labels[months] ?? months + '个月'} 前的日志`);
+    return ok(null, `已清除「${job.name}」${days} 天前的日志`);
   }),
 
   // 删除任务
