@@ -408,9 +408,11 @@ export default function TerminalTab({ sessionId, active, shell, label, cwd, onTi
             <Folder size={12} className="terminal-status-bar__icon" />
             <span className="terminal-status-bar__text">{statusCwd || '未获取当前路径'}</span>
           </span>
-          <span className="terminal-status-bar__item" title="终端尺寸">
+          <span className="terminal-status-bar__item" title="终端字符网格（列 × 行）">
             <Monitor size={12} className="terminal-status-bar__icon" />
-            <span className="terminal-status-bar__text">{status?.cols ?? 0}×{status?.rows ?? 0}</span>
+            <span className="terminal-status-bar__text">
+              {status?.cols ?? 0} 列 × {status?.rows ?? 0} 行
+            </span>
           </span>
           <span
             className="terminal-status-bar__item terminal-status-bar__item--recording"
