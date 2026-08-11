@@ -75,7 +75,14 @@ export async function armTaskAsyncJobs(
     return;
   }
   if (task.nodeType === 'trigger') {
-    await enqueueJob({ ...base, jobType: 'trigger_dispatch', maxAttempts: resolveTriggerMaxAttempts(cfg.triggerConfig), idempotencyKey: `trigger_dispatch:${task.id}` }, executor);
+    await enqueueJob({
+      ...base,
+      jobType: 'trigger_dispatch',
+      // 触发器执行记录要展示节点名与触发类型，而 flowData 在读取侧不可得，随作业落库
+      payload: { taskId: task.id, nodeName: cfg.label, triggerType: cfg.triggerConfig?.triggerType ?? 'webhook' },
+      maxAttempts: resolveTriggerMaxAttempts(cfg.triggerConfig),
+      idempotencyKey: `trigger_dispatch:${task.id}`,
+    }, executor);
     return;
   }
   if (task.nodeType === 'approve' && task.status === 'waiting' && task.externalCallbackId && cfg.externalApproval?.enabled) {

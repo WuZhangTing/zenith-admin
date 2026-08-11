@@ -39,7 +39,13 @@ function mapRuntimeOutboxEvent(row: typeof workflowJobs.$inferSelect): WorkflowR
   };
 }
 
-// TODO(workflow-jobs P5): job_executions 未存 nodeName/triggerType，nodeKey/instanceId 取自父 job
+function payloadString(payload: unknown, key: string): string | null {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
+  const value = (payload as Record<string, unknown>)[key];
+  return typeof value === 'string' ? value : null;
+}
+
+/** nodeName / triggerType 由 trigger_dispatch 作业的 payload 提供，其余字段取自父作业 */
 function mapRuntimeTriggerExecution(row: { exec: typeof workflowJobExecutions.$inferSelect; job: typeof workflowJobs.$inferSelect }) {
   const { exec, job } = row;
   const status: 'running' | 'success' | 'failed' =
@@ -49,8 +55,8 @@ function mapRuntimeTriggerExecution(row: { exec: typeof workflowJobExecutions.$i
     instanceId: job.instanceId ?? 0,
     taskId: job.taskId ?? null,
     nodeKey: job.nodeKey ?? '',
-    nodeName: null as string | null,
-    triggerType: 'webhook' as WorkflowTriggerType,
+    nodeName: payloadString(job.payload, 'nodeName'),
+    triggerType: (payloadString(job.payload, 'triggerType') ?? 'webhook') as WorkflowTriggerType,
     status,
     attempt: exec.attempt,
     requestUrl: exec.requestUrl ?? null,

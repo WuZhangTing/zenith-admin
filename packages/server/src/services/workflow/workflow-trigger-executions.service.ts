@@ -1,6 +1,6 @@
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { db } from '../../db';
-import { workflowJobExecutions, workflowJobs, workflowInstances } from '../../db/schema';
+import { workflowJobExecutions, workflowJobs } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
@@ -23,7 +23,7 @@ function getPayloadString(payload: unknown, key: string): string | null {
 function mapExecutionStatus(row: TriggerExecutionRow): TriggerExecutionStatus {
   if (row.execution.status === 'succeeded') return 'success';
   if (row.execution.status === 'running') return 'running';
-  // TODO(workflow-jobs P5): approximate old "retrying" from a failed attempt whose parent job still has retry budget.
+  // 本次尝试已失败但父作业仍有重试预算 → retrying；预算耗尽才是终态 failed
   if (row.job.status === 'failed' && row.job.attempts < row.job.maxAttempts) return 'retrying';
   return 'failed';
 }
@@ -51,44 +51,6 @@ export function mapTriggerExecution(row: TriggerExecutionRow) {
     tenantId: row.execution.tenantId ?? row.job.tenantId ?? null,
     createdAt: formatDateTime(row.execution.createdAt),
   };
-}
-
-export type TriggerExecutionInsert = Partial<typeof workflowJobExecutions.$inferInsert> & {
-  instanceId?: number | null;
-  taskId?: number | null;
-  nodeKey?: string | null;
-  nodeName?: string | null;
-  triggerType?: string | null;
-};
-
-export async function insertTriggerExecution(input: TriggerExecutionInsert) {
-  const jobId = input.jobId ?? null;
-  const parentJob = jobId
-    ? (await db.select().from(workflowJobs).where(eq(workflowJobs.id, jobId)).limit(1))[0]
-    : input.taskId
-      ? (await db.select().from(workflowJobs).where(and(eq(workflowJobs.taskId, input.taskId), eq(workflowJobs.jobType, 'trigger_dispatch'))).limit(1))[0]
-      : null;
-  if (!parentJob) {
-    // TODO(workflow-jobs P5): legacy subscriber calls may not have a parent job yet; keep this as a no-op compatibility stub.
-    return null;
-  }
-  const [execution] = await db.insert(workflowJobExecutions).values({
-    jobId: parentJob.id,
-    jobType: 'trigger_dispatch',
-    attempt: input.attempt ?? parentJob.attempts,
-    status: input.status ?? 'running',
-    requestUrl: input.requestUrl ?? null,
-    requestMethod: input.requestMethod ?? null,
-    requestBody: input.requestBody ?? null,
-    responseStatus: input.responseStatus ?? null,
-    responseBody: input.responseBody ?? null,
-    errorMessage: input.errorMessage ?? null,
-    durationMs: input.durationMs ?? null,
-    tenantId: input.tenantId ?? parentJob.tenantId ?? null,
-    startedAt: input.startedAt ?? null,
-    finishedAt: input.finishedAt ?? null,
-  }).returning();
-  return execution;
 }
 
 export interface ListTriggerExecutionsParams {
@@ -141,11 +103,4 @@ export async function getTriggerExecution(id: number) {
     .limit(1);
   if (!row) throw new HTTPException(404, { message: '触发器执行记录不存在' });
   return mapTriggerExecution(row);
-}
-
-/** 从 instance 取 tenantId（用于 subscriber 内部调用，无 currentUser） */
-export async function resolveInstanceTenantId(instanceId: number): Promise<number | null> {
-  const [row] = await db.select({ tenantId: workflowInstances.tenantId })
-    .from(workflowInstances).where(eq(workflowInstances.id, instanceId)).limit(1);
-  return row?.tenantId ?? null;
 }

@@ -117,8 +117,7 @@ export async function getWorkflowAnalytics(query: { definitionId?: number } = {}
       .from(workflowInstances)
       .where(and(...instConds, inArray(workflowInstances.status, FINISHED), gte(workflowInstances.updatedAt, since14)))
       .groupBy(sql`to_char(${workflowInstances.updatedAt}, 'YYYY-MM-DD')`),
-    // 9. 已超时挂起任务数
-    // TODO(workflow-jobs P5): timeout/due-soon counts now use pending task_timeout jobs; jobs may slightly lag task state.
+    // 9. 已超时挂起任务数：仍 pending 且其 task_timeout 作业已到期未执行
     db.select({ count: sql<number>`count(*)::int` })
       .from(workflowTasks)
       .innerJoin(workflowInstances, eq(workflowTasks.instanceId, workflowInstances.id))

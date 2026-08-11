@@ -130,7 +130,7 @@ function payloadString(payload: unknown, key: string): string | null {
 function mapJobStatusToTriggerStatus(job: typeof workflowJobs.$inferSelect, execution?: typeof workflowJobExecutions.$inferSelect): WorkflowTriggerExecutionStatus {
   if (execution?.status === 'succeeded' || job.status === 'succeeded') return 'success';
   if (execution?.status === 'running' || job.status === 'running') return 'running';
-  // TODO(workflow-jobs P5): infer legacy retrying from failed jobs with retry budget, since executions only store running/succeeded/failed.
+  // 本次尝试已失败但作业仍有重试预算 → retrying；预算耗尽才是终态 failed
   if (job.status === 'failed' && job.attempts < job.maxAttempts) return 'retrying';
   if (job.status === 'pending') return 'pending';
   return 'failed';
@@ -629,7 +629,7 @@ export async function getWorkflowEngineIntrospection(
   const thresholds = await getWorkflowEngineThresholds();
   const apdexT = thresholds.apdexThresholdMs;
   // 事件处理延迟（毫秒）SQL 片段 + 「近 24h 成功且已处理」过滤片段，复用于 P95/P99/直方图/Apdex。
-  // TODO(workflow-jobs P5): event latency now approximates old processedAt-createdAt using job updatedAt-createdAt.
+  // 延迟口径：作业入库到落终态的耗时（updatedAt - createdAt）。
   const evLatency = sql`extract(epoch from (${workflowJobs.updatedAt} - ${workflowJobs.createdAt})) * 1000`;
   const evDone24h = and(eq(workflowJobs.jobType, 'event_dispatch'), eq(workflowJobs.status, 'succeeded'), gte(workflowJobs.createdAt, since24h));
   const trDone24h = and(eq(workflowJobExecutions.jobType, 'trigger_dispatch'), eq(workflowJobExecutions.status, 'succeeded'), isNotNull(workflowJobExecutions.durationMs), gte(workflowJobExecutions.createdAt, since24h));
