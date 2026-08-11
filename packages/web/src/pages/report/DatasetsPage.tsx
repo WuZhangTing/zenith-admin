@@ -8,7 +8,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { useExportJobRunner } from '@/hooks/useExportJobRunner';
-import { formatDateTime } from '@/utils/date';
+import { createdAtColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
@@ -508,7 +508,7 @@ export default function DatasetsPage() {
       render: (t: ReportDatasourceType) => renderReportDatasourceTypeTag(t),
     },
     { title: '字段数', dataIndex: 'fields', width: 80, render: (f: ReportField[]) => (f?.length ?? 0) },
-    { title: '创建时间', dataIndex: 'createdAt', width: 170, render: (t: string) => formatDateTime(t) },
+    createdAtColumn,
     {
       title: '治理提示', dataIndex: '__warnings', width: 150,
       render: (_: unknown, record) => {
