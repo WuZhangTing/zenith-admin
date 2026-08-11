@@ -107,7 +107,7 @@ export default function GovernanceSlaTab() {
     { title: '目标/预警', width: 130, render: (_v, r) => `${r.targetValue} / ${r.warningValue ?? '—'}` },
     { title: '窗口', dataIndex: 'windowMinutes', width: 100, render: (v) => `${v} 分钟` },
     { title: '调度', width: 180, render: (_v, r) => r.cron ? `${r.cron} · ${r.timezone}` : '仅手动' },
-    { title: '最近评估', dataIndex: 'lastEvaluatedAt', width: 170, render: (v) => v ? formatDateTime(v) : '—' },
+    { title: '最近评估', dataIndex: 'lastEvaluatedAt', width: 180, render: (v) => v ? formatDateTime(v) : '—' },
     {
       title: '状态', dataIndex: 'enabled', width: 90, fixed: 'right',
       render: (v) => <Tag color={v ? 'green' : 'grey'}>{v ? '启用' : '停用'}</Tag>,
@@ -132,8 +132,8 @@ export default function GovernanceSlaTab() {
     { title: '规则 ID', dataIndex: 'ruleId', width: 100 },
     { title: '数据集 ID', dataIndex: 'datasetId', width: 110 },
     { title: '观测/目标', width: 130, render: (_v, r) => `${r.observedValue} / ${r.targetValue}` },
-    { title: '窗口开始', dataIndex: 'windowStartedAt', width: 170, render: (v) => formatDateTime(v) },
-    { title: '窗口结束', dataIndex: 'windowEndedAt', width: 170, render: (v) => formatDateTime(v) },
+    { title: '窗口开始', dataIndex: 'windowStartedAt', width: 180, render: (v) => formatDateTime(v) },
+    { title: '窗口结束', dataIndex: 'windowEndedAt', width: 180, render: (v) => formatDateTime(v) },
     { title: '详情', dataIndex: 'detail', width: 230, render: (v) => v || '—' },
     { title: '状态', dataIndex: 'status', width: 110, fixed: 'right', render: (v) => <Tag color={v === 'open' ? 'red' : v === 'resolved' ? 'green' : 'orange'}>{v}</Tag> },
     createOperationColumn<ReportSlaViolation>({

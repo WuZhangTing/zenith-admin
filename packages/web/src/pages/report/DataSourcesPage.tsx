@@ -8,7 +8,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { formatDateTime } from '@/utils/date';
-import { renderEllipsis } from '@/utils/table-columns';
+import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
@@ -240,7 +240,7 @@ export default function DataSourcesPage() {
       render: renderEllipsis,
     },
     { title: '备注', dataIndex: 'remark', width: 180, render: renderEllipsis },
-    { title: '创建时间', dataIndex: 'createdAt', width: 190, render: (t: string) => formatDateTime(t) },
+    createdAtColumn,
     {
       title: '状态', dataIndex: 'status', width: 80, fixed: 'right',
       render: (_: unknown, record: ReportDatasource) => (

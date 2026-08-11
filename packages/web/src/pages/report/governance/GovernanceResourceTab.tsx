@@ -100,7 +100,7 @@ export default function GovernanceResourceTab() {
     { title: '负责人', dataIndex: 'ownerName', width: 130, render: (v) => v || '—' },
     { title: '资源数', dataIndex: 'resourceCount', width: 90, render: (v) => v ?? 0 },
     { title: '排序', dataIndex: 'sort', width: 80 },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 170, render: (v) => formatDateTime(v) },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (v) => formatDateTime(v) },
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v) => <Tag color={v === 'enabled' ? 'green' : 'grey'}>{v === 'enabled' ? '启用' : '停用'}</Tag> },
     createOperationColumn<ReportFolderTreeNode>({
       width: 150,
@@ -123,7 +123,7 @@ export default function GovernanceResourceTab() {
     { title: '主体 ID', dataIndex: 'subjectId', width: 100 },
     { title: '角色', dataIndex: 'role', width: 100, render: (v) => <Tag>{v}</Tag> },
     { title: '目录继承', dataIndex: 'inheritFromFolder', width: 100, render: (v) => v ? '是' : '否' },
-    { title: '到期时间', dataIndex: 'expiresAt', width: 170, render: (v) => v ? formatDateTime(v) : '永久' },
+    { title: '到期时间', dataIndex: 'expiresAt', width: 180, render: (v) => v ? formatDateTime(v) : '永久' },
     { title: '授权人', dataIndex: 'grantedByName', width: 120, render: (v) => v || '—' },
     createOperationColumn<ReportResourceAcl>({
       width: 90,

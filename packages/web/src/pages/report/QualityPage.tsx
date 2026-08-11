@@ -193,7 +193,7 @@ export default function QualityPage() {
     { title: '严重度', dataIndex: 'severity', width: 90, render: (v: ReportDqRule['severity']) => <Tag color={severityColor[v]}>{severityOptions.find((i) => i.value === v)?.label}</Tag> },
     { title: 'Cron', dataIndex: 'cron', width: 160, render: (v) => v || '仅手动' },
     { title: '时区', dataIndex: 'timezone', width: 130 },
-    { title: '最近运行', dataIndex: 'lastRunAt', width: 190, render: (v) => v ? formatDateTime(v) : '—' },
+    { title: '最近运行', dataIndex: 'lastRunAt', width: 180, render: (v) => v ? formatDateTime(v) : '—' },
     {
       title: '状态', dataIndex: 'enabled', width: 90, fixed: 'right',
       render: (v: boolean, r) => <Switch size="small" checked={v} disabled={!hasPermission('report:dq:update')} loading={toggleMutation.isPending && toggleMutation.variables === r.id} onChange={() => toggleMutation.mutate(r.id)} />,
@@ -222,7 +222,7 @@ export default function QualityPage() {
     { title: '检查/失败行', width: 140, render: (_v, r) => `${r.checkedRows} / ${r.failedRows}` },
     { title: '通过率', dataIndex: 'passRate', width: 110, render: (v) => formatDqPassRate(v) },
     { title: '耗时', dataIndex: 'durationMs', width: 100, render: (v) => v == null ? '—' : `${v}ms` },
-    { title: '开始时间', dataIndex: 'startedAt', width: 190, render: (v) => v ? formatDateTime(v) : '—' },
+    { title: '开始时间', dataIndex: 'startedAt', width: 180, render: (v) => v ? formatDateTime(v) : '—' },
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v: ReportDqRunStatus) => <Tag color={runStatusColor[v]}>{dqRunStatusLabel(v)}</Tag> },
   ];
   const anomalyColumns: ColumnProps<ReportDqAnomaly>[] = [
@@ -231,7 +231,7 @@ export default function QualityPage() {
     { title: '规则 ID', dataIndex: 'ruleId', width: 100, render: (v) => v || '—' },
     { title: '严重度', dataIndex: 'severity', width: 90, render: (v: ReportDqAnomaly['severity']) => <Tag color={severityColor[v]}>{v}</Tag> },
     { title: '详情', dataIndex: 'detail', width: 260, render: renderEllipsis },
-    { title: '发现时间', dataIndex: 'createdAt', width: 190, render: (v) => formatDateTime(v) },
+    { title: '发现时间', dataIndex: 'createdAt', width: 180, render: (v) => formatDateTime(v) },
     { title: '状态', dataIndex: 'status', width: 110, fixed: 'right', render: (v) => <Tag>{v}</Tag> },
     createOperationColumn<ReportDqAnomaly>({
       width: 150,
@@ -255,7 +255,7 @@ export default function QualityPage() {
     { title: '通过', dataIndex: 'passedRules', width: 90 },
     { title: '失败', dataIndex: 'failedRules', width: 90 },
     { title: '维度明细', dataIndex: 'dimensions', width: 260, render: (v) => JSON.stringify(v) },
-    { title: '测量时间', dataIndex: 'measuredAt', width: 190, render: (v) => formatDateTime(v) },
+    { title: '测量时间', dataIndex: 'measuredAt', width: 180, render: (v) => formatDateTime(v) },
   ];
 
   const datasetFilter = <Select placeholder="选择数据集" filter showClear value={datasetId} optionList={datasetOptions} style={{ width: 190 }} onChange={(v) => setDatasetId(v as number | undefined)} />;

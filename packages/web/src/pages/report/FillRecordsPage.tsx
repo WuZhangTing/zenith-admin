@@ -223,8 +223,8 @@ export default function FillRecordsPage() {
         </Button>
       ) : '—',
     },
-    { title: '提交时间', dataIndex: 'submittedAt', width: 170, render: (value: string | null) => value ? formatDateTime(value) : '—' },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 170, render: (value: string) => formatDateTime(value) },
+    { title: '提交时间', dataIndex: 'submittedAt', width: 180, render: (value: string | null) => value ? formatDateTime(value) : '—' },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (value: string) => formatDateTime(value) },
     {
       title: '状态',
       dataIndex: 'status',

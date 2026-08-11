@@ -8,8 +8,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { ShareModal, VersionModal } from './components/DashboardOpsModals';
-import { formatDateTime } from '@/utils/date';
-import { renderEllipsis } from '@/utils/table-columns';
+import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import type { ReportDashboard, ReportWidget } from '@zenith/shared/report';
@@ -196,7 +195,7 @@ export default function DashboardListPage() {
     { title: '目录', dataIndex: 'folderName', width: 140, render: (v: string | null) => v || '—' },
     { title: '组件数', dataIndex: 'widgets', width: 80, render: (w: ReportWidget[]) => (w?.length ?? 0) },
     { title: '备注', dataIndex: 'remark', width: 180, render: renderEllipsis },
-    { title: '创建时间', dataIndex: 'createdAt', width: 170, render: (t: string) => formatDateTime(t) },
+    createdAtColumn,
     { title: '治理提示', dataIndex: '__warnings', width: 90, render: (_: unknown, record) => deprecatedIds.has(record.id) ? <Tag color="red" size="small">已弃用</Tag> : '—' },
     { title: '生命周期', dataIndex: 'lifecycleStatus', width: 90, fixed: 'right', render: (value: ReportDashboard['lifecycleStatus']) => lifecycleTag(value) },
     { title: '状态', dataIndex: 'status', width: 70, fixed: 'right', render: (s: string) => s === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag color="grey" size="small">停用</Tag> },

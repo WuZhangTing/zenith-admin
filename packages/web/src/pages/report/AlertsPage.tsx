@@ -287,7 +287,7 @@ export default function AlertsPage() {
         </Tooltip>
       ),
     },
-    { title: '下次执行', dataIndex: 'nextRunAt', width: 170, render: (value: string | null) => value || '—' },
+    { title: '下次执行', dataIndex: 'nextRunAt', width: 180, render: (value: string | null) => value || '—' },
     { title: '时区', dataIndex: 'timezone', width: 120, render: (value: string) => value || '—' },
     { title: '错过策略', dataIndex: 'misfirePolicy', width: 110, render: (value: string) => REPORT_MISFIRE_POLICY_OPTIONS.find((item) => item.value === value)?.label ?? value },
     {
@@ -522,8 +522,8 @@ export default function AlertsPage() {
             { title: '类型', dataIndex: 'triggerType', width: 90 },
             { title: '状态', dataIndex: 'status', width: 90, render: (value: string) => <Tag color={value === 'success' ? 'green' : value === 'failed' ? 'red' : value === 'partial' ? 'orange' : value === 'pending' ? 'blue' : 'grey'}>{REPORT_DELIVERY_STATUS_LABELS[value as keyof typeof REPORT_DELIVERY_STATUS_LABELS] ?? value}</Tag> },
             { title: '值', dataIndex: 'lastValue', width: 80, render: (value: number | null) => value ?? '—' },
-            { title: '开始时间', dataIndex: 'startedAt', width: 170, render: (value: string | null) => value || '—' },
-            { title: '完成时间', dataIndex: 'completedAt', width: 170, render: (value: string | null) => value || '—' },
+            { title: '开始时间', dataIndex: 'startedAt', width: 180, render: (value: string | null) => value || '—' },
+            { title: '完成时间', dataIndex: 'completedAt', width: 180, render: (value: string | null) => value || '—' },
             { title: '确认', dataIndex: 'acknowledgedAt', width: 200, render: (_: unknown, record: ReportDeliveryRun) => record.acknowledgedAt ? `${record.acknowledgedAt}${record.acknowledgedByName ? ` · ${record.acknowledgedByName}` : ''}` : '未确认' },
             { title: '错误', dataIndex: 'errorMessage', width: 220, render: renderEllipsis },
             {

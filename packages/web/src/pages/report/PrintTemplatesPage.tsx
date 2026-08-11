@@ -9,8 +9,7 @@ import AppModal from '@/components/AppModal';
 import { useExportJobRunner } from '@/hooks/useExportJobRunner';
 import ReportParamDialog from '@/components/ReportParamDialog';
 import { buildReportParamInitialValues } from '@/components/report-param-utils';
-import { formatDateTime } from '@/utils/date';
-import { renderEllipsis } from '@/utils/table-columns';
+import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useReportDesignerDatasets } from '@/hooks/queries/report-designer';
@@ -196,7 +195,7 @@ export default function PrintTemplatesPage() {
     { title: '负责人', dataIndex: 'ownerName', width: 120, render: (v: string | null) => v || '—' },
     { title: '目录', dataIndex: 'folderName', width: 140, render: (v: string | null) => v || '—' },
     { title: '备注', dataIndex: 'remark', width: 200, render: renderEllipsis },
-    { title: '创建时间', dataIndex: 'createdAt', width: 170, render: (t: string) => formatDateTime(t) },
+    createdAtColumn,
     {
       title: '状态', dataIndex: 'status', width: 80, fixed: 'right',
       render: (_: unknown, record: ReportPrintTemplate) => (

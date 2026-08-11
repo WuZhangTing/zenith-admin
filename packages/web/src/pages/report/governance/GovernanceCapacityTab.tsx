@@ -127,7 +127,7 @@ export default function GovernanceCapacityTab() {
     { title: '行数', dataIndex: 'rowCount', width: 100 },
     { title: '字节', dataIndex: 'byteSize', width: 110 },
     { title: '成本', dataIndex: 'costUnits', width: 100 },
-    { title: '时间', dataIndex: 'occurredAt', width: 170, render: (v) => formatDateTime(v) },
+    { title: '时间', dataIndex: 'occurredAt', width: 180, render: (v) => formatDateTime(v) },
     { title: '状态', dataIndex: 'success', width: 90, fixed: 'right', render: (v) => <Tag color={v ? 'green' : 'red'}>{v ? '成功' : '失败'}</Tag> },
   ];
   const trendColumns: ColumnProps<ReportQueryCostTrendPoint>[] = [

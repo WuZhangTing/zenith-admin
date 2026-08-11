@@ -129,10 +129,10 @@ export default function SubscriptionsPage() {
     { title: 'Cron', dataIndex: 'cron', width: 130 },
     { title: '时区', dataIndex: 'timezone', width: 140 },
     { title: '错过策略', dataIndex: 'misfirePolicy', width: 110, render: (value: string) => REPORT_MISFIRE_POLICY_OPTIONS.find((item) => item.value === value)?.label ?? value },
-    { title: '下次执行', dataIndex: 'nextRunAt', width: 170, render: (value: string | null) => value || '—' },
+    { title: '下次执行', dataIndex: 'nextRunAt', width: 180, render: (value: string | null) => value || '—' },
     { title: '通道', dataIndex: 'channels', width: 170, render: (ch: string[]) => (ch ?? []).map((c) => <Tag key={c} size="small" color={c === 'email' ? 'blue' : c === 'webhook' ? 'purple' : 'green'} style={{ marginRight: 4 }}>{NOTIFY_CHANNEL_LABELS[c.toLowerCase() as NotifyChannel] ?? c}</Tag>) },
     { title: '收件邮箱', dataIndex: 'recipients', width: 200, render: renderEllipsis },
-    { title: '上次推送', dataIndex: 'lastRunAt', width: 170, render: (v: string) => v || '—' },
+    { title: '上次推送', dataIndex: 'lastRunAt', width: 180, render: (v: string) => v || '—' },
     {
       title: '最近投递',
       dataIndex: 'lastDeliveryStatus',
@@ -224,9 +224,9 @@ export default function SubscriptionsPage() {
           columns={[
             { title: '触发方式', dataIndex: 'triggerType', width: 90 },
             { title: '状态', dataIndex: 'status', width: 90, render: (value: string) => <Tag color={deliveryStatusColorMap[value] ?? 'grey'}>{REPORT_DELIVERY_STATUS_LABELS[value as keyof typeof REPORT_DELIVERY_STATUS_LABELS] ?? value}</Tag> },
-            { title: '开始时间', dataIndex: 'startedAt', width: 170, render: (value: string | null) => value || '—' },
-            { title: '完成时间', dataIndex: 'completedAt', width: 170, render: (value: string | null) => value || '—' },
-            { title: '下次重试', dataIndex: 'nextRetryAt', width: 170, render: (value: string | null) => value || '—' },
+            { title: '开始时间', dataIndex: 'startedAt', width: 180, render: (value: string | null) => value || '—' },
+            { title: '完成时间', dataIndex: 'completedAt', width: 180, render: (value: string | null) => value || '—' },
+            { title: '下次重试', dataIndex: 'nextRetryAt', width: 180, render: (value: string | null) => value || '—' },
             { title: '错误', dataIndex: 'errorMessage', width: 220, render: renderEllipsis },
           ] as ColumnProps<ReportDeliveryRun>[]}
           pagination={false}
