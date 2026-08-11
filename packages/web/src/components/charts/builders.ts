@@ -1,9 +1,12 @@
 import type {
   IAreaChartSpec,
   IBarChartSpec,
+  ICircularProgressChartSpec,
   ICommonChartSpec,
+  IFunnelChartSpec,
   ILineChartSpec,
   IPieChartSpec,
+  IRadarChartSpec,
   ISankeyChartSpec,
   IScatterChartSpec,
   ITreemapChartSpec,
@@ -871,6 +874,248 @@ export function makeScatterSpec(o: ScatterOptions): Partial<IScatterChartSpec> {
               })),
             }
           : {}),
+      },
+    },
+  };
+}
+
+// ────────────────────────── 仪表盘（半环进度） ──────────────────────────
+
+/** 仪表盘内部字段名：数据由本模块合成，用固定字段避免与业务字段撞名 */
+const GAUGE_CATEGORY_FIELD = '__gaugeCategory';
+const GAUGE_VALUE_FIELD = '__gaugeValue';
+
+export interface GaugeOptions {
+  readonly value: number;
+  readonly palette: ChartPalette;
+  /** 量程下界，默认 0 */
+  readonly min?: number;
+  /** 量程上界，默认 100；不大于 min 时回退为 min + 100 */
+  readonly max?: number;
+  /** 进度色，缺省取主题主色 */
+  readonly color?: string;
+  /** 轨道色，缺省取 fill1 */
+  readonly trackColor?: string;
+  readonly outerRadius?: number;
+  readonly innerRadius?: number;
+  /** 中心指标：主标题通常是格式化后的数值 */
+  readonly indicator?: { readonly title: string; readonly subtitle?: string };
+  readonly indicatorTitleFontSize?: number;
+  /** tooltip 指标名，默认「数值」 */
+  readonly tooltipKey?: string;
+  /** tooltip 数值格式化，收到的是原始值而非比例 */
+  readonly valueFormatter?: (value: number) => string;
+}
+
+/**
+ * 半环仪表盘。
+ *
+ * VChart 极坐标 -90° 指向 12 点、顺时针递增，因此 -180°→0° 正好是「左 → 上 → 右」的上半环。
+ * 底层用 `circularProgress`：语义就是「单值占量程的比例」，比 `gauge` 少了指针与刻度轴，
+ * 在报表小尺寸卡片里更清晰，也与既有看板的视觉保持一致。
+ */
+export function makeGaugeSpec(o: GaugeOptions): Partial<ICircularProgressChartSpec> {
+  const { palette } = o;
+  const min = o.min ?? 0;
+  const rawMax = o.max ?? 100;
+  const max = rawMax > min ? rawMax : min + 100;
+  // 必须夹紧：越界值会画出超过半环的弧盖住轨道，负值则反向绘制
+  const ratio = Math.min(1, Math.max(0, (o.value - min) / (max - min)));
+  const color = o.color ?? palette.primary;
+  const valueFmt = o.valueFormatter ?? compactCount;
+
+  const spec = {
+    type: 'circularProgress',
+    background: 'transparent',
+    animation: true,
+    data: [{ id: 'gauge', values: [{ [GAUGE_CATEGORY_FIELD]: 'value', [GAUGE_VALUE_FIELD]: ratio }] }],
+    categoryField: GAUGE_CATEGORY_FIELD,
+    valueField: GAUGE_VALUE_FIELD,
+    seriesField: GAUGE_CATEGORY_FIELD,
+    outerRadius: o.outerRadius ?? 0.86,
+    innerRadius: o.innerRadius ?? 0.68,
+    startAngle: -180,
+    endAngle: 0,
+    roundCap: true,
+    clamp: true,
+    color: [color],
+    progress: { style: { fill: color } },
+    track: { style: { fill: o.trackColor ?? palette.fill1 } },
+    axes: [
+      { orient: 'angle', visible: false },
+      { orient: 'radius', visible: false },
+    ],
+    tooltip: {
+      ...makeCommonTooltip(palette),
+      mark: {
+        title: { visible: false },
+        content: [{ key: o.tooltipKey ?? '数值', value: () => valueFmt(o.value) }],
+      },
+    },
+    ...(o.indicator
+      ? {
+          indicator: {
+            visible: true,
+            // 半环的视觉重心在上半部，指标上移才不会压住弧线底边
+            offsetY: '-8%',
+            title: {
+              visible: true,
+              autoLimit: true,
+              style: { text: o.indicator.title, fill: palette.text0, fontSize: o.indicatorTitleFontSize ?? 24, fontWeight: 700 },
+            },
+            content: o.indicator.subtitle
+              ? [{ visible: true, style: { text: o.indicator.subtitle, fill: palette.text2, fontSize: 12 } }]
+              : [],
+          },
+        }
+      : {}),
+  } satisfies Partial<ICircularProgressChartSpec>;
+
+  return spec;
+}
+
+// ────────────────────────── 漏斗图 ──────────────────────────
+
+export interface FunnelOptions {
+  readonly data: readonly unknown[];
+  readonly categoryField: string;
+  readonly valueField: string;
+  readonly palette: ChartPalette;
+  /** 自定义配色（按层顺序），缺省取调色板 */
+  readonly colors?: readonly string[];
+  /** 层形状：梯形（默认）或矩形 */
+  readonly shape?: 'trapezoid' | 'rect';
+  /** 显示层间转化率，默认 true */
+  readonly transform?: boolean;
+  readonly legend?: boolean;
+  /** tooltip / 标签数值格式化 */
+  readonly valueFormatter?: (value: number) => string;
+  /** tooltip 指标名，默认「数值」 */
+  readonly tooltipKey?: string;
+}
+
+/** 漏斗图：层内显示数值，层外右侧显示阶段名，层间可显示转化率。 */
+export function makeFunnelSpec(o: FunnelOptions): Partial<IFunnelChartSpec> {
+  const { palette, categoryField, valueField } = o;
+  const colors = o.colors ? [...o.colors] : palette.dataColors;
+  const valueFmt = o.valueFormatter ?? compactCount;
+  const transform = o.transform ?? true;
+
+  return {
+    type: 'funnel',
+    background: 'transparent',
+    animation: true,
+    data: [{ id: 'funnel', values: [...(o.data as readonly Record<string, unknown>[])] }],
+    categoryField,
+    valueField,
+    shape: o.shape ?? 'trapezoid',
+    isTransform: transform,
+    gap: 4,
+    maxSize: '85%',
+    minSize: '25%',
+    color: colors,
+    label: {
+      visible: true,
+      style: { fill: '#fff', fontSize: 12, fontWeight: 600 },
+      formatMethod: (_text: unknown, datum?: ChartDatum) => valueFmt(datumNumber(datum, valueField)),
+    },
+    outerLabel: {
+      visible: true,
+      position: 'right',
+      style: { fill: palette.text1, fontSize: 12 },
+      formatMethod: (_text: unknown, datum?: ChartDatum) => datumText(datum, categoryField),
+      line: { style: { stroke: palette.border } },
+    },
+    transformLabel: {
+      visible: transform,
+      style: { fill: palette.text2, fontSize: 11 },
+    },
+    legends: o.legend
+      ? { visible: true, orient: 'bottom', position: 'middle', item: { label: { style: { fill: palette.text1, fontSize: 12 } } } }
+      : { visible: false },
+    tooltip: {
+      ...makeCommonTooltip(palette),
+      mark: {
+        title: { value: (datum?: ChartDatum) => datumText(datum, categoryField) },
+        content: [{ key: o.tooltipKey ?? '数值', value: (datum?: ChartDatum) => valueFmt(datumNumber(datum, valueField)) }],
+      },
+    },
+  };
+}
+
+// ────────────────────────── 雷达图 ──────────────────────────
+
+export interface RadarOptions {
+  readonly data: readonly unknown[];
+  /** 维度字段（角度轴） */
+  readonly categoryField: string;
+  /** 指标字段（半径轴） */
+  readonly valueField: string;
+  readonly palette: ChartPalette;
+  /** 多系列字段；省略则为单系列 */
+  readonly seriesField?: string;
+  readonly colors?: readonly string[];
+  readonly outerRadius?: number;
+  /** 填充面积，默认 true */
+  readonly area?: boolean;
+  /** 图例，默认仅多系列时显示 */
+  readonly legend?: boolean;
+  /** 半径轴上界，缺省由数据自适应 */
+  readonly max?: number;
+  /** tooltip 数值格式化 */
+  readonly valueFormatter?: (value: number) => string;
+  /** tooltip 指标名，默认「数值」 */
+  readonly tooltipKey?: string;
+}
+
+/** 雷达图：支持单系列与多系列（seriesField），网格与标签跟随主题。 */
+export function makeRadarSpec(o: RadarOptions): Partial<IRadarChartSpec> {
+  const { palette, categoryField, valueField } = o;
+  const colors = o.colors ? [...o.colors] : palette.dataColors;
+  const valueFmt = o.valueFormatter ?? compactCount;
+  const showLegend = o.legend ?? Boolean(o.seriesField);
+
+  return {
+    type: 'radar',
+    background: 'transparent',
+    animation: true,
+    data: [{ id: 'radar', values: [...(o.data as readonly Record<string, unknown>[])] }],
+    categoryField,
+    valueField,
+    ...(o.seriesField ? { seriesField: o.seriesField } : {}),
+    outerRadius: o.outerRadius ?? 0.75,
+    color: colors,
+    line: { style: { lineWidth: 2 } },
+    point: { visible: true, style: { size: 5 } },
+    area: { visible: o.area ?? true, style: { fillOpacity: 0.25 } },
+    axes: [
+      {
+        orient: 'radius',
+        type: 'linear',
+        zero: true,
+        ...(o.max == null ? {} : { max: o.max }),
+        grid: { visible: true, smooth: true, style: { stroke: palette.border, lineWidth: 1 } },
+        domainLine: { visible: false },
+        tick: { visible: false },
+        label: { visible: false },
+      },
+      {
+        orient: 'angle',
+        type: 'band',
+        grid: { visible: true, style: { stroke: palette.border, lineWidth: 1 } },
+        domainLine: { visible: false },
+        tick: { visible: false },
+        label: { visible: true, space: 8, style: { fill: palette.text2, fontSize: 11 } },
+      },
+    ],
+    legends: showLegend
+      ? { visible: true, orient: 'bottom', position: 'middle', item: { label: { style: { fill: palette.text1, fontSize: 12 } } } }
+      : { visible: false },
+    tooltip: {
+      ...makeCommonTooltip(palette),
+      mark: {
+        title: { value: (datum?: ChartDatum) => datumText(datum, categoryField) },
+        content: [{ key: o.tooltipKey ?? '数值', value: (datum?: ChartDatum) => valueFmt(datumNumber(datum, valueField)) }],
       },
     },
   };

@@ -6,7 +6,9 @@ import type { ISpec } from '@visactor/vchart';
 import { HeatmapChart, LiquidChart, SankeyChart, VChart as VChartReact, WordCloudChart } from '@visactor/react-vchart';
 import {
   BarChart, LineChart, AreaChart, PieChart, ScatterChart, TreemapChart, CommonChart,
+  CircularProgressChart, FunnelChart, RadarChart,
   makeBarSpec, makeLineSpec, makeAreaSpec, makePieSpec, makeScatterSpec, makeTreemapSpec, makeMixedBarLineSpec,
+  makeGaugeSpec, makeFunnelSpec, makeRadarSpec,
   useChartPalette, chartOptions, type ChartPalette,
 } from '@/components/charts';
 import { aggregateReportRows, formatReportFieldValue } from '@zenith/shared/report';
@@ -376,24 +378,6 @@ export function WidgetRenderer({
       return <PivotView rows={rows} o={o} />;
     }
 
-    // 仪表盘 gauge
-    if (widget.type === 'gauge') {
-      const value = aggregateReportRows(rawRows, o.valueField, o.aggregate ?? 'sum');
-      return <Gauge value={value} min={o.min ?? 0} max={o.max ?? 100} unit={o.unit} decimals={o.decimals} />;
-    }
-
-    // 漏斗
-    if (widget.type === 'funnel') {
-      if (!o.categoryField || !o.valueFields?.[0]) return <EmptyHint text="请配置分类字段与指标字段" />;
-      return <Funnel rows={rows} cat={o.categoryField} val={o.valueFields[0]} onClick={interactive ? handleCat : undefined} />;
-    }
-
-    // 雷达
-    if (widget.type === 'radar') {
-      if (!o.categoryField || !o.valueFields?.[0]) return <EmptyHint text="请配置分类字段与指标字段" />;
-      return <Radar rows={rows} cat={o.categoryField} val={o.valueFields[0]} />;
-    }
-
     if (width === 0 || height === 0) return <div style={{ height: '100%' }} />;
 
     if (widget.type === 'liquid') {
@@ -424,6 +408,23 @@ export function WidgetRenderer({
       );
     }
 
+    // 仪表盘：半环进度 + 中心指标，随容器尺寸自适应
+    if (widget.type === 'gauge') {
+      const value = aggregateReportRows(rawRows, o.valueField, o.aggregate ?? 'sum');
+      const spec = makeGaugeSpec({
+        value,
+        palette,
+        min: o.min,
+        max: o.max,
+        indicator: {
+          title: `${fmtNumber(value, o.decimals)}${o.unit ?? ''}`,
+          subtitle: `${fmtNumber(o.min ?? 0, 0)} ~ ${fmtNumber(o.max ?? 100, 0)}`,
+        },
+        valueFormatter: (v) => `${fmtNumber(v, o.decimals)}${o.unit ?? ''}`,
+      });
+      return <CircularProgressChart spec={spec as ISpec} options={chartOptions} height={chartHeight} />;
+    }
+
     const onChartClick = interactive
       ? (p: unknown) => {
           const datum = (p as { datum?: Record<string, unknown> })?.datum;
@@ -431,6 +432,55 @@ export function WidgetRenderer({
           if (v != null) handleCat(String(v));
         }
       : undefined;
+
+    // 漏斗图
+    if (widget.type === 'funnel') {
+      if (!o.categoryField || !o.valueFields?.[0]) return <EmptyHint text="请配置分类字段与指标字段" />;
+      const valueField = o.valueFields[0];
+      const funnelData = rows.map((r) => ({
+        [o.categoryField as string]: String(r[o.categoryField as string] ?? ''),
+        [valueField]: toNumber(r[valueField]),
+      }));
+      const spec = applyChartTooltipFormatter(
+        makeFunnelSpec({
+          data: funnelData,
+          categoryField: o.categoryField,
+          valueField,
+          palette,
+          valueFormatter: (v) => fmtNumber(v, o.decimals, o.prefix, o.unit),
+        }) as Record<string, unknown>,
+        dataFieldMap,
+        formatValueByField,
+        o.categoryField,
+        [valueField],
+      );
+      return <FunnelChart {...spec} options={chartOptions} height={chartHeight} onClick={onChartClick} />;
+    }
+
+    // 雷达图
+    if (widget.type === 'radar') {
+      if (!o.categoryField || !o.valueFields?.[0]) return <EmptyHint text="请配置分类字段与指标字段" />;
+      if (rows.length < 3) return <EmptyHint text="雷达图需要至少 3 个维度" />;
+      const valueField = o.valueFields[0];
+      const radarData = rows.map((r) => ({
+        [o.categoryField as string]: String(r[o.categoryField as string] ?? ''),
+        [valueField]: toNumber(r[valueField]),
+      }));
+      const spec = applyChartTooltipFormatter(
+        makeRadarSpec({
+          data: radarData,
+          categoryField: o.categoryField,
+          valueField,
+          palette,
+          valueFormatter: (v) => fmtNumber(v, o.decimals, o.prefix, o.unit),
+        }) as Record<string, unknown>,
+        dataFieldMap,
+        formatValueByField,
+        o.categoryField,
+        [valueField],
+      );
+      return <RadarChart {...spec} options={chartOptions} height={chartHeight} onClick={onChartClick} />;
+    }
 
     // 饼图
     if (widget.type === 'pie') {
@@ -940,70 +990,6 @@ function Sparkline({ values }: { readonly values: number[] }) {
     <svg width={w} height={h} style={{ marginTop: 4 }}>
       <polyline points={pts} fill="none" stroke="var(--semi-color-primary)" strokeWidth={1.5} />
     </svg>
-  );
-}
-
-function Gauge({ value, min, max, unit, decimals }: { readonly value: number; readonly min: number; readonly max: number; readonly unit?: string; readonly decimals?: number }) {
-  const frac = Math.max(0, Math.min(1, (value - min) / (max - min || 1)));
-  const r = 70, cx = 90, cy = 90;
-  const a0 = Math.PI, a1 = Math.PI * (1 - frac);
-  const arc = (start: number, end: number) => {
-    const x0 = cx + r * Math.cos(start), y0 = cy - r * Math.sin(start);
-    const x1 = cx + r * Math.cos(end), y1 = cy - r * Math.sin(end);
-    const large = Math.abs(end - start) > Math.PI ? 1 : 0;
-    return `M ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1}`;
-  };
-  return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-      <svg width={180} height={110} viewBox="0 0 180 110">
-        <path d={arc(a0, 0)} fill="none" stroke="var(--semi-color-fill-1)" strokeWidth={12} strokeLinecap="round" />
-        <path d={arc(a0, a1)} fill="none" stroke="var(--semi-color-primary)" strokeWidth={12} strokeLinecap="round" />
-        <text x={cx} y={cy - 10} textAnchor="middle" fontSize={22} fontWeight={700} fill="var(--semi-color-text-0)">{fmtNumber(value, decimals)}{unit ?? ''}</text>
-      </svg>
-    </div>
-  );
-}
-
-function Funnel({ rows, cat, val, onClick }: { readonly rows: Record<string, unknown>[]; readonly cat: string; readonly val: string; readonly onClick?: (v: string) => void }) {
-  const sorted = [...rows].sort((a, b) => toNumber(b[val]) - toNumber(a[val]));
-  const max = toNumber(sorted[0]?.[val]) || 1;
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: 4, height: '100%', justifyContent: 'center' }}>
-      {sorted.map((r, i) => {
-        const v = toNumber(r[val]); const pct = (v / max) * 100;
-        return (
-          <div key={i} onClick={onClick ? () => onClick(String(r[cat] ?? '')) : undefined} style={{ cursor: onClick ? 'pointer' : 'default' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--semi-color-text-1)' }}>
-              <span>{String(r[cat] ?? '')}</span><span>{fmtNumber(v)}</span>
-            </div>
-            <div style={{ margin: '2px auto', width: `${Math.max(8, pct)}%`, height: 18, background: `var(--semi-color-primary)`, opacity: 0.4 + 0.6 * (pct / 100), borderRadius: 'var(--semi-border-radius-small)' }} />
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function Radar({ rows, cat, val }: { readonly rows: Record<string, unknown>[]; readonly cat: string; readonly val: string }) {
-  const n = rows.length;
-  if (n < 3) return <EmptyHint text="雷达图需要至少 3 个维度" />;
-  const cx = 110, cy = 105, R = 80;
-  const max = Math.max(...rows.map((r) => toNumber(r[val]))) || 1;
-  const point = (i: number, frac: number) => {
-    const ang = (Math.PI * 2 * i) / n - Math.PI / 2;
-    return [cx + R * frac * Math.cos(ang), cy + R * frac * Math.sin(ang)];
-  };
-  const poly = rows.map((r, i) => point(i, toNumber(r[val]) / max).join(',')).join(' ');
-  const grid = [0.33, 0.66, 1].map((f) => rows.map((_, i) => point(i, f).join(',')).join(' '));
-  return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-      <svg width={220} height={210}>
-        {grid.map((g, i) => <polygon key={i} points={g} fill="none" stroke="var(--semi-color-border)" strokeWidth={1} />)}
-        {rows.map((_, i) => { const [x, y] = point(i, 1); return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="var(--semi-color-border)" strokeWidth={1} />; })}
-        <polygon points={poly} fill="var(--semi-color-primary)" fillOpacity={0.3} stroke="var(--semi-color-primary)" strokeWidth={1.5} />
-        {rows.map((r, i) => { const [x, y] = point(i, 1.12); return <text key={i} x={x} y={y} textAnchor="middle" fontSize={10} fill="var(--semi-color-text-2)">{String(r[cat] ?? '')}</text>; })}
-      </svg>
-    </div>
   );
 }
 

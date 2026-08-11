@@ -17,8 +17,11 @@ setupVChartSemiTheme();
 export {
   AreaChart,
   BarChart,
+  CircularProgressChart,
+  FunnelChart,
   LineChart,
   PieChart,
+  RadarChart,
   SankeyChart,
   ScatterChart,
   TreemapChart,
@@ -30,8 +33,11 @@ export {
 export type {
   IAreaChartSpec,
   IBarChartSpec,
+  ICircularProgressChartSpec,
+  IFunnelChartSpec,
   ILineChartSpec,
   IPieChartSpec,
+  IRadarChartSpec,
   ISankeyChartSpec,
   IScatterChartSpec,
   ITreemapChartSpec,
@@ -72,6 +78,9 @@ export {
   makeSankeySpec,
   makeScatterSpec,
   makeTreemapSpec,
+  makeGaugeSpec,
+  makeFunnelSpec,
+  makeRadarSpec,
   type LineAreaOptions,
   type BarOptions,
   type PieOptions,
@@ -82,6 +91,9 @@ export {
   type ScatterOptions,
   type TreemapNode,
   type TreemapOptions,
+  type GaugeOptions,
+  type FunnelOptions,
+  type RadarOptions,
 } from './builders';
 
 // 空状态占位
