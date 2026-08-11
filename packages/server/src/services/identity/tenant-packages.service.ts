@@ -133,7 +133,7 @@ export async function updateTenantPackage(id: number, data: Partial<TenantPackag
     const [row] = await db.update(tenantPackages).set(data).where(eq(tenantPackages.id, id)).returning();
     if (!row) throw new HTTPException(404, { message: '套餐不存在' });
     // 套餐状态（启用/禁用）影响绑定租户的白名单解析（禁用=fail-closed），清空权限缓存即时生效
-    clearUserPermissionCache();
+    await clearUserPermissionCache();
     return getTenantPackage(id);
   } catch (err: unknown) {
     rethrowPgUniqueViolation(err, '套餐名称已存在');
@@ -146,7 +146,7 @@ export async function assignTenantPackageMenus(id: number, menuIds: number[]) {
     await setPackageMenus(tx, id, menuIds);
   });
   // 套餐菜单变更会影响绑定该套餐的租户用户的有效菜单/权限，清空权限缓存使其即时生效。
-  clearUserPermissionCache();
+  await clearUserPermissionCache();
 }
 
 export async function deleteTenantPackage(id: number) {

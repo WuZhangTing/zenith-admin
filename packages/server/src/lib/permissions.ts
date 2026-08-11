@@ -172,14 +172,13 @@ async function fetchUserPermissionData(userId: number): Promise<{ permissions: s
 
 /**
  * 清除用户权限缓存（Redis 主存储 + 本地降级缓存）。
- * 保持同步签名以兼容既有调用点；Redis 删除为 fire-and-forget（mock/实现均在同步段
- * 先行发出 DEL，实际竞态窗口仅为网络往返，撤权关键路径另有会话撤销兜底）。
+ * 等待 Redis 删除完成，确保调用方返回时撤权已生效。
  */
-export function clearUserPermissionCache(userId?: number): void {
+export async function clearUserPermissionCache(userId?: number): Promise<void> {
   if (userId === undefined) {
     localCache.clear();
   } else {
     localCache.delete(userId);
   }
-  void clearRedisPermCache(userId).catch(() => {});
+  await clearRedisPermCache(userId).catch(() => {});
 }

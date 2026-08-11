@@ -155,7 +155,7 @@ export function resetHttpCircuitBreakers(): void {
 }
 
 // ── Header redaction ──────────────────────────────────────────────────────────
-// redactHeaders 已统一在 http-logger.ts 中实现，此处提供兼容包装
+// 把 HeadersInit 的三种形态归一为普通对象后，复用 http-logger.ts 的统一脱敏实现
 
 function headerEntries(h: HeadersInit): Iterable<[string, string]> {
   if (h instanceof Headers) return h.entries();

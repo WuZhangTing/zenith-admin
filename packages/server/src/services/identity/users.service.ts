@@ -493,7 +493,7 @@ export async function updateUser(id: number, data: UpdateUserInput) {
   });
   if (!updated) throw new HTTPException(404, { message: '用户不存在' });
   if (nextRoleIds !== undefined) {
-    clearUserPermissionCache(id);
+    await clearUserPermissionCache(id);
     if (hadPlatformSuper && !(await userHasPlatformSuperRole(id))) {
       await revokeUserSessions([id]);
     }
@@ -792,7 +792,7 @@ export async function assignUserMenus(userId: number, menuIds: number[]) {
       await tx.insert(userMenus).values(uniqueMenuIds.map((menuId) => ({ userId, menuId })));
     }
   });
-  clearUserPermissionCache(userId);
+  await clearUserPermissionCache(userId);
 }
 
 export async function assignRolesToUser(userId: number, roleIds: number[]) {
@@ -805,7 +805,7 @@ export async function assignRolesToUser(userId: number, roleIds: number[]) {
   await db.transaction(async (tx) => {
     await setUserRoles(tx, userId, uniqueRoleIds);
   });
-  clearUserPermissionCache(userId);
+  await clearUserPermissionCache(userId);
   if (hadPlatformSuper && !(await userHasPlatformSuperRole(userId))) {
     await revokeUserSessions([userId]);
   }
@@ -921,7 +921,7 @@ export async function updateUserDataPermission(userId: number, data: { dataScope
       await tx.insert(userDeptScopes).values(data.deptScopeIds.map((deptId) => ({ userId, deptId })));
     }
   });
-  clearUserPermissionCache(userId);
+  await clearUserPermissionCache(userId);
 }
 
 export async function getUserEffectivePermissions(userId: number) {

@@ -173,7 +173,7 @@ export async function updateUserGroup(id: number, input: UpdateUserGroupInput) {
     // 组状态切换影响成员继承权限的生效性，清成员缓存即时生效
     if (input.status !== undefined) {
       const members = await db.select({ userId: userGroupMembers.userId }).from(userGroupMembers).where(eq(userGroupMembers.groupId, id));
-      for (const m of members) clearUserPermissionCache(m.userId);
+      await Promise.all(members.map((m) => clearUserPermissionCache(m.userId)));
     }
     return getUserGroup(row.id);
   } catch (err) {
@@ -289,7 +289,7 @@ export async function setGroupMembers(groupId: number, userIds: number[]) {
     }
   });
   // 组可能绑定角色：成员进出影响其继承权限，前后成员均需清缓存
-  for (const uid of new Set([...previous.map((r) => r.userId), ...userIds])) clearUserPermissionCache(uid);
+  await Promise.all([...new Set([...previous.map((r) => r.userId), ...userIds])].map((uid) => clearUserPermissionCache(uid)));
 }
 
 export async function addGroupMembers(groupId: number, userIds: number[]) {
@@ -303,7 +303,7 @@ export async function addGroupMembers(groupId: number, userIds: number[]) {
   const toAdd = userIds.filter(id => !exists.has(id));
   if (toAdd.length > 0) {
     await db.insert(userGroupMembers).values(toAdd.map(uid => ({ groupId, userId: uid })));
-    for (const uid of toAdd) clearUserPermissionCache(uid);
+    await Promise.all(toAdd.map((uid) => clearUserPermissionCache(uid)));
   }
 }
 
@@ -312,7 +312,7 @@ export async function removeGroupMembers(groupId: number, userIds: number[]) {
   if (userIds.length === 0) return;
   await db.delete(userGroupMembers)
     .where(and(eq(userGroupMembers.groupId, groupId), inArray(userGroupMembers.userId, userIds)));
-  for (const uid of userIds) clearUserPermissionCache(uid);
+  await Promise.all(userIds.map((uid) => clearUserPermissionCache(uid)));
 }
 
 // ─── 角色管理 ────────────────────────────────────────────────────────────────
@@ -347,7 +347,7 @@ export async function setGroupRoles(groupId: number, roleIds: number[]) {
   });
   // 组内所有成员的权限受影响，清缓存即时生效
   const members = await db.select({ userId: userGroupMembers.userId }).from(userGroupMembers).where(eq(userGroupMembers.groupId, groupId));
-  for (const m of members) clearUserPermissionCache(m.userId);
+  await Promise.all(members.map((m) => clearUserPermissionCache(m.userId)));
 }
 
 export async function getUserGroupRolesBeforeAudit(groupId: number) {

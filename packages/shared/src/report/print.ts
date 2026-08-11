@@ -1382,21 +1382,6 @@ function normalizeSheets(
   }];
 }
 
-/**
- * 兼容旧接口：单 sheet 直接返回填充后的完整网格。
- */
-export function fillPrintGrid(grid: ReportPrintGrid, rows: Row[], params: Record<string, unknown> = {}): ReportPrintGrid {
-  const data = Array.isArray(rows) ? rows : [];
-  const datasetContext = buildDatasetContext(data);
-  const rendered = renderVerticalSheet(
-    { id: 'sheet-01', name: 'Sheet1', grid, pageConfig: { detailDirection: 'vertical' } },
-    data,
-    params,
-    datasetContext,
-  );
-  return rendered.grid;
-}
-
 export function renderPrintContent(
   name: string,
   content: ReportPrintContent | undefined,

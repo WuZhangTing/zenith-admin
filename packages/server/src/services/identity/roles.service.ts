@@ -172,7 +172,7 @@ export async function updateRole(id: number, data: Partial<CreateRoleInput>) {
       await syncRoleDeptScopes(tx, id, deptScopeIds);
     }
     // 角色状态/属性变更影响权限解析结果（禁用角色即时失权），清空权限缓存
-    clearUserPermissionCache();
+    await clearUserPermissionCache();
     return mapRole(role, undefined, deptScopeIds ?? undefined);
   });
 }
@@ -214,7 +214,7 @@ export async function assignRoleMenus(id: number, menuIds: number[]) {
       await tx.insert(roleMenus).values(menuIds.map((menuId) => ({ roleId: id, menuId })));
     }
   });
-  clearUserPermissionCache();
+  await clearUserPermissionCache();
 }
 
 export async function getRoleUsers(id: number) {
@@ -257,7 +257,7 @@ export async function assignRoleUsers(id: number, userIds: number[]) {
       await tx.insert(userRoles).values(uniqueUserIds.map((userId) => ({ userId, roleId: id })));
     }
   });
-  clearUserPermissionCache();
+  await clearUserPermissionCache();
   if (removedUserIds.length > 0) {
     try {
       await forceLogoutAllByUsers(removedUserIds);

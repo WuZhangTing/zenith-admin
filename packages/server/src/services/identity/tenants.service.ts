@@ -225,7 +225,7 @@ export async function updateTenant(id: number, data: Partial<TenantInput>) {
   const [row] = await db.update(tenants).set(values).where(eq(tenants.id, id)).returning();
   if (!row) throw new HTTPException(404, { message: '租户不存在' });
   // 租户套餐变更会影响该租户下用户的有效菜单/权限，清空权限缓存使其即时生效。
-  if ('packageId' in data) clearUserPermissionCache();
+  if ('packageId' in data) await clearUserPermissionCache();
   return getTenant(id);
 }
 

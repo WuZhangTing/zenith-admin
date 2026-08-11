@@ -1,6 +1,6 @@
 /**
  * 类 Excel 打印报表模板 Service
- * CRUD + 取数渲染（复用数据集取数 + shared 填充引擎 fillPrintGrid）。
+ * CRUD + 取数渲染（复用数据集取数 + shared 填充引擎 renderPrintContent）。
  */
 import { HTTPException } from 'hono/http-exception';
 import { and, desc, eq, inArray } from 'drizzle-orm';
