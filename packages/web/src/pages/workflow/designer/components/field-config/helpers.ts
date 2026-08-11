@@ -153,9 +153,6 @@ export function deriveOptionItems(field: WorkflowFormField): WorkflowFormFieldOp
 
 // ─── dateRange → 天数 联动配置 ────────────────────────────────────
 
-/** 展平所有层级字段（分栏列/分组/明细子字段/标签页与分步面板），供条件与联动选择器使用 */
-export const collectFlat = flattenAllFields;
-
 // ─── select 联动赋值：选中某选项时自动填充其它字段 ──────────────────
 
 export const AUTOFILL_EXCLUDE = new Set<WorkflowFormFieldType>(['row', 'group', 'divider', 'description', 'detail', 'tabs', 'steps', 'matrix', 'location', 'attachment', 'image', 'signature']);

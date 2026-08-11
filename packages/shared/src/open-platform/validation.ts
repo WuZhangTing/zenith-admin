@@ -56,11 +56,9 @@ export const updateOAuth2ClientSchema = partialForUpdate(oauth2ClientBaseSchema)
 
 const developerOAuth2ClientCreateSchema = oauth2ClientCreateSchema.omit({ ratePlanId: true });
 
-const developerOAuth2ClientUpdateSchema = oauth2ClientBaseSchema.omit({ ratePlanId: true }).partial();
+export const updateDeveloperOAuth2ClientSchema = oauth2ClientBaseSchema.omit({ ratePlanId: true }).partial();
 
 export const createDeveloperOAuth2ClientSchema = developerOAuth2ClientCreateSchema.superRefine(validateOAuth2Client);
-
-export const updateDeveloperOAuth2ClientSchema = developerOAuth2ClientUpdateSchema;
 
 export type CreateOAuth2ClientInput = z.infer<typeof createOAuth2ClientSchema>;
 

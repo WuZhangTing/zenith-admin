@@ -845,15 +845,12 @@ export interface ReportDashboardSnapshot {
   remark?: string | null;
 }
 
-/** 仪表盘版本快照内容 */
-export type ReportDashboardVersionSnapshot = ReportDashboardSnapshot;
-
 /** 仪表盘版本 */
 export interface ReportDashboardVersion {
   id: number;
   dashboardId: number;
   version: number;
-  snapshot: ReportDashboardVersionSnapshot;
+  snapshot: ReportDashboardSnapshot;
   source: ReportDashboardVersionSource;
   remark?: string | null;
   createdBy?: number | null;

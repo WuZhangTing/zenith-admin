@@ -135,7 +135,7 @@ function navFromTree(tree: CmsChannel[], baseUrl: string): CmsNavItem[] {
   return walk(tree);
 }
 
-function mergeSeo(site: CmsSiteRow, overrides: Partial<CmsSeo> & { pathForCanonical?: string }): CmsSeo {
+export function mergeSeo(site: CmsSiteRow, overrides: Partial<CmsSeo> & { pathForCanonical?: string }): CmsSeo {
   const origin = siteOrigin(site);
   const settings = (site.settings ?? {}) as Record<string, unknown>;
   const siteTitle = site.title?.trim() || site.name;
@@ -176,8 +176,6 @@ function mergeSeo(site: CmsSiteRow, overrides: Partial<CmsSeo> & { pathForCanoni
     jsonLd: overrides.jsonLd ?? null,
   };
 }
-
-export { mergeSeo as mergeCmsSeo };
 
 async function buildBaseContext(site: CmsSiteRow, baseUrl: string, seo: CmsSeo, analyticsContentId?: number): Promise<CmsBaseContext> {
   const [tree, friendLinks, friendLinkGroups, ads, langAlternates] = await Promise.all([

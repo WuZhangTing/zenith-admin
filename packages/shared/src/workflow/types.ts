@@ -2179,16 +2179,13 @@ export interface WorkflowEngineEventBusSnapshot {
   listeners: Array<{ eventType: WorkflowEventType | '__any__'; listenerCount: number }>;
 }
 
-/** 工作流引擎诊断视角的系统调度任务（与任务中心共用基础字段） */
-export type WorkflowEngineSystemSchedulerTask = SystemSchedulerTaskBase;
-
 export interface WorkflowEngineSchedulerSnapshot {
   initialized: boolean;
   runningJobCount: number;
   node: { id: string; hostname: string; pid: number };
   registeredHandlers: string[];
-  systemRecurringJobs: Array<WorkflowEngineSystemSchedulerTask & { taskType: 'recurring'; cronExpression: string }>;
-  systemQueueWorkers: Array<WorkflowEngineSystemSchedulerTask & { taskType: 'queue'; cronExpression: null; allowManualRun: false }>;
+  systemRecurringJobs: Array<SystemSchedulerTaskBase & { taskType: 'recurring'; cronExpression: string }>;
+  systemQueueWorkers: Array<SystemSchedulerTaskBase & { taskType: 'queue'; cronExpression: null; allowManualRun: false }>;
   wip: Array<{ name: string; count: number }>;
 }
 

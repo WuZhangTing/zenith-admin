@@ -2,7 +2,8 @@
 import { Input, Select, Typography, TagInput, RadioGroup, Radio } from '@douyinfe/semi-ui';
 import type { WorkflowFormField } from '@zenith/shared/workflow';
 import { useWorkflowDesignerDataSourceOptions } from '@/hooks/queries/workflow-designer';
-import { AUTOFILL_EXCLUDE, collectFlat, createsCascadeCycle } from './helpers';
+import { flattenAllFields } from '../../form-tree';
+import { AUTOFILL_EXCLUDE, createsCascadeCycle } from './helpers';
 
 export function DateRangeLinkageEditor({
   field, allFields, onChange,
@@ -11,7 +12,7 @@ export function DateRangeLinkageEditor({
   allFields: WorkflowFormField[];
   onChange: (updates: Partial<WorkflowFormField>) => void;
 }>) {
-  const rangeFields = collectFlat(allFields).filter(f => f.type === 'dateRange' && f.key !== field.key);
+  const rangeFields = flattenAllFields(allFields).filter(f => f.type === 'dateRange' && f.key !== field.key);
   if (rangeFields.length === 0) return null;
   return (
     <div className="fd-form-config__field">
@@ -92,7 +93,7 @@ export function AutoFillEditor({
   allFields: WorkflowFormField[];
   onChange: (updates: Partial<WorkflowFormField>) => void;
 }>) {
-  const flat = collectFlat(allFields);
+  const flat = flattenAllFields(allFields);
   const options = (field.options ?? []).filter(Boolean);
   const candidates = flat.filter((f) => f.key !== field.key && !AUTOFILL_EXCLUDE.has(f.type));
   const current = field.autoFill;
@@ -209,7 +210,7 @@ export function CascadeEditor({
   allFields: WorkflowFormField[];
   onChange: (updates: Partial<WorkflowFormField>) => void;
 }>) {
-  const flatFields = collectFlat(allFields);
+  const flatFields = flattenAllFields(allFields);
   const parentCandidates = flatFields.filter(
     f => (f.type === 'select') && f.key !== field.key && (f.options?.length ?? 0) > 0,
   );

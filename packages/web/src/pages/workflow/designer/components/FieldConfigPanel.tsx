@@ -7,7 +7,8 @@ import { Input } from '@douyinfe/semi-ui';
 import { Search } from 'lucide-react';
 import type { WorkflowFormField } from '@zenith/shared/workflow';
 import { FORM_FIELD_TYPES } from '../form-types';
-import { collectFlat, CONDITION_FIELD_TYPES } from './field-config/helpers';
+import { flattenAllFields } from '../form-tree';
+import { CONDITION_FIELD_TYPES } from './field-config/helpers';
 import { getFieldTypeFlags } from './field-config/field-type-flags';
 import { BasicInfoSection } from './field-config/BasicInfoSection';
 import { TypeSpecificSection } from './field-config/TypeSpecificSection';
@@ -33,7 +34,7 @@ export default function FieldConfigPanel({
   const [activeSection, setActiveSection] = useState<'basic' | 'validation' | 'visibility'>('basic');
   const [configQuery, setConfigQuery] = useState('');
   const fieldInfo = FORM_FIELD_TYPES.find(t => t.type === field.type);
-  const flatFields = useMemo(() => collectFlat(allFields), [allFields]);
+  const flatFields = useMemo(() => flattenAllFields(allFields), [allFields]);
 
   // select 选项来源模式（静态/远程）：以显式状态跟踪，避免「无可用数据源时切换不生效」
   const [isRemoteSource, setIsRemoteSource] = useState(field.dataSourceId != null);

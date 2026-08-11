@@ -8,7 +8,8 @@ import { KeywordSearchToolbar } from '@/components/KeywordSearchToolbar';
 import WorkflowLaunchForm, { type WorkflowLaunchFormHandle } from '@/components/workflow/WorkflowLaunchForm';
 import WorkflowSideSheet from '@/components/workflow/WorkflowSideSheet';
 import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
-import { useLaunchWorkflowInstance, useLaunchableWorkflowDefinitions } from '@/hooks/queries/workflow-launch';
+import { useLaunchWorkflowInstance } from '@/hooks/queries/workflow-launch';
+import { usePublishedWorkflowDefinitions } from '@/hooks/queries/workflow-definitions';
 import { workflowDefinitionKeys } from '@/hooks/queries/workflow-definitions';
 
 const UNCATEGORIZED = -1;
@@ -23,7 +24,7 @@ export default function WorkflowLaunchpadPage() {
   const launchFormRef = useRef<WorkflowLaunchFormHandle>(null);
   const [applyVisible, setApplyVisible] = useState(false);
   const [selectedDef, setSelectedDef] = useState<WorkflowDefinition | null>(null);
-  const definitionsQuery = useLaunchableWorkflowDefinitions();
+  const definitionsQuery = usePublishedWorkflowDefinitions();
   const launchMutation = useLaunchWorkflowInstance();
   const draftMutation = useLaunchWorkflowInstance();
   const definitions = useMemo(() => definitionsQuery.data ?? [], [definitionsQuery.data]);

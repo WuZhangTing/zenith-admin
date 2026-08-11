@@ -1,6 +1,7 @@
 import { http } from 'msw';
 import { ok, notFound } from '@/mocks/utils/handlers';
-import { mockAiProviders, getNextProviderId, mockAiDateTime as mockDateTime } from '@/mocks/data/ai';
+import { mockAiProviders, getNextProviderId } from '@/mocks/data/ai';
+import { mockDateTime } from '@/mocks/utils/date';
 import type { AiProvider, AiProviderConfig } from '@zenith/shared/ai';
 
 const store = [...mockAiProviders];

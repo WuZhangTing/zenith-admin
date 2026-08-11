@@ -199,4 +199,3 @@ let nextMsgId = 10;
 export function getNextProviderId() { return nextProviderId++; }
 export function getNextConvId() { return nextConvId++; }
 export function getNextMsgId() { return nextMsgId++; }
-export { mockDateTime as mockAiDateTime } from '@/mocks/utils/date';

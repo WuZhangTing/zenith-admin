@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { ok, badRequest, notFound, pageParams } from '@/mocks/utils/handlers';
-import { mockAiConversations, mockAiMessages, getNextConvId, getNextMsgId, mockAiDateTime as mockDateTime } from '@/mocks/data/ai';
+import { mockAiConversations, mockAiMessages, getNextConvId, getNextMsgId } from '@/mocks/data/ai';
+import { mockDateTime } from '@/mocks/utils/date';
 import type { AiConversation, AiMessage } from '@zenith/shared/ai';
 
 const convStore: AiConversation[] = [...mockAiConversations];

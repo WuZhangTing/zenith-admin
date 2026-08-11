@@ -5,7 +5,7 @@ import type { CmsSiteRow } from '../../db/schema';
 import type { CmsBaseContext } from '../../cms/themes/types';
 import { Layout as DefaultLayout } from '../../cms/themes/default/Layout';
 import { Layout as DocsLayout } from '../../cms/themes/docs';
-import { mergeCmsSeo } from './cms-render.service';
+import { mergeSeo } from './cms-render.service';
 
 const site = {
   id: 1,
@@ -23,7 +23,7 @@ const site = {
 
 describe('CMS social SEO rendering behavior', () => {
   it('renders complete OG/article/Twitter metadata in default and docs themes', () => {
-    const seo = mergeCmsSeo(site, {
+    const seo = mergeSeo(site, {
       title: '文章标题',
       description: '文章摘要',
       pathForCanonical: '/news/demo.html',
