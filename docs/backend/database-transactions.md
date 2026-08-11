@@ -44,7 +44,7 @@ const created = await db.transaction(async (tx) => {
 });
 ```
 
-> `setUserRoles` / `setUserPositions` 等辅助函数的签名为 `(executor: DbExecutor, ...)` ，既可在事务内传 `tx`，也可直接传 `db`（见[模式三](#模式三辅助函数接受-dbexecutor推荐用于可复用的写操作)）。
+> `setUserRoles` / `setUserPositions` 等辅助函数的签名为 `(executor: DbExecutor, ...)` ，既可在事务内传 `tx`，也可直接传 `db`（见[模式三](#模式三-辅助函数接受-dbexecutor-推荐用于可复用的写操作)）。
 
 ### 模式二：replace 模式（先删后插）
 

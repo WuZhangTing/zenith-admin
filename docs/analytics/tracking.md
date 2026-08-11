@@ -117,7 +117,7 @@ SDK 内置轻量实验客户端：
 - `fetchExperimentAssignments(keys?)`：调用公开端点 `GET /api/analytics/experiments/assignments`（匿名可带 `?distinctId=`，同样拒绝伪造 `u:` / `m:` 前缀）获取运行中实验的分流结果，localStorage 缓存 5 分钟（`zenith_tracker_exp_assignments`）。
 - `getVariant(expKey)`：返回命中的变体 key（未命中参与流量时为 `null`），命中时自动上报 `$experiment_exposure` 曝光事件；同一会话内同一 `expKey + variantKey` 只上报一次（sessionStorage 去重）。
 
-实验配置、分流算法与报告口径见 [行为分析 · A/B 实验](./behavior#ab-实验最小闭环)。
+实验配置、分流算法与报告口径见 [行为分析 · A/B 实验](./behavior#a-b-实验最小闭环)。
 
 ## 可靠性
 

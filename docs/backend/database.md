@@ -124,7 +124,7 @@ like(users.username, `%${keyword}%`)
 
 ### 通用审计字段（`created_by` / `updated_by`）
 
-带审计字段的业务表均通过 schema 中的 [`auditColumns()`](../../packages/server/src/db/schema/core.ts) 展开 `created_by` / `updated_by` 两列（指向 `users.id`，`ON DELETE SET NULL`）。赋值由 [`db/index.ts`](../../packages/server/src/db/index.ts) 的 Proxy 统一拦截：
+带审计字段的业务表均通过 schema 中的 [`auditColumns()`](https://github.com/iwangbowen/zenith-admin/blob/master/packages/server/src/db/schema/core.ts) 展开 `created_by` / `updated_by` 两列（指向 `users.id`，`ON DELETE SET NULL`）。赋值由 [`db/index.ts`](https://github.com/iwangbowen/zenith-admin/blob/master/packages/server/src/db/index.ts) 的 Proxy 统一拦截：
 
 - **读取顺序**：`overrideStore`（`runAsUser()` 包裹）→ 请求上下文中的当前用户（`auth` 中间件设置）→ `null`。
 - **拦截点**：`db.insert(t).values(d)` / `db.update(t).set(d)` / `db.insert(t).values(d).onConflictDoUpdate({set})` 及其在 `db.transaction()` 中的子事务版本。
