@@ -5,11 +5,7 @@ export type WorkflowDetailDefinition = WorkflowDefinition | WorkflowDefinitionSn
 export function normalizeWorkflowFormSnapshot(
   snapshot: WorkflowInstance['formSnapshot'],
 ): WorkflowInstanceFormSnapshot | null {
-  if (!snapshot) return null;
-  if (Array.isArray(snapshot)) {
-    return { fields: snapshot, settings: null };
-  }
-  if (typeof snapshot !== 'object') return null;
+  if (!snapshot || typeof snapshot !== 'object') return null;
   const value = snapshot as Partial<WorkflowInstanceFormSnapshot>;
   return {
     formType: value.formType,

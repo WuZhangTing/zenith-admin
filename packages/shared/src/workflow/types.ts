@@ -968,7 +968,7 @@ export interface WorkflowCustomFormConfig {
   variables?: WorkflowCustomFormVariable[];
 }
 
-/** 实例发起时冻结的表单快照；兼容旧数据中直接存 WorkflowFormField[] 的形态 */
+/** 实例发起时冻结的表单快照 */
 export interface WorkflowInstanceFormSnapshot {
   formType?: WorkflowFormType;
   formId?: number | null;
@@ -1367,7 +1367,7 @@ export interface WorkflowInstance {
   allowComment?: boolean;
   formData: Record<string, unknown> | null;
   /** 发起时的表单结构快照（冻结历史，渲染只读/审批表单时使用） */
-  formSnapshot?: WorkflowFormField[] | WorkflowInstanceFormSnapshot | null;
+  formSnapshot?: WorkflowInstanceFormSnapshot | null;
   /** 发起时的流程定义快照（详情场景返回） */
   definitionSnapshot?: WorkflowDefinitionSnapshot | null;
   status: WorkflowInstanceStatus;

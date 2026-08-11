@@ -1,9 +1,25 @@
-import type { WorkflowDefinition, WorkflowDefinitionVersion, WorkflowInstance, WorkflowTask, WorkflowFormField } from '@zenith/shared/workflow';
+import type { WorkflowDefinition, WorkflowDefinitionVersion, WorkflowInstance, WorkflowTask, WorkflowFormField, WorkflowInstanceFormSnapshot } from '@zenith/shared/workflow';
 import { mockWorkflowForms } from './workflow-forms';
 
+/** 流程定义版本的派生字段：表单字段数组 */
 function cloneWorkflowFormFields(formId: number | null | undefined): WorkflowFormField[] | null {
   const fields = mockWorkflowForms.find((form) => form.id === formId)?.schema?.fields ?? null;
   return fields ? JSON.parse(JSON.stringify(fields)) as WorkflowFormField[] : null;
+}
+
+/** 与服务端 buildInstanceFormSnapshot 同构：实例发起时冻结的表单快照 */
+function buildMockFormSnapshot(formId: number | null | undefined): WorkflowInstanceFormSnapshot | null {
+  const form = mockWorkflowForms.find((item) => item.id === formId);
+  const fields = cloneWorkflowFormFields(formId);
+  if (!fields) return null;
+  return {
+    formType: 'designer',
+    formId: form?.id ?? null,
+    formName: form?.name ?? null,
+    fields,
+    settings: form?.schema?.settings ?? null,
+    customForm: null,
+  };
 }
 
 // ─── 流程定义 ──────────────────────────────────────────────────────────────
@@ -463,7 +479,7 @@ export const mockWorkflowInstances: WorkflowInstance[] = [
     definitionName: '请假申请',
     title: '张三的请假申请 - 年假 3 天',
     formData: { leaveType: '年假', leaveDates: ['2026-03-16', '2026-03-18'], startDate: '2026-03-16', endDate: '2026-03-18', days: 3, reason: '家庭事务处理' },
-    formSnapshot: cloneWorkflowFormFields(1),
+    formSnapshot: buildMockFormSnapshot(1),
     status: 'approved',
     currentNodeKey: null,
     initiatorId: 1,
@@ -480,7 +496,7 @@ export const mockWorkflowInstances: WorkflowInstance[] = [
     definitionName: '费用报销',
     title: '张三的差旅报销申请 - ¥1,280',
     formData: { expenseType: '差旅费', amount: 1280, totalAmount: 1280, occurDate: '2026-03-25', description: '出差上海参加技术峰会', receipts: [] },
-    formSnapshot: cloneWorkflowFormFields(2),
+    formSnapshot: buildMockFormSnapshot(2),
     status: 'running',
     currentNodeKey: 'approve_2',
     initiatorId: 1,
@@ -497,7 +513,7 @@ export const mockWorkflowInstances: WorkflowInstance[] = [
     definitionName: '请假申请',
     title: '王五的请假申请 - 病假 2 天',
     formData: { leaveType: '病假', leaveDates: ['2026-04-03', '2026-04-04'], startDate: '2026-04-03', endDate: '2026-04-04', days: 2, reason: '感冒发烧就医' },
-    formSnapshot: cloneWorkflowFormFields(1),
+    formSnapshot: buildMockFormSnapshot(1),
     status: 'running',
     currentNodeKey: 'approve_1',
     initiatorId: 3,
@@ -514,7 +530,7 @@ export const mockWorkflowInstances: WorkflowInstance[] = [
     definitionName: '费用报销',
     title: '王五的市内交通费报销 - ¥420',
     formData: { expenseType: '交通费', amount: 420, totalAmount: 420, occurDate: '2026-06-23', description: '客户拜访打车费用', receipts: [] },
-    formSnapshot: cloneWorkflowFormFields(2),
+    formSnapshot: buildMockFormSnapshot(2),
     status: 'running',
     currentNodeKey: 'approve_2',
     initiatorId: 3,
@@ -531,7 +547,7 @@ export const mockWorkflowInstances: WorkflowInstance[] = [
     definitionName: '费用报销',
     title: '赵六的团队建设费用报销 - ¥1,500',
     formData: { expenseType: '团建费', amount: 1500, totalAmount: 1500, occurDate: '2026-06-20', description: '部门季度团建聚餐', receipts: [] },
-    formSnapshot: cloneWorkflowFormFields(2),
+    formSnapshot: buildMockFormSnapshot(2),
     status: 'running',
     currentNodeKey: 'approve_2',
     initiatorId: 4,
@@ -548,7 +564,7 @@ export const mockWorkflowInstances: WorkflowInstance[] = [
     definitionName: '费用报销',
     title: '李四的办公用品采购报销 - ¥3,600',
     formData: { expenseType: '办公用品', amount: 3600, totalAmount: 3600, occurDate: '2026-03-20', description: '采购员工工位设备', receipts: [] },
-    formSnapshot: cloneWorkflowFormFields(2),
+    formSnapshot: buildMockFormSnapshot(2),
     status: 'rejected',
     currentNodeKey: null,
     initiatorId: 2,
@@ -566,7 +582,7 @@ export const mockWorkflowInstances: WorkflowInstance[] = [
     definitionName: '请假申请',
     title: '张三的差旅报销申请 - ¥1,280 / 用印子流程',
     formData: { leaveType: '用印', reason: '差旅报销用印审批', days: 1 },
-    formSnapshot: cloneWorkflowFormFields(1),
+    formSnapshot: buildMockFormSnapshot(1),
     status: 'running',
     currentNodeKey: 'approve_1',
     initiatorId: 1,

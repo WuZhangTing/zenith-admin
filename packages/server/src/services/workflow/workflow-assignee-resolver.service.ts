@@ -394,15 +394,8 @@ export async function resolveAssigneeIds(
   ctx: ResolveAssigneeContext,
 ): Promise<number[]> {
   const exec = ctx.executor ?? db;
-  const type: WorkflowAssigneeType | undefined = node.assigneeType;
-
-  // 兼容旧数据：未声明 assigneeType 时，回退 assigneeId / assigneeIds
-  if (!type) {
-    const fallback = new Set<number>();
-    if (typeof node.assigneeId === 'number') fallback.add(node.assigneeId);
-    if (node.assigneeIds?.length) node.assigneeIds.forEach((id) => fallback.add(id));
-    return [...fallback];
-  }
+  const type = node.assigneeType;
+  if (!type) return [];
 
   const result = new Set<number>();
   // 惰性部门树：仅在走到部门相关分支时才真正查询；批量解析可由调用方通过 ctx 复用

@@ -95,7 +95,7 @@ export function mapInstance(
     allowResubmit: snapshotSettings?.allowResubmit !== false,
     allowComment: snapshotSettings?.allowComment !== false,
     formData: row.formData,
-    formSnapshot: (row.formSnapshot ?? null) as WorkflowFormField[] | WorkflowInstanceFormSnapshot | null,
+    formSnapshot: normalizeStoredFormSnapshot(row.formSnapshot),
     status: row.status,
     currentNodeKey: row.currentNodeKey,
     currentNodeKeys,
@@ -139,11 +139,7 @@ function resolveNodeNameFromSnapshot(snapshot: WorkflowDefinitionSnapshot | null
 }
 
 function normalizeStoredFormSnapshot(snapshot: unknown): WorkflowInstanceFormSnapshot | null {
-  if (!snapshot) return null;
-  if (Array.isArray(snapshot)) {
-    return { fields: snapshot as WorkflowFormField[], settings: null };
-  }
-  if (typeof snapshot !== 'object') return null;
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return null;
   const value = snapshot as Partial<WorkflowInstanceFormSnapshot>;
   return {
     formType: value.formType,
