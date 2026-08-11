@@ -4,7 +4,7 @@
 
 ::: tip 硬性约束不在本页
 「必须用哪个组件、哪些写法被禁止」这类可机械核对的规则，统一维护在
-[`.agents/skills/zenith/references/constraints.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints.md)，
+[`.agents/skills/zenith/references/constraints-frontend.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints-frontend.md)，
 可直接复制的完整页面模板在
 [`crud-frontend.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/crud-frontend.md)。
 规范只有一个来源，本页只讲**设计取向**和**去哪查**。
@@ -14,19 +14,20 @@
 
 | 你要做的事 | 去哪查 |
 | --- | --- |
-| 列表页搜索区、表格、操作列、状态列必须用什么 | `constraints.md` → 前端层（Step 8） |
+| 列表页搜索区、表格、操作列、状态列必须用什么 | `constraints-frontend.md` → 搜索栏与表格 |
 | 上面这些具体怎么写（含结构化 `SearchToolbar`、移动端覆盖） | `crud-frontend.md` → 完整页面模板 |
-| 弹窗表单：必须加 `labelPosition="left"` / `closeOnEsc` | `constraints.md` → 前端层（Step 8） |
-| 弹窗表单：`labelWidth` 取值与单列 / 双列怎么选 | `crud-frontend.md` → 弹窗表单布局规范 |
-| 查询 / 重置 / 新增 / 刷新按钮 | `constraints.md` → 搜索栏公共按钮；API 见 [组件文档](/frontend/components#toolbar-controls-查询-重置-新增-刷新按钮) |
+| 弹窗表单：必须加 `labelPosition="left"` / `closeOnEsc` | `constraints-frontend.md` → 表单与展示组件 |
+| 弹窗表单：`labelWidth` 取值与单列 / 双列怎么选 | `crud-frontend.md` → 弹窗表单布局 |
+| 查询 / 重置 / 新增 / 刷新按钮 | `constraints-frontend.md` → 搜索栏与表格；API 见 [组件文档](/frontend/components#toolbar-controls-查询-重置-新增-刷新按钮) |
 | 关键字输入 / 状态下拉 / 时间范围等筛选控件 | [组件文档 → search-filters](/frontend/components#search-filters-关键字-状态-时间范围筛选)；仅关键字的列表页可直接用 `KeywordSearchToolbar` |
-| 时间格式、分页格式、图标库 | `constraints.md` → 全局章节 |
-| 完整列表页代码模板（域 hooks、批量操作、虚拟化表格、左右分栏、左侧平铺列表） | `crud-frontend.md` |
-| mutation 失效粒度、query key 结构、能否回填详情 | `crud-frontend.md` → 缓存一致性契约 |
-| 枚举标签从哪来（字典 / shared constants） | `constraints.md` → 枚举标签统一来源 |
+| 时间格式、分页格式、图标库 | `constraints.md` → 全局约束 |
+| 完整列表页代码模板（域 hooks、批量操作） | `crud-frontend.md` |
+| 多 Tab、左右分栏、左侧平铺列表、统计卡、栅格、虚拟化表格 | `ui-patterns.md` |
+| mutation 失效粒度、query key 结构、能否回填详情 | `query-cache.md` → 缓存一致性契约 |
+| 枚举标签从哪来（字典 / shared constants） | `constraints-frontend.md` → 表单与展示组件 |
 
-> 分工是固定的：**`constraints.md` 只写「必须 / 禁止」这类一句话可核对的断言，
-> `crud-frontend.md` 写代码怎么落地**。查约束去前者，查写法去后者。
+> 分工是固定的：**`constraints*.md` 只写「必须 / 禁止」这类一句话可核对的断言，
+> 主题文件写代码怎么落地**。查约束去前者，查写法去后者。
 
 ## 页面设计原则
 

@@ -78,7 +78,7 @@ const columns = [
 
 > 列表页必须用 `ConfigurableTable`（带 `bordered`）而非裸 `Table`、操作列必须经 `createOperationColumn` 创建、
 > 必须传 `onRefresh` / `refreshLoading` —— 这些硬性约束见
-> [`constraints.md` → 前端层](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints.md)。
+> [`constraints-frontend.md` → 搜索栏与表格](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints-frontend.md)。
 
 ---
 
@@ -184,7 +184,7 @@ import { Select } from '@douyinfe/semi-ui';
 - 移动端不要把页面导航、筛选项和顶部常用功能混在一起：筛选属于当前列表页，应放进底部筛选抽屉
 
 > 移动端露出哪些入口、按钮文案与 `type` 怎么定，属于硬性约束，见
-> [`constraints.md` → 搜索栏布局](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints.md)。
+> [`constraints-frontend.md` → 搜索栏与表格](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints-frontend.md)。
 
 ---
 
@@ -217,7 +217,7 @@ import { CreateButton, RefreshButton, ResetButton, SearchButton } from '@/compon
 将来只想调整其中一个时被同一次改动误伤。
 
 > 哪些按钮必须用这四个组件、哪两类情况应保持原生 `Button`，见
-> [`constraints.md` → 搜索栏公共按钮](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints.md)。
+> [`constraints-frontend.md` → 搜索栏与表格](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints-frontend.md)。
 
 ---
 

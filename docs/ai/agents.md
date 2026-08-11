@@ -33,6 +33,7 @@
 | 路由文件放在哪个目录？认证中间件是哪个？ | `AGENTS.md` 架构总览 |
 | Redis key 前缀是什么？文件存储怎么切换？ | `AGENTS.md` 子系统速查 |
 | 新写一个路由该长什么样？响应怎么构造？ | skill：`constraints.md` + `crud-backend.md` |
+| 新写一个列表页该长什么样？失效怎么写？ | skill：`constraints-frontend.md` + `query-cache.md` + `crud-frontend.md` |
 | 完整实现一个 CRUD 模块？ | skill：`SKILL.md` Step 0-11 |
 
 ## 维护约定

@@ -1,118 +1,120 @@
 # 修改现有模块流程
 
-当需要修改已有模块时（而非从零创建），按以下场景选择对应的 checklist。
+修改已有模块（而非从零创建）时，按场景选择步骤序列。Step 编号沿用
+[SKILL.md](../SKILL.md) 的 CRUD 流程，代码模板见对应主题文件。
 
-> **占位符约定**：`xxx` = 小写（表名、API 路径、文件名）；`Xxx` = 大驼峰（TypeScript 类型、组件名）。
+改完按[修改后的验证清单](#修改后的验证清单)自检。
 
 ---
 
-## 场景 1：给现有模块添加新字段
+## 场景 1：添加新字段
 
-### 后端
+**后端**
 
-1. **Schema**（Step 1）：在 `packages/server/src/db/schema/` 对应业务域文件的 `xxxs` 表中添加新字段
+1. **Schema**（Step 1）：在 `db/schema/{业务域}.ts` 的 `xxxs` 表中添加字段
 2. **迁移**（Step 2）：`npm run db:generate && npm run db:migrate`
-3. **Zod Schema**（Step 3）：在 `packages/shared/src/{业务域}/validation.ts` 的 `createXxxSchema` 和 `updateXxxSchema` 中添加新字段
-4. **TS Interface**（Step 4）：在 `packages/shared/src/{业务域}/types.ts` 的 `Xxx` 接口中添加新字段
-5. **DTO**（Step 6）：在 `packages/server/src/lib/dtos/xxx.ts` 的 `XxxDTO` 中添加新字段
-6. **Service mapXxx**（Step 5）：在 `mapXxx()` 函数中映射新字段
-7. **Service 写入逻辑**（Step 5）：在 `createXxx()` / `updateXxx()` 中处理新字段的写入
+3. **Zod Schema**（Step 3）：在 `shared/src/{业务域}/validation.ts` 的 `createXxxSchema` 中添加
+   （`updateXxxSchema` 由 `.partial()` 自动派生）
+4. **TS Interface**（Step 4）：在 `shared/src/{业务域}/types.ts` 的 `Xxx` 接口中添加
+5. **DTO**（Step 6）：在 `lib/dtos/xxxs.ts` 的 `XxxDTO` 中添加
+6. **Service**（Step 5）：在 `mapXxx()` 中映射，在 `createXxx()` / `updateXxx()` 中处理写入
 
-### 前端
+**前端**
 
-- **域 hooks**（Step 8a）：字段进入列表筛选条件时，同步更新 `hooks/queries/xxxs.ts` 的 `XxxListParams`；新字段引入了新的查询（统计、关联明细）时，按 [crud-frontend.md 的 key 结构设计](./crud-frontend.md#key-结构设计)挂到合适前缀下，并确认已有 mutation 的 `onSuccess` 覆盖到它
-- **表格列**（Step 8）：在 `XxxPage.tsx` 的 `columns` 中添加新列
-- **表单字段**（Step 8）：在 Modal 的 `<Form>` 中添加新输入组件
-- **搜索筛选**（Step 8）：如需要搜索，在 `SearchParams` 和 `SearchToolbar` 中添加
-- **回填检查**（Step 8a）：`createCrudQueries` 生成的 `useSave` 统一失效 `detail(id)`，不做 `setQueryData` 回填，新增字段无需额外判断。仅当域内**手写**了带回填的 mutation 时，才按 [crud-frontend.md 的回填红线](./crud-frontend.md#落地要求)重新判断新字段是否让写接口响应与详情接口不再同源
+- **域 hooks**（Step 8a）：字段进入列表筛选条件时同步更新 `XxxListParams`；
+  字段引入了新查询（统计、关联明细）时按 [query-cache.md → key 结构设计](./query-cache.md#key-结构设计)
+  挂到合适前缀下，并确认已有 mutation 的 `onSuccess` 覆盖到它
+- **页面**（Step 8b）：`columns` 加列、Modal 的 `<Form>` 加输入组件；需要搜索时在
+  `SearchParams` 与 `SearchToolbar` 中添加
+- **回填检查**（Step 8a）：`createCrudQueries` 生成的 `useSave` 统一失效 `detail(id)`、不做回填，
+  新增字段无需额外判断。仅当域内**手写**了带回填的 mutation 时，才按
+  [query-cache.md → 落地要求](./query-cache.md#落地要求)重新判断新字段是否让写接口响应与详情接口不再同源
 
-### Mock（如需要）
-
-- **MSW 数据**（Step 11）：在 `mocks/data/xxxs.ts` 和 `mocks/handlers/xxxs.ts` 中添加新字段
+**Mock**（如启用）：在 `mocks/data/xxxs.ts` 与 `mocks/handlers/xxxs.ts` 中添加字段。
 
 ---
 
 ## 场景 2：修改 API 接口
 
-### 修改请求参数
+**改请求参数**
 
-1. **Zod Schema**（Step 3）：修改 `packages/shared/src/{业务域}/validation.ts` 中的 schema
-2. **Route**（Step 6）：确认路由的 `request:`  schema 引用了正确的 schema
-3. **Service**（Step 5）：更新 service 函数的参数类型和处理逻辑
+1. 修改 `shared/src/{业务域}/validation.ts` 中的 schema（Step 3）
+2. 确认路由 `request:` 引用了正确的 schema（Step 6）
+3. 更新 service 函数的参数类型与处理逻辑（Step 5）
 
-### 修改响应格式
+**改响应格式**
 
-1. **DTO**（Step 6）：修改 `packages/server/src/lib/dtos/xxx.ts` 中的 DTO
-2. **Service mapXxx**（Step 5）：更新 `mapXxx()` 的返回字段
-3. **TS Interface**（Step 4）：同步修改 `packages/shared/src/{业务域}/types.ts`
-4. **前端类型**（Step 8）：前端从 `@zenith/shared/{业务域}` 导入 `Xxx` 类型，自动同步
+1. 修改 `lib/dtos/xxxs.ts` 中的 DTO（Step 6）
+2. 更新 `mapXxx()` 的返回字段（Step 5）
+3. 同步 `shared/src/{业务域}/types.ts`（Step 4）——前端从 `@zenith/shared/{业务域}` 导入，自动同步
 
-### 新增 API 端点
+**新增 API 端点**
 
-1. **Route**（Step 6）：在路由文件中添加新的 `defineOpenAPIRoute`
-2. **Service**（Step 5）：在 service 中添加对应的业务函数
-3. **路由注册**：在 `router.openapiRoutes([...])` 中注册新路由
-4. **Swagger**：刷新 `/api/docs` 验证新接口出现
-5. **域 hooks**（Step 8a）：在 `hooks/queries/xxxs.ts` 中新增对应 query / mutation，`onSuccess` 按 [crud-frontend.md 缓存一致性契约](./crud-frontend.md)选择失效策略
+1. 在路由文件中添加 `defineOpenAPIRoute`，并注册进 `router.openapiRoutes([...])`（Step 6）
+2. 在 service 中添加对应业务函数（Step 5）
+3. 刷新 `/api/docs` 验证新接口出现
+4. 在 `hooks/queries/xxxs.ts` 中新增 query / mutation，`onSuccess` 按
+   [query-cache.md 的缓存一致性契约](./query-cache.md#缓存一致性契约)选择失效策略（Step 8a）
 
 ---
 
 ## 场景 3：添加关联关系
 
-### 多对一（FK）关联
+### 多对一（FK）
 
-1. **Schema**（Step 1）：在 `xxxs` 表中添加外键字段 `yyyId: integer('yyy_id').references(() => yyys.id, { onDelete: 'cascade' })`
-2. **Relations**（Step 1）：在 `schema.ts` 末尾添加或更新 `xxxsRelations`
-3. **迁移**（Step 2）：`npm run db:generate && npm run db:migrate`
-4. **Zod Schema**（Step 3）：在创建/更新 schema 中添加 `yyyId` 字段
-5. **Service**（Step 5）：
-   - 在 `mapXxx()` 中，使用 RQB 读取关联数据（`with: { yyy: { columns: { name: true } } }`）
-   - 在 `createXxx()` / `updateXxx()` 中，写入时校验外键是否存在（`ensureYyyExists()`）
-6. **DTO**（Step 6）：在 DTO 中添加关联字段（如 `yyyName: z.string().nullable()`）
-7. **前端**（Step 8）：
-   - 表格列中添加关联字段显示
-   - 表单中添加 `<Form.Select>` 下拉选择；选项数据复用 Yyy 域导出的共享 lookup hook（`useAllYyys`），见 [crud-frontend.md 下拉源必须归属所有者域](./crud-frontend.md#下拉源必须归属所有者域)
-   - 若 Yyy 的增删改会改变本列表的展示，在 Yyy 域 mutation 的 `onSuccess` 中补上对应失效
+1. **Schema**（Step 1）：加外键字段
+   `yyyId: integer('yyy_id').references(() => yyys.id, { onDelete: 'cascade' })`
+2. **Relations**（Step 1）：在 `db/schema/relations.ts` 添加或更新 `xxxsRelations`
+3. **迁移**（Step 2）
+4. **Zod Schema**（Step 3）：在创建 schema 中添加 `yyyId`
+5. **Service**（Step 5）：`mapXxx()` 用 RQB 读关联数据（`with: { yyy: { columns: { name: true } } }`）；
+   写入时校验外键存在（`ensureYyyExists()`）
+6. **DTO**（Step 6）：添加关联字段（如 `yyyName: z.string().nullable()`）
+7. **前端**（Step 8）：表格列显示关联字段；表单用 `<Form.Select>`，选项**复用 Yyy 域导出的共享
+   lookup hook**（`useAllYyys`），见 [query-cache.md → 下拉源必须归属所有者域](./query-cache.md#下拉源必须归属所有者域)。
+   若 Yyy 的增删改会改变本列表的展示，在 Yyy 域 mutation 的 `onSuccess` 中补上对应失效
 
-### 多对多关联
+### 多对多
 
-1. **Schema**（Step 1）：创建联结表 `xxxYyys`，添加 `xxxsRelations` 和 `yyysRelations`
-2. **迁移**（Step 2）：`npm run db:generate && npm run db:migrate`
-3. **Zod Schema**（Step 3）：在创建/更新 schema 中添加 `yyyIds: z.array(z.number().int()).default([])`
-4. **Service**（Step 5）：
-   - 使用 `db.transaction()` 包裹主表写入 + 关联写入
-   - 实现 `setXxxYyys(executor, xxxId, yyyIds)` 辅助函数（先删后插）
-   - RQB 查询时使用 `with: { xxxYyys: { with: { yyy: true } } }`
-5. **DTO**（Step 6）：在 DTO 中添加 `yyys` 嵌套对象和 `yyyIds` 数组
-6. **前端**（Step 8）：表单中使用 `<Form.Select mode="multiple">` 多选，选项复用所有者域的共享 lookup hook
-7. **失效链路**（Step 8a）：子资源写入失效对应子键；若列表渲染了该子资源的派生列（如 `userCount`），按契约的「子资源写入」一行处理，一并失效 `lists`
+1. **Schema**（Step 1）：创建联结表 `xxxYyys`，在 `relations.ts` 添加两侧 relations
+2. **迁移**（Step 2）
+3. **Zod Schema**（Step 3）：添加 `yyyIds: z.array(z.number().int()).default([])`
+4. **Service**（Step 5）：`db.transaction()` 包裹主表写入 + 关联写入；实现
+   `setXxxYyys(executor, xxxId, yyyIds)`（先删后插）；RQB 查询用 `with: { xxxYyys: { with: { yyy: true } } }`
+5. **DTO**（Step 6）：添加 `yyys` 嵌套对象与 `yyyIds` 数组
+6. **前端**（Step 8）：表单用 `<Form.Select mode="multiple">`，选项复用所有者域的共享 lookup hook
+7. **失效链路**（Step 8a）：子资源写入失效对应子键；若列表渲染了该子资源的派生列（如 `userCount`），
+   按契约的「子资源写入」一行处理，一并失效 `lists`
 
 ---
 
 ## 场景 4：修改枚举值
 
-> **关键**：pgEnum / TS union type / Zod enum 三端必须同步修改。
+> pgEnum / TS union type / Zod enum 三端必须同步。
 
-1. **pgEnum**（Step 1）：在 `schema.ts` 的 `pgEnum` 中添加新值
-2. **迁移**（Step 2）：`npm run db:generate && npm run db:migrate`（Drizzle 会生成 `ALTER TYPE ADD VALUE`）
-3. **Zod enum**（Step 3）：在 `validation.ts` 的 zod schema 中同步 `z.enum([...])`
-4. **TS union type**（Step 4）：在 `types.ts` 的接口中同步 union type
-5. **前端字典**（Step 8）：如果枚举值在字典中展示，确认 `useDictItems` 或 `statusItems` 包含新值
-6. **MSW Mock**（Step 11）：如需要，更新 mock 数据中的枚举值
+1. **常量数组**（Step 3-4）：在 `shared/src/{业务域}/constants.ts` 的 `XXX_TYPES` 中添加新值，
+   同步 `XXX_LABELS` / `XXX_OPTIONS`
+2. **pgEnum**（Step 1）：在 `db/schema/{业务域}.ts` 的 `pgEnum` 中添加新值
+3. **迁移**（Step 2）：Drizzle 会生成 `ALTER TYPE ADD VALUE`
+4. **前端字典**（Step 8）：枚举值在字典中展示时，确认 `useDictItems` 或字典种子包含新值
+5. **MSW Mock**（Step 11）：如需要，更新 mock 数据中的枚举值
+
+`validation.ts` 通过 `z.enum(XXX_TYPES)` 引用常量数组，无需单独改动。
 
 ---
 
 ## 场景 5：删除字段或表
 
-1. **前端先行**（Step 8）：先从前端页面、表单、表格列中移除相关代码
-2. **Route**（Step 6）：从路由 DTO 中移除字段
-3. **Service**（Step 5）：从 `mapXxx()` 和 service 逻辑中移除
-4. **Shared**（Step 3-4）：从 `validation.ts` 和 `types.ts` 中移除
-5. **Schema**（Step 1）：从 `schema.ts` 中移除字段或表定义
-6. **迁移**（Step 2）：`npm run db:generate && npm run db:migrate`
-7. **MSW Mock**（Step 11）：从 mock 数据和 handler 中移除
+按依赖倒序移除，避免中间状态编译不过：
 
-> ⚠️ **注意**：删除数据库字段是不可逆操作。生产环境建议先标记为废弃，观察一段时间后再删除。
+1. **前端**（Step 8）：先从页面、表单、表格列中移除
+2. **Route DTO**（Step 6）
+3. **Service**（Step 5）：`mapXxx()` 与业务逻辑
+4. **Shared**（Step 3-4）：`validation.ts` 与 `types.ts`
+5. **Schema**（Step 1）→ **迁移**（Step 2）
+6. **MSW Mock**（Step 11）
+
+> ⚠️ 删除数据库字段不可逆。生产环境建议先标记废弃，观察一段时间后再删除。
 
 ---
 
@@ -120,8 +122,9 @@
 
 - [ ] `npm run build` 无报错
 - [ ] `npm run lint -w @zenith/web` 通过
-- [ ] Swagger 文档（`/api/docs`）中接口定义已更新
-- [ ] 前端页面正常渲染新字段/新布局
+- [ ] `/api/docs` 中接口定义已更新
+- [ ] 前端页面正常渲染新字段 / 新布局
 - [ ] 改动涉及 mutation 失效时，已过一遍消费页面确认相关列与面板都刷新，域 hooks 行为测试已同步
 - [ ] MSW Mock 数据已同步（如启用 Demo 模式）
-- [ ] 操作日志 diff 正常显示变更字段；若写接口返回 `okBody(null, ...)` 但需要展示变更后状态（如成员/角色/菜单/数据权限分配），已在写操作后调用 `setAuditAfterData(c, after)`
+- [ ] 操作日志 diff 正常显示变更字段；写接口返回 `okBody(null, ...)` 但需展示变更后状态时，
+      已调用 `setAuditAfterData(c, after)`（见 [backend-patterns.md](./backend-patterns.md#操作日志变更-diff)）

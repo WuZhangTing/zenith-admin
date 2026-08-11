@@ -8,8 +8,9 @@ Zenith Admin 是一个基于 **Hono + React + Drizzle ORM** 的模块化全栈�
 本文件只维护稳定的架构事实：系统边界、工作区职责、依赖方向、运行时链路和文档入口。
 字段约定、代码模板、组件用法、运行参数与验收步骤不在这里重复维护。
 
-开始任何代码改动前，必须阅读
-[核心规范约束](.agents/skills/zenith/references/constraints.md)。
+开始任何代码改动前，必须阅读核心规范约束：后端与全局看
+[constraints.md](.agents/skills/zenith/references/constraints.md)，前端看
+[constraints-frontend.md](.agents/skills/zenith/references/constraints-frontend.md)。
 CRUD、模块修改、异步任务和版本发布等场景，按
 [Zenith Skill](.agents/skills/zenith/SKILL.md) 进入对应流程。
 
@@ -183,7 +184,8 @@ Demo 模式通过 MSW 替换 API 边界，但继续复用真实接口契约，�
 
 | 内容 | 位置 |
 | --- | --- |
-| 所有代码改动的硬约束 | [`.agents/skills/zenith/references/constraints.md`](.agents/skills/zenith/references/constraints.md) |
+| 后端与全局代码改动的硬约束 | [`.agents/skills/zenith/references/constraints.md`](.agents/skills/zenith/references/constraints.md) |
+| 前端代码改动的硬约束 | [`.agents/skills/zenith/references/constraints-frontend.md`](.agents/skills/zenith/references/constraints-frontend.md) |
 | CRUD、模块修改、异步任务、发布流程 | [`.agents/skills/zenith/SKILL.md`](.agents/skills/zenith/SKILL.md) |
 | 目录与实现位置 | [`docs/guide/project-structure.md`](docs/guide/project-structure.md) |
 | API、安全、多租户与数据库 | [`docs/backend/`](docs/backend/) |

@@ -18,11 +18,14 @@ Zenith Skill 是本项目的专属开发辅助工作流，位于 `.agents/skills
 
 | 文件 | 职责 | 何时读取 |
 | --- | --- | --- |
-| `SKILL.md` | 场景识别、Step 0-11 编排、验收动作 | 每次触发 |
-| `references/constraints.md` | **硬约束唯一来源**：按 Schema / Shared / Service / Route / 前端 / 菜单权限 / MSW Mock 分层，外加时间格式、图标库、分页格式等全局约束 | 动手改代码前、完成后核对 |
-| `references/step0-checklist.md` | Step 0 信息收集问卷（必填项 + 可选项 + 数据权限、多租户决策表） | 开始新模块前 |
-| `references/crud-backend.md` | Step 1-7 后端模板：schema / 迁移 / 共享类型 / service / OpenAPI 路由 / DTO / 路由挂载 | 写后端时 |
-| `references/crud-frontend.md` | Step 8 前端模板：域 hooks / 列表页 / 弹窗，含数据获取架构与缓存一致性契约 | 写前端时 |
+| `SKILL.md` | 场景识别、Step 0 信息收集问卷、Step 0-11 编排、验收动作 | 每次触发 |
+| `references/constraints.md` | **后端与全局硬约束**：按 Schema / Shared / Service / Route / 菜单权限 / MSW Mock 分层，外加时间格式、图标库、分页格式、重依赖懒加载等全局约束 | 改后端 / 种子 / Mock 前、完成后核对 |
+| `references/constraints-frontend.md` | **前端硬约束**：公共 hook 复用、缓存与 query key、搜索栏与表格、表单与展示组件、布局与响应式 | 改前端前、完成后核对 |
+| `references/crud-backend.md` | Step 1-7 后端主链路：schema / 迁移 / 共享类型 / service / OpenAPI 路由 / DTO / 路由挂载 | 写后端时 |
+| `references/backend-patterns.md` | 条件性与横切能力：数据权限、多租户、审计 diff、附件、数据导出、外呼 HTTP、重依赖懒加载 | 用到对应能力时 |
+| `references/query-cache.md` | 前端数据获取架构、缓存一致性契约、query key 结构、失效行为测试 | 写域 hooks / 定失效策略时 |
+| `references/crud-frontend.md` | Step 8 前端模板：域 hooks / 列表页 / 弹窗 / 搜索 / 批量操作 | 写前端时 |
+| `references/ui-patterns.md` | 多 Tab、左右分栏、平铺列表、统计卡与自适应栅格、虚拟化表格 | 页面结构超出标准列表页时 |
 | `references/seed-config.md` | Step 9-10 菜单权限（ID 分段规则、菜单与权限解耦）与种子数据 | 配菜单 / 种子时 |
 | `references/crud-mock.md` | Step 11 MSW Mock 模板（Demo 演示模式） | 需要 Demo 模式时 |
 | `references/async-tasks.md` | 任务中心接入模板与选型对照 | 有长耗时 / 批量操作时 |
@@ -30,13 +33,14 @@ Zenith Skill 是本项目的专属开发辅助工作流，位于 `.agents/skills
 | `references/troubleshooting.md` | 症状 → 定位 → 指回规范 | 报错时 |
 | `references/release.md` | 版本发布流程 | 发版时 |
 
-> 规则只在归属文件里写一遍：约束正文在 `constraints.md`，代码写法与展开说明在 `crud-*.md`，文件之间只给指针、不抄内容。
+> 规则只在归属文件里写一遍：约束正文在两个 `constraints*.md`，代码写法与展开说明在对应主题文件，
+> 文件之间只给指针、不抄内容。每个文件都保持在可一次性读入的体量。
 
 ---
 
 ## 触发场景
 
-`SKILL.md` 识别四类场景：
+`SKILL.md` 识别五类场景：
 
 | 场景 | 触发词示例 |
 | --- | --- |
@@ -44,6 +48,7 @@ Zenith Skill 是本项目的专属开发辅助工作流，位于 `.agents/skills
 | 修改现有模块 | 「给 XXX 加字段」「修改 XXX 接口」「XXX 添加关联」 |
 | 异步任务 / 批量操作 | 「批量导入」「后台任务」「任务进度」「长耗时操作」 |
 | 发布新版本 | 「发布 vX.Y.Z」「准备发布」「release X.Y.Z」 |
+| 报错排查 | 「构建失败」「迁移失败」「类型不匹配」「缓存不刷新」 |
 
 > **快速模式**：说「帮我实现一个简单的 XXX 管理，用默认配置」，可跳过 Step 0 的可选项询问，用合理默认值直接生成。
 
@@ -53,7 +58,7 @@ Zenith Skill 是本项目的专属开发辅助工作流，位于 `.agents/skills
 
 ### Step 0：信息收集（阻塞门槛，不得跳过）
 
-生成任何代码之前，AI 会按 `references/step0-checklist.md` 逐项向你确认：
+生成任何代码之前，AI 会按 `SKILL.md` 的 Step 0 问卷逐项向你确认：
 
 - **必须明确**：模块中文名、实体英文名、API 路径前缀、数据库表名、权限前缀、主要字段列表、父菜单 ID（每个一级目录独占 1000 段，如系统管理 = id:1000，以 `packages/shared/src/seed/menus.ts` 的实际占用为准）
 - **主动询问的可选项**（不默认开启）：MSW Mock、状态字段、关联实体、数据导出、时间范围筛选、数据权限（dataScope）、表格批量操作、租户隔离
@@ -74,7 +79,8 @@ Zenith Skill 是本项目的专属开发辅助工作流，位于 `.agents/skills
 | 6 | OpenAPI 路由 + DTO | `packages/server/src/routes/{业务域}/xxx.ts`；DTO 放 `lib/dtos/`（barrel：`openapi-dtos.ts`） |
 | 7 | 注册路由 | `packages/server/src/routes/{业务域}/index.ts`（域 barrel，新增域需同步 `routes/index.ts`）；完成后 `npm run dev:server` 冒烟 |
 
-**第二阶段：前端（Step 8）**，模板见 `crud-frontend.md`，数据获取统一走 TanStack Query v5 域 hooks：
+**第二阶段：前端（Step 8）**，先按 `query-cache.md` 定失效策略，再按 `crud-frontend.md` 写代码，
+数据获取统一走 TanStack Query v5 域 hooks；页面结构超出标准列表页时另见 `ui-patterns.md`：
 
 | Step | 任务 | 位置 |
 | --- | --- | --- |
@@ -91,7 +97,7 @@ Zenith Skill 是本项目的专属开发辅助工作流，位于 `.agents/skills
 
 ### 验收标准
 
-`SKILL.md` 定义了完成标准，全部通过才算完成：迁移已执行并提交、`npm run build` 无报错、`dev:server` 冒烟且新接口在 `/api/docs` 可见可调用、web 包 lint 与测试通过、页面全操作实测（查询 / 重置 / 增删改 / 导出，含移动端窄屏）、需要 Mock 时 Demo 模式（`VITE_DEMO_MODE=true`）功能完整。最后打开 `constraints.md` 按分层逐组核对本次改动。
+`SKILL.md` 定义了完成标准，全部通过才算完成：迁移已执行并提交、`npm run build` 无报错、`dev:server` 冒烟且新接口在 `/api/docs` 可见可调用、web 包 lint 与测试通过、页面全操作实测（查询 / 重置 / 增删改 / 导出，含移动端窄屏）、需要 Mock 时 Demo 模式（`VITE_DEMO_MODE=true`）功能完整。最后打开 `constraints.md` 与 `constraints-frontend.md` 按分层逐组核对本次改动。
 
 ---
 
@@ -128,12 +134,14 @@ Zenith Skill 是本项目的专属开发辅助工作流，位于 `.agents/skills
 
 本页只描述结构与职责，不复制规则——同一条规则写在多处，重构后必然只改其中一处而留下另一处继续误导。
 
-- 硬约束清单：[`constraints.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints.md)
-- 后端写法：[`crud-backend.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/crud-backend.md)；API 形态与审计另见 [API 规范](/backend/api-conventions)、[操作日志与变更记录](/backend/audit-log-changes)
-- 前端写法：[`crud-frontend.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/crud-frontend.md)；设计取向另见 [UI 规范](/frontend/ui-conventions)、[公共组件](/frontend/components)、[数据获取](/frontend/data-fetching)
+- 硬约束清单：[`constraints.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints.md)（后端与全局）、[`constraints-frontend.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints-frontend.md)（前端）
+- 后端写法：[`crud-backend.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/crud-backend.md)、[`backend-patterns.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/backend-patterns.md)；API 形态与审计另见 [API 规范](/backend/api-conventions)、[操作日志与变更记录](/backend/audit-log-changes)
+- 前端写法：[`crud-frontend.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/crud-frontend.md)、[`query-cache.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/query-cache.md)、[`ui-patterns.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/ui-patterns.md)；设计取向另见 [UI 规范](/frontend/ui-conventions)、[公共组件](/frontend/components)、[数据获取](/frontend/data-fetching)
 
 ---
 
 ## 维护约定
 
-修改代码规范后，同步更新 `references/` 中的对应文件（约束进 `constraints.md`，写法进对应模板文件），确保后续 AI 生成的代码始终与项目一致；新增 reference 文件时，在 `SKILL.md` 的分工表与 `AGENTS.md` 的规范索引各登记一行。
+修改代码规范后，同步更新 `references/` 中的对应文件（后端与全局约束进 `constraints.md`、前端约束进 `constraints-frontend.md`，写法进对应模板文件），确保后续 AI 生成的代码始终与项目一致；新增 reference 文件时，在 `SKILL.md` 的分工表、本页清单与 `AGENTS.md` 的规范索引各登记一行。
+
+单个 reference 文件应保持在可一次性读入的体量（约 20KB 以内）；超出时按职责继续拆分，而不是让 AI 分段读取。

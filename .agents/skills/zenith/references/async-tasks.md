@@ -3,6 +3,8 @@
 > **触发场景**：业务功能包含**长耗时操作**——批量删除/更新、Excel 导入、报表生成、数据迁移、消息群发、第三方同步等无法同步完成的操作。此类需求**禁止自建轮询表或后台线程**，必须接入任务中心（`packages/server/src/lib/task-center/`）。
 >
 > 完整文档：[docs/backend/task-center.md](../../../../docs/backend/task-center.md)；可运行示例：`packages/server/src/routes/tasks/task-demo.ts` + `packages/web/src/pages/biz/task-demo/TaskDemoPage.tsx`。
+>
+> 提交任务的业务接口本身仍是常规路由，写法见 [crud-backend.md](./crud-backend.md)。
 
 ---
 
@@ -127,7 +129,7 @@ const { tasks, loading, refresh } = useMyAsyncTasks({ taskTypes: ['xxx-batch-imp
 | 需求 | 用什么 |
 | --- | --- |
 | 用户在页面提交的长耗时业务操作（要进度/取消/续跑） | **任务中心**（本文档） |
-| 数据列表导出 Excel/CSV（脱敏/水印/下载审计） | 导出中心（`lib/export-center/`，见 crud-backend.md 导出章节） |
+| 数据列表导出 Excel/CSV（脱敏/水印/下载审计） | 导出中心（`lib/export-center/`，见 [backend-patterns.md](./backend-patterns.md)） |
 | 系统级周期任务（清理/扫描/采集，cron 触发） | `registerSystemRecurringJob`（`lib/system-tasks.registry.ts`） |
 | 用户可自定义 cron 的定时任务 | 定时任务模块（`cron_jobs`） |
 | 工作流节点的延迟/补偿/外呼作业 | `workflow_jobs`（`lib/workflow-jobs/`） |

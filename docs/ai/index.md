@@ -18,7 +18,7 @@ Zenith Admin 内置一套面向 AI 编程工具（GitHub Copilot、Claude Code�
 两件资产职责严格分离，**每条规则只写一份**：
 
 - **AGENTS.md 只回答「是什么、在哪里」**，开发规范一律不复述，仅在文末以「规范索引」表指向 skill 中的对应文件；
-- **`.agents/skills/zenith/` 是规则的唯一来源**：硬约束正文集中在 `references/constraints.md`，代码写法与展开说明按场景拆分在各 reference 文件，文件之间只给指针、不抄内容。
+- **`.agents/skills/zenith/` 是规则的唯一来源**：硬约束正文集中在 `references/constraints.md`（后端与全局）与 `references/constraints-frontend.md`（前端），代码写法与展开说明按场景拆分在各 reference 文件，文件之间只给指针、不抄内容。
 
 这样约定的原因：同一条规则写在两处，重构后必然只改其中一处，另一处会继续误导 AI。本文档站的这组页面同样只描述**结构与职责**，规则正文请直接阅读仓库中的源文件。
 
@@ -31,11 +31,13 @@ Zenith Admin 内置一套面向 AI 编程工具（GitHub Copilot、Claude Code�
     ↓
 自动加载 AGENTS.md（项目结构、常用命令、架构总览、子系统速查、规范索引）
     ↓
-动手改代码前，先读 references/constraints.md
+动手改代码前，先读 references/constraints.md（后端与全局）
+或 references/constraints-frontend.md（前端）
 （分层硬约束清单，对所有改动生效——包括修 bug、重构、调样式）
     ↓
 命中具体场景时，按需加载对应 skill 文件
-    ├─ 开发新模块          → SKILL.md（Step 0-11）+ crud-*.md / seed-config.md
+    ├─ 开发新模块          → SKILL.md（Step 0-11）+ crud-backend / crud-frontend
+    │                        （按需 backend-patterns / query-cache / ui-patterns / seed-config / crud-mock）
     ├─ 修改现有模块        → module-modification.md
     ├─ 长耗时 / 批量操作   → async-tasks.md
     ├─ 发布新版本          → release.md
