@@ -259,7 +259,7 @@ export default function FillTemplatesPage() {
       render: (value: ReportFillTemplate['status']) => templateStatusTag(value),
     },
     createOperationColumn<ReportFillTemplate>({
-      width: 190,
+      width: 200,
       desktopInlineKeys: ['entry', 'edit'],
       actions: (record) => [
         {

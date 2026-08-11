@@ -151,7 +151,7 @@ export default function SubscriptionsPage() {
     },
     { title: '状态', dataIndex: 'enabled', width: 70, fixed: 'right', render: (e: boolean) => e ? <Tag color="green" size="small">启用</Tag> : <Tag color="grey" size="small">停用</Tag> },
     createOperationColumn<ReportDashboardSubscription>({
-      width: 220, desktopInlineKeys: ['run', 'history', 'edit', 'delete'],
+      width: 260, desktopInlineKeys: ['run', 'history', 'edit'],
       actions: (r) => [
         ...(hasPermission('report:subscription:update') ? [{ key: 'run', label: '立即推送', onClick: () => handleRun(r.id) }] : []),
         ...(hasPermission('report:subscription:list') ? [{ key: 'history', label: '历史', onClick: () => setHistoryTarget(r) }] : []),

@@ -526,8 +526,8 @@ export default function DatasetsPage() {
       render: (s: string) => s === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag color="grey" size="small">停用</Tag>,
     },
     createOperationColumn<ReportDataset>({
-      width: 180,
-      desktopInlineKeys: ['refreshMaterialize', 'edit', 'delete'],
+      width: 200,
+      desktopInlineKeys: ['refreshMaterialize', 'edit'],
       actions: (record) => [
         ...(record.materialize?.enabled && hasPermission('report:dataset:update') ? [{ key: 'refreshMaterialize', label: '刷新物化', onClick: () => void handleRefreshMaterialize(record) }] : []),
         ...(hasPermission('report:dataset:update') ? [{ key: 'edit', label: '编辑', onClick: () => openEdit(record) }] : []),
@@ -558,7 +558,7 @@ export default function DatasetsPage() {
           },
         ] : []),
         ...(hasPermission('report:dataset:delete') ? [{
-          key: 'delete', label: '删除', danger: true,
+          key: 'delete', label: '删除', danger: true, dividerBefore: true,
           onClick: () => { confirmDelete({ content: '删除后不可恢复', onOk: () => handleDelete(record.id) }); },
         }] : []),
       ],

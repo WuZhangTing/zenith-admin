@@ -209,8 +209,8 @@ export default function PrintTemplatesPage() {
       ),
     },
     createOperationColumn<ReportPrintTemplate>({
-      width: 220,
-      desktopInlineKeys: ['design', 'preview', 'edit', 'delete'],
+      width: 230,
+      desktopInlineKeys: ['design', 'preview', 'edit'],
       actions: (record) => [
         ...(hasPermission('report:print:update') ? [{ key: 'design', label: '设计', onClick: () => navigate(`/report/print/${record.id}/design`) }] : []),
         ...(hasPermission('report:print:list') ? [{ key: 'preview', label: '预览', onClick: () => void openPreview(record) }] : []),
@@ -223,7 +223,7 @@ export default function PrintTemplatesPage() {
           { key: 'exportDocx', label: '导出 Word', loading: exportRunner.isPending, onClick: () => handleExport(record, 'docx') },
         ] : []),
         ...(hasPermission('report:print:delete') ? [{
-          key: 'delete', label: '删除', danger: true,
+          key: 'delete', label: '删除', danger: true, dividerBefore: true,
           onClick: () => { confirmDelete({ content: '删除后不可恢复', onOk: () => handleDelete(record.id) }); },
         }] : []),
       ],

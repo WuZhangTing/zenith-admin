@@ -323,8 +323,8 @@ export default function AlertsPage() {
       ),
     },
     createOperationColumn<ReportAlertRule>({
-      width: 170,
-      desktopInlineKeys: ['edit', 'evaluate', 'history', 'delete'],
+      width: 230,
+      desktopInlineKeys: ['edit', 'evaluate', 'history'],
       actions: (record) => [
         ...(hasPermission('report:alert:update') ? [{ key: 'edit', label: '编辑', onClick: () => openEdit(record) }] : []),
         ...(hasPermission('report:alert:list') ? [{ key: 'evaluate', label: '评估', onClick: () => void handleEvaluate(record.id) }] : []),

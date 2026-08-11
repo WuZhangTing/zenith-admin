@@ -206,7 +206,7 @@ export default function AssetsPage() {
       render: (v, r) => r.deprecationEffectiveAt ? <Tag color="orange">即将弃用</Tag> : <Tag>{v || '正常'}</Tag>,
     },
     createOperationColumn<ReportAssetCatalogItem>({
-      width: 130,
+      width: 140,
       desktopInlineKeys: ['impact'],
       actions: (record) => [
         { key: 'impact', label: '使用影响', hidden: !hasPermission('report:asset:usage'), onClick: () => setUsageTarget(record) },
@@ -253,7 +253,7 @@ export default function AssetsPage() {
     { title: '到期时间', dataIndex: 'expiresAt', width: 180, render: (v) => v ? formatDateTime(v) : '—' },
     { title: '状态', dataIndex: 'publishedAt', width: 100, fixed: 'right', render: (v) => <Tag color={v ? 'orange' : 'grey'}>{v ? '已发布' : '草稿'}</Tag> },
     createOperationColumn<ReportDeprecationNotice>({
-      width: 170,
+      width: 200,
       desktopInlineKeys: ['publish', 'edit'],
       actions: (record) => [
         {
