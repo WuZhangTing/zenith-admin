@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { CronExpressionParser } from 'cron-parser';
-import type { WorkflowEngineApdex, WorkflowEngineComponent, WorkflowEngineComponentStatus, WorkflowEngineDefinitionSnapshot, WorkflowEngineEventBucket, WorkflowEngineHistogramBucket, WorkflowEngineInstanceBucket, WorkflowEngineIntrospection, WorkflowEngineMetric, WorkflowEngineQueueKey, WorkflowEngineQueueSnapshot, WorkflowEngineRuntimeIssue, WorkflowEngineRuntimeTask, WorkflowEngineScoreFactor, WorkflowEngineTelemetry, WorkflowEngineThresholds, WorkflowEngineTriggerExecution, WorkflowEngineOutboxEvent, WorkflowFlowData, WorkflowInstancePriority, WorkflowTriggerExecutionStatus } from '@zenith/shared/workflow';
+import type { WorkflowEngineApdex, WorkflowEngineComponent, WorkflowEngineComponentStatus, WorkflowEngineDefinitionSnapshot, WorkflowEngineEventBucket, WorkflowEngineHistogramBucket, WorkflowEngineInstanceBucket, WorkflowEngineIntrospection, WorkflowEngineMetric, WorkflowEngineQueueKey, WorkflowEngineQueueSnapshot, WorkflowEngineRuntimeIssue, WorkflowEngineRuntimeTask, WorkflowEngineScoreFactor, WorkflowEngineTelemetry, WorkflowEngineThresholds, WorkflowEngineTriggerExecution, WorkflowEngineOutboxEvent, WorkflowFlowData, WorkflowInstancePriority } from '@zenith/shared/workflow';
 import { db } from '../../db';
 import { workflowDefinitions, workflowInstances, workflowJobExecutions, workflowJobs, workflowTasks, workflowTokens, users } from '../../db/schema';
 import { currentUser } from '../../lib/context';
@@ -12,6 +12,7 @@ import { getConfigNumber } from '../../lib/system-config';
 import { tenantCondition } from '../../lib/tenant';
 import { getWorkflowEventBusIntrospection } from '../../lib/workflow-event-bus';
 import { validateFlowData } from '../../lib/workflow-engine';
+import { mapTriggerExecution as mapSharedTriggerExecution } from './workflow-trigger-executions.service';
 
 type ComponentKey = WorkflowEngineComponent['key'];
 
@@ -127,15 +128,6 @@ function payloadString(payload: unknown, key: string): string | null {
   return typeof value === 'string' ? value : null;
 }
 
-function mapJobStatusToTriggerStatus(job: typeof workflowJobs.$inferSelect, execution?: typeof workflowJobExecutions.$inferSelect): WorkflowTriggerExecutionStatus {
-  if (execution?.status === 'succeeded' || job.status === 'succeeded') return 'success';
-  if (execution?.status === 'running' || job.status === 'running') return 'running';
-  // 本次尝试已失败但作业仍有重试预算 → retrying；预算耗尽才是终态 failed
-  if (job.status === 'failed' && job.attempts < job.maxAttempts) return 'retrying';
-  if (job.status === 'pending') return 'pending';
-  return 'failed';
-}
-
 function validateDefinitions(rows: Array<typeof workflowDefinitions.$inferSelect>): WorkflowEngineDefinitionSnapshot {
   const nodeTypes: string[] = [];
   let edgeCount = 0;
@@ -224,27 +216,11 @@ function mapRuntimeTask(row: {
 function mapTriggerExecution(row: {
   execution: typeof workflowJobExecutions.$inferSelect;
   job: typeof workflowJobs.$inferSelect;
+  nodeName: string | null;
   instanceTitle?: string | null;
 }): WorkflowEngineTriggerExecution {
-  const triggerType = payloadString(row.job.payload, 'triggerType') ?? payloadString(row.job.payload, 'type') ?? 'webhook';
   return {
-    id: row.execution.id,
-    instanceId: row.job.instanceId ?? 0,
-    taskId: row.job.taskId ?? null,
-    nodeKey: row.job.nodeKey ?? payloadString(row.job.payload, 'nodeKey') ?? '',
-    nodeName: payloadString(row.job.payload, 'nodeName'),
-    triggerType: triggerType as WorkflowEngineTriggerExecution['triggerType'],
-    status: mapJobStatusToTriggerStatus(row.job, row.execution),
-    attempt: row.execution.attempt,
-    requestUrl: row.execution.requestUrl ?? null,
-    requestMethod: row.execution.requestMethod ?? null,
-    requestBody: row.execution.requestBody ?? null,
-    responseStatus: row.execution.responseStatus ?? null,
-    responseBody: row.execution.responseBody ?? null,
-    errorMessage: row.execution.errorMessage ?? row.job.lastError ?? null,
-    durationMs: row.execution.durationMs ?? null,
-    tenantId: row.execution.tenantId ?? row.job.tenantId ?? null,
-    createdAt: formatDateTime(row.execution.createdAt),
+    ...mapSharedTriggerExecution(row),
     instanceTitle: row.instanceTitle ?? null,
   };
 }
@@ -690,12 +666,13 @@ export async function getWorkflowEngineIntrospection(
         end`,
       triggerDispatchStatus: sql<WorkflowEngineRuntimeTask['triggerDispatchStatus']>`
         case
-          when ${triggerJob.status} = 'pending' then 'pending'
-          when ${triggerJob.status} = 'running' then 'running'
+          when ${triggerJob.id} is null then null
           when ${triggerJob.status} = 'succeeded' then 'success'
-          when ${triggerJob.status} = 'failed' and ${triggerJob.attempts} < ${triggerJob.maxAttempts} then 'retrying'
-          when ${triggerJob.status} in ('failed', 'dead') then 'failed'
-          else null
+          when ${triggerJob.status} = 'running' then 'running'
+          when ${triggerJob.status} in ('dead', 'canceled') then 'failed'
+          when ${triggerJob.attempts} < ${triggerJob.maxAttempts}
+            then case when ${triggerJob.attempts} > 0 then 'retrying' else 'pending' end
+          else 'failed'
         end`,
       triggerAttempt: sql<number>`coalesce(${triggerJob.attempts}, 0)`.mapWith(Number),
       triggerNextRetryAt: triggerJob.runAt,
@@ -724,10 +701,11 @@ export async function getWorkflowEngineIntrospection(
       ))
       .orderBy(asc(workflowTasks.createdAt))
       .limit(300),
-    db.select({ execution: workflowJobExecutions, job: workflowJobs, instanceTitle: workflowInstances.title })
+    db.select({ execution: workflowJobExecutions, job: workflowJobs, nodeName: workflowTasks.nodeName, instanceTitle: workflowInstances.title })
       .from(workflowJobExecutions)
       .innerJoin(workflowJobs, eq(workflowJobExecutions.jobId, workflowJobs.id))
       .innerJoin(workflowInstances, eq(workflowJobs.instanceId, workflowInstances.id))
+      .leftJoin(workflowTasks, eq(workflowJobs.taskId, workflowTasks.id))
       .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
       .where(whereOrUndefined([
         ...(instTenant ? [instTenant] : []),

@@ -1,18 +1,22 @@
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { db } from '../../db';
-import { workflowJobExecutions, workflowJobs } from '../../db/schema';
+import { workflowJobExecutions, workflowJobs, workflowTasks } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime } from '../../lib/datetime';
+import type { WorkflowTriggerExecution, WorkflowTriggerExecutionStatus, WorkflowTriggerType } from '@zenith/shared/workflow';
 
-type TriggerExecutionStatus = 'pending' | 'running' | 'success' | 'failed' | 'retrying';
-
-type TriggerExecutionRow = {
+/**
+ * 触发器执行记录的原始行。nodeName 取自 workflow_tasks.node_name（非空列，建任务时冻结），
+ * 是唯一权威来源；triggerType 只存在于作业 payload（定义快照里的节点配置，无关系型来源）。
+ */
+export interface TriggerExecutionRow {
   execution: typeof workflowJobExecutions.$inferSelect;
   job: typeof workflowJobs.$inferSelect;
-};
+  nodeName: string | null;
+}
 
 function getPayloadString(payload: unknown, key: string): string | null {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
@@ -20,45 +24,71 @@ function getPayloadString(payload: unknown, key: string): string | null {
   return typeof value === 'string' ? value : null;
 }
 
-function mapExecutionStatus(row: TriggerExecutionRow): TriggerExecutionStatus {
-  if (row.execution.status === 'succeeded') return 'success';
-  if (row.execution.status === 'running') return 'running';
-  // 本次尝试已失败但父作业仍有重试预算 → retrying；预算耗尽才是终态 failed
-  if (row.job.status === 'failed' && row.job.attempts < row.job.maxAttempts) return 'retrying';
+/**
+ * 执行记录状态：由父作业状态与本次尝试共同决定，是展示与筛选的唯一口径。
+ * 仍有重试预算时区分「已试过（retrying，含退避窗口内的 pending）」与「未开始（pending）」，
+ * 预算耗尽、死信与取消统一为终态 failed。
+ *
+ * 改这里必须同步 {@link triggerExecutionStatusSql}，两者是同一规则的 TS 与 SQL 表达。
+ */
+export function deriveTriggerExecutionStatus(
+  job: Pick<typeof workflowJobs.$inferSelect, 'status' | 'attempts' | 'maxAttempts'>,
+  execution?: Pick<typeof workflowJobExecutions.$inferSelect, 'status'> | null,
+): WorkflowTriggerExecutionStatus {
+  if (execution?.status === 'succeeded' || job.status === 'succeeded') return 'success';
+  if (execution?.status === 'running' || job.status === 'running') return 'running';
+  if (job.status === 'dead' || job.status === 'canceled') return 'failed';
+  if (job.attempts < job.maxAttempts) return job.attempts > 0 ? 'retrying' : 'pending';
   return 'failed';
 }
 
-export function mapTriggerExecution(row: TriggerExecutionRow) {
-  const triggerType = getPayloadString(row.job.payload, 'triggerType')
-    ?? getPayloadString(row.job.payload, 'type')
-    ?? 'webhook';
+/** {@link deriveTriggerExecutionStatus} 的 SQL 等价表达，供列表按状态筛选，保证筛选与展示一致。 */
+export const triggerExecutionStatusSql = sql<WorkflowTriggerExecutionStatus>`
+  case
+    when ${workflowJobExecutions.status} = 'succeeded' or ${workflowJobs.status} = 'succeeded' then 'success'
+    when ${workflowJobExecutions.status} = 'running' or ${workflowJobs.status} = 'running' then 'running'
+    when ${workflowJobs.status} in ('dead', 'canceled') then 'failed'
+    when ${workflowJobs.attempts} < ${workflowJobs.maxAttempts}
+      then case when ${workflowJobs.attempts} > 0 then 'retrying' else 'pending' end
+    else 'failed'
+  end`;
+
+export function mapTriggerExecution(row: TriggerExecutionRow): WorkflowTriggerExecution {
+  const { execution, job } = row;
   return {
-    id: row.execution.id,
-    instanceId: row.job.instanceId ?? 0,
-    taskId: row.job.taskId ?? null,
-    nodeKey: row.job.nodeKey ?? getPayloadString(row.job.payload, 'nodeKey') ?? '',
-    nodeName: getPayloadString(row.job.payload, 'nodeName'),
-    triggerType,
-    status: mapExecutionStatus(row),
-    attempt: row.execution.attempt,
-    requestUrl: row.execution.requestUrl ?? null,
-    requestMethod: row.execution.requestMethod ?? null,
-    requestBody: row.execution.requestBody ?? null,
-    responseStatus: row.execution.responseStatus ?? null,
-    responseBody: row.execution.responseBody ?? null,
-    errorMessage: row.execution.errorMessage ?? row.job.lastError ?? null,
-    durationMs: row.execution.durationMs ?? null,
-    tenantId: row.execution.tenantId ?? row.job.tenantId ?? null,
-    createdAt: formatDateTime(row.execution.createdAt),
+    id: execution.id,
+    instanceId: job.instanceId ?? 0,
+    taskId: job.taskId ?? null,
+    nodeKey: job.nodeKey ?? '',
+    nodeName: row.nodeName,
+    triggerType: (getPayloadString(job.payload, 'triggerType') ?? 'webhook') as WorkflowTriggerType,
+    status: deriveTriggerExecutionStatus(job, execution),
+    attempt: execution.attempt,
+    requestUrl: execution.requestUrl ?? null,
+    requestMethod: execution.requestMethod ?? null,
+    requestBody: execution.requestBody ?? null,
+    responseStatus: execution.responseStatus ?? null,
+    responseBody: execution.responseBody ?? null,
+    errorMessage: execution.errorMessage ?? job.lastError ?? null,
+    durationMs: execution.durationMs ?? null,
+    tenantId: execution.tenantId ?? job.tenantId ?? null,
+    createdAt: formatDateTime(execution.createdAt),
   };
 }
+
+/** 执行记录查询的公共选择列与关联：父作业提供上下文，任务提供节点名 */
+const TRIGGER_EXECUTION_SELECTION = {
+  execution: workflowJobExecutions,
+  job: workflowJobs,
+  nodeName: workflowTasks.nodeName,
+} as const;
 
 export interface ListTriggerExecutionsParams {
   page?: number;
   pageSize?: number;
   instanceId?: number;
   nodeKey?: string;
-  status?: TriggerExecutionStatus;
+  status?: WorkflowTriggerExecutionStatus;
 }
 
 export async function listTriggerExecutions(params: ListTriggerExecutionsParams) {
@@ -69,11 +99,7 @@ export async function listTriggerExecutions(params: ListTriggerExecutionsParams)
   if (tc) conds.push(tc);
   if (params.instanceId) conds.push(eq(workflowJobs.instanceId, params.instanceId));
   if (params.nodeKey) conds.push(eq(workflowJobs.nodeKey, params.nodeKey));
-  if (params.status === 'success') conds.push(eq(workflowJobExecutions.status, 'succeeded'));
-  else if (params.status === 'running') conds.push(eq(workflowJobExecutions.status, 'running'));
-  else if (params.status === 'failed') conds.push(eq(workflowJobExecutions.status, 'failed'));
-  else if (params.status === 'retrying') conds.push(and(eq(workflowJobExecutions.status, 'failed'), sql`${workflowJobs.attempts} < ${workflowJobs.maxAttempts}`)!);
-  else if (params.status === 'pending') conds.push(sql`false`);
+  if (params.status) conds.push(sql`${triggerExecutionStatusSql} = ${params.status}`);
   const where = and(...conds);
 
   const [total, rows] = await Promise.all([
@@ -82,8 +108,9 @@ export async function listTriggerExecutions(params: ListTriggerExecutionsParams)
       .innerJoin(workflowJobs, eq(workflowJobExecutions.jobId, workflowJobs.id))
       .where(where)
       .then((r) => r[0]?.c ?? 0),
-    db.select({ execution: workflowJobExecutions, job: workflowJobs }).from(workflowJobExecutions)
+    db.select(TRIGGER_EXECUTION_SELECTION).from(workflowJobExecutions)
       .innerJoin(workflowJobs, eq(workflowJobExecutions.jobId, workflowJobs.id))
+      .leftJoin(workflowTasks, eq(workflowJobs.taskId, workflowTasks.id))
       .where(where)
       .orderBy(desc(workflowJobExecutions.id))
       .limit(pageSize)
@@ -96,9 +123,10 @@ export async function getTriggerExecution(id: number) {
   const tc = tenantCondition(workflowJobExecutions, currentUser());
   const conds: SQL[] = [eq(workflowJobExecutions.id, id), eq(workflowJobExecutions.jobType, 'trigger_dispatch')];
   if (tc) conds.push(tc);
-  const [row] = await db.select({ execution: workflowJobExecutions, job: workflowJobs })
+  const [row] = await db.select(TRIGGER_EXECUTION_SELECTION)
     .from(workflowJobExecutions)
     .innerJoin(workflowJobs, eq(workflowJobExecutions.jobId, workflowJobs.id))
+    .leftJoin(workflowTasks, eq(workflowJobs.taskId, workflowTasks.id))
     .where(and(...conds))
     .limit(1);
   if (!row) throw new HTTPException(404, { message: '触发器执行记录不存在' });

@@ -78,8 +78,9 @@ export async function armTaskAsyncJobs(
     await enqueueJob({
       ...base,
       jobType: 'trigger_dispatch',
-      // 触发器执行记录要展示节点名与触发类型，而 flowData 在读取侧不可得，随作业落库
-      payload: { taskId: task.id, nodeName: cfg.label, triggerType: cfg.triggerConfig?.triggerType ?? 'webhook' },
+      // triggerType 只存在于定义快照的节点配置，读取侧拿不到，随作业落库；
+      // nodeName 不复制，读取侧从 workflow_tasks.node_name 取权威值
+      payload: { taskId: task.id, triggerType: cfg.triggerConfig?.triggerType ?? 'webhook' },
       maxAttempts: resolveTriggerMaxAttempts(cfg.triggerConfig),
       idempotencyKey: `trigger_dispatch:${task.id}`,
     }, executor);

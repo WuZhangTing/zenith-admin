@@ -5,10 +5,11 @@ import { db } from '../../../db';
 import { workflowJobs, workflowJobExecutions, workflowInstances, workflowTasks, workflowTokens, users } from '../../../db/schema';
 import { tenantCondition } from '../../../lib/tenant';
 import { getDataScopeCondition } from '../../../lib/data-scope';
-import type { WorkflowDefinitionSnapshot, WorkflowInstance, WorkflowRuntimeDiagnostics, WorkflowRuntimeIssue, WorkflowRuntimeOutboxEvent, WorkflowTriggerType, WorkflowInstanceTrace, WorkflowEngineExplanation, WorkflowEngineExplanationBlocker, WorkflowEngineTraceEntry, WorkflowJobType, WorkflowExecutionToken, WorkflowExecutionTokenView } from '@zenith/shared/workflow';
+import type { WorkflowDefinitionSnapshot, WorkflowInstance, WorkflowRuntimeDiagnostics, WorkflowRuntimeIssue, WorkflowRuntimeOutboxEvent, WorkflowTriggerExecution, WorkflowInstanceTrace, WorkflowEngineExplanation, WorkflowEngineExplanationBlocker, WorkflowEngineTraceEntry, WorkflowJobType, WorkflowExecutionToken, WorkflowExecutionTokenView } from '@zenith/shared/workflow';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../../lib/context';
 import { mapInstance, mapTask } from './mapping';
+import { mapTriggerExecution } from '../workflow-trigger-executions.service';
 
 async function instanceDiagnosticWhere(id: number) {
   const user = currentUser();
@@ -39,42 +40,10 @@ function mapRuntimeOutboxEvent(row: typeof workflowJobs.$inferSelect): WorkflowR
   };
 }
 
-function payloadString(payload: unknown, key: string): string | null {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
-  const value = (payload as Record<string, unknown>)[key];
-  return typeof value === 'string' ? value : null;
-}
-
-/** nodeName / triggerType 由 trigger_dispatch 作业的 payload 提供，其余字段取自父作业 */
-function mapRuntimeTriggerExecution(row: { exec: typeof workflowJobExecutions.$inferSelect; job: typeof workflowJobs.$inferSelect }) {
-  const { exec, job } = row;
-  const status: 'running' | 'success' | 'failed' =
-    exec.status === 'succeeded' ? 'success' : exec.status === 'failed' ? 'failed' : 'running';
-  return {
-    id: exec.id,
-    instanceId: job.instanceId ?? 0,
-    taskId: job.taskId ?? null,
-    nodeKey: job.nodeKey ?? '',
-    nodeName: payloadString(job.payload, 'nodeName'),
-    triggerType: (payloadString(job.payload, 'triggerType') ?? 'webhook') as WorkflowTriggerType,
-    status,
-    attempt: exec.attempt,
-    requestUrl: exec.requestUrl ?? null,
-    requestMethod: exec.requestMethod ?? null,
-    requestBody: exec.requestBody ?? null,
-    responseStatus: exec.responseStatus ?? null,
-    responseBody: exec.responseBody ?? null,
-    errorMessage: exec.errorMessage ?? null,
-    durationMs: exec.durationMs ?? null,
-    tenantId: exec.tenantId ?? null,
-    createdAt: formatDateTime(exec.createdAt),
-  };
-}
-
 function buildRuntimeIssues(input: {
   inst: typeof workflowInstances.$inferSelect;
   tasks: ReturnType<typeof mapTask>[];
-  triggerExecutions: ReturnType<typeof mapRuntimeTriggerExecution>[];
+  triggerExecutions: WorkflowTriggerExecution[];
   outboxEvents: WorkflowRuntimeOutboxEvent[];
   jobs: typeof workflowJobs.$inferSelect[];
   tokens: WorkflowExecutionToken[];
@@ -258,9 +227,10 @@ export async function getInstanceRuntimeDiagnostics(id: number): Promise<Workflo
     );
   });
   const [triggerExecRows, eventJobRows, instanceJobs, tokenRows] = await Promise.all([
-    db.select({ exec: workflowJobExecutions, job: workflowJobs })
+    db.select({ execution: workflowJobExecutions, job: workflowJobs, nodeName: workflowTasks.nodeName })
       .from(workflowJobExecutions)
       .innerJoin(workflowJobs, eq(workflowJobExecutions.jobId, workflowJobs.id))
+      .leftJoin(workflowTasks, eq(workflowJobs.taskId, workflowTasks.id))
       .where(and(eq(workflowJobs.instanceId, id), eq(workflowJobExecutions.jobType, 'trigger_dispatch')))
       .orderBy(desc(workflowJobExecutions.id))
       .limit(50),
@@ -271,7 +241,7 @@ export async function getInstanceRuntimeDiagnostics(id: number): Promise<Workflo
     db.select().from(workflowJobs).where(eq(workflowJobs.instanceId, id)).limit(200),
     db.select().from(workflowTokens).where(eq(workflowTokens.instanceId, id)).orderBy(workflowTokens.id),
   ]);
-  const triggerExecutions = triggerExecRows.map(mapRuntimeTriggerExecution);
+  const triggerExecutions = triggerExecRows.map(mapTriggerExecution);
   const outboxEvents = eventJobRows.map(mapRuntimeOutboxEvent);
   const nodeMeta = buildNodeMetaFromSnapshot(row.definitionSnapshot);
   const tokens = tokenRows.map((r) => mapExecutionToken(r, nodeMeta));
