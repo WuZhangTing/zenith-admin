@@ -26,8 +26,6 @@ export interface FsEntry {
   uid?: number;
   gid?: number;
 }
-/** @deprecated 兼容旧名，等价于 FsEntry */
-export type FileEntry = FsEntry;
 export interface DirListing {
   path: string;
   parent: string | null;
@@ -262,7 +260,7 @@ export function useLocalFileMutation() {
     mutationFn: async (op: { kind: 'delete'; path: string } | { kind: 'rename'; from: string; to: string } | { kind: 'create'; path: string; type: 'dir' | 'file' }) => {
       if (op.kind === 'delete') return request.delete<null>(`/api/terminal-files/entry?path=${encodeURIComponent(op.path)}`).then(unwrap);
       if (op.kind === 'rename') return request.post<null>('/api/terminal-files/rename', { from: op.from, to: op.to }).then(unwrap);
-      return request.post<FileEntry>('/api/terminal-files/create', { path: op.path, type: op.type }).then(unwrap);
+      return request.post<FsEntry>('/api/terminal-files/create', { path: op.path, type: op.type }).then(unwrap);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: terminalFileKeys.localBrowsePrefix }),
   });
@@ -272,7 +270,7 @@ export function useLocalFileUpload() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ formData, onProgress, silent }: { formData: FormData; onProgress?: (percent: number) => void; silent?: boolean }) =>
-      request.postForm<FileEntry>('/api/terminal-files/upload', formData, { onProgress, silent }).then(unwrap),
+      request.postForm<FsEntry>('/api/terminal-files/upload', formData, { onProgress, silent }).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: terminalFileKeys.localBrowsePrefix }),
   });
 }

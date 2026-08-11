@@ -6,8 +6,6 @@ export interface AdvancedSettingsData {
   notifyInitiator: boolean;
   /** 流程级「自动去重」模式（同一审批人在流程中重复出现时的处理方式） */
   approverDedupMode?: WorkflowApproverDedupMode;
-  /** @deprecated 已被 approverDedupMode 取代，仅用于读取旧数据 */
-  autoApproveIfSameUser?: boolean;
   allowComment?: boolean;
   /** 待办/列表摘要字段（≤3 个表单字段 key） */
   summaryFields?: string[];

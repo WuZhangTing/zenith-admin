@@ -420,7 +420,7 @@ export async function resolveCmsContentRow<T extends CmsContentMediaRow>(row: T)
 
 // ─── 引用查询 / 孤立判定 ─────────────────────────────────────────────────────
 
-/** 素材是否无任何引用（单条索引查询，取代旧的多表 LIKE 扫描） */
+/** 素材是否无任何引用（走引用索引单条查询） */
 export async function isCmsResourceOrphanById(resourceId: number): Promise<boolean> {
   const count = await db.$count(cmsResourceRefs, eq(cmsResourceRefs.resourceId, resourceId));
   return count === 0;

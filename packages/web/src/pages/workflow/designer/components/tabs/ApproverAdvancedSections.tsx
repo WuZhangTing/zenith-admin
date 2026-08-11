@@ -29,7 +29,6 @@ interface ApproverAdvancedSectionsProps {
   rejectToNodeKey?: string;
   availableRejectNodes?: Array<{ id: string; key?: string; name: string; type: string }>;
   emptyStrategy: EmptyAssigneeStrategy;
-  emptyAssignTo?: number;
   emptyAssignToIds?: number[];
   sameInitiatorStrategy?: SameInitiatorStrategy;
   deduplicateStrategy?: DeduplicateStrategy;
@@ -95,7 +94,6 @@ export default function ApproverAdvancedSections({
   rejectToNodeKey,
   availableRejectNodes = [],
   emptyStrategy,
-  emptyAssignTo,
   emptyAssignToIds,
   sameInitiatorStrategy = 'selfApprove',
   deduplicateStrategy = 'autoSkip',
@@ -305,17 +303,13 @@ export default function ApproverAdvancedSections({
         <div style={{ marginTop: 4, marginBottom: 8 }}>
           <Form.Slot label="转交给（可多选，多人时生成会签任务）">
             <Select
-              value={(emptyAssignToIds && emptyAssignToIds.length > 0)
-                ? emptyAssignToIds
-                : (emptyAssignTo ? [emptyAssignTo] : [])}
+              value={emptyAssignToIds ?? []}
               onChange={(v) => {
                 const ids = Array.isArray(v) ? (v as number[]) : [];
                 const names = ids.map((id) => users.find((u) => u.id === id)?.nickname ?? '').filter(Boolean);
                 onChange({
                   emptyAssignToIds: ids,
                   emptyAssignToNames: names,
-                  emptyAssignTo: ids[0],
-                  emptyAssignToName: names[0],
                 });
               }}
               multiple

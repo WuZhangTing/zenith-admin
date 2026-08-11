@@ -51,8 +51,7 @@ function resolveTriggerMaxAttempts(cfg?: WorkflowTriggerNodeConfig): number {
 }
 
 /**
- * 为新建任务挂载异步作业（统一作业账本）。
- * 取代旧的 delayScheduler / trigger·external 订阅者派发 / timeoutAt 列扫描。
+ * 为新建任务挂载异步作业（统一作业账本）：延时唤醒、审批超时、触发器派发、外部审批派发。
  * 子流程（spawn/join）仍走既有 maybeSpawnSubProcessChild / 恢复巡检，不在此处理。
  * 默认用 db 执行器（在提交后的事件发射循环中调用）。
  */

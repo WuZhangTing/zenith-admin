@@ -244,10 +244,6 @@ export interface WorkflowNodeConfig {
   /** 比例会签阈值（百分比 1-100，仅 approveMethod='ratio' 时生效） */
   approveRatio?: number;
   emptyStrategy?: WorkflowEmptyAssigneeStrategy;
-  /** @deprecated 使用 emptyAssignToIds 替代，保留以兼容旧数据 */
-  emptyAssignTo?: number;
-  /** @deprecated 使用 emptyAssignToNames 替代，保留以兼容旧数据 */
-  emptyAssignToName?: string;
   /** 空审批人策略=assignTo 时的转交人 ID 列表（多人时会签） */
   emptyAssignToIds?: number[] | null;
   emptyAssignToNames?: string[] | null;
@@ -491,7 +487,7 @@ export type WorkflowSerialNoMode = 'structured' | 'template';
 
 export interface WorkflowSerialNoConfig {
   enabled: boolean;
-  /** 配置模式，缺省视为 structured（向后兼容旧数据） */
+  /** 配置模式，缺省视为 structured */
   mode?: WorkflowSerialNoMode;
   /** 固定前缀，如 'BX-'（structured 模式） */
   prefix?: string;
@@ -519,10 +515,6 @@ export interface WorkflowAdvancedSettings {
   notifyInitiator: boolean;
   /** 流程级「自动去重」模式（同一审批人在流程中重复出现时的处理方式） */
   approverDedupMode?: WorkflowApproverDedupMode;
-  /** @deprecated 已被 approverDedupMode 取代，仅用于读取旧数据（true→all / false→none） */
-  autoApproveIfSameUser?: boolean;
-  /** @deprecated 全局超时处理已废弃，请使用节点级 timeout 配置 */
-  timeoutAction?: 'none' | 'auto-approve' | 'auto-reject' | 'notify';
   /** 是否允许在实例下自由评论（默认 true） */
   allowComment?: boolean;
   /** 待办/列表摘要字段（≤3 个表单字段 key，钉钉式卡片摘要） */

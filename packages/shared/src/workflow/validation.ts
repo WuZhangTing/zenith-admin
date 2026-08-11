@@ -138,8 +138,6 @@ export const workflowNodeConfigSchema = z.looseObject({
   approveMethod: workflowApproveMethodSchema.optional(),
   approveRatio: z.number().int().min(1).max(100).optional(),
   emptyStrategy: workflowEmptyAssigneeStrategySchema.optional(),
-  emptyAssignTo: z.number().int().optional(),
-  emptyAssignToName: z.string().optional(),
   emptyAssignToIds: z.array(z.number().int()).nullable().optional(),
   emptyAssignToNames: z.array(z.string()).nullable().optional(),
   sameInitiatorStrategy: workflowSameInitiatorStrategySchema.optional(),

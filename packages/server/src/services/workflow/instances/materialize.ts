@@ -286,12 +286,7 @@ async function expandTasksToRows(
         continue;
       }
       const emptyStrategy = t.nodeConfig.emptyStrategy ?? 'autoApprove';
-      let emptyAssignIds: number[] = [];
-      if (t.nodeConfig.emptyAssignToIds && t.nodeConfig.emptyAssignToIds.length > 0) {
-        emptyAssignIds = t.nodeConfig.emptyAssignToIds;
-      } else if (t.nodeConfig.emptyAssignTo) {
-        emptyAssignIds = [t.nodeConfig.emptyAssignTo];
-      }
+      const emptyAssignIds = t.nodeConfig.emptyAssignToIds ?? [];
       if (emptyStrategy === 'assignTo' && emptyAssignIds.length > 0) {
         const emptyMethod: 'and' | 'or' | null = emptyAssignIds.length > 1 ? 'and' : null;
         emptyAssignIds.forEach((uid) => {
@@ -408,7 +403,7 @@ export type MaterializeTrigger =
   | { kind: 'enterNode'; nodeKey: string; consumeNodeKey?: string };
 
 /**
- * Token 驱动的推进 + 落库（取代旧 materializeAdvanceResult）。
+ * Token 驱动的推进 + 落库。
  * 以 workflow_tokens 为活动路径/网关汇聚的权威来源：消费完成 token → 产出新 token + 建任务行。
  * 多人审批完成判定（checkNodeCompletion）与任务展开（expandTasksToRows）保持不变。
  */

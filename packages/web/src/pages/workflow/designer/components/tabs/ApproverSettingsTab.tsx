@@ -69,7 +69,6 @@ interface ApproverSettingsTabProps {
   rejectToNodeKey?: string;
   availableRejectNodes?: Array<{ id: string; key?: string; name: string; type: string }>;
   emptyStrategy?: EmptyAssigneeStrategy;
-  emptyAssignTo?: number;
   emptyAssignToIds?: number[];
   sameInitiatorStrategy?: SameInitiatorStrategy;
   deduplicateStrategy?: DeduplicateStrategy;
@@ -116,7 +115,6 @@ export default function ApproverSettingsTab({
   rejectToNodeKey,
   availableRejectNodes = [],
   emptyStrategy = 'autoApprove',
-  emptyAssignTo,
   emptyAssignToIds,
   sameInitiatorStrategy = 'selfApprove',
   deduplicateStrategy = 'autoSkip',
@@ -618,7 +616,6 @@ export default function ApproverSettingsTab({
               rejectToNodeKey={rejectToNodeKey}
               availableRejectNodes={availableRejectNodes}
               emptyStrategy={emptyStrategy}
-              emptyAssignTo={emptyAssignTo}
               emptyAssignToIds={emptyAssignToIds}
               sameInitiatorStrategy={sameInitiatorStrategy}
               deduplicateStrategy={deduplicateStrategy}

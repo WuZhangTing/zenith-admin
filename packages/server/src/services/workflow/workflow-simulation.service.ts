@@ -201,9 +201,7 @@ async function expandTaskAction(
   }
 
   const emptyStrategy = task.nodeConfig.emptyStrategy ?? 'autoApprove';
-  const emptyAssignToIds = task.nodeConfig.emptyAssignToIds?.length
-    ? task.nodeConfig.emptyAssignToIds
-    : (task.nodeConfig.emptyAssignTo ? [task.nodeConfig.emptyAssignTo] : []);
+  const emptyAssignToIds = task.nodeConfig.emptyAssignToIds ?? [];
   if (emptyStrategy === 'assignTo' && emptyAssignToIds.length > 0) {
     return emptyAssignToIds.map((id) => ({
       nodeKey: task.nodeKey,

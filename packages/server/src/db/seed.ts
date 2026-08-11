@@ -46,7 +46,7 @@ async function seed() {
   }
   logger.info('  ✔ Admin user seeded (skip if exists)');
 
-  // 内置系统号「Zenith 助手」（工作流/告警/卡片消息的发送者，取代旧的机器人假用户）
+  // 内置系统号「Zenith 助手」（工作流/告警/卡片消息的发送者）
   for (const ch of SEED_CHANNELS) {
     const existing = await db.select({ id: channels.id }).from(channels)
       .where(eq(channels.code, ch.code)).limit(1);

@@ -174,10 +174,6 @@ export interface ApproverNodeProps {
   rejectStrategy: RejectStrategy;
   rejectToNodeKey?: string;               // 当 rejectStrategy='returnToNode' 时，目标节点 id
   emptyStrategy: EmptyAssigneeStrategy;
-  /** @deprecated 兼容旧数据，使用 emptyAssignToIds */
-  emptyAssignTo?: number;
-  /** @deprecated 兼容旧数据，使用 emptyAssignToNames */
-  emptyAssignToName?: string;
   emptyAssignToIds?: number[];            // assignTo 策略（多人时全部生成会签任务）
   emptyAssignToNames?: string[];
   sameInitiatorStrategy?: SameInitiatorStrategy;  // 审批人=发起人时
@@ -203,10 +199,6 @@ export interface HandlerNodeProps {
   managerLevel?: number;
   formUserField?: string;
   emptyStrategy: EmptyAssigneeStrategy;
-  /** @deprecated 兼容旧数据，使用 emptyAssignToIds */
-  emptyAssignTo?: number;
-  /** @deprecated 兼容旧数据，使用 emptyAssignToNames */
-  emptyAssignToName?: string;
   emptyAssignToIds?: number[];
   emptyAssignToNames?: string[];
   fieldPermissions: Record<string, FieldPermission>;

@@ -231,13 +231,11 @@ export default function WorkflowDesignerPage({
       }
       if (fd && 'settings' in fd && (fd as unknown as Record<string, unknown>).settings) {
         const loaded = (fd as unknown as Record<string, unknown>).settings as Partial<AdvancedSettingsData>;
-        const normalized: AdvancedSettingsData = {
+        setAdvancedSettings({
           ...DEFAULT_ADVANCED_SETTINGS,
           ...loaded,
           approverDedupMode: resolveApproverDedupMode(loaded),
-        };
-        delete normalized.autoApproveIfSameUser;
-        setAdvancedSettings(normalized);
+        });
       }
     }
     // history.reset 是稳定的 useCallback，不需要追踪；
@@ -263,13 +261,11 @@ export default function WorkflowDesignerPage({
     if (fd?.process) history.reset(fd.process as unknown as FlowProcess);
     if (fd?.settings) {
       const loaded = fd.settings as unknown as Partial<AdvancedSettingsData>;
-      const normalized: AdvancedSettingsData = {
+      setAdvancedSettings({
         ...DEFAULT_ADVANCED_SETTINGS,
         ...loaded,
         approverDedupMode: resolveApproverDedupMode(loaded),
-      };
-      delete normalized.autoApproveIfSameUser;
-      setAdvancedSettings(normalized);
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presetDefinition]);

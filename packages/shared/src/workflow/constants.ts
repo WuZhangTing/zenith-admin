@@ -29,17 +29,13 @@ export const WORKFLOW_APPROVER_DEDUP_OPTIONS: ReadonlyArray<{ value: WorkflowApp
 ];
 
 /**
- * 解析流程级「自动去重」模式，向后兼容旧布尔字段 autoApproveIfSameUser（true→all / false→none）。
- * 新流程在两者都缺省时默认 'all'（保持系统既有的「审批一次后续自动通过」行为）。
+ * 解析流程级「自动去重」模式。
+ * 缺省时默认 'all'（审批一次后续重复节点自动通过）。
  */
 export function resolveApproverDedupMode(
-  settings: { approverDedupMode?: WorkflowApproverDedupMode; autoApproveIfSameUser?: boolean } | null | undefined,
+  settings: { approverDedupMode?: WorkflowApproverDedupMode } | null | undefined,
 ): WorkflowApproverDedupMode {
-  if (settings?.approverDedupMode) return settings.approverDedupMode;
-  if (typeof settings?.autoApproveIfSameUser === 'boolean') {
-    return settings.autoApproveIfSameUser ? 'all' : 'none';
-  }
-  return 'all';
+  return settings?.approverDedupMode ?? 'all';
 }
 
 /** 流程表单类型：designer=表单库可视化设计器，custom=用户自定义业务页面，external=业务系统主导（businessKey 关联） */
