@@ -63,7 +63,8 @@
 ### 多对一（FK）
 
 1. **Schema**（Step 1）：加外键字段
-   `yyyId: integer('yyy_id').references(() => yyys.id, { onDelete: 'cascade' })`
+   `yyyId: integer('yyy_id').references(() => yyys.id, { onDelete: 'set null' })`。
+   可空普通关联默认 `set null`；仅当 Yyy 对 Xxx 具有明确生命周期所有权时才使用 `cascade`
 2. **Relations**（Step 1）：在 `db/schema/relations.ts` 添加或更新 `xxxsRelations`
 3. **迁移**（Step 2）
 4. **Zod Schema**（Step 3）：在创建 schema 中添加 `yyyId`

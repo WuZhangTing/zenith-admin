@@ -40,4 +40,4 @@
 
 - **项目导航事实变化**（目录调整、新增子系统、命令变更）→ 更新 `AGENTS.md` 对应章节；
 - **编码规范变化** → 更新 `.agents/skills/zenith/references/` 中的对应文件，**不要**把规则复制回 `AGENTS.md`；
-- **skill 新增 reference 文件** → 在 `AGENTS.md` 文末「规范索引」表登记一行指针。
+- **skill 新增 reference 文件** → 在 `SKILL.md` 与 `docs/ai/skills.md` 的文件表登记；仅新增新的权威入口时才更新 `AGENTS.md`。

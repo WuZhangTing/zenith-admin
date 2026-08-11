@@ -36,10 +36,11 @@ Zenith Admin 内置一套面向 AI 编程工具（GitHub Copilot、Claude Code�
 （分层硬约束清单，对所有改动生效——包括修 bug、重构、调样式）
     ↓
 命中具体场景时，按需加载对应 skill 文件
-    ├─ 开发新模块          → SKILL.md（Step 0-11）+ crud-backend / crud-frontend
-    │                        （按需 backend-patterns / query-cache / ui-patterns / seed-config / crud-mock）
+    ├─ 开发新模块          → SKILL.md（Step 0-11）+ crud-intake
+    │                        （按需 crud-backend / backend-patterns / query-cache /
+    │                         crud-frontend / ui-patterns / seed-config / crud-mock）
     ├─ 修改现有模块        → module-modification.md
-    ├─ 长耗时 / 批量操作   → async-tasks.md
+    ├─ 长耗时 / 大批量作业 → async-tasks.md
     ├─ 发布新版本          → release.md
     └─ 报错排查            → troubleshooting.md
 ```

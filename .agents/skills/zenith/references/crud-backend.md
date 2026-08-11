@@ -38,6 +38,9 @@ export type XxxRow = typeof xxxs.$inferSelect;
 export type NewXxx = typeof xxxs.$inferInsert;
 ```
 
+Step 0 确认需要租户隔离时，才按 [backend-patterns.md → 多租户隔离](./backend-patterns.md#多租户隔离tenantscope)
+添加 `tenantId`；基础模板不默认调用租户工具。
+
 多对多联结表：
 
 ```ts
@@ -110,8 +113,6 @@ import { db } from '../../db';
 import { xxxs, type XxxRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
 import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
-import { tenantCondition } from '../../lib/tenant';
-import { currentUser } from '../../lib/context';
 
 // ─── 数据映射（DB 行 → 公开字段），纯函数、无副作用 ──────────────────────
 export function mapXxx(row: XxxRow) {
@@ -136,18 +137,25 @@ export interface ListXxxsQuery {
   endTime?: string;
 }
 
-export async function listXxxs(q: ListXxxsQuery) {
-  const { page = 1, pageSize = 10 } = q;
+interface XxxWhereInput extends ListXxxsQuery {
+  id?: number;
+}
 
-  // 条件数组类型是 (SQL | undefined)[]，不适用的条件返回 undefined 并被自动过滤
-  const where = buildWhere(
+// 所有读取入口共用；Step 0 启用 dataScope / tenantScope 时也把访问条件集中加在这里
+async function buildXxxWhere(q: XxxWhereInput) {
+  return buildWhere(
+    q.id !== undefined ? eq(xxxs.id, q.id) : undefined,
     // 内部已判空并 escapeLike，调用点不要再包 if (q.keyword)
     keywordCondition(q.keyword, [xxxs.name, xxxs.description]),
     q.status ? eq(xxxs.status, q.status) : undefined,
     // 终点自动取当天 23:59:59.999，不会漏掉当天数据
     ...dateRangeConditions(xxxs.createdAt, q.startTime, q.endTime),
-    tenantCondition(xxxs, currentUser()),
   );
+}
+
+export async function listXxxs(q: ListXxxsQuery) {
+  const { page = 1, pageSize = 10 } = q;
+  const where = await buildXxxWhere(q);
 
   // count 与 list 相互独立，必须并行
   const [total, rows] = await Promise.all([
@@ -167,11 +175,13 @@ export async function getXxx(id: number) {
 
 // ─── 前置校验：直接抛 HTTPException，由全局 onError 转标准 JSON ───────────
 export async function ensureXxxExists(id: number) {
-  const [row] = await db.select().from(xxxs).where(eq(xxxs.id, id)).limit(1);
+  const [row] = await db.select().from(xxxs).where(await buildXxxWhere({ id })).limit(1);
   if (!row) throw new HTTPException(404, { message: 'XXX 不存在' });
   return row;
 }
 ```
+
+更新与删除也使用 `await buildXxxWhere({ id })`；route 的前置校验不替代 service 行级隔离。
 
 命名约定：数据映射函数 `mapXxx` 前缀，前置校验函数 `ensureXxx` 前缀。
 
@@ -180,7 +190,7 @@ export async function ensureXxxExists(id: number) {
 ```ts
 // ✅ 详情：RQB 自动处理 LEFT JOIN，columns 限定取值范围
 const row = await db.query.xxxs.findFirst({
-  where: eq(xxxs.id, id),
+  where: await buildXxxWhere({ id }),
   with: { createdByUser: { columns: { nickname: true } } },
 });
 
@@ -397,15 +407,63 @@ const deleteRoute_ = defineOpenAPIRoute({
   },
 });
 
-// 统一注册（必须在 export 之前）
-xxxRouter.openapiRoutes([listRoute, getOneRoute, createRoute_, updateRoute_, deleteRoute_] as const);
-
-export default xxxRouter;
+// 路由注册与 export 见下方「最终注册顺序」
 ```
+
+### 下拉源（前端启用 `lookup: true` 时）
+
+先在 service 添加：
+
+```ts
+export async function listAllXxxs() {
+  // 必须复用列表的访问边界；否则 /all 会绕过 dataScope / tenantScope
+  const where = await buildXxxWhere({ status: 'enabled' });
+  const rows = await db.select().from(xxxs)
+    .where(where)
+    .orderBy(asc(xxxs.id));
+  return rows.map(mapXxx);
+}
+```
+
+再添加静态路由：
+
+```ts
+const allRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/all',
+    tags: ['XXX管理'], summary: '全部启用 XXX（供下拉框）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:xxx:list' })] as const,
+    responses: { ...commonErrorResponses, ...ok(z.array(XxxDTO), '全部 XXX') },
+  }),
+  handler: async (c) => c.json(okBody(await listAllXxxs()), 200),
+});
+
+```
+
+同步从 service 导入 `listAllXxxs`。若 Step 0 未确认需要下拉源，不实现该端点，前端也不要开启 `lookup`；
+启用 Demo 模式时再同步添加 Mock `/all`。
 
 ### 批量删除（Step 0 确认需要时）
 
+仅用于用户已选中、可在正常 HTTP 请求窗口内快速完成的有界操作。
+大数据量、长耗时或需要进度 / 重试 / 取消的批处理改用[任务中心](./async-tasks.md)。
 `DELETE /batch` 必须注册在 `DELETE /{id}` **之前**，否则 `/batch` 被匹配为 `id = "batch"`。
+
+先在 service 添加同样受行级权限约束的批量删除（并从 `drizzle-orm` 导入 `inArray`）：
+
+```ts
+export async function deleteXxxs(ids: number[]) {
+  const where = buildWhere(
+    inArray(xxxs.id, ids),
+    await buildXxxWhere({}),   // 复用 dataScope / tenantScope
+  );
+  const deleted = await db.delete(xxxs).where(where).returning({ id: xxxs.id });
+  return deleted.length;
+}
+```
+
+路由同步导入 `deleteXxxs`：
 
 ```ts
 const batchDeleteRoute = defineOpenAPIRoute({
@@ -423,36 +481,35 @@ const batchDeleteRoute = defineOpenAPIRoute({
   handler: async (c) => {
     const { ids } = c.req.valid('json');
     if (!ids?.length) return c.json(errBody('请选择要删除的记录'), 400);
-    await deleteXxxs(ids);
-    return c.json(okBody(null, `已删除 ${ids.length} 条记录`), 200);
+    const deleted = await deleteXxxs(ids);
+    return c.json(okBody(null, `已删除 ${deleted} 条记录`), 200);
   },
 });
-
-xxxRouter.openapiRoutes([..., batchDeleteRoute, deleteRoute_] as const);
 ```
 
-### Guard 中间件
+### 最终注册顺序
+
+路由文件只调用**一次** `openapiRoutes()`，放在 `export default` 之前；按实际启用项取消注释：
 
 ```ts
-// 仅权限检查（超管自动跳过）
-guard({ permission: 'system:xxx:list' })
+xxxRouter.openapiRoutes([
+  listRoute,
+  // allRoute,             // 启用 lookup 时；静态 /all 早于动态 /{id}
+  // batchDeleteRoute,     // 启用同步批量删除时；静态 /batch 早于动态 /{id}
+  getOneRoute,
+  createRoute_,
+  updateRoute_,
+  deleteRoute_,
+] as const);
 
-// 权限检查 + 自动写入 operation_logs
-guard({
-  permission: 'system:xxx:create',
-  audit: {
-    description: '创建XXX',   // 显示在操作日志中
-    module: 'XXX管理',
-    // recordBody: false,     // 上传文件等场景不记录请求体
-  },
-})
+export default xxxRouter;
 ```
 
 ---
 
 ## Step 7：注册路由（`routes/{业务域}/index.ts`）
 
-路由由各业务域 barrel 声明挂载清单，`routes/index.ts` 只声明域顺序，`app.ts` 的 `createApp()` 按序装配。
+各业务域 barrel 声明挂载清单，`routes/index.ts` 只声明域顺序。
 
 ```ts
 import { defineRouteDomain } from '../_kit';

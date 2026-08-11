@@ -17,7 +17,8 @@ packages/web/src/pages/xxx/XxxPage.tsx     # 页面组件
 
 ## Step 8a：域 hooks（`hooks/queries/xxxs.ts`）
 
-标准五件套（key 工厂 / 列表 / 详情 / 保存 / 删除 / 下拉源）一律由 `createCrudQueries` 生成。
+标准 CRUD 的 key 工厂、列表、详情、保存与删除由 `createCrudQueries` 生成；
+下拉源是可选能力，仅在后端实现 `GET /all` 时开启；启用 Demo 模式时 Mock 也必须实现该端点。
 
 ```ts
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -34,22 +35,16 @@ export interface XxxListParams extends CrudListParams {
   // endTime?: string;
 }
 
-/** 下拉源通常只返回精简字段，与实体类型分开声明 */
-export interface XxxOption {
-  id: number;
-  name: string;
-}
-
 export const {
   keys: xxxKeys,
   useList: useXxxList,
   useDetail: useXxxDetail,
   useSave: useSaveXxx,
   useDelete: useDeleteXxxs,
-  useLookup: useAllXxxs,
-} = createCrudQueries<Xxx, XxxListParams, Partial<Xxx>, XxxOption>({
+  // useLookup: useAllXxxs, // 与下方 lookup: true 同时启用
+} = createCrudQueries<Xxx, XxxListParams, Partial<Xxx>>({
   resource: 'xxxs',          // 同时作为 query key 前缀与默认路径 /api/xxxs
-  lookup: true,              // 需要 /api/xxxs/all 下拉源时开启；子路径不同时传字符串
+  // lookup: true,           // 后端已实现 GET /api/xxxs/all 时开启；Demo 模式还需同步 Mock
   // path: '/api/cms/links', // 接口路径与资源名不一致时覆盖
   // deleteMode: 'single',   // 后端没有 /batch 时；多条删除退化为并发单条
   // keyPrefix: ['workflow', 'automations'], // 本域需被纳入某个跨域失效前缀
@@ -58,7 +53,7 @@ export const {
 });
 ```
 
-工厂已覆盖的失效契约：保存后失效 `detail(id)` + `lists` +（若启用）`lookup`；
+工厂已覆盖的失效契约：保存后失效 `detail(id)` + `lists` +（启用时）`lookup`；
 删除后 `removeQueries(detail(id))` + 失效 `lists` +（若启用）`lookup`。
 
 **非标准接口继续手写**，用工厂导出的 `keys` 做失效，并注释说明为何只失效这些：
@@ -77,7 +72,8 @@ export function useAssignXxxMenus() {
 }
 ```
 
-> 关联下拉源属于**所有者域**：需要全量 Yyy 列表时，在 Yyy 的域文件里开 `lookup: true` 并导出 `useAllYyys`。
+> 关联下拉源属于**所有者域**：需要全量 Yyy 列表时，先在 Yyy 后端实现 `/all`；
+> 启用 Demo 模式时再同步 Mock。随后在 Yyy 域文件开启 `lookup` 并导出 `useAllYyys`。
 
 ---
 

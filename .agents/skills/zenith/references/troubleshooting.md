@@ -179,7 +179,7 @@ DTO 漏调 `.openapi('Name')`。用 `npm run dev:server` / `npm run dev:web` 可
 
 ### 保存后详情显示异常（菜单勾选被清空 / 出现不该显示的明文字段）
 
-`setQueryData(detail(id), saved)` 回填了与详情接口**形状或可见性不一致**的写接口响应。
+手写 mutation 用 `setQueryData(detail(id), saved)` 回填了与详情接口**形状或可见性不一致**的写接口响应。
 改为 `invalidateQueries({ queryKey: xxxKeys.detail(id) })`。
 四种禁止回填的情形见 [query-cache.md → 落地要求](./query-cache.md#落地要求)。
 

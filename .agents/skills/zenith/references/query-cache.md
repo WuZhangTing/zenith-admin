@@ -40,12 +40,17 @@
 
 因此 `xxxKeys.all` 不是默认选项：它会把同根下的详情、统计、日志、下拉源一并打掉。
 
-### 按 mutation 的副作用选择策略
+### 标准 CRUD 与手写 mutation 的边界
+
+`createCrudQueries` 是标准 CRUD 的统一契约：保存后失效 `detail(id)`、`lists` 与已启用的 `lookup`，
+删除后移除详情并失效列表与 lookup。使用工厂的域不再自行改写这套行为。
+
+下表仅用于**非标准接口或无法使用工厂的手写 mutation**：
 
 | mutation 形态 | 策略 |
 | --- | --- |
-| 更新，且写接口与详情接口**同源**（服务端同一个 `mapXxx`） | `setQueryData(detail(id), saved)` 回填 + 失效 `lists` |
-| 更新，但接口返回 `okBody(null, msg)` 或只返回局部字段 | 失效 `detail(id)` + `lists` |
+| 手写更新，且写接口与详情接口**同源**（服务端同一个 `mapXxx`） | 可用 `setQueryData(detail(id), saved)` 回填 + 失效 `lists` |
+| 手写更新，但接口返回 `okBody(null, msg)` 或只返回局部字段 | 失效 `detail(id)` + `lists` |
 | 新增 | 失效 `lists` + 受影响的计数 / 下拉源 |
 | 删除 | `removeQueries(detail(id))` + 失效 `lists` + 受影响的下拉源 |
 | 子资源写入（成员 / 权限 / 菜单） | 失效该子键；**若列表渲染了该子资源的派生列（如 `userCount`），仍须失效 `lists`** |
@@ -56,7 +61,7 @@
 
 - **一律替换而非追加**：`xxxKeys.all` 是 `xxxKeys.detail(id)` 的前缀，写成 `.all` 后再补 `.detail(id)` 属于空转
 - **删除用 `removeQueries` 而非 `invalidateQueries`**：实体已不存在，失效会让仍缓存的详情去请求一个必然 404 的资源
-- **回填前先确认数据形状与可见性**：只有写接口与详情接口同源时才能 `setQueryData`。
+- **手写 mutation 回填前先确认数据形状与可见性**：只有写接口与详情接口同源时才能 `setQueryData`。
   以下四种情况**必须**改为失效 `detail(id)`：
   - 详情接口按查看者**脱敏**：写接口返回 `mapUser`（明文）、详情走 `mapUserWithMask`，
     回填会把未脱敏的手机号 / 邮箱写进本不该展示它们的界面
@@ -65,7 +70,7 @@
   - 列表 / 树额外注入了**聚合字段**：如部门树、`userCount` / `userPreview`，
     那是列表独有的，不要拿写接口响应覆盖列表缓存
 - **改完必须过一遍消费页面**：确认没有依赖广播失效才会刷新的列或面板。欠失效（陈旧 UI）比多失效更危险
-- 本节只约束 mutation 的 `onSuccess`，与上面第 4 条「查询 / 重置必回源」互不冲突
+- 本节只约束手写 mutation 的 `onSuccess`，与上面第 4 条「查询 / 重置必回源」互不冲突
 
 ---
 

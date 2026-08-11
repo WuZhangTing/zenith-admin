@@ -30,25 +30,29 @@ export const xxxs = pgTable('xxxs', {
 `department_id` 在创建时从创建人部门写入，之后**不跟随人员调岗变动**。
 过滤逻辑是 `WHERE data.department_id IN (我的部门及子部门)`，而非反查创建人当前部门。
 
-### 列表查询追加 scopeCondition
+### 所有读取入口追加 scopeCondition
 
 ```ts
 import { getDataScopeCondition } from '../../lib/data-scope';
+import { currentUser } from '../../lib/context';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 
-// 写在 service 的列表函数中（薄路由约定：route handler 不碰 db 与查询条件）
+// 放入 CRUD service 的共享 buildXxxWhere()，让分页列表与 /all 下拉源复用同一访问边界
 const scopeCondition = await getDataScopeCondition({
   currentUserId: currentUser().userId,
   deptColumn:  xxxs.departmentId,   // 目标表的 department_id 列
-  ownerColumn: xxxs.id,             // 用于 self 过滤的主键列
+  ownerColumn: xxxs.createdBy,      // self 权限比较当前用户 ID，必须传所有者字段
 });
 
 const where = buildWhere(
   keywordCondition(q.keyword, [xxxs.name]),
   scopeCondition,                   // 无限制时为 undefined，buildWhere 自动忽略
-  tenantCondition(xxxs, currentUser()),
 );
 ```
+
+若 Step 0 同时确认需要租户隔离，再把 `tenantCondition(xxxs, currentUser())` 追加到
+`buildWhere()`；没有 `tenantId` 的表不能调用 `tenantCondition`。若实体有显式负责人字段
+（如 `ownerId` / `userId`），`ownerColumn` 应使用该字段；用户表自身使用 `users.id`。
 
 ### 创建时写入部门
 
@@ -201,6 +205,9 @@ export const createNoticeSchema = z.object({
 
 ### 3. Service：写入时保存关联
 
+以下假定该 service 已按 [crud-backend.md](./crud-backend.md) 定义 `buildNoticeWhere`，
+统一合并主键、dataScope 与 tenantScope。
+
 ```ts
 import { saveBusinessFiles, listBusinessFiles } from '../../services/files/business-files.service';
 
@@ -213,12 +220,16 @@ export async function createNotice(data: CreateNoticeInput) {
 }
 
 export async function updateNotice(id: number, data: UpdateNoticeInput) {
-  return db.transaction(async (tx) => {
-    await tx.update(notices).set({ ... }).where(eq(notices.id, id));
+  await db.transaction(async (tx) => {
+    const [updated] = await tx.update(notices).set({ ... })
+      .where(await buildNoticeWhere({ id }))
+      .returning({ id: notices.id });
+    if (!updated) throw new HTTPException(404, { message: '通知不存在' });
     // 传了 fileIds 才替换关联（先删后插）
     if (data.fileIds !== undefined) await saveBusinessFiles(tx, 'notice', id, data.fileIds);
-    return getNoticeDetail(id);
   });
+  // 事务提交后再通过全局 db 读取详情，避免独立连接看不到未提交变更
+  return getNoticeDetail(id);
 }
 ```
 
@@ -228,17 +239,18 @@ export async function updateNotice(id: number, data: UpdateNoticeInput) {
 
 ```ts
 export async function getNoticeDetail(id: number) {
-  const user = currentUser();
-  const [row] = await db.select().from(notices).where(eq(notices.id, id));
+  const [row] = await db.select().from(notices).where(await buildNoticeWhere({ id }));
   if (!row) throw new HTTPException(404, { message: '通知不存在' });
 
   const [recipients, attachments] = await Promise.all([
     listNoticeRecipients(id),
-    listBusinessFiles('notice', id, { tenant: tenantCondition(businessFiles, user) }),
+    listBusinessFiles('notice', id),
   ]);
   return { ...mapNotice(row), recipients, attachments };
 }
 ```
+
+附件变体不得退回只按 `id` 查询或写入。
 
 DTO 定义在 `lib/dtos/notices.ts` 并从 `lib/openapi-dtos.ts` 导出，与其他实体 DTO 一致。
 
@@ -289,8 +301,11 @@ const resp = await httpGet('https://api.example.com/users', { headers: { Authori
 if (!resp.ok) throw new HttpClientError('上游返回非 2xx', { status: resp.status, url: resp.url });
 const data = await resp.json<{ id: number; name: string }>();
 
-// POST JSON：对象自动 stringify 并补 Content-Type
-await httpPost('https://api.example.com/users', { name: 'Alice' });
+// POST JSON：对象自动 stringify 并补 Content-Type；同样必须检查 ok
+const createResp = await httpPost('https://api.example.com/users', { name: 'Alice' });
+if (!createResp.ok) {
+  throw new HttpClientError('创建用户失败', { status: createResp.status, url: createResp.url });
+}
 ```
 
 | 参数 | 默认 | 何时设置 |
@@ -302,14 +317,20 @@ await httpPost('https://api.example.com/users', { name: 'Alice' });
 | `baseURL` | 无 | url 为相对路径时拼接前缀 |
 | `signal` | 无 | 与外部 `AbortController` 协作 |
 
-失败统一抛 `HttpClientError`（含 `url` / `headers` / `bodySnippet` / `cause`）：
-`status === 0` 为网络错误 / 熔断 / 超时，`status > 0` 为上游非 2xx。
+网络错误、熔断、超时等没有 HTTP 响应的失败会由客户端抛出 `HttpClientError`
+（`status === 0`，并携带 `url` / `headers` / `bodySnippet` / `cause`）。
+上游 4xx / 5xx **不会自动抛错**，调用方必须检查 `resp.ok`，并按业务语义转换为
+`HttpClientError`（正数 `status`）或 `HTTPException`。
 
 ```ts
 try {
-  await httpGet(url);
+  const resp = await httpGet(url);
+  if (!resp.ok) {
+    throw new HttpClientError('上游返回非 2xx', { status: resp.status, url: resp.url });
+  }
+  return await resp.json();
 } catch (err) {
-  if (err instanceof HttpClientError && err.status === 0) {
+  if (err instanceof HttpClientError) {
     throw new HTTPException(502, { message: '上游服务不可用' });
   }
   throw err;

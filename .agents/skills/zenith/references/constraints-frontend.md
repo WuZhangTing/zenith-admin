@@ -19,7 +19,7 @@
 
 | 场景 | 必须使用 | 禁止的手写实现 | 漏写的代价 |
 | --- | --- | --- | --- |
-| 标准 CRUD 域 hooks | `lib/crud-queries.ts` 的 `createCrudQueries` | 手抄 `xxxKeys` 与列表 / 详情 / 保存 / 删除 / 下拉源五件套 | 保存后列表不变；已删记录重新打开弹窗时闪出旧数据 |
+| 标准 CRUD 域 hooks | `lib/crud-queries.ts` 的 `createCrudQueries` | 手抄 `xxxKeys` 与列表 / 详情 / 保存 / 删除；下拉源也应通过工厂按需开启 | 保存后列表不变；已删记录重新打开弹窗时闪出旧数据 |
 | 新增 / 编辑弹窗 | `hooks/useEditModal.ts` | `useRef<FormApi>` + `editingRecord` + `try { validate() } catch` + `Toast` + 关闭四件套 | 确定按钮永远转圈；异步详情进不了表单；下次「新增」带出上次记录 |
 | 列表页搜索状态 | `hooks/useListSearch.ts` | `draftParams` / `submittedParams` 双状态 + `handleSearch` / `handleReset` | 条件未变时点「查询」不回源，且列表仍有数据、不报错 |
 | 中断表单提交 | `lib/abort-submit.ts` 的 `abortSubmit()`（先给用户提示再调用） | `return`、`throw new Error('多词消息')` | 按钮一直转圈；或多弹一个「操作失败：xxx」并向 `/api/frontend-errors` 灌入假告警 |
@@ -29,7 +29,7 @@
 
 补充判定：
 
-- `createCrudQueries` 只覆盖标准五件套；域内非标准接口（分配菜单、导入导出、状态切换）继续手写
+- `createCrudQueries` 覆盖标准 CRUD 与可选 lookup；域内非标准接口（分配菜单、导入导出、状态切换）继续手写
   `useMutation`，用工厂导出的 `keys` 做失效。**禁止**为了套用工厂去改后端接口形状
 - `useEditModal` 的例外（页面级全局配置表单、认证流程、工作流设计器与运行时表单、db-admin 行编辑器、
   保存后不关闭的搭建器工作区）需写注释说明理由；若该表单同时配了详情查询，`<Form>` 的 `key`
@@ -51,7 +51,7 @@
   静态 lookup、数据库元数据与昂贵派生取数不与列表同前缀
 - **下拉源归属所有者域**：**禁止**用本域 key 请求别域资源（所有者域增删改时无人失效它，界面静默显示旧列表），
   一律复用 `useAllRoles` / `useFlatDepartments` / `useAllUsers` / `useAllPositions` / `useDictItems` 等共享 lookup hook
-- **回填红线**：`setQueryData(detail(id), saved)` 仅限写接口与详情接口同源；详情按查看者脱敏、
+- **手写 mutation 的回填红线**：`setQueryData(detail(id), saved)` 仅限写接口与详情接口同源；详情按查看者脱敏、
   详情多出关联数据、写接口不回传编辑过的关联字段、列表 / 树含聚合字段这四种情形**必须**改为失效 `detail(id)`
 - **失效行为需可证伪**：测试用 `test-utils/query-harness.ts` 断言实际请求数、进入 fetching 的查询与缓存新鲜度；
   **禁止**只 spy「调用了 `invalidateQueries(某 key)`」——`all` 是 `detail` 的前缀，冗余的广播写法下同样通过
@@ -145,4 +145,3 @@
   `width={isMobile ? '100%' : 720}`——该判断在所有区间都被全局规则覆盖，是无效代码
 
 ---
-

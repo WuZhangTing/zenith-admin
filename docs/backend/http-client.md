@@ -5,37 +5,62 @@
 ## 基本用法
 
 ```ts
-import { httpGet, httpPost, httpRequest } from '../lib/http-client';
+import { httpGet, httpPost, HttpClientError } from '../lib/http-client';
 
-const data = await httpGet<WeatherResp>('https://api.example.com/weather', {
-  query: { city: 'beijing' },
+const url = new URL('https://api.example.com/weather');
+url.searchParams.set('city', 'beijing');
+const resp = await httpGet(url.toString(), {
   timeout: 5000,
 });
+if (!resp.ok) {
+  throw new HttpClientError('天气服务返回非 2xx', { status: resp.status, url: resp.url });
+}
+const data = await resp.json<WeatherResp>();
 
-await httpPost('https://open.example.com/webhook', payload, {
+const webhookResp = await httpPost('https://open.example.com/webhook', payload, {
   headers: { 'X-Sign': sign },
   retries: 2,
 });
+if (!webhookResp.ok) {
+  throw new HttpClientError('Webhook 投递失败', {
+    status: webhookResp.status,
+    url: webhookResp.url,
+  });
+}
 ```
 
-`httpRequest` 为底层通用入口，`httpGet` / `httpPost` / `httpPut` / `httpDelete` 是便捷封装。响应默认按 JSON 解析，非 2xx 抛 `HttpClientError`（含 `status`、`body`）。
+`httpRequest` 为底层通用入口，`httpGet` / `httpPost` / `httpPut` / `httpPatch` / `httpDelete`
+是便捷封装，均返回 `HttpResponse`。调用方通过 `resp.ok` 判断 HTTP 状态，再按内容类型调用
+`resp.json<T>()` / `resp.text()` / `resp.arrayBuffer()`。
+
+- 上游 4xx / 5xx 返回正常的 `HttpResponse`，**不会自动抛错**；调用方必须检查 `ok`
+- 网络错误、超时、熔断等没有 HTTP 响应的失败抛 `HttpClientError`，`status === 0`
+- SSRF 请求前校验失败抛 `HTTPException(400)`；`ssrfProtection` 与 `proxy` 同时使用时抛 `HttpClientError`
+- 调用方可将非 2xx 转换为正数 `status` 的 `HttpClientError`，或按业务语义转换为 `HTTPException`
 
 ## 选项
 
 | 选项 | 默认 | 说明 |
 | --- | --- | --- |
-| `timeout` | 10000 | 单次请求超时（ms） |
+| `baseURL` | — | URL 为相对路径时拼接的前缀 |
+| `timeout` | `0`（不超时） | 单次请求硬超时（ms） |
 | `retries` | 0 | 重试次数 |
-| `retryDelay` | 1000 | 首次重试延迟（ms），指数退避 `retryDelay * 2^(attempt-1)` |
-| `headers` / `query` | — | 请求头 / query 参数 |
+| `retryDelay` | 300 | 首次重试延迟（ms），指数退避 `retryDelay * 2^(attempt-1)` |
+| `headers` | — | 请求头；query 参数使用 `URL` / `URLSearchParams` 构造 |
 | `proxy` | — | 代理地址（undici `ProxyAgent`；**不读取环境变量**，需显式传入） |
+| `signal` | — | 与调用方 `AbortController` 协作 |
 | `circuitBreaker` | `true` | 熔断开关，可对单请求关闭 |
 | `ssrfProtection` | `false` | SSRF 防护开关 |
 | `ssrfAllowlist` | `[]` | SSRF 防护下例外放行的私网目标 |
+| `logBodyLimit` | 2048 | 5xx 重试 warning 的 body snippet 截断长度；设 0 省略该 snippet |
+| `httpLog` | — | 覆盖本次请求的出站 HTTP 日志配置 |
+
+结构化出站日志是否记录 body 由 `httpLog.level` / `httpLog.logResponseBody` 或
+`HTTP_LOG_OUTGOING_*` 全局配置控制，不受 `logBodyLimit` 影响。
 
 ### 重试
 
-- 触发条件：**5xx 响应或网络错误**（超时 abort 不重试）
+- 触发条件：**5xx 响应、网络错误或客户端内部 timeout**；调用方主动触发的 `AbortSignal` 不重试
 - 日志：重试时输出 `[http] retry on 5xx`（warn）
 
 ### 熔断

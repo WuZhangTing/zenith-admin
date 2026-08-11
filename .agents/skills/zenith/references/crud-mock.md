@@ -142,6 +142,31 @@ export const xxxsHandlers = [
 ];
 ```
 
+### 可选端点
+
+前端开启 `lookup: true` 时，在 `/:id` handler **之前**同步添加：
+
+```ts
+http.get('/api/xxxs/all', () =>
+  ok(mockXxxs.filter((x) => x.status === 'enabled'))),
+```
+
+Step 0 确认需要同步批量删除时，在 `/:id` handler **之前**添加：
+
+```ts
+import { removeWhere } from '@/mocks/utils/array';
+
+http.delete('/api/xxxs/batch', async ({ request }) => {
+  const { ids = [] } = (await request.json()) as { ids?: number[] };
+  if (ids.length === 0) return badRequest('请选择要删除的记录', { status: 400 });
+  const selected = new Set(ids);
+  const deleted = removeWhere(mockXxxs, (x) => selected.has(x.id));
+  return ok(null, `已删除 ${deleted} 条记录`);
+}),
+```
+
+`/all`、`/batch` 都是静态路径，必须排在动态 `/:id` 之前；后端、域 hooks 与 Mock 三处应同时启用或同时省略。
+
 ## 11c：`mocks/handlers/index.ts`
 
 在现有文件中**追加**注册（不要替换）：
