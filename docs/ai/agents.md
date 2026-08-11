@@ -11,13 +11,14 @@
 **开发规范一律不在其中复述**——规则的唯一来源是 [`.agents/skills/zenith/`](./skills)，`AGENTS.md` 只负责告诉 AI 去哪读。skill 仅在 CRUD 开发、模块修改、异步任务、发版等场景按需触发，而 `AGENTS.md` 每次会话都会加载，因此它承担两件事：
 
 1. 把项目导航事实（结构、命令、架构、子系统）一次性交给 AI；
-2. 在写下第一行代码之前，把 AI 引到 `references/constraints.md`（分层硬约束清单，对所有改动生效），涉及具体场景时再按文末索引取用对应文件。
+2. 在写下第一行代码之前，把 AI 引到后端与全局 `references/constraints.md` 或前端
+   `references/constraints-frontend.md`，涉及具体场景时再按文末索引取用对应文件。
 
 ## 内容结构
 
 | 章节 | 内容 |
 | --- | --- |
-| 动手改代码前必读 | 指向 `constraints.md`：涵盖时间格式、统一响应构造、分页写法、图标库、service 边界、薄路由、DTO 中心化、LIKE 转义、外呼 HTTP、表格与弹窗布局、菜单权限等硬约束 |
+| 动手改代码前必读 | 分别指向 `constraints.md`（后端、菜单、Mock 与全局）和 `constraints-frontend.md`（前端） |
 | 项目结构 | `packages/` 五个子包（server / web / shared / analytics-sdk / electron）的一句话职责 |
 | 常用命令 | 开发、构建、lint、测试、数据库迁移与种子、文档站预览 |
 | 架构总览 | 后端（Hono / Drizzle / 认证 / 路由装配 / DTO / 错误处理）、前端（Semi Design / TanStack Query / 多入口）、共享层（业务域拆分与导入约定）——只说「是什么、在哪里」，「怎么写」指向 skill |

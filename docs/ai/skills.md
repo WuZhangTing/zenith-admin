@@ -40,6 +40,7 @@ Zenith Skill 位于 `.agents/skills/zenith/`，是本项目开发规范、工作
 
 - 后端与全局约束：[`constraints.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints.md)
 - 前端约束：[`constraints-frontend.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints-frontend.md)
+- CRUD 信息收集：[`crud-intake.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/crud-intake.md)
 - 后端写法：[`crud-backend.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/crud-backend.md)、
   [`backend-patterns.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/backend-patterns.md)
 - 前端写法：[`crud-frontend.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/crud-frontend.md)、
