@@ -362,10 +362,10 @@ export default function DataSourcesPage() {
               {values.type === 'api' ? (
                 <>
                   <Row gutter={16}>
-                    <Col span={16}>
+                    <Col span={12}>
                       <Form.Input field="url" label="URL" placeholder="https://api.example.com/data" rules={[{ required: true, message: '请输入 URL' }]} showClear />
                     </Col>
-                    <Col span={8}>
+                    <Col span={12}>
                       <Form.Select field="method" label="方法" optionList={[{ value: 'GET', label: 'GET' }, { value: 'POST', label: 'POST' }]} style={{ width: '100%' }} />
                     </Col>
                   </Row>
@@ -374,10 +374,10 @@ export default function DataSourcesPage() {
               ) : isExternalDbType(values.type) ? (
                 <>
                   <Row gutter={16}>
-                    <Col span={16}>
+                    <Col span={12}>
                       <Form.Input field="host" label="主机" placeholder="127.0.0.1" rules={[{ required: true, message: '请输入主机' }]} showClear />
                     </Col>
-                    <Col span={8}>
+                    <Col span={12}>
                       <Form.InputNumber field="port" label="端口" min={1} max={65535} style={{ width: '100%' }} rules={[{ required: true, message: '请输入端口' }]} />
                     </Col>
                   </Row>
