@@ -7,8 +7,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
-import { formatDateTime } from '@/utils/date';
-import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
+import { createdAtColumn, dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
@@ -227,9 +226,10 @@ export default function DataSourcesPage() {
       title: '健康状态', dataIndex: 'lastTestStatus', width: 90,
       render: (value: ReportDatasource['lastTestStatus']) => healthTag(value),
     },
+    dateTimeColumn('最近测试', 'lastTestAt'),
     {
-      title: '最近测试', dataIndex: 'lastTestAt', width: 240,
-      render: (value: string | null, record) => value ? `${formatDateTime(value)}${record.lastTestLatencyMs != null ? ` · ${record.lastTestLatencyMs}ms` : ''}` : '—',
+      title: '测试延迟', dataIndex: 'lastTestLatencyMs', width: 100, align: 'right',
+      render: (value: number | null) => (value == null ? EMPTY_PLACEHOLDER : `${value}ms`),
     },
     {
       title: '连续失败', dataIndex: 'consecutiveFailures', width: 100,

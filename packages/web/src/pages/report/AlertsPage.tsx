@@ -8,7 +8,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { formatDateTime } from '@/utils/date';
-import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
+import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
@@ -526,7 +526,11 @@ export default function AlertsPage() {
             { title: '值', dataIndex: 'lastValue', width: 80, render: (value: number | null) => value ?? '—' },
             dateTimeColumn('开始时间', 'startedAt'),
             dateTimeColumn('完成时间', 'completedAt'),
-            { title: '确认', dataIndex: 'acknowledgedAt', width: 200, render: (_: unknown, record: ReportDeliveryRun) => record.acknowledgedAt ? `${record.acknowledgedAt}${record.acknowledgedByName ? ` · ${record.acknowledgedByName}` : ''}` : '未确认' },
+            dateTimeColumn('确认时间', 'acknowledgedAt', { empty: '未确认' }),
+            {
+              title: '确认人', dataIndex: 'acknowledgedByName', width: 120,
+              render: (value: string | null) => value || EMPTY_PLACEHOLDER,
+            },
             { title: '错误', dataIndex: 'errorMessage', width: 220, render: renderEllipsis },
             {
               title: '操作',

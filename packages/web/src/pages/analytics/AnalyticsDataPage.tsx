@@ -130,10 +130,6 @@ const defaultEventSearch: EventSearchParams = {
 };
 const defaultMetaSearch: MetaSearchParams = { keyword: '', status: '', category: '' };
 
-function formatNullableDate(value: string | null) {
-  return value ? formatDateTime(value) : '–';
-}
-
 function nullableText(value: string | number | null | undefined) {
   return value == null || value === '' ? '–' : String(value);
 }
@@ -498,19 +494,8 @@ export default function AnalyticsDataPage() {
     { title: '显示名', dataIndex: 'displayName', width: 150, render: (value: string | null) => nullableText(value) },
     { title: '分类', dataIndex: 'category', width: 130, render: (value: string | null) => nullableText(value) },
     { title: '触发次数', dataIndex: 'eventCount', width: 100 },
-    {
-      title: '首次/最近',
-      dataIndex: 'firstSeenAt',
-      width: 210,
-      render: (_: unknown, record) => (
-        <div>
-          <Typography.Text size="small">首次：{formatNullableDate(record.firstSeenAt)}</Typography.Text>
-          <Typography.Text type="tertiary" size="small" style={{ display: 'block' }}>
-            最近：{formatNullableDate(record.lastSeenAt)}
-          </Typography.Text>
-        </div>
-      ),
-    },
+    dateTimeColumn('首次出现', 'firstSeenAt'),
+    dateTimeColumn('最近出现', 'lastSeenAt'),
     {
       title: '状态',
       dataIndex: 'status',
