@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Col, Form, Row, Select, Spin, Tag, Toast, Switch, Typography, Banner } from '@douyinfe/semi-ui';
+import { Banner, Button, Col, Form, Row, Select, SideSheet, Spin, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { MpAccount, MpAccountType } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -238,76 +238,94 @@ export default function MpAccountsPage() {
         pagination={buildPagination(total)}
       />
 
-      <AppModal {...modal.modalProps} width={720}>
+      <SideSheet
+        title={modal.modalProps.title}
+        visible={modal.visible}
+        onCancel={modal.close}
+        closeOnEsc
+        width={780}
+        footer={(
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button type="tertiary" onClick={modal.close}>取消</Button>
+            <Button
+              type="primary"
+              theme="solid"
+              loading={modal.modalProps.okButtonProps.loading}
+              disabled={modal.modalProps.okButtonProps.disabled}
+              onClick={() => void modal.modalProps.onOk()}
+            >
+              保存
+            </Button>
+          </div>
+        )}
+      >
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
           <Form {...modal.formProps}>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Input field="name" label="公众号名称" placeholder="请输入公众号名称"
-                  rules={[{ required: true, message: '请输入公众号名称' }]} />
-              </Col>
-              <Col span={12}>
-                <Form.Select field="type" label="账号类型" style={{ width: '100%' }} optionList={TYPE_OPTIONS}
-                  placeholder="请选择账号类型" rules={[{ required: true, message: '请选择账号类型' }]} />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Input field="account" label="微信号" placeholder="原始ID，如 gh_xxxx" />
-              </Col>
-              <Col span={12}>
-                <Form.Input field="appId" label="AppID" placeholder="请输入 AppID"
-                  rules={[{ required: true, message: '请输入 AppID' }]} />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Input field="appSecret" label="AppSecret" mode="password"
-                  placeholder={modal.isEdit ? '不修改请留空' : '请输入 AppSecret'}
-                  rules={modal.isEdit ? [] : [{ required: true, message: '请输入 AppSecret' }]} />
-              </Col>
-              <Col span={12}>
-                <Form.Input field="token" label="Token" placeholder="服务器配置 Token，仅限字母数字"
-                  rules={[{ required: true, message: '请输入 Token' }]} />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Select field="encryptMode" label="消息加解密" style={{ width: '100%' }} optionList={ENCRYPT_MODE_OPTIONS}
-                  placeholder="请选择消息加解密方式" />
-              </Col>
-              <Col span={12}>
-                <Form.Input field="encodingAesKey" label="AESKey" placeholder="安全/兼容模式必填，43位" />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Select field="status" label="状态" style={{ width: '100%' }} placeholder="请选择状态"
-                  optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))} />
-              </Col>
-              <Col span={12}>
-                <Form.Switch field="isDefault" label="设为默认" />
-              </Col>
-              <Col span={12}>
-                <Form.Switch field="autoCreateMember" label="关注即注册会员" extraText="开启后，粉丝关注时自动创建并绑定会员" />
-              </Col>
-              <Col span={12}>
-                <Form.Switch field="contentCheckEnabled" label="内容安全校验" extraText="开启后，群发/客服消息发送前自动做敏感词校验" />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={24}>
-                <Form.Input field="qrCodeUrl" label="二维码地址" placeholder="公众号二维码图片 URL（选填）" />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={24}>
-                <Form.TextArea field="remark" label="备注" rows={2} placeholder="请输入备注" />
-              </Col>
-            </Row>
+            <Form.Section text="基础信息">
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Input field="name" label="公众号名称" placeholder="请输入公众号名称"
+                    rules={[{ required: true, message: '请输入公众号名称' }]} />
+                </Col>
+                <Col span={12}>
+                  <Form.Select field="type" label="账号类型" style={{ width: '100%' }} optionList={TYPE_OPTIONS}
+                    placeholder="请选择账号类型" rules={[{ required: true, message: '请选择账号类型' }]} />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Input field="account" label="微信号" placeholder="原始ID，如 gh_xxxx" />
+                </Col>
+                <Col span={12}>
+                  <Form.Select field="status" label="状态" style={{ width: '100%' }} placeholder="请选择状态"
+                    optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))} />
+                </Col>
+              </Row>
+              <Form.Input field="qrCodeUrl" label="二维码地址" placeholder="公众号二维码图片 URL（选填）" />
+              <Form.TextArea field="remark" label="备注" rows={2} placeholder="请输入备注" />
+            </Form.Section>
+
+            <Form.Section text="开发者配置（对应微信公众平台「基本配置」）">
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Input field="appId" label="AppID" placeholder="请输入 AppID"
+                    rules={[{ required: true, message: '请输入 AppID' }]} />
+                </Col>
+                <Col span={12}>
+                  <Form.Input field="appSecret" label="AppSecret" mode="password"
+                    placeholder={modal.isEdit ? '不修改请留空' : '请输入 AppSecret'}
+                    rules={modal.isEdit ? [] : [{ required: true, message: '请输入 AppSecret' }]} />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Input field="token" label="Token" placeholder="服务器配置 Token，仅限字母数字"
+                    rules={[{ required: true, message: '请输入 Token' }]} />
+                </Col>
+                <Col span={12}>
+                  <Form.Select field="encryptMode" label="消息加解密" style={{ width: '100%' }} optionList={ENCRYPT_MODE_OPTIONS}
+                    placeholder="请选择消息加解密方式" />
+                </Col>
+              </Row>
+              <Form.Input field="encodingAesKey" label="AESKey" placeholder="安全/兼容模式必填，43位" />
+            </Form.Section>
+
+            <Form.Section text="功能开关">
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Switch field="isDefault" label="设为默认" />
+                </Col>
+                <Col span={12}>
+                  <Form.Switch field="autoCreateMember" label="关注即注册会员" extraText="开启后，粉丝关注时自动创建并绑定会员" />
+                </Col>
+                <Col span={12}>
+                  <Form.Switch field="contentCheckEnabled" label="内容安全校验" extraText="开启后，群发/客服消息发送前自动做敏感词校验" />
+                </Col>
+              </Row>
+            </Form.Section>
           </Form>
         </Spin>
-      </AppModal>
+      </SideSheet>
 
       <AppModal title="微信服务器配置" visible={!!configRecord} footer={null}
         onCancel={() => setConfigRecord(null)} width={640}>
