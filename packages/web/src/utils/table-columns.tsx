@@ -40,12 +40,17 @@ export function renderEnabledStatusTag(value: string): React.ReactNode {
 
 type DateColumnValue = Date | string | number | null | undefined;
 
+/** 时间戳数值的单位；后端多数返回字符串时间，Docker 等外部系统返回 unix 秒 */
+type TimeUnit = 'millisecond' | 'second';
+
 type TimeColumnOptions<RecordType extends Data> = Omit<
   ColumnProps<RecordType>,
   'title' | 'dataIndex' | 'render'
 > & {
   /** 空值展示文案，用于「永久」「未发布」等语义化占位；默认 '—' */
   empty?: string;
+  /** 数值时间戳的单位，默认毫秒；unix 秒时间戳传 'second' */
+  unit?: TimeUnit;
 };
 
 function createTimeColumn<RecordType extends Data>(
@@ -55,13 +60,19 @@ function createTimeColumn<RecordType extends Data>(
   dataIndex: string,
   options: TimeColumnOptions<RecordType> = {},
 ): ColumnProps<RecordType> {
-  const { empty = EMPTY_PLACEHOLDER, width = defaultWidth, ...rest } = options;
+  const { empty = EMPTY_PLACEHOLDER, width = defaultWidth, unit = 'millisecond', ...rest } = options;
   return {
     title,
     dataIndex,
     width,
     ...rest,
-    render: (value: unknown) => (value ? format(value as DateColumnValue) : empty),
+    render: (value: unknown) => {
+      if (!value) return empty;
+      const input = (unit === 'second' && typeof value === 'number'
+        ? value * 1000
+        : value) as DateColumnValue;
+      return format(input);
+    },
   };
 }
 
@@ -71,6 +82,7 @@ function createTimeColumn<RecordType extends Data>(
  * @example
  * dateTimeColumn('支付时间', 'paidAt')
  * dateTimeColumn('过期时间', 'expiresAt', { empty: '永久有效' })
+ * dateTimeColumn('创建时间', 'created', { unit: 'second' })
  */
 export function dateTimeColumn<RecordType extends Data = Data>(
   title: string,

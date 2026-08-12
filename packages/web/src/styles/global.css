@@ -218,6 +218,16 @@ body[theme-mode='dark'] .semi-json-viewer-view-line {
   color: var(--semi-color-text-2);
 }
 
+/* 紧凑表格的单元格排版：只影响字号 / 弱化色，不承载业务语义 */
+.table-cell-compact {
+  font-size: 12px;
+}
+
+.table-cell-muted {
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+}
+
 .configurable-table {
   display: flex;
   flex-direction: column;

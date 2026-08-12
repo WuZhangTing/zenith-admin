@@ -24,7 +24,6 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { MetricMeter } from '@/components/data-viz/MetricMeter';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { formatDateTime } from '@/utils/date';
 import AppModal from '@/components/AppModal';
 import {
   useDockerAvailable,
@@ -53,7 +52,7 @@ import {
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
-import { dateTimeColumn, DATE_TIME_COLUMN_WIDTH } from '@/utils/table-columns';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 // ─── Prune（清理）辅助 ──────────────────────────────────────────────────────────
 function runPrune(url: string, title: string, content: string, prune: (url: string) => Promise<PruneResultData>): void {
@@ -124,7 +123,7 @@ function groupByCompose(containers: ContainerInfo[]): (ContainerInfo & { childre
     result.push({
       id: `__compose__${project}`, shortId: '', names: [`📦 ${project}`],
       image: `${members.length} 个服务`, imageId: '', command: '',
-      created: Math.max(...members.map((m) => m.created)),
+      created: 0,
       state: parentState, status: `${runningCount}/${members.length} 运行中`,
       ports: members.flatMap((m) => m.ports),
       composeProject: project, composeService: null, children: members,
@@ -291,13 +290,7 @@ function ContainersTab() {
         return <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{formatPorts(r.ports)}</span>;
       },
     },
-    {
-      title: '创建时间', dataIndex: 'created', width: DATE_TIME_COLUMN_WIDTH,
-      render: (v: number, r: ContainerInfo) => {
-        if (isGroup(r)) return null;
-        return formatDateTime(new Date(v * 1000));
-      },
-    },
+    dateTimeColumn('创建时间', 'created', { unit: 'second' }),
     createOperationColumn<ContainerInfo>({
       width: 180,
       desktopInlineKeys: ['toggle', 'logs'],
@@ -614,14 +607,7 @@ function ImagesTab() {
       title: '容器数', dataIndex: 'containers', width: 90,
       render: (v: number) => <Tag size="small" color={v > 0 ? 'green' : 'grey'}>{v}</Tag>,
     },
-    {
-      title: '创建时间', dataIndex: 'created', width: DATE_TIME_COLUMN_WIDTH,
-      render: (v: number, r: ImageRow) => (
-        r.isGroup
-          ? <Typography.Text type="tertiary" size="small">{formatDateTime(new Date(v * 1000))}</Typography.Text>
-          : formatDateTime(new Date(v * 1000))
-      ),
-    },
+    dateTimeColumn('创建时间', 'created', { unit: 'second' }),
     createOperationColumn<ImageRow>({
       width: 100,
       actions: (record) => [

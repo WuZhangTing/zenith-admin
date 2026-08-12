@@ -8,7 +8,7 @@ import { WORKFLOW_JOB_STATUS_META as JOB_STATUS_META } from './constants';
 import { request } from '@/utils/request';
 import { downloadBlob } from '@/utils/download';
 import { formatDateTime } from '@/utils/date';
-import { DATE_TIME_COLUMN_WIDTH, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
+import { dateTimeColumn } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -366,7 +366,7 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
         </Typography.Text>
       ),
     },
-    { title: '计划执行', dataIndex: 'runAt', width: DATE_TIME_COLUMN_WIDTH, render: (v: string) => <Typography.Text size="small" type="tertiary">{formatDateTime(v)}</Typography.Text> },
+    dateTimeColumn('计划执行', 'runAt', { className: 'table-cell-muted' }),
     {
       title: '最近错误',
       dataIndex: 'lastError',
@@ -374,7 +374,7 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
         ? <Tooltip content={<div style={{ maxWidth: 360, wordBreak: 'break-all' }}>{v}</div>}><Typography.Text size="small" type="danger" ellipsis={{ rows: 1 }} style={{ maxWidth: 240 }}>{v}</Typography.Text></Tooltip>
         : <Typography.Text size="small" type="tertiary">—</Typography.Text>,
     },
-    { title: '创建时间', dataIndex: 'createdAt', width: DATE_TIME_COLUMN_WIDTH, render: (v: string) => <Typography.Text size="small" type="tertiary">{formatDateTime(v)}</Typography.Text> },
+    dateTimeColumn('创建时间', 'createdAt', { className: 'table-cell-muted' }),
     createOperationColumn<WorkflowJob>({
       width: 200,
       desktopInlineKeys: ['detail', 'retry', 'skip'],
@@ -428,11 +428,11 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
         ? <Tooltip content={<div style={{ maxWidth: 360, wordBreak: 'break-all' }}>{v}</div>}><Typography.Text size="small" type="danger" ellipsis={{ rows: 1 }} style={{ maxWidth: 200 }}>{v}</Typography.Text></Tooltip>
         : <Typography.Text size="small" type="tertiary">—</Typography.Text>,
     },
-    { title: '完成时间', dataIndex: 'finishedAt', width: DATE_TIME_COLUMN_WIDTH, render: (v: string | null) => <Typography.Text size="small" type="tertiary">{v ? formatDateTime(v) : EMPTY_PLACEHOLDER}</Typography.Text> },
+    dateTimeColumn('完成时间', 'finishedAt', { className: 'table-cell-muted' }),
   ];
 
   const chainColumns: ColumnProps<WorkflowJob & { executions: WorkflowJobExecution[] }>[] = [
-    { title: '时间', dataIndex: 'createdAt', width: DATE_TIME_COLUMN_WIDTH, render: (v: string) => <Typography.Text size="small">{formatDateTime(v)}</Typography.Text> },
+    dateTimeColumn('时间', 'createdAt', { className: 'table-cell-compact' }),
     { title: '类型', dataIndex: 'jobType', width: 104, render: (v: WorkflowJobType) => <Tag color={JOB_TYPE_META[v].color} size="small">{JOB_TYPE_META[v].text}</Tag> },
     { title: '状态', dataIndex: 'status', width: 76, render: (v: WorkflowJobStatus) => renderStatusTag(v) },
     { title: '节点 / 实例', render: (_: unknown, r: WorkflowJob) => <Typography.Text size="small">{r.nodeKey ?? '—'}{r.instanceId ? ` · #${r.instanceId}` : ''}</Typography.Text> },

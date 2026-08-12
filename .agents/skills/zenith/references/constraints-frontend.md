@@ -83,8 +83,14 @@
   （日期时间，宽 180）或 `dateColumn(...)`（纯日期，宽 120）创建，`createdAt` / `updatedAt`
   直接用预置的 `createdAtColumn` / `updatedAtColumn`。工厂已内建格式化与空值兜底，
   **禁止**再手写 `width` 与 `render: (v) => formatDateTime(v)` / `v ? formatDateTime(v) : '-'`。
-  语义化空值（「永久」「不限」「未发布」）传 `empty`；`sorter` / `fixed` 等直接透传。
-  确需自定义 `render`（时间区间、带图标或等宽字体）时，`width` 也必须取 `DATE_TIME_COLUMN_WIDTH`
+  语义化空值（「永久」「不限」「未发布」）传 `empty`；unix 秒时间戳传 `unit: 'second'`；
+  紧凑表格的字号 / 弱化色传 `className`（`table-cell-compact` / `table-cell-muted`），
+  **禁止**为此包一层 `Typography.Text size="small"`；`sorter` / `fixed` 等直接透传。
+  判定依据是**字段语义**而非列标题：`xxxAt` / `xxxTime` 一律走工厂，
+  哪怕标题是「最近活跃」「下次执行」这类业务措辞。
+  时间列不承载副文案与装饰：图标 / 等宽字体一律去掉，「清理 N 行」这类附加信息拆成独立列。
+  只有时间**区间**（一格渲染起止两个值）与真正的复合列可保留自定义 `render`，
+  此时 `width` 也必须取 `DATE_TIME_COLUMN_WIDTH`
 - **空值占位统一**：用 `utils/table-columns` 的 `EMPTY_PLACEHOLDER`（`—`），**禁止**混用 `-` / `–`
 - **树形表格展开控制**：用 `children` 渲染树形表格时必须在搜索栏加「全部展开 / 全部折叠」按钮，
   受控 `expandedRowKeys` + `onExpandedRowsChange`；图标已展开用 `ChevronsDownUp`，未展开用 `ChevronsUpDown`
