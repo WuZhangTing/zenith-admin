@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col, Form, Modal, Row, Select, Switch, Table, Tag, Toast } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Modal, Row, Select, SideSheet, Spin, Switch, Table, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { IdentityProviderType, TenantIdentityProvider } from '@zenith/shared/identity';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { AppModal } from '@/components/AppModal';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { useAllRoles } from '@/hooks/queries/roles';
@@ -179,7 +178,7 @@ export default function IdentityProvidersPage() {
         defaultRoleIds: Array.isArray(values.defaultRoleIds) ? values.defaultRoleIds : [],
       };
     },
-    labelWidth: 110,
+    labelWidth: 130,
   });
   const toggleStatusMutation = useSaveIdentityProvider();
   const deleteMutation = useDeleteIdentityProviders();
@@ -384,121 +383,147 @@ export default function IdentityProvidersPage() {
         pagination={buildPagination(total)}
       />
 
-      <AppModal
-        {...modal.modalProps}
-        width={760}
+      <SideSheet
+        title={modal.modalProps.title}
+        visible={modal.visible}
+        onCancel={modal.close}
+        closeOnEsc
+        width={780}
+        footer={(
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button type="tertiary" onClick={modal.close}>取消</Button>
+            <Button
+              type="primary"
+              theme="solid"
+              loading={modal.modalProps.okButtonProps.loading}
+              disabled={modal.modalProps.okButtonProps.disabled}
+              onClick={() => void modal.modalProps.onOk()}
+            >
+              保存
+            </Button>
+          </div>
+        )}
       >
-        <Form
-          {...modal.formProps}
-        >
-          <Row gutter={16}>
-            <Col span={12}><Form.Input field="name" label="名称" placeholder="Azure AD / Okta" rules={[{ required: true, message: '请输入名称' }]} /></Col>
-            <Col span={12}><Form.Input field="code" label="编码" placeholder="azure_ad" rules={[{ required: true, message: '请输入编码' }]} /></Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
+        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
+          <Form
+            {...modal.formProps}
+          >
+            <Form.Section text="基础信息">
+              <Row gutter={16}>
+                <Col span={12}><Form.Input field="name" label="名称" placeholder="Azure AD / Okta" rules={[{ required: true, message: '请输入名称' }]} /></Col>
+                <Col span={12}><Form.Input field="code" label="编码" placeholder="azure_ad" rules={[{ required: true, message: '请输入编码' }]} /></Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Select
+                    field="tenantId"
+                    label="租户"
+                    placeholder="平台级身份源"
+                    optionList={tenantOptions}
+                    showClear
+                    style={{ width: '100%' }}
+                  />
+                </Col>
+                <Col span={12}>
+                  <Form.Select
+                    field="type"
+                    label="类型"
+                    optionList={providerTypeOptions}
+                    style={{ width: '100%' }}
+                    onChange={handleProviderTypeChange}
+                  />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={12}><Form.Select field="status" label="状态" optionList={statusOptions} style={{ width: '100%' }} /></Col>
+              </Row>
+            </Form.Section>
+
+            <Form.Section text={`${providerTypeLabels[providerType]} 连接配置`}>
+              {providerType === 'oidc' && (
+                <>
+                  <Form.Input field="issuer" label="Issuer" placeholder="https://login.example.com" />
+                  <Form.Input field="authorizationEndpoint" label="授权端点" placeholder="https://.../authorize" rules={[{ required: providerType === 'oidc', message: '请输入授权端点' }]} />
+                  <Form.Input field="tokenEndpoint" label="Token 端点" placeholder="https://.../token" rules={[{ required: providerType === 'oidc', message: '请输入 Token 端点' }]} />
+                  <Form.Input field="userinfoEndpoint" label="UserInfo 端点" placeholder="https://.../userinfo" rules={[{ required: providerType === 'oidc', message: '请输入 UserInfo 端点' }]} />
+                  <Form.Input field="jwksUri" label="JWKS URI" placeholder="https://.../jwks" />
+                  <Row gutter={16}>
+                    <Col span={12}><Form.Input field="clientId" label="Client ID" /></Col>
+                    <Col span={12}><Form.Input field="clientSecret" label="Client Secret" type="password" /></Col>
+                  </Row>
+                  <Form.Input field="scopes" label="Scopes" placeholder="openid profile email" />
+                </>
+              )}
+
+              {providerType === 'saml' && (
+                <>
+                  <Form.Input field="issuer" label="IdP Issuer" placeholder="https://idp.example.com/saml/metadata" />
+                  <Form.Input field="samlSsoUrl" label="SSO URL" placeholder="https://idp.example.com/sso" rules={[{ required: providerType === 'saml', message: '请输入 SSO URL' }]} />
+                  <Form.Input field="samlEntityId" label="SP Entity ID" placeholder="https://zenith.example.com/saml/sp" />
+                  <Form.TextArea field="samlCertificate" label="证书" placeholder="-----BEGIN CERTIFICATE-----" rows={4} />
+                </>
+              )}
+
+              {isDirectoryType(providerType) && (
+                <>
+                  <Form.Input field="ldapUrl" label="LDAP URL" placeholder="ldap://ad.example.com:389" rules={[{ required: true, message: '请输入 LDAP URL' }]} />
+                  <Row gutter={16}>
+                    <Col span={12}><Form.Switch field="ldapStartTls" label="StartTLS" /></Col>
+                    <Col span={12}><Form.Switch field="ldapSkipTlsVerify" label="跳过证书校验" /></Col>
+                  </Row>
+                  <Form.Input field="ldapBaseDn" label="Base DN" placeholder="dc=example,dc=com" rules={[{ required: true, message: '请输入 Base DN' }]} />
+                  <Row gutter={16}>
+                    <Col span={12}><Form.Input field="ldapBindDn" label="绑定 DN" placeholder="cn=readonly,dc=example,dc=com" /></Col>
+                    <Col span={12}><Form.Input field="ldapBindPassword" label="绑定密码" type="password" /></Col>
+                  </Row>
+                  <Form.InputNumber field="ldapTimeoutMs" label="超时(ms)" min={1000} max={60000} step={1000} style={{ width: '100%' }} />
+                  <Form.TextArea field="ldapUserFilter" label="登录过滤器" rows={2} />
+                  <Form.TextArea field="ldapUserSearchFilter" label="搜索过滤器" rows={2} />
+                  <Form.TextArea field="ldapSyncFilter" label="同步过滤器" rows={2} />
+                  <Row gutter={16}>
+                    <Col span={12}><Form.Input field="ldapGroupBaseDn" label="组 Base DN" placeholder="ou=groups,dc=example,dc=com" /></Col>
+                    <Col span={12}><Form.Input field="ldapGroupFilter" label="组过滤器" placeholder="(member={{dn}})" /></Col>
+                  </Row>
+                </>
+              )}
+            </Form.Section>
+
+            <Form.Section text="属性映射（切换类型时按该类型默认值自动填充）">
+              <Row gutter={16}>
+                <Col span={12}><Form.Input field="attributeMapping.subject" label="主体字段" placeholder={isDirectoryType(providerType) ? 'entryUUID / objectGUID' : 'sub / NameID'} /></Col>
+                <Col span={12}><Form.Input field="attributeMapping.email" label="邮箱字段" placeholder="email" /></Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={12}><Form.Input field="attributeMapping.username" label="用户名字段" placeholder={isDirectoryType(providerType) ? 'uid / sAMAccountName' : 'preferred_username'} /></Col>
+                <Col span={12}><Form.Input field="attributeMapping.nickname" label="昵称字段" placeholder={isDirectoryType(providerType) ? 'cn / displayName' : 'name'} /></Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={12}><Form.Input field="attributeMapping.phone" label="手机字段" placeholder="telephoneNumber" /></Col>
+                <Col span={12}><Form.Input field="attributeMapping.department" label="部门字段" placeholder="department / ou" /></Col>
+              </Row>
+            </Form.Section>
+
+            <Form.Section text="账号开通">
+              <Form.Switch field="jitEnabled" label="JIT 创建" extraText="首次登录时按属性映射自动创建本地账号" />
               <Form.Select
-                field="tenantId"
-                label="租户"
-                placeholder="平台级身份源"
-                optionList={tenantOptions}
-                showClear
+                field="defaultRoleIds"
+                label="默认角色"
+                multiple
+                optionList={roleOptions}
                 style={{ width: '100%' }}
               />
-            </Col>
-            <Col span={12}>
-              <Form.Select
-                field="type"
-                label="类型"
-                optionList={providerTypeOptions}
-                style={{ width: '100%' }}
-                onChange={handleProviderTypeChange}
-              />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}><Form.Select field="status" label="状态" optionList={statusOptions} style={{ width: '100%' }} /></Col>
-            <Col span={12}><Form.Switch field="jitEnabled" label="JIT 创建" /></Col>
-          </Row>
+              <Form.TextArea field="remark" label="备注" rows={3} />
+            </Form.Section>
+          </Form>
+        </Spin>
+      </SideSheet>
 
-          {providerType === 'oidc' && (
-            <>
-              <Form.Input field="issuer" label="Issuer" placeholder="https://login.example.com" />
-              <Form.Input field="authorizationEndpoint" label="授权端点" placeholder="https://.../authorize" rules={[{ required: providerType === 'oidc', message: '请输入授权端点' }]} />
-              <Form.Input field="tokenEndpoint" label="Token 端点" placeholder="https://.../token" rules={[{ required: providerType === 'oidc', message: '请输入 Token 端点' }]} />
-              <Form.Input field="userinfoEndpoint" label="UserInfo 端点" placeholder="https://.../userinfo" rules={[{ required: providerType === 'oidc', message: '请输入 UserInfo 端点' }]} />
-              <Form.Input field="jwksUri" label="JWKS URI" placeholder="https://.../jwks" />
-              <Row gutter={16}>
-                <Col span={12}><Form.Input field="clientId" label="Client ID" /></Col>
-                <Col span={12}><Form.Input field="clientSecret" label="Client Secret" type="password" /></Col>
-              </Row>
-              <Form.Input field="scopes" label="Scopes" placeholder="openid profile email" />
-            </>
-          )}
-
-          {providerType === 'saml' && (
-            <>
-              <Form.Input field="issuer" label="IdP Issuer" placeholder="https://idp.example.com/saml/metadata" />
-              <Form.Input field="samlSsoUrl" label="SSO URL" placeholder="https://idp.example.com/sso" rules={[{ required: providerType === 'saml', message: '请输入 SSO URL' }]} />
-              <Form.Input field="samlEntityId" label="SP Entity ID" placeholder="https://zenith.example.com/saml/sp" />
-              <Form.TextArea field="samlCertificate" label="证书" placeholder="-----BEGIN CERTIFICATE-----" rows={4} />
-            </>
-          )}
-
-          {isDirectoryType(providerType) && (
-            <>
-              <Form.Input field="ldapUrl" label="LDAP URL" placeholder="ldap://ad.example.com:389" rules={[{ required: true, message: '请输入 LDAP URL' }]} />
-              <Row gutter={16}>
-                <Col span={12}><Form.Switch field="ldapStartTls" label="StartTLS" /></Col>
-                <Col span={12}><Form.Switch field="ldapSkipTlsVerify" label="跳过证书校验" /></Col>
-              </Row>
-              <Form.Input field="ldapBaseDn" label="Base DN" placeholder="dc=example,dc=com" rules={[{ required: true, message: '请输入 Base DN' }]} />
-              <Row gutter={16}>
-                <Col span={12}><Form.Input field="ldapBindDn" label="绑定 DN" placeholder="cn=readonly,dc=example,dc=com" /></Col>
-                <Col span={12}><Form.Input field="ldapBindPassword" label="绑定密码" type="password" /></Col>
-              </Row>
-              <Form.InputNumber field="ldapTimeoutMs" label="超时(ms)" min={1000} max={60000} step={1000} style={{ width: '100%' }} />
-              <Form.TextArea field="ldapUserFilter" label="登录过滤器" rows={2} />
-              <Form.TextArea field="ldapUserSearchFilter" label="搜索过滤器" rows={2} />
-              <Form.TextArea field="ldapSyncFilter" label="同步过滤器" rows={2} />
-              <Row gutter={16}>
-                <Col span={12}><Form.Input field="ldapGroupBaseDn" label="组 Base DN" placeholder="ou=groups,dc=example,dc=com" /></Col>
-                <Col span={12}><Form.Input field="ldapGroupFilter" label="组过滤器" placeholder="(member={{dn}})" /></Col>
-              </Row>
-            </>
-          )}
-
-          <Row gutter={16}>
-            <Col span={12}><Form.Input field="attributeMapping.subject" label="主体字段" placeholder={isDirectoryType(providerType) ? 'entryUUID / objectGUID' : 'sub / NameID'} /></Col>
-            <Col span={12}><Form.Input field="attributeMapping.email" label="邮箱字段" placeholder="email" /></Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}><Form.Input field="attributeMapping.username" label="用户名字段" placeholder={isDirectoryType(providerType) ? 'uid / sAMAccountName' : 'preferred_username'} /></Col>
-            <Col span={12}><Form.Input field="attributeMapping.nickname" label="昵称字段" placeholder={isDirectoryType(providerType) ? 'cn / displayName' : 'name'} /></Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}><Form.Input field="attributeMapping.phone" label="手机字段" placeholder="telephoneNumber" /></Col>
-            <Col span={12}><Form.Input field="attributeMapping.department" label="部门字段" placeholder="department / ou" /></Col>
-          </Row>
-          <Form.Select
-            field="defaultRoleIds"
-            label="默认角色"
-            multiple
-            optionList={roleOptions}
-            style={{ width: '100%' }}
-          />
-          <Form.TextArea field="remark" label="备注" rows={3} />
-        </Form>
-      </AppModal>
-
-      <AppModal
-        title={ldapSearchProvider ? `搜索目录用户 - ${ldapSearchProvider.name}` : '搜索目录用户'}
+      <SideSheet
+        title={ldapSearchProvider ? `搜索目录用户 · ${ldapSearchProvider.name}` : '搜索目录用户'}
         visible={ldapSearchVisible}
         onCancel={() => setLdapSearchVisible(false)}
-        onOk={handleLdapSearch}
-        okText="搜索"
         closeOnEsc
-        width={860}
+        width={900}
       >
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           <KeywordInput placeholder="输入用户名、姓名或邮箱关键字" value={ldapSearchKeyword} onChange={setLdapSearchKeyword} onSearch={handleLdapSearch} />
@@ -518,7 +543,7 @@ export default function IdentityProvidersPage() {
             { title: 'DN', dataIndex: 'dn', render: renderEllipsis },
           ]}
         />
-      </AppModal>
+      </SideSheet>
     </div>
   );
 }
