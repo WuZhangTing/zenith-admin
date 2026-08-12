@@ -6,7 +6,6 @@ import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import { FormTimezoneSelect } from '@/components/FormTimezoneSelect';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import AppModal from '@/components/AppModal';
 import { formatDateTime } from '@/utils/date';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
@@ -387,124 +386,140 @@ export default function AlertsPage() {
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} pagination={buildPagination(data?.total ?? 0)}
       />
 
-      <AppModal {...alertModal.modalProps} width={900}>
-        <Form {...alertModal.formProps}
-          onValueChange={(values) => {
-            const nextDatasetId = values.datasetId ? Number(values.datasetId) : null;
-            if (nextDatasetId !== selectedDatasetId) {
-              setSelectedDatasetId(nextDatasetId);
-              alertModal.formApi.current?.setValue('field', undefined);
-            }
-            const nextAggregate = (values.aggregate ?? 'sum') as ReportAlertAggregate;
-            setSelectedAggregate(nextAggregate);
-            if (nextAggregate === 'count') alertModal.formApi.current?.setValue('field', undefined);
-            setSelectedChannels(((values.channels ?? []) as Array<'email' | 'inApp' | 'webhook'>));
-            if (typeof values.cron === 'string') setCronExprValue(values.cron);
-          }}
-        >
-          <Row gutter={24}>
-            <Col xs={24} md={12}>
-              <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={64} showClear />
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Select field="sourceType" label="来源类型" style={{ width: '100%' }}
-                optionList={[{ value: 'dataset', label: '数据集' }, { value: 'metric', label: '指标' }]}
-                onChange={(value) => {
-                  const next = value as 'dataset' | 'metric';
-                  setSourceType(next);
-                  const reset = switchAlertSource(next);
-                  Object.entries(reset).forEach(([key, item]) => alertModal.formApi.current?.setValue(key, item));
-                  setSelectedDatasetId(null);
-                }} />
-            </Col>
-            {sourceType === 'dataset' ? (
-              <>
-                <Col xs={24} md={12}>
-                  <Form.Select field="datasetId" label="数据集" style={{ width: '100%' }} rules={[{ required: true, message: '请选择数据集' }]} filter
-                    optionList={datasets.map((dataset) => ({ value: dataset.id, label: dataset.name }))} />
-                </Col>
-                <Col xs={24} md={12}>
-                  <Form.Select field="aggregate" label="聚合方式" style={{ width: '100%' }} optionList={aggregateOptions} />
-                </Col>
-                <Col xs={24} md={12}>
-                  <Form.Select field="field" label="监控字段" style={{ width: '100%' }} disabled={selectedAggregate === 'count'}
-                    placeholder={selectedAggregate === 'count' ? 'count 不需要选择字段' : '请选择监控字段'}
-                    rules={selectedAggregate === 'count' ? [] : [{ required: true, message: '请选择监控字段' }]}
-                    optionList={selectedFields.map((field) => ({ value: field.name, label: field.label ? `${field.label}（${field.name}）` : field.name }))} />
-                </Col>
-                <Col xs={24} md={12}>
-                  <Form.Select field="groupByField" label="分组维度" style={{ width: '100%' }} showClear
-                    placeholder="可选；按该字段分组聚合，任一组命中即触发"
-                    optionList={selectedFields.map((field) => ({ value: field.name, label: field.label ? `${field.label}（${field.name}）` : field.name }))} />
-                </Col>
-              </>
-            ) : (
+      <SideSheet
+        title={alertModal.isEdit ? `编辑预警 · ${alertModal.editing?.name ?? ''}` : '新建预警'}
+        visible={alertModal.visible}
+        onCancel={alertModal.close}
+        closeOnEsc
+        placement="right"
+        width={760}
+        bodyStyle={{ padding: 16, overflow: 'auto' }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <Form {...alertModal.formProps}
+            onValueChange={(values) => {
+              const nextDatasetId = values.datasetId ? Number(values.datasetId) : null;
+              if (nextDatasetId !== selectedDatasetId) {
+                setSelectedDatasetId(nextDatasetId);
+                alertModal.formApi.current?.setValue('field', undefined);
+              }
+              const nextAggregate = (values.aggregate ?? 'sum') as ReportAlertAggregate;
+              setSelectedAggregate(nextAggregate);
+              if (nextAggregate === 'count') alertModal.formApi.current?.setValue('field', undefined);
+              setSelectedChannels(((values.channels ?? []) as Array<'email' | 'inApp' | 'webhook'>));
+              if (typeof values.cron === 'string') setCronExprValue(values.cron);
+            }}
+          >
+            <Row gutter={24}>
               <Col xs={24} md={12}>
-                <Form.Select field="metricId" label="指标" style={{ width: '100%' }} rules={[{ required: true, message: '请选择指标' }]} filter
-                  optionList={metrics.filter((metric) => metric.status === 'published').map((metric) => ({ value: metric.id, label: `${metric.name}（${metric.code}）` }))} />
+                <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={64} showClear />
               </Col>
-            )}
-            <Col xs={24} md={12}>
-              <Form.Select field="op" label="运算符" style={{ width: '100%' }} optionList={opOptions} />
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.InputNumber field="threshold" label="阈值" style={{ width: '100%' }} rules={[{ required: true, message: '请输入阈值' }]} />
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Input
-                field="cron"
-                label="评估 Cron"
-                placeholder="0 */5 * * * *"
-                helpText="留空=仅手动"
-                showClear
-                addonAfter={(
-                  <CronBuilderPopover
-                    value={cronExprValue}
-                    onApply={(expression) => {
-                      alertModal.formApi.current?.setValue('cron', expression);
-                      setCronExprValue(expression);
-                    }}
-                  />
-                )}
-              />
-            </Col>
-            <Col xs={24} md={12}>
-              <FormTimezoneSelect />
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Select field="misfirePolicy" label="错过策略" style={{ width: '100%' }} optionList={REPORT_MISFIRE_POLICY_OPTIONS} />
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Select field="channels" label="通知通道" multiple style={{ width: '100%' }} rules={[{ required: true, message: '至少选择一个通道' }]}
-                optionList={[{ value: 'email', label: channelLabelMap.email }, { value: 'inApp', label: channelLabelMap.inApp }, { value: 'webhook', label: `${channelLabelMap.webhook}（企微/钉钉机器人）` }]} />
-            </Col>
-            {selectedChannels.includes('email') && (
               <Col xs={24} md={12}>
-                <Form.Input field="recipients" label="收件人邮箱" placeholder="多个用逗号分隔" showClear />
+                <Form.Select field="sourceType" label="来源类型" style={{ width: '100%' }}
+                  optionList={[{ value: 'dataset', label: '数据集' }, { value: 'metric', label: '指标' }]}
+                  onChange={(value) => {
+                    const next = value as 'dataset' | 'metric';
+                    setSourceType(next);
+                    const reset = switchAlertSource(next);
+                    Object.entries(reset).forEach(([key, item]) => alertModal.formApi.current?.setValue(key, item));
+                    setSelectedDatasetId(null);
+                  }} />
               </Col>
-            )}
-            {selectedChannels.includes('webhook') && (
+              {sourceType === 'dataset' ? (
+                <>
+                  <Col xs={24} md={12}>
+                    <Form.Select field="datasetId" label="数据集" style={{ width: '100%' }} rules={[{ required: true, message: '请选择数据集' }]} filter
+                      optionList={datasets.map((dataset) => ({ value: dataset.id, label: dataset.name }))} />
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Select field="aggregate" label="聚合方式" style={{ width: '100%' }} optionList={aggregateOptions} />
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Select field="field" label="监控字段" style={{ width: '100%' }} disabled={selectedAggregate === 'count'}
+                      placeholder={selectedAggregate === 'count' ? 'count 不需要选择字段' : '请选择监控字段'}
+                      rules={selectedAggregate === 'count' ? [] : [{ required: true, message: '请选择监控字段' }]}
+                      optionList={selectedFields.map((field) => ({ value: field.name, label: field.label ? `${field.label}（${field.name}）` : field.name }))} />
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Select field="groupByField" label="分组维度" style={{ width: '100%' }} showClear
+                      placeholder="可选；按该字段分组聚合，任一组命中即触发"
+                      optionList={selectedFields.map((field) => ({ value: field.name, label: field.label ? `${field.label}（${field.name}）` : field.name }))} />
+                  </Col>
+                </>
+              ) : (
+                <Col xs={24} md={12}>
+                  <Form.Select field="metricId" label="指标" style={{ width: '100%' }} rules={[{ required: true, message: '请选择指标' }]} filter
+                    optionList={metrics.filter((metric) => metric.status === 'published').map((metric) => ({ value: metric.id, label: `${metric.name}（${metric.code}）` }))} />
+                </Col>
+              )}
               <Col xs={24} md={12}>
-                <Form.Input field="webhookUrl" label="Webhook 地址" placeholder="企微/钉钉机器人 Webhook URL 或通用 JSON 端点"
-                  rules={[{ required: true, message: '请填写 Webhook 地址' }]} showClear />
+                <Form.Select field="op" label="运算符" style={{ width: '100%' }} optionList={opOptions} />
               </Col>
-            )}
-            <Col xs={24} md={12}>
-              <Form.InputNumber field="silenceMins" label="静默期(分)" min={0} max={10080} step={10} style={{ width: '100%' }}
-                helpText="持续触发时，距上次通知不足该时长不重复通知；0=每次触发都通知" />
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Switch field="notifyOnRecover" label="恢复通知" extraText="从触发恢复正常时发送一条恢复通知" />
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Select field="enabled" label="状态" style={{ width: '100%' }} optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))} />
-            </Col>
-            <Col xs={24}>
-              <Form.TextArea field="remark" label="备注" maxLength={256} autosize={{ minRows: 1, maxRows: 3 }} />
-            </Col>
-          </Row>
-        </Form>
-      </AppModal>
+              <Col xs={24} md={12}>
+                <Form.InputNumber field="threshold" label="阈值" style={{ width: '100%' }} rules={[{ required: true, message: '请输入阈值' }]} />
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Input
+                  field="cron"
+                  label="评估 Cron"
+                  placeholder="0 */5 * * * *"
+                  helpText="留空=仅手动"
+                  showClear
+                  addonAfter={(
+                    <CronBuilderPopover
+                      value={cronExprValue}
+                      onApply={(expression) => {
+                        alertModal.formApi.current?.setValue('cron', expression);
+                        setCronExprValue(expression);
+                      }}
+                    />
+                  )}
+                />
+              </Col>
+              <Col xs={24} md={12}>
+                <FormTimezoneSelect />
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Select field="misfirePolicy" label="错过策略" style={{ width: '100%' }} optionList={REPORT_MISFIRE_POLICY_OPTIONS} />
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Select field="channels" label="通知通道" multiple style={{ width: '100%' }} rules={[{ required: true, message: '至少选择一个通道' }]}
+                  optionList={[{ value: 'email', label: channelLabelMap.email }, { value: 'inApp', label: channelLabelMap.inApp }, { value: 'webhook', label: `${channelLabelMap.webhook}（企微/钉钉机器人）` }]} />
+              </Col>
+              {selectedChannels.includes('email') && (
+                <Col xs={24} md={12}>
+                  <Form.Input field="recipients" label="收件人邮箱" placeholder="多个用逗号分隔" showClear />
+                </Col>
+              )}
+              {selectedChannels.includes('webhook') && (
+                <Col xs={24} md={12}>
+                  <Form.Input field="webhookUrl" label="Webhook 地址" placeholder="企微/钉钉机器人 Webhook URL 或通用 JSON 端点"
+                    rules={[{ required: true, message: '请填写 Webhook 地址' }]} showClear />
+                </Col>
+              )}
+              <Col xs={24} md={12}>
+                <Form.InputNumber field="silenceMins" label="静默期(分)" min={0} max={10080} step={10} style={{ width: '100%' }}
+                  helpText="持续触发时，距上次通知不足该时长不重复通知；0=每次触发都通知" />
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Switch field="notifyOnRecover" label="恢复通知" extraText="从触发恢复正常时发送一条恢复通知" />
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Select field="enabled" label="状态" style={{ width: '100%' }} optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))} />
+              </Col>
+              <Col xs={24}>
+                <Form.TextArea field="remark" label="备注" maxLength={256} autosize={{ minRows: 1, maxRows: 3 }} />
+              </Col>
+            </Row>
+          </Form>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingTop: 8, borderTop: '1px solid var(--semi-color-border)' }}>
+            <Button onClick={alertModal.close}>取消</Button>
+            <Button type="primary" loading={alertModal.modalProps.okButtonProps.loading} disabled={alertModal.modalProps.okButtonProps.disabled} onClick={() => void alertModal.modalProps.onOk()}>
+              {alertModal.isEdit ? '保存' : '创建'}
+            </Button>
+          </div>
+        </div>
+      </SideSheet>
 
       <SideSheet
         title={historyTarget ? `预警历史 · ${historyTarget.name}` : '预警历史'}
