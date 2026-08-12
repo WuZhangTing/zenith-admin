@@ -526,7 +526,7 @@ export default function DatasetsPage() {
       render: (s: string) => s === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag color="grey" size="small">停用</Tag>,
     },
     createOperationColumn<ReportDataset>({
-      width: 200,
+      width: 150,
       desktopInlineKeys: ['refreshMaterialize', 'edit'],
       actions: (record) => [
         ...(record.materialize?.enabled && hasPermission('report:dataset:update') ? [{ key: 'refreshMaterialize', label: '刷新物化', onClick: () => void handleRefreshMaterialize(record) }] : []),
