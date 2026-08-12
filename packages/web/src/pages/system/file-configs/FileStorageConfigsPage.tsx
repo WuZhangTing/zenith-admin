@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Button, Col, Form, Modal, Radio, Row, Select, Spin, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Modal, Radio, Row, Select, SideSheet, Spin, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import { PlugZap } from 'lucide-react';
 import type { CreateFileStorageConfigInput, FileObjectAcl, FileStorageConfig, FileStorageProvider, FileUrlStrategy, UpdateFileStorageConfigInput } from '@zenith/shared/platform';
-import { FILE_OBJECT_ACL_SUPPORT, FILE_STORAGE_PROVIDER_LABELS, FILE_URL_STRATEGY_LABELS, FILE_URL_STRATEGY_OPTIONS, PRESIGNED_EXPIRY_DEFAULT_SECONDS, PRESIGNED_EXPIRY_MAX_SECONDS, PRESIGNED_EXPIRY_MIN_SECONDS } from '@zenith/shared/platform';
+import { FILE_OBJECT_ACL_SUPPORT, FILE_STORAGE_PROVIDER_LABELS, FILE_STORAGE_PROVIDER_OPTIONS, FILE_URL_STRATEGY_LABELS, FILE_URL_STRATEGY_OPTIONS, PRESIGNED_EXPIRY_DEFAULT_SECONDS, PRESIGNED_EXPIRY_MAX_SECONDS, PRESIGNED_EXPIRY_MIN_SECONDS } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { formatDateTimeRangeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
@@ -10,7 +10,6 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { useEditModal } from '@/hooks/useEditModal';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
-import { AppModal } from '@/components/AppModal';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -289,7 +288,7 @@ export default function FileStorageConfigsPage() {
     }),
     beforeSave: (values) => buildPayload(formProvider, formIsDefault, values),
     successMessage: ({ isEdit }) => isEdit ? '文件服务配置已更新' : '文件服务配置已创建',
-    labelWidth: 140,
+    labelWidth: 150,
   });
   const deleteMutation = useDeleteFileStorageConfigs();
   const setDefaultMutation = useSetDefaultFileStorageConfig();
@@ -595,375 +594,383 @@ export default function FileStorageConfigsPage() {
         size="small"
       />
 
-      <AppModal
-        {...modal.modalProps}
-        width={720}
-
-      >
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form
-          {...modal.formProps}
-        >
-          <div className="storage-config-form-header">
-            <Text strong>配置选项</Text>
-            <div className="storage-config-default-switch">
-              <Button type="primary" theme="light" icon={<PlugZap size={14} />} loading={modalTestLoading} disabled={modal.detailLoading} onClick={() => void handleModalTest()}>
-                测试连接
+      <SideSheet
+        title={modal.modalProps.title}
+        visible={modal.visible}
+        onCancel={modal.close}
+        closeOnEsc
+        width={780}
+        footer={(
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <Button icon={<PlugZap size={14} />} loading={modalTestLoading} disabled={modal.detailLoading} onClick={() => void handleModalTest()}>
+              测试连接
+            </Button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button type="tertiary" onClick={modal.close}>取消</Button>
+              <Button
+                type="primary"
+                theme="solid"
+                loading={modal.modalProps.okButtonProps.loading}
+                disabled={modal.modalProps.okButtonProps.disabled}
+                onClick={() => void modal.modalProps.onOk()}
+              >
+                保存
               </Button>
-              <span>设为默认服务</span>
-              <Switch checked={formIsDefault} onChange={(checked) => setFormIsDefault(checked)} />
             </div>
           </div>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="name" label="配置名称" placeholder="请输入配置名称" rules={[{ required: true, message: '请输入配置名称' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Select
-                field="provider"
-                label="存储类型"
-                style={{ width: '100%' }}
-                onChange={(value) => {
-                  const next = value as FileStorageProvider;
-                  setFormProvider(next);
-                  const currentAcl = modal.formApi.current?.getValue('objectAcl') as FileObjectAcl | undefined;
-                  if (currentAcl && !(FILE_OBJECT_ACL_SUPPORT[next] ?? []).includes(currentAcl)) {
-                    modal.formApi.current?.setValue('objectAcl', 'default');
-                  }
-                }}
-                placeholder="请选择存储类型"
-              >
-                <Select.Option value="local">本地磁盘</Select.Option>
-                <Select.Option value="oss">阿里云 OSS</Select.Option>
-                <Select.Option value="s3">Amazon S3 / MinIO</Select.Option>
-                <Select.Option value="cos">腾讯云 COS</Select.Option>
-                <Select.Option value="obs">华为云 OBS</Select.Option>
-                <Select.Option value="kodo">七牛云 Kodo</Select.Option>
-                <Select.Option value="bos">百度云 BOS</Select.Option>
-                <Select.Option value="azure">Azure Blob Storage</Select.Option>
-                <Select.Option value="sftp">SFTP</Select.Option>
-              </Form.Select>
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Select field="status" label="状态" style={{ width: '100%' }} placeholder="请选择状态">
-                <Select.Option value="enabled">启用</Select.Option>
-                <Select.Option value="disabled">禁用</Select.Option>
-              </Form.Select>
-            </Col>
-            <Col span={12}>
-              <Form.Input field="basePath" label="基础路径" placeholder="例如 uploads / images" />
-            </Col>
-          </Row>
-
-          {OBJECT_ACL_PROVIDERS.includes(formProvider) && (
-            <Form.RadioGroup
-              field="objectAcl"
-              label="读写权限"
-              type="button"
-              extraText={formProvider === 's3'
-                ? '上传文件将按此权限设置对象 ACL。注意：AWS S3 新建桶默认禁用 ACL（Bucket owner enforced），启用前请先在桶设置中开启；MinIO / Cloudflare R2 不支持对象 ACL，请保持「继承 Bucket」。'
-                : '上传文件将按此权限设置对象 ACL；「继承 Bucket」表示不单独指定、跟随 Bucket 权限。公共读 / 公共读写存在数据泄露风险，请谨慎选择。'}
-            >
-              {(FILE_OBJECT_ACL_SUPPORT[formProvider] ?? []).map((acl) => (
-                <Radio key={acl} value={acl}>{OBJECT_ACL_LABELS[acl]}</Radio>
-              ))}
-            </Form.RadioGroup>
-          )}
-
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.Select
-                field="urlStrategy"
-                label="访问策略"
-                style={{ width: '100%' }}
-                extraText="代理：文件流量经过服务端（兜底）；公开直链：返回永久直连地址，要求对象可公开读；临时签名：按需签发限时直连地址，适合私有文件（本地磁盘 / SFTP 不支持）"
-              >
-                {FILE_URL_STRATEGY_OPTIONS.map((opt) => (
-                  <Select.Option key={opt.value} value={opt.value}>{opt.label}</Select.Option>
-                ))}
-              </Form.Select>
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.InputNumber
-                field="presignedExpirySeconds"
-                label="签名有效期（秒）"
-                style={{ width: '100%' }}
-                min={PRESIGNED_EXPIRY_MIN_SECONDS}
-                max={PRESIGNED_EXPIRY_MAX_SECONDS}
-                extraText="仅临时签名策略生效；修改只影响新签发的链接"
-              />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.Input
-                field="publicBaseUrl"
-                label="访问域名（CDN）"
-                placeholder="可选，例如 https://cdn.example.com，公开直链优先使用该域名"
-              />
-            </Col>
-          </Row>
-
-          {formProvider === 'local' && (
-            <Row gutter={16}>
-              <Col span={24}>
-                <Form.Input
-                  field="localRootPath"
-                  label="存储目录"
-                  placeholder="例如 storage/local 或 D:/uploads"
-                  rules={[{ required: true, message: '请输入本地磁盘存储目录' }]}
-                />
-              </Col>
-            </Row>
-          )}
-
-          {formProvider === 'oss' && (
-            <>
+        )}
+      >
+        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
+          <Form {...modal.formProps}>
+            <Form.Section text="基础信息">
               <Row gutter={16}>
                 <Col span={12}>
-                  <Form.Input field="ossRegion" label="Region" placeholder="请输入 OSS Region" rules={[{ required: true, message: '请输入 OSS Region' }]} />
+                  <Form.Input field="name" label="配置名称" placeholder="请输入配置名称" rules={[{ required: true, message: '请输入配置名称' }]} />
                 </Col>
                 <Col span={12}>
-                  <Form.Input field="ossBucket" label="Bucket" placeholder="请输入 OSS Bucket" rules={[{ required: true, message: '请输入 OSS Bucket' }]} />
+                  <Form.Select
+                    field="provider"
+                    label="存储类型"
+                    style={{ width: '100%' }}
+                    optionList={FILE_STORAGE_PROVIDER_OPTIONS}
+                    onChange={(value) => {
+                      const next = value as FileStorageProvider;
+                      setFormProvider(next);
+                      const currentAcl = modal.formApi.current?.getValue('objectAcl') as FileObjectAcl | undefined;
+                      if (currentAcl && !(FILE_OBJECT_ACL_SUPPORT[next] ?? []).includes(currentAcl)) {
+                        modal.formApi.current?.setValue('objectAcl', 'default');
+                      }
+                    }}
+                    placeholder="请选择存储类型"
+                  />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Select field="status" label="状态" style={{ width: '100%' }} placeholder="请选择状态">
+                    <Select.Option value="enabled">启用</Select.Option>
+                    <Select.Option value="disabled">禁用</Select.Option>
+                  </Form.Select>
+                </Col>
+                <Col span={12}>
+                  <Form.Input field="basePath" label="基础路径" placeholder="例如 uploads / images" />
+                </Col>
+              </Row>
+              <Form.Slot label="设为默认服务">
+                <Switch checked={formIsDefault} onChange={(checked) => setFormIsDefault(checked)} />
+              </Form.Slot>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Input field="remark" label="备注" placeholder="选填，说明该文件服务的用途" />
+                </Col>
+              </Row>
+            </Form.Section>
+
+            <Form.Section text={`${FILE_STORAGE_PROVIDER_LABELS[formProvider]} 连接配置`}>
+              {formProvider === 'local' && (
+                <Row gutter={16}>
+                  <Col span={24}>
+                    <Form.Input
+                      field="localRootPath"
+                      label="存储目录"
+                      placeholder="例如 storage/local 或 D:/uploads"
+                      rules={[{ required: true, message: '请输入本地磁盘存储目录' }]}
+                    />
+                  </Col>
+                </Row>
+              )}
+
+              {formProvider === 'oss' && (
+                <>
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Input field="ossRegion" label="Region" placeholder="请输入 OSS Region" rules={[{ required: true, message: '请输入 OSS Region' }]} />
+                    </Col>
+                    <Col span={12}>
+                      <Form.Input field="ossBucket" label="Bucket" placeholder="请输入 OSS Bucket" rules={[{ required: true, message: '请输入 OSS Bucket' }]} />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={24}>
+                      <Form.Input field="ossEndpoint" label="Endpoint" placeholder="请输入 OSS Endpoint" rules={[{ required: true, message: '请输入 OSS Endpoint' }]} />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={24}>
+                      <Form.Input field="ossAccessKeyId" label="AccessKey ID" placeholder="请输入 AccessKey ID" rules={[{ required: true, message: '请输入 AccessKey ID' }]} />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={24}>
+                      <Form.Input
+                        field="ossAccessKeySecret"
+                        label="AccessKey Secret"
+                        placeholder={modal.isEdit ? '留空表示不修改' : '请输入 AccessKey Secret'}
+                        type="password"
+                        rules={modal.isEdit ? [] : [{ required: true, message: '请输入 AccessKey Secret' }]}
+                      />
+                    </Col>
+                  </Row>
+                </>
+              )}
+
+              {formProvider === 's3' && (
+                <>
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Input field="s3Region" label="Region" placeholder="请输入 S3 Region" rules={[{ required: true, message: '请输入 S3 Region' }]} />
+                    </Col>
+                    <Col span={12}>
+                      <Form.Input field="s3Bucket" label="Bucket" placeholder="请输入 S3 Bucket" rules={[{ required: true, message: '请输入 S3 Bucket' }]} />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={24}>
+                      <Form.Input field="s3Endpoint" label="Endpoint" placeholder="可选，兼容 S3 自定义存储" />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={24}>
+                      <Form.Input field="s3AccessKeyId" label="Access Key ID" placeholder="请输入 Access Key ID" rules={[{ required: true, message: '请输入 Access Key ID' }]} />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={24}>
+                      <Form.Input
+                        field="s3SecretAccessKey"
+                        label="Secret Access Key"
+                        placeholder={modal.isEdit ? '留空表示不修改' : '请输入 Secret Access Key'}
+                        type="password"
+                        rules={modal.isEdit ? [] : [{ required: true, message: '请输入 Secret Access Key' }]}
+                      />
+                    </Col>
+                  </Row>
+                  <Form.Checkbox field="s3ForcePathStyle" noLabel>强制路径样式（MinIO / Ceph 等兼容当需开启）</Form.Checkbox>
+                </>
+              )}
+
+              {formProvider === 'cos' && (
+                <>
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Input field="cosRegion" label="Region" placeholder="例如 ap-guangzhou" rules={[{ required: true, message: '请输入 COS Region' }]} />
+                    </Col>
+                    <Col span={12}>
+                      <Form.Input field="cosBucket" label="Bucket" placeholder="例如 my-bucket-1250000000" rules={[{ required: true, message: '请输入 COS Bucket' }]} />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={24}>
+                      <Form.Input field="cosSecretId" label="SecretId" placeholder="请输入 SecretId" rules={[{ required: true, message: '请输入 SecretId' }]} />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={24}>
+                      <Form.Input
+                        field="cosSecretKey"
+                        label="SecretKey"
+                        placeholder={modal.isEdit ? '留空表示不修改' : '请输入 SecretKey'}
+                        type="password"
+                        rules={modal.isEdit ? [] : [{ required: true, message: '请输入 SecretKey' }]}
+                      />
+                    </Col>
+                  </Row>
+                </>
+              )}
+
+              {formProvider === 'obs' && (
+                <>
+                  <Row gutter={16}>
+                    <Col span={24}>
+                      <Form.Input field="obsEndpoint" label="Endpoint" placeholder="例如 obs.cn-north-4.myhuaweicloud.com" rules={[{ required: true, message: '请输入 OBS Endpoint' }]} />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={24}>
+                      <Form.Input field="obsBucket" label="Bucket" placeholder="请输入 OBS Bucket 名称" rules={[{ required: true, message: '请输入 Bucket' }]} />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={24}>
+                      <Form.Input field="obsAccessKeyId" label="Access Key ID" placeholder="请输入 Access Key ID" rules={[{ required: true, message: '请输入 Access Key ID' }]} />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={24}>
+                      <Form.Input field="obsSecretAccessKey" label="Secret Access Key" placeholder={modal.isEdit ? '留空表示不修改' : '请输入 Secret Access Key'} type="password" rules={modal.isEdit ? [] : [{ required: true, message: '请输入 Secret Access Key' }]} />
+                    </Col>
+                  </Row>
+                </>
+              )}
+
+              {formProvider === 'kodo' && (
+                <>
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Input field="kodoBucket" label="Bucket" placeholder="请输入 Kodo Bucket" rules={[{ required: true, message: '请输入 Bucket' }]} />
+                    </Col>
+                    <Col span={12}>
+                      <Form.Input field="kodoRegion" label="Region" placeholder="例如 z0（华东）、z1（华北）" />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={24}>
+                      <Form.Input field="kodoEndpoint" label="访问域名" placeholder="用于下载文件的公开域名，例如 cdn.example.com" />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={24}>
+                      <Form.Input field="kodoAccessKey" label="Access Key" placeholder="请输入 Access Key" rules={[{ required: true, message: '请输入 Access Key' }]} />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={24}>
+                      <Form.Input field="kodoSecretKey" label="Secret Key" placeholder={modal.isEdit ? '留空表示不修改' : '请输入 Secret Key'} type="password" rules={modal.isEdit ? [] : [{ required: true, message: '请输入 Secret Key' }]} />
+                    </Col>
+                  </Row>
+                </>
+              )}
+
+              {formProvider === 'bos' && (
+                <>
+                  <Row gutter={16}>
+                    <Col span={24}>
+                      <Form.Input field="bosEndpoint" label="Endpoint" placeholder="例如 https://bj.bcebos.com" rules={[{ required: true, message: '请输入 BOS Endpoint' }]} />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={24}>
+                      <Form.Input field="bosBucket" label="Bucket" placeholder="请输入 BOS Bucket 名称" rules={[{ required: true, message: '请输入 Bucket' }]} />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={24}>
+                      <Form.Input field="bosAccessKeyId" label="Access Key ID" placeholder="请输入 Access Key" rules={[{ required: true, message: '请输入 Access Key ID' }]} />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={24}>
+                      <Form.Input field="bosSecretAccessKey" label="Secret Access Key" placeholder={modal.isEdit ? '留空表示不修改' : '请输入 Secret Key'} type="password" rules={modal.isEdit ? [] : [{ required: true, message: '请输入 Secret Access Key' }]} />
+                    </Col>
+                  </Row>
+                </>
+              )}
+
+              {formProvider === 'azure' && (
+                <>
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Input field="azureAccountName" label="Account Name" placeholder="存储账户名称" rules={[{ required: true, message: '请输入 Account Name' }]} />
+                    </Col>
+                    <Col span={12}>
+                      <Form.Input field="azureContainerName" label="Container" placeholder="Blob 容器名称" rules={[{ required: true, message: '请输入 Container Name' }]} />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={24}>
+                      <Form.Input field="azureAccountKey" label="Account Key" placeholder={modal.isEdit ? '留空表示不修改' : '存储账户密钥'} type="password" rules={modal.isEdit ? [] : [{ required: true, message: '请输入 Account Key' }]} />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={24}>
+                      <Form.Input field="azureEndpoint" label="Endpoint（可选）" placeholder="自定义端点，默认 Azure 全球端点" />
+                    </Col>
+                  </Row>
+                </>
+              )}
+
+              {formProvider === 'sftp' && (
+                <>
+                  <Row gutter={16}>
+                    <Col span={16}>
+                      <Form.Input field="sftpHost" label="主机地址" placeholder="IP 或域名" rules={[{ required: true, message: '请输入主机地址' }]} />
+                    </Col>
+                    <Col span={8}>
+                      <Form.InputNumber field="sftpPort" label="端口" placeholder="22" min={1} max={65535} />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Input field="sftpUsername" label="用户名" placeholder="登录用户名" rules={[{ required: true, message: '请输入用户名' }]} />
+                    </Col>
+                    <Col span={12}>
+                      <Form.Input field="sftpPassword" label="密码" placeholder={modal.isEdit ? '留空表示不修改' : '密码或私钥二选一'} type="password" />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={24}>
+                      <Form.Input field="sftpRootPath" label="远端根目录" placeholder="例如 /data/uploads" />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={24}>
+                      <Form.Input field="sftpBaseUrl" label="访问 Base URL" placeholder="文件公开 URL 前缀，例如 https://static.example.com" />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={24}>
+                      <Form.TextArea field="sftpPrivateKey" label="SSH 私钥（可选）" placeholder={modal.isEdit ? '留空表示不修改' : '如果使用私钥登录，请将 PEM 内容粘贴至此'} rows={4} />
+                    </Col>
+                  </Row>
+                </>
+              )}
+            </Form.Section>
+
+            <Form.Section text="访问与权限">
+              {OBJECT_ACL_PROVIDERS.includes(formProvider) && (
+                <Form.RadioGroup
+                  field="objectAcl"
+                  label="读写权限"
+                  type="button"
+                  extraText={formProvider === 's3'
+                    ? '上传文件将按此权限设置对象 ACL。注意：AWS S3 新建桶默认禁用 ACL（Bucket owner enforced），启用前请先在桶设置中开启；MinIO / Cloudflare R2 不支持对象 ACL，请保持「继承 Bucket」。'
+                    : '上传文件将按此权限设置对象 ACL；「继承 Bucket」表示不单独指定、跟随 Bucket 权限。公共读 / 公共读写存在数据泄露风险，请谨慎选择。'}
+                >
+                  {(FILE_OBJECT_ACL_SUPPORT[formProvider] ?? []).map((acl) => (
+                    <Radio key={acl} value={acl}>{OBJECT_ACL_LABELS[acl]}</Radio>
+                  ))}
+                </Form.RadioGroup>
+              )}
+
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Select
+                    field="urlStrategy"
+                    label="访问策略"
+                    style={{ width: '100%' }}
+                    extraText="代理：文件流量经过服务端（兜底）；公开直链：返回永久直连地址，要求对象可公开读；临时签名：按需签发限时直连地址，适合私有文件（本地磁盘 / SFTP 不支持）"
+                  >
+                    {FILE_URL_STRATEGY_OPTIONS.map((opt) => (
+                      <Select.Option key={opt.value} value={opt.value}>{opt.label}</Select.Option>
+                    ))}
+                  </Form.Select>
                 </Col>
               </Row>
               <Row gutter={16}>
                 <Col span={24}>
-                  <Form.Input field="ossEndpoint" label="Endpoint" placeholder="请输入 OSS Endpoint" rules={[{ required: true, message: '请输入 OSS Endpoint' }]} />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.Input field="ossAccessKeyId" label="AccessKey ID" placeholder="请输入 AccessKey ID" rules={[{ required: true, message: '请输入 AccessKey ID' }]} />
+                  <Form.InputNumber
+                    field="presignedExpirySeconds"
+                    label="签名有效期（秒）"
+                    style={{ width: '100%' }}
+                    min={PRESIGNED_EXPIRY_MIN_SECONDS}
+                    max={PRESIGNED_EXPIRY_MAX_SECONDS}
+                    extraText="仅临时签名策略生效；修改只影响新签发的链接"
+                  />
                 </Col>
               </Row>
               <Row gutter={16}>
                 <Col span={24}>
                   <Form.Input
-                    field="ossAccessKeySecret"
-                    label="AccessKey Secret"
-                    placeholder={modal.isEdit ? '留空表示不修改' : '请输入 AccessKey Secret'}
-                    type="password"
-                    rules={modal.isEdit ? [] : [{ required: true, message: '请输入 AccessKey Secret' }]}
+                    field="publicBaseUrl"
+                    label="访问域名（CDN）"
+                    placeholder="可选，例如 https://cdn.example.com，公开直链优先使用该域名"
                   />
                 </Col>
               </Row>
-            </>
-          )}
-
-          {formProvider === 's3' && (
-            <>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Input field="s3Region" label="Region" placeholder="请输入 S3 Region" rules={[{ required: true, message: '请输入 S3 Region' }]} />
-                </Col>
-                <Col span={12}>
-                  <Form.Input field="s3Bucket" label="Bucket" placeholder="请输入 S3 Bucket" rules={[{ required: true, message: '请输入 S3 Bucket' }]} />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.Input field="s3Endpoint" label="Endpoint" placeholder="可选，兼容 S3 自定义存储" />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.Input field="s3AccessKeyId" label="Access Key ID" placeholder="请输入 Access Key ID" rules={[{ required: true, message: '请输入 Access Key ID' }]} />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.Input
-                    field="s3SecretAccessKey"
-                    label="Secret Access Key"
-                    placeholder={modal.isEdit ? '留空表示不修改' : '请输入 Secret Access Key'}
-                    type="password"
-                    rules={modal.isEdit ? [] : [{ required: true, message: '请输入 Secret Access Key' }]}
-                  />
-                </Col>
-              </Row>
-              <Form.Checkbox field="s3ForcePathStyle" noLabel>强制路径样式（MinIO / Ceph 等兼容当需开启）</Form.Checkbox>
-            </>
-          )}
-
-          {formProvider === 'cos' && (
-            <>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Input field="cosRegion" label="Region" placeholder="例如 ap-guangzhou" rules={[{ required: true, message: '请输入 COS Region' }]} />
-                </Col>
-                <Col span={12}>
-                  <Form.Input field="cosBucket" label="Bucket" placeholder="例如 my-bucket-1250000000" rules={[{ required: true, message: '请输入 COS Bucket' }]} />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.Input field="cosSecretId" label="SecretId" placeholder="请输入 SecretId" rules={[{ required: true, message: '请输入 SecretId' }]} />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.Input
-                    field="cosSecretKey"
-                    label="SecretKey"
-                    placeholder={modal.isEdit ? '留空表示不修改' : '请输入 SecretKey'}
-                    type="password"
-                    rules={modal.isEdit ? [] : [{ required: true, message: '请输入 SecretKey' }]}
-                  />
-                </Col>
-              </Row>
-            </>
-          )}
-
-          {formProvider === 'obs' && (
-            <>
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.Input field="obsEndpoint" label="Endpoint" placeholder="例如 obs.cn-north-4.myhuaweicloud.com" rules={[{ required: true, message: '请输入 OBS Endpoint' }]} />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.Input field="obsBucket" label="Bucket" placeholder="请输入 OBS Bucket 名称" rules={[{ required: true, message: '请输入 Bucket' }]} />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.Input field="obsAccessKeyId" label="Access Key ID" placeholder="请输入 Access Key ID" rules={[{ required: true, message: '请输入 Access Key ID' }]} />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.Input field="obsSecretAccessKey" label="Secret Access Key" placeholder={modal.isEdit ? '留空表示不修改' : '请输入 Secret Access Key'} type="password" rules={modal.isEdit ? [] : [{ required: true, message: '请输入 Secret Access Key' }]} />
-                </Col>
-              </Row>
-            </>
-          )}
-
-          {formProvider === 'kodo' && (
-            <>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Input field="kodoBucket" label="Bucket" placeholder="请输入 Kodo Bucket" rules={[{ required: true, message: '请输入 Bucket' }]} />
-                </Col>
-                <Col span={12}>
-                  <Form.Input field="kodoRegion" label="Region" placeholder="例如 z0（华东）、z1（华北）" />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.Input field="kodoEndpoint" label="访问域名" placeholder="用于下载文件的公开域名，例如 cdn.example.com" />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.Input field="kodoAccessKey" label="Access Key" placeholder="请输入 Access Key" rules={[{ required: true, message: '请输入 Access Key' }]} />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.Input field="kodoSecretKey" label="Secret Key" placeholder={modal.isEdit ? '留空表示不修改' : '请输入 Secret Key'} type="password" rules={modal.isEdit ? [] : [{ required: true, message: '请输入 Secret Key' }]} />
-                </Col>
-              </Row>
-            </>
-          )}
-
-          {formProvider === 'bos' && (
-            <>
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.Input field="bosEndpoint" label="Endpoint" placeholder="例如 https://bj.bcebos.com" rules={[{ required: true, message: '请输入 BOS Endpoint' }]} />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.Input field="bosBucket" label="Bucket" placeholder="请输入 BOS Bucket 名称" rules={[{ required: true, message: '请输入 Bucket' }]} />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.Input field="bosAccessKeyId" label="Access Key ID" placeholder="请输入 Access Key" rules={[{ required: true, message: '请输入 Access Key ID' }]} />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.Input field="bosSecretAccessKey" label="Secret Access Key" placeholder={modal.isEdit ? '留空表示不修改' : '请输入 Secret Key'} type="password" rules={modal.isEdit ? [] : [{ required: true, message: '请输入 Secret Access Key' }]} />
-                </Col>
-              </Row>
-            </>
-          )}
-
-          {formProvider === 'azure' && (
-            <>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Input field="azureAccountName" label="Account Name" placeholder="存储账户名称" rules={[{ required: true, message: '请输入 Account Name' }]} />
-                </Col>
-                <Col span={12}>
-                  <Form.Input field="azureContainerName" label="Container" placeholder="Blob 容器名称" rules={[{ required: true, message: '请输入 Container Name' }]} />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.Input field="azureAccountKey" label="Account Key" placeholder={modal.isEdit ? '留空表示不修改' : '存储账户密钥'} type="password" rules={modal.isEdit ? [] : [{ required: true, message: '请输入 Account Key' }]} />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.Input field="azureEndpoint" label="Endpoint（可选）" placeholder="自定义端点，默认 Azure 全球端点" />
-                </Col>
-              </Row>
-            </>
-          )}
-
-          {formProvider === 'sftp' && (
-            <>
-              <Row gutter={16}>
-                <Col span={16}>
-                  <Form.Input field="sftpHost" label="主机地址" placeholder="IP 或域名" rules={[{ required: true, message: '请输入主机地址' }]} />
-                </Col>
-                <Col span={8}>
-                  <Form.InputNumber field="sftpPort" label="端口" placeholder="22" min={1} max={65535} />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Input field="sftpUsername" label="用户名" placeholder="登录用户名" rules={[{ required: true, message: '请输入用户名' }]} />
-                </Col>
-                <Col span={12}>
-                  <Form.Input field="sftpPassword" label="密码" placeholder={modal.isEdit ? '留空表示不修改' : '密码或私钥二选一'} type="password" />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.Input field="sftpRootPath" label="远端根目录" placeholder="例如 /data/uploads" />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.Input field="sftpBaseUrl" label="访问 Base URL" placeholder="文件公开 URL 前缀，例如 https://static.example.com" />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.TextArea field="sftpPrivateKey" label="SSH 私钥（可选）" placeholder={modal.isEdit ? '留空表示不修改' : '如果使用私钥登录，请将 PEM 内容粘贴至此'} rows={4} />
-                </Col>
-              </Row>
-            </>
-          )}
-
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.Input field="remark" label="备注" placeholder="选填，说明该文件服务的用途" />
-            </Col>
-          </Row>
-        </Form>
+            </Form.Section>
+          </Form>
         </Spin>
-      </AppModal>
+      </SideSheet>
 
       <StorageFileBrowser config={browsingConfig} onClose={() => setBrowsingConfig(null)} />
     </div>
