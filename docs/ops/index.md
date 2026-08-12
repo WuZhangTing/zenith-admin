@@ -25,7 +25,7 @@ Zenith Admin 提供一站式服务器运维能力，无需额外运维工具即�
 | Nginx 站点 | 站点列表与详情、模板化建站、配置在线编辑、启用 / 禁用、`nginx -t` 测试与 reload |
 | SSL 证书 | 自签名证书生成、自定义证书上传、openssl 解析、到期状态跟踪、下载与删除 |
 | 维护模式 | 一键开启 / 关闭全站维护，公开状态查询与维护记录（详见[维护模式](../backend/maintenance-mode.md)） |
-| 监控告警 | 「系统运维」菜单组还包含监控告警与告警记录页面（`/system/monitor-alerts`、`/system/monitor-alert-events`），覆盖基础设施、流程引擎、支付与开放平台四类指标，详见下文[监控告警](#监控告警) |
+| 告警中心 | 顶级「告警中心」统一管理告警规则与告警事件，覆盖基础设施、流程引擎、支付与开放平台四类指标，详见下文[告警中心](#告警中心) |
 
 ---
 
@@ -481,9 +481,9 @@ systemctl list-units --type=service --all --no-pager --plain --no-legend
 
 ---
 
-## 监控告警
+## 告警中心
 
-告警引擎（`monitor-alert.service.ts`）由定时任务每 30 秒评估一次启用规则：达阈触发、指标恢复后自动解除，支持「持续 N 分钟超阈才触发」抑制毛刺、静默期抑制重复通知，并按邮件 / Webhook / 站内信三渠道派发。
+告警中心是独立顶级菜单，不归属于系统运维。告警引擎（`monitor-alert.service.ts`）由定时任务每 30 秒评估一次启用规则：达阈触发、指标恢复后自动解除，支持「持续 N 分钟超阈才触发」抑制毛刺、静默期抑制重复通知，并按邮件 / Webhook / 站内信三渠道派发。
 
 指标全集是 `@zenith/shared/platform` 的 `MONITOR_METRICS`（枚举 SSOT）——pgEnum、Zod 校验、告警消息格式化与前端下拉全部由它派生，新增指标只需在此登记一项并在快照采集处补一个取数：
 
@@ -648,8 +648,6 @@ systemctl list-units --type=service --all --no-pager --plain --no-legend
 | 服务管理 | `/system/services` | `system/services/ServicesPage` | `system:process:view` |
 | 日志查看器 | `/system/log-viewer` | `system/log-viewer/LogViewerPage` | `system:process:view` |
 | 终端会话 | `/system/terminal/sessions` | `system/terminal/TerminalSessionsPage` | `system:terminal:monitor` |
-| 监控告警 | `/system/monitor-alerts` | `system/monitor-alerts/MonitorAlertsPage` | `system:monitor:alert` |
-| 告警记录 | `/system/monitor-alert-events` | `system/monitor-alert-events/MonitorAlertEventsPage` | `system:monitor:alert` |
 | 防火墙管理 | `/system/firewall` | `system/firewall/FirewallPage` | `system:firewall:view` |
 | Nginx 站点 | `/system/nginx-sites` | `system/nginx-sites/NginxSitesPage` | `system:nginx:view` |
 | SSL 证书 | `/system/ssl-certificates` | `system/ssl-certificates/SslCertificatesPage` | `system:ssl:view` |
@@ -660,7 +658,14 @@ systemctl list-units --type=service --all --no-pager --plain --no-legend
 
 以上页面中，「Web 终端」到「SSL 证书」位于「系统设置 → 系统运维」菜单组；「日志文件」位于「系统设置 → 审计日志」组；「数据库管理」「数据库备份」「维护模式」直接挂在「系统设置」下。
 
-按钮级权限包括 `system:process:kill`、`system:process:priority`、`system:terminal:monitor`、`system:log:files:download`、`system:log:files:delete`、`system:monitor:alert:manage`、`system:firewall:manage`、`system:nginx:manage`、`system:nginx:reload`、`system:ssl:create`、`system:ssl:delete`、`system:db-admin:query`、`system:db-admin:export`、`system:db-admin:write`、`system:db-admin:maintain`、`system:db-backup:create`、`system:db-backup:delete` 等。
+告警能力使用独立顶级菜单：
+
+| 页面 | 路径 | 组件 | 权限 |
+|------|------|------|------|
+| 告警规则 | `/alerts/rules` | `alerts/rules/AlertRulesPage` | `alert:rule:list` |
+| 告警事件 | `/alerts/events` | `alerts/events/AlertEventsPage` | `alert:event:list` |
+
+按钮级权限包括 `system:process:kill`、`system:process:priority`、`system:terminal:monitor`、`system:log:files:download`、`system:log:files:delete`、`system:firewall:manage`、`system:nginx:manage`、`system:nginx:reload`、`system:ssl:create`、`system:ssl:delete`、`system:db-admin:query`、`system:db-admin:export`、`system:db-admin:write`、`system:db-admin:maintain`、`system:db-backup:create`、`system:db-backup:delete` 等。告警中心使用 `alert:rule:create`、`alert:rule:update`、`alert:rule:delete` 管理规则。
 
 ---
 

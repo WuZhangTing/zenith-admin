@@ -28,7 +28,7 @@
 | 4000 | `menus/workflow.ts` | 12000 | `menus/report.ts` |
 | 5000 | `menus/messaging.ts` | 13000 | `menus/open-platform.ts` |
 | 6000 | `menus/rules.ts` | 14000 | `menus/cms.ts` |
-| 7000 | `menus/analytics.ts` | | |
+| 7000 | `menus/analytics.ts` | 15000 | `menus/alerts.ts` |
 
 分配 ID 前**必须先读源文件**确认当前占用：`seed/menus.ts`（聚合器，确认段顺序与分片清单）
 与目标 `seed/menus/*.ts` 分片。

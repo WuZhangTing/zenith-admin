@@ -2,6 +2,7 @@ import type { Menu } from '../identity/types';
 import { SEED_MENUS_COMMON } from './menus/common';
 import { SEED_MENUS_SYSTEM } from './menus/system';
 import { SEED_MENUS_SETTINGS } from './menus/settings';
+import { SEED_MENUS_ALERTS } from './menus/alerts';
 import { SEED_MENUS_AI } from './menus/ai';
 import { SEED_MENUS_WORKFLOW } from './menus/workflow';
 import { SEED_MENUS_MESSAGING } from './menus/messaging';
@@ -23,7 +24,7 @@ export { SEED_DATE } from './_base';
  * 新增模块时只改对应段的分片文件，不要在本文件堆积条目：
  *   系统管理 1000 / 系统设置 2000 / 智能助手 3000 / 工作流 4000 / 消息中心 5000 /
  *   规则中心 6000 / 数据分析 7000 / 支付中心 8000 / 会员中心 9000 / 公众号 10000 /
- *   业务示例 11000 / 报表中心 12000 / 开放平台 13000 / CMS 14000
+ *   业务示例 11000 / 报表中心 12000 / 开放平台 13000 / CMS 14000 / 告警中心 15000
  *
  * 数组顺序即菜单落库顺序，调整分片顺序会影响 SEED_MENUS 的相对次序。
  */
@@ -31,6 +32,7 @@ export const SEED_MENUS: Menu[] = [
   ...SEED_MENUS_COMMON,
   ...SEED_MENUS_SYSTEM,
   ...SEED_MENUS_SETTINGS,
+  ...SEED_MENUS_ALERTS,
   ...SEED_MENUS_AI,
   ...SEED_MENUS_WORKFLOW,
   ...SEED_MENUS_MESSAGING,

@@ -13,7 +13,7 @@ import {
   MONITOR_METRIC_GROUPED_OPTIONS as METRIC_GROUPS,
   MONITOR_METRIC_LABELS as METRIC_LABELS,
   formatMonitorMetricValue,
-} from '../monitor-alerts/constants';
+} from '../rules/constants';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 const OP_SYMBOL: Record<string, string> = { gt: '>', gte: '≥', lt: '<', lte: '≤' };
 
@@ -41,7 +41,7 @@ function MetricFilterSelect({ value, onChange }: { value?: string; onChange: (v:
   );
 }
 
-export default function MonitorAlertEventsPage() {
+export default function AlertEventsPage() {
   const queryClient = useQueryClient();
   const [draftFilters, setDraftFilters] = useState<Filters>({});
   const [submittedFilters, setSubmittedFilters] = useState<Filters>({});

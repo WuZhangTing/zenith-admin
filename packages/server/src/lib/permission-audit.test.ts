@@ -70,4 +70,14 @@ describe('权限清单对账（routes guard ↔ SEED_MENUS）', () => {
       + `除平台超管外任何角色都无法获得这些权限（请先补 seed 按钮再引用）：\n${report}`,
     ).toBe(0);
   });
+
+  it('告警菜单使用独立顶级目录且不保留旧系统运维节点', () => {
+    expect(SEED_MENUS).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 15000, parentId: 0, title: '告警中心', type: 'directory', sort: 4 }),
+      expect.objectContaining({ id: 15010, parentId: 15000, path: '/alerts/rules', component: 'alerts/rules/AlertRulesPage' }),
+      expect.objectContaining({ id: 15020, parentId: 15000, path: '/alerts/events', component: 'alerts/events/AlertEventsPage' }),
+    ]));
+    expect(SEED_MENUS.some((menu) => [2550, 2551, 2552, 2553, 2554, 2560, 2561].includes(menu.id))).toBe(false);
+    expect(SEED_MENUS.some((menu) => menu.permission?.startsWith('system:monitor:alert'))).toBe(false);
+  });
 });

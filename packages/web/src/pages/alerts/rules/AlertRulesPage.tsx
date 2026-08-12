@@ -48,7 +48,7 @@ function thresholdHint(metric: MonitorMetric | undefined): string {
   }
 }
 
-export default function MonitorAlertsPage() {
+export default function AlertRulesPage() {
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
 
@@ -57,7 +57,9 @@ export default function MonitorAlertsPage() {
   const listQuery = useMonitorAlertList({ page, pageSize });
   const data = listQuery.data ?? null;
 
-  const canManage = hasPermission('system:monitor:alert:manage');
+  const canCreate = hasPermission('alert:rule:create');
+  const canUpdate = hasPermission('alert:rule:update');
+  const canDelete = hasPermission('alert:rule:delete');
   const saveMutation = useSaveMonitorAlert();
   const alertModal = useEditModal<MonitorAlertRule, Record<string, unknown>, Record<string, unknown>>({
     entityName: '告警规则',
@@ -134,7 +136,7 @@ export default function MonitorAlertsPage() {
           <Switch
             checked={r.enabled}
             loading={togglingId === r.id}
-            disabled={!canManage}
+            disabled={!canUpdate}
             onChange={(c) => handleToggle(r, c)}
             size="small"
           />
@@ -147,14 +149,14 @@ export default function MonitorAlertsPage() {
         {
           key: 'edit',
           label: '编辑',
-          hidden: !canManage,
+          hidden: !canUpdate,
           onClick: () => alertModal.openEdit(record),
         },
         {
           key: 'delete',
           label: '删除',
           danger: true,
-          hidden: !canManage,
+          hidden: !canDelete,
           onClick: () => {
             confirmDelete({
               title: '确定要删除该规则吗？',
@@ -174,13 +176,13 @@ export default function MonitorAlertsPage() {
           <>
             <KeywordInput placeholder="搜索规则名称..." value={keyword} onChange={setKeyword} />
             <ResetButton onClick={() => { setKeyword(''); void queryClient.invalidateQueries({ queryKey: monitorAlertKeys.lists }); }} />
-            {canManage && <CreateButton onClick={alertModal.openCreate}>新增规则</CreateButton>}
+            {canCreate && <CreateButton onClick={alertModal.openCreate}>新增规则</CreateButton>}
           </>
         )}
         mobilePrimary={(
           <>
             <KeywordInput placeholder="搜索规则名称..." value={keyword} onChange={setKeyword} />
-            {canManage && <CreateButton onClick={alertModal.openCreate}>新增规则</CreateButton>}
+            {canCreate && <CreateButton onClick={alertModal.openCreate}>新增规则</CreateButton>}
           </>
         )}
         mobileActions={(

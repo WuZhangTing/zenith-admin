@@ -1,7 +1,7 @@
 import type { MonitorAlertLevel, MonitorMetric } from '@zenith/shared/platform';
 import { MONITOR_METRIC_META } from '@zenith/shared/platform';
 
-// 指标标签 / 分组 / 单位的唯一来源是 `@zenith/shared/platform` 的 MONITOR_METRIC_META，
+// 告警指标标签 / 分组 / 单位的唯一来源是 `@zenith/shared/platform` 的 MONITOR_METRIC_META，
 // 本文件只做展示层的派生（单位归类、级别配色），不再复制一份中文映射。
 export {
   MONITOR_METRIC_LABELS,

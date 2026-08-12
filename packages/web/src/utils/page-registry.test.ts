@@ -15,6 +15,13 @@ describe('page registry', () => {
     expect(lazyPageComponent('missing/UnknownPage')).toBeNull();
   });
 
+  it('registers only the new alert center page paths', () => {
+    expect(hasPageComponent('alerts/rules/AlertRulesPage')).toBe(true);
+    expect(hasPageComponent('alerts/events/AlertEventsPage')).toBe(true);
+    expect(hasPageComponent('system/monitor-alerts/MonitorAlertsPage')).toBe(false);
+    expect(hasPageComponent('system/monitor-alert-events/MonitorAlertEventsPage')).toBe(false);
+  });
+
   it('excludes tests and loading skeletons', () => {
     expect(hasPageComponent('analytics/AnalyticsDebugTab.test')).toBe(false);
     expect(hasPageComponent('workflow/designer/components/FormDesigner.test')).toBe(false);
