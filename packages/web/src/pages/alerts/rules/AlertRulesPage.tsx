@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Form, Space, Spin, Toast, Switch, Tag, Row, Col, Select } from '@douyinfe/semi-ui';
+import { Form, Space, Spin, Toast, Switch, Tag, Row, Col, Select, withField } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -30,11 +30,14 @@ import { CreateButton, ResetButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn } from '@/utils/table-columns';
+import AlertRecipientUserSelect from './AlertRecipientUserSelect';
 
 const OP_SYMBOL: Record<string, string> = { gt: '>', gte: '≥', lt: '<', lte: '≤' };
 const OP_OPTIONS = (['gt', 'gte', 'lt', 'lte'] as const)
   .map((value) => ({ value, label: BASIC_COMPARISON_OPERATOR_LABELS[value] }));
 const CHANNEL_LABELS: Record<string, string> = NOTIFY_CHANNEL_LABELS;
+const FormAlertRecipientUserSelect = withField(AlertRecipientUserSelect);
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** 阈值输入提示随指标单位变化：百分比与吞吐的量级差了 7 个数量级，统一文案必然误导 */
 function thresholdHint(metric: MonitorMetric | undefined): string {
@@ -64,7 +67,7 @@ export default function AlertRulesPage() {
   const alertModal = useEditModal<MonitorAlertRule, Record<string, unknown>, Record<string, unknown>>({
     entityName: '告警规则',
     save: saveMutation,
-    defaults: { operator: 'gt', level: 'warning', channels: ['inapp'], durationMinutes: 0, silenceMinutes: 30, enabled: true, recipients: [] },
+    defaults: { operator: 'gt', level: 'warning', channels: ['inapp'], durationMinutes: 0, silenceMinutes: 30, enabled: true, recipientUserIds: [], recipientEmails: [] },
     toValues: (rule) => ({
       name: rule.name,
       metric: rule.metric,
@@ -74,11 +77,23 @@ export default function AlertRulesPage() {
       level: rule.level,
       channels: rule.channels,
       webhookUrl: rule.webhookUrl ?? '',
-      recipients: rule.recipients,
+      recipientUserIds: rule.recipientUserIds,
+      recipientEmails: rule.recipientEmails,
       silenceMinutes: rule.silenceMinutes,
       enabled: rule.enabled,
     }),
-    beforeSave: (values) => ({ ...values, webhookUrl: (values.webhookUrl as string) || null }),
+    beforeSave: (values) => {
+      const channels = Array.isArray(values.channels) ? values.channels as string[] : [];
+      const usesUsers = channels.includes('inapp') || channels.includes('email');
+      return {
+        ...values,
+        webhookUrl: channels.includes('webhook') ? (values.webhookUrl as string) || null : null,
+        recipientUserIds: usesUsers && Array.isArray(values.recipientUserIds) ? values.recipientUserIds : [],
+        recipientEmails: channels.includes('email') && Array.isArray(values.recipientEmails)
+          ? values.recipientEmails.map((email) => String(email).trim().toLowerCase()).filter(Boolean)
+          : [],
+      };
+    },
   });
   const deleteMutation = useDeleteMonitorAlerts();
   const toggleMutation = useToggleMonitorAlert();
@@ -213,6 +228,8 @@ export default function AlertRulesPage() {
           <Form {...alertModal.formProps}>
             {({ values }) => {
               const selectedMetric = values.metric as MonitorMetric | undefined;
+              const selectedChannels = Array.isArray(values.channels) ? values.channels as string[] : [];
+              const usesUserRecipients = selectedChannels.includes('inapp') || selectedChannels.includes('email');
               return (
                 <>
                   <Form.Input field="name" label="规则名称" placeholder="如：CPU 使用率过高" rules={[{ required: true, message: '请输入规则名称' }]} />
@@ -256,14 +273,30 @@ export default function AlertRulesPage() {
                     </Col>
                   </Row>
                   <Form.Select field="channels" label="通知渠道" multiple style={{ width: '100%' }} optionList={Object.entries(CHANNEL_LABELS).map(([v, l]) => ({ value: v, label: l }))} />
-                  <Form.Input field="webhookUrl" label="Webhook" placeholder="https://example.com/webhook（选 Webhook 渠道时必填）" />
-                  <Form.TagInput
-                    field="recipients"
-                    label="接收人"
-                    placeholder="邮箱或用户名，回车添加，可多个"
-                    extraText="邮件渠道按邮箱投递；站内信渠道按邮箱或用户名匹配启用中的用户"
-                    style={{ width: '100%' }}
-                  />
+                  {usesUserRecipients && (
+                    <FormAlertRecipientUserSelect
+                      field="recipientUserIds"
+                      label="接收用户"
+                      extraText="站内信直接发送给所选用户；邮件渠道同时使用用户账号当前邮箱，无邮箱用户仅接收站内信"
+                    />
+                  )}
+                  {selectedChannels.includes('email') && (
+                    <Form.TagInput
+                      field="recipientEmails"
+                      label="额外邮箱"
+                      placeholder="输入群组邮箱或外部联系邮箱后回车"
+                      extraText="仅用于邮件渠道，不绑定系统用户；会与所选用户的账号邮箱自动去重"
+                      rules={[{
+                        validator: (_rule: unknown, value: unknown) =>
+                          !Array.isArray(value) || value.every((email) => EMAIL_PATTERN.test(String(email))),
+                        message: '请输入有效的邮箱地址',
+                      }]}
+                      style={{ width: '100%' }}
+                    />
+                  )}
+                  {selectedChannels.includes('webhook') && (
+                    <Form.Input field="webhookUrl" label="Webhook" placeholder="https://example.com/webhook" />
+                  )}
                   <Form.Switch field="enabled" label="启用" />
                 </>
               );

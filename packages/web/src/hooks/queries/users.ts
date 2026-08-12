@@ -1,6 +1,6 @@
 import { keepPreviousData, queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse } from '@zenith/shared/core';
-import type { User } from '@zenith/shared/identity';
+import type { AlertRecipientUser, User } from '@zenith/shared/identity';
 import { request } from '@/utils/request';
 import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
 import { invalidateCurrentUserAccess } from './menus';
@@ -44,6 +44,7 @@ export interface UserEffectivePermissions {
 export const userKeys = {
   all: ['users'] as const,
   allUsers: ['users', 'all'] as const,
+  alertRecipients: ['users', 'alert-recipients'] as const,
   lists: ['users', 'list'] as const,
   list: (params: UserListParams) => ['users', 'list', params] as const,
   detail: (id: number | undefined) => ['users', 'detail', id] as const,
@@ -63,6 +64,15 @@ export function allUsersQueryOptions() {
 export function useAllUsers(options?: { enabled?: boolean }) {
   return useQuery({
     ...allUsersQueryOptions(),
+    enabled: options?.enabled ?? true,
+  });
+}
+
+export function useAlertRecipientUsers(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: userKeys.alertRecipients,
+    queryFn: () => request.get<AlertRecipientUser[]>('/api/users/alert-recipients').then(unwrap),
+    staleTime: LOOKUP_STALE_TIME,
     enabled: options?.enabled ?? true,
   });
 }
@@ -95,6 +105,7 @@ export function useSaveUser() {
       void qc.invalidateQueries({ queryKey: userKeys.lists });
       // 下拉源展示昵称与用户名，且被角色分配、岗位成员、用户组等多页共享
       void qc.invalidateQueries({ queryKey: userKeys.allUsers });
+      void qc.invalidateQueries({ queryKey: userKeys.alertRecipients });
     },
   });
 }
@@ -109,6 +120,7 @@ export function useDeleteUser() {
       qc.removeQueries({ queryKey: userKeys.effectivePermissions(id) });
       void qc.invalidateQueries({ queryKey: userKeys.lists });
       void qc.invalidateQueries({ queryKey: userKeys.allUsers });
+      void qc.invalidateQueries({ queryKey: userKeys.alertRecipients });
     },
   });
 }
@@ -125,6 +137,7 @@ export function useBatchDeleteUsers() {
       }
       void qc.invalidateQueries({ queryKey: userKeys.lists });
       void qc.invalidateQueries({ queryKey: userKeys.allUsers });
+      void qc.invalidateQueries({ queryKey: userKeys.alertRecipients });
     },
   });
 }
@@ -136,6 +149,8 @@ export function useBatchUserStatus() {
       request.put<null>('/api/users/batch-status', { ids, status }).then(unwrap),
     onSuccess: (_data, { ids }) => {
       void qc.invalidateQueries({ queryKey: userKeys.lists });
+      void qc.invalidateQueries({ queryKey: userKeys.allUsers });
+      void qc.invalidateQueries({ queryKey: userKeys.alertRecipients });
       for (const id of ids) void qc.invalidateQueries({ queryKey: userKeys.detail(id) });
     },
   });

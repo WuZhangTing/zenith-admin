@@ -571,8 +571,8 @@ async function seedRest() {
 
   // ── 监控告警规则 ──────────────────────────────────────────────────────────────
   await db.insert(monitorAlertRules).values(
-    SEED_MONITOR_ALERT_RULES.map(({ id, name, metric, operator, threshold, durationMinutes, level, channels, recipients, silenceMinutes, enabled }) => ({
-      id, name, metric, operator, threshold, durationMinutes, level, channels, recipients, silenceMinutes, enabled,
+    SEED_MONITOR_ALERT_RULES.map(({ id, name, metric, operator, threshold, durationMinutes, level, channels, recipientUserIds, recipientEmails, silenceMinutes, enabled }) => ({
+      id, name, metric, operator, threshold, durationMinutes, level, channels, recipientUserIds, recipientEmails, silenceMinutes, enabled,
     })),
   ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('monitor_alert_rules_id_seq', GREATEST((SELECT MAX(id) FROM monitor_alert_rules), 1))`);

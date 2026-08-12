@@ -34,7 +34,8 @@ describe('监控告警指标一致性', () => {
         metric,
         threshold: 1,
         channels: ['inapp'],
-        recipients: ['admin'],
+        recipientUserIds: [1],
+        recipientEmails: [],
       });
       expect(parsed.success, `指标 ${metric} 未被 schema 接受`).toBe(true);
     }

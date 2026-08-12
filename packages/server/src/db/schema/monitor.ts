@@ -56,7 +56,10 @@ export const monitorAlertRules = pgTable('monitor_alert_rules', {
   level: monitorAlertLevelEnum('level').notNull().default('warning'),
   channels: jsonb('channels').$type<string[]>().notNull().default([]),
   webhookUrl: varchar('webhook_url', { length: 512 }),
-  recipients: jsonb('recipients').$type<string[]>().notNull().default([]),
+  /** 系统内接收用户；站内信直接投递，邮件渠道实时读取用户当前邮箱 */
+  recipientUserIds: jsonb('recipient_user_ids').$type<number[]>().notNull().default([]),
+  /** 不绑定系统用户的额外邮箱（群组邮箱、外部联系人等） */
+  recipientEmails: jsonb('recipient_emails').$type<string[]>().notNull().default([]),
   /** 静默期分钟数：触发后该时间内不重复通知 */
   silenceMinutes: integer('silence_minutes').notNull().default(30),
   enabled: boolean('enabled').notNull().default(true),

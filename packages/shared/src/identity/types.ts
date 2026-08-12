@@ -83,6 +83,15 @@ export interface User {
   updatedAt: string;
 }
 
+/** 告警接收用户下拉项：只暴露投递所需的最小信息，不返回邮箱原文。 */
+export interface AlertRecipientUser {
+  id: number;
+  username: string;
+  nickname: string;
+  departmentName: string | null;
+  hasEmail: boolean;
+}
+
 export interface AuthTokens {
   accessToken: string;
   refreshToken: string;

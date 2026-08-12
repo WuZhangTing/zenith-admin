@@ -11,13 +11,13 @@ import { ensureTenantUserQuota, getTenantUserLimit } from '../../lib/tenant-quot
 import { getTenantPackageMenuIdSet } from '../../lib/tenant-package';
 import { pageOffset } from '../../lib/pagination';
 import { getDataScopeCondition } from '../../lib/data-scope';
-import { dateRangeConditions, escapeLike, keywordCondition } from '../../lib/where-helpers';
+import { dateRangeConditions, escapeLike, keywordCondition, mergeWhere } from '../../lib/where-helpers';
 import { getPasswordPolicy, validatePassword } from '../../lib/password-policy';
 import { unlockUser as unlockUserSession, batchCheckLoginLock, getOnlineSessions, forceLogoutAllByUsers } from '../../lib/session-manager';
 import { streamToExcel, streamToCsv, formatDateTimeForExcel } from '../../lib/excel-export';
 import { clearUserPermissionCache } from '../../lib/permissions';
 import type { JwtPayload } from '../../middleware/auth';
-import type { User } from '@zenith/shared/identity';
+import type { AlertRecipientUser, User } from '@zenith/shared/identity';
 import { SUPER_ADMIN_CODE } from '@zenith/shared/identity';
 import { currentUser } from '../../lib/context';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
@@ -252,6 +252,29 @@ export async function listAllUsers() {
   const cond = await manageableUsersCondition();
   const rawList = await findUsersWithRelations({ where: cond, orderBy: users.id });
   return mapUsersWithMask(rawList, viewerRoleCodes());
+}
+
+export async function listAlertRecipientUsers(): Promise<AlertRecipientUser[]> {
+  const rows = await db.query.users.findMany({
+    columns: {
+      id: true,
+      username: true,
+      nickname: true,
+      email: true,
+    },
+    with: {
+      department: { columns: { name: true } },
+    },
+    where: mergeWhere(eq(users.status, 'enabled'), tenantCondition(users, currentUser())),
+    orderBy: users.id,
+  });
+  return rows.map((user) => ({
+    id: user.id,
+    username: user.username,
+    nickname: user.nickname,
+    departmentName: user.department?.name ?? null,
+    hasEmail: Boolean(user.email),
+  }));
 }
 
 export interface ListUsersQuery {

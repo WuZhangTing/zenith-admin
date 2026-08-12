@@ -52,7 +52,8 @@ function alertRule(overrides: Partial<MonitorAlertRuleRow> = {}): MonitorAlertRu
     level: 'warning',
     channels: ['inapp'],
     webhookUrl: null,
-    recipients: ['admin'],
+    recipientUserIds: [1],
+    recipientEmails: [],
     silenceMinutes: 30,
     enabled: true,
     state: 'firing',
@@ -98,13 +99,45 @@ describe('setRuleEnabled', () => {
 
   it('重复启用正在运行的规则时不清除现有告警', async () => {
     const current = alertRule();
-    dbMock.select.mockReturnValueOnce(createChain([current]));
+    dbMock.select
+      .mockReturnValueOnce(createChain([current]))
+      .mockReturnValueOnce(createChain([{ id: 1, email: 'admin@zenith.dev' }]));
 
     const result = await setRuleEnabled(current.id, true);
 
     expect(dbMock.transaction).not.toHaveBeenCalled();
     expect(dbMock.update).not.toHaveBeenCalled();
     expect(result).toMatchObject({ enabled: true, state: 'firing' });
+  });
+
+  it('启用规则时拒绝不存在、停用或跨租户的接收用户', async () => {
+    const current = alertRule({ enabled: false, state: 'ok' });
+    dbMock.select
+      .mockReturnValueOnce(createChain([current]))
+      .mockReturnValueOnce(createChain([]));
+
+    await expect(setRuleEnabled(current.id, true)).rejects.toMatchObject({
+      message: '接收用户不存在、已停用或不属于当前租户',
+    });
+    expect(dbMock.update).not.toHaveBeenCalled();
+  });
+
+  it('邮件渠道要求所选用户至少有一个可用邮箱或配置额外邮箱', async () => {
+    const current = alertRule({
+      enabled: false,
+      state: 'ok',
+      channels: ['email'],
+      recipientUserIds: [2],
+      recipientEmails: [],
+    });
+    dbMock.select
+      .mockReturnValueOnce(createChain([current]))
+      .mockReturnValueOnce(createChain([{ id: 2, email: null }]));
+
+    await expect(setRuleEnabled(current.id, true)).rejects.toMatchObject({
+      message: '所选用户均未配置邮箱，请选择有邮箱的用户或填写额外邮箱',
+    });
+    expect(dbMock.update).not.toHaveBeenCalled();
   });
 });
 

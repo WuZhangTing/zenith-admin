@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { partialForUpdate, validateAlertDelivery, webhookUrlSchema } from '../core/validation';
+import { partialForUpdate, webhookUrlSchema } from '../core/validation';
 import { FILE_OBJECT_ACL_SUPPORT, MONITOR_METRICS, PRESIGNED_EXPIRY_DEFAULT_SECONDS, PRESIGNED_EXPIRY_MAX_SECONDS, PRESIGNED_EXPIRY_MIN_SECONDS } from './constants';
 
 // ─── 字典 Schema ──────────────────────────────────────────────────────────────
@@ -342,15 +342,46 @@ const monitorAlertRuleBaseSchema = z.object({
   level: z.enum(['info', 'warning', 'critical']).default('warning'),
   channels: z.array(z.enum(['email', 'webhook', 'inapp'])).default([]),
   webhookUrl: webhookUrlSchema.nullable().optional(),
-  recipients: z.array(z.string().max(128)).default([]),
+  recipientUserIds: z.array(z.number().int().positive()).max(100).default([]),
+  recipientEmails: z.array(z.email('邮箱格式不正确').max(254)).max(50).default([]),
   silenceMinutes: z.number().int().min(0).max(10_080).default(30),
   enabled: z.boolean().default(true),
 });
 
-export const createMonitorAlertRuleSchema = monitorAlertRuleBaseSchema.superRefine(validateAlertDelivery);
+function validateMonitorAlertDelivery(
+  value: {
+    enabled?: boolean;
+    channels?: string[];
+    webhookUrl?: string | null;
+    recipientUserIds?: number[];
+    recipientEmails?: string[];
+  },
+  ctx: z.RefinementCtx,
+) {
+  if (value.enabled === false) return;
+  const channels = value.channels ?? [];
+  if (channels.length === 0) {
+    ctx.addIssue({ code: 'custom', path: ['channels'], message: '启用告警时至少选择一个通知渠道' });
+  }
+  if (channels.includes('webhook') && !value.webhookUrl) {
+    ctx.addIssue({ code: 'custom', path: ['webhookUrl'], message: 'Webhook 渠道必须配置有效 URL' });
+  }
+  if (channels.includes('inapp') && !(value.recipientUserIds?.length)) {
+    ctx.addIssue({ code: 'custom', path: ['recipientUserIds'], message: '站内信渠道必须选择接收用户' });
+  }
+  if (
+    channels.includes('email')
+    && !(value.recipientUserIds?.length)
+    && !(value.recipientEmails?.length)
+  ) {
+    ctx.addIssue({ code: 'custom', path: ['recipientEmails'], message: '邮件渠道必须选择接收用户或填写额外邮箱' });
+  }
+}
+
+export const createMonitorAlertRuleSchema = monitorAlertRuleBaseSchema.superRefine(validateMonitorAlertDelivery);
 
 export const updateMonitorAlertRuleSchema = partialForUpdate(monitorAlertRuleBaseSchema).superRefine((value, ctx) => {
-  if (value.enabled === true && value.channels !== undefined) validateAlertDelivery(value, ctx);
+  if (value.enabled === true && value.channels !== undefined) validateMonitorAlertDelivery(value, ctx);
 });
 
 export const monitorAlertEventQuerySchema = z.object({

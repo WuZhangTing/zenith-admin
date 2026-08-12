@@ -275,7 +275,8 @@ export const MonitorAlertRuleDTO = z
     level: z.string(),
     channels: z.array(z.string()),
     webhookUrl: z.string().nullable(),
-    recipients: z.array(z.string()),
+    recipientUserIds: z.array(z.number().int()),
+    recipientEmails: z.array(z.string()),
     silenceMinutes: z.number().int(),
     enabled: z.boolean(),
     state: z.string(),
@@ -320,21 +321,31 @@ const monitorAlertRuleInputDTO = z.object({
     level: z.enum(['info', 'warning', 'critical']).default('warning'),
     channels: z.array(z.enum(['email', 'webhook', 'inapp'])).default([]),
     webhookUrl: monitorWebhookUrlDTO.nullable().optional(),
-    recipients: z.array(z.string().max(128)).default([]),
+    recipientUserIds: z.array(z.number().int().positive()).max(100).default([]),
+    recipientEmails: z.array(z.email('邮箱格式不正确').max(254)).max(50).default([]),
     silenceMinutes: z.number().int().min(0).max(10_080).default(30),
     enabled: z.boolean().default(true),
   });
 
 function validateMonitorAlertDelivery(
-  value: { enabled?: boolean; channels?: string[]; webhookUrl?: string | null; recipients?: string[] },
+  value: {
+    enabled?: boolean;
+    channels?: string[];
+    webhookUrl?: string | null;
+    recipientUserIds?: number[];
+    recipientEmails?: string[];
+  },
   ctx: { addIssue: (issue: { code: 'custom'; path?: PropertyKey[]; message: string }) => void },
 ) {
   if (value.enabled === false) return;
   const channels = value.channels ?? [];
   if (channels.length === 0) ctx.addIssue({ code: 'custom', path: ['channels'], message: '启用告警时至少选择一个通知渠道' });
   if (channels.includes('webhook') && !value.webhookUrl) ctx.addIssue({ code: 'custom', path: ['webhookUrl'], message: 'Webhook 渠道必须配置有效 URL' });
-  if ((channels.includes('email') || channels.includes('inapp')) && !(value.recipients?.length)) {
-    ctx.addIssue({ code: 'custom', path: ['recipients'], message: '邮件或站内通知渠道必须配置接收人' });
+  if (channels.includes('inapp') && !(value.recipientUserIds?.length)) {
+    ctx.addIssue({ code: 'custom', path: ['recipientUserIds'], message: '站内信渠道必须选择接收用户' });
+  }
+  if (channels.includes('email') && !(value.recipientUserIds?.length) && !(value.recipientEmails?.length)) {
+    ctx.addIssue({ code: 'custom', path: ['recipientEmails'], message: '邮件渠道必须选择接收用户或填写额外邮箱' });
   }
 }
 

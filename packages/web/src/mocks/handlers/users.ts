@@ -32,6 +32,18 @@ function toUserResponse(user: MockUser) {
 }
 
 export const usersHandlers = [
+  http.get('/api/users/alert-recipients', () => {
+    return ok(mockUsers
+      .filter((user) => user.status === 'enabled')
+      .map((user) => ({
+        id: user.id,
+        username: user.username,
+        nickname: user.nickname,
+        departmentName: flattenDepts(mockDepartments).find((department) => department.id === user.departmentId)?.name ?? null,
+        hasEmail: Boolean(user.email),
+      })));
+  }),
+
   // 全量用户（供下拉/穿梭框使用）
   http.get('/api/users/all', () => {
     return ok(mockUsers.map(toUserResponse));

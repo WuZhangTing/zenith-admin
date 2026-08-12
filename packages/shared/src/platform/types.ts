@@ -258,7 +258,8 @@ export interface MonitorAlertRule {
   level: MonitorAlertLevel;
   channels: string[];
   webhookUrl: string | null;
-  recipients: string[];
+  recipientUserIds: number[];
+  recipientEmails: string[];
   silenceMinutes: number;
   enabled: boolean;
   state: MonitorAlertState;

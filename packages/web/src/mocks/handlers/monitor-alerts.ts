@@ -8,56 +8,56 @@ const minsAgo = (m: number) => mockDateTimeOffset(-m * 60 * 1000);
 interface MockRule {
   id: number; name: string; metric: string; operator: string; threshold: number;
   durationMinutes: number; level: string; channels: string[]; webhookUrl: string | null;
-  recipients: string[]; silenceMinutes: number; enabled: boolean; state: string;
+  recipientUserIds: number[]; recipientEmails: string[]; silenceMinutes: number; enabled: boolean; state: string;
   lastTriggeredAt: string | null; lastValue: number | null; createdAt: string; updatedAt: string;
 }
 
 const rules: MockRule[] = [
   {
     id: 1, name: 'CPU 使用率过高', metric: 'cpu', operator: 'gt', threshold: 85, durationMinutes: 5,
-    level: 'warning', channels: ['inapp', 'email'], webhookUrl: null, recipients: ['ops@example.com'],
+    level: 'warning', channels: ['inapp', 'email'], webhookUrl: null, recipientUserIds: [1], recipientEmails: ['ops@example.com'],
     silenceMinutes: 30, enabled: true, state: 'ok', lastTriggeredAt: minsAgo(120), lastValue: 23,
     createdAt: minsAgo(7 * 24 * 60), updatedAt: minsAgo(60),
   },
   {
     id: 2, name: '磁盘空间不足', metric: 'disk', operator: 'gte', threshold: 90, durationMinutes: 0,
-    level: 'critical', channels: ['inapp', 'webhook'], webhookUrl: 'https://example.com/alert', recipients: [],
+    level: 'critical', channels: ['inapp', 'webhook'], webhookUrl: 'https://example.com/alert', recipientUserIds: [1], recipientEmails: [],
     silenceMinutes: 60, enabled: true, state: 'firing', lastTriggeredAt: minsAgo(15), lastValue: 92,
     createdAt: minsAgo(10 * 24 * 60), updatedAt: minsAgo(15),
   },
   {
     id: 3, name: '内存使用率告警', metric: 'memory', operator: 'gt', threshold: 80, durationMinutes: 3,
-    level: 'warning', channels: ['inapp'], webhookUrl: null, recipients: [],
+    level: 'warning', channels: ['inapp'], webhookUrl: null, recipientUserIds: [1], recipientEmails: [],
     silenceMinutes: 30, enabled: false, state: 'ok', lastTriggeredAt: null, lastValue: 41,
     createdAt: minsAgo(3 * 24 * 60), updatedAt: minsAgo(3 * 24 * 60),
   },
   {
     id: 4, name: '支付失败率飙升', metric: 'paymentFailureRate', operator: 'gte', threshold: 20, durationMinutes: 5,
-    level: 'critical', channels: ['inapp', 'email'], webhookUrl: null, recipients: ['admin', 'pay-oncall@example.com'],
+    level: 'critical', channels: ['inapp', 'email'], webhookUrl: null, recipientUserIds: [1], recipientEmails: ['pay-oncall@example.com'],
     silenceMinutes: 30, enabled: true, state: 'firing', lastTriggeredAt: minsAgo(8), lastValue: 31.4,
     createdAt: minsAgo(20 * 24 * 60), updatedAt: minsAgo(8),
   },
   {
     id: 5, name: '对账差异待处理', metric: 'paymentReconDiff', operator: 'gte', threshold: 1, durationMinutes: 0,
-    level: 'warning', channels: ['inapp'], webhookUrl: null, recipients: ['admin'],
+    level: 'warning', channels: ['inapp'], webhookUrl: null, recipientUserIds: [1], recipientEmails: [],
     silenceMinutes: 720, enabled: true, state: 'firing', lastTriggeredAt: minsAgo(200), lastValue: 3,
     createdAt: minsAgo(20 * 24 * 60), updatedAt: minsAgo(200),
   },
   {
     id: 6, name: '支付事件派发积压', metric: 'paymentEventBacklog', operator: 'gte', threshold: 20, durationMinutes: 0,
-    level: 'critical', channels: ['inapp', 'webhook'], webhookUrl: 'https://example.com/alert', recipients: ['admin'],
+    level: 'critical', channels: ['inapp', 'webhook'], webhookUrl: 'https://example.com/alert', recipientUserIds: [1], recipientEmails: [],
     silenceMinutes: 60, enabled: true, state: 'ok', lastTriggeredAt: null, lastValue: 2,
     createdAt: minsAgo(20 * 24 * 60), updatedAt: minsAgo(45),
   },
   {
     id: 7, name: '单应用错误率异常', metric: 'openApiAppErrorRate', operator: 'gte', threshold: 50, durationMinutes: 10,
-    level: 'warning', channels: ['inapp'], webhookUrl: null, recipients: ['admin'],
+    level: 'warning', channels: ['inapp'], webhookUrl: null, recipientUserIds: [1], recipientEmails: [],
     silenceMinutes: 60, enabled: true, state: 'ok', lastTriggeredAt: minsAgo(1440), lastValue: 12.5,
     createdAt: minsAgo(15 * 24 * 60), updatedAt: minsAgo(30),
   },
   {
     id: 8, name: '流程作业出现死信', metric: 'workflowDeadLetter', operator: 'gte', threshold: 1, durationMinutes: 0,
-    level: 'warning', channels: ['inapp'], webhookUrl: null, recipients: ['admin'],
+    level: 'warning', channels: ['inapp'], webhookUrl: null, recipientUserIds: [1], recipientEmails: [],
     silenceMinutes: 120, enabled: true, state: 'ok', lastTriggeredAt: null, lastValue: 0,
     createdAt: minsAgo(12 * 24 * 60), updatedAt: minsAgo(90),
   },
@@ -92,7 +92,8 @@ export const monitorAlertsHandlers = [
     const rule: MockRule = {
       id: nextIdFrom(rules), name: body.name ?? '新规则', metric: body.metric ?? 'cpu', operator: body.operator ?? 'gt',
       threshold: body.threshold ?? 80, durationMinutes: body.durationMinutes ?? 0, level: body.level ?? 'warning',
-      channels: body.channels ?? [], webhookUrl: body.webhookUrl ?? null, recipients: body.recipients ?? [],
+      channels: body.channels ?? [], webhookUrl: body.webhookUrl ?? null,
+      recipientUserIds: body.recipientUserIds ?? [], recipientEmails: body.recipientEmails ?? [],
       silenceMinutes: body.silenceMinutes ?? 30, enabled: body.enabled ?? true, state: 'ok',
       lastTriggeredAt: null, lastValue: null, createdAt: now, updatedAt: now,
     };
@@ -106,6 +107,13 @@ export const monitorAlertsHandlers = [
     if (!rule) return notFound('告警规则不存在', { status: 404 });
     const body = await request.json() as Partial<MockRule>;
     Object.assign(rule, body, { updatedAt: mockDateTime() });
+    if (body.enabled === false) {
+      rule.state = 'ok';
+      for (const event of events.filter((item) => item.ruleId === id && item.status === 'firing')) {
+        event.status = 'resolved';
+        event.resolvedAt = mockDateTime();
+      }
+    }
     return ok(rule, '更新成功');
   }),
 
@@ -115,6 +123,13 @@ export const monitorAlertsHandlers = [
     if (!rule) return notFound('告警规则不存在', { status: 404 });
     const body = await request.json() as { enabled: boolean };
     rule.enabled = body.enabled;
+    if (!body.enabled) {
+      rule.state = 'ok';
+      for (const event of events.filter((item) => item.ruleId === id && item.status === 'firing')) {
+        event.status = 'resolved';
+        event.resolvedAt = mockDateTime();
+      }
+    }
     rule.updatedAt = mockDateTime();
     return ok(rule, '操作成功');
   }),

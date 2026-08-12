@@ -6,7 +6,7 @@
  * 也强制要求填接收人——用户配置完全正确却收不到任何通知，且没有任何报错。
  * 各域自行拼一遍三渠道分发正是这类静默失效的温床，因此统一收口到此处。
  */
-import { eq, inArray, or } from 'drizzle-orm';
+import { eq, inArray, or, type SQL } from 'drizzle-orm';
 import type { InAppMessageType } from '@zenith/shared/messaging';
 import { db } from '../db';
 import { users } from '../db/schema';
@@ -22,8 +22,12 @@ export interface AlertDispatchTarget {
   /** 已配置的通知渠道：email / webhook / inapp */
   channels: readonly string[];
   webhookUrl: string | null;
-  /** 接收人标识：邮箱（邮件渠道直接使用）或用户名（站内信渠道解析为用户） */
-  recipients: readonly string[];
+  /** 旧式混合标识，仅供尚未迁移的告警域使用 */
+  recipients?: readonly string[];
+  /** 系统用户：站内信直接投递；邮件渠道实时读取账户当前邮箱 */
+  recipientUserIds?: readonly number[];
+  /** 不绑定系统用户的额外邮箱 */
+  recipientEmails?: readonly string[];
   /** 规则所属租户；为空表示平台级规则 */
   tenantId: number | null;
 }
@@ -47,24 +51,35 @@ export interface AlertDispatchPayload {
 }
 
 /**
- * 把规则里的接收人标识解析为站内信收件用户。
+ * 解析本次派发涉及的系统用户。
  *
- * 接收人既可能填邮箱（邮件渠道的自然形态）也可能填用户名，因此两列都匹配；
- * 停用账号不再接收告警。租户为空的平台级规则不限制租户范围，与 `tenantCondition`
- * 中平台管理员的可见范围保持一致。
+ * 新模型直接使用稳定用户 ID；尚未迁移的告警域仍可传邮箱 / 用户名标识。
+ * 停用账号不再接收告警。租户为空的平台级规则不限制租户范围。
  */
-async function resolveRecipientUserIds(recipients: readonly string[], tenantId: number | null): Promise<number[]> {
-  const identifiers = [...new Set(recipients.map((r) => r.trim()).filter(Boolean))];
-  if (identifiers.length === 0) return [];
+interface ResolvedRecipientUser {
+  id: number;
+  email: string | null;
+}
+
+async function resolveRecipientUsers(target: AlertDispatchTarget): Promise<ResolvedRecipientUser[]> {
+  const userIds = [...new Set((target.recipientUserIds ?? []).filter((id) => Number.isInteger(id) && id > 0))];
+  const identifiers = [...new Set((target.recipients ?? []).map((recipient) => recipient.trim()).filter(Boolean))];
+  const recipientConditions: SQL[] = [];
+  if (userIds.length > 0) recipientConditions.push(inArray(users.id, userIds));
+  if (identifiers.length > 0) {
+    recipientConditions.push(inArray(users.email, identifiers), inArray(users.username, identifiers));
+  }
+  if (recipientConditions.length === 0) return [];
+
   const rows = await db
-    .select({ id: users.id })
+    .select({ id: users.id, email: users.email })
     .from(users)
     .where(buildWhere(
-      or(inArray(users.email, identifiers), inArray(users.username, identifiers)),
+      or(...recipientConditions),
       eq(users.status, 'enabled'),
-      tenantId == null ? undefined : eq(users.tenantId, tenantId),
+      target.tenantId == null ? undefined : eq(users.tenantId, target.tenantId),
     ));
-  return rows.map((r) => r.id);
+  return rows;
 }
 
 /**
@@ -76,23 +91,44 @@ async function resolveRecipientUserIds(recipients: readonly string[], tenantId: 
 export async function dispatchAlertChannels(target: AlertDispatchTarget, payload: AlertDispatchPayload): Promise<void> {
   const channels = target.channels ?? [];
   const tasks: Promise<unknown>[] = [];
+  const recipientUsers = (channels.includes('inapp') || channels.includes('email'))
+    ? resolveRecipientUsers(target)
+    : Promise.resolve([]);
 
   if (channels.includes('webhook') && target.webhookUrl) {
     tasks.push(httpPost(target.webhookUrl, payload.webhookBody, { timeout: WEBHOOK_TIMEOUT_MS, ssrfProtection: true }));
   }
 
   if (channels.includes('email')) {
-    for (const to of target.recipients.filter((r) => r.includes('@'))) {
-      tasks.push(sendMail(to, payload.subject, payload.html));
-    }
+    tasks.push((async () => {
+      const usersForDelivery = await recipientUsers;
+      const emails = new Set(
+        [
+          ...(target.recipientEmails ?? []),
+          ...(target.recipients ?? []).filter((recipient) => recipient.includes('@')),
+          ...usersForDelivery.map((user) => user.email).filter((email): email is string => Boolean(email)),
+        ]
+          .map((email) => email.trim().toLowerCase())
+          .filter(Boolean),
+      );
+      if (emails.size === 0) {
+        logger.warn(`[${payload.logTag}] 邮件接收目标没有可用邮箱，本次邮件未送达`, {
+          recipientUserCount: target.recipientUserIds?.length ?? 0,
+          externalEmailCount: target.recipientEmails?.length ?? 0,
+          tenantId: target.tenantId,
+        });
+        return;
+      }
+      await Promise.all([...emails].map((email) => sendMail(email, payload.subject, payload.html)));
+    })());
   }
 
   if (channels.includes('inapp')) {
     tasks.push((async () => {
-      const userIds = await resolveRecipientUserIds(target.recipients, target.tenantId);
+      const userIds = (await recipientUsers).map((user) => user.id);
       if (userIds.length === 0) {
         logger.warn(`[${payload.logTag}] 站内信接收人未匹配到任何启用用户，本次站内通知未送达`, {
-          recipients: target.recipients,
+          recipientUserCount: target.recipientUserIds?.length ?? 0,
           tenantId: target.tenantId,
         });
         return;

@@ -929,6 +929,7 @@ exports[`路由表快照 > 完整路由表保持不变 1`] = `
   "GET /api/users/:id/data-permission",
   "GET /api/users/:id/effective-permissions",
   "GET /api/users/:id/menus",
+  "GET /api/users/alert-recipients",
   "GET /api/users/all",
   "GET /api/users/import-template",
   "GET /api/workflows/:id/migrate/preflight",

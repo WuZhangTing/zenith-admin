@@ -26,6 +26,7 @@ vi.mock('@/utils/request', () => ({ request: createRequestMock(() => api) }));
 
 import {
   userKeys,
+  useAlertRecipientUsers,
   useAllUsers,
   useAssignUserRoles,
   useBatchDeleteUsers,
@@ -44,11 +45,13 @@ const LIST_PARAMS = { page: 1, pageSize: 10 };
 const MASKED_USER = { id: 1, username: 'alice', nickname: '爱丽丝', phone: '138****8000' };
 /** 写接口返回未脱敏原文 */
 const RAW_USER = { id: 1, username: 'alice', nickname: '爱丽丝', phone: '13812348000' };
+const ALERT_RECIPIENT = { id: 1, username: 'alice', nickname: '爱丽丝', departmentName: '技术部', hasEmail: true };
 
 beforeEach(() => {
   api.reset();
   api
     .on('GET', '/api/users/all', [MASKED_USER])
+    .on('GET', '/api/users/alert-recipients', [ALERT_RECIPIENT])
     .on('GET', '/api/users/1/data-permission', { userDataScope: 'all', deptScopeIds: [] })
     .on('GET', '/api/users/1/effective-permissions', { effectiveMenuIds: [1] })
     .on('GET', '/api/users/1', MASKED_USER)
@@ -77,17 +80,27 @@ describe('useSaveUser', () => {
     expect(result.current.detail.data?.phone).toBe('138****8000');
   });
 
-  it('refreshes the cross-page user dropdown, which renders nicknames', async () => {
+  it('refreshes both general and alert-recipient user lookups', async () => {
     const qc = createTestQueryClient();
     const { result } = renderHook(
-      () => ({ lookup: useAllUsers(), save: useSaveUser() }),
+      () => ({
+        lookup: useAllUsers(),
+        alertRecipients: useAlertRecipientUsers(),
+        save: useSaveUser(),
+      }),
       { wrapper: createWrapper(qc) },
     );
-    await waitFor(() => expect(result.current.lookup.isSuccess).toBe(true));
+    await waitFor(() => {
+      expect(result.current.lookup.isSuccess).toBe(true);
+      expect(result.current.alertRecipients.isSuccess).toBe(true);
+    });
 
     api.resetCalls();
     await result.current.save.mutateAsync({ id: 1, values: { nickname: '爱丽丝（改）' } });
-    await waitFor(() => expect(api.countOf('GET', '/api/users/all')).toBe(1));
+    await waitFor(() => {
+      expect(api.countOf('GET', '/api/users/all')).toBe(1);
+      expect(api.countOf('GET', '/api/users/alert-recipients')).toBe(1);
+    });
   });
 });
 

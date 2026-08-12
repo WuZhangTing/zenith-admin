@@ -655,7 +655,7 @@ export const SEED_DATA_MASK_CONFIGS: DataMaskConfig[] = [
 
 // ─── 监控告警规则 ─────────────────────────────────────────────────────────────
 // 开箱即用的默认规则：基础设施容量兜底 + 各业务域最值得盯的失效信号。
-// 全部默认走站内信（收件人 admin），部署方按需在「监控告警」页改阈值 / 加邮件与 Webhook。
+// 全部默认走站内信（接收用户为管理员 ID=1），部署方按需在「告警中心」改阈值 / 加邮件与 Webhook。
 // durationMinutes 用于抑制毛刺：比率型指标必须持续超阈才触发，避免一次抖动就打扰值班。
 export const SEED_MONITOR_ALERT_RULES: Array<{
   id: number;
@@ -666,28 +666,29 @@ export const SEED_MONITOR_ALERT_RULES: Array<{
   durationMinutes: number;
   level: MonitorAlertLevel;
   channels: string[];
-  recipients: string[];
+  recipientUserIds: number[];
+  recipientEmails: string[];
   silenceMinutes: number;
   enabled: boolean;
 }> = [
   // 基础设施
-  { id: 1, name: 'CPU 使用率过高',        metric: 'cpu',                       operator: 'gte', threshold: 85,  durationMinutes: 5,  level: 'warning',  channels: ['inapp'], recipients: ['admin'], silenceMinutes: 30, enabled: true },
-  { id: 2, name: '内存使用率过高',        metric: 'memory',                    operator: 'gte', threshold: 90,  durationMinutes: 5,  level: 'warning',  channels: ['inapp'], recipients: ['admin'], silenceMinutes: 30, enabled: true },
-  { id: 3, name: '磁盘空间不足',          metric: 'disk',                      operator: 'gte', threshold: 90,  durationMinutes: 0,  level: 'critical', channels: ['inapp'], recipients: ['admin'], silenceMinutes: 120, enabled: true },
-  { id: 4, name: 'HTTP 错误率异常',       metric: 'errorRate',                 operator: 'gte', threshold: 5,   durationMinutes: 3,  level: 'critical', channels: ['inapp'], recipients: ['admin'], silenceMinutes: 30, enabled: true },
+  { id: 1, name: 'CPU 使用率过高',        metric: 'cpu',                       operator: 'gte', threshold: 85,  durationMinutes: 5,  level: 'warning',  channels: ['inapp'], recipientUserIds: [1], recipientEmails: [], silenceMinutes: 30, enabled: true },
+  { id: 2, name: '内存使用率过高',        metric: 'memory',                    operator: 'gte', threshold: 90,  durationMinutes: 5,  level: 'warning',  channels: ['inapp'], recipientUserIds: [1], recipientEmails: [], silenceMinutes: 30, enabled: true },
+  { id: 3, name: '磁盘空间不足',          metric: 'disk',                      operator: 'gte', threshold: 90,  durationMinutes: 0,  level: 'critical', channels: ['inapp'], recipientUserIds: [1], recipientEmails: [], silenceMinutes: 120, enabled: true },
+  { id: 4, name: 'HTTP 错误率异常',       metric: 'errorRate',                 operator: 'gte', threshold: 5,   durationMinutes: 3,  level: 'critical', channels: ['inapp'], recipientUserIds: [1], recipientEmails: [], silenceMinutes: 30, enabled: true },
   // 流程引擎
-  { id: 5, name: '流程引擎健康分过低',    metric: 'workflowHealth',            operator: 'lt',  threshold: 60,  durationMinutes: 5,  level: 'warning',  channels: ['inapp'], recipients: ['admin'], silenceMinutes: 60, enabled: true },
-  { id: 6, name: '流程作业出现死信',      metric: 'workflowDeadLetter',        operator: 'gte', threshold: 1,   durationMinutes: 0,  level: 'warning',  channels: ['inapp'], recipients: ['admin'], silenceMinutes: 120, enabled: true },
+  { id: 5, name: '流程引擎健康分过低',    metric: 'workflowHealth',            operator: 'lt',  threshold: 60,  durationMinutes: 5,  level: 'warning',  channels: ['inapp'], recipientUserIds: [1], recipientEmails: [], silenceMinutes: 60, enabled: true },
+  { id: 6, name: '流程作业出现死信',      metric: 'workflowDeadLetter',        operator: 'gte', threshold: 1,   durationMinutes: 0,  level: 'warning',  channels: ['inapp'], recipientUserIds: [1], recipientEmails: [], silenceMinutes: 120, enabled: true },
   // 支付
-  { id: 7, name: '支付失败率飙升',        metric: 'paymentFailureRate',        operator: 'gte', threshold: 20,  durationMinutes: 5,  level: 'critical', channels: ['inapp'], recipients: ['admin'], silenceMinutes: 30, enabled: true },
-  { id: 8, name: '支付卡单堆积',          metric: 'paymentStuckPaying',        operator: 'gte', threshold: 10,  durationMinutes: 0,  level: 'critical', channels: ['inapp'], recipients: ['admin'], silenceMinutes: 60, enabled: true },
-  { id: 9, name: '对账差异待处理',        metric: 'paymentReconDiff',          operator: 'gte', threshold: 1,   durationMinutes: 0,  level: 'warning',  channels: ['inapp'], recipients: ['admin'], silenceMinutes: 720, enabled: true },
-  { id: 10, name: '支付事件派发积压',     metric: 'paymentEventBacklog',       operator: 'gte', threshold: 20,  durationMinutes: 0,  level: 'critical', channels: ['inapp'], recipients: ['admin'], silenceMinutes: 60, enabled: true },
-  { id: 11, name: '支付回调投递失败率高', metric: 'paymentWebhookFailureRate', operator: 'gte', threshold: 30,  durationMinutes: 10, level: 'warning',  channels: ['inapp'], recipients: ['admin'], silenceMinutes: 60, enabled: true },
+  { id: 7, name: '支付失败率飙升',        metric: 'paymentFailureRate',        operator: 'gte', threshold: 20,  durationMinutes: 5,  level: 'critical', channels: ['inapp'], recipientUserIds: [1], recipientEmails: [], silenceMinutes: 30, enabled: true },
+  { id: 8, name: '支付卡单堆积',          metric: 'paymentStuckPaying',        operator: 'gte', threshold: 10,  durationMinutes: 0,  level: 'critical', channels: ['inapp'], recipientUserIds: [1], recipientEmails: [], silenceMinutes: 60, enabled: true },
+  { id: 9, name: '对账差异待处理',        metric: 'paymentReconDiff',          operator: 'gte', threshold: 1,   durationMinutes: 0,  level: 'warning',  channels: ['inapp'], recipientUserIds: [1], recipientEmails: [], silenceMinutes: 720, enabled: true },
+  { id: 10, name: '支付事件派发积压',     metric: 'paymentEventBacklog',       operator: 'gte', threshold: 20,  durationMinutes: 0,  level: 'critical', channels: ['inapp'], recipientUserIds: [1], recipientEmails: [], silenceMinutes: 60, enabled: true },
+  { id: 11, name: '支付回调投递失败率高', metric: 'paymentWebhookFailureRate', operator: 'gte', threshold: 30,  durationMinutes: 10, level: 'warning',  channels: ['inapp'], recipientUserIds: [1], recipientEmails: [], silenceMinutes: 60, enabled: true },
   // 开放平台
-  { id: 12, name: '开放 API 错误率异常',  metric: 'openApiErrorRate',          operator: 'gte', threshold: 10,  durationMinutes: 5,  level: 'warning',  channels: ['inapp'], recipients: ['admin'], silenceMinutes: 30, enabled: true },
-  { id: 13, name: '单应用错误率异常',     metric: 'openApiAppErrorRate',       operator: 'gte', threshold: 50,  durationMinutes: 10, level: 'warning',  channels: ['inapp'], recipients: ['admin'], silenceMinutes: 60, enabled: true },
-  { id: 14, name: '应用订阅被自动停用',   metric: 'openWebhookDisabledSubs',   operator: 'gte', threshold: 1,   durationMinutes: 0,  level: 'warning',  channels: ['inapp'], recipients: ['admin'], silenceMinutes: 720, enabled: true },
+  { id: 12, name: '开放 API 错误率异常',  metric: 'openApiErrorRate',          operator: 'gte', threshold: 10,  durationMinutes: 5,  level: 'warning',  channels: ['inapp'], recipientUserIds: [1], recipientEmails: [], silenceMinutes: 30, enabled: true },
+  { id: 13, name: '单应用错误率异常',     metric: 'openApiAppErrorRate',       operator: 'gte', threshold: 50,  durationMinutes: 10, level: 'warning',  channels: ['inapp'], recipientUserIds: [1], recipientEmails: [], silenceMinutes: 60, enabled: true },
+  { id: 14, name: '应用订阅被自动停用',   metric: 'openWebhookDisabledSubs',   operator: 'gte', threshold: 1,   durationMinutes: 0,  level: 'warning',  channels: ['inapp'], recipientUserIds: [1], recipientEmails: [], silenceMinutes: 720, enabled: true },
 ];
 
 // ─── 意见反馈初始数据 ─────────────────────────────────────────────────────────

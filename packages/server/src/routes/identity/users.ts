@@ -2,9 +2,9 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { BatchIdsBody, ErrorResponse, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, excelBody, jsonContent, ok, okBody, okExcel, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
-import { UserDTO, ImportResultDTO, UserMenuPermissionsDTO, UserDataPermissionDTO, UserEffectivePermissionsDTO } from '../../lib/openapi-dtos';
+import { AlertRecipientUserDTO, UserDTO, ImportResultDTO, UserMenuPermissionsDTO, UserDataPermissionDTO, UserEffectivePermissionsDTO } from '../../lib/openapi-dtos';
 import {
-  listAllUsers, listUsers, createUser, batchDeleteUsers, batchUpdateUserStatus, batchResetUsersPassword,
+  listAlertRecipientUsers, listAllUsers, listUsers, createUser, batchDeleteUsers, batchUpdateUserStatus, batchResetUsersPassword,
   updateUser, deleteUser, updateUserPassword, unlockUserById,
   getUserImportTemplate, importUsersFromFormData, getUserBeforeAudit, getUsersBeforeAudit,
   getUser,
@@ -54,6 +54,17 @@ const getAllUsersRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...ok(z.array(UserDTO), '全量用户') },
   }),
   handler: async (c) => c.json(okBody(await listAllUsers()), 200),
+});
+
+const getAlertRecipientUsersRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/alert-recipients', tags: ['Users'], summary: '告警接收用户下拉项',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: ['alert:rule:create', 'alert:rule:update'] })] as const,
+    request: {},
+    responses: { ...commonErrorResponses, ...ok(z.array(AlertRecipientUserDTO), '告警接收用户') },
+  }),
+  handler: async (c) => c.json(okBody(await listAlertRecipientUsers()), 200),
 });
 
 const listUsersRoute = defineOpenAPIRoute({
@@ -425,7 +436,7 @@ const getUserEffectivePermissionsRoute = defineOpenAPIRoute({
 });
 
 usersRouter.openapiRoutes([
-  getAllUsersRoute, listUsersRoute, createUserRoute, batchDeleteUsersRoute, batchStatusUsersRoute, batchResetPasswordRoute,
+  getAlertRecipientUsersRoute, getAllUsersRoute, listUsersRoute, createUserRoute, batchDeleteUsersRoute, batchStatusUsersRoute, batchResetPasswordRoute,
   importTemplateRoute, importUsersRoute, updateUserPasswordRoute, unlockUserRoute,
   getOneUserRoute, updateUserRoute, deleteUserRoute,
   getUserMenusRoute, assignUserMenusRoute,

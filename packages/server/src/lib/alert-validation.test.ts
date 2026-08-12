@@ -54,4 +54,34 @@ describe('validateAlertDelivery', () => {
       '邮件或站内通知渠道必须配置接收人',
     );
   });
+
+  it('validates typed user and email recipients independently', () => {
+    expectMessage(
+      () => validateAlertDelivery({
+        enabled: true,
+        channels: ['inapp'],
+        webhookUrl: null,
+        recipientUserIds: [],
+        recipientEmails: ['ops@example.com'],
+      }),
+      '站内信渠道必须选择接收用户',
+    );
+    expectMessage(
+      () => validateAlertDelivery({
+        enabled: true,
+        channels: ['email'],
+        webhookUrl: null,
+        recipientUserIds: [],
+        recipientEmails: [],
+      }),
+      '邮件渠道必须选择接收用户或填写额外邮箱',
+    );
+    expect(() => validateAlertDelivery({
+      enabled: true,
+      channels: ['email', 'inapp'],
+      webhookUrl: null,
+      recipientUserIds: [1],
+      recipientEmails: [],
+    })).not.toThrow();
+  });
 });

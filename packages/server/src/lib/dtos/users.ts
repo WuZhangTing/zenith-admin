@@ -19,6 +19,16 @@ export const ScopeMemberDTO = z
   })
   .openapi('ScopeMember');
 
+export const AlertRecipientUserDTO = z
+  .object({
+    id: z.number().int(),
+    username: z.string(),
+    nickname: z.string(),
+    departmentName: z.string().nullable(),
+    hasEmail: z.boolean(),
+  })
+  .openapi('AlertRecipientUser');
+
 export const UserDTO = z
   .object({
     id: z.number().int().openapi({ example: 1 }),

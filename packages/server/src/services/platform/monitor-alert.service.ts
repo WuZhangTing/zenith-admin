@@ -6,15 +6,15 @@
  * 指标全集与标签/单位/租户口径由 `@zenith/shared/platform` 的 MONITOR_METRIC_META 单点定义，
  * 取值由 `monitor-history.service` 汇总各域的告警指标源；新增指标不需要改动本文件。
  */
-import { and, eq, desc } from 'drizzle-orm';
+import { and, eq, desc, inArray } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { monitorAlertRules, monitorAlertEvents } from '../../db/schema';
+import { monitorAlertRules, monitorAlertEvents, users } from '../../db/schema';
 import type { MonitorAlertRuleRow, MonitorAlertEventRow } from '../../db/schema';
 import type { CreateMonitorAlertRuleInput, UpdateMonitorAlertRuleInput, MonitorAlertEventQuery, MonitorMetric, MonitorAlertOperator } from '@zenith/shared/platform';
 import { MONITOR_METRIC_META, formatMonitorMetricValue } from '@zenith/shared/platform';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
-import { mergeWhere } from '../../lib/where-helpers';
+import { buildWhere, mergeWhere } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { getMetricSnapshotsByTenant } from './monitor-history.service';
@@ -38,6 +38,41 @@ function compare(value: number, op: MonitorAlertOperator, threshold: number): bo
   }
 }
 
+function normalizeRecipientUserIds(userIds: readonly number[]): number[] {
+  return [...new Set(userIds.filter((id) => Number.isInteger(id) && id > 0))];
+}
+
+function normalizeRecipientEmails(emails: readonly string[]): string[] {
+  return [...new Set(emails.map((email) => email.trim().toLowerCase()).filter(Boolean))];
+}
+
+async function validateRecipientUsers(
+  userIds: readonly number[],
+  channels: readonly string[],
+  recipientEmails: readonly string[],
+  tenantId: number | null,
+): Promise<void> {
+  if (userIds.length === 0) return;
+  const rows = await db
+    .select({ id: users.id, email: users.email })
+    .from(users)
+    .where(buildWhere(
+      inArray(users.id, userIds),
+      eq(users.status, 'enabled'),
+      tenantId == null ? undefined : eq(users.tenantId, tenantId),
+    ));
+  if (rows.length !== userIds.length) {
+    throw new HTTPException(400, { message: '接收用户不存在、已停用或不属于当前租户' });
+  }
+  if (
+    channels.includes('email')
+    && recipientEmails.length === 0
+    && !rows.some((user) => Boolean(user.email))
+  ) {
+    throw new HTTPException(400, { message: '所选用户均未配置邮箱，请选择有邮箱的用户或填写额外邮箱' });
+  }
+}
+
 async function resolveActiveRuleEvents(executor: DbExecutor, ruleId: number, resolvedAt: Date): Promise<void> {
   await executor
     .update(monitorAlertEvents)
@@ -57,7 +92,8 @@ export function mapRule(row: MonitorAlertRuleRow) {
     level: row.level,
     channels: row.channels ?? [],
     webhookUrl: row.webhookUrl,
-    recipients: row.recipients ?? [],
+    recipientUserIds: row.recipientUserIds ?? [],
+    recipientEmails: row.recipientEmails ?? [],
     silenceMinutes: row.silenceMinutes,
     enabled: row.enabled,
     state: row.state,
@@ -109,16 +145,22 @@ export async function getMonitorAlertRuleBeforeAudit(id: number) {
 }
 
 export async function createRule(input: CreateMonitorAlertRuleInput) {
+  const tenantId = currentCreateTenantId();
+  const recipientUserIds = normalizeRecipientUserIds(input.recipientUserIds ?? []);
+  const recipientEmails = normalizeRecipientEmails(input.recipientEmails ?? []);
+  const enabled = input.enabled ?? true;
   validateAlertDelivery({
-    enabled: input.enabled ?? true,
+    enabled,
     channels: input.channels ?? [],
     webhookUrl: input.webhookUrl ?? null,
-    recipients: input.recipients ?? [],
+    recipientUserIds,
+    recipientEmails,
   });
+  if (enabled) await validateRecipientUsers(recipientUserIds, input.channels ?? [], recipientEmails, tenantId);
   const [row] = await db
     .insert(monitorAlertRules)
     .values({
-      tenantId: currentCreateTenantId(),
+      tenantId,
       name: input.name,
       metric: input.metric,
       operator: input.operator ?? 'gt',
@@ -127,9 +169,10 @@ export async function createRule(input: CreateMonitorAlertRuleInput) {
       level: input.level ?? 'warning',
       channels: input.channels ?? [],
       webhookUrl: input.webhookUrl ?? null,
-      recipients: input.recipients ?? [],
+      recipientUserIds,
+      recipientEmails,
       silenceMinutes: input.silenceMinutes ?? 30,
-      enabled: input.enabled ?? true,
+      enabled,
     })
     .returning();
   return mapRule(row);
@@ -137,12 +180,18 @@ export async function createRule(input: CreateMonitorAlertRuleInput) {
 
 export async function updateRule(id: number, input: UpdateMonitorAlertRuleInput) {
   const current = await ensureRuleExists(id);
+  const recipientUserIds = normalizeRecipientUserIds(input.recipientUserIds ?? current.recipientUserIds ?? []);
+  const recipientEmails = normalizeRecipientEmails(input.recipientEmails ?? current.recipientEmails ?? []);
+  const channels = input.channels ?? current.channels ?? [];
+  const enabled = input.enabled ?? current.enabled;
   validateAlertDelivery({
-    enabled: input.enabled ?? current.enabled,
-    channels: input.channels ?? current.channels ?? [],
+    enabled,
+    channels,
     webhookUrl: input.webhookUrl === undefined ? current.webhookUrl : input.webhookUrl,
-    recipients: input.recipients ?? current.recipients ?? [],
+    recipientUserIds,
+    recipientEmails,
   });
+  if (enabled) await validateRecipientUsers(recipientUserIds, channels, recipientEmails, current.tenantId);
   const resetLifecycle = input.enabled === false || (input.enabled === true && !current.enabled);
   const updateData: Partial<typeof monitorAlertRules.$inferInsert> = {
     ...(input.name !== undefined ? { name: input.name } : {}),
@@ -153,7 +202,8 @@ export async function updateRule(id: number, input: UpdateMonitorAlertRuleInput)
     ...(input.level !== undefined ? { level: input.level } : {}),
     ...(input.channels !== undefined ? { channels: input.channels } : {}),
     ...(input.webhookUrl !== undefined ? { webhookUrl: input.webhookUrl } : {}),
-    ...(input.recipients !== undefined ? { recipients: input.recipients } : {}),
+    ...(input.recipientUserIds !== undefined ? { recipientUserIds } : {}),
+    ...(input.recipientEmails !== undefined ? { recipientEmails } : {}),
     ...(input.silenceMinutes !== undefined ? { silenceMinutes: input.silenceMinutes } : {}),
     ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
     ...(resetLifecycle ? { state: 'ok', breachingSince: null } : {}),
@@ -187,8 +237,17 @@ export async function setRuleEnabled(id: number, enabled: boolean) {
     enabled,
     channels: current.channels ?? [],
     webhookUrl: current.webhookUrl,
-    recipients: current.recipients ?? [],
+    recipientUserIds: current.recipientUserIds ?? [],
+    recipientEmails: current.recipientEmails ?? [],
   });
+  if (enabled) {
+    await validateRecipientUsers(
+      current.recipientUserIds ?? [],
+      current.channels ?? [],
+      current.recipientEmails ?? [],
+      current.tenantId,
+    );
+  }
   if (enabled && current.enabled) return mapRule(current);
 
   return db.transaction(async (tx) => {
@@ -227,7 +286,8 @@ async function dispatchAlert(rule: MonitorAlertRuleRow, message: string, recover
     {
       channels: rule.channels ?? [],
       webhookUrl: rule.webhookUrl,
-      recipients: rule.recipients ?? [],
+      recipientUserIds: rule.recipientUserIds ?? [],
+      recipientEmails: rule.recipientEmails ?? [],
       tenantId: rule.tenantId,
     },
     {
