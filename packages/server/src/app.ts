@@ -76,7 +76,8 @@ export function createApp() {
     (c) => COMPRESS_EXCLUDE_PREFIXES.some((p) => c.req.path.startsWith(p)),
     compress(),
   ));
-  app.use('*', cors({ origin: config.corsOrigin, allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowHeaders: ['Content-Type', 'Authorization'] }));
+  // allowMethods 使用 hono 官方默认值（含 PATCH/QUERY），避免显式列表遗漏导致跨域预检失败
+  app.use('*', cors({ origin: config.corsOrigin, allowHeaders: ['Content-Type', 'Authorization'] }));
   // CSRF 防护：校验 Origin 头，防止跨站请求伪造
   // ALLOWED_ORIGINS 为空时（开发模式）不限制；非浏览器请求（无 Origin）直接放行
   const CSRF_EXCLUDE_PATHS = ['/api/auth/enterprise/saml/acs'];

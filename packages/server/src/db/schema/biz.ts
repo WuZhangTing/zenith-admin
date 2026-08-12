@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, timestamp, pgEnum, integer, text, real } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, timestamp, pgEnum, integer, text, real, index } from 'drizzle-orm/pg-core';
 import { auditColumns, tenants } from './core';
 
 // ─── 业务接入示例：请假（业务模块自有实体，通过 businessKey 关联工作流）──────────
@@ -20,7 +20,7 @@ export const bizLeaves = pgTable('biz_leaves', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('biz_leaves_tenant_idx').on(t.tenantId)]);
 
 export type BizLeaveRow = typeof bizLeaves.$inferSelect;
 
@@ -48,7 +48,7 @@ export const bizPayDemos = pgTable('biz_pay_demos', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('biz_pay_demos_tenant_idx').on(t.tenantId)]);
 
 export type BizPayDemoRow = typeof bizPayDemos.$inferSelect;
 

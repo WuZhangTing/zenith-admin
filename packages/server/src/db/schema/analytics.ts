@@ -513,7 +513,7 @@ export const analyticsUserProfiles = pgTable('analytics_user_profiles', {
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-}, (t) => [
+}, (t) => [index('analytics_user_profiles_tenant_idx').on(t.tenantId), 
   // tenantId 可空（全局/无租户场景），coalesce 归一后与 distinct_id 联合唯一
   uniqueIndex('analytics_user_profiles_tenant_distinct_uq').on(sql`coalesce(${t.tenantId}, 0)`, t.distinctId),
   index('analytics_user_profiles_user_idx').on(t.userId),

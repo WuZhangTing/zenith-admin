@@ -102,7 +102,7 @@ export const managedFiles = pgTable('managed_files', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('managed_files_tenant_idx').on(t.tenantId)]);
 
 export type ManagedFileRow = typeof managedFiles.$inferSelect;
 
@@ -132,7 +132,7 @@ export const uploadSessions = pgTable('upload_sessions', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('upload_sessions_tenant_idx').on(t.tenantId), 
   index('upload_sessions_created_at_idx').on(t.createdAt),
   index('upload_sessions_status_idx').on(t.status),
 ]);
@@ -170,7 +170,7 @@ export const businessFiles = pgTable('business_files', {
   sortOrder: smallint('sort_order').default(0),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [
+}, (t) => [index('business_files_tenant_idx').on(t.tenantId), 
   unique('uniq_business_file').on(t.businessType, t.businessId, t.fileId),
 ]);
 

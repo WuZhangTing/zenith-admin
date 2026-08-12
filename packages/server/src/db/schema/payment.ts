@@ -63,7 +63,7 @@ export const paymentChannelConfigs = pgTable('payment_channel_configs', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('payment_channel_configs_tenant_idx').on(t.tenantId)]);
 
 export type PaymentChannelConfigRow = typeof paymentChannelConfigs.$inferSelect;
 
@@ -108,7 +108,7 @@ export const paymentOrders = pgTable('payment_orders', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('payment_orders_tenant_idx').on(t.tenantId), 
   unique('payment_orders_channel_out_trade_no_uq').on(t.channel, t.outTradeNo),
   // 业务幂等：同一业务单（bizType+bizId）最多存在一笔进行中订单（pending/paying），
   // 并发下单时唯一冲突由 createPayment 捕获后复用已有活跃单
@@ -148,7 +148,7 @@ export const paymentRefunds = pgTable('payment_refunds', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('payment_refunds_tenant_idx').on(t.tenantId), 
   index('payment_refunds_order_no_idx').on(t.orderNo),
   index('payment_refunds_status_idx').on(t.status),
 ]);
@@ -171,7 +171,7 @@ export const paymentNotifyLogs = pgTable('payment_notify_logs', {
   ip: varchar('ip', { length: 64 }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [
+}, (t) => [index('payment_notify_logs_tenant_idx').on(t.tenantId), 
   index('payment_notify_logs_order_no_idx').on(t.orderNo),
 ]);
 
@@ -193,7 +193,7 @@ export const paymentEvents = pgTable('payment_events', {
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   processedAt: timestamp('processed_at', { withTimezone: true }),
-}, (t) => [index('payment_events_status_idx').on(t.status)]);
+}, (t) => [index('payment_events_tenant_idx').on(t.tenantId), index('payment_events_status_idx').on(t.status)]);
 
 export type PaymentEventRow = typeof paymentEvents.$inferSelect;
 
@@ -223,7 +223,7 @@ export const paymentReconBatches = pgTable('payment_recon_batches', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('payment_recon_batches_date_idx').on(t.billDate)]);
+}, (t) => [index('payment_recon_batches_tenant_idx').on(t.tenantId), index('payment_recon_batches_date_idx').on(t.billDate)]);
 
 export type PaymentReconBatchRow = typeof paymentReconBatches.$inferSelect;
 
@@ -268,7 +268,7 @@ export const paymentWebhookEndpoints = pgTable('payment_webhook_endpoints', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('payment_webhook_endpoints_tenant_idx').on(t.tenantId)]);
 
 export type PaymentWebhookEndpointRow = typeof paymentWebhookEndpoints.$inferSelect;
 
@@ -289,7 +289,7 @@ export const paymentWebhookDeliveries = pgTable('payment_webhook_deliveries', {
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('payment_webhook_deliveries_endpoint_idx').on(t.endpointId), index('payment_webhook_deliveries_status_idx').on(t.status)]);
+}, (t) => [index('payment_webhook_deliveries_tenant_idx').on(t.tenantId), index('payment_webhook_deliveries_endpoint_idx').on(t.endpointId), index('payment_webhook_deliveries_status_idx').on(t.status)]);
 
 export type PaymentWebhookDeliveryRow = typeof paymentWebhookDeliveries.$inferSelect;
 
@@ -313,7 +313,7 @@ export const paymentLedgerEntries = pgTable('payment_ledger_entries', {
   remark: varchar('remark', { length: 256 }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [
+}, (t) => [index('payment_ledger_entries_tenant_idx').on(t.tenantId), 
   index('payment_ledger_order_idx').on(t.orderNo),
   index('payment_ledger_type_idx').on(t.type),
   // 记账幂等（DB 层兜底）：同一订单的收款/手续费各至多一条；同一退款单至多一条退款流水
@@ -342,7 +342,7 @@ export const paymentFeeRules = pgTable('payment_fee_rules', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('payment_fee_rules_channel_idx').on(t.channel)]);
+}, (t) => [index('payment_fee_rules_tenant_idx').on(t.tenantId), index('payment_fee_rules_channel_idx').on(t.channel)]);
 
 export type PaymentFeeRuleRow = typeof paymentFeeRules.$inferSelect;
 
@@ -369,7 +369,7 @@ export const paymentSettlementBatches = pgTable('payment_settlement_batches', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('payment_settlement_batches_tenant_idx').on(t.tenantId), 
   index('payment_settlement_batches_status_idx').on(t.status),
   // 结算幂等：同租户+渠道+账期至多生成一个批次（tenantId 为 NULL 时按全局口径去重）
   uniqueIndex('payment_settlement_period_uq').on(t.channel, t.periodStart, t.periodEnd, t.tenantId).where(sql`${t.tenantId} is not null`),
@@ -399,7 +399,7 @@ export const paymentSharingReceivers = pgTable('payment_sharing_receivers', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('payment_sharing_receivers_tenant_idx').on(t.tenantId)]);
 
 export type PaymentSharingReceiverRow = typeof paymentSharingReceivers.$inferSelect;
 
@@ -421,7 +421,7 @@ export const paymentSharingOrders = pgTable('payment_sharing_orders', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('payment_sharing_orders_order_no_idx').on(t.orderNo), index('payment_sharing_orders_receiver_idx').on(t.receiverId)]);
+}, (t) => [index('payment_sharing_orders_tenant_idx').on(t.tenantId), index('payment_sharing_orders_order_no_idx').on(t.orderNo), index('payment_sharing_orders_receiver_idx').on(t.receiverId)]);
 
 export type PaymentSharingOrderRow = typeof paymentSharingOrders.$inferSelect;
 
@@ -447,7 +447,7 @@ export const paymentLinks = pgTable('payment_links', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('payment_links_tenant_idx').on(t.tenantId)]);
 
 export type PaymentLinkRow = typeof paymentLinks.$inferSelect;
 
@@ -479,7 +479,7 @@ export const paymentRiskRules = pgTable('payment_risk_rules', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('payment_risk_rules_scope_idx').on(t.scope)]);
+}, (t) => [index('payment_risk_rules_tenant_idx').on(t.tenantId), index('payment_risk_rules_scope_idx').on(t.scope)]);
 
 export type PaymentRiskRuleRow = typeof paymentRiskRules.$inferSelect;
 
@@ -509,7 +509,7 @@ export const paymentRiskHits = pgTable('payment_risk_hits', {
   clientIp: varchar('client_ip', { length: 64 }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [
+}, (t) => [index('payment_risk_hits_tenant_idx').on(t.tenantId), 
   index('payment_risk_hits_created_idx').on(t.createdAt),
   index('payment_risk_hits_rule_idx').on(t.ruleId),
 ]);
@@ -541,7 +541,7 @@ export const paymentRiskReviews = pgTable('payment_risk_reviews', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('payment_risk_reviews_tenant_idx').on(t.tenantId), 
   // 同一订单最多一条待审核记录
   uniqueIndex('payment_risk_reviews_pending_order_uq').on(t.orderNo).where(sql`${t.status} = 'pending'`),
   index('payment_risk_reviews_status_idx').on(t.status),
@@ -567,7 +567,7 @@ export const paymentAccounts = pgTable('payment_accounts', {
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('payment_accounts_tenant_idx').on(t.tenantId), 
   // channel×tenant 唯一（tenant 为 null 的全局账户单独约束，PG unique 对 null 不生效）
   uniqueIndex('payment_accounts_channel_tenant_uq').on(t.channel, t.tenantId).where(sql`${t.tenantId} is not null`),
   uniqueIndex('payment_accounts_channel_global_uq').on(t.channel).where(sql`${t.tenantId} is null`),
@@ -609,7 +609,7 @@ export const paymentPreauths = pgTable('payment_preauths', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('payment_preauths_tenant_idx').on(t.tenantId), 
   // 同一业务单最多一笔进行中预授权（发起中/冻结中）
   uniqueIndex('payment_preauths_active_biz_uq').on(t.bizType, t.bizId).where(sql`${t.status} in ('pending', 'frozen')`),
   index('payment_preauths_status_idx').on(t.status),
@@ -648,7 +648,7 @@ export const paymentTransfers = pgTable('payment_transfers', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('payment_transfers_tenant_idx').on(t.tenantId), 
   unique('payment_transfers_channel_out_no_uq').on(t.channel, t.outTransferNo),
   index('payment_transfers_status_idx').on(t.status),
   index('payment_transfers_biz_idx').on(t.bizType, t.bizId),
@@ -672,7 +672,7 @@ export const paymentReportDaily = pgTable('payment_report_daily', {
   count: integer('count').notNull().default(0),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [index('payment_report_daily_date_idx').on(t.statDate)]);
+}, (t) => [index('payment_report_daily_tenant_idx').on(t.tenantId), index('payment_report_daily_date_idx').on(t.statDate)]);
 
 export type PaymentReportDailyRow = typeof paymentReportDaily.$inferSelect;
 
@@ -691,7 +691,7 @@ export const paymentApps = pgTable('payment_apps', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('payment_apps_tenant_idx').on(t.tenantId)]);
 
 export type PaymentAppRow = typeof paymentApps.$inferSelect;
 
@@ -709,7 +709,7 @@ export const paymentMethodConfigs = pgTable('payment_method_configs', {  id: ser
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('payment_method_configs_tenant_idx').on(t.tenantId)]);
 
 export type PaymentMethodConfigRow = typeof paymentMethodConfigs.$inferSelect;
 
@@ -734,7 +734,7 @@ export const paymentDeductPlans = pgTable('payment_deduct_plans', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('payment_deduct_plans_tenant_idx').on(t.tenantId)]);
 
 export type PaymentDeductPlanRow = typeof paymentDeductPlans.$inferSelect;
 
@@ -773,7 +773,7 @@ export const paymentContracts = pgTable('payment_contracts', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('payment_contracts_tenant_idx').on(t.tenantId), 
   // 同一业务单（bizType+bizId）最多一份未终止协议，防止重复签约
   uniqueIndex('payment_contracts_active_biz_uq').on(t.bizType, t.bizId).where(sql`${t.status} in ('pending', 'signed', 'paused')`),
   index('payment_contracts_status_idx').on(t.status),
@@ -820,7 +820,7 @@ export const paymentDisputes = pgTable('payment_disputes', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('payment_disputes_tenant_idx').on(t.tenantId), 
   index('payment_disputes_status_idx').on(t.status),
   index('payment_disputes_order_no_idx').on(t.orderNo),
   index('payment_disputes_deadline_idx').on(t.deadline),

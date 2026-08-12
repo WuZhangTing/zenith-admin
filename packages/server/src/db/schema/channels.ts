@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, primaryKey, text, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, primaryKey, text, jsonb, index } from 'drizzle-orm/pg-core';
 import { statusEnum } from './common';
 import { auditColumns, tenants, users } from './core';
 
@@ -34,7 +34,7 @@ export const channels = pgTable('channels', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('channels_tenant_idx').on(t.tenantId)]);
 
 export type ChannelRow = typeof channels.$inferSelect;
 

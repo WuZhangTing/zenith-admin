@@ -83,7 +83,7 @@ export const members = pgTable('members', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('members_tenant_idx').on(t.tenantId), 
   // 部分唯一索引：仅约束未删除的会员，软删除后手机号/邮箱/用户名可再次注册
   uniqueIndex('members_phone_unique').on(t.phone).where(sql`${t.deletedAt} is null`),
   uniqueIndex('members_email_unique').on(t.email).where(sql`${t.deletedAt} is null`),
@@ -274,7 +274,7 @@ export const coupons = pgTable('coupons', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('coupons_status_idx').on(t.status)]);
+}, (t) => [index('coupons_tenant_idx').on(t.tenantId), index('coupons_status_idx').on(t.status)]);
 
 export type CouponRow = typeof coupons.$inferSelect;
 

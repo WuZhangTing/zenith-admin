@@ -67,7 +67,7 @@ export const terminalRecordings = pgTable('terminal_recordings', {
   events: jsonb('events').$type<RecordingEvent[]>().notNull().default([]),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('terminal_recordings_tenant_idx').on(t.tenantId)]);
 
 export type TerminalRecordingRow = typeof terminalRecordings.$inferSelect;
 

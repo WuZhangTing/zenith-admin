@@ -173,7 +173,7 @@ export const exportJobDownloads = pgTable('export_job_downloads', {
   ip: varchar('ip', { length: 64 }),
   userAgent: varchar('user_agent', { length: 512 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [
+}, (t) => [index('export_job_downloads_tenant_idx').on(t.tenantId), 
   index('export_job_downloads_job_idx').on(t.jobId),
   index('export_job_downloads_downloaded_by_idx').on(t.downloadedBy),
 ]);

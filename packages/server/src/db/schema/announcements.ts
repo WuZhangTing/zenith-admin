@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, timestamp, integer, unique, text } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, timestamp, integer, unique, text, index } from 'drizzle-orm/pg-core';
 import { auditColumns, tenants } from './core';
 
 // ─── 公告表 ─────────────────────────────────────────────────────────────────
@@ -17,7 +17,7 @@ export const announcements = pgTable('announcements', {
   ...auditColumns(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (t) => [index('announcements_tenant_idx').on(t.tenantId)]);
 
 export type AnnouncementRow = typeof announcements.$inferSelect;
 

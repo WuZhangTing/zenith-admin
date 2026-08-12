@@ -19,7 +19,7 @@ export const chatConversations = pgTable('chat_conversations', {
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('chat_conversations_tenant_idx').on(t.tenantId)]);
 
 export type ChatConversationRow = typeof chatConversations.$inferSelect;
 
@@ -101,7 +101,7 @@ export const chatWebhooks = pgTable('chat_webhooks', {
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('chat_webhooks_tenant_idx').on(t.tenantId)]);
 
 export type ChatWebhookRow = typeof chatWebhooks.$inferSelect;
 

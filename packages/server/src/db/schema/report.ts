@@ -142,7 +142,7 @@ export const reportDatasetExecutionLogs = pgTable('report_dataset_execution_logs
   errorMessage: varchar('error_message', { length: 512 }),
   paramKeys: jsonb('param_keys').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   executedAt: timestamp('executed_at').defaultNow().notNull(),
-}, (t) => [
+}, (t) => [index('report_dataset_execution_logs_tenant_idx').on(t.tenantId), 
   index('report_dataset_execution_logs_dataset_idx').on(t.datasetId),
   index('report_dataset_execution_logs_datasource_idx').on(t.datasourceId),
   index('report_dataset_execution_logs_scene_idx').on(t.scene),

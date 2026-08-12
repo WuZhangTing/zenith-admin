@@ -67,7 +67,7 @@ export const aiConversations = pgTable('ai_conversations', {
   activeLeafMsgId: integer('active_leaf_msg_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('ai_conversations_tenant_idx').on(t.tenantId)]);
 
 export type AiConversationRow = typeof aiConversations.$inferSelect;
 

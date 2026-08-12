@@ -64,7 +64,7 @@ export const mpTags = pgTable('mp_tags', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('mp_tags_tenant_idx').on(t.tenantId), 
   uniqueIndex('mp_tags_account_name_uq').on(t.accountId, t.name),
   index('mp_tags_account_idx').on(t.accountId),
 ]);
@@ -104,7 +104,7 @@ export const mpFans = pgTable('mp_fans', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('mp_fans_tenant_idx').on(t.tenantId), 
   uniqueIndex('mp_fans_account_openid_uq').on(t.accountId, t.openid),
   index('mp_fans_account_idx').on(t.accountId),
   index('mp_fans_member_idx').on(t.memberId),
@@ -142,7 +142,7 @@ export const mpMessages = pgTable('mp_messages', {
   errorMsg: text('error_msg'),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [
+}, (t) => [index('mp_messages_tenant_idx').on(t.tenantId), 
   index('mp_messages_account_openid_idx').on(t.accountId, t.openid),
   index('mp_messages_account_idx').on(t.accountId),
   // 入站消息去重：同一账号下 msg_id 唯一（仅对非空 msg_id 生效），保证微信重试不产生重复记录
@@ -184,7 +184,7 @@ export const mpAutoReplies = pgTable('mp_auto_replies', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('mp_auto_replies_tenant_idx').on(t.tenantId), 
   index('mp_auto_replies_account_type_idx').on(t.accountId, t.replyType),
 ]);
 
@@ -201,7 +201,7 @@ export const mpUnmatchedKeywords = pgTable('mp_unmatched_keywords', {
   lastAt: timestamp('last_at').defaultNow().notNull(),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [
+}, (t) => [index('mp_unmatched_keywords_tenant_idx').on(t.tenantId), 
   uniqueIndex('mp_unmatched_keywords_account_kw_uq').on(t.accountId, t.keyword),
 ]);
 
@@ -223,7 +223,7 @@ export const mpMenus = pgTable('mp_menus', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('mp_menus_tenant_idx').on(t.tenantId)]);
 
 export type MpMenuRow = typeof mpMenus.$inferSelect;
 
@@ -247,7 +247,7 @@ export const mpConditionalMenus = pgTable('mp_conditional_menus', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('mp_conditional_menus_tenant_idx').on(t.tenantId), 
   index('mp_conditional_menus_account_idx').on(t.accountId),
 ]);
 
@@ -273,7 +273,7 @@ export const mpMaterials = pgTable('mp_materials', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('mp_materials_tenant_idx').on(t.tenantId), 
   index('mp_materials_account_type_idx').on(t.accountId, t.type),
 ]);
 
@@ -298,7 +298,7 @@ export const mpDrafts = pgTable('mp_drafts', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('mp_drafts_tenant_idx').on(t.tenantId), 
   index('mp_drafts_account_idx').on(t.accountId),
 ]);
 
@@ -319,7 +319,7 @@ export const mpMessageTemplates = pgTable('mp_message_templates', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('mp_message_templates_tenant_idx').on(t.tenantId), 
   uniqueIndex('mp_message_templates_account_tpl_uq').on(t.accountId, t.templateId),
 ]);
 
@@ -343,7 +343,7 @@ export const mpTemplateSendLogs = pgTable('mp_template_send_logs', {
   msgId: varchar('msg_id', { length: 64 }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [
+}, (t) => [index('mp_template_send_logs_tenant_idx').on(t.tenantId), 
   index('mp_template_send_logs_account_idx').on(t.accountId),
 ]);
 
@@ -381,7 +381,7 @@ export const mpBroadcasts = pgTable('mp_broadcasts', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('mp_broadcasts_tenant_idx').on(t.tenantId), 
   index('mp_broadcasts_account_idx').on(t.accountId),
   index('mp_broadcasts_account_status_idx').on(t.accountId, t.status),
 ]);
@@ -415,7 +415,7 @@ export const mpQrcodes = pgTable('mp_qrcodes', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('mp_qrcodes_tenant_idx').on(t.tenantId), 
   index('mp_qrcodes_account_idx').on(t.accountId),
   index('mp_qrcodes_account_scene_idx').on(t.accountId, t.sceneStr),
 ]);
@@ -443,7 +443,7 @@ export const mpKfAccounts = pgTable('mp_kf_accounts', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('mp_kf_accounts_tenant_idx').on(t.tenantId), 
   uniqueIndex('mp_kf_accounts_account_kf_uq').on(t.accountId, t.kfAccount),
   index('mp_kf_accounts_account_idx').on(t.accountId),
 ]);
@@ -491,7 +491,7 @@ export const mpKfSessions = pgTable('mp_kf_sessions', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('mp_kf_sessions_tenant_idx').on(t.tenantId), 
   // 同一公众号下，一个粉丝至多存在一个未结束会话
   uniqueIndex('mp_kf_sessions_open_uq').on(t.accountId, t.openid).where(sql`${t.status} <> 'closed'`),
   index('mp_kf_sessions_account_status_idx').on(t.accountId, t.status),
@@ -515,7 +515,7 @@ export const mpKfSessionEvents = pgTable('mp_kf_session_events', {
   detail: varchar('detail', { length: 255 }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [
+}, (t) => [index('mp_kf_session_events_tenant_idx').on(t.tenantId), 
   index('mp_kf_session_events_session_idx').on(t.sessionId),
 ]);
 
@@ -543,7 +543,7 @@ export const mpKfRoutingConfigs = pgTable('mp_kf_routing_configs', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('mp_kf_routing_configs_tenant_idx').on(t.tenantId), 
   uniqueIndex('mp_kf_routing_configs_account_uq').on(t.accountId),
 ]);
 

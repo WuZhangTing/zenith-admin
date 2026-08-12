@@ -48,7 +48,7 @@ export const emailTemplates = pgTable('email_templates', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('email_templates_tenant_idx').on(t.tenantId)]);
 
 export type EmailTemplateRow = typeof emailTemplates.$inferSelect;
 
@@ -69,7 +69,7 @@ export const emailSendLogs = pgTable('email_send_logs', {
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   sentAt: timestamp('sent_at', { withTimezone: true }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [
+}, (t) => [index('email_send_logs_tenant_idx').on(t.tenantId), 
   index('email_send_logs_created_at_idx').on(t.createdAt),
   index('email_send_logs_status_idx').on(t.status),
 ]);
@@ -94,7 +94,7 @@ export const smsConfigs = pgTable('sms_configs', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('sms_configs_tenant_idx').on(t.tenantId)]);
 
 export type SmsConfigRow = typeof smsConfigs.$inferSelect;
 
@@ -116,7 +116,7 @@ export const smsTemplates = pgTable('sms_templates', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('sms_templates_tenant_idx').on(t.tenantId)]);
 
 export type SmsTemplateRow = typeof smsTemplates.$inferSelect;
 
@@ -141,7 +141,7 @@ export const smsSendLogs = pgTable('sms_send_logs', {
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   sentAt: timestamp('sent_at', { withTimezone: true }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [
+}, (t) => [index('sms_send_logs_tenant_idx').on(t.tenantId), 
   index('sms_send_logs_created_at_idx').on(t.createdAt),
   index('sms_send_logs_status_idx').on(t.status),
 ]);
@@ -165,7 +165,7 @@ export const inAppTemplates = pgTable('in_app_templates', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('in_app_templates_tenant_idx').on(t.tenantId)]);
 
 export type InAppTemplateRow = typeof inAppTemplates.$inferSelect;
 
@@ -189,7 +189,7 @@ export const inAppMessages = pgTable('in_app_messages', {
   dedupeKey: varchar('dedupe_key', { length: 192 }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [
+}, (t) => [index('in_app_messages_tenant_idx').on(t.tenantId), 
   unique('in_app_messages_dedupe_key_unique').on(t.dedupeKey),
   index('in_app_messages_user_created_idx').on(t.userId, t.createdAt),
   index('in_app_messages_created_at_idx').on(t.createdAt),

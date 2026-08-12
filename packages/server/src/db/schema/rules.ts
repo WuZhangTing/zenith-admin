@@ -54,7 +54,7 @@ export const ruleDecisionTableVersions = pgTable('rule_decision_table_versions',
   publishedAt: timestamp('published_at', { withTimezone: true }).defaultNow().notNull(),
   publishedBy: integer('published_by').references(() => users.id, { onDelete: 'set null' }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
-}, (t) => [unique('rule_decision_table_versions_uniq').on(t.tableId, t.version)]);
+}, (t) => [index('rule_decision_table_versions_tenant_idx').on(t.tenantId), unique('rule_decision_table_versions_uniq').on(t.tableId, t.version)]);
 
 export type RuleDecisionTableVersionRow = typeof ruleDecisionTableVersions.$inferSelect;
 
@@ -71,7 +71,7 @@ export const ruleTestCases = pgTable('rule_test_cases', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [unique('rule_test_cases_name_uniq').on(t.tableId, t.name)]);
+}, (t) => [index('rule_test_cases_tenant_idx').on(t.tenantId), unique('rule_test_cases_name_uniq').on(t.tableId, t.name)]);
 
 export type RuleTestCaseRow = typeof ruleTestCases.$inferSelect;
 
@@ -93,7 +93,7 @@ export const ruleDecisionExecutions = pgTable('rule_decision_executions', {
   createdBy: integer('created_by').references(() => users.id, { onDelete: 'set null' }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [index('rule_exec_instance_idx').on(t.instanceId), index('rule_exec_table_idx').on(t.tableId)]);
+}, (t) => [index('rule_decision_executions_tenant_idx').on(t.tenantId), index('rule_exec_instance_idx').on(t.instanceId), index('rule_exec_table_idx').on(t.tableId)]);
 
 export type RuleDecisionExecutionRow = typeof ruleDecisionExecutions.$inferSelect;
 
