@@ -1,3 +1,4 @@
+import { upgradeWebSocket } from '@hono/node-server';
 import { defineRouteDomain } from '../_kit';
 import cacheRoutes from './cache';
 import dataMaskConfigsRoutes from './data-mask-configs';
@@ -19,7 +20,7 @@ import { createWsRoute } from './ws';
 
 export default defineRouteDomain({
   name: 'platform',
-  mounts: (ctx) => [
+  mounts: () => [
     ['/api/dicts', dictsRoutes],
     ['/api/monitor', monitorRoutes],
     ['/api/monitor-alerts', monitorAlertsRoutes],
@@ -35,7 +36,7 @@ export default defineRouteDomain({
     ['/api/rules/lists', rulesListsRoutes],
     ['/api/tags', tagsRoutes],
     ['/api/rate-limit', rateLimitRoutes],
-    ['/api/ws', createWsRoute(ctx.upgradeWebSocket)],
+    ['/api/ws', createWsRoute(upgradeWebSocket)],
     ['/api/health', healthRoutes],
   ],
 });

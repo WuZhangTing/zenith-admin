@@ -9,6 +9,7 @@
  * 任何域新增端点都要改这唯一的公共文件，且 app 无法脱离 serve() 被构造。
  */
 import { serve } from '@hono/node-server';
+import { WebSocketServer } from 'ws';
 import { createApp } from './app';
 import { registerEventSubscribers } from './bootstrap/subscribers';
 import { registerBackgroundWorkers } from './bootstrap/workers';
@@ -24,7 +25,7 @@ import { registerOpenWebhookSubscriber } from './services/open-platform/app-webh
 
 await initTelemetry();
 
-const { app, injectWebSocket } = createApp();
+const { app } = createApp();
 
 // 指标采集副作用（不属于 app 装配，故不放进 createApp）：
 // 监控页轻量采样器 + DB/Redis 时序指标（连接数 / 内存 / 命中率）
@@ -35,8 +36,22 @@ void import('./services/platform/monitor.service')
 
 registerOpenWebhookSubscriber();
 logger.info(`Server starting on port ${config.port}...`);
-const server = serve({ fetch: app.fetch, port: config.port });
-injectWebSocket(server);
+// WebSocket 由 @hono/node-server 内建支持：serve() 接管 upgrade 事件，
+// 握手请求走正常 fetch 管线，响应头会被带入握手响应。
+// noServer 必须为 true——HTTP 监听由 serve() 持有，wss 只负责协议升级。
+const wss = new WebSocketServer({ noServer: true });
+const server = serve({ fetch: app.fetch, port: config.port, websocket: { server: wss } });
+
+// 升级请求被拒绝时（如向非 WS 路径发起 upgrade），socket 已脱离 http.Server 托管，
+// 其上的 'error' 无人监听会直接冒泡成 uncaughtException 打死进程——这是可被未认证
+// 远端触发的 DoS（upgrade 到任意非 WS 路径后立刻 RST 即可）。
+// 在 'connection' 阶段统一兜底：此时拿到的 socket 与后续 upgrade 用的是同一个对象。
+server.on('connection', (socket) => {
+  socket.on('error', (err: NodeJS.ErrnoException) => {
+    logger.debug('[socket] connection error', { code: err.code, message: err.message });
+  });
+});
+
 logger.info(`Server running at http://localhost:${config.port}`);
 
 // 启动后异步加载限流规则到内存（失败时使用代码内默认规则）

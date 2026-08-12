@@ -1,3 +1,4 @@
+import { upgradeWebSocket } from '@hono/node-server';
 import { defineRouteDomain } from '../_kit';
 import dbAdminRoutes from './db-admin';
 import dbBackupsRoutes from './db-backups';
@@ -22,13 +23,13 @@ import { createWsTerminalRoute, createWsTerminalMonitorRoute } from './ws-termin
 
 export default defineRouteDomain({
   name: 'ops',
-  mounts: (ctx) => [
+  mounts: () => [
     ['/api/maintenance', maintenanceRoutes],
     ['/api/ssl-certificates', sslCertificatesRoutes],
     ['/api/db-backups', dbBackupsRoutes],
     ['/api/db-admin', dbAdminRoutes],
-    ['/api/ws/terminal', createWsTerminalRoute(ctx.upgradeWebSocket)],
-    ['/api/ws/terminal-monitor', createWsTerminalMonitorRoute(ctx.upgradeWebSocket)],
+    ['/api/ws/terminal', createWsTerminalRoute(upgradeWebSocket)],
+    ['/api/ws/terminal-monitor', createWsTerminalMonitorRoute(upgradeWebSocket)],
     ['/api/processes', processesRoutes],
     ['/api/terminal-files', terminalFilesRoutes],
     ['/api/terminal-recordings', terminalRecordingsRoutes],

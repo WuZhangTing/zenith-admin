@@ -24,7 +24,6 @@ import { except } from 'hono/combine';
 import { HTTPException } from 'hono/http-exception';
 import { contextStorage } from 'hono/context-storage';
 import { csrf } from 'hono/csrf';
-import { createNodeWebSocket } from '@hono/node-ws';
 import { swaggerUI } from '@hono/swagger-ui';
 import { Registry } from 'prom-client';
 import stripAnsi from 'strip-ansi';
@@ -39,7 +38,6 @@ import { maintenanceMiddleware } from './middleware/maintenance';
 import { authRateLimit, captchaRateLimit, pathBoundRateLimit, sensitiveRateLimit } from './middleware/rate-limit';
 import { requestTraceMiddleware } from './middleware/request-trace';
 import { ROUTE_DOMAINS } from './routes';
-import type { DomainCtx } from './routes/_kit';
 
 export function createApp() {
   const app = new OpenAPIHono();
@@ -47,8 +45,6 @@ export function createApp() {
   const { printMetrics, registerMetrics } = prometheus({ collectDefaultMetrics: true, registry: promRegistry });
   // 业务/系统指标（CPU/内存/HTTP/WS/DB/Redis 等）注册到同一 Registry，由 GET /metrics 统一输出
   registerZenithMetrics(promRegistry);
-
-  const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app });
 
   app.use('*', registerMetrics);
   // 监控页指标采集（自带的轻量收集器，独立于 Prometheus）
@@ -160,9 +156,8 @@ export function createApp() {
   app.use('/api/*', maintenanceMiddleware);
 
   // ─── 路由装配（按域，顺序见 src/routes/index.ts）─────────────────────────
-  const domainCtx: DomainCtx = { upgradeWebSocket };
   for (const domain of ROUTE_DOMAINS) {
-    for (const [path, router] of domain.mounts(domainCtx)) app.route(path, router);
+    for (const [path, router] of domain.mounts()) app.route(path, router);
   }
 
   app.get('/metrics', printMetrics);
@@ -194,7 +189,7 @@ export function createApp() {
   // ─── 兜底挂载：必须晚于全部 API 路由与文档路由 ───────────────────────────
   // （CMS 前台 SSR 挂在 '/'，按 Host 匹配站点，会吞掉未匹配的一切路径）
   for (const domain of ROUTE_DOMAINS) {
-    for (const [path, router] of domain.fallback?.(domainCtx) ?? []) app.route(path, router);
+    for (const [path, router] of domain.fallback?.() ?? []) app.route(path, router);
   }
 
   app.notFound((c) => c.json(errBody('接口不存在', 404), 404));
@@ -208,5 +203,5 @@ export function createApp() {
     return c.json(errBody('服务器内部错误', 500), 500);
   });
 
-  return { app, injectWebSocket };
+  return { app };
 }

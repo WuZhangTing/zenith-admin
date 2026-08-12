@@ -20,7 +20,6 @@
  *    挂载在表里无法区分。约束 1 只能靠人工保证，调整顺序时请自行核对匹配结果。
  */
 import type { Hono } from 'hono';
-import type { UpgradeWebSocket } from 'hono/ws';
 
 /**
  * 可挂载的子路由器。
@@ -36,18 +35,13 @@ export type MountableRouter = Hono<any, any, any>;
 /** 一条挂载：[挂载路径, 子路由器] */
 export type Mount = readonly [path: string, router: MountableRouter];
 
-/** 域构建上下文——WebSocket 路由需要 app 级的 upgradeWebSocket */
-export interface DomainCtx {
-  upgradeWebSocket: UpgradeWebSocket;
-}
-
 export interface RouteDomain {
   /** 域名，用于日志与按域裁剪装载 */
   name: string;
   /** 常规挂载，按数组顺序注册 */
-  mounts: (ctx: DomainCtx) => Mount[];
+  mounts: () => Mount[];
   /** 兜底挂载，在**全部**域的 mounts 与文档路由之后注册 */
-  fallback?: (ctx: DomainCtx) => Mount[];
+  fallback?: () => Mount[];
 }
 
 export function defineRouteDomain(domain: RouteDomain): RouteDomain {
