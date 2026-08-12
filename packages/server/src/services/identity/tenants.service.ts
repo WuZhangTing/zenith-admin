@@ -1,4 +1,4 @@
-import { eq, like, and, ne, desc } from 'drizzle-orm';
+import { eq, like, and, ne, desc, count, inArray } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { escapeLike } from '../../lib/where-helpers';
@@ -44,9 +44,23 @@ export async function listTenants(q: ListTenantsQuery) {
       with: { package: { columns: { name: true } } },
     }),
   ]);
-  const userCounts = await Promise.all(rows.map((r) => db.$count(users, eq(users.tenantId, r.id))));
+  // 单条 GROUP BY 聚合各租户用户数：此前按行 `Promise.all(rows.map(db.$count(...)))`
+  // 会并发发出 pageSize 条 COUNT（上限 200），单个请求即可占满连接池（默认 max=10）。
+  const tenantIds = rows.map((r) => r.id);
+  const countRows = tenantIds.length
+    ? await db
+        .select({ tenantId: users.tenantId, n: count() })
+        .from(users)
+        .where(inArray(users.tenantId, tenantIds))
+        .groupBy(users.tenantId)
+    : [];
+  // 无用户的租户不会出现在聚合结果中，取值兜底 0
+  const userCountMap = new Map(countRows.map((r) => [r.tenantId, r.n]));
   return {
-    list: rows.map(({ package: pkg, ...row }, i) => ({ ...mapTenant(row, pkg?.name ?? null), userCount: userCounts[i] })),
+    list: rows.map(({ package: pkg, ...row }) => ({
+      ...mapTenant(row, pkg?.name ?? null),
+      userCount: userCountMap.get(row.id) ?? 0,
+    })),
     total,
     page,
     pageSize,

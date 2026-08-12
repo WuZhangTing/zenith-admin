@@ -3,6 +3,7 @@
  *
  * 覆盖 addGrowthValue：会员不存在 404、成长值增减与 0 下限钳制、
  * 按阈值自动匹配最高满足等级、低于所有阈值时降为无等级。
+ * 以及 listLevels：各等级会员数改为单条 GROUP BY 聚合（防 N+1 回归）。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -19,14 +20,14 @@ vi.mock('../../db', () => {
 });
 
 import { db } from '../../db';
-import { addGrowthValue } from './member-levels.service';
+import { addGrowthValue, listLevels } from './member-levels.service';
 
 const dbMock = vi.mocked(db);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function createChain(result: unknown[]): any {
   const chain: Record<string, unknown> = {};
-  for (const m of ['from', 'where', 'limit', 'orderBy', 'set', 'values', 'returning']) {
+  for (const m of ['from', 'where', 'limit', 'orderBy', 'groupBy', 'set', 'values', 'returning']) {
     chain[m] = vi.fn(() => chain);
   }
   chain.then = (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
@@ -92,5 +93,50 @@ describe('addGrowthValue', () => {
     await addGrowthValue(7, 5);
 
     expect(updateChain.set).toHaveBeenCalledWith({ growthValue: 15, levelId: null });
+  });
+});
+
+const LEVEL_ROWS = [
+  { id: 1, name: '青铜', level: 1, growthThreshold: 0, discount: 100, icon: null, benefits: null, description: null, sort: 0, status: 'enabled', createdAt: new Date(), updatedAt: new Date() },
+  { id: 2, name: '白银', level: 2, growthThreshold: 100, discount: 95, icon: null, benefits: null, description: null, sort: 1, status: 'enabled', createdAt: new Date(), updatedAt: new Date() },
+  { id: 3, name: '黄金', level: 3, growthThreshold: 500, discount: 90, icon: null, benefits: null, description: null, sort: 2, status: 'enabled', createdAt: new Date(), updatedAt: new Date() },
+];
+
+describe('listLevels', () => {
+  it('无论多少等级都只发一条聚合查询（不退化为按行 count）', async () => {
+    dbMock.select.mockReturnValueOnce(createChain(LEVEL_ROWS));
+    const countChain = createChain([{ levelId: 1, n: 8 }, { levelId: 3, n: 1 }]);
+    dbMock.select.mockReturnValueOnce(countChain);
+
+    await listLevels();
+
+    // 1 次取等级行 + 1 次聚合统计 = 2，与等级数量无关
+    expect(dbMock.select).toHaveBeenCalledTimes(2);
+    expect(dbMock.$count).not.toHaveBeenCalled();
+    expect(countChain.groupBy).toHaveBeenCalledTimes(1);
+    // 软删会员必须仍被排除：聚合查询带 where 条件
+    expect(countChain.where).toHaveBeenCalledTimes(1);
+  });
+
+  it('聚合结果按 levelId 对号入座，无会员的等级计 0', async () => {
+    dbMock.select.mockReturnValueOnce(createChain(LEVEL_ROWS));
+    dbMock.select.mockReturnValueOnce(createChain([{ levelId: 1, n: 8 }, { levelId: 3, n: 1 }]));
+
+    const list = await listLevels();
+
+    expect(list.map((l) => [l.id, l.memberCount])).toEqual([
+      [1, 8],
+      [2, 0], // 未出现在聚合结果中 → 兜底 0，而非 undefined
+      [3, 1],
+    ]);
+  });
+
+  it('没有任何等级时不发聚合查询', async () => {
+    dbMock.select.mockReturnValueOnce(createChain([]));
+
+    const list = await listLevels();
+
+    expect(list).toEqual([]);
+    expect(dbMock.select).toHaveBeenCalledTimes(1);
   });
 });

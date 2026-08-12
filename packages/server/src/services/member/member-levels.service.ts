@@ -1,7 +1,7 @@
 /**
  * 会员等级服务：等级 CRUD + 成长值自动定级。
  */
-import { and, asc, desc, eq, isNull, lte } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNull, lte } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { memberLevels, members } from '../../db/schema';
@@ -53,8 +53,17 @@ export async function ensureLevelExists(id: number): Promise<MemberLevelRow> {
 /** 后台：所有等级 + 各等级会员数 */
 export async function listLevels() {
   const rows = await db.select().from(memberLevels).orderBy(asc(memberLevels.level));
-  const counts = await Promise.all(rows.map((r) => db.$count(members, and(eq(members.levelId, r.id), isNull(members.deletedAt)))));
-  return rows.map((r, i) => mapLevel(r, counts[i]));
+  // 单条 GROUP BY 聚合，替代按等级逐条 COUNT（等级数增长时会线性放大查询数与连接占用）
+  const levelIds = rows.map((r) => r.id);
+  const countRows = levelIds.length
+    ? await db
+        .select({ levelId: members.levelId, n: count() })
+        .from(members)
+        .where(and(inArray(members.levelId, levelIds), isNull(members.deletedAt)))
+        .groupBy(members.levelId)
+    : [];
+  const countMap = new Map(countRows.map((r) => [r.levelId, r.n]));
+  return rows.map((r) => mapLevel(r, countMap.get(r.id) ?? 0));
 }
 
 /** 前台：仅启用等级（用于展示等级权益）*/

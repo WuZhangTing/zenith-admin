@@ -1,7 +1,7 @@
 /**
  * 会员标签服务：标签 CRUD + 会员打标 / 批量打标（运营分群基础）。
  */
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, isNull } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { members, memberTagBindings, memberTags } from '../../db/schema';
@@ -38,11 +38,20 @@ export async function ensureMemberTagExists(id: number): Promise<MemberTagRow> {
   return row;
 }
 
-/** 全部标签 + 各标签绑定会员数（标签量级小，直接并行 count）*/
+/** 全部标签 + 各标签绑定会员数 */
 export async function listMemberTags() {
   const rows = await db.select().from(memberTags).orderBy(asc(memberTags.sort), asc(memberTags.id));
-  const counts = await Promise.all(rows.map((r) => db.$count(memberTagBindings, eq(memberTagBindings.tagId, r.id))));
-  return rows.map((r, i) => mapMemberTag(r, counts[i]));
+  // 单条 GROUP BY 聚合，替代按标签逐条 COUNT（标签量增长时会线性放大查询数与连接占用）
+  const tagIds = rows.map((r) => r.id);
+  const countRows = tagIds.length
+    ? await db
+        .select({ tagId: memberTagBindings.tagId, n: count() })
+        .from(memberTagBindings)
+        .where(inArray(memberTagBindings.tagId, tagIds))
+        .groupBy(memberTagBindings.tagId)
+    : [];
+  const countMap = new Map(countRows.map((r) => [r.tagId, r.n]));
+  return rows.map((r) => mapMemberTag(r, countMap.get(r.id) ?? 0));
 }
 
 export async function createMemberTag(input: SaveMemberTagInput) {
