@@ -364,7 +364,7 @@ export const cmsContents = pgTable('cms_contents', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('cms_contents_channel_idx').on(t.channelId), 
   index('cms_contents_site_channel_idx').on(t.siteId, t.channelId),
   index('cms_contents_status_idx').on(t.status),
   index('cms_contents_published_at_idx').on(t.publishedAt),
@@ -456,7 +456,7 @@ export const cmsMemberViewHistory = pgTable('cms_member_view_history', {
   viewCount: integer('view_count').notNull().default(1),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('cms_member_view_history_content_idx').on(t.contentId), 
   uniqueIndex('cms_member_view_history_uq').on(t.memberId, t.contentId),
   index('cms_member_view_history_member_idx').on(t.memberId, t.updatedAt),
 ]);
@@ -669,7 +669,7 @@ export type CmsSearchLogRow = typeof cmsSearchLogs.$inferSelect;
 export const cmsContentChannels = pgTable('cms_content_channels', {
   contentId: integer('content_id').notNull().references(() => cmsContents.id, { onDelete: 'cascade' }),
   channelId: integer('channel_id').notNull().references(() => cmsChannels.id, { onDelete: 'cascade' }),
-}, (t) => [primaryKey({ columns: [t.contentId, t.channelId] })]);
+}, (t) => [index('cms_content_channels_channel_idx').on(t.channelId), primaryKey({ columns: [t.contentId, t.channelId] })]);
 
 export type CmsContentChannelRow = typeof cmsContentChannels.$inferSelect;
 
@@ -1072,7 +1072,7 @@ export const cmsCollectRules = pgTable('cms_collect_rules', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('cms_collect_rules_channel_idx').on(t.channelId), 
   index('cms_collect_rules_site_idx').on(t.siteId),
 ]);
 
@@ -1089,7 +1089,7 @@ export const cmsCollectItems = pgTable('cms_collect_items', {
   contentId: integer('content_id').references(() => cmsContents.id, { onDelete: 'set null' }),
   error: varchar('error', { length: 500 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [
+}, (t) => [index('cms_collect_items_content_idx').on(t.contentId), 
   uniqueIndex('cms_collect_items_rule_url_uq').on(t.ruleId, t.url),
   index('cms_collect_items_rule_idx').on(t.ruleId, t.createdAt),
 ]);
@@ -1242,7 +1242,7 @@ export const cmsPublishArtifacts = pgTable('cms_publish_artifacts', {
   generatedAt: timestamp('generated_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('cms_publish_artifacts_content_idx').on(t.contentId), index('cms_publish_artifacts_channel_idx').on(t.channelId), 
   uniqueIndex('cms_publish_artifacts_task_path_uq').on(t.taskId, t.path),
   index('cms_publish_artifacts_site_time_idx').on(t.siteId, t.createdAt),
   index('cms_publish_artifacts_task_status_idx').on(t.taskId, t.status),
@@ -1266,7 +1266,7 @@ export const cmsResourceFolders = pgTable('cms_resource_folders', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('cms_resource_folders_parent_idx').on(t.parentId), 
   uniqueIndex('cms_resource_folders_site_parent_name_uq').on(t.siteId, t.parentId, t.name)
     .where(sql`${t.parentId} is not null`),
   uniqueIndex('cms_resource_folders_site_root_name_uq').on(t.siteId, t.name)

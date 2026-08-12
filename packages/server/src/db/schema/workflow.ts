@@ -206,7 +206,7 @@ export const workflowAutomations = pgTable('workflow_automations', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('workflow_automations_tenant_idx').on(t.tenantId)]);
+}, (t) => [index('workflow_automations_definition_idx').on(t.definitionId), index('workflow_automations_tenant_idx').on(t.tenantId)]);
 
 export type WorkflowAutomationRow = typeof workflowAutomations.$inferSelect;
 
@@ -237,7 +237,7 @@ export const workflowSchedules = pgTable('workflow_schedules', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('workflow_schedules_tenant_idx').on(t.tenantId)]);
+}, (t) => [index('workflow_schedules_definition_idx').on(t.definitionId), index('workflow_schedules_tenant_idx').on(t.tenantId)]);
 
 export type WorkflowScheduleRow = typeof workflowSchedules.$inferSelect;
 
@@ -462,7 +462,7 @@ export const workflowInstances = pgTable('workflow_instances', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('workflow_instances_definition_idx').on(t.definitionId), 
   // 业务键租户内唯一（仅活跃实例）：终态（approved/rejected/withdrawn/cancelled）实例不占用业务键，
   // 允许业务记录被驳回/撤回后重新发起；状态列表与 shared WORKFLOW_ACTIVE_INSTANCE_STATUSES 保持一致。
   // tenant_id 可空（平台级/单租户数据），用 coalesce 归一为 0 保证空租户下依旧防重
@@ -596,7 +596,7 @@ export const workflowTaskUrges = pgTable('workflow_task_urges', {
   urgerName: varchar('urger_name', { length: 64 }),
   message: varchar('message', { length: 256 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (t) => [index('workflow_task_urges_task_idx').on(t.taskId), index('workflow_task_urges_instance_idx').on(t.instanceId)]);
 
 export type WorkflowTaskUrgeRow = typeof workflowTaskUrges.$inferSelect;
 
@@ -625,7 +625,7 @@ export const workflowEventSubscriptions = pgTable('workflow_event_subscriptions'
   updatedBy: integer('updated_by').references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-}, (t) => [index('workflow_event_subscriptions_tenant_idx').on(t.tenantId)]);
+}, (t) => [index('workflow_event_subscriptions_definition_idx').on(t.definitionId), index('workflow_event_subscriptions_tenant_idx').on(t.tenantId)]);
 
 export type WorkflowEventSubscriptionRow = typeof workflowEventSubscriptions.$inferSelect;
 
@@ -671,7 +671,7 @@ export const workflowJobs = pgTable('workflow_jobs', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('workflow_jobs_tenant_idx').on(t.tenantId), 
+}, (t) => [index('workflow_jobs_task_idx').on(t.taskId), index('workflow_jobs_tenant_idx').on(t.tenantId), 
   index('workflow_jobs_due_idx').on(t.status, t.runAt),
   index('workflow_jobs_type_status_idx').on(t.jobType, t.status),
   index('workflow_jobs_trace_idx').on(t.traceId),
@@ -727,7 +727,7 @@ export const workflowComments = pgTable('workflow_comments', {
   attachments: jsonb('attachments').$type<Array<{ name: string; url: string; size?: number }>>().default([]).notNull(),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [index('workflow_comments_user_idx').on(t.userId), index('workflow_comments_tenant_idx').on(t.tenantId)]);
+}, (t) => [index('workflow_comments_task_idx').on(t.taskId), index('workflow_comments_parent_idx').on(t.parentId), index('workflow_comments_instance_idx').on(t.instanceId), index('workflow_comments_user_idx').on(t.userId), index('workflow_comments_tenant_idx').on(t.tenantId)]);
 
 export type WorkflowCommentRow = typeof workflowComments.$inferSelect;
 
@@ -769,7 +769,7 @@ export const workflowDelegations = pgTable('workflow_delegations', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('workflow_delegations_tenant_idx').on(t.tenantId)]);
+}, (t) => [index('workflow_delegations_definition_idx').on(t.definitionId), index('workflow_delegations_tenant_idx').on(t.tenantId)]);
 
 export type WorkflowDelegationRow = typeof workflowDelegations.$inferSelect;
 
@@ -831,7 +831,7 @@ export const workflowTaskConsults = pgTable('workflow_task_consults', {
   repliedAt: timestamp('replied_at', { withTimezone: true }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [index('workflow_task_consults_tenant_idx').on(t.tenantId)]);
+}, (t) => [index('workflow_task_consults_task_idx').on(t.taskId), index('workflow_task_consults_instance_idx').on(t.instanceId), index('workflow_task_consults_tenant_idx').on(t.tenantId)]);
 
 export type WorkflowTaskConsultRow = typeof workflowTaskConsults.$inferSelect;
 

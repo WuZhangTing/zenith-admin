@@ -56,7 +56,7 @@ export const channelMessages = pgTable('channel_messages', {
   retractedAt: timestamp('retracted_at', { withTimezone: true }),
   targetSpec: jsonb('target_spec'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (t) => [index('channel_messages_channel_idx').on(t.channelId)]);
 
 export type ChannelMessageRow = typeof channelMessages.$inferSelect;
 
@@ -91,7 +91,7 @@ export const channelMenus = pgTable('channel_menus', {
   sort: integer('sort').notNull().default(0),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('channel_menus_channel_idx').on(t.channelId)]);
 
 export type ChannelMenuRow = typeof channelMenus.$inferSelect;
 
@@ -110,7 +110,7 @@ export const channelAutoReplies = pgTable('channel_auto_replies', {
   sort: integer('sort').notNull().default(0),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('channel_auto_replies_channel_idx').on(t.channelId)]);
 
 export type ChannelAutoReplyRow = typeof channelAutoReplies.$inferSelect;
 
@@ -124,7 +124,7 @@ export const channelQuickReplies = pgTable('channel_quick_replies', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('channel_quick_replies_channel_idx').on(t.channelId)]);
 
 export type ChannelQuickReplyRow = typeof channelQuickReplies.$inferSelect;
 

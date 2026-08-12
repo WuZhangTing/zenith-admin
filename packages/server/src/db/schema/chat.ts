@@ -101,7 +101,7 @@ export const chatWebhooks = pgTable('chat_webhooks', {
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('chat_webhooks_tenant_idx').on(t.tenantId)]);
+}, (t) => [index('chat_webhooks_conversation_idx').on(t.conversationId), index('chat_webhooks_tenant_idx').on(t.tenantId)]);
 
 export type ChatWebhookRow = typeof chatWebhooks.$inferSelect;
 
@@ -139,7 +139,7 @@ export const chatScheduledMessages = pgTable('chat_scheduled_messages', {
   sentMessageId: integer('sent_message_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('chat_scheduled_messages_conversation_idx').on(t.conversationId), 
   // 派发器扫描到期任务
   index('chat_scheduled_messages_due_idx').on(t.status, t.scheduledAt),
   index('chat_scheduled_messages_sender_idx').on(t.senderId),

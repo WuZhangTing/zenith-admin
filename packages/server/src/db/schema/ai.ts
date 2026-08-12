@@ -188,7 +188,7 @@ export const aiSharedConversations = pgTable('ai_shared_conversations', {
   /** 过期时间，null = 永久有效 */
   expiresAt: timestamp('expires_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [index('ai_shared_conversations_user_idx').on(t.userId), uniqueIndex('ai_shared_conversations_token_uq').on(t.token)]);
+}, (t) => [index('ai_shared_conversations_conversation_idx').on(t.conversationId), index('ai_shared_conversations_user_idx').on(t.userId), uniqueIndex('ai_shared_conversations_token_uq').on(t.token)]);
 
 export type AiSharedConversationRow = typeof aiSharedConversations.$inferSelect;
 

@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, timestamp, integer, unique, uniqueIndex, jsonb, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, timestamp, integer, unique, uniqueIndex, jsonb, type AnyPgColumn, index } from 'drizzle-orm/pg-core';
 import { statusEnum } from './common';
 import { auditColumns, tenants } from './core';
 
@@ -34,7 +34,7 @@ export const dictItems = pgTable('dict_items', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (table) => [
+}, (table) => [index('dict_items_parent_idx').on(table.parentId), 
   uniqueIndex('dict_items_dict_id_value_unique').on(table.dictId, table.value),
 ]);
 
