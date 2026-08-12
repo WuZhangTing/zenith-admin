@@ -8,7 +8,7 @@
 | 域 hooks、弹窗、搜索状态、提交与确认 | [必须复用的公共 hook / 工具](#必须复用的公共-hook--工具) |
 | mutation 失效、query key、下拉源、回填 | [缓存与 query key](#缓存与-query-key) |
 | 搜索栏、筛选控件、表格与操作列 | [搜索栏与表格](#搜索栏与表格) |
-| 弹窗表单、枚举标签、上传、进度条、滑块 | [表单与展示组件](#表单与展示组件) |
+| 弹窗表单、枚举标签、上传、时区、进度条、滑块 | [表单与展示组件](#表单与展示组件) |
 | 多 Tab、左右分栏、统计卡、栅格、抽屉宽度 | [布局与响应式](#布局与响应式) |
 
 ---
@@ -109,6 +109,10 @@
   与视角特化文案（如「我已同意」）不做统一
 - **单图上传字段**：统一用 `components/ImageUploadField.tsx`，**禁止**重新拼
   `<Upload action headers>` + 预览 `<img>` + 删除按钮
+- **时区表单字段**：统一用 `components/FormTimezoneSelect.tsx`；默认必填，自定义字段名 / 标签传
+  `field` / `label`，允许留空并回退默认时区时传 `required={false}`。页面内的默认值、提交兜底和比较逻辑
+  统一复用 `utils/timezones.ts` 的 `DEFAULT_TIMEZONE`；**禁止**使用 `Form.Input`、自行拼
+  `Form.Select optionList`、直接调用 `Intl.supportedValuesOf('timeZone')` 或硬编码 `Asia/Shanghai`
 - **进度与度量条语义**：前三类**禁止**手写 `width: '${percent}%'` / `scaleX(percent)` 轨道
 
   | 数据性质 | 用 |
