@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { Button, Modal, Select, SideSheet, TabPane, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { CMS_INTERACTION_KIND_LABELS, CMS_INTERACTION_PARTICIPANT_SCOPE_LABELS, CMS_INTERACTION_QUESTION_TYPE_LABELS, CMS_INTERACTION_REPEAT_POLICY_LABELS, CMS_INTERACTION_STATUS_LABELS } from '@zenith/shared/cms';
@@ -24,7 +25,6 @@ import {
 import { formatDateTimeRangeForApi } from '@/utils/date';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
-import InteractionEditorModal from './interaction/InteractionEditorModal';
 import InteractionResultsSheet from './interaction/InteractionResultsSheet';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
@@ -46,13 +46,12 @@ const STATUS_COLORS: Record<CmsInteractionStatus, 'grey' | 'green' | 'orange'> =
 export default function SurveysPage() {
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [siteId, setSiteId] = useState<number | undefined>();
   const [draft, setDraft] = useState<ListSearch>(initialSearch);
   const [submitted, setSubmitted] = useState<ListSearch>(initialSearch);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<CmsInteraction | null>(null);
   const [resultsTarget, setResultsTarget] = useState<CmsInteraction | null>(null);
   const [responseDetail, setResponseDetail] = useState<CmsInteractionResponse | null>(null);
   const [responsePage, setResponsePage] = useState(1);
@@ -102,14 +101,12 @@ export default function SurveysPage() {
     void queryClient.invalidateQueries({ queryKey: cmsInteractionKeys.lists });
   };
 
-  const closeEditor = () => {
-    setModalVisible(false);
-    setEditing(null);
+  const openEditor = (record: CmsInteraction) => {
+    navigate(`/cms/interactions/edit?id=${record.id}&siteId=${record.siteId}`);
   };
 
   const openCreate = () => {
-    setEditing(null);
-    setModalVisible(true);
+    navigate(`/cms/interactions/edit?siteId=${siteId}`);
   };
 
   const changeStatus = async (record: CmsInteraction, status: CmsInteractionStatus) => {
@@ -169,7 +166,7 @@ export default function SurveysPage() {
         },
         {
           key: 'edit', label: '设计', hidden: !canManage,
-          onClick: () => { setEditing(record); setModalVisible(true); },
+          onClick: () => openEditor(record),
         },
         {
           key: 'copy', label: '复制', hidden: !canManage,
@@ -180,8 +177,7 @@ export default function SurveysPage() {
               onOk: async () => {
                 const created = await copyMutation.mutateAsync(record.id);
                 Toast.success(`已生成副本「${created.title}」`);
-                setEditing(created);
-                setModalVisible(true);
+                openEditor(created);
               },
             });
           },
@@ -325,14 +321,6 @@ export default function SurveysPage() {
           />
         </TabPane>
       </Tabs>
-
-      <InteractionEditorModal
-        visible={modalVisible}
-        siteId={siteId}
-        editing={editing}
-        onCancel={closeEditor}
-        onSaved={closeEditor}
-      />
 
       <InteractionResultsSheet interaction={resultsTarget} onClose={() => setResultsTarget(null)} />      <SideSheet title="答卷详情" visible={!!responseDetail} onCancel={() => setResponseDetail(null)} width={520}>
         {responseDetail ? (

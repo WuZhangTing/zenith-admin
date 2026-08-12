@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { Banner, Button, Collapse, Form, Modal, Spin, Steps, Toast, Typography } from '@douyinfe/semi-ui';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Banner, Button, Collapse, Form, Modal, Space, Spin, Steps, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Eye, EyeOff, Sparkles } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, Sparkles } from 'lucide-react';
 import { CMS_INTERACTION_CAPTCHA_POLICY_LABELS, CMS_INTERACTION_KIND_LABELS, CMS_INTERACTION_PARTICIPANT_SCOPE_LABELS, CMS_INTERACTION_REPEAT_POLICY_LABELS, CMS_INTERACTION_RESULT_VISIBILITY_LABELS, cmsSlugRegex } from '@zenith/shared/cms';
-import type { CmsInteraction, CmsInteractionKind, CmsInteractionStatus } from '@zenith/shared/cms';
-import AppModal from '@/components/AppModal';
+import type { CmsInteractionKind, CmsInteractionStatus } from '@zenith/shared/cms';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { mediaUp } from '@/lib/breakpoints';
+import { usePermission } from '@/hooks/usePermission';
 import { useCmsInteractionDetail, useSaveCmsInteraction } from '@/hooks/queries/cms';
 import { formatDateTimeForApi } from '@/utils/date';
 import { slugifyName } from '@/utils/slug';
@@ -40,6 +41,8 @@ export interface InteractionFormValues {
   startAt?: Date | string;
   endAt?: Date | string;
 }
+
+const LIST_PATH = '/cms/interactions';
 
 const STEPS = [
   { title: '基本信息', description: '类型 / 标题 / 访问标识' },
@@ -84,22 +87,19 @@ function errorFieldsOf(err: unknown): string[] {
   return Object.keys(source);
 }
 
-interface InteractionEditorModalProps {
-  visible: boolean;
-  siteId: number | undefined;
-  /** 非空表示编辑既有互动；为空表示新增 */
-  editing: CmsInteraction | null;
-  onCancel: () => void;
-  onSaved: () => void;
-}
+/**
+ * 互动问卷设计页。
+ *
+ * 分步表单 + 题目设计 + 前台预览三块内容同屏，弹窗承载不下，因此独立成页：
+ * 由「互动问卷」列表页以 `?id=`（编辑）或 `?siteId=`（新增）跳入。
+ */
+export default function InteractionEditPage() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { hasPermission } = usePermission();
+  const editingId = Number(searchParams.get('id')) || undefined;
+  const routeSiteId = Number(searchParams.get('siteId')) || undefined;
 
-export default function InteractionEditorModal({
-  visible,
-  siteId,
-  editing,
-  onCancel,
-  onSaved,
-}: Readonly<InteractionEditorModalProps>) {
   const formApi = useRef<FormApi<InteractionFormValues> | null>(null);
   /** 用户是否手动改过访问标识：手改后不再由标题自动生成 */
   const codeTouched = useRef(false);
@@ -107,24 +107,23 @@ export default function InteractionEditorModal({
   const autoCoding = useRef(false);
 
   const [step, setStep] = useState(0);
-  const [fullscreen, setFullscreen] = useState(true);
   const [showPreview, setShowPreview] = useState(true);
   const [questions, setQuestions] = useState<QuestionDraft[]>([]);
   const [questionErrors, setQuestionErrors] = useState<Map<string, string>>(new Map());
   const [live, setLive] = useState<InteractionFormValues>(DEFAULT_VALUES);
   const [formKey, setFormKey] = useState('new');
 
-  const editingId = editing?.id;
   const canShowPreview = useMediaQuery(mediaUp('lg'));
-  const detailQuery = useCmsInteractionDetail(editingId, visible && !!editingId);
-  const editingDetail = detailQuery.data ?? editing;
+  const detailQuery = useCmsInteractionDetail(editingId, !!editingId);
+  const editingDetail = detailQuery.data;
   const saveMutation = useSaveCmsInteraction();
   const questionsLocked = (editingDetail?.responseCount ?? 0) > 0;
   const kind = live.kind;
+  const siteId = editingDetail?.siteId ?? routeSiteId;
+  const canSave = hasPermission('cms:interaction:manage');
 
   useEffect(() => {
-    if (!visible) return;
-    // 编辑态需等详情返回后再初始化，避免用列表行的浅数据填充题目
+    // 编辑态需等详情返回后再初始化，避免用空数据填充题目
     if (editingId && !detailQuery.data) return;
     const detail = editingId ? detailQuery.data! : null;
     const values: InteractionFormValues = detail
@@ -151,9 +150,11 @@ export default function InteractionEditorModal({
     setQuestions(detail ? (detail.questions ?? []).map(questionToDraft) : [createQuestion('single')]);
     setFormKey(`${detail?.id ?? 'new'}-${Date.now()}`);
     codeTouched.current = !!detail;
-  }, [visible, editingId, detailQuery.data]);
+  }, [editingId, detailQuery.data]);
 
   const initValues = live;
+
+  const goBack = () => navigate(LIST_PATH);
 
   /** 类型切到投票时收敛为单道选择题 */
   const handleKindChange = (value: CmsInteractionKind) => {
@@ -250,7 +251,10 @@ export default function InteractionEditorModal({
   };
 
   const handleSave = async () => {
-    if (!siteId) return;
+    if (!siteId) {
+      Toast.warning('缺少站点信息，请从互动问卷列表重新进入');
+      return;
+    }
     let values: InteractionFormValues;
     try {
       values = await formApi.current!.validate() as InteractionFormValues;
@@ -276,47 +280,23 @@ export default function InteractionEditorModal({
     if (!values.turnstileSecret?.trim()) delete payload.turnstileSecret;
     await saveMutation.mutateAsync({ id: editingId, values: payload });
     Toast.success(editingId ? '更新成功' : '创建成功');
-    onSaved();
+    goBack();
   };
 
   const isTurnstile = live.captchaPolicy === 'turnstile';
   const templates = INTERACTION_TEMPLATES.filter((template) => template.kind === kind);
 
-  const footer = (
-    <div className="interaction-editor__footer">
-      {canShowPreview ? (
-        <Button
-          theme="borderless"
-          icon={showPreview ? <EyeOff size={14} /> : <Eye size={14} />}
-          onClick={() => setShowPreview((value) => !value)}
-        >
-          {showPreview ? '隐藏预览' : '显示预览'}
-        </Button>
-      ) : null}
-      <span className="interaction-editor__footer-gap" />
-      <Button onClick={onCancel}>取消</Button>
-      {step > 0 ? <Button onClick={() => setStep((current) => current - 1)}>上一步</Button> : null}
-      {step < STEPS.length - 1 ? <Button type="primary" onClick={() => void goNext()}>下一步</Button> : null}
-      <Button type="primary" theme="solid" loading={saveMutation.isPending} onClick={() => void handleSave()}>
-        {editingId ? '保存' : '创建'}
-      </Button>
-    </div>
-  );
-
   return (
-    <AppModal
-      className="interaction-editor-modal"
-      title={editing ? `设计：${editing.title}` : '新增互动问卷'}
-      visible={visible}
-      onCancel={onCancel}
-      footer={footer}
-      fullscreen={fullscreen}
-      onToggleFullscreen={() => setFullscreen((value) => !value)}
-      width={fullscreen ? undefined : 1000}
-      height={fullscreen ? undefined : 640}
-      bodyStyle={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}
-      closeOnEsc
-    >
+    <div className="page-container page-container--stretch interaction-editor-page">
+      <div className="interaction-editor-page__header">
+        <Space wrap>
+          <Button icon={<ArrowLeft size={14} />} onClick={goBack}>返回</Button>
+          <Typography.Title heading={4} style={{ margin: 0 }}>
+            {editingId ? (editingDetail?.title ? `设计：${editingDetail.title}` : '互动问卷设计') : '新增互动问卷'}
+          </Typography.Title>
+        </Space>
+      </div>
+
       <Spin spinning={!!editingId && detailQuery.isFetching} wrapperClassName="interaction-editor__spin">
         <div className="interaction-editor">
           <Steps type="basic" size="small" current={step} onChange={setStep}>
@@ -478,6 +458,30 @@ export default function InteractionEditorModal({
           </div>
         </div>
       </Spin>
-    </AppModal>
+
+      <div className="interaction-editor__footer">
+        {canShowPreview ? (
+          <Button
+            theme="borderless"
+            icon={showPreview ? <EyeOff size={14} /> : <Eye size={14} />}
+            onClick={() => setShowPreview((value) => !value)}
+          >
+            {showPreview ? '隐藏预览' : '显示预览'}
+          </Button>
+        ) : null}
+        <span className="interaction-editor__footer-gap" />
+        {step > 0 ? <Button onClick={() => setStep((current) => current - 1)}>上一步</Button> : null}
+        {step < STEPS.length - 1 ? <Button type="primary" onClick={() => void goNext()}>下一步</Button> : null}
+        <Button
+          type="primary"
+          theme="solid"
+          disabled={!canSave}
+          loading={saveMutation.isPending}
+          onClick={() => void handleSave()}
+        >
+          {editingId ? '保存' : '创建'}
+        </Button>
+      </div>
+    </div>
   );
 }

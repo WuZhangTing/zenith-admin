@@ -1,8 +1,8 @@
 /*
- * CMS 互动问卷设计器（全屏分步弹窗）
+ * CMS 互动问卷设计器（独立分步页面）
  *
  * 左侧为当前步骤表单/题目设计区，右侧为可折叠的前台样式预览；
- * 窄屏下预览自动隐藏，仅保留主编辑区，避免弹窗内出现横向滚动。
+ * 窄屏下预览自动隐藏，仅保留主编辑区，避免出现横向滚动。
  */
 .interaction-editor {
   display: flex;
@@ -12,12 +12,14 @@
   gap: 16px;
 }
 
-/* 弹窗体自身不滚动，交由左右两栏各自内滚，避免出现双层滚动条 */
-.interaction-editor-modal .semi-modal-body {
+/* 页面自身不滚动，交由左右两栏各自内滚，避免出现双层滚动条 */
+.interaction-editor-page__header {
   display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .interaction-editor__spin,
@@ -30,8 +32,11 @@
 
 .interaction-editor__footer {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--semi-color-border);
 }
 
 .interaction-editor__footer-gap {

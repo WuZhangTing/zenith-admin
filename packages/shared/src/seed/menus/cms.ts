@@ -102,6 +102,8 @@ export const SEED_MENUS_CMS: Menu[] = [
   { id: 14213, parentId: 14210, title: '批量流转互动', type: 'button', permission: 'cms:interaction:batch', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14214, parentId: 14210, title: '导出互动答卷', type: 'button', permission: 'cms:interaction:export', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14215, parentId: 14210, title: '导出互动原始答卷', type: 'button', permission: 'cms:interaction:export-raw', sort: 4, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 14216, parentId: 14210, title: '互动问卷设计页', name: 'CmsInteractionEdit', path: '/cms/interactions/edit', component: 'cms/interaction/InteractionEditPage', type: 'menu', sort: 5, status: 'enabled', visible: false, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 14217, parentId: 14216, title: '查询', type: 'button', permission: 'cms:interaction:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14220, parentId: 14000, title: '访问统计', name: 'CmsStats', path: '/cms/stats', component: 'cms/StatsPage', icon: 'ChartLine', type: 'menu', sort: 20, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14221, parentId: 14220, title: '查询', type: 'button', permission: 'cms:stat:view', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14240, parentId: 14000, title: '发布中心', name: 'CmsPublishing', path: '/cms/publishing', component: 'cms/PublishingPage', icon: 'Rocket', type: 'menu', sort: 22, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
