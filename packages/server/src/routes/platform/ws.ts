@@ -40,7 +40,7 @@ async function handleRtcSignal(senderId: number, msg: WsMessage): Promise<void> 
 
 /**
  * Create the WebSocket route.
- * Requires `upgradeWebSocket` from `createNodeWebSocket`.
+ * Requires `upgradeWebSocket` from `@hono/node-server`（以参数注入便于测试替身）。
  */
 export function createWsRoute(upgradeWebSocket: UpgradeWebSocket) {
   const wsApp = new Hono();
@@ -114,7 +114,7 @@ export function createWsRoute(upgradeWebSocket: UpgradeWebSocket) {
           }
         },
         onError() {
-          // handled by node-ws internally
+          // 连接级错误由 @hono/node-server 的 WS 适配器内部处理
         },
       };
     }),
