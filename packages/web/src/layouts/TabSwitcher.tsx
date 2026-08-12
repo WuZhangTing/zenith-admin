@@ -16,10 +16,10 @@ interface TabSwitcherProps {
   readonly activeKey: string;
   readonly onNavigate: (key: string) => void;
   readonly onClose: (key: string) => void;
-  readonly pathIconMap?: Record<string, string>;
+  readonly resolveIcon?: (pathname: string) => string | undefined;
 }
 
-export function TabSwitcher({ tabs, activeKey, onNavigate, onClose, pathIconMap }: TabSwitcherProps) {
+export function TabSwitcher({ tabs, activeKey, onNavigate, onClose, resolveIcon }: TabSwitcherProps) {
   useLucideIconsReady();
   const [visible, setVisible] = useState(false);
   const [search, setSearch] = useState('');
@@ -121,9 +121,9 @@ export function TabSwitcher({ tabs, activeKey, onNavigate, onClose, pathIconMap 
                   onClick={() => { onNavigate(tab.key); setVisible(false); }}
                   main={
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
-                      {(tab.icon ?? pathIconMap?.[tab.key]) && (
+                      {(tab.icon ?? resolveIcon?.(tab.key)) && (
                         <span style={{ display: 'inline-flex', flexShrink: 0, opacity: 0.6 }}>
-                          {renderLucideIcon((tab.icon ?? pathIconMap?.[tab.key])!, 13)}
+                          {renderLucideIcon((tab.icon ?? resolveIcon?.(tab.key))!, 13)}
                         </span>
                       )}
                       <Typography.Text

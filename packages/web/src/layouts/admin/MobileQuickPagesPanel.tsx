@@ -9,7 +9,7 @@ import { renderLucideIcon } from '@/utils/icons';
 export function MobileQuickPagesPanel({
   tabs,
   activeKey,
-  pathIconMap,
+  resolveIcon,
   recentMenus,
   setMobilePagesVisible,
   handleTabChange,
@@ -20,7 +20,7 @@ export function MobileQuickPagesPanel({
 }: Readonly<{
   tabs: TabItem[];
   activeKey: string;
-  pathIconMap: Record<string, string>;
+  resolveIcon: (pathname: string) => string | undefined;
   recentMenus: FlatMenuItem[];
   setMobilePagesVisible: (visible: boolean) => void;
   handleTabChange: (key: string) => void;
@@ -42,7 +42,7 @@ export function MobileQuickPagesPanel({
           <div className="mobile-quick-pages-list">
             {tabs.map((tab) => {
               const isActive = tab.key === activeKey;
-              const iconName = tab.icon ?? pathIconMap[tab.key];
+              const iconName = tab.icon ?? resolveIcon(tab.key);
               return (
                 <div key={tab.key} className={`mobile-quick-pages-item${isActive ? ' mobile-quick-pages-item--active' : ''}`}>
                   <button

@@ -83,11 +83,11 @@ export function useNavItems(menuTree: Menu[], chatUnreadCount: number) {
 }
 
 export function useMenuMaps(menuTree: Menu[]) {
-  const pathTitleMap = useMemo(() => {
-    const map: Record<string, string> = {};
+  const pathMetaMap = useMemo(() => {
+    const map = new Map<string, { title: string; icon?: string }>();
     function traverse(nodes: Menu[]) {
       for (const node of nodes) {
-        if (node.path && node.title) map[node.path] = node.title;
+        if (node.path && node.title) map.set(node.path, { title: node.title, icon: node.icon ?? undefined });
         if (node.children) traverse(node.children);
       }
     }
@@ -95,26 +95,39 @@ export function useMenuMaps(menuTree: Menu[]) {
     return map;
   }, [menuTree]);
 
-  const resolveTitle = useCallback((pathname: string) => {
-    if (pathTitleMap[pathname]) return pathTitleMap[pathname];
-    // 前缀匹配：用于带动态参数的隐藏菜单（如 /workflow/designer → /workflow/designer/1）
-    const prefixMatch = Object.entries(pathTitleMap).find(([p]) => pathname.startsWith(p + '/'));
-    return prefixMatch ? prefixMatch[1] : pathname;
-  }, [pathTitleMap]);
-
-  const pathIconMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    function traverse(nodes: Menu[]) {
-      for (const node of nodes) {
-        if (node.path && node.icon) map[node.path] = node.icon;
-        if (node.children) traverse(node.children);
+  /**
+   * 路径 → 菜单元信息。
+   *
+   * 带动态参数的页面（`/workflow/designer/1`）在菜单中只登记了父路径，需前缀回退；
+   * 且必须取**最长**前缀——`/workflow/forms/designer/5` 同时匹配「表单库」`/workflow/forms`
+   * 与「表单设计」`/workflow/forms/designer`，按遍历顺序取首个会命中父级菜单。
+   */
+  const resolveMeta = useCallback((pathname: string) => {
+    const exact = pathMetaMap.get(pathname);
+    if (exact) return exact;
+    let best: { title: string; icon?: string } | undefined;
+    let bestLength = -1;
+    for (const [path, meta] of pathMetaMap) {
+      if (path.length > bestLength && pathname.startsWith(`${path}/`)) {
+        best = meta;
+        bestLength = path.length;
       }
     }
-    traverse(menuTree);
-    return map;
-  }, [menuTree]);
+    return best;
+  }, [pathMetaMap]);
 
-  return { resolveTitle, pathIconMap };
+  const resolveTitle = useCallback(
+    (pathname: string) => resolveMeta(pathname)?.title ?? pathname,
+    [resolveMeta],
+  );
+
+  /** 页签图标：与标题同一套匹配规则，否则动态参数页面会缺图标 */
+  const resolveIcon = useCallback(
+    (pathname: string) => resolveMeta(pathname)?.icon,
+    [resolveMeta],
+  );
+
+  return { resolveTitle, resolveIcon };
 }
 
 export function useAutoTopKey(

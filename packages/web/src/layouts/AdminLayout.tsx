@@ -353,7 +353,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
     [openKeys, preferences.sidebarAccordion, navItems],
   );
 
-  const { resolveTitle, pathIconMap } = useMenuMaps(menuTree);
+  const { resolveTitle, resolveIcon } = useMenuMaps(menuTree);
 
   // ─── Nav layout helpers ────────────────────────────────────────────────────
   const navLayout: NavLayout = preferences.navLayout ?? 'vertical';
@@ -585,7 +585,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
     <MobileQuickPagesPanel
       tabs={tabs}
       activeKey={activeKey}
-      pathIconMap={pathIconMap}
+      resolveIcon={resolveIcon}
       recentMenus={recentMenus}
       setMobilePagesVisible={setMobilePagesVisible}
       handleTabChange={handleTabChange}
@@ -881,7 +881,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
                       favMenuId={favMenuId}
                       faved={favMenuId !== null && isFavorite(favMenuId)}
                       showIcon={!!preferences.showTabIcon}
-                      iconName={tab.icon ?? pathIconMap[tab.key]}
+                      iconName={tab.icon ?? resolveIcon(tab.key)}
                       isContentFullscreen={isContentFullscreen}
                       innerRef={tab.key === activeKey ? activeTabRef : undefined}
                     />
@@ -892,7 +892,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
               <TabSwitcher
                 tabs={tabs}
                 activeKey={activeKey}
-                pathIconMap={pathIconMap}
+                resolveIcon={resolveIcon}
                 onNavigate={(key) => { setActiveKey(key); navigate(key); }}
                 onClose={(key) => handleTabClose(key)}
               />
