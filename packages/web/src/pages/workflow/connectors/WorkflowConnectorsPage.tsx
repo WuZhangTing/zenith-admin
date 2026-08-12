@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  Button,
   Form,
   Input,
   Select,
@@ -110,6 +111,8 @@ export default function WorkflowConnectorsPage() {
   const [testPath, setTestPath] = useState('');
   const [testResult, setTestResult] = useState<WorkflowConnectorInvokeResult | null>(null);
 
+  const [authType, setAuthType] = useState<ConnectorFormValues['authType']>('none');
+
   const [monitorVisible, setMonitorVisible] = useState(false);
   const [monitorTarget, setMonitorTarget] = useState<WorkflowConnector | null>(null);
   const [monitorDays, setMonitorDays] = useState(7);
@@ -168,12 +171,19 @@ export default function WorkflowConnectorsPage() {
     if (isEdit && values.clearCredentials) payload.clearCredentials = true;
     return payload;
     },
-    labelWidth: 104,
+    labelWidth: 120,
   });
   const editing = connectorModal.editing;
 
-  function openCreate() { connectorModal.openCreate(); }
-  function openEdit(record: WorkflowConnector) { connectorModal.openEdit(record); }
+  function openCreate() {
+    setAuthType('none');
+    connectorModal.openCreate();
+  }
+  function openEdit(record: WorkflowConnector) {
+    const cfg = (record.config ?? {}) as unknown as WorkflowConnectorHttpConfig;
+    setAuthType(cfg.authType ?? 'none');
+    connectorModal.openEdit(record);
+  }
 
   async function handleDelete(id: number) {
     await deleteMutation.mutateAsync([id]);
@@ -221,7 +231,7 @@ export default function WorkflowConnectorsPage() {
       ),
     },
     createOperationColumn<WorkflowConnector>({
-      width: 200,
+      width: 240,
       desktopInlineKeys: ['test', 'monitor', 'edit', 'delete'],
       actions: (record) => [
         { key: 'test', label: '测试', hidden: !hasPermission('workflow:connector:test'), onClick: () => openTest(record) },
@@ -270,56 +280,96 @@ export default function WorkflowConnectorsPage() {
         pagination={buildPagination(data?.total ?? 0)}
       />
 
-      <AppModal {...connectorModal.modalProps} width={720}>
-        <Form {...connectorModal.formProps}>
-          <Row gutter={16}>
-            <Col span={12}><Form.Input field="name" label="名称" placeholder="请输入名称" rules={[{ required: true, message: '名称不能为空' }]} /></Col>
-            <Col span={12}><Form.Input field="code" label="编码" placeholder="如 crm_http" disabled={!!editing} rules={[{ required: true, message: '编码不能为空' }, { pattern: /^[a-zA-Z][a-zA-Z0-9_-]*$/, message: '以字母开头，仅含字母/数字/下划线/连字符' }]} /></Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}><Form.Select field="type" label="类型" style={{ width: '100%' }} optionList={TYPE_OPTIONS} rules={[{ required: true, message: '请选择类型' }]} /></Col>
-            <Col span={12}><Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={STATUS_OPTIONS} /></Col>
-          </Row>
-          <Form.Input field="description" label="描述" placeholder="可选" />
+      <SideSheet
+        title={connectorModal.modalProps.title}
+        visible={connectorModal.visible}
+        onCancel={connectorModal.close}
+        closeOnEsc
+        width={780}
+        footer={(
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button type="tertiary" onClick={connectorModal.close}>取消</Button>
+            <Button
+              type="primary"
+              theme="solid"
+              loading={connectorModal.modalProps.okButtonProps.loading}
+              disabled={connectorModal.modalProps.okButtonProps.disabled}
+              onClick={() => void connectorModal.modalProps.onOk()}
+            >
+              保存
+            </Button>
+          </div>
+        )}
+      >
+        <Form
+          {...connectorModal.formProps}
+          onValueChange={(values) => {
+            const next = (values as Partial<ConnectorFormValues>).authType;
+            if (next && next !== authType) setAuthType(next);
+          }}
+        >
+          <Form.Section text="基础信息">
+            <Row gutter={16}>
+              <Col span={12}><Form.Input field="name" label="名称" placeholder="请输入名称" rules={[{ required: true, message: '名称不能为空' }]} /></Col>
+              <Col span={12}><Form.Input field="code" label="编码" placeholder="如 crm_http" disabled={!!editing} rules={[{ required: true, message: '编码不能为空' }, { pattern: /^[a-zA-Z][a-zA-Z0-9_-]*$/, message: '以字母开头，仅含字母/数字/下划线/连字符' }]} /></Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}><Form.Select field="type" label="类型" style={{ width: '100%' }} optionList={TYPE_OPTIONS} rules={[{ required: true, message: '请选择类型' }]} /></Col>
+              <Col span={12}><Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={STATUS_OPTIONS} /></Col>
+            </Row>
+            <Form.Input field="description" label="描述" placeholder="可选" />
+          </Form.Section>
 
-          <Typography.Title heading={6} style={{ margin: '8px 0' }}>HTTP 调用配置</Typography.Title>
-          <Form.Input field="baseUrl" label="基础地址" placeholder="https://api.example.com" rules={[{ required: true, message: '基础地址不能为空' }, { pattern: /^https?:\/\/.+/i, message: '需以 http:// 或 https:// 开头' }]} />
-          <Row gutter={16}>
-            <Col span={12}><Form.Select field="method" label="默认方法" style={{ width: '100%' }} optionList={['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map((m) => ({ value: m, label: m }))} /></Col>
-            <Col span={12}><Form.Select field="authType" label="鉴权方式" style={{ width: '100%' }} optionList={[{ value: 'none', label: '无' }, { value: 'bearer', label: 'Bearer Token' }, { value: 'basic', label: 'Basic' }, { value: 'apiKey', label: 'API Key' }]} /></Col>
-          </Row>
-          <Form.TextArea field="headersText" label="固定请求头(JSON)" placeholder='可选，如 {"X-Env":"prod"}' autosize={{ minRows: 1, maxRows: 4 }} />
-          <Form.TextArea field="queryText" label="固定查询参数(JSON)" placeholder='可选，如 {"version":"v1"}' autosize={{ minRows: 1, maxRows: 4 }} />
+          <Form.Section text="HTTP 调用配置">
+            <Form.Input field="baseUrl" label="基础地址" placeholder="https://api.example.com" rules={[{ required: true, message: '基础地址不能为空' }, { pattern: /^https?:\/\/.+/i, message: '需以 http:// 或 https:// 开头' }]} />
+            <Row gutter={16}>
+              <Col span={12}><Form.Select field="method" label="默认方法" style={{ width: '100%' }} optionList={['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map((m) => ({ value: m, label: m }))} /></Col>
+              <Col span={12}><Form.Select field="authType" label="鉴权方式" style={{ width: '100%' }} optionList={[{ value: 'none', label: '无' }, { value: 'bearer', label: 'Bearer Token' }, { value: 'basic', label: 'Basic' }, { value: 'apiKey', label: 'API Key' }]} /></Col>
+            </Row>
+            <Form.TextArea field="headersText" label="固定请求头" placeholder='可选，JSON 对象，如 {"X-Env":"prod"}' autosize={{ minRows: 1, maxRows: 4 }} />
+            <Form.TextArea field="queryText" label="固定查询参数" placeholder='可选，JSON 对象，如 {"version":"v1"}' autosize={{ minRows: 1, maxRows: 4 }} />
+          </Form.Section>
 
-          <Typography.Title heading={6} style={{ margin: '8px 0' }}>凭据（{editing ? '留空保留原凭据；' : ''}AES 加密存储，不回显）</Typography.Title>
-          <Row gutter={16}>
-            <Col span={12}><Form.Input field="apiKeyHeader" label="API Key 头名" placeholder="默认 X-API-Key" /></Col>
-            <Col span={12}><Form.Input field="apiKey" label="API Key" mode="password" placeholder="apiKey 鉴权时填写" /></Col>
-          </Row>
-          <Form.Input field="token" label="Bearer Token" mode="password" placeholder="bearer 鉴权时填写" />
-          <Row gutter={16}>
-            <Col span={12}><Form.Input field="username" label="Basic 用户名" placeholder="basic 鉴权时填写" /></Col>
-            <Col span={12}><Form.Input field="password" label="Basic 密码" mode="password" placeholder="basic 鉴权时填写" /></Col>
-          </Row>
-          {editing && <Form.Checkbox field="clearCredentials" noLabel>清空已配置凭据</Form.Checkbox>}
+          <Form.Section text={`凭据（${editing ? '留空保留原凭据；' : ''}AES 加密存储，不回显）`}>
+            {authType === 'none' && (
+              <Typography.Text type="tertiary" size="small">当前鉴权方式为「无」，无需配置凭据。</Typography.Text>
+            )}
+            {authType === 'apiKey' && (
+              <Row gutter={16}>
+                <Col span={12}><Form.Input field="apiKeyHeader" label="API Key 头名" placeholder="默认 X-API-Key" /></Col>
+                <Col span={12}><Form.Input field="apiKey" label="API Key" mode="password" /></Col>
+              </Row>
+            )}
+            {authType === 'bearer' && (
+              <Form.Input field="token" label="Bearer Token" mode="password" />
+            )}
+            {authType === 'basic' && (
+              <Row gutter={16}>
+                <Col span={12}><Form.Input field="username" label="Basic 用户名" /></Col>
+                <Col span={12}><Form.Input field="password" label="Basic 密码" mode="password" /></Col>
+              </Row>
+            )}
+            {editing && <Form.Checkbox field="clearCredentials" noLabel>清空已配置凭据</Form.Checkbox>}
+          </Form.Section>
 
-          <Typography.Title heading={6} style={{ margin: '8px 0' }}>调用策略 · 熔断 · 限流</Typography.Title>
-          <Row gutter={16}>
-            <Col span={12}><Form.InputNumber field="timeoutMs" label="超时(ms)" min={100} max={120000} step={500} style={{ width: '100%' }} /></Col>
-            <Col span={12}><Form.InputNumber field="retryMax" label="重试次数" min={0} max={10} style={{ width: '100%' }} /></Col>
-          </Row>
-          <Form.Switch field="circuitBreakerEnabled" label="启用熔断" />
-          <Row gutter={16}>
-            <Col span={12}><Form.InputNumber field="failureThreshold" label="失败阈值" min={1} max={100} style={{ width: '100%' }} /></Col>
-            <Col span={12}><Form.InputNumber field="cooldownSec" label="冷却(秒)" min={1} max={3600} style={{ width: '100%' }} /></Col>
-          </Row>
-          <Form.Switch field="rateLimitEnabled" label="启用限流" extraText="保护下游：滑动窗口内超过最大调用次数即快速失败（不计入熔断）" />
-          <Row gutter={16}>
-            <Col span={12}><Form.InputNumber field="rateLimitWindowSec" label="时间窗(秒)" min={1} max={3600} style={{ width: '100%' }} /></Col>
-            <Col span={12}><Form.InputNumber field="rateLimitMax" label="窗口内上限" min={0} max={100000} style={{ width: '100%' }} extraText="0=不限制" /></Col>
-          </Row>
+          <Form.Section text="调用策略 · 熔断 · 限流">
+            <Row gutter={16}>
+              <Col span={12}><Form.InputNumber field="timeoutMs" label="超时(ms)" min={100} max={120000} step={500} style={{ width: '100%' }} /></Col>
+              <Col span={12}><Form.InputNumber field="retryMax" label="重试次数" min={0} max={10} style={{ width: '100%' }} /></Col>
+            </Row>
+            <Form.Switch field="circuitBreakerEnabled" label="启用熔断" />
+            <Row gutter={16}>
+              <Col span={12}><Form.InputNumber field="failureThreshold" label="失败阈值" min={1} max={100} style={{ width: '100%' }} /></Col>
+              <Col span={12}><Form.InputNumber field="cooldownSec" label="冷却(秒)" min={1} max={3600} style={{ width: '100%' }} /></Col>
+            </Row>
+            <Form.Switch field="rateLimitEnabled" label="启用限流" extraText="保护下游：滑动窗口内超过最大调用次数即快速失败（不计入熔断）" />
+            <Row gutter={16}>
+              <Col span={12}><Form.InputNumber field="rateLimitWindowSec" label="时间窗(秒)" min={1} max={3600} style={{ width: '100%' }} /></Col>
+              <Col span={12}><Form.InputNumber field="rateLimitMax" label="窗口内上限" min={0} max={100000} style={{ width: '100%' }} extraText="0=不限制" /></Col>
+            </Row>
+          </Form.Section>
         </Form>
-      </AppModal>
+      </SideSheet>
 
       <AppModal
         title={`测试调用 · ${testTarget?.name ?? ''}`}
