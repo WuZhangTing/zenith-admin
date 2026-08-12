@@ -232,7 +232,7 @@ export default function DataSourcesPage() {
       render: (value: string | null, record) => value ? `${formatDateTime(value)}${record.lastTestLatencyMs != null ? ` · ${record.lastTestLatencyMs}ms` : ''}` : '—',
     },
     {
-      title: '连续失败', dataIndex: 'consecutiveFailures', width: 88,
+      title: '连续失败', dataIndex: 'consecutiveFailures', width: 100,
       render: (value: number) => value > 0 ? <Typography.Text type="danger">{value}</Typography.Text> : 0,
     },
     {
