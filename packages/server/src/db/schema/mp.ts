@@ -515,7 +515,7 @@ export const mpKfSessionEvents = pgTable('mp_kf_session_events', {
   detail: varchar('detail', { length: 255 }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [index('mp_kf_session_events_tenant_idx').on(t.tenantId), 
+}, (t) => [index('mp_kf_session_events_operator_idx').on(t.operatorId), index('mp_kf_session_events_tenant_idx').on(t.tenantId), 
   index('mp_kf_session_events_session_idx').on(t.sessionId),
 ]);
 

@@ -398,7 +398,7 @@ export const cmsContentOpLogs = pgTable('cms_content_op_logs', {
   /** 冗余操作人昵称（防用户删除后时间线失名；系统任务为“系统”） */
   operatorName: varchar('operator_name', { length: 50 }).notNull().default('系统'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [
+}, (t) => [index('cms_content_op_logs_operator_idx').on(t.operatorId), 
   index('cms_content_op_logs_content_idx').on(t.contentId, t.createdAt),
 ]);
 
@@ -965,7 +965,7 @@ export type CmsPushLogRow = typeof cmsPushLogs.$inferSelect;
 export const cmsSiteUsers = pgTable('cms_site_users', {
   siteId: integer('site_id').notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-}, (t) => [primaryKey({ columns: [t.siteId, t.userId] })]);
+}, (t) => [index('cms_site_users_user_idx').on(t.userId), primaryKey({ columns: [t.siteId, t.userId] })]);
 
 export type CmsSiteUserRow = typeof cmsSiteUsers.$inferSelect;
 

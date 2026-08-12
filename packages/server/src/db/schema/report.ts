@@ -255,7 +255,7 @@ export const reportDashboardComments = pgTable('report_dashboard_comments', {
   deletedBy: integer('deleted_by').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('report_dashboard_comments_user_idx').on(t.userId), 
   index('report_dashboard_comments_dashboard_idx').on(t.dashboardId),
   index('report_dashboard_comments_parent_idx').on(t.parentId),
 ]);

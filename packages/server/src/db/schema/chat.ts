@@ -79,7 +79,7 @@ export const chatMessageReactions = pgTable('chat_message_reactions', {
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   emoji: varchar('emoji', { length: 10 }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-}, (table) => [
+}, (table) => [index('chat_message_reactions_user_idx').on(table.userId), 
   unique().on(table.messageId, table.userId, table.emoji),
 ]);
 

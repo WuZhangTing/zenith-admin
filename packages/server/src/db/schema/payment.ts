@@ -108,7 +108,7 @@ export const paymentOrders = pgTable('payment_orders', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('payment_orders_tenant_idx').on(t.tenantId), 
+}, (t) => [index('payment_orders_user_idx').on(t.userId), index('payment_orders_tenant_idx').on(t.tenantId), 
   unique('payment_orders_channel_out_trade_no_uq').on(t.channel, t.outTradeNo),
   // 业务幂等：同一业务单（bizType+bizId）最多存在一笔进行中订单（pending/paying），
   // 并发下单时唯一冲突由 createPayment 捕获后复用已有活跃单
@@ -148,7 +148,7 @@ export const paymentRefunds = pgTable('payment_refunds', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('payment_refunds_tenant_idx').on(t.tenantId), 
+}, (t) => [index('payment_refunds_operator_idx').on(t.operatorId), index('payment_refunds_tenant_idx').on(t.tenantId), 
   index('payment_refunds_order_no_idx').on(t.orderNo),
   index('payment_refunds_status_idx').on(t.status),
 ]);
@@ -509,7 +509,7 @@ export const paymentRiskHits = pgTable('payment_risk_hits', {
   clientIp: varchar('client_ip', { length: 64 }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [index('payment_risk_hits_tenant_idx').on(t.tenantId), 
+}, (t) => [index('payment_risk_hits_user_idx').on(t.userId), index('payment_risk_hits_tenant_idx').on(t.tenantId), 
   index('payment_risk_hits_created_idx').on(t.createdAt),
   index('payment_risk_hits_rule_idx').on(t.ruleId),
 ]);
@@ -609,7 +609,7 @@ export const paymentPreauths = pgTable('payment_preauths', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('payment_preauths_tenant_idx').on(t.tenantId), 
+}, (t) => [index('payment_preauths_operator_idx').on(t.operatorId), index('payment_preauths_tenant_idx').on(t.tenantId), 
   // 同一业务单最多一笔进行中预授权（发起中/冻结中）
   uniqueIndex('payment_preauths_active_biz_uq').on(t.bizType, t.bizId).where(sql`${t.status} in ('pending', 'frozen')`),
   index('payment_preauths_status_idx').on(t.status),
@@ -648,7 +648,7 @@ export const paymentTransfers = pgTable('payment_transfers', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('payment_transfers_tenant_idx').on(t.tenantId), 
+}, (t) => [index('payment_transfers_operator_idx').on(t.operatorId), index('payment_transfers_tenant_idx').on(t.tenantId), 
   unique('payment_transfers_channel_out_no_uq').on(t.channel, t.outTransferNo),
   index('payment_transfers_status_idx').on(t.status),
   index('payment_transfers_biz_idx').on(t.bizType, t.bizId),
@@ -838,7 +838,7 @@ export const paymentDisputeReplies = pgTable('payment_dispute_replies', {
   content: text('content').notNull(),
   operatorId: integer('operator_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [index('payment_dispute_replies_dispute_idx').on(t.disputeId)]);
+}, (t) => [index('payment_dispute_replies_operator_idx').on(t.operatorId), index('payment_dispute_replies_dispute_idx').on(t.disputeId)]);
 
 export type PaymentDisputeReplyRow = typeof paymentDisputeReplies.$inferSelect;
 

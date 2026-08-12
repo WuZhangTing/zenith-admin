@@ -27,7 +27,7 @@ export const userOauthAccounts = pgTable('user_oauth_accounts', {
   raw: text('raw'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [unique('uniq_provider_open_id').on(t.provider, t.openId)]);
+}, (t) => [index('user_oauth_accounts_user_idx').on(t.userId), unique('uniq_provider_open_id').on(t.provider, t.openId)]);
 
 export type UserOauthAccountRow = typeof userOauthAccounts.$inferSelect;
 
@@ -67,7 +67,7 @@ export const userApiTokens = pgTable('user_api_tokens', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('user_api_tokens_user_idx').on(t.userId)]);
 
 export type UserApiTokenRow = typeof userApiTokens.$inferSelect;
 
@@ -81,7 +81,7 @@ export const passwordResetTokens = pgTable('password_reset_tokens', {
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   usedAt: timestamp('used_at', { withTimezone: true }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (t) => [index('password_reset_tokens_user_idx').on(t.userId)]);
 
 export type PasswordResetTokenRow = typeof passwordResetTokens.$inferSelect;
 

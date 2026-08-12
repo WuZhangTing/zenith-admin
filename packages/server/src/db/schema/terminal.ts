@@ -67,7 +67,7 @@ export const terminalRecordings = pgTable('terminal_recordings', {
   events: jsonb('events').$type<RecordingEvent[]>().notNull().default([]),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('terminal_recordings_tenant_idx').on(t.tenantId)]);
+}, (t) => [index('terminal_recordings_user_idx').on(t.userId), index('terminal_recordings_tenant_idx').on(t.tenantId)]);
 
 export type TerminalRecordingRow = typeof terminalRecordings.$inferSelect;
 
@@ -103,7 +103,7 @@ export const sshProfiles = pgTable('ssh_profiles', {
   orderNum: integer('order_num').notNull().default(0),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('ssh_profiles_user_idx').on(t.userId)]);
 
 export type SshProfileRow = typeof sshProfiles.$inferSelect;
 

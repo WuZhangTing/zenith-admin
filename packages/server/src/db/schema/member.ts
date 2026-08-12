@@ -186,7 +186,7 @@ export const memberPointTransactions = pgTable('member_point_transactions', {
   /** 后台操作人（管理员手动调整时记录）*/
   operatorId: integer('operator_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [
+}, (t) => [index('member_point_transactions_operator_idx').on(t.operatorId), 
   index('member_point_tx_member_idx').on(t.memberId),
   index('member_point_tx_biz_idx').on(t.bizType, t.bizId),
 ]);
@@ -233,7 +233,7 @@ export const memberWalletTransactions = pgTable('member_wallet_transactions', {
   remark: varchar('remark', { length: 256 }),
   operatorId: integer('operator_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [
+}, (t) => [index('member_wallet_transactions_operator_idx').on(t.operatorId), 
   index('member_wallet_tx_member_idx').on(t.memberId),
   index('member_wallet_tx_biz_idx').on(t.bizType, t.bizId),
 ]);

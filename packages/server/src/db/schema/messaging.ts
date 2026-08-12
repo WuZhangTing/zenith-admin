@@ -69,7 +69,7 @@ export const emailSendLogs = pgTable('email_send_logs', {
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   sentAt: timestamp('sent_at', { withTimezone: true }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [index('email_send_logs_tenant_idx').on(t.tenantId), 
+}, (t) => [index('email_send_logs_user_idx').on(t.userId), index('email_send_logs_tenant_idx').on(t.tenantId), 
   index('email_send_logs_created_at_idx').on(t.createdAt),
   index('email_send_logs_status_idx').on(t.status),
 ]);
@@ -141,7 +141,7 @@ export const smsSendLogs = pgTable('sms_send_logs', {
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   sentAt: timestamp('sent_at', { withTimezone: true }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [index('sms_send_logs_tenant_idx').on(t.tenantId), 
+}, (t) => [index('sms_send_logs_user_idx').on(t.userId), index('sms_send_logs_tenant_idx').on(t.tenantId), 
   index('sms_send_logs_created_at_idx').on(t.createdAt),
   index('sms_send_logs_status_idx').on(t.status),
 ]);

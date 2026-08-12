@@ -68,7 +68,7 @@ export const channelSubscriptions = pgTable('channel_subscriptions', {
   lastReadAt: timestamp('last_read_at', { withTimezone: true }),
   isMuted: boolean('is_muted').notNull().default(false),
   subscribedAt: timestamp('subscribed_at').defaultNow().notNull(),
-}, (t) => [primaryKey({ columns: [t.channelId, t.userId] })]);
+}, (t) => [index('channel_subscriptions_user_idx').on(t.userId), primaryKey({ columns: [t.channelId, t.userId] })]);
 
 export type ChannelSubscriptionRow = typeof channelSubscriptions.$inferSelect;
 
@@ -76,7 +76,7 @@ export const channelMessageTargets = pgTable('channel_message_targets', {
   messageId: integer('message_id').notNull().references(() => channelMessages.id, { onDelete: 'cascade' }),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   readAt: timestamp('read_at', { withTimezone: true }),
-}, (t) => [primaryKey({ columns: [t.messageId, t.userId] })]);
+}, (t) => [index('channel_message_targets_user_idx').on(t.userId), primaryKey({ columns: [t.messageId, t.userId] })]);
 
 export type ChannelMessageTargetRow = typeof channelMessageTargets.$inferSelect;
 
@@ -144,7 +144,7 @@ export const channelConversations = pgTable('channel_conversations', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [primaryKey({ columns: [t.channelId, t.userId] })]);
+}, (t) => [index('channel_conversations_user_idx').on(t.userId), primaryKey({ columns: [t.channelId, t.userId] })]);
 
 export type ChannelConversationRow = typeof channelConversations.$inferSelect;
 

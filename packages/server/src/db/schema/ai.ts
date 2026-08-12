@@ -67,7 +67,7 @@ export const aiConversations = pgTable('ai_conversations', {
   activeLeafMsgId: integer('active_leaf_msg_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('ai_conversations_tenant_idx').on(t.tenantId)]);
+}, (t) => [index('ai_conversations_user_idx').on(t.userId), index('ai_conversations_tenant_idx').on(t.tenantId)]);
 
 export type AiConversationRow = typeof aiConversations.$inferSelect;
 
@@ -134,7 +134,7 @@ export const userAiConfigs = pgTable('user_ai_configs', {
   isEnabled: boolean('is_enabled').notNull().default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('user_ai_configs_user_idx').on(t.userId)]);
 
 export type UserAiConfigRow = typeof userAiConfigs.$inferSelect;
 
@@ -158,7 +158,7 @@ export const aiPromptTemplates = pgTable('ai_prompt_templates', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('ai_prompt_templates_user_idx').on(t.userId)]);
 
 export type AiPromptTemplateRow = typeof aiPromptTemplates.$inferSelect;
 
@@ -188,7 +188,7 @@ export const aiSharedConversations = pgTable('ai_shared_conversations', {
   /** 过期时间，null = 永久有效 */
   expiresAt: timestamp('expires_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [uniqueIndex('ai_shared_conversations_token_uq').on(t.token)]);
+}, (t) => [index('ai_shared_conversations_user_idx').on(t.userId), uniqueIndex('ai_shared_conversations_token_uq').on(t.token)]);
 
 export type AiSharedConversationRow = typeof aiSharedConversations.$inferSelect;
 
@@ -202,7 +202,7 @@ export const aiArenaVotes = pgTable('ai_arena_votes', {
   /** a / b / tie */
   winner: varchar('winner', { length: 10 }).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (t) => [index('ai_arena_votes_user_idx').on(t.userId)]);
 
 /** 知识库 */
 export const aiKnowledgeBases = pgTable('ai_knowledge_bases', {
@@ -214,7 +214,7 @@ export const aiKnowledgeBases = pgTable('ai_knowledge_bases', {
   embeddingModel: varchar('embedding_model', { length: 100 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('ai_knowledge_bases_user_idx').on(t.userId)]);
 
 export type AiKnowledgeBaseRow = typeof aiKnowledgeBases.$inferSelect;
 
@@ -281,7 +281,7 @@ export const aiAgents = pgTable('ai_agents', {
   isEnabled: boolean('is_enabled').notNull().default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('ai_agents_user_idx').on(t.userId)]);
 
 export type AiAgentRow = typeof aiAgents.$inferSelect;
 

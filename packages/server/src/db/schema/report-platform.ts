@@ -513,7 +513,7 @@ export const reportChatbiSessions = pgTable('report_chatbi_sessions', {
   lastMessageAt: timestamp('last_message_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [
+}, (t) => [index('report_chatbi_sessions_user_idx').on(t.userId), 
   index('report_chatbi_sessions_user_status_time_idx').on(t.tenantId, t.userId, t.status, t.updatedAt),
   index('report_chatbi_sessions_dataset_idx').on(t.datasetId),
   index('report_chatbi_sessions_datasource_idx').on(t.datasourceId),
@@ -542,7 +542,7 @@ export const reportChatbiMessages = pgTable('report_chatbi_messages', {
   modelId: varchar('model_id', { length: 128 }),
   errorMessage: varchar('error_message', { length: 1000 }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-}, (t) => [
+}, (t) => [index('report_chatbi_messages_user_idx').on(t.userId), 
   index('report_chatbi_messages_session_time_idx').on(t.sessionId, t.createdAt),
   index('report_chatbi_messages_tenant_user_time_idx').on(t.tenantId, t.userId, t.createdAt),
 ]);

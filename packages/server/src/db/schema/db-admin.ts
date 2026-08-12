@@ -57,7 +57,7 @@ export const dbQueryFavorites = pgTable('db_query_favorites', {
   tags: text('tags').array().notNull().default([]),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('db_query_favorites_user_idx').on(t.userId)]);
 
 export type DbQueryFavoriteRow = typeof dbQueryFavorites.$inferSelect;
 

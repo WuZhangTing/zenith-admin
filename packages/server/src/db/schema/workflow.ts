@@ -257,7 +257,7 @@ export const workflowSavedViews = pgTable('workflow_saved_views', {
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('workflow_saved_views_tenant_idx').on(t.tenantId)]);
+}, (t) => [index('workflow_saved_views_user_idx').on(t.userId), index('workflow_saved_views_tenant_idx').on(t.tenantId)]);
 
 export type WorkflowSavedViewRow = typeof workflowSavedViews.$inferSelect;
 
@@ -421,7 +421,7 @@ export const workflowCompensationLogs = pgTable('workflow_compensation_logs', {
   operatorId: integer('operator_id').references(() => users.id, { onDelete: 'set null' }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [index('workflow_compensation_logs_tenant_idx').on(t.tenantId), index('wf_compensation_log_cid_idx').on(t.compensationId)]);
+}, (t) => [index('workflow_compensation_logs_operator_idx').on(t.operatorId), index('workflow_compensation_logs_tenant_idx').on(t.tenantId), index('wf_compensation_log_cid_idx').on(t.compensationId)]);
 
 export type WorkflowCompensationRow = typeof workflowCompensations.$inferSelect;
 
@@ -547,7 +547,7 @@ export const workflowTaskTransfers = pgTable('workflow_task_transfers', {
   operatorId: integer('operator_id').references(() => users.id, { onDelete: 'set null' }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [index('workflow_task_transfers_tenant_idx').on(t.tenantId), 
+}, (t) => [index('workflow_task_transfers_operator_idx').on(t.operatorId), index('workflow_task_transfers_tenant_idx').on(t.tenantId), 
   index('wf_task_transfers_task_idx').on(t.taskId),
   index('wf_task_transfers_instance_idx').on(t.instanceId),
 ]);
@@ -727,7 +727,7 @@ export const workflowComments = pgTable('workflow_comments', {
   attachments: jsonb('attachments').$type<Array<{ name: string; url: string; size?: number }>>().default([]).notNull(),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [index('workflow_comments_tenant_idx').on(t.tenantId)]);
+}, (t) => [index('workflow_comments_user_idx').on(t.userId), index('workflow_comments_tenant_idx').on(t.tenantId)]);
 
 export type WorkflowCommentRow = typeof workflowComments.$inferSelect;
 
@@ -743,7 +743,7 @@ export const workflowQuickPhrases = pgTable('workflow_quick_phrases', {
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('workflow_quick_phrases_tenant_idx').on(t.tenantId)]);
+}, (t) => [index('workflow_quick_phrases_user_idx').on(t.userId), index('workflow_quick_phrases_tenant_idx').on(t.tenantId)]);
 
 export type WorkflowQuickPhraseRow = typeof workflowQuickPhrases.$inferSelect;
 

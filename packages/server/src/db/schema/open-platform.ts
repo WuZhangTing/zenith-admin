@@ -77,7 +77,7 @@ export const oauth2AuthorizationCodes = pgTable('oauth2_authorization_codes', {
   expiresAt: timestamp('expires_at').notNull(),
   used: boolean('used').notNull().default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (t) => [index('oauth2_authorization_codes_user_idx').on(t.userId)]);
 
 export type OAuth2AuthorizationCodeRow = typeof oauth2AuthorizationCodes.$inferSelect;
 
@@ -119,7 +119,7 @@ export const oauth2Tokens = pgTable('oauth2_tokens', {
   expiresAt: timestamp('expires_at'),
   revoked: boolean('revoked').notNull().default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [
+}, (t) => [index('oauth2_tokens_user_idx').on(t.userId), 
   index('oauth2_tokens_client_idx').on(t.clientId),
   index('oauth2_tokens_family_idx').on(t.familyId),
   index('oauth2_tokens_active_expiry_idx').on(t.revoked, t.expiresAt),
