@@ -22,14 +22,10 @@ export default function AlertRecipientUserSelect({
         user.hasEmail ? '已配置邮箱' : '无邮箱',
       ].filter(Boolean);
       return {
-        value: user.id,
+        value: String(user.id),
         label: `${user.nickname}（${details.join(' · ')}）`,
       };
     }),
-    [usersQuery.data],
-  );
-  const usersById = useMemo(
-    () => new Map((usersQuery.data ?? []).map((user) => [user.id, user])),
     [usersQuery.data],
   );
   const placeholder = usersQuery.isPending
@@ -40,8 +36,18 @@ export default function AlertRecipientUserSelect({
 
   return (
     <Select
-      value={value}
-      onChange={(nextValue) => onChange?.(nextValue as number[] | undefined)}
+      value={Array.isArray(value) ? value.map(String) : []}
+      onChange={(nextValue) => {
+        if (Array.isArray(nextValue)) {
+          onChange?.(nextValue.map(Number));
+          return;
+        }
+        if (nextValue === undefined || nextValue === null) {
+          onChange?.(undefined);
+          return;
+        }
+        onChange?.([Number(nextValue)]);
+      }}
       multiple
       filter
       showClear
@@ -50,8 +56,6 @@ export default function AlertRecipientUserSelect({
       placeholder={placeholder}
       optionList={optionList}
       emptyContent="暂无可用的启用用户"
-      renderSelectedItem={(option: { value?: unknown; label?: unknown }) =>
-        usersById.get(Number(option.value))?.nickname ?? String(option.label ?? '')}
       style={{ width: '100%' }}
     />
   );

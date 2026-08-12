@@ -118,7 +118,7 @@ export default function AlertRulesPage() {
     {
       title: '触发条件',
       dataIndex: 'metric',
-      width: 230,
+      width: 320,
       render: (_: unknown, r: MonitorAlertRule) => (
         <span>
           <Tag size="small" type="ghost">{METRIC_LABELS[r.metric] ?? r.metric}</Tag>
@@ -160,7 +160,7 @@ export default function AlertRulesPage() {
       ),
     },
     createOperationColumn<MonitorAlertRule>({
-      width: 120,
+      width: 150,
       actions: (record) => [
         {
           key: 'edit',
