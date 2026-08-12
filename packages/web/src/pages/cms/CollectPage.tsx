@@ -116,7 +116,7 @@ export default function CollectPage() {
         </span>
       ),
     },
-    { title: '最近执行', dataIndex: 'lastRunAt', width: 180, render: (v: string | null) => v ?? '-' },
+    dateTimeColumn('最近执行', 'lastRunAt'),
     {
       title: '状态',
       dataIndex: 'status',

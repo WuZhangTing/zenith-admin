@@ -30,7 +30,6 @@ import { downloadBlob } from '@/utils/download';
 import { unwrap } from '@/lib/query';
 import { UserAvatar } from '@/components/UserAvatar';
 import AppModal from '@/components/AppModal';
-import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
 import SavedViewsBar from '@/components/workflow/SavedViewsBar';
@@ -665,7 +664,7 @@ export default function WorkflowMonitorPage() {
       { title: '任务', dataIndex: 'taskId', width: 80, render: (v: number | null) => v ? `#${v}` : '—' },
       { title: '状态', dataIndex: 'status', width: 130 },
       { title: '尝试', dataIndex: 'attempts', width: 70 },
-      { title: '下次重试', dataIndex: 'nextRetryAt', width: 210, render: (v: string | null) => v ?? '—' },
+      dateTimeColumn('下次重试', 'nextRetryAt'),
       { title: '错误', dataIndex: 'errorMessage', width: 260, ellipsis: { showTitle: true }, render: (v: string | null) => v ?? '—' },
       dateTimeColumn('创建时间', 'createdAt'),
     ];
@@ -683,8 +682,8 @@ export default function WorkflowMonitorPage() {
       { title: '深度', dataIndex: 'depth', width: 70 },
       { title: '父 Token', dataIndex: 'parentTokenId', width: 90, render: (v: number | null) => v ? `#${v}` : '—' },
       { title: '作用域', dataIndex: 'scopeKey', width: 180, ellipsis: { showTitle: true }, render: (v: string | null) => v ?? '—' },
-      { title: '创建', dataIndex: 'createdAt', width: 180 },
-      { title: '消费/终止', dataIndex: 'consumedAt', width: 180, render: (v: string | null) => v ?? '—' },
+      dateTimeColumn('创建', 'createdAt'),
+      dateTimeColumn('消费/终止', 'consumedAt'),
       { title: '操作', dataIndex: 'op', width: 130, fixed: 'right', render: (_: unknown, r: WorkflowExecutionToken) => (
         <Space>
           {r.status === 'active' && (
@@ -1017,12 +1016,7 @@ export default function WorkflowMonitorPage() {
       ),
     },
     dateTimeColumn('提交时间', 'createdAt'),
-    {
-      title: '最后更新',
-      dataIndex: 'updatedAt',
-      width: 180,
-      render: (v: string) => formatDateTime(v),
-    },
+    dateTimeColumn('最后更新', 'updatedAt'),
     {
       title: '耗时',
       key: 'duration',

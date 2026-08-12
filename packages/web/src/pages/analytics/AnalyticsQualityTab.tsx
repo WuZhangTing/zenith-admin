@@ -10,7 +10,6 @@ import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
-import { formatDateTime } from '@/utils/date';
 import { config } from '@/config';
 import {
   analyticsKeys,
@@ -147,7 +146,7 @@ export default function AnalyticsQualityTab() {
         </Typography.Text>
       ),
     },
-    { title: '最近发生', dataIndex: 'lastSeenAt', width: 180, render: (value: string | null) => (value ? formatDateTime(value) : '–') },
+    dateTimeColumn('最近发生', 'lastSeenAt'),
   ];
 
   const overrideColumns: ColumnProps<AnalyticsEventOverride>[] = [

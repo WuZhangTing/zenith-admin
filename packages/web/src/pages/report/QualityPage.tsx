@@ -24,6 +24,7 @@ import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import ExportButton from '@/components/ExportButton';
+import { FormTimezoneSelect } from '@/components/FormTimezoneSelect';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePagination } from '@/hooks/usePagination';
@@ -43,9 +44,8 @@ import {
   useUpdateReportDqAnomalyStatus,
 } from '@/hooks/queries/report-dq';
 import { useEnabledReportDatasets } from '@/hooks/queries/report-datasets';
-import { formatDateTime } from '@/utils/date';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
-import { IANA_TIMEZONE_OPTIONS } from '@/utils/timezones';
+import { DEFAULT_TIMEZONE } from '@/utils/timezones';
 import {
   dqRunStatusLabel,
   dqTaskSubmissionMessage,
@@ -148,7 +148,7 @@ export default function QualityPage() {
   const ruleModal = useEditModal<ReportDqRule, Record<string, unknown>>({
     entityName: '质量规则',
     save: saveMutation,
-    defaults: { type: 'not_null', severity: 'medium', timezone: 'Asia/Shanghai', enabled: true },
+    defaults: { type: 'not_null', severity: 'medium', timezone: DEFAULT_TIMEZONE, enabled: true },
     labelWidth: 110,
     toValues: (record) => ({
       ...record,
@@ -194,7 +194,7 @@ export default function QualityPage() {
     { title: '严重度', dataIndex: 'severity', width: 90, render: (v: ReportDqRule['severity']) => <Tag color={severityColor[v]}>{severityOptions.find((i) => i.value === v)?.label}</Tag> },
     { title: 'Cron', dataIndex: 'cron', width: 160, render: (v) => v || '仅手动' },
     { title: '时区', dataIndex: 'timezone', width: 130 },
-    { title: '最近运行', dataIndex: 'lastRunAt', width: 180, render: (v) => v ? formatDateTime(v) : '—' },
+    dateTimeColumn('最近运行', 'lastRunAt'),
     {
       title: '状态', dataIndex: 'enabled', width: 90, fixed: 'right',
       render: (v: boolean, r) => <Switch size="small" checked={v} disabled={!hasPermission('report:dq:update')} loading={toggleMutation.isPending && toggleMutation.variables === r.id} onChange={() => toggleMutation.mutate(r.id)} />,
@@ -347,14 +347,7 @@ export default function QualityPage() {
               />
             </Col>
             <Col xs={24} md={12}>
-              <Form.Select
-                field="timezone"
-                label="时区"
-                filter
-                style={{ width: '100%' }}
-                optionList={IANA_TIMEZONE_OPTIONS}
-                rules={[{ required: true, message: '请选择时区' }]}
-              />
+              <FormTimezoneSelect />
             </Col>
           </Row>
           <RuleConfigFields type={formRuleType} />

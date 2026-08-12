@@ -15,6 +15,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportSlaRule, ReportSlaType, ReportSlaViolation, ReportSlaViolationStatus } from '@zenith/shared/report';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { FormTimezoneSelect } from '@/components/FormTimezoneSelect';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePagination } from '@/hooks/usePagination';
@@ -29,9 +30,10 @@ import {
   useSaveReportSlaRule,
   useUpdateReportSlaViolation,
 } from '@/hooks/queries/report-sla';
-import { formatDateTime } from '@/utils/date';
 import { CreateButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
+import { dateTimeColumn } from '@/utils/table-columns';
+import { DEFAULT_TIMEZONE } from '@/utils/timezones';
 
 const slaTypeOptions = [
   { value: 'freshness', label: '数据新鲜度' },
@@ -65,7 +67,7 @@ export default function GovernanceSlaTab() {
   const ruleModal = useEditModal<ReportSlaRule, Record<string, unknown>>({
     entityName: 'SLA 规则',
     save: saveMutation,
-    defaults: { type: 'freshness', targetValue: 60, windowMinutes: 60, timezone: 'Asia/Shanghai', severity: 'high', channels: [], silenceMins: 60, enabled: true },
+    defaults: { type: 'freshness', targetValue: 60, windowMinutes: 60, timezone: DEFAULT_TIMEZONE, severity: 'high', channels: [], silenceMins: 60, enabled: true },
     labelWidth: 100,
     beforeSave: (values) => ({
       ...values,
@@ -107,7 +109,7 @@ export default function GovernanceSlaTab() {
     { title: '目标/预警', width: 130, render: (_v, r) => `${r.targetValue} / ${r.warningValue ?? '—'}` },
     { title: '窗口', dataIndex: 'windowMinutes', width: 100, render: (v) => `${v} 分钟` },
     { title: '调度', width: 180, render: (_v, r) => r.cron ? `${r.cron} · ${r.timezone}` : '仅手动' },
-    { title: '最近评估', dataIndex: 'lastEvaluatedAt', width: 180, render: (v) => v ? formatDateTime(v) : '—' },
+    dateTimeColumn('最近评估', 'lastEvaluatedAt'),
     {
       title: '状态', dataIndex: 'enabled', width: 90, fixed: 'right',
       render: (v) => <Tag color={v ? 'green' : 'grey'}>{v ? '启用' : '停用'}</Tag>,
@@ -132,8 +134,8 @@ export default function GovernanceSlaTab() {
     { title: '规则 ID', dataIndex: 'ruleId', width: 100 },
     { title: '数据集 ID', dataIndex: 'datasetId', width: 110 },
     { title: '观测/目标', width: 130, render: (_v, r) => `${r.observedValue} / ${r.targetValue}` },
-    { title: '窗口开始', dataIndex: 'windowStartedAt', width: 180, render: (v) => formatDateTime(v) },
-    { title: '窗口结束', dataIndex: 'windowEndedAt', width: 180, render: (v) => formatDateTime(v) },
+    dateTimeColumn('窗口开始', 'windowStartedAt'),
+    dateTimeColumn('窗口结束', 'windowEndedAt'),
     { title: '详情', dataIndex: 'detail', width: 230, render: (v) => v || '—' },
     { title: '状态', dataIndex: 'status', width: 110, fixed: 'right', render: (v) => <Tag color={v === 'open' ? 'red' : v === 'resolved' ? 'green' : 'orange'}>{v}</Tag> },
     createOperationColumn<ReportSlaViolation>({
@@ -172,7 +174,7 @@ export default function GovernanceSlaTab() {
             <Col xs={24} md={12}><Form.InputNumber field="warningValue" label="预警值" min={0} style={{ width: '100%' }} /></Col>
             <Col xs={24} md={12}><Form.InputNumber field="windowMinutes" label="统计窗口" min={1} suffix="分钟" style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
             <Col xs={24} md={12}><Form.Input field="cron" label="Cron" placeholder="留空仅手动评估" /></Col>
-            <Col xs={24} md={12}><Form.Input field="timezone" label="时区" rules={[{ required: true }]} /></Col>
+            <Col xs={24} md={12}><FormTimezoneSelect /></Col>
             <Col xs={24} md={12}><Form.InputNumber field="silenceMins" label="静默分钟" min={0} style={{ width: '100%' }} /></Col>
           </Row>
           <Form.Select multiple field="channels" label="通知渠道" style={{ width: '100%' }} optionList={[{ value: 'email', label: '邮件' }, { value: 'inApp', label: '站内信' }, { value: 'webhook', label: 'Webhook' }]} />

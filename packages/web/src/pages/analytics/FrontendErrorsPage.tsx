@@ -630,18 +630,8 @@ export default function FrontendErrorsPage() {
       width: 120,
       render: (_value, record) => record.assigneeName || '–',
     },
-    {
-      title: '首次',
-      dataIndex: 'firstSeenAt',
-      width: 180,
-      render: (value) => formatDateTime(String(value)),
-    },
-    {
-      title: '最近',
-      dataIndex: 'lastSeenAt',
-      width: 180,
-      render: (value) => formatDateTime(String(value)),
-    },
+    dateTimeColumn('首次', 'firstSeenAt'),
+    dateTimeColumn('最近', 'lastSeenAt'),
     {
       title: '状态',
       dataIndex: 'status',
@@ -758,7 +748,7 @@ export default function FrontendErrorsPage() {
         </Space>
       ),
     },
-    { title: '最近触发', dataIndex: 'lastTriggeredAt', width: 180, render: (_value, record) => record.lastTriggeredAt ? formatDateTime(record.lastTriggeredAt) : '–' },
+    dateTimeColumn('最近触发', 'lastTriggeredAt'),
     {
       title: '启用',
       dataIndex: 'enabled',

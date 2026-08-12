@@ -14,6 +14,7 @@ import {
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { useAnalyticsDrillUsers, useAnalyticsSegments } from '@/hooks/queries/analytics';
 import { usePagination } from '@/hooks/usePagination';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 type ComparisonMode = 'none' | 'dimension' | 'segments';
 
@@ -137,8 +138,8 @@ export function DrillUsersSheet({ context, title, description, onClose }: DrillU
               ),
             },
             { title: 'Distinct ID', dataIndex: 'distinctId', render: (v: string) => <Typography.Text code>{v}</Typography.Text> },
-            { title: '首次出现', dataIndex: 'firstSeenAt', width: 170, render: (v: string | null) => v ?? '–' },
-            { title: '最近活跃', dataIndex: 'lastSeenAt', width: 170, render: (v: string | null) => v ?? '–' },
+            dateTimeColumn('首次出现', 'firstSeenAt'),
+            dateTimeColumn('最近活跃', 'lastSeenAt'),
           ]}
         />
       )}

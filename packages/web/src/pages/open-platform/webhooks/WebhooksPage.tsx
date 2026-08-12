@@ -181,7 +181,7 @@ export default function WebhooksPage() {
         : <Space wrap>{v.map((e) => <Tag key={e} size="small" color="blue">{OPEN_WEBHOOK_EVENT_LABELS[e] ?? e}</Tag>)}</Space>,
     },
     { title: '签名', dataIndex: 'signMode', width: 90, render: (v: string) => v === 'hmacSha256' ? <Tag size="small" color="orange">HMAC</Tag> : <Text type="tertiary">无</Text> },
-    { title: '最近投递', dataIndex: 'lastDeliveryAt', width: 160, render: (v: string | null) => v || <Text type="tertiary">—</Text> },
+    dateTimeColumn('最近投递', 'lastDeliveryAt'),
     {
       title: '状态',
       dataIndex: 'status',

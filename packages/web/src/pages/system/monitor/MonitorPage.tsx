@@ -1404,7 +1404,7 @@ export default function MonitorPage() {
                   },
                   { title: 'Token', dataIndex: 'tokenId', render: (v: string) => <Text type="tertiary" size="small">{v.slice(0, 8)}…</Text> },
                   dateTimeColumn('建立时间', 'connectedAt'),
-                  { title: '最近活动', dataIndex: 'lastActivityAt', render: (v: number) => formatDateTime(new Date(v)) },
+                  dateTimeColumn('最近活动', 'lastActivityAt'),
                   { title: '已持续', dataIndex: 'connectedAt', key: 'duration', render: (v: number) => formatDuration(Date.now() - v) },
                   { title: '发送', dataIndex: 'sent', align: 'right' as const, render: (v: number) => formatNumber(v) },
                   { title: '接收', dataIndex: 'recv', align: 'right' as const, render: (v: number) => formatNumber(v) },

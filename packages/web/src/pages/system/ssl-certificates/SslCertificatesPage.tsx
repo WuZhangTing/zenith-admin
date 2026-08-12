@@ -11,7 +11,7 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { useListSearch } from '@/hooks/useListSearch';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
-import { renderEllipsis } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import {
   sslCertificateKeys,
   useDeleteSslCertificate,
@@ -139,12 +139,7 @@ export default function SslCertificatesPage() {
       render: (value: SslCertificateRecord['type']) => <Tag size="small">{TYPE_LABELS[value]}</Tag>,
     },
     { title: '颁发者', dataIndex: 'issuer', width: 220, render: renderEllipsis },
-    {
-      title: '有效期至',
-      dataIndex: 'validTo',
-      width: 180,
-      render: (value: string | null) => (value ? formatDateTime(value) : '—'),
-    },
+    dateTimeColumn('有效期至', 'validTo'),
     {
       title: '剩余天数',
       dataIndex: 'daysRemaining',

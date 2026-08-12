@@ -99,8 +99,8 @@ function GrantsTab({ appId }: Readonly<{ appId: number }>) {
     { title: '用户', dataIndex: 'nickname', render: (value: string | null, row) => value || row.username || `用户 ${row.userId}` },
     { title: '用户名', dataIndex: 'username', width: 160, render: (value: string | null) => value ?? '—' },
     { title: '授权 Scope', dataIndex: 'scopes', render: (values: string[]) => <Space wrap>{values.map((value) => <Tag key={value} size="small" color="blue">{value}</Tag>)}</Space> },
-    { title: '首次授权', dataIndex: 'createdAt', width: 170 },
-    { title: '最近更新', dataIndex: 'updatedAt', width: 170 },
+    dateTimeColumn('首次授权', 'createdAt'),
+    dateTimeColumn('最近更新', 'updatedAt'),
   ];
   return (
     <ConfigurableTable
@@ -189,7 +189,7 @@ function WebhooksTab({ clientId }: Readonly<{ clientId: string }>) {
     { title: '回调地址', dataIndex: 'url' },
     { title: '事件', dataIndex: 'events', render: (values: string[]) => values.length ? `${values.length} 个事件` : '全部事件' },
     { title: '连续失败', dataIndex: 'consecutiveFailures', width: 100 },
-    { title: '最近投递', dataIndex: 'lastDeliveryAt', width: 170, render: (value: string | null) => value ?? '—' },
+    dateTimeColumn('最近投递', 'lastDeliveryAt'),
     {
       title: '状态',
       dataIndex: 'status',

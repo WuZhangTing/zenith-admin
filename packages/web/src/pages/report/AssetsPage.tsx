@@ -283,7 +283,7 @@ export default function AssetsPage() {
     { title: '查询', dataIndex: 'queries', width: 90 },
     { title: '导出', dataIndex: 'exports', width: 90 },
     { title: '独立用户', dataIndex: 'uniqueUsers', width: 100 },
-    { title: '最后使用', dataIndex: 'lastUsedAt', width: 180, render: (v) => v ? formatDateTime(v) : '—' },
+    dateTimeColumn('最后使用', 'lastUsedAt'),
     { title: '状态', dataIndex: 'deprecated', width: 100, fixed: 'right', render: (v) => <Tag color={v ? 'orange' : 'green'}>{v ? '已弃用' : '正常'}</Tag> },
   ];
   const trendColumns: ColumnProps<ReportAssetUsageTrendPoint>[] = [

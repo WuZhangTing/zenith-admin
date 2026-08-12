@@ -242,7 +242,7 @@ export default function DistributionPage() {
         return parts.length ? parts.join('；') : '全部已发布内容';
       },
     },
-    { title: '最近同步', dataIndex: 'lastRunAt', width: 170, render: (value: string | null) => value ?? '-' },
+    dateTimeColumn('最近同步', 'lastRunAt'),
     {
       title: '状态',
       dataIndex: 'status',

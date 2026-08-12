@@ -682,8 +682,8 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
     { title: '处理人', dataIndex: 'assigneeName', width: 110, render: (value) => value || '—' },
     { title: '触发器', dataIndex: 'triggerDispatchStatus', width: 110, render: (value) => rawTag(value as string | null, value === 'failed' ? 'red' : value === 'retrying' ? 'orange' : 'grey') },
     { title: '外部审批', dataIndex: 'externalDispatchStatus', width: 110, render: (value) => rawTag(value as string | null, value === 'failed' ? 'red' : 'grey') },
-    { title: 'timeoutAt', dataIndex: 'timeoutAt', width: 170, render: (value) => value || '—' },
-    { title: 'wakeAt', dataIndex: 'wakeAt', width: 170, render: (value) => value || '—' },
+    dateTimeColumn('timeoutAt', 'timeoutAt'),
+    dateTimeColumn('wakeAt', 'wakeAt'),
     { title: '年龄', dataIndex: 'ageMinutes', width: 110, render: (value) => formatAge(value as number | null) },
   ];
 
@@ -705,7 +705,7 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
     { title: '实例', dataIndex: 'instanceTitle', width: 260, render: (value, record) => value || (record.instanceId != null ? `#${record.instanceId}` : '—') },
     { title: '状态', dataIndex: 'status', width: 100, render: (value) => rawTag(value as string, value === 'failed' ? 'red' : value === 'retrying' ? 'orange' : 'blue') },
     { title: '尝试', dataIndex: 'attempts', width: 80 },
-    { title: '下次重试', dataIndex: 'nextRetryAt', width: 170, render: (value) => value || '—' },
+    dateTimeColumn('下次重试', 'nextRetryAt'),
     { title: '错误', dataIndex: 'errorMessage', width: 260, render: (value) => value || '—' },
     { title: '年龄', dataIndex: 'ageMinutes', width: 110, render: (value) => formatAge(value as number | null) },
   ];
@@ -732,7 +732,7 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
   const recurringJobColumns: ColumnProps<WorkflowEngineIntrospection['telemetry']['recurringJobs'][number]>[] = [
     { title: '任务名', dataIndex: 'name' },
     { title: 'Cron', dataIndex: 'cronExpression', width: 150 },
-    { title: '下次执行', dataIndex: 'nextRunAt', width: 180, render: (value) => value || '—' },
+    dateTimeColumn('下次执行', 'nextRunAt'),
     dateTimeColumn('注册时间', 'registeredAt'),
   ];
 

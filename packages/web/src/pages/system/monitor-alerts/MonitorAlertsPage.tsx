@@ -6,7 +6,6 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
-import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePagination } from '@/hooks/usePagination';
@@ -30,6 +29,7 @@ import {
 import { CreateButton, ResetButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const OP_SYMBOL: Record<string, string> = { gt: '>', gte: '≥', lt: '<', lte: '≤' };
 const OP_OPTIONS = (['gt', 'gte', 'lt', 'lte'] as const)
@@ -123,10 +123,7 @@ export default function MonitorAlertsPage() {
       title: '当前值', dataIndex: 'lastValue', width: 100,
       render: (v: number | null, r: MonitorAlertRule) => v === null ? '—' : formatMonitorMetricValue(r.metric, v),
     },
-    {
-      title: '最近触发', dataIndex: 'lastTriggeredAt', width: 160,
-      render: (t: string | null) => t ? formatDateTime(t) : <span style={{ color: 'var(--semi-color-text-2)' }}>从未</span>,
-    },
+    dateTimeColumn('最近触发', 'lastTriggeredAt', { empty: '从未' }),
     {
       title: '状态', dataIndex: 'state', width: 130, fixed: 'right',
       render: (state: string, r: MonitorAlertRule) => (

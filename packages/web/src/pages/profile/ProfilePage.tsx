@@ -726,7 +726,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
                       columns={[
                         { title: '名称', dataIndex: 'name', width: 150, render: (v: string) => <Text strong>{v}</Text> },
                         { title: 'Token 前缀', dataIndex: 'tokenPrefix', width: 160, render: (v: string) => <code style={{ fontSize: 12 }}>{v}</code> },
-                        { title: '最后使用', dataIndex: 'lastUsedAt', render: (v: string | null) => v ? formatDateTime(v) : '未使用', width: 180 },
+                        dateTimeColumn('最后使用', 'lastUsedAt', { empty: '未使用' }),
                         dateTimeColumn('过期时间', 'expiresAt', { empty: '永久有效' }),
                         createdAtColumn,
                         {

@@ -366,7 +366,7 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
         </Typography.Text>
       ),
     },
-    { title: '计划执行', dataIndex: 'runAt', width: 160, render: (v: string) => <Typography.Text size="small" type="tertiary">{formatDateTime(v)}</Typography.Text> },
+    { title: '计划执行', dataIndex: 'runAt', width: DATE_TIME_COLUMN_WIDTH, render: (v: string) => <Typography.Text size="small" type="tertiary">{formatDateTime(v)}</Typography.Text> },
     {
       title: '最近错误',
       dataIndex: 'lastError',

@@ -328,7 +328,7 @@ export default function SystemSchedulerPage() {
       width: 170,
       render: (_: unknown, record) => record.taskType === 'recurring' ? <Typography.Text code>{record.cronExpression}</Typography.Text> : <Typography.Text type="tertiary">队列消费</Typography.Text>,
     },
-    { title: '下次执行', dataIndex: 'nextRunAt', width: 210, render: (value: string | null) => value ?? '-' },
+    dateTimeColumn('下次执行', 'nextRunAt'),
     { title: '最近状态', dataIndex: 'lastRunStatus', width: 120, render: statusTag },
     { title: '最近耗时', dataIndex: 'lastDurationMs', width: 120, render: formatDuration },
     {
@@ -507,7 +507,7 @@ export default function SystemSchedulerPage() {
     { title: '状态', dataIndex: 'active', width: 120, render: (_: unknown, record) => <Tag color={record.active && !record.stale ? 'green' : 'red'}>{record.active && !record.stale ? '在线' : '离线'}</Tag> },
     { title: '版本', dataIndex: 'version', width: 140, render: (value: string | null) => value ?? '-' },
     dateTimeColumn('启动时间', 'startedAt'),
-    { title: '最近心跳', dataIndex: 'lastHeartbeatAt', width: 210 },
+    dateTimeColumn('最近心跳', 'lastHeartbeatAt'),
     { title: '注册任务', dataIndex: 'registeredTaskCount', width: 120 },
     { title: '运行任务', dataIndex: 'runningJobCount', width: 120 },
   ];

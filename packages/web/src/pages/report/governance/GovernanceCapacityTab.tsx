@@ -5,6 +5,7 @@ import type { ReportQueryCostLog, ReportQueryCostTrendPoint, ReportQueryQuota, R
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
+import { FormTimezoneSelect } from '@/components/FormTimezoneSelect';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePagination } from '@/hooks/usePagination';
@@ -27,6 +28,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { DateRangeFilter } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { DEFAULT_TIMEZONE } from '@/utils/timezones';
 
 export default function GovernanceCapacityTab() {
   const { hasPermission } = usePermission();
@@ -59,7 +61,7 @@ export default function GovernanceCapacityTab() {
   const quotaModal = useEditModal<ReportQueryQuota, Record<string, unknown>>({
     entityName: '查询配额',
     save: saveMutation,
-    defaults: { scope: 'tenant', maxConcurrent: 5, dailyQueryLimit: 1000, dailyRowLimit: 1000000, dailyByteLimit: 1073741824, dailyCostLimit: 10000, resetTimezone: 'Asia/Shanghai', enabled: true },
+    defaults: { scope: 'tenant', maxConcurrent: 5, dailyQueryLimit: 1000, dailyRowLimit: 1000000, dailyByteLimit: 1073741824, dailyCostLimit: 10000, resetTimezone: DEFAULT_TIMEZONE, enabled: true },
     labelWidth: 105,
     beforeSave: (raw, { isEdit }) => {
       const values = {
@@ -181,7 +183,7 @@ export default function GovernanceCapacityTab() {
             <Col xs={24} md={12}><Form.InputNumber field="dailyRowLimit" label="日行数上限" min={0} style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
             <Col xs={24} md={12}><Form.InputNumber field="dailyByteLimit" label="日字节上限" min={0} style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
             <Col xs={24} md={12}><Form.InputNumber field="dailyCostLimit" label="日成本上限" min={0} style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.Input field="resetTimezone" label="重置时区" rules={[{ required: true }]} /></Col>
+            <Col xs={24} md={12}><FormTimezoneSelect field="resetTimezone" label="重置时区" /></Col>
             <Col xs={24} md={12}><Form.Switch field="enabled" label="启用配额" /></Col>
           </Row>
         </Form>

@@ -21,6 +21,7 @@ import {
   useRunRetentionPolicy,
   useUpdateRetentionPolicy,
 } from '@/hooks/queries/retention';
+import { DATE_TIME_COLUMN_WIDTH } from '@/utils/table-columns';
 
 const { Title, Text } = Typography;
 
@@ -160,7 +161,7 @@ export default function RetentionPage() {
             key: 'lastRunAt',
             title: '上次执行',
             dataIndex: 'lastRunAt',
-            width: 180,
+            width: DATE_TIME_COLUMN_WIDTH,
             render: (at: string | null, row: RetentionPolicy) => (at
               ? <div><div>{at}</div><Text type="tertiary" size="small">清理 {row.lastDeleted} 行</Text></div>
               : <Text type="tertiary">从未执行</Text>),

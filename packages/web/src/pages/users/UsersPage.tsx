@@ -20,7 +20,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import './UsersPage.css';
-import { createdAtColumn, renderEllipsis } from '../../utils/table-columns';
+import { createdAtColumn, dateTimeColumn, renderEllipsis } from '../../utils/table-columns';
 import { UserMenuPermissionModal } from './UserMenuPermissionModal';
 import { UserDataScopeModal } from './UserDataScopeModal';
 import { UserAvatarModal } from './UserAvatarModal';
@@ -483,12 +483,7 @@ export default function UsersPage() {
         </Space>
       ),
     },
-    {
-      title: '最近登录',
-      dataIndex: 'lastLoginAt',
-      width: 180,
-      render: (v: string | null | undefined) => v ?? '—',
-    },
+    dateTimeColumn('最近登录', 'lastLoginAt'),
     createdAtColumn,
     {
       title: '状态',

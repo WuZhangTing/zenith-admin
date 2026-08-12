@@ -3,6 +3,7 @@ import { Button, Col, Form, Modal, Row, Select, SideSheet, Switch, Tag, Toast, T
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
+import { FormTimezoneSelect } from '@/components/FormTimezoneSelect';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
@@ -32,6 +33,7 @@ import { switchAlertSource } from './report-platform-utils';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { DEFAULT_TIMEZONE } from '@/utils/timezones';
 
 interface SearchParams {
   keyword: string;
@@ -127,7 +129,7 @@ export default function AlertsPage() {
   const alertModal = useEditModal<ReportAlertRule, Record<string, unknown>, CreateReportAlertInput>({
     entityName: '预警',
     save: saveMutation,
-    defaults: { sourceType: 'dataset', aggregate: 'sum', op: 'gt', cron: '', timezone: 'Asia/Shanghai', misfirePolicy: 'fire_once', channels: ['inApp'], silenceMins: 60, notifyOnRecover: false, enabled: 'enabled' },
+    defaults: { sourceType: 'dataset', aggregate: 'sum', op: 'gt', cron: '', timezone: DEFAULT_TIMEZONE, misfirePolicy: 'fire_once', channels: ['inApp'], silenceMins: 60, notifyOnRecover: false, enabled: 'enabled' },
     toValues: (record) => ({
       name: record.name,
       datasetId: record.datasetId,
@@ -185,7 +187,7 @@ export default function AlertsPage() {
       op: values.op as ReportAlertOp,
       threshold: Number(values.threshold),
       cron: values.cron ? String(values.cron) : null,
-      timezone: String(values.timezone ?? 'Asia/Shanghai'),
+      timezone: String(values.timezone ?? DEFAULT_TIMEZONE),
       misfirePolicy: values.misfirePolicy as 'skip' | 'fire_once',
       channels,
       recipients: channels.includes('email') && values.recipients ? String(values.recipients) : undefined,
@@ -287,7 +289,7 @@ export default function AlertsPage() {
         </Tooltip>
       ),
     },
-    { title: '下次执行', dataIndex: 'nextRunAt', width: 180, render: (value: string | null) => value || '—' },
+    dateTimeColumn('下次执行', 'nextRunAt'),
     { title: '时区', dataIndex: 'timezone', width: 120, render: (value: string) => value || '—' },
     { title: '错过策略', dataIndex: 'misfirePolicy', width: 110, render: (value: string) => REPORT_MISFIRE_POLICY_OPTIONS.find((item) => item.value === value)?.label ?? value },
     {
@@ -467,7 +469,7 @@ export default function AlertsPage() {
               />
             </Col>
             <Col xs={24} md={12}>
-              <Form.Input field="timezone" label="时区" placeholder="Asia/Shanghai" rules={[{ required: true, message: '请输入 IANA 时区' }]} showClear />
+              <FormTimezoneSelect />
             </Col>
             <Col xs={24} md={12}>
               <Form.Select field="misfirePolicy" label="错过策略" style={{ width: '100%' }} optionList={REPORT_MISFIRE_POLICY_OPTIONS} />

@@ -9,8 +9,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ExportButton from '@/components/ExportButton';
-import { formatDateTime } from '@/utils/date';
-import { createdAtColumn } from '@/utils/table-columns';
+import { createdAtColumn, dateTimeColumn } from '@/utils/table-columns';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
@@ -205,8 +204,8 @@ export default function PaymentContractsPage() {
     { title: '业务', dataIndex: 'bizType', width: 140, render: (v: string, r) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 120 }}>{`${v}:${r.bizId}`}</Typography.Text> },
     { title: '已扣期数', dataIndex: 'totalDeductCount', width: 90 },
     { title: '连续失败', dataIndex: 'failCount', width: 90, render: (v: number) => (v > 0 ? <Tag color="red">{v} 次</Tag> : '0') },
-    { title: '下次扣款', dataIndex: 'nextDeductAt', width: 170, render: (v: string | null) => (v ? formatDateTime(v) : '-') },
-    { title: '上次扣款', dataIndex: 'lastDeductAt', width: 190, render: (v: string | null) => (v ? formatDateTime(v) : '-') },
+    dateTimeColumn('下次扣款', 'nextDeductAt'),
+    dateTimeColumn('上次扣款', 'lastDeductAt'),
     createdAtColumn as ColumnProps<PaymentContract>,
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentContractStatus) => <Tag color={CONTRACT_STATUS_COLOR[v]}>{PAYMENT_CONTRACT_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentContract>({

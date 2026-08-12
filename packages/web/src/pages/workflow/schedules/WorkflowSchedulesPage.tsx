@@ -7,6 +7,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { FormTimezoneSelect } from '@/components/FormTimezoneSelect';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { usePublishedWorkflowDefinitions } from '@/hooks/queries/workflow-definitions';
@@ -23,6 +24,8 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
+import { dateTimeColumn } from '@/utils/table-columns';
+import { DEFAULT_TIMEZONE } from '@/utils/timezones';
 
 type ScheduleStatus = WorkflowSchedule['status'];
 
@@ -42,14 +45,6 @@ interface FormValues extends Record<string, unknown> {
 }
 
 const defaultSearchParams: SearchParams = { definitionId: '', status: '' };
-
-/** 常用 IANA 时区选项（默认 Asia/Shanghai，可输入过滤） */
-const TIMEZONE_OPTIONS = [
-  'Asia/Shanghai', 'Asia/Hong_Kong', 'Asia/Taipei', 'Asia/Singapore', 'Asia/Tokyo', 'Asia/Seoul',
-  'Asia/Kolkata', 'Asia/Dubai', 'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Europe/Moscow',
-  'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'America/Sao_Paulo',
-  'Australia/Sydney', 'Pacific/Auckland', 'UTC',
-].map((tz) => ({ value: tz, label: tz }));
 
 // CronBuilderPopover 内部使用 6 段（含秒）cron；定时发起存标准 5 段，故在边界转换
 const toSixField = (expr: string) => {
@@ -176,16 +171,11 @@ export default function WorkflowSchedulesPage() {
       render: (value: string, record) => (
         <Space spacing={6}>
           <code style={{ fontFamily: 'var(--semi-font-family-monospace), monospace' }}>{value}</code>
-          {record.timezone && record.timezone !== 'Asia/Shanghai' ? <Tag size="small" color="blue">{record.timezone}</Tag> : null}
+          {record.timezone && record.timezone !== DEFAULT_TIMEZONE ? <Tag size="small" color="blue">{record.timezone}</Tag> : null}
         </Space>
       ),
     },
-    {
-      title: '下次执行',
-      dataIndex: 'nextRunAt',
-      width: 170,
-      render: (value: string | null) => (value ? formatDateTime(value) : '—'),
-    },
+    dateTimeColumn('下次执行', 'nextRunAt'),
     {
       title: '最近执行',
       dataIndex: 'lastRunAt',
@@ -355,15 +345,9 @@ export default function WorkflowSchedulesPage() {
               />
             }
           />
-          <Form.Select
-            field="timezone"
-            label="时区"
-            style={{ width: '100%' }}
-            optionList={TIMEZONE_OPTIONS}
-            filter
-            showClear
-            placeholder="默认 Asia/Shanghai"
-            extraText="Cron 按该 IANA 时区计算触发时间，留空使用 Asia/Shanghai"
+          <FormTimezoneSelect
+            required={false}
+            extraText={`Cron 按该 IANA 时区计算触发时间；留空使用 ${DEFAULT_TIMEZONE}`}
           />
           <Form.Select
             field="initiatorId"

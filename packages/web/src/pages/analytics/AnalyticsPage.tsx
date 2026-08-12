@@ -1506,7 +1506,7 @@ function UsersTab() {
     { title: '访问页面数', dataIndex: 'uniquePages', width: 120 },
     { title: '功能使用', dataIndex: 'featureUses', width: 110 },
     { title: '总停留', dataIndex: 'totalDwellMs', width: 130, render: (_value, record) => msToReadable(record.totalDwellMs) },
-    { title: '最近活跃', dataIndex: 'lastActiveAt', width: 180, render: (_value, record) => (record.lastActiveAt ? formatDateTime(record.lastActiveAt) : '–'), fixed: 'right' },
+    dateTimeColumn('最近活跃', 'lastActiveAt', { fixed: 'right' }),
   ];
 
   return (
@@ -1828,7 +1828,7 @@ function HeatmapTab() {
     },
     { title: '发生次数', dataIndex: 'count', width: 110, render: (value) => <Tag color="red">{numberText(Number(value))}</Tag> },
     { title: '影响人数', dataIndex: 'uniqueUsers', width: 110, render: (value) => numberText(Number(value)) },
-    { title: '最近发生', dataIndex: 'lastAt', width: 180, render: (value) => value ? String(value) : '–' },
+    dateTimeColumn('最近发生', 'lastAt'),
   ];
 
   return (

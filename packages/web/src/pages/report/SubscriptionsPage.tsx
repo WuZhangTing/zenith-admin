@@ -6,6 +6,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
+import { FormTimezoneSelect } from '@/components/FormTimezoneSelect';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
@@ -29,6 +30,7 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { DEFAULT_TIMEZONE } from '@/utils/timezones';
 
 const deliveryStatusColorMap: Record<string, 'green' | 'red' | 'orange' | 'grey' | 'blue' | 'amber'> = {
   success: 'green',
@@ -77,7 +79,7 @@ export default function SubscriptionsPage() {
   const subscriptionModal = useEditModal<ReportDashboardSubscription, Record<string, unknown>>({
     entityName: '订阅',
     save: saveMutation,
-    defaults: { cron: '0 0 9 * * *', timezone: 'Asia/Shanghai', misfirePolicy: 'fire_once', channels: ['inApp'], enabled: 'enabled' },
+    defaults: { cron: '0 0 9 * * *', timezone: DEFAULT_TIMEZONE, misfirePolicy: 'fire_once', channels: ['inApp'], enabled: 'enabled' },
     labelWidth: 110,
     toValues: (editing) => ({
       dashboardId: editing.dashboardId,
@@ -129,10 +131,10 @@ export default function SubscriptionsPage() {
     { title: 'Cron', dataIndex: 'cron', width: 130 },
     { title: '时区', dataIndex: 'timezone', width: 140 },
     { title: '错过策略', dataIndex: 'misfirePolicy', width: 110, render: (value: string) => REPORT_MISFIRE_POLICY_OPTIONS.find((item) => item.value === value)?.label ?? value },
-    { title: '下次执行', dataIndex: 'nextRunAt', width: 180, render: (value: string | null) => value || '—' },
+    dateTimeColumn('下次执行', 'nextRunAt'),
     { title: '通道', dataIndex: 'channels', width: 170, render: (ch: string[]) => (ch ?? []).map((c) => <Tag key={c} size="small" color={c === 'email' ? 'blue' : c === 'webhook' ? 'purple' : 'green'} style={{ marginRight: 4 }}>{NOTIFY_CHANNEL_LABELS[c.toLowerCase() as NotifyChannel] ?? c}</Tag>) },
     { title: '收件邮箱', dataIndex: 'recipients', width: 200, render: renderEllipsis },
-    { title: '上次推送', dataIndex: 'lastRunAt', width: 180, render: (v: string) => v || '—' },
+    dateTimeColumn('上次推送', 'lastRunAt'),
     {
       title: '最近投递',
       dataIndex: 'lastDeliveryStatus',
@@ -191,7 +193,7 @@ export default function SubscriptionsPage() {
             optionList={dashboards.map((d) => ({ value: d.id, label: d.name }))} />
           <Form.Input field="cron" label="Cron 表达式" rules={[{ required: true, message: '请输入 Cron 表达式' }]} placeholder="如 0 0 9 * * *（每天 9 点）"
             addonAfter={<CronBuilderPopover value={cronExprValue} onApply={(expr) => { subscriptionModal.formApi.current?.setValue('cron', expr); setCronExprValue(expr); }} />} />
-          <Form.Input field="timezone" label="时区" placeholder="Asia/Shanghai" rules={[{ required: true, message: '请输入 IANA 时区' }]} showClear />
+          <FormTimezoneSelect />
           <Form.Select field="misfirePolicy" label="错过策略" style={{ width: '100%' }} optionList={REPORT_MISFIRE_POLICY_OPTIONS} />
           <Form.Select field="channels" label="推送通道" multiple style={{ width: '100%' }} rules={[{ required: true, message: '至少一个通道' }]}
             optionList={[{ value: 'inApp', label: '站内信（推给创建者）' }, { value: 'email', label: '邮件' }, { value: 'webhook', label: 'Webhook（企微/钉钉机器人）' }]} />
@@ -226,7 +228,7 @@ export default function SubscriptionsPage() {
             { title: '状态', dataIndex: 'status', width: 90, render: (value: string) => <Tag color={deliveryStatusColorMap[value] ?? 'grey'}>{REPORT_DELIVERY_STATUS_LABELS[value as keyof typeof REPORT_DELIVERY_STATUS_LABELS] ?? value}</Tag> },
             dateTimeColumn('开始时间', 'startedAt'),
             dateTimeColumn('完成时间', 'completedAt'),
-            { title: '下次重试', dataIndex: 'nextRetryAt', width: 180, render: (value: string | null) => value || '—' },
+            dateTimeColumn('下次重试', 'nextRetryAt'),
             { title: '错误', dataIndex: 'errorMessage', width: 220, render: renderEllipsis },
           ] as ColumnProps<ReportDeliveryRun>[]}
           pagination={false}

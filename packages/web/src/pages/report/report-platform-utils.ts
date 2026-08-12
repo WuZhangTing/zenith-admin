@@ -1,6 +1,7 @@
 import { createReportDqRuleSchema, createReportMetricSchema, createReportQueryQuotaSchema, grantReportResourceAclSchema, applyReportAssetTemplateSchema, reportMetricLifecycleActionSchema, updateReportMetricSchema, updateReportDqRuleSchema, updateReportQueryQuotaSchema } from '@zenith/shared/report';
 import type { ApplyReportAssetTemplateInput, CreateReportMetricInput, GrantReportResourceAclInput, ReportDqRunStatus, ReportMetric, ReportResourceType, ReportWidgetType } from '@zenith/shared/report';
 import type { AsyncTask } from '@zenith/shared/tasks';
+import { DEFAULT_TIMEZONE } from '@/utils/timezones';
 
 export const METRIC_WIDGET_TYPES: readonly ReportWidgetType[] = ['kpi', 'gauge', 'flipper', 'liquid'];
 
@@ -73,7 +74,7 @@ export function normalizeDqRuleFormValues(values: Record<string, unknown>, editi
     severity: values.severity ?? 'medium',
     config,
     cron: values.cron || null,
-    timezone: values.timezone || 'Asia/Shanghai',
+    timezone: values.timezone || DEFAULT_TIMEZONE,
     enabled: values.enabled ?? true,
   };
   const parsed = editing

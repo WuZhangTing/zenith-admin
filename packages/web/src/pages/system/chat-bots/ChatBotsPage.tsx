@@ -12,8 +12,7 @@ import { AppModal } from '@/components/AppModal';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
-import { formatDateTime } from '@/utils/date';
-import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
+import { createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import {
   chatBotKeys,
   useChatBotGroupConversations,
@@ -219,12 +218,7 @@ export default function ChatBotsPage() {
         </div>
       ),
     },
-    {
-      title: '最近使用',
-      dataIndex: 'lastUsedAt',
-      width: 180,
-      render: (value: string | null) => value ? formatDateTime(value) : '—',
-    },
+    dateTimeColumn('最近使用', 'lastUsedAt'),
     createdAtColumn as ColumnProps<ChatWebhook>,
     {
       title: '状态',
