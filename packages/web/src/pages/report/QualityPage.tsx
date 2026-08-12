@@ -45,6 +45,7 @@ import {
 import { useEnabledReportDatasets } from '@/hooks/queries/report-datasets';
 import { formatDateTime } from '@/utils/date';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
+import { IANA_TIMEZONE_OPTIONS } from '@/utils/timezones';
 import {
   dqRunStatusLabel,
   dqTaskSubmissionMessage,
@@ -148,7 +149,7 @@ export default function QualityPage() {
     entityName: '质量规则',
     save: saveMutation,
     defaults: { type: 'not_null', severity: 'medium', timezone: 'Asia/Shanghai', enabled: true },
-    labelWidth: 92,
+    labelWidth: 110,
     toValues: (record) => ({
       ...record,
       ...record.config,
@@ -345,7 +346,16 @@ export default function QualityPage() {
                 )}
               />
             </Col>
-            <Col xs={24} md={12}><Form.Input field="timezone" label="时区" rules={[{ required: true }]} /></Col>
+            <Col xs={24} md={12}>
+              <Form.Select
+                field="timezone"
+                label="时区"
+                filter
+                style={{ width: '100%' }}
+                optionList={IANA_TIMEZONE_OPTIONS}
+                rules={[{ required: true, message: '请选择时区' }]}
+              />
+            </Col>
           </Row>
           <RuleConfigFields type={formRuleType} />
         </Form>
