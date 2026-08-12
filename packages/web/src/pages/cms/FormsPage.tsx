@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Form, Tag, Toast, ArrayField, Typography, SideSheet } from '@douyinfe/semi-ui';
+import { ArrayField, Button, Col, Form, Row, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, Trash2 } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -130,6 +130,7 @@ export default function FormsPage() {
       });
       return payload;
     },
+    labelWidth: 140,
   });
   const deleteMutation = useDeleteCmsForm();
   const canManage = hasPermission('cms:form:manage');
@@ -194,21 +195,65 @@ export default function FormsPage() {
         pagination={buildPagination(listQuery.data?.total ?? 0)}
       />
 
-      <AppModal {...modal.modalProps} width={780}>
+      <SideSheet
+        title={modal.modalProps.title}
+        visible={modal.visible}
+        onCancel={modal.close}
+        closeOnEsc
+        width={860}
+        footer={(
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button type="tertiary" onClick={modal.close}>取消</Button>
+            <Button
+              type="primary"
+              theme="solid"
+              loading={modal.modalProps.okButtonProps.loading}
+              disabled={modal.modalProps.okButtonProps.disabled}
+              onClick={() => void modal.modalProps.onOk()}
+            >
+              保存
+            </Button>
+          </div>
+        )}
+      >
         <Form {...modal.formProps}>
-          <Form.Input field="name" label="表单名称" rules={[{ required: true, message: '请输入表单名称' }]} />
-          <Form.Input field="code" label="表单标识" disabled={modal.isEdit} placeholder="如 contact（前台提交与栏目绑定用）" rules={[{ required: true, message: '请输入表单标识' }]} />
-          <Form.Input field="successMessage" label="成功提示" placeholder="提交成功后展示的文案" />
-          <Form.Input field="notifyEmail" label="通知邮箱" placeholder="收到新提交时通知，多个邮箱用逗号分隔（留空不通知）" />
-          <Form.Select field="captchaProvider" label="验证码策略" style={{ width: '100%' }}
-            optionList={CMS_FORM_CAPTCHA_PROVIDERS.map((value) => ({ value, label: CMS_FORM_CAPTCHA_PROVIDER_LABELS[value] }))} />
-          <Form.Input field="turnstileSiteKey" label="Turnstile Site Key" maxLength={200} />
-          <Form.Input field="turnstileSecret" type="password" label="Turnstile Secret" maxLength={500} placeholder="留空或保留掩码表示不修改" />
-          {modal.isEdit ? <Form.Checkbox field="clearTurnstileSecret" noLabel>清除已配置的 Turnstile Secret</Form.Checkbox> : null}
-          <Form.RadioGroup field="status" label="状态">
-            <Form.Radio value="enabled">启用</Form.Radio>
-            <Form.Radio value="disabled">停用</Form.Radio>
-          </Form.RadioGroup>
+          <Form.Section text="基础信息">
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Input field="name" label="表单名称" rules={[{ required: true, message: '请输入表单名称' }]} />
+              </Col>
+              <Col span={12}>
+                <Form.Input field="code" label="表单标识" disabled={modal.isEdit} placeholder="如 contact（前台提交与栏目绑定用）" rules={[{ required: true, message: '请输入表单标识' }]} />
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Input field="successMessage" label="成功提示" placeholder="提交成功后展示的文案" />
+              </Col>
+              <Col span={12}>
+                <Form.RadioGroup field="status" label="状态">
+                  <Form.Radio value="enabled">启用</Form.Radio>
+                  <Form.Radio value="disabled">停用</Form.Radio>
+                </Form.RadioGroup>
+              </Col>
+            </Row>
+            <Form.Input field="notifyEmail" label="通知邮箱" placeholder="收到新提交时通知，多个邮箱用逗号分隔（留空不通知）" />
+          </Form.Section>
+
+          <Form.Section text="验证码防护">
+            <Form.Select field="captchaProvider" label="验证码策略" style={{ width: '100%' }}
+              optionList={CMS_FORM_CAPTCHA_PROVIDERS.map((value) => ({ value, label: CMS_FORM_CAPTCHA_PROVIDER_LABELS[value] }))} />
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Input field="turnstileSiteKey" label="Turnstile Site Key" maxLength={200} />
+              </Col>
+              <Col span={12}>
+                <Form.Input field="turnstileSecret" type="password" label="Turnstile Secret" maxLength={500} placeholder="留空或保留掩码表示不修改" />
+              </Col>
+            </Row>
+            {modal.isEdit ? <Form.Checkbox field="clearTurnstileSecret" noLabel>清除已配置的 Turnstile Secret</Form.Checkbox> : null}
+          </Form.Section>
+
           <Form.Section text="表单字段">
             <ArrayField field="fields">
               {({ add, arrayFields }) => (
@@ -244,7 +289,7 @@ export default function FormsPage() {
             </ArrayField>
           </Form.Section>
         </Form>
-      </AppModal>
+      </SideSheet>
 
       <SubmissionsSheet form={viewingForm} onClose={() => setViewingForm(null)} />
       <AppModal
