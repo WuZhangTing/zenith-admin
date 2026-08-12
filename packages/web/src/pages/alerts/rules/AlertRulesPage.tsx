@@ -127,20 +127,21 @@ export default function AlertRulesPage() {
     },
     dateTimeColumn('最近触发', 'lastTriggeredAt', { empty: '从未' }),
     {
-      title: '状态', dataIndex: 'state', width: 130, fixed: 'right',
-      render: (state: string, r: MonitorAlertRule) => (
-        <Space spacing={6}>
-          {state === 'firing'
-            ? <Tag color="red" size="small">告警中</Tag>
-            : <Tag color="green" size="small">正常</Tag>}
-          <Switch
-            checked={r.enabled}
-            loading={togglingId === r.id}
-            disabled={!canUpdate}
-            onChange={(c) => handleToggle(r, c)}
-            size="small"
-          />
-        </Space>
+      title: '告警状态', dataIndex: 'state', width: 100, fixed: 'right',
+      render: (state: string) => state === 'firing'
+        ? <Tag color="red" size="small">告警中</Tag>
+        : <Tag color="green" size="small">未触发</Tag>,
+    },
+    {
+      title: '启用状态', dataIndex: 'enabled', width: 100, fixed: 'right',
+      render: (enabled: boolean, r: MonitorAlertRule) => (
+        <Switch
+          checked={enabled}
+          loading={togglingId === r.id}
+          disabled={!canUpdate}
+          onChange={(checked) => handleToggle(r, checked)}
+          size="small"
+        />
       ),
     },
     createOperationColumn<MonitorAlertRule>({

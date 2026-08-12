@@ -20,6 +20,7 @@ import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { getMetricSnapshotsByTenant } from './monitor-history.service';
 import { validateAlertDelivery } from '../../lib/alert-validation';
 import { dispatchAlertChannels } from '../../lib/alert-dispatch';
+import type { DbExecutor } from '../../db/types';
 
 const OPERATOR_SYMBOL: Record<MonitorAlertOperator, string> = { gt: '>', gte: '≥', lt: '<', lte: '≤' };
 
@@ -35,6 +36,13 @@ function compare(value: number, op: MonitorAlertOperator, threshold: number): bo
     case 'lte': return value <= threshold;
     default: return false;
   }
+}
+
+async function resolveActiveRuleEvents(executor: DbExecutor, ruleId: number, resolvedAt: Date): Promise<void> {
+  await executor
+    .update(monitorAlertEvents)
+    .set({ status: 'resolved', resolvedAt })
+    .where(and(eq(monitorAlertEvents.ruleId, ruleId), eq(monitorAlertEvents.status, 'firing')));
 }
 
 // ─── 映射 ────────────────────────────────────────────────────────────────
@@ -135,24 +143,37 @@ export async function updateRule(id: number, input: UpdateMonitorAlertRuleInput)
     webhookUrl: input.webhookUrl === undefined ? current.webhookUrl : input.webhookUrl,
     recipients: input.recipients ?? current.recipients ?? [],
   });
-  const [row] = await db
-    .update(monitorAlertRules)
-    .set({
-      ...(input.name !== undefined ? { name: input.name } : {}),
-      ...(input.metric !== undefined ? { metric: input.metric } : {}),
-      ...(input.operator !== undefined ? { operator: input.operator } : {}),
-      ...(input.threshold !== undefined ? { threshold: input.threshold } : {}),
-      ...(input.durationMinutes !== undefined ? { durationMinutes: input.durationMinutes } : {}),
-      ...(input.level !== undefined ? { level: input.level } : {}),
-      ...(input.channels !== undefined ? { channels: input.channels } : {}),
-      ...(input.webhookUrl !== undefined ? { webhookUrl: input.webhookUrl } : {}),
-      ...(input.recipients !== undefined ? { recipients: input.recipients } : {}),
-      ...(input.silenceMinutes !== undefined ? { silenceMinutes: input.silenceMinutes } : {}),
-      ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
-    })
-    .where(eq(monitorAlertRules.id, id))
-    .returning();
-  return mapRule(row);
+  const resetLifecycle = input.enabled === false || (input.enabled === true && !current.enabled);
+  const updateData: Partial<typeof monitorAlertRules.$inferInsert> = {
+    ...(input.name !== undefined ? { name: input.name } : {}),
+    ...(input.metric !== undefined ? { metric: input.metric } : {}),
+    ...(input.operator !== undefined ? { operator: input.operator } : {}),
+    ...(input.threshold !== undefined ? { threshold: input.threshold } : {}),
+    ...(input.durationMinutes !== undefined ? { durationMinutes: input.durationMinutes } : {}),
+    ...(input.level !== undefined ? { level: input.level } : {}),
+    ...(input.channels !== undefined ? { channels: input.channels } : {}),
+    ...(input.webhookUrl !== undefined ? { webhookUrl: input.webhookUrl } : {}),
+    ...(input.recipients !== undefined ? { recipients: input.recipients } : {}),
+    ...(input.silenceMinutes !== undefined ? { silenceMinutes: input.silenceMinutes } : {}),
+    ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+    ...(resetLifecycle ? { state: 'ok', breachingSince: null } : {}),
+  };
+  const update = async (executor: DbExecutor) => {
+    const [row] = await executor
+      .update(monitorAlertRules)
+      .set(updateData)
+      .where(eq(monitorAlertRules.id, id))
+      .returning();
+    return row;
+  };
+
+  if (!resetLifecycle) return mapRule(await update(db));
+
+  return db.transaction(async (tx) => {
+    const row = await update(tx);
+    await resolveActiveRuleEvents(tx, id, new Date());
+    return mapRule(row);
+  });
 }
 
 export async function deleteRule(id: number) {
@@ -168,8 +189,18 @@ export async function setRuleEnabled(id: number, enabled: boolean) {
     webhookUrl: current.webhookUrl,
     recipients: current.recipients ?? [],
   });
-  const [row] = await db.update(monitorAlertRules).set({ enabled }).where(eq(monitorAlertRules.id, id)).returning();
-  return mapRule(row);
+  if (enabled && current.enabled) return mapRule(current);
+
+  return db.transaction(async (tx) => {
+    const resolvedAt = new Date();
+    const [row] = await tx
+      .update(monitorAlertRules)
+      .set({ enabled, state: 'ok', breachingSince: null })
+      .where(eq(monitorAlertRules.id, id))
+      .returning();
+    await resolveActiveRuleEvents(tx, id, resolvedAt);
+    return mapRule(row);
+  });
 }
 
 // ─── 告警记录列表 ─────────────────────────────────────────────────────────
