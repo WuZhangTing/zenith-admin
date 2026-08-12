@@ -13,6 +13,9 @@ import { extractCmsResourceRefFields } from '../lib/cms-resource-uri';
 
 const require = createRequire(import.meta.url);
 
+/** 手工创建菜单的 id 起点：与 SEED_MENUS 的 id 段（当前最大 15021）留出足够间隔，避免后续新增 seed 菜单撞 id */
+const MENU_CUSTOM_ID_START = 100000;
+
 const { provinces, cities, areas } = require('china-division') as {
   provinces: Array<{ code: string; name: string }>;
   cities: Array<{ code: string; name: string; provinceCode: string }>;
@@ -92,10 +95,9 @@ async function seed() {
 
 async function seedRest() {
   // ─── 2. 菜单数据（数据来源：@zenith/shared SEED_MENUS）─────────────────────
-  // 菜单是系统定义资源，以 SEED_MENUS 为唯一权威来源：清空重建（绑定表随 CASCADE 清空后重新种入），
-  // 避免历史 ID 残留；用户收藏菜单引用旧 ID，一并重置。
-  await db.execute(sql`TRUNCATE TABLE menus, role_menus, user_menus, tenant_package_menus RESTART IDENTITY CASCADE`);
-  await db.execute(sql`UPDATE users SET favorite_menus = NULL`);
+  // 菜单以 SEED_MENUS 为权威来源，但只按 id upsert，不清空重建：
+  // 手工创建的菜单及 role_menus / user_menus / tenant_package_menus 授权、用户收藏均原样保留。
+  // setWhere 让内容未变的行跳过 UPDATE，避免每次 dev 启动都刷新 881 行的 updated_at / updated_by。
   const menuRows = SEED_MENUS.map((row) => ({
     id: row.id,
     parentId: row.parentId,
@@ -110,9 +112,35 @@ async function seedRest() {
     status: row.status,
     visible: row.visible,
   }));
-  await db.insert(menus).values(menuRows);
-  await db.execute(sql`SELECT setval('menus_id_seq', GREATEST((SELECT MAX(id) FROM menus), 1))`);
-  logger.info(`  ✔ Menus rebuilt from seed — ${menuRows.length} records`);
+  const writtenMenus = await db.insert(menus).values(menuRows)
+    .onConflictDoUpdate({
+      target: menus.id,
+      set: {
+        parentId: sql`excluded.parent_id`,
+        title: sql`excluded.title`,
+        name: sql`excluded.name`,
+        path: sql`excluded.path`,
+        component: sql`excluded.component`,
+        icon: sql`excluded.icon`,
+        type: sql`excluded.type`,
+        permission: sql`excluded.permission`,
+        sort: sql`excluded.sort`,
+        status: sql`excluded.status`,
+        visible: sql`excluded.visible`,
+        updatedAt: sql`now()`,
+      },
+      setWhere: sql`(
+        ${menus.parentId}, ${menus.title}, ${menus.name}, ${menus.path}, ${menus.component}, ${menus.icon},
+        ${menus.type}, ${menus.permission}, ${menus.sort}, ${menus.status}, ${menus.visible}
+      ) IS DISTINCT FROM (
+        excluded.parent_id, excluded.title, excluded.name, excluded.path, excluded.component, excluded.icon,
+        excluded.type, excluded.permission, excluded.sort, excluded.status, excluded.visible
+      )`,
+    })
+    .returning({ id: menus.id });
+  // 手工创建的菜单从 100000 起分配 id，避免与后续新增的 seed 菜单（当前最大 15021）撞 id 被覆盖
+  await db.execute(sql`SELECT setval('menus_id_seq', GREATEST((SELECT MAX(id) FROM menus), ${MENU_CUSTOM_ID_START}))`);
+  logger.info(`  ✔ Menus synced from seed — ${menuRows.length} defined, ${writtenMenus.length} written`);
 
   // ─── 3. 角色数据（数据来源：@zenith/shared SEED_ROLES）────────────────────
   const roleRows = SEED_ROLES.map(({ id, name, code, description, status, dataScope }) => ({ id, name, code, description, status, dataScope }));
