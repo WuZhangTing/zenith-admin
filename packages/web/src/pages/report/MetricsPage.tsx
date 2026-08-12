@@ -3,7 +3,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Button, Col, Empty, Form, Modal, Row, Select, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportMetric, ReportMetricType } from '@zenith/shared/report';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -238,45 +237,56 @@ export default function MetricsPage() {
         refreshLoading={listQuery.isFetching}
       />
 
-      <AppModal
-        {...metricModal.modalProps}
-        width={720}
+      <SideSheet
+        title={metricModal.isEdit ? `编辑指标 · ${metricModal.editing?.name ?? ''}` : '新建指标'}
+        visible={metricModal.visible}
+        onCancel={metricModal.close}
+        closeOnEsc
+        placement="right"
+        width={760}
+        bodyStyle={{ padding: 16, overflow: 'auto' }}
       >
-        {conflict && (
-          <Banner
-            type="warning"
-            description={conflict}
-            closeIcon={null}
-            style={{ marginBottom: 12 }}
-          >
-            <Button size="small" onClick={async () => { const result = await detailQuery.refetch(); if (result.data) metricModal.openEdit(result.data); setConflict(''); }}>
-              加载最新版本
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {conflict && (
+            <Banner
+              type="warning"
+              description={conflict}
+              closeIcon={null}
+              style={{ marginBottom: 0 }}
+            >
+              <Button size="small" onClick={async () => { const result = await detailQuery.refetch(); if (result.data) metricModal.openEdit(result.data); setConflict(''); }}>
+                加载最新版本
+              </Button>
+            </Banner>
+          )}
+          {detailQuery.isError && <Banner type="danger" description="指标详情加载失败，请关闭后重试" />}
+          <Form {...metricModal.formProps}>
+            <Row gutter={16}>
+              <Col xs={24} md={12}><Form.Input field="name" label="指标名称" rules={[{ required: true, message: '请输入指标名称' }]} /></Col>
+              <Col xs={24} md={12}><Form.Input field="code" label="指标编码" disabled={metricModal.isEdit} rules={[{ required: true, message: '请输入指标编码' }]} /></Col>
+              <Col xs={24} md={12}><Form.Select field="type" label="指标类型" style={{ width: '100%' }} optionList={typeOptions} rules={[{ required: true }]} /></Col>
+              <Col xs={24} md={12}><Form.Select field="datasetId" label="数据集" filter style={{ width: '100%' }} optionList={datasets.map((item) => ({ value: item.id, label: item.name }))} rules={[{ required: true, message: '请选择数据集' }]} /></Col>
+              <Col xs={24} md={12}><Form.Input field="sourceField" label="来源字段" placeholder="简单指标必填" /></Col>
+              <Col xs={24} md={12}><Form.Select field="aggregate" label="聚合方式" style={{ width: '100%' }} optionList={['sum', 'avg', 'max', 'min', 'count', 'distinct_count'].map((value) => ({ value, label: value }))} showClear /></Col>
+              <Col xs={24} md={12}><Form.Input field="dimensions" label="维度字段" placeholder="逗号分隔" /></Col>
+              <Col xs={24} md={12}><Form.Input field="timeField" label="时间字段" /></Col>
+              <Col xs={24} md={12}><Form.Input field="unit" label="单位" /></Col>
+              <Col xs={24} md={12}><Form.Input field="format" label="显示格式" placeholder="如 0,0.00" /></Col>
+              <Col xs={24} md={12}><Form.Select field="ownerId" label="负责人" filter showClear style={{ width: '100%' }} optionList={users.map((item) => ({ value: item.id, label: item.nickname || item.username }))} /></Col>
+              <Col xs={24} md={12}><Form.Select field="folderId" label="指标目录" filter showClear style={{ width: '100%' }} optionList={folders.map((item) => ({ value: item.id, label: item.name }))} /></Col>
+            </Row>
+            <Form.TextArea field="formula" label="计算公式" placeholder="比率/复合指标必填；只允许后端安全公式语法" autosize rows={3} />
+            <Form.TextArea field="caliber" label="统计口径" autosize rows={2} />
+            <Form.TextArea field="description" label="说明" autosize rows={2} />
+          </Form>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingTop: 8, borderTop: '1px solid var(--semi-color-border)' }}>
+            <Button onClick={metricModal.close}>取消</Button>
+            <Button type="primary" loading={metricModal.modalProps.okButtonProps.loading} disabled={metricModal.modalProps.okButtonProps.disabled} onClick={() => void metricModal.modalProps.onOk()}>
+              {metricModal.isEdit ? '保存' : '创建'}
             </Button>
-          </Banner>
-        )}
-        {detailQuery.isError && <Banner type="danger" description="指标详情加载失败，请关闭后重试" />}
-        <Form
-          {...metricModal.formProps}
-        >
-          <Row gutter={16}>
-            <Col xs={24} md={12}><Form.Input field="name" label="指标名称" rules={[{ required: true, message: '请输入指标名称' }]} /></Col>
-            <Col xs={24} md={12}><Form.Input field="code" label="指标编码" disabled={metricModal.isEdit} rules={[{ required: true, message: '请输入指标编码' }]} /></Col>
-            <Col xs={24} md={12}><Form.Select field="type" label="指标类型" style={{ width: '100%' }} optionList={typeOptions} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.Select field="datasetId" label="数据集" filter style={{ width: '100%' }} optionList={datasets.map((item) => ({ value: item.id, label: item.name }))} rules={[{ required: true, message: '请选择数据集' }]} /></Col>
-            <Col xs={24} md={12}><Form.Input field="sourceField" label="来源字段" placeholder="简单指标必填" /></Col>
-            <Col xs={24} md={12}><Form.Select field="aggregate" label="聚合方式" style={{ width: '100%' }} optionList={['sum', 'avg', 'max', 'min', 'count', 'distinct_count'].map((value) => ({ value, label: value }))} showClear /></Col>
-            <Col xs={24} md={12}><Form.Input field="dimensions" label="维度字段" placeholder="逗号分隔" /></Col>
-            <Col xs={24} md={12}><Form.Input field="timeField" label="时间字段" /></Col>
-            <Col xs={24} md={12}><Form.Input field="unit" label="单位" /></Col>
-            <Col xs={24} md={12}><Form.Input field="format" label="显示格式" placeholder="如 0,0.00" /></Col>
-            <Col xs={24} md={12}><Form.Select field="ownerId" label="负责人" filter showClear style={{ width: '100%' }} optionList={users.map((item) => ({ value: item.id, label: item.nickname || item.username }))} /></Col>
-            <Col xs={24} md={12}><Form.Select field="folderId" label="指标目录" filter showClear style={{ width: '100%' }} optionList={folders.map((item) => ({ value: item.id, label: item.name }))} /></Col>
-          </Row>
-          <Form.TextArea field="formula" label="计算公式" placeholder="比率/复合指标必填；只允许后端安全公式语法" autosize rows={3} />
-          <Form.TextArea field="caliber" label="统计口径" autosize rows={2} />
-          <Form.TextArea field="description" label="说明" autosize rows={2} />
-        </Form>
-      </AppModal>
+          </div>
+        </div>
+      </SideSheet>
 
       <SideSheet
         title={sheetMode === 'preview' ? `指标预览：${sheetMetric?.name ?? ''}` : `引用关系：${sheetMetric?.name ?? ''}`}
