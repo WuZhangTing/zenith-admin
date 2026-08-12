@@ -49,7 +49,6 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { NavListPanel, NavListItem } from '@/components/NavListPanel';
-import { formatDateTime } from '@/utils/date';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { RowEditModal } from './RowEditModal';
 import { buildDeleteSql, buildInsertSql, buildUpdateSql, generateCreateTableDdl } from './sql-format';
@@ -89,6 +88,7 @@ import {
   type DbAdminTableStructure,
 } from '@/hooks/queries/db-admin';
 import './db-admin.css';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const ErDiagram = lazy(() => import('./ErDiagram').then((module) => ({
   default: module.ErDiagram,
@@ -807,7 +807,7 @@ export default function DbAdminPage() {
   }, [gridColumns]);
 
   const historyColumns: ColumnProps<HistoryItem>[] = [
-    { title: '时间', dataIndex: 'executedAt', width: 180, render: (v: string) => formatDateTime(v) },
+    dateTimeColumn('时间', 'executedAt'),
     { title: '状态', dataIndex: 'success', width: 80, render: (v: boolean) =>
       v ? <Badge type="success" dot /> : <Badge type="danger" dot />,
     },

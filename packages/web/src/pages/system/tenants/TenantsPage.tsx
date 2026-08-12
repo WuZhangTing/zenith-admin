@@ -5,11 +5,11 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
+import { formatDateTimeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
+import { createdAtColumn, dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
 import { useDictItems } from '@/hooks/useDictItems';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { MetricMeter, type MetricMeterTone } from '@/components/data-viz/MetricMeter';
@@ -175,12 +175,7 @@ export default function TenantsPage() {
       },
     },
     { title: '套餐', dataIndex: 'packageName', width: 140, render: (v) => renderEllipsis(v || '未分配') },
-    {
-      title: '到期时间',
-      dataIndex: 'expireAt',
-      width: 180,
-      render: (v) => renderEllipsis(v ? formatDateTime(v) : '永不过期'),
-    },
+    dateTimeColumn('到期时间', 'expireAt', { empty: '永不过期' }),
     createdAtColumn,
     {
       title: '状态',

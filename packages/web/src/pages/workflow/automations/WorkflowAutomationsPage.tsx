@@ -13,7 +13,6 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag/interface';
 import { Plus, Trash2 } from 'lucide-react';
 import type { WorkflowAutomation, WorkflowAutomationAction, WorkflowAutomationTrigger, WorkflowDefinition } from '@zenith/shared/workflow';
-import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -31,6 +30,7 @@ import {
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const TRIGGER_OPTIONS: Array<{ value: WorkflowAutomationTrigger; label: string; color: TagColor }> = [
   { value: 'created',   label: '流程发起时', color: 'blue' },
@@ -353,7 +353,7 @@ export default function WorkflowAutomationsPage() {
       render: (v: WorkflowAutomationAction[]) => v?.length ?? 0,
     },
     { title: '排序', dataIndex: 'sort', width: 70 },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 160, render: (v: string) => formatDateTime(v) },
+    dateTimeColumn('更新时间', 'updatedAt'),
     // 固定列必须连续贴在两端：状态若夹在中间，会被抽到右侧固定层，原位留下空洞，表头表体错位
     {
       title: '状态', dataIndex: 'status', width: 90, fixed: 'right',

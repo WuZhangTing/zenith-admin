@@ -3,14 +3,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { WorkflowInstance } from '@zenith/shared/workflow';
-import { formatDateTime } from '@/utils/date';
 import { KeywordSearchToolbar } from '@/components/KeywordSearchToolbar';
 import SavedViewsBar from '@/components/workflow/SavedViewsBar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import WorkflowInstanceDetailSheet from '@/components/workflow/WorkflowInstanceDetailSheet';
 import { INSTANCE_STATUS_MAP } from '@/components/workflow/workflow-runtime';
-import { renderEllipsis } from '../../../utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 import { useHandledWorkflowInstances, workflowInstanceKeys } from '@/hooks/queries/workflow-instances';
 
@@ -68,7 +67,7 @@ export default function HandledPage() {
         return s ? <Tag color={s.color}>{s.text}</Tag> : '—';
       },
     },
-    { title: '处理时间', dataIndex: 'myActionAt', width: 180, render: (v: string | null) => (v ? formatDateTime(v) : '—') },
+    dateTimeColumn('处理时间', 'myActionAt'),
     {
       title: '流程状态',
       dataIndex: 'status',

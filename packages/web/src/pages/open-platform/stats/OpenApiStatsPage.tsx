@@ -20,6 +20,7 @@ import {
 } from '@/hooks/queries/open-platform';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const { Text, Title } = Typography;
 
@@ -106,7 +107,7 @@ export default function OpenApiStatsPage() {
   }), [byEndpoint, palette]);
 
   const logColumns: ColumnProps<OpenApiCallLog>[] = [
-    { title: '时间', dataIndex: 'createdAt', width: 160 },
+    dateTimeColumn('时间', 'createdAt'),
     {
       title: '应用',
       dataIndex: 'appName',

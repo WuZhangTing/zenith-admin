@@ -25,7 +25,7 @@ import {
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { RotateCcw, Search } from 'lucide-react';
 import type { WorkflowDefinition, WorkflowEventDelivery, WorkflowEventSubscription, WorkflowEventType } from '@zenith/shared/workflow';
-import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
+import { formatDateTimeForApi } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -50,6 +50,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const EVENT_OPTIONS: Array<{ value: WorkflowEventType; label: string }> = [
   { value: 'instance.created',   label: '实例创建' },
@@ -251,7 +252,7 @@ export default function WorkflowEventSubscriptionsPage() {
     { title: '签名', dataIndex: 'signMode', width: 100,
       render: (v: string) => v === 'hmacSha256' ? <Tag color="green" size="small">HMAC</Tag> : <Tag size="small">无</Tag>,
     },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (v: string) => formatDateTime(v) },
+    dateTimeColumn('更新时间', 'updatedAt'),
     {
       title: '状态', dataIndex: 'enabled', width: 90, fixed: 'right',
       render: (v: boolean, r) => canManageEventSubscription
@@ -301,7 +302,7 @@ export default function WorkflowEventSubscriptionsPage() {
     { title: 'HTTP', dataIndex: 'responseStatus', width: 80, render: (v: number | null) => v ?? '-' },
     { title: '耗时', dataIndex: 'durationMs', width: 90, render: (v: number | null) => v == null ? '-' : `${v}ms` },
     { title: '错误', dataIndex: 'errorMessage', width: 220, ellipsis: { showTitle: true } },
-    { title: '时间', dataIndex: 'createdAt', width: 180, render: (v: string) => formatDateTime(v) },
+    dateTimeColumn('时间', 'createdAt'),
     {
       title: '状态', dataIndex: 'status', width: 90, fixed: 'right',
       render: (v: string) => {

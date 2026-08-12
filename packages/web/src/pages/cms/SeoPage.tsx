@@ -23,7 +23,7 @@ import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
-import { renderEnabledStatusTag } from '@/utils/table-columns';
+import { dateTimeColumn, renderEnabledStatusTag } from '@/utils/table-columns';
 
 interface KeywordSearch { keyword: string }
 const defaultKeywordSearch: KeywordSearch = { keyword: '' };
@@ -242,7 +242,7 @@ function PushTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
       render: (v: boolean, record) => (v ? <Tag color="green" size="small">成功</Tag> : <Tag color="red" size="small">失败{record.statusCode ? `（${record.statusCode}）` : ''}</Tag>),
     },
     { title: '响应', dataIndex: 'response', width: 320, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 300 }}>{v ?? '-'}</Typography.Text> },
-    { title: '推送时间', dataIndex: 'createdAt', width: 180 },
+    dateTimeColumn('推送时间', 'createdAt'),
   ];
 
   return (
@@ -300,8 +300,8 @@ function DeadlinkTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
   const columns: ColumnProps[] = [
     { title: '任务', dataIndex: 'title', width: 260 },
     { title: '进度', width: 280, render: (_: unknown, record) => <AsyncTaskProgress task={record} /> },
-    { title: '提交时间', dataIndex: 'createdAt', width: 180 },
-    { title: '完成时间', dataIndex: 'completedAt', width: 180, render: (v: string | null) => v ?? '-' },
+    dateTimeColumn('提交时间', 'createdAt'),
+    dateTimeColumn('完成时间', 'completedAt'),
   ];
 
   return (

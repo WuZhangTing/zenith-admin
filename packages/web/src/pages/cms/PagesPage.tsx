@@ -27,6 +27,7 @@ import { useCmsWidgetRenderers, usePublishedCmsWidgets } from '@/hooks/queries/c
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 /** 区块按栏目标识引用栏目：value 用 code，站点复制/重建后配置无需重配 */
 function channelsToSelectTree(nodes: CmsChannel[]): { key: string; value: string; label: string; children?: ReturnType<typeof channelsToSelectTree> }[] {
@@ -264,7 +265,7 @@ export default function PagesPage() {
         </span>
       ),
     },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 180 },
+    dateTimeColumn('更新时间', 'updatedAt'),
     {
       title: '状态',
       dataIndex: 'status',

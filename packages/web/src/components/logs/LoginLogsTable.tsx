@@ -5,6 +5,7 @@ import type { ColumnProps, TableProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { LoginLog } from '@zenith/shared/identity';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { formatDateTime } from '@/utils/date';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 interface LoginLogsTableProps {
   readonly dataSource: LoginLog[];
@@ -62,12 +63,7 @@ export function LoginLogsTable({
       width: 100,
       render: (status: LoginLog['status']) => <LoginStatusTag status={status} />,
     },
-    {
-      title: '操作时间',
-      dataIndex: 'createdAt',
-      width: 180,
-      render: (v: string) => formatDateTime(v),
-    },
+    dateTimeColumn('操作时间', 'createdAt'),
     {
       title: '操作',
       key: 'operation',

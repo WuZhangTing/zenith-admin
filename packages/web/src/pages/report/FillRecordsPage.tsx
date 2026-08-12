@@ -34,6 +34,7 @@ import { canRunFillRecordAction, isRevisionConflict, shouldShowFillReviewTab } f
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 interface MineFilters {
   keyword: string;
@@ -223,8 +224,8 @@ export default function FillRecordsPage() {
         </Button>
       ) : '—',
     },
-    { title: '提交时间', dataIndex: 'submittedAt', width: 180, render: (value: string | null) => value ? formatDateTime(value) : '—' },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (value: string) => formatDateTime(value) },
+    dateTimeColumn('提交时间', 'submittedAt'),
+    dateTimeColumn('更新时间', 'updatedAt'),
     {
       title: '状态',
       dataIndex: 'status',

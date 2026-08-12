@@ -26,6 +26,7 @@ import { KeywordInput } from '@/components/search-filters';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
+import { dateColumn, dateTimeColumn } from '@/utils/table-columns';
 
 const PAGE_SIZE = 20;
 const DAY_OPTIONS = [7, 30, 90].map((value) => ({ value, label: `${value} 天` }));
@@ -128,7 +129,7 @@ export default function AnalyticsQualityTab() {
   };
 
   const qualityColumns: ColumnProps<AnalyticsQualityDaily>[] = [
-    { title: '日期', dataIndex: 'statDate', width: 120 },
+    dateColumn('日期', 'statDate'),
     { title: '事件名', dataIndex: 'eventName', width: 180, render: (value: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>{value}</Typography.Text> },
     {
       title: '问题类型',
@@ -162,7 +163,7 @@ export default function AnalyticsQualityTab() {
       ),
     },
     { title: '原因', dataIndex: 'reason', render: (value: string | null) => value || '–' },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (value: string) => formatDateTime(value) },
+    dateTimeColumn('更新时间', 'updatedAt'),
     createOperationColumn<AnalyticsEventOverride>({
       width: 130,
       desktopInlineKeys: ['edit', 'delete'],

@@ -5,7 +5,6 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ImagePlus, Trash2 } from 'lucide-react';
 import type { ChannelAdmin } from '@zenith/shared/messaging';
 import { config } from '@/config';
-import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -29,6 +28,7 @@ import {
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const TYPE_META: Record<string, { text: string; color: 'green' | 'blue' }> = {
   system: { text: '系统号', color: 'green' },
@@ -128,7 +128,7 @@ export default function ChannelsPage() {
     { title: '订阅数', dataIndex: 'subscriberCount', width: 90 },
     { title: '消息数', dataIndex: 'messageCount', width: 90 },
     { title: '状态', dataIndex: 'status', width: 80, render: (v: string) => <Tag color={v === 'enabled' ? 'green' : 'grey'} size="small">{v === 'enabled' ? '启用' : '停用'}</Tag> },
-    { title: '创建时间', dataIndex: 'createdAt', width: 180, render: (v: string) => formatDateTime(v) },
+    dateTimeColumn('创建时间', 'createdAt'),
     createOperationColumn<ChannelAdmin>({
       width: 290,
       desktopInlineKeys: ['publish', 'messages', 'edit'],

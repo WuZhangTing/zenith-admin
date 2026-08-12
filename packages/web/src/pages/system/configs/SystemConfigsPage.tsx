@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Form, JsonViewer, Select, Spin, Toast } from '@douyinfe/semi-ui';
 import type { SystemConfig } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { formatDateTime } from '@/utils/date';
 import DictTag from '@/components/DictTag';
 import { useDictItems } from '@/hooks/useDictItems';
 import { usePermission } from '@/hooks/usePermission';
@@ -13,7 +12,7 @@ import ExportButton from '@/components/ExportButton';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { renderEllipsis } from '../../../utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
 import {
   systemConfigKeys,
   useDeleteSystemConfigs,
@@ -155,10 +154,7 @@ export default function SystemConfigsPage() {
       render: (v: string) => <DictTag dictCode="system_config_type" value={v} />,
     },
     { title: '描述', dataIndex: 'description', width: 300, render: renderEllipsis },
-    {
-      title: '更新时间', dataIndex: 'updatedAt', width: 180,
-      render: (v: string) => formatDateTime(v),
-    },
+    dateTimeColumn('更新时间', 'updatedAt'),
     createOperationColumn<SystemConfig>({
       width: 160,
       actions: (record) => [

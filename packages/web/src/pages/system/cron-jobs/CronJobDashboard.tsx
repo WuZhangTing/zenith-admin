@@ -18,6 +18,7 @@ import type { CronJob, CronJobStatsPerJob, CronJobRecentLog, CronRunStatus } fro
 import { CRON_RUN_STATUS_LABELS } from '@zenith/shared/platform';
 import dayjs from 'dayjs';
 import { useCronJobStats } from '@/hooks/queries/cron-jobs';
+import { DATE_TIME_COLUMN_WIDTH } from '@/utils/table-columns';
 
 const SUCCESS_COLOR = '#10b981';
 const FAIL_COLOR = '#ef4444';
@@ -296,7 +297,7 @@ export default function CronJobDashboard({ jobs }: Readonly<Props>) {
   ];
 
   const recentColumns: ColumnProps<CronJobRecentLog>[] = [
-    { title: '时间', dataIndex: 'startedAt', width: 170, render: (v: string) => <span style={{ fontFamily: 'monospace' }}>{v}</span> },
+    { title: '时间', dataIndex: 'startedAt', width: DATE_TIME_COLUMN_WIDTH, render: (v: string) => <span style={{ fontFamily: 'monospace' }}>{v}</span> },
     { title: '任务名称', dataIndex: 'jobName', width: 180, ellipsis: { showTitle: true } },
     {
       title: '状态', dataIndex: 'status', width: 90,

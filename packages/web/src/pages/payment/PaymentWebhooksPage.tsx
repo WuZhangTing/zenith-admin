@@ -7,7 +7,6 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
-import { formatDateTime } from '@/utils/date';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -26,6 +25,7 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const EVENT_OPTIONS = [
   { value: 'payment.succeeded', label: '支付成功' },
@@ -160,7 +160,7 @@ export default function PaymentWebhooksPage() {
     { title: '业务类型', dataIndex: 'bizType', width: 120, render: (v: string | null) => v || '全部' },
     { title: '事件', dataIndex: 'events', width: 260, render: (v: string[]) => (v.length ? <Space wrap>{v.map((e) => <Tag key={e} color="blue">{EVENT_OPTIONS.find((o) => o.value === e)?.label ?? e}</Tag>)}</Space> : '全部事件') },
     { title: '密钥', dataIndex: 'hasSecret', width: 90, render: (v: boolean) => (v ? '已配置' : '-') },
-    { title: '创建时间', dataIndex: 'createdAt', width: 170, render: (t: string) => formatDateTime(t) },
+    dateTimeColumn('创建时间', 'createdAt'),
     {
       title: '状态', dataIndex: 'status', width: 80, fixed: 'right',
       render: (_: unknown, r: PaymentWebhookEndpoint) => (
@@ -197,7 +197,7 @@ export default function PaymentWebhooksPage() {
     { title: '订单号', dataIndex: 'orderNo', width: 180, render: (v: string | null) => v || '-' },
     { title: '次数', dataIndex: 'attempts', width: 80 },
     { title: 'HTTP', dataIndex: 'httpStatus', width: 90, render: (v: number | null) => v ?? '-' },
-    { title: '创建时间', dataIndex: 'createdAt', width: 170, render: (t: string) => formatDateTime(t) },
+    dateTimeColumn('创建时间', 'createdAt'),
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentWebhookDelivery['status']) => <Tag color={DELIVERY_STATUS_COLOR[v]}>{PAYMENT_WEBHOOK_DELIVERY_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentWebhookDelivery>({
       width: 120,

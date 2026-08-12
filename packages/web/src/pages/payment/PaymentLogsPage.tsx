@@ -6,7 +6,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { formatDateTime, formatDateTimeRangeForApi } from '@/utils/date';
+import { formatDateTimeRangeForApi } from '@/utils/date';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentNotifyLog } from '@zenith/shared/payment';
 import { paymentLogKeys, usePaymentLogList } from '@/hooks/queries/payment-logs';
@@ -14,6 +14,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { compactQuery } from '@/lib/query';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 interface SearchParams { keyword: string; channel: string; scene: string; signatureValid: string; timeRange: [Date, Date] | null; }
 const defaultSearch: SearchParams = { keyword: '', channel: '', scene: '', signatureValid: '', timeRange: null };
@@ -58,7 +59,7 @@ export default function PaymentLogsPage() {
     { title: '结果', dataIndex: 'result', width: 120, render: (v: string | null) => v || '-' },
     { title: '说明', dataIndex: 'message', width: 220, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 200 }}>{v || '-'}</Typography.Text> },
     { title: 'IP', dataIndex: 'ip', width: 140, render: (v: string | null) => v || '-' },
-    { title: '时间', dataIndex: 'createdAt', width: 170, render: (t: string) => formatDateTime(t) },
+    dateTimeColumn('时间', 'createdAt'),
     createOperationColumn<PaymentNotifyLog>({
       width: 80,
       actions: (r) => [{

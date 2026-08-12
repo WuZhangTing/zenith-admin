@@ -10,7 +10,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
 import { AppModal } from '@/components/AppModal';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { renderEllipsis } from '../../utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '../../utils/table-columns';
 import { memberAdminKeys, useCouponByCode, useCouponRecordList, useRedeemCoupon, useRevokeCouponRecord } from '@/hooks/queries/member-admin';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
@@ -83,9 +83,9 @@ export default function CouponRecordsPage() {
     { title: '会员', dataIndex: 'memberName', width: 140, render: (v?: string, r?: MemberCoupon) => v || `#${r?.memberId}` },
     { title: '优惠券', dataIndex: 'coupon', width: 160, render: (_: unknown, r: MemberCoupon) => renderEllipsis(r.coupon?.name ?? `#${r.couponId}`) },
     { title: '状态', dataIndex: 'status', width: 100, render: (v: MemberCouponStatus) => <Tag color={STATUS_COLORS[v] as 'blue'}>{MEMBER_COUPON_STATUS_LABELS[v]}</Tag> },
-    { title: '领取时间', dataIndex: 'receivedAt', width: 180 },
-    { title: '使用时间', dataIndex: 'usedAt', width: 180, render: (v: string | null) => v || '-' },
-    { title: '过期时间', dataIndex: 'expireAt', width: 180, render: (v: string | null) => v || '-' },
+    dateTimeColumn('领取时间', 'receivedAt'),
+    dateTimeColumn('使用时间', 'usedAt'),
+    dateTimeColumn('过期时间', 'expireAt'),
     ...(canRevoke ? [
       createOperationColumn<MemberCoupon>({
         width: 90,

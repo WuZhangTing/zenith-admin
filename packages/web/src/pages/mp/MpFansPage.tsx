@@ -7,7 +7,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { renderEllipsis } from '../../utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '../../utils/table-columns';
 import { useMpAccounts } from './useMpAccounts';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
 import {
@@ -154,7 +154,7 @@ export default function MpFansPage() {
       ),
     },
     { title: '备注', dataIndex: 'remark', width: 140, render: (v: string | null) => v || '—' },
-    { title: '关注时间', dataIndex: 'subscribeTime', width: 170, render: (v: string | null) => v || '—' },
+    dateTimeColumn('关注时间', 'subscribeTime'),
     {
       title: '会员', dataIndex: 'memberId', width: 90, align: 'center' as const,
       render: (v: number | null) => (v ? <Tag color="green" type="light">已绑定 #{v}</Tag> : <Tag color="grey" type="light">未绑定</Tag>),

@@ -7,7 +7,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { formatDateTime } from '@/utils/date';
-import { renderEllipsis } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
@@ -522,8 +522,8 @@ export default function AlertsPage() {
             { title: '类型', dataIndex: 'triggerType', width: 90 },
             { title: '状态', dataIndex: 'status', width: 90, render: (value: string) => <Tag color={value === 'success' ? 'green' : value === 'failed' ? 'red' : value === 'partial' ? 'orange' : value === 'pending' ? 'blue' : 'grey'}>{REPORT_DELIVERY_STATUS_LABELS[value as keyof typeof REPORT_DELIVERY_STATUS_LABELS] ?? value}</Tag> },
             { title: '值', dataIndex: 'lastValue', width: 80, render: (value: number | null) => value ?? '—' },
-            { title: '开始时间', dataIndex: 'startedAt', width: 180, render: (value: string | null) => value || '—' },
-            { title: '完成时间', dataIndex: 'completedAt', width: 180, render: (value: string | null) => value || '—' },
+            dateTimeColumn('开始时间', 'startedAt'),
+            dateTimeColumn('完成时间', 'completedAt'),
             { title: '确认', dataIndex: 'acknowledgedAt', width: 200, render: (_: unknown, record: ReportDeliveryRun) => record.acknowledgedAt ? `${record.acknowledgedAt}${record.acknowledgedByName ? ` · ${record.acknowledgedByName}` : ''}` : '未确认' },
             { title: '错误', dataIndex: 'errorMessage', width: 220, render: renderEllipsis },
             {

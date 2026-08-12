@@ -15,7 +15,7 @@ import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { TABLE_PAGE_SIZE_OPTIONS, usePagination } from '@/hooks/usePagination';
-import { renderEllipsis } from '../../../utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
 import CronJobDashboard from './CronJobDashboard';
 import {
   cronJobKeys,
@@ -60,18 +60,8 @@ const buildRunLogColumns = (outputWidth: number) => [
     dataIndex: 'executionCount',
     width: 90,
   },
-  {
-    title: '开始时间',
-    dataIndex: 'startedAt',
-    width: 180,
-    render: (v: string) => formatDateTime(v),
-  },
-  {
-    title: '结束时间',
-    dataIndex: 'endedAt',
-    width: 180,
-    render: (v: string | null) => v ? formatDateTime(v) : '—',
-  },
+  dateTimeColumn('开始时间', 'startedAt'),
+  dateTimeColumn('结束时间', 'endedAt'),
   {
     title: '耗时 ms',
     dataIndex: 'durationMs',

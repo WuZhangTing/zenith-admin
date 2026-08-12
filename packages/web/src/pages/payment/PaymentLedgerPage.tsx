@@ -8,7 +8,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
-import { formatDateTime, formatDateTimeRangeForApi } from '@/utils/date';
+import { formatDateTimeRangeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -26,6 +26,7 @@ import type { PaymentAccount, PaymentAccountCheckRow, PaymentChannel, PaymentLed
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { compactQuery } from '@/lib/query';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const yuan = formatYuan;
 interface SearchParams {
@@ -111,7 +112,7 @@ export default function PaymentLedgerPage() {
     { title: '退款单号', dataIndex: 'refundNo', width: 180, render: (v: string | null) => v || '-' },
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel | null) => (v ? <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> : '-') },
     { title: '业务类型', dataIndex: 'bizType', width: 120, render: (v: string | null) => v || '-' },
-    { title: '创建时间', dataIndex: 'createdAt', width: 170, render: (t: string) => formatDateTime(t) },
+    dateTimeColumn('创建时间', 'createdAt'),
   ];
 
   const renderKeywordSearch = () => (

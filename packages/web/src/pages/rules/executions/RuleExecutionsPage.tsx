@@ -11,6 +11,7 @@ import { ruleKeys, useRuleExecutions } from '@/hooks/queries/rules';
 import { formatDateTimeRangeValuesForApi } from '@/utils/date';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const { Text } = Typography;
 
@@ -52,7 +53,7 @@ export default function RuleExecutionsPage() {
   };
 
   const columns: ColumnProps<RuleDecisionExecution>[] = [
-    { title: '时间', dataIndex: 'createdAt', width: 170 },
+    dateTimeColumn('时间', 'createdAt'),
     { title: '决策表 Key', dataIndex: 'ruleKey', width: 170, render: (t: string) => <Text code>{t}</Text> },
     { title: '来源', dataIndex: 'source', width: 90, render: (s: string) => <Tag size="small" color={SOURCE_META[s]?.color}>{SOURCE_META[s]?.text ?? s}</Tag> },
     { title: '结果', dataIndex: 'matched', width: 90, render: (m: boolean) => <Tag size="small" color={m ? 'green' : 'red'}>{m ? '命中' : '未命中'}</Tag> },

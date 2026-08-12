@@ -10,7 +10,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { AppModal } from '@/components/AppModal';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { renderEllipsis } from '../../utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '../../utils/table-columns';
 import {
   memberAdminKeys,
   useCheckinRules,
@@ -72,7 +72,7 @@ export default function CheckinRulesPage() {
     { title: '积分奖励', dataIndex: 'points', width: 100 },
     { title: '经验奖励', dataIndex: 'experience', width: 100 },
     { title: '备注', dataIndex: 'remark', render: renderEllipsis },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 180 },
+    dateTimeColumn('更新时间', 'updatedAt'),
     createOperationColumn<CheckinRule>({
       width: 130,
       desktopInlineKeys: ['edit', 'delete'],

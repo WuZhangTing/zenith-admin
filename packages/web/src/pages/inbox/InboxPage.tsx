@@ -21,6 +21,7 @@ import {
   useMarkAllInboxMessagesRead,
   useMarkInboxMessageRead,
 } from '@/hooks/queries/inbox';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const TYPE_COLOR: Record<string, TagColor> = {
   info: 'blue',
@@ -150,12 +151,7 @@ export default function InboxPage() {
       width: 140,
       render: (v: string | null | undefined) => v ?? '系统',
     },
-    {
-      title: '时间',
-      dataIndex: 'createdAt',
-      width: 180,
-      render: (v: string) => formatDateTime(v),
-    },
+    dateTimeColumn('时间', 'createdAt'),
     {
       title: '状态',
       dataIndex: 'isRead',

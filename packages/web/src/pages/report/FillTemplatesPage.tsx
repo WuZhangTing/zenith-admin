@@ -26,8 +26,7 @@ import {
   useUpdateReportFillTemplate,
 } from '@/hooks/queries/report-fill';
 import { useQueryClient } from '@tanstack/react-query';
-import { formatDateTime } from '@/utils/date';
-import { renderEllipsis } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import FormDesigner from '@/pages/workflow/designer/components/FormDesigner';
 import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowFormRenderer';
 import { isRevisionConflict, validateFillTemplateInput } from './report-p2-utils';
@@ -250,7 +249,7 @@ export default function FillTemplatesPage() {
     },
     { title: '版本', dataIndex: 'revision', width: 72 },
     { title: '描述', dataIndex: 'description', width: 180, render: renderEllipsis },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (value: string) => formatDateTime(value) },
+    dateTimeColumn('更新时间', 'updatedAt'),
     {
       title: '状态',
       dataIndex: 'status',

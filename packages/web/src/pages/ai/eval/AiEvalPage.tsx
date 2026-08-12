@@ -26,6 +26,7 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const { Text, Paragraph } = Typography;
 
@@ -95,7 +96,7 @@ export default function AiEvalPage() {
     { title: '名称', dataIndex: 'name', width: 200 },
     { title: '描述', dataIndex: 'description', width: 260, render: (v: string | null) => v || '—' },
     { title: '题目数', dataIndex: 'items', width: 90, render: (v: AiEvalItem[]) => v?.length ?? 0 },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 180 },
+    dateTimeColumn('更新时间', 'updatedAt'),
     createOperationColumn<AiEvalSet>({
       width: 180,
       desktopInlineKeys: ['run', 'edit'],
@@ -148,7 +149,7 @@ export default function AiEvalPage() {
         return failed > 0 ? <Text type="danger">{failed}</Text> : 0;
       },
     },
-    { title: '运行时间', dataIndex: 'createdAt', width: 180 },
+    dateTimeColumn('运行时间', 'createdAt'),
     createOperationColumn<AiEvalRun>({
       width: 150,
       desktopInlineKeys: ['detail', 'delete'],

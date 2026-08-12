@@ -6,8 +6,8 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
-import { formatDateTime, formatDateForApi } from '@/utils/date';
-import { createdAtColumn } from '@/utils/table-columns';
+import { formatDateForApi } from '@/utils/date';
+import { createdAtColumn, dateTimeColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -81,7 +81,7 @@ export default function PaymentSettlementsPage() {
     { title: '手续费', dataIndex: 'feeAmount', width: 100, render: (v: number) => yuan(v) },
     { title: '退款', dataIndex: 'refundAmount', width: 100, render: (v: number) => yuan(v) },
     { title: '净额', dataIndex: 'netAmount', width: 120, render: (v: number) => <Typography.Text strong type={v < 0 ? 'danger' : 'success'}>{yuan(v)}</Typography.Text> },
-    { title: '到账时间', dataIndex: 'settledAt', width: 170, render: (v: string | null) => (v ? formatDateTime(v) : '-') },
+    dateTimeColumn('到账时间', 'settledAt'),
     createdAtColumn as ColumnProps<PaymentSettlementBatch>,
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentSettlementStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_SETTLEMENT_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentSettlementBatch>({

@@ -6,7 +6,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
-import { renderEllipsis } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -224,8 +224,8 @@ export default function SubscriptionsPage() {
           columns={[
             { title: '触发方式', dataIndex: 'triggerType', width: 90 },
             { title: '状态', dataIndex: 'status', width: 90, render: (value: string) => <Tag color={deliveryStatusColorMap[value] ?? 'grey'}>{REPORT_DELIVERY_STATUS_LABELS[value as keyof typeof REPORT_DELIVERY_STATUS_LABELS] ?? value}</Tag> },
-            { title: '开始时间', dataIndex: 'startedAt', width: 180, render: (value: string | null) => value || '—' },
-            { title: '完成时间', dataIndex: 'completedAt', width: 180, render: (value: string | null) => value || '—' },
+            dateTimeColumn('开始时间', 'startedAt'),
+            dateTimeColumn('完成时间', 'completedAt'),
             { title: '下次重试', dataIndex: 'nextRetryAt', width: 180, render: (value: string | null) => value || '—' },
             { title: '错误', dataIndex: 'errorMessage', width: 220, render: renderEllipsis },
           ] as ColumnProps<ReportDeliveryRun>[]}

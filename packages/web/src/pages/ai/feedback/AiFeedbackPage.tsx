@@ -12,7 +12,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { useDictItems } from '@/hooks/useDictItems';
 import { usePermission } from '@/hooks/usePermission';
 import AppModal from '@/components/AppModal';
-import { renderEllipsis } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { aiFeedbackKeys, downloadAiFeedbackCsv, useAiFeedbackContext, useAiFeedbackList, useHandleAiFeedback } from '@/hooks/queries/ai-feedback';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter } from '@/components/search-filters';
@@ -209,12 +209,7 @@ export default function AiFeedbackPage() {
       width: 160,
       render: renderEllipsis,
     },
-    {
-      title: '时间',
-      dataIndex: 'createdAt',
-      width: 180,
-      render: (v: string) => <span style={{ whiteSpace: 'nowrap' }}>{formatDateTime(v)}</span>,
-    },
+    dateTimeColumn('时间', 'createdAt'),
     {
       title: '处理状态',
       dataIndex: 'feedbackStatus',

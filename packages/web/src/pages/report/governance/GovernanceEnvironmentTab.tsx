@@ -19,11 +19,11 @@ import {
   useSaveReportEnvironment,
   useTransitionReportPromotion,
 } from '@/hooks/queries/report-governance';
-import { formatDateTime } from '@/utils/date';
 import { parseJsonObject } from '../report-platform-utils';
 import { REPORT_RESOURCE_TYPE_OPTIONS, reportResourceTypeLabel } from '../report-platform-options';
 import { CreateButton } from '@/components/toolbar-controls';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const environmentKindOptions = [
   { value: 'development', label: '开发' },
@@ -107,7 +107,7 @@ export default function GovernanceEnvironmentTab() {
     { title: '类型', dataIndex: 'kind', width: 110, render: (v) => environmentKindOptions.find((item) => item.value === v)?.label ?? v },
     { title: '访问地址', dataIndex: 'baseUrl', width: 240, render: (v) => v || '—' },
     { title: '默认环境', dataIndex: 'isDefault', width: 100, render: (v) => v ? <Tag color="blue">默认</Tag> : '—' },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (v) => formatDateTime(v) },
+    dateTimeColumn('更新时间', 'updatedAt'),
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v) => <Tag color={v === 'enabled' ? 'green' : 'grey'}>{v}</Tag> },
     createOperationColumn<ReportEnvironment>({
       width: 150,
@@ -130,7 +130,7 @@ export default function GovernanceEnvironmentTab() {
     { title: '来源环境', dataIndex: 'sourceEnvironmentName', width: 130, render: (v, r) => v || `#${r.sourceEnvironmentId}` },
     { title: '目标环境', dataIndex: 'targetEnvironmentName', width: 130, render: (v, r) => v || `#${r.targetEnvironmentId}` },
     { title: '来源修订', dataIndex: 'sourceRevision', width: 100 },
-    { title: '开始时间', dataIndex: 'startedAt', width: 180, render: (v) => v ? formatDateTime(v) : '—' },
+    dateTimeColumn('开始时间', 'startedAt'),
     { title: '错误', dataIndex: 'errorMessage', width: 220, render: (v) => v || '—' },
     { title: '状态', dataIndex: 'status', width: 110, fixed: 'right', render: (v: ReportPromotionStatus) => <Tag color={promotionStatusColor[v]}>{v}</Tag> },
     createOperationColumn<ReportEnvironmentPromotion>({

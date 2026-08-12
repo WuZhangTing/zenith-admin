@@ -17,8 +17,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { useMyAsyncTasks } from '@/hooks/useAsyncTasks';
 import { usePagination } from '@/hooks/usePagination';
 import { ASYNC_TASK_STATUS_TAG_MAP as statusTagMap, ASYNC_TASK_ITEM_STATUS_TAG_MAP as itemStatusTagMap } from '@/utils/async-task';
-import { formatDateTime } from '@/utils/date';
-import { renderEllipsis } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { useBizTaskDemoAction, useBizTaskDemoItems, useBizTaskDemoTypes, useSubmitTaskDemo } from '@/hooks/queries/biz-pay-demo';
 
 const DEMO_TASK_TYPES = ['demo-batch', 'demo-serial'];
@@ -160,7 +159,7 @@ export default function TaskDemoPage() {
       width: 100,
       render: (value: number, record: AsyncTask) => <Typography.Text size="small">{value} / {record.maxAttempts}</Typography.Text>,
     },
-    { title: '提交时间', dataIndex: 'createdAt', width: 190, render: (value: string) => formatDateTime(value) },
+    dateTimeColumn('提交时间', 'createdAt'),
     {
       title: '状态',
       dataIndex: 'status',

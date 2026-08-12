@@ -3,12 +3,11 @@ import { RadioGroup, Radio, Space, Tag, Toast, Typography } from '@douyinfe/semi
 import type { OnlineUser } from '@zenith/shared/platform';
 import { TOKEN_KEY } from '@zenith/shared/core';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { renderEllipsis } from '../../../utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
 import { sessionKeys, useForceLogoutSession, useSessionList } from '@/hooks/queries/sessions';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
@@ -88,12 +87,7 @@ export default function OnlineSessionsPage() {
     },
     { title: '浏览器', dataIndex: 'browser', width: 160, render: renderEllipsis },
     { title: '操作系统', dataIndex: 'os', width: 160, render: renderEllipsis },
-    {
-      title: '登录时间',
-      dataIndex: 'loginAt',
-      width: 180,
-      render: (v: string) => formatDateTime(v),
-    },
+    dateTimeColumn('登录时间', 'loginAt'),
     createOperationColumn<OnlineUser>({
       width: 120,
       actions: (record) => [

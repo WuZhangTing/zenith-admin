@@ -51,7 +51,7 @@ import WorkflowJobsView from './WorkflowJobsView';
 import WorkflowCompensationsView from './WorkflowCompensationsView';
 import WorkflowEngineTraceView from './WorkflowEngineTraceView';
 import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
-import { renderEllipsis } from '../../../utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
 import {
   useWorkflowDefinitionDetail,
   useWorkflowInstanceDetail,
@@ -645,7 +645,7 @@ export default function WorkflowMonitorPage() {
       { title: '触发器状态', dataIndex: 'triggerDispatchStatus', width: 130, render: (v: string | null) => v ?? '—' },
       { title: '尝试', dataIndex: 'triggerAttempt', width: 70, render: (v: number | undefined) => v ?? '—' },
       { title: '错误', dataIndex: 'triggerLastError', width: 220, ellipsis: { showTitle: true }, render: (v: string | null) => v ?? '—' },
-      { title: '创建时间', dataIndex: 'createdAt', width: 210 },
+      dateTimeColumn('创建时间', 'createdAt'),
     ];
     const triggerColumns: ColumnProps<WorkflowTriggerExecution>[] = [
       { title: 'ID', dataIndex: 'id', width: 70 },
@@ -657,7 +657,7 @@ export default function WorkflowMonitorPage() {
       { title: 'HTTP', dataIndex: 'responseStatus', width: 80, render: (v: number | null) => v ?? '—' },
       { title: '耗时', dataIndex: 'durationMs', width: 90, render: (v: number | null) => v != null ? `${v}ms` : '—' },
       { title: '错误', dataIndex: 'errorMessage', width: 220, ellipsis: { showTitle: true }, render: (v: string | null) => v ?? '—' },
-      { title: '创建时间', dataIndex: 'createdAt', width: 210 },
+      dateTimeColumn('创建时间', 'createdAt'),
     ];
     const outboxColumns: ColumnProps<WorkflowRuntimeOutboxEvent>[] = [
       { title: 'ID', dataIndex: 'id', width: 70 },
@@ -667,7 +667,7 @@ export default function WorkflowMonitorPage() {
       { title: '尝试', dataIndex: 'attempts', width: 70 },
       { title: '下次重试', dataIndex: 'nextRetryAt', width: 210, render: (v: string | null) => v ?? '—' },
       { title: '错误', dataIndex: 'errorMessage', width: 260, ellipsis: { showTitle: true }, render: (v: string | null) => v ?? '—' },
-      { title: '创建时间', dataIndex: 'createdAt', width: 210 },
+      dateTimeColumn('创建时间', 'createdAt'),
     ];
 
     const tokenColumns: ColumnProps<WorkflowExecutionToken>[] = [
@@ -1016,12 +1016,7 @@ export default function WorkflowMonitorPage() {
         </Space>
       ),
     },
-    {
-      title: '提交时间',
-      dataIndex: 'createdAt',
-      width: 180,
-      render: (v: string) => formatDateTime(v),
-    },
+    dateTimeColumn('提交时间', 'createdAt'),
     {
       title: '最后更新',
       dataIndex: 'updatedAt',

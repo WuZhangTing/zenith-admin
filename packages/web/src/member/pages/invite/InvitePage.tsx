@@ -3,6 +3,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Copy, Gift, UserPlus, Users } from 'lucide-react';
 import { MemberPage } from '../../components/MemberPage';
 import { useInviteSummary } from '../../hooks/queries';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 function StatBlock({ icon, label, value }: Readonly<{ icon: React.ReactNode; label: string; value: React.ReactNode }>) {
   return (
@@ -31,7 +32,7 @@ export default function InvitePage() {
 
   const columns: ColumnProps<{ id: number; nickname: string; createdAt: string }>[] = [
     { title: '昵称', dataIndex: 'nickname' },
-    { title: '注册时间', dataIndex: 'createdAt', width: 180 },
+    dateTimeColumn('注册时间', 'createdAt'),
   ];
 
   if (summaryQuery.isFetching && !summary) {

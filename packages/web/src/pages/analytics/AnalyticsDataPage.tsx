@@ -36,6 +36,7 @@ import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
+import { dateColumn, dateTimeColumn } from '@/utils/table-columns';
 
 const PAGE_SIZE = 20;
 
@@ -473,7 +474,7 @@ export default function AnalyticsDataPage() {
       ),
     },
     { title: '时长', dataIndex: 'durationMs', width: 100, render: (value: number | null) => msToReadable(value) },
-    { title: '时间', dataIndex: 'createdAt', width: 180, render: (value: string) => formatDateTime(value) },
+    dateTimeColumn('时间', 'createdAt'),
     createOperationColumn<EventListItem>({
       width: 90,
       desktopInlineKeys: ['detail'],
@@ -543,7 +544,7 @@ export default function AnalyticsDataPage() {
   ];
 
   const rollupColumns: ColumnProps<AnalyticsRollupItem>[] = [
-    { title: '日期', dataIndex: 'statDate', width: 130 },
+    dateColumn('日期', 'statDate'),
     { title: 'PV', dataIndex: 'pv', width: 100 },
     { title: 'UV', dataIndex: 'uv', width: 100 },
     { title: '会话', dataIndex: 'sessions', width: 100 },

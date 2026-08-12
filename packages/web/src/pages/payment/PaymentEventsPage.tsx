@@ -3,13 +3,13 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import type { PaymentOutboxEvent } from '@zenith/shared/payment';
 import { paymentEventKeys, usePaymentEventList, usePaymentOpsHealth, useRedispatchPaymentEvent } from '@/hooks/queries/payment-events';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const EVENT_STATUS_LABELS = { pending: '待处理', done: '已完成', failed: '失败' } as const satisfies Record<PaymentOutboxEvent['status'], string>;
 const EVENT_STATUS_COLOR = { pending: 'blue', done: 'green', failed: 'red' } as const satisfies Record<PaymentOutboxEvent['status'], string>;
@@ -56,8 +56,8 @@ export default function PaymentEventsPage() {
     { title: '订单号', dataIndex: 'orderNo', width: 200 },
     { title: '次数', dataIndex: 'attempts', width: 80 },
     { title: '错误信息', dataIndex: 'lastError', width: 260, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 240 }}>{v || '-'}</Typography.Text> },
-    { title: '创建时间', dataIndex: 'createdAt', width: 170, render: (t: string) => formatDateTime(t) },
-    { title: '处理时间', dataIndex: 'processedAt', width: 170, render: (t: string | null) => (t ? formatDateTime(t) : '-') },
+    dateTimeColumn('创建时间', 'createdAt'),
+    dateTimeColumn('处理时间', 'processedAt'),
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentOutboxEvent['status']) => <Tag color={EVENT_STATUS_COLOR[v]}>{EVENT_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentOutboxEvent>({
       width: 90,

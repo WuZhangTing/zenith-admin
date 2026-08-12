@@ -14,10 +14,10 @@ import {
   useRegenerateSiteKey,
   useUpdateSite,
 } from '@/hooks/queries/analytics';
-import { formatDateTime } from '@/utils/date';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const PAGE_SIZE = 20;
 const STATUS_OPTIONS = [
@@ -117,7 +117,7 @@ export default function AnalyticsSitesTab() {
     { title: '来源白名单', dataIndex: 'allowedOrigins', width: 220, render: (origins: string[] | null) => origins?.length ? <Space wrap>{origins.slice(0, 3).map((o) => <Tag key={o} size="small">{o}</Tag>)}{origins.length > 3 ? <Tag size="small">+{origins.length - 3}</Tag> : null}</Space> : '不限制' },
     { title: '日配额', dataIndex: 'dailyEventQuota', width: 110, render: (value: number | null) => value ?? '不限' },
     { title: '今日用量', dataIndex: 'todayUsage', width: 140, render: (_: number | null, record) => renderUsage(record) },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (value: string) => formatDateTime(value) },
+    dateTimeColumn('更新时间', 'updatedAt'),
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (value: AnalyticsSite['status']) => <Tag color={STATUS_META[value].color} size="small">{STATUS_META[value].label}</Tag> },
     {
       title: '操作', dataIndex: 'operation', width: 260, fixed: 'right', render: (_: unknown, record) => (

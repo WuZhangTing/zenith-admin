@@ -7,8 +7,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
-import { formatDateTime } from '@/utils/date';
-import { createdAtColumn } from '@/utils/table-columns';
+import { createdAtColumn, dateTimeColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -112,7 +111,7 @@ export default function PaymentTransfersPage() {
     { title: '失败原因', dataIndex: 'failReason', width: 180, render: (v: string | null) => (v ? <Typography.Text type="danger" ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>{v}</Typography.Text> : '-') },
     { title: '备注', dataIndex: 'remark', width: 140, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 120 }}>{v || '-'}</Typography.Text> },
     { title: '操作人', dataIndex: 'operatorName', width: 110, render: (v: string | null) => v || '-' },
-    { title: '完成时间', dataIndex: 'finishedAt', width: 170, render: (v: string | null) => (v ? formatDateTime(v) : '-') },
+    dateTimeColumn('完成时间', 'finishedAt'),
     createdAtColumn as ColumnProps<PaymentTransfer>,
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v: PaymentTransferStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_TRANSFER_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentTransfer>({

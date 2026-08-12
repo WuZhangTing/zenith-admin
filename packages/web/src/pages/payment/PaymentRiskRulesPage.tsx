@@ -8,8 +8,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
-import { formatDateTime } from '@/utils/date';
-import { createdAtColumn } from '@/utils/table-columns';
+import { createdAtColumn, dateTimeColumn } from '@/utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -247,7 +246,7 @@ export default function PaymentRiskRulesPage() {
     { title: '金额', dataIndex: 'amount', width: 100, render: (v: number) => yuan(v) },
     { title: '订单号', dataIndex: 'orderNo', width: 180, render: (v: string | null) => (v ? <Typography.Text ellipsis={{ showTooltip: true }} copyable={{ content: v }} style={{ maxWidth: 160 }}>{v}</Typography.Text> : '-') },
     { title: 'IP', dataIndex: 'clientIp', width: 120, render: (v: string | null) => v || '-' },
-    { title: '命中时间', dataIndex: 'createdAt', width: 170, fixed: 'right', render: (v: string) => formatDateTime(v) },
+    dateTimeColumn('命中时间', 'createdAt', { fixed: 'right' }),
   ];
 
   const reviewColumns: ColumnProps<PaymentRiskReview>[] = [
@@ -258,7 +257,7 @@ export default function PaymentRiskRulesPage() {
     { title: '金额', dataIndex: 'amount', width: 100, render: (v: number) => yuan(v) },
     { title: '触发原因', dataIndex: 'reason', width: 220, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 200 }}>{v}</Typography.Text> },
     { title: '审核人', dataIndex: 'reviewerName', width: 100, render: (v: string | null) => v || '-' },
-    { title: '审核时间', dataIndex: 'reviewedAt', width: 170, render: (v: string | null) => (v ? formatDateTime(v) : '-') },
+    dateTimeColumn('审核时间', 'reviewedAt'),
     createdAtColumn as ColumnProps<PaymentRiskReview>,
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentRiskReviewStatus) => <Tag color={REVIEW_STATUS_COLOR[v]}>{PAYMENT_RISK_REVIEW_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentRiskReview>({

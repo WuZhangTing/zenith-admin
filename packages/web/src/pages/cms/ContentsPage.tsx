@@ -27,6 +27,7 @@ import { CmsWidgetSourceRefsSheet, type CmsWidgetSourceTarget } from './CmsWidge
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const STATUS_COLORS: Record<CmsContentStatus, 'grey' | 'orange' | 'green' | 'red' | 'violet'> = {
   draft: 'grey',
@@ -307,8 +308,8 @@ export default function ContentsPage() {
     { title: '作者', dataIndex: 'author', width: 90, render: (v: string | null) => v ?? '-' },
     { title: '浏览', dataIndex: 'viewCount', width: 80 },
     { title: '赞/藏', dataIndex: 'likeCount', width: 90, render: (_: number, record) => `${record.likeCount}/${record.favoriteCount}` },
-    { title: '发布时间', dataIndex: 'publishedAt', width: 180, render: (v: string | null) => v ?? '-' },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 180 },
+    dateTimeColumn('发布时间', 'publishedAt'),
+    dateTimeColumn('更新时间', 'updatedAt'),
     {
       title: '状态',
       dataIndex: 'status',

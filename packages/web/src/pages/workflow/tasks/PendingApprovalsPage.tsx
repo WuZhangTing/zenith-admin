@@ -6,7 +6,6 @@ import { Button, Select, SideSheet, Tag, TextArea, Toast, Typography } from '@do
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus } from 'lucide-react';
 import type { WorkflowInstance, WorkflowInstanceSummaryItem, WorkflowSlaLevel } from '@zenith/shared/workflow';
-import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import WorkflowSummaryLine from '@/components/workflow/WorkflowSummaryLine';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -17,7 +16,7 @@ import WorkflowApprovalDetailSheet from '@/components/workflow/WorkflowApprovalD
 import SavedViewsBar from '@/components/workflow/SavedViewsBar';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useQuickPhrases } from '@/hooks/useQuickPhrases';
-import { renderEllipsis } from '../../../utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
 import { useAllUsers } from '@/hooks/queries/users';
 import { ApiError } from '@/lib/query';
 import {
@@ -203,12 +202,7 @@ export default function PendingApprovalsPage() {
       width: 120,
       render: (v: string | null) => v ?? '—',
     },
-    {
-      title: '提交时间',
-      dataIndex: 'createdAt',
-      width: 180,
-      render: (v: string) => formatDateTime(v),
-    },
+    dateTimeColumn('提交时间', 'createdAt'),
     createOperationColumn<PendingItem>({
       width: 280,
       desktopInlineKeys: ['detail', 'approve', 'reject', 'consult'],

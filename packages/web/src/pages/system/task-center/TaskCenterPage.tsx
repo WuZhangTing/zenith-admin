@@ -17,7 +17,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { ASYNC_TASK_STATUS_TAG_MAP as statusTagMap, ASYNC_TASK_ITEM_STATUS_TAG_MAP as itemStatusTagMap } from '@/utils/async-task';
 import { formatDurationMs as formatDuration } from '@/utils/format';
 import { formatDateTime } from '@/utils/date';
-import { renderEllipsis } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import {
   asyncTaskKeys,
   useAsyncTaskAction,
@@ -440,8 +440,8 @@ export default function TaskCenterPage() {
       ),
     },
     { title: '提交人', dataIndex: 'createdByName', width: 120, render: (value: string | null) => value ?? '-' },
-    { title: '提交时间', dataIndex: 'createdAt', width: 190, render: (value: string) => formatDateTime(value) },
-    { title: '完成时间', dataIndex: 'completedAt', width: 190, render: (value: string | null) => (value ? formatDateTime(value) : '-') },
+    dateTimeColumn('提交时间', 'createdAt'),
+    dateTimeColumn('完成时间', 'completedAt'),
     {
       title: '错误信息',
       dataIndex: 'errorMessage',

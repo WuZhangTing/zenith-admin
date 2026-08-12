@@ -7,7 +7,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
-import { renderEllipsis } from '../../utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '../../utils/table-columns';
 import { formatDateForApi } from '@/utils/date';
 import { memberAdminKeys, useMemberRechargeList } from '@/hooks/queries/member-admin';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -59,8 +59,8 @@ export default function MemberRechargesPage() {
     { title: '支付方式', dataIndex: 'payMethod', width: 130, render: (v: string) => PAYMENT_METHOD_LABELS[v as keyof typeof PAYMENT_METHOD_LABELS] ?? v },
     { title: '说明', dataIndex: 'subject', width: 160, render: (v: string) => renderEllipsis(v) },
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v: PaymentOrderStatus) => <Tag color={STATUS_COLORS[v] as 'green'}>{PAYMENT_ORDER_STATUS_LABELS[v] ?? v}</Tag> },
-    { title: '支付时间', dataIndex: 'paidAt', width: 180, fixed: 'right', render: (v: string | null) => v ?? '—' },
-    { title: '创建时间', dataIndex: 'createdAt', width: 180, fixed: 'right' },
+    dateTimeColumn('支付时间', 'paidAt', { fixed: 'right' }),
+    dateTimeColumn('创建时间', 'createdAt', { fixed: 'right' }),
   ];
 
   const renderKeywordSearch = () => (

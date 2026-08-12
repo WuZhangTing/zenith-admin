@@ -33,7 +33,7 @@ import {
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { formatDateTime, formatDateForApi } from '@/utils/date';
-import { renderEllipsis } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { usePagination } from '@/hooks/usePagination';
 import {
@@ -763,7 +763,7 @@ function SessionsTab() {
     },
     { title: '地域', dataIndex: 'region', width: 120, render: (_value, record) => record.region || '–' },
     { title: '跳出', dataIndex: 'isBounce', width: 90, render: (_value, record) => <Tag color={record.isBounce ? 'red' : 'green'}>{record.isBounce ? '是' : '否'}</Tag> },
-    { title: '开始时间', dataIndex: 'startedAt', width: 180, render: (_value, record) => formatDateTime(record.startedAt) },
+    dateTimeColumn('开始时间', 'startedAt'),
     {
       title: '操作',
       dataIndex: 'sessionId',

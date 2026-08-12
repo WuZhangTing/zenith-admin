@@ -4,6 +4,7 @@ import type { MemberPointTransaction, MemberWalletTransaction, MemberLoginLog } 
 import { MEMBER_STATUS_LABELS, POINT_TX_TYPE_LABELS, WALLET_TX_TYPE_LABELS } from '@zenith/shared/member';
 import { useMemberOverview } from '@/hooks/queries/member-admin';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const { Text } = Typography;
 
@@ -25,7 +26,7 @@ const pointTxCols: ColumnProps<MemberPointTransaction>[] = [
   { title: '变动', dataIndex: 'amount', width: 80, render: (v: number) => <span style={{ color: v > 0 ? '#07c160' : '#fa5151', fontWeight: 600 }}>{v > 0 ? `+${v}` : v}</span> },
   { title: '余额', dataIndex: 'balanceAfter', width: 80 },
   { title: '备注', dataIndex: 'remark', render: (v: string | null) => <Text type="tertiary" ellipsis={{ showTooltip: true }} style={{ maxWidth: 120 }}>{v ?? '—'}</Text> },
-  { title: '时间', dataIndex: 'createdAt', width: 180 },
+  dateTimeColumn('时间', 'createdAt'),
 ];
 
 const walletTxCols: ColumnProps<MemberWalletTransaction>[] = [
@@ -33,7 +34,7 @@ const walletTxCols: ColumnProps<MemberWalletTransaction>[] = [
   { title: '变动(元)', dataIndex: 'amount', width: 90, render: (v: number) => <span style={{ color: v > 0 ? '#07c160' : '#fa5151', fontWeight: 600 }}>{v > 0 ? `+${(v / 100).toFixed(2)}` : (v / 100).toFixed(2)}</span> },
   { title: '余额(元)', dataIndex: 'balanceAfter', width: 90, render: (v: number) => (v / 100).toFixed(2) },
   { title: '备注', dataIndex: 'remark', render: (v: string | null) => <Text type="tertiary" ellipsis={{ showTooltip: true }} style={{ maxWidth: 120 }}>{v ?? '—'}</Text> },
-  { title: '时间', dataIndex: 'createdAt', width: 180 },
+  dateTimeColumn('时间', 'createdAt'),
 ];
 
 const loginLogCols: ColumnProps<MemberLoginLog>[] = [
@@ -41,7 +42,7 @@ const loginLogCols: ColumnProps<MemberLoginLog>[] = [
   { title: 'IP', dataIndex: 'ip', width: 130, render: (v: string | null) => v ?? '—' },
   { title: '地点', dataIndex: 'location', width: 120, render: (v: string | null) => <Text type="tertiary" ellipsis={{ showTooltip: true }} style={{ maxWidth: 110 }}>{v ?? '—'}</Text> },
   { title: '浏览器', dataIndex: 'browser', render: (v: string | null) => <Text type="tertiary" ellipsis={{ showTooltip: true }} style={{ maxWidth: 110 }}>{v ?? '—'}</Text> },
-  { title: '时间', dataIndex: 'createdAt', width: 180 },
+  dateTimeColumn('时间', 'createdAt'),
 ];
 
 export function MemberDetailDrawer({ memberId, onClose }: Readonly<Props>) {

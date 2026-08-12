@@ -23,6 +23,7 @@ import {
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { compactQuery } from '@/lib/query';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const STATUS_COLOR = { pending: 'grey', processing: 'blue', success: 'green', failed: 'red' } as const satisfies Record<PaymentRefundStatus, string>;
 const APPROVAL_COLOR = { none: 'grey', pending: 'amber', approved: 'green', rejected: 'red' } as const satisfies Record<PaymentRefundApprovalStatus, string>;
@@ -87,8 +88,8 @@ export default function PaymentRefundsPage() {
     { title: '退款金额', dataIndex: 'refundAmount', width: 110, render: (v: number) => yuan(v) },
     { title: '原单金额', dataIndex: 'totalAmount', width: 110, render: (v: number) => yuan(v) },
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
-    { title: '退款时间', dataIndex: 'refundedAt', width: 170, render: (t: string | null) => (t ? formatDateTime(t) : '-') },
-    { title: '创建时间', dataIndex: 'createdAt', width: 170, render: (t: string) => formatDateTime(t) },
+    dateTimeColumn('退款时间', 'refundedAt'),
+    dateTimeColumn('创建时间', 'createdAt'),
     {
       title: '审批', dataIndex: 'approvalStatus', width: 100, fixed: 'right',
       render: (v: PaymentRefundApprovalStatus) => (v === 'none' ? <Typography.Text type="tertiary">-</Typography.Text> : <Tag color={APPROVAL_COLOR[v]}>{PAYMENT_REFUND_APPROVAL_STATUS_LABELS[v]}</Tag>),

@@ -28,6 +28,7 @@ import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const { Text, Paragraph } = Typography;
 
@@ -212,7 +213,7 @@ export default function WebhooksPage() {
   ];
 
   const deliveryColumns: ColumnProps<AppWebhookDelivery>[] = [
-    { title: '时间', dataIndex: 'createdAt', width: 150 },
+    dateTimeColumn('时间', 'createdAt'),
     { title: '事件', dataIndex: 'eventType', width: 130, render: (v: string) => OPEN_WEBHOOK_EVENT_LABELS[v] ?? v },
     { title: '尝试', dataIndex: 'attempt', width: 60 },
     { title: '响应码', dataIndex: 'responseStatus', width: 80, render: (v: number | null) => v ?? '—' },

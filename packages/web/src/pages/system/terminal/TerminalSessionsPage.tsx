@@ -13,7 +13,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { useListSearch } from '@/hooks/useListSearch';
-import { renderEllipsis } from '../../../utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
 import { useTerminalPreferences } from './useTerminalPreferences';
 import { resolveTheme, toXtermTheme } from './themes';
 import {
@@ -166,9 +166,7 @@ export default function TerminalSessionsPage() {
       width: 140,
       render: (_: number, r) => `${r.cols} 列 × ${r.rows} 行`,
     },
-    {
-      title: '开始时间', dataIndex: 'startedAt', width: 190,
-    },
+    dateTimeColumn('开始时间', 'startedAt'),
     {
       title: '空闲', dataIndex: 'idleSeconds', width: 90,
       render: (s: number) => (s < 60 ? `${s}s` : `${Math.floor(s / 60)}m`),

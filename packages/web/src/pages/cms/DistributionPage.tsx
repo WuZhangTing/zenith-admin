@@ -10,7 +10,7 @@ import AppModal from '@/components/AppModal';
 import ExportButton from '@/components/ExportButton';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { createOperationColumn, type ResponsiveTableAction } from '@/components/ResponsiveTableActions';
-import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
+import { createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { formatDateTimeForApi, formatDateTimeRangeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -365,7 +365,7 @@ export default function DistributionPage() {
       width: 170,
       render: (_: unknown, item) => `${item.data?.sourceContentId ?? '-'} → ${item.data?.targetContentId ?? '-'}`,
     },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 170 },
+    dateTimeColumn('更新时间', 'updatedAt'),
   ];
 
   const siteOptions = (sites ?? []).map((site) => ({ value: site.id, label: site.name }));

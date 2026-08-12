@@ -8,8 +8,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
-import { formatDateTime } from '@/utils/date';
-import { createdAtColumn } from '@/utils/table-columns';
+import { createdAtColumn, dateTimeColumn } from '@/utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -178,7 +177,7 @@ export default function PaymentSharingPage() {
     { title: '接收方', dataIndex: 'receiverName', width: 140, render: (v: string | null) => v || '-' },
     { title: '分账金额', dataIndex: 'amount', width: 110, render: (v: number) => yuan(v) },
     { title: '渠道分账号', dataIndex: 'channelSharingNo', width: 180, render: (v: string | null) => v || '-' },
-    { title: '完成时间', dataIndex: 'finishedAt', width: 170, render: (v: string | null) => (v ? formatDateTime(v) : '-') },
+    dateTimeColumn('完成时间', 'finishedAt'),
     createdAtColumn as ColumnProps<PaymentSharingOrder>,
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentSharingOrderStatus) => <Tag color={ORDER_STATUS_COLOR[v]}>{PAYMENT_SHARING_ORDER_STATUS_LABELS[v]}</Tag> },
   ];

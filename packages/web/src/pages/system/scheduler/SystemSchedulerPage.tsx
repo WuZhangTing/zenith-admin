@@ -15,7 +15,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { formatDurationMs as formatDuration } from '@/utils/format';
-import { renderEllipsis } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import {
   systemSchedulerKeys,
   useAcknowledgeSystemSchedulerAlert,
@@ -450,8 +450,8 @@ export default function SystemSchedulerPage() {
       render: (value: SystemSchedulerTriggerType) => <Tag color={triggerTypeMap[value].color}>{triggerTypeMap[value].label}</Tag>,
     },
     { title: '状态', dataIndex: 'status', width: 110, render: (value: SystemSchedulerRunStatus) => statusTag(value) },
-    { title: '开始时间', dataIndex: 'startedAt', width: 210 },
-    { title: '结束时间', dataIndex: 'endedAt', width: 210, render: (value: string | null) => value ?? '-' },
+    dateTimeColumn('开始时间', 'startedAt'),
+    dateTimeColumn('结束时间', 'endedAt'),
     { title: '耗时', dataIndex: 'durationMs', width: 110, render: formatDuration },
     { title: '执行节点', dataIndex: 'nodeHostname', width: 190, render: (_: unknown, record) => renderNode(record.nodeHostname, record.nodePid) },
     { title: 'Job ID', dataIndex: 'jobId', width: 220, render: renderEllipsis },
@@ -506,7 +506,7 @@ export default function SystemSchedulerPage() {
     },
     { title: '状态', dataIndex: 'active', width: 120, render: (_: unknown, record) => <Tag color={record.active && !record.stale ? 'green' : 'red'}>{record.active && !record.stale ? '在线' : '离线'}</Tag> },
     { title: '版本', dataIndex: 'version', width: 140, render: (value: string | null) => value ?? '-' },
-    { title: '启动时间', dataIndex: 'startedAt', width: 210 },
+    dateTimeColumn('启动时间', 'startedAt'),
     { title: '最近心跳', dataIndex: 'lastHeartbeatAt', width: 210 },
     { title: '注册任务', dataIndex: 'registeredTaskCount', width: 120 },
     { title: '运行任务', dataIndex: 'runningJobCount', width: 120 },

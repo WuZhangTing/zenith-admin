@@ -4,8 +4,7 @@ import { Select, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { formatDateTime } from '@/utils/date';
-import { renderEllipsis } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 import type { MonitorAlertEvent } from '@zenith/shared/platform';
 import { monitorAlertKeys, useMonitorAlertEventList } from '@/hooks/queries/monitor-alerts';
@@ -70,7 +69,7 @@ export default function MonitorAlertEventsPage() {
   }
 
   const columns: ColumnProps<MonitorAlertEvent>[] = [
-    { title: '触发时间', dataIndex: 'triggeredAt', width: 165, fixed: 'left', render: (t: string) => formatDateTime(t) },
+    dateTimeColumn('触发时间', 'triggeredAt', { fixed: 'left' }),
     { title: '规则', dataIndex: 'ruleName', width: 160, render: renderEllipsis },
     {
       title: '触发条件', dataIndex: 'metric', width: 210,
@@ -84,7 +83,7 @@ export default function MonitorAlertEventsPage() {
     { title: '实际值', dataIndex: 'value', width: 110, render: (v: number, r: MonitorAlertEvent) => <b>{formatMonitorMetricValue(r.metric, v)}</b> },
     { title: '级别', dataIndex: 'level', width: 80, render: (v: string) => <Tag color={LEVEL_CONFIG[v]?.color ?? 'grey'} size="small">{LEVEL_CONFIG[v]?.label ?? v}</Tag> },
     { title: '描述', dataIndex: 'message', width: 280, render: renderEllipsis },
-    { title: '恢复时间', dataIndex: 'resolvedAt', width: 165, render: (t: string | null) => t ? formatDateTime(t) : <span style={{ color: 'var(--semi-color-text-2)' }}>—</span> },
+    dateTimeColumn('恢复时间', 'resolvedAt'),
     {
       title: '状态', dataIndex: 'status', width: 90, fixed: 'right',
       render: (s: string) => s === 'firing' ? <Tag color="red" size="small">告警中</Tag> : <Tag color="green" size="small">已恢复</Tag>,

@@ -27,7 +27,7 @@ import {
 } from '@/hooks/queries/cms-stage3';
 import { ASYNC_TASK_STATUS_TAG_MAP } from '@/utils/async-task';
 import { formatDateTime, formatDateTimeRangeForApi } from '@/utils/date';
-import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
+import { createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 
@@ -202,7 +202,7 @@ export default function PublishingPage() {
     { title: '路径', dataIndex: 'path', width: 320, render: renderEllipsis },
     { title: 'URL', dataIndex: 'url', width: 320, render: renderEllipsis },
     { title: '大小', dataIndex: 'size', width: 100, render: (value: number | null) => value == null ? '-' : `${value} B` },
-    { title: '生成时间', dataIndex: 'generatedAt', width: 180, render: (value: string | null) => value ? formatDateTime(value) : '-' },
+    dateTimeColumn('生成时间', 'generatedAt'),
     {
       title: '状态', dataIndex: 'status', width: 110, fixed: 'right',
       render: (value: CmsPublishArtifactStatus) => <Tag color={value === 'generated' ? 'green' : value === 'failed' ? 'red' : 'grey'}>{CMS_PUBLISH_ARTIFACT_STATUS_LABELS[value]}</Tag>,

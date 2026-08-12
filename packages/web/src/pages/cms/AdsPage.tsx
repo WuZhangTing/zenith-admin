@@ -23,7 +23,7 @@ import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
-import { renderEnabledStatusTag } from '@/utils/table-columns';
+import { dateColumn, dateTimeColumn, renderEnabledStatusTag } from '@/utils/table-columns';
 
 // ─── 广告位 Tab ───────────────────────────────────────────────────────────────
 function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
@@ -139,8 +139,8 @@ function AdsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
       title: 'CTR', dataIndex: 'ctr', width: 90, align: 'right',
       render: (_: unknown, record) => record.viewCount > 0 ? `${Math.round((record.clickCount / record.viewCount) * 1000) / 10}%` : '-',
     },
-    { title: '开始时间', dataIndex: 'startAt', width: 180, render: (v: string | null) => v ?? '不限' },
-    { title: '结束时间', dataIndex: 'endAt', width: 180, render: (v: string | null) => v ?? '不限' },
+    dateTimeColumn('开始时间', 'startAt', { empty: '不限' }),
+    dateTimeColumn('结束时间', 'endAt', { empty: '不限' }),
     { title: '排序', dataIndex: 'sort', width: 70 },
     {
       title: '状态', dataIndex: 'status', width: 80, fixed: 'right',
@@ -275,7 +275,7 @@ function EventsTab({ siteId, setSiteId }: Readonly<{
   );
 
   const columns: ColumnProps<CmsAdEvent>[] = [
-    { title: '发生时间', dataIndex: 'occurredAt', width: 180 },
+    dateTimeColumn('发生时间', 'occurredAt'),
     {
       title: '事件', dataIndex: 'eventType', width: 90,
       render: (value: CmsAdEvent['eventType']) => <Tag size="small">{CMS_AD_EVENT_TYPE_LABELS[value]}</Tag>,
@@ -398,7 +398,7 @@ function StatsTab({ siteId, setSiteId }: Readonly<{
   };
   const statsQuery = useCmsAdEventStats(params, !!siteId);
   const columns: ColumnProps<NonNullable<typeof statsQuery.data>['trend'][number]>[] = [
-    { title: '日期', dataIndex: 'date', width: 160 },
+    dateColumn('日期', 'date'),
     { title: '曝光', dataIndex: 'impressions', width: 120, align: 'right' },
     { title: '点击', dataIndex: 'clicks', width: 120, align: 'right' },
     { title: 'CTR', dataIndex: 'ctr', width: 120, align: 'right', render: (value: number) => `${value}%` },

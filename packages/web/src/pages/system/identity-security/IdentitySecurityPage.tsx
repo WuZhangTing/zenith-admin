@@ -8,7 +8,7 @@ import type { LoginRiskEvent } from '@zenith/shared/identity';
 import type { IdentitySecurityPolicy } from '@zenith/shared/platform';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { formatDateTime } from '@/utils/date';
+import { dateTimeColumn } from '@/utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 import {
   identitySecurityKeys,
@@ -97,7 +97,7 @@ export default function IdentitySecurityPage() {
     { title: '原因', dataIndex: 'reason', width: 180 },
     { title: 'IP', dataIndex: 'ip', width: 140, render: (value) => value || '-' },
     { title: '位置', dataIndex: 'location', width: 160, render: (value) => value || '-' },
-    { title: '时间', dataIndex: 'createdAt', width: 170, render: (value) => formatDateTime(value as string) },
+    dateTimeColumn('时间', 'createdAt'),
   ];
 
   return (

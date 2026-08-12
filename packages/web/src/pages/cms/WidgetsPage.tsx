@@ -22,7 +22,7 @@ import {
   useOfflineCmsWidget,
   usePublishCmsWidget,
 } from '@/hooks/queries/cms-widgets';
-import { renderEllipsis } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
@@ -193,7 +193,7 @@ export default function WidgetsPage() {
         </span>
       ),
     },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 180 },
+    dateTimeColumn('更新时间', 'updatedAt'),
     {
       title: '状态',
       dataIndex: 'status',

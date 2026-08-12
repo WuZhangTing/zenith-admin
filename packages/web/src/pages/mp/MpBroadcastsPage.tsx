@@ -10,7 +10,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { createdAtColumn } from '../../utils/table-columns';
+import { createdAtColumn, dateTimeColumn } from '../../utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 import { useMpAccounts } from './useMpAccounts';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
@@ -151,7 +151,7 @@ export default function MpBroadcastsPage() {
       render: (v: MpBroadcastTarget, r: MpBroadcast) => (v === 'all' ? '全部粉丝' : `标签：${r.tagId ? (tagMap.get(r.tagId) ?? `#${r.tagId}`) : '—'}`),
     },
     { title: '内容', dataIndex: 'content', width: 260, render: (_: unknown, r: MpBroadcast) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 240 }}>{summarize(r)}</Typography.Text> },
-    { title: '发送时间', dataIndex: 'sentAt', width: 160, render: (v: string | null) => v || '—' },
+    dateTimeColumn('发送时间', 'sentAt'),
     createdAtColumn,
     {
       title: '状态', dataIndex: 'status', width: 90, align: 'center' as const, fixed: 'right' as const,

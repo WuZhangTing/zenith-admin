@@ -31,7 +31,7 @@ import {
 import { flattenReportFolders, useReportFolderTree } from '@/hooks/queries/report-folders';
 import { useAllUsers } from '@/hooks/queries/users';
 import { formatDateTime, formatDateTimeForApi, formatDateTimeRangeForApi } from '@/utils/date';
-import { renderEllipsis } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { normalizeTemplateApplyValues, parseJsonObject } from './report-platform-utils';
 import { REPORT_RESOURCE_TYPE_OPTIONS } from './report-platform-options';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
@@ -200,7 +200,7 @@ export default function AssetsPage() {
     { title: '负责人', dataIndex: 'ownerName', width: 130, render: (v) => v || '—' },
     { title: '目录', dataIndex: 'folderName', width: 150, render: (v) => v || '—' },
     { title: '生命周期', dataIndex: 'lifecycleStatus', width: 110, render: (v) => v ? <Tag>{v}</Tag> : '—' },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (v) => formatDateTime(v) },
+    dateTimeColumn('更新时间', 'updatedAt'),
     {
       title: '状态', dataIndex: 'status', width: 100, fixed: 'right',
       render: (v, r) => r.deprecationEffectiveAt ? <Tag color="orange">即将弃用</Tag> : <Tag>{v || '正常'}</Tag>,
@@ -226,7 +226,7 @@ export default function AssetsPage() {
     { title: '类型', dataIndex: 'type', width: 130, render: (v) => templateTypeOptions.find((item) => item.value === v)?.label ?? v },
     { title: '负责人', dataIndex: 'ownerName', width: 120, render: (v) => v || '—' },
     { title: '版本/使用', width: 120, render: (_v, r) => `v${r.version} / ${r.usageCount}` },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (v) => formatDateTime(v) },
+    dateTimeColumn('更新时间', 'updatedAt'),
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v) => <Tag color={v === 'enabled' ? 'green' : 'grey'}>{v === 'enabled' ? '启用' : '停用'}</Tag> },
     createOperationColumn<ReportAssetTemplate>({
       width: 190,
@@ -249,8 +249,8 @@ export default function AssetsPage() {
   const noticeColumns: ColumnProps<ReportDeprecationNotice>[] = [
     { title: '公告标题', dataIndex: 'title', width: 220, render: renderEllipsis },
     { title: '资源', width: 150, render: (_v, r) => `${r.resourceType} #${r.resourceId}` },
-    { title: '生效时间', dataIndex: 'effectiveAt', width: 180, render: (v) => formatDateTime(v) },
-    { title: '到期时间', dataIndex: 'expiresAt', width: 180, render: (v) => v ? formatDateTime(v) : '—' },
+    dateTimeColumn('生效时间', 'effectiveAt'),
+    dateTimeColumn('到期时间', 'expiresAt'),
     { title: '状态', dataIndex: 'publishedAt', width: 100, fixed: 'right', render: (v) => <Tag color={v ? 'orange' : 'grey'}>{v ? '已发布' : '草稿'}</Tag> },
     createOperationColumn<ReportDeprecationNotice>({
       width: 200,
@@ -287,7 +287,7 @@ export default function AssetsPage() {
     { title: '状态', dataIndex: 'deprecated', width: 100, fixed: 'right', render: (v) => <Tag color={v ? 'orange' : 'green'}>{v ? '已弃用' : '正常'}</Tag> },
   ];
   const trendColumns: ColumnProps<ReportAssetUsageTrendPoint>[] = [
-    { title: '日期', dataIndex: 'bucket', width: 170 },
+    dateTimeColumn('日期', 'bucket'),
     { title: '查看', dataIndex: 'views', width: 90 },
     { title: '查询', dataIndex: 'queries', width: 90 },
     { title: '导出', dataIndex: 'exports', width: 90 },

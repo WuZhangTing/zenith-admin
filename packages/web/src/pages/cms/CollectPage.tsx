@@ -22,6 +22,7 @@ import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 function channelsToSelectTree(nodes: CmsChannel[]): { key: string; value: number; label: string; disabled: boolean; children?: ReturnType<typeof channelsToSelectTree> }[] {
   return nodes.map((n) => ({
@@ -176,7 +177,7 @@ export default function CollectPage() {
       render: (v: CmsCollectItem['status']) => <Tag size="small" color={ITEM_STATUS_META[v].color}>{ITEM_STATUS_META[v].label}</Tag>,
     },
     { title: '错误', dataIndex: 'error', width: 200, render: (v: string | null) => v ?? '-' },
-    { title: '采集时间', dataIndex: 'createdAt', width: 180 },
+    dateTimeColumn('采集时间', 'createdAt'),
   ];
 
   return (

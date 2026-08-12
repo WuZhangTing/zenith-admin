@@ -28,6 +28,7 @@ import { formatDateTimeForApi } from '@/utils/date';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const TYPE_COLORS: Record<CmsResourceType, 'blue' | 'purple' | 'cyan' | 'orange' | 'grey'> = {
   image: 'blue', video: 'purple', audio: 'cyan', document: 'orange', other: 'grey',
@@ -387,7 +388,7 @@ export default function ResourcesPage() {
       title: '引用数', dataIndex: 'refCount', width: 90,
       render: (v: number | undefined) => (v ? <Tag size="small" color="blue">{v}</Tag> : <Tag size="small" color="grey">孤立</Tag>),
     },
-    { title: '上传时间', dataIndex: 'createdAt', width: 180 },
+    dateTimeColumn('上传时间', 'createdAt'),
     createOperationColumn<CmsResource>({
       width: 260,
       desktopInlineKeys: ['references', 'replace', 'crop', 'rename', 'delete'],
@@ -576,7 +577,7 @@ export default function ResourcesPage() {
                     ? `孤立 ${Number(record.result.orphanCount ?? 0)} / 清理 ${Number(record.result.deletedCount ?? 0)}`
                     : (record.errorMessage ?? '-'),
                 },
-                { title: '提交时间', dataIndex: 'createdAt', width: 180 },
+                dateTimeColumn('提交时间', 'createdAt'),
               ]}
               dataSource={tasks}
               loading={tasksLoading}

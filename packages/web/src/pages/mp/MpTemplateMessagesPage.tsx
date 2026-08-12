@@ -8,7 +8,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { renderEllipsis } from '../../utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '../../utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 import { useMpAccounts } from './useMpAccounts';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
@@ -141,7 +141,7 @@ export default function MpTemplateMessagesPage() {
     },
     { title: 'msgId', dataIndex: 'msgId', width: 140, render: (v: string | null) => v || '—' },
     { title: '错误信息', dataIndex: 'errorMsg', width: 220, render: (v: string | null) => v || '—' },
-    { title: '发送时间', dataIndex: 'createdAt', width: 170 },
+    dateTimeColumn('发送时间', 'createdAt'),
   ];
 
   const renderAccountFilter = () => (

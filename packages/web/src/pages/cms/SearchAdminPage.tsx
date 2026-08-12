@@ -28,7 +28,7 @@ import { formatDateTimeForApi } from '@/utils/date';
 import { CreateButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
-import { renderEnabledStatusTag } from '@/utils/table-columns';
+import { dateTimeColumn, renderEnabledStatusTag } from '@/utils/table-columns';
 
 // ─── 检索测试 Tab ─────────────────────────────────────────────────────────────
 function SearchTestTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined; onSiteChange: (v: number) => void }>) {
@@ -75,13 +75,13 @@ function SearchTestTab({ siteId, onSiteChange }: Readonly<{ siteId: number | und
     },
     { title: '栏目', dataIndex: 'channelName', width: 110 },
     { title: '相关度', dataIndex: 'rank', width: 90, render: (v: number) => v.toFixed(4) },
-    { title: '发布时间', dataIndex: 'publishedAt', width: 180, render: (v: string | null) => v ?? '-' },
+    dateTimeColumn('发布时间', 'publishedAt'),
   ];
 
   const taskColumns: ColumnProps[] = [
     { title: '任务', dataIndex: 'title', width: 260 },
     { title: '进度', width: 280, render: (_: unknown, record) => <AsyncTaskProgress task={record} /> },
-    { title: '提交时间', dataIndex: 'createdAt', width: 180 },
+    dateTimeColumn('提交时间', 'createdAt'),
   ];
 
   return (

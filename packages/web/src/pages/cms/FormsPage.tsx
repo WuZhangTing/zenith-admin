@@ -19,7 +19,7 @@ import type { CmsForm, CmsFormSubmission } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
-import { renderEnabledStatusTag } from '@/utils/table-columns';
+import { dateTimeColumn, renderEnabledStatusTag } from '@/utils/table-columns';
 
 const FIELD_TYPE_OPTIONS = CMS_FORM_FIELD_TYPES.map((t) => ({ value: t, label: CMS_FORM_FIELD_TYPE_LABELS[t] }));
 
@@ -44,7 +44,7 @@ function SubmissionsSheet({ form, onClose }: Readonly<{ form: CmsForm | null; on
   const columns: ColumnProps<CmsFormSubmission>[] = [
     ...fieldColumns,
     { title: 'IP', dataIndex: 'ip', width: 120, render: (v: string | null) => v ?? '-' },
-    { title: '提交时间', dataIndex: 'createdAt', width: 180 },
+    dateTimeColumn('提交时间', 'createdAt'),
     createOperationColumn<CmsFormSubmission>({
       width: 90,
       desktopInlineKeys: ['delete'],

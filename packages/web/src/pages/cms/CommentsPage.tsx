@@ -11,6 +11,7 @@ import { confirmDelete } from '@/utils/confirm';
 import { CMS_COMMENT_STATUS_LABELS } from '@zenith/shared/cms';
 import type { CmsComment, CmsCommentStatus } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const STATUS_COLORS: Record<CmsCommentStatus, 'orange' | 'green' | 'red'> = {
   pending: 'orange',
@@ -79,7 +80,7 @@ export default function CommentsPage() {
     },
     { title: '点赞', dataIndex: 'likeCount', width: 80, align: 'right' },
     { title: 'IP', dataIndex: 'ip', width: 130, render: (v: string | null) => v ?? '-' },
-    { title: '提交时间', dataIndex: 'createdAt', width: 180 },
+    dateTimeColumn('提交时间', 'createdAt'),
     {
       title: '状态', dataIndex: 'status', width: 90, fixed: 'right',
       render: (v: CmsCommentStatus) => <Tag size="small" color={STATUS_COLORS[v]}>{CMS_COMMENT_STATUS_LABELS[v]}</Tag>,

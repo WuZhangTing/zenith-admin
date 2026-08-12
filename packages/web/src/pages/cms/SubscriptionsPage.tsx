@@ -19,6 +19,7 @@ import { formatDateTimeRangeForApi } from '@/utils/date';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 interface SearchState {
   subjectType?: CmsSubscriptionSubjectType;
@@ -94,7 +95,7 @@ export default function SubscriptionsPage() {
       title: '通知', dataIndex: 'notificationEnabled', width: 80,
       render: (value: boolean) => value ? '开启' : '关闭',
     },
-    { title: '订阅时间', dataIndex: 'createdAt', width: 180 },
+    dateTimeColumn('订阅时间', 'createdAt'),
     createOperationColumn<CmsMemberSubscription>({
       width: 90,
       desktopInlineKeys: ['view'],

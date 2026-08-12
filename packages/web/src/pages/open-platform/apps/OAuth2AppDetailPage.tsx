@@ -24,6 +24,7 @@ import {
 } from '@/hooks/queries/open-platform';
 import { usePermission } from '@/hooks/usePermission';
 import { confirmDanger } from '@/utils/confirm';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const { Text, Title } = Typography;
 
@@ -131,7 +132,7 @@ function TokensTab({ clientId, canManage }: Readonly<{ clientId: string; canMana
     { title: '类型', dataIndex: 'tokenType', width: 100, render: (value: string) => <Tag size="small">{value}</Tag> },
     { title: '用户 ID', dataIndex: 'userId', width: 100, render: (value: number | null) => value ?? '服务账号' },
     { title: 'Scope', dataIndex: 'scopes', render: (values: string[]) => <Space wrap>{values.map((value) => <Tag key={value} size="small" color="blue">{value}</Tag>)}</Space> },
-    { title: '过期时间', dataIndex: 'expiresAt', width: 170, render: (value: string | null) => value ?? '永久' },
+    dateTimeColumn('过期时间', 'expiresAt', { empty: '永久' }),
     {
       title: '状态',
       dataIndex: 'revoked',

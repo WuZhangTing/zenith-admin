@@ -35,6 +35,7 @@ import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
 import { compactQuery } from '@/lib/query';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const STATUS_COLOR = {
   pending: 'grey', paying: 'blue', success: 'green', closed: 'grey', refunding: 'amber', refunded: 'orange', failed: 'red',
@@ -216,8 +217,8 @@ export default function PaymentOrdersPage() {
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
     { title: '方式', dataIndex: 'payMethod', width: 130, render: (v: PaymentMethod) => PAYMENT_METHOD_LABELS[v] },
     { title: '业务类型', dataIndex: 'bizType', width: 120, render: (v: string) => v || '-' },
-    { title: '支付时间', dataIndex: 'paidAt', width: 170, render: (t: string | null) => (t ? formatDateTime(t) : '-') },
-    { title: '创建时间', dataIndex: 'createdAt', width: 170, render: (t: string) => formatDateTime(t) },
+    dateTimeColumn('支付时间', 'paidAt'),
+    dateTimeColumn('创建时间', 'createdAt'),
     {
       title: '状态', dataIndex: 'status', width: 90, fixed: 'right',
       render: (v: PaymentOrderStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_ORDER_STATUS_LABELS[v]}</Tag>,
@@ -260,7 +261,7 @@ export default function PaymentOrdersPage() {
     { title: '退款单号', dataIndex: 'refundNo', width: 180, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} copyable={{ content: v }} style={{ maxWidth: 160 }}>{v}</Typography.Text> },
     { title: '金额', dataIndex: 'refundAmount', width: 90, render: (v: number) => yuan(v) },
     { title: '状态', dataIndex: 'status', width: 90, render: (v: PaymentRefundStatus) => <Tag color={REFUND_STATUS_COLOR[v]}>{PAYMENT_REFUND_STATUS_LABELS[v]}</Tag> },
-    { title: '退款时间', dataIndex: 'refundedAt', width: 160, render: (t: string | null) => (t ? formatDateTime(t) : '-') },
+    dateTimeColumn('退款时间', 'refundedAt'),
   ];
 
   const renderKeywordSearch = () => (

@@ -3,6 +3,7 @@ import { Table, Tag, Typography } from '@douyinfe/semi-ui';
 import { Clock } from 'lucide-react';
 import { MemberPage } from '../../components/MemberPage';
 import { useMemberLoginLogs } from '../../hooks/queries';
+import { DATE_TIME_COLUMN_WIDTH } from '@/utils/table-columns';
 
 const { Text } = Typography;
 
@@ -22,7 +23,7 @@ export default function LoginHistoryPage() {
     {
       title: '登录时间',
       dataIndex: 'createdAt',
-      width: 200,
+      width: DATE_TIME_COLUMN_WIDTH,
       render: (v: string) => (
         <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           <Clock size={13} color="var(--m-text-secondary)" />

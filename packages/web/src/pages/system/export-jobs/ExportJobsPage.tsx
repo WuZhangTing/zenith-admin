@@ -11,7 +11,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { formatDateTime } from '@/utils/date';
 import { formatBytesMb } from '@/utils/format';
-import { renderEllipsis } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import {
   exportJobKeys,
   useBatchDeleteExportJobs,
@@ -244,8 +244,8 @@ export default function ExportJobsPage() {
     },
     { title: '创建人', dataIndex: 'createdByName', width: 130, render: (value: string | null) => value ?? '-' },
     { title: '下载次数', dataIndex: 'downloadCount', width: 100 },
-    { title: '过期时间', dataIndex: 'expiresAt', width: 180, render: (value: string | null) => (value ? formatDateTime(value) : '-') },
-    { title: '创建时间', dataIndex: 'createdAt', width: 180, render: (value: string) => formatDateTime(value) },
+    dateTimeColumn('过期时间', 'expiresAt'),
+    dateTimeColumn('创建时间', 'createdAt'),
     {
       title: '错误信息',
       dataIndex: 'errorMessage',
@@ -335,7 +335,7 @@ export default function ExportJobsPage() {
     { title: '下载人', dataIndex: 'downloadedByName', width: 140, render: (value: string | null) => value ?? '-' },
     { title: 'IP', dataIndex: 'ip', width: 140, render: (value: string | null) => value ?? '-' },
     { title: 'User Agent', dataIndex: 'userAgent', width: 360, render: renderEllipsis },
-    { title: '下载时间', dataIndex: 'createdAt', width: 180, render: (value: string) => formatDateTime(value) },
+    dateTimeColumn('下载时间', 'createdAt'),
   ];
 
   return (

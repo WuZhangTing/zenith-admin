@@ -22,7 +22,7 @@ import {
   useSetCmsInteractionStatus,
 } from '@/hooks/queries/cms';
 import { formatDateTimeRangeForApi } from '@/utils/date';
-import { renderEllipsis } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 import InteractionEditorModal from './interaction/InteractionEditorModal';
 import InteractionResultsSheet from './interaction/InteractionResultsSheet';
@@ -139,7 +139,7 @@ export default function SurveysPage() {
     { title: '参与范围', dataIndex: 'participantScope', width: 120, render: (value: CmsInteraction['participantScope']) => CMS_INTERACTION_PARTICIPANT_SCOPE_LABELS[value] },
     { title: '重复策略', dataIndex: 'repeatPolicy', width: 140, render: (value: CmsInteraction['repeatPolicy']) => CMS_INTERACTION_REPEAT_POLICY_LABELS[value] },
     { title: '答卷数', dataIndex: 'responseCount', width: 90, align: 'right' },
-    { title: '创建时间', dataIndex: 'createdAt', width: 180 },
+    dateTimeColumn('创建时间', 'createdAt'),
     {
       title: '状态', dataIndex: 'status', width: 90, fixed: 'right',
       render: (value: CmsInteractionStatus) => <Tag size="small" color={STATUS_COLORS[value]}>{CMS_INTERACTION_STATUS_LABELS[value]}</Tag>,
@@ -216,7 +216,7 @@ export default function SurveysPage() {
       render: (details: CmsInteractionResponse['answerDetails']) =>
         renderEllipsis(details.map((detail) => `${detail.label}：${detail.display}`).join('；') || '-'),
     },
-    { title: '提交时间', dataIndex: 'createdAt', width: 180 },
+    dateTimeColumn('提交时间', 'createdAt'),
     createOperationColumn<CmsInteractionResponse>({
       width: 90,
       desktopInlineKeys: ['view'],

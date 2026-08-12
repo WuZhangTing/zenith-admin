@@ -20,7 +20,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
-import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
+import { createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import type { WorkflowConnector, WorkflowConnectorType, WorkflowConnectorBreakerState, WorkflowConnectorInvokeResult, WorkflowConnectorHttpConfig, WorkflowConnectorInvocation } from '@zenith/shared/workflow';
 import {
@@ -396,7 +396,7 @@ export default function WorkflowConnectorsPage() {
               { title: '耗时', dataIndex: 'durationMs', width: 80, render: (v: number) => `${v}ms` },
               { title: '地址', dataIndex: 'requestUrl', width: 200, render: (v: string | null) => renderEllipsis(v ?? '—') },
               { title: '错误', dataIndex: 'error', width: 180, render: (v: string | null) => v ? renderEllipsis(v) : '—' },
-              { title: '时间', dataIndex: 'createdAt', width: 150 },
+              dateTimeColumn('时间', 'createdAt'),
             ]}
             scroll={{ y: '50vh' }}
           />

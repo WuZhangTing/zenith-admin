@@ -14,7 +14,6 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { CHANNEL_MESSAGE_TYPE_LABELS as TYPE_LABELS } from '@zenith/shared/messaging';
 import type { ChatCard, ChatMessageExtra } from '@zenith/shared/chat';
 import type { ChannelMessageTemplate, ChannelMessageType } from '@zenith/shared/messaging';
-import { formatDateTime } from '@/utils/date';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { ImageUploadField } from '@/components/ImageUploadField';
@@ -26,6 +25,7 @@ import {
 } from '@/hooks/queries/channels';
 import { CreateButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 interface Props {
   visible: boolean;
@@ -135,7 +135,7 @@ export function ChannelTemplateDrawer({ visible, onClose, onChanged }: Readonly<
       title: '类型', dataIndex: 'type', width: 90,
       render: (v: ChannelMessageType) => <Tag color={TYPE_COLOR[v] ?? 'grey'} size="small">{TYPE_LABELS[v] ?? v}</Tag>,
     },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (v: string) => formatDateTime(v) },
+    dateTimeColumn('更新时间', 'updatedAt'),
     createOperationColumn<ChannelMessageTemplate>({
       width: 120,
       actions: (record) => [

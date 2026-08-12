@@ -12,6 +12,7 @@ import type { WorkflowDefinition, WorkflowDefinitionVersion, WorkflowVersionDiff
 import WorkflowVersionDiffView from './WorkflowVersionDiffView';
 import { useRestoreWorkflowDefinitionVersion, useWorkflowDefinitionDiff, useWorkflowDefinitionVersions } from '@/hooks/queries/workflow-definitions';
 import { TABLE_PAGE_SIZE_OPTIONS, usePagination } from '@/hooks/usePagination';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 interface Props {
   visible: boolean;
@@ -84,7 +85,7 @@ export default function WorkflowVersionsSheet({
     { title: '版本号', dataIndex: 'version', width: 90, render: (v: number) => <Tag color="blue">v{v}</Tag> },
     { title: '名称', dataIndex: 'name' },
     { title: '发布人', dataIndex: 'publishedByName', width: 120, render: (v?: string) => v ?? '-' },
-    { title: '发布时间', dataIndex: 'publishedAt', width: 170 },
+    dateTimeColumn('发布时间', 'publishedAt'),
     createOperationColumn<WorkflowDefinitionVersion>({
       width: 180,
       desktopInlineKeys: ['diff', 'restore'],

@@ -24,6 +24,7 @@ import {
 } from '@/hooks/queries/cms';
 import './interaction-editor.css';
 import { DataBar } from '@/components/data-viz/DataBar';
+import { dateColumn } from '@/utils/table-columns';
 
 const TEXT_PAGE_SIZE = 10;
 const TREND_OPTIONS = [7, 14, 30, 90].map((days) => ({ value: days, label: `近 ${days} 天` }));
@@ -217,7 +218,7 @@ function TrendView({ interactionId }: Readonly<{ interactionId: number }>) {
   const query = useCmsInteractionTrend(interactionId, days);
   const max = Math.max(1, ...(query.data?.points ?? []).map((point) => point.count));
   const columns = [
-    { title: '日期', dataIndex: 'date', width: 120 },
+    dateColumn('日期', 'date'),
     { title: '答卷数', dataIndex: 'count', width: 90, align: 'right' as const },
     {
       title: '分布',

@@ -33,9 +33,9 @@ import {
   useReportTransferList,
 } from '@/hooks/queries/report-governance';
 import { useAllUsers } from '@/hooks/queries/users';
-import { formatDateTime } from '@/utils/date';
 import { approvalConflictMessage, parseJsonObject } from '../report-platform-utils';
 import { REPORT_RESOURCE_TYPE_OPTIONS, reportResourceTypeLabel } from '../report-platform-options';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const approvalStatuses = ['pending', 'approved', 'rejected', 'cancelled'] as const;
 const transferStatuses = ['pending', 'accepted', 'rejected', 'cancelled'] as const;
@@ -92,7 +92,7 @@ export function GovernanceApprovalTab() {
     { title: '动作', dataIndex: 'action', width: 100 },
     { title: '修订', dataIndex: 'requestedRevision', width: 80 },
     { title: '申请人', dataIndex: 'requestedByName', width: 120, render: (v) => v || '—' },
-    { title: '申请时间', dataIndex: 'requestedAt', width: 180, render: (v) => formatDateTime(v) },
+    dateTimeColumn('申请时间', 'requestedAt'),
     { title: '处理人', dataIndex: 'decidedByName', width: 120, render: (v) => v || '—' },
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v) => <Tag color={statusColor[v]}>{v}</Tag> },
     createOperationColumn<ReportPublishApproval>({
@@ -180,7 +180,7 @@ export function GovernanceTransferTab() {
     { title: '原负责人', dataIndex: 'fromOwnerName', width: 130, render: (v) => v || '未分配' },
     { title: '新负责人', dataIndex: 'toOwnerName', width: 130, render: (v, r) => v || `用户 #${r.toOwnerId}` },
     { title: '原因', dataIndex: 'reason', width: 220, render: (v) => v || '—' },
-    { title: '申请时间', dataIndex: 'createdAt', width: 180, render: (v) => formatDateTime(v) },
+    dateTimeColumn('申请时间', 'createdAt'),
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v) => <Tag color={statusColor[v]}>{v}</Tag> },
     createOperationColumn<ReportResourceTransfer>({
       width: 170,

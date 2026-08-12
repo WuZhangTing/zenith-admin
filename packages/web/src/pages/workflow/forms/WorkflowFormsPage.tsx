@@ -3,7 +3,6 @@ import { Select, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useNavigate } from 'react-router-dom';
 import type { WorkflowForm, WorkflowFormStatus } from '@zenith/shared/workflow';
-import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
@@ -20,6 +19,7 @@ import {
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 type StatusFilter = WorkflowFormStatus | '';
 type TagColor = 'green' | 'grey';
@@ -129,12 +129,7 @@ export default function WorkflowFormsPage() {
       width: 120,
       render: (value: string | null | undefined) => value || '-',
     },
-    {
-      title: '更新时间',
-      dataIndex: 'updatedAt',
-      width: 180,
-      render: (value: string) => formatDateTime(value),
-    },
+    dateTimeColumn('更新时间', 'updatedAt'),
     {
       title: '状态',
       dataIndex: 'status',

@@ -14,6 +14,7 @@ import {
   useMakeupCheckin,
   useMemberCheckin,
 } from '../../hooks/queries';
+import { dateColumn, dateTimeColumn } from '@/utils/table-columns';
 
 const HISTORY_PAGE_SIZE = 10;
 
@@ -201,11 +202,11 @@ export default function CheckinPage() {
         </div>
         <Table
           columns={[
-            { title: '签到日期', dataIndex: 'checkinDate', width: 120 },
+            dateColumn('签到日期', 'checkinDate'),
             { title: '连续天数', dataIndex: 'consecutiveDays', width: 100 },
             { title: '积分奖励', dataIndex: 'pointsAwarded', width: 100 },
             { title: '经验奖励', dataIndex: 'experienceAwarded', width: 100 },
-            { title: '签到时间', dataIndex: 'createdAt' },
+            dateTimeColumn('签到时间', 'createdAt'),
           ]}
           dataSource={history}
           loading={historyQuery.isFetching}

@@ -24,6 +24,7 @@ import {
   useMaintenanceStatus,
   useUpdateMaintenanceStatus,
 } from '@/hooks/queries/maintenance';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const { Title, Text } = Typography;
 
@@ -111,8 +112,8 @@ export default function MaintenancePage() {
   const isEnabled = status?.enabled ?? false;
 
   const logColumns: ColumnProps<MaintenanceLog>[] = [
-    { title: '开始时间', dataIndex: 'startedAt', width: 200, render: (v: string | null) => v ?? <Text type="tertiary">—</Text> },
-    { title: '结束时间', dataIndex: 'endedAt', width: 200, render: (v: string | null) => v ?? <Text type="tertiary">—</Text> },
+    dateTimeColumn('开始时间', 'startedAt'),
+    dateTimeColumn('结束时间', 'endedAt'),
     { title: '时长', dataIndex: 'durationSeconds', width: 120, render: (v: number | null) => formatDuration(v) },
     { title: '维护提示', dataIndex: 'message', ellipsis: { showTitle: true } },
     { title: '开启人', dataIndex: 'startedByName', width: 120, render: (v: string | null) => v ?? <Text type="tertiary">—</Text> },

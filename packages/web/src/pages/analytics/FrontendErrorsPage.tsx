@@ -75,6 +75,7 @@ import {
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const { Text, Title, Paragraph } = Typography;
 
@@ -700,7 +701,7 @@ export default function FrontendErrorsPage() {
       width: 260,
       render: (_value, record) => <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 230 }}>{record.pageUrl || '–'}</Text>,
     },
-    { title: '时间', dataIndex: 'createdAt', width: 180, render: (value) => formatDateTime(String(value)) },
+    dateTimeColumn('时间', 'createdAt'),
     createOperationColumn<ErrorEvent>({
       width: 90,
       desktopInlineKeys: ['detail'],
@@ -718,7 +719,7 @@ export default function FrontendErrorsPage() {
     { title: 'Release', dataIndex: 'release', width: 180 },
     { title: '文件名', dataIndex: 'fileName', width: 260 },
     { title: '大小', dataIndex: 'size', width: 120, render: (value) => formatBytes(Number(value)) },
-    { title: '上传时间', dataIndex: 'createdAt', width: 180, render: (value) => formatDateTime(String(value)) },
+    dateTimeColumn('上传时间', 'createdAt'),
     createOperationColumn<SourceMapItem>({
       width: 100,
       desktopInlineKeys: ['delete'],
@@ -797,7 +798,7 @@ export default function FrontendErrorsPage() {
   ], [deleteAlert, openAlertModal, testAlertMutation, toggleAlert]);
 
   const alertLogColumns = useMemo<ColumnProps<ErrorAlertLog>[]>(() => [
-    { title: '触发时间', dataIndex: 'createdAt', width: 180, render: (_value, record) => formatDateTime(record.createdAt) },
+    dateTimeColumn('触发时间', 'createdAt'),
     { title: '规则', dataIndex: 'ruleName', width: 180 },
     { title: '条件', dataIndex: 'condition', width: 100, render: (_value, record) => CONDITION_CONFIG[record.condition] },
     { title: '详情', dataIndex: 'detail' },

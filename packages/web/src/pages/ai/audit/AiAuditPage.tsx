@@ -10,7 +10,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePagination } from '@/hooks/usePagination';
 import AppModal from '@/components/AppModal';
-import { renderEllipsis } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 import type { AiFeedbackContext } from '@/hooks/queries/ai-feedback';
@@ -130,13 +130,7 @@ export default function AiAuditPage() {
       render: (v: string | null) => v ? renderEllipsis(v) : '—',
     },
     { title: '模型', dataIndex: 'model', width: 130, render: (v: string | null) => v || '—' },
-    {
-      title: '时间',
-      dataIndex: 'createdAt',
-      width: 180,
-      fixed: 'right',
-      render: (v: string) => <span style={{ whiteSpace: 'nowrap' }}>{formatDateTime(v)}</span>,
-    },
+    dateTimeColumn('时间', 'createdAt', { fixed: 'right' }),
     createOperationColumn<AiFeedbackItem>({
       width: 130,
       desktopInlineKeys: ['context', 'trace'],

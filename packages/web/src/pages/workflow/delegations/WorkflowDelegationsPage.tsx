@@ -20,6 +20,7 @@ import {
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 type Scope = 'mine' | 'all';
 
@@ -137,12 +138,7 @@ export default function WorkflowDelegationsPage() {
         return `${start} ~ ${end}`;
       },
     },
-    {
-      title: '创建时间',
-      dataIndex: 'createdAt',
-      width: 180,
-      render: (v: string) => formatDateTime(v),
-    },
+    dateTimeColumn('创建时间', 'createdAt'),
     {
       title: '状态',
       dataIndex: 'active',

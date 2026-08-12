@@ -15,6 +15,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
 import { FormSliderInput } from '@/components/SliderInput';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const PAGE_SIZE = 20;
 const defaultSearch = { name: '', status: '' as '' | AnalyticsExperiment['status'] };
@@ -197,7 +198,7 @@ export default function AnalyticsExperimentsTab() {
     { title: '变体数', dataIndex: 'variants', width: 90, render: (items: AnalyticsExperimentVariant[]) => items.length },
     { title: '指标事件', dataIndex: 'metricEventName', width: 170, render: (value: string) => <Typography.Text code>{value}</Typography.Text> },
     { title: '运行窗口', dataIndex: 'window', width: 280, render: (_: unknown, record) => windowText(record) },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 170, render: (value: string) => formatDateTime(value) },
+    dateTimeColumn('更新时间', 'updatedAt'),
     // 固定列必须连续贴在两端：状态若夹在中间，会被抽到右侧固定层，原位留下空洞，表头表体错位
     { title: '状态', dataIndex: 'status', width: 110, fixed: 'right', render: (value: AnalyticsExperiment['status']) => <Tag color={STATUS_COLOR[value]} size="small">{ANALYTICS_EXPERIMENT_STATUS_LABELS[value]}</Tag> },
     { title: '操作', dataIndex: 'operation', width: 260, fixed: 'right', render: (_: unknown, record) => (

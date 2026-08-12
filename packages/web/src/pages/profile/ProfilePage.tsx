@@ -47,7 +47,7 @@ import {
   useVerifyTotpSetup,
 } from '@/hooks/queries/profile';
 import './ProfilePage.css';
-import { createdAtColumn } from '../../utils/table-columns';
+import { createdAtColumn, dateTimeColumn } from '../../utils/table-columns';
 
 const { Title, Text } = Typography;
 
@@ -727,7 +727,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
                         { title: '名称', dataIndex: 'name', width: 150, render: (v: string) => <Text strong>{v}</Text> },
                         { title: 'Token 前缀', dataIndex: 'tokenPrefix', width: 160, render: (v: string) => <code style={{ fontSize: 12 }}>{v}</code> },
                         { title: '最后使用', dataIndex: 'lastUsedAt', render: (v: string | null) => v ? formatDateTime(v) : '未使用', width: 180 },
-                        { title: '过期时间', dataIndex: 'expiresAt', render: (v: string | null) => v ? formatDateTime(v) : '永久有效', width: 180 },
+                        dateTimeColumn('过期时间', 'expiresAt', { empty: '永久有效' }),
                         createdAtColumn,
                         {
                           title: '操作', dataIndex: 'id', width: 80, fixed: 'right',

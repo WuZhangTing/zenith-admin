@@ -10,7 +10,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Banner, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ChannelAdmin, ChannelSubscriber } from '@zenith/shared/messaging';
-import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -28,6 +27,7 @@ import {
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 interface Props {
   channel: ChannelAdmin | null;
@@ -105,10 +105,7 @@ export function ChannelSubscribersDrawer({ channel, visible, onClose }: Readonly
         </Space>
       ),
     },
-    {
-      title: '订阅时间', dataIndex: 'subscribedAt', width: 180,
-      render: (v: string | null) => (v ? formatDateTime(v) : <Typography.Text type="tertiary">—</Typography.Text>),
-    },
+    dateTimeColumn('订阅时间', 'subscribedAt'),
     {
       title: '免打扰', dataIndex: 'isMuted', width: 90,
       render: (v: boolean) => <Tag size="small" color={v ? 'orange' : 'grey'}>{v ? '已开启' : '未开启'}</Tag>,

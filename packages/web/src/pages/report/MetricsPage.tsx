@@ -24,8 +24,7 @@ import {
 } from '@/hooks/queries/report-metrics';
 import { useEnabledReportDatasets } from '@/hooks/queries/report-datasets';
 import { useAllUsers } from '@/hooks/queries/users';
-import { formatDateTime } from '@/utils/date';
-import { renderEllipsis } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { isRevisionConflict, metricLifecyclePayload, normalizeMetricFormValues } from './report-platform-utils';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
@@ -168,7 +167,7 @@ export default function MetricsPage() {
     { title: '负责人', dataIndex: 'ownerName', width: 120, render: (value) => value || '—' },
     { title: '目录', dataIndex: 'folderName', width: 140, render: (value) => value || '—' },
     { title: '修订', dataIndex: 'revision', width: 80 },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (value) => formatDateTime(value) },
+    dateTimeColumn('更新时间', 'updatedAt'),
     {
       title: '状态', dataIndex: 'lifecycleStatus', width: 100, fixed: 'right',
       render: (value: ReportMetric['lifecycleStatus']) => <Tag color={statusColor[value]}>{statusOptions.find((item) => item.value === value)?.label}</Tag>,

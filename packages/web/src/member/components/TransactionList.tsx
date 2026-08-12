@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Table, Typography } from '@douyinfe/semi-ui';
-import { formatDateTime } from '@/utils/date';
 import { useMemberTransactions } from '../hooks/queries';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 interface TransactionListProps {
   fetchUrl: string;
@@ -43,12 +43,7 @@ export function TransactionList({ fetchUrl, typeLabels, formatAmount }: Transact
         );
       },
     },
-    {
-      title: '时间',
-      dataIndex: 'createdAt',
-      width: 180,
-      render: (v: string) => formatDateTime(v),
-    },
+    dateTimeColumn('时间', 'createdAt'),
   ];
 
   return (

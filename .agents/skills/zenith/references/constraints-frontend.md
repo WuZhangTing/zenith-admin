@@ -79,6 +79,13 @@
 - **状态列固定**：状态列必须紧靠操作列左侧，并同样 `fixed: 'right'`
 - **列公共工具**：`createdAtColumn` 与 `renderEllipsis` 从 `utils/table-columns` 导入；
   **禁止**内联写 `<Typography.Text ellipsis={{ showTooltip: true }} …>`
+- **时间 / 日期列**：一律用 `utils/table-columns` 的 `dateTimeColumn(title, dataIndex, options?)`
+  （日期时间，宽 180）或 `dateColumn(...)`（纯日期，宽 120）创建，`createdAt` / `updatedAt`
+  直接用预置的 `createdAtColumn` / `updatedAtColumn`。工厂已内建格式化与空值兜底，
+  **禁止**再手写 `width` 与 `render: (v) => formatDateTime(v)` / `v ? formatDateTime(v) : '-'`。
+  语义化空值（「永久」「不限」「未发布」）传 `empty`；`sorter` / `fixed` 等直接透传。
+  确需自定义 `render`（时间区间、带图标或等宽字体）时，`width` 也必须取 `DATE_TIME_COLUMN_WIDTH`
+- **空值占位统一**：用 `utils/table-columns` 的 `EMPTY_PLACEHOLDER`（`—`），**禁止**混用 `-` / `–`
 - **树形表格展开控制**：用 `children` 渲染树形表格时必须在搜索栏加「全部展开 / 全部折叠」按钮，
   受控 `expandedRowKeys` + `onExpandedRowsChange`；图标已展开用 `ChevronsDownUp`，未展开用 `ChevronsUpDown`
 - **批量按钮显示时机**：仅 `selectedRowKeys.length > 0` 时显示，放在查询 / 重置按钮之后

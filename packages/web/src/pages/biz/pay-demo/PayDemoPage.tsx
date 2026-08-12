@@ -17,7 +17,7 @@ import type { CreatePaymentResult, PaymentMethod } from '@zenith/shared/payment'
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { createdAtColumn } from '@/utils/table-columns';
+import { createdAtColumn, dateTimeColumn } from '@/utils/table-columns';
 import AppModal from '@/components/AppModal';
 import {
   bizPayDemoKeys,
@@ -177,16 +177,7 @@ export default function PayDemoPage() {
       title: '支付方式', dataIndex: 'payMethod', width: 130,
       render: (v: PaymentMethod | null) => (v ? PAYMENT_METHOD_LABELS[v] : <Typography.Text type="tertiary">—</Typography.Text>),
     },
-    {
-      title: '支付时间',
-      dataIndex: 'paidAt',
-      width: 190,
-      render: (v: string | null) => (
-        v
-          ? <span style={{ whiteSpace: 'nowrap' }}>{v}</span>
-          : <Typography.Text type="tertiary">—</Typography.Text>
-      ),
-    },
+    dateTimeColumn('支付时间', 'paidAt'),
     createdAtColumn as ColumnProps<BizPayDemo>,
     {
       title: '状态', dataIndex: 'status', width: 100, fixed: 'right',

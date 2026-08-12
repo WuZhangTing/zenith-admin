@@ -7,7 +7,6 @@ import { usePagination } from '@/hooks/usePagination';
 import { IllustrationIdle, IllustrationIdleDark } from '@douyinfe/semi-illustrations';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import { CheckCheck } from 'lucide-react';
-import { formatDateTime } from '@/utils/date';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import AnnouncementDetailModal from '@/components/AnnouncementDetailModal';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -19,6 +18,7 @@ import {
   useMyAnnouncementDetail,
   useMyAnnouncementList,
 } from '@/hooks/queries/announcements';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 type AnnouncementWithRead = MyAnnouncement;
 type AnnouncementTab = 'all' | 'unread' | 'read';
@@ -138,12 +138,7 @@ export default function AnnouncementsPage() {
         </Tag>
       ),
     },
-    {
-      title: '发布时间',
-      dataIndex: 'publishTime',
-      width: 200,
-      render: (v: string) => formatDateTime(v),
-    },
+    dateTimeColumn('发布时间', 'publishTime'),
     {
       title: '状态',
       dataIndex: 'isRead',

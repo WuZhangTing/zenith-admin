@@ -10,7 +10,7 @@ import ExportButton from '@/components/ExportButton';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
-import { renderEllipsis } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { formatDateForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { usePublicConfig } from '@/hooks/queries/system-configs';
@@ -147,7 +147,7 @@ export default function FeedbacksPage() {
     { title: '来源页面', dataIndex: 'pagePath', width: 150, render: (v: string | null) => renderEllipsis(v ?? '—') },
     { title: '处理人', dataIndex: 'handlerNickname', width: 100, render: (v: string | null) => v ?? '—' },
     { title: '处理备注', dataIndex: 'handleRemark', width: 180, render: (v: string | null) => renderEllipsis(v ?? '—') },
-    { title: '提交时间', dataIndex: 'createdAt', width: 180 },
+    dateTimeColumn('提交时间', 'createdAt'),
     {
       title: '状态', dataIndex: 'status', width: 90, fixed: 'right',
       render: (v: UserFeedbackStatus) => {

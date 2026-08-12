@@ -27,6 +27,7 @@ import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { MetricMeter, type MetricMeterTone } from '@/components/data-viz/MetricMeter';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const { Paragraph, Text } = Typography;
 
@@ -171,7 +172,7 @@ export default function MyAppsPage() {
       ),
     },
     { title: 'Scope', dataIndex: 'allowedScopes', width: 280, render: (values: string[]) => <Space wrap>{values.map((value) => <Tag key={value} size="small">{value}</Tag>)}</Space> },
-    { title: '创建时间', dataIndex: 'createdAt', width: 170 },
+    dateTimeColumn('创建时间', 'createdAt'),
     {
       title: '状态',
       dataIndex: 'status',

@@ -18,6 +18,7 @@ import {
   useWorkflowEngineDiagnostics,
 } from '@/hooks/queries/workflow-monitor';
 import { DataBar } from '@/components/data-viz/DataBar';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'indigo' | 'light-blue' | 'light-green' | 'lime' | 'orange' | 'pink' | 'purple' | 'red' | 'teal' | 'violet' | 'yellow' | 'white';
 
@@ -695,7 +696,7 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
     { title: '尝试', dataIndex: 'attempt', width: 80 },
     { title: '耗时', dataIndex: 'durationMs', width: 100, render: (value) => value == null ? '—' : `${value}ms` },
     { title: '错误', dataIndex: 'errorMessage', width: 260, render: (value) => value || '—' },
-    { title: '创建时间', dataIndex: 'createdAt', width: 180 },
+    dateTimeColumn('创建时间', 'createdAt'),
   ];
 
   const outboxColumns: ColumnProps<WorkflowEngineOutboxEvent>[] = [
@@ -732,12 +733,12 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
     { title: '任务名', dataIndex: 'name' },
     { title: 'Cron', dataIndex: 'cronExpression', width: 150 },
     { title: '下次执行', dataIndex: 'nextRunAt', width: 180, render: (value) => value || '—' },
-    { title: '注册时间', dataIndex: 'registeredAt', width: 180 },
+    dateTimeColumn('注册时间', 'registeredAt'),
   ];
 
   const queueWorkerColumns: ColumnProps<WorkflowEngineIntrospection['scheduler']['systemQueueWorkers'][number]>[] = [
     { title: 'Worker', dataIndex: 'name' },
-    { title: '注册时间', dataIndex: 'registeredAt', width: 180 },
+    dateTimeColumn('注册时间', 'registeredAt'),
   ];
 
   const wipColumns: ColumnProps<WorkflowEngineIntrospection['scheduler']['wip'][number]>[] = [
@@ -773,7 +774,7 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
     },
     { title: '实例', dataIndex: 'instanceId', width: 88, render: (v: number | null) => (v != null ? `#${v}` : '—') },
     { title: '尝试', dataIndex: 'attempts', width: 64 },
-    { title: '到期时间', dataIndex: 'runAt', width: 164 },
+    dateTimeColumn('到期时间', 'runAt'),
     {
       title: '最近错误', dataIndex: 'lastError',
       render: (v: string | null) => (v ? <Typography.Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 240 }}>{v}</Typography.Text> : <Typography.Text type="tertiary">—</Typography.Text>),

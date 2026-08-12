@@ -19,7 +19,7 @@ import WorkflowTemplateFormModal, { type WorkflowTemplateFormValues } from '../c
 import CategorySidebar from './components/CategorySidebar';
 import { TemplateGalleryModal } from './components/TemplateGalleryModal';
 import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
-import { renderEllipsis } from '../../../utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
 import { useListSearch } from '@/hooks/useListSearch';
 import {
   useBatchDeleteWorkflowDefinitions,
@@ -331,12 +331,7 @@ export default function WorkflowDefinitionsPage() {
       width: 90,
       render: renderEllipsis,
     },
-    {
-      title: '更新时间',
-      dataIndex: 'updatedAt',
-      width: 180,
-      render: (v: string) => formatDateTime(v),
-    },
+    dateTimeColumn('更新时间', 'updatedAt'),
     {
       title: '状态',
       dataIndex: 'status',

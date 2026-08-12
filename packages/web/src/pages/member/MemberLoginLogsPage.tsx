@@ -5,7 +5,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
-import { renderEllipsis } from '../../utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '../../utils/table-columns';
 import { formatDateForApi } from '@/utils/date';
 import { memberAdminKeys, useMemberLoginLogList } from '@/hooks/queries/member-admin';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -52,7 +52,7 @@ export default function MemberLoginLogsPage() {
     { title: '操作系统', dataIndex: 'os', width: 130, render: (v: string | null) => renderEllipsis(v ?? '—') },
     { title: '说明', dataIndex: 'message', render: (v: string | null) => renderEllipsis(v ?? '—') },
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: 'success' | 'fail') => <Tag color={v === 'success' ? 'green' : 'red'}>{v === 'success' ? '成功' : '失败'}</Tag> },
-    { title: '登录时间', dataIndex: 'createdAt', width: 180, fixed: 'right' },
+    dateTimeColumn('登录时间', 'createdAt', { fixed: 'right' }),
   ];
 
   const renderKeywordSearch = () => (

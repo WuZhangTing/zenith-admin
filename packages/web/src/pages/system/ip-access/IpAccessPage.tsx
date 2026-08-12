@@ -5,8 +5,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { IpAccessLog } from '@zenith/shared/platform';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { formatDateTime } from '@/utils/date';
-import { renderEllipsis } from '../../../utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
 import { ipAccessKeys, useIpAccessConfigs, useIpAccessLogs, useSaveIpAccessSection } from '@/hooks/queries/ip-access';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
@@ -61,10 +60,7 @@ function IpAccessLogsTab() {
     { title: '请求路径', dataIndex: 'path', render: renderEllipsis },
     { title: '请求方法', dataIndex: 'method', width: 100 },
     { title: 'User-Agent', dataIndex: 'userAgent', render: renderEllipsis },
-    {
-      title: '拦截时间', dataIndex: 'createdAt', width: 180,
-      render: (v: string) => formatDateTime(v),
-    },
+    dateTimeColumn('拦截时间', 'createdAt'),
   ];
 
   return (

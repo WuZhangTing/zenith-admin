@@ -30,6 +30,7 @@ import { ANALYTICS_EVENT_OVERRIDE_STATUS_OPTIONS, ANALYTICS_CAMPAIGN_CHANNEL_OPT
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const PAGE_SIZE = 20;
 const MAX_CONDITIONS = 10;
@@ -344,8 +345,8 @@ export default function AnalyticsSegmentsTab() {
       ),
     },
     { title: '成员数（快照）', dataIndex: 'estimatedSize', width: 150 },
-    { title: '快照时间', dataIndex: 'snapshotAt', width: 180, render: (v: string | null) => (v ? formatDateTime(v) : '未物化') },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (v: string) => formatDateTime(v) },
+    dateTimeColumn('快照时间', 'snapshotAt', { empty: '未物化' }),
+    dateTimeColumn('更新时间', 'updatedAt'),
     createOperationColumn<AnalyticsUserSegment>({
       width: 220,
       desktopInlineKeys: ['members', 'campaign', 'materialize', 'edit'],
@@ -376,7 +377,7 @@ export default function AnalyticsSegmentsTab() {
     { title: '身份类型', dataIndex: 'identityType', width: 100 },
     { title: '管理员 ID', dataIndex: 'userId', width: 100, render: (v: number | null) => v ?? '–' },
     { title: '会员 ID', dataIndex: 'memberId', width: 100, render: (v: number | null) => v ?? '–' },
-    { title: '快照时间', dataIndex: 'snapshotAt', width: 180, render: (v: string) => formatDateTime(v) },
+    dateTimeColumn('快照时间', 'snapshotAt'),
   ];
 
   return (

@@ -34,6 +34,7 @@ import {
 } from '@/hooks/queries/rate-limit';
 import { CreateButton } from '@/components/toolbar-controls';
 import { useEditModal } from '@/hooks/useEditModal';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const { Title, Text } = Typography;
 
@@ -262,7 +263,7 @@ export default function RateLimitPage() {
         pagination={{ pageSize: 20 }}
         columns={[
           { title: '规则', dataIndex: 'rule', width: 120, render: (v: string) => <Tag color="blue" size="small">{v}</Tag> },
-          { title: '拦截时间', dataIndex: 'at', width: 180 },
+          dateTimeColumn('拦截时间', 'at'),
           { title: '触发 Key', dataIndex: 'key', render: (v: string) => <Text copyable>{v}</Text> },
           { title: '请求路径', dataIndex: 'path', render: (v: string) => <Text code>{v || '-'}</Text> },
           createOperationColumn<{ _rowId: string; rule: string; at: string; key: string; path: string }>({

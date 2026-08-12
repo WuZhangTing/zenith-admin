@@ -8,8 +8,8 @@ import type { CmsChannel, CmsContent } from '@zenith/shared/cms';
 import { useQueryClient } from '@tanstack/react-query';
 import { cmsContentKeys, useAllCmsSites, useCmsChannelTree, useCmsContentList, useCmsLinkTarget } from '@/hooks/queries/cms';
 import { useIsMobile } from '@/hooks/useMediaQuery';
-import { formatDateTime } from '@/utils/date';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 type PickerMode = 'content' | 'channel' | null;
 
@@ -74,12 +74,7 @@ function ContentPickerModal({ siteId, visible, onCancel, onSelect, excludeId }: 
       title: '状态', dataIndex: 'status', width: 80,
       render: (v: CmsContent['status']) => CMS_CONTENT_STATUS_LABELS[v],
     },
-    {
-      title: '发布时间', dataIndex: 'publishedAt', width: 170,
-      render: (v: CmsContent['publishedAt']) => (
-        <span style={{ whiteSpace: 'nowrap' }}>{v ? formatDateTime(v) : '-'}</span>
-      ),
-    },
+    dateTimeColumn('发布时间', 'publishedAt'),
     {
       title: '操作', width: 68, fixed: 'right',
       render: (_: unknown, record: CmsContent) => (

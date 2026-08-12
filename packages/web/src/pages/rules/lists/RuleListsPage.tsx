@@ -4,7 +4,7 @@ import { Button, DatePicker, Form, Input, Modal, Select, SideSheet, Space, Tag, 
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search } from 'lucide-react';
 import type { RuleList, RuleListItem } from '@zenith/shared/rules';
-import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
+import { createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -218,7 +218,7 @@ export default function RuleListsPage() {
             columns={[
               { title: '值', dataIndex: 'value', render: (t: string) => <Text code>{t}</Text> },
               { title: '标签', dataIndex: 'label', width: 120, render: (t: string | null) => t ?? '-' },
-              { title: '过期时间', dataIndex: 'expiresAt', width: 160, render: (t: string | null) => t ?? '永久' },
+              dateTimeColumn('过期时间', 'expiresAt', { empty: '永久' }),
               { title: '操作', width: 70, fixed: 'right', render: (_: unknown, item: RuleListItem) => (
                 <Button theme="borderless" type="danger" size="small" onClick={async () => { if (itemsRow) { await deleteItemMutation.mutateAsync({ listId: itemsRow.id, itemId: item.id }); Toast.success('已删除'); } }}>删除</Button>
               ) },

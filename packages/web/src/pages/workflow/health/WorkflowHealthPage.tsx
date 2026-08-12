@@ -8,6 +8,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { useWorkflowHealthSummary, workflowHealthKeys } from '@/hooks/queries/workflow-health';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const ISSUE_LABELS: Record<WorkflowHealthIssue['type'], string> = {
   external_dispatch_failed: '外部审批失败',
@@ -90,7 +91,7 @@ export default function WorkflowHealthPage() {
     { title: '节点', dataIndex: 'nodeName', width: 160, render: (_: unknown, row) => row.nodeName ?? row.nodeKey ?? '—' },
     { title: '状态', dataIndex: 'status', width: 110, render: (v: string | null) => v ?? '—' },
     { title: '等待时长', dataIndex: 'ageMinutes', width: 110, render: (v: number) => `${v} 分钟` },
-    { title: '创建时间', dataIndex: 'createdAt', width: 170 },
+    dateTimeColumn('创建时间', 'createdAt'),
   ];
 
   const renderThresholdFilter = () => (

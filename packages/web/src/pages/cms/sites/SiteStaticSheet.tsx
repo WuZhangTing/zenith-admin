@@ -7,7 +7,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ExternalLink, Zap } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
-import { renderEllipsis } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { useMyAsyncTasks } from '@/hooks/useAsyncTasks';
 import { useCmsStaticBuild } from '@/hooks/queries/cms';
 import { useCmsSiteEffectiveConfig } from '@/hooks/queries/cms-stage5';
@@ -35,8 +35,8 @@ function SiteStaticPanel({ site, canBuild }: { site: CmsSite; canBuild: boolean 
   const columns: ColumnProps<AsyncTask>[] = [
     { title: '任务', dataIndex: 'title', width: 200, render: renderEllipsis },
     { title: '进度', width: 230, render: (_: unknown, record) => <AsyncTaskProgress task={record} /> },
-    { title: '提交时间', dataIndex: 'createdAt', width: 180 },
-    { title: '完成时间', dataIndex: 'completedAt', width: 180, render: (v: string | null) => v ?? '-' },
+    dateTimeColumn('提交时间', 'createdAt'),
+    dateTimeColumn('完成时间', 'completedAt'),
   ];
 
   return (

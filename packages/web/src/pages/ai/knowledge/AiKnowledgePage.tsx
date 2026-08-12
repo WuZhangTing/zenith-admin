@@ -9,8 +9,7 @@ import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePermission } from '@/hooks/usePermission';
-import { formatDateTime } from '@/utils/date';
-import { renderEllipsis } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import {
   useAiKnowledgeBases,
   useSaveAiKnowledgeBase,
@@ -119,12 +118,7 @@ export default function AiKnowledgePage() {
         ? <Tag color="green" size="small">向量（{v}）</Tag>
         : <Tag color="grey" size="small">关键词</Tag>,
     },
-    {
-      title: '更新时间',
-      dataIndex: 'updatedAt',
-      width: 180,
-      render: (v: string) => <span style={{ whiteSpace: 'nowrap' }}>{formatDateTime(v)}</span>,
-    },
+    dateTimeColumn('更新时间', 'updatedAt'),
     createOperationColumn<AiKnowledgeBase>({
       width: 200,
       desktopInlineKeys: ['docs', 'edit', 'delete'],
@@ -173,12 +167,7 @@ export default function AiKnowledgePage() {
     },
     { title: '分块', dataIndex: 'chunkCount', width: 70 },
     { title: '字符数', dataIndex: 'charCount', width: 90 },
-    {
-      title: '时间',
-      dataIndex: 'createdAt',
-      width: 160,
-      render: (v: string) => <span style={{ whiteSpace: 'nowrap' }}>{formatDateTime(v)}</span>,
-    },
+    dateTimeColumn('时间', 'createdAt'),
     createOperationColumn<AiKbDocument>({
       width: 80,
       desktopInlineKeys: ['delete'],

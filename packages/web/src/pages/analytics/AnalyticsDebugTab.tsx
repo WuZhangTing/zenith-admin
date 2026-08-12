@@ -15,6 +15,7 @@ import type { AnalyticsDebugEvent, AnalyticsQualityIssueType } from '@zenith/sha
 import { ANALYTICS_QUALITY_ISSUE_TYPE_LABELS } from '@zenith/shared/analytics';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const DEBUG_LIMIT = 50;
 
@@ -55,7 +56,7 @@ export default function AnalyticsDebugTab({ active }: Readonly<{ active: boolean
   const openDetail = (record: AnalyticsDebugEvent) => { setDetailRecord(record); setDetailVisible(true); };
 
   const columns: ColumnProps<AnalyticsDebugEvent>[] = [
-    { title: '时间', dataIndex: 'createdAt', width: 180, render: (value: string) => formatDateTime(value) },
+    dateTimeColumn('时间', 'createdAt'),
     { title: '事件名', dataIndex: 'eventName', width: 160, render: (value: string | null) => nullableText(value) },
     { title: '类型', dataIndex: 'eventType', width: 110 },
     { title: '来源', dataIndex: 'source', width: 110 },

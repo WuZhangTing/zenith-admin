@@ -5,12 +5,11 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { LayoutTemplate } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { WorkflowTemplate, WorkflowDefinition } from '@zenith/shared/workflow';
-import { formatDateTime } from '@/utils/date';
 import { KeywordSearchToolbar } from '@/components/KeywordSearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
-import { renderEllipsis } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { confirmDelete } from '@/utils/confirm';
 import WorkflowTemplateFormModal, { type WorkflowTemplateFormValues } from '../components/WorkflowTemplateFormModal';
 import {
@@ -147,12 +146,7 @@ export default function WorkflowTemplatesPage() {
         <Tag color={builtin ? 'blue' : 'grey'}>{builtin ? '系统内置' : '自定义'}</Tag>
       ),
     },
-    {
-      title: '更新时间',
-      dataIndex: 'updatedAt',
-      width: 180,
-      render: (v: string) => formatDateTime(v),
-    },
+    dateTimeColumn('更新时间', 'updatedAt'),
     createOperationColumn<WorkflowTemplate>({
       width: 240,
       desktopInlineKeys: ['clone', 'edit', 'delete'],

@@ -44,7 +44,7 @@ import {
 } from '@/hooks/queries/report-dq';
 import { useEnabledReportDatasets } from '@/hooks/queries/report-datasets';
 import { formatDateTime } from '@/utils/date';
-import { renderEllipsis } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import {
   dqRunStatusLabel,
   dqTaskSubmissionMessage,
@@ -222,7 +222,7 @@ export default function QualityPage() {
     { title: '检查/失败行', width: 140, render: (_v, r) => `${r.checkedRows} / ${r.failedRows}` },
     { title: '通过率', dataIndex: 'passRate', width: 110, render: (v) => formatDqPassRate(v) },
     { title: '耗时', dataIndex: 'durationMs', width: 100, render: (v) => v == null ? '—' : `${v}ms` },
-    { title: '开始时间', dataIndex: 'startedAt', width: 180, render: (v) => v ? formatDateTime(v) : '—' },
+    dateTimeColumn('开始时间', 'startedAt'),
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v: ReportDqRunStatus) => <Tag color={runStatusColor[v]}>{dqRunStatusLabel(v)}</Tag> },
   ];
   const anomalyColumns: ColumnProps<ReportDqAnomaly>[] = [
@@ -231,7 +231,7 @@ export default function QualityPage() {
     { title: '规则 ID', dataIndex: 'ruleId', width: 100, render: (v) => v || '—' },
     { title: '严重度', dataIndex: 'severity', width: 90, render: (v: ReportDqAnomaly['severity']) => <Tag color={severityColor[v]}>{v}</Tag> },
     { title: '详情', dataIndex: 'detail', width: 260, render: renderEllipsis },
-    { title: '发现时间', dataIndex: 'createdAt', width: 180, render: (v) => formatDateTime(v) },
+    dateTimeColumn('发现时间', 'createdAt'),
     { title: '状态', dataIndex: 'status', width: 110, fixed: 'right', render: (v) => <Tag>{v}</Tag> },
     createOperationColumn<ReportDqAnomaly>({
       width: 150,
@@ -255,7 +255,7 @@ export default function QualityPage() {
     { title: '通过', dataIndex: 'passedRules', width: 90 },
     { title: '失败', dataIndex: 'failedRules', width: 90 },
     { title: '维度明细', dataIndex: 'dimensions', width: 260, render: (v) => JSON.stringify(v) },
-    { title: '测量时间', dataIndex: 'measuredAt', width: 180, render: (v) => formatDateTime(v) },
+    dateTimeColumn('测量时间', 'measuredAt'),
   ];
 
   const datasetFilter = <Select placeholder="选择数据集" filter showClear value={datasetId} optionList={datasetOptions} style={{ width: 190 }} onChange={(v) => setDatasetId(v as number | undefined)} />;

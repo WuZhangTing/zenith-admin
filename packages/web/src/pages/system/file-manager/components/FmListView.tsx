@@ -11,6 +11,7 @@ import { formatBytes as formatSize } from '@/utils/format';
 import { isArchive, isEditableFile } from '../fs-utils';
 import type { EntryActions } from '../entry-actions';
 import type { ClipOp, FsEntry, SortField, SortState } from '../types';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 // Table 虚拟滚动：ConfigurableTable 有工具栏（约36px）+ 表头（约37px）= 73px
 const VIRTUAL_ITEM_HEIGHT = 40;
@@ -57,7 +58,7 @@ export default function FmListView({
       },
     },
     { title: '大小', dataIndex: 'size', width: 100, sorter: true, sortOrder: sortState?.field === 'size' ? sortState.order : false, render: (v: number, r: FsEntry) => r.type === 'dir' ? '—' : formatSize(v) },
-    { title: '修改时间', dataIndex: 'mtime', width: 180, sorter: true, sortOrder: sortState?.field === 'mtime' ? sortState.order : false },
+    dateTimeColumn('修改时间', 'mtime', { sorter: true, sortOrder: sortState?.field === 'mtime' ? sortState.order : false }),
     // Windows 下权限/属主概念不适用，隐藏对应列
     ...(isWindows ? [] : [
       { title: '权限', dataIndex: 'permissions', width: 110, render: (v?: string) => v ? <Tag size="small" color="grey">{v}</Tag> : '—' },

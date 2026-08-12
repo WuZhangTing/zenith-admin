@@ -30,7 +30,7 @@ import WorkflowLaunchForm, { type WorkflowLaunchFormHandle } from '@/components/
 import WorkflowPriorityTag, { WORKFLOW_PRIORITY_OPTIONS } from '@/components/workflow/WorkflowPriorityTag';
 import { INSTANCE_STATUS_MAP } from '@/components/workflow/workflow-runtime';
 import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
-import { renderEllipsis } from '../../../utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
 import { normalizeWorkflowFormSnapshot, resolveWorkflowFormType } from '@/utils/workflow-snapshot';
 import WorkflowSummaryLine from '@/components/workflow/WorkflowSummaryLine';
 import { useAllUsers } from '@/hooks/queries/users';
@@ -631,12 +631,7 @@ export default function MyApplicationsPage() {
       width: 160,
       render: renderEllipsis,
     },
-    {
-      title: '提交时间',
-      dataIndex: 'createdAt',
-      width: 180,
-      render: (v: string) => formatDateTime(v),
-    },
+    dateTimeColumn('提交时间', 'createdAt'),
     {
       title: '状态',
       dataIndex: 'status',

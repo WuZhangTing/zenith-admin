@@ -15,6 +15,7 @@ import { memberAdminKeys, useCheckinLogList, useMakeupCheckin } from '@/hooks/qu
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
+import { dateColumn, dateTimeColumn } from '@/utils/table-columns';
 
 interface SearchParams {
   memberKeyword?: string;
@@ -63,7 +64,7 @@ export default function CheckinLogsPage() {
   const columns: ColumnProps<MemberCheckin>[] = [
     { title: 'ID', dataIndex: 'id', width: 90 },
     { title: '会员昵称', dataIndex: 'memberNickname', width: 140, render: (value?: string | null, row?: MemberCheckin) => value || `#${row?.memberId}` },
-    { title: '签到日期', dataIndex: 'checkinDate', width: 120 },
+    dateColumn('签到日期', 'checkinDate'),
     { title: '连续天数', dataIndex: 'consecutiveDays', width: 100 },
     { title: '积分奖励', dataIndex: 'pointsAwarded', width: 100 },
     { title: '经验奖励', dataIndex: 'experienceAwarded', width: 100 },
@@ -76,7 +77,7 @@ export default function CheckinLogsPage() {
       ),
     },
     { title: '备注', dataIndex: 'remark', width: 180, render: (v?: string | null) => v || '-' },
-    { title: '签到时间', dataIndex: 'createdAt', width: 180 },
+    dateTimeColumn('签到时间', 'createdAt'),
   ];
 
   const renderKeywordSearch = () => (

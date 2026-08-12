@@ -21,11 +21,12 @@ import {
   useSaveReportQueryQuota,
 } from '@/hooks/queries/report-query-capacity';
 import { useAllUsers } from '@/hooks/queries/users';
-import { formatDateTime, formatDateTimeRangeForApi } from '@/utils/date';
+import { formatDateTimeRangeForApi } from '@/utils/date';
 import { validateQuotaForm } from '../report-platform-utils';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 export default function GovernanceCapacityTab() {
   const { hasPermission } = usePermission();
@@ -127,11 +128,11 @@ export default function GovernanceCapacityTab() {
     { title: '行数', dataIndex: 'rowCount', width: 100 },
     { title: '字节', dataIndex: 'byteSize', width: 110 },
     { title: '成本', dataIndex: 'costUnits', width: 100 },
-    { title: '时间', dataIndex: 'occurredAt', width: 180, render: (v) => formatDateTime(v) },
+    dateTimeColumn('时间', 'occurredAt'),
     { title: '状态', dataIndex: 'success', width: 90, fixed: 'right', render: (v) => <Tag color={v ? 'green' : 'red'}>{v ? '成功' : '失败'}</Tag> },
   ];
   const trendColumns: ColumnProps<ReportQueryCostTrendPoint>[] = [
-    { title: '日期', dataIndex: 'bucket', width: 170 },
+    dateTimeColumn('日期', 'bucket'),
     { title: '查询数', dataIndex: 'queries', width: 100 },
     { title: '行数', dataIndex: 'rows', width: 110 },
     { title: '字节', dataIndex: 'bytes', width: 120 },

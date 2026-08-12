@@ -4,7 +4,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Input, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { WorkflowInstance } from '@zenith/shared/workflow';
-import { formatDateTime } from '@/utils/date';
 import { KeywordSearchToolbar } from '@/components/KeywordSearchToolbar';
 import SavedViewsBar from '@/components/workflow/SavedViewsBar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -12,7 +11,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { AppModal } from '@/components/AppModal';
 import WorkflowInstanceDetailSheet from '@/components/workflow/WorkflowInstanceDetailSheet';
 import { INSTANCE_STATUS_MAP } from '@/components/workflow/workflow-runtime';
-import { renderEllipsis } from '../../../utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 import { useAllUsers } from '@/hooks/queries/users';
 import { useCcWorkflowInstances, useForwardWorkflowCc, useMarkWorkflowCcRead, workflowInstanceKeys } from '@/hooks/queries/workflow-instances';
@@ -93,7 +92,7 @@ export default function CcToMePage() {
     { title: '业务编号', dataIndex: 'serialNo', width: 130, render: (v: string | null) => v ?? '—' },
     { title: '流程名称', dataIndex: 'definitionName', width: 160, render: renderEllipsis },
     { title: '发起人', dataIndex: 'initiatorName', width: 120, render: (v: string | null) => v ?? '—' },
-    { title: '抄送时间', dataIndex: 'createdAt', width: 170, render: (v: string) => formatDateTime(v) },
+    dateTimeColumn('抄送时间', 'createdAt'),
     {
       title: '阅读',
       dataIndex: 'ccReadAt',

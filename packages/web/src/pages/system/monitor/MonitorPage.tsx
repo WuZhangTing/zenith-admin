@@ -12,6 +12,7 @@ import { TABLE_PAGE_SIZE_OPTIONS, usePagination } from '@/hooks/usePagination';
 import { useMonitorHistory, useMonitorSnapshot } from '@/hooks/queries/monitor';
 import { MetricMeter, type MetricMeterTone } from '@/components/data-viz/MetricMeter';
 import './MonitorPage.css';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const { Text } = Typography;
 
@@ -1402,7 +1403,7 @@ export default function MonitorPage() {
                     ),
                   },
                   { title: 'Token', dataIndex: 'tokenId', render: (v: string) => <Text type="tertiary" size="small">{v.slice(0, 8)}…</Text> },
-                  { title: '建立时间', dataIndex: 'connectedAt', render: (v: number) => formatDateTime(new Date(v)) },
+                  dateTimeColumn('建立时间', 'connectedAt'),
                   { title: '最近活动', dataIndex: 'lastActivityAt', render: (v: number) => formatDateTime(new Date(v)) },
                   { title: '已持续', dataIndex: 'connectedAt', key: 'duration', render: (v: number) => formatDuration(Date.now() - v) },
                   { title: '发送', dataIndex: 'sent', align: 'right' as const, render: (v: number) => formatNumber(v) },
@@ -1429,7 +1430,7 @@ export default function MonitorPage() {
                       <span>{r.nickname || r.username || '-'} <Text type="tertiary" size="small">#{r.userId}</Text></span>
                     ),
                   },
-                  { title: '断开时间', dataIndex: 'at', render: (v: number) => formatDateTime(new Date(v)) },
+                  dateTimeColumn('断开时间', 'at'),
                   { title: '原因', dataIndex: 'reason', render: (v: string) => <Tag size="small">{v || '-'}</Tag> },
                   { title: '持续时长', dataIndex: 'duration', render: (v: number) => formatDuration(v) },
                   { title: '发送', dataIndex: 'sent', align: 'right' as const, render: (v: number) => formatNumber(v) },

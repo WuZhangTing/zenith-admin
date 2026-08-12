@@ -20,6 +20,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import type { ProcessInfo, ProcessListResponse } from '@zenith/shared/ops';
 import { useKillProcess, useProcessDetail, useSetProcessPriority } from '@/hooks/queries/processes';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 // 自定义进程表格 CSS
 const processesTableStyle = '';
@@ -322,12 +323,7 @@ export default function ProcessesPage() {
         return <span>{typeof v === 'string' ? v : String(Number(v))}</span>;
       },
     },
-    {
-      title: '启动时间',
-      dataIndex: 'startTime',
-      width: 155,
-      render: (v: string | null) => v ?? <span style={{ color: 'var(--semi-color-text-3)' }}>—</span>,
-    },
+    dateTimeColumn('启动时间', 'startTime'),
     {
       title: '端口',
       dataIndex: 'ports',

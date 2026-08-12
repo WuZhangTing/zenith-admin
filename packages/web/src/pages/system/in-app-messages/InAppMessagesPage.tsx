@@ -7,7 +7,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
+import { createdAtColumn, dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
 import { useAllUsers } from '@/hooks/queries/users';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -137,7 +137,7 @@ export default function InAppMessagesPage() {
     },
     { title: '收件人', dataIndex: 'username', width: 120, render: (v: string | null) => v || '—' },
     { title: '发送人', dataIndex: 'senderName', width: 120, render: (v: string | null) => v || '系统' },
-    { title: '阅读时间', dataIndex: 'readAt', width: 180, render: (v: string | null) => v || '—' },
+    dateTimeColumn('阅读时间', 'readAt'),
     createdAtColumn,
     {
       title: '状态', dataIndex: 'isRead', width: 90, fixed: 'right' as const,

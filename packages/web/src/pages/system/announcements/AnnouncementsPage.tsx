@@ -11,14 +11,14 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn, type ResponsiveTableAction } from '@/components/ResponsiveTableActions';
 import FileAttachment from '@/components/FileAttachment';
 import { MetricMeter } from '@/components/data-viz/MetricMeter';
-import { formatDateTime, formatDateTimeForApi, formatDateTimeRangeForApi } from '@/utils/date';
+import { formatDateTimeForApi, formatDateTimeRangeForApi } from '@/utils/date';
 import { useDictItems } from '@/hooks/useDictItems';
 import DictTag from '@/components/DictTag';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { TABLE_PAGE_SIZE_OPTIONS } from '@/hooks/usePagination';
 import { useListSearch } from '@/hooks/useListSearch';
-import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
+import { createdAtColumn, dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
 import {
   announcementKeys,
   useAnnouncementDetail,
@@ -388,12 +388,7 @@ export default function AnnouncementsPage() {
               }}
               columns={[
                 ...userColumns,
-                {
-                  title: '已读时间',
-                  dataIndex: 'readAt',
-                  width: 180,
-                  render: (v: string) => (v ? formatDateTime(v) : '—'),
-                },
+                dateTimeColumn('已读时间', 'readAt'),
               ]}
             />
           </TabPane>
@@ -587,12 +582,7 @@ export default function AnnouncementsPage() {
       },
     },
     { title: '创建人', dataIndex: 'createByName', width: 110 },
-    {
-      title: '发布时间',
-      dataIndex: 'publishTime',
-      width: 200,
-      render: (v: string | null) => (v ? formatDateTime(v) : '-'),
-    },
+    dateTimeColumn('发布时间', 'publishTime'),
     createdAtColumn,
     createOperationColumn<Announcement>({
       width: 230,

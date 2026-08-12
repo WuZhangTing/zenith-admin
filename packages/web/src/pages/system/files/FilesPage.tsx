@@ -19,7 +19,7 @@ import { FileGridCard } from './components/FileGridCard';
 import { FileNameCell } from '@/components/FileNameCell';
 import { config } from '@/config';
 import { usePermission } from '@/hooks/usePermission';
-import { renderEllipsis } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePreferences } from '@/hooks/usePreferences';
 import { usePagination } from '@/hooks/usePagination';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -327,12 +327,7 @@ export default function FilesPage() {
       align: 'right' as const,
       render: (size: number) => formatFileSize(size),
     },
-    {
-      title: '上传时间',
-      dataIndex: 'createdAt',
-      width: 160,
-      render: (value: string) => renderEllipsis(formatDateTime(value)),
-    },
+    dateTimeColumn('上传时间', 'createdAt'),
     {
       title: '上传人',
       dataIndex: 'uploaderName',

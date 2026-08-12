@@ -9,7 +9,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { renderEllipsis } from '../../../utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
 import { useSmsTemplateList } from '@/hooks/queries/sms-templates';
 import { useListSearch } from '@/hooks/useListSearch';
 import {
@@ -91,7 +91,7 @@ export default function SmsSendLogsPage() {
     { title: '内容', dataIndex: 'content', render: renderEllipsis },
     { title: '来源', dataIndex: 'source', width: 90, render: (v: string) => SOURCE_OPTIONS.find((s) => s.value === v)?.label ?? v },
     { title: '操作人', dataIndex: 'userName', width: 120, render: (v: string | null) => v || '—' },
-    { title: '发送时间', dataIndex: 'sentAt', width: 180, render: (v: string | null) => v || '—' },
+    dateTimeColumn('发送时间', 'sentAt'),
     { title: '错误信息', dataIndex: 'errorMsg', render: renderEllipsis },
     {
       title: '状态', dataIndex: 'status', width: 90, fixed: 'right' as const,

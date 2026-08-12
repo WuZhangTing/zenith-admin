@@ -53,6 +53,7 @@ import {
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { dateTimeColumn, DATE_TIME_COLUMN_WIDTH } from '@/utils/table-columns';
 
 // ─── Prune（清理）辅助 ──────────────────────────────────────────────────────────
 function runPrune(url: string, title: string, content: string, prune: (url: string) => Promise<PruneResultData>): void {
@@ -291,7 +292,7 @@ function ContainersTab() {
       },
     },
     {
-      title: '创建时间', dataIndex: 'created', width: 180,
+      title: '创建时间', dataIndex: 'created', width: DATE_TIME_COLUMN_WIDTH,
       render: (v: number, r: ContainerInfo) => {
         if (isGroup(r)) return null;
         return formatDateTime(new Date(v * 1000));
@@ -614,7 +615,7 @@ function ImagesTab() {
       render: (v: number) => <Tag size="small" color={v > 0 ? 'green' : 'grey'}>{v}</Tag>,
     },
     {
-      title: '创建时间', dataIndex: 'created', width: 180,
+      title: '创建时间', dataIndex: 'created', width: DATE_TIME_COLUMN_WIDTH,
       render: (v: number, r: ImageRow) => (
         r.isGroup
           ? <Typography.Text type="tertiary" size="small">{formatDateTime(new Date(v * 1000))}</Typography.Text>
@@ -767,7 +768,7 @@ function NetworksTab() {
     },
     { title: '容器数', dataIndex: 'containers', width: 90, render: (v: number) => <Tag size="small" color={v > 0 ? 'green' : 'grey'}>{v}</Tag> },
     { title: '内部网络', dataIndex: 'internal', width: 100, render: (v: boolean) => v ? <Tag size="small" color="orange">内部</Tag> : null },
-    { title: '创建时间', dataIndex: 'created', width: 180, render: (v: string) => (v ? formatDateTime(new Date(v)) : '—') },
+    dateTimeColumn('创建时间', 'created'),
     createOperationColumn<NetworkInfo>({
       width: 90,
       emptyContent: (record) => SYSTEM_NETWORKS.has(record.name)
@@ -882,7 +883,7 @@ function VolumesTab() {
       title: '挂载点', dataIndex: 'mountpoint',
       render: (v: string) => <Tooltip content={v}><code style={{ fontSize: 11 }}>{v.length > 50 ? `...${v.slice(-48)}` : v}</code></Tooltip>,
     },
-    { title: '创建时间', dataIndex: 'created', width: 180, render: (v: string) => (v ? formatDateTime(new Date(v)) : '—') },
+    dateTimeColumn('创建时间', 'created'),
     createOperationColumn<VolumeInfo>({
       width: 90,
       actions: (record) => [

@@ -25,6 +25,7 @@ import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { CLEAR_LOGS_LABELS } from '@/hooks/useClearLogs';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 interface SearchParams {
   keyword: string;
@@ -236,11 +237,7 @@ export default function TerminalRecordingsPage() {
       width: 110,
       render: (v: string) => v || '-',
     },
-    {
-      title: '录制时间',
-      dataIndex: 'createdAt',
-      width: 200,
-    },
+    dateTimeColumn('录制时间', 'createdAt'),
     createOperationColumn<Recording>({
       width: 260,
       actions: (record) => [

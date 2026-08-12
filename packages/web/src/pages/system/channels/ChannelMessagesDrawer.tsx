@@ -9,7 +9,6 @@ import { Modal, SideSheet, Table, Tabs, TabPane, Tag, Toast, Typography } from '
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ChannelAdmin, ChannelMessage, ChannelMessageStatus } from '@zenith/shared/messaging';
 import { CHANNEL_MESSAGE_STATUS_LABELS, CHANNEL_MESSAGE_TYPE_LABELS } from '@zenith/shared/messaging';
-import { formatDateTime } from '@/utils/date';
 import { TABLE_PAGE_SIZE_OPTIONS, usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -21,6 +20,7 @@ import {
   usePublishChannelMessageNow,
   useRetractChannelMessage,
 } from '@/hooks/queries/channels';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 interface Props {
   channel: ChannelAdmin | null;
@@ -119,11 +119,8 @@ export function ChannelMessagesDrawer({ channel, visible, onClose }: Readonly<Pr
       title: '受众', dataIndex: 'audienceType', width: 70,
       render: (v: string) => <Typography.Text type="tertiary">{AUDIENCE_TEXT[v] ?? v}</Typography.Text>,
     },
-    { title: '创建时间', dataIndex: 'createdAt', width: 175, render: (v: string) => <span style={{ whiteSpace: 'nowrap' }}>{formatDateTime(v)}</span> },
-    {
-      title: '定时时间', dataIndex: 'scheduledAt', width: 175,
-      render: (v: string | null) => (v ? <span style={{ whiteSpace: 'nowrap' }}>{formatDateTime(v)}</span> : <Typography.Text type="tertiary">—</Typography.Text>),
-    },
+    dateTimeColumn('创建时间', 'createdAt'),
+    dateTimeColumn('定时时间', 'scheduledAt'),
     createOperationColumn<ChannelMessage>({
       width: 160,
       emptyContent: <Typography.Text type="tertiary">—</Typography.Text>,

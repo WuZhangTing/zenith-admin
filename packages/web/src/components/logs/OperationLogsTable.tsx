@@ -6,6 +6,7 @@ import type { OperationLog } from '@zenith/shared/platform';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { formatDateTime } from '@/utils/date';
 import './OperationLogsTable.css';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 interface OperationLogsTableProps {
   readonly dataSource: OperationLog[];
@@ -129,12 +130,7 @@ export function OperationLogsTable({
         return <Tag color={success ? 'green' : 'red'}>{success ? '成功' : '失败'}</Tag>;
       },
     },
-    {
-      title: '操作时间',
-      dataIndex: 'createdAt',
-      width: 180,
-      render: (v: string) => formatDateTime(v),
-    },
+    dateTimeColumn('操作时间', 'createdAt'),
     {
       title: '操作',
       key: 'operation',
