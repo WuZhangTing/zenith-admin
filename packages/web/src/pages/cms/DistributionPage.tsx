@@ -1,12 +1,11 @@
 import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { Banner, Col, DatePicker, Form, Row, Select, SideSheet, TabPane, Tabs, Tag, Toast } from '@douyinfe/semi-ui';
+import { Banner, Button, Col, DatePicker, Form, Row, Select, SideSheet, TabPane, Tabs, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { CMS_CONTENT_TYPES, CMS_CONTENT_TYPE_LABELS, CMS_DISTRIBUTION_CONFLICT_STRATEGIES, CMS_DISTRIBUTION_CONFLICT_STRATEGY_LABELS, CMS_DISTRIBUTION_MODES, CMS_DISTRIBUTION_MODE_LABELS, CMS_DISTRIBUTION_RUN_OUTCOME_LABELS, CMS_DISTRIBUTION_TASK_STATUSES, CMS_DISTRIBUTION_TASK_STATUS_LABELS } from '@zenith/shared/cms';
 import type { CmsChannel, CmsDistributionRule, CmsDistributionRun } from '@zenith/shared/cms';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
-import AppModal from '@/components/AppModal';
 import ExportButton from '@/components/ExportButton';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { createOperationColumn, type ResponsiveTableAction } from '@/components/ResponsiveTableActions';
@@ -548,9 +547,26 @@ export default function DistributionPage() {
         </TabPane>
       </Tabs>
 
-      <AppModal
-        {...ruleModal.modalProps}
-        width={760}
+      <SideSheet
+        title={ruleModal.modalProps.title}
+        visible={ruleModal.visible}
+        onCancel={ruleModal.close}
+        closeOnEsc
+        width={780}
+        footer={(
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button type="tertiary" onClick={ruleModal.close}>取消</Button>
+            <Button
+              type="primary"
+              theme="solid"
+              loading={ruleModal.modalProps.okButtonProps.loading}
+              disabled={ruleModal.modalProps.okButtonProps.disabled}
+              onClick={() => void ruleModal.modalProps.onOk()}
+            >
+              保存
+            </Button>
+          </div>
+        )}
       >
         <Form
           {...ruleModal.formProps}
@@ -562,50 +578,67 @@ export default function DistributionPage() {
             setFormMode(String(values.mode ?? 'copy'));
           }}
         >
-          <Form.Input field="name" label="规则名称" rules={[{ required: true, message: '请输入规则名称' }]} />
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Select field="sourceSiteId" label="来源站点" optionList={siteOptions} style={{ width: '100%' }}
-                rules={[{ required: true, message: '请选择来源站点' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Select field="sourceChannelId" label="来源栏目" showClear style={{ width: '100%' }}
-                placeholder="留空同步全站栏目"
-                optionList={sourceChannels.map((channel) => ({ value: channel.id, label: channel.name }))} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Select field="targetSiteId" label="目标站点" optionList={siteOptions} style={{ width: '100%' }}
-                rules={[{ required: true, message: '请选择目标站点' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Select field="targetChannelId" label="目标栏目" style={{ width: '100%' }}
-                optionList={targetChannels.map((channel) => ({ value: channel.id, label: channel.name }))}
-                rules={[{ required: true, message: '请选择目标栏目' }]} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Select field="mode" label="同步模式" style={{ width: '100%' }}
-                optionList={CMS_DISTRIBUTION_MODES.map((mode) => ({ value: mode, label: CMS_DISTRIBUTION_MODE_LABELS[mode] }))} />
-            </Col>
-            <Col span={12}>
-              <Form.Select field="conflictStrategy" label="冲突策略" style={{ width: '100%' }}
-                optionList={CMS_DISTRIBUTION_CONFLICT_STRATEGIES.map((strategy) => ({
-                  value: strategy,
-                  label: CMS_DISTRIBUTION_CONFLICT_STRATEGY_LABELS[strategy],
-                }))} />
-            </Col>
-          </Row>
-          {formMode === 'scheduled' ? (
-            <Form.Input
-              field="scheduleCron"
-              label="Cron"
-              placeholder="如 0 2 * * *（Asia/Shanghai）"
-              rules={[{ required: true, message: '定时同步必须配置 Cron' }]}
-            />
-          ) : null}
+          <Form.Section text="基础信息">
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Input field="name" label="规则名称" rules={[{ required: true, message: '请输入规则名称' }]} />
+              </Col>
+              <Col span={12}>
+                <Form.RadioGroup field="status" label="状态">
+                  <Form.Radio value="enabled">启用</Form.Radio>
+                  <Form.Radio value="disabled">停用</Form.Radio>
+                </Form.RadioGroup>
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Select field="sourceSiteId" label="来源站点" optionList={siteOptions} style={{ width: '100%' }}
+                  rules={[{ required: true, message: '请选择来源站点' }]} />
+              </Col>
+              <Col span={12}>
+                <Form.Select field="sourceChannelId" label="来源栏目" showClear style={{ width: '100%' }}
+                  placeholder="留空同步全站栏目"
+                  optionList={sourceChannels.map((channel) => ({ value: channel.id, label: channel.name }))} />
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Select field="targetSiteId" label="目标站点" optionList={siteOptions} style={{ width: '100%' }}
+                  rules={[{ required: true, message: '请选择目标站点' }]} />
+              </Col>
+              <Col span={12}>
+                <Form.Select field="targetChannelId" label="目标栏目" style={{ width: '100%' }}
+                  optionList={targetChannels.map((channel) => ({ value: channel.id, label: channel.name }))}
+                  rules={[{ required: true, message: '请选择目标栏目' }]} />
+              </Col>
+            </Row>
+            <Form.TextArea field="remark" label="备注" rows={2} />
+          </Form.Section>
+
+          <Form.Section text="同步策略">
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Select field="mode" label="同步模式" style={{ width: '100%' }}
+                  optionList={CMS_DISTRIBUTION_MODES.map((mode) => ({ value: mode, label: CMS_DISTRIBUTION_MODE_LABELS[mode] }))} />
+              </Col>
+              <Col span={12}>
+                <Form.Select field="conflictStrategy" label="冲突策略" style={{ width: '100%' }}
+                  optionList={CMS_DISTRIBUTION_CONFLICT_STRATEGIES.map((strategy) => ({
+                    value: strategy,
+                    label: CMS_DISTRIBUTION_CONFLICT_STRATEGY_LABELS[strategy],
+                  }))} />
+              </Col>
+            </Row>
+            {formMode === 'scheduled' ? (
+              <Form.Input
+                field="scheduleCron"
+                label="Cron"
+                placeholder="如 0 2 * * *（Asia/Shanghai）"
+                rules={[{ required: true, message: '定时同步必须配置 Cron' }]}
+              />
+            ) : null}
+          </Form.Section>
+
           <Form.Section text="过滤条件（状态固定为“已发布”，防止草稿跨站泄露）">
             <Row gutter={16}>
               <Col span={12}>
@@ -621,17 +654,8 @@ export default function DistributionPage() {
               <Col span={12}><Form.DatePicker field="publishedTo" type="dateTime" label="发布结束" style={{ width: '100%' }} /></Col>
             </Row>
           </Form.Section>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.RadioGroup field="status" label="状态">
-                <Form.Radio value="enabled">启用</Form.Radio>
-                <Form.Radio value="disabled">停用</Form.Radio>
-              </Form.RadioGroup>
-            </Col>
-          </Row>
-          <Form.TextArea field="remark" label="备注" rows={2} />
         </Form>
-      </AppModal>
+      </SideSheet>
 
       <SideSheet
         title={runDetailQuery.data ? `同步详情 #${runDetailQuery.data.run.id}` : '同步详情'}

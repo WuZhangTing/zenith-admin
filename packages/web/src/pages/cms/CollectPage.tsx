@@ -1,16 +1,14 @@
 /** 采集中心：规则 CRUD + 任务中心执行 + 采集明细（P3 Batch5） */
 import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Form, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Row, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import AppModal from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePagination } from '@/hooks/usePagination';
-import { useIsMobile } from '@/hooks/useMediaQuery';
 import { useMyAsyncTasks } from '@/hooks/useAsyncTasks';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
 import {
@@ -42,7 +40,6 @@ const ITEM_STATUS_META: Record<CmsCollectItem['status'], { label: string; color:
 
 export default function CollectPage() {
   const { hasPermission } = usePermission();
-  const isMobile = useIsMobile();
   const qc = useQueryClient();
   const [siteId, setSiteId] = useState<number | undefined>(undefined);
   const [keywordDraft, setKeywordDraft] = useState('');
@@ -210,50 +207,101 @@ export default function CollectPage() {
         refreshLoading={listQuery.isFetching}
       />
 
-      <AppModal {...modal.modalProps} width={640}>
+      <SideSheet
+        title={modal.modalProps.title}
+        visible={modal.visible}
+        onCancel={modal.close}
+        closeOnEsc
+        width={720}
+        footer={(
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button type="tertiary" onClick={modal.close}>取消</Button>
+            <Button
+              type="primary"
+              theme="solid"
+              loading={modal.modalProps.okButtonProps.loading}
+              disabled={modal.modalProps.okButtonProps.disabled}
+              onClick={() => void modal.modalProps.onOk()}
+            >
+              保存
+            </Button>
+          </div>
+        )}
+      >
         <Form {...modal.formProps}>
-          <Form.Input field="name" label="规则名称" rules={[{ required: true, message: '请输入规则名称' }]} />
-          <Form.TreeSelect field="channelId" label="目标栏目" style={{ width: '100%' }}
-            treeData={channelsToSelectTree(treeQuery.data ?? [])}
-            rules={[{ required: true, message: '请选择目标栏目' }]} />
-          <Form.Input field="listUrl" label="列表页 URL" placeholder="https://example.com/news?page={page}（{page} 占位翻页）"
-            rules={[{ required: true, message: '请输入列表页 URL' }]} />
-          <Form.Slot label="翻页范围">
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <Form.InputNumber field="pageStart" noLabel min={1} style={{ width: 110 }} />
-              <span>至</span>
-              <Form.InputNumber field="pageEnd" noLabel min={1} style={{ width: 110 }} />
-              <Form.InputNumber field="maxItems" noLabel min={1} max={200} style={{ width: 130 }} prefix="上限" />
-            </div>
-          </Form.Slot>
-          <Form.Input field="listSelector" label="条目选择器" placeholder="如 .news-list li a"
-            rules={[{ required: true, message: '请输入条目链接选择器' }]} />
-          <Form.Input field="titleSelector" label="标题选择器" placeholder="如 h1.title"
-            rules={[{ required: true, message: '请输入标题选择器' }]} />
-          <Form.Input field="bodySelector" label="正文选择器" placeholder="如 .article-content"
-            rules={[{ required: true, message: '请输入正文选择器' }]} />
-          <Form.Input field="summarySelector" label="摘要选择器" placeholder="选填，如 .summary" />
-          <Form.Input field="coverSelector" label="封面选择器" placeholder="选填，如 .cover img" />
-          <Form.TagInput field="removeSelectors" label="清洗选择器" placeholder="回车添加：正文中要移除的节点（广告等）" />
-          <Form.Slot label="采集选项">
-            <div style={{ display: 'flex', gap: 24 }}>
-              <Form.Switch field="autoPublish" noLabel label="自动发布" extraText="采集后直接发布并静态化" />
-              <Form.Switch field="localizeImages" noLabel label="图片本地化" extraText="下载远程图片转存文件中心" />
-            </div>
-          </Form.Slot>
-          <Form.RadioGroup field="status" label="状态">
-            <Form.Radio value="enabled">启用</Form.Radio>
-            <Form.Radio value="disabled">停用</Form.Radio>
-          </Form.RadioGroup>
-          <Form.Input field="remark" label="备注" />
+          <Form.Section text="基础信息">
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Input field="name" label="规则名称" rules={[{ required: true, message: '请输入规则名称' }]} />
+              </Col>
+              <Col span={12}>
+                <Form.TreeSelect field="channelId" label="目标栏目" style={{ width: '100%' }}
+                  treeData={channelsToSelectTree(treeQuery.data ?? [])}
+                  rules={[{ required: true, message: '请选择目标栏目' }]} />
+              </Col>
+            </Row>
+            <Form.Input field="listUrl" label="列表页 URL" placeholder="https://example.com/news?page={page}（{page} 占位翻页）"
+              rules={[{ required: true, message: '请输入列表页 URL' }]} />
+            <Form.Slot label="翻页范围">
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <Form.InputNumber field="pageStart" noLabel min={1} style={{ width: 110 }} />
+                <span>至</span>
+                <Form.InputNumber field="pageEnd" noLabel min={1} style={{ width: 110 }} />
+                <Form.InputNumber field="maxItems" noLabel min={1} max={200} style={{ width: 130 }} prefix="上限" />
+              </div>
+            </Form.Slot>
+          </Form.Section>
+
+          <Form.Section text="页面选择器">
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Input field="listSelector" label="条目选择器" placeholder="如 .news-list li a"
+                  rules={[{ required: true, message: '请输入条目链接选择器' }]} />
+              </Col>
+              <Col span={12}>
+                <Form.Input field="titleSelector" label="标题选择器" placeholder="如 h1.title"
+                  rules={[{ required: true, message: '请输入标题选择器' }]} />
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Input field="bodySelector" label="正文选择器" placeholder="如 .article-content"
+                  rules={[{ required: true, message: '请输入正文选择器' }]} />
+              </Col>
+              <Col span={12}>
+                <Form.Input field="summarySelector" label="摘要选择器" placeholder="选填，如 .summary" />
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Input field="coverSelector" label="封面选择器" placeholder="选填，如 .cover img" />
+              </Col>
+            </Row>
+            <Form.TagInput field="removeSelectors" label="清洗选择器" placeholder="回车添加：正文中要移除的节点（广告等）" />
+          </Form.Section>
+
+          <Form.Section text="采集选项">
+            <Form.Slot label="采集后处理">
+              <div style={{ display: 'flex', gap: 24 }}>
+                <Form.Switch field="autoPublish" noLabel label="自动发布" extraText="采集后直接发布并静态化" />
+                <Form.Switch field="localizeImages" noLabel label="图片本地化" extraText="下载远程图片转存文件中心" />
+              </div>
+            </Form.Slot>
+            <Form.RadioGroup field="status" label="状态">
+              <Form.Radio value="enabled">启用</Form.Radio>
+              <Form.Radio value="disabled">停用</Form.Radio>
+            </Form.RadioGroup>
+            <Form.Input field="remark" label="备注" />
+          </Form.Section>
         </Form>
-      </AppModal>
+      </SideSheet>
 
       <SideSheet
         title={itemsRule ? `采集明细：${itemsRule.name}` : '采集明细'}
         visible={!!itemsRule}
         onCancel={() => setItemsRule(null)}
-        width={isMobile ? '100%' : 760}
+        closeOnEsc
+        width={760}
       >
         <ConfigurableTable<CmsCollectItem>
           bordered
