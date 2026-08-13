@@ -10,7 +10,6 @@ export const workflowDesignerKeys = {
   all: ['workflow', 'designer'] as const,
   connectorOptions: ['workflow', 'designer', 'connectors', 'options'] as const,
   decisionTableOptions: ['workflow', 'designer', 'decision-tables', 'options'] as const,
-  publishedDefinitionOptions: ['workflow', 'designer', 'definitions', 'published-options'] as const,
   userGroupOptions: ['workflow', 'designer', 'user-groups', 'options'] as const,
   positionOptions: ['workflow', 'designer', 'positions', 'options'] as const,
   dataSourceOptions: ['workflow', 'designer', 'data-sources', 'options'] as const,
@@ -78,14 +77,6 @@ export function useWorkflowDesignerDecisionTableOptions(enabled = true) {
         .then((data) => data.list.map((t) => ({ value: t.key, label: `${t.name}（${t.key}）` }))),
     staleTime: LOOKUP_STALE_TIME,
     enabled,
-  });
-}
-
-export function useWorkflowDesignerPublishedDefinitionOptions() {
-  return useQuery({
-    queryKey: workflowDesignerKeys.publishedDefinitionOptions,
-    queryFn: () => request.get<WorkflowDefinition[]>('/api/workflows/definitions/published', { silent: true }).then(unwrap),
-    staleTime: LOOKUP_STALE_TIME,
   });
 }
 

@@ -27,9 +27,9 @@ import {
   useMyWorkflowConsults,
   usePendingWorkflowTasks,
   useReplyWorkflowConsult,
-  useWorkflowTaskDefinitions,
   workflowTaskKeys,
 } from '@/hooks/queries/workflow-tasks';
+import { usePublishedWorkflowDefinitions } from '@/hooks/queries/workflow-definitions';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 
@@ -79,7 +79,7 @@ export default function PendingApprovalsPage() {
     definitionId: submittedParams.definitionId ?? undefined,
   };
   const listQuery = usePendingWorkflowTasks(listParams);
-  const definitionsQuery = useWorkflowTaskDefinitions();
+  const definitionsQuery = usePublishedWorkflowDefinitions();
   const usersQuery = useAllUsers({ enabled: consult !== null });
   const myConsultsQuery = useMyWorkflowConsults(myConsultsVisible);
   const batchApproveMutation = useBatchApproveWorkflowTasks();

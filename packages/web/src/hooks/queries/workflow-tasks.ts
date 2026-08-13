@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse } from '@zenith/shared/core';
-import type { WorkflowDefinition, WorkflowInstance, WorkflowInstanceSummaryItem, WorkflowTaskConsult, WorkflowSlaLevel } from '@zenith/shared/workflow';
+import type { WorkflowInstance, WorkflowInstanceSummaryItem, WorkflowTaskConsult, WorkflowSlaLevel } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 
@@ -38,13 +38,6 @@ export function usePendingWorkflowTasks(params: PendingWorkflowListParams) {
     queryKey: workflowTaskKeys.pendingList(params),
     queryFn: () => request.get<PaginatedResponse<PendingWorkflowItem>>(`/api/workflows/instances/pending-mine${toQueryString(params)}`).then(unwrap),
     placeholderData: keepPreviousData,
-  });
-}
-
-export function useWorkflowTaskDefinitions() {
-  return useQuery({
-    queryKey: ['workflow', 'tasks', 'definitions'],
-    queryFn: () => request.get<WorkflowDefinition[]>('/api/workflows/definitions/published').then(unwrap),
   });
 }
 

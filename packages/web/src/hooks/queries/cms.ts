@@ -1196,8 +1196,8 @@ export const cmsInteractionKeys = {
   list: (params: CmsInteractionListParams) => ['cms-interactions', 'list', params] as const,
   detail: (id: number | undefined) => ['cms-interactions', 'detail', id] as const,
   stats: (id: number | undefined) => ['cms-interactions', 'stats', id] as const,
-  texts: (id: number | undefined, questionId: number | undefined, page: number, keyword: string) =>
-    ['cms-interactions', 'stats', id, 'texts', questionId, page, keyword] as const,
+  texts: (id: number | undefined, questionId: number | undefined, page: number, pageSize: number, keyword: string) =>
+    ['cms-interactions', 'stats', id, 'texts', questionId, page, pageSize, keyword] as const,
   cross: (id: number | undefined, x: number | undefined, y: number | undefined) =>
     ['cms-interactions', 'stats', id, 'cross', x, y] as const,
   trend: (id: number | undefined, days: number) => ['cms-interactions', 'stats', id, 'trend', days] as const,
@@ -1263,7 +1263,7 @@ export function useCmsInteractionTexts(
   enabled = true,
 ) {
   return useQuery({
-    queryKey: cmsInteractionKeys.texts(id, questionId, page, keyword),
+    queryKey: cmsInteractionKeys.texts(id, questionId, page, pageSize, keyword),
     queryFn: () => request
       .get<PaginatedResponse<CmsInteractionTextAnswer>>(
         `/api/cms/interactions/${id}/stats/texts${toQueryString({ questionId, page, pageSize, keyword: keyword || undefined })}`,

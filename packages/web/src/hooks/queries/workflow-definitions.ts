@@ -46,11 +46,23 @@ export function useWorkflowDefinitionList(params: WorkflowDefinitionListParams) 
   });
 }
 
-export function usePublishedWorkflowDefinitions(options?: { enabled?: boolean }) {
+/**
+ * 已发布流程定义（启动列表、日程绑定、关联流程选择器等共用）。
+ *
+ * 这是该端点的唯一入口：designer 与 tasks 曾各自建 key 缓存同一份数据，
+ * 而发布只失效 `workflowDefinitionKeys.all`，前缀盖不到那两个 key，
+ * 新发布的定义在它们的下拉里最长 5 分钟不出现。
+ *
+ * `staleTime` 是 observer 级选项，不同调用方可各自指定；但 `silent` 之类会进入
+ * queryFn 的参数刻意不开放——同一个 key 配不同 queryFn 会让实际行为取决于哪个
+ * observer 最后注册。
+ */
+export function usePublishedWorkflowDefinitions(options?: { enabled?: boolean; staleTime?: number }) {
   return useQuery({
     queryKey: workflowDefinitionKeys.published,
     queryFn: () => request.get<WorkflowDefinition[]>('/api/workflows/definitions/published').then(unwrap),
     enabled: options?.enabled ?? true,
+    staleTime: options?.staleTime,
   });
 }
 
