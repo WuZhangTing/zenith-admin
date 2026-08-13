@@ -8,6 +8,22 @@ function sanitizeChunkName(name: string) {
   return name.replace(/^@/, '').replaceAll('/', '-');
 }
 
+// semi-ui 中与 form 互相循环引用的表单控件族，必须与 form 落在同一 chunk（见下方分包注释）
+const SEMI_FORM_FAMILY = new Set([
+  'form',
+  'input',
+  'inputNumber',
+  'select',
+  'tree',
+  'treeSelect',
+  'tagInput',
+  'cascader',
+  'autoComplete',
+  'datePicker',
+  'timePicker',
+  'pincode',
+]);
+
 function getPackageName(id: string) {
   const packagePath = id.replaceAll('\\', '/').split('/node_modules/').pop();
   if (!packagePath) {
@@ -149,13 +165,21 @@ export default defineConfig(({ mode }) => {
                 priority: 10,
               },
               {
-                // 微 chunk 收敛：按包分组曾产出 500+ 个 <10KB 的 vendor 碎片
-                // （请求开销 > 传输节省）。minSize 让不足 20KB 的组放弃独立成 chunk，
-                // 回落到 rolldown 自动分配（通常并入消费方）。实测 10KB→-198 chunk、
-                // 20KB→再 -54，总量不增（无跨页复制回归）；再往上收益递减，停在 20KB。
-                // 仅作用于本动态分组：vite-runtime / vendor-react-core 两个关键组
-                // 不受影响，语义组名（vendor-semi-* 等）超过阈值时照常独立。
-                minSize: 20 * 1024,
+                // ⚠️ 这里曾配置 `minSize: 20 * 1024` 做微 chunk 收敛（按包分组会产出 500+ 个
+                // <10KB 的 vendor 碎片，阈值可少掉 ~250 个 chunk），但该回落机制不安全，已移除。
+                //
+                // minSize 的语义是：不足阈值的组放弃独立成 chunk，回落到 rolldown 自动分配，
+                // 被就近并进某个体量更大的 chunk。落点不可控，一旦落点 chunk 与消费方之间
+                // 存在跨 chunk 环，先求值的一方就会在对方完成赋值前访问其绑定——CJS 包装是
+                // `var require_x = __commonJS(...)`、基类是 `var A = class`，都不会被提升——
+                // 于是抛出 "n is not a function" / "Class extends value undefined"，
+                // 整个入口静默挂掉，而构建本身仍然 exit 0，CI 完全发现不了。
+                //
+                // 实测被击中的至少有三处且互不相关：prop-types / classnames 与 semi-foundation
+                // 的 base、toast 等基础模块被并进 semi-ui 影子 barrel 所在的自动 chunk
+                // （线上 demo 站 index / member / approval 三个入口全部白屏）；@mswjs/* 的小包
+                // 被并进 mocks/browser 自动 chunk（Demo 模式无法启动）。逐个加豁免组只是打地鼠，
+                // 故取消阈值：所有 node_modules 按包稳定成组，宁可多出碎片 chunk。
                 name(id: string): string | null {
                   const normalizedId = id.replaceAll('\\', '/');
 
@@ -174,6 +198,22 @@ export default defineConfig(({ mode }) => {
                   if (normalizedId.includes('/node_modules/@douyinfe/semi-ui/lib/es/')) {
                     const componentName = normalizedId.split('/node_modules/@douyinfe/semi-ui/lib/es/')[1]?.split('/')[0];
                     if (componentName) {
+                      // semi 组件之间存在天然的循环 import，拆成独立 chunk 后会变成跨 chunk 环：
+                      // 先求值的一方会读到尚未赋值的对方，抛 "Cannot read properties of
+                      // undefined (reading 'propTypes' / 'displayName')"，整页被 ErrorBoundary
+                      // 兜底或整个入口白屏，且构建期毫无提示。以下两族必须各自同组落在一个 chunk：
+                      // - button ↔ iconButton：Button 顶层执行 `propTypes = {...IconButton.propTypes}`
+                      // - form 表单控件族：form/index 顶层用 withField 包装各控件，withField 会读
+                      //   被包装组件的 displayName，而各控件又反向依赖 form
+                      // 判定依据是产物 chunk 图中的强连通分量，升级 semi 版本后需复核。
+                      if (componentName === 'iconButton') {
+                        return 'vendor-semi-button';
+                      }
+
+                      if (SEMI_FORM_FAMILY.has(componentName)) {
+                        return 'vendor-semi-form';
+                      }
+
                       return `vendor-semi-${sanitizeChunkName(componentName)}`;
                     }
                   }
