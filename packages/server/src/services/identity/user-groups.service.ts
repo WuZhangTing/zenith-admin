@@ -8,6 +8,7 @@ import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { clearUserPermissionCache } from '../../lib/permissions';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDateTime } from '../../lib/datetime';
+import { getScopeMemberSummaries, validateScopeUserIds } from './user-scope.service';
 
 interface RawGroupRow {
   id: number;
@@ -111,32 +112,11 @@ export async function listUserGroups(q: ListUserGroupsQuery) {
     ),
   ]);
 
-  // Fetch member previews (first 5 per group) for the current page
-  const groupIds = list.map((g) => g.id);
-  const previewMap = new Map<number, Array<{ id: number; nickname: string; avatar: string | null }>>();
-  if (groupIds.length > 0) {
-    const previews = await db
-      .select({
-        groupId: userGroupMembers.groupId,
-        id: users.id,
-        nickname: users.nickname,
-        avatar: users.avatar,
-      })
-      .from(userGroupMembers)
-      .innerJoin(users, eq(users.id, userGroupMembers.userId))
-      .where(inArray(userGroupMembers.groupId, groupIds))
-      .orderBy(asc(userGroupMembers.groupId), asc(userGroupMembers.userId));
-
-    for (const row of previews) {
-      if (!previewMap.has(row.groupId)) previewMap.set(row.groupId, []);
-      const arr = previewMap.get(row.groupId)!;
-      if (arr.length < 5) arr.push({ id: row.id, nickname: row.nickname, avatar: row.avatar ?? null });
-    }
-  }
+  const memberSummaries = await getScopeMemberSummaries('userGroup', list.map((row) => row.id));
 
   const mappedList = list.map((row) => ({
     ...mapGroup(row),
-    memberPreview: previewMap.get(row.id) ?? [],
+    memberPreview: memberSummaries.get(row.id)?.preview ?? [],
   }));
 
   return { list: mappedList, total, page, pageSize };
@@ -248,8 +228,13 @@ export async function getUserGroupMembersBeforeAudit(groupId: number) {
 
 async function ensureGroupAccessible(groupId: number) {
   const tc = tenantCondition(userGroups, currentUser());
-  const [row] = await db.select({ id: userGroups.id }).from(userGroups).where(and(eq(userGroups.id, groupId), tc)).limit(1);
+  const [row] = await db
+    .select({ id: userGroups.id, tenantId: userGroups.tenantId })
+    .from(userGroups)
+    .where(and(eq(userGroups.id, groupId), tc))
+    .limit(1);
   if (!row) throw new HTTPException(404, { message: '用户组不存在' });
+  return row.tenantId;
 }
 
 export async function listGroupMembers(groupId: number) {
@@ -280,27 +265,29 @@ export async function listGroupMembers(groupId: number) {
 }
 
 export async function setGroupMembers(groupId: number, userIds: number[]) {
-  await ensureGroupAccessible(groupId);
+  const tenantId = await ensureGroupAccessible(groupId);
+  const uniqueUserIds = await validateScopeUserIds(userIds, tenantId);
   const previous = await db.select({ userId: userGroupMembers.userId }).from(userGroupMembers).where(eq(userGroupMembers.groupId, groupId));
   await db.transaction(async (tx) => {
     await tx.delete(userGroupMembers).where(eq(userGroupMembers.groupId, groupId));
-    if (userIds.length > 0) {
-      await tx.insert(userGroupMembers).values(userIds.map(uid => ({ groupId, userId: uid })));
+    if (uniqueUserIds.length > 0) {
+      await tx.insert(userGroupMembers).values(uniqueUserIds.map(userId => ({ groupId, userId })));
     }
   });
   // 组可能绑定角色：成员进出影响其继承权限，前后成员均需清缓存
-  await Promise.all([...new Set([...previous.map((r) => r.userId), ...userIds])].map((uid) => clearUserPermissionCache(uid)));
+  await Promise.all([...new Set([...previous.map((r) => r.userId), ...uniqueUserIds])].map((uid) => clearUserPermissionCache(uid)));
 }
 
 export async function addGroupMembers(groupId: number, userIds: number[]) {
-  await ensureGroupAccessible(groupId);
-  if (userIds.length === 0) return;
+  const tenantId = await ensureGroupAccessible(groupId);
+  const uniqueUserIds = await validateScopeUserIds(userIds, tenantId);
+  if (uniqueUserIds.length === 0) return;
   const existing = await db
     .select({ userId: userGroupMembers.userId })
     .from(userGroupMembers)
-    .where(and(eq(userGroupMembers.groupId, groupId), inArray(userGroupMembers.userId, userIds)));
+    .where(and(eq(userGroupMembers.groupId, groupId), inArray(userGroupMembers.userId, uniqueUserIds)));
   const exists = new Set(existing.map(r => r.userId));
-  const toAdd = userIds.filter(id => !exists.has(id));
+  const toAdd = uniqueUserIds.filter(id => !exists.has(id));
   if (toAdd.length > 0) {
     await db.insert(userGroupMembers).values(toAdd.map(uid => ({ groupId, userId: uid })));
     await Promise.all(toAdd.map((uid) => clearUserPermissionCache(uid)));

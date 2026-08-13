@@ -2,6 +2,7 @@ export * from './roles';
 export * from './positions';
 export * from './user-groups';
 export * from './users';
+export * from './_user-preview';
 export * from './menus';
 export * from './departments';
 export * from './tenants';

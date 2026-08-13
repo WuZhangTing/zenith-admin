@@ -5,16 +5,15 @@ import { z } from '@hono/zod-openapi';
 import { PositionDTO } from './positions';
 import { RoleDTO } from './roles';
 import { auditFields } from './_audit';
+import { UserPreviewDTO } from './_user-preview';
 
 /**
  * 成员预览项：部门 / 角色 / 岗位 / 用户组「成员」列查看弹窗共用。
  * 刻意只取四个来源都具备的最小公共字段，前端因此只需一套渲染，不按来源分支。
  */
-export const ScopeMemberDTO = z
-  .object({
-    id: z.number().int(),
+export const ScopeMemberDTO = UserPreviewDTO
+  .extend({
     username: z.string(),
-    nickname: z.string(),
     avatar: z.string().nullable(),
   })
   .openapi('ScopeMember');

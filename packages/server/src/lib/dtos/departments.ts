@@ -3,12 +3,9 @@
  */
 import { z } from '@hono/zod-openapi';
 import { auditFields } from './_audit';
+import { UserPreviewDTO } from './_user-preview';
 
-export const DepartmentUserPreviewDTO = z.object({
-  id: z.number().int(),
-  nickname: z.string(),
-  avatar: z.string().nullable().optional(),
-});
+export const DepartmentUserPreviewDTO = UserPreviewDTO;
 
 export const DepartmentDTO: z.ZodType = z
   .object({

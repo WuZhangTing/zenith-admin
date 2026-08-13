@@ -3,13 +3,9 @@
  */
 import { z } from '@hono/zod-openapi';
 import { auditFields } from './_audit';
+import { UserPreviewDTO } from './_user-preview';
 
-export const PositionUserPreviewDTO = z
-  .object({
-    id: z.number().int(),
-    nickname: z.string(),
-    avatar: z.string().nullable().optional(),
-  });
+export const PositionUserPreviewDTO = UserPreviewDTO;
 
 export const PositionDTO = z
   .object({

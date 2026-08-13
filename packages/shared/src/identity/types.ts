@@ -83,6 +83,13 @@ export interface User {
   updatedAt: string;
 }
 
+/** 列表页成员摘要中的最小用户信息。 */
+export interface UserPreview {
+  id: number;
+  nickname: string;
+  avatar?: string | null;
+}
+
 /** 告警接收用户下拉项：只暴露投递所需的最小信息，不返回邮箱原文。 */
 export interface AlertRecipientUser {
   id: number;
@@ -167,7 +174,7 @@ export interface Role {
   menuIds?: number[];
   deptScopeIds?: number[];
   userCount?: number;
-  userPreview?: Array<{ id: number; nickname: string; avatar?: string | null }>;
+  userPreview?: UserPreview[];
 }
 
 // ─── 部门 ─────────────────────────────────────────────────────────────────────
@@ -187,7 +194,7 @@ export interface Department {
   updatedAt: string;
   children?: Department[];
   userCount?: number;
-  userPreview?: Array<{ id: number; nickname: string; avatar: string | null }>;
+  userPreview?: UserPreview[];
 }
 
 // ─── 岗位 ─────────────────────────────────────────────────────────────────────
@@ -199,7 +206,7 @@ export interface Position {
   status: EntityStatus;
   remark?: string;
   userCount?: number;
-  userPreview?: Array<{ id: number; nickname: string; avatar?: string | null }>;
+  userPreview?: UserPreview[];
   createdAt: string;
   updatedAt: string;
 }
@@ -215,7 +222,7 @@ export interface UserGroup {
   departmentId?: number | null;
   departmentName?: string | null;
   memberCount?: number;
-  memberPreview?: Array<{ id: number; nickname: string; avatar?: string | null }>;
+  memberPreview?: UserPreview[];
   roleCount?: number;
   status: EntityStatus;
   createdAt: string;

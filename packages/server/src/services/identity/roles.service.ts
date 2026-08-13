@@ -1,9 +1,9 @@
-import { eq, and, asc, inArray } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { SUPER_ADMIN_CODE } from '@zenith/shared/identity';
 import { dateRangeConditions, keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import type { DbTransaction } from '../../db/types';
-import { roles, roleMenus, roleDeptScopes, userRoles, users } from '../../db/schema';
+import { roles, roleMenus, roleDeptScopes, userRoles } from '../../db/schema';
 import { clearUserPermissionCache } from '../../lib/permissions';
 import { getTenantPackageMenuIdSet } from '../../lib/tenant-package';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
@@ -12,6 +12,7 @@ import { forceLogoutAllByUsers } from '../../lib/session-manager';
 import { HTTPException } from 'hono/http-exception';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDateTime } from '../../lib/datetime';
+import { getScopeMemberSummaries, validateScopeUserIds } from './user-scope.service';
 
 export function mapRole(row: typeof roles.$inferSelect, menuIds?: number[], deptScopeIds?: number[]) {
   return {
@@ -54,35 +55,12 @@ export async function listRoles(q: ListRolesQuery) {
     withPagination(db.select().from(roles).where(finalWhere).orderBy(roles.id).$dynamic(), page, pageSize),
   ]);
 
-  // Fetch user counts & previews (first 5 per role) for the current page
-  const roleIds = list.map((r) => r.id);
-  const countMap = new Map<number, number>();
-  const previewMap = new Map<number, Array<{ id: number; nickname: string; avatar: string | null }>>();
-  if (roleIds.length > 0) {
-    const rows = await db
-      .select({
-        roleId: userRoles.roleId,
-        id: users.id,
-        nickname: users.nickname,
-        avatar: users.avatar,
-      })
-      .from(userRoles)
-      .innerJoin(users, eq(users.id, userRoles.userId))
-      .where(inArray(userRoles.roleId, roleIds))
-      .orderBy(asc(userRoles.roleId), asc(userRoles.userId));
-
-    for (const row of rows) {
-      countMap.set(row.roleId, (countMap.get(row.roleId) ?? 0) + 1);
-      if (!previewMap.has(row.roleId)) previewMap.set(row.roleId, []);
-      const arr = previewMap.get(row.roleId)!;
-      if (arr.length < 5) arr.push({ id: row.id, nickname: row.nickname, avatar: row.avatar ?? null });
-    }
-  }
+  const memberSummaries = await getScopeMemberSummaries('role', list.map((row) => row.id));
 
   const mappedList = list.map((row) => ({
     ...mapRole(row),
-    userCount: countMap.get(row.id) ?? 0,
-    userPreview: previewMap.get(row.id) ?? [],
+    userCount: memberSummaries.get(row.id)?.count ?? 0,
+    userPreview: memberSummaries.get(row.id)?.preview ?? [],
   }));
 
   return { list: mappedList, total, page, pageSize };
@@ -233,16 +211,8 @@ export async function getRoleUsers(id: number) {
 }
 
 export async function assignRoleUsers(id: number, userIds: number[]) {
-  const user = currentUser();
   const roleInfo = await ensureRoleBelongsToTenant(id);
-  const uniqueUserIds = Array.from(new Set(userIds));
-  // 多租户：被分配用户必须全部落在当前操作者可见租户内，防止跨租户 IDOR
-  if (uniqueUserIds.length > 0) {
-    const tc = tenantCondition(users, user);
-    const rows = await db.select({ id: users.id }).from(users)
-      .where(tc ? and(inArray(users.id, uniqueUserIds), tc) : inArray(users.id, uniqueUserIds));
-    if (rows.length !== uniqueUserIds.length) throw new HTTPException(400, { message: '存在无效用户' });
-  }
+  const uniqueUserIds = await validateScopeUserIds(userIds, roleInfo.tenantId);
   // 平台超管角色：JWT 中的 roles 在 2h 内不随 DB 变化，被移出者须立即撤销会话防权限残留
   const isPlatformSuperRole = roleInfo.code === SUPER_ADMIN_CODE && roleInfo.tenantId === null;
   const removedUserIds: number[] = [];

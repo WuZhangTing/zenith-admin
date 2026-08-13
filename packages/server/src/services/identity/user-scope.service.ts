@@ -8,14 +8,26 @@
  * 四个域返回同一形状（id / username / nickname / avatar），前端因此只需要一个组件与一套渲染，
  * 不必按来源分支——各域原有 DTO 字段并不一致（岗位只有头像+昵称，用户组另有邮箱与加入时间）。
  */
-import { and, eq, inArray, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
+import type { UserPreview } from '@zenith/shared/identity';
+import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { users, userRoles, userPositions, userGroupMembers } from '../../db/schema';
+import {
+  departments,
+  positions,
+  roles,
+  userGroups,
+  users,
+  userRoles,
+  userPositions,
+  userGroupMembers,
+} from '../../db/schema';
 import { keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { tenantScope } from '../../lib/tenant';
 
 /** 成员归属范围 */
 export type UserScopeType = 'department' | 'role' | 'position' | 'userGroup';
+export const USER_PREVIEW_LIMIT = 5;
 
 export interface ScopeMemberQuery {
   page?: number;
@@ -28,6 +40,19 @@ export interface ScopeMemberItem {
   username: string;
   nickname: string;
   avatar: string | null;
+}
+
+export interface ScopeMemberSummary {
+  count: number;
+  preview: UserPreview[];
+}
+
+export interface ScopeMemberSummaryRow extends Record<string, unknown> {
+  scopeId: number;
+  id: number;
+  nickname: string;
+  avatar: string | null;
+  count: number;
 }
 
 /**
@@ -52,6 +77,130 @@ function scopeCondition(scopeType: UserScopeType, scopeId: number): SQL {
       throw new Error(`不支持的成员范围：${String(exhaustive)}`);
     }
   }
+}
+
+function scopeMemberSource(scopeType: UserScopeType, scopeIds: number[]): SQL {
+  const tenant = tenantScope(users);
+  const tenantFilter = tenant ? sql` AND ${tenant}` : sql``;
+
+  switch (scopeType) {
+    case 'department':
+      return sql`
+        SELECT ${departments.id} AS scope_id, ${users.id} AS user_id,
+               ${users.nickname} AS nickname, ${users.avatar} AS avatar
+        FROM ${users}
+        INNER JOIN ${departments} ON ${eq(departments.id, users.departmentId)}
+        WHERE ${inArray(departments.id, scopeIds)}
+          AND ${users.tenantId} IS NOT DISTINCT FROM ${departments.tenantId}${tenantFilter}
+      `;
+    case 'role':
+      return sql`
+        SELECT ${userRoles.roleId} AS scope_id, ${users.id} AS user_id,
+               ${users.nickname} AS nickname, ${users.avatar} AS avatar
+        FROM ${userRoles}
+        INNER JOIN ${users} ON ${eq(users.id, userRoles.userId)}
+        INNER JOIN ${roles} ON ${eq(roles.id, userRoles.roleId)}
+        WHERE ${inArray(userRoles.roleId, scopeIds)}
+          AND ${users.tenantId} IS NOT DISTINCT FROM ${roles.tenantId}${tenantFilter}
+      `;
+    case 'position':
+      return sql`
+        SELECT ${userPositions.positionId} AS scope_id, ${users.id} AS user_id,
+               ${users.nickname} AS nickname, ${users.avatar} AS avatar
+        FROM ${userPositions}
+        INNER JOIN ${users} ON ${eq(users.id, userPositions.userId)}
+        INNER JOIN ${positions} ON ${eq(positions.id, userPositions.positionId)}
+        WHERE ${inArray(userPositions.positionId, scopeIds)}
+          AND ${users.tenantId} IS NOT DISTINCT FROM ${positions.tenantId}${tenantFilter}
+      `;
+    case 'userGroup':
+      return sql`
+        SELECT ${userGroupMembers.groupId} AS scope_id, ${users.id} AS user_id,
+               ${users.nickname} AS nickname, ${users.avatar} AS avatar
+        FROM ${userGroupMembers}
+        INNER JOIN ${users} ON ${eq(users.id, userGroupMembers.userId)}
+        INNER JOIN ${userGroups} ON ${eq(userGroups.id, userGroupMembers.groupId)}
+        WHERE ${inArray(userGroupMembers.groupId, scopeIds)}
+          AND ${users.tenantId} IS NOT DISTINCT FROM ${userGroups.tenantId}${tenantFilter}
+      `;
+    default: {
+      const exhaustive: never = scopeType;
+      throw new Error(`不支持的成员范围：${String(exhaustive)}`);
+    }
+  }
+}
+
+export function buildScopeMemberSummaryMap(
+  rows: readonly ScopeMemberSummaryRow[],
+): Map<number, ScopeMemberSummary> {
+  const summaries = new Map<number, ScopeMemberSummary>();
+  for (const row of rows) {
+    let summary = summaries.get(row.scopeId);
+    if (!summary) {
+      summary = { count: Number(row.count), preview: [] };
+      summaries.set(row.scopeId, summary);
+    }
+    if (summary.preview.length < USER_PREVIEW_LIMIT) {
+      summary.preview.push({
+        id: row.id,
+        nickname: row.nickname,
+        avatar: row.avatar ?? null,
+      });
+    }
+  }
+  return summaries;
+}
+
+/**
+ * 批量读取多个部门 / 角色 / 岗位 / 用户组的成员摘要。
+ * 窗口查询在数据库内完成精确计数，并把返回行限制为每个范围前五名成员。
+ */
+export async function getScopeMemberSummaries(
+  scopeType: UserScopeType,
+  scopeIds: readonly number[],
+): Promise<Map<number, ScopeMemberSummary>> {
+  const uniqueScopeIds = [...new Set(scopeIds)];
+  if (uniqueScopeIds.length === 0) return new Map();
+
+  const rows = await db.execute<ScopeMemberSummaryRow>(sql`
+    WITH scope_members AS (
+      ${scopeMemberSource(scopeType, uniqueScopeIds)}
+    ),
+    ranked_scope_members AS (
+      SELECT scope_id, user_id, nickname, avatar,
+             CAST(COUNT(*) OVER (PARTITION BY scope_id) AS integer) AS member_count,
+             CAST(ROW_NUMBER() OVER (PARTITION BY scope_id ORDER BY user_id) AS integer) AS preview_rank
+      FROM scope_members
+    )
+    SELECT scope_id AS "scopeId", user_id AS id, nickname, avatar,
+           member_count AS count
+    FROM ranked_scope_members
+    WHERE preview_rank <= ${USER_PREVIEW_LIMIT}
+    ORDER BY scope_id, user_id
+  `);
+
+  return buildScopeMemberSummaryMap(rows);
+}
+
+/** 去重并校验用户 ID 均属于目标范围的租户，供各成员分配入口复用。 */
+export async function validateScopeUserIds(
+  userIds: readonly number[],
+  scopeTenantId: number | null,
+): Promise<number[]> {
+  const uniqueUserIds = [...new Set(userIds)];
+  if (uniqueUserIds.length === 0) return uniqueUserIds;
+
+  const tenant = scopeTenantId === null
+    ? isNull(users.tenantId)
+    : eq(users.tenantId, scopeTenantId);
+  const rows = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(inArray(users.id, uniqueUserIds), tenant));
+  if (rows.length !== uniqueUserIds.length) {
+    throw new HTTPException(400, { message: '存在无效用户' });
+  }
+  return uniqueUserIds;
 }
 
 export async function listScopeMembers(

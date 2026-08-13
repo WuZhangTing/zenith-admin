@@ -1,15 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Avatar, AvatarGroup, Empty, Modal, Space, Tag, Typography } from '@douyinfe/semi-ui';
+import type { UserPreview } from '@zenith/shared/identity';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { KeywordInput } from '@/components/search-filters';
 import { usePagination } from '@/hooks/usePagination';
 import { useScopeMembers, type ScopeMember, type UserScopeType } from '@/hooks/queries/scope-members';
 
-export interface UserPreviewItem {
-  id: number;
-  nickname: string;
-  avatar?: string | null;
-}
+export type UserPreviewItem = UserPreview;
 
 /** 成员归属：给定后单元格可点击，弹窗展示该范围内的完整成员名单 */
 export interface UserPreviewScope {
