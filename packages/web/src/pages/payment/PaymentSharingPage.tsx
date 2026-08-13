@@ -150,7 +150,7 @@ export default function PaymentSharingPage() {
       render: (_: unknown, r: PaymentSharingReceiver) => <Switch checked={r.status === 'enabled'} loading={togglingId === r.id} disabled={!canManage} size="small" onChange={(c) => void handleReceiverToggle(r, c)} />,
     },
     createOperationColumn<PaymentSharingReceiver>({
-      width: 120,
+      width: 130,
       actions: (r) => [
         ...(canManage ? [{
           key: 'edit',

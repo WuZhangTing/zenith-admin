@@ -150,7 +150,7 @@ export default function FormsPage() {
       render: renderEnabledStatusTag,
     },
     createOperationColumn<CmsForm>({
-      width: 210,
+      width: 250,
       desktopInlineKeys: ['data', 'edit', 'delete'],
       actions: (record) => [
         { key: 'data', label: '提交数据', onClick: () => setViewingForm(record) },

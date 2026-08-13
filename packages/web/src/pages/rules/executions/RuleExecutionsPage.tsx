@@ -61,6 +61,7 @@ export default function RuleExecutionsPage() {
     { title: '流程实例', width: 130, render: (_: unknown, r: RuleDecisionExecution) => (r.instanceId ? <Text type="tertiary" size="small">#{r.instanceId}{r.nodeKey ? ` · ${r.nodeKey}` : ''}</Text> : '-') },
     { title: '输出', render: (_: unknown, r: RuleDecisionExecution) => <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 320 }}>{JSON.stringify(r.outputs)}</Text> },
     createOperationColumn<RuleDecisionExecution>({
+      width: 90,
       desktopInlineKeys: ['detail'],
       actions: (r) => [{ key: 'detail', label: '详情', onClick: () => setDetail(r) }],
     }),

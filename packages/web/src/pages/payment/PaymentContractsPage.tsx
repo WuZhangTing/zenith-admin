@@ -253,7 +253,7 @@ export default function PaymentContractsPage() {
     createdAtColumn as ColumnProps<PaymentDeductPlan>,
     { title: '状态', dataIndex: 'status', width: 80, fixed: 'right', render: (v: 'enabled' | 'disabled') => (v === 'enabled' ? <Tag color="green">启用</Tag> : <Tag color="grey">停用</Tag>) },
     createOperationColumn<PaymentDeductPlan>({
-      width: 120,
+      width: 130,
       actions: (p) => (canPlan ? [{
         key: 'edit',
         label: '编辑',

@@ -237,7 +237,7 @@ export default function RolesPage() {
       ),
     },
     createOperationColumn<Role>({
-      width: 320,
+      width: 260,
       desktopInlineKeys: ['edit', 'menu', 'delete'],
       actions: (row) => [
         {

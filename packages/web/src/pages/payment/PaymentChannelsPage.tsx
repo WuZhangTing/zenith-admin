@@ -145,7 +145,7 @@ export default function PaymentChannelsPage() {
       ),
     },
     createOperationColumn<PaymentChannelConfig>({
-      width: 250,
+      width: 280,
       actions: (r) => [
         ...(hasPermission('payment:channel:update') && !r.isDefault ? [{
           key: 'default',

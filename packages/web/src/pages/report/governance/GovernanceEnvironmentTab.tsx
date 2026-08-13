@@ -134,7 +134,7 @@ export default function GovernanceEnvironmentTab() {
     { title: '错误', dataIndex: 'errorMessage', width: 220, render: (v) => v || '—' },
     { title: '状态', dataIndex: 'status', width: 110, fixed: 'right', render: (v: ReportPromotionStatus) => <Tag color={promotionStatusColor[v]}>{v}</Tag> },
     createOperationColumn<ReportEnvironmentPromotion>({
-      width: 170,
+      width: 120,
       desktopInlineKeys: ['deploy'],
       actions: (record) => [
         { key: 'approve', label: '审批通过', hidden: !hasPermission('report:environment:promote') || record.status !== 'pending', onClick: () => transition(record, 'approve') },

@@ -79,7 +79,7 @@ export function ChannelQuickReplyDrawer({ channelId, channelName, visible, onClo
     },
     { title: '排序', dataIndex: 'sort', width: 60 },
     createOperationColumn<ChannelQuickReply>({
-      width: 120,
+      width: 130,
       actions: (record) => [
         {
           key: 'edit',

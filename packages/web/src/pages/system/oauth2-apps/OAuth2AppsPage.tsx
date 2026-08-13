@@ -268,7 +268,7 @@ export default function OAuth2AppsPage() {
       ),
     },
     createOperationColumn<OAuth2Client>({
-      width: 220,
+      width: 170,
       desktopInlineKeys: ['detail', 'edit'],
       actions: (record) => [
         {

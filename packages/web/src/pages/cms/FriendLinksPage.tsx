@@ -193,7 +193,7 @@ function FriendLinkGroupSheet({ siteId, visible, onClose }: Readonly<{
     { title: '友链数', dataIndex: 'linkCount', width: 80 },
     { title: '排序', dataIndex: 'sort', width: 70 },
     createOperationColumn<CmsFriendLinkGroup>({
-      width: 120,
+      width: 130,
       actions: (record) => [
         { key: 'edit', label: '编辑', hidden: !hasPermission('cms:link:update'), onClick: () => groupModal.openEdit(record) },
         {

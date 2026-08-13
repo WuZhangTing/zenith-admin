@@ -170,7 +170,7 @@ export default function StorageFileBrowser({ config, onClose }: Readonly<Storage
       },
     },
     createOperationColumn<ManagedFile | FolderEntry>({
-      width: 180,
+      width: 90,
       desktopInlineKeys: ['open', 'preview', 'download'],
       actions: (record) => {
         if (!('id' in record)) {

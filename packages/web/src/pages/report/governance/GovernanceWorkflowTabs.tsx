@@ -96,7 +96,7 @@ export function GovernanceApprovalTab() {
     { title: '处理人', dataIndex: 'decidedByName', width: 120, render: (v) => v || '—' },
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v) => <Tag color={statusColor[v]}>{v}</Tag> },
     createOperationColumn<ReportPublishApproval>({
-      width: 170,
+      width: 120,
       desktopInlineKeys: ['approve'],
       actions: (record) => [
         { key: 'approve', label: '通过', hidden: !hasPermission('report:approval:approve') || record.status !== 'pending', onClick: () => decide(record, 'approved') },
@@ -183,7 +183,7 @@ export function GovernanceTransferTab() {
     dateTimeColumn('申请时间', 'createdAt'),
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v) => <Tag color={statusColor[v]}>{v}</Tag> },
     createOperationColumn<ReportResourceTransfer>({
-      width: 170,
+      width: 120,
       desktopInlineKeys: ['accept'],
       actions: (record) => [
         { key: 'accept', label: '接受', hidden: !hasPermission('report:resource:transfer') || record.status !== 'pending', onClick: () => decide(record, 'accepted') },

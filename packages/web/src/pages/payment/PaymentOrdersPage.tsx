@@ -224,7 +224,7 @@ export default function PaymentOrdersPage() {
       render: (v: PaymentOrderStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_ORDER_STATUS_LABELS[v]}</Tag>,
     },
     createOperationColumn<PaymentOrder>({
-      width: 250,
+      width: 280,
       actions: (r) => [
         {
           key: 'detail',

@@ -214,7 +214,7 @@ export default function PaymentRiskRulesPage() {
       ),
     },
     createOperationColumn<PaymentRiskRule>({
-      width: 120,
+      width: 130,
       actions: (r) => [
         ...(hasPermission('payment:risk:update') ? [{
           key: 'edit',

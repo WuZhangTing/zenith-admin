@@ -390,8 +390,9 @@ export default function ResourcesPage() {
     },
     dateTimeColumn('上传时间', 'createdAt'),
     createOperationColumn<CmsResource>({
-      width: 260,
-      desktopInlineKeys: ['references', 'replace', 'crop', 'rename', 'delete'],
+      // 五个动作全内联需 276px；裁剪仅图片可用，移入「更多」
+      width: 280,
+      desktopInlineKeys: ['references', 'replace', 'rename', 'delete'],
       actions: (record) => [
         { key: 'references', label: '引用', onClick: () => setRefsTarget(record) },
         ...(canUpdate ? [{

@@ -643,7 +643,7 @@ export default function MyApplicationsPage() {
       },
     },
     createOperationColumn<WorkflowInstance>({
-      width: 160,
+      width: 200,
       desktopInlineKeys: ['edit-draft', 'submit-draft', 'delete-draft', 'detail', 'resubmit'],
       actions: (record) => [
         {

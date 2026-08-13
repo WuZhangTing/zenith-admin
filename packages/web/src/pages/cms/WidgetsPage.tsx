@@ -204,7 +204,7 @@ export default function WidgetsPage() {
       ),
     },
     createOperationColumn<CmsWidget>({
-      width: 250,
+      width: 170,
       desktopInlineKeys: ['edit', 'publish'],
       actions: (record) => [
         {

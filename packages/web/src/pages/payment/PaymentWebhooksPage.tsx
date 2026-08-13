@@ -168,7 +168,7 @@ export default function PaymentWebhooksPage() {
       ),
     },
     createOperationColumn<PaymentWebhookEndpoint>({
-      width: 120,
+      width: 130,
       actions: (r) => [
         ...(hasPermission('payment:webhook:update') ? [{
           key: 'edit',

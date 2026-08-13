@@ -195,7 +195,7 @@ export default function WorkflowSchedulesPage() {
       render: (value: ScheduleStatus) => renderStatus(value),
     },
     createOperationColumn<WorkflowSchedule>({
-      width: 190,
+      width: 230,
       desktopInlineKeys: ['edit', 'run-once', 'delete'],
       actions: (record) => [
         {

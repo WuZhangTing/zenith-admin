@@ -757,7 +757,7 @@ export default function FrontendErrorsPage() {
       render: (_value, record) => <Switch size="small" checked={record.enabled} onChange={(checked) => void toggleAlert(record, checked)} />,
     },
     createOperationColumn<ErrorAlertRule>({
-      width: 170,
+      width: 200,
       desktopInlineKeys: ['edit', 'test', 'delete'],
       actions: (record) => [
         {

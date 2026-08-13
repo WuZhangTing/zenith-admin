@@ -105,7 +105,7 @@ export default function PaymentAppsPage() {
     createdAtColumn as ColumnProps<PaymentApp>,
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentApp['status']) => <Tag color={STATUS_COLOR[v]}>{STATUS_LABEL[v]}</Tag> },
     createOperationColumn<PaymentApp>({
-      width: 120,
+      width: 130,
       actions: (r) => canManage ? [
         { key: 'edit', label: '编辑', onClick: () => modal.openEdit(r) },
         {

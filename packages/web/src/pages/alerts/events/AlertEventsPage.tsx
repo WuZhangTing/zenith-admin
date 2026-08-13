@@ -208,7 +208,7 @@ export default function AlertEventsPage() {
     },
     createOperationColumn<MonitorAlertEvent>({
       // 最宽的一行是「标记已处理 + 撤销认领」两个按钮并排，150 装不下会挤成换行
-      width: 190,
+      width: 210,
       actions: (record) => [
         {
           key: 'ack',
