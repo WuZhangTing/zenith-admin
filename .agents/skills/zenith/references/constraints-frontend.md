@@ -22,6 +22,7 @@
 | 标准 CRUD 域 hooks | `lib/crud-queries.ts` 的 `createCrudQueries` | 手抄 `xxxKeys` 与列表 / 详情 / 保存 / 删除；下拉源也应通过工厂按需开启 | 保存后列表不变；已删记录重新打开弹窗时闪出旧数据 |
 | 新增 / 编辑弹窗 | `hooks/useEditModal.ts` | `useRef<FormApi>` + `editingRecord` + `try { validate() } catch` + `Toast` + 关闭四件套 | 确定按钮永远转圈；异步详情进不了表单；下次「新增」带出上次记录 |
 | 列表页搜索状态 | `hooks/useListSearch.ts` | `draftParams` / `submittedParams` 双状态 + `handleSearch` / `handleReset` | 条件未变时点「查询」不回源，且列表仍有数据、不报错 |
+| 树形表格展开态 | `hooks/useTreeExpansion.ts` | 递归收集节点 key + `isAllExpanded` 计数比较 + `onExpandedRowsChange` 行→key 映射 | 传未筛选数据时按钮显示「全部展开」却点不动（死按钮）；数据清空后空表格显示「全部折叠」 |
 | 中断表单提交 | `lib/abort-submit.ts` 的 `abortSubmit()`（先给用户提示再调用） | `return`、`throw new Error('多词消息')` | 按钮一直转圈；或多弹一个「操作失败：xxx」并向 `/api/frontend-errors` 灌入假告警 |
 | 破坏性操作确认 | `utils/confirm.ts` 的 `confirmDelete` / `confirmDanger` | `Modal.confirm({ okButtonProps: { type: 'danger', theme: 'solid' } })` | 「确定删除」与「确定提交」渲染成同一个蓝色主按钮 |
 
@@ -93,7 +94,10 @@
   此时 `width` 也必须取 `DATE_TIME_COLUMN_WIDTH`
 - **空值占位统一**：用 `utils/table-columns` 的 `EMPTY_PLACEHOLDER`（`—`），**禁止**混用 `-` / `–`
 - **树形表格展开控制**：用 `children` 渲染树形表格时必须在搜索栏加「全部展开 / 全部折叠」按钮，
-  受控 `expandedRowKeys` + `onExpandedRowsChange`；图标已展开用 `ChevronsDownUp`，未展开用 `ChevronsUpDown`
+  展开态一律用 `hooks/useTreeExpansion.ts`（受控 `expandedRowKeys` + `onExpandedRowsChange` 由它提供）；
+  图标已展开用 `ChevronsDownUp`，未展开用 `ChevronsUpDown`。
+  **传入的必须是表格实际渲染的数据**（筛选后的那份），传全量树会让筛选后的按钮点不动。
+  只有部分行可展开或行 key 不是 `id` 时，用 `collectKeys` / `getRowKey` 覆盖
 - **批量按钮显示时机**：仅 `selectedRowKeys.length > 0` 时显示，放在查询 / 重置按钮之后
 
 ## 表单与展示组件

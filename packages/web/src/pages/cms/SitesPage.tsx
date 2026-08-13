@@ -22,12 +22,12 @@ import { confirmDelete } from '@/utils/confirm';
 import { request } from '@/utils/request';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
+import { useTreeExpansion } from '@/hooks/useTreeExpansion';
 import { cmsSiteKeys, useCmsSiteList, useDeleteCmsSite, useEnableSiteAnalytics, useImportCmsSite } from '@/hooks/queries/cms';
 import { useCmsSiteTree, useSubmitCmsSiteGroupPublish } from '@/hooks/queries/cms-stage5';
 import { CMS_STATIC_MODE_LABELS } from '@zenith/shared/cms';
 import type { CmsSite } from '@zenith/shared/cms';
 import { cmsPreviewUrl } from './CmsSiteSelect';
-import { collectSiteIds } from './sites/site-tree-utils';
 import SiteEditSheet from './sites/SiteEditSheet';
 import SiteUsersModal from './sites/SiteUsersModal';
 import SiteOpenGrantsModal from './sites/SiteOpenGrantsModal';
@@ -51,7 +51,6 @@ export default function SitesPage() {
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: cmsSiteKeys.lists });
   const [treeView, setTreeView] = useState(true);
-  const [expandedRowKeys, setExpandedRowKeys] = useState<(string | number)[]>([]);
 
   const listQuery = useCmsSiteList({
     page,
@@ -66,8 +65,9 @@ export default function SitesPage() {
     status: submittedParams.status || undefined,
   }, treeView);
   const tree = useMemo(() => treeQuery.data ?? [], [treeQuery.data]);
-  const allTreeIds = useMemo(() => collectSiteIds(tree), [tree]);
-  const allExpanded = allTreeIds.length > 0 && expandedRowKeys.length >= allTreeIds.length;
+  const {
+    expandedRowKeys, isAllExpanded: allExpanded, toggleExpandAll, onExpandedRowsChange,
+  } = useTreeExpansion(tree);
 
   // ── 各工作流弹窗的开关状态（内容与数据由各组件自持） ──────────────────────
   const [editSheetOpen, setEditSheetOpen] = useState(false);
@@ -307,7 +307,7 @@ export default function SitesPage() {
     <Button
       type="tertiary"
       icon={allExpanded ? <ChevronsDownUp size={14} /> : <ChevronsUpDown size={14} />}
-      onClick={() => setExpandedRowKeys(allExpanded ? [] : allTreeIds)}
+      onClick={toggleExpandAll}
     >
       {allExpanded ? '全部折叠' : '全部展开'}
     </Button>
@@ -356,9 +356,7 @@ export default function SitesPage() {
         empty="暂无站点"
         scroll={{ x: 1770 }}
         expandedRowKeys={treeView ? expandedRowKeys : undefined}
-        onExpandedRowsChange={(rows) => setExpandedRowKeys(
-          rows?.filter((row): row is CmsSite => 'id' in row).map((row) => row.id) ?? [],
-        )}
+        onExpandedRowsChange={onExpandedRowsChange}
         onRefresh={() => void (treeView ? treeQuery.refetch() : listQuery.refetch())}
         refreshLoading={treeView ? treeQuery.isFetching : listQuery.isFetching}
         pagination={treeView ? false : buildPagination(total)}

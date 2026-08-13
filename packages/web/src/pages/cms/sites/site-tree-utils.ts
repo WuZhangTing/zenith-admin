@@ -3,11 +3,6 @@
  */
 import type { CmsSite, CmsSiteInheritableField } from '@zenith/shared/cms';
 
-/** 深度优先收集树中全部站点 id（表格全部展开用） */
-export function collectSiteIds(nodes: CmsSite[]): number[] {
-  return nodes.flatMap((node) => [node.id, ...collectSiteIds(node.children ?? [])]);
-}
-
 /**
  * 在扁平站点列表中收集 rootId 的全部后代 id（含自身）。
  * 移动站点时排除自身子树，防止移动成自己的后代形成环。

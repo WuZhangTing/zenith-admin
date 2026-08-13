@@ -12,7 +12,7 @@ import {
   templateDefaultsFromSettings,
   templateDefaultsToSettings,
 } from './site-form-mapping';
-import { collectFlatSiteDescendantIds, collectSiteIds, siteIndentOptions } from './site-tree-utils';
+import { collectFlatSiteDescendantIds, siteIndentOptions } from './site-tree-utils';
 
 function makeSite(overrides: Partial<CmsSite> = {}): CmsSite {
   return {
@@ -233,11 +233,6 @@ describe('site-tree-utils', () => {
     makeSite({ id: 3, parentId: 2, depth: 3, name: '孙站' }),
     makeSite({ id: 4, parentId: undefined, depth: 1, name: '独立站' }),
   ];
-
-  it('collectSiteIds 深度优先收集树 id', () => {
-    const tree = [makeSite({ id: 1, children: [makeSite({ id: 2, children: [makeSite({ id: 3 })] })] }), makeSite({ id: 4 })];
-    expect(collectSiteIds(tree)).toEqual([1, 2, 3, 4]);
-  });
 
   it('collectFlatSiteDescendantIds 含自身与全部后代', () => {
     expect([...collectFlatSiteDescendantIds(flat, 1)].sort()).toEqual([1, 2, 3]);

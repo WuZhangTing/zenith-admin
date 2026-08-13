@@ -28,6 +28,7 @@ import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { usePagination } from '@/hooks/usePagination';
 import { useEditModal } from '@/hooks/useEditModal';
+import { useTreeExpansion } from '@/hooks/useTreeExpansion';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { NavListPanel, NavListItem } from '@/components/NavListPanel';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -70,7 +71,7 @@ export default function DictsPage() {
   const [pendingItemKeyword, setPendingItemKeyword] = useState('');
   const [pendingItemStatus, setPendingItemStatus] = useState('');
   const [itemKeyword, setItemKeyword] = useState('');
-  const [itemStatusFilter, setItemStatusFilter] = useState('');  const [expandedRowKeys, setExpandedRowKeys] = useState<(string | number)[]>([]);
+  const [itemStatusFilter, setItemStatusFilter] = useState('');
   const [itemParentId, setItemParentId] = useState<number | null>(null);
   const [itemColor, setItemColor] = useState<string | null>(null);
   // metadataStr 仅用于 JsonViewer 的初始值（非受控），提交时通过 ref.getValue() 读取
@@ -123,12 +124,6 @@ export default function DictsPage() {
 
   // 每个字典的条目首次加载完成时默认全展开；同一字典内（数据刷新 / keepAlive 页签切回）保持用户展开/折叠状态
   const expandInitedDictIdRef = useRef<number | null>(null);
-  useEffect(() => {
-    if (!selectedDict || itemsQuery.data === undefined) return;
-    if (expandInitedDictIdRef.current === selectedDict.id) return;
-    expandInitedDictIdRef.current = selectedDict.id;
-    setExpandedRowKeys(items.map((i) => i.id));
-  }, [selectedDict, items, itemsQuery.data]);
 
   useEffect(() => {
     if (!itemModalVisible || !itemDetailQuery.data) return;
@@ -153,12 +148,6 @@ export default function DictsPage() {
     setItemKeyword('');
     setItemStatusFilter('');
   };
-
-  const allItemIds = useMemo(() => items.map((i) => i.id), [items]);
-  const isAllExpanded = allItemIds.length > 0 && expandedRowKeys.length >= allItemIds.length;
-  function toggleExpandAll() {
-    setExpandedRowKeys(isAllExpanded ? [] : allItemIds);
-  }
 
   function handleItemSearch() {
     setItemKeyword(pendingItemKeyword);
@@ -206,6 +195,18 @@ export default function DictsPage() {
         return children.length > 0 ? { ...item, children } : item;
       });
   }, [filteredItems]);
+
+  const {
+    expandedRowKeys, setExpandedRowKeys, allRowKeys,
+    isAllExpanded, toggleExpandAll, onExpandedRowsChange,
+  } = useTreeExpansion(treeItems);
+
+  useEffect(() => {
+    if (!selectedDict || itemsQuery.data === undefined) return;
+    if (expandInitedDictIdRef.current === selectedDict.id) return;
+    expandInitedDictIdRef.current = selectedDict.id;
+    setExpandedRowKeys(allRowKeys);
+  }, [selectedDict, itemsQuery.data, allRowKeys, setExpandedRowKeys]);
 
   // 编辑项的子孙节点 id 集合（父级选择器中禁用，避免循环引用）
   const editingSubtreeIds = useMemo(() => {
@@ -551,7 +552,7 @@ export default function DictsPage() {
     <ResetButton onClick={handleItemReset} disabled={!selectedDict} />
   );
 
-  const renderItemExpandButton = () => allItemIds.length > 0 ? (
+  const renderItemExpandButton = () => allRowKeys.length > 0 ? (
     <Button
       type="primary"
       icon={isAllExpanded ? <ChevronsDownUp size={14} /> : <ChevronsUpDown size={14} />}
@@ -627,9 +628,7 @@ export default function DictsPage() {
           empty={selectedDict ? '暂无数据' : '请选择字典'}
           childrenRecordName="children"
           expandedRowKeys={expandedRowKeys}
-          onExpandedRowsChange={(rows) =>
-            setExpandedRowKeys((rows ?? []).filter((r): r is DictItem => 'id' in (r as object)).map((r) => r.id))
-          }
+          onExpandedRowsChange={onExpandedRowsChange}
         />
       </MasterDetailLayout.Body>
     </>

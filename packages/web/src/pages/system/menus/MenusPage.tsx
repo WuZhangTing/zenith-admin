@@ -11,6 +11,7 @@ import { renderLucideIcon } from '@/utils/icons';
 import IconPicker from '@/components/IconPicker';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
+import { useTreeExpansion } from '@/hooks/useTreeExpansion';
 import DictTag from '@/components/DictTag';
 import { useDictItems } from '@/hooks/useDictItems';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -30,7 +31,6 @@ export default function MenusPage() {
   const [menuType, setMenuType] = useState<string>('menu');
   const [isExternalVal, setIsExternalVal] = useState<boolean>(false);
 
-  const [expandedRowKeys, setExpandedRowKeys] = useState<(string | number)[]>([]);
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [pendingKeyword, setPendingKeyword] = useState('');
@@ -102,21 +102,6 @@ export default function MenusPage() {
     setIsExternalVal(detail.isExternal ?? false);
   }, [menuModal.editing, menuModal.visible]);
 
-  // 递归收集所有节点 ID
-  const allRowKeys = useMemo(() => {
-    const keys: number[] = [];
-    function collect(items: Menu[]) {
-      for (const item of items) {
-        keys.push(item.id);
-        if (item.children?.length) collect(item.children);
-      }
-    }
-    collect(data);
-    return keys;
-  }, [data]);
-
-  const isAllExpanded = expandedRowKeys.length > 0 && expandedRowKeys.length >= allRowKeys.length;
-
   // 递归过滤树节点
   const filterTree = useCallback((items: Menu[], kw: string, st: string): Menu[] => {
     return items.reduce<Menu[]>((acc, item) => {
@@ -141,25 +126,19 @@ export default function MenusPage() {
     [data, keyword, statusFilter, filterTree]
   );
 
-  const collectKeys = useCallback((items: Menu[]): (string | number)[] => {
-    const keys: (string | number)[] = [];
-    function walk(list: Menu[]) {
-      for (const item of list) {
-        keys.push(item.id);
-        if (item.children?.length) walk(item.children);
-      }
-    }
-    walk(items);
-    return keys;
-  }, []);
+  // 展开态跟随**表格实际渲染的** filteredData：跟未筛选的全量树比较会让筛选后
+  // 已全部展开的表格仍显示「全部展开」，点击后可见区域毫无变化
+  const {
+    expandedRowKeys, setExpandedRowKeys, allRowKeys,
+    isAllExpanded, toggleExpandAll, onExpandedRowsChange,
+  } = useTreeExpansion(filteredData);
 
   // 有过滤条件时，数据变化后自动展开匹配节点
   useEffect(() => {
     if (keyword || statusFilter) {
-      const filtered = filterTree(data, keyword, statusFilter);
-      setExpandedRowKeys(collectKeys(filtered));
+      setExpandedRowKeys(allRowKeys);
     }
-  }, [data, keyword, statusFilter, filterTree, collectKeys]);
+  }, [keyword, statusFilter, allRowKeys, setExpandedRowKeys]);
 
   const handleSearch = () => {
     setKeyword(pendingKeyword);
@@ -175,10 +154,6 @@ export default function MenusPage() {
     setExpandedRowKeys([]);
     void queryClient.invalidateQueries({ queryKey: menuKeys.tree });
   };
-
-  function toggleExpandAll() {
-    setExpandedRowKeys(isAllExpanded ? [] : allRowKeys);
-  }
 
   // Semi Table 原生支持 children 字段树形展示，无需手动 flatten
 
@@ -451,7 +426,7 @@ export default function MenusPage() {
           refreshLoading={menuTreeQuery.isFetching}
           pagination={false}
           expandedRowKeys={expandedRowKeys}
-          onExpandedRowsChange={(rows) => setExpandedRowKeys(rows?.filter((r): r is Menu => 'id' in r).map((r) => r.id) ?? [])}
+          onExpandedRowsChange={onExpandedRowsChange}
           childrenRecordName="children"
           virtualized
           scroll={{ y: tableHeight, x: tableWidth || totalTableWidth }}

@@ -13,6 +13,7 @@ import { useDictItems } from '@/hooks/useDictItems';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import { usePermission } from '@/hooks/usePermission';
+import { isAllKeysExpanded } from '@/hooks/useTreeExpansion';
 import { useAuth } from '@/hooks/useAuth';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
@@ -309,7 +310,7 @@ export default function UsersPage() {
     setDeptTreeExpandedKeys(allDeptExpandedKeys);
   }, [allDeptExpandedKeys, allDepartments.length]);
 
-  const isAllDeptExpanded = allDeptExpandedKeys.length > 0 && deptTreeExpandedKeys.length >= allDeptExpandedKeys.length;
+  const isAllDeptExpanded = isAllKeysExpanded(deptTreeExpandedKeys, allDeptExpandedKeys);
 
   function toggleDeptExpandAll() {
     setDeptTreeExpandedKeys(isAllDeptExpanded ? [] : allDeptExpandedKeys);

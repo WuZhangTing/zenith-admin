@@ -7,6 +7,7 @@ import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePermission } from '@/hooks/usePermission';
+import { useTreeExpansion, type TreeRowKey } from '@/hooks/useTreeExpansion';
 import type { AiProvider, AiProviderConfig } from '@zenith/shared/ai';
 import AiProviderFormModal from '../components/AiProviderFormModal';
 import {
@@ -47,7 +48,6 @@ export default function AIProvidersPage() {
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
-  const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
   const [editTarget, setEditTarget] = useState<AiProviderConfig | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const listQuery = useAiProviderList({});
@@ -131,17 +131,20 @@ export default function AIProvidersPage() {
     });
   }, [list, search]);
 
-  const allGroupKeys = useMemo(() => treeData.map((g) => g.key), [treeData]);
-
-  const isAllExpanded = expandedRowKeys.length > 0 && expandedRowKeys.length >= allGroupKeys.length;
-
-  function toggleExpandAll() {
-    setExpandedRowKeys(isAllExpanded ? [] : allGroupKeys);
-  }
+  const {
+    expandedRowKeys, allRowKeys: allGroupKeys,
+    isAllExpanded, toggleExpandAll, setExpandedRowKeys, onExpandedRowsChange,
+  } = useTreeExpansion(treeData, {
+    // 只有分组行可展开，其子行是配置叶子节点；行 key 是 `key` 而不是 `id`
+    collectKeys: (groups) => groups.map((group) => group.key),
+    getRowKey: (row) => (row && typeof row === 'object' && '_isGroup' in row
+      ? (row as ProviderGroupRow).key
+      : undefined),
+  });
 
   // 首次出现的分组自动展开（含首次加载全展开）；已见过的分组保持用户展开/折叠状态，
   // 避免数据刷新或 keepAlive 页签切回（effect 重放）时把用户手动折叠的分组弹回展开
-  const seenGroupKeysRef = useRef<Set<string>>(new Set());
+  const seenGroupKeysRef = useRef<Set<TreeRowKey>>(new Set());
   useEffect(() => {
     const newKeys = allGroupKeys.filter((k) => !seenGroupKeysRef.current.has(k));
     if (newKeys.length === 0) return;
@@ -293,9 +296,7 @@ export default function AIProvidersPage() {
         rowKey="key"
         pagination={false}
         expandedRowKeys={expandedRowKeys}
-        onExpandedRowsChange={(rows) =>
-          setExpandedRowKeys((rows ?? []).filter((r): r is ProviderGroupRow => '_isGroup' in r).map((r) => r.key))
-        }
+        onExpandedRowsChange={onExpandedRowsChange}
         expandRowByClick
       />
 

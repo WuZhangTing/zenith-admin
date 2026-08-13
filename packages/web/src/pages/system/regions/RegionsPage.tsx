@@ -15,6 +15,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { regionKeys, useDeleteRegion, useFlatRegions, useRegionDetail, useRegionTree, useSaveRegion } from '@/hooks/queries/regions';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useListSearch } from '@/hooks/useListSearch';
+import { useTreeExpansion } from '@/hooks/useTreeExpansion';
 import { REGION_LEVEL_LABELS } from '@zenith/shared/platform';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
@@ -40,7 +41,6 @@ export default function RegionsPage() {
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: regionKeys.trees });
   const [editingLevel, setEditingLevel] = useState<string>('province');
-  const [expandedRowKeys, setExpandedRowKeys] = useState<(string | number)[]>([]);
   const [tableHeight, setTableHeight] = useState(500);
   const [tableWidth, setTableWidth] = useState(0);
   const tableWrapperRef = useRef<HTMLDivElement>(null);
@@ -99,24 +99,7 @@ export default function RegionsPage() {
     if (regionModal.visible && regionModal.editing) setEditingLevel(regionModal.editing.level);
   }, [regionModal.visible, regionModal.editing]);
 
-  // 递归收集所有节点 ID
-  const allRowKeys = useMemo(() => {
-    const keys: number[] = [];
-    function collect(items: Region[]) {
-      for (const item of items) {
-        keys.push(item.id);
-        if (item.children?.length) collect(item.children);
-      }
-    }
-    collect(data);
-    return keys;
-  }, [data]);
-
-  const isAllExpanded = expandedRowKeys.length > 0 && expandedRowKeys.length >= allRowKeys.length;
-
-  function toggleExpandAll() {
-    setExpandedRowKeys(isAllExpanded ? [] : allRowKeys);
-  }
+  const { expandedRowKeys, isAllExpanded, toggleExpandAll, onExpandedRowsChange } = useTreeExpansion(data);
 
   function openCreate() {
     setEditingLevel('province');
@@ -365,7 +348,7 @@ export default function RegionsPage() {
           rowKey="id"
           size="small"
         expandedRowKeys={expandedRowKeys}
-        onExpandedRowsChange={(rows) => setExpandedRowKeys(rows?.filter((r): r is Region => 'id' in r).map((r) => r.id) ?? [])}
+        onExpandedRowsChange={onExpandedRowsChange}
         childrenRecordName="children"
         pagination={false}
         virtualized

@@ -12,6 +12,7 @@ import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
+import { useTreeExpansion } from '@/hooks/useTreeExpansion';
 import { useEditModal } from '@/hooks/useEditModal';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { UserPreviewCell } from '@/components/UserPreviewCell';
@@ -158,25 +159,7 @@ export default function DepartmentsPage() {
     label: u.departmentName ? `${u.nickname}-${u.departmentName}` : u.nickname,
   }));
 
-  const [expandedRowKeys, setExpandedRowKeys] = useState<(string | number)[]>([]);
-
-  const allRowKeys = useMemo(() => {
-    const keys: number[] = [];
-    function collect(items: Department[]) {
-      for (const item of items) {
-        keys.push(item.id);
-        if (item.children?.length) collect(item.children);
-      }
-    }
-    collect(data);
-    return keys;
-  }, [data]);
-
-  const isAllExpanded = expandedRowKeys.length > 0 && expandedRowKeys.length >= allRowKeys.length;
-
-  function toggleExpandAll() {
-    setExpandedRowKeys(isAllExpanded ? [] : allRowKeys);
-  }
+  const { expandedRowKeys, isAllExpanded, toggleExpandAll, onExpandedRowsChange } = useTreeExpansion(data);
 
   const parentTreeData = useMemo(() => {
     const excludedIds = modal.editing
@@ -367,7 +350,7 @@ export default function DepartmentsPage() {
         pagination={false}
         empty="暂无数据"
         expandedRowKeys={expandedRowKeys}
-        onExpandedRowsChange={(rows) => setExpandedRowKeys(rows?.filter((r): r is Department => 'id' in r).map((r) => r.id) ?? [])}
+        onExpandedRowsChange={onExpandedRowsChange}
       />
 
       <AppModal
