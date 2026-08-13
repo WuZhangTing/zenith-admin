@@ -77,6 +77,13 @@
 - **操作列**：一律经 `components/ResponsiveTableActions.tsx` 的 `createOperationColumn` 创建；
   动作只用纯文字 `label`（不加图标），危险操作加 `danger: true`，
   桌面端可用 `desktopInlineKeys` 保留高频动作内联
+- **操作列宽度**：新增 / 修改动作后必须复核 `width`，算法见
+  [ui-patterns.md → 操作列宽度估算](./ui-patterns.md#操作列宽度估算)。
+  速算：按钮宽 = 24 + 文字宽（汉字 14px/字），加 4px 间距，有「更多」再加 22，最后加 32 单元格 padding。
+  内容宽按**能同时出现**的动作算（权限条件取全为真，状态互斥的分支取最大值，不要相加）。
+  **禁止**列宽小于内容宽——单元格无 `overflow: hidden`，不会报错也不会截断，
+  而是吃掉 padding 并挤压相邻固定列。估算超过 280px 时改用 `desktopInlineKeys` 收进「更多」，不要一味加宽。
+  「编辑 / 删除」这一最常见组合统一取 `width: 130`
 - **状态列固定**：状态列必须紧靠操作列左侧，并同样 `fixed: 'right'`
 - **列公共工具**：`createdAtColumn` 与 `renderEllipsis` 从 `utils/table-columns` 导入；
   **禁止**内联写 `<Typography.Text ellipsis={{ showTooltip: true }} …>`
