@@ -119,8 +119,11 @@ export class PageErrorBoundary extends React.Component<Props, State> {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: 400,
+          // Keep compact errors centered, but align expanded diagnostics to the scroll start.
+          justifyContent: 'safe center',
+          minHeight: 'min(400px, 100dvh)',
+          maxHeight: '100dvh',
+          overflowY: 'auto',
           padding: '40px 24px',
         }}
       >
