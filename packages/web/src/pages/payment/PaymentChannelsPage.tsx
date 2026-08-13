@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
 import { PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
-import { Form, Select, Spin, Toast, Switch, Tag, Row, Col } from '@douyinfe/semi-ui';
+import { Button, Form, Select, SideSheet, Spin, Toast, Switch, Tag, Row, Col } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { AppModal } from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS } from '@zenith/shared/payment';
@@ -254,7 +253,27 @@ export default function PaymentChannelsPage() {
         pagination={buildPagination(data?.total ?? 0)}
       />
 
-      <AppModal {...modal.modalProps} width={660}>
+      <SideSheet
+        title={modal.modalProps.title}
+        visible={modal.visible}
+        onCancel={modal.close}
+        closeOnEsc
+        width={720}
+        footer={(
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button type="tertiary" onClick={modal.close}>取消</Button>
+            <Button
+              type="primary"
+              theme="solid"
+              loading={modal.modalProps.okButtonProps.loading}
+              disabled={modal.modalProps.okButtonProps.disabled}
+              onClick={() => void modal.modalProps.onOk()}
+            >
+              保存
+            </Button>
+          </div>
+        )}
+      >
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
           <Form {...modal.formProps}
             onValueChange={(v) => { if (v.channel) setFormChannel(v.channel as PaymentChannel); }}>
@@ -311,7 +330,7 @@ export default function PaymentChannelsPage() {
             <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
           </Form>
         </Spin>
-      </AppModal>
+      </SideSheet>
     </div>
   );
 }
