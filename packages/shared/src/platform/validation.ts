@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { partialForUpdate, webhookUrlSchema } from '../core/validation';
-import { FILE_OBJECT_ACL_SUPPORT, MONITOR_METRICS, PRESIGNED_EXPIRY_DEFAULT_SECONDS, PRESIGNED_EXPIRY_MAX_SECONDS, PRESIGNED_EXPIRY_MIN_SECONDS } from './constants';
+import { FILE_OBJECT_ACL_SUPPORT, MONITOR_ALERT_EVENT_STATUSES, MONITOR_ALERT_LEVELS, MONITOR_ALERT_NOTIFY_STATUSES, MONITOR_METRICS, PRESIGNED_EXPIRY_DEFAULT_SECONDS, PRESIGNED_EXPIRY_MAX_SECONDS, PRESIGNED_EXPIRY_MIN_SECONDS } from './constants';
 
 // ─── 字典 Schema ──────────────────────────────────────────────────────────────
 export const createDictSchema = z.object({
@@ -384,13 +384,44 @@ export const updateMonitorAlertRuleSchema = partialForUpdate(monitorAlertRuleBas
   if (value.enabled === true && value.channels !== undefined) validateMonitorAlertDelivery(value, ctx);
 });
 
+/**
+ * 查询参数里的布尔值：HTTP query 只有字符串，`z.boolean()` 会把 `?enabled=false` 判成校验失败。
+ * 前端不传该参数即代表「不筛选」。
+ */
+const queryBoolean = z.enum(['true', 'false']).transform((value) => value === 'true').optional();
+
+/**
+ * 时间范围端点：与服务端 `dateRangeBound` 的格式约定保持一致
+ * （同时接受 `YYYY-MM-DD` 与 `YYYY-MM-DD HH:mm:ss`），裸字符串会让 `?endTime=abc` 被静默当成无筛选。
+ */
+const queryDateRangeBound = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$/, '时间格式必须为 YYYY-MM-DD 或 YYYY-MM-DD HH:mm:ss')
+  .optional();
+
+export const monitorAlertRuleQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  keyword: z.string().max(128).optional(),
+  metric: z.enum(MONITOR_METRICS).optional(),
+  level: z.enum(MONITOR_ALERT_LEVELS).optional(),
+  /** 规则是否参与定时评估 */
+  enabled: queryBoolean,
+  /** 规则当前是否处于告警中 */
+  state: z.enum(['ok', 'firing']).optional(),
+});
+
 export const monitorAlertEventQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  keyword: z.string().max(128).optional(),
   metric: z.enum(MONITOR_METRICS).optional(),
-  level: z.enum(['info', 'warning', 'critical']).optional(),
-  status: z.enum(['firing', 'resolved']).optional(),
+  level: z.enum(MONITOR_ALERT_LEVELS).optional(),
+  status: z.enum(MONITOR_ALERT_EVENT_STATUSES).optional(),
+  notifyStatus: z.enum(MONITOR_ALERT_NOTIFY_STATUSES).optional(),
   ruleId: z.coerce.number().int().positive().optional(),
+  startTime: queryDateRangeBound,
+  endTime: queryDateRangeBound,
 });
 
 export const monitorHistoryQuerySchema = z.object({
@@ -400,6 +431,8 @@ export const monitorHistoryQuerySchema = z.object({
 export type CreateMonitorAlertRuleInput = z.infer<typeof createMonitorAlertRuleSchema>;
 
 export type UpdateMonitorAlertRuleInput = z.infer<typeof updateMonitorAlertRuleSchema>;
+
+export type MonitorAlertRuleQuery = z.infer<typeof monitorAlertRuleQuerySchema>;
 
 export type MonitorAlertEventQuery = z.infer<typeof monitorAlertEventQuerySchema>;
 

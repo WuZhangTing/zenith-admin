@@ -190,6 +190,49 @@ export const MONITOR_METRIC_GROUPED_OPTIONS: Array<{
 export const TENANT_SCOPED_MONITOR_METRICS: MonitorMetric[] =
   MONITOR_METRICS.filter((metric) => MONITOR_METRIC_META[metric].scope === 'tenant');
 
+// ─── 告警级别 / 事件状态 / 通知派发结果（枚举 SSOT）──────────────────────────
+export const MONITOR_ALERT_LEVELS = ['info', 'warning', 'critical'] as const;
+
+export const MONITOR_ALERT_LEVEL_LABELS: Record<(typeof MONITOR_ALERT_LEVELS)[number], string> = {
+  info: '提示',
+  warning: '警告',
+  critical: '严重',
+};
+
+export const MONITOR_ALERT_LEVEL_OPTIONS: Array<{ value: (typeof MONITOR_ALERT_LEVELS)[number]; label: string }> =
+  MONITOR_ALERT_LEVELS.map((level) => ({ value: level, label: MONITOR_ALERT_LEVEL_LABELS[level] }));
+
+export const MONITOR_ALERT_EVENT_STATUSES = ['firing', 'resolved'] as const;
+
+export const MONITOR_ALERT_EVENT_STATUS_LABELS: Record<(typeof MONITOR_ALERT_EVENT_STATUSES)[number], string> = {
+  firing: '告警中',
+  resolved: '已恢复',
+};
+
+export const MONITOR_ALERT_EVENT_STATUS_OPTIONS:
+  Array<{ value: (typeof MONITOR_ALERT_EVENT_STATUSES)[number]; label: string }> =
+  MONITOR_ALERT_EVENT_STATUSES.map((status) => ({ value: status, label: MONITOR_ALERT_EVENT_STATUS_LABELS[status] }));
+
+/**
+ * 告警通知的派发结果。
+ *
+ * `skipped` 表示规则没有配置任何可派发的渠道，与「派发失败」是两回事——
+ * 二者混为一谈会让「配了渠道却没收到通知」这类故障无法从列表上被发现。
+ */
+export const MONITOR_ALERT_NOTIFY_STATUSES = ['skipped', 'success', 'partial', 'failed'] as const;
+
+export type MonitorAlertNotifyStatus = (typeof MONITOR_ALERT_NOTIFY_STATUSES)[number];
+
+export const MONITOR_ALERT_NOTIFY_STATUS_LABELS: Record<MonitorAlertNotifyStatus, string> = {
+  skipped: '未通知',
+  success: '已送达',
+  partial: '部分失败',
+  failed: '发送失败',
+};
+
+export const MONITOR_ALERT_NOTIFY_STATUS_OPTIONS: Array<{ value: MonitorAlertNotifyStatus; label: string }> =
+  MONITOR_ALERT_NOTIFY_STATUSES.map((status) => ({ value: status, label: MONITOR_ALERT_NOTIFY_STATUS_LABELS[status] }));
+
 const BYTE_RATE_UNITS = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
 
 function formatByteRate(value: number): string {

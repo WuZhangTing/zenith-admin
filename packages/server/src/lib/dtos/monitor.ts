@@ -2,7 +2,7 @@
  * 服务器监控相关 DTO
  */
 import { z } from '@hono/zod-openapi';
-import { MONITOR_METRICS } from '@zenith/shared/platform';
+import { MONITOR_ALERT_NOTIFY_STATUSES, MONITOR_METRICS } from '@zenith/shared/platform';
 
 export const MonitorDTO = z
   .object({
@@ -300,6 +300,10 @@ export const MonitorAlertEventDTO = z
     value: z.number(),
     status: z.string(),
     message: z.string(),
+    notifyStatus: z.enum(MONITOR_ALERT_NOTIFY_STATUSES),
+    notifyChannels: z.array(z.string()),
+    notifyError: z.string().nullable(),
+    notifiedAt: z.string().nullable(),
     triggeredAt: z.string(),
     resolvedAt: z.string().nullable(),
   })

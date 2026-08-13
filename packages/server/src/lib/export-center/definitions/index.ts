@@ -48,6 +48,7 @@ import { cmsAdEventsExportDefinition } from './cms-ad-events';
 import { cmsSubscriptionsExportDefinition } from './cms-subscriptions';
 import { cmsInteractionResponsesExportDefinition } from './cms-interaction-responses';
 import { cmsDistributionRunsExportDefinition } from './cms-distribution-runs';
+import { monitorAlertEventsExportDefinition } from './monitor-alert-events';
 
 let registered = false;
 
@@ -101,6 +102,7 @@ const definitions = [
   cmsSubscriptionsExportDefinition,
   cmsInteractionResponsesExportDefinition,
   cmsDistributionRunsExportDefinition,
+  monitorAlertEventsExportDefinition,
 ] as unknown as AnyExportDefinition[];
 
 export function registerExportDefinitions(): void {

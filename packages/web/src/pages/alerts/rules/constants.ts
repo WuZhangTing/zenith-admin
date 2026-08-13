@@ -1,5 +1,9 @@
-import type { MonitorAlertLevel, MonitorMetric } from '@zenith/shared/platform';
-import { MONITOR_METRIC_META } from '@zenith/shared/platform';
+import type { MonitorAlertLevel, MonitorAlertNotifyStatus, MonitorMetric } from '@zenith/shared/platform';
+import {
+  MONITOR_ALERT_LEVEL_LABELS,
+  MONITOR_ALERT_NOTIFY_STATUS_LABELS,
+  MONITOR_METRIC_META,
+} from '@zenith/shared/platform';
 
 // 告警指标标签 / 分组 / 单位的唯一来源是 `@zenith/shared/platform` 的 MONITOR_METRIC_META，
 // 本文件只做展示层的派生（单位归类、级别配色），不再复制一份中文映射。
@@ -23,7 +27,18 @@ export const MONITOR_ALERT_LEVEL_CONFIG: Record<
   MonitorAlertLevel,
   { label: string; color: 'blue' | 'amber' | 'red' }
 > & Record<string, { label: string; color: 'blue' | 'amber' | 'red' }> = {
-  info: { label: '提示', color: 'blue' },
-  warning: { label: '警告', color: 'amber' },
-  critical: { label: '严重', color: 'red' },
+  info: { label: MONITOR_ALERT_LEVEL_LABELS.info, color: 'blue' },
+  warning: { label: MONITOR_ALERT_LEVEL_LABELS.warning, color: 'amber' },
+  critical: { label: MONITOR_ALERT_LEVEL_LABELS.critical, color: 'red' },
+};
+
+/** 通知投递结果的展示配色：文案取自 shared，此处只做展示层派生 */
+export const MONITOR_ALERT_NOTIFY_STATUS_CONFIG: Record<
+  MonitorAlertNotifyStatus,
+  { label: string; color: 'grey' | 'green' | 'amber' | 'red' }
+> = {
+  skipped: { label: MONITOR_ALERT_NOTIFY_STATUS_LABELS.skipped, color: 'grey' },
+  success: { label: MONITOR_ALERT_NOTIFY_STATUS_LABELS.success, color: 'green' },
+  partial: { label: MONITOR_ALERT_NOTIFY_STATUS_LABELS.partial, color: 'amber' },
+  failed: { label: MONITOR_ALERT_NOTIFY_STATUS_LABELS.failed, color: 'red' },
 };

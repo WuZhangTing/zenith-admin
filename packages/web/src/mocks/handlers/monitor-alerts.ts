@@ -12,6 +12,13 @@ interface MockRule {
   lastTriggeredAt: string | null; lastValue: number | null; createdAt: string; updatedAt: string;
 }
 
+interface MockEvent {
+  id: number; ruleId: number; ruleName: string; metric: string; level: string; operator: string;
+  threshold: number; value: number; status: string; message: string;
+  notifyStatus: string; notifyChannels: string[]; notifyError: string | null; notifiedAt: string | null;
+  triggeredAt: string; resolvedAt: string | null;
+}
+
 const rules: MockRule[] = [
   {
     id: 1, name: 'CPU 使用率过高', metric: 'cpu', operator: 'gt', threshold: 85, durationMinutes: 5,
@@ -57,34 +64,100 @@ const rules: MockRule[] = [
   },
   {
     id: 8, name: '流程作业出现死信', metric: 'workflowDeadLetter', operator: 'gte', threshold: 1, durationMinutes: 0,
-    level: 'warning', channels: ['inapp'], webhookUrl: null, recipientUserIds: [1], recipientEmails: [],
-    silenceMinutes: 120, enabled: true, state: 'ok', lastTriggeredAt: null, lastValue: 0,
+    level: 'warning', channels: [], webhookUrl: null, recipientUserIds: [], recipientEmails: [],
+    silenceMinutes: 120, enabled: false, state: 'ok', lastTriggeredAt: null, lastValue: 0,
     createdAt: minsAgo(12 * 24 * 60), updatedAt: minsAgo(90),
   },
 ];
 
-const events = [
-  { id: 5, ruleId: 4, ruleName: '支付失败率飙升', metric: 'paymentFailureRate', level: 'critical', operator: 'gte', threshold: 20, value: 31.4, status: 'firing', message: '支付失败率 当前 31.4%，已满足条件 ≥ 20%（持续 5 分钟）', triggeredAt: minsAgo(8), resolvedAt: null },
-  { id: 4, ruleId: 5, ruleName: '对账差异待处理', metric: 'paymentReconDiff', level: 'warning', operator: 'gte', threshold: 1, value: 3, status: 'firing', message: '对账差异待处理 当前 3 项，已满足条件 ≥ 1 项', triggeredAt: minsAgo(200), resolvedAt: null },
-  { id: 3, ruleId: 2, ruleName: '磁盘空间不足', metric: 'disk', level: 'critical', operator: 'gte', threshold: 90, value: 92, status: 'firing', message: '磁盘使用率 当前 92%，已满足条件 ≥ 90%', triggeredAt: minsAgo(15), resolvedAt: null },
-  { id: 2, ruleId: 1, ruleName: 'CPU 使用率过高', metric: 'cpu', level: 'warning', operator: 'gt', threshold: 85, value: 88, status: 'resolved', message: 'CPU 使用率 当前 88%，已满足条件 > 85%（持续 5 分钟）', triggeredAt: minsAgo(120), resolvedAt: minsAgo(110) },
-  { id: 1, ruleId: 7, ruleName: '单应用错误率异常', metric: 'openApiAppErrorRate', level: 'warning', operator: 'gte', threshold: 50, value: 63.2, status: 'resolved', message: '单应用最高错误率 当前 63.2%，已满足条件 ≥ 50%（持续 10 分钟）', triggeredAt: minsAgo(1440), resolvedAt: minsAgo(1400) },
+const events: MockEvent[] = [
+  {
+    id: 5, ruleId: 4, ruleName: '支付失败率飙升', metric: 'paymentFailureRate', level: 'critical', operator: 'gte',
+    threshold: 20, value: 31.4, status: 'firing', message: '支付失败率 当前 31.4%，已满足条件 ≥ 20%（持续 5 分钟）',
+    notifyStatus: 'partial', notifyChannels: ['inapp', 'email'], notifyError: 'email: 邮件接收目标没有可用邮箱',
+    notifiedAt: minsAgo(8), triggeredAt: minsAgo(8), resolvedAt: null,
+  },
+  {
+    id: 4, ruleId: 5, ruleName: '对账差异待处理', metric: 'paymentReconDiff', level: 'warning', operator: 'gte',
+    threshold: 1, value: 3, status: 'firing', message: '对账差异待处理 当前 3 项，已满足条件 ≥ 1 项',
+    notifyStatus: 'success', notifyChannels: ['inapp'], notifyError: null,
+    notifiedAt: minsAgo(200), triggeredAt: minsAgo(200), resolvedAt: null,
+  },
+  {
+    id: 3, ruleId: 2, ruleName: '磁盘空间不足', metric: 'disk', level: 'critical', operator: 'gte',
+    threshold: 90, value: 92, status: 'firing', message: '磁盘使用率 当前 92%，已满足条件 ≥ 90%',
+    notifyStatus: 'failed', notifyChannels: ['inapp', 'webhook'],
+    notifyError: 'webhook: 请求超时；inapp: 站内信接收人未匹配到任何启用用户',
+    notifiedAt: minsAgo(15), triggeredAt: minsAgo(15), resolvedAt: null,
+  },
+  {
+    id: 2, ruleId: 1, ruleName: 'CPU 使用率过高', metric: 'cpu', level: 'warning', operator: 'gt',
+    threshold: 85, value: 88, status: 'resolved', message: 'CPU 使用率 当前 88%，已满足条件 > 85%（持续 5 分钟）',
+    notifyStatus: 'success', notifyChannels: ['inapp', 'email'], notifyError: null,
+    notifiedAt: minsAgo(110), triggeredAt: minsAgo(120), resolvedAt: minsAgo(110),
+  },
+  {
+    id: 1, ruleId: 7, ruleName: '单应用错误率异常', metric: 'openApiAppErrorRate', level: 'warning', operator: 'gte',
+    threshold: 50, value: 63.2, status: 'resolved', message: '单应用最高错误率 当前 63.2%，已满足条件 ≥ 50%（持续 10 分钟）',
+    notifyStatus: 'skipped', notifyChannels: [], notifyError: null,
+    notifiedAt: null, triggeredAt: minsAgo(1440), resolvedAt: minsAgo(1400),
+  },
 ];
+
+/** 关闭规则所有未恢复事件，与服务端「停用即解除告警」的语义保持一致 */
+function resolveRuleEvents(ruleId: number) {
+  for (const event of events.filter((item) => item.ruleId === ruleId && item.status === 'firing')) {
+    event.status = 'resolved';
+    event.resolvedAt = mockDateTime();
+  }
+}
 
 export const monitorAlertsHandlers = [
   http.get('/api/monitor-alerts/events', ({ request }) => {
     const url = new URL(request.url);
     const sp = url.searchParams;
+    const keyword = sp.get('keyword')?.trim().toLowerCase();
+    const metric = sp.get('metric');
+    const level = sp.get('level');
+    const status = sp.get('status');
+    const notifyStatus = sp.get('notifyStatus');
+    const ruleId = Number(sp.get('ruleId')) || undefined;
+    const startTime = sp.get('startTime');
+    const endTime = sp.get('endTime');
+
     let filtered = [...events];
-    const metric = sp.get('metric'); const level = sp.get('level'); const status = sp.get('status');
+    if (keyword) {
+      filtered = filtered.filter((e) =>
+        e.ruleName.toLowerCase().includes(keyword) || e.message.toLowerCase().includes(keyword));
+    }
     if (metric) filtered = filtered.filter((e) => e.metric === metric);
     if (level) filtered = filtered.filter((e) => e.level === level);
     if (status) filtered = filtered.filter((e) => e.status === status);
+    if (notifyStatus) filtered = filtered.filter((e) => e.notifyStatus === notifyStatus);
+    if (ruleId) filtered = filtered.filter((e) => e.ruleId === ruleId);
+    // 时间范围为闭区间，与服务端 dateRangeConditions 一致
+    if (startTime) filtered = filtered.filter((e) => e.triggeredAt >= startTime);
+    if (endTime) filtered = filtered.filter((e) => e.triggeredAt <= endTime);
     return ok(paginate(filtered, url, 20), 'success');
   }),
 
-  http.get('/api/monitor-alerts', ({ request }) =>
-    ok(paginate(rules, new URL(request.url), 20), 'success')),
+  http.get('/api/monitor-alerts', ({ request }) => {
+    const url = new URL(request.url);
+    const sp = url.searchParams;
+    const keyword = sp.get('keyword')?.trim().toLowerCase();
+    const metric = sp.get('metric');
+    const level = sp.get('level');
+    const enabled = sp.get('enabled');
+    const state = sp.get('state');
+
+    let filtered = [...rules];
+    if (keyword) filtered = filtered.filter((r) => r.name.toLowerCase().includes(keyword));
+    if (metric) filtered = filtered.filter((r) => r.metric === metric);
+    if (level) filtered = filtered.filter((r) => r.level === level);
+    if (enabled) filtered = filtered.filter((r) => r.enabled === (enabled === 'true'));
+    if (state) filtered = filtered.filter((r) => r.state === state);
+    return ok(paginate(filtered, url, 20), 'success');
+  }),
 
   http.post('/api/monitor-alerts', async ({ request }) => {
     const body = await request.json() as Partial<MockRule>;
@@ -101,6 +174,29 @@ export const monitorAlertsHandlers = [
     return ok(rule, '创建成功');
   }),
 
+  // 批量路由必须先于 `/:id` 注册，否则会被匹配成 id="batch"
+  http.patch('/api/monitor-alerts/batch/enabled', async ({ request }) => {
+    const { ids, enabled } = await request.json() as { ids: number[]; enabled: boolean };
+    let count = 0;
+    for (const rule of rules.filter((r) => ids.includes(r.id))) {
+      rule.enabled = enabled;
+      rule.state = 'ok';
+      rule.updatedAt = mockDateTime();
+      resolveRuleEvents(rule.id);
+      count += 1;
+    }
+    return ok(null, `已${enabled ? '启用' : '停用'} ${count} 条规则`);
+  }),
+
+  http.delete('/api/monitor-alerts/batch', async ({ request }) => {
+    const { ids } = await request.json() as { ids: number[] };
+    for (const id of ids) {
+      const idx = rules.findIndex((r) => r.id === id);
+      if (idx >= 0) rules.splice(idx, 1);
+    }
+    return ok(null, '删除成功');
+  }),
+
   http.put('/api/monitor-alerts/:id', async ({ params, request }) => {
     const id = Number(params.id);
     const rule = rules.find((r) => r.id === id);
@@ -109,10 +205,7 @@ export const monitorAlertsHandlers = [
     Object.assign(rule, body, { updatedAt: mockDateTime() });
     if (body.enabled === false) {
       rule.state = 'ok';
-      for (const event of events.filter((item) => item.ruleId === id && item.status === 'firing')) {
-        event.status = 'resolved';
-        event.resolvedAt = mockDateTime();
-      }
+      resolveRuleEvents(id);
     }
     return ok(rule, '更新成功');
   }),
@@ -125,10 +218,7 @@ export const monitorAlertsHandlers = [
     rule.enabled = body.enabled;
     if (!body.enabled) {
       rule.state = 'ok';
-      for (const event of events.filter((item) => item.ruleId === id && item.status === 'firing')) {
-        event.status = 'resolved';
-        event.resolvedAt = mockDateTime();
-      }
+      resolveRuleEvents(id);
     }
     rule.updatedAt = mockDateTime();
     return ok(rule, '操作成功');

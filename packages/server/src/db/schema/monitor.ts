@@ -1,5 +1,5 @@
 import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, text, index, jsonb, real, type AnyPgColumn } from 'drizzle-orm/pg-core';
-import { MONITOR_METRICS } from '@zenith/shared/platform';
+import { MONITOR_ALERT_NOTIFY_STATUSES, MONITOR_METRICS } from '@zenith/shared/platform';
 import { auditColumns, tenants } from './core';
 
 // ─── 系统监控指标采样（时序持久化，追加型）──────────────────────────────────────
@@ -43,6 +43,11 @@ export const monitorAlertLevelEnum = pgEnum('monitor_alert_level', ['info', 'war
 export const monitorAlertStateEnum = pgEnum('monitor_alert_state', ['ok', 'firing']);
 
 export const monitorAlertEventStatusEnum = pgEnum('monitor_alert_event_status', ['firing', 'resolved']);
+
+export const monitorAlertNotifyStatusEnum = pgEnum(
+  'monitor_alert_notify_status',
+  MONITOR_ALERT_NOTIFY_STATUSES,
+);
 
 export const monitorAlertRules = pgTable('monitor_alert_rules', {
   id: serial('id').primaryKey(),
@@ -93,12 +98,19 @@ export const monitorAlertEvents = pgTable('monitor_alert_events', {
   value: real('value').notNull(),
   status: monitorAlertEventStatusEnum('status').notNull().default('firing'),
   message: text('message').notNull(),
-  notified: boolean('notified').notNull().default(false),
+  /** 最近一次通知派发的真实结果；由评估器在派发完成后回写 */
+  notifyStatus: monitorAlertNotifyStatusEnum('notify_status').notNull().default('skipped'),
+  /** 本次实际尝试的渠道快照：规则事后改渠道不会污染历史事件 */
+  notifyChannels: jsonb('notify_channels').$type<string[]>().notNull().default([]),
+  /** 失败渠道的原因摘要，全部成功时为空 */
+  notifyError: text('notify_error'),
+  notifiedAt: timestamp('notified_at', { withTimezone: true }),
   triggeredAt: timestamp('triggered_at', { withTimezone: true }).notNull().defaultNow(),
   resolvedAt: timestamp('resolved_at', { withTimezone: true }),
 }, (t) => [
   index('monitor_alert_events_rule_idx').on(t.ruleId),
   index('monitor_alert_events_status_idx').on(t.status),
+  index('monitor_alert_events_notify_status_idx').on(t.notifyStatus),
   index('monitor_alert_events_triggered_idx').on(t.triggeredAt),
   index('monitor_alert_events_tenant_idx').on(t.tenantId),
 ]);

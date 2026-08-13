@@ -1,19 +1,22 @@
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { Form, Space, Spin, Toast, Switch, Tag, Row, Col, Select, withField } from '@douyinfe/semi-ui';
+import { useNavigate } from 'react-router-dom';
+import { Button, Form, Space, Spin, Toast, Modal, Switch, Tag, Row, Col, Select, withField } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
+import { Trash2 } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { usePagination } from '@/hooks/usePagination';
+import { useListSearch } from '@/hooks/useListSearch';
 import type { MonitorAlertRule, MonitorMetric } from '@zenith/shared/platform';
+import { MONITOR_ALERT_LEVEL_OPTIONS } from '@zenith/shared/platform';
 import { BASIC_COMPARISON_OPERATOR_LABELS } from '@zenith/shared/core';
 import { NOTIFY_CHANNEL_LABELS } from '@zenith/shared/messaging';
 import {
   monitorAlertKeys,
+  useBatchToggleMonitorAlerts,
   useDeleteMonitorAlerts,
   useMonitorAlertList,
   useSaveMonitorAlert,
@@ -26,7 +29,7 @@ import {
   MONITOR_METRIC_META as METRIC_META,
   formatMonitorMetricValue,
 } from './constants';
-import { CreateButton, ResetButton } from '@/components/toolbar-controls';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn } from '@/utils/table-columns';
@@ -38,6 +41,19 @@ const OP_OPTIONS = (['gt', 'gte', 'lt', 'lte'] as const)
 const CHANNEL_LABELS: Record<string, string> = NOTIFY_CHANNEL_LABELS;
 const FormAlertRecipientUserSelect = withField(AlertRecipientUserSelect);
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const ENABLED_OPTIONS = [{ value: 'true', label: '已启用' }, { value: 'false', label: '已停用' }];
+const STATE_OPTIONS = [{ value: 'firing', label: '告警中' }, { value: 'ok', label: '未触发' }];
+
+interface SearchParams {
+  keyword: string;
+  metric: string;
+  level: string;
+  enabled: string;
+  state: string;
+}
+
+const defaultSearchParams: SearchParams = { keyword: '', metric: '', level: '', enabled: '', state: '' };
 
 /** 阈值输入提示随指标单位变化：百分比与吞吐的量级差了 7 个数量级，统一文案必然误导 */
 function thresholdHint(metric: MonitorMetric | undefined): string {
@@ -51,18 +67,61 @@ function thresholdHint(metric: MonitorMetric | undefined): string {
   }
 }
 
+/** 指标筛选下拉：指标接近 30 个，按业务域分组并支持搜索 */
+function MetricFilterSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <Select
+      placeholder="全部指标"
+      value={value || undefined}
+      onChange={(v) => onChange((v as string) ?? '')}
+      showClear
+      filter
+      style={{ width: 170 }}
+    >
+      {METRIC_GROUPS.map((group) => (
+        <Select.OptGroup key={group.group} label={group.label}>
+          {group.children.map((option) => (
+            <Select.Option key={option.value} value={option.value}>{option.label}</Select.Option>
+          ))}
+        </Select.OptGroup>
+      ))}
+    </Select>
+  );
+}
+
 export default function AlertRulesPage() {
   const { hasPermission } = usePermission();
-  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
 
-  const [keyword, setKeyword] = useState('');
-  const { page, pageSize, buildPagination } = usePagination();
-  const listQuery = useMonitorAlertList({ page, pageSize });
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({
+    defaults: defaultSearchParams,
+    listKey: monitorAlertKeys.lists,
+    onSearch: () => setSelectedRowKeys([]),
+    onReset: () => setSelectedRowKeys([]),
+  });
+
+  // 筛选条件全部下推服务端：此前在当前页做 filter，翻到第 2 页就搜不到第 1 页的规则，
+  // 且分页总数仍是未过滤的值，列表与页码对不上
+  const listQuery = useMonitorAlertList({
+    page,
+    pageSize,
+    keyword: submittedParams.keyword || undefined,
+    metric: submittedParams.metric || undefined,
+    level: submittedParams.level || undefined,
+    enabled: submittedParams.enabled || undefined,
+    state: submittedParams.state || undefined,
+  });
   const data = listQuery.data ?? null;
 
   const canCreate = hasPermission('alert:rule:create');
   const canUpdate = hasPermission('alert:rule:update');
   const canDelete = hasPermission('alert:rule:delete');
+  const canViewEvents = hasPermission('alert:event:list');
   const saveMutation = useSaveMonitorAlert();
   const alertModal = useEditModal<MonitorAlertRule, Record<string, unknown>, Record<string, unknown>>({
     entityName: '告警规则',
@@ -97,9 +156,8 @@ export default function AlertRulesPage() {
   });
   const deleteMutation = useDeleteMonitorAlerts();
   const toggleMutation = useToggleMonitorAlert();
+  const batchToggleMutation = useBatchToggleMonitorAlerts();
   const togglingId = toggleMutation.isPending ? (toggleMutation.variables?.id ?? null) : null;
-
-  const filtered = (data?.list ?? []).filter((r) => !keyword || r.name.toLowerCase().includes(keyword.toLowerCase()));
 
   async function handleDelete(id: number) {
     await deleteMutation.mutateAsync([id]);
@@ -111,6 +169,33 @@ export default function AlertRulesPage() {
       { id: record.id, enabled: checked },
       { onSuccess: () => Toast.success(checked ? '已启用' : '已停用') },
     );
+  }
+
+  function handleBatchDelete() {
+    confirmDelete({
+      title: `确认删除选中的 ${selectedRowKeys.length} 条告警规则？`,
+      content: '删除后不可恢复，规则关联的历史告警事件会保留。',
+      onOk: async () => {
+        await deleteMutation.mutateAsync(selectedRowKeys);
+        Toast.success('批量删除成功');
+        setSelectedRowKeys([]);
+      },
+    });
+  }
+
+  function handleBatchToggle(enabled: boolean) {
+    const doToggle = async () => {
+      await batchToggleMutation.mutateAsync({ ids: selectedRowKeys, enabled });
+      Toast.success(enabled ? '已批量启用' : '已批量停用');
+      setSelectedRowKeys([]);
+    };
+    // 停用是非破坏性确认，用原生 Modal.confirm
+    if (enabled) void doToggle();
+    else Modal.confirm({
+      title: '确认批量停用',
+      content: `停用后选中的 ${selectedRowKeys.length} 条规则将不再参与评估，其未恢复的告警会被关闭。`,
+      onOk: doToggle,
+    });
   }
 
   const columns: ColumnProps<MonitorAlertRule>[] = [
@@ -160,7 +245,8 @@ export default function AlertRulesPage() {
       ),
     },
     createOperationColumn<MonitorAlertRule>({
-      width: 150,
+      width: 180,
+      desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => [
         {
           key: 'edit',
@@ -169,13 +255,19 @@ export default function AlertRulesPage() {
           onClick: () => alertModal.openEdit(record),
         },
         {
+          key: 'events',
+          label: '查看事件',
+          hidden: !canViewEvents,
+          onClick: () => navigate(`/alerts/events?ruleId=${record.id}`),
+        },
+        {
           key: 'delete',
           label: '删除',
           danger: true,
           hidden: !canDelete,
           onClick: () => {
             confirmDelete({
-              title: '确定要删除该规则吗？',
+              title: `确定要删除「${record.name}」吗？`,
               content: '删除后不可恢复',
               onOk: () => handleDelete(record.id),
             });
@@ -185,36 +277,126 @@ export default function AlertRulesPage() {
     }),
   ];
 
+  const renderKeywordSearch = () => (
+    <KeywordInput
+      placeholder="搜索规则名称..."
+      value={draftParams.keyword}
+      onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))}
+      onSearch={handleSearch}
+    />
+  );
+
+  const renderMetricFilter = () => (
+    <MetricFilterSelect
+      value={draftParams.metric}
+      onChange={(v) => setDraftParams((p) => ({ ...p, metric: v }))}
+    />
+  );
+
+  const renderLevelFilter = () => (
+    <Select
+      placeholder="全部级别"
+      value={draftParams.level || undefined}
+      onChange={(v) => setDraftParams((p) => ({ ...p, level: (v as string) ?? '' }))}
+      showClear
+      style={{ width: 120 }}
+      optionList={MONITOR_ALERT_LEVEL_OPTIONS}
+    />
+  );
+
+  const renderStateFilter = () => (
+    <Select
+      placeholder="全部告警状态"
+      value={draftParams.state || undefined}
+      onChange={(v) => setDraftParams((p) => ({ ...p, state: (v as string) ?? '' }))}
+      showClear
+      style={{ width: 140 }}
+      optionList={STATE_OPTIONS}
+    />
+  );
+
+  const renderEnabledFilter = () => (
+    <Select
+      placeholder="全部启用状态"
+      value={draftParams.enabled || undefined}
+      onChange={(v) => setDraftParams((p) => ({ ...p, enabled: (v as string) ?? '' }))}
+      showClear
+      style={{ width: 140 }}
+      optionList={ENABLED_OPTIONS}
+    />
+  );
+
+  const renderBatchActions = () => selectedRowKeys.length > 0 ? (
+    <>
+      {canUpdate && (
+        <>
+          <Button theme="light" onClick={() => handleBatchToggle(true)} loading={batchToggleMutation.isPending}>
+            批量启用 ({selectedRowKeys.length})
+          </Button>
+          <Button theme="light" onClick={() => handleBatchToggle(false)} loading={batchToggleMutation.isPending}>
+            批量停用 ({selectedRowKeys.length})
+          </Button>
+        </>
+      )}
+      {canDelete && (
+        <Button type="danger" theme="light" icon={<Trash2 size={14} />} onClick={handleBatchDelete}>
+          批量删除 ({selectedRowKeys.length})
+        </Button>
+      )}
+    </>
+  ) : null;
+
+  const renderCreateButton = () => canCreate ? <CreateButton onClick={alertModal.openCreate}>新增规则</CreateButton> : null;
+
   return (
     <div className="page-container">
       <SearchToolbar
         primary={(
           <>
-            <KeywordInput placeholder="搜索规则名称..." value={keyword} onChange={setKeyword} />
-            <ResetButton onClick={() => { setKeyword(''); void queryClient.invalidateQueries({ queryKey: monitorAlertKeys.lists }); }} />
-            {canCreate && <CreateButton onClick={alertModal.openCreate}>新增规则</CreateButton>}
+            {renderKeywordSearch()}
+            {renderMetricFilter()}
+            {renderLevelFilter()}
+            {renderStateFilter()}
+            {renderEnabledFilter()}
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
+            {renderBatchActions()}
           </>
         )}
+        actions={renderCreateButton()}
         mobilePrimary={(
           <>
-            <KeywordInput placeholder="搜索规则名称..." value={keyword} onChange={setKeyword} />
-            {canCreate && <CreateButton onClick={alertModal.openCreate}>新增规则</CreateButton>}
+            {renderKeywordSearch()}
+            <SearchButton onClick={handleSearch} />
+            {renderCreateButton()}
           </>
         )}
-        mobileActions={(
-          <ResetButton onClick={() => { setKeyword(''); void queryClient.invalidateQueries({ queryKey: monitorAlertKeys.lists }); }} />
+        mobileFilters={(
+          <>
+            {renderMetricFilter()}
+            {renderLevelFilter()}
+            {renderStateFilter()}
+            {renderEnabledFilter()}
+          </>
         )}
+        mobileActions={renderBatchActions()}
+        filterTitle="告警规则筛选"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
         actionTitle="告警规则操作"
       />
 
       <ConfigurableTable
         bordered
         columns={columns}
-        dataSource={filtered}
+        dataSource={data?.list ?? []}
         loading={listQuery.isFetching}
         rowKey="id"
         size="small"
         empty="暂无告警规则"
+        rowSelection={canUpdate || canDelete
+          ? { selectedRowKeys, onChange: (keys) => setSelectedRowKeys((keys ?? []) as number[]) }
+          : undefined}
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
         pagination={buildPagination(data?.total ?? 0)}
@@ -266,7 +448,7 @@ export default function AlertRulesPage() {
                   </Row>
                   <Row gutter={16}>
                     <Col span={12}>
-                      <Form.Select field="level" label="告警级别" style={{ width: '100%' }} optionList={Object.entries(LEVEL_CONFIG).map(([v, c]) => ({ value: v, label: c.label }))} />
+                      <Form.Select field="level" label="告警级别" style={{ width: '100%' }} optionList={MONITOR_ALERT_LEVEL_OPTIONS} />
                     </Col>
                     <Col span={12}>
                       <Form.InputNumber field="silenceMinutes" label="静默期" min={0} max={10080} suffix="分钟" style={{ width: '100%' }} />

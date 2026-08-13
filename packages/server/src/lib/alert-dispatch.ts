@@ -8,6 +8,7 @@
  */
 import { eq, inArray, or, type SQL } from 'drizzle-orm';
 import type { InAppMessageType } from '@zenith/shared/messaging';
+import type { MonitorAlertNotifyStatus } from '@zenith/shared/platform';
 import { db } from '../db';
 import { users } from '../db/schema';
 import { sendMail } from './email';
@@ -17,6 +18,8 @@ import { buildWhere } from './where-helpers';
 import { sendSystemInApp } from '../services/messaging/in-app-messages.service';
 
 const WEBHOOK_TIMEOUT_MS = 8000;
+
+export type AlertDispatchStatus = MonitorAlertNotifyStatus;
 
 export interface AlertDispatchTarget {
   /** 已配置的通知渠道：email / webhook / inapp */
@@ -48,6 +51,24 @@ export interface AlertDispatchPayload {
   webhookBody: Record<string, unknown>;
   /** 日志前缀，如 `MonitorAlert` */
   logTag: string;
+}
+
+/**
+ * 派发结果。调用方据此把「到底通知到人了没有」落库，
+ * 否则用户配置正确却收不到通知时，界面上看不出任何异常。
+ */
+export interface AlertDispatchResult {
+  /** `skipped` 表示没有可派发的渠道，与「派发失败」是两回事 */
+  status: AlertDispatchStatus;
+  /** 本次实际尝试的渠道 */
+  channels: string[];
+  /** 失败渠道的原因摘要，全部成功时为 null */
+  error: string | null;
+}
+
+function describeError(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err);
 }
 
 /**
@@ -87,67 +108,83 @@ async function resolveRecipientUsers(target: AlertDispatchTarget): Promise<Resol
  *
  * 单个渠道失败不影响其他渠道（各渠道彼此独立），失败会记日志但不抛出——
  * 告警评估器的状态机推进不应因为下游通知不可用而中断。
+ *
+ * 返回值让调用方把真实投递结果落库：只记日志的话，「配了渠道却没人收到」
+ * 只能靠翻服务器日志发现，运维在告警列表上完全看不出异常。
  */
-export async function dispatchAlertChannels(target: AlertDispatchTarget, payload: AlertDispatchPayload): Promise<void> {
+export async function dispatchAlertChannels(
+  target: AlertDispatchTarget,
+  payload: AlertDispatchPayload,
+): Promise<AlertDispatchResult> {
   const channels = target.channels ?? [];
-  const tasks: Promise<unknown>[] = [];
+  const tasks: Array<{ channel: string; run: Promise<unknown> }> = [];
   const recipientUsers = (channels.includes('inapp') || channels.includes('email'))
     ? resolveRecipientUsers(target)
     : Promise.resolve([]);
 
   if (channels.includes('webhook') && target.webhookUrl) {
-    tasks.push(httpPost(target.webhookUrl, payload.webhookBody, { timeout: WEBHOOK_TIMEOUT_MS, ssrfProtection: true }));
+    tasks.push({
+      channel: 'webhook',
+      run: httpPost(target.webhookUrl, payload.webhookBody, { timeout: WEBHOOK_TIMEOUT_MS, ssrfProtection: true }),
+    });
   }
 
   if (channels.includes('email')) {
-    tasks.push((async () => {
-      const usersForDelivery = await recipientUsers;
-      const emails = new Set(
-        [
-          ...(target.recipientEmails ?? []),
-          ...(target.recipients ?? []).filter((recipient) => recipient.includes('@')),
-          ...usersForDelivery.map((user) => user.email).filter((email): email is string => Boolean(email)),
-        ]
-          .map((email) => email.trim().toLowerCase())
-          .filter(Boolean),
-      );
-      if (emails.size === 0) {
-        logger.warn(`[${payload.logTag}] 邮件接收目标没有可用邮箱，本次邮件未送达`, {
-          recipientUserCount: target.recipientUserIds?.length ?? 0,
-          externalEmailCount: target.recipientEmails?.length ?? 0,
-          tenantId: target.tenantId,
-        });
-        return;
-      }
-      await Promise.all([...emails].map((email) => sendMail(email, payload.subject, payload.html)));
-    })());
+    tasks.push({
+      channel: 'email',
+      run: (async () => {
+        const usersForDelivery = await recipientUsers;
+        const emails = new Set(
+          [
+            ...(target.recipientEmails ?? []),
+            ...(target.recipients ?? []).filter((recipient) => recipient.includes('@')),
+            ...usersForDelivery.map((user) => user.email).filter((email): email is string => Boolean(email)),
+          ]
+            .map((email) => email.trim().toLowerCase())
+            .filter(Boolean),
+        );
+        // 抛出而非静默返回：这正是「配置看起来正确却没人收到」的典型成因，
+        // 必须计入失败结果，否则它会被记成一次成功派发
+        if (emails.size === 0) throw new Error('邮件接收目标没有可用邮箱');
+        await Promise.all([...emails].map((email) => sendMail(email, payload.subject, payload.html)));
+      })(),
+    });
   }
 
   if (channels.includes('inapp')) {
-    tasks.push((async () => {
-      const userIds = (await recipientUsers).map((user) => user.id);
-      if (userIds.length === 0) {
-        logger.warn(`[${payload.logTag}] 站内信接收人未匹配到任何启用用户，本次站内通知未送达`, {
-          recipientUserCount: target.recipientUserIds?.length ?? 0,
+    tasks.push({
+      channel: 'inapp',
+      run: (async () => {
+        const userIds = (await recipientUsers).map((user) => user.id);
+        if (userIds.length === 0) throw new Error('站内信接收人未匹配到任何启用用户');
+        await sendSystemInApp({
+          userIds,
+          title: payload.title,
+          content: payload.content,
+          type: payload.inAppType ?? 'warning',
           tenantId: target.tenantId,
+          dedupeKey: payload.dedupeKey,
         });
-        return;
-      }
-      await sendSystemInApp({
-        userIds,
-        title: payload.title,
-        content: payload.content,
-        type: payload.inAppType ?? 'warning',
-        tenantId: target.tenantId,
-        dedupeKey: payload.dedupeKey,
-      });
-    })());
+      })(),
+    });
   }
 
-  const results = await Promise.allSettled(tasks);
-  for (const result of results) {
-    if (result.status === 'rejected') {
-      logger.error(`[${payload.logTag}] 告警通知派发失败`, { err: result.reason });
-    }
+  if (tasks.length === 0) {
+    return { status: 'skipped', channels: [], error: null };
   }
+
+  const results = await Promise.allSettled(tasks.map((task) => task.run));
+  const failures: string[] = [];
+  for (const [index, result] of results.entries()) {
+    if (result.status !== 'rejected') continue;
+    const channel = tasks[index].channel;
+    failures.push(`${channel}: ${describeError(result.reason)}`);
+    logger.error(`[${payload.logTag}] 告警通知派发失败`, { channel, err: result.reason });
+  }
+
+  return {
+    status: failures.length === 0 ? 'success' : failures.length === tasks.length ? 'failed' : 'partial',
+    channels: tasks.map((task) => task.channel),
+    error: failures.length > 0 ? failures.join('；') : null,
+  };
 }

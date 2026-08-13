@@ -25,7 +25,7 @@ vi.mock('../../lib/alert-dispatch', () => ({
 }));
 
 import { db } from '../../db';
-import { setRuleEnabled, updateRule } from './monitor-alert.service';
+import { setRuleEnabled, setRulesEnabled, updateRule } from './monitor-alert.service';
 
 const dbMock = vi.mocked(db);
 
@@ -138,6 +138,46 @@ describe('setRuleEnabled', () => {
       message: '所选用户均未配置邮箱，请选择有邮箱的用户或填写额外邮箱',
     });
     expect(dbMock.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('setRulesEnabled', () => {
+  it('批量停用时一次性关闭所有选中规则的未恢复事件', async () => {
+    const first = alertRule({ id: 7 });
+    const second = alertRule({ id: 8 });
+    const ruleUpdate = createChain([{ id: 7 }, { id: 8 }]);
+    const eventUpdate = createChain([]);
+
+    dbMock.select
+      .mockReturnValueOnce(createChain([first]))
+      .mockReturnValueOnce(createChain([second]));
+    dbMock.update
+      .mockReturnValueOnce(ruleUpdate)
+      .mockReturnValueOnce(eventUpdate);
+
+    const count = await setRulesEnabled([7, 8], false);
+
+    expect(count).toBe(2);
+    expect(dbMock.transaction).toHaveBeenCalledOnce();
+    expect(ruleUpdate.set).toHaveBeenCalledWith({ enabled: false, state: 'ok', breachingSince: null });
+    expect(eventUpdate.set).toHaveBeenCalledWith({ status: 'resolved', resolvedAt: expect.any(Date) });
+  });
+
+  it('批量启用时整批拒绝：任一规则投递配置不全都不放行', async () => {
+    // 第二条规则勾了站内信却没有接收人，放行会让它每轮评估都「触发了但没人收到」
+    const valid = alertRule({ id: 7 });
+    const invalid = alertRule({ id: 8, enabled: false, state: 'ok', recipientUserIds: [] });
+
+    dbMock.select
+      .mockReturnValueOnce(createChain([valid]))
+      .mockReturnValueOnce(createChain([invalid]))
+      .mockReturnValueOnce(createChain([{ id: 1, email: 'admin@zenith.dev' }]));
+
+    await expect(setRulesEnabled([7, 8], true)).rejects.toMatchObject({
+      message: '站内信渠道必须选择接收用户',
+    });
+    expect(dbMock.update).not.toHaveBeenCalled();
+    expect(dbMock.transaction).not.toHaveBeenCalled();
   });
 });
 

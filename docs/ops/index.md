@@ -509,6 +509,19 @@ systemctl list-units --type=service --all --no-pager --plain --no-legend
 
 **通知渠道**：接收目标拆为 `recipientUserIds` 与 `recipientEmails`。系统用户通过专用下拉选择并持久化稳定的用户 ID：站内信直接按 ID 投递，邮件渠道在每次派发时读取用户账号的当前邮箱，因此用户改邮箱后无需修改规则；未配置邮箱的用户仍可接收站内信。`recipientEmails` 只保存群组邮箱、外部联系人等不绑定系统账号的额外地址，派发时与用户邮箱去重。接收用户接口只返回姓名、账号、部门和“是否有邮箱”，不向告警页面暴露邮箱原文。
 
+**通知投递结果**：`dispatchAlertChannels` 返回本次派发的真实结果，评估器回写到事件行的 `notify_status` / `notify_channels` / `notify_error` / `notified_at`，告警事件页以「通知状态」列展示，失败原因在 tooltip 中给出。四种状态：
+
+| 状态 | 含义 |
+| --- | --- |
+| `skipped` | 规则没有配置任何可派发的渠道，本次未尝试通知 |
+| `success` | 所有已配置渠道均投递成功 |
+| `partial` | 部分渠道失败 |
+| `failed` | 全部渠道失败 |
+
+`skipped` 与失败是两回事，混为一谈会让「配了渠道却没人收到」无法从列表上被发现。同理，「邮件接收目标没有可用邮箱」与「站内信未匹配到启用用户」计为该渠道失败而非跳过——这正是用户配置看起来正确却收不到通知的典型成因。重复通知与恢复通知不新建事件，其投递结果回写到该规则当前未恢复的事件上。
+
+**筛选与批量操作**：规则列表支持按名称关键词、指标、级别、启用状态与告警状态筛选，事件列表支持关键词（规则名 / 描述）、指标、级别、告警状态、通知状态与触发时间范围筛选，条件全部下推服务端，与分页总数口径一致。规则支持批量删除与批量启停；批量启用会逐条校验投递配置，任一条不合格即整批拒绝，不做部分成功。告警规则的「查看事件」跳转到 `/alerts/events?ruleId=N` 做规则联查。事件列表可经导出中心导出（实体 `alert.monitor-alert-events`，权限 `alert:event:export`），导出条件与当前筛选一致。
+
 `SEED_MONITOR_ALERT_RULES` 预置了 14 条开箱规则，覆盖基础设施容量兜底与支付、开放平台、流程引擎的关键失效信号，默认全部走站内信发给管理员用户 ID 1，部署方按需在页面上调整阈值与渠道。
 
 ---
@@ -667,7 +680,7 @@ systemctl list-units --type=service --all --no-pager --plain --no-legend
 | 告警规则 | `/alerts/rules` | `alerts/rules/AlertRulesPage` | `alert:rule:list` |
 | 告警事件 | `/alerts/events` | `alerts/events/AlertEventsPage` | `alert:event:list` |
 
-按钮级权限包括 `system:process:kill`、`system:process:priority`、`system:terminal:monitor`、`system:log:files:download`、`system:log:files:delete`、`system:firewall:manage`、`system:nginx:manage`、`system:nginx:reload`、`system:ssl:create`、`system:ssl:delete`、`system:db-admin:query`、`system:db-admin:export`、`system:db-admin:write`、`system:db-admin:maintain`、`system:db-backup:create`、`system:db-backup:delete` 等。告警中心使用 `alert:rule:create`、`alert:rule:update`、`alert:rule:delete` 管理规则。
+按钮级权限包括 `system:process:kill`、`system:process:priority`、`system:terminal:monitor`、`system:log:files:download`、`system:log:files:delete`、`system:firewall:manage`、`system:nginx:manage`、`system:nginx:reload`、`system:ssl:create`、`system:ssl:delete`、`system:db-admin:query`、`system:db-admin:export`、`system:db-admin:write`、`system:db-admin:maintain`、`system:db-backup:create`、`system:db-backup:delete` 等。告警中心使用 `alert:rule:create`、`alert:rule:update`、`alert:rule:delete` 管理规则，`alert:event:export` 导出告警事件。
 
 ---
 

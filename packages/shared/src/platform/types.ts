@@ -6,7 +6,7 @@ import type { Announcement, ChannelMessage, InAppMessage } from '../messaging/ty
 import type { MpKfSession, MpMessageDirection, MpMessageType } from '../mp/types';
 import type { AsyncTask } from '../tasks/types';
 import type { WorkflowInstanceStatus } from '../workflow/types';
-import type { MonitorMetric } from './constants';
+import type { MonitorAlertNotifyStatus, MonitorMetric } from './constants';
 
 // ─── 字典 ─────────────────────────────────────────────────────────────────────
 export interface Dict {
@@ -247,7 +247,6 @@ export type MonitorAlertLevel = 'info' | 'warning' | 'critical';
 export type MonitorAlertState = 'ok' | 'firing';
 
 export type MonitorAlertEventStatus = 'firing' | 'resolved';
-
 export interface MonitorAlertRule {
   id: number;
   name: string;
@@ -280,6 +279,12 @@ export interface MonitorAlertEvent {
   value: number;
   status: MonitorAlertEventStatus;
   message: string;
+  /** 最近一次通知派发的真实结果 */
+  notifyStatus: MonitorAlertNotifyStatus;
+  /** 本次实际尝试的渠道快照 */
+  notifyChannels: string[];
+  notifyError: string | null;
+  notifiedAt: string | null;
   triggeredAt: string;
   resolvedAt: string | null;
 }

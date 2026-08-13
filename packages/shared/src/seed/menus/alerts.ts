@@ -11,4 +11,5 @@ export const SEED_MENUS_ALERTS: Menu[] = [
   { id: 15014, parentId: 15010, title: '删除规则', type: 'button', permission: 'alert:rule:delete', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 15020, parentId: 15000, title: '告警事件', name: 'AlertEvents', path: '/alerts/events', component: 'alerts/events/AlertEventsPage', icon: 'History', type: 'menu', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 15021, parentId: 15020, title: '查询', type: 'button', permission: 'alert:event:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 15022, parentId: 15020, title: '导出', type: 'button', permission: 'alert:event:export', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];
