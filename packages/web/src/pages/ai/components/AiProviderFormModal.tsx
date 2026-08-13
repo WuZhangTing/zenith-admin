@@ -1,8 +1,7 @@
 import { useEffect } from 'react';
-import { Button, Col, Form, Row, Spin, Toast } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Row, SideSheet, Spin, Toast } from '@douyinfe/semi-ui';
 import type { AiProvider, AiProviderConfig } from '@zenith/shared/ai';
 import type { UserAiConfig } from '@zenith/shared/identity';
-import { AppModal } from '@/components/AppModal';
 import { useAiProviderDetail, useSaveAiProvider, useTestAiProviderConnection, useFetchAiProviderModels, useAiProviderList } from '@/hooks/queries/ai-providers';
 import { useSaveAiUserConfig } from '@/hooks/queries/ai-user-config';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -145,6 +144,8 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
       };
     },
     successMessage: ({ isEdit }) => (isEdit ? '修改成功' : '创建成功'),
+    // 最长标签「系统提示词」5 字；双列下每列可用宽度减半，不宜再宽
+    labelWidth: 92,
     onSaved: () => {
       if (props.mode !== 'user') props.onSaved();
       onClose();
@@ -166,6 +167,7 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
       isEnabled: values.isEnabled,
     }),
     successMessage: () => '保存成功',
+    labelWidth: 92,
     onSaved: (saved) => {
       if (props.mode === 'user') props.onSaved(saved);
       onClose();
@@ -270,17 +272,19 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
   };
 
   return (
-    <AppModal
+    <SideSheet
       title={title}
       visible={activeModal.visible}
       onCancel={() => { activeModal.close(); onClose(); }}
       footer={
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
           <Button loading={testLoading} disabled={detailLoading} onClick={() => void handleTestConnection()}>
-              测试连接
-            </Button>
-          <Button disabled={submitLoading || testLoading} onClick={() => { activeModal.close(); onClose(); }}>取消</Button>
-          <Button type="primary" loading={submitLoading} disabled={detailLoading || testLoading} onClick={() => void activeModal.modalProps.onOk()}>确定</Button>
+            测试连接
+          </Button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button type="tertiary" disabled={submitLoading || testLoading} onClick={() => { activeModal.close(); onClose(); }}>取消</Button>
+            <Button type="primary" theme="solid" loading={submitLoading} disabled={detailLoading || testLoading} onClick={() => void activeModal.modalProps.onOk()}>确定</Button>
+          </div>
         </div>
       }
       width={720}
@@ -294,173 +298,129 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
         <Form
           {...activeModal.formProps}
         >
-          {/* 行1：名称 + 供应商类型 */}
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input
-                field="name"
-                label="名称"
-                rules={[{ required: true, message: '请输入名称' }]}
-                placeholder=""
-              />
-            </Col>
-            <Col span={12}>
-              <Form.Select
-                field="provider"
-                label="供应商类型"
-                optionList={PROVIDER_OPTIONS}
-                style={{ width: '100%' }}
-              />
-            </Col>
-          </Row>
-          {/* 行2：API地址 + API Key */}
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input
-                field="baseUrl"
-                label="API 地址"
-                rules={[{ required: true, message: '请输入 API 地址' }]}
-                placeholder="https://api.openai.com/v1"
-              />
-            </Col>
-            <Col span={12}>
-              <Form.Input
-                field="apiKey"
-                label="API Key"
-                rules={isEditing ? undefined : [{ required: true, message: '请输入 API Key' }]}
-                mode="password"
-                placeholder={isEditing ? '留空保留原值' : ''}
-              />
-            </Col>
-          </Row>
-          {/* 行3：模型 + 温度 */}
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input
-                field="model"
-                label="模型"
-                rules={[{ required: true, message: '请输入模型名称' }]}
-                placeholder="gpt-4o"
-              />
-            </Col>
-            <Col span={12}>
-              <Form.Input field="temperature" label="温度" placeholder="0.7" />
-            </Col>
-          </Row>
-          {/* 附加模型 + 能力标签（仅系统配置） */}
+          <Form.Section text="接入信息">
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} />
+              </Col>
+              <Col span={12}>
+                <Form.Select field="provider" label="供应商" optionList={PROVIDER_OPTIONS} style={{ width: '100%' }} />
+              </Col>
+            </Row>
+            <Form.Input
+              field="baseUrl"
+              label="API 地址"
+              rules={[{ required: true, message: '请输入 API 地址' }]}
+              placeholder="https://api.openai.com/v1"
+            />
+            <Form.Input
+              field="apiKey"
+              label="API Key"
+              rules={isEditing ? undefined : [{ required: true, message: '请输入 API Key' }]}
+              mode="password"
+              placeholder={isEditing ? '留空保留原值' : ''}
+            />
+          </Form.Section>
+
+          <Form.Section text="模型">
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Input field="model" label="默认模型" rules={[{ required: true, message: '请输入模型名称' }]} placeholder="gpt-4o" />
+              </Col>
+              <Col span={12}>
+                <Form.Input field="temperature" label="温度" placeholder="0.7" extraText="0–2，越大越发散" />
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.InputNumber field="maxTokens" label="最大 Token" min={1} max={128000} style={{ width: '100%' }} />
+              </Col>
+              {!isUser && (
+                <Col span={12}>
+                  <Form.InputNumber field="contextWindow" label="上下文窗口" min={0} placeholder="可选" style={{ width: '100%' }} extraText="单位 Token" />
+                </Col>
+              )}
+            </Row>
+            {!isUser && (
+              <>
+                <Form.TagInput
+                  field="models"
+                  label="附加模型"
+                  placeholder="输入模型名后回车添加，或点击右侧「从 API 获取」"
+                  allowDuplicates={false}
+                  extraText={(
+                    <span>
+                      同一服务商的多个模型，聊天时可切换
+                      <Button
+                        theme="borderless"
+                        type="primary"
+                        size="small"
+                        loading={fetchModelsMutation.isPending}
+                        style={{ marginLeft: 4 }}
+                        onClick={() => void handleFetchModels()}
+                      >
+                        从 API 获取
+                      </Button>
+                    </span>
+                  )}
+                />
+                <Form.Slot label="模型能力">
+                  <div style={{ display: 'flex', gap: 24 }}>
+                    <Form.Switch field="capVision" noLabel label="图片理解" extraText="支持图片理解" />
+                    <Form.Switch field="capTools" noLabel label="函数调用" extraText="支持函数调用" />
+                  </div>
+                </Form.Slot>
+              </>
+            )}
+          </Form.Section>
+
           {!isUser && (
-            <>
-              <Form.TagInput
-                field="models"
-                label={
-                  <span>
-                    附加模型（同一服务商多模型，聊天时可切换）
-                    <Button
-                      theme="borderless"
-                      type="primary"
-                      size="small"
-                      loading={fetchModelsMutation.isPending}
-                      style={{ marginLeft: 8 }}
-                      onClick={() => void handleFetchModels()}
-                    >
-                      从 API 获取
-                    </Button>
-                  </span>
-                }
-                placeholder="输入模型名后回车添加，或点击「从 API 获取」自动发现"
-                allowDuplicates={false}
-              />
+            <Form.Section text="成本与可靠性">
               <Row gutter={16}>
-                <Col span={8}>
-                  <Form.Switch field="capVision" label="支持图片理解" />
+                <Col span={12}>
+                  <Form.InputNumber field="priceInputPerM" label="输入单价" min={0} placeholder="留空不计成本" style={{ width: '100%' }} extraText="分 / 百万 Token" />
                 </Col>
-                <Col span={8}>
-                  <Form.Switch field="capTools" label="支持函数调用" />
-                </Col>
-                <Col span={8}>
-                  <Form.InputNumber field="contextWindow" label="上下文窗口（Token）" min={0} placeholder="可选" style={{ width: '100%' }} />
+                <Col span={12}>
+                  <Form.InputNumber field="priceOutputPerM" label="输出单价" min={0} placeholder="留空不计成本" style={{ width: '100%' }} extraText="分 / 百万 Token" />
                 </Col>
               </Row>
-            </>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Select
+                    field="fallbackConfigId"
+                    label="降级配置"
+                    placeholder="不启用主备切换"
+                    showClear
+                    style={{ width: '100%' }}
+                    extraText="首字返回前失败时自动切换"
+                    optionList={(allProvidersQuery.data ?? [])
+                      .filter((pr) => pr.id !== editTarget?.id && pr.isEnabled)
+                      .map((pr) => ({ value: pr.id, label: `${pr.name}（${pr.model}）` }))}
+                  />
+                </Col>
+                <Col span={12}>
+                  <Form.InputNumber field="maxConcurrent" label="并发上限" min={0} max={1000} placeholder="留空不限制" style={{ width: '100%' }} extraText="同时进行的流式请求数" />
+                </Col>
+              </Row>
+            </Form.Section>
           )}
-          {/* 行4：最大 Token + 启用开关 */}
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.InputNumber field="maxTokens" label="最大 Token" min={1} max={128000} />
-            </Col>
-            <Col span={12}>
-              {isUser ? (
-                <Form.Switch field="isEnabled" label="启用配置" />
-              ) : (
-                <Row gutter={16}>
-                  <Col span={12}>
-                    <Form.Switch field="isDefault" label="默认" />
-                  </Col>
-                  <Col span={12}>
-                    <Form.Switch field="isEnabled" label="启用" />
-                  </Col>
-                </Row>
-              )}
-            </Col>
-          </Row>
-          {/* 行5：模型单价（仅系统配置，用于用量统计的成本估算） */}
-          {!isUser && (
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.InputNumber
-                  field="priceInputPerM"
-                  label="输入单价（分/百万Token）"
-                  min={0}
-                  placeholder="留空不计成本"
-                  style={{ width: '100%' }}
-                />
-              </Col>
-              <Col span={12}>
-                <Form.InputNumber
-                  field="priceOutputPerM"
-                  label="输出单价（分/百万Token）"
-                  min={0}
-                  placeholder="留空不计成本"
-                  style={{ width: '100%' }}
-                />
-              </Col>
-            </Row>
-          )}
-          {/* 行6：可靠性（主备切换 + 并发上限） */}
-          {!isUser && (
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Select
-                  field="fallbackConfigId"
-                  label="降级配置（首字前失败自动切换）"
-                  placeholder="不启用主备切换"
-                  showClear
-                  style={{ width: '100%' }}
-                  optionList={(allProvidersQuery.data ?? [])
-                    .filter((p) => p.id !== editTarget?.id && p.isEnabled)
-                    .map((p) => ({ value: p.id, label: `${p.name}（${p.model}）` }))}
-                />
-              </Col>
-              <Col span={12}>
-                <Form.InputNumber
-                  field="maxConcurrent"
-                  label="并发流上限"
-                  min={0}
-                  max={1000}
-                  placeholder="留空不限制"
-                  style={{ width: '100%' }}
-                />
-              </Col>
-            </Row>
-          )}
-          <Form.TextArea
-            field="systemPrompt"
-            label="系统提示词"
-            rows={3}
-            placeholder="可选，为空则使用默认提示词"
-          />
+
+          <Form.Section text="其他">
+            <Form.TextArea
+              field="systemPrompt"
+              label="系统提示词"
+              rows={3}
+              placeholder="可选，为空则使用默认提示词"
+            />
+            <Form.Slot label="状态">
+              <div style={{ display: 'flex', gap: 24 }}>
+                {!isUser && <Form.Switch field="isDefault" noLabel label="默认" extraText="设为默认服务商" />}
+                <Form.Switch field="isEnabled" noLabel label="启用" extraText={isUser ? '启用此配置' : '启用此服务商'} />
+              </div>
+            </Form.Slot>
+          </Form.Section>
         </Form>
       )}
-    </AppModal>
+    </SideSheet>
   );
 }
