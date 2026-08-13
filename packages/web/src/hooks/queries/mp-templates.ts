@@ -33,8 +33,10 @@ export interface MpTemplateIndustry {
 
 export const mpTemplateKeys = {
   all: ['mp', 'templates'] as const,
-  lists: (accountId: number | null | undefined) => ['mp', 'templates', accountId] as const,
-  list: (accountId: number | null | undefined, params: MpTemplateListParams) => ['mp', 'templates', accountId, params] as const,
+  /** 某公众号下的全部数据（模板 / 发送日志 / 行业设置），仅用于切换账号等整体场景 */
+  account: (accountId: number | null | undefined) => ['mp', 'templates', accountId] as const,
+  lists: (accountId: number | null | undefined) => ['mp', 'templates', accountId, 'list'] as const,
+  list: (accountId: number | null | undefined, params: MpTemplateListParams) => ['mp', 'templates', accountId, 'list', params] as const,
   logLists: (accountId: number | null | undefined) => ['mp', 'templates', accountId, 'logs'] as const,
   logList: (accountId: number | null | undefined, params: MpTemplateLogListParams) => ['mp', 'templates', accountId, 'logs', params] as const,
   industry: (accountId: number | null | undefined) => ['mp', 'templates', accountId, 'industry'] as const,
@@ -70,7 +72,8 @@ export function useSyncMpTemplates() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (accountId: number) => request.post<MpTemplateSyncResult>('/api/mp/templates/sync', { accountId }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: mpTemplateKeys.all }),
+    // 同步只重建模板清单；发送日志与行业设置不受影响
+    onSuccess: (_data, accountId) => qc.invalidateQueries({ queryKey: mpTemplateKeys.lists(accountId) }),
   });
 }
 
@@ -78,7 +81,8 @@ export function useSendMpTemplate() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (values: Record<string, unknown>) => request.post<null>('/api/mp/templates/send', values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: mpTemplateKeys.all }),
+    // 发送只新增一条发送日志，模板清单本身不变
+    onSuccess: (_data, values) => qc.invalidateQueries({ queryKey: mpTemplateKeys.logLists(values.accountId as number) }),
   });
 }
 
@@ -86,7 +90,7 @@ export function useBatchSendMpTemplate() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (values: Record<string, unknown>) => request.post<MpTemplateBatchSendResult>('/api/mp/templates/batch-send', values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: mpTemplateKeys.all }),
+    onSuccess: (_data, values) => qc.invalidateQueries({ queryKey: mpTemplateKeys.logLists(values.accountId as number) }),
   });
 }
 
@@ -94,14 +98,16 @@ export function useSaveMpTemplateIndustry() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (values: Record<string, unknown>) => request.put<null>('/api/mp/templates/industry', values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: mpTemplateKeys.all }),
+    onSuccess: (_data, values) => qc.invalidateQueries({ queryKey: mpTemplateKeys.industry(values.accountId as number) }),
   });
 }
 
 export function useDeleteMpTemplate() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/mp/templates/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: mpTemplateKeys.all }),
+    mutationFn: ({ id }: { id: number; accountId: number | null | undefined }) =>
+      request.delete<null>(`/api/mp/templates/${id}`).then(unwrap),
+    // 已发送日志保留历史记录，不随模板删除变化
+    onSuccess: (_data, { accountId }) => qc.invalidateQueries({ queryKey: mpTemplateKeys.lists(accountId) }),
   });
 }

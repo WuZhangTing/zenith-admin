@@ -1405,7 +1405,8 @@ export function useSetCmsSiteUsers() {
   return useMutation({
     mutationFn: ({ siteId, userIds }: { siteId: number; userIds: number[] }) =>
       request.put<null>(`/api/cms/sites/${siteId}/users`, { userIds }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: cmsSiteKeys.all }),
+    // 只改该站点的授权用户名单；站点本身、站点下拉源与主题元数据均不受影响
+    onSuccess: (_data, { siteId }) => qc.invalidateQueries({ queryKey: ['cms-sites', 'users', siteId] }),
   });
 }
 
@@ -1464,7 +1465,26 @@ export function useImportCmsSite() {
   return useMutation({
     mutationFn: (pkg: Record<string, unknown>) =>
       request.post<CmsSiteImportResult>('/api/cms/sites/import', pkg).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: cmsSiteKeys.all }),
+    // 全量导入：一次事务写入站点、栏目、内容、标签、资源、友链、重定向、内链词、
+    // 广告、表单、单页等 19 张表（cms-site-transfer.service.ts），无法逐条定位，
+    // 故按受影响的域根整体失效。仅失效 cmsSiteKeys 会让其余列表停留在导入前的旧数据。
+    onSuccess: () => {
+      for (const key of [
+        cmsSiteKeys.all,
+        cmsChannelKeys.all,
+        cmsContentKeys.all,
+        cmsTagKeys.all,
+        cmsResourceKeys.all,
+        cmsFriendLinkKeys.all,
+        cmsRedirectKeys.all,
+        cmsLinkWordKeys.all,
+        cmsAdKeys.all,
+        cmsFormKeys.all,
+        cmsPageKeys.all,
+      ]) {
+        void qc.invalidateQueries({ queryKey: key });
+      }
+    },
   });
 }
 
@@ -1608,7 +1628,13 @@ export function useEnableSiteAnalytics() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (siteId: number) => request.post<{ siteKey: string; created: boolean }>(`/api/cms/sites/${siteId}/enable-analytics`, {}).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: cmsSiteKeys.all }),
+    // 只在该站点上写入 siteKey；主题元数据（themes / themeTemplates / themeSettingsSchema，
+    // 均为 5 分钟长缓存）与本次改动无因果关系，不应被打回源
+    onSuccess: (_data, siteId) => {
+      void qc.invalidateQueries({ queryKey: cmsSiteKeys.detail(siteId) });
+      void qc.invalidateQueries({ queryKey: cmsSiteKeys.lists });
+      void qc.invalidateQueries({ queryKey: cmsSiteKeys.allSites });
+    },
   });
 }
 

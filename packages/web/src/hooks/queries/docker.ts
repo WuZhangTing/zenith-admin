@@ -77,7 +77,8 @@ export function useDockerContainerAction() {
   return useMutation({
     mutationFn: ({ id, action }: { id: string; action: 'start' | 'stop' | 'restart' }) =>
       request.post<null>(`/api/docker/${id}/${action}`, {}).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: dockerKeys.all }),
+    // 启停只改容器状态：镜像 / 网络 / 存储卷清单与其占用计数都不变
+    onSuccess: () => qc.invalidateQueries({ queryKey: dockerKeys.containers }),
   });
 }
 
@@ -85,7 +86,7 @@ export function useDockerRemoveImage() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => request.delete<null>(`/api/docker/images/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: dockerKeys.all }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: dockerKeys.images }),
   });
 }
 
@@ -93,7 +94,7 @@ export function useDockerPullImage() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (repoTag: string) => request.post<null>('/api/docker/images/pull', { repoTag }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: dockerKeys.all }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: dockerKeys.images }),
   });
 }
 
@@ -102,7 +103,7 @@ export function useDockerCreateNetwork() {
   return useMutation({
     mutationFn: (values: { name: string; driver: string; internal: boolean }) =>
       request.post<null>('/api/docker/networks', values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: dockerKeys.all }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: dockerKeys.networks }),
   });
 }
 
@@ -110,7 +111,7 @@ export function useDockerRemoveNetwork() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => request.delete<null>(`/api/docker/networks/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: dockerKeys.all }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: dockerKeys.networks }),
   });
 }
 
@@ -118,7 +119,7 @@ export function useDockerCreateVolume() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (values: { name: string; driver: string }) => request.post<null>('/api/docker/volumes', values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: dockerKeys.all }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: dockerKeys.volumes }),
   });
 }
 
@@ -126,7 +127,7 @@ export function useDockerRemoveVolume() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (name: string) => request.delete<null>(`/api/docker/volumes/${name}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: dockerKeys.all }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: dockerKeys.volumes }),
   });
 }
 
@@ -134,6 +135,8 @@ export function useDockerPrune() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (url: string) => request.post<PruneResultData>(url).then(unwrap),
+    // 保留域根广播：`/prune/system` 一次清理已停止容器 + 悬空镜像 + 未使用网络，
+    // 且调用方以 URL 字符串传入清理范围，此处无法静态判定受影响的资源类型
     onSuccess: () => qc.invalidateQueries({ queryKey: dockerKeys.all }),
   });
 }

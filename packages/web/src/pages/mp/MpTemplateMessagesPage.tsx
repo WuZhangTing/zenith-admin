@@ -111,7 +111,7 @@ export default function MpTemplateMessagesPage() {
     confirmDelete({
       title: `确定删除模板「${record.title}」吗？`,
       onOk: async () => {
-        await deleteMutation.mutateAsync(record.id);
+        await deleteMutation.mutateAsync({ id: record.id, accountId: currentId });
         Toast.success('删除成功');
       },
     });

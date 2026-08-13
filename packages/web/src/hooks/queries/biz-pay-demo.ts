@@ -5,6 +5,7 @@ import type { CreatePaymentResult, PaymentMethod } from '@zenith/shared/payment'
 import type { AsyncTask, AsyncTaskItem, AsyncTaskTypeMeta } from '@zenith/shared/tasks';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
+import { invalidateAsyncTaskState } from './async-tasks';
 
 export interface BizPayDemoListParams {
   page: number;
@@ -25,6 +26,12 @@ export interface BizTaskDemoItemsParams {
   pageSize: number;
 }
 
+/**
+ * 任务演示打的是与任务中心同一批 `/api/async-tasks` 端点（类型元数据、明细项、
+ * 取消/恢复/重启），因此**刻意复用 `['async-tasks']` 命名空间**共享缓存，
+ * 而不是另起 `['biz-task-demo']` 造成同一端点两份副本。
+ * 失效语义同样复用 `invalidateAsyncTaskState`。
+ */
 export const bizTaskDemoKeys = {
   all: ['async-tasks'] as const,
   types: ['async-tasks', 'types'] as const,
@@ -83,7 +90,7 @@ export function useSubmitTaskDemo() {
       | { taskType: 'demo-batch'; totalItems: number; itemDelayMs: number; failAtItem?: number; failEveryN?: number }
       | { taskType: 'demo-serial'; stageDelayMs: number }) =>
       request.post<AsyncTask>('/api/task-demo/submit', values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: bizTaskDemoKeys.all }),
+    onSuccess: () => invalidateAsyncTaskState(qc),
   });
 }
 
@@ -113,6 +120,6 @@ export function useBizTaskDemoAction(action: 'cancel' | 'resume' | 'restart') {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.post<AsyncTask>(`/api/async-tasks/${id}/${action}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: bizTaskDemoKeys.all }),
+    onSuccess: () => invalidateAsyncTaskState(qc),
   });
 }
