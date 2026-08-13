@@ -6,7 +6,7 @@
  * 指标全集与标签/单位/租户口径由 `@zenith/shared/platform` 的 MONITOR_METRIC_META 单点定义，
  * 取值由 `monitor-history.service` 汇总各域的告警指标源；新增指标不需要改动本文件。
  */
-import { and, eq, desc, inArray, sql } from 'drizzle-orm';
+import { and, eq, desc, gte, inArray, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { monitorAlertRules, monitorAlertEvents, users } from '../../db/schema';
@@ -561,8 +561,10 @@ export async function getAlertOverview(range: MonitorAlertOverviewRange): Promis
   const since = new Date(Date.now() - OVERVIEW_RANGE_DAYS[range] * 24 * 60 * 60_000);
   const firingWhere = buildWhere(scope, eq(monitorAlertEvents.status, 'firing'));
   // 触发时间落在窗口内的事件；恢复数按同一批事件的恢复情况统计，
-  // 避免「窗口内恢复但触发于窗口外」的事件让两条趋势线来自不同样本
-  const rangeWhere = buildWhere(scope, sql`${monitorAlertEvents.triggeredAt} >= ${since}`);
+  // 避免「窗口内恢复但触发于窗口外」的事件让两条趋势线来自不同样本。
+  // 必须用 gte() 而非 sql`${col} >= ${date}`：后者把裸 JS Date 插进模板时没有列的类型编码器，
+  // 驱动序列化参数时直接抛 ERR_INVALID_ARG_TYPE
+  const rangeWhere = buildWhere(scope, gte(monitorAlertEvents.triggeredAt, since));
 
   const [
     levelRows,

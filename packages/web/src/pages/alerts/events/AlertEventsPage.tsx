@@ -54,11 +54,25 @@ const defaultSearchParams: SearchParams = {
   keyword: '', metric: '', level: '', status: '', notifyStatus: '', handleStatus: '', timeRange: null,
 };
 
-/** 处理动作的文案随目标状态变化，避免「确定」按钮下用户不知道自己在做什么 */
-const HANDLE_ACTION_META: Record<MonitorAlertHandleStatus, { title: string; okText: string; hint: string }> = {
-  acknowledged: { title: '认领告警', okText: '认领', hint: '认领后该告警计入你的处理中列表，其他人能看到已有人跟进。' },
-  closed: { title: '关闭告警', okText: '关闭', hint: '确认问题已处理完毕；系统仍会按指标独立判断是否恢复。' },
-  pending: { title: '撤销认领', okText: '撤销', hint: '撤销后清空处理人与备注，告警重新回到待处理列表。' },
+/** 处理动作的文案随目标状态变化，避免「确定」按钮下用户不知道自己在做什么；
+ *  措辞与行内按钮保持一致，否则点「标记已处理」弹出「关闭告警」会让人以为点错了。
+ *  `done` 单列一份而非由 okText 拼「已 + xxx」，否则会得出「已标记已处理」这种叠词 */
+const HANDLE_ACTION_META: Record<
+  MonitorAlertHandleStatus,
+  { title: string; okText: string; done: string; hint: string }
+> = {
+  acknowledged: {
+    title: '认领告警', okText: '认领', done: '已认领',
+    hint: '认领后该告警计入你的处理中列表，其他人能看到已有人跟进。',
+  },
+  closed: {
+    title: '标记已处理', okText: '标记已处理', done: '已标记为已处理',
+    hint: '确认问题已处理完毕；系统仍会按指标独立判断是否恢复。',
+  },
+  pending: {
+    title: '撤销认领', okText: '撤销认领', done: '已撤销认领',
+    hint: '撤销后清空处理人与备注，告警重新回到待处理列表。',
+  },
 };
 
 /** 指标筛选下拉：桌面与移动端共用，按业务域分组并支持搜索（指标已接近 30 个，平铺难以定位） */
@@ -145,7 +159,8 @@ export default function AlertEventsPage() {
     } else {
       await batchHandleMutation.mutateAsync({ ids, handleStatus, note });
     }
-    Toast.success(`已${HANDLE_ACTION_META[handleStatus].okText}${ids.length > 1 ? ` ${ids.length} 条告警` : ''}`);
+    const meta = HANDLE_ACTION_META[handleStatus];
+    Toast.success(`${meta.done}${ids.length > 1 ? `（${ids.length} 条）` : ''}`);
     setHandleTarget(null);
     setSelectedRowKeys([]);
   }
@@ -192,7 +207,8 @@ export default function AlertEventsPage() {
       render: (s: string) => s === 'firing' ? <Tag color="red" size="small">告警中</Tag> : <Tag color="green" size="small">已恢复</Tag>,
     },
     createOperationColumn<MonitorAlertEvent>({
-      width: 150,
+      // 最宽的一行是「标记已处理 + 撤销认领」两个按钮并排，150 装不下会挤成换行
+      width: 190,
       actions: (record) => [
         {
           key: 'ack',
