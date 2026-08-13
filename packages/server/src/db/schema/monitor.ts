@@ -1,6 +1,6 @@
 import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, text, index, jsonb, real, type AnyPgColumn } from 'drizzle-orm/pg-core';
-import { MONITOR_ALERT_NOTIFY_STATUSES, MONITOR_METRICS } from '@zenith/shared/platform';
-import { auditColumns, tenants } from './core';
+import { MONITOR_ALERT_HANDLE_STATUSES, MONITOR_ALERT_NOTIFY_STATUSES, MONITOR_METRICS } from '@zenith/shared/platform';
+import { auditColumns, tenants, users } from './core';
 
 // ─── 系统监控指标采样（时序持久化，追加型）──────────────────────────────────────
 // 由 pg-boss 定时任务（默认每分钟）将 metricsSampler 最新快照落库，用于历史趋势与容量规划。
@@ -47,6 +47,15 @@ export const monitorAlertEventStatusEnum = pgEnum('monitor_alert_event_status', 
 export const monitorAlertNotifyStatusEnum = pgEnum(
   'monitor_alert_notify_status',
   MONITOR_ALERT_NOTIFY_STATUSES,
+);
+
+/**
+ * 人工处理状态，与系统判定的 `status`（firing / resolved）正交。
+ * 指标自动恢复不等于有人看过并处理过，两者混用会让「没人管」的告警被自动恢复掩盖。
+ */
+export const monitorAlertHandleStatusEnum = pgEnum(
+  'monitor_alert_handle_status',
+  MONITOR_ALERT_HANDLE_STATUSES,
 );
 
 export const monitorAlertRules = pgTable('monitor_alert_rules', {
@@ -105,12 +114,20 @@ export const monitorAlertEvents = pgTable('monitor_alert_events', {
   /** 失败渠道的原因摘要，全部成功时为空 */
   notifyError: text('notify_error'),
   notifiedAt: timestamp('notified_at', { withTimezone: true }),
+  /** 人工处理状态；与 status 正交，系统自动恢复不代表有人处理过 */
+  handleStatus: monitorAlertHandleStatusEnum('handle_status').notNull().default('pending'),
+  /** 首次认领时间，用于 MTTA 与「最久未确认」统计；撤销认领会清空 */
+  acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
+  handledBy: integer('handled_by').references(() => users.id, { onDelete: 'set null' }),
+  handledAt: timestamp('handled_at', { withTimezone: true }),
+  handleNote: varchar('handle_note', { length: 500 }),
   triggeredAt: timestamp('triggered_at', { withTimezone: true }).notNull().defaultNow(),
   resolvedAt: timestamp('resolved_at', { withTimezone: true }),
 }, (t) => [
   index('monitor_alert_events_rule_idx').on(t.ruleId),
   index('monitor_alert_events_status_idx').on(t.status),
   index('monitor_alert_events_notify_status_idx').on(t.notifyStatus),
+  index('monitor_alert_events_handle_status_idx').on(t.handleStatus),
   index('monitor_alert_events_triggered_idx').on(t.triggeredAt),
   index('monitor_alert_events_tenant_idx').on(t.tenantId),
 ]);

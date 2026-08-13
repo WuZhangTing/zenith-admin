@@ -520,7 +520,21 @@ systemctl list-units --type=service --all --no-pager --plain --no-legend
 
 `skipped` 与失败是两回事，混为一谈会让「配了渠道却没人收到」无法从列表上被发现。同理，「邮件接收目标没有可用邮箱」与「站内信未匹配到启用用户」计为该渠道失败而非跳过——这正是用户配置看起来正确却收不到通知的典型成因。重复通知与恢复通知不新建事件，其投递结果回写到该规则当前未恢复的事件上。
 
-**筛选与批量操作**：规则列表支持按名称关键词、指标、级别、启用状态与告警状态筛选，事件列表支持关键词（规则名 / 描述）、指标、级别、告警状态、通知状态与触发时间范围筛选，条件全部下推服务端，与分页总数口径一致。规则支持批量删除与批量启停；批量启用会逐条校验投递配置，任一条不合格即整批拒绝，不做部分成功。告警规则的「查看事件」跳转到 `/alerts/events?ruleId=N` 做规则联查。事件列表可经导出中心导出（实体 `alert.monitor-alert-events`，权限 `alert:event:export`），导出条件与当前筛选一致。
+**筛选与批量操作**：规则列表支持按名称关键词、指标、级别、启用状态与告警状态筛选，事件列表支持关键词（规则名 / 描述）、指标、级别、告警状态、通知状态、处理状态与触发时间范围筛选，条件全部下推服务端，与分页总数口径一致。规则支持批量删除与批量启停；批量启用会逐条校验投递配置，任一条不合格即整批拒绝，不做部分成功。告警规则的「查看事件」跳转到 `/alerts/events?ruleId=N` 做规则联查。事件列表可经导出中心导出（实体 `alert.monitor-alert-events`，权限 `alert:event:export`），导出条件与当前筛选一致。
+
+**人工处理闭环**：事件的 `handle_status`（`pending` / `acknowledged` / `closed`）与系统判定的 `status`（`firing` / `resolved`）**正交**。指标自己掉回阈值下方只说明系统恢复了，不代表有人看过、查过原因；把两者合成一个状态会让「没人管的告警」被自动恢复悄悄掩盖。
+
+| 动作 | 效果 |
+| --- | --- |
+| 认领 | `handle_status` 置 `acknowledged`，记录处理人与时间 |
+| 标记已处理 | 置 `closed`；系统仍按指标独立判断是否恢复 |
+| 撤销认领 | 置回 `pending`，清空处理人、备注与确认时间，事件重新回到待处理池 |
+
+`acknowledged_at` 只在**首次**响应时写入并保持不变——它是 MTTA 的分子，被后续的「关闭」覆盖会让确认耗时统计失真；直接关闭同样算一次响应。支持单条与批量处理，批量逐条走租户校验。
+
+**试发通知**：`POST /api/monitor-alerts/{id}/test`（权限 `alert:rule:test`）用规则当前的渠道与接收人发一条测试消息，直接返回派发结果，前端按「已送达 / 部分失败 / 全部失败 / 未配置渠道」分级提示并列出失败原因。该操作**不写事件表、不改规则运行态与 `last_triggered_at`**：一次配置验证不应出现在告警历史里，更不能顶掉静默期让真实告警被抑制。
+
+**告警概览**：`/alerts/overview`（权限 `alert:overview:list`）汇总当前告警中数量（按级别）、待处理数与最久未认领时长、时间范围内的触发 / 恢复 / 通知失败数、MTTA、MTTR、按天趋势与触发最频繁的 TOP 5 规则；统计卡点击直达告警事件页的对应筛选。工作台在有该权限时展示同一份数据的紧凑版。
 
 `SEED_MONITOR_ALERT_RULES` 预置了 14 条开箱规则，覆盖基础设施容量兜底与支付、开放平台、流程引擎的关键失效信号，默认全部走站内信发给管理员用户 ID 1，部署方按需在页面上调整阈值与渠道。
 
@@ -677,10 +691,11 @@ systemctl list-units --type=service --all --no-pager --plain --no-legend
 
 | 页面 | 路径 | 组件 | 权限 |
 |------|------|------|------|
+| 告警概览 | `/alerts/overview` | `alerts/overview/AlertOverviewPage` | `alert:overview:list` |
 | 告警规则 | `/alerts/rules` | `alerts/rules/AlertRulesPage` | `alert:rule:list` |
 | 告警事件 | `/alerts/events` | `alerts/events/AlertEventsPage` | `alert:event:list` |
 
-按钮级权限包括 `system:process:kill`、`system:process:priority`、`system:terminal:monitor`、`system:log:files:download`、`system:log:files:delete`、`system:firewall:manage`、`system:nginx:manage`、`system:nginx:reload`、`system:ssl:create`、`system:ssl:delete`、`system:db-admin:query`、`system:db-admin:export`、`system:db-admin:write`、`system:db-admin:maintain`、`system:db-backup:create`、`system:db-backup:delete` 等。告警中心使用 `alert:rule:create`、`alert:rule:update`、`alert:rule:delete` 管理规则，`alert:event:export` 导出告警事件。
+按钮级权限包括 `system:process:kill`、`system:process:priority`、`system:terminal:monitor`、`system:log:files:download`、`system:log:files:delete`、`system:firewall:manage`、`system:nginx:manage`、`system:nginx:reload`、`system:ssl:create`、`system:ssl:delete`、`system:db-admin:query`、`system:db-admin:export`、`system:db-admin:write`、`system:db-admin:maintain`、`system:db-backup:create`、`system:db-backup:delete` 等。告警中心使用 `alert:rule:create`、`alert:rule:update`、`alert:rule:delete` 管理规则，`alert:rule:test` 试发通知，`alert:event:handle` 处理告警，`alert:event:export` 导出告警事件。
 
 ---
 

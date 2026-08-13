@@ -1,5 +1,6 @@
-import type { MonitorAlertLevel, MonitorAlertNotifyStatus, MonitorMetric } from '@zenith/shared/platform';
+import type { MonitorAlertHandleStatus, MonitorAlertLevel, MonitorAlertNotifyStatus, MonitorMetric } from '@zenith/shared/platform';
 import {
+  MONITOR_ALERT_HANDLE_STATUS_LABELS,
   MONITOR_ALERT_LEVEL_LABELS,
   MONITOR_ALERT_NOTIFY_STATUS_LABELS,
   MONITOR_METRIC_META,
@@ -41,4 +42,14 @@ export const MONITOR_ALERT_NOTIFY_STATUS_CONFIG: Record<
   success: { label: MONITOR_ALERT_NOTIFY_STATUS_LABELS.success, color: 'green' },
   partial: { label: MONITOR_ALERT_NOTIFY_STATUS_LABELS.partial, color: 'amber' },
   failed: { label: MONITOR_ALERT_NOTIFY_STATUS_LABELS.failed, color: 'red' },
+};
+
+/** 人工处理状态的展示配色 */
+export const MONITOR_ALERT_HANDLE_STATUS_CONFIG: Record<
+  MonitorAlertHandleStatus,
+  { label: string; color: 'red' | 'blue' | 'green' }
+> = {
+  pending: { label: MONITOR_ALERT_HANDLE_STATUS_LABELS.pending, color: 'red' },
+  acknowledged: { label: MONITOR_ALERT_HANDLE_STATUS_LABELS.acknowledged, color: 'blue' },
+  closed: { label: MONITOR_ALERT_HANDLE_STATUS_LABELS.closed, color: 'green' },
 };

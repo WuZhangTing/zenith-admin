@@ -6,14 +6,15 @@
  * 指标全集与标签/单位/租户口径由 `@zenith/shared/platform` 的 MONITOR_METRIC_META 单点定义，
  * 取值由 `monitor-history.service` 汇总各域的告警指标源；新增指标不需要改动本文件。
  */
-import { and, eq, desc, inArray } from 'drizzle-orm';
+import { and, eq, desc, inArray, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { monitorAlertRules, monitorAlertEvents, users } from '../../db/schema';
 import type { MonitorAlertRuleRow, MonitorAlertEventRow } from '../../db/schema';
-import type { CreateMonitorAlertRuleInput, UpdateMonitorAlertRuleInput, MonitorAlertRuleQuery, MonitorAlertEventQuery, MonitorMetric, MonitorAlertOperator } from '@zenith/shared/platform';
-import { MONITOR_METRIC_META, formatMonitorMetricValue } from '@zenith/shared/platform';
+import type { CreateMonitorAlertRuleInput, UpdateMonitorAlertRuleInput, MonitorAlertRuleQuery, MonitorAlertEventQuery, HandleMonitorAlertEventInput, MonitorAlertOverview, MonitorAlertOverviewRange, MonitorMetric, MonitorAlertOperator } from '@zenith/shared/platform';
+import { MONITOR_ALERT_LEVELS, MONITOR_METRIC_META, formatMonitorMetricValue } from '@zenith/shared/platform';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
+import { currentUserId, currentUsername } from '../../lib/context';
 import { buildWhere, dateRangeConditions, keywordCondition, mergeWhere } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
@@ -104,7 +105,7 @@ export function mapRule(row: MonitorAlertRuleRow) {
   };
 }
 
-export function mapEvent(row: MonitorAlertEventRow) {
+export function mapEvent(row: MonitorAlertEventRow, handledByName: string | null = null) {
   return {
     id: row.id,
     ruleId: row.ruleId,
@@ -120,6 +121,12 @@ export function mapEvent(row: MonitorAlertEventRow) {
     notifyChannels: row.notifyChannels ?? [],
     notifyError: row.notifyError,
     notifiedAt: formatNullableDateTime(row.notifiedAt),
+    handleStatus: row.handleStatus,
+    acknowledgedAt: formatNullableDateTime(row.acknowledgedAt),
+    handledBy: row.handledBy,
+    handledByName,
+    handledAt: formatNullableDateTime(row.handledAt),
+    handleNote: row.handleNote,
     triggeredAt: formatDateTime(row.triggeredAt),
     resolvedAt: formatNullableDateTime(row.resolvedAt),
   };
@@ -342,6 +349,7 @@ export function buildEventListWhere(q: MonitorAlertEventQuery) {
     q.level ? eq(monitorAlertEvents.level, q.level) : undefined,
     q.status ? eq(monitorAlertEvents.status, q.status) : undefined,
     q.notifyStatus ? eq(monitorAlertEvents.notifyStatus, q.notifyStatus) : undefined,
+    q.handleStatus ? eq(monitorAlertEvents.handleStatus, q.handleStatus) : undefined,
     q.ruleId ? eq(monitorAlertEvents.ruleId, q.ruleId) : undefined,
     ...dateRangeConditions(monitorAlertEvents.triggeredAt, q.startTime, q.endTime),
   );
@@ -351,11 +359,90 @@ export async function listEvents(q: MonitorAlertEventQuery) {
   const page = Math.max(Number(q.page) || 1, 1);
   const pageSize = Math.min(Math.max(Number(q.pageSize) || 20, 1), 100);
   const where = buildEventListWhere(q);
-  const [list, total] = await Promise.all([
-    db.select().from(monitorAlertEvents).where(where).orderBy(desc(monitorAlertEvents.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
+  const [rows, total] = await Promise.all([
+    // 处理人昵称随列表一次带出：逐行查用户会让 20 行的列表打 20 次库
+    db
+      .select({ row: monitorAlertEvents, handledByName: users.nickname })
+      .from(monitorAlertEvents)
+      .leftJoin(users, eq(users.id, monitorAlertEvents.handledBy))
+      .where(where)
+      .orderBy(desc(monitorAlertEvents.id))
+      .limit(pageSize)
+      .offset(pageOffset(page, pageSize)),
     db.$count(monitorAlertEvents, where),
   ]);
-  return { list: list.map(mapEvent), total, page, pageSize };
+  return { list: rows.map((item) => mapEvent(item.row, item.handledByName)), total, page, pageSize };
+}
+
+// ─── 人工处理 ─────────────────────────────────────────────────────────────
+async function ensureEventExists(id: number): Promise<MonitorAlertEventRow> {
+  const [row] = await db
+    .select()
+    .from(monitorAlertEvents)
+    .where(mergeWhere(eq(monitorAlertEvents.id, id), tenantScope(monitorAlertEvents)))
+    .limit(1);
+  if (!row) throw new HTTPException(404, { message: '告警事件不存在' });
+  return row;
+}
+
+/**
+ * 计算一次人工处理产生的字段变更。
+ *
+ * `acknowledgedAt` 只在首次响应时写入并保持不变——它是 MTTA 的分子，
+ * 被后续的「关闭」操作覆盖会让确认耗时统计失真。直接关闭同样算作一次响应。
+ * 撤销认领（回到 pending）清空全部处理痕迹，让事件重新回到「没人管」的池子里。
+ */
+function buildHandlePatch(row: MonitorAlertEventRow, input: HandleMonitorAlertEventInput, at: Date) {
+  if (input.handleStatus === 'pending') {
+    return {
+      handleStatus: 'pending' as const,
+      acknowledgedAt: null,
+      handledBy: null,
+      handledAt: null,
+      handleNote: null,
+    };
+  }
+  const note = input.note?.trim();
+  return {
+    handleStatus: input.handleStatus,
+    acknowledgedAt: row.acknowledgedAt ?? at,
+    handledBy: currentUserId(),
+    handledAt: at,
+    handleNote: note ? note : row.handleNote,
+  };
+}
+
+export async function getMonitorAlertEventBeforeAudit(id: number) {
+  return mapEvent(await ensureEventExists(id));
+}
+
+export async function handleEvent(id: number, input: HandleMonitorAlertEventInput) {
+  const current = await ensureEventExists(id);
+  const [row] = await db
+    .update(monitorAlertEvents)
+    .set(buildHandlePatch(current, input, new Date()))
+    .where(eq(monitorAlertEvents.id, id))
+    .returning();
+  return mapEvent(row, currentUsername());
+}
+
+/** 批量处理：逐条走租户校验，避免跨租户 id 混入被一并改写 */
+export async function handleEvents(ids: number[], input: HandleMonitorAlertEventInput): Promise<number> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return 0;
+  const rows = await Promise.all(unique.map((id) => ensureEventExists(id)));
+  const at = new Date();
+  return db.transaction(async (tx) => {
+    let count = 0;
+    for (const row of rows) {
+      await tx
+        .update(monitorAlertEvents)
+        .set(buildHandlePatch(row, input, at))
+        .where(eq(monitorAlertEvents.id, row.id));
+      count += 1;
+    }
+    return count;
+  });
 }
 
 // ─── 派发 ────────────────────────────────────────────────────────────────
@@ -419,6 +506,139 @@ async function findFiringEventId(ruleId: number): Promise<number | null> {
     .orderBy(desc(monitorAlertEvents.id))
     .limit(1);
   return row?.id ?? null;
+}
+
+/**
+ * 试发一条测试通知，用于在真实告警到来之前验证渠道与接收人配置。
+ *
+ * 不写事件表、不碰规则运行态与 `lastTriggeredAt`：一次配置验证不应该出现在告警历史里，
+ * 更不能顶掉静默期让真实告警被抑制。直接返回派发结果，前端据此指出是哪个渠道配错了。
+ */
+export async function testRule(id: number): Promise<AlertDispatchResult> {
+  const rule = await ensureRuleExists(id);
+  const message = `这是一条测试通知，用于验证规则「${rule.name}」的通知渠道与接收人配置是否可用。`;
+  return dispatchAlertChannels(
+    {
+      channels: rule.channels ?? [],
+      webhookUrl: rule.webhookUrl,
+      recipientUserIds: rule.recipientUserIds ?? [],
+      recipientEmails: rule.recipientEmails ?? [],
+      tenantId: rule.tenantId,
+    },
+    {
+      subject: `[监控告警测试] ${rule.name}`,
+      html: `<h3>系统监控告警测试</h3><p><b>规则：</b>${rule.name}</p><p>${message}</p><p>收到本消息说明该渠道配置正常，无需处理。</p>`,
+      title: `[监控告警测试] ${rule.name}`,
+      content: message,
+      inAppType: 'info',
+      // 带时间戳：连续试发两次应该都能收到，被幂等键吞掉会让人误判渠道不通
+      dedupeKey: `monitor-alert-test:${rule.id}:${Date.now()}`,
+      webhookBody: {
+        type: 'monitor_alert_test',
+        rule: rule.name,
+        metric: rule.metric,
+        level: rule.level,
+        message,
+        timestamp: formatDateTime(new Date()),
+      },
+      logTag: 'MonitorAlertTest',
+    },
+  );
+}
+
+// ─── 概览聚合 ─────────────────────────────────────────────────────────────
+const OVERVIEW_RANGE_DAYS: Record<MonitorAlertOverviewRange, number> = { '24h': 1, '7d': 7, '30d': 30 };
+
+/** 平均分钟数：PG 的 EXTRACT(EPOCH) 返回秒，除 60 后保留一位小数 */
+function avgMinutes(value: unknown): number | null {
+  if (value == null) return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? Math.round(num / 60 * 10) / 10 : null;
+}
+
+export async function getAlertOverview(range: MonitorAlertOverviewRange): Promise<MonitorAlertOverview> {
+  const scope = tenantScope(monitorAlertEvents);
+  const since = new Date(Date.now() - OVERVIEW_RANGE_DAYS[range] * 24 * 60 * 60_000);
+  const firingWhere = buildWhere(scope, eq(monitorAlertEvents.status, 'firing'));
+  // 触发时间落在窗口内的事件；恢复数按同一批事件的恢复情况统计，
+  // 避免「窗口内恢复但触发于窗口外」的事件让两条趋势线来自不同样本
+  const rangeWhere = buildWhere(scope, sql`${monitorAlertEvents.triggeredAt} >= ${since}`);
+
+  const [
+    levelRows,
+    pendingRows,
+    rangeStatRows,
+    trendRows,
+    topRuleRows,
+  ] = await Promise.all([
+    db
+      .select({ level: monitorAlertEvents.level, count: sql<number>`count(*)::int` })
+      .from(monitorAlertEvents)
+      .where(firingWhere)
+      .groupBy(monitorAlertEvents.level),
+    db
+      .select({
+        count: sql<number>`count(*)::int`,
+        oldest: sql<Date | null>`min(${monitorAlertEvents.triggeredAt})`,
+      })
+      .from(monitorAlertEvents)
+      .where(buildWhere(firingWhere, eq(monitorAlertEvents.handleStatus, 'pending'))),
+    db
+      .select({
+        fired: sql<number>`count(*)::int`,
+        resolved: sql<number>`count(*) filter (where ${monitorAlertEvents.status} = 'resolved')::int`,
+        notifyFailed: sql<number>`count(*) filter (where ${monitorAlertEvents.notifyStatus} in ('partial', 'failed'))::int`,
+        mtta: sql<number | null>`avg(extract(epoch from (${monitorAlertEvents.acknowledgedAt} - ${monitorAlertEvents.triggeredAt})))`,
+        mttr: sql<number | null>`avg(extract(epoch from (${monitorAlertEvents.resolvedAt} - ${monitorAlertEvents.triggeredAt})))`,
+      })
+      .from(monitorAlertEvents)
+      .where(rangeWhere),
+    db
+      .select({
+        date: sql<string>`to_char(${monitorAlertEvents.triggeredAt}, 'YYYY-MM-DD')`,
+        fired: sql<number>`count(*)::int`,
+        resolved: sql<number>`count(*) filter (where ${monitorAlertEvents.status} = 'resolved')::int`,
+      })
+      .from(monitorAlertEvents)
+      .where(rangeWhere)
+      .groupBy(sql`to_char(${monitorAlertEvents.triggeredAt}, 'YYYY-MM-DD')`)
+      .orderBy(sql`to_char(${monitorAlertEvents.triggeredAt}, 'YYYY-MM-DD')`),
+    db
+      .select({
+        ruleId: monitorAlertEvents.ruleId,
+        ruleName: monitorAlertEvents.ruleName,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(monitorAlertEvents)
+      .where(rangeWhere)
+      .groupBy(monitorAlertEvents.ruleId, monitorAlertEvents.ruleName)
+      .orderBy(desc(sql`count(*)`))
+      .limit(5),
+  ]);
+
+  const levelMap = new Map(levelRows.map((row) => [row.level, row.count]));
+  const pending = pendingRows[0];
+  const rangeStat = rangeStatRows[0];
+  const oldestPendingAt = pending?.oldest ? new Date(pending.oldest) : null;
+
+  return {
+    range,
+    firingTotal: levelRows.reduce((sum, row) => sum + row.count, 0),
+    // 补齐没有告警的级别：缺项会让前端的三张统计卡时有时无
+    firingByLevel: MONITOR_ALERT_LEVELS.map((level) => ({ level, count: levelMap.get(level) ?? 0 })),
+    pendingTotal: pending?.count ?? 0,
+    oldestPendingAt: formatNullableDateTime(oldestPendingAt),
+    oldestPendingMinutes: oldestPendingAt
+      ? Math.max(0, Math.round((Date.now() - oldestPendingAt.getTime()) / 60_000))
+      : null,
+    firedInRange: rangeStat?.fired ?? 0,
+    resolvedInRange: rangeStat?.resolved ?? 0,
+    notifyFailedInRange: rangeStat?.notifyFailed ?? 0,
+    mttaMinutes: avgMinutes(rangeStat?.mtta),
+    mttrMinutes: avgMinutes(rangeStat?.mttr),
+    trend: trendRows.map((row) => ({ date: row.date, fired: row.fired, resolved: row.resolved })),
+    topRules: topRuleRows.map((row) => ({ ruleId: row.ruleId, ruleName: row.ruleName, count: row.count })),
+  };
 }
 
 // ─── 评估器（cron）─────────────────────────────────────────────────────────

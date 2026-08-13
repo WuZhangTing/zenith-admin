@@ -2,7 +2,13 @@
  * 服务器监控相关 DTO
  */
 import { z } from '@hono/zod-openapi';
-import { MONITOR_ALERT_NOTIFY_STATUSES, MONITOR_METRICS } from '@zenith/shared/platform';
+import {
+  MONITOR_ALERT_HANDLE_STATUSES,
+  MONITOR_ALERT_LEVELS,
+  MONITOR_ALERT_NOTIFY_STATUSES,
+  MONITOR_ALERT_OVERVIEW_RANGES,
+  MONITOR_METRICS,
+} from '@zenith/shared/platform';
 
 export const MonitorDTO = z
   .object({
@@ -304,10 +310,55 @@ export const MonitorAlertEventDTO = z
     notifyChannels: z.array(z.string()),
     notifyError: z.string().nullable(),
     notifiedAt: z.string().nullable(),
+    handleStatus: z.enum(MONITOR_ALERT_HANDLE_STATUSES),
+    acknowledgedAt: z.string().nullable(),
+    handledBy: z.number().int().nullable(),
+    handledByName: z.string().nullable(),
+    handledAt: z.string().nullable(),
+    handleNote: z.string().nullable(),
     triggeredAt: z.string(),
     resolvedAt: z.string().nullable(),
   })
   .openapi('MonitorAlertEvent');
+
+// ─── 告警概览 ───────────────────────────────────────────────────────────
+export const MonitorAlertOverviewDTO = z
+  .object({
+    range: z.enum(MONITOR_ALERT_OVERVIEW_RANGES),
+    firingTotal: z.number().int(),
+    firingByLevel: z.array(z.object({
+      level: z.enum(MONITOR_ALERT_LEVELS),
+      count: z.number().int(),
+    })),
+    pendingTotal: z.number().int(),
+    oldestPendingAt: z.string().nullable(),
+    oldestPendingMinutes: z.number().nullable(),
+    firedInRange: z.number().int(),
+    resolvedInRange: z.number().int(),
+    notifyFailedInRange: z.number().int(),
+    mttaMinutes: z.number().nullable(),
+    mttrMinutes: z.number().nullable(),
+    trend: z.array(z.object({
+      date: z.string(),
+      fired: z.number().int(),
+      resolved: z.number().int(),
+    })),
+    topRules: z.array(z.object({
+      ruleId: z.number().int().nullable(),
+      ruleName: z.string(),
+      count: z.number().int(),
+    })),
+  })
+  .openapi('MonitorAlertOverview');
+
+// ─── 规则试发通知结果 ───────────────────────────────────────────────────
+export const MonitorAlertTestResultDTO = z
+  .object({
+    status: z.enum(MONITOR_ALERT_NOTIFY_STATUSES),
+    channels: z.array(z.string()),
+    error: z.string().nullable(),
+  })
+  .openapi('MonitorAlertTestResult');
 
 // ─── 请求体 DTO（与 shared validation 保持一致）─────────────────────────
 const monitorMetricEnumDTO = z.enum(MONITOR_METRICS);

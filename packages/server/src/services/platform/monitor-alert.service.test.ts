@@ -24,8 +24,13 @@ vi.mock('../../lib/alert-dispatch', () => ({
   dispatchAlertChannels: vi.fn(),
 }));
 
+vi.mock('../../lib/context', () => ({
+  currentUserId: vi.fn(() => 42),
+  currentUsername: vi.fn(() => 'ops'),
+}));
+
 import { db } from '../../db';
-import { setRuleEnabled, setRulesEnabled, updateRule } from './monitor-alert.service';
+import { handleEvent, setRuleEnabled, setRulesEnabled, updateRule } from './monitor-alert.service';
 
 const dbMock = vi.mocked(db);
 
@@ -206,5 +211,104 @@ describe('updateRule', () => {
       resolvedAt: expect.any(Date),
     });
     expect(result).toMatchObject({ enabled: false, state: 'ok' });
+  });
+});
+
+describe('handleEvent', () => {
+  function alertEvent(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 11,
+      tenantId: null,
+      ruleId: 7,
+      ruleName: 'CPU 使用率过高',
+      metric: 'cpu',
+      level: 'warning',
+      operator: 'gte',
+      threshold: 85,
+      value: 92,
+      status: 'firing',
+      message: 'CPU 使用率 当前 92%',
+      notifyStatus: 'success',
+      notifyChannels: ['inapp'],
+      notifyError: null,
+      notifiedAt: new Date('2026-08-12T08:05:00Z'),
+      handleStatus: 'pending',
+      acknowledgedAt: null,
+      handledBy: null,
+      handledAt: null,
+      handleNote: null,
+      triggeredAt: new Date('2026-08-12T08:00:00Z'),
+      resolvedAt: null,
+      ...overrides,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+  }
+
+  it('认领时写入首次确认时间与处理人', async () => {
+    const current = alertEvent();
+    const update = createChain([alertEvent({ handleStatus: 'acknowledged', handledBy: 42 })]);
+    dbMock.select.mockReturnValueOnce(createChain([current]));
+    dbMock.update.mockReturnValueOnce(update);
+
+    await handleEvent(current.id, { handleStatus: 'acknowledged', note: '  排查中  ' });
+
+    expect(update.set).toHaveBeenCalledWith({
+      handleStatus: 'acknowledged',
+      acknowledgedAt: expect.any(Date),
+      handledBy: 42,
+      handledAt: expect.any(Date),
+      handleNote: '排查中',
+    });
+  });
+
+  it('关闭时保留首次确认时间：它是 MTTA 的分子，被覆盖会让确认耗时失真', async () => {
+    const acknowledgedAt = new Date('2026-08-12T08:03:00Z');
+    const current = alertEvent({ handleStatus: 'acknowledged', acknowledgedAt, handledBy: 7 });
+    const update = createChain([alertEvent({ handleStatus: 'closed' })]);
+    dbMock.select.mockReturnValueOnce(createChain([current]));
+    dbMock.update.mockReturnValueOnce(update);
+
+    await handleEvent(current.id, { handleStatus: 'closed' });
+
+    expect(update.set).toHaveBeenCalledWith(expect.objectContaining({
+      handleStatus: 'closed',
+      acknowledgedAt,
+    }));
+  });
+
+  it('直接关闭未认领的告警时同样计入一次响应', async () => {
+    const current = alertEvent();
+    const update = createChain([alertEvent({ handleStatus: 'closed' })]);
+    dbMock.select.mockReturnValueOnce(createChain([current]));
+    dbMock.update.mockReturnValueOnce(update);
+
+    await handleEvent(current.id, { handleStatus: 'closed' });
+
+    expect(update.set).toHaveBeenCalledWith(expect.objectContaining({
+      handleStatus: 'closed',
+      acknowledgedAt: expect.any(Date),
+    }));
+  });
+
+  it('撤销认领清空全部处理痕迹，让告警回到待处理池', async () => {
+    const current = alertEvent({
+      handleStatus: 'acknowledged',
+      acknowledgedAt: new Date('2026-08-12T08:03:00Z'),
+      handledBy: 7,
+      handleNote: '排查中',
+    });
+    const update = createChain([alertEvent()]);
+    dbMock.select.mockReturnValueOnce(createChain([current]));
+    dbMock.update.mockReturnValueOnce(update);
+
+    await handleEvent(current.id, { handleStatus: 'pending' });
+
+    expect(update.set).toHaveBeenCalledWith({
+      handleStatus: 'pending',
+      acknowledgedAt: null,
+      handledBy: null,
+      handledAt: null,
+      handleNote: null,
+    });
   });
 });

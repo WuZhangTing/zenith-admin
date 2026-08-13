@@ -6,7 +6,12 @@ import type { Announcement, ChannelMessage, InAppMessage } from '../messaging/ty
 import type { MpKfSession, MpMessageDirection, MpMessageType } from '../mp/types';
 import type { AsyncTask } from '../tasks/types';
 import type { WorkflowInstanceStatus } from '../workflow/types';
-import type { MonitorAlertNotifyStatus, MonitorMetric } from './constants';
+import type {
+  MonitorAlertHandleStatus,
+  MonitorAlertNotifyStatus,
+  MonitorAlertOverviewRange,
+  MonitorMetric,
+} from './constants';
 
 // ─── 字典 ─────────────────────────────────────────────────────────────────────
 export interface Dict {
@@ -285,8 +290,64 @@ export interface MonitorAlertEvent {
   notifyChannels: string[];
   notifyError: string | null;
   notifiedAt: string | null;
+  /** 人工处理状态，与 status 正交 */
+  handleStatus: MonitorAlertHandleStatus;
+  acknowledgedAt: string | null;
+  handledBy: number | null;
+  handledByName: string | null;
+  handledAt: string | null;
+  handleNote: string | null;
   triggeredAt: string;
   resolvedAt: string | null;
+}
+
+/** 告警概览：按级别的告警中数量 */
+export interface MonitorAlertLevelCount {
+  level: MonitorAlertLevel;
+  count: number;
+}
+
+/** 告警概览：按天的触发 / 恢复趋势 */
+export interface MonitorAlertTrendPoint {
+  date: string;
+  fired: number;
+  resolved: number;
+}
+
+/** 告警概览：触发次数最多的规则 */
+export interface MonitorAlertTopRule {
+  ruleId: number | null;
+  ruleName: string;
+  count: number;
+}
+
+export interface MonitorAlertOverview {
+  range: MonitorAlertOverviewRange;
+  /** 当前处于告警中的事件数（不受时间范围限制，反映此刻状态） */
+  firingTotal: number;
+  firingByLevel: MonitorAlertLevelCount[];
+  /** 告警中且无人认领的事件数 */
+  pendingTotal: number;
+  /** 最久未认领事件的触发时间与已等待分钟数 */
+  oldestPendingAt: string | null;
+  oldestPendingMinutes: number | null;
+  /** 时间范围内的统计 */
+  firedInRange: number;
+  resolvedInRange: number;
+  notifyFailedInRange: number;
+  /** 平均确认耗时（分钟），无样本时为 null */
+  mttaMinutes: number | null;
+  /** 平均恢复耗时（分钟），无样本时为 null */
+  mttrMinutes: number | null;
+  trend: MonitorAlertTrendPoint[];
+  topRules: MonitorAlertTopRule[];
+}
+
+/** 规则试发通知的结果：直接暴露各渠道派发情况，便于定位是哪一个渠道配错了 */
+export interface MonitorAlertTestResult {
+  status: MonitorAlertNotifyStatus;
+  channels: string[];
+  error: string | null;
 }
 
 export interface MonitorHistoryPoint {

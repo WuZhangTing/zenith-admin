@@ -20,6 +20,7 @@ import {
   useDeleteMonitorAlerts,
   useMonitorAlertList,
   useSaveMonitorAlert,
+  useTestMonitorAlert,
   useToggleMonitorAlert,
 } from '@/hooks/queries/monitor-alerts';
 import {
@@ -121,6 +122,7 @@ export default function AlertRulesPage() {
   const canCreate = hasPermission('alert:rule:create');
   const canUpdate = hasPermission('alert:rule:update');
   const canDelete = hasPermission('alert:rule:delete');
+  const canTest = hasPermission('alert:rule:test');
   const canViewEvents = hasPermission('alert:event:list');
   const saveMutation = useSaveMonitorAlert();
   const alertModal = useEditModal<MonitorAlertRule, Record<string, unknown>, Record<string, unknown>>({
@@ -157,11 +159,33 @@ export default function AlertRulesPage() {
   const deleteMutation = useDeleteMonitorAlerts();
   const toggleMutation = useToggleMonitorAlert();
   const batchToggleMutation = useBatchToggleMonitorAlerts();
+  const testMutation = useTestMonitorAlert();
   const togglingId = toggleMutation.isPending ? (toggleMutation.variables?.id ?? null) : null;
 
   async function handleDelete(id: number) {
     await deleteMutation.mutateAsync([id]);
     Toast.success('删除成功');
+  }
+
+  /**
+   * 试发通知：按真实派发结果分级提示。
+   * 统一报「已发送」会把「渠道配错、根本没送出去」也说成成功，等于没验证。
+   */
+  async function handleTest(record: MonitorAlertRule) {
+    const result = await testMutation.mutateAsync(record.id);
+    const channels = result.channels.map((c) => CHANNEL_LABELS[c] ?? c).join('、');
+    if (result.status === 'skipped') {
+      Toast.warning({ content: `「${record.name}」未配置任何通知渠道，没有可试发的目标`, duration: 5 });
+      return;
+    }
+    if (result.status === 'success') {
+      Toast.success({ content: `测试通知已发送：${channels}，请到对应渠道确认是否收到`, duration: 5 });
+      return;
+    }
+    Toast.error({
+      content: `${result.status === 'failed' ? '全部渠道发送失败' : '部分渠道发送失败'}：${result.error ?? '未知原因'}`,
+      duration: 8,
+    });
   }
 
   function handleToggle(record: MonitorAlertRule, checked: boolean) {
@@ -253,6 +277,12 @@ export default function AlertRulesPage() {
           label: '编辑',
           hidden: !canUpdate,
           onClick: () => alertModal.openEdit(record),
+        },
+        {
+          key: 'test',
+          label: '试发通知',
+          hidden: !canTest,
+          onClick: () => void handleTest(record),
         },
         {
           key: 'events',

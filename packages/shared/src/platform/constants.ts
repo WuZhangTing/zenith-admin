@@ -233,6 +233,39 @@ export const MONITOR_ALERT_NOTIFY_STATUS_LABELS: Record<MonitorAlertNotifyStatus
 export const MONITOR_ALERT_NOTIFY_STATUS_OPTIONS: Array<{ value: MonitorAlertNotifyStatus; label: string }> =
   MONITOR_ALERT_NOTIFY_STATUSES.map((status) => ({ value: status, label: MONITOR_ALERT_NOTIFY_STATUS_LABELS[status] }));
 
+/**
+ * 告警的人工处理状态，与系统判定的 `status`（firing / resolved）正交。
+ *
+ * 指标自己掉回阈值下方只说明系统恢复了，不代表有人看过、查过原因。
+ * 把两者合成一个状态会让「没人管的告警」被自动恢复悄悄掩盖，因此单独建模。
+ */
+export const MONITOR_ALERT_HANDLE_STATUSES = ['pending', 'acknowledged', 'closed'] as const;
+
+export type MonitorAlertHandleStatus = (typeof MONITOR_ALERT_HANDLE_STATUSES)[number];
+
+export const MONITOR_ALERT_HANDLE_STATUS_LABELS: Record<MonitorAlertHandleStatus, string> = {
+  pending: '待处理',
+  acknowledged: '处理中',
+  closed: '已处理',
+};
+
+export const MONITOR_ALERT_HANDLE_STATUS_OPTIONS: Array<{ value: MonitorAlertHandleStatus; label: string }> =
+  MONITOR_ALERT_HANDLE_STATUSES.map((status) => ({ value: status, label: MONITOR_ALERT_HANDLE_STATUS_LABELS[status] }));
+
+/** 告警概览的时间范围 */
+export const MONITOR_ALERT_OVERVIEW_RANGES = ['24h', '7d', '30d'] as const;
+
+export type MonitorAlertOverviewRange = (typeof MONITOR_ALERT_OVERVIEW_RANGES)[number];
+
+export const MONITOR_ALERT_OVERVIEW_RANGE_LABELS: Record<MonitorAlertOverviewRange, string> = {
+  '24h': '近 24 小时',
+  '7d': '近 7 天',
+  '30d': '近 30 天',
+};
+
+export const MONITOR_ALERT_OVERVIEW_RANGE_OPTIONS: Array<{ value: MonitorAlertOverviewRange; label: string }> =
+  MONITOR_ALERT_OVERVIEW_RANGES.map((range) => ({ value: range, label: MONITOR_ALERT_OVERVIEW_RANGE_LABELS[range] }));
+
 const BYTE_RATE_UNITS = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
 
 function formatByteRate(value: number): string {

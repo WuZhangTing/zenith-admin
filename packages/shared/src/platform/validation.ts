@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { partialForUpdate, webhookUrlSchema } from '../core/validation';
-import { FILE_OBJECT_ACL_SUPPORT, MONITOR_ALERT_EVENT_STATUSES, MONITOR_ALERT_LEVELS, MONITOR_ALERT_NOTIFY_STATUSES, MONITOR_METRICS, PRESIGNED_EXPIRY_DEFAULT_SECONDS, PRESIGNED_EXPIRY_MAX_SECONDS, PRESIGNED_EXPIRY_MIN_SECONDS } from './constants';
+import { FILE_OBJECT_ACL_SUPPORT, MONITOR_ALERT_EVENT_STATUSES, MONITOR_ALERT_HANDLE_STATUSES, MONITOR_ALERT_LEVELS, MONITOR_ALERT_NOTIFY_STATUSES, MONITOR_ALERT_OVERVIEW_RANGES, MONITOR_METRICS, PRESIGNED_EXPIRY_DEFAULT_SECONDS, PRESIGNED_EXPIRY_MAX_SECONDS, PRESIGNED_EXPIRY_MIN_SECONDS } from './constants';
 
 // ─── 字典 Schema ──────────────────────────────────────────────────────────────
 export const createDictSchema = z.object({
@@ -419,9 +419,27 @@ export const monitorAlertEventQuerySchema = z.object({
   level: z.enum(MONITOR_ALERT_LEVELS).optional(),
   status: z.enum(MONITOR_ALERT_EVENT_STATUSES).optional(),
   notifyStatus: z.enum(MONITOR_ALERT_NOTIFY_STATUSES).optional(),
+  handleStatus: z.enum(MONITOR_ALERT_HANDLE_STATUSES).optional(),
   ruleId: z.coerce.number().int().positive().optional(),
   startTime: queryDateRangeBound,
   endTime: queryDateRangeBound,
+});
+
+/**
+ * 人工处理告警事件。
+ * `pending` 表示撤销认领，会一并清空处理人与备注，让事件重新回到「没人管」的池子里。
+ */
+export const handleMonitorAlertEventSchema = z.object({
+  handleStatus: z.enum(MONITOR_ALERT_HANDLE_STATUSES),
+  note: z.string().max(500).nullish(),
+});
+
+export const batchHandleMonitorAlertEventsSchema = handleMonitorAlertEventSchema.extend({
+  ids: z.array(z.number().int().positive()).min(1, '请至少选择一条告警').max(200),
+});
+
+export const monitorAlertOverviewQuerySchema = z.object({
+  range: z.enum(MONITOR_ALERT_OVERVIEW_RANGES).default('24h'),
 });
 
 export const monitorHistoryQuerySchema = z.object({
@@ -435,6 +453,12 @@ export type UpdateMonitorAlertRuleInput = z.infer<typeof updateMonitorAlertRuleS
 export type MonitorAlertRuleQuery = z.infer<typeof monitorAlertRuleQuerySchema>;
 
 export type MonitorAlertEventQuery = z.infer<typeof monitorAlertEventQuerySchema>;
+
+export type HandleMonitorAlertEventInput = z.infer<typeof handleMonitorAlertEventSchema>;
+
+export type BatchHandleMonitorAlertEventsInput = z.infer<typeof batchHandleMonitorAlertEventsSchema>;
+
+export type MonitorAlertOverviewQuery = z.infer<typeof monitorAlertOverviewQuerySchema>;
 
 export type MonitorHistoryQuery = z.infer<typeof monitorHistoryQuerySchema>;
 

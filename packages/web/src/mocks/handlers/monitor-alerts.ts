@@ -16,6 +16,8 @@ interface MockEvent {
   id: number; ruleId: number; ruleName: string; metric: string; level: string; operator: string;
   threshold: number; value: number; status: string; message: string;
   notifyStatus: string; notifyChannels: string[]; notifyError: string | null; notifiedAt: string | null;
+  handleStatus: string; acknowledgedAt: string | null; handledBy: number | null; handledByName: string | null;
+  handledAt: string | null; handleNote: string | null;
   triggeredAt: string; resolvedAt: string | null;
 }
 
@@ -75,32 +77,47 @@ const events: MockEvent[] = [
     id: 5, ruleId: 4, ruleName: '支付失败率飙升', metric: 'paymentFailureRate', level: 'critical', operator: 'gte',
     threshold: 20, value: 31.4, status: 'firing', message: '支付失败率 当前 31.4%，已满足条件 ≥ 20%（持续 5 分钟）',
     notifyStatus: 'partial', notifyChannels: ['inapp', 'email'], notifyError: 'email: 邮件接收目标没有可用邮箱',
-    notifiedAt: minsAgo(8), triggeredAt: minsAgo(8), resolvedAt: null,
+    notifiedAt: minsAgo(8),
+    handleStatus: 'pending', acknowledgedAt: null, handledBy: null, handledByName: null,
+    handledAt: null, handleNote: null,
+    triggeredAt: minsAgo(8), resolvedAt: null,
   },
   {
     id: 4, ruleId: 5, ruleName: '对账差异待处理', metric: 'paymentReconDiff', level: 'warning', operator: 'gte',
     threshold: 1, value: 3, status: 'firing', message: '对账差异待处理 当前 3 项，已满足条件 ≥ 1 项',
     notifyStatus: 'success', notifyChannels: ['inapp'], notifyError: null,
-    notifiedAt: minsAgo(200), triggeredAt: minsAgo(200), resolvedAt: null,
+    notifiedAt: minsAgo(200),
+    handleStatus: 'acknowledged', acknowledgedAt: minsAgo(180), handledBy: 1, handledByName: '超级管理员',
+    handledAt: minsAgo(180), handleNote: '已联系财务核对，等待渠道对账文件',
+    triggeredAt: minsAgo(200), resolvedAt: null,
   },
   {
     id: 3, ruleId: 2, ruleName: '磁盘空间不足', metric: 'disk', level: 'critical', operator: 'gte',
     threshold: 90, value: 92, status: 'firing', message: '磁盘使用率 当前 92%，已满足条件 ≥ 90%',
     notifyStatus: 'failed', notifyChannels: ['inapp', 'webhook'],
     notifyError: 'webhook: 请求超时；inapp: 站内信接收人未匹配到任何启用用户',
-    notifiedAt: minsAgo(15), triggeredAt: minsAgo(15), resolvedAt: null,
+    notifiedAt: minsAgo(15),
+    handleStatus: 'pending', acknowledgedAt: null, handledBy: null, handledByName: null,
+    handledAt: null, handleNote: null,
+    triggeredAt: minsAgo(15), resolvedAt: null,
   },
   {
     id: 2, ruleId: 1, ruleName: 'CPU 使用率过高', metric: 'cpu', level: 'warning', operator: 'gt',
     threshold: 85, value: 88, status: 'resolved', message: 'CPU 使用率 当前 88%，已满足条件 > 85%（持续 5 分钟）',
     notifyStatus: 'success', notifyChannels: ['inapp', 'email'], notifyError: null,
-    notifiedAt: minsAgo(110), triggeredAt: minsAgo(120), resolvedAt: minsAgo(110),
+    notifiedAt: minsAgo(110),
+    handleStatus: 'closed', acknowledgedAt: minsAgo(115), handledBy: 1, handledByName: '超级管理员',
+    handledAt: minsAgo(105), handleNote: '定时任务集中执行导致，已错峰',
+    triggeredAt: minsAgo(120), resolvedAt: minsAgo(110),
   },
   {
     id: 1, ruleId: 7, ruleName: '单应用错误率异常', metric: 'openApiAppErrorRate', level: 'warning', operator: 'gte',
     threshold: 50, value: 63.2, status: 'resolved', message: '单应用最高错误率 当前 63.2%，已满足条件 ≥ 50%（持续 10 分钟）',
     notifyStatus: 'skipped', notifyChannels: [], notifyError: null,
-    notifiedAt: null, triggeredAt: minsAgo(1440), resolvedAt: minsAgo(1400),
+    notifiedAt: null,
+    handleStatus: 'pending', acknowledgedAt: null, handledBy: null, handledByName: null,
+    handledAt: null, handleNote: null,
+    triggeredAt: minsAgo(1440), resolvedAt: minsAgo(1400),
   },
 ];
 
@@ -112,7 +129,86 @@ function resolveRuleEvents(ruleId: number) {
   }
 }
 
+/** 与服务端 buildHandlePatch 同语义：acknowledgedAt 只写一次，撤销认领清空全部处理痕迹 */
+function applyHandle(event: MockEvent, handleStatus: string, note?: string | null) {
+  if (handleStatus === 'pending') {
+    event.handleStatus = 'pending';
+    event.acknowledgedAt = null;
+    event.handledBy = null;
+    event.handledByName = null;
+    event.handledAt = null;
+    event.handleNote = null;
+    return;
+  }
+  const now = mockDateTime();
+  event.handleStatus = handleStatus;
+  event.acknowledgedAt = event.acknowledgedAt ?? now;
+  event.handledBy = 1;
+  event.handledByName = '超级管理员';
+  event.handledAt = now;
+  event.handleNote = note?.trim() || event.handleNote;
+}
+
+/** N 分钟前的时间字符串转成「距今分钟数」，供概览统计复用 */
+function minutesSince(value: string): number {
+  return Math.max(0, Math.round((Date.now() - new Date(value.replace(' ', 'T')).getTime()) / 60_000));
+}
+
 export const monitorAlertsHandlers = [
+  http.get('/api/monitor-alerts/overview', ({ request }) => {
+    const range = new URL(request.url).searchParams.get('range') ?? '24h';
+    const days = range === '30d' ? 30 : range === '7d' ? 7 : 1;
+    const sinceMinutes = days * 24 * 60;
+    const inRange = events.filter((e) => minutesSince(e.triggeredAt) <= sinceMinutes);
+    const firing = events.filter((e) => e.status === 'firing');
+    const pending = firing.filter((e) => e.handleStatus === 'pending');
+    const oldestPending = pending
+      .map((e) => e.triggeredAt)
+      .sort()[0] ?? null;
+
+    const trendMap = new Map<string, { fired: number; resolved: number }>();
+    for (const event of inRange) {
+      const date = event.triggeredAt.slice(0, 10);
+      const entry = trendMap.get(date) ?? { fired: 0, resolved: 0 };
+      entry.fired += 1;
+      if (event.status === 'resolved') entry.resolved += 1;
+      trendMap.set(date, entry);
+    }
+
+    const ruleMap = new Map<string, { ruleId: number; ruleName: string; count: number }>();
+    for (const event of inRange) {
+      const entry = ruleMap.get(event.ruleName) ?? { ruleId: event.ruleId, ruleName: event.ruleName, count: 0 };
+      entry.count += 1;
+      ruleMap.set(event.ruleName, entry);
+    }
+
+    const acked = inRange.filter((e) => e.acknowledgedAt);
+    const resolved = inRange.filter((e) => e.resolvedAt);
+    const avg = (values: number[]) =>
+      values.length === 0 ? null : Math.round(values.reduce((a, b) => a + b, 0) / values.length * 10) / 10;
+
+    return ok({
+      range,
+      firingTotal: firing.length,
+      firingByLevel: ['info', 'warning', 'critical'].map((level) => ({
+        level,
+        count: firing.filter((e) => e.level === level).length,
+      })),
+      pendingTotal: pending.length,
+      oldestPendingAt: oldestPending,
+      oldestPendingMinutes: oldestPending ? minutesSince(oldestPending) : null,
+      firedInRange: inRange.length,
+      resolvedInRange: inRange.filter((e) => e.status === 'resolved').length,
+      notifyFailedInRange: inRange.filter((e) => ['partial', 'failed'].includes(e.notifyStatus)).length,
+      mttaMinutes: avg(acked.map((e) => minutesSince(e.triggeredAt) - minutesSince(e.acknowledgedAt!))),
+      mttrMinutes: avg(resolved.map((e) => minutesSince(e.triggeredAt) - minutesSince(e.resolvedAt!))),
+      trend: [...trendMap.entries()]
+        .map(([date, entry]) => ({ date, ...entry }))
+        .sort((a, b) => a.date.localeCompare(b.date)),
+      topRules: [...ruleMap.values()].sort((a, b) => b.count - a.count).slice(0, 5),
+    }, 'success');
+  }),
+
   http.get('/api/monitor-alerts/events', ({ request }) => {
     const url = new URL(request.url);
     const sp = url.searchParams;
@@ -121,6 +217,7 @@ export const monitorAlertsHandlers = [
     const level = sp.get('level');
     const status = sp.get('status');
     const notifyStatus = sp.get('notifyStatus');
+    const handleStatus = sp.get('handleStatus');
     const ruleId = Number(sp.get('ruleId')) || undefined;
     const startTime = sp.get('startTime');
     const endTime = sp.get('endTime');
@@ -134,11 +231,31 @@ export const monitorAlertsHandlers = [
     if (level) filtered = filtered.filter((e) => e.level === level);
     if (status) filtered = filtered.filter((e) => e.status === status);
     if (notifyStatus) filtered = filtered.filter((e) => e.notifyStatus === notifyStatus);
+    if (handleStatus) filtered = filtered.filter((e) => e.handleStatus === handleStatus);
     if (ruleId) filtered = filtered.filter((e) => e.ruleId === ruleId);
     // 时间范围为闭区间，与服务端 dateRangeConditions 一致
     if (startTime) filtered = filtered.filter((e) => e.triggeredAt >= startTime);
     if (endTime) filtered = filtered.filter((e) => e.triggeredAt <= endTime);
     return ok(paginate(filtered, url, 20), 'success');
+  }),
+
+  // 批量必须先于 `/events/:id/handle` 注册，否则 batch 会被当成事件 id
+  http.patch('/api/monitor-alerts/events/batch/handle', async ({ request }) => {
+    const { ids, handleStatus, note } = await request.json() as { ids: number[]; handleStatus: string; note?: string | null };
+    let count = 0;
+    for (const event of events.filter((e) => ids.includes(e.id))) {
+      applyHandle(event, handleStatus, note);
+      count += 1;
+    }
+    return ok(null, `已处理 ${count} 条告警`);
+  }),
+
+  http.patch('/api/monitor-alerts/events/:id/handle', async ({ params, request }) => {
+    const event = events.find((e) => e.id === Number(params.id));
+    if (!event) return notFound('告警事件不存在', { status: 404 });
+    const { handleStatus, note } = await request.json() as { handleStatus: string; note?: string | null };
+    applyHandle(event, handleStatus, note);
+    return ok(event, '操作成功');
   }),
 
   http.get('/api/monitor-alerts', ({ request }) => {
@@ -195,6 +312,22 @@ export const monitorAlertsHandlers = [
       if (idx >= 0) rules.splice(idx, 1);
     }
     return ok(null, '删除成功');
+  }),
+
+  http.post('/api/monitor-alerts/:id/test', ({ params }) => {
+    const rule = rules.find((r) => r.id === Number(params.id));
+    if (!rule) return notFound('告警规则不存在', { status: 404 });
+    const channels = rule.channels ?? [];
+    if (channels.length === 0) {
+      return ok({ status: 'skipped', channels: [], error: null }, '测试通知已发送');
+    }
+    // Demo 下模拟一次真实的部分失败，让「通知状态」的分级展示在演示中可见
+    const failing = channels.includes('webhook') ? ['webhook'] : [];
+    return ok({
+      status: failing.length === 0 ? 'success' : failing.length === channels.length ? 'failed' : 'partial',
+      channels,
+      error: failing.length === 0 ? null : 'webhook: 演示环境不会真实外呼',
+    }, '测试通知已发送');
   }),
 
   http.put('/api/monitor-alerts/:id', async ({ params, request }) => {

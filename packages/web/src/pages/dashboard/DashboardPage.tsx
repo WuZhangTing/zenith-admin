@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Button, Typography, Tag, Skeleton, Empty, List, Avatar, Descriptions } from '@douyinfe/semi-ui';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import type { Announcement } from '@zenith/shared/messaging';
-import { Bell, BookOpen, MonitorPlay, Users, UserCheck, Wifi, LogIn, Activity, MapPin, Clock } from 'lucide-react';
+import type { MonitorAlertOverview } from '@zenith/shared/platform';
+import { Bell, BookOpen, MonitorPlay, Siren, Users, UserCheck, Wifi, LogIn, Activity, MapPin, Clock } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 // 图表区懒加载：'@/components/charts' 拖 ~1.9MB 的 @visactor 依赖树，
@@ -31,6 +32,7 @@ import {
   useMyAnnouncementDetail,
   usePublishedAnnouncements,
 } from '@/hooks/queries/announcements';
+import { useMonitorAlertOverview } from '@/hooks/queries/monitor-alerts';
 import './DashboardPage.css';
 
 const { Text } = Typography;
@@ -49,6 +51,33 @@ const STAT_ITEMS: Array<{
   { key: 'todayOperations', label: '今日操作',     icon: <Activity size={16} /> },
 ];
 
+/** 告警指标：点击直达告警事件页对应筛选，避免「看到数字却不知道去哪查」 */
+const ALERT_METRICS: Array<{
+  key: string;
+  label: string;
+  accent: string;
+  to: string;
+  pick: (overview: MonitorAlertOverview) => number;
+}> = [
+  {
+    key: 'firing', label: '告警中', accent: 'var(--semi-color-danger)',
+    to: '/alerts/events?status=firing', pick: (o) => o.firingTotal,
+  },
+  {
+    key: 'critical', label: '严重告警', accent: 'var(--semi-color-danger)',
+    to: '/alerts/events?status=firing&level=critical',
+    pick: (o) => o.firingByLevel.find((item) => item.level === 'critical')?.count ?? 0,
+  },
+  {
+    key: 'pending', label: '待处理', accent: 'var(--semi-color-warning)',
+    to: '/alerts/events?status=firing&handleStatus=pending', pick: (o) => o.pendingTotal,
+  },
+  {
+    key: 'notifyFailed', label: '通知失败', accent: 'var(--semi-color-danger)',
+    to: '/alerts/events?notifyStatus=failed', pick: (o) => o.notifyFailedInRange,
+  },
+];
+
 function stripHtml(html: string): string {
   const tmp = document.createElement('div');
   tmp.innerHTML = html;
@@ -65,9 +94,12 @@ export default function DashboardPage() {
     getLabel: getAnnouncementPriorityLabel,
     getColor: getAnnouncementPriorityColor,
   } = useDictItems('announcement_priority');
-  const { permissions } = usePermission();
+  const { permissions, hasPermission } = usePermission();
   const { user } = useAuth();
   const isAdmin = permissions.includes('*');
+  const canViewAlertOverview = hasPermission('alert:overview:list');
+  const alertOverviewQuery = useMonitorAlertOverview('24h', canViewAlertOverview);
+  const alertOverview = alertOverviewQuery.data ?? null;
   const [selectedNotice, setSelectedNotice] = useState<AnnouncementWithRead | null>(null);
   const noticesQuery = usePublishedAnnouncements();
   const statsQuery = useDashboardStats(isAdmin);
@@ -254,9 +286,47 @@ export default function DashboardPage() {
         </section>
       )}
 
+      {canViewAlertOverview && (
+        <section className="dashboard-section dashboard-alerts" aria-label="告警概览">
+          <header className="dashboard-section-header">
+            <div className="dashboard-section-heading">
+              <Siren size={15} />
+              <Text strong>告警中心</Text>
+              <Text type="tertiary" size="small">近 24 小时</Text>
+            </div>
+            <Button theme="borderless" size="small" type="tertiary" onClick={() => navigate('/alerts/overview')}>查看全部</Button>
+          </header>
+          {alertOverviewQuery.isLoading ? (
+            <Skeleton active loading placeholder={<Skeleton.Paragraph rows={1} style={{ width: '70%' }} />} />
+          ) : (
+            <div className="dashboard-alerts__metrics">
+              {ALERT_METRICS.map((metric) => {
+                const value = alertOverview ? metric.pick(alertOverview) : 0;
+                return (
+                  <button
+                    type="button"
+                    key={metric.key}
+                    className="dashboard-alerts__metric"
+                    onClick={() => navigate(metric.to)}
+                  >
+                    <span
+                      className="dashboard-alerts__value"
+                      // 为 0 时保持中性色：全都染红会让「无告警」和「有告警」看起来一样紧急
+                      style={value > 0 ? { color: metric.accent } : undefined}
+                    >
+                      {alertOverview ? value : '—'}
+                    </span>
+                    <span className="dashboard-alerts__label">{metric.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
+
       {isAdmin && (
-        <Suspense
-          fallback={
+        <Suspense          fallback={
             <div className="dashboard-charts-row">
               {['7 天登录趋势', '今日操作分布', '7 天用户活跃度'].map((title) => (
                 <section key={title} className="dashboard-chart-section">

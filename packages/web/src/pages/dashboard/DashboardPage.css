@@ -140,6 +140,51 @@
   gap: 10px;
 }
 
+/* 告警区：与统计行同一套「细线分栏」语言，但列数由内容自适应，
+   不能并进 .dashboard-stats-row——那一行的分隔线靠 nth-child 按固定 5/3/2 列算行首，
+   插入额外项会让行首竖线错位。 */
+.dashboard-alerts {
+  margin-top: 34px;
+}
+
+.dashboard-alerts__metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
+}
+
+.dashboard-alerts__metric {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 4px 22px 4px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.dashboard-alerts__metric:hover .dashboard-alerts__label {
+  color: var(--semi-color-text-0);
+}
+
+.dashboard-alerts__value {
+  color: var(--semi-color-text-0);
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: -0.035em;
+}
+
+.dashboard-alerts__label {
+  margin-top: 8px;
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+  transition: color 0.15s ease;
+}
+
 /* 图表区：整行一条横线起头，行内各图表之间用竖线分隔。
    行本身不留上内边距，改由子元素承担——否则竖线会从横线下方 24px 处才起头，
    与横线断开一截，看着像悬空的短线。padding 放到子元素上，
