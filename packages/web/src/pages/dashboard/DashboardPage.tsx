@@ -2,6 +2,7 @@ import { lazy, Suspense, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Typography, Tag, Skeleton, Empty, List, Avatar, Descriptions } from '@douyinfe/semi-ui';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
+import type { Announcement } from '@zenith/shared/messaging';
 import { Bell, BookOpen, MonitorPlay, Users, UserCheck, Wifi, LogIn, Activity, MapPin, Clock } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -20,20 +21,21 @@ import { useDictItems } from '@/hooks/useDictItems';
 import AnnouncementDetailModal from '@/components/AnnouncementDetailModal';
 import MonthCalendar from '@/components/MonthCalendar';
 import {
-  type DashboardAnnouncement,
   type DashboardCharts,
   type DashboardStats,
-  useDashboardAnnouncementDetail,
-  useDashboardAnnouncements,
   useDashboardCharts,
   useDashboardStats,
-  useMarkDashboardAnnouncementRead,
 } from '@/hooks/queries/dashboard';
+import {
+  useMarkMyAnnouncementRead,
+  useMyAnnouncementDetail,
+  usePublishedAnnouncements,
+} from '@/hooks/queries/announcements';
 import './DashboardPage.css';
 
 const { Text } = Typography;
 
-type AnnouncementWithRead = DashboardAnnouncement;
+type AnnouncementWithRead = Announcement & { isRead: boolean };
 
 const STAT_ITEMS: Array<{
   key: keyof DashboardStats;
@@ -67,11 +69,12 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const isAdmin = permissions.includes('*');
   const [selectedNotice, setSelectedNotice] = useState<AnnouncementWithRead | null>(null);
-  const noticesQuery = useDashboardAnnouncements();
+  const noticesQuery = usePublishedAnnouncements();
   const statsQuery = useDashboardStats(isAdmin);
   const chartsQuery = useDashboardCharts(isAdmin);
-  const detailQuery = useDashboardAnnouncementDetail(selectedNotice?.id, selectedNotice !== null);
-  const markReadMutation = useMarkDashboardAnnouncementRead();
+  // 挂件场景：详情拉取失败时静默回退到列表数据，不打断工作台
+  const detailQuery = useMyAnnouncementDetail(selectedNotice?.id, selectedNotice !== null, true);
+  const markReadMutation = useMarkMyAnnouncementRead();
   const notices = noticesQuery.data ?? [];
   const stats: DashboardStats | null = statsQuery.data ?? null;
   const charts: DashboardCharts | null = chartsQuery.data ?? null;

@@ -43,13 +43,13 @@ beforeEach(() => {
   api
     .on('GET', '/api/async-tasks', { list: [], total: 0, page: 1, pageSize: 10 })
     .on('GET', '/api/async-tasks/stats', { total: 0, running: 0 })
-    .on('GET', '/api/async-tasks/types', [{ taskType: 'export', name: '导出' }])
+    .on('GET', '/api/async-tasks/types', [{ taskType: 'export', title: '导出' }])
     .on('GET', '/api/async-tasks/1/items', { list: [], total: 0, page: 1, pageSize: 10 })
     .on('POST', '/api/async-tasks/1/cancel', { id: 1, status: 'cancelled' })
     .on('POST', '/api/async-tasks/batch-cancel', { affected: 2 })
     .on('POST', '/api/async-tasks/cleanup', { cleaned: 3 })
     .on('DELETE', '/api/async-tasks/1', null)
-    .on('PUT', '/api/async-tasks/types/export/config', { taskType: 'export', name: '导出' });
+    .on('PUT', '/api/async-tasks/types/export/config', { taskType: 'export', title: '导出' });
 });
 
 /** 还原 TaskCenterPage 的挂载：list / stats / types / items 同屏 */
@@ -132,7 +132,7 @@ describe('类型配置变更只刷新类型元数据', () => {
     const fetches = observeFetches(qc);
     api.resetCalls();
 
-    await hook.result.current.updateTypeConfig.mutateAsync({ taskType: 'export', values: { name: '导出' } });
+    await hook.result.current.updateTypeConfig.mutateAsync({ taskType: 'export', values: { title: '导出' } });
     await waitFor(() => expect(fetches.countOf(asyncTaskKeys.types)).toBe(1));
 
     expect(api.countOf('GET', '/api/async-tasks')).toBe(0);

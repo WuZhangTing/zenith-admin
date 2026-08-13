@@ -36,6 +36,7 @@ import {
   useDeleteAnnouncement,
   useMarkMyAnnouncementRead,
   useMyAnnouncementList,
+  usePublishedAnnouncements,
   useSaveAnnouncement,
 } from './announcements';
 import { roleKeys, useSaveRole } from './roles';
@@ -138,6 +139,59 @@ describe('useMarkMyAnnouncementRead —— 只动收件箱与已读统计', () =
     expect(api.countOf('GET', '/api/announcements')).toBe(0);
 
     fetches.stop();
+  });
+});
+
+describe('顶栏公告铃铛与工作台公告卡片共享同一份缓存', () => {
+  it('reflects the read state on the dashboard card after marking read from the top bar', async () => {
+    const qc = createTestQueryClient();
+    let readMarked = false;
+    api
+      .on('GET', '/api/announcements/published', () => [{ ...NOTICE, isRead: readMarked }])
+      .on('POST', '/api/announcements/1/read', () => { readMarked = true; return null; });
+
+    // 顶栏（AdminLayout 常驻）与工作台卡片过去各调一个 hook、各存一份缓存；
+    // 现在两者都走 usePublishedAnnouncements，天然是同一个 query
+    const { result } = renderHook(
+      () => ({
+        topbar: usePublishedAnnouncements(),
+        dashboard: usePublishedAnnouncements(),
+        markRead: useMarkMyAnnouncementRead(),
+      }),
+      { wrapper: createWrapper(qc) },
+    );
+    await waitFor(() => {
+      expect(result.current.topbar.isSuccess).toBe(true);
+      expect(result.current.dashboard.isSuccess).toBe(true);
+    });
+    expect(result.current.dashboard.data?.[0]?.isRead).toBe(false);
+
+    await result.current.markRead.mutateAsync(1);
+
+    // 修复前：工作台读的是 ['dashboard','announcements']，不在失效范围内，
+    // 未读圆点会一直留着，且停留在工作台时不会自愈
+    await waitFor(() => {
+      expect(result.current.dashboard.data?.[0]?.isRead).toBe(true);
+      expect(result.current.topbar.data?.[0]?.isRead).toBe(true);
+    });
+
+    // 同一个 key = 一次请求，而不是两份缓存各拉一次
+    expect(api.countOf('GET', '/api/announcements/published')).toBe(2); // 首次 + 失效后重拉
+  });
+
+  it('keeps a single cache entry for the shared published-announcement endpoint', async () => {
+    const qc = createTestQueryClient();
+    api.on('GET', '/api/announcements/published', [{ ...NOTICE, isRead: false }]);
+
+    const { result } = renderHook(() => usePublishedAnnouncements(), { wrapper: createWrapper(qc) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    const publishedEntries = qc
+      .getQueryCache()
+      .getAll()
+      .filter((q) => JSON.stringify(q.queryKey).includes('published'));
+    expect(publishedEntries).toHaveLength(1);
+    expect(hasCacheEntry(qc, announcementKeys.published)).toBe(true);
   });
 });
 

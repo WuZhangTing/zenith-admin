@@ -98,10 +98,16 @@ export function useMyAnnouncementList(params: MyAnnouncementListParams) {
   });
 }
 
-export function useMyAnnouncementDetail(id: number | undefined, enabled = true) {
+/**
+ * 我的公告详情。
+ *
+ * `silent` 供工作台等挂件场景使用：失败时不弹 toast，由调用方回退到列表数据；
+ * 收件箱页是用户显式打开详情，保持默认的错误提示。
+ */
+export function useMyAnnouncementDetail(id: number | undefined, enabled = true, silent = false) {
   return useQuery({
     queryKey: announcementKeys.myDetail(id),
-    queryFn: () => request.get<Announcement>(`/api/announcements/${id}`).then(unwrap),
+    queryFn: () => request.get<Announcement>(`/api/announcements/${id}`, { silent }).then(unwrap),
     enabled: enabled && id !== undefined,
   });
 }
