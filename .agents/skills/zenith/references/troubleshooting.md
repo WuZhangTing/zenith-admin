@@ -253,7 +253,7 @@ vitest 默认 worker 数 = 核数−1，每个 worker 都要独立转译整套 a
 | 场景 | 旋钮 |
 | --- | --- |
 | 单独跑 `npm test` 就超时 | 调低 `packages/server/vitest.config.ts` 的 `maxWorkers`（当前 `8`） |
-| 只在发布流程的四路并行下超时 | 放宽该用例超时——它与 lint / build / docs 争抢同一种（转译）资源，如 `src/app.routes.test.ts` 的 `300_000` |
+| 只在发布流程的四路并行下超时 | 放宽该用例超时——它与 lint / build / docs 争抢同一种（转译）资源。`src/app.contract.test.ts` 与 `src/app.routes.test.ts` 的 `beforeAll` / 用例超时当前均为 `480_000` |
 
 `maxWorkers` 是**上限**不是目标值，核数少的机器（如 CI 的 4 核 runner）不受影响。
 放宽超时前先确认它属于「慢但有效」——独占跑能过、且失败是超时而非断言失败；

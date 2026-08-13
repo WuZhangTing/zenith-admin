@@ -72,7 +72,7 @@ vitest 的转译成本决定了 server 测试的耗时，由两处配置共同�
 | 旋钮 | 位置 | 作用 |
 | --- | --- | --- |
 | `maxWorkers: 8` | `packages/server/vitest.config.ts` | vitest 默认 worker 数 = 核数−1，每个 worker 独立转译整套 app（267 个路由文件），核多时重复转译反超并行收益 |
-| `300_000` 超时 | `src/app.routes.test.ts` | 该用例耗时几乎全在 `await import('./app')`，与 lint / build / docs 三路争抢同一种（转译）资源 |
+| `480_000` 超时 | `src/app.routes.test.ts`、`src/app.contract.test.ts` | 两个用例耗时几乎全在 `await import('./app')` / `buildContractApp()`，与 lint / build / docs 三路争抢同一种（转译）资源 |
 
 再遇测试超时时：先确认是超时（而非断言失败）且单独跑能过，再按
 [troubleshooting.md → 测试超时](./troubleshooting.md)调这两个旋钮。**不要**删掉这里的外层并行——

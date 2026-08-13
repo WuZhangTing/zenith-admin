@@ -40,7 +40,11 @@ beforeAll(async () => {
   for (const op of operations) {
     unauthenticatedStatus.set(op.id, await requestWithoutCredentials(app, op));
   }
-}, 300_000);
+  // 超时放宽到 480 秒：耗时几乎全在 buildContractApp() 转译整套 app，
+  // 而发布流程的四路并行（lint / test / build / docs）抢的正是同一种转译资源。
+  // 独占跑约 90 秒，并行下曾贴着 300 秒撞破——属「慢但有效」，不是卡死。
+  // 见 .agents/skills/zenith/references/troubleshooting.md → 性能
+}, 480_000);
 
 /** 该操作的成功响应是否为 JSON——文件下载、SSE、渠道回调 ACK 等均不是 */
 function producesJson(op: RouteOperation): boolean {
