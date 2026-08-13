@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import {
   Button,
   Card,
+  Col,
   Empty,
   Form,
   Modal,
   Popconfirm,
+  Row,
   Space,
   Spin,
   TabPane,
@@ -136,6 +138,7 @@ export default function AiAgentsPage() {
       };
     },
     successMessage: ({ isEdit }) => (isEdit ? '智能体已更新' : '智能体已创建'),
+    // 最长标签「系统提示词」5 字带必填星号，90 会折行
     labelWidth: 100,
   });
 
@@ -276,26 +279,38 @@ export default function AiAgentsPage() {
       <Modal
         {...modal.modalProps}
         title={modal.isEdit ? '编辑智能体' : '新建智能体'}
-        width={640}
+        width={660}
       >
         <Form
           {...modal.formProps}
         >
-          <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={100} placeholder="如：合同审阅助手" />
-          <Form.Select field="avatar" label="头像" style={{ width: 120 }}>
-            {EMOJI_CHOICES.map((e) => <Form.Select.Option key={e} value={e}>{e}</Form.Select.Option>)}
-          </Form.Select>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={100} placeholder="如：合同审阅助手" />
+            </Col>
+            <Col span={12}>
+              <Form.Select field="avatar" label="头像" style={{ width: '100%' }}>
+                {EMOJI_CHOICES.map((e) => <Form.Select.Option key={e} value={e}>{e}</Form.Select.Option>)}
+              </Form.Select>
+            </Col>
+          </Row>
           <Form.Input field="description" label="描述" maxLength={300} placeholder="一句话介绍（市场展示）" />
           <Form.TextArea field="systemPrompt" label="系统提示词" rules={[{ required: true, message: '请输入提示词' }]} maxCount={8192} rows={5} placeholder="定义智能体的角色、能力边界与回答风格" />
-          <Form.Select field="modelValue" label="模型" optionList={modelOptions} style={{ width: '100%' }} placeholder="跟随系统默认" />
-          <Form.Select
-            field="knowledgeBaseId"
-            label="知识库"
-            style={{ width: '100%' }}
-            placeholder="不绑定"
-            showClear
-            optionList={(kbQuery.data ?? []).map((kb) => ({ value: kb.id, label: `${kb.name}（${kb.documentCount} 文档）` }))}
-          />
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Select field="modelValue" label="模型" optionList={modelOptions} style={{ width: '100%' }} placeholder="跟随系统默认" />
+            </Col>
+            <Col span={12}>
+              <Form.Select
+                field="knowledgeBaseId"
+                label="知识库"
+                style={{ width: '100%' }}
+                placeholder="不绑定"
+                showClear
+                optionList={(kbQuery.data ?? []).map((kb) => ({ value: kb.id, label: `${kb.name}（${kb.documentCount} 文档）` }))}
+              />
+            </Col>
+          </Row>
           <Form.Select
             field="tools"
             label="工具"
