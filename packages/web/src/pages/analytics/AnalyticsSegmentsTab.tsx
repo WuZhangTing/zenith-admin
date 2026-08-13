@@ -347,7 +347,8 @@ export default function AnalyticsSegmentsTab() {
     dateTimeColumn('快照时间', 'snapshotAt', { empty: '未物化' }),
     dateTimeColumn('更新时间', 'updatedAt'),
     createOperationColumn<AnalyticsUserSegment>({
-      width: 220,
+      // 四个内联动作 + 「更多」按钮需 246px
+      width: 280,
       desktopInlineKeys: ['members', 'campaign', 'materialize', 'edit'],
       actions: (record) => [
         { key: 'members', label: '成员', onClick: () => { setMembersSegment(record); setMembersPage(1); } },

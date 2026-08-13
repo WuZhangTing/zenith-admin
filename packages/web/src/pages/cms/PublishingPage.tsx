@@ -208,7 +208,8 @@ export default function PublishingPage() {
       render: (value: CmsPublishArtifactStatus) => <Tag color={value === 'generated' ? 'green' : value === 'failed' ? 'red' : 'grey'}>{CMS_PUBLISH_ARTIFACT_STATUS_LABELS[value]}</Tag>,
     },
     createOperationColumn<CmsPublishArtifact>({
-      width: 120,
+      // 生成失败时「失败原因」与「任务详情」同时出现，需 164px
+      width: 200,
       actions: (record) => [
         { key: 'error', label: '失败原因', hidden: !record.error, danger: true, onClick: () => { Modal.error({ title: '产物生成失败', content: record.error }); } },
         { key: 'task', label: '任务详情', onClick: () => {

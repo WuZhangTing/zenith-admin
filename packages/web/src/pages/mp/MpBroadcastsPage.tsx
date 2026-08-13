@@ -162,7 +162,8 @@ export default function MpBroadcastsPage() {
       },
     },
     createOperationColumn<MpBroadcast>({
-      width: 170,
+      // 未发送且权限齐全时，发送 / 预览 / 编辑 / 删除 同时出现，需 220px
+      width: 260,
       desktopInlineKeys: ['send', 'preview', 'result', 'edit', 'delete'],
       menuAriaLabel: '群发操作',
       actions: (record) => [

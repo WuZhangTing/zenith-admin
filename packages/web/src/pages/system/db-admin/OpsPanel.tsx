@@ -192,7 +192,9 @@ function MaintenancePanel({ canMaintain }: Readonly<{ canMaintain: boolean }>) {
   ];
   if (canMaintain) {
     columns.push(createOperationColumn<TableMaintenance>({
-      width: 90,
+      // 四个维护动作全内联需 375px；VACUUM 最常用，留在列内，其余进「更多」
+      width: 130,
+      desktopInlineKeys: ['vacuum'],
       actions: (record) => {
         const key = `${record.schema}.${record.name}`;
         return [

@@ -154,7 +154,9 @@ export default function PaymentLinksPage() {
       ),
     },
     createOperationColumn<PaymentLink>({
-      width: 150,
+      // 全权限下四个动作内联需 262px；仅保留高频的收款码与编辑，其余进「更多」
+      width: 180,
+      desktopInlineKeys: ['qr', 'edit'],
       actions: (r) => [
         {
           key: 'qr',
