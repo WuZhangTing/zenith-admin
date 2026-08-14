@@ -1,6 +1,6 @@
 import { eq, and, asc } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { db } from '../../db';
 import { sshProfiles } from '../../db/schema';
@@ -150,7 +150,7 @@ export async function getSshConnectParams(id: number, userId: number) {
     if (!keyPath) throw new HTTPException(400, { message: 'SSH 私钥路径未配置' });
     let privateKey: string;
     try {
-      privateKey = readFileSync(keyPath, 'utf8');
+      privateKey = await readFile(keyPath, 'utf8');
     } catch {
       throw new HTTPException(400, { message: `无法读取私钥文件: ${keyPath}` });
     }
