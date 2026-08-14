@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from 'react';
 import { AppModal } from '@/components/AppModal';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Input, Button, Badge, Typography, Empty, Spin, Toast, Tooltip, ImagePreview, List as SemiList } from '@douyinfe/semi-ui';
+import { Input, Button, Badge, Divider, Typography, Empty, Spin, Toast, Tooltip, ImagePreview, List as SemiList } from '@douyinfe/semi-ui';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 
 import { Search, MessageSquarePlus, Send, CornerDownLeft, Smile, ImagePlus, MoreHorizontal, X, Paperclip, Bookmark, History, Images, ArrowLeft, ExternalLink, BarChart3, Download, Mic, Phone, Video, Compass, BadgeCheck } from 'lucide-react';
@@ -972,11 +972,9 @@ export default function ChatPage({
                     return (
                       <div style={{ padding: isQuick ? '0 12px 16px' : '0 20px 16px' }}>
                         {showUnreadDivider && (
-                          <div aria-label="以下为新消息" style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 12px' }}>
-                            <span style={{ flex: 1, height: 1, background: 'var(--semi-color-danger-light-active)' }} />
-                            <span style={{ fontSize: 11, color: 'var(--semi-color-danger)', flexShrink: 0 }}>以下为新消息</span>
-                            <span style={{ flex: 1, height: 1, background: 'var(--semi-color-danger-light-active)' }} />
-                          </div>
+                          <Divider align="center" className="chat-unread-divider" style={{ margin: '4px 0 12px' }}>
+                            以下为新消息
+                          </Divider>
                         )}
                         <MessageBubble
                           msg={msg}

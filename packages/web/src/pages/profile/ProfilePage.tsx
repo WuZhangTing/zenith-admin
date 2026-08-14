@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import {
   Form, Button, Typography, Toast, Tag, Space, Spin,
-  Modal, Input, Tabs, List as SemiList, Descriptions,
+  Modal, Input, Tabs, List as SemiList, Descriptions, Divider,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { UserRound, Shield, Monitor, List, Key, LogOut, Plus, Copy, CheckCircle, Smartphone } from 'lucide-react';
@@ -439,7 +439,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
                       </div>
                     </div>
 
-                    <div className="section-divider" />
+                    <Divider margin={28} />
 
                     <div className="section-title">资料编辑</div>
                   <Form
@@ -532,7 +532,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
                     </Form.Slot>
                   </Form>
 
-                  <div className="section-divider" />
+                  <Divider margin={28} />
 
                   <div className="section-title">多因素认证</div>
                   <SemiList
@@ -587,7 +587,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
                     绑定身份验证器
                   </Button>
 
-                  <div className="section-divider" />
+                  <Divider margin={28} />
 
                   <div className="section-title">第三方账号绑定</div>
                   <SemiList

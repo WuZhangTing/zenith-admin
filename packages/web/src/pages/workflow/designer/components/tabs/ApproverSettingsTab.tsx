@@ -3,7 +3,7 @@
  * 支持多种指定策略：指定成员、角色、主管、发起人自己、表单联系人、发起人自选、
  * 连续多级上级、连续多级部门负责人、节点审批人、用户组、表单内部门
  */
-import { Form, Select, InputNumber, Typography, RadioGroup, Radio, Tooltip, Checkbox, TextArea } from '@douyinfe/semi-ui';
+import { Form, Select, InputNumber, Typography, RadioGroup, Radio, Tooltip, Checkbox, TextArea, Divider } from '@douyinfe/semi-ui';
 import type {
   AssigneeType,
   ApproveMethod,
@@ -180,7 +180,7 @@ export default function ApproverSettingsTab({
                 : '流程到达此节点时将自动拒绝'}
             </Typography.Text>
           )}
-          <div style={{ borderBottom: '1px solid var(--semi-color-border)', marginBottom: 16 }} />
+          <Divider style={{ margin: '0 0 16px' }} />
         </>
       )}
 
@@ -573,7 +573,7 @@ export default function ApproverSettingsTab({
           {/* 审批方式（仅审批人节点） */}
           {isApprover && (
             <>
-              <div style={{ borderTop: '1px solid var(--semi-color-border)', margin: '16px 0' }} />
+              <Divider margin={16} />
               <Typography.Title heading={6} style={{ marginBottom: 12 }}>审批方式</Typography.Title>
               <div className="fd-approve-method-grid">
                 {APPROVE_METHOD_OPTIONS.map(opt => (

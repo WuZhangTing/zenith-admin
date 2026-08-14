@@ -1,4 +1,4 @@
-import { Select } from '@douyinfe/semi-ui';
+import { Divider, Select } from '@douyinfe/semi-ui';
 import { Building2 } from 'lucide-react';
 import type { Tenant } from '@zenith/shared/identity';
 
@@ -25,7 +25,7 @@ export function TenantSwitcher({
         optionList={tenantList.map((t) => ({ value: t.id, label: t.name }))}
         size="small"
       />
-      <div style={{ width: 1, height: 16, backgroundColor: 'var(--color-border)', margin: '0 4px' }} />
+      <Divider layout="vertical" margin="4px" style={{ height: 16, borderLeftColor: 'var(--color-border)' }} />
     </>
   );
 }

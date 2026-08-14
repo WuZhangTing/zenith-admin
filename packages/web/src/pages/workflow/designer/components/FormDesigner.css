@@ -1130,12 +1130,6 @@
   padding: 4px 0;
 }
 
-.fd-form-canvas__divider-preview hr {
-  border: none;
-  border-top: 1px solid var(--semi-color-border);
-  margin: 0;
-}
-
 /* Group (分组) preview in canvas */
 .fd-form-canvas__group-preview {
   margin-top: 4px;

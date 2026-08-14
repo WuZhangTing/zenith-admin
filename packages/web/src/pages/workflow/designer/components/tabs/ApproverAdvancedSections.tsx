@@ -5,7 +5,7 @@
  * 分区：审批人拒绝时 / 审批人超时未处理时 / 审批人为空时 / 审批人与提交人为同一人时 / 审批人去重
  */
 import type { ReactNode } from 'react';
-import { Form, InputNumber, Select, Switch, Typography, RadioGroup, Radio } from '@douyinfe/semi-ui';
+import { Divider, Form, InputNumber, Select, Switch, Typography, RadioGroup, Radio } from '@douyinfe/semi-ui';
 import { Minus, Plus } from 'lucide-react';
 import type {
   RejectStrategy,
@@ -43,9 +43,9 @@ interface ApproverAdvancedSectionsProps {
 /** 钉钉式分区标题：短线 + 标题 + 长线 */
 function SectionDivider({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <div className="fd-section-divider">
-      <span className="fd-section-divider__label">{children}</span>
-    </div>
+    <Divider align="left" className="fd-section-divider" style={{ margin: '22px 0 14px' }}>
+      {children}
+    </Divider>
   );
 }
 

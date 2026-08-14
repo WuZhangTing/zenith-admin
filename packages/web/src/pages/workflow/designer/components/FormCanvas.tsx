@@ -3,7 +3,7 @@
  * 支持：从控件面板拖入 / 字段排序 / 跨容器移动（顶层 ↔ 分栏列 ↔ 分组）/ 选中 / 复制 / 删除。
  */
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Popconfirm, Tag, Typography } from '@douyinfe/semi-ui';
+import { Divider, Popconfirm, Tag, Typography } from '@douyinfe/semi-ui';
 import { GripVertical, Trash2, Asterisk, Copy } from 'lucide-react';
 import type { WorkflowFormField, WorkflowFormFieldType } from '@zenith/shared/workflow';
 import { FORM_FIELD_TYPES } from '../form-types';
@@ -413,7 +413,7 @@ export default function FormCanvas({
           {isLayoutRow && renderRowColumns(field)}
           {isLayoutGroup && renderGroupBody(field)}
           {isPanes && renderPanes(field)}
-          {isDivider && <div className="fd-form-canvas__divider-preview"><hr /></div>}
+          {isDivider && <div className="fd-form-canvas__divider-preview"><Divider margin={0} /></div>}
           {isDetail && renderDetail(field)}
 
           {!isLayoutRow && !isLayoutGroup && !isPanes && !isDivider && !isDetail && (

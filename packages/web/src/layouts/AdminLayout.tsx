@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { RouteErrorBoundary } from '@/components/PageErrorBoundary';
-import { BackTop, SideSheet, Toast } from '@douyinfe/semi-ui';
+import { BackTop, Divider, SideSheet, Toast } from '@douyinfe/semi-ui';
 import { Expand, Shrink } from 'lucide-react';
 import { ensurePinyin } from '@/utils/pinyin';
 import MenuSearchInput, { type FlatMenuItem } from '@/components/MenuSearchInput';
@@ -665,7 +665,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
           {isFullscreen ? <Shrink size={16} strokeWidth={1.5} /> : <Expand size={16} strokeWidth={1.5} />}
         </button>
       )}
-      <div style={{ width: 1, height: 16, backgroundColor: 'var(--color-border)', margin: '0 4px' }} />
+      <Divider layout="vertical" margin="4px" style={{ height: 16, borderLeftColor: 'var(--color-border)' }} />
       <UserDropdown
         user={user}
         navigate={navigate}

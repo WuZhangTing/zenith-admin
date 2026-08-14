@@ -1595,13 +1595,6 @@ body[theme-mode='dark'] .fd-branch-banner--inclusive {
   box-shadow: var(--semi-shadow-elevated);
 }
 
-.fd-canvas__toolbar-divider {
-  width: 1px;
-  height: 16px;
-  background: var(--semi-color-border);
-  margin: 0 4px;
-}
-
 /* ─── 步骤导航 ────────────────────────────────────────────────────── */
 
 .fd-steps-nav {
@@ -2166,35 +2159,15 @@ td.fd-action-button-table__action {
   padding: 4px 0;
 }
 
-/* ─── 钉钉式分区分割线（短线 + 标题 + 长线） ───────────────────────── */
+/* ─── 钉钉式分区分割线（短线 + 标题 + 长线；基于 Semi Divider 微调） ─── */
 
-.fd-section-divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 22px 0 14px;
-}
-
-.fd-section-divider::before {
-  content: '';
+.fd-section-divider.semi-divider-with-text-left::before {
   width: 28px;
-  height: 1px;
-  background: var(--semi-color-border);
-  flex-shrink: 0;
 }
 
-.fd-section-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--semi-color-border);
-}
-
-.fd-section-divider__label {
+.fd-section-divider .semi-divider_inner-text {
+  padding: 0 12px;
   font-size: 14px;
-  font-weight: 600;
-  color: var(--semi-color-text-0);
-  white-space: nowrap;
 }
 
 /* ─── 必填字段标签 ─────────────────────────────────────────────────── */

@@ -3,7 +3,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Button, Modal, RadioGroup, Radio, Spin, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, Divider, Modal, RadioGroup, Radio, Spin, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { ArrowLeft, Download, Eye, History, Minus, Play, Plus, Redo2, RotateCcw, Save, Send, Stethoscope, Undo2, Upload } from 'lucide-react';
 import type { WorkflowDefinition, WorkflowDefinitionSnapshot, WorkflowFlowData, WorkflowFormField, WorkflowFormType, WorkflowCustomFormConfig, WorkflowDefinitionHealthIssue } from '@zenith/shared/workflow';
 import { WORKFLOW_FORM_TYPES, WORKFLOW_FORM_TYPE_LABELS, resolveApproverDedupMode } from '@zenith/shared/workflow';
@@ -869,7 +869,7 @@ export default function WorkflowDesignerPage({
                 >
                   重做
                 </Button>
-                <span className="fd-canvas__toolbar-divider" />
+                <Divider layout="vertical" margin="4px" style={{ height: 16 }} />
                 <Button icon={<Download size={14} />} type="tertiary" theme="borderless" onClick={handleExport}>
                   导出
                 </Button>
@@ -887,7 +887,7 @@ export default function WorkflowDesignerPage({
                 <Button icon={<Stethoscope size={14} />} type="tertiary" theme="borderless" onClick={() => setHealthVisible(true)}>
                   体检
                 </Button>
-                <span className="fd-canvas__toolbar-divider" />
+                <Divider layout="vertical" margin="4px" style={{ height: 16 }} />
               </>
             )}
             <div className="fd-toolbar__zoom">

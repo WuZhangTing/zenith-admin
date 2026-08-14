@@ -1,5 +1,5 @@
 // ─── 显隐/条件必填/条件只读设置（拆分自 FieldConfigPanel.tsx）───
-import { Typography } from '@douyinfe/semi-ui';
+import { Divider, Typography } from '@douyinfe/semi-ui';
 import type { WorkflowFormField } from '@zenith/shared/workflow';
 import type { FieldTypeFlags } from './field-type-flags';
 import { VisibilityRulesEditor } from './VisibilityRulesEditor';
@@ -38,7 +38,7 @@ export function VisibilitySection({ field, conditionFields, flags, onChange }: R
 
               {supportsLayoutState && (
                 <>
-                  <div style={{ borderTop: '1px solid var(--semi-color-border)', margin: '14px 0 10px' }} />
+                  <Divider style={{ margin: '14px 0 10px' }} />
                   <Typography.Text strong size="small" style={{ display: 'block', marginBottom: 6 }}>条件必填</Typography.Text>
                   <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 6 }}>
                     满足条件时该字段变为必填（与固定「必填」取或）
@@ -51,7 +51,7 @@ export function VisibilitySection({ field, conditionFields, flags, onChange }: R
                     toggleLabel="启用条件必填"
                   />
 
-                  <div style={{ borderTop: '1px solid var(--semi-color-border)', margin: '14px 0 10px' }} />
+                  <Divider style={{ margin: '14px 0 10px' }} />
                   <Typography.Text strong size="small" style={{ display: 'block', marginBottom: 6 }}>条件只读</Typography.Text>
                   <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 6 }}>
                     满足条件时该字段变为只读（不可编辑）
