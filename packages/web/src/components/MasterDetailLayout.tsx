@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { Button, Tooltip } from '@douyinfe/semi-ui';
 import { PanelLeft, PanelRight } from 'lucide-react';
@@ -288,9 +288,11 @@ function MasterDetailLayoutImpl(props: Readonly<MasterDetailLayoutProps>) {
     [persistKey, size],
   );
 
-  // 持久化（拖拽中持续更新的版本，PointerUp 也会写一次，确保非拖拽来源变化也保存）
+  // 持久化（拖拽中每次 pointermove 都会更新 size，此处跳过等 PointerUp 一次性落盘；
+  // 仅覆盖非拖拽来源的 size 变化）
   useEffect(() => {
     if (!persistKey) return;
+    if (draggingRef.current) return;
     writePersisted(persistKey, size);
   }, [persistKey, size]);
 
@@ -315,25 +317,30 @@ function MasterDetailLayoutImpl(props: Readonly<MasterDetailLayoutProps>) {
     gap: gap > 0 ? gap : undefined,
     ...style,
   };
+  // context value 保持稳定身份：布局因内部状态（拖拽 resize、容器宽度）高频重渲染时,
+  // 避免 Header/SideToggle 等 consumer 跟着无谓重渲染
+  const masterPaneContext = useMemo<PaneContextValue>(() => ({
+    pane: 'master',
+    side,
+    sideSwitchable,
+    isResponsive,
+    toggleSide: handleSideToggle,
+  }), [side, sideSwitchable, isResponsive, handleSideToggle]);
+  const detailPaneContext = useMemo<PaneContextValue>(() => ({
+    pane: 'detail',
+    side,
+    sideSwitchable,
+    isResponsive,
+    toggleSide: handleSideToggle,
+  }), [side, sideSwitchable, isResponsive, handleSideToggle]);
+
   const masterContent = (
-    <PaneContext.Provider value={{
-      pane: 'master',
-      side,
-      sideSwitchable,
-      isResponsive,
-      toggleSide: handleSideToggle,
-    }}>
+    <PaneContext.Provider value={masterPaneContext}>
       {master}
     </PaneContext.Provider>
   );
   const detailContent = (
-    <PaneContext.Provider value={{
-      pane: 'detail',
-      side,
-      sideSwitchable,
-      isResponsive,
-      toggleSide: handleSideToggle,
-    }}>
+    <PaneContext.Provider value={detailPaneContext}>
       {detail}
     </PaneContext.Provider>
   );
