@@ -26,7 +26,7 @@ export default function WikiStatsPage() {
   }
 
   return (
-    <div className="page-container">
+    <div className="page-container zx-flat-panels">
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
         <RefreshButton onClick={handleRefresh} loading={refreshing} />
       </div>
@@ -43,8 +43,8 @@ export default function WikiStatsPage() {
         </StatGrid>
       </Spin>
 
-      <div className="auto-grid" style={{ '--auto-grid-cols': 3, marginTop: 16 } as React.CSSProperties}>
-        <Card title="热门文档 Top 10" bodyStyle={{ padding: '0 16px' }}>
+      <div className="chart-grid chart-grid--3" style={{ marginTop: 16 }}>
+        <Card title="热门文档 Top 10">
           <List
             loading={hotDocsQuery.isFetching}
             dataSource={hotDocsQuery.data ?? []}
@@ -65,7 +65,7 @@ export default function WikiStatsPage() {
           />
         </Card>
 
-        <Card title="贡献榜 Top 10" bodyStyle={{ padding: '0 16px' }}>
+        <Card title="贡献榜 Top 10">
           <List
             loading={contributorsQuery.isFetching}
             dataSource={contributorsQuery.data ?? []}
@@ -83,7 +83,7 @@ export default function WikiStatsPage() {
           />
         </Card>
 
-        <Card title="沉睡文档（90 天未更新）" bodyStyle={{ padding: '0 16px' }}>
+        <Card title="沉睡文档（90 天未更新）">
           <List
             loading={staleDocsQuery.isFetching}
             dataSource={staleDocsQuery.data ?? []}

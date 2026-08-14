@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Banner, Button, Card, Select, Spin, Switch, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Divider, Select, Spin, Switch, Toast, Typography } from '@douyinfe/semi-ui';
 import type { WikiSpaceVisibility } from '@zenith/shared/wiki';
 import { WIKI_SPACE_VISIBILITY_OPTIONS } from '@zenith/shared/wiki';
 import { usePermission } from '@/hooks/usePermission';
@@ -64,13 +64,12 @@ export default function WikiSettingsPage() {
   return (
     <div className="page-container">
       <Spin spinning={settingsQuery.isPending}>
-        <Card
-          title="知识库设置"
-          style={{ maxWidth: 720 }}
-          headerExtraContent={canEdit ? (
-            <Button theme="solid" loading={updateMutation.isPending} onClick={handleSave}>保存</Button>
-          ) : null}
-        >
+        <div style={{ maxWidth: 640 }}>
+          <div style={{ marginBottom: 8 }}>
+            <Title heading={5} style={{ margin: 0 }}>知识库设置</Title>
+            <Text type="tertiary">发布审批、空间默认可见性与 AI 知识库同步</Text>
+          </div>
+
           <SettingRow
             title="发布需审核"
             description="开启后文档提交发布需经审核人通过；关闭则提交即发布"
@@ -78,6 +77,7 @@ export default function WikiSettingsPage() {
               <Switch checked={requireApproval} disabled={!canEdit} onChange={setRequireApproval} />
             )}
           />
+          <Divider margin={0} />
           <SettingRow
             title="空间默认可见性"
             description="新建知识空间时的默认可见范围"
@@ -91,6 +91,7 @@ export default function WikiSettingsPage() {
               />
             )}
           />
+          <Divider margin={0} />
           <SettingRow
             title="同步 AI 知识库"
             description="开启后，已开启同步的空间中发布的文档会自动进入所选 AI 知识库，可在智能对话中引用"
@@ -99,22 +100,25 @@ export default function WikiSettingsPage() {
             )}
           />
           {aiSyncEnabled ? (
-            <SettingRow
-              title="同步目标知识库"
-              description="文档发布后写入的 AI 知识库"
-              control={(
-                <Select
-                  style={{ width: 220 }}
-                  placeholder="选择 AI 知识库"
-                  value={aiSyncKbId ?? undefined}
-                  disabled={!canEdit}
-                  loading={kbQuery.isFetching}
-                  onChange={(v) => setAiSyncKbId(v === undefined ? null : Number(v))}
-                  optionList={(kbQuery.data ?? []).map((kb) => ({ value: kb.id, label: kb.name }))}
-                  showClear
-                />
-              )}
-            />
+            <>
+              <Divider margin={0} />
+              <SettingRow
+                title="同步目标知识库"
+                description="文档发布后写入的 AI 知识库"
+                control={(
+                  <Select
+                    style={{ width: 220 }}
+                    placeholder="选择 AI 知识库"
+                    value={aiSyncKbId ?? undefined}
+                    disabled={!canEdit}
+                    loading={kbQuery.isFetching}
+                    onChange={(v) => setAiSyncKbId(v === undefined ? null : Number(v))}
+                    optionList={(kbQuery.data ?? []).map((kb) => ({ value: kb.id, label: kb.name }))}
+                    showClear
+                  />
+                )}
+              />
+            </>
           ) : null}
           {aiSyncEnabled && (kbQuery.data?.length ?? 0) === 0 && !kbQuery.isFetching ? (
             <Banner
@@ -122,7 +126,13 @@ export default function WikiSettingsPage() {
               description="还没有可用的 AI 知识库，请先到 智能助手 → 知识库 创建一个"
             />
           ) : null}
-        </Card>
+
+          {canEdit ? (
+            <div style={{ marginTop: 24 }}>
+              <Button theme="solid" loading={updateMutation.isPending} onClick={handleSave}>保存设置</Button>
+            </div>
+          ) : null}
+        </div>
       </Spin>
     </div>
   );
