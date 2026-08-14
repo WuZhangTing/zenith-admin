@@ -19,3 +19,27 @@ describe('loading style preference', () => {
     expect(sanitizeImportedPreferences({ loadingStyle: 'unknown' })).toBeNull();
   });
 });
+
+describe('dark surface tone preference', () => {
+  it('defaults every region to the bg-1 tone', () => {
+    expect(defaultPreferences.darkSidebarTone).toBe('bg-1');
+    expect(defaultPreferences.darkHeaderTone).toBe('bg-1');
+    expect(defaultPreferences.darkContentTone).toBe('bg-1');
+  });
+
+  it('accepts known tones for each region when importing preferences', () => {
+    expect(sanitizeImportedPreferences({
+      darkSidebarTone: 'bg-0',
+      darkHeaderTone: 'bg-1',
+      darkContentTone: 'bg-0',
+    })).toEqual({
+      darkSidebarTone: 'bg-0',
+      darkHeaderTone: 'bg-1',
+      darkContentTone: 'bg-0',
+    });
+  });
+
+  it('rejects unknown tones when importing preferences', () => {
+    expect(sanitizeImportedPreferences({ darkContentTone: 'bg-2' })).toBeNull();
+  });
+});

@@ -724,6 +724,9 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
     preferences.colorBlind ? 'admin-layout--color-blind' : '',
     reduceMotion ? 'admin-layout--reduce-motion' : '',
     (preferences.contentWidth ?? 'fluid') === 'fixed' ? 'admin-layout--content-fixed' : '',
+    preferences.darkSidebarTone === 'bg-0' ? 'admin-layout--dark-sidebar-deep' : '',
+    preferences.darkHeaderTone === 'bg-0' ? 'admin-layout--dark-header-deep' : '',
+    preferences.darkContentTone === 'bg-0' ? 'admin-layout--dark-content-deep' : '',
   ].filter(Boolean).join(' ');
   // .semi-always-dark 会把 --semi-color-primary 复位成 Semi 默认蓝，品牌主色需按深色档重新注入
   const sectionDarkVars = useMemo((): Record<string, string> => {

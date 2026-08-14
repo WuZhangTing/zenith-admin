@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 import { Button, ColorPicker, InputNumber, Popover, Radio, RadioGroup, Select, Switch, Tooltip } from '@douyinfe/semi-ui';
 import { Check, ClipboardPaste, Copy, Info, Palette } from 'lucide-react';
-import { LOADING_STYLE_OPTIONS } from '@/hooks/usePreferences';
-import type { NavLayout, TableSizePreference, RouteAnimation, BorderRadiusPreference, TabStyle, UserPreferences } from '@/hooks/usePreferences';
+import { LOADING_STYLE_OPTIONS, DARK_SURFACE_TONE_OPTIONS } from '@/hooks/usePreferences';
+import type { NavLayout, TableSizePreference, RouteAnimation, BorderRadiusPreference, TabStyle, DarkSurfaceTone, UserPreferences } from '@/hooks/usePreferences';
 import type { ThemeMode } from '@/hooks/useTheme';
 import { THEME_COLOR_PRESETS } from '@/lib/theme-color';
 import { confirmDanger } from '@/utils/confirm';
@@ -79,6 +79,34 @@ export function PrefsLayoutSection({
 }
 
 // ── 外观 ──
+function PrefDarkToneRow({
+  label,
+  hint,
+  value,
+  onChange,
+}: Readonly<{
+  label: string;
+  hint: string;
+  value: DarkSurfaceTone;
+  onChange: (tone: DarkSurfaceTone) => void;
+}>) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        {label}
+        <Tooltip content={hint} position="right">
+          <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+        </Tooltip>
+      </span>
+      <RadioGroup type="button" value={value} onChange={(e) => onChange(e.target.value as DarkSurfaceTone)}>
+        {DARK_SURFACE_TONE_OPTIONS.map((option) => (
+          <Radio key={option.value} value={option.value}>{option.label}</Radio>
+        ))}
+      </RadioGroup>
+    </div>
+  );
+}
+
 export function PrefsAppearanceSection({
   prefSection,
   matchesPref,
@@ -129,6 +157,32 @@ export function PrefsAppearanceSection({
         <span>侧边栏深色模式</span>
         <Switch checked={preferences.sidebarDarkMode ?? false} onChange={(v) => setPreferences({ sidebarDarkMode: v })} />
       </div>
+      )}
+
+      {/* ── 深色底色档位（仅深色模式下可调；分区深色区域同样跟随） ── */}
+      {isDark && matchesPref(['侧边栏底色', '底色', '色调', '深浅', '侧边栏']) && (
+      <PrefDarkToneRow
+        label="侧边栏底色"
+        hint="标准与卡片、表格同色；更深会比标准再暗一档，让侧边栏从内容中分离出来"
+        value={preferences.darkSidebarTone ?? 'bg-1'}
+        onChange={(tone) => setPreferences({ darkSidebarTone: tone })}
+      />
+      )}
+      {isDark && matchesPref(['顶部底色', '底色', '色调', '深浅', '顶部', '顶栏', '标签栏', '面包屑']) && (
+      <PrefDarkToneRow
+        label="顶部底色"
+        hint="作用于顶栏、头部、面包屑栏与标签栏；更深会让整条顶部区域比内容更暗"
+        value={preferences.darkHeaderTone ?? 'bg-1'}
+        onChange={(tone) => setPreferences({ darkHeaderTone: tone })}
+      />
+      )}
+      {isDark && matchesPref(['主区域底色', '底色', '色调', '深浅', '主区域', '内容区', '画布']) && (
+      <PrefDarkToneRow
+        label="主区域底色"
+        hint="作用于内容画布；更深时卡片与表格会从画布中浮起，形成明度层次"
+        value={preferences.darkContentTone ?? 'bg-1'}
+        onChange={(tone) => setPreferences({ darkContentTone: tone })}
+      />
       )}
 
       {/* ── 主题色 ── */}

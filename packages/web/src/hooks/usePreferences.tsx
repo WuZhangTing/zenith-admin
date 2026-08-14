@@ -24,6 +24,14 @@ export function isLoadingStyle(value: unknown): value is LoadingStyle {
   return typeof value === 'string' && LOADING_STYLES.includes(value as LoadingStyle);
 }
 
+/** 深色底色档位：bg-1 = Semi「次下层」（#232429，默认）/ bg-0 = Semi「最下层」（#16161a，更深） */
+export const DARK_SURFACE_TONES = ['bg-1', 'bg-0'] as const;
+export type DarkSurfaceTone = (typeof DARK_SURFACE_TONES)[number];
+export const DARK_SURFACE_TONE_OPTIONS: readonly { value: DarkSurfaceTone; label: string }[] = [
+  { value: 'bg-1', label: '标准' },
+  { value: 'bg-0', label: '更深' },
+];
+
 /** Web 终端文件夹收藏项 */
 export interface TerminalFavorite {
   /** 目录绝对路径 */
@@ -97,6 +105,12 @@ export interface UserPreferences {
   themeColor: string;
   sidebarDarkMode: boolean;
   headerDarkMode: boolean;
+  /** 深色底色档位——侧边栏（含双列布局的图标栏与子导航） */
+  darkSidebarTone: DarkSurfaceTone;
+  /** 深色底色档位——顶部（顶栏、头部、面包屑栏、标签栏） */
+  darkHeaderTone: DarkSurfaceTone;
+  /** 深色底色档位——主区域（内容画布） */
+  darkContentTone: DarkSurfaceTone;
   showMenuSearch: boolean;
   showFullscreen: boolean;
   showQuickChat: boolean;
@@ -179,6 +193,9 @@ export const defaultPreferences: UserPreferences = {
   themeColor: 'wechat',
   sidebarDarkMode: false,
   headerDarkMode: false,
+  darkSidebarTone: 'bg-1',
+  darkHeaderTone: 'bg-1',
+  darkContentTone: 'bg-1',
   showMenuSearch: true,
   showFullscreen: true,
   showQuickChat: true,
@@ -263,6 +280,9 @@ const PREF_ENUM_VALUES: Partial<Record<keyof UserPreferences, readonly string[]>
   filesViewMode: ['list', 'grid'],
   borderRadius: ['none', 'small', 'medium', 'large'],
   loadingStyle: LOADING_STYLES,
+  darkSidebarTone: DARK_SURFACE_TONES,
+  darkHeaderTone: DARK_SURFACE_TONES,
+  darkContentTone: DARK_SURFACE_TONES,
 };
 
 /**

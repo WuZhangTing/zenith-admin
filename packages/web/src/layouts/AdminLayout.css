@@ -17,7 +17,7 @@
   height: var(--header-height);
   display: flex;
   align-items: center;
-  background: var(--color-sidebar-bg);
+  background: var(--color-header-bg);
   box-shadow: var(--topbar-shadow);
   flex-shrink: 0;
   position: relative;
@@ -570,7 +570,7 @@
 /* Header */
 .admin-header {
   height: var(--header-height);
-  background: var(--color-content-bg);
+  background: var(--color-header-bg);
   border-bottom: 1px solid var(--color-border);
   display: flex;
   align-items: center;
@@ -657,7 +657,7 @@
   align-items: center;
   gap: 8px;
   padding: 0 10px;
-  background: var(--color-content-bg);
+  background: var(--color-header-bg);
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
   position: relative;
@@ -922,7 +922,7 @@
   display: flex;
   align-items: center;
   padding: 0 20px;
-  background: var(--color-content-bg);
+  background: var(--color-header-bg);
   flex-shrink: 0;
   position: relative;
   z-index: 1;
@@ -1161,7 +1161,7 @@
 .admin-tabs-bar {
   display: flex;
   align-items: stretch;
-  background: var(--color-content-bg);
+  background: var(--color-header-bg);
   flex-shrink: 0;
   position: relative;
   z-index: 1;
@@ -1185,7 +1185,7 @@
 /* TabSwitcher chevron — fixed at the right edge, never scrolls */
 .admin-tabs-bar__switcher {
   height: 100%;
-  background: var(--color-content-bg);
+  background: var(--color-header-bg);
   border-left: 1px solid var(--semi-color-border);
   flex-shrink: 0;
 }
@@ -1432,7 +1432,7 @@
   height: 6px !important;
   min-width: 6px !important;
   background-color: var(--semi-color-danger) !important;
-  box-shadow: 0 0 0 1.5px var(--color-content-bg) !important;
+  box-shadow: 0 0 0 1.5px var(--color-header-bg) !important;
   border-radius: 50% !important;
   top: 2px !important;
   right: 2px !important;
@@ -1876,6 +1876,27 @@
   left: 0;
   width: 0;
   height: 0;
+}
+
+/* ===== 深色底色档位（偏好设置：标准 bg-1 / 更深 bg-0，三区各自独立） =====
+   浅色下 bg-0 与 bg-1 同为白色，因此类名无需按明暗切换：只在深色表面上产生差异，
+   全局深色与分区深色一并生效。
+   侧边栏与顶部除根元素外还要各自列出区域元素——分区深色会把同名变量声明在这些元素上
+   （global.css 的 `body .semi-always-dark`，0,1,1），继承值压不过它，需靠 0,2,0 的后代选择器。
+   主区域不参与分区深色，声明在根元素即可，同时让卡片风格页签的激活项跟着一起变。 */
+.admin-layout--dark-sidebar-deep,
+.admin-layout--dark-sidebar-deep .admin-sidebar {
+  --color-sidebar-bg: var(--semi-color-bg-0);
+}
+
+.admin-layout--dark-header-deep,
+.admin-layout--dark-header-deep .admin-topbar,
+.admin-layout--dark-header-deep .admin-header {
+  --color-header-bg: var(--semi-color-bg-0);
+}
+
+.admin-layout--dark-content-deep {
+  --color-content-bg: var(--semi-color-bg-0);
 }
 
 /* ===== 减弱动效模式 ===== */
