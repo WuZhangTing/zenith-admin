@@ -54,6 +54,7 @@ import { useLayoutShortcuts } from './admin/useLayoutShortcuts';
 import { useFlatMenus, useBreadcrumbData, useNavItems, useMenuMaps, useAutoTopKey, useMixedNavItems, useKeepAlivePaths } from './admin/useMenuDerived';
 import { useNavInteractions } from './admin/useNavInteractions';
 import { useScrollMenuIntoView } from './admin/useScrollMenuIntoView';
+import { useSectionDarkPopupContainer } from './admin/useSectionDarkPopup';
 import { MobileQuickPagesPanel } from './admin/MobileQuickPagesPanel';
 import { RecentMenusPopover, FavoritesPopover } from './admin/QuickAccessPopovers';
 import { TenantSwitcher } from './admin/TenantSwitcher';
@@ -705,22 +706,28 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
   })();
   const topNavSelectedKeys = navLayout === 'mixed' ? mixedTopSelectedKeys : horizontalSelectedKeys;
   const stickyNavClass = preferences.sidebarStickyScroll === false ? '' : ' admin-sidebar--sticky-nav';
-  const sidebarClassName = `admin-sidebar${effectiveCollapsed ? ' admin-sidebar--collapsed' : ''}${stickyNavClass}`;
   const mobileHeaderTitle = currentPageTitle ?? displayBreadcrumbs.at(-1)?.title ?? config.appTitle;
+
+  // 分区深色走 Semi 官方的局部暗色：区域根元素挂 .semi-always-dark，整套 --semi-color-* 由 Semi 提供
+  const sidebarDark = Boolean(preferences.sidebarDarkMode);
+  const headerDark = Boolean(preferences.headerDarkMode);
+  const alwaysDarkClass = ' semi-always-dark';
+  const sidebarClassName = `admin-sidebar${effectiveCollapsed ? ' admin-sidebar--collapsed' : ''}${stickyNavClass}${sidebarDark ? alwaysDarkClass : ''}`;
 
   useScrollMenuIntoView(currentSelectedKeys, effectiveCollapsed, preferences.scrollMenuIntoView, reduceMotion);
   const layoutClassName = [
     'admin-layout',
-    preferences.sidebarDarkMode ? 'admin-layout--sidebar-dark' : '',
-    preferences.headerDarkMode ? 'admin-layout--header-dark' : '',
+    sidebarDark ? 'admin-layout--sidebar-dark' : '',
+    headerDark ? 'admin-layout--header-dark' : '',
     isContentFullscreen ? 'admin-layout--content-fullscreen' : '',
     preferences.grayscale ? 'admin-layout--grayscale' : '',
     preferences.colorBlind ? 'admin-layout--color-blind' : '',
     reduceMotion ? 'admin-layout--reduce-motion' : '',
     (preferences.contentWidth ?? 'fluid') === 'fixed' ? 'admin-layout--content-fixed' : '',
   ].filter(Boolean).join(' ');
-  const sectionDarkThemeStyle = useMemo<CSSProperties>(() => {
-    if (!preferences.sidebarDarkMode && !preferences.headerDarkMode) return {};
+  // .semi-always-dark 会把 --semi-color-primary 复位成 Semi 默认蓝，品牌主色需按深色档重新注入
+  const sectionDarkVars = useMemo((): Record<string, string> => {
+    if (!sidebarDark && !headerDark) return {};
     const vars = getThemeColorVars(themeColor, true);
     return {
       '--admin-section-dark-primary': vars.primary,
@@ -730,14 +737,18 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
       '--admin-section-dark-primary-light-hover': vars.lightHover,
       '--admin-section-dark-primary-light-active': vars.lightActive,
       '--admin-section-dark-sidebar-active': vars.sidebarActive,
-    } as CSSProperties;
-  }, [preferences.headerDarkMode, preferences.sidebarDarkMode, themeColor]);
+    };
+  }, [headerDark, sidebarDark, themeColor]);
+  // 导航类弹层（折叠飞出菜单、折叠项 Tooltip、顶部子菜单与溢出菜单）跟随分区深色；
+  // 头部功能面板（消息、公告、用户菜单等）不接入，保持全局配色
+  const getSidebarPopupContainer = useSectionDarkPopupContainer(sidebarDark, sectionDarkVars);
+  const getHeaderPopupContainer = useSectionDarkPopupContainer(headerDark, sectionDarkVars);
 
   const adminLayoutEl = (
     <div
       className={layoutClassName}
       style={{
-        ...sectionDarkThemeStyle,
+        ...(sectionDarkVars as CSSProperties),
         ...(preferences.sidebarWidth && preferences.sidebarWidth !== 216
           ? { '--sidebar-width': `${preferences.sidebarWidth}px` } as CSSProperties
           : {}),
@@ -789,6 +800,8 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
           renderWrapper={renderWrapper}
           handleMixedTopSelect={handleMixedTopSelect}
           headerActions={headerActions}
+          darkClassName={headerDark ? ' semi-always-dark' : ''}
+          getPopupContainer={getHeaderPopupContainer}
         />
       )}
 
@@ -810,6 +823,8 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
               openKeys={openKeys}
               handleSidebarOpenChange={handleSidebarOpenChange}
               renderWrapper={renderWrapper}
+              darkClassName={sidebarDark ? ' semi-always-dark' : ''}
+              getPopupContainer={getSidebarPopupContainer}
             />
           ) : (
             <SidebarNav
@@ -826,6 +841,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
               navigateHome={navigateHome}
               handleNavigateHomeKey={handleNavigateHomeKey}
               renderWrapper={renderWrapper}
+              getPopupContainer={getSidebarPopupContainer}
             />
           )
         )}
@@ -836,7 +852,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
           {(preferences.showProgressBar ?? true) && <NProgress />}
           {/* Vertical mode has its own header bar */}
           {!isMobileNav && (navLayout === 'vertical' || navLayout === 'double') && (
-            <header className="admin-header">
+            <header className={`admin-header${headerDark ? ' semi-always-dark' : ''}`}>
               {/* Left: breadcrumb (vertical / double layouts only) */}
               {preferences.showBreadcrumb && displayBreadcrumbs.length > 0 ? (
                 <HeaderBreadcrumb

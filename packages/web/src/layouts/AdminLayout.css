@@ -1845,108 +1845,63 @@
   display: none;
 }
 
-/* ===== 分区深色模式（浅色主题下单独启用的深色区域） ===== */
+/* ===== 分区深色模式（浅色主题下单独启用的深色区域） =====
+   走 Semi 官方的局部暗色：侧边栏 / 顶栏 / 头部根元素挂 .semi-always-dark（见 AdminLayout.tsx），
+   整套 --semi-color-* 由 Semi 的深色色盘提供，Semi 组件（Nav / Input / Select…）自动跟随。
+   这里只补 Semi 管不到的两件事：
+   1. 布局自有的 --color-* 语义变量对齐到 Semi 深色 token —— 供不走 Semi 组件的自定义 DOM 使用；
+   2. 重新注入品牌主色 —— .semi-always-dark 会把 --semi-color-primary 复位成 Semi 默认蓝，
+      盖掉 applyThemeColor 挂在 body 上的主题色。 */
 .admin-layout--sidebar-dark .admin-sidebar,
-.admin-layout--sidebar-dark .double-sidebar__rail,
-.admin-layout--sidebar-dark .double-sidebar__sub {
-  --color-sidebar-bg: #232429;
-  --color-sidebar-hover: rgba(255, 255, 255, 0.08);
-  --color-sidebar-text: rgba(255, 255, 255, 0.65);
-  --color-sidebar-title: #ffffff;
-  --color-sidebar-text-active: #ffffff;
+.admin-layout--header-dark .admin-topbar,
+.admin-layout--header-dark .admin-header {
+  --color-sidebar-bg: var(--semi-color-nav-bg);
+  --color-layout-bg: var(--semi-color-nav-bg);
+  --color-sidebar-hover: var(--semi-color-fill-0);
+  --color-layout-hover: var(--semi-color-fill-0);
+  --color-sidebar-text: var(--semi-color-text-2);
+  --color-sidebar-title: var(--semi-color-text-0);
+  --color-sidebar-text-active: var(--semi-color-text-0);
+  --color-text: var(--semi-color-text-0);
+  --color-text-secondary: var(--semi-color-text-2);
+  --color-border: var(--semi-color-border);
   --color-primary: var(--admin-section-dark-primary);
   --color-sidebar-active: var(--admin-section-dark-sidebar-active);
-  --color-border: #2e3340;
-  --color-text-secondary: #8f96a3;
-  --semi-color-primary: var(--admin-section-dark-primary);
-  --semi-color-primary-hover: var(--admin-section-dark-primary-hover);
-  --semi-color-primary-active: var(--admin-section-dark-primary-active);
-  --semi-color-primary-light-default: var(--admin-section-dark-primary-light-default);
-  --semi-color-primary-light-hover: var(--admin-section-dark-primary-light-hover);
-  --semi-color-primary-light-active: var(--admin-section-dark-primary-light-active);
-  --semi-color-text-0: #e8eaed;
-  --semi-color-text-1: rgba(255, 255, 255, 0.8);
-  --semi-color-text-2: rgba(255, 255, 255, 0.65);
-  --semi-color-fill-0: rgba(255, 255, 255, 0.08);
-  --semi-color-fill-1: rgba(255, 255, 255, 0.12);
-  --semi-color-border: #2e3340;
   color-scheme: dark;
 }
 
 .admin-layout--header-dark .admin-topbar,
 .admin-layout--header-dark .admin-header {
-  --color-layout-bg: #232429;
-  --color-sidebar-bg: #232429;
-  --color-layout-hover: rgba(255, 255, 255, 0.08);
-  --color-sidebar-hover: rgba(255, 255, 255, 0.08);
-  --color-sidebar-text: rgba(255, 255, 255, 0.65);
-  --color-sidebar-title: #ffffff;
-  --color-sidebar-text-active: #ffffff;
-  --color-primary: var(--admin-section-dark-primary);
-  --color-sidebar-active: var(--admin-section-dark-sidebar-active);
-  --color-text: #e8eaed;
-  --color-text-secondary: #8f96a3;
-  --color-border: #2e3340;
   --topbar-shadow: 0 1px 6px rgba(0, 0, 0, 0.18);
+}
+
+/* 品牌主色重注入。弹层挂载点用 .admin-dark-popup-root.semi-always-dark 抬高特异性，
+   确保压过 Semi 自身的 `body .semi-always-dark` 规则（同为 0,1,1 时依赖打包顺序，不可靠）。 */
+.admin-layout--sidebar-dark .admin-sidebar,
+.admin-layout--header-dark .admin-topbar,
+.admin-layout--header-dark .admin-header,
+.admin-dark-popup-root.semi-always-dark {
   --semi-color-primary: var(--admin-section-dark-primary);
   --semi-color-primary-hover: var(--admin-section-dark-primary-hover);
   --semi-color-primary-active: var(--admin-section-dark-primary-active);
   --semi-color-primary-light-default: var(--admin-section-dark-primary-light-default);
   --semi-color-primary-light-hover: var(--admin-section-dark-primary-light-hover);
   --semi-color-primary-light-active: var(--admin-section-dark-primary-light-active);
-  --semi-color-text-0: #e8eaed;
-  --semi-color-text-1: rgba(255, 255, 255, 0.8);
-  --semi-color-text-2: rgba(255, 255, 255, 0.65);
-  --semi-color-fill-0: rgba(255, 255, 255, 0.08);
-  --semi-color-fill-1: rgba(255, 255, 255, 0.12);
-  --semi-color-border: #2e3340;
+}
+
+/* 分区深色的弹层挂载点（useSectionDarkPopup.ts 动态创建）。
+   侧边栏 / 顶栏自身 overflow: hidden，不能直接作容器，故挂到 body 下：
+   零尺寸 + 定位于文档原点，Semi 以 containerRect 做坐标换算，效果与默认的 body 完全一致。 */
+.admin-dark-popup-root {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+}
+
+.admin-dark-popup-root.semi-always-dark {
   color-scheme: dark;
-}
-
-.admin-layout--sidebar-dark .admin-sidebar__nav .semi-navigation-item,
-.admin-layout--sidebar-dark .admin-sidebar__nav .semi-navigation-sub-title,
-.admin-layout--sidebar-dark .admin-sidebar__nav .semi-navigation-item-icon,
-.admin-layout--sidebar-dark .admin-sidebar__nav .semi-navigation-sub-icon,
-.admin-layout--sidebar-dark .admin-sidebar__nav .semi-navigation-item-text,
-.admin-layout--sidebar-dark .admin-sidebar__nav .semi-navigation-sub-text,
-.admin-layout--sidebar-dark .admin-sidebar__nav .semi-navigation-sub-title-text {
-  color: var(--color-sidebar-text) !important;
-}
-
-.admin-layout--sidebar-dark .admin-sidebar__nav .semi-navigation-item-selected,
-.admin-layout--sidebar-dark .admin-sidebar__nav .semi-navigation-sub-selected,
-.admin-layout--sidebar-dark .admin-sidebar__nav .semi-navigation-item-selected .semi-navigation-item-icon,
-.admin-layout--sidebar-dark .admin-sidebar__nav .semi-navigation-sub-selected .semi-navigation-sub-icon,
-.admin-layout--sidebar-dark .admin-sidebar__nav .semi-navigation-item-selected .semi-navigation-item-text,
-.admin-layout--sidebar-dark .admin-sidebar__nav .semi-navigation-sub-selected .semi-navigation-sub-title-text {
-  color: var(--color-sidebar-text-active) !important;
-}
-
-.admin-layout--header-dark .admin-topbar__nav .semi-navigation-item,
-.admin-layout--header-dark .admin-topbar__nav .semi-navigation-sub-title,
-.admin-layout--header-dark .admin-topbar__nav .semi-navigation-item-icon,
-.admin-layout--header-dark .admin-topbar__nav .semi-navigation-item-text {
-  color: var(--color-sidebar-text);
-}
-
-.admin-layout--header-dark .admin-topbar__nav .semi-navigation-item-selected,
-.admin-layout--header-dark .admin-topbar__nav .semi-navigation-sub-title-selected,
-.admin-layout--header-dark .admin-topbar__nav .semi-navigation-item-selected .semi-navigation-item-icon,
-.admin-layout--header-dark .admin-topbar__nav .semi-navigation-item-selected .semi-navigation-item-text {
-  color: var(--color-sidebar-text-active);
-}
-
-.admin-layout--header-dark .admin-menu-search .semi-input-wrapper,
-.admin-layout--header-dark .admin-header__actions .semi-select {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: var(--color-border);
-}
-
-.admin-layout--header-dark .admin-menu-search .semi-input,
-.admin-layout--header-dark .admin-menu-search .semi-input-prefix,
-.admin-layout--header-dark .admin-header__actions .semi-select-selection-text,
-.admin-layout--header-dark .admin-header__actions .semi-select-prefix {
-  color: var(--color-text);
 }
 
 /* ===== 减弱动效模式 ===== */
