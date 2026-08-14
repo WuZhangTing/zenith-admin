@@ -19,10 +19,7 @@
    `body, body .semi-always-light, :host, …`），在 html 上引用会取到空值。 */
 body {
   --color-layout-bg: var(--semi-color-nav-bg);
-  /* 内容区画布，头部/面包屑/标签栏与其同色（对齐 Semi 官网：仅侧边导航提升一档）。
-     浅色下与 nav-bg 同值（全白靠边框分隔）；深色下取 bg-0 暗一档，
-     与侧边栏（nav-bg = bg-1）形成明度阶梯。 */
-  --color-content-bg: var(--semi-color-nav-bg);
+  --color-content-bg: var(--semi-color-bg-1);
   --color-layout-hover: var(--semi-color-fill-0);
   --color-sidebar-bg: var(--semi-color-nav-bg);
   --color-sidebar-hover: var(--semi-color-fill-0);
@@ -45,7 +42,7 @@ body[theme-mode='dark'],
 body .semi-always-dark {
   --color-sidebar-bg: var(--semi-color-nav-bg);
   --color-layout-bg: var(--semi-color-nav-bg);
-  --color-content-bg: var(--semi-color-bg-0);
+  --color-content-bg: var(--semi-color-bg-1);
   --color-layout-hover: var(--semi-color-fill-0);
   --color-sidebar-hover: var(--semi-color-fill-0);
   --color-sidebar-text: var(--semi-color-text-2);
