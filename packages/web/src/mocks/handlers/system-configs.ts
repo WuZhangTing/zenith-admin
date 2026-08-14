@@ -26,7 +26,7 @@ export const systemConfigsHandlers = [
     }
 
     let list = mockSystemConfigs.filter((c) => {
-      if (keyword && !c.configKey.includes(keyword) && !c.description.includes(keyword)) return false;
+      if (keyword && !c.configKey.includes(keyword) && !c.configName.includes(keyword) && !c.description.includes(keyword)) return false;
       if (configType && c.configType !== configType) return false;
       return true;
     });
@@ -55,6 +55,7 @@ export const systemConfigsHandlers = [
     const newConfig: SystemConfig = {
       id: nextIdFrom(mockSystemConfigs),
       configKey: body.configKey ?? '',
+      configName: body.configName ?? '',
       configValue: body.configValue ?? '',
       configType: body.configType ?? 'string',
       description: body.description ?? '',

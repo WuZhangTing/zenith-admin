@@ -9,6 +9,7 @@ import type { ExportColumn } from '../types';
 const columns: ExportColumn[] = [
   { key: 'id', header: 'ID', width: 8, type: 'number' },
   { key: 'configKey', header: '配置键', width: 30 },
+  { key: 'configName', header: '配置名称', width: 24 },
   { key: 'configValue', header: '配置值', width: 40 },
   { key: 'configType', header: '类型', width: 10 },
   { key: 'description', header: '描述', width: 30 },

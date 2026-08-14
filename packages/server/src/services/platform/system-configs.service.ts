@@ -1,5 +1,5 @@
-import { eq, like, and, ne, desc, inArray } from 'drizzle-orm';
-import { mergeWhere, withPagination } from '../../lib/where-helpers';
+import { eq, and, ne, desc, inArray } from 'drizzle-orm';
+import { mergeWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { systemConfigs } from '../../db/schema';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
@@ -44,7 +44,7 @@ export async function listSystemConfigs(q: ListSystemConfigsQuery) {
   const page = Number(q.page) || 1;
   const pageSize = Number(q.pageSize) || 10;
   const conditions = [];
-  if (q.keyword) conditions.push(like(systemConfigs.configKey, `%${q.keyword}%`));
+  conditions.push(keywordCondition(q.keyword, [systemConfigs.configKey, systemConfigs.configName, systemConfigs.description]));
   if (q.configType) conditions.push(eq(systemConfigs.configType, q.configType));
   const where = and(...conditions);
   const finalWhere = mergeWhere(where, tc);
@@ -57,6 +57,7 @@ export async function listSystemConfigs(q: ListSystemConfigsQuery) {
 
 export interface SystemConfigInput {
   configKey: string;
+  configName: string;
   configValue: string;
   configType: ConfigType;
   description?: string;

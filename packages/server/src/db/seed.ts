@@ -298,6 +298,7 @@ async function seedRest() {
   if (cfgsToInsert.length > 0) {
     await db.insert(systemConfigs).values(cfgsToInsert.map((cfg) => ({
       configKey:   cfg.configKey,
+      configName:  cfg.configName,
       configValue: cfg.configValue,
       configType:  cfg.configType,
       description: cfg.description ?? '',

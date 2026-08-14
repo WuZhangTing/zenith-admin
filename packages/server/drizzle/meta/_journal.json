@@ -113,6 +113,13 @@
       "when": 1786594433517,
       "tag": "0015_monitor_alert_handling",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1786692879899,
+      "tag": "0016_first_warbound",
+      "breakpoints": true
     }
   ]
 }

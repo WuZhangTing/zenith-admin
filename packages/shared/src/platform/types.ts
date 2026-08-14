@@ -430,6 +430,7 @@ export type ConfigType = 'string' | 'number' | 'boolean' | 'json';
 export interface SystemConfig {
   id: number;
   configKey: string;
+  configName: string;
   configValue: string;
   configType: ConfigType;
   description: string;

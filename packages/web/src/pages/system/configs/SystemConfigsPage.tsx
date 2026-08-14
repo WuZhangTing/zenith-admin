@@ -78,6 +78,7 @@ export default function SystemConfigsPage() {
     defaults: { configType: 'string' },
     toValues: (config) => ({
       configKey: config.configKey,
+      configName: config.configName,
       configValue: config.configValue,
       configType: config.configType,
       description: config.description,
@@ -146,6 +147,7 @@ export default function SystemConfigsPage() {
 
   const columns: ColumnProps<SystemConfig>[] = [
     { title: '配置键', dataIndex: 'configKey', width: 220, render: renderEllipsis },
+    { title: '配置名称', dataIndex: 'configName', width: 160, render: renderEllipsis },
     { title: '配置值', dataIndex: 'configValue', width: 140, render: renderEllipsis },
     {
       title: '类型',
@@ -185,7 +187,7 @@ export default function SystemConfigsPage() {
       <SearchToolbar
         primary={(
           <>
-          <KeywordInput placeholder="搜索配置键/描述" value={draftParams.keyword} onChange={(value) => setDraftParams((p) => ({ ...p, keyword: value }))} onSearch={handleSearch} width={240} />
+          <KeywordInput placeholder="搜索配置键/名称/描述" value={draftParams.keyword} onChange={(value) => setDraftParams((p) => ({ ...p, keyword: value }))} onSearch={handleSearch} width={240} />
           <Select
             placeholder="配置类型"
             value={draftParams.configType || undefined}
@@ -208,7 +210,7 @@ export default function SystemConfigsPage() {
         )}
         mobilePrimary={(
           <>
-            <KeywordInput placeholder="搜索配置键/描述" value={draftParams.keyword} onChange={(value) => setDraftParams((p) => ({ ...p, keyword: value }))} onSearch={handleSearch} width={240} />
+            <KeywordInput placeholder="搜索配置键/名称/描述" value={draftParams.keyword} onChange={(value) => setDraftParams((p) => ({ ...p, keyword: value }))} onSearch={handleSearch} width={240} />
             <SearchButton onClick={handleSearch} />
             {hasPermission('system:config:create') && (
               <CreateButton onClick={modal.openCreate} />
@@ -260,6 +262,12 @@ export default function SystemConfigsPage() {
             label="配置键"
             rules={[{ required: true, message: '请输入配置键' }]}
             disabled={modal.isEdit}
+          />
+          <Form.Input
+            field="configName"
+            label="配置名称"
+            placeholder="请输入配置名称"
+            rules={[{ required: true, message: '请输入配置名称' }]}
           />
           {configType === 'json' ? (
             <Form.Slot label={{ text: '配置值' }}>

@@ -14,6 +14,7 @@ export const configTypeEnum = pgEnum('config_type', ['string', 'number', 'boolea
 export const systemConfigs = pgTable('system_configs', {
   id: serial('id').primaryKey(),
   configKey: varchar('config_key', { length: 128 }).notNull(),
+  configName: varchar('config_name', { length: 128 }).notNull().default(''),
   configValue: varchar('config_value', { length: 4096 }).notNull().default(''),
   configType: configTypeEnum('config_type').notNull().default('string'),
   description: varchar('description', { length: 256 }).notNull().default(''),

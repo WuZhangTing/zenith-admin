@@ -8,6 +8,7 @@ export const SystemConfigDTO = z
   .object({
     id: z.number().int(),
     configKey: z.string().openapi({ example: 'site_title' }),
+    configName: z.string().openapi({ example: '站点名称' }),
     configValue: z.string().openapi({ example: 'Zenith Admin' }),
     configType: z.enum(['string', 'number', 'boolean', 'json']),
     description: z.string(),

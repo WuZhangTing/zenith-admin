@@ -91,6 +91,7 @@ async function saveFingerprints(fingerprints: Record<string, string>): Promise<v
   if (updated.length === 0) {
     await db.insert(systemConfigs).values({
       configKey: CONFIG_KEY,
+      configName: 'CMS 主题指纹',
       configValue: value,
       configType: 'json',
       description: 'CMS 主题代码指纹（启动自动检测，变更触发静态页重建；系统维护，勿手改）',
