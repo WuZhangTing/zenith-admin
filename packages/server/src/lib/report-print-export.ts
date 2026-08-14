@@ -540,8 +540,14 @@ export async function renderPrintResultToDocx(result: ReportPrintRenderResult): 
   return buffer;
 }
 
+// 字体安装状态运行期不变：首次探测后缓存，避免每次导出重复 existsSync
+let cachedPdfFontPath: string | null | undefined;
+
 function resolvePdfFontPath() {
-  return PDF_FONT_CANDIDATES.find((candidate) => fs.existsSync(candidate)) ?? null;
+  if (cachedPdfFontPath === undefined) {
+    cachedPdfFontPath = PDF_FONT_CANDIDATES.find((candidate) => fs.existsSync(candidate)) ?? null;
+  }
+  return cachedPdfFontPath;
 }
 
 function resultContainsCjk(result: ReportPrintRenderResult): boolean {
