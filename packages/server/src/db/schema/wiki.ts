@@ -70,6 +70,17 @@ export const wikiDocs = pgTable('wiki_docs', {
   revision: integer('revision').notNull().default(1),
   /** 发布后是否要求读者点击「确认已读」（制度宣贯） */
   requireReadReceipt: boolean('require_read_receipt').notNull().default(false),
+  // ─── 治理字段（P2-D）────────────────────────────────────────────────────────
+  /** 内容负责人；null = 无负责人（治理清单跟进），创建时默认为作者 */
+  ownerId: integer('owner_id').references(() => users.id, { onDelete: 'set null' }),
+  /** 有效期；过期后进入治理「已过期」清单 */
+  expireAt: timestamp('expire_at'),
+  /** 复审周期（天）；0/null = 不复审 */
+  reviewCycleDays: integer('review_cycle_days'),
+  /** 下次复审时间；到期进入治理「待复审」清单 */
+  nextReviewAt: timestamp('next_review_at'),
+  /** 归档：默认从目录树/列表/搜索隐藏，仅治理页可见 */
+  isArchived: boolean('is_archived').notNull().default(false),
   publishedAt: timestamp('published_at'),
   /** 软删除时间；非 null 表示在回收站 */
   deletedAt: timestamp('deleted_at'),

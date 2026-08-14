@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Banner, Button, Divider, Select, Spin, Switch, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Divider, InputNumber, Select, Spin, Switch, Toast, Typography } from '@douyinfe/semi-ui';
 import type { WikiSpaceVisibility } from '@zenith/shared/wiki';
 import { WIKI_SPACE_VISIBILITY_OPTIONS } from '@zenith/shared/wiki';
 import { usePermission } from '@/hooks/usePermission';
@@ -37,6 +37,9 @@ export default function WikiSettingsPage() {
   const [defaultVisibility, setDefaultVisibility] = useState<WikiSpaceVisibility>('public');
   const [aiSyncEnabled, setAiSyncEnabled] = useState(false);
   const [aiSyncKbId, setAiSyncKbId] = useState<number | null>(null);
+  const [commentsEnabled, setCommentsEnabled] = useState(true);
+  const [recycleRetentionDays, setRecycleRetentionDays] = useState(0);
+  const [pendingRemindHours, setPendingRemindHours] = useState(48);
 
   const kbQuery = useAvailableKnowledgeBases(aiSyncEnabled);
 
@@ -48,6 +51,9 @@ export default function WikiSettingsPage() {
     setDefaultVisibility(s.defaultVisibility);
     setAiSyncEnabled(s.aiSyncEnabled);
     setAiSyncKbId(s.aiSyncKbId);
+    setCommentsEnabled(s.commentsEnabled);
+    setRecycleRetentionDays(s.recycleRetentionDays);
+    setPendingRemindHours(s.pendingRemindHours);
   }, [settingsQuery.data]);
 
   function handleSave() {
@@ -56,7 +62,7 @@ export default function WikiSettingsPage() {
       return;
     }
     updateMutation.mutate(
-      { requireApproval, defaultVisibility, aiSyncEnabled, aiSyncKbId },
+      { requireApproval, defaultVisibility, aiSyncEnabled, aiSyncKbId, commentsEnabled, recycleRetentionDays, pendingRemindHours },
       { onSuccess: () => Toast.success('设置已保存') },
     );
   }
@@ -126,6 +132,46 @@ export default function WikiSettingsPage() {
               description="还没有可用的 AI 知识库，请先到 智能助手 → 知识库 创建一个"
             />
           ) : null}
+          <Divider margin={0} />
+          <SettingRow
+            title="允许评论"
+            description="关闭后所有文档暂停新评论，已有评论保留展示"
+            control={(
+              <Switch checked={commentsEnabled} disabled={!canEdit} onChange={setCommentsEnabled} />
+            )}
+          />
+          <Divider margin={0} />
+          <SettingRow
+            title="回收站保留天数"
+            description="超期的已删除文档由每日治理任务彻底清理；0 表示永久保留"
+            control={(
+              <InputNumber
+                style={{ width: 140 }}
+                min={0}
+                max={3650}
+                disabled={!canEdit}
+                value={recycleRetentionDays}
+                onChange={(v) => setRecycleRetentionDays(Number(v) || 0)}
+                suffix="天"
+              />
+            )}
+          />
+          <Divider margin={0} />
+          <SettingRow
+            title="审核积压提醒时限"
+            description="待审核文档超过该时长未处理时进入治理「审核积压」清单"
+            control={(
+              <InputNumber
+                style={{ width: 140 }}
+                min={1}
+                max={720}
+                disabled={!canEdit}
+                value={pendingRemindHours}
+                onChange={(v) => setPendingRemindHours(Number(v) || 48)}
+                suffix="小时"
+              />
+            )}
+          />
 
           {canEdit ? (
             <div style={{ marginTop: 24 }}>

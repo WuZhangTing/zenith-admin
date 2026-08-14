@@ -52,6 +52,12 @@ export const mockWikiDocs: MockWikiDoc[] = SEED_WIKI_DOCS.map((d, i) => ({
   currentVersion: 1,
   revision: 1,
   requireReadReceipt: false,
+  ownerId: 1,
+  ownerName: '管理员',
+  expireAt: null,
+  reviewCycleDays: null,
+  nextReviewAt: null,
+  isArchived: false,
   publishedAt: d.status === 'published' ? now : null,
   deletedAt: null,
   tagIds: [...d.tagIds],
@@ -94,6 +100,9 @@ export const mockWikiSettings: WikiSettings = {
   defaultVisibility: 'public',
   aiSyncEnabled: false,
   aiSyncKbId: null,
+  commentsEnabled: true,
+  recycleRetentionDays: 0,
+  pendingRemindHours: 48,
 };
 
 let nextSpaceId = nextIdFrom(mockWikiSpaces);

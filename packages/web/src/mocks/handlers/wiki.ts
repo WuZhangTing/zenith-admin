@@ -287,6 +287,12 @@ const docHandlers = [
       currentVersion: 1,
       revision: 1,
       requireReadReceipt: (body as { requireReadReceipt?: boolean }).requireReadReceipt ?? false,
+      ownerId: 1,
+      ownerName: '管理员',
+      expireAt: null,
+      reviewCycleDays: null,
+      nextReviewAt: null,
+      isArchived: false,
       publishedAt: null,
       deletedAt: null,
       tagIds: body.tagIds ?? [],
@@ -714,12 +720,150 @@ const settingsHandlers = [
   }),
 ];
 
+// ─── 治理 ─────────────────────────────────────────────────────────────────────
+
+const governanceHandlers = [
+  http.get('/api/wiki/governance/docs', ({ request }) => {
+    const url = new URL(request.url);
+    const kind = url.searchParams.get('kind') || 'expired';
+    let list = mockWikiDocs.filter((d) => !d.deletedAt);
+    if (kind === 'archived') list = list.filter((d) => d.isArchived);
+    else if (kind === 'no-owner') list = list.filter((d) => !d.isArchived && d.ownerId == null);
+    else if (kind === 'draft-backlog') list = list.filter((d) => !d.isArchived && d.status === 'draft');
+    else if (kind === 'review-backlog') list = list.filter((d) => !d.isArchived && d.status === 'pending');
+    else list = [];
+    const rows = list.map((d) => ({
+      id: d.id,
+      spaceId: d.spaceId,
+      spaceName: spaceName(d.spaceId),
+      title: d.title,
+      status: d.status,
+      ownerId: d.ownerId ?? null,
+      ownerName: d.ownerName ?? null,
+      expireAt: d.expireAt ?? null,
+      reviewCycleDays: d.reviewCycleDays ?? null,
+      nextReviewAt: d.nextReviewAt ?? null,
+      isArchived: d.isArchived,
+      updatedAt: d.updatedAt,
+    }));
+    return ok(paginate(rows, url));
+  }),
+
+  http.get('/api/wiki/governance/no-result-keywords', () => ok([
+    { keyword: '差旅报销标准', searchCount: 6, lastSearchedAt: mockDateTime() },
+    { keyword: 'VPN 配置', searchCount: 3, lastSearchedAt: mockDateTime() },
+  ])),
+
+  http.post('/api/wiki/governance/remind', async ({ request }) => {
+    const { ids = [] } = (await request.json()) as { ids?: number[] };
+    return ok(null, `已提醒 ${ids.length} 位负责人`);
+  }),
+
+  http.post('/api/wiki/governance/archive', async ({ request }) => {
+    const { ids = [], archived } = (await request.json()) as { ids?: number[]; archived: boolean };
+    for (const doc of mockWikiDocs) {
+      if (ids.includes(doc.id)) doc.isArchived = archived;
+    }
+    return ok(null, `${archived ? '已归档' : '已取消归档'} ${ids.length} 篇`);
+  }),
+
+  http.post('/api/wiki/governance/owner', async ({ request }) => {
+    const { ids = [], ownerId } = (await request.json()) as { ids?: number[]; ownerId: number };
+    for (const doc of mockWikiDocs) {
+      if (ids.includes(doc.id)) {
+        doc.ownerId = ownerId;
+        doc.ownerName = `用户 ${ownerId}`;
+      }
+    }
+    return ok(null, `已为 ${ids.length} 篇文档指定负责人`);
+  }),
+
+  http.post('/api/wiki/governance/review-cycle', async ({ request }) => {
+    const { ids = [], reviewCycleDays, expireAt } = (await request.json()) as { ids?: number[]; reviewCycleDays: number; expireAt?: string | null };
+    for (const doc of mockWikiDocs) {
+      if (ids.includes(doc.id)) {
+        doc.reviewCycleDays = reviewCycleDays;
+        doc.nextReviewAt = mockDateTime();
+        if (expireAt !== undefined) doc.expireAt = expireAt;
+      }
+    }
+    return ok(null, `已为 ${ids.length} 篇文档设置复审`);
+  }),
+
+  http.post('/api/wiki/governance/import', async ({ request }) => {
+    const body = (await request.json()) as { spaceId: number; parentId?: number | null; files: Array<{ name: string; content: string }> };
+    const docIds: number[] = [];
+    const created = mockDateTime();
+    for (const file of body.files) {
+      const headingMatch = /^#\s+(.+)$/m.exec(file.content);
+      const doc: MockWikiDoc = {
+        id: getNextWikiDocId(),
+        spaceId: body.spaceId,
+        parentId: body.parentId ?? null,
+        title: (headingMatch?.[1] ?? file.name.replace(/\.(md|markdown|txt)$/i, '')).trim().slice(0, 200),
+        summary: null,
+        content: file.content,
+        status: 'draft',
+        rejectReason: null,
+        sort: 0,
+        isPinned: false,
+        viewCount: 0,
+        currentVersion: 1,
+        revision: 1,
+        requireReadReceipt: false,
+        ownerId: 1,
+        ownerName: '管理员',
+        expireAt: null,
+        reviewCycleDays: null,
+        nextReviewAt: null,
+        isArchived: false,
+        publishedAt: null,
+        deletedAt: null,
+        tagIds: [],
+        authorName: '管理员',
+        createdBy: 1,
+        createdAt: created,
+        updatedAt: created,
+      };
+      mockWikiDocs.push(doc);
+      docIds.push(doc.id);
+    }
+    return ok({ importedCount: docIds.length, docIds }, `已导入 ${docIds.length} 篇草稿`);
+  }),
+];
+
+// ─── 运营统计 ─────────────────────────────────────────────────────────────────
+
+const opsStatsHandlers = [
+  http.get('/api/wiki/stats/ops', () => {
+    const active = mockWikiDocs.filter((d) => !d.deletedAt);
+    return ok({
+      createdTrend: [{ date: mockDateTime().slice(0, 10), count: active.length }],
+      spaceDistribution: mockWikiSpaces.map((s) => ({
+        spaceName: s.name,
+        count: active.filter((d) => d.spaceId === s.id).length,
+      })),
+      searchCount30d: 12,
+      noResultCount30d: 2,
+      approvedCount30d: mockReviewRecords.filter((r) => r.action === 'approve').length,
+      rejectedCount30d: mockReviewRecords.filter((r) => r.action === 'reject').length,
+      pendingBacklog: active.filter((d) => d.status === 'pending').length,
+      expiredCount: 0,
+      reviewDueCount: 0,
+      noOwnerCount: active.filter((d) => d.ownerId == null).length,
+      archivedCount: active.filter((d) => d.isArchived).length,
+    });
+  }),
+];
+
 export const wikiHandlers = [
   ...spaceHandlers,
+  ...opsStatsHandlers,
   ...docHandlers,
   ...templateHandlers,
   ...tagHandlers,
   ...commentHandlers,
   ...statsHandlers,
   ...settingsHandlers,
+  ...governanceHandlers,
 ];

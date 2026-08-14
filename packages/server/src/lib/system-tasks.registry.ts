@@ -65,6 +65,17 @@ export async function registerSystemTasks(): Promise<void> {
     },
   });
 
+  const { runWikiGovernanceTick } = await import('../services/wiki/governance.service');
+  await registerSystemRecurringJob({
+    name: 'wiki-governance-tick',
+    title: '知识中心治理扫描',
+    module: '知识中心',
+    cronExpression: '30 8 * * *',
+    description: '每天提醒过期/待复审文档的负责人，并按保留天数清理回收站超期文档。',
+    allowManualRun: true,
+    run: runWikiGovernanceTick,
+  });
+
   const { registerWorkflowJobWorker, drainWorkflowJobs } = await import('./workflow-jobs');
   await registerWorkflowJobWorker();
   await registerSystemRecurringJob({

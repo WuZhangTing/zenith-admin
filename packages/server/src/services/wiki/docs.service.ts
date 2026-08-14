@@ -57,6 +57,11 @@ export function mapWikiDoc(row: WikiDocRow) {
     currentVersion: row.currentVersion,
     revision: row.revision,
     requireReadReceipt: row.requireReadReceipt,
+    ownerId: row.ownerId ?? null,
+    expireAt: formatNullableDateTime(row.expireAt),
+    reviewCycleDays: row.reviewCycleDays ?? null,
+    nextReviewAt: formatNullableDateTime(row.nextReviewAt),
+    isArchived: row.isArchived,
     publishedAt: formatNullableDateTime(row.publishedAt),
     deletedAt: formatNullableDateTime(row.deletedAt),
     createdBy: row.createdBy ?? null,
@@ -77,6 +82,8 @@ export interface ListWikiDocsQuery {
   deleted?: boolean;
   /** 只查当前用户创建的 */
   mine?: boolean;
+  /** true = 只查已归档；默认排除已归档 */
+  archived?: boolean;
 }
 
 interface WikiDocWhereInput extends ListWikiDocsQuery {
@@ -91,6 +98,8 @@ function buildWikiDocWhere(q: WikiDocWhereInput) {
     q.status ? eq(wikiDocs.status, q.status) : undefined,
     q.deleted ? isNotNull(wikiDocs.deletedAt) : isNull(wikiDocs.deletedAt),
     q.mine ? eq(wikiDocs.createdBy, currentUserId()) : undefined,
+    // 归档文档默认从所有读取口隐藏，仅治理页显式查询
+    q.id === undefined ? eq(wikiDocs.isArchived, q.archived ?? false) : undefined,
     tenantCondition(wikiDocs, currentUser()),
     // 统一访问边界：私有空间元数据不得被非成员枚举；未发布内容仅作者 / editor+ 可见
     wikiSpaceAccessCondition(),
@@ -109,7 +118,9 @@ async function attachDocExtras(rows: WikiDocRow[], opts: { spaceName?: boolean }
       .where(inArray(wikiDocTags.docId, ids)),
     db.select({ id: users.id, nickname: users.nickname })
       .from(users)
-      .where(inArray(users.id, [...new Set(rows.map((r) => r.createdBy).filter((v): v is number => v !== null))])),
+      .where(inArray(users.id, [...new Set(
+        rows.flatMap((r) => [r.createdBy, r.ownerId]).filter((v): v is number => v !== null),
+      )])),
     opts.spaceName
       ? db.select({ id: wikiSpaces.id, name: wikiSpaces.name })
         .from(wikiSpaces)
@@ -131,6 +142,7 @@ async function attachDocExtras(rows: WikiDocRow[], opts: { spaceName?: boolean }
     tags: tagMap.get(r.id) ?? [],
     tagIds: (tagMap.get(r.id) ?? []).map((t) => t.id),
     authorName: (r.createdBy !== null ? authorMap.get(r.createdBy) : null) ?? null,
+    ownerName: (r.ownerId !== null ? authorMap.get(r.ownerId) : null) ?? null,
     ...(opts.spaceName ? { spaceName: spaceMap.get(r.spaceId) ?? '' } : {}),
   }));
 }
@@ -224,6 +236,7 @@ export async function getWikiDocTree(spaceId: number): Promise<WikiDocTreeNode[]
     .where(buildWhere(
       eq(wikiDocs.spaceId, spaceId),
       isNull(wikiDocs.deletedAt),
+      eq(wikiDocs.isArchived, false),
       canSeeAll ? undefined : sql`(${wikiDocs.status} = 'published' or ${wikiDocs.createdBy} = ${currentUserId()})`,
     ))
     .orderBy(desc(wikiDocs.isPinned), asc(wikiDocs.sort), asc(wikiDocs.id));
@@ -287,6 +300,7 @@ export async function createWikiDoc(data: CreateWikiDocInput) {
       summary: data.summary ?? null,
       content: data.content,
       requireReadReceipt: data.requireReadReceipt,
+      ownerId: currentUserId(),
       tenantId: getCreateTenantId(currentUser()),
     }).returning();
     await setWikiDocTags(tx, created.id, data.tagIds);

@@ -4,6 +4,7 @@ import wikiDocsRoutes from './wiki-docs';
 import wikiTemplatesRoutes from './wiki-templates';
 import wikiTagsRoutes from './wiki-tags';
 import wikiCommentsRoutes from './wiki-comments';
+import wikiGovernanceRoutes from './wiki-governance';
 import wikiStatsRoutes, { settingsRouter as wikiSettingsRoutes } from './wiki-stats';
 
 export default defineRouteDomain({
@@ -16,5 +17,6 @@ export default defineRouteDomain({
     ['/api/wiki/comments', wikiCommentsRoutes],
     ['/api/wiki/stats', wikiStatsRoutes],
     ['/api/wiki/settings', wikiSettingsRoutes],
+    ['/api/wiki/governance', wikiGovernanceRoutes],
   ],
 });

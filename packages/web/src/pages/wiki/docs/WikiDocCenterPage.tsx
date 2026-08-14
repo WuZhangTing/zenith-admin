@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Banner, Button, Checkbox, Divider, Dropdown, Empty, List, Select, Space, Spin, Tabs, Tag, TextArea, Toast, Tooltip, Tree, TreeSelect, Typography } from '@douyinfe/semi-ui';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import {
-  Bell, Eye, FilePlus2, FolderInput, History, MessageSquare, MoreHorizontal, Pencil, Pin, Send, Star, Trash2, Undo2,
+  Bell, Eye, FilePlus2, FileUp, FolderInput, History, MessageSquare, MoreHorizontal, Pencil, Pin, Send, Star, Trash2, Undo2,
 } from 'lucide-react';
 import type { WikiComment, WikiDocTreeNode } from '@zenith/shared/wiki';
 import { WIKI_DOC_STATUS_LABELS } from '@zenith/shared/wiki';
@@ -23,6 +23,7 @@ import {
   useWikiDocDetail, useWikiDocList, useWikiDocReadReceipts, useWikiDocSearch, useWikiDocTree, useWithdrawWikiDoc,
 } from '@/hooks/queries/wiki-docs';
 import { useCreateWikiComment, useDeleteMyWikiComment, useResolveWikiComment, useWikiDocComments } from '@/hooks/queries/wiki-comments';
+import { useImportWikiDocs } from '@/hooks/queries/wiki-governance';
 
 const { Text, Title } = Typography;
 
@@ -156,6 +157,20 @@ export default function WikiDocCenterPage() {
   const resolveCommentMutation = useResolveWikiComment();
   const confirmReadMutation = useConfirmWikiDocRead();
   const searchClickMutation = useReportWikiSearchClick();
+  const importMutation = useImportWikiDocs();
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleImportFiles(fileList: FileList | null) {
+    if (!fileList || fileList.length === 0 || effectiveSpaceId === undefined) return;
+    const files = await Promise.all(
+      [...fileList].slice(0, 20).map(async (f) => ({ name: f.name, content: await f.text() })),
+    );
+    importMutation.mutate(
+      { spaceId: effectiveSpaceId, parentId: null, files },
+      { onSuccess: (r) => Toast.success(`已导入 ${r.importedCount} 篇草稿`) },
+    );
+    if (importInputRef.current) importInputRef.current.value = '';
+  }
 
   function selectDoc(id: number) {
     setSelectedDocId(id);
@@ -433,14 +448,33 @@ export default function WikiDocCenterPage() {
           <>
             <MasterDetailLayout.Header
               extra={canWrite && hasPermission('wiki:doc:create') ? (
-                <Tooltip content="新建文档">
-                  <Button
-                    size="small"
-                    theme="borderless"
-                    icon={<FilePlus2 size={15} />}
-                    onClick={() => navigate(`/wiki/docs/edit?spaceId=${effectiveSpaceId}`)}
+                <>
+                  <Tooltip content="导入 Markdown 文件">
+                    <Button
+                      size="small"
+                      theme="borderless"
+                      icon={<FileUp size={15} />}
+                      loading={importMutation.isPending}
+                      onClick={() => importInputRef.current?.click()}
+                    />
+                  </Tooltip>
+                  <Tooltip content="新建文档">
+                    <Button
+                      size="small"
+                      theme="borderless"
+                      icon={<FilePlus2 size={15} />}
+                      onClick={() => navigate(`/wiki/docs/edit?spaceId=${effectiveSpaceId}`)}
+                    />
+                  </Tooltip>
+                  <input
+                    ref={importInputRef}
+                    type="file"
+                    accept=".md,.markdown,.txt"
+                    multiple
+                    style={{ display: 'none' }}
+                    onChange={(e) => void handleImportFiles(e.target.files)}
                   />
-                </Tooltip>
+                </>
               ) : null}
             >
               <Select

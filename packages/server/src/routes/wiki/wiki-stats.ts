@@ -6,12 +6,13 @@ import {
   jsonContent, validationHook, commonErrorResponses, ok, okBody,
 } from '../../lib/openapi-schemas';
 import {
-  WikiContributorDTO, WikiHotDocDTO, WikiSettingsDTO, WikiStaleDocDTO, WikiStatsOverviewDTO,
+  WikiContributorDTO, WikiHotDocDTO, WikiOpsStatsDTO, WikiSettingsDTO, WikiStaleDocDTO, WikiStatsOverviewDTO,
 } from '../../lib/openapi-dtos';
 import {
   getWikiSettings, getWikiStatsOverview, listWikiContributors, listWikiHotDocs,
   listWikiStaleDocs, updateWikiSettings,
 } from '../../services/wiki/stats.service';
+import { getWikiOpsStats } from '../../services/wiki/governance.service';
 
 const statsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -76,11 +77,23 @@ const staleDocsRoute = defineOpenAPIRoute({
   },
 });
 
+const opsStatsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/ops',
+    tags: ['知识中心-统计'], summary: '运营统计（趋势/分布/搜索/审批/治理计数）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'wiki:stats:view' })] as const,
+    responses: { ...commonErrorResponses, ...ok(WikiOpsStatsDTO, '运营统计') },
+  }),
+  handler: async (c) => c.json(okBody(await getWikiOpsStats()), 200),
+});
+
 statsRouter.openapiRoutes([
   overviewRoute,
   hotDocsRoute,
   contributorsRoute,
   staleDocsRoute,
+  opsStatsRoute,
 ] as const);
 
 // ─── 设置（独立子路由，挂 /api/wiki/settings）─────────────────────────────────

@@ -71,6 +71,25 @@ export const WIKI_REVIEW_ACTION_LABELS: Record<WikiReviewAction, string> = {
 export const WIKI_REVIEW_ACTION_OPTIONS: Array<{ value: WikiReviewAction; label: string }> =
   createLabelOptions(WIKI_REVIEW_ACTIONS, WIKI_REVIEW_ACTION_LABELS);
 
+// ─── 治理（P2-D）──────────────────────────────────────────────────────────────
+
+export const WIKI_GOVERNANCE_KINDS = ['expired', 'review-due', 'stale', 'no-owner', 'draft-backlog', 'review-backlog', 'archived'] as const;
+
+export type WikiGovernanceKind = (typeof WIKI_GOVERNANCE_KINDS)[number];
+
+export const WIKI_GOVERNANCE_KIND_LABELS: Record<WikiGovernanceKind, string> = {
+  expired: '已过期',
+  'review-due': '待复审',
+  stale: '长期未更新',
+  'no-owner': '无负责人',
+  'draft-backlog': '草稿积压',
+  'review-backlog': '审核积压',
+  archived: '已归档',
+};
+
+export const WIKI_GOVERNANCE_KIND_OPTIONS: Array<{ value: WikiGovernanceKind; label: string }> =
+  createLabelOptions(WIKI_GOVERNANCE_KINDS, WIKI_GOVERNANCE_KIND_LABELS);
+
 // ─── 全局设置（存 system_configs，wiki 分组）──────────────────────────────────
 export const WIKI_SETTING_KEYS = {
   /** 发布是否需要审核（false 时提交即发布） */
@@ -81,4 +100,10 @@ export const WIKI_SETTING_KEYS = {
   aiSyncEnabled: 'wiki.aiSyncEnabled',
   /** 同步目标 AI 知识库 ID */
   aiSyncKbId: 'wiki.aiSyncKbId',
+  /** 是否允许评论 */
+  commentsEnabled: 'wiki.commentsEnabled',
+  /** 回收站保留天数；0 = 永久保留 */
+  recycleRetentionDays: 'wiki.recycleRetentionDays',
+  /** 审核积压提醒时限（小时）；超时未处理的待审文档提醒空间管理员 */
+  pendingRemindHours: 'wiki.pendingRemindHours',
 } as const;

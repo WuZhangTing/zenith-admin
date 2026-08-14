@@ -132,6 +132,51 @@ export const updateWikiSettingsSchema = z.object({
   defaultVisibility: z.enum(WIKI_SPACE_VISIBILITIES),
   aiSyncEnabled: z.boolean(),
   aiSyncKbId: z.number().int().positive().nullable().optional(),
+  commentsEnabled: z.boolean(),
+  recycleRetentionDays: z.number().int().min(0).max(3650),
+  pendingRemindHours: z.number().int().min(1).max(720),
 });
 
 export type UpdateWikiSettingsInput = z.infer<typeof updateWikiSettingsSchema>;
+
+// ─── 治理批量操作 ─────────────────────────────────────────────────────────────
+
+export const wikiGovernanceBatchSchema = z.object({
+  ids: z.array(z.number().int().positive()).min(1, '请选择要操作的文档'),
+});
+
+export type WikiGovernanceBatchInput = z.infer<typeof wikiGovernanceBatchSchema>;
+
+export const wikiGovernanceArchiveSchema = wikiGovernanceBatchSchema.extend({
+  archived: z.boolean(),
+});
+
+export type WikiGovernanceArchiveInput = z.infer<typeof wikiGovernanceArchiveSchema>;
+
+export const wikiGovernanceOwnerSchema = wikiGovernanceBatchSchema.extend({
+  ownerId: z.number().int().positive(),
+});
+
+export type WikiGovernanceOwnerInput = z.infer<typeof wikiGovernanceOwnerSchema>;
+
+export const wikiGovernanceReviewSchema = wikiGovernanceBatchSchema.extend({
+  /** 复审周期（天）；同时把下次复审时间推进 cycle 天 */
+  reviewCycleDays: z.number().int().min(1).max(3650),
+  /** 有效期（可选，YYYY-MM-DD HH:mm:ss 或 YYYY-MM-DD） */
+  expireAt: z.string().nullable().optional(),
+});
+
+export type WikiGovernanceReviewInput = z.infer<typeof wikiGovernanceReviewSchema>;
+
+// ─── Markdown 导入 ────────────────────────────────────────────────────────────
+
+export const importWikiDocsSchema = z.object({
+  spaceId: z.number().int().positive(),
+  parentId: z.number().int().positive().nullable().optional(),
+  files: z.array(z.object({
+    name: z.string().min(1).max(200),
+    content: z.string().max(500_000, '单个文件不能超过 500KB'),
+  })).min(1, '请选择要导入的文件').max(20, '单次最多导入 20 个文件'),
+});
+
+export type ImportWikiDocsInput = z.infer<typeof importWikiDocsSchema>;

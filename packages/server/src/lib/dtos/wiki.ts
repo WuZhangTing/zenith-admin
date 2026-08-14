@@ -260,5 +260,58 @@ export const WikiSettingsDTO = z
     defaultVisibility: z.enum(WIKI_SPACE_VISIBILITIES),
     aiSyncEnabled: z.boolean(),
     aiSyncKbId: z.number().int().nullable(),
+    commentsEnabled: z.boolean(),
+    recycleRetentionDays: z.number().int(),
+    pendingRemindHours: z.number().int(),
   })
   .openapi('WikiSettings');
+
+// ─── 治理（P2-D）──────────────────────────────────────────────────────────────
+
+export const WikiGovernanceDocDTO = z
+  .object({
+    id: z.number().int(),
+    spaceId: z.number().int(),
+    spaceName: z.string(),
+    title: z.string(),
+    status: z.enum(WIKI_DOC_STATUSES),
+    ownerId: z.number().int().nullable(),
+    ownerName: z.string().nullable(),
+    expireAt: z.string().nullable(),
+    reviewCycleDays: z.number().int().nullable(),
+    nextReviewAt: z.string().nullable(),
+    isArchived: z.boolean(),
+    updatedAt: z.string(),
+  })
+  .openapi('WikiGovernanceDoc');
+
+export const WikiNoResultKeywordDTO = z
+  .object({
+    keyword: z.string(),
+    searchCount: z.number().int(),
+    lastSearchedAt: z.string(),
+  })
+  .openapi('WikiNoResultKeyword');
+
+export const WikiOpsStatsDTO = z
+  .object({
+    createdTrend: z.array(z.object({ date: z.string(), count: z.number().int() })),
+    spaceDistribution: z.array(z.object({ spaceName: z.string(), count: z.number().int() })),
+    searchCount30d: z.number().int(),
+    noResultCount30d: z.number().int(),
+    approvedCount30d: z.number().int(),
+    rejectedCount30d: z.number().int(),
+    pendingBacklog: z.number().int(),
+    expiredCount: z.number().int(),
+    reviewDueCount: z.number().int(),
+    noOwnerCount: z.number().int(),
+    archivedCount: z.number().int(),
+  })
+  .openapi('WikiOpsStats');
+
+export const WikiImportResultDTO = z
+  .object({
+    importedCount: z.number().int(),
+    docIds: z.array(z.number().int()),
+  })
+  .openapi('WikiImportResult');

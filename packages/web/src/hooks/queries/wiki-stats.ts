@@ -3,6 +3,7 @@ import type {
   UpdateWikiSettingsInput,
   WikiContributor,
   WikiHotDoc,
+  WikiOpsStats,
   WikiSettings,
   WikiStaleDoc,
   WikiStatsOverview,
@@ -16,6 +17,7 @@ export const wikiStatsKeys = {
   hotDocs: ['wiki-stats', 'hot-docs'] as const,
   contributors: ['wiki-stats', 'contributors'] as const,
   staleDocs: ['wiki-stats', 'stale-docs'] as const,
+  ops: ['wiki-stats', 'ops'] as const,
 };
 
 export const wikiSettingsKey = ['wiki-settings'] as const;
@@ -45,6 +47,13 @@ export function useWikiStaleDocs(limit = 10) {
   return useQuery({
     queryKey: [...wikiStatsKeys.staleDocs, limit],
     queryFn: () => request.get<WikiStaleDoc[]>(`/api/wiki/stats/stale-docs?limit=${limit}`).then(unwrap),
+  });
+}
+
+export function useWikiOpsStats() {
+  return useQuery({
+    queryKey: wikiStatsKeys.ops,
+    queryFn: () => request.get<WikiOpsStats>('/api/wiki/stats/ops').then(unwrap),
   });
 }
 

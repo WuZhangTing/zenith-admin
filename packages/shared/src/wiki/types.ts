@@ -88,6 +88,17 @@ export interface WikiDoc {
   readConfirmed?: boolean;
   /** 已确认人数（详情接口附加） */
   readReceiptCount?: number;
+  /** 内容负责人（治理） */
+  ownerId?: number | null;
+  ownerName?: string | null;
+  /** 有效期（治理） */
+  expireAt?: string | null;
+  /** 复审周期天数（治理） */
+  reviewCycleDays?: number | null;
+  /** 下次复审时间（治理） */
+  nextReviewAt?: string | null;
+  /** 归档状态：默认从树/列表/搜索隐藏 */
+  isArchived: boolean;
   authorName?: string | null;
   createdBy?: number | null;
   updatedBy?: number | null;
@@ -223,4 +234,40 @@ export interface WikiSettings {
   defaultVisibility: WikiSpaceVisibility;
   aiSyncEnabled: boolean;
   aiSyncKbId: number | null;
+  /** 是否允许评论 */
+  commentsEnabled: boolean;
+  /** 回收站保留天数；0 = 永久保留 */
+  recycleRetentionDays: number;
+  /** 审核积压提醒时限（小时） */
+  pendingRemindHours: number;
+}
+
+// ─── 治理与运营统计 ───────────────────────────────────────────────────────────
+
+/** 无结果搜索关键词（知识缺口） */
+export interface WikiNoResultKeyword {
+  keyword: string;
+  searchCount: number;
+  lastSearchedAt: string;
+}
+
+/** 运营统计扩展 */
+export interface WikiOpsStats {
+  /** 近 30 天新建文档趋势 */
+  createdTrend: Array<{ date: string; count: number }>;
+  /** 空间文档分布 */
+  spaceDistribution: Array<{ spaceName: string; count: number }>;
+  /** 近 30 天搜索次数 */
+  searchCount30d: number;
+  /** 近 30 天无结果搜索次数 */
+  noResultCount30d: number;
+  /** 近 30 天审核通过 / 驳回数与当前积压 */
+  approvedCount30d: number;
+  rejectedCount30d: number;
+  pendingBacklog: number;
+  /** 治理清单计数 */
+  expiredCount: number;
+  reviewDueCount: number;
+  noOwnerCount: number;
+  archivedCount: number;
 }

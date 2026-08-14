@@ -65,4 +65,11 @@ export const SEED_MENUS_WIKI: Menu[] = [
   { id: 16090, parentId: 16000, title: '知识库设置', name: 'WikiSettings', path: '/wiki/settings', component: 'wiki/settings/WikiSettingsPage', icon: 'Settings', type: 'menu', sort: 9, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 16091, parentId: 16090, title: '查询', type: 'button', permission: 'wiki:setting:view', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 16092, parentId: 16090, title: '编辑设置', type: 'button', permission: 'wiki:setting:edit', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+
+  // ─── 内容治理 ──────────────────────────────────────────────────────────────
+  { id: 16100, parentId: 16000, title: '内容治理', name: 'WikiGovernance', path: '/wiki/governance', component: 'wiki/governance/WikiGovernancePage', icon: 'ShieldCheck', type: 'menu', sort: 10, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 16101, parentId: 16100, title: '查询', type: 'button', permission: 'wiki:governance:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 16102, parentId: 16100, title: '提醒负责人', type: 'button', permission: 'wiki:governance:remind', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 16103, parentId: 16100, title: '归档', type: 'button', permission: 'wiki:governance:archive', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 16104, parentId: 16100, title: '治理编辑', type: 'button', permission: 'wiki:governance:edit', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];

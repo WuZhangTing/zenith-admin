@@ -1,29 +1,64 @@
+import { useMemo } from 'react';
 import { Card, Empty, List, Spin, Typography } from '@douyinfe/semi-ui';
-import { BookOpen, FileCheck2, FileClock, FileText, Flame, MessageSquare, TrendingUp, UserRound } from 'lucide-react';
-import { StatCard, StatGrid } from '@/components/charts/StatCard';
+import { Archive, BookOpen, CalendarClock, FileCheck2, FileClock, FileText, Flame, MessageSquare, SearchX, TrendingUp, UserRound, UserX } from 'lucide-react';
+import {
+  AreaChart, BarChart, EmptyChart, StatCard, StatGrid, chartOptions, isEmptyValues,
+  makeAreaSpec, makeBarSpec, useChartPalette,
+} from '@/components/charts';
 import { RefreshButton } from '@/components/toolbar-controls';
 import {
-  useWikiContributors, useWikiHotDocs, useWikiStaleDocs, useWikiStatsOverview,
+  useWikiContributors, useWikiHotDocs, useWikiOpsStats, useWikiStaleDocs, useWikiStatsOverview,
 } from '@/hooks/queries/wiki-stats';
 
 const { Text } = Typography;
 
 export default function WikiStatsPage() {
+  const palette = useChartPalette();
   const overviewQuery = useWikiStatsOverview();
   const hotDocsQuery = useWikiHotDocs(10);
   const contributorsQuery = useWikiContributors(10);
   const staleDocsQuery = useWikiStaleDocs(10);
+  const opsQuery = useWikiOpsStats();
 
   const overview = overviewQuery.data;
+  const ops = opsQuery.data;
   const refreshing = overviewQuery.isFetching || hotDocsQuery.isFetching
-    || contributorsQuery.isFetching || staleDocsQuery.isFetching;
+    || contributorsQuery.isFetching || staleDocsQuery.isFetching || opsQuery.isFetching;
 
   function handleRefresh() {
     void overviewQuery.refetch();
     void hotDocsQuery.refetch();
     void contributorsQuery.refetch();
     void staleDocsQuery.refetch();
+    void opsQuery.refetch();
   }
+
+  const trendSpec = useMemo(() => makeAreaSpec({
+    data: ops?.createdTrend ?? [],
+    xField: 'date',
+    series: [{ field: 'count', name: '新建文档', color: palette.primary }],
+    palette,
+    fillOpacity: 0.24,
+    axis: { xLabel: (value) => value.slice(5) },
+    tooltip: { title: (value) => `日期：${value}`, value: (value) => `${value} 篇` },
+  }), [ops?.createdTrend, palette]);
+
+  const spaceSpec = useMemo(() => makeBarSpec({
+    data: ops?.spaceDistribution ?? [],
+    xField: 'spaceName',
+    series: [{ field: 'count', name: '文档数', color: palette.active }],
+    palette,
+    horizontal: true,
+    barMinHeight: 3,
+    cornerRadius: 5,
+    showLabel: true,
+    categoryAxisWidth: 96,
+    tooltip: { value: (value) => `${value} 篇` },
+  }), [ops?.spaceDistribution, palette]);
+
+  const searchRate = ops && ops.searchCount30d > 0
+    ? `${(((ops.searchCount30d - ops.noResultCount30d) / ops.searchCount30d) * 100).toFixed(1)}%`
+    : '—';
 
   return (
     <div className="page-container zx-flat-panels">
@@ -42,6 +77,41 @@ export default function WikiStatsPage() {
           <StatCard title="本周浏览量" value={overview?.weekViews ?? 0} icon={<Flame size={16} />} />
         </StatGrid>
       </Spin>
+
+      <Spin spinning={opsQuery.isPending}>
+        <StatGrid style={{ marginTop: 16 }}>
+          <StatCard title="近 30 天搜索量" value={ops?.searchCount30d ?? 0} sub={`搜索成功率 ${searchRate}`} icon={<SearchX size={16} />} />
+          <StatCard title="近 30 天审核" value={`${ops?.approvedCount30d ?? 0} / ${ops?.rejectedCount30d ?? 0}`} sub="通过 / 驳回" icon={<FileCheck2 size={16} />} />
+          <StatCard
+            title="审核积压"
+            value={ops?.pendingBacklog ?? 0}
+            icon={<FileClock size={16} />}
+            accent={ops && ops.pendingBacklog > 0 ? 'var(--semi-color-warning)' : undefined}
+          />
+          <StatCard
+            title="已过期文档"
+            value={ops?.expiredCount ?? 0}
+            icon={<CalendarClock size={16} />}
+            accent={ops && ops.expiredCount > 0 ? 'var(--semi-color-danger)' : undefined}
+          />
+          <StatCard title="待复审" value={ops?.reviewDueCount ?? 0} icon={<CalendarClock size={16} />} />
+          <StatCard title="无负责人" value={ops?.noOwnerCount ?? 0} icon={<UserX size={16} />} />
+          <StatCard title="已归档" value={ops?.archivedCount ?? 0} icon={<Archive size={16} />} />
+        </StatGrid>
+      </Spin>
+
+      <div className="chart-grid" style={{ marginTop: 16 }}>
+        <Card title="近 30 天新建文档趋势">
+          {isEmptyValues(ops?.createdTrend ?? []) ? <EmptyChart height={240} /> : (
+            <AreaChart {...trendSpec} options={chartOptions} height={240} />
+          )}
+        </Card>
+        <Card title="空间文档分布">
+          {(ops?.spaceDistribution.length ?? 0) === 0 ? <EmptyChart height={240} /> : (
+            <BarChart {...spaceSpec} options={chartOptions} height={240} />
+          )}
+        </Card>
+      </div>
 
       <div className="chart-grid chart-grid--3" style={{ marginTop: 16 }}>
         <Card title="热门文档 Top 10">

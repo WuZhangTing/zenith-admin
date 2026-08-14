@@ -116,17 +116,23 @@ export async function listWikiStaleDocs(limit = 10, staleDays = 90) {
 // ─── 全局设置 ─────────────────────────────────────────────────────────────────
 
 export async function getWikiSettings(): Promise<WikiSettings> {
-  const [requireApproval, defaultVisibility, aiSyncEnabled, aiSyncKbId] = await Promise.all([
+  const [requireApproval, defaultVisibility, aiSyncEnabled, aiSyncKbId, commentsEnabled, recycleRetentionDays, pendingRemindHours] = await Promise.all([
     getConfigBoolean(WIKI_SETTING_KEYS.requireApproval, true),
     getConfigValue(WIKI_SETTING_KEYS.defaultVisibility, 'public'),
     getConfigBoolean(WIKI_SETTING_KEYS.aiSyncEnabled, false),
     getConfigNumber(WIKI_SETTING_KEYS.aiSyncKbId, 0),
+    getConfigBoolean(WIKI_SETTING_KEYS.commentsEnabled, true),
+    getConfigNumber(WIKI_SETTING_KEYS.recycleRetentionDays, 0),
+    getConfigNumber(WIKI_SETTING_KEYS.pendingRemindHours, 48),
   ]);
   return {
     requireApproval,
     defaultVisibility: (defaultVisibility === 'private' ? 'private' : 'public') as WikiSpaceVisibility,
     aiSyncEnabled,
     aiSyncKbId: aiSyncKbId > 0 ? aiSyncKbId : null,
+    commentsEnabled,
+    recycleRetentionDays,
+    pendingRemindHours,
   };
 }
 
@@ -135,6 +141,9 @@ const SETTING_META: Record<string, { name: string; type: 'string' | 'boolean' | 
   [WIKI_SETTING_KEYS.defaultVisibility]: { name: '知识库-空间默认可见性', type: 'string' },
   [WIKI_SETTING_KEYS.aiSyncEnabled]: { name: '知识库-同步 AI 知识库', type: 'boolean' },
   [WIKI_SETTING_KEYS.aiSyncKbId]: { name: '知识库-AI 同步目标', type: 'number' },
+  [WIKI_SETTING_KEYS.commentsEnabled]: { name: '知识库-允许评论', type: 'boolean' },
+  [WIKI_SETTING_KEYS.recycleRetentionDays]: { name: '知识库-回收站保留天数', type: 'number' },
+  [WIKI_SETTING_KEYS.pendingRemindHours]: { name: '知识库-审核积压提醒时限', type: 'number' },
 };
 
 async function upsertConfig(key: string, value: string) {
@@ -161,5 +170,8 @@ export async function updateWikiSettings(data: UpdateWikiSettingsInput): Promise
   await upsertConfig(WIKI_SETTING_KEYS.defaultVisibility, data.defaultVisibility);
   await upsertConfig(WIKI_SETTING_KEYS.aiSyncEnabled, String(data.aiSyncEnabled));
   await upsertConfig(WIKI_SETTING_KEYS.aiSyncKbId, String(data.aiSyncKbId ?? 0));
+  await upsertConfig(WIKI_SETTING_KEYS.commentsEnabled, String(data.commentsEnabled));
+  await upsertConfig(WIKI_SETTING_KEYS.recycleRetentionDays, String(data.recycleRetentionDays));
+  await upsertConfig(WIKI_SETTING_KEYS.pendingRemindHours, String(data.pendingRemindHours));
   return getWikiSettings();
 }
