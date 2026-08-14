@@ -32,4 +32,5 @@ export * from './schema/mp';
 export * from './schema/report';
 export * from './schema/report-platform';
 export * from './schema/cms';
+export * from './schema/wiki';
 export * from './schema/relations';

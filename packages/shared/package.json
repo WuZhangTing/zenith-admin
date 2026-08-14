@@ -31,6 +31,7 @@
 		"./ops": "./src/ops/index.ts",
 		"./tasks": "./src/tasks/index.ts",
 		"./biz": "./src/biz/index.ts",
+		"./wiki": "./src/wiki/index.ts",
 		"./seed": "./src/seed/index.ts",
 		"./seed/*": "./src/seed/*.ts",
 		"./*": "./src/*.ts"

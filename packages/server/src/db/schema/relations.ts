@@ -57,6 +57,7 @@ import {
   cmsOpenAppGrants, cmsContentTombstones, cmsWidgets, cmsWidgetRefs, cmsWidgetSourceRefs,
   cmsTags,
 } from './cms';
+import { wikiComments, wikiDocFavorites, wikiDocTags, wikiDocVersions, wikiDocViews, wikiDocs, wikiSpaceMembers, wikiSpaces, wikiTags } from './wiki';
 
 // ─── 关联关系 ────────────────────────────────────────────────────────────────
 export const errorGroupsRelations = relations(errorGroups, ({ many, one }) => ({
@@ -1550,4 +1551,60 @@ export const cmsHotwordGroupsRelations = relations(cmsHotwordGroups, ({ one, man
 export const cmsHotwordsRelations = relations(cmsHotwords, ({ one }) => ({
   site: one(cmsSites, { fields: [cmsHotwords.siteId], references: [cmsSites.id] }),
   group: one(cmsHotwordGroups, { fields: [cmsHotwords.groupId], references: [cmsHotwordGroups.id] }),
+}));
+
+// ─── 知识中心（Wiki）──────────────────────────────────────────────────────────
+export const wikiSpacesRelations = relations(wikiSpaces, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [wikiSpaces.tenantId], references: [tenants.id] }),
+  members: many(wikiSpaceMembers),
+  docs: many(wikiDocs),
+}));
+
+export const wikiSpaceMembersRelations = relations(wikiSpaceMembers, ({ one }) => ({
+  space: one(wikiSpaces, { fields: [wikiSpaceMembers.spaceId], references: [wikiSpaces.id] }),
+  user: one(users, { fields: [wikiSpaceMembers.userId], references: [users.id] }),
+}));
+
+export const wikiDocsRelations = relations(wikiDocs, ({ one, many }) => ({
+  space: one(wikiSpaces, { fields: [wikiDocs.spaceId], references: [wikiSpaces.id] }),
+  parent: one(wikiDocs, { fields: [wikiDocs.parentId], references: [wikiDocs.id], relationName: 'wikiDocHierarchy' }),
+  children: many(wikiDocs, { relationName: 'wikiDocHierarchy' }),
+  versions: many(wikiDocVersions),
+  docTags: many(wikiDocTags),
+  comments: many(wikiComments),
+  favorites: many(wikiDocFavorites),
+  views: many(wikiDocViews),
+  createdByUser: one(users, { fields: [wikiDocs.createdBy], references: [users.id], relationName: 'wikiDocCreatedBy' }),
+  updatedByUser: one(users, { fields: [wikiDocs.updatedBy], references: [users.id], relationName: 'wikiDocUpdatedBy' }),
+}));
+
+export const wikiDocVersionsRelations = relations(wikiDocVersions, ({ one }) => ({
+  doc: one(wikiDocs, { fields: [wikiDocVersions.docId], references: [wikiDocs.id] }),
+  author: one(users, { fields: [wikiDocVersions.authorId], references: [users.id] }),
+}));
+
+export const wikiTagsRelations = relations(wikiTags, ({ many }) => ({
+  docTags: many(wikiDocTags),
+}));
+
+export const wikiDocTagsRelations = relations(wikiDocTags, ({ one }) => ({
+  doc: one(wikiDocs, { fields: [wikiDocTags.docId], references: [wikiDocs.id] }),
+  tag: one(wikiTags, { fields: [wikiDocTags.tagId], references: [wikiTags.id] }),
+}));
+
+export const wikiCommentsRelations = relations(wikiComments, ({ one, many }) => ({
+  doc: one(wikiDocs, { fields: [wikiComments.docId], references: [wikiDocs.id] }),
+  parent: one(wikiComments, { fields: [wikiComments.parentId], references: [wikiComments.id], relationName: 'wikiCommentReplies' }),
+  replies: many(wikiComments, { relationName: 'wikiCommentReplies' }),
+  author: one(users, { fields: [wikiComments.authorId], references: [users.id] }),
+}));
+
+export const wikiDocFavoritesRelations = relations(wikiDocFavorites, ({ one }) => ({
+  doc: one(wikiDocs, { fields: [wikiDocFavorites.docId], references: [wikiDocs.id] }),
+  user: one(users, { fields: [wikiDocFavorites.userId], references: [users.id] }),
+}));
+
+export const wikiDocViewsRelations = relations(wikiDocViews, ({ one }) => ({
+  doc: one(wikiDocs, { fields: [wikiDocViews.docId], references: [wikiDocs.id] }),
+  user: one(users, { fields: [wikiDocViews.userId], references: [users.id] }),
 }));

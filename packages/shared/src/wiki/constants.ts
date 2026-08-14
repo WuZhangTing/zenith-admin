@@ -1,0 +1,69 @@
+import { createLabelOptions } from '../core/enum-options';
+
+// ─── 空间可见性 ───────────────────────────────────────────────────────────────
+export const WIKI_SPACE_VISIBILITIES = ['public', 'private'] as const;
+
+export type WikiSpaceVisibility = (typeof WIKI_SPACE_VISIBILITIES)[number];
+
+export const WIKI_SPACE_VISIBILITY_LABELS: Record<WikiSpaceVisibility, string> = {
+  public: '全员可读',
+  private: '成员可见',
+};
+
+export const WIKI_SPACE_VISIBILITY_OPTIONS: Array<{ value: WikiSpaceVisibility; label: string }> =
+  createLabelOptions(WIKI_SPACE_VISIBILITIES, WIKI_SPACE_VISIBILITY_LABELS);
+
+// ─── 空间成员角色 ─────────────────────────────────────────────────────────────
+export const WIKI_SPACE_MEMBER_ROLES = ['owner', 'admin', 'editor', 'viewer'] as const;
+
+export type WikiSpaceMemberRole = (typeof WIKI_SPACE_MEMBER_ROLES)[number];
+
+export const WIKI_SPACE_MEMBER_ROLE_LABELS: Record<WikiSpaceMemberRole, string> = {
+  owner: '负责人',
+  admin: '管理员',
+  editor: '编辑者',
+  viewer: '阅读者',
+};
+
+export const WIKI_SPACE_MEMBER_ROLE_OPTIONS: Array<{ value: WikiSpaceMemberRole; label: string }> =
+  createLabelOptions(WIKI_SPACE_MEMBER_ROLES, WIKI_SPACE_MEMBER_ROLE_LABELS);
+
+// ─── 文档状态 ─────────────────────────────────────────────────────────────────
+export const WIKI_DOC_STATUSES = ['draft', 'pending', 'published', 'rejected'] as const;
+
+export type WikiDocStatus = (typeof WIKI_DOC_STATUSES)[number];
+
+export const WIKI_DOC_STATUS_LABELS: Record<WikiDocStatus, string> = {
+  draft: '草稿',
+  pending: '待审核',
+  published: '已发布',
+  rejected: '已驳回',
+};
+
+export const WIKI_DOC_STATUS_OPTIONS: Array<{ value: WikiDocStatus; label: string }> =
+  createLabelOptions(WIKI_DOC_STATUSES, WIKI_DOC_STATUS_LABELS);
+
+// ─── 评论状态 ─────────────────────────────────────────────────────────────────
+export const WIKI_COMMENT_STATUSES = ['visible', 'hidden'] as const;
+
+export type WikiCommentStatus = (typeof WIKI_COMMENT_STATUSES)[number];
+
+export const WIKI_COMMENT_STATUS_LABELS: Record<WikiCommentStatus, string> = {
+  visible: '正常',
+  hidden: '已隐藏',
+};
+
+export const WIKI_COMMENT_STATUS_OPTIONS: Array<{ value: WikiCommentStatus; label: string }> =
+  createLabelOptions(WIKI_COMMENT_STATUSES, WIKI_COMMENT_STATUS_LABELS);
+
+// ─── 全局设置（存 system_configs，wiki 分组）──────────────────────────────────
+export const WIKI_SETTING_KEYS = {
+  /** 发布是否需要审核（false 时提交即发布） */
+  requireApproval: 'wiki.requireApproval',
+  /** 新建空间的默认可见性 */
+  defaultVisibility: 'wiki.defaultVisibility',
+  /** 是否启用发布文档同步 AI 知识库 */
+  aiSyncEnabled: 'wiki.aiSyncEnabled',
+  /** 同步目标 AI 知识库 ID */
+  aiSyncKbId: 'wiki.aiSyncKbId',
+} as const;
