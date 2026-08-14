@@ -20,14 +20,18 @@ function gridColumns(count: number): number {
   return 3;
 }
 
-export function CallWindow({ snapshot, self }: Readonly<{ snapshot: CallSnapshot; self: RtcPeerInfo }>) {
-  const [, force] = useState(0);
+/** 通话时长标签：自滴答隔离在此小组件内，避免整个通话 overlay（含视频瓦片）每秒重渲染 */
+function CallDuration({ startedAt }: Readonly<{ startedAt: number | null }>) {
+  const [, tick] = useState(0);
   useEffect(() => {
-    if (snapshot.phase !== 'connected') return;
-    const t = setInterval(() => force((v) => v + 1), 1000);
+    if (!startedAt) return;
+    const t = setInterval(() => tick((v) => v + 1), 1000);
     return () => clearInterval(t);
-  }, [snapshot.phase]);
+  }, [startedAt]);
+  return <>{formatDuration(startedAt)}</>;
+}
 
+export function CallWindow({ snapshot, self }: Readonly<{ snapshot: CallSnapshot; self: RtcPeerInfo }>) {
   const isVideo = snapshot.callType === 'video';
   const remote = snapshot.participants;
   const tileCount = remote.length + 1;
@@ -42,7 +46,7 @@ export function CallWindow({ snapshot, self }: Readonly<{ snapshot: CallSnapshot
           <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {snapshot.mode === 'group' ? (snapshot.conversationName ?? '群通话') : (remote[0]?.info.nickname ?? '通话中')}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--semi-color-text-2)', fontVariantNumeric: 'tabular-nums' }}>{formatDuration(snapshot.startedAt)}</div>
+          <div style={{ fontSize: 12, color: 'var(--semi-color-text-2)', fontVariantNumeric: 'tabular-nums' }}><CallDuration startedAt={snapshot.startedAt} /></div>
         </div>
         <Tooltip content="展开">
           <Button size="small" theme="borderless" type="tertiary" icon={<Maximize2 size={15} />} onClick={() => callManager.setMinimized(false)} />
@@ -62,7 +66,7 @@ export function CallWindow({ snapshot, self }: Readonly<{ snapshot: CallSnapshot
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 16, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</div>
           <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', fontVariantNumeric: 'tabular-nums' }}>
-            {snapshot.phase === 'outgoing' ? '正在呼叫…' : formatDuration(snapshot.startedAt)}
+            {snapshot.phase === 'outgoing' ? '正在呼叫…' : <CallDuration startedAt={snapshot.startedAt} />}
           </div>
         </div>
         <Tooltip content="最小化">
