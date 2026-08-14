@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Banner, Button, Input, Select, Space, Spin, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import { ArrowLeft, Eye, EyeOff, Save, Send } from 'lucide-react';
 import MarkdownPreviewPanel from '@/components/MarkdownPreviewPanel';
+import './WikiDocEditPage.css';
 import { useAllWikiTags } from '@/hooks/queries/wiki-tags';
 import { useAllWikiTemplates } from '@/hooks/queries/wiki-templates';
 import { useSaveWikiDoc, useSubmitWikiDoc, useWikiDocDetail } from '@/hooks/queries/wiki-docs';
@@ -198,22 +199,26 @@ export default function WikiDocEditPage() {
         ) : null}
       </div>
 
-      {/* 编辑器主体 */}
-      <Spin spinning={loading} wrapperClassName="modal-spin-wrapper" style={{ flex: 1, minHeight: 0 }}>
-        <div style={{ display: 'flex', gap: 12, height: '100%', minHeight: 0 }}>
-          <TextArea
-            style={{ flex: 1, height: '100%', fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace", fontSize: 13 }}
-            placeholder={'使用 Markdown 编写文档内容...\n\n# 一级标题\n## 二级标题\n- 列表项\n**加粗** `代码`'}
-            value={content}
-            onChange={(v) => { setContent(v); markDirty(); }}
-          />
-          {showPreview ? (
-            <div style={{ flex: 1, minWidth: 0, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', overflow: 'hidden' }}>
-              <MarkdownPreviewPanel content={content || '*预览区：左侧输入 Markdown 后此处实时渲染*'} />
-            </div>
-          ) : null}
-        </div>
-      </Spin>
+      {/* 编辑器主体（高度链：page-container--stretch → wiki-editor-body → textarea） */}
+      <div className="wiki-editor-body">
+        {loading ? (
+          <div className="wiki-editor-loading"><Spin size="large" /></div>
+        ) : (
+          <>
+            <TextArea
+              className="wiki-editor-textarea"
+              placeholder={'使用 Markdown 编写文档内容...\n\n# 一级标题\n## 二级标题\n- 列表项\n**加粗** `代码`'}
+              value={content}
+              onChange={(v) => { setContent(v); markDirty(); }}
+            />
+            {showPreview ? (
+              <div className="wiki-editor-preview">
+                <MarkdownPreviewPanel content={content || '*预览区：左侧输入 Markdown 后此处实时渲染*'} />
+              </div>
+            ) : null}
+          </>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,0 +1,35 @@
+/* 全屏 Markdown 编辑器：让高度链贯穿到原生 textarea */
+.wiki-editor-body {
+  display: flex;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Semi TextArea 的 className 落在 wrapper 上；行内 stretch 撑满后再把内层 textarea 拉满 */
+.wiki-editor-textarea {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.wiki-editor-textarea textarea.semi-input-textarea {
+  height: 100%;
+  resize: none;
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  font-size: 13px;
+}
+
+.wiki-editor-preview {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--semi-color-border);
+  border-radius: var(--semi-border-radius-medium);
+}
+
+.wiki-editor-loading {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+}
