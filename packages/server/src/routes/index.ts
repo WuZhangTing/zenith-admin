@@ -22,6 +22,7 @@ import mp from './mp';
 import bizDemo from './biz-demo';
 import ai from './ai';
 import cms from './cms';
+import wiki from './wiki';
 
 export const ROUTE_DOMAINS = [
   ops,
@@ -41,4 +42,5 @@ export const ROUTE_DOMAINS = [
   bizDemo,
   ai,
   cms,
+  wiki,
 ] as const;

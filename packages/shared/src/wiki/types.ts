@@ -168,5 +168,5 @@ export interface WikiSettings {
   requireApproval: boolean;
   defaultVisibility: WikiSpaceVisibility;
   aiSyncEnabled: boolean;
-  aiSyncKbId?: number | null;
+  aiSyncKbId: number | null;
 }
