@@ -25,10 +25,6 @@
   border-top: 1px solid var(--semi-color-border);
 }
 
-.chatbi-detail {
-  background: var(--color-content-bg);
-}
-
 .chatbi-detail > .semi-empty,
 .chatbi-detail > .semi-spin {
   margin: auto;

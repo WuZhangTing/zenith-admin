@@ -3,10 +3,9 @@
  * 适配 Semi Design 的亮色/暗色主题，使用 CSS 变量保持一致性。
  */
 
-/* ── 外层滚动容器 ── */
-.md-preview-body {
-  background: var(--color-content-bg);
-}
+/* ── 外层滚动容器 ──
+   不声明背景：本组件既内联在页面里，也用在 FilePreviewModal 的弹窗内，
+   透明才能各自跟随所在容器（内容画布 / 弹窗表面）。 */
 
 /* ── 内容宽度限制，居中显示 ── */
 .md-preview-content {

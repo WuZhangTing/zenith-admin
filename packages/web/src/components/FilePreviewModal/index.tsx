@@ -330,7 +330,6 @@ export default function FilePreviewModal({
           justifyContent: 'center',
           overflow: 'auto',
           height: fullscreen ? 'calc(100vh - 40px)' : 'calc(80vh - 40px)',
-          background: 'var(--semi-color-bg-2)',
         }}
         keepDOM={false}
       >
