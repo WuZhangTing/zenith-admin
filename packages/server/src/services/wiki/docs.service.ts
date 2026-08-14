@@ -28,6 +28,7 @@ import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { getConfigBoolean } from '../../lib/system-config';
 import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
 import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
+import { removeWikiDocFromAiKb, syncPublishedWikiDocToAiKb } from './ai-sync.service';
 import { ensureSpaceRole, getMySpaceRole, spaceRoleAtLeast } from './spaces.service';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
@@ -319,6 +320,8 @@ export async function updateWikiDoc(id: number, data: UpdateWikiDocInput) {
       });
     }
   });
+  // 已发布文档被打回草稿后，移除 AI 知识库中的旧副本
+  if (contentChanged && before.status === 'published') await removeWikiDocFromAiKb(id);
   return getWikiDoc(id);
 }
 
@@ -349,6 +352,7 @@ export async function submitWikiDoc(id: number) {
     ? { status: 'pending' as const, rejectReason: null }
     : { status: 'published' as const, rejectReason: null, publishedAt: new Date() };
   await db.update(wikiDocs).set(next).where(eq(wikiDocs.id, id));
+  if (next.status === 'published') await syncPublishedWikiDocToAiKb(id);
   return getWikiDoc(id);
 }
 
@@ -362,6 +366,7 @@ export async function reviewWikiDoc(id: number, data: ReviewWikiDocInput) {
     ? { status: 'published' as const, rejectReason: null, publishedAt: new Date() }
     : { status: 'rejected' as const, rejectReason: data.reason ?? null };
   await db.update(wikiDocs).set(next).where(eq(wikiDocs.id, id));
+  if (next.status === 'published') await syncPublishedWikiDocToAiKb(id);
   return getWikiDoc(id);
 }
 
@@ -456,6 +461,8 @@ export async function rollbackWikiDoc(docId: number, version: number) {
       authorId: currentUserId(),
     });
   });
+  // 回滚后退回草稿，移除 AI 知识库中的旧副本
+  await removeWikiDocFromAiKb(docId);
   return getWikiDoc(docId);
 }
 
@@ -467,6 +474,7 @@ export async function deleteWikiDoc(id: number) {
   const childCount = await db.$count(wikiDocs, and(eq(wikiDocs.parentId, id), isNull(wikiDocs.deletedAt)));
   if (childCount > 0) throw new HTTPException(400, { message: '该文档下还有子文档，请先移动或删除子文档' });
   await db.update(wikiDocs).set({ deletedAt: new Date() }).where(eq(wikiDocs.id, id));
+  await removeWikiDocFromAiKb(id);
 }
 
 export async function restoreWikiDoc(id: number) {
@@ -480,6 +488,8 @@ export async function restoreWikiDoc(id: number) {
     if (!parent) parentId = null;
   }
   await db.update(wikiDocs).set({ deletedAt: null, parentId }).where(eq(wikiDocs.id, id));
+  // 已发布文档还原后恢复 AI 知识库同步
+  if (row.status === 'published') await syncPublishedWikiDocToAiKb(id);
   return getWikiDoc(id);
 }
 
@@ -488,6 +498,7 @@ export async function purgeWikiDoc(id: number) {
   if (row.deletedAt === null) throw new HTTPException(400, { message: '只能彻底删除回收站中的文档' });
   setAuditBefore(mapWikiDoc(row));
   await db.delete(wikiDocs).where(eq(wikiDocs.id, id));
+  await removeWikiDocFromAiKb(id);
 }
 
 // ─── 收藏与浏览 ───────────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import type { Department, Position, Role, Tenant, TenantPackage } from '../identity/types';
-import { CMS_RAW_EXPORT_MENU_IDS, CMS_ROOT_MENU_ID, SEED_MENUS, collectMenuSubtreeIds } from './menus';
+import { CMS_RAW_EXPORT_MENU_IDS, CMS_ROOT_MENU_ID, SEED_MENUS, WIKI_DOC_CENTER_MENU_ID, WIKI_ROOT_MENU_ID, collectMenuSubtreeIds } from './menus';
 import { SEED_DATE } from './_base';
 
 /** 给定菜单 ID 集合，附加其直接按钮子节点（套餐白名单需包含按钮，权限码才会生效） */
@@ -35,7 +35,8 @@ export const SEED_ROLES: Role[] = [
     createdAt: SEED_DATE,
     updatedAt: SEED_DATE,
     // 首页 / 个人中心 / 公告中心 + 消息中心（页面与其按钮权限分离，按钮需显式分配）
-    menuIds: [1, 11, 12, 5000, 5001],
+    // + 知识中心文档中心全套（Wiki 面向全员，空间级权限由服务端成员角色控制）
+    menuIds: [1, 11, 12, 5000, 5001, WIKI_ROOT_MENU_ID, ...collectMenuSubtreeIds(WIKI_DOC_CENTER_MENU_ID)],
   },
   {
     id: 3,

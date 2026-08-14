@@ -174,9 +174,19 @@ async function embedTexts(texts: string[]): Promise<number[][] | null> {
   }
 }
 
-/** 添加文档：分块 → （可选）向量化 → 入库（pgvector 可用时同步物化 embedding_vec 列） */
+/** 添加文档（校验当前用户为知识库属主）：分块 → （可选）向量化 → 入库 */
 export async function addKbDocument(kbId: number, input: AddAiKbDocumentInput, sourceUrl: string | null = null) {
-  const kb = await ensureKbOwner(kbId);
+  await ensureKbOwner(kbId);
+  return ingestKbDocument(kbId, input, sourceUrl);
+}
+
+/**
+ * 低层入库（不做属主校验）：供本域 addKbDocument 与知识中心（Wiki）发布同步复用。
+ * 分块 → （可选）向量化 → 入库（pgvector 可用时同步物化 embedding_vec 列）。
+ */
+export async function ingestKbDocument(kbId: number, input: { name: string; content: string }, sourceUrl: string | null = null) {
+  const kb = await db.query.aiKnowledgeBases.findFirst({ where: eq(aiKnowledgeBases.id, kbId) });
+  if (!kb) throw new HTTPException(404, { message: '知识库不存在' });
   const chunks = chunkText(input.content);
   if (chunks.length === 0) throw new HTTPException(400, { message: '内容为空，无法入库' });
 
@@ -280,6 +290,11 @@ export async function deleteKbDocument(kbId: number, docId: number) {
   const [doc] = await db.select().from(aiKbDocuments).where(and(eq(aiKbDocuments.id, docId), eq(aiKbDocuments.kbId, kbId)));
   if (!doc) throw new HTTPException(404, { message: '文档不存在' });
   await db.delete(aiKbDocuments).where(eq(aiKbDocuments.id, docId));
+}
+
+/** 按来源标识移除文档（不做属主校验）：供知识中心（Wiki）同步取消/更新时清理旧副本 */
+export async function removeKbDocumentsBySource(kbId: number, sourceUrl: string) {
+  await db.delete(aiKbDocuments).where(and(eq(aiKbDocuments.kbId, kbId), eq(aiKbDocuments.sourceUrl, sourceUrl)));
 }
 
 function cosineSimilarity(a: number[], b: number[]): number {

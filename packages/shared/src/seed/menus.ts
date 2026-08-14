@@ -78,6 +78,10 @@ const CMS_RAW_EXPORT_PERMISSIONS: readonly string[] = [
 
 export const CMS_ROOT_MENU_ID = 14000;
 
+// 知识中心根目录与文档中心页面（供角色种子引用，避免魔法数字散落）
+export const WIKI_ROOT_MENU_ID = 16000;
+export const WIKI_DOC_CENTER_MENU_ID = 16010;
+
 export const CMS_RAW_EXPORT_MENU_IDS: number[] = SEED_MENUS
   .filter((m) => m.permission !== undefined && CMS_RAW_EXPORT_PERMISSIONS.includes(m.permission))
   .map((m) => m.id);
