@@ -815,7 +815,7 @@ export default function TerminalPage() {
         height: '100%',
         display: 'flex',
         flexDirection: (tabPosition === 'right' || tabPosition === 'left') ? 'row' : 'column',
-        background: 'var(--color-layout-bg)',
+        background: 'var(--color-content-bg)',
         overflow: 'hidden',
       }}
     >
