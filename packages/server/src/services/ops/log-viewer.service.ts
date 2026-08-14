@@ -44,9 +44,9 @@ export function spawnTailFollow(filePath: string): { kill: () => void; lines: No
 }
 
 /** 为下载读取日志文件（容量上限保护），返回文件名与可读流 */
-export function openLogForDownload(filePath: string, maxBytes = 100 * 1024 * 1024): { filename: string; size: number; stream: fs.ReadStream } {
+export async function openLogForDownload(filePath: string, maxBytes = 100 * 1024 * 1024): Promise<{ filename: string; size: number; stream: fs.ReadStream }> {
   validateLogPath(filePath);
-  const stat = fs.statSync(filePath);
+  const stat = await fs.promises.stat(filePath);
   if (!stat.isFile()) throw new Error('目标不是文件');
   if (stat.size > maxBytes) throw new Error(`文件过大（${(stat.size / 1024 / 1024).toFixed(1)}MB），超出下载上限 ${maxBytes / 1024 / 1024}MB`);
   return { filename: nodePath.basename(filePath), size: stat.size, stream: fs.createReadStream(filePath) };

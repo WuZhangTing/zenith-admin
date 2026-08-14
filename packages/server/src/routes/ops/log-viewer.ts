@@ -41,10 +41,10 @@ router.get('/download', authMiddleware, async (c) => {
   if (!filePath) {
     return c.json({ code: 400, message: '参数 path 不能为空', data: null }, 400);
   }
-  let file: ReturnType<typeof openLogForDownload>;
+  let file: Awaited<ReturnType<typeof openLogForDownload>>;
   try {
     validateLogPath(filePath);
-    file = openLogForDownload(filePath);
+    file = await openLogForDownload(filePath);
   } catch (e) {
     return c.json({ code: 400, message: (e as Error).message, data: null }, 400);
   }

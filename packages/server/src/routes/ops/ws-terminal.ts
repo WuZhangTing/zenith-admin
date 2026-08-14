@@ -374,7 +374,8 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
               let cwd = os.homedir() || process.cwd();
               if (!isWsl && cwdParam) {
                 try {
-                  if (fs.existsSync(cwdParam) && fs.statSync(cwdParam).isDirectory()) {
+                  // 单次异步 stat 即可判定存在性与目录类型，避免 existsSync+statSync 双重同步调用
+                  if ((await fs.promises.stat(cwdParam)).isDirectory()) {
                     cwd = cwdParam;
                   }
                 } catch { /* 无效路径回退默认 */ }
