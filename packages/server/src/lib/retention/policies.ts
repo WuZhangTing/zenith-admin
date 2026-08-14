@@ -464,6 +464,17 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     defaultDays: 180,
     description: '模型评测集的运行结果。',
   },
+
+  // ── 知识中心 ───────────────────────────────────────────────────────────────
+  {
+    key: 'wiki_search_logs',
+    title: '知识检索日志',
+    module: '知识中心',
+    tableName: 'wiki_search_logs',
+    timeColumn: 'created_at',
+    defaultDays: 180,
+    description: '知识中心搜索关键词与点击流水，供无结果关键词分析与运营统计。',
+  },
 ];
 
 export function findPolicy(key: string): RetentionPolicyDefinition | undefined {

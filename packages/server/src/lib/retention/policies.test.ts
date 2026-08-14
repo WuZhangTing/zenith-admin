@@ -42,6 +42,7 @@ const EXEMPT: Record<string, string> = {
   open_quota_alerts: '配额告警，由开放平台聚合任务按状态回收',
   analytics_daily_rollup: '按日聚合结果，体积远小于原始事件，是原始数据裁剪后的留存载体',
   identity_provider_sync_records: '身份源同步明细，随同步日志级联回收',
+  wiki_review_records: '审核时间线，随文档级联删除（doc_id cascade），属于业务过程数据而非日志',
 };
 
 function collectTables(): Array<{ table: string; file: string }> {
