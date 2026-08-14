@@ -1125,6 +1125,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
       gapY={120}
       rotate={-22}
       zIndex={9}
+      isDark={isDark}
     >
       {adminLayoutEl}
     </Watermark>
