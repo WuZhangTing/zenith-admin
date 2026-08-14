@@ -132,7 +132,7 @@
   flex-shrink: 0;
   padding: 12px clamp(12px, 4vw, 56px);
   border-top: 1px solid var(--semi-color-border);
-  background: var(--semi-color-bg-1);
+  background: var(--surface-card);
 }
 
 .chatbi-composer .semi-input-textarea-wrapper {

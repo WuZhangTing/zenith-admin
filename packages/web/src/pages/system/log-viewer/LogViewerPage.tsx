@@ -296,7 +296,7 @@ export default function LogViewerPage() {
             fontFamily: 'Consolas, "Courier New", monospace',
             fontSize: 12,
             lineHeight: 1.6,
-            background: 'var(--semi-color-bg-1)',
+            background: 'var(--surface-card)',
             height: '100%',
             overflow: 'auto',
             color: 'var(--semi-color-text-0)',

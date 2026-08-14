@@ -14,7 +14,7 @@
   height: 40px;
   padding: 0 12px;
   border-bottom: 1px solid var(--semi-color-border);
-  background: var(--semi-color-bg-1);
+  background: var(--surface-card);
   flex-shrink: 0;
 }
 
@@ -42,7 +42,7 @@
   height: 44px;
   padding: 0 12px;
   border-bottom: 1px solid var(--semi-color-border);
-  background: var(--semi-color-bg-1);
+  background: var(--surface-card);
   flex-shrink: 0;
 }
 
@@ -59,7 +59,7 @@
   flex-shrink: 0;
   border-right: 1px solid var(--semi-color-border);
   overflow-y: auto;
-  background: var(--semi-color-bg-1);
+  background: var(--surface-card);
 }
 
 /* 左侧面板 Tabs（控件 / 大纲） */
@@ -68,7 +68,7 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  background: var(--semi-color-bg-1);
+  background: var(--surface-card);
 }
 
 .fd-form-designer__palette-tabs .semi-tabs-content {
@@ -492,7 +492,7 @@
   padding: 10px 12px;
   border: 1px solid var(--semi-color-border);
   border-radius: var(--semi-border-radius-medium);
-  background: var(--semi-color-bg-1);
+  background: var(--surface-card);
   text-align: left;
   cursor: pointer;
 }
@@ -551,7 +551,7 @@
   flex-shrink: 0;
   border-left: 1px solid var(--semi-color-border);
   overflow-y: auto;
-  background: var(--semi-color-bg-1);
+  background: var(--surface-card);
 }
 
 .fd-form-designer__config-empty {
@@ -1212,7 +1212,7 @@
 /* Layout item styling in canvas - wider for layout containers */
 .fd-form-canvas__item[data-type="row"],
 .fd-form-canvas__item[data-type="group"] {
-  background: var(--semi-color-bg-1);
+  background: var(--surface-card);
 }
 
 .fd-form-canvas__item[data-type="divider"] .fd-form-canvas__item-body {

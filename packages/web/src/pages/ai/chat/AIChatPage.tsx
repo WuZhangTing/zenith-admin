@@ -1461,7 +1461,7 @@ export default function AIChatPage() {
                 </div>
 
                 {/* 输入框 */}
-                <div style={{ padding: '12px 20px', borderTop: '1px solid var(--semi-color-border)', background: 'var(--semi-color-bg-1)', flexShrink: 0 }}>
+                <div style={{ padding: '12px 20px', borderTop: '1px solid var(--semi-color-border)', background: 'var(--surface-card)', flexShrink: 0 }}>
                   {/* STT 语音识别草稿条 */}
                   {(recording || sttDraft) && (
                     <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center', padding: '6px 10px', borderRadius: 'var(--semi-border-radius-medium)', background: 'var(--semi-color-fill-0)' }}>

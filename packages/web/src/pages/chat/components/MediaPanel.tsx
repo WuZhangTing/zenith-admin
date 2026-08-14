@@ -25,7 +25,7 @@ export function MediaPanel({
   mediaHasMore: boolean;
 }>) {
   return (
-              <div style={{ width: 320, borderLeft: '1px solid var(--semi-color-border)', display: 'flex', flexDirection: 'column', flexShrink: 0, background: 'var(--semi-color-bg-1)' }}>
+              <div style={{ width: 320, borderLeft: '1px solid var(--semi-color-border)', display: 'flex', flexDirection: 'column', flexShrink: 0, background: 'var(--surface-card)' }}>
                 <div style={{ padding: '12px', borderBottom: '1px solid var(--semi-color-border)', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Text strong style={{ flex: 1, fontSize: 13 }}>媒体文件</Text>
                   <Button size="small" theme="borderless" type="tertiary" icon={<X size={14} />} onClick={() => setShowMediaPanel(false)} />

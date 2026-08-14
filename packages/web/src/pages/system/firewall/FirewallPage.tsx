@@ -193,7 +193,7 @@ export default function FirewallPage() {
           padding: 16,
           border: '1px solid var(--semi-color-border)',
           borderRadius: 'var(--semi-border-radius-medium)',
-          background: 'var(--semi-color-bg-1)',
+          background: 'var(--surface-card)',
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>

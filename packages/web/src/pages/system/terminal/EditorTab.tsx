@@ -70,7 +70,7 @@ function ImagePreview({ filePath, downloadUrl }: { readonly filePath: string; re
   }
 
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--semi-color-bg-1)' }}>
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--surface-card)' }}>
       <div style={{ padding: '4px 8px', borderBottom: '1px solid var(--semi-color-border)', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
         <Typography.Text size="small" type="tertiary" ellipsis={{ showTooltip: true }} style={{ flex: 1 }}>
           {filePath}

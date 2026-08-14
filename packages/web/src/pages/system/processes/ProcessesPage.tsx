@@ -372,7 +372,7 @@ export default function ProcessesPage() {
             {/* 搜索框 */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6,
               border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)',
-              padding: '0 8px', background: 'var(--semi-color-bg-1)', width: 240 }}>
+              padding: '0 8px', background: 'var(--surface-card)', width: 240 }}>
               <Search size={14} style={{ color: 'var(--semi-color-text-2)', flexShrink: 0 }} />
               <input
                 style={{ border: 'none', outline: 'none', background: 'transparent', flex: 1,
@@ -439,7 +439,7 @@ export default function ProcessesPage() {
         mobilePrimary={(
           <div style={{ display: 'flex', alignItems: 'center', gap: 6,
             border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)',
-            padding: '0 8px', background: 'var(--semi-color-bg-1)', width: 240 }}>
+            padding: '0 8px', background: 'var(--surface-card)', width: 240 }}>
             <Search size={14} style={{ color: 'var(--semi-color-text-2)', flexShrink: 0 }} />
             <input
               style={{ border: 'none', outline: 'none', background: 'transparent', flex: 1,

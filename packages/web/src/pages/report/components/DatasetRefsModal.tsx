@@ -66,7 +66,7 @@ export function DatasetRefsModal({ dataset, onClose }: Readonly<Props>) {
             </div>
           ),
         },
-        style: { borderRadius: 'var(--semi-border-radius-large)', border: '1px solid var(--semi-color-border)', padding: 8, background: 'var(--semi-color-bg-1)' },
+        style: { borderRadius: 'var(--semi-border-radius-large)', border: '1px solid var(--semi-color-border)', padding: 8, background: 'var(--surface-card)' },
       };
     });
     const edges: Edge[] = edgesData.map((edge) => ({ ...edge, animated: edge.source.startsWith('dataset:') || edge.source.startsWith('dashboard:') }));

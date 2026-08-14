@@ -356,7 +356,7 @@ function MasterDetailLayoutImpl(props: Readonly<MasterDetailLayoutProps>) {
       ? {
           border: '1px solid var(--semi-color-border)',
           borderRadius: 'var(--semi-border-radius-medium)',
-          background: 'var(--semi-color-bg-1)',
+          background: 'var(--surface-card)',
         }
       : null),
   };
@@ -372,7 +372,7 @@ function MasterDetailLayoutImpl(props: Readonly<MasterDetailLayoutProps>) {
       ? {
           border: '1px solid var(--semi-color-border)',
           borderRadius: 'var(--semi-border-radius-medium)',
-          background: 'var(--semi-color-bg-1)',
+          background: 'var(--surface-card)',
         }
       : null),
   };

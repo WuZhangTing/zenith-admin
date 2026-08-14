@@ -146,7 +146,7 @@ export function MessageSearchModal({
                   >
                     <div
                       style={{
-                        width: '100%', textAlign: 'left', border: '1px solid var(--semi-color-border)', background: 'var(--semi-color-bg-1)', borderRadius: 'var(--semi-border-radius-medium)',
+                        width: '100%', textAlign: 'left', border: '1px solid var(--semi-color-border)', background: 'var(--surface-card)', borderRadius: 'var(--semi-border-radius-medium)',
                         padding: '10px 12px',
                       }}
                     >

@@ -196,7 +196,7 @@ function FieldDependencyGraphInner({ fields }: Readonly<{ fields: WorkflowFormFi
   }
 
   return (
-    <div style={{ width: '100%', height: 560, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', background: 'var(--semi-color-bg-1)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ width: '100%', height: 560, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', background: 'var(--surface-card)', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--semi-color-border)', background: 'var(--semi-color-fill-0)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <Space spacing="tight">
           <Switch size="small" checked={hideIsolated} onChange={setHideIsolated} />

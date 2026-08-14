@@ -329,8 +329,8 @@ export default function DecisionTableEditor({ inputs, outputs, rules, hitPolicy,
     return literalInput(raw, o.type, (v) => setThen(ri, o, v), o.default == null ? '输出值' : `默认 ${String(o.default)}`);
   };
 
-  const th = { position: 'sticky', top: 0, zIndex: 2, padding: '8px 10px', border: '1px solid var(--semi-color-border)', background: 'var(--semi-color-bg-1)', whiteSpace: 'nowrap' } as const;
-  const td = { padding: '6px 8px', border: '1px solid var(--semi-color-border)', verticalAlign: 'middle', background: 'var(--semi-color-bg-1)' } as const;
+  const th = { position: 'sticky', top: 0, zIndex: 2, padding: '8px 10px', border: '1px solid var(--semi-color-border)', background: 'var(--surface-card)', whiteSpace: 'nowrap' } as const;
+  const td = { padding: '6px 8px', border: '1px solid var(--semi-color-border)', verticalAlign: 'middle', background: 'var(--surface-card)' } as const;
 
   const sectionStyle = { padding: '2px 0 12px', borderBottom: '1px solid var(--semi-color-border)' } as const;
 

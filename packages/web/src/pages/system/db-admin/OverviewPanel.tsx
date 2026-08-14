@@ -119,7 +119,7 @@ export function OverviewPanel({ onSelectTable }: Readonly<{ onSelectTable?: (sch
 
           <div
             style={{
-              background: 'var(--semi-color-bg-1)',
+              background: 'var(--surface-card)',
               border: '1px solid var(--semi-color-border)',
               borderRadius: 'var(--semi-border-radius-medium)',
               padding: 16,

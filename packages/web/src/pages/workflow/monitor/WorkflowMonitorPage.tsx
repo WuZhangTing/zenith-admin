@@ -820,7 +820,7 @@ export default function WorkflowMonitorPage() {
             border: '1px solid var(--semi-color-border)',
             borderRadius: 'var(--semi-border-radius-medium)',
             padding: 14,
-            background: 'var(--semi-color-bg-1)',
+            background: 'var(--surface-card)',
           }}
         >
           <Space spacing={8} wrap align="center" style={{ marginBottom: 8 }}>

@@ -29,6 +29,9 @@ body {
   --color-text: var(--semi-color-text-0);
   --color-text-secondary: var(--semi-color-text-2);
   --color-border: var(--semi-color-border);
+  /* 表面层级语义变量：组件只声明「我是卡片」，不必知道自己被渲染在页面里还是弹层里。
+     弹层内部会整体提升一档（见下方 .semi-modal-content / .semi-sidesheet-inner）。 */
+  --surface-card: var(--semi-color-bg-1);
   /* 主题色相关，applyThemeColor() 会在运行时按当前主题色覆盖 */
   --color-primary: #3370ff;
   --color-sidebar-active: rgba(51, 112, 255, 0.1);
@@ -53,6 +56,7 @@ body .semi-always-dark {
   --color-text: var(--semi-color-text-0);
   --color-text-secondary: var(--semi-color-text-2);
   --color-border: var(--semi-color-border);
+  --surface-card: var(--semi-color-bg-1);
   --topbar-shadow: 0 1px 6px rgba(0, 0, 0, 0.18);
 }
 
@@ -122,12 +126,20 @@ body {
 /* Semi override for compact feel */
 .semi-card {
   border-radius: var(--semi-border-radius-medium);
-  background: var(--semi-color-bg-1);
+  background: var(--surface-card);
 }
 .semi-modal-content {
   background: var(--color-layout-bg);
   border: 1px solid var(--color-border);
   border-radius: var(--semi-border-radius-medium);
+}
+
+/* 弹层内部整体提升一档：Modal / SideSheet 的表面本身已处于卡片层级
+   （--color-layout-bg 与 bg-1 同值），其中的卡片再上浮一档才有层次，
+   否则只能靠边框区分。组件写 --surface-card 即可自动适配。 */
+.semi-modal-content,
+.semi-sidesheet-inner {
+  --surface-card: var(--semi-color-bg-2);
 }
 
 /* footer={null} 时 Semi Modal 底部间距缺失（默认由 footer 的 margin 提供），body 为最后一个元素时补齐 */
@@ -849,14 +861,14 @@ body[theme-mode='dark'] .semi-json-viewer-view-line {
 
 /* XYFlow follows the active Semi theme instead of its standalone palette. */
 .zenith-react-flow {
-  --xy-attribution-background-color: var(--semi-color-bg-1);
+  --xy-attribution-background-color: var(--surface-card);
   --xy-background-pattern-dots-color: var(--semi-color-text-3);
-  --xy-controls-button-background-color: var(--semi-color-bg-1);
+  --xy-controls-button-background-color: var(--surface-card);
   --xy-controls-button-background-color-hover: var(--semi-color-fill-0);
   --xy-controls-button-border-color: var(--semi-color-border);
   --xy-controls-button-color: var(--semi-color-text-1);
   --xy-controls-button-color-hover: var(--semi-color-text-0);
-  --xy-minimap-background-color: var(--semi-color-bg-1);
+  --xy-minimap-background-color: var(--surface-card);
   --xy-minimap-mask-background-color: var(--semi-color-fill-0);
   --xy-minimap-node-background-color: var(--semi-color-fill-2);
 }

@@ -67,7 +67,7 @@ export function ShortcutsModal({
                   {keys.map((k, i) => (
                     <span key={k} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                       {i > 0 && <span style={{ color: 'var(--semi-color-text-3)', fontSize: 10 }}>+</span>}
-                      <kbd style={{ display: 'inline-flex', alignItems: 'center', padding: '1px 5px', background: 'var(--semi-color-bg-1)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-small)', fontSize: 11, fontFamily: 'inherit', color: 'var(--semi-color-text-0)', boxShadow: '0 1px 0 var(--semi-color-border)', whiteSpace: 'nowrap' }}>{k}</kbd>
+                      <kbd style={{ display: 'inline-flex', alignItems: 'center', padding: '1px 5px', background: 'var(--surface-card)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-small)', fontSize: 11, fontFamily: 'inherit', color: 'var(--semi-color-text-0)', boxShadow: '0 1px 0 var(--semi-color-border)', whiteSpace: 'nowrap' }}>{k}</kbd>
                     </span>
                   ))}
                 </span>

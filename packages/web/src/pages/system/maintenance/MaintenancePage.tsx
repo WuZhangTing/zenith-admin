@@ -166,7 +166,7 @@ export default function MaintenancePage() {
       {/* Current Status Card */}
       <div
         style={{
-          background: 'var(--semi-color-bg-1)',
+          background: 'var(--surface-card)',
           border: '1px solid var(--semi-color-border)',
           borderRadius: 'var(--semi-border-radius-medium)',
           padding: '20px 24px',
@@ -223,7 +223,7 @@ export default function MaintenancePage() {
       {canManage && (
         <div
           style={{
-            background: 'var(--semi-color-bg-1)',
+            background: 'var(--surface-card)',
             border: '1px solid var(--semi-color-border)',
             borderRadius: 'var(--semi-border-radius-medium)',
             padding: '20px 24px',
@@ -292,7 +292,7 @@ export default function MaintenancePage() {
       {/* Maintenance History */}
       <div
         style={{
-          background: 'var(--semi-color-bg-1)',
+          background: 'var(--surface-card)',
           border: '1px solid var(--semi-color-border)',
           borderRadius: 'var(--semi-border-radius-medium)',
           padding: '20px 24px',

@@ -367,7 +367,7 @@ export default function MpMenuPage() {
               </div>
 
               {/* 底部菜单栏 */}
-              <div style={{ background: 'var(--semi-color-bg-1)', borderTop: '1px solid var(--semi-color-border)', display: 'flex', minHeight: 48 }}>
+              <div style={{ background: 'var(--surface-card)', borderTop: '1px solid var(--semi-color-border)', display: 'flex', minHeight: 48 }}>
                 {buttons.map((btn, l1) => {
                   const isHighlighted = selected?.l1 === l1 || activeL1 === l1;
                   return (
@@ -494,7 +494,7 @@ export default function MpMenuPage() {
                   </FieldRow>
 
                   {selIsContainer ? (
-                    <div style={{ padding: '12px 16px', background: 'var(--semi-color-bg-1)', borderRadius: 'var(--semi-border-radius-medium)', fontSize: 12, color: 'var(--semi-color-text-2)', lineHeight: '20px', border: '1px solid var(--semi-color-border)' }}>
+                    <div style={{ padding: '12px 16px', background: 'var(--surface-card)', borderRadius: 'var(--semi-border-radius-medium)', fontSize: 12, color: 'var(--semi-color-text-2)', lineHeight: '20px', border: '1px solid var(--semi-color-border)' }}>
                       该一级菜单含子菜单，作为容器仅需设置名称。<br />
                       删除全部子菜单后可为其单独设置动作。
                     </div>

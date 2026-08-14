@@ -334,14 +334,14 @@ export default function NetworkDiagPage() {
             <Tabs collapsible="auto" type="line" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
               tabBarExtraContent={running ? <Tag color="green" size="small" style={{ marginRight: 8 }}>● 运行中</Tag> : undefined}>
               <TabPane tab="可视化" itemKey="viz" style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 0 }}>
-                <div style={{ padding: 12, height: '100%', overflow: 'auto', background: 'var(--semi-color-bg-1)' }}>
+                <div style={{ padding: 12, height: '100%', overflow: 'auto', background: 'var(--surface-card)' }}>
                   <TracerouteViz hops={hops} />
                 </div>
               </TabPane>
               <TabPane tab="原始输出" itemKey="raw" style={{ flex: 1, minHeight: 0 }}>
                 <pre ref={preRef} style={{
                   margin: 0, padding: 12, fontFamily: 'monospace', fontSize: 12, lineHeight: 1.6,
-                  whiteSpace: 'pre-wrap', wordBreak: 'break-all', background: 'var(--semi-color-bg-1)',
+                  whiteSpace: 'pre-wrap', wordBreak: 'break-all', background: 'var(--surface-card)',
                   height: '100%', overflow: 'auto', color: 'var(--semi-color-text-0)',
                 }}>
                   {output || <Typography.Text type="tertiary" style={{ fontStyle: 'italic' }}>等待运行...</Typography.Text>}
@@ -357,7 +357,7 @@ export default function NetworkDiagPage() {
               </div>
               <pre ref={preRef} style={{
                 margin: 0, padding: 12, fontFamily: 'Consolas, "Courier New", monospace', fontSize: 13, lineHeight: 1.6,
-                whiteSpace: 'pre-wrap', wordBreak: 'break-all', background: 'var(--semi-color-bg-1)',
+                whiteSpace: 'pre-wrap', wordBreak: 'break-all', background: 'var(--surface-card)',
                 height: 'calc(100% - 32px)', overflow: 'auto', color: 'var(--semi-color-text-0)',
               }}>
                 {output || <Typography.Text type="tertiary" style={{ fontStyle: 'italic' }}>等待运行...</Typography.Text>}

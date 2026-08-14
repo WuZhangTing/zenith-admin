@@ -196,7 +196,7 @@ export function ChannelMessageView({ channel, currentUserId, onBack, onUnsubscri
   const renderMenuBar = () => {
     if (!isBusiness || menus.length === 0) return null;
     return (
-      <div style={{ display: 'flex', borderTop: '1px solid var(--semi-color-border)', background: 'var(--semi-color-bg-1)' }}>
+      <div style={{ display: 'flex', borderTop: '1px solid var(--semi-color-border)', background: 'var(--surface-card)' }}>
         {menus.map((top) => {
           const children = top.children ?? [];
           const cell = (

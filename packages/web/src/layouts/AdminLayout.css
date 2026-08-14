@@ -980,7 +980,7 @@
   border: 1.5px solid var(--semi-color-border);
   overflow: hidden;
   position: relative;
-  background: var(--semi-color-bg-1);
+  background: var(--surface-card);
 }
 
 /* Vertical: left sidebar + content */

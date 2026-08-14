@@ -750,7 +750,7 @@ function RuntimeStatusBar() {
     : '暂无注册节点';
 
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 24, padding: '10px 16px', marginBottom: 12, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', background: 'var(--semi-color-bg-1)' }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 24, padding: '10px 16px', marginBottom: 12, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', background: 'var(--surface-card)' }}>
       <Typography.Text strong style={{ marginRight: 4 }}>运行状态</Typography.Text>
       <Tooltip content={<pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{workerTip}</pre>}>
         <div>{stat('存活 Worker', `${status?.activeWorkers ?? '-'} / ${status?.totalWorkers ?? '-'}`)}</div>

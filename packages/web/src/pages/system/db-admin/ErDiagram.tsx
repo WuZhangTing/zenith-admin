@@ -461,7 +461,7 @@ function ErDiagramInner({ schema, onNodeDoubleClick }: Readonly<ErDiagramProps>)
         height: 640,
         border: '1px solid var(--semi-color-border)',
         borderRadius: 'var(--semi-border-radius-medium)',
-        background: 'var(--semi-color-bg-1)',
+        background: 'var(--surface-card)',
         display: 'flex',
         flexDirection: 'column',
       }}

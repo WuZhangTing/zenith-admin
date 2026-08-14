@@ -167,7 +167,7 @@ export function PDFPreviewPanel({ file, onClose, fullscreen, onToggleFullscreen,
           gap: 8,
           padding: '10px 16px',
           borderBottom: '1px solid var(--semi-color-border)',
-          background: 'var(--semi-color-bg-1)',
+          background: 'var(--surface-card)',
           flexShrink: 0,
         }}
       >

@@ -4,7 +4,7 @@
 }
 
 .report-grid .react-grid-item {
-  background: var(--semi-color-bg-1);
+  background: var(--surface-card);
   border: 1px solid var(--semi-color-border);
   border-radius: var(--semi-border-radius-medium);
   overflow: hidden;
@@ -203,7 +203,7 @@
   gap: 12px;
   padding: 10px 16px;
   border-bottom: 1px solid var(--semi-color-border);
-  background: var(--semi-color-bg-1);
+  background: var(--surface-card);
 }
 .report-designer__main {
   flex: 1;
@@ -217,7 +217,7 @@
   border-right: 1px solid var(--semi-color-border);
   padding: 12px;
   overflow-y: auto;
-  background: var(--semi-color-bg-1);
+  background: var(--surface-card);
 }
 .report-designer__canvas {
   flex: 1;
@@ -232,7 +232,7 @@
   border-left: 1px solid var(--semi-color-border);
   padding: 16px;
   overflow-y: auto;
-  background: var(--semi-color-bg-1);
+  background: var(--surface-card);
 }
 @media (max-width: 900px) {
   .report-designer {
@@ -308,7 +308,7 @@
   overflow: hidden;
   border: 1px solid var(--semi-color-border);
   border-radius: var(--semi-border-radius-medium);
-  background: var(--semi-color-bg-1);
+  background: var(--surface-card);
 }
 
 .report-filter-compact {

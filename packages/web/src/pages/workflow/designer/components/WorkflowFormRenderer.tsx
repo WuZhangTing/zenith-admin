@@ -207,7 +207,7 @@ function SignaturePad({ value, onChange, disabled, width = 360, height = 150 }: 
         style={{
           border: '1px dashed var(--semi-color-border)',
           borderRadius: 'var(--semi-border-radius-medium)',
-          background: 'var(--semi-color-bg-1)',
+          background: 'var(--surface-card)',
           touchAction: 'none',
           cursor: disabled ? 'not-allowed' : 'crosshair',
           maxWidth: '100%',

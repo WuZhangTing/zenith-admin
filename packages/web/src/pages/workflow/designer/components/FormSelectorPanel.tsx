@@ -93,7 +93,7 @@ export default function FormSelectorPanel({ formId, formName, onSelect }: Readon
             border: '1px solid var(--semi-color-border)',
             borderRadius: 'var(--semi-border-radius-medium)',
             overflow: 'hidden',
-            background: 'var(--semi-color-bg-1)',
+            background: 'var(--surface-card)',
           }}
         >
           <WorkflowFormInlineEditor

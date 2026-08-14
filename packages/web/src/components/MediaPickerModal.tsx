@@ -110,7 +110,7 @@ export function MediaPickerModal({ visible, onCancel, onSelect, imageOnly = true
                     border: '1px solid var(--semi-color-border)',
                     borderRadius: 'var(--semi-border-radius-medium)',
                     padding: 0,
-                    background: 'var(--semi-color-bg-1)',
+                    background: 'var(--surface-card)',
                     overflow: 'hidden',
                     textAlign: 'center',
                   }}

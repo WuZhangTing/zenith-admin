@@ -701,7 +701,7 @@ export default function WorkflowFormInlineEditor({
             width: 375,
             margin: '12px auto',
             padding: '16px 14px',
-            background: 'var(--semi-color-bg-1)',
+            background: 'var(--surface-card)',
             border: '1px solid var(--semi-color-border)',
             borderRadius: 20,
             boxShadow: 'var(--semi-shadow-elevated)',
