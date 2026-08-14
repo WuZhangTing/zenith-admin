@@ -1,0 +1,151 @@
+import { Tag, Toast } from '@douyinfe/semi-ui';
+import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
+import type { WikiComment } from '@zenith/shared/wiki';
+import { WIKI_COMMENT_STATUS_LABELS, WIKI_COMMENT_STATUS_OPTIONS } from '@zenith/shared/wiki';
+import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
+import { SearchToolbar } from '@/components/SearchToolbar';
+import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
+import { usePermission } from '@/hooks/usePermission';
+import { useListSearch } from '@/hooks/useListSearch';
+import { confirmDelete } from '@/utils/confirm';
+import { formatDateTimeRangeForApi } from '@/utils/date';
+import {
+  useRemoveWikiComment, useUpdateWikiCommentStatus, useWikiCommentList, wikiCommentKeys,
+} from '@/hooks/queries/wiki-comments';
+
+interface SearchParams {
+  keyword: string;
+  status: string;
+  timeRange: [Date, Date] | null;
+}
+
+const defaultSearchParams: SearchParams = { keyword: '', status: '', timeRange: null };
+
+export default function WikiCommentsPage() {
+  const { hasPermission } = usePermission();
+
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: wikiCommentKeys.lists });
+
+  const listQuery = useWikiCommentList({
+    page,
+    pageSize,
+    keyword: submittedParams.keyword || undefined,
+    status: submittedParams.status || undefined,
+    ...formatDateTimeRangeForApi(submittedParams.timeRange),
+  });
+  const list = listQuery.data?.list ?? [];
+  const total = listQuery.data?.total ?? 0;
+
+  const statusMutation = useUpdateWikiCommentStatus();
+  const removeMutation = useRemoveWikiComment();
+
+  const columns: ColumnProps<WikiComment>[] = [
+    { title: '评论内容', dataIndex: 'content', width: 280, render: renderEllipsis },
+    { title: '所属文档', dataIndex: 'docTitle', width: 200, render: renderEllipsis },
+    { title: '评论人', dataIndex: 'authorName', width: 120, render: (v: string | null) => v ?? '已注销用户' },
+    createdAtColumn,
+    {
+      title: '状态', dataIndex: 'status', width: 90, fixed: 'right',
+      render: (v: WikiComment['status']) => (
+        <Tag color={v === 'visible' ? 'green' : 'grey'}>{WIKI_COMMENT_STATUS_LABELS[v]}</Tag>
+      ),
+    },
+    createOperationColumn<WikiComment>({
+      width: 150,
+      desktopInlineKeys: ['toggle', 'delete'],
+      actions: (record) => [
+        ...(hasPermission('wiki:comment:audit') ? [{
+          key: 'toggle',
+          label: record.status === 'visible' ? '隐藏' : '恢复',
+          onClick: () => statusMutation.mutate(
+            { id: record.id, docId: record.docId, status: record.status === 'visible' ? 'hidden' : 'visible' },
+            { onSuccess: () => Toast.success(record.status === 'visible' ? '已隐藏' : '已恢复') },
+          ),
+        }] : []),
+        ...(hasPermission('wiki:comment:delete') ? [{
+          key: 'delete', label: '删除', danger: true,
+          onClick: () => {
+            confirmDelete({
+              title: '确定要删除这条评论吗？',
+              content: '删除后其下回复一并删除，不可恢复',
+              onOk: async () => {
+                await removeMutation.mutateAsync({ id: record.id, docId: record.docId });
+                Toast.success('删除成功');
+              },
+            });
+          },
+        }] : []),
+      ],
+    }),
+  ];
+
+  const renderKeywordSearch = () => (
+    <KeywordInput
+      placeholder="搜索评论内容..."
+      value={draftParams.keyword}
+      onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))}
+      onSearch={handleSearch}
+    />
+  );
+
+  const renderStatusFilter = () => (
+    <StatusSelect
+      items={WIKI_COMMENT_STATUS_OPTIONS}
+      placeholder="全部状态"
+      value={draftParams.status}
+      onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
+    />
+  );
+
+  const renderTimeRangeFilter = () => (
+    <DateRangeFilter
+      value={draftParams.timeRange}
+      onChange={(v) => setDraftParams((p) => ({ ...p, timeRange: v }))}
+    />
+  );
+
+  return (
+    <div className="page-container">
+      <SearchToolbar
+        primary={<>
+          {renderKeywordSearch()}
+          {renderStatusFilter()}
+          {renderTimeRangeFilter()}
+          <SearchButton onClick={handleSearch} />
+          <ResetButton onClick={handleReset} />
+        </>}
+        mobilePrimary={<>
+          {renderKeywordSearch()}
+          <SearchButton onClick={handleSearch} />
+        </>}
+        mobileFilters={<>
+          {renderStatusFilter()}
+          {renderTimeRangeFilter()}
+        </>}
+        filterTitle="筛选条件"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
+
+      <ConfigurableTable
+        bordered
+        columns={columns}
+        dataSource={list}
+        loading={listQuery.isFetching}
+        rowKey="id"
+        size="small"
+        empty="暂无评论"
+        onRefresh={() => void listQuery.refetch()}
+        refreshLoading={listQuery.isFetching}
+        pagination={buildPagination(total)}
+      />
+    </div>
+  );
+}
