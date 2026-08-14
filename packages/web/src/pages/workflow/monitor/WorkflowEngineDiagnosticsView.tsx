@@ -500,6 +500,25 @@ function exportDiagnostics(filename: string, content: string, type: string) {
   downloadBlob(new Blob([content], { type }), filename);
 }
 
+/** 「生成时间 · 更新于 Xs 前」标签：自滴答隔离在此小组件内，避免顶层每秒 setState 令整个诊断面板重渲染 */
+function FreshnessLabel({ generatedAt, lastUpdated }: Readonly<{ generatedAt: string; lastUpdated: number | null }>) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (lastUpdated == null) return;
+    setNow(Date.now());
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [lastUpdated]);
+  let freshnessText = '';
+  if (lastUpdated != null) {
+    const sec = Math.max(0, Math.round((now - lastUpdated) / 1000));
+    freshnessText = sec < 60 ? `${sec}s 前` : `${Math.floor(sec / 60)}m 前`;
+  }
+  return (
+    <Typography.Text type="tertiary" size="small">· {generatedAt} 生成{freshnessText ? ` · 更新于 ${freshnessText}` : ''}</Typography.Text>
+  );
+}
+
 export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostics }: Props) {
   const palette = useChartPalette();
   const [thresholdMinutes, setThresholdMinutes] = useState(30);
@@ -513,16 +532,9 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
   const history = diagnosticsQuery.data?.history ?? null;
   const lastUpdated = diagnosticsQuery.data?.fetchedAt ?? null;
   const loading = diagnosticsQuery.isFetching;
-  const [nowTick, setNowTick] = useState(Date.now());
   const [actionLoading, setActionLoading] = useState<WorkflowEngineActionKey | null>(null);
   const actionPreviewMutation = useWorkflowEngineActionPreview();
   const actionMutation = useWorkflowEngineAction();
-
-  // 「更新于 Xs 前」每秒滴答
-  useEffect(() => {
-    const id = window.setInterval(() => setNowTick(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
 
   const [batchRecoveryVisible, setBatchRecoveryVisible] = useState(false);
 
@@ -798,8 +810,6 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
       ? palette.warning
       : undefined;
   const stuckInstances = data.runtime.runningWithoutActiveTasks.length;
-  const freshnessSec = lastUpdated ? Math.max(0, Math.round((nowTick - lastUpdated) / 1000)) : null;
-  const freshnessText = freshnessSec == null ? '' : freshnessSec < 60 ? `${freshnessSec}s 前` : `${Math.floor(freshnessSec / 60)}m 前`;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -815,7 +825,7 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
         >
           {data.healthy ? <CheckCircle2 size={16} color="var(--semi-color-success)" /> : <AlertTriangle size={16} color="var(--semi-color-danger)" />}
           <Typography.Text strong>{data.healthy ? '引擎状态正常' : '引擎存在严重事项'}</Typography.Text>
-          <Typography.Text type="tertiary" size="small">· {data.generatedAt} 生成{freshnessText ? ` · 更新于 ${freshnessText}` : ''}</Typography.Text>
+          <FreshnessLabel generatedAt={data.generatedAt} lastUpdated={lastUpdated} />
         </div>
         <Space wrap align="center">
           <Dropdown
