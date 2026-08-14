@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Modal, Input, Button, Toast } from '@douyinfe/semi-ui';
+import { Modal, Input, Button, PinCode, Toast } from '@douyinfe/semi-ui';
 import { Crown } from 'lucide-react';
 import { useMemberAuth } from '../hooks/useMemberAuth';
 import { useSmsCode } from '../hooks/useSmsCode';
@@ -127,11 +127,13 @@ export function AuthModal({ visible, onClose, defaultTab = 'login' }: Readonly<A
             ) : (
               <>
                 <Input size="large" placeholder="手机号" value={loginPhone} onChange={setLoginPhone} style={{ marginBottom: 12 }} />
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <Input size="large" placeholder="6 位验证码" value={loginSmsCode} onChange={setLoginSmsCode} onEnterPress={handleLogin} style={{ flex: 1 }} />
-                  <Button size="large" disabled={loginSms.counting > 0} onClick={() => loginSms.send(loginPhone)}>
-                    {loginSms.counting > 0 ? `${loginSms.counting}s` : '获取验证码'}
-                  </Button>
+                <div onKeyDown={(e) => { if (e.key === 'Enter') void handleLogin(); }}>
+                  <PinCode count={6} value={loginSmsCode} onChange={setLoginSmsCode} />
+                  <div style={{ textAlign: 'right', marginTop: 8 }}>
+                    <Button theme="borderless" size="small" disabled={loginSms.counting > 0} onClick={() => loginSms.send(loginPhone)}>
+                      {loginSms.counting > 0 ? `${loginSms.counting}s` : '获取验证码'}
+                    </Button>
+                  </div>
                 </div>
               </>
             )}
@@ -148,11 +150,13 @@ export function AuthModal({ visible, onClose, defaultTab = 'login' }: Readonly<A
         ) : (
           <div>
             <Input size="large" placeholder="手机号" value={regPhone} onChange={setRegPhone} style={{ marginBottom: 12 }} />
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              <Input size="large" placeholder="6 位验证码" value={regCode} onChange={setRegCode} style={{ flex: 1 }} />
-              <Button size="large" disabled={registerSms.counting > 0} onClick={() => registerSms.send(regPhone)}>
-                {registerSms.counting > 0 ? `${registerSms.counting}s` : '获取验证码'}
-              </Button>
+            <div style={{ marginBottom: 12 }}>
+              <PinCode count={6} value={regCode} onChange={setRegCode} />
+              <div style={{ textAlign: 'right', marginTop: 8 }}>
+                <Button theme="borderless" size="small" disabled={registerSms.counting > 0} onClick={() => registerSms.send(regPhone)}>
+                  {registerSms.counting > 0 ? `${registerSms.counting}s` : '获取验证码'}
+                </Button>
+              </div>
             </div>
             <Input size="large" placeholder="昵称（选填）" value={nickname} onChange={setNickname} style={{ marginBottom: 12 }} />
             <Input size="large" mode="password" placeholder="设置密码（选填，至少 6 位）" value={regPassword} onChange={setRegPassword} style={{ marginBottom: 12 }} />

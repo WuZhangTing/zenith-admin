@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
-import { Avatar, Button, Input, Modal, Toast } from '@douyinfe/semi-ui';
+import { Avatar, Button, Input, Modal, PinCode, Toast } from '@douyinfe/semi-ui';
 import { Crown, LogOut, Palette, UserX } from 'lucide-react';
 import { useMemberAuth } from '../../hooks/useMemberAuth';
 import { MemberPage } from '../../components/MemberPage';
@@ -133,12 +133,16 @@ export default function ProfilePage() {
         <p style={{ marginBottom: 12, color: 'var(--m-text-secondary)', fontSize: 13 }}>
           此操作不可自行撤销。请输入{needPassword ? '登录密码' : '短信验证码'}确认身份：
         </p>
-        <Input
-          mode={needPassword ? 'password' : undefined}
-          placeholder={needPassword ? '登录密码' : '短信验证码'}
-          value={credential}
-          onChange={setCredential}
-        />
+        {needPassword ? (
+          <Input
+            mode="password"
+            placeholder="登录密码"
+            value={credential}
+            onChange={setCredential}
+          />
+        ) : (
+          <PinCode count={6} value={credential} onChange={setCredential} />
+        )}
       </Modal>
     </MemberPage>
   );

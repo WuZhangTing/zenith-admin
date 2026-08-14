@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Input, Button, Toast } from '@douyinfe/semi-ui';
+import { Input, Button, PinCode, Toast } from '@douyinfe/semi-ui';
 import { Crown } from 'lucide-react';
 import { useSmsCode } from '../../hooks/useSmsCode';
 import { useResetMemberPassword } from '../../hooks/queries';
@@ -53,17 +53,17 @@ export default function ForgotPasswordPage() {
           onChange={setPhone}
           style={{ marginBottom: 12 }}
         />
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          <Input
-            size="large"
-            placeholder="6 位验证码"
+        <div style={{ marginBottom: 12 }}>
+          <PinCode
+            count={6}
             value={smsCode}
             onChange={setSmsCode}
-            style={{ flex: 1 }}
           />
-          <Button size="large" disabled={counting > 0} onClick={() => send(phone)}>
-            {counting > 0 ? `${counting}s` : '获取验证码'}
-          </Button>
+          <div style={{ textAlign: 'right', marginTop: 8 }}>
+            <Button theme="borderless" size="small" disabled={counting > 0} onClick={() => send(phone)}>
+              {counting > 0 ? `${counting}s` : '获取验证码'}
+            </Button>
+          </div>
         </div>
         <Input
           size="large"

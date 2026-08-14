@@ -243,10 +243,10 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
           </Text>
         </div>
       </div>
-      <Form.Input
+      <Form.PinCode
         field="code"
         noLabel
-        placeholder="6 位动态验证码"
+        count={6}
         rules={[{ required: true, message: '请输入动态验证码' }]}
         size="large"
       />

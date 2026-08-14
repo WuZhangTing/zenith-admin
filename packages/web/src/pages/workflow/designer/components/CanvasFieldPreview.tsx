@@ -3,7 +3,7 @@
  * 用非 Form 版 Semi 组件按字段配置渲染真实控件外观（禁用态、pointer-events 由外层关闭），
  * 让画布布局与最终填写页一致；交互（选中/拖拽/右键）由外层卡片壳负责。
  */
-import { Input, TextArea, InputNumber, DatePicker, TimePicker, Select, Cascader, RadioGroup, Radio, CheckboxGroup, Switch, Slider, TagInput, Rating, Typography, Button } from '@douyinfe/semi-ui';
+import { Input, TextArea, InputNumber, DatePicker, TimePicker, Select, Cascader, RadioGroup, Radio, CheckboxGroup, Switch, Slider, TagInput, Rating, PinCode, Typography, Button } from '@douyinfe/semi-ui';
 import type { CascaderData } from '@douyinfe/semi-ui/lib/es/cascader';
 import { Paperclip, ImageIcon, PenTool } from 'lucide-react';
 import type { WorkflowFormField } from '@zenith/shared/workflow';
@@ -125,7 +125,7 @@ export default function CanvasFieldPreview({ field }: Readonly<{ field: Workflow
     case 'password':
       return <Input style={w} disabled mode="password" placeholder={placeholder} />;
     case 'pinCode':
-      return <Input style={w} disabled placeholder={`${field.maxCount ?? 6} 位验证码`} />;
+      return <PinCode disabled count={field.maxCount ?? 6} />;
     case 'formula':
       return <Input style={w} disabled placeholder="按公式自动计算" suffix={field.unit || undefined} />;
     case 'serialNumber':

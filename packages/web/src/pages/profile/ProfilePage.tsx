@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import {
   Form, Button, Typography, Toast, Tag, Space, Spin,
-  Modal, Input, Tabs, List as SemiList, Descriptions, Divider,
+  Modal, Tabs, List as SemiList, Descriptions, Divider, PinCode,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { UserRound, Shield, Monitor, List, Key, LogOut, Plus, Copy, CheckCircle, Smartphone } from 'lucide-react';
@@ -769,11 +769,10 @@ export default function ProfilePage({ user }: ProfilePageProps) {
             <Text type="tertiary" size="small" style={{ textAlign: 'center' }}>
               使用身份验证器扫描二维码，或手动输入密钥 <code>{totpSetup.secret}</code>。
             </Text>
-            <Input
+            <PinCode
+              count={6}
               value={totpCode}
               onChange={setTotpCode}
-              placeholder="输入 6 位动态验证码"
-              style={{ width: 220 }}
             />
           </div>
         )}
