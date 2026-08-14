@@ -130,38 +130,6 @@ vitest 的转译成本决定了测试耗时，由三处配置共同压住，**�
 
 > Step 5 写入 changelog 后**无需**重跑整套验证：changelog 只影响文档站，单独重跑 `npm run docs:build` 确认即可。
 
-### DB 集成测试（按需，独立于上面四路）
-
-核心资金链路 DB 集成测试（积分 / 钱包 / 优惠券的「事务 + 乐观锁」并发正确性，默认跳过，需本地 PostgreSQL 可用）：
-
-```powershell
-# PowerShell（在 packages/server 目录执行）
-$env:MEMBER_FUNDS_DB_IT='1'; npx vitest run src/services/member/member-funds.it.test.ts
-```
-
-```bash
-# Bash（在 packages/server 目录执行）
-MEMBER_FUNDS_DB_IT=1 npx vitest run src/services/member/member-funds.it.test.ts
-```
-
-> 本次发布涉及积分 / 钱包 / 优惠券 / 支付相关改动时，该集成测试**必须**运行并通过；其余改动 PG 不可用时可跳过。
-
-以及任务中心幂等作用域 DB 集成测试（跨租户 / 跨用户 / 跨任务类型的隔离由两个部分唯一索引保证，mock 验证不到）：
-
-```powershell
-# PowerShell（在 packages/server 目录执行）
-$env:TASK_IDEM_DB_IT='1'; npx vitest run src/lib/task-center/task-idempotency.it.test.ts
-```
-
-```bash
-# Bash（在 packages/server 目录执行）
-TASK_IDEM_DB_IT=1 npx vitest run src/lib/task-center/task-idempotency.it.test.ts
-```
-
-> 本次发布涉及任务中心 / 幂等 / 多租户相关改动时，该集成测试**必须**运行并通过。
-> 两个集成测试连接同一本地 PG，可与四路并行验证同时进行，也可一条命令合跑：
-> `$env:MEMBER_FUNDS_DB_IT='1'; $env:TASK_IDEM_DB_IT='1'; npx vitest run src/services/member/member-funds.it.test.ts src/lib/task-center/task-idempotency.it.test.ts`
-
 ---
 
 ## Step 5：更新 `docs/changelog/index.md`

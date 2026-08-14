@@ -72,7 +72,7 @@ Zenith Admin 采用 **tag 触发 Release** 的自动化发布流程：
 1. 更新六个 `package.json` 中的版本号（根 / server / web / shared / analytics-sdk / electron）
 2. 在项目根目录执行 `npm install --package-lock-only`，同步 `package-lock.json`
 3. 执行 `npm run lint` 做静态检查
-4. 执行 `npm test` 运行全部测试（涉及资金链路改动时，另跑 `MEMBER_FUNDS_DB_IT=1` 的 DB 集成测试）
+4. 执行 `npm test` 运行全部测试
 5. 在 `docs/changelog/index.md` 顶部追加当前版本的变更记录
 6. 使用 Node.js 24 依次执行 `npm run build`、`npm run docs:build`、`npm run build:demo` 做发布前构建校验
 7. 提交并推送到 `master`
