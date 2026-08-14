@@ -1106,7 +1106,6 @@
 }
 
 .fd-form-canvas__row-col-field {
-  background: var(--semi-color-bg-2);
   border: 1px solid var(--semi-color-border);
   border-radius: var(--semi-border-radius-small);
   padding: 3px 8px;
@@ -1148,7 +1147,6 @@
 }
 
 .fd-form-canvas__group-child {
-  background: var(--semi-color-bg-2);
   border: 1px solid var(--semi-color-border);
   border-radius: var(--semi-border-radius-small);
   padding: 3px 8px;
@@ -1227,7 +1225,6 @@
   align-items: center;
   gap: 5px;
   padding: 5px 8px;
-  background: var(--semi-color-bg-2);
   border: 1px solid var(--semi-color-border);
   border-radius: var(--semi-border-radius-small);
   font-size: 12px;

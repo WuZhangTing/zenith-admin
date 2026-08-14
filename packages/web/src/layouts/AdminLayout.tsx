@@ -918,7 +918,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
               )}
             </div>
           )}
-          <div className="admin-content" style={{ background: 'var(--color-content-bg)', overflow: 'auto', position: 'relative' }}>
+          <div className="admin-content" style={{ overflow: 'auto', position: 'relative' }}>
             <RouteErrorBoundary>
               <TabsMetaContext.Provider value={tabsMetaValue}>
                 {pageCacheEnabled ? (

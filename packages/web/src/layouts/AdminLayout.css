@@ -1186,7 +1186,6 @@
 /* TabSwitcher chevron — fixed at the right edge, never scrolls */
 .admin-tabs-bar__switcher {
   height: 100%;
-  background: var(--color-header-bg);
   border-left: 1px solid var(--semi-color-border);
   flex-shrink: 0;
 }

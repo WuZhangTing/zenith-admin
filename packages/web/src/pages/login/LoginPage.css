@@ -231,9 +231,11 @@
   min-height: 0;
 }
 
+/* 输入框融入卡片：透明而非复制卡片底色——Semi Input 默认 background 为
+   --semi-color-fill-0，不覆盖会显出填充色；透明则始终跟随 .login-card。 */
 .login-card .semi-input-wrapper {
   border-radius: var(--semi-border-radius-medium);
-  background: var(--semi-color-bg-2);
+  background: transparent;
   border: 1px solid var(--semi-color-border);
   transition: border-color 0.2s, box-shadow 0.2s;
 }
@@ -258,12 +260,12 @@
 }
 
 .login-card .semi-input-wrapper:hover {
-  background: var(--semi-color-bg-2);
+  background: transparent;
   border-color: color-mix(in srgb, var(--semi-color-primary) 40%, var(--semi-color-border));
 }
 
 .login-card .semi-input-wrapper.semi-input-wrapper-focus {
-  background: var(--semi-color-bg-2);
+  background: transparent;
   border-color: var(--semi-color-primary);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--semi-color-primary) 10%, transparent);
 }
@@ -271,7 +273,7 @@
 /* 校验失败时保留红色描边（覆盖上方 border 重写） */
 .login-card .semi-input-wrapper.semi-input-wrapper-error {
   border-color: var(--semi-color-danger);
-  background: var(--semi-color-bg-2);
+  background: transparent;
 }
 
 .login-card .semi-input-wrapper.semi-input-wrapper-error.semi-input-wrapper-focus {
