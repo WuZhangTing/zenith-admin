@@ -16,6 +16,7 @@ import {
   JsonViewer,
   Row,
   Col,
+  Space,
   Switch,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -403,7 +404,7 @@ export default function DictsPage() {
     <NavListPanel
       title="字典列表"
       headerExtra={
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <Space spacing={6}>
           <ExportButton entity="system.dicts" query={submittedKeyword ? { keyword: submittedKeyword } : {}} />
           <Dropdown
             trigger="click"
@@ -432,7 +433,7 @@ export default function DictsPage() {
               icon={<MoreHorizontal size={14} />}
             />
           </Dropdown>
-        </span>
+        </Space>
       }
       search={{
         value: keyword,

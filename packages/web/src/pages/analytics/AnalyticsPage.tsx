@@ -1722,15 +1722,15 @@ function ScatterLegend() {
     <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', marginTop: 10 }}>
       <Typography.Text type="tertiary" size="small">点大小 = 点击次数；颜色 = 人均重复点击</Typography.Text>
       {REPEAT_RATE_SCALE.map((item) => (
-        <span key={item.label} style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+        <Space key={item.label} spacing={6}>
           <span style={{ width: 10, height: 10, borderRadius: '50%', background: item.color, opacity: 0.75 }} />
           <Typography.Text type="tertiary" size="small">{item.label}</Typography.Text>
-        </span>
+        </Space>
       ))}
-      <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+      <Space spacing={6}>
         <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'transparent', border: '2.5px solid #7f1d1d' }} />
         <Typography.Text type="tertiary" size="small">存在挫败点击</Typography.Text>
-      </span>
+      </Space>
     </div>
   );
 }

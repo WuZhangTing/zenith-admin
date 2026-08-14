@@ -5,7 +5,7 @@
  * 在图顶部展示 Banner，并通过 data-fd-node-id 给相关节点卡片注入高亮样式。
  */
 import { useId, useMemo } from 'react';
-import { Banner, Typography } from '@douyinfe/semi-ui';
+import { Banner, Space, Typography } from '@douyinfe/semi-ui';
 import { CornerUpLeft } from 'lucide-react';
 import type { WorkflowTask } from '@zenith/shared/workflow';
 import FlowRenderer from '@/pages/workflow/designer/components/FlowRenderer';
@@ -162,12 +162,12 @@ export default function WorkflowGraphView({ flowData, tasks, height = 480, insta
                   ))}
                 </ul>
                 <div style={{ marginTop: 6, fontSize: 11, color: 'var(--semi-color-text-2)', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <Space spacing={4}>
                     <span style={{ display: 'inline-block', width: 8, height: 8, background: 'var(--semi-color-danger)', borderRadius: 'var(--semi-border-radius-small)' }}>{''}</span>驳回节点
-                  </span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  </Space>
+                  <Space spacing={4}>
                     <span style={{ display: 'inline-block', width: 8, height: 8, background: 'var(--semi-color-warning)', borderRadius: 'var(--semi-border-radius-small)' }}>{''}</span>回退目标
-                  </span>
+                  </Space>
                 </div>
               </div>
             }

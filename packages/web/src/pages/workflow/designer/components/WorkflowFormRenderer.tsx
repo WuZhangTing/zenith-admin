@@ -7,7 +7,7 @@ import type { ComponentProps, CSSProperties, ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import DOMPurify from 'dompurify';
-import { Form, Select, Button, Typography, Row, Col, Divider, Rating, Toast, withField, Input, InputNumber, DatePicker, Collapse, Tabs, Steps, RadioGroup, Radio, Spin } from '@douyinfe/semi-ui';
+import { Form, Select, Button, Typography, Row, Col, Divider, Rating, Space, Toast, withField, Input, InputNumber, DatePicker, Collapse, Tabs, Steps, RadioGroup, Radio, Spin } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus, Eraser, Trash2, Copy, ClipboardPaste } from 'lucide-react';
 import dayjs from 'dayjs';
@@ -199,7 +199,7 @@ function SignaturePad({ value, onChange, disabled, width = 360, height = 150 }: 
   });
 
   return (
-    <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 6 }}>
+    <Space vertical align="start" spacing={6}>
       <canvas
         ref={canvasRef}
         width={width}
@@ -222,7 +222,7 @@ function SignaturePad({ value, onChange, disabled, width = 360, height = 150 }: 
           清除
         </Button>
       )}
-    </div>
+    </Space>
   );
 }
 
@@ -694,22 +694,22 @@ function optionLabelNode(opt: DisplayOption): ReactNode {
   // 图片选项：图 + 文的卡片式标签（radio 单选配图）
   if (opt.imageUrl) {
     return (
-      <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+      <Space vertical spacing={4}>
         <img
           src={opt.imageUrl}
           alt={opt.label}
           style={{ width: 72, height: 54, objectFit: 'cover', borderRadius: 'var(--semi-border-radius-small)', border: '1px solid var(--semi-color-border)' }}
         />
         {opt.label}
-      </span>
+      </Space>
     );
   }
   if (!opt.color) return opt.label;
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+    <Space spacing={6}>
       <span style={{ width: 8, height: 8, borderRadius: '50%', background: opt.color, display: 'inline-block' }} />
       {opt.label}
-    </span>
+    </Space>
   );
 }
 

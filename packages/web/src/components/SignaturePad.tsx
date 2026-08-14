@@ -1,4 +1,4 @@
-import { Button } from '@douyinfe/semi-ui';
+import { Button, Space } from '@douyinfe/semi-ui';
 import { Eraser } from 'lucide-react';
 import { useSignaturePad } from '@/hooks/useSignaturePad';
 
@@ -19,7 +19,7 @@ export default function SignaturePad({ value, onChange, width = 360, height = 14
   });
 
   return (
-    <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 6 }}>
+    <Space vertical align="start" spacing={6}>
       <canvas
         ref={canvasRef}
         width={width}
@@ -41,6 +41,6 @@ export default function SignaturePad({ value, onChange, width = 360, height = 14
           清除{value ? '（已签名）' : ''}
         </Button>
       </div>
-    </div>
+    </Space>
   );
 }

@@ -4,7 +4,7 @@
  * 打开时拉取 GET /api/channels/cs/performance，展示每位客服的回复数、解决数、
  * 平均响应时长与平均评分。
  */
-import { Empty, SideSheet, Spin, Table } from '@douyinfe/semi-ui';
+import { Empty, SideSheet, Space, Spin, Table } from '@douyinfe/semi-ui';
 import { Star } from 'lucide-react';
 import { useChannelCsPerformance } from '@/hooks/queries/channel-cs';
 
@@ -38,10 +38,10 @@ export function ChannelCsPerformanceDrawer({ visible, onClose }: Readonly<Props>
         value == null ? (
           '-'
         ) : (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <Space spacing={4}>
             <Star size={13} style={{ color: '#fa8c16', fill: '#fa8c16' }} />
             {value.toFixed(1)}
-          </span>
+          </Space>
         ),
     },
   ];

@@ -15,6 +15,7 @@ import {
   Tabs,
   TabPane,
   Select,
+  Space,
   Switch,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -568,10 +569,10 @@ function ImagesTab() {
       render: (_: unknown, r: ImageRow) => {
         if (r.isGroup) {
           return (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Space spacing={6}>
               <Typography.Text strong>{r.name}</Typography.Text>
               <Tag size="small" color="purple">{r.versionCount} 个版本</Tag>
-            </span>
+            </Space>
           );
         }
         const validTags = r.repoTags.filter((t) => t !== '<none>:<none>');

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, type JSX } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { Form, Tag, Banner, Tooltip } from '@douyinfe/semi-ui';
+import { Form, Space, Tag, Banner, Tooltip } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Info } from 'lucide-react';
 import AppModal from '@/components/AppModal';
@@ -149,7 +149,7 @@ export function RowEditModal(props: Readonly<Props>): JSX.Element {
     const kind = getKind(c.name);
     const fullRow = kind === 'json' || kind === 'long-text';
     const label = (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      <Space spacing={6}>
         {c.name}
         {c.isPrimaryKey && <Tag size="small" color="orange">PK</Tag>}
         <span style={{ color: 'var(--semi-color-text-2)', fontSize: 12 }}>{c.dataType}</span>
@@ -158,7 +158,7 @@ export function RowEditModal(props: Readonly<Props>): JSX.Element {
             <Info size={12} style={{ color: 'var(--semi-color-text-2)' }} />
           </Tooltip>
         )}
-      </span>
+      </Space>
     );
     const common = {
       field: c.name,

@@ -1,4 +1,4 @@
-import { Breadcrumb, Tooltip } from '@douyinfe/semi-ui';
+import { Breadcrumb, Space, Tooltip } from '@douyinfe/semi-ui';
 import { Star } from 'lucide-react';
 import type { NavigateFunction } from 'react-router-dom';
 import BreadcrumbMenuPopover from '@/components/BreadcrumbMenuPopover';
@@ -48,10 +48,10 @@ export function HeaderBreadcrumb({
             }
           };
           const crumbInner = (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <Space spacing={4}>
               {breadcrumbIcon && crumb.icon && <span style={{ display: 'flex', alignItems: 'center' }}>{renderLucideIcon(crumb.icon, 13)}</span>}
               {isHome ? '首页' : crumb.title}
-            </span>
+            </Space>
           );
           const hasSubMenu = (breadcrumbSubMenu ?? false)
             && !isLast

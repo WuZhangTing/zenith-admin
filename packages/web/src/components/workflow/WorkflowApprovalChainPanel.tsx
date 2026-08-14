@@ -10,7 +10,7 @@
  */
 /* eslint-disable react-refresh/only-export-components */
 import { useEffect, useMemo } from 'react';
-import { Button, Empty, Select, Spin, Tag, Timeline, Typography } from '@douyinfe/semi-ui';
+import { Button, Empty, Select, Space, Spin, Tag, Timeline, Typography } from '@douyinfe/semi-ui';
 import { Clock, Flag, Mail, Send, UserPlus, type LucideIcon } from 'lucide-react';
 import { WORKFLOW_APPROVE_METHOD_LABELS as METHOD_LABEL } from '@zenith/shared/workflow';
 import type { WorkflowApproverPreviewNode } from '@zenith/shared/workflow';
@@ -174,10 +174,10 @@ export default function WorkflowApprovalChainPanel({
       return (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {n.approvers.map((a) => (
-            <span key={a.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <Space key={a.id} spacing={4}>
               <UserAvatar name={a.name} semiSize="extra-extra-small" size={20} />
               <Typography.Text size="small" type="tertiary">{a.name}</Typography.Text>
-            </span>
+            </Space>
           ))}
         </div>
       );

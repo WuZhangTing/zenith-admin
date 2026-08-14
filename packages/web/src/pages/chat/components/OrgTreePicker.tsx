@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Spin, Tree, Typography } from '@douyinfe/semi-ui';
+import { Space, Spin, Tree, Typography } from '@douyinfe/semi-ui';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import { Building2 } from 'lucide-react';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -48,11 +48,11 @@ export function OrgTreePicker({
       key: userKey(u.id),
       value: userKey(u.id),
       label: (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <Space spacing={6}>
           <UserAvatar name={u.nickname} avatar={u.avatar} size={20} />
           <span style={{ fontSize: 12 }}>{u.nickname}</span>
           <Text type="tertiary" style={{ fontSize: 11 }}>@{u.username}</Text>
-        </span>
+        </Space>
       ),
       // 供内置搜索匹配
       filterLabel: `${u.nickname} ${u.username}`,
@@ -64,10 +64,10 @@ export function OrgTreePicker({
         key: `${DEPT_KEY_PREFIX}${d.id}`,
         value: `${DEPT_KEY_PREFIX}${d.id}`,
         label: (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <Space spacing={6}>
             <Building2 size={13} style={{ color: 'var(--semi-color-text-2)' }} />
             <span style={{ fontSize: 12, fontWeight: 500 }}>{d.name}</span>
-          </span>
+          </Space>
         ),
         filterLabel: d.name,
         children: [],
@@ -93,10 +93,10 @@ export function OrgTreePicker({
         key: UNASSIGNED_KEY,
         value: UNASSIGNED_KEY,
         label: (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <Space spacing={6}>
             <Building2 size={13} style={{ color: 'var(--semi-color-text-2)' }} />
             <span style={{ fontSize: 12, fontWeight: 500 }}>未分配部门</span>
-          </span>
+          </Space>
         ),
         filterLabel: '未分配部门',
         children: unassigned.map(makeUserNode),

@@ -26,10 +26,10 @@ type MenuPermissionPanelProps = Readonly<{
 function menusToTreeData(items: Menu[], labelSuffix?: Record<string, React.ReactNode>): object[] {
   return items.map((m) => ({
     label: (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      <Space spacing={6}>
         <span>{m.title}</span>
         {labelSuffix?.[String(m.id)]}
-      </span>
+      </Space>
     ),
     // label 为 ReactNode，搜索改用该字段（treeNodeFilterProp="filterLabel"）
     filterLabel: m.title,

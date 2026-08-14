@@ -870,10 +870,10 @@ export default function WorkflowMonitorPage() {
                     <Typography.Text type="tertiary" size="small">#{task.id}</Typography.Text>
                     <Tag size="small" color={NODE_RT_STATUS_COLOR[task.status]}>{NODE_RT_STATUS_LABEL[task.status]}</Tag>
                     <Typography.Text strong size="small">{task.nodeName || task.nodeKey}</Typography.Text>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <Space spacing={6}>
                       <UserAvatar name={task.assigneeName || '未指定'} avatar={task.assigneeAvatar} size={20} />
                       <Typography.Text size="small">{task.assigneeName || '未指定'}</Typography.Text>
-                    </span>
+                    </Space>
                     <Typography.Text type="tertiary" size="small">
                       等待 {formatDuration(task.createdAt, diagnostics.generatedAt)}
                     </Typography.Text>

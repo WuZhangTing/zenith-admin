@@ -1,7 +1,7 @@
 /**
  * 基础信息面板 — 步骤 ① 基础信息
  */
-import { Form, Select, Tag } from '@douyinfe/semi-ui';
+import { Form, Select, Space, Tag } from '@douyinfe/semi-ui';
 import type { WorkflowDefinition } from '@zenith/shared/workflow';
 import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
 import { useMemo } from 'react';
@@ -127,11 +127,11 @@ export default function BasicInfoPanel({
             optionList={categories.map(c => ({
               value: c.id,
               label: (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <Space spacing={6}>
                   {c.color ? <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.color, display: 'inline-block' }} /> : null}
                   {c.name}
                   {c.code ? <Tag size="small" color="white" style={{ marginLeft: 4 }}>{c.code}</Tag> : null}
-                </span>
+                </Space>
               ),
             }))}
           />

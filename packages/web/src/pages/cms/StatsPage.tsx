@@ -1,7 +1,7 @@
 /** 访问统计（P4）：PV/UV 趋势、内容 TOP、来源/设备/通道分布 + 搜索分析（无结果词榜） */
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Spin, Table, Typography, Empty, Tabs, TabPane, RadioGroup, Radio, Tag } from '@douyinfe/semi-ui';
+import { Card, Space, Spin, Table, Typography, Empty, Tabs, TabPane, RadioGroup, Radio, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { useCmsVisitStats, useCmsSearchAnalytics } from '@/hooks/queries/cms';
@@ -30,10 +30,10 @@ function TrendChart({ trend }: { trend: CmsVisitStats['trend'] }) {
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--semi-color-text-3)', marginTop: 6 }}>
         <span>{trend[0]?.date}</span>
-        <span style={{ display: 'inline-flex', gap: 12 }}>
+        <Space spacing={12}>
           <span><span style={{ display: 'inline-block', width: 10, height: 10, background: 'var(--semi-color-primary-light-active)', borderRadius: 'var(--semi-border-radius-small)', marginRight: 4 }} />PV</span>
           <span><span style={{ display: 'inline-block', width: 10, height: 10, background: 'var(--semi-color-primary)', borderRadius: 'var(--semi-border-radius-small)', marginRight: 4 }} />UV</span>
-        </span>
+        </Space>
         <span>{trend[trend.length - 1]?.date}</span>
       </div>
     </div>

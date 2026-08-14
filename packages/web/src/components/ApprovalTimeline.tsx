@@ -1,4 +1,4 @@
-import { Tag, Timeline, Typography, Toast } from '@douyinfe/semi-ui';
+import { Space, Tag, Timeline, Typography, Toast } from '@douyinfe/semi-ui';
 import { UserAvatar } from '@/components/UserAvatar';
 import FileAttachment from '@/components/FileAttachment';
 import { uploadedFileToAttachment } from '@/components/FileAttachment/utils';
@@ -218,13 +218,13 @@ export default function ApprovalTimeline({ tasks, flowNodes, initiator, instance
             {((task.transfers?.length ?? 0) > 0 || task.delegatedFromId) && (
               <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--semi-color-text-2)' }}>
                 {(task.transfers ?? []).map((tr) => (
-                  <span key={tr.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                  <Space key={tr.id} spacing={4} wrap>
                     <Forward size={12} />
                     <span>
                       {TRANSFER_ACTION_LABEL[tr.action] ?? tr.action}：{tr.fromUserName ?? '—'} → {tr.toUserName ?? `用户#${tr.toUserId}`}
                       {tr.reason ? `（${tr.reason}）` : ''}
                     </span>
-                  </span>
+                  </Space>
                 ))}
                 {task.delegatedFromId && (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--semi-color-warning)' }}>

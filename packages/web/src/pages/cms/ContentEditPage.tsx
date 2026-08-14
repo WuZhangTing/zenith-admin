@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Button, Form, Spin, Toast, Row, Col, Banner, SideSheet, Timeline, Modal, Upload, Typography, useFormApi, Tag, Input, Tabs, TabPane } from '@douyinfe/semi-ui';
+import { Button, Form, Spin, Toast, Row, Col, Banner, SideSheet, Space, Timeline, Modal, Upload, Typography, useFormApi, Tag, Input, Tabs, TabPane } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
 import { ArrowLeft, Save, Send, History, ImageUp, Eye, GitCompare, Images, Paperclip, SpellCheck, ScrollText } from 'lucide-react';
@@ -852,10 +852,10 @@ export default function ContentEditPage() {
                       <Form.Select field="titleColor" noLabel size="small" showClear style={{ width: 132 }} placeholder="默认色"
                         optionList={CMS_TITLE_STYLE_COLORS.map((c) => ({ value: c, label: c }))}
                         renderSelectedItem={(o: { value?: unknown }) => (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                          <Space spacing={6}>
                             <i style={{ width: 10, height: 10, borderRadius: 'var(--semi-border-radius-small)', background: String(o.value) }} />
                             {String(o.value)}
-                          </span>
+                          </Space>
                         )}
                         renderOptionItem={({ value, onClick, selected }) => (
                           <div
@@ -891,7 +891,7 @@ export default function ContentEditPage() {
                     size="small"
                     placeholder="https://... 或从媒体库选择"
                     suffix={(
-                      <span style={{ display: 'inline-flex', gap: 2 }}>
+                      <Space spacing={2}>
                         <Button size="small" theme="borderless" icon={<Images size={14} />} onClick={() => setCoverPickerVisible(true)}>媒体库</Button>
                         <Upload
                           action=""
@@ -915,7 +915,7 @@ export default function ContentEditPage() {
                         >
                           <Button size="small" theme="borderless" icon={<ImageUp size={14} />}>上传</Button>
                         </Upload>
-                      </span>
+                      </Space>
                     )}
                   />
                   <Row gutter={12}>

@@ -999,7 +999,7 @@ export default function AIChatPage() {
     const info = dbId ? branchInfo.get(dbId) : undefined;
     if (!info) return props.defaultTitle;
     return (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+      <Space spacing={4}>
         {props.defaultTitle}
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 12, color: 'var(--semi-color-text-2)' }}>
           <Button
@@ -1020,7 +1020,7 @@ export default function AIChatPage() {
             onClick={() => void handleSwitchBranch(info.siblings[info.index + 1])}
           />
         </span>
-      </span>
+      </Space>
     );
   }, [branchInfo, generating, handleSwitchBranch]);
 

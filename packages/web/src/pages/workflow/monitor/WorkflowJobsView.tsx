@@ -793,7 +793,7 @@ export default function WorkflowJobsView() {
               key={t}
               itemKey={t}
               tab={(
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <Space spacing={6}>
                   {JOB_TYPE_META[t].text}
                   <Tag
                     size="small"
@@ -802,7 +802,7 @@ export default function WorkflowJobsView() {
                   >
                     {item.total}
                   </Tag>
-                </span>
+                </Space>
               )}
             >
               {activeType === t && <JobTypePanel jobType={t} summary={item} onMutated={() => void summaryQuery.refetch()} />}

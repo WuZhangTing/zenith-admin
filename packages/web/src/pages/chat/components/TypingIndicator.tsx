@@ -1,3 +1,4 @@
+import { Space } from '@douyinfe/semi-ui';
 import type { TypingUsersMap } from '../types';
 
 /** 正在输入提示条（自 ChatPage 原样搬移） */
@@ -8,7 +9,7 @@ export function TypingIndicator({
 }>) {
   return (
                 <div style={{ fontSize: 11, color: 'var(--semi-color-text-3)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ display: 'inline-flex', gap: 3, alignItems: 'center' }}>
+                  <Space spacing={3}>
                     {[0, 1, 2].map((i) => (
                       <span
                         key={i}
@@ -20,7 +21,7 @@ export function TypingIndicator({
                         }}
                       />
                     ))}
-                  </span>
+                  </Space>
                   {Object.values(typingUsers).length > 2
                     ? `${Object.values(typingUsers)[0].nickname}等${Object.values(typingUsers).length}人正在输入...`
                     : `${Object.values(typingUsers).map((u) => u.nickname).join('、')}正在输入...`}

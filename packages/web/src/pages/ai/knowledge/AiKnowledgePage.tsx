@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Button, Form, SideSheet, Tag, Toast, Typography, Upload } from '@douyinfe/semi-ui';
+import { Button, Form, SideSheet, Space, Tag, Toast, Typography, Upload } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Plus, FileUp, Globe } from 'lucide-react';
@@ -235,14 +235,14 @@ export default function AiKnowledgePage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: 8 }}>
             <span>文档管理 — {docsKb?.name}</span>
             {hasPermission('ai:kb:edit') && (
-              <span style={{ display: 'inline-flex', gap: 8 }}>
+              <Space spacing={8}>
                 <Button size="small" icon={<Globe size={13} />} onClick={() => setUrlModalVisible(true)}>
                   导入网页
                 </Button>
                 <Button type="primary" size="small" icon={<Plus size={13} />} onClick={() => setDocModalVisible(true)}>
                   添加文档
                 </Button>
-              </span>
+              </Space>
             )}
           </div>
         }

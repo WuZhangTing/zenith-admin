@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, DatePicker, Dropdown, Empty, Input, List as SemiList, Popconfirm, Spin, Tag, TextArea, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, DatePicker, Dropdown, Empty, Input, List as SemiList, Popconfirm, Space, Spin, Tag, TextArea, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { CalendarClock, MessageSquareQuote, Pencil, Plus } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import { formatDateTimeForApi } from '@/utils/date';
@@ -177,12 +177,12 @@ export function ComposerExtras({
               key={q.id}
               main={<Text style={{ fontSize: 13, wordBreak: 'break-word' }}>{q.content}</Text>}
               extra={(
-                <span style={{ display: 'inline-flex', gap: 4 }}>
+                <Space spacing={4}>
                   <Button theme="borderless" size="small" onClick={() => { setEditingId(q.id); setEditContent(q.content); }}>编辑</Button>
                   <Popconfirm title="确定要删除吗？" onConfirm={() => { void deleteQuickMutation.mutateAsync(q.id).then(() => Toast.success('已删除')).catch(() => undefined); }}>
                     <Button theme="borderless" type="danger" size="small">删除</Button>
                   </Popconfirm>
-                </span>
+                </Space>
               )}
             />
           )}

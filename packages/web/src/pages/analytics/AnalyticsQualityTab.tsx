@@ -3,7 +3,7 @@
  */
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Form, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Form, Select, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { AlertTriangle, ShieldAlert } from 'lucide-react';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
@@ -235,7 +235,7 @@ export default function AnalyticsQualityTab() {
 
       <div>
         <Typography.Title heading={6} style={{ marginBottom: 12 }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ShieldAlert size={16} />租户事件启停覆盖</span>
+          <Space spacing={6}><ShieldAlert size={16} />租户事件启停覆盖</Space>
         </Typography.Title>
         {!config.multiTenantMode && (
           <Typography.Text type="tertiary">当前未启用多租户模式，请直接在事件字典中管理全局状态。</Typography.Text>

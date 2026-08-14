@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Col, Dropdown, SplitButtonGroup, Row, SideSheet, Form, Modal, Popover, Select, Spin, Switch, Table, Tabs, Tag, Toast, Tooltip } from '@douyinfe/semi-ui';
+import { Button, Col, Dropdown, SplitButtonGroup, Row, SideSheet, Form, Modal, Popover, Select, Space, Spin, Switch, Table, Tabs, Tag, Toast, Tooltip } from '@douyinfe/semi-ui';
 import { ScrollText, Trash2, ChevronDown, HelpCircle } from 'lucide-react';
 import type { CronJob } from '@zenith/shared/platform';
 import { CRON_RUN_STATUS_LABELS } from '@zenith/shared/platform';
@@ -259,7 +259,7 @@ export default function CronJobsPage() {
           );
         } catch { /* invalid */ }
         return (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <Space spacing={4}>
             <Tooltip content={v} position="top">
               <span style={{ fontFamily: 'monospace', cursor: 'default' }}>{v}</span>
             </Tooltip>
@@ -271,7 +271,7 @@ export default function CronJobsPage() {
             >
               <HelpCircle size={13} style={{ color: 'var(--semi-color-text-2)', flexShrink: 0, cursor: 'help' }} />
             </Popover>
-          </span>
+          </Space>
         );
       },
     },
@@ -282,7 +282,7 @@ export default function CronJobsPage() {
       render: (_: unknown, record: CronJob) => {
         if (!record.lastRunStatus) return '—';
         return (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap' }}>
+          <Space spacing={6}>
             <Tag color={runStatusColor[record.lastRunStatus] ?? 'grey'} size="small">
               {runStatusLabel[record.lastRunStatus] ?? record.lastRunStatus}
             </Tag>
@@ -291,7 +291,7 @@ export default function CronJobsPage() {
                 {formatDateTime(record.lastRunAt)}
               </span>
             )}
-          </span>
+          </Space>
         );
       },
     },

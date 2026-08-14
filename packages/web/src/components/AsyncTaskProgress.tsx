@@ -1,4 +1,4 @@
-import { Progress, Spin, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Progress, Space, Spin, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { HelpCircle } from 'lucide-react';
 import type { AsyncTask } from '@zenith/shared/tasks';
 
@@ -31,10 +31,10 @@ export default function AsyncTaskProgress({ task, noteDisplay = 'inline' }: Read
       : null;
     if (asTooltip) {
       return (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        <Space spacing={4}>
           <Typography.Text type="tertiary" size="small">排队中</Typography.Text>
           <NoteHint note={detail} />
-        </span>
+        </Space>
       );
     }
     return (
@@ -51,10 +51,10 @@ export default function AsyncTaskProgress({ task, noteDisplay = 'inline' }: Read
       : <Spin size="small" />;
     if (asTooltip) {
       return (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <Space spacing={6}>
           {bar}
           <NoteHint note={note} />
-        </span>
+        </Space>
       );
     }
     return (
@@ -77,10 +77,10 @@ export default function AsyncTaskProgress({ task, noteDisplay = 'inline' }: Read
     : null;
   if (asTooltip) {
     return (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      <Space spacing={6}>
         {bar ?? <Typography.Text type="tertiary" size="small">—</Typography.Text>}
         <NoteHint note={task.progressNote} />
-      </span>
+      </Space>
     );
   }
   return (

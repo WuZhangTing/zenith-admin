@@ -298,10 +298,10 @@ export default function WorkflowDefinitionsPage() {
         if (!record.categoryName) return <span style={{ color: 'var(--semi-color-text-2)' }}>—</span>;
         const color = record.categoryColor ?? undefined;
         return (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <Space spacing={6}>
             {color && <span style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />}
             <span>{record.categoryName}</span>
-          </span>
+          </Space>
         );
       },
     },

@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Tabs, TabPane, Button, Toast, Spin, Tag, Modal } from '@douyinfe/semi-ui';
+import { Tabs, TabPane, Button, Toast, Spin, Space, Tag, Modal } from '@douyinfe/semi-ui';
 import dayjs from 'dayjs';
 import type { Coupon } from '@zenith/shared/member';
 import { MemberPage } from '../../components/MemberPage';
@@ -94,10 +94,10 @@ function MyCoupons() {
             disabled={mc.status !== 'unused'}
             subDate={mc.expireAt ? `有效期至 ${mc.expireAt.slice(0, 10)}` : undefined}
             extra={
-              <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+              <Space spacing={6}>
                 {expiringSoon && <Tag color="red" size="small">即将过期</Tag>}
                 {STATUS_TAG[mc.status]}
-              </span>
+              </Space>
             }
           />
         );
