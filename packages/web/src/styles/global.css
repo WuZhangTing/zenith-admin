@@ -10,10 +10,8 @@
   --sidebar-collapsed-width: 48px;
   --sidebar-double-width: 260px;
   --header-height: 48px;
-  --color-bg: #f0f1f5;
-  --color-surface: #ffffff;
-  --color-layout-bg: var(--color-surface);
-  --color-layout-hover: var(--color-bg);
+  --color-layout-bg: #ffffff;
+  --color-layout-hover: #f0f1f5;
   --color-sidebar-bg: #ffffff;
   --color-sidebar-hover: rgba(0, 0, 0, 0.04);
   --color-sidebar-active: rgba(51, 112, 255, 0.1);
@@ -29,22 +27,32 @@
   --tabsbar-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
 
-/* 深色模式变量（Semi 官方入口：body[theme-mode='dark']） */
-body[theme-mode='dark'] {
-  --color-bg: #0d0f14;
-  --color-surface: #1a1d24;
-  --color-sidebar-bg: #232429;
-  --color-layout-bg: var(--color-sidebar-bg);
-  --color-layout-hover: rgba(255, 255, 255, 0.08);
-  --color-sidebar-hover: rgba(255, 255, 255, 0.08);
-  --color-sidebar-active: rgba(51, 112, 255, 0.25);
-  --color-sidebar-text: rgba(255, 255, 255, 0.65);
-  --color-sidebar-title: #ffffff;
-  --color-sidebar-text-active: #ffffff;
-  --color-text: #e8eaed;
-  --color-text-secondary: #8f96a3;
-  --color-border: #2e3340;
+/* 深色语义变量：全局深色（body[theme-mode='dark']）与分区局部暗色（.semi-always-dark）
+   共用同一套映射，一律取自 Semi 的深色 token——手写色值会让布局自有变量呈冷蓝调，
+   与 Semi 组件的中性灰在同一屏并存。 */
+body[theme-mode='dark'],
+body .semi-always-dark {
+  --color-sidebar-bg: var(--semi-color-nav-bg);
+  --color-layout-bg: var(--semi-color-nav-bg);
+  --color-layout-hover: var(--semi-color-fill-0);
+  --color-sidebar-hover: var(--semi-color-fill-0);
+  --color-sidebar-text: var(--semi-color-text-2);
+  --color-sidebar-title: var(--semi-color-text-0);
+  --color-sidebar-text-active: var(--semi-color-text-0);
+  --color-text: var(--semi-color-text-0);
+  --color-text-secondary: var(--semi-color-text-2);
+  --color-border: var(--semi-color-border);
   --topbar-shadow: 0 1px 6px rgba(0, 0, 0, 0.18);
+}
+
+/* 局部暗色区域内的原生控件（滚动条、表单）跟随深色；全局深色由 applyThemeToDom() 写在 body 上 */
+body .semi-always-dark {
+  color-scheme: dark;
+}
+
+body[theme-mode='dark'] {
+  /* 主题色相关，applyThemeColor() 会在运行时按当前主题色覆盖 */
+  --color-sidebar-active: rgba(51, 112, 255, 0.25);
   --tabsbar-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 

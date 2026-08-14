@@ -1847,36 +1847,12 @@
 
 /* ===== 分区深色模式（浅色主题下单独启用的深色区域） =====
    走 Semi 官方的局部暗色：侧边栏 / 顶栏 / 头部根元素挂 .semi-always-dark（见 AdminLayout.tsx），
-   整套 --semi-color-* 由 Semi 的深色色盘提供，Semi 组件（Nav / Input / Select…）自动跟随。
-   这里只补 Semi 管不到的两件事：
-   1. 布局自有的 --color-* 语义变量对齐到 Semi 深色 token —— 供不走 Semi 组件的自定义 DOM 使用；
-   2. 重新注入品牌主色 —— .semi-always-dark 会把 --semi-color-primary 复位成 Semi 默认蓝，
-      盖掉 applyThemeColor 挂在 body 上的主题色。 */
-.admin-layout--sidebar-dark .admin-sidebar,
-.admin-layout--header-dark .admin-topbar,
-.admin-layout--header-dark .admin-header {
-  --color-sidebar-bg: var(--semi-color-nav-bg);
-  --color-layout-bg: var(--semi-color-nav-bg);
-  --color-sidebar-hover: var(--semi-color-fill-0);
-  --color-layout-hover: var(--semi-color-fill-0);
-  --color-sidebar-text: var(--semi-color-text-2);
-  --color-sidebar-title: var(--semi-color-text-0);
-  --color-sidebar-text-active: var(--semi-color-text-0);
-  --color-text: var(--semi-color-text-0);
-  --color-text-secondary: var(--semi-color-text-2);
-  --color-border: var(--semi-color-border);
-  --color-primary: var(--admin-section-dark-primary);
-  --color-sidebar-active: var(--admin-section-dark-sidebar-active);
-  color-scheme: dark;
-}
-
-.admin-layout--header-dark .admin-topbar,
-.admin-layout--header-dark .admin-header {
-  --topbar-shadow: 0 1px 6px rgba(0, 0, 0, 0.18);
-}
-
-/* 品牌主色重注入。弹层挂载点用 .admin-dark-popup-root.semi-always-dark 抬高特异性，
-   确保压过 Semi 自身的 `body .semi-always-dark` 规则（同为 0,1,1 时依赖打包顺序，不可靠）。 */
+   整套 --semi-color-* 由 Semi 深色色盘提供，布局自有的 --color-* 由 global.css 的
+   `body .semi-always-dark` 统一映射（与全局深色共用同一套）。
+   这里只补品牌主色——.semi-always-dark 会把 --semi-color-primary 复位成 Semi 默认蓝，
+   盖掉 applyThemeColor 挂在 body 上的主题色。
+   弹层挂载点用 .admin-dark-popup-root.semi-always-dark 抬高特异性，确保压过 Semi 自身的
+   `body .semi-always-dark` 规则（同为 0,1,1 时依赖打包顺序，不可靠）。 */
 .admin-layout--sidebar-dark .admin-sidebar,
 .admin-layout--header-dark .admin-topbar,
 .admin-layout--header-dark .admin-header,
@@ -1887,6 +1863,8 @@
   --semi-color-primary-light-default: var(--admin-section-dark-primary-light-default);
   --semi-color-primary-light-hover: var(--admin-section-dark-primary-light-hover);
   --semi-color-primary-light-active: var(--admin-section-dark-primary-light-active);
+  --color-primary: var(--admin-section-dark-primary);
+  --color-sidebar-active: var(--admin-section-dark-sidebar-active);
 }
 
 /* 分区深色的弹层挂载点（useSectionDarkPopup.ts 动态创建）。
@@ -1898,10 +1876,6 @@
   left: 0;
   width: 0;
   height: 0;
-}
-
-.admin-dark-popup-root.semi-always-dark {
-  color-scheme: dark;
 }
 
 /* ===== 减弱动效模式 ===== */
