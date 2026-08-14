@@ -40,8 +40,46 @@ npm install --package-lock-only
 
 ---
 
-## Step 4：并行验证（Lint + 测试 + 构建 + 文档站）
+## Step 4：验证（默认增量快验，CI 全量把关）
 
+CI（`ci.yml`）在每次 push master 时已全量跑 lint + test + build，Pages（`pages.yml`）构建文档站与 Demo。
+发布验证据此分两级：**本地只快验受影响的包，全量交给发布提交推送后的 CI**——Step 6 中 tag 只在
+CI 绿灯后才打；CI 红了就修复再推，tag 未推送就不会产生 Release，master 上的发布提交本身是惰性的。
+
+### 4a. 确定受影响的包
+
+```bash
+git diff --name-only <上一版本tag>..HEAD
+```
+
+按依赖图归类（shared 被 server / analytics-sdk / web 依赖，analytics-sdk 被 web 依赖）：
+
+| 变更路径 | 需本地验证的包 |
+| --- | --- |
+| `packages/shared/**` | 全部（等价全量，直接走 4c） |
+| `packages/analytics-sdk/**` | analytics-sdk + web |
+| `packages/server/**` | server |
+| `packages/web/**` | web |
+| `packages/electron/**` | 无独立测试，跟随 web（仅打包 web 产物） |
+| `docs/**` | 仅 Step 5 后的 `npm run docs:build` |
+| 其余（`.github/`、`.agents/`、根配置） | 无需本地验证 |
+
+### 4b. 本地快验（仅受影响包）
+
+对受影响的包并行跑 lint + test，**不跑本地 build**——全量 build 由推送后的 CI 把关，Demo 由 Pages 构建：
+
+```bash
+# 例：仅 web 受影响时
+npx concurrently --group --timings -n lint,test \
+  "npm run lint -w @zenith/web" \
+  "npm run test -w @zenith/web"
+```
+
+通过标准：lint **0 error**（warning 不阻塞）、test 全部通过。多包受影响时按包各加一对 lint / test 命令。
+
+### 4c. 全量路径（回退用）
+
+以下情况跳过 4a/4b 直接全量四路：shared 有变更、跨包大范围改动、CI 不可用，或对增量判定没有把握。
 Lint、测试、构建、文档站四类验证**互相独立**（只读源码、产物互不干扰），统一并行执行（项目已内置 `concurrently`）：
 
 ```bash
@@ -52,7 +90,7 @@ npx concurrently --group --timings --kill-others-on-fail -n lint,test,build,docs
   "npm run docs:build"
 ```
 
-四路全部 `exit code 0` 方可继续。并行墙钟取决于最长的一路（通常是 build），通常 3-8 分钟。
+四路全部 `exit code 0` 方可继续。并行墙钟取决于最长的一路（通常是 build），16 核实测约 15 分钟。
 任一路失败会立即终止其余任务，修复后可只重跑失败的那条命令。
 
 ### 读懂 `--kill-others-on-fail` 的输出
@@ -65,17 +103,23 @@ npx concurrently --group --timings --kill-others-on-fail -n lint,test,build,docs
 | `false` + 非 0 退出码 | 真失败，问题就在这一路 | 定位并修复 |
 | `true` | 被连带终止、根本没跑完 | 无需处理，重跑即可 |
 
-### 并发度：两个已配置好的旋钮
+### 并发度：三个已配置好的旋钮
 
-vitest 的转译成本决定了 server 测试的耗时，由两处配置共同压住，**本步骤无需额外传参**：
+vitest 的转译成本决定了测试耗时（server 隔离模式下 import 累计可达 1000s+，远超用例执行本身），
+由三处配置共同压住，**本步骤无需额外传参**：
 
 | 旋钮 | 位置 | 作用 |
 | --- | --- | --- |
 | `maxWorkers: 8` | `packages/server/vitest.config.ts` | vitest 默认 worker 数 = 核数−1，每个 worker 独立转译整套 app（267 个路由文件），核多时重复转译反超并行收益 |
+| `maxWorkers: 8` | `packages/web/vitest.config.ts` | 不设上限时 16 核起满 jsdom fork，与 build（rolldown 全量转译）并行会把 CPU 打满，实测出现过 worker 启动即超时（`Timeout waiting for worker to respond`），并非用例失败，重跑即过 |
 | `480_000` 超时 | `src/app.routes.test.ts`、`src/app.contract.test.ts` | 两个用例耗时几乎全在 `await import('./app')` / `buildContractApp()`，与 lint / build / docs 三路争抢同一种（转译）资源 |
 
+> ⚠️ 不要用 `isolate: false` 换速度：实测墙钟确实减半（239s → 120s），但本套测试重度依赖
+> per-file `vi.mock`，关闭隔离后出现跨文件状态泄漏（单跑全绿、混跑必挂），且 forks 池的
+> 文件分配随时序变化、泄漏组合不可复现。详见 `packages/server/vitest.config.ts` 注释。
+
 再遇测试超时时：先确认是超时（而非断言失败）且单独跑能过，再按
-[troubleshooting.md → 测试超时](./troubleshooting.md)调这两个旋钮。**不要**删掉这里的外层并行——
+[troubleshooting.md → 测试超时](./troubleshooting.md)调对应旋钮。**不要**删掉这里的外层并行——
 单独跑 `npm test`（零外层并发）同样会超时，外层并行不是根因。
 
 各路的通过标准：
@@ -147,18 +191,25 @@ TASK_IDEM_DB_IT=1 npx vitest run src/lib/task-center/task-idempotency.it.test.ts
 
 ---
 
-## Step 6：提交并推送 tag
+## Step 6：提交推送，等 CI 绿灯后打 tag
 
 ```bash
-# 将变更提交到 master
+# 1. 提交发布变更并推送 master（自动触发 CI 全量验证与 Pages 构建）
 git add .
 git commit -m "chore: release vX.Y.Z"
 git push origin master
 
-# 打 tag 并推送（触发 release.yml 自动构建）
+# 2. 等待 CI 通过（全量 lint + test + build，走 4b 增量快验时这一步是全量把关）
+gh run list --workflow=ci.yml --branch master --limit 1   # 取最新 run id
+gh run watch <run-id> --exit-status
+
+# 3. CI 绿后打 tag 并推送（触发 release.yml 自动构建）
 git tag vX.Y.Z
 git push origin vX.Y.Z
 ```
+
+> CI 失败时：修复后追加提交再推 master，全绿后再打 tag。tag 未推送就不会产生 Release，
+> 无需回滚发布提交。走 4c 全量路径且 CI 拥堵时，可在本地全量已绿的前提下直接打 tag。
 
 ---
 

@@ -23,5 +23,10 @@ export default defineConfig({
     // vitest 默认 5s 会让这些用例随机报超时（并非真的卡死），故整体放宽。
     testTimeout: 15_000,
     hookTimeout: 15_000,
+    // 与 server 同理压住 worker 数（那边注释有 16 核实测数据）。此处不设上限时
+    // 16 核默认起满 jsdom fork，发布验证与 build（rolldown 全量转译）并行会把 CPU
+    // 打满，实测出现过 2 个 worker 启动即超时（[vitest-pool-runner]: Timeout
+    // waiting for worker to respond），并非用例失败。CI 的 4 核 runner 不受影响。
+    maxWorkers: 8,
   },
 });
