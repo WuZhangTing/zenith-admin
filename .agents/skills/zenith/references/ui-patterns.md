@@ -19,7 +19,7 @@
 ```tsx
 return (
   <div className="page-container page-tabs-page">
-    <Tabs activeKey={activeTab} onChange={handleTabChange} type="line" lazyRender keepDOM={false}>
+    <Tabs collapsible="auto" activeKey={activeTab} onChange={handleTabChange} type="line" lazyRender keepDOM={false}>
       <TabPane tab="列表" itemKey="list">
         <SearchToolbar>{/* 当前 tab 的筛选与操作按钮 */}</SearchToolbar>
         <ConfigurableTable bordered ... />
@@ -37,6 +37,10 @@ return (
   不要放在 TabBar 右侧
 - `page-tabs-page` 只用于页面最外层业务 Tabs；抽屉、弹窗、卡片内代码示例、左右分栏内部小 tabs 不使用
 - 非激活 tab 的查询用 `enabled: activeTab === 'xxx'` 门控，切换时懒加载并缓存
+- `collapsible="auto"` 是**所有** `Tabs` 的统一要求（不限页面级），见
+  [constraints-frontend.md → 布局与响应式](./constraints-frontend.md#布局与响应式)：
+  它把 TabBar 包进 `ResizeObserver`，按「是否折行 + `scrollWidth` 超出」判定溢出，
+  仅在真放不下时折叠，空间恢复后自动退出，不占用固定空间
 
 ---
 
@@ -101,6 +105,7 @@ return (
 ```tsx
 <div style={{ height: '100%', boxSizing: 'border-box', padding: 16, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
   <Tabs
+    collapsible="auto"
     className="tabs-fill-height"
     style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
     contentStyle={{ flex: 1, minHeight: 0, overflow: 'hidden' }}

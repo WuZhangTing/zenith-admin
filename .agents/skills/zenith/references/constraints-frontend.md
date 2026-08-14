@@ -155,6 +155,12 @@
 | 左侧 master 是平铺列表（非树形） | `NavListPanel<T>` + `NavListItem` | 树形数据（需展开 / 折叠）改用 Semi `Tree` |
 | 指标卡（数值 + 标题） | `components/charts/StatCard.tsx` 的 `StatCard` + `StatGrid` | **禁止**再写 `<Card>` + 大字号数值 + tertiary 标签的组合 |
 
+- **Tabs 自动溢出折叠**：所有 `<Tabs>` 必须带 `collapsible="auto"`——窄容器（抽屉、弹窗、
+  分栏面板）里标签多时会折行或被裁掉，`auto` 只在真放不下时折叠成带箭头的滚动条，
+  宽度充足时渲染与不加时一致，因此**没有「这个页面标签少所以不用加」的例外**。
+  **禁止**裸写 `collapsible`（等价 `true`，无论宽度是否够都常驻箭头）。
+  **不适用**：`tabPosition="left"` / `"right"` 的纵向 Tabs——折叠实现是横向
+  `OverflowList`，套到纵向布局上会坏掉
 - **分栏的窄屏契约**：窄屏（**容器**宽度 < `responsiveBreakpoint`，默认 720）自动转单栏，
   必须提供返回入口——master 为列表传 `onBack`，master 为筛选树、detail 才是主体时传 `onMasterBack`；
   且**禁止**在单栏下自动选中首项（否则根视图落在详情），用 `onResponsiveChange` 区分
