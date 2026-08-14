@@ -2,6 +2,7 @@ import { z } from '@hono/zod-openapi';
 import {
   WIKI_COMMENT_STATUSES,
   WIKI_DOC_STATUSES,
+  WIKI_REVIEW_ACTIONS,
   WIKI_SPACE_MEMBER_ROLES,
   WIKI_SPACE_VISIBILITIES,
 } from '@zenith/shared/wiki';
@@ -71,6 +72,7 @@ export const WikiDocDTO = z
     viewCount: z.number().int(),
     currentVersion: z.number().int(),
     revision: z.number().int(),
+    requireReadReceipt: z.boolean(),
     publishedAt: z.string().nullable(),
     deletedAt: z.string().nullable().optional(),
     tags: z.array(WikiTagDTO).optional(),
@@ -80,6 +82,9 @@ export const WikiDocDTO = z
     favorited: z.boolean().optional(),
     favoriteCount: z.number().int().optional(),
     commentCount: z.number().int().optional(),
+    subscribed: z.boolean().optional(),
+    readConfirmed: z.boolean().optional(),
+    readReceiptCount: z.number().int().optional(),
     authorName: z.string().nullable().optional(),
     ...auditFields,
     createdAt: z.string(),
@@ -150,6 +155,9 @@ export interface WikiCommentDTOType {
   parentId: number | null;
   content: string;
   status: (typeof WIKI_COMMENT_STATUSES)[number];
+  mentionedUserIds: number[];
+  isQuestion: boolean;
+  resolvedAt?: string | null;
   authorId: number | null;
   authorName?: string | null;
   replies?: WikiCommentDTOType[];
@@ -165,6 +173,9 @@ export const WikiCommentDTO: z.ZodType<WikiCommentDTOType> = z
       parentId: z.number().int().nullable(),
       content: z.string(),
       status: z.enum(WIKI_COMMENT_STATUSES),
+      mentionedUserIds: z.array(z.number().int()),
+      isQuestion: z.boolean(),
+      resolvedAt: z.string().nullable().optional(),
       authorId: z.number().int().nullable(),
       authorName: z.string().nullable().optional(),
       replies: z.array(WikiCommentDTO).optional(),
@@ -172,6 +183,36 @@ export const WikiCommentDTO: z.ZodType<WikiCommentDTOType> = z
     }),
   )
   .openapi('WikiComment');
+
+// ─── 审核时间线与阅读确认 ─────────────────────────────────────────────────────
+
+export const WikiReviewRecordDTO = z
+  .object({
+    id: z.number().int(),
+    docId: z.number().int(),
+    docTitle: z.string().optional(),
+    version: z.number().int(),
+    action: z.enum(WIKI_REVIEW_ACTIONS),
+    actorId: z.number().int().nullable().optional(),
+    actorName: z.string().nullable().optional(),
+    reason: z.string().nullable().optional(),
+    createdAt: z.string(),
+  })
+  .openapi('WikiReviewRecord');
+
+export const WikiDocReadReceiptsDTO = z
+  .object({
+    confirmed: z.array(z.object({
+      userId: z.number().int(),
+      nickname: z.string(),
+      confirmedAt: z.string(),
+    })),
+    unconfirmed: z.array(z.object({
+      userId: z.number().int(),
+      nickname: z.string(),
+    })),
+  })
+  .openapi('WikiDocReadReceipts');
 
 // ─── 统计与设置 ───────────────────────────────────────────────────────────────
 

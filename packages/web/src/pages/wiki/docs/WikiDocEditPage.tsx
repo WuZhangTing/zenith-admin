@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Banner, Button, Input, Modal, Select, Space, Spin, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Checkbox, Input, Modal, Select, Space, Spin, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import { ArrowLeft, Eye, EyeOff, Save, Send } from 'lucide-react';
 import MarkdownPreviewPanel from '@/components/MarkdownPreviewPanel';
 import FileAttachment, { type AttachmentItem } from '@/components/FileAttachment';
@@ -42,6 +42,7 @@ export default function WikiDocEditPage() {
   const [content, setContent] = useState('');
   const [tagIds, setTagIds] = useState<number[]>([]);
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
+  const [requireReadReceipt, setRequireReadReceipt] = useState(false);
   const [changeNote, setChangeNote] = useState('');
   const [showPreview, setShowPreview] = useState(true);
   const [dirty, setDirty] = useState(false);
@@ -80,6 +81,7 @@ export default function WikiDocEditPage() {
     setContent(doc.content ?? '');
     setTagIds(doc.tagIds ?? []);
     setAttachments((doc.attachments ?? []) as AttachmentItem[]);
+    setRequireReadReceipt(doc.requireReadReceipt);
     setDirty(false);
     setPendingDraft(readDraft());
   }, [id, detailQuery.data, readDraft]);
@@ -163,8 +165,8 @@ export default function WikiDocEditPage() {
     }
     const fileIds = attachments.map((a) => a.fileId);
     const values = id
-      ? { title: title.trim(), summary: summary || null, content, tagIds, fileIds, changeNote: changeNote || undefined, revision: revisionRef.current }
-      : { spaceId: spaceIdParam, parentId: parentIdParam ?? null, title: title.trim(), summary: summary || undefined, content, tagIds, fileIds };
+      ? { title: title.trim(), summary: summary || null, content, tagIds, fileIds, requireReadReceipt, changeNote: changeNote || undefined, revision: revisionRef.current }
+      : { spaceId: spaceIdParam, parentId: parentIdParam ?? null, title: title.trim(), summary: summary || undefined, content, tagIds, fileIds, requireReadReceipt };
     try {
       const saved = await saveMutation.mutateAsync({ id, values });
       revisionRef.current = saved.revision;
@@ -298,6 +300,12 @@ export default function WikiDocEditPage() {
             maxLength={300}
           />
         ) : null}
+        <Checkbox
+          checked={requireReadReceipt}
+          onChange={(e) => { setRequireReadReceipt(!!e.target.checked); markDirty(); }}
+        >
+          要求阅读确认
+        </Checkbox>
       </div>
 
       {/* 编辑器主体（高度链：page-container--stretch → wiki-editor-body → textarea） */}

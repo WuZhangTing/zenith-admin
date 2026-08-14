@@ -3,8 +3,10 @@ import type {
   MoveWikiDocInput,
   ReviewWikiDocInput,
   WikiDoc,
+  WikiDocReadReceipts,
   WikiDocTreeNode,
   WikiDocVersion,
+  WikiReviewRecord,
 } from '@zenith/shared/wiki';
 import type { PaginatedResponse } from '@zenith/shared/core';
 import { request } from '@/utils/request';
@@ -55,6 +57,16 @@ export const wikiDocSearchKeys = {
 
 /** 最近访问（浏览行为驱动，浏览上报后失效） */
 export const wikiDocRecentKey = ['wiki-doc-recent'] as const;
+
+/** 审核时间线与已读名单（详情页子资源，随对应动作精确失效） */
+export const wikiReviewRecordKeys = {
+  of: (docId: number | undefined) => ['wiki-review-records', docId] as const,
+  processed: (params: unknown) => ['wiki-review-records', 'processed', params] as const,
+};
+
+export const wikiReadReceiptKeys = {
+  of: (docId: number | undefined) => ['wiki-read-receipts', docId] as const,
+};
 
 export const {
   keys: wikiDocKeys,
@@ -260,5 +272,70 @@ export function usePurgeWikiDoc() {
       qc.removeQueries({ queryKey: wikiDocKeys.detail(id) });
       void qc.invalidateQueries({ queryKey: wikiDocRecycleKeys.all });
     },
+  });
+}
+
+// ─── P2-C 协作 ────────────────────────────────────────────────────────────────
+
+/** 订阅：只影响详情的 subscribed 标记 */
+export function useSubscribeWikiDoc() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, subscribe }: { id: number; subscribe: boolean }) =>
+      request.post<null>(`/api/wiki/docs/${id}/subscribe`, { subscribe }).then(unwrap),
+    onSuccess: (_data, { id }) => {
+      void qc.invalidateQueries({ queryKey: wikiDocKeys.detail(id) });
+    },
+  });
+}
+
+/** 撤回审核：状态在树、列表、详情、时间线四处可见 */
+export function useWithdrawWikiDoc() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => request.post<WikiDoc>(`/api/wiki/docs/${id}/withdraw`).then(unwrap),
+    onSuccess: (saved) => {
+      void qc.invalidateQueries({ queryKey: wikiDocKeys.detail(saved.id) });
+      void qc.invalidateQueries({ queryKey: wikiDocKeys.lists });
+      void qc.invalidateQueries({ queryKey: wikiDocTreeKeys.of(saved.spaceId) });
+      void qc.invalidateQueries({ queryKey: wikiReviewRecordKeys.of(saved.id) });
+    },
+  });
+}
+
+/** 确认已读：详情的 readConfirmed/readReceiptCount 与已读名单 */
+export function useConfirmWikiDocRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => request.post<null>(`/api/wiki/docs/${id}/read-receipt`).then(unwrap),
+    onSuccess: (_data, id) => {
+      void qc.invalidateQueries({ queryKey: wikiDocKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: wikiReadReceiptKeys.of(id) });
+    },
+  });
+}
+
+export function useWikiDocReadReceipts(docId: number | undefined, enabled = true) {
+  return useQuery({
+    queryKey: wikiReadReceiptKeys.of(docId),
+    queryFn: () => request.get<WikiDocReadReceipts>(`/api/wiki/docs/${docId}/read-receipts`).then(unwrap),
+    enabled: enabled && docId !== undefined,
+  });
+}
+
+export function useWikiDocReviewRecords(docId: number | undefined, enabled = true) {
+  return useQuery({
+    queryKey: wikiReviewRecordKeys.of(docId),
+    queryFn: () => request.get<WikiReviewRecord[]>(`/api/wiki/docs/${docId}/review-records`).then(unwrap),
+    enabled: enabled && docId !== undefined,
+  });
+}
+
+export function useMyProcessedReviews(params: CrudListParams, enabled = true) {
+  return useQuery({
+    queryKey: wikiReviewRecordKeys.processed(params),
+    queryFn: () => request.get<PaginatedResponse<WikiReviewRecord>>(`/api/wiki/docs/reviews/processed${toQueryString(params)}`).then(unwrap),
+    placeholderData: keepPreviousData,
+    enabled,
   });
 }

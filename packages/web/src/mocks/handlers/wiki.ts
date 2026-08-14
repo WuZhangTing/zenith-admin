@@ -6,9 +6,38 @@ import { mockDateTime } from '@/mocks/utils/date';
 import {
   getNextWikiCommentId, getNextWikiDocId, getNextWikiSpaceId, getNextWikiTagId,
   getNextWikiTemplateId, getNextWikiVersionId, mockWikiComments, mockWikiDocVersions,
-  mockWikiDocs, mockWikiFavoriteDocIds, mockWikiSettings, mockWikiSpaceMembers,
-  mockWikiSpaces, mockWikiTags, mockWikiTemplates, type MockWikiDoc,
+  mockWikiDocs, mockWikiFavoriteDocIds, mockWikiReadConfirmedDocIds, mockWikiSettings,
+  mockWikiSpaceMembers, mockWikiSpaces, mockWikiSubscribedDocIds, mockWikiTags,
+  mockWikiTemplates, type MockWikiDoc,
 } from '../data/wiki';
+
+/** 审核时间线（内存） */
+interface MockReviewRecord {
+  id: number;
+  docId: number;
+  docTitle?: string;
+  version: number;
+  action: 'submit' | 'approve' | 'reject' | 'withdraw';
+  actorId: number | null;
+  actorName: string | null;
+  reason: string | null;
+  createdAt: string;
+}
+const mockReviewRecords: MockReviewRecord[] = [];
+let nextReviewRecordId = 1;
+
+function pushReviewRecord(doc: MockWikiDoc, action: MockReviewRecord['action'], reason: string | null = null) {
+  mockReviewRecords.push({
+    id: nextReviewRecordId++,
+    docId: doc.id,
+    version: doc.currentVersion,
+    action,
+    actorId: 1,
+    actorName: '管理员',
+    reason,
+    createdAt: mockDateTime(),
+  });
+}
 
 // ─── 派生工具 ─────────────────────────────────────────────────────────────────
 
@@ -37,6 +66,10 @@ function toDetailDoc(doc: MockWikiDoc): WikiDoc {
     favorited: mockWikiFavoriteDocIds.has(doc.id),
     favoriteCount: mockWikiFavoriteDocIds.has(doc.id) ? 1 : 0,
     commentCount: mockWikiComments.filter((c) => c.docId === doc.id && c.status === 'visible').length,
+    subscribed: mockWikiSubscribedDocIds.has(doc.id),
+    readConfirmed: mockWikiReadConfirmedDocIds.has(doc.id),
+    readReceiptCount: mockWikiReadConfirmedDocIds.has(doc.id) ? 1 : 0,
+    attachments: [],
   };
 }
 
@@ -177,6 +210,15 @@ const docHandlers = [
   http.get('/api/wiki/docs/recent', () =>
     ok(mockWikiDocs.filter((d) => !d.deletedAt && d.status === 'published').slice(0, 5).map(toListDoc))),
 
+  http.get('/api/wiki/docs/reviews/processed', ({ request }) => {
+    const url = new URL(request.url);
+    const list = mockReviewRecords
+      .filter((r) => r.action === 'approve' || r.action === 'reject')
+      .map((r) => ({ ...r, docTitle: mockWikiDocs.find((d) => d.id === r.docId)?.title ?? '' }))
+      .sort((a, b) => b.id - a.id);
+    return ok(paginate(list, url));
+  }),
+
   http.get('/api/wiki/docs/tree', ({ request }) => {
     const url = new URL(request.url);
     const spaceId = Number(url.searchParams.get('spaceId'));
@@ -244,6 +286,7 @@ const docHandlers = [
       viewCount: 0,
       currentVersion: 1,
       revision: 1,
+      requireReadReceipt: (body as { requireReadReceipt?: boolean }).requireReadReceipt ?? false,
       publishedAt: null,
       deletedAt: null,
       tagIds: body.tagIds ?? [],
@@ -292,10 +335,54 @@ const docHandlers = [
     }
     doc.status = mockWikiSettings.requireApproval ? 'pending' : 'published';
     doc.rejectReason = null;
-    if (doc.status === 'published') doc.publishedAt = mockDateTime();
+    pushReviewRecord(doc, 'submit');
+    if (doc.status === 'published') {
+      doc.publishedAt = mockDateTime();
+      pushReviewRecord(doc, 'approve', '审批未开启，提交即发布');
+    }
     doc.updatedAt = mockDateTime();
     return ok(toDetailDoc(doc), '提交成功');
   }),
+
+  http.post('/api/wiki/docs/:id/withdraw', ({ params }) => {
+    const doc = findDoc(Number(params.id));
+    if (!doc || doc.deletedAt) return notFound('文档不存在', { status: 404 });
+    if (doc.status !== 'pending') return badRequest('只有待审核的文档可以撤回', { status: 400 });
+    doc.status = 'draft';
+    pushReviewRecord(doc, 'withdraw');
+    doc.updatedAt = mockDateTime();
+    return ok(toDetailDoc(doc), '已撤回');
+  }),
+
+  http.post('/api/wiki/docs/:id/subscribe', async ({ params, request }) => {
+    const doc = findDoc(Number(params.id));
+    if (!doc || doc.deletedAt) return notFound('文档不存在', { status: 404 });
+    const body = (await request.json()) as { subscribe: boolean };
+    if (body.subscribe) mockWikiSubscribedDocIds.add(doc.id);
+    else mockWikiSubscribedDocIds.delete(doc.id);
+    return ok(null, body.subscribe ? '已订阅' : '已取消订阅');
+  }),
+
+  http.post('/api/wiki/docs/:id/read-receipt', ({ params }) => {
+    const doc = findDoc(Number(params.id));
+    if (!doc || doc.deletedAt) return notFound('文档不存在', { status: 404 });
+    mockWikiReadConfirmedDocIds.add(doc.id);
+    return ok(null, '已确认阅读');
+  }),
+
+  http.get('/api/wiki/docs/:id/read-receipts', ({ params }) => {
+    const docId = Number(params.id);
+    const confirmed = mockWikiReadConfirmedDocIds.has(docId)
+      ? [{ userId: 1, nickname: '管理员', confirmedAt: mockDateTime() }]
+      : [];
+    return ok({
+      confirmed,
+      unconfirmed: confirmed.length > 0 ? [] : [{ userId: 1, nickname: '管理员' }],
+    });
+  }),
+
+  http.get('/api/wiki/docs/:id/review-records', ({ params }) =>
+    ok(mockReviewRecords.filter((r) => r.docId === Number(params.id)).sort((a, b) => b.id - a.id))),
 
   http.post('/api/wiki/docs/:id/review', async ({ params, request }) => {
     const doc = findDoc(Number(params.id));
@@ -306,9 +393,11 @@ const docHandlers = [
       doc.status = 'published';
       doc.rejectReason = null;
       doc.publishedAt = mockDateTime();
+      pushReviewRecord(doc, 'approve', body.reason ?? null);
     } else {
       doc.status = 'rejected';
       doc.rejectReason = body.reason ?? null;
+      pushReviewRecord(doc, 'reject', body.reason ?? null);
     }
     doc.updatedAt = mockDateTime();
     return ok(toDetailDoc(doc), '审核完成');
@@ -542,7 +631,7 @@ const commentHandlers = [
   }),
 
   http.post('/api/wiki/comments', async ({ request }) => {
-    const body = (await request.json()) as { docId: number; parentId?: number | null; content: string };
+    const body = (await request.json()) as { docId: number; parentId?: number | null; content: string; mentionedUserIds?: number[]; isQuestion?: boolean };
     const doc = findDoc(body.docId);
     if (!doc || doc.deletedAt) return notFound('文档不存在', { status: 404 });
     if (doc.status !== 'published') return badRequest('只能评论已发布的文档', { status: 400 });
@@ -552,12 +641,23 @@ const commentHandlers = [
       parentId: body.parentId ?? null,
       content: body.content,
       status: 'visible',
+      mentionedUserIds: body.mentionedUserIds ?? [],
+      isQuestion: body.isQuestion ?? false,
+      resolvedAt: null,
       authorId: 1,
       authorName: '管理员',
       createdAt: mockDateTime(),
     };
     mockWikiComments.push(comment);
     return ok(comment, '评论成功');
+  }),
+
+  http.post('/api/wiki/comments/:id/resolve', ({ params }) => {
+    const comment = mockWikiComments.find((c) => c.id === Number(params.id));
+    if (!comment) return notFound('评论不存在', { status: 404 });
+    if (!comment.isQuestion) return badRequest('只有标记为问题的评论可以解决', { status: 400 });
+    comment.resolvedAt = mockDateTime();
+    return ok(comment, '已标记解决');
   }),
 
   http.put('/api/wiki/comments/:id/status', async ({ params, request }) => {

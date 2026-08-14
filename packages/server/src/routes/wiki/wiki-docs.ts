@@ -9,12 +9,13 @@ import {
   ErrorResponse, jsonContent, PaginationQuery, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody,
 } from '../../lib/openapi-schemas';
-import { WikiDocDTO, WikiDocTreeNodeDTO, WikiDocVersionDTO } from '../../lib/openapi-dtos';
+import { WikiDocDTO, WikiDocReadReceiptsDTO, WikiDocTreeNodeDTO, WikiDocVersionDTO, WikiReviewRecordDTO } from '../../lib/openapi-dtos';
 import {
-  createWikiDoc, deleteWikiDoc, ensureWikiDocExists, favoriteWikiDoc, getWikiDoc,
-  getWikiDocTree, getWikiDocVersion, listMyFavoriteWikiDocs, listRecentWikiDocs, listWikiDocVersions,
-  listWikiDocs, mapWikiDoc, moveWikiDoc, purgeWikiDoc, recordWikiDocView, reportWikiSearchClick,
-  restoreWikiDoc, reviewWikiDoc, rollbackWikiDoc, searchWikiDocs, submitWikiDoc, updateWikiDoc,
+  confirmWikiDocRead, createWikiDoc, deleteWikiDoc, ensureWikiDocExists, favoriteWikiDoc, getWikiDoc,
+  getWikiDocReadReceipts, getWikiDocTree, getWikiDocVersion, listMyFavoriteWikiDocs, listMyProcessedReviews,
+  listRecentWikiDocs, listWikiDocReviewRecords, listWikiDocVersions, listWikiDocs, mapWikiDoc, moveWikiDoc,
+  purgeWikiDoc, recordWikiDocView, reportWikiSearchClick, restoreWikiDoc, reviewWikiDoc, rollbackWikiDoc,
+  searchWikiDocs, submitWikiDoc, subscribeWikiDoc, updateWikiDoc, withdrawWikiDoc,
 } from '../../services/wiki/docs.service';
 
 const docsRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -98,6 +99,18 @@ const recentRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...ok(z.array(WikiDocDTO), '最近访问') },
   }),
   handler: async (c) => c.json(okBody(await listRecentWikiDocs()), 200),
+});
+
+const processedReviewsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/reviews/processed',
+    tags: ['知识中心-文档'], summary: '我处理过的审核记录',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'wiki:approval:list' })] as const,
+    request: { query: PaginationQuery },
+    responses: { ...commonErrorResponses, ...okPaginated(WikiReviewRecordDTO, '已处理') },
+  }),
+  handler: async (c) => c.json(okBody(await listMyProcessedReviews(c.req.valid('query'))), 200),
 });
 
 const treeRoute = defineOpenAPIRoute({
@@ -264,6 +277,24 @@ const submitRoute = defineOpenAPIRoute({
   },
 });
 
+const withdrawRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/{id}/withdraw',
+    tags: ['知识中心-文档'], summary: '撤回审核（pending → draft，仅提交人）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({
+      permission: 'wiki:doc:publish',
+      audit: { description: '撤回文档审核', module: '知识中心' },
+    })] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...ok(WikiDocDTO, '已撤回') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    return c.json(okBody(await withdrawWikiDoc(id), '已撤回'), 200);
+  },
+});
+
 const reviewRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/{id}/review',
@@ -296,6 +327,69 @@ const favoriteRoute = defineOpenAPIRoute({
     const { favorite } = c.req.valid('json');
     await favoriteWikiDoc(id, favorite);
     return c.json(okBody(null, favorite ? '已收藏' : '已取消收藏'), 200);
+  },
+});
+
+const subscribeRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/{id}/subscribe',
+    tags: ['知识中心-文档'], summary: '订阅 / 取消订阅（发布与评论时站内信通知）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'wiki:doc:list' })] as const,
+    request: { params: IdParam, body: { content: jsonContent(z.object({ subscribe: z.boolean() })), required: true } },
+    responses: { ...commonErrorResponses, ...okMsg('操作成功') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const { subscribe } = c.req.valid('json');
+    await subscribeWikiDoc(id, subscribe);
+    return c.json(okBody(null, subscribe ? '已订阅' : '已取消订阅'), 200);
+  },
+});
+
+const readReceiptRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/{id}/read-receipt',
+    tags: ['知识中心-文档'], summary: '确认已读',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'wiki:doc:list' })] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...okMsg('已确认') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    await confirmWikiDocRead(id);
+    return c.json(okBody(null, '已确认阅读'), 200);
+  },
+});
+
+const readReceiptsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/{id}/read-receipts',
+    tags: ['知识中心-文档'], summary: '已读名单（作者/空间管理员）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'wiki:doc:list' })] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...ok(WikiDocReadReceiptsDTO, '已读名单') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    return c.json(okBody(await getWikiDocReadReceipts(id)), 200);
+  },
+});
+
+const reviewRecordsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/{id}/review-records',
+    tags: ['知识中心-文档'], summary: '审核时间线',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'wiki:doc:list' })] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...ok(z.array(WikiReviewRecordDTO), '审核时间线') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    return c.json(okBody(await listWikiDocReviewRecords(id)), 200);
   },
 });
 
@@ -415,6 +509,7 @@ docsRouter.openapiRoutes([
   searchRoute,
   searchClickRoute,
   recentRoute,
+  processedReviewsRoute,
   treeRoute,
   favoritesRoute,
   recycleRoute,
@@ -424,8 +519,13 @@ docsRouter.openapiRoutes([
   deleteRoute_,
   moveRoute,
   submitRoute,
+  withdrawRoute,
   reviewRoute,
   favoriteRoute,
+  subscribeRoute,
+  readReceiptRoute,
+  readReceiptsRoute,
+  reviewRecordsRoute,
   viewRoute,
   versionsRoute,
   versionDetailRoute,

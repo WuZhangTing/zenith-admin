@@ -9,7 +9,7 @@ import {
 import { WikiCommentDTO } from '../../lib/openapi-dtos';
 import {
   createWikiComment, deleteMyWikiComment, ensureWikiCommentExists, listWikiComments,
-  listWikiDocComments, mapWikiComment, removeWikiComment, updateWikiCommentStatus,
+  listWikiDocComments, mapWikiComment, removeWikiComment, resolveWikiComment, updateWikiCommentStatus,
 } from '../../services/wiki/comments.service';
 
 const commentsRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -34,13 +34,28 @@ const docCommentsRoute = defineOpenAPIRoute({
 const createRoute_ = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/',
-    tags: ['知识中心-评论'], summary: '发表评论 / 回复',
+    tags: ['知识中心-评论'], summary: '发表评论 / 回复（支持 @提及与问题标记）',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'wiki:doc:list' })] as const,
     request: { body: { content: jsonContent(createWikiCommentSchema), required: true } },
     responses: { ...commonErrorResponses, ...ok(WikiCommentDTO, '评论成功') },
   }),
   handler: async (c) => c.json(okBody(await createWikiComment(c.req.valid('json')), '评论成功'), 200),
+});
+
+const resolveRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/{id}/resolve',
+    tags: ['知识中心-评论'], summary: '标记问题评论为已解决',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'wiki:doc:list' })] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...ok(WikiCommentDTO, '已解决') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    return c.json(okBody(await resolveWikiComment(id), '已标记解决'), 200);
+  },
 });
 
 const deleteMineRoute = defineOpenAPIRoute({
@@ -126,6 +141,7 @@ commentsRouter.openapiRoutes([
   deleteMineRoute,
   listRoute,
   createRoute_,
+  resolveRoute,
   statusRoute,
   deleteRoute_,
 ] as const);

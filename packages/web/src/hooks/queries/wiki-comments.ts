@@ -83,3 +83,16 @@ export function useRemoveWikiComment() {
     onSuccess: (_data, { docId }) => invalidateCommentSurfaces(qc, docId),
   });
 }
+
+/** 标记问题已解决：评论树与管理列表联动（详情 commentCount 不变，无需失效） */
+export function useResolveWikiComment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: number; docId: number }) =>
+      request.post<WikiComment>(`/api/wiki/comments/${id}/resolve`).then(unwrap),
+    onSuccess: (_data, { docId }) => {
+      void qc.invalidateQueries({ queryKey: wikiCommentKeys.doc(docId) });
+      void qc.invalidateQueries({ queryKey: wikiCommentKeys.lists });
+    },
+  });
+}

@@ -1,4 +1,4 @@
-import type { WikiCommentStatus, WikiDocStatus, WikiSpaceMemberRole, WikiSpaceVisibility } from './constants';
+import type { WikiCommentStatus, WikiDocStatus, WikiReviewAction, WikiSpaceMemberRole, WikiSpaceVisibility } from './constants';
 
 // ─── 知识空间 ─────────────────────────────────────────────────────────────────
 
@@ -80,6 +80,14 @@ export interface WikiDoc {
   favorited?: boolean;
   favoriteCount?: number;
   commentCount?: number;
+  /** 当前用户是否已订阅（详情接口附加） */
+  subscribed?: boolean;
+  /** 发布后要求读者确认已读 */
+  requireReadReceipt: boolean;
+  /** 当前用户是否已确认已读（详情接口附加） */
+  readConfirmed?: boolean;
+  /** 已确认人数（详情接口附加） */
+  readReceiptCount?: number;
   authorName?: string | null;
   createdBy?: number | null;
   updatedBy?: number | null;
@@ -146,10 +154,33 @@ export interface WikiComment {
   parentId?: number | null;
   content: string;
   status: WikiCommentStatus;
+  mentionedUserIds: number[];
+  isQuestion: boolean;
+  resolvedAt?: string | null;
   authorId?: number | null;
   authorName?: string | null;
   replies?: WikiComment[];
   createdAt: string;
+}
+
+// ─── 审核 ─────────────────────────────────────────────────────────────────────
+
+export interface WikiReviewRecord {
+  id: number;
+  docId: number;
+  docTitle?: string;
+  version: number;
+  action: WikiReviewAction;
+  actorId?: number | null;
+  actorName?: string | null;
+  reason?: string | null;
+  createdAt: string;
+}
+
+/** 阅读确认名单（作者 / 空间管理员可见） */
+export interface WikiDocReadReceipts {
+  confirmed: Array<{ userId: number; nickname: string; confirmedAt: string }>;
+  unconfirmed: Array<{ userId: number; nickname: string }>;
 }
 
 // ─── 统计 ─────────────────────────────────────────────────────────────────────

@@ -38,6 +38,7 @@ export const createWikiDocSchema = z.object({
   content: z.string().default(''),
   tagIds: z.array(z.number().int()).default([]),
   fileIds: z.array(z.string().uuid()).default([]),
+  requireReadReceipt: z.boolean().default(false),
 });
 
 export const updateWikiDocSchema = z.object({
@@ -46,6 +47,7 @@ export const updateWikiDocSchema = z.object({
   content: z.string().optional(),
   tagIds: z.array(z.number().int()).optional(),
   fileIds: z.array(z.string().uuid()).optional(),
+  requireReadReceipt: z.boolean().optional(),
   sort: z.number().int().optional(),
   isPinned: z.boolean().optional(),
   /** 版本说明；正文变更时写入版本历史 */
@@ -111,6 +113,8 @@ export const createWikiCommentSchema = z.object({
   docId: z.number().int().positive(),
   parentId: z.number().int().positive().nullable().optional(),
   content: z.string().min(1, '评论内容不能为空').max(1000),
+  mentionedUserIds: z.array(z.number().int().positive()).default([]),
+  isQuestion: z.boolean().default(false),
 });
 
 export type CreateWikiCommentInput = z.infer<typeof createWikiCommentSchema>;

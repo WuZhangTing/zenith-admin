@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Button, Space, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Space, Tabs, Tag, TextArea, Timeline, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Check, X } from 'lucide-react';
-import type { WikiDoc } from '@zenith/shared/wiki';
+import type { WikiDoc, WikiReviewRecord } from '@zenith/shared/wiki';
+import { WIKI_DOC_STATUS_LABELS, WIKI_REVIEW_ACTION_LABELS } from '@zenith/shared/wiki';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -10,10 +11,14 @@ import { KeywordInput } from '@/components/search-filters';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import AppModal from '@/components/AppModal';
 import MarkdownPreviewPanel from '@/components/MarkdownPreviewPanel';
-import { renderEllipsis, updatedAtColumn } from '@/utils/table-columns';
+import { renderEllipsis, updatedAtColumn, dateTimeColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
-import { useReviewWikiDoc, useWikiDocDetail, useWikiDocList, wikiDocKeys } from '@/hooks/queries/wiki-docs';
+import { usePagination } from '@/hooks/usePagination';
+import {
+  useMyProcessedReviews, useReviewWikiDoc, useWikiDocDetail, useWikiDocList,
+  useWikiDocReviewRecords, useWithdrawWikiDoc, wikiDocKeys,
+} from '@/hooks/queries/wiki-docs';
 
 const { Text } = Typography;
 
@@ -23,7 +28,22 @@ interface SearchParams {
 
 const defaultSearchParams: SearchParams = { keyword: '' };
 
-export default function WikiApprovalsPage() {
+const ACTION_TAG_COLOR: Record<WikiReviewRecord['action'], 'blue' | 'green' | 'red' | 'grey'> = {
+  submit: 'blue',
+  approve: 'green',
+  reject: 'red',
+  withdraw: 'grey',
+};
+
+const STATUS_TAG_COLOR: Record<string, 'grey' | 'orange' | 'green' | 'red'> = {
+  draft: 'grey',
+  pending: 'orange',
+  published: 'green',
+  rejected: 'red',
+};
+
+/** 待审核 Tab */
+function PendingPane() {
   const { hasPermission } = usePermission();
   const canReview = hasPermission('wiki:approval:review');
 
@@ -43,8 +63,6 @@ export default function WikiApprovalsPage() {
   const total = listQuery.data?.total ?? 0;
 
   const reviewMutation = useReviewWikiDoc();
-
-  // ─── 预览与驳回 ────────────────────────────────────────────────────────────
   const [previewId, setPreviewId] = useState<number>();
   const previewQuery = useWikiDocDetail(previewId);
   const [rejectTarget, setRejectTarget] = useState<WikiDoc | null>(null);
@@ -109,7 +127,7 @@ export default function WikiApprovalsPage() {
   );
 
   return (
-    <div className="page-container">
+    <>
       <SearchToolbar
         primary={<>
           {renderKeywordSearch()}
@@ -135,7 +153,6 @@ export default function WikiApprovalsPage() {
         pagination={buildPagination(total)}
       />
 
-      {/* 预览弹窗 */}
       <AppModal
         title={previewQuery.data?.title ?? '文档预览'}
         visible={previewId !== undefined}
@@ -167,7 +184,6 @@ export default function WikiApprovalsPage() {
         </div>
       </AppModal>
 
-      {/* 驳回弹窗 */}
       <AppModal
         title={`驳回「${rejectTarget?.title ?? ''}」`}
         visible={!!rejectTarget}
@@ -188,6 +204,133 @@ export default function WikiApprovalsPage() {
           maxCount={500}
         />
       </AppModal>
+    </>
+  );
+}
+
+/** 我提交的 Tab：待审 / 被驳回的文档，支持撤回与查看时间线 */
+function MySubmissionsPane() {
+  const listQuery = useWikiDocList({ page: 1, pageSize: 100, mine: true });
+  const list = (listQuery.data?.list ?? []).filter((d) => d.status === 'pending' || d.status === 'rejected');
+
+  const withdrawMutation = useWithdrawWikiDoc();
+  const [timelineDocId, setTimelineDocId] = useState<number>();
+  const timelineQuery = useWikiDocReviewRecords(timelineDocId, timelineDocId !== undefined);
+
+  const columns: ColumnProps<WikiDoc>[] = [
+    { title: '标题', dataIndex: 'title', width: 240, render: renderEllipsis },
+    { title: '所属空间', dataIndex: 'spaceName', width: 140, render: renderEllipsis },
+    {
+      title: '状态', dataIndex: 'status', width: 90,
+      render: (v: WikiDoc['status']) => <Tag color={STATUS_TAG_COLOR[v]}>{WIKI_DOC_STATUS_LABELS[v]}</Tag>,
+    },
+    { title: '驳回意见', dataIndex: 'rejectReason', width: 220, render: renderEllipsis },
+    updatedAtColumn,
+    createOperationColumn<WikiDoc>({
+      width: 160,
+      desktopInlineKeys: ['timeline', 'withdraw'],
+      actions: (record) => [
+        { key: 'timeline', label: '审核记录', onClick: () => setTimelineDocId(record.id) },
+        ...(record.status === 'pending' ? [{
+          key: 'withdraw', label: '撤回',
+          onClick: () => withdrawMutation.mutate(record.id, { onSuccess: () => Toast.success('已撤回，可继续编辑') }),
+        }] : []),
+      ],
+    }),
+  ];
+
+  return (
+    <>
+      <ConfigurableTable
+        bordered
+        columns={columns}
+        dataSource={list}
+        loading={listQuery.isFetching}
+        rowKey="id"
+        size="small"
+        empty="没有审核中或被驳回的文档"
+        onRefresh={() => void listQuery.refetch()}
+        refreshLoading={listQuery.isFetching}
+      />
+
+      <AppModal
+        title="审核记录"
+        visible={timelineDocId !== undefined}
+        closeOnEsc
+        width={520}
+        footer={null}
+        onCancel={() => setTimelineDocId(undefined)}
+      >
+        <Timeline>
+          {(timelineQuery.data ?? []).map((r) => (
+            <Timeline.Item
+              key={r.id}
+              time={r.createdAt}
+              type={r.action === 'approve' ? 'success' : r.action === 'reject' ? 'error' : 'default'}
+            >
+              <Space spacing={8}>
+                <Tag size="small" color={ACTION_TAG_COLOR[r.action]}>{WIKI_REVIEW_ACTION_LABELS[r.action]}</Tag>
+                <Text>{r.actorName ?? '—'}</Text>
+                <Text type="tertiary" size="small">v{r.version}</Text>
+              </Space>
+              {r.reason ? <div><Text type="tertiary" size="small">{r.reason}</Text></div> : null}
+            </Timeline.Item>
+          ))}
+        </Timeline>
+        {timelineQuery.data?.length === 0 ? <Text type="tertiary">暂无审核记录</Text> : null}
+      </AppModal>
+    </>
+  );
+}
+
+/** 已处理 Tab：我通过 / 驳回过的记录 */
+function ProcessedPane() {
+  const { page, pageSize, buildPagination } = usePagination();
+  const listQuery = useMyProcessedReviews({ page, pageSize });
+  const list = listQuery.data?.list ?? [];
+  const total = listQuery.data?.total ?? 0;
+
+  const columns: ColumnProps<WikiReviewRecord>[] = [
+    { title: '文档标题', dataIndex: 'docTitle', width: 260, render: renderEllipsis },
+    {
+      title: '处理结果', dataIndex: 'action', width: 110,
+      render: (v: WikiReviewRecord['action']) => <Tag color={ACTION_TAG_COLOR[v]}>{WIKI_REVIEW_ACTION_LABELS[v]}</Tag>,
+    },
+    { title: '版本', dataIndex: 'version', width: 80, render: (v: number) => `v${v}` },
+    { title: '意见', dataIndex: 'reason', width: 240, render: renderEllipsis },
+    dateTimeColumn('处理时间', 'createdAt'),
+  ];
+
+  return (
+    <ConfigurableTable
+      bordered
+      columns={columns}
+      dataSource={list}
+      loading={listQuery.isFetching}
+      rowKey="id"
+      size="small"
+      empty="还没有处理过审核"
+      onRefresh={() => void listQuery.refetch()}
+      refreshLoading={listQuery.isFetching}
+      pagination={buildPagination(total)}
+    />
+  );
+}
+
+export default function WikiApprovalsPage() {
+  return (
+    <div className="page-container page-tabs-page">
+      <Tabs type="line" collapsible="auto">
+        <Tabs.TabPane tab="待审核" itemKey="pending">
+          <PendingPane />
+        </Tabs.TabPane>
+        <Tabs.TabPane tab="我提交的" itemKey="mine">
+          <MySubmissionsPane />
+        </Tabs.TabPane>
+        <Tabs.TabPane tab="已处理" itemKey="processed">
+          <ProcessedPane />
+        </Tabs.TabPane>
+      </Tabs>
     </div>
   );
 }

@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Divider, Dropdown, Empty, List, Select, Space, Spin, Tabs, Tag, TextArea, Toast, Tooltip, Tree, TreeSelect, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Checkbox, Divider, Dropdown, Empty, List, Select, Space, Spin, Tabs, Tag, TextArea, Toast, Tooltip, Tree, TreeSelect, Typography } from '@douyinfe/semi-ui';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import {
-  Eye, FilePlus2, FolderInput, History, MessageSquare, MoreHorizontal, Pencil, Pin, Send, Star, Trash2,
+  Bell, Eye, FilePlus2, FolderInput, History, MessageSquare, MoreHorizontal, Pencil, Pin, Send, Star, Trash2, Undo2,
 } from 'lucide-react';
 import type { WikiComment, WikiDocTreeNode } from '@zenith/shared/wiki';
 import { WIKI_DOC_STATUS_LABELS } from '@zenith/shared/wiki';
@@ -15,13 +15,14 @@ import { KeywordInput } from '@/components/search-filters';
 import { usePermission } from '@/hooks/usePermission';
 import { useAuth } from '@/hooks/useAuth';
 import { confirmDelete } from '@/utils/confirm';
+import { useAllUsers } from '@/hooks/queries/users';
 import { useMyWikiSpaces } from '@/hooks/queries/wiki-spaces';
 import {
-  useDeleteWikiDocs, useFavoriteWikiDoc, useMoveWikiDoc, useMyFavoriteWikiDocs,
-  useRecentWikiDocs, useRecordWikiDocView, useReportWikiSearchClick, useSubmitWikiDoc,
-  useWikiDocDetail, useWikiDocList, useWikiDocSearch, useWikiDocTree,
+  useConfirmWikiDocRead, useDeleteWikiDocs, useFavoriteWikiDoc, useMoveWikiDoc, useMyFavoriteWikiDocs,
+  useRecentWikiDocs, useRecordWikiDocView, useReportWikiSearchClick, useSubmitWikiDoc, useSubscribeWikiDoc,
+  useWikiDocDetail, useWikiDocList, useWikiDocReadReceipts, useWikiDocSearch, useWikiDocTree, useWithdrawWikiDoc,
 } from '@/hooks/queries/wiki-docs';
-import { useCreateWikiComment, useDeleteMyWikiComment, useWikiDocComments } from '@/hooks/queries/wiki-comments';
+import { useCreateWikiComment, useDeleteMyWikiComment, useResolveWikiComment, useWikiDocComments } from '@/hooks/queries/wiki-comments';
 
 const { Text, Title } = Typography;
 
@@ -61,21 +62,31 @@ function toMoveTreeData(nodes: WikiDocTreeNode[], excludeId: number): TreeNodeDa
     }));
 }
 
-function CommentItem({ comment, canDelete, onReply, onDelete }: {
+function CommentItem({ comment, canDelete, canResolve, onReply, onDelete, onResolve }: {
   comment: WikiComment;
   canDelete: (c: WikiComment) => boolean;
+  canResolve: (c: WikiComment) => boolean;
   onReply: (c: WikiComment) => void;
   onDelete: (c: WikiComment) => void;
+  onResolve: (c: WikiComment) => void;
 }) {
   return (
     <div style={{ padding: '8px 0' }}>
       <Space spacing={8}>
         <Text strong>{comment.authorName ?? '已注销用户'}</Text>
         <Text type="tertiary" size="small">{comment.createdAt}</Text>
+        {comment.isQuestion ? (
+          comment.resolvedAt
+            ? <Tag size="small" color="green">已解决</Tag>
+            : <Tag size="small" color="orange">问题</Tag>
+        ) : null}
       </Space>
       <div style={{ margin: '4px 0' }}>{comment.content}</div>
       <Space spacing={4}>
         <Button size="small" theme="borderless" type="tertiary" onClick={() => onReply(comment)}>回复</Button>
+        {comment.isQuestion && !comment.resolvedAt && canResolve(comment) ? (
+          <Button size="small" theme="borderless" onClick={() => onResolve(comment)}>标记解决</Button>
+        ) : null}
         {canDelete(comment) ? (
           <Button size="small" theme="borderless" type="danger" onClick={() => onDelete(comment)}>删除</Button>
         ) : null}
@@ -83,7 +94,8 @@ function CommentItem({ comment, canDelete, onReply, onDelete }: {
       {comment.replies?.length ? (
         <div style={{ marginLeft: 24, borderLeft: '2px solid var(--semi-color-border)', paddingLeft: 12 }}>
           {comment.replies.map((r) => (
-            <CommentItem key={r.id} comment={r} canDelete={canDelete} onReply={onReply} onDelete={onDelete} />
+            <CommentItem key={r.id} comment={r} canDelete={canDelete} canResolve={canResolve}
+              onReply={onReply} onDelete={onDelete} onResolve={onResolve} />
           ))}
         </div>
       ) : null}
@@ -104,6 +116,9 @@ export default function WikiDocCenterPage() {
   const [moveParentId, setMoveParentId] = useState<number | null>(null);
   const [commentText, setCommentText] = useState('');
   const [replyTo, setReplyTo] = useState<WikiComment | null>(null);
+  const [mentionIds, setMentionIds] = useState<number[]>([]);
+  const [isQuestion, setIsQuestion] = useState(false);
+  const [receiptsVisible, setReceiptsVisible] = useState(false);
   const [searchDraft, setSearchDraft] = useState('');
   const [searchKeyword, setSearchKeyword] = useState('');
 
@@ -123,15 +138,23 @@ export default function WikiDocCenterPage() {
   const docQuery = useWikiDocDetail(selectedDocId);
   const doc = docQuery.data;
   const commentsQuery = useWikiDocComments(selectedDocId, !!doc && doc.status === 'published');
+  const isDocAuthor = !!doc && doc.createdBy === user?.id;
+  const canManageDoc = myRole === 'owner' || myRole === 'admin';
+  const usersQuery = useAllUsers({ enabled: !!doc && doc.status === 'published' });
+  const receiptsQuery = useWikiDocReadReceipts(selectedDocId, receiptsVisible);
 
   // ─── 变更 ─────────────────────────────────────────────────────────────────
   const favoriteMutation = useFavoriteWikiDoc();
+  const subscribeMutation = useSubscribeWikiDoc();
   const submitMutation = useSubmitWikiDoc();
+  const withdrawMutation = useWithdrawWikiDoc();
   const deleteMutation = useDeleteWikiDocs();
   const moveMutation = useMoveWikiDoc();
   const viewMutation = useRecordWikiDocView();
   const createCommentMutation = useCreateWikiComment();
   const deleteCommentMutation = useDeleteMyWikiComment();
+  const resolveCommentMutation = useResolveWikiComment();
+  const confirmReadMutation = useConfirmWikiDocRead();
   const searchClickMutation = useReportWikiSearchClick();
 
   function selectDoc(id: number) {
@@ -149,12 +172,14 @@ export default function WikiDocCenterPage() {
     const content = commentText.trim();
     if (!content || !selectedDocId) return;
     createCommentMutation.mutate(
-      { docId: selectedDocId, parentId: replyTo?.id ?? null, content },
+      { docId: selectedDocId, parentId: replyTo?.id ?? null, content, mentionedUserIds: mentionIds, isQuestion },
       {
         onSuccess: () => {
           Toast.success('评论成功');
           setCommentText('');
           setReplyTo(null);
+          setMentionIds([]);
+          setIsQuestion(false);
         },
       },
     );
@@ -190,6 +215,11 @@ export default function WikiDocCenterPage() {
               <Text type="tertiary" size="small">更新于 {doc.updatedAt}</Text>
               <Text type="tertiary" size="small"><Eye size={12} style={{ verticalAlign: -2 }} /> {doc.viewCount}</Text>
               <Text type="tertiary" size="small">v{doc.currentVersion}</Text>
+              {doc.requireReadReceipt && (isDocAuthor || canManageDoc) ? (
+                <Button size="small" theme="borderless" onClick={() => setReceiptsVisible(true)}>
+                  已读 {doc.readReceiptCount ?? 0} 人
+                </Button>
+              ) : null}
             </Space>
           </div>
           {doc.tags?.length ? (
@@ -211,7 +241,19 @@ export default function WikiDocCenterPage() {
               onClick={() => favoriteMutation.mutate({ id: doc.id, favorite: !doc.favorited })}
             />
           </Tooltip>
-          {canEditDoc ? (
+          <Tooltip content={doc.subscribed ? '取消订阅（发布/评论通知）' : '订阅更新（发布/评论通知）'}>
+            <Button
+              theme="borderless"
+              icon={<Bell size={16} fill={doc.subscribed ? 'var(--semi-color-primary)' : 'none'}
+                style={doc.subscribed ? { color: 'var(--semi-color-primary)' } : undefined} />}
+              loading={subscribeMutation.isPending}
+              onClick={() => subscribeMutation.mutate(
+                { id: doc.id, subscribe: !doc.subscribed },
+                { onSuccess: () => Toast.success(doc.subscribed ? '已取消订阅' : '已订阅，更新时将通知你') },
+              )}
+            />
+          </Tooltip>
+          {canEditDoc && doc.status !== 'pending' ? (
             <Button icon={<Pencil size={14} />} onClick={() => navigate(`/wiki/docs/edit?id=${doc.id}`)}>编辑</Button>
           ) : null}
           {canSubmitDoc && (doc.status === 'draft' || doc.status === 'rejected') ? (
@@ -224,6 +266,15 @@ export default function WikiDocCenterPage() {
               })}
             >
               提交发布
+            </Button>
+          ) : null}
+          {doc.status === 'pending' && isDocAuthor ? (
+            <Button
+              icon={<Undo2 size={14} />}
+              loading={withdrawMutation.isPending}
+              onClick={() => withdrawMutation.mutate(doc.id, { onSuccess: () => Toast.success('已撤回，可继续编辑') })}
+            >
+              撤回审核
             </Button>
           ) : null}
           <Dropdown
@@ -267,6 +318,24 @@ export default function WikiDocCenterPage() {
 
       <Divider margin={12} />
 
+      {doc.status === 'published' && doc.requireReadReceipt && !doc.readConfirmed ? (
+        <Banner
+          type="warning"
+          closeIcon={null}
+          style={{ marginBottom: 8 }}
+          description="本文档要求阅读确认，请阅读完成后点击确认。"
+        >
+          <Button
+            size="small"
+            theme="solid"
+            loading={confirmReadMutation.isPending}
+            onClick={() => confirmReadMutation.mutate(doc.id, { onSuccess: () => Toast.success('已确认阅读') })}
+          >
+            确认已读
+          </Button>
+        </Banner>
+      ) : null}
+
       {/* 正文与评论 */}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <MarkdownPreviewPanel content={doc.content ?? ''} style={{ height: 'auto', overflowY: 'visible' }} />
@@ -293,7 +362,24 @@ export default function WikiDocCenterPage() {
                 rows={2}
                 maxCount={1000}
               />
-              <div style={{ marginTop: 8, textAlign: 'right' }}>
+              <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                <Space spacing={8}>
+                  <Select
+                    multiple
+                    size="small"
+                    style={{ minWidth: 160 }}
+                    placeholder="@ 提及同事（选填）"
+                    value={mentionIds}
+                    maxTagCount={2}
+                    showClear
+                    filter
+                    onChange={(v) => setMentionIds((v as number[]) ?? [])}
+                    optionList={(usersQuery.data ?? []).map((u) => ({ value: u.id, label: u.nickname || u.username }))}
+                  />
+                  <Checkbox checked={isQuestion} onChange={(e) => setIsQuestion(!!e.target.checked)}>
+                    标记为问题
+                  </Checkbox>
+                </Space>
                 <Button
                   theme="solid"
                   loading={createCommentMutation.isPending}
@@ -309,7 +395,12 @@ export default function WikiDocCenterPage() {
                     key={c.id}
                     comment={c}
                     canDelete={(cm) => cm.authorId === user?.id}
+                    canResolve={(cm) => cm.authorId === user?.id || isDocAuthor || canManageDoc}
                     onReply={(cm) => setReplyTo(cm)}
+                    onResolve={(cm) => resolveCommentMutation.mutate(
+                      { id: cm.id, docId: cm.docId },
+                      { onSuccess: () => Toast.success('已标记解决') },
+                    )}
                     onDelete={(cm) => confirmDelete({
                       title: '确定要删除这条评论吗？',
                       onOk: async () => {
@@ -519,6 +610,38 @@ export default function WikiDocCenterPage() {
           showClear
           filterTreeNode
         />
+      </AppModal>
+
+      {/* 阅读确认名单弹窗 */}
+      <AppModal
+        title="阅读确认情况"
+        visible={receiptsVisible}
+        closeOnEsc
+        width={520}
+        footer={null}
+        onCancel={() => setReceiptsVisible(false)}
+      >
+        <Spin spinning={receiptsQuery.isFetching}>
+          <div style={{ maxHeight: '50vh', overflowY: 'auto' }}>
+            <Text strong>已确认（{receiptsQuery.data?.confirmed.length ?? 0}）</Text>
+            <div style={{ margin: '8px 0 16px' }}>
+              {(receiptsQuery.data?.confirmed ?? []).map((r) => (
+                <div key={r.userId} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                  <Text>{r.nickname}</Text>
+                  <Text type="tertiary" size="small">{r.confirmedAt}</Text>
+                </div>
+              ))}
+              {receiptsQuery.data?.confirmed.length === 0 ? <Text type="tertiary">还没有人确认</Text> : null}
+            </div>
+            <Text strong>未确认（{receiptsQuery.data?.unconfirmed.length ?? 0}）</Text>
+            <div style={{ marginTop: 8 }}>
+              {(receiptsQuery.data?.unconfirmed ?? []).map((r) => (
+                <Tag key={r.userId} size="small" style={{ margin: '0 6px 6px 0' }}>{r.nickname}</Tag>
+              ))}
+              {receiptsQuery.data?.unconfirmed.length === 0 ? <Text type="tertiary">空间成员均已确认</Text> : null}
+            </div>
+          </div>
+        </Spin>
       </AppModal>
     </div>
   );

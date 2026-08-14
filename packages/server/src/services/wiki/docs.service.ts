@@ -16,22 +16,27 @@ import {
   users,
   wikiComments,
   wikiDocFavorites,
+  wikiDocReadReceipts,
+  wikiDocSubscriptions,
   wikiDocTags,
   wikiDocVersions,
   wikiDocViews,
   wikiDocs,
+  wikiReviewRecords,
   wikiSearchLogs,
+  wikiSpaceMembers,
   wikiSpaces,
   wikiTags,
   type WikiDocRow,
 } from '../../db/schema';
-import { currentUser, currentUserId, setAuditBefore } from '../../lib/context';
+import { currentUser, currentUserId, isSuperAdmin, setAuditBefore } from '../../lib/context';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { getConfigBoolean } from '../../lib/system-config';
 import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
 import { buildWhere, escapeLike, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { listBusinessFiles, saveBusinessFiles } from '../files/business-files.service';
 import { wikiDeletedDocVisibilityCondition, wikiDocStatusVisibilityCondition, wikiSpaceAccessCondition } from './access';
+import { notifyWikiDocPublished, notifyWikiDocReviewed } from './notifications.service';
 import { removeWikiDocFromAiKb, syncPublishedWikiDocToAiKb } from './ai-sync.service';
 import { ensureSpaceRole, getMySpaceRole, spaceRoleAtLeast } from './spaces.service';
 
@@ -51,6 +56,7 @@ export function mapWikiDoc(row: WikiDocRow) {
     viewCount: row.viewCount,
     currentVersion: row.currentVersion,
     revision: row.revision,
+    requireReadReceipt: row.requireReadReceipt,
     publishedAt: formatNullableDateTime(row.publishedAt),
     deletedAt: formatNullableDateTime(row.deletedAt),
     createdBy: row.createdBy ?? null,
@@ -175,11 +181,15 @@ export async function getWikiDoc(id: number) {
   }
 
   const [extras] = await attachDocExtras([row], { spaceName: true });
-  const [favorited, favoriteCount, commentCount, attachments] = await Promise.all([
-    db.$count(wikiDocFavorites, and(eq(wikiDocFavorites.docId, id), eq(wikiDocFavorites.userId, currentUserId()))),
+  const uid = currentUserId();
+  const [favorited, favoriteCount, commentCount, attachments, subscribed, readConfirmed, readReceiptCount] = await Promise.all([
+    db.$count(wikiDocFavorites, and(eq(wikiDocFavorites.docId, id), eq(wikiDocFavorites.userId, uid))),
     db.$count(wikiDocFavorites, eq(wikiDocFavorites.docId, id)),
     db.$count(wikiComments, and(eq(wikiComments.docId, id), eq(wikiComments.status, 'visible'))),
     listBusinessFiles('wiki_doc', id),
+    db.$count(wikiDocSubscriptions, and(eq(wikiDocSubscriptions.docId, id), eq(wikiDocSubscriptions.userId, uid))),
+    db.$count(wikiDocReadReceipts, and(eq(wikiDocReadReceipts.docId, id), eq(wikiDocReadReceipts.userId, uid))),
+    db.$count(wikiDocReadReceipts, eq(wikiDocReadReceipts.docId, id)),
   ]);
 
   return {
@@ -189,6 +199,9 @@ export async function getWikiDoc(id: number) {
     favoriteCount,
     commentCount,
     attachments,
+    subscribed: subscribed > 0,
+    readConfirmed: readConfirmed > 0,
+    readReceiptCount,
   };
 }
 
@@ -273,6 +286,7 @@ export async function createWikiDoc(data: CreateWikiDocInput) {
       title: data.title,
       summary: data.summary ?? null,
       content: data.content,
+      requireReadReceipt: data.requireReadReceipt,
       tenantId: getCreateTenantId(currentUser()),
     }).returning();
     await setWikiDocTags(tx, created.id, data.tagIds);
@@ -301,6 +315,10 @@ async function ensureDocEditable(row: WikiDocRow) {
 export async function updateWikiDoc(id: number, data: UpdateWikiDocInput) {
   const before = await ensureWikiDocExists(id);
   await ensureDocEditable(before);
+  // 审核中锁定：审批必须绑定提交时的版本，撤回后才能继续编辑
+  if (before.status === 'pending') {
+    throw new HTTPException(400, { message: '文档正在审核中，请先撤回再编辑' });
+  }
   // 乐观锁：前端携带其加载时的 revision，不一致说明已被他人修改
   if (data.revision !== undefined && data.revision !== before.revision) {
     throw new HTTPException(409, { message: '文档已被他人修改，请刷新后重试' });
@@ -317,6 +335,7 @@ export async function updateWikiDoc(id: number, data: UpdateWikiDocInput) {
       ...(data.content !== undefined ? { content: data.content } : {}),
       ...(data.sort !== undefined ? { sort: data.sort } : {}),
       ...(data.isPinned !== undefined ? { isPinned: data.isPinned } : {}),
+      ...(data.requireReadReceipt !== undefined ? { requireReadReceipt: data.requireReadReceipt } : {}),
       currentVersion: nextVersion,
       revision: sql`${wikiDocs.revision} + 1`,
       // 已发布文档编辑正文后回到草稿，需重新走发布流程
@@ -376,8 +395,38 @@ export async function submitWikiDoc(id: number) {
   const next = requireApproval
     ? { status: 'pending' as const, rejectReason: null }
     : { status: 'published' as const, rejectReason: null, publishedAt: new Date() };
-  await db.update(wikiDocs).set(next).where(eq(wikiDocs.id, id));
-  if (next.status === 'published') await syncPublishedWikiDocToAiKb(id);
+  await db.transaction(async (tx) => {
+    await tx.update(wikiDocs).set(next).where(eq(wikiDocs.id, id));
+    await tx.insert(wikiReviewRecords).values({
+      docId: id, version: row.currentVersion, action: 'submit', actorId: currentUserId(),
+    });
+    if (next.status === 'published') {
+      // 审批关闭：提交即发布，补一条自动通过记录使时间线完整
+      await tx.insert(wikiReviewRecords).values({
+        docId: id, version: row.currentVersion, action: 'approve', actorId: currentUserId(), reason: '审批未开启，提交即发布',
+      });
+    }
+  });
+  if (next.status === 'published') {
+    await syncPublishedWikiDocToAiKb(id);
+    await notifyWikiDocPublished(id);
+  }
+  return getWikiDoc(id);
+}
+
+/** 撤回审核：pending → draft，仅提交人本人可撤回 */
+export async function withdrawWikiDoc(id: number) {
+  const row = await ensureWikiDocExists(id);
+  if (row.status !== 'pending') throw new HTTPException(400, { message: '只有待审核的文档可以撤回' });
+  if (row.createdBy !== currentUserId() && !isSuperAdmin()) {
+    throw new HTTPException(403, { message: '只有提交人可以撤回审核' });
+  }
+  await db.transaction(async (tx) => {
+    await tx.update(wikiDocs).set({ status: 'draft' }).where(eq(wikiDocs.id, id));
+    await tx.insert(wikiReviewRecords).values({
+      docId: id, version: row.currentVersion, action: 'withdraw', actorId: currentUserId(),
+    });
+  });
   return getWikiDoc(id);
 }
 
@@ -390,9 +439,136 @@ export async function reviewWikiDoc(id: number, data: ReviewWikiDocInput) {
   const next = data.action === 'approve'
     ? { status: 'published' as const, rejectReason: null, publishedAt: new Date() }
     : { status: 'rejected' as const, rejectReason: data.reason ?? null };
-  await db.update(wikiDocs).set(next).where(eq(wikiDocs.id, id));
-  if (next.status === 'published') await syncPublishedWikiDocToAiKb(id);
+  await db.transaction(async (tx) => {
+    await tx.update(wikiDocs).set(next).where(eq(wikiDocs.id, id));
+    await tx.insert(wikiReviewRecords).values({
+      docId: id,
+      version: row.currentVersion,
+      action: data.action === 'approve' ? 'approve' : 'reject',
+      actorId: currentUserId(),
+      reason: data.reason ?? null,
+    });
+  });
+  if (next.status === 'published') {
+    await syncPublishedWikiDocToAiKb(id);
+    await notifyWikiDocPublished(id);
+  }
+  await notifyWikiDocReviewed(id, data.action === 'approve', data.reason);
   return getWikiDoc(id);
+}
+
+// ─── 审核时间线 ───────────────────────────────────────────────────────────────
+
+/** 文档的审核时间线（提交/通过/驳回/撤回全记录） */
+export async function listWikiDocReviewRecords(docId: number) {
+  await getWikiDoc(docId); // 复用详情访问控制
+  const rows = await db.select({
+    id: wikiReviewRecords.id,
+    docId: wikiReviewRecords.docId,
+    version: wikiReviewRecords.version,
+    action: wikiReviewRecords.action,
+    actorId: wikiReviewRecords.actorId,
+    actorName: users.nickname,
+    reason: wikiReviewRecords.reason,
+    createdAt: wikiReviewRecords.createdAt,
+  }).from(wikiReviewRecords)
+    .leftJoin(users, eq(wikiReviewRecords.actorId, users.id))
+    .where(eq(wikiReviewRecords.docId, docId))
+    .orderBy(desc(wikiReviewRecords.id));
+  return rows.map((r) => ({
+    ...r,
+    actorId: r.actorId ?? null,
+    actorName: r.actorName ?? null,
+    reason: r.reason ?? null,
+    createdAt: formatDateTime(r.createdAt),
+  }));
+}
+
+/** 我处理过的审核记录（通过/驳回），供审核中心「已处理」视图 */
+export async function listMyProcessedReviews(q: { page?: number; pageSize?: number }) {
+  const { page = 1, pageSize = 10 } = q;
+  const where = buildWhere(
+    eq(wikiReviewRecords.actorId, currentUserId()),
+    inArray(wikiReviewRecords.action, ['approve', 'reject']),
+  );
+
+  const [total, rows] = await Promise.all([
+    db.$count(wikiReviewRecords, where),
+    withPagination(
+      db.select({
+        id: wikiReviewRecords.id,
+        docId: wikiReviewRecords.docId,
+        docTitle: wikiDocs.title,
+        version: wikiReviewRecords.version,
+        action: wikiReviewRecords.action,
+        reason: wikiReviewRecords.reason,
+        createdAt: wikiReviewRecords.createdAt,
+      }).from(wikiReviewRecords)
+        .innerJoin(wikiDocs, eq(wikiReviewRecords.docId, wikiDocs.id))
+        .where(where)
+        .orderBy(desc(wikiReviewRecords.id)).$dynamic(),
+      page,
+      pageSize,
+    ),
+  ]);
+  return {
+    list: rows.map((r) => ({ ...r, reason: r.reason ?? null, createdAt: formatDateTime(r.createdAt) })),
+    total,
+    page,
+    pageSize,
+  };
+}
+
+// ─── 订阅与阅读确认 ───────────────────────────────────────────────────────────
+
+export async function subscribeWikiDoc(docId: number, subscribe: boolean) {
+  await getWikiDoc(docId); // 复用访问控制
+  if (subscribe) {
+    await db.insert(wikiDocSubscriptions).values({ docId, userId: currentUserId() }).onConflictDoNothing();
+  } else {
+    await db.delete(wikiDocSubscriptions)
+      .where(and(eq(wikiDocSubscriptions.docId, docId), eq(wikiDocSubscriptions.userId, currentUserId())));
+  }
+}
+
+/** 确认已读（仅 requireReadReceipt 且已发布的文档） */
+export async function confirmWikiDocRead(docId: number) {
+  const doc = await getWikiDoc(docId);
+  if (!doc.requireReadReceipt || doc.status !== 'published') {
+    throw new HTTPException(400, { message: '该文档不需要阅读确认' });
+  }
+  await db.insert(wikiDocReadReceipts).values({ docId, userId: currentUserId() }).onConflictDoNothing();
+}
+
+/** 阅读确认名单：已确认用户 + 未确认的空间成员（作者或空间管理员可见） */
+export async function getWikiDocReadReceipts(docId: number) {
+  const row = await ensureWikiDocExists(docId);
+  const role = await getMySpaceRole(row.spaceId);
+  const isAuthor = row.createdBy === currentUserId();
+  if (!isAuthor && !spaceRoleAtLeast(role, 'admin')) {
+    throw new HTTPException(403, { message: '只有文档作者或空间管理员可以查看已读名单' });
+  }
+
+  const [confirmedRows, memberRows] = await Promise.all([
+    db.select({
+      userId: wikiDocReadReceipts.userId,
+      nickname: users.nickname,
+      confirmedAt: wikiDocReadReceipts.createdAt,
+    }).from(wikiDocReadReceipts)
+      .innerJoin(users, eq(wikiDocReadReceipts.userId, users.id))
+      .where(eq(wikiDocReadReceipts.docId, docId))
+      .orderBy(desc(wikiDocReadReceipts.createdAt)),
+    db.select({ userId: wikiSpaceMembers.userId, nickname: users.nickname })
+      .from(wikiSpaceMembers)
+      .innerJoin(users, eq(wikiSpaceMembers.userId, users.id))
+      .where(eq(wikiSpaceMembers.spaceId, row.spaceId)),
+  ]);
+
+  const confirmedIds = new Set(confirmedRows.map((r) => r.userId));
+  return {
+    confirmed: confirmedRows.map((r) => ({ ...r, confirmedAt: formatDateTime(r.confirmedAt) })),
+    unconfirmed: memberRows.filter((m) => !confirmedIds.has(m.userId)),
+  };
 }
 
 // ─── 版本 ─────────────────────────────────────────────────────────────────────

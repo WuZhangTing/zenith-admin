@@ -56,6 +56,21 @@ export const WIKI_COMMENT_STATUS_LABELS: Record<WikiCommentStatus, string> = {
 export const WIKI_COMMENT_STATUS_OPTIONS: Array<{ value: WikiCommentStatus; label: string }> =
   createLabelOptions(WIKI_COMMENT_STATUSES, WIKI_COMMENT_STATUS_LABELS);
 
+// ─── 审核动作 ─────────────────────────────────────────────────────────────────
+export const WIKI_REVIEW_ACTIONS = ['submit', 'approve', 'reject', 'withdraw'] as const;
+
+export type WikiReviewAction = (typeof WIKI_REVIEW_ACTIONS)[number];
+
+export const WIKI_REVIEW_ACTION_LABELS: Record<WikiReviewAction, string> = {
+  submit: '提交审核',
+  approve: '审核通过',
+  reject: '驳回',
+  withdraw: '撤回',
+};
+
+export const WIKI_REVIEW_ACTION_OPTIONS: Array<{ value: WikiReviewAction; label: string }> =
+  createLabelOptions(WIKI_REVIEW_ACTIONS, WIKI_REVIEW_ACTION_LABELS);
+
 // ─── 全局设置（存 system_configs，wiki 分组）──────────────────────────────────
 export const WIKI_SETTING_KEYS = {
   /** 发布是否需要审核（false 时提交即发布） */

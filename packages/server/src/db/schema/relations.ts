@@ -57,7 +57,7 @@ import {
   cmsOpenAppGrants, cmsContentTombstones, cmsWidgets, cmsWidgetRefs, cmsWidgetSourceRefs,
   cmsTags,
 } from './cms';
-import { wikiComments, wikiDocFavorites, wikiDocTags, wikiDocVersions, wikiDocViews, wikiDocs, wikiSpaceMembers, wikiSpaces, wikiTags } from './wiki';
+import { wikiComments, wikiDocFavorites, wikiDocReadReceipts, wikiDocSubscriptions, wikiDocTags, wikiDocVersions, wikiDocViews, wikiDocs, wikiReviewRecords, wikiSpaceMembers, wikiSpaces, wikiTags } from './wiki';
 
 // ─── 关联关系 ────────────────────────────────────────────────────────────────
 export const errorGroupsRelations = relations(errorGroups, ({ many, one }) => ({
@@ -1607,4 +1607,19 @@ export const wikiDocFavoritesRelations = relations(wikiDocFavorites, ({ one }) =
 export const wikiDocViewsRelations = relations(wikiDocViews, ({ one }) => ({
   doc: one(wikiDocs, { fields: [wikiDocViews.docId], references: [wikiDocs.id] }),
   user: one(users, { fields: [wikiDocViews.userId], references: [users.id] }),
+}));
+
+export const wikiDocSubscriptionsRelations = relations(wikiDocSubscriptions, ({ one }) => ({
+  doc: one(wikiDocs, { fields: [wikiDocSubscriptions.docId], references: [wikiDocs.id] }),
+  user: one(users, { fields: [wikiDocSubscriptions.userId], references: [users.id] }),
+}));
+
+export const wikiReviewRecordsRelations = relations(wikiReviewRecords, ({ one }) => ({
+  doc: one(wikiDocs, { fields: [wikiReviewRecords.docId], references: [wikiDocs.id] }),
+  actor: one(users, { fields: [wikiReviewRecords.actorId], references: [users.id] }),
+}));
+
+export const wikiDocReadReceiptsRelations = relations(wikiDocReadReceipts, ({ one }) => ({
+  doc: one(wikiDocs, { fields: [wikiDocReadReceipts.docId], references: [wikiDocs.id] }),
+  user: one(users, { fields: [wikiDocReadReceipts.userId], references: [users.id] }),
 }));

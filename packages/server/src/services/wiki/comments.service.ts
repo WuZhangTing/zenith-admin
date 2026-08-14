@@ -8,6 +8,7 @@ import { formatDateTime } from '../../lib/datetime';
 import { tenantCondition } from '../../lib/tenant';
 import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { getWikiDoc } from './docs.service';
+import { notifyWikiDocCommented, notifyWikiMentioned } from './notifications.service';
 import { getMySpaceRole, spaceRoleAtLeast } from './spaces.service';
 
 interface CommentExtras {
@@ -22,6 +23,9 @@ export function mapWikiComment(row: WikiCommentRow, extras: CommentExtras = {}) 
     parentId: row.parentId ?? null,
     content: row.content,
     status: row.status,
+    mentionedUserIds: row.mentionedUserIds ?? [],
+    isQuestion: row.isQuestion,
+    resolvedAt: row.resolvedAt ? formatDateTime(row.resolvedAt) : null,
     authorId: row.authorId ?? null,
     authorName: extras.authorName ?? null,
     ...(extras.docTitle !== undefined ? { docTitle: extras.docTitle } : {}),
@@ -69,9 +73,33 @@ export async function createWikiComment(data: CreateWikiCommentInput) {
     docId: data.docId,
     parentId: data.parentId ?? null,
     content: data.content,
+    mentionedUserIds: data.mentionedUserIds,
+    isQuestion: data.isQuestion,
     authorId: currentUserId(),
   }).returning();
+  // 通知：作者与订阅者收到新评论；被 @ 的人单独通知
+  await notifyWikiDocCommented(data.docId, data.content);
+  await notifyWikiMentioned(data.docId, data.mentionedUserIds);
   return mapWikiComment(row, { authorName: null });
+}
+
+/** 标记问题评论为已解决：评论作者、文档作者或空间管理员可操作 */
+export async function resolveWikiComment(id: number) {
+  const row = await ensureWikiCommentExists(id);
+  if (!row.isQuestion) throw new HTTPException(400, { message: '只有标记为问题的评论可以解决' });
+  if (row.resolvedAt) throw new HTTPException(400, { message: '该问题已解决' });
+  const doc = await db.query.wikiDocs.findFirst({
+    where: eq(wikiDocs.id, row.docId),
+    columns: { spaceId: true, createdBy: true },
+  });
+  const me = currentUserId();
+  const allowed = row.authorId === me
+    || doc?.createdBy === me
+    || spaceRoleAtLeast(doc ? await getMySpaceRole(doc.spaceId) : null, 'admin');
+  if (!allowed) throw new HTTPException(403, { message: '只有提问人、文档作者或空间管理员可以标记解决' });
+  const [updated] = await db.update(wikiComments).set({ resolvedAt: new Date() })
+    .where(eq(wikiComments.id, id)).returning();
+  return mapWikiComment(updated);
 }
 
 /** 删除自己的评论；空间管理员可删任意评论（管理端走 removeWikiComment） */

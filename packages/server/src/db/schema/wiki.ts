@@ -12,6 +12,8 @@ export const wikiDocStatusEnum = pgEnum('wiki_doc_status', ['draft', 'pending', 
 
 export const wikiCommentStatusEnum = pgEnum('wiki_comment_status', ['visible', 'hidden']);
 
+export const wikiReviewActionEnum = pgEnum('wiki_review_action', ['submit', 'approve', 'reject', 'withdraw']);
+
 // ─── 知识空间 ─────────────────────────────────────────────────────────────────
 
 export const wikiSpaces = pgTable('wiki_spaces', {
@@ -66,6 +68,8 @@ export const wikiDocs = pgTable('wiki_docs', {
   currentVersion: integer('current_version').notNull().default(1),
   /** 乐观锁：每次更新 +1，PUT 带旧值时冲突返回 409 */
   revision: integer('revision').notNull().default(1),
+  /** 发布后是否要求读者点击「确认已读」（制度宣贯） */
+  requireReadReceipt: boolean('require_read_receipt').notNull().default(false),
   publishedAt: timestamp('published_at'),
   /** 软删除时间；非 null 表示在回收站 */
   deletedAt: timestamp('deleted_at'),
@@ -144,6 +148,11 @@ export const wikiComments = pgTable('wiki_comments', {
   parentId: integer('parent_id').references((): AnyPgColumn => wikiComments.id, { onDelete: 'cascade' }),
   content: varchar('content', { length: 1000 }).notNull(),
   status: wikiCommentStatusEnum('status').notNull().default('visible'),
+  /** @提及的用户（发表时通知） */
+  mentionedUserIds: integer('mentioned_user_ids').array().notNull().default([]),
+  /** 标记为「问题」的评论可被解决 */
+  isQuestion: boolean('is_question').notNull().default(false),
+  resolvedAt: timestamp('resolved_at'),
   authorId: integer('author_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [index('wiki_comments_doc_idx').on(t.docId)]);
@@ -186,3 +195,36 @@ export const wikiSearchLogs = pgTable('wiki_search_logs', {
 ]);
 
 export type WikiSearchLogRow = typeof wikiSearchLogs.$inferSelect;
+
+// ─── 协作：订阅 / 审核记录 / 阅读确认 ─────────────────────────────────────────
+
+/** 文档订阅（纯关联表）：发布、评论时经站内信通知订阅者 */
+export const wikiDocSubscriptions = pgTable('wiki_doc_subscriptions', {
+  docId: integer('doc_id').notNull().references(() => wikiDocs.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [primaryKey({ columns: [t.docId, t.userId] })]);
+
+/** 审核时间线（追加型）：提交 / 通过 / 驳回 / 撤回全记录 */
+export const wikiReviewRecords = pgTable('wiki_review_records', {
+  id: serial('id').primaryKey(),
+  docId: integer('doc_id').notNull().references(() => wikiDocs.id, { onDelete: 'cascade' }),
+  /** 动作发生时的文档版本（审批绑定版本） */
+  version: integer('version').notNull(),
+  action: wikiReviewActionEnum('action').notNull(),
+  actorId: integer('actor_id').references(() => users.id, { onDelete: 'set null' }),
+  reason: varchar('reason', { length: 500 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('wiki_review_records_doc_idx').on(t.docId),
+  index('wiki_review_records_actor_idx').on(t.actorId),
+]);
+
+export type WikiReviewRecordRow = typeof wikiReviewRecords.$inferSelect;
+
+/** 阅读确认（纯关联表）：requireReadReceipt 文档的已读回执 */
+export const wikiDocReadReceipts = pgTable('wiki_doc_read_receipts', {
+  docId: integer('doc_id').notNull().references(() => wikiDocs.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [primaryKey({ columns: [t.docId, t.userId] })]);

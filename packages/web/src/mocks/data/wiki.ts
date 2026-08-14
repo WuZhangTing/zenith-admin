@@ -51,6 +51,7 @@ export const mockWikiDocs: MockWikiDoc[] = SEED_WIKI_DOCS.map((d, i) => ({
   viewCount: (6 - i) * 12,
   currentVersion: 1,
   revision: 1,
+  requireReadReceipt: false,
   publishedAt: d.status === 'published' ? now : null,
   deletedAt: null,
   tagIds: [...d.tagIds],
@@ -74,9 +75,16 @@ export const mockWikiDocVersions: WikiDocVersion[] = SEED_WIKI_DOCS.map((d, i) =
 
 export const mockWikiComments: WikiComment[] = SEED_WIKI_COMMENTS.map((c) => ({
   ...c,
+  mentionedUserIds: [],
+  isQuestion: false,
+  resolvedAt: null,
   authorName: '管理员',
   createdAt: now,
 }));
+
+/** 当前演示用户的订阅与已读确认 */
+export const mockWikiSubscribedDocIds = new Set<number>();
+export const mockWikiReadConfirmedDocIds = new Set<number>();
 
 /** 当前演示用户的收藏 */
 export const mockWikiFavoriteDocIds = new Set<number>([1]);
