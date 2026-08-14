@@ -8,7 +8,7 @@
 | 域 hooks、弹窗、搜索状态、提交与确认 | [必须复用的公共 hook / 工具](#必须复用的公共-hook--工具) |
 | mutation 失效、query key、下拉源、回填 | [缓存与 query key](#缓存与-query-key) |
 | 搜索栏、筛选控件、表格与操作列 | [搜索栏与表格](#搜索栏与表格) |
-| 弹窗表单、枚举标签、上传、时区、进度条、滑块 | [表单与展示组件](#表单与展示组件) |
+| 弹窗表单、枚举标签、上传、时区、进度条、滑块、分割线 | [表单与展示组件](#表单与展示组件) |
 | 多 Tab、左右分栏、统计卡、栅格、抽屉宽度 | [布局与响应式](#布局与响应式) |
 
 ---
@@ -143,6 +143,21 @@
 - **滑块与精确输入联动**：有明确上下界、适合拖动预览且仍需精确输入的数值字段统一用
   `components/SliderInput` 的 `FormSliderInput`（表单内）/ `SliderInput`（受控）。
   金额、ID、配额、Cron、重试次数、保留天数及需 0.01 精度的费率 / 分账比例继续用 `InputNumber`
+- **分割线**：统一用 Semi `Divider`，**禁止**用 `<hr>`、空 `<div>` 配 `borderTop` / `borderBottom`、
+  `height: 1px` + `background`，或 `::before` / `::after` 伪元素手绘线条
+
+  | 形态 | 写法 |
+  | --- | --- |
+  | 横向分隔 | `<Divider />`。上下间距对称用 `margin={16}`；不对称才用 `style={{ margin: '14px 0 10px' }}`——`margin` prop 只接受单值并同时写上下 |
+  | 竖向分隔（工具栏、行内元素之间） | `<Divider layout="vertical" margin="4px" />`。默认高 20px，要别的高度传 `style={{ height: 16 }}` |
+  | 线 + 文字 + 线（分区小标题） | `<Divider align="left">标题</Divider>`（`left` 前导线 40px / `center` 居中 / `right`），**禁止**用三段 `span` 或 flex 拼 |
+  | 下拉菜单项之间 | `<Dropdown.Divider />`，不是 `Divider` |
+
+  换配色 / 字号时覆盖 Semi 类名（`.semi-divider-with-text::before` / `::after` 的
+  `border-bottom-color`，文字用 `.semi-divider_inner-text`），**禁止**因为要改样式就退回手写。
+  **不适用**（这些不是分割线，改用 `Divider` 反而会坏）：面板 header / footer 自身的分区边框
+  （`borderTop` + `padding` 且元素内部有内容）、时间轴 / 步骤条的连接线、需要绝对定位或按相邻
+  状态条件隐藏的分隔符
 
 ## 布局与响应式
 
