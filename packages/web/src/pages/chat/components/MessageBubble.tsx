@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { Button, Toast, Tooltip, Dropdown, Typography, Popconfirm } from '@douyinfe/semi-ui';
 import {
   CornerDownLeft, RotateCcw, Copy, Bookmark, Pin, Trash2, Forward, CheckSquare, Square, Download, Pencil, Check, X as XIcon, BadgeCheck, SmilePlus,
@@ -33,7 +33,11 @@ function imageToPngBlob(src: string): Promise<Blob> {
   });
 }
 
-export function MessageBubble({
+/**
+ * 单条消息气泡。ChatPage 每次输入都会整页重渲染,memo 配合父层稳定的
+ * handler/readReceipt 身份,让未变化的气泡在高频渲染下直接跳过。
+ */
+export const MessageBubble = memo(function MessageBubble({
   msg, isSelf, onReply, onRecall, onOpenImage, shouldShowTime, getReplyMessage, onScrollToMessage,
   onToggleFavorite, onTogglePin, onEditRecalled, recalledDraft, multiSelectMode, isSelected,
   onToggleSelect, onForwardSingle, onOpenForwardView, onDeleteMessage, onReaction, onPickReactionEmoji,
@@ -699,4 +703,4 @@ export function MessageBubble({
       {renderReadReceipt()}
     </div>
   );
-}
+});

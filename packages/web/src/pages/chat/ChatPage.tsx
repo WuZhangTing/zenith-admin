@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } fro
 import { AppModal } from '@/components/AppModal';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Input, Button, Badge, Divider, Typography, Empty, Spin, Toast, Tooltip, ImagePreview, List as SemiList } from '@douyinfe/semi-ui';
-import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
+import { Virtuoso, type VirtuosoHandle, type Components } from 'react-virtuoso';
 
 import { Search, MessageSquarePlus, Send, CornerDownLeft, Smile, ImagePlus, MoreHorizontal, X, Paperclip, Bookmark, History, Images, ArrowLeft, ExternalLink, BarChart3, Download, Mic, Phone, Video, Compass, BadgeCheck } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -16,7 +16,7 @@ import {
   shouldDisplayMessageTime,
 } from './utils';
 import './ChatPage.css';
-import type { PendingImage, PendingFile, SearchDatePreset, FailedMessage, UploadingItem } from './types';
+import type { PendingImage, PendingFile, SearchDatePreset, FailedMessage, UploadingItem, MessageReadReceipt } from './types';
 import { UserAvatar } from '@/components/UserAvatar';
 import { NewChatPanel } from './components/NewChatPanel';
 import { GroupMembersPanel } from './components/GroupMembersPanel';
@@ -84,6 +84,50 @@ const { Text, Title } = Typography;
 
 /** 稳定空数组：避免群成员查询无数据时每次渲染都产出新引用 */
 const EMPTY_GROUP_MEMBERS: ChatGroupMember[] = [];
+
+/**
+ * Virtuoso Header/Footer 依赖的数据经 context 传入，组件本身定义在模块级。
+ * 内联在 components={{...}} 里的箭头函数每次渲染都是新组件类型，
+ * 会导致 Header/Footer 被卸载重挂而非更新。
+ */
+interface MessagesVirtuosoContext {
+  uploadingItems: UploadingItem[];
+  activeConvId: number | null;
+  isQuick: boolean;
+  wsConnected: boolean;
+  pinnedMessages: ChatMessage[];
+  scrollToMessage: (messageId: number) => Promise<void>;
+  handleTogglePinMessage: (msg: ChatMessage) => Promise<void>;
+  hasMore: boolean;
+  loadingMsgs: boolean;
+}
+
+function MessagesVirtuosoFooter({ context }: Readonly<{ context?: MessagesVirtuosoContext }>) {
+  if (!context) return null;
+  return (
+    <UploadingFooter
+      uploadingItems={context.uploadingItems} activeConvId={context.activeConvId} isQuick={context.isQuick}
+    />
+  );
+}
+
+function MessagesVirtuosoHeader({ context }: Readonly<{ context?: MessagesVirtuosoContext }>) {
+  if (!context) return null;
+  return (
+    <MessagesListHeader
+      isQuick={context.isQuick} wsConnected={context.wsConnected} pinnedMessages={context.pinnedMessages}
+      scrollToMessage={context.scrollToMessage} handleTogglePinMessage={context.handleTogglePinMessage}
+      hasMore={context.hasMore} loadingMsgs={context.loadingMsgs}
+    />
+  );
+}
+
+const MESSAGES_VIRTUOSO_COMPONENTS: Components<ChatMessage, MessagesVirtuosoContext> = {
+  Footer: MessagesVirtuosoFooter,
+  Header: MessagesVirtuosoHeader,
+};
+
+const computeMessageItemKey = (_idx: number, msg: ChatMessage) => msg.id;
 
 export interface ChatPageProps {
   variant?: 'page' | 'quick';
@@ -579,9 +623,51 @@ export default function ChatPage({
     onUnreadChange?.(totalUnread);
   }, [onUnreadChange, totalUnread]);
 
-  const galleryImages = messages.filter((m) => m.type === 'image' && !m.isRecalled);
-  const visibleMessages = messages.filter((m) => !currentUserId || !(m.extra?.hiddenFor ?? []).includes(currentUserId));
+  const visibleMessages = useMemo(
+    () => messages.filter((m) => !currentUserId || !(m.extra?.hiddenFor ?? []).includes(currentUserId)),
+    [messages, currentUserId],
+  );
   const displayMessages = visibleMessages;
+
+  /** 图集仅在点击图片时需要，点击时惰性收集，避免每次渲染都做 O(n) 过滤 */
+  const handleOpenImageMessage = useCallback((imageMsg: ChatMessage) => {
+    void openImagePreview(imageMsg, messages.filter((m) => m.type === 'image' && !m.isRecalled));
+  }, [messages, openImagePreview]);
+
+  /** 读回执按消息预计算，保持传给 MessageBubble 的对象身份稳定以配合其 memo */
+  const readReceiptMap = useMemo(() => {
+    const map = new Map<number, MessageReadReceipt | undefined>();
+    for (const m of displayMessages) map.set(m.id, computeReadReceipt(m));
+    return map;
+  }, [displayMessages, computeReadReceipt]);
+
+  const handleOpenFilePreview = useCallback((fileMsg: ChatMessage) => {
+    const asset = fileMsg.extra?.asset;
+    if (!asset || !canPreviewFile(asset.mimeType, asset.name)) return;
+    // xlsx 历史消息无 fileId，退化为下载避免报错
+    if (isSpreadsheetFile(resolveFileMimeType(asset.mimeType, asset.name)) && !asset.fileId) {
+      void fetchManagedFileBlob(fileMsg.content).then((blob) => {
+        const objectUrl = globalThis.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = asset.name ?? '文件.xlsx';
+        link.click();
+        globalThis.setTimeout(() => globalThis.URL.revokeObjectURL(objectUrl), 60_000);
+      }).catch(() => Toast.error('文件下载失败'));
+      return;
+    }
+    setFilePreview({
+      url: fileMsg.content,
+      name: asset.name ?? '文件',
+      mimeType: asset.mimeType ?? 'application/octet-stream',
+      fileId: asset.fileId ?? undefined,
+    });
+  }, []);
+
+  const virtuosoContext = useMemo<MessagesVirtuosoContext>(() => ({
+    uploadingItems, activeConvId, isQuick, wsConnected, pinnedMessages,
+    scrollToMessage, handleTogglePinMessage, hasMore, loadingMsgs,
+  }), [uploadingItems, activeConvId, isQuick, wsConnected, pinnedMessages, scrollToMessage, handleTogglePinMessage, hasMore, loadingMsgs]);
 
   useGroupAvatars({ conversations, groupAvatarMap, setGroupAvatarMap, refreshGroupAvatarMembers });
 
@@ -942,6 +1028,7 @@ export default function ChatPage({
                   ref={virtuosoRef}
                   style={{ flex: 1 }}
                   data={displayMessages}
+                  context={virtuosoContext}
                   firstItemIndex={firstItemIndex}
                   initialTopMostItemIndex={Math.max(displayMessages.length - 1, 0)}
                   followOutput={uploadingItems.some((u) => u.convId === activeConvId) ? 'smooth' : false}
@@ -949,23 +1036,8 @@ export default function ChatPage({
                   atBottomStateChange={handleAtBottomStateChange}
                   atBottomThreshold={120}
                   increaseViewportBy={{ top: 600, bottom: 200 }}
-                  computeItemKey={(_idx, msg) => msg.id}
-                  components={{
-                    Footer: () => { // NOSONAR
-                      return (
-                        <UploadingFooter
-                          uploadingItems={uploadingItems} activeConvId={activeConvId} isQuick={isQuick}
-                        />
-                      );
-                    },
-                    Header: () => ( // NOSONAR
-                      <MessagesListHeader
-                        isQuick={isQuick} wsConnected={wsConnected} pinnedMessages={pinnedMessages}
-                        scrollToMessage={scrollToMessage} handleTogglePinMessage={handleTogglePinMessage} hasMore={hasMore}
-                        loadingMsgs={loadingMsgs}
-                      />
-                    ),
-                  }}
+                  computeItemKey={computeMessageItemKey}
+                  components={MESSAGES_VIRTUOSO_COMPONENTS}
                   itemContent={(virtualIndex, msg) => { // NOSONAR
                     const realIndex = virtualIndex - firstItemIndex;
                     const showUnreadDivider = unreadDivider?.convId === activeConvId && unreadDivider.messageId === msg.id;
@@ -981,7 +1053,7 @@ export default function ChatPage({
                           isSelf={msg.senderId === currentUserId}
                           onReply={setReplyTo}
                           onRecall={handleRecall}
-                          onOpenImage={(imageMsg) => { void openImagePreview(imageMsg, galleryImages); }}
+                          onOpenImage={handleOpenImageMessage}
                           shouldShowTime={shouldDisplayMessageTime(msg, displayMessages[realIndex + 1])}
                           getReplyMessage={getReplyMessage}
                           onScrollToMessage={scrollToMessage}
@@ -1002,29 +1074,8 @@ export default function ChatPage({
                           onVote={handleVoteMessage}
                           isHighlighted={highlightedMessageId === msg.id}
                           onSaveAsEmoji={handleSaveAsEmoji}
-                          onOpenFilePreview={(fileMsg) => {
-                            const asset = fileMsg.extra?.asset;
-                            if (!asset || !canPreviewFile(asset.mimeType, asset.name)) return;
-                            // xlsx 历史消息无 fileId，退化为下载避免报错
-                            if (isSpreadsheetFile(resolveFileMimeType(asset.mimeType, asset.name)) && !asset.fileId) {
-                              void fetchManagedFileBlob(fileMsg.content).then((blob) => {
-                                const objectUrl = globalThis.URL.createObjectURL(blob);
-                                const link = document.createElement('a');
-                                link.href = objectUrl;
-                                link.download = asset.name ?? '文件.xlsx';
-                                link.click();
-                                globalThis.setTimeout(() => globalThis.URL.revokeObjectURL(objectUrl), 60_000);
-                              }).catch(() => Toast.error('文件下载失败'));
-                              return;
-                            }
-                            setFilePreview({
-                              url: fileMsg.content,
-                              name: asset.name ?? '文件',
-                              mimeType: asset.mimeType ?? 'application/octet-stream',
-                              fileId: asset.fileId ?? undefined,
-                            });
-                          }}
-                          readReceipt={computeReadReceipt(msg)}
+                          onOpenFilePreview={handleOpenFilePreview}
+                          readReceipt={readReceiptMap.get(msg.id)}
                           onCardAction={handleCardAction}
                           onOpenWorkflow={handleOpenWorkflowFromCard}
                         />
