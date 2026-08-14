@@ -1,4 +1,4 @@
-import { Col, Form, Row, Spin, Tag, Toast } from '@douyinfe/semi-ui';
+import { Form, Spin, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { WikiTag } from '@zenith/shared/wiki';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -131,7 +131,7 @@ export default function WikiTagsPage() {
             <Form.RadioGroup field="color" label="颜色" type="pureCard" direction="horizontal">
               {TAG_COLOR_PRESETS.map((c) => (
                 <Form.Radio key={c} value={c} style={{ padding: 4 }}>
-                  <span style={{ display: 'inline-block', width: 22, height: 22, borderRadius: 4, backgroundColor: c }} />
+                  <span style={{ display: 'inline-block', width: 22, height: 22, borderRadius: 'var(--semi-border-radius-small)', backgroundColor: c }} />
                 </Form.Radio>
               ))}
             </Form.RadioGroup>

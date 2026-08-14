@@ -162,7 +162,7 @@ export default function WikiApprovalsPage() {
           </Space>
         ) : null}
       >
-        <div style={{ height: '60vh', overflow: 'hidden', border: '1px solid var(--semi-color-border)', borderRadius: 6 }}>
+        <div style={{ height: '60vh', overflow: 'hidden', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)' }}>
           <MarkdownPreviewPanel content={previewQuery.data?.content ?? ''} />
         </div>
       </AppModal>

@@ -125,7 +125,7 @@ export default function WikiDocHistoryPage() {
                   style={{
                     cursor: 'pointer',
                     padding: '10px 12px',
-                    borderRadius: 6,
+                    borderRadius: 'var(--semi-border-radius-medium)',
                     background: item.version === effectiveVersion ? 'var(--semi-color-primary-light-default)' : undefined,
                   }}
                   onClick={() => { setSelectedVersion(item.version); setBaseVersion(undefined); setShowDetailOnNarrow(true); }}
@@ -195,7 +195,7 @@ export default function WikiDocHistoryPage() {
                   ) : null}
                 </div>
 
-                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', border: '1px solid var(--semi-color-border)', borderRadius: 6 }}>
+                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)' }}>
                   {targetQuery.isPending || (effectiveBase !== undefined && baseQuery.isPending) ? (
                     <div style={{ textAlign: 'center', padding: 40 }}><Spin size="large" /></div>
                   ) : (
@@ -210,8 +210,7 @@ export default function WikiDocHistoryPage() {
                     }}
                     >
                       {diff.map((line, idx) => (
-                        // eslint-disable-next-line react/no-array-index-key
-                        <div key={idx} style={DIFF_LINE_STYLE[line.type]}>
+                        <div key={`${line.type}-${idx}`} style={DIFF_LINE_STYLE[line.type]}>
                           {line.type === 'add' ? '+ ' : line.type === 'del' ? '- ' : '  '}
                           {line.text}
                         </div>

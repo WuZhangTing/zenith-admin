@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Banner, Button, Input, Select, Space, Spin, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import { ArrowLeft, Eye, EyeOff, Save, Send } from 'lucide-react';
@@ -208,7 +208,7 @@ export default function WikiDocEditPage() {
             onChange={(v) => { setContent(v); markDirty(); }}
           />
           {showPreview ? (
-            <div style={{ flex: 1, minWidth: 0, border: '1px solid var(--semi-color-border)', borderRadius: 6, overflow: 'hidden' }}>
+            <div style={{ flex: 1, minWidth: 0, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', overflow: 'hidden' }}>
               <MarkdownPreviewPanel content={content || '*预览区：左侧输入 Markdown 后此处实时渲染*'} />
             </div>
           ) : null}
