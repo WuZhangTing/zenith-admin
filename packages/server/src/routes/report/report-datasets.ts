@@ -202,10 +202,16 @@ router.openapiRoutes([
 ] as const);
 
 // 文件数据集解析（Excel/CSV 上传 → {columns,rows}）—— multipart，使用原生路由
+const MAX_PARSE_FILE_BYTES = 20 * 1024 * 1024;
+
 router.post('/parse-file', authMiddleware, guard({ permission: 'report:dataset:create' }), async (c) => {
   const body = await c.req.parseBody();
   const file = body.file;
   if (!(file instanceof File)) return c.json(errBody('请上传文件（字段名 file）', 400), 400);
+  // 缓冲与 exceljs 解压前先按元数据校验大小，防止超大文件耗尽内存
+  if (file.size > MAX_PARSE_FILE_BYTES) {
+    return c.json(errBody(`文件过大（${(file.size / 1024 / 1024).toFixed(1)}MB），超出解析上限 ${MAX_PARSE_FILE_BYTES / 1024 / 1024}MB`, 413), 413);
+  }
   const buffer = Buffer.from(await file.arrayBuffer());
   const result = await parseDataFile(buffer, file.name);
   return c.json(okBody(result), 200);
