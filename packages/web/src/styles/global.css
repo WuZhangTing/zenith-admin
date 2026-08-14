@@ -10,26 +10,33 @@
   --sidebar-collapsed-width: 48px;
   --sidebar-double-width: 260px;
   --header-height: 48px;
-  --color-layout-bg: #ffffff;
-  --color-layout-hover: #f0f1f5;
-  --color-sidebar-bg: #ffffff;
-  --color-sidebar-hover: rgba(0, 0, 0, 0.04);
-  --color-sidebar-active: rgba(51, 112, 255, 0.1);
-  --color-sidebar-text: #646a73;
-  --color-sidebar-title: #1f2329;
-  --color-sidebar-text-active: #3370ff;
-  --color-primary: #3370ff;
-  --color-text: #1f2329;
-  --color-text-secondary: #646a73;
-  --color-border: #e1e3e6;
   --radius: 6px;
+}
+
+/* 布局自有的语义色变量，一律取自 Semi 的对应 token，不手写色值——否则与 Semi 组件
+   的色盘在同一屏并存、色相与明度都对不上。
+   必须声明在 body 而不是 :root：Semi 把 --semi-color-* 挂在 body 上（其规则选择器为
+   `body, body .semi-always-light, :host, …`），在 html 上引用会取到空值。 */
+body {
+  --color-layout-bg: var(--semi-color-nav-bg);
+  --color-layout-hover: var(--semi-color-fill-0);
+  --color-sidebar-bg: var(--semi-color-nav-bg);
+  --color-sidebar-hover: var(--semi-color-fill-0);
+  --color-sidebar-text: var(--semi-color-text-2);
+  --color-sidebar-title: var(--semi-color-text-0);
+  --color-text: var(--semi-color-text-0);
+  --color-text-secondary: var(--semi-color-text-2);
+  --color-border: var(--semi-color-border);
+  /* 主题色相关，applyThemeColor() 会在运行时按当前主题色覆盖 */
+  --color-primary: #3370ff;
+  --color-sidebar-active: rgba(51, 112, 255, 0.1);
+  --color-sidebar-text-active: #3370ff;
   --topbar-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
   --tabsbar-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
 
 /* 深色语义变量：全局深色（body[theme-mode='dark']）与分区局部暗色（.semi-always-dark）
-   共用同一套映射，一律取自 Semi 的深色 token——手写色值会让布局自有变量呈冷蓝调，
-   与 Semi 组件的中性灰在同一屏并存。 */
+   共用同一套映射，同样取自 Semi 的深色 token。 */
 body[theme-mode='dark'],
 body .semi-always-dark {
   --color-sidebar-bg: var(--semi-color-nav-bg);
