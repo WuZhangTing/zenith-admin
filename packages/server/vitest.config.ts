@@ -11,10 +11,9 @@ export default defineConfig({
     // 限到 8 后 transform 231s、墙钟 121s 且全绿（12 已开始劣化并偶发超时）。
     // 这是上限而非目标值：CI 的 4 核 runner 本就只起 3 个 worker，不受影响。
     maxWorkers: 8,
-    // ⚠️ 不要尝试 isolate: false：实测墙钟确实减半（239s → 120s，import 累计
-    // 1112s → 240s），但本套测试重度依赖 per-file vi.mock（单文件 mock 多达 10 个
-    // 模块），关闭隔离后 4 个文件共 18 例跨文件状态泄漏（单跑全绿、混跑必挂）。
-    // 且 forks 池的文件→worker 分配随时序变化，泄漏组合不可复现、白名单不可维护。
+    // 不要用 isolate: false 换速度：本套测试重度依赖 per-file vi.mock，关闭隔离会
+    // 产生跨文件模块状态泄漏（单跑全绿、混跑必挂），且 forks 池的文件→worker 分配
+    // 随时序变化，泄漏组合不可复现、白名单不可维护。
     coverage: {
       include: ['src/**/*.ts'],
       exclude: ['src/**/*.test.ts', 'src/db/seed.ts', 'src/db/migrate.ts'],

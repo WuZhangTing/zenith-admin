@@ -105,18 +105,16 @@ npx concurrently --group --timings --kill-others-on-fail -n lint,test,build,docs
 
 ### 并发度：三个已配置好的旋钮
 
-vitest 的转译成本决定了测试耗时（server 隔离模式下 import 累计可达 1000s+，远超用例执行本身），
-由三处配置共同压住，**本步骤无需额外传参**：
+vitest 的转译成本决定了测试耗时，由三处配置共同压住，**本步骤无需额外传参**：
 
 | 旋钮 | 位置 | 作用 |
 | --- | --- | --- |
 | `maxWorkers: 8` | `packages/server/vitest.config.ts` | vitest 默认 worker 数 = 核数−1，每个 worker 独立转译整套 app（267 个路由文件），核多时重复转译反超并行收益 |
-| `maxWorkers: 8` | `packages/web/vitest.config.ts` | 不设上限时 16 核起满 jsdom fork，与 build（rolldown 全量转译）并行会把 CPU 打满，实测出现过 worker 启动即超时（`Timeout waiting for worker to respond`），并非用例失败，重跑即过 |
+| `maxWorkers: 8` | `packages/web/vitest.config.ts` | 不设上限时 16 核起满 jsdom fork，与 build（rolldown 全量转译）并行会把 CPU 打满，导致 worker 启动超时 |
 | `480_000` 超时 | `src/app.routes.test.ts`、`src/app.contract.test.ts` | 两个用例耗时几乎全在 `await import('./app')` / `buildContractApp()`，与 lint / build / docs 三路争抢同一种（转译）资源 |
 
-> ⚠️ 不要用 `isolate: false` 换速度：实测墙钟确实减半（239s → 120s），但本套测试重度依赖
-> per-file `vi.mock`，关闭隔离后出现跨文件状态泄漏（单跑全绿、混跑必挂），且 forks 池的
-> 文件分配随时序变化、泄漏组合不可复现。详见 `packages/server/vitest.config.ts` 注释。
+> 不要用 `isolate: false` 换测试速度：本套测试重度依赖 per-file `vi.mock`，关闭隔离会产生
+> 跨文件状态泄漏（单跑全绿、混跑必挂），且 forks 池的文件分配随时序变化、泄漏组合不可复现。
 
 再遇测试超时时：先确认是超时（而非断言失败）且单独跑能过，再按
 [troubleshooting.md → 测试超时](./troubleshooting.md)调对应旋钮。**不要**删掉这里的外层并行——
