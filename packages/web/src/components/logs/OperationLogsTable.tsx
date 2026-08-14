@@ -179,7 +179,7 @@ export function OperationLogsTable({
           const duration = detailLog.durationMs == null ? '-' : `${detailLog.durationMs} ms`;
           const hasDataDiff = !!(detailLog.beforeData ?? detailLog.afterData);
           return (
-            <Tabs type="line" style={{ padding: '0 4px' }} activeKey={detailActiveTab} onChange={setDetailActiveTab}>
+            <Tabs collapsible="auto" type="line" style={{ padding: '0 4px' }} activeKey={detailActiveTab} onChange={setDetailActiveTab}>
               <TabPane tab="基础信息" itemKey="basic">
                 <Descriptions
                   data={[

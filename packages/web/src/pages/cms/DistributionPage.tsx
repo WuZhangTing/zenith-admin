@@ -371,7 +371,7 @@ export default function DistributionPage() {
   const ruleOptions = (ruleQuery.data?.list ?? []).map((rule) => ({ value: rule.id, label: rule.name }));
   return (
     <div className="page-container page-tabs-page">
-      <Tabs type="line">
+      <Tabs collapsible="auto" type="line">
         <TabPane tab="分发规则" itemKey="rules">
           <Banner
             type="info"

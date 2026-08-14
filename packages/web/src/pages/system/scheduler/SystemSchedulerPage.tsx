@@ -527,7 +527,7 @@ export default function SystemSchedulerPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs type="line" activeKey={activeTab} onChange={(key) => setActiveTab(key as TabKey)} lazyRender>
+      <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(key) => setActiveTab(key as TabKey)} lazyRender>
         <TabPane tab="系统任务" itemKey="tasks">
           <SearchToolbar>
             <KeywordInput placeholder="搜索任务名称/标识/说明" value={taskSearch.keyword} onChange={(value) => setTaskSearch((prev) => ({ ...prev, keyword: value }))} width={240} />

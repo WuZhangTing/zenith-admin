@@ -1789,7 +1789,7 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
       if (panes.length === 0) return null;
       return (
         <div style={{ marginBottom: 24 }}>
-          <Tabs type="line" keepDOM lazyRender={false}>
+          <Tabs collapsible="auto" type="line" keepDOM lazyRender={false}>
             {panes.map((pane, i) => (
               <Tabs.TabPane tab={pane.title || `标签${i + 1}`} itemKey={String(i)} key={`${field.key}-tab-${i}`}>
                 <div style={{ paddingTop: 8 }}>{renderPaneFields(pane, readOnly, values)}</div>

@@ -830,7 +830,7 @@ export default function ContentEditPage() {
             </div>
             {/* 右：基本信息面板 —— 横向标签页分组（宽屏下独立滚动） */}
             <div className="cms-content-edit__side">
-              <Tabs type="line" size="small" collapsible activeKey={sideTab} onChange={setSideTab}>
+              <Tabs type="line" size="small" collapsible="auto" activeKey={sideTab} onChange={setSideTab}>
                 <TabPane tab="基础信息" itemKey="basic">
                   <Form.TreeSelect
                     field="channelId"

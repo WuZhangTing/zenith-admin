@@ -192,7 +192,7 @@ export default function MpTemplateMessagesPage() {
         <Banner type="warning" fullMode={false} description="尚未配置公众号，请先在「公众号账号」中添加公众号。" style={{ marginBottom: 12 }} />
       )}
 
-      <Tabs activeKey={tab} onChange={setTab} type="line">
+      <Tabs collapsible="auto" activeKey={tab} onChange={setTab} type="line">
         <TabPane tab="模板库" itemKey="templates">
           <SearchToolbar
             primary={(

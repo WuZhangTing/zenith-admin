@@ -166,7 +166,7 @@ export default function StatsPage() {
           <Radio value={90}>近 90 天</Radio>
         </RadioGroup>
       </SearchToolbar>
-      <Tabs type="line" lazyRender>
+      <Tabs collapsible="auto" type="line" lazyRender>
         <TabPane tab="访问统计" itemKey="visits"><VisitsTab siteId={siteId} days={days} /></TabPane>
         <TabPane tab="搜索分析" itemKey="search"><SearchTab siteId={siteId} days={days} /></TabPane>
       </Tabs>

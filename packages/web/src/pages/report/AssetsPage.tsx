@@ -298,7 +298,7 @@ export default function AssetsPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs type="line" activeKey={activeTab} onChange={(key) => { setActiveTab(key); setPage(1); }}>
+      <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(key) => { setActiveTab(key); setPage(1); }}>
         <TabPane tab="统一资产目录" itemKey="catalog">
           <SearchToolbar
             primary={<>

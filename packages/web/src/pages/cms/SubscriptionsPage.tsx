@@ -117,7 +117,7 @@ export default function SubscriptionsPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs type="line" lazyRender keepDOM={false}>
+      <Tabs collapsible="auto" type="line" lazyRender keepDOM={false}>
         <TabPane tab="订阅聚合" itemKey="aggregate">
           <SearchToolbar
             primary={primary}

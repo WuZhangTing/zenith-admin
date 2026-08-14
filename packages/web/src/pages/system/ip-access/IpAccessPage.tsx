@@ -233,7 +233,7 @@ export default function IpAccessPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs type="line">
+      <Tabs collapsible="auto" type="line">
         <TabPane tab="访问控制配置" itemKey="config">
           {configContent}
         </TabPane>

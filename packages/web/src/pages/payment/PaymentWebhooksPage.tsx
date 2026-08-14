@@ -254,7 +254,7 @@ export default function PaymentWebhooksPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs activeKey={activeTab} onChange={(k) => setActiveTab(k as 'endpoints' | 'deliveries')} type="line" lazyRender keepDOM={false}>
+      <Tabs collapsible="auto" activeKey={activeTab} onChange={(k) => setActiveTab(k as 'endpoints' | 'deliveries')} type="line" lazyRender keepDOM={false}>
         <TabPane tab="端点配置" itemKey="endpoints">
           <SearchToolbar
             primary={(

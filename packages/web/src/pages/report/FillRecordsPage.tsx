@@ -305,7 +305,7 @@ export default function FillRecordsPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs type="line" activeKey={activeTab} onChange={(key) => setActiveTab(key as typeof activeTab)}>
+      <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(key) => setActiveTab(key as typeof activeTab)}>
         <TabPane tab="我的填报" itemKey="mine">
           <SearchToolbar
             primary={(

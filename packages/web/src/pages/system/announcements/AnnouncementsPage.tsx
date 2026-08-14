@@ -358,6 +358,7 @@ export default function AnnouncementsPage() {
         </div>
 
         <Tabs
+          collapsible="auto"
           activeKey={statsTab}
           onChange={(tab) => {
             const t = tab as 'read' | 'unread';

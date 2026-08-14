@@ -102,7 +102,7 @@ export default function IdentitySecurityPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs type="line" keepDOM={false}>
+      <Tabs collapsible="auto" type="line" keepDOM={false}>
         <TabPane tab="策略配置" itemKey="policy">
           <SearchToolbar>
             <Button type="primary" icon={<Save size={14} />} loading={savePolicyMutation.isPending} onClick={handleSavePolicy}>保存</Button>

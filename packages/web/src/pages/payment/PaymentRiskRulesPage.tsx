@@ -306,7 +306,7 @@ export default function PaymentRiskRulesPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs activeKey={activeTab} onChange={(k) => setActiveTab(k as 'rules' | 'hits' | 'reviews')} type="line" lazyRender keepDOM={false}>
+      <Tabs collapsible="auto" activeKey={activeTab} onChange={(k) => setActiveTab(k as 'rules' | 'hits' | 'reviews')} type="line" lazyRender keepDOM={false}>
         <TabPane tab="限额规则" itemKey="rules">
           <SearchToolbar
             primary={(

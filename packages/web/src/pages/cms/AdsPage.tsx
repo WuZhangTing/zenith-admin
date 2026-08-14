@@ -463,7 +463,7 @@ export default function AdsPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs activeKey={activeTab} onChange={setActiveTab} type="line" lazyRender keepDOM={false}>
+      <Tabs collapsible="auto" activeKey={activeTab} onChange={setActiveTab} type="line" lazyRender keepDOM={false}>
         <TabPane tab="广告" itemKey="ads">
           <AdsManagementTab siteId={siteId} setSiteId={setSiteId} />
         </TabPane>

@@ -409,7 +409,7 @@ export function OpsPanel({ canMaintain, active }: Readonly<{ canMaintain: boolea
 
   return (
     <div style={{ height: '100%', overflow: 'auto', padding: 4 }}>
-      <Tabs activeKey={sub} onChange={setSub} type="button" size="small" lazyRender keepDOM={false}>
+      <Tabs collapsible="auto" activeKey={sub} onChange={setSub} type="button" size="small" lazyRender keepDOM={false}>
         <TabPane tab={<span><Activity size={13} style={{ verticalAlign: -2, marginRight: 4 }} />活动连接</span>} itemKey="activity">
           <ActivityPanel canMaintain={canMaintain} />
         </TabPane>

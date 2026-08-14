@@ -343,7 +343,7 @@ export default function NodeConfigDrawer({
 
       {/* 有多个 Tab 的节点类型 */}
       {(hasAssigneeSettings || hasFormPermission) && (
-        <Tabs type="line" size="small">
+        <Tabs collapsible="auto" type="line" size="small">
           {/* 审批人/办理人/抄送人设置 Tab */}
           {hasAssigneeSettings && (() => {
             const tabLabelMap: Record<string, string> = { approver: '审批人', handler: '办理人', cc: '抄送人' };

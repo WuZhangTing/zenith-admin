@@ -781,7 +781,7 @@ export default function WorkflowJobsView() {
       <RuntimeStatusBar />
       <Tabs
         type="card"
-        collapsible
+        collapsible="auto"
         activeKey={activeType}
         onChange={(k) => setActiveType(k as WorkflowJobType)}
       >

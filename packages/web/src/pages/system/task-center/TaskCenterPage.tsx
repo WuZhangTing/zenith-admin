@@ -622,7 +622,7 @@ export default function TaskCenterPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs type="line" activeKey={activeTab} onChange={(key) => setActiveTab(key as TabKey)} lazyRender>
+      <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(key) => setActiveTab(key as TabKey)} lazyRender>
         <TabPane tab="任务列表" itemKey="tasks">
           <SearchToolbar>
             <Select

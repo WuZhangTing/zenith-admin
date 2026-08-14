@@ -483,7 +483,7 @@ export default function SiteEditSheet({ open, site, onClose }: Readonly<SiteEdit
         }}
       >
         {/* keepDOM（默认）保证非激活页字段仍挂载，切换标签不丢值、validate 全量生效 */}
-        <Tabs type="line" activeKey={activeTab} onChange={setActiveTab}>
+        <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={setActiveTab}>
           <TabPane tab="基础信息" itemKey="basic">
             <Row gutter={16} style={{ paddingTop: 16 }}>
               <Col span={12}>

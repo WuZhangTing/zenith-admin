@@ -409,7 +409,7 @@ export default function WorkflowInstanceDetailPanel({
       chain={chainContent}
       graph={graphContent}
       left={(
-        <Tabs type="line">
+        <Tabs collapsible="auto" type="line">
         <TabPane tab="表单" itemKey="form">
           {renderFormData()}
           {effectiveDefinition?.description ? (

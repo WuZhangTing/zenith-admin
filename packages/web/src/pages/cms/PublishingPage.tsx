@@ -300,7 +300,7 @@ export default function PublishingPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs type="line" activeKey={activeTab} onChange={(key) => { setActiveTab(key as TabKey); setSelected([]); }}>
+      <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(key) => { setActiveTab(key as TabKey); setSelected([]); }}>
         <TabPane tab="队列" itemKey="queue">{taskPane('queue')}</TabPane>
         <TabPane tab="历史" itemKey="history">{taskPane('history')}</TabPane>
         <TabPane tab="产物" itemKey="artifacts">

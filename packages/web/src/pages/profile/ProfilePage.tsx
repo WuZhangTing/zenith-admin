@@ -348,6 +348,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
     <div className="page-container">
       <div className="profile-content-card">
         <Tabs
+          collapsible="auto"
           activeKey={activeSection}
           onChange={(v) => setActiveSection(v as SectionKey)}
           className="profile-tabs"

@@ -1057,7 +1057,7 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
       </div>
 
       {/* 运行时明细 */}
-      <Tabs type="line">
+      <Tabs collapsible="auto" type="line">
         <TabPane tab={`队列任务 ${data.runtime.taskQueue.length}`} itemKey="tasks">
           <ConfigurableTable<WorkflowEngineRuntimeTask>
             bordered

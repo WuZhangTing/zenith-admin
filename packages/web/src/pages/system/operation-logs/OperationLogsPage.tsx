@@ -158,6 +158,7 @@ export default function OperationLogsPage() {
   return (
     <div className="page-container page-tabs-page">
       <Tabs
+        collapsible="auto"
         activeKey={activeTab}
         onChange={(k) => setActiveTab(k as 'list' | 'stats')}
         type="line"

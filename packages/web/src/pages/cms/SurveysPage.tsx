@@ -244,7 +244,7 @@ export default function SurveysPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs type="line" lazyRender keepDOM={false}>
+      <Tabs collapsible="auto" type="line" lazyRender keepDOM={false}>
         <TabPane tab="互动管理" itemKey="interactions">
           <SearchToolbar
             primary={listSearch}

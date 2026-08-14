@@ -348,7 +348,7 @@ export default function PaymentOrdersPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs activeKey={activeTab} onChange={(k) => setActiveTab(k as 'list' | 'stats')} type="line" lazyRender keepDOM={false}>
+      <Tabs collapsible="auto" activeKey={activeTab} onChange={(k) => setActiveTab(k as 'list' | 'stats')} type="line" lazyRender keepDOM={false}>
         <TabPane tab="支付订单" itemKey="list">
           {stats && (
             <StatGrid minItemWidth={150} style={{ marginBottom: 12 }}>

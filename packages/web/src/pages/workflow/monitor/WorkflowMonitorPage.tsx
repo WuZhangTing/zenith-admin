@@ -915,7 +915,7 @@ export default function WorkflowMonitorPage() {
           </Space>
         </div>
 
-        <Tabs type="line" activeKey={diagnosticsTab} onChange={setDiagnosticsTab}>
+        <Tabs collapsible="auto" type="line" activeKey={diagnosticsTab} onChange={setDiagnosticsTab}>
           <TabPane tab="引擎轨迹" itemKey="trace">
             {diagnosticsTab === 'trace' && <WorkflowEngineTraceView instanceId={inst.id} />}
           </TabPane>
@@ -1178,7 +1178,7 @@ export default function WorkflowMonitorPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs type="line">
+      <Tabs collapsible="auto" type="line">
         <TabPane tab="实例监控" itemKey="list">
       {/* 统计卡片 */}
       <StatGrid minItemWidth={120} style={{ marginBottom: 16 }}>

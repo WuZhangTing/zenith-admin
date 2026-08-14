@@ -646,7 +646,7 @@ export default function DatasetsPage() {
             });
           }}>
           {/* keepDOM（默认）保证非激活页字段仍挂载，切换标签不丢值、validate 全量生效 */}
-          <Tabs type="line" activeKey={activeDatasetTab} onChange={setDatasetTab}>
+          <Tabs collapsible="auto" type="line" activeKey={activeDatasetTab} onChange={setDatasetTab}>
             <TabPane tab="基本信息" itemKey="basic">
               <Row gutter={16} style={{ paddingTop: 16 }}>
                 <Col span={12}>

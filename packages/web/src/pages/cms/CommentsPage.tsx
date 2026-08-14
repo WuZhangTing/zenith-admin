@@ -155,7 +155,7 @@ export default function CommentsPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs activeKey={activeTab} onChange={handleTabChange} type="line" lazyRender keepDOM={false}>
+      <Tabs collapsible="auto" activeKey={activeTab} onChange={handleTabChange} type="line" lazyRender keepDOM={false}>
         <TabPane tab="待审核" itemKey="pending">{tableContent}</TabPane>
         <TabPane tab="已通过" itemKey="approved">{tableContent}</TabPane>
         <TabPane tab="已拒绝" itemKey="rejected">{tableContent}</TabPane>

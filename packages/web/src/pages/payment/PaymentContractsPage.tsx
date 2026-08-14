@@ -315,7 +315,7 @@ export default function PaymentContractsPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs activeKey={activeTab} onChange={(k) => setActiveTab(k as 'contracts' | 'plans')} type="line" lazyRender keepDOM={false}>
+      <Tabs collapsible="auto" activeKey={activeTab} onChange={(k) => setActiveTab(k as 'contracts' | 'plans')} type="line" lazyRender keepDOM={false}>
         <TabPane tab="签约协议" itemKey="contracts">
           <SearchToolbar
             primary={(

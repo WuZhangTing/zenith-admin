@@ -848,6 +848,7 @@ export default function DbAdminPage() {
   return (
     <div className="page-container page-tabs-page page-container--stretch">
       <Tabs
+        collapsible="auto"
         activeKey={activeTab}
         onChange={setActiveTab}
         type="line"
@@ -995,7 +996,7 @@ export default function DbAdminPage() {
                       </Tooltip>
                     </Space>
                   </div>
-                  <Tabs activeKey={innerTab} onChange={setInnerTab} type="line" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }} contentStyle={{ flex: 1, overflow: 'auto', padding: 12, minHeight: 0, minWidth: 0 }}>
+                  <Tabs collapsible="auto" activeKey={innerTab} onChange={setInnerTab} type="line" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }} contentStyle={{ flex: 1, overflow: 'auto', padding: 12, minHeight: 0, minWidth: 0 }}>
                     <TabPane tab={`结构（${structure?.columns.length ?? 0}）`} itemKey="structure">
                       {structureLoading ? <Spin /> : structure && (
                         <ConfigurableTable<ColumnInfo>

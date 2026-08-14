@@ -223,7 +223,7 @@ export default function AnnouncementsPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs activeKey={activeTab} onChange={handleTabChange} type="line" lazyRender keepDOM={false}>
+      <Tabs collapsible="auto" activeKey={activeTab} onChange={handleTabChange} type="line" lazyRender keepDOM={false}>
         <TabPane tab="全部公告" itemKey="all">
           {renderAnnouncementsContent('all')}
         </TabPane>

@@ -680,7 +680,7 @@ export default function PrintDesignerPage() {
 
         {panelVisible && (
           <div className="report-designer__config" style={{ width: 380 }}>
-            <Tabs activeKey={activePanel} onChange={(key) => setActivePanel(key as PanelKey)} type="line" size="small">
+            <Tabs collapsible="auto" activeKey={activePanel} onChange={(key) => setActivePanel(key as PanelKey)} type="line" size="small">
               <Tabs.TabPane tab="字段" itemKey="fields">
                 <Typography.Title heading={6} style={{ marginTop: 0 }}>字段插入</Typography.Title>
                 <Typography.Text type="tertiary" size="small">

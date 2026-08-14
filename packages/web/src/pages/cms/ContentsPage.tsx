@@ -774,7 +774,7 @@ export default function ContentsPage() {
         master={masterContent}
         detail={(
           <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <Tabs activeKey={activeTab} onChange={handleTabChange} type="line" lazyRender keepDOM={false}>
+            <Tabs collapsible="auto" activeKey={activeTab} onChange={handleTabChange} type="line" lazyRender keepDOM={false}>
               <TabPane tab="全部" itemKey="all">{tableContent}</TabPane>
               <TabPane tab="待审核" itemKey="pending">{tableContent}</TabPane>
               <TabPane tab="已发布" itemKey="published">{tableContent}</TabPane>

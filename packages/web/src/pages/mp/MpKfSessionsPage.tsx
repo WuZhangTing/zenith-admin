@@ -269,7 +269,7 @@ export default function MpKfSessionsPage() {
           master={(
             <>
               <MasterDetailLayout.Header style={{ padding: '0 8px' }}>
-                <Tabs type="line" activeKey={tab} onChange={handleTabChange} style={{ flex: 1, minWidth: 0 }}>
+                <Tabs collapsible="auto" type="line" activeKey={tab} onChange={handleTabChange} style={{ flex: 1, minWidth: 0 }}>
                   <TabPane tab="待接入" itemKey="waiting" />
                   <TabPane tab="进行中" itemKey="active" />
                   <TabPane tab="已结束" itemKey="closed" />

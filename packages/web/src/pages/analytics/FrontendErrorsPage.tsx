@@ -960,7 +960,7 @@ export default function FrontendErrorsPage() {
 
   return (
     <div className="page-container page-tabs-page zx-flat-panels">
-      <Tabs type="line" activeKey={activeTab} onChange={(key) => setActiveTab(key as TabKey)} lazyRender>
+      <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(key) => setActiveTab(key as TabKey)} lazyRender>
         <TabPane tab="概览" itemKey="overview">
           <SearchToolbar
             primary={(

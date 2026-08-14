@@ -90,7 +90,7 @@ export function CellDetailDrawer(props: CellDetailDrawerProps) {
       title={rowNumber !== null ? `第 ${rowNumber} 行 · ${activeColumn ?? ''}` : activeColumn ?? '单元格详情'}
       placement="right"
     >
-      <Tabs activeKey={activeTab} onChange={setActiveTab} type="line" size="small">
+      <Tabs collapsible="auto" activeKey={activeTab} onChange={setActiveTab} type="line" size="small">
         <TabPane tab="单元格" itemKey="cell">
           <div className="dg-detail-meta">
             {column?.dataType && <span>类型：{column.dataType}</span>}

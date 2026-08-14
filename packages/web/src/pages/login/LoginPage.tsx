@@ -453,7 +453,7 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
               {renderLoginForm()}
             </div>
           ) : (
-            <Tabs type="line" activeKey={tab} onChange={setTab} style={{ marginBottom: 20 }}>
+            <Tabs collapsible="auto" type="line" activeKey={tab} onChange={setTab} style={{ marginBottom: 20 }}>
               <TabPane tab="登录" itemKey="login">
                 {renderLoginForm()}
               </TabPane>

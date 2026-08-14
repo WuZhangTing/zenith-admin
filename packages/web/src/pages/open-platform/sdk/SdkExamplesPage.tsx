@@ -76,7 +76,7 @@ export default function SdkExamplesPage() {
       </Card>
 
       <Card>
-        <Tabs type="line">
+        <Tabs collapsible="auto" type="line">
           {(['cURL', 'Node.js', 'Python', 'Java', 'Go'] as const).map((lang) => (
             <TabPane tab={lang} itemKey={lang} key={lang}>
               <Title heading={6} style={{ margin: '8px 0' }}>① 签名并调用开放 API</Title>

@@ -180,7 +180,7 @@ export default function InboxPage() {
   return (
     <div className="page-container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Tabs activeKey={activeTab} onChange={handleTabChange} style={{ marginBottom: 0, flex: 1 }}>
+          <Tabs collapsible="auto" activeKey={activeTab} onChange={handleTabChange} style={{ marginBottom: 0, flex: 1 }}>
             <TabPane tab="全部" itemKey="all" />
             <TabPane
               tab={

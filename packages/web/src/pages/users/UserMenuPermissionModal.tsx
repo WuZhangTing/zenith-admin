@@ -80,7 +80,7 @@ export function UserMenuPermissionModal({ userId, userName, visible, onClose }: 
       confirmLoading={saveMenusMutation.isPending}
       width={640}
     >
-      <Tabs activeKey={activeTab} onChange={setActiveTab}>
+      <Tabs collapsible="auto" activeKey={activeTab} onChange={setActiveTab}>
         <TabPane tab="直接授权" itemKey="direct">
           <MenuPermissionPanel
             allMenus={menuTreeQuery.data ?? []}

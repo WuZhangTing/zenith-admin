@@ -859,7 +859,7 @@ export default function MonitorPage() {
       : 0;
 
     return (
-      <Tabs type="line" activeKey={activeTab} onChange={setActiveTab}>
+      <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={setActiveTab}>
           {/* ===== 总览 ===== */}
           <TabPane tab={<span className="monitor-tab-label"><Server size={14} />总览</span>} itemKey="overview">
             <div className="monitor-overview-grid">

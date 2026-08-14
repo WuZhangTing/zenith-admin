@@ -772,7 +772,7 @@ export default function FormDesigner({ fields, onChange, settings, onSettingsCha
       <div className="fd-form-designer">
         {/* 左侧：控件面板 / 大纲树 */}
         <div className="fd-form-designer__palette">
-          <Tabs type="line" size="small" className="fd-form-designer__palette-tabs" lazyRender>
+          <Tabs collapsible="auto" type="line" size="small" className="fd-form-designer__palette-tabs" lazyRender>
             <TabPane tab="控件" itemKey="palette">
               <FieldPalette onAddField={handleAddField} onAddTemplateField={handleAddTemplateField} />
             </TabPane>

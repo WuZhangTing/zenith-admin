@@ -202,6 +202,7 @@ export default function AiEvalPage() {
   return (
     <div className="page-container page-tabs-page">
       <Tabs
+        collapsible="auto"
         type="line"
         tabBarExtraContent={canManage ? <CreateButton onClick={modal.openCreate}>新建评测集</CreateButton> : undefined}
       >

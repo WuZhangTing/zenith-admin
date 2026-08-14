@@ -258,7 +258,7 @@ export default function InteractionResultsSheet({ interaction, onClose }: Readon
     >
       <Spin spinning={query.isFetching}>
         {query.data && id ? (
-          <Tabs type="line" lazyRender>
+          <Tabs collapsible="auto" type="line" lazyRender>
             <TabPane tab="题目分布" itemKey="questions">
               <Typography.Text type="tertiary">共收集 {query.data.responseCount} 份答卷</Typography.Text>
               <div className="interaction-stats">

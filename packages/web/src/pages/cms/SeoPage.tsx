@@ -351,7 +351,7 @@ export default function SeoPage() {
       <SearchToolbar>
         <CmsSiteSelect value={siteId} onChange={setSiteId} width={200} />
       </SearchToolbar>
-      <Tabs activeKey={activeTab} onChange={setActiveTab} type="line" lazyRender keepDOM={false}>
+      <Tabs collapsible="auto" activeKey={activeTab} onChange={setActiveTab} type="line" lazyRender keepDOM={false}>
         <TabPane tab="301 重定向" itemKey="redirects">
           <RedirectsTab siteId={siteId} />
         </TabPane>

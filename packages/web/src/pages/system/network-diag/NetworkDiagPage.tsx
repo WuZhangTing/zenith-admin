@@ -331,7 +331,7 @@ export default function NetworkDiagPage() {
       <div style={{ flex: 1, minHeight: 0, borderRadius: 'var(--semi-border-radius-medium)', overflow: 'hidden', border: '1px solid var(--semi-color-border)' }}>
         {tool === 'traceroute'
           ? (
-            <Tabs type="line" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+            <Tabs collapsible="auto" type="line" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
               tabBarExtraContent={running ? <Tag color="green" size="small" style={{ marginRight: 8 }}>● 运行中</Tag> : undefined}>
               <TabPane tab="可视化" itemKey="viz" style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 0 }}>
                 <div style={{ padding: 12, height: '100%', overflow: 'auto', background: 'var(--semi-color-bg-1)' }}>

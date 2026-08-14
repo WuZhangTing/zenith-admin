@@ -256,6 +256,7 @@ export default function AiAgentsPage() {
   return (
     <div className="page-container page-tabs-page">
       <Tabs
+        collapsible="auto"
         type="line"
         activeKey={activeTab}
         onChange={setActiveTab}

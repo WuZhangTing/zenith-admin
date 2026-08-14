@@ -163,6 +163,7 @@ export function ImportModal(props: Readonly<Props>) {
     >
       <Space vertical align="start" style={{ width: '100%' }} spacing={12}>
         <Tabs
+          collapsible="auto"
           type="line"
           size="small"
           activeKey={sourceTab}

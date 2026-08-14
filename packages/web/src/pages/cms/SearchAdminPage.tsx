@@ -422,7 +422,7 @@ export default function SearchAdminPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs activeKey={activeTab} onChange={setActiveTab} type="line" lazyRender keepDOM={false}>
+      <Tabs collapsible="auto" activeKey={activeTab} onChange={setActiveTab} type="line" lazyRender keepDOM={false}>
         <TabPane tab="检索测试" itemKey="test">
           <SearchTestTab siteId={siteId} onSiteChange={setSiteId} />
         </TabPane>

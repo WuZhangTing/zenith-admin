@@ -26,7 +26,7 @@ export function ComposerEmojiPicker({
                     overflow: 'hidden',
                   }}
                 >
-                  <Tabs size="small" type="line" tabPaneMotion={false} style={{ padding: '0 8px' }}>
+                  <Tabs collapsible="auto" size="small" type="line" tabPaneMotion={false} style={{ padding: '0 8px' }}>
                     <TabPane tab="表情" itemKey="emoji">
                       <ThemedEmojiPicker onEmojiSelect={handleEmojiSelect} />
                     </TabPane>

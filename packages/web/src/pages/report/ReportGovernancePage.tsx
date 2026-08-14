@@ -8,7 +8,7 @@ import { GovernanceApprovalTab, GovernanceTransferTab } from './governance/Gover
 export default function ReportGovernancePage() {
   return (
     <div className="page-container page-tabs-page">
-      <Tabs type="line">
+      <Tabs collapsible="auto" type="line">
         <TabPane tab="目录与资源权限" itemKey="resources"><GovernanceResourceTab /></TabPane>
         <TabPane tab="发布审批" itemKey="approvals"><GovernanceApprovalTab /></TabPane>
         <TabPane tab="所有权转移" itemKey="transfers"><GovernanceTransferTab /></TabPane>

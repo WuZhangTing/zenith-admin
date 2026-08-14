@@ -248,7 +248,7 @@ export default function OAuth2AppDetailPage() {
         <Tag color={app.status === 'enabled' ? 'green' : 'grey'}>{app.status === 'enabled' ? '启用' : '禁用'}</Tag>
         <Text type="tertiary" copyable={{ content: app.clientId }}>{app.clientId}</Text>
       </div>
-      <Tabs type="line" lazyRender keepDOM={false}>
+      <Tabs collapsible="auto" type="line" lazyRender keepDOM={false}>
         <TabPane tab="概览" itemKey="overview">
           <Descriptions
             align="plain"

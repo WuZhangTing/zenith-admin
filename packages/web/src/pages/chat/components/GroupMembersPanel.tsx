@@ -324,7 +324,7 @@ export function GroupMembersPanel({
         )}
         {showAdd && (
           <div style={{ marginBottom: 10, padding: 8, background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)' }}>
-            <Tabs size="small" defaultActiveKey="search">
+            <Tabs collapsible="auto" size="small" defaultActiveKey="search">
               <TabPane tab="搜索" itemKey="search">
                 <div style={{ paddingTop: 6 }}>
                   <UserSearchList onSelect={handleAdd} excludeIds={memberIds} />

@@ -217,7 +217,7 @@ function ExchangeCoupons() {
 export default function CouponsPage() {
   return (
     <MemberPage title="我的卡券">
-      <Tabs type="line">
+      <Tabs collapsible="auto" type="line">
         <TabPane tab="我的卡券" itemKey="mine">
           <MyCoupons />
         </TabPane>

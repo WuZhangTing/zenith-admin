@@ -1898,7 +1898,7 @@ function HeatmapTab() {
 export default function AnalyticsPage() {
   return (
     <div className="page-container page-tabs-page zx-flat-panels">
-      <Tabs type="line" lazyRender>
+      <Tabs collapsible="auto" type="line" lazyRender>
         <TabPane tab="概览" itemKey="overview"><OverviewTab /></TabPane>
         <TabPane tab="实时" itemKey="realtime"><RealtimeTab /></TabPane>
         <TabPane tab="事件分析" itemKey="event-query"><AnalyticsEventQueryTab /></TabPane>

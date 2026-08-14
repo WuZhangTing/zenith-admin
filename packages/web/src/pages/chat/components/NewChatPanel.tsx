@@ -35,7 +35,7 @@ export function NewChatPanel({
   };
 
   return (
-    <Tabs size="small" defaultActiveKey="direct">
+    <Tabs collapsible="auto" size="small" defaultActiveKey="direct">
       <TabPane tab="私聊" itemKey="direct">
         <div style={{ paddingTop: 8 }}>
           <UserSearchList onSelect={onSelectUser} />

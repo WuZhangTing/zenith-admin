@@ -484,6 +484,7 @@ export default function FillTemplatesPage() {
             </Form>
           ) : (
             <Tabs
+              collapsible="auto"
               type="line"
               activeKey={editorTab}
               onChange={setEditorTab}

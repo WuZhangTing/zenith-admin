@@ -184,7 +184,7 @@ export function ChannelMessagesDrawer({ channel, visible, onClose }: Readonly<Pr
       width={920}
       placement="right"
     >
-      <Tabs type="line" activeKey={tab} onChange={handleTabChange}>
+      <Tabs collapsible="auto" type="line" activeKey={tab} onChange={handleTabChange}>
         <TabPane tab="全部" itemKey="all" />
         <TabPane tab="已发送" itemKey="sent" />
         <TabPane tab="草稿" itemKey="draft" />
