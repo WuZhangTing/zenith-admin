@@ -601,15 +601,21 @@ export function registerCmsPublishingTaskHandler(): void {
           const ids = stableCmsContentTargets(snapshots.length ? snapshots.map((item) => item.contentId) : input.contentIds ?? []);
           const lastId = Number(ctx.checkpoint?.phase === 'content' ? ctx.checkpoint.lastId ?? 0 : 0);
           let processed = ids.filter((id) => id <= lastId).length;
-          for (const contentId of remainingCmsContentTargets(ids, lastId)) {
-            const snapshot = snapshots.find((item) => item.contentId === contentId);
-            const [content] = await db.select({ channelId: cmsContents.channelId }).from(cmsContents)
-              .where(eq(cmsContents.id, contentId)).limit(1);
+          const remaining = remainingCmsContentTargets(ids, lastId);
+          const snapshotByContentId = new Map(snapshots.map((item) => [item.contentId, item]));
+          // 批量预取内容的栏目归属，避免循环内逐条查询（N+1）
+          const channelRows = remaining.length > 0
+            ? await db.select({ id: cmsContents.id, channelId: cmsContents.channelId }).from(cmsContents)
+              .where(inArray(cmsContents.id, remaining))
+            : [];
+          const channelIdByContentId = new Map(channelRows.map((row) => [row.id, row.channelId]));
+          for (const contentId of remaining) {
+            const snapshot = snapshotByContentId.get(contentId);
             await withCmsPublishArtifactTracking(
               {
                 ...tracked.context,
                 contentId: snapshot?.purged ? null : contentId,
-                channelId: snapshot?.channelId ?? content?.channelId ?? null,
+                channelId: snapshot?.channelId ?? channelIdByContentId.get(contentId) ?? null,
               },
               () => snapshot
                 ? applyCmsContentPublishSnapshot(snapshot, input.deletePaths ?? [])

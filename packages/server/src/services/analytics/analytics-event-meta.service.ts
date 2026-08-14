@@ -44,15 +44,16 @@ export async function touchEventMeta(events: TrackEventInput[], tenantId: number
   }
   if (counts.size === 0) return;
   const now = new Date();
-  for (const [eventName, { count, category }] of counts) {
-    await db
-      .insert(analyticsEventMeta)
-      .values({ tenantId, eventName, category, eventCount: count, firstSeenAt: now, lastSeenAt: now })
-      .onConflictDoUpdate({
-        target: analyticsEventMeta.eventName,
-        set: { eventCount: sql`${analyticsEventMeta.eventCount} + ${count}`, lastSeenAt: now },
-      });
-  }
+  // 单条多行 upsert：冲突行经 excluded 引用各自批次计数，避免按事件名逐条串行往返（采集热路径）
+  await db
+    .insert(analyticsEventMeta)
+    .values([...counts].map(([eventName, { count, category }]) => ({
+      tenantId, eventName, category, eventCount: count, firstSeenAt: now, lastSeenAt: now,
+    })))
+    .onConflictDoUpdate({
+      target: analyticsEventMeta.eventName,
+      set: { eventCount: sql`${analyticsEventMeta.eventCount} + excluded.event_count`, lastSeenAt: now },
+    });
 }
 
 // ─── 责任人存在性校验（不信任客户端 ownerName，服务端解析）──────────────────────

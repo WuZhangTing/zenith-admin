@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "mp_materials_account_media_uq" ON "mp_materials" USING btree ("account_id","wechat_media_id") WHERE "mp_materials"."wechat_media_id" is not null;

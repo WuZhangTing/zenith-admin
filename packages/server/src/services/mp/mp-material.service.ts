@@ -1,4 +1,4 @@
-import { eq, and, ilike, type SQL } from 'drizzle-orm';
+import { eq, and, ilike, inArray, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpMaterials } from '../../db/schema';
@@ -129,17 +129,32 @@ export async function syncMpMaterials(accountId: number): Promise<{ success: boo
       let offset = 0;
       for (;;) {
         const { total: typeTotal, items } = await batchGetWechatMaterials(account, type, offset, PAGE);
-        for (const item of items) {
-          total += 1;
-          const [existing] = await db.select({ id: mpMaterials.id }).from(mpMaterials)
-            .where(and(eq(mpMaterials.accountId, accountId), eq(mpMaterials.wechatMediaId, item.media_id))).limit(1);
-          if (existing) {
-            await db.update(mpMaterials).set({ name: item.name || '未命名素材', url: item.url ?? null }).where(eq(mpMaterials.id, existing.id));
-            updated += 1;
-          } else {
-            await db.insert(mpMaterials).values({ accountId, type, name: item.name || '未命名素材', wechatMediaId: item.media_id, url: item.url ?? null, tenantId });
-            created += 1;
-          }
+        total += items.length;
+        // 页内按 media_id 去重，避免同一批 upsert 两次命中同一行
+        const uniqueItems = [...new Map(items.filter((i) => i.media_id).map((i) => [i.media_id, i])).values()];
+        if (uniqueItems.length > 0) {
+          const mediaIds = uniqueItems.map((i) => i.media_id);
+          const existing = await db.select({ wechatMediaId: mpMaterials.wechatMediaId }).from(mpMaterials)
+            .where(and(eq(mpMaterials.accountId, accountId), inArray(mpMaterials.wechatMediaId, mediaIds)));
+          const existingSet = new Set(existing.map((r) => r.wechatMediaId));
+          // 单条多行 upsert：以 (accountId, wechatMediaId) 部分唯一索引为冲突目标，替代逐条查重+写入
+          await db.insert(mpMaterials)
+            .values(uniqueItems.map((item) => ({
+              accountId,
+              type,
+              name: item.name || '未命名素材',
+              wechatMediaId: item.media_id,
+              url: item.url ?? null,
+              tenantId,
+            })))
+            .onConflictDoUpdate({
+              target: [mpMaterials.accountId, mpMaterials.wechatMediaId],
+              targetWhere: sql`${mpMaterials.wechatMediaId} is not null`,
+              set: { name: sql`excluded.name`, url: sql`excluded.url` },
+            });
+          const newCount = mediaIds.filter((id) => !existingSet.has(id)).length;
+          created += newCount;
+          updated += mediaIds.length - newCount;
         }
         offset += items.length;
         if (items.length < PAGE || offset >= typeTotal) break;

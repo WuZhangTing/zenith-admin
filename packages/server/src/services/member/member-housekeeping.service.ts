@@ -9,7 +9,7 @@
  * 会员登录日志的保留由 `data-retention` 任务按 `member_login_logs` 策略统一清理。
  */
 import dayjs from 'dayjs';
-import { and, eq, gt, gte, isNull, like, lte } from 'drizzle-orm';
+import { and, eq, gt, gte, inArray, isNull, like, lte } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { coupons, memberCoupons, memberPointAccounts, memberPointTransactions, members } from '../../db/schema';
@@ -84,50 +84,58 @@ export async function grantBirthdayGifts(): Promise<{ points: number; coupons: n
     .select({ id: members.id })
     .from(members)
     .where(and(eq(members.status, 'active'), isNull(members.deletedAt), like(members.birthday, `%-${monthDay}`)));
+  if (birthdayMembers.length === 0) return { points: 0, coupons: 0, skipped: 0 };
+
+  // 批量预取今年已发放的会员集合，避免循环内逐会员两次存在性查询（N+1）
+  const memberIds = birthdayMembers.map((m) => m.id);
+  const [pointGrantedRows, couponGrantedRows] = await Promise.all([
+    giftPoints > 0
+      ? db.select({ memberId: memberPointTransactions.memberId }).from(memberPointTransactions)
+        .where(and(
+          eq(memberPointTransactions.bizType, 'birthday'),
+          eq(memberPointTransactions.bizId, year),
+          inArray(memberPointTransactions.memberId, memberIds),
+        ))
+      : Promise.resolve([]),
+    giftCouponId > 0
+      ? db.select({ memberId: memberCoupons.memberId }).from(memberCoupons)
+        .where(and(
+          eq(memberCoupons.bizType, 'birthday'),
+          eq(memberCoupons.bizId, year),
+          inArray(memberCoupons.memberId, memberIds),
+        ))
+      : Promise.resolve([]),
+  ]);
+  const pointGranted = new Set(pointGrantedRows.map((r) => r.memberId));
+  const couponGranted = new Set(couponGrantedRows.map((r) => r.memberId));
 
   let pointsGranted = 0;
   let couponsGranted = 0;
   let skipped = 0;
   for (const m of birthdayMembers) {
     try {
-      if (giftPoints > 0) {
-        const [exist] = await db.select({ id: memberPointTransactions.id }).from(memberPointTransactions)
-          .where(and(
-            eq(memberPointTransactions.memberId, m.id),
-            eq(memberPointTransactions.bizType, 'birthday'),
-            eq(memberPointTransactions.bizId, year),
-          )).limit(1);
-        if (!exist) {
-          await ensurePointAccount(m.id);
-          await earnPoints(m.id, giftPoints, { bizType: 'birthday', bizId: year, remark: `${year} 年生日礼积分` });
-          await createMemberNotification({
-            memberId: m.id,
-            type: 'birthday',
-            title: '生日快乐 🎂',
-            content: `生日礼 ${giftPoints} 积分已到账，祝你生日快乐！`,
-            bizId: year,
-          });
-          pointsGranted += 1;
-        }
+      if (giftPoints > 0 && !pointGranted.has(m.id)) {
+        await ensurePointAccount(m.id);
+        await earnPoints(m.id, giftPoints, { bizType: 'birthday', bizId: year, remark: `${year} 年生日礼积分` });
+        await createMemberNotification({
+          memberId: m.id,
+          type: 'birthday',
+          title: '生日快乐 🎂',
+          content: `生日礼 ${giftPoints} 积分已到账，祝你生日快乐！`,
+          bizId: year,
+        });
+        pointsGranted += 1;
       }
-      if (giftCouponId > 0) {
-        const [exist] = await db.select({ id: memberCoupons.id }).from(memberCoupons)
-          .where(and(
-            eq(memberCoupons.memberId, m.id),
-            eq(memberCoupons.bizType, 'birthday'),
-            eq(memberCoupons.bizId, year),
-          )).limit(1);
-        if (!exist) {
-          await db.transaction((tx) => grantCouponInTx(tx, giftCouponId, m.id, { bizType: 'birthday', bizId: year }));
-          await createMemberNotification({
-            memberId: m.id,
-            type: 'birthday_coupon',
-            title: '生日礼券已到账 🎁',
-            content: '你的生日专属优惠券已发放，请到「我的卡券」查看。',
-            bizId: year,
-          });
-          couponsGranted += 1;
-        }
+      if (giftCouponId > 0 && !couponGranted.has(m.id)) {
+        await db.transaction((tx) => grantCouponInTx(tx, giftCouponId, m.id, { bizType: 'birthday', bizId: year }));
+        await createMemberNotification({
+          memberId: m.id,
+          type: 'birthday_coupon',
+          title: '生日礼券已到账 🎁',
+          content: '你的生日专属优惠券已发放，请到「我的卡券」查看。',
+          bizId: year,
+        });
+        couponsGranted += 1;
       }
     } catch (err) {
       // 库存不足/限领等业务异常跳过该会员，不阻断整体发放

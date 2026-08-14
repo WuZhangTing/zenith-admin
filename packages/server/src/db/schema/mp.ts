@@ -275,6 +275,8 @@ export const mpMaterials = pgTable('mp_materials', {
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [index('mp_materials_tenant_idx').on(t.tenantId), 
   index('mp_materials_account_type_idx').on(t.accountId, t.type),
+  // 同步 upsert 的冲突目标：微信 media_id 在同一公众号内唯一（本地上传未回填时为 null，故用部分索引）
+  uniqueIndex('mp_materials_account_media_uq').on(t.accountId, t.wechatMediaId).where(sql`${t.wechatMediaId} is not null`),
 ]);
 
 export type MpMaterialRow = typeof mpMaterials.$inferSelect;

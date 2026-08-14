@@ -1,4 +1,4 @@
-import { eq, and, desc, isNotNull, lte, type SQL } from 'drizzle-orm';
+import { eq, and, desc, inArray, isNotNull, lte, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpBroadcasts, mpTags, mpAccounts } from '../../db/schema';
@@ -166,17 +166,25 @@ export async function getMpBroadcastResult(id: number) {
 export async function runDueMpBroadcasts(): Promise<{ sent: number; failed: number }> {
   const due = await db.select().from(mpBroadcasts)
     .where(and(eq(mpBroadcasts.status, 'draft'), isNotNull(mpBroadcasts.scheduledAt), lte(mpBroadcasts.scheduledAt, new Date())));
+  if (due.length === 0) return { sent: 0, failed: 0 };
+  // 批量预取账号与标签，避免循环内逐条查询（N+1）
+  const accountIds = [...new Set(due.map((b) => b.accountId))];
+  const tagIds = [...new Set(due.map((b) => (b.target === 'tag' ? b.tagId : null)).filter((id): id is number => id != null))];
+  const [accounts, tags] = await Promise.all([
+    db.select().from(mpAccounts).where(inArray(mpAccounts.id, accountIds)),
+    tagIds.length > 0
+      ? db.select({ id: mpTags.id, wechatTagId: mpTags.wechatTagId }).from(mpTags).where(inArray(mpTags.id, tagIds))
+      : Promise.resolve([]),
+  ]);
+  const accountById = new Map(accounts.map((a) => [a.id, a]));
+  const wechatTagIdByTagId = new Map(tags.map((t) => [t.id, t.wechatTagId]));
   let sent = 0;
   let failed = 0;
   for (const b of due) {
     try {
-      const [account] = await db.select().from(mpAccounts).where(eq(mpAccounts.id, b.accountId)).limit(1);
+      const account = accountById.get(b.accountId);
       if (!account || account.status === 'disabled') continue;
-      let wechatTagId: number | null = null;
-      if (b.target === 'tag' && b.tagId) {
-        const [tag] = await db.select({ wechatTagId: mpTags.wechatTagId }).from(mpTags).where(eq(mpTags.id, b.tagId)).limit(1);
-        wechatTagId = tag?.wechatTagId ?? null;
-      }
+      const wechatTagId = b.target === 'tag' && b.tagId ? (wechatTagIdByTagId.get(b.tagId) ?? null) : null;
       await assertContentSafe(account, b.content);
       const { msgId } = await massSend(account, { isToAll: b.target === 'all', tagId: wechatTagId, msgType: b.msgType, content: b.content, mediaId: b.mediaId });
       await db.update(mpBroadcasts).set({ status: 'sent', wechatMsgId: msgId, errorMsg: null, sentAt: new Date() }).where(eq(mpBroadcasts.id, b.id));
