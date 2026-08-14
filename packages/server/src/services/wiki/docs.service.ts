@@ -12,6 +12,7 @@ import { WIKI_SETTING_KEYS } from '@zenith/shared/wiki';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
 import {
+  businessFiles,
   users,
   wikiComments,
   wikiDocFavorites,
@@ -19,6 +20,7 @@ import {
   wikiDocVersions,
   wikiDocViews,
   wikiDocs,
+  wikiSearchLogs,
   wikiSpaces,
   wikiTags,
   type WikiDocRow,
@@ -27,7 +29,8 @@ import { currentUser, currentUserId, setAuditBefore } from '../../lib/context';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { getConfigBoolean } from '../../lib/system-config';
 import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
-import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, keywordCondition, withPagination } from '../../lib/where-helpers';
+import { listBusinessFiles, saveBusinessFiles } from '../files/business-files.service';
 import { wikiDeletedDocVisibilityCondition, wikiDocStatusVisibilityCondition, wikiSpaceAccessCondition } from './access';
 import { removeWikiDocFromAiKb, syncPublishedWikiDocToAiKb } from './ai-sync.service';
 import { ensureSpaceRole, getMySpaceRole, spaceRoleAtLeast } from './spaces.service';
@@ -172,10 +175,11 @@ export async function getWikiDoc(id: number) {
   }
 
   const [extras] = await attachDocExtras([row], { spaceName: true });
-  const [favorited, favoriteCount, commentCount] = await Promise.all([
+  const [favorited, favoriteCount, commentCount, attachments] = await Promise.all([
     db.$count(wikiDocFavorites, and(eq(wikiDocFavorites.docId, id), eq(wikiDocFavorites.userId, currentUserId()))),
     db.$count(wikiDocFavorites, eq(wikiDocFavorites.docId, id)),
     db.$count(wikiComments, and(eq(wikiComments.docId, id), eq(wikiComments.status, 'visible'))),
+    listBusinessFiles('wiki_doc', id),
   ]);
 
   return {
@@ -184,6 +188,7 @@ export async function getWikiDoc(id: number) {
     favorited: favorited > 0,
     favoriteCount,
     commentCount,
+    attachments,
   };
 }
 
@@ -271,6 +276,7 @@ export async function createWikiDoc(data: CreateWikiDocInput) {
       tenantId: getCreateTenantId(currentUser()),
     }).returning();
     await setWikiDocTags(tx, created.id, data.tagIds);
+    if (data.fileIds.length > 0) await saveBusinessFiles(tx, 'wiki_doc', created.id, data.fileIds);
     await tx.insert(wikiDocVersions).values({
       docId: created.id,
       version: 1,
@@ -327,6 +333,7 @@ export async function updateWikiDoc(id: number, data: UpdateWikiDocInput) {
     }
 
     if (data.tagIds !== undefined) await setWikiDocTags(tx, id, data.tagIds);
+    if (data.fileIds !== undefined) await saveBusinessFiles(tx, 'wiki_doc', id, data.fileIds);
     if (contentChanged || titleChanged) {
       await tx.insert(wikiDocVersions).values({
         docId: id,
@@ -515,7 +522,11 @@ export async function purgeWikiDoc(id: number) {
   const row = await ensureWikiDocExists(id, { allowDeleted: true });
   if (row.deletedAt === null) throw new HTTPException(400, { message: '只能彻底删除回收站中的文档' });
   setAuditBefore(mapWikiDoc(row));
-  await db.delete(wikiDocs).where(eq(wikiDocs.id, id));
+  await db.transaction(async (tx) => {
+    // business_files 是多态关联，无 FK 级联，需随文档一并清理
+    await tx.delete(businessFiles).where(and(eq(businessFiles.businessType, 'wiki_doc'), eq(businessFiles.businessId, id)));
+    await tx.delete(wikiDocs).where(eq(wikiDocs.id, id));
+  });
   await removeWikiDocFromAiKb(id);
 }
 
@@ -564,4 +575,100 @@ export async function recordWikiDocView(docId: number) {
     db.insert(wikiDocViews).values({ docId, userId: currentUserId() }),
     db.update(wikiDocs).set({ viewCount: sql`${wikiDocs.viewCount} + 1` }).where(eq(wikiDocs.id, docId)),
   ]);
+}
+
+// ─── 全文检索与最近访问 ───────────────────────────────────────────────────────
+
+/** 从正文提取关键词命中片段（前后各 60 字符） */
+function extractSnippet(content: string, keyword: string): string {
+  const plain = content.replace(/[#>*`\-|[\]()]/g, ' ').replace(/\s+/g, ' ').trim();
+  const idx = plain.toLowerCase().indexOf(keyword.toLowerCase());
+  if (idx === -1) return plain.slice(0, 120);
+  const start = Math.max(0, idx - 60);
+  const end = Math.min(plain.length, idx + keyword.length + 60);
+  return `${start > 0 ? '…' : ''}${plain.slice(start, end)}${end < plain.length ? '…' : ''}`;
+}
+
+export interface SearchWikiDocsQuery {
+  page?: number;
+  pageSize?: number;
+  keyword: string;
+  spaceId?: number;
+  status?: WikiDocStatus;
+  tagId?: number;
+}
+
+/** 全文检索：标题 > 摘要 > 正文加权排序，返回命中片段；首页时写入搜索日志 */
+export async function searchWikiDocs(q: SearchWikiDocsQuery) {
+  const { page = 1, pageSize = 10 } = q;
+  const kw = q.keyword.trim();
+  let where = buildWikiDocWhere({ keyword: kw, spaceId: q.spaceId, status: q.status });
+  if (q.tagId !== undefined) {
+    where = and(
+      where,
+      inArray(wikiDocs.id, db.select({ id: wikiDocTags.docId }).from(wikiDocTags).where(eq(wikiDocTags.tagId, q.tagId))),
+    );
+  }
+
+  const pattern = `%${escapeLike(kw)}%`;
+  const rank = sql<number>`(
+    (case when ${wikiDocs.title} ilike ${pattern} then 4 else 0 end) +
+    (case when coalesce(${wikiDocs.summary}, '') ilike ${pattern} then 2 else 0 end) +
+    (case when ${wikiDocs.content} ilike ${pattern} then 1 else 0 end)
+  )`;
+
+  const [total, rows] = await Promise.all([
+    db.$count(wikiDocs, where),
+    withPagination(
+      db.select().from(wikiDocs).where(where)
+        .orderBy(desc(rank), desc(wikiDocs.updatedAt)).$dynamic(),
+      page,
+      pageSize,
+    ),
+  ]);
+
+  // 仅首页记录搜索日志，翻页不重复计数
+  if (page === 1) {
+    await db.insert(wikiSearchLogs).values({
+      keyword: kw.slice(0, 200),
+      resultCount: total,
+      userId: currentUserId(),
+      tenantId: getCreateTenantId(currentUser()),
+    });
+  }
+
+  const list = (await attachDocExtras(rows, { spaceName: true }))
+    .map((doc, i) => ({ ...doc, snippet: extractSnippet(rows[i].content, kw) }));
+  return { list, total, page, pageSize };
+}
+
+/** 搜索点击回报：把当前用户最近一条同关键词日志标记为已点击 */
+export async function reportWikiSearchClick(keyword: string, docId: number) {
+  const [latest] = await db.select({ id: wikiSearchLogs.id }).from(wikiSearchLogs)
+    .where(and(eq(wikiSearchLogs.userId, currentUserId()), eq(wikiSearchLogs.keyword, keyword.trim().slice(0, 200))))
+    .orderBy(desc(wikiSearchLogs.id))
+    .limit(1);
+  if (latest) {
+    await db.update(wikiSearchLogs).set({ clickedDocId: docId }).where(eq(wikiSearchLogs.id, latest.id));
+  }
+}
+
+/** 最近访问：按当前用户浏览记录去重取最近 N 篇（经访问边界过滤） */
+export async function listRecentWikiDocs(limit = 20) {
+  const recent = await db.select({
+    docId: wikiDocViews.docId,
+    lastViewedAt: sql<string>`max(${wikiDocViews.createdAt})`,
+  }).from(wikiDocViews)
+    .where(eq(wikiDocViews.userId, currentUserId()))
+    .groupBy(wikiDocViews.docId)
+    .orderBy(desc(sql`max(${wikiDocViews.createdAt})`))
+    .limit(limit);
+  if (recent.length === 0) return [];
+
+  const ids = recent.map((r) => r.docId);
+  const rows = await db.select().from(wikiDocs)
+    .where(buildWhere(inArray(wikiDocs.id, ids), buildWikiDocWhere({})));
+  const orderMap = new Map(ids.map((id, i) => [id, i]));
+  const sorted = [...rows].sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
+  return attachDocExtras(sorted, { spaceName: true });
 }

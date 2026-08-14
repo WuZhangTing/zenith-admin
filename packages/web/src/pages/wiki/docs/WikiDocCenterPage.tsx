@@ -9,14 +9,17 @@ import type { WikiComment, WikiDocTreeNode } from '@zenith/shared/wiki';
 import { WIKI_DOC_STATUS_LABELS } from '@zenith/shared/wiki';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import MarkdownPreviewPanel from '@/components/MarkdownPreviewPanel';
+import FileAttachment from '@/components/FileAttachment';
 import AppModal from '@/components/AppModal';
+import { KeywordInput } from '@/components/search-filters';
 import { usePermission } from '@/hooks/usePermission';
 import { useAuth } from '@/hooks/useAuth';
 import { confirmDelete } from '@/utils/confirm';
 import { useMyWikiSpaces } from '@/hooks/queries/wiki-spaces';
 import {
   useDeleteWikiDocs, useFavoriteWikiDoc, useMoveWikiDoc, useMyFavoriteWikiDocs,
-  useRecordWikiDocView, useSubmitWikiDoc, useWikiDocDetail, useWikiDocTree,
+  useRecentWikiDocs, useRecordWikiDocView, useReportWikiSearchClick, useSubmitWikiDoc,
+  useWikiDocDetail, useWikiDocList, useWikiDocSearch, useWikiDocTree,
 } from '@/hooks/queries/wiki-docs';
 import { useCreateWikiComment, useDeleteMyWikiComment, useWikiDocComments } from '@/hooks/queries/wiki-comments';
 
@@ -101,6 +104,8 @@ export default function WikiDocCenterPage() {
   const [moveParentId, setMoveParentId] = useState<number | null>(null);
   const [commentText, setCommentText] = useState('');
   const [replyTo, setReplyTo] = useState<WikiComment | null>(null);
+  const [searchDraft, setSearchDraft] = useState('');
+  const [searchKeyword, setSearchKeyword] = useState('');
 
   // ─── 数据 ─────────────────────────────────────────────────────────────────
   const spacesQuery = useMyWikiSpaces();
@@ -112,6 +117,9 @@ export default function WikiDocCenterPage() {
 
   const treeQuery = useWikiDocTree(effectiveSpaceId);
   const favoritesQuery = useMyFavoriteWikiDocs({ page: 1, pageSize: 50 }, masterTab === 'favorites');
+  const recentQuery = useRecentWikiDocs(masterTab === 'recent');
+  const myDocsQuery = useWikiDocList({ page: 1, pageSize: 50, mine: true }, masterTab === 'mine');
+  const searchQuery = useWikiDocSearch({ page: 1, pageSize: 30, keyword: searchKeyword }, masterTab === 'search');
   const docQuery = useWikiDocDetail(selectedDocId);
   const doc = docQuery.data;
   const commentsQuery = useWikiDocComments(selectedDocId, !!doc && doc.status === 'published');
@@ -124,11 +132,17 @@ export default function WikiDocCenterPage() {
   const viewMutation = useRecordWikiDocView();
   const createCommentMutation = useCreateWikiComment();
   const deleteCommentMutation = useDeleteMyWikiComment();
+  const searchClickMutation = useReportWikiSearchClick();
 
   function selectDoc(id: number) {
     setSelectedDocId(id);
     setShowDetailOnNarrow(true);
     viewMutation.mutate(id);
+  }
+
+  function selectSearchResult(id: number) {
+    if (searchKeyword) searchClickMutation.mutate({ keyword: searchKeyword, docId: id });
+    selectDoc(id);
   }
 
   function handleSubmitComment() {
@@ -257,6 +271,12 @@ export default function WikiDocCenterPage() {
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <MarkdownPreviewPanel content={doc.content ?? ''} style={{ height: 'auto', overflowY: 'visible' }} />
 
+        {doc.attachments?.length ? (
+          <div style={{ marginTop: 16, maxWidth: 720 }}>
+            <FileAttachment mode="view" value={doc.attachments} title={`附件（${doc.attachments.length}）`} />
+          </div>
+        ) : null}
+
         {doc.status === 'published' ? (
           <div style={{ marginTop: 24 }}>
             <Divider align="left"><MessageSquare size={14} style={{ verticalAlign: -2, marginRight: 4 }} />评论（{doc.commentCount ?? 0}）</Divider>
@@ -384,6 +404,84 @@ export default function WikiDocCenterPage() {
                       />
                     )}
                   />
+                </Tabs.TabPane>
+                <Tabs.TabPane tab="最近" itemKey="recent">
+                  <List
+                    loading={recentQuery.isFetching}
+                    dataSource={recentQuery.data ?? []}
+                    emptyContent={<Empty description="还没有浏览记录" />}
+                    renderItem={(item) => (
+                      <List.Item
+                        style={{ cursor: 'pointer', padding: '8px 8px' }}
+                        onClick={() => selectDoc(item.id)}
+                        main={(
+                          <div style={{ minWidth: 0 }}>
+                            <Text ellipsis={{ showTooltip: true }} style={{ width: '100%' }}>{item.title}</Text>
+                            <div><Text type="tertiary" size="small">{item.spaceName}</Text></div>
+                          </div>
+                        )}
+                      />
+                    )}
+                  />
+                </Tabs.TabPane>
+                <Tabs.TabPane tab="我的" itemKey="mine">
+                  <List
+                    loading={myDocsQuery.isFetching}
+                    dataSource={myDocsQuery.data?.list ?? []}
+                    emptyContent={<Empty description="还没有创建过文档" />}
+                    renderItem={(item) => (
+                      <List.Item
+                        style={{ cursor: 'pointer', padding: '8px 8px' }}
+                        onClick={() => selectDoc(item.id)}
+                        main={(
+                          <div style={{ minWidth: 0 }}>
+                            <Space spacing={4}>
+                              <Text ellipsis={{ showTooltip: true }}>{item.title}</Text>
+                              <Tag size="small" color={STATUS_TAG_COLOR[item.status]}>{WIKI_DOC_STATUS_LABELS[item.status]}</Tag>
+                            </Space>
+                            <div><Text type="tertiary" size="small">{item.spaceName} · {item.updatedAt}</Text></div>
+                          </div>
+                        )}
+                      />
+                    )}
+                  />
+                </Tabs.TabPane>
+                <Tabs.TabPane tab="搜索" itemKey="search">
+                  <div style={{ padding: '4px 0 8px' }}>
+                    <KeywordInput
+                      placeholder="搜索标题、摘要、正文..."
+                      style={{ width: '100%' }}
+                      value={searchDraft}
+                      onChange={setSearchDraft}
+                      onSearch={() => setSearchKeyword(searchDraft.trim())}
+                    />
+                  </div>
+                  {searchKeyword === '' ? (
+                    <Empty description="输入关键词后回车检索全部可访问空间" style={{ marginTop: 32 }} />
+                  ) : (
+                    <List
+                      loading={searchQuery.isFetching}
+                      dataSource={searchQuery.data?.list ?? []}
+                      emptyContent={<Empty description={`没有找到与「${searchKeyword}」相关的文档`} />}
+                      renderItem={(item) => (
+                        <List.Item
+                          style={{ cursor: 'pointer', padding: '8px 8px' }}
+                          onClick={() => selectSearchResult(item.id)}
+                          main={(
+                            <div style={{ minWidth: 0 }}>
+                              <Text ellipsis={{ showTooltip: true }} style={{ width: '100%' }}>{item.title}</Text>
+                              {item.snippet ? (
+                                <Text type="tertiary" size="small" ellipsis={{ rows: 2 }} style={{ width: '100%' }}>
+                                  {item.snippet}
+                                </Text>
+                              ) : null}
+                              <div><Text type="quaternary" size="small">{item.spaceName}</Text></div>
+                            </div>
+                          )}
+                        />
+                      )}
+                    />
+                  )}
                 </Tabs.TabPane>
               </Tabs>
             </MasterDetailLayout.Body>

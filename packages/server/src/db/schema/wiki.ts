@@ -77,6 +77,9 @@ export const wikiDocs = pgTable('wiki_docs', {
   index('wiki_docs_space_idx').on(t.spaceId),
   index('wiki_docs_parent_idx').on(t.parentId),
   index('wiki_docs_status_idx').on(t.status),
+  // pg_trgm：加速标题/正文 ILIKE 模糊检索（扩展在 0001_extensions.sql 已启用）
+  index('wiki_docs_title_trgm_idx').using('gin', t.title.op('gin_trgm_ops')),
+  index('wiki_docs_content_trgm_idx').using('gin', t.content.op('gin_trgm_ops')),
 ]);
 
 export type WikiDocRow = typeof wikiDocs.$inferSelect;
@@ -166,3 +169,20 @@ export const wikiDocViews = pgTable('wiki_doc_views', {
 ]);
 
 export type WikiDocViewRow = typeof wikiDocViews.$inferSelect;
+
+/** 搜索日志（追加型，供无结果关键词与搜索成功率统计） */
+export const wikiSearchLogs = pgTable('wiki_search_logs', {
+  id: serial('id').primaryKey(),
+  keyword: varchar('keyword', { length: 200 }).notNull(),
+  resultCount: integer('result_count').notNull().default(0),
+  /** 用户点击进入的文档；null = 未点击（无结果或未选中） */
+  clickedDocId: integer('clicked_doc_id').references(() => wikiDocs.id, { onDelete: 'set null' }),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('wiki_search_logs_created_idx').on(t.createdAt),
+  index('wiki_search_logs_keyword_idx').on(t.keyword),
+]);
+
+export type WikiSearchLogRow = typeof wikiSearchLogs.$inferSelect;

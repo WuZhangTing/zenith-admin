@@ -34,6 +34,23 @@ export interface WikiSpaceMember {
 
 // ─── 文档 ─────────────────────────────────────────────────────────────────────
 
+/** 文档附件（business_files 多态关联） */
+export interface WikiDocAttachment {
+  id: number;
+  fileId: string;
+  file: {
+    id: string;
+    originalName: string;
+    size: number;
+    mimeType: string | null;
+    extension: string | null;
+    url: string;
+    directUrl?: string | null;
+  };
+  sortOrder: number;
+  createdAt: string;
+}
+
 export interface WikiDoc {
   id: number;
   spaceId: number;
@@ -55,6 +72,10 @@ export interface WikiDoc {
   deletedAt?: string | null;
   tags?: WikiTag[];
   tagIds?: number[];
+  /** 附件（详情接口返回，复用 business_files） */
+  attachments?: WikiDocAttachment[];
+  /** 搜索接口返回：正文命中片段 */
+  snippet?: string;
   /** 当前用户是否已收藏（详情接口附加） */
   favorited?: boolean;
   favoriteCount?: number;

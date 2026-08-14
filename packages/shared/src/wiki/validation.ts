@@ -37,6 +37,7 @@ export const createWikiDocSchema = z.object({
   summary: z.string().max(500).optional(),
   content: z.string().default(''),
   tagIds: z.array(z.number().int()).default([]),
+  fileIds: z.array(z.string().uuid()).default([]),
 });
 
 export const updateWikiDocSchema = z.object({
@@ -44,6 +45,7 @@ export const updateWikiDocSchema = z.object({
   summary: z.string().max(500).nullable().optional(),
   content: z.string().optional(),
   tagIds: z.array(z.number().int()).optional(),
+  fileIds: z.array(z.string().uuid()).optional(),
   sort: z.number().int().optional(),
   isPinned: z.boolean().optional(),
   /** 版本说明；正文变更时写入版本历史 */

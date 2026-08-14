@@ -152,6 +152,31 @@ const spaceHandlers = [
 // ─── 文档 ─────────────────────────────────────────────────────────────────────
 
 const docHandlers = [
+  http.get('/api/wiki/docs/search', ({ request }) => {
+    const url = new URL(request.url);
+    const keyword = (url.searchParams.get('keyword') || '').toLowerCase();
+    const spaceId = url.searchParams.get('spaceId');
+    const tagId = url.searchParams.get('tagId');
+    let list = mockWikiDocs.filter((d) => !d.deletedAt);
+    if (keyword) {
+      list = list.filter((d) => d.title.toLowerCase().includes(keyword)
+        || (d.summary ?? '').toLowerCase().includes(keyword)
+        || d.content.toLowerCase().includes(keyword));
+    }
+    if (spaceId) list = list.filter((d) => d.spaceId === Number(spaceId));
+    if (tagId) list = list.filter((d) => d.tagIds.includes(Number(tagId)));
+    const withSnippet = list.map((d) => ({
+      ...toListDoc(d),
+      snippet: d.content.replace(/[#>*`\-|[\]()]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120),
+    }));
+    return ok(paginate(withSnippet, url));
+  }),
+
+  http.post('/api/wiki/docs/search/click', () => ok(null)),
+
+  http.get('/api/wiki/docs/recent', () =>
+    ok(mockWikiDocs.filter((d) => !d.deletedAt && d.status === 'published').slice(0, 5).map(toListDoc))),
+
   http.get('/api/wiki/docs/tree', ({ request }) => {
     const url = new URL(request.url);
     const spaceId = Number(url.searchParams.get('spaceId'));

@@ -158,7 +158,7 @@ export type UploadChunkRow = typeof uploadChunks.$inferSelect;
 export type NewUploadChunk = typeof uploadChunks.$inferInsert;
 
 // ─── 业务文件关联表（通用，多态关联）─────────────────────────────────────────
-export const businessTypeEnum = pgEnum('business_type', ['announcement']);
+export const businessTypeEnum = pgEnum('business_type', ['announcement', 'wiki_doc']);
 
 export const businessFiles = pgTable('business_files', {
   id: serial('id').primaryKey(),

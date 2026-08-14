@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Banner, Button, Input, Modal, Select, Space, Spin, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import { ArrowLeft, Eye, EyeOff, Save, Send } from 'lucide-react';
 import MarkdownPreviewPanel from '@/components/MarkdownPreviewPanel';
+import FileAttachment, { type AttachmentItem } from '@/components/FileAttachment';
 import { ApiError } from '@/lib/query';
 import './WikiDocEditPage.css';
 import { useAllWikiTags } from '@/hooks/queries/wiki-tags';
@@ -40,6 +41,7 @@ export default function WikiDocEditPage() {
   const [summary, setSummary] = useState('');
   const [content, setContent] = useState('');
   const [tagIds, setTagIds] = useState<number[]>([]);
+  const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [changeNote, setChangeNote] = useState('');
   const [showPreview, setShowPreview] = useState(true);
   const [dirty, setDirty] = useState(false);
@@ -77,6 +79,7 @@ export default function WikiDocEditPage() {
     setSummary(doc.summary ?? '');
     setContent(doc.content ?? '');
     setTagIds(doc.tagIds ?? []);
+    setAttachments((doc.attachments ?? []) as AttachmentItem[]);
     setDirty(false);
     setPendingDraft(readDraft());
   }, [id, detailQuery.data, readDraft]);
@@ -158,9 +161,10 @@ export default function WikiDocEditPage() {
       Toast.warning('请填写文档标题');
       return null;
     }
+    const fileIds = attachments.map((a) => a.fileId);
     const values = id
-      ? { title: title.trim(), summary: summary || null, content, tagIds, changeNote: changeNote || undefined, revision: revisionRef.current }
-      : { spaceId: spaceIdParam, parentId: parentIdParam ?? null, title: title.trim(), summary: summary || undefined, content, tagIds };
+      ? { title: title.trim(), summary: summary || null, content, tagIds, fileIds, changeNote: changeNote || undefined, revision: revisionRef.current }
+      : { spaceId: spaceIdParam, parentId: parentIdParam ?? null, title: title.trim(), summary: summary || undefined, content, tagIds, fileIds };
     try {
       const saved = await saveMutation.mutateAsync({ id, values });
       revisionRef.current = saved.revision;
@@ -316,6 +320,16 @@ export default function WikiDocEditPage() {
           </>
         )}
       </div>
+
+      {/* 附件 */}
+      <FileAttachment
+        mode="edit"
+        title="附件"
+        value={attachments}
+        onChange={(items) => { setAttachments(items); markDirty(); }}
+        limit={10}
+        maxSizeMB={50}
+      />
     </div>
   );
 }

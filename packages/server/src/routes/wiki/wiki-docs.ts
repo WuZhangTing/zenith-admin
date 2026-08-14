@@ -12,9 +12,9 @@ import {
 import { WikiDocDTO, WikiDocTreeNodeDTO, WikiDocVersionDTO } from '../../lib/openapi-dtos';
 import {
   createWikiDoc, deleteWikiDoc, ensureWikiDocExists, favoriteWikiDoc, getWikiDoc,
-  getWikiDocTree, getWikiDocVersion, listMyFavoriteWikiDocs, listWikiDocVersions,
-  listWikiDocs, mapWikiDoc, moveWikiDoc, purgeWikiDoc, recordWikiDocView,
-  restoreWikiDoc, reviewWikiDoc, rollbackWikiDoc, submitWikiDoc, updateWikiDoc,
+  getWikiDocTree, getWikiDocVersion, listMyFavoriteWikiDocs, listRecentWikiDocs, listWikiDocVersions,
+  listWikiDocs, mapWikiDoc, moveWikiDoc, purgeWikiDoc, recordWikiDocView, reportWikiSearchClick,
+  restoreWikiDoc, reviewWikiDoc, rollbackWikiDoc, searchWikiDocs, submitWikiDoc, updateWikiDoc,
 } from '../../services/wiki/docs.service';
 
 const docsRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -44,6 +44,60 @@ const listRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...okPaginated(WikiDocDTO, 'ok') },
   }),
   handler: async (c) => c.json(okBody(await listWikiDocs(c.req.valid('query'))), 200),
+});
+
+const searchRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/search',
+    tags: ['知识中心-文档'], summary: '全文检索（标题>摘要>正文加权，返回命中片段）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'wiki:doc:list' })] as const,
+    request: {
+      query: PaginationQuery.extend({
+        keyword: z.string().min(1).openapi({ param: { name: 'keyword', in: 'query' }, example: '入职' }),
+        spaceId: z.coerce.number().int().positive().optional(),
+        status: z.enum(WIKI_DOC_STATUSES).optional(),
+        tagId: z.coerce.number().int().positive().optional(),
+      }),
+    },
+    responses: { ...commonErrorResponses, ...okPaginated(WikiDocDTO, '检索结果') },
+  }),
+  handler: async (c) => c.json(okBody(await searchWikiDocs(c.req.valid('query'))), 200),
+});
+
+const searchClickRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/search/click',
+    tags: ['知识中心-文档'], summary: '搜索点击回报（统计搜索成功率）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'wiki:doc:list' })] as const,
+    request: {
+      body: {
+        content: jsonContent(z.object({
+          keyword: z.string().min(1).max(200),
+          docId: z.number().int().positive(),
+        })),
+        required: true,
+      },
+    },
+    responses: { ...commonErrorResponses, ...okMsg('ok') },
+  }),
+  handler: async (c) => {
+    const { keyword, docId } = c.req.valid('json');
+    await reportWikiSearchClick(keyword, docId);
+    return c.json(okBody(null), 200);
+  },
+});
+
+const recentRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/recent',
+    tags: ['知识中心-文档'], summary: '最近访问的文档',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'wiki:doc:list' })] as const,
+    responses: { ...commonErrorResponses, ...ok(z.array(WikiDocDTO), '最近访问') },
+  }),
+  handler: async (c) => c.json(okBody(await listRecentWikiDocs()), 200),
 });
 
 const treeRoute = defineOpenAPIRoute({
@@ -358,6 +412,9 @@ const purgeRoute = defineOpenAPIRoute({
 
 docsRouter.openapiRoutes([
   listRoute,
+  searchRoute,
+  searchClickRoute,
+  recentRoute,
   treeRoute,
   favoritesRoute,
   recycleRoute,

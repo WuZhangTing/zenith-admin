@@ -47,6 +47,15 @@ export const wikiDocRecycleKeys = {
   list: (params: unknown) => ['wiki-doc-recycle', params] as const,
 };
 
+/** 全文检索（独立前缀：结果集昂贵且与列表生命周期无关） */
+export const wikiDocSearchKeys = {
+  all: ['wiki-doc-search'] as const,
+  list: (params: unknown) => ['wiki-doc-search', params] as const,
+};
+
+/** 最近访问（浏览行为驱动，浏览上报后失效） */
+export const wikiDocRecentKey = ['wiki-doc-recent'] as const;
+
 export const {
   keys: wikiDocKeys,
   useList: useWikiDocList,
@@ -95,6 +104,38 @@ export function useWikiDocRecycleList(params: WikiDocListParams) {
     queryKey: wikiDocRecycleKeys.list(params),
     queryFn: () => request.get<PaginatedResponse<WikiDoc>>(`/api/wiki/docs/recycle${toQueryString(params)}`).then(unwrap),
     placeholderData: keepPreviousData,
+  });
+}
+
+export interface WikiDocSearchParams extends CrudListParams {
+  keyword: string;
+  spaceId?: number;
+  status?: string;
+  tagId?: number;
+}
+
+export function useWikiDocSearch(params: WikiDocSearchParams, enabled = true) {
+  return useQuery({
+    queryKey: wikiDocSearchKeys.list(params),
+    queryFn: () => request.get<PaginatedResponse<WikiDoc>>(`/api/wiki/docs/search${toQueryString(params)}`).then(unwrap),
+    placeholderData: keepPreviousData,
+    enabled: enabled && params.keyword.trim().length > 0,
+  });
+}
+
+/** 搜索点击回报：纯统计上报，不触发任何失效 */
+export function useReportWikiSearchClick() {
+  return useMutation({
+    mutationFn: ({ keyword, docId }: { keyword: string; docId: number }) =>
+      request.post<null>('/api/wiki/docs/search/click', { keyword, docId }).then(unwrap),
+  });
+}
+
+export function useRecentWikiDocs(enabled = true) {
+  return useQuery({
+    queryKey: wikiDocRecentKey,
+    queryFn: () => request.get<WikiDoc[]>('/api/wiki/docs/recent').then(unwrap),
+    enabled,
   });
 }
 
@@ -171,10 +212,14 @@ export function useFavoriteWikiDoc() {
   });
 }
 
-/** 浏览上报：viewCount 允许陈旧，不做任何失效 */
+/** 浏览上报：viewCount 允许陈旧，仅失效「最近访问」 */
 export function useRecordWikiDocView() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.post<null>(`/api/wiki/docs/${id}/view`).then(unwrap),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: wikiDocRecentKey });
+    },
   });
 }
 
