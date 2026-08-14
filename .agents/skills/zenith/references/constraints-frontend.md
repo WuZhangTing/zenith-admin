@@ -9,7 +9,7 @@
 | mutation 失效、query key、下拉源、回填 | [缓存与 query key](#缓存与-query-key) |
 | 搜索栏、筛选控件、表格与操作列 | [搜索栏与表格](#搜索栏与表格) |
 | 弹窗表单、枚举标签、上传、时区、进度条、滑块、分割线 | [表单与展示组件](#表单与展示组件) |
-| 多 Tab、左右分栏、统计卡、栅格、抽屉宽度 | [布局与响应式](#布局与响应式) |
+| 多 Tab、左右分栏、统计卡、栅格、抽屉宽度、行内成组间距 | [布局与响应式](#布局与响应式) |
 
 ---
 
@@ -192,5 +192,23 @@
   **不适用**：固定像素列的标签 / 值布局、等分小方块缩略图、本身处于固定宽容器内的微指标
 - **抽屉 / 弹窗宽度**：窄屏适配已由 `global.css` 全局兜底，**无需**再写
   `width={isMobile ? '100%' : 720}`——该判断在所有区间都被全局规则覆盖，是无效代码
+- **行内成组间距用 `Space`；禁止拿它改写已有的 flex 布局**：新写「图标 + 文字」
+  「头像 + 姓名」「若干小按钮」这类行内成组时用 `<Space spacing={n}>`（表格操作列固定
+  `spacing={4}`，见 [ui-patterns.md → 度量常量](./ui-patterns.md#度量常量)）。
+  已有的 `style={{ display: 'flex', gap }}` **一律不动**——`Space` 只吸收 `display` /
+  `gap` / `alignItems` / `flexDirection` / `flexWrap` 五个属性，换不掉的情况占绝大多数：
+
+  | 情况 | 为什么不能换 |
+  | --- | --- |
+  | 样式里有 `justifyContent` | `Space` **没有** `justify` prop，`space-between` / 靠右都表达不了 |
+  | 原本是块级 `display: 'flex'` | `Space` 是 `inline-flex`，会从撑满变收缩包裹；补 `style={{ display: 'flex' }}` 等于把省下的又写回去 |
+  | 还留着 `padding` / `margin` / 背景 / 字号 | `style` 照样在，只少三个属性，收益不抵回归风险 |
+  | 元素带 `aria-*` | `Space` 只透传 `data-*`（`getDataAttr`），`aria-label` 会被**静默丢掉** |
+  | flex 样式挂在 `Typography.Text` 等组件上 | 换 `Space` 要么丢组件语义，要么多套一层，反而更长 |
+
+  两处默认值差异必须显式处理：`Space` 默认 `align="center"`，而原生 flex 不写 `alignItems`
+  时是 `stretch`——纵向布局下 `stretch`（子元素撑满宽度）与 `center` 观感完全不同，
+  这种情况传 `align="start"`。`spacing` 预设只有 `tight` 8 / `medium` 16 / `loose` 24，
+  其余直接写 `spacing={6}` 这类数字；`flexWrap: 'nowrap'` 无需映射（`Space` 默认即不换行）
 
 ---
