@@ -321,7 +321,7 @@ export default function ChatBotsPage() {
           />
           <Form.Input field="avatar" label="头像" placeholder="请输入头像 URL（可选）" />
           <Form.TextArea field="description" label="描述" placeholder="请输入描述（可选）" autosize={{ minRows: 3, maxRows: 5 }} />
-          <Form.Switch field="enabled" label="状态" checkedText="启用" uncheckedText="停用" />
+          <Form.Switch field="enabled" label="状态" />
         </Form>
       </AppModal>
 

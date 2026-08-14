@@ -1205,13 +1205,10 @@ export default function FrontendErrorsPage() {
               title="堆栈"
               style={{ width: '100%' }}
               headerExtraContent={detail.symbolicatedStack ? (
-                <Switch
-                  size="small"
-                  checked={showSymbolicated}
-                  checkedText="源码还原"
-                  uncheckedText="原始堆栈"
-                  onChange={setShowSymbolicated}
-                />
+                <Space spacing={8}>
+                  <Text size="small" type="tertiary">{showSymbolicated ? '源码还原' : '原始堆栈'}</Text>
+                  <Switch size="small" checked={showSymbolicated} onChange={setShowSymbolicated} />
+                </Space>
               ) : null}
             >
               <TextBlock>{activeStack}</TextBlock>

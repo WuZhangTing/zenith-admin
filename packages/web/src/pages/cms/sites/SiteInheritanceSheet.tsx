@@ -3,11 +3,13 @@
  * 展示有效值来源（继承自哪个父级 / 本站）与继承链。
  */
 import { useEffect, useState } from 'react';
-import { Banner, Button, SideSheet, Switch, Tag, Toast } from '@douyinfe/semi-ui';
+import { Banner, Button, SideSheet, Space, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import { useCmsSiteEffectiveConfig, useCmsSiteInheritanceChain, useUpdateCmsSiteInheritance } from '@/hooks/queries/cms-stage5';
 import { CMS_SITE_INHERITABLE_FIELD_LABELS, CMS_SITE_INHERITABLE_FIELDS } from '@zenith/shared/cms';
 import type { CmsSite, CmsSiteInheritanceFlags } from '@zenith/shared/cms';
 import { displayEffectiveValue } from './site-tree-utils';
+
+const { Text } = Typography;
 
 const EMPTY_INHERITANCE: CmsSiteInheritanceFlags = {
   seoTitle: false,
@@ -105,13 +107,14 @@ export default function SiteInheritanceSheet({ site, onClose }: Readonly<SiteInh
               }}
             >
               <b>{CMS_SITE_INHERITABLE_FIELD_LABELS[field]}</b>
-              <Switch
-                checked={draft[field]}
-                disabled={site?.parentId == null}
-                checkedText="继承"
-                uncheckedText="覆盖"
-                onChange={(checked) => setDraft((value) => ({ ...value, [field]: checked }))}
-              />
+              <Space spacing={8}>
+                <Switch
+                  checked={draft[field]}
+                  disabled={site?.parentId == null}
+                  onChange={(checked) => setDraft((value) => ({ ...value, [field]: checked }))}
+                />
+                <Text size="small" type="tertiary">{draft[field] ? '继承' : '覆盖'}</Text>
+              </Space>
               <Tag color={source?.kind === 'inherited' ? 'blue' : 'green'} size="small">
                 {source?.kind === 'inherited'
                   ? `继承：${source.siteName ?? '受限父级'}`
