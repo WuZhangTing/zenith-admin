@@ -28,7 +28,7 @@
 }
 
 body[theme-mode='dark'] .fd-canvas {
-  --fd-canvas-bg: var(--semi-color-bg-0);
+  --fd-canvas-bg: var(--color-content-bg);
   --fd-canvas-dot: var(--semi-color-border);
   --fd-line-color: var(--semi-color-border);
   --fd-end-bg: var(--semi-color-fill-1);
@@ -697,7 +697,7 @@ body[theme-mode='dark'] .fd-node-card:hover {
   overflow: hidden;
   border: 1px solid var(--semi-color-border);
   border-radius: var(--semi-border-radius-medium);
-  background: var(--semi-color-bg-0);
+  background: var(--semi-color-bg-1);
 }
 
 .fd-simulation-graph__toolbar {
@@ -734,7 +734,7 @@ body[theme-mode='dark'] .fd-node-card:hover {
   min-width: 0;
   padding: 8px;
   border-bottom: 1px solid var(--semi-color-border);
-  background: var(--semi-color-bg-0);
+  background: var(--semi-color-bg-1);
 }
 
 .fd-simulation-graph__viewport {
@@ -1092,7 +1092,7 @@ body[theme-mode='dark'] .fd-node-card:hover {
 }
 
 body[theme-mode='dark'] .fd-simulation-graph__canvas {
-  --fd-canvas-bg: var(--semi-color-bg-0);
+  --fd-canvas-bg: var(--semi-color-bg-1);
   --fd-canvas-dot: var(--semi-color-border);
   --fd-line-color: var(--semi-color-border);
   --fd-end-bg: var(--semi-color-fill-1);
@@ -1716,7 +1716,7 @@ body[theme-mode='dark'] .fd-branch-banner--inclusive {
   align-items: flex-start;
   overflow-y: auto;
   padding: 40px 16px;
-  background: var(--semi-color-bg-0);
+  background: var(--color-content-bg);
 }
 
 .fd-basic-info__inner {
