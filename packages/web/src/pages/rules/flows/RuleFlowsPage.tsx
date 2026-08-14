@@ -26,6 +26,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
+import { JsonBlock } from '@/components/JsonBlock';
 
 const { Text } = Typography;
 
@@ -194,7 +195,7 @@ export default function RuleFlowsPage() {
           <div style={{ marginTop: 16, display: 'grid', gap: 12 }}>
             <div>
               <Text strong>最终输出</Text>
-              <pre style={{ margin: '6px 0 0', padding: 8, background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)', whiteSpace: 'pre-wrap', fontSize: 12 }}>{JSON.stringify(testResult.outputs, null, 2)}</pre>
+              <JsonBlock value={testResult.outputs} style={{ marginTop: 6 }} />
             </div>
             <Text strong>步骤 Trace</Text>
             <List

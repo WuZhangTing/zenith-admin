@@ -23,6 +23,7 @@ import {
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { useListSearch } from '@/hooks/useListSearch';
+import { JsonBlock } from '@/components/JsonBlock';
 
 const STATUS_MAP: Record<WorkflowTriggerExecutionStatus, { label: string; color: 'grey' | 'blue' | 'green' | 'red' | 'orange' }> = {
   pending: { label: '待执行', color: 'grey' },
@@ -261,9 +262,7 @@ function CodeBlock({ label, content }: Readonly<{ label: string; content: string
   return (
     <div>
       <Typography.Text type="tertiary" size="small">{label}</Typography.Text>
-      <pre style={{ background: 'var(--semi-color-fill-0)', padding: 12, borderRadius: 'var(--semi-border-radius-small)', marginTop: 4, maxHeight: 320, overflow: 'auto' }}>
-        {pretty}
-      </pre>
+      <JsonBlock value={pretty} maxHeight={320} style={{ marginTop: 4 }} />
     </div>
   );
 }

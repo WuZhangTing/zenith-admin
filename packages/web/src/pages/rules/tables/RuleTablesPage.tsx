@@ -44,6 +44,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
+import { JsonBlock } from '@/components/JsonBlock';
 
 const { Text } = Typography;
 
@@ -789,7 +790,7 @@ export default function RuleTablesPage() {
               {!testResult.matched && testResult.reason === 'any_conflict' && <Text type="danger" size="small">any 策略要求多命中行输出一致，冲突行：{testResult.matchedRowIds.join(', ')}</Text>}
               <Button size="small" theme="borderless" icon={<Save size={14} />} loading={saveCurrentTestAsCaseMutation.isPending} onClick={saveCurrentTestAsCase}>保存为用例</Button>
             </Space>
-            <pre style={{ margin: '8px 0 0', whiteSpace: 'pre-wrap' }}>{sample(testResult.outputs, null, 2)}</pre>
+            <JsonBlock value={testResult.outputs} style={{ marginTop: 8 }} />
             {testExplanations.length > 0 && (
               <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
                 <Text strong>命中解释</Text>

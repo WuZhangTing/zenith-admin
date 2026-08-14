@@ -19,6 +19,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { ASYNC_TASK_STATUS_TAG_MAP as statusTagMap, ASYNC_TASK_ITEM_STATUS_TAG_MAP as itemStatusTagMap } from '@/utils/async-task';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { useBizTaskDemoAction, useBizTaskDemoItems, useBizTaskDemoTypes, useSubmitTaskDemo } from '@/hooks/queries/biz-pay-demo';
+import { JsonBlock } from '@/components/JsonBlock';
 
 const DEMO_TASK_TYPES = ['demo-batch', 'demo-serial'];
 
@@ -137,7 +138,7 @@ export default function TaskDemoPage() {
     Modal.info({
       title: `任务结果 #${record.id}`,
       content: (
-        <pre style={codeStyle}>{JSON.stringify(record.result ?? record.errorMessage ?? '-', null, 2)}</pre>
+        <JsonBlock value={record.result ?? record.errorMessage ?? '-'} />
       ),
       okText: '知道了',
     });

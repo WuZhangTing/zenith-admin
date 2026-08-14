@@ -16,6 +16,7 @@ import { ANALYTICS_QUALITY_ISSUE_TYPE_LABELS } from '@zenith/shared/analytics';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { JsonBlock } from '@/components/JsonBlock';
 
 const DEBUG_LIMIT = 50;
 
@@ -132,9 +133,7 @@ export default function AnalyticsDebugTab({ active }: Readonly<{ active: boolean
             </div>
             <div>
               <Typography.Text strong>属性：</Typography.Text>
-              <pre style={{ margin: '8px 0 0', padding: 12, borderRadius: 'var(--semi-border-radius-medium)', background: 'var(--semi-color-fill-0)', overflow: 'auto' }}>
-                {JSON.stringify(detailRecord.properties ?? {}, null, 2)}
-              </pre>
+              <JsonBlock value={detailRecord.properties ?? {}} style={{ marginTop: 8 }} />
             </div>
           </div>
         )}

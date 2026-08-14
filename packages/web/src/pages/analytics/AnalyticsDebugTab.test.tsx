@@ -19,6 +19,12 @@ vi.mock('@/hooks/queries/analytics', () => ({
   useAnalyticsDebugEvents: (...args: unknown[]) => useAnalyticsDebugEventsMock(...args),
 }));
 
+// JsonBlock 内部是 Semi JsonViewer（虚拟化编辑器 + Web Worker 语言服务），jsdom 下不产出文本节点。
+// 本用例要验证的是「详情面板拿到了正确的属性对象」这一页面行为，不是渲染器实现，故用替身还原成文本。
+vi.mock('@/components/JsonBlock', () => ({
+  JsonBlock: ({ value }: { value: unknown }) => <pre>{JSON.stringify(value, null, 2)}</pre>,
+}));
+
 import AnalyticsDebugTab from './AnalyticsDebugTab';
 
 function renderWithPreferences(ui: React.ReactElement) {

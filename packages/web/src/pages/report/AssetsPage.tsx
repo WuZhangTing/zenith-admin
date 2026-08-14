@@ -38,6 +38,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
+import { JsonBlock } from '@/components/JsonBlock';
 
 const resourceTypeOptions = REPORT_RESOURCE_TYPE_OPTIONS;
 const templateTypeOptions = [
@@ -400,7 +401,7 @@ export default function AssetsPage() {
 
       <SideSheet title={`模板预览：${previewTemplate?.name ?? ''}`} visible={!!previewTemplate} width={640} onCancel={() => setPreviewTemplate(null)}>
         <Banner type="info" description="以下为模板安全预览，不会创建或修改任何资源。" />
-        <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{previewTemplate ? JSON.stringify(previewTemplate.content, null, 2) : ''}</pre>
+        <JsonBlock value={previewTemplate ? previewTemplate.content : ''} style={{ marginTop: 12 }} maxHeight={480} />
       </SideSheet>
     </div>
   );

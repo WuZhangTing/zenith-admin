@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import type { CSSProperties } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Form, Select, Space, Spin, Switch, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -26,6 +25,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { JsonBlock } from '@/components/JsonBlock';
 
 const EVENT_OPTIONS = [
   { value: 'payment.succeeded', label: '支付成功' },
@@ -35,10 +35,6 @@ const EVENT_OPTIONS = [
   { value: 'refund.failed', label: '退款失败' },
 ];
 const DELIVERY_STATUS_COLOR = { pending: 'grey', success: 'green', failed: 'red' } as const satisfies Record<PaymentWebhookDelivery['status'], string>;
-const codeBlockStyle: CSSProperties = {
-  maxHeight: 260, overflow: 'auto', fontSize: 12, background: 'var(--semi-color-fill-0)',
-  padding: 12, borderRadius: 'var(--semi-border-radius-small)', wordBreak: 'break-all', whiteSpace: 'pre-wrap', margin: 0,
-};
 
 interface EndpointSearchParams { keyword: string; status: string; }
 const defaultEndpointSearch: EndpointSearchParams = { keyword: '', status: '' };
@@ -330,15 +326,15 @@ export default function PaymentWebhooksPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
               <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>Payload</Typography.Text>
-              <pre style={codeBlockStyle}>{formatRaw(detailDelivery.payload)}</pre>
+              <JsonBlock value={formatRaw(detailDelivery.payload)} />
             </div>
             <div>
               <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>Response Body</Typography.Text>
-              <pre style={codeBlockStyle}>{formatRaw(detailDelivery.responseBody)}</pre>
+              <JsonBlock value={formatRaw(detailDelivery.responseBody)} />
             </div>
             <div>
               <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>Last Error</Typography.Text>
-              <pre style={codeBlockStyle}>{formatRaw(detailDelivery.lastError)}</pre>
+              <JsonBlock value={formatRaw(detailDelivery.lastError)} />
             </div>
           </div>
         )}

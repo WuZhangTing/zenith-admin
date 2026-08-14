@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
-import type { CSSProperties } from 'react';
 import { Modal, Select, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -15,6 +14,7 @@ import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { compactQuery } from '@/lib/query';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { JsonBlock } from '@/components/JsonBlock';
 
 interface SearchParams { keyword: string; channel: string; scene: string; signatureValid: string; timeRange: [Date, Date] | null; }
 const defaultSearch: SearchParams = { keyword: '', channel: '', scene: '', signatureValid: '', timeRange: null };
@@ -24,13 +24,7 @@ function formatRaw(raw: string | null | undefined): string {
   try { return JSON.stringify(JSON.parse(raw), null, 2); } catch { return raw; }
 }
 
-const codeBlockStyle: CSSProperties = {
-  maxHeight: 260, overflow: 'auto', fontSize: 12, background: 'var(--semi-color-fill-0)',
-  padding: 12, borderRadius: 'var(--semi-border-radius-small)', wordBreak: 'break-all', whiteSpace: 'pre-wrap', margin: 0,
-};
-
-export default function PaymentLogsPage() {
-  const {
+export default function PaymentLogsPage() {  const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
@@ -174,12 +168,12 @@ export default function PaymentLogsPage() {
             {detailLog.headers && (
               <div>
                 <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>请求头</Typography.Text>
-                <pre style={codeBlockStyle}>{formatRaw(detailLog.headers)}</pre>
+                <JsonBlock value={formatRaw(detailLog.headers)} />
               </div>
             )}
             <div>
               <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>原始 Body</Typography.Text>
-              <pre style={codeBlockStyle}>{formatRaw(detailLog.rawBody) || '（无）'}</pre>
+              <JsonBlock value={formatRaw(detailLog.rawBody) || '（无）'} />
             </div>
           </div>
         )}

@@ -12,6 +12,7 @@ import { formatDateTimeRangeValuesForApi } from '@/utils/date';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { JsonBlock } from '@/components/JsonBlock';
 
 const { Text } = Typography;
 
@@ -121,11 +122,11 @@ export default function RuleExecutionsPage() {
             </div>
             <div>
               <Text strong size="small">输入</Text>
-              <pre style={{ margin: '4px 0 0', padding: 8, background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)', whiteSpace: 'pre-wrap', fontSize: 12 }}>{JSON.stringify(detail.input, null, 2)}</pre>
+              <JsonBlock value={detail.input} style={{ marginTop: 4 }} />
             </div>
             <div>
               <Text strong size="small">输出</Text>
-              <pre style={{ margin: '4px 0 0', padding: 8, background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)', whiteSpace: 'pre-wrap', fontSize: 12 }}>{JSON.stringify(detail.outputs, null, 2)}</pre>
+              <JsonBlock value={detail.outputs} style={{ marginTop: 4 }} />
             </div>
           </div>
         )}

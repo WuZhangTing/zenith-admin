@@ -56,6 +56,24 @@ class ResizeObserver {
 }
 window.ResizeObserver = ResizeObserver;
 
+// jsdom 未实现 Web Worker，Semi JsonViewer 的语言服务（校验 / 格式化）会在挂载时构造 Worker，
+// 缺失会直接抛 ReferenceError 导致整个用例挂掉。语言服务不参与文本渲染，故空实现即可。
+class WorkerStub implements Partial<Worker> {
+  onmessage = null;
+  onmessageerror = null;
+  onerror = null;
+  postMessage() {}
+  terminate() {}
+  addEventListener() {}
+  removeEventListener() {}
+  dispatchEvent() { return false; }
+}
+window.Worker = WorkerStub as unknown as typeof Worker;
+if (!URL.createObjectURL) {
+  URL.createObjectURL = () => 'blob:stub';
+  URL.revokeObjectURL = () => {};
+}
+
 // jsdom 未实现 Range.getBoundingClientRect/getClientRects，Semi Typography 的 ellipsis 测量逻辑依赖它们
 // （异步 rAF/microtask 中调用，测试卸载后仍可能触发，未 polyfill 会产生 unhandled rejection 噪音）。
 Range.prototype.getBoundingClientRect = () => ({

@@ -35,6 +35,7 @@ import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { confirmDelete } from '@/utils/confirm';
+import { JsonBlock } from '@/components/JsonBlock';
 
 type TabKey = 'tasks' | 'types' | 'stats';
 
@@ -84,15 +85,7 @@ const EMPTY_ITEMS: AsyncTaskItem[] = [];
 
 function renderJson(value: Record<string, unknown> | null) {
   if (!value || Object.keys(value).length === 0) return <Typography.Text type="tertiary">-</Typography.Text>;
-  return (
-    <pre style={{
-      background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)', padding: 12, margin: 0,
-      overflowX: 'auto', fontSize: 12, lineHeight: 1.6,
-      fontFamily: 'var(--semi-font-family-mono, ui-monospace, monospace)',
-    }}>
-      {JSON.stringify(value, null, 2)}
-    </pre>
-  );
+  return <JsonBlock value={value} />;
 }
 
 /** 统计卡片行 */
