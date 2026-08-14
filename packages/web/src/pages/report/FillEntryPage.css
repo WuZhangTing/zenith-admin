@@ -26,7 +26,7 @@
   padding: 24px;
   border: 1px solid var(--semi-color-border);
   border-radius: var(--semi-border-radius-medium);
-  background: var(--semi-color-bg-0);
+  background: var(--semi-color-bg-1);
 }
 
 @media (max-width: 720px) {

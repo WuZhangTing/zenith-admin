@@ -5,7 +5,7 @@
 
 /* ── 外层滚动容器 ── */
 .md-preview-body {
-  background: var(--semi-color-bg-0);
+  background: var(--color-content-bg);
 }
 
 /* ── 内容宽度限制，居中显示 ── */

@@ -29,7 +29,8 @@ const ZOOM_OPTIONS: { value: ZoomLevel; label: string }[] = [
 /** 读取文档上当前生效的 CSS 变量值（fallback 备用值） */
 function cssVar(name: string, fallback: string): string {
   if (typeof document === 'undefined') return fallback;
-  const val = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  // Semi 把 --semi-color-* 挂在 body 上（布局自有的 --color-* 同理），在 html 上读会取到空值
+  const val = getComputedStyle(document.body).getPropertyValue(name).trim();
   return val || fallback;
 }
 
@@ -73,11 +74,11 @@ export function PDFPreviewPanel({ file, onClose, fullscreen, onToggleFullscreen,
     const primaryHover = cssVar('--semi-color-primary-hover',        '#2860e1');
     const primaryAct   = cssVar('--semi-color-primary-active',       '#1d4ed8');
     const primaryLight = cssVar('--semi-color-primary-light-default','rgba(51,112,255,0.1)');
-    const bg0    = cssVar('--semi-color-bg-0',   isDark ? '#000000'              : '#ffffff');
-    const bg1    = cssVar('--semi-color-bg-1',   isDark ? '#1c1d24'              : '#ffffff');
+    const appBg  = cssVar('--color-content-bg', isDark ? '#232429'              : '#ffffff');
+    const bg1    = cssVar('--semi-color-bg-1',   isDark ? '#232429'              : '#ffffff');
     const bg2    = cssVar('--semi-color-bg-2',   isDark ? '#35363c'              : '#f5f5f5');
-    const fill0  = cssVar('--semi-color-fill-0', isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)');
-    const border = cssVar('--semi-color-border',  isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.09)');
+    const fill0  = cssVar('--semi-color-fill-0', isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.05)');
+    const border = cssVar('--semi-color-border',  isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.09)');
     const text0  = cssVar('--semi-color-text-0',  isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.88)');
     const text1  = cssVar('--semi-color-text-1',  isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)');
     const text2  = cssVar('--semi-color-text-2',  isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)');
@@ -91,7 +92,7 @@ export function PDFPreviewPanel({ file, onClose, fullscreen, onToggleFullscreen,
         primaryForeground: '#fff',
       },
       background: {
-        app:        bg0,
+        app:        appBg,
         surface:    bg1,
         surfaceAlt: bg2,
         elevated:   bg2,
@@ -153,7 +154,7 @@ export function PDFPreviewPanel({ file, onClose, fullscreen, onToggleFullscreen,
         display: 'flex',
         flexDirection: 'column',
         borderLeft: '1px solid var(--semi-color-border)',
-        background: 'var(--semi-color-bg-0)',
+        background: 'var(--color-content-bg)',
         overflow: 'hidden',
         flexShrink: 0,
         ...style,

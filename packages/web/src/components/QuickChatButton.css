@@ -27,13 +27,13 @@
   height: 18px;
   border-radius: 50%;
   background: var(--semi-color-text-0);
-  border: 2px solid var(--semi-color-bg-0);
+  border: 2px solid var(--color-content-bg);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
-  color: var(--semi-color-bg-0);
+  color: var(--color-content-bg);
   z-index: 900;
   /* stylelint-disable-next-line declaration-property-value-disallowed-list -- 悬浮按钮的强调投影（FAB 惯例） */
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);

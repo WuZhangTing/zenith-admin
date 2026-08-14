@@ -94,7 +94,7 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
     'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
   color: var(--semi-color-text-0);
-  background-color: var(--semi-color-bg-0);
+  background-color: var(--color-content-bg);
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }

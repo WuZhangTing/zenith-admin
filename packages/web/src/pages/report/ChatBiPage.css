@@ -26,7 +26,7 @@
 }
 
 .chatbi-detail {
-  background: var(--semi-color-bg-0);
+  background: var(--color-content-bg);
 }
 
 .chatbi-detail > .semi-empty,

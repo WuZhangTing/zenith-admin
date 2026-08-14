@@ -58,7 +58,7 @@ export default function PublicAiChatPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--semi-color-bg-0)' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--color-content-bg)' }}>
       <div style={{ maxWidth: 860, margin: '0 auto', padding: '32px 20px 64px' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <Sparkles size={28} color="var(--semi-color-primary)" />

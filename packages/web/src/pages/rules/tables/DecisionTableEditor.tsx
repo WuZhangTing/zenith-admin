@@ -330,7 +330,7 @@ export default function DecisionTableEditor({ inputs, outputs, rules, hitPolicy,
   };
 
   const th = { position: 'sticky', top: 0, zIndex: 2, padding: '8px 10px', border: '1px solid var(--semi-color-border)', background: 'var(--semi-color-bg-1)', whiteSpace: 'nowrap' } as const;
-  const td = { padding: '6px 8px', border: '1px solid var(--semi-color-border)', verticalAlign: 'middle', background: 'var(--semi-color-bg-0)' } as const;
+  const td = { padding: '6px 8px', border: '1px solid var(--semi-color-border)', verticalAlign: 'middle', background: 'var(--semi-color-bg-1)' } as const;
 
   const sectionStyle = { padding: '2px 0 12px', borderBottom: '1px solid var(--semi-color-border)' } as const;
 

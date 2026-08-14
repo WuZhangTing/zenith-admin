@@ -153,7 +153,7 @@ const TableNode = memo(({ data, selected }: NodeProps) => {
     <div
       style={{
         width: NODE_WIDTH,
-        background: 'var(--semi-color-bg-0)',
+        background: 'var(--semi-color-bg-2)',
         border: `1px solid ${selected ? 'var(--semi-color-primary)' : 'var(--semi-color-border)'}`,
         borderRadius: 'var(--semi-border-radius-medium)',
         boxShadow: selected ? '0 0 0 2px var(--semi-color-primary-light-default)' : 'none',
@@ -299,7 +299,7 @@ function ErDiagramInner({ schema, onNodeDoubleClick }: Readonly<ErDiagramProps>)
       target: `${fk.referencedSchema}.${fk.referencedTable}`,
       label: fk.columns.join(','),
       labelStyle: { fontSize: 10, fill: 'var(--semi-color-text-2)' },
-      labelBgStyle: { fill: 'var(--semi-color-bg-0)' },
+      labelBgStyle: { fill: 'var(--semi-color-bg-1)' },
       style: { stroke: 'var(--semi-color-primary)', strokeWidth: 1.2 },
       markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--semi-color-primary)' },
     }));
@@ -461,7 +461,7 @@ function ErDiagramInner({ schema, onNodeDoubleClick }: Readonly<ErDiagramProps>)
         height: 640,
         border: '1px solid var(--semi-color-border)',
         borderRadius: 'var(--semi-border-radius-medium)',
-        background: 'var(--semi-color-bg-0)',
+        background: 'var(--semi-color-bg-1)',
         display: 'flex',
         flexDirection: 'column',
       }}

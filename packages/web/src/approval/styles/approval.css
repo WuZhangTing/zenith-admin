@@ -5,7 +5,7 @@
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
-  background: var(--semi-color-bg-0);
+  background: var(--color-content-bg);
   display: flex;
   flex-direction: column;
   max-width: 640px;

@@ -24,7 +24,7 @@ export function MentionPopup({
                     right: 48,
                     bottom: 'calc(100% + 8px)',
                     zIndex: 30,
-                    background: 'var(--semi-color-bg-0)',
+                    background: 'var(--semi-color-bg-2)',
                     border: '1px solid var(--semi-color-border)',
                     borderRadius: 'var(--semi-border-radius-medium)',
                     boxShadow: 'var(--semi-shadow-elevated)',

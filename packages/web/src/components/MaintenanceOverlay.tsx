@@ -29,7 +29,7 @@ export default function MaintenanceOverlay({ info }: Readonly<Props>) {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'var(--semi-color-bg-0)',
+        background: 'var(--color-content-bg)',
         padding: 24,
       }}
     >
