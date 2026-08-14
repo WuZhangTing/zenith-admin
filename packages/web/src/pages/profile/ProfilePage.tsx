@@ -68,32 +68,23 @@ function SessionList({
 }) {
   return (
     <SemiList
-      bordered
       className="session-list"
       dataSource={sessions}
-      emptyContent={<div style={{ textAlign: 'center', padding: 40, color: 'var(--semi-color-text-2)' }}>暂无在线设备信息</div>}
+      emptyContent={<div className="session-list-empty">暂无在线设备信息</div>}
       loading={loading}
       renderItem={(session: UserSession) => (
         <SemiList.Item
           key={session.tokenId}
           align="center"
-          className={`session-list-item${session.isCurrent ? ' current' : ''}`}
-          header={(
-            <div className="session-list-icon">
-              <Monitor size={17} />
-            </div>
-          )}
+          className="session-list-item"
           main={(
             <div className="session-list-main">
-              <div className="session-list-title">
-                <Text strong>{session.browser}</Text>
-                {session.isCurrent && <Tag color="blue" size="small">当前设备</Tag>}
-              </div>
+              <Text strong>{session.browser}</Text>
+              {session.isCurrent && <Tag color="blue" size="small">当前设备</Tag>}
               <Text type="tertiary" size="small" className="session-list-meta">
                 {session.os} · {session.location ? `${session.location}（${session.ip}）` : `IP: ${session.ip}`}
-              </Text>
-              <Text type="tertiary" size="small" className="session-list-meta">
-                登录于 {formatDateTime(session.loginAt)} · 最后活跃 {formatDateTime(session.lastActiveAt)}
+                {' · '}登录 {formatDateTime(session.loginAt)}
+                {' · '}活跃 {formatDateTime(session.lastActiveAt)}
               </Text>
             </div>
           )}
