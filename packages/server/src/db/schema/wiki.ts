@@ -64,6 +64,8 @@ export const wikiDocs = pgTable('wiki_docs', {
   viewCount: integer('view_count').notNull().default(0),
   /** 当前版本号，与 wiki_doc_versions.version 对应 */
   currentVersion: integer('current_version').notNull().default(1),
+  /** 乐观锁：每次更新 +1，PUT 带旧值时冲突返回 409 */
+  revision: integer('revision').notNull().default(1),
   publishedAt: timestamp('published_at'),
   /** 软删除时间；非 null 表示在回收站 */
   deletedAt: timestamp('deleted_at'),

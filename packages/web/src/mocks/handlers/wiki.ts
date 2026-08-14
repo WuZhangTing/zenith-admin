@@ -218,6 +218,7 @@ const docHandlers = [
       isPinned: false,
       viewCount: 0,
       currentVersion: 1,
+      revision: 1,
       publishedAt: null,
       deletedAt: null,
       tagIds: body.tagIds ?? [],
@@ -363,6 +364,7 @@ const docHandlers = [
       doc.currentVersion += 1;
       pushVersion(doc, body.changeNote ?? null);
     }
+    doc.revision += 1;
     doc.updatedAt = mockDateTime();
     return ok(toDetailDoc(doc), '更新成功');
   }),

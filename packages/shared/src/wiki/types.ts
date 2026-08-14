@@ -49,6 +49,8 @@ export interface WikiDoc {
   isPinned: boolean;
   viewCount: number;
   currentVersion: number;
+  /** 乐观锁版本：保存时回传，服务端不一致返回 409 */
+  revision: number;
   publishedAt?: string | null;
   deletedAt?: string | null;
   tags?: WikiTag[];

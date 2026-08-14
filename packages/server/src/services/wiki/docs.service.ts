@@ -28,6 +28,7 @@ import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { getConfigBoolean } from '../../lib/system-config';
 import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
 import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
+import { wikiDeletedDocVisibilityCondition, wikiDocStatusVisibilityCondition, wikiSpaceAccessCondition } from './access';
 import { removeWikiDocFromAiKb, syncPublishedWikiDocToAiKb } from './ai-sync.service';
 import { ensureSpaceRole, getMySpaceRole, spaceRoleAtLeast } from './spaces.service';
 
@@ -46,6 +47,7 @@ export function mapWikiDoc(row: WikiDocRow) {
     isPinned: row.isPinned,
     viewCount: row.viewCount,
     currentVersion: row.currentVersion,
+    revision: row.revision,
     publishedAt: formatNullableDateTime(row.publishedAt),
     deletedAt: formatNullableDateTime(row.deletedAt),
     createdBy: row.createdBy ?? null,
@@ -81,6 +83,9 @@ function buildWikiDocWhere(q: WikiDocWhereInput) {
     q.deleted ? isNotNull(wikiDocs.deletedAt) : isNull(wikiDocs.deletedAt),
     q.mine ? eq(wikiDocs.createdBy, currentUserId()) : undefined,
     tenantCondition(wikiDocs, currentUser()),
+    // 统一访问边界：私有空间元数据不得被非成员枚举；未发布内容仅作者 / editor+ 可见
+    wikiSpaceAccessCondition(),
+    q.deleted ? wikiDeletedDocVisibilityCondition() : wikiDocStatusVisibilityCondition(),
   );
 }
 
@@ -290,6 +295,10 @@ async function ensureDocEditable(row: WikiDocRow) {
 export async function updateWikiDoc(id: number, data: UpdateWikiDocInput) {
   const before = await ensureWikiDocExists(id);
   await ensureDocEditable(before);
+  // 乐观锁：前端携带其加载时的 revision，不一致说明已被他人修改
+  if (data.revision !== undefined && data.revision !== before.revision) {
+    throw new HTTPException(409, { message: '文档已被他人修改，请刷新后重试' });
+  }
 
   const contentChanged = data.content !== undefined && data.content !== before.content;
   const titleChanged = data.title !== undefined && data.title !== before.title;
@@ -303,10 +312,19 @@ export async function updateWikiDoc(id: number, data: UpdateWikiDocInput) {
       ...(data.sort !== undefined ? { sort: data.sort } : {}),
       ...(data.isPinned !== undefined ? { isPinned: data.isPinned } : {}),
       currentVersion: nextVersion,
+      revision: sql`${wikiDocs.revision} + 1`,
       // 已发布文档编辑正文后回到草稿，需重新走发布流程
       ...(contentChanged && before.status === 'published' ? { status: 'draft' as const } : {}),
-    }).where(eq(wikiDocs.id, id)).returning({ id: wikiDocs.id });
-    if (!updated) throw new HTTPException(404, { message: '文档不存在' });
+    }).where(buildWhere(
+      eq(wikiDocs.id, id),
+      // DB 层双保险：条件更新防止校验与写入之间的竞态
+      data.revision !== undefined ? eq(wikiDocs.revision, data.revision) : undefined,
+    )).returning({ id: wikiDocs.id });
+    if (!updated) {
+      throw new HTTPException(data.revision !== undefined ? 409 : 404, {
+        message: data.revision !== undefined ? '文档已被他人修改，请刷新后重试' : '文档不存在',
+      });
+    }
 
     if (data.tagIds !== undefined) await setWikiDocTags(tx, id, data.tagIds);
     if (contentChanged || titleChanged) {
@@ -522,6 +540,9 @@ export async function listMyFavoriteWikiDocs(q: { page?: number; pageSize?: numb
     isNull(wikiDocs.deletedAt),
     keywordCondition(q.keyword, [wikiDocs.title, wikiDocs.summary]),
     tenantCondition(wikiDocs, currentUser()),
+    // 被移出私有空间成员后，收藏列表同样不可再泄露元数据
+    wikiSpaceAccessCondition(),
+    wikiDocStatusVisibilityCondition(),
   );
 
   const [total, rows] = await Promise.all([

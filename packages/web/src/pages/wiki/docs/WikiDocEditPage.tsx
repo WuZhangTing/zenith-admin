@@ -1,14 +1,23 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Banner, Button, Input, Select, Space, Spin, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Input, Modal, Select, Space, Spin, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import { ArrowLeft, Eye, EyeOff, Save, Send } from 'lucide-react';
 import MarkdownPreviewPanel from '@/components/MarkdownPreviewPanel';
+import { ApiError } from '@/lib/query';
 import './WikiDocEditPage.css';
 import { useAllWikiTags } from '@/hooks/queries/wiki-tags';
 import { useAllWikiTemplates } from '@/hooks/queries/wiki-templates';
 import { useSaveWikiDoc, useSubmitWikiDoc, useWikiDocDetail } from '@/hooks/queries/wiki-docs';
 
 const { Text } = Typography;
+
+interface EditorDraft {
+  title: string;
+  summary: string;
+  content: string;
+  tagIds: number[];
+  savedAt: string;
+}
 
 /**
  * 全屏 Markdown 编辑器（搭建器型工作区，保存后不关闭）：
@@ -34,19 +43,73 @@ export default function WikiDocEditPage() {
   const [changeNote, setChangeNote] = useState('');
   const [showPreview, setShowPreview] = useState(true);
   const [dirty, setDirty] = useState(false);
+  const [pendingDraft, setPendingDraft] = useState<EditorDraft | null>(null);
   const seededDocId = useRef<number | null>(null);
+  // 乐观锁：保存时回传加载详情时的 revision，冲突时服务端返回 409
+  const revisionRef = useRef<number | undefined>(undefined);
 
-  // 编辑模式：详情到达后播种一次表单
+  const draftKey = `wiki-doc-draft:${id ?? `new-${spaceIdParam ?? 0}`}`;
+
+  const readDraft = useCallback((): EditorDraft | null => {
+    try {
+      const raw = localStorage.getItem(draftKey);
+      return raw ? (JSON.parse(raw) as EditorDraft) : null;
+    } catch {
+      return null;
+    }
+  }, [draftKey]);
+
+  const clearDraft = useCallback(() => {
+    try { localStorage.removeItem(draftKey); } catch { /* storage unavailable */ }
+  }, [draftKey]);
+
+  // 编辑模式：详情到达后播种一次表单；新建模式立即检测本地草稿
   useEffect(() => {
+    if (!id) {
+      setPendingDraft(readDraft());
+      return;
+    }
     const doc = detailQuery.data;
     if (!doc || seededDocId.current === doc.id) return;
     seededDocId.current = doc.id;
+    revisionRef.current = doc.revision;
     setTitle(doc.title);
     setSummary(doc.summary ?? '');
     setContent(doc.content ?? '');
     setTagIds(doc.tagIds ?? []);
     setDirty(false);
-  }, [detailQuery.data]);
+    setPendingDraft(readDraft());
+  }, [id, detailQuery.data, readDraft]);
+
+  // 自动保存草稿：有未保存修改时每 2 秒落一次 localStorage，异常退出可恢复
+  useEffect(() => {
+    if (!dirty) return;
+    const timer = setTimeout(() => {
+      try {
+        const draft: EditorDraft = {
+          title, summary, content, tagIds,
+          savedAt: new Date().toLocaleString('sv-SE').replace('T', ' ').slice(0, 19),
+        };
+        localStorage.setItem(draftKey, JSON.stringify(draft));
+      } catch { /* storage unavailable */ }
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [dirty, title, summary, content, tagIds, draftKey]);
+
+  function restoreDraft() {
+    if (!pendingDraft) return;
+    setTitle(pendingDraft.title);
+    setSummary(pendingDraft.summary);
+    setContent(pendingDraft.content);
+    setTagIds(pendingDraft.tagIds);
+    setDirty(true);
+    setPendingDraft(null);
+  }
+
+  function discardDraft() {
+    clearDraft();
+    setPendingDraft(null);
+  }
 
   // 离开未保存提醒
   useEffect(() => {
@@ -75,19 +138,41 @@ export default function WikiDocEditPage() {
     markDirty();
   }
 
+  /** 409 冲突：他人已保存过，提供刷新或继续编辑的选择 */
+  function handleConflict() {
+    Modal.confirm({
+      title: '文档已被他人修改',
+      content: '当前编辑基于旧版本。可加载最新内容（放弃本次修改，本地草稿仍保留），或继续编辑稍后自行处理。',
+      okText: '加载最新内容',
+      cancelText: '继续编辑',
+      onOk: () => {
+        seededDocId.current = null;
+        setDirty(false);
+        void detailQuery.refetch();
+      },
+    });
+  }
+
   async function handleSave(): Promise<number | null> {
     if (!title.trim()) {
       Toast.warning('请填写文档标题');
       return null;
     }
     const values = id
-      ? { title: title.trim(), summary: summary || null, content, tagIds, changeNote: changeNote || undefined }
+      ? { title: title.trim(), summary: summary || null, content, tagIds, changeNote: changeNote || undefined, revision: revisionRef.current }
       : { spaceId: spaceIdParam, parentId: parentIdParam ?? null, title: title.trim(), summary: summary || undefined, content, tagIds };
-    const saved = await saveMutation.mutateAsync({ id, values });
-    setDirty(false);
-    setChangeNote('');
-    if (!id) navigate(`/wiki/docs/edit?id=${saved.id}`, { replace: true });
-    return saved.id;
+    try {
+      const saved = await saveMutation.mutateAsync({ id, values });
+      revisionRef.current = saved.revision;
+      setDirty(false);
+      setChangeNote('');
+      clearDraft();
+      if (!id) navigate(`/wiki/docs/edit?id=${saved.id}`, { replace: true });
+      return saved.id;
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 409) handleConflict();
+      return null;
+    }
   }
 
   async function handleSaveOnly() {
@@ -125,6 +210,18 @@ export default function WikiDocEditPage() {
 
   return (
     <div className="page-container page-container--stretch" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {pendingDraft ? (
+        <Banner
+          type="info"
+          description={`检测到 ${pendingDraft.savedAt} 自动保存的草稿，是否恢复？`}
+          onClose={() => setPendingDraft(null)}
+        >
+          <Space spacing={8}>
+            <Button size="small" theme="solid" onClick={restoreDraft}>恢复草稿</Button>
+            <Button size="small" onClick={discardDraft}>丢弃</Button>
+          </Space>
+        </Banner>
+      ) : null}
       {/* 顶栏 */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <Space spacing={8}>

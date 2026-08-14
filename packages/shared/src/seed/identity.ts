@@ -11,6 +11,19 @@ function withButtonChildIds(menuIds: number[]): number[] {
   return [...menuIds, ...buttonIds];
 }
 
+/**
+ * 知识中心「只读」菜单集：文档中心子树的页面节点 + 仅「查询」权限按钮。
+ * 写权限（新增/编辑/删除/发布/移动）由管理员按需显式分配，空间成员角色是服务端兜底。
+ */
+const WIKI_READONLY_MENU_IDS: number[] = [
+  WIKI_ROOT_MENU_ID,
+  ...collectMenuSubtreeIds(WIKI_DOC_CENTER_MENU_ID).filter((id) => {
+    const menu = SEED_MENUS.find((m) => m.id === id);
+    if (!menu) return false;
+    return menu.type !== 'button' || menu.permission === 'wiki:doc:list';
+  }),
+];
+
 // ─── 角色 ─────────────────────────────────────────────────────────────────────
 
 export const SEED_ROLES: Role[] = [
@@ -35,8 +48,8 @@ export const SEED_ROLES: Role[] = [
     createdAt: SEED_DATE,
     updatedAt: SEED_DATE,
     // 首页 / 个人中心 / 公告中心 + 消息中心（页面与其按钮权限分离，按钮需显式分配）
-    // + 知识中心文档中心全套（Wiki 面向全员，空间级权限由服务端成员角色控制）
-    menuIds: [1, 11, 12, 5000, 5001, WIKI_ROOT_MENU_ID, ...collectMenuSubtreeIds(WIKI_DOC_CENTER_MENU_ID)],
+    // + 知识中心只读（查询按钮 + 页面；写权限由管理员显式分配，空间角色仍是服务端兜底）
+    menuIds: [1, 11, 12, 5000, 5001, ...WIKI_READONLY_MENU_IDS],
   },
   {
     id: 3,

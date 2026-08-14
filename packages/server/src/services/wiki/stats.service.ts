@@ -8,22 +8,42 @@ import { formatDateTime } from '../../lib/datetime';
 import { getConfigBoolean, getConfigNumber, getConfigValue } from '../../lib/system-config';
 import { tenantCondition } from '../../lib/tenant';
 import { buildWhere } from '../../lib/where-helpers';
+import { wikiDocStatusVisibilityCondition, wikiSpaceAccessCondition } from './access';
 
 // ─── 统计 ─────────────────────────────────────────────────────────────────────
 
 export async function getWikiStatsOverview() {
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const tenantDocs = tenantCondition(wikiDocs, currentUser());
+  const spaceAccess = wikiSpaceAccessCondition();
+  const statusVisible = wikiDocStatusVisibilityCondition();
   const notDeleted = isNull(wikiDocs.deletedAt);
+  const docScope = buildWhere(notDeleted, tenantDocs, spaceAccess, statusVisible);
+
+  // 评论与浏览量跟随文档的租户与访问边界（追加型日志表自身无 tenant_id）
+  const countComments = async () => {
+    const [row] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(wikiComments)
+      .innerJoin(wikiDocs, eq(wikiComments.docId, wikiDocs.id))
+      .where(buildWhere(eq(wikiComments.status, 'visible'), docScope));
+    return row?.count ?? 0;
+  };
+  const countWeekViews = async () => {
+    const [row] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(wikiDocViews)
+      .innerJoin(wikiDocs, eq(wikiDocViews.docId, wikiDocs.id))
+      .where(buildWhere(gte(wikiDocViews.createdAt, weekAgo), docScope));
+    return row?.count ?? 0;
+  };
 
   const [spaceCount, docCount, publishedCount, pendingCount, commentCount, weekNewDocs, weekViews] = await Promise.all([
     db.$count(wikiSpaces, tenantCondition(wikiSpaces, currentUser())),
-    db.$count(wikiDocs, buildWhere(notDeleted, tenantDocs)),
-    db.$count(wikiDocs, buildWhere(notDeleted, eq(wikiDocs.status, 'published'), tenantDocs)),
-    db.$count(wikiDocs, buildWhere(notDeleted, eq(wikiDocs.status, 'pending'), tenantDocs)),
-    db.$count(wikiComments, eq(wikiComments.status, 'visible')),
-    db.$count(wikiDocs, buildWhere(notDeleted, gte(wikiDocs.createdAt, weekAgo), tenantDocs)),
-    db.$count(wikiDocViews, gte(wikiDocViews.createdAt, weekAgo)),
+    db.$count(wikiDocs, docScope),
+    db.$count(wikiDocs, buildWhere(eq(wikiDocs.status, 'published'), docScope)),
+    db.$count(wikiDocs, buildWhere(eq(wikiDocs.status, 'pending'), docScope)),
+    countComments(),
+    db.$count(wikiDocs, buildWhere(gte(wikiDocs.createdAt, weekAgo), docScope)),
+    countWeekViews(),
   ]);
 
   return { spaceCount, docCount, publishedCount, pendingCount, commentCount, weekNewDocs, weekViews };
@@ -42,6 +62,7 @@ export async function listWikiHotDocs(limit = 10) {
       isNull(wikiDocs.deletedAt),
       eq(wikiDocs.status, 'published'),
       tenantCondition(wikiDocs, currentUser()),
+      wikiSpaceAccessCondition(),
     ))
     .orderBy(desc(wikiDocs.viewCount), desc(wikiDocs.id))
     .limit(limit);
@@ -56,7 +77,12 @@ export async function listWikiContributors(limit = 10) {
     docCount: sql<number>`count(*)::int`,
   }).from(wikiDocs)
     .innerJoin(users, eq(wikiDocs.createdBy, users.id))
-    .where(buildWhere(isNull(wikiDocs.deletedAt), tenantCondition(wikiDocs, currentUser())))
+    .where(buildWhere(
+      isNull(wikiDocs.deletedAt),
+      tenantCondition(wikiDocs, currentUser()),
+      wikiSpaceAccessCondition(),
+      wikiDocStatusVisibilityCondition(),
+    ))
     .groupBy(wikiDocs.createdBy, users.nickname)
     .orderBy(desc(sql`count(*)`))
     .limit(limit);
@@ -80,6 +106,7 @@ export async function listWikiStaleDocs(limit = 10, staleDays = 90) {
       eq(wikiDocs.status, 'published'),
       lt(wikiDocs.updatedAt, threshold),
       tenantCondition(wikiDocs, currentUser()),
+      wikiSpaceAccessCondition(),
     ))
     .orderBy(wikiDocs.updatedAt)
     .limit(limit);

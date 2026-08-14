@@ -48,6 +48,8 @@ export const updateWikiDocSchema = z.object({
   isPinned: z.boolean().optional(),
   /** 版本说明；正文变更时写入版本历史 */
   changeNote: z.string().max(300).optional(),
+  /** 乐观锁：加载详情时的 revision，服务端不一致时返回 409 */
+  revision: z.number().int().positive().optional(),
 });
 
 export type CreateWikiDocInput = z.infer<typeof createWikiDocSchema>;

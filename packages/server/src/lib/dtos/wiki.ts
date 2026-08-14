@@ -69,6 +69,7 @@ export const WikiDocDTO = z
     isPinned: z.boolean(),
     viewCount: z.number().int(),
     currentVersion: z.number().int(),
+    revision: z.number().int(),
     publishedAt: z.string().nullable(),
     deletedAt: z.string().nullable().optional(),
     tags: z.array(WikiTagDTO).optional(),

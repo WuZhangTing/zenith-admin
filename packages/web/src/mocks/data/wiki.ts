@@ -50,6 +50,7 @@ export const mockWikiDocs: MockWikiDoc[] = SEED_WIKI_DOCS.map((d, i) => ({
   isPinned: d.isPinned,
   viewCount: (6 - i) * 12,
   currentVersion: 1,
+  revision: 1,
   publishedAt: d.status === 'published' ? now : null,
   deletedAt: null,
   tagIds: [...d.tagIds],
