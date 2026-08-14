@@ -73,11 +73,12 @@ export const WIKI_REVIEW_ACTION_OPTIONS: Array<{ value: WikiReviewAction; label:
 
 // ─── 治理（P2-D）──────────────────────────────────────────────────────────────
 
-export const WIKI_GOVERNANCE_KINDS = ['expired', 'review-due', 'stale', 'no-owner', 'draft-backlog', 'review-backlog', 'archived'] as const;
+export const WIKI_GOVERNANCE_KINDS = ['all', 'expired', 'review-due', 'stale', 'no-owner', 'draft-backlog', 'review-backlog', 'archived'] as const;
 
 export type WikiGovernanceKind = (typeof WIKI_GOVERNANCE_KINDS)[number];
 
 export const WIKI_GOVERNANCE_KIND_LABELS: Record<WikiGovernanceKind, string> = {
+  all: '全部文档',
   expired: '已过期',
   'review-due': '待复审',
   stale: '长期未更新',

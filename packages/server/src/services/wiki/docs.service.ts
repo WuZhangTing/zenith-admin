@@ -82,6 +82,8 @@ export interface ListWikiDocsQuery {
   deleted?: boolean;
   /** 只查当前用户创建的 */
   mine?: boolean;
+  /** 只查当前用户提交过审核的 */
+  submitted?: boolean;
   /** true = 只查已归档；默认排除已归档 */
   archived?: boolean;
 }
@@ -98,6 +100,15 @@ function buildWikiDocWhere(q: WikiDocWhereInput) {
     q.status ? eq(wikiDocs.status, q.status) : undefined,
     q.deleted ? isNotNull(wikiDocs.deletedAt) : isNull(wikiDocs.deletedAt),
     q.mine ? eq(wikiDocs.createdBy, currentUserId()) : undefined,
+    q.submitted
+      ? inArray(
+        wikiDocs.id,
+        db.select({ id: wikiReviewRecords.docId }).from(wikiReviewRecords).where(buildWhere(
+          eq(wikiReviewRecords.actorId, currentUserId()),
+          eq(wikiReviewRecords.action, 'submit'),
+        )),
+      )
+      : undefined,
     // 归档文档默认从所有读取口隐藏，仅治理页显式查询
     q.id === undefined ? eq(wikiDocs.isArchived, q.archived ?? false) : undefined,
     tenantCondition(wikiDocs, currentUser()),
@@ -194,7 +205,16 @@ export async function getWikiDoc(id: number) {
 
   const [extras] = await attachDocExtras([row], { spaceName: true });
   const uid = currentUserId();
-  const [favorited, favoriteCount, commentCount, attachments, subscribed, readConfirmed, readReceiptCount] = await Promise.all([
+  const [
+    favorited,
+    favoriteCount,
+    commentCount,
+    attachments,
+    subscribed,
+    readConfirmed,
+    readReceiptCount,
+    commentsEnabled,
+  ] = await Promise.all([
     db.$count(wikiDocFavorites, and(eq(wikiDocFavorites.docId, id), eq(wikiDocFavorites.userId, uid))),
     db.$count(wikiDocFavorites, eq(wikiDocFavorites.docId, id)),
     db.$count(wikiComments, and(eq(wikiComments.docId, id), eq(wikiComments.status, 'visible'))),
@@ -202,6 +222,7 @@ export async function getWikiDoc(id: number) {
     db.$count(wikiDocSubscriptions, and(eq(wikiDocSubscriptions.docId, id), eq(wikiDocSubscriptions.userId, uid))),
     db.$count(wikiDocReadReceipts, and(eq(wikiDocReadReceipts.docId, id), eq(wikiDocReadReceipts.userId, uid))),
     db.$count(wikiDocReadReceipts, eq(wikiDocReadReceipts.docId, id)),
+    getConfigBoolean(WIKI_SETTING_KEYS.commentsEnabled, true),
   ]);
 
   return {
@@ -210,6 +231,7 @@ export async function getWikiDoc(id: number) {
     favorited: favorited > 0,
     favoriteCount,
     commentCount,
+    commentsEnabled,
     attachments,
     subscribed: subscribed > 0,
     readConfirmed: readConfirmed > 0,

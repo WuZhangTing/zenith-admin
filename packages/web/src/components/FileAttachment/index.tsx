@@ -284,6 +284,7 @@ export default function FileAttachment({
         const fileSize = Number.isFinite(rawSize) && rawSize > 0 ? formatFileSize(rawSize) : '';
         return (
           <div
+            key={props.uid}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -325,6 +326,7 @@ export default function FileAttachment({
             <Space>
               {isEditMode && isFailed && (
                 <Button
+                  aria-label={`重试上传 ${props.name || '文件'}`}
                   theme="borderless"
                   type="primary"
                   icon={<RotateCcw size={12} />}
@@ -338,6 +340,7 @@ export default function FileAttachment({
               )}
               {isEditMode && (
                 <Button
+                  aria-label={`移除 ${props.name || '文件'}`}
                   theme="borderless"
                   type="danger"
                   icon={<X size={12} />}
@@ -357,6 +360,7 @@ export default function FileAttachment({
       const fileSize = item.file.size ? formatFileSize(item.file.size) : '';
       return (
         <div
+          key={props.uid}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -388,6 +392,7 @@ export default function FileAttachment({
           {/* 操作区 */}
           <Space>
             <Button
+              aria-label={`预览 ${item.file.originalName}`}
               theme="borderless"
               type="primary"
               icon={<Eye size={12} />}
@@ -398,6 +403,7 @@ export default function FileAttachment({
               }}
             />
             <Button
+              aria-label={`下载 ${item.file.originalName}`}
               theme="borderless"
               type="primary"
               icon={<Download size={12} />}
@@ -409,6 +415,7 @@ export default function FileAttachment({
             />
             {isEditMode && (
               <Button
+                aria-label={`移除 ${item.file.originalName}`}
                 theme="borderless"
                 type="danger"
                 icon={<X size={12} />}

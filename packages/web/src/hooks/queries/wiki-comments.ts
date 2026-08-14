@@ -5,6 +5,7 @@ import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 import type { CrudListParams } from '@/lib/crud-queries';
 import { wikiDocKeys } from './wiki-docs';
+import { wikiStatsKeys } from './wiki-query-keys';
 
 export interface WikiCommentListParams extends CrudListParams {
   keyword?: string;
@@ -46,6 +47,7 @@ function invalidateCommentSurfaces(
   void qc.invalidateQueries({ queryKey: wikiCommentKeys.doc(docId) });
   void qc.invalidateQueries({ queryKey: wikiCommentKeys.lists });
   void qc.invalidateQueries({ queryKey: wikiDocKeys.detail(docId) });
+  void qc.invalidateQueries({ queryKey: wikiStatsKeys.overview });
 }
 
 export function useCreateWikiComment() {

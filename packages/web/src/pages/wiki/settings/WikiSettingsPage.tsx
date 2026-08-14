@@ -73,7 +73,7 @@ export default function WikiSettingsPage() {
         <div style={{ maxWidth: 640 }}>
           <div style={{ marginBottom: 8 }}>
             <Title heading={5} style={{ margin: 0 }}>知识库设置</Title>
-            <Text type="tertiary">发布审批、空间默认可见性与 AI 知识库同步</Text>
+            <Text type="tertiary">发布、协作、内容治理与知识同步策略</Text>
           </div>
 
           <SettingRow

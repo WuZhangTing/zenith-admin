@@ -24,12 +24,12 @@ const governanceRouter = new OpenAPIHono({ defaultHook: validationHook });
 const listRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/docs',
-    tags: ['知识中心-治理'], summary: '治理清单（过期/待复审/长期未更新/无负责人/积压/已归档）',
+    tags: ['知识中心-治理'], summary: '治理清单（全部/过期/待复审/长期未更新/无负责人/积压/已归档）',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'wiki:governance:list' })] as const,
     request: {
       query: PaginationQuery.extend({
-        kind: z.enum(WIKI_GOVERNANCE_KINDS).openapi({ param: { name: 'kind', in: 'query' }, example: 'expired' }),
+        kind: z.enum(WIKI_GOVERNANCE_KINDS).openapi({ param: { name: 'kind', in: 'query' }, example: 'all' }),
       }),
     },
     responses: { ...commonErrorResponses, ...okPaginated(WikiGovernanceDocDTO, '治理清单') },

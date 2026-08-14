@@ -9,6 +9,7 @@ import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 import type { CrudListParams } from '@/lib/crud-queries';
 import { wikiDocKeys, wikiDocTreeKeys } from './wiki-docs';
+import { wikiGovernanceKeys, wikiStatsKeys } from './wiki-query-keys';
 
 /** 治理清单行（列表专用投影，非完整文档） */
 export interface WikiGovernanceDoc {
@@ -26,12 +27,7 @@ export interface WikiGovernanceDoc {
   updatedAt: string;
 }
 
-export const wikiGovernanceKeys = {
-  all: ['wiki-governance'] as const,
-  lists: ['wiki-governance', 'list'] as const,
-  list: (kind: WikiGovernanceKind, params: unknown) => ['wiki-governance', 'list', kind, params] as const,
-  noResultKeywords: ['wiki-governance', 'no-result-keywords'] as const,
-};
+export { wikiGovernanceKeys } from './wiki-query-keys';
 
 export function useWikiGovernanceDocs(kind: WikiGovernanceKind, params: CrudListParams, enabled = true) {
   return useQuery({
@@ -72,6 +68,7 @@ export function useArchiveGovernanceDocs() {
       invalidateGovernance(qc);
       void qc.invalidateQueries({ queryKey: wikiDocKeys.lists });
       void qc.invalidateQueries({ queryKey: wikiDocTreeKeys.all });
+      void qc.invalidateQueries({ queryKey: wikiStatsKeys.ops });
     },
   });
 }
@@ -81,16 +78,22 @@ export function useSetGovernanceOwner() {
   return useMutation({
     mutationFn: ({ ids, ownerId }: { ids: number[]; ownerId: number }) =>
       request.post<null>('/api/wiki/governance/owner', { ids, ownerId }).then(unwrap),
-    onSuccess: () => invalidateGovernance(qc),
+    onSuccess: () => {
+      invalidateGovernance(qc);
+      void qc.invalidateQueries({ queryKey: wikiStatsKeys.ops });
+    },
   });
 }
 
 export function useSetGovernanceReview() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { ids: number[]; reviewCycleDays: number; expireAt?: string | null }) =>
+    mutationFn: (data: { ids: number[]; reviewCycleDays: number | null; expireAt?: string | null }) =>
       request.post<null>('/api/wiki/governance/review-cycle', data).then(unwrap),
-    onSuccess: () => invalidateGovernance(qc),
+    onSuccess: () => {
+      invalidateGovernance(qc);
+      void qc.invalidateQueries({ queryKey: wikiStatsKeys.ops });
+    },
   });
 }
 
@@ -103,6 +106,9 @@ export function useImportWikiDocs() {
     onSuccess: (_data, { spaceId }) => {
       void qc.invalidateQueries({ queryKey: wikiDocKeys.lists });
       void qc.invalidateQueries({ queryKey: wikiDocTreeKeys.of(spaceId) });
+      void qc.invalidateQueries({ queryKey: wikiStatsKeys.overview });
+      void qc.invalidateQueries({ queryKey: wikiStatsKeys.contributors });
+      void qc.invalidateQueries({ queryKey: wikiStatsKeys.ops });
     },
   });
 }

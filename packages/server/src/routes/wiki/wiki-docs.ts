@@ -26,6 +26,7 @@ const DocListQuery = PaginationQuery.extend({
   status: z.enum(WIKI_DOC_STATUSES).optional(),
   tagId: z.coerce.number().int().positive().optional(),
   mine: z.coerce.boolean().optional(),
+  submitted: z.coerce.boolean().optional(),
 });
 
 const VersionParam = z.object({

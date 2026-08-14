@@ -66,6 +66,7 @@ function toDetailDoc(doc: MockWikiDoc): WikiDoc {
     favorited: mockWikiFavoriteDocIds.has(doc.id),
     favoriteCount: mockWikiFavoriteDocIds.has(doc.id) ? 1 : 0,
     commentCount: mockWikiComments.filter((c) => c.docId === doc.id && c.status === 'visible').length,
+    commentsEnabled: mockWikiSettings.commentsEnabled,
     subscribed: mockWikiSubscribedDocIds.has(doc.id),
     readConfirmed: mockWikiReadConfirmedDocIds.has(doc.id),
     readReceiptCount: mockWikiReadConfirmedDocIds.has(doc.id) ? 1 : 0,
@@ -260,12 +261,21 @@ const docHandlers = [
     const status = url.searchParams.get('status') || '';
     const spaceId = url.searchParams.get('spaceId');
     const tagId = url.searchParams.get('tagId');
+    const mine = url.searchParams.get('mine') === 'true';
+    const submitted = url.searchParams.get('submitted') === 'true';
 
     let list = mockWikiDocs.filter((d) => !d.deletedAt);
     if (keyword) list = list.filter((d) => d.title.includes(keyword) || (d.summary ?? '').includes(keyword) || d.content.includes(keyword));
     if (status) list = list.filter((d) => d.status === status);
     if (spaceId) list = list.filter((d) => d.spaceId === Number(spaceId));
     if (tagId) list = list.filter((d) => d.tagIds.includes(Number(tagId)));
+    if (mine) list = list.filter((d) => d.createdBy === 1);
+    if (submitted) {
+      const submittedIds = new Set(
+        mockReviewRecords.filter((record) => record.action === 'submit' && record.actorId === 1).map((record) => record.docId),
+      );
+      list = list.filter((d) => submittedIds.has(d.id));
+    }
     return ok(paginate(list.map(toListDoc), url));
   }),
 
@@ -727,7 +737,8 @@ const governanceHandlers = [
     const url = new URL(request.url);
     const kind = url.searchParams.get('kind') || 'expired';
     let list = mockWikiDocs.filter((d) => !d.deletedAt);
-    if (kind === 'archived') list = list.filter((d) => d.isArchived);
+    if (kind === 'all') list = list.filter((d) => !d.isArchived);
+    else if (kind === 'archived') list = list.filter((d) => d.isArchived);
     else if (kind === 'no-owner') list = list.filter((d) => !d.isArchived && d.ownerId == null);
     else if (kind === 'draft-backlog') list = list.filter((d) => !d.isArchived && d.status === 'draft');
     else if (kind === 'review-backlog') list = list.filter((d) => !d.isArchived && d.status === 'pending');
@@ -779,11 +790,15 @@ const governanceHandlers = [
   }),
 
   http.post('/api/wiki/governance/review-cycle', async ({ request }) => {
-    const { ids = [], reviewCycleDays, expireAt } = (await request.json()) as { ids?: number[]; reviewCycleDays: number; expireAt?: string | null };
+    const { ids = [], reviewCycleDays, expireAt } = (await request.json()) as {
+      ids?: number[];
+      reviewCycleDays: number | null;
+      expireAt?: string | null;
+    };
     for (const doc of mockWikiDocs) {
       if (ids.includes(doc.id)) {
         doc.reviewCycleDays = reviewCycleDays;
-        doc.nextReviewAt = mockDateTime();
+        doc.nextReviewAt = reviewCycleDays === null ? null : mockDateTime();
         if (expireAt !== undefined) doc.expireAt = expireAt;
       }
     }

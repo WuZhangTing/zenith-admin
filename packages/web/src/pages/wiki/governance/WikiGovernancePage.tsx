@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, DatePicker, InputNumber, Select, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Checkbox, DatePicker, InputNumber, Select, Switch, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Archive, ArchiveRestore, BellRing, UserRoundCog } from 'lucide-react';
 import type { WikiDocStatus, WikiGovernanceKind } from '@zenith/shared/wiki';
@@ -39,8 +39,10 @@ function GovernancePane({ kind }: { kind: WikiGovernanceKind }) {
   const [ownerModalVisible, setOwnerModalVisible] = useState(false);
   const [ownerId, setOwnerId] = useState<number>();
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const [reviewEnabled, setReviewEnabled] = useState(true);
   const [reviewCycleDays, setReviewCycleDays] = useState<number>(90);
   const [expireAt, setExpireAt] = useState<Date | null>(null);
+  const [clearExpireAt, setClearExpireAt] = useState(false);
 
   const remindMutation = useRemindGovernanceOwners();
   const archiveMutation = useArchiveGovernanceDocs();
@@ -51,6 +53,19 @@ function GovernancePane({ kind }: { kind: WikiGovernanceKind }) {
   function afterBatch(message: string) {
     Toast.success(message);
     setSelectedRowKeys([]);
+  }
+
+  function openOwnerModal() {
+    setOwnerId(undefined);
+    setOwnerModalVisible(true);
+  }
+
+  function openReviewModal() {
+    setReviewEnabled(true);
+    setReviewCycleDays(90);
+    setExpireAt(null);
+    setClearExpireAt(false);
+    setReviewModalVisible(true);
   }
 
   const columns: ColumnProps<WikiGovernanceDoc>[] = [
@@ -84,10 +99,10 @@ function GovernancePane({ kind }: { kind: WikiGovernanceKind }) {
             ) : null}
             {hasSelection && hasPermission('wiki:governance:edit') ? (
               <>
-                <Button icon={<UserRoundCog size={14} />} onClick={() => setOwnerModalVisible(true)}>
+                <Button icon={<UserRoundCog size={14} />} onClick={openOwnerModal}>
                   指定负责人
                 </Button>
-                <Button onClick={() => setReviewModalVisible(true)}>设置复审</Button>
+                <Button onClick={openReviewModal}>设置复审/有效期</Button>
               </>
             ) : null}
             {hasSelection && hasPermission('wiki:governance:archive') ? (
@@ -115,7 +130,7 @@ function GovernancePane({ kind }: { kind: WikiGovernanceKind }) {
                 </Button>
               )
             ) : null}
-            {!hasSelection ? <Text type="tertiary">勾选文档后可批量提醒、归档或设置复审</Text> : null}
+            {!hasSelection ? <Text type="tertiary">勾选文档后可批量指定负责人、设置复审/有效期或归档</Text> : null}
           </>
         )}
       />
@@ -127,7 +142,7 @@ function GovernancePane({ kind }: { kind: WikiGovernanceKind }) {
         loading={listQuery.isFetching}
         rowKey="id"
         size="small"
-        empty="该清单没有需要处理的文档"
+        empty={kind === 'all' ? '当前没有可治理的文档' : '该清单没有需要处理的文档'}
         rowSelection={{ selectedRowKeys, onChange: (keys) => setSelectedRowKeys(keys as number[]) }}
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
@@ -165,7 +180,7 @@ function GovernancePane({ kind }: { kind: WikiGovernanceKind }) {
 
       {/* 设置复审 */}
       <AppModal
-        title={`为 ${selectedRowKeys.length} 篇文档设置复审`}
+        title={`为 ${selectedRowKeys.length} 篇文档设置复审与有效期`}
         visible={reviewModalVisible}
         closeOnEsc
         width={480}
@@ -174,25 +189,35 @@ function GovernancePane({ kind }: { kind: WikiGovernanceKind }) {
           reviewMutation.mutate(
             {
               ids: selectedRowKeys,
-              reviewCycleDays,
-              expireAt: expireAt ? formatDateTimeForApi(expireAt) : undefined,
+              reviewCycleDays: reviewEnabled ? reviewCycleDays : null,
+              expireAt: clearExpireAt ? null : expireAt ? formatDateTimeForApi(expireAt) : undefined,
             },
-            { onSuccess: () => { afterBatch('已设置复审'); setReviewModalVisible(false); } },
+            { onSuccess: () => { afterBatch('治理设置已更新'); setReviewModalVisible(false); } },
           );
         }}
         okButtonProps={{ loading: reviewMutation.isPending }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+            <div>
+              <Text>定期复审</Text>
+              <div><Text type="tertiary" size="small">关闭后清除所选文档的复审周期与下次复审时间</Text></div>
+            </div>
+            <Switch checked={reviewEnabled} onChange={setReviewEnabled} />
+          </div>
           <div>
             <Text>复审周期（天）</Text>
             <InputNumber
               style={{ width: '100%', marginTop: 4 }}
               min={1}
               max={3650}
+              disabled={!reviewEnabled}
               value={reviewCycleDays}
               onChange={(v) => setReviewCycleDays(Number(v) || 90)}
             />
-            <Text type="tertiary" size="small">下次复审时间 = 当前时间 + 周期</Text>
+            <Text type="tertiary" size="small">
+              {reviewEnabled ? '下次复审时间 = 当前时间 + 周期' : '保存后不再安排定期复审'}
+            </Text>
           </div>
           <div>
             <Text>有效期（选填）</Text>
@@ -200,9 +225,22 @@ function GovernancePane({ kind }: { kind: WikiGovernanceKind }) {
               type="dateTime"
               style={{ width: '100%', marginTop: 4 }}
               value={expireAt ?? undefined}
+              disabled={clearExpireAt}
               onChange={(v) => setExpireAt(v instanceof Date ? v : null)}
-              placeholder="留空则不设置有效期"
+              placeholder="留空则保持已有有效期不变"
             />
+            <div style={{ marginTop: 8 }}>
+              <Checkbox
+                checked={clearExpireAt}
+                onChange={(e) => {
+                  const checked = !!e.target.checked;
+                  setClearExpireAt(checked);
+                  if (checked) setExpireAt(null);
+                }}
+              >
+                清除已有有效期
+              </Checkbox>
+            </div>
           </div>
         </div>
       </AppModal>

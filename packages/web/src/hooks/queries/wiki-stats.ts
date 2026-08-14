@@ -10,17 +10,10 @@ import type {
 } from '@zenith/shared/wiki';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
+import { wikiDocDetailPrefix } from './wiki-docs';
+import { wikiGovernanceKeys, wikiSettingsKey, wikiStatsKeys } from './wiki-query-keys';
 
-export const wikiStatsKeys = {
-  all: ['wiki-stats'] as const,
-  overview: ['wiki-stats', 'overview'] as const,
-  hotDocs: ['wiki-stats', 'hot-docs'] as const,
-  contributors: ['wiki-stats', 'contributors'] as const,
-  staleDocs: ['wiki-stats', 'stale-docs'] as const,
-  ops: ['wiki-stats', 'ops'] as const,
-};
-
-export const wikiSettingsKey = ['wiki-settings'] as const;
+export { wikiSettingsKey, wikiStatsKeys } from './wiki-query-keys';
 
 export function useWikiStatsOverview() {
   return useQuery({
@@ -70,7 +63,15 @@ export function useUpdateWikiSettings() {
     mutationFn: (data: UpdateWikiSettingsInput) =>
       request.put<WikiSettings>('/api/wiki/settings', data).then(unwrap),
     onSuccess: (saved) => {
+      const previous = qc.getQueryData<WikiSettings>(wikiSettingsKey);
       qc.setQueryData(wikiSettingsKey, saved);
+      if (previous?.commentsEnabled !== saved.commentsEnabled) {
+        void qc.invalidateQueries({ queryKey: wikiDocDetailPrefix });
+      }
+      if (previous?.pendingRemindHours !== saved.pendingRemindHours) {
+        void qc.invalidateQueries({ queryKey: wikiGovernanceKeys.lists });
+        void qc.invalidateQueries({ queryKey: wikiStatsKeys.ops });
+      }
     },
   });
 }

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Banner, Button, Checkbox, Divider, Dropdown, Empty, List, Select, Space, Spin, Tabs, Tag, TextArea, Toast, Tooltip, Tree, TreeSelect, Typography } from '@douyinfe/semi-ui';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
@@ -49,6 +49,10 @@ function toTreeData(nodes: WikiDocTreeNode[]): TreeNodeData[] {
     ),
     children: n.children?.length ? toTreeData(n.children) : undefined,
   }));
+}
+
+function collectTreeDocIds(nodes: WikiDocTreeNode[]): number[] {
+  return nodes.flatMap((node) => [node.id, ...collectTreeDocIds(node.children ?? [])]);
 }
 
 /** 目录树转移动目标选择数据（纯文本 label，排除自身子树防环） */
@@ -112,6 +116,7 @@ export default function WikiDocCenterPage() {
   const [spaceId, setSpaceId] = useState<number>();
   const [selectedDocId, setSelectedDocId] = useState<number>();
   const [showDetailOnNarrow, setShowDetailOnNarrow] = useState(false);
+  const isNarrowLayoutRef = useRef(false);
   const [masterTab, setMasterTab] = useState('tree');
   const [moveTarget, setMoveTarget] = useState<{ id: number; title: string } | null>(null);
   const [moveParentId, setMoveParentId] = useState<number | null>(null);
@@ -140,8 +145,11 @@ export default function WikiDocCenterPage() {
   const doc = docQuery.data;
   const commentsQuery = useWikiDocComments(selectedDocId, !!doc && doc.status === 'published');
   const isDocAuthor = !!doc && doc.createdBy === user?.id;
-  const canManageDoc = myRole === 'owner' || myRole === 'admin';
-  const usersQuery = useAllUsers({ enabled: !!doc && doc.status === 'published' });
+  const docSpaceRole = doc ? spaces.find((space) => space.id === doc.spaceId)?.myRole ?? null : null;
+  const canWriteDoc = docSpaceRole === 'owner' || docSpaceRole === 'admin' || docSpaceRole === 'editor';
+  const canManageDoc = docSpaceRole === 'owner' || docSpaceRole === 'admin';
+  const commentsEnabled = doc?.commentsEnabled !== false;
+  const usersQuery = useAllUsers({ enabled: !!doc && doc.status === 'published' && commentsEnabled });
   const receiptsQuery = useWikiDocReadReceipts(selectedDocId, receiptsVisible);
 
   // ─── 变更 ─────────────────────────────────────────────────────────────────
@@ -200,13 +208,22 @@ export default function WikiDocCenterPage() {
     );
   }
 
-  const canEditDoc = canWrite && hasPermission('wiki:doc:edit');
-  const canDeleteDoc = canWrite && hasPermission('wiki:doc:delete');
-  const canSubmitDoc = canWrite && hasPermission('wiki:doc:publish');
-  const canMoveDoc = canWrite && hasPermission('wiki:doc:move');
+  const canEditDoc = canWriteDoc && hasPermission('wiki:doc:edit');
+  const canDeleteDoc = canWriteDoc && hasPermission('wiki:doc:delete');
+  const canSubmitDoc = canWriteDoc && hasPermission('wiki:doc:publish');
+  const canMoveDoc = canWriteDoc && hasPermission('wiki:doc:move');
 
   // ─── 渲染 ─────────────────────────────────────────────────────────────────
   const treeData = useMemo(() => toTreeData(treeQuery.data ?? []), [treeQuery.data]);
+  const treeDocIds = useMemo(() => collectTreeDocIds(treeQuery.data ?? []), [treeQuery.data]);
+
+  useEffect(() => {
+    setSelectedDocId((current) => {
+      if (treeDocIds.length === 0) return undefined;
+      if (current !== undefined && treeDocIds.includes(current)) return current;
+      return isNarrowLayoutRef.current ? undefined : treeDocIds[0];
+    });
+  }, [treeDocIds]);
 
   const detailContent = !selectedDocId ? (
     <Empty title="选择文档开始阅读" description="从左侧目录树选择一篇文档" style={{ marginTop: 80 }} />
@@ -249,6 +266,7 @@ export default function WikiDocCenterPage() {
         <Space spacing={4}>
           <Tooltip content={doc.favorited ? '取消收藏' : '收藏'}>
             <Button
+              aria-label={doc.favorited ? '取消收藏' : '收藏文档'}
               theme="borderless"
               icon={<Star size={16} fill={doc.favorited ? 'var(--semi-color-warning)' : 'none'}
                 style={doc.favorited ? { color: 'var(--semi-color-warning)' } : undefined} />}
@@ -258,6 +276,7 @@ export default function WikiDocCenterPage() {
           </Tooltip>
           <Tooltip content={doc.subscribed ? '取消订阅（发布/评论通知）' : '订阅更新（发布/评论通知）'}>
             <Button
+              aria-label={doc.subscribed ? '取消订阅文档' : '订阅文档更新'}
               theme="borderless"
               icon={<Bell size={16} fill={doc.subscribed ? 'var(--semi-color-primary)' : 'none'}
                 style={doc.subscribed ? { color: 'var(--semi-color-primary)' } : undefined} />}
@@ -326,7 +345,7 @@ export default function WikiDocCenterPage() {
               </Dropdown.Menu>
             )}
           >
-            <Button theme="borderless" type="tertiary" icon={<MoreHorizontal size={16} />} />
+            <Button aria-label="更多文档操作" theme="borderless" type="tertiary" icon={<MoreHorizontal size={16} />} />
           </Dropdown>
         </Space>
       </div>
@@ -357,7 +376,7 @@ export default function WikiDocCenterPage() {
 
         {doc.attachments?.length ? (
           <div style={{ marginTop: 16, maxWidth: 720 }}>
-            <FileAttachment mode="view" value={doc.attachments} title={`附件（${doc.attachments.length}）`} />
+            <FileAttachment mode="view" value={doc.attachments} title="附件" />
           </div>
         ) : null}
 
@@ -365,45 +384,56 @@ export default function WikiDocCenterPage() {
           <div style={{ marginTop: 24 }}>
             <Divider align="left"><MessageSquare size={14} style={{ verticalAlign: -2, marginRight: 4 }} />评论（{doc.commentCount ?? 0}）</Divider>
             <div style={{ maxWidth: 720 }}>
-              {replyTo ? (
-                <div style={{ marginBottom: 4 }}>
-                  <Tag closable onClose={() => setReplyTo(null)}>回复 {replyTo.authorName ?? '评论'}</Tag>
-                </div>
-              ) : null}
-              <TextArea
-                value={commentText}
-                onChange={setCommentText}
-                placeholder="写下你的评论..."
-                rows={2}
-                maxCount={1000}
-              />
-              <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                <Space spacing={8}>
-                  <Select
-                    multiple
-                    size="small"
-                    style={{ minWidth: 160 }}
-                    placeholder="@ 提及同事（选填）"
-                    value={mentionIds}
-                    maxTagCount={2}
-                    showClear
-                    filter
-                    onChange={(v) => setMentionIds((v as number[]) ?? [])}
-                    optionList={(usersQuery.data ?? []).map((u) => ({ value: u.id, label: u.nickname || u.username }))}
+              {commentsEnabled ? (
+                <>
+                  {replyTo ? (
+                    <div style={{ marginBottom: 4 }}>
+                      <Tag closable onClose={() => setReplyTo(null)}>回复 {replyTo.authorName ?? '评论'}</Tag>
+                    </div>
+                  ) : null}
+                  <TextArea
+                    value={commentText}
+                    onChange={setCommentText}
+                    placeholder="写下你的评论..."
+                    rows={2}
+                    maxCount={1000}
                   />
-                  <Checkbox checked={isQuestion} onChange={(e) => setIsQuestion(!!e.target.checked)}>
-                    标记为问题
-                  </Checkbox>
-                </Space>
-                <Button
-                  theme="solid"
-                  loading={createCommentMutation.isPending}
-                  disabled={!commentText.trim()}
-                  onClick={handleSubmitComment}
-                >
-                  发表评论
-                </Button>
-              </div>
+                  <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                    <Space spacing={8}>
+                      <Select
+                        multiple
+                        size="small"
+                        style={{ minWidth: 160 }}
+                        placeholder="@ 提及同事（选填）"
+                        value={mentionIds}
+                        maxTagCount={2}
+                        showClear
+                        filter
+                        onChange={(v) => setMentionIds((v as number[]) ?? [])}
+                        optionList={(usersQuery.data ?? []).map((u) => ({ value: u.id, label: u.nickname || u.username }))}
+                      />
+                      <Checkbox checked={isQuestion} onChange={(e) => setIsQuestion(!!e.target.checked)}>
+                        标记为问题
+                      </Checkbox>
+                    </Space>
+                    <Button
+                      theme="solid"
+                      loading={createCommentMutation.isPending}
+                      disabled={!commentText.trim()}
+                      onClick={handleSubmitComment}
+                    >
+                      发表评论
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <Banner
+                  type="info"
+                  closeIcon={null}
+                  style={{ marginBottom: 12 }}
+                  description="管理员已暂停新评论，已有评论仍可查看。"
+                />
+              )}
               <div>
                 {(commentsQuery.data ?? []).map((c) => (
                   <CommentItem
@@ -444,13 +474,18 @@ export default function WikiDocCenterPage() {
         style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}
         showDetail={showDetailOnNarrow}
         onBack={() => setShowDetailOnNarrow(false)}
+        onResponsiveChange={(narrow) => {
+          isNarrowLayoutRef.current = narrow;
+          if (!narrow) setSelectedDocId((current) => current ?? treeDocIds[0]);
+        }}
         master={(
-          <>
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
             <MasterDetailLayout.Header
               extra={canWrite && hasPermission('wiki:doc:create') ? (
                 <>
                   <Tooltip content="导入 Markdown 文件">
                     <Button
+                      aria-label="导入 Markdown 文件"
                       size="small"
                       theme="borderless"
                       icon={<FileUp size={15} />}
@@ -460,6 +495,7 @@ export default function WikiDocCenterPage() {
                   </Tooltip>
                   <Tooltip content="新建文档">
                     <Button
+                      aria-label="新建文档"
                       size="small"
                       theme="borderless"
                       icon={<FilePlus2 size={15} />}
@@ -482,7 +518,11 @@ export default function WikiDocCenterPage() {
                 placeholder="选择知识空间"
                 value={effectiveSpaceId}
                 loading={spacesQuery.isPending}
-                onChange={(v) => { setSpaceId(v as number); setSelectedDocId(undefined); }}
+                onChange={(v) => {
+                  setSpaceId(v as number);
+                  setSelectedDocId(undefined);
+                  setShowDetailOnNarrow(false);
+                }}
                 optionList={spaces.map((s) => ({ value: s.id, label: s.name }))}
               />
             </MasterDetailLayout.Header>
@@ -610,7 +650,7 @@ export default function WikiDocCenterPage() {
                 </Tabs.TabPane>
               </Tabs>
             </MasterDetailLayout.Body>
-          </>
+          </div>
         )}
         detail={(
           <MasterDetailLayout.Body padding="0 0 0 16px">

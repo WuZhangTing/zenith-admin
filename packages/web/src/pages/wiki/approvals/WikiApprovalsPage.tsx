@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Space, Tabs, Tag, TextArea, Timeline, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Modal, Space, Tabs, Tag, TextArea, Timeline, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Check, X } from 'lucide-react';
 import type { WikiDoc, WikiReviewRecord } from '@zenith/shared/wiki';
@@ -69,10 +69,16 @@ function PendingPane() {
   const [rejectReason, setRejectReason] = useState('');
 
   function handleApprove(record: WikiDoc) {
-    reviewMutation.mutate(
-      { id: record.id, action: 'approve' },
-      { onSuccess: () => { Toast.success('已通过并发布'); setPreviewId(undefined); } },
-    );
+    Modal.confirm({
+      title: `确认通过「${record.title}」并发布？`,
+      content: '发布后，所有可访问该空间的成员将立即看到当前版本。',
+      okText: '通过并发布',
+      onOk: async () => {
+        await reviewMutation.mutateAsync({ id: record.id, action: 'approve' });
+        Toast.success('已通过并发布');
+        setPreviewId(undefined);
+      },
+    });
   }
 
   function handleReject() {
@@ -194,7 +200,7 @@ function PendingPane() {
         okText="确认驳回"
         okButtonProps={{ type: 'danger', loading: reviewMutation.isPending }}
       >
-        <Text type="tertiary">驳回后文档回到作者的草稿箱，作者可修改后重新提交。</Text>
+        <Text type="tertiary">驳回后文档将标记为「已驳回」，作者可修改后重新提交。</Text>
         <TextArea
           style={{ marginTop: 12 }}
           value={rejectReason}
@@ -208,10 +214,12 @@ function PendingPane() {
   );
 }
 
-/** 我提交的 Tab：待审 / 被驳回的文档，支持撤回与查看时间线 */
+/** 我提交的 Tab：完整提交历史，支持撤回待审文档与查看时间线 */
 function MySubmissionsPane() {
-  const listQuery = useWikiDocList({ page: 1, pageSize: 100, mine: true });
-  const list = (listQuery.data?.list ?? []).filter((d) => d.status === 'pending' || d.status === 'rejected');
+  const { page, pageSize, buildPagination } = usePagination();
+  const listQuery = useWikiDocList({ page, pageSize, submitted: true });
+  const list = listQuery.data?.list ?? [];
+  const total = listQuery.data?.total ?? 0;
 
   const withdrawMutation = useWithdrawWikiDoc();
   const [timelineDocId, setTimelineDocId] = useState<number>();
@@ -248,9 +256,10 @@ function MySubmissionsPane() {
         loading={listQuery.isFetching}
         rowKey="id"
         size="small"
-        empty="没有审核中或被驳回的文档"
+        empty="还没有提交过文档审核"
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
+        pagination={buildPagination(total)}
       />
 
       <AppModal

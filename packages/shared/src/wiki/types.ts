@@ -80,6 +80,8 @@ export interface WikiDoc {
   favorited?: boolean;
   favoriteCount?: number;
   commentCount?: number;
+  /** 当前是否允许发表评论（详情接口附加） */
+  commentsEnabled?: boolean;
   /** 当前用户是否已订阅（详情接口附加） */
   subscribed?: boolean;
   /** 发布后要求读者确认已读 */

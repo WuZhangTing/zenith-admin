@@ -17,15 +17,21 @@ import { wikiSpaceAccessCondition } from './access';
 import { ensureSpaceRole } from './spaces.service';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
 const STALE_DAYS = 180;
 const DRAFT_BACKLOG_DAYS = 30;
-const REVIEW_BACKLOG_DAYS = 7;
+const DEFAULT_REVIEW_BACKLOG_HOURS = 48;
 
 // ─── 治理清单 ─────────────────────────────────────────────────────────────────
 
-function governanceKindCondition(kind: WikiGovernanceKind) {
+function governanceKindCondition(
+  kind: WikiGovernanceKind,
+  pendingRemindHours = DEFAULT_REVIEW_BACKLOG_HOURS,
+) {
   const now = new Date();
   switch (kind) {
+    case 'all':
+      return eq(wikiDocs.isArchived, false);
     case 'expired':
       return buildWhere(eq(wikiDocs.isArchived, false), isNotNull(wikiDocs.expireAt), lte(wikiDocs.expireAt, now));
     case 'review-due':
@@ -34,7 +40,7 @@ function governanceKindCondition(kind: WikiGovernanceKind) {
       return buildWhere(
         eq(wikiDocs.isArchived, false),
         eq(wikiDocs.status, 'published'),
-        lt(wikiDocs.updatedAt, new Date(Date.now() - STALE_DAYS * DAY_MS)),
+        lt(wikiDocs.updatedAt, new Date(now.getTime() - STALE_DAYS * DAY_MS)),
       );
     case 'no-owner':
       return buildWhere(eq(wikiDocs.isArchived, false), isNull(wikiDocs.ownerId));
@@ -42,13 +48,13 @@ function governanceKindCondition(kind: WikiGovernanceKind) {
       return buildWhere(
         eq(wikiDocs.isArchived, false),
         eq(wikiDocs.status, 'draft'),
-        lt(wikiDocs.updatedAt, new Date(Date.now() - DRAFT_BACKLOG_DAYS * DAY_MS)),
+        lt(wikiDocs.updatedAt, new Date(now.getTime() - DRAFT_BACKLOG_DAYS * DAY_MS)),
       );
     case 'review-backlog':
       return buildWhere(
         eq(wikiDocs.isArchived, false),
         eq(wikiDocs.status, 'pending'),
-        lt(wikiDocs.updatedAt, new Date(Date.now() - REVIEW_BACKLOG_DAYS * DAY_MS)),
+        lt(wikiDocs.updatedAt, new Date(now.getTime() - pendingRemindHours * HOUR_MS)),
       );
     case 'archived':
       return eq(wikiDocs.isArchived, true);
@@ -65,7 +71,10 @@ function governanceScope() {
 
 export async function listGovernanceDocs(kind: WikiGovernanceKind, q: { page?: number; pageSize?: number }) {
   const { page = 1, pageSize = 10 } = q;
-  const where = buildWhere(governanceScope(), governanceKindCondition(kind));
+  const pendingRemindHours = kind === 'review-backlog'
+    ? await getConfigNumber(WIKI_SETTING_KEYS.pendingRemindHours, DEFAULT_REVIEW_BACKLOG_HOURS)
+    : DEFAULT_REVIEW_BACKLOG_HOURS;
+  const where = buildWhere(governanceScope(), governanceKindCondition(kind, pendingRemindHours));
 
   const [total, rows] = await Promise.all([
     db.$count(wikiDocs, where),
@@ -111,7 +120,7 @@ export async function listNoResultKeywords(limit = 20) {
   const rows = await db.select({
     keyword: wikiSearchLogs.keyword,
     searchCount: sql<number>`count(*)::int`,
-    lastSearchedAt: sql<string>`max(${wikiSearchLogs.createdAt})`,
+    lastSearchedAt: sql<Date>`max(${wikiSearchLogs.createdAt})`.mapWith(wikiSearchLogs.createdAt),
   }).from(wikiSearchLogs)
     .where(buildWhere(
       eq(wikiSearchLogs.resultCount, 0),
@@ -121,7 +130,7 @@ export async function listNoResultKeywords(limit = 20) {
     .groupBy(wikiSearchLogs.keyword)
     .orderBy(desc(sql`count(*)`))
     .limit(limit);
-  return rows.map((r) => ({ ...r, lastSearchedAt: formatDateTime(new Date(r.lastSearchedAt)) }));
+  return rows.map((r) => ({ ...r, lastSearchedAt: formatDateTime(r.lastSearchedAt) }));
 }
 
 // ─── 批量操作 ─────────────────────────────────────────────────────────────────
@@ -179,10 +188,10 @@ export async function setGovernanceOwner(ids: number[], ownerId: number) {
   return updated.length;
 }
 
-export async function setGovernanceReview(ids: number[], reviewCycleDays: number, expireAt?: string | null) {
+export async function setGovernanceReview(ids: number[], reviewCycleDays: number | null, expireAt?: string | null) {
   const governed = await pickGovernedIds(ids);
   if (governed.length === 0) return 0;
-  const nextReviewAt = new Date(Date.now() + reviewCycleDays * DAY_MS);
+  const nextReviewAt = reviewCycleDays === null ? null : new Date(Date.now() + reviewCycleDays * DAY_MS);
   const updated = await db.update(wikiDocs).set({
     reviewCycleDays,
     nextReviewAt,
@@ -232,8 +241,12 @@ export async function getWikiOpsStats() {
   const since30d = new Date(Date.now() - 30 * DAY_MS);
   const scope = governanceScope();
   const tenantLogs = tenantCondition(wikiSearchLogs, currentUser());
+  const pendingRemindHours = await getConfigNumber(
+    WIKI_SETTING_KEYS.pendingRemindHours,
+    DEFAULT_REVIEW_BACKLOG_HOURS,
+  );
 
-  const [trendRows, spaceRows, searchCount30d, noResultCount30d, approvedCount30d, rejectedCount30d,
+  const [trendRows, spaceRows, searchCount30d, noResultCount30d, reviewCounts,
     pendingBacklog, expiredCount, reviewDueCount, noOwnerCount, archivedCount] = await Promise.all([
     db.select({
       date: sql<string>`to_char(${wikiDocs.createdAt}, 'YYYY-MM-DD')`,
@@ -252,9 +265,14 @@ export async function getWikiOpsStats() {
       .orderBy(desc(sql`count(*)`)),
     db.$count(wikiSearchLogs, buildWhere(gte(wikiSearchLogs.createdAt, since30d), tenantLogs)),
     db.$count(wikiSearchLogs, buildWhere(gte(wikiSearchLogs.createdAt, since30d), eq(wikiSearchLogs.resultCount, 0), tenantLogs)),
-    db.$count(wikiReviewRecords, and(gte(wikiReviewRecords.createdAt, since30d), eq(wikiReviewRecords.action, 'approve'))),
-    db.$count(wikiReviewRecords, and(gte(wikiReviewRecords.createdAt, since30d), eq(wikiReviewRecords.action, 'reject'))),
-    db.$count(wikiDocs, buildWhere(eq(wikiDocs.status, 'pending'), scope)),
+    db.select({
+      approved: sql<number>`count(*) filter (where ${wikiReviewRecords.action} = 'approve')::int`,
+      rejected: sql<number>`count(*) filter (where ${wikiReviewRecords.action} = 'reject')::int`,
+    }).from(wikiReviewRecords)
+      .innerJoin(wikiDocs, eq(wikiReviewRecords.docId, wikiDocs.id))
+      .where(buildWhere(gte(wikiReviewRecords.createdAt, since30d), scope))
+      .then((rows) => rows[0] ?? { approved: 0, rejected: 0 }),
+    db.$count(wikiDocs, buildWhere(scope, governanceKindCondition('review-backlog', pendingRemindHours))),
     db.$count(wikiDocs, buildWhere(scope, governanceKindCondition('expired'))),
     db.$count(wikiDocs, buildWhere(scope, governanceKindCondition('review-due'))),
     db.$count(wikiDocs, buildWhere(scope, governanceKindCondition('no-owner'))),
@@ -266,8 +284,8 @@ export async function getWikiOpsStats() {
     spaceDistribution: spaceRows,
     searchCount30d,
     noResultCount30d,
-    approvedCount30d,
-    rejectedCount30d,
+    approvedCount30d: reviewCounts.approved,
+    rejectedCount30d: reviewCounts.rejected,
     pendingBacklog,
     expiredCount,
     reviewDueCount,

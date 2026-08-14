@@ -160,8 +160,8 @@ export const wikiGovernanceOwnerSchema = wikiGovernanceBatchSchema.extend({
 export type WikiGovernanceOwnerInput = z.infer<typeof wikiGovernanceOwnerSchema>;
 
 export const wikiGovernanceReviewSchema = wikiGovernanceBatchSchema.extend({
-  /** 复审周期（天）；同时把下次复审时间推进 cycle 天 */
-  reviewCycleDays: z.number().int().min(1).max(3650),
+  /** 复审周期（天）；null = 取消定期复审 */
+  reviewCycleDays: z.number().int().min(1).max(3650).nullable(),
   /** 有效期（可选，YYYY-MM-DD HH:mm:ss 或 YYYY-MM-DD） */
   expireAt: z.string().nullable().optional(),
 });

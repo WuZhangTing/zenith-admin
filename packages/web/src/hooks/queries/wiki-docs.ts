@@ -12,6 +12,7 @@ import type { PaginatedResponse } from '@zenith/shared/core';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
+import { wikiStatsKeys } from './wiki-query-keys';
 
 export interface WikiDocListParams extends CrudListParams {
   keyword?: string;
@@ -19,6 +20,7 @@ export interface WikiDocListParams extends CrudListParams {
   status?: string;
   tagId?: number;
   mine?: boolean;
+  submitted?: boolean;
 }
 
 // ─── 独立命名空间的子资源 ─────────────────────────────────────────────────────
@@ -61,6 +63,7 @@ export const wikiDocRecentKey = ['wiki-doc-recent'] as const;
 /** 审核时间线与已读名单（详情页子资源，随对应动作精确失效） */
 export const wikiReviewRecordKeys = {
   of: (docId: number | undefined) => ['wiki-review-records', docId] as const,
+  processedLists: ['wiki-review-records', 'processed'] as const,
   processed: (params: unknown) => ['wiki-review-records', 'processed', params] as const,
 };
 
@@ -83,14 +86,21 @@ export const {
     void qc.invalidateQueries({ queryKey: wikiDocTreeKeys.of(saved.spaceId) });
     void qc.invalidateQueries({ queryKey: wikiDocVersionKeys.of(saved.id) });
     void qc.invalidateQueries({ queryKey: wikiDocFavoriteKeys.all });
+    // 新建或正文更新可同时改变文档/发布/贡献/沉睡/运营等全部统计。
+    void qc.invalidateQueries({ queryKey: wikiStatsKeys.all });
   },
   // 删除 = 移入回收站：树、收藏、回收站列表都受影响（ids 无法反查 spaceId，树整组失效）
   onDeleted: (qc) => {
     void qc.invalidateQueries({ queryKey: wikiDocTreeKeys.all });
     void qc.invalidateQueries({ queryKey: wikiDocFavoriteKeys.all });
     void qc.invalidateQueries({ queryKey: wikiDocRecycleKeys.all });
+    // 删除会同时改变总量、排行、贡献、沉睡文档与运营分布。
+    void qc.invalidateQueries({ queryKey: wikiStatsKeys.all });
   },
 });
+
+/** 文档详情组前缀：全局协作设置变化时只刷新详情，不波及列表/lookup。 */
+export const wikiDocDetailPrefix = ['wiki-docs', 'detail'] as const;
 
 // ─── 查询 ─────────────────────────────────────────────────────────────────────
 
@@ -193,6 +203,9 @@ export function useSubmitWikiDoc() {
       void qc.invalidateQueries({ queryKey: wikiDocKeys.detail(saved.id) });
       void qc.invalidateQueries({ queryKey: wikiDocKeys.lists });
       void qc.invalidateQueries({ queryKey: wikiDocTreeKeys.of(saved.spaceId) });
+      void qc.invalidateQueries({ queryKey: wikiReviewRecordKeys.of(saved.id) });
+      void qc.invalidateQueries({ queryKey: wikiStatsKeys.overview });
+      void qc.invalidateQueries({ queryKey: wikiStatsKeys.ops });
     },
   });
 }
@@ -207,6 +220,10 @@ export function useReviewWikiDoc() {
       void qc.invalidateQueries({ queryKey: wikiDocKeys.detail(saved.id) });
       void qc.invalidateQueries({ queryKey: wikiDocKeys.lists });
       void qc.invalidateQueries({ queryKey: wikiDocTreeKeys.of(saved.spaceId) });
+      void qc.invalidateQueries({ queryKey: wikiReviewRecordKeys.of(saved.id) });
+      void qc.invalidateQueries({ queryKey: wikiReviewRecordKeys.processedLists });
+      void qc.invalidateQueries({ queryKey: wikiStatsKeys.overview });
+      void qc.invalidateQueries({ queryKey: wikiStatsKeys.ops });
     },
   });
 }
@@ -246,6 +263,8 @@ export function useRollbackWikiDoc() {
       void qc.invalidateQueries({ queryKey: wikiDocKeys.lists });
       void qc.invalidateQueries({ queryKey: wikiDocTreeKeys.of(saved.spaceId) });
       void qc.invalidateQueries({ queryKey: wikiDocVersionKeys.of(saved.id) });
+      void qc.invalidateQueries({ queryKey: wikiStatsKeys.overview });
+      void qc.invalidateQueries({ queryKey: wikiStatsKeys.ops });
     },
   });
 }
@@ -259,6 +278,8 @@ export function useRestoreWikiDoc() {
       void qc.invalidateQueries({ queryKey: wikiDocRecycleKeys.all });
       void qc.invalidateQueries({ queryKey: wikiDocKeys.lists });
       void qc.invalidateQueries({ queryKey: wikiDocTreeKeys.of(saved.spaceId) });
+      // 还原与删除相反，会重新进入所有文档派生统计。
+      void qc.invalidateQueries({ queryKey: wikiStatsKeys.all });
     },
   });
 }
@@ -299,6 +320,8 @@ export function useWithdrawWikiDoc() {
       void qc.invalidateQueries({ queryKey: wikiDocKeys.lists });
       void qc.invalidateQueries({ queryKey: wikiDocTreeKeys.of(saved.spaceId) });
       void qc.invalidateQueries({ queryKey: wikiReviewRecordKeys.of(saved.id) });
+      void qc.invalidateQueries({ queryKey: wikiStatsKeys.overview });
+      void qc.invalidateQueries({ queryKey: wikiStatsKeys.ops });
     },
   });
 }
