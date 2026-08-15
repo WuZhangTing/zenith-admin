@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Button, DatePicker, Dropdown, Form, Modal, Select, Space, Tag, Toast, Tooltip, Typography, Empty, Tree } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
@@ -284,11 +284,10 @@ export default function ResourcesPage() {
   const canDelete = hasPermission('cms:resource:delete');
   const selectedFolder = folderId && folderId > 0 ? findFolder(foldersQuery.data ?? [], folderId) : null;
 
-  // 引用稳定：CmsSiteSelect 把 onChange 放进了 useEffect 依赖
-  const handleSiteChange = useCallback((next: number) => {
+  function handleSiteChange(next: number) {
     setSiteId(next);
     setPage(1);
-  }, [setPage]);
+  }
 
   function handleSearch() {
     setKeyword(keywordDraft.trim() || undefined);

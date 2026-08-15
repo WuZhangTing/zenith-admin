@@ -1,6 +1,8 @@
-import { Select } from '@douyinfe/semi-ui';
-import { useEffect } from 'react';
+import { TreeSelect } from '@douyinfe/semi-ui';
+import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
+import { useEffect, useMemo, useRef } from 'react';
 import { useAllCmsSites } from '@/hooks/queries/cms';
+import type { CmsSite } from '@zenith/shared/cms';
 
 interface CmsSiteSelectProps {
   value: number | undefined;
@@ -29,15 +31,38 @@ function storeSiteId(id: number): void {
   }
 }
 
+/** 平铺站点 → 树节点（站群父子层级）；父级不可见（越权/被删）的节点挂到根，避免站点凭空消失 */
+function buildSiteTree(sites: CmsSite[]): TreeNodeData[] {
+  const visible = new Set(sites.map((s) => s.id));
+  const children = new Map<number | null, CmsSite[]>();
+  for (const site of sites) {
+    const parent = site.parentId != null && visible.has(site.parentId) ? site.parentId : null;
+    children.set(parent, [...(children.get(parent) ?? []), site]);
+  }
+  const toNode = (site: CmsSite): TreeNodeData => ({
+    key: String(site.id),
+    value: site.id,
+    label: site.name,
+    children: (children.get(site.id) ?? []).map(toNode),
+  });
+  return (children.get(null) ?? []).map(toNode);
+}
+
 /**
- * CMS 各管理页共用的站点切换器。
+ * CMS 各管理页共用的站点切换器（树形展示站群父子层级）。
  *
  * 「当前站点」为全 CMS 模块共享上下文：任一页面切换站点即写入 localStorage，
- * 其余页面（以及 F5 刷新后）挂载时自动恢复同一站点，避免 20+ 菜单间反复重选、
- * 或在错误站点下建栏目/内容。恢复优先级：已存储站点（仍有权限可见）→ 默认站点 → 首个站点。
+ * 其余页面（以及 F5 刷新后）挂载时自动恢复同一站点。
+ * 恢复优先级：已存储站点（仍有权限可见）→ 默认站点 → 首个站点。
+ *
+ * onChange 经 ref 消费，调用方无需为引用稳定包 useCallback。
  */
 export function CmsSiteSelect({ value, onChange, width = 200 }: Readonly<CmsSiteSelectProps>) {
   const { data: sites } = useAllCmsSites();
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  const treeData = useMemo(() => buildSiteTree(sites ?? []), [sites]);
 
   useEffect(() => {
     if (value === undefined && sites && sites.length > 0) {
@@ -45,20 +70,26 @@ export function CmsSiteSelect({ value, onChange, width = 200 }: Readonly<CmsSite
       const preferred = sites.find((s) => s.id === stored)
         ?? sites.find((s) => s.isDefault)
         ?? sites[0];
-      onChange(preferred.id);
+      onChangeRef.current(preferred.id);
     }
-  }, [value, sites, onChange]);
+  }, [value, sites]);
 
   return (
-    <Select
+    <TreeSelect
       placeholder="选择站点"
       value={value}
       onChange={(v) => {
-        storeSiteId(v as number);
-        onChange(v as number);
+        if (typeof v !== 'number') return;
+        storeSiteId(v);
+        onChangeRef.current(v);
       }}
       style={{ width }}
-      optionList={(sites ?? []).map((s) => ({ value: s.id, label: s.name }))}
+      dropdownStyle={{ maxHeight: 360, overflow: 'auto' }}
+      treeData={treeData}
+      expandAll
+      filterTreeNode
+      searchPosition="trigger"
+      showClear={false}
     />
   );
 }

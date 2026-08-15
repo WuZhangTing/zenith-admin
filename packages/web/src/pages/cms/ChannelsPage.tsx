@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Button, Dropdown, Empty, Form, Spin, Tag, Toast, Row, Col, Select, Tooltip, Tree, Typography } from '@douyinfe/semi-ui';
 import { IllustrationNoContent, IllustrationNoContentDark } from '@douyinfe/semi-illustrations';
@@ -135,13 +135,12 @@ export default function ChannelsPage() {
     setSelectedId(null);
   }
 
-  // 站点切换会重挂载栏目树，同时清掉右侧编辑态。
-  // 用 useCallback 保持引用稳定：CmsSiteSelect 内部把 onChange 放进了 useEffect 依赖。
-  const handleSiteChange = useCallback((next: number) => {
+  // 站点切换会重挂载栏目树，同时清掉右侧编辑态
+  function handleSiteChange(next: number) {
     setSiteId(next);
     setCreateParentId(null);
     setSelectedId(null);
-  }, []);
+  }
 
   const formInitValues = editingRecord
     ? {

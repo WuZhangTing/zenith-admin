@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Tag, Toast, Modal, Tabs, TabPane, Tree, TreeSelect, Typography, Dropdown, Form, Upload, Select, SplitButtonGroup } from '@douyinfe/semi-ui';
@@ -79,12 +79,11 @@ export default function ContentsPage() {
   const { data: sites } = useAllCmsSites();
   const currentSite = sites?.find((s) => s.id === siteId);
 
-  // 引用稳定：CmsSiteSelect 把 onChange 放进了 useEffect 依赖
-  const handleSiteChange = useCallback((next: number) => {
+  function handleSiteChange(next: number) {
     setSiteId(next);
     setChannelId(undefined);
     setPage(1);
-  }, [setPage]);
+  }
 
   const statusFilter: CmsContentStatus | undefined =
     activeTab === 'pending' ? 'pending' : activeTab === 'published' ? 'published' : undefined;
