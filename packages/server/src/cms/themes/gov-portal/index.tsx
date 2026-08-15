@@ -9,7 +9,7 @@ import type { ReactNode } from 'react';
 import type {
   CmsBaseContext, CmsContentItem, CmsListContext, CmsDetailContext,
   CmsPageContext, CmsSearchContext, CmsTagPageContext, CmsNotFoundContext,
-  CmsTheme, CmsThemeContentCollection,
+  CmsTheme, CmsThemeContentCollection, CmsNavItem as CmsNavItemType,
 } from '../types';
 import { SeoHead, Breadcrumbs, Pagination, ModelFieldTable, MODEL_FIELD_TABLE_STYLES, buildAnalyticsBeacon, buildThemeOverrides } from '../_shared';
 import { defineHomeTemplate } from '../sdk';
@@ -34,9 +34,19 @@ img { max-width: 100%; }
 .masthead-search input { border: 1px solid var(--border); border-right: none; border-radius: 4px 0 0 4px; padding: 9px 14px; font-size: 14px; width: 240px; outline: none; }
 .masthead-search button { background: var(--primary); color: #fff; border: none; border-radius: 0 4px 4px 0; padding: 0 20px; font-size: 14px; cursor: pointer; }
 .main-nav { background: var(--primary); }
-.main-nav .w1200 { display: flex; overflow-x: auto; }
-.main-nav a { color: #fff; font-size: 16px; padding: 13px 26px; white-space: nowrap; }
-.main-nav a.active, .main-nav a:hover { background: rgba(0,0,0,.18); color: #fff; }
+.main-nav .w1200 { display: flex; }
+.main-nav > .w1200 > .nav-item > a { color: #fff; font-size: 16px; padding: 13px 26px; white-space: nowrap; display: block; }
+.nav-item { position: relative; }
+.nav-item > a.active, .nav-item:hover > a { background: rgba(0,0,0,.18); color: #fff; }
+.nav-item .caret { font-size: 10px; margin-left: 6px; opacity: .75; }
+.nav-sub { display: none; position: absolute; top: 100%; left: 0; min-width: 200px; background: #fff; border: 1px solid var(--border); border-top: 2px solid var(--primary); box-shadow: 0 6px 18px rgba(0,0,0,.12); z-index: 30; padding: 6px 0; }
+.nav-item:hover > .nav-sub { display: block; }
+.nav-sub a { display: block; color: var(--text); font-size: 14px; padding: 8px 18px; white-space: nowrap; }
+.nav-sub a:hover { background: var(--bg-2); color: var(--primary); }
+.nav-sub .nav-sub-group { border-top: 1px dashed var(--border); margin-top: 4px; padding-top: 4px; }
+.nav-sub .nav-sub-group:first-child { border-top: none; margin-top: 0; padding-top: 0; }
+.nav-sub .nav-l3 a { padding-left: 34px; font-size: 13px; color: var(--text-2); }
+.nav-sub .nav-l3 a::before { content: '\u2514 '; opacity: .6; }
 main { min-height: 60vh; padding: 22px 0 44px; }
 .breadcrumbs { font-size: 13px; color: var(--text-2); margin-bottom: 14px; }
 .breadcrumbs a { color: var(--text-2); }
@@ -88,10 +98,41 @@ ${MODEL_FIELD_TABLE_STYLES}
   .masthead-search { display: none; }
   .gov-grid { grid-template-columns: 1fr; }
   .svc-grid { grid-template-columns: repeat(2, 1fr); }
+  .main-nav .w1200 { overflow-x: auto; }
+  .nav-sub { display: none !important; }
 }
 `;
 
 // ─── 布局 ─────────────────────────────────────────────────────────────────────
+
+/** 主导航项：有子栏目时 hover 展开下拉（纯 CSS，静态页零 JS）；三级在面板内缩进列出 */
+function NavItem({ item, currentUrl }: { item: CmsNavItemType; currentUrl?: string }) {
+  const hasChildren = !!item.children?.length;
+  return (
+    <div className="nav-item">
+      <a href={item.url} target={item.target} className={currentUrl === item.url ? 'active' : undefined}>
+        {item.name}
+        {hasChildren ? <span className="caret">▾</span> : null}
+      </a>
+      {hasChildren ? (
+        <div className="nav-sub">
+          {item.children!.map((child) => (
+            <div className="nav-sub-group" key={child.id}>
+              <a href={child.url} target={child.target}>{child.name}</a>
+              {child.children?.length ? (
+                <div className="nav-l3">
+                  {child.children.map((grand) => (
+                    <a key={grand.id} href={grand.url} target={grand.target}>{grand.name}</a>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function GovLayout({ ctx, currentUrl, children }: { ctx: CmsBaseContext; currentUrl?: string; children: ReactNode }) {
   const { site, nav, friendLinkGroups, baseUrl } = ctx;
@@ -120,12 +161,10 @@ function GovLayout({ ctx, currentUrl, children }: { ctx: CmsBaseContext; current
         </header>
         <nav className="main-nav">
           <div className="w1200">
-            <a href={`${baseUrl}/`} className={currentUrl === `${baseUrl}/` ? 'active' : undefined}>首页</a>
-            {nav.map((item) => (
-              <a key={item.id} href={item.url} target={item.target} className={currentUrl === item.url ? 'active' : undefined}>
-                {item.name}
-              </a>
-            ))}
+            <div className="nav-item">
+              <a href={`${baseUrl}/`} className={currentUrl === `${baseUrl}/` ? 'active' : undefined}>首页</a>
+            </div>
+            {nav.map((item) => <NavItem key={item.id} item={item} currentUrl={currentUrl} />)}
           </div>
         </nav>
         <main>
