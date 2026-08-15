@@ -2,7 +2,7 @@ import { createElement, type ComponentType } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { eq, and, desc, isNull, inArray } from 'drizzle-orm';
 import { db } from '../../db';
-import { cmsChannels, cmsTags, cmsContents, cmsModels, cmsSites } from '../../db/schema';
+import { cmsChannels, cmsTags, cmsContentTags, cmsContents, cmsModels, cmsSites } from '../../db/schema';
 import type { CmsSiteRow, CmsChannelRow, CmsContentRow, CmsTagRow } from '../../db/schema';
 import { formatNullableDateTime, formatIso8601 } from '../../lib/datetime';
 import { getBuiltinThemeFallback, resolveListTemplate, resolveDetailTemplate, resolveCustomPageTemplate, resolveInteractionTemplate, resolveThemeConfig } from '../../cms/themes/registry';
@@ -391,9 +391,10 @@ export async function renderCustomPage(
     // 优先按栏目标识引用；旧页面配置仍存的是数值 id，保持兼容
     const code = typeof block.props.channelCode === 'string' ? block.props.channelCode : '';
     const channelId = (code ? channelCodeMap.get(code) : Number(block.props.channelId)) || undefined;
+    const tagSlug = typeof block.props.tagSlug === 'string' && block.props.tagSlug.trim() ? block.props.tagSlug.trim() : undefined;
     const count = Math.min(20, Math.max(1, Number(block.props.count) || 5));
     const mode = block.props.mode === 'recommend' || block.props.mode === 'hot' ? block.props.mode : 'latest';
-    const rows = await listBlockContents(site.id, { channelId, count, mode });
+    const rows = await listBlockContents(site.id, { channelId, tagSlug, count, mode });
     const resolveLink = await buildCmsLinkResolver(site.id, baseUrl, rows.map((r) => r.externalLink));
     const listFieldDefs = await loadCmsListModelFieldDefs(rows.map((r) => r.modelId));
     contentListData.set(block.id, rows.map((row) => toContentItem(row, baseUrl, channelPathMap.get(row.channelId) ?? FALLBACK_URL_CHANNEL, resolveLink, listFieldDefs)));
@@ -421,9 +422,20 @@ export async function renderCustomPage(
   return { status: 200, html, kind: opts?.asHome ? 'home' : 'page' };
 }
 
-async function listBlockContents(siteId: number, opts: { channelId?: number; count: number; mode: 'latest' | 'recommend' | 'hot' }): Promise<ResolvedCmsContentRow[]> {
+async function listBlockContents(siteId: number, opts: { channelId?: number; tagSlug?: string; count: number; mode: 'latest' | 'recommend' | 'hot' }): Promise<ResolvedCmsContentRow[]> {
   const conds = [eq(cmsContents.siteId, siteId), eq(cmsContents.status, 'published'), isNull(cmsContents.deletedAt)];
-  if (opts.channelId) conds.push(eq(cmsContents.channelId, opts.channelId));
+  if (opts.tagSlug) {
+    // 标签聚合：跨栏目取同标签内容（专题页典型场景）；标签模式下忽略栏目条件
+    conds.push(inArray(
+      cmsContents.id,
+      db.select({ id: cmsContentTags.contentId })
+        .from(cmsContentTags)
+        .innerJoin(cmsTags, eq(cmsContentTags.tagId, cmsTags.id))
+        .where(and(eq(cmsTags.siteId, siteId), eq(cmsTags.slug, opts.tagSlug))),
+    ));
+  } else if (opts.channelId) {
+    conds.push(eq(cmsContents.channelId, opts.channelId));
+  }
   if (opts.mode === 'recommend') conds.push(eq(cmsContents.isRecommend, true));
   if (opts.mode === 'hot') conds.push(eq(cmsContents.isHot, true));
   const rows = await db.select().from(cmsContents)

@@ -15,7 +15,7 @@ import { useIsMobile } from '@/hooks/useMediaQuery';
 import { formRemountKey } from '@/hooks/useEditModal';
 import {
   useCmsSiteList, useCmsPageList, useSaveCmsPage, useDeleteCmsPage, useCmsChannelTree,
-  cmsPageKeys, useCmsPageDetail, useCmsPageBlockAcls, useSetCmsPageBlockAcls,
+  cmsPageKeys, useCmsPageDetail, useCmsPageBlockAcls, useSetCmsPageBlockAcls, useCmsTagList,
 } from '@/hooks/queries/cms';
 import { useAllRoles } from '@/hooks/queries/roles';
 import { useAllUsers } from '@/hooks/queries/users';
@@ -71,6 +71,7 @@ export default function PagesPage() {
   const listQuery = useCmsPageList({ page, pageSize, siteId, ...(keyword ? { keyword } : {}) });
   const { data: sitesPage } = useCmsSiteList({ page: 1, pageSize: 100 });
   const treeQuery = useCmsChannelTree(siteId);
+  const tagOptionsQuery = useCmsTagList({ page: 1, pageSize: 200, siteId: siteId ?? 0 }, siteId !== undefined);
   const saveMutation = useSaveCmsPage();
   const deleteMutation = useDeleteCmsPage();
 
@@ -567,6 +568,10 @@ export default function PagesPage() {
                 <Form.Input field="title" label="标题" />
                 <Form.TreeSelect field="channelCode" label="栏目" style={{ width: '100%' }} showClear
                   treeData={channelsToSelectTree(treeQuery.data ?? [])} placeholder="留空取全站" />
+                <Form.Select field="tagSlug" label="标签聚合" style={{ width: '100%' }} showClear filter
+                  placeholder="选择后跨栏目聚合该标签内容（优先于栏目）"
+                  loading={tagOptionsQuery.isFetching}
+                  optionList={(tagOptionsQuery.data?.list ?? []).map((t) => ({ value: t.slug, label: `${t.name}（${t.contentCount}）` }))} />
                 <Form.Select field="mode" label="取数模式" style={{ width: '100%' }}
                   optionList={[
                     { value: 'latest', label: '最新发布' },
