@@ -8,6 +8,7 @@ import dayjs from 'dayjs';
 import { REFRESH_TOKEN_KEY, TOKEN_KEY } from '@zenith/shared/core';
 import type { RegisterInput, OAuthProviderType, LoginResult, LoginResponse, TenantIdentityProviderSummary } from '@zenith/shared/identity';
 import { request } from '@/utils/request';
+import { AUTH_INVALIDATED_REASON_KEY } from '@/utils/http-client';
 import { config } from '@/config';
 import { markPostLoginHome } from '@/lib/post-login';
 import AppLogo from '@/components/AppLogo';
@@ -50,6 +51,19 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
     }, 1000);
     return () => clearInterval(timer);
   }, [retrySeconds]);
+
+  // 被动下线（过期/他端注销/管理员强退）落地登录页时说明原因，避免被当成系统故障
+  useEffect(() => {
+    try {
+      const reason = sessionStorage.getItem(AUTH_INVALIDATED_REASON_KEY);
+      if (reason) {
+        sessionStorage.removeItem(AUTH_INVALIDATED_REASON_KEY);
+        Toast.warning({ content: reason, duration: 6 });
+      }
+    } catch {
+      // sessionStorage 不可用时跳过
+    }
+  }, []);
   const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
 
   const captchaQuery = usePublicCaptcha();

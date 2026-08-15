@@ -29,7 +29,7 @@ import { submitCmsWidgetSourceRefreshSideEffect } from './cms-widget-tasks';
 import { enqueueCmsWebhookEvents, insertCmsContentWebhookOutbox } from './cms-webhook.service';
 import { insertContentPublishOutbox, recalcTagContentCounts, ensureChannelForContent } from './cms-contents-internal';
 import { ensureCmsContentExists, getCmsContent } from './cms-contents-query.service';
-import { offlineCmsContent } from './cms-contents-write.service';
+import { offlineCmsContent, publishCmsContent, rejectCmsContent, submitCmsContent } from './cms-contents-write.service';
 
 // ─── 回收站 ───────────────────────────────────────────────────────────────────
 async function assertBatchSiteAccess(ids: number[]): Promise<void> {
@@ -448,6 +448,47 @@ export async function batchSetCmsContentFlags(ids: number[], flags: { isTop?: bo
     .where(and(inArray(cmsContents.id, ids), isNull(cmsContents.deletedAt), isNull(cmsContents.lockedAt)))
     .returning({ id: cmsContents.id });
   return updated.length;
+}
+
+/** 批量状态操作的动作 → 所需权限（与单条操作一致） */
+const CMS_BATCH_STATUS_PERMISSIONS: Record<'submit' | 'publish' | 'reject' | 'offline', string> = {
+  submit: 'cms:content:update',
+  publish: 'cms:content:publish',
+  offline: 'cms:content:publish',
+  reject: 'cms:content:audit',
+};
+
+/**
+ * 批量状态流转（提审/发布/驳回/下线）。
+ * 逐条复用单内容管道（各自独立事务与状态机校验），返回部分成功明细，
+ * 单条失败不中断整批。
+ */
+export async function batchTransitionCmsContents(
+  ids: number[],
+  action: 'submit' | 'publish' | 'reject' | 'offline',
+  reason?: string,
+): Promise<{ okIds: number[]; failed: { id: number; reason: string }[] }> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return { okIds: [], failed: [] };
+  if (!(await hasPermission(CMS_BATCH_STATUS_PERMISSIONS[action]))) {
+    throw new HTTPException(403, { message: '权限不足' });
+  }
+  const okIds: number[] = [];
+  const failed: { id: number; reason: string }[] = [];
+  for (const id of unique) {
+    try {
+      if (action === 'submit') await submitCmsContent(id);
+      else if (action === 'publish') await publishCmsContent(id);
+      else if (action === 'reject') await rejectCmsContent(id, reason?.trim() || '批量驳回');
+      else await offlineCmsContent(id);
+      okIds.push(id);
+    } catch (err) {
+      const message = err instanceof HTTPException ? err.message : '操作失败';
+      failed.push({ id, reason: message });
+      if (!(err instanceof HTTPException)) logger.warn(`[cms] 批量${action} 内容 #${id} 失败`, err);
+    }
+  }
+  return { okIds, failed };
 }
 
 /** 单条批量 INSERT 的最大行数（每行 2 个绑定参数，远低于 PG 的 65535 上限） */

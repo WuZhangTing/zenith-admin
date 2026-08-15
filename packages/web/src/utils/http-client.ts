@@ -4,6 +4,9 @@ import { showRequestErrorToast, showRequestWarningToast } from './request-toast'
 /** ApiResponse 扩展：限流时携带 retryAfterSeconds */
 export type ApiResponseWithMeta<T> = ApiResponse<T> & { retryAfterSeconds?: number };
 
+/** 会话被动失效的原因标记（sessionStorage）：登录页读取后提示并清除 */
+export const AUTH_INVALIDATED_REASON_KEY = 'zenith_auth_invalidated_reason';
+
 export interface HttpRequestOptions {
   /** 静默模式：为 true 时不自动弹出错误提示，由调用方自行处理 */
   silent?: boolean;
@@ -110,6 +113,13 @@ export class HttpClient {
   protected clearAuthAndRedirect(): void {
     for (const key of this.logoutClearKeys) {
       localStorage.removeItem(key);
+    }
+    // 被动失效（token 过期 / 在其他设备被注销 / 被管理员强退）与用户主动退出不同：
+    // 留下原因标记，登录页展示提示，避免用户误以为系统故障
+    try {
+      sessionStorage.setItem(AUTH_INVALIDATED_REASON_KEY, '登录状态已失效：会话已过期，或已在其他设备被注销/被管理员下线，请重新登录');
+    } catch {
+      // sessionStorage 不可用时跳过提示
     }
     if (this.onUnauthorized) {
       this.onUnauthorized();

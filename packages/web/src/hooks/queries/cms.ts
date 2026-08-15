@@ -247,7 +247,7 @@ export function useClearCmsChannel() {
 export function useBatchCreateCmsChannels() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { siteId: number; parentId: number; names: string[] }) =>
+    mutationFn: (body: { siteId: number; parentId: number; names: string[]; slugStrategy?: 'initials' | 'pinyin' }) =>
       request.post<null>('/api/cms/channels/batch-create', body).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: cmsChannelKeys.all }),
   });
@@ -1610,6 +1610,16 @@ export function useCmsContentBatchOps() {
   return useMutation({
     mutationFn: ({ action, body }: { action: 'batch-move' | 'batch-flags' | 'batch-tag' | 'distribute'; body: Record<string, unknown> }) =>
       request.post<null>(`/api/cms/contents/${action}`, body).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: cmsContentKeys.all }),
+  });
+}
+
+/** 批量状态流转（提审/发布/驳回/下线）：返回部分成功明细 */
+export function useCmsContentBatchStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { ids: number[]; action: 'submit' | 'publish' | 'reject' | 'offline'; reason?: string }) =>
+      request.post<{ okIds: number[]; failed: { id: number; reason: string }[] }>('/api/cms/contents/batch-status', body).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: cmsContentKeys.all }),
   });
 }

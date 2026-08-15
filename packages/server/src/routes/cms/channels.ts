@@ -143,7 +143,7 @@ const clearRoute = defineOpenAPIRoute({
 const batchCreateRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/batch-create',
-    tags: ['CMS-栏目管理'], summary: '批量新增栏目（slug 自动取拼音，路径冲突自动加序号）',
+    tags: ['CMS-栏目管理'], summary: '批量新增栏目（行支持「名称|slug」；slug 默认首字母缩写，路径冲突自动加序号）',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'cms:channel:create', audit: { description: 'CMS 栏目批量新增', module: 'CMS内容管理' } })] as const,
     request: {
@@ -151,7 +151,9 @@ const batchCreateRoute = defineOpenAPIRoute({
         content: jsonContent(z.object({
           siteId: z.number().int().positive(),
           parentId: z.number().int().min(0).default(0),
-          names: z.array(z.string().min(1).max(100)).min(1, '请输入栏目名称').max(50, '单次最多创建 50 个栏目'),
+          names: z.array(z.string().min(1).max(160)).min(1, '请输入栏目名称').max(50, '单次最多创建 50 个栏目'),
+          /** slug 生成策略：initials=首字母缩写（政务公开→zwgk）；pinyin=逐字全拼 */
+          slugStrategy: z.enum(['initials', 'pinyin']).default('initials'),
         })),
         required: true,
       },
@@ -159,8 +161,8 @@ const batchCreateRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...okMsg('创建成功') },
   }),
   handler: async (c) => {
-    const { siteId, parentId, names } = c.req.valid('json');
-    const count = await batchCreateCmsChannels(siteId, parentId, names);
+    const { siteId, parentId, names, slugStrategy } = c.req.valid('json');
+    const count = await batchCreateCmsChannels(siteId, parentId, names, slugStrategy);
     return c.json(okBody(null, `已创建 ${count} 个栏目`), 200);
   },
 });

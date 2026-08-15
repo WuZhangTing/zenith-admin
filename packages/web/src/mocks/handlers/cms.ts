@@ -1982,6 +1982,54 @@ export const cmsP3Handlers = [
     }
     return okJson(null, `已打标 ${ids.length} 条内容`);
   }),
+  http.post('/api/cms/contents/batch-status', async ({ request }) => {
+    const body = (await request.json()) as Body;
+    const ids = (body.ids as number[]) ?? [];
+    const action = body.action as 'submit' | 'publish' | 'reject' | 'offline';
+    const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
+    const okIds: number[] = [];
+    const failed: { id: number; reason: string }[] = [];
+    for (const id of ids) {
+      const content = mockCmsContents.find((c) => c.id === id);
+      if (!content) {
+        failed.push({ id, reason: '内容不存在' });
+        continue;
+      }
+      if (action === 'submit') {
+        if (content.status === 'draft' || content.status === 'rejected') {
+          content.status = 'pending';
+          okIds.push(id);
+        } else {
+          failed.push({ id, reason: `当前状态（${content.status}）不允许提交审核` });
+        }
+      } else if (action === 'publish') {
+        if (content.status !== 'published' && !content.archivedAt) {
+          content.status = 'published';
+          content.publishedAt = mockDateTime();
+          okIds.push(id);
+        } else {
+          failed.push({ id, reason: '内容已发布或不可发布' });
+        }
+      } else if (action === 'reject') {
+        if (content.status === 'pending') {
+          content.status = 'rejected';
+          content.rejectReason = reason || '批量驳回';
+          okIds.push(id);
+        } else {
+          failed.push({ id, reason: '仅待审核内容可驳回' });
+        }
+      } else if (content.status === 'published') {
+        content.status = 'offline';
+        okIds.push(id);
+      } else {
+        failed.push({ id, reason: '仅已发布内容可下线' });
+      }
+    }
+    const message = failed.length === 0
+      ? `已处理 ${okIds.length} 条内容`
+      : `成功 ${okIds.length} 条，失败 ${failed.length} 条`;
+    return okJson({ okIds, failed }, message);
+  }),
   http.post('/api/cms/contents/distribute', async ({ request }) => {
     const body = (await request.json()) as Body;
     const ids = (body.ids as number[]) ?? [];

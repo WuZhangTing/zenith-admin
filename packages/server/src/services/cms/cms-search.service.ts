@@ -8,8 +8,9 @@ import { escapeLike } from '../../lib/where-helpers';
 import { config } from '../../config';
 import redis from '../../lib/redis';
 import logger from '../../lib/logger';
-import type { CmsSearchResult } from '@zenith/shared/cms';
+import type { CmsChannelDetailPathRule, CmsSearchResult } from '@zenith/shared/cms';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
+import { contentUrl } from './cms-urls';
 import { pageOffset } from '../../lib/pagination';
 import { assertAllCmsSiteChannelsAccess, getAccessibleChannelIds } from './cms-channels.service';
 import { loadCmsExtensionWords, normalizeCmsSearchDictionaryWord } from './cms-search-dictionary';
@@ -239,16 +240,31 @@ interface SearchRowShape {
   channelId: number;
   channelName: string | null;
   channelPath: string | null;
+  channelDetailPathRule: CmsChannelDetailPathRule | null;
   title: string;
   slug: string | null;
+  staticPath: string | null;
+  contentType: string;
+  externalLink: string | null;
   summary: string | null;
   body: string | null;
   publishedAt: Date | null;
+  createdAt: Date | null;
   rank: number;
 }
 
 function mapSearchRow(row: SearchRowShape, tokens: string[]): CmsSearchResult {
   const plainSummary = row.summary?.trim() ? stripHtml(row.summary) : stripHtml(row.body).slice(0, 400);
+  // 外链形态：搜索结果直接指向外部地址；站内形态必须与静态化/模板共用 contentUrl()，
+  // 否则归档目录（detailPathRule）与自定义 staticPath 的内容会得到指向 404 的手拼链接
+  const isExternal = row.contentType === 'link' && !!row.externalLink;
+  const url = isExternal
+    ? row.externalLink!
+    : contentUrl(
+        '',
+        { path: row.channelPath ?? '', detailPathRule: row.channelDetailPathRule ?? 'none' },
+        { id: row.id, slug: row.slug, staticPath: row.staticPath, publishedAt: row.publishedAt, createdAt: row.createdAt },
+      );
   return {
     id: row.id,
     siteId: row.siteId,
@@ -257,7 +273,8 @@ function mapSearchRow(row: SearchRowShape, tokens: string[]): CmsSearchResult {
     title: row.title,
     titleHighlight: highlightTokens(row.title, tokens),
     snippet: buildSnippet(plainSummary, tokens),
-    url: `/${row.channelPath ?? ''}/${row.slug ?? row.id}.html`,
+    url,
+    isExternal,
     publishedAt: formatNullableDateTime(row.publishedAt),
     rank: Number(row.rank) || 0,
   };
@@ -297,11 +314,16 @@ export async function searchCmsContents(q: CmsSearchQuery): Promise<{ list: CmsS
     channelId: cmsContents.channelId,
     channelName: cmsChannels.name,
     channelPath: cmsChannels.path,
+    channelDetailPathRule: cmsChannels.detailPathRule,
     title: cmsContents.title,
     slug: cmsContents.slug,
+    staticPath: cmsContents.staticPath,
+    contentType: cmsContents.contentType,
+    externalLink: cmsContents.externalLink,
     summary: cmsContents.summary,
     body: cmsContents.body,
     publishedAt: cmsContents.publishedAt,
+    createdAt: cmsContents.createdAt,
   };
 
   const ftsWhere = and(baseWhere, sql`${cmsContents.searchVector} @@ ${tsquery}`)!;

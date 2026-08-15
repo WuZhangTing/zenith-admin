@@ -380,11 +380,28 @@ export async function deleteCmsChannel(id: number) {
 
 // ─── 栏目运维（P1：合并 / 清空 / 批量新增 / 拼音 slug）─────────────────────────
 
-/** 汉字名称 → 拼音 slug（非拼音字符转中划线，兜底 channel-时间戳） */
-export function slugifyChannelName(name: string): string {
-  const py = pinyin(name, { toneType: 'none', type: 'array', nonZh: 'consecutive' }).join('-');
+/**
+ * 汉字名称 → 拼音 slug（非拼音字符转中划线，兜底 channel-时间戳）。
+ * strategy：initials=首字母缩写（政务公开→zwgk，国内政府/企业站 URL 惯例）；pinyin=逐字全拼。
+ */
+export function slugifyChannelName(name: string, strategy: 'initials' | 'pinyin' = 'pinyin'): string {
+  const py = strategy === 'initials'
+    ? pinyin(name, { pattern: 'first', toneType: 'none', type: 'array', nonZh: 'consecutive' }).join('')
+    : pinyin(name, { toneType: 'none', type: 'array', nonZh: 'consecutive' }).join('-');
   const slug = py.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 100);
   return slug || `channel-${Date.now()}`;
+}
+
+/** 批量新增的行解析：支持「名称|slug」显式指定 slug，未指定时按策略自动生成 */
+function parseBatchChannelEntry(entry: string, strategy: 'initials' | 'pinyin'): { name: string; slug: string } {
+  const [rawName, rawSlug] = entry.split('|', 2).map((part) => part.trim());
+  const name = rawName ?? '';
+  const explicit = rawSlug
+    ?.toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 100);
+  return { name, slug: explicit || slugifyChannelName(name, strategy) };
 }
 
 /**
@@ -477,11 +494,25 @@ export async function clearCmsChannel(id: number): Promise<number> {
   return recycleCmsContents(contents.map((row) => row.id));
 }
 
-/** 批量新增栏目：同一父栏目下按名称列表创建，slug 自动取拼音（重复自动加序号） */
-export async function batchCreateCmsChannels(siteId: number, parentId: number, names: string[]): Promise<number> {
+/**
+ * 批量新增栏目：同一父栏目下按行创建。
+ * 行支持「名称|slug」显式指定；未指定时按 slugStrategy 自动生成（默认首字母缩写），重复自动加序号。
+ */
+export async function batchCreateCmsChannels(
+  siteId: number,
+  parentId: number,
+  names: string[],
+  slugStrategy: 'initials' | 'pinyin' = 'initials',
+): Promise<number> {
   await ensureCmsSiteExists(siteId);
   await assertSiteAccess(siteId);
-  const cleaned = [...new Set(names.map((n) => n.trim()).filter(Boolean))];
+  const entries = names.map((n) => parseBatchChannelEntry(n, slugStrategy)).filter((e) => e.name);
+  const seen = new Set<string>();
+  const cleaned = entries.filter((e) => {
+    if (seen.has(e.name)) return false;
+    seen.add(e.name);
+    return true;
+  });
   if (cleaned.length === 0) throw new HTTPException(400, { message: '请输入至少一个栏目名称' });
   if (parentId !== 0) {
     const parent = await ensureCmsChannelExists(parentId);
@@ -501,12 +532,13 @@ export async function batchCreateCmsChannels(siteId: number, parentId: number, n
     const mutation = await db.transaction(async (tx) => {
       const site = await lockCmsSiteForMutation(tx, siteId);
       let created = 0;
-      for (const name of cleaned) {
-        let slug = slugifyChannelName(name);
+      for (const entry of cleaned) {
+        const { name } = entry;
+        let slug = entry.slug;
         let path = await computePath(tx, siteId, parentId, slug);
         // 站点内 path 唯一：冲突自动追加序号
         for (let i = 2; usedPaths.has(path) && i < 100; i++) {
-          slug = `${slugifyChannelName(name)}-${i}`.slice(0, 100);
+          slug = `${entry.slug}-${i}`.slice(0, 100);
           path = await computePath(tx, siteId, parentId, slug);
         }
         usedPaths.add(path);

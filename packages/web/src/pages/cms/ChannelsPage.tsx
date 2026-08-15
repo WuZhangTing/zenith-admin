@@ -239,9 +239,10 @@ export default function ChannelsPage() {
       Toast.warning('请输入至少一个栏目名称');
       throw new Error('validation');
     }
-    await batchCreateMutation.mutateAsync({ siteId, parentId: (values.parentId as number) ?? 0, names });
+    const slugStrategy = (values.slugStrategy as 'initials' | 'pinyin') ?? 'initials';
+    await batchCreateMutation.mutateAsync({ siteId, parentId: (values.parentId as number) ?? 0, names, slugStrategy });
     setBatchModalVisible(false);
-    Toast.success(`已创建 ${names.length} 个栏目（slug 自动取拼音）`);
+    Toast.success(`已创建 ${names.length} 个栏目`);
   }
 
   const channelById = useMemo(() => new Map(flatChannels.map((c) => [c.id, c])), [flatChannels]);
@@ -660,11 +661,15 @@ export default function ChannelsPage() {
         closeOnEsc
       >
         <Form getFormApi={(api) => { batchFormApi.current = api; }} allowEmpty labelPosition="left" labelWidth={90}
-          initValues={{ parentId: 0 }}>
+          initValues={{ parentId: 0, slugStrategy: 'initials' }}>
           <Form.TreeSelect field="parentId" label="父栏目" style={{ width: '100%' }}
             treeData={[{ key: '0', value: 0, label: '顶级栏目' }, ...toTreeSelectData(tree)]} />
+          <Form.RadioGroup field="slugStrategy" label="URL 标识">
+            <Form.Radio value="initials">首字母缩写（政务公开 → zwgk）</Form.Radio>
+            <Form.Radio value="pinyin">逐字全拼（政务公开 → zheng-wu-gong-kai）</Form.Radio>
+          </Form.RadioGroup>
           <Form.TextArea field="names" label="栏目名称" rows={6}
-            placeholder={'每行一个栏目名称，如：\n公司新闻\n行业动态\n通知公告\n\nURL 标识自动取拼音，路径冲突自动加序号'}
+            placeholder={'每行一个栏目，支持「名称|slug」显式指定标识，如：\n政务公开\n通知公告|tzgg\n新闻中心|news\n\n未指定 slug 时按上方策略自动生成，路径冲突自动加序号'}
             rules={[{ required: true, message: '请输入栏目名称' }]} />
         </Form>
       </AppModal>

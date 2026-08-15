@@ -318,6 +318,19 @@ export const lockCmsContentSchema = z.object({
   reason: z.string().trim().min(1, '请输入锁定原因').max(500),
 });
 
+/** 批量状态流转（提审/发布/驳回/下线）；驳回必须携带原因 */
+export const batchCmsContentStatusSchema = z.object({
+  ids: z.array(z.number().int().positive()).min(1, '请选择内容').max(100, '单次最多操作 100 条'),
+  action: z.enum(['submit', 'publish', 'reject', 'offline']),
+  reason: z.string().trim().max(500).optional(),
+}).superRefine((value, ctx) => {
+  if (value.action === 'reject' && !value.reason?.trim()) {
+    ctx.addIssue({ code: 'custom', path: ['reason'], message: '批量驳回必须填写原因' });
+  }
+});
+
+export type BatchCmsContentStatusInput = z.input<typeof batchCmsContentStatusSchema>;
+
 export const createCmsTagSchema = z.object({
   siteId: z.number().int().positive(),
   name: z.string().min(1, '标签名称不能为空').max(50),

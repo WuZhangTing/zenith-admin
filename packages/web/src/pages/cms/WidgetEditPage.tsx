@@ -42,10 +42,16 @@ function flattenChannels(nodes: CmsChannel[]): CmsChannel[] {
   return nodes.flatMap((node) => [node, ...flattenChannels(node.children ?? [])]);
 }
 
-function itemLabel(item: CmsWidgetItem): string {
+function itemLabel(item: CmsWidgetItem, lookup?: { channelNames?: Map<number, string>; contentTitles?: Map<number, string> }): string {
   if (item.title?.trim()) return item.title;
-  if (item.sourceType === 'content') return `内容 #${item.sourceId}`;
-  if (item.sourceType === 'channel') return `栏目 #${item.sourceId}`;
+  if (item.sourceType === 'content') {
+    const title = item.sourceId ? lookup?.contentTitles?.get(item.sourceId) : undefined;
+    return title ? `${title}（内容 #${item.sourceId}）` : `内容 #${item.sourceId}`;
+  }
+  if (item.sourceType === 'channel') {
+    const name = item.sourceId ? lookup?.channelNames?.get(item.sourceId) : undefined;
+    return name ? `${name}（栏目最新）` : `栏目 #${item.sourceId}`;
+  }
   return '未命名条目';
 }
 
@@ -76,12 +82,13 @@ export default function WidgetEditPage() {
   const renderersQuery = useCmsWidgetRenderers(siteId);
   const previewQuery = useCmsWidgetPreview(previewId, selectedRenderer, previewVisible);
   const channelTreeQuery = useCmsChannelTree(siteId);
+  const hasContentItems = items.some((item) => item.sourceType === 'content');
   const contentQuery = useCmsContentList({
     page: 1,
     pageSize: 100,
     siteId: siteId ?? 0,
     status: 'published',
-  }, !!itemModal && editingSourceType === 'content' && !!siteId);
+  }, ((!!itemModal && editingSourceType === 'content') || hasContentItems) && !!siteId);
   const saveMutation = useSaveCmsWidget();
   const publishMutation = usePublishCmsWidget();
 
@@ -106,6 +113,11 @@ export default function WidgetEditPage() {
     value: channel.id,
     label: channel.name,
   }));
+  // 条目列表可读性：栏目/内容来源显示名称而非裸 #ID
+  const itemNameLookup = {
+    channelNames: new Map(flattenChannels(channelTreeQuery.data ?? []).map((channel) => [channel.id, channel.name])),
+    contentTitles: new Map((contentQuery.data?.list ?? []).map((content) => [content.id, content.title])),
+  };
   const rendererOptions = (renderersQuery.data ?? []).map((renderer) => ({
     value: renderer.key,
     label: renderer.label,
@@ -349,7 +361,7 @@ export default function WidgetEditPage() {
                   <span style={{ width: 28, color: 'var(--semi-color-text-2)' }}>{index + 1}</span>
                   <Tag size="small">{CMS_WIDGET_SOURCE_TYPE_LABELS[item.sourceType]}</Tag>
                   <Typography.Text ellipsis={{ showTooltip: true }} style={{ flex: 1 }}>
-                    {itemLabel(item)}
+                    {itemLabel(item, itemNameLookup)}
                   </Typography.Text>
                   <Button theme="borderless" size="small" icon={<ArrowUp size={14} />} disabled={index === 0} onClick={() => moveItem(index, -1)} />
                   <Button theme="borderless" size="small" icon={<ArrowDown size={14} />} disabled={index === items.length - 1} onClick={() => moveItem(index, 1)} />

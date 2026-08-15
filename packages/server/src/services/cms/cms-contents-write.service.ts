@@ -44,6 +44,7 @@ import { assertCmsWidgetSourcesMutable } from './cms-widgets.service';
 import { submitCmsWidgetSourceRefreshSideEffect } from './cms-widget-tasks';
 import { insertContentPublishOutbox, recalcTagContentCounts, ensureChannelForContent } from './cms-contents-internal';
 import { ensureCmsContentExists, getCmsContent, mapCmsContent } from './cms-contents-query.service';
+import { applyCmsModelFieldDefaults, validateCmsModelExtend } from './cms-model-extend';
 
 // ─── 写入辅助 ─────────────────────────────────────────────────────────────────
 
@@ -262,6 +263,9 @@ export async function createCmsContent(data: CreateCmsContentInput) {
   await assertRelatedContentAccess(data.siteId, relatedIds);
   await ensureCmsLinkTargetExists(data.siteId, policied.externalLink);
   const modelId = channel.modelId ?? null;
+  // 模型字段：先回填 defaultValue（只补缺），再做草稿级校验（类型/选项合法性）
+  policied.extend = await applyCmsModelFieldDefaults(modelId, (policied.extend ?? {}) as Record<string, unknown>);
+  await validateCmsModelExtend(modelId, policied.extend as Record<string, unknown>, 'draft');
   const extendTexts = [
     ...await collectSearchableExtendTexts(modelId, (policied.extend ?? {}) as Record<string, unknown>),
     ...mediaDataTexts(policied.mediaData as Record<string, unknown>),
@@ -374,6 +378,7 @@ export async function updateCmsContent(
     throw new HTTPException(400, { message: '映射内容的正文与扩展字段共享来源内容，不可独立编辑' });
   }
   const nextExtend = (rest.extend ?? current.extend ?? {}) as Record<string, unknown>;
+  await validateCmsModelExtend(modelId, nextExtend, current.status === 'published' ? 'publish' : 'draft');
   const nextMediaData = (rest.mediaData ?? current.mediaData ?? {}) as Record<string, unknown>;
   const extendTexts = [...await collectSearchableExtendTexts(modelId, nextExtend), ...mediaDataTexts(nextMediaData)];
   try {
@@ -517,6 +522,8 @@ export async function submitCmsContent(id: number, options?: { skipAccessCheck?:
   assertCmsContentUnlocked(current);
   const site = await resolveEffectiveCmsSiteRow(current.siteId);
   const settings = (site.settings ?? {}) as Record<string, unknown>;
+  // 提审即进入审核发布链：此处强校验模型必填，避免缺文号等硬伤流入审核队列
+  await validateCmsModelExtend(current.modelId, (current.extend ?? {}) as Record<string, unknown>, 'publish');
   const result = await transitionStatus(id, 'submit', { status: 'pending', rejectReason: null }, options);
   await logContentOp(db, id, 'submitted');
   if (isWorkflowAuditEnabled(settings)) {
@@ -597,6 +604,8 @@ export async function publishCmsContent(id: number, opts?: PublishCmsContentOpti
   assertCmsContentUnlocked(row);
   if (!opts?.fromWorkflow) await assertNoActiveContentWorkflow(id);
   assertContentTypeReady(row);
+  // 发布 = 内容对外可见的最终闸口：模型必填在此强制兜底（覆盖导入/采集/分发/Headless 等非表单通道）
+  await validateCmsModelExtend(row.modelId, (row.extend ?? {}) as Record<string, unknown>, 'publish');
   if (!canTransitionCmsContentStatus(row.status, 'publish')) {
     throw new HTTPException(409, { message: `当前状态（${row.status}）不允许发布` });
   }

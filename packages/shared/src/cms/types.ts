@@ -937,6 +937,8 @@ export interface CmsSearchResult {
   /** 高亮摘要片段 */
   snippet: string;
   url: string;
+  /** 外链形态内容：url 即外部地址，前台应新窗口打开且不拼 baseUrl */
+  isExternal: boolean;
   publishedAt: string | null;
   rank: number;
 }

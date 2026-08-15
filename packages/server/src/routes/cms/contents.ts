@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { createCmsContentSchema, lockCmsContentSchema, updateCmsContentSchema } from '@zenith/shared/cms';
+import { createCmsContentSchema, lockCmsContentSchema, updateCmsContentSchema, batchCmsContentStatusSchema } from '@zenith/shared/cms';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { BatchIdsBody, ErrorResponse, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
@@ -8,7 +8,7 @@ import {
   listCmsContents, getCmsContent, createCmsContent, updateCmsContent,
   submitCmsContent, publishCmsContent, rejectCmsContent, offlineCmsContent,
   recycleCmsContents, restoreCmsContents, purgeCmsContents, restoreCmsContentToVersion,
-  batchMoveCmsContents, batchSetCmsContentFlags, batchAddCmsContentTags,
+  batchMoveCmsContents, batchSetCmsContentFlags, batchAddCmsContentTags, batchTransitionCmsContents,
   duplicateCmsContent, distributeCmsContents, archiveCmsContents, unarchiveCmsContents,
   checkCmsContentTitle, ensureCmsContentTargetAccess,
 } from '../../services/cms/cms-contents.service';
@@ -431,6 +431,35 @@ const batchTagRoute = defineOpenAPIRoute({
   },
 });
 
+const batchStatusRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/batch-status',
+    tags: ['CMS-内容管理'], summary: '批量状态流转（提审/发布/驳回/下线），逐条独立校验并返回部分成功明细',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({
+      // 三种动作权限不同：路由层放行任一权限持有者，动作级权限在 service 内按映射精确校验
+      permission: ['cms:content:update', 'cms:content:publish', 'cms:content:audit'],
+      audit: { description: 'CMS 内容批量状态流转', module: 'CMS内容管理' },
+    })] as const,
+    request: { body: { content: jsonContent(batchCmsContentStatusSchema), required: true } },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(z.object({
+        okIds: z.array(z.number().int()),
+        failed: z.array(z.object({ id: z.number().int(), reason: z.string() })),
+      }), '批量流转结果'),
+    },
+  }),
+  handler: async (c) => {
+    const { ids, action, reason } = c.req.valid('json');
+    const result = await batchTransitionCmsContents(ids, action, reason);
+    const message = result.failed.length === 0
+      ? `已处理 ${result.okIds.length} 条内容`
+      : `成功 ${result.okIds.length} 条，失败 ${result.failed.length} 条`;
+    return c.json(okBody(result, message), 200);
+  },
+});
+
 const duplicateRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/{id}/duplicate',
@@ -613,7 +642,7 @@ router.openapiRoutes([
   recycleRoute, restoreRoute, purgeRoute,
   versionsRoute, restoreVersionRoute, versionDiffRoute,
   editLockAcquireRoute, editLockReleaseRoute, previewLinkRoute,
-  batchMoveRoute, batchFlagsRoute, batchTagRoute, duplicateRoute, distributeRoute,
+  batchMoveRoute, batchFlagsRoute, batchTagRoute, batchStatusRoute, duplicateRoute, distributeRoute,
   importRoute, archiveRoute, unarchiveRoute, opLogsRoute, checkTextRoute,
   persistentLockRoute, persistentUnlockRoute,
 ] as const);

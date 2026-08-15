@@ -616,7 +616,11 @@ export function SearchTemplate(ctx: CmsSearchContext) {
         ) : ctx.results.map((r) => (
           <div className="content-item" key={r.id}>
             <div>
-              <h3><a href={`${ctx.baseUrl}${r.url}`} dangerouslySetInnerHTML={{ __html: r.titleHighlight }} /></h3>
+              <h3><a
+                href={r.isExternal ? r.url : `${ctx.baseUrl}${r.url}`}
+                {...(r.isExternal ? { target: '_blank', rel: 'noopener nofollow' } : {})}
+                dangerouslySetInnerHTML={{ __html: r.titleHighlight }}
+              /></h3>
               <div className="summary" dangerouslySetInnerHTML={{ __html: r.snippet }} />
               <div className="meta">
                 {r.channelName ? <span>{r.channelName}</span> : null}

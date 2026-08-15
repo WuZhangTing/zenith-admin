@@ -45,6 +45,7 @@ export {
   batchMoveCmsContents,
   batchSetCmsContentFlags,
   batchAddCmsContentTags,
+  batchTransitionCmsContents,
   duplicateCmsContent,
   distributeCmsContents,
   cleanupCmsRecycleBin,

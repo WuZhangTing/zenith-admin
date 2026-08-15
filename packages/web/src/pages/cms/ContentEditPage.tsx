@@ -108,11 +108,45 @@ function fieldOptions(field: CmsModelField): { label: string; value: string }[] 
   return field.resolvedOptions ?? field.options ?? [];
 }
 
-/** 按模型字段元数据渲染动态表单控件（值写入 extend.{name}） */
-function ModelFieldControl({ field }: Readonly<{ field: CmsModelField }>) {
+/** 解析模型字段 defaultValue 为表单控件初值（与服务端 applyCmsModelFieldDefaults 同一口径） */
+function parseFieldDefault(field: CmsModelField): unknown {
+  const raw = field.defaultValue?.trim();
+  if (!raw) return undefined;
+  switch (field.fieldType) {
+    case 'switch':
+      return raw === 'true';
+    case 'checkbox': {
+      if (raw.startsWith('[')) {
+        try {
+          const parsed: unknown = JSON.parse(raw);
+          return Array.isArray(parsed) ? parsed.map(String) : [raw];
+        } catch {
+          return [raw];
+        }
+      }
+      return raw.split(',').map((v) => v.trim()).filter(Boolean);
+    }
+    case 'number': {
+      const num = Number(raw);
+      return Number.isNaN(num) ? undefined : num;
+    }
+    default:
+      return raw;
+  }
+}
+
+/** 按模型字段元数据渲染动态表单控件（值写入 extend.{name}）；applyDefault 仅新建内容时生效 */
+function ModelFieldControl({ field, applyDefault }: Readonly<{ field: CmsModelField; applyDefault?: boolean }>) {
   const f = `extend.${field.name}`;
   const rules = field.required ? [{ required: true, message: `请填写${field.label}` }] : undefined;
-  const common = { field: f, label: field.label, rules, placeholder: field.placeholder ?? undefined };
+  const initValue = applyDefault ? parseFieldDefault(field) : undefined;
+  const common = {
+    field: f,
+    label: field.label,
+    rules,
+    placeholder: field.placeholder ?? undefined,
+    ...(initValue !== undefined ? { initValue } : {}),
+  };
   switch (field.fieldType) {
     case 'textarea':
       return <Form.TextArea {...common} rows={3} />;
@@ -821,7 +855,7 @@ export default function ContentEditPage() {
                   <Row gutter={16}>
                     {modelFields.map((f) => (
                       <Col key={f.name} span={f.fieldType === 'textarea' || f.fieldType === 'richtext' ? 24 : 12}>
-                        <ModelFieldControl field={f} />
+                        <ModelFieldControl field={f} applyDefault={!detail} />
                       </Col>
                     ))}
                   </Row>

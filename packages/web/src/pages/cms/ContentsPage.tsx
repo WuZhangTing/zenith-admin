@@ -17,7 +17,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { useUploadFile } from '@/hooks/queries/files';
 import {
   useCmsChannelTree, useCmsContentList, useCmsContentAction, useCmsContentBatch,
-  useAllCmsSites, useAllCmsTags, useCmsContentBatchOps, useDuplicateCmsContent, useImportCmsContents, cmsContentKeys,
+  useAllCmsSites, useAllCmsTags, useCmsContentBatchOps, useCmsContentBatchStatus, useDuplicateCmsContent, useImportCmsContents, cmsContentKeys,
   useCmsContentPersistentLock,
 } from '@/hooks/queries/cms';
 import { CMS_CONTENT_STATUS_LABELS, CMS_CONTENT_TYPE_LABELS } from '@zenith/shared/cms';
@@ -106,6 +106,7 @@ export default function ContentsPage() {
   const actionMutation = useCmsContentAction();
   const batchMutation = useCmsContentBatch();
   const batchOpsMutation = useCmsContentBatchOps();
+  const batchStatusMutation = useCmsContentBatchStatus();
   const duplicateMutation = useDuplicateCmsContent();
   const uploadMutation = useUploadFile();
   const importMutation = useImportCmsContents();
@@ -199,6 +200,47 @@ export default function ContentsPage() {
     await batchMutation.mutateAsync({ action, ids });
     setSelectedIds([]);
     Toast.success(successMsg);
+  }
+
+  /** 批量状态流转：部分成功时逐条明示失败原因（欠提示比误吞更危险） */
+  async function runBatchStatus(action: 'submit' | 'publish' | 'reject' | 'offline', label: string, reason?: string) {
+    const result = await batchStatusMutation.mutateAsync({ ids: selectedIds, action, reason });
+    setSelectedIds([]);
+    if (result.failed.length === 0) {
+      Toast.success(`已${label} ${result.okIds.length} 条内容`);
+      return;
+    }
+    Modal.warning({
+      title: `${label}完成：成功 ${result.okIds.length} 条，失败 ${result.failed.length} 条`,
+      content: (
+        <ul style={{ maxHeight: 240, overflow: 'auto', paddingLeft: 18 }}>
+          {result.failed.map((f) => <li key={f.id}>#{f.id}：{f.reason}</li>)}
+        </ul>
+      ),
+    });
+  }
+
+  function confirmBatchStatus(action: 'submit' | 'publish' | 'offline', label: string, content: string) {
+    Modal.confirm({
+      title: `${label} ${selectedIds.length} 条内容？`,
+      content,
+      onOk: () => runBatchStatus(action, label),
+    });
+  }
+
+  function handleBatchReject() {
+    let reason = '';
+    Modal.confirm({
+      title: `批量驳回 ${selectedIds.length} 条内容`,
+      content: <Input placeholder="请输入驳回原因（对全部选中内容生效）" maxLength={500} onChange={(value) => { reason = value; }} />,
+      onOk: async () => {
+        if (!reason.trim()) {
+          Toast.warning('请输入驳回原因');
+          throw new Error('validation');
+        }
+        await runBatchStatus('reject', '批量驳回', reason.trim());
+      },
+    });
   }
 
   // ─── P3 批量操作 ──────────────────────────────────────────────────────────
@@ -555,6 +597,18 @@ export default function ContentsPage() {
       <Button onClick={() => void runBatch('unarchive', selectedIds, `已取消归档 ${selectedIds.length} 条`)}>批量取消归档</Button>
     ) : null) : (
       <>
+        {hasPermission('cms:content:publish') ? (
+          <Button onClick={() => confirmBatchStatus('publish', '批量发布', '仅草稿/待审核/已驳回/已下线内容会被发布并触发静态化')}>批量发布</Button>
+        ) : null}
+        {activeTab === 'pending' && hasPermission('cms:content:audit') ? (
+          <Button onClick={handleBatchReject}>批量驳回</Button>
+        ) : null}
+        {activeTab !== 'pending' && hasPermission('cms:content:update') ? (
+          <Button onClick={() => confirmBatchStatus('submit', '批量提审', '仅草稿/已驳回内容会进入待审核')}>批量提审</Button>
+        ) : null}
+        {hasPermission('cms:content:publish') ? (
+          <Button onClick={() => confirmBatchStatus('offline', '批量下线', '仅已发布内容会被下线并清理静态页')}>批量下线</Button>
+        ) : null}
         {hasPermission('cms:content:update') ? (
           <>
             <Button onClick={() => setMoveModalVisible(true)}>批量移动</Button>
