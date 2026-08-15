@@ -6,7 +6,7 @@
  * 此前在两套主题里各存一份，SEO 字段一旦新增就只有一套主题吃到。
  */
 import type { ReactNode } from 'react';
-import type { CmsBaseContext, CmsBreadcrumb, CmsPagination } from './types';
+import type { CmsBaseContext, CmsBreadcrumb, CmsModelFieldValue, CmsPagination } from './types';
 
 /** 主题参数（站点 settings）：主色 / 暗色模式；`darkVars` 由各主题给出自己的暗色变量组 */
 export function buildThemeOverrides(
@@ -142,3 +142,56 @@ export function Breadcrumbs({ items }: { items: CmsBreadcrumb[] }) {
     </div>
   );
 }
+
+/**
+ * 模型字段表：按 group 分组渲染 `ctx.content.modelFields` 为键值表格
+ * （政府站「文件信息表头」：文号 / 发布机关 / 成文日期 / 有效性等）。
+ * 无勾选字段时不渲染；样式钩子 .model-fields / .model-fields-group / .model-fields-table。
+ */
+export function ModelFieldTable({ fields }: { fields: CmsModelFieldValue[] }) {
+  const visible = fields.filter((f) => f.displayValue !== '');
+  if (visible.length === 0) return null;
+  const groups = new Map<string, CmsModelFieldValue[]>();
+  for (const field of visible) {
+    const key = field.group ?? '';
+    groups.set(key, [...(groups.get(key) ?? []), field]);
+  }
+  return (
+    <div className="model-fields">
+      {[...groups.entries()].map(([group, list]) => (
+        <div className="model-fields-group" key={group || '__default'}>
+          {group ? <div className="model-fields-title">{group}</div> : null}
+          <table className="model-fields-table">
+            <tbody>
+              {chunkPairs(list).map((pair) => (
+                <tr key={pair[0].name}>
+                  <th>{pair[0].label}</th>
+                  <td>{pair[0].displayValue}</td>
+                  {pair[1] ? <th>{pair[1].label}</th> : <th />}
+                  {pair[1] ? <td>{pair[1].displayValue}</td> : <td />}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** 两列布局配对（政府公文信息表惯用双栏键值排布） */
+function chunkPairs(list: CmsModelFieldValue[]): [CmsModelFieldValue, CmsModelFieldValue | undefined][] {
+  const out: [CmsModelFieldValue, CmsModelFieldValue | undefined][] = [];
+  for (let i = 0; i < list.length; i += 2) out.push([list[i], list[i + 1]]);
+  return out;
+}
+
+/** 模型字段表的默认样式（主题 CSS 中引入；主题可整体覆盖） */
+export const MODEL_FIELD_TABLE_STYLES = `
+.model-fields { margin: 16px 0 20px; }
+.model-fields-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--text-2); }
+.model-fields-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.model-fields-table th, .model-fields-table td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
+.model-fields-table th { width: 17%; background: var(--bg-2); font-weight: 500; color: var(--text-2); white-space: nowrap; }
+.model-fields-table td { width: 33%; }
+`;

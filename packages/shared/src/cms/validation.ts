@@ -179,6 +179,12 @@ export const cmsModelFieldSchema = z.object({
   required: z.boolean().default(false),
   searchable: z.boolean().default(false),
   showInList: z.boolean().default(false),
+  /** 是否在前台详情页「模型字段表」中展示 */
+  showInDetail: z.boolean().default(false),
+  /** 详情展示分组标题（如「文件信息」） */
+  detailGroup: z.string().max(50).nullable().optional(),
+  /** 详情展示排序（组内） */
+  detailSort: z.number().int().default(0),
   placeholder: z.string().max(200).nullable().optional(),
   defaultValue: z.string().max(1000).nullable().optional(),
   /** 选项来源：manual=手工 options；dict=引用系统字典 */

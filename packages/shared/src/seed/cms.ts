@@ -83,9 +83,9 @@ export const SEED_CMS_MODELS: (CmsModel & { fields: NonNullable<CmsModel['fields
     id: 2, name: '产品', code: 'product', description: '产品展示模型（含价格/规格自定义字段）', isSystem: true,
     status: 'enabled', sort: 2, createdAt: SEED_DATE, updatedAt: SEED_DATE,
     fields: [
-      { id: 1, modelId: 2, name: 'price', label: '价格', fieldType: 'text', required: false, searchable: false, showInList: true, placeholder: '如：￥9999', defaultValue: null, optionSource: 'manual', dictCode: null, options: null, sort: 1, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-      { id: 2, modelId: 2, name: 'spec', label: '规格参数', fieldType: 'textarea', required: false, searchable: true, showInList: false, placeholder: null, defaultValue: null, optionSource: 'manual', dictCode: null, options: null, sort: 2, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-      { id: 3, modelId: 2, name: 'status_tag', label: '售卖状态', fieldType: 'select', required: false, searchable: false, showInList: true, placeholder: null, defaultValue: null, optionSource: 'dict', dictCode: 'common_status', options: null, sort: 3, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+      { id: 1, modelId: 2, name: 'price', label: '价格', fieldType: 'text', required: false, searchable: false, showInList: true, showInDetail: true, detailGroup: '产品信息', detailSort: 1, placeholder: '如：￥9999', defaultValue: null, optionSource: 'manual', dictCode: null, options: null, sort: 1, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+      { id: 2, modelId: 2, name: 'spec', label: '规格参数', fieldType: 'textarea', required: false, searchable: true, showInList: false, showInDetail: true, detailGroup: '产品信息', detailSort: 2, placeholder: null, defaultValue: null, optionSource: 'manual', dictCode: null, options: null, sort: 2, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+      { id: 3, modelId: 2, name: 'status_tag', label: '售卖状态', fieldType: 'select', required: false, searchable: false, showInList: true, showInDetail: true, detailGroup: '产品信息', detailSort: 3, placeholder: null, defaultValue: null, optionSource: 'dict', dictCode: 'common_status', options: null, sort: 3, createdAt: SEED_DATE, updatedAt: SEED_DATE },
     ],
   },
 ];

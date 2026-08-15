@@ -1,4 +1,4 @@
-import type { ComponentType } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import type { CmsContentAttachment, CmsFormField, CmsInteractionQuestionType, CmsSearchResult, CmsThemeSettingField, CmsTitleStyle, CmsResolvedWidget, CmsWidgetRendererKey, CmsWidgetType } from '@zenith/shared/cms';
 import type { CmsWidgetRendererDefinition } from './widgets';
 
@@ -101,6 +101,23 @@ export interface CmsAlbumImageItem {
   caption: string | null;
 }
 
+/** 模型字段展示值（详情页「模型字段表」消费；由渲染管线按模型定义组装） */
+export interface CmsModelFieldValue {
+  /** 字段标识（extend key） */
+  name: string;
+  /** 字段名称（如「文号」） */
+  label: string;
+  fieldType: string;
+  /** 原始值 */
+  rawValue: unknown;
+  /** 格式化后的展示值：日期格式化、select/radio/checkbox/dict 翻译为选项标签、switch 转 是/否 */
+  displayValue: string;
+  /** 详情分组标题（如「文件信息」）；空 = 默认分组 */
+  group: string | null;
+  /** 组内排序 */
+  sort: number;
+}
+
 /** 正文多页分页（分页符拆分；单页时为 null） */
 export interface CmsBodyPagination {
   page: number;
@@ -124,6 +141,8 @@ export interface CmsContentDetail extends CmsContentItem {
   mediaPoster: string | null;
   mediaDuration: string | null;
   extend: Record<string, unknown>;
+  /** 模型标记 showInDetail 的字段展示值（按 group/sort 排序）；栏目未绑定模型或无勾选字段时为空数组 */
+  modelFields: CmsModelFieldValue[];
   tags: { name: string; slug: string; url: string }[];
   prev: { title: string; url: string } | null;
   next: { title: string; url: string } | null;
@@ -179,6 +198,60 @@ export interface CmsHomeContext extends CmsBaseContext {
   hot: CmsContentItem[];
   /** 主题声明的首页侧栏部件；未绑定或部件未发布时为 null。 */
   homeSidebar: CmsResolvedWidget | null;
+}
+
+// ─── Theme API：站点隔离的只读数据门面（首页/聚合模板 load() 消费）──────────────
+
+/** contents.list 查询（白名单参数；limit 上限 100，排序固定 置顶优先 → 发布时间倒序） */
+export interface CmsThemeContentQuery {
+  /** 栏目标识（站内 code）；留空取全站 */
+  channelCode?: string;
+  limit: number;
+  /** 仅推荐 / 仅热门过滤 */
+  recommend?: boolean;
+  hot?: boolean;
+}
+
+export interface CmsThemeChannelRef {
+  id: number;
+  code: string;
+  name: string;
+  url: string;
+}
+
+export interface CmsThemeContentCollection {
+  /** 按栏目查询时为该栏目信息；全站查询为 null */
+  channel: CmsThemeChannelRef | null;
+  list: CmsContentItem[];
+}
+
+/**
+ * 主题模板可用的只读 CMS 数据 API：
+ * - 自动锁定当前站点，只返回启用栏目下已发布且未回收的内容；
+ * - URL 全部经统一 contentUrl() 生成；
+ * - 同一次渲染内相同查询按参数 key 去重复用。
+ * 主题代码禁止直接访问 db/service，取数一律经由本接口。
+ */
+export interface CmsThemeDataApi {
+  contents: {
+    list(query: CmsThemeContentQuery): Promise<CmsThemeContentCollection>;
+  };
+}
+
+/** 首页模板定义：可选 load() 在渲染前并发取数，结果以 data 注入组件（类型自动推导，限函数组件） */
+export interface CmsHomeTemplateDefinition<D = Record<string, unknown>> {
+  load?: (args: { cms: CmsThemeDataApi; site: CmsRenderSite; baseUrl: string }) => Promise<D>;
+  Component: (props: CmsHomeContext & { data: D }) => ReactNode;
+}
+
+/**
+ * 首页模板定义体的存储侧擦除形态（注册表/渲染管线消费）：
+ * Component 以最窄参数(never)的裸函数签名擦除，使任意具体 `CmsHomeTemplateDefinition<D>`
+ * 都可结构化赋值；具体 D 的类型安全由主题代码内的 defineHomeTemplate 推导保证。
+ */
+export interface CmsHomeTemplateHandle {
+  load?: (args: { cms: CmsThemeDataApi; site: CmsRenderSite; baseUrl: string }) => Promise<unknown>;
+  Component: (props: never) => ReactNode;
 }
 
 export interface CmsChannelInfo {
@@ -306,7 +379,8 @@ export interface CmsNotFoundContext extends CmsBaseContext {
 
 /** 主题必须实现的模板集合 */
 export interface CmsThemeTemplates {
-  index: ComponentType<CmsHomeContext>;
+  /** 首页：普通组件或 defineHomeTemplate 定义体（带 load 声明式取数） */
+  index: ComponentType<CmsHomeContext> | CmsHomeTemplateHandle;
   list: ComponentType<CmsListContext>;
   detail: ComponentType<CmsDetailContext>;
   page: ComponentType<CmsPageContext>;

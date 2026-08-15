@@ -10,7 +10,10 @@ import { renderBlocksHtml } from '../../cms/themes/blocks';
 import { filterCmsPageBlocksForViewer } from './cms-page-blocks';
 import type {
   CmsBaseContext, CmsNavItem, CmsSeo, CmsContentItem, CmsPagination, CmsBreadcrumb, CmsChannelInfo,
+  CmsThemeDataApi, CmsThemeContentCollection,
 } from '../../cms/themes/types';
+import { isHomeTemplateDefinition } from '../../cms/themes/sdk';
+import { buildCmsModelFieldValues } from './cms-model-field-values';
 import { listCmsChannelTree } from './cms-channels.service';
 import { channelUrl, tagUrl, contentUrl, customPageUrl, type CmsUrlChannel } from './cms-urls';
 import { buildCmsLinkResolver, resolveCmsLink, type CmsLinkResolver } from './cms-link.service';
@@ -426,6 +429,59 @@ async function listBlockContents(siteId: number, opts: { channelId?: number; cou
   return resolveCmsContentRows(rows);
 }
 
+/** Theme API 数据门面的单次渲染配额：防止 load() 写出取数风暴 */
+const THEME_DATA_MAX_CALLS = 20;
+const THEME_DATA_MAX_LIMIT = 100;
+
+/**
+ * 创建主题模板 load() 可用的只读数据门面（站点隔离；同参数去重复用；限流保护）。
+ * 只返回启用栏目下已发布内容，URL 统一经 contentUrl() 生成。
+ */
+export function createCmsThemeDataApi(site: CmsSiteRow, baseUrl: string): CmsThemeDataApi {
+  const memo = new Map<string, Promise<CmsThemeContentCollection>>();
+  let calls = 0;
+  return {
+    contents: {
+      list: (query) => {
+        const key = JSON.stringify(['contents', query.channelCode ?? '', query.limit, query.recommend ?? false, query.hot ?? false]);
+        const cached = memo.get(key);
+        if (cached) return cached;
+        if (++calls > THEME_DATA_MAX_CALLS) {
+          throw new Error(`主题模板单次渲染取数超过 ${THEME_DATA_MAX_CALLS} 次，请合并查询`);
+        }
+        const promise = (async (): Promise<CmsThemeContentCollection> => {
+          const limit = Math.min(THEME_DATA_MAX_LIMIT, Math.max(1, Math.floor(query.limit) || 1));
+          let channel: { id: number; code: string; name: string; path: string } | null = null;
+          if (query.channelCode) {
+            const [row] = await db.select({
+              id: cmsChannels.id, code: cmsChannels.code, name: cmsChannels.name, path: cmsChannels.path,
+            }).from(cmsChannels).where(and(
+              eq(cmsChannels.siteId, site.id),
+              eq(cmsChannels.code, query.channelCode),
+              eq(cmsChannels.status, 'enabled'),
+            )).limit(1);
+            // 栏目不存在时返回空集而不是抛错：主题参数配错栏目 code 不应打挂整个首页
+            if (!row) return { channel: null, list: [] };
+            channel = row;
+          }
+          const mode = query.recommend ? 'recommend' : (query.hot ? 'hot' : 'latest');
+          const rows = await listBlockContents(site.id, { channelId: channel?.id, count: limit, mode });
+          const channelPathMap = await loadChannelPathMap(site.id);
+          const resolveLink = await buildCmsLinkResolver(site.id, baseUrl, rows.map((r) => r.externalLink));
+          return {
+            channel: channel
+              ? { id: channel.id, code: channel.code, name: channel.name, url: channelUrl(baseUrl, channel.path) }
+              : null,
+            list: rows.map((row) => toContentItem(row, baseUrl, channelPathMap.get(row.channelId) ?? FALLBACK_URL_CHANNEL, resolveLink)),
+          };
+        })();
+        memo.set(key, promise);
+        return promise;
+      },
+    },
+  };
+}
+
 interface RenderHomePageOptions {
   homeSidebarOverride?: CmsResolvedWidget | null;
   skipTakeover?: boolean;
@@ -466,7 +522,18 @@ export async function renderHomePage(
     hot: home.hot.map(toItem),
     homeSidebar,
   };
-  const html = renderDoc(theme.templates.index, props);
+  const indexTemplate = theme.templates.index;
+  // 首页模板为 defineHomeTemplate 定义体时：执行 load() 声明式取数并以 data 注入
+  if (isHomeTemplateDefinition(indexTemplate)) {
+    const cms = createCmsThemeDataApi(site, baseUrl);
+    const data = indexTemplate.load ? await indexTemplate.load({ cms, site: base.site, baseUrl }) : {};
+    const html = renderDoc(
+      indexTemplate.Component as ComponentType<typeof props & { data: unknown }>,
+      { ...props, data },
+    );
+    return { status: 200, html, kind: 'home' };
+  }
+  const html = renderDoc(indexTemplate, props);
   return { status: 200, html, kind: 'home' };
 }
 
@@ -642,7 +709,7 @@ export async function renderDetailPage(site: CmsSiteRow, baseUrl: string, channe
       mainEntityOfPage: origin ? `${origin}${canonicalPath}` : undefined,
     },
   });
-  const [base, breadcrumbs, adjacent, tags, linkWords, comments, relatedRows, resolved] = await Promise.all([
+  const [base, breadcrumbs, adjacent, tags, linkWords, comments, relatedRows, resolved, modelFields] = await Promise.all([
     buildBaseContext(site, baseUrl, seo, row.id),
     buildBreadcrumbs(site, baseUrl, channel),
     getAdjacentContents(row),
@@ -651,6 +718,7 @@ export async function renderDetailPage(site: CmsSiteRow, baseUrl: string, channe
     listApprovedComments(row.id),
     listRelatedContents(row),
     resolveContentBodyExtend(row),
+    buildCmsModelFieldValues(row.modelId, (row.extend ?? {}) as Record<string, unknown>),
   ]);
   const related = await buildRelatedLinks(baseUrl, relatedRows);
   const { pageBody, totalPages, extras } = buildDetailExtras(row, resolved.body, baseUrl, channel, bodyPage);
@@ -665,6 +733,7 @@ export async function renderDetailPage(site: CmsSiteRow, baseUrl: string, channe
       body: applyInteractionMarkers(applyLinkWords(pageBody, linkWords), site.code),
       ...extras,
       extend: resolved.extend,
+      modelFields,
       tags: tags.map((t) => ({ name: t.name, slug: t.slug, url: tagUrl(baseUrl, t.slug) })),
       prev: adjacent.prev ? { title: adjacent.prev.title, url: contentUrl(baseUrl, channel, adjacent.prev) } : null,
       next: adjacent.next ? { title: adjacent.next.title, url: contentUrl(baseUrl, channel, adjacent.next) } : null,
@@ -722,12 +791,13 @@ export async function renderContentPreviewPage(site: CmsSiteRow, baseUrl: string
     articleAuthor: row.author ?? null,
     twitterCreator: row.twitterCreator ?? null,
   });
-  const [base, breadcrumbs, tags, linkWords, resolved] = await Promise.all([
+  const [base, breadcrumbs, tags, linkWords, resolved, previewModelFields] = await Promise.all([
     buildBaseContext(site, baseUrl, seo),
     buildBreadcrumbs(site, baseUrl, channel),
     listContentTags(row.id),
     getEnabledLinkWords(site.id),
     resolveContentBodyExtend(row),
+    buildCmsModelFieldValues(row.modelId, (row.extend ?? {}) as Record<string, unknown>),
   ]);
   const previewTemplate = await resolveDetailComponent(site, channel, row.detailTemplate, row.modelId);
   const { pageBody: previewBody, extras: previewExtras } = buildDetailExtras(row, resolved.body, baseUrl, channel, 1);
@@ -741,6 +811,7 @@ export async function renderContentPreviewPage(site: CmsSiteRow, baseUrl: string
       body: applyInteractionMarkers(applyLinkWords(previewBody, linkWords), site.code),
       ...previewExtras,
       extend: resolved.extend,
+      modelFields: previewModelFields,
       tags: tags.map((t) => ({ name: t.name, slug: t.slug, url: tagUrl(baseUrl, t.slug) })),
       prev: null,
       next: null,

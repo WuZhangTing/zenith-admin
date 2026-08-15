@@ -12,7 +12,9 @@ import {
   signCmsAdRenderProof,
 } from '../../../services/cms/cms-ad-render-proof';
 import { renderCmsWidgetHtml } from '../widgets';
-import { Breadcrumbs, Pagination } from '../_shared';
+import { Breadcrumbs, ModelFieldTable, MODEL_FIELD_TABLE_STYLES, Pagination } from '../_shared';
+import { defineHomeTemplate } from '../sdk';
+import type { CmsThemeContentCollection } from '../types';
 
 const TYPE_BADGES: Record<string, string | null> = { article: null, album: '图集', media: '视频', link: '外链' };
 
@@ -411,6 +413,27 @@ function FrontForm({ form }: { form: CmsFrontFormConfig }) {
 
 // ─── 首页 ─────────────────────────────────────────────────────────────────────
 export function IndexTemplate(ctx: CmsHomeContext) {
+  return <IndexBody ctx={ctx} channelBlocks={[]} />;
+}
+
+/**
+ * 首页模板（Theme API 定义体）：站点主题参数配置了「首页栏目区块」（homeChannels，
+ * 逗号分隔栏目标识）时，load() 并发读取各栏目最新内容，主栏渲染为多栏目区块；
+ * 未配置时回落「最新发布」时间流。
+ */
+export const HomeTemplate = defineHomeTemplate({
+  load: async ({ cms, site }) => {
+    const raw = typeof site.themeConfig.homeChannels === 'string' ? site.themeConfig.homeChannels : '';
+    const codes = raw.split(/[,，]/).map((code) => code.trim()).filter(Boolean).slice(0, 8);
+    const channelBlocks = await Promise.all(
+      codes.map((code) => cms.contents.list({ channelCode: code, limit: 8 })),
+    );
+    return { channelBlocks: channelBlocks.filter((block) => block.channel !== null) };
+  },
+  Component: ({ data, ...ctx }) => <IndexBody ctx={ctx} channelBlocks={data.channelBlocks} />,
+});
+
+function IndexBody({ ctx, channelBlocks }: { ctx: CmsHomeContext; channelBlocks: CmsThemeContentCollection[] }) {
   const bannerImage = typeof ctx.site.themeConfig.bannerImage === 'string' ? ctx.site.themeConfig.bannerImage : null;
   const bannerLink = typeof ctx.site.themeConfig.bannerLink === 'string' ? ctx.site.themeConfig.bannerLink : null;
   const showHot = ctx.site.themeConfig.showHotSection !== false;
@@ -426,10 +449,27 @@ export function IndexTemplate(ctx: CmsHomeContext) {
       <AdSlot ctx={ctx} code="home-ad" />
       <div className="home-grid">
         <section>
-          <h2 className="section-title">最新发布</h2>
-          <div className="content-list">
-            {ctx.latest.length === 0 ? <div className="empty">暂无内容</div> : ctx.latest.map((item) => <ContentItemRow key={item.id} item={item} />)}
-          </div>
+          {channelBlocks.length > 0 ? (
+            channelBlocks.map((block) => (
+              <section className="home-channel-block" key={block.channel!.code}>
+                <h2 className="section-title">
+                  <a href={block.channel!.url}>{block.channel!.name}</a>
+                </h2>
+                <div className="content-list">
+                  {block.list.length === 0
+                    ? <div className="empty">暂无内容</div>
+                    : block.list.map((item) => <ContentItemRow key={item.id} item={item} />)}
+                </div>
+              </section>
+            ))
+          ) : (
+            <>
+              <h2 className="section-title">最新发布</h2>
+              <div className="content-list">
+                {ctx.latest.length === 0 ? <div className="empty">暂无内容</div> : ctx.latest.map((item) => <ContentItemRow key={item.id} item={item} />)}
+              </div>
+            </>
+          )}
         </section>
         <aside>
           {ctx.homeSidebar ? <div dangerouslySetInnerHTML={{ __html: renderCmsWidgetHtml(ctx.homeSidebar) }} /> : null}
@@ -561,6 +601,12 @@ export function DetailTemplate(ctx: CmsDetailContext) {
           <span>{content.viewCount} 阅读</span>
         </div>
         <MediaBlock content={content} />
+        {content.modelFields.length > 0 ? (
+          <>
+            <style>{MODEL_FIELD_TABLE_STYLES}</style>
+            <ModelFieldTable fields={content.modelFields} />
+          </>
+        ) : null}
         <div className="body" dangerouslySetInnerHTML={{ __html: content.body }} />
         <BodyPagination p={content.bodyPagination} />
         <AttachmentList items={content.attachments} />
@@ -768,6 +814,12 @@ export function DetailPlainTemplate(ctx: CmsDetailContext) {
           <span>{content.viewCount} 阅读</span>
         </div>
         <MediaBlock content={content} />
+        {content.modelFields.length > 0 ? (
+          <>
+            <style>{MODEL_FIELD_TABLE_STYLES}</style>
+            <ModelFieldTable fields={content.modelFields} />
+          </>
+        ) : null}
         <div className="body" dangerouslySetInnerHTML={{ __html: content.body }} />
         <BodyPagination p={content.bodyPagination} />
         <AttachmentList items={content.attachments} />

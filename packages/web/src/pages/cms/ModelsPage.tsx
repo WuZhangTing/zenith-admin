@@ -83,10 +83,15 @@ export default function ModelsPage() {
       status: record.status,
       fields: (record.fields ?? []).map((f) => ({
         name: f.name, label: f.label, fieldType: f.fieldType, required: f.required, searchable: f.searchable, showInList: f.showInList,
+        showInDetail: f.showInDetail, detailGroup: f.detailGroup ?? '',
         placeholder: f.placeholder ?? '', optionSource: f.optionSource ?? 'manual', dictCode: f.dictCode ?? '', options: f.options ?? null,
       })),
     }),
-    beforeSave: (values) => ({ ...values, fields: (((values.fields as unknown) as Record<string, unknown>[]) ?? []).map((f, i) => ({ ...f, sort: i })) }),
+    beforeSave: (values) => ({
+      ...values,
+      // sort 与 detailSort 均按行序落库：模型编辑器内的顺序即后台表单与详情字段表的顺序
+      fields: (((values.fields as unknown) as Record<string, unknown>[]) ?? []).map((f, i) => ({ ...f, sort: i, detailSort: i })),
+    }),
   });
   const deleteMutation = useDeleteCmsModel();
 
@@ -206,6 +211,8 @@ export default function ModelsPage() {
                       <Form.Checkbox field={`${field}[required]`} noLabel>必填</Form.Checkbox>
                       <Form.Checkbox field={`${field}[searchable]`} noLabel>检索</Form.Checkbox>
                       <Form.Checkbox field={`${field}[showInList]`} noLabel>列表显示</Form.Checkbox>
+                      <Form.Checkbox field={`${field}[showInDetail]`} noLabel>详情展示</Form.Checkbox>
+                      <Form.Input field={`${field}[detailGroup]`} noLabel placeholder="详情分组（如 文件信息）" style={{ width: 150 }} />
                       <Button type="danger" theme="borderless" icon={<Trash2 size={14} />} onClick={() => remove()} style={{ marginTop: 4 }} />
                       <FieldOptionSource field={field} />
                     </div>

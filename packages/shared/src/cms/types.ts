@@ -404,6 +404,12 @@ export interface CmsModelField {
   required: boolean;
   searchable: boolean;
   showInList: boolean;
+  /** 是否在前台详情页「模型字段表」中展示 */
+  showInDetail: boolean;
+  /** 详情展示分组标题（如「文件信息」）；空 = 默认分组 */
+  detailGroup: string | null;
+  /** 详情展示排序（组内） */
+  detailSort: number;
   placeholder: string | null;
   defaultValue: string | null;
   /** 选项来源：manual=下方 options 手工维护；dict=引用 dictCode 指向的系统字典 */

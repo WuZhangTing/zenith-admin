@@ -158,6 +158,12 @@ export const cmsModelFields = pgTable('cms_model_fields', {
   searchable: boolean('searchable').notNull().default(false),
   /** 是否在内容列表中显示 */
   showInList: boolean('show_in_list').notNull().default(false),
+  /** 是否在前台详情页「模型字段表」中展示（Theme API ctx.content.modelFields 消费） */
+  showInDetail: boolean('show_in_detail').notNull().default(false),
+  /** 详情展示分组标题（如「文件信息」）；空 = 默认分组 */
+  detailGroup: varchar('detail_group', { length: 50 }),
+  /** 详情展示排序（组内） */
+  detailSort: integer('detail_sort').notNull().default(0),
   placeholder: varchar('placeholder', { length: 200 }),
   defaultValue: text('default_value'),
   /** 选项来源：manual=下方 options 手工维护；dict=引用 dictCode 指向的系统字典 */
