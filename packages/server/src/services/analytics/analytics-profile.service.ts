@@ -50,9 +50,13 @@ export async function upsertUserProfilesBatch(executor: DbExecutor, inputs: Prof
     await executor
       .update(analyticsUserProfiles)
       .set({
-        identityType: v.identityType,
-        userId: v.userId,
-        memberId: v.memberId,
+        // 身份只升不降：匿名写入不把已识别画像（admin/member）刷回 anonymous——
+        // 前向身份合并后匿名批次会直接写权威 distinctId，必须保护既有身份归属
+        ...(v.identityType === 'anonymous'
+          ? {}
+          : { identityType: v.identityType }),
+        ...(v.userId != null ? { userId: v.userId } : {}),
+        ...(v.memberId != null ? { memberId: v.memberId } : {}),
         // 两类写入方信息不对称（HTTP 采集带 displayName / 环境属性，服务端事件多为 null）：
         // displayName 仅在有新值时覆盖，properties 做 jsonb 合并（新键覆盖、旧键保留），
         // 避免服务端事件把 SPA 采集写入的画像字段冲刷为 null / 整包替换

@@ -107,11 +107,33 @@ export const userEvents = pgTable('user_events', {
   // services/analytics/analytics-property-filter.ts），使高基数属性 key 可走位图索引扫描，
   // 而不是对时间窗内每一行求值 `properties ->> 'key'`
   index('user_events_properties_gin_idx').using('gin', t.properties),
+  // 身份回溯合并（$identify → 历史匿名事件改写 distinct_id）的更新路径：
+  // 只覆盖尚未归属登录身份的匿名行，部分索引控制维护成本
+  index('user_events_anon_pending_idx').on(t.anonymousId).where(sql`${t.userId} IS NULL AND ${t.memberId} IS NULL AND ${t.anonymousId} IS NOT NULL`),
 ]);
 
 export type UserEventRow = typeof userEvents.$inferSelect;
 
 export type NewUserEvent = typeof userEvents.$inferInsert;
+
+// ─── 身份映射（匿名 anonymousId → 权威 distinctId）─────────────────────────────
+// $identify 时首绑写入（ON CONFLICT DO NOTHING = 首绑优先，防共享设备串号）；
+// 匿名 ingest 批次查表做前向合并，$identify 时做历史回溯合并（user_events / sessions / profiles）。
+// 纯映射表，不加审计列。
+export const analyticsIdentityMap = pgTable('analytics_identity_map', {
+  id: serial('id').primaryKey(),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  anonymousId: varchar('anonymous_id', { length: 64 }).notNull(),
+  distinctId: varchar('distinct_id', { length: 64 }).notNull(),
+  identityType: analyticsIdentityTypeEnum('identity_type').notNull(),
+  userId: integer('user_id'),
+  memberId: integer('member_id'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('analytics_identity_map_tenant_anon_uq').on(sql`coalesce(${t.tenantId}, 0)`, t.anonymousId),
+]);
+
+export type AnalyticsIdentityMapRow = typeof analyticsIdentityMap.$inferSelect;
 
 // ─── 会话聚合表 ──────────────────────────────────────────────────────────────
 export const analyticsSessions = pgTable('analytics_sessions', {

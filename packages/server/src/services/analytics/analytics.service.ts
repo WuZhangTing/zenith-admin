@@ -16,6 +16,7 @@ import { pageOffset } from '../../lib/pagination';
 import { parseClientEnv, lookupIpGeo, clampDays, clampLimit, startOfDaysAgo, anonymizeIpAddr, resolveIngestPlatformFields } from '../../lib/analytics-helpers';
 import { touchEventMeta } from './analytics-event-meta.service';
 import { upsertUserProfilesBatch, type ProfileUpsertInput } from './analytics-profile.service';
+import { processIdentityBindings, resolveAnonymousMappings, type IdentityBinding } from './analytics-identity.service';
 import { evaluateEvents, recordQualityIssue, recordSchemaIssues, type PendingSchemaIssue } from './analytics-governance.service';
 import { getIngestPolicy } from './analytics-settings.service';
 import { isSiteOriginAllowed, resolveSiteByKey, type ResolvedAnalyticsSite } from './analytics-sites.service';
@@ -194,6 +195,21 @@ export async function batchInsertEvents(rawEvents: TrackEventInput[], reqCtx: In
   };
   const rows: IngestEventRow[] = events.map((e) => buildIngestRow(e, identityCtx));
 
+  // 前向身份合并：匿名批次中命中 identity_map 的事件，入库前把 distinctId 改写为权威身份，
+  // 让同一真人的后续匿名浏览（清了 token 但 anonymousId 未变）直接归属既有身份
+  if (!user && !member) {
+    const anonIds = [...new Set(rows.map((r) => r.anonymousId).filter((v): v is string => !!v))];
+    if (anonIds.length > 0) {
+      const mappings = await resolveAnonymousMappings(anonIds, tenantId).catch(() => new Map<string, { distinctId: string }>());
+      if (mappings.size > 0) {
+        for (const row of rows) {
+          const mapped = row.anonymousId ? mappings.get(row.anonymousId) : undefined;
+          if (mapped) row.distinctId = mapped.distinctId;
+        }
+      }
+    }
+  }
+
   let insertedEvents: NormalizedTrackEvent[];
   let consumedQuotaCount = 0;
   try {
@@ -235,6 +251,30 @@ export async function batchInsertEvents(rawEvents: TrackEventInput[], reqCtx: In
     );
   }
   if (insertedEvents.length === 0) return;
+
+  // 回溯身份合并：$identify 落库后，把该匿名 ID 的历史事件 / 会话 / 画像并入权威身份。
+  // best-effort：失败仅记日志，下次 identify 幂等重试，不阻塞采集响应。
+  if (user || member) {
+    const identifyAnonIds = [...new Set(
+      insertedEvents
+        .filter((e) => e.eventType === 'identify' && e.anonymousId)
+        .map((e) => e.anonymousId as string),
+    )];
+    if (identifyAnonIds.length > 0) {
+      const canonical = member ? `m:${member.memberId}` : `u:${user!.userId}`;
+      const bindings: IdentityBinding[] = identifyAnonIds.map((anonymousId) => ({
+        tenantId,
+        anonymousId,
+        distinctId: canonical,
+        identityType: member ? 'member' : 'admin',
+        userId: user?.userId ?? null,
+        memberId: member?.memberId ?? null,
+        displayName,
+      }));
+      void processIdentityBindings(bindings);
+    }
+  }
+
   // 事件字典登记（best-effort，不阻塞）
   void touchEventMeta(insertedEvents, tenantId).catch(() => { /* ignore */ });
   notifyIngest(insertedEvents.length);
