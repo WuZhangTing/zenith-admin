@@ -11,7 +11,7 @@ import type {
   CmsPageContext, CmsSearchContext, CmsTagPageContext, CmsNotFoundContext,
   CmsTheme, CmsThemeContentCollection, CmsNavItem as CmsNavItemType,
 } from '../types';
-import { SeoHead, Breadcrumbs, Pagination, ModelFieldTable, MODEL_FIELD_TABLE_STYLES, buildAnalyticsBeacon, buildThemeOverrides } from '../_shared';
+import { SeoHead, Breadcrumbs, Pagination, ModelFieldTable, MODEL_FIELD_TABLE_STYLES, MediaBlock, MEDIA_BLOCK_STYLES, buildAnalyticsBeacon, buildThemeOverrides } from '../_shared';
 import { defineHomeTemplate } from '../sdk';
 import { renderCmsWidgetHtml } from '../widgets';
 import { CMS_WIDGET_RENDERER_KEYS } from '@zenith/shared/cms';
@@ -101,6 +101,7 @@ main { min-height: 60vh; padding: 22px 0 44px; }
 .gov-footer .links { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 10px; }
 .gov-footer .extra { white-space: pre-line; margin-bottom: 8px; }
 ${MODEL_FIELD_TABLE_STYLES}
+${MEDIA_BLOCK_STYLES}
 .model-fields-table th { background: color-mix(in srgb, var(--primary) 5%, #fff); }
 @media (max-width: 768px) {
   .masthead-title { font-size: 22px; }
@@ -354,6 +355,7 @@ function DetailTemplate(ctx: CmsDetailContext) {
           <span>浏览：{content.viewCount}</span>
         </div>
         {content.modelFields.length > 0 ? <ModelFieldTable fields={content.modelFields} /> : null}
+        <MediaBlock content={content} />
         <div className="body" dangerouslySetInnerHTML={{ __html: content.body }} />
         {content.attachments.length > 0 ? (
           <ul className="attachments">

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Form, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -15,6 +15,7 @@ import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { slugifyName } from '@/utils/slug';
 
 interface SearchParams { keyword: string }
 const defaultSearch: SearchParams = { keyword: '' };
@@ -49,6 +50,19 @@ export default function TagsPage() {
     },
   });
   const deleteMutation = useDeleteCmsTag();
+
+  // 新建时按名称自动生成拼音 slug；用户手改过（当前值 ≠ 上次自动值）则不再覆盖
+  const lastAutoSlug = useRef('');
+  const handleNameChange = (value: string) => {
+    if (modal.isEdit) return;
+    const api = modal.formApi.current;
+    if (!api) return;
+    const current = (api.getValue('slug') as string | undefined) ?? '';
+    if (current && current !== lastAutoSlug.current) return;
+    const next = slugifyName(value, 100);
+    lastAutoSlug.current = next;
+    api.setValue('slug', next);
+  };
 
   const columns: ColumnProps<CmsTag>[] = [
     { title: '标签名称', dataIndex: 'name', width: 180 },
@@ -111,8 +125,8 @@ export default function TagsPage() {
 
       <AppModal {...modal.modalProps} width={480}>
         <Form {...modal.formProps}>
-          <Form.Input field="name" label="标签名称" rules={[{ required: true, message: '请输入标签名称' }]} />
-          <Form.Input field="slug" label="URL 标识" placeholder="小写字母/数字/中划线" rules={[{ required: true, message: '请输入 URL 标识' }]} />
+          <Form.Input field="name" label="标签名称" onChange={(v) => handleNameChange(String(v ?? ''))} rules={[{ required: true, message: '请输入标签名称' }]} />
+          <Form.Input field="slug" label="URL 标识" placeholder="输入名称自动生成，可修改" rules={[{ required: true, message: '请输入 URL 标识' }]} />
           <Form.Input field="groupName" label="分组" placeholder="可选，如「产品」「行业」，便于归类管理" maxLength={50} />
         </Form>
       </AppModal>

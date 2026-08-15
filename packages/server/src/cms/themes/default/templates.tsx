@@ -12,7 +12,7 @@ import {
   signCmsAdRenderProof,
 } from '../../../services/cms/cms-ad-render-proof';
 import { renderCmsWidgetHtml } from '../widgets';
-import { Breadcrumbs, ModelFieldTable, MODEL_FIELD_TABLE_STYLES, Pagination } from '../_shared';
+import { Breadcrumbs, MediaBlock, ModelFieldTable, MODEL_FIELD_TABLE_STYLES, Pagination } from '../_shared';
 import { defineHomeTemplate } from '../sdk';
 import type { CmsThemeContentCollection } from '../types';
 
@@ -520,34 +520,6 @@ export function ListTemplate(ctx: CmsListContext) {
 }
 
 // ─── 详情页 ───────────────────────────────────────────────────────────────────
-/** 形态区块：图集九宫格 / 音视频播放器（article/link 返回 null） */
-function MediaBlock({ content }: { content: CmsDetailContext['content'] }) {
-  if (content.contentType === 'album' && content.albumImages.length > 0) {
-    return (
-      <div className="album-grid">
-        {content.albumImages.map((img, i) => (
-          <figure key={`${img.url}-${i}`}>
-            <a href={img.url} target="_blank" rel="noopener">
-              <img src={img.thumb ?? img.url} alt={img.caption ?? `${content.title} ${i + 1}`} loading="lazy" />
-            </a>
-            {img.caption ? <figcaption>{img.caption}</figcaption> : null}
-          </figure>
-        ))}
-      </div>
-    );
-  }
-  if (content.contentType === 'media' && content.mediaUrl) {
-    return (
-      <div className="media-player">
-        {content.mediaType === 'audio'
-          ? <audio src={content.mediaUrl} controls preload="metadata" />
-          : <video src={content.mediaUrl} controls preload="metadata" poster={content.mediaPoster ?? undefined} />}
-        {content.mediaDuration ? <div className="media-duration">时长：{content.mediaDuration}</div> : null}
-      </div>
-    );
-  }
-  return null;
-}
 
 /** 正文多页分页导航（单页时不渲染） */
 function BodyPagination({ p }: { p: CmsDetailContext['content']['bodyPagination'] }) {

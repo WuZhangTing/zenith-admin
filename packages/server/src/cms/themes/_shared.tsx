@@ -195,3 +195,60 @@ export const MODEL_FIELD_TABLE_STYLES = `
 .model-fields-table th { width: 17%; background: var(--bg-2); font-weight: 500; color: var(--text-2); white-space: nowrap; }
 .model-fields-table td { width: 33%; }
 `;
+
+/**
+ * 内容形态区块：图集九宫格 / 音视频播放器（article/link 返回 null）。
+ * 详情模板须在正文前调用，否则 album/media 形态只剩正文，主图数据丢失。
+ * 样式钩子 .album-grid / .media-player（默认样式见 MEDIA_BLOCK_STYLES）。
+ */
+export function MediaBlock({ content }: {
+  content: {
+    contentType: 'article' | 'album' | 'media' | 'link';
+    title: string;
+    albumImages: { url: string; thumb: string | null; caption: string | null }[];
+    mediaType: 'video' | 'audio' | null;
+    mediaUrl: string | null;
+    mediaPoster: string | null;
+    mediaDuration: string | null;
+  };
+}) {
+  if (content.contentType === 'album' && content.albumImages.length > 0) {
+    return (
+      <div className="album-grid">
+        {content.albumImages.map((img, i) => (
+          <figure key={`${img.url}-${i}`}>
+            <a href={img.url} target="_blank" rel="noopener">
+              <img src={img.thumb ?? img.url} alt={img.caption ?? `${content.title} ${i + 1}`} loading="lazy" />
+            </a>
+            {img.caption ? <figcaption>{img.caption}</figcaption> : null}
+          </figure>
+        ))}
+      </div>
+    );
+  }
+  if (content.contentType === 'media' && content.mediaUrl) {
+    return (
+      <div className="media-player">
+        {content.mediaType === 'audio'
+          ? <audio src={content.mediaUrl} controls preload="metadata" />
+          : <video src={content.mediaUrl} controls preload="metadata" poster={content.mediaPoster ?? undefined} />}
+        {content.mediaDuration ? <div className="media-duration">时长：{content.mediaDuration}</div> : null}
+      </div>
+    );
+  }
+  return null;
+}
+
+/** 形态区块默认样式（图集网格 + 播放器），主题 CSS 中引入 */
+export const MEDIA_BLOCK_STYLES = `
+.album-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0; }
+.album-grid figure { margin: 0; }
+.album-grid a { display: block; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+.album-grid img { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; }
+.album-grid figcaption { font-size: 13px; color: var(--text-2); padding: 6px 2px; text-align: center; }
+.media-player { margin: 16px 0; }
+.media-player video, .media-player audio { width: 100%; border-radius: 8px; background: #000; }
+.media-player audio { background: transparent; }
+.media-duration { font-size: 13px; color: var(--text-2); margin-top: 6px; }
+@media (max-width: 768px) { .album-grid { grid-template-columns: repeat(2, 1fr); } }
+`;
