@@ -280,7 +280,7 @@ function mapSearchRow(row: SearchRowShape, tokens: string[]): CmsSearchResult {
   };
 }
 
-/** 站内全文检索：tsvector 匹配 + ts_rank_cd 排序；无命中且关键词很短时回退 ILIKE（pg_trgm 索引加速） */
+/** 站内全文检索：精确 AND 命中 → 前缀 OR 近似召回 → 标题 ILIKE 兜底，三级召回逐级放宽 */
 export async function searchCmsContents(q: CmsSearchQuery): Promise<{ list: CmsSearchResult[]; total: number; page: number; pageSize: number; tokens: string[] }> {
   const { siteId, keyword, page, pageSize } = q;
   if (!q.skipAccessCheck) {
@@ -342,8 +342,31 @@ export async function searchCmsContents(q: CmsSearchQuery): Promise<{ list: CmsS
     return { list: rows.map((r) => mapSearchRow(r, tokens)), total, page, pageSize, tokens };
   }
 
-  // 回退：超短词（如单字）可能不在词典中，用 ILIKE 模糊匹配标题（title 已建 gin_trgm 索引）
-  if (keyword.trim().length <= 4) {
+  // 回退一（仅应用层分词配置）：截断词/两侧切词不齐时 AND 全命中会整体落空，
+  // 改用「前缀 + OR」近似召回（遗 → 遗失:*），ts_rank_cd 保证命中越多越靠前
+  if (usesAppSegmentation()) {
+    const prefixTokens = tokens.filter((t) => /^[\p{L}\p{N}]+$/u.test(t)).slice(0, 10);
+    if (prefixTokens.length > 0) {
+      const orTsquery = sql`to_tsquery(${cfg}::regconfig, ${prefixTokens.map((t) => `${t}:*`).join(' | ')})`;
+      const orWhere = and(baseWhere, sql`${cmsContents.searchVector} @@ ${orTsquery}`)!;
+      const [orTotal, orRows] = await Promise.all([
+        db.$count(cmsContents, orWhere),
+        db.select({ ...selectShape, rank: sql<number>`ts_rank_cd(${cmsContents.searchVector}, ${orTsquery})`.as('rank') })
+          .from(cmsContents)
+          .leftJoin(cmsChannels, eq(cmsContents.channelId, cmsChannels.id))
+          .where(orWhere)
+          .orderBy(sql`rank desc`, sql`${cmsContents.publishedAt} desc nulls last`)
+          .limit(pageSize)
+          .offset(pageOffset(page, pageSize)),
+      ]);
+      if (orTotal > 0) {
+        return { list: orRows.map((r) => mapSearchRow(r, tokens)), total: orTotal, page, pageSize, tokens };
+      }
+    }
+  }
+
+  // 回退二：整串 ILIKE 模糊匹配标题（title 已建 gin_trgm 索引），兜住词典完全切不准的关键词
+  if (keyword.trim().length <= 32) {
     const likeWhere = and(baseWhere, sql`${cmsContents.title} ilike ${'%' + escapeLike(keyword.trim()) + '%'}`)!;
     const [likeTotal, likeRows] = await Promise.all([
       db.$count(cmsContents, likeWhere),
