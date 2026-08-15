@@ -13,7 +13,7 @@ import type {
   CmsThemeDataApi, CmsThemeContentCollection,
 } from '../../cms/themes/types';
 import { isHomeTemplateDefinition } from '../../cms/themes/sdk';
-import { buildCmsModelFieldValues } from './cms-model-field-values';
+import { buildCmsModelFieldValues, buildCmsListModelFieldValues, loadCmsListModelFieldDefs, type CmsListModelFieldDefs } from './cms-model-field-values';
 import { listCmsChannelTree } from './cms-channels.service';
 import { channelUrl, tagUrl, contentUrl, customPageUrl, type CmsUrlChannel } from './cms-urls';
 import { buildCmsLinkResolver, resolveCmsLink, type CmsLinkResolver } from './cms-link.service';
@@ -256,7 +256,7 @@ async function buildLangAlternates(site: CmsSiteRow): Promise<CmsBaseContext['la
   return alternates.length > 1 ? alternates : [];
 }
 
-function toContentItem(row: CmsContentRow, baseUrl: string, channel: CmsUrlChannel, resolveLink?: CmsLinkResolver): CmsContentItem {
+function toContentItem(row: CmsContentRow, baseUrl: string, channel: CmsUrlChannel, resolveLink?: CmsLinkResolver, listFieldDefs?: Map<number, CmsListModelFieldDefs>): CmsContentItem {
   const rawLink = row.externalLink?.trim();
   // 链接型内容：解析后指向目标；目标已删除/下线时降级为不可点（避免指向必然 404 的自身详情页）
   const link = rawLink ? (resolveLink?.(rawLink) ?? { url: rawLink, isExternal: true }) : null;
@@ -282,6 +282,9 @@ function toContentItem(row: CmsContentRow, baseUrl: string, channel: CmsUrlChann
     isTop: row.isTop,
     isRecommend: row.isRecommend,
     isHot: row.isHot,
+    modelFields: listFieldDefs
+      ? buildCmsListModelFieldValues(row.modelId, (row.extend ?? {}) as Record<string, unknown>, listFieldDefs)
+      : [],
   };
 }
 
@@ -392,7 +395,8 @@ export async function renderCustomPage(
     const mode = block.props.mode === 'recommend' || block.props.mode === 'hot' ? block.props.mode : 'latest';
     const rows = await listBlockContents(site.id, { channelId, count, mode });
     const resolveLink = await buildCmsLinkResolver(site.id, baseUrl, rows.map((r) => r.externalLink));
-    contentListData.set(block.id, rows.map((row) => toContentItem(row, baseUrl, channelPathMap.get(row.channelId) ?? FALLBACK_URL_CHANNEL, resolveLink)));
+    const listFieldDefs = await loadCmsListModelFieldDefs(rows.map((r) => r.modelId));
+    contentListData.set(block.id, rows.map((row) => toContentItem(row, baseUrl, channelPathMap.get(row.channelId) ?? FALLBACK_URL_CHANNEL, resolveLink, listFieldDefs)));
   }
   const widgetData = await resolveCmsWidgetPlacements(
     site.id,
@@ -468,11 +472,12 @@ export function createCmsThemeDataApi(site: CmsSiteRow, baseUrl: string): CmsThe
           const rows = await listBlockContents(site.id, { channelId: channel?.id, count: limit, mode });
           const channelPathMap = await loadChannelPathMap(site.id);
           const resolveLink = await buildCmsLinkResolver(site.id, baseUrl, rows.map((r) => r.externalLink));
+          const listFieldDefs = await loadCmsListModelFieldDefs(rows.map((r) => r.modelId));
           return {
             channel: channel
               ? { id: channel.id, code: channel.code, name: channel.name, url: channelUrl(baseUrl, channel.path) }
               : null,
-            list: rows.map((row) => toContentItem(row, baseUrl, channelPathMap.get(row.channelId) ?? FALLBACK_URL_CHANNEL, resolveLink)),
+            list: rows.map((row) => toContentItem(row, baseUrl, channelPathMap.get(row.channelId) ?? FALLBACK_URL_CHANNEL, resolveLink, listFieldDefs)),
           };
         })();
         memo.set(key, promise);
@@ -514,7 +519,10 @@ export async function renderHomePage(
     site.id, baseUrl,
     [...home.latest, ...home.recommended, ...home.hot].map((r) => r.externalLink),
   );
-  const toItem = (row: CmsContentRow) => toContentItem(row, baseUrl, channelPathMap.get(row.channelId) ?? FALLBACK_URL_CHANNEL, resolveLink);
+  const homeFieldDefs = await loadCmsListModelFieldDefs(
+    [...home.latest, ...home.recommended, ...home.hot].map((r) => r.modelId),
+  );
+  const toItem = (row: CmsContentRow) => toContentItem(row, baseUrl, channelPathMap.get(row.channelId) ?? FALLBACK_URL_CHANNEL, resolveLink, homeFieldDefs);
   const props = {
     ...base,
     latest: home.latest.map(toItem),
@@ -612,11 +620,12 @@ export async function renderChannelPage(site: CmsSiteRow, baseUrl: string, chann
   // cms_content_channels），而详情页只在主栏目路径下可达（getPublishedContent 锁 channelId）。
   // 用当前栏目拼链接会让副栏目条目全部指向 404，也会给同一内容制造第二个 URL。
   const channelPathMap = await loadChannelPathMap(site.id);
+  const listFieldDefs = await loadCmsListModelFieldDefs(rows.map((r) => r.modelId));
   const props = {
     ...base,
     channel: toChannelInfo(channel, baseUrl),
     breadcrumbs,
-    items: rows.map((r) => toContentItem(r, baseUrl, channelPathMap.get(r.channelId) ?? FALLBACK_URL_CHANNEL, resolveLink)),
+    items: rows.map((r) => toContentItem(r, baseUrl, channelPathMap.get(r.channelId) ?? FALLBACK_URL_CHANNEL, resolveLink, listFieldDefs)),
     pagination: buildPagination(baseUrl, channel.path, page, channel.pageSize, total),
   };
   const html = renderDoc(resolvedList.component, props);
@@ -975,6 +984,7 @@ export async function renderTagPage(site: CmsSiteRow, baseUrl: string, slug: str
   for (let p = start; p <= Math.min(totalPages, start + window - 1); p++) {
     pages.push({ page: p, url: tagUrl(baseUrl, slug, p), current: p === page });
   }
+  const tagFieldDefs = await loadCmsListModelFieldDefs(rows.map((r) => r.modelId));
   const props = {
     ...base,
     tag: { name: tag.name, slug: tag.slug, contentCount: tag.contentCount },
@@ -982,7 +992,7 @@ export async function renderTagPage(site: CmsSiteRow, baseUrl: string, slug: str
       { name: '首页', url: `${baseUrl}/` },
       { name: `标签：${tag.name}`, url: tagUrl(baseUrl, slug) },
     ],
-    items: rows.map((r) => toContentItem(r, baseUrl, channelPathMap.get(r.channelId) ?? FALLBACK_URL_CHANNEL, resolveLink)),
+    items: rows.map((r) => toContentItem(r, baseUrl, channelPathMap.get(r.channelId) ?? FALLBACK_URL_CHANNEL, resolveLink, tagFieldDefs)),
     pagination: {
       page, pageSize, total, totalPages,
       prevUrl: page > 1 ? tagUrl(baseUrl, slug, page - 1) : null,

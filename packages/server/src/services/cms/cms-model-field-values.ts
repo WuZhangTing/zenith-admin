@@ -1,6 +1,9 @@
 import dayjs from 'dayjs';
 import type { CmsModelFieldValue } from '../../cms/themes/types';
+import type { cmsModelFields } from '../../db/schema';
 import { listCmsModelFields, resolveCmsModelFieldOptions } from './cms-models.service';
+
+type CmsModelFieldRow = typeof cmsModelFields.$inferSelect;
 
 /**
  * 组装详情页「模型字段表」展示值（Theme API `ctx.content.modelFields`）：
@@ -27,6 +30,54 @@ export async function buildCmsModelFieldValues(
         displayValue: formatDisplayValue(field.fieldType, rawValue, resolved.get(field.id) ?? []),
         group: field.detailGroup?.trim() || null,
         sort: field.detailSort,
+      };
+    })
+    .sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name));
+}
+
+/** 列表场景的字段定义预载结果：showInList=true 的字段 + 已解析选项 */
+export interface CmsListModelFieldDefs {
+  fields: CmsModelFieldRow[];
+  options: Map<number, { label: string; value: string }[]>;
+}
+
+/**
+ * 批量预载各模型 showInList 字段定义（列表卡片角标场景）。
+ * 一次列表渲染通常只涉及 1-2 个模型；无 showInList 字段的模型不占条目。
+ */
+export async function loadCmsListModelFieldDefs(
+  modelIds: readonly (number | null | undefined)[],
+): Promise<Map<number, CmsListModelFieldDefs>> {
+  const distinct = [...new Set(modelIds.filter((id): id is number => typeof id === 'number' && id > 0))];
+  const defs = new Map<number, CmsListModelFieldDefs>();
+  for (const modelId of distinct) {
+    const fields = (await listCmsModelFields(modelId)).filter((f) => f.showInList);
+    if (fields.length === 0) continue;
+    defs.set(modelId, { fields, options: await resolveCmsModelFieldOptions(fields) });
+  }
+  return defs;
+}
+
+/** 同步组装列表项模型字段（消费 loadCmsListModelFieldDefs 预载结果），按字段 sort 排序 */
+export function buildCmsListModelFieldValues(
+  modelId: number | null | undefined,
+  extend: Record<string, unknown> | null | undefined,
+  defs: Map<number, CmsListModelFieldDefs>,
+): CmsModelFieldValue[] {
+  const def = modelId ? defs.get(modelId) : undefined;
+  if (!def) return [];
+  const values = extend ?? {};
+  return def.fields
+    .map((field) => {
+      const rawValue = values[field.name];
+      return {
+        name: field.name,
+        label: field.label,
+        fieldType: field.fieldType,
+        rawValue,
+        displayValue: formatDisplayValue(field.fieldType, rawValue, def.options.get(field.id) ?? []),
+        group: null,
+        sort: field.sort,
       };
     })
     .sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name));

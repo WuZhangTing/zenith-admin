@@ -702,6 +702,8 @@ export function ListCardTemplate(ctx: CmsListContext) {
 .card-grid .card .card-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; }
 .card-grid .card h3 { font-size: 15px; font-weight: 600; line-height: 1.4; }
 .card-grid .card .summary { font-size: 13px; color: var(--text-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card-grid .card .card-fields { display: flex; gap: 6px; flex-wrap: wrap; }
+.card-grid .card .card-fields span { font-size: 12px; color: var(--primary); background: color-mix(in srgb, var(--primary) 10%, transparent); border-radius: 4px; padding: 1px 8px; }
 .card-grid .card .meta { font-size: 12px; color: var(--text-2); margin-top: auto; display: flex; gap: 10px; }
 @media (max-width: 900px) { .card-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 560px) { .card-grid { grid-template-columns: 1fr; } }
@@ -719,6 +721,13 @@ export function ListCardTemplate(ctx: CmsListContext) {
                   {item.title}
                 </h3>
                 {item.summary ? <div className="summary">{item.summary}</div> : null}
+                {item.modelFields.some((f) => f.displayValue) ? (
+                  <div className="card-fields">
+                    {item.modelFields.filter((f) => f.displayValue).map((f) => (
+                      <span key={f.name} title={f.label}>{f.displayValue}</span>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="meta">
                   {item.publishedAt ? <time>{item.publishedAt}</time> : null}
                   <span>{item.viewCount} 阅读</span>

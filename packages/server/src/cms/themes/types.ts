@@ -92,6 +92,11 @@ export interface CmsContentItem {
   isTop: boolean;
   isRecommend: boolean;
   isHot: boolean;
+  /**
+   * 模型字段展示值（仅模型中勾选「列表显示」的字段；卡片角标场景，如评分/平台）。
+   * 未绑定模型或无勾选字段时为空数组。
+   */
+  modelFields: CmsModelFieldValue[];
 }
 
 /** 图集图片（详情渲染） */
