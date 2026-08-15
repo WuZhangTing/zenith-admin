@@ -532,6 +532,22 @@ export async function getOverview(input: OverviewRangeInput) {
 
 const DAY_MS = 86_400_000;
 
+/**
+ * 近 5 分钟活跃的登录管理员数（与实时看板 activeNow 同窗口，只数登录用户）。
+ * 供首页 dashboard「当前在线」使用，替代 Redis 令牌会话计数
+ * （令牌会话在重复登录/未登出时持续累积，数值与真实在线严重背离）。
+ */
+export async function getActiveAdminUserCount(): Promise<number> {
+  const [row] = await db
+    .select({ n: countDistinct(userEvents.userId) })
+    .from(userEvents)
+    .where(mergeWhere(
+      and(gte(userEvents.createdAt, new Date(Date.now() - 5 * 60_000)), isNotNull(userEvents.userId)),
+      tenantScope(userEvents),
+    ));
+  return Number(row?.n ?? 0);
+}
+
 export function dateAxis(days: number): string[] {
   const arr: string[] = [];
   const todayStart = parseDateRangeStart(formatDate(new Date())) ?? new Date();
@@ -1372,151 +1388,6 @@ export async function getSessionTimeline(sessionId: string, limitRaw?: number) {
       durationMs: r.durationMs,
       properties: r.properties ?? null,
       createdAt: formatDateTime(r.createdAt),
-    })),
-  };
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-// 维度分布（浏览器 / 系统 / 设备 / 地域 / 来源 / 页面）
-// ════════════════════════════════════════════════════════════════════════════
-
-const DIMENSION_COLUMN: Record<string, PgColumn> = {
-  browser: userEvents.browser,
-  os: userEvents.os,
-  device: userEvents.deviceType,
-  region: userEvents.region,
-  source: userEvents.utmSource,
-  referrer: userEvents.referrer,
-  page: userEvents.pagePath,
-};
-
-export async function getDimensionBreakdown(input: { days?: number; dimension: string; page?: number; pageSize?: number }) {
-  const days = clampDays(input.days, 30);
-  const { page, pageSize } = normalizePageQuery(input);
-  const dimension = input.dimension in DIMENSION_COLUMN ? input.dimension : 'browser';
-  const col = DIMENSION_COLUMN[dimension];
-  const onlyPv = dimension === 'page';
-  const dates = dateAxis(days);
-  const today = dates[dates.length - 1];
-  const unknownLabel = dimension === 'referrer' || dimension === 'source' ? '直接访问' : '未知';
-
-  const counts = new Map<string, number>(); // key: 维度值（'' = NULL 哨兵）
-  let total = 0;
-  const coveredDays = new Set<string>();
-
-  // ── 低基数维度历史日走预聚合（referrer/source 基数不可控，始终走 raw）────────
-  if (ROLLUP_DIM_TYPES.has(dimension)) {
-    const rows = await db
-      .select({
-        statDate: analyticsDailyRollup.statDate,
-        dimValue: analyticsDailyRollup.dimValue,
-        value: sql<number>`SUM(${analyticsDailyRollup.value})`,
-      })
-      .from(analyticsDailyRollup)
-      .where(mergeWhere(
-        and(eq(analyticsDailyRollup.dimType, dimension), gte(analyticsDailyRollup.statDate, dates[0])),
-        rollupTenantScope(),
-      ))
-      .groupBy(analyticsDailyRollup.statDate, analyticsDailyRollup.dimValue);
-    for (const r of rows) {
-      coveredDays.add(r.statDate);
-      counts.set(r.dimValue, (counts.get(r.dimValue) ?? 0) + Number(r.value));
-      total += Number(r.value);
-    }
-  }
-
-  // ── 今天与 rollup 未覆盖的日期回退原始表 ────────────────────────────────────
-  const missing = dates.filter((d) => d === today || !coveredDays.has(d));
-  if (missing.length > 0) {
-    const rawStart = parseDateRangeStart(missing[0]) ?? startOfDaysAgo(days);
-    const conditions = [gte(userEvents.createdAt, rawStart)];
-    if (onlyPv) conditions.push(eq(userEvents.eventType, 'page_view'));
-    const where = mergeWhere(and(...conditions), tenantScope(userEvents));
-    const rows = await db
-      .select({
-        day: sql<string>`to_char(timezone(${APP_TIME_ZONE}, ${userEvents.createdAt}), 'YYYY-MM-DD')`,
-        name: sql<string | null>`${col}`,
-        value: sql<number>`COUNT(*)::int`,
-      })
-      .from(userEvents)
-      .where(where)
-      .groupBy(sql`1`, col);
-    const missingSet = new Set(missing);
-    for (const r of rows) {
-      if (!missingSet.has(r.day)) continue;
-      const key = r.name ?? '';
-      counts.set(key, (counts.get(key) ?? 0) + Number(r.value));
-      total += Number(r.value);
-    }
-  }
-
-  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  const list = sorted
-    .slice(pageOffset(page, pageSize), pageOffset(page, pageSize) + pageSize)
-    .map(([name, value]) => ({
-      name: name || unknownLabel,
-      value,
-      // percent 分母始终是全量样本量，翻页不会让占比重新归一
-      percent: total > 0 ? Math.round((value / total) * 1000) / 10 : 0,
-    }));
-  return { dimension, totalValue: total, list, total: sorted.length, page, pageSize };
-}
-
-/** 双维交叉分布：dim1 取 Top N 行，dim2 取全局 Top 8 列（其余归入「其他」）。 */
-export async function getDimensionCross(input: { days?: number; dim1: string; dim2: string; limit?: number }) {
-  const days = clampDays(input.days, 30);
-  const limit = clampLimit(input.limit, 10, 20);
-  const dim1 = input.dim1 in DIMENSION_COLUMN ? input.dim1 : 'browser';
-  const dim2 = input.dim2 in DIMENSION_COLUMN && input.dim2 !== dim1 ? input.dim2 : (dim1 === 'os' ? 'browser' : 'os');
-  const col1 = DIMENSION_COLUMN[dim1];
-  const col2 = DIMENSION_COLUMN[dim2];
-  const start = startOfDaysAgo(days);
-  const conditions = [gte(userEvents.createdAt, start)];
-  if (dim1 === 'page' || dim2 === 'page') conditions.push(eq(userEvents.eventType, 'page_view'));
-  const where = mergeWhere(and(...conditions), tenantScope(userEvents));
-
-  const rows = await db
-    .select({
-      d1: sql<string | null>`${col1}`,
-      d2: sql<string | null>`${col2}`,
-      value: sql<number>`COUNT(*)::int`,
-    })
-    .from(userEvents)
-    .where(where)
-    .groupBy(col1, col2);
-
-  const MAX_COLUMNS = 8;
-  const rowTotals = new Map<string, number>();
-  const colTotals = new Map<string, number>();
-  for (const r of rows) {
-    const k1 = r.d1 ?? '未知';
-    const k2 = r.d2 ?? '未知';
-    rowTotals.set(k1, (rowTotals.get(k1) ?? 0) + Number(r.value));
-    colTotals.set(k2, (colTotals.get(k2) ?? 0) + Number(r.value));
-  }
-  const topRows = [...rowTotals.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([k]) => k);
-  const topCols = [...colTotals.entries()].sort((a, b) => b[1] - a[1]).slice(0, MAX_COLUMNS).map(([k]) => k);
-  const hasOther = colTotals.size > topCols.length;
-  const columns = hasOther ? [...topCols, '其他'] : topCols;
-
-  const cells = new Map<string, number>();
-  for (const r of rows) {
-    const k1 = r.d1 ?? '未知';
-    if (!topRows.includes(k1)) continue;
-    const rawK2 = r.d2 ?? '未知';
-    const k2 = topCols.includes(rawK2) ? rawK2 : '其他';
-    const key = `${k1}\u0001${k2}`;
-    cells.set(key, (cells.get(key) ?? 0) + Number(r.value));
-  }
-
-  return {
-    dim1,
-    dim2,
-    columns,
-    rows: topRows.map((name) => ({
-      name,
-      total: rowTotals.get(name) ?? 0,
-      values: columns.map((c) => cells.get(`${name}\u0001${c}`) ?? 0),
     })),
   };
 }

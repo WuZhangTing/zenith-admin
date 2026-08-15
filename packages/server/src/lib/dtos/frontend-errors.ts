@@ -77,6 +77,7 @@ export const ErrorGroupDTO = z
     assigneeName: z.string().nullable(),
     release: z.string().nullable(),
     note: z.string().nullable(),
+    environment: z.string(),
     count: z.number().int(),
     affectedUsers: z.number().int(),
     firstSeenAt: z.string(),

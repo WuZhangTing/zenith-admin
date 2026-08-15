@@ -2,7 +2,7 @@ import { count, countDistinct, sql, and, gte, lt, eq, desc } from 'drizzle-orm';
 import { db } from '../../db';
 import { users, loginLogs, operationLogs } from '../../db/schema';
 import { isSuperAdmin } from '../../lib/permissions';
-import { getOnlineCount } from '../../lib/session-manager';
+import { getActiveAdminUserCount } from './analytics.service';
 import { tenantCondition } from '../../lib/tenant';
 import { HTTPException } from 'hono/http-exception';
 import type { JwtPayload } from '../../middleware/auth';
@@ -38,7 +38,8 @@ export async function getDashboardStats() {
     db.$count(users, activeUsersWhere),
     db.$count(loginLogs, todayLoginWhere),
     db.$count(operationLogs, todayOpWhere),
-    getOnlineCount(),
+    // 在线口径与行为分析实时看板一致：近 5 分钟有活动的登录用户数
+    getActiveAdminUserCount(),
   ]);
   return { totalUsers, activeUsers, onlineUsers, todayLogins, todayOperations };
 }

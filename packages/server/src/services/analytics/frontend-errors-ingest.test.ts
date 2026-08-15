@@ -69,6 +69,10 @@ vi.mock('./analytics-governance.service', () => ({
   recordQualityIssue,
 }));
 
+vi.mock('./analytics-settings.service', () => ({
+  isErrorIgnored: async () => false,
+}));
+
 import { reportError } from './frontend-errors.service';
 
 describe('reportError — 身份归属与平台字段（行为中心阶段 1）', () => {

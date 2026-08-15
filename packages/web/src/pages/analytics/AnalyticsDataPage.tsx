@@ -673,6 +673,19 @@ export default function AnalyticsDataPage() {
               style={{ width: 520 }}
             />
           </Form.Slot>
+          <Form.Slot label="错误忽略规则">
+            <div>
+              <TagInput
+                value={settings.errorIgnorePatterns}
+                placeholder="输入正则后回车，如 Invalid DOM property"
+                onChange={(value: string[]) => updateSettings('errorIgnorePatterns', value)}
+                style={{ width: 520 }}
+              />
+              <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 4 }}>
+                命中任一正则（对错误 message 不区分大小写匹配）的前端错误上报会被直接丢弃，用于压制框架开发告警、浏览器插件等已知噪音
+              </Typography.Text>
+            </div>
+          </Form.Slot>
           <Form.Slot label="事件保留天数">
             <InputNumber
               min={1}

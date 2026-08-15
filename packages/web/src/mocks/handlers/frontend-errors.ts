@@ -28,6 +28,7 @@ let mockGroups: ErrorGroup[] = Array.from({ length: 48 }, (_, i) => ({
   assigneeName: i % 4 === 0 ? '管理员' : null,
   release: i % 2 === 0 ? 'v1.2.0' : 'v1.1.0',
   note: null,
+  environment: (['production', 'production', 'development'] as const)[i % 3],
   count: rand(1, 240),
   affectedUsers: rand(1, 80),
   firstSeenAt: mockDateTimeOffset(-rand(1, 30) * 86400000),
@@ -121,11 +122,13 @@ export const frontendErrorsHandlers = [
     const errorType = u.searchParams.get('errorType');
     const level = u.searchParams.get('level');
     const keyword = u.searchParams.get('keyword') ?? '';
+    const environment = u.searchParams.get('environment');
     let list = [...mockGroups];
     if (status) list = list.filter((g) => g.status === status);
     if (errorType) list = list.filter((g) => g.errorType === errorType);
     if (level) list = list.filter((g) => g.level === level);
     if (keyword) list = list.filter((g) => g.message.includes(keyword));
+    if (environment) list = list.filter((g) => g.environment === environment);
     return ok<PaginatedResponse<ErrorGroup>>(paginate(list, u, 20));
   }),
 

@@ -305,6 +305,8 @@ export const updateAnalyticsSettingsSchema = z.object({
   respectDnt: z.boolean().optional(),
   anonymizeIp: z.boolean().optional(),
   blacklistPaths: z.array(z.string().max(256)).optional(),
+  /** 错误忽略规则：正则字符串数组，命中 message 的错误上报直接丢弃 */
+  errorIgnorePatterns: z.array(z.string().min(1).max(500)).max(50).optional(),
   retentionDays: z.number().int().min(1).max(3650).optional(),
   errorRetentionDays: z.number().int().min(1).max(3650).optional(),
   sessionTimeoutMinutes: z.number().int().min(1).max(1440).optional(),

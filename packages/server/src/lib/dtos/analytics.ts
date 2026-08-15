@@ -474,25 +474,6 @@ export const CreateAnalyticsSavedReportDTO = z
   })
   .openapi('CreateAnalyticsSavedReport');
 
-// ─── 维度分布 ─────────────────────────────────────────────────────────────────
-export const DimensionBreakdownDTO = z
-  .object({
-    ...pagedFields,
-    dimension: z.string(),
-    totalValue: z.number().int(),
-    list: z.array(z.object({ name: z.string(), value: z.number().int(), percent: z.number() })),
-  })
-  .openapi('DimensionBreakdown');
-
-export const DimensionCrossDTO = z
-  .object({
-    dim1: z.string(),
-    dim2: z.string(),
-    columns: z.array(z.string()),
-    rows: z.array(z.object({ name: z.string(), total: z.number().int(), values: z.array(z.number().int()) })),
-  })
-  .openapi('DimensionCross');
-
 // ─── 性能 ─────────────────────────────────────────────────────────────────────
 export const PerfStatsDTO = z
   .object({

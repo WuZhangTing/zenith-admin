@@ -29,6 +29,26 @@ function appTodayStart(): Date {
 }
 
 /**
+ * 聚合断档自愈：启动时检测 rollup 最新 stat_date 距昨日的缺口，一次性补齐。
+ * dev / 停机跨过每日 01:00 的定时重建会产生永久缺口，此钩子保证重启即恢复。
+ * 缺口有界（最多回补 30 天），rebuildRollup 幂等（delete + insert 全量重算窗口）。
+ */
+export async function catchUpRollupGaps(): Promise<number> {
+  const [latest] = await db
+    .select({ maxDate: sql<string | null>`MAX(${analyticsDailyRollup.statDate})::text` })
+    .from(analyticsDailyRollup);
+  const todayStart = appTodayStart();
+  const yesterday = formatDate(new Date(todayStart.getTime() - DAY_MS));
+  const maxDate = latest?.maxDate ?? null;
+  if (maxDate && maxDate >= yesterday) return 0;
+  const gapDays = maxDate
+    ? Math.min(Math.ceil((todayStart.getTime() - (parseDateRangeStart(maxDate)?.getTime() ?? todayStart.getTime())) / DAY_MS), 30)
+    : 7;
+  if (gapDays <= 0) return 0;
+  return rebuildRollup(gapDays);
+}
+
+/**
  * rollup 表租户过滤：语义对齐 `tenantScope`，区别是 rollup 的 tenantId 非空，
  * NULL 租户以 0 哨兵存储（见表定义注释）。
  */

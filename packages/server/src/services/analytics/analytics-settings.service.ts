@@ -24,6 +24,7 @@ export function mapSettings(row: AnalyticsSettingsRow) {
     respectDnt: row.respectDnt,
     anonymizeIp: row.anonymizeIp,
     blacklistPaths: row.blacklistPaths ?? [],
+    errorIgnorePatterns: row.errorIgnorePatterns ?? [],
     retentionDays: row.retentionDays,
     errorRetentionDays: row.errorRetentionDays,
     sessionTimeoutMinutes: row.sessionTimeoutMinutes,
@@ -59,12 +60,14 @@ export async function updateSettings(input: UpdateAnalyticsSettingsInput) {
       ...(input.respectDnt !== undefined ? { respectDnt: input.respectDnt } : {}),
       ...(input.anonymizeIp !== undefined ? { anonymizeIp: input.anonymizeIp } : {}),
       ...(input.blacklistPaths !== undefined ? { blacklistPaths: input.blacklistPaths } : {}),
+      ...(input.errorIgnorePatterns !== undefined ? { errorIgnorePatterns: input.errorIgnorePatterns } : {}),
       ...(input.retentionDays !== undefined ? { retentionDays: input.retentionDays } : {}),
       ...(input.errorRetentionDays !== undefined ? { errorRetentionDays: input.errorRetentionDays } : {}),
       ...(input.sessionTimeoutMinutes !== undefined ? { sessionTimeoutMinutes: input.sessionTimeoutMinutes } : {}),
     })
     .where(eq(analyticsSettings.id, current.id))
     .returning();
+  ignorePatternCache.clear();
   // 设置热更新：通知已连接的后台管理端（tracker.ts）立即重拉配置。不下发配置内容，仅广播 tenantId。
   try { broadcast({ type: 'analytics:config-updated', payload: { tenantId: row.tenantId } }); } catch { /* ignore */ }
   return mapSettings(row);
@@ -99,6 +102,33 @@ async function findSettingsWithGlobalFallback(tenantId: number | null): Promise<
 export async function getIngestPolicy(tenantId: number | null): Promise<{ anonymizeIp: boolean }> {
   const row = await findSettingsWithGlobalFallback(tenantId);
   return { anonymizeIp: row?.anonymizeIp ?? false };
+}
+
+// ─── 错误忽略规则（正则缓存，60s TTL；updateSettings 广播即时失效由 SDK 侧配置热更新覆盖）───
+const IGNORE_CACHE_TTL_MS = 60_000;
+const ignorePatternCache = new Map<number, { at: number; regexps: RegExp[] }>();
+
+function compileIgnorePatterns(patterns: string[]): RegExp[] {
+  const out: RegExp[] = [];
+  for (const p of patterns) {
+    try { out.push(new RegExp(p, 'i')); } catch { /* 非法正则跳过，不拖垮整组规则 */ }
+  }
+  return out;
+}
+
+/** 判断错误 message 是否命中租户配置的忽略规则（命中即丢弃上报）。 */
+export async function isErrorIgnored(tenantId: number | null, message: string): Promise<boolean> {
+  const cacheKey = tenantId ?? 0;
+  const cached = ignorePatternCache.get(cacheKey);
+  let regexps: RegExp[];
+  if (cached && Date.now() - cached.at < IGNORE_CACHE_TTL_MS) {
+    regexps = cached.regexps;
+  } else {
+    const row = await findSettingsWithGlobalFallback(tenantId);
+    regexps = compileIgnorePatterns(row?.errorIgnorePatterns ?? []);
+    ignorePatternCache.set(cacheKey, { at: Date.now(), regexps });
+  }
+  return regexps.some((re) => re.test(message));
 }
 
 /** SDK 公开配置（无需鉴权，匿名亦可获取）。 */

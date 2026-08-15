@@ -117,6 +117,8 @@ export interface ErrorGroup {
   assigneeName: string | null;
   release: string | null;
   note: string | null;
+  /** 归属环境（development/staging/production 分开成组） */
+  environment: AnalyticsEnvironment;
   count: number;
   affectedUsers: number;
   firstSeenAt: string;
@@ -289,6 +291,8 @@ export interface AnalyticsSettings {
   respectDnt: boolean;
   anonymizeIp: boolean;
   blacklistPaths: string[];
+  /** 错误忽略规则（正则字符串数组），命中 message 的错误上报直接丢弃 */
+  errorIgnorePatterns: string[];
   retentionDays: number;
   errorRetentionDays: number;
   sessionTimeoutMinutes: number;
@@ -500,21 +504,6 @@ export interface AnalyticsSavedReport {
   createdBy: number | null;
   createdByName: string | null;
   createdAt: string;
-}
-
-export interface DimensionBreakdownItem { name: string; value: number; percent: number }
-
-export interface DimensionBreakdown extends PaginatedResponse<DimensionBreakdownItem> {
-  dimension: string;
-  /** 全量样本量（percent 的分母，不受分页影响） */
-  totalValue: number;
-}
-
-export interface DimensionCross {
-  dim1: string;
-  dim2: string;
-  columns: string[];
-  rows: { name: string; total: number; values: number[] }[];
 }
 
 export interface PerfStatItem {

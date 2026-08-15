@@ -15,6 +15,7 @@ import { symbolicateStack } from '../../lib/source-map-symbolicate';
 import { evaluateAlertsForError } from './error-alert.service';
 import { isSiteOriginAllowed, resolveSiteByKey } from './analytics-sites.service';
 import { recordQualityIssue } from './analytics-governance.service';
+import { isErrorIgnored } from './analytics-settings.service';
 import logger from '../../lib/logger';
 
 export interface ErrorReqCtx { ip: string; ua: string; siteKey?: string | null; origin?: string | null }
@@ -37,6 +38,7 @@ export function mapGroup(row: ErrorGroupRow) {
     assigneeName: row.assigneeName,
     release: row.release,
     note: row.note,
+    environment: row.environment,
     count: Number(row.count),
     affectedUsers: row.affectedUsers,
     firstSeenAt: formatDateTime(row.firstSeenAt),
@@ -132,16 +134,20 @@ export async function reportError(input: {
   const env = parseClientEnv(reqCtx.ua);
   const level = input.level ?? defaultLevel(input.errorType);
   const message = input.message.slice(0, 2000);
-  const fingerprint = computeErrorFingerprint({ tenantId, errorType: input.errorType, message: input.message, sourceUrl: input.sourceUrl, stack: input.stack });
-  const now = new Date();
   const platform = resolveIngestPlatformFields(input, { hasAdmin: !!user, hasMember: !!member });
   if (!user && !member && site) platform.appId = site.appId;
+
+  // 忽略规则：命中租户配置的正则即丢弃（压制 dev-only 框架告警 / 插件噪音等已知无价值错误）
+  if (await isErrorIgnored(tenantId, message)) return;
+
+  const fingerprint = computeErrorFingerprint({ tenantId, errorType: input.errorType, message: input.message, sourceUrl: input.sourceUrl, stack: input.stack, environment: platform.environment });
+  const now = new Date();
   const displayName = user?.username ?? member?.identifier ?? null;
 
   const group = await db.transaction(async (tx) => {
     const [upserted] = await tx
       .insert(errorGroups)
-      .values({ tenantId, fingerprint, errorType: input.errorType, level, message, release: input.release ?? null, count: 1, firstSeenAt: now, lastSeenAt: now })
+      .values({ tenantId, fingerprint, errorType: input.errorType, level, message, release: input.release ?? null, environment: platform.environment, count: 1, firstSeenAt: now, lastSeenAt: now })
       .onConflictDoUpdate({
         target: errorGroups.fingerprint,
         set: {
@@ -225,6 +231,7 @@ export interface GroupListQuery {
   level?: string;
   keyword?: string;
   assigneeId?: number;
+  environment?: string;
 }
 export async function listGroups(q: GroupListQuery) {
   const page = Math.max(Number(q.page) || 1, 1);
@@ -235,6 +242,7 @@ export async function listGroups(q: GroupListQuery) {
   if (q.level) conditions.push(eq(errorGroups.level, q.level as 'error'));
   if (q.assigneeId) conditions.push(eq(errorGroups.assigneeId, q.assigneeId));
   if (q.keyword) conditions.push(like(errorGroups.message, `%${escapeLike(q.keyword)}%`));
+  if (q.environment) conditions.push(eq(errorGroups.environment, q.environment as 'production'));
   const where = mergeWhere(conditions.length ? and(...conditions) : undefined, tenantScope(errorGroups));
 
   const [list, total] = await Promise.all([

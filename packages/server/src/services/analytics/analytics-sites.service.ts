@@ -1,17 +1,16 @@
 
 import { randomBytes } from 'node:crypto';
-import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { CreateAnalyticsSiteInput, UpdateAnalyticsSiteInput } from '@zenith/shared/analytics';
 import { db } from '../../db';
-import { analyticsSites } from '../../db/schema';
+import { analyticsSites, userEvents } from '../../db/schema';
 import type { AnalyticsSiteRow } from '../../db/schema';
-import { formatDateTime } from '../../lib/datetime';
+import { formatDate, formatDateTime, parseDateRangeStart } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { currentCreateTenantId, tenantScope } from '../../lib/tenant';
 import { escapeLike, mergeWhere } from '../../lib/where-helpers';
-import { getSiteQuotaUsage } from './analytics-quota.service';
 
 const SITE_CACHE_TTL_MS = 60_000;
 // siteKey 是匿名入口的用户可控输入：负缓存条目也会入 Map，必须设上限防止随机 key 灌爆内存
@@ -93,9 +92,20 @@ export async function listSites(q: AnalyticsSiteListQuery) {
     db.query.analyticsSites.findMany({ where, with: { tenant: true }, orderBy: [desc(analyticsSites.id)], limit: pageSize, offset: pageOffset(page, pageSize) }),
     db.$count(analyticsSites, where),
   ]);
-  const usageBySiteId = await getSiteQuotaUsage(list.map((site) => site.id));
+  // 今日用量按 appId 实时统计（含登录态事件）：Redis 配额计数器只覆盖带配额的匿名站点，
+  // 默认站点（admin/member，无 siteKey 采集路径）在计数器里恒为 0，直接查事件表才是真实用量
+  const appIds = [...new Set(list.map((site) => site.appId))];
+  const todayStart = parseDateRangeStart(formatDate(new Date())) ?? new Date();
+  const usageRows = appIds.length > 0
+    ? await db
+      .select({ appId: userEvents.appId, n: sql<number>`COUNT(*)::int` })
+      .from(userEvents)
+      .where(and(inArray(userEvents.appId, appIds), gte(userEvents.createdAt, todayStart)))
+      .groupBy(userEvents.appId)
+    : [];
+  const usageByAppId = new Map(usageRows.map((r) => [r.appId, Number(r.n)]));
   return {
-    list: list.map((site) => ({ ...mapSite(site), todayUsage: usageBySiteId.has(site.id) ? usageBySiteId.get(site.id)! : 0 })),
+    list: list.map((site) => ({ ...mapSite(site), todayUsage: usageByAppId.get(site.appId) ?? 0 })),
     total,
     page,
     pageSize,

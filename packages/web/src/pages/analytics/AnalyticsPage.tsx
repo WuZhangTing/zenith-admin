@@ -9,7 +9,6 @@ import {
   AreaChart,
   BarChart,
   LineChart,
-  PieChart,
   SankeyChart,
   ScatterChart,
   TreemapChart,
@@ -17,7 +16,6 @@ import {
   makeAreaSpec,
   makeBarSpec,
   makeLineSpec,
-  makePieSpec,
   makeSankeySpec,
   makeScatterSpec,
   makeTreemapSpec,
@@ -39,8 +37,6 @@ import { usePagination } from '@/hooks/usePagination';
 import {
   analyticsKeys,
   useAnalyzeFunnel,
-  useAnalyticsDimension,
-  useAnalyticsDimensionCross,
   useAnalyticsFeatureStats,
   useAnalyticsHeatmap,
   useAnalyticsHeatmapPages,
@@ -58,7 +54,7 @@ import {
   useSaveFunnelReport,
   useDeleteFunnelReport,
 } from '@/hooks/queries/analytics';
-import type { AnalyticsComparison, AnalyticsRetentionMode, AnalyticsRetentionPeriodType, AnalyticsSavedReport, AnalyticsSegmentPropertyFilter, DimensionBreakdown, FeatureStats, HeatmapData, HeatmapElementItem, HeatmapPageListItem, HeatmapRageClickItem, PageStats, PathLink } from '@zenith/shared/analytics';
+import type { AnalyticsComparison, AnalyticsRetentionMode, AnalyticsRetentionPeriodType, AnalyticsSavedReport, AnalyticsSegmentPropertyFilter, FeatureStats, HeatmapData, HeatmapElementItem, HeatmapPageListItem, HeatmapRageClickItem, PageStats, PathLink } from '@zenith/shared/analytics';
 import type { UserStats } from '@zenith/shared/identity';
 import type { SessionListItem } from '@zenith/shared/platform';
 import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_EVENT_SOURCE_OPTIONS, ANALYTICS_PATH_EXIT_PAGE, ANALYTICS_RETENTION_MODE_OPTIONS, ANALYTICS_RETENTION_PERIOD_LIMITS, ANALYTICS_RETENTION_PERIOD_TYPE_OPTIONS, ANALYTICS_RETENTION_PERIOD_UNIT_LABELS, ANALYTICS_SEGMENT_COMPARE_OP_OPTIONS } from '@zenith/shared/analytics';
@@ -121,17 +117,6 @@ const EMPTY_HEATMAP_PAGES: HeatmapPageListItem[] = [];
 
 /** 图表只做 TOP N 概览：treemap 叶子过多、饼图切片过多都读不出信息，因此与分页表格分开取数 */
 const CHART_TOP_N = 20;
-const DIMENSION_CHART_TOP_N = 12;
-
-const DIMENSION_OPTIONS = [
-  { label: '浏览器', value: 'browser' },
-  { label: '操作系统', value: 'os' },
-  { label: '设备', value: 'device' },
-  { label: '地域', value: 'region' },
-  { label: '来源', value: 'source' },
-  { label: '引荐', value: 'referrer' },
-  { label: '页面', value: 'page' },
-];
 
 const ACCENT_COLORS = ['#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#64748b'];
 
@@ -1563,107 +1548,6 @@ function UsersTab() {
   );
 }
 
-type DimensionRow = DimensionBreakdown['list'][number] & { id: string };
-
-function DimensionTab() {
-  const palette = useChartPalette();
-  const [days, setDays] = useState(7);
-  const [dimension, setDimension] = useState('browser');
-  const [crossDim, setCrossDim] = useState('');
-  const { page, pageSize, resetPage, buildPagination } = usePagination();
-  // 饼图超过十几片就没法读，固定订阅第 1 页作为 TOP N 概览
-  const chartQuery = useAnalyticsDimension(dimension, days, 1, DIMENSION_CHART_TOP_N);
-  const dimensionQuery = useAnalyticsDimension(dimension, days, page, pageSize);
-  const crossQuery = useAnalyticsDimensionCross(dimension, crossDim, days, !!crossDim);
-  const data = dimensionQuery.data ?? null;
-  const cross = crossQuery.data ?? null;
-  const loading = dimensionQuery.isFetching;
-
-  useEffect(() => { resetPage(); }, [days, dimension, resetPage]);
-
-  const rows = useMemo<DimensionRow[]>(() => (data?.list ?? []).map((item) => ({ ...item, id: item.name })), [data]);
-  const chartRows = useMemo<DimensionRow[]>(
-    () => (chartQuery.data?.list ?? []).map((item) => ({ ...item, id: item.name })),
-    [chartQuery.data],
-  );
-  const dimensionPieSpec = useMemo(() => makePieSpec({
-    data: chartRows,
-    categoryField: 'name',
-    valueField: 'value',
-    donut: true,
-    colors: chartRows.map((_, index) => chartColor(index, palette.primary)),
-    palette,
-  }), [palette, chartRows]);
-
-  const crossOptions = useMemo(() => [
-    { label: '不交叉', value: '' },
-    ...DIMENSION_OPTIONS.filter((o) => o.value !== dimension),
-  ], [dimension]);
-
-  const crossChartData = useMemo(() => (cross?.rows ?? []).map((row) => ({
-    name: row.name,
-    ...Object.fromEntries((cross?.columns ?? []).map((c, i) => [c, row.values[i] ?? 0])),
-  })), [cross]);
-
-  const crossBarSpec = useMemo(() => makeBarSpec({
-    data: crossChartData,
-    xField: 'name',
-    series: (cross?.columns ?? []).map((c, index) => ({ field: c, name: c, color: chartColor(index, palette.primary) })),
-    palette,
-    stack: true,
-  }), [cross?.columns, crossChartData, palette]);
-
-  const columns: ColumnProps<DimensionRow>[] = [
-    { title: '名称', dataIndex: 'name', render: (value) => <Typography.Text ellipsis={{ showTooltip: true }}>{String(value)}</Typography.Text> },
-    { title: '数量', dataIndex: 'value', width: 120, render: (value) => numberText(Number(value)) },
-    { title: '占比', dataIndex: 'percent', width: 120, render: (value) => percentText(Number(value)) },
-  ];
-
-  return (
-    <div style={sectionStyle}>
-      <SectionHeader
-        title="维度分布"
-        description={`总计 ${numberText(data?.totalValue ?? 0)} · ${numberText(data?.total ?? 0)} 个取值`}
-        extra={(
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Select value={dimension} optionList={DIMENSION_OPTIONS} onChange={(v) => setDimension(String(v))} style={{ width: 130 }} />
-            <Select prefix="交叉" value={crossDim} optionList={crossOptions} onChange={(v) => setCrossDim(String(v ?? ''))} style={{ width: 150 }} />
-            <Select value={days} optionList={DAYS_OPTIONS} onChange={(v) => setDays(Number(v))} style={{ width: 120 }} />
-          </div>
-        )}
-      />
-      {crossDim && (
-        <Card title={`交叉分布：${DIMENSION_OPTIONS.find((o) => o.value === dimension)?.label ?? dimension} × ${DIMENSION_OPTIONS.find((o) => o.value === crossDim)?.label ?? crossDim}`} bodyStyle={{ padding: 16 }}>
-          {!crossChartData.length ? emptyOrSpin(crossQuery.isFetching) : (
-            <BarChart {...crossBarSpec} options={chartOptions} height={320} />
-          )}
-        </Card>
-      )}
-      {/*
-        图表全宽在上、分页表格全宽在下，与「页面停留 / 功能使用 / 用户分析」三个同类 Tab 一致。
-        此前把表格塞进 .chart-grid--aside 的侧栏：该侧栏在宽屏只有 minmax(320px, 0.9fr)，
-        而这是一张带「共 N 条 / 总页数 / 页码 / 每页条数」的完整分页表，分页器在 320px 里
-        会折成三行，名称列也被压得只能省略。--aside 的侧栏本意是放紧凑的无分页列表
-        （如实时看板的「热门在线页面」），不是完整表格。
-      */}
-      <Card title={`占比 TOP ${DIMENSION_CHART_TOP_N}`} bodyStyle={{ padding: 16 }}>
-        {!chartRows.length ? emptyOrSpin(chartQuery.isFetching) : (
-          <PieChart {...dimensionPieSpec} options={chartOptions} height={300} />
-        )}
-      </Card>
-      <ConfigurableTable<DimensionRow>
-        bordered
-        columns={columns}
-        dataSource={rows}
-        loading={loading}
-        rowKey="id"
-        onRefresh={() => void dimensionQuery.refetch()}
-        refreshLoading={loading}
-        pagination={buildPagination(data?.total ?? 0)}
-      />
-    </div>
-  );
-}
 
 // 人均重复点击 → 颜色：1 次/人是正常点击，越高说明少数人在同一处反复点，通常是交互失效信号
 const REPEAT_RATE_SCALE = [
@@ -1909,10 +1793,9 @@ export default function AnalyticsPage() {
         <TabPane tab="漏斗" itemKey="funnel"><FunnelTab /></TabPane>
         <TabPane tab="留存" itemKey="retention"><RetentionTab /></TabPane>
         <TabPane tab="路径" itemKey="path"><PathTab /></TabPane>
-        <TabPane tab="获客归因" itemKey="acquisition"><AnalyticsAcquisitionTab /></TabPane>
         <TabPane tab="用户分析" itemKey="users"><UsersTab /></TabPane>
-        <TabPane tab="维度分布" itemKey="dimension"><DimensionTab /></TabPane>
         <TabPane tab="点击分布" itemKey="heatmap"><HeatmapTab /></TabPane>
+        <TabPane tab="获客归因" itemKey="acquisition"><AnalyticsAcquisitionTab /></TabPane>
       </Tabs>
     </div>
   );

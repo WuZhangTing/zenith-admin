@@ -278,8 +278,6 @@ exports[`路由表快照 > 完整路由表保持不变 1`] = `
   "GET /api/analytics/campaigns",
   "GET /api/analytics/config",
   "GET /api/analytics/debug/events",
-  "GET /api/analytics/dimension",
-  "GET /api/analytics/dimension-cross",
   "GET /api/analytics/event-meta",
   "GET /api/analytics/event-overrides",
   "GET /api/analytics/events",

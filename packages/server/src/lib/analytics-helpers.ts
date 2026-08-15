@@ -65,8 +65,9 @@ export function parseClientEnv(ua: string | null | undefined): ClientEnv {
 }
 
 /**
- * 计算错误指纹（含 tenant 因子，使指纹全局唯一，配合 error_groups.fingerprint 唯一索引）。
+ * 计算错误指纹（含 tenant + environment 因子，使指纹全局唯一，配合 error_groups.fingerprint 唯一索引）。
  * 归一化 message（去掉数字/UUID/十六进制等易变部分）+ 顶层堆栈帧 + 来源文件。
+ * environment 参与散列：同一错误在 development / production 分开成组，避免 dev 噪音污染生产 Issue。
  */
 export function computeErrorFingerprint(input: {
   tenantId: number | null;
@@ -74,6 +75,7 @@ export function computeErrorFingerprint(input: {
   message: string;
   sourceUrl?: string | null;
   stack?: string | null;
+  environment?: string | null;
 }): string {
   const normalizedMsg = input.message
     .replace(/0x[0-9a-f]+/gi, '0xX')
@@ -85,7 +87,7 @@ export function computeErrorFingerprint(input: {
     .map((l) => l.trim())
     .find((l) => l.startsWith('at ')) ?? '';
   const normalizedFrame = topFrame.replace(/:\d+:\d+/g, '').replace(/\d+/g, 'N').slice(0, 200);
-  const raw = [input.tenantId ?? 'global', input.errorType, normalizedMsg, input.sourceUrl ?? '', normalizedFrame].join('|');
+  const raw = [input.tenantId ?? 'global', input.environment ?? 'production', input.errorType, normalizedMsg, input.sourceUrl ?? '', normalizedFrame].join('|');
   return createHash('md5').update(raw).digest('hex').slice(0, 32);
 }
 

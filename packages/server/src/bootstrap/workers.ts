@@ -48,6 +48,11 @@ export async function registerBackgroundWorkers(): Promise<void> {
     registerReportSlaTaskHandlers();
     registerReportFillTasks();
     registerAnalyticsTaskHandlers();
+    // 埋点聚合断档自愈：上次每日聚合与昨日之间的缺口在启动时补齐（best-effort）
+    const { catchUpRollupGaps } = await import('../services/analytics/analytics-rollup.service');
+    void catchUpRollupGaps()
+      .then((n) => { if (n > 0) logger.info(`[analytics] rollup catch-up rebuilt ${n} rows`); })
+      .catch((err) => logger.warn('[analytics] rollup catch-up failed', err));
     await registerExportJobWorker();
     await registerSystemTasks();
     // 全部系统任务注册完毕后对账：清理代码中已移除任务的残留调度与配置

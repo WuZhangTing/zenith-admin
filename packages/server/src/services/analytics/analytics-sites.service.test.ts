@@ -2,14 +2,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { HTTPException } from 'hono/http-exception';
 
-const { select, insert, update, del, count, findMany, getSiteQuotaUsage } = vi.hoisted(() => ({
+const { select, insert, update, del, count, findMany } = vi.hoisted(() => ({
   select: vi.fn(),
   insert: vi.fn(),
   update: vi.fn(),
   del: vi.fn(),
   count: vi.fn(),
   findMany: vi.fn(),
-  getSiteQuotaUsage: vi.fn(async (ids: number[]) => new Map(ids.map((id) => [id, 0]))),
 }));
 
 vi.mock('../../db', () => ({
@@ -19,10 +18,6 @@ vi.mock('../../db', () => ({
 vi.mock('../../lib/tenant', () => ({
   currentCreateTenantId: () => 11,
   tenantScope: () => undefined,
-}));
-
-vi.mock('./analytics-quota.service', () => ({
-  getSiteQuotaUsage,
 }));
 
 const row = {
@@ -86,12 +81,14 @@ describe('analytics sites service', () => {
     await expect(resolveSiteByKey('zk_disabled')).resolves.toBeNull();
   });
 
-  it('lists sites with tenant scope and paginated count in parallel', async () => {
+  it('lists sites with tenant scope and paginated count in parallel, filling today usage from event counts by appId', async () => {
     findMany.mockResolvedValue([{ ...row, tenant: { name: '租户A' } }]);
     count.mockResolvedValue(1);
-    getSiteQuotaUsage.mockResolvedValue(new Map([[1, 12]]));
+    // 今日用量实时统计：SELECT app_id, COUNT(*) FROM user_events ... GROUP BY app_id
+    select.mockReturnValue({ from: () => ({ where: () => ({ groupBy: async () => [{ appId: 'admin', n: 12 }] }) }) });
     await expect(listSites({ page: 1, pageSize: 20, name: '站点' })).resolves.toMatchObject({ total: 1, list: [{ tenantName: '租户A', todayUsage: 12 }] });
     expect(findMany).toHaveBeenCalledTimes(1);
     expect(count).toHaveBeenCalledTimes(1);
+    expect(select).toHaveBeenCalledTimes(1);
   });
 });

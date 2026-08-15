@@ -251,6 +251,9 @@ export const analyticsSettings = pgTable('analytics_settings', {
   respectDnt: boolean('respect_dnt').notNull().default(false),
   anonymizeIp: boolean('anonymize_ip').notNull().default(false),
   blacklistPaths: jsonb('blacklist_paths').$type<string[]>().notNull().default([]),
+  // 错误忽略规则（正则字符串数组）：命中 message 的前端错误上报直接丢弃，用于压制
+  // dev-only 框架告警 / 浏览器插件噪音等已知无价值错误
+  errorIgnorePatterns: jsonb('error_ignore_patterns').$type<string[]>().notNull().default([]),
   retentionDays: integer('retention_days').notNull().default(180),
   errorRetentionDays: integer('error_retention_days').notNull().default(90),
   sessionTimeoutMinutes: integer('session_timeout_minutes').notNull().default(30),
@@ -289,6 +292,8 @@ export const errorGroups = pgTable('error_groups', {
   assigneeName: varchar('assignee_name', { length: 64 }),
   release: varchar('release', { length: 64 }),
   note: text('note'),
+  // 环境维度（development/staging/production 分开成组）：dev 噪音不再淹没生产错误列表
+  environment: varchar('environment', { length: 32 }).notNull().default('production').$type<AnalyticsEnvironment>(),
   count: bigint('count', { mode: 'number' }).notNull().default(0),
   affectedUsers: integer('affected_users').notNull().default(0),
   firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),

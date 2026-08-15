@@ -1,6 +1,6 @@
 import { http } from 'msw';
 import { ok, badRequest, notFound, pageParams, pageResult, paginate, nextIdFrom } from '@/mocks/utils/handlers';
-import type { PageStats, FeatureStats, HeatmapData, HeatmapPageListItem, AnalyticsOverview, TrendSeries, RealtimeStats, FunnelResult, RetentionResult, PathResult, DimensionBreakdown, DimensionCross, PerfStats, EventListItem, EventDetail, AnalyticsEventMeta, AnalyticsSettings, AnalyticsPublicConfig, AnalyticsRollupItem, AnalyticsSavedReport, AnalyticsEventOverride, AnalyticsQualityDaily, AnalyticsQualityIssueType, AnalyticsQualityQueryResult, AnalyticsDebugEvent, AnalyticsUserSegment, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSite, AnalyticsExperiment, AnalyticsExperimentAssignment, AnalyticsExperimentReport, AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsEventQueryRow, AnalyticsEventQueryGroupByField, AnalyticsEventQueryMetric, AnalyticsRetentionPeriodType, AnalyticsComparison, AnalyticsDrillUser, AnalyticsDrillUsersResult, AnalyticsAcquisitionResult, AnalyticsAcquisitionDimension, AnalyticsAttributionModel } from '@zenith/shared/analytics';
+import type { PageStats, FeatureStats, HeatmapData, HeatmapPageListItem, AnalyticsOverview, TrendSeries, RealtimeStats, FunnelResult, RetentionResult, PathResult, PerfStats, EventListItem, EventDetail, AnalyticsEventMeta, AnalyticsSettings, AnalyticsPublicConfig, AnalyticsRollupItem, AnalyticsSavedReport, AnalyticsEventOverride, AnalyticsQualityDaily, AnalyticsQualityIssueType, AnalyticsQualityQueryResult, AnalyticsDebugEvent, AnalyticsUserSegment, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSite, AnalyticsExperiment, AnalyticsExperimentAssignment, AnalyticsExperimentReport, AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsEventQueryRow, AnalyticsEventQueryGroupByField, AnalyticsEventQueryMetric, AnalyticsRetentionPeriodType, AnalyticsComparison, AnalyticsDrillUser, AnalyticsDrillUsersResult, AnalyticsAcquisitionResult, AnalyticsAcquisitionDimension, AnalyticsAttributionModel } from '@zenith/shared/analytics';
 import type { PaginatedResponse } from '@zenith/shared/core';
 import type { UserStats, UserTimeline, UserBehaviorEventType } from '@zenith/shared/identity';
 import type { SessionListItem, SessionTimeline } from '@zenith/shared/platform';
@@ -148,6 +148,7 @@ let nextMetaId = 5;
 let mockSettings: AnalyticsSettings = {
   id: 1, enabled: true, sampleRate: 1, trackPageviews: true, trackClicks: true, trackPerformance: true,
   trackErrors: true, trackApi: true, maskInputs: true, respectDnt: false, anonymizeIp: false, blacklistPaths: ['/login'],
+  errorIgnorePatterns: ['Invalid DOM property'],
   retentionDays: 180, errorRetentionDays: 90, sessionTimeoutMinutes: 30, createdAt: mockDateTimeOffset(-60 * 86400000), updatedAt: mockDateTime(),
 };
 
@@ -777,35 +778,6 @@ export const analyticsHandlers = [
   http.delete('/api/analytics/reports/:id', ({ params }) => {
     mockSavedReports = mockSavedReports.filter((r) => r.id !== Number(params.id));
     return ok(null, '删除成功');
-  }),
-
-  http.get('/api/analytics/dimension', ({ request }) => {
-    const u = new URL(request.url);
-    const dim = u.searchParams.get('dimension') ?? 'browser';
-    const sets: Record<string, string[]> = { browser: BROWSERS, os: OSES, device: ['desktop', 'mobile', 'tablet'], region: ['广东', '北京', '上海', '浙江', '江苏'], source: ['google', 'direct', 'baidu', 'bing'], referrer: ['直接访问', 'google.com', 'baidu.com'], page: MOCK_PAGE_ITEMS.map((p) => p.pagePath) };
-    const names = sets[dim] ?? BROWSERS;
-    const raw = names.map((n) => ({ name: n, value: rand(50, 800) }));
-    const totalValue = raw.reduce((s, r) => s + r.value, 0);
-    const all = raw.map((r) => ({ ...r, percent: Math.round((r.value / totalValue) * 1000) / 10 }));
-    return ok<DimensionBreakdown>({ ...paginate(all, u, 20), dimension: dim, totalValue });
-  }),
-
-  http.get('/api/analytics/dimension-cross', ({ request }) => {
-    const u = new URL(request.url);
-    const dim1 = u.searchParams.get('dim1') ?? 'browser';
-    const dim2 = u.searchParams.get('dim2') ?? 'os';
-    const sets: Record<string, string[]> = { browser: BROWSERS, os: OSES, device: ['desktop', 'mobile', 'tablet'], region: ['广东', '北京', '上海', '浙江', '江苏'], source: ['google', 'direct', 'baidu'], referrer: ['直接访问', 'google.com'], page: MOCK_PAGE_ITEMS.slice(0, 5).map((p) => p.pagePath) };
-    const rowNames = sets[dim1] ?? BROWSERS;
-    const columns = sets[dim2] ?? OSES;
-    return ok<DimensionCross>({
-      dim1,
-      dim2,
-      columns,
-      rows: rowNames.map((name) => {
-        const values = columns.map(() => rand(20, 400));
-        return { name, total: values.reduce((s, v) => s + v, 0), values };
-      }),
-    });
   }),
 
   http.get('/api/analytics/perf-stats', () => ok<PerfStats>({

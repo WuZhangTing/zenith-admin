@@ -45,7 +45,7 @@ import {
 } from '@/components/charts';
 import AppModal from '@/components/AppModal';
 import { formatBytesMb as formatBytes } from '@/utils/format';
-import type { ErrorAlertCondition, ErrorAlertLog, ErrorAlertRule, ErrorBreadcrumb, ErrorEvent, ErrorGroup, ErrorLevel, ErrorStatus, FrontendErrorType, SourceMapItem } from '@zenith/shared/analytics';
+import type { ErrorAlertCondition, ErrorAlertLog, ErrorAlertRule, ErrorBreadcrumb, ErrorEvent, ErrorGroup, ErrorLevel, ErrorStatus, FrontendErrorType, SourceMapItem, AnalyticsEnvironment } from '@zenith/shared/analytics';
 import { SOURCE_MAP_MAX_BYTES } from '@zenith/shared/analytics';
 import { NOTIFY_CHANNEL_OPTIONS } from '@zenith/shared/messaging';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
@@ -117,11 +117,18 @@ const CHANNEL_CONFIG: Record<string, { label: string; color: TagColor }> = {
 
 const CHART_COLORS = ['#f93920', '#ff8800', '#f5b70a', '#6a5af9', '#00b42a', '#14c9c9', '#8a38f5'];
 
+const ENVIRONMENT_OPTIONS = [
+  { value: 'production', label: '生产' },
+  { value: 'staging', label: '预发' },
+  { value: 'development', label: '开发' },
+];
+
 interface IssueFilters {
   status: ErrorStatus | '';
   errorType: FrontendErrorType | '';
   level: ErrorLevel | '';
   keyword: string;
+  environment: AnalyticsEnvironment | '';
 }
 
 interface GroupHandleForm {
@@ -152,7 +159,7 @@ interface AlertFormState {
 
 type TabKey = 'overview' | 'issues' | 'events' | 'sourcemaps' | 'alerts' | 'alertlogs';
 
-const defaultIssueFilters: IssueFilters = { status: '', errorType: '', level: '', keyword: '' };
+const defaultIssueFilters: IssueFilters = { status: '', errorType: '', level: '', keyword: '', environment: '' };
 const EMPTY_ADMIN_USERS: { id: number; nickname?: string | null; username: string }[] = [];
 
 const defaultAlertForm: AlertFormState = {
@@ -365,6 +372,7 @@ export default function FrontendErrorsPage() {
     errorType: submittedIssueFilters.errorType || undefined,
     level: submittedIssueFilters.level || undefined,
     keyword: submittedIssueFilters.keyword.trim() || undefined,
+    environment: submittedIssueFilters.environment || undefined,
   }, activeTab === 'issues');
   const groups = groupsQuery.data ?? null;
   const detailQuery = useFrontendErrorGroupDetail(detailGroupId, detailVisible);
@@ -903,6 +911,16 @@ export default function FrontendErrorsPage() {
       onChange={(value) => setIssueFilters((prev) => ({ ...prev, level: (value as ErrorLevel | undefined) ?? '' }))}
     />
   );
+  const renderIssueEnvironmentFilter = () => (
+    <Select
+      showClear
+      placeholder="环境"
+      value={issueFilters.environment || undefined}
+      style={{ width: 130 }}
+      optionList={ENVIRONMENT_OPTIONS}
+      onChange={(value) => setIssueFilters((prev) => ({ ...prev, environment: (value as AnalyticsEnvironment | undefined) ?? '' }))}
+    />
+  );
   const renderIssueKeywordSearch = () => (
     <KeywordInput placeholder="错误信息关键词" value={issueFilters.keyword} onChange={(value) => setIssueFilters((prev) => ({ ...prev, keyword: value }))} onSearch={handleIssueSearch} />
   );
@@ -1053,6 +1071,7 @@ export default function FrontendErrorsPage() {
                 {renderIssueStatusFilter()}
                 {renderIssueTypeFilter()}
                 {renderIssueLevelFilter()}
+                {renderIssueEnvironmentFilter()}
                 {renderIssueKeywordSearch()}
                 {renderIssueSearchButton()}
                 {renderIssueResetButton()}
@@ -1070,6 +1089,7 @@ export default function FrontendErrorsPage() {
                 {renderIssueStatusFilter()}
                 {renderIssueTypeFilter()}
                 {renderIssueLevelFilter()}
+                {renderIssueEnvironmentFilter()}
               </>
             )}
             mobileActions={renderMobileIssueBatchActions()}

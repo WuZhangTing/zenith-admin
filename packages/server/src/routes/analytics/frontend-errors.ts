@@ -63,6 +63,7 @@ const groupListRoute = defineOpenAPIRoute({
         level: z.enum(['fatal', 'error', 'warning', 'info']).or(z.literal('')).optional(),
         keyword: z.string().optional(),
         assigneeId: z.coerce.number().int().optional(),
+        environment: z.enum(['development', 'staging', 'production']).or(z.literal('')).optional(),
       }),
     },
     responses: { ...okPaginated(ErrorGroupDTO, '分组列表'), ...commonErrorResponses },

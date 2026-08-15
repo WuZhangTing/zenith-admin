@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AnalyticsAcquisitionDimension, AnalyticsAcquisitionResult, AnalyticsAttributionModel, AnalyticsComparison, AnalyticsDebugEvent, AnalyticsDrillContext, AnalyticsDrillUsersResult, AnalyticsExperiment, AnalyticsExperimentReport, AnalyticsEventMeta, AnalyticsEventOverride, AnalyticsEventOverrideStatus, AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsOverview, AnalyticsQualityIssueType, AnalyticsQualityQueryResult, AnalyticsRetentionMode, AnalyticsRetentionPeriodType, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSettings, AnalyticsUserSegment, AnalyticsSite, ErrorAlertRule, ErrorAlertLog, ErrorEvent, ErrorGroup, ErrorOverview, FunnelQuery, FunnelResult, HeatmapData, HeatmapPageListItem, PageStats, PathResult, RealtimeStats, RetentionResult, AnalyticsSavedReport, DimensionBreakdown, DimensionCross, TrendSeries, FeatureStats } from '@zenith/shared/analytics';
+import type { AnalyticsAcquisitionDimension, AnalyticsAcquisitionResult, AnalyticsAttributionModel, AnalyticsComparison, AnalyticsDebugEvent, AnalyticsDrillContext, AnalyticsDrillUsersResult, AnalyticsExperiment, AnalyticsExperimentReport, AnalyticsEventMeta, AnalyticsEventOverride, AnalyticsEventOverrideStatus, AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsOverview, AnalyticsQualityIssueType, AnalyticsQualityQueryResult, AnalyticsRetentionMode, AnalyticsRetentionPeriodType, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSettings, AnalyticsUserSegment, AnalyticsSite, ErrorAlertRule, ErrorAlertLog, ErrorEvent, ErrorGroup, ErrorOverview, FunnelQuery, FunnelResult, HeatmapData, HeatmapPageListItem, PageStats, PathResult, RealtimeStats, RetentionResult, AnalyticsSavedReport, TrendSeries, FeatureStats } from '@zenith/shared/analytics';
 
 /** 下钻请求体：分析上下文 + 图表坐标 + 分页 */
 export interface AnalyticsDrillUsersInput {
@@ -59,6 +59,7 @@ export interface FrontendErrorGroupParams {
   errorType?: string;
   level?: string;
   keyword?: string;
+  environment?: string;
 }
 
 export interface FrontendSourceMapParams {
@@ -155,7 +156,6 @@ export const analyticsKeys = {
   pathOf: (days: number, startPage: string, limit: number) => ['analytics', 'path', days, startPage, limit] as const,
   userStats: (days: number, page: number, pageSize: number) => ['analytics', 'user-stats', days, page, pageSize] as const,
   userTimeline: (userId: number | null) => ['analytics', 'user-timeline', userId] as const,
-  dimension: (dimension: string, days: number, page: number, pageSize: number) => ['analytics', 'dimension', dimension, days, page, pageSize] as const,
   heatmapPages: (days: number) => ['analytics', 'heatmap-pages', days] as const,
   heatmap: (pagePath: string, componentArea: string, days: number, deviceType: string, source: string) =>
     ['analytics', 'heatmap', pagePath, componentArea, days, deviceType, source] as const,
@@ -371,22 +371,6 @@ export function useDeleteFunnelReport() {
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/analytics/reports/${id}`).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['analytics', 'saved-reports'] }),
-  });
-}
-
-export function useAnalyticsDimension(dimension: string, days: number, page = 1, pageSize = 20) {
-  return useQuery({
-    queryKey: analyticsKeys.dimension(dimension, days, page, pageSize),
-    queryFn: () => request.get<DimensionBreakdown>(`/api/analytics/dimension${toQueryString({ dimension, days, page, pageSize })}`).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
-}
-
-export function useAnalyticsDimensionCross(dim1: string, dim2: string, days: number, enabled = true) {
-  return useQuery({
-    queryKey: ['analytics', 'dimension-cross', dim1, dim2, days] as const,
-    queryFn: () => request.get<DimensionCross>(`/api/analytics/dimension-cross${toQueryString({ dim1, dim2, days })}`).then(unwrap),
-    enabled,
   });
 }
 
