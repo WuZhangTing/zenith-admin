@@ -24,7 +24,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useTreeExpansion } from '@/hooks/useTreeExpansion';
 import { cmsSiteKeys, useCmsSiteList, useDeleteCmsSite, useEnableSiteAnalytics, useImportCmsSite } from '@/hooks/queries/cms';
-import { useCmsSiteTree, useSubmitCmsSiteGroupPublish } from '@/hooks/queries/cms-stage5';
+import { cmsSiteHierarchyKeys, useCmsSiteTree, useSubmitCmsSiteGroupPublish } from '@/hooks/queries/cms-stage5';
 import { CMS_STATIC_MODE_LABELS } from '@zenith/shared/cms';
 import type { CmsSite } from '@zenith/shared/cms';
 import { cmsPreviewUrl } from './CmsSiteSelect';
@@ -49,7 +49,13 @@ export default function SitesPage() {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: cmsSiteKeys.lists });
+  } = useListSearch<SearchParams>({
+    defaults: defaultSearchParams,
+    // 树视图（默认）与列表视图各有独立 query key：两个都要失效，
+    // 否则条件未变化时点「查询」在树视图下不会回源（表现为按钮没反应）
+    listKey: cmsSiteKeys.lists,
+    extraKeys: [cmsSiteHierarchyKeys.all],
+  });
   const [treeView, setTreeView] = useState(true);
 
   const listQuery = useCmsSiteList({
@@ -159,7 +165,7 @@ export default function SitesPage() {
         ? `${record.parentName} / L${record.depth ?? '-'}`
         : `根站点 / L${record.depth ?? 1}`,
     },
-    { title: '标识', dataIndex: 'code', width: 110 },
+    { title: '标识', dataIndex: 'code', width: 160 },
     {
       title: '默认站点',
       dataIndex: 'isDefault',
