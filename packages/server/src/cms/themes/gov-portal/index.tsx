@@ -75,9 +75,18 @@ main { min-height: 60vh; padding: 22px 0 44px; }
 .article { max-width: 900px; margin: 0 auto; }
 .article h1 { font-size: 26px; line-height: 1.5; text-align: center; margin: 8px 0 14px; }
 .article .meta { font-size: 13px; color: var(--text-2); display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid var(--border); margin-bottom: 18px; }
+.article-tools { max-width: 900px; margin: 0 auto 14px; display: flex; justify-content: flex-end; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); }
+.article-tools button { border: 1px solid var(--border); background: var(--bg); border-radius: 3px; padding: 3px 10px; font-size: 13px; color: var(--text-1); cursor: pointer; }
+.article-tools button:hover, .article-tools button.on { border-color: var(--primary); color: var(--primary); }
 .article .body { font-size: 16px; }
+.article.fs-large .body { font-size: 19px; }
+.article.fs-small .body { font-size: 14px; }
 .article .body p { margin: 13px 0; }
 .article-nav { max-width: 900px; margin: 22px auto 0; padding-top: 14px; border-top: 1px solid var(--border); font-size: 14px; color: var(--text-2); display: flex; flex-direction: column; gap: 6px; }
+.related-articles { max-width: 900px; margin: 22px auto 0; }
+.related-articles h3 { font-size: 16px; border-left: 4px solid var(--primary); padding-left: 10px; margin-bottom: 8px; }
+.related-articles li { list-style: none; padding: 5px 0; font-size: 14px; }
+.related-articles li a::before { content: '·'; color: var(--primary); font-weight: 700; margin-right: 7px; }
 .attachments { margin-top: 26px; padding-top: 14px; border-top: 1px solid var(--border); }
 .attachments li { list-style: none; padding: 6px 0; font-size: 14px; }
 .attachments .ext { font-size: 11px; font-weight: 600; background: var(--bg-2); color: var(--text-2); border-radius: 3px; padding: 2px 6px; margin-right: 8px; }
@@ -100,6 +109,10 @@ ${MODEL_FIELD_TABLE_STYLES}
   .svc-grid { grid-template-columns: repeat(2, 1fr); }
   .main-nav .w1200 { overflow-x: auto; }
   .nav-sub { display: none !important; }
+}
+@media print {
+  .masthead, .main-nav, .gov-footer, .article-tools, .article-nav, .related-articles, .breadcrumbs { display: none !important; }
+  body { background: #fff; }
 }
 `;
 
@@ -307,11 +320,31 @@ function ListTemplate(ctx: CmsListContext) {
 
 // ─── 详情页 ───────────────────────────────────────────────────────────────────
 
+/** 详情页工具条脚本（静态化后运行）：字号切换 + 打印，政务网站阅读标配 */
+const ARTICLE_TOOLS_SCRIPT = `(function(){
+var bar=document.querySelector('.article-tools');var art=document.querySelector('.article');
+if(!bar||!art)return;
+bar.addEventListener('click',function(e){
+var btn=e.target.closest('button');if(!btn)return;
+if(btn.hasAttribute('data-print')){window.print();return;}
+var fs=btn.getAttribute('data-fs');if(fs===null)return;
+art.classList.remove('fs-small','fs-large');if(fs)art.classList.add(fs);
+bar.querySelectorAll('button[data-fs]').forEach(function(b){b.classList.toggle('on',b===btn);});
+});
+})();`;
+
 function DetailTemplate(ctx: CmsDetailContext) {
   const { content } = ctx;
   return (
     <GovLayout ctx={ctx} currentUrl={ctx.channel.url}>
       <Breadcrumbs items={ctx.breadcrumbs} />
+      <div className="article-tools">
+        <span>字号：</span>
+        <button type="button" data-fs="fs-small">小</button>
+        <button type="button" data-fs="" className="on">中</button>
+        <button type="button" data-fs="fs-large">大</button>
+        <button type="button" data-print="1">打印</button>
+      </div>
       <article className="article">
         <h1>{content.title}</h1>
         <div className="meta">
@@ -341,6 +374,15 @@ function DetailTemplate(ctx: CmsDetailContext) {
           {content.next ? <span>下一篇：<a href={content.next.url}>{content.next.title}</a></span> : null}
         </nav>
       ) : null}
+      {ctx.related.length > 0 ? (
+        <section className="related-articles">
+          <h3>相关阅读</h3>
+          <ul>
+            {ctx.related.map((r) => <li key={r.url}><a href={r.url}>{r.title}</a></li>)}
+          </ul>
+        </section>
+      ) : null}
+      <script dangerouslySetInnerHTML={{ __html: ARTICLE_TOOLS_SCRIPT }} />
     </GovLayout>
   );
 }

@@ -106,9 +106,10 @@ function RedirectFromLogin() {
 
 /**
  * Catch-all 路由守卫：区分 403（页面存在但无权限）和 404（页面不存在）。
- * 通过 allMenuPaths 判断当前路径是否对应一个已存在的页面组件。
+ * 通过 allMenuPaths 判断当前路径是否对应一个已存在的页面组件；
+ * 若命中的页面用户本就有权限（路由已注册仍落入 catch-all），说明只是子路径不存在，按 404 处理。
  */
-function NotFoundOrForbidden({ allMenuPaths }: Readonly<{ allMenuPaths: Map<string, string> }>) {
+function NotFoundOrForbidden({ allMenuPaths, userMenuPaths }: Readonly<{ allMenuPaths: Map<string, string>; userMenuPaths: Set<string> }>) {
   const location = useLocation();
   const path = location.pathname;
 
@@ -118,7 +119,7 @@ function NotFoundOrForbidden({ allMenuPaths }: Readonly<{ allMenuPaths: Map<stri
   for (let i = segments.length; i > 0; i--) {
     const partialPath = '/' + segments.slice(0, i).join('/');
     if (allMenuPaths.has(partialPath)) {
-      matched = true;
+      matched = !userMenuPaths.has(partialPath);
       break;
     }
   }
@@ -193,6 +194,7 @@ function AdminRouteLoader({ user, logout }: Readonly<AdminRouteLoaderProps>) {
   const menus = userMenusQuery.data ?? EMPTY_MENUS;
   const allMenuPaths = useMemo(() => buildAllMenuPaths(allMenusQuery.data ?? []), [allMenusQuery.data]);
   const dynamicRoutes = useMemo(() => flattenMenus(menus), [menus]);
+  const userMenuPaths = useMemo(() => new Set(dynamicRoutes.map((m) => m.path!)), [dynamicRoutes]);
   const embedRoutes = useMemo(() => flattenEmbedMenus(menus), [menus]);
 
   // 首载 gate：两棵树并行加载；后台 refetch 保留旧数据，不会重新进入此分支
@@ -284,9 +286,9 @@ function AdminRouteLoader({ user, logout }: Readonly<AdminRouteLoaderProps>) {
           />
         ))}
 
-        <Route path="*" element={<Suspense fallback={routeFallback}><NotFoundOrForbidden allMenuPaths={allMenuPaths} /></Suspense>} />
+        <Route path="*" element={<Suspense fallback={routeFallback}><NotFoundOrForbidden allMenuPaths={allMenuPaths} userMenuPaths={userMenuPaths} /></Suspense>} />
       </Route>
-      <Route path="*" element={<Suspense fallback={routeFallback}><NotFoundOrForbidden allMenuPaths={allMenuPaths} /></Suspense>} />
+      <Route path="*" element={<Suspense fallback={routeFallback}><NotFoundOrForbidden allMenuPaths={allMenuPaths} userMenuPaths={userMenuPaths} /></Suspense>} />
     </Routes>
   );
 }

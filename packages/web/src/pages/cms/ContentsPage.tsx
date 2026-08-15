@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Input, Tag, Toast, Modal, Tabs, TabPane, Tree, TreeSelect, Typography, Dropdown, Form, Upload, Select, SplitButtonGroup } from '@douyinfe/semi-ui';
+import { Button, Input, Tag, Toast, Tooltip, Modal, Tabs, TabPane, Tree, TreeSelect, Typography, Dropdown, Form, Upload, Select, SplitButtonGroup } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
@@ -349,14 +349,41 @@ export default function ContentsPage() {
     { title: '作者', dataIndex: 'author', width: 90, render: (v: string | null) => v ?? '-' },
     { title: '浏览', dataIndex: 'viewCount', width: 80 },
     { title: '赞/藏', dataIndex: 'likeCount', width: 90, render: (_: number, record) => `${record.likeCount}/${record.favoriteCount}` },
-    dateTimeColumn('发布时间', 'publishedAt'),
+    {
+      title: '发布时间', dataIndex: 'publishedAt', width: 150,
+      render: (v: string | null, record) => {
+        if (v) return v;
+        if (record.status !== 'published' && record.scheduledAt) {
+          return (
+            <Typography.Text type="tertiary" size="small">
+              定时 {record.scheduledAt.slice(5, 16)}
+            </Typography.Text>
+          );
+        }
+        return '—';
+      },
+    },
     dateTimeColumn('更新时间', 'updatedAt'),
     {
       title: '状态',
       dataIndex: 'status',
-      width: 90,
+      width: 118,
       fixed: 'right',
-      render: (v: CmsContentStatus) => <Tag size="small" color={STATUS_COLORS[v]}>{CMS_CONTENT_STATUS_LABELS[v]}</Tag>,
+      render: (v: CmsContentStatus, record) => (
+        <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+          <Tag size="small" color={STATUS_COLORS[v]}>{CMS_CONTENT_STATUS_LABELS[v]}</Tag>
+          {v !== 'published' && record.scheduledAt ? (
+            <Tooltip content={`定时发布：${record.scheduledAt}`}>
+              <Tag size="small" color="blue">定时</Tag>
+            </Tooltip>
+          ) : null}
+          {v === 'published' && record.expireAt ? (
+            <Tooltip content={`到期下线：${record.expireAt}`}>
+              <Tag size="small" color="orange">限时</Tag>
+            </Tooltip>
+          ) : null}
+        </span>
+      ),
     },
     createOperationColumn<CmsContent>({
       width: 260,
