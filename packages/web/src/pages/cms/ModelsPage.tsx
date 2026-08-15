@@ -1,4 +1,4 @@
-import { Button, Form, Tag, Toast, ArrayField, Row, Col, Typography, useFormApi, Spin } from '@douyinfe/semi-ui';
+import { Button, Form, Tag, Toast, ArrayField, Row, Col, useFormApi, Spin } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
@@ -52,9 +52,14 @@ function FieldOptionSource({ field }: { field: string }) {
           rules={[{ required: true, message: '请选择字典' }]}
         />
       ) : (
-        <Typography.Text type="tertiary" size="small" style={{ lineHeight: '32px' }}>
-          手工选项在字典管理外维护；如需与系统字典联动请切换为「引用系统字典」
-        </Typography.Text>
+        <Form.TextArea
+          field={`${field}[optionsText]`}
+          noLabel
+          autosize={{ minRows: 2, maxRows: 6 }}
+          style={{ width: 320 }}
+          placeholder={'每行一个选项，格式：值|显示名（显示名可省略）\n如 pc|PC 或直接 PC'}
+          rules={[{ required: true, message: '请输入选项（每行一个）' }]}
+        />
       )}
     </div>
   );
@@ -89,6 +94,7 @@ export default function ModelsPage() {
         name: f.name, label: f.label, fieldType: f.fieldType, required: f.required, searchable: f.searchable, showInList: f.showInList,
         showInDetail: f.showInDetail, detailGroup: f.detailGroup ?? '', defaultValue: f.defaultValue ?? '',
         placeholder: f.placeholder ?? '', optionSource: f.optionSource ?? 'manual', dictCode: f.dictCode ?? '', options: f.options ?? null,
+        optionsText: (f.options ?? []).map((o) => (o.label === o.value ? o.value : `${o.value}|${o.label}`)).join('\n'),
       })),
     }),
     beforeSave: (values) => {
@@ -98,7 +104,22 @@ export default function ModelsPage() {
         // 归属仅创建时生效（更新 schema 已 omit ownerSiteId，服务端自动忽略）
         ownerSiteId: ownerScope === 'shared' ? null : siteId ?? null,
         // sort 与 detailSort 均按行序落库：模型编辑器内的顺序即后台表单与详情字段表的顺序
-        fields: (((rest.fields as unknown) as Record<string, unknown>[]) ?? []).map((f, i) => ({ ...f, sort: i, detailSort: i })),
+        fields: (((rest.fields as unknown) as Record<string, unknown>[]) ?? []).map((f, i) => {
+          // 手工选项：optionsText（每行 值|显示名）→ options 数组；引用字典时选项由服务端解析
+          const { optionsText, ...fieldRest } = f;
+          const withOptions = fieldRest.optionSource === 'dict'
+            ? { ...fieldRest, options: null }
+            : {
+                ...fieldRest,
+                options: typeof optionsText === 'string' && optionsText.trim()
+                  ? optionsText.split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
+                      const [value, label] = line.split('|').map((s) => s.trim());
+                      return { value, label: label || value };
+                    })
+                  : null,
+              };
+          return { ...withOptions, sort: i, detailSort: i };
+        }),
       };
     },
   });
