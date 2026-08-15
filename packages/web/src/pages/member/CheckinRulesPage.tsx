@@ -22,6 +22,7 @@ import {
 import { CreateButton, RefreshButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
+import { abortSubmit } from '@/lib/abort-submit';
 
 export default function CheckinRulesPage() {
   const { hasPermission } = usePermission();
@@ -43,7 +44,7 @@ export default function CheckinRulesPage() {
     try {
       values = await settingsFormApi.current!.validate();
     } catch {
-      throw new Error('validation');
+      abortSubmit('validation');
     }
     await saveSettingsMutation.mutateAsync(values ?? {});
     Toast.success('保存成功');

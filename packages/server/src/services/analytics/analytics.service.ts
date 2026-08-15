@@ -771,6 +771,16 @@ export async function getHeatmapData(q: HeatmapQuery) {
   if (q.componentArea) clickConditions.push(eq(userEvents.componentArea, q.componentArea));
   const clickWhere = mergeWhere(and(...clickConditions), tenantScope(userEvents));
 
+  // 元素排行不依赖坐标（与「功能使用」统计同口径）：无坐标的点击也计入榜单，
+  // avgX/avgY 仅对有坐标的行取平均（FILTER），全部无坐标时为 null
+  const elementConditions = [
+    ...pageConditions,
+    inArray(userEvents.eventType, [...HEATMAP_EVENT_TYPES]),
+    isNotNull(userEvents.elementKey),
+  ];
+  if (q.componentArea) elementConditions.push(eq(userEvents.componentArea, q.componentArea));
+  const elementWhere = mergeWhere(and(...elementConditions), tenantScope(userEvents));
+
   const binX = sql<number>`LEAST(FLOOR(${userEvents.clickX} / ${HEATMAP_BIN_SIZE}), ${HEATMAP_BINS - 1})::int`;
   const binY = sql<number>`LEAST(FLOOR(${userEvents.clickY} / ${HEATMAP_BIN_SIZE}), ${HEATMAP_BINS - 1})::int`;
   // 分组内出现最多的取值；MODE 对 NULL 的处理依版本而异，显式 FILTER 保证只统计非空行
@@ -810,11 +820,11 @@ export async function getHeatmapData(q: HeatmapQuery) {
         componentArea: sql<string | null>`MAX(${userEvents.componentArea})`,
         count: sql<number>`COUNT(*)::int`,
         uniqueUsers: countDistinct(userEvents.distinctId),
-        avgX: sql<number>`ROUND(AVG(${userEvents.clickX})::numeric, 1)::float8`,
-        avgY: sql<number>`ROUND(AVG(${userEvents.clickY})::numeric, 1)::float8`,
+        avgX: sql<number | null>`ROUND(AVG(${userEvents.clickX}) FILTER (WHERE ${userEvents.clickX} IS NOT NULL)::numeric, 1)::float8`,
+        avgY: sql<number | null>`ROUND(AVG(${userEvents.clickY}) FILTER (WHERE ${userEvents.clickY} IS NOT NULL)::numeric, 1)::float8`,
       })
       .from(userEvents)
-      .where(mergeWhere(clickWhere, isNotNull(userEvents.elementKey)))
+      .where(elementWhere)
       .groupBy(userEvents.elementKey)
       .orderBy(sql`COUNT(*) DESC`)
       .limit(HEATMAP_TOP_ELEMENT_LIMIT),
@@ -876,8 +886,8 @@ export async function getHeatmapData(q: HeatmapQuery) {
       componentArea: r.componentArea,
       count: Number(r.count),
       uniqueUsers: Number(r.uniqueUsers),
-      avgX: Number(r.avgX ?? 0),
-      avgY: Number(r.avgY ?? 0),
+      avgX: r.avgX == null ? null : Number(r.avgX),
+      avgY: r.avgY == null ? null : Number(r.avgY),
     })),
     rageClicks: rageRows.map((r) => ({
       elementKey: r.elementKey,
@@ -1614,6 +1624,7 @@ export async function listAnalyticsEvents(q: EventListQuery) {
         source: userEvents.source,
         appId: userEvents.appId,
         environment: userEvents.environment,
+        properties: userEvents.properties,
       })
       .from(userEvents)
       .where(where)
@@ -1623,7 +1634,22 @@ export async function listAnalyticsEvents(q: EventListQuery) {
     db.$count(userEvents, where),
   ]);
 
-  return { list: list.map((r) => ({ ...r, createdAt: formatDateTime(r.createdAt) })), total, page, pageSize };
+  return {
+    list: list.map(({ properties, ...r }) => {
+      // $api 事件行内摘要：免去逐条点开详情排查接口问题
+      const props = (properties ?? null) as { url?: unknown; status?: unknown } | null;
+      const isApi = r.eventType === 'api_request';
+      return {
+        ...r,
+        createdAt: formatDateTime(r.createdAt),
+        apiUrl: isApi && typeof props?.url === 'string' ? props.url.slice(0, 512) : null,
+        apiStatus: isApi && typeof props?.status === 'number' ? props.status : null,
+      };
+    }),
+    total,
+    page,
+    pageSize,
+  };
 }
 
 export async function getEventDetail(id: number) {

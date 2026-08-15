@@ -21,6 +21,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { abortSubmit } from '@/lib/abort-submit';
 
 function channelsToSelectTree(nodes: CmsChannel[]): { key: string; value: number; label: string; disabled: boolean; children?: ReturnType<typeof channelsToSelectTree> }[] {
   return nodes.map((n) => ({
@@ -63,7 +64,7 @@ export default function CollectPage() {
       maxItems: record.maxItems, status: record.status, remark: record.remark ?? '',
     }),
     beforeSave: (values, { isEdit }) => {
-      if (!isEdit && !siteId) throw new Error('validation');
+      if (!isEdit && !siteId) abortSubmit('validation');
       return { ...values, ...(!isEdit ? { siteId } : {}) };
     },
   });

@@ -25,6 +25,7 @@ import {
 } from '@/hooks/queries/mp-templates';
 import { RefreshButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
+import { abortSubmit } from '@/lib/abort-submit';
 
 export default function MpTemplateMessagesPage() {
   const { hasPermission: can } = usePermission();
@@ -80,9 +81,9 @@ export default function MpTemplateMessagesPage() {
   const handleSend = async () => {
     if (!currentId || !sendTpl) return;
     let data: Record<string, unknown>;
-    try { data = JSON.parse(sendData); } catch { Toast.error('模板数据不是合法 JSON'); throw new Error('validation'); }
+    try { data = JSON.parse(sendData); } catch { Toast.error('模板数据不是合法 JSON'); abortSubmit('validation'); }
     const openids = sendOpenid.split(/[\s,，]+/).map((s) => s.trim()).filter(Boolean);
-    if (openids.length === 0) { Toast.error('请填写接收粉丝 openid'); throw new Error('validation'); }
+    if (openids.length === 0) { Toast.error('请填写接收粉丝 openid'); abortSubmit('validation'); }
     if (sendBatch) {
       const res = await batchSendMutation.mutateAsync({ accountId: currentId, templateId: sendTpl.templateId, openids, url: sendUrl.trim() || undefined, data });
       Toast.success(`批量发送完成：成功 ${res.success ?? 0}，失败 ${res.failed ?? 0}`);
@@ -101,7 +102,7 @@ export default function MpTemplateMessagesPage() {
 
   const handleSaveIndustry = async () => {
     if (!currentId) return;
-    if (!industryId1.trim() || !industryId2.trim()) { Toast.warning('请填写主营/副营行业代码'); throw new Error('validation'); }
+    if (!industryId1.trim() || !industryId2.trim()) { Toast.warning('请填写主营/副营行业代码'); abortSubmit('validation'); }
     await saveIndustryMutation.mutateAsync({ accountId: currentId, industryId1: industryId1.trim(), industryId2: industryId2.trim() });
     Toast.success('行业设置成功');
     setIndustryVisible(false);

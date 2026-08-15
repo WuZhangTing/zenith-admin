@@ -48,6 +48,7 @@ import {
 } from '@/hooks/queries/profile';
 import './ProfilePage.css';
 import { createdAtColumn, dateTimeColumn } from '../../utils/table-columns';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const { Title, Text } = Typography;
 
@@ -297,7 +298,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
     try {
       values = await newTokenFormApi.current.validate() as { name: string; expiresAt?: Date | string | null };
     } catch {
-      throw new Error('validation');
+      abortSubmit('validation');
     }
     await handleCreateToken(values);
   }

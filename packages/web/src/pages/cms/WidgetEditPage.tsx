@@ -33,6 +33,7 @@ import {
 import { formatDateTimeForApi } from '@/utils/date';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton } from '@/components/toolbar-controls';
+import { abortSubmit } from '@/lib/abort-submit';
 
 function newItemId(): string {
   return `wi${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
@@ -187,7 +188,7 @@ export default function WidgetEditPage() {
       throw new Error('site-required');
     }
     const values = await baseFormApi.current?.validate();
-    if (!values) throw new Error('validation');
+    if (!values) abortSubmit('validation');
     if (activeId && draftRevision === undefined) throw new Error('revision-required');
     const saved = await saveMutation.mutateAsync({
       id: activeId,

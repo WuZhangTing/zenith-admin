@@ -27,6 +27,7 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const yuan = formatYuan;
 const receiverTypeOptions = Object.entries(PAYMENT_SHARING_RECEIVER_TYPE_LABELS).map(([value, label]) => ({ value, label }));
@@ -90,7 +91,7 @@ export default function PaymentSharingPage() {
     beforeSave: (values) => {
       if (values.autoShare && values.ratioPercent == null) {
         Toast.warning('开启自动分账需先设置默认比例');
-        throw new Error('validation');
+        abortSubmit('validation');
       }
       return {
         name: values.name,

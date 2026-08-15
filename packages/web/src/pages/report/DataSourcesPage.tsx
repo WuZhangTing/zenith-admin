@@ -30,6 +30,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { abortSubmit } from '@/lib/abort-submit';
 
 interface SearchParams { keyword: string; type: string; status: string; ownerId?: number; folderId?: number }
 const defaultSearchParams: SearchParams = { keyword: '', type: '', status: '', ownerId: undefined, folderId: undefined };
@@ -103,12 +104,12 @@ export default function DataSourcesPage() {
       let config: Record<string, unknown> = {};
       if (type === 'api') {
         const url = String(values.url ?? '').trim();
-        if (!/^https?:\/\//i.test(url)) { Toast.error('请填写以 http:// 或 https:// 开头的 URL'); throw new Error('url'); }
+        if (!/^https?:\/\//i.test(url)) { Toast.error('请填写以 http:// 或 https:// 开头的 URL'); abortSubmit('url'); }
         let headers: Record<string, string> | undefined;
         const headersText = String(values.headersText ?? '').trim();
         if (headersText) {
           try { headers = JSON.parse(headersText); }
-          catch { Toast.error('请求头不是合法 JSON'); throw new Error('headers'); }
+          catch { Toast.error('请求头不是合法 JSON'); abortSubmit('headers'); }
         }
         config = { url, method: values.method || 'GET', headers };
       }

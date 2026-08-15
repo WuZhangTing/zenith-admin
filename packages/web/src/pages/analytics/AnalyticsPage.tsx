@@ -1800,7 +1800,7 @@ function HeatmapTab() {
       ),
     },
     { title: 'UI区域', dataIndex: 'componentArea', width: 130, render: (_value, record) => <Tag color="blue">{record.componentArea || '未标记'}</Tag> },
-    { title: '平均落点', dataIndex: 'avgX', width: 120, render: (_value, record) => <Typography.Text type="tertiary">{record.avgX}% , {record.avgY}%</Typography.Text> },
+    { title: '平均落点', dataIndex: 'avgX', width: 120, render: (_value, record) => <Typography.Text type="tertiary">{record.avgX == null || record.avgY == null ? '–' : `${record.avgX}% , ${record.avgY}%`}</Typography.Text> },
     { title: '点击人数', dataIndex: 'uniqueUsers', width: 110, render: (value) => numberText(Number(value)) },
     {
       title: '点击次数',

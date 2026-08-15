@@ -50,6 +50,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
+import { abortSubmit } from '@/lib/abort-submit';
 
 interface SearchParams {
   keyword: string;
@@ -183,7 +184,7 @@ export default function UsersPage() {
 
       if (editing && isAdminUser(editing) && nextStatus === 'disabled') {
         Toast.warning('admin 账号不允许禁用');
-        throw new Error('admin_status_forbidden');
+        abortSubmit('admin_status_forbidden');
       }
       return payload as Record<string, unknown>;
     },
@@ -193,7 +194,7 @@ export default function UsersPage() {
   const passwordModal = useEditModal<User, ResetPasswordFormValues>({
     save: {
       mutateAsync: async ({ id, values }) => {
-        if (id == null) throw new Error('missing_user');
+        if (id == null) abortSubmit('missing_user');
         await resetPasswordMutation.mutateAsync({ id, password: values.password });
         return {} as User;
       },
@@ -202,7 +203,7 @@ export default function UsersPage() {
     beforeSave: (values) => {
       if (values.password !== values.confirmPassword) {
         Toast.error('两次密码输入不一致');
-        throw new Error('password_not_match');
+        abortSubmit('password_not_match');
       }
       return values;
     },

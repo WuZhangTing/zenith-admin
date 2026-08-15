@@ -27,6 +27,7 @@ import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { JsonBlock } from '@/components/JsonBlock';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const { Text } = Typography;
 
@@ -63,8 +64,8 @@ export default function RuleFlowsPage() {
     defaults: {},
     toValues: (record) => ({ key: record.key, name: record.name, description: record.description }),
     beforeSave: (values, { editing }) => {
-      if (steps.length === 0) { Toast.warning('请至少添加一个步骤'); throw new Error('missing_steps'); }
-      if (steps.some((s) => !s.tableKey)) { Toast.warning('存在未选择决策表的步骤'); throw new Error('missing_step_table'); }
+      if (steps.length === 0) { Toast.warning('请至少添加一个步骤'); abortSubmit('missing_steps'); }
+      if (steps.some((s) => !s.tableKey)) { Toast.warning('存在未选择决策表的步骤'); abortSubmit('missing_step_table'); }
       const payload = { name: values.name, description: values.description ?? null, steps };
       return editing ? { ...payload, expectedUpdatedAt: editing.updatedAt } : { ...payload, key: values.key };
     },

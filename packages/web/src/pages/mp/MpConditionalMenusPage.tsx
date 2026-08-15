@@ -22,6 +22,7 @@ import {
 } from '@/hooks/queries/mp-menu';
 import { CreateButton, RefreshButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const { Text } = Typography;
 
@@ -110,7 +111,7 @@ export default function MpConditionalMenusPage() {
 
   const menuSaveMutation = {
     mutateAsync: ({ id, values }: { id?: number; values: Record<string, unknown> }) => {
-      if (!currentId) throw new Error('validation');
+      if (!currentId) abortSubmit('validation');
       return saveMutation.mutateAsync({ id, accountId: currentId, name: values.name as string, buttons, matchRule: values.matchRule as MpMenuMatchRule });
     },
     isPending: saveMutation.isPending,
@@ -121,8 +122,8 @@ export default function MpConditionalMenusPage() {
     defaults: { name: '' },
     toValues: (record) => ({ name: record.name, ...record.matchRule }),
     beforeSave: (values) => {
-      if (!currentId) throw new Error('validation');
-      if (buttons.length === 0) { Toast.warning('请至少添加一个一级菜单'); throw new Error('validation'); }
+      if (!currentId) abortSubmit('validation');
+      if (buttons.length === 0) { Toast.warning('请至少添加一个一级菜单'); abortSubmit('validation'); }
       const matchRule: MpMenuMatchRule = {
         tagId: (values.tagId as string) || undefined,
         sex: (values.sex as string) || undefined,
@@ -132,7 +133,7 @@ export default function MpConditionalMenusPage() {
         clientPlatformType: (values.clientPlatformType as string) || undefined,
         language: (values.language as string) || undefined,
       };
-      if (!Object.values(matchRule).some(Boolean)) { Toast.warning('请至少设置一个匹配条件'); throw new Error('validation'); }
+      if (!Object.values(matchRule).some(Boolean)) { Toast.warning('请至少设置一个匹配条件'); abortSubmit('validation'); }
       return { name: values.name, matchRule };
     },
     successMessage: ({ isEdit }) => (isEdit ? '已保存' : '已创建'),

@@ -28,6 +28,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { abortSubmit } from '@/lib/abort-submit';
 
 /** 区块按栏目标识引用栏目：value 用 code，站点复制/重建后配置无需重配 */
 function channelsToSelectTree(nodes: CmsChannel[]): { key: string; value: string; label: string; children?: ReturnType<typeof channelsToSelectTree> }[] {
@@ -185,7 +186,7 @@ export default function PagesPage() {
   async function handleBlockModalOk() {
     if (!blockModal) return;
     const values = (await blockFormApi.current?.validate().catch(() => null)) ?? null;
-    if (!values) throw new Error('validation');
+    if (!values) abortSubmit('validation');
     const {
       displayAudience,
       displayStartAt,

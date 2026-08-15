@@ -20,6 +20,7 @@ import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn, renderEnabledStatusTag } from '@/utils/table-columns';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const FIELD_TYPE_OPTIONS = CMS_FORM_FIELD_TYPES.map((t) => ({ value: t, label: CMS_FORM_FIELD_TYPE_LABELS[t] }));
 
@@ -116,7 +117,7 @@ export default function FormsPage() {
       status: record.status, fields: record.fields.map((f) => ({ ...f, optionsText: (f.options ?? []).map((option) => `${option.label}=${option.value}`).join('\n') })),
     }),
     beforeSave: (values, { isEdit }) => {
-      if (!isEdit && !siteId) throw new Error('validation');
+      if (!isEdit && !siteId) abortSubmit('validation');
       const payload: Record<string, unknown> = { ...values, ...(!isEdit ? { siteId } : {}) };
       payload.turnstileSecret = values.clearTurnstileSecret === true ? null : (values.turnstileSecret ?? '');
       delete payload.clearTurnstileSecret;

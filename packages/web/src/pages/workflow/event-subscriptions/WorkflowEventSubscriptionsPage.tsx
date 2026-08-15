@@ -51,6 +51,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const EVENT_OPTIONS: Array<{ value: WorkflowEventType; label: string }> = [
   { value: 'instance.created',   label: '实例创建' },
@@ -158,7 +159,7 @@ export default function WorkflowEventSubscriptionsPage() {
           throw new Error('invalid headers');
         }
         headers = parsed as Record<string, string>;
-      } catch { Toast.error('请输入合法的 JSON 对象'); throw new Error('validation'); }
+      } catch { Toast.error('请输入合法的 JSON 对象'); abortSubmit('validation'); }
     }
       return {
       name: vals.name,

@@ -262,7 +262,7 @@ export default function DictsPage() {
     try {
       values = await itemFormApi.current!.validate();
     } catch {
-      throw new Error('validation');
+      abortSubmit('validation');
     }
     let metadata: Record<string, unknown> | null = null;
     const currentJson = (jsonViewerRef.current?.getValue() ?? metadataStr).trim();

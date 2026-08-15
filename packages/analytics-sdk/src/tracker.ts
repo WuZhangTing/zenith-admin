@@ -597,8 +597,13 @@ class Tracker {
   }
 
   private setupUnloadFlush(): void {
-    document.addEventListener('pagehide', () => this.flushSync());
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') this.flushSync(); });
+    // pagehide 是页面终态：先补发未关闭的 page_leave（整页刷新 / 关标签 / 直达 URL），再冲刷缓冲
+    document.addEventListener('pagehide', () => { flushPageLifecycleForUnload(); this.flushSync(); });
+    document.addEventListener('visibilitychange', () => {
+      const hidden = document.visibilityState === 'hidden';
+      onPageVisibilityChange(hidden);
+      if (hidden) this.flushSync();
+    });
   }
 
   // ─── 自动采集：点击 ───────────────────────────────────────────────────────
@@ -627,7 +632,8 @@ class Tracker {
     document.addEventListener('click', (e) => {
       const target = e.target as HTMLElement | null;
       if (!target) return;
-      const el = target.closest<HTMLElement>('[data-track],button,a,[role="button"],input[type="submit"],input[type="button"]');
+      // [role=tab|menuitem|option]：Tabs/菜单/下拉选项等 div 基交互控件（Semi Tabs 的 tab bar 为 div）
+      const el = target.closest<HTMLElement>('[data-track],button,a,[role="button"],[role="tab"],[role="menuitem"],[role="option"],input[type="submit"],input[type="button"]');
       if (!el) return;
       const dataKey = el.getAttribute('data-track');
       // data-sensitive 元素（或其后代）不采集任何文本，仅保留 tag / 显式 key
@@ -637,11 +643,20 @@ class Tracker {
       const tag = el.tagName.toLowerCase();
       const key = dataKey || (el.id ? `${tag}#${el.id}` : label ? `${tag}:${label.slice(0, 24)}` : tag);
       const area = el.closest<HTMLElement>('[data-area]')?.getAttribute('data-area') || el.getAttribute('data-track-area') || undefined;
-      // 视口相对坐标（百分比），支撑零配置全页点击热力图
+      // 视口相对坐标（百分比），支撑零配置全页点击热力图。
+      // 程序化点击（el.click()）的 clientX/Y 恒为 (0,0)，会把热力图左上角污染成假热区：
+      // 此时回退到元素几何中心，保证坐标始终指向真实控件位置。
       const vw = globalThis.innerWidth;
       const vh = globalThis.innerHeight;
-      const clickX = vw > 0 ? Math.max(0, Math.min(100, Math.round((e.clientX / vw) * 1000) / 10)) : undefined;
-      const clickY = vh > 0 ? Math.max(0, Math.min(100, Math.round((e.clientY / vh) * 1000) / 10)) : undefined;
+      let px = e.clientX;
+      let py = e.clientY;
+      if (px === 0 && py === 0 && !e.isTrusted) {
+        const rect = el.getBoundingClientRect();
+        px = rect.left + rect.width / 2;
+        py = rect.top + rect.height / 2;
+      }
+      const clickX = vw > 0 ? Math.max(0, Math.min(100, Math.round((px / vw) * 1000) / 10)) : undefined;
+      const clickY = vh > 0 ? Math.max(0, Math.min(100, Math.round((py / vh) * 1000) / 10)) : undefined;
       addBreadcrumb({ type: 'click', message: label || key, data: { tag } });
       this.detectRageClick(key, label || key);
       this.track({ eventType: 'feature_use', eventName: '$autocapture', pagePath: globalThis.location.pathname, elementKey: key.slice(0, 128), elementLabel: label || key, componentArea: area ?? undefined, clickX, clickY });
@@ -757,15 +772,69 @@ export function resetIdentity(): void { tracker.reset(); }
 /** 退出登录前用当前 token 尽力发送旧身份事件，避免后续账号接管队列。 */
 export function prepareTrackerLogout(): void { tracker.prepareLogout(); }
 
-/** 页面进入。 */
+// ─── 页面停留生命周期（SDK 统一权威）─────────────────────────────────────────
+// usePageTracker 只报路由边界；可见时长累计、滚动深度、整页卸载（pagehide）兜底都在这里维护。
+// 旧实现把时长统计放在 React effect cleanup 里，整页刷新 / 关标签 / 直达 URL 不执行 cleanup，
+// 导致所有以 full-reload 结束的访问停留数据全部丢失（页面停留 / 会话时长 / 跳出率系统性失真）。
+interface CurrentPageContext { path: string; title?: string; visibleMs: number; visibleSince: number | null }
+
+let currentPage: CurrentPageContext | null = null;
+
+/** 把「可见中」的进行时段累计进 visibleMs（hidden / 离开时调用）。 */
+function accumulatePageVisible(): void {
+  if (currentPage && currentPage.visibleSince != null) {
+    currentPage.visibleMs += Date.now() - currentPage.visibleSince;
+    currentPage.visibleSince = null;
+  }
+}
+
+/** 恢复可见计时（visibilitychange → visible）。 */
+function resumePageVisible(): void {
+  if (currentPage && currentPage.visibleSince == null) currentPage.visibleSince = Date.now();
+}
+
+/** 关闭当前页面上下文并发出 page_leave（幂等：无上下文时静默）。 */
+function emitPageLeave(): void {
+  if (!currentPage) return;
+  accumulatePageVisible();
+  const { path, title, visibleMs } = currentPage;
+  currentPage = null;
+  tracker.track({
+    eventType: 'page_leave',
+    eventName: '$pageleave',
+    pagePath: path,
+    durationMs: Math.max(0, Math.round(visibleMs)),
+    pageTitle: title,
+    scrollDepth: getMaxScrollDepth(),
+  });
+}
+
+/** @internal 整页卸载兜底：pagehide 时补发 page_leave（trackPageView 建立的上下文尚未关闭时）。 */
+export function flushPageLifecycleForUnload(): void { emitPageLeave(); }
+
+/** @internal visibilitychange 联动：hidden 暂停计时，visible 恢复计时。 */
+export function onPageVisibilityChange(hidden: boolean): void {
+  if (hidden) accumulatePageVisible();
+  else resumePageVisible();
+}
+
+/** 页面进入：建立停留上下文（上一页未正常关闭时自动补发其 page_leave）。 */
 export function trackPageView(pagePath: string, pageTitle?: string): void {
+  if (currentPage) emitPageLeave();
+  resetScrollDepth();
+  currentPage = {
+    path: pagePath,
+    title: pageTitle,
+    visibleMs: 0,
+    visibleSince: typeof document !== 'undefined' && document.visibilityState === 'visible' ? Date.now() : null,
+  };
   addBreadcrumb({ type: 'navigation', message: pageTitle ? `${pageTitle} (${pagePath})` : pagePath });
   tracker.track({ eventType: 'page_view', eventName: '$pageview', pagePath, pageTitle });
 }
 
-/** 页面离开（携带可见停留时长与最大滚动深度）。 */
-export function trackPageLeave(pagePath: string, durationMs: number, pageTitle?: string, scrollDepth?: number): void {
-  tracker.track({ eventType: 'page_leave', eventName: '$pageleave', pagePath, durationMs, pageTitle, scrollDepth });
+/** 页面离开（SPA 路由切换）：时长与滚动深度由 SDK 统一计算。 */
+export function trackPageLeave(_pagePath?: string): void {
+  emitPageLeave();
 }
 
 /** 功能点击（手动埋点）。 */

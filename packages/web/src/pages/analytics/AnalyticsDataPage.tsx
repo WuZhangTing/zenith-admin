@@ -470,6 +470,24 @@ export default function AnalyticsDataPage() {
         </div>
       ),
     },
+    {
+      title: '接口',
+      dataIndex: 'apiUrl',
+      width: 240,
+      render: (_: unknown, record) => {
+        if (record.apiUrl == null && record.apiStatus == null) return '–';
+        const status = record.apiStatus;
+        const color = status == null ? 'grey' : status >= 500 ? 'red' : status >= 400 ? 'orange' : 'green';
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {status != null && <Tag color={color} size="small">{status}</Tag>}
+            <Typography.Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 180 }}>
+              {record.apiUrl ?? '–'}
+            </Typography.Text>
+          </div>
+        );
+      },
+    },
     { title: '时长', dataIndex: 'durationMs', width: 100, render: (value: number | null) => msToReadable(value) },
     dateTimeColumn('时间', 'createdAt'),
     createOperationColumn<EventListItem>({

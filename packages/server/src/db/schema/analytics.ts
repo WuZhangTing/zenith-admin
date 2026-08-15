@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, timestamp, pgEnum, integer, bigint, boolean, text, uniqueIndex, index, jsonb, smallint, real, date, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, timestamp, pgEnum, integer, bigint, boolean, text, uniqueIndex, index, jsonb, smallint, real, date, uuid, primaryKey, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import type { AnalyticsEnvironment, AnalyticsEventPropertyDef, AnalyticsExperimentVariant, AnalyticsSegmentRule } from '@zenith/shared/analytics';
 import { auditColumns, tenants, users } from './core';
@@ -335,6 +335,19 @@ export const errorEvents = pgTable('error_events', {
 export type ErrorEventRow = typeof errorEvents.$inferSelect;
 
 export type NewErrorEvent = typeof errorEvents.$inferInsert;
+
+// 错误分组 × 受影响身份（'u:<userId>' / 'm:<memberId>' / 'a:<sessionId>'）：
+// ingest 时 ON CONFLICT DO NOTHING 增量去重，支撑 error_groups.affected_users 的 O(1) 维护，
+// 替代旧的「详情页 COUNT(DISTINCT) 懒回写」。纯关联表，不加审计列。
+export const errorGroupIdentities = pgTable('error_group_identities', {
+  groupId: integer('group_id').notNull().references((): AnyPgColumn => errorGroups.id, { onDelete: 'cascade' }),
+  identity: varchar('identity', { length: 80 }).notNull(),
+  firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.groupId, t.identity] }),
+]);
+
+export type ErrorGroupIdentityRow = typeof errorGroupIdentities.$inferSelect;
 
 // 错误告警规则
 export const errorAlertRules = pgTable('error_alert_rules', {

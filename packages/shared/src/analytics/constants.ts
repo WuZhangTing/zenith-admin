@@ -387,7 +387,7 @@ export const ANALYTICS_SERVER_MEMBER_EVENT_NAMES = [
   'member.checkin.completed',
 ] as const;
 
-export const ANALYTICS_CLIENT_SYSTEM_EVENT_NAMES = [ANALYTICS_EXPERIMENT_EXPOSURE_EVENT] as const;
+export const ANALYTICS_CLIENT_SYSTEM_EVENT_NAMES = [ANALYTICS_EXPERIMENT_EXPOSURE_EVENT, 'page_not_found', 'page_forbidden'] as const;
 
 export const ANALYTICS_SEMANTIC_EVENT_NAMES = [
   ...ANALYTICS_CLIENT_SYSTEM_EVENT_NAMES,
@@ -431,6 +431,8 @@ export const ANALYTICS_MEMBER_POINTS_EVENT_BY_TX_TYPE: Record<'earn' | 'redeem' 
 
 export const ANALYTICS_SEMANTIC_EVENT_LABELS: Record<AnalyticsSemanticEventName, string> = {
   [ANALYTICS_EXPERIMENT_EXPOSURE_EVENT]: '实验曝光',
+  page_not_found: '404 访问',
+  page_forbidden: '越权访问拦截',
   'payment.succeeded': '支付成功',
   'payment.closed': '支付关闭',
   'payment.failed': '支付失败',

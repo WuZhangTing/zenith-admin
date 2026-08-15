@@ -16,6 +16,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { slugifyName } from '@/utils/slug';
+import { abortSubmit } from '@/lib/abort-submit';
 
 interface SearchParams { keyword: string }
 const defaultSearch: SearchParams = { keyword: '' };
@@ -41,7 +42,7 @@ export default function TagsPage() {
     save: saveMutation,
     toValues: (record) => ({ name: record.name, slug: record.slug, groupName: record.groupName ?? '' }),
     beforeSave: (values, { isEdit }) => {
-      if (!isEdit && !siteId) throw new Error('validation');
+      if (!isEdit && !siteId) abortSubmit('validation');
       return {
         ...values,
         ...(!isEdit ? { siteId } : {}),

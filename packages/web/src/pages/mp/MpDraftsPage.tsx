@@ -23,6 +23,7 @@ import {
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const blankArticle = (): MpArticle => ({ title: '', author: '', digest: '', content: '', thumbUrl: '', showCoverPic: true });
 
@@ -74,8 +75,8 @@ export default function MpDraftsPage() {
   const handleSubmit = async () => {
     if (!currentId) return;
     for (const a of articles) {
-      if (!a.title.trim()) { Toast.error('每篇图文都需要标题'); throw new Error('validation'); }
-      if (!a.content.trim()) { Toast.error('每篇图文都需要正文'); throw new Error('validation'); }
+      if (!a.title.trim()) { Toast.error('每篇图文都需要标题'); abortSubmit('validation'); }
+      if (!a.content.trim()) { Toast.error('每篇图文都需要正文'); abortSubmit('validation'); }
     }
     await saveMutation.mutateAsync({ id: editingRecord?.id, accountId: currentId, articles });
     Toast.success(editingRecord ? '更新成功' : '创建成功');

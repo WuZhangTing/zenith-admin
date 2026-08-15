@@ -30,6 +30,7 @@ import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const { Text } = Typography;
 
@@ -137,7 +138,7 @@ export default function MpKfSessionsPage() {
   };
 
   const handlePickConfirm = async () => {
-    if (!detail || !pickKfId) { Toast.warning('请选择客服'); throw new Error('validation'); }
+    if (!detail || !pickKfId) { Toast.warning('请选择客服'); abortSubmit('validation'); }
     if (pickModal.mode === 'accept') {
       await acceptMutation.mutateAsync({ id: detail.id, kfId: pickKfId });
       Toast.success('已接入');
@@ -174,7 +175,7 @@ export default function MpKfSessionsPage() {
   const handleSaveConfig = async () => {
     if (!currentId) return;
     let values: Record<string, unknown>;
-    try { values = (await configFormRef.current?.validate())!; } catch { throw new Error('validation'); }
+    try { values = (await configFormRef.current?.validate())!; } catch { abortSubmit('validation'); }
     await saveConfigMutation.mutateAsync({ accountId: currentId, values });
     Toast.success('已保存');
     setConfigVisible(false);

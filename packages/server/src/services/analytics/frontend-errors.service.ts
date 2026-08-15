@@ -1,7 +1,7 @@
 import { and, eq, gte, desc, like, inArray, sql, countDistinct } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { errorGroups, errorEvents, sourceMaps, users } from '../../db/schema';
+import { errorGroups, errorEvents, errorGroupIdentities, sourceMaps, users } from '../../db/schema';
 import type { ErrorGroupRow, ErrorEventRow } from '../../db/schema';
 import type { FrontendErrorType, ErrorLevel, UpdateErrorGroupInput, SourceMapUploadInput, AnalyticsEventSource, AnalyticsEnvironment } from '@zenith/shared/analytics';
 import { currentUserOrNull } from '../../lib/context';
@@ -186,6 +186,28 @@ export async function reportError(input: {
       environment: platform.environment,
       memberId: member?.memberId ?? null,
     });
+
+    // 影响用户数 O(1) 增量维护：身份首次出现在该分组时 +1（替代旧的详情页 COUNT(DISTINCT) 懒回写）
+    const identity = user?.userId != null
+      ? `u:${user.userId}`
+      : member?.memberId != null
+        ? `m:${member.memberId}`
+        : input.sessionId
+          ? `a:${input.sessionId}`
+          : null;
+    if (identity) {
+      const inserted = await tx
+        .insert(errorGroupIdentities)
+        .values({ groupId: upserted.id, identity: identity.slice(0, 80) })
+        .onConflictDoNothing()
+        .returning({ groupId: errorGroupIdentities.groupId });
+      if (inserted.length > 0) {
+        await tx
+          .update(errorGroups)
+          .set({ affectedUsers: sql`${errorGroups.affectedUsers} + 1` })
+          .where(eq(errorGroups.id, upserted.id));
+      }
+    }
     return upserted;
   });
 
@@ -262,7 +284,7 @@ export async function getGroupDetail(id: number) {
   const group = await ensureGroupExists(id);
   const start = startOfDaysAgo(14);
 
-  const [trendRows, browserRows, osRows, recent, affected] = await Promise.all([
+  const [trendRows, browserRows, osRows, recent] = await Promise.all([
     db
       .select({ date: sql<string>`to_char(timezone(${APP_TIME_ZONE}, ${errorEvents.createdAt}), 'YYYY-MM-DD')`, count: sql<number>`COUNT(*)::int` })
       .from(errorEvents)
@@ -271,17 +293,7 @@ export async function getGroupDetail(id: number) {
     db.select({ name: errorEvents.browser, value: sql<number>`COUNT(*)::int` }).from(errorEvents).where(eq(errorEvents.groupId, id)).groupBy(errorEvents.browser).orderBy(sql`COUNT(*) DESC`).limit(6),
     db.select({ name: errorEvents.os, value: sql<number>`COUNT(*)::int` }).from(errorEvents).where(eq(errorEvents.groupId, id)).groupBy(errorEvents.os).orderBy(sql`COUNT(*) DESC`).limit(6),
     db.select().from(errorEvents).where(eq(errorEvents.groupId, id)).orderBy(desc(errorEvents.createdAt)).limit(20),
-    db.select({ n: sql<number>`COUNT(DISTINCT ${affectedIdentity})::int` }).from(errorEvents).where(eq(errorEvents.groupId, id)),
   ]);
-
-  // 原子回写影响用户数（避免读-改-写竞态）
-  const affectedUsers = Number(affected[0]?.n ?? 0);
-  if (affectedUsers !== group.affectedUsers) {
-    await db
-      .update(errorGroups)
-      .set({ affectedUsers: sql`(SELECT COUNT(DISTINCT ${affectedIdentity}) FROM ${errorEvents} WHERE ${errorEvents.groupId} = ${id})::int` })
-      .where(eq(errorGroups.id, id));
-  }
 
   // 堆栈还原：取最近事件 stack + 该 release 的 source maps
   let symbolicatedStack: string | null = null;
@@ -299,7 +311,7 @@ export async function getGroupDetail(id: number) {
   const trendMap = new Map(trendRows.map((r) => [r.date, Number(r.count)]));
 
   return {
-    group: mapGroup({ ...group, affectedUsers }),
+    group: mapGroup(group),
     symbolicatedStack,
     trend: axis.map((date) => ({ date, count: trendMap.get(date) ?? 0 })),
     browsers: browserRows.map((r) => ({ name: r.name ?? '未知', value: Number(r.value) })),

@@ -30,6 +30,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
+import { abortSubmit } from '@/lib/abort-submit';
 
 type TagColor = 'grey' | 'blue' | 'green' | 'red' | 'orange';
 
@@ -87,7 +88,7 @@ export default function LeavePage() {
     }),
     beforeSave: (values) => {
       const payload = payloadFromValues(values);
-      if (!payload) throw new Error('validation');
+      if (!payload) abortSubmit('validation');
       return payload;
     },
     successMessage: () => '保存成功',

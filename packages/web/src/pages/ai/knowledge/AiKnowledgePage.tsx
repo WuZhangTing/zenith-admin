@@ -23,6 +23,7 @@ import { CreateButton, ResetButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const { Text } = Typography;
 
@@ -68,7 +69,7 @@ export default function AiKnowledgePage() {
     try {
       values = (await docFormApi.current?.validate()) as { name: string; content: string };
     } catch {
-      throw new Error('validation');
+      abortSubmit('validation');
     }
     await addDocMutation.mutateAsync({ kbId: docsKb.id, values: { name: values.name.trim(), content: values.content } });
     Toast.success('文档已入库');
@@ -81,7 +82,7 @@ export default function AiKnowledgePage() {
     try {
       values = (await urlFormApi.current?.validate()) as { url: string; name?: string };
     } catch {
-      throw new Error('validation');
+      abortSubmit('validation');
     }
     await importUrlMutation.mutateAsync({ kbId: docsKb.id, values: { url: values.url.trim(), name: values.name?.trim() || undefined } });
     Toast.success('网页已入库');

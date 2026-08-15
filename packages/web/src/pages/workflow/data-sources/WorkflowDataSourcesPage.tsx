@@ -21,6 +21,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
+import { abortSubmit } from '@/lib/abort-submit';
 
 interface SearchParams { keyword: string; status: string }
 const defaultSearchParams: SearchParams = { keyword: '', status: '' };
@@ -85,7 +86,7 @@ export default function WorkflowDataSourcesPage() {
         else throw new Error('not object');
       } catch {
         Toast.error('请求头需为合法的 JSON 对象');
-        throw new Error('headers');
+        abortSubmit('headers');
       }
     }
     const payload = {

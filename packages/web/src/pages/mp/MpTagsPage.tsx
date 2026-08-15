@@ -17,6 +17,7 @@ import { mpTagKeys, useDeleteMpTag, useMpTagList, useSaveMpTag, useSyncMpTags } 
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { abortSubmit } from '@/lib/abort-submit';
 
 export default function MpTagsPage() {
   const { hasPermission: can } = usePermission();
@@ -63,7 +64,7 @@ export default function MpTagsPage() {
 
   const tagSaveMutation = {
     mutateAsync: ({ id, values }: { id?: number; values: { name: string } }) => {
-      if (!currentId) throw new Error('validation');
+      if (!currentId) abortSubmit('validation');
       return saveMutation.mutateAsync({ id, accountId: currentId, name: values.name });
     },
     isPending: saveMutation.isPending,

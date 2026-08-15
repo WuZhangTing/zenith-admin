@@ -24,6 +24,7 @@ import {
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const { Text } = Typography;
 
@@ -110,7 +111,7 @@ export default function ChatBotsPage() {
 
       if (!isEdit && !values.conversationId) {
         Toast.warning('请选择目标会话');
-        throw new Error('validation');
+        abortSubmit('validation');
       }
 
       return isEdit

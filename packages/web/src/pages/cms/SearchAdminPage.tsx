@@ -29,6 +29,7 @@ import { CreateButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn, renderEnabledStatusTag } from '@/utils/table-columns';
+import { abortSubmit } from '@/lib/abort-submit';
 
 // ─── 检索测试 Tab ─────────────────────────────────────────────────────────────
 function SearchTestTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined; onSiteChange: (v: number) => void }>) {
@@ -160,7 +161,7 @@ function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined
     defaults: { type: 'extension', groupName: '默认分组', weight: 1000, status: 'enabled' },
     toValues: (record) => ({ word: record.word, type: record.type, groupName: record.groupName, weight: record.weight, status: record.status, remark: record.remark ?? '' }),
     beforeSave: (values, { isEdit }) => {
-      if (!isEdit && !siteId) throw new Error('validation');
+      if (!isEdit && !siteId) abortSubmit('validation');
       return { ...values, ...(!isEdit ? { siteId } : {}) };
     },
   });
@@ -220,7 +221,7 @@ function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined
                 title: '批量调整词典分组',
                 content: <Input placeholder="目标分组" onChange={(value) => { nextGroup = value; }} />,
                 onOk: async () => {
-                  if (!nextGroup.trim()) throw new Error('validation');
+                  if (!nextGroup.trim()) abortSubmit('validation');
                   await batchMutation.mutateAsync({ action: 'update', body: { ids: selectedIds, groupName: nextGroup.trim() } });
                   setSelectedIds([]);
                 },
@@ -337,7 +338,7 @@ function HotKeywordsTab({ siteId, onSiteChange }: Readonly<{ siteId: number | un
               title: '新建热词分组',
               content: <Input placeholder="分组名称" onChange={(value) => { name = value; }} />,
               onOk: async () => {
-                if (!name.trim()) throw new Error('validation');
+                if (!name.trim()) abortSubmit('validation');
                 await saveGroupMutation.mutateAsync({ values: { siteId, name: name.trim(), sort: 0, status: 'enabled' } });
                 Toast.success('分组已创建');
               },
@@ -351,7 +352,7 @@ function HotKeywordsTab({ siteId, onSiteChange }: Readonly<{ siteId: number | un
               title: '添加可管理热词',
               content: <Input placeholder="热词" onChange={(value) => { word = value; }} />,
               onOk: async () => {
-                if (!word.trim()) throw new Error('validation');
+                if (!word.trim()) abortSubmit('validation');
                 await saveHotwordMutation.mutateAsync({ values: { siteId, groupId: groupId ?? null, keyword: word.trim(), sort: 0, status: 'enabled' } });
                 Toast.success('热词已添加');
               },
@@ -366,7 +367,7 @@ function HotKeywordsTab({ siteId, onSiteChange }: Readonly<{ siteId: number | un
               title: '重命名当前热词分组',
               content: <Input defaultValue={name} onChange={(value) => { name = value; }} />,
               onOk: async () => {
-                if (!name.trim()) throw new Error('validation');
+                if (!name.trim()) abortSubmit('validation');
                 await saveGroupMutation.mutateAsync({ id: groupId, values: { name: name.trim() } });
                 Toast.success('分组已更新');
               },

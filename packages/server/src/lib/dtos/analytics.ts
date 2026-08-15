@@ -208,8 +208,8 @@ export const HeatmapElementItemDTO = z
     componentArea: z.string().nullable(),
     count: z.number().int(),
     uniqueUsers: z.number().int(),
-    avgX: z.number(),
-    avgY: z.number(),
+    avgX: z.number().nullable(),
+    avgY: z.number().nullable(),
   })
   .openapi('HeatmapElementItem');
 export const HeatmapRageClickItemDTO = z
@@ -554,6 +554,9 @@ export const EventListItemDTO = z
     source: sourceEnum,
     appId: z.string(),
     environment: environmentEnum,
+    /** API 请求事件（$api）的接口摘要，其余事件为 null */
+    apiUrl: z.string().nullable(),
+    apiStatus: z.number().int().nullable(),
   })
   .openapi('EventListItem');
 

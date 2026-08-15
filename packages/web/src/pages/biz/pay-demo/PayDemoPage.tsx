@@ -32,6 +32,7 @@ import { KeywordInput } from '@/components/search-filters';
 import { useListSearch } from '@/hooks/useListSearch';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
+import { abortSubmit } from '@/lib/abort-submit';
 
 type TagColor = 'grey' | 'blue' | 'green' | 'orange';
 
@@ -154,7 +155,7 @@ export default function PayDemoPage() {
   const handlePay = async () => {
     if (!payTarget || !payFormApi.current) return;
     let values: Record<string, unknown>;
-    try { values = await payFormApi.current.validate() as Record<string, unknown>; } catch { throw new Error('validation'); }
+    try { values = await payFormApi.current.validate() as Record<string, unknown>; } catch { abortSubmit('validation'); }
     const data = await payMutation.mutateAsync({ id: payTarget.id, payMethod: values.payMethod as PaymentMethod });
     setPayTarget(null);
     setPayResult(data.payParams);

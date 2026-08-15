@@ -29,6 +29,7 @@ import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const TYPE_COLORS: Record<CmsResourceType, 'blue' | 'purple' | 'cyan' | 'orange' | 'grey'> = {
   image: 'blue', video: 'purple', audio: 'cyan', document: 'orange', other: 'grey',
@@ -263,7 +264,7 @@ export default function ResourcesPage() {
     labelWidth: 80,
     toValues: (folder) => ({ name: folder.name, sort: folder.sort, parentId: folder.parentId ?? 0 }),
     beforeSave: (values, { isEdit }) => {
-      if (!isEdit && !siteId) throw new Error('validation');
+      if (!isEdit && !siteId) abortSubmit('validation');
       return {
         ...values,
         parentId: Number(values.parentId) > 0 ? Number(values.parentId) : null,

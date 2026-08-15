@@ -10,8 +10,8 @@
  * - 把错误误判为中断：真故障被静默吞掉。
  *
  * 此前的判据是**消息形状**（`/^\w+$/`），这条规则只写在兜底 hook 的注释里，
- * 调用点看不见，因而 `throw new Error('empty content')`（带空格）
- * 与 `throw new Error('a-b')`（带连字符）成批穿透。`SubmitAborted` 把判据换成类型。
+ * 调用点看不见，反向还会吞掉 `NetworkError` / `timeout` 一类单词消息的真实异常。
+ * `SubmitAborted` 把判据换成类型，消息形状分支已删除。
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
@@ -97,13 +97,14 @@ describe('未处理拒绝的分类', () => {
     unmount();
   });
 
-  it('历史写法 throw new Error(单词) 继续被放行（向后兼容）', () => {
+  it('单词消息的裸 Error 不再被放行：NetworkError 一类真实异常必须上报', () => {
     const { unmount } = renderHook(() => useGlobalErrorHandler());
 
+    emitRejection(new Error('NetworkError'));
     emitRejection(new Error('validation'));
 
-    expect(toastError).not.toHaveBeenCalled();
-    expect(reportError).not.toHaveBeenCalled();
+    expect(toastError).toHaveBeenCalledTimes(2);
+    expect(reportError).toHaveBeenCalledTimes(2);
     unmount();
   });
 });

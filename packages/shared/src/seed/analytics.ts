@@ -81,6 +81,13 @@ export const SEED_ANALYTICS_EVENT_META: SeedAnalyticsEventMeta[] = [
     { key: 'expKey', type: 'string', required: true, description: '实验标识' },
     { key: 'variantKey', type: 'string', required: true, description: '变体标识' },
   ], strictMode: true },
+  // ── 导航失败语义事件（source=web_*，404/403 页面组件上报）──
+  { id: 1051, eventName: 'page_not_found', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS.page_not_found, category: 'system', description: '访问了不存在的路由（NotFoundPage 上报），用于发现失效链接与错误跳转', propertySchema: [
+    { key: 'path', type: 'string', required: true, description: '被访问的原始路径' },
+  ], strictMode: false },
+  { id: 1052, eventName: 'page_forbidden', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS.page_forbidden, category: 'system', description: '无权限访问被拦截（ForbiddenPage 上报），用于发现权限配置缺口与越权尝试', propertySchema: [
+    { key: 'path', type: 'string', required: true, description: '被拦截的路径' },
+  ], strictMode: false },
   // ── 支付中心（source=server，来自 paymentEventBus）──
   { id: 1001, eventName: 'payment.succeeded', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['payment.succeeded'], category: 'payment', description: '支付订单支付成功（服务端权威事件，来自 paymentEventBus）', propertySchema: PAYMENT_BASE_SCHEMA, strictMode: false },
   { id: 1002, eventName: 'payment.closed', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['payment.closed'], category: 'payment', description: '支付订单超时关闭（服务端权威事件，来自 paymentEventBus）', propertySchema: PAYMENT_BASE_SCHEMA, strictMode: false },

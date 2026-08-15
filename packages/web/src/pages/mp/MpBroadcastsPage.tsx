@@ -26,6 +26,7 @@ import {
 } from '@/hooks/queries/mp-broadcasts';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const STATUS_OPTIONS = [
   { label: '草稿', value: 'draft' },
@@ -91,7 +92,7 @@ export default function MpBroadcastsPage() {
       scheduledAt: record.scheduledAt ? new Date(record.scheduledAt) : undefined,
     }),
     beforeSave: (values, { isEdit }) => {
-      if (!currentId) throw new Error('validation');
+      if (!currentId) abortSubmit('validation');
       const payload: Record<string, unknown> = { msgType: modalType, target: modalTarget };
       if (modalType === 'text') payload.content = values.content;
       else payload.mediaId = values.mediaId;

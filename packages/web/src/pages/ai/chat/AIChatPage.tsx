@@ -33,6 +33,7 @@ import {
 } from '@/hooks/queries/ai-conversations';
 import { useDictItems } from '@/hooks/useDictItems';
 import { confirmDelete } from '@/utils/confirm';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const { Configure } = AIChatInput;
 const { Title } = Typography;
@@ -902,7 +903,7 @@ export default function AIChatPage() {
     try {
       values = (await varFormApi.current?.validate()) as Record<string, string>;
     } catch {
-      throw new Error('validation');
+      abortSubmit('validation');
     }
     const filled = t.content.replaceAll(/\{\{\s*([^{}]+?)\s*\}\}/g, (_, name: string) => values[name]?.trim() ?? '');
     await handleApplyTemplate(filled, t.id);

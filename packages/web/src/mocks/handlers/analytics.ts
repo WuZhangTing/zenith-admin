@@ -159,29 +159,35 @@ const PUBLIC_CONFIG: AnalyticsPublicConfig = {
 
 function buildEvents(count: number): EventListItem[] {
   const types: UserBehaviorEventType[] = ['page_view', 'feature_use', 'page_leave', 'area_click', 'custom', 'perf', 'api_request'];
-  return Array.from({ length: count }, (_, i) => ({
-    id: 10000 - i,
-    userId: rand(1, 6),
-    username: USERNAMES[i % USERNAMES.length],
-    eventType: types[i % types.length],
-    eventName: ['$pageview', '$autocapture', '$pageleave', '$areaclick', 'order_submit', '$web_vitals', '$api'][i % 7],
-    pagePath: MOCK_PAGE_ITEMS[i % MOCK_PAGE_ITEMS.length].pagePath,
-    pageTitle: MOCK_PAGE_ITEMS[i % MOCK_PAGE_ITEMS.length].pageTitle,
-    elementKey: i % 3 === 0 ? 'search-btn' : null,
-    elementLabel: i % 3 === 0 ? '查询' : null,
-    componentArea: i % 3 === 0 ? 'search-toolbar' : null,
-    durationMs: i % 5 === 0 ? rand(1000, 120000) : null,
-    browser: BROWSERS[i % BROWSERS.length],
-    os: OSES[i % OSES.length],
-    deviceType: DEVICES[i % DEVICES.length],
-    region: ['广东 深圳', '北京', '上海', '浙江 杭州'][i % 4],
-    sessionId: `sess-${1000 + (i % 50)}`,
-    memberId: null,
-    source: 'web_admin',
-    appId: 'admin',
-    environment: 'production',
-    createdAt: mockDateTime(),
-  }));
+  return Array.from({ length: count }, (_, i) => {
+    const eventType = types[i % types.length];
+    const isApi = eventType === 'api_request';
+    return {
+      id: 10000 - i,
+      userId: rand(1, 6),
+      username: USERNAMES[i % USERNAMES.length],
+      eventType,
+      eventName: ['$pageview', '$autocapture', '$pageleave', '$areaclick', 'order_submit', '$web_vitals', '$api'][i % 7],
+      pagePath: MOCK_PAGE_ITEMS[i % MOCK_PAGE_ITEMS.length].pagePath,
+      pageTitle: MOCK_PAGE_ITEMS[i % MOCK_PAGE_ITEMS.length].pageTitle,
+      elementKey: i % 3 === 0 ? 'search-btn' : null,
+      elementLabel: i % 3 === 0 ? '查询' : null,
+      componentArea: i % 3 === 0 ? 'search-toolbar' : null,
+      durationMs: i % 5 === 0 ? rand(1000, 120000) : null,
+      browser: BROWSERS[i % BROWSERS.length],
+      os: OSES[i % OSES.length],
+      deviceType: DEVICES[i % DEVICES.length],
+      region: ['广东 深圳', '北京', '上海', '浙江 杭州'][i % 4],
+      sessionId: `sess-${1000 + (i % 50)}`,
+      memberId: null,
+      source: 'web_admin' as const,
+      appId: 'admin',
+      environment: 'production' as const,
+      apiUrl: isApi ? '/api/orders/submit' : null,
+      apiStatus: isApi ? [404, 500, 502][i % 3] : null,
+      createdAt: mockDateTime(),
+    };
+  });
 }
 const MOCK_EVENTS = buildEvents(120);
 

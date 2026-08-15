@@ -24,6 +24,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { DateRangeFilter } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateColumn, dateTimeColumn, renderEnabledStatusTag } from '@/utils/table-columns';
+import { abortSubmit } from '@/lib/abort-submit';
 
 // ─── 广告位 Tab ───────────────────────────────────────────────────────────────
 function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
@@ -36,7 +37,7 @@ function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
     labelWidth: 100,
     toValues: (record) => ({ code: record.code, name: record.name, remark: record.remark ?? '' }),
     beforeSave: (values, { isEdit }) => {
-      if (!isEdit && !siteId) throw new Error('validation');
+      if (!isEdit && !siteId) abortSubmit('validation');
       return { ...values, ...(!isEdit ? { siteId } : {}) };
     },
   });

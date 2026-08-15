@@ -28,6 +28,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const STATUS_COLORS: Record<CmsContentStatus, 'grey' | 'orange' | 'green' | 'red' | 'violet'> = {
   draft: 'grey',
@@ -159,7 +160,7 @@ export default function ContentsPage() {
       onOk: async () => {
         if (!reason.trim()) {
           Toast.warning('请输入驳回原因');
-          throw new Error('validation');
+          abortSubmit('validation');
         }
 
         await actionMutation.mutateAsync({ id: record.id, action: 'reject', body: { reason } });
@@ -187,7 +188,7 @@ export default function ContentsPage() {
       onOk: async () => {
         if (!reason.trim()) {
           Toast.warning('请输入锁定原因');
-          throw new Error('validation');
+          abortSubmit('validation');
         }
         await persistentLockMutation.mutateAsync({ id: record.id, action: 'lock', reason: reason.trim() });
         Toast.success('内容已持久锁定');
@@ -235,7 +236,7 @@ export default function ContentsPage() {
       onOk: async () => {
         if (!reason.trim()) {
           Toast.warning('请输入驳回原因');
-          throw new Error('validation');
+          abortSubmit('validation');
         }
         await runBatchStatus('reject', '批量驳回', reason.trim());
       },
@@ -258,7 +259,7 @@ export default function ContentsPage() {
 
   async function handleBatchMoveOk() {
     const values = await moveFormApi.current?.validate().catch(() => null);
-    if (!values?.channelId) throw new Error('validation');
+    if (!values?.channelId) abortSubmit('validation');
     await batchOpsMutation.mutateAsync({ action: 'batch-move', body: { ids: selectedIds, channelId: values.channelId } });
     setSelectedIds([]);
     setMoveModalVisible(false);
@@ -267,7 +268,7 @@ export default function ContentsPage() {
 
   async function handleBatchTagOk() {
     const values = await tagFormApi.current?.validate().catch(() => null);
-    if (!values?.tagIds || (values.tagIds as number[]).length === 0) throw new Error('validation');
+    if (!values?.tagIds || (values.tagIds as number[]).length === 0) abortSubmit('validation');
     await batchOpsMutation.mutateAsync({ action: 'batch-tag', body: { ids: selectedIds, tagIds: values.tagIds } });
     setSelectedIds([]);
     setTagModalVisible(false);
@@ -276,7 +277,7 @@ export default function ContentsPage() {
 
   async function handleDistributeOk() {
     const values = await distributeFormApi.current?.validate().catch(() => null);
-    if (!values?.targetSiteId || !values?.targetChannelId) throw new Error('validation');
+    if (!values?.targetSiteId || !values?.targetChannelId) abortSubmit('validation');
     const mode = (values.mode as 'copy' | 'mapping') ?? 'copy';
     await batchOpsMutation.mutateAsync({ action: 'distribute', body: { ids: selectedIds, targetSiteId: values.targetSiteId, targetChannelId: values.targetChannelId, mode } });
     setSelectedIds([]);

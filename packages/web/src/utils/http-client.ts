@@ -1,5 +1,6 @@
 import type { ApiResponse } from '@zenith/shared/core';
 import { showRequestErrorToast, showRequestWarningToast } from './request-toast';
+import { abortSubmit } from '@/lib/abort-submit';
 
 /** ApiResponse 扩展：限流时携带 retryAfterSeconds */
 export type ApiResponseWithMeta<T> = ApiResponse<T> & { retryAfterSeconds?: number };
@@ -168,11 +169,11 @@ export class HttpClient {
         }
         if (res.status === 401) {
           this.clearAuthAndRedirect();
-          throw new Error('Unauthorized');
+          abortSubmit('Unauthorized');
         }
       } else {
         this.clearAuthAndRedirect();
-        throw new Error('Unauthorized');
+        abortSubmit('Unauthorized');
       }
     }
 

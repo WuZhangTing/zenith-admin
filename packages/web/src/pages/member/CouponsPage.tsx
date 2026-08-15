@@ -24,6 +24,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete as confirmDeleteModal } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const typeOptions = (Object.keys(COUPON_TYPE_LABELS) as CouponType[]).map((v) => ({ value: v, label: COUPON_TYPE_LABELS[v] }));
 const statusOptions = (Object.keys(COUPON_TEMPLATE_STATUS_LABELS) as CouponTemplateStatus[]).map((v) => ({ value: v, label: COUPON_TEMPLATE_STATUS_LABELS[v] }));
@@ -136,7 +137,7 @@ export default function CouponsPage() {
   const openIssue = (r: Coupon) => { setIssuing(r); setIssueVisible(true); };
   const handleIssue = async () => {
     let values: { memberId: number };
-    try { values = (await issueFormApi.current!.validate()) as { memberId: number }; } catch { throw new Error('validation'); }
+    try { values = (await issueFormApi.current!.validate()) as { memberId: number }; } catch { abortSubmit('validation'); }
     await issueMutation.mutateAsync({ id: issuing!.id, memberId: values.memberId });
     Toast.success('发放成功');
     setIssueVisible(false);

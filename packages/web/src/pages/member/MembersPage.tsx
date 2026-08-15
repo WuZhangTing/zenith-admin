@@ -35,6 +35,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const STATUS_COLORS: Record<string, 'green' | 'grey' | 'red'> = { active: 'green', inactive: 'grey', banned: 'red' };
 const statusOptions = (['active', 'inactive', 'banned'] as const).map((v) => ({ value: v, label: MEMBER_STATUS_LABELS[v] }));
@@ -127,7 +128,7 @@ export default function MembersPage() {
   const openAdjustGrowth = (record: Member) => { setGrowthMember(record); setGrowthVisible(true); };
   const handleAdjustGrowth = async () => {
     let values;
-    try { values = await growthFormApi.current!.validate(); } catch { throw new Error('validation'); }
+    try { values = await growthFormApi.current!.validate(); } catch { abortSubmit('validation'); }
     if (!growthMember) return;
     await adjustGrowthMutation.mutateAsync({ id: growthMember.id, values: values as { delta: number; remark?: string } });
     Toast.success('成长值已调整');
@@ -158,7 +159,7 @@ export default function MembersPage() {
   const openResetPwd = (record: Member) => { setPwdMember(record); setPwdVisible(true); };
   const handleResetPwd = async () => {
     let values;
-    try { values = await pwdFormApi.current!.validate(); } catch { throw new Error('validation'); }
+    try { values = await pwdFormApi.current!.validate(); } catch { abortSubmit('validation'); }
     if (!pwdMember) return;
     await resetPasswordMutation.mutateAsync({ id: pwdMember.id, values });
     Toast.success('密码已重置');

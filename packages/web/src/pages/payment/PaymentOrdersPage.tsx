@@ -36,6 +36,7 @@ import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
 import { compactQuery } from '@/lib/query';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const STATUS_COLOR = {
   pending: 'grey', paying: 'blue', success: 'green', closed: 'grey', refunding: 'amber', refunded: 'orange', failed: 'red',
@@ -114,7 +115,7 @@ export default function PaymentOrdersPage() {
     save: refundSaveMutation,
     toValues: (order) => ({ amountYuan: (order.amount - refundedAmount) / 100 }),
     beforeSave: (values, { editing }) => {
-      if (!editing) throw new Error('validation');
+      if (!editing) abortSubmit('validation');
       return {
         orderNo: editing.orderNo,
         refundAmount: Math.round(values.amountYuan * 100),
@@ -137,7 +138,7 @@ export default function PaymentOrdersPage() {
     beforeSave: (values) => {
       if (values.payMethod === 'wechat_jsapi' && !values.openId?.trim()) {
         Toast.error('微信 JSAPI 支付需要填写 OpenID');
-        throw new Error('validation');
+        abortSubmit('validation');
       }
       return {
         bizType: values.bizType,

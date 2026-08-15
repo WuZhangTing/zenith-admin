@@ -31,6 +31,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const TRIGGER_OPTIONS: Array<{ value: WorkflowAutomationTrigger; label: string; color: TagColor }> = [
   { value: 'created',   label: '流程发起时', color: 'blue' },
@@ -287,12 +288,12 @@ export default function WorkflowAutomationsPage() {
     toValues: (row) => ({ definitionId: row.definitionId, name: row.name, trigger: row.trigger, status: row.status, sort: row.sort, actions: [] }),
     beforeSave: (vals) => {
       const sourceActions = actions;
-      if (sourceActions.length === 0) { Toast.error('至少配置一个动作'); throw new Error('validation'); }
-      if (sourceActions.length > 10) { Toast.error('最多配置 10 个动作'); throw new Error('validation'); }
+      if (sourceActions.length === 0) { Toast.error('至少配置一个动作'); abortSubmit('validation'); }
+      if (sourceActions.length > 10) { Toast.error('最多配置 10 个动作'); abortSubmit('validation'); }
     const built: WorkflowAutomationAction[] = [];
       for (const d of sourceActions) {
       const r = draftToAction(d);
-        if ('__error' in r) { Toast.error(r.__error); throw new Error('validation'); }
+        if ('__error' in r) { Toast.error(r.__error); abortSubmit('validation'); }
       built.push(r);
     }
       return {

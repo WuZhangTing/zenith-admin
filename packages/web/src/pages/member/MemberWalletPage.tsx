@@ -21,6 +21,7 @@ import {
 } from '@/hooks/queries/member-admin';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const typeOptions = (Object.keys(WALLET_TX_TYPE_LABELS) as (keyof typeof WALLET_TX_TYPE_LABELS)[]).map((v) => ({ value: v, label: WALLET_TX_TYPE_LABELS[v] }));
 const TYPE_COLORS: Record<string, string> = { recharge: 'green', consume: 'orange', refund: 'cyan', adjust: 'blue' };
@@ -53,7 +54,7 @@ export default function MemberWalletPage() {
 
   const handleSubmit = async () => {
     let values: { memberId: number; amount: number; remark?: string };
-    try { values = (await formApi.current!.validate()) as { memberId: number; amount: number; remark?: string }; } catch { throw new Error('validation'); }
+    try { values = (await formApi.current!.validate()) as { memberId: number; amount: number; remark?: string }; } catch { abortSubmit('validation'); }
     const payload = { memberId: values.memberId, amount: Math.round(values.amount * 100), remark: values.remark };
     await (mode === 'adjust' ? adjustMutation : refundMutation).mutateAsync(payload);
     Toast.success(mode === 'adjust' ? '已调整' : '已退款');

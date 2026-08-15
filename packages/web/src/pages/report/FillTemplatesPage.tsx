@@ -190,7 +190,7 @@ export default function FillTemplatesPage() {
         const validation = validateFillTemplateInput(payload, true);
         if (!validation.success) {
           Toast.error(validation.message);
-          throw new Error('validation');
+          abortSubmit('validation');
         }
         await updateMutation.mutateAsync({ id: editing.id, values: payload });
       } else {
@@ -198,7 +198,7 @@ export default function FillTemplatesPage() {
         const validation = validateFillTemplateInput(payload, false);
         if (!validation.success) {
           Toast.error(validation.message);
-          throw new Error('validation');
+          abortSubmit('validation');
         }
         await createMutation.mutateAsync(payload);
       }

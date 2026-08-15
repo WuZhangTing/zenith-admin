@@ -4,6 +4,7 @@ import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import AppModal from '@/components/AppModal';
 import { Mail } from 'lucide-react';
 import { useForgotPassword } from '@/hooks/queries/auth-public';
+import { abortSubmit } from '@/lib/abort-submit';
 
 interface ForgotPasswordModalProps {
   visible: boolean;
@@ -41,7 +42,7 @@ export default function ForgotPasswordModal({ visible, onClose }: Readonly<Forgo
     try {
       values = await formApi.current.validate() as { email: string };
     } catch {
-      throw new Error('validation');
+      abortSubmit('validation');
     }
     await handleSubmit(values);
   };

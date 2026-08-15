@@ -45,6 +45,7 @@ import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { JsonBlock } from '@/components/JsonBlock';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const { Text } = Typography;
 
@@ -206,7 +207,7 @@ export default function RuleTablesPage() {
       const errors = issues.filter((issue) => issue.severity === 'error');
       if (errors.length > 0) {
         Toast.error(`规则体检存在 ${errors.length} 个错误，请修正后再保存`);
-        throw new Error('decision_table_draft_invalid');
+        abortSubmit('decision_table_draft_invalid');
       }
       const settings: RuleDecisionTableSettings = {
         ...(hitPolicy === 'collect' && v.collectAggregate && v.collectAggregate !== 'list' ? { collectAggregate: v.collectAggregate as RuleDecisionTableSettings['collectAggregate'] } : {}),

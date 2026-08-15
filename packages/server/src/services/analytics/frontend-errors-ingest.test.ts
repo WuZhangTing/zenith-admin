@@ -9,9 +9,10 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { transaction, txInsert, evaluateAlertsForError, resolveSiteByKey, recordQualityIssue } = vi.hoisted(() => ({
+const { transaction, txInsert, txUpdate, evaluateAlertsForError, resolveSiteByKey, recordQualityIssue } = vi.hoisted(() => ({
   transaction: vi.fn(),
   txInsert: vi.fn(),
+  txUpdate: vi.fn(),
   evaluateAlertsForError: vi.fn(async () => undefined),
   resolveSiteByKey: vi.fn(),
   recordQualityIssue: vi.fn(async () => undefined),
@@ -86,7 +87,11 @@ describe('reportError — 身份归属与平台字段（行为中心阶段 1）'
       dailyEventQuota: 1000,
     }) : null);
     capturedEventRow = undefined;
-    transaction.mockImplementation(async (callback: (tx: { insert: typeof txInsert }) => Promise<unknown>) => callback({ insert: txInsert }));
+    // mockReset 清空 mockReturnValueOnce 队列：匿名用例不消耗第三个 once（identities insert），
+    // 残留会污染下一个用例的调用顺序
+    txInsert.mockReset();
+    txUpdate.mockReset();
+    transaction.mockImplementation(async (callback: (tx: { insert: typeof txInsert; update: typeof txUpdate }) => Promise<unknown>) => callback({ insert: txInsert, update: txUpdate }));
     txInsert
       .mockReturnValueOnce({
         values: () => ({
@@ -99,7 +104,16 @@ describe('reportError — 身份归属与平台字段（行为中心阶段 1）'
         values: async (row: Record<string, unknown>) => {
           capturedEventRow = row;
         },
+      })
+      // 第三次 insert：error_group_identities 影响用户身份去重（仅带身份的上报会走到）
+      .mockReturnValueOnce({
+        values: () => ({
+          onConflictDoNothing: () => ({
+            returning: async () => [{ groupId: 1 }],
+          }),
+        }),
       });
+    txUpdate.mockReturnValue({ set: () => ({ where: async () => undefined }) });
   });
 
   it('已登录管理员上报 → source=web_admin，归属 userId，memberId=null', async () => {

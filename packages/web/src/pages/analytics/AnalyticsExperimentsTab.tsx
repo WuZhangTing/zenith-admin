@@ -16,6 +16,7 @@ import { KeywordInput } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
 import { FormSliderInput } from '@/components/SliderInput';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const PAGE_SIZE = 20;
 const defaultSearch = { name: '', status: '' as '' | AnalyticsExperiment['status'] };
@@ -148,9 +149,9 @@ export default function AnalyticsExperimentsTab() {
       endAt: record.endAt,
     }),
     beforeSave: (values, { editing }) => {
-      if (variants.length < 2 || variants.length > 6) { Toast.error('变体数量必须为 2-6 个'); throw new Error('invalid_variants_count'); }
-      if (new Set(variants.map((item) => item.key)).size !== variants.length) { Toast.error('变体 key 不能重复'); throw new Error('duplicate_variant_key'); }
-      if (weightTotal !== 100) { Toast.error('变体权重总和必须等于 100'); throw new Error('invalid_variant_weight'); }
+      if (variants.length < 2 || variants.length > 6) { Toast.error('变体数量必须为 2-6 个'); abortSubmit('invalid_variants_count'); }
+      if (new Set(variants.map((item) => item.key)).size !== variants.length) { Toast.error('变体 key 不能重复'); abortSubmit('duplicate_variant_key'); }
+      if (weightTotal !== 100) { Toast.error('变体权重总和必须等于 100'); abortSubmit('invalid_variant_weight'); }
       return normalizePayload(values, variants, editing);
     },
     labelWidth: 90,

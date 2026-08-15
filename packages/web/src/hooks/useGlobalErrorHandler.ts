@@ -15,10 +15,11 @@ import { SubmitAborted } from '@/lib/abort-submit';
  *
  * 同时向用户弹出 Toast（去重 + 限流），并记录行为面包屑用于错误现场还原。
  *
- * 以下三类「约定内」的 Promise 拒绝不提示也不上报（Modal onOk 依约定重抛以保持弹窗打开）：
+ * 以下两类「约定内」的 Promise 拒绝不提示也不上报（Modal onOk 依约定重抛以保持弹窗打开）：
  * - `ApiError`：统一响应业务错误，request 层已自动弹出错误 Toast
- * - `SubmitAborted`：提交中断标记，页面已自行提示（表单内联错误 / Toast）——**新代码请用这个**
- * - 单词消息的裸 `Error`（如 `throw new Error('validation')`）：历史控制流标记，仅作向后兼容
+ * - `SubmitAborted`：提交中断标记，页面已自行提示（表单内联错误 / Toast），由 `abortSubmit()` 抛出
+ *
+ * 除上述类型外的一切 rejection（含单词消息如 `NetworkError` / `timeout`）都视为真实错误上报。
  */
 export function useGlobalErrorHandler() {
   const recentRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -49,8 +50,6 @@ export function useGlobalErrorHandler() {
       if (reason instanceof ApiError) return;
       // 提交中断标记：由 abortSubmit() 抛出，页面已自行提示
       if (reason instanceof SubmitAborted) return;
-      // 历史控制流标记（throw new Error('validation') 等单词消息）：向后兼容，新代码请用 abortSubmit()
-      if (reason instanceof Error && reason.name === 'Error' && /^\w+$/.test(reason.message)) return;
       const message = reason instanceof Error ? reason.message : String(reason || '发生了未处理的异步错误');
       console.error('[GlobalErrorHandler] 未处理的 Promise rejection:', reason);
       showToast(`操作失败：${message}`);

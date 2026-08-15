@@ -23,6 +23,7 @@ import {
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const INVITE_LABEL: Record<string, { label: string; color: 'green' | 'orange' | 'grey' }> = {
   none: { label: '未邀请', color: 'grey' },
@@ -69,7 +70,7 @@ export default function MpKfAccountsPage() {
     defaults: { kfAccount: '', nickname: '' },
     toValues: (record) => ({ kfAccount: record.kfAccount, nickname: record.nickname }),
     beforeSave: (values, { isEdit }) => {
-      if (!currentId) throw new Error('validation');
+      if (!currentId) abortSubmit('validation');
       return isEdit ? { nickname: values.nickname } : { accountId: currentId, kfAccount: values.kfAccount, nickname: values.nickname };
     },
   });

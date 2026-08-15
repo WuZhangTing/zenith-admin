@@ -57,9 +57,9 @@ export interface HeatmapElementItem {
   count: number;
   /** 点击过该元素的独立访客数 */
   uniqueUsers: number;
-  /** 平均落点，便于把榜单条目对应回散点图位置 */
-  avgX: number;
-  avgY: number;
+  /** 平均落点（仅统计带坐标的点击；全部无坐标时为 null），便于把榜单条目对应回散点图位置 */
+  avgX: number | null;
+  avgY: number | null;
 }
 
 /** 挫败点击（rage click）热点元素 */
@@ -568,6 +568,9 @@ export interface EventListItem {
   source: AnalyticsEventSource;
   appId: string;
   environment: AnalyticsEnvironment;
+  /** API 请求事件（$api）的接口摘要，其余事件为 null */
+  apiUrl: string | null;
+  apiStatus: number | null;
 }
 
 export interface EventDetail extends EventListItem {

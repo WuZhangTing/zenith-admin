@@ -16,6 +16,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { dateColumn, dateTimeColumn } from '@/utils/table-columns';
+import { abortSubmit } from '@/lib/abort-submit';
 
 interface SearchParams {
   memberKeyword?: string;
@@ -53,7 +54,7 @@ export default function CheckinLogsPage() {
     try {
       values = await makeupFormApi.current!.validate();
     } catch {
-      throw new Error('validation');
+      abortSubmit('validation');
     }
     if (!values?.memberId || !values?.date || !values?.reason) throw new Error('请完整填写补签信息');
     await makeupMutation.mutateAsync({ memberId: values.memberId, date: formatDateForApi(values.date), reason: values.reason });

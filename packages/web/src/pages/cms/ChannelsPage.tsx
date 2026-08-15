@@ -20,6 +20,7 @@ import { CMS_CHANNEL_DETAIL_PATH_RULE_LABELS, CMS_CHANNEL_DETAIL_PATH_RULES, CMS
 import type { CmsChannel } from '@zenith/shared/cms';
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 import { CmsWidgetSourceRefsSheet, type CmsWidgetSourceTarget } from './CmsWidgetSourceRefsSheet';
+import { abortSubmit } from '@/lib/abort-submit';
 
 // 富文本引擎（wangeditor）压缩后约 266 KB，仅「单页」类型栏目用得到。
 // 静态导入会让进入栏目管理就把它一并拉下来，故与公告页保持一致改为懒加载。
@@ -223,7 +224,7 @@ export default function ChannelsPage() {
 
   async function handleMergeOk() {
     const values = await mergeFormApi.current?.validate().catch(() => null);
-    if (!values?.sourceIds || !(values.sourceIds as number[]).length || !values.targetId) throw new Error('validation');
+    if (!values?.sourceIds || !(values.sourceIds as number[]).length || !values.targetId) abortSubmit('validation');
     await mergeMutation.mutateAsync({ sourceIds: values.sourceIds as number[], targetId: values.targetId as number });
     setMergeModalVisible(false);
     Toast.success('合并完成，来源栏目已删除');
@@ -232,11 +233,11 @@ export default function ChannelsPage() {
   async function handleBatchCreateOk() {
     if (!siteId) return;
     const values = await batchFormApi.current?.validate().catch(() => null);
-    if (!values?.names) throw new Error('validation');
+    if (!values?.names) abortSubmit('validation');
     const names = String(values.names).split('\n').map((s) => s.trim()).filter(Boolean);
     if (names.length === 0) {
       Toast.warning('请输入至少一个栏目名称');
-      throw new Error('validation');
+      abortSubmit('validation');
     }
     const slugStrategy = (values.slugStrategy as 'initials' | 'pinyin') ?? 'initials';
     await batchCreateMutation.mutateAsync({ siteId, parentId: (values.parentId as number) ?? 0, names, slugStrategy });

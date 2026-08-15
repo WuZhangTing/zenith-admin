@@ -20,6 +20,7 @@ import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { abortSubmit } from '@/lib/abort-submit';
 
 interface SearchParams { keyword: string; groupId?: number }
 const defaultSearch: SearchParams = { keyword: '', groupId: undefined };
@@ -50,7 +51,7 @@ export default function FriendLinksPage() {
     defaults: { sort: 0, status: 'enabled' },
     toValues: (record) => ({ name: record.name, url: record.url, logo: record.logo ?? '', groupId: record.groupId ?? undefined, sort: record.sort, status: record.status, remark: record.remark ?? '' }),
     beforeSave: (values, { isEdit }) => {
-      if (!isEdit && !siteId) throw new Error('validation');
+      if (!isEdit && !siteId) abortSubmit('validation');
       return { ...values, ...(!isEdit ? { siteId } : {}) };
     },
   });
@@ -181,7 +182,7 @@ function FriendLinkGroupSheet({ siteId, visible, onClose }: Readonly<{
     defaults: { sort: 0, status: 'enabled' },
     toValues: (record) => ({ name: record.name, code: record.code, sort: record.sort, status: record.status, remark: record.remark ?? '' }),
     beforeSave: (values, { isEdit }) => {
-      if (!isEdit && !siteId) throw new Error('validation');
+      if (!isEdit && !siteId) abortSubmit('validation');
       return { ...values, ...(!isEdit ? { siteId } : {}) };
     },
   });

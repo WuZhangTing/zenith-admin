@@ -18,6 +18,7 @@ import { Play } from 'lucide-react';
 import type { OpenApiDebugResult } from '@zenith/shared/open-platform';
 import { useDebugMyApp, useMyAppList } from '@/hooks/queries/developer-apps';
 import { ResetButton } from '@/components/toolbar-controls';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const { Paragraph, Text, Title } = Typography;
 type DebugPath = '/api/open/v1/ping' | '/api/open/v1/echo' | '/api/open/v1/userinfo';
@@ -71,7 +72,7 @@ export default function ApiDebugConsolePage() {
     let body: unknown;
     try {
       const parsed = queryText.trim() ? JSON.parse(queryText) as unknown : undefined;
-      if (parsed && (typeof parsed !== 'object' || Array.isArray(parsed))) throw new Error('query');
+      if (parsed && (typeof parsed !== 'object' || Array.isArray(parsed))) abortSubmit('query');
       query = parsed
         ? Object.fromEntries(Object.entries(parsed as Record<string, unknown>).map(([key, value]) => [key, String(value)]))
         : undefined;

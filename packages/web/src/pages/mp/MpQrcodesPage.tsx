@@ -16,6 +16,7 @@ import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const TYPE_OPTIONS = [
   { label: '永久二维码', value: 'permanent' },
@@ -60,7 +61,7 @@ export default function MpQrcodesPage() {
     save: createSaveMutation,
     defaults: { sceneStr: '', name: '', expireSeconds: 604800, rewardPoints: 0 },
     beforeSave: (values) => {
-      if (!currentId) throw new Error('validation');
+      if (!currentId) abortSubmit('validation');
       const payload: Record<string, unknown> = {
         accountId: currentId,
         type: modalType,

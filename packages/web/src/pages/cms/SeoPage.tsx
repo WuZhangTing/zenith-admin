@@ -24,6 +24,7 @@ import { CreateButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn, renderEnabledStatusTag } from '@/utils/table-columns';
+import { abortSubmit } from '@/lib/abort-submit';
 
 interface KeywordSearch { keyword: string }
 const defaultKeywordSearch: KeywordSearch = { keyword: '' };
@@ -44,7 +45,7 @@ function RedirectsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
     defaults: { redirectType: '301' as unknown as number, status: 'enabled' },
     toValues: (record) => ({ fromPath: record.fromPath, toUrl: record.toUrl, redirectType: String(record.redirectType) as unknown as number, status: record.status, remark: record.remark ?? '' }),
     beforeSave: (values, { isEdit }) => {
-      if (!isEdit && !siteId) throw new Error('validation');
+      if (!isEdit && !siteId) abortSubmit('validation');
       return { ...values, redirectType: Number(values.redirectType), ...(!isEdit ? { siteId } : {}) };
     },
   });
@@ -136,7 +137,7 @@ function LinkWordsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
     labelWidth: 100,
     toValues: (record) => ({ keyword: record.keyword, url: record.url, maxReplaces: record.maxReplaces, status: record.status }),
     beforeSave: (values, { isEdit }) => {
-      if (!isEdit && !siteId) throw new Error('validation');
+      if (!isEdit && !siteId) abortSubmit('validation');
       return { ...values, ...(!isEdit ? { siteId } : {}) };
     },
   });

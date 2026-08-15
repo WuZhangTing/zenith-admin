@@ -37,6 +37,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const DatasetRefsModal = lazy(() => import('./components/DatasetRefsModal').then((module) => ({
   default: module.DatasetRefsModal,
@@ -210,15 +211,15 @@ export default function DatasetsPage() {
       };
     },
     beforeSave: (values) => {
-      if (!selectedDsId) { Toast.error('请选择数据源'); throw new Error('ds'); }
+      if (!selectedDsId) { Toast.error('请选择数据源'); abortSubmit('ds'); }
       const content = buildContent(values);
-      if (content === null) throw new Error('content');
+      if (content === null) abortSubmit('content');
       const normalizedComputedFields = normalizeComputedFields();
-      if (normalizedComputedFields === null) throw new Error('computedFields');
+      if (normalizedComputedFields === null) abortSubmit('computedFields');
       const normalizedParams = normalizeParamDefs();
-      if (normalizedParams === null) throw new Error('params');
+      if (normalizedParams === null) abortSubmit('params');
       const normalizedRowRules = isSqlAuthoringType(selectedType) ? normalizeRowRules() : [];
-      if (normalizedRowRules === null) throw new Error('rowRules');
+      if (normalizedRowRules === null) abortSubmit('rowRules');
       return {
         name: values.name,
         ownerId: values.ownerId ? Number(values.ownerId) : null,

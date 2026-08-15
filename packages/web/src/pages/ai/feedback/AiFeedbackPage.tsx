@@ -16,6 +16,7 @@ import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { aiFeedbackKeys, downloadAiFeedbackCsv, useAiFeedbackContext, useAiFeedbackList, useHandleAiFeedback } from '@/hooks/queries/ai-feedback';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter } from '@/components/search-filters';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const { Text } = Typography;
 
@@ -126,7 +127,7 @@ export default function AiFeedbackPage() {
     try {
       values = (await formApi.current?.validate()) as FeedbackHandleFormValues;
     } catch {
-      throw new Error('validation');
+      abortSubmit('validation');
     }
 
     await handleMutation.mutateAsync({

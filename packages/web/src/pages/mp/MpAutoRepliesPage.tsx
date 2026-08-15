@@ -26,6 +26,7 @@ import {
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const REPLY_TYPE_OPTIONS = [
   { label: '关注回复', value: 'subscribe' },
@@ -103,7 +104,7 @@ export default function MpAutoRepliesPage() {
       transferToKf: record.transferToKf,
     }),
     beforeSave: (values, { isEdit }) => {
-      if (!currentId) throw new Error('validation');
+      if (!currentId) abortSubmit('validation');
       const payload: Record<string, unknown> = {
         contentType,
         matchType: values.matchType,
@@ -116,7 +117,7 @@ export default function MpAutoRepliesPage() {
         payload.content = values.content;
       } else if (contentType === 'news') {
         const valid = articles.filter((a) => a.title.trim() && a.url.trim());
-        if (valid.length === 0) { Toast.error('图文回复至少需要一篇有标题和链接的文章'); throw new Error('validation'); }
+        if (valid.length === 0) { Toast.error('图文回复至少需要一篇有标题和链接的文章'); abortSubmit('validation'); }
         payload.newsArticles = valid;
       } else {
         payload.mediaId = values.mediaId;

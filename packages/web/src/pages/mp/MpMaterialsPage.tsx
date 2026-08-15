@@ -24,6 +24,7 @@ import {
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { abortSubmit } from '@/lib/abort-submit';
 
 function fmtSize(bytes: number | null): string {
   if (bytes == null) return '—';
@@ -75,7 +76,7 @@ export default function MpMaterialsPage() {
     defaults: { type: 'image', name: '', url: '' },
     toValues: (record) => ({ name: record.name }),
     beforeSave: (values, { isEdit }) => {
-      if (!currentId) throw new Error('validation');
+      if (!currentId) abortSubmit('validation');
       return isEdit ? { name: values.name } : { ...values, accountId: currentId };
     },
   });
