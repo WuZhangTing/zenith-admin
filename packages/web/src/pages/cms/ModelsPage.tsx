@@ -87,7 +87,7 @@ export default function ModelsPage() {
       ownerScope: record.ownerSiteId == null ? 'shared' : 'site',
       fields: (record.fields ?? []).map((f) => ({
         name: f.name, label: f.label, fieldType: f.fieldType, required: f.required, searchable: f.searchable, showInList: f.showInList,
-        showInDetail: f.showInDetail, detailGroup: f.detailGroup ?? '',
+        showInDetail: f.showInDetail, detailGroup: f.detailGroup ?? '', defaultValue: f.defaultValue ?? '',
         placeholder: f.placeholder ?? '', optionSource: f.optionSource ?? 'manual', dictCode: f.dictCode ?? '', options: f.options ?? null,
       })),
     }),
@@ -237,6 +237,7 @@ export default function ModelsPage() {
                         rules={[{ required: true, message: '必填' }]} />
                       <Form.Select field={`${field}[fieldType]`} noLabel initValue="text" style={{ width: 120 }} optionList={FIELD_TYPE_OPTIONS} />
                       <Form.Input field={`${field}[placeholder]`} noLabel placeholder="提示文案" style={{ width: 150 }} />
+                      <Form.Input field={`${field}[defaultValue]`} noLabel placeholder="默认值（新建内容自动填充）" style={{ width: 180 }} />
                       <Form.Checkbox field={`${field}[required]`} noLabel>必填</Form.Checkbox>
                       <Form.Checkbox field={`${field}[searchable]`} noLabel>检索</Form.Checkbox>
                       <Form.Checkbox field={`${field}[showInList]`} noLabel>列表显示</Form.Checkbox>

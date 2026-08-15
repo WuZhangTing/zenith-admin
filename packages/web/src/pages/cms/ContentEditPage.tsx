@@ -138,12 +138,12 @@ function parseFieldDefault(field: CmsModelField): unknown {
 /** 按模型字段元数据渲染动态表单控件（值写入 extend.{name}）；applyDefault 仅新建内容时生效 */
 function ModelFieldControl({ field, applyDefault }: Readonly<{ field: CmsModelField; applyDefault?: boolean }>) {
   const f = `extend.${field.name}`;
-  const rules = field.required ? [{ required: true, message: `请填写${field.label}` }] : undefined;
+  // 必填不挂表单 rules：草稿保存必须放行缺失的模型必填（写一半先存是常态），
+  // 提审/发布时由服务端按模型定义强校验并给出逐字段错误提示
   const initValue = applyDefault ? parseFieldDefault(field) : undefined;
   const common = {
     field: f,
-    label: field.label,
-    rules,
+    label: field.required ? `${field.label}（发布必填）` : field.label,
     placeholder: field.placeholder ?? undefined,
     ...(initValue !== undefined ? { initValue } : {}),
   };
