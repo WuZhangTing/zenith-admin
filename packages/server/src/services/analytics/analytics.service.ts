@@ -21,7 +21,7 @@ import { evaluateEvents, recordQualityIssue, recordSchemaIssues, type PendingSch
 import { getIngestPolicy } from './analytics-settings.service';
 import { isSiteOriginAllowed, resolveSiteByKey, type ResolvedAnalyticsSite } from './analytics-sites.service';
 import { checkAndConsumeSiteQuota, refundSiteQuota } from './analytics-quota.service';
-import { rollupTenantScope, ROLLUP_DIM_TYPES } from './analytics-rollup.service';
+import { rollupTenantScope } from './analytics-rollup.service';
 import { broadcast } from '../../lib/ws-manager';
 import logger from '../../lib/logger';
 
