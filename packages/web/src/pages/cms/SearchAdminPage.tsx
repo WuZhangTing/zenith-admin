@@ -98,7 +98,7 @@ function SearchTestTab({ siteId, onSiteChange }: Readonly<{ siteId: number | und
       </SearchToolbar>
 
       {keyword && segmentQuery.data ? (
-        <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ margin: '12px 0', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <SplitSquareHorizontal size={14} style={{ color: 'var(--semi-color-text-2)' }} />
           <Typography.Text type="secondary" size="small">分词结果：</Typography.Text>
           {segmentQuery.data.tokens.map((t) => <Tag key={t} size="small" color="blue">{t}</Tag>)}
