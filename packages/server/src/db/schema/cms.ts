@@ -130,6 +130,8 @@ export type CmsSiteInheritanceRow = typeof cmsSiteInheritances.$inferSelect;
 // ─── CMS 内容模型（元数据驱动的自定义字段体系）─────────────────────────────────
 export const cmsModels = pgTable('cms_models', {
   id: serial('id').primaryKey(),
+  /** 归属站点：NULL = 平台共享（全部站点可用）；非空 = 该站点专属（其他站点不可见、不可绑定） */
+  ownerSiteId: integer('owner_site_id').references((): AnyPgColumn => cmsSites.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 100 }).notNull(),
   code: varchar('code', { length: 50 }).notNull().unique(),
   description: text('description'),

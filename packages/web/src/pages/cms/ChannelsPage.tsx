@@ -63,7 +63,7 @@ export default function ChannelsPage() {
 
   const treeQuery = useCmsChannelTree(siteId);
   const tree = useMemo(() => treeQuery.data ?? [], [treeQuery.data]);
-  const { data: models } = useAllCmsModels();
+  const { data: models } = useAllCmsModels(siteId);
   const { data: sites } = useAllCmsSites();
   const currentSite = sites?.find((s) => s.id === siteId);
   const { data: themeTemplates } = useCmsThemeTemplates(currentSite?.effectiveTheme ?? currentSite?.theme, currentSite?.id);

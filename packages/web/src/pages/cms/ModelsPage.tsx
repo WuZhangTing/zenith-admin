@@ -1,5 +1,6 @@
 import { Button, Form, Tag, Toast, ArrayField, Row, Col, Typography, useFormApi, Spin } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
+import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -16,6 +17,7 @@ import type { CmsModel } from '@zenith/shared/cms';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { CmsSiteSelect } from './CmsSiteSelect';
 
 const FIELD_TYPE_OPTIONS = CMS_FIELD_TYPES.map((t) => ({ value: t, label: CMS_FIELD_TYPE_LABELS[t] }));
 const OPTION_SOURCE_OPTIONS = CMS_FIELD_OPTION_SOURCES.map((s) => ({ value: s, label: CMS_FIELD_OPTION_SOURCE_LABELS[s] }));
@@ -60,13 +62,14 @@ function FieldOptionSource({ field }: { field: string }) {
 
 export default function ModelsPage() {
   const { hasPermission } = usePermission();
+  const [siteId, setSiteId] = useState<number | undefined>(undefined);
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: cmsModelKeys.lists });
 
-  const listQuery = useCmsModelList({ page, pageSize, keyword: submittedParams.keyword || undefined });
+  const listQuery = useCmsModelList({ page, pageSize, keyword: submittedParams.keyword || undefined, siteId });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
 
@@ -75,23 +78,29 @@ export default function ModelsPage() {
     entityName: '模型',
     save: saveMutation,
     useDetail: useCmsModelDetail,
-    defaults: { status: 'enabled', fields: [] },
+    defaults: { status: 'enabled', fields: [], ownerScope: 'site' },
     toValues: (record) => ({
       name: record.name,
       code: record.code,
       description: record.description ?? '',
       status: record.status,
+      ownerScope: record.ownerSiteId == null ? 'shared' : 'site',
       fields: (record.fields ?? []).map((f) => ({
         name: f.name, label: f.label, fieldType: f.fieldType, required: f.required, searchable: f.searchable, showInList: f.showInList,
         showInDetail: f.showInDetail, detailGroup: f.detailGroup ?? '',
         placeholder: f.placeholder ?? '', optionSource: f.optionSource ?? 'manual', dictCode: f.dictCode ?? '', options: f.options ?? null,
       })),
     }),
-    beforeSave: (values) => ({
-      ...values,
-      // sort 与 detailSort 均按行序落库：模型编辑器内的顺序即后台表单与详情字段表的顺序
-      fields: (((values.fields as unknown) as Record<string, unknown>[]) ?? []).map((f, i) => ({ ...f, sort: i, detailSort: i })),
-    }),
+    beforeSave: (values) => {
+      const { ownerScope, ...rest } = values;
+      return {
+        ...rest,
+        // 归属仅创建时生效（更新 schema 已 omit ownerSiteId，服务端自动忽略）
+        ownerSiteId: ownerScope === 'shared' ? null : siteId ?? null,
+        // sort 与 detailSort 均按行序落库：模型编辑器内的顺序即后台表单与详情字段表的顺序
+        fields: (((rest.fields as unknown) as Record<string, unknown>[]) ?? []).map((f, i) => ({ ...f, sort: i, detailSort: i })),
+      };
+    },
   });
   const deleteMutation = useDeleteCmsModel();
 
@@ -113,6 +122,14 @@ export default function ModelsPage() {
       ),
     },
     { title: '标识', dataIndex: 'code', width: 120 },
+    {
+      title: '归属',
+      dataIndex: 'ownerSiteId',
+      width: 150,
+      render: (_v: number | null, record) => (record.ownerSiteId == null
+        ? <Tag size="small" color="blue">平台共享</Tag>
+        : <Tag size="small" color="teal">{record.ownerSiteName ?? `站点 #${record.ownerSiteId}`}</Tag>),
+    },
     {
       title: '自定义字段',
       dataIndex: 'fields',
@@ -154,6 +171,7 @@ export default function ModelsPage() {
   return (
     <div className="page-container">
       <SearchToolbar>
+        <CmsSiteSelect value={siteId} onChange={setSiteId} width={200} />
         <KeywordInput placeholder="搜索模型名称/标识..." value={draftParams.keyword} onChange={(keyword) => setDraftParams({ keyword })} onSearch={handleSearch} />
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />
@@ -193,6 +211,17 @@ export default function ModelsPage() {
               <Form.RadioGroup field="status" label="状态">
                 <Form.Radio value="enabled">启用</Form.Radio>
                 <Form.Radio value="disabled">停用</Form.Radio>
+              </Form.RadioGroup>
+            </Col>
+            <Col span={24}>
+              <Form.RadioGroup
+                field="ownerScope"
+                label="归属"
+                disabled={modal.isEdit}
+                extraText={modal.isEdit ? '归属创建后不可变更' : '专属模型仅当前站点可见、可绑定；共享模型全部站点可用'}
+              >
+                <Form.Radio value="site">当前站点专属</Form.Radio>
+                <Form.Radio value="shared">平台共享</Form.Radio>
               </Form.RadioGroup>
             </Col>
           </Row>

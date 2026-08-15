@@ -75,12 +75,12 @@ export const SEED_CMS_SITE_INHERITANCES: Array<{ siteId: number } & CmsSiteInher
 
 export const SEED_CMS_MODELS: (CmsModel & { fields: NonNullable<CmsModel['fields']> })[] = [
   {
-    id: 1, name: '文章', code: 'article', description: '通用图文文章模型', isSystem: true,
+    id: 1, ownerSiteId: null, ownerSiteName: null, name: '文章', code: 'article', description: '通用图文文章模型', isSystem: true,
     status: 'enabled', sort: 1, createdAt: SEED_DATE, updatedAt: SEED_DATE,
     fields: [],
   },
   {
-    id: 2, name: '产品', code: 'product', description: '产品展示模型（含价格/规格自定义字段）', isSystem: true,
+    id: 2, ownerSiteId: null, ownerSiteName: null, name: '产品', code: 'product', description: '产品展示模型（含价格/规格自定义字段）', isSystem: true,
     status: 'enabled', sort: 2, createdAt: SEED_DATE, updatedAt: SEED_DATE,
     fields: [
       { id: 1, modelId: 2, name: 'price', label: '价格', fieldType: 'text', required: false, searchable: false, showInList: true, showInDetail: true, detailGroup: '产品信息', detailSort: 1, placeholder: '如：￥9999', defaultValue: null, optionSource: 'manual', dictCode: null, options: null, sort: 1, createdAt: SEED_DATE, updatedAt: SEED_DATE },

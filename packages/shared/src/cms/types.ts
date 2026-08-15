@@ -430,6 +430,10 @@ export interface CmsModelField {
 
 export interface CmsModel {
   id: number;
+  /** 归属站点：null = 平台共享（全部站点可用）；非空 = 该站点专属 */
+  ownerSiteId: number | null;
+  /** 归属站点名称（列表展示；平台共享为 null） */
+  ownerSiteName: string | null;
   name: string;
   code: string;
   description: string | null;
@@ -439,6 +443,13 @@ export interface CmsModel {
   fields?: CmsModelField[];
   createdAt: string;
   updatedAt: string;
+}
+
+/** 模型引用统计（删除阻断明细与"使用中"列消费） */
+export interface CmsModelRefs {
+  channels: { id: number; siteId: number; siteName: string; name: string }[];
+  contentCount: number;
+  siteExtendCount: number;
 }
 
 export interface CmsChannel {

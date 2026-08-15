@@ -9,6 +9,7 @@ import {
 import { CmsModelDTO } from '../../lib/openapi-dtos';
 import {
   listCmsModels, listAllCmsModels, getCmsModel, createCmsModel, updateCmsModel, deleteCmsModel,
+  getCmsModelRefs,
 } from '../../services/cms/cms-models.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -23,6 +24,8 @@ const listRoute = defineOpenAPIRoute({
       query: PaginationQuery.extend({
         keyword: z.string().optional(),
         status: z.enum(['enabled', 'disabled']).optional(),
+        /** 站群可见性过滤：返回平台共享 + 该站点专属的模型 */
+        siteId: z.coerce.number().int().positive().optional(),
       }),
     },
     responses: { ...commonErrorResponses, ...okPaginated(CmsModelDTO, '模型列表') },
@@ -33,12 +36,41 @@ const listRoute = defineOpenAPIRoute({
 const allRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/all',
-    tags: ['CMS-内容模型'], summary: '全部启用模型（栏目绑定下拉）',
+    tags: ['CMS-内容模型'], summary: '全部启用模型（栏目绑定下拉；siteId 提供时按站群可见性过滤）',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'cms:channel:list' })] as const,
+    request: {
+      query: z.object({
+        siteId: z.coerce.number().int().positive().optional(),
+      }),
+    },
     responses: { ...commonErrorResponses, ...ok(z.array(CmsModelDTO), '模型列表') },
   }),
-  handler: async (c) => c.json(okBody(await listAllCmsModels()), 200),
+  handler: async (c) => c.json(okBody(await listAllCmsModels(c.req.valid('query').siteId)), 200),
+});
+
+const refsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/{id}/refs',
+    tags: ['CMS-内容模型'], summary: '模型引用统计（被哪些栏目绑定、内容/站点扩展使用量）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'cms:model:list' })] as const,
+    request: { params: IdParam },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(z.object({
+        channels: z.array(z.object({
+          id: z.number().int(),
+          siteId: z.number().int(),
+          siteName: z.string(),
+          name: z.string(),
+        })),
+        contentCount: z.number().int(),
+        siteExtendCount: z.number().int(),
+      }), '模型引用统计'),
+    },
+  }),
+  handler: async (c) => c.json(okBody(await getCmsModelRefs(c.req.valid('param').id)), 200),
 });
 
 const getOneRoute = defineOpenAPIRoute({
@@ -110,6 +142,6 @@ const deleteRoute_ = defineOpenAPIRoute({
   },
 });
 
-router.openapiRoutes([listRoute, allRoute, getOneRoute, createRoute_, updateRoute_, deleteRoute_] as const);
+router.openapiRoutes([listRoute, allRoute, getOneRoute, refsRoute, createRoute_, updateRoute_, deleteRoute_] as const);
 
 export default router;

@@ -338,6 +338,8 @@ export const cmsHandlers = [
     }));
     const model = {
       id: modelId,
+      ownerSiteId: (body.ownerSiteId as number | null) ?? null,
+      ownerSiteName: null,
       name: String(body.name ?? ''),
       code: String(body.code ?? ''),
       description: (body.description as string) ?? null,

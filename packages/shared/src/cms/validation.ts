@@ -200,6 +200,8 @@ export const cmsModelFieldSchema = z.object({
 });
 
 export const createCmsModelSchema = z.object({
+  /** 归属站点：null = 平台共享；非空 = 该站点专属（其他站点不可见/不可绑定） */
+  ownerSiteId: z.number().int().positive().nullable().default(null),
   name: z.string().min(1, '模型名称不能为空').max(100),
   code: z.string().min(1, '模型标识不能为空').max(50).regex(cmsSlugRegex, '标识仅支持小写字母、数字、中划线'),
   description: z.string().max(500).nullable().optional(),
@@ -208,7 +210,8 @@ export const createCmsModelSchema = z.object({
   fields: z.array(cmsModelFieldSchema).default([]),
 });
 
-export const updateCmsModelSchema = partialForUpdate(createCmsModelSchema);
+/** 归属站点创建后不可变更：避免把在用模型静默转移出其他站点的可见范围 */
+export const updateCmsModelSchema = partialForUpdate(createCmsModelSchema).omit({ ownerSiteId: true });
 
 export const createCmsChannelSchema = z.object({
   siteId: z.number().int().positive(),

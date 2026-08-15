@@ -169,6 +169,13 @@
       "when": 1786788400630,
       "tag": "0023_soft_blade",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1786789705686,
+      "tag": "0024_exotic_jack_murdock",
+      "breakpoints": true
     }
   ]
 }

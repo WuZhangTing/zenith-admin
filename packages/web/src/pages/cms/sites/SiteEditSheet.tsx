@@ -99,7 +99,7 @@ export default function SiteEditSheet({ open, site, onClose }: Readonly<SiteEdit
   const widgetOptionsQuery = usePublishedCmsWidgets(site?.id, open && !!site);
   const widgetRenderersQuery = useCmsWidgetRenderers(site?.id, 'manual-list', open && !!site);
   const saveWidgetSlotMutation = useSaveCmsWidgetSlot();
-  const { data: allModels } = useAllCmsModels();
+  const { data: allModels } = useAllCmsModels(site?.id);
   const siteModel = (allModels ?? []).find((m) => m.id === selectedModelId);
   const siteModelFields = siteModel?.fields ?? [];
   // 模板健康检查：按当前选中主题扫描栏目/内容级失效引用（切主题即预检）

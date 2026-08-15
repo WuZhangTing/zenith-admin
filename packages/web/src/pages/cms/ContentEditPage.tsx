@@ -229,7 +229,7 @@ export default function ContentEditPage() {
   const siteId = detail?.siteId ?? siteIdParam;
 
   const treeQuery = useCmsChannelTree(siteId);
-  const { data: models } = useAllCmsModels();
+  const { data: models } = useAllCmsModels(siteId);
   const { data: tags } = useAllCmsTags(siteId);
   // 相关文章候选：本站最近 100 条已发布内容
   const relatedCandidatesQuery = useCmsContentList(

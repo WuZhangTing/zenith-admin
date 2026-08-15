@@ -1,7 +1,7 @@
-import { eq, asc, and, or, like, inArray, type SQL } from 'drizzle-orm';
+import { eq, asc, and, or, like, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { cmsModels, cmsModelFields, cmsChannels, cmsContents, dicts, dictItems } from '../../db/schema';
+import { cmsModels, cmsModelFields, cmsChannels, cmsContents, cmsSites, dicts, dictItems } from '../../db/schema';
 import type { CmsModelRow, CmsModelFieldRow } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
 import { formatDateTime } from '../../lib/datetime';
@@ -90,9 +90,11 @@ export async function mapCmsModelFieldsResolved(rows: readonly CmsModelFieldRow[
   return rows.map((row) => mapCmsModelField(row, resolved.get(row.id) ?? []));
 }
 
-export function mapCmsModel(row: CmsModelRow, fields?: CmsModelFieldRow[]) {
+export function mapCmsModel(row: CmsModelRow, fields?: CmsModelFieldRow[], ownerSiteName?: string | null) {
   return {
     id: row.id,
+    ownerSiteId: row.ownerSiteId ?? null,
+    ownerSiteName: ownerSiteName ?? null,
     name: row.name,
     code: row.code,
     description: row.description ?? null,
@@ -132,12 +134,20 @@ export async function listCmsModelFields(modelId: number): Promise<CmsModelField
 export interface ListCmsModelsQuery {
   keyword?: string;
   status?: 'enabled' | 'disabled';
+  /** 站群可见性过滤：返回平台共享 + 该站点专属的模型 */
+  siteId?: number;
   page: number;
   pageSize: number;
 }
 
+/** 站点可见性条件：平台共享（owner 为空）或归属该站点 */
+function modelVisibilityCondition(siteId?: number): SQL | undefined {
+  if (!siteId) return undefined;
+  return or(isNull(cmsModels.ownerSiteId), eq(cmsModels.ownerSiteId, siteId));
+}
+
 export async function listCmsModels(q: ListCmsModelsQuery) {
-  const { keyword = '', status, page, pageSize } = q;
+  const { keyword = '', status, siteId, page, pageSize } = q;
   const conditions: SQL[] = [];
   if (keyword) {
     const kw = or(
@@ -147,18 +157,25 @@ export async function listCmsModels(q: ListCmsModelsQuery) {
     if (kw) conditions.push(kw);
   }
   if (status) conditions.push(eq(cmsModels.status, status));
+  const visibility = modelVisibilityCondition(siteId);
+  if (visibility) conditions.push(visibility);
 
   const where = mergeWhere(and(...conditions));
   const [total, rows] = await Promise.all([
     db.$count(cmsModels, where),
     withPagination(
-      db.select().from(cmsModels).where(where).orderBy(asc(cmsModels.sort), asc(cmsModels.id)).$dynamic(),
+      db.select({ model: cmsModels, ownerSiteName: cmsSites.name })
+        .from(cmsModels)
+        .leftJoin(cmsSites, eq(cmsModels.ownerSiteId, cmsSites.id))
+        .where(where)
+        .orderBy(asc(cmsModels.sort), asc(cmsModels.id))
+        .$dynamic(),
       page,
       pageSize,
     ),
   ]);
   // 附带字段列表（模型数量有限，一次查回避免 N+1）
-  const ids = rows.map((r) => r.id);
+  const ids = rows.map((r) => r.model.id);
   const fields = ids.length > 0
     ? await db.select().from(cmsModelFields).where(inArray(cmsModelFields.modelId, ids)).orderBy(asc(cmsModelFields.sort), asc(cmsModelFields.id))
     : [];
@@ -168,7 +185,10 @@ export async function listCmsModels(q: ListCmsModelsQuery) {
     arr.push(f);
     fieldMap.set(f.modelId, arr);
   }
-  return { list: rows.map((r) => mapCmsModel(r, fieldMap.get(r.id) ?? [])), total, page, pageSize };
+  return {
+    list: rows.map((r) => mapCmsModel(r.model, fieldMap.get(r.model.id) ?? [], r.ownerSiteName)),
+    total, page, pageSize,
+  };
 }
 
 /** 全部启用模型（栏目绑定下拉用） */
@@ -177,10 +197,11 @@ export async function listCmsModels(q: ListCmsModelsQuery) {
  *
  * 内容编辑页的模型字段动态表单直接消费本接口的 `fields`，因此必须带字段；
  * 选项在此一次性解析（字典来源查库展开），前端无需二次请求。
+ * `siteId` 提供时按站群可见性过滤（平台共享 + 该站点专属）。
  */
-export async function listAllCmsModels() {
+export async function listAllCmsModels(siteId?: number) {
   const rows = await db.query.cmsModels.findMany({
-    where: eq(cmsModels.status, 'enabled'),
+    where: mergeWhere(eq(cmsModels.status, 'enabled'), modelVisibilityCondition(siteId)),
     orderBy: [asc(cmsModels.sort), asc(cmsModels.id)],
     with: { fields: { orderBy: [asc(cmsModelFields.sort), asc(cmsModelFields.id)] } },
   });
@@ -190,6 +211,40 @@ export async function listAllCmsModels() {
     ...mapCmsModel(row),
     fields: row.fields.map((field) => mapCmsModelField(field, resolved.get(field.id) ?? [])),
   }));
+}
+
+/**
+ * 断言模型对站点可用（栏目绑定/站点扩展模型校验）：
+ * 平台共享模型全站可用；专属模型仅归属站点可绑定。
+ */
+export async function assertCmsModelUsableBySite(modelId: number, siteId: number): Promise<void> {
+  const row = await ensureCmsModelExists(modelId);
+  if (row.ownerSiteId != null && row.ownerSiteId !== siteId) {
+    throw new HTTPException(400, { message: `模型「${row.name}」归属其他站点，当前站点不可绑定` });
+  }
+}
+
+/** 模型引用统计：被哪些栏目绑定、多少内容/站点扩展在使用（删除阻断明细与「使用中」列） */
+export async function getCmsModelRefs(id: number) {
+  await ensureCmsModelExists(id);
+  const [channels, contentCount, siteExtendCount] = await Promise.all([
+    db.select({
+      id: cmsChannels.id,
+      siteId: cmsChannels.siteId,
+      siteName: cmsSites.name,
+      name: cmsChannels.name,
+    }).from(cmsChannels)
+      .innerJoin(cmsSites, eq(cmsChannels.siteId, cmsSites.id))
+      .where(eq(cmsChannels.modelId, id))
+      .orderBy(asc(cmsChannels.siteId), asc(cmsChannels.id)),
+    db.$count(cmsContents, eq(cmsContents.modelId, id)),
+    db.$count(cmsSites, eq(cmsSites.modelId, id)),
+  ]);
+  return {
+    channels: channels.map((ch) => ({ id: ch.id, siteId: ch.siteId, siteName: ch.siteName, name: ch.name })),
+    contentCount,
+    siteExtendCount,
+  };
 }
 
 /** 先删后插，原子性替换模型字段（保留 id 不变的字段做 update，避免外部引用失效） */
@@ -225,6 +280,12 @@ async function replaceModelFields(executor: DbExecutor, modelId: number, fields:
 // ─── 创建 ─────────────────────────────────────────────────────────────────────
 export async function createCmsModel(data: CreateCmsModelInput) {
   const { fields = [], ...model } = data;
+  // 站点专属模型：创建者必须有该站点数据权限（共享模型仅受 cms:model:create 权限约束）
+  if (model.ownerSiteId != null) {
+    const { assertSiteAccess, ensureCmsSiteExists } = await import('./cms-sites.service');
+    await ensureCmsSiteExists(model.ownerSiteId);
+    await assertSiteAccess(model.ownerSiteId);
+  }
   try {
     const row = await db.transaction(async (tx) => {
       const [created] = await tx.insert(cmsModels).values(model).returning();

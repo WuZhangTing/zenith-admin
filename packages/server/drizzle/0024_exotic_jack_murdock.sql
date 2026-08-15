@@ -1,0 +1,2 @@
+ALTER TABLE "cms_models" ADD COLUMN "owner_site_id" integer;--> statement-breakpoint
+ALTER TABLE "cms_models" ADD CONSTRAINT "cms_models_owner_site_id_cms_sites_id_fk" FOREIGN KEY ("owner_site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;

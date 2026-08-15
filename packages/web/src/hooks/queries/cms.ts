@@ -129,6 +129,8 @@ export interface CmsModelListParams {
   pageSize: number;
   keyword?: string;
   status?: string;
+  /** 站群可见性过滤：平台共享 + 该站点专属 */
+  siteId?: number;
 }
 
 export const cmsModelKeys = {
@@ -136,7 +138,7 @@ export const cmsModelKeys = {
   lists: ['cms-models', 'list'] as const,
   list: (params: CmsModelListParams) => ['cms-models', 'list', params] as const,
   detail: (id: number | undefined) => ['cms-models', 'detail', id] as const,
-  allModels: ['cms-models', 'all'] as const,
+  allModels: (siteId?: number) => ['cms-models', 'all', siteId ?? 0] as const,
 };
 
 export function useCmsModelList(params: CmsModelListParams) {
@@ -147,10 +149,11 @@ export function useCmsModelList(params: CmsModelListParams) {
   });
 }
 
-export function useAllCmsModels() {
+/** 全部启用模型；siteId 提供时按站群可见性过滤（平台共享 + 该站点专属） */
+export function useAllCmsModels(siteId?: number) {
   return useQuery({
-    queryKey: cmsModelKeys.allModels,
-    queryFn: () => request.get<CmsModel[]>('/api/cms/models/all').then(unwrap),
+    queryKey: cmsModelKeys.allModels(siteId),
+    queryFn: () => request.get<CmsModel[]>(`/api/cms/models/all${siteId ? `?siteId=${siteId}` : ''}`).then(unwrap),
     staleTime: LOOKUP_STALE_TIME,
   });
 }

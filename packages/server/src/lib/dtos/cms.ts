@@ -149,6 +149,9 @@ export const CmsModelFieldDTO = z
     required: z.boolean(),
     searchable: z.boolean(),
     showInList: z.boolean(),
+    showInDetail: z.boolean().openapi({ description: '是否在前台详情页「模型字段表」中展示' }),
+    detailGroup: z.string().nullable().openapi({ description: '详情展示分组标题（如「文件信息」）' }),
+    detailSort: z.number().int().openapi({ description: '详情展示排序（组内）' }),
     placeholder: z.string().nullable(),
     defaultValue: z.string().nullable(),
     optionSource: z.enum(CMS_FIELD_OPTION_SOURCES).openapi({ description: '选项来源：manual=手工维护，dict=引用系统字典' }),
@@ -165,6 +168,9 @@ export const CmsModelFieldDTO = z
 export const CmsModelDTO = z
   .object({
     id: z.number().int(),
+    /** 归属站点：null = 平台共享 */
+    ownerSiteId: z.number().int().nullable(),
+    ownerSiteName: z.string().nullable(),
     name: z.string().openapi({ example: '文章' }),
     code: z.string().openapi({ example: 'article' }),
     description: z.string().nullable(),

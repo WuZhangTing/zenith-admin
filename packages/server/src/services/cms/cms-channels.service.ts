@@ -133,13 +133,16 @@ export async function listCmsChannelTree(
   return resolveCmsResourcePayload(buildChannelTree(rows.map((r) => mapCmsChannel(r, r.model?.name))));
 }
 
-/** 校验 modelId 有效性 */
-async function ensureModelValid(modelId: number | null | undefined) {
+/** 校验 modelId 有效性（含站群可见性：专属模型仅归属站点可绑定） */
+async function ensureModelValid(modelId: number | null | undefined, siteId: number) {
   if (!modelId) return;
-  const [row] = await db.select({ id: cmsModels.id }).from(cmsModels).where(and(
+  const [row] = await db.select({ id: cmsModels.id, name: cmsModels.name, ownerSiteId: cmsModels.ownerSiteId }).from(cmsModels).where(and(
     eq(cmsModels.id, modelId),
   )).limit(1);
   if (!row) throw new HTTPException(400, { message: `指定的内容模型（id=${modelId}）不存在` });
+  if (row.ownerSiteId != null && row.ownerSiteId !== siteId) {
+    throw new HTTPException(400, { message: `模型「${row.name}」归属其他站点，当前站点不可绑定` });
+  }
 }
 
 /**
@@ -214,7 +217,7 @@ async function resolveChannelCode(
 export async function createCmsChannel(data: CreateCmsChannelInput) {
   await ensureCmsSiteExists(data.siteId);
   await assertSiteAccess(data.siteId);
-  await ensureModelValid(data.modelId);
+  await ensureModelValid(data.modelId, data.siteId);
   if ((data.parentId ?? 0) !== 0) await assertChannelAccess(data.parentId!);
   await assertChannelTemplatesBySite(data.siteId, {
     listTemplate: data.listTemplate,
@@ -267,7 +270,7 @@ export async function updateCmsChannel(id: number, data: UpdateCmsChannelInput) 
   if (data.status === 'disabled' && current.status !== 'disabled') {
     await assertCmsWidgetChannelVisibilityMutable([id]);
   }
-  await ensureModelValid(data.modelId);
+  await ensureModelValid(data.modelId, current.siteId);
   await assertChannelTemplatesBySite(current.siteId, {
     listTemplate: data.listTemplate,
     detailTemplate: data.detailTemplate,
