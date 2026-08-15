@@ -597,8 +597,12 @@ class Tracker {
   }
 
   private setupUnloadFlush(): void {
-    // pagehide 是页面终态：先补发未关闭的 page_leave（整页刷新 / 关标签 / 直达 URL），再冲刷缓冲
-    document.addEventListener('pagehide', () => { flushPageLifecycleForUnload(); this.flushSync(); });
+    // 页面终态兜底：先补发未关闭的 page_leave（整页刷新 / 关标签 / 直达 URL），再冲刷缓冲。
+    // pagehide 是标准信号，但部分嵌入式 WebView / 自动化环境只触发 beforeunload，
+    // 因此两个都挂（emitPageLeave 幂等：上下文已清时为 no-op，不会重复发事件）
+    const finalize = () => { flushPageLifecycleForUnload(); this.flushSync(); };
+    document.addEventListener('pagehide', finalize);
+    globalThis.addEventListener('beforeunload', finalize);
     document.addEventListener('visibilitychange', () => {
       const hidden = document.visibilityState === 'hidden';
       onPageVisibilityChange(hidden);
