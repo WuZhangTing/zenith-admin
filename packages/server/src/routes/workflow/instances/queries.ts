@@ -3,9 +3,25 @@ import { createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../../middleware/auth';
 import { guard } from '../../../middleware/guard';
 import { ErrorResponse, PaginationQuery, jsonContent, commonErrorResponses, ok, okPaginated, IdParam, okBody } from '../../../lib/openapi-schemas';
-import { WorkflowInstanceDTO, WorkflowInstanceListItemDTO, WorkflowInstanceAllDTO, WorkflowAnalyticsDTO, WorkflowOverdueTaskDTO, WorkflowRelationOptionDTO } from '../../../lib/openapi-dtos';
+import { WorkflowInstanceDTO, WorkflowInstanceListItemDTO, WorkflowInstanceAllDTO, WorkflowAnalyticsDTO, WorkflowOverdueTaskDTO, WorkflowRelationOptionDTO, WorkflowSelectableUserDTO } from '../../../lib/openapi-dtos';
 import { listMyInstances, listPendingMine, listAllInstances, listMyCc, listMyHandled, getInstanceDetail, countMyCcUnread, countPendingMine, listRelationOptions } from '../../../services/workflow/workflow-instances.service';
 import { getWorkflowAnalytics, listOverdueTasks } from '../../../services/workflow/workflow-analytics.service';
+import { listWorkflowSelectableUsers } from '../../../services/workflow/workflow-selectable-users.service';
+
+/**
+ * 工作流协作选人（转办/委派/加签/协办/转发/抄送共用）。
+ * 面向普通发起人/审批人开放——不要求 system:user:list（管理接口 /api/users/all 的权限），
+ * 仅返回协作必需的最小字段。
+ */
+export const selectableUsersRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/selectable-users', tags: ['WorkflowInstances'], summary: '工作流协作选人清单',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: ['workflow:instance:create', 'workflow:task:handle', 'workflow:instance:list'] })] as const,
+    responses: { ...commonErrorResponses, ...ok(z.array(WorkflowSelectableUserDTO), '可选用户') },
+  }),
+  handler: async (c) => c.json(okBody(await listWorkflowSelectableUsers()), 200),
+});
 
 export const listRoute = defineOpenAPIRoute({
   route: createRoute({

@@ -1499,6 +1499,19 @@ export const workflowHandlers = [
     return ok({ list: paged, total, page, pageSize });
   }),
 
+  // 工作流协作选人清单（转办/委派/加签/协办/转发/抄送共用，面向普通审批人开放）
+  http.get('/api/workflows/selectable-users', () => ok(
+    mockUsers
+      .filter((u) => u.status === 'enabled')
+      .map((u) => ({
+        id: u.id,
+        username: u.username,
+        nickname: u.nickname,
+        avatar: u.avatar ?? null,
+        departmentName: u.departmentName ?? null,
+      })),
+  )),
+
   // 待我审批列表（assigneeId=1 且 status=pending 的任务所对应的实例）
   http.get('/api/workflows/instances/pending-mine/count', () => {
     const count = mockWorkflowTasks.filter((t) => {

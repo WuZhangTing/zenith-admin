@@ -13,7 +13,7 @@ import WorkflowInstanceDetailSheet from '@/components/workflow/WorkflowInstanceD
 import { INSTANCE_STATUS_MAP } from '@/components/workflow/workflow-runtime';
 import { dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
-import { useAllUsers } from '@/hooks/queries/users';
+import { useWorkflowSelectableUsers } from '@/hooks/queries/workflow-shared';
 import { useCcWorkflowInstances, useForwardWorkflowCc, useMarkWorkflowCcRead, workflowInstanceKeys } from '@/hooks/queries/workflow-instances';
 
 export default function CcToMePage() {
@@ -31,7 +31,7 @@ export default function CcToMePage() {
   const data = listQuery.data;
   const markReadMutation = useMarkWorkflowCcRead();
   const forwardMutation = useForwardWorkflowCc();
-  const usersQuery = useAllUsers({ enabled: forwardTarget !== null });
+  const usersQuery = useWorkflowSelectableUsers({ enabled: forwardTarget !== null });
   const userOptions = useMemo(
     () => (usersQuery.data ?? []).map((u) => ({ label: u.nickname ?? u.username, value: u.id })),
     [usersQuery.data],

@@ -656,6 +656,16 @@ export const WorkflowSavedViewDTO = z
   })
   .openapi('WorkflowSavedView');
 
+export const WorkflowSelectableUserDTO = z
+  .object({
+    id: z.number().int(),
+    username: z.string(),
+    nickname: z.string(),
+    avatar: z.string().nullable(),
+    departmentName: z.string().nullable(),
+  })
+  .openapi('WorkflowSelectableUser');
+
 export const WorkflowRelationOptionDTO = z
   .object({
     instanceId: z.number().int(),

@@ -9,7 +9,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { useWorkflowDefinitionList } from '@/hooks/queries/workflow-definitions';
-import { useAllUsers } from '@/hooks/queries/users';
+import { useWorkflowSelectableUsers } from '@/hooks/queries/workflow-shared';
 import { useListSearch } from '@/hooks/useListSearch';
 import {
   useDeleteWorkflowDelegations,
@@ -65,7 +65,7 @@ export default function WorkflowDelegationsPage() {
   const total = listQuery.data?.total ?? 0;
 
 
-  const usersQuery = useAllUsers();
+  const usersQuery = useWorkflowSelectableUsers();
   const definitionsQuery = useWorkflowDefinitionList({ page: 1, pageSize: 200 });
   const saveMutation = useSaveWorkflowDelegation();
   const deleteMutation = useDeleteWorkflowDelegations();

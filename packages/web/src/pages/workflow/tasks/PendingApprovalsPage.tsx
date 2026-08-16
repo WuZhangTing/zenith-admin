@@ -17,7 +17,7 @@ import SavedViewsBar from '@/components/workflow/SavedViewsBar';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useQuickPhrases } from '@/hooks/useQuickPhrases';
 import { dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
-import { useAllUsers } from '@/hooks/queries/users';
+import { useWorkflowSelectableUsers } from '@/hooks/queries/workflow-shared';
 import { ApiError } from '@/lib/query';
 import {
   fetchPendingWorkflowTasks,
@@ -80,7 +80,7 @@ export default function PendingApprovalsPage() {
   };
   const listQuery = usePendingWorkflowTasks(listParams);
   const definitionsQuery = usePublishedWorkflowDefinitions();
-  const usersQuery = useAllUsers({ enabled: consult !== null });
+  const usersQuery = useWorkflowSelectableUsers({ enabled: consult !== null });
   const myConsultsQuery = useMyWorkflowConsults(myConsultsVisible);
   const batchApproveMutation = useBatchApproveWorkflowTasks();
   const batchRejectMutation = useBatchRejectWorkflowTasks();

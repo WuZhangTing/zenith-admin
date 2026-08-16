@@ -33,8 +33,7 @@ import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
 import { dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
 import { normalizeWorkflowFormSnapshot, resolveWorkflowFormType } from '@/utils/workflow-snapshot';
 import WorkflowSummaryLine from '@/components/workflow/WorkflowSummaryLine';
-import { useAllUsers } from '@/hooks/queries/users';
-import { useWorkflowInstanceWithDefinition } from '@/hooks/queries/workflow-shared';
+import { useWorkflowInstanceWithDefinition, useWorkflowSelectableUsers } from '@/hooks/queries/workflow-shared';
 import {
   useAddWorkflowCc,
   useBatchUrgeWorkflowInstances,
@@ -216,7 +215,7 @@ function InstanceDetailDrawer({
   const [ccVisible, setCcVisible] = useState(false);
   const [ccNodeKey, setCcNodeKey] = useState<string | undefined>(undefined);
   const [ccUserIds, setCcUserIds] = useState<number[]>([]);
-  const usersQuery = useAllUsers({ enabled: ccVisible });
+  const usersQuery = useWorkflowSelectableUsers({ enabled: ccVisible });
   const ccUserOptions = useMemo(
     () => (usersQuery.data ?? []).map((u) => ({ label: u.nickname ?? u.username, value: u.id })),
     [usersQuery.data],

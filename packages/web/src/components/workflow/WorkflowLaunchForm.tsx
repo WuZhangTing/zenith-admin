@@ -12,7 +12,7 @@ import dayjs from 'dayjs';
 import type { WorkflowDefinition } from '@zenith/shared/workflow';
 import { applyFieldPermissionsToFields } from '@zenith/shared/workflow';
 import { useAuth } from '@/hooks/useAuth';
-import { useUserOptions } from '@/hooks/useUserOptions';
+import { useWorkflowUserOptions } from '@/hooks/queries/workflow-shared';
 import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowFormRenderer';
 import { resolveDynamicDefaults } from '@/pages/workflow/designer/form-defaults';
 import BusinessFormHost, { type WorkflowBusinessFormApi } from '@/components/workflow/BusinessFormHost';
@@ -60,7 +60,7 @@ const WorkflowLaunchForm = forwardRef<WorkflowLaunchFormHandle, WorkflowLaunchFo
     const formApi = useRef<FormApi | null>(null);
     const dynamicFormApi = useRef<FormApi | null>(null);
     const businessFormApi = useRef<WorkflowBusinessFormApi | null>(null);
-    const { userOptions } = useUserOptions({ immediate: true });
+    const { userOptions } = useWorkflowUserOptions({ immediate: true });
     const [selectedInitiatorApprovers, setSelectedInitiatorApprovers] = useState<SelectedInitiatorApprovers>({});
     const latestSelectedInitiatorApproversRef = useRef<SelectedInitiatorApprovers>({});
     const [initiatorSelectNodes, setInitiatorSelectNodes] = useState<InitiatorApproverSelectNode[]>([]);

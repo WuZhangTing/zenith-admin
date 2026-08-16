@@ -26,11 +26,11 @@ import { uploadedFileToAttachment } from '@/components/FileAttachment/utils';
 import WorkflowInstanceDetailPanel, { WorkflowDetailSkeleton } from '@/components/workflow/WorkflowInstanceDetailPanel';
 import type { WorkflowBusinessFormApi } from '@/components/workflow/BusinessFormHost';
 import WorkflowSideSheet from '@/components/workflow/WorkflowSideSheet';
-import { useUserOptions } from '@/hooks/useUserOptions';
 import {
   fetchWorkflowInstanceWithDefinition,
   useWorkflowInstanceWithDefinition,
   useWorkflowSelectableNextApprovers,
+  useWorkflowUserOptions,
   workflowSharedKeys,
 } from '@/hooks/queries/workflow-shared';
 
@@ -112,7 +112,7 @@ export default function WorkflowApprovalDetailSheet({
   const [rejectHintLoading, setRejectHintLoading] = useState(false);
   const [actionAttachments, setActionAttachments] = useState<Record<ActionAttachmentKey, UploadedFile[]>>(() => ({ ...EMPTY_ACTION_ATTACHMENTS }));
   const [approveSignature, setApproveSignature] = useState('');
-  const { userOptions, ensureLoaded: ensureUserOptions } = useUserOptions();
+  const { userOptions, ensureLoaded: ensureUserOptions } = useWorkflowUserOptions();
   const [selectedNextApprovers, setSelectedNextApprovers] = useState<Record<string, number[]>>({});
   const [addSignPosition, setAddSignPosition] = useState<AddSignPosition>('after');
   const [signMode, setSignMode] = useState<AddSignMode>('and');
