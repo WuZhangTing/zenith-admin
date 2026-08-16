@@ -35,6 +35,8 @@ const ID_CARD_REGEX = /^[1-9]\d{5}(18|19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3
 const URL_REGEX = /^https?:\/\/.+/;
 
 const ValuesContext = createContext<Record<string, unknown>>({});
+/** 查看态文本化开关（由 WorkflowFormRenderer 的 readOnlyAsText 提供，深层字段经 context 读取） */
+const ReadOnlyTextContext = createContext(false);
 
 const getColumnKey = (parentKey: string, column: WorkflowFormFieldColumn) =>
   `${parentKey}-col-${column.span}-${column.fields.map(field => field.key).join('-') || 'empty'}`;
@@ -847,6 +849,11 @@ interface RendererProps {
   getFormApi?: (api: FormApi) => void;
   onValueChange?: (values: Record<string, unknown>) => void;
   readOnly?: boolean;
+  /**
+   * 查看态文本化：readOnly 时把简单值字段渲染为纯文本（而非 disabled 输入框）。
+   * 用于详情/审批等「查看已提交数据」场景；设计器的结构预览不要开启（预览需要控件形态）。
+   */
+  readOnlyAsText?: boolean;
   style?: CSSProperties;
   labelPosition?: 'top' | 'left' | 'inset';
   labelAlign?: 'left' | 'right';
@@ -854,7 +861,7 @@ interface RendererProps {
 }
 
 export default function WorkflowFormRenderer({
-  fields, initValues, getFormApi, onValueChange, readOnly, style, labelPosition = 'top', labelAlign, labelWidth,
+  fields, initValues, getFormApi, onValueChange, readOnly, readOnlyAsText, style, labelPosition = 'top', labelAlign, labelWidth,
 }: Readonly<RendererProps>) {
   const formApiRef = useRef<FormApi | null>(null);
 
@@ -996,32 +1003,107 @@ export default function WorkflowFormRenderer({
 
   return (
     <ValuesContext.Provider value={valuesState}>
-      <Form
-        labelPosition={labelPosition}
-        labelAlign={labelAlign}
-        labelWidth={labelPosition === 'left' || labelPosition === 'inset' ? (labelWidth ?? 96) : undefined}
-        allowEmpty
-        style={style}
-        initValues={enrichedInitValues}
-        getFormApi={(api) => { formApiRef.current = api; getFormApi?.(api); }}
-        onValueChange={handleValueChange}
-      >
-        <Row gutter={16}>
-          {fields.map(field => (
-            isFieldVisible(field, valuesState) ? (
-              <Col span={colSpanOf(field)} key={field.key}>
-                <FieldRenderer field={field} readOnly={readOnly} />
-              </Col>
-            ) : null
-          ))}
-        </Row>
-      </Form>
+      <ReadOnlyTextContext.Provider value={!!readOnlyAsText}>
+        <Form
+          labelPosition={labelPosition}
+          labelAlign={labelAlign}
+          labelWidth={labelPosition === 'left' || labelPosition === 'inset' ? (labelWidth ?? 96) : undefined}
+          allowEmpty
+          style={style}
+          initValues={enrichedInitValues}
+          getFormApi={(api) => { formApiRef.current = api; getFormApi?.(api); }}
+          onValueChange={handleValueChange}
+        >
+          <Row gutter={16}>
+            {fields.map(field => (
+              isFieldVisible(field, valuesState) ? (
+                <Col span={colSpanOf(field)} key={field.key}>
+                  <FieldRenderer field={field} readOnly={readOnly} />
+                </Col>
+              ) : null
+            ))}
+          </Row>
+        </Form>
+      </ReadOnlyTextContext.Provider>
     </ValuesContext.Provider>
+  );
+}
+
+// ─── 只读文本渲染（查看态） ─────────────────────────────────────────
+// 详情/审批查看场景下，简单值字段渲染为纯文本而非 disabled 输入框：
+// 可读性（灰字对比度）、可复制性、打印与无障碍朗读都优于禁用态控件。
+// 复杂类型（附件/图片/签名/明细/富文本/级联/人员部门等）保持原控件的禁用态展示。
+const READONLY_TEXT_TYPES = new Set<string>([
+  'text', 'textarea', 'number', 'amount', 'phone', 'email', 'idCard', 'url',
+  'date', 'time', 'dateRange', 'select', 'multiSelect', 'radio', 'checkbox',
+  'switch', 'slider', 'rate', 'nps', 'tags', 'autoComplete',
+]);
+
+function readOnlyOptionLabel(field: WorkflowFormField, value: string): string {
+  const item = field.optionItems?.find((it) => it.value === value);
+  return item?.label ?? value;
+}
+
+function formatReadOnlyValue(field: WorkflowFormField, value: unknown): string {
+  if (value === null || value === undefined || value === '') return '';
+  switch (field.type) {
+    case 'switch':
+      return value ? '是' : '否';
+    case 'multiSelect':
+    case 'checkbox':
+    case 'tags':
+      return Array.isArray(value) ? value.map((v) => readOnlyOptionLabel(field, String(v))).join('、') : String(value);
+    case 'select':
+    case 'radio':
+      return readOnlyOptionLabel(field, String(value));
+    case 'dateRange':
+      return Array.isArray(value) ? value.filter(Boolean).join(' ~ ') : String(value);
+    case 'amount': {
+      const num = typeof value === 'number' ? value : Number(value);
+      return Number.isFinite(num) ? num.toLocaleString('zh-CN') : String(value);
+    }
+    default:
+      return typeof value === 'object' ? JSON.stringify(value) : String(value);
+  }
+}
+
+function readOnlyFieldLabel(field: WorkflowFormField): string {
+  if (field.type === 'amount') {
+    const currencyLabel = CURRENCY_OPTIONS.find(c => c.value === (field.currency ?? 'CNY'))?.label ?? 'CNY';
+    const suffix = field.unit ? ` · ${field.unit}` : '';
+    return `${field.label}（${currencyLabel}${suffix}）`;
+  }
+  if (field.unit) return `${field.label}（${field.unit}）`;
+  return field.label;
+}
+
+function ReadOnlyFieldValue({ field }: Readonly<{ field: WorkflowFormField }>) {
+  const values = useContext(ValuesContext);
+  const text = formatReadOnlyValue(field, values[field.key]);
+  const upper = field.type === 'amount' && field.amountInWords && (field.currency ?? 'CNY') === 'CNY'
+    ? rmbUpper(values[field.key] as number)
+    : '';
+  return (
+    <Form.Slot label={{ text: readOnlyFieldLabel(field) }}>
+      <Typography.Text style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+        {text || '—'}
+      </Typography.Text>
+      {upper && (
+        <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 2 }}>
+          大写：{upper}
+        </Typography.Text>
+      )}
+    </Form.Slot>
   );
 }
 
 function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField; readOnly?: boolean }>) {
   const values = useContext(ValuesContext);
+  const readOnlyAsText = useContext(ReadOnlyTextContext);
+  // 整表单只读的查看态：简单值字段直接文本化；字段级 readOnly（编辑态中的禁用字段）仍走控件禁用形态
+  if (readOnly && readOnlyAsText && READONLY_TEXT_TYPES.has(field.type)) {
+    return <ReadOnlyFieldValue field={field} />;
+  }
   // 条件必填 / 条件只读：满足规则时动态生效（叠加静态 required/readOnly）
   const dynamicRequired = field.required || (!!field.requiredRules?.rules?.length && evalRuleGroup(field.requiredRules, values));
   const dynamicReadOnly = !!field.readOnlyRules?.rules?.length && evalRuleGroup(field.readOnlyRules, values);

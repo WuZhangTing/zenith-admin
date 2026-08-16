@@ -38,6 +38,8 @@ interface ConditionEditorProps {
 
 const operatorOptions = Object.entries(OPERATOR_LABELS).map(([value, label]) => ({ value, label }));
 const NUMERIC_OPERATORS: ConditionOperator[] = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'between', 'isEmpty', 'isNotEmpty'];
+/** 数值族字段类型：金额/滑块/评分/NPS/公式与数字同语义，共享数值比较操作符 */
+const NUMERIC_FIELD_TYPES = new Set(['number', 'amount', 'slider', 'rate', 'nps', 'formula']);
 const DATE_OPERATORS: ConditionOperator[] = ['eq', 'neq', 'withinDays', 'beforeDays', 'isEmpty', 'isNotEmpty'];
 const OPTION_OPERATORS: ConditionOperator[] = ['eq', 'neq', 'in', 'notIn', 'isEmpty', 'isNotEmpty'];
 const TEXT_OPERATORS: ConditionOperator[] = ['eq', 'neq', 'contains', 'isEmpty', 'isNotEmpty'];
@@ -91,7 +93,7 @@ function operatorsForField(field: FormField | undefined, aggregate?: ConditionRu
   }
   if (!field) return operatorOptions;
   let allowed: ConditionOperator[];
-  if (field.type === 'number') allowed = NUMERIC_OPERATORS;
+  if (NUMERIC_FIELD_TYPES.has(field.type)) allowed = NUMERIC_OPERATORS;
   else if (field.type === 'date' || field.type === 'datetime') allowed = DATE_OPERATORS;
   else if (field.type === 'select' || field.type === 'radio' || field.type === 'checkbox') allowed = OPTION_OPERATORS;
   else if (isComplexFieldType(field.type)) allowed = COMPLEX_OPERATORS;

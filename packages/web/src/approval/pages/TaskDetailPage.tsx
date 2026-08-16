@@ -287,6 +287,7 @@ export default function TaskDetailPage() {
         fields={visibleFields}
         initValues={(detail?.formData ?? {}) as Record<string, unknown>}
         readOnly={!formEditable}
+        readOnlyAsText
         getFormApi={(api) => { detailFormApi.current = api; }}
       />
     );

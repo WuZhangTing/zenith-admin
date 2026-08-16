@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Banner, Button, Collapse, Empty, Progress, SideSheet, Space, Spin, Tag, Typography } from '@douyinfe/semi-ui';
 import { RefreshCw } from 'lucide-react';
 import type { WorkflowDefinitionHealthIssue, WorkflowDefinitionHealthReport, WorkflowFlowData } from '@zenith/shared/workflow';
@@ -44,21 +44,25 @@ export default function WorkflowHealthCheckDrawer({ visible, flowData, definitio
   const healthCheckMutation = useWorkflowDesignerHealthCheck();
   const loading = healthCheckMutation.isPending;
 
+  // 体检必须用打开抽屉那一刻的最新画布——props 每次渲染都是新构建的 flowData，
+  // 经 ref 转发给 runCheck，避免 useCallback 闭包捕获挂载时的旧值（曾导致体检结果与画布无关）
+  const latestInputRef = useRef({ flowData, definitionId, formFields });
+  latestInputRef.current = { flowData, definitionId, formFields };
+  const { mutateAsync: runHealthCheck } = healthCheckMutation;
+
   const runCheck = useCallback(async () => {
     try {
-      const next = await healthCheckMutation.mutateAsync({ flowData, definitionId, formFields });
+      const next = await runHealthCheck(latestInputRef.current);
       setReport(next);
     } catch {
       // request 层负责错误提示
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [definitionId]);
+  }, [runHealthCheck]);
 
   useEffect(() => {
     if (visible) void runCheck();
     else setReport(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
+  }, [visible, runCheck]);
 
   return (
     <SideSheet title="发布前体检" visible={visible} onCancel={onClose} width="min(560px, 96vw)">

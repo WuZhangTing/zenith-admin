@@ -289,6 +289,7 @@ export default function WorkflowInstanceDetailPanel({
           fields={visibleFormFields}
           initValues={(instance.formData as Record<string, unknown>) ?? {}}
           readOnly={!formEditable}
+          readOnlyAsText
           getFormApi={formEditable ? onFormApiReady : undefined}
           labelPosition={formSettings?.labelPosition}
           labelAlign={formSettings?.labelAlign}
