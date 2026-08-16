@@ -455,6 +455,7 @@ export async function resubmitInstance(id: number) {
     definitionId: inst.definitionId,
     title: inst.title,
     formData: (inst.formData ?? {}) as Record<string, unknown>,
+    priority: inst.priority as import('@zenith/shared').WorkflowInstancePriority,
     asDraft: true,
   });
 }

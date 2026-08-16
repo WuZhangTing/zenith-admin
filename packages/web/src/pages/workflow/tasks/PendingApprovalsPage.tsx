@@ -214,13 +214,13 @@ export default function PendingApprovalsPage() {
         },
         {
           key: 'approve',
-          label: '通过',
+          label: '同意',
           type: 'primary',
           onClick: () => setSheet({ instanceId: record.id, taskId: record.pendingTaskId, action: 'approve' }),
         },
         {
           key: 'reject',
-          label: '驳回',
+          label: '拒绝',
           danger: true,
           onClick: () => setSheet({ instanceId: record.id, taskId: record.pendingTaskId, action: 'reject' }),
         },
@@ -262,10 +262,10 @@ export default function PendingApprovalsPage() {
   const renderBatchButtons = () => selectedRowKeys.length > 0 ? (
     <>
       <Button type="primary" theme="solid" icon={<Plus size={14} />} onClick={() => setBatch({ mode: 'approve', comment: '' })}>
-        批量通过（{selectedRowKeys.length}）
+        批量同意（{selectedRowKeys.length}）
       </Button>
       <Button type="danger" theme="solid" onClick={() => setBatch({ mode: 'reject', comment: '' })}>
-        批量驳回（{selectedRowKeys.length}）
+        批量拒绝（{selectedRowKeys.length}）
       </Button>
     </>
   ) : null;
@@ -335,7 +335,7 @@ export default function PendingApprovalsPage() {
       />
 
       <AppModal
-        title={batch?.mode === 'approve' ? `批量通过（${selectedRowKeys.length}）` : `批量驳回（${selectedRowKeys.length}）`}
+        title={batch?.mode === 'approve' ? `批量同意（${selectedRowKeys.length}）` : `批量拒绝（${selectedRowKeys.length}）`}
         visible={!!batch}
         onCancel={() => setBatch(null)}
         onOk={() => void handleBatch()}
@@ -344,12 +344,12 @@ export default function PendingApprovalsPage() {
         style={{ width: 480 }}
       >
         <Typography.Text type="tertiary" style={{ display: 'block', marginBottom: 8 }}>
-          将对选中的 {selectedRowKeys.length} 条待办执行{batch?.mode === 'approve' ? '通过' : '驳回'}操作（逐条处理，失败项会单独提示）。
+          将对选中的 {selectedRowKeys.length} 条待办执行{batch?.mode === 'approve' ? '同意' : '拒绝'}操作（逐条处理，失败项会单独提示）。
         </Typography.Text>
         <TextArea
           value={batch?.comment ?? ''}
           onChange={(v) => setBatch((b) => (b ? { ...b, comment: v } : b))}
-          placeholder={batch?.mode === 'approve' ? '批量审批意见（可选）' : '批量驳回原因（必填）'}
+          placeholder={batch?.mode === 'approve' ? '批量审批意见（可选）' : '批量拒绝原因（必填）'}
           autosize={{ minRows: 2, maxRows: 4 }}
           maxCount={500}
         />

@@ -811,7 +811,8 @@ export default function WorkflowSimulationDrawer({
   const currentAssigneeText = currentItem?.assignees?.map((user) => user.name).join('、') || '-';
   const currentNextText = currentItem?.nextNodeKeys?.map((key) => nodeLabel(flowData, key)).join('、') || '-';
   const currentReasonText = currentItem ? currentItem.detail ?? currentItem.reason ?? '' : '';
-  const primaryEdge = currentEdges[0];
+  // 摘要 chip 优先展示实际被走的边——多条出边时首条可能是未命中的默认边，误报「默认分支被采用」
+  const primaryEdge = currentEdges.find((edge) => edge.taken) ?? currentEdges[0];
   const hasBranchNotice = !!selectedBranch || !!pathCompare || !!primaryEdge;
 
   const renderScrubber = () => {
