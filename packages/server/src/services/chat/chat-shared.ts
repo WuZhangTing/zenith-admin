@@ -15,6 +15,18 @@ export function notHiddenFor(userId: number) {
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 
+/**
+ * 剥离历史遗留的消息级收藏标记：收藏已迁移到 chat_message_favorites 按人隔离，
+ * 旧数据残留在 extra.isFavorited 的共享值不得泄漏给任何查看者；
+ * 各读取路径按当前用户回填视角化的 isFavorited。
+ */
+function sanitizeStoredExtra(extra: unknown): ChatMessage['extra'] {
+  const e = (extra as ChatMessage['extra'] | null) ?? null;
+  if (!e || e.isFavorited === undefined) return e;
+  const { isFavorited: _legacy, ...rest } = e;
+  return rest;
+}
+
 export function mapChatMessage(
   row: typeof chatMessages.$inferSelect,
   sender?: { id: number; nickname: string; avatar: string | null } | null,
@@ -33,7 +45,7 @@ export function mapChatMessage(
     replyToMessage,
     isRecalled: row.isRecalled,
     isEdited: row.isEdited,
-    extra: row.extra ?? null,
+    extra: sanitizeStoredExtra(row.extra),
     reactions,
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),

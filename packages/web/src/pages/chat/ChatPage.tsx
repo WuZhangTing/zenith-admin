@@ -311,6 +311,9 @@ export default function ChatPage({
   const joinRequestsQuery = useChatJoinRequests(activeConvId ?? undefined, canManageActiveGroup);
   const pendingJoinRequestCount = canManageActiveGroup ? (joinRequestsQuery.data?.length ?? 0) : 0;
 
+  // 置顶消息是会话级共享操作：群聊仅群主/管理员可执行，单聊双方均可
+  const canPinInActiveConv = activeConv?.type !== 'group' || canManageActiveGroup;
+
   const queryClient = useQueryClient();
 
   // 未读分隔线：进入会话时按 unreadCount 定位首条未读消息
@@ -856,6 +859,10 @@ export default function ChatPage({
                 activeConvId={activeConvId} setActiveConvId={setActiveConvId} setMessages={setMessages}
                 setPendingNewMsgCount={setPendingNewMsgCount} openFavoriteMessage={openFavoriteMessage} setFavPreviewVisible={setFavPreviewVisible}
                 handleToggleFavorite={handleToggleFavorite} handleTogglePinMessage={handleTogglePinMessage}
+                canPinMessage={(msg) => {
+                  const conv = conversations.find((c) => c.id === msg.conversationId);
+                  return conv?.type !== 'group' || conv.myRole === 'owner' || conv.myRole === 'admin';
+                }}
               />
             )}
           </Spin>
@@ -1096,6 +1103,7 @@ export default function ChatPage({
                           readReceipt={readReceiptMap.get(msg.id)}
                           onCardAction={handleCardAction}
                           onOpenWorkflow={handleOpenWorkflowFromCard}
+                          canPin={canPinInActiveConv}
                         />
                       </div>
                     );

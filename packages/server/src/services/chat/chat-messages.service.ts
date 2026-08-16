@@ -1,6 +1,6 @@
 import { eq, and, desc, sql, inArray, or, ne, asc, gte, lte, lt, gt } from 'drizzle-orm';
 import { db } from '../../db';
-import { chatConversations, chatConversationMembers, chatMessages, users } from '../../db/schema';
+import { chatConversations, chatConversationMembers, chatMessages, chatMessageFavorites, users } from '../../db/schema';
 import { scheduleSendToUsers } from '../../lib/ws-manager';
 import { currentUser } from '../../lib/context';
 import { formatDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
@@ -36,6 +36,30 @@ async function fetchReplySnapshotMap(
     });
   }
   return map;
+}
+
+// ─── 视角化收藏标记 ───────────────────────────────────────────────────────────
+
+/** 当前用户在给定消息集合中的收藏 id 集（单次 IN 查询） */
+async function favoritedIdSet(userId: number, messageIds: number[]): Promise<Set<number>> {
+  if (messageIds.length === 0) return new Set();
+  const rows = await db
+    .select({ messageId: chatMessageFavorites.messageId })
+    .from(chatMessageFavorites)
+    .where(and(
+      eq(chatMessageFavorites.userId, userId),
+      inArray(chatMessageFavorites.messageId, messageIds),
+    ));
+  return new Set(rows.map((r) => r.messageId));
+}
+
+/** 把当前用户的收藏标记回填到 DTO（仅命中的消息写 true，未收藏保持缺省） */
+function attachViewerFavorites(list: ChatMessage[], favIds: Set<number>): ChatMessage[] {
+  if (favIds.size === 0) return list;
+  for (const m of list) {
+    if (favIds.has(m.id)) m.extra = { ...(m.extra ?? {}), isFavorited: true };
+  }
+  return list;
 }
 
 function buildMessageSearchSnippet(message: ChatMessage): string {
@@ -104,9 +128,10 @@ export async function listMessages(conversationId: number, beforeId: number | nu
   const limited = rows.slice(0, limit);
 
   const msgIds = limited.map((r) => r.msg.id);
-  const [reactionMap, replySnapshotMap] = await Promise.all([
+  const [reactionMap, replySnapshotMap, favIds] = await Promise.all([
     aggregateReactions(msgIds),
     fetchReplySnapshotMap(limited.map((r) => ({ replyToId: r.msg.replyToId }))),
+    favoritedIdSet(me.userId, msgIds),
   ]);
 
   const list = limited.map((r) =>
@@ -118,7 +143,7 @@ export async function listMessages(conversationId: number, beforeId: number | nu
     ),
   );
 
-  return { list, hasMore };
+  return { list: attachViewerFavorites(list, favIds), hasMore };
 }
 
 export async function listPinnedMessages(conversationId: number): Promise<ChatMessage[]> {
@@ -137,10 +162,11 @@ export async function listPinnedMessages(conversationId: number): Promise<ChatMe
     .orderBy(desc(chatMessages.updatedAt), desc(chatMessages.id))
     .limit(5);
 
-  return rows.map((r) => mapChatMessage(
+  const favIds = await favoritedIdSet(me.userId, rows.map((r) => r.msg.id));
+  return attachViewerFavorites(rows.map((r) => mapChatMessage(
     r.msg,
     rowSender(r),
-  ));
+  )), favIds);
 }
 
 export async function listFavoriteMessages(conversationId: number, page: number, pageSize: number) {
@@ -149,28 +175,34 @@ export async function listFavoriteMessages(conversationId: number, page: number,
 
   const where = and(
     eq(chatMessages.conversationId, conversationId),
-    sql`COALESCE((${chatMessages.extra} ->> 'isFavorited')::boolean, false) = true`,
+    eq(chatMessageFavorites.userId, me.userId),
     notHiddenFor(me.userId),
   );
 
-  const [total, rows] = await Promise.all([
-    db.$count(chatMessages, where),
+  const [countRows, rows] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(chatMessages)
+      .innerJoin(chatMessageFavorites, eq(chatMessageFavorites.messageId, chatMessages.id))
+      .where(where),
     db
       .select({ msg: chatMessages, nickname: users.nickname, avatar: users.avatar })
       .from(chatMessages)
+      .innerJoin(chatMessageFavorites, eq(chatMessageFavorites.messageId, chatMessages.id))
       .leftJoin(users, eq(chatMessages.senderId, users.id))
       .where(where)
-      .orderBy(desc(chatMessages.createdAt), desc(chatMessages.id))
+      .orderBy(desc(chatMessageFavorites.createdAt), desc(chatMessages.id))
       .limit(pageSize)
       .offset(pageOffset(page, pageSize)),
   ]);
 
   return {
-    list: rows.map((r) => mapChatMessage(
-      r.msg,
-      rowSender(r),
-    )),
-    total,
+    list: rows.map((r) => {
+      const mapped = mapChatMessage(r.msg, rowSender(r));
+      mapped.extra = { ...(mapped.extra ?? {}), isFavorited: true };
+      return mapped;
+    }),
+    total: Number(countRows[0]?.count ?? 0),
     page,
     pageSize,
   };
@@ -179,9 +211,10 @@ export async function listFavoriteMessages(conversationId: number, page: number,
 export async function listGlobalFavoriteMessages(page: number, pageSize: number) {
   const me = currentUser();
 
+  // 仍要求当前是会话成员：退群/被移出后无权访问会话内容，收藏随之不可见
   const where = and(
     eq(chatConversationMembers.userId, me.userId),
-    sql`COALESCE((${chatMessages.extra} ->> 'isFavorited')::boolean, false) = true`,
+    eq(chatMessageFavorites.userId, me.userId),
     notHiddenFor(me.userId),
   );
 
@@ -189,24 +222,27 @@ export async function listGlobalFavoriteMessages(page: number, pageSize: number)
     db
       .select({ count: sql<number>`count(*)` })
       .from(chatMessages)
+      .innerJoin(chatMessageFavorites, eq(chatMessageFavorites.messageId, chatMessages.id))
       .innerJoin(chatConversationMembers, eq(chatConversationMembers.conversationId, chatMessages.conversationId))
       .where(where),
     db
       .select({ msg: chatMessages, nickname: users.nickname, avatar: users.avatar })
       .from(chatMessages)
+      .innerJoin(chatMessageFavorites, eq(chatMessageFavorites.messageId, chatMessages.id))
       .innerJoin(chatConversationMembers, eq(chatConversationMembers.conversationId, chatMessages.conversationId))
       .leftJoin(users, eq(chatMessages.senderId, users.id))
       .where(where)
-      .orderBy(desc(chatMessages.updatedAt), desc(chatMessages.id))
+      .orderBy(desc(chatMessageFavorites.createdAt), desc(chatMessages.id))
       .limit(pageSize)
       .offset(pageOffset(page, pageSize)),
   ]);
 
   return {
-    list: rows.map((r) => mapChatMessage(
-      r.msg,
-      rowSender(r),
-    )),
+    list: rows.map((r) => {
+      const mapped = mapChatMessage(r.msg, rowSender(r));
+      mapped.extra = { ...(mapped.extra ?? {}), isFavorited: true };
+      return mapped;
+    }),
     total: Number(countRows[0]?.count ?? 0),
     page,
     pageSize,
@@ -214,31 +250,57 @@ export async function listGlobalFavoriteMessages(page: number, pageSize: number)
 }
 
 export async function toggleMessageFavorite(messageId: number, favorite: boolean): Promise<ChatMessage> {
+  const me = currentUser();
   const msg = await ensureMessageAccessible(messageId);
-  const nextExtra: ChatMessageExtra = { ...normalizeMessageExtra(msg.extra), isFavorited: favorite };
-  const [updated] = await db.update(chatMessages)
-    .set({ extra: nextExtra, updatedAt: new Date() })
-    .where(eq(chatMessages.id, messageId))
-    .returning();
 
-  const sender = updated.senderId
-    ? await fetchUserBrief(updated.senderId)
+  if (favorite) {
+    await db.insert(chatMessageFavorites)
+      .values({ messageId, userId: me.userId })
+      .onConflictDoNothing();
+  } else {
+    await db.delete(chatMessageFavorites).where(and(
+      eq(chatMessageFavorites.messageId, messageId),
+      eq(chatMessageFavorites.userId, me.userId),
+    ));
+  }
+
+  const sender = msg.senderId
+    ? await fetchUserBrief(msg.senderId)
     : null;
-  return mapChatMessage(updated, sender ?? null);
+  const mapped = mapChatMessage(msg, sender ?? null);
+  if (favorite) mapped.extra = { ...(mapped.extra ?? {}), isFavorited: true };
+  return mapped;
 }
 
 export async function toggleMessagePin(messageId: number, pin: boolean): Promise<ChatMessage> {
+  const me = currentUser();
   const msg = await ensureMessageAccessible(messageId);
+
+  // 置顶是会话级共享操作：群聊仅群主/管理员可执行，单聊双方均可
+  const conv = await db.query.chatConversations.findFirst({ where: eq(chatConversations.id, msg.conversationId) });
+  if (conv?.type === 'group') {
+    const member = await db.query.chatConversationMembers.findFirst({
+      where: and(
+        eq(chatConversationMembers.conversationId, msg.conversationId),
+        eq(chatConversationMembers.userId, me.userId),
+      ),
+    });
+    if (member?.role !== 'owner' && member?.role !== 'admin') {
+      throw new HTTPException(403, { message: '只有群主或管理员才能置顶消息' });
+    }
+  }
+
   const nextExtra: ChatMessageExtra = { ...normalizeMessageExtra(msg.extra), isPinned: pin };
   const [updated] = await db.update(chatMessages)
     .set({ extra: nextExtra, updatedAt: new Date() })
     .where(eq(chatMessages.id, messageId))
     .returning();
 
-  const sender = updated.senderId
-    ? await fetchUserBrief(updated.senderId)
-    : null;
-  return mapChatMessage(updated, sender ?? null);
+  const [sender, favIds] = await Promise.all([
+    updated.senderId ? fetchUserBrief(updated.senderId) : Promise.resolve(null),
+    favoritedIdSet(me.userId, [messageId]),
+  ]);
+  return attachViewerFavorites([mapChatMessage(updated, sender ?? null)], favIds)[0];
 }
 
 export async function listAnnouncementHistory(conversationId: number): Promise<ChatMessage[]> {
@@ -374,6 +436,7 @@ export async function getMessageContext(
   before = 15,
   after = 15,
 ): Promise<ChatMessageContext> {
+  const me = currentUser();
   await ensureConversationMember(conversationId);
 
   const target = await db
@@ -418,17 +481,18 @@ export async function getMessageContext(
     ...afterRows,
   ];
   const msgIds = allRows.map((r) => r.msg.id);
-  const [reactionMap, replySnapshotMap] = await Promise.all([
+  const [reactionMap, replySnapshotMap, favIds] = await Promise.all([
     aggregateReactions(msgIds),
     fetchReplySnapshotMap(allRows.map((r) => ({ replyToId: r.msg.replyToId }))),
+    favoritedIdSet(me.userId, msgIds),
   ]);
 
-  const list = allRows.map((r) => mapChatMessage(
+  const list = attachViewerFavorites(allRows.map((r) => mapChatMessage(
     r.msg,
     rowSender(r),
     reactionMap.get(r.msg.id) ?? [],
     r.msg.replyToId ? (replySnapshotMap.get(r.msg.replyToId) ?? null) : null,
-  ));
+  )), favIds);
 
   const [beforeCount, afterCount] = await Promise.all([
     db.$count(chatMessages, and(eq(chatMessages.conversationId, conversationId), lt(chatMessages.id, messageId))),
@@ -632,20 +696,27 @@ export async function deleteMessagesForUser(messageIds: number[]): Promise<void>
     throw new HTTPException(403, { message: '无权操作该会话的消息' });
   }
 
-  // 单条原子 UPDATE 批量追加 extra.hiddenFor（写入形状与读取侧 notHiddenFor 一致）：
-  // 逐条读改写不仅是 N 次往返，整体覆写 extra 还会与并发写（表情回应、他人删除）互相丢失更新
-  await db.update(chatMessages)
-    .set({
-      extra: sql`jsonb_set(
-        COALESCE(${chatMessages.extra}, '{}'::jsonb),
-        '{hiddenFor}',
-        COALESCE(${chatMessages.extra}->'hiddenFor', '[]'::jsonb) || to_jsonb(CAST(${me.userId} AS integer))
-      )`,
-    })
-    .where(and(
-      inArray(chatMessages.id, msgs.map((m) => m.id)),
-      notHiddenFor(me.userId),
+  // 事务：追加 hiddenFor 与清理本人收藏必须同时生效，避免「已删除但仍在收藏列表」的中间态
+  await db.transaction(async (tx) => {
+    // 单条原子 UPDATE 批量追加 extra.hiddenFor（写入形状与读取侧 notHiddenFor 一致）：
+    // 逐条读改写不仅是 N 次往返，整体覆写 extra 还会与并发写（表情回应、他人删除）互相丢失更新
+    await tx.update(chatMessages)
+      .set({
+        extra: sql`jsonb_set(
+          COALESCE(${chatMessages.extra}, '{}'::jsonb),
+          '{hiddenFor}',
+          COALESCE(${chatMessages.extra}->'hiddenFor', '[]'::jsonb) || to_jsonb(CAST(${me.userId} AS integer))
+        )`,
+      })
+      .where(and(
+        inArray(chatMessages.id, msgs.map((m) => m.id)),
+        notHiddenFor(me.userId),
+      ));
+    await tx.delete(chatMessageFavorites).where(and(
+      inArray(chatMessageFavorites.messageId, msgs.map((m) => m.id)),
+      eq(chatMessageFavorites.userId, me.userId),
     ));
+  });
 }
 
 // ─── 撤回消息 ─────────────────────────────────────────────────────────────────

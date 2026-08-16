@@ -272,15 +272,24 @@ export function useComposerActions({
   }, [activeGroupMembers, currentUserId, mentionState]);
 
   const applyMessageUpdate = useCallback((updated: ChatMessage) => {
-    setMessages((prev) => prev.map((item) => item.id === updated.id ? updated : item));
+    // 收藏是按人隔离的视角标记：WS 广播（编辑等）载荷不携带 isFavorited，
+    // 此时保留本地已知的收藏状态；显式携带（收藏/取消收藏响应）则以载荷为准
+    const mergeViewerFavorite = (incoming: ChatMessage, prevMsg: ChatMessage | undefined): ChatMessage =>
+      incoming.extra?.isFavorited === undefined && prevMsg?.extra?.isFavorited
+        ? { ...incoming, extra: { ...(incoming.extra ?? {}), isFavorited: true } }
+        : incoming;
+
+    setMessages((prev) => prev.map((item) => item.id === updated.id ? mergeViewerFavorite(updated, item) : item));
     setPinnedMessages((prev) => {
+      const merged = mergeViewerFavorite(updated, prev.find((item) => item.id === updated.id));
       const next = prev.filter((item) => item.id !== updated.id);
-      if (updated.extra?.isPinned) next.unshift(updated);
+      if (merged.extra?.isPinned) next.unshift(merged);
       return next.slice(0, 5);
     });
     setFavoriteMessages((prev) => {
+      const merged = mergeViewerFavorite(updated, prev.find((item) => item.id === updated.id));
       const next = prev.filter((item) => item.id !== updated.id);
-      if (updated.extra?.isFavorited) next.unshift(updated);
+      if (merged.extra?.isFavorited) next.unshift(merged);
       return next;
     });
     setConversations((prev) => prev.map((conv) => conv.lastMessage?.id === updated.id ? { ...conv, lastMessage: updated } : conv));

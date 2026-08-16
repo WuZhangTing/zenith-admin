@@ -85,6 +85,20 @@ export const chatMessageReactions = pgTable('chat_message_reactions', {
 
 export type ChatMessageReactionRow = typeof chatMessageReactions.$inferSelect;
 
+// ─── 消息收藏（按用户隔离；置顶是会话级共享，收藏是个人行为） ─────────────────
+export const chatMessageFavorites = pgTable('chat_message_favorites', {
+  id: serial('id').primaryKey(),
+  messageId: integer('message_id').notNull().references(() => chatMessages.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  // 全局收藏列表按收藏时间倒序分页
+  index('chat_message_favorites_user_idx').on(t.userId, t.createdAt),
+  unique().on(t.messageId, t.userId),
+]);
+
+export type ChatMessageFavoriteRow = typeof chatMessageFavorites.$inferSelect;
+
 // ─── 聊天入站 Webhook 机器人 ────────────────────────────────────────────────
 export const chatWebhooks = pgTable('chat_webhooks', {
   id: serial('id').primaryKey(),

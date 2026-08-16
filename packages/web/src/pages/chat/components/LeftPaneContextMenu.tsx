@@ -11,6 +11,7 @@ import type { LeftPaneContextMenuState, Setter } from '../types';
 export function LeftPaneContextMenu({
   leftPaneContextMenu, setLeftPaneContextMenu, setConversations, activeConvId, setActiveConvId, setMessages,
   setPendingNewMsgCount, openFavoriteMessage, setFavPreviewVisible, handleToggleFavorite, handleTogglePinMessage,
+  canPinMessage,
 }: Readonly<{
   leftPaneContextMenu: LeftPaneContextMenuState;
   setLeftPaneContextMenu: Setter<LeftPaneContextMenuState | null>;
@@ -23,6 +24,8 @@ export function LeftPaneContextMenu({
   setFavPreviewVisible: Setter<boolean>;
   handleToggleFavorite: (msg: ChatMessage) => Promise<void>;
   handleTogglePinMessage: (msg: ChatMessage) => Promise<void>;
+  /** 该消息所在会话是否允许当前用户置顶（群聊仅群主/管理员） */
+  canPinMessage: (msg: ChatMessage) => boolean;
 }>) {
   const targetId = leftPaneContextMenu.type === 'conversation'
     ? leftPaneContextMenu.conv.id
@@ -171,15 +174,17 @@ export function LeftPaneContextMenu({
                     >
                       取消收藏
                     </Dropdown.Item>
-                    <Dropdown.Item
-                      icon={<Pin size={12} />}
-                      onClick={() => {
-                        void handleTogglePinMessage(leftPaneContextMenu.msg);
-                        setLeftPaneContextMenu(null);
-                      }}
-                    >
-                      {leftPaneContextMenu.msg.extra?.isPinned ? '取消置顶消息' : '置顶消息'}
-                    </Dropdown.Item>
+                    {canPinMessage(leftPaneContextMenu.msg) && (
+                      <Dropdown.Item
+                        icon={<Pin size={12} />}
+                        onClick={() => {
+                          void handleTogglePinMessage(leftPaneContextMenu.msg);
+                          setLeftPaneContextMenu(null);
+                        }}
+                      >
+                        {leftPaneContextMenu.msg.extra?.isPinned ? '取消置顶消息' : '置顶消息'}
+                      </Dropdown.Item>
+                    )}
                   </Dropdown.Menu>
                 )}
               />

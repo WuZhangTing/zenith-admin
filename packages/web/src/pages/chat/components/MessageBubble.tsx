@@ -42,6 +42,7 @@ export const MessageBubble = memo(function MessageBubble({
   onToggleFavorite, onTogglePin, onEditRecalled, recalledDraft, multiSelectMode, isSelected,
   onToggleSelect, onForwardSingle, onOpenForwardView, onDeleteMessage, onReaction, onPickReactionEmoji,
   currentUserId, onEdit, onVote, isHighlighted, onOpenFilePreview, readReceipt, onCardAction, onOpenWorkflow, verifiedSender, onSaveAsEmoji,
+  canPin = true,
 }: Readonly<{
   msg: ChatMessage;
   isSelf: boolean;
@@ -74,6 +75,8 @@ export const MessageBubble = memo(function MessageBubble({
   verifiedSender?: boolean;
   /** 图片消息：收藏为自定义表情 */
   onSaveAsEmoji?: (msg: ChatMessage) => void;
+  /** 是否允许置顶消息：群聊仅群主/管理员，单聊双方均可（默认 true） */
+  canPin?: boolean;
 }>) {
   const fullTimeStr = formatDateTime(msg.createdAt);
   // 机器人/系统消息（senderId 为空）的展示身份取自 extra.bot
@@ -650,12 +653,14 @@ export const MessageBubble = memo(function MessageBubble({
                 >
                   {msg.extra?.isFavorited ? '取消收藏' : '收藏'}
                 </Dropdown.Item>
-                <Dropdown.Item
-                  icon={<Pin size={12} />}
-                  onClick={() => { onTogglePin(msg); setContextMenuPos(null); }}
-                >
-                  {msg.extra?.isPinned ? '取消置顶消息' : '置顶消息'}
-                </Dropdown.Item>
+                {canPin && (
+                  <Dropdown.Item
+                    icon={<Pin size={12} />}
+                    onClick={() => { onTogglePin(msg); setContextMenuPos(null); }}
+                  >
+                    {msg.extra?.isPinned ? '取消置顶消息' : '置顶消息'}
+                  </Dropdown.Item>
+                )}
                 {!msg.isRecalled && (
                   <Dropdown.Item
                     icon={<Trash2 size={12} />}
