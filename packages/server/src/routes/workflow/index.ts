@@ -1,4 +1,5 @@
 import { defineRouteDomain } from '../_kit';
+import workflowAttachmentsRoutes from './workflow-attachments';
 import workflowAutomationsRoutes from './workflow-automations';
 import workflowCategoriesRoutes from './workflow-categories';
 import workflowConnectorsRoutes from './workflow-connectors';
@@ -36,6 +37,7 @@ export default defineRouteDomain({
     ['/api/workflows/delegations', workflowDelegationsRoutes],
     ['/api/workflows/quick-phrases', workflowQuickPhrasesRoutes],
     ['/api/workflows/templates', workflowTemplatesRoutes],
+    ['/api/workflows/attachments', workflowAttachmentsRoutes],
     ['/api/workflows/health', workflowHealthRoutes],
     ['/api/workflows/engine', workflowEngineRoutes],
     ['/api/public/workflow/external-callback', workflowExternalCallbackRoutes],

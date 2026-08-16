@@ -74,6 +74,8 @@ interface FileAttachmentProps {
   style?: CSSProperties;
   /** 是否禁用 */
   disabled?: boolean;
+  /** 上传接口路径（相对 apiBaseUrl），默认 /api/files/upload-one；审批表单等场景可指向按业务权限放行的专用端点 */
+  uploadPath?: string;
 }
 
 type ManagedFileResponse = {
@@ -151,6 +153,7 @@ export default function FileAttachment({
   uploadTip,
   style,
   disabled = false,
+  uploadPath = '/api/files/upload-one',
 }: FileAttachmentProps = {}) {
   const isEditMode = mode === 'edit' && !disabled;
 
@@ -166,7 +169,7 @@ export default function FileAttachment({
   // 图片预览
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
 
-  const uploadAction = `${config.apiBaseUrl}/api/files/upload-one`;
+  const uploadAction = `${config.apiBaseUrl}${uploadPath}`;
   const uploadHeaders = useMemo(() => {
     const token = localStorage.getItem(TOKEN_KEY);
     return token ? { Authorization: `Bearer ${token}` } : {};

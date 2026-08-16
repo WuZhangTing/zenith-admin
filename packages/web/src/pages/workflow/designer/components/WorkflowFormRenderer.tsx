@@ -285,6 +285,7 @@ function FileUploadInput({ value, onChange, disabled, isImage, limit, accept, ma
       accept={accept || (isImage ? 'image/*' : undefined)}
       maxSizeMB={maxSizeMb && maxSizeMb > 0 ? maxSizeMb : undefined}
       uploadTip={isImage ? '上传图片' : '上传文件'}
+      uploadPath="/api/workflows/attachments"
       onChange={(items) => onChange?.(items.map((a) => ({
         name: a.file.originalName,
         url: a.file.url,
