@@ -24,7 +24,7 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
-import { dateTimeColumn } from '@/utils/table-columns';
+import { copyableNoColumn, dateTimeColumn } from '@/utils/table-columns';
 import { JsonBlock } from '@/components/JsonBlock';
 
 const EVENT_OPTIONS = [
@@ -190,7 +190,7 @@ export default function PaymentWebhooksPage() {
     { title: 'ID', dataIndex: 'id', width: 80 },
     { title: '端点', dataIndex: 'endpointName', width: 160, render: (v: string | null) => v || '-' },
     { title: '事件类型', dataIndex: 'eventType', width: 160 },
-    { title: '订单号', dataIndex: 'orderNo', width: 180, render: (v: string | null) => v || '-' },
+    copyableNoColumn('订单号', 'orderNo'),
     { title: '次数', dataIndex: 'attempts', width: 80 },
     { title: 'HTTP', dataIndex: 'httpStatus', width: 90, render: (v: number | null) => v ?? '-' },
     dateTimeColumn('创建时间', 'createdAt'),

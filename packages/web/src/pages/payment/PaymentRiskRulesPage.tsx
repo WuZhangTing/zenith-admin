@@ -8,7 +8,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
-import { createdAtColumn, dateTimeColumn } from '@/utils/table-columns';
+import { copyableNoColumn, createdAtColumn, dateTimeColumn } from '@/utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -194,7 +194,7 @@ export default function PaymentRiskRulesPage() {
   }
 
   const columns: ColumnProps<PaymentRiskRule>[] = [
-    { title: '名称', dataIndex: 'name', width: 150 },
+    { title: '名称', dataIndex: 'name', width: 220 },
     { title: '作用域', dataIndex: 'scope', width: 100, render: (v: PaymentRiskScope) => PAYMENT_RISK_SCOPE_LABELS[v] },
     { title: '范围', dataIndex: 'channel', width: 150, render: (_: unknown, r: PaymentRiskRule) => {
       const text = r.scope === 'channel' ? (r.channel ? PAYMENT_CHANNEL_LABELS[r.channel] : '-') : r.scope === 'bizType' ? (r.bizType || '-') : '全局';
@@ -244,14 +244,14 @@ export default function PaymentRiskRulesPage() {
     { title: '渠道', dataIndex: 'channel', width: 90, render: (v: PaymentChannel) => PAYMENT_CHANNEL_LABELS[v] },
     { title: '业务', dataIndex: 'bizType', width: 140, render: (v: string, r) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 120 }}>{`${v}:${r.bizId}`}</Typography.Text> },
     { title: '金额', dataIndex: 'amount', width: 100, render: (v: number) => yuan(v) },
-    { title: '订单号', dataIndex: 'orderNo', width: 180, render: (v: string | null) => (v ? <Typography.Text ellipsis={{ showTooltip: true }} copyable={{ content: v }} style={{ maxWidth: 160 }}>{v}</Typography.Text> : '-') },
+    copyableNoColumn('订单号', 'orderNo'),
     { title: 'IP', dataIndex: 'clientIp', width: 120, render: (v: string | null) => v || '-' },
     dateTimeColumn('命中时间', 'createdAt', { fixed: 'right' }),
   ];
 
   const reviewColumns: ColumnProps<PaymentRiskReview>[] = [
-    { title: '审核单号', dataIndex: 'reviewNo', width: 180, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} copyable={{ content: v }} style={{ maxWidth: 160 }}>{v}</Typography.Text> },
-    { title: '订单号', dataIndex: 'orderNo', width: 180, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} copyable={{ content: v }} style={{ maxWidth: 160 }}>{v}</Typography.Text> },
+    copyableNoColumn('审核单号', 'reviewNo'),
+    copyableNoColumn('订单号', 'orderNo'),
     { title: '渠道', dataIndex: 'channel', width: 90, render: (v: PaymentChannel) => PAYMENT_CHANNEL_LABELS[v] },
     { title: '业务', dataIndex: 'bizType', width: 140, render: (v: string, r) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 120 }}>{`${v}:${r.bizId}`}</Typography.Text> },
     { title: '金额', dataIndex: 'amount', width: 100, render: (v: number) => yuan(v) },

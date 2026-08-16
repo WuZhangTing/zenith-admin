@@ -30,6 +30,37 @@ export function renderEllipsis(v: string | null | undefined): React.ReactNode {
   );
 }
 
+/** 业务单号列（genNo 生成的定长编号）统一宽度：26 字符 + 复制图标完整单行展示 */
+export const NO_COLUMN_WIDTH = 280;
+
+/**
+ * 业务单号列（订单号 / 退款单号 / 批次号等 genNo 生成的定长编号）：
+ * 完整单行展示 + 复制按钮，空值显示 '—'。
+ *
+ * **禁止**给单号列写 `ellipsis + copyable + 固定像素 maxWidth`——Semi Typography
+ * 的 ellipsis 是 JS 测量截断，与 copyable 图标组合时测量偏保守，会把列宽足够
+ * 容纳的定长单号误截断且不随列宽恢复。定长单号直接完整展示即可。
+ *
+ * @example
+ * copyableNoColumn('订单号', 'orderNo')
+ * copyableNoColumn('批次号', 'batchNo', { width: 300, fixed: 'left' })
+ */
+export function copyableNoColumn<RecordType extends Data = Data>(
+  title: string,
+  dataIndex: string,
+  options?: Pick<ColumnProps<RecordType>, 'width' | 'fixed' | 'sorter'>,
+): ColumnProps<RecordType> {
+  return {
+    title,
+    dataIndex,
+    width: NO_COLUMN_WIDTH,
+    ...options,
+    render: (v: string | null | undefined) => (v
+      ? <Typography.Text style={{ whiteSpace: 'nowrap' }} copyable={{ content: v }}>{v}</Typography.Text>
+      : EMPTY_PLACEHOLDER),
+  };
+}
+
 export function renderEnabledStatusTag(value: string): React.ReactNode {
   return (
     <Tag color={value === 'enabled' ? 'green' : 'red'} size="small">

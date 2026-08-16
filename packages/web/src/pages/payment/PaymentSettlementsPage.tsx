@@ -7,7 +7,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import { formatDateForApi } from '@/utils/date';
-import { createdAtColumn, dateTimeColumn } from '@/utils/table-columns';
+import { copyableNoColumn, createdAtColumn, dateTimeColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -73,9 +73,9 @@ export default function PaymentSettlementsPage() {
   }
 
   const columns: ColumnProps<PaymentSettlementBatch>[] = [
-    { title: '批次号', dataIndex: 'batchNo', width: 190, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} copyable={{ content: v }} style={{ maxWidth: 170 }}>{v}</Typography.Text> },
+    copyableNoColumn('批次号', 'batchNo'),
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
-    { title: '账期', dataIndex: 'periodStart', width: 200, render: (_: unknown, r: PaymentSettlementBatch) => `${r.periodStart} ~ ${r.periodEnd}` },
+    { title: '账期', dataIndex: 'periodStart', width: 240, render: (_: unknown, r: PaymentSettlementBatch) => <span style={{ whiteSpace: 'nowrap' }}>{r.periodStart} ~ {r.periodEnd}</span> },
     { title: '订单数', dataIndex: 'orderCount', width: 80 },
     { title: '收款', dataIndex: 'grossAmount', width: 110, render: (v: number) => yuan(v) },
     { title: '手续费', dataIndex: 'feeAmount', width: 100, render: (v: number) => yuan(v) },

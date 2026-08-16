@@ -13,7 +13,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { compactQuery } from '@/lib/query';
-import { dateTimeColumn } from '@/utils/table-columns';
+import { copyableNoColumn, dateTimeColumn } from '@/utils/table-columns';
 import { JsonBlock } from '@/components/JsonBlock';
 
 interface SearchParams { keyword: string; channel: string; scene: string; signatureValid: string; timeRange: [Date, Date] | null; }
@@ -48,7 +48,7 @@ export default function PaymentLogsPage() {  const {
     { title: 'ID', dataIndex: 'id', width: 80 },
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
     { title: '场景', dataIndex: 'scene', width: 100, render: (v: string) => (v === 'refund' ? '退款回调' : '支付回调') },
-    { title: '订单号', dataIndex: 'orderNo', width: 200, render: (v: string | null) => v || '-' },
+    copyableNoColumn('订单号', 'orderNo'),
     { title: '验签', dataIndex: 'signatureValid', width: 90, render: (v: boolean) => <Tag color={v ? 'green' : 'red'}>{v ? '通过' : '失败'}</Tag> },
     { title: '结果', dataIndex: 'result', width: 120, render: (v: string | null) => v || '-' },
     { title: '说明', dataIndex: 'message', width: 220, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 200 }}>{v || '-'}</Typography.Text> },

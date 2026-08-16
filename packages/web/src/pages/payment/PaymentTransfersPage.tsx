@@ -7,7 +7,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
-import { createdAtColumn, dateTimeColumn } from '@/utils/table-columns';
+import { copyableNoColumn, createdAtColumn, dateTimeColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -101,13 +101,13 @@ export default function PaymentTransfersPage() {
   }
 
   const columns: ColumnProps<PaymentTransfer>[] = [
-    { title: '转账单号', dataIndex: 'transferNo', width: 190, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} copyable={{ content: v }} style={{ maxWidth: 170 }}>{v}</Typography.Text> },
+    copyableNoColumn('转账单号', 'transferNo'),
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
     { title: '收款账号', dataIndex: 'receiverAccount', width: 180, render: (v: string, r: PaymentTransfer) => (
       <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>{r.receiverName ? `${r.receiverName}（${v}）` : v}</Typography.Text>
     ) },
     { title: '金额', dataIndex: 'amount', width: 110, render: (v: number) => <Typography.Text type="danger">{yuan(v)}</Typography.Text> },
-    { title: '渠道单号', dataIndex: 'channelTransferNo', width: 180, render: (v: string | null) => v || '-' },
+    copyableNoColumn('渠道单号', 'channelTransferNo', { width: 300 }),
     { title: '失败原因', dataIndex: 'failReason', width: 180, render: (v: string | null) => (v ? <Typography.Text type="danger" ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>{v}</Typography.Text> : '-') },
     { title: '备注', dataIndex: 'remark', width: 140, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 120 }}>{v || '-'}</Typography.Text> },
     { title: '操作人', dataIndex: 'operatorName', width: 110, render: (v: string | null) => v || '-' },

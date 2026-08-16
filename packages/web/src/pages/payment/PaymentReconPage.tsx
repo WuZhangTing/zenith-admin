@@ -26,7 +26,7 @@ import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_RECON_HANDLE_S
 import type { PaymentChannel, PaymentReconBatch, PaymentReconHandleStatus, PaymentReconItem, PaymentReconResult, PaymentReconStatus } from '@zenith/shared/payment';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
-import { dateColumn, dateTimeColumn } from '@/utils/table-columns';
+import { copyableNoColumn, dateColumn, dateTimeColumn } from '@/utils/table-columns';
 
 const STATUS_COLOR = { pending: 'grey', comparing: 'blue', done: 'green', failed: 'red' } as const satisfies Record<PaymentReconStatus, string>;
 const RESULT_COLOR = { matched: 'green', local_only: 'amber', channel_only: 'orange', amount_diff: 'red', status_diff: 'red' } as const satisfies Record<PaymentReconResult, string>;
@@ -175,7 +175,7 @@ export default function PaymentReconPage() {
   }
 
   const columns: ColumnProps<PaymentReconBatch>[] = [
-    { title: '批次号', dataIndex: 'batchNo', width: 190, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} copyable={{ content: v }} style={{ maxWidth: 170 }}>{v}</Typography.Text> },
+    copyableNoColumn('批次号', 'batchNo'),
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
     dateColumn('账单日期', 'billDate'),
     { title: '本地笔数/金额', dataIndex: 'localCount', width: 150, render: (_: unknown, r: PaymentReconBatch) => `${r.localCount} / ${yuan(r.localAmount)}` },
@@ -208,8 +208,8 @@ export default function PaymentReconPage() {
   ];
 
   const itemColumns: ColumnProps<PaymentReconItem>[] = [
-    { title: '订单号', dataIndex: 'orderNo', width: 180, render: (v: string | null) => v || '-' },
-    { title: '渠道交易号', dataIndex: 'channelTradeNo', width: 180, render: (v: string | null) => v || '-' },
+    copyableNoColumn('订单号', 'orderNo'),
+    copyableNoColumn('渠道交易号', 'channelTradeNo', { width: 300 }),
     { title: '本地金额', dataIndex: 'localAmount', width: 110, render: (v: number | null) => (v == null ? '-' : yuan(v)) },
     { title: '渠道金额', dataIndex: 'channelAmount', width: 110, render: (v: number | null) => (v == null ? '-' : yuan(v)) },
     { title: '本地状态', dataIndex: 'localStatus', width: 100, render: (v: string | null) => v || '-' },

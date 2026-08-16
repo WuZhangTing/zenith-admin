@@ -7,7 +7,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
-import { createdAtColumn, dateTimeColumn } from '@/utils/table-columns';
+import { copyableNoColumn, createdAtColumn, dateTimeColumn } from '@/utils/table-columns';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -122,13 +122,13 @@ export default function PaymentPreauthsPage() {
   }
 
   const columns: ColumnProps<PaymentPreauth>[] = [
-    { title: '预授权单号', dataIndex: 'preauthNo', width: 190, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} copyable={{ content: v }} style={{ maxWidth: 170 }}>{v}</Typography.Text> },
+    copyableNoColumn('预授权单号', 'preauthNo'),
     { title: '渠道', dataIndex: 'channel', width: 90, render: (v: PaymentChannel) => PAYMENT_CHANNEL_LABELS[v] },
     { title: '冻结事由', dataIndex: 'subject', width: 180, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>{v}</Typography.Text> },
     { title: '付款人', dataIndex: 'payerAccount', width: 150, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 130 }}>{v}</Typography.Text> },
     { title: '冻结金额', dataIndex: 'frozenAmount', width: 110, render: (v: number) => yuan(v) },
     { title: '转支付金额', dataIndex: 'capturedAmount', width: 110, render: (v: number | null) => (v == null ? '-' : yuan(v)) },
-    { title: '转支付订单', dataIndex: 'captureOrderNo', width: 180, render: (v: string | null) => (v ? <Typography.Text ellipsis={{ showTooltip: true }} copyable={{ content: v }} style={{ maxWidth: 160 }}>{v}</Typography.Text> : '-') },
+    copyableNoColumn('转支付订单', 'captureOrderNo'),
     dateTimeColumn('冻结时间', 'frozenAt'),
     createdAtColumn as ColumnProps<PaymentPreauth>,
     { title: '状态', dataIndex: 'status', width: 95, fixed: 'right', render: (v: PaymentPreauthStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_PREAUTH_STATUS_LABELS[v]}</Tag> },

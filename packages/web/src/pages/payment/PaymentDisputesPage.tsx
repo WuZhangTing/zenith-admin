@@ -7,7 +7,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
-import { createdAtColumn } from '@/utils/table-columns';
+import { copyableNoColumn, createdAtColumn } from '@/utils/table-columns';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
 import {
@@ -117,8 +117,8 @@ export default function PaymentDisputesPage() {
   }
 
   const columns: ColumnProps<PaymentDispute>[] = [
-    { title: '投诉单号', dataIndex: 'disputeNo', width: 190, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} copyable={{ content: v }} style={{ maxWidth: 170 }}>{v}</Typography.Text> },
-    { title: '订单号', dataIndex: 'orderNo', width: 190, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} copyable={{ content: v }} style={{ maxWidth: 170 }}>{v}</Typography.Text> },
+    copyableNoColumn('投诉单号', 'disputeNo'),
+    copyableNoColumn('订单号', 'orderNo'),
     { title: '渠道', dataIndex: 'channel', width: 90, render: (v: PaymentChannel) => PAYMENT_CHANNEL_LABELS[v] },
     { title: '类型', dataIndex: 'type', width: 100, render: (v: PaymentDisputeType) => PAYMENT_DISPUTE_TYPE_LABELS[v] },
     { title: '涉诉金额', dataIndex: 'amount', width: 100, render: (v: number) => yuan(v) },

@@ -35,7 +35,7 @@ import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
 import { compactQuery } from '@/lib/query';
-import { dateTimeColumn } from '@/utils/table-columns';
+import { copyableNoColumn, dateTimeColumn } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
 
 const STATUS_COLOR = {
@@ -212,7 +212,7 @@ export default function PaymentOrdersPage() {
   }
 
   const columns: ColumnProps<PaymentOrder>[] = [
-    { title: '订单号', dataIndex: 'orderNo', width: 280, render: (v: string) => <Typography.Text copyable={{ content: v }}>{v}</Typography.Text> },
+    copyableNoColumn('订单号', 'orderNo'),
     { title: '标题', dataIndex: 'subject', width: 180, render: (v: string) => v || '-' },
     { title: '金额', dataIndex: 'amount', width: 110, render: (v: number) => yuan(v) },
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
@@ -259,7 +259,7 @@ export default function PaymentOrdersPage() {
   ];
 
   const detailRefundColumns: ColumnProps<PaymentRefund>[] = [
-    { title: '退款单号', dataIndex: 'refundNo', width: 280, render: (v: string) => <Typography.Text copyable={{ content: v }}>{v}</Typography.Text> },
+    copyableNoColumn('退款单号', 'refundNo'),
     { title: '金额', dataIndex: 'refundAmount', width: 90, render: (v: number) => yuan(v) },
     { title: '状态', dataIndex: 'status', width: 90, render: (v: PaymentRefundStatus) => <Tag color={REFUND_STATUS_COLOR[v]}>{PAYMENT_REFUND_STATUS_LABELS[v]}</Tag> },
     dateTimeColumn('退款时间', 'refundedAt'),

@@ -23,7 +23,7 @@ import {
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { compactQuery } from '@/lib/query';
-import { dateTimeColumn } from '@/utils/table-columns';
+import { copyableNoColumn, dateTimeColumn } from '@/utils/table-columns';
 
 const STATUS_COLOR = { pending: 'grey', processing: 'blue', success: 'green', failed: 'red' } as const satisfies Record<PaymentRefundStatus, string>;
 const APPROVAL_COLOR = { none: 'grey', pending: 'amber', approved: 'green', rejected: 'red' } as const satisfies Record<PaymentRefundApprovalStatus, string>;
@@ -83,8 +83,8 @@ export default function PaymentRefundsPage() {
   }
 
   const columns: ColumnProps<PaymentRefund>[] = [
-    { title: '退款单号', dataIndex: 'refundNo', width: 200, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} copyable={{ content: v }} style={{ maxWidth: 180 }}>{v}</Typography.Text> },
-    { title: '原订单号', dataIndex: 'orderNo', width: 200, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} copyable={{ content: v }} style={{ maxWidth: 180 }}>{v}</Typography.Text> },
+    copyableNoColumn('退款单号', 'refundNo'),
+    copyableNoColumn('原订单号', 'orderNo'),
     { title: '退款金额', dataIndex: 'refundAmount', width: 110, render: (v: number) => yuan(v) },
     { title: '原单金额', dataIndex: 'totalAmount', width: 110, render: (v: number) => yuan(v) },
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },

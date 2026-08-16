@@ -9,7 +9,7 @@ import { paymentEventKeys, usePaymentEventList, usePaymentOpsHealth, useRedispat
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
-import { dateTimeColumn } from '@/utils/table-columns';
+import { copyableNoColumn, dateTimeColumn } from '@/utils/table-columns';
 
 const EVENT_STATUS_LABELS = { pending: '待处理', done: '已完成', failed: '失败' } as const satisfies Record<PaymentOutboxEvent['status'], string>;
 const EVENT_STATUS_COLOR = { pending: 'blue', done: 'green', failed: 'red' } as const satisfies Record<PaymentOutboxEvent['status'], string>;
@@ -53,7 +53,7 @@ export default function PaymentEventsPage() {
   const columns: ColumnProps<PaymentOutboxEvent>[] = [
     { title: 'ID', dataIndex: 'id', width: 80 },
     { title: '事件类型', dataIndex: 'type', width: 180 },
-    { title: '订单号', dataIndex: 'orderNo', width: 200 },
+    copyableNoColumn('订单号', 'orderNo'),
     { title: '次数', dataIndex: 'attempts', width: 80 },
     { title: '错误信息', dataIndex: 'lastError', width: 260, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 240 }}>{v || '-'}</Typography.Text> },
     dateTimeColumn('创建时间', 'createdAt'),
