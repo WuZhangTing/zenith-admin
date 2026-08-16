@@ -41,12 +41,26 @@
 
 实例详情接口接受 `workflow:instance:list`、`workflow:task:handle`、`workflow:instance:monitor` 三者任一；持有 `monitor` 的管理员可查看全局实例详情，其余身份按参与关系过滤（见下文「实例详情可见性」）。
 
+面向发起与审批场景的公共读取接口按业务身份放行，不要求管理端权限：
+
+| 接口 | 放行权限（任一） | 说明 |
+| --- | --- | --- |
+| `GET /api/workflows/categories/all` | `workflow:definition:list` / `workflow:instance:create` / `workflow:task:handle` | 发起工作台分组、待办筛选读取全部分类 |
+| `GET /api/workflows/definitions/published` | `workflow:instance:create` | 发起工作台与发起深链读取「已发布定义」（按发起范围过滤），整页发起 `/workflow/launch/:id` 同源取数，不调用管理端定义详情接口 |
+
+### 文件上传
+
+| 接口 | 权限 | 用途 |
+| --- | --- | --- |
+| `POST /api/workflows/attachments` | `workflow:instance:create` / `workflow:task:handle` 任一 | 发起与审批表单的附件、图片字段上传；执行统一大小/真实类型校验，进入受管文件与工作流审计 |
+| `POST /api/files/upload-one` | `system:file:upload` | 文件中心的管理端直传，与审批表单权限隔离 |
+
 ### 监控与运维
 
 | 权限点 | 说明 |
 | --- | --- |
 | `workflow:instance:monitor` | 全局实例监控、数据分析、诊断、运行轨迹、Token 跳过、批量推进卡死实例、补偿工单查看 |
-| `workflow:instance:cancel` | 取消流程、强制跳转、改派处理人、Token 重放等高危操作 |
+| `workflow:instance:cancel` | 取消流程、强制跳转（原因必填并留痕）、改派处理人、Token 重放等高危操作 |
 | `workflow:instance:delete` | 删除流程实例 |
 | `workflow:engine:operate` | 引擎恢复动作、实例迁移、补偿工单处理、挂起/恢复实例 |
 | `workflow:task:handover` | 离职交接：批量移交某人名下待办并停用其审批代理 |
