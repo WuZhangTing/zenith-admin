@@ -48,13 +48,14 @@ export interface RecordLedgerInput {
   tenantId?: number | null;
 }
 
-/** 记一条资金流水（幂等：退款按 refundNo 去重，收款/手续费按 orderNo+type 去重；
+/** 记一条资金流水（幂等：带 refundNo 的记账（退款支出/手续费冲销）按 refundNo+type 去重，
+ * 原始记账（收款/手续费）按 orderNo+type 去重；
  * 先查后插为快路径，并发窗口由部分唯一索引 + ON CONFLICT DO NOTHING 兜底）。
  * 流水真实落库后原子联动商户资金账户快照（payment_accounts）。 */
 export async function recordLedgerEntry(input: RecordLedgerInput): Promise<void> {
   if (input.amount <= 0) return;
-  if (input.type === 'refund' && input.refundNo) {
-    const exists = await db.$count(paymentLedgerEntries, and(eq(paymentLedgerEntries.refundNo, input.refundNo), eq(paymentLedgerEntries.type, 'refund')));
+  if (input.refundNo) {
+    const exists = await db.$count(paymentLedgerEntries, and(eq(paymentLedgerEntries.refundNo, input.refundNo), eq(paymentLedgerEntries.type, input.type)));
     if (exists > 0) return;
   } else if (input.orderNo) {
     const exists = await db.$count(paymentLedgerEntries, and(eq(paymentLedgerEntries.orderNo, input.orderNo), eq(paymentLedgerEntries.type, input.type)));

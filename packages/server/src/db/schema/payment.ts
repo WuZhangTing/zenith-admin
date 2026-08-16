@@ -316,9 +316,11 @@ export const paymentLedgerEntries = pgTable('payment_ledger_entries', {
 }, (t) => [index('payment_ledger_entries_tenant_idx').on(t.tenantId), 
   index('payment_ledger_order_idx').on(t.orderNo),
   index('payment_ledger_type_idx').on(t.type),
-  // 记账幂等（DB 层兜底）：同一订单的收款/手续费各至多一条；同一退款单至多一条退款流水
-  uniqueIndex('payment_ledger_order_type_uq').on(t.orderNo, t.type).where(sql`${t.orderNo} is not null and ${t.type} in ('payment', 'fee')`),
-  uniqueIndex('payment_ledger_refund_uq').on(t.refundNo).where(sql`${t.refundNo} is not null and ${t.type} = 'refund'`),
+  // 记账幂等（DB 层兜底）：
+  // - 原始记账（无 refundNo）：同一订单的收款/手续费各至多一条
+  // - 退款关联记账（带 refundNo）：同一退款单的退款支出/手续费冲销各至多一条
+  uniqueIndex('payment_ledger_order_type_uq').on(t.orderNo, t.type).where(sql`${t.orderNo} is not null and ${t.refundNo} is null and ${t.type} in ('payment', 'fee')`),
+  uniqueIndex('payment_ledger_refund_type_uq').on(t.refundNo, t.type).where(sql`${t.refundNo} is not null`),
 ]);
 
 export type PaymentLedgerEntryRow = typeof paymentLedgerEntries.$inferSelect;

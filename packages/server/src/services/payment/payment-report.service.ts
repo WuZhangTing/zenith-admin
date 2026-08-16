@@ -75,7 +75,8 @@ async function aggregateFromLedger(groupBy: PaymentReportGroupBy, start: Date | 
     .select({
       key: keyExpr,
       gross: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'payment' then ${paymentLedgerEntries.amount} else 0 end),0)`,
-      fee: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'fee' then ${paymentLedgerEntries.amount} else 0 end),0)`,
+      // fee 方向敏感：out=扣收，in=退款冲销（净手续费 = out - in）
+      fee: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'fee' then (case when ${paymentLedgerEntries.direction} = 'in' then -${paymentLedgerEntries.amount} else ${paymentLedgerEntries.amount} end) else 0 end),0)`,
       refund: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'refund' then ${paymentLedgerEntries.amount} else 0 end),0)`,
       count: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'payment' then 1 else 0 end),0)`,
     })
@@ -195,7 +196,8 @@ export async function rebuildPaymentReportDaily(days = 2): Promise<number> {
         channel: sql<string>`coalesce(${paymentLedgerEntries.channel}::text, '')`,
         bizType: sql<string>`coalesce(${paymentLedgerEntries.bizType}, '')`,
         gross: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'payment' then ${paymentLedgerEntries.amount} else 0 end),0)`,
-        fee: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'fee' then ${paymentLedgerEntries.amount} else 0 end),0)`,
+        // fee 方向敏感：out=扣收，in=退款冲销（净手续费 = out - in）
+        fee: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'fee' then (case when ${paymentLedgerEntries.direction} = 'in' then -${paymentLedgerEntries.amount} else ${paymentLedgerEntries.amount} end) else 0 end),0)`,
         refund: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'refund' then ${paymentLedgerEntries.amount} else 0 end),0)`,
         count: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'payment' then 1 else 0 end),0)`,
         tenantId: paymentLedgerEntries.tenantId,

@@ -56,7 +56,8 @@ function deltaOf(type: PaymentLedgerType, direction: PaymentLedgerDirection, amo
     case 'payment':
       return { pendingSettle: amount };
     case 'fee':
-      return { pendingSettle: -amount };
+      // out=手续费扣收，in=退款手续费冲销（返还）
+      return { pendingSettle: direction === 'in' ? amount : -amount };
     case 'refund':
       return { pendingSettle: -amount };
     case 'settlement':
@@ -128,7 +129,8 @@ async function computeAllFromLedger(): Promise<Map<string, ComputedBalance>> {
       channel: paymentLedgerEntries.channel,
       tenantId: paymentLedgerEntries.tenantId,
       payment: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'payment' then ${paymentLedgerEntries.amount} else 0 end),0)`,
-      fee: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'fee' then ${paymentLedgerEntries.amount} else 0 end),0)`,
+      // fee 方向敏感：out=扣收，in=退款冲销（净手续费 = out - in）
+      fee: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'fee' then (case when ${paymentLedgerEntries.direction} = 'in' then -${paymentLedgerEntries.amount} else ${paymentLedgerEntries.amount} end) else 0 end),0)`,
       refund: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'refund' then ${paymentLedgerEntries.amount} else 0 end),0)`,
       settlement: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'settlement' then ${paymentLedgerEntries.amount} else 0 end),0)`,
       transfer: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'transfer' then ${paymentLedgerEntries.amount} else 0 end),0)`,

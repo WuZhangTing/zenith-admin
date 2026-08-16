@@ -34,7 +34,7 @@ vi.mock('../../lib/logger', () => ({
 
 import { db } from '../../db';
 import { recordLedgerEntry } from './payment-ledger.service';
-import { computeFeeByRule, matchFeeRule, settleOrderFee } from './payment-fee.service';
+import { computeFeeByRule, matchFeeRule, reverseFeeOnRefund, settleOrderFee } from './payment-fee.service';
 import type { PaymentFeeRuleRow } from '../../db/schema';
 
 const dbMock = vi.mocked(db);
@@ -274,5 +274,59 @@ describe('settleOrderFee - 幂等结算', () => {
     await settleOrderFee(order.orderNo);
 
     expect(claimChain.set).toHaveBeenCalledWith({ feeAmount: 50, netAmount: 4950 });
+  });
+});
+
+// ─── reverseFeeOnRefund ───────────────────────────────────────────────────────
+describe('reverseFeeOnRefund - 退款手续费按比例冲销', () => {
+  /** select 依次返回：订单、累计成功退款、已冲销手续费 */
+  function mockReverseQueries(order: OrderLike | null, refundedTotal: number, reversedTotal: number) {
+    dbMock.select
+      .mockReturnValueOnce(createChain(order ? [order] : []))
+      .mockReturnValueOnce(createChain([{ total: refundedTotal }]))
+      .mockReturnValueOnce(createChain([{ total: reversedTotal }]));
+  }
+
+  it('部分退款：按退款比例四舍五入冲销（fee 60、实付 10000、退 3000 → 冲 18）', async () => {
+    mockReverseQueries(makeOrder({ feeAmount: 60 }), 3000, 0);
+    await reverseFeeOnRefund({ orderNo: 'PO20260705001', refundNo: 'REF1', refundAmount: 3000 });
+    expect(ledgerMock).toHaveBeenCalledWith(expect.objectContaining({
+      direction: 'in', type: 'fee', amount: 18, refundNo: 'REF1', remark: '退款手续费冲销（按比例）',
+    }));
+  });
+
+  it('末笔全额退款：冲销额 = fee − 已冲销（消除多笔部分退的舍入残差）', async () => {
+    // fee 60、已冲 18；本笔退 7000 后累计 10000 打满实付 → 冲 60-18=42 而非 round(60×7000/10000)=42（此例相等，改用产生残差的数字）
+    mockReverseQueries(makeOrder({ feeAmount: 59 }), 10000, 18);
+    await reverseFeeOnRefund({ orderNo: 'PO20260705001', refundNo: 'REF2', refundAmount: 7000 });
+    expect(ledgerMock).toHaveBeenCalledWith(expect.objectContaining({
+      direction: 'in', type: 'fee', amount: 41, remark: '退款手续费冲销（全额退款）',
+    }));
+  });
+
+  it('冲销额被剩余可冲上限截断（比例计算超过剩余时取剩余）', async () => {
+    // fee 60、已冲 55、部分退 5000/10000 → 比例 30 > 剩余 5 → 冲 5
+    mockReverseQueries(makeOrder({ feeAmount: 60 }), 5000, 55);
+    await reverseFeeOnRefund({ orderNo: 'PO20260705001', refundNo: 'REF3', refundAmount: 5000 });
+    expect(ledgerMock).toHaveBeenCalledWith(expect.objectContaining({ amount: 5 }));
+  });
+
+  it('手续费已全部冲销 → 不再记账（重复投递幂等）', async () => {
+    mockReverseQueries(makeOrder({ feeAmount: 60 }), 10000, 60);
+    await reverseFeeOnRefund({ orderNo: 'PO20260705001', refundNo: 'REF4', refundAmount: 10000 });
+    expect(ledgerMock).not.toHaveBeenCalled();
+  });
+
+  it('无手续费订单（feeAmount null/0）→ 跳过', async () => {
+    dbMock.select.mockReturnValueOnce(createChain([makeOrder({ feeAmount: null })]));
+    await reverseFeeOnRefund({ orderNo: 'PO20260705001', refundNo: 'REF5', refundAmount: 1000 });
+    expect(ledgerMock).not.toHaveBeenCalled();
+  });
+
+  it('缺 refundNo 或退款金额非正 → 跳过（不查库）', async () => {
+    await reverseFeeOnRefund({ orderNo: 'PO20260705001', refundAmount: 1000 });
+    await reverseFeeOnRefund({ orderNo: 'PO20260705001', refundNo: 'REF6', refundAmount: 0 });
+    expect(dbMock.select).not.toHaveBeenCalled();
+    expect(ledgerMock).not.toHaveBeenCalled();
   });
 });

@@ -3,10 +3,10 @@
  * 维护费率规则（按渠道/支付方式匹配，万分比 + 固定费，clamp 上下限），
  * 监听 payment.succeeded 计算手续费：回写订单 feeAmount/netAmount 并记资金台账（type=fee）。
  */
-import { and, desc, eq, isNull, or } from 'drizzle-orm';
+import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { paymentFeeRules, paymentOrders, type PaymentFeeRuleRow } from '../../db/schema';
+import { paymentFeeRules, paymentLedgerEntries, paymentOrders, paymentRefunds, type PaymentFeeRuleRow } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
 import { mergeWhere, withPagination } from '../../lib/where-helpers';
@@ -192,7 +192,7 @@ export async function settleOrderFee(orderNo: string): Promise<void> {
 }
 
 let registered = false;
-/** 注册手续费订阅者（支付成功时结算手续费）。 */
+/** 注册手续费订阅者（支付成功结算手续费，退款成功按比例冲销）。 */
 export function registerFeeSubscribers(): void {
   if (registered) return;
   registered = true;
@@ -202,5 +202,60 @@ export function registerFeeSubscribers(): void {
       throw err;
     });
   });
+  paymentEventBus.on('refund.succeeded', (e) => {
+    return reverseFeeOnRefund({ orderNo: e.orderNo, refundNo: e.refundNo, refundAmount: e.refundAmount }).catch((err) => {
+      logger.error('[payment-fee] reverse fee failed', { orderNo: e.orderNo, refundNo: e.refundNo, err });
+      throw err;
+    });
+  });
   logger.info('Payment fee subscribers registered');
+}
+
+/**
+ * 退款成功后按退款比例冲销手续费（对齐渠道真实行为：退款时按比例返还手续费）。
+ *
+ * - 冲销额 = round(订单手续费 × 本次退款额 / 实付额)；
+ * - 末笔补差：累计成功退款打满实付额时，冲销额 = 手续费 − 已冲销，消除多笔部分退款的舍入残差；
+ * - 幂等：台账按 refundNo + type='fee' 去重（recordLedgerEntry 快路径 + DB 部分唯一索引兜底），
+ *   事件重复投递不会重复冲销；
+ * - 订单 feeAmount 保持下单时快照不变（结算单为应结快照口径），资金事实以台账为准。
+ */
+export async function reverseFeeOnRefund(e: { orderNo: string; refundNo?: string; refundAmount?: number }): Promise<void> {
+  if (!e.refundNo || !e.refundAmount || e.refundAmount <= 0) return;
+  const [order] = await db.select().from(paymentOrders).where(eq(paymentOrders.orderNo, e.orderNo)).limit(1);
+  if (!order || order.feeAmount == null || order.feeAmount <= 0) return;
+  const paidAmount = order.paidAmount ?? order.amount;
+  if (paidAmount <= 0) return;
+
+  const [[refundedRow], [reversedRow]] = await Promise.all([
+    db
+      .select({ total: sql<number>`coalesce(sum(${paymentRefunds.refundAmount}),0)` })
+      .from(paymentRefunds)
+      .where(and(eq(paymentRefunds.orderId, order.id), eq(paymentRefunds.status, 'success'))),
+    db
+      .select({ total: sql<number>`coalesce(sum(${paymentLedgerEntries.amount}),0)` })
+      .from(paymentLedgerEntries)
+      .where(and(eq(paymentLedgerEntries.orderNo, order.orderNo), eq(paymentLedgerEntries.type, 'fee'), eq(paymentLedgerEntries.direction, 'in'))),
+  ]);
+  const refundedTotal = Number(refundedRow?.total ?? 0);
+  const reversedTotal = Number(reversedRow?.total ?? 0);
+
+  const fullyRefunded = refundedTotal >= paidAmount;
+  let reverse = fullyRefunded
+    ? order.feeAmount - reversedTotal
+    : Math.round((order.feeAmount * e.refundAmount) / paidAmount);
+  reverse = Math.min(reverse, order.feeAmount - reversedTotal);
+  if (reverse <= 0) return;
+
+  await recordLedgerEntry({
+    direction: 'in',
+    type: 'fee',
+    amount: reverse,
+    orderNo: order.orderNo,
+    refundNo: e.refundNo,
+    channel: order.channel,
+    bizType: order.bizType,
+    tenantId: order.tenantId,
+    remark: fullyRefunded ? '退款手续费冲销（全额退款）' : '退款手续费冲销（按比例）',
+  });
 }
