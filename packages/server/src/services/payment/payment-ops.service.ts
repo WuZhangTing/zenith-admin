@@ -30,6 +30,7 @@ export function mapOutboxEvent(row: PaymentEventRow): PaymentOutboxEvent {
     orderNo: row.orderNo,
     status: row.status,
     attempts: row.attempts,
+    payload: row.payload ?? null,
     lastError: row.lastError ?? null,
     createdAt: formatDateTime(row.createdAt),
     processedAt: formatNullableDateTime(row.processedAt),

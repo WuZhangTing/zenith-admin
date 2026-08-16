@@ -288,6 +288,7 @@ export const PaymentOutboxEventDTO = z
     orderNo: z.string(),
     status: z.enum(['pending', 'done', 'failed']),
     attempts: z.number().int(),
+    payload: z.string().nullable().optional(),
     lastError: z.string().nullable().optional(),
     createdAt: z.string(),
     processedAt: z.string().nullable().optional(),

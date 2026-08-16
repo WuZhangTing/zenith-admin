@@ -135,6 +135,11 @@ export async function updateEndpoint(id: number, input: Partial<UpsertEndpointIn
 
 export async function deleteEndpoint(id: number): Promise<void> {
   await ensureEndpoint(id);
+  // 投递日志随端点级联删除：有历史投递的端点删除会丢失审计记录，只允许停用
+  const deliveryCount = await db.$count(paymentWebhookDeliveries, eq(paymentWebhookDeliveries.endpointId, id));
+  if (deliveryCount > 0) {
+    throw new HTTPException(400, { message: `该端点已有 ${deliveryCount} 条投递记录，删除将丢失审计历史，请改为停用` });
+  }
   const tc = tenantCondition(paymentWebhookEndpoints, currentUser());
   await db.delete(paymentWebhookEndpoints).where(and(eq(paymentWebhookEndpoints.id, id), tc));
 }

@@ -184,6 +184,8 @@ export interface PaymentOutboxEvent {
   orderNo: string;
   status: 'pending' | 'done' | 'failed';
   attempts: number;
+  /** 事件载荷 JSON（投递给订阅者/Webhook 的内容），运营排障用 */
+  payload?: string | null;
   lastError?: string | null;
   createdAt: string;
   processedAt?: string | null;
